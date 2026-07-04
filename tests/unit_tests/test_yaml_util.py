@@ -1111,7 +1111,7 @@ def test_force_load_include_files_warns_on_load_failure(
 
 
 def test_discovered_yaml_files_holds_files_and_secrets() -> None:
-    """`DiscoveredYamlFiles` is a small data carrier; both fields are mandatory."""
+    """`DiscoveredYamlFiles` is a small data carrier."""
     files = [Path("/tmp/a.yaml")]
     secrets = {Path("/tmp/a.yaml")}
     discovered = DiscoveredYamlFiles(files, secrets)

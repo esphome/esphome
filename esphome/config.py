@@ -1332,25 +1332,12 @@ def _load_config(
         raise InvalidYAMLError(e) from e
 
     try:
-        result = validate_config(
-            config, command_line_substitutions, skip_external_update
-        )
+        return validate_config(config, command_line_substitutions, skip_external_update)
     except EsphomeError:
         raise
     except Exception:
         _LOGGER.error("Unexpected exception while reading configuration:")
         raise
-
-    # Discover the user's on-disk YAML files via a fresh re-parse — same
-    # pattern bundle.py uses. Doing it post-validation (rather than keeping a
-    # listener installed across validation) avoids capturing framework YAML
-    # that components load internally (e.g. LVGL's `hello_world.yaml`). Only
-    # run when a consumer is configured: the re-parse force-loads every
-    # include and would otherwise tax every compile. `result` is the fully
-    # merged config, so store_yaml pulled in via packages is seen here too.
-    if "store_yaml" in result:
-        CORE.data["yaml_sources"] = yaml_util.discover_user_yaml_files(CORE.config_path)
-    return result
 
 
 def load_config(

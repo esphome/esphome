@@ -316,7 +316,10 @@ void APIConnection::loop() {
 #endif
 
 #ifdef USE_STORE_YAML
-  this->try_send_store_yaml_();
+  // Guard inline so the idle hot path pays a compare, not a function call.
+  if (this->store_yaml_pos_ != std::numeric_limits<size_t>::max()) {
+    this->try_send_store_yaml_();
+  }
 #endif
 }
 
@@ -1166,17 +1169,20 @@ void APIConnection::on_camera_image_request(const CameraImageRequest &msg) {
 // Chunk size per GetYamlResponse. Small enough to leave room for the protobuf frame
 // inside the 65535-byte API limit and friendly to TCP MSS.
 static constexpr size_t STORE_YAML_CHUNK_SIZE = 512;
-// Scratch buffer used to copy a chunk from PROGMEM (needed on ESP8266; harmless
-// elsewhere). Shared across connections is safe because the API loop is
-// single-threaded and each chunk is filled and consumed atomically inside one
-// `try_send_store_yaml_` iteration.
+#ifdef USE_ESP8266
+// On ESP8266 the blob lives in instruction flash and can't be read directly, so
+// each chunk is bounced through this static buffer via progmem_memcpy. Shared
+// across connections is safe because the API loop is single-threaded and each
+// chunk is filled and consumed atomically inside one `try_send_store_yaml_`
+// iteration. Every other platform sends straight from the blob, zero-copy.
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static uint8_t store_yaml_chunk_buf[STORE_YAML_CHUNK_SIZE];
+#endif
 
 void APIConnection::on_get_yaml_request() {
-  auto *comp = store_yaml::global_store_yaml;
-  if (comp == nullptr || comp->get_size() == 0) {
-    // No blob — send a single done=true response so the client doesn't hang.
+  if (store_yaml::global_store_yaml == nullptr) {
+    // Request arrived before the component's setup() ran — send a single
+    // done=true response so the client doesn't hang.
     GetYamlResponse resp;
     resp.done = true;
     this->send_message(resp);
@@ -1186,18 +1192,10 @@ void APIConnection::on_get_yaml_request() {
   this->try_send_store_yaml_();
 }
 
+// Caller guarantees: store_yaml_pos_ != SIZE_MAX (a stream is in progress), which
+// implies on_get_yaml_request() already saw the never-cleared global non-null.
 void APIConnection::try_send_store_yaml_() {
-  if (this->store_yaml_pos_ == std::numeric_limits<size_t>::max())
-    return;
   auto *comp = store_yaml::global_store_yaml;
-  if (comp == nullptr) {
-    // Defensive only: the global is set once in setup() and never cleared,
-    // and streaming can only start after on_get_yaml_request() saw it
-    // non-null, so this cannot happen mid-stream.
-    this->store_yaml_pos_ = std::numeric_limits<size_t>::max();
-    return;
-  }
-
   const size_t total = comp->get_size();
 
   // Camera-style streaming: advance the position only after a successful send,
@@ -1207,14 +1205,15 @@ void APIConnection::try_send_store_yaml_() {
       return;
 
     const size_t remaining = total - this->store_yaml_pos_;
-    const size_t to_send = remaining < STORE_YAML_CHUNK_SIZE ? remaining : STORE_YAML_CHUNK_SIZE;
-
-    // Copy a chunk out of PROGMEM into a stack buffer; on ESP8266 this routes
-    // through progmem_read_byte, on every other platform it's a plain byte copy.
-    comp->read_chunk(this->store_yaml_pos_, store_yaml_chunk_buf, to_send);
+    const size_t to_send = std::min(remaining, STORE_YAML_CHUNK_SIZE);
 
     GetYamlResponse resp;
+#ifdef USE_ESP8266
+    progmem_memcpy(store_yaml_chunk_buf, comp->get_data() + this->store_yaml_pos_, to_send);
     resp.set_data(store_yaml_chunk_buf, to_send);
+#else
+    resp.set_data(comp->get_data() + this->store_yaml_pos_, to_send);
+#endif
     if (this->store_yaml_pos_ == 0) {
       resp.total_size = static_cast<uint32_t>(total);
       resp.encoding = StringRef(store_yaml::ENCODING);
@@ -1876,7 +1875,8 @@ bool APIConnection::send_device_info_response_() {
   resp.has_deep_sleep = deep_sleep::global_has_deep_sleep;
 #endif
 #ifdef USE_STORE_YAML
-  resp.has_store_yaml = store_yaml::global_store_yaml != nullptr && store_yaml::global_store_yaml->get_size() > 0;
+  // Codegen always embeds a non-empty blob, so presence of the component implies data.
+  resp.has_store_yaml = store_yaml::global_store_yaml != nullptr;
 #endif
 #ifdef ESPHOME_PROJECT_NAME
 #ifdef USE_ESP8266

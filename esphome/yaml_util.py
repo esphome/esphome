@@ -271,8 +271,6 @@ def force_load_include_files(
     obj: Any,
     *,
     warn_on_unresolved: bool = True,
-    _seen: set[int] | None = None,
-    _unresolved: list[str] | None = None,
 ) -> list[str]:
     """Recursively resolve any deferred ``IncludeFile`` instances in a YAML tree.
 
@@ -289,63 +287,43 @@ def force_load_include_files(
     to a debug log. Returns the path strings of those unloadable includes so
     callers can tell the walk was incomplete.
     """
-    if _seen is None:
-        _seen = set()
-    if _unresolved is None:
-        _unresolved = []
+    seen: set[int] = set()
+    unresolved: list[str] = []
 
-    if isinstance(obj, IncludeFile):
-        if id(obj) in _seen:
-            return _unresolved
-        _seen.add(id(obj))
-        if obj.has_unresolved_expressions():
-            log = _LOGGER.warning if warn_on_unresolved else _LOGGER.debug
-            log(
-                "Cannot resolve !include %s (referenced from %s) with substitutions in path",
-                obj.file,
-                obj.parent_file,
-            )
-            _unresolved.append(str(obj.file))
-            return _unresolved
-        try:
-            loaded = obj.load()
-        except EsphomeError as err:
-            _LOGGER.warning(
-                "Failed to load !include %s (referenced from %s): %s",
-                obj.file,
-                obj.parent_file,
-                err,
-            )
-            return _unresolved
-        force_load_include_files(
-            loaded,
-            warn_on_unresolved=warn_on_unresolved,
-            _seen=_seen,
-            _unresolved=_unresolved,
-        )
-    elif isinstance(obj, dict):
-        if id(obj) in _seen:
-            return _unresolved
-        _seen.add(id(obj))
-        for value in obj.values():
-            force_load_include_files(
-                value,
-                warn_on_unresolved=warn_on_unresolved,
-                _seen=_seen,
-                _unresolved=_unresolved,
-            )
-    elif isinstance(obj, (list, tuple)):
-        if id(obj) in _seen:
-            return _unresolved
-        _seen.add(id(obj))
-        for item in obj:
-            force_load_include_files(
-                item,
-                warn_on_unresolved=warn_on_unresolved,
-                _seen=_seen,
-                _unresolved=_unresolved,
-            )
-    return _unresolved
+    def walk(node: Any) -> None:
+        if not isinstance(node, (IncludeFile, dict, list, tuple)) or id(node) in seen:
+            return
+        seen.add(id(node))
+        if isinstance(node, IncludeFile):
+            if node.has_unresolved_expressions():
+                log = _LOGGER.warning if warn_on_unresolved else _LOGGER.debug
+                log(
+                    "Cannot resolve !include %s (referenced from %s) with substitutions in path",
+                    node.file,
+                    node.parent_file,
+                )
+                unresolved.append(str(node.file))
+                return
+            try:
+                loaded = node.load()
+            except EsphomeError as err:
+                _LOGGER.warning(
+                    "Failed to load !include %s (referenced from %s): %s",
+                    node.file,
+                    node.parent_file,
+                    err,
+                )
+                return
+            walk(loaded)
+        elif isinstance(node, dict):
+            for value in node.values():
+                walk(value)
+        else:
+            for item in node:
+                walk(item)
+
+    walk(obj)
+    return unresolved
 
 
 @dataclass(slots=True)

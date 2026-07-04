@@ -151,27 +151,6 @@ def test_validate_config_warns_on_dropped_merge_key(
     assert yaml_util.take_dropped_merge_keys() == []
 
 
-@pytest.mark.parametrize("store_yaml_enabled", [False, True])
-def test_load_config_gates_yaml_discovery_on_store_yaml(
-    tmp_path: Path, store_yaml_enabled: bool
-) -> None:
-    """YAML source discovery (a second full parse) only runs when a consumer
-    like store_yaml is configured."""
-    content = "esphome:\n  name: test\nhost:\napi:\n"
-    if store_yaml_enabled:
-        content += "store_yaml:\n  allow_unencrypted: true\n"
-    main = tmp_path / "main.yaml"
-    main.write_text(content)
-    CORE.config_path = main
-
-    result = config.load_config({})
-
-    assert not result.errors
-    assert ("yaml_sources" in CORE.data) == store_yaml_enabled
-    if store_yaml_enabled:
-        assert main.resolve() in CORE.data["yaml_sources"].files
-
-
 def test_validate_config_suppresses_merge_warning(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

@@ -4,14 +4,20 @@ import logging
 import os
 from pathlib import Path
 import struct
-from types import ModuleType
 
+from esphome import yaml_util
 import esphome.codegen as cg
+from esphome.components.api import CONF_ENCRYPTION
 import esphome.config_validation as cv
 from esphome.const import CONF_API, CONF_ID, CONF_RAW_DATA_ID
 from esphome.core import CORE, EsphomeError, HexInt
 import esphome.final_validate as fv
 from esphome.types import ConfigType
+
+try:
+    from compression import zstd  # Python 3.14+ stdlib
+except ImportError:
+    from backports import zstd  # pinned in requirements.txt for Python < 3.14
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,11 +53,11 @@ CONFIG_SCHEMA = cv.Schema(
 def _final_validate(config: ConfigType) -> ConfigType:
     """Require API encryption: an unauthenticated client could otherwise pull
     the embedded YAML (which may include Wi-Fi credentials or opted-in
-    secrets). The escape hatch ``allow_unencrypted_api: true`` exists for
+    secrets). The escape hatch ``allow_unencrypted: true`` exists for
     isolated lab setups where the user has accepted the trade-off."""
     full = fv.full_config.get()
     api_conf = full.get(CONF_API, {})
-    if api_conf.get("encryption"):
+    if api_conf.get(CONF_ENCRYPTION):
         return config
     if config.get(CONF_ALLOW_UNENCRYPTED):
         _LOGGER.warning(
@@ -71,27 +77,14 @@ def _final_validate(config: ConfigType) -> ConfigType:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-def _import_zstd() -> ModuleType:
-    try:
-        from compression import zstd  # noqa: PLC0415 — Python 3.14+ stdlib
-    except ImportError:
-        try:
-            from backports import zstd  # noqa: PLC0415
-        except ImportError as err:
-            raise EsphomeError(
-                "store_yaml requires zstd compression. Install backports.zstd for "
-                "Python < 3.14 or upgrade to Python 3.14+."
-            ) from err
-    return zstd
-
-
-def _gather_files(include_secrets: bool) -> list[tuple[str, bytes]]:
-    """Read each YAML file the config loader touched, return (relative_path, content) pairs."""
-    discovered = CORE.data.get("yaml_sources")
-    if not discovered or not discovered.files:
+def _gather_files(
+    discovered: yaml_util.DiscoveredYamlFiles, include_secrets: bool
+) -> list[tuple[str, bytes]]:
+    """Read each discovered YAML file, return (relative_path, content) pairs."""
+    if not discovered.files:
         raise EsphomeError(
-            "store_yaml could not find any tracked YAML files; the config loader "
-            "did not populate CORE.data['yaml_sources']."
+            "store_yaml could not discover any YAML files for "
+            f"{CORE.config_path}; nothing to embed."
         )
 
     if discovered.unresolved:
@@ -157,12 +150,39 @@ def _pack_envelope(files: list[tuple[str, bytes]]) -> bytes:
     return b"".join(parts)
 
 
+def unpack_envelope(blob: bytes) -> dict[str, bytes]:
+    """Inverse of `_pack_envelope`: the reference decoder for the EHY1 envelope,
+    used by tests and client-side recovery tooling."""
+    if blob[:4] != ENVELOPE_MAGIC:
+        raise EsphomeError("envelope must start with EHY1 magic")
+    pos = 4
+    (count,) = struct.unpack_from("<I", blob, pos)
+    pos += 4
+    files: dict[str, bytes] = {}
+    for _ in range(count):
+        (path_len,) = struct.unpack_from("<H", blob, pos)
+        pos += 2
+        path = blob[pos : pos + path_len].decode("utf-8")
+        pos += path_len
+        (content_len,) = struct.unpack_from("<I", blob, pos)
+        pos += 4
+        files[path] = blob[pos : pos + content_len]
+        pos += content_len
+    if pos != len(blob):
+        raise EsphomeError("envelope has trailing bytes")
+    return files
+
+
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_STORE_YAML")
 
-    zstd = _import_zstd()
-
-    files = _gather_files(config[CONF_INCLUDE_SECRETS])
+    # Discover the user's on-disk YAML files via a fresh re-parse — same
+    # pattern bundle.py uses. Running at codegen time (rather than keeping a
+    # listener installed across validation) avoids capturing framework YAML
+    # that components load internally (e.g. LVGL's `hello_world.yaml`), and
+    # costs nothing on validate-only runs or configs without this component.
+    discovered = yaml_util.discover_user_yaml_files(CORE.config_path)
+    files = _gather_files(discovered, config[CONF_INCLUDE_SECRETS])
     envelope = _pack_envelope(files)
     compressed = zstd.compress(envelope, level=ZSTD_LEVEL)
 
@@ -171,7 +191,7 @@ async def to_code(config: ConfigType) -> None:
         len(files),
         len(compressed),
         len(envelope),
-        100.0 * len(compressed) / max(1, len(envelope)),
+        100.0 * len(compressed) / len(envelope),
     )
 
     rhs = [HexInt(b) for b in compressed]

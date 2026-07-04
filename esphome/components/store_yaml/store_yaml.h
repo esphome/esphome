@@ -23,18 +23,14 @@ class StoreYamlComponent : public Component {
     this->uncompressed_size_ = uncompressed_size;
   }
   size_t get_size() const { return this->size_; }
-  size_t get_uncompressed_size() const { return this->uncompressed_size_; }
 
-  // Copy `len` bytes from the PROGMEM blob at offset `pos` into `dst`.
-  // Hides the platform-specific read (no-op everywhere except ESP8266, where the
-  // blob lives in code space and must be read through `progmem_read_byte`).
-  void read_chunk(size_t pos, uint8_t *dst, size_t len) const;
+  // Raw pointer to the PROGMEM blob. On ESP8266 the address is in instruction
+  // flash and must be read via `progmem_memcpy`; everywhere else PROGMEM is a
+  // no-op and the data is directly addressable.
+  const uint8_t *get_data() const { return this->data_; }
 
  protected:
-  // Points to a `const uint8_t[] PROGMEM` array emitted by codegen. On ESP8266 this
-  // address is in instruction flash and must be accessed via `progmem_read_byte` —
-  // hence the `read_chunk` accessor above. There is no public getter for the raw
-  // pointer; callers must go through `read_chunk`.
+  // Points to a `const uint8_t[] PROGMEM` array emitted by codegen.
   const uint8_t *data_{nullptr};
   size_t size_{0};
   size_t uncompressed_size_{0};

@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import struct
 
 import pytest
 
@@ -25,6 +24,8 @@ try:
 except ImportError:
     from backports import zstd  # type: ignore[import-not-found, no-redef]
 
+from esphome.components.store_yaml import unpack_envelope
+
 from .types import RunCompiledFunction
 
 # Message IDs from esphome/components/api/api.proto.
@@ -32,8 +33,6 @@ HELLO_REQUEST = 1
 HELLO_RESPONSE = 2
 GET_YAML_REQUEST = 149
 GET_YAML_RESPONSE = 150
-
-ENVELOPE_MAGIC = b"EHY1"
 
 
 def _encode_varint(value: int) -> bytes:
@@ -94,25 +93,16 @@ def _parse_get_yaml_response(payload: bytes) -> tuple[bytes, bool, int, str]:
     return data, done, total_size, encoding
 
 
-def _unpack_envelope(blob: bytes) -> dict[str, bytes]:
-    """Inverse of `_pack_envelope` in `esphome/components/store_yaml/__init__.py`."""
-    assert blob[:4] == ENVELOPE_MAGIC, "envelope must start with EHY1 magic"
-    pos = 4
-    (count,) = struct.unpack_from("<I", blob, pos)
-    pos += 4
-    files: dict[str, bytes] = {}
-    for _ in range(count):
-        (path_len,) = struct.unpack_from("<H", blob, pos)
-        pos += 2
-        path = blob[pos : pos + path_len].decode("utf-8")
-        pos += path_len
-        (content_len,) = struct.unpack_from("<I", blob, pos)
-        pos += 4
-        content = blob[pos : pos + content_len]
-        pos += content_len
-        files[path] = content
-    assert pos == len(blob), "envelope must consume all bytes"
-    return files
+async def _read_varint_from(reader: asyncio.StreamReader) -> int:
+    """Read a protobuf varint byte-by-byte from a stream."""
+    result = 0
+    shift = 0
+    while True:
+        byte = (await reader.readexactly(1))[0]
+        result |= (byte & 0x7F) << shift
+        if not (byte & 0x80):
+            return result
+        shift += 7
 
 
 class _PlaintextClient:
@@ -137,18 +127,8 @@ class _PlaintextClient:
         preamble = await self._reader.readexactly(1)
         assert preamble == b"\x00", f"unexpected preamble {preamble!r}"
 
-        async def _read_varint_stream() -> int:
-            result = 0
-            shift = 0
-            while True:
-                byte = (await self._reader.readexactly(1))[0]
-                result |= (byte & 0x7F) << shift
-                if not (byte & 0x80):
-                    return result
-                shift += 7
-
-        payload_size = await _read_varint_stream()
-        msg_type = await _read_varint_stream()
+        payload_size = await _read_varint_from(self._reader)
+        msg_type = await _read_varint_from(self._reader)
         payload = await self._reader.readexactly(payload_size) if payload_size else b""
         return msg_type, payload
 
@@ -215,7 +195,7 @@ async def test_store_yaml_recovery(
     )
 
     envelope = zstd.decompress(compressed)
-    files = _unpack_envelope(envelope)
+    files = unpack_envelope(envelope)
 
     assert files, "envelope should contain at least one file"
     combined = b"\n".join(files.values())
