@@ -303,8 +303,7 @@ StorageError write_file(NetworkStorage *storage, const char *path, const uint8_t
 StorageError copy(PathStorage *src_storage, const char *src_path, PathStorage *dst_storage, const char *dst_path) {
   // Only pay for the extra stat() when a limit is actually configured — the guard-rail is
   // opt-in and copy() itself doesn't need the file size to stream.
-  if (global_storage_registry != nullptr &&
-      global_storage_registry->get_max_blocking_transfer_size() != 0) {
+  if (global_storage_registry != nullptr && global_storage_registry->get_max_blocking_transfer_size() != 0) {
     FileStat src_stat{};
     StorageError stat_err = src_storage->stat(src_path, &src_stat);
     if (stat_err != StorageError::OK)
