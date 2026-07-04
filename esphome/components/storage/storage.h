@@ -20,10 +20,10 @@ enum class StorageError : uint8_t {
   PERMISSION_DENIED,
   TIMEOUT,
   CORRUPT,
-  NOT_SUPPORTED,
-  ALREADY_EXISTS,
-  NOT_EMPTY,
-  TOO_MANY_OPEN_FILES,
+  NOT_SUPPORTED,        // operation not supported by this driver/medium (e.g. format() on read-only)
+  ALREADY_EXISTS,       // mkdir/create on a path that already exists
+  NOT_EMPTY,            // non-recursive rmdir on a non-empty directory
+  TOO_MANY_OPEN_FILES,  // no free FileHandle in the driver's handle pool
 };
 
 // fopen()-equivalent semantics — drivers must match these exactly:
@@ -67,6 +67,21 @@ struct StorageInfo {
 // Maximum filename length — covers NFSv3/v4 (255) and full FATFS LFN (255).
 // All storage drivers must fit filenames within this bound.
 static constexpr size_t STORAGE_NAME_MAX = 255;
+
+// Chunk size used by the streaming copy() helper below. A multiple of 512 (the common sector
+// size) so FATFS's f_read can transfer whole sectors directly into the caller's buffer instead
+// of bouncing through its internal window buffer; on ESP32 SD throughput plateaus around 8-16kB
+// so going larger buys little while costing more RAM per copy() call.
+// Overridable from YAML (storage: copy_chunk_size); see storage/__init__.py's to_code().
+#ifndef STORAGE_COPY_CHUNK_SIZE
+#define STORAGE_COPY_CHUNK_SIZE 16384
+#endif
+
+// Maximum directory nesting depth for the recursive remove_recursive() helper below. Each
+// recursion level costs roughly 600 bytes of stack (the ~512-byte path buffer plus the call
+// frame); ESP32 task stacks are typically only 8-16kB, and the path-length bound alone would
+// let a maliciously/accidentally deep tree recurse far past what the stack can survive.
+static constexpr size_t STORAGE_MAX_RECURSION_DEPTH = 16;
 
 struct FileStat {
   char name[STORAGE_NAME_MAX + 1];
@@ -127,7 +142,11 @@ class RawStorage : public Storage {
 class PathStorage : public Storage {
  public:
   virtual StorageError stat(const char *path, FileStat *stat) = 0;
-  // callback returns false to stop enumeration early
+  // Contract: drivers must NOT emit "." or ".." entries — tree-walkers such as
+  // remove_recursive() below rely on this to avoid recursing forever. Entry order is
+  // unspecified (driver/filesystem dependent) — do not rely on any particular ordering.
+  // The callback returns false to stop enumeration early; that is not an error condition —
+  // list_dir() itself still returns StorageError::OK in that case.
   virtual StorageError list_dir(const char *path, bool (*callback)(const FileStat *entry, void *ctx), void *ctx) = 0;
   virtual StorageError mkdir(const char *path) = 0;
   // Non-recursive: must fail with StorageError::NOT_EMPTY if the directory has contents.
@@ -251,7 +270,7 @@ StorageError file_size(PathStorage *storage, const char *path, uint64_t *size);
 // rather than operator delete[] — required because RamBuffer below is backed by RAMAllocator,
 // not `new[]`.
 struct RamBufferDeleter {
-  size_t size;
+  size_t size{0};  // a default-constructed RamBuffer must carry a well-defined (unused) size
   void operator()(uint8_t *ptr) const {
     if (ptr != nullptr)
       RAMAllocator<uint8_t>().deallocate(ptr, size);
@@ -273,14 +292,18 @@ StorageError write_file(FilesystemStorage *storage, const char *path, const uint
 StorageError write_file(NetworkStorage *storage, const char *path, const uint8_t *data, size_t size);
 
 // Copies a file, within the same storage or across two different storages (e.g. SD -> USB,
-// USB -> NFS). Dispatches on get_storage_type() and goes through read_file()/write_file(),
-// so it shares their heap-allocation and "don't call from hot paths" caveats.
+// USB -> NFS). Dispatches on get_storage_type() and streams the file through a fixed
+// STORAGE_COPY_CHUNK_SIZE buffer (unlike read_file()/write_file(), it never holds the whole
+// file in RAM), feeding the task watchdog between chunks. It still BLOCKS the main loop for
+// the duration of the copy, though — large copies will freeze sensor updates/API
+// responsiveness until an async worker layer exists (planned follow-up).
 StorageError copy(PathStorage *src_storage, const char *src_path, PathStorage *dst_storage, const char *dst_path);
 
 // Recursively removes a directory and everything under it, via list_dir() + remove() /
 // remove_recursive() (for subdirectories) + a final non-recursive rmdir(). Drivers only
 // need to implement the non-recursive rmdir() primitive; use this when you need recursive
-// delete semantics.
+// delete semantics. Aborts with StorageError::INVALID_ARGS if the tree is nested deeper than
+// STORAGE_MAX_RECURSION_DEPTH (see its comment above for why).
 StorageError remove_recursive(PathStorage *storage, const char *path);
 
 }  // namespace esphome::storage

@@ -1,4 +1,5 @@
 #include "storage.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 namespace esphome::storage {
@@ -186,6 +187,7 @@ StorageError read_file(FilesystemStorage *storage, const char *path, RamBuffer &
     if (bytes_transferred == 0)
       break;  // EOF before stat()-reported size — return what we got
     total_read += bytes_transferred;
+    App.feed_wdt();
   }
   storage->close(handle);
 
@@ -219,6 +221,7 @@ StorageError read_file(NetworkStorage *storage, const char *path, RamBuffer &out
     if (bytes_transferred == 0)
       break;  // EOF before stat()-reported size — return what we got
     total_read += bytes_transferred;
+    App.feed_wdt();
   }
 
   out = std::move(buf);
@@ -245,6 +248,7 @@ StorageError write_file(FilesystemStorage *storage, const char *path, const uint
       return StorageError::WRITE_ERROR;
     }
     total_written += bytes_transferred;
+    App.feed_wdt();
   }
   return storage->close(handle);
 }
@@ -260,34 +264,105 @@ StorageError write_file(NetworkStorage *storage, const char *path, const uint8_t
     if (bytes_transferred == 0)
       return StorageError::WRITE_ERROR;
     total_written += bytes_transferred;
+    App.feed_wdt();
   }
   return StorageError::OK;
 }
 
 StorageError copy(PathStorage *src_storage, const char *src_path, PathStorage *dst_storage, const char *dst_path) {
-  RamBuffer buf;
-  size_t size = 0;
+  // One chunk buffer per call, allocated PREFER_INTERNAL: PSRAM is not DMA-capable on classic
+  // ESP32 (restrictions apply on S3 too), so SD/SPI drivers would have to bounce-buffer through
+  // internal RAM anyway if we handed them a PSRAM pointer — allocate internal directly instead.
+  // Fall back to smaller sizes under memory pressure rather than failing outright.
+  size_t chunk_size = STORAGE_COPY_CHUNK_SIZE;
+  uint8_t *raw = nullptr;
+  while (chunk_size >= 4096) {
+    raw = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::PREFER_INTERNAL).allocate(chunk_size);
+    if (raw != nullptr)
+      break;
+    chunk_size /= 2;
+  }
+  if (raw == nullptr)
+    return StorageError::NO_SPACE;
+  RamBuffer chunk_buf(raw, RamBufferDeleter{chunk_size});
 
+  bool src_is_fs = src_storage->get_storage_type() == StorageType::FILESYSTEM;
+  bool dst_is_fs = dst_storage->get_storage_type() == StorageType::FILESYSTEM;
+  auto *src_fs = src_is_fs ? static_cast<FilesystemStorage *>(src_storage) : nullptr;
+  auto *src_net = src_is_fs ? nullptr : static_cast<NetworkStorage *>(src_storage);
+  auto *dst_fs = dst_is_fs ? static_cast<FilesystemStorage *>(dst_storage) : nullptr;
+  auto *dst_net = dst_is_fs ? nullptr : static_cast<NetworkStorage *>(dst_storage);
+
+  FileHandle *src_handle = nullptr;
+  FileHandle *dst_handle = nullptr;
   StorageError err;
-  if (src_storage->get_storage_type() == StorageType::FILESYSTEM) {
-    err = read_file(static_cast<FilesystemStorage *>(src_storage), src_path, buf, &size);
-  } else {
-    err = read_file(static_cast<NetworkStorage *>(src_storage), src_path, buf, &size);
-  }
-  if (err != StorageError::OK)
-    return err;
 
-  if (dst_storage->get_storage_type() == StorageType::FILESYSTEM) {
-    return write_file(static_cast<FilesystemStorage *>(dst_storage), dst_path, buf.get(), size);
+  if (src_is_fs) {
+    err = src_fs->open(src_path, src_handle, OpenMode::READ);
+    if (err != StorageError::OK)
+      return err;
   }
-  return write_file(static_cast<NetworkStorage *>(dst_storage), dst_path, buf.get(), size);
+  if (dst_is_fs) {
+    err = dst_fs->open(dst_path, dst_handle, OpenMode::WRITE);
+    if (err != StorageError::OK) {
+      if (src_is_fs)
+        src_fs->close(src_handle);
+      return err;
+    }
+  }
+
+  uint64_t offset = 0;
+  bool done = false;
+  while (!done) {
+    size_t bytes_read = 0;
+    if (src_is_fs) {
+      err = src_fs->read(src_handle, chunk_buf.get(), chunk_size, &bytes_read);
+    } else {
+      err = src_net->read_chunk(src_path, chunk_buf.get(), offset, chunk_size, &bytes_read);
+    }
+    if (err != StorageError::OK || bytes_read == 0)
+      break;  // error, or EOF
+
+    size_t total_written = 0;
+    while (total_written < bytes_read && err == StorageError::OK) {
+      size_t bytes_written = 0;
+      if (dst_is_fs) {
+        err = dst_fs->write(dst_handle, chunk_buf.get() + total_written, bytes_read - total_written, &bytes_written);
+      } else {
+        err = dst_net->write_chunk(dst_path, chunk_buf.get() + total_written, offset + total_written,
+                                   bytes_read - total_written, &bytes_written);
+      }
+      if (err != StorageError::OK) {
+        done = true;
+      } else if (bytes_written == 0) {
+        err = StorageError::WRITE_ERROR;
+        done = true;
+      } else {
+        total_written += bytes_written;
+      }
+    }
+    if (done)
+      break;
+
+    offset += bytes_read;
+    App.feed_wdt();
+  }
+
+  if (src_is_fs)
+    src_fs->close(src_handle);
+  if (dst_is_fs)
+    dst_fs->close(dst_handle);
+  return err;
 }
 
 namespace {
 
+StorageError remove_recursive_at_depth(PathStorage *storage, const char *path, size_t depth);
+
 struct RemoveRecursiveCtx {
   PathStorage *storage;
   const char *base_path;
+  size_t depth;
   StorageError err{StorageError::OK};
 };
 
@@ -304,7 +379,7 @@ bool remove_recursive_cb(const FileStat *entry, void *ctx_ptr) {
 
   StorageError err;
   if (entry->is_dir) {
-    err = remove_recursive(ctx->storage, child_path);
+    err = remove_recursive_at_depth(ctx->storage, child_path, ctx->depth + 1);
   } else {
     err = ctx->storage->remove(child_path);
   }
@@ -316,10 +391,11 @@ bool remove_recursive_cb(const FileStat *entry, void *ctx_ptr) {
   return true;
 }
 
-}  // namespace
+StorageError remove_recursive_at_depth(PathStorage *storage, const char *path, size_t depth) {
+  if (depth > STORAGE_MAX_RECURSION_DEPTH)
+    return StorageError::INVALID_ARGS;
 
-StorageError remove_recursive(PathStorage *storage, const char *path) {
-  RemoveRecursiveCtx ctx{storage, path};
+  RemoveRecursiveCtx ctx{storage, path, depth};
   StorageError err = storage->list_dir(path, remove_recursive_cb, &ctx);
   if (err != StorageError::OK)
     return err;
@@ -327,6 +403,12 @@ StorageError remove_recursive(PathStorage *storage, const char *path) {
     return ctx.err;
 
   return storage->rmdir(path);
+}
+
+}  // namespace
+
+StorageError remove_recursive(PathStorage *storage, const char *path) {
+  return remove_recursive_at_depth(storage, path, 0);
 }
 
 }  // namespace esphome::storage

@@ -8,10 +8,22 @@ CODEOWNERS = ["@p1ngb4ck"]
 
 DOMAIN = "storage"
 
+CONF_COPY_CHUNK_SIZE = "copy_chunk_size"
+
 storage_ns = cg.esphome_ns.namespace("storage")
 StorageRegistry = storage_ns.class_("StorageRegistry", cg.Component)
 
-CONFIG_SCHEMA = cv.Schema({cv.GenerateID(): cv.declare_id(StorageRegistry)})
+# Default kept in sync with the STORAGE_COPY_CHUNK_SIZE fallback in storage.h.
+# Lower bound matches copy()'s allocation fallback floor (4096, see storage.cpp); upper bound
+# is a sanity cap so a typo (e.g. "16MB") can't request an unreasonable single allocation.
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(StorageRegistry),
+        cv.Optional(CONF_COPY_CHUNK_SIZE, default="16KB"): cv.All(
+            cv.validate_bytes, cv.int_range(min=4096, max=131072)
+        ),
+    }
+)
 
 
 @dataclass
@@ -42,3 +54,5 @@ async def to_code(config):
     cg.add(var.set_device_count(device_count))
 
     cg.add(cg.RawExpression(f"{storage_ns}::global_storage_registry = {var}"))
+
+    cg.add_define("STORAGE_COPY_CHUNK_SIZE", config[CONF_COPY_CHUNK_SIZE])
