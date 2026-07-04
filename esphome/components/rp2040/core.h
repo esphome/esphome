@@ -7,8 +7,6 @@
 
 extern "C" unsigned long ulMainGetRunTimeCounterValue();
 
-namespace esphome {
-namespace rp2040 {}  // namespace rp2040
-}  // namespace esphome
+namespace esphome::rp2040 {}  // namespace esphome::rp2040
 
 #endif  // USE_RP2040

@@ -4,10 +4,9 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace bmi160 {
+namespace esphome::bmi160 {
 
-class BMI160Component : public PollingComponent, public i2c::I2CDevice {
+class BMI160Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -38,5 +37,4 @@ class BMI160Component : public PollingComponent, public i2c::I2CDevice {
   i2c::ErrorCode read_le_int16_(uint8_t reg, int16_t *value, uint8_t len);
 };
 
-}  // namespace bmi160
-}  // namespace esphome
+}  // namespace esphome::bmi160

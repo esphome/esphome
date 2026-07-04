@@ -3,8 +3,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ruuvitag {
+namespace esphome::ruuvitag {
 
 static const char *const TAG = "ruuvitag";
 
@@ -23,7 +22,6 @@ void RuuviTag::dump_config() {
   LOG_SENSOR("  ", "Measurement Sequence Number", this->measurement_sequence_number_);
 }
 
-}  // namespace ruuvitag
-}  // namespace esphome
+}  // namespace esphome::ruuvitag
 
 #endif

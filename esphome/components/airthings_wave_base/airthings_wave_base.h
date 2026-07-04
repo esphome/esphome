@@ -14,8 +14,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace airthings_wave_base {
+namespace esphome::airthings_wave_base {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
@@ -84,7 +83,6 @@ class AirthingsWaveBase : public PollingComponent, public ble_client::BLEClientN
   };
 };
 
-}  // namespace airthings_wave_base
-}  // namespace esphome
+}  // namespace esphome::airthings_wave_base
 
 #endif  // USE_ESP32

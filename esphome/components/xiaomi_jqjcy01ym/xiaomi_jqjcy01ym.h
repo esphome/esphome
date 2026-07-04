@@ -7,8 +7,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_jqjcy01ym {
+namespace esphome::xiaomi_jqjcy01ym {
 
 class XiaomiJQJCY01YM : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
@@ -30,7 +29,6 @@ class XiaomiJQJCY01YM : public Component, public esp32_ble_tracker::ESPBTDeviceL
   sensor::Sensor *battery_level_{nullptr};
 };
 
-}  // namespace xiaomi_jqjcy01ym
-}  // namespace esphome
+}  // namespace esphome::xiaomi_jqjcy01ym
 
 #endif
