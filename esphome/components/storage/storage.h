@@ -247,6 +247,19 @@ class StorageRegistry : public Component {
   void register_storage(Storage *s);
   void unregister_storage(Storage *s);
 
+  // Thread-safe membership check — the only registry query safe to call from a task other
+  // than the main loop (e.g. the storage_worker background task). register_storage()/
+  // unregister_storage() remain main-loop-only; registry_lock_ exists solely so this check
+  // can run concurrently with them without racing storages_.
+  bool is_registered(Storage *s) {
+    LockGuard lock{this->registry_lock_};
+    for (auto *entry : this->storages_) {
+      if (entry == s)
+        return true;
+    }
+    return false;
+  }
+
   // Enumerate by type — callback receives each matching device and caller ctx
   void for_each(void (*cb)(Storage *s, void *ctx), void *ctx);
   void for_each_filesystem(void (*cb)(FilesystemStorage *s, void *ctx), void *ctx);
@@ -265,6 +278,11 @@ class StorageRegistry : public Component {
  protected:
   // Single allocation at set_device_count() — no realloc machinery
   FixedVector<Storage *> storages_;
+
+  // Guards storages_ against concurrent is_registered() calls from a non-main-loop task.
+  // register_storage()/unregister_storage() also take it while mutating storages_; the
+  // for_each*() enumerations intentionally do NOT take it — they remain main-loop-only.
+  esphome::Mutex registry_lock_;
 
   // LazyCallbackManager: 4-byte nullptr until first subscriber — saves RAM
   // on devices where no component listens for hotplug events

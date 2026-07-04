@@ -12,16 +12,23 @@ void StorageRegistry::register_storage(Storage *s) {
   if (s == nullptr)
     return;
 
-  for (auto *existing : this->storages_) {
-    if (existing == s)
-      return;  // already registered
-  }
+  {
+    // Lock scoped to the storages_ mutation only — get_info() below can be a blocking
+    // control-plane call, and on_registered_.call() may re-enter the registry from a
+    // callback, so neither must run while the lock is held.
+    LockGuard lock{this->registry_lock_};
 
-  if (this->storages_.full()) {
-    ESP_LOGE(TAG, "Registry full — increase device count");
-    return;
+    for (auto *existing : this->storages_) {
+      if (existing == s)
+        return;  // already registered
+    }
+
+    if (this->storages_.full()) {
+      ESP_LOGE(TAG, "Registry full — increase device count");
+      return;
+    }
+    this->storages_.push_back(s);
   }
-  this->storages_.push_back(s);
 
   // Log regardless of get_info()'s result — an unmounted-but-registered device (e.g. before
   // its medium is mounted) must still show up, per the get_info() contract on Storage above.
@@ -40,22 +47,27 @@ void StorageRegistry::unregister_storage(Storage *s) {
   if (s == nullptr)
     return;
 
-  // Swap-remove: no reallocation, keeps capacity — safe since order doesn't matter here
-  // (for_each* enumerate every entry regardless of position).
-  size_t found_index = this->storages_.size();
-  for (size_t i = 0; i < this->storages_.size(); i++) {
-    if (this->storages_[i] == s) {
-      found_index = i;
-      break;
-    }
-  }
-  if (found_index == this->storages_.size())
-    return;
+  {
+    // See register_storage() above for why the lock is scoped this tightly.
+    LockGuard lock{this->registry_lock_};
 
-  size_t last_index = this->storages_.size() - 1;
-  if (found_index != last_index)
-    this->storages_[found_index] = this->storages_[last_index];
-  this->storages_.pop_back();
+    // Swap-remove: no reallocation, keeps capacity — safe since order doesn't matter here
+    // (for_each* enumerate every entry regardless of position).
+    size_t found_index = this->storages_.size();
+    for (size_t i = 0; i < this->storages_.size(); i++) {
+      if (this->storages_[i] == s) {
+        found_index = i;
+        break;
+      }
+    }
+    if (found_index == this->storages_.size())
+      return;
+
+    size_t last_index = this->storages_.size() - 1;
+    if (found_index != last_index)
+      this->storages_[found_index] = this->storages_[last_index];
+    this->storages_.pop_back();
+  }
 
   StorageInfo info{};
   if (s->get_info(&info) == StorageError::OK) {
