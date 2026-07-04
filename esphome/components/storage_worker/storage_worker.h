@@ -132,7 +132,7 @@ class StorageWorker : public Component {
   TaskHandle_t task_handle_{nullptr};
   QueueHandle_t task_queue_{nullptr};  // holds size_t pool indices
 
-  static void task_fn_(void *arg);
+  static void task_fn(void *arg);
   void task_loop_();
 #endif
 };
