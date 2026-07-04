@@ -6,7 +6,7 @@
 
 namespace esphome::select {
 
-class SelectStateTrigger : public Trigger<StringRef, size_t> {
+class SelectStateTrigger final : public Trigger<StringRef, size_t> {
  public:
   explicit SelectStateTrigger(Select *parent) : parent_(parent) {
     parent->add_on_state_callback(
@@ -17,7 +17,7 @@ class SelectStateTrigger : public Trigger<StringRef, size_t> {
   Select *parent_;
 };
 
-template<typename... Ts> class SelectSetAction : public Action<Ts...> {
+template<typename... Ts> class SelectSetAction final : public Action<Ts...> {
  public:
   explicit SelectSetAction(Select *select) : select_(select) {}
   TEMPLATABLE_VALUE(std::string, option)
@@ -32,7 +32,7 @@ template<typename... Ts> class SelectSetAction : public Action<Ts...> {
   Select *select_;
 };
 
-template<typename... Ts> class SelectSetIndexAction : public Action<Ts...> {
+template<typename... Ts> class SelectSetIndexAction final : public Action<Ts...> {
  public:
   explicit SelectSetIndexAction(Select *select) : select_(select) {}
   TEMPLATABLE_VALUE(size_t, index)
@@ -47,7 +47,7 @@ template<typename... Ts> class SelectSetIndexAction : public Action<Ts...> {
   Select *select_;
 };
 
-template<typename... Ts> class SelectOperationAction : public Action<Ts...> {
+template<typename... Ts> class SelectOperationAction final : public Action<Ts...> {
  public:
   explicit SelectOperationAction(Select *select) : select_(select) {}
   TEMPLATABLE_VALUE(bool, cycle)
@@ -66,7 +66,7 @@ template<typename... Ts> class SelectOperationAction : public Action<Ts...> {
   Select *select_;
 };
 
-template<size_t N, typename... Ts> class SelectIsCondition : public Condition<Ts...> {
+template<size_t N, typename... Ts> class SelectIsCondition final : public Condition<Ts...> {
  public:
   SelectIsCondition(Select *parent, const char *const *option_list) : parent_(parent), option_list_(option_list) {}
 
@@ -85,7 +85,7 @@ template<size_t N, typename... Ts> class SelectIsCondition : public Condition<Ts
   const char *const *option_list_;
 };
 
-template<typename... Ts> class SelectIsCondition<0, Ts...> : public Condition<Ts...> {
+template<typename... Ts> class SelectIsCondition<0, Ts...> final : public Condition<Ts...> {
  public:
   SelectIsCondition(Select *parent, std::function<bool(const StringRef &, const Ts &...)> &&f)
       : parent_(parent), f_(f) {}

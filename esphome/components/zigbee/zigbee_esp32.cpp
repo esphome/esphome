@@ -41,7 +41,9 @@ void ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(ezb_bdb_comm_mode_mask_
     global_zigbee->set_timeout("zb_init", 10, [mode]() { ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(mode); });
     return;
   }
-  (void) ezb_bdb_start_top_level_commissioning(mode);
+  if (ezb_bdb_start_top_level_commissioning(mode) != EZB_ERR_NONE) {
+    ESP_LOGE(TAG, "Start top level commissioning failed!");
+  }
   esp_zigbee_lock_release();
 }
 
@@ -131,12 +133,14 @@ static void zb_action_handler(ezb_zcl_core_action_callback_id_t callback_id, voi
     case EZB_ZCL_CORE_SET_ATTR_VALUE_CB_ID:
       zb_attribute_handler((ezb_zcl_set_attr_value_message_t *) message);
       break;
+#ifdef ESPHOME_LOG_HAS_VERBOSE
     case EZB_ZCL_CORE_DEFAULT_RSP_CB_ID: {
       ezb_zcl_cmd_default_rsp_message_t *default_rsp = (ezb_zcl_cmd_default_rsp_message_t *) message;
-      ESP_LOGD(TAG, "Received ZCL Default Response: 0x%02x", default_rsp->in.status_code);
+      ESP_LOGV(TAG, "Received ZCL Default Response: 0x%02x", default_rsp->in.status_code);
     } break;
+#endif
     default:
-      ESP_LOGD(TAG, "Receive Zigbee action(0x%04x) callback", callback_id);
+      ESP_LOGD(TAG, "Receive Zigbee action(0x%04x) callback", static_cast<unsigned>(callback_id));
       break;
   }
 }
@@ -258,6 +262,7 @@ void ZigbeeComponent::setup() {
   }
 #endif
   ezb_aps_secur_enable_distributed_security(false);
+  ezb_nwk_set_min_join_lqi(32);
   if (ezb_app_signal_add_handler(ZigbeeComponent::app_signal_handler) != ESP_OK) {
     ESP_LOGE(TAG, "Could not set application signal handler");
     this->mark_failed();
@@ -304,22 +309,25 @@ void ZigbeeComponent::dump_config() {
   if (esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
     ESP_LOGCONFIG(TAG,
                   "Zigbee\n"
-                  "  Model: %s\n"
+                  "  Model: %.*s\n"
                   "  Router: %s\n"
                   "  Device is joined to the network: %s\n"
                   "  Current channel: %d\n"
                   "  Short addr: 0x%04X\n"
                   "  Short pan id: 0x%04X",
-                  this->basic_cluster_data_.model, YESNO(this->device_role_ == EZB_NWK_DEVICE_TYPE_ROUTER),
-                  YESNO(ezb_bdb_dev_joined()), ezb_nwk_get_current_channel(), ezb_nwk_get_short_address(),
-                  ezb_nwk_get_panid());
+                  this->basic_cluster_data_.model[0],
+                  reinterpret_cast<const char *>(this->basic_cluster_data_.model + 1),
+                  YESNO(this->device_role_ == EZB_NWK_DEVICE_TYPE_ROUTER), YESNO(ezb_bdb_dev_joined()),
+                  ezb_nwk_get_current_channel(), ezb_nwk_get_short_address(), ezb_nwk_get_panid());
     esp_zigbee_lock_release();
   } else {
     ESP_LOGCONFIG(TAG,
                   "Zigbee\n"
-                  "  Model: %s\n"
+                  "  Model: %.*s\n"
                   "  Router: %s\n",
-                  this->basic_cluster_data_.model, YESNO(this->device_role_ == EZB_NWK_DEVICE_TYPE_ROUTER));
+                  this->basic_cluster_data_.model[0],
+                  reinterpret_cast<const char *>(this->basic_cluster_data_.model + 1),
+                  YESNO(this->device_role_ == EZB_NWK_DEVICE_TYPE_ROUTER));
   }
 }
 }  // namespace esphome::zigbee

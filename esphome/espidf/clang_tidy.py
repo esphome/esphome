@@ -147,9 +147,9 @@ def _setup_core(work_dir: Path, settings: _Settings) -> None:
     from esphome.core import CORE
 
     CORE.name = TIDY_PROJECT_NAME
-    # config_path's parent is the data dir root: the IDF install lives at
-    # ``<parent>/.esphome/idf`` -- keep it beside (not inside) the per-run
-    # project dir so clearing the project doesn't force an IDF re-download.
+    # config_path's parent is the data dir root for per-run artifacts (idedata,
+    # converted pio_components). The IDF install is in the global cache dir,
+    # independent of this path.
     CORE.config_path = work_dir.parent / "tidy.yaml"
     CORE.build_path = work_dir
     esp32 = CORE.data.setdefault(KEY_ESP32, {})
@@ -162,7 +162,7 @@ def _setup_core(work_dir: Path, settings: _Settings) -> None:
 
     # Gates arduino-only components in esphome/idf_component.yml (IDF reads it at
     # reconfigure time). Set here -- before the manifest is written/reconfigured.
-    os.environ["ESPHOME_ARDUINO"] = (
+    os.environ["ESPHOME_ARDUINO_COMPONENT"] = (
         "1" if settings.target_framework == "arduino" else "0"
     )
 

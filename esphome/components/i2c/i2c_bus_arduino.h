@@ -14,7 +14,7 @@ enum RecoveryCode {
   RECOVERY_COMPLETED,
 };
 
-class ArduinoI2CBus : public InternalI2CBus, public Component {
+class ArduinoI2CBus final : public InternalI2CBus, public Component {
  public:
   void setup() override;
   void dump_config() override;

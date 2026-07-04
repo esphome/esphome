@@ -50,6 +50,11 @@ async def new_fastled_light(config):
             ref="d44c800a9e876a8394caefc2ce4915dd96dac77b",
         )
         cg.add_library("SPI", None)
+        # FastLED's RMT5 driver hard-codes intr_priority=3, which conflicts with
+        # esphome's RMT channels (remote_transmitter etc., priority 0): the IDF
+        # driver rejects FastLED's channel and show() then hangs ~3s with no
+        # output. Override to 0 so it shares the interrupt. See #17063.
+        cg.add_build_flag("-DFL_RMT5_INTERRUPT_LEVEL=0")
     else:
         cg.add_library("fastled/FastLED", "3.9.16")
     await light.register_light(var, config)

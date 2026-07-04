@@ -17,7 +17,7 @@
 
 namespace esphome::fastled_base {
 
-class FastLEDLightOutput : public light::AddressableLight {
+class FastLEDLightOutput final : public light::AddressableLight {
  public:
   /// Only for custom effects: Get the internal controller.
   CLEDController *get_controller() const { return this->controller_; }

@@ -915,3 +915,21 @@ class TestEsphomeCore:
             mock_enable.assert_called_once_with("Wire")
 
         assert "Wire" in target.platformio_libraries
+
+    def test_add_build_unflag__warns_on_native_idf_toolchain(
+        self, target, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Build unflags are not consumed by the native IDF build generator,
+        so adding one on that toolchain warns; PlatformIO stays silent."""
+        target.toolchain = const.Toolchain.PLATFORMIO
+        target.add_build_unflag("-fno-rtti")
+        assert "ignored" not in caplog.text
+
+        target.toolchain = const.Toolchain.ESP_IDF
+        target.add_build_unflag("-fno-exceptions")
+        assert (
+            "Build unflag -fno-exceptions is ignored when building with the "
+            "native ESP-IDF toolchain" in caplog.text
+        )
+        # The unflag is still recorded either way.
+        assert target.build_unflags == {"-fno-rtti", "-fno-exceptions"}

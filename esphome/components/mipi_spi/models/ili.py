@@ -24,13 +24,11 @@ from esphome.components.mipi import (
     PWSET,
     PWSETN,
     SETEXTC,
-    SWRESET,
     VMCTR,
     VMCTR1,
     VMCTR2,
     VSCRSADD,
     DriverChip,
-    delay,
 )
 from esphome.components.spi import TYPE_OCTAL
 
@@ -179,6 +177,9 @@ ILI9342 = DriverChip(
 # M5Stack Core2 uses ILI9341 chip - mirror_x disabled for correct orientation
 ILI9341.extend(
     "M5CORE2",
+    # Reset native dimensions due to axis swap.
+    native_width=320,
+    native_height=240,
     width=320,
     height=240,
     mirror_x=False,
@@ -364,7 +365,6 @@ ST7796 = DriverChip(
     width=320,
     height=480,
     initsequence=(
-        (SWRESET,),
         (CSCON, 0xC3),
         (CSCON, 0x96),
         (VMCTR1, 0x1C),
@@ -725,8 +725,6 @@ DriverChip(
     width=128,
     height=160,
     initsequence=(
-        SWRESET,
-        delay(10),
         (FRMCTR1, 0x01, 0x2C, 0x2D),
         (FRMCTR2, 0x01, 0x2C, 0x2D),
         (FRMCTR3, 0x01, 0x2C, 0x2D, 0x01, 0x2C, 0x2D),
@@ -783,6 +781,31 @@ ST7796.extend(
     bus_mode=TYPE_OCTAL,
     mirror_x=True,
     reset_pin=4,
-    dc_pin=0,
+    dc_pin={"number": 0, "ignore_strapping_warning": True},
     invert_colors=True,
+)
+
+ST7789V.extend(
+    "GEEKMAGIC-SMALLTV",
+    data_rate="40MHz",
+    height=240,
+    width=240,
+    offset_width=0,
+    offset_height=0,
+    invert_colors=True,
+    buffer_size=0.125,
+    reset_pin=2,
+    dc_pin=0,
+)
+ST7789V.extend(
+    "GEEKMAGIC-SMALLTV-PRO",
+    data_rate="40MHz",
+    height=240,
+    width=240,
+    offset_width=0,
+    offset_height=0,
+    invert_colors=True,
+    buffer_size=0.125,
+    reset_pin=4,
+    dc_pin=2,
 )
