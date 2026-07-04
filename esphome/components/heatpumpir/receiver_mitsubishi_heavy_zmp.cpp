@@ -33,10 +33,10 @@ bool decode_mitsubishi_heavy_zmp(const uint8_t frame[11], HeatpumpIRClimate &cli
       break;
     case MITSUBISHI_HEAVY_ZMP_HIPOWER:
       climate.preset = climate::CLIMATE_PRESET_BOOST;
-      break;
+      break;  // fan_mode intentionally preserved — remote restores it on preset exit
     case MITSUBISHI_HEAVY_ZMP_ECONO:
       climate.preset = climate::CLIMATE_PRESET_ECO;
-      break;
+      break;  // fan_mode intentionally preserved — remote restores it on preset exit
   }
 
   uint8_t swing_h = frame[BYTE_SWING_H] & HORIZONTAL_SWING_MASK;
