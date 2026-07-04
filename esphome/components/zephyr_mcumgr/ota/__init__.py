@@ -168,7 +168,7 @@ async def to_code(config: ConfigType) -> None:
         # Derive partition addresses from the SoftDevice and bootloader sections so
         # that the DTS flash map matches what the Partition Manager produces:
         #   MCUboot sits immediately after the SoftDevice, then slot0, then slot1.
-        mcuboot_size = 0x10000  # 64 KB
+        mcuboot_size = 0x9000
         sd_end = next(s.address + s.size for s in sections if "SoftDevice" in s.name)
         bl_start = next(s.address for s in sections if "Adafruit" in s.name)
         slot0_start = sd_end + mcuboot_size
@@ -213,8 +213,18 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_overlay(_mcuboot_partition_overlay(), "mcuboot")
         zephyr_add_overlay(_code_partition_overlay())
         zephyr_add_overlay(_code_partition_overlay(), "mcuboot")
-        # USB CDC ACM requires multithreading and the full USB device stack
-        zephyr_add_prj_conf("MULTITHREADING", True, image="mcuboot")
+        # mcuboot is second bootloader. It's only task is to swap partitions.
+        # recovery can be done by first bootloader. Keep it small.
+        zephyr_add_overlay(
+            """
+                &zephyr_udc0 {
+                    status = "disabled";
+                };
+            """,
+            "mcuboot",
+        )
+        zephyr_add_prj_conf("USB_DEVICE_STACK", False, image="mcuboot")
+        zephyr_add_prj_conf("CONSOLE", False, image="mcuboot")
         zephyr_add_prj_conf(
-            "PM_PARTITION_SIZE_MCUBOOT", HexValue(0x10000), image="mcuboot"
+            "PM_PARTITION_SIZE_MCUBOOT", HexValue(mcuboot_size), image="mcuboot"
         )
