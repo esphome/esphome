@@ -89,13 +89,13 @@ def _validate_bootloader(config: ConfigType) -> None:
     bootloader = zephyr_data()[KEY_BOOTLOADER]
     if bootloader == BOOTLOADER_MCUBOOT:
         return
+    if bootloader not in BOOTLOADER_CONFIG:
+        raise cv.Invalid(f"{bootloader} does not support OTA")
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     if framework_ver < cv.Version(2, 9, 2):
         raise cv.Invalid(
             "OTA with Adafruit_nRF52_Bootloader requires at least SDK 2.9.2"
         )
-    if bootloader not in BOOTLOADER_CONFIG:
-        raise cv.Invalid(f"{bootloader} does not support OTA")
 
 
 def _final_validate(config: ConfigType) -> None:
