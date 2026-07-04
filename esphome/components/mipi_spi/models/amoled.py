@@ -105,3 +105,20 @@ CO5300 = DriverChip(
         (WCE, 0x00),
     ),
 )
+
+SH8601 = DriverChip(
+    "SH8601",
+    data_rate="40MHz",
+    bus_mode=TYPE_QUAD,
+    brightness=0xD0,
+    color_order=MODE_RGB,
+    no_slpout=True,
+    initsequence=(
+        (SLPOUT,),
+        delay(80),
+        (SPIMODESEL, 0x80),
+        (TEON, 0x00),
+        (WRCTRLD, 0x20),
+        (0x63, 0xFF),
+    ),
+)
