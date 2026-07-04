@@ -35,6 +35,7 @@ pins and dimensions specified.
 | Spectra-E6             | Eink         | [https://www.eink.com/brand/detail/Spectra6](https://www.eink.com/brand/detail/Spectra6)       |
 | SSD1677                | Solomon      | [https://www.solomon-systech.com/product/ssd1677/](https://www.solomon-systech.com/product/ssd1677/) |
 | SSD1683                | Solomon      | [https://www.solomon-systech.com/product/ssd1683/](https://www.solomon-systech.com/product/ssd1683/) |
+| T133A01                | TianMa       | 13.3" 6-color e-paper controller IC with dual-CS SPI architecture          |
 
 ## Supported display panels
 
@@ -65,6 +66,7 @@ a minimum only the model name need be configured. Other options can be overridde
 | inkplate2               | Soldered Electronics | Soldered Inkplate 2: 2.13" 3-color (black/white/red) e-paper, 104x212. [https://soldered.com/products/inkplate-2](https://soldered.com/products/inkplate-2) |
 | Seeed-ee04-mono-4.26    | Seeed Studio         | Seeed EE04 board with Waveshare 4.26" mono epaper. [https://www.seeedstudio.com/XIAO-ePaper-Display-Board-EE04-p-6560.html](https://www.seeedstudio.com/XIAO-ePaper-Display-Board-EE04-p-6560.html)  |
 | Seeed-reTerminal-E1002  | Seeed Studio         | [https://www.seeedstudio.com/reTerminal-E1002-p-6533.html](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html)         |
+| Seeed-reTerminal-E1004 | Seeed Studio | 13.3" 6-color e-paper (1200x1600, T133A01). Requires PSRAM. [https://www.seeedstudio.com/reTerminal-E1004-p-6692.html](https://www.seeedstudio.com/reTerminal-E1004-p-6692.html) |
 | Seeed-reTerminal-Sticky | Seeed Studio         | [https://www.seeedstudio.com/sticky/](https://www.seeedstudio.com/sticky/)                                                                 |
 
 ## Configuration variables
@@ -74,6 +76,7 @@ but can be overridden if needed.
 
 - **model** (**Required**): The model of the ePaper display. See the table above for options (case is not significant).
 - **cs_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The CS pin. Predefined for integrated boards.
+- **cs1_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The secondary CS pin for dual-CS displays (e.g. T133A01). Predefined for integrated boards that require it.
 - **dc_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The DC pin. Predefined for integrated boards.
 - **busy_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The BUSY pin, if used.
 
@@ -163,6 +166,35 @@ display:
       it.filled_rectangle(50, 50, 80, 80, BLACK);
       it.filled_rectangle(150, 50, 80, 80, RED);
       it.filled_rectangle(250, 50, 80, 80, YELLOW);
+```
+
+### 6-color display example (reTerminal E1004)
+
+The reTerminal E1004 features a 13.3" 6-color e-paper display (1200x1600, T133A01) that supports
+black, white, red, green, blue, and yellow. Since it is an integrated board, only the model name
+is needed. The display buffer requires approximately 960KB, so PSRAM is required.
+
+Full refresh times are typically around 30 seconds.
+
+```yaml
+display:
+  - platform: epaper_spi
+    model: Seeed-reTerminal-E1004
+    update_interval: 5min
+    lambda: |-
+      auto BLACK = Color(0, 0, 0);
+      auto WHITE = Color(255, 255, 255);
+      auto RED = Color(255, 0, 0);
+      auto GREEN = Color(0, 255, 0);
+      auto BLUE = Color(0, 0, 255);
+      auto YELLOW = Color(255, 255, 0);
+
+      it.fill(WHITE);
+      it.filled_circle(200, 300, 80, BLACK);
+      it.filled_circle(400, 300, 80, RED);
+      it.filled_circle(600, 300, 80, GREEN);
+      it.filled_circle(200, 550, 80, BLUE);
+      it.filled_circle(400, 550, 80, YELLOW);
 ```
 
 ## See Also
