@@ -98,8 +98,6 @@ void StorageRegistry::for_each_path_based(void (*cb)(PathStorage *s, void *ctx),
       cb(static_cast<FilesystemStorage *>(s), ctx);
     } else if (type == StorageType::NETWORK) {
       cb(static_cast<NetworkStorage *>(s), ctx);
-    } else if (type == StorageType::FLASH) {
-      cb(static_cast<FlashStorage *>(s), ctx);
     }
   }
 }
