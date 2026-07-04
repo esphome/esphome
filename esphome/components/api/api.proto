@@ -2758,7 +2758,7 @@ message GetYamlResponse {
   option (ifdef) = "USE_STORE_YAML";
 
   bytes data = 1 [(force) = true];
-  bool done = 2;
+  bool done = 2 [(force) = true];
   // Sent on the first chunk only — the client is expected to cache it.
   // (firmware bandwidth/flash is expensive; the client has gigabytes.)
   uint32 total_size = 3;

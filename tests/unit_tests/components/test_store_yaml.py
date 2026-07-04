@@ -48,8 +48,8 @@ def _sources(
 
 
 def _gather_redacted(discovered: DiscoveredYamlFiles) -> dict[str, bytes]:
-    files, secret_rels = _gather_files(discovered)
-    return dict(_generate_redacted_files(files, secret_rels))
+    entries, secret_rels = _gather_files(discovered)
+    return dict(_generate_redacted_files(entries, secret_rels, discovered.unresolved))
 
 
 # ---------------------------------------------------------------------------
@@ -250,34 +250,37 @@ def test_redacted_reuses_existing_secret_name_for_duplicated_value(
     assert files["wifi.yaml"] == b"password: !secret 'api_key'\n"
 
 
-def test_redacted_warns_when_value_not_locatable(
-    project: Path, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_redacted_raises_when_value_not_locatable(project: Path) -> None:
     """A sensitive value that never appears as a whole scalar (e.g. composed
-    via substitutions) produces a warning naming the config path, not the value."""
+    via substitutions) would ship verbatim — fail the build, naming the config
+    path but never the value."""
     CORE.config = {"wifi": [{"password": SensitiveStr("not_in_any_file")}]}
     discovered = _sources(project, "wifi.yaml")
-    with caplog.at_level("WARNING", logger="esphome.components.store_yaml"):
+    with pytest.raises(EsphomeError, match="wifi.password") as err:
         _gather_redacted(discovered)
-    assert any(
-        "wifi.password" in r.message and "could not locate" in r.message
-        for r in caplog.records
-    )
-    assert not any("not_in_any_file" in r.message for r in caplog.records)
+    assert "not_in_any_file" not in str(err.value)
 
 
-def test_redacted_does_not_warn_for_secret_only_values(
-    project: Path, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_redacted_accepts_secret_only_values(project: Path) -> None:
     """A value that only exists via `!secret` legitimately never appears inline."""
     CORE.config = {"api": {"encryption": {"key": SensitiveStr("SUPER_SECRET")}}}
     yaml_util._SECRET_VALUES["SUPER_SECRET"] = "api_key"
     discovered = _sources(
         project, "entry.yaml", "secrets.yaml", secrets=("secrets.yaml",)
     )
-    with caplog.at_level("WARNING", logger="esphome.components.store_yaml"):
-        _gather_redacted(discovered)
-    assert not any("could not locate" in r.message for r in caplog.records)
+    files = _gather_redacted(discovered)
+    assert 'api_key: ""' in files["secrets.yaml"].decode()
+
+
+def test_redacted_records_unresolved_includes_in_entry_file(project: Path) -> None:
+    """Substitution-pathed includes that can't be captured are noted inside the
+    recovered entry file, not just in a compile-time log line."""
+    discovered = _sources(project, "entry.yaml", "secrets.yaml")
+    discovered.unresolved.append("${board}.yaml")
+    files = _gather_redacted(discovered)
+    text = files["entry.yaml"].decode()
+    assert text.startswith("# store_yaml: the following !include paths")
+    assert "#   ${board}.yaml" in text
 
 
 def test_redacted_skips_empty_sensitive_values(project: Path) -> None:

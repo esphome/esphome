@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Generator
 from dataclasses import dataclass
 import logging
 import os
@@ -150,7 +151,9 @@ def _read_files_verbatim(entries: list[tuple[str, Path]]) -> list[tuple[str, byt
     return files
 
 
-def _iter_sensitive_values(node: object, path: tuple[str, ...] = ()):
+def _iter_sensitive_values(
+    node: object, path: tuple[str, ...] = ()
+) -> Generator[tuple[tuple[str, ...], str]]:
     """Yield (config_path, value) for every cv.sensitive value in a config tree."""
     if isinstance(node, yaml_util.SensitiveStr):
         yield path, str(node)
@@ -201,7 +204,7 @@ def _build_secrets_skeleton(keys: set[str]) -> bytes:
 
 
 def _generate_redacted_files(
-    entries: list[tuple[str, Path]], secret_rels: set[str]
+    entries: list[tuple[str, Path]], secret_rels: set[str], unresolved: list[str]
 ) -> list[tuple[str, bytes]]:
     """Re-generate each captured file from its parse tree with cv.sensitive
     values emitted as `!secret <name>` references, and replace secrets files
@@ -228,17 +231,34 @@ def _generate_redacted_files(
     for text in texts.values():
         skeleton_keys |= yaml_util.find_secret_references(text)
 
-    for value, info in sensitive.items():
-        # After the context manager exits, only values loaded through a real
-        # `!secret` are still registered — those legitimately never appear
-        # inline, so only warn for inline values that were never swapped.
-        if yaml_util.is_secret(value) is None and info.secret_name not in skeleton_keys:
-            _LOGGER.warning(
-                "store_yaml: could not locate the sensitive value of '%s' in the "
-                "source YAML (built via substitutions?); it may still be "
-                "embedded verbatim",
-                info.config_path,
-            )
+    # After the context manager exits, only values loaded through a real
+    # `!secret` are still registered — those legitimately never appear
+    # inline. An inline value that was never swapped would ship verbatim in
+    # the blob, silently breaking the redaction promise — fail the build.
+    leaked = [
+        info.config_path
+        for value, info in sensitive.items()
+        if yaml_util.is_secret(value) is None and info.secret_name not in skeleton_keys
+    ]
+    if leaked:
+        raise EsphomeError(
+            "store_yaml: could not redact the sensitive value(s) of "
+            f"{', '.join(leaked)} (built via substitutions?). Reference them "
+            "with `!secret` in the YAML, or set `include_secrets: true` to "
+            "embed secrets deliberately."
+        )
+
+    if unresolved:
+        # Record the gap inside the recovered config itself, not just in a
+        # compile-time log line: substitution-pathed includes can't be
+        # captured, so the user must restore those files manually.
+        entry_rel = entries[0][0]
+        texts[entry_rel] = (
+            "# store_yaml: the following !include paths use substitutions and\n"
+            "# could not be captured; restore these files manually:\n"
+            + "".join(f"#   {inc}\n" for inc in unresolved)
+            + texts[entry_rel]
+        )
 
     skeleton = _build_secrets_skeleton(skeleton_keys)
     result = [
@@ -316,7 +336,7 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_INCLUDE_SECRETS]:
         files = _read_files_verbatim(entries)
     else:
-        files = _generate_redacted_files(entries, secret_rels)
+        files = _generate_redacted_files(entries, secret_rels, discovered.unresolved)
     envelope = _pack_envelope(files)
     compressed = zstd.compress(envelope, level=ZSTD_LEVEL)
 

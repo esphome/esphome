@@ -1180,28 +1180,23 @@ static uint8_t store_yaml_chunk_buf[STORE_YAML_CHUNK_SIZE];
 #endif
 
 void APIConnection::on_get_yaml_request() {
-  auto *comp = store_yaml::global_store_yaml;
-  if (comp == nullptr || comp->get_size() == 0) {
-    // No component yet (request before setup()) or empty blob — send a single
-    // done=true response so the client always gets a terminal frame.
-    GetYamlResponse resp;
-    resp.done = true;
-    this->send_message(resp);
-    return;
-  }
+  // All responses — including the single data-less done=true frame for a
+  // missing/empty blob — go through the loop-driven retry below, so a full
+  // TX buffer at request time can't strand the client without a terminal frame.
   this->store_yaml_pos_ = 0;
   this->try_send_store_yaml_();
 }
 
-// Caller guarantees: store_yaml_pos_ != SIZE_MAX (a stream is in progress), which
-// implies on_get_yaml_request() already saw the never-cleared global non-null.
+// Caller guarantees: store_yaml_pos_ != SIZE_MAX (a request is in flight).
 void APIConnection::try_send_store_yaml_() {
   auto *comp = store_yaml::global_store_yaml;
-  const size_t total = comp->get_size();
+  // comp is only null if the request arrived before the component's setup();
+  // treat that like an empty blob and send just the terminal frame.
+  const size_t total = comp == nullptr ? 0 : comp->get_size();
 
   // Camera-style streaming: advance the position only after a successful send,
   // so a WOULD_BLOCK simply retries the same chunk on the next loop iteration.
-  while (this->store_yaml_pos_ < total) {
+  while (true) {
     if (!this->helper_->can_write_without_blocking())
       return;
 
@@ -1209,13 +1204,19 @@ void APIConnection::try_send_store_yaml_() {
     const size_t to_send = std::min(remaining, STORE_YAML_CHUNK_SIZE);
 
     GetYamlResponse resp;
+    if (to_send != 0) {
 #ifdef USE_ESP8266
-    progmem_memcpy(store_yaml_chunk_buf, comp->get_data() + this->store_yaml_pos_, to_send);
-    resp.set_data(store_yaml_chunk_buf, to_send);
+      progmem_memcpy(store_yaml_chunk_buf, comp->get_data() + this->store_yaml_pos_, to_send);
+      resp.set_data(store_yaml_chunk_buf, to_send);
 #else
-    resp.set_data(comp->get_data() + this->store_yaml_pos_, to_send);
+      resp.set_data(comp->get_data() + this->store_yaml_pos_, to_send);
 #endif
-    if (this->store_yaml_pos_ == 0) {
+    } else {
+      // Terminal frame for an empty blob: a valid empty pointer keeps the
+      // forced `data` field's memcpy well-defined.
+      resp.set_data(reinterpret_cast<const uint8_t *>(""), 0);
+    }
+    if (this->store_yaml_pos_ == 0 && total != 0) {
       resp.total_size = static_cast<uint32_t>(total);
       resp.encoding = StringRef(store_yaml::ENCODING);
     }
@@ -1225,9 +1226,11 @@ void APIConnection::try_send_store_yaml_() {
       return;  // retry on next loop, pos unchanged
 
     this->store_yaml_pos_ += to_send;
+    if (resp.done)
+      break;
   }
 
-  // Reached end successfully — final response (with done=true) already sent above.
+  // Final response (with done=true) sent successfully.
   this->store_yaml_pos_ = std::numeric_limits<size_t>::max();
 }
 #endif
