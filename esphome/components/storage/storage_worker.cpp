@@ -1,26 +1,37 @@
 #include "storage_worker.h"
 #include "esphome/core/log.h"
 
-namespace esphome::storage_worker {
+#ifdef USE_STORAGE_WORKER
 
-using namespace esphome::storage;  // NOLINT(google-build-using-namespace)
+namespace esphome::storage {
 
 static const char *const TAG = "storage_worker";
 
 StorageWorker *global_storage_worker = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void StorageWorker::setup() {
+  // Pool and (on ESP32) task creation are deferred to the first submit_() call — see
+  // ensure_started_() — so that a driver merely linking in the worker (because it's
+  // path-based) but never actually issuing an async transfer pays no RAM/task cost at all.
+  // Only the hotplug subscription happens here: it must be in place before any storage could
+  // possibly be unregistered, and it is a single lambda capture, not an allocation of note.
+  if (global_storage_registry != nullptr) {
+    global_storage_registry->add_on_unregistered_callback([this](Storage *s) { this->on_storage_unregistered_(s); });
+  }
+}
+
+void StorageWorker::ensure_started_() {
+  if (this->started_)
+    return;
+  this->started_ = true;
+
   this->pool_.init(this->max_pending_);
   for (size_t i = 0; i < this->max_pending_; i++) {
     this->pool_.emplace_back();  // default-construct in place — TransferRequest isn't movable
   }
   ESP_LOGCONFIG(TAG, "Request pool size: %zu", this->max_pending_);
 
-  if (global_storage_registry != nullptr) {
-    global_storage_registry->add_on_unregistered_callback([this](Storage *s) { this->on_storage_unregistered_(s); });
-  }
-
-#ifdef USE_ESP32
+#ifdef USE_STORAGE_WORKER_TASK
   this->task_queue_ = xQueueCreate(this->max_pending_, sizeof(size_t));
   if (this->task_queue_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create request queue — falling back to loop-sliced mode only");
@@ -45,7 +56,7 @@ void StorageWorker::setup() {
 
 bool StorageWorker::is_task_safe_(const TransferRequest &req) const {
   (void) req;  // unused on platforms without a background task (see the #else branch below)
-#ifdef USE_ESP32
+#ifdef USE_STORAGE_WORKER_TASK
   if (!this->task_running_)
     return false;
   uint8_t src_caps = req.src_storage->get_capabilities();
@@ -73,6 +84,8 @@ bool StorageWorker::overlaps_active_(const TransferRequest &candidate) const {
 
 StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *src_path, PathStorage *dst,
                                     const char *dst_path, CompletionCallback &&on_done) {
+  this->ensure_started_();
+
   if (strlen(src_path) >= STORAGE_WORKER_MAX_PATH || strlen(dst_path) >= STORAGE_WORKER_MAX_PATH)
     return StorageError::INVALID_ARGS;
 
@@ -108,7 +121,7 @@ StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *
   slot->src_is_fs = src->get_storage_type() == StorageType::FILESYSTEM;
   slot->dst_is_fs = dst->get_storage_type() == StorageType::FILESYSTEM;
 
-#ifdef USE_ESP32
+#ifdef USE_STORAGE_WORKER_TASK
   // Skip task dispatch if another active (RUNNING/CANCELLED) request already shares a storage
   // with this one — two engines must never call the same storage instance concurrently. A
   // task-safe request that loses this race simply degrades to the loop-sliced engine below
@@ -167,7 +180,7 @@ void StorageWorker::on_storage_unregistered_(Storage *s) {
         if (this->loop_active_index_ == i)
           this->loop_active_index_ = SIZE_MAX;
       } else {
-#ifdef USE_ESP32
+#ifdef USE_STORAGE_WORKER_TASK
         // Owned by the worker task (or, if it hasn't dequeued this index off task_queue_ yet,
         // about to be — run_chunk_()'s entry check still sees CANCELLED as soon as the task
         // does pick it up, so no special-casing is needed for that race). Set CANCELLED and
@@ -240,7 +253,7 @@ void StorageWorker::loop() {
   }
 }
 
-#ifdef USE_ESP32
+#ifdef USE_STORAGE_WORKER_TASK
 void StorageWorker::task_fn(void *arg) { static_cast<StorageWorker *>(arg)->task_loop_(); }
 
 void StorageWorker::task_loop_() {
@@ -404,4 +417,6 @@ void StorageWorker::run_chunk_(TransferRequest &req) {
   // iterations same as any other component's loop().
 }
 
-}  // namespace esphome::storage_worker
+}  // namespace esphome::storage
+
+#endif  // USE_STORAGE_WORKER

@@ -137,9 +137,10 @@ enum StorageCaps : uint8_t {
 // the caller (main loop today, later the worker) — drivers don't need to be thread-safe, just
 // tolerant of running on a single, possibly-different task. setup(), mount()/unmount(),
 // format(), connect()/disconnect(), and all StorageRegistry calls are CONTROL-PLANE and
-// remain main-loop-only (see StorageRegistry's contract below). A future async worker will
-// only offload data-plane I/O to its own task for storages reporting STORAGE_CAP_IO_TASK_SAFE;
-// all others continue to be driven from the main loop.
+// remain main-loop-only (see StorageRegistry's contract below). The async worker (storage_worker.h
+// in this component, compiled in as USE_STORAGE_WORKER when a path-based driver requests it — see
+// request_storage_worker() in __init__.py) only offloads data-plane I/O to its own task for
+// storages reporting STORAGE_CAP_IO_TASK_SAFE; all others continue to be driven from the main loop.
 class Storage : public Component {
  public:
   // Must succeed (return OK) even when registered-but-unmounted/-disconnected — report that
@@ -239,12 +240,12 @@ class NetworkStorage : public PathStorage {
 // before teardown.
 //
 // Contract: unregister_storage() does not return until every subscriber has had a chance to
-// stop using the storage being removed — in particular, the storage_worker component (if
-// present) drains any in-flight or queued data-plane call against it (best effort: it gives
-// up after a bounded timeout if a call refuses to finish, logging an error, since at that
-// point the medium is presumed gone anyway). This is what makes "unregister, then unmount"
-// provably safe for the calling driver: by the time this function returns, no async consumer
-// still holds an open handle or is mid-call against the storage.
+// stop using the storage being removed — in particular, the async worker (storage_worker.h, if
+// compiled in — see USE_STORAGE_WORKER) drains any in-flight or queued data-plane call against
+// it (best effort: it gives up after a bounded timeout if a call refuses to finish, logging an
+// error, since at that point the medium is presumed gone anyway). This is what makes
+// "unregister, then unmount" provably safe for the calling driver: by the time this function
+// returns, no async consumer still holds an open handle or is mid-call against the storage.
 class StorageRegistry : public Component {
  public:
   float get_setup_priority() const override { return setup_priority::BUS; }
@@ -254,8 +255,8 @@ class StorageRegistry : public Component {
 
   // Guard-rail for the BLOCKING helpers below (read_file()/write_file()/copy()/move()):
   // transfers larger than this are rejected with StorageError::TRANSFER_TOO_LARGE instead of
-  // freezing the node, so callers get routed through the async API (storage_worker) instead.
-  // 0 (default) means unlimited — preserves current behavior.
+  // freezing the node, so callers get routed through the async worker (storage_worker.h)
+  // instead. 0 (default) means unlimited — preserves current behavior.
   void set_max_blocking_transfer_size(uint64_t size) { this->max_blocking_transfer_size_ = size; }
   uint64_t get_max_blocking_transfer_size() const { return this->max_blocking_transfer_size_; }
 
@@ -335,8 +336,9 @@ StorageError write_file(NetworkStorage *storage, const char *path, const uint8_t
 // USB -> NFS). Dispatches on get_storage_type() and streams the file through a fixed
 // STORAGE_COPY_CHUNK_SIZE buffer (unlike read_file()/write_file(), it never holds the whole
 // file in RAM), feeding the task watchdog between chunks. It still BLOCKS the main loop for
-// the duration of the copy, though — large copies will freeze sensor updates/API
-// responsiveness until an async worker layer exists (planned follow-up).
+// the duration of the copy, though — large copies freeze sensor updates/API responsiveness
+// unless the caller uses the async worker's copy (StorageWorker::async_copy(), storage_worker.h)
+// instead.
 StorageError copy(PathStorage *src_storage, const char *src_path, PathStorage *dst_storage, const char *dst_path);
 
 // Moves a file, within the same storage or across two different storages. Same-storage moves
