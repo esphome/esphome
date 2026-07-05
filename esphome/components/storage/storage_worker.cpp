@@ -18,12 +18,19 @@ void StorageWorker::setup() {
   if (global_storage_registry != nullptr) {
     global_storage_registry->add_on_unregistered_callback([this](Storage *s) { this->on_storage_unregistered_(s); });
   }
+
+  // loop() has nothing to do until the first async transfer is submitted (see
+  // ensure_started_()/submit_() below, which re-enables it) — an idle empty-pool scan every
+  // main loop iteration is pure overhead for a driver that links in the worker but never
+  // actually calls async_copy()/async_move().
+  this->disable_loop();
 }
 
 void StorageWorker::ensure_started_() {
   if (this->started_)
     return;
   this->started_ = true;
+  this->enable_loop();
 
   this->pool_.init(this->max_pending_);
   for (size_t i = 0; i < this->max_pending_; i++) {
@@ -31,7 +38,10 @@ void StorageWorker::ensure_started_() {
   }
   ESP_LOGCONFIG(TAG, "Request pool size: %zu", this->max_pending_);
 
-#ifdef USE_STORAGE_WORKER_TASK
+  // The define is derived purely from drivers' task_safe flags in codegen; the platform
+  // condition lives here so a task-safe driver on a non-FreeRTOS target degrades to
+  // loop-sliced instead of failing to compile.
+#if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
   this->task_queue_ = xQueueCreate(this->max_pending_, sizeof(size_t));
   if (this->task_queue_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create request queue — falling back to loop-sliced mode only");
@@ -56,7 +66,7 @@ void StorageWorker::ensure_started_() {
 
 bool StorageWorker::is_task_safe_(const TransferRequest &req) const {
   (void) req;  // unused on platforms without a background task (see the #else branch below)
-#ifdef USE_STORAGE_WORKER_TASK
+#if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
   if (!this->task_running_)
     return false;
   uint8_t src_caps = req.src_storage->get_capabilities();
@@ -121,7 +131,7 @@ StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *
   slot->src_is_fs = src->get_storage_type() == StorageType::FILESYSTEM;
   slot->dst_is_fs = dst->get_storage_type() == StorageType::FILESYSTEM;
 
-#ifdef USE_STORAGE_WORKER_TASK
+#if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
   // Skip task dispatch if another active (RUNNING/CANCELLED) request already shares a storage
   // with this one — two engines must never call the same storage instance concurrently. A
   // task-safe request that loses this race simply degrades to the loop-sliced engine below
@@ -180,7 +190,7 @@ void StorageWorker::on_storage_unregistered_(Storage *s) {
         if (this->loop_active_index_ == i)
           this->loop_active_index_ = SIZE_MAX;
       } else {
-#ifdef USE_STORAGE_WORKER_TASK
+#if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
         // Owned by the worker task (or, if it hasn't dequeued this index off task_queue_ yet,
         // about to be — run_chunk_()'s entry check still sees CANCELLED as soon as the task
         // does pick it up, so no special-casing is needed for that race). Set CANCELLED and
@@ -273,7 +283,7 @@ void StorageWorker::loop() {
   }
 }
 
-#ifdef USE_STORAGE_WORKER_TASK
+#if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
 void StorageWorker::task_fn(void *arg) { static_cast<StorageWorker *>(arg)->task_loop_(); }
 
 void StorageWorker::task_loop_() {

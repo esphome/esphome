@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.core import CORE, ID
+from esphome.core import CORE, CoroPriority, ID, coroutine_with_priority
 
 CODEOWNERS = ["@p1ngb4ck"]
 
@@ -102,6 +102,13 @@ def request_storage_worker(task_safe: bool = False) -> None:
         data.worker_task_safe = True
 
 
+# storage is a dependency of every driver and would otherwise run BEFORE them (default
+# priority), reading device_count/worker_count as 0 — every driver's own to_code() is where
+# request_storage_device()/request_storage_worker() actually get called. LATE (-100) runs
+# after all default-priority driver to_code()s, so those counts are final by the time this
+# reads them. Consumers awaiting the registry/worker variables (e.g. via cg.get_variable())
+# are unaffected either way, since that call already suspends until the variable exists.
+@coroutine_with_priority(CoroPriority.LATE)
 async def to_code(config):
     var = cg.new_Pvariable(config[cv.GenerateID()])
     await cg.register_component(var, config)
