@@ -30,8 +30,6 @@ void ZephyrPWMChannel::dump_config() {
   LOG_FLOAT_OUTPUT(this);
 }
 void HOT ZephyrPWMChannel::write_state(float state) {
-  this->last_output_ = state;
-
   uint32_t pulse_width_ns = state * this->period_ns_;
   pwm_flags_t flags = this->inverted_ ? PWM_POLARITY_INVERTED : PWM_POLARITY_NORMAL;
   int err = pwm_set(this->device_, this->channel_, this->period_ns_, pulse_width_ns, flags);
