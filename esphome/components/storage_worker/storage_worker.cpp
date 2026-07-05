@@ -181,11 +181,10 @@ void StorageWorker::on_storage_unregistered_(Storage *s) {
         uint32_t start = millis();
         while (req.state.load() != RequestState::DONE) {
           if (millis() - start > 500) {
-            ESP_LOGE(TAG,
-                     "Timed out waiting for in-flight transfer to cancel — the storage medium "
-                     "is likely gone; proceeding with unmount anyway. Behavior from here is "
-                     "undefined if the task is still touching it (e.g. still holding a file "
-                     "handle) when it does eventually finish.");
+            ESP_LOGE(TAG, "Timed out waiting for in-flight transfer to cancel — the storage medium "
+                          "is likely gone; proceeding with unmount anyway. Behavior from here is "
+                          "undefined if the task is still touching it (e.g. still holding a file "
+                          "handle) when it does eventually finish.");
             // Discard the callback now: if the task does reach DONE later, loop() must only
             // free the slot, not fire a completion into a context whose storage object may
             // no longer exist post-unmount. The slot stays stuck (RUNNING/CANCELLED, never
