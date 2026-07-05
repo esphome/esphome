@@ -110,8 +110,7 @@ storage::StorageError SdStorageBase::open(const char *path, storage::FileHandle 
       case ENFILE:
         return storage::StorageError::TOO_MANY_OPEN_FILES;
       default:
-        return mode == storage::OpenMode::READ ? storage::StorageError::READ_ERROR
-                                                : storage::StorageError::WRITE_ERROR;
+        return mode == storage::OpenMode::READ ? storage::StorageError::READ_ERROR : storage::StorageError::WRITE_ERROR;
     }
   }
 
