@@ -200,12 +200,9 @@ DeviceFirmwareUpdate = nrf52_ns.class_("DeviceFirmwareUpdate", cg.Component)
 
 CONF_DFU = "dfu"
 CONF_DCDC = "dcdc"
-CONF_LIBC = "libc"
+CONF_LIBC_NANO = "libc_nano"
 CONF_REG0 = "reg0"
 CONF_UICR_ERASE = "uicr_erase"
-
-LIBC_NEWLIB_NANO = "newlib_libc_nano"
-LIBC_NEWLIB = "newlib_libc"
 
 VOLTAGE_LEVELS = [1.8, 2.1, 2.4, 2.7, 3.0, 3.3]
 
@@ -252,9 +249,7 @@ CONFIG_SCHEMA = cv.All(
             ): cv.Schema(
                 {
                     cv.Optional(CONF_VERSION): cv.string_strict,
-                    cv.Optional(CONF_LIBC, default=LIBC_NEWLIB_NANO): cv.one_of(
-                        LIBC_NEWLIB_NANO, LIBC_NEWLIB, lower=True
-                    ),
+                    cv.Optional(CONF_LIBC_NANO, default=True): cv.boolean,
                     cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
                         {
                             cv.Optional(
@@ -291,13 +286,11 @@ def _final_validate(config):
     conf = config[CONF_FRAMEWORK]
     advanced = conf[CONF_ADVANCED]
 
-    if conf[CONF_LIBC] == LIBC_NEWLIB_NANO and "logger" in CORE.loaded_integrations:
+    if conf[CONF_LIBC_NANO] and "logger" in CORE.loaded_integrations:
         _LOGGER.warning(
-            "Logger is enabled with %s. Some format specifiers such as %%zu are "
-            "not supported by newlib-nano and will print incorrectly. "
-            "Set 'libc: %s' under 'framework:' to use the full newlib.",
-            LIBC_NEWLIB_NANO,
-            LIBC_NEWLIB,
+            "Logger is enabled with newlib-nano (libc_nano: true). Some format specifiers "
+            "such as %%zu are not supported and will print incorrectly. "
+            "Set 'libc_nano: false' under 'framework:' to use the full newlib."
         )
 
     if advanced[CONF_ENABLE_OTA_ROLLBACK]:
@@ -398,10 +391,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_OTA_ROLLBACK")
     zephyr_add_prj_conf("NEWLIB_LIBC", True)
     zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
-    if conf[CONF_LIBC] == LIBC_NEWLIB_NANO:
-        zephyr_add_prj_conf("NEWLIB_LIBC_NANO", True)
-    else:
-        zephyr_add_prj_conf("NEWLIB_LIBC_NANO", False)
+    zephyr_add_prj_conf("NEWLIB_LIBC_NANO", conf[CONF_LIBC_NANO])
     # c++ support
     if framework_ver < cv.Version(2, 9, 2):
         zephyr_add_prj_conf("CPLUSPLUS", True)

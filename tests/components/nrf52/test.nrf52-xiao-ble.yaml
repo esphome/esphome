@@ -3,4 +3,4 @@ nrf52:
   reg0:
     voltage: 1.8V
   framework:
-    libc: newlib_libc
+    libc_nano: false
