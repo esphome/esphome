@@ -12,23 +12,16 @@ void StorageRegistry::register_storage(Storage *s) {
   if (s == nullptr)
     return;
 
-  {
-    // Lock scoped to the storages_ mutation only — get_info() below can be a blocking
-    // control-plane call, and on_registered_.call() may re-enter the registry from a
-    // callback, so neither must run while the lock is held.
-    LockGuard lock{this->registry_lock_};
-
-    for (auto *existing : this->storages_) {
-      if (existing == s)
-        return;  // already registered
-    }
-
-    if (this->storages_.full()) {
-      ESP_LOGE(TAG, "Registry full — increase device count");
-      return;
-    }
-    this->storages_.push_back(s);
+  for (auto *existing : this->storages_) {
+    if (existing == s)
+      return;  // already registered
   }
+
+  if (this->storages_.full()) {
+    ESP_LOGE(TAG, "Registry full — increase device count");
+    return;
+  }
+  this->storages_.push_back(s);
 
   // Log regardless of get_info()'s result — an unmounted-but-registered device (e.g. before
   // its medium is mounted) must still show up, per the get_info() contract on Storage above.
@@ -47,27 +40,22 @@ void StorageRegistry::unregister_storage(Storage *s) {
   if (s == nullptr)
     return;
 
-  {
-    // See register_storage() above for why the lock is scoped this tightly.
-    LockGuard lock{this->registry_lock_};
-
-    // Swap-remove: no reallocation, keeps capacity — safe since order doesn't matter here
-    // (for_each* enumerate every entry regardless of position).
-    size_t found_index = this->storages_.size();
-    for (size_t i = 0; i < this->storages_.size(); i++) {
-      if (this->storages_[i] == s) {
-        found_index = i;
-        break;
-      }
+  // Swap-remove: no reallocation, keeps capacity — safe since order doesn't matter here
+  // (for_each* enumerate every entry regardless of position).
+  size_t found_index = this->storages_.size();
+  for (size_t i = 0; i < this->storages_.size(); i++) {
+    if (this->storages_[i] == s) {
+      found_index = i;
+      break;
     }
-    if (found_index == this->storages_.size())
-      return;
-
-    size_t last_index = this->storages_.size() - 1;
-    if (found_index != last_index)
-      this->storages_[found_index] = this->storages_[last_index];
-    this->storages_.pop_back();
   }
+  if (found_index == this->storages_.size())
+    return;
+
+  size_t last_index = this->storages_.size() - 1;
+  if (found_index != last_index)
+    this->storages_[found_index] = this->storages_[last_index];
+  this->storages_.pop_back();
 
   StorageInfo info{};
   if (s->get_info(&info) == StorageError::OK) {
@@ -313,13 +301,17 @@ StorageError write_file(NetworkStorage *storage, const char *path, const uint8_t
 }
 
 StorageError copy(PathStorage *src_storage, const char *src_path, PathStorage *dst_storage, const char *dst_path) {
-  FileStat src_stat{};
-  StorageError stat_err = src_storage->stat(src_path, &src_stat);
-  if (stat_err != StorageError::OK)
-    return stat_err;
-  stat_err = check_blocking_transfer_size(src_stat.size);
-  if (stat_err != StorageError::OK)
-    return stat_err;
+  // Only pay for the extra stat() when a limit is actually configured — the guard-rail is
+  // opt-in and copy() itself doesn't need the file size to stream.
+  if (global_storage_registry != nullptr && global_storage_registry->get_max_blocking_transfer_size() != 0) {
+    FileStat src_stat{};
+    StorageError stat_err = src_storage->stat(src_path, &src_stat);
+    if (stat_err != StorageError::OK)
+      return stat_err;
+    stat_err = check_blocking_transfer_size(src_stat.size);
+    if (stat_err != StorageError::OK)
+      return stat_err;
+  }
 
   // PREFER_INTERNAL: PSRAM isn't DMA-capable on classic ESP32 (restricted on S3 too), so
   // SD/SPI drivers would bounce-buffer anyway. Fall back to smaller sizes under memory pressure.
