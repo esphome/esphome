@@ -30,7 +30,7 @@ namespace esphome::logger {
 static const char *const TAG = "logger";
 
 #ifdef USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG
-static void init_usb_serial_jtag_() {
+static void init_usb_serial_jtag() {
   setvbuf(stdin, NULL, _IONBF, 0);  // Disable buffering on stdin
 
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 3, 0)
@@ -109,7 +109,7 @@ void Logger::pre_setup() {
 #ifdef USE_LOGGER_USB_SERIAL_JTAG
       case UART_SELECTION_USB_SERIAL_JTAG:
 #ifdef USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG
-        init_usb_serial_jtag_();
+        init_usb_serial_jtag();
 #endif
         break;
 #endif

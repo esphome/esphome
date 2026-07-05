@@ -7,7 +7,11 @@ from esphome.components.zephyr import (
     zephyr_add_prj_conf,
     zephyr_data,
 )
-from esphome.components.zephyr.const import BOOTLOADER_MCUBOOT, KEY_BOOTLOADER
+from esphome.components.zephyr.const import (
+    BOOTLOADER_MCUBOOT,
+    KEY_BOOTLOADER,
+    KEY_SYSBUILD,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_HARDWARE_UART,
@@ -16,6 +20,8 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_PIN,
     CONF_STATUS,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     Framework,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -179,3 +185,6 @@ async def to_code(config: ConfigType) -> None:
                 """,
             image="mcuboot",
         )
+    framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if framework_ver >= cv.Version(2, 9, 2):
+        zephyr_data()[KEY_SYSBUILD] = True
