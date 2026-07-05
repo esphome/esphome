@@ -1,0 +1,6 @@
+storage:
+
+storage_worker:
+  task_stack_size: 8192
+  task_priority: 1
+  max_pending: 4

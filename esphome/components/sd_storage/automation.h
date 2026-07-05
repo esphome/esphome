@@ -63,8 +63,7 @@ template<typename T, typename... Ts> class ListFilesAction : public Action<Ts...
       path = this->parent_->get_mount_path();
 
     this->parent_->log_list_dir_start_(path);
-    this->parent_->list_dir(
-        path, [](const storage::FileStat *entry, void *ctx) { SdStorageBase::log_list_dir_entry(entry); }, nullptr);
+    this->parent_->list_dir(path, &SdStorageBase::log_list_dir_entry, nullptr);
   }
 
  protected:

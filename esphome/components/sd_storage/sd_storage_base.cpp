@@ -47,7 +47,7 @@ storage::StorageError SdStorageBase::get_info(storage::StorageInfo *info) {
 
 storage::StorageError SdStorageBase::format() {
   ESP_LOGW(TAG_BASE, "Format not implemented for SD cards");
-  return storage::StorageError::WRITE_ERROR;
+  return storage::StorageError::NOT_SUPPORTED;
 }
 
 storage::StorageError SdStorageBase::sync() { return storage::StorageError::OK; }
@@ -65,7 +65,7 @@ storage::StorageError SdStorageBase::open(const char *path, storage::FileHandle 
     }
   }
   if (h == nullptr)
-    return storage::StorageError::NO_SPACE;
+    return storage::StorageError::TOO_MANY_OPEN_FILES;
 
   if (!this->build_full_path_(path, h->path_buf, sizeof(h->path_buf)))
     return storage::StorageError::INVALID_ARGS;
@@ -131,20 +131,34 @@ storage::StorageError SdStorageBase::write(storage::FileHandle *handle, const ui
   return (n == len) ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
 }
 
-storage::StorageError SdStorageBase::seek(storage::FileHandle *handle, size_t offset) {
+storage::StorageError SdStorageBase::seek(storage::FileHandle *handle, int64_t offset, storage::SeekMode mode) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr)
     return storage::StorageError::INVALID_ARGS;
-  return fseek(handle->file, static_cast<int32_t>(offset), SEEK_SET) == 0 ? storage::StorageError::OK
-                                                                          : storage::StorageError::READ_ERROR;
+  int whence;
+  switch (mode) {
+    case storage::SeekMode::SET:
+      whence = SEEK_SET;
+      break;
+    case storage::SeekMode::CUR:
+      whence = SEEK_CUR;
+      break;
+    case storage::SeekMode::END:
+      whence = SEEK_END;
+      break;
+    default:
+      return storage::StorageError::INVALID_ARGS;
+  }
+  return fseek(handle->file, static_cast<long>(offset), whence) == 0 ? storage::StorageError::OK
+                                                                      : storage::StorageError::READ_ERROR;
 }
 
-storage::StorageError SdStorageBase::tell(storage::FileHandle *handle, size_t *position) {
+storage::StorageError SdStorageBase::tell(storage::FileHandle *handle, uint64_t *position) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr)
     return storage::StorageError::INVALID_ARGS;
-  int32_t pos = ftell(handle->file);
+  long pos = ftell(handle->file);
   if (pos < 0)
     return storage::StorageError::READ_ERROR;
-  *position = static_cast<size_t>(pos);
+  *position = static_cast<uint64_t>(pos);
   return storage::StorageError::OK;
 }
 
@@ -162,13 +176,15 @@ storage::StorageError SdStorageBase::stat(const char *path, storage::FileStat *s
 
   strncpy(st->name, path, sizeof(st->name) - 1);
   st->name[sizeof(st->name) - 1] = '\0';
-  st->size = S_ISDIR(s.st_mode) ? 0 : static_cast<size_t>(s.st_size);
+  st->size = S_ISDIR(s.st_mode) ? 0 : static_cast<uint64_t>(s.st_size);
   st->is_dir = S_ISDIR(s.st_mode);
+  st->mtime = static_cast<uint32_t>(s.st_mtime);
   return storage::StorageError::OK;
 }
 
 storage::StorageError SdStorageBase::list_dir(const char *path,
-                                              void (*callback)(const storage::FileStat *entry, void *ctx), void *ctx) {
+                                              bool (*callback)(const storage::FileStat *entry, void *ctx),
+                                              void *ctx) {
   if (!this->is_mounted_)
     return storage::StorageError::NOT_READY;
 
@@ -190,16 +206,21 @@ storage::StorageError SdStorageBase::list_dir(const char *path,
     entry.name[sizeof(entry.name) - 1] = '\0';
     entry.is_dir = (ent->d_type == DT_DIR);
 
-    if (!entry.is_dir) {
-      char rel[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-      snprintf(rel, sizeof(rel), "%s/%s", path, ent->d_name);
-      char entry_full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
+    char rel[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
+    snprintf(rel, sizeof(rel), "%s/%s", path, ent->d_name);
+    char entry_full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
+    if (this->build_full_path_(rel, entry_full, sizeof(entry_full))) {
       struct stat s;
-      if (this->build_full_path_(rel, entry_full, sizeof(entry_full)))
-        entry.size = (::stat(entry_full, &s) == 0) ? static_cast<size_t>(s.st_size) : 0;
+      if (::stat(entry_full, &s) == 0) {
+        entry.size = entry.is_dir ? 0 : static_cast<uint64_t>(s.st_size);
+        entry.mtime = static_cast<uint32_t>(s.st_mtime);
+      }
     }
 
-    callback(&entry, ctx);
+    // callback returns false to stop enumeration early — that is not an error, so we still
+    // return OK below regardless of how the loop exits.
+    if (!callback(&entry, ctx))
+      break;
   }
 
   closedir(dir);
@@ -214,10 +235,12 @@ storage::StorageError SdStorageBase::mkdir(const char *path) {
   if (!this->build_full_path_(path, full, sizeof(full)))
     return storage::StorageError::INVALID_ARGS;
 
-  return ::mkdir(full, 0755) == 0 ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+  if (::mkdir(full, 0755) == 0)
+    return storage::StorageError::OK;
+  return (errno == EEXIST) ? storage::StorageError::ALREADY_EXISTS : storage::StorageError::WRITE_ERROR;
 }
 
-storage::StorageError SdStorageBase::rmdir(const char *path, bool recursive) {
+storage::StorageError SdStorageBase::rmdir(const char *path) {
   if (!this->is_mounted_)
     return storage::StorageError::NOT_READY;
 
@@ -225,33 +248,24 @@ storage::StorageError SdStorageBase::rmdir(const char *path, bool recursive) {
   if (!this->build_full_path_(path, full, sizeof(full)))
     return storage::StorageError::INVALID_ARGS;
 
-  if (recursive) {
-    DIR *dir = opendir(full);
-    if (dir == nullptr)
-      return storage::StorageError::NOT_FOUND;
+  // Non-recursive per the storage:: contract: must fail with NOT_EMPTY if the directory has
+  // contents. Recursive delete is the free storage::remove_recursive() helper, built on top
+  // of list_dir()/remove()/this rmdir() — no need to duplicate that tree-walk here.
+  DIR *dir = opendir(full);
+  if (dir == nullptr)
+    return storage::StorageError::NOT_FOUND;
 
-    struct dirent *ent;
-    while ((ent = readdir(dir)) != nullptr) {
-      if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
-        continue;
-
-      char child_rel[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-      if (snprintf(child_rel, sizeof(child_rel), "%s/%s", path, ent->d_name) >= static_cast<int>(sizeof(child_rel)))
-        continue;
-
-      storage::StorageError err;
-      if (ent->d_type == DT_DIR) {
-        err = this->rmdir(child_rel, true);
-      } else {
-        err = this->remove(child_rel);
-      }
-      if (err != storage::StorageError::OK) {
-        closedir(dir);
-        return err;
-      }
-    }
-    closedir(dir);
+  bool has_entries = false;
+  struct dirent *ent;
+  while ((ent = readdir(dir)) != nullptr) {
+    if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
+      continue;
+    has_entries = true;
+    break;
   }
+  closedir(dir);
+  if (has_entries)
+    return storage::StorageError::NOT_EMPTY;
 
   return ::unlink(full) == 0 ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
 }
@@ -281,48 +295,6 @@ storage::StorageError SdStorageBase::rename(const char *old_path, const char *ne
   return ::rename(full_old, full_new) == 0 ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
 }
 
-storage::StorageError SdStorageBase::copy(const char *src_path, const char *dst_path) {
-  if (!this->is_mounted_)
-    return storage::StorageError::NOT_READY;
-
-  char full_src[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-  char full_dst[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-  if (!this->build_full_path_(src_path, full_src, sizeof(full_src)))
-    return storage::StorageError::INVALID_ARGS;
-  if (!this->build_full_path_(dst_path, full_dst, sizeof(full_dst)))
-    return storage::StorageError::INVALID_ARGS;
-
-  FILE *src = fopen(full_src, "rb");
-  if (src == nullptr)
-    return storage::StorageError::NOT_FOUND;
-
-  FILE *dst = fopen(full_dst, "wb");
-  if (dst == nullptr) {
-    fclose(src);
-    return storage::StorageError::WRITE_ERROR;
-  }
-
-  uint8_t buf[256];
-  storage::StorageError err = storage::StorageError::OK;
-  while (true) {
-    size_t n = fread(buf, 1, sizeof(buf), src);
-    if (ferror(src)) {
-      err = storage::StorageError::READ_ERROR;
-      break;
-    }
-    if (n == 0 || feof(src))
-      break;
-    if (fwrite(buf, 1, n, dst) != n) {
-      err = storage::StorageError::WRITE_ERROR;
-      break;
-    }
-  }
-
-  fclose(src);
-  fclose(dst);
-  return err;
-}
-
 void SdStorageBase::log_mount_result_(bool success) const {
   if (success) {
     ESP_LOGI(TAG_BASE, "Card mounted via automation");
@@ -335,12 +307,13 @@ void SdStorageBase::log_unmount_() const { ESP_LOGI(TAG_BASE, "Card unmounted vi
 
 void SdStorageBase::log_list_dir_start_(const char *path) const { ESP_LOGI(TAG_BASE, "Listing files in: %s", path); }
 
-void SdStorageBase::log_list_dir_entry(const storage::FileStat *entry) {
+bool SdStorageBase::log_list_dir_entry(const storage::FileStat *entry, void *ctx) {
   if (entry->is_dir) {
     ESP_LOGI(TAG_BASE, "  [DIR]  %s", entry->name);
   } else {
-    ESP_LOGI(TAG_BASE, "  [FILE] %s (%zu bytes)", entry->name, entry->size);
+    ESP_LOGI(TAG_BASE, "  [FILE] %s (%llu bytes)", entry->name, static_cast<unsigned long long>(entry->size));
   }
+  return true;  // keep enumerating — this is a "list everything" action
 }
 
 }  // namespace esphome::sd_storage

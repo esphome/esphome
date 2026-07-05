@@ -46,16 +46,15 @@ class SdStorageBase : public storage::FilesystemStorage {
   storage::StorageError read(storage::FileHandle *handle, uint8_t *buf, size_t len, size_t *bytes_transferred) override;
   storage::StorageError write(storage::FileHandle *handle, const uint8_t *buf, size_t len,
                               size_t *bytes_transferred) override;
-  storage::StorageError seek(storage::FileHandle *handle, size_t offset) override;
-  storage::StorageError tell(storage::FileHandle *handle, size_t *position) override;
+  storage::StorageError seek(storage::FileHandle *handle, int64_t offset, storage::SeekMode mode) override;
+  storage::StorageError tell(storage::FileHandle *handle, uint64_t *position) override;
   storage::StorageError stat(const char *path, storage::FileStat *stat) override;
-  storage::StorageError list_dir(const char *path, void (*callback)(const storage::FileStat *entry, void *ctx),
+  storage::StorageError list_dir(const char *path, bool (*callback)(const storage::FileStat *entry, void *ctx),
                                  void *ctx) override;
   storage::StorageError mkdir(const char *path) override;
-  storage::StorageError rmdir(const char *path, bool recursive) override;
+  storage::StorageError rmdir(const char *path) override;
   storage::StorageError remove(const char *path) override;
   storage::StorageError rename(const char *old_path, const char *new_path) override;
-  storage::StorageError copy(const char *src_path, const char *dst_path) override;
 
  protected:
   static constexpr int MAX_OPEN_FILES = 4;
@@ -72,7 +71,8 @@ class SdStorageBase : public storage::FilesystemStorage {
   void log_mount_result_(bool success) const;
   void log_unmount_() const;
   void log_list_dir_start_(const char *path) const;
-  static void log_list_dir_entry(const storage::FileStat *entry);
+  // Matches the list_dir() callback signature (bool return = keep enumerating).
+  static bool log_list_dir_entry(const storage::FileStat *entry, void *ctx);
 
   CardType card_type_{CardType::UNKNOWN};
   bool is_mounted_{false};
