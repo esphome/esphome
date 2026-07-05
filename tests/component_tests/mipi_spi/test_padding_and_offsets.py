@@ -13,6 +13,16 @@ from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32S3,
 )
+from esphome.components.mipi import (
+    CONF_DIMENSIONS,
+    CONF_HEIGHT,
+    CONF_MIRROR_X,
+    CONF_MIRROR_Y,
+    CONF_OFFSET_HEIGHT,
+    CONF_OFFSET_WIDTH,
+    CONF_SWAP_XY,
+    CONF_WIDTH,
+)
 from esphome.components.mipi_spi.display import (
     CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA,
@@ -20,7 +30,13 @@ from esphome.components.mipi_spi.display import (
     get_instance,
 )
 from esphome.components.spi import CONF_SPI_MODE, TYPE_OCTAL, TYPE_QUAD, TYPE_SINGLE
-from esphome.const import CONF_CS_PIN, CONF_DC_PIN, PlatformFramework
+from esphome.const import (
+    CONF_CS_PIN,
+    CONF_DC_PIN,
+    CONF_DISABLED,
+    CONF_TRANSFORM,
+    PlatformFramework,
+)
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
 
@@ -432,3 +448,152 @@ class TestUserConfiguredPadding:
         assert config["dimensions"]["width"] == 240
         assert config["dimensions"]["height"] == 240
         assert config["dimensions"]["pad_height"] == 16
+
+
+class TestHasHardwareTransform:
+    """Test DriverChip.has_hardware_transform()."""
+
+    def test_full_transform_model_without_transform_key(self) -> None:
+        """A model supporting swap_xy uses a hardware transform by default."""
+        model = MODELS["ST7789V"]
+        assert model.has_hardware_transform({}) is True
+
+    def test_full_transform_model_with_transform_dict(self) -> None:
+        """A configured (non-disabled) transform still uses the hardware path."""
+        model = MODELS["ST7789V"]
+        assert (
+            model.has_hardware_transform({CONF_TRANSFORM: {CONF_SWAP_XY: True}}) is True
+        )
+
+    def test_full_transform_model_with_transform_disabled(self) -> None:
+        """Disabling the transform falls back to software transforms."""
+        model = MODELS["ST7789V"]
+        assert model.has_hardware_transform({CONF_TRANSFORM: CONF_DISABLED}) is False
+
+    def test_model_without_swap_xy_support(self) -> None:
+        """Models that cannot swap axes never use a hardware transform."""
+        # AXS15231 only supports mirror_x/mirror_y, not swap_xy.
+        model = MODELS["AXS15231"]
+        assert model.transforms == {CONF_MIRROR_X, CONF_MIRROR_Y}
+        assert model.has_hardware_transform({}) is False
+
+
+class TestSwapXYNativeDimensions:
+    """Test that native dimensions are swapped when a swap_xy transform is active.
+
+    When explicit dimensions are given in the swapped (rotated) orientation and the
+    model applies a hardware swap_xy transform, the model's native_width/native_height
+    defaults must be swapped to match, otherwise padding is computed against the wrong
+    axis and validation fails.
+    """
+
+    def test_explicit_swapped_dimensions_with_swap_xy_transform(
+        self,
+        set_core_config: SetCoreConfigCallable,
+    ) -> None:
+        """Explicit landscape dimensions on a portrait-native model with swap_xy."""
+        set_core_config(
+            PlatformFramework.ESP32_IDF,
+            platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+        )
+
+        # ST7789V is natively 240x320 (portrait). Provide landscape dimensions
+        # together with a swap_xy transform.
+        model = MODELS["ST7789V"]
+        assert model.get_default("native_width") == 240
+        assert model.get_default("native_height") == 320
+
+        config = {
+            "model": "ST7789V",
+            CONF_DIMENSIONS: {
+                CONF_WIDTH: 320,
+                CONF_HEIGHT: 240,
+                CONF_OFFSET_WIDTH: 0,
+                CONF_OFFSET_HEIGHT: 0,
+            },
+            CONF_TRANSFORM: {
+                CONF_SWAP_XY: True,
+                CONF_MIRROR_X: False,
+                CONF_MIRROR_Y: False,
+            },
+        }
+
+        # swap=False because the buffer is laid out in the requested orientation.
+        width, height, offset_w, offset_h, pad_w, pad_h = model.get_dimensions(
+            config, swap=False
+        )
+        # Native dims are swapped to 320x240, so padding works out to zero rather
+        # than going negative (which previously raised "Invalid offsets").
+        assert (width, height) == (320, 240)
+        assert (offset_w, offset_h) == (0, 0)
+        assert (pad_w, pad_h) == (0, 0)
+
+    def test_explicit_dimensions_without_swap_keeps_native_orientation(
+        self,
+        set_core_config: SetCoreConfigCallable,
+    ) -> None:
+        """Without swap_xy the native dimensions keep their original orientation."""
+        set_core_config(
+            PlatformFramework.ESP32_IDF,
+            platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+        )
+
+        model = MODELS["ST7789V"]
+        config = {
+            "model": "ST7789V",
+            CONF_DIMENSIONS: {
+                CONF_WIDTH: 240,
+                CONF_HEIGHT: 320,
+                CONF_OFFSET_WIDTH: 0,
+                CONF_OFFSET_HEIGHT: 0,
+            },
+            CONF_TRANSFORM: {
+                CONF_SWAP_XY: False,
+                CONF_MIRROR_X: False,
+                CONF_MIRROR_Y: False,
+            },
+        }
+
+        width, height, offset_w, offset_h, pad_w, pad_h = model.get_dimensions(
+            config, swap=False
+        )
+        assert (width, height) == (240, 320)
+        assert (offset_w, offset_h) == (0, 0)
+        assert (pad_w, pad_h) == (0, 0)
+
+    def test_swapped_native_dimensions_compute_padding(
+        self,
+        set_core_config: SetCoreConfigCallable,
+    ) -> None:
+        """Padding is derived from the swapped native size when swap_xy is active."""
+        set_core_config(
+            PlatformFramework.ESP32_IDF,
+            platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+        )
+
+        # ILI9341 is natively 240x320. Request a 300x240 area in landscape; the
+        # swapped native size is 320x240, leaving 20px of horizontal padding.
+        model = MODELS["ILI9341"]
+        assert model.get_default("native_width") == 240
+        assert model.get_default("native_height") == 320
+
+        config = {
+            "model": "ILI9341",
+            CONF_DIMENSIONS: {
+                CONF_WIDTH: 300,
+                CONF_HEIGHT: 240,
+                CONF_OFFSET_WIDTH: 0,
+                CONF_OFFSET_HEIGHT: 0,
+            },
+            CONF_TRANSFORM: {
+                CONF_SWAP_XY: True,
+                CONF_MIRROR_X: False,
+                CONF_MIRROR_Y: False,
+            },
+        }
+
+        width, height, _, _, pad_w, pad_h = model.get_dimensions(config, swap=False)
+        assert (width, height) == (300, 240)
+        # native_width swapped to 320 -> pad_width = 320 - 300 - 0 = 20
+        assert pad_w == 20
+        assert pad_h == 0

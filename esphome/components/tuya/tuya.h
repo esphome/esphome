@@ -84,7 +84,7 @@ struct TuyaCommand {
   std::vector<uint8_t> payload;
 };
 
-class Tuya : public Component, public uart::UARTDevice {
+class Tuya final : public Component, public uart::UARTDevice {
  public:
   float get_setup_priority() const override { return setup_priority::LATE; }
   void setup() override;

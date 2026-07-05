@@ -1,3 +1,4 @@
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components.esp32 import (
     VARIANT_ESP32C5,
@@ -226,11 +227,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FORCE_DATASET): cv.boolean,
             cv.Optional(CONF_TLV): cv.All(cv.string_strict, _validate_tlv_hex),
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
-            cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_OUTPUT_POWER): cv.All(
                 cv.decibel,
                 _validate_txpower,
             ),
+            cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
         }
     ).extend(_CONNECTION_SCHEMA),
     cv.has_exactly_one_key(CONF_NETWORK_KEY, CONF_TLV),
@@ -309,3 +310,37 @@ async def to_code(config):
         )
         zephyr_add_prj_conf(f"OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
         zephyr_add_prj_conf("MAIN_STACK_SIZE", 4096)
+
+
+# Actions
+OpenThreadComponentPollPeriodAction = openthread_ns.class_(
+    "OpenThreadComponentPollPeriodAction",
+    automation.Action,
+    cg.Parented.template(OpenThreadComponent),
+)
+
+POLL_PERIOD_ACTION_SCHEMA = automation.maybe_conf(
+    CONF_POLL_PERIOD,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(OpenThreadComponent),
+            cv.Required(CONF_POLL_PERIOD): cv.templatable(
+                cv.positive_time_period_milliseconds
+            ),
+        }
+    ),
+)
+
+
+@automation.register_action(
+    "openthread.set_poll_period",
+    OpenThreadComponentPollPeriodAction,
+    POLL_PERIOD_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def openthread_poll_period_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_POLL_PERIOD], args, cg.uint32)
+    cg.add(var.set_poll_period(template_))
+    return var
