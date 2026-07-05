@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.core import ID, CORE
+from esphome.core import CORE, ID
 
 CODEOWNERS = ["@p1ngb4ck"]
 
@@ -49,7 +49,9 @@ CONFIG_SCHEMA = cv.Schema(
         # preserves current behavior). See max_blocking_transfer_size's comment in storage.h.
         cv.Optional(CONF_MAX_BLOCKING_TRANSFER_SIZE, default=0): cv.int_range(min=0),
         # FATFS LFN + NFS/lwIP transfers both need headroom on the worker task's stack.
-        cv.Optional(CONF_TASK_STACK_SIZE, default=8192): cv.int_range(min=4096, max=32768),
+        cv.Optional(CONF_TASK_STACK_SIZE, default=8192): cv.int_range(
+            min=4096, max=32768
+        ),
         # FreeRTOS priority: above idle (0), below networking tasks (typically higher).
         cv.Optional(CONF_TASK_PRIORITY, default=1): cv.int_range(min=1, max=23),
         # Fixed request pool/queue depth — sized exactly at codegen like the storage
