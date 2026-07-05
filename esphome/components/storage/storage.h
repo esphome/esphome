@@ -79,11 +79,18 @@ static constexpr size_t STORAGE_COPY_CHUNK_SIZE = USE_STORAGE_COPY_CHUNK_SIZE;
 static constexpr size_t STORAGE_COPY_CHUNK_SIZE = 16384;
 #endif
 
-// Max directory nesting for remove_recursive() below. Each level costs ~600B of stack
-// (path buffer + call frame); ESP32 task stacks are typically only 8-16kB.
+// Max directory nesting for remove_recursive() below. Stack cost per level is
+// driver-dependent — it's not just the path buffer and call frame recorded here, but also
+// whatever the driver's own list_dir()/remove()/rmdir() stack up per call (e.g. sd_storage's
+// LFN buffers put this closer to ~1.3kB/level than the ~600B this constant alone would
+// suggest). ESP32 task stacks are typically only 8-16kB, so this default is chosen
+// conservatively across drivers rather than tuned to the cheapest one.
 static constexpr size_t STORAGE_MAX_RECURSION_DEPTH = 16;
 
 struct FileStat {
+  // Basename of the entry only (e.g. "file.txt"), never a full/relative path — this holds for
+  // both stat()'s result and every entry list_dir() passes to its callback. Callers that need
+  // the full path must join it themselves (e.g. with the directory path passed to list_dir()).
   char name[STORAGE_NAME_MAX + 1];
   uint64_t size;
   uint32_t mtime{0};  // Unix timestamp (seconds); 0 if unavailable
@@ -230,6 +237,14 @@ class NetworkStorage : public PathStorage {
 // register_storage() once the device can serve calls (even if unmounted, per
 // Storage::get_info() above), and unregister_storage() as soon as it stops being usable,
 // before teardown.
+//
+// Contract: unregister_storage() does not return until every subscriber has had a chance to
+// stop using the storage being removed — in particular, the storage_worker component (if
+// present) drains any in-flight or queued data-plane call against it (best effort: it gives
+// up after a bounded timeout if a call refuses to finish, logging an error, since at that
+// point the medium is presumed gone anyway). This is what makes "unregister, then unmount"
+// provably safe for the calling driver: by the time this function returns, no async consumer
+// still holds an open handle or is mid-call against the storage.
 class StorageRegistry : public Component {
  public:
   float get_setup_priority() const override { return setup_priority::BUS; }
