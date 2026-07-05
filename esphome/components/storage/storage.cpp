@@ -65,6 +65,15 @@ void StorageRegistry::unregister_storage(Storage *s) {
   this->on_unregistered_.call(s);
 }
 
+bool StorageRegistry::is_registered(const Storage *s) const {
+  for (auto *registered : this->storages_) {
+    if (registered == s) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void StorageRegistry::for_each(void (*cb)(Storage *s, void *ctx), void *ctx) {
   for (auto *s : this->storages_) {
     cb(s, ctx);
