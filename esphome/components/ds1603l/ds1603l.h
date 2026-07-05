@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace ds1603l {
+namespace esphome::ds1603l {
 
 class Ds1603l : public sensor::Sensor, public PollingComponent, public uart::UARTDevice {
  public:
@@ -43,5 +42,4 @@ class Ds1603l : public sensor::Sensor, public PollingComponent, public uart::UAR
   void parse_data_();  // Parse received data
 };
 
-}  // namespace ds1603l
-}  // namespace esphome
+}  // namespace esphome::ds1603l
