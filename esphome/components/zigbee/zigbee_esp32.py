@@ -39,7 +39,7 @@ from .const import (
     CONF_POWER_SOURCE,
     CONF_REPORT,
     CONF_ROUTER,
-    CONF_USE_TYPE,
+    CONF_USE_DEVICE_TYPE,
     KEY_ZIGBEE,
     POWER_SOURCE,
     ZigbeeAttribute,
@@ -201,14 +201,14 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
         },
     )
     setup_attributes(config, ep[CONF_CLUSTERS])
-    add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_TYPE))
+    add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
     return config
 
 
 def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
     ep = copy.deepcopy(ep_configs["binary_input"])
     setup_attributes(config, ep[CONF_CLUSTERS])
-    add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_TYPE))
+    add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
     return config
 
 
