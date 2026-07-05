@@ -36,6 +36,7 @@ DriverChip(
     color_order=MODE_RGB,
     bus_mode=TYPE_QUAD,
     data_rate="40MHz",
+    requires={"psram"},
     initsequence=(
         (0xF0, 0x08),
         (0xF2, 0x08),

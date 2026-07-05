@@ -32,6 +32,7 @@ from esphome.const import (
     CONF_WIDTH,
 )
 from esphome.core import TimePeriod
+from esphome.final_validate import full_config
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
 LOGGER = cv.logging.getLogger(__name__)
@@ -617,6 +618,20 @@ class DriverChip:
         # Flatten the sequence into a list of bytes, with the length of each command
         # or the delay flag inserted where needed
         return flatten_sequence(sequence)
+
+    def check_requirements(self, _config: dict) -> None:
+        """
+        Check if any required components are configured.
+        """
+        requirements = self.get_default("requires", set())
+        if not requirements:
+            return
+        global_config = full_config.get()
+        requirements = {x for x in requirements if x not in global_config}
+        if requirements:
+            raise cv.Invalid(
+                f"{self.name} requires component{'s' if len(requirements) > 1 else ''} '{", '".join(requirements)}' to be configured"
+            )
 
 
 def requires_buffer(config) -> bool:

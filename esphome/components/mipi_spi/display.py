@@ -335,6 +335,7 @@ def _final_validate(config):
         model.get_dimensions(config)
     )
 
+    model.check_requirements(config)
     if PSRAM_DOMAIN not in global_config and CONF_BUFFER_SIZE not in config:
         # If PSRAM is not enabled, choose a small buffer size by default
         if not requires_buffer(config):
