@@ -149,7 +149,7 @@ storage::StorageError SdStorageBase::seek(storage::FileHandle *handle, int64_t o
       return storage::StorageError::INVALID_ARGS;
   }
   return fseek(handle->file, static_cast<long>(offset), whence) == 0 ? storage::StorageError::OK
-                                                                      : storage::StorageError::READ_ERROR;
+                                                                     : storage::StorageError::READ_ERROR;
 }
 
 storage::StorageError SdStorageBase::tell(storage::FileHandle *handle, uint64_t *position) {
@@ -183,8 +183,7 @@ storage::StorageError SdStorageBase::stat(const char *path, storage::FileStat *s
 }
 
 storage::StorageError SdStorageBase::list_dir(const char *path,
-                                              bool (*callback)(const storage::FileStat *entry, void *ctx),
-                                              void *ctx) {
+                                              bool (*callback)(const storage::FileStat *entry, void *ctx), void *ctx) {
   if (!this->is_mounted_)
     return storage::StorageError::NOT_READY;
 
