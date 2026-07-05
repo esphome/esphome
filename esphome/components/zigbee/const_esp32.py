@@ -2,7 +2,6 @@ import esphome.codegen as cg
 
 DEVICE_TYPE = "device_type"
 ROLE = "role"
-CONF_MAX_EP_NUMBER = 239
 CONF_CLUSTERS = "clusters"
 CONF_ATTRIBUTES = "attributes"
 CONF_ENDPOINT = "endpoint"
