@@ -1,8 +1,8 @@
-from esphome.components.mipi import DriverChip
+from . import DsiDriverChip
 
 # Standalone display
 # Product page: https://www.seeedstudio.com/reTerminal-D1001-p-6729.html
-DriverChip(
+DsiDriverChip(
     "SEEED-RETERMINAL-D1001",
     height=1280,
     width=800,
