@@ -18,6 +18,8 @@ from esphome.components.mipi import (
     CONF_HSYNC_BACK_PORCH,
     CONF_HSYNC_FRONT_PORCH,
     CONF_HSYNC_PULSE_WIDTH,
+    CONF_PCLK_FREQUENCY,
+    CONF_PCLK_INVERTED,
     CONF_PCLK_PIN,
     CONF_PIXEL_MODE,
     CONF_USE_AXIS_FLIPS,
@@ -34,9 +36,11 @@ from esphome.components.mipi import (
     power_of_two,
     requires_buffer,
 )
-from esphome.components.rpi_dpi_rgb.display import (
-    CONF_PCLK_FREQUENCY,
-    CONF_PCLK_INVERTED,
+from esphome.components.spi import (
+    CONF_SPI_MODE,
+    SPI_DATA_RATE_SCHEMA,
+    SPI_MODE_OPTIONS,
+    SPIComponent,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -69,8 +73,8 @@ from esphome.const import (
 )
 from esphome.final_validate import full_config
 
-from ..spi import CONF_SPI_MODE, SPI_DATA_RATE_SCHEMA, SPI_MODE_OPTIONS, SPIComponent
 from . import models
+from .models import RgbDriverChip
 
 DEPENDENCIES = ["esp32", "psram"]
 
@@ -83,7 +87,7 @@ ColorOrder = display.display_ns.enum("ColorMode")
 
 DATA_PIN_SCHEMA = pins.internal_gpio_output_pin_schema
 
-DriverChip("CUSTOM")
+RgbDriverChip("CUSTOM")
 
 # Import all models dynamically from the models package
 
