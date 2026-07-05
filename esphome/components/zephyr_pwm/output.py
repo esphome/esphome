@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Any
 
-from esphome import automation, pins
+from esphome import pins
 import esphome.codegen as cg
 from esphome.components import output
 from esphome.components.zephyr import zephyr_add_overlay_builder, zephyr_add_prj_conf
@@ -25,7 +25,6 @@ zephyr_pwm_ns = cg.esphome_ns.namespace("zephyr_pwm")
 ZephyrPWMChannel = zephyr_pwm_ns.class_(
     "ZephyrPWMChannel", output.FloatOutput, cg.Component
 )
-SetFrequencyAction = zephyr_pwm_ns.class_("SetFrequencyAction", automation.Action)
 validate_frequency = cv.All(cv.frequency, cv.float_range(min=1.0, max=1e7))
 
 
@@ -143,15 +142,14 @@ async def to_code(config):
     pwm_block = next(
         (block for block in pwm_blocks if pin[CONF_NUMBER] in block.pins), None
     )
-    assert pwm_block is not None, (
-        f"Pin {pin[CONF_NUMBER]} is not assigned to any PWM block"
-    )
+    assert pwm_block is not None
     channel_id = pwm_block.pins.index(pin[CONF_NUMBER])
 
     zephyr_add_overlay_builder(_overlay_pwm)
 
     inverted = pin.get(CONF_INVERTED, False)
-    period_ns = int(1e9 / pwm_block.frequency)
+    SECONDS_TO_NANOSECONDS = 1e9
+    period_ns = int(SECONDS_TO_NANOSECONDS / pwm_block.frequency)
     var = cg.new_Pvariable(
         config[CONF_ID],
         cg.RawExpression(f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL(pwm{pwm_block.id}))"),
