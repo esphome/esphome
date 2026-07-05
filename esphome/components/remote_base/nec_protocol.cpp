@@ -1,8 +1,7 @@
 #include "nec_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.nec";
 
@@ -98,5 +97,4 @@ void NECProtocol::dump(const NECData &data) {
            data.command_repeats);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

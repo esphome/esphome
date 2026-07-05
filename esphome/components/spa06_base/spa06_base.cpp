@@ -1,5 +1,7 @@
 #include "spa06_base.h"
 
+#include <cinttypes>
+
 #include "esphome/core/helpers.h"
 
 namespace esphome::spa06_base {
@@ -195,7 +197,7 @@ bool SPA06Component::read_coefficients_() {
   ESP_LOGV(TAG,
            "Coefficients:\n"
            "  c0: %i, c1: %i,\n"
-           "  c00: %i, c10: %i, c20: %i, c30: %i, c40: %i,\n"
+           "  c00: %" PRIi32 ", c10: %" PRIi32 ", c20: %i, c30: %i, c40: %i,\n"
            "  c01: %i, c11: %i, c21: %i, c31: %i",
            this->c0_, this->c1_, this->c00_, this->c10_, this->c20_, this->c30_, this->c40_, this->c01_, this->c11_,
            this->c21_, this->c31_);
@@ -222,7 +224,7 @@ bool SPA06Component::soft_reset_() {
 }
 
 // Temperature conversion formula. See datasheet pg. 14
-float SPA06Component::convert_temperature_(const float &t_raw_sc) { return this->c0_ * 0.5 + this->c1_ * t_raw_sc; }
+float SPA06Component::convert_temperature_(const float &t_raw_sc) { return this->c0_ * 0.5f + this->c1_ * t_raw_sc; }
 // Pressure conversion formula. See datasheet pg. 14
 float SPA06Component::convert_pressure_(const float &p_raw_sc, const float &t_raw_sc) {
   float p2_raw_sc = p_raw_sc * p_raw_sc;

@@ -11,6 +11,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32C6,
     VARIANT_ESP32C61,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H21,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
@@ -174,6 +175,7 @@ def get_hw_interface_list():
             VARIANT_ESP32C6,
             VARIANT_ESP32C61,
             VARIANT_ESP32H2,
+            VARIANT_ESP32H21,
         ]:
             return [["spi", "spi2"]]
         return [["spi", "spi2"], ["spi3"]]
@@ -246,11 +248,15 @@ def validate_hw_pins(spi, index=-1):
         return clk_pin_no >= 0
 
     if target_platform == PLATFORM_RP2040:
-        pin_set = (
-            list(filter(lambda s: clk_pin_no in s[CONF_CLK_PIN], RP_SPI_PINSETS))[0]
-            if index == -1
-            else RP_SPI_PINSETS[index]
-        )
+        if index == -1:
+            matches = list(
+                filter(lambda s: clk_pin_no in s[CONF_CLK_PIN], RP_SPI_PINSETS)
+            )
+            if not matches:
+                return False
+            pin_set = matches[0]
+        else:
+            pin_set = RP_SPI_PINSETS[index]
         if pin_set is None:
             return False
         if sdo_pin_no not in pin_set[CONF_MOSI_PIN]:

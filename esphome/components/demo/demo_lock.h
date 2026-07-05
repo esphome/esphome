@@ -2,10 +2,9 @@
 
 #include "esphome/components/lock/lock.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
-class DemoLock : public lock::Lock {
+class DemoLock final : public lock::Lock {
  protected:
   void control(const lock::LockCall &call) override {
     auto state = call.get_state();
@@ -14,5 +13,4 @@ class DemoLock : public lock::Lock {
   }
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo

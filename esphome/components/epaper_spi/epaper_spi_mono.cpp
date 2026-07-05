@@ -15,7 +15,11 @@ void EPaperMono::refresh_screen(bool partial) {
 
 void EPaperMono::deep_sleep() {
   ESP_LOGV(TAG, "Deep sleep");
-  this->command(0x10);
+  if (this->is_using_partial_update_()) {
+    this->cmd_data(0x10, {0x00});  // sleep in power on mode
+  } else {
+    this->cmd_data(0x10, {0x03});  // deep sleep
+  }
 }
 
 bool EPaperMono::reset() {
@@ -27,6 +31,14 @@ bool EPaperMono::reset() {
 }
 
 void EPaperMono::set_window() {
+  // if not using partial update, the display will go into deep sleep, so must rewrite entire
+  // buffer since the display RAM will not retain contents
+  if (!this->is_using_partial_update_()) {
+    this->x_low_ = 0;
+    this->x_high_ = this->width_;
+    this->y_low_ = 0;
+    this->y_high_ = this->height_;
+  }
   // round x-coordinates to byte boundaries
   this->x_low_ &= ~7;
   this->x_high_ += 7;

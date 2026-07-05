@@ -23,6 +23,7 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    queue_entity_register,
     setup_device_class,
     setup_entity,
 )
@@ -121,17 +122,26 @@ def switch_schema(
     return _SWITCH_SCHEMA.extend(schema)
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_STATE, "add_on_state_callback", [(bool, "x")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_TURN_ON,
+        "add_on_state_callback",
+        forwarder=automation.TriggerOnTrueForwarder,
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_TURN_OFF,
+        "add_on_state_callback",
+        forwarder=automation.TriggerOnFalseForwarder,
+    ),
+)
+
+
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_switch_automations(var, config):
-    for conf_key, args, forwarder in (
-        (CONF_ON_STATE, [(bool, "x")], None),
-        (CONF_ON_TURN_ON, [], automation.TriggerOnTrueForwarder),
-        (CONF_ON_TURN_OFF, [], automation.TriggerOnFalseForwarder),
-    ):
-        for conf in config.get(conf_key, []):
-            await automation.build_callback_automation(
-                var, "add_on_state_callback", args, conf, forwarder=forwarder
-            )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 @setup_entity("switch")
@@ -157,7 +167,7 @@ async def setup_switch_core_(var, config):
 async def register_switch(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_switch(var))
+    queue_entity_register("switch", config)
     CORE.register_platform_component("switch", var)
     await setup_switch_core_(var, config)
 
@@ -187,7 +197,7 @@ SWITCH_CONTROL_ACTION_SCHEMA = automation.maybe_simple_id(
 async def switch_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_STATE], args, bool)
+    template_ = await cg.templatable(config[CONF_STATE], args, cg.bool_)
     cg.add(var.set_state(template_))
     return var
 

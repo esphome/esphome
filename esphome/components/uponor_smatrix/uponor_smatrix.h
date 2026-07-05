@@ -15,8 +15,7 @@
 #include <set>
 #include <vector>
 
-namespace esphome {
-namespace uponor_smatrix {
+namespace esphome::uponor_smatrix {
 
 /// Date/Time Part 1 (year, month, day of week)
 static const uint8_t UPONOR_ID_DATETIME1 = 0x08;
@@ -123,5 +122,4 @@ inline uint16_t celsius_to_raw(float celsius) {
                              : static_cast<uint16_t>(lroundf(celsius_to_fahrenheit(celsius) * 10.0f));
 }
 
-}  // namespace uponor_smatrix
-}  // namespace esphome
+}  // namespace esphome::uponor_smatrix

@@ -116,7 +116,7 @@ void SelectCall::perform() {
 
   auto idx = target_index.value();
   // All operations use indices, call control() by index to avoid string conversion
-  ESP_LOGD(TAG, "'%s' - Set selected option to: %s", name, parent->option_at(idx));
+  ESP_LOGV(TAG, "'%s' - Set selected option to: %s", name, parent->option_at(idx));
   parent->control(idx);
 }
 

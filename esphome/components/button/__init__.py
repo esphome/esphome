@@ -19,6 +19,7 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    queue_entity_register,
     setup_device_class,
     setup_entity,
 )
@@ -79,12 +80,14 @@ def button_schema(
     return _BUTTON_SCHEMA.extend(schema)
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_PRESS, "add_on_press_callback"),
+)
+
+
 @setup_entity("button")
 async def setup_button_core_(var, config):
-    for conf in config.get(CONF_ON_PRESS, []):
-        await automation.build_callback_automation(
-            var, "add_on_press_callback", [], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     setup_device_class(config)
 
@@ -99,7 +102,7 @@ async def setup_button_core_(var, config):
 async def register_button(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_button(var))
+    queue_entity_register("button", config)
     CORE.register_platform_component("button", var)
     await setup_button_core_(var, config)
 
