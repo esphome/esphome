@@ -2,8 +2,7 @@
 #include "ds1603l.h"
 #include <algorithm>
 
-namespace esphome {
-namespace ds1603l {
+namespace esphome::ds1603l {
 
 static const char *const TAG = "ds1603l.sensor";
 
@@ -116,5 +115,4 @@ void Ds1603l::parse_data_() {
   }
 }
 
-}  // namespace ds1603l
-}  // namespace esphome
+}  // namespace esphome::ds1603l
