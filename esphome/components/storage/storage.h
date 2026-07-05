@@ -3,7 +3,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include <cstdint>
 #include <cstdio>
+#include <memory>
 
 namespace esphome::storage {
 
@@ -18,13 +20,29 @@ enum class StorageError : uint8_t {
   PERMISSION_DENIED,
   TIMEOUT,
   CORRUPT,
+  NOT_SUPPORTED,        // operation not supported by this driver/medium (e.g. format() on read-only)
+  ALREADY_EXISTS,       // mkdir/create on a path that already exists
+  NOT_EMPTY,            // non-recursive rmdir on a non-empty directory
+  TOO_MANY_OPEN_FILES,  // no free FileHandle in the driver's handle pool
+  TRANSFER_TOO_LARGE,   // transfer rejected: exceeds max_blocking_transfer_size (use the async API)
 };
 
+// fopen()-equivalent semantics — drivers must match these exactly:
+//   READ       "r"   Open existing file for reading. Fails if it doesn't exist.
+//   WRITE      "w"   Create file (or truncate existing) for writing.
+//   APPEND     "a"   Create file if it doesn't exist; writes always go to the end.
+//   READ_WRITE "r+"  Open existing file for reading and writing. Fails if it doesn't exist.
 enum class OpenMode : uint8_t {
   READ = 0,
   WRITE,
   APPEND,
   READ_WRITE,
+};
+
+enum class SeekMode : uint8_t {
+  SET = 0,  // absolute offset from start of file
+  CUR,      // relative to current position
+  END,      // relative to end of file
 };
 
 // Identifies the concrete subtype of a Storage pointer without RTTI.
@@ -51,9 +69,31 @@ struct StorageInfo {
 // All storage drivers must fit filenames within this bound.
 static constexpr size_t STORAGE_NAME_MAX = 255;
 
+// Chunk size for the streaming copy() helper; multiple of 512 so FATFS can do direct
+// whole-sector transfers. Overridable from YAML (storage: copy_chunk_size), which sets
+// the USE_STORAGE_COPY_CHUNK_SIZE define via codegen; falls back to 16 kB otherwise
+// (also covers clang-tidy, which never sees generated defines).
+#ifdef USE_STORAGE_COPY_CHUNK_SIZE
+static constexpr size_t STORAGE_COPY_CHUNK_SIZE = USE_STORAGE_COPY_CHUNK_SIZE;
+#else
+static constexpr size_t STORAGE_COPY_CHUNK_SIZE = 16384;
+#endif
+
+// Max directory nesting for remove_recursive() below. Stack cost per level is
+// driver-dependent — it's not just the path buffer and call frame recorded here, but also
+// whatever the driver's own list_dir()/remove()/rmdir() stack up per call (e.g. sd_storage's
+// LFN buffers put this closer to ~1.3kB/level than the ~600B this constant alone would
+// suggest). ESP32 task stacks are typically only 8-16kB, so this default is chosen
+// conservatively across drivers rather than tuned to the cheapest one.
+static constexpr size_t STORAGE_MAX_RECURSION_DEPTH = 16;
+
 struct FileStat {
+  // Basename of the entry only (e.g. "file.txt"), never a full/relative path — this holds for
+  // both stat()'s result and every entry list_dir() passes to its callback. Callers that need
+  // the full path must join it themselves (e.g. with the directory path passed to list_dir()).
   char name[STORAGE_NAME_MAX + 1];
-  size_t size;
+  uint64_t size;
+  uint32_t mtime{0};  // Unix timestamp (seconds); 0 if unavailable
   bool is_dir;
 };
 
@@ -67,11 +107,49 @@ struct FileHandle {
   // Drivers bypassing VFS subclass this and add their own handle (lfs_file_t, etc.)
 };
 
-// Abstract base — all storage drivers extend one of the three subclasses below
+// Optional driver capabilities, reported via Storage::get_capabilities().
+// Bitmask so future capabilities can be added without new virtuals.
+enum StorageCaps : uint8_t {
+  // The driver's data-plane methods (see the control-/data-plane contract below) may be
+  // called from a task other than the main loop, provided all calls to this instance are
+  // externally serialized. Only set this if the driver's I/O path has no hidden
+  // main-loop affinity — e.g. NOT safe if the driver shares a bus (SPI/I2C) with
+  // components that access it from the main loop.
+  STORAGE_CAP_IO_TASK_SAFE = 1 << 0,
+};
+
+// Abstract base — all storage drivers extend one of the three subclasses below.
+//
+// Contract: every call is BLOCKING — drivers do not run I/O on a separate task/thread.
+// Consumers moving large amounts of data must chunk their own calls and yield between
+// chunks (large len values will starve the watchdog and Wi-Fi/BLE); copy()/read_file()/
+// write_file() below are opt-in convenience helpers for this, not mandatory, and are not
+// appropriate from latency-sensitive contexts.
+//
+// Control plane vs. data plane: get_info(), stat(), list_dir(), mkdir(), rmdir(), remove(),
+// rename(), open(), close(), read(), write(), seek(), tell(), sync(), read_chunk(), and
+// write_chunk() are DATA-PLANE — task-agnostic by design. They must not touch main-loop-only
+// facilities (scheduler, the storage registry, other components), must not assume a
+// particular calling task, and must do no hidden control-plane work (e.g. no lazy mount() on
+// first read() — a data-plane call on an unmounted/disconnected device returns
+// StorageError::NOT_READY instead). This is what lets them run on a future dedicated worker
+// task instead of the main loop. Calls on one Storage instance are externally serialized by
+// the caller (main loop today, later the worker) — drivers don't need to be thread-safe, just
+// tolerant of running on a single, possibly-different task. setup(), mount()/unmount(),
+// format(), connect()/disconnect(), and all StorageRegistry calls are CONTROL-PLANE and
+// remain main-loop-only (see StorageRegistry's contract below). A future async worker will
+// only offload data-plane I/O to its own task for storages reporting STORAGE_CAP_IO_TASK_SAFE;
+// all others continue to be driven from the main loop.
 class Storage : public Component {
  public:
+  // Must succeed (return OK) even when registered-but-unmounted/-disconnected — report that
+  // via StorageInfo::is_mounted = false, not a non-OK error (see StorageRegistry below).
   virtual StorageError get_info(StorageInfo *info) = 0;
   virtual StorageType get_storage_type() const = 0;
+
+  // Bitwise OR of StorageCaps. Default 0: drivers must explicitly opt in to
+  // capabilities — a driver that never considered task-safety is never treated as such.
+  virtual uint8_t get_capabilities() const { return 0; }
 };
 
 // Offset-based byte access (raw flash, FRAM, EEPROM, NVS blobs)
@@ -79,14 +157,43 @@ class RawStorage : public Storage {
  public:
   StorageType get_storage_type() const override { return StorageType::RAW; }
 
-  virtual StorageError read(size_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) = 0;
-  virtual StorageError write(size_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) = 0;
-  virtual StorageError erase(size_t offset, size_t len) = 0;
+  // Partial-read contract (applies to every read()/read_chunk() in this file): returning
+  // StorageError::OK with *bytes_transferred < len means EOF was reached partway through —
+  // this is not an error. A non-OK return means an actual I/O failure; *bytes_transferred is
+  // unspecified in that case. Callers loop until *bytes_transferred == 0 or an error.
+  virtual StorageError read(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) = 0;
+  virtual StorageError write(uint64_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) = 0;
+  virtual StorageError erase(uint64_t offset, size_t len) = 0;
   virtual StorageError format() = 0;
 };
 
-// Path-based file access with a local filesystem layer (SD, USB, LittleFS partition)
-class FilesystemStorage : public Storage {
+// Common path-based operations shared by FilesystemStorage and NetworkStorage.
+// Lets path-oriented consumers (e.g. a file browser/server) enumerate and operate
+// on any storage that exposes a path namespace, regardless of local vs. network backing.
+class PathStorage : public Storage {
+ public:
+  virtual StorageError stat(const char *path, FileStat *stat) = 0;
+  // Contract: drivers must NOT emit "." or ".." entries — tree-walkers such as
+  // remove_recursive() below rely on this to avoid recursing forever. Entry order is
+  // unspecified (driver/filesystem dependent) — do not rely on any particular ordering.
+  // The callback returns false to stop enumeration early; that is not an error condition —
+  // list_dir() itself still returns StorageError::OK in that case.
+  virtual StorageError list_dir(const char *path, bool (*callback)(const FileStat *entry, void *ctx), void *ctx) = 0;
+  virtual StorageError mkdir(const char *path) = 0;
+  // Non-recursive: must fail with StorageError::NOT_EMPTY if the directory has contents.
+  // For recursive delete, use the free remove_recursive() helper below.
+  virtual StorageError rmdir(const char *path) = 0;
+  virtual StorageError remove(const char *path) = 0;
+  virtual StorageError rename(const char *old_path, const char *new_path) = 0;
+  // No copy() here — drivers only need to move bytes within their own device.
+  // Cross-device copy (and same-device copy) is provided by the free copy() helper
+  // below, built on read_file()/write_file().
+};
+
+// Path-based file access with a local filesystem layer (SD, USB, LittleFS partition).
+// Also the right base for stateful network protocols that use handles/locks (e.g. SMB) —
+// NetworkStorage below is for stateless protocols only.
+class FilesystemStorage : public PathStorage {
  public:
   StorageType get_storage_type() const override { return StorageType::FILESYSTEM; }
 
@@ -96,50 +203,61 @@ class FilesystemStorage : public Storage {
   virtual StorageError sync() = 0;
   virtual StorageError open(const char *path, FileHandle *&handle, OpenMode mode) = 0;
   virtual StorageError close(FileHandle *handle) = 0;
+  // Partial-read contract: see RawStorage::read() above.
   virtual StorageError read(FileHandle *handle, uint8_t *buf, size_t len, size_t *bytes_transferred) = 0;
   virtual StorageError write(FileHandle *handle, const uint8_t *buf, size_t len, size_t *bytes_transferred) = 0;
-  virtual StorageError seek(FileHandle *handle, size_t offset) = 0;
-  virtual StorageError tell(FileHandle *handle, size_t *position) = 0;
-  virtual StorageError stat(const char *path, FileStat *stat) = 0;
-  virtual StorageError list_dir(const char *path, void (*callback)(const FileStat *entry, void *ctx), void *ctx) = 0;
-  virtual StorageError mkdir(const char *path) = 0;
-  virtual StorageError rmdir(const char *path, bool recursive) = 0;
-  virtual StorageError remove(const char *path) = 0;
-  virtual StorageError rename(const char *old_path, const char *new_path) = 0;
-  virtual StorageError copy(const char *src_path, const char *dst_path) = 0;
+  virtual StorageError seek(FileHandle *handle, int64_t offset, SeekMode mode) = 0;
+  StorageError seek(FileHandle *handle, int64_t offset) { return seek(handle, offset, SeekMode::SET); }
+  virtual StorageError tell(FileHandle *handle, uint64_t *position) = 0;
 };
 
-// Path-based file access over a network protocol (NFS, SMB) — stateless, no file handles
-class NetworkStorage : public Storage {
+// Path-based file access over a stateless network protocol (NFS) — no file handles, no
+// connection-held locks. Stateful network protocols (e.g. SMB, which uses handles/locks)
+// belong under FilesystemStorage instead, not here.
+class NetworkStorage : public PathStorage {
  public:
   StorageType get_storage_type() const override { return StorageType::NETWORK; }
 
   virtual StorageError connect() = 0;
   virtual StorageError disconnect() = 0;
-  virtual StorageError read_chunk(const char *path, uint8_t *buf, size_t offset, size_t len,
+  // Partial-read contract: see RawStorage::read() above.
+  virtual StorageError read_chunk(const char *path, uint8_t *buf, uint64_t offset, size_t len,
                                   size_t *bytes_transferred) = 0;
-  virtual StorageError write_chunk(const char *path, const uint8_t *buf, size_t offset, size_t len,
+  virtual StorageError write_chunk(const char *path, const uint8_t *buf, uint64_t offset, size_t len,
                                    size_t *bytes_transferred) = 0;
-  virtual StorageError stat(const char *path, FileStat *stat) = 0;
-  virtual StorageError list_dir(const char *path, void (*callback)(const FileStat *entry, void *ctx), void *ctx) = 0;
-  virtual StorageError mkdir(const char *path) = 0;
-  virtual StorageError rmdir(const char *path, bool recursive) = 0;
-  virtual StorageError remove(const char *path) = 0;
-  virtual StorageError rename(const char *old_path, const char *new_path) = 0;
-  virtual StorageError copy(const char *src_path, const char *dst_path) = 0;
 };
 
-// Runtime registry of all storage devices.
-// Initializes before any driver (setup_priority::BUS) so drivers can safely
-// call register_storage() / unregister_storage() from their own setup() or
-// on hotplug events. Pool is sized exactly at codegen time from the number of
-// configured devices — no compile-time upper bound, no wasted slots.
+// Runtime registry of all storage devices. Initializes before any driver
+// (setup_priority::BUS); pool is sized exactly at codegen time from the number of configured
+// devices — no compile-time upper bound, no wasted slots.
+//
+// Contract: main-loop-only — register_storage()/unregister_storage()/for_each*() must never
+// be called from another task (e.g. a USB hotplug callback must defer onto the main loop
+// instead of calling directly). Contract: "registered" means "usable" — call
+// register_storage() once the device can serve calls (even if unmounted, per
+// Storage::get_info() above), and unregister_storage() as soon as it stops being usable,
+// before teardown.
+//
+// Contract: unregister_storage() does not return until every subscriber has had a chance to
+// stop using the storage being removed — in particular, the storage_worker component (if
+// present) drains any in-flight or queued data-plane call against it (best effort: it gives
+// up after a bounded timeout if a call refuses to finish, logging an error, since at that
+// point the medium is presumed gone anyway). This is what makes "unregister, then unmount"
+// provably safe for the calling driver: by the time this function returns, no async consumer
+// still holds an open handle or is mid-call against the storage.
 class StorageRegistry : public Component {
  public:
   float get_setup_priority() const override { return setup_priority::BUS; }
 
   // Called by codegen with the exact number of configured storage devices
   void set_device_count(size_t count) { this->storages_.init(count); }
+
+  // Guard-rail for the BLOCKING helpers below (read_file()/write_file()/copy()/move()):
+  // transfers larger than this are rejected with StorageError::TRANSFER_TOO_LARGE instead of
+  // freezing the node, so callers get routed through the async API (storage_worker) instead.
+  // 0 (default) means unlimited — preserves current behavior.
+  void set_max_blocking_transfer_size(uint64_t size) { this->max_blocking_transfer_size_ = size; }
+  uint64_t get_max_blocking_transfer_size() const { return this->max_blocking_transfer_size_; }
 
   void register_storage(Storage *s);
   void unregister_storage(Storage *s);
@@ -149,6 +267,9 @@ class StorageRegistry : public Component {
   void for_each_filesystem(void (*cb)(FilesystemStorage *s, void *ctx), void *ctx);
   void for_each_raw(void (*cb)(RawStorage *s, void *ctx), void *ctx);
   void for_each_network(void (*cb)(NetworkStorage *s, void *ctx), void *ctx);
+  // Both FILESYSTEM and NETWORK expose PathStorage — use this to browse/operate on
+  // any path-based storage without caring whether it's local or network-backed.
+  void for_each_path_based(void (*cb)(PathStorage *s, void *ctx), void *ctx);
 
   // Notification callbacks — fired whenever a device registers or unregisters.
   // Templatized so both std::function and pointer-sized forwarder structs are
@@ -164,8 +285,72 @@ class StorageRegistry : public Component {
   // on devices where no component listens for hotplug events
   LazyCallbackManager<void(Storage *)> on_registered_;
   LazyCallbackManager<void(Storage *)> on_unregistered_;
+
+  uint64_t max_blocking_transfer_size_{0};  // 0 = unlimited
 };
 
 extern StorageRegistry *global_storage_registry;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+//========================================================================
+// Free helper functions — convenience wrappers over the Storage interfaces.
+// None of these are virtual: drivers never implement or override them.
+//========================================================================
+
+// Human-readable name for a StorageError — use this in dump_config()/logging
+// instead of hand-rolling a switch per driver.
+const char *error_to_string(StorageError error);
+
+// stat()-based existence/size checks — thin wrappers, work on any PathStorage
+// (FilesystemStorage or NetworkStorage).
+bool exists(PathStorage *storage, const char *path);
+StorageError file_size(PathStorage *storage, const char *path, uint64_t *size);
+
+// Deleter that frees memory obtained from RAMAllocator<uint8_t> (malloc/heap_caps_malloc_prefer)
+// rather than operator delete[] — required because RamBuffer below is backed by RAMAllocator,
+// not `new[]`.
+struct RamBufferDeleter {
+  size_t size{0};  // a default-constructed RamBuffer must carry a well-defined (unused) size
+  void operator()(uint8_t *ptr) const {
+    if (ptr != nullptr)
+      RAMAllocator<uint8_t>().deallocate(ptr, size);
+  }
+};
+using RamBuffer = std::unique_ptr<uint8_t[], RamBufferDeleter>;
+
+// Reads an entire file in one call. Allocates the buffer via RAMAllocator internally (nothrow —
+// returns StorageError::NO_SPACE on allocation failure rather than throwing/aborting, since
+// ESPHome builds with exceptions disabled). Do not call from hot paths or after setup() on the
+// main loop; intended for occasional whole-file reads, e.g. serving a file over HTTP.
+// On success, *out owns the buffer and *size holds the number of bytes read.
+StorageError read_file(FilesystemStorage *storage, const char *path, RamBuffer &out, size_t *size);
+StorageError read_file(NetworkStorage *storage, const char *path, RamBuffer &out, size_t *size);
+
+// Writes an entire buffer to a file in one call (create/truncate semantics, like
+// OpenMode::WRITE).
+StorageError write_file(FilesystemStorage *storage, const char *path, const uint8_t *data, size_t size);
+StorageError write_file(NetworkStorage *storage, const char *path, const uint8_t *data, size_t size);
+
+// Copies a file, within the same storage or across two different storages (e.g. SD -> USB,
+// USB -> NFS). Dispatches on get_storage_type() and streams the file through a fixed
+// STORAGE_COPY_CHUNK_SIZE buffer (unlike read_file()/write_file(), it never holds the whole
+// file in RAM), feeding the task watchdog between chunks. It still BLOCKS the main loop for
+// the duration of the copy, though — large copies will freeze sensor updates/API
+// responsiveness until an async worker layer exists (planned follow-up).
+StorageError copy(PathStorage *src_storage, const char *src_path, PathStorage *dst_storage, const char *dst_path);
+
+// Moves a file, within the same storage or across two different storages. Same-storage moves
+// go through rename() directly — no chunk buffer, no size limit, near-O(1). Cross-storage moves
+// go through copy() (inheriting its chunking, watchdog feeding, and max_blocking_transfer_size
+// enforcement) followed by remove() on the source, but ONLY if the copy succeeded. If the
+// source remove() fails, its error is returned and the destination copy is kept — the caller
+// ends up with the file in both places rather than in neither.
+StorageError move(PathStorage *src_storage, const char *src_path, PathStorage *dst_storage, const char *dst_path);
+
+// Recursively removes a directory and everything under it, via list_dir() + remove() /
+// remove_recursive() (for subdirectories) + a final non-recursive rmdir(). Drivers only
+// need to implement the non-recursive rmdir() primitive; use this when you need recursive
+// delete semantics. Aborts with StorageError::INVALID_ARGS if the tree is nested deeper than
+// STORAGE_MAX_RECURSION_DEPTH (see its comment above for why).
+StorageError remove_recursive(PathStorage *storage, const char *path);
 
 }  // namespace esphome::storage
