@@ -6,7 +6,7 @@ sd_storage:
   data0_pin: GPIO40
   data1_pin: GPIO41
   data2_pin: GPIO42
-  data3_pin: GPIO43
+  data3_pin: GPIO21
   path: /sdcard
   mode_1bit: false
   on_mounted:
