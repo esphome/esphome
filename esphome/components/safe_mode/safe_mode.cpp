@@ -162,13 +162,13 @@ bool SafeModeComponent::get_safe_mode_pending() {
   return this->read_rtc_() == SafeModeComponent::ENTER_SAFE_MODE_MAGIC;
 }
 
-bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time,
-                                               uint32_t boot_is_good_after) {
+bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time, uint32_t boot_is_good_after,
+                                               bool in_flash) {
   this->safe_mode_start_time_ = millis();
   this->safe_mode_enable_time_ = enable_time;
   this->safe_mode_boot_is_good_after_ = boot_is_good_after;
   this->safe_mode_num_attempts_ = num_attempts;
-  this->rtc_ = global_preferences->make_preference<uint32_t>(RTC_KEY, false);
+  this->rtc_ = global_preferences->make_preference<uint32_t>(RTC_KEY, in_flash);
 
 #if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
   // Check partition state to detect if bootloader supports rollback
