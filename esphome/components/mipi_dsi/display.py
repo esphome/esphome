@@ -1,5 +1,6 @@
 import importlib
 import logging
+from pathlib import Path
 import pkgutil
 
 from esphome import pins
@@ -72,6 +73,8 @@ ColorBitness = display.display_ns.enum("ColorBitness")
 
 CONF_LANE_BIT_RATE = "lane_bit_rate"
 CONF_LANES = "lanes"
+CONF_USE_DMA2D = "use_dma2d"
+CONF_ASYNC_LVGL_FLUSH = "async_lvgl_flush"
 
 DriverChip("CUSTOM")
 
@@ -143,6 +146,8 @@ def model_schema(config):
             model.option(CONF_LANE_BIT_RATE, None): cv.All(
                 cv.bps, cv.Range(min=100e6, max=3200e6)
             ),
+            model.option(CONF_USE_DMA2D, False): cv.boolean,
+            model.option(CONF_ASYNC_LVGL_FLUSH, False): cv.boolean,
             iseqconf: cv.ensure_list(map_sequence),
             model.option(CONF_BYTE_ORDER, BYTE_ORDER_LITTLE): cv.one_of(
                 BYTE_ORDER_LITTLE, BYTE_ORDER_BIG, lower=True
@@ -205,6 +210,11 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
+    cg.add_define("USE_MIPI_DSI")
+    if config[CONF_ASYNC_LVGL_FLUSH]:
+        patch_script = Path(__file__).with_name("patch_espidf_dsi_dma2d.py")
+        cg.add_platformio_option("extra_scripts", [f"pre:{patch_script.as_posix()}"])
+
     model = MODELS[config[CONF_MODEL].upper()]
     color_depth = COLOR_DEPTHS[get_color_depth(config)]
     pixel_mode = int(config[CONF_PIXEL_MODE].removesuffix("bit"))
@@ -226,6 +236,8 @@ async def to_code(config):
     cg.add(var.set_pclk_frequency(config[CONF_PCLK_FREQUENCY] / 1.0e6))
     cg.add(var.set_lanes(int(config[CONF_LANES])))
     cg.add(var.set_lane_bit_rate(config[CONF_LANE_BIT_RATE] / 1.0e6))
+    cg.add(var.set_use_dma2d(config[CONF_USE_DMA2D]))
+    cg.add(var.set_async_lvgl_flush(config[CONF_ASYNC_LVGL_FLUSH]))
     if reset_pin := config.get(CONF_RESET_PIN):
         reset = await cg.gpio_pin_expression(reset_pin)
         cg.add(var.set_reset_pin(reset))
