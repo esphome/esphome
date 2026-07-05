@@ -1,10 +1,10 @@
 import logging
 import math
 
-from esphome import automation
+from esphome import automation, preferences
 from esphome.automation import Condition
 import esphome.codegen as cg
-from esphome.components.const import CONF_USE_PSRAM
+from esphome.components.const import CONF_ENABLED, CONF_USE_PSRAM
 from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     const,
@@ -50,6 +50,7 @@ from esphome.const import (
     CONF_REBOOT_TIMEOUT,
     CONF_SSID,
     CONF_STATIC_IP,
+    CONF_STORAGE,
     CONF_SUBNET,
     CONF_TIMEOUT,
     CONF_TTLS_PHASE_2,
@@ -434,6 +435,22 @@ def _validate(config):
 
 
 CONF_PASSIVE_SCAN = "passive_scan"
+
+FAST_CONNECT_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ENABLED, default=True): cv.boolean,
+        **preferences.storage_schema(),
+    }
+)
+
+
+def _fast_connect_schema(value):
+    """Accept the historic plain boolean or a dict with enabled/storage keys."""
+    if isinstance(value, bool):
+        value = {CONF_ENABLED: value}
+    return FAST_CONNECT_SCHEMA(value)
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -459,7 +476,7 @@ CONFIG_SCHEMA = cv.All(
                 rtl87xx="none",
                 ln882x="light",
             ): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
-            cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
+            cv.Optional(CONF_FAST_CONNECT, default=False): _fast_connect_schema,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.Optional(CONF_MIN_AUTH_MODE): cv.All(
                 VALIDATE_WIFI_MIN_AUTH_MODE,
@@ -619,8 +636,14 @@ async def to_code(config):
     cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
     if CONF_MIN_AUTH_MODE in config:
         cg.add(var.set_min_auth_mode(config[CONF_MIN_AUTH_MODE]))
-    if config[CONF_FAST_CONNECT]:
+    fast_connect = config[CONF_FAST_CONNECT]
+    if fast_connect[CONF_ENABLED]:
         cg.add_define("USE_WIFI_FAST_CONNECT")
+        # The storage default preserves this preference's historic location:
+        # ESP8266 has always used RTC memory; every other platform effectively
+        # used flash (the in_flash flag was previously ignored outside ESP8266).
+        if preferences.is_in_flash(fast_connect[CONF_STORAGE]):
+            cg.add_define("USE_WIFI_FAST_CONNECT_IN_FLASH")
     # passive_scan defaults to false in C++ - only set if true
     if config[CONF_PASSIVE_SCAN]:
         cg.add(var.set_passive_scan(True))

@@ -68,11 +68,15 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
   void loop() override;
   esp32_ble_tracker::AdvertisementParserType get_advertisement_parser_type() override;
 
-  void register_connection(BluetoothConnection *connection) {
+  // maybe_unused: in a passive proxy (active: false) MAX is 0, the body below is removed, and connection is unused.
+  void register_connection([[maybe_unused]] BluetoothConnection *connection) {
+    // Guard the always-false comparison (-Wtype-limits) in a passive proxy (active: false), where MAX is 0.
+#if BLUETOOTH_PROXY_MAX_CONNECTIONS > 0
     if (this->connection_count_ < BLUETOOTH_PROXY_MAX_CONNECTIONS) {
       this->connections_[this->connection_count_++] = connection;
       connection->proxy_ = this;
     }
+#endif
   }
 
   void bluetooth_device_request(const api::BluetoothDeviceRequest &msg);

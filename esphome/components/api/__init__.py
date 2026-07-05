@@ -540,17 +540,20 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
 )
 
 
+# synchronous=False: when on_success/on_error is configured, play() stores the
+# trigger args until the HomeassistantActionResponse arrives, so non-owning args
+# (StringRef into the API receive buffer) must not be used.
 @automation.register_action(
     "homeassistant.action",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
-    synchronous=True,
+    synchronous=False,
 )
 @automation.register_action(
     "homeassistant.service",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
-    synchronous=True,
+    synchronous=False,
 )
 async def homeassistant_service_to_code(
     config: ConfigType,
@@ -644,6 +647,8 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
 )
 
 
+# synchronous=True is safe here: the event schema has no on_success/on_error,
+# so play() never stores the trigger args.
 @automation.register_action(
     "homeassistant.event",
     HomeAssistantServiceCallAction,
