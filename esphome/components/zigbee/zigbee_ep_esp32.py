@@ -4,12 +4,17 @@ import esphome.config_validation as cv
 from esphome.const import CONF_DEVICE, CONF_ID, CONF_TYPE
 from esphome.core import CORE
 
-from .const import CONF_REPORT, CONF_USE_TYPE, KEY_ZIGBEE, REPORT
+from .const import (
+    CONF_MAX_EP_NUMBER,
+    CONF_REPORT,
+    CONF_USE_DEVICE_TYPE,
+    KEY_ZIGBEE,
+    REPORT,
+)
 from .const_esp32 import (
     CONF_ATTRIBUTE_ID,
     CONF_ATTRIBUTES,
     CONF_CLUSTERS,
-    CONF_MAX_EP_NUMBER,
     DEVICE_TYPE,
     KEY_ZIGBEE_EP,
     KEY_ZIGBEE_EP_NO_NUM,
@@ -122,19 +127,19 @@ def create_ep(router: bool) -> None:
                 if not add:
                     continue
                 if (
-                    ep.get(CONF_USE_TYPE)
-                    and existing_ep.get(CONF_USE_TYPE)
+                    ep.get(CONF_USE_DEVICE_TYPE)
+                    and existing_ep.get(CONF_USE_DEVICE_TYPE)
                     and ep.get(DEVICE_TYPE) != existing_ep.get(DEVICE_TYPE)
                 ):
                     continue
-                if ep.get(CONF_USE_TYPE):
-                    existing_ep[CONF_USE_TYPE] = ep[CONF_USE_TYPE]
+                if ep.get(CONF_USE_DEVICE_TYPE):
+                    existing_ep[CONF_USE_DEVICE_TYPE] = ep[CONF_USE_DEVICE_TYPE]
                     if ep.get(DEVICE_TYPE):
                         existing_ep[DEVICE_TYPE] = ep[DEVICE_TYPE]
                     existing_ep[CONF_CLUSTERS].extend(ep[CONF_CLUSTERS])
                     added = True
                     break
-                if existing_ep.get(CONF_USE_TYPE):
+                if existing_ep.get(CONF_USE_DEVICE_TYPE):
                     existing_ep[CONF_CLUSTERS].extend(ep[CONF_CLUSTERS])
                     added = True
                     break
@@ -163,7 +168,7 @@ def add_ep(ep: dict[str, Any], ep_num: int | None, use_type: bool | None) -> Non
     zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
     if ep_num is None:
         if use_type:
-            ep[CONF_USE_TYPE] = use_type
+            ep[CONF_USE_DEVICE_TYPE] = use_type
         ep_list: list[dict] = zb_data.setdefault(KEY_ZIGBEE_EP_NO_NUM, [])
         ep_list.append(ep)
     else:
@@ -181,18 +186,18 @@ def add_ep(ep: dict[str, Any], ep_num: int | None, use_type: bool | None) -> Non
                     )
             if (
                 use_type
-                and existing_ep.get(CONF_USE_TYPE)
+                and existing_ep.get(CONF_USE_DEVICE_TYPE)
                 and ep.get(DEVICE_TYPE) != existing_ep.get(DEVICE_TYPE)
             ):
                 raise cv.Invalid(
                     f"Endpoint {ep_num} has already a conflicting device type {existing_ep.get(DEVICE_TYPE, 'CUSTOM_ATTR')} and use_type is set for both."
                 )
             if use_type:
-                existing_ep[CONF_USE_TYPE] = use_type
+                existing_ep[CONF_USE_DEVICE_TYPE] = use_type
                 if ep.get(DEVICE_TYPE):
                     existing_ep[DEVICE_TYPE] = ep[DEVICE_TYPE]
                 existing_ep[CONF_CLUSTERS].extend(ep[CONF_CLUSTERS])
-            elif existing_ep.get(CONF_USE_TYPE):
+            elif existing_ep.get(CONF_USE_DEVICE_TYPE):
                 existing_ep[CONF_CLUSTERS].extend(ep[CONF_CLUSTERS])
             elif (
                 ep.get(DEVICE_TYPE)
@@ -208,5 +213,5 @@ def add_ep(ep: dict[str, Any], ep_num: int | None, use_type: bool | None) -> Non
                 existing_ep[CONF_CLUSTERS].extend(ep[CONF_CLUSTERS])
         else:
             if use_type is not None:
-                ep[CONF_USE_TYPE] = use_type
+                ep[CONF_USE_DEVICE_TYPE] = use_type
             ep_dict[ep_num] = ep
