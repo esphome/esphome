@@ -9,6 +9,7 @@ from esphome import config_validation as cv
 # T-RGB boards via xl9535, SEEED-INDICATOR-D1 via pca9554, or the Waveshare panels
 # via ch422g) can be validated by the mipi_rgb CONFIG_SCHEMA in this test.
 import esphome.components.ch422g  # noqa: F401
+from esphome.components.display import get_display_metadata
 from esphome.components.esp32 import KEY_BOARD, VARIANT_ESP32S3
 import esphome.components.pca9554  # noqa: F401
 import esphome.components.xl9535  # noqa: F401
@@ -114,3 +115,23 @@ def test_st7701s_only_supports_mirror_x(
 
     with pytest.raises(cv.Invalid, match="'mirror_y' is not supported by this model"):
         CONFIG_SCHEMA({**base, "transform": {"mirror_x": True, "mirror_y": True}})
+
+
+def test_metadata_records_rotation(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A configured display rotation is recorded in the metadata.
+
+    LVGL relies on this to flag a rotation set in the display config (see the
+    mipi_spi tests for the end-to-end LVGL rejection).
+    """
+    _set_s3(set_core_config)
+
+    from esphome.components.mipi_rgb.display import CONFIG_SCHEMA
+
+    base = {"model": "ESP32-8048S070", "data_pins": DATA_PINS, "pclk_pin": 21}
+    config = CONFIG_SCHEMA({**base, "id": "rotated", "rotation": 90})
+    assert get_display_metadata(config["id"]).rotation == 90
+
+    config = CONFIG_SCHEMA({**base, "id": "unrotated"})
+    assert get_display_metadata(config["id"]).rotation == 0
