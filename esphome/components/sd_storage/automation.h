@@ -39,9 +39,9 @@ class CardInsertedTrigger : public Trigger<> {
 };
 
 // Actions
-template<typename T, typename... Ts> class MountCardAction : public Action<Ts...> {
+template<typename... Ts> class MountCardAction : public Action<Ts...> {
  public:
-  explicit MountCardAction(T *parent) : parent_(parent) {}
+  explicit MountCardAction(SdStorageBase *parent) : parent_(parent) {}
 
   void play(Ts... x) override {
     bool ok = this->parent_->mount() == storage::StorageError::OK;
@@ -49,12 +49,12 @@ template<typename T, typename... Ts> class MountCardAction : public Action<Ts...
   }
 
  protected:
-  T *parent_;
+  SdStorageBase *parent_;
 };
 
-template<typename T, typename... Ts> class UnmountCardAction : public Action<Ts...> {
+template<typename... Ts> class UnmountCardAction : public Action<Ts...> {
  public:
-  explicit UnmountCardAction(T *parent) : parent_(parent) {}
+  explicit UnmountCardAction(SdStorageBase *parent) : parent_(parent) {}
 
   void play(Ts... x) override {
     this->parent_->unmount();
@@ -62,12 +62,12 @@ template<typename T, typename... Ts> class UnmountCardAction : public Action<Ts.
   }
 
  protected:
-  T *parent_;
+  SdStorageBase *parent_;
 };
 
-template<typename T, typename... Ts> class ListFilesAction : public Action<Ts...> {
+template<typename... Ts> class ListFilesAction : public Action<Ts...> {
  public:
-  explicit ListFilesAction(T *parent) : parent_(parent) {}
+  explicit ListFilesAction(SdStorageBase *parent) : parent_(parent) {}
 
   TEMPLATABLE_VALUE(const char *, path)
 
@@ -81,18 +81,18 @@ template<typename T, typename... Ts> class ListFilesAction : public Action<Ts...
   }
 
  protected:
-  T *parent_;
+  SdStorageBase *parent_;
 };
 
 // Condition
-template<typename T, typename... Ts> class CardMountedCondition : public Condition<Ts...> {
+template<typename... Ts> class CardMountedCondition : public Condition<Ts...> {
  public:
-  explicit CardMountedCondition(T *parent) : parent_(parent) {}
+  explicit CardMountedCondition(SdStorageBase *parent) : parent_(parent) {}
 
   bool check(Ts... x) override { return this->parent_->is_mounted(); }
 
  protected:
-  T *parent_;
+  SdStorageBase *parent_;
 };
 
 }  // namespace esphome::sd_storage
