@@ -261,6 +261,7 @@ class StorageRegistry : public Component {
 
   void register_storage(Storage *s);
   void unregister_storage(Storage *s);
+  bool is_registered(const Storage *s) const;
 
   // Enumerate by type — callback receives each matching device and caller ctx
   void for_each(void (*cb)(Storage *s, void *ctx), void *ctx);
