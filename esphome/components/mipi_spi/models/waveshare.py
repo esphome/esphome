@@ -12,7 +12,7 @@ from esphome.components.mipi import (
     PWSET,
     DriverChip,
 )
-import esphome.config_validation as cv
+from esphome.const import CONF_MIRROR_X, CONF_MIRROR_Y
 
 from .amoled import CO5300
 from .ili import ILI9488_A, ST7789V
@@ -155,7 +155,7 @@ ST7789P = DriverChip(
 
 ILI9488_A.extend(
     "PICO-RESTOUCH-LCD-3.5",
-    swap_xy=cv.UNDEFINED,
+    transforms={CONF_MIRROR_X, CONF_MIRROR_Y},
     spi_16=True,
     pixel_mode="16bit",
     mirror_x=True,

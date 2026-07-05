@@ -36,6 +36,8 @@ from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
 LOGGER = cv.logging.getLogger(__name__)
 
+CONF_TRANSFORMS = "transforms"
+
 ColorOrder = display_ns.enum("ColorMode")
 
 NOP = 0x00
@@ -387,11 +389,15 @@ class DriverChip:
         """
         Return the available transforms for this model.
         """
+        if (transforms := self.get_default(CONF_TRANSFORMS, None)) is not None:
+            return transforms
         if self.get_default("no_transform", False):
             return set()
         if self.get_default(CONF_SWAP_XY) != cv.UNDEFINED:
             return {CONF_MIRROR_X, CONF_MIRROR_Y, CONF_SWAP_XY}
-        return {CONF_MIRROR_X, CONF_MIRROR_Y}
+        raise ValueError(
+            "Setting 'swap_xy' to 'cv.UNDEFINED' is no longer supported; set 'transforms' instead"
+        )
 
     def has_hardware_transform(self, config) -> bool:
         """
@@ -534,7 +540,7 @@ class DriverChip:
         return transform
 
     def swap_xy_schema(self):
-        uses_swap = self.get_default(CONF_SWAP_XY, None) != cv.UNDEFINED
+        uses_swap = CONF_SWAP_XY in self.transforms
 
         def validator(value):
             if value:

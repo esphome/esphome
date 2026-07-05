@@ -1,12 +1,16 @@
 from esphome.components.mipi import MODE_RGB, DriverChip
 from esphome.components.spi import TYPE_QUAD
-import esphome.config_validation as cv
-from esphome.const import CONF_IGNORE_STRAPPING_WARNING, CONF_NUMBER
+from esphome.const import (
+    CONF_IGNORE_STRAPPING_WARNING,
+    CONF_MIRROR_X,
+    CONF_MIRROR_Y,
+    CONF_NUMBER,
+)
 
 AXS15231 = DriverChip(
     "AXS15231",
     draw_rounding=8,
-    swap_xy=cv.UNDEFINED,
+    transforms={CONF_MIRROR_X, CONF_MIRROR_Y},
     color_order=MODE_RGB,
     bus_mode=TYPE_QUAD,
     initsequence=(

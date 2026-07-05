@@ -91,7 +91,7 @@ def test_metadata_no_swap_xy_not_full_hardware_rotation(
         PlatformFramework.ESP32_IDF,
         platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
     )
-    # JC3248W535 has swap_xy=cv.UNDEFINED -> transforms={mirror_x, mirror_y} only
+    # JC3248W535 has transforms={mirror_x, mirror_y} only
     config = CONFIG_SCHEMA({"model": "JC3248W535", "id": "jc3248w535"})
     meta = get_display_metadata(config["id"])
     assert meta is not None

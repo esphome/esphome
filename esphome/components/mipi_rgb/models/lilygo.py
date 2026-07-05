@@ -1,4 +1,4 @@
-from esphome.config_validation import UNDEFINED
+from esphome.const import CONF_MIRROR_X, CONF_MIRROR_Y
 
 from .st7701s import ST7701S
 
@@ -8,7 +8,7 @@ ST7701S(
     width=480,
     height=480,
     invert_colors=False,
-    swap_xy=UNDEFINED,
+    transforms={CONF_MIRROR_X, CONF_MIRROR_Y},
     spi_mode="MODE3",
     cs_pin={"xl9535": None, "number": 17},
     reset_pin={"xl9535": None, "number": 5},
@@ -57,7 +57,7 @@ t_rgb = ST7701S(
     height=480,
     pixel_mode="18bit",
     invert_colors=False,
-    swap_xy=UNDEFINED,
+    transforms={CONF_MIRROR_X, CONF_MIRROR_Y},
     spi_mode="MODE3",
     cs_pin={"xl9535": None, "number": 3},
     de_pin=45,

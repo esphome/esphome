@@ -1,17 +1,12 @@
-from esphome.components.mipi import (
-    MADCTL,
-    MADCTL_ML,
-    MADCTL_XFLIP,
-    MODE_BGR,
-    DriverChip,
-)
-from esphome.config_validation import UNDEFINED
+from esphome.components.mipi import MADCTL, MADCTL_ML, MADCTL_XFLIP, MODE_BGR
 from esphome.const import CONF_COLOR_ORDER, CONF_HEIGHT, CONF_MIRROR_X, CONF_MIRROR_Y
+
+from . import RgbDriverChip
 
 SDIR_CMD = 0xC7
 
 
-class ST7701S(DriverChip):
+class ST7701S(RgbDriverChip):
     # The ST7701s does not use the standard MADCTL bits for x/y mirroring
     def add_madctl(self, sequence: list, config: dict):
         transform = self.get_transform(config)
@@ -45,7 +40,6 @@ st7701s = ST7701S(
     "ST7701S",
     width=480,
     height=864,
-    swap_xy=UNDEFINED,
     hsync_front_porch=20,
     hsync_back_porch=10,
     hsync_pulse_width=10,

@@ -1,5 +1,4 @@
 from esphome.components.mipi import DriverChip
-import esphome.config_validation as cv
 
 # Standalone display
 # Product page: https://www.seeedstudio.com/reTerminal-D1001-p-6729.html
@@ -15,7 +14,6 @@ DriverChip(
     vsync_front_porch=30,
     pclk_frequency="80MHz",
     lane_bit_rate="1.5Gbps",
-    swap_xy=cv.UNDEFINED,
     color_order="RGB",
     enable_pin=[{"xl9535": None, "number": 0}, {"xl9535": None, "number": 7}],
     reset_pin={"xl9535": None, "number": 2},

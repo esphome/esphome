@@ -16,6 +16,7 @@ from esphome.components.mipi import (
     delay,
 )
 from esphome.components.spi import TYPE_QUAD
+from esphome.const import CONF_MIRROR_X, CONF_MIRROR_Y
 
 DriverChip(
     "T-DISPLAY-S3-AMOLED",
@@ -97,6 +98,9 @@ CO5300 = DriverChip(
     color_order=MODE_RGB,
     bus_mode=TYPE_QUAD,
     no_slpout=True,
+    transforms={CONF_MIRROR_X, CONF_MIRROR_Y},
+    width=480,
+    height=480,
     initsequence=(
         (SLPOUT,),  # Requires early SLPOUT
         (PAGESEL, 0x00),

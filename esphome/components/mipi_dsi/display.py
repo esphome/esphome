@@ -47,18 +47,16 @@ from esphome.const import (
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
     CONF_LAMBDA,
-    CONF_MIRROR_X,
-    CONF_MIRROR_Y,
     CONF_MODEL,
     CONF_RESET_PIN,
     CONF_ROTATION,
-    CONF_SWAP_XY,
     CONF_TRANSFORM,
     CONF_WIDTH,
 )
 from esphome.final_validate import full_config
 
 from . import mipi_dsi_ns, models
+from .models import DsiDriverChip
 
 # Currently only ESP32-P4 is supported, so esp_ldo and psram are required
 DEPENDENCIES = ["esp32", "esp_ldo", "psram"]
@@ -73,7 +71,7 @@ ColorBitness = display.display_ns.enum("ColorBitness")
 CONF_LANE_BIT_RATE = "lane_bit_rate"
 CONF_LANES = "lanes"
 
-DriverChip("CUSTOM")
+DsiDriverChip("CUSTOM")
 
 # Import all models dynamically from the models package
 
@@ -90,17 +88,8 @@ COLOR_DEPTHS = {
 
 def model_schema(config):
     model = MODELS[config[CONF_MODEL].upper()]
-    model.defaults[CONF_SWAP_XY] = cv.UNDEFINED
     transform = cv.Any(
-        cv.Schema(
-            {
-                cv.Required(CONF_MIRROR_X): cv.boolean,
-                cv.Required(CONF_MIRROR_Y): cv.boolean,
-                cv.Optional(CONF_SWAP_XY): cv.invalid(
-                    "Axis swapping not supported by DSI displays"
-                ),
-            }
-        ),
+        cv.Schema({cv.Required(t): cv.boolean for t in model.transforms}),
         cv.one_of(CONF_DISABLED, lower=True),
     )
     # CUSTOM model will need to provide a custom init sequence
