@@ -26,6 +26,7 @@ static constexpr const char *TAG = "usb_storage";
 
 class USBStorageDevice;
 class USBStorageClient;
+template<typename... Ts> class ListFilesAction;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // USBStorageClient
@@ -132,8 +133,6 @@ class USBStorageDevice : public esphome::storage::FilesystemStorage {
   void on_device_connected(const char *mount_path);
   void on_device_disconnected();
 
-  void list_files();
-
   template<typename F> void add_on_mounted_callback(F &&cb) { this->on_mounted_.add(std::forward<F>(cb)); }
   const char *get_mount_path() const { return this->mount_path_; }
   bool is_mounted() const { return this->fs_mounted_; }
@@ -152,21 +151,31 @@ class USBStorageDevice : public esphome::storage::FilesystemStorage {
   storage::StorageError read(storage::FileHandle *handle, uint8_t *buf, size_t len, size_t *bytes_transferred) override;
   storage::StorageError write(storage::FileHandle *handle, const uint8_t *buf, size_t len,
                               size_t *bytes_transferred) override;
-  storage::StorageError seek(storage::FileHandle *handle, size_t offset) override;
-  storage::StorageError tell(storage::FileHandle *handle, size_t *position) override;
+  storage::StorageError seek(storage::FileHandle *handle, int64_t offset, storage::SeekMode mode) override;
+  storage::StorageError tell(storage::FileHandle *handle, uint64_t *position) override;
   storage::StorageError stat(const char *path, storage::FileStat *stat) override;
-  storage::StorageError list_dir(const char *path, void (*callback)(const storage::FileStat *entry, void *ctx),
+  storage::StorageError list_dir(const char *path, bool (*callback)(const storage::FileStat *entry, void *ctx),
                                  void *ctx) override;
   storage::StorageError mkdir(const char *path) override;
-  storage::StorageError rmdir(const char *path, bool recursive) override;
+  storage::StorageError rmdir(const char *path) override;
   storage::StorageError remove(const char *path) override;
   storage::StorageError rename(const char *old_path, const char *new_path) override;
-  storage::StorageError copy(const char *src_path, const char *dst_path) override;
+
+  // USB stack transfers are self-contained (own endpoint transfers via a FreeRTOS semaphore,
+  // no shared bus with other main-loop-driven components) — safe for the async worker to drive
+  // from a background task, same as SdMmc's dedicated SDIO controller.
+  uint8_t get_capabilities() const override { return storage::StorageCaps::STORAGE_CAP_IO_TASK_SAFE; }
 
  protected:
+  template<typename... Ts> friend class ListFilesAction;
+
   USBFileHandle *alloc_handle_();
   void free_handle_(USBFileHandle *handle);
   void build_path_(char *out, size_t out_size, const char *path) const;
+
+  void log_list_dir_start_(const char *path) const;
+  // Matches the list_dir() callback signature (bool return = keep enumerating).
+  static bool log_list_dir_entry(const storage::FileStat *entry, void *ctx);
 
   USBStorageClient *client_{nullptr};
   uint16_t vid_{0};

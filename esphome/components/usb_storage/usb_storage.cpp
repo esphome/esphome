@@ -462,17 +462,15 @@ void USBStorageDevice::unmount_device() {
   this->on_device_disconnected();
 }
 
-void USBStorageDevice::list_files() {
-  ESP_LOGI(TAG, "Listing contents of '%s'", this->mount_path_);
-  DIR *dh = opendir(this->mount_path_);
-  if (!dh) {
-    ESP_LOGE(TAG, "Failed to open directory: %s", this->mount_path_);
-    return;
+void USBStorageDevice::log_list_dir_start_(const char *path) const { ESP_LOGI(TAG, "Listing files in: %s", path); }
+
+bool USBStorageDevice::log_list_dir_entry(const storage::FileStat *entry, void *ctx) {
+  if (entry->is_dir) {
+    ESP_LOGI(TAG, "  [DIR]  %s", entry->name);
+  } else {
+    ESP_LOGI(TAG, "  [FILE] %s (%llu bytes)", entry->name, static_cast<unsigned long long>(entry->size));
   }
-  struct dirent *d;
-  while ((d = readdir(dh)) != nullptr)
-    ESP_LOGI(TAG, "  %s/%s", this->mount_path_, d->d_name);
-  closedir(dh);
+  return true;  // keep enumerating — this is a "list everything" action
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -547,7 +545,7 @@ storage::StorageError USBStorageDevice::unmount() {
 
 storage::StorageError USBStorageDevice::format() {
   ESP_LOGW(TAG, "Format not implemented for USB storage");
-  return storage::StorageError::NOT_READY;
+  return storage::StorageError::NOT_SUPPORTED;
 }
 
 storage::StorageError USBStorageDevice::sync() { return storage::StorageError::OK; }
@@ -558,7 +556,7 @@ storage::StorageError USBStorageDevice::open(const char *path, storage::FileHand
 
   USBFileHandle *h = this->alloc_handle_();
   if (h == nullptr)
-    return storage::StorageError::NO_SPACE;
+    return storage::StorageError::TOO_MANY_OPEN_FILES;
 
   this->build_path_(h->path_buf, sizeof(h->path_buf), path);
   h->path = h->path_buf;
@@ -581,7 +579,20 @@ storage::StorageError USBStorageDevice::open(const char *path, storage::FileHand
   h->file = fopen(h->path_buf, fmode);
   if (h->file == nullptr) {
     this->free_handle_(h);
-    return storage::StorageError::NOT_FOUND;
+    switch (errno) {
+      case ENOENT:
+        return storage::StorageError::NOT_FOUND;
+      case ENOSPC:
+        return storage::StorageError::NO_SPACE;
+      case EACCES:
+      case EROFS:
+        return storage::StorageError::PERMISSION_DENIED;
+      case EMFILE:
+      case ENFILE:
+        return storage::StorageError::TOO_MANY_OPEN_FILES;
+      default:
+        return mode == storage::OpenMode::READ ? storage::StorageError::READ_ERROR : storage::StorageError::WRITE_ERROR;
+    }
   }
 
   handle = h;
@@ -589,24 +600,39 @@ storage::StorageError USBStorageDevice::open(const char *path, storage::FileHand
 }
 
 storage::StorageError USBStorageDevice::close(storage::FileHandle *handle) {
+  if (handle == nullptr || !handle->in_use)
+    return storage::StorageError::INVALID_ARGS;
   auto *h = static_cast<USBFileHandle *>(handle);
-  if (h->file != nullptr)
-    fclose(h->file);
+  storage::StorageError err = storage::StorageError::OK;
+  if (h->file != nullptr) {
+    if (fclose(h->file) != 0)
+      err = storage::StorageError::WRITE_ERROR;
+  }
   this->free_handle_(h);
-  return storage::StorageError::OK;
+  return err;
 }
 
 storage::StorageError USBStorageDevice::read(storage::FileHandle *handle, uint8_t *buf, size_t len,
                                              size_t *bytes_transferred) {
+  if (handle == nullptr || !handle->in_use || handle->file == nullptr)
+    return storage::StorageError::INVALID_ARGS;
   auto *h = static_cast<USBFileHandle *>(handle);
   size_t n = fread(buf, 1, len, h->file);
   if (bytes_transferred != nullptr)
     *bytes_transferred = n;
+  // fread() returning less than requested means either EOF (not an error, per the
+  // partial-read contract in storage.h) or a real I/O error — ferror() disambiguates.
+  if (n < len && ferror(h->file)) {
+    clearerr(h->file);
+    return storage::StorageError::READ_ERROR;
+  }
   return storage::StorageError::OK;
 }
 
 storage::StorageError USBStorageDevice::write(storage::FileHandle *handle, const uint8_t *buf, size_t len,
                                               size_t *bytes_transferred) {
+  if (handle == nullptr || !handle->in_use || handle->file == nullptr)
+    return storage::StorageError::INVALID_ARGS;
   auto *h = static_cast<USBFileHandle *>(handle);
   size_t n = fwrite(buf, 1, len, h->file);
   if (bytes_transferred != nullptr)
@@ -614,18 +640,42 @@ storage::StorageError USBStorageDevice::write(storage::FileHandle *handle, const
   return n == len ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
 }
 
-storage::StorageError USBStorageDevice::seek(storage::FileHandle *handle, size_t offset) {
+storage::StorageError USBStorageDevice::seek(storage::FileHandle *handle, int64_t offset, storage::SeekMode mode) {
+  if (handle == nullptr || !handle->in_use || handle->file == nullptr)
+    return storage::StorageError::INVALID_ARGS;
+  // ESP-IDF's newlib fseek() takes a 32-bit `long` offset — FATFS/POSIX on this platform can't
+  // address beyond that anyway (files >4GB aren't representable here), so reject rather than
+  // silently truncating a caller-supplied 64-bit offset (the interface allows >4GB elsewhere,
+  // e.g. NetworkStorage).
+  if (offset > INT32_MAX || offset < INT32_MIN)
+    return storage::StorageError::INVALID_ARGS;
+  int whence;
+  switch (mode) {
+    case storage::SeekMode::SET:
+      whence = SEEK_SET;
+      break;
+    case storage::SeekMode::CUR:
+      whence = SEEK_CUR;
+      break;
+    case storage::SeekMode::END:
+      whence = SEEK_END;
+      break;
+    default:
+      return storage::StorageError::INVALID_ARGS;
+  }
   auto *h = static_cast<USBFileHandle *>(handle);
-  return fseek(h->file, static_cast<int32_t>(offset), SEEK_SET) == 0 ? storage::StorageError::OK
-                                                                     : storage::StorageError::READ_ERROR;
+  return fseek(h->file, static_cast<int32_t>(offset), whence) == 0 ? storage::StorageError::OK
+                                                                   : storage::StorageError::READ_ERROR;
 }
 
-storage::StorageError USBStorageDevice::tell(storage::FileHandle *handle, size_t *position) {
+storage::StorageError USBStorageDevice::tell(storage::FileHandle *handle, uint64_t *position) {
+  if (handle == nullptr || !handle->in_use || handle->file == nullptr)
+    return storage::StorageError::INVALID_ARGS;
   auto *h = static_cast<USBFileHandle *>(handle);
   int32_t pos = static_cast<int32_t>(ftell(h->file));
   if (pos < 0)
     return storage::StorageError::READ_ERROR;
-  *position = static_cast<size_t>(pos);
+  *position = static_cast<uint64_t>(pos);
   return storage::StorageError::OK;
 }
 
@@ -637,14 +687,22 @@ storage::StorageError USBStorageDevice::stat(const char *path, storage::FileStat
   struct stat s;
   if (::stat(full, &s) != 0)
     return storage::StorageError::NOT_FOUND;
-  snprintf(st->name, sizeof(st->name), "%s", path);
-  st->size = S_ISREG(s.st_mode) ? static_cast<size_t>(s.st_size) : 0;
+
+  // FileStat::name is the basename only (see the contract on the struct in storage.h) —
+  // consistent with what list_dir() puts there, regardless of how many path segments the
+  // caller passed in.
+  const char *base = strrchr(path, '/');
+  base = (base != nullptr) ? base + 1 : path;
+  strncpy(st->name, base, sizeof(st->name) - 1);
+  st->name[sizeof(st->name) - 1] = '\0';
+  st->size = S_ISREG(s.st_mode) ? static_cast<uint64_t>(s.st_size) : 0;
   st->is_dir = S_ISDIR(s.st_mode);
+  st->mtime = static_cast<uint32_t>(s.st_mtime);
   return storage::StorageError::OK;
 }
 
 storage::StorageError USBStorageDevice::list_dir(const char *path,
-                                                 void (*callback)(const storage::FileStat *entry, void *ctx),
+                                                 bool (*callback)(const storage::FileStat *entry, void *ctx),
                                                  void *ctx) {
   if (!this->fs_mounted_)
     return storage::StorageError::NOT_READY;
@@ -658,20 +716,28 @@ storage::StorageError USBStorageDevice::list_dir(const char *path,
   while ((entry = readdir(dir)) != nullptr) {
     if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
       continue;
+
     storage::FileStat st{};
-    snprintf(st.name, sizeof(st.name), "%s", entry->d_name);
+    strncpy(st.name, entry->d_name, sizeof(st.name) - 1);
+    st.name[sizeof(st.name) - 1] = '\0';
     st.is_dir = entry->d_type == DT_DIR;
-    if (!st.is_dir) {
-      char child_rel[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-      if (snprintf(child_rel, sizeof(child_rel), "%s/%s", path, entry->d_name) < static_cast<int>(sizeof(child_rel))) {
-        char entry_full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-        this->build_path_(entry_full, sizeof(entry_full), child_rel);
-        struct stat s;
-        if (::stat(entry_full, &s) == 0)
-          st.size = static_cast<size_t>(s.st_size);
+
+    // Build the entry's absolute path directly from `full` (already resolved above) instead of
+    // going through build_path_() again — saves a second path-sized stack buffer per
+    // list_dir() call, which matters since remove_recursive() recurses through this.
+    char entry_full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
+    if (snprintf(entry_full, sizeof(entry_full), "%s/%s", full, entry->d_name) < static_cast<int>(sizeof(entry_full))) {
+      struct stat s;
+      if (::stat(entry_full, &s) == 0) {
+        st.size = st.is_dir ? 0 : static_cast<uint64_t>(s.st_size);
+        st.mtime = static_cast<uint32_t>(s.st_mtime);
       }
     }
-    callback(&st, ctx);
+
+    // callback returns false to stop enumeration early — that is not an error, so we still
+    // return OK below regardless of how the loop exits.
+    if (!callback(&st, ctx))
+      break;
   }
   closedir(dir);
   return storage::StorageError::OK;
@@ -682,35 +748,48 @@ storage::StorageError USBStorageDevice::mkdir(const char *path) {
     return storage::StorageError::NOT_READY;
   char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   this->build_path_(full, sizeof(full), path);
-  return ::mkdir(full, 0755) == 0 ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+  if (::mkdir(full, 0755) == 0)
+    return storage::StorageError::OK;
+  return (errno == EEXIST) ? storage::StorageError::ALREADY_EXISTS : storage::StorageError::WRITE_ERROR;
 }
 
-storage::StorageError USBStorageDevice::rmdir(const char *path, bool recursive) {
+storage::StorageError USBStorageDevice::rmdir(const char *path) {
   if (!this->fs_mounted_)
     return storage::StorageError::NOT_READY;
   char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   this->build_path_(full, sizeof(full), path);
 
-  if (recursive) {
-    DIR *dir = opendir(full);
-    if (dir == nullptr)
-      return storage::StorageError::NOT_FOUND;
-    struct dirent *entry;
-    while ((entry = readdir(dir)) != nullptr) {
-      if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-        continue;
-      char child[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-      if (snprintf(child, sizeof(child), "%s/%s", path, entry->d_name) >= static_cast<int>(sizeof(child)))
-        continue;
-      storage::StorageError err = (entry->d_type == DT_DIR) ? this->rmdir(child, true) : this->remove(child);
-      if (err != storage::StorageError::OK) {
-        closedir(dir);
-        return err;
-      }
-    }
-    closedir(dir);
+  // Non-recursive per the storage:: contract: must fail with NOT_EMPTY if the directory has
+  // contents. Recursive delete is the free storage::remove_recursive() helper, built on top
+  // of list_dir()/remove()/this rmdir() — no need to duplicate that tree-walk here.
+  DIR *dir = opendir(full);
+  if (dir == nullptr)
+    return storage::StorageError::NOT_FOUND;
+
+  bool has_entries = false;
+  struct dirent *entry;
+  while ((entry = readdir(dir)) != nullptr) {
+    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+      continue;
+    has_entries = true;
+    break;
   }
-  return ::unlink(full) == 0 ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+  closedir(dir);
+  if (has_entries)
+    return storage::StorageError::NOT_EMPTY;
+
+  if (::rmdir(full) == 0)
+    return storage::StorageError::OK;
+  // Backstop in case the pre-check above raced with something adding an entry, or the driver's
+  // notion of "empty" differs from FATFS's — let errno have the final say.
+  switch (errno) {
+    case ENOTEMPTY:
+      return storage::StorageError::NOT_EMPTY;
+    case ENOENT:
+      return storage::StorageError::NOT_FOUND;
+    default:
+      return storage::StorageError::WRITE_ERROR;
+  }
 }
 
 storage::StorageError USBStorageDevice::remove(const char *path) {
@@ -729,39 +808,6 @@ storage::StorageError USBStorageDevice::rename(const char *old_path, const char 
   this->build_path_(old_full, sizeof(old_full), old_path);
   this->build_path_(new_full, sizeof(new_full), new_path);
   return ::rename(old_full, new_full) == 0 ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
-}
-
-storage::StorageError USBStorageDevice::copy(const char *src_path, const char *dst_path) {
-  if (!this->fs_mounted_)
-    return storage::StorageError::NOT_READY;
-  char src_full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-  char dst_full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-  this->build_path_(src_full, sizeof(src_full), src_path);
-  this->build_path_(dst_full, sizeof(dst_full), dst_path);
-
-  FILE *src = fopen(src_full, "rb");
-  if (src == nullptr)
-    return storage::StorageError::NOT_FOUND;
-  FILE *dst = fopen(dst_full, "wb");
-  if (dst == nullptr) {
-    fclose(src);
-    return storage::StorageError::WRITE_ERROR;
-  }
-  uint8_t buf[256];
-  size_t n;
-  storage::StorageError err = storage::StorageError::OK;
-  while ((n = fread(buf, 1, sizeof(buf), src)) > 0) {
-    if (fwrite(buf, 1, n, dst) != n) {
-      err = storage::StorageError::WRITE_ERROR;
-      break;
-    }
-  }
-  if (err == storage::StorageError::OK && ferror(src)) {
-    err = storage::StorageError::READ_ERROR;
-  }
-  fclose(src);
-  fclose(dst);
-  return err;
 }
 
 }  // namespace esphome::usb_storage

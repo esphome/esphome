@@ -15,7 +15,7 @@ from esphome.components.esp32 import (
     require_vfs_dir,
     require_vfs_select,
 )
-from esphome.components.storage import request_storage_device
+from esphome.components.storage import request_storage_device, request_storage_worker
 from esphome.components.usb_host import usb_host_ns
 import esphome.config_validation as cv
 from esphome.const import CONF_DEVICES, CONF_ID, CONF_TRIGGER_ID
@@ -64,6 +64,9 @@ async def register_usb_storage_device(device_config, storage_client):
     cg.add(storage_client.add_device(var))
 
     request_storage_device()
+    # USB MSC transfers are self-contained (own endpoint transfers via a FreeRTOS semaphore, no
+    # shared bus with other main-loop-driven components) — task-safe, unlike e.g. SdSpi.
+    request_storage_worker(task_safe=True)
 
     for conf in device_config.get(CONF_ON_MOUNTED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
@@ -161,15 +164,27 @@ async def usb_storage_unmount_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
+LIST_FILES_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(USBStorageDevice),
+        cv.Optional("path", default=""): cv.templatable(cv.string),
+    }
+)
+
+
 @automation.register_action(
     "usb_storage.list_files",
     ListFilesAction,
-    USB_STORAGE_ACTION_SCHEMA,
+    LIST_FILES_SCHEMA,
     synchronous=True,
 )
 async def usb_storage_list_files_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+    parent = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
+    if "path" in config:
+        template_ = await cg.templatable(config["path"], args, cg.const_char_ptr)
+        cg.add(var.set_path(template_))
+    return var
 
 
 # Conditions

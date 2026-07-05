@@ -40,7 +40,16 @@ template<typename... Ts> class ListFilesAction : public Action<Ts...> {
  public:
   explicit ListFilesAction(USBStorageDevice *device) : device_(device) {}
 
-  void play(Ts... x) override { this->device_->list_files(); }
+  TEMPLATABLE_VALUE(const char *, path)
+
+  void play(Ts... x) override {
+    const char *path = this->path_.value(x...);
+    if (path == nullptr || path[0] == '\0')
+      path = this->device_->get_mount_path();
+
+    this->device_->log_list_dir_start_(path);
+    this->device_->list_dir(path, &USBStorageDevice::log_list_dir_entry, nullptr);
+  }
 
  protected:
   USBStorageDevice *device_;
