@@ -38,6 +38,9 @@ LOGGER = cv.logging.getLogger(__name__)
 
 CONF_TRANSFORMS = "transforms"
 
+# All axis transforms a model may support, in the order they appear in the schema.
+ALL_TRANSFORMS = (CONF_MIRROR_X, CONF_MIRROR_Y, CONF_SWAP_XY)
+
 ColorOrder = display_ns.enum("ColorMode")
 
 NOP = 0x00
@@ -304,7 +307,8 @@ class DriverChip:
     """
     A class representing a MIPI DBI driver chip model.
     The parameters supplied as defaults will be used to provide default values for the display configuration.
-    Setting swap_xy to cv.UNDEFINED will indicate that the model does not support swapping X and Y axes.
+    Pass a ``transforms`` set to restrict which axis transforms (mirror_x, mirror_y, swap_xy) the model
+    supports; by default all three are available.
     """
 
     models: dict[str, Self] = {}
@@ -539,17 +543,31 @@ class DriverChip:
         transform[CONF_TRANSFORM] = self.rotation_as_transform(config)
         return transform
 
-    def swap_xy_schema(self):
-        uses_swap = CONF_SWAP_XY in self.transforms
+    def transform_schema(self):
+        """
+        Build the schema for the ``transform`` config option of this model.
 
-        def validator(value):
-            if value:
-                raise cv.Invalid("Axis swapping not supported by this model")
-            return cv.boolean(value)
+        Each transform the model supports is a required boolean. A transform the model does not
+        support may be omitted or set to ``false``; setting it to ``true`` reports a clear error
+        naming the unsupported transform instead of a generic "extra keys not allowed".
+        """
+        supported = self.transforms
 
-        if uses_swap:
-            return {cv.Required(CONF_SWAP_XY): cv.boolean}
-        return {cv.Optional(CONF_SWAP_XY, default=False): validator}
+        def unsupported(name):
+            def validator(value):
+                if cv.boolean(value):
+                    raise cv.Invalid(f"'{name}' is not supported by this model")
+                return False
+
+            return validator
+
+        schema = {}
+        for name in ALL_TRANSFORMS:
+            if name in supported:
+                schema[cv.Required(name)] = cv.boolean
+            else:
+                schema[cv.Optional(name, default=False)] = unsupported(name)
+        return cv.Any(cv.Schema(schema), cv.one_of(CONF_DISABLED, lower=True))
 
     def get_madctl(self, transform: dict, config: dict) -> int:
         """

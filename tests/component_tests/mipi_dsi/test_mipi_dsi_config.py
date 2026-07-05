@@ -71,6 +71,18 @@ def test_configuration_errors(set_core_config: SetCoreConfigCallable) -> None:
             }
         )
 
+    # DSI displays cannot swap axes; enabling swap_xy reports a clear error.
+    with pytest.raises(cv.Invalid, match="'swap_xy' is not supported by this model"):
+        CONFIG_SCHEMA(
+            {
+                "model": "custom",
+                "init_sequence": [[0xA0, 0x01]],
+                "lane_bit_rate": "1.5Gbps",
+                "dimensions": {"width": 320, "height": 240},
+                "transform": {"mirror_x": True, "mirror_y": True, "swap_xy": True},
+            }
+        )
+
 
 def test_configuration_success(set_core_config: SetCoreConfigCallable) -> None:
     """Test successful configuration validation."""

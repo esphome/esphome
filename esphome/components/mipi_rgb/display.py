@@ -48,7 +48,6 @@ from esphome.const import (
     CONF_DATA_RATE,
     CONF_DC_PIN,
     CONF_DIMENSIONS,
-    CONF_DISABLED,
     CONF_ENABLE_PIN,
     CONF_GREEN,
     CONF_HSYNC_PIN,
@@ -118,10 +117,7 @@ def data_pin_set(length):
 
 def model_schema(config):
     model = MODELS[config[CONF_MODEL].upper()]
-    transform = cv.Any(
-        cv.Schema({cv.Required(t): cv.boolean for t in model.transforms}),
-        cv.one_of(CONF_DISABLED, lower=True),
-    )
+    transform = model.transform_schema()
     # RPI model does not use an init sequence, indicates with empty list
     if model.initsequence is None:
         # Custom model requires an init sequence

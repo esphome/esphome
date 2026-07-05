@@ -136,7 +136,7 @@ def test_dimension_validation(
                 "model": "JC3248W535",
                 "transform": {"mirror_x": False, "mirror_y": True, "swap_xy": True},
             },
-            "Axis swapping not supported by this model",
+            "'swap_xy' is not supported by this model",
             id="axis_swapping_not_supported",
         ),
         pytest.param(

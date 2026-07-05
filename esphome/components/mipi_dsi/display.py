@@ -41,7 +41,6 @@ from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
     CONF_COLOR_ORDER,
     CONF_DIMENSIONS,
-    CONF_DISABLED,
     CONF_ENABLE_PIN,
     CONF_ID,
     CONF_INIT_SEQUENCE,
@@ -88,10 +87,7 @@ COLOR_DEPTHS = {
 
 def model_schema(config):
     model = MODELS[config[CONF_MODEL].upper()]
-    transform = cv.Any(
-        cv.Schema({cv.Required(t): cv.boolean for t in model.transforms}),
-        cv.one_of(CONF_DISABLED, lower=True),
-    )
+    transform = model.transform_schema()
     # CUSTOM model will need to provide a custom init sequence
     iseqconf = (
         cv.Required(CONF_INIT_SEQUENCE)
