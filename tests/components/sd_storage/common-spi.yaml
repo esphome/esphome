@@ -8,3 +8,16 @@ sd_storage:
     - logger.log:
         format: "SD card mounted at %s"
         args: [mount_path]
+
+script:
+  - id: sd_card_exercise
+    then:
+      - sd_storage.unmount: sd_card
+      - sd_storage.mount: sd_card
+      - if:
+          condition:
+            sd_storage.is_mounted: sd_card
+          then:
+            - sd_storage.list_files:
+                id: sd_card
+                path: !lambda 'return "/logs";'

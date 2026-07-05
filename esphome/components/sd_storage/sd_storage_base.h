@@ -11,12 +11,15 @@
 
 namespace esphome::sd_storage {
 
+// Note: SDHC and SDXC cards cannot be distinguished by the OCR capacity bit alone (that only
+// separates SDSC from "high/extended capacity"); doing so would require checking the card's
+// actual reported capacity. No driver currently assigns SDXC, so it's omitted here rather than
+// kept as a value nothing ever produces.
 enum class CardType : uint8_t {
   UNKNOWN = 0,
   SDIO = 1,
   MMC = 2,
   SDHC = 3,
-  SDXC = 3,
   SDSC = 4,
 };
 
@@ -73,6 +76,7 @@ class SdStorageBase : public storage::FilesystemStorage {
   void log_list_dir_start_(const char *path) const;
   // Matches the list_dir() callback signature (bool return = keep enumerating).
   static bool log_list_dir_entry(const storage::FileStat *entry, void *ctx);
+  static const char *card_type_to_string(CardType type);
 
   CardType card_type_{CardType::UNKNOWN};
   bool is_mounted_{false};

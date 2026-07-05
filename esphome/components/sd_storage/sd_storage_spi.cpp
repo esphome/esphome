@@ -46,9 +46,16 @@ void SdSpi::setup() {
 
   this->spi_setup();
 
+  // Register before attempting to mount, not only on success — get_info() reports is_mounted
+  // correctly either way, and this lets the device (and its mount/unmount/list_files actions)
+  // show up in the registry even if the initial mount fails, instead of only existing once a
+  // card happens to be present. No mark_failed() here: a failed mount is not a broken
+  // component, and this lets sd_storage.mount retry later without a reboot.
+  if (storage::global_storage_registry != nullptr)
+    storage::global_storage_registry->register_storage(this);
+
   if (this->mount() != StorageError::OK) {
     ESP_LOGE(TAG_SPI, "Failed to mount SD card");
-    this->mark_failed();
   }
 }
 
@@ -61,7 +68,7 @@ void SdSpi::dump_config() {
   ESP_LOGCONFIG(TAG_SPI, "  Mode 1 bit: %s", YESNO(this->mode_1bit_));
   ESP_LOGCONFIG(TAG_SPI, "  CS Pin: %d", spi::Utility::get_pin_no(this->cs_));
   if (this->is_mounted_) {
-    ESP_LOGCONFIG(TAG_SPI, "  Card Type: %d", static_cast<uint8_t>(this->card_type_));
+    ESP_LOGCONFIG(TAG_SPI, "  Card Type: %s", SdStorageBase::card_type_to_string(this->card_type_));
     ESP_LOGCONFIG(TAG_SPI, "  Total bytes: %" PRIu64, this->total_bytes_);
     ESP_LOGCONFIG(TAG_SPI, "  Used bytes: %" PRIu64, this->used_bytes_);
   }
@@ -144,6 +151,10 @@ StorageError SdSpi::unmount() {
   if (!this->is_mounted_ || this->card_ == nullptr)
     return StorageError::OK;
 
+  // Unregister before the VFS unmount below — the registry contract guarantees
+  // unregister_storage() doesn't return until any in-flight storage_worker data-plane calls
+  // against this device have drained, so it's safe to tear the filesystem down immediately
+  // afterward.
   if (storage::global_storage_registry != nullptr)
     storage::global_storage_registry->unregister_storage(this);
 

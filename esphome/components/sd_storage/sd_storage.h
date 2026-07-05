@@ -6,6 +6,7 @@
 
 #include "sd_storage_base.h"
 #include "esphome/core/gpio.h"
+#include "sdmmc_cmd.h"
 
 namespace esphome::sd_storage {
 
@@ -54,6 +55,7 @@ class SdMmc : public SdStorageBase {
   bool mode_1bit_{false};
   uint8_t slot_{0};
   uint32_t block_size_{512};
+  sdmmc_card_t *card_{nullptr};
 
   SdFileHandle handle_pool_[MAX_OPEN_FILES]{};
 };
