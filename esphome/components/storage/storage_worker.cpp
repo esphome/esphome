@@ -206,7 +206,10 @@ void StorageWorker::on_storage_unregistered_(Storage *s) {
             req.callback = nullptr;
             break;
           }
-          vTaskDelay(pdMS_TO_TICKS(1));
+          // pdMS_TO_TICKS(1) rounds down to 0 ticks at the default 100 Hz tick rate (10 ms per
+          // tick), which would make this a pure yield with no actual delay. Passing 1 directly
+          // requests one full tick (10 ms at the default rate) instead.
+          vTaskDelay(1);
         }
 #endif
       }
@@ -225,6 +228,7 @@ void StorageWorker::loop() {
       req.callback = nullptr;
       req.src_storage = nullptr;
       req.dst_storage = nullptr;
+      req.stuck_warned = false;
       req.state = RequestState::FREE;
       if (cb)
         cb(result);
@@ -237,11 +241,27 @@ void StorageWorker::loop() {
     // Skip any request that overlaps a storage with something already RUNNING/CANCELLED (e.g.
     // on the worker task) — it must wait its turn rather than run concurrently with it.
     for (size_t i = 0; i < this->pool_.size(); i++) {
-      if (this->pool_[i].state.load() == RequestState::PENDING && !this->overlaps_active_(this->pool_[i])) {
-        this->pool_[i].state = RequestState::RUNNING;
-        this->loop_active_index_ = i;
-        break;
+      TransferRequest &candidate = this->pool_[i];
+      if (candidate.state.load() != RequestState::PENDING)
+        continue;
+      if (this->overlaps_active_(candidate)) {
+        // Known limitation: if the request it overlaps with is stuck (its owning engine never
+        // reached DONE after a drain timeout — see on_storage_unregistered_()), this request
+        // waits forever and its callback never fires. There is no reclaim path for the stuck
+        // slot itself: by the time a drain times out, the medium is presumed gone and the
+        // engine that owns it may still be touching it, so freeing the slot out from under
+        // that engine would be unsafe. Log once per request so this is at least diagnosable.
+        if (!candidate.stuck_warned) {
+          ESP_LOGW(TAG, "Request pending indefinitely — blocked by another request on the same "
+                        "storage that never completed (likely a stuck slot after a drain "
+                        "timeout)");
+          candidate.stuck_warned = true;
+        }
+        continue;
       }
+      candidate.state = RequestState::RUNNING;
+      this->loop_active_index_ = i;
+      break;
     }
   }
 

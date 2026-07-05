@@ -84,6 +84,12 @@ struct TransferRequest {
   bool src_is_fs{false};
   bool dst_is_fs{false};
   bool handles_open{false};
+
+  // Set once loop()'s dispatch has already logged that this request cannot proceed because it
+  // overlaps a slot stuck RUNNING/CANCELLED past the drain timeout (see
+  // on_storage_unregistered_()'s timeout comment) — avoids re-logging every loop() iteration
+  // for as long as the stuck slot remains. Reset when the request is freed.
+  bool stuck_warned{false};
 };
 
 // Asynchronous, chunked file copy/move on top of the storage:: interface (storage.h itself is

@@ -79,13 +79,13 @@ static constexpr size_t STORAGE_COPY_CHUNK_SIZE = USE_STORAGE_COPY_CHUNK_SIZE;
 static constexpr size_t STORAGE_COPY_CHUNK_SIZE = 16384;
 #endif
 
-// Max directory nesting for remove_recursive() below. Stack cost per level is
+// Max directory nesting depth for remove_recursive() below. Stack cost per level is
 // driver-dependent — it's not just the path buffer and call frame recorded here, but also
 // whatever the driver's own list_dir()/remove()/rmdir() stack up per call (e.g. sd_storage's
 // LFN buffers put this closer to ~1.3kB/level than the ~600B this constant alone would
 // suggest). ESP32 task stacks are typically only 8-16kB, so this default is chosen
 // conservatively across drivers rather than tuned to the cheapest one.
-static constexpr size_t STORAGE_MAX_RECURSION_DEPTH = 16;
+static constexpr size_t STORAGE_MAX_RECURSION_DEPTH = 8;
 
 struct FileStat {
   // Basename of the entry only (e.g. "file.txt"), never a full/relative path — this holds for
