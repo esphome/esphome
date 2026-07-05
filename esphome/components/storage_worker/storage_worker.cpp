@@ -142,7 +142,11 @@ StorageError StorageWorker::async_move(PathStorage *src, const char *src_path, P
 }
 
 void StorageWorker::on_storage_unregistered_(Storage *s) {
-  for (auto &req : this->pool_) {
+  // Synchronous cancel-and-drain: by the time this returns, no data-plane call into `s` is
+  // still in flight, so the caller (unregister_storage(), on the main loop) can safely proceed
+  // to unmount/tear down the driver right afterward.
+  for (size_t i = 0; i < this->pool_.size(); i++) {
+    TransferRequest &req = this->pool_[i];
     if (req.src_storage != s && req.dst_storage != s)
       continue;
 
@@ -152,8 +156,48 @@ void StorageWorker::on_storage_unregistered_(Storage *s) {
       req.result = StorageError::NOT_READY;
       req.state = RequestState::DONE;
     } else if (state == RequestState::RUNNING) {
-      // In flight — let the engine notice and unwind at its next chunk boundary.
-      req.state = RequestState::CANCELLED;
+      if (i == this->loop_active_index_) {
+        // Owned by the loop-sliced engine, which only ever advances from inside loop() — we
+        // are on the main loop right now too, so nothing else can touch this request
+        // concurrently. Cancel and drain it in place: run_chunk_()'s entry check sees
+        // CANCELLED and calls finish_request() immediately, closing any open handles before
+        // this function returns — i.e. before the driver's unmount() runs.
+        req.state = RequestState::CANCELLED;
+        this->run_chunk_(req);
+        if (this->loop_active_index_ == i)
+          this->loop_active_index_ = SIZE_MAX;
+      } else {
+#ifdef USE_ESP32
+        // Owned by the worker task (or, if it hasn't dequeued this index off task_queue_ yet,
+        // about to be — run_chunk_()'s entry check still sees CANCELLED as soon as the task
+        // does pick it up, so no special-casing is needed for that race). Set CANCELLED and
+        // wait for the task to actually reach DONE — it can only observe the flag between
+        // chunks, so this is bounded by at most one chunk's read+write (low single-digit ms
+        // for SDMMC). Yield with vTaskDelay(1) rather than busy-spinning so the task (which
+        // may run at the same or a lower priority) actually gets CPU time to reach that
+        // check — a tight spin here on a single-core target would starve it and deadlock
+        // until the timeout below.
+        req.state = RequestState::CANCELLED;
+        uint32_t start = millis();
+        while (req.state.load() != RequestState::DONE) {
+          if (millis() - start > 500) {
+            ESP_LOGE(TAG,
+                     "Timed out waiting for in-flight transfer to cancel — the storage medium "
+                     "is likely gone; proceeding with unmount anyway. Behavior from here is "
+                     "undefined if the task is still touching it (e.g. still holding a file "
+                     "handle) when it does eventually finish.");
+            // Discard the callback now: if the task does reach DONE later, loop() must only
+            // free the slot, not fire a completion into a context whose storage object may
+            // no longer exist post-unmount. The slot stays stuck (RUNNING/CANCELLED, never
+            // recycled) if the task never finishes — acceptable since the medium is dead
+            // anyway at that point.
+            req.callback = nullptr;
+            break;
+          }
+          vTaskDelay(pdMS_TO_TICKS(1));
+        }
+#endif
+      }
     }
   }
 }

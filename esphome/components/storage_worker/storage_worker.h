@@ -32,8 +32,16 @@ enum class RequestOp : uint8_t {
 // Where a request currently stands. Transitions:
 //   FREE -> PENDING (submit) -> RUNNING (engine picks it up) -> DONE (engine finishes)
 //     -> FREE (main loop delivers the completion callback and releases the slot)
-// RUNNING requests can also be marked CANCELLED by the hotplug handler; the engine observes
-// this between chunks (see the per-chunk step) and finishes the request with NOT_READY.
+// RUNNING requests can also be marked CANCELLED, either by the engine's own per-chunk
+// cancellation check or, synchronously, by on_storage_unregistered_() when a storage they use
+// is removed: a PENDING request is finished immediately (no I/O to unwind); a RUNNING request
+// on the loop-sliced engine is drained in place (run_chunk_() is called directly, right there
+// in the hotplug callback, closing any open handles before the driver's unmount() proceeds); a
+// RUNNING request on the worker task has its state set to CANCELLED and is then waited on
+// (yielding, bounded by a timeout) until the task observes it and reaches DONE. Either way,
+// the goal is the same: by the time on_storage_unregistered_() returns, no data-plane call
+// into the removed storage is still in flight. See on_storage_unregistered_()'s own comment
+// for the full drain sequence and its timeout behavior.
 // Both engines must keep calling run_chunk_() until the state is DONE, not just while it's
 // RUNNING — CANCELLED is only ever acted on inside run_chunk_()'s own entry check, so a loop
 // that stops as soon as the state leaves RUNNING would never actually observe/handle it.
@@ -130,9 +138,10 @@ class StorageWorker : public Component {
   // or the task) must not touch req again until the main loop has delivered the callback.
   void run_chunk_(TransferRequest &req);
 
-  // Hotplug: mark pending requests touching an unregistered storage as done with NOT_READY;
-  // set the cancel condition for any in-flight request touching it (observed by run_chunk_()
-  // before its next chunk).
+  // Hotplug: synchronously cancels and drains every request touching an unregistered storage
+  // (as either src or dst) before returning, so the driver can proceed to unmount/tear down
+  // the storage immediately afterward with no in-flight data-plane calls left against it. See
+  // the .cpp for the full per-engine drain sequence.
   void on_storage_unregistered_(storage::Storage *s);
 
   FixedVector<TransferRequest> pool_;
