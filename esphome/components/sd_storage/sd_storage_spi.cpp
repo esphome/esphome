@@ -43,6 +43,8 @@ void SdSpi::setup() {
     setup_input_pullup(this->data1_pin_);
   if (this->data2_pin_ != nullptr)
     setup_input_pullup(this->data2_pin_);
+  if (this->cd_pin_ != nullptr)
+    setup_input_pullup(this->cd_pin_);
 
   this->spi_setup();
 
@@ -54,12 +56,40 @@ void SdSpi::setup() {
   if (storage::global_storage_registry != nullptr)
     storage::global_storage_registry->register_storage(this);
 
-  if (this->mount() != StorageError::OK) {
+  if (this->cd_pin_ != nullptr) {
+    // With a CD pin configured, only mount if a card is actually seen at boot — otherwise wait
+    // for loop()'s polling to pick up an insertion later, rather than logging a spurious "Failed
+    // to mount" for a socket that's simply empty right now. No mark_failed() either way, same
+    // rationale as above.
+    if (this->card_present_()) {
+      if (this->mount() != StorageError::OK) {
+        ESP_LOGE(TAG_SPI, "Failed to mount SD card");
+      }
+    } else {
+      ESP_LOGI(TAG_SPI, "Waiting for card (CD)");
+    }
+  } else if (this->mount() != StorageError::OK) {
     ESP_LOGE(TAG_SPI, "Failed to mount SD card");
   }
 }
 
-void SdSpi::loop() {}
+void SdSpi::loop() {
+  bool present = this->card_present_();
+  if (!this->should_poll_cd_())
+    return;
+
+  if (this->is_mounted_ && !present) {
+    ESP_LOGI(TAG_SPI, "Card removed (CD)");
+    this->unmount();
+    this->on_removed_.call();
+  } else if (!this->is_mounted_ && present) {
+    ESP_LOGI(TAG_SPI, "Card inserted (CD)");
+    bool ok = this->mount() == StorageError::OK;
+    this->log_mount_result_(ok);
+    if (ok)
+      this->on_inserted_.call();
+  }
+}
 
 void SdSpi::dump_config() {
   ESP_LOGCONFIG(TAG_SPI, "SD Storage (SPI):");
@@ -67,6 +97,7 @@ void SdSpi::dump_config() {
   ESP_LOGCONFIG(TAG_SPI, "  Mount path: %s", this->mount_path_);
   ESP_LOGCONFIG(TAG_SPI, "  Mode 1 bit: %s", YESNO(this->mode_1bit_));
   ESP_LOGCONFIG(TAG_SPI, "  CS Pin: %d", spi::Utility::get_pin_no(this->cs_));
+  LOG_PIN("  CD Pin: ", this->cd_pin_);
   if (this->is_mounted_) {
     ESP_LOGCONFIG(TAG_SPI, "  Card Type: %s", SdStorageBase::card_type_to_string(this->card_type_));
     ESP_LOGCONFIG(TAG_SPI, "  Total bytes: %" PRIu64, this->total_bytes_);
@@ -153,16 +184,29 @@ StorageError SdSpi::unmount() {
 
   // Unregister before the VFS unmount below — the registry contract guarantees
   // unregister_storage() doesn't return until any in-flight storage_worker data-plane calls
-  // against this device have drained, so it's safe to tear the filesystem down immediately
-  // afterward.
+  // against this device have drained (closing any handles the worker itself opened), so it's
+  // safe to tear the filesystem down immediately afterward.
   if (storage::global_storage_registry != nullptr)
     storage::global_storage_registry->unregister_storage(this);
+
+  ESP_LOGI(TAG_SPI, "Syncing filesystem before unmount");
+  // Closes any handles still open from user/lambda code, while the VFS is still mounted to
+  // receive the flush/close calls.
+  this->flush_open_handles_();
+  ESP_LOGI(TAG_SPI, "All data flushed");
 
   esp_vfs_fat_sdcard_unmount(this->mount_path_, this->card_);
   this->card_ = nullptr;
   this->is_mounted_ = false;
   sdspi_host_deinit();
-  ESP_LOGI(TAG_SPI, "SD card unmounted");
+  ESP_LOGI(TAG_SPI, "SD card unmounted safely");
+
+  // Re-register now that the drain above is done: registered-but-unmounted is the normal state
+  // for this device (see setup()'s comment) — unregistering here was only ever about the
+  // teardown window itself, not about removing the device from the registry permanently.
+  if (storage::global_storage_registry != nullptr)
+    storage::global_storage_registry->register_storage(this);
+
   return StorageError::OK;
 }
 

@@ -3,18 +3,24 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
-#include "esphome/components/storage/storage.h"
+#include "storage.h"
+
+// Compiled only when at least one path-based (filesystem/network) storage driver is
+// configured; a raw-only node (small memory ICs) never pays for it. See
+// request_storage_worker() in __init__.py for how this define is set.
+#ifdef USE_STORAGE_WORKER
+
 #include <atomic>
 #include <functional>
 #include <memory>
 
-#ifdef USE_ESP32
+#ifdef USE_STORAGE_WORKER_TASK
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/task.h>
 #endif
 
-namespace esphome::storage_worker {
+namespace esphome::storage {
 
 using CompletionCallback = std::function<void(storage::StorageError)>;
 
@@ -78,6 +84,12 @@ struct TransferRequest {
   bool src_is_fs{false};
   bool dst_is_fs{false};
   bool handles_open{false};
+
+  // Set once loop()'s dispatch has already logged that this request cannot proceed because it
+  // overlaps a slot stuck RUNNING/CANCELLED past the drain timeout (see
+  // on_storage_unregistered_()'s timeout comment) — avoids re-logging every loop() iteration
+  // for as long as the stuck slot remains. Reset when the request is freed.
+  bool stuck_warned{false};
 };
 
 // Asynchronous, chunked file copy/move on top of the storage:: interface (storage.h itself is
@@ -120,6 +132,12 @@ class StorageWorker : public Component {
   storage::StorageError submit_(RequestOp op, storage::PathStorage *src, const char *src_path,
                                 storage::PathStorage *dst, const char *dst_path, CompletionCallback &&on_done);
 
+  // Lazily creates the request pool (and, where applicable, the background task) on the first
+  // submit_() call. A path-based driver that links in the worker but never actually issues an
+  // async transfer never pays for either — setup() itself only subscribes to the hotplug
+  // callback. Idempotent: subsequent calls are a no-op once started_ is set.
+  void ensure_started_();
+
   // True if every storage involved may have its data-plane calls run off the main loop.
   bool is_task_safe_(const TransferRequest &req) const;
 
@@ -149,11 +167,15 @@ class StorageWorker : public Component {
   uint8_t task_priority_{1};
   size_t max_pending_{4};
 
+  // Set by ensure_started_() the first time it runs; guards the pool/task creation so it only
+  // ever happens once, on the first submit_() call.
+  bool started_{false};
+
   // Index of the request currently owned by the loop-sliced engine (SIZE_MAX = none in
   // flight). Requests run strictly one at a time in FIFO submission order in this mode.
   size_t loop_active_index_{SIZE_MAX};
 
-#ifdef USE_ESP32
+#ifdef USE_STORAGE_WORKER_TASK
   // Set once the worker task has been created; guards whether new task-safe requests get
   // enqueued to the task vs. picked up by the loop-sliced engine.
   bool task_running_{false};
@@ -167,4 +189,6 @@ class StorageWorker : public Component {
 
 extern StorageWorker *global_storage_worker;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace esphome::storage_worker
+}  // namespace esphome::storage
+
+#endif  // USE_STORAGE_WORKER

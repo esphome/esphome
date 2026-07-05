@@ -7,7 +7,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S3,
     VARIANT_ESP32S31,
 )
-from esphome.components.storage import request_storage_device
+from esphome.components.storage import request_storage_device, request_storage_worker
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLK_PIN,
@@ -35,6 +35,12 @@ SdSpi = sd_storage_ns.class_("SdSpi", spi.SPIDevice, SdStorageBase)
 CardMountedTrigger = sd_storage_ns.class_(
     "CardMountedTrigger", automation.Trigger.template(cg.const_char_ptr)
 )
+CardRemovedTrigger = sd_storage_ns.class_(
+    "CardRemovedTrigger", automation.Trigger.template()
+)
+CardInsertedTrigger = sd_storage_ns.class_(
+    "CardInsertedTrigger", automation.Trigger.template()
+)
 MountCardAction = sd_storage_ns.class_("MountCardAction", automation.Action)
 UnmountCardAction = sd_storage_ns.class_("UnmountCardAction", automation.Action)
 ListFilesAction = sd_storage_ns.class_("ListFilesAction", automation.Action)
@@ -50,6 +56,9 @@ CONF_DATA3_PIN = "data3_pin"
 CONF_MODE_1BIT = "mode_1bit"
 CONF_SLOT = "slot"
 CONF_ON_MOUNTED = "on_mounted"
+CONF_ON_REMOVED = "on_removed"
+CONF_ON_INSERTED = "on_inserted"
+CONF_CD_PIN = "cd_pin"
 CONF_SPI_INTERFACE = "spi_interface"
 
 TYPE_SD_MMC = "sd_mmc"
@@ -119,8 +128,15 @@ SD_MMC_SCHEMA = cv.Schema(
         cv.Optional(CONF_MODE_1BIT, default=False): cv.boolean,
         cv.Optional(CONF_SLOT, default=0): cv.int_range(min=0, max=1),
         cv.Optional(CONF_PATH, default="/sdcard"): cv.string,
+        cv.Optional(CONF_CD_PIN): pins.gpio_input_pullup_pin_schema,
         cv.Optional(CONF_ON_MOUNTED): automation.validate_automation(
             {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CardMountedTrigger)}
+        ),
+        cv.Optional(CONF_ON_REMOVED): automation.validate_automation(
+            {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CardRemovedTrigger)}
+        ),
+        cv.Optional(CONF_ON_INSERTED): automation.validate_automation(
+            {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CardInsertedTrigger)}
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -138,8 +154,15 @@ SD_SPI_SCHEMA = (
             cv.Optional(CONF_MODE_1BIT, default=True): cv.boolean,
             cv.Optional(CONF_SLOT, default=0): cv.int_range(min=0, max=1),
             cv.Optional(CONF_PATH, default="/sdcard"): cv.string,
+            cv.Optional(CONF_CD_PIN): pins.gpio_input_pullup_pin_schema,
             cv.Optional(CONF_ON_MOUNTED): automation.validate_automation(
                 {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CardMountedTrigger)}
+            ),
+            cv.Optional(CONF_ON_REMOVED): automation.validate_automation(
+                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CardRemovedTrigger)}
+            ),
+            cv.Optional(CONF_ON_INSERTED): automation.validate_automation(
+                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CardInsertedTrigger)}
             ),
         },
         extra_schemas=[
@@ -255,13 +278,28 @@ async def to_code(config):
     cg.add(var.set_mount_path(config[CONF_PATH]))
     cg.add(var.set_id(str(config[CONF_ID])))
 
+    if cd_pin := config.get(CONF_CD_PIN):
+        cg.add(var.set_cd_pin(await cg.gpio_pin_expression(cd_pin)))
+
     request_storage_device()
+    # SdMmc has a dedicated SDIO controller and is safe to drive from the worker's background
+    # task; SdSpi shares its bus with other main-loop-driven components and is not (see
+    # SdMmc::get_capabilities() / the lack of an override on SdSpi).
+    request_storage_worker(task_safe=(card_type == TYPE_SD_MMC))
 
     for conf in config.get(CONF_ON_MOUNTED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(
             trigger, [(cg.const_char_ptr, "mount_path")], conf
         )
+
+    for conf in config.get(CONF_ON_REMOVED, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+
+    for conf in config.get(CONF_ON_INSERTED, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
 
 
 SD_STORAGE_ACTION_SCHEMA = automation.maybe_simple_id(

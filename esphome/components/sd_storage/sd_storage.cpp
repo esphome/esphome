@@ -45,17 +45,47 @@ void SdMmc::setup() {
   if (storage::global_storage_registry != nullptr)
     storage::global_storage_registry->register_storage(this);
 
-  if (this->mount() != storage::StorageError::OK) {
+  if (this->cd_pin_ != nullptr) {
+    this->cd_pin_->setup();
+    // With a CD pin configured, only mount if a card is actually seen at boot — otherwise wait
+    // for loop()'s polling to pick up an insertion later, rather than logging a spurious "Failed
+    // to mount" for a socket that's simply empty right now. No mark_failed() either way, same
+    // rationale as above.
+    if (this->card_present_()) {
+      if (this->mount() != storage::StorageError::OK) {
+        ESP_LOGE(TAG, "Failed to mount SD/MMC card");
+      }
+    } else {
+      ESP_LOGI(TAG, "Waiting for card (CD)");
+    }
+  } else if (this->mount() != storage::StorageError::OK) {
     ESP_LOGE(TAG, "Failed to mount SD/MMC card");
   }
 }
 
-void SdMmc::loop() {}
+void SdMmc::loop() {
+  bool present = this->card_present_();
+  if (!this->should_poll_cd_())
+    return;
+
+  if (this->is_mounted_ && !present) {
+    ESP_LOGI(TAG, "Card removed (CD)");
+    this->unmount();
+    this->on_removed_.call();
+  } else if (!this->is_mounted_ && present) {
+    ESP_LOGI(TAG, "Card inserted (CD)");
+    bool ok = this->mount() == storage::StorageError::OK;
+    this->log_mount_result_(ok);
+    if (ok)
+      this->on_inserted_.call();
+  }
+}
 
 void SdMmc::dump_config() {
   ESP_LOGCONFIG(TAG, "SD/MMC Card:");
   ESP_LOGCONFIG(TAG, "  Mounted: %s", this->is_mounted_ ? "YES" : "NO");
   ESP_LOGCONFIG(TAG, "  Mount path: %s", this->mount_path_);
+  LOG_PIN("  CD Pin: ", this->cd_pin_);
   if (this->is_mounted_) {
     ESP_LOGCONFIG(TAG, "  Card Type: %s", SdStorageBase::card_type_to_string(this->card_type_));
     ESP_LOGCONFIG(TAG, "  Total bytes: %" PRIu64, this->total_bytes_);
@@ -146,15 +176,28 @@ storage::StorageError SdMmc::unmount() {
 
   // Unregister before the VFS unmount below — the registry contract guarantees
   // unregister_storage() doesn't return until any in-flight storage_worker data-plane calls
-  // against this device have drained, so it's safe to tear the filesystem down immediately
-  // afterward.
+  // against this device have drained (closing any handles the worker itself opened), so it's
+  // safe to tear the filesystem down immediately afterward.
   if (storage::global_storage_registry != nullptr)
     storage::global_storage_registry->unregister_storage(this);
+
+  ESP_LOGI(TAG, "Syncing filesystem before unmount");
+  // Closes any handles still open from user/lambda code, while the VFS is still mounted to
+  // receive the flush/close calls.
+  this->flush_open_handles_();
+  ESP_LOGI(TAG, "All data flushed");
 
   esp_vfs_fat_sdcard_unmount(this->mount_path_, this->card_);
   this->card_ = nullptr;
   this->is_mounted_ = false;
-  ESP_LOGI(TAG, "SD/MMC card unmounted");
+  ESP_LOGI(TAG, "SD/MMC card unmounted safely");
+
+  // Re-register now that the drain above is done: registered-but-unmounted is the normal state
+  // for this device (see setup()'s comment) — unregistering here was only ever about the
+  // teardown window itself, not about removing the device from the registry permanently.
+  if (storage::global_storage_registry != nullptr)
+    storage::global_storage_registry->register_storage(this);
+
   return storage::StorageError::OK;
 }
 

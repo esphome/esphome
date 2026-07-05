@@ -4,10 +4,15 @@ sd_storage:
   spi_id: spi_bus
   cs_pin: GPIO10
   path: /sdcard
+  cd_pin: GPIO4
   on_mounted:
     - logger.log:
         format: "SD card mounted at %s"
         args: [mount_path]
+  on_removed:
+    - logger.log: "SD card removed"
+  on_inserted:
+    - logger.log: "SD card inserted"
 
 script:
   - id: sd_card_exercise

@@ -50,6 +50,52 @@ storage::StorageError SdStorageBase::format() {
   return storage::StorageError::NOT_SUPPORTED;
 }
 
+bool SdStorageBase::card_present_() {
+  if (this->cd_pin_ == nullptr)
+    return true;
+
+  // Active-low: the switch pulls the pin low when a card is seated. digital_read() already
+  // applies the pin's own inverted: flag, so this is the only place that convention is baked
+  // in — hardware wired the other way is handled by setting inverted: true on cd_pin, not by
+  // a second inversion setting here.
+  bool raw_present = !this->cd_pin_->digital_read();
+  uint32_t now = millis();
+
+  if (!this->cd_debounce_started_) {
+    // First call: seed both the confirmed and candidate state from the current reading so an
+    // already-present card at boot doesn't look like a spurious insertion.
+    this->cd_debounce_started_ = true;
+    this->last_confirmed_present_ = raw_present;
+    this->candidate_present_ = raw_present;
+    this->candidate_since_ms_ = now;
+    return this->last_confirmed_present_;
+  }
+
+  if (raw_present != this->candidate_present_) {
+    // Raw reading changed — restart the debounce window from here.
+    this->candidate_present_ = raw_present;
+    this->candidate_since_ms_ = now;
+  } else if (raw_present != this->last_confirmed_present_ && now - this->candidate_since_ms_ >= CD_DEBOUNCE_MS) {
+    // Candidate has held steady for the full window — accept it.
+    this->last_confirmed_present_ = raw_present;
+  }
+
+  return this->last_confirmed_present_;
+}
+
+bool SdStorageBase::should_poll_cd_() {
+  uint32_t now = millis();
+  if (!this->cd_poll_started_) {
+    this->cd_poll_started_ = true;
+    this->last_cd_poll_ms_ = now;
+    return true;
+  }
+  if (now - this->last_cd_poll_ms_ < CD_POLL_MS)
+    return false;
+  this->last_cd_poll_ms_ = now;
+  return true;
+}
+
 storage::StorageError SdStorageBase::sync() {
   SdFileHandle *pool = this->get_handle_pool();
   storage::StorageError err = storage::StorageError::OK;
@@ -58,6 +104,27 @@ storage::StorageError SdStorageBase::sync() {
       continue;
     if (fflush(pool[i].file) != 0 || fsync(fileno(pool[i].file)) != 0)
       err = storage::StorageError::WRITE_ERROR;
+  }
+  return err;
+}
+
+storage::StorageError SdStorageBase::flush_open_handles_() {
+  SdFileHandle *pool = this->get_handle_pool();
+  storage::StorageError err = storage::StorageError::OK;
+  for (int i = 0; i < MAX_OPEN_FILES; i++) {
+    if (!pool[i].in_use)
+      continue;
+    if (pool[i].file != nullptr) {
+      ESP_LOGW(TAG_BASE, "File still open at unmount, flushing and closing: %s", pool[i].path);
+      if (fflush(pool[i].file) != 0 || fsync(fileno(pool[i].file)) != 0)
+        err = storage::StorageError::WRITE_ERROR;
+      if (fclose(pool[i].file) != 0)
+        err = storage::StorageError::WRITE_ERROR;
+      pool[i].file = nullptr;
+    }
+    pool[i].in_use = false;
+    pool[i].path = nullptr;
+    pool[i].storage = nullptr;
   }
   return err;
 }

@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/storage/storage.h"
 #include <cstdint>
@@ -33,10 +34,13 @@ class SdStorageBase : public storage::FilesystemStorage {
  public:
   void set_mount_path(const char *path) { this->mount_path_ = path; }
   void set_id(const char *id) { this->storage_id_ = id; }
+  void set_cd_pin(GPIOPin *pin) { this->cd_pin_ = pin; }
   bool is_mounted() const { return this->is_mounted_; }
   const char *get_mount_path() const { return this->mount_path_; }
 
   template<typename F> void add_on_mounted_callback(F &&cb) { this->on_mounted_.add(std::forward<F>(cb)); }
+  template<typename F> void add_on_removed_callback(F &&cb) { this->on_removed_.add(std::forward<F>(cb)); }
+  template<typename F> void add_on_inserted_callback(F &&cb) { this->on_inserted_.add(std::forward<F>(cb)); }
 
   // Storage base interface
   storage::StorageError get_info(storage::StorageInfo *info) override;
@@ -71,6 +75,27 @@ class SdStorageBase : public storage::FilesystemStorage {
   // Returns false if the result would exceed buf_size.
   bool build_full_path_(const char *rel_path, char *buf, size_t buf_size) const;
 
+  // Closes every still-open handle before unmount, so nothing is left holding a FILE* into a
+  // filesystem that's about to disappear. Best-effort: keeps going even if a flush/close fails
+  // partway through, and returns the first error seen (StorageError::OK if none did).
+  storage::StorageError flush_open_handles_();
+
+  // Debounced card-detect read. Always true if no CD pin is configured (cd_pin_ == nullptr),
+  // matching the behavior of a card that's simply always present as far as this feature is
+  // concerned. Active-low by convention (a CD switch pulls the pin low when a card is seated);
+  // cd_pin_'s own GPIOPin-level inverted: flag (from the pin schema) overrides this for
+  // hardware wired the other way — no separate inversion setting exists on top of that.
+  //
+  // Must be called every loop() iteration (not just at the ~100ms poll interval — see CD3):
+  // it tracks the raw reading continuously so a debounce window measured from the first
+  // observed change is accurate regardless of when the caller last polled.
+  bool card_present_();
+
+  // True at most once every CD_POLL_MS — gates how often a driver's loop() acts on
+  // card_present_()'s result (auto-mount/unmount), independent of how often loop() itself
+  // runs. card_present_() itself must still be called every iteration regardless (see above).
+  bool should_poll_cd_();
+
   void log_mount_result_(bool success) const;
   void log_unmount_() const;
   void log_list_dir_start_(const char *path) const;
@@ -84,8 +109,28 @@ class SdStorageBase : public storage::FilesystemStorage {
   uint64_t used_bytes_{0};
   const char *mount_path_{"/sdcard"};
   const char *storage_id_{nullptr};
+  GPIOPin *cd_pin_{nullptr};
 
   LazyCallbackManager<void(const char *)> on_mounted_;
+  LazyCallbackManager<void()> on_removed_;
+  LazyCallbackManager<void()> on_inserted_;
+
+ private:
+  // Debounce state for card_present_(). last_confirmed_ is the last debounced, accepted
+  // reading; candidate_ is the raw reading currently under observation, timestamped by when it
+  // first differed from last_confirmed_ so the debounce window is wall-clock based rather than
+  // counted in loop() iterations (whose frequency varies with the rest of the node's config).
+  bool cd_debounce_started_{false};
+  bool last_confirmed_present_{true};
+  bool candidate_present_{true};
+  uint32_t candidate_since_ms_{0};
+  static constexpr uint32_t CD_DEBOUNCE_MS = 50;
+
+  // Poll-interval gate for should_poll_cd_() — separate from the debounce window above, since
+  // the debounce tracking itself must run every loop() call regardless of this interval.
+  bool cd_poll_started_{false};
+  uint32_t last_cd_poll_ms_{0};
+  static constexpr uint32_t CD_POLL_MS = 100;
 };
 
 }  // namespace esphome::sd_storage
