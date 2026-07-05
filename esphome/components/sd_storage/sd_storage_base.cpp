@@ -188,14 +188,14 @@ storage::StorageError SdStorageBase::seek(storage::FileHandle *handle, int64_t o
     default:
       return storage::StorageError::INVALID_ARGS;
   }
-  return fseek(handle->file, static_cast<long>(offset), whence) == 0 ? storage::StorageError::OK
+  return fseek(handle->file, static_cast<int32_t>(offset), whence) == 0 ? storage::StorageError::OK
                                                                      : storage::StorageError::READ_ERROR;
 }
 
 storage::StorageError SdStorageBase::tell(storage::FileHandle *handle, uint64_t *position) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr)
     return storage::StorageError::INVALID_ARGS;
-  long pos = ftell(handle->file);
+  int32_t pos = ftell(handle->file);
   if (pos < 0)
     return storage::StorageError::READ_ERROR;
   *position = static_cast<uint64_t>(pos);
