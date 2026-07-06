@@ -28,12 +28,12 @@ class SX1509Processor {
   virtual void process(uint16_t data){};
 };
 
-class SX1509KeyTrigger : public Trigger<uint8_t> {};
+class SX1509KeyTrigger final : public Trigger<uint8_t> {};
 
-class SX1509Component : public Component,
-                        public i2c::I2CDevice,
-                        public gpio_expander::CachedGpioExpander<uint16_t, 16>,
-                        public key_provider::KeyProvider {
+class SX1509Component final : public Component,
+                              public i2c::I2CDevice,
+                              public gpio_expander::CachedGpioExpander<uint16_t, 16>,
+                              public key_provider::KeyProvider {
  public:
   SX1509Component() = default;
 
