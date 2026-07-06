@@ -50,6 +50,7 @@ from esphome.__main__ import (
     has_non_ip_address,
     has_ota,
     has_resolvable_address,
+    has_web_server_logging,
     has_web_server_ota,
     mqtt_get_ip,
     parse_args,
@@ -73,6 +74,7 @@ from esphome.const import (
     CONF_DISABLED,
     CONF_ESPHOME,
     CONF_LEVEL,
+    CONF_LOG,
     CONF_LOG_TOPIC,
     CONF_LOGGER,
     CONF_MDNS,
@@ -87,6 +89,7 @@ from esphome.const import (
     CONF_TOPIC,
     CONF_USE_ADDRESS,
     CONF_USERNAME,
+    CONF_VERSION,
     CONF_WEB_SERVER,
     CONF_WIFI,
     KEY_CORE,
@@ -768,6 +771,30 @@ def test_choose_upload_log_host_with_ota_device_with_api_config_logging() -> Non
     assert result == ["192.168.1.100"]
 
 
+def test_choose_upload_log_host_logging_web_server_only_ip() -> None:
+    """A web_server-only device with a static IP resolves to that IP for logs."""
+    setup_core(config={CONF_WEB_SERVER: {}}, address="192.168.1.100")
+
+    result = choose_upload_log_host(
+        default="OTA",
+        check_default=None,
+        purpose=Purpose.LOGGING,
+    )
+    assert result == ["192.168.1.100"]
+
+
+def test_choose_upload_log_host_logging_web_server_only_mdns() -> None:
+    """A web_server-only device with a .local name resolves to that hostname."""
+    setup_core(config={CONF_WEB_SERVER: {}}, address="test.local")
+
+    result = choose_upload_log_host(
+        default="OTA",
+        check_default=None,
+        purpose=Purpose.LOGGING,
+    )
+    assert result == ["test.local"]
+
+
 def test_choose_upload_log_host_logging_without_api_reports_missing_api() -> None:
     """A resolvable device with only ota: fails logs with a missing-api message."""
     setup_core(
@@ -805,6 +832,17 @@ def test_unresolved_default_error_unresolvable_keeps_dashboard_hint() -> None:
     msg = _unresolved_default_error(Purpose.LOGGING, ["OTA"])
     assert "could not be resolved" in msg
     assert "set 'use_address'" in msg
+
+
+def test_unresolved_default_error_logging_suggests_web_server() -> None:
+    """The missing-api log message lists web_server among the remediations."""
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, address="192.168.1.100"
+    )
+
+    msg = _unresolved_default_error(Purpose.LOGGING, ["OTA"])
+    assert "no 'api:' component is configured" in msg
+    assert "'web_server:'" in msg
 
 
 def test_unresolved_default_error_upload_with_ota_is_generic() -> None:
@@ -2433,6 +2471,30 @@ def test_has_web_server_ota_returns_false_without_config() -> None:
     assert has_ota() is True
 
 
+def test_has_web_server_logging_default() -> None:
+    """has_web_server_logging is True for a default web_server (v2, log on)."""
+    setup_core(config={CONF_WEB_SERVER: {}})
+    assert has_web_server_logging() is True
+
+
+def test_has_web_server_logging_without_config() -> None:
+    """has_web_server_logging is False when web_server is not configured."""
+    setup_core(config={CONF_API: {}})
+    assert has_web_server_logging() is False
+
+
+def test_has_web_server_logging_v1_has_no_events_stream() -> None:
+    """has_web_server_logging is False for v1, which has no /events endpoint."""
+    setup_core(config={CONF_WEB_SERVER: {CONF_VERSION: 1}})
+    assert has_web_server_logging() is False
+
+
+def test_has_web_server_logging_respects_log_disabled() -> None:
+    """has_web_server_logging is False when the web_server log option is off."""
+    setup_core(config={CONF_WEB_SERVER: {CONF_LOG: False}})
+    assert has_web_server_logging() is False
+
+
 def test_upload_program_web_server_only_auto_dispatches(
     mock_run_web_server_ota: Mock,
     mock_run_ota: Mock,
@@ -3000,6 +3062,77 @@ def test_show_logs_network_with_mqtt_only(
     mock_mqtt_show_logs.assert_called_once_with(
         CORE.config, "esphome/logs", "user", "pass", "client"
     )
+
+
+@patch("esphome.web_server_logs.run_logs")
+def test_show_logs_web_server(
+    mock_run_logs: Mock,
+) -> None:
+    """A web_server-only device streams logs over the HTTP SSE endpoint."""
+    setup_core(
+        config={
+            "logger": {},
+            CONF_WEB_SERVER: {CONF_PORT: 80},
+            # No API or MQTT configured
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_run_logs.return_value = 0
+
+    result = show_logs(CORE.config, MockArgs(), ["192.168.1.100"])
+
+    assert result == 0
+    mock_run_logs.assert_called_once_with(["192.168.1.100"], 80, None, None)
+
+
+@patch("esphome.web_server_logs.run_logs")
+def test_show_logs_web_server_with_auth_and_port(
+    mock_run_logs: Mock,
+) -> None:
+    """web_server port and basic-auth credentials are forwarded to the streamer."""
+    setup_core(
+        config={
+            "logger": {},
+            CONF_WEB_SERVER: {
+                CONF_PORT: 8080,
+                CONF_AUTH: {CONF_USERNAME: "admin", CONF_PASSWORD: "secret"},
+            },
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_run_logs.return_value = 0
+
+    result = show_logs(CORE.config, MockArgs(), ["192.168.1.100"])
+
+    assert result == 0
+    mock_run_logs.assert_called_once_with(["192.168.1.100"], 8080, "admin", "secret")
+
+
+@patch("esphome.web_server_logs.run_logs")
+@patch("esphome.mqtt.show_logs")
+def test_show_logs_mqtt_preferred_over_web_server(
+    mock_mqtt_show_logs: Mock,
+    mock_run_logs: Mock,
+) -> None:
+    """With both MQTT logging and web_server, MQTT wins (API > MQTT > web_server)."""
+    setup_core(
+        config={
+            "logger": {},
+            "mqtt": {CONF_BROKER: "mqtt.local"},
+            CONF_WEB_SERVER: {CONF_PORT: 80},
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_mqtt_show_logs.return_value = 0
+
+    args = MockArgs(
+        topic="esphome/logs", username="user", password="pass", client_id="client"
+    )
+    result = show_logs(CORE.config, args, ["192.168.1.100"])
+
+    assert result == 0
+    mock_mqtt_show_logs.assert_called_once()
+    mock_run_logs.assert_not_called()
 
 
 def test_show_logs_no_method_configured() -> None:
