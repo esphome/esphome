@@ -85,6 +85,7 @@ st7701s.extend(
     height=480,
     invert_colors=True,
     pixel_mode="18bit",
+    requires={"psram"},
     cs_pin=1,
     de_pin={
         "number": 45,
@@ -135,6 +136,7 @@ st7701s.extend(
     width=480,
     height=480,
     pixel_mode="18bit",
+    requires={"psram"},
     cs_pin=18,
     reset_pin=8,
     de_pin=17,
@@ -178,6 +180,7 @@ st7701s.extend(
     width=480,
     height=480,
     pixel_mode="18bit",
+    requires={"psram"},
     cs_pin=21,
     de_pin=39,
     vsync_pin=48,

@@ -1,7 +1,7 @@
-from st7701s import st7701s
-
 from esphome.components.mipi import DriverChip, delay
 from esphome.config_validation import UNDEFINED
+
+from .st7701s import st7701s
 
 # fmt: off
 wave_4_3 = DriverChip(
@@ -82,6 +82,7 @@ st7701s.extend(
     "WAVESHARE-3.16-320X820",
     width=320,
     height=820,
+    requires={"psram"},
     de_pin=40,
     hsync_pin=38,
     vsync_pin=39,

@@ -22,6 +22,7 @@ AXS15231.extend(
     height=480,
     cs_pin={CONF_NUMBER: 45, CONF_IGNORE_STRAPPING_WARNING: True},
     data_rate="40MHz",
+    requires={"psram"},
 )
 
 DriverChip(
@@ -268,6 +269,7 @@ DriverChip(
     color_order=MODE_RGB,
     bus_mode=TYPE_QUAD,
     data_rate="40MHz",
+    requires={"psram"},
     initsequence=(
         (0xF0, 0x28),
         (0xF2, 0x28),
@@ -496,6 +498,7 @@ DriverChip(
     color_order=MODE_RGB,
     bus_mode=TYPE_QUAD,
     data_rate="20MHz",
+    requires={"psram"},
     initsequence=(
         (0xFF, 0xA5),
         (0x41, 0x03),

@@ -1,6 +1,6 @@
-from st7701s import ST7701S
-
 from esphome.config_validation import UNDEFINED
+
+from .st7701s import ST7701S
 
 # fmt: off
 ST7701S(
