@@ -70,41 +70,67 @@ CONVERSION_TIME_OPTIONS = {
     "8244us": INA3221ConversionTime.INA3221_CONVERSION_TIME_8244US,
 }
 
-INA3221_CHANNEL_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_BUS_VOLTAGE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_VOLT,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_VOLTAGE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_SHUNT_VOLTAGE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_VOLT,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_VOLTAGE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-            unit_of_measurement=UNIT_AMPERE,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_CURRENT,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_POWER): sensor.sensor_schema(
-            unit_of_measurement=UNIT_WATT,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_SHUNT_RESISTANCE, default=0.1): cv.All(
-            cv.resistance, cv.Range(min=0.0, max=32.0)
-        ),
-        cv.Optional(CONF_WARNING_CURRENT_LIMIT): cv.current,
-        cv.Optional(CONF_CRITICAL_CURRENT_LIMIT): cv.current,
-    }
+def validate_channel_has_sensor(config):
+    if not any(
+        key in config
+        for key in (CONF_BUS_VOLTAGE, CONF_SHUNT_VOLTAGE, CONF_CURRENT, CONF_POWER)
+    ):
+        raise cv.Invalid(
+            "Channel must have at least one of 'bus_voltage', 'shunt_voltage', "
+            "'current' or 'power' configured"
+        )
+    return config
+
+
+INA3221_CHANNEL_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_BUS_VOLTAGE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_VOLT,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_VOLTAGE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_SHUNT_VOLTAGE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_VOLT,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_VOLTAGE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_CURRENT): sensor.sensor_schema(
+                unit_of_measurement=UNIT_AMPERE,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_CURRENT,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_POWER): sensor.sensor_schema(
+                unit_of_measurement=UNIT_WATT,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_SHUNT_RESISTANCE, default=0.1): cv.All(
+                cv.resistance, cv.Range(min=0.0, max=32.0)
+            ),
+            cv.Optional(CONF_WARNING_CURRENT_LIMIT): cv.current,
+            cv.Optional(CONF_CRITICAL_CURRENT_LIMIT): cv.current,
+        }
+    ),
+    validate_channel_has_sensor,
 )
 
-CONFIG_SCHEMA = (
+def validate_at_least_one_channel(config):
+    if not any(
+        channel in config
+        for channel in (CONF_CHANNEL_1, CONF_CHANNEL_2, CONF_CHANNEL_3)
+    ):
+        raise cv.Invalid(
+            "At least one of 'channel_1', 'channel_2' or 'channel_3' must be configured"
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(INA3221Component),
@@ -145,7 +171,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(i2c.i2c_device_schema(0x40))
+    .extend(i2c.i2c_device_schema(0x40)),
+    validate_at_least_one_channel,
 )
 
 
