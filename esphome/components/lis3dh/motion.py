@@ -87,8 +87,28 @@ INTERRUPT_SCHEMA = cv.Schema(
     }
 )
 
+def _validate_odr_mode(config):
+    # Two output data rates are tied to the operating mode (they share a register
+    # code whose meaning depends on the mode): 1620Hz exists only in low-power
+    # mode, and code 1344Hz becomes 5376Hz in low-power mode.
+    odr = config[CONF_ACCELEROMETER_ODR]
+    low_power = config[CONF_OPERATING_MODE] is OPERATING_MODE_OPTIONS["LOW_POWER"]
+    if odr is DATA_RATE_OPTIONS["1620HZ"] and not low_power:
+        raise cv.Invalid(
+            "'1620HZ' is only available with 'operating_mode: LOW_POWER'",
+            path=[CONF_ACCELEROMETER_ODR],
+        )
+    if odr is DATA_RATE_OPTIONS["1344HZ"] and low_power:
+        raise cv.Invalid(
+            "'1344HZ' is not available with 'operating_mode: LOW_POWER' "
+            "(that combination runs at 5376Hz)",
+            path=[CONF_ACCELEROMETER_ODR],
+        )
+    return config
+
+
 #  Top-level CONFIG_SCHEMA
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     motion_schema(LIS3DHComponent, has_accel=True, has_gyro=False)
     .extend(
         {
@@ -104,7 +124,8 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_INTERRUPT): INTERRUPT_SCHEMA,
         }
     )
-    .extend(i2c.i2c_device_schema(0x18))
+    .extend(i2c.i2c_device_schema(0x18)),
+    _validate_odr_mode,
 )
 
 
