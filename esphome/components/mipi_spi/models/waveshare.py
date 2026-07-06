@@ -282,3 +282,13 @@ ST7789V.extend(
     invert_colors=True,
     data_rate="40MHz",
 )
+
+CO5300.extend(
+    "WAVESHARE-ESP32-S3-TOUCH-AMOLED-1.64",
+    width=280,
+    height=456,
+    offset_width=20,
+    cs_pin=9,
+    reset_pin=21,
+    enable_pin=1,
+)
