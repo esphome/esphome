@@ -16,6 +16,7 @@ from ..const import (
     CONF_BITMASK,
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
+    CONF_REGISTER_COUNT,
     CONF_REGISTER_TYPE,
     CONF_SKIP_UPDATES,
     CONF_USE_WRITE_MULTIPLE,
@@ -40,6 +41,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_REGISTER_TYPE): cv.enum(MODBUS_REGISTER_TYPE),
             cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
             cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
+            cv.Optional(CONF_REGISTER_COUNT, default=1): cv.positive_int,
         }
     ),
     validate_modbus_register,
@@ -48,6 +50,9 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     byte_offset, _ = modbus_calc_properties(config)
+    reg_count = config.get(CONF_REGISTER_COUNT)
+    if reg_count is None:
+        reg_count = 1
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_REGISTER_TYPE],
@@ -56,6 +61,7 @@ async def to_code(config):
         config[CONF_BITMASK],
         config[CONF_SKIP_UPDATES],
         config[CONF_FORCE_NEW_RANGE],
+        reg_count,
     )
     await cg.register_component(var, config)
     await switch.register_switch(var, config)
