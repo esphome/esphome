@@ -33,6 +33,17 @@ class HexValue:
     def __init__(self, value: int) -> None:
         self.value = value
 
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, HexValue):
+            return self.value == other.value
+        return NotImplemented
+
+    def __repr__(self) -> str:
+        return f"HexValue(0x{self.value:X})"
+
+    def __str__(self) -> str:
+        return f"0x{self.value:X}"
+
 
 PrjConfValueType = bool | str | int | HexValue
 
