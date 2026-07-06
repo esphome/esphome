@@ -51,7 +51,7 @@ struct CDCEvent {
 class USBCDCACMComponent;
 
 /// Represents a single CDC ACM interface instance
-class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMComponent> {
+class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBCDCACMComponent> {
  public:
   void setup();
   void loop();
@@ -112,7 +112,7 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
 };
 
 /// Main USB CDC ACM component that manages the USB device and all CDC interfaces
-class USBCDCACMComponent : public Component {
+class USBCDCACMComponent final : public Component {
  public:
   USBCDCACMComponent();
 

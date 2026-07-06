@@ -126,7 +126,7 @@ struct UsbOutputChunk {
   void release() {}
 };
 
-class USBUartChannel : public uart::UARTComponent, public Parented<USBUartComponent> {
+class USBUartChannel final : public uart::UARTComponent, public Parented<USBUartComponent> {
   friend class USBUartComponent;
   friend class USBUartTypeCdcAcm;
   friend class USBUartTypeCP210X;
