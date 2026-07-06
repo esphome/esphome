@@ -244,7 +244,7 @@ sensor:
     update_interval: 1s
     state_class: "measurement_angle"
 
-
+  # Testing rh_correction filter
   - platform: copy
     source_id: source_sensor
     name: "RH Correction Filter"
