@@ -383,12 +383,14 @@ ServerResponseStatus ModbusServerHub::parse_write_registers_(uint8_t function_co
 
 void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, const uint8_t *data) {
   // Broadcasts are only meaningful for register writes and are never answered (Modbus 4.1 / 6.12).
+  // Coil writes (FC 0x05/0x0F) are also broadcastable by spec, but server coil handlers are not implemented yet.
   switch (static_cast<ModbusFunctionCode>(function_code)) {
     case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
     case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
       break;
     default:
       // Reads and read/write require a reply, so they are not valid as broadcasts.
+      ESP_LOGV(TAG, "Ignoring broadcast with unsupported function code %" PRIu8, function_code);
       return;
   }
   // A broadcast is never answered, so any validation failure is silently dropped instead of replying with an exception.
