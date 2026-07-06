@@ -9,7 +9,7 @@
 #ifdef USE_ESP32
 #ifdef USE_ZIGBEE
 
-#include "esp_zigbee_core.h"
+#include "esp_zigbee.h"
 #include "zigbee_esp32.h"
 
 #ifdef USE_SENSOR
@@ -22,6 +22,7 @@
 namespace esphome::zigbee {
 
 enum ZigbeeReportT {
+  ZIGBEE_REPORT_DEFAULT,
   ZIGBEE_REPORT_COORDINATOR,
   ZIGBEE_REPORT_ENABLE,
   ZIGBEE_REPORT_FORCE,
@@ -41,10 +42,10 @@ class ZigbeeAttribute final : public Component {
         scale_(scale) {}
   void loop() override;
   template<typename T> void add_attr(T value);
-  esp_zb_zcl_reporting_info_t get_reporting_info();
+  void setup_reporting();
   template<typename T> void set_attr(const T &value);
   uint8_t attr_type() { return attr_type_; }
-  void set_report(bool force);
+  void set_report(ZigbeeReportT report);
 #ifdef USE_SENSOR
   template<typename T> void connect(sensor::Sensor *sensor);
 #endif
