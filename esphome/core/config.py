@@ -723,6 +723,15 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-Wno-unused-variable")
     cg.add_build_flag("-Wno-unused-but-set-variable")
     cg.add_build_flag("-Wno-sign-compare")
+    # C++20 deprecated ++/--, compound assignment, and chained assignment on
+    # volatile lvalues; GCC warns via -Wvolatile, on by default at gnu++20.
+    # C++23 (P2327R1) removed the deprecation for compound assignment, so the
+    # warning flags patterns that are valid again under newer standards.
+    # C++-only flag: GCC warns when it is passed on a C compile, hence
+    # add_cxx_build_flag. Skipped for host builds, where the compiler may be
+    # clang, which does not know this GCC option.
+    if not CORE.is_host:
+        cg.add_cxx_build_flag("-Wno-volatile")
     if config[CONF_DEBUG_SCHEDULER]:
         cg.add_define("ESPHOME_DEBUG_SCHEDULER")
 
