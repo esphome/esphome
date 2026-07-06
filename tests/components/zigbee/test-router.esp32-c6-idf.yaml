@@ -21,7 +21,7 @@ sensor:
 
 zigbee:
   model: zigbee_test
-  router: false
+  router: true
   power_source: MAINS_SINGLE_PHASE
   on_join:
     then:
