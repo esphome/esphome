@@ -785,6 +785,29 @@ def build_schema():
     # bundle core inside esphome
     data["esphome"]["core"] = data.pop("core")["core"]
 
+    # Surface deprecated component aliases (declared via ``ALIASES = [...]``
+    # on the canonical component) so language servers / dashboard
+    # autocomplete still accept legacy top-level keys instead of flagging
+    # them as unknown. Each alias gets its own bundle that mirrors the
+    # canonical schema; ``alias_of`` and the optional ``removal_version``
+    # metadata let consumers render a deprecation hint and point users at
+    # the canonical name. Without this, configs migrated only at runtime
+    # (via the ``_resolve_component_aliases`` pre-pass) would still light
+    # up as errors in the editor.
+    for domain, manifest in components.items():
+        aliases = manifest.aliases
+        if not aliases or domain not in data:
+            continue
+        canonical_bundle = data[domain].get(domain)
+        if canonical_bundle is None:
+            continue
+        for alias in aliases:
+            alias_entry = dict(canonical_bundle)
+            alias_entry["alias_of"] = domain
+            if manifest.alias_removal_version is not None:
+                alias_entry["removal_version"] = manifest.alias_removal_version
+            data[alias] = {alias: alias_entry}
+
     if GENERATED_ID_TYPES:
         print(
             "Unconsumed id_type matchers:",
