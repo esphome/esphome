@@ -28,6 +28,10 @@ struct SdFileHandle : public storage::FileHandle {
   char path_buf[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)]{};
 };
 
+template<typename... Ts> class MountCardAction;
+template<typename... Ts> class UnmountCardAction;
+template<typename... Ts> class ListFilesAction;
+
 // Base class for both SDMMC and SPI implementations.
 // Extends FilesystemStorage so both SdMmc and SdSpi satisfy the storage interface.
 class SdStorageBase : public storage::FilesystemStorage {
@@ -95,6 +99,12 @@ class SdStorageBase : public storage::FilesystemStorage {
   // card_present_()'s result (auto-mount/unmount), independent of how often loop() itself
   // runs. card_present_() itself must still be called every iteration regardless (see above).
   bool should_poll_cd_();
+
+  // Friended so automation.h's action templates (separate classes) can call the protected
+  // logging helpers below without making them part of the public interface.
+  template<typename... Ts> friend class MountCardAction;
+  template<typename... Ts> friend class UnmountCardAction;
+  template<typename... Ts> friend class ListFilesAction;
 
   void log_mount_result_(bool success) const;
   void log_unmount_() const;
