@@ -33,7 +33,7 @@
 #include <pgmspace.h>
 #endif
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
 #include <Arduino.h>
 #endif
 
@@ -1895,7 +1895,7 @@ class Mutex {
   Mutex(const Mutex &) = delete;
   Mutex &operator=(const Mutex &) = delete;
 
-#if defined(USE_ESP8266) || defined(USE_RP2040)
+#if defined(USE_ESP8266) || defined(USE_RP2)
   // Single-threaded platforms: inline no-ops so the compiler eliminates all call overhead.
   Mutex() = default;
   ~Mutex() = default;
@@ -1964,7 +1964,7 @@ class InterruptLock {
   ~InterruptLock();
 
  protected:
-#if defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_ZEPHYR)
+#if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_ZEPHYR)
   uint32_t state_;
 #endif
 };
@@ -1982,7 +1982,7 @@ class LwIPLock {
   LwIPLock(const LwIPLock &) = delete;
   LwIPLock &operator=(const LwIPLock &) = delete;
 
-#if defined(USE_ESP32) || defined(USE_RP2040)
+#if defined(USE_ESP32) || defined(USE_RP2)
   // Platforms with potential lwIP core locking — out-of-line implementations in helpers.cpp
   LwIPLock();
   ~LwIPLock();
@@ -2132,7 +2132,7 @@ template<class T> class RAMAllocator {
     auto max_external =
         this->flags_ & ALLOC_EXTERNAL ? heap_caps_get_free_size(MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM) : 0;
     return max_internal + max_external;
-#elif defined(USE_RP2040)
+#elif defined(USE_RP2)
     return ::rp2040.getFreeHeap();
 #elif defined(USE_LIBRETINY)
     return lt_heap_get_free();
