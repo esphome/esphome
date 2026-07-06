@@ -100,7 +100,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
     if (!friendly_name_empty) {
       txt_count++;  // friendly_name
     }
-#if defined(USE_ESP8266) || defined(USE_ESP32) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_NRF52)
+#if defined(USE_ESP8266) || defined(USE_ESP32) || defined(USE_RP2) || defined(USE_LIBRETINY) || defined(USE_NRF52)
     txt_count++;  // platform
 #endif
 #if defined(USE_WIFI) || defined(USE_ETHERNET) || defined(USE_OPENTHREAD)
@@ -136,9 +136,9 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
 #elif defined(USE_ESP32)
     MDNS_STATIC_CONST_CHAR(PLATFORM_ESP32, "ESP32");
     txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(PLATFORM_ESP32)});
-#elif defined(USE_RP2040)
-    MDNS_STATIC_CONST_CHAR(PLATFORM_RP2040, "RP2040");
-    txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(PLATFORM_RP2040)});
+#elif defined(USE_RP2)
+    MDNS_STATIC_CONST_CHAR(PLATFORM_RP2, "RP2");
+    txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(PLATFORM_RP2)});
 #elif defined(USE_LIBRETINY)
     txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(lt_cpu_get_model_name())});
 #elif defined(USE_NRF52)
