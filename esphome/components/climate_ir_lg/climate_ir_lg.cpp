@@ -135,13 +135,15 @@ void LgIrClimate::transmit_state() {
         default:
           return;
       }
-      this->transmit_(remote_state);
-      this->publish_state();
-      return;
     } else {  // just toggle swing when advanced_commands_support is not set
       remote_state |= HEADER_BASIC;
       remote_state |= BASIC_SWING_TOGGLE;
     }
+    // The remote's swing button sends a fixed code with no fan speed or temperature bits, so the
+    // frame goes out as is instead of falling through to them
+    this->transmit_(remote_state);
+    this->publish_state();
+    return;
   } else {  // Mode commands
     const bool climate_is_off = (this->mode_before_ == climate::CLIMATE_MODE_OFF);
     switch (this->mode) {
