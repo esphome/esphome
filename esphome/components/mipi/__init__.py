@@ -619,19 +619,20 @@ class DriverChip:
         # or the delay flag inserted where needed
         return flatten_sequence(sequence)
 
-    def check_requirements(self, _config: dict) -> None:
+    def final_validate(self, _config: dict) -> None:
         """
-        Check if any required components are configured.
+        Provides for final validation of the model and configuration after the entire config has been read.
         """
+
+        # Check if the model has any required components and if they are present in the global configuration.
         requirements = self.get_default("requires", set())
-        if not requirements:
-            return
-        global_config = full_config.get()
-        requirements = {x for x in requirements if x not in global_config}
         if requirements:
-            raise cv.Invalid(
-                f"{self.name} requires component{'s' if len(requirements) > 1 else ''} '{", '".join(requirements)}' to be configured"
-            )
+            global_config = full_config.get()
+            requirements = {x for x in requirements if x not in global_config}
+            if requirements:
+                raise cv.Invalid(
+                    f"{self.name} requires component{'s' if len(requirements) > 1 else ''} '{", '".join(requirements)}' to be configured"
+                )
 
 
 def requires_buffer(config) -> bool:

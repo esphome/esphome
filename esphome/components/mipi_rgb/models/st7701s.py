@@ -117,6 +117,7 @@ st7701s.extend(
     vsync_pulse_width=8,
     vsync_back_porch=20,
     cs_pin={"pca9554": None, "number": 4},
+    requires={"psram", "pca9554"},
     de_pin=18,
     hsync_pin=16,
     vsync_pin=17,

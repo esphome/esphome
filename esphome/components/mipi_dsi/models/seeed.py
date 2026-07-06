@@ -19,6 +19,7 @@ DriverChip(
     color_order="RGB",
     enable_pin=[{"xl9535": None, "number": 0}, {"xl9535": None, "number": 7}],
     reset_pin={"xl9535": None, "number": 2},
+    requires={"psram", "xl9535"},
     initsequence=(
         (0xE0, 0x00),
         (0xE1, 0x93),

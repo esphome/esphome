@@ -1,6 +1,6 @@
-from esphome.config_validation import UNDEFINED
+from st7701s import ST7701S
 
-from .st7701s import ST7701S
+from esphome.config_validation import UNDEFINED
 
 # fmt: off
 ST7701S(
@@ -12,6 +12,7 @@ ST7701S(
     spi_mode="MODE3",
     cs_pin={"xl9535": None, "number": 17},
     reset_pin={"xl9535": None, "number": 5},
+    requires={"psram", "xl9535"},
     hsync_pin=39,
     vsync_pin=40,
     pclk_pin=41,
@@ -60,6 +61,7 @@ t_rgb = ST7701S(
     swap_xy=UNDEFINED,
     spi_mode="MODE3",
     cs_pin={"xl9535": None, "number": 3},
+    requires={"psram", "xl9535"},
     de_pin=45,
     hsync_pin=47,
     vsync_pin=41,
