@@ -654,8 +654,9 @@ class DriverChip:
             global_config = full_config.get()
             requirements = {x for x in requirements if x not in global_config}
             if requirements:
+                reqstr = ", ".join([f"'{x}'" for x in requirements])
                 raise cv.Invalid(
-                    f"{self.name} requires component{'s' if len(requirements) > 1 else ''} '{", '".join(requirements)}' to be configured"
+                    f"{self.name} requires component{'s' if len(requirements) > 1 else ''} {reqstr} to be configured"
                 )
 
 

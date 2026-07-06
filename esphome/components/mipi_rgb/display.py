@@ -76,7 +76,7 @@ from esphome.final_validate import full_config
 from . import models
 from .models import RgbDriverChip
 
-DEPENDENCIES = ["esp32", "psram"]
+DEPENDENCIES = ["esp32"]
 
 mipi_rgb_ns = cg.esphome_ns.namespace("mipi_rgb")
 mipi_rgb = mipi_rgb_ns.class_("MipiRgb", display.Display, cg.Component)
