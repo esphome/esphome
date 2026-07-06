@@ -303,31 +303,25 @@ storage::StorageError SdStorageBase::list_dir(const char *path,
   if (!this->build_full_path_(path, full, sizeof(full)))
     return storage::StorageError::INVALID_ARGS;
 
-  DIR *dir = opendir(full);
-  if (dir == nullptr)
+  // f_opendir/f_readdir/f_closedir (FatFs, ff.h), not the POSIX opendir/readdir/closedir —
+  // this VFS/FATFS combination doesn't provide/link working POSIX directory-listing calls.
+  DIR fat_dir;
+  if (f_opendir(&fat_dir, full) != FR_OK)
     return storage::StorageError::NOT_FOUND;
 
-  struct dirent *ent;
-  while ((ent = readdir(dir)) != nullptr) {
-    if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
+  FILINFO fno;
+  for (;;) {
+    if (f_readdir(&fat_dir, &fno) != FR_OK || fno.fname[0] == '\0')
+      break;
+    if (strcmp(fno.fname, ".") == 0 || strcmp(fno.fname, "..") == 0)
       continue;
 
     storage::FileStat entry{};
-    strncpy(entry.name, ent->d_name, sizeof(entry.name) - 1);
+    strncpy(entry.name, fno.fname, sizeof(entry.name) - 1);
     entry.name[sizeof(entry.name) - 1] = '\0';
-    entry.is_dir = (ent->d_type == DT_DIR);
-
-    // Build the entry's absolute path directly from `full` (already resolved above) instead of
-    // going through build_full_path_() again — saves a second path-sized stack buffer per
-    // list_dir() call, which matters since remove_recursive() recurses through this.
-    char entry_full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-    if (snprintf(entry_full, sizeof(entry_full), "%s/%s", full, ent->d_name) < static_cast<int>(sizeof(entry_full))) {
-      struct stat s;
-      if (::stat(entry_full, &s) == 0) {
-        entry.size = entry.is_dir ? 0 : static_cast<uint64_t>(s.st_size);
-        entry.mtime = static_cast<uint32_t>(s.st_mtime);
-      }
-    }
+    entry.is_dir = (fno.fattrib & AM_DIR) != 0;
+    entry.size = entry.is_dir ? 0 : static_cast<uint64_t>(fno.fsize);
+    entry.mtime = 0;  // FatFs FILINFO exposes fdate/ftime (DOS format), not a Unix timestamp.
 
     // callback returns false to stop enumeration early — that is not an error, so we still
     // return OK below regardless of how the loop exits.
@@ -335,7 +329,7 @@ storage::StorageError SdStorageBase::list_dir(const char *path,
       break;
   }
 
-  closedir(dir);
+  f_closedir(&fat_dir);
   return storage::StorageError::OK;
 }
 
@@ -347,9 +341,12 @@ storage::StorageError SdStorageBase::mkdir(const char *path) {
   if (!this->build_full_path_(path, full, sizeof(full)))
     return storage::StorageError::INVALID_ARGS;
 
-  if (::mkdir(full, 0755) == 0)
+  // f_mkdir (FatFs, ff.h), not the POSIX mkdir() — this VFS/FATFS combination doesn't
+  // provide/link a working POSIX mkdir().
+  FRESULT res = f_mkdir(full);
+  if (res == FR_OK)
     return storage::StorageError::OK;
-  return (errno == EEXIST) ? storage::StorageError::ALREADY_EXISTS : storage::StorageError::WRITE_ERROR;
+  return (res == FR_EXIST) ? storage::StorageError::ALREADY_EXISTS : storage::StorageError::WRITE_ERROR;
 }
 
 storage::StorageError SdStorageBase::rmdir(const char *path) {
@@ -379,7 +376,9 @@ storage::StorageError SdStorageBase::rmdir(const char *path) {
   if (has_entries)
     return storage::StorageError::NOT_EMPTY;
 
-  if (::rmdir(full) == 0)
+  // unlink(), not rmdir() — this VFS/FATFS combination doesn't provide/link a working rmdir()
+  // for directories; unlink() is the call that actually works here.
+  if (::unlink(full) == 0)
     return storage::StorageError::OK;
   // Backstop in case the pre-check above raced with something adding an entry, or the driver's
   // notion of "empty" differs from FATFS's — let errno have the final say.
