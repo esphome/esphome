@@ -360,7 +360,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
     return;
   }
 
-  ServerResponseStatus status;
+  ResponseStatus status;
   uint8_t response_buffer[modbus::MAX_RAW_SIZE];
   const uint8_t *response_data = response_buffer;
   uint16_t response_len = 0;
@@ -381,9 +381,9 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       }
       RegisterValues registers;
       if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_HOLDING_REGISTERS) {
-        status = device->on_modbus_read_holding_registers(start_address, number_of_registers, registers);
+        status = device->on_read_holding_registers(start_address, number_of_registers, registers);
       } else {
-        status = device->on_modbus_read_input_registers(start_address, number_of_registers, registers);
+        status = device->on_read_input_registers(start_address, number_of_registers, registers);
       }
 
       // A handler that returns an exception leaves registers partially filled, so check the exception
@@ -436,7 +436,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       for (uint16_t i = 0; i < number_of_registers; i++) {
         registers.push_back(helpers::get_data<uint16_t>(data, values_offset + i * 2));
       }
-      status = device->on_modbus_write_registers(start_address, registers);
+      status = device->on_write_registers(start_address, registers);
       response_data = data;  // echo the request header per Modbus 6.6, 6.12
       response_len = 4;
       break;

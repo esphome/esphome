@@ -8,6 +8,9 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
+    VARIANT_ESP32S31,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MODEL, CONF_NAME
@@ -52,11 +55,21 @@ CODEOWNERS = ["@luar123", "@tomaszduda23"]
 
 CONFLICTS_WITH = ["openthread"]
 
+
+def _check_report_deprecation(value: str) -> str:
+    if str(value).lower() in ("coordinator", "enable"):
+        _LOGGER.warning(
+            "Report options 'coordinator' and 'enable' are deprecated and will be removed in a future release. Use 'default' instead."
+        )
+    return value
+
+
 BASE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_REPORT): cv.All(
             cv.requires_component("zigbee"),
             cv.requires_component("esp32"),
+            _check_report_deprecation,
             cv.enum(REPORT, lower=True),
         )
     }
@@ -111,7 +124,10 @@ CONFIG_SCHEMA = cv.All(
             cv.only_on_esp32,
             only_on_variant(
                 supported=[
+                    VARIANT_ESP32S31,
                     VARIANT_ESP32H2,
+                    VARIANT_ESP32H21,
+                    VARIANT_ESP32H4,
                     VARIANT_ESP32C5,
                     VARIANT_ESP32C6,
                 ]

@@ -37,6 +37,13 @@ def get_project_compile_flags() -> list[str]:
     ]
 
 
+def get_project_cxx_compile_flags() -> list[str]:
+    """Return the sorted flags that apply to C++ compiles only."""
+    from esphome.core import CORE  # local import to avoid circular dependency
+
+    return sorted(CORE.cxx_build_flags)
+
+
 def str_to_lst_of_str(a: str | list[str]) -> list[str]:
     """
     Convert a string to a list of string

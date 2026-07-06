@@ -168,7 +168,7 @@ async def _attr_to_code(config: ConfigType) -> None:
         ),
         zigbee_assign(
             basic_attrs.power_source,
-            cg.RawExpression(POWER_SOURCE[config[CONF_POWER_SOURCE]]),
+            POWER_SOURCE[config[CONF_POWER_SOURCE]],
         ),
         zigbee_set_string(basic_attrs.location_id, ""),
         zigbee_assign(

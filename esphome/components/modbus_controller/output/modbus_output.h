@@ -8,7 +8,7 @@
 
 namespace esphome::modbus_controller {
 
-class ModbusFloatOutput : public output::FloatOutput, public Component, public SensorItem {
+class ModbusFloatOutput final : public output::FloatOutput, public Component, public SensorItem {
  public:
   ModbusFloatOutput(uint16_t start_address, uint8_t offset, SensorValueType value_type, int register_count) {
     this->register_type = ModbusRegisterType::HOLDING;
@@ -41,7 +41,7 @@ class ModbusFloatOutput : public output::FloatOutput, public Component, public S
   bool use_write_multiple_{false};
 };
 
-class ModbusBinaryOutput : public output::BinaryOutput, public Component, public SensorItem {
+class ModbusBinaryOutput final : public output::BinaryOutput, public Component, public SensorItem {
  public:
   ModbusBinaryOutput(uint16_t start_address, uint8_t offset) {
     this->register_type = ModbusRegisterType::COIL;
