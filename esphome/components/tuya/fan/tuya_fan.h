@@ -6,7 +6,7 @@
 
 namespace esphome::tuya {
 
-class TuyaFan : public Component, public fan::Fan {
+class TuyaFan final : public Component, public fan::Fan {
  public:
   TuyaFan(Tuya *parent, uint8_t speed_count) : parent_(parent), speed_count_(speed_count) {}
   void setup() override;

@@ -3,6 +3,7 @@ from pathlib import Path
 
 from esphome import core, external_files
 import esphome.codegen as cg
+from esphome.components.const import CONF_STATE_SAVE_INTERVAL
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -24,7 +25,6 @@ CONF_ALGORITHM_OUTPUT = "algorithm_output"
 CONF_BME68X_BSEC2_ID = "bme68x_bsec2_id"
 CONF_IAQ_MODE = "iaq_mode"
 CONF_OPERATING_AGE = "operating_age"
-CONF_STATE_SAVE_INTERVAL = "state_save_interval"
 CONF_SUPPLY_VOLTAGE = "supply_voltage"
 
 bme68x_bsec2_ns = cg.esphome_ns.namespace("bme68x_bsec2")
