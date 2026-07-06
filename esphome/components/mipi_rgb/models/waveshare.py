@@ -12,6 +12,7 @@ wave_4_3 = RgbDriverChip(
     pclk_frequency="16MHz",
     reset_pin={"ch422g": None, "number": 3},
     enable_pin={"ch422g": None, "number": 2},
+    requires={"psram", "ch422g"},
     de_pin=5,
     hsync_pin={"number": 46, "ignore_strapping_warning": True},
     vsync_pin={"number": 3, "ignore_strapping_warning": True},
@@ -68,6 +69,7 @@ st7701s.extend(
     pclk_pin=41,
     pclk_frequency="12MHz",
     pclk_inverted=False,
+    requires={"psram"},
     data_pins={
         "red": [46, 3, 8, 18, 17],
         "green": [14, 13, 12, 11, 10, 9],
@@ -79,6 +81,7 @@ st7701s.extend(
     "WAVESHARE-3.16-320X820",
     width=320,
     height=820,
+    requires={"psram"},
     de_pin=40,
     hsync_pin=38,
     vsync_pin=39,

@@ -7,6 +7,7 @@ sunton = RgbDriverChip(
     width=800,
     height=480,
     pclk_frequency="12.5MHz",
+    requires={"psram"},
     de_pin=41,
     hsync_pin=39,
     vsync_pin=40,

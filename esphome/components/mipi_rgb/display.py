@@ -248,6 +248,9 @@ CONFIG_SCHEMA = _config_schema
 
 
 def _final_validate(config):
+    model = MODELS[config[CONF_MODEL]]
+    model.final_validate(config)
+
     global_config = full_config.get()
 
     from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
