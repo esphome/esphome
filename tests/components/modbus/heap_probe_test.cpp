@@ -96,6 +96,47 @@ template<typename F> Sample sample(F &&f) {
 
 }  // namespace
 
+// Typical frames (reads and single-register/coil writes are exactly address + 5-byte PDU + CRC = 8
+// bytes) fit the SmallInlineBuffer and are built with zero heap allocations; only larger frames spill
+// to a single allocation.
+TEST(HeapProbe, TypicalFrameConstructionIsAllocationFree) {
+  const uint8_t read_pdu[] = {0x03, 0x01, 0x00, 0x00, 0x02};  // 5 bytes -> 8-byte frame, inline
+  Sample typical = sample([&] {
+    ModbusFrame frame(0x02, read_pdu, sizeof(read_pdu));
+    (void) frame;
+  });
+  printf("HEAPPROBE frame_typical count=%zu bytes=%zu\n", typical.count, typical.bytes);
+  EXPECT_EQ(typical.count, 0u);
+
+  uint8_t large_pdu[250] = {0x10};  // multi-register write -> 253-byte frame, spills once
+  Sample large = sample([&] {
+    ModbusFrame frame(0x02, large_pdu, sizeof(large_pdu));
+    (void) frame;
+  });
+  printf("HEAPPROBE frame_large count=%zu bytes=%zu\n", large.count, large.bytes);
+  EXPECT_EQ(large.count, 1u);
+}
+
+// Queueing typical commands is fully allocation-free: the frame fits the inline buffer and the tx
+// deque's first block is already allocated when the hub is constructed. (A queue deeper than one
+// deque block - roughly a dozen commands - would allocate further blocks.)
+TEST(HeapProbe, QueueingTypicalCommandsIsAllocationFree) {
+  ModbusClientHub hub;
+  ModbusClientDevice device(&hub, 0x02);
+
+  StaticVector<uint8_t, MAX_PDU_SIZE> req;
+  const uint8_t read_pdu[] = {0x03, 0x01, 0x00, 0x00, 0x02};
+  req.assign(read_pdu, read_pdu + sizeof(read_pdu));
+
+  constexpr int n = 12;
+  size_t total = 0;
+  for (int i = 0; i != n; i++) {
+    total += sample([&] { device.send_pdu(req); }).count;
+  }
+  printf("HEAPPROBE queue_%d_typical_commands total_allocs=%zu\n", n, total);
+  EXPECT_EQ(total, 0u);
+}
+
 // End to end: bytes injected at the UART travel through receive, frame parsing, response matching and
 // device dispatch. The first response may grow the hub's rx buffer once; after that warm-up, handling a
 // response performs zero heap allocations all the way to the device callback.
