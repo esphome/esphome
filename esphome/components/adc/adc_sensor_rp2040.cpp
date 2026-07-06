@@ -66,15 +66,18 @@ float ADCSensor::sample() {
   }
 
   uint8_t pin = this->pin_->get_pin();
-#ifdef CYW43_USES_VSYS_PIN
+#if defined(CYW43_USES_VSYS_PIN) && defined(USE_WIFI)
   if (pin == PICO_VSYS_PIN) {
     // Measuring VSYS on Raspberry Pico W needs to be wrapped with
     // `cyw43_thread_enter()`/`cyw43_thread_exit()` as discussed in
     // https://github.com/raspberrypi/pico-sdk/issues/1222, since Wifi chip and
-    // VSYS ADC both share GPIO29
+    // VSYS ADC both share GPIO29.
+    // The USE_WIFI guard is required because CYW43_USES_VSYS_PIN can be defined
+    // transitively (e.g. via lwip_wrap.h) even on non-WiFi boards where the CYW43
+    // driver is never initialized; calling cyw43_thread_enter() there hard-faults.
     cyw43_thread_enter();
   }
-#endif  // CYW43_USES_VSYS_PIN
+#endif  // defined(CYW43_USES_VSYS_PIN) && defined(USE_WIFI)
 
   adc_gpio_init(pin);
   adc_select_input(pin - 26);
@@ -84,11 +87,11 @@ float ADCSensor::sample() {
     aggr.add_sample(raw);
   }
 
-#ifdef CYW43_USES_VSYS_PIN
+#if defined(CYW43_USES_VSYS_PIN) && defined(USE_WIFI)
   if (pin == PICO_VSYS_PIN) {
     cyw43_thread_exit();
   }
-#endif  // CYW43_USES_VSYS_PIN
+#endif  // defined(CYW43_USES_VSYS_PIN) && defined(USE_WIFI)
 
   if (this->output_raw_) {
     return aggr.aggregate();

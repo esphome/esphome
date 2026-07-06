@@ -200,3 +200,32 @@ def test_get_ini_content_no_cpp_standard(
     content = platformio.get_ini_content()
 
     assert "-std=" not in content
+
+
+def test_write_cxx_flags_script_emits_registered_flags(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Flags registered via cg.add_cxx_build_flag() are emitted as CXXFLAGS,
+    sorted, so they apply to C++ compiles only."""
+    CORE.build_path = str(tmp_path)
+    monkeypatch.setattr(CORE, "cxx_build_flags", {"-Wno-volatile", "-Wno-deprecated"})
+
+    platformio.write_cxx_flags_script()
+
+    content = (tmp_path / platformio.CXX_FLAGS_FILE_NAME).read_text()
+    assert (
+        'env.Append(CXXFLAGS=["-Wno-deprecated"])\n'
+        'env.Append(CXXFLAGS=["-Wno-volatile"])\n'
+    ) in content
+
+
+def test_write_cxx_flags_script_no_flags(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    CORE.build_path = str(tmp_path)
+    monkeypatch.setattr(CORE, "cxx_build_flags", set())
+
+    platformio.write_cxx_flags_script()
+
+    content = (tmp_path / platformio.CXX_FLAGS_FILE_NAME).read_text()
+    assert "CXXFLAGS" not in content
