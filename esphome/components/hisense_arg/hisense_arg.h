@@ -60,6 +60,22 @@ class HisenseArgClimate : public climate_ir::ClimateIR {
                                climate::CLIMATE_FAN_HIGH},
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}) {}
 
+  /// Force the component to assume the AC is off.
+  /// Use when external power monitoring detects the unit is not running.
+  void set_power_off() {
+    this->prev_power_on_ = false;
+    this->mode = climate::CLIMATE_MODE_OFF;
+    this->publish_state();
+  }
+
+  /// Force the component to assume the AC is on.
+  /// Use when external power monitoring detects the unit is running.
+  void set_power_on() {
+    this->prev_power_on_ = true;
+    this->mode = climate::CLIMATE_MODE_HEAT_COOL;
+    this->publish_state();
+  }
+
  protected:
   void transmit_state() override;
   bool on_receive(remote_base::RemoteReceiveData data) override;
