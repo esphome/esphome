@@ -78,14 +78,14 @@ CONF_CONTINUE_ON_ERROR = "continue_on_error"
 CONF_WAIT_FOR_SENT = "wait_for_sent"
 
 
-def _validate_max_payload_size(config):
-    if config[CONF_MAX_PAYLOAD_SIZE] > ESPNOW_PAYLOAD_V1:
-        cv.require_framework_version(
+def _validate_max_payload_size(value):
+    if value > ESPNOW_PAYLOAD_V1:
+        return cv.require_framework_version(
             esp_idf=cv.Version(5, 4, 0),
             esp32_arduino=cv.Version(3, 2, 0),
             extra_message="ESP-NOW v2 frames need an ESP-NOW v2 capable framework",
-        )(config)
-    return config
+        )(value)
+    return value
 
 
 def validate_channel(value):
@@ -100,8 +100,8 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(ESPNowComponent),
             cv.OnlyWithout(CONF_CHANNEL, CONF_WIFI): validate_channel,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
-            cv.Optional(CONF_MAX_PAYLOAD_SIZE, default=ESPNOW_PAYLOAD_V1): cv.int_range(
-                min=1, max=ESPNOW_PAYLOAD_V2
+            cv.Optional(CONF_MAX_PAYLOAD_SIZE, default=ESPNOW_PAYLOAD_V1): cv.All(
+                cv.int_range(min=1, max=ESPNOW_PAYLOAD_V2), _validate_max_payload_size
             ),
             cv.Optional(CONF_AUTO_ADD_PEER, default=False): cv.boolean,
             cv.Optional(CONF_PEERS): cv.ensure_list(cv.mac_address),
@@ -126,7 +126,6 @@ CONFIG_SCHEMA = cv.All(
         },
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on_esp32,
-    _validate_max_payload_size,
 )
 
 
