@@ -31,10 +31,10 @@ enum State {
   STOPPED,
 };
 
-class MicroWakeWord : public Component
+class MicroWakeWord final : public Component
 #ifdef USE_OTA_STATE_LISTENER
     ,
-                      public ota::OTAGlobalStateListener
+                            public ota::OTAGlobalStateListener
 #endif
 {
  public:

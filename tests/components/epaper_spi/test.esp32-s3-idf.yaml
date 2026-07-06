@@ -77,6 +77,14 @@ display:
   - platform: epaper_spi
     model: seeed-reterminal-e1002
   - platform: epaper_spi
+    model: seeed-reterminal-e1004
+    cs_pin: 33
+    cs1_pin: 34
+    dc_pin: 35
+    reset_pin: 36
+    busy_pin: 37
+    enable_pin: 39
+  - platform: epaper_spi
     model: seeed-ee04-mono-4.26
     full_update_every: 10
     # Override pins to avoid conflict with other display configs

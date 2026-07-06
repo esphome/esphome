@@ -231,14 +231,16 @@ def test_main_all_tests_should_run(
     assert output["memory_impact"]["should_run"] == "false"
     assert output["cpp_unit_tests_run_all"] is False
     assert output["cpp_unit_tests_components"] == ["wifi", "api", "sensor"]
-    # component_test_batches should be present and be a list of space-separated strings
+    # component_test_batches should be a list of matrix entries carrying the
+    # space-separated component list and the toolchain-need flags
     assert "component_test_batches" in output
     assert isinstance(output["component_test_batches"], list)
-    # Each batch should be a space-separated string of component names
     for batch in output["component_test_batches"]:
-        assert isinstance(batch, str)
+        assert isinstance(batch, dict)
         # Should contain at least one component (no empty batches)
-        assert len(batch) > 0
+        assert len(batch["components"]) > 0
+        assert isinstance(batch["needs_idf"], bool)
+        assert isinstance(batch["needs_nrf"], bool)
 
 
 def test_main_no_tests_should_run(
@@ -2417,16 +2419,16 @@ def test_component_batching_beta_branch_40_per_batch(
     assert len(batches) == 3, f"Expected 3 batches, got {len(batches)}"
 
     # Each batch should have approximately 40 components (all weight=1, groupable)
-    for i, batch_str in enumerate(batches):
-        batch_components = batch_str.split()
+    for i, batch in enumerate(batches):
+        batch_components = batch["components"].split()
         assert len(batch_components) == 40, (
             f"Batch {i} should have 40 components, got {len(batch_components)}"
         )
 
     # Verify all 120 components are in batches
     all_components = []
-    for batch_str in batches:
-        all_components.extend(batch_str.split())
+    for batch in batches:
+        all_components.extend(batch["components"].split())
     assert len(all_components) == 120
     assert set(all_components) == set(component_names)
 
