@@ -16,6 +16,7 @@ from esphome.components.mipi import (
     delay,
 )
 from esphome.components.spi import TYPE_QUAD
+from esphome.config_validation import UNDEFINED
 
 DriverChip(
     "T-DISPLAY-S3-AMOLED",
@@ -97,6 +98,9 @@ CO5300 = DriverChip(
     color_order=MODE_RGB,
     bus_mode=TYPE_QUAD,
     no_slpout=True,
+    swap_xy=UNDEFINED,
+    width=480,
+    height=480,
     initsequence=(
         (SLPOUT,),  # Requires early SLPOUT
         (PAGESEL, 0x00),
