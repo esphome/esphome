@@ -2,11 +2,12 @@ sd_storage:
   id: sd_card
   type: sd_mmc
   clk_pin: GPIO39
-  cmd_pin: GPIO38
-  data0_pin: GPIO40
-  data1_pin: GPIO41
-  data2_pin: GPIO42
-  data3_pin: GPIO21
+  cmd_pin: GPIO40
+  data0_pin: GPIO41
+  data1_pin: GPIO42
+  data2_pin: GPIO47
+  data3_pin: GPIO48
+  cd_pin: GPIO4
   path: /sdcard
   mode_1bit: false
   on_mounted:
