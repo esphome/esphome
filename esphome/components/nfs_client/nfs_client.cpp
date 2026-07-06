@@ -547,7 +547,7 @@ storage::StorageError NFSClient::disconnect() {
   return storage::StorageError::OK;
 }
 
-storage::StorageError NFSClient::read_chunk(const char *path, uint8_t *buf, size_t offset, size_t len,
+storage::StorageError NFSClient::read_chunk(const char *path, uint8_t *buf, uint64_t offset, size_t len,
                                             size_t *bytes_transferred) {
   if (path == nullptr || buf == nullptr || bytes_transferred == nullptr) {
     return storage::StorageError::INVALID_ARGS;
@@ -638,7 +638,7 @@ storage::StorageError NFSClient::read_chunk(const char *path, uint8_t *buf, size
   return storage::StorageError::OK;
 }
 
-storage::StorageError NFSClient::write_chunk(const char *path, const uint8_t *buf, size_t offset, size_t len,
+storage::StorageError NFSClient::write_chunk(const char *path, const uint8_t *buf, uint64_t offset, size_t len,
                                              size_t *bytes_transferred) {
   if (path == nullptr || buf == nullptr || bytes_transferred == nullptr) {
     return storage::StorageError::INVALID_ARGS;
@@ -694,10 +694,11 @@ storage::StorageError NFSClient::stat(const char *path, storage::FileStat *stat)
 
   stat->size = attr.size;
   stat->is_dir = (attr.type == NF3DIR);
+  stat->mtime = static_cast<uint32_t>(attr.mtime_sec);
   return storage::StorageError::OK;
 }
 
-storage::StorageError NFSClient::list_dir(const char *path, void (*callback)(const storage::FileStat *entry, void *ctx),
+storage::StorageError NFSClient::list_dir(const char *path, bool (*callback)(const storage::FileStat *entry, void *ctx),
                                           void *ctx) {
   if (path == nullptr || callback == nullptr) {
     return storage::StorageError::INVALID_ARGS;
@@ -728,7 +729,9 @@ storage::StorageError NFSClient::list_dir(const char *path, void (*callback)(con
     entry_stat.name[storage::STORAGE_NAME_MAX] = '\0';
     entry_stat.size = e.has_attr ? e.attr.size : 0;
     entry_stat.is_dir = e.has_attr && (e.attr.type == NF3DIR);
-    callback(&entry_stat, ctx);
+    entry_stat.mtime = e.has_attr ? static_cast<uint32_t>(e.attr.mtime_sec) : 0;
+    if (!callback(&entry_stat, ctx))
+      break;
   }
 
   return storage::StorageError::OK;
@@ -754,7 +757,7 @@ storage::StorageError NFSClient::mkdir(const char *path) {
                                                         : storage::StorageError::WRITE_ERROR;
 }
 
-storage::StorageError NFSClient::rmdir(const char *path, bool recursive) {
+storage::StorageError NFSClient::rmdir(const char *path) {
   if (path == nullptr) {
     return storage::StorageError::INVALID_ARGS;
   }
@@ -764,35 +767,24 @@ storage::StorageError NFSClient::rmdir(const char *path, bool recursive) {
 
   const std::string path_str(path);
 
-  if (recursive) {
-    // List and remove contents first
-    NFSFileHandle fh;
-    NFSFileAttr attr;
-    if (!this->resolve_path_(path_str, fh, attr)) {
-      return storage::StorageError::NOT_FOUND;
-    }
-    if (attr.type != NF3DIR) {
-      return storage::StorageError::INVALID_ARGS;
-    }
+  // Non-recursive per the storage:: contract: must fail with NOT_EMPTY if the directory has
+  // contents. Recursive delete is the free storage::remove_recursive() helper, built on top
+  // of list_dir()/remove()/this rmdir() — no need to duplicate that tree-walk here.
+  NFSFileHandle fh;
+  NFSFileAttr attr;
+  if (!this->resolve_path_(path_str, fh, attr)) {
+    return storage::StorageError::NOT_FOUND;
+  }
+  if (attr.type != NF3DIR) {
+    return storage::StorageError::INVALID_ARGS;
+  }
 
-    std::vector<NFSDirEntry> entries;
-    if (!this->nfs_readdir_(fh, entries)) {
-      return storage::StorageError::READ_ERROR;
-    }
-
-    for (const auto &e : entries) {
-      std::string child_path = path_str + "/" + e.name;
-      if (e.has_attr && e.attr.type == NF3DIR) {
-        storage::StorageError err = this->rmdir(child_path.c_str(), true);
-        if (err != storage::StorageError::OK) {
-          return err;
-        }
-      } else {
-        if (!this->nfs_remove_(fh, e.name)) {
-          return storage::StorageError::WRITE_ERROR;
-        }
-      }
-    }
+  std::vector<NFSDirEntry> entries;
+  if (!this->nfs_readdir_(fh, entries)) {
+    return storage::StorageError::READ_ERROR;
+  }
+  if (!entries.empty()) {
+    return storage::StorageError::NOT_EMPTY;
   }
 
   NFSFileHandle parent_fh;
@@ -847,63 +839,6 @@ storage::StorageError NFSClient::rename(const char *old_path, const char *new_pa
 
   return this->nfs_rename_(old_parent_fh, old_name, new_parent_fh, new_name) ? storage::StorageError::OK
                                                                              : storage::StorageError::WRITE_ERROR;
-}
-
-storage::StorageError NFSClient::copy(const char *src_path, const char *dst_path) {
-  if (src_path == nullptr || dst_path == nullptr) {
-    return storage::StorageError::INVALID_ARGS;
-  }
-  if (!this->mounted_) {
-    return storage::StorageError::NOT_READY;
-  }
-
-  const std::string src_str(src_path);
-  const std::string dst_str(dst_path);
-
-  // Resolve source
-  NFSFileHandle src_fh;
-  NFSFileAttr src_attr;
-  if (!this->resolve_path_(src_str, src_fh, src_attr)) {
-    return storage::StorageError::NOT_FOUND;
-  }
-  if (src_attr.type != NF3REG) {
-    return storage::StorageError::INVALID_ARGS;
-  }
-
-  // Create destination
-  NFSFileHandle dst_parent_fh;
-  std::string dst_name;
-  if (!this->resolve_parent_path_(dst_str, dst_parent_fh, dst_name)) {
-    return storage::StorageError::NOT_FOUND;
-  }
-  NFSFileHandle dst_fh;
-  if (!this->nfs_create_(dst_parent_fh, dst_name, 0644, dst_fh)) {
-    return storage::StorageError::WRITE_ERROR;
-  }
-
-  // Copy in 8KB chunks
-  static constexpr uint32_t COPY_CHUNK = 8192;
-  uint64_t offset = 0;
-  while (offset < src_attr.size) {
-    uint32_t to_read = COPY_CHUNK;
-    if (offset + to_read > src_attr.size) {
-      to_read = static_cast<uint32_t>(src_attr.size - offset);
-    }
-
-    std::vector<uint8_t> chunk;
-    if (!this->nfs_read_(src_fh, offset, to_read, chunk)) {
-      return storage::StorageError::READ_ERROR;
-    }
-    if (chunk.empty()) {
-      break;
-    }
-    if (!this->nfs_write_(dst_fh, offset, chunk.data(), chunk.size())) {
-      return storage::StorageError::WRITE_ERROR;
-    }
-    offset += chunk.size();
-  }
-
-  return storage::StorageError::OK;
 }
 
 //========================================================================
