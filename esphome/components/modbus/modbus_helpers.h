@@ -90,7 +90,7 @@ inline ModbusFunctionCode modbus_register_read_function(ModbusRegisterType reg_t
       return ModbusFunctionCode::READ_DISCRETE_INPUTS;
     case ModbusRegisterType::HOLDING:
       return ModbusFunctionCode::READ_HOLDING_REGISTERS;
-    case ModbusRegisterType::READ:
+    case ModbusRegisterType::INPUT_REGISTER:
       return ModbusFunctionCode::READ_INPUT_REGISTERS;
     default:
       return ModbusFunctionCode::INVALID;
@@ -104,7 +104,7 @@ inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_
     case ModbusRegisterType::HOLDING:
       return multiple ? ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS : ModbusFunctionCode::WRITE_SINGLE_REGISTER;
     // These register types can't be written (per spec)
-    case ModbusRegisterType::READ:
+    case ModbusRegisterType::INPUT_REGISTER:
     case ModbusRegisterType::DISCRETE_INPUT:
     default:
       return ModbusFunctionCode::INVALID;
