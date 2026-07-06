@@ -47,7 +47,7 @@ CONFIG_SCHEMA = (
                 host=True,
                 ln882x=False,
                 nrf52=True,
-                rp2040=True,
+                rp2=True,
                 rtl87xx=False,
             ): cv.boolean,
             cv.Optional(CONF_INTERRUPT_TYPE, default="ANY"): cv.enum(

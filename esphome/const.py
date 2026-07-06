@@ -33,7 +33,12 @@ class Platform(StrEnum):
     LIBRETINY_OLDSTYLE = "libretiny"
     LN882X = "ln882x"
     NRF52 = "nrf52"
-    RP2040 = "rp2040"
+    RP2 = "rp2"  # canonical name for the RP2 family (RP2040, RP2350, …)
+    # Deprecated: use Platform.RP2 instead. Python enum aliasing makes this
+    # the same member as RP2 (same string value), so ``Platform.RP2040`` and
+    # ``Platform.RP2`` remain interchangeable for external custom components.
+    # Scheduled for removal in 2027.7.0.
+    RP2040 = "rp2"
     RTL87XX = "rtl87xx"
 
 
@@ -86,6 +91,9 @@ class PlatformFramework(Enum):
 
     # Arduino framework platforms
     ESP8266_ARDUINO = (Platform.ESP8266, Framework.ARDUINO)
+    RP2_ARDUINO = (Platform.RP2, Framework.ARDUINO)
+    # Deprecated: use PlatformFramework.RP2_ARDUINO instead. Kept as an
+    # alias for backwards compatibility; scheduled for removal in 2027.7.0.
     RP2040_ARDUINO = (Platform.RP2040, Framework.ARDUINO)
     BK72XX_ARDUINO = (Platform.BK72XX, Framework.ARDUINO)
     RTL87XX_ARDUINO = (Platform.RTL87XX, Framework.ARDUINO)
@@ -106,6 +114,9 @@ PLATFORM_HOST = Platform.HOST
 PLATFORM_LIBRETINY_OLDSTYLE = Platform.LIBRETINY_OLDSTYLE
 PLATFORM_LN882X = Platform.LN882X
 PLATFORM_NRF52 = Platform.NRF52
+PLATFORM_RP2 = Platform.RP2
+# Deprecated: use PLATFORM_RP2 instead. Kept as a back-compat alias;
+# scheduled for removal in 2027.7.0.
 PLATFORM_RP2040 = Platform.RP2040
 PLATFORM_RTL87XX = Platform.RTL87XX
 

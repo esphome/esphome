@@ -1759,7 +1759,7 @@ bool APIConnection::send_device_info_response_() {
   // Manufacturer string - define once, handle ESP8266 PROGMEM separately
 #if defined(USE_ESP8266) || defined(USE_ESP32)
 #define ESPHOME_MANUFACTURER "Espressif"
-#elif defined(USE_RP2040)
+#elif defined(USE_RP2)
 #define ESPHOME_MANUFACTURER "Raspberry Pi"
 #elif defined(USE_BK72XX)
 #define ESPHOME_MANUFACTURER "Beken"

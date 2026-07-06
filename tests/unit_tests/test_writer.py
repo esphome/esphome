@@ -18,7 +18,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_RP2040,
+    PLATFORM_RP2,
     PLATFORM_RTL87XX,
 )
 from esphome.core import EsphomeError
@@ -338,7 +338,7 @@ def test_storage_should_not_update_cmake_cache_when_nothing_changes(
 
 @pytest.mark.parametrize(
     "core_platform",
-    [PLATFORM_ESP8266, PLATFORM_RP2040, PLATFORM_BK72XX, PLATFORM_RTL87XX],
+    [PLATFORM_ESP8266, PLATFORM_RP2, PLATFORM_BK72XX, PLATFORM_RTL87XX],
 )
 def test_storage_should_not_update_cmake_cache_for_non_esp32(
     create_storage: Callable[..., StorageJSON],

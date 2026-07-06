@@ -8,7 +8,7 @@
 #include "esphome/components/ota/ota_backend.h"
 #include "esphome/components/ota/ota_backend_esp8266.h"
 #include "esphome/components/ota/ota_backend_arduino_libretiny.h"
-#include "esphome/components/ota/ota_backend_arduino_rp2040.h"
+#include "esphome/components/ota/ota_backend_arduino_rp2.h"
 #include "esphome/components/ota/ota_backend_esp_idf.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"

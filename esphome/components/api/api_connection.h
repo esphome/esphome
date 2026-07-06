@@ -18,8 +18,8 @@
 #ifdef USE_ESP32_CRASH_HANDLER
 #include "esphome/components/esp32/crash_handler.h"
 #endif
-#ifdef USE_RP2040_CRASH_HANDLER
-#include "esphome/components/rp2040/crash_handler.h"
+#ifdef USE_RP2_CRASH_HANDLER
+#include "esphome/components/rp2/crash_handler.h"
 #endif
 #ifdef USE_ESP8266_CRASH_HANDLER
 #include "esphome/components/esp8266/crash_handler.h"
@@ -279,8 +279,8 @@ class APIConnection final : public APIServerConnectionBase {
     esp32::crash_handler_log();
     esp32::crash_handler_clear();
 #endif
-#ifdef USE_RP2040_CRASH_HANDLER
-    rp2040::crash_handler_log();
+#ifdef USE_RP2_CRASH_HANDLER
+    rp2::crash_handler_log();
 #endif
 #ifdef USE_ESP8266_CRASH_HANDLER
     esp8266::crash_handler_log();
