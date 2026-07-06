@@ -3,6 +3,7 @@
 #include "usb_uart.h"
 #include "usb/usb_host.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome::usb_uart {
 
@@ -282,8 +283,8 @@ void USBUartTypePL2303::enable_channels() {
   // Data bits
   line_coding[6] = channel->get_data_bits();
 
-  ESP_LOGD(TAG, "PL2303: SET_LINE_REQUEST baud=%u stop=%u parity=%u data=%u", baud, line_coding[4], line_coding[5],
-           line_coding[6]);
+  ESP_LOGD(TAG, "PL2303: SET_LINE_REQUEST baud=%" PRIu32 " stop=%u parity=%u data=%u", baud, line_coding[4],
+           line_coding[5], line_coding[6]);
 
   std::vector<uint8_t> lc_vec(line_coding, line_coding + 7);
   uint16_t iface = channel->cdc_dev_.bulk_interface_number;
