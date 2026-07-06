@@ -33,10 +33,10 @@ const uint8_t WHIRLPOOL_POWER = 0x04;
 
 WhirlpoolClimate::WhirlpoolClimate()
     : climate_ir::ClimateIR(
-          WHIRLPOOL_DG11J1_3A_TEMP_MIN, WHIRLPOOL_DG11J1_3A_TEMP_MAX, 1.0f, true, true,
+          MODEL_SETTINGS_ARR[MODEL_DG11J1_3A].minimum_temperature,
+          MODEL_SETTINGS_ARR[MODEL_DG11J1_3A].maximum_temperature, 1.0f, true, true,
           {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH},
-          {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}),
-      model_(MODEL_DG11J1_3A) {}
+          {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}) {}
 
 void WhirlpoolClimate::transmit_state() {
   this->last_transmit_time_ = millis();  // setting the time of the last transmission.
@@ -84,8 +84,8 @@ void WhirlpoolClimate::transmit_state() {
   }
 
   // Temperature
-  auto temp = (uint8_t) roundf(clamp(this->target_temperature, this->temperature_min_(), this->temperature_max_()));
-  remote_state[3] |= (uint8_t) (temp - this->temperature_min_()) << 4;
+  auto temp = static_cast<uint8_t>(roundf(clamp(this->target_temperature, minimum_temperature_, maximum_temperature_)));
+  remote_state[3] |= (static_cast<uint8_t>(temp - minimum_temperature_ + temperature_correction_) << 4);
 
   // Fan speed
   switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
@@ -268,8 +268,8 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
   // Set received temp
   int temp = remote_state[3] & 0xF0;
   ESP_LOGVV(TAG, "Temperature Raw: %02X", temp);
-  temp = (uint8_t) temp >> 4;
-  temp += static_cast<int>(this->temperature_min_());
+  temp = static_cast<uint8_t>(temp) >> 4;
+  temp += static_cast<int>(this->minimum_temperature_ - this->temperature_correction_);
   ESP_LOGVV(TAG, "Temperature Climate: %u", temp);
   this->target_temperature = temp;
 
