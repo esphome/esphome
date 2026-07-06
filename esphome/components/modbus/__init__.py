@@ -10,6 +10,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_DISABLE_CRC, CONF_FLOW_CONTROL_PIN, CONF_ID
 from esphome.cpp_helpers import gpio_pin_expression
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -85,16 +86,14 @@ async def to_code(config):
         cg.add(var.set_turnaround_time(config[CONF_TURNAROUND_TIME]))
 
 
-def _validate_server_address(value):
+def _validate_server_address(value: ConfigType) -> ConfigType:
     address = cv.hex_uint8_t(value)
-    # Remove before 2027.1.0: turn this deprecation warning into a hard error.
     # The broadcast address (0) is delivered to every device and is never answered (Modbus 4.1),
-    # so it can't identify an individual server device.
+    # so it cannot identify an individual server device.
     if address == 0:
-        _LOGGER.warning(
-            "Address 0 is the Modbus broadcast address; using it as a server "
-            "device address is deprecated and will be removed in 2027.1.0. "
-            "Assign a unique unit address instead."
+        raise cv.Invalid(
+            "Address 0 is the Modbus broadcast address and cannot be used as a "
+            "server device address. Assign a unique unit address (1–247) instead."
         )
     return address
 
