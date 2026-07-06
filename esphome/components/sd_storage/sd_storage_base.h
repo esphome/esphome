@@ -9,6 +9,7 @@
 
 #ifdef USE_ESP_IDF
 #include <esp_vfs.h>
+#include <ff.h>
 
 namespace esphome::sd_storage {
 
@@ -36,11 +37,10 @@ template<typename... Ts> class ListFilesAction;
 // Extends FilesystemStorage so both SdMmc and SdSpi satisfy the storage interface.
 class SdStorageBase : public storage::FilesystemStorage {
  public:
-  void set_mount_path(const char *path) { this->mount_path_ = path; }
+  void set_mount_path(const char *path) { this->set_mount_path_(path); }
   void set_id(const char *id) { this->storage_id_ = id; }
   void set_cd_pin(GPIOPin *pin) { this->cd_pin_ = pin; }
   bool is_mounted() const { return this->is_mounted_; }
-  const char *get_mount_path() const { return this->mount_path_; }
 
   template<typename F> void add_on_mounted_callback(F &&cb) { this->on_mounted_.add(std::forward<F>(cb)); }
   template<typename F> void add_on_removed_callback(F &&cb) { this->on_removed_.add(std::forward<F>(cb)); }
@@ -117,7 +117,6 @@ class SdStorageBase : public storage::FilesystemStorage {
   bool is_mounted_{false};
   uint64_t total_bytes_{0};
   uint64_t used_bytes_{0};
-  const char *mount_path_{"/sdcard"};
   const char *storage_id_{nullptr};
   GPIOPin *cd_pin_{nullptr};
 

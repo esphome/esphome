@@ -122,6 +122,67 @@ void StorageRegistry::for_each_path_based(void (*cb)(PathStorage *s, void *ctx),
   }
 }
 
+PathStorage *StorageRegistry::resolve_path(const char *vfs_path, const char **rel_out) {
+  StringRef path_ref(vfs_path);
+  PathStorage *best = nullptr;
+  size_t best_len = 0;
+
+  for (auto *s : this->storages_) {
+    StorageType type = s->get_storage_type();
+    PathStorage *ps;
+    if (type == StorageType::FILESYSTEM) {
+      ps = static_cast<FilesystemStorage *>(s);
+    } else if (type == StorageType::NETWORK) {
+      ps = static_cast<NetworkStorage *>(s);
+    } else {
+      continue;
+    }
+    const char *mount = ps->get_mount_path();
+    if (mount == nullptr)
+      continue;
+    StringRef mount_ref(mount);
+    size_t mount_len = mount_ref.size();
+
+    // Prefix match only at a '/' boundary or an exact match — "/sd2/x" must not match "/sd".
+    if (path_ref.size() < mount_len)
+      continue;
+    StringRef path_prefix(vfs_path, mount_len);
+    if (path_prefix.compare(mount_ref) != 0)
+      continue;
+    if (path_ref.size() > mount_len && path_ref[mount_len] != '/')
+      continue;
+
+    // Longest match wins, so a more specific mount point (e.g. "/sd/nested") takes priority
+    // over a shorter one that's also a valid prefix (e.g. "/sd").
+    if (mount_len > best_len) {
+      best = ps;
+      best_len = mount_len;
+    }
+  }
+
+  if (best == nullptr)
+    return nullptr;
+  *rel_out = vfs_path + best_len;  // "" if vfs_path == mount point exactly, else starts with '/'
+  return best;
+}
+
+bool StorageRegistry::build_path(const PathStorage *s, const char *rel, char *out, size_t len) {
+  StringRef mount_ref(s->get_mount_path());
+  StringRef rel_ref(rel);
+  bool rel_has_slash = !rel_ref.empty() && rel_ref[0] == '/';
+
+  size_t total = mount_ref.size() + (rel_has_slash || rel_ref.empty() ? 0 : 1) + rel_ref.size() + 1;
+  if (total > len)
+    return false;
+
+  size_t pos = mount_ref.copy(out, mount_ref.size());
+  if (!rel_has_slash && !rel_ref.empty())
+    out[pos++] = '/';
+  pos += rel_ref.copy(out + pos, rel_ref.size());
+  out[pos] = '\0';
+  return true;
+}
+
 //========================================================================
 // Free helper functions
 //========================================================================
