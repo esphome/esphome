@@ -84,9 +84,13 @@ class ServerRegister {
     }
   }
 
+  void set_allow_partial_read(bool allow_partial_read) { this->allow_partial_read = allow_partial_read; }
+
   uint16_t address{0};
   SensorValueType value_type{SensorValueType::RAW};
   uint8_t register_count{0};
+  // When true, a read may cover only part of this multi-register value; otherwise it must read the whole value.
+  bool allow_partial_read{false};
   ReadLambda read_lambda;
   WriteLambda write_lambda;
 };
@@ -111,6 +115,8 @@ class ModbusServer : public Component, public modbus::ModbusServerDevice {
   ServerCourtesyResponse get_server_courtesy_response() const { return this->server_courtesy_response_; }
 
  protected:
+  /// Find the registered value whose register span contains address, or nullptr if none does.
+  ServerRegister *find_containing_register_(uint32_t address) const;
   /// Collection of all server registers for this component
   std::vector<ServerRegister *> server_registers_{};
   /// Server courtesy response
