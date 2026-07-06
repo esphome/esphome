@@ -87,6 +87,7 @@ INTERRUPT_SCHEMA = cv.Schema(
     }
 )
 
+
 def _validate_odr_mode(config):
     # Two output data rates are tied to the operating mode (they share a register
     # code whose meaning depends on the mode): 1620Hz exists only in low-power
