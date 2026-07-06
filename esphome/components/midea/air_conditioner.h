@@ -21,7 +21,7 @@ using climate::ClimateModeMask;
 using climate::ClimateSwingModeMask;
 using climate::ClimatePresetMask;
 
-class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>, public climate::Climate {
+class AirConditioner final : public ApplianceBase<dudanov::midea::ac::AirConditioner>, public climate::Climate {
  public:
   void dump_config() override;
   void set_outdoor_temperature_sensor(Sensor *sensor) { this->outdoor_sensor_ = sensor; }

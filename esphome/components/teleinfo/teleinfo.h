@@ -20,7 +20,7 @@ class TeleInfoListener {
   std::string tag;
   virtual void publish_val(const std::string &val){};
 };
-class TeleInfo : public PollingComponent, public uart::UARTDevice {
+class TeleInfo final : public PollingComponent, public uart::UARTDevice {
  public:
   TeleInfo(bool historical_mode);
   void register_teleinfo_listener(TeleInfoListener *listener);

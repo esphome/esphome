@@ -29,7 +29,7 @@ static const uint8_t COMMAND_CALIBRATE_LOW = 10;
 static const uint8_t COMMAND_MEASURE_TEMP = 40;
 static const uint8_t COMMAND_MEASURE_MV = 80;
 
-class UFireISEComponent : public PollingComponent, public i2c::I2CDevice {
+class UFireISEComponent final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void update() override;
@@ -58,7 +58,7 @@ class UFireISEComponent : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *ph_sensor_{nullptr};
 };
 
-template<typename... Ts> class UFireISECalibrateProbeLowAction : public Action<Ts...> {
+template<typename... Ts> class UFireISECalibrateProbeLowAction final : public Action<Ts...> {
  public:
   UFireISECalibrateProbeLowAction(UFireISEComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(float, solution)
@@ -69,7 +69,7 @@ template<typename... Ts> class UFireISECalibrateProbeLowAction : public Action<T
   UFireISEComponent *parent_;
 };
 
-template<typename... Ts> class UFireISECalibrateProbeHighAction : public Action<Ts...> {
+template<typename... Ts> class UFireISECalibrateProbeHighAction final : public Action<Ts...> {
  public:
   UFireISECalibrateProbeHighAction(UFireISEComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(float, solution)
@@ -80,7 +80,7 @@ template<typename... Ts> class UFireISECalibrateProbeHighAction : public Action<
   UFireISEComponent *parent_;
 };
 
-template<typename... Ts> class UFireISEResetAction : public Action<Ts...> {
+template<typename... Ts> class UFireISEResetAction final : public Action<Ts...> {
  public:
   UFireISEResetAction(UFireISEComponent *parent) : parent_(parent) {}
 
