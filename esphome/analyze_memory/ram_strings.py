@@ -260,7 +260,14 @@ class RamStringsAnalyzer:
                 continue
 
             if (existing := symbols_by_addr.get(addr)) is not None:
-                existing.aliases.append(name)
+                # Prefer a global (uppercase type) name as the primary so
+                # nm output order can't hide it behind a local alias.
+                if sym_type.isupper() and existing.sym_type.islower():
+                    existing.aliases.append(existing.name)
+                    existing.name = name
+                    existing.sym_type = sym_type
+                else:
+                    existing.aliases.append(name)
                 existing.size = max(existing.size, size)
                 continue
 
@@ -447,9 +454,13 @@ class RamStringsAnalyzer:
         for symbol in largest_symbols:
             # Use demangled name if available, otherwise raw name
             display_name = symbol.demangled or symbol.name
-            if symbol.aliases:
-                display_name += f" (+{len(symbol.aliases)} aliases)"
-            name_display = display_name[:49] if len(display_name) > 49 else display_name
+            # Truncate the name, not the alias note, so merged aliases stay
+            # visible even for long demangled C++ names.
+            alias_note = f" (+{len(symbol.aliases)} aliases)" if symbol.aliases else ""
+            max_name_len = 49 - len(alias_note)
+            if len(display_name) > max_name_len:
+                display_name = display_name[:max_name_len]
+            name_display = display_name + alias_note
             lines.append(
                 f"{name_display:<50} {symbol.sym_type:<6} {symbol.size:>8} B  {symbol.section}"
             )

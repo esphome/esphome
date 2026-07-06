@@ -78,6 +78,42 @@ def test_alias_count_shown_in_report(tmp_path) -> None:
     assert report.count("__lock___") == 2
 
 
+def test_global_name_preferred_over_local_alias(tmp_path) -> None:
+    """A global name becomes the primary even when nm lists a local first."""
+    analyzer = _make_analyzer(tmp_path)
+    nm_output = """\
+3ffb43c8 00000054 b s_common_recursive_mutex
+3ffb43c8 00000054 B __lock___atexit_recursive_mutex
+3ffb43c8 00000054 B __lock___malloc_recursive_mutex
+"""
+    _run_symbol_analysis(analyzer, nm_output)
+
+    (symbol,) = analyzer.ram_symbols
+    assert symbol.name == "__lock___atexit_recursive_mutex"
+    assert symbol.sym_type == "B"
+    assert sorted(symbol.aliases) == [
+        "__lock___malloc_recursive_mutex",
+        "s_common_recursive_mutex",
+    ]
+
+
+def test_alias_note_survives_name_truncation(tmp_path) -> None:
+    """Long names are truncated but the alias note is kept intact."""
+    analyzer = _make_analyzer(tmp_path)
+    long_name = "a_very_long_symbol_name_that_exceeds_the_column_width_by_far"
+    nm_output = f"""\
+3ffb43c8 00000054 B {long_name}
+3ffb43c8 00000054 B other_name
+"""
+    _run_symbol_analysis(analyzer, nm_output)
+
+    report = analyzer.generate_report()
+    row = next(line for line in report.splitlines() if "(+1 aliases)" in line)
+    name_column = row[:50].rstrip()
+    assert name_column.endswith("(+1 aliases)")
+    assert name_column.startswith("a_very_long_symbol_name")
+
+
 def test_symbols_outside_ram_sections_skipped(tmp_path) -> None:
     """Symbols outside known RAM sections are ignored entirely."""
     analyzer = _make_analyzer(tmp_path)
