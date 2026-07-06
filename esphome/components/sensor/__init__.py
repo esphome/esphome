@@ -45,10 +45,10 @@ from esphome.const import (
     CONF_TO,
     CONF_TRIGGER_ID,
     CONF_UNIT_OF_MEASUREMENT,
+    CONF_USE_FAHRENHEIT,
     CONF_VALUE,
     CONF_WEB_SERVER,
     CONF_WINDOW_SIZE,
-    CONF_USE_FAHRENHEIT,
     DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
@@ -1187,6 +1187,7 @@ async def calibrate_ntc_temperature_filter_to_code(config, filter_id):
         calib[CONF_C],
     )
 
+
 @FILTER_REGISTRY.register(
     "rh_correction",
     RHCorrectionFilter,
@@ -1204,6 +1205,7 @@ async def rh_correction_filter_to_code(config, filter_id):
     sensor = await cg.get_variable(config[CONF_SENSOR_ID])
     offset = await cg.templatable(config[CONF_TEMPERATURE_OFFSET], [], cg.float_)
     return cg.new_Pvariable(filter_id, offset, sensor, config[CONF_USE_FAHRENHEIT])
+
 
 def _mean(xs):
     return sum(xs) / len(xs)

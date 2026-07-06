@@ -667,8 +667,8 @@ class ToNTCTemperatureFilter : public Filter {
  */
 class RHCorrectionFilter : public Filter {
  public:
-  RHCorrectionFilter(TemplatableFn<float> offset, const Sensor *temperature_sensor, bool fahr) :
-    temperature_offset_(offset), temperature_sensor_(temperature_sensor), use_fahrenheit_(fahr) {}
+  RHCorrectionFilter(TemplatableFn<float> offset, const Sensor *temperature_sensor, bool fahr)
+      : temperature_offset_(offset), temperature_sensor_(temperature_sensor), use_fahrenheit_(fahr) {}
 
   optional<float> new_value(float value) override;
 
