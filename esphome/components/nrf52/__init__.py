@@ -200,6 +200,7 @@ DeviceFirmwareUpdate = nrf52_ns.class_("DeviceFirmwareUpdate", cg.Component)
 
 CONF_DFU = "dfu"
 CONF_DCDC = "dcdc"
+CONF_LIBC_NANO = "libc_nano"
 CONF_REG0 = "reg0"
 CONF_UICR_ERASE = "uicr_erase"
 
@@ -248,6 +249,7 @@ CONFIG_SCHEMA = cv.All(
             ): cv.Schema(
                 {
                     cv.Optional(CONF_VERSION): cv.string_strict,
+                    cv.Optional(CONF_LIBC_NANO, default=True): cv.boolean,
                     cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
                         {
                             cv.Optional(
@@ -273,6 +275,7 @@ def _validate_mcumgr(config):
 
 
 def _final_validate(config):
+
     if CONF_DFU in config:
         _validate_mcumgr(config)
     if config[KEY_BOOTLOADER] == BOOTLOADER_ADAFRUIT:
@@ -282,6 +285,13 @@ def _final_validate(config):
     full_config = fv.full_config.get()
     conf = config[CONF_FRAMEWORK]
     advanced = conf[CONF_ADVANCED]
+
+    if conf[CONF_LIBC_NANO] and "logger" in CORE.loaded_integrations:
+        _LOGGER.warning(
+            "Logger is enabled with newlib-nano (libc_nano: true). Some format specifiers "
+            "such as %%zu are not supported and will print incorrectly. "
+            "Set 'libc_nano: false' under 'framework:' to use the full newlib."
+        )
 
     if advanced[CONF_ENABLE_OTA_ROLLBACK]:
         # "disabled: false" means safe mode *is* enabled.
@@ -379,6 +389,9 @@ async def to_code(config: ConfigType) -> None:
     # Enable OTA rollback support
     if advanced[CONF_ENABLE_OTA_ROLLBACK]:
         cg.add_define("USE_OTA_ROLLBACK")
+    zephyr_add_prj_conf("NEWLIB_LIBC", True)
+    zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
+    zephyr_add_prj_conf("NEWLIB_LIBC_NANO", conf[CONF_LIBC_NANO])
     # c++ support
     if framework_ver < cv.Version(2, 9, 2):
         zephyr_add_prj_conf("CPLUSPLUS", True)
