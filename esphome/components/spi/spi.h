@@ -334,7 +334,7 @@ class SPIBus {
 
 class SPIClient;
 
-class SPIComponent : public Component {
+class SPIComponent final : public Component {
  public:
   SPIDelegate *register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
                                GPIOPin *cs_pin, bool release_device, bool write_only);
