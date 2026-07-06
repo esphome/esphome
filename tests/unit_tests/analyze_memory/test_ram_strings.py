@@ -1,5 +1,6 @@
 """Tests for RAM symbol analysis in the RAM strings analyzer."""
 
+from pathlib import Path
 from unittest.mock import patch
 
 from esphome.analyze_memory.ram_strings import RamStringsAnalyzer, SectionInfo
@@ -43,7 +44,7 @@ def _run_symbol_analysis(analyzer: RamStringsAnalyzer, nm_output: str) -> None:
         analyzer._analyze_symbols()
 
 
-def test_aliased_symbols_counted_once(tmp_path) -> None:
+def test_aliased_symbols_counted_once(tmp_path: Path) -> None:
     """Symbols sharing an address are one object, not one per name."""
     analyzer = _make_analyzer(tmp_path)
     _run_symbol_analysis(analyzer, NM_OUTPUT_WITH_ALIASES)
@@ -54,7 +55,7 @@ def test_aliased_symbols_counted_once(tmp_path) -> None:
     assert total == 0x10 + 0x54 + 0x54
 
 
-def test_aliases_recorded_on_first_symbol(tmp_path) -> None:
+def test_aliases_recorded_on_first_symbol(tmp_path: Path) -> None:
     """Extra names at the same address are kept as aliases."""
     analyzer = _make_analyzer(tmp_path)
     _run_symbol_analysis(analyzer, NM_OUTPUT_WITH_ALIASES)
@@ -66,7 +67,7 @@ def test_aliases_recorded_on_first_symbol(tmp_path) -> None:
     assert "s_common_mutex" in by_addr[0x3FFB441C].aliases
 
 
-def test_alias_count_shown_in_report(tmp_path) -> None:
+def test_alias_count_shown_in_report(tmp_path: Path) -> None:
     """The large symbols table notes how many aliases were merged."""
     analyzer = _make_analyzer(tmp_path)
     _run_symbol_analysis(analyzer, NM_OUTPUT_WITH_ALIASES)
@@ -78,7 +79,7 @@ def test_alias_count_shown_in_report(tmp_path) -> None:
     assert report.count("__lock___") == 2
 
 
-def test_global_name_preferred_over_local_alias(tmp_path) -> None:
+def test_global_name_preferred_over_local_alias(tmp_path: Path) -> None:
     """A global name becomes the primary even when nm lists a local first."""
     analyzer = _make_analyzer(tmp_path)
     nm_output = """\
@@ -97,7 +98,7 @@ def test_global_name_preferred_over_local_alias(tmp_path) -> None:
     ]
 
 
-def test_alias_note_survives_name_truncation(tmp_path) -> None:
+def test_alias_note_survives_name_truncation(tmp_path: Path) -> None:
     """Long names are truncated but the alias note is kept intact."""
     analyzer = _make_analyzer(tmp_path)
     long_name = "a_very_long_symbol_name_that_exceeds_the_column_width_by_far"
@@ -114,7 +115,7 @@ def test_alias_note_survives_name_truncation(tmp_path) -> None:
     assert name_column.startswith("a_very_long_symbol_name")
 
 
-def test_symbols_outside_ram_sections_skipped(tmp_path) -> None:
+def test_symbols_outside_ram_sections_skipped(tmp_path: Path) -> None:
     """Symbols outside known RAM sections are ignored entirely."""
     analyzer = _make_analyzer(tmp_path)
     nm_output = "40080000 00000100 B not_in_ram\n"
