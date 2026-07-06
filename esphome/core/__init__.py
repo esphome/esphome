@@ -591,6 +591,9 @@ class EsphomeCore:
         self.platformio_libraries: dict[str, Library] = {}
         # A set of build flags to set in the platformio project
         self.build_flags: set[str] = set()
+        # A set of build flags that apply to C++ compiles only (CXXFLAGS /
+        # CXX_COMPILE_OPTIONS), for flags GCC rejects or warns about on C
+        self.cxx_build_flags: set[str] = set()
         # A set of build unflags to set in the platformio project
         self.build_unflags: set[str] = set()
         # The C++ language standard for the build (e.g. "gnu++20"), set via cg.set_cpp_standard()
@@ -650,6 +653,7 @@ class EsphomeCore:
         self.global_statements = []
         self.platformio_libraries = {}
         self.build_flags = set()
+        self.cxx_build_flags = set()
         self.build_unflags = set()
         self.cpp_standard = None
         self.defines = set()
@@ -955,6 +959,11 @@ class EsphomeCore:
     def add_build_flag(self, build_flag: str) -> str:
         self.build_flags.add(build_flag)
         _LOGGER.debug("Adding build flag: %s", build_flag)
+        return build_flag
+
+    def add_cxx_build_flag(self, build_flag: str) -> str:
+        self.cxx_build_flags.add(build_flag)
+        _LOGGER.debug("Adding C++ build flag: %s", build_flag)
         return build_flag
 
     def add_build_unflag(self, build_unflag: str) -> None:
