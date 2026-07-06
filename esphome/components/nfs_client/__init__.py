@@ -84,4 +84,4 @@ async def to_code(config):
             cg.add(var.set_mount_path(mount_path))
 
         request_storage_device()
-	request_storage_worker(task_safe=true)
+	request_storage_worker(task_safe=True)
