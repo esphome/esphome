@@ -1,24 +1,3 @@
-packages:
-  - !include common.yaml
-
-binary_sensor:
-  - platform: template
-    name: "Garage Door Open 10"
-    report: "default"
-  - platform: template
-    name: "Garage Door Open 12"
-    report: "force"
-    endpoint: 1
-
-sensor:
-  - platform: template
-    name: "Temperature Sensor"
-    lambda: return 10.0;
-    device_class: temperature
-    unit_of_measurement: "°C"
-    endpoint: 1
-    use_device_type: true
-
 zigbee:
   model: zigbee_test
   router: true
