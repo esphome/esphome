@@ -257,8 +257,10 @@ void DeferredUpdateEventSource::deferrable_send_state(void *source, const char *
 }
 
 // used for logs plus the initial ping/config
-void DeferredUpdateEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id,
-                                                 uint32_t reconnect) {
+void DeferredUpdateEventSource::try_send_nodefer(const char *message, size_t message_len, const char *event,
+                                                 uint32_t id, uint32_t reconnect) {
+  // ESPAsyncWebServer's send() only accepts null-terminated strings
+  (void) message_len;
   this->send(message, event, id, reconnect);
 }
 
@@ -279,10 +281,10 @@ void DeferredUpdateEventSourceList::deferrable_send_state(void *source, const ch
   }
 }
 
-void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, const char *event, uint32_t id,
-                                                     uint32_t reconnect) {
+void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, size_t message_len, const char *event,
+                                                     uint32_t id, uint32_t reconnect) {
   for (DeferredUpdateEventSource *dues : *this) {
-    dues->try_send_nodefer(message, event, id, reconnect);
+    dues->try_send_nodefer(message, message_len, event, id, reconnect);
   }
 }
 
@@ -304,7 +306,7 @@ void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource
     // Configure reconnect timeout and send config
     // this should always go through since the AsyncEventSourceClient event queue is empty on connect
     auto message = ws->get_config_json();
-    source->try_send_nodefer(message.c_str(), "ping", millis(), 30000);
+    source->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000);
 
 #ifdef USE_WEBSERVER_SORTING
     for (auto &group : ws->sorting_groups_) {
@@ -315,7 +317,7 @@ void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource
       auto group_msg = builder.serialize();
 
       // up to 31 groups should be able to be queued initially without defer
-      source->try_send_nodefer(group_msg.c_str(), "sorting_group");
+      source->try_send_nodefer(group_msg.c_str(), group_msg.size(), "sorting_group");
     }
 #endif
 
@@ -395,8 +397,8 @@ void WebServer::setup() {
       return;
     char buf[32];
     auto uptime = static_cast<uint32_t>(millis_64() / 1000);
-    buf_append_printf(buf, sizeof(buf), 0, "{\"uptime\":%" PRIu32 "}", uptime);
-    this->events_.try_send_nodefer(buf, "ping", millis(), 30000);
+    size_t len = buf_append_printf(buf, sizeof(buf), 0, "{\"uptime\":%" PRIu32 "}", uptime);
+    this->events_.try_send_nodefer(buf, len, "ping", millis(), 30000);
   });
 }
 void WebServer::loop() {
@@ -414,8 +416,7 @@ void WebServer::loop() {
 void WebServer::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
   (void) level;
   (void) tag;
-  (void) message_len;
-  this->events_.try_send_nodefer(message, "log", millis());
+  this->events_.try_send_nodefer(message, message_len, "log", millis());
 }
 #endif
 
