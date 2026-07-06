@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components.storage import request_storage_device
+from esphome.components.storage import request_storage_device, request_storage_worker
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
