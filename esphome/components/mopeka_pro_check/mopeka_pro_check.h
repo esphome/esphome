@@ -27,7 +27,7 @@ enum SensorType {
 // measurement may be inaccurate.
 enum SensorReadQuality { QUALITY_HIGH = 0x3, QUALITY_MED = 0x2, QUALITY_LOW = 0x1, QUALITY_ZERO = 0x0 };
 
-class MopekaProCheck : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class MopekaProCheck final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
 
