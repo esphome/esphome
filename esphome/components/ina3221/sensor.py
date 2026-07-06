@@ -70,6 +70,7 @@ CONVERSION_TIME_OPTIONS = {
     "8244us": INA3221ConversionTime.INA3221_CONVERSION_TIME_8244US,
 }
 
+
 def validate_channel_has_sensor(config):
     if not any(
         key in config
@@ -118,6 +119,7 @@ INA3221_CHANNEL_SCHEMA = cv.All(
     ),
     validate_channel_has_sensor,
 )
+
 
 def validate_at_least_one_channel(config):
     if not any(
