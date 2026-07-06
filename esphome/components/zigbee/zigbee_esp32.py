@@ -285,7 +285,7 @@ async def esp32_to_code(config: ConfigType) -> "MockObj":
 
     # create endpoints
     zb_data = CORE.data.get(KEY_ZIGBEE, {})
-    ep_dict: dict[int, dict] = zb_data.get(KEY_ZIGBEE_EP, [])
+    ep_dict: dict[int, dict] = zb_data.get(KEY_ZIGBEE_EP, {})
 
     # setup zigbee components
     var = cg.new_Pvariable(config[CONF_ID])

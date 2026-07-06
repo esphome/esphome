@@ -103,13 +103,7 @@ def create_ep(router: bool) -> None:
         ep_type = "CUSTOM_ATTR"
         if router:
             ep_type = "RANGE_EXTENDER"
-        ep_dict.extend(
-            {
-                1: {
-                    DEVICE_TYPE: ep_type,
-                }
-            }
-        )
+        ep_dict[1] = {DEVICE_TYPE: ep_type}
     if ep_list:
         # merge endpoint with different clusters
         ep_list_new: list[dict] = []
