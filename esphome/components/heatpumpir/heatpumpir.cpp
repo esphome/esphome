@@ -149,6 +149,12 @@ uint8_t HeatpumpIRClimate::mitsubishi_heavy_fan_speed_(uint8_t fan_speed_cmd) co
   return this->mitsubishi_heavy_shift_fan_speed_(fan_speed_cmd);
 }
 
+void HeatpumpIRClimate::control(const climate::ClimateCall &call) {
+  if (this->is_mitsubishi_heavy_() && call.get_fan_mode().has_value() && !call.get_preset().has_value())
+    this->preset = climate::CLIMATE_PRESET_NONE;
+  climate_ir::ClimateIR::control(call);
+}
+
 void HeatpumpIRClimate::transmit_state() {
   uint8_t power_mode_cmd;
   uint8_t operating_mode_cmd;
