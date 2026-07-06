@@ -11,12 +11,39 @@
 
 #include <cstring>
 #include <cinttypes>
-#include <sys/stat.h>
-#include <dirent.h>
-#include <unistd.h>
 #include <cerrno>
 
 namespace esphome::usb_storage {
+
+namespace {
+
+// Maps a FATFS FRESULT to the closest StorageError. `for_rmdir` selects FR_DENIED's mapping:
+// f_unlink() (used for rmdir — see rmdir() below, FATFS has no dedicated f_rmdir) returns
+// FR_DENIED both for "directory not empty" and for genuine permission/read-only failures, so the
+// caller must tell us which context applies.
+storage::StorageError fresult_to_storage_error(FRESULT res, bool for_rmdir, bool is_write) {
+  switch (res) {
+    case FR_OK:
+      return storage::StorageError::OK;
+    case FR_NO_FILE:
+    case FR_NO_PATH:
+      return storage::StorageError::NOT_FOUND;
+    case FR_EXIST:
+      return storage::StorageError::ALREADY_EXISTS;
+    case FR_DENIED:
+      return for_rmdir ? storage::StorageError::NOT_EMPTY : storage::StorageError::PERMISSION_DENIED;
+    case FR_INVALID_NAME:
+      return storage::StorageError::INVALID_ARGS;
+    case FR_NOT_READY:
+      return storage::StorageError::NOT_READY;
+    case FR_WRITE_PROTECTED:
+      return storage::StorageError::PERMISSION_DENIED;
+    default:
+      return is_write ? storage::StorageError::WRITE_ERROR : storage::StorageError::READ_ERROR;
+  }
+}
+
+}  // namespace
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Transfer semaphore helpers
@@ -348,7 +375,7 @@ void USBStorageClient::on_connected() {
   this->mount_path_ = "/usb";
   for (auto *device : this->devices_) {
     if ((device->vid_ == 0 && device->pid_ == 0) || (device->vid_ == vid && device->pid_ == pid)) {
-      this->mount_path_ = device->mount_path_;
+      this->mount_path_ = device->get_mount_path();
       break;
     }
   }
@@ -430,6 +457,7 @@ void USBStorageDevice::on_device_connected(const char *mount_path) {
   ESP_LOGI(TAG, "USB Storage Device connected (mount_path='%s')", mount_path);
   this->mount_path_ = mount_path;
   this->fs_mounted_ = true;
+  snprintf(this->fatfs_drive_, sizeof(this->fatfs_drive_), "%d:", this->client_->get_fatfs_drive());
 
   this->on_mounted_.call(mount_path);
 
@@ -501,6 +529,16 @@ void USBStorageDevice::build_path_(char *out, size_t out_size, const char *path)
   } else {
     snprintf(out, out_size, "%s/%s", this->mount_path_, path);
   }
+}
+
+bool USBStorageDevice::build_fatfs_path_(const char *rel_path, char *out, size_t out_size) const {
+  int written;
+  if (rel_path[0] == '/') {
+    written = snprintf(out, out_size, "%s%s", this->fatfs_drive_, rel_path);
+  } else {
+    written = snprintf(out, out_size, "%s/%s", this->fatfs_drive_, rel_path);
+  }
+  return written > 0 && static_cast<size_t>(written) < out_size;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -682,22 +720,43 @@ storage::StorageError USBStorageDevice::tell(storage::FileHandle *handle, uint64
 storage::StorageError USBStorageDevice::stat(const char *path, storage::FileStat *st) {
   if (!this->fs_mounted_)
     return storage::StorageError::NOT_READY;
+
+  // f_stat() on the drive root ("N:/") fails by FATFS design — synthesize the result instead of
+  // calling it. path is "" or "/" exactly when the caller asked to stat the mount point itself.
+  if (path[0] == '\0' || (path[0] == '/' && path[1] == '\0')) {
+    st->name[0] = '\0';
+    st->size = 0;
+    st->is_dir = true;
+    st->mtime = 0;
+    return storage::StorageError::OK;
+  }
+
   char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-  this->build_path_(full, sizeof(full), path);
-  struct stat s;
-  if (::stat(full, &s) != 0)
-    return storage::StorageError::NOT_FOUND;
+  if (!this->build_fatfs_path_(path, full, sizeof(full)))
+    return storage::StorageError::INVALID_ARGS;
+
+  FILINFO fno;
+  FRESULT res = f_stat(full, &fno);
+  if (res != FR_OK)
+    return fresult_to_storage_error(res, /*for_rmdir=*/false, /*is_write=*/false);
 
   // FileStat::name is the basename only (see the contract on the struct in storage.h) —
   // consistent with what list_dir() puts there, regardless of how many path segments the
   // caller passed in.
-  const char *base = strrchr(path, '/');
-  base = (base != nullptr) ? base + 1 : path;
-  strncpy(st->name, base, sizeof(st->name) - 1);
-  st->name[sizeof(st->name) - 1] = '\0';
-  st->size = S_ISREG(s.st_mode) ? static_cast<uint64_t>(s.st_size) : 0;
-  st->is_dir = S_ISDIR(s.st_mode);
-  st->mtime = static_cast<uint32_t>(s.st_mtime);
+  StringRef path_ref(path);
+  size_t base_pos = 0;
+  for (size_t i = path_ref.size(); i > 0; i--) {
+    if (path_ref[i - 1] == '/') {
+      base_pos = i;
+      break;
+    }
+  }
+  StringRef base_ref(path + base_pos, path_ref.size() - base_pos);
+  size_t name_len = base_ref.copy(st->name, sizeof(st->name) - 1);
+  st->name[name_len] = '\0';
+  st->is_dir = (fno.fattrib & AM_DIR) != 0;
+  st->size = st->is_dir ? 0 : static_cast<uint64_t>(fno.fsize);
+  st->mtime = 0;  // FatFs FILINFO exposes fdate/ftime (DOS format), not a Unix timestamp.
   return storage::StorageError::OK;
 }
 
@@ -707,39 +766,35 @@ storage::StorageError USBStorageDevice::list_dir(const char *path,
   if (!this->fs_mounted_)
     return storage::StorageError::NOT_READY;
   char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-  this->build_path_(full, sizeof(full), path);
-  DIR *dir = opendir(full);
-  if (dir == nullptr)
-    return storage::StorageError::NOT_FOUND;
+  if (!this->build_fatfs_path_(path, full, sizeof(full)))
+    return storage::StorageError::INVALID_ARGS;
 
-  struct dirent *entry;
-  while ((entry = readdir(dir)) != nullptr) {
-    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+  DIR fat_dir;
+  FRESULT res = f_opendir(&fat_dir, full);
+  if (res != FR_OK)
+    return fresult_to_storage_error(res, /*for_rmdir=*/false, /*is_write=*/false);
+
+  FILINFO fno;
+  for (;;) {
+    if (f_readdir(&fat_dir, &fno) != FR_OK || fno.fname[0] == '\0')
+      break;
+    StringRef fname_ref(fno.fname);
+    if (fname_ref == "." || fname_ref == "..")
       continue;
 
     storage::FileStat st{};
-    strncpy(st.name, entry->d_name, sizeof(st.name) - 1);
-    st.name[sizeof(st.name) - 1] = '\0';
-    st.is_dir = entry->d_type == DT_DIR;
-
-    // Build the entry's absolute path directly from `full` (already resolved above) instead of
-    // going through build_path_() again — saves a second path-sized stack buffer per
-    // list_dir() call, which matters since remove_recursive() recurses through this.
-    char entry_full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-    if (snprintf(entry_full, sizeof(entry_full), "%s/%s", full, entry->d_name) < static_cast<int>(sizeof(entry_full))) {
-      struct stat s;
-      if (::stat(entry_full, &s) == 0) {
-        st.size = st.is_dir ? 0 : static_cast<uint64_t>(s.st_size);
-        st.mtime = static_cast<uint32_t>(s.st_mtime);
-      }
-    }
+    size_t name_len = fname_ref.copy(st.name, sizeof(st.name) - 1);
+    st.name[name_len] = '\0';
+    st.is_dir = (fno.fattrib & AM_DIR) != 0;
+    st.size = st.is_dir ? 0 : static_cast<uint64_t>(fno.fsize);
+    st.mtime = 0;  // FatFs FILINFO exposes fdate/ftime (DOS format), not a Unix timestamp.
 
     // callback returns false to stop enumeration early — that is not an error, so we still
     // return OK below regardless of how the loop exits.
     if (!callback(&st, ctx))
       break;
   }
-  closedir(dir);
+  f_closedir(&fat_dir);
   return storage::StorageError::OK;
 }
 
@@ -747,51 +802,44 @@ storage::StorageError USBStorageDevice::mkdir(const char *path) {
   if (!this->fs_mounted_)
     return storage::StorageError::NOT_READY;
   char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-  this->build_path_(full, sizeof(full), path);
-  if (::mkdir(full, 0755) == 0)
-    return storage::StorageError::OK;
-  return (errno == EEXIST) ? storage::StorageError::ALREADY_EXISTS : storage::StorageError::WRITE_ERROR;
+  if (!this->build_fatfs_path_(path, full, sizeof(full)))
+    return storage::StorageError::INVALID_ARGS;
+
+  FRESULT res = f_mkdir(full);
+  return fresult_to_storage_error(res, /*for_rmdir=*/false, /*is_write=*/true);
 }
 
 storage::StorageError USBStorageDevice::rmdir(const char *path) {
   if (!this->fs_mounted_)
     return storage::StorageError::NOT_READY;
   char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-  this->build_path_(full, sizeof(full), path);
+  if (!this->build_fatfs_path_(path, full, sizeof(full)))
+    return storage::StorageError::INVALID_ARGS;
 
   // Non-recursive per the storage:: contract: must fail with NOT_EMPTY if the directory has
   // contents. Recursive delete is the free storage::remove_recursive() helper, built on top
   // of list_dir()/remove()/this rmdir() — no need to duplicate that tree-walk here.
-  DIR *dir = opendir(full);
-  if (dir == nullptr)
-    return storage::StorageError::NOT_FOUND;
+  DIR fat_dir;
+  FRESULT res = f_opendir(&fat_dir, full);
+  if (res != FR_OK)
+    return fresult_to_storage_error(res, /*for_rmdir=*/true, /*is_write=*/false);
 
   bool has_entries = false;
-  struct dirent *entry;
-  while ((entry = readdir(dir)) != nullptr) {
-    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+  FILINFO fno;
+  while (f_readdir(&fat_dir, &fno) == FR_OK && fno.fname[0] != '\0') {
+    StringRef fname_ref(fno.fname);
+    if (fname_ref == "." || fname_ref == "..")
       continue;
     has_entries = true;
     break;
   }
-  closedir(dir);
+  f_closedir(&fat_dir);
   if (has_entries)
     return storage::StorageError::NOT_EMPTY;
 
-  // unlink(), not rmdir() — this VFS/FATFS combination doesn't provide/link a working rmdir()
-  // for directories here; unlink() is the call this driver has always used to remove them.
-  if (::unlink(full) == 0)
-    return storage::StorageError::OK;
-  // Backstop in case the pre-check above raced with something adding an entry, or the driver's
-  // notion of "empty" differs from FATFS's — let errno have the final say.
-  switch (errno) {
-    case ENOTEMPTY:
-      return storage::StorageError::NOT_EMPTY;
-    case ENOENT:
-      return storage::StorageError::NOT_FOUND;
-    default:
-      return storage::StorageError::WRITE_ERROR;
-  }
+  // FATFS removes empty directories via f_unlink() — there is no dedicated f_rmdir().
+  res = f_unlink(full);
+  return fresult_to_storage_error(res, /*for_rmdir=*/true, /*is_write=*/true);
 }
 
 storage::StorageError USBStorageDevice::remove(const char *path) {

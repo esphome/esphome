@@ -55,6 +55,7 @@ class USBStorageClient : public usb_host::USBClient {
   uint32_t get_sector_count() const { return this->sector_count_; }
   uint32_t get_sector_size() const { return this->sector_size_; }
   bool is_disk_ready() const { return this->disk_ready_; }
+  int get_fatfs_drive() const { return this->fatfs_drive_; }
 
  protected:
   void on_connected() override;
@@ -124,7 +125,7 @@ class USBStorageDevice : public esphome::storage::FilesystemStorage {
   float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_client(USBStorageClient *client) { this->client_ = client; }
-  void set_mount_path(const char *mount_path) { this->mount_path_ = mount_path; }
+  void set_mount_path(const char *mount_path) { this->set_mount_path_(mount_path); }
   void set_vid(uint16_t vid) { this->vid_ = vid; }
   void set_pid(uint16_t pid) { this->pid_ = pid; }
   void set_storage_id(const char *id) { this->storage_id_ = id; }
@@ -134,7 +135,6 @@ class USBStorageDevice : public esphome::storage::FilesystemStorage {
   void on_device_disconnected();
 
   template<typename F> void add_on_mounted_callback(F &&cb) { this->on_mounted_.add(std::forward<F>(cb)); }
-  const char *get_mount_path() const { return this->mount_path_; }
   bool is_mounted() const { return this->fs_mounted_; }
 
   bool remount_device();
@@ -173,6 +173,11 @@ class USBStorageDevice : public esphome::storage::FilesystemStorage {
   void free_handle_(USBFileHandle *handle);
   void build_path_(char *out, size_t out_size, const char *path) const;
 
+  // Builds a FATFS-native path ("N:/dir/file") from a path relative to this device's mount
+  // point, using fatfs_drive_ (captured from the client at connect time — see
+  // on_device_connected()). Returns false if the result would exceed out_size.
+  bool build_fatfs_path_(const char *rel_path, char *out, size_t out_size) const;
+
   void log_list_dir_start_(const char *path) const;
   // Matches the list_dir() callback signature (bool return = keep enumerating).
   static bool log_list_dir_entry(const storage::FileStat *entry, void *ctx);
@@ -180,9 +185,9 @@ class USBStorageDevice : public esphome::storage::FilesystemStorage {
   USBStorageClient *client_{nullptr};
   uint16_t vid_{0};
   uint16_t pid_{0};
-  const char *mount_path_{nullptr};
   const char *storage_id_{nullptr};
   bool fs_mounted_{false};
+  char fatfs_drive_[3]{};  // "N:" — captured from client_->get_fatfs_drive() on connect
 
   USBFileHandle handle_pool_[MAX_OPEN_FILES]{};
   LazyCallbackManager<void(const char *)> on_mounted_;
