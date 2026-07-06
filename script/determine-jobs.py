@@ -160,7 +160,8 @@ class Platform(StrEnum):
     BK72XX_ARD = "bk72xx-ard"  # LibreTiny BK7231N
     RTL87XX_ARD = "rtl87xx-ard"  # LibreTiny RTL8720x
     LN882X_ARD = "ln882x-ard"  # LibreTiny LN882x
-    RP2040_ARD = "rp2040-ard"  # Raspberry Pi Pico
+    RP2040_ARD = "rp2040-ard"  # RP2 family, RP2040 chip (Pico / Pico W)
+    RP2350_ARD = "rp2350-ard"  # RP2 family, RP2350 chip (Pico 2 / Pico 2 W)
     NRF52_ZEPHYR = "nrf52-adafruit"  # Nordic nRF52 (Zephyr)
 
 
@@ -190,7 +191,8 @@ MEMORY_IMPACT_PLATFORM_PREFERENCE = [
     Platform.BK72XX_ARD,  # LibreTiny BK7231N
     Platform.RTL87XX_ARD,  # LibreTiny RTL8720x
     Platform.LN882X_ARD,  # LibreTiny LN882x
-    Platform.RP2040_ARD,  # Raspberry Pi Pico
+    Platform.RP2040_ARD,  # Raspberry Pi Pico (RP2040)
+    Platform.RP2350_ARD,  # Raspberry Pi Pico 2 (RP2350)
     Platform.NRF52_ZEPHYR,  # Nordic nRF52 (Zephyr)
 ]
 
@@ -859,7 +861,8 @@ def _detect_platform_hint_from_filename(filename: str) -> Platform | None:
     - *_libretiny.cpp, *_bk72*.* -> BK72XX (LibreTiny)
     - *_rtl87*.* -> RTL87XX (LibreTiny Realtek)
     - *_ln882*.* -> LN882X (LibreTiny Lightning)
-    - *_pico.cpp, *_rp2040.* -> RP2040_ARD
+    - *_rp2350*.*, *_pico2*.* -> RP2350_ARD (RP2 family, RP2350 chip)
+    - *_rp2040*.*, *_pico*.* -> RP2040_ARD (RP2 family, RP2040 chip)
 
     Args:
         filename: File path to check
@@ -901,8 +904,14 @@ def _detect_platform_hint_from_filename(filename: str) -> Platform | None:
     if "libretiny" in filename_lower or "bk72" in filename_lower:
         return Platform.BK72XX_ARD
 
-    # RP2040 / Raspberry Pi Pico
-    if "pico" in filename_lower or "rp2040" in filename_lower:
+    # RP2 family (Raspberry Pi Pico): explicit chip names only. Family-
+    # wide files (named ``_rp2.*``) are shared between RP2040 and RP2350
+    # and intentionally don't preferentially route to either chip.
+    # Check the RP2350 patterns first since ``pico2`` substring-matches
+    # ``pico``.
+    if "rp2350" in filename_lower or "pico2" in filename_lower:
+        return Platform.RP2350_ARD
+    if "rp2040" in filename_lower or "pico" in filename_lower:
         return Platform.RP2040_ARD
 
     # nRF52 / Zephyr

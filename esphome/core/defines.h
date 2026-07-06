@@ -19,13 +19,13 @@
 
 // Threading model for static analysis. Match what the real codegen picks per
 // platform (see esphome/components/<platform>/__init__.py ThreadModel.*):
-//   USE_ESP8266 / USE_RP2040 / USE_NRF52 → SINGLE
+//   USE_ESP8266 / USE_RP2 / USE_NRF52 → SINGLE
 //   USE_BK72XX (ARMv5TE, no LDREX/STREX) → MULTI_NO_ATOMICS
 //   everything else (ESP32, host, RTL87XX, LN882X) → MULTI_ATOMICS
 // Without this the clang-tidy envs end up with USE_<single-threaded platform>
 // + MULTI_ATOMICS simultaneously, a combination that can never occur in a
 // real build.
-#if defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_NRF52)
+#if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_NRF52)
 #define ESPHOME_THREAD_SINGLE
 #elif defined(USE_BK72XX)
 #define ESPHOME_THREAD_MULTI_NO_ATOMICS
@@ -227,7 +227,7 @@
 #endif
 
 // Platforms with native 64-bit time sources (no rollover tracking needed)
-#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_ZEPHYR) || defined(USE_RP2040)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_ZEPHYR) || defined(USE_RP2)
 #define USE_NATIVE_64BIT_TIME
 #endif
 
@@ -405,9 +405,12 @@
 #define USE_WEBSERVER_PORT 80  // NOLINT
 #endif
 
-#ifdef USE_RP2040
+// USE_RP2 is the canonical platform define for the RP2 chip family. The
+// rp2/__init__.py codegen also defines USE_RP2040 as a back-compat alias
+// for external custom components that may still test for it.
+#ifdef USE_RP2
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 3, 0)
-#define USE_RP2040_CRASH_HANDLER
+#define USE_RP2_CRASH_HANDLER
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C
 #define USE_LOGGER_USB_CDC
