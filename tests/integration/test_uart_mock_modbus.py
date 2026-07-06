@@ -200,6 +200,48 @@ async def test_uart_mock_modbus_server(
 
 
 @pytest.mark.asyncio
+async def test_uart_mock_modbus_server_read_write(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test modbus server FC 0x17 (read/write multiple registers).
+
+    Injects raw 0x17 request frames and checks the round-trip through the
+    server's read_lambda/write_lambda, independent of how the hub dispatches
+    0x17 internally:
+      * one request writes reg 0x01 then reads regs 0x01+0x02 -- reg 0x01 reads
+        back the just-written value (the write happens before the read per
+        Modbus 6.17), and the second register is returned by the same
+        multi-register read;
+      * a second request writes and reads a different register block.
+    """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    tracker = SensorTracker(
+        ["rw_write_1", "rw_read_1", "rw_read_2", "rw_write_3", "rw_read_3"]
+    )
+    futures = tracker.expect_all(
+        {
+            "rw_write_1": 4660,  # 0x1234 written to reg 0x0001
+            "rw_read_1": 4660,  # reg 0x0001 reads back the just-written value
+            "rw_read_2": 170,  # 0x00AA read from reg 0x0002 in the same request
+            "rw_write_3": 22136,  # 0x5678 written to reg 0x0003
+            "rw_read_3": 22136,  # reg 0x0003 reads back the just-written value
+        }
+    )
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures)
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
 async def test_uart_mock_modbus_server_controller(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
