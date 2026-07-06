@@ -6,6 +6,7 @@
 #include "esphome/components/uart/uart_debugger.h"
 
 #include "esphome/components/bytebuffer/bytebuffer.h"
+#include <cinttypes>
 
 namespace esphome::usb_uart {
 
@@ -288,16 +289,16 @@ int USBUartTypeFT23XX::set_baudrate_(USBUartChannel *channel, uint32_t baudrate)
       ESP_LOGE(TAG, "Set baudrate failed, status=%s", esp_err_to_name(status.error_code));
       channel->initialised_.store(false);
     } else {
-      ESP_LOGD(TAG, "Baudrate %d set, setting line properties...", channel->baud_rate_);
+      ESP_LOGD(TAG, "Baudrate %" PRIu32 " set, setting line properties...", channel->baud_rate_);
       this->set_line_properties_(channel);
     }
   };
   if (baudrate == 0) {
     baudrate = channel->baud_rate_;
   }
-  uint16_t value, ftdi_index;
+  uint16_t value = 0, ftdi_index = 0;
   ftdi_convert_baudrate(baudrate, this->chip_type_, channel->index_, &value, &ftdi_index);
-  ESP_LOGD(TAG, "Baudrate: %d, value=0x%04X, ftdi_index=0x%04X", baudrate, value, ftdi_index);
+  ESP_LOGD(TAG, "Baudrate: %" PRIu32 ", value=0x%04X, ftdi_index=0x%04X", baudrate, value, ftdi_index);
   uint16_t usb_index = (ftdi_index & 0xFF00) | (channel->cdc_dev_.bulk_interface_number + 1);
   bool ok = this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x03, value, usb_index, callback);
   if (!ok) {
