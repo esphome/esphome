@@ -469,13 +469,13 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       // Dispatch to the standalone write and read handlers so any device implementing those supports 0x17
       // without a dedicated handler; a device that maps registers by address reconstructs the read response
       // from the values it just stored.
-      status = device->on_modbus_write_registers(write_start_address, write_registers);
+      status = device->on_write_registers(write_start_address, write_registers);
       if (status.has_value()) {
         this->send_exception_(address, function_code, status.value());
         return;
       }
       RegisterValues registers;
-      status = device->on_modbus_read_holding_registers(read_start_address, number_of_registers, registers);
+      status = device->on_read_holding_registers(read_start_address, number_of_registers, registers);
 
       // A handler that returns an exception leaves registers partially filled, so check the exception
       // first and forward it before validating the register count on the success path.
