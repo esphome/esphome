@@ -22,7 +22,6 @@ ModbusClient = modbus_ns.class_("ModbusClientHub", Modbus)
 ModbusDevice = modbus_ns.class_("ModbusDevice")
 ModbusClientDevice = modbus_ns.class_("ModbusClientDevice")
 ModbusServerDevice = modbus_ns.class_("ModbusServerDevice")
-RegisterValues = modbus_ns.class_("RegisterValues")
 MULTI_CONF = True
 
 CONF_ROLE = "role"
