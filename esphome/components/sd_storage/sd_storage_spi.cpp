@@ -97,7 +97,7 @@ void SdSpi::dump_config() {
   ESP_LOGCONFIG(TAG_SPI, "  Mount path: %s", this->mount_path_);
   ESP_LOGCONFIG(TAG_SPI, "  Mode 1 bit: %s", YESNO(this->mode_1bit_));
   ESP_LOGCONFIG(TAG_SPI, "  CS Pin: %d", spi::Utility::get_pin_no(this->cs_));
-  LOG_PIN("  CD Pin: ", this->cd_pin_);
+  log_pin(TAG_SPI, "  CD Pin: ", this->cd_pin_);
   if (this->is_mounted_) {
     ESP_LOGCONFIG(TAG_SPI, "  Card Type: %s", SdStorageBase::card_type_to_string(this->card_type_));
     ESP_LOGCONFIG(TAG_SPI, "  Total bytes: %" PRIu64, this->total_bytes_);
@@ -168,7 +168,7 @@ StorageError SdSpi::mount() {
   this->update_card_info();
 
   ESP_LOGI(TAG_SPI, "SD card mounted at %s (max %" PRIu32 " kHz, real %" PRIu32 " kHz)", this->mount_path_,
-           this->card_->max_freq_khz, this->card_->real_freq_khz);
+           static_cast<uint32_t>(this->card_->max_freq_khz), static_cast<uint32_t>(this->card_->real_freq_khz));
 
   if (storage::global_storage_registry != nullptr)
     storage::global_storage_registry->register_storage(this);
