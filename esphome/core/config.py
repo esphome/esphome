@@ -868,8 +868,8 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "wake/wake_esp8266.cpp": {
             PlatformFramework.ESP8266_ARDUINO,
         },
-        "wake/wake_rp2040.cpp": {
-            PlatformFramework.RP2040_ARDUINO,
+        "wake/wake_rp2.cpp": {
+            PlatformFramework.RP2_ARDUINO,
         },
         "wake/wake_host.cpp": {
             PlatformFramework.HOST_NATIVE,

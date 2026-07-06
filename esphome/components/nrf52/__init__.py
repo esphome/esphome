@@ -233,7 +233,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(KEY_BOOTLOADER): cv.one_of(*BOOTLOADERS, lower=True),
             cv.Optional(CONF_DFU): _dfu_schema,
-            cv.Optional(CONF_DCDC, default=True): cv.boolean,
+            cv.Optional(CONF_DCDC): cv.boolean,
             cv.Optional(CONF_REG0): cv.Schema(
                 {
                     cv.Required(CONF_VOLTAGE): cv.All(
@@ -367,16 +367,17 @@ async def to_code(config: ConfigType) -> None:
     if dfu_config := config.get(CONF_DFU):
         CORE.add_job(_dfu_to_code, dfu_config)
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if framework_ver < cv.Version(2, 9, 2):
-        zephyr_add_prj_conf("BOARD_ENABLE_DCDC", config[CONF_DCDC])
-    else:
-        zephyr_add_overlay(
-            f"""
-                &reg1 {{
-                    regulator-initial-mode = <{"NRF5X_REG_MODE_DCDC" if config[CONF_DCDC] else "NRF5X_REG_MODE_LDO"}>;
-                }};
-            """
-        )
+    if CONF_DCDC in config:
+        if framework_ver < cv.Version(2, 9, 2):
+            zephyr_add_prj_conf("BOARD_ENABLE_DCDC", config[CONF_DCDC])
+        else:
+            zephyr_add_overlay(
+                f"""
+                    &reg1 {{
+                        regulator-initial-mode = <{"NRF5X_REG_MODE_DCDC" if config[CONF_DCDC] else "NRF5X_REG_MODE_LDO"}>;
+                    }};
+                """
+            )
 
     if reg0_config := config.get(CONF_REG0):
         value = VOLTAGE_LEVELS.index(reg0_config[CONF_VOLTAGE])
