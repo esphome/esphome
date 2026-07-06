@@ -10,7 +10,7 @@
 
 namespace esphome::mqtt {
 
-class MQTTSwitchComponent : public mqtt::MQTTComponent {
+class MQTTSwitchComponent final : public mqtt::MQTTComponent {
  public:
   explicit MQTTSwitchComponent(switch_::Switch *a_switch);
 
