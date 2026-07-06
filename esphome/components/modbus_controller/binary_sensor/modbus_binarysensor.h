@@ -8,7 +8,7 @@
 
 namespace esphome::modbus_controller {
 
-class ModbusBinarySensor : public Component, public binary_sensor::BinarySensor, public SensorItem {
+class ModbusBinarySensor final : public Component, public binary_sensor::BinarySensor, public SensorItem {
  public:
   ModbusBinarySensor(ModbusRegisterType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
                      uint16_t skip_updates, bool force_new_range) {

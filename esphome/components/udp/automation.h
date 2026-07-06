@@ -8,7 +8,7 @@
 
 namespace esphome::udp {
 
-template<typename... Ts> class UDPWriteAction : public Action<Ts...>, public Parented<UDPComponent> {
+template<typename... Ts> class UDPWriteAction final : public Action<Ts...>, public Parented<UDPComponent> {
  public:
   void set_data_template(std::vector<uint8_t> (*func)(Ts...)) {
     this->data_.func = func;
