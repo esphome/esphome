@@ -425,6 +425,8 @@ async def to_code(config):
         dc_pin = await cg.gpio_pin_expression(dc_pin)
         cg.add(var.set_dc_pin(dc_pin))
 
+    if config.get(CONF_INVERT_COLORS):
+        cg.add(var.set_invert_colors(True))
     if lamb := config.get(CONF_LAMBDA):
         lambda_ = await cg.process_lambda(
             lamb, [(display.DisplayRef, "it")], return_type=cg.void

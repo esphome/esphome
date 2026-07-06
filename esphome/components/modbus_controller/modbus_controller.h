@@ -279,7 +279,7 @@ class ModbusCommandItem {
  * Responses for the commands are dispatched to the modbus sensor items.
  */
 
-class ModbusController : public PollingComponent, public modbus::ModbusClientDevice {
+class ModbusController final : public PollingComponent, public modbus::ModbusClientDevice {
  public:
   void dump_config() override;
   void loop() override;

@@ -46,7 +46,7 @@ class ESP8266SoftwareSerial {
   ISRInternalGPIOPin rx_pin_;
 };
 
-class ESP8266UartComponent : public UARTComponent, public Component {
+class ESP8266UartComponent final : public UARTComponent, public Component {
  public:
   void setup() override;
   void dump_config() override;

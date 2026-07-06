@@ -122,6 +122,7 @@ esphome/components/cover/* @esphome/core
 esphome/components/cs5460a/* @balrog-kun
 esphome/components/cse7761/* @berfenger
 esphome/components/cst226/* @clydebarrow
+esphome/components/cst328/* @latonita
 esphome/components/cst816/* @clydebarrow
 esphome/components/cst9220/* @clydebarrow
 esphome/components/ct_clamp/* @jesserockz
@@ -501,6 +502,7 @@ esphome/components/ssd1331_base/* @kbx81
 esphome/components/ssd1331_spi/* @kbx81
 esphome/components/ssd1351_base/* @kbx81
 esphome/components/ssd1351_spi/* @kbx81
+esphome/components/st7123/* @miniskipper
 esphome/components/st7567_base/* @latonita
 esphome/components/st7567_i2c/* @latonita
 esphome/components/st7567_spi/* @latonita
