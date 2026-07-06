@@ -201,8 +201,9 @@ class ModbusClientDevice {
 using ModbusDevice ESPDEPRECATED("Use ModbusClientDevice instead. Removed in 2026.12.0",
                                  "2026.6.0") = ModbusClientDevice;
 
-// Result of a server register handler: std::nullopt means success, otherwise the Modbus exception code to return.
-using ServerResponseStatus = std::optional<ModbusExceptionCode>;
+// Transaction status: std::nullopt on success, otherwise the Modbus exception code. Server handlers return it;
+// (future) client response callbacks receive it. Named without a side prefix so both directions share it.
+using ResponseStatus = std::optional<ModbusExceptionCode>;
 // Register values exchanged with server handlers, in host byte order. Sized at the larger of the two protocol
 // maxima (read = 125 / 0x7D, write = 123 / 0x7B); the per-direction count limit is enforced by the hub, not by
 // the capacity of this type.
@@ -219,19 +220,19 @@ class ModbusServerDevice {
   ModbusServerDevice &operator=(ModbusServerDevice &&) = delete;
   void set_address(uint8_t address) { this->address_ = address; }
   uint8_t get_address() const { return this->address_; }
-  virtual ServerResponseStatus on_modbus_read_registers(uint16_t start_address, uint16_t number_of_registers,
-                                                        RegisterValues &registers) {
+  virtual ResponseStatus on_read_registers(uint16_t start_address, uint16_t number_of_registers,
+                                           RegisterValues &registers) {
     return ModbusExceptionCode::ILLEGAL_FUNCTION;
   };
-  virtual ServerResponseStatus on_modbus_read_input_registers(uint16_t start_address, uint16_t number_of_registers,
-                                                              RegisterValues &registers) {
-    return this->on_modbus_read_registers(start_address, number_of_registers, registers);
+  virtual ResponseStatus on_read_input_registers(uint16_t start_address, uint16_t number_of_registers,
+                                                 RegisterValues &registers) {
+    return this->on_read_registers(start_address, number_of_registers, registers);
   };
-  virtual ServerResponseStatus on_modbus_read_holding_registers(uint16_t start_address, uint16_t number_of_registers,
-                                                                RegisterValues &registers) {
-    return this->on_modbus_read_registers(start_address, number_of_registers, registers);
+  virtual ResponseStatus on_read_holding_registers(uint16_t start_address, uint16_t number_of_registers,
+                                                   RegisterValues &registers) {
+    return this->on_read_registers(start_address, number_of_registers, registers);
   };
-  virtual ServerResponseStatus on_modbus_write_registers(uint16_t start_address, const RegisterValues &registers) {
+  virtual ResponseStatus on_write_registers(uint16_t start_address, const RegisterValues &registers) {
     return ModbusExceptionCode::ILLEGAL_FUNCTION;
   };
 

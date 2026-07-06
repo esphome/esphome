@@ -27,9 +27,8 @@ ServerRegister *ModbusServer::find_containing_register_(uint32_t address) const 
   return nullptr;
 }
 
-modbus::ServerResponseStatus ModbusServer::on_modbus_read_registers(uint16_t start_address,
-                                                                    uint16_t number_of_registers,
-                                                                    modbus::RegisterValues &registers) {
+modbus::ResponseStatus ModbusServer::on_read_registers(uint16_t start_address, uint16_t number_of_registers,
+                                                       modbus::RegisterValues &registers) {
   ESP_LOGV(TAG,
            "Received read holding/input registers for device 0x%X. Start address: 0x%X. Number of registers: 0x%X.",
            this->address_, start_address, number_of_registers);
@@ -101,8 +100,8 @@ modbus::ServerResponseStatus ModbusServer::on_modbus_read_registers(uint16_t sta
   return {};
 }
 
-modbus::ServerResponseStatus ModbusServer::on_modbus_write_registers(uint16_t start_address,
-                                                                     const modbus::RegisterValues &registers) {
+modbus::ResponseStatus ModbusServer::on_write_registers(uint16_t start_address,
+                                                        const modbus::RegisterValues &registers) {
   // registers holds the values to write in host byte order; its size is the register count.
   ESP_LOGV(TAG, "Received write registers for device 0x%X. Start address: 0x%X. Number of registers: 0x%zX.",
            this->address_, start_address, registers.size());

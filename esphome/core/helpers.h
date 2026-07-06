@@ -683,6 +683,15 @@ template<typename T> class FixedVector {
   T &back() { return data_[size_ - 1]; }
   const T &back() const { return data_[size_ - 1]; }
 
+  /// Remove the last element in place (no reallocation, keeps capacity)
+  /// Caller must ensure vector is not empty (size() > 0)
+  void pop_back() {
+    if constexpr (!std::is_trivially_destructible<T>::value) {
+      data_[size_ - 1].~T();
+    }
+    size_--;
+  }
+
   size_t size() const { return size_; }
   bool empty() const { return size_ == 0; }
   size_t capacity() const { return capacity_; }
