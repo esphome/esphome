@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import types
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -433,56 +433,6 @@ async def test_add_looping_components_with_entries() -> None:
     # Deduplicated by type, with per-type counts as multiplier.
     assert "(2 * HasLoopOverride<esphome::wifi::WiFiComponent>::value)" in text
     assert "(1 * HasLoopOverride<esphome::logger::Logger>::value)" in text
-
-
-@pytest.mark.asyncio
-@pytest.mark.filterwarnings("ignore::RuntimeWarning")
-@pytest.mark.parametrize(
-    ("fixture", "expect_provisioning", "expect_on_timeout"),
-    [
-        ("provisioning.yaml", True, True),
-        ("provisioning_no_timeout.yaml", True, False),
-        # No provisioning block at all -> manager is not created.
-        ("multiple_areas_devices.yaml", False, False),
-    ],
-)
-async def test_add_automations_provisioning(
-    yaml_file: Callable[[str], Path],
-    fixture: str,
-    expect_provisioning: bool,
-    expect_on_timeout: bool,
-) -> None:
-    """`provisioning:` defines USE_PROVISIONING and wires the optional on_timeout."""
-    result = load_config_from_fixture(yaml_file, fixture, FIXTURES_DIR)
-    assert result is not None
-
-    with (
-        patch("esphome.core.config.cg") as mock_cg,
-        patch(
-            "esphome.core.config.automation.build_automation",
-            new_callable=AsyncMock,
-        ) as mock_build_automation,
-    ):
-        mock_cg.register_component = AsyncMock()
-        await config._add_automations(result[CONF_ESPHOME])
-
-    define_calls = [c.args[0] for c in mock_cg.add_define.call_args_list if c.args]
-    assert ("USE_PROVISIONING" in define_calls) is expect_provisioning
-    # build_automation is only called here for on_timeout (no on_boot/shutdown/loop).
-    assert (mock_build_automation.await_count == 1) is expect_on_timeout
-
-
-def test_provisioning_without_source_is_rejected(
-    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
-) -> None:
-    """`provisioning:` with no provisioning-capable component is a config error."""
-    result = load_config_from_fixture(
-        yaml_file, "provisioning_no_source.yaml", FIXTURES_DIR
-    )
-    assert result is None
-
-    captured = capsys.readouterr()
-    assert "requires at least one provisioning-capable component" in captured.out
 
 
 def test_valid_include_with_angle_brackets() -> None:

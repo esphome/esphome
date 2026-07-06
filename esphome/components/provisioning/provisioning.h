@@ -8,7 +8,7 @@
 
 #include <cstdint>
 
-namespace esphome {
+namespace esphome::provisioning {
 
 // Central provisioning-window manager (EN18031). A device that ships unprovisioned
 // (secure transports enabled with no credentials, configured by the controller on
@@ -84,5 +84,5 @@ class ProvisioningManager : public Component {
 
 extern ProvisioningManager *global_provisioning_manager;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace esphome
+}  // namespace esphome::provisioning
 #endif  // USE_PROVISIONING

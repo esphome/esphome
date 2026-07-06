@@ -112,10 +112,11 @@ void APIServer::setup() {
   // report our current state (provisioned == an encryption key is set). When the
   // window closes, disconnect any client still attempting to provision so it learns
   // the reason. The manager owns the timeout, window state and on_timeout automation.
-  if (global_provisioning_manager != nullptr) {
-    this->provisioning_source_ = global_provisioning_manager->register_source();
-    global_provisioning_manager->set_source_provisioned(this->provisioning_source_, this->noise_ctx_.has_psk());
-    global_provisioning_manager->add_on_closed_callback([this]() {
+  if (provisioning::global_provisioning_manager != nullptr) {
+    this->provisioning_source_ = provisioning::global_provisioning_manager->register_source();
+    provisioning::global_provisioning_manager->set_source_provisioned(this->provisioning_source_,
+                                                                      this->noise_ctx_.has_psk());
+    provisioning::global_provisioning_manager->add_on_closed_callback([this]() {
       for (auto &c : this->active_clients()) {
         DisconnectRequest req;
         req.reason = enums::DISCONNECT_REASON_PROVISIONING_CLOSED;
@@ -600,8 +601,8 @@ bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
 #ifdef USE_PROVISIONING
   // The device now has a key; report provisioned so the provisioning window is
   // satisfied and the reboot timeout resumes normal operation.
-  if (result && global_provisioning_manager != nullptr) {
-    global_provisioning_manager->set_source_provisioned(this->provisioning_source_, true);
+  if (result && provisioning::global_provisioning_manager != nullptr) {
+    provisioning::global_provisioning_manager->set_source_provisioned(this->provisioning_source_, true);
   }
 #endif
   return result;
@@ -620,8 +621,8 @@ bool APIServer::clear_noise_psk(bool make_active) {
 #ifdef USE_PROVISIONING
   // The key was cleared; report unprovisioned so a subsequent reboot reopens the
   // provisioning window.
-  if (result && global_provisioning_manager != nullptr) {
-    global_provisioning_manager->set_source_provisioned(this->provisioning_source_, false);
+  if (result && provisioning::global_provisioning_manager != nullptr) {
+    provisioning::global_provisioning_manager->set_source_provisioned(this->provisioning_source_, false);
   }
 #endif
   return result;

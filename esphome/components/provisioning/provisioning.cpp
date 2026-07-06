@@ -1,11 +1,11 @@
-#include "esphome/core/provisioning.h"
+#include "esphome/components/provisioning/provisioning.h"
 #ifdef USE_PROVISIONING
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
 
-namespace esphome {
+namespace esphome::provisioning {
 
 static const char *const TAG = "provisioning";
 
@@ -29,10 +29,15 @@ uint8_t ProvisioningManager::register_source() {
 
 void ProvisioningManager::loop() {
   // The window is resolved once the device is provisioned or the window has closed;
-  // there is nothing left to track, so stop running entirely. Checked here rather
-  // than in setup() because sources register during their own setup(), which may
-  // run after ours - so is_provisioned() is only reliable from the first loop().
-  if (this->is_provisioned() || this->closed_) {
+  // there is nothing left to track, so stop running entirely.
+  //
+  // The registered_mask_ != 0 guard is essential: sources register during their own
+  // setup(), which runs after ours (we are BEFORE_CONNECTION). ESPHome also runs
+  // already-setup components' loop() while waiting on a slow component during setup,
+  // so this loop() can run before any source has registered. Without the guard,
+  // is_provisioned() would be vacuously true (no registered sources) and we would
+  // disable_loop() permanently before the window ever starts.
+  if (this->closed_ || (this->registered_mask_ != 0 && this->is_provisioned())) {
     this->disable_loop();
     return;
   }
@@ -66,5 +71,5 @@ void ProvisioningManager::dump_config() {
   }
 }
 
-}  // namespace esphome
+}  // namespace esphome::provisioning
 #endif  // USE_PROVISIONING

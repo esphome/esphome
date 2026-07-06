@@ -8,7 +8,7 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_PROVISIONING
-#include "esphome/core/provisioning.h"
+#include "esphome/components/provisioning/provisioning.h"
 #endif
 
 #ifdef USE_ESP32
@@ -46,8 +46,8 @@ void ESP32ImprovComponent::setup() {
   global_ble_server->on_disconnect([this](uint16_t conn_id) { this->set_error_(improv::ERROR_NONE); });
 
 #ifdef USE_PROVISIONING
-  if (global_provisioning_manager != nullptr) {
-    global_provisioning_manager->add_on_closed_callback([this]() {
+  if (provisioning::global_provisioning_manager != nullptr) {
+    provisioning::global_provisioning_manager->add_on_closed_callback([this]() {
       ESP_LOGD(TAG, "Provisioning window closed; stopping Improv");
       this->stop();
     });
@@ -298,7 +298,7 @@ void ESP32ImprovComponent::start() {
 #ifdef USE_PROVISIONING
   // Don't (re)start advertising once the provisioning window has closed - e.g. when
   // wifi tries to restart Improv after the window expired at runtime.
-  if (global_provisioning_manager != nullptr && global_provisioning_manager->closed()) {
+  if (provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed()) {
     ESP_LOGD(TAG, "Provisioning window closed; not starting Improv");
     return;
   }
@@ -361,7 +361,8 @@ void ESP32ImprovComponent::process_incoming_data_() {
           return;
         }
 #ifdef USE_PROVISIONING
-        if (global_provisioning_manager != nullptr && global_provisioning_manager->closed()) {
+        if (provisioning::global_provisioning_manager != nullptr &&
+            provisioning::global_provisioning_manager->closed()) {
           ESP_LOGW(TAG, "Provisioning window closed; refusing settings");
           this->set_error_(improv::ERROR_NOT_AUTHORIZED);
           this->incoming_data_.clear();

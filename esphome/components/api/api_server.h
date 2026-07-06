@@ -13,8 +13,10 @@
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
 #include "esphome/core/log.h"
-#include "esphome/core/provisioning.h"
 #include "esphome/core/string_ref.h"
+#ifdef USE_PROVISIONING
+#include "esphome/components/provisioning/provisioning.h"
+#endif
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
@@ -262,7 +264,8 @@ class APIServer final : public Component,
   // not auto-rebooted while waiting to be provisioned. False when no provisioning
   // window is configured.
   bool provisioning_pending_() const {
-    return global_provisioning_manager != nullptr && global_provisioning_manager->window_pending();
+    return provisioning::global_provisioning_manager != nullptr &&
+           provisioning::global_provisioning_manager->window_pending();
   }
 #else
   bool provisioning_pending_() const { return false; }

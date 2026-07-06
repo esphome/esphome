@@ -1,6 +1,0 @@
-esphome:
-  name: test-provisioning-no-source
-  provisioning:
-    timeout: 60s
-
-host:

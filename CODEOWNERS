@@ -404,6 +404,7 @@ esphome/components/pn7160_i2c/* @jesserockz @kbx81
 esphome/components/pn7160_spi/* @jesserockz @kbx81
 esphome/components/power_supply/* @esphome/core
 esphome/components/preferences/* @esphome/core
+esphome/components/provisioning/* @esphome/core
 esphome/components/psram/* @esphome/core
 esphome/components/pulse_meter/* @cstaahl @stevebaxter @TrentHouliston
 esphome/components/pvvx_mithermometer/* @pasiz

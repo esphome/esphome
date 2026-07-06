@@ -46,7 +46,7 @@
 #endif
 
 #ifdef USE_PROVISIONING
-#include "esphome/core/provisioning.h"
+#include "esphome/components/provisioning/provisioning.h"
 #endif
 
 namespace esphome::wifi {
@@ -883,7 +883,8 @@ void WiFiComponent::loop() {
         // before the controller can set credentials), and an auto-reboot would reopen
         // the window without the deliberate power cycle / reset that is meant to be
         // required. Resumes normal reboot behavior once provisioned.
-        suppress = global_provisioning_manager != nullptr && global_provisioning_manager->window_pending();
+        suppress = provisioning::global_provisioning_manager != nullptr &&
+                   provisioning::global_provisioning_manager->window_pending();
 #endif
         if (!suppress) {
           ESP_LOGE(TAG, "Can't connect; rebooting");

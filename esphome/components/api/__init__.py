@@ -5,6 +5,7 @@ from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.logger import request_log_listener
+from esphome.components.provisioning import register_provisioning_source
 from esphome.config_helpers import get_logger_level
 import esphome.config_validation as cv
 from esphome.const import (
@@ -33,7 +34,6 @@ from esphome.const import (
     CONF_VARIABLES,
 )
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
-from esphome.core.config import register_provisioning_source
 from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigFragmentType, ConfigType
 
