@@ -20,7 +20,7 @@ enum MLX90393Setting {
   MLX90393_LAST,
 };
 
-class MLX90393Cls : public PollingComponent, public i2c::I2CDevice, public MLX90393Hal {
+class MLX90393Cls final : public PollingComponent, public i2c::I2CDevice, public MLX90393Hal {
  public:
   void setup() override;
   void dump_config() override;
