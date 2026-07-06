@@ -20,15 +20,25 @@ class APCProteousCover : public cover::Cover, public PollingComponent, public ua
   void close_cmd_();
   void stop_cmd_();
   void send_command_(const char *cmd);
+  void retry_pending_command_();
   void control(const cover::CoverCall &call) override;
   void parse_response_();
 
   // The published state (current_operation, position) is updated only from status
   // reads, so it always reflects what the controller reports. pending_command_ is a
   // private record of the last movement command we sent; it lets a stop cancel an
-  // in-flight command before the controller has reported the resulting motion. It is
-  // not published, and is only treated as in-flight for PENDING_COMMAND_MS.
+  // in-flight command before the controller has reported the resulting motion, and
+  // lets us resend a command the controller dropped (the serial link occasionally
+  // loses one). It is not published, and is only treated as in-flight for
+  // PENDING_COMMAND_MS.
   static const uint32_t PENDING_COMMAND_MS = 3000;
+
+  // A movement command is acknowledged once the controller reports motion in the
+  // commanded direction. If it has not within COMMAND_ACK_MS, resend it, up to
+  // MAX_COMMAND_RETRIES times. Only directional OPEN/CLOSE are retried; the stop
+  // toggle is never resent, since a spurious toggle could start the gate.
+  static const uint32_t COMMAND_ACK_MS = 2000;
+  static const uint8_t MAX_COMMAND_RETRIES = 3;
 
   std::string rx_buffer_;
   bool query_s_next_{true};
@@ -37,6 +47,7 @@ class APCProteousCover : public cover::Cover, public PollingComponent, public ua
   float target_position_{0};
   const char *pending_command_{nullptr};
   uint32_t pending_command_time_{0};
+  uint8_t command_retries_{0};
 };
 
 }  // namespace esphome::apc_proteous

@@ -104,6 +104,14 @@ void APCProteousCover::parse_response_() {
       state_changed = true;
     }
 
+    // A movement command is acknowledged once the controller reports motion in that direction;
+    // clear it so retry_pending_command_() stops resending.
+    if ((this->pending_command_ == OPEN_CMD && new_operation == COVER_OPERATION_OPENING) ||
+        (this->pending_command_ == CLOSE_CMD && new_operation == COVER_OPERATION_CLOSING)) {
+      this->pending_command_ = nullptr;
+      this->command_retries_ = 0;
+    }
+
     ESP_LOGV(TAG, "s-status: 0x%02X (operating=%d, opening=%d)", this->s_status_, is_operating, is_opening);
   } else if (type == 'x') {
     // x-status: position percentage (0-100 decimal, but sent as hex)
@@ -143,7 +151,44 @@ void APCProteousCover::parse_response_() {
   }
 }
 
+void APCProteousCover::retry_pending_command_() {
+  if (this->pending_command_ == nullptr) {
+    return;
+  }
+  // The controller acknowledges a movement command by reporting motion in that direction, which
+  // clears pending_command_ (see parse_response_). Give it COMMAND_ACK_MS to do so before retrying.
+  if ((millis() - this->pending_command_time_) < COMMAND_ACK_MS) {
+    return;
+  }
+
+  // If the gate has already reached the commanded end there is nothing to resend.
+  bool is_open_cmd = this->pending_command_ == OPEN_CMD;
+  if ((is_open_cmd && this->position >= COVER_OPEN) || (!is_open_cmd && this->position <= COVER_CLOSED)) {
+    this->pending_command_ = nullptr;
+    this->command_retries_ = 0;
+    return;
+  }
+
+  if (this->command_retries_ >= MAX_COMMAND_RETRIES) {
+    ESP_LOGW(TAG, "Gate did not acknowledge %s command after %u retries", is_open_cmd ? "open" : "close",
+             this->command_retries_);
+    this->pending_command_ = nullptr;
+    this->command_retries_ = 0;
+    return;
+  }
+
+  this->command_retries_++;
+  ESP_LOGD(TAG, "Gate did not respond, resending %s command (retry %u)", is_open_cmd ? "open" : "close",
+           this->command_retries_);
+  this->pending_command_time_ = millis();
+  this->write_str(this->pending_command_);
+}
+
 void APCProteousCover::update() {
+  // Resend a movement command the controller has not acknowledged; the serial link can drop one,
+  // leaving the gate stopped until something re-issues the command.
+  this->retry_pending_command_();
+
   // Alternate between querying s-status and x-status
   if (this->query_s_next_) {
     this->write_str(QUERY_S);
@@ -174,6 +219,7 @@ void APCProteousCover::send_command_(const char *cmd) {
   // the resulting motion.
   this->pending_command_ = cmd;
   this->pending_command_time_ = millis();
+  this->command_retries_ = 0;
   this->write_str(cmd);
 }
 
