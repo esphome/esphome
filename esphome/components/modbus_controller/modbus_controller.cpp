@@ -79,7 +79,7 @@ void ModbusController::on_modbus_data(std::span<const uint8_t> request_pdu, std:
     }
 
     // Move the commandItem to the response queue. The span points into the hub's receive buffer, so
-    // copy the bytes into the command's payload for deferred processing in loop().
+    // copy the payload into the command for deferred processing in loop().
     auto data = modbus::helpers::server_pdu_payload(response_pdu);
     current_command->payload.assign(data.begin(), data.end());
     this->incoming_queue_.push(std::move(current_command));
@@ -131,7 +131,7 @@ SensorSet ModbusController::find_sensors_(ModbusRegisterType register_type, uint
   return {};
 }
 void ModbusController::on_register_data(ModbusRegisterType register_type, uint16_t start_address,
-                                        std::span<const uint8_t> data) {
+                                        const std::vector<uint8_t> &data) {
   ESP_LOGV(TAG, "data for register address : 0x%X : ", start_address);
 
   // loop through all sensors with the same start address
@@ -170,7 +170,7 @@ void ModbusController::update_range_(RegisterRange &r) {
         auto sensor = sensors.cbegin();
         auto command_item = ModbusCommandItem::create_custom_command(
             this, (*sensor)->custom_data,
-            [this](ModbusRegisterType register_type, uint16_t start_address, std::span<const uint8_t> data) {
+            [this](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
               this->on_register_data(ModbusRegisterType::CUSTOM, start_address, data);
             });
         command_item.register_address = (*sensor)->start_address;
@@ -348,7 +348,7 @@ void ModbusController::loop() {
 }
 
 void ModbusController::on_write_register_response(ModbusRegisterType register_type, uint16_t start_address,
-                                                  std::span<const uint8_t> data) {
+                                                  const std::vector<uint8_t> &data) {
   ESP_LOGV(TAG, "Command ACK 0x%X %d ", modbus::helpers::get_data<uint16_t>(data, 0),
            modbus::helpers::get_data<int16_t>(data, 1));
 }
@@ -363,7 +363,7 @@ void ModbusController::dump_sensors_() {
 
 ModbusCommandItem ModbusCommandItem::create_read_command(
     ModbusController *modbusdevice, ModbusRegisterType register_type, uint16_t start_address, uint16_t register_count,
-    std::function<void(ModbusRegisterType register_type, uint16_t start_address, std::span<const uint8_t> data)>
+    std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
         &&handler) {
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
@@ -385,7 +385,7 @@ ModbusCommandItem ModbusCommandItem::create_read_command(ModbusController *modbu
   cmd.register_address = start_address;
   cmd.register_count = register_count;
   cmd.on_data_func = [modbusdevice](ModbusRegisterType register_type, uint16_t start_address,
-                                    std::span<const uint8_t> data) {
+                                    const std::vector<uint8_t> &data) {
     modbusdevice->on_register_data(register_type, start_address, data);
   };
   return cmd;
@@ -401,7 +401,7 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_command(ModbusControl
   cmd.register_address = start_address;
   cmd.register_count = register_count;
   cmd.on_data_func = [modbusdevice, cmd](ModbusRegisterType register_type, uint16_t start_address,
-                                         std::span<const uint8_t> data) {
+                                         const std::vector<uint8_t> &data) {
     modbusdevice->on_write_register_response(cmd.register_type, start_address, data);
   };
   for (auto v : values) {
@@ -421,7 +421,7 @@ ModbusCommandItem ModbusCommandItem::create_write_single_coil(ModbusController *
   cmd.register_address = address;
   cmd.register_count = 1;
   cmd.on_data_func = [modbusdevice, cmd](ModbusRegisterType register_type, uint16_t start_address,
-                                         std::span<const uint8_t> data) {
+                                         const std::vector<uint8_t> &data) {
     modbusdevice->on_write_register_response(cmd.register_type, start_address, data);
   };
   cmd.payload.push_back(value ? 0xFF : 0);
@@ -438,7 +438,7 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_coils(ModbusControlle
   cmd.register_address = start_address;
   cmd.register_count = values.size();
   cmd.on_data_func = [modbusdevice, cmd](ModbusRegisterType register_type, uint16_t start_address,
-                                         std::span<const uint8_t> data) {
+                                         const std::vector<uint8_t> &data) {
     modbusdevice->on_write_register_response(cmd.register_type, start_address, data);
   };
 
@@ -470,7 +470,7 @@ ModbusCommandItem ModbusCommandItem::create_write_single_command(ModbusControlle
   cmd.register_address = start_address;
   cmd.register_count = 1;  // not used here anyways
   cmd.on_data_func = [modbusdevice, cmd](ModbusRegisterType register_type, uint16_t start_address,
-                                         std::span<const uint8_t> data) {
+                                         const std::vector<uint8_t> &data) {
     modbusdevice->on_write_register_response(cmd.register_type, start_address, data);
   };
 
@@ -482,13 +482,13 @@ ModbusCommandItem ModbusCommandItem::create_write_single_command(ModbusControlle
 
 ModbusCommandItem ModbusCommandItem::create_custom_command(
     ModbusController *modbusdevice, const std::vector<uint8_t> &values,
-    std::function<void(ModbusRegisterType register_type, uint16_t start_address, std::span<const uint8_t> data)>
+    std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
         &&handler) {
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
   cmd.function_code = ModbusFunctionCode::CUSTOM;
   if (handler == nullptr) {
-    cmd.on_data_func = [](ModbusRegisterType register_type, uint16_t start_address, std::span<const uint8_t> data) {
+    cmd.on_data_func = [](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
       ESP_LOGI(TAG, "Custom Command sent");
     };
   } else {
@@ -501,13 +501,13 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
 
 ModbusCommandItem ModbusCommandItem::create_custom_command(
     ModbusController *modbusdevice, const std::vector<uint16_t> &values,
-    std::function<void(ModbusRegisterType register_type, uint16_t start_address, std::span<const uint8_t> data)>
+    std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
         &&handler) {
   ModbusCommandItem cmd = {};
   cmd.modbusdevice = modbusdevice;
   cmd.function_code = ModbusFunctionCode::CUSTOM;
   if (handler == nullptr) {
-    cmd.on_data_func = [](ModbusRegisterType register_type, uint16_t start_address, std::span<const uint8_t> data) {
+    cmd.on_data_func = [](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
       ESP_LOGI(TAG, "Custom Command sent");
     };
   } else {

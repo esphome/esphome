@@ -28,8 +28,8 @@ class ModbusTextSensor : public Component, public text_sensor::TextSensor, publi
 
   void dump_config() override;
 
-  void parse_and_publish(std::span<const uint8_t> data) override;
-  using transform_func_t = optional<std::string> (*)(ModbusTextSensor *, std::string, std::span<const uint8_t>);
+  void parse_and_publish(const std::vector<uint8_t> &data) override;
+  using transform_func_t = optional<std::string> (*)(ModbusTextSensor *, std::string, const std::vector<uint8_t> &);
   void set_template(transform_func_t f) { this->transform_func_ = f; }
 
  protected:

@@ -1,9 +1,9 @@
 #pragma once
 
-#include <cmath>
 #include <span>
 #include <string>
 #include <vector>
+#include <cmath>
 
 #include "esphome/core/helpers.h"
 #include "esphome/components/modbus/modbus_definitions.h"
@@ -196,7 +196,7 @@ template<typename T> T get_data(const uint8_t *data, size_t buffer_offset) {
   return T{};
 }
 
-template<typename T> T get_data(std::span<const uint8_t> data, size_t buffer_offset) {
+template<typename T> T get_data(const std::vector<uint8_t> &data, size_t buffer_offset) {
   return get_data<T>(data.data(), buffer_offset);
 }
 
@@ -208,7 +208,7 @@ template<typename T> T get_data(std::span<const uint8_t> data, size_t buffer_off
  * @param data modbus response buffer (uint8_t)
  * @return content of coil register
  */
-inline bool coil_from_vector(int coil, std::span<const uint8_t> data) {
+inline bool coil_from_vector(int coil, const std::vector<uint8_t> &data) {
   auto data_byte = coil / 8;
   return (data[data_byte] & (1 << (coil % 8))) > 0;
 }
@@ -290,8 +290,8 @@ template<typename Container> void number_to_payload(Container &data, int64_t val
 int64_t payload_to_number(const uint8_t *data, size_t size, SensorValueType sensor_value_type, uint8_t offset,
                           uint32_t bitmask, bool *error_return = nullptr);
 
-/** Convert a response payload span to number. */
-inline int64_t payload_to_number(std::span<const uint8_t> data, SensorValueType sensor_value_type, uint8_t offset,
+/** Convert vector<uint8_t> response payload to number. */
+inline int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
                                  uint32_t bitmask, bool *error_return = nullptr) {
   return payload_to_number(data.data(), data.size(), sensor_value_type, offset, bitmask, error_return);
 }

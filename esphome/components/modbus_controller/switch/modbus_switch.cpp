@@ -27,7 +27,7 @@ void ModbusSwitch::set_assumed_state(bool assumed_state) { this->assumed_state_ 
 
 bool ModbusSwitch::assumed_state() { return this->assumed_state_; }
 
-void ModbusSwitch::parse_and_publish(std::span<const uint8_t> data) {
+void ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {
   bool value = false;
   switch (this->register_type) {
     case ModbusRegisterType::DISCRETE_INPUT:
@@ -82,7 +82,7 @@ void ModbusSwitch::write_state(bool state) {
              format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
     cmd = ModbusCommandItem::create_custom_command(
         this->parent_, data,
-        [this, cmd](ModbusRegisterType register_type, uint16_t start_address, std::span<const uint8_t> data) {
+        [this, cmd](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
           this->parent_->on_write_register_response(cmd.register_type, this->start_address, data);
         });
   } else {

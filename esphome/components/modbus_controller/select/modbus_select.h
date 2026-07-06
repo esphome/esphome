@@ -25,7 +25,7 @@ class ModbusSelect : public Component, public select::Select, public SensorItem 
     this->mapping_ = std::move(mapping);
   }
 
-  using transform_func_t = optional<std::string> (*)(ModbusSelect *const, int64_t, std::span<const uint8_t>);
+  using transform_func_t = optional<std::string> (*)(ModbusSelect *const, int64_t, const std::vector<uint8_t> &);
   using write_transform_func_t = optional<int64_t> (*)(ModbusSelect *const, const std::string &, int64_t,
                                                        std::vector<uint16_t> &);
 
@@ -36,7 +36,7 @@ class ModbusSelect : public Component, public select::Select, public SensorItem 
   void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
 
   void dump_config() override;
-  void parse_and_publish(std::span<const uint8_t> data) override;
+  void parse_and_publish(const std::vector<uint8_t> &data) override;
   void control(size_t index) override;
 
  protected:
