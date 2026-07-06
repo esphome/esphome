@@ -5,7 +5,7 @@
 
 namespace esphome::status_led {
 
-class StatusLED : public Component {
+class StatusLED final : public Component {
  public:
   explicit StatusLED(GPIOPin *pin);
 
