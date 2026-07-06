@@ -778,7 +778,9 @@ storage::StorageError USBStorageDevice::rmdir(const char *path) {
   if (has_entries)
     return storage::StorageError::NOT_EMPTY;
 
-  if (::rmdir(full) == 0)
+  // unlink(), not rmdir() — this VFS/FATFS combination doesn't provide/link a working rmdir()
+  // for directories here; unlink() is the call this driver has always used to remove them.
+  if (::unlink(full) == 0)
     return storage::StorageError::OK;
   // Backstop in case the pre-check above raced with something adding an entry, or the driver's
   // notion of "empty" differs from FATFS's — let errno have the final say.
