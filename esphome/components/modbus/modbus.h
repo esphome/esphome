@@ -125,6 +125,14 @@ class ModbusClientHub : public Modbus {
   std::deque<ModbusDeviceCommand> tx_buffer_;
 };
 
+// Transaction status: std::nullopt on success, otherwise the Modbus exception code. Server handlers return it;
+// (future) client response callbacks receive it. Named without a side prefix so both directions share it.
+using ResponseStatus = std::optional<ModbusExceptionCode>;
+// Register values exchanged with server handlers, in host byte order. Sized at the larger of the two protocol
+// maxima (read = 125 / 0x7D, write = 123 / 0x7B); the per-direction count limit is enforced by the hub, not by
+// the capacity of this type.
+using RegisterValues = StaticVector<uint16_t, MAX_NUM_OF_REGISTERS_TO_READ>;
+
 class ModbusServerHub : public Modbus {
  public:
   ModbusServerHub() = default;
@@ -144,7 +152,7 @@ class ModbusServerHub : public Modbus {
   // exception code describing the failure. Shared by unicast writes (which reply with the exception) and broadcast
   // writes (which silently drop invalid frames).
   ResponseStatus parse_write_registers_(uint8_t function_code, const uint8_t *data, uint16_t &start_address,
-                                          RegisterValues &registers);
+                                        RegisterValues &registers);
   ModbusServerDevice *find_device_(uint8_t address);
   // Returns std::nullopt if [start_address, start_address + number_of_registers) fits in the 16-bit address space,
   // otherwise ILLEGAL_DATA_ADDRESS. The caller sends the exception reply if one is required.
@@ -207,14 +215,6 @@ class ModbusClientDevice {
 // Remove before 2026.12.0
 using ModbusDevice ESPDEPRECATED("Use ModbusClientDevice instead. Removed in 2026.12.0",
                                  "2026.6.0") = ModbusClientDevice;
-
-// Transaction status: std::nullopt on success, otherwise the Modbus exception code. Server handlers return it;
-// (future) client response callbacks receive it. Named without a side prefix so both directions share it.
-using ResponseStatus = std::optional<ModbusExceptionCode>;
-// Register values exchanged with server handlers, in host byte order. Sized at the larger of the two protocol
-// maxima (read = 125 / 0x7D, write = 123 / 0x7B); the per-direction count limit is enforced by the hub, not by
-// the capacity of this type.
-using RegisterValues = StaticVector<uint16_t, MAX_NUM_OF_REGISTERS_TO_READ>;
 
 class ModbusServerDevice {
  public:

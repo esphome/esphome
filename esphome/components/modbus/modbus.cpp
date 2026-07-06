@@ -343,7 +343,7 @@ ModbusServerDevice *ModbusServerHub::find_device_(uint8_t address) {
   return nullptr;
 }
 
-ServerResponseStatus ModbusServerHub::check_register_range_(uint16_t start_address, uint16_t number_of_registers) {
+ResponseStatus ModbusServerHub::check_register_range_(uint16_t start_address, uint16_t number_of_registers) {
   if ((uint32_t) start_address + number_of_registers > 0x10000u) {
     ESP_LOGW(TAG, "Register address out of range - start: %" PRIu16 " num: %" PRIu16, start_address,
              number_of_registers);
@@ -352,8 +352,8 @@ ServerResponseStatus ModbusServerHub::check_register_range_(uint16_t start_addre
   return std::nullopt;
 }
 
-ServerResponseStatus ModbusServerHub::parse_write_registers_(uint8_t function_code, const uint8_t *data,
-                                                             uint16_t &start_address, RegisterValues &registers) {
+ResponseStatus ModbusServerHub::parse_write_registers_(uint8_t function_code, const uint8_t *data,
+                                                       uint16_t &start_address, RegisterValues &registers) {
   // PDU data: start address(2) [+ quantity(2) + byte count(1)] + register values.
   // A single-register write always targets one register; for a multiple-register write the quantity is in the
   // frame and its byte count must equal quantity * 2. The values are assembled into registers (host byte order)
@@ -370,7 +370,7 @@ ServerResponseStatus ModbusServerHub::parse_write_registers_(uint8_t function_co
       ESP_LOGW(TAG, "Invalid number of registers %" PRIu16 " or bytes %" PRIu8, number_of_registers, number_of_bytes);
       return ModbusExceptionCode::ILLEGAL_DATA_VALUE;
     }
-    if (ServerResponseStatus range_status = this->check_register_range_(start_address, number_of_registers);
+    if (ResponseStatus range_status = this->check_register_range_(start_address, number_of_registers);
         range_status.has_value()) {
       return range_status;
     }
@@ -400,7 +400,7 @@ void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, const uint
     return;
   }
   for (auto *device : this->devices_) {
-    device->on_modbus_write_registers(start_address, registers);
+    device->on_write_registers(start_address, registers);
   }
 }
 
