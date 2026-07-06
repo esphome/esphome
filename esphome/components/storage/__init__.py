@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.core import CORE, CoroPriority, ID, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 
 CODEOWNERS = ["@p1ngb4ck"]
 
