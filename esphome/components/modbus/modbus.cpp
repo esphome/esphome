@@ -277,6 +277,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
                address, expected_address, (function_code & FUNCTION_CODE_MASK), expected_function_code,
                this->last_modbus_byte_ - this->last_send_);
       // Invalidate the device; the entry survives as an interrupted shell so the late response is ignored.
+      // A retry requested here stays queued behind the shell until the send-wait timeout clears it.
       this->notify_no_response_(wfr);
       wfr.interrupted = true;
       return;

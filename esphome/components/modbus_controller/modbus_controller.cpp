@@ -97,7 +97,8 @@ void ModbusController::process_modbus_data_(const ModbusCommandItem *response) {
 
 void ModbusController::on_modbus_error(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
   // The frame parser only dispatches complete exception frames: {function code | 0x80, exception code}.
-  const uint8_t function_code = response_pdu[0];
+  // Mask off the exception bit so the log matches the request function code, as before.
+  const uint8_t function_code = response_pdu[0] & modbus::FUNCTION_CODE_MASK;
   const uint8_t exception_code = response_pdu[1];
   ESP_LOGE(TAG, "Modbus error function code: 0x%X exception: %d ", function_code, exception_code);
   if (this->command_queue_.empty()) {
