@@ -1,0 +1,10 @@
+# Config-only: exercises the default mtu (23) zero-RAM path -- no BT_BUF_ACL_*/DLE
+# overrides are emitted -- together with the default-mtu + on_numeric_comparison_request
+# branch, where _validate_mtu_for_smp leaves the SMP MTU floor for Zephyr to apply.
+# Compiling adds no signal over the mtu: 247 path in test.nrf52-xiao-ble.yaml, so this
+# only runs through `esphome config`.
+zephyr_ble_server:
+  on_numeric_comparison_request:
+    then:
+      - ble_server.numeric_comparison_reply:
+          accept: true
