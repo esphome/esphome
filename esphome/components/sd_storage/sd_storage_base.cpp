@@ -1,9 +1,6 @@
 #include "sd_storage_base.h"
 
 #include "esphome/core/log.h"
-#include <sys/stat.h>
-#include <dirent.h>
-#include <unistd.h>
 #include <cerrno>
 #include <cstring>
 #include <cstdio>
@@ -19,6 +16,36 @@ using storage::StorageInfo;
 
 static const char *const TAG_BASE = "sd_storage";
 
+namespace {
+
+// Maps a FATFS FRESULT to the closest StorageError. `for_rmdir` selects FR_DENIED's mapping:
+// f_unlink() (used for rmdir — see rmdir() below, FATFS has no dedicated f_rmdir) returns
+// FR_DENIED both for "directory not empty" and for genuine permission/read-only failures, so the
+// caller must tell us which context applies.
+StorageError fresult_to_storage_error(FRESULT res, bool for_rmdir, bool is_write) {
+  switch (res) {
+    case FR_OK:
+      return StorageError::OK;
+    case FR_NO_FILE:
+    case FR_NO_PATH:
+      return StorageError::NOT_FOUND;
+    case FR_EXIST:
+      return StorageError::ALREADY_EXISTS;
+    case FR_DENIED:
+      return for_rmdir ? StorageError::NOT_EMPTY : StorageError::PERMISSION_DENIED;
+    case FR_INVALID_NAME:
+      return StorageError::INVALID_ARGS;
+    case FR_NOT_READY:
+      return StorageError::NOT_READY;
+    case FR_WRITE_PROTECTED:
+      return StorageError::PERMISSION_DENIED;
+    default:
+      return is_write ? StorageError::WRITE_ERROR : StorageError::READ_ERROR;
+  }
+}
+
+}  // namespace
+
 bool SdStorageBase::build_full_path_(const char *rel_path, char *buf, size_t buf_size) const {
   size_t mount_len = strlen(this->mount_path_);
   bool needs_sep = (rel_path[0] != '/');
@@ -30,6 +57,23 @@ bool SdStorageBase::build_full_path_(const char *rel_path, char *buf, size_t buf
   if (needs_sep)
     buf[pos++] = '/';
   strlcpy(buf + pos, rel_path, buf_size - pos);
+  return true;
+}
+
+bool SdStorageBase::build_fatfs_path_(const char *rel_path, char *buf, size_t buf_size) const {
+  StringRef drive_ref(this->fatfs_drive_);
+  StringRef rel_ref(rel_path);
+  bool needs_sep = rel_ref.empty() || rel_ref[0] != '/';
+
+  size_t total = drive_ref.size() + (needs_sep ? 1 : 0) + rel_ref.size() + 1;
+  if (total > buf_size)
+    return false;
+
+  size_t pos = drive_ref.copy(buf, drive_ref.size());
+  if (needs_sep)
+    buf[pos++] = '/';
+  pos += rel_ref.copy(buf + pos, rel_ref.size());
+  buf[pos] = '\0';
   return true;
 }
 
@@ -273,24 +317,42 @@ storage::StorageError SdStorageBase::stat(const char *path, storage::FileStat *s
   if (!this->is_mounted_)
     return storage::StorageError::NOT_READY;
 
+  // f_stat() on the drive root ("N:/") fails by FATFS design — synthesize the result instead of
+  // calling it. path is "" or "/" exactly when the caller asked to stat the mount point itself.
+  if (path[0] == '\0' || (path[0] == '/' && path[1] == '\0')) {
+    st->name[0] = '\0';
+    st->size = 0;
+    st->is_dir = true;
+    st->mtime = 0;
+    return storage::StorageError::OK;
+  }
+
   char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-  if (!this->build_full_path_(path, full, sizeof(full)))
+  if (!this->build_fatfs_path_(path, full, sizeof(full)))
     return storage::StorageError::INVALID_ARGS;
 
-  struct stat s;
-  if (::stat(full, &s) != 0)
-    return storage::StorageError::NOT_FOUND;
+  FILINFO fno;
+  FRESULT res = f_stat(full, &fno);
+  if (res != FR_OK)
+    return fresult_to_storage_error(res, /*for_rmdir=*/false, /*is_write=*/false);
 
   // FileStat::name is the basename only (see the contract on the struct in storage.h) —
   // consistent with what list_dir() puts there, regardless of how many path segments the
   // caller passed in.
-  const char *base = strrchr(path, '/');
-  base = (base != nullptr) ? base + 1 : path;
-  strncpy(st->name, base, sizeof(st->name) - 1);
-  st->name[sizeof(st->name) - 1] = '\0';
-  st->size = S_ISDIR(s.st_mode) ? 0 : static_cast<uint64_t>(s.st_size);
-  st->is_dir = S_ISDIR(s.st_mode);
-  st->mtime = static_cast<uint32_t>(s.st_mtime);
+  StringRef path_ref(path);
+  size_t base_pos = 0;
+  for (size_t i = path_ref.size(); i > 0; i--) {
+    if (path_ref[i - 1] == '/') {
+      base_pos = i;
+      break;
+    }
+  }
+  StringRef base_ref(path + base_pos, path_ref.size() - base_pos);
+  size_t name_len = base_ref.copy(st->name, sizeof(st->name) - 1);
+  st->name[name_len] = '\0';
+  st->is_dir = (fno.fattrib & AM_DIR) != 0;
+  st->size = st->is_dir ? 0 : static_cast<uint64_t>(fno.fsize);
+  st->mtime = 0;  // FatFs FILINFO exposes fdate/ftime (DOS format), not a Unix timestamp.
   return storage::StorageError::OK;
 }
 
@@ -300,25 +362,25 @@ storage::StorageError SdStorageBase::list_dir(const char *path,
     return storage::StorageError::NOT_READY;
 
   char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-  if (!this->build_full_path_(path, full, sizeof(full)))
+  if (!this->build_fatfs_path_(path, full, sizeof(full)))
     return storage::StorageError::INVALID_ARGS;
 
-  // f_opendir/f_readdir/f_closedir (FatFs, ff.h), not the POSIX opendir/readdir/closedir —
-  // this VFS/FATFS combination doesn't provide/link working POSIX directory-listing calls.
   DIR fat_dir;
-  if (f_opendir(&fat_dir, full) != FR_OK)
-    return storage::StorageError::NOT_FOUND;
+  FRESULT res = f_opendir(&fat_dir, full);
+  if (res != FR_OK)
+    return fresult_to_storage_error(res, /*for_rmdir=*/false, /*is_write=*/false);
 
   FILINFO fno;
   for (;;) {
     if (f_readdir(&fat_dir, &fno) != FR_OK || fno.fname[0] == '\0')
       break;
-    if (strcmp(fno.fname, ".") == 0 || strcmp(fno.fname, "..") == 0)
+    StringRef fname_ref(fno.fname);
+    if (fname_ref == "." || fname_ref == "..")
       continue;
 
     storage::FileStat entry{};
-    strncpy(entry.name, fno.fname, sizeof(entry.name) - 1);
-    entry.name[sizeof(entry.name) - 1] = '\0';
+    size_t name_len = fname_ref.copy(entry.name, sizeof(entry.name) - 1);
+    entry.name[name_len] = '\0';
     entry.is_dir = (fno.fattrib & AM_DIR) != 0;
     entry.size = entry.is_dir ? 0 : static_cast<uint64_t>(fno.fsize);
     entry.mtime = 0;  // FatFs FILINFO exposes fdate/ftime (DOS format), not a Unix timestamp.
@@ -338,15 +400,11 @@ storage::StorageError SdStorageBase::mkdir(const char *path) {
     return storage::StorageError::NOT_READY;
 
   char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-  if (!this->build_full_path_(path, full, sizeof(full)))
+  if (!this->build_fatfs_path_(path, full, sizeof(full)))
     return storage::StorageError::INVALID_ARGS;
 
-  // f_mkdir (FatFs, ff.h), not the POSIX mkdir() — this VFS/FATFS combination doesn't
-  // provide/link a working POSIX mkdir().
   FRESULT res = f_mkdir(full);
-  if (res == FR_OK)
-    return storage::StorageError::OK;
-  return (res == FR_EXIST) ? storage::StorageError::ALREADY_EXISTS : storage::StorageError::WRITE_ERROR;
+  return fresult_to_storage_error(res, /*for_rmdir=*/false, /*is_write=*/true);
 }
 
 storage::StorageError SdStorageBase::rmdir(const char *path) {
@@ -354,42 +412,33 @@ storage::StorageError SdStorageBase::rmdir(const char *path) {
     return storage::StorageError::NOT_READY;
 
   char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-  if (!this->build_full_path_(path, full, sizeof(full)))
+  if (!this->build_fatfs_path_(path, full, sizeof(full)))
     return storage::StorageError::INVALID_ARGS;
 
   // Non-recursive per the storage:: contract: must fail with NOT_EMPTY if the directory has
   // contents. Recursive delete is the free storage::remove_recursive() helper, built on top
   // of list_dir()/remove()/this rmdir() — no need to duplicate that tree-walk here.
-  DIR *dir = opendir(full);
-  if (dir == nullptr)
-    return storage::StorageError::NOT_FOUND;
+  DIR fat_dir;
+  FRESULT res = f_opendir(&fat_dir, full);
+  if (res != FR_OK)
+    return fresult_to_storage_error(res, /*for_rmdir=*/true, /*is_write=*/false);
 
   bool has_entries = false;
-  struct dirent *ent;
-  while ((ent = readdir(dir)) != nullptr) {
-    if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
+  FILINFO fno;
+  while (f_readdir(&fat_dir, &fno) == FR_OK && fno.fname[0] != '\0') {
+    StringRef fname_ref(fno.fname);
+    if (fname_ref == "." || fname_ref == "..")
       continue;
     has_entries = true;
     break;
   }
-  closedir(dir);
+  f_closedir(&fat_dir);
   if (has_entries)
     return storage::StorageError::NOT_EMPTY;
 
-  // unlink(), not rmdir() — this VFS/FATFS combination doesn't provide/link a working rmdir()
-  // for directories; unlink() is the call that actually works here.
-  if (::unlink(full) == 0)
-    return storage::StorageError::OK;
-  // Backstop in case the pre-check above raced with something adding an entry, or the driver's
-  // notion of "empty" differs from FATFS's — let errno have the final say.
-  switch (errno) {
-    case ENOTEMPTY:
-      return storage::StorageError::NOT_EMPTY;
-    case ENOENT:
-      return storage::StorageError::NOT_FOUND;
-    default:
-      return storage::StorageError::WRITE_ERROR;
-  }
+  // FATFS removes empty directories via f_unlink() — there is no dedicated f_rmdir().
+  res = f_unlink(full);
+  return fresult_to_storage_error(res, /*for_rmdir=*/true, /*is_write=*/true);
 }
 
 storage::StorageError SdStorageBase::remove(const char *path) {

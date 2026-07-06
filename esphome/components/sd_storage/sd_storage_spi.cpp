@@ -15,6 +15,7 @@ extern "C" {
 #include "esp_vfs_fat.h"
 }
 #include "ff.h"
+#include "diskio_sdmmc.h"
 #include "esphome/components/storage/storage.h"
 
 #ifndef VFS_FAT_MOUNT_DEFAULT_CONFIG
@@ -165,6 +166,7 @@ StorageError SdSpi::mount() {
   }
 
   this->is_mounted_ = true;
+  this->set_fatfs_drive_(ff_diskio_get_pdrv_card(this->card_));
   this->update_card_info();
 
   ESP_LOGI(TAG_SPI, "SD card mounted at %s (max %" PRIu32 " kHz, real %" PRIu32 " kHz)", this->mount_path_,

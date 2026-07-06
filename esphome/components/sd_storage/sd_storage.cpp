@@ -9,6 +9,7 @@
 #include "esp_vfs.h"
 #include "esp_vfs_fat.h"
 #include "ff.h"
+#include "diskio_sdmmc.h"
 #include "sdmmc_cmd.h"
 #include "driver/sdmmc_host.h"
 #include "freertos/FreeRTOS.h"
@@ -158,6 +159,7 @@ storage::StorageError SdMmc::mount() {
   }
   this->block_size_ = this->card_->csd.sector_size;
   this->is_mounted_ = true;
+  this->set_fatfs_drive_(ff_diskio_get_pdrv_card(this->card_));
   this->update_card_info();
 
   ESP_LOGI(TAG, "SD/MMC card mounted at %s", this->mount_path_);

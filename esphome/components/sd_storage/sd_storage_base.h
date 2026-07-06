@@ -79,6 +79,16 @@ class SdStorageBase : public storage::FilesystemStorage {
   // Returns false if the result would exceed buf_size.
   bool build_full_path_(const char *rel_path, char *buf, size_t buf_size) const;
 
+  // Builds a FATFS-native path ("N:/dir/file") from a path relative to this device's mount
+  // point, using fatfs_drive_ (set by the subclass's mount() via set_fatfs_drive_() below).
+  // Returns false if the result would exceed buf_size.
+  bool build_fatfs_path_(const char *rel_path, char *buf, size_t buf_size) const;
+
+  // Captures the FATFS drive string ("N:") for this card. Called by SdMmc::mount()/SdSpi::mount()
+  // after a successful mount, since only the subclass holds the sdmmc_card_t* needed to look it
+  // up via ff_diskio_get_pdrv_card() (diskio_sdmmc.h).
+  void set_fatfs_drive_(BYTE pdrv) { snprintf(this->fatfs_drive_, sizeof(this->fatfs_drive_), "%u:", pdrv); }
+
   // Closes every still-open handle before unmount, so nothing is left holding a FILE* into a
   // filesystem that's about to disappear. Best-effort: keeps going even if a flush/close fails
   // partway through, and returns the first error seen (StorageError::OK if none did).
@@ -119,6 +129,7 @@ class SdStorageBase : public storage::FilesystemStorage {
   uint64_t used_bytes_{0};
   const char *storage_id_{nullptr};
   GPIOPin *cd_pin_{nullptr};
+  char fatfs_drive_[3]{};  // "N:" — set via set_fatfs_drive_() after a successful mount
 
   LazyCallbackManager<void(const char *)> on_mounted_;
   LazyCallbackManager<void()> on_removed_;
