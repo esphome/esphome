@@ -41,12 +41,11 @@ template<typename... Ts> class ListFilesAction;
 // ─────────────────────────────────────────────────────────────────────────────
 class USBStorageClient : public usb_host::USBClient {
  public:
-  USBStorageClient() : usb_host::USBClient(0, 0) {}
+  USBStorageClient() : usb_host::USBClient(0, 0) { this->set_required_interface_class(USB_CLASS_MASS_STORAGE); }
 
   void setup() override;
   void loop() override;
   float get_setup_priority() const override { return setup_priority::IO; }
-  uint8_t get_interface_class() const override { return USB_CLASS_MASS_STORAGE; }
 
   void add_device(USBStorageDevice *device) { this->devices_.push_back(device); }
 
