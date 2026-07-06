@@ -6,7 +6,11 @@ from pathlib import Path
 from esphome.components.esp32 import get_esp32_variant, idf_version
 import esphome.config_validation as cv
 from esphome.core import CORE
-from esphome.framework_helpers import get_project_compile_flags, get_project_link_flags
+from esphome.framework_helpers import (
+    get_project_compile_flags,
+    get_project_cxx_compile_flags,
+    get_project_link_flags,
+)
 from esphome.helpers import mkdir_p, write_file_if_changed
 
 # Replaces the IDF default C++ standard (-std=gnu++2b appended to
@@ -19,18 +23,6 @@ idf_build_get_property(esphome_cxx_compile_options CXX_COMPILE_OPTIONS)
 list(FILTER esphome_cxx_compile_options EXCLUDE REGEX "^-std=")
 list(APPEND esphome_cxx_compile_options "-std={standard}")
 idf_build_set_property(CXX_COMPILE_OPTIONS "${{esphome_cxx_compile_options}}")"""
-
-# C++20 deprecated ++/--, compound assignment, and chained assignment on
-# volatile lvalues; GCC warns via -Wvolatile, on by default at -std=gnu++20.
-# C++23 (P2327R1) removed the deprecation for compound assignment, so the
-# warning flags patterns that are valid again under newer standards.
-# PlatformIO builds already suppress it via cxx_flags.py
-# (build_gen/platformio.py); this keeps the direct ESP-IDF build in parity.
-# CXX_COMPILE_OPTIONS (not COMPILE_OPTIONS) because the flag is C++-only
-# and GCC warns when it is passed for C.
-CXX_WARNING_OPTIONS = (
-    'idf_build_set_property(CXX_COMPILE_OPTIONS "-Wno-volatile" APPEND)'
-)
 
 
 def get_available_components() -> list[str] | None:
@@ -103,6 +95,14 @@ def get_project_cmakelists(minimal: bool = False) -> str:
         for flag in project_compile_opts
     )
 
+    # Flags registered via cg.add_cxx_build_flag() go on CXX_COMPILE_OPTIONS
+    # (not COMPILE_OPTIONS) because GCC warns when a C++-only flag such as
+    # -Wno-volatile is passed on a C compile.
+    cxx_compile_options = "\n".join(
+        f'idf_build_set_property(CXX_COMPILE_OPTIONS "{flag}" APPEND)'
+        for flag in get_project_cxx_compile_flags()
+    )
+
     cpp_standard_options = (
         CPP_STANDARD_TEMPLATE.format(standard=CORE.cpp_standard)
         if CORE.cpp_standard
@@ -167,7 +167,7 @@ include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
 {cpp_standard_options}
 
-{CXX_WARNING_OPTIONS}
+{cxx_compile_options}
 
 {extra_compile_options}
 
