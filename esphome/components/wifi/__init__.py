@@ -1,5 +1,6 @@
 import logging
 import math
+from typing import Any
 
 from esphome import automation, preferences
 from esphome.automation import Condition
@@ -444,9 +445,10 @@ FAST_CONNECT_SCHEMA = cv.Schema(
 )
 
 
-def _fast_connect_schema(value):
-    """Accept the historic plain boolean or a dict with enabled/storage keys."""
-    if isinstance(value, bool):
+def _fast_connect_schema(value: Any) -> ConfigType:
+    """Accept the historic plain boolean (including boolean-like strings from
+    substitutions) or a dict with enabled/storage keys."""
+    if not isinstance(value, dict):
         value = {CONF_ENABLED: value}
     return FAST_CONNECT_SCHEMA(value)
 
