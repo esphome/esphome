@@ -40,32 +40,22 @@ void StorageRegistry::unregister_storage(Storage *s) {
   if (s == nullptr)
     return;
 
-  bool found = false;
-  for (auto *entry : this->storages_) {
-    if (entry == s) {
-      found = true;
+  // Swap-remove: no reallocation, keeps capacity — safe since order doesn't matter here
+  // (for_each* enumerate every entry regardless of position).
+  size_t found_index = this->storages_.size();
+  for (size_t i = 0; i < this->storages_.size(); i++) {
+    if (this->storages_[i] == s) {
+      found_index = i;
       break;
     }
   }
-  if (!found)
+  if (found_index == this->storages_.size())
     return;
 
-  // TEMPORARY: rebuild via a second FixedVector instead of a swap-remove ending in
-  // pop_back(). FixedVector::pop_back() is a core (esphome/core/helpers.h) addition from this
-  // same PR series that hasn't merged upstream yet, and external_components: can only overlay
-  // component directories, never core files — so anyone testing this driver via
-  // external_components: would hit a missing pop_back() before ever reaching driver code. This
-  // only needs FixedVector APIs that already exist upstream (init()/push_back()/move-assign).
-  // storages_ is sized exactly at setup — safe because we always remove one entry before
-  // rebuilding, so we never exceed capacity. Revert to the swap-remove once
-  // FixedVector::pop_back() has landed in upstream dev.
-  FixedVector<Storage *> tmp;
-  tmp.init(this->storages_.size());
-  for (auto *entry : this->storages_) {
-    if (entry != s)
-      tmp.push_back(entry);
-  }
-  this->storages_ = std::move(tmp);
+  size_t last_index = this->storages_.size() - 1;
+  if (found_index != last_index)
+    this->storages_[found_index] = this->storages_[last_index];
+  this->storages_.pop_back();
 
   StorageInfo info{};
   if (s->get_info(&info) == StorageError::OK) {
@@ -120,6 +110,67 @@ void StorageRegistry::for_each_path_based(void (*cb)(PathStorage *s, void *ctx),
       cb(static_cast<NetworkStorage *>(s), ctx);
     }
   }
+}
+
+PathStorage *StorageRegistry::resolve_path(const char *vfs_path, const char **rel_out) {
+  StringRef path_ref(vfs_path);
+  PathStorage *best = nullptr;
+  size_t best_len = 0;
+
+  for (auto *s : this->storages_) {
+    StorageType type = s->get_storage_type();
+    PathStorage *ps;
+    if (type == StorageType::FILESYSTEM) {
+      ps = static_cast<FilesystemStorage *>(s);
+    } else if (type == StorageType::NETWORK) {
+      ps = static_cast<NetworkStorage *>(s);
+    } else {
+      continue;
+    }
+    const char *mount = ps->get_mount_path();
+    if (mount == nullptr)
+      continue;
+    StringRef mount_ref(mount);
+    size_t mount_len = mount_ref.size();
+
+    // Prefix match only at a '/' boundary or an exact match — "/sd2/x" must not match "/sd".
+    if (path_ref.size() < mount_len)
+      continue;
+    StringRef path_prefix(vfs_path, mount_len);
+    if (path_prefix.compare(mount_ref) != 0)
+      continue;
+    if (path_ref.size() > mount_len && path_ref[mount_len] != '/')
+      continue;
+
+    // Longest match wins, so a more specific mount point (e.g. "/sd/nested") takes priority
+    // over a shorter one that's also a valid prefix (e.g. "/sd").
+    if (mount_len > best_len) {
+      best = ps;
+      best_len = mount_len;
+    }
+  }
+
+  if (best == nullptr)
+    return nullptr;
+  *rel_out = vfs_path + best_len;  // "" if vfs_path == mount point exactly, else starts with '/'
+  return best;
+}
+
+bool StorageRegistry::build_path(const PathStorage *s, const char *rel, char *out, size_t len) {
+  StringRef mount_ref(s->get_mount_path());
+  StringRef rel_ref(rel);
+  bool rel_has_slash = !rel_ref.empty() && rel_ref[0] == '/';
+
+  size_t total = mount_ref.size() + (rel_has_slash || rel_ref.empty() ? 0 : 1) + rel_ref.size() + 1;
+  if (total > len)
+    return false;
+
+  size_t pos = mount_ref.copy(out, mount_ref.size());
+  if (!rel_has_slash && !rel_ref.empty())
+    out[pos++] = '/';
+  pos += rel_ref.copy(out + pos, rel_ref.size());
+  out[pos] = '\0';
+  return true;
 }
 
 //========================================================================

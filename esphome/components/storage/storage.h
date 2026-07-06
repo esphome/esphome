@@ -173,6 +173,12 @@ class RawStorage : public Storage {
 // on any storage that exposes a path namespace, regardless of local vs. network backing.
 class PathStorage : public Storage {
  public:
+  // The VFS mount point this storage is reachable under (e.g. "/sdcard", "/usb"). Set once by
+  // the driver (typically from YAML) and treated as invariant for the lifetime of the instance —
+  // it does not change across mount()/unmount() cycles. Contract, enforced by the driver at set
+  // time: must start with '/', must not end with '/', and must not be "" or "/".
+  const char *get_mount_path() const { return this->mount_path_; }
+
   virtual StorageError stat(const char *path, FileStat *stat) = 0;
   // Contract: drivers must NOT emit "." or ".." entries — tree-walkers such as
   // remove_recursive() below rely on this to avoid recursing forever. Entry order is
@@ -189,6 +195,15 @@ class PathStorage : public Storage {
   // No copy() here — drivers only need to move bytes within their own device.
   // Cross-device copy (and same-device copy) is provided by the free copy() helper
   // below, built on read_file()/write_file().
+
+ protected:
+  // Stores the mount path — called once by the driver (codegen-driven setter), never at
+  // runtime. The caller is responsible for satisfying the contract documented on
+  // get_mount_path() above (starts with '/', does not end with '/', not "" or "/"); this is a
+  // configuration-time invariant validated by the driver's Python codegen, not re-checked here.
+  void set_mount_path_(const char *path) { this->mount_path_ = path; }
+
+  const char *mount_path_{nullptr};
 };
 
 // Path-based file access with a local filesystem layer (SD, USB, LittleFS partition).
@@ -264,6 +279,11 @@ class StorageRegistry : public Component {
   void unregister_storage(Storage *s);
   bool is_registered(const Storage *s) const;
 
+  // Stable enumeration by index — pairs with get_mount_path() on PathStorage entries to let a
+  // caller build its own index <-> mountpoint view without needing a for_each() callback.
+  size_t size() const { return this->storages_.size(); }
+  Storage *get(size_t index) const { return this->storages_[index]; }
+
   // Enumerate by type — callback receives each matching device and caller ctx
   void for_each(void (*cb)(Storage *s, void *ctx), void *ctx);
   void for_each_filesystem(void (*cb)(FilesystemStorage *s, void *ctx), void *ctx);
@@ -272,6 +292,20 @@ class StorageRegistry : public Component {
   // Both FILESYSTEM and NETWORK expose PathStorage — use this to browse/operate on
   // any path-based storage without caring whether it's local or network-backed.
   void for_each_path_based(void (*cb)(PathStorage *s, void *ctx), void *ctx);
+
+  // Longest-prefix match of vfs_path against every registered PathStorage's mount point.
+  // Prefix matches only at a '/' boundary or an exact match (e.g. "/sd2/x" does NOT match a
+  // mount point of "/sd"), so distinct mount points sharing a common prefix can't shadow each
+  // other. Returns nullptr (with *rel_out left untouched) if no registered mount point matches.
+  // On a match, *rel_out points into vfs_path: "" when vfs_path IS the mount point exactly,
+  // otherwise the remainder starting with '/'.
+  PathStorage *resolve_path(const char *vfs_path, const char **rel_out);
+
+  // Builds the canonical VFS path for a PathStorage's mount point plus a relative path: the
+  // mount path with `rel` appended, normalizing the join so there's exactly one '/' between
+  // them regardless of whether `rel` itself starts with '/'. Writes into `out` (size `len`) and
+  // returns false (leaving `out` unspecified) if the result wouldn't fit.
+  static bool build_path(const PathStorage *s, const char *rel, char *out, size_t len);
 
   // Notification callbacks — fired whenever a device registers or unregisters.
   // Templatized so both std::function and pointer-sized forwarder structs are
