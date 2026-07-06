@@ -184,8 +184,10 @@ template<size_t InlineSize = 8> class SmallInlineBuffer {
   SmallInlineBuffer(const SmallInlineBuffer &) = delete;
   SmallInlineBuffer &operator=(const SmallInlineBuffer &) = delete;
 
-  /// Set buffer contents, allocating heap if needed
-  void set(const uint8_t *src, size_t size) {
+  /// Resize to `size` bytes of (uninitialized) storage and return a writable pointer to fill.
+  /// Allocates heap only when `size` exceeds the inline capacity. Use this when the contents are
+  /// built in place (e.g. assembling a frame and appending a checksum) to avoid a staging copy.
+  uint8_t *init(size_t size) {
     // Free existing heap allocation if switching from heap to inline or different heap size
     if (!this->is_inline_() && (size <= InlineSize || size != this->len_)) {
       delete[] this->heap_;
@@ -196,8 +198,11 @@ template<size_t InlineSize = 8> class SmallInlineBuffer {
       this->heap_ = new uint8_t[size];  // NOLINT(cppcoreguidelines-owning-memory)
     }
     this->len_ = size;
-    memcpy(this->data(), src, size);
+    return this->data();
   }
+
+  /// Set buffer contents, allocating heap if needed
+  void set(const uint8_t *src, size_t size) { memcpy(this->init(size), src, size); }
 
   uint8_t *data() { return this->is_inline_() ? this->inline_ : this->heap_; }
   const uint8_t *data() const { return this->is_inline_() ? this->inline_ : this->heap_; }
