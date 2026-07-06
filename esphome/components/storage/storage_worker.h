@@ -14,7 +14,10 @@
 #include <functional>
 #include <memory>
 
-#ifdef USE_STORAGE_WORKER_TASK
+// The define is derived purely from drivers' task_safe flags in codegen; the platform
+// condition lives here so a task-safe driver on a non-FreeRTOS target degrades to
+// loop-sliced instead of failing to compile.
+#if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/task.h>
@@ -175,7 +178,7 @@ class StorageWorker : public Component {
   // flight). Requests run strictly one at a time in FIFO submission order in this mode.
   size_t loop_active_index_{SIZE_MAX};
 
-#ifdef USE_STORAGE_WORKER_TASK
+#if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
   // Set once the worker task has been created; guards whether new task-safe requests get
   // enqueued to the task vs. picked up by the loop-sliced engine.
   bool task_running_{false};
