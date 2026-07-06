@@ -3,7 +3,8 @@
 #include "esphome/core/defines.h"
 
 // Only define SHA256 on platforms that support it
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_HOST)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || \
+    defined(USE_HOST) || defined(USE_ZEPHYR)
 
 #include <cstdint>
 #include <string>
@@ -29,6 +30,11 @@
 #include <bearssl/bearssl_hash.h>
 #elif defined(USE_HOST)
 #include <openssl/evp.h>
+#elif defined(USE_ZEPHYR)
+// Zephyr/nRF52 has no mbedTLS/PSA in the default build; use the bundled TinyCrypt
+// SHA256 (enabled via CONFIG_TINYCRYPT_SHA256 from the component's to_code).
+#define USE_SHA256_TINYCRYPT
+#include <tinycrypt/sha256.h>
 #else
 #error "SHA256 not supported on this platform"
 #endif
@@ -75,6 +81,9 @@ class SHA256 final : public esphome::HashBase {
   bool calculated_{false};
 #elif defined(USE_HOST)
   EVP_MD_CTX *ctx_{nullptr};
+  bool calculated_{false};
+#elif defined(USE_SHA256_TINYCRYPT)
+  tc_sha256_state_struct ctx_{};
   bool calculated_{false};
 #else
 #error "SHA256 not supported on this platform"
