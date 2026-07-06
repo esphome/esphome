@@ -43,4 +43,3 @@ sensor:
     sum_power:
       name: INA3221 Sum Power
     update_interval: 15s
-
