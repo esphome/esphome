@@ -699,6 +699,15 @@ def add_build_flag(build_flag: str):
     CORE.add_build_flag(build_flag)
 
 
+def add_cxx_build_flag(build_flag: str) -> None:
+    """Add a global build flag that applies to C++ compiles only.
+
+    Use for flags GCC rejects or warns about when passed on C compiles
+    (e.g. ``-Wno-volatile``).
+    """
+    CORE.add_cxx_build_flag(build_flag)
+
+
 def add_build_unflag(build_unflag: str) -> None:
     """Add a global build unflag to the compiler flags."""
     CORE.add_build_unflag(build_unflag)
