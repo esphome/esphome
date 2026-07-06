@@ -487,6 +487,32 @@ def _is_new_image_format(config: object) -> bool:
     )
 
 
+def _is_legacy_image_format(config: object) -> bool:
+    """True when ``config`` matches a shape the pre-platform schema accepted.
+
+    Only these shapes are migrated. Anything else -- a list containing a
+    non-dict (or already platform-tagged) entry, or a dict with no recognised
+    image keys -- is left untouched so the platform validation surfaces a
+    proper error instead of the migration silently dropping the input.
+    """
+    if isinstance(config, list):
+        # A bare list of (not-yet-platform-tagged) image dicts.
+        return bool(config) and all(
+            isinstance(entry, dict) and CONF_PLATFORM not in entry for entry in config
+        )
+    if not isinstance(config, dict):
+        return False
+    # A single image dict, or the grouped `defaults:`/`images:`/type-key form.
+    return (
+        CONF_ID in config
+        or CONF_FILE in config
+        or any(
+            key in (CONF_DEFAULTS, CONF_IMAGES) or key.upper() in IMAGE_TYPE
+            for key in config
+        )
+    )
+
+
 def _flatten_legacy_image_config(config: object) -> list[dict]:
     """Structurally flatten a legacy ``image:`` config into image dicts.
 
@@ -543,8 +569,13 @@ def _flatten_legacy_image_config(config: object) -> list[dict]:
 
 
 def _migrate_legacy_image_config(config: object) -> list[dict] | None:
-    """Rewrite a legacy ``image:`` config into the ``platform: file`` list."""
-    if _is_new_image_format(config):
+    """Rewrite a legacy ``image:`` config into the ``platform: file`` list.
+
+    Returns None for the already-migrated platform form and for any shape the
+    pre-platform schema never accepted, so normal platform validation can
+    surface a proper error instead of the migration silently discarding input.
+    """
+    if _is_new_image_format(config) or not _is_legacy_image_format(config):
         return None
     migrated = [
         {CONF_PLATFORM: PLATFORM_FILE, **entry}

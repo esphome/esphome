@@ -22,6 +22,7 @@ from esphome.components.image import (
     CONF_TRANSPARENCY,
     PLATFORM_FILE,
     _flatten_legacy_image_config,
+    _is_legacy_image_format,
     _is_new_image_format,
     _migrate_legacy_image_config,
     get_all_image_metadata,
@@ -321,6 +322,49 @@ def test_migrate_legacy_warns_and_prepends_platform(
     ]
     assert "deprecated" in caplog.text
     assert f"platform: {PLATFORM_FILE}" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        # Recognised legacy shapes -> migrate.
+        pytest.param([{"id": "a", "file": "x.png"}], True, id="bare_list_of_dicts"),
+        pytest.param({"id": "a", "file": "x.png"}, True, id="single_image_dict"),
+        pytest.param({"file": "x.png"}, True, id="single_dict_file_only"),
+        pytest.param({"defaults": {}, "images": []}, True, id="defaults_images"),
+        pytest.param({"rgb565": [{"id": "a"}]}, True, id="type_grouped"),
+        # Shapes the legacy schema never accepted -> not migrated.
+        pytest.param([], False, id="empty_list"),
+        pytest.param(["bad"], False, id="list_with_non_dict"),
+        pytest.param([{"id": "a"}, "bad"], False, id="list_mixed_dict_and_non_dict"),
+        pytest.param(
+            [{CONF_PLATFORM: "file", "id": "a"}], False, id="already_platform_tagged"
+        ),
+        pytest.param({"foo": 1}, False, id="dict_unknown_keys"),
+        pytest.param("a string", False, id="scalar"),
+    ],
+)
+def test_is_legacy_image_format(config: object, expected: bool) -> None:
+    assert _is_legacy_image_format(config) is expected
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        pytest.param(["bad"], id="list_with_non_dict"),
+        pytest.param([{"id": "a"}, "bad"], id="list_mixed"),
+        pytest.param({"foo": 1}, id="dict_unknown_keys"),
+    ],
+)
+def test_migrate_returns_none_for_invalid_legacy_shapes(
+    config: object, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Unrecognised shapes are not migrated (and emit no warning) so normal
+    platform validation surfaces a proper error instead of silently dropping
+    the offending input."""
+    with caplog.at_level(logging.WARNING):
+        assert _migrate_legacy_image_config(config) is None
+    assert "deprecated" not in caplog.text
 
 
 # --------------------------- end legacy migration --------------------------
