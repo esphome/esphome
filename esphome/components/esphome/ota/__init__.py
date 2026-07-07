@@ -126,7 +126,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_PORT,
                 esp8266=8266,
                 esp32=3232,
-                rp2040=2040,
+                rp2=2040,
                 bk72xx=8892,
                 ln882x=8820,
                 rtl87xx=8892,

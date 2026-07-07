@@ -59,6 +59,19 @@ def ip_address_literal(ip: str | int | None) -> cg.MockObj:
     return IPAddress(str(ip))
 
 
+def add_use_address(var: cg.MockObj, use_address: str) -> None:
+    """Generate a set_use_address() call only when the address must be baked in.
+
+    The default "<name>.local" is not stored in the firmware; it is rebuilt at
+    runtime from the device name (see network::get_use_address_to()), which also
+    picks up the MAC suffix when name_add_mac_suffix is enabled. A compile-time
+    string could never include that suffix, so baking it in would log the wrong
+    address.
+    """
+    if use_address != f"{CORE.name}.local":
+        cg.add(var.set_use_address(use_address))
+
+
 def require_high_performance_networking() -> None:
     """Request high performance networking for network and WiFi.
 
@@ -124,7 +137,7 @@ CONFIG_SCHEMA = cv.Schema(
             esp32=False,
             esp8266=False,
             host=False,
-            rp2040=False,
+            rp2=False,
             nrf52=True,
         ): cv.All(
             cv.boolean,
@@ -135,7 +148,7 @@ CONFIG_SCHEMA = cv.Schema(
                     esp32_arduino=cv.Version(0, 0, 0),
                     esp8266_arduino=cv.Version(0, 0, 0),
                     host=cv.Version(0, 0, 0),
-                    rp2040_arduino=cv.Version(0, 0, 0),
+                    rp2_arduino=cv.Version(0, 0, 0),
                     nrf52_zephyr=cv.Version(0, 0, 0),
                 ),
                 cv.boolean_false,
@@ -263,7 +276,7 @@ async def to_code(config):
                 cg.add_build_flag("-DCONFIG_IPV6")
             if CORE.is_esp8266:
                 cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
-            if CORE.is_rp2040:
+            if CORE.is_rp2:
                 cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
     # Pvariable creation lives in a separate coroutine at NETWORK_SERVICES so it
     # emits after wifi/ethernet at COMMUNICATION. This keeps compile-time config

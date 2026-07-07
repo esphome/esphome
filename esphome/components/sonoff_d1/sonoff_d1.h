@@ -41,7 +41,7 @@
 
 namespace esphome::sonoff_d1 {
 
-class SonoffD1Output : public light::LightOutput, public uart::UARTDevice, public Component {
+class SonoffD1Output final : public light::LightOutput, public uart::UARTDevice, public Component {
  public:
   // LightOutput methods
   light::LightTraits get_traits() override;
