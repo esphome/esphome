@@ -546,10 +546,11 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
 }
 // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
-void AsyncEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
+void AsyncEventSource::try_send_nodefer(const char *message, size_t message_len, const char *event, uint32_t id,
+                                        uint32_t reconnect) {
   for (auto *ses : this->sessions_) {
     if (ses->fd_.load() != 0) {  // Skip dead sessions
-      ses->try_send_nodefer(message, event, id, reconnect);
+      ses->try_send_nodefer(message, message_len, event, id, reconnect);
     }
   }
 }
@@ -600,7 +601,7 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
 
   // tcp send buffer is empty on connect, so these should always go through
   auto message = ws->get_config_json();
-  this->try_send_nodefer(message.c_str(), "ping", millis(), 30000);
+  this->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000);
 
 #ifdef USE_WEBSERVER_SORTING
   for (auto &group : ws->sorting_groups_) {
@@ -612,7 +613,7 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
 
     // a (very) large number of these should be able to be queued initially without defer
     // since the only thing in the send buffer at this point is the initial ping/config
-    this->try_send_nodefer(message.c_str(), "sorting_group");
+    this->try_send_nodefer(message.c_str(), message.size(), "sorting_group");
   }
 #endif
 
@@ -647,7 +648,7 @@ void AsyncEventSourceResponse::process_deferred_queue_() {
   while (!deferred_queue_.empty()) {
     DeferredEvent &de = deferred_queue_.front();
     auto message = de.message_generator_(web_server_, de.source_);
-    if (this->try_send_nodefer(message.c_str(), "state")) {
+    if (this->try_send_nodefer(message.c_str(), message.size(), "state")) {
       // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
       deferred_queue_.erase(deferred_queue_.begin());
     } else {
@@ -718,7 +719,7 @@ void AsyncEventSourceResponse::loop() {
     this->entities_iterator_.advance();
 }
 
-bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char *event, uint32_t id,
+bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t message_len, const char *event, uint32_t id,
                                                 uint32_t reconnect) {
   if (this->fd_.load() == 0) {
     return false;
@@ -764,19 +765,18 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
 
     // Fast path: check if message contains any newlines at all
     // Most SSE messages (JSON state updates) have no newlines
-    const char *first_n = strchr(message, '\n');
-    const char *first_r = strchr(message, '\r');
+    const char *first_n = static_cast<const char *>(memchr(message, '\n', message_len));
+    const char *first_r = static_cast<const char *>(memchr(message, '\r', message_len));
 
     if (first_n == nullptr && first_r == nullptr) {
       // No newlines - fast path (most common case)
       event_buffer_.append("data: ", sizeof("data: ") - 1);
-      event_buffer_.append(message);
+      event_buffer_.append(message, message_len);
       event_buffer_.append(CRLF_STR CRLF_STR, CRLF_LEN * 2);  // data line + blank line terminator
     } else {
       // Has newlines - handle multi-line message
       const char *line_start = message;
-      size_t msg_len = strlen(message);
-      const char *msg_end = message + msg_len;
+      const char *msg_end = message + message_len;
 
       // Reuse the first search results
       const char *next_n = first_n;
@@ -789,7 +789,7 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
         if (next_n == nullptr && next_r == nullptr) {
           // No more line breaks - output remaining text as final line
           event_buffer_.append("data: ", sizeof("data: ") - 1);
-          event_buffer_.append(line_start);
+          event_buffer_.append(line_start, msg_end - line_start);
           event_buffer_.append(CRLF_STR, CRLF_LEN);
           break;
         }
@@ -828,8 +828,8 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
         }
 
         // Search for next newlines only in remaining string
-        next_n = strchr(line_start, '\n');
-        next_r = strchr(line_start, '\r');
+        next_n = static_cast<const char *>(memchr(line_start, '\n', msg_end - line_start));
+        next_r = static_cast<const char *>(memchr(line_start, '\r', msg_end - line_start));
       }
 
       // Terminate message with blank line
@@ -884,7 +884,7 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
     deq_push_back_with_dedup_(source, message_generator);
   } else {
     auto message = message_generator(web_server_, source);
-    if (!this->try_send_nodefer(message.c_str(), "state")) {
+    if (!this->try_send_nodefer(message.c_str(), message.size(), "state")) {
       deq_push_back_with_dedup_(source, message_generator);
     }
   }
