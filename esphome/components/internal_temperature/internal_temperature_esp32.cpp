@@ -45,7 +45,7 @@ void InternalTemperatureSensor::update() {
 }
 
 void InternalTemperatureSensor::setup() {
-#if !defined(USE_ESP32_VARIANT_ESP32) && SOC_TEMP_SENSOR_SUPPORTED
+#if SOC_TEMP_SENSOR_SUPPORTED
   temperature_sensor_config_t tsens_config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(-10, 80);
 
   esp_err_t result = temperature_sensor_install(&tsens_config, &this->tsens_);
