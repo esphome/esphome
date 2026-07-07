@@ -225,8 +225,9 @@ def _discover_mac_suffix_devices() -> list[str] | None:
 
     Returns:
         - ``None`` when discovery isn't applicable (``name_add_mac_suffix`` off,
-          mDNS disabled, or ``CORE.address`` is already an IP). Callers should
-          then fall back to whatever default OTA address they normally use.
+          mDNS disabled, or ``CORE.address`` isn't a ``.local`` mDNS address).
+          Callers should then fall back to whatever default OTA address they
+          normally use.
         - ``[]`` when discovery ran but found nothing. Callers should NOT fall
           back to the base name: with ``name_add_mac_suffix`` enabled, the base
           name by definition doesn't exist on the network.
@@ -236,7 +237,7 @@ def _discover_mac_suffix_devices() -> list[str] | None:
     ``aioesphomeapi`` via :func:`_resolve_network_devices`) reuses the IPs we
     already have without opening a second Zeroconf client.
     """
-    if not (has_name_add_mac_suffix() and has_mdns() and has_non_ip_address()):
+    if not (has_name_add_mac_suffix() and has_mdns() and has_mdns_address()):
         return None
     from esphome.zeroconf import discover_mdns_devices
 
@@ -354,7 +355,7 @@ def choose_upload_log_host(
     bootsel_permission_error = False
     if (
         purpose == Purpose.UPLOADING
-        and CORE.is_rp2040
+        and CORE.is_rp2
         and (picotool := _find_picotool()) is not None
     ):
         bootsel = detect_rp2040_bootsel(picotool)
@@ -401,7 +402,7 @@ def choose_upload_log_host(
     # Show helpful BOOTSEL instructions for RP2040 when no BOOTSEL device is found
     if (
         purpose == Purpose.UPLOADING
-        and CORE.is_rp2040
+        and CORE.is_rp2
         and not any(get_port_type(opt[1]) == PortType.BOOTSEL for opt in options)
     ):
         if bootsel_permission_error:
@@ -503,17 +504,22 @@ def has_mdns() -> bool:
 
 
 def has_non_ip_address() -> bool:
-    """Check if CORE.address is set and is not an IP address."""
+    """Check if ``CORE.address`` is set and is not an IP address."""
     return CORE.address is not None and not is_ip_address(CORE.address)
 
 
+def has_mdns_address() -> bool:
+    """Check if ``CORE.address`` is a ``.local`` mDNS hostname."""
+    return CORE.address is not None and CORE.address.endswith(".local")
+
+
 def has_ip_address() -> bool:
-    """Check if CORE.address is a valid IP address."""
+    """Check if ``CORE.address`` is a valid IP address."""
     return CORE.address is not None and is_ip_address(CORE.address)
 
 
 def has_resolvable_address() -> bool:
-    """Check if CORE.address is resolvable (via mDNS, DNS, or is an IP address)."""
+    """Check if ``CORE.address`` is resolvable (via mDNS, DNS, or is an IP address)."""
     # Any address (IP, mDNS hostname, or regular DNS hostname) is resolvable
     # The resolve_ip_address() function in helpers.py handles all types via AsyncResolver
     if CORE.address is None:
@@ -532,7 +538,7 @@ def has_resolvable_address() -> bool:
         return True
 
     # .local mDNS hostnames are only resolvable if mDNS is enabled
-    return not CORE.address.endswith(".local")
+    return not has_mdns_address()
 
 
 def has_name_add_mac_suffix() -> bool:
@@ -979,7 +985,7 @@ def upload_using_platformio(config: ConfigType, port: str) -> int:
     # RP2040 platform-raspberrypi build recipe expects firmware.bin.signed for
     # the upload target, but 'nobuild' skips the build phase that creates it.
     # Create it here so the upload doesn't fail.
-    if CORE.is_rp2040:
+    if CORE.is_rp2:
         idedata = toolchain.get_idedata(config)
         build_dir = Path(idedata.firmware_elf_path).parent
         firmware_bin = build_dir / "firmware.bin"
@@ -1167,7 +1173,7 @@ def upload_program(
         if CORE.is_esp32 or CORE.is_esp8266:
             file = getattr(args, "file", None)
             exit_code = upload_using_esptool(config, host, file, args.upload_speed)
-        elif CORE.is_rp2040 or CORE.is_libretiny:
+        elif CORE.is_rp2 or CORE.is_libretiny:
             exit_code = upload_using_platformio(config, host)
         # else: Unknown target platform, exit_code remains 1
 
@@ -1641,7 +1647,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     # After BOOTSEL upload, wait for a new serial port to appear
     # so it shows up in the log chooser
-    if successful_device is None and CORE.is_rp2040:
+    if successful_device is None and CORE.is_rp2:
         _wait_for_serial_port(known_ports=pre_upload_ports)
         # If exactly one new serial port appeared, use it directly
         serial_ports = get_serial_ports()
@@ -2386,7 +2392,10 @@ def parse_args(argv):
     )
 
     parser_clean_all = subparsers.add_parser(
-        "clean-all", help="Clean all build and platform files."
+        "clean-all",
+        help="Clean all build and platform files, including machine-global "
+        "toolchain caches shared by all configurations, so other projects will "
+        "re-download them on next build.",
     )
     parser_clean_all.add_argument(
         "configuration", help="Your YAML file or configuration directory.", nargs="*"

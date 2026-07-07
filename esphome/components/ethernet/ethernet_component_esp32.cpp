@@ -839,7 +839,7 @@ void EthernetComponent::dump_connect_params_() {
     case ETH_SPEED_100M:
       link_speed = 100;
       break;
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
     case ETH_SPEED_1000M:
       link_speed = 1000;
       break;
