@@ -101,17 +101,17 @@ class PCM5122 final : public audio_dac::AudioDac, public Component, public i2c::
   bool write_channel_mix_();
   bool write_power_control_();
 
-  float volume_{1.0f};        // Matches chip post-reset DVOL default (0x30 = 0 dB)
-  int16_t current_page_{-1};  // -1 = unknown; cached to skip redundant page-select writes
+  GPIOPin *enable_pin_{nullptr};
+  float volume_{1.0f};           // Matches chip post-reset DVOL default (0x30 = 0 dB)
+  float volume_min_db_{-52.5f};  // Matches the previous hardcoded minimum (0x99)
+  float volume_max_db_{0.0f};    // Matches the previous hardcoded maximum (0x30)
+  int16_t current_page_{-1};     // -1 = unknown; cached to skip redundant page-select writes
   bool is_muted_{false};
   bool standby_{false};
   bool powerdown_{false};
   PCM5122BitsPerSample bits_per_sample_{PCM5122_BITS_PER_SAMPLE_16};
   PCM5122AnalogGain analog_gain_{PCM5122_ANALOG_GAIN_0DB};
   PCM5122ChannelMix channel_mix_{PCM5122_CHANNEL_MIX_STEREO};
-  float volume_min_db_{-52.5f};  // Matches the previous hardcoded minimum (0x99)
-  float volume_max_db_{0.0f};    // Matches the previous hardcoded maximum (0x30)
-  GPIOPin *enable_pin_{nullptr};
 };
 
 }  // namespace esphome::pcm5122
