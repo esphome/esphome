@@ -414,9 +414,8 @@ async def to_code(configs):
         await cg.register_component(lv_component, config)
         if rotation := config.get(CONF_ROTATION):
             cg.add(lv_component.set_rotation(rotation))
-        refr_time = config[df.CONF_REFRESH_INTERVAL].total_milliseconds
-        if refr_time != 16:
-            cg.add(lv_component.set_refresh_interval(refr_time))
+        if refr_time := config.get(df.CONF_REFRESH_INTERVAL):
+            cg.add(lv_component.set_refresh_interval(refr_time.total_milliseconds))
         Widget.create(config[CONF_ID], lv_component, LvScrActType(), config)
 
         lv_scr_act = get_screen_active(lv_component)
@@ -601,9 +600,7 @@ LVGL_TOP_LEVEL_SCHEMA = (
             cv.Optional(df.CONF_DEFAULT_FONT, default="montserrat_14"): lvalid.lv_font,
             cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
             cv.Optional(df.CONF_UPDATE_WHEN_DISPLAY_IDLE, default=False): cv.boolean,
-            cv.Optional(
-                df.CONF_REFRESH_INTERVAL, default="16ms"
-            ): cv.positive_time_period_milliseconds,
+            cv.Optional(df.CONF_REFRESH_INTERVAL): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_DRAW_ROUNDING, default=2): cv.positive_int,
             cv.Optional(CONF_BUFFER_SIZE, default=0): cv.percentage,
             cv.Optional(CONF_ROTATION): validate_rotation,
