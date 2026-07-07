@@ -8,7 +8,7 @@
 
 namespace esphome::udp {
 
-class UDPTransport : public packet_transport::PacketTransport, public Parented<UDPComponent> {
+class UDPTransport final : public packet_transport::PacketTransport, public Parented<UDPComponent> {
  public:
   void setup() override;
 

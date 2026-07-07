@@ -25,7 +25,7 @@ extern "C" eth_esp32_emac_config_t eth_esp32_emac_default_config(void);
 #endif
 #endif  // USE_ESP32
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
 #if defined(USE_ETHERNET_W5500)
 #include <W5500lwIP.h>
 #elif defined(USE_ETHERNET_W5100)
@@ -182,14 +182,14 @@ class EthernetComponent final : public Component {
 #endif  // USE_ETHERNET_SPI
 #endif  // USE_ESP32
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
   void set_clk_pin(uint8_t clk_pin);
   void set_miso_pin(uint8_t miso_pin);
   void set_mosi_pin(uint8_t mosi_pin);
   void set_cs_pin(uint8_t cs_pin);
   void set_interrupt_pin(int8_t interrupt_pin);
   void set_reset_pin(int8_t reset_pin);
-#endif  // USE_RP2040
+#endif  // USE_RP2
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   void add_ip_state_listener(EthernetIPStateListener *listener) { this->ip_state_listeners_.push_back(listener); }
@@ -272,7 +272,7 @@ class EthernetComponent final : public Component {
   esp_eth_phy_t *phy_{nullptr};
 #endif  // USE_ESP32
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
   static constexpr uint32_t LINK_CHECK_INTERVAL = 500;  // ms between link/IP polls
 #if defined(USE_ETHERNET_W5100)
   static constexpr uint32_t RESET_DELAY_MS = 150;  // W5100S PLL lock time
@@ -301,7 +301,7 @@ class EthernetComponent final : public Component {
   uint8_t cs_pin_;
   int8_t interrupt_pin_{-1};
   int8_t reset_pin_{-1};
-#endif  // USE_RP2040
+#endif  // USE_RP2
 
   // Common members
 #ifdef USE_ETHERNET_MANUAL_IP

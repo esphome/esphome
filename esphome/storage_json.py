@@ -133,7 +133,7 @@ class StorageJSON:
         self.no_mdns = no_mdns
         # The framework used to compile the firmware
         self.framework = framework
-        # The core platform of this firmware. Like "esp32", "rp2040", "host" etc.
+        # The core platform of this firmware. Like "esp32", "rp2", "host" etc.
         self.core_platform = core_platform
         # The toolchain used for the build ("platformio" / "esp-idf")
         self.toolchain = toolchain
