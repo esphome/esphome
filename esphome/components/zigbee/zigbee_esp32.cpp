@@ -222,7 +222,7 @@ void ZigbeeComponent::setup_reporting() {
 }
 
 void ZigbeeComponent::handle_coordinator_write(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
-                                                uint8_t value) {
+                                               uint8_t value) {
   auto key = std::make_tuple(endpoint_id, cluster_id, role, attr_id);
   auto it = this->attributes_.find(key);
   if (it != this->attributes_.end()) {

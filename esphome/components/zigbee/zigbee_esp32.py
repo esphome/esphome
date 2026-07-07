@@ -300,7 +300,9 @@ async def esp32_to_code(config: ConfigType) -> "MockObj":
     sensor_ep: list[dict] = zb_data.get(KEY_SENSOR_EP, [])
     binary_sensor_ep: list[dict] = zb_data.get(KEY_BS_EP, [])
     switch_ep: list[dict] = zb_data.get(KEY_SWITCH_EP, [])
-    ep_list = create_ep(sensor_ep + binary_sensor_ep + switch_ep, config.get(CONF_ROUTER))
+    ep_list = create_ep(
+        sensor_ep + binary_sensor_ep + switch_ep, config.get(CONF_ROUTER)
+    )
 
     # setup zigbee components
     var = cg.new_Pvariable(config[CONF_ID])
