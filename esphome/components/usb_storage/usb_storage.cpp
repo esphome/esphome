@@ -6,6 +6,7 @@
 #include "usb_storage.h"
 #include "usb_storage_diskio.h"
 #include "esphome/core/log.h"
+#include "esphome/core/string_ref.h"
 #include "usb/usb_helpers.h"
 #include "usb/usb_types_ch9.h"
 
@@ -769,7 +770,7 @@ storage::StorageError USBStorageDevice::list_dir(const char *path,
   if (!this->build_fatfs_path_(path, full, sizeof(full)))
     return storage::StorageError::INVALID_ARGS;
 
-  DIR fat_dir;
+  FF_DIR fat_dir;
   FRESULT res = f_opendir(&fat_dir, full);
   if (res != FR_OK)
     return fresult_to_storage_error(res, /*for_rmdir=*/false, /*is_write=*/false);
@@ -819,7 +820,7 @@ storage::StorageError USBStorageDevice::rmdir(const char *path) {
   // Non-recursive per the storage:: contract: must fail with NOT_EMPTY if the directory has
   // contents. Recursive delete is the free storage::remove_recursive() helper, built on top
   // of list_dir()/remove()/this rmdir() — no need to duplicate that tree-walk here.
-  DIR fat_dir;
+  FF_DIR fat_dir;
   FRESULT res = f_opendir(&fat_dir, full);
   if (res != FR_OK)
     return fresult_to_storage_error(res, /*for_rmdir=*/true, /*is_write=*/false);
