@@ -352,6 +352,7 @@ def test_storage_json_from_esphome_core_mdns_enabled(setup_core: Path) -> None:
     mock_core.web_port = None
     mock_core.target_platform = "esp8266"
     mock_core.is_esp32 = False
+    mock_core.is_nrf52 = False
     mock_core.build_path = "/build"
     mock_core.firmware_bin = "/build/firmware.bin"
     mock_core.loaded_integrations = set()
@@ -364,6 +365,34 @@ def test_storage_json_from_esphome_core_mdns_enabled(setup_core: Path) -> None:
 
     assert result.no_mdns is False
     assert result.toolchain is None
+
+
+def test_storage_json_from_esphome_core_nrf52(setup_core: Path) -> None:
+    """Test from_esphome_core captures the framework version on nRF52."""
+    from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
+
+    mock_core = MagicMock()
+    mock_core.name = "nrf_device"
+    mock_core.friendly_name = "nRF Device"
+    mock_core.comment = None
+    mock_core.address = "nrf.local"
+    mock_core.web_port = None
+    mock_core.target_platform = "nrf52"
+    mock_core.is_esp32 = False
+    mock_core.is_nrf52 = True
+    mock_core.data = {KEY_CORE: {KEY_FRAMEWORK_VERSION: cv.Version(2, 9, 2)}}
+    mock_core.build_path = "/build/nrf_device"
+    mock_core.firmware_bin = "/build/nrf_device/firmware.bin"
+    mock_core.loaded_integrations = set()
+    mock_core.loaded_platforms = set()
+    mock_core.config = {}
+    mock_core.target_framework = "zephyr"
+    mock_core.toolchain = None
+
+    result = storage_json.StorageJSON.from_esphome_core(mock_core, old=None)
+
+    assert result.target_platform == "NRF52"
+    assert result.framework_version == "2.9.2"
 
 
 def test_storage_json_load_valid_file(tmp_path: Path) -> None:
@@ -785,6 +814,73 @@ def test_storage_json_load_legacy_esphomeyaml_version(tmp_path: Path) -> None:
 
     assert result is not None
     assert result.esphome_version == "1.14.0"  # Should map to esphome_version
+
+
+def _make_nrf52_storage(
+    framework_version: str | None = None,
+) -> storage_json.StorageJSON:
+    return storage_json.StorageJSON(
+        storage_version=1,
+        name="dev",
+        friendly_name=None,
+        comment=None,
+        esphome_version="2024.1.0",
+        src_version=1,
+        address="dev.local",
+        web_port=None,
+        target_platform="NRF52",
+        build_path=Path("/build"),
+        firmware_bin_path=Path("/build/zephyr/zephyr.bin"),
+        loaded_integrations=set(),
+        loaded_platforms=set(),
+        no_mdns=False,
+        framework="zephyr",
+        core_platform="nrf52",
+        framework_version=framework_version,
+    )
+
+
+def test_storage_json_nrf52_framework_version_round_trip(setup_core: Path) -> None:
+    """Sidecar framework_version restores CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]."""
+    from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
+
+    storage = _make_nrf52_storage("2.9.2")
+    path = setup_core / "storage.json"
+    path.write_text(storage.to_json())
+
+    assert json.loads(path.read_text())["framework_version"] == "2.9.2"
+
+    loaded = storage_json.StorageJSON.load(path)
+    assert loaded is not None
+    assert loaded.framework_version == "2.9.2"
+
+    loaded.apply_to_core()
+    assert CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] == cv.Version(2, 9, 2)
+
+
+def test_storage_json_nrf52_apply_to_core_without_framework_version(
+    setup_core: Path,
+) -> None:
+    """Older sidecars lacking framework_version don't populate KEY_FRAMEWORK_VERSION."""
+    from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
+
+    loaded = _make_nrf52_storage(framework_version=None)
+    assert loaded.framework_version is None
+
+    loaded.apply_to_core()
+    assert KEY_FRAMEWORK_VERSION not in CORE.data[KEY_CORE]
+
+
+def test_storage_json_nrf52_apply_to_core_raises_on_invalid_framework_version(
+    setup_core: Path,
+) -> None:
+    """A malformed version string fails with an actionable error at parse time."""
+    from esphome.core import EsphomeError
+
+    loaded = _make_nrf52_storage(framework_version="not-a-version")
+
+    with pytest.raises(EsphomeError, match="clean the build"):
+        loaded.apply_to_core()
 
 
 def test_storage_json_load_area(tmp_path: Path) -> None:

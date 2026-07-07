@@ -2,8 +2,8 @@ name: Cache ESP-IDF
 description: >
   Resolve the pinned ESP-IDF version and cache the native ESP-IDF install
   (toolchains + source) at ~/.esphome-idf. Every job that installs ESP-IDF
-  natively (clang-tidy for IDF/Arduino and the native-IDF component build)
-  shares one cache, since the install is identical (ESPHOME_IDF_DEFAULT_TARGETS
+  natively (clang-tidy for IDF/Arduino and the component test batches) shares
+  one cache, since the install is identical (ESPHOME_IDF_DEFAULT_TARGETS
   defaults to "all", so all toolchains are present regardless of the chip).
   Callers must set env ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf and have the
   Python venv already restored.
@@ -11,6 +11,12 @@ inputs:
   framework:
     description: 'Which pinned IDF version to key on: "espidf" (recommended) or "arduino".'
     default: espidf
+  restore-only:
+    description: >
+      When "true", only restore -- never save the cache, even on dev. Use from
+      jobs that may not produce an ESP-IDF install (e.g. a component batch with
+      no esp32 target), so a partial/empty install is never written to the key.
+    default: "false"
 runs:
   using: composite
   steps:
@@ -33,13 +39,13 @@ runs:
     # PRs), and PRs are restore-only -- they never push multi-GB artifacts into
     # their own scope / the repo quota (e.g. on a version-bump PR).
     - name: Cache ESP-IDF install (write on dev)
-      if: github.ref == 'refs/heads/dev'
+      if: github.ref == 'refs/heads/dev' && inputs.restore-only != 'true'
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: ~/.esphome-idf
         key: ${{ runner.os }}-esphome-idf-${{ steps.version.outputs.version }}
     - name: Cache ESP-IDF install (restore-only off dev)
-      if: github.ref != 'refs/heads/dev'
+      if: github.ref != 'refs/heads/dev' || inputs.restore-only == 'true'
       uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: ~/.esphome-idf

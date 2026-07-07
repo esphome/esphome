@@ -1,6 +1,7 @@
 #pragma once
 
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
@@ -125,7 +126,7 @@ struct UsbOutputChunk {
   void release() {}
 };
 
-class USBUartChannel : public uart::UARTComponent, public Parented<USBUartComponent> {
+class USBUartChannel final : public uart::UARTComponent, public Parented<USBUartComponent> {
   friend class USBUartComponent;
   friend class USBUartTypeCdcAcm;
   friend class USBUartTypeCP210X;
@@ -191,8 +192,12 @@ class USBUartComponent : public usb_host::USBClient {
 
   void add_channel(USBUartChannel *channel) { this->channels_.push_back(channel); }
 
-  void start_input(USBUartChannel *channel);
+  virtual void start_input(USBUartChannel *channel);
   void start_output(USBUartChannel *channel);
+
+  // Called from loop() when input_buffer_ has insufficient space for the incoming chunk.
+  // Default is a no-op; override in device-specific subclasses that need resync on overflow.
+  virtual void on_rx_overflow(USBUartChannel *channel) {}
 
   // Lock-free data transfer from USB task to main loop
   static constexpr int USB_DATA_QUEUE_SIZE = 32;
@@ -247,7 +252,8 @@ class USBUartTypeFT23XX : public USBUartTypeCdcAcm {
  public:
   USBUartTypeFT23XX(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
 
-  void start_input(USBUartChannel *channel);
+  void start_input(USBUartChannel *channel) override;
+  void on_rx_overflow(USBUartChannel *channel) override;
 
  protected:
   std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
@@ -286,4 +292,5 @@ class USBUartTypePL2303 : public USBUartTypeCdcAcm {
 
 }  // namespace esphome::usb_uart
 
-#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 ||
+        // USE_ESP32_VARIANT_ESP32S31 || USE_ESP32_VARIANT_ESP32H4

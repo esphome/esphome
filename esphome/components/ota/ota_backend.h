@@ -46,8 +46,23 @@ enum OTAResponseTypes {
   OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE = 0x90,
   OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY = 0x91,
   OTA_RESPONSE_ERROR_BOOTLOADER_UPDATE = 0x92,
+  OTA_RESPONSE_ERROR_VERSION_DOWNGRADE = 0x93,
   OTA_RESPONSE_ERROR_UNKNOWN = 0xFF,
 };
+
+/** Compare two dotted-numeric version strings (such as "1.2.3").
+ *
+ * Returns true when @p candidate represents a strictly older (lower) firmware
+ * version than @p reference. Each dot-separated component is parsed as an
+ * integer and compared left-to-right; absent trailing components count as 0,
+ * so "1.2" and "1.2.0" are equal. Equal versions return false so that
+ * re-flashing the same version is permitted.
+ *
+ * Used for software OTA downgrade protection. Inputs come from the project
+ * version embedded in the signed firmware image, which is validated to be
+ * dotted-numeric at config time. Non-digit characters terminate a component.
+ */
+bool version_is_older(const char *candidate, const char *reference);
 
 enum OTAState {
   OTA_COMPLETED = 0,

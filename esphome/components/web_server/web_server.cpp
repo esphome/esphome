@@ -164,36 +164,9 @@ EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
   }
 #endif
 
-  // Try matching by entity name (new format)
+  // Match by entity name
   if (this->id == entity->get_name()) {
     result.matched = true;
-    return result;
-  }
-
-  // Fall back to object_id (deprecated format)
-  char object_id_buf[OBJECT_ID_MAX_LEN];
-  StringRef object_id = entity->get_object_id_to(object_id_buf);
-  if (this->id == object_id) {
-    result.matched = true;
-    // Log deprecation warning
-#ifdef USE_DEVICES
-    Device *device = entity->get_device();
-    if (device != nullptr) {
-      ESP_LOGW(TAG,
-               "Deprecated URL format: /%.*s/%.*s/%.*s - use entity name '/%.*s/%s/%s' instead. "
-               "Object ID URLs will be removed in 2026.7.0.",
-               (int) this->domain.size(), this->domain.c_str(), (int) this->device_name.size(),
-               this->device_name.c_str(), (int) this->id.size(), this->id.c_str(), (int) this->domain.size(),
-               this->domain.c_str(), device->get_name(), entity->get_name().c_str());
-    } else
-#endif
-    {
-      ESP_LOGW(TAG,
-               "Deprecated URL format: /%.*s/%.*s - use entity name '/%.*s/%s' instead. "
-               "Object ID URLs will be removed in 2026.7.0.",
-               (int) this->domain.size(), this->domain.c_str(), (int) this->id.size(), this->id.c_str(),
-               (int) this->domain.size(), this->domain.c_str(), entity->get_name().c_str());
-    }
   }
 
   return result;
@@ -284,8 +257,10 @@ void DeferredUpdateEventSource::deferrable_send_state(void *source, const char *
 }
 
 // used for logs plus the initial ping/config
-void DeferredUpdateEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id,
-                                                 uint32_t reconnect) {
+void DeferredUpdateEventSource::try_send_nodefer(const char *message, size_t message_len, const char *event,
+                                                 uint32_t id, uint32_t reconnect) {
+  // ESPAsyncWebServer's send() only accepts null-terminated strings
+  (void) message_len;
   this->send(message, event, id, reconnect);
 }
 
@@ -306,10 +281,10 @@ void DeferredUpdateEventSourceList::deferrable_send_state(void *source, const ch
   }
 }
 
-void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, const char *event, uint32_t id,
-                                                     uint32_t reconnect) {
+void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, size_t message_len, const char *event,
+                                                     uint32_t id, uint32_t reconnect) {
   for (DeferredUpdateEventSource *dues : *this) {
-    dues->try_send_nodefer(message, event, id, reconnect);
+    dues->try_send_nodefer(message, message_len, event, id, reconnect);
   }
 }
 
@@ -331,7 +306,7 @@ void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource
     // Configure reconnect timeout and send config
     // this should always go through since the AsyncEventSourceClient event queue is empty on connect
     auto message = ws->get_config_json();
-    source->try_send_nodefer(message.c_str(), "ping", millis(), 30000);
+    source->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000);
 
 #ifdef USE_WEBSERVER_SORTING
     for (auto &group : ws->sorting_groups_) {
@@ -342,7 +317,7 @@ void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource
       auto group_msg = builder.serialize();
 
       // up to 31 groups should be able to be queued initially without defer
-      source->try_send_nodefer(group_msg.c_str(), "sorting_group");
+      source->try_send_nodefer(group_msg.c_str(), group_msg.size(), "sorting_group");
     }
 #endif
 
@@ -422,8 +397,8 @@ void WebServer::setup() {
       return;
     char buf[32];
     auto uptime = static_cast<uint32_t>(millis_64() / 1000);
-    buf_append_printf(buf, sizeof(buf), 0, "{\"uptime\":%" PRIu32 "}", uptime);
-    this->events_.try_send_nodefer(buf, "ping", millis(), 30000);
+    size_t len = buf_append_printf(buf, sizeof(buf), 0, "{\"uptime\":%" PRIu32 "}", uptime);
+    this->events_.try_send_nodefer(buf, len, "ping", millis(), 30000);
   });
 }
 void WebServer::loop() {
@@ -441,16 +416,16 @@ void WebServer::loop() {
 void WebServer::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
   (void) level;
   (void) tag;
-  (void) message_len;
-  this->events_.try_send_nodefer(message, "log", millis());
+  this->events_.try_send_nodefer(message, message_len, "log", millis());
 }
 #endif
 
 void WebServer::dump_config() {
+  char addr_buf[network::USE_ADDRESS_BUFFER_SIZE];
   ESP_LOGCONFIG(TAG,
                 "Web Server:\n"
                 "  Address: %s:%u",
-                network::get_use_address(), this->base_->get_port());
+                network::get_use_address_to(addr_buf), this->base_->get_port());
 }
 float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f; }
 

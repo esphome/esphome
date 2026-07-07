@@ -4,6 +4,7 @@
 
 #include "espnow_err.h"
 
+#include <algorithm>
 #include <cinttypes>
 
 #include "esphome/core/application.h"
@@ -27,9 +28,6 @@
 namespace esphome::espnow {
 
 static constexpr const char *TAG = "espnow";
-
-static const esp_err_t CONFIG_ESPNOW_WAKE_WINDOW = 50;
-static const esp_err_t CONFIG_ESPNOW_WAKE_INTERVAL = 100;
 
 ESPNowComponent *global_esp_now = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -97,6 +95,15 @@ void on_send_report(const uint8_t *mac_addr, esp_now_send_status_t status)
 }
 
 void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int size) {
+  // Drop oversized frames before copying. ESP-NOW v2 peers (IDF >= 5.4 builds a
+  // v2 stack with no opt-out) can send up to ESP_NOW_MAX_DATA_LEN_V2 (1470 B),
+  // but the receive buffer only fits v2 frames with ``max_payload_size``; copying a
+  // larger frame would overflow packet_.receive.data.
+  if (size < 0 || size > ESPNOW_MAX_DATA_LEN) {
+    global_esp_now->receive_packet_queue_.increment_dropped_count();
+    return;
+  }
+
   // Allocate an event from the pool
   ESPNowPacket *packet = global_esp_now->receive_packet_pool_.allocate();
   if (packet == nullptr) {
@@ -204,11 +211,6 @@ void ESPNowComponent::enable_() {
 
   esp_wifi_get_mac(WIFI_IF_STA, this->own_address_);
 
-#ifdef USE_DEEP_SLEEP
-  esp_now_set_wake_window(CONFIG_ESPNOW_WAKE_WINDOW);
-  esp_wifi_connectionless_module_set_wake_interval(CONFIG_ESPNOW_WAKE_INTERVAL);
-#endif
-
   this->state_ = ESPNOW_STATE_ENABLED;
 
   for (auto peer : this->peers_) {
@@ -284,11 +286,14 @@ void ESPNowComponent::loop() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
           char src_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
           char dst_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+          // Cap the hex dump at a v1 frame: a full v2 frame would need a
+          // ~4.4 KB stack buffer.
           char hex_buf[format_hex_pretty_size(ESP_NOW_MAX_DATA_LEN)];
           format_mac_addr_upper(info.src_addr, src_buf);
           format_mac_addr_upper(info.des_addr, dst_buf);
           ESP_LOGV(TAG, "<<< [%s -> %s] %s", src_buf, dst_buf,
-                   format_hex_pretty_to(hex_buf, packet->packet_.receive.data, packet->packet_.receive.size));
+                   format_hex_pretty_to(hex_buf, packet->packet_.receive.data,
+                                        std::min<uint16_t>(packet->packet_.receive.size, ESP_NOW_MAX_DATA_LEN)));
 #endif
           if (memcmp(info.des_addr, ESPNOW_BROADCAST_ADDR, ESP_NOW_ETH_ALEN) == 0) {
             for (auto *handler : this->broadcast_handlers_) {
@@ -311,7 +316,9 @@ void ESPNowComponent::loop() {
         ESP_LOGV(TAG, ">>> [%s] %s", addr_buf, LOG_STR_ARG(espnow_error_to_str(packet->packet_.sent.status)));
 #endif
         if (this->current_send_packet_ != nullptr) {
-          this->current_send_packet_->callback_(packet->packet_.sent.status);
+          if (this->current_send_packet_->callback_ != nullptr) {
+            this->current_send_packet_->callback_(packet->packet_.sent.status);
+          }
           this->send_packet_pool_.release(this->current_send_packet_);
           this->current_send_packet_ = nullptr;  // Reset current packet after sending
         }
@@ -333,13 +340,13 @@ void ESPNowComponent::loop() {
   // Log dropped received packets periodically
   uint16_t received_dropped = this->receive_packet_queue_.get_and_reset_dropped_count();
   if (received_dropped > 0) {
-    ESP_LOGW(TAG, "Dropped %u received packets due to buffer overflow", received_dropped);
+    ESP_LOGW(TAG, "Dropped %u received packets (queue full or oversized frame)", received_dropped);
   }
 
   // Log dropped send packets periodically
   uint16_t send_dropped = this->send_packet_queue_.get_and_reset_dropped_count();
   if (send_dropped > 0) {
-    ESP_LOGW(TAG, "Dropped %u send packets due to buffer overflow", send_dropped);
+    ESP_LOGW(TAG, "Dropped %u send packets (queue full)", send_dropped);
   }
 }
 
@@ -359,7 +366,7 @@ esp_err_t ESPNowComponent::send(const uint8_t *peer_address, const uint8_t *payl
     return ESP_ERR_ESPNOW_PEER_NOT_SET;
   } else if (memcmp(peer_address, this->own_address_, ESP_NOW_ETH_ALEN) == 0) {
     return ESP_ERR_ESPNOW_OWN_ADDRESS;
-  } else if (size > ESP_NOW_MAX_DATA_LEN) {
+  } else if (size > ESPNOW_MAX_DATA_LEN) {
     return ESP_ERR_ESPNOW_DATA_SIZE;
   } else if (!esp_now_is_peer_exist(peer_address)) {
     if (memcmp(peer_address, ESPNOW_BROADCAST_ADDR, ESP_NOW_ETH_ALEN) == 0 || this->auto_add_peer_) {
