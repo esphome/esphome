@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::modbus {
 
@@ -48,7 +49,11 @@ enum class ModbusRegisterType : uint8_t {
   COIL = 0x01,
   DISCRETE_INPUT = 0x02,
   HOLDING = 0x03,
-  READ = 0x04,
+  // Named INPUT_REGISTER (not INPUT) because Arduino cores define INPUT as a macro.
+  INPUT_REGISTER = 0x04,
+  // Remove before 2027.2.0
+  READ ESPDEPRECATED("Use ModbusRegisterType::INPUT_REGISTER instead. Removed in 2027.2.0", "2026.7.0") =
+      INPUT_REGISTER,
 };
 
 // 7 MODBUS Exception Responses:
