@@ -242,6 +242,57 @@ async def test_uart_mock_modbus_server_read_write(
 
 
 @pytest.mark.asyncio
+async def test_uart_mock_modbus_server_read_write_invalid(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test modbus server FC 0x17 invalid-frame handling.
+
+    Injects a well-formed (valid CRC) 0x17 request whose write byte count (2)
+    does not match 2x the write quantity (2 registers need 4 bytes), so the hub
+    must reject it with ILLEGAL_DATA_VALUE before touching any register. A valid
+    read is injected right after as a processing marker.
+
+    The invalid frame is verified via bus-level signals rather than the reply
+    frame on the wire: the mock UART cannot observe the server's TX reliably on
+    the host platform (the server's transmission is gated by a millis()-based tx
+    delay), so instead we assert the request is rejected exactly once and never
+    applied to a register.
+    """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    tracker = SensorTracker(["write_seen", "probe"])
+    probe_seen = tracker.expect("probe", 1)
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        # The probe read is injected after the malformed frame, so once it fires
+        # the malformed frame has already been processed.
+        await tracker.await_change(probe_seen, "probe")
+
+    # Exactly one bus-level rejection for the malformed frame (no cascade)...
+    invalid_warnings = [
+        line for line in warning_log_lines if "Invalid number of registers" in line
+    ]
+    assert len(invalid_warnings) == 1, (
+        "Expected exactly one invalid-frame rejection, got warnings:\n"
+        + "\n".join(warning_log_lines)
+    )
+    assert len(error_log_lines) == 0, (
+        "Expected no modbus errors, but got:\n" + "\n".join(error_log_lines)
+    )
+    # ...and the rejected write is never applied to the target register.
+    assert not tracker.sensor_states["write_seen"], (
+        f"malformed 0x17 must not write, but write_seen fired: {tracker.sensor_states['write_seen']}"
+    )
+
+
+@pytest.mark.asyncio
 async def test_uart_mock_modbus_server_controller(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
