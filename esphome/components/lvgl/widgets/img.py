@@ -75,8 +75,7 @@ class ImgType(WidgetType):
         src = update_config.get(CONF_SRC)
         if isinstance(src, dict) and CONF_MAPPING in src:
             mapping_id = src[CONF_MAPPING]
-            metadata = get_mapping_metadata(str(mapping_id))
-            src[CONF_MAPPING] = mapping_id
+            metadata = get_mapping_metadata(mapping_id.id)
             if str(metadata.to_.data_type) != str(IMAGE_TYPE):
                 raise cv.Invalid(
                     f"Mapping '{mapping_id}' does not map to an image type, but '{metadata.to_.data_type}'",
