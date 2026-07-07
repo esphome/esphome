@@ -16,6 +16,11 @@ from esphome.const import (
     __version__,
 )
 from esphome.core import CORE, EsphomeError
+from esphome.core.config import (
+    INCLUDE_STAGE_AFTER_ALL_GLOBALS,
+    INCLUDE_STAGE_BEFORE_ANY_GLOBALS,
+    get_include_statements,
+)
 from esphome.helpers import (
     copy_file_if_changed,
     cpp_string_escape,
@@ -467,6 +472,13 @@ const char ESPHOME_COMMENT_STR[] = "{escaped_comment}";
 """
 
 
+def _render_include_stage(stage: str) -> str:
+    statements = get_include_statements(stage)
+    if not statements:
+        return ""
+    return "\n".join(statements) + "\n"
+
+
 def write_cpp(code_s):
     path = CORE.relative_src_path("main.cpp")
     if path.is_file():
@@ -482,11 +494,15 @@ def write_cpp(code_s):
         code_format = CPP_BASE_FORMAT
 
     copy_src_tree()
+    includes_before_globals = _render_include_stage(INCLUDE_STAGE_BEFORE_ANY_GLOBALS)
+    includes_after_globals = _render_include_stage(INCLUDE_STAGE_AFTER_ALL_GLOBALS)
+    global_s = '#include "esphome.h"\n'
+    global_s += includes_before_globals
     # using namespace esphome must precede all variable declarations since
     # codegen types assume this namespace is in scope (esphome_ns = global_ns).
-    global_s = '#include "esphome.h"\n'
     global_s += "using namespace esphome;\n"
     global_s += CORE.cpp_global_section
+    global_s += includes_after_globals
 
     full_file = f"{code_format[0] + CPP_INCLUDE_BEGIN}\n{global_s}{CPP_INCLUDE_END}"
     full_file += (
