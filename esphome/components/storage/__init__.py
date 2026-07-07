@@ -14,6 +14,7 @@ CONF_MAX_BLOCKING_TRANSFER_SIZE = "max_blocking_transfer_size"
 CONF_TASK_STACK_SIZE = "task_stack_size"
 CONF_TASK_PRIORITY = "task_priority"
 CONF_MAX_PENDING = "max_pending"
+CONF_MAX_STREAMS = "max_streams"
 
 # Not yet in esphome/const.py
 CONF_ON_REGISTERED = "on_registered"
@@ -65,6 +66,10 @@ CONFIG_SCHEMA = cv.Schema(
         # Fixed request pool/queue depth — sized exactly at codegen like the storage
         # registry's device count, no heap allocation per request at runtime.
         cv.Optional(CONF_MAX_PENDING, default=4): cv.int_range(min=1, max=16),
+        # Fixed stream pool depth (begin_write()/begin_read() and friends, storage_worker.h) —
+        # streams are typically much longer-lived than a single copy/move (e.g. one HTTP
+        # upload in progress), so a node doing one at a time needs very few slots.
+        cv.Optional(CONF_MAX_STREAMS, default=2): cv.int_range(min=1, max=8),
         # Fired for every storage device, not just file-browser-style consumers — any
         # component that cares about hotplug/availability can listen here instead of
         # each reinventing its own notion of "storage changed". See
@@ -159,5 +164,6 @@ async def to_code(config):
         cg.add(worker_var.set_task_stack_size(config[CONF_TASK_STACK_SIZE]))
         cg.add(worker_var.set_task_priority(config[CONF_TASK_PRIORITY]))
         cg.add(worker_var.set_max_pending(config[CONF_MAX_PENDING]))
+        cg.add(worker_var.set_max_streams(config[CONF_MAX_STREAMS]))
 
         cg.add(cg.RawExpression(f"{storage_ns}::global_storage_worker = {worker_var}"))
