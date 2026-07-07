@@ -218,7 +218,6 @@ def multi_conf_validate(configs: list[dict]):
             CONF_COLOR_DEPTH,
             CONF_BYTE_ORDER,
             df.CONF_TRANSPARENCY_KEY,
-            df.CONF_REFRESH_INTERVAL,
         ):
             if base_config[item] != config[item]:
                 raise cv.Invalid(
@@ -319,9 +318,7 @@ async def to_code(configs):
     df.add_define("LV_USE_STDLIB_SPRINTF", "LV_STDLIB_CLIB")
     df.add_define("LV_USE_STDLIB_STRING", "LV_STDLIB_CLIB")
     df.add_define("LV_USE_STDLIB_MALLOC", "LV_STDLIB_CUSTOM")
-    df.add_define(
-        "LV_DEF_REFR_PERIOD", config_0[df.CONF_REFRESH_INTERVAL].total_milliseconds
-    )
+    df.add_define("LV_DEF_REFR_PERIOD", "16")
     cg.add_define("USE_LVGL")
     # suppress default enabling of extra widgets
     # cg.add_define("LV_KCONFIG_PRESENT")
@@ -417,6 +414,9 @@ async def to_code(configs):
         await cg.register_component(lv_component, config)
         if rotation := config.get(CONF_ROTATION):
             cg.add(lv_component.set_rotation(rotation))
+        refr_time = config[df.CONF_REFRESH_INTERVAL].total_milliseconds
+        if refr_time != 16:
+            cg.add(lv_component.set_refresh_interval(refr_time))
         Widget.create(config[CONF_ID], lv_component, LvScrActType(), config)
 
         lv_scr_act = get_screen_active(lv_component)

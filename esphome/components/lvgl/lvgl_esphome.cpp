@@ -777,9 +777,8 @@ void LvglComponent::setup() {
   if (this->draw_end_callback_ != nullptr || this->update_when_display_idle_) {
     lv_display_add_event_cb(this->disp_, render_end_cb, LV_EVENT_REFR_READY, this);
   }
-  if (this->update_when_display_idle_) {
-    this->refr_timer_ = lv_display_get_refr_timer(this->disp_);
-  }
+  this->refr_timer_ = lv_display_get_refr_timer(this->disp_);
+  lv_timer_set_period(this->refr_timer_, this->refr_timer_period_);
 #if LV_USE_LOG
   lv_log_register_print_cb([](lv_log_level_t level, const char *buf) {
     auto next = strchr(buf, ')');
@@ -814,7 +813,7 @@ void LvglComponent::loop() {
   // still keeps track of invalidated areas but won't render or flush them, so nothing needs to
   // be discarded or replayed: once resumed, the accumulated areas are simply drawn as normal.
   // Input events and other timers keep being processed below regardless of this state.
-  if (this->refr_timer_ != nullptr) {
+  if (this->update_when_display_idle_) {
     bool busy = this->displays_busy_();
     if (busy && !this->refr_timer_paused_) {
       this->refr_timer_paused_ = true;
@@ -824,7 +823,7 @@ void LvglComponent::loop() {
       lv_timer_set_period(this->refr_timer_, 5 * 60 * 1000);
     } else if (!busy && this->refr_timer_paused_) {
       this->refr_timer_paused_ = false;
-      lv_timer_set_period(this->refr_timer_, LV_DEF_REFR_PERIOD);
+      lv_timer_set_period(this->refr_timer_, this->refr_timer_period_);
       // Don't wait for the timer's next natural period: refresh right away now that the
       // display is idle again.
       lv_timer_ready(this->refr_timer_);
