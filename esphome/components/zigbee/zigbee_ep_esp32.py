@@ -94,6 +94,60 @@ def get_next_ep_num(eps):
     return ep_num
 
 
+def merge_endpoint(
+    existing_ep: dict[str, Any],
+    ep_num: int | None,
+    ep: dict[str, Any],
+    use_type: bool | None,
+    skip_error: bool,
+) -> bool:
+    add = True
+    existing_clusters = [(cl[CONF_ID], cl[ROLE]) for cl in existing_ep[CONF_CLUSTERS]]
+    for cl in [(cl[CONF_ID], cl[ROLE]) for cl in ep[CONF_CLUSTERS]]:
+        if cl in existing_clusters:
+            if not skip_error:
+                raise cv.Invalid(
+                    f"Endpoint {ep_num} has more than one cluster with cluster id {cl[0]} and role {cl[1]}."
+                )
+            add = False
+            break
+    if not add:
+        return False
+    if (
+        use_type
+        and existing_ep.get(CONF_USE_DEVICE_TYPE)
+        and ep.get(DEVICE_TYPE) != existing_ep.get(DEVICE_TYPE)
+    ):
+        if not skip_error:
+            raise cv.Invalid(
+                f"Endpoint {ep_num} has a conflicting device type {existing_ep.get(DEVICE_TYPE, 'CUSTOM_ATTR')} and use_type is set for both."
+            )
+        return False
+    if use_type:
+        existing_ep[CONF_USE_DEVICE_TYPE] = use_type
+        if ep.get(DEVICE_TYPE):
+            existing_ep[DEVICE_TYPE] = ep[DEVICE_TYPE]
+        existing_ep[CONF_CLUSTERS].extend(ep[CONF_CLUSTERS])
+        return True
+    if existing_ep.get(CONF_USE_DEVICE_TYPE):
+        existing_ep[CONF_CLUSTERS].extend(ep[CONF_CLUSTERS])
+        return True
+    if (
+        ep.get(DEVICE_TYPE)
+        and existing_ep.get(DEVICE_TYPE)
+        and ep[DEVICE_TYPE] != existing_ep[DEVICE_TYPE]
+    ):
+        if not skip_error:
+            raise cv.Invalid(
+                f"Endpoint {ep_num} has already a conflicting device type {existing_ep[DEVICE_TYPE]} and use_type is not set for both."
+            )
+        return False
+    if ep.get(DEVICE_TYPE):
+        existing_ep[DEVICE_TYPE] = ep[DEVICE_TYPE]
+    existing_ep[CONF_CLUSTERS].extend(ep[CONF_CLUSTERS])
+    return True
+
+
 def create_ep(router: bool) -> None:
     zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
     ep_dict: dict[int, dict] = zb_data.setdefault(KEY_ZIGBEE_EP, {})
@@ -110,38 +164,11 @@ def create_ep(router: bool) -> None:
         for ep in ep_list:
             added = False
             for existing_ep in ep_list_new:
-                add = True
-                existing_clusters = [
-                    (cl[CONF_ID], cl[ROLE]) for cl in existing_ep[CONF_CLUSTERS]
-                ]
-                for cl in [(cl[CONF_ID], cl[ROLE]) for cl in ep[CONF_CLUSTERS]]:
-                    if cl in existing_clusters:
-                        add = False
-                        break
-                if not add:
-                    continue
-                if (
-                    ep.get(CONF_USE_DEVICE_TYPE)
-                    and existing_ep.get(CONF_USE_DEVICE_TYPE)
-                    and ep.get(DEVICE_TYPE) != existing_ep.get(DEVICE_TYPE)
+                if merge_endpoint(
+                    existing_ep, None, ep, ep.get(CONF_USE_DEVICE_TYPE), True
                 ):
-                    continue
-                if ep.get(CONF_USE_DEVICE_TYPE):
-                    existing_ep[CONF_USE_DEVICE_TYPE] = ep[CONF_USE_DEVICE_TYPE]
-                    if ep.get(DEVICE_TYPE):
-                        existing_ep[DEVICE_TYPE] = ep[DEVICE_TYPE]
-                    existing_ep[CONF_CLUSTERS].extend(ep[CONF_CLUSTERS])
                     added = True
                     break
-                if existing_ep.get(CONF_USE_DEVICE_TYPE):
-                    existing_ep[CONF_CLUSTERS].extend(ep[CONF_CLUSTERS])
-                    added = True
-                    break
-                if ep.get(DEVICE_TYPE):
-                    existing_ep[DEVICE_TYPE] = ep[DEVICE_TYPE]
-                existing_ep[CONF_CLUSTERS].extend(ep[CONF_CLUSTERS])
-                added = True
-                break
             if not added:
                 ep_list_new.append(ep)
         zb_data[KEY_ZIGBEE_EP_NO_NUM] = ep_list_new
@@ -170,41 +197,7 @@ def add_ep(ep: dict[str, Any], ep_num: int | None, use_type: bool | None) -> Non
         if ep_num in ep_dict:
             # check if the existing endpoint has same clusters
             existing_ep = ep_dict[ep_num]
-            existing_clusters = [
-                (cl[CONF_ID], cl[ROLE]) for cl in existing_ep[CONF_CLUSTERS]
-            ]
-            for cl in [(cl[CONF_ID], cl[ROLE]) for cl in ep[CONF_CLUSTERS]]:
-                if cl in existing_clusters:
-                    raise cv.Invalid(
-                        f"Endpoint {ep_num} has more than one cluster with cluster id {cl[0]} and role {cl[1]}."
-                    )
-            if (
-                use_type
-                and existing_ep.get(CONF_USE_DEVICE_TYPE)
-                and ep.get(DEVICE_TYPE) != existing_ep.get(DEVICE_TYPE)
-            ):
-                raise cv.Invalid(
-                    f"Endpoint {ep_num} has already a conflicting device type {existing_ep.get(DEVICE_TYPE, 'CUSTOM_ATTR')} and use_type is set for both."
-                )
-            if use_type:
-                existing_ep[CONF_USE_DEVICE_TYPE] = use_type
-                if ep.get(DEVICE_TYPE):
-                    existing_ep[DEVICE_TYPE] = ep[DEVICE_TYPE]
-                existing_ep[CONF_CLUSTERS].extend(ep[CONF_CLUSTERS])
-            elif existing_ep.get(CONF_USE_DEVICE_TYPE):
-                existing_ep[CONF_CLUSTERS].extend(ep[CONF_CLUSTERS])
-            elif (
-                ep.get(DEVICE_TYPE)
-                and existing_ep.get(DEVICE_TYPE)
-                and ep[DEVICE_TYPE] != existing_ep[DEVICE_TYPE]
-            ):
-                raise cv.Invalid(
-                    f"Endpoint {ep_num} has already a conflicting device type {existing_ep[DEVICE_TYPE]} and use_type is not set for both."
-                )
-            else:
-                if ep.get(DEVICE_TYPE):
-                    existing_ep[DEVICE_TYPE] = ep[DEVICE_TYPE]
-                existing_ep[CONF_CLUSTERS].extend(ep[CONF_CLUSTERS])
+            merge_endpoint(existing_ep, ep_num, ep, use_type, False)
         else:
             if use_type is not None:
                 ep[CONF_USE_DEVICE_TYPE] = use_type

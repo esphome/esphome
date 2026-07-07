@@ -241,7 +241,7 @@ async def attributes_to_code(
                 var.add_attr(
                     ep_num,
                     CLUSTER_ID.get(cl[CONF_ID], cl[CONF_ID]),
-                    CLUSTER_ROLE.get(cl[ROLE], cl[ROLE]),
+                    CLUSTER_ROLE[cl[ROLE]],
                     attr[CONF_ATTRIBUTE_ID],
                     attr.get(CONF_MAX_LENGTH, 0),
                     attr[CONF_VALUE],
@@ -253,7 +253,7 @@ async def attributes_to_code(
             var,
             ep_num,
             CLUSTER_ID.get(cl[CONF_ID], cl[CONF_ID]),
-            CLUSTER_ROLE.get(cl[ROLE], cl[ROLE]),
+            CLUSTER_ROLE[cl[ROLE]],
             attr[CONF_ATTRIBUTE_ID],
             ATTR_TYPE[attr[CONF_TYPE]],
             attr.get(SCALE, 1),
@@ -304,7 +304,7 @@ async def esp32_to_code(config: ConfigType) -> "MockObj":
                 var.add_cluster(
                     ep_num,
                     CLUSTER_ID.get(cl[CONF_ID], cl[CONF_ID]),
-                    CLUSTER_ROLE.get(cl[ROLE], cl[ROLE]),
+                    CLUSTER_ROLE[cl[ROLE]],
                 )
             )
             await attributes_to_code(var, ep_num, cl)
