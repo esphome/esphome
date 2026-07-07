@@ -401,6 +401,9 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
 }
 
 void LvglComponent::flush_cb_(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p) {
+  // no guard here for display busy, since LVGL will not call flush_cb until the refresh timer fires,
+  // and while the display is busy this is reset to 5 minutes. If that expires and the display is still
+  // busy there are bigger problems.
   if (!this->paused_) {
     auto now = millis();
     this->draw_buffer_(area, reinterpret_cast<lv_color_data *>(color_p));
