@@ -11,6 +11,7 @@ from typing import Any
 
 from esphome import yaml_util
 import esphome.codegen as cg
+from esphome.components.const import CONF_ENABLE_OTA_DOWNGRADE_PROTECTION
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
@@ -29,6 +30,7 @@ from esphome.const import (
     CONF_PATH,
     CONF_PLATFORM_VERSION,
     CONF_PLATFORMIO_OPTIONS,
+    CONF_PROJECT,
     CONF_REF,
     CONF_SAFE_MODE,
     CONF_SIZE,
@@ -1098,6 +1100,50 @@ def _detect_variant(value):
     return value
 
 
+def _ota_downgrade_protection_errors(
+    project_version: str | None, signed_ota_enabled: bool
+) -> list[cv.Invalid]:
+    """Validate prerequisites for OTA downgrade protection.
+
+    Called only when the feature is enabled. Returns a ``cv.Invalid`` for each
+    unmet requirement: a dotted-numeric project version (the firmware version
+    compared on-device) and signed OTA (so the embedded version cannot be
+    forged).
+    """
+    path = [CONF_FRAMEWORK, CONF_ADVANCED, CONF_ENABLE_OTA_DOWNGRADE_PROTECTION]
+    errs: list[cv.Invalid] = []
+    if not project_version:
+        errs.append(
+            cv.Invalid(
+                f"'{CONF_ENABLE_OTA_DOWNGRADE_PROTECTION}' requires a "
+                f"'{CONF_PROJECT}' with a '{CONF_VERSION}' to be set in the "
+                f"'{CONF_ESPHOME}' section; this version is the firmware version "
+                "compared during OTA.",
+                path=path,
+            )
+        )
+    elif not re.fullmatch(r"\d+(\.\d+)*", project_version):
+        # The on-device comparison parses dotted-numeric versions only.
+        errs.append(
+            cv.Invalid(
+                f"'{CONF_ENABLE_OTA_DOWNGRADE_PROTECTION}' requires the "
+                f"'{CONF_PROJECT}' '{CONF_VERSION}' to be dotted-numeric (such "
+                f"as '1.2.3'), got '{project_version}'.",
+                path=path,
+            )
+        )
+    if not signed_ota_enabled:
+        errs.append(
+            cv.Invalid(
+                f"'{CONF_ENABLE_OTA_DOWNGRADE_PROTECTION}' requires "
+                f"'{CONF_SIGNED_OTA_VERIFICATION}' to be enabled; without signed "
+                "OTA the embedded version cannot be trusted.",
+                path=path,
+            )
+        )
+    return errs
+
+
 def final_validate(config):
     # Imported locally to avoid circular import issues
     from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
@@ -1303,6 +1349,14 @@ def final_validate(config):
                 "Binaries will NOT be signed automatically during build. "
                 "You must sign them externally before flashing."
             )
+    if advanced[CONF_ENABLE_OTA_DOWNGRADE_PROTECTION]:
+        project = full_config[CONF_ESPHOME].get(CONF_PROJECT)
+        errs.extend(
+            _ota_downgrade_protection_errors(
+                project[CONF_VERSION] if project else None,
+                bool(advanced.get(CONF_SIGNED_OTA_VERIFICATION)),
+            )
+        )
     if errs:
         raise cv.MultipleInvalid(errs)
 
@@ -1540,6 +1594,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                     min=8192, max=32768
                 ),
                 cv.Optional(CONF_ENABLE_OTA_ROLLBACK, default=True): cv.boolean,
+                cv.Optional(
+                    CONF_ENABLE_OTA_DOWNGRADE_PROTECTION, default=False
+                ): cv.boolean,
                 cv.Optional(CONF_SIGNED_OTA_VERIFICATION): cv.All(
                     cv.Schema(
                         {
@@ -2357,6 +2414,16 @@ async def to_code(config):
     if advanced[CONF_ENABLE_OTA_ROLLBACK]:
         add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE", True)
         cg.add_define("USE_OTA_ROLLBACK")
+
+    # Enable software OTA downgrade protection. Embed the project version into
+    # the image's esp_app_desc_t so the OTA backend can compare it against the
+    # running version (final_validate guarantees a dotted-numeric project
+    # version and that signed OTA is enabled).
+    if advanced[CONF_ENABLE_OTA_DOWNGRADE_PROTECTION]:
+        project_version = CORE.config[CONF_ESPHOME][CONF_PROJECT][CONF_VERSION]
+        add_idf_sdkconfig_option("CONFIG_APP_PROJECT_VER_FROM_CONFIG", True)
+        add_idf_sdkconfig_option("CONFIG_APP_PROJECT_VER", project_version)
+        cg.add_define("USE_OTA_DOWNGRADE_PROTECTION")
 
     # Enable signed app verification without hardware secure boot
     if signed_ota := advanced.get(CONF_SIGNED_OTA_VERIFICATION):

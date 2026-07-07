@@ -15,7 +15,7 @@
 
 namespace esphome::xiaomi_rtcgq02lm {
 
-class XiaomiRTCGQ02LM : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class XiaomiRTCGQ02LM final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
   void set_bindkey(const char *bindkey);
