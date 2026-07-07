@@ -291,7 +291,8 @@ class AsyncEventSourceResponse {
   friend class AsyncEventSource;
 
  public:
-  bool try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
+  bool try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
+                        uint32_t reconnect = 0);
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
   void loop();
 
@@ -313,7 +314,7 @@ class AsyncEventSourceResponse {
   std::vector<DeferredEvent> deferred_queue_;
   esphome::web_server::WebServer *web_server_;
   esphome::web_server::ListEntitiesIterator entities_iterator_;
-  std::string event_buffer_{""};
+  std::string event_buffer_;
   size_t event_bytes_sent_;
   uint16_t consecutive_send_failures_{0};
   static constexpr uint16_t MAX_CONSECUTIVE_SEND_FAILURES = 2500;  // ~20 seconds at 125Hz loop rate
@@ -343,7 +344,8 @@ class AsyncEventSource : public AsyncWebHandler {
   // NOLINTNEXTLINE(readability-identifier-naming)
   void onConnect(connect_handler_t &&cb) { this->on_connect_ = std::move(cb); }
 
-  void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
+  void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
+                        uint32_t reconnect = 0);
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
   /// Returns true if there are sessions remaining (including pending cleanup).
   bool loop();

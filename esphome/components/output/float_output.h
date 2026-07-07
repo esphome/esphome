@@ -4,8 +4,7 @@
 #include "esphome/core/defines.h"
 #include "binary_output.h"
 
-namespace esphome {
-namespace output {
+namespace esphome::output {
 
 #ifdef USE_OUTPUT_FLOAT_POWER_SCALING
 #define LOG_FLOAT_OUTPUT(this) \
@@ -130,5 +129,4 @@ class FloatOutput : public BinaryOutput {
 #endif
 };
 
-}  // namespace output
-}  // namespace esphome
+}  // namespace esphome::output

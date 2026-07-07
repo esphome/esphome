@@ -12,8 +12,7 @@
 #include <utility>
 #include <vector>
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
 class ModbusController;
 
@@ -280,7 +279,7 @@ class ModbusCommandItem {
  * Responses for the commands are dispatched to the modbus sensor items.
  */
 
-class ModbusController : public PollingComponent, public modbus::ModbusDevice {
+class ModbusController final : public PollingComponent, public modbus::ModbusClientDevice {
  public:
   void dump_config() override;
   void loop() override;
@@ -391,5 +390,4 @@ inline float payload_to_float(const std::vector<uint8_t> &data, const SensorItem
   return float_value;
 }
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

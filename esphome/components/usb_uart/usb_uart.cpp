@@ -1,5 +1,6 @@
 // Should not be needed, but it's required to pass CI clang-tidy checks
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "usb_uart.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -141,13 +142,12 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
   }
 #ifdef USE_UART_DEBUGGER
   if (this->debug_) {
-    constexpr size_t BATCH = 16;
-    char buf[4 + format_hex_pretty_size(BATCH)];  // ">>> " + "XX,XX,...,XX\0"
-    for (size_t off = 0; off < len; off += BATCH) {
-      size_t n = std::min(len - off, BATCH);
-      memcpy(buf, ">>> ", 4);
-      format_hex_pretty_to(buf + 4, sizeof(buf) - 4, data + off, n, ',');
-      ESP_LOGD(TAG, "%s%s", this->debug_prefix_.c_str(), buf);
+    constexpr size_t batch = 16;
+    char buf[format_hex_pretty_size(batch)];  // "XX,XX,...,XX\0"
+    for (size_t off = 0; off < len; off += batch) {
+      size_t n = std::min(len - off, batch);
+      format_hex_pretty_to(buf, data + off, n, ',');
+      ESP_LOGD(TAG, "%s>>> %s", this->debug_prefix_.c_str(), buf);
     }
   }
 #endif
@@ -157,7 +157,7 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
       ESP_LOGE(TAG, "Output pool full - lost %zu bytes", len);
       break;
     }
-    size_t chunk_len = std::min(len, UsbOutputChunk::MAX_CHUNK_SIZE);
+    uint16_t chunk_len = std::min(len, UsbOutputChunk::MAX_CHUNK_SIZE);
     memcpy(chunk->data, data, chunk_len);
     chunk->length = static_cast<uint8_t>(chunk_len);
     // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
@@ -222,13 +222,17 @@ void USBUartComponent::loop() {
 
 #ifdef USE_UART_DEBUGGER
     if (channel->debug_) {
-      char buf[4 + format_hex_pretty_size(UsbDataChunk::MAX_CHUNK_SIZE)];  // "<<< " + hex
-      memcpy(buf, "<<< ", 4);
-      format_hex_pretty_to(buf + 4, sizeof(buf) - 4, chunk->data, chunk->length, ',');
-      ESP_LOGD(TAG, "%s%s", channel->debug_prefix_.c_str(), buf);
+      char buf[format_hex_pretty_size(usb_host::USB_MAX_PACKET_SIZE)];  // "XX,XX,...,XX\0"
+      format_hex_pretty_to(buf, chunk->data, chunk->length, ',');
+      ESP_LOGD(TAG, "%s<<< %s", channel->debug_prefix_.c_str(), buf);
     }
 #endif
 
+    // If there is not enough space for the full chunk, let the device subclass
+    // handle it (e.g. FTDI clears the buffer to prevent mid-telegram corruption).
+    if (channel->input_buffer_.get_free_space() < chunk->length) {
+      this->on_rx_overflow(channel);
+    }
     // Push data to ring buffer (now safe in main loop)
     channel->input_buffer_.push(chunk->data, chunk->length);
 
@@ -377,7 +381,7 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
     this->start_output(channel);
   };
 
-  const uint8_t len = chunk->length;
+  const auto len = chunk->length;
   if (!this->transfer_out(ep->bEndpointAddress, callback, chunk->data, len)) {
     // Transfer submission failed — return chunk and release flag so callers can retry.
     channel->output_pool_.release(chunk);
@@ -394,10 +398,10 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
 static void fix_mps(const usb_ep_desc_t *ep) {
   if (ep != nullptr) {
     auto *ep_mutable = const_cast<usb_ep_desc_t *>(ep);
-    if (ep->wMaxPacketSize > 64) {
-      ESP_LOGW(TAG, "Corrected MPS of EP 0x%02X from %u to 64", static_cast<uint8_t>(ep->bEndpointAddress & 0xFF),
-               ep->wMaxPacketSize);
-      ep_mutable->wMaxPacketSize = 64;
+    if (ep->wMaxPacketSize > usb_host::USB_MAX_PACKET_SIZE) {
+      ESP_LOGW(TAG, "Corrected MPS of EP 0x%02X from %u to %u", static_cast<uint8_t>(ep->bEndpointAddress & 0xFF),
+               ep->wMaxPacketSize, usb_host::USB_MAX_PACKET_SIZE);
+      ep_mutable->wMaxPacketSize = usb_host::USB_MAX_PACKET_SIZE;
     }
   }
 }
@@ -528,10 +532,10 @@ void USBUartTypeCdcAcm::enable_channels() {
                              }
                            });
   }
-  this->start_channels();
+  this->start_channels_();
 }
 
-void USBUartTypeCdcAcm::start_channels() {
+void USBUartTypeCdcAcm::start_channels_() {
   for (auto *channel : this->channels_) {
     if (!channel->initialised_.load())
       continue;
@@ -543,4 +547,5 @@ void USBUartTypeCdcAcm::start_channels() {
 
 }  // namespace esphome::usb_uart
 
-#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 ||
+        // USE_ESP32_VARIANT_ESP32S31 || USE_ESP32_VARIANT_ESP32H4

@@ -27,7 +27,7 @@ ep_configs: dict[str, dict[str, Any]] = {
                     {
                         CONF_ATTRIBUTE_ID: 0x55,
                         CONF_TYPE: "BOOL",
-                        CONF_REPORT: REPORT["enable"],
+                        CONF_REPORT: REPORT["default"],
                         CONF_DEVICE: None,
                     },
                     {
@@ -36,11 +36,40 @@ ep_configs: dict[str, dict[str, Any]] = {
                     },
                     {
                         CONF_ATTRIBUTE_ID: 0x6F,
-                        CONF_TYPE: "8BITMAP",
+                        CONF_TYPE: "MAP8",
                     },
                     {
                         CONF_ATTRIBUTE_ID: 0x1C,
-                        CONF_TYPE: "CHAR_STRING",
+                        CONF_TYPE: "STRING",
+                    },
+                ],
+            },
+        ],
+    },
+    "analog_input": {
+        DEVICE_TYPE: "CUSTOM_ATTR",
+        CONF_CLUSTERS: [
+            {
+                CONF_ID: "ANALOG_INPUT",
+                ROLE: CLUSTER_ROLE["SERVER"],
+                CONF_ATTRIBUTES: [
+                    {
+                        CONF_ATTRIBUTE_ID: 0x55,
+                        CONF_TYPE: "SINGLE",
+                        CONF_REPORT: REPORT["default"],
+                        CONF_DEVICE: None,
+                    },
+                    {
+                        CONF_ATTRIBUTE_ID: 0x51,
+                        CONF_TYPE: "BOOL",
+                    },
+                    {
+                        CONF_ATTRIBUTE_ID: 0x6F,
+                        CONF_TYPE: "MAP8",
+                    },
+                    {
+                        CONF_ATTRIBUTE_ID: 0x1C,
+                        CONF_TYPE: "STRING",
                     },
                 ],
             },

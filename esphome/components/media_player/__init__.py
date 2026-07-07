@@ -133,6 +133,7 @@ def request_codecs_for_format_configs(
         audio.request_flac_support()
         audio.request_mp3_support()
         audio.request_opus_support()
+        audio.request_wav_support()
     else:
         if "FLAC" in needed_formats:
             audio.request_flac_support()
@@ -140,6 +141,8 @@ def request_codecs_for_format_configs(
             audio.request_mp3_support()
         if "OPUS" in needed_formats:
             audio.request_opus_support()
+        if "WAV" in needed_formats:
+            audio.request_wav_support()
 
 
 # Local config key constants

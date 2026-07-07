@@ -100,7 +100,7 @@ def position(min=-MAX_POSITION, max=MAX_POSITION):
         if isinstance(value, str) and value.endswith("%"):
             value = percent_to_position(value)
 
-        if isinstance(value, str) and (value.endswith("°") or value.endswith("deg")):
+        if isinstance(value, str) and value.endswith(("°", "deg")):
             return angle_to_position(
                 value,
                 min=round(min * POSITION_TO_ANGLE),

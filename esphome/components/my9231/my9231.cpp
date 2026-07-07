@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace my9231 {
+namespace esphome::my9231 {
 
 static const char *const TAG = "my9231.output";
 
@@ -123,5 +122,4 @@ void MY9231OutputComponent::send_dcki_pulses_(uint8_t count) {
   }
 }
 
-}  // namespace my9231
-}  // namespace esphome
+}  // namespace esphome::my9231

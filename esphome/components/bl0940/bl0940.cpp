@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace bl0940 {
+namespace esphome::bl0940 {
 
 static const char *const TAG = "bl0940";
 
@@ -121,7 +120,7 @@ float BL0940::calculate_power_reference_() {
 float BL0940::calculate_energy_reference_() {
   // formula: 3600000 * 4046 * RL * R1 * 1000 / (1638.4 * 256) / Vref² / (R1 + R2)
   // or:  power_reference_ * 3600000 / (1638.4 * 256)
-  return this->power_reference_cal_ * 3600000 / (1638.4 * 256);
+  return this->power_reference_cal_ * 3600000 / (1638.4f * 256);
 }
 
 float BL0940::calculate_calibration_value_(float state) { return (100 + state) / 100; }
@@ -274,5 +273,4 @@ void BL0940::dump_config() {  // NOLINT(readability-function-cognitive-complexit
   LOG_SENSOR("", "External temperature", this->external_temperature_sensor_);
 }
 
-}  // namespace bl0940
-}  // namespace esphome
+}  // namespace esphome::bl0940

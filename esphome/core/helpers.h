@@ -33,7 +33,7 @@
 #include <pgmspace.h>
 #endif
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
 #include <Arduino.h>
 #endif
 
@@ -184,8 +184,10 @@ template<size_t InlineSize = 8> class SmallInlineBuffer {
   SmallInlineBuffer(const SmallInlineBuffer &) = delete;
   SmallInlineBuffer &operator=(const SmallInlineBuffer &) = delete;
 
-  /// Set buffer contents, allocating heap if needed
-  void set(const uint8_t *src, size_t size) {
+  /// Resize to `size` bytes of (uninitialized) storage and return a writable pointer to fill.
+  /// Allocates heap only when `size` exceeds the inline capacity. Use this when the contents are
+  /// built in place (e.g. assembling a frame and appending a checksum) to avoid a staging copy.
+  uint8_t *init(size_t size) {
     // Free existing heap allocation if switching from heap to inline or different heap size
     if (!this->is_inline_() && (size <= InlineSize || size != this->len_)) {
       delete[] this->heap_;
@@ -196,8 +198,11 @@ template<size_t InlineSize = 8> class SmallInlineBuffer {
       this->heap_ = new uint8_t[size];  // NOLINT(cppcoreguidelines-owning-memory)
     }
     this->len_ = size;
-    memcpy(this->data(), src, size);
+    return this->data();
   }
+
+  /// Set buffer contents, allocating heap if needed
+  void set(const uint8_t *src, size_t size) { memcpy(this->init(size), src, size); }
 
   uint8_t *data() { return this->is_inline_() ? this->inline_ : this->heap_; }
   const uint8_t *data() const { return this->is_inline_() ? this->inline_ : this->heap_; }
@@ -682,6 +687,15 @@ template<typename T> class FixedVector {
   /// Caller must ensure vector is not empty (size() > 0)
   T &back() { return data_[size_ - 1]; }
   const T &back() const { return data_[size_ - 1]; }
+
+  /// Remove the last element in place (no reallocation, keeps capacity)
+  /// Caller must ensure vector is not empty (size() > 0)
+  void pop_back() {
+    if constexpr (!std::is_trivially_destructible<T>::value) {
+      data_[size_ - 1].~T();
+    }
+    size_--;
+  }
 
   size_t size() const { return size_; }
   bool empty() const { return size_ == 0; }
@@ -1886,7 +1900,7 @@ class Mutex {
   Mutex(const Mutex &) = delete;
   Mutex &operator=(const Mutex &) = delete;
 
-#if defined(USE_ESP8266) || defined(USE_RP2040)
+#if defined(USE_ESP8266) || defined(USE_RP2)
   // Single-threaded platforms: inline no-ops so the compiler eliminates all call overhead.
   Mutex() = default;
   ~Mutex() = default;
@@ -1955,7 +1969,7 @@ class InterruptLock {
   ~InterruptLock();
 
  protected:
-#if defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_ZEPHYR)
+#if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_ZEPHYR)
   uint32_t state_;
 #endif
 };
@@ -1973,7 +1987,7 @@ class LwIPLock {
   LwIPLock(const LwIPLock &) = delete;
   LwIPLock &operator=(const LwIPLock &) = delete;
 
-#if defined(USE_ESP32) || defined(USE_RP2040)
+#if defined(USE_ESP32) || defined(USE_RP2)
   // Platforms with potential lwIP core locking — out-of-line implementations in helpers.cpp
   LwIPLock();
   ~LwIPLock();
@@ -2123,7 +2137,7 @@ template<class T> class RAMAllocator {
     auto max_external =
         this->flags_ & ALLOC_EXTERNAL ? heap_caps_get_free_size(MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM) : 0;
     return max_internal + max_external;
-#elif defined(USE_RP2040)
+#elif defined(USE_RP2)
     return ::rp2040.getFreeHeap();
 #elif defined(USE_LIBRETINY)
     return lt_heap_get_free();

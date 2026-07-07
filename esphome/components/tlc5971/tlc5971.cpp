@@ -1,8 +1,7 @@
 #include "tlc5971.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tlc5971 {
+namespace esphome::tlc5971 {
 
 static const char *const TAG = "tlc5971";
 
@@ -90,5 +89,4 @@ void TLC5971::set_channel_value(uint16_t channel, uint16_t value) {
   this->pwm_amounts_[channel] = value;
 }
 
-}  // namespace tlc5971
-}  // namespace esphome
+}  // namespace esphome::tlc5971

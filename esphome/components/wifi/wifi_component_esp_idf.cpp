@@ -145,23 +145,15 @@ void WiFiComponent::wifi_pre_setup_() {
     get_mac_address_raw(mac);
     set_mac_address(mac);
   }
-  esp_err_t err = esp_netif_init();
-  if (err != ERR_OK) {
-    ESP_LOGE(TAG, "esp_netif_init failed: %s", esp_err_to_name(err));
-    return;
-  }
+  // Network interface setup handled by network component
   s_wifi_event_group = xEventGroupCreate();
   if (s_wifi_event_group == nullptr) {
     ESP_LOGE(TAG, "xEventGroupCreate failed");
     return;
   }
-  err = esp_event_loop_create_default();
-  if (err != ERR_OK) {
-    ESP_LOGE(TAG, "esp_event_loop_create_default failed: %s", esp_err_to_name(err));
-    return;
-  }
   esp_event_handler_instance_t instance_wifi_id, instance_ip_id;
-  err = esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, nullptr, &instance_wifi_id);
+  esp_err_t err =
+      esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, nullptr, &instance_wifi_id);
   if (err != ERR_OK) {
     ESP_LOGE(TAG, "esp_event_handler_instance_register failed: %s", esp_err_to_name(err));
     return;
@@ -171,19 +163,75 @@ void WiFiComponent::wifi_pre_setup_() {
     ESP_LOGE(TAG, "esp_event_handler_instance_register failed: %s", esp_err_to_name(err));
     return;
   }
+  // NOTE: netif creation + esp_wifi_init() used to live here. They allocate ~15-30KB of
+  // DMA-capable internal SRAM, which competes with W5500 SPI DMA and I2S DMA on
+  // memory-tight devices. They are now deferred to wifi_lazy_init_(), called from
+  // setup() when enable_on_boot_ is true, or from enable() on first runtime enable.
+  // This makes enable_on_boot:false genuinely skip the wifi DMA allocation.
+}
 
-  s_sta_netif = esp_netif_create_default_wifi_sta();
+void WiFiComponent::wifi_lazy_init_() {
+  if (this->wifi_initialized_)
+    return;
+
+  // Guard each creation so partial init (e.g. a failed esp_wifi_init() below)
+  // followed by a retry via enable() does not leak the existing netif handle
+  // nor re-register the default WiFi handlers.
+  if (s_sta_netif == nullptr)
+    s_sta_netif = esp_netif_create_default_wifi_sta();
+  if (s_sta_netif == nullptr) {
+    // Allocation failed; leave wifi_initialized_ false so a later enable() retries.
+    ESP_LOGE(TAG, "esp_netif_create_default_wifi_sta failed");
+    return;
+  }
 
 #ifdef USE_WIFI_AP
-  s_ap_netif = esp_netif_create_default_wifi_ap();
+  if (s_ap_netif == nullptr)
+    s_ap_netif = esp_netif_create_default_wifi_ap();
 #endif  // USE_WIFI_AP
+
+  // The WiFi driver was started (e.g. by ESP-NOW with the wifi component disabled at
+  // boot) before our STA netif existed. The default WIFI_EVENT_STA_START handler
+  // therefore ran with no netif and never called esp_wifi_register_if_rxcb() -- the
+  // only thing that points the driver's RX path at a netif (it sets
+  // s_wifi_netifs[WIFI_IF_STA]). A bare esp_netif_action_start() would stop the
+  // immediate crash (#17232) but leaves RX unbound, so the first association
+  // associates at L2 yet never receives DHCP replies and times out (#17239). Restart
+  // the driver now that the netif exists so STA_START re-runs the default handler and
+  // wires RX correctly. ESP-NOW survives the stop/start (its peer state persists).
+  // This also matches a self-retry: if esp_wifi_set_storage() below failed on a
+  // previous wifi_lazy_init_() it returned without setting wifi_initialized_, and
+  // esp_wifi_init() has since run, so esp_wifi_get_mode() now succeeds here too.
+  wifi_mode_t mode;
+  if (esp_wifi_get_mode(&mode) == ESP_OK) {
+    ESP_LOGD(TAG, "WiFi driver already started without STA netif; restarting to bind it");
+    esp_err_t err = esp_wifi_stop();
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "esp_wifi_stop failed: %s", esp_err_to_name(err));
+    }
+    // Re-apply RAM storage; the normal init path does this, but it is skipped on
+    // the self-retry case above, which would otherwise let the driver persist
+    // credentials to NVS for the rest of the boot.
+    err = esp_wifi_set_storage(WIFI_STORAGE_RAM);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "esp_wifi_set_storage failed: %s", esp_err_to_name(err));
+    }
+    err = esp_wifi_start();
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_wifi_start failed: %s", esp_err_to_name(err));
+      return;
+    }
+    s_wifi_started = true;
+    this->wifi_initialized_ = true;
+    return;
+  }
 
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
   if (global_preferences->nvs_handle == 0) {
     ESP_LOGW(TAG, "starting wifi without nvs");
     cfg.nvs_enable = false;
   }
-  err = esp_wifi_init(&cfg);
+  esp_err_t err = esp_wifi_init(&cfg);
   if (err != ERR_OK) {
     ESP_LOGE(TAG, "esp_wifi_init failed: %s", esp_err_to_name(err));
     return;
@@ -193,6 +241,7 @@ void WiFiComponent::wifi_pre_setup_() {
     ESP_LOGE(TAG, "esp_wifi_set_storage failed: %s", esp_err_to_name(err));
     return;
   }
+  this->wifi_initialized_ = true;
 }
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {

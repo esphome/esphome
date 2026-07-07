@@ -632,11 +632,11 @@ void WiFiComponent::setup() {
 #endif
 
   if (this->enable_on_boot_) {
+#ifdef USE_ESP32
+    this->wifi_lazy_init_();
+#endif
     this->start();
   } else {
-#ifdef USE_ESP32
-    esp_netif_init();
-#endif
     this->state_ = WIFI_COMPONENT_STATE_DISABLED;
   }
 }
@@ -649,7 +649,13 @@ void WiFiComponent::start() {
 
   this->pref_ = global_preferences->make_preference<wifi::SavedWifiSettings>(hash, true);
 #ifdef USE_WIFI_FAST_CONNECT
-  this->fast_connect_pref_ = global_preferences->make_preference<wifi::SavedWifiFastConnectSettings>(hash + 1, false);
+#ifdef USE_WIFI_FAST_CONNECT_IN_FLASH
+  const bool fast_connect_in_flash = true;
+#else
+  const bool fast_connect_in_flash = false;
+#endif
+  this->fast_connect_pref_ =
+      global_preferences->make_preference<wifi::SavedWifiFastConnectSettings>(hash + 1, fast_connect_in_flash);
 #endif
 
   SavedWifiSettings save{};
@@ -822,7 +828,7 @@ void WiFiComponent::loop() {
               }
               // else: scan in progress, wait
             } else if (this->roaming_state_ == RoamingState::IDLE && this->roaming_attempts_ < ROAMING_MAX_ATTEMPTS &&
-                       now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL) {
+                       now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL && !this->roaming_suppressed_()) {
               this->check_roaming_(now);
             }
           }
@@ -1278,6 +1284,11 @@ void WiFiComponent::enable() {
 
   ESP_LOGD(TAG, "Enabling");
   this->state_ = WIFI_COMPONENT_STATE_OFF;
+#ifdef USE_ESP32
+  // Idempotent — only allocates DMA buffers + netifs on the first call. After this,
+  // start() can safely run.
+  this->wifi_lazy_init_();
+#endif
   this->start();
 }
 
@@ -2193,7 +2204,15 @@ bool WiFiComponent::request_high_performance() {
   }
 
   // Give the semaphore (non-blocking). This increments the count.
-  return xSemaphoreGive(this->high_performance_semaphore_) == pdTRUE;
+  bool success = xSemaphoreGive(this->high_performance_semaphore_) == pdTRUE;
+
+  // Wake the main loop so the switch to high-performance mode is applied on the
+  // next tick instead of waiting up to loop_interval.
+  if (success) {
+    App.wake_loop_threadsafe();
+  }
+
+  return success;
 }
 
 bool WiFiComponent::release_high_performance() {
@@ -2369,7 +2388,7 @@ void WiFiComponent::clear_roaming_state_() {
 
 void WiFiComponent::release_scan_results_() {
   if (!this->keep_scan_results_) {
-#if defined(USE_RP2040) || defined(USE_ESP32)
+#if defined(USE_RP2) || defined(USE_ESP32)
     // std::vector - use swap trick since shrink_to_fit is non-binding
     decltype(this->scan_result_)().swap(this->scan_result_);
 #else

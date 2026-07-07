@@ -7,8 +7,7 @@
 using namespace esphome::climate;
 using namespace esphome::uart;
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
 static const char *const TAG = "haier.climate";
 constexpr size_t SIGNAL_LEVEL_UPDATE_INTERVAL_MS = 10000;
@@ -342,7 +341,7 @@ haier_protocol::HaierMessage Smartair2Climate::get_control_message() {
     if (climate_control.target_temperature.has_value()) {
       float target_temp = climate_control.target_temperature.value();
       out_data->set_point = ((int) target_temp) - 16;  // set the temperature with offset 16
-      out_data->half_degree = (target_temp - ((int) target_temp) >= 0.49) ? 1 : 0;
+      out_data->half_degree = (target_temp - ((int) target_temp) >= 0.49f) ? 1 : 0;
     }
     if (out_data->ac_power == 0) {
       // If AC is off - no presets allowed
@@ -555,5 +554,4 @@ void Smartair2Climate::set_alternative_swing_control(bool swing_control) {
   this->use_alternative_swing_control_ = swing_control;
 }
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier

@@ -4,8 +4,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace toshiba {
+namespace esphome::toshiba {
 
 struct RacPt1411hwruFanSpeed {
   uint8_t code1;
@@ -594,7 +593,7 @@ void ToshibaClimate::transmit_rac_pt1411hwru_() {
   message[3] = ~message[2];
   // Byte 4u: Temp
   if (this->model_ == MODEL_RAC_PT1411HWRU_F) {
-    temperature = (temperature * 1.8) + 32;
+    temperature = (temperature * 1.8f) + 32;
     temp_adjd = temperature - TOSHIBA_RAC_PT1411HWRU_TEMP_F_MIN;
   }
 
@@ -1372,5 +1371,4 @@ bool ToshibaClimate::decode_(remote_base::RemoteReceiveData *data, uint8_t *mess
   return true;
 }
 
-}  // namespace toshiba
-}  // namespace esphome
+}  // namespace esphome::toshiba

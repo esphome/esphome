@@ -6,6 +6,12 @@ on:
     - cron: "30 0 * * *"  # Run daily at 00:30 UTC
   workflow_dispatch:
 
+# Deny by default; the lock job opts in to exactly what the reusable workflow needs.
+permissions: {}
+
 jobs:
   lock:
+    permissions:
+      issues: write         # issues.lock on closed issues
+      pull-requests: write  # issues.lock on closed pull requests
     uses: esphome/workflows/.github/workflows/lock.yml@025a1e6255610c498ed590403b7e510b69e474df  # 2026.4.1

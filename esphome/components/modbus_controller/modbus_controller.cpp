@@ -2,8 +2,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus_controller";
 
@@ -202,7 +201,7 @@ void ModbusController::update() {
 // walk through the sensors and determine the register ranges to read
 size_t ModbusController::create_register_ranges_() {
   this->register_ranges_.clear();
-  if (this->parent_->role == modbus::ModbusRole::CLIENT && this->sensorset_.empty()) {
+  if (this->sensorset_.empty()) {
     ESP_LOGW(TAG, "No sensors registered");
     return 0;
   }
@@ -539,5 +538,4 @@ bool ModbusCommandItem::is_equal(const ModbusCommandItem &other) {
                    other.register_type == this->register_type && other.function_code == this->function_code;
 }
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

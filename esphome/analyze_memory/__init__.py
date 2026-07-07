@@ -24,7 +24,7 @@ from .helpers import (
 from .toolchain import find_tool, resolve_tool_path, run_tool
 
 if TYPE_CHECKING:
-    from esphome.platformio_api import IDEData
+    from esphome.platformio.toolchain import IDEData
 
 _LOGGER = logging.getLogger(__name__)
 

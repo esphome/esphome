@@ -40,7 +40,7 @@ void ZigbeeComponent::zboss_signal_handler_esphome(zb_bufid_t bufid) {
     case ZB_BDB_SIGNAL_DEVICE_REBOOT:
       ESP_LOGD(TAG, "ZB_BDB_SIGNAL_DEVICE_REBOOT, status: %d", status);
       if (status == RET_OK) {
-        on_join_();
+        on_join_(false);
       }
       break;
     case ZB_BDB_SIGNAL_STEERING:
@@ -88,7 +88,7 @@ void ZigbeeComponent::zboss_signal_handler_esphome(zb_bufid_t bufid) {
 
         for (int i = 0; i < addr_len; ++i) {
           if (ieee_addr_buf[i] != '0') {
-            on_join_();
+            on_join_(true);
             break;
           }
         }
@@ -130,11 +130,10 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   p_device_cb_param->status = RET_NOT_IMPLEMENTED;
 }
 
-void ZigbeeComponent::on_join_() {
-  this->defer([this]() {
+void ZigbeeComponent::on_join_(bool factory_new) {
+  this->defer([this, factory_new]() {
     ESP_LOGD(TAG, "Joined the network");
-    this->join_trigger_.trigger();
-    this->join_cb_.call();
+    this->join_cb_.call(factory_new);
   });
 }
 
