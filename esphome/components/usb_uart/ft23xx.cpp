@@ -397,7 +397,14 @@ int USBUartTypeFT23XX::set_dtr_rts_(USBUartChannel *channel) {
 }
 
 void USBUartTypeFT23XX::start_input(USBUartChannel *channel) {
-  if (!channel->initialised_.load() || channel->input_started_.load())
+  if (!channel->initialised_.load())
+    return;
+
+  // Use compare_exchange_strong to avoid a check-then-act race: start_input() is called
+  // from both the USB task (self-restart on success) and the main loop (backpressure
+  // restart), so a plain load()/store() pair can let both threads submit a transfer.
+  auto started = false;
+  if (!channel->input_started_.compare_exchange_strong(started, true))
     return;
 
   const auto *ep = channel->cdc_dev_.in_ep;
@@ -449,8 +456,10 @@ void USBUartTypeFT23XX::start_input(USBUartChannel *channel) {
     this->start_input(channel);
   };
 
-  channel->input_started_.store(true);
-  this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize);
+  if (!this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize)) {
+    ESP_LOGE(TAG, "RX transfer submission failed for ep=0x%02X", ep->bEndpointAddress);
+    channel->input_started_.store(false);
+  }
 }
 
 void USBUartTypeFT23XX::on_rx_overflow(USBUartChannel *channel) {
