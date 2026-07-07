@@ -26,6 +26,7 @@ from esphome.const import (
     CONF_INCLUDES,
     CONF_INCLUDES_C,
     CONF_LIBRARIES,
+    CONF_MERGE_WARNINGS,
     CONF_MIN_VERSION,
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
@@ -316,6 +317,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INCLUDES_C, default=[]): cv.ensure_list(valid_include),
             cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_NAME_ADD_MAC_SUFFIX, default=False): cv.boolean,
+            cv.Optional(CONF_MERGE_WARNINGS, default=True): cv.boolean,
             cv.Optional(CONF_DEBUG_SCHEDULER, default=False): cv.boolean,
             cv.Optional(CONF_PROJECT): cv.Schema(
                 {
@@ -407,6 +409,17 @@ def preload_core_config(config, result) -> str:
 
     CORE.name = conf[CONF_NAME]
     CORE.friendly_name = conf.get(CONF_FRIENDLY_NAME)
+    # Record the node's area name now (substitutions are already resolved at this
+    # point). storage.json is written before to_code() runs, so deferring this to
+    # to_code() left the area as null in storage.json. The value here is the raw
+    # post-substitution form (a plain string or a {name: ...} mapping). Assign
+    # unconditionally (like friendly_name) so a config without an area never
+    # inherits a stale value from a previous load in a long-running process, and
+    # use .get() so a malformed mapping surfaces later as a proper validation
+    # error rather than a KeyError here. to_code() sets it again from the
+    # validated config, which yields the same name.
+    area = conf.get(CONF_AREA)
+    CORE.area = area.get(CONF_NAME) if isinstance(area, dict) else area
     CORE.data[KEY_CORE] = {}
 
     if CONF_BUILD_PATH not in conf:
@@ -710,6 +723,15 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-Wno-unused-variable")
     cg.add_build_flag("-Wno-unused-but-set-variable")
     cg.add_build_flag("-Wno-sign-compare")
+    # C++20 deprecated ++/--, compound assignment, and chained assignment on
+    # volatile lvalues; GCC warns via -Wvolatile, on by default at gnu++20.
+    # C++23 (P2327R1) removed the deprecation for compound assignment, so the
+    # warning flags patterns that are valid again under newer standards.
+    # C++-only flag: GCC warns when it is passed on a C compile, hence
+    # add_cxx_build_flag. Skipped for host builds, where the compiler may be
+    # clang, which does not know this GCC option.
+    if not CORE.is_host:
+        cg.add_cxx_build_flag("-Wno-volatile")
     if config[CONF_DEBUG_SCHEDULER]:
         cg.add_define("ESPHOME_DEBUG_SCHEDULER")
 
@@ -760,7 +782,6 @@ async def to_code(config: ConfigType) -> None:
     # Process areas
     all_areas: list[dict[str, str | core.ID]] = []
     if CONF_AREA in config:
-        CORE.area = config[CONF_AREA][CONF_NAME]
         all_areas.append(config[CONF_AREA])
     all_areas.extend(config[CONF_AREAS])
 
@@ -847,8 +868,8 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "wake/wake_esp8266.cpp": {
             PlatformFramework.ESP8266_ARDUINO,
         },
-        "wake/wake_rp2040.cpp": {
-            PlatformFramework.RP2040_ARDUINO,
+        "wake/wake_rp2.cpp": {
+            PlatformFramework.RP2_ARDUINO,
         },
         "wake/wake_host.cpp": {
             PlatformFramework.HOST_NATIVE,

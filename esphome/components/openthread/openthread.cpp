@@ -132,7 +132,7 @@ void OpenThreadSrpComponent::setup() {
   char *existing_host_name = otSrpClientBuffersGetHostNameString(instance, &size);
   const auto &host_name = App.get_name();
   uint16_t host_name_len = host_name.size();
-  if (host_name_len > size) {
+  if (host_name_len >= size) {
     ESP_LOGW(TAG, "Hostname is too long, choose a shorter project name");
     return;
   }
@@ -151,7 +151,7 @@ void OpenThreadSrpComponent::setup() {
     return;
   }
 
-  // Get mdns services and copy their data (strings are copied with strdup below)
+  // Get mdns services and copy their data (strdup on ESP32, pool_alloc_ on Zephyr)
   const auto &mdns_services = this->mdns_->get_services();
   ESP_LOGD(TAG, "Setting up SRP services. count = %d\n", mdns_services.size());
   for (const auto &service : mdns_services) {
@@ -164,7 +164,7 @@ void OpenThreadSrpComponent::setup() {
     // Set service name
     char *string = otSrpClientBuffersGetServiceEntryServiceNameString(entry, &size);
     std::string full_service = std::string(MDNS_STR_ARG(service.service_type)) + "." + MDNS_STR_ARG(service.proto);
-    if (full_service.size() > size) {
+    if (full_service.size() >= size) {
       ESP_LOGW(TAG, "Service name too long: %s", full_service.c_str());
       continue;
     }
@@ -172,7 +172,7 @@ void OpenThreadSrpComponent::setup() {
 
     // Set instance name (using host_name)
     string = otSrpClientBuffersGetServiceEntryInstanceNameString(entry, &size);
-    if (host_name_len > size) {
+    if (host_name_len >= size) {
       ESP_LOGW(TAG, "Instance name too long: %s", host_name.c_str());
       continue;
     }
@@ -189,11 +189,21 @@ void OpenThreadSrpComponent::setup() {
     for (size_t i = 0; i < service.txt_records.size(); i++) {
       const auto &txt = service.txt_records[i];
       // Value is either a compile-time string literal in flash or a pointer to dynamic_txt_values_
-      // OpenThread SRP client expects the data to persist, so we strdup it
+      // OpenThread SRP client expects the data to persist, so we copy it
       const char *value_str = MDNS_STR_ARG(txt.value);
       txt_entries[i].mKey = MDNS_STR_ARG(txt.key);
+#ifndef USE_ZEPHYR
       txt_entries[i].mValue = reinterpret_cast<const uint8_t *>(strdup(value_str));
       txt_entries[i].mValueLength = strlen(value_str);
+#else
+      // strdup is not available on zephyr
+      // https:// github.com/zephyrproject-rtos/zephyr/issues/22464
+      size_t value_len = strlen(value_str);
+      char *value_copy = reinterpret_cast<char *>(this->pool_alloc_(value_len + 1));
+      memcpy(value_copy, value_str, value_len + 1);
+      txt_entries[i].mValue = reinterpret_cast<const uint8_t *>(value_copy);
+      txt_entries[i].mValueLength = value_len;
+#endif
     }
     entry->mService.mTxtEntries = txt_entries;
     entry->mService.mNumTxtEntries = service.txt_records.size();
@@ -233,7 +243,7 @@ bool OpenThreadComponent::teardown() {
     global_openthread_component = nullptr;
     ESP_LOGD(TAG, "Exit main loop ");
     int error = this->openthread_stop_();
-    if (error != ESP_OK) {
+    if (error != 0) {
       ESP_LOGW(TAG, "Failed attempt to stop main loop %d", error);
       this->teardown_complete_ = true;
     }
@@ -254,6 +264,35 @@ void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
     return;
   }
   ESP_LOGD(TAG, "Waiting on Confirmation Removal SRP Host and Services");
+}
+
+void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
+  otLinkModeConfig link_mode_config{};
+#if CONFIG_OPENTHREAD_FTD
+  link_mode_config.mRxOnWhenIdle = true;
+  link_mode_config.mDeviceType = true;
+  link_mode_config.mNetworkData = true;
+#elif CONFIG_OPENTHREAD_MTD
+  if (this->poll_period_ > 0) {
+    if (otLinkSetPollPeriod(instance, this->poll_period_) != OT_ERROR_NONE) {
+      ESP_LOGE(TAG, "Failed to set pollperiod");
+    }
+    ESP_LOGD(TAG, "Link Polling Period: %" PRIu32, otLinkGetPollPeriod(instance));
+  }
+  link_mode_config.mRxOnWhenIdle = this->poll_period_ == 0;
+  link_mode_config.mDeviceType = false;
+  link_mode_config.mNetworkData = false;
+#endif
+
+  if (otThreadSetLinkMode(instance, link_mode_config) != OT_ERROR_NONE) {
+    ESP_LOGE(TAG, "Failed to set linkmode");
+  }
+#ifdef ESPHOME_LOG_HAS_DEBUG  // Fetch link mode from OT only when DEBUG
+  link_mode_config = otThreadGetLinkMode(instance);
+  ESP_LOGD(TAG, "Link Mode Device Type: %s, Network Data: %s, RX On When Idle: %s",
+           TRUEFALSE(link_mode_config.mDeviceType), TRUEFALSE(link_mode_config.mNetworkData),
+           TRUEFALSE(link_mode_config.mRxOnWhenIdle));
+#endif
 }
 
 }  // namespace esphome::openthread

@@ -238,6 +238,72 @@ class _ConflictWalk:
     rejects: set[str]
 
 
+@cache
+def _get_test_config_components(component: str, platform: str) -> frozenset[str]:
+    """Return the components referenced by a component's test config for a platform.
+
+    Loads ``tests/components/<component>/test.<platform>.yaml`` and extracts the
+    top-level component keys (and list ``platform:`` values). This lets the
+    conflict splitter see components that are only pulled in via a test config
+    (e.g. nRF52 ``network`` tests that also enable ``openthread``), which a
+    purely static AUTO_LOAD/CONFLICTS_WITH parse cannot discover -- notably for
+    components like ``api`` whose ``AUTO_LOAD`` is a callable.
+
+    Failures (missing file, parse error) are treated as empty so the splitter
+    never crashes on a malformed or absent test config.
+    """
+    from esphome import yaml_util
+
+    test_file = (
+        Path(root_path) / "tests" / "components" / component / f"test.{platform}.yaml"
+    )
+    if not test_file.exists():
+        return frozenset()
+    try:
+        config = yaml_util.load_yaml(test_file)
+    except Exception:  # noqa: BLE001 - never let a bad test config crash grouping
+        # Matches analyze_component_buses, which loads these same files and
+        # silently tolerates parse failures; surfacing it only here would be
+        # inconsistent and noisy.
+        return frozenset()
+    if not isinstance(config, dict):
+        return frozenset()
+    return frozenset(_extract_components_from_yaml(config))
+
+
+@cache
+def _conflict_walk(comp: str, platform: str) -> _ConflictWalk:
+    """Build the platform-aware conflict walk for a single component.
+
+    Seeds the walk with the component itself plus any components pulled in via
+    its ``test.<platform>.yaml`` config, then folds in each seed's static
+    AUTO_LOAD closure and CONFLICTS_WITH declarations. Cached per
+    ``(component, platform)`` since the test-config seeds are platform-specific.
+    """
+    seeds = {comp} | set(_get_test_config_components(comp, platform))
+    walk = _ConflictWalk(loaded=set(seeds), rejects=set())
+    stack = list(seeds)
+    while stack:
+        metadata = parse_component_metadata(stack.pop())
+        walk.rejects |= metadata.conflicts_with
+        new = metadata.auto_load - walk.loaded
+        walk.loaded |= new
+        stack.extend(new)
+    return walk
+
+
+def components_conflict(a: str, b: str, platform: str) -> bool:
+    """Return True if components ``a`` and ``b`` cannot share a build on ``platform``.
+
+    Uses the same platform-aware conflict walk as :func:`split_conflicting_groups`
+    so callers (e.g. the no-bus redistribution in ``test_build_components.py``)
+    agree with how groups were originally split. The conflict relation is
+    symmetric even when only one side declares CONFLICTS_WITH.
+    """
+    wa, wb = _conflict_walk(a, platform), _conflict_walk(b, platform)
+    return not wa.rejects.isdisjoint(wb.loaded) or not wb.rejects.isdisjoint(wa.loaded)
+
+
 def split_conflicting_groups(
     grouped_components: dict[tuple[str, str], list[str]],
 ) -> dict[tuple[str, str], list[str]]:
@@ -250,33 +316,24 @@ def split_conflicting_groups(
     conflict relation is treated as symmetric even when only one side
     declares it (e.g. ethernet rejects wifi but wifi does not declare the
     reverse).
+
+    The walk is platform-aware: in addition to the static AUTO_LOAD closure,
+    each ``(component, platform)`` walk is seeded with the components found in
+    that component's ``test.<platform>.yaml`` config. This catches conflicts
+    that only exist on a given platform and are expressed through the test
+    config rather than static metadata -- e.g. on nRF52 the ``network``/``api``
+    test configs also enable ``openthread``, which ``zigbee`` declares a
+    conflict with, so ``api`` and ``zigbee`` end up split there. On ESP32 those
+    test configs have no ``openthread``, so the components still group together.
     """
-    batch = {c for comps in grouped_components.values() for c in comps}
-
-    walks: dict[str, _ConflictWalk] = {}
-    for comp in batch:
-        walk = _ConflictWalk(loaded={comp}, rejects=set())
-        stack = [comp]
-        while stack:
-            metadata = parse_component_metadata(stack.pop())
-            walk.rejects |= metadata.conflicts_with
-            new = metadata.auto_load - walk.loaded
-            walk.loaded |= new
-            stack.extend(new)
-        walks[comp] = walk
-
-    def conflicts(a: str, b: str) -> bool:
-        wa, wb = walks[a], walks[b]
-        return not wa.rejects.isdisjoint(wb.loaded) or not wb.rejects.isdisjoint(
-            wa.loaded
-        )
-
     result: dict[tuple[str, str], list[str]] = {}
     for (platform, signature), components in grouped_components.items():
         buckets: list[list[str]] = []
         for comp in components:
             for bucket in buckets:
-                if not any(conflicts(comp, other) for other in bucket):
+                if not any(
+                    components_conflict(comp, other, platform) for other in bucket
+                ):
                     bucket.append(comp)
                     break
             else:

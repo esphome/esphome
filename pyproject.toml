@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==82.0.1", "wheel>=0.43,<0.48"]
+requires = ["setuptools==83.0.0", "wheel>=0.43,<0.48"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -20,7 +20,7 @@ classifiers = [
     "Topic :: Home Automation",
 ]
 
-requires-python = ">=3.11.0,<3.15"
+requires-python = ">=3.12.0,<3.15"
 
 dynamic = ["dependencies", "optional-dependencies", "version"]
 
@@ -62,7 +62,7 @@ addopts = [
 ]
 
 [tool.pylint.MAIN]
-py-version = "3.11"
+py-version = "3.12"
 ignore = [
   "api_pb2.py",
 ]
@@ -106,7 +106,7 @@ expected-line-ending-format = "LF"
 
 [tool.ruff]
 required-version = ">=0.5.0"
-target-version = "py311"
+target-version = "py312"
 exclude = ['generated']
 
 [tool.ruff.lint]
