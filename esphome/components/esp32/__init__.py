@@ -1367,7 +1367,16 @@ def final_validate(config):
             )
     if (nvs_enc := advanced.get(CONF_NVS_ENCRYPTION)) is not None:
         variant = config[CONF_VARIANT]
-        if variant not in NVS_ENCRYPTION_HMAC_VARIANTS:
+        if variant in NVS_ENCRYPTION_HMAC_VARIANTS:
+            _LOGGER.warning(
+                "NVS encryption will burn an HMAC key into eFuse key block %d on the "
+                "first boot of each device. This is PERMANENT and IRREVERSIBLE: "
+                "the block cannot be erased or reused afterwards. Enabling (or "
+                "later disabling) encryption also wipes any previously saved "
+                "preferences once, because the older data can no longer be read.",
+                nvs_enc[CONF_KEY_ID],
+            )
+        else:
             supported = ", ".join(
                 sorted(VARIANT_FRIENDLY[v] for v in NVS_ENCRYPTION_HMAC_VARIANTS)
             )
@@ -1378,15 +1387,6 @@ def final_validate(config):
                     f"Supported variants: {supported}.",
                     path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_NVS_ENCRYPTION],
                 )
-            )
-        else:
-            _LOGGER.warning(
-                "NVS encryption will burn an HMAC key into eFuse key block %d on the "
-                "first boot of each device. This is PERMANENT and IRREVERSIBLE: "
-                "the block cannot be erased or reused afterwards. Enabling (or "
-                "later disabling) encryption also wipes any previously saved "
-                "preferences once, because the older data can no longer be read.",
-                nvs_enc[CONF_KEY_ID],
             )
     if advanced[CONF_ENABLE_OTA_DOWNGRADE_PROTECTION]:
         project = full_config[CONF_ESPHOME].get(CONF_PROJECT)
