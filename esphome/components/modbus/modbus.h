@@ -18,19 +18,27 @@ namespace esphome::modbus {
 static constexpr uint16_t MODBUS_TX_BUFFER_SIZE = 15;
 static constexpr uint16_t MODBUS_TX_MAX_DELAY_MS = 5;
 
-struct ModbusFrame {
-  // Frame with exact-size allocation to avoid std::vector overhead
-  std::unique_ptr<uint8_t[]> data;
-  uint16_t size;  // Modbus RTU max is 256 bytes
+// Typical frames -- reads and single-register/coil writes -- are exactly 8 bytes
+// (address + 5-byte PDU + 2-byte CRC) and fit inline with no heap allocation.
+static constexpr uint16_t MODBUS_FRAME_INLINE_SIZE = 8;
 
-  ModbusFrame(uint8_t address, const uint8_t *pdu, uint16_t pdu_len)
-      : data(std::make_unique<uint8_t[]>(pdu_len + 3)), size(pdu_len + 3) {
-    data[0] = address;
-    memcpy(data.get() + 1, pdu, pdu_len);
-    auto crc = crc16(data.get(), pdu_len + 1);
-    data[pdu_len + 1] = crc >> 0;
-    data[pdu_len + 2] = crc >> 8;
+struct ModbusFrame {
+  // Frame held in a small-buffer-optimized buffer. Typical frames fit inline; only larger
+  // multi-register or custom frames spill to a single heap allocation. This keeps the common,
+  // high-frequency tx traffic off the heap entirely, avoiding per-frame alloc/free churn.
+  // The buffer tracks its own length, so no separate size field is needed.
+  SmallInlineBuffer<MODBUS_FRAME_INLINE_SIZE> data;  // Modbus RTU max is 256 bytes
+
+  ModbusFrame(uint8_t address, const uint8_t *pdu, uint16_t pdu_len) {
+    uint8_t *buf = this->data.init(pdu_len + 3);
+    buf[0] = address;
+    memcpy(buf + 1, pdu, pdu_len);
+    auto crc = crc16(buf, pdu_len + 1);
+    buf[pdu_len + 1] = crc >> 0;
+    buf[pdu_len + 2] = crc >> 8;
   }
+
+  uint16_t size() const { return static_cast<uint16_t>(this->data.size()); }
 };
 
 class Modbus : public uart::UARTDevice, public Component {
