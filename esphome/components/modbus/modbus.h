@@ -121,6 +121,10 @@ class ModbusClientHub : public Modbus {
   // Parsers need to handle standard (ModbusFunctionCode) and custom (uint8_t) function codes, so we use uint8_t here.
   void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) override;
   void send_next_frame_();
+  // Notify the waiting device of no response; re-queues the frame if on_modbus_no_response() returns true.
+  // wfr is the caller's checked reference to waiting_for_response_.
+  void notify_no_response_(ModbusDeviceCommand &wfr);
+  void requeue_waiting_frame_(ModbusDeviceCommand &wfr);
   void queue_raw_(uint8_t address, const uint8_t *pdu, uint16_t pdu_len, ModbusClientDevice *device = nullptr);
 
   uint16_t send_wait_time_{2000};
@@ -179,7 +183,8 @@ class ModbusClientDevice {
   virtual void on_modbus_data(const std::vector<uint8_t> &data) {}
   virtual void on_modbus_error(uint8_t function_code, uint8_t exception_code) {}
   virtual void on_modbus_not_sent() {}
-  virtual void on_modbus_no_response() {}
+  /// Called when no (valid) response arrived; return true to have the hub re-queue the frame for a retry.
+  virtual bool on_modbus_no_response() { return false; }
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
             const uint8_t *payload = nullptr) {
     this->parent_->send_pdu(this->address_,
