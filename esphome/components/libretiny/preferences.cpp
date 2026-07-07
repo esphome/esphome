@@ -3,16 +3,12 @@
 #include "preferences.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include <cinttypes>
 #include <cstring>
 #include <vector>
 
 namespace esphome::libretiny {
 
 static const char *const TAG = "preferences";
-
-// Buffer size for converting uint32_t to string: max "4294967295" (10 chars) + null terminator + 1 padding
-static constexpr size_t KEY_BUFFER_SIZE = 12;
 
 struct NVSData {
   uint32_t key;
@@ -50,8 +46,8 @@ bool LibreTinyPreferenceBackend::load(uint8_t *data, size_t len) {
     }
   }
 
-  char key_str[KEY_BUFFER_SIZE];
-  snprintf(key_str, sizeof(key_str), "%" PRIu32, this->key);
+  char key_str[UINT32_MAX_STR_SIZE];
+  uint32_to_str(key_str, this->key);
   fdb_blob_make(this->blob, data, len);
   size_t actual_len = fdb_kv_get_blob(this->db, key_str, this->blob);
   if (actual_len != len) {
@@ -92,8 +88,8 @@ bool LibreTinyPreferences::sync() {
   uint32_t last_key = 0;
 
   for (const auto &save : s_pending_save) {
-    char key_str[KEY_BUFFER_SIZE];
-    snprintf(key_str, sizeof(key_str), "%" PRIu32, save.key);
+    char key_str[UINT32_MAX_STR_SIZE];
+    uint32_to_str(key_str, save.key);
     ESP_LOGVV(TAG, "Checking if FDB data %s has changed", key_str);
     if (this->is_changed_(&this->db, save, key_str)) {
       ESP_LOGV(TAG, "sync: key: %s, len: %zu", key_str, save.data.size());
@@ -108,16 +104,21 @@ bool LibreTinyPreferences::sync() {
       }
       written++;
     } else {
-      ESP_LOGD(TAG, "FDB data not changed; skipping %" PRIu32 "  len=%zu", save.key, save.data.size());
+      ESP_LOGV(TAG, "FDB data not changed; skipping %" PRIu32 "  len=%zu", save.key, save.data.size());
       cached++;
     }
   }
   s_pending_save.clear();
 
-  ESP_LOGD(TAG, "Writing %d items: %d cached, %d written, %d failed", cached + written + failed, cached, written,
-           failed);
   if (failed > 0) {
-    ESP_LOGE(TAG, "Writing %d items failed. Last error=%d for key=%" PRIu32, failed, last_err, last_key);
+    ESP_LOGE(TAG, "Writing %d items: %d cached, %d written, %d failed. Last error=%d for key=%" PRIu32,
+             cached + written + failed, cached, written, failed, last_err, last_key);
+  } else if (written > 0) {
+    ESP_LOGD(TAG, "Writing %d items: %d cached, %d written, %d failed", cached + written + failed, cached, written,
+             failed);
+  } else {
+    ESP_LOGV(TAG, "Writing %d items: %d cached, %d written, %d failed", cached + written + failed, cached, written,
+             failed);
   }
 
   return failed == 0;

@@ -2,8 +2,7 @@
 
 #include <cstdio>
 
-namespace esphome {
-namespace display_menu_base {
+namespace esphome::display_menu_base {
 
 const LogString *menu_item_type_to_string(MenuItemType type) {
   switch (type) {
@@ -201,5 +200,4 @@ void MenuItemCustom::on_next_() { this->on_next_callbacks_.call(); }
 
 void MenuItemCustom::on_prev_() { this->on_prev_callbacks_.call(); }
 
-}  // namespace display_menu_base
-}  // namespace esphome
+}  // namespace esphome::display_menu_base

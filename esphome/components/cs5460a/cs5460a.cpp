@@ -1,8 +1,7 @@
 #include "cs5460a.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace cs5460a {
+namespace esphome::cs5460a {
 
 static const char *const TAG = "cs5460a";
 
@@ -339,5 +338,4 @@ void CS5460AComponent::dump_config() {
   LOG_SENSOR("  ", "Power", power_sensor_);
 }
 
-}  // namespace cs5460a
-}  // namespace esphome
+}  // namespace esphome::cs5460a

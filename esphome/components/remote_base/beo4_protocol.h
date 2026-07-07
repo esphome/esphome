@@ -4,8 +4,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct Beo4Data {
   uint8_t source;   // beoSource, e.g. video, audio, light...
@@ -39,5 +38,4 @@ template<typename... Ts> class Beo4Action : public RemoteTransmitterActionBase<T
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

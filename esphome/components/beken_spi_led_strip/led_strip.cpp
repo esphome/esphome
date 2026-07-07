@@ -33,8 +33,7 @@ static const uint32_t CTRL_NSSMD_3 = 1 << 17;
 static const uint32_t SPI_TX_FINISH_EN = 1 << 2;
 static const uint32_t SPI_RX_FINISH_EN = 1 << 3;
 
-namespace esphome {
-namespace beken_spi_led_strip {
+namespace esphome::beken_spi_led_strip {
 
 static const char *const TAG = "beken_spi_led_strip";
 
@@ -382,7 +381,6 @@ void BekenSPILEDStripLightOutput::dump_config() {
 
 float BekenSPILEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-}  // namespace beken_spi_led_strip
-}  // namespace esphome
+}  // namespace esphome::beken_spi_led_strip
 
 #endif  // USE_BK72XX

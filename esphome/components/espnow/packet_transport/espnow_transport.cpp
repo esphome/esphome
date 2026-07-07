@@ -5,8 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace espnow {
+namespace esphome::espnow {
 
 static const char *const TAG = "espnow.transport";
 
@@ -26,10 +25,10 @@ void ESPNowTransport::setup() {
            this->peer_address_[5]);
 
   // Register received handler
-  this->parent_->register_received_handler(this);
+  this->parent_->register_receive_handler(this);
 
-  // Register broadcasted handler
-  this->parent_->register_broadcasted_handler(this);
+  // Register broadcast handler
+  this->parent_->register_broadcast_handler(this);
 }
 
 void ESPNowTransport::send_packet(const std::vector<uint8_t> &buf) const {
@@ -43,8 +42,8 @@ void ESPNowTransport::send_packet(const std::vector<uint8_t> &buf) const {
     return;
   }
 
-  if (buf.size() > ESP_NOW_MAX_DATA_LEN) {
-    ESP_LOGE(TAG, "Packet too large: %zu bytes (max %d)", buf.size(), ESP_NOW_MAX_DATA_LEN);
+  if (buf.size() > ESPNOW_MAX_DATA_LEN) {
+    ESP_LOGE(TAG, "Packet too large: %zu bytes (max %u)", buf.size(), (unsigned) ESPNOW_MAX_DATA_LEN);
     return;
   }
 
@@ -56,8 +55,8 @@ void ESPNowTransport::send_packet(const std::vector<uint8_t> &buf) const {
   });
 }
 
-bool ESPNowTransport::on_received(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) {
-  ESP_LOGV(TAG, "Received packet of size %u from %02X:%02X:%02X:%02X:%02X:%02X", size, info.src_addr[0],
+bool ESPNowTransport::on_receive(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) {
+  ESP_LOGV(TAG, "Received packet of size %u from %02X:%02X:%02X:%02X:%02X:%02X", (unsigned) size, info.src_addr[0],
            info.src_addr[1], info.src_addr[2], info.src_addr[3], info.src_addr[4], info.src_addr[5]);
 
   if (data == nullptr || size == 0) {
@@ -71,9 +70,9 @@ bool ESPNowTransport::on_received(const ESPNowRecvInfo &info, const uint8_t *dat
   return false;  // Allow other handlers to run
 }
 
-bool ESPNowTransport::on_broadcasted(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) {
-  ESP_LOGV(TAG, "Received broadcast packet of size %u from %02X:%02X:%02X:%02X:%02X:%02X", size, info.src_addr[0],
-           info.src_addr[1], info.src_addr[2], info.src_addr[3], info.src_addr[4], info.src_addr[5]);
+bool ESPNowTransport::on_broadcast(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) {
+  ESP_LOGV(TAG, "Received broadcast packet of size %u from %02X:%02X:%02X:%02X:%02X:%02X", (unsigned) size,
+           info.src_addr[0], info.src_addr[1], info.src_addr[2], info.src_addr[3], info.src_addr[4], info.src_addr[5]);
 
   if (data == nullptr || size == 0) {
     ESP_LOGW(TAG, "Received empty or null broadcast packet");
@@ -86,7 +85,6 @@ bool ESPNowTransport::on_broadcasted(const ESPNowRecvInfo &info, const uint8_t *
   return false;  // Allow other handlers to run
 }
 
-}  // namespace espnow
-}  // namespace esphome
+}  // namespace esphome::espnow
 
 #endif  // USE_ESP32

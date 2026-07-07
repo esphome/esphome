@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus_controller.output";
 
@@ -34,7 +33,7 @@ void ModbusFloatOutput::write_state(float value) {
   }
   // lambda didn't set payload
   if (data.empty()) {
-    data = float_to_payload(value, this->sensor_value_type);
+    data = modbus::helpers::float_to_payload(value, this->sensor_value_type);
   }
 
   ESP_LOGD(TAG, "Updating register: start address=0x%X register count=%d new value=%.02f (val=%.02f)",
@@ -118,5 +117,4 @@ void ModbusBinaryOutput::dump_config() {
                 this->start_address, this->register_count, static_cast<int>(this->sensor_value_type));
 }
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller
