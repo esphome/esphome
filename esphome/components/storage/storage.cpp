@@ -371,6 +371,28 @@ StorageError write_file(NetworkStorage *storage, const char *path, const uint8_t
   return StorageError::OK;
 }
 
+StorageError read_file(PathStorage *storage, const char *path, RamBuffer &out, size_t *size) {
+  switch (storage->get_storage_type()) {
+    case StorageType::FILESYSTEM:
+      return read_file(static_cast<FilesystemStorage *>(storage), path, out, size);
+    case StorageType::NETWORK:
+      return read_file(static_cast<NetworkStorage *>(storage), path, out, size);
+    default:
+      return StorageError::NOT_SUPPORTED;
+  }
+}
+
+StorageError write_file(PathStorage *storage, const char *path, const uint8_t *data, size_t size) {
+  switch (storage->get_storage_type()) {
+    case StorageType::FILESYSTEM:
+      return write_file(static_cast<FilesystemStorage *>(storage), path, data, size);
+    case StorageType::NETWORK:
+      return write_file(static_cast<NetworkStorage *>(storage), path, data, size);
+    default:
+      return StorageError::NOT_SUPPORTED;
+  }
+}
+
 StorageError copy(PathStorage *src_storage, const char *src_path, PathStorage *dst_storage, const char *dst_path) {
   // Only pay for the extra stat() when a limit is actually configured — the guard-rail is
   // opt-in and copy() itself doesn't need the file size to stream.
