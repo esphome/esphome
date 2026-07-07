@@ -1,8 +1,8 @@
 packages:
-  lvgl: !include lvgl-package.yaml
-  lvgl-common: !include common.yaml
+  lvgl_package: !include lvgl-package.yaml
   spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
   i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+  lvgl: !include common.yaml
 
 sensor:
   - platform: rotary_encoder

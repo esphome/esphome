@@ -25,20 +25,6 @@ binary_sensor:
     widget: button_a
     state: checked
   - platform: lvgl
-    id: button_checker
-    name: LVGL button
-    widget: button_button
-    state: checked
-    on_state:
-      then:
-        - lvgl.checkbox.update:
-            id: checkbox_id
-            state:
-              checked: !lambda |-
-                  auto y = x; // block inlining of one line return
-                  return y;
-
-  - platform: lvgl
     id: button_presser
     name: Button pressed
     widget: button_button
@@ -49,6 +35,8 @@ lvgl:
   rotation: 90
   log_level: debug
   resume_on_input: true
+  update_when_display_idle: true
+  refresh_interval: 30ms
   on_pause:
     - logger.log: LVGL is Paused
     - lvgl.display.set_rotation: 90

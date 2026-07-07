@@ -109,7 +109,9 @@ CONF_ENGINEERING_SAMPLE = "engineering_sample"
 CONF_INCLUDE_BUILTIN_IDF_COMPONENTS = "include_builtin_idf_components"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
+CONF_KEY_ID = "key_id"
 CONF_MINIMUM_CHIP_REVISION = "minimum_chip_revision"
+CONF_NVS_ENCRYPTION = "nvs_encryption"
 CONF_RELEASE = "release"
 CONF_SIGNED_OTA_VERIFICATION = "signed_ota_verification"
 CONF_SIGNING_KEY = "signing_key"
@@ -165,6 +167,20 @@ SIGNED_OTA_V2_ECC_ONLY_VARIANTS = {
 # Based on SOC_SECURE_BOOT_V1 in soc_caps.h.
 SIGNED_OTA_V1_ECDSA_VARIANTS = {
     VARIANT_ESP32,
+}
+
+# NVS encryption (HMAC peripheral scheme) is only available on variants that
+# expose the HMAC peripheral (SOC_HMAC_SUPPORTED in soc_caps.h). The original
+# ESP32 and ESP32-C2 do not have it. New variants with an HMAC peripheral
+# should be added here.
+NVS_ENCRYPTION_HMAC_VARIANTS = {
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32P4,
 }
 
 COMPILER_OPTIMIZATIONS = {
@@ -1349,6 +1365,29 @@ def final_validate(config):
                 "Binaries will NOT be signed automatically during build. "
                 "You must sign them externally before flashing."
             )
+    if (nvs_enc := advanced.get(CONF_NVS_ENCRYPTION)) is not None:
+        variant = config[CONF_VARIANT]
+        if variant in NVS_ENCRYPTION_HMAC_VARIANTS:
+            _LOGGER.warning(
+                "NVS encryption will burn an HMAC key into eFuse key block %d on the "
+                "first boot of each device. This is PERMANENT and IRREVERSIBLE: "
+                "the block cannot be erased or reused afterwards. Enabling (or "
+                "later disabling) encryption also wipes any previously saved "
+                "preferences once, because the older data can no longer be read.",
+                nvs_enc[CONF_KEY_ID],
+            )
+        else:
+            supported = ", ".join(
+                sorted(VARIANT_FRIENDLY[v] for v in NVS_ENCRYPTION_HMAC_VARIANTS)
+            )
+            errs.append(
+                cv.Invalid(
+                    f"NVS encryption (HMAC scheme) is not supported on "
+                    f"{VARIANT_FRIENDLY[variant]} (it has no HMAC peripheral). "
+                    f"Supported variants: {supported}.",
+                    path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_NVS_ENCRYPTION],
+                )
+            )
     if advanced[CONF_ENABLE_OTA_DOWNGRADE_PROTECTION]:
         project = full_config[CONF_ESPHOME].get(CONF_PROJECT)
         errs.extend(
@@ -1608,6 +1647,15 @@ FRAMEWORK_SCHEMA = cv.Schema(
                         }
                     ),
                     cv.has_exactly_one_key(CONF_SIGNING_KEY, CONF_VERIFICATION_KEY),
+                ),
+                cv.Optional(CONF_NVS_ENCRYPTION): cv.Schema(
+                    {
+                        # eFuse key block (0-5) that stores the HMAC key from
+                        # which the NVS encryption keys are derived. The block is
+                        # written on first boot if empty -- an irreversible
+                        # operation -- so it must be chosen explicitly.
+                        cv.Required(CONF_KEY_ID): cv.int_range(min=0, max=5),
+                    }
                 ),
                 cv.Optional(
                     CONF_USE_FULL_CERTIFICATE_BUNDLE, default=False
@@ -2450,6 +2498,20 @@ async def to_code(config):
             )
 
         cg.add_define("USE_OTA_SIGNED_VERIFICATION")
+
+    # Encrypt NVS using the HMAC peripheral scheme. The NVS encryption keys are
+    # derived at runtime from an HMAC key stored in the configured eFuse block
+    # (no flash encryption required). The HMAC key is generated and burned into
+    # the eFuse block on first boot if it is empty. With the scheme selected,
+    # nvs_sec_provider registers it at startup and the default nvs_flash_init()
+    # (used in esp32/preferences.cpp) transparently performs the secure init, so
+    # no C++ changes are needed.
+    if (nvs_enc := advanced.get(CONF_NVS_ENCRYPTION)) is not None:
+        add_idf_sdkconfig_option("CONFIG_NVS_ENCRYPTION", True)
+        add_idf_sdkconfig_option("CONFIG_NVS_SEC_KEY_PROTECT_USING_HMAC", True)
+        add_idf_sdkconfig_option(
+            "CONFIG_NVS_SEC_HMAC_EFUSE_KEY_ID", nvs_enc[CONF_KEY_ID]
+        )
 
     cg.add_define("ESPHOME_LOOP_TASK_STACK_SIZE", advanced[CONF_LOOP_TASK_STACK_SIZE])
 
