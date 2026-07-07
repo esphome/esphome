@@ -3,12 +3,8 @@
 #ifdef USE_SD_STORAGE_SPI
 
 #include "esphome/core/log.h"
-#include <cerrno>
 #include <cinttypes>
 #include <cstdio>
-#include <cstring>
-#include <sys/stat.h>
-#include <dirent.h>
 
 extern "C" {
 #include "esp_vfs.h"
@@ -22,8 +18,6 @@ extern "C" {
 #define VFS_FAT_MOUNT_DEFAULT_CONFIG() \
   { .format_if_mount_failed = false, .max_files = 5, .allocation_unit_size = 0, .disk_status_check_enable = false, }
 #endif
-
-static constexpr int SD_OCR_SDHC_CAP = (1 << 30);
 
 namespace esphome::sd_storage {
 
