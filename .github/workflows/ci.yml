@@ -456,7 +456,7 @@ jobs:
           echo "binary=$BINARY" >> $GITHUB_OUTPUT
 
       - name: Run CodSpeed benchmarks
-        uses: CodSpeedHQ/action@a4a36bb07c0638b0b4ca52bf1f3dad1b4289e52f # v4.18.1
+        uses: CodSpeedHQ/action@4e969336ab9acd4f6f8d025fdd793292b0835df0 # v4.18.2
         with:
           run: |
             . venv/bin/activate
