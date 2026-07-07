@@ -59,6 +59,19 @@ def ip_address_literal(ip: str | int | None) -> cg.MockObj:
     return IPAddress(str(ip))
 
 
+def add_use_address(var: cg.MockObj, use_address: str) -> None:
+    """Generate a set_use_address() call only when the address must be baked in.
+
+    The default "<name>.local" is not stored in the firmware; it is rebuilt at
+    runtime from the device name (see network::get_use_address_to()), which also
+    picks up the MAC suffix when name_add_mac_suffix is enabled. A compile-time
+    string could never include that suffix, so baking it in would log the wrong
+    address.
+    """
+    if use_address != f"{CORE.name}.local":
+        cg.add(var.set_use_address(use_address))
+
+
 def require_high_performance_networking() -> None:
     """Request high performance networking for network and WiFi.
 
