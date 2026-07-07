@@ -32,7 +32,9 @@ def register_provisioning_source(detector: Callable[[ConfigType], bool]) -> None
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ProvisioningManager),
-        cv.Required(CONF_TIMEOUT): cv.positive_time_period_milliseconds,
+        cv.Required(CONF_TIMEOUT): cv.All(
+            cv.positive_not_null_time_period, cv.positive_time_period_milliseconds
+        ),
         cv.Optional(CONF_ON_TIMEOUT): automation.validate_automation(single=True),
     }
 ).extend(cv.COMPONENT_SCHEMA)
