@@ -52,6 +52,7 @@ RESPONSE_ERROR_PARTITION_TABLE_VERIFY = 0x8F
 RESPONSE_ERROR_PARTITION_TABLE_UPDATE = 0x90
 RESPONSE_ERROR_BOOTLOADER_VERIFY = 0x91
 RESPONSE_ERROR_BOOTLOADER_UPDATE = 0x92
+RESPONSE_ERROR_VERSION_DOWNGRADE = 0x93
 RESPONSE_ERROR_UNKNOWN = 0xFF
 
 OTA_VERSION_1_0 = 1
@@ -156,6 +157,11 @@ _ERROR_MESSAGES: dict[int, str] = {
         "in a degraded state and may not be able to boot. Open the logs and retry "
         "the bootloader update without rebooting the device. If the device "
         "fails to boot, recover it via a serial flash."
+    ),
+    RESPONSE_ERROR_VERSION_DOWNGRADE: (
+        "The device rejected the update because it has OTA downgrade protection "
+        "enabled: the new firmware's version must be newer than the version the "
+        "device is currently running."
     ),
     RESPONSE_ERROR_UNKNOWN: "Unknown error from ESP",
 }

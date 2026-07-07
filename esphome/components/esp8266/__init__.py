@@ -332,6 +332,12 @@ async def to_code(config):
         for symbol in ("vprintf", "printf", "fprintf"):
             cg.add_build_flag(f"-Wl,--wrap={symbol}")
 
+    # Wrap the lwIP2 glue's do-nothing dhcp_cleanup()/dhcp_release() stubs so the
+    # linker can drop their "STUB: ..." message strings from DRAM.
+    # See lwip_glue_stubs.cpp for implementation.
+    for symbol in ("dhcp_cleanup", "dhcp_release"):
+        cg.add_build_flag(f"-Wl,--wrap={symbol}")
+
     # Wrap Arduino's millis() so all callers (including Arduino libraries and ISR
     # handlers) use our fast accumulator instead of the expensive 4x 64-bit multiply
     # implementation in the Arduino ESP8266 core.
