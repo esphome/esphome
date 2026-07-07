@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -11,7 +12,14 @@ DOMAIN = "storage"
 CONF_COPY_CHUNK_SIZE = "copy_chunk_size"
 CONF_MAX_BLOCKING_TRANSFER_SIZE = "max_blocking_transfer_size"
 
+# Not yet in esphome/const.py
+CONF_ON_REGISTERED = "on_registered"
+CONF_ON_UNREGISTERED = "on_unregistered"
+
 storage_ns = cg.esphome_ns.namespace("storage")
+Storage = storage_ns.class_("Storage", cg.Component)
+StoragePtr = Storage.operator("ptr")
+PathStorage = storage_ns.class_("PathStorage", Storage)
 StorageRegistry = storage_ns.class_("StorageRegistry", cg.Component)
 
 
@@ -38,6 +46,13 @@ CONFIG_SCHEMA = cv.Schema(
         # Guard-rail for the blocking copy/read/write helpers: 0 means unlimited (default,
         # preserves current behavior). See max_blocking_transfer_size's comment in storage.h.
         cv.Optional(CONF_MAX_BLOCKING_TRANSFER_SIZE, default=0): cv.int_range(min=0),
+        # Fired for every storage device, not just file-browser-style consumers — any
+        # component that cares about hotplug/availability can listen here instead of
+        # each reinventing its own notion of "storage changed". See
+        # StorageRegistry::add_on_registered_callback()/add_on_unregistered_callback()
+        # in storage.h.
+        cv.Optional(CONF_ON_REGISTERED): automation.validate_automation({}),
+        cv.Optional(CONF_ON_UNREGISTERED): automation.validate_automation({}),
     }
 )
 
@@ -80,3 +95,12 @@ async def to_code(config):
 
     cg.add_define("USE_STORAGE_COPY_CHUNK_SIZE", config[CONF_COPY_CHUNK_SIZE])
     cg.add(var.set_max_blocking_transfer_size(config[CONF_MAX_BLOCKING_TRANSFER_SIZE]))
+
+    for conf in config.get(CONF_ON_REGISTERED, []):
+        await automation.build_callback_automation(
+            var, "add_on_registered_callback", [(StoragePtr, "x")], conf
+        )
+    for conf in config.get(CONF_ON_UNREGISTERED, []):
+        await automation.build_callback_automation(
+            var, "add_on_unregistered_callback", [(StoragePtr, "x")], conf
+        )
