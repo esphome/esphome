@@ -481,7 +481,7 @@ def test_generate_idf_components_dedupes_shared_dependency(
         "esphome/C": {"name": "C"},
     }
 
-    def fake_download(self, force=False, salt=""):
+    def fake_download(self, force=False, salt="", namespace=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "src" / "x.c").write_text("int x;")
@@ -543,7 +543,7 @@ def test_generate_idf_components_lib_ignore_filters_top_level_and_dependencies(
 
     download_salts: list[str] = []
 
-    def fake_download(self, force=False, salt=""):
+    def fake_download(self, force=False, salt="", namespace=""):
         download_salts.append(salt)
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
@@ -597,7 +597,7 @@ def test_generate_idf_components_handles_dependency_cycle(
         },
     }
 
-    def fake_download(self, force=False, salt=""):
+    def fake_download(self, force=False, salt="", namespace=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "src" / "x.c").write_text("int x;")
@@ -654,7 +654,7 @@ def test_generate_idf_components_git_overrides_registry_warns(
         "esphome/shared": {"name": "shared"},
     }
 
-    def fake_download(self, force=False, salt=""):
+    def fake_download(self, force=False, salt="", namespace=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "src" / "x.c").write_text("int x;")
@@ -691,7 +691,7 @@ def test_generate_idf_components_missing_manifest_raises(
 ) -> None:
     # A library with neither library.json nor library.properties is invalid;
     # fail loudly rather than silently generating build files for it.
-    def fake_download(self, force=False, salt=""):
+    def fake_download(self, force=False, salt="", namespace=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         # no library.json / library.properties written
@@ -733,7 +733,7 @@ def test_generate_idf_components_warns_on_noncanonical_duplicate(
         "owner/shared": {"name": "shared"},
     }
 
-    def fake_download(self, force=False, salt=""):
+    def fake_download(self, force=False, salt="", namespace=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "src" / "x.c").write_text("int x;")
@@ -766,7 +766,7 @@ def test_generate_idf_components_incompatible_top_level_raises(
 ) -> None:
     # A top-level library that isn't ESP-IDF/esp32 compatible must fail fast,
     # not be silently dropped.
-    def fake_download(self, force=False, salt=""):
+    def fake_download(self, force=False, salt="", namespace=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "library.json").write_text(
@@ -804,7 +804,7 @@ def test_generate_idf_components_incompatible_dependency_skipped(
         "esphome/B": {"name": "B", "platforms": ["espressif8266"]},
     }
 
-    def fake_download(self, force=False, salt=""):
+    def fake_download(self, force=False, salt="", namespace=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
@@ -847,6 +847,13 @@ def test_url_source_salt_changes_cache_path(
     assert source.download("lib") == expected[""]
     assert source.download("lib", salt="abcd1234") == expected["abcd1234"]
 
+    # A backend namespace adds a pio_components/<namespace>/ subdir.
+    digest = hashlib.sha256(url.encode()).hexdigest()[:8]
+    ns_expected = base / "idf" / digest / "lib"
+    ns_expected.mkdir(parents=True)
+    (ns_expected / ".esphome_extracted").touch()
+    assert source.download("lib", namespace="idf") == ns_expected
+
 
 def test_git_source_salt_scopes_domain(monkeypatch: pytest.MonkeyPatch) -> None:
     """The salt becomes a subdirectory of the git clone domain."""
@@ -863,7 +870,14 @@ def test_git_source_salt_scopes_domain(monkeypatch: pytest.MonkeyPatch) -> None:
     source = GitSource("https://github.com/esphome/noise-c.git", "v1.0")
     source.download("noise-c")
     source.download("noise-c", salt="abcd1234")
-    assert domains == ["pio_components", "pio_components/abcd1234"]
+    source.download("noise-c", namespace="idf")
+    source.download("noise-c", namespace="zephyr", salt="abcd1234")
+    assert domains == [
+        "pio_components",
+        "pio_components/abcd1234",
+        "pio_components/idf",
+        "pio_components/zephyr/abcd1234",
+    ]
 
 
 def test_idf_component_download_passes_salt() -> None:
@@ -873,7 +887,9 @@ def test_idf_component_download_passes_salt() -> None:
     source.download.return_value = Path("/converted/owner/name")
 
     c = IDFComponent("owner/name", "1.0", source=source)
-    c.download(force=True, salt="abcd1234")
+    c.download(force=True, salt="abcd1234", namespace="idf")
 
-    source.download.assert_called_once_with("owner/name", force=True, salt="abcd1234")
+    source.download.assert_called_once_with(
+        "owner/name", force=True, salt="abcd1234", namespace="idf"
+    )
     assert c.path == Path("/converted/owner/name")

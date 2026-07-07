@@ -1,6 +1,6 @@
 #include "led_strip.h"
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
