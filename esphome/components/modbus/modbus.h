@@ -184,6 +184,8 @@ class ModbusClientDevice {
   virtual void on_modbus_error(uint8_t function_code, uint8_t exception_code) {}
   virtual void on_modbus_not_sent() {}
   /// Called when no (valid) response arrived; return true to have the hub re-queue the frame for a retry.
+  /// The hub does not bound retries: the device is responsible for limiting them (e.g. track a counter and
+  /// return false when exhausted), or an unresponsive peer will starve other traffic on the bus.
   virtual bool on_modbus_no_response() { return false; }
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
             const uint8_t *payload = nullptr) {
