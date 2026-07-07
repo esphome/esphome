@@ -41,6 +41,11 @@ namespace esphome::web_server_idf {
 
 static const char *const TAG = "web_server_idf";
 
+// Chunk size for streaming request bodies; matches the Arduino AsyncWebServer buffer size.
+// Buffers of this size must live on the heap - the httpd task stack is too small.
+static constexpr size_t RECV_CHUNK_SIZE = 1460;
+static constexpr size_t YIELD_INTERVAL_BYTES = 16 * 1024;  // Yield every 16KB to prevent watchdog
+
 // Global instance to avoid guard variable (saves 8 bytes)
 // This is initialized at program startup before any threads
 namespace {
@@ -184,9 +189,10 @@ esp_err_t AsyncWebServer::request_post_handler(httpd_req_t *r) {
       return server->handle_multipart_upload_(r, content_type_char);
 #endif
     } else {
-      ESP_LOGW(TAG, "Unsupported content type for POST: %s", content_type_char);
-      // fallback to get handler to support backward compatibility
-      return AsyncWebServer::request_handler(r);
+      // Other content types (e.g. application/json) are delivered raw to a matching
+      // custom handler via handleBody(), like the Arduino AsyncWebServer does
+      auto *server = static_cast<AsyncWebServer *>(r->user_ctx);
+      return server->handle_raw_body_(r, content_type_char);
     }
   }
 
@@ -235,6 +241,51 @@ esp_err_t AsyncWebServer::request_handler_(AsyncWebServerRequest *request) const
     return ESP_OK;
   }
   return ESP_ERR_NOT_FOUND;
+}
+
+esp_err_t AsyncWebServer::handle_raw_body_(httpd_req_t *r, const char *content_type) {
+  AsyncWebServerRequest req(r);
+  AsyncWebHandler *handler = nullptr;
+  for (auto *h : this->handlers_) {
+    if (h->canHandle(&req)) {
+      handler = h;
+      break;
+    }
+  }
+
+  if (handler == nullptr) {
+    ESP_LOGW(TAG, "Unsupported content type for POST: %s", content_type);
+    // fallback to get handler to support backward compatibility
+    return this->request_handler_(&req);
+  }
+
+  const size_t total = r->content_len;
+  if (total > 0) {
+    auto buffer = std::make_unique_for_overwrite<char[]>(RECV_CHUNK_SIZE);
+    size_t bytes_since_yield = 0;
+
+    for (size_t index = 0; index < total;) {
+      int recv_len = httpd_req_recv(r, buffer.get(), std::min(total - index, RECV_CHUNK_SIZE));
+
+      if (recv_len <= 0) {
+        httpd_resp_send_err(r, recv_len == HTTPD_SOCK_ERR_TIMEOUT ? HTTPD_408_REQ_TIMEOUT : HTTPD_400_BAD_REQUEST,
+                            nullptr);
+        return recv_len == HTTPD_SOCK_ERR_TIMEOUT ? ESP_ERR_TIMEOUT : ESP_FAIL;
+      }
+
+      handler->handleBody(&req, reinterpret_cast<uint8_t *>(buffer.get()), recv_len, index, total);
+      index += recv_len;
+      bytes_since_yield += recv_len;
+
+      if (bytes_since_yield > YIELD_INTERVAL_BYTES) {
+        vTaskDelay(1);
+        bytes_since_yield = 0;
+      }
+    }
+  }
+
+  handler->handleRequest(&req);
+  return ESP_OK;
 }
 
 AsyncWebServerRequest::~AsyncWebServerRequest() {
@@ -893,9 +944,6 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
 
 #ifdef USE_WEBSERVER_OTA
 esp_err_t AsyncWebServer::handle_multipart_upload_(httpd_req_t *r, const char *content_type) {
-  static constexpr size_t MULTIPART_CHUNK_SIZE = 1460;       // Match Arduino AsyncWebServer buffer size
-  static constexpr size_t YIELD_INTERVAL_BYTES = 16 * 1024;  // Yield every 16KB to prevent watchdog
-
   // Parse boundary and create reader
   const char *boundary_start;
   size_t boundary_len;
@@ -949,12 +997,11 @@ esp_err_t AsyncWebServer::handle_multipart_upload_(httpd_req_t *r, const char *c
     }
   });
 
-  // Use heap buffer - 1460 bytes is too large for the httpd task stack
-  auto buffer = std::make_unique_for_overwrite<char[]>(MULTIPART_CHUNK_SIZE);
+  auto buffer = std::make_unique_for_overwrite<char[]>(RECV_CHUNK_SIZE);
   size_t bytes_since_yield = 0;
 
   for (size_t remaining = r->content_len; remaining > 0;) {
-    int recv_len = httpd_req_recv(r, buffer.get(), std::min(remaining, MULTIPART_CHUNK_SIZE));
+    int recv_len = httpd_req_recv(r, buffer.get(), std::min(remaining, RECV_CHUNK_SIZE));
 
     if (recv_len <= 0) {
       httpd_resp_send_err(r, recv_len == HTTPD_SOCK_ERR_TIMEOUT ? HTTPD_408_REQ_TIMEOUT : HTTPD_400_BAD_REQUEST,
