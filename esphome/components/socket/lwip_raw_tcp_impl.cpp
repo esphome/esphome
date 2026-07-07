@@ -17,7 +17,7 @@ extern "C" void esphome_wake_ota_component_any_context();
 
 #ifdef USE_ESP8266
 #include <coredecls.h>  // For esp_schedule()
-#elif defined(USE_RP2040)
+#elif defined(USE_RP2)
 #include <hardware/sync.h>  // For __sev(), __wfe()
 #include <pico/time.h>      // For add_alarm_in_ms(), cancel_alarm()
 #endif

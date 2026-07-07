@@ -2225,15 +2225,33 @@ def test_detect_memory_impact_config_runs_at_component_limit(tmp_path: Path) -> 
             "esphome/components/libretiny/wifi_ln882x.cpp",
             determine_jobs.Platform.LN882X_ARD,
         ),
-        # RP2040 / Raspberry Pi Pico detection
+        # RP2 family detection — explicit chip names only.
+        # RP2040 chip: _rp2040.*, _pico.* (Pico / Pico W)
         ("esphome/components/gpio/gpio_rp2040.cpp", determine_jobs.Platform.RP2040_ARD),
         ("esphome/components/wifi/wifi_rp2040.cpp", determine_jobs.Platform.RP2040_ARD),
         ("esphome/components/i2c/i2c_pico.cpp", determine_jobs.Platform.RP2040_ARD),
         ("esphome/components/spi/spi_pico.cpp", determine_jobs.Platform.RP2040_ARD),
         (
-            "tests/components/rp2040/test.rp2040-ard.yaml",
+            "tests/components/rp2/test.rp2040-ard.yaml",
             determine_jobs.Platform.RP2040_ARD,
         ),
+        # RP2350 chip: _rp2350.*, _pico2.* (Pico 2 / Pico 2 W)
+        (
+            "esphome/components/foo/foo_rp2350.cpp",
+            determine_jobs.Platform.RP2350_ARD,
+        ),
+        (
+            "esphome/components/wifi/wifi_pico2.cpp",
+            determine_jobs.Platform.RP2350_ARD,
+        ),
+        (
+            "tests/components/rp2/test.rp2350-ard.yaml",
+            determine_jobs.Platform.RP2350_ARD,
+        ),
+        # Family-wide files (_rp2.*) intentionally do NOT get a hint —
+        # they apply to both RP2040 and RP2350 chips.
+        ("esphome/components/debug/debug_rp2.cpp", None),
+        ("esphome/components/logger/logger_rp2.h", None),
         # nRF52 / Zephyr detection
         (
             "tests/components/logger/test.nrf52-adafruit.yaml",
@@ -2280,6 +2298,11 @@ def test_detect_memory_impact_config_runs_at_component_limit(tmp_path: Path) -> 
         "pico_i2c",
         "pico_spi",
         "rp2040_test_yaml",
+        "rp2350_cpp",
+        "pico2_cpp",
+        "rp2350_test_yaml",
+        "rp2_family_debug_no_hint",
+        "rp2_family_logger_h_no_hint",
         "nrf52_test_yaml",
         "nrf52_gpio",
         "zephyr_core",
