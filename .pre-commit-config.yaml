@@ -6,7 +6,7 @@ ci:
   autoupdate_commit_msg: 'pre-commit: autoupdate'
   autoupdate_schedule: off  # Disabled until ruff versions are synced between deps and pre-commit
   # Skip hooks that have issues in pre-commit CI environment
-  skip: [pylint, clang-tidy-hash]
+  skip: [pylint]
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -40,7 +40,7 @@ repos:
     rev: v3.21.2
     hooks:
       - id: pyupgrade
-        args: [--py311-plus]
+        args: [--py312-plus]
   - repo: https://github.com/adrienverge/yamllint.git
     rev: v1.37.1
     hooks:
@@ -59,13 +59,6 @@ repos:
         language: system
         types: [python]
         files: ^esphome/.+\.py$
-      - id: clang-tidy-hash
-        name: Update clang-tidy hash
-        entry: python script/clang_tidy_hash.py --update-if-changed
-        language: python
-        files: ^(\.clang-tidy|platformio\.ini|requirements_dev\.txt|sdkconfig\.defaults|esphome/idf_component\.yml)$
-        pass_filenames: false
-        additional_dependencies: []
       - id: ci-custom
         name: ci-custom
         entry: python script/run-in-env.py script/ci-custom.py

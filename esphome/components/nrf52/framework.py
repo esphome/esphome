@@ -1,9 +1,14 @@
+import hashlib
 import logging
 import os
 from pathlib import Path
 import platform
+import shutil
 import tempfile
 
+import platformdirs
+
+import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import (
@@ -15,11 +20,12 @@ from esphome.framework_helpers import (
     run_command_ok,
     str_to_lst_of_str,
 )
+from esphome.helpers import get_str_env
 
 _LOGGER = logging.getLogger(__name__)
 
-_WEST_VERSION = "1.5.0"
-_TOOLCHAIN_VERSION = "0.17.4"
+_REQUIREMENTS = Path(__file__).parent / "requirements.txt"
+TOOLCHAIN_VERSION = "0.17.4"
 
 SDK_NG_TOOLCHAIN_MIRRORS = str_to_lst_of_str(
     os.environ.get(
@@ -28,39 +34,49 @@ SDK_NG_TOOLCHAIN_MIRRORS = str_to_lst_of_str(
     )
 )
 
+# Minimal SDK provides cmake discovery files (Zephyr-sdkConfig.cmake) and
+# host tools (dtc etc.) required by the Zephyr cmake build system.
+SDK_NG_MINIMAL_MIRRORS = str_to_lst_of_str(
+    os.environ.get(
+        "ESPHOME_SDK_NG_MINIMAL_MIRRORS",
+        "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/zephyr-sdk-{VERSION}_{sysname}-{machine}_minimal.{extension}",
+    )
+)
 
-def _get_tools_path() -> Path:
-    return CORE.data_dir / "sdk-nrf"
+
+def get_sdk_nrf_tools_path() -> Path:
+    # A blank ESPHOME_SDK_NRF_PREFIX must be treated as unset: Path("")
+    # resolves to the CWD, which clean-all would then delete.
+    if prefix := get_str_env("ESPHOME_SDK_NRF_PREFIX", "").strip():
+        path = Path(prefix).expanduser()
+    else:
+        # Machine-global (OS user cache dir) so all projects share one install;
+        # see espidf.framework.get_idf_tools_path for the location rationale.
+        path = Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "sdk-nrf"
+    return path.resolve()
 
 
 def _get_python_env_path(version: str) -> Path:
-    return _get_tools_path() / "penvs" / version
+    return get_sdk_nrf_tools_path() / "penvs" / version
 
 
 def _get_framework_path(version: str) -> Path:
-    return _get_tools_path() / "frameworks" / f"{version}"
+    return get_sdk_nrf_tools_path() / "frameworks" / version
 
 
 def _get_toolchain_path(version: str) -> Path:
-    return _get_tools_path() / "toolchains" / f"{version}"
+    return get_sdk_nrf_tools_path() / "toolchains" / version
 
 
-# onexc/dir_fd were added to shutil.rmtree in 3.12; the 3.11 branch uses onerror.
 _SITECUSTOMIZE = """\
-import os, stat, shutil, sys
+import os, stat, shutil
 _orig = shutil.rmtree
 def _handler(func, path, exc):
     os.chmod(path, stat.S_IWRITE); func(path)
-if sys.version_info >= (3, 12):
-    def _rmtree(path, ignore_errors=False, onerror=None, *, onexc=None, dir_fd=None):
-        if onerror is None and onexc is None:
-            onexc = _handler
-        return _orig(path, ignore_errors=ignore_errors, onerror=onerror, onexc=onexc, dir_fd=dir_fd)
-else:
-    def _rmtree(path, ignore_errors=False, onerror=None):
-        if onerror is None:
-            onerror = _handler
-        return _orig(path, ignore_errors=ignore_errors, onerror=onerror)
+def _rmtree(path, ignore_errors=False, onerror=None, *, onexc=None, dir_fd=None):
+    if onerror is None and onexc is None:
+        onexc = _handler
+    return _orig(path, ignore_errors=ignore_errors, onerror=onerror, onexc=onexc, dir_fd=dir_fd)
 shutil.rmtree = _rmtree
 """
 
@@ -95,29 +111,85 @@ def _get_toolchain_platform_info() -> tuple[str, str, str]:
     return sysname, machine, extension
 
 
-def check_and_install() -> None:
+def _get_version_str() -> str:
     framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    version = f"v{framework_ver.major}.{framework_ver.minor}.{framework_ver.patch}"
+    return f"v{framework_ver.major}.{framework_ver.minor}.{framework_ver.patch}"
+
+
+def get_build_paths() -> dict:
+    version = _get_version_str()
+    env_path = _get_python_env_path(version)
+    return {
+        "python_executable": get_python_env_executable_path(env_path, "python"),
+        "framework_path": _get_framework_path(version),
+    }
+
+
+def get_build_env() -> dict:
+    version = _get_version_str()
+    venv_bin_dir = get_python_env_executable_path(
+        _get_python_env_path(version), "python"
+    ).parent
+    env = os.environ.copy()
+    env["PATH"] = str(venv_bin_dir) + os.pathsep + env.get("PATH", "")
+    env["ZEPHYR_BASE"] = str(_get_framework_path(version) / "zephyr")
+    env["Zephyr-sdk_DIR"] = str(_get_toolchain_path(TOOLCHAIN_VERSION) / "cmake")
+    return env
+
+
+def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
+    # SDK v2.6.1 ships uf2conv.py with '\s+' — an unrecognised escape that
+    # Python 3.12+ flags with SyntaxWarning (a future version will reject it).
+    uf2conv = framework_path / "zephyr" / "scripts" / "build" / "uf2conv.py"
+    if not uf2conv.exists():
+        return
+    content = uf2conv.read_text(encoding="utf-8")
+    patched = content.replace("re.split('\\s+', line)", "re.split('\\\\s+', line)")
+    if patched == content:
+        return
+    # Write atomically so a concurrent build never sees a truncated file
+    tmp = uf2conv.with_suffix(".py.tmp")
+    tmp.write_text(patched, encoding="utf-8")
+    shutil.copymode(uf2conv, tmp)
+    tmp.replace(uf2conv)
+
+
+def check_and_install() -> None:
+    version = _get_version_str()
     python_env_path = _get_python_env_path(version)
     env_python_path = get_python_env_executable_path(python_env_path, "python")
     sentinel = python_env_path / ".ready"
-    install_venv = not sentinel.exists()
+    requirements_hash = hashlib.sha256(_REQUIREMENTS.read_bytes()).hexdigest()
+    install_venv = (
+        not sentinel.exists()
+        or sentinel.read_text(encoding="utf-8") != requirements_hash
+    )
     if install_venv:
         rmdir(python_env_path, msg=f"Clean up {version} Python environment")
 
-        create_venv(python_env_path, msg=f"{version}")
+        create_venv(python_env_path, msg=version)
 
         _install_sitecustomize(python_env_path)
 
-        _LOGGER.info("Installing west %s ...", _WEST_VERSION)
-        cmd = [str(env_python_path), "-m", "pip", "install", f"west=={_WEST_VERSION}"]
+        _LOGGER.info("Installing requirements ...")
+        cmd = [
+            str(env_python_path),
+            "-m",
+            "pip",
+            "install",
+            "-r",
+            str(_REQUIREMENTS),
+        ]
         if not run_command_ok(cmd):
-            raise EsphomeError(f"Install west for {version} Python environment failure")
-        sentinel.touch()
+            raise EsphomeError(
+                f"Install requirements for {version} Python environment failure"
+            )
+        sentinel.write_text(requirements_hash, encoding="utf-8")
 
     framework_path = _get_framework_path(version)
     sentinel = framework_path / ".ready"
-    if install_venv or not sentinel.exists():
+    zephyr_reqs = framework_path / "zephyr" / "scripts" / "requirements.txt"
+    if not sentinel.exists() or not zephyr_reqs.exists():
         rmdir(framework_path, msg=f"Clean up {version} framework environment")
         _LOGGER.info("Initializing nRF Connect SDK %s ...", version)
         cmd = [
@@ -128,7 +200,7 @@ def check_and_install() -> None:
             "-m",
             "https://github.com/nrfconnect/sdk-nrf",
             "--mr",
-            f"{version}",
+            version,
             str(framework_path),
         ]
         if not run_command_ok(cmd):
@@ -144,23 +216,41 @@ def check_and_install() -> None:
         ]
         if not run_command_ok(cmd, cwd=framework_path):
             raise EsphomeError(f"Can't update nRF Connect SDK {version}")
+        framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+        if framework_ver < cv.Version(2, 9, 2):
+            _patch_uf2conv_escape_sequences(framework_path)
         sentinel.touch()
 
-    toolchains_dir = _get_toolchain_path(_TOOLCHAIN_VERSION)
+    zephyr_sentinel = python_env_path / ".zephyr_reqs_ready"
+    if (
+        install_venv
+        or not zephyr_sentinel.exists()
+        or zephyr_reqs.stat().st_mtime > zephyr_sentinel.stat().st_mtime
+    ):
+        _LOGGER.info("Installing Zephyr requirements ...")
+        cmd = [
+            str(env_python_path),
+            "-m",
+            "pip",
+            "install",
+            "-r",
+            str(zephyr_reqs),
+        ]
+        if not run_command_ok(cmd):
+            raise EsphomeError(f"Install Zephyr requirements for {version} failure")
+        zephyr_sentinel.touch()
+
+    toolchains_dir = _get_toolchain_path(TOOLCHAIN_VERSION)
     sentinel = toolchains_dir / ".ready"
     if not sentinel.exists():
-        rmdir(
-            toolchains_dir, msg=f"Clean up {_TOOLCHAIN_VERSION} toolchain environment"
-        )
+        rmdir(toolchains_dir, msg=f"Clean up {TOOLCHAIN_VERSION} toolchain environment")
+        sysname, machine, extension = _get_toolchain_platform_info()
         with tempfile.NamedTemporaryFile() as tmp:
-            _LOGGER.info("Downloading %s toolchain ...", _TOOLCHAIN_VERSION)
-
-            sysname, machine, extension = _get_toolchain_platform_info()
-
+            _LOGGER.info("Downloading Zephyr SDK %s minimal ...", TOOLCHAIN_VERSION)
             download_from_mirrors(
-                SDK_NG_TOOLCHAIN_MIRRORS,
+                SDK_NG_MINIMAL_MIRRORS,
                 {
-                    "VERSION": _TOOLCHAIN_VERSION,
+                    "VERSION": TOOLCHAIN_VERSION,
                     "sysname": sysname,
                     "machine": machine,
                     "extension": extension,
@@ -168,4 +258,21 @@ def check_and_install() -> None:
                 tmp.file,
             )
             archive_extract_all(tmp.file, toolchains_dir, progress_header="Extracting")
+        with tempfile.NamedTemporaryFile() as tmp:
+            _LOGGER.info("Downloading %s toolchain ...", TOOLCHAIN_VERSION)
+            download_from_mirrors(
+                SDK_NG_TOOLCHAIN_MIRRORS,
+                {
+                    "VERSION": TOOLCHAIN_VERSION,
+                    "sysname": sysname,
+                    "machine": machine,
+                    "extension": extension,
+                },
+                tmp.file,
+            )
+            archive_extract_all(
+                tmp.file,
+                toolchains_dir / "arm-zephyr-eabi",
+                progress_header="Extracting",
+            )
         sentinel.touch()

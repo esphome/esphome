@@ -11,13 +11,37 @@ import sys
 import time
 from typing import IO
 
-import requests
-
 from esphome.helpers import ProgressBar, rmtree
 
 PathType = str | os.PathLike
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def get_project_link_flags() -> list[str]:
+    """Return the sorted -Wl, linker flags from the current build."""
+    from esphome.core import CORE  # local import to avoid circular dependency
+
+    return sorted(flag for flag in CORE.build_flags if flag.startswith("-Wl,"))
+
+
+def get_project_compile_flags() -> list[str]:
+    """Return the sorted -D and -W (non-linker) flags from the current build."""
+    from esphome.core import CORE  # local import to avoid circular dependency
+
+    return [
+        flag
+        for flag in sorted(CORE.build_flags)
+        if flag.startswith("-D")
+        or (flag.startswith("-W") and not flag.startswith("-Wl,"))
+    ]
+
+
+def get_project_cxx_compile_flags() -> list[str]:
+    """Return the sorted flags that apply to C++ compiles only."""
+    from esphome.core import CORE  # local import to avoid circular dependency
+
+    return sorted(CORE.cxx_build_flags)
 
 
 def str_to_lst_of_str(a: str | list[str]) -> list[str]:
@@ -222,22 +246,19 @@ def _tar_extract_all(
     """
     Extract a TAR archive to the specified directory.
 
-    Implementation is inspired by Python 3.12's tarfile data filtering logic.
-    This can be replaced with the standard library implementation once
-    support for Python 3.11 is no longer required.
+    Path-traversal, link, permission and ownership sanitization is delegated to
+    the stdlib ``tarfile.data_filter`` (PEP 706). We keep the wrapper-directory
+    stripping (no stdlib equivalent) and the absolute-path reject (data_filter's
+    check is os.path-dependent and would miss a Windows drive path when
+    extracting on POSIX).
 
     Args:
         data: File-like object containing the TAR archive
         extract_dir: Directory to extract contents to
         progress_header: If set, show a progress bar with this header
     """
-    import stat
     import tarfile
 
-    # Tar extraction safety: os.path.realpath / commonpath / normpath have no
-    # pathlib equivalents and Path.resolve() would follow symlinks unsafely.
-    # Use os.path for the security-sensitive parts; the simple checks move to
-    # Path.
     extract_dir = os.fspath(extract_dir)
     abs_dest = os.path.abspath(extract_dir)  # noqa: PTH100
 
@@ -252,18 +273,14 @@ def _tar_extract_all(
         safe_members = []
 
         for member in all_members:
-            name = member.name
-
-            # 1. Strip leading slashes
-            name = name.lstrip("/" + os.sep)
-
-            # 2. Reject absolute paths (incl. Windows drive)
+            # Strip leading slashes, then reject absolute / Windows-drive paths
+            name = member.name.lstrip("/" + os.sep)
             if Path(name).is_absolute() or (
                 os.name == "nt" and ":" in name.split(os.sep)[0]  # noqa: PTH206
             ):
                 continue
 
-            # 3. Strip wrapper directory if one was detected
+            # Strip wrapper directory if one was detected
             if strip_prefix is not None:
                 norm = name.replace("\\", "/")
                 if norm in (strip_root, strip_prefix):
@@ -271,87 +288,28 @@ def _tar_extract_all(
                 if not norm.startswith(strip_prefix):
                     continue
                 name = norm[len(strip_prefix) :]
-
-            # 4. Compute final path
-            target_path = os.path.realpath(os.path.join(abs_dest, name))  # noqa: PTH118
-            if os.path.commonpath([abs_dest, target_path]) != abs_dest:
-                continue
-
-            # 5. Validate links properly
-            if member.issym() or member.islnk():
-                linkname = member.linkname
-
-                # Reject absolute link targets
-                if Path(linkname).is_absolute():
-                    continue
-
-                if member.islnk() and strip_prefix is not None:
-                    # Hard-link linknames reference another archive member
-                    # by its archive name. We've stripped the wrapper prefix
-                    # from member.name above (step 3); strip it here too so
-                    # tarfile._find_link_target can resolve the target during
-                    # extraction. Symlink linknames are filesystem-relative
-                    # paths, not archive-member references, so they don't
-                    # need this treatment.
-                    norm_link = linkname.replace("\\", "/")
-                    if norm_link in (strip_root, strip_prefix):
-                        continue
-                    if not norm_link.startswith(strip_prefix):
-                        continue
-                    linkname = norm_link[len(strip_prefix) :]
-
-                # Strip leading slashes
-                linkname = os.path.normpath(linkname)
-
-                if member.issym():
-                    link_target = os.path.join(  # noqa: PTH118
-                        abs_dest,
-                        os.path.dirname(name),  # noqa: PTH120
-                        linkname,
-                    )
-                else:
-                    link_target = os.path.join(abs_dest, linkname)  # noqa: PTH118
-                link_target = os.path.realpath(link_target)
-
-                if os.path.commonpath([abs_dest, link_target]) != abs_dest:
-                    continue
-
-                # write back normalized linkname
-                member.linkname = linkname
-
-            # 6. Sanitize permissions
-            mode = member.mode
-            if mode is not None:
-                # Strip high bits & group/other write bits
-                mode &= (
-                    stat.S_IRWXU
-                    | stat.S_IRGRP
-                    | stat.S_IXGRP
-                    | stat.S_IROTH
-                    | stat.S_IXOTH
-                )
-                if member.isfile() or member.islnk():
-                    # remove exec bits unless explicitly user-executable
-                    if not (mode & stat.S_IXUSR):
-                        mode &= ~(stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-                    mode |= stat.S_IRUSR | stat.S_IWUSR
-                elif not (member.isdir() or member.issym()):
-                    # Block special files. Directories and symlinks keep
-                    # their masked-original mode — passing None here would
-                    # crash tarfile.extract on Python <3.12 (its chmod
-                    # path calls os.chmod unconditionally).
-                    continue
-
-                member.mode = mode
-
-            # 7. Strip ownership
-            member.uid = None
-            member.gid = None
-            member.uname = None
-            member.gname = None
-
-            # 8. Assign sanitized name back
             member.name = name
+
+            # Hard-link linknames reference another archive member by its
+            # archive name; strip the wrapper prefix here too so
+            # tarfile._find_link_target can resolve the target during
+            # extraction. Symlink linknames are filesystem-relative paths,
+            # not archive-member references, so they don't need this.
+            if member.islnk() and strip_prefix is not None:
+                norm_link = member.linkname.replace("\\", "/")
+                if norm_link in (strip_root, strip_prefix):
+                    continue
+                if not norm_link.startswith(strip_prefix):
+                    continue
+                member.linkname = norm_link[len(strip_prefix) :]
+
+            # Delegate traversal, link, permission and ownership sanitization
+            # to the stdlib data filter; it raises FilterError for unsafe
+            # members (path traversal, links outside dest, special files).
+            try:
+                member = tarfile.data_filter(member, abs_dest)
+            except tarfile.FilterError:
+                continue
 
             safe_members.append(member)
 
@@ -616,6 +574,10 @@ def download_from_mirrors(
         ValueError: If mirrors list is empty.
         Exception: If all download attempts fail.
     """
+    # Imported lazily: requests is a heavy import (~85ms) and is only needed
+    # when actually downloading a toolchain, never during config validation.
+    import requests
+
     # 1. Open target file for writing if path given
     with ExitStack() as stack:
         if isinstance(target, (str, os.PathLike)):
