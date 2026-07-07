@@ -4,6 +4,10 @@
 #ifdef USE_ESP32
 #ifdef USE_ZIGBEE
 
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
+
 namespace esphome::zigbee {
 
 static const char *const TAG = "zigbee.attribute";
@@ -76,12 +80,43 @@ void ZigbeeAttribute::set_report(ZigbeeReportT report) {
   }
 }
 
+void ZigbeeAttribute::write_from_coordinator(uint8_t value) {
+  this->pending_value_ = value;
+  this->has_pending_write_ = true;
+  this->enable_loop_soon_any_context();
+}
+
+void ZigbeeAttribute::process_write_() {
+#ifdef USE_SWITCH
+  if (this->switch_ != nullptr) {
+    bool state = this->pending_value_ != 0;
+    if (state)
+      this->switch_->turn_on();
+    else
+      this->switch_->turn_off();
+  }
+#endif
+  this->has_pending_write_ = false;
+}
+
+#ifdef USE_SWITCH
+template<typename T>
+void ZigbeeAttribute::connect(switch_::Switch *sw) {
+  this->switch_ = sw;
+  sw->add_on_state_callback([this](bool value) { this->set_attr((T) value); });
+}
+#endif
+
 void ZigbeeAttribute::loop() {
   if (this->set_attr_requested_) {
     this->set_attr_();
   }
 
-  if (!this->set_attr_requested_) {
+  if (this->has_pending_write_) {
+    this->process_write_();
+  }
+
+  if (!this->set_attr_requested_ && !this->has_pending_write_) {
     this->disable_loop();
   }
 }

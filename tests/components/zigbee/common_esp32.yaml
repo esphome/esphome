@@ -9,6 +9,14 @@ binary_sensor:
     name: "Garage Door Open 12"
     report: "force"
 
+switch:
+  - platform: template
+    name: "ESP32 Switch 1"
+    report: "default"
+  - platform: template
+    name: "ESP32 Switch 2"
+    report: "force"
+
 zigbee:
   model: zigbee_test
   router: true

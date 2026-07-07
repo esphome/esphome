@@ -18,6 +18,9 @@
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 namespace esphome::zigbee {
 
@@ -52,6 +55,11 @@ class ZigbeeAttribute final : public Component {
 #ifdef USE_BINARY_SENSOR
   template<typename T> void connect(binary_sensor::BinarySensor *sensor);
 #endif
+#ifdef USE_SWITCH
+  template<typename T> void connect(switch_::Switch *sw);
+#endif
+  void write_from_coordinator(uint8_t value);
+  void process_write_();
   bool report_enabled = false;
 
  protected:
@@ -68,6 +76,11 @@ class ZigbeeAttribute final : public Component {
   void *value_p_{nullptr};
   bool set_attr_requested_{false};
   bool force_report_{false};
+  volatile bool has_pending_write_{false};
+  uint8_t pending_value_{0};
+#ifdef USE_SWITCH
+  switch_::Switch *switch_{nullptr};
+#endif
 };
 
 template<typename T> void ZigbeeAttribute::add_attr(T value) {
