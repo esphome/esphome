@@ -128,8 +128,9 @@ static void zb_attribute_handler(ezb_zcl_set_attr_value_message_t *message) {
            message->info.cluster_role == EZB_ZCL_CLUSTER_SERVER ? "server" : "client", message->info.status);
 
   // Propagate coordinator writes to local entity via attributes_ map lookup
+  uint8_t attr_value = *static_cast<uint8_t *>(message->in.attribute.data.value);
   global_zigbee->handle_coordinator_write(message->info.dst_ep, message->info.cluster_id, message->info.cluster_role,
-                                          message->in.attribute.id, message->in.attribute.data.u8);
+                                          message->in.attribute.id, attr_value);
 }
 
 static void zb_action_handler(ezb_zcl_core_action_callback_id_t callback_id, void *message) {

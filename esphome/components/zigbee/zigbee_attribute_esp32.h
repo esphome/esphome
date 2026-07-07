@@ -59,7 +59,7 @@ class ZigbeeAttribute final : public Component {
   template<typename T> void connect(switch_::Switch *sw);
 #endif
   void write_from_coordinator(uint8_t value);
-  void process_write_();
+  void process_write();
   bool report_enabled = false;
 
  protected:

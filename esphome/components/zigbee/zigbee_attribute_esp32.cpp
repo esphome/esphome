@@ -86,14 +86,15 @@ void ZigbeeAttribute::write_from_coordinator(uint8_t value) {
   this->enable_loop_soon_any_context();
 }
 
-void ZigbeeAttribute::process_write_() {
+void ZigbeeAttribute::process_write() {
 #ifdef USE_SWITCH
   if (this->switch_ != nullptr) {
     bool state = this->pending_value_ != 0;
-    if (state)
+    if (state) {
       this->switch_->turn_on();
-    else
+    } else {
       this->switch_->turn_off();
+    }
   }
 #endif
   this->has_pending_write_ = false;
@@ -113,7 +114,7 @@ void ZigbeeAttribute::loop() {
   }
 
   if (this->has_pending_write_) {
-    this->process_write_();
+    this->process_write();
   }
 
   if (!this->set_attr_requested_ && !this->has_pending_write_) {

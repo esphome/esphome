@@ -13,9 +13,11 @@ switch:
   - platform: template
     name: "ESP32 Switch 1"
     report: "default"
+    optimistic: true
   - platform: template
     name: "ESP32 Switch 2"
     report: "force"
+    optimistic: true
 
 zigbee:
   model: zigbee_test
