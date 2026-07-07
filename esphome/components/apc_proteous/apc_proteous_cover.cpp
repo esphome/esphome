@@ -84,7 +84,7 @@ void APCProteousCover::parse_response_() {
   bool state_changed = false;
 
   if (type == 's') {
-    // s-status: bit 0 = operating, bit 1 = opening
+    // s-status: bit 0 = operating, bit 1 = direction (0=opening, 1=closing)
     this->s_status_ = (uint8_t) value;
 
     bool is_operating = (value & 0x01) != 0;
