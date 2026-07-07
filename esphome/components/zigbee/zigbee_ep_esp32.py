@@ -83,7 +83,7 @@ ep_configs: dict[str, dict[str, Any]] = {
 }
 
 
-def get_next_ep_num(eps):
+def get_next_ep_num(eps: list[int]) -> int:
     try:
         ep_num = [i for i in range(1, CONF_MAX_EP_NUMBER + 1) if i not in eps][0]
         eps.append(ep_num)
@@ -127,6 +127,8 @@ def merge_endpoint(
         existing_ep[CONF_USE_DEVICE_TYPE] = use_type
         if ep.get(DEVICE_TYPE):
             existing_ep[DEVICE_TYPE] = ep[DEVICE_TYPE]
+        else:
+            existing_ep.pop(DEVICE_TYPE, None)
         existing_ep[CONF_CLUSTERS].extend(ep[CONF_CLUSTERS])
         return True
     if existing_ep.get(CONF_USE_DEVICE_TYPE):
@@ -197,7 +199,8 @@ def add_ep(ep: dict[str, Any], ep_num: int | None, use_type: bool | None) -> Non
         if ep_num in ep_dict:
             # check if the existing endpoint has same clusters
             existing_ep = ep_dict[ep_num]
-            merge_endpoint(existing_ep, ep_num, ep, use_type, False)
+            if not merge_endpoint(existing_ep, ep_num, ep, use_type, False):
+                raise cv.Invalid(f"Cannot add Entity to Endpoint {ep_num}.")
         else:
             if use_type is not None:
                 ep[CONF_USE_DEVICE_TYPE] = use_type
