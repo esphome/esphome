@@ -369,11 +369,17 @@ using RamBuffer = std::unique_ptr<uint8_t[], RamBufferDeleter>;
 // On success, *out owns the buffer and *size holds the number of bytes read.
 StorageError read_file(FilesystemStorage *storage, const char *path, RamBuffer &out, size_t *size);
 StorageError read_file(NetworkStorage *storage, const char *path, RamBuffer &out, size_t *size);
+// PathStorage overload: dispatches on get_storage_type(), same as copy()/move() below. Lets a
+// generic path-based consumer (e.g. a file browser holding a PathStorage*) call read_file()
+// without having to downcast to the concrete subtype itself first.
+StorageError read_file(PathStorage *storage, const char *path, RamBuffer &out, size_t *size);
 
 // Writes an entire buffer to a file in one call (create/truncate semantics, like
 // OpenMode::WRITE).
 StorageError write_file(FilesystemStorage *storage, const char *path, const uint8_t *data, size_t size);
 StorageError write_file(NetworkStorage *storage, const char *path, const uint8_t *data, size_t size);
+// PathStorage overload — see read_file(PathStorage *, ...) above.
+StorageError write_file(PathStorage *storage, const char *path, const uint8_t *data, size_t size);
 
 // Copies a file, within the same storage or across two different storages (e.g. SD -> USB,
 // USB -> NFS). Dispatches on get_storage_type() and streams the file through a fixed
