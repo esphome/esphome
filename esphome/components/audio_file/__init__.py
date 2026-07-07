@@ -113,7 +113,10 @@ def read_audio_file_and_type(file_config: ConfigType) -> tuple[bytes, MockObj]:
     media_file_type = audio.AUDIO_FILE_TYPE_ENUM["NONE"]
     if file_type == "wav":
         media_file_type = audio.AUDIO_FILE_TYPE_ENUM["WAV"]
-    elif file_type in ("mp3", "mpeg", "mpga"):
+    elif file_type in ("mp3", "mpeg", "mpga", "mp1", "mp2"):
+        # puremagic's signature for the 0xFF 0xFB frame sync is ambiguous between MPEG-1
+        # Layer I/II/III and sometimes misidentifies genuine MP3 (Layer III) files as
+        # "mp1"/"mp2". The MP3 decoder handles any MPEG audio layer, so treat them as MP3.
         media_file_type = audio.AUDIO_FILE_TYPE_ENUM["MP3"]
     elif file_type == "flac":
         media_file_type = audio.AUDIO_FILE_TYPE_ENUM["FLAC"]
