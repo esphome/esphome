@@ -22,7 +22,7 @@ from esphome.helpers import cpp_string_escape
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import Expression, SafeExpType
 
-from ..mapping import get_mapping_metadata
+from ..mapping import INDEX_TYPES, get_mapping_metadata
 from . import types as ty
 from .defines import (
     CONF_END_VALUE,
@@ -405,7 +405,7 @@ class ImageValidator(LValidator):
             if isinstance(index, Lambda):
                 index = call_lambda(
                     await cg.process_lambda(
-                        index, args, return_type=metadata.to_.data_type
+                        index, args, return_type=metadata.from_.data_type
                     )
                 )
             else:
@@ -469,11 +469,16 @@ class TextValidator(LValidator):
             if mapping_id := value.get(CONF_MAPPING):
                 mapping_var = await cg.get_variable(mapping_id)
                 metadata = get_mapping_metadata(mapping_id.id)
+                if metadata.to_ != INDEX_TYPES["string"]:
+                    print(metadata.to_.data_type)
+                    raise ValueError(
+                        f"Mapping {mapping_id} does not map to strings, cannot use in text"
+                    )
                 index = value[CONF_VALUE]
                 if isinstance(index, Lambda):
                     index = call_lambda(
                         await cg.process_lambda(
-                            index, args, return_type=metadata.to_.data_type
+                            index, args, return_type=metadata.from_.data_type
                         )
                     )
                 else:

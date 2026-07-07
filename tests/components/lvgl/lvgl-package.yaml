@@ -219,7 +219,7 @@ lvgl:
                   id: lv_image
                   src:
                     mapping: image_map
-                    value: 0
+                    value: !lambda return round(1.0);
                   scale: !lambda return 512;
                   rotation: !lambda return 100;
                   pivot_x: !lambda return 20;
