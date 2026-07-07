@@ -16,7 +16,7 @@ namespace esphome::hub75 {
 using esphome::display::ColorBitness;
 using esphome::display::ColorOrder;
 
-class HUB75Display : public display::Display {
+class HUB75Display final : public display::Display {
  public:
   // Constructor accepting config
   explicit HUB75Display(const Hub75Config &config);
@@ -51,7 +51,7 @@ class HUB75Display : public display::Display {
   bool enabled_{false};
 };
 
-template<typename... Ts> class SetBrightnessAction : public Action<Ts...>, public Parented<HUB75Display> {
+template<typename... Ts> class SetBrightnessAction final : public Action<Ts...>, public Parented<HUB75Display> {
  public:
   TEMPLATABLE_VALUE(uint8_t, brightness)
 

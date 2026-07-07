@@ -18,6 +18,8 @@ from esphome.const import (
 from esphome.cpp_generator import add_define
 
 CODEOWNERS = ["@swoboda1337"]
+# esp32_ble raises the task watchdog around the remote BT controller bring-up
+AUTO_LOAD = ["watchdog"]
 
 CONF_ACTIVE_HIGH = "active_high"
 CONF_BUS_WIDTH = "bus_width"
@@ -257,7 +259,7 @@ async def to_code(config):
         esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.5.1")
         esp32.add_idf_component(name="espressif/wifi_remote_over_eppp", ref="0.3.2")
         esp32.add_idf_component(name="espressif/eppp_link", ref="1.1.5")
-        esp32.add_idf_component(name="espressif/esp_hosted", ref="2.12.8")
+        esp32.add_idf_component(name="espressif/esp_hosted", ref="2.12.9")
     else:
         esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="0.13.0")
         esp32.add_idf_component(name="espressif/eppp_link", ref="0.2.0")

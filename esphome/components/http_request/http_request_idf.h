@@ -26,7 +26,7 @@ class HttpContainerIDF : public HttpContainer {
   esp_http_client_handle_t client_;
 };
 
-class HttpRequestIDF : public HttpRequestComponent {
+class HttpRequestIDF final : public HttpRequestComponent {
  public:
   void dump_config() override;
 

@@ -59,7 +59,7 @@ enum VEML3235ComponentGain {
   VEML3235_GAIN_4X = 0b11,
 };
 
-class VEML3235Sensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+class VEML3235Sensor final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

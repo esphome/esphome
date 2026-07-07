@@ -6,7 +6,8 @@
 
 namespace esphome::scd30 {
 
-template<typename... Ts> class ForceRecalibrationWithReference : public Action<Ts...>, public Parented<SCD30Component> {
+template<typename... Ts>
+class ForceRecalibrationWithReference final : public Action<Ts...>, public Parented<SCD30Component> {
  public:
   void play(const Ts &...x) override {
     if (this->value_.has_value()) {

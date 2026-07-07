@@ -204,7 +204,7 @@ void MedianCombinationComponent::handle_new_value(float value) {
       median = sensor_states[sensor_states_size / 2];
     } else {
       // Even number of measurements, use the average of the two middle measurements
-      median = (sensor_states[sensor_states_size / 2] + sensor_states[sensor_states_size / 2 - 1]) / 2.0;
+      median = (sensor_states[sensor_states_size / 2] + sensor_states[sensor_states_size / 2 - 1]) / 2.0f;
     }
   }
 
