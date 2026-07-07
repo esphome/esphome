@@ -4,8 +4,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace uponor_smatrix {
+namespace esphome::uponor_smatrix {
 
 static const char *const TAG = "uponor_smatrix.sensor";
 
@@ -80,5 +79,4 @@ void UponorSmatrixSensor::on_device_data(const UponorSmatrixData *data, size_t d
   }
 }
 
-}  // namespace uponor_smatrix
-}  // namespace esphome
+}  // namespace esphome::uponor_smatrix

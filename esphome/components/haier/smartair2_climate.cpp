@@ -7,8 +7,7 @@
 using namespace esphome::climate;
 using namespace esphome::uart;
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
 static const char *const TAG = "haier.climate";
 constexpr size_t SIGNAL_LEVEL_UPDATE_INTERVAL_MS = 10000;
@@ -191,7 +190,7 @@ void Smartair2Climate::process_phase(std::chrono::steady_clock::time_point now) 
       if (this->action_request_.has_value()) {
         if (this->action_request_.value().message.has_value()) {
           this->send_message_(this->action_request_.value().message.value(), this->use_crc_);
-          this->action_request_.value().message.reset();
+          this->action_request_.value().message.reset();  // NOLINT(bugprone-unchecked-optional-access)
         } else {
           // Message already sent, reseting request and return to idle
           this->action_request_.reset();
@@ -210,8 +209,9 @@ void Smartair2Climate::process_phase(std::chrono::steady_clock::time_point now) 
 #ifdef USE_WIFI
       else if (this->send_wifi_signal_ &&
                (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_signal_request_).count() >
-                SIGNAL_LEVEL_UPDATE_INTERVAL_MS))
+                SIGNAL_LEVEL_UPDATE_INTERVAL_MS)) {
         this->set_phase(ProtocolPhases::SENDING_UPDATE_SIGNAL_REQUEST);
+      }
 #endif
     } break;
     default:
@@ -341,7 +341,7 @@ haier_protocol::HaierMessage Smartair2Climate::get_control_message() {
     if (climate_control.target_temperature.has_value()) {
       float target_temp = climate_control.target_temperature.value();
       out_data->set_point = ((int) target_temp) - 16;  // set the temperature with offset 16
-      out_data->half_degree = (target_temp - ((int) target_temp) >= 0.49) ? 1 : 0;
+      out_data->half_degree = (target_temp - ((int) target_temp) >= 0.49f) ? 1 : 0;
     }
     if (out_data->ac_power == 0) {
       // If AC is off - no presets allowed
@@ -554,5 +554,4 @@ void Smartair2Climate::set_alternative_swing_control(bool swing_control) {
   this->use_alternative_swing_control_ = swing_control;
 }
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier

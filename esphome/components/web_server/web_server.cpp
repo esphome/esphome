@@ -40,6 +40,9 @@
 #ifdef USE_INFRARED
 #include "esphome/components/infrared/infrared.h"
 #endif
+#ifdef USE_RADIO_FREQUENCY
+#include "esphome/components/radio_frequency/radio_frequency.h"
+#endif
 
 #ifdef USE_WEBSERVER_LOCAL
 #if USE_WEBSERVER_VERSION == 2
@@ -161,36 +164,9 @@ EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
   }
 #endif
 
-  // Try matching by entity name (new format)
+  // Match by entity name
   if (this->id == entity->get_name()) {
     result.matched = true;
-    return result;
-  }
-
-  // Fall back to object_id (deprecated format)
-  char object_id_buf[OBJECT_ID_MAX_LEN];
-  StringRef object_id = entity->get_object_id_to(object_id_buf);
-  if (this->id == object_id) {
-    result.matched = true;
-    // Log deprecation warning
-#ifdef USE_DEVICES
-    Device *device = entity->get_device();
-    if (device != nullptr) {
-      ESP_LOGW(TAG,
-               "Deprecated URL format: /%.*s/%.*s/%.*s - use entity name '/%.*s/%s/%s' instead. "
-               "Object ID URLs will be removed in 2026.7.0.",
-               (int) this->domain.size(), this->domain.c_str(), (int) this->device_name.size(),
-               this->device_name.c_str(), (int) this->id.size(), this->id.c_str(), (int) this->domain.size(),
-               this->domain.c_str(), device->get_name(), entity->get_name().c_str());
-    } else
-#endif
-    {
-      ESP_LOGW(TAG,
-               "Deprecated URL format: /%.*s/%.*s - use entity name '/%.*s/%s' instead. "
-               "Object ID URLs will be removed in 2026.7.0.",
-               (int) this->domain.size(), this->domain.c_str(), (int) this->id.size(), this->id.c_str(),
-               (int) this->domain.size(), this->domain.c_str(), entity->get_name().c_str());
-    }
   }
 
   return result;
@@ -281,8 +257,10 @@ void DeferredUpdateEventSource::deferrable_send_state(void *source, const char *
 }
 
 // used for logs plus the initial ping/config
-void DeferredUpdateEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id,
-                                                 uint32_t reconnect) {
+void DeferredUpdateEventSource::try_send_nodefer(const char *message, size_t message_len, const char *event,
+                                                 uint32_t id, uint32_t reconnect) {
+  // ESPAsyncWebServer's send() only accepts null-terminated strings
+  (void) message_len;
   this->send(message, event, id, reconnect);
 }
 
@@ -303,10 +281,10 @@ void DeferredUpdateEventSourceList::deferrable_send_state(void *source, const ch
   }
 }
 
-void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, const char *event, uint32_t id,
-                                                     uint32_t reconnect) {
+void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, size_t message_len, const char *event,
+                                                     uint32_t id, uint32_t reconnect) {
   for (DeferredUpdateEventSource *dues : *this) {
-    dues->try_send_nodefer(message, event, id, reconnect);
+    dues->try_send_nodefer(message, message_len, event, id, reconnect);
   }
 }
 
@@ -328,7 +306,7 @@ void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource
     // Configure reconnect timeout and send config
     // this should always go through since the AsyncEventSourceClient event queue is empty on connect
     auto message = ws->get_config_json();
-    source->try_send_nodefer(message.c_str(), "ping", millis(), 30000);
+    source->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000);
 
 #ifdef USE_WEBSERVER_SORTING
     for (auto &group : ws->sorting_groups_) {
@@ -339,7 +317,7 @@ void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource
       auto group_msg = builder.serialize();
 
       // up to 31 groups should be able to be queued initially without defer
-      source->try_send_nodefer(group_msg.c_str(), "sorting_group");
+      source->try_send_nodefer(group_msg.c_str(), group_msg.size(), "sorting_group");
     }
 #endif
 
@@ -419,8 +397,8 @@ void WebServer::setup() {
       return;
     char buf[32];
     auto uptime = static_cast<uint32_t>(millis_64() / 1000);
-    buf_append_printf(buf, sizeof(buf), 0, "{\"uptime\":%" PRIu32 "}", uptime);
-    this->events_.try_send_nodefer(buf, "ping", millis(), 30000);
+    size_t len = buf_append_printf(buf, sizeof(buf), 0, "{\"uptime\":%" PRIu32 "}", uptime);
+    this->events_.try_send_nodefer(buf, len, "ping", millis(), 30000);
   });
 }
 void WebServer::loop() {
@@ -438,8 +416,7 @@ void WebServer::loop() {
 void WebServer::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
   (void) level;
   (void) tag;
-  (void) message_len;
-  this->events_.try_send_nodefer(message, "log", millis());
+  this->events_.try_send_nodefer(message, message_len, "log", millis());
 }
 #endif
 
@@ -608,7 +585,7 @@ static void set_json_icon_state_value(JsonObject &root, EntityBase *obj, const c
 }
 
 // Helper to get request detail parameter
-static JsonDetail get_request_detail(AsyncWebServerRequest *request) {
+[[maybe_unused]] static JsonDetail get_request_detail(AsyncWebServerRequest *request) {
   return request->arg(ESPHOME_F("detail")) == "all" ? DETAIL_ALL : DETAIL_STATE;
 }
 
@@ -2102,6 +2079,104 @@ json::SerializationBuffer<> WebServer::infrared_json_(infrared::Infrared *obj, J
 }
 #endif
 
+#ifdef USE_RADIO_FREQUENCY
+void WebServer::handle_radio_frequency_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (radio_frequency::RadioFrequency *obj : App.get_radio_frequencies()) {
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
+      continue;
+
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
+      auto detail = get_request_detail(request);
+      auto data = this->radio_frequency_json_(obj, detail);
+      request->send(200, ESPHOME_F("application/json"), data.c_str());
+      return;
+    }
+    if (!match.method_equals(ESPHOME_F("transmit"))) {
+      request->send(404);
+      return;
+    }
+
+    // Only allow transmit if the device supports it
+    if (!(obj->get_capability_flags() & radio_frequency::CAPABILITY_TRANSMITTER)) {
+      request->send(400, ESPHOME_F("text/plain"), ESPHOME_F("Device does not support transmission"));
+      return;
+    }
+
+    auto call = obj->make_call();
+
+    // Parse carrier frequency (optional — overrides IC default)
+    {
+      auto value = parse_number<uint32_t>(request->arg(ESPHOME_F("frequency")).c_str());
+      if (value.has_value()) {
+        call.set_frequency(*value);
+      }
+    }
+
+    // Parse repeat count (optional, defaults to 1)
+    {
+      auto value = parse_number<uint32_t>(request->arg(ESPHOME_F("repeat_count")).c_str());
+      if (value.has_value()) {
+        call.set_repeat_count(*value);
+      }
+    }
+
+    // Parse base64url-encoded raw timings (required)
+    // Base64url is URL-safe: uses A-Za-z0-9-_ (no special characters needing escaping)
+    const auto &data_arg = request->arg(ESPHOME_F("data"));
+
+    // Validate base64url is not empty (also catches missing parameter since arg() returns empty string)
+    // Arduino String has isEmpty() not empty(), use length() for cross-platform compatibility
+    if (data_arg.length() == 0) {  // NOLINT(readability-container-size-empty)
+      request->send(400, ESPHOME_F("text/plain"), ESPHOME_F("Missing or empty 'data' parameter"));
+      return;
+    }
+
+    // Defer to main loop for thread safety. Move encoded string into lambda to ensure
+    // it outlives the call - set_raw_timings_base64url stores a pointer, so the string
+    // must remain valid until perform() completes.
+    // ESP8266 also needs this because ESPAsyncWebServer callbacks run in "sys" context.
+    this->defer([call, encoded = std::string(data_arg.c_str(), data_arg.length())]() mutable {
+      call.set_raw_timings_base64url(encoded);
+      call.perform();
+    });
+
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+
+json::SerializationBuffer<> WebServer::radio_frequency_all_json_generator(WebServer *web_server, void *source) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  return web_server->radio_frequency_json_(static_cast<radio_frequency::RadioFrequency *>(source), DETAIL_ALL);
+}
+
+json::SerializationBuffer<> WebServer::radio_frequency_json_(radio_frequency::RadioFrequency *obj,
+                                                             JsonDetail start_config) {
+  json::JsonBuilder builder;
+  JsonObject root = builder.root();
+
+  set_json_icon_state_value(root, obj, "radio_frequency", "", 0, start_config);
+
+  const auto &traits = obj->get_traits();
+  auto caps = obj->get_capability_flags();
+
+  root[ESPHOME_F("supports_transmitter")] = bool(caps & radio_frequency::CAPABILITY_TRANSMITTER);
+  root[ESPHOME_F("supports_receiver")] = bool(caps & radio_frequency::CAPABILITY_RECEIVER);
+  if (traits.get_frequency_min_hz() != 0) {
+    root[ESPHOME_F("frequency_min")] = traits.get_frequency_min_hz();
+    root[ESPHOME_F("frequency_max")] = traits.get_frequency_max_hz();
+  }
+
+  if (start_config == DETAIL_ALL) {
+    this->add_sorting_info_(root, obj);
+  }
+
+  return builder.serialize();
+}
+#endif
+
 #ifdef USE_EVENT
 void WebServer::on_event(event::Event *obj) {
   if (!this->include_internal_ && obj->is_internal())
@@ -2207,7 +2282,11 @@ json::SerializationBuffer<> WebServer::update_json_(update::UpdateEntity *obj, J
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("current_version")] = obj->update_info.current_version;
     root[ESPHOME_F("title")] = obj->update_info.title;
-    root[ESPHOME_F("summary")] = obj->update_info.summary;
+    // Truncate long changelogs — full text available via release_url
+    constexpr size_t max_summary_len = 256;
+    root[ESPHOME_F("summary")] = obj->update_info.summary.size() <= max_summary_len
+                                     ? obj->update_info.summary
+                                     : obj->update_info.summary.substr(0, max_summary_len);
     root[ESPHOME_F("release_url")] = obj->update_info.release_url;
     this->add_sorting_info_(root, obj);
   }
@@ -2352,6 +2431,10 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
 #endif
 #ifdef USE_INFRARED
     if (match.domain_equals(ESPHOME_F("infrared")))
+      return true;
+#endif
+#ifdef USE_RADIO_FREQUENCY
+    if (match.domain_equals(ESPHOME_F("radio_frequency")))
       return true;
 #endif
   }
@@ -2513,6 +2596,11 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
     this->handle_infrared_request(request, match);
   }
 #endif
+#ifdef USE_RADIO_FREQUENCY
+  else if (match.domain_equals(ESPHOME_F("radio_frequency"))) {
+    this->handle_radio_frequency_request(request, match);
+  }
+#endif
   else {
     // No matching handler found - send 404
     ESP_LOGV(TAG, "Request for unknown URL: %s", url.c_str());
@@ -2524,9 +2612,9 @@ bool WebServer::isRequestHandlerTrivial() const { return false; }
 
 void WebServer::add_sorting_info_(JsonObject &root, EntityBase *entity) {
 #ifdef USE_WEBSERVER_SORTING
-  if (this->sorting_entitys_.find(entity) != this->sorting_entitys_.end()) {
+  if (this->sorting_entitys_.contains(entity)) {
     root[ESPHOME_F("sorting_weight")] = this->sorting_entitys_[entity].weight;
-    if (this->sorting_groups_.find(this->sorting_entitys_[entity].group_id) != this->sorting_groups_.end()) {
+    if (this->sorting_groups_.contains(this->sorting_entitys_[entity].group_id)) {
       root[ESPHOME_F("sorting_group")] = this->sorting_groups_[this->sorting_entitys_[entity].group_id].name;
     }
   }

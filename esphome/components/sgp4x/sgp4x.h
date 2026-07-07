@@ -11,8 +11,7 @@
 #include <VOCGasIndexAlgorithm.h>
 #include <NOxGasIndexAlgorithm.h>
 
-namespace esphome {
-namespace sgp4x {
+namespace esphome::sgp4x {
 
 struct SGP4xBaselines {
   int32_t state0;
@@ -55,7 +54,9 @@ const float MAXIMUM_STORAGE_DIFF = 50.0f;
 class SGP4xComponent;
 
 /// This class implements support for the Sensirion sgp4x i2c GAS (VOC) sensors.
-class SGP4xComponent : public PollingComponent, public sensor::Sensor, public sensirion_common::SensirionI2CDevice {
+class SGP4xComponent final : public PollingComponent,
+                             public sensor::Sensor,
+                             public sensirion_common::SensirionI2CDevice {
   enum ErrorCode {
     COMMUNICATION_FAILED,
     MEASUREMENT_INIT_FAILED,
@@ -134,5 +135,4 @@ class SGP4xComponent : public PollingComponent, public sensor::Sensor, public se
   uint32_t seconds_since_last_store_;
   SGP4xBaselines voc_baselines_storage_;
 };
-}  // namespace sgp4x
-}  // namespace esphome
+}  // namespace esphome::sgp4x

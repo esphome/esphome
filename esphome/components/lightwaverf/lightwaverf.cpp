@@ -5,8 +5,7 @@
 
 #include "lightwaverf.h"
 
-namespace esphome {
-namespace lightwaverf {
+namespace esphome::lightwaverf {
 
 static const char *const TAG = "lightwaverf.sensor";
 
@@ -62,7 +61,6 @@ void LightWaveRF::dump_config() {
   LOG_PIN("  Pin RX: ", this->pin_rx_);
   LOG_UPDATE_INTERVAL(this);
 }
-}  // namespace lightwaverf
-}  // namespace esphome
+}  // namespace esphome::lightwaverf
 
 #endif

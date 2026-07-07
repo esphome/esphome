@@ -67,22 +67,36 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_CODE_RECEIVED,
+        "add_on_code_received_callback",
+        [(RFBridgeData, "data")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_ADVANCED_CODE_RECEIVED,
+        "add_on_advanced_code_received_callback",
+        [(RFBridgeAdvancedData, "data")],
+    ),
+)
+
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "rf_bridge",
+    baud_rate=19200,
+    require_rx=True,
+    require_tx=True,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
+)
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    for conf in config.get(CONF_ON_CODE_RECEIVED, []):
-        await automation.build_callback_automation(
-            var, "add_on_code_received_callback", [(RFBridgeData, "data")], conf
-        )
-    for conf in config.get(CONF_ON_ADVANCED_CODE_RECEIVED, []):
-        await automation.build_callback_automation(
-            var,
-            "add_on_advanced_code_received_callback",
-            [(RFBridgeAdvancedData, "data")],
-            conf,
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 RFBRIDGE_SEND_CODE_SCHEMA = cv.Schema(

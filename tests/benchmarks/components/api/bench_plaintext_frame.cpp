@@ -75,7 +75,7 @@ static void PlaintextFrame_WriteBatch5(benchmark::State &state) {
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
       buffer.clear();
-      MessageInfo messages[5] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
+      MessageInfo messages[5] = {{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}};
 
       for (int j = 0; j < 5; j++) {
         uint16_t offset = buffer.size();
@@ -89,7 +89,7 @@ static void PlaintextFrame_WriteBatch5(benchmark::State &state) {
         ProtoWriteBuffer writer(&buffer, offset + padding);
         msg.encode(writer);
 
-        messages[j] = MessageInfo(SensorStateResponse::MESSAGE_TYPE, offset, size);
+        messages[j] = MessageInfo(SensorStateResponse::MESSAGE_TYPE, offset, size, padding);
       }
 
       helper->write_protobuf_messages(ProtoWriteBuffer(&buffer, 0), std::span<const MessageInfo>(messages, 5));

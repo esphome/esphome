@@ -6,8 +6,7 @@
 
 using esphome::i2c::ErrorCode;
 
-namespace esphome {
-namespace ltr_als_ps {
+namespace esphome::ltr_als_ps {
 
 static const char *const TAG = "ltr_als_ps";
 
@@ -481,12 +480,12 @@ void LTRAlsPsComponent::apply_lux_calculation_(AlsReadings &data) {
   float inv_pfactor = this->glass_attenuation_factor_;
   float lux = 0.0f;
 
-  if (ratio < 0.45) {
-    lux = (1.7743 * ch0 + 1.1059 * ch1);
-  } else if (ratio < 0.64 && ratio >= 0.45) {
-    lux = (4.2785 * ch0 - 1.9548 * ch1);
-  } else if (ratio < 0.85 && ratio >= 0.64) {
-    lux = (0.5926 * ch0 + 0.1185 * ch1);
+  if (ratio < 0.45f) {
+    lux = (1.7743f * ch0 + 1.1059f * ch1);
+  } else if (ratio < 0.64f && ratio >= 0.45f) {
+    lux = (4.2785f * ch0 - 1.9548f * ch1);
+  } else if (ratio < 0.85f && ratio >= 0.64f) {
+    lux = (0.5926f * ch0 + 0.1185f * ch1);
   } else {
     ESP_LOGW(TAG, "Impossible ch1/(ch0 + ch1) ratio");
     lux = 0.0f;
@@ -521,5 +520,4 @@ void LTRAlsPsComponent::publish_data_part_2_(AlsReadings &data) {
     this->actual_integration_time_sensor_->publish_state(get_itime_ms(data.integration_time));
   }
 }
-}  // namespace ltr_als_ps
-}  // namespace esphome
+}  // namespace esphome::ltr_als_ps

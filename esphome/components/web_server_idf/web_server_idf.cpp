@@ -66,7 +66,7 @@ namespace {
  *   - HTTPD_SOCK_ERR_TIMEOUT if the send buffer is full (EAGAIN/EWOULDBLOCK).
  *   - HTTPD_SOCK_ERR_FAIL for other errors.
  */
-int nonblocking_send(httpd_handle_t hd, int sockfd, const char *buf, size_t buf_len, int flags) {
+[[maybe_unused]] int nonblocking_send(httpd_handle_t hd, int sockfd, const char *buf, size_t buf_len, int flags) {
   if (buf == nullptr) {
     return HTTPD_SOCK_ERR_INVALID;
   }
@@ -472,24 +472,36 @@ void AsyncResponseStream::printf(const char *fmt, ...) {
 
 #ifdef USE_WEBSERVER
 AsyncEventSource::~AsyncEventSource() {
-  for (auto *ses : this->sessions_) {
-    delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
+  LockGuard guard{this->pending_mutex_};
+  for (auto *vec : {&this->sessions_, &this->pending_sessions_}) {
+    for (auto *ses : *vec) {
+      delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
+    }
   }
 }
 
 void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
+  // Httpd task: set up the live httpd_req_t and park the session; main loop does the rest.
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory,clang-analyzer-cplusplus.NewDeleteLeaks)
   auto *rsp = new AsyncEventSourceResponse(request, this, this->web_server_);
-  if (this->on_connect_) {
-    this->on_connect_(rsp);
+  {
+    LockGuard guard{this->pending_mutex_};
+    this->pending_sessions_.push_back(rsp);
+    this->has_pending_sessions_.store(true, std::memory_order_release);
   }
-  this->sessions_.push_back(rsp);
-  // Wake up WebServer::loop() to drain deferred event queues for this client.
-  // Safe from httpd task context via the pending_enable_loop_ flag.
   this->web_server_->enable_loop_soon_any_context();
 }
 
+// clang-analyzer traces a false-positive leak path from loop() through
+// adopt_pending_sessions_main_loop_() into start_session_main_loop_() and
+// finally ArduinoJson. Suppress along the entire in-our-code call chain.
+// NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks)
 bool AsyncEventSource::loop() {
+  // Fast path: one atomic load per tick. Slow path is out-of-line on connect.
+  if (this->has_pending_sessions_.load(std::memory_order_acquire)) {
+    this->adopt_pending_sessions_main_loop_();
+  }
+
   // Clean up dead sessions safely
   // This follows the ESP-IDF pattern where free_ctx marks resources as dead
   // and the main loop handles the actual cleanup to avoid race conditions
@@ -497,7 +509,7 @@ bool AsyncEventSource::loop() {
     auto *ses = this->sessions_[i];
     // If the session has a dead socket (marked by destroy callback)
     if (ses->fd_.load() == 0) {
-      ESP_LOGD(TAG, "Removing dead event source session");
+      // destroy() already logged the close with the fd; don't double-log here.
       delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
       // Remove by swapping with last element (O(1) removal, order doesn't matter for sessions)
       this->sessions_[i] = this->sessions_.back();
@@ -510,10 +522,35 @@ bool AsyncEventSource::loop() {
   return !this->sessions_.empty();
 }
 
-void AsyncEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
+void AsyncEventSource::adopt_pending_sessions_main_loop_() {
+  std::vector<AsyncEventSourceResponse *> incoming;
+  {
+    LockGuard guard{this->pending_mutex_};
+    incoming.swap(this->pending_sessions_);
+    this->has_pending_sessions_.store(false, std::memory_order_relaxed);
+  }
+  for (auto *rsp : incoming) {
+    // Already disconnected? Drop it; skip on_connect_/session start on a dead session.
+    if (rsp->fd_.load() == 0) {
+      delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
+      continue;
+    }
+    this->sessions_.push_back(rsp);
+    // Prime first so on_connect_ observes a session that has already sent its
+    // initial ping/config/sorting_groups, matching the pre-refactor ordering.
+    rsp->start_session_main_loop_();
+    if (this->on_connect_) {
+      this->on_connect_(rsp);
+    }
+  }
+}
+// NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
+
+void AsyncEventSource::try_send_nodefer(const char *message, size_t message_len, const char *event, uint32_t id,
+                                        uint32_t reconnect) {
   for (auto *ses : this->sessions_) {
     if (ses->fd_.load() != 0) {  // Skip dead sessions
-      ses->try_send_nodefer(message, event, id, reconnect);
+      ses->try_send_nodefer(message, message_len, event, id, reconnect);
     }
   }
 }
@@ -534,6 +571,7 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
                                                    esphome::web_server_idf::AsyncEventSource *server,
                                                    esphome::web_server::WebServer *ws)
     : server_(server), web_server_(ws), entities_iterator_(ws, server) {
+  // Httpd task only. start_session_main_loop_() handles event_buffer_ / iterator setup.
   httpd_req_t *req = *request;
 
   httpd_resp_set_status(req, HTTPD_200);
@@ -555,36 +593,33 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 
   // Use non-blocking send to prevent watchdog timeouts when TCP buffers are full
   httpd_sess_set_send_override(this->hd_, this->fd_.load(), nonblocking_send);
+}
 
-  // Configure reconnect timeout and send config
-  // this should always go through since the tcp send buffer is empty on connect
+// NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+void AsyncEventSourceResponse::start_session_main_loop_() {
+  auto *ws = this->web_server_;
+
+  // tcp send buffer is empty on connect, so these should always go through
   auto message = ws->get_config_json();
-  this->try_send_nodefer(message.c_str(), "ping", millis(), 30000);
+  this->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000);
 
 #ifdef USE_WEBSERVER_SORTING
   for (auto &group : ws->sorting_groups_) {
-    // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     json::JsonBuilder builder;
     JsonObject root = builder.root();
     root["name"] = group.second.name;
     root["sorting_weight"] = group.second.weight;
     message = builder.serialize();
-    // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
     // a (very) large number of these should be able to be queued initially without defer
     // since the only thing in the send buffer at this point is the initial ping/config
-    this->try_send_nodefer(message.c_str(), "sorting_group");
+    this->try_send_nodefer(message.c_str(), message.size(), "sorting_group");
   }
 #endif
 
   this->entities_iterator_.begin(ws->include_internal_);
-
-  // just dump them all up-front and take advantage of the deferred queue
-  //     on second thought that takes too long, but leaving the commented code here for debug purposes
-  // while(!this->entities_iterator_.completed()) {
-  //  this->entities_iterator_.advance();
-  //}
 }
+// NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
 void AsyncEventSourceResponse::destroy(void *ptr) {
   auto *rsp = static_cast<AsyncEventSourceResponse *>(ptr);
@@ -613,7 +648,7 @@ void AsyncEventSourceResponse::process_deferred_queue_() {
   while (!deferred_queue_.empty()) {
     DeferredEvent &de = deferred_queue_.front();
     auto message = de.message_generator_(web_server_, de.source_);
-    if (this->try_send_nodefer(message.c_str(), "state")) {
+    if (this->try_send_nodefer(message.c_str(), message.size(), "state")) {
       // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
       deferred_queue_.erase(deferred_queue_.begin());
     } else {
@@ -684,7 +719,7 @@ void AsyncEventSourceResponse::loop() {
     this->entities_iterator_.advance();
 }
 
-bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char *event, uint32_t id,
+bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t message_len, const char *event, uint32_t id,
                                                 uint32_t reconnect) {
   if (this->fd_.load() == 0) {
     return false;
@@ -730,19 +765,18 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
 
     // Fast path: check if message contains any newlines at all
     // Most SSE messages (JSON state updates) have no newlines
-    const char *first_n = strchr(message, '\n');
-    const char *first_r = strchr(message, '\r');
+    const char *first_n = static_cast<const char *>(memchr(message, '\n', message_len));
+    const char *first_r = static_cast<const char *>(memchr(message, '\r', message_len));
 
     if (first_n == nullptr && first_r == nullptr) {
       // No newlines - fast path (most common case)
       event_buffer_.append("data: ", sizeof("data: ") - 1);
-      event_buffer_.append(message);
+      event_buffer_.append(message, message_len);
       event_buffer_.append(CRLF_STR CRLF_STR, CRLF_LEN * 2);  // data line + blank line terminator
     } else {
       // Has newlines - handle multi-line message
       const char *line_start = message;
-      size_t msg_len = strlen(message);
-      const char *msg_end = message + msg_len;
+      const char *msg_end = message + message_len;
 
       // Reuse the first search results
       const char *next_n = first_n;
@@ -755,7 +789,7 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
         if (next_n == nullptr && next_r == nullptr) {
           // No more line breaks - output remaining text as final line
           event_buffer_.append("data: ", sizeof("data: ") - 1);
-          event_buffer_.append(line_start);
+          event_buffer_.append(line_start, msg_end - line_start);
           event_buffer_.append(CRLF_STR, CRLF_LEN);
           break;
         }
@@ -794,8 +828,8 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
         }
 
         // Search for next newlines only in remaining string
-        next_n = strchr(line_start, '\n');
-        next_r = strchr(line_start, '\r');
+        next_n = static_cast<const char *>(memchr(line_start, '\n', msg_end - line_start));
+        next_r = static_cast<const char *>(memchr(line_start, '\r', msg_end - line_start));
       }
 
       // Terminate message with blank line
@@ -850,7 +884,7 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
     deq_push_back_with_dedup_(source, message_generator);
   } else {
     auto message = message_generator(web_server_, source);
-    if (!this->try_send_nodefer(message.c_str(), "state")) {
+    if (!this->try_send_nodefer(message.c_str(), message.size(), "state")) {
       deq_push_back_with_dedup_(source, message_generator);
     }
   }

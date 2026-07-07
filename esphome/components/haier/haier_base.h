@@ -11,8 +11,7 @@
 #include "esphome/components/switch/switch.h"
 #endif
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
 enum class ActionRequest : uint8_t {
   SEND_CUSTOM_COMMAND = 0,
@@ -177,5 +176,4 @@ class HaierClimateBase : public esphome::Component,
   ESPPreferenceObject base_rtc_;
 };
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier
