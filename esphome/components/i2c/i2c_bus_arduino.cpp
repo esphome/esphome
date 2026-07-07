@@ -19,7 +19,7 @@ void ArduinoI2CBus::setup() {
 
 #if defined(USE_ESP8266)
   wire_ = new TwoWire();  // NOLINT(cppcoreguidelines-owning-memory)
-#elif defined(USE_RP2040)
+#elif defined(USE_RP2)
   // Select Wire instance based on pin assignment, not definition order.
   // I2C controller = (gpio / 2) % 2: even pairs (0-1,4-5,...) → I2C0, odd pairs (2-3,6-7,...) → I2C1
   // RP2040 datasheet Table 2 (section 1.4.3): https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
@@ -41,7 +41,7 @@ void ArduinoI2CBus::setup() {
 }
 
 void ArduinoI2CBus::set_pins_and_clock_() {
-#ifdef USE_RP2040
+#ifdef USE_RP2
   wire_->setSDA(this->sda_pin_);
   wire_->setSCL(this->scl_pin_);
   wire_->begin();
@@ -52,7 +52,7 @@ void ArduinoI2CBus::set_pins_and_clock_() {
 #if defined(USE_ESP8266)
     // https://github.com/esp8266/Arduino/blob/master/libraries/Wire/Wire.h
     wire_->setClockStretchLimit(timeout_);  // unit: us
-#elif defined(USE_RP2040)
+#elif defined(USE_RP2)
     // https://github.com/earlephilhower/ArduinoCore-API/blob/e37df85425e0ac020bfad226d927f9b00d2e0fb7/api/Stream.h
     wire_->setTimeout(timeout_ / 1000);  // unit: ms
 #endif
@@ -70,7 +70,7 @@ void ArduinoI2CBus::dump_config() {
   if (timeout_ > 0) {
 #if defined(USE_ESP8266)
     ESP_LOGCONFIG(TAG, "  Timeout: %u us", this->timeout_);
-#elif defined(USE_RP2040)
+#elif defined(USE_RP2)
     ESP_LOGCONFIG(TAG, "  Timeout: %u ms", this->timeout_ / 1000);
 #endif
   }

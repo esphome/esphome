@@ -25,7 +25,7 @@ from esphome.const import (
     PLATFORM_HOST,
     PLATFORM_LN882X,
     PLATFORM_NRF52,
-    PLATFORM_RP2040,
+    PLATFORM_RP2,
     PLATFORM_RTL87XX,
     Toolchain,
 )
@@ -51,6 +51,11 @@ _LOGGER = logging.getLogger(__name__)
 
 # Key for tracking controller count in CORE.data for ControllerRegistry StaticVector sizing
 KEY_CONTROLLER_REGISTRY_COUNT = "controller_registry_count"
+
+# CORE.data key for the "is_rp2040 deprecation warning already fired this
+# run" flag. Mirrors the ``cv.only_on_rp2040`` dedupe pattern; cleared
+# between runs so each fresh invocation warns once.
+_IS_RP2040_DEPRECATED_KEY = "_core_is_rp2040_deprecated_warned"
 
 
 class EsphomeError(Exception):
@@ -831,8 +836,37 @@ class EsphomeCore:
         return self.target_platform == PLATFORM_ESP32
 
     @property
+    def is_rp2(self):
+        """Return True if the target platform is the RP2 chip family.
+
+        Canonical umbrella check covering RP2040, RP2350, and any future
+        RP2-series chip. Mirrors :attr:`is_esp32` for the ESP32 family.
+        For variant-specific gating (RP2040 vs RP2350), use
+        ``rp2.get_rp2040_variant()`` or ``rp2.only_on_variant(...)`` from
+        the rp2 component — variant detection doesn't belong on ``CORE``.
+        """
+        return self.target_platform == PLATFORM_RP2
+
+    @property
     def is_rp2040(self):
-        return self.target_platform == PLATFORM_RP2040
+        """Deprecated: use :attr:`is_rp2` for the family check, or
+        ``rp2.get_rp2040_variant() == rp2.VARIANT_RP2040`` for the
+        variant-specific check. Kept as an alias since pre-RP2350
+        callers used it as a family check, identical to ``is_rp2``.
+
+        Scheduled for removal in 2027.7.0. Logs a one-shot deprecation
+        warning per run (deduped via ``self.data`` so repeated reads in
+        the same invocation don't spam) to match the parallel
+        ``cv.only_on_rp2040`` shim.
+        """
+        if not self.data.get(_IS_RP2040_DEPRECATED_KEY):
+            _LOGGER.warning(
+                "CORE.is_rp2040 is deprecated; use CORE.is_rp2 for the family "
+                "gate, or rp2.get_rp2040_variant() == rp2.VARIANT_RP2040 for "
+                "the variant-specific check. Removed in 2027.7.0."
+            )
+            self.data[_IS_RP2040_DEPRECATED_KEY] = True
+        return self.is_rp2
 
     @property
     def is_bk72xx(self):

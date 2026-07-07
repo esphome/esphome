@@ -18,19 +18,27 @@ namespace esphome::modbus {
 static constexpr uint16_t MODBUS_TX_BUFFER_SIZE = 15;
 static constexpr uint16_t MODBUS_TX_MAX_DELAY_MS = 5;
 
-struct ModbusFrame {
-  // Frame with exact-size allocation to avoid std::vector overhead
-  std::unique_ptr<uint8_t[]> data;
-  uint16_t size;  // Modbus RTU max is 256 bytes
+// Typical frames -- reads and single-register/coil writes -- are exactly 8 bytes
+// (address + 5-byte PDU + 2-byte CRC) and fit inline with no heap allocation.
+static constexpr uint16_t MODBUS_FRAME_INLINE_SIZE = 8;
 
-  ModbusFrame(uint8_t address, const uint8_t *pdu, uint16_t pdu_len)
-      : data(std::make_unique<uint8_t[]>(pdu_len + 3)), size(pdu_len + 3) {
-    data[0] = address;
-    memcpy(data.get() + 1, pdu, pdu_len);
-    auto crc = crc16(data.get(), pdu_len + 1);
-    data[pdu_len + 1] = crc >> 0;
-    data[pdu_len + 2] = crc >> 8;
+struct ModbusFrame {
+  // Frame held in a small-buffer-optimized buffer. Typical frames fit inline; only larger
+  // multi-register or custom frames spill to a single heap allocation. This keeps the common,
+  // high-frequency tx traffic off the heap entirely, avoiding per-frame alloc/free churn.
+  // The buffer tracks its own length, so no separate size field is needed.
+  SmallInlineBuffer<MODBUS_FRAME_INLINE_SIZE> data;  // Modbus RTU max is 256 bytes
+
+  ModbusFrame(uint8_t address, const uint8_t *pdu, uint16_t pdu_len) {
+    uint8_t *buf = this->data.init(pdu_len + 3);
+    buf[0] = address;
+    memcpy(buf + 1, pdu, pdu_len);
+    auto crc = crc16(buf, pdu_len + 1);
+    buf[pdu_len + 1] = crc >> 0;
+    buf[pdu_len + 2] = crc >> 8;
   }
+
+  uint16_t size() const { return static_cast<uint16_t>(this->data.size()); }
 };
 
 class Modbus : public uart::UARTDevice, public Component {
@@ -201,8 +209,9 @@ class ModbusClientDevice {
 using ModbusDevice ESPDEPRECATED("Use ModbusClientDevice instead. Removed in 2026.12.0",
                                  "2026.6.0") = ModbusClientDevice;
 
-// Result of a server register handler: std::nullopt means success, otherwise the Modbus exception code to return.
-using ServerResponseStatus = std::optional<ModbusExceptionCode>;
+// Transaction status: std::nullopt on success, otherwise the Modbus exception code. Server handlers return it;
+// (future) client response callbacks receive it. Named without a side prefix so both directions share it.
+using ResponseStatus = std::optional<ModbusExceptionCode>;
 // Register values exchanged with server handlers, in host byte order. Sized at the larger of the two protocol
 // maxima (read = 125 / 0x7D, write = 123 / 0x7B); the per-direction count limit is enforced by the hub, not by
 // the capacity of this type.
@@ -219,19 +228,19 @@ class ModbusServerDevice {
   ModbusServerDevice &operator=(ModbusServerDevice &&) = delete;
   void set_address(uint8_t address) { this->address_ = address; }
   uint8_t get_address() const { return this->address_; }
-  virtual ServerResponseStatus on_modbus_read_registers(uint16_t start_address, uint16_t number_of_registers,
-                                                        RegisterValues &registers) {
+  virtual ResponseStatus on_read_registers(uint16_t start_address, uint16_t number_of_registers,
+                                           RegisterValues &registers) {
     return ModbusExceptionCode::ILLEGAL_FUNCTION;
   };
-  virtual ServerResponseStatus on_modbus_read_input_registers(uint16_t start_address, uint16_t number_of_registers,
-                                                              RegisterValues &registers) {
-    return this->on_modbus_read_registers(start_address, number_of_registers, registers);
+  virtual ResponseStatus on_read_input_registers(uint16_t start_address, uint16_t number_of_registers,
+                                                 RegisterValues &registers) {
+    return this->on_read_registers(start_address, number_of_registers, registers);
   };
-  virtual ServerResponseStatus on_modbus_read_holding_registers(uint16_t start_address, uint16_t number_of_registers,
-                                                                RegisterValues &registers) {
-    return this->on_modbus_read_registers(start_address, number_of_registers, registers);
+  virtual ResponseStatus on_read_holding_registers(uint16_t start_address, uint16_t number_of_registers,
+                                                   RegisterValues &registers) {
+    return this->on_read_registers(start_address, number_of_registers, registers);
   };
-  virtual ServerResponseStatus on_modbus_write_registers(uint16_t start_address, const RegisterValues &registers) {
+  virtual ResponseStatus on_write_registers(uint16_t start_address, const RegisterValues &registers) {
     return ModbusExceptionCode::ILLEGAL_FUNCTION;
   };
 
