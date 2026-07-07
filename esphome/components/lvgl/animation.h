@@ -104,7 +104,7 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
   }
 
   void start() {
-    if (this->state_ >= AnimationState::STOPPED)
+    if (this->state_ > AnimationState::STOPPED)
       this->stop();
     if (this->duration_ == 0)
       return;
