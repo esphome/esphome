@@ -13,7 +13,7 @@ def AUTO_LOAD() -> list[str]:
     if (
         not CORE.is_esp32
         and not CORE.is_esp8266
-        and not CORE.is_rp2040
+        and not CORE.is_rp2
         and not CORE.is_libretiny
     ):
         return ["socket"]
@@ -37,7 +37,7 @@ async def to_code(config):
     elif CORE.is_esp8266:
         # https://github.com/ESP32Async/ESPAsyncTCP
         cg.add_library("ESP32Async/ESPAsyncTCP", "2.0.0")
-    elif CORE.is_rp2040:
+    elif CORE.is_rp2:
         # https://github.com/ayushsharma82/RPAsyncTCP
         # RPAsyncTCP is a drop-in replacement for AsyncTCP_RP2040W with better
         # ESPAsyncWebServer compatibility
@@ -47,6 +47,6 @@ async def to_code(config):
 
 def FILTER_SOURCE_FILES() -> list[str]:
     # Exclude socket implementation for platforms that use AsyncTCP libraries
-    if CORE.is_esp32 or CORE.is_esp8266 or CORE.is_rp2040 or CORE.is_libretiny:
+    if CORE.is_esp32 or CORE.is_esp8266 or CORE.is_rp2 or CORE.is_libretiny:
         return ["async_tcp_socket.cpp"]
     return []

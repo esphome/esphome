@@ -31,9 +31,9 @@ enum ST7735Model {
   ST7735_INITR_18REDTAB = INITR_18REDTAB
 };
 
-class ST7735 : public display::DisplayBuffer,
-               public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                     spi::DATA_RATE_8MHZ> {
+class ST7735 final : public display::DisplayBuffer,
+                     public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+                                           spi::DATA_RATE_8MHZ> {
  public:
   ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, bool eightbitcolor, bool usebgr,
          bool invert_colors);
