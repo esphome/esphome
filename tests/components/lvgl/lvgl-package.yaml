@@ -348,12 +348,12 @@ lvgl:
               - lvgl.label.update:
                   id: hello_label
                   text:
-                    mapping: string_map
+                    mapping: lvgl_string_map
                     value: !lambda return 2;
               - lvgl.label.update:
                   id: hello_label
                   text:
-                    mapping: string_map
+                    mapping: lvgl_string_map
                     value: 2
             on_click:
               then:
@@ -1467,7 +1467,7 @@ mapping:
     entries:
       0: cat_image
       1: dog_image
-  - id: string_map
+  - id: lvgl_string_map
     from: int
     to: string
     entries:
