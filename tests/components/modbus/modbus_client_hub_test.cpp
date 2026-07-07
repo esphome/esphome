@@ -26,6 +26,10 @@ class NoResponseProbeHub : public ModbusClientHub {
     this->waiting_for_response_ = std::move(this->tx_buffer_.front());
     this->tx_buffer_.pop_front();
   }
+  // Drives the real unexpected-frame branch in process_modbus_server_frame().
+  void receive_frame_for_test(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) {
+    this->process_modbus_server_frame(address, function_code, data, len);
+  }
   void timeout_waiting() {
     if (this->waiting_for_response_.has_value())
       this->notify_no_response_(*this->waiting_for_response_);
@@ -114,6 +118,34 @@ TEST(ModbusClientHubNoResponse, DetachedDeviceIsNotNotified) {
 
   EXPECT_FALSE(hub.waiting());
   EXPECT_EQ(hub.queued_frames(), 0u);
+}
+
+// An unexpected frame interrupts the transaction: the retry is re-queued immediately, but the
+// waiting entry survives as an interrupted shell (device detached) that keeps tx blocked until the
+// send-wait timeout clears it - without a second no-response callback or a duplicate requeue.
+TEST(ModbusClientHubNoResponse, RetryBehindInterruptedShell) {
+  NoResponseProbeHub hub;
+  RetryingDevice device(&hub, 0x02, /*retry=*/true);
+
+  device.send_pdu(read_pdu());
+  hub.force_send_front();
+
+  // A frame from the wrong address (0x07, expected 0x02) hits the unexpected-frame branch.
+  const uint8_t stray_payload[] = {0x04, 0x00, 0x2A, 0x01, 0x00};
+  hub.receive_frame_for_test(0x07, 0x03, stray_payload, sizeof(stray_payload));
+
+  EXPECT_EQ(device.no_response_count_, 1);
+  ASSERT_EQ(hub.queued_frames(), 1u);  // exactly one requeue...
+  EXPECT_EQ(hub.front().device, &device);
+  ASSERT_TRUE(hub.waiting());  // ...while the shell stays in the waiting slot
+  EXPECT_TRUE(hub.waiting_command().interrupted);
+  EXPECT_EQ(hub.waiting_command().device, nullptr);
+
+  // The send-wait timeout clears the shell without a second callback or another requeue.
+  hub.timeout_waiting();
+  EXPECT_FALSE(hub.waiting());
+  EXPECT_EQ(device.no_response_count_, 1);
+  EXPECT_EQ(hub.queued_frames(), 1u);
 }
 
 }  // namespace esphome::modbus::testing
