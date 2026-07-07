@@ -18,6 +18,7 @@ modbus_server:
     registers:
       - address: 0x9
         value_type: S_DWORD
+        allow_partial_read: true
         read_lambda: |-
           return 31;
         write_lambda: |-

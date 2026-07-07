@@ -16,6 +16,8 @@
 #endif
 #include "esphome/core/string_ref.h"
 
+#include <atomic>
+#include <limits>
 #include <span>
 #include <string>
 #include <type_traits>
@@ -44,7 +46,7 @@ extern "C" {
 #endif
 #endif
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
 extern "C" {
 #include "cyw43.h"
 #include "cyw43_country.h"
@@ -179,7 +181,7 @@ static constexpr size_t WIFI_SCAN_RESULT_FILTERED_RESERVE = 8;
 
 // Use std::vector for RP2040 (callback-based) and ESP32 (destructive scan API)
 // Use FixedVector for ESP8266 and LibreTiny where two-pass exact allocation is possible
-#if defined(USE_RP2040) || defined(USE_ESP32)
+#if defined(USE_RP2) || defined(USE_ESP32)
 template<typename T> using wifi_scan_vector_t = std::vector<T>;
 #else
 template<typename T> using wifi_scan_vector_t = FixedVector<T>;
@@ -604,6 +606,49 @@ class WiFiComponent final : public Component {
   bool release_high_performance();
 #endif  // USE_WIFI_RUNTIME_POWER_SAVE
 
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_ROAMING_SUPPRESSION)
+  /** Request that post-connect roaming scans be suppressed.
+   *
+   * Components that are disrupted by the radio briefly going off-channel during a
+   * scan (e.g., audio playback) can call this to pause periodic roaming scans while
+   * active. Multiple components can request suppression simultaneously; roaming
+   * resumes once every requester has called release_roaming_suppression().
+   *
+   * A roaming scan already in progress is allowed to finish; this only prevents new
+   * roaming scans from starting. The roaming interval timer is not reset, so roaming
+   * resumes on the next loop once suppression is released (and the interval elapsed).
+   *
+   * Note: Only supported on ESP32.
+   *
+   * Thread-safe: may be called from any task.
+   */
+  void request_roaming_suppression() {
+    uint8_t current = this->roaming_suppression_count_.load(std::memory_order_relaxed);
+    // CAS loop: saturate at max instead of wrapping, so an excess of requests can't roll the
+    // counter back to zero and unintentionally re-enable roaming.
+    while (current < std::numeric_limits<uint8_t>::max() &&
+           !this->roaming_suppression_count_.compare_exchange_weak(current, current + 1, std::memory_order_relaxed)) {
+    }
+  }
+
+  /** Release a roaming suppression request.
+   *
+   * Must be paired with a prior request_roaming_suppression() call. When all requests
+   * are released (count reaches zero), post-connect roaming resumes. A release with no
+   * outstanding request is ignored rather than underflowing the counter.
+   *
+   * Thread-safe: may be called from any task.
+   */
+  void release_roaming_suppression() {
+    uint8_t current = this->roaming_suppression_count_.load(std::memory_order_relaxed);
+    // CAS loop: decrement only if non-zero, so an unmatched release can't wrap the counter
+    // and permanently suppress roaming.
+    while (current > 0 &&
+           !this->roaming_suppression_count_.compare_exchange_weak(current, current - 1, std::memory_order_relaxed)) {
+    }
+  }
+#endif  // USE_ESP32 && USE_WIFI_RUNTIME_ROAMING_SUPPRESSION
+
  protected:
 #ifdef USE_WIFI_AP
   void setup_ap_config_();
@@ -694,6 +739,12 @@ class WiFiComponent final : public Component {
   bool wifi_apply_hostname_();
   bool wifi_sta_connect_(const WiFiAP &ap);
   void wifi_pre_setup_();
+#ifdef USE_ESP32
+  // ESP-IDF only: defers esp_wifi_init() + netif creation (which allocate ~15-30KB of
+  // DMA-capable internal SRAM) until wifi actually needs to come up. Idempotent.
+  // Called from setup() only when enable_on_boot_=true, and from enable() on first use.
+  void wifi_lazy_init_();
+#endif
   WiFiSTAConnectStatus wifi_sta_connect_status_() const;
   bool is_connected_() const {
     return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED &&
@@ -726,6 +777,15 @@ class WiFiComponent final : public Component {
   void process_roaming_scan_();
   void clear_roaming_state_();
 
+  /// Returns true if a component has requested that roaming scans be suppressed (e.g. during audio playback).
+  bool roaming_suppressed_() const {
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_ROAMING_SUPPRESSION)
+    return this->roaming_suppression_count_.load(std::memory_order_relaxed) != 0;
+#else
+    return false;
+#endif
+  }
+
   /// Free scan results memory unless a component needs them
   void release_scan_results_();
 
@@ -755,7 +815,7 @@ class WiFiComponent final : public Component {
   friend void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 #endif
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
   static int s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
   void wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
 #endif
@@ -839,6 +899,13 @@ class WiFiComponent final : public Component {
   // int8_t limits to 127 APs (enforced in __init__.py via MAX_WIFI_NETWORKS)
   int8_t selected_sta_index_{-1};
   uint8_t roaming_attempts_{0};
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_ROAMING_SUPPRESSION)
+  // Count of active roaming-suppression requests. Incremented/decremented from any task
+  // (e.g. audio playback), read in loop(). Roaming scans are paused while non-zero.
+  // Relaxed ordering is sufficient: the count value is the only data shared across threads,
+  // so no happens-before relationship with other memory needs to be established.
+  std::atomic<uint8_t> roaming_suppression_count_{0};
+#endif
 #if USE_NETWORK_IPV6
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
@@ -889,6 +956,12 @@ class WiFiComponent final : public Component {
   bool rrm_{false};
 #endif
   bool enable_on_boot_{true};
+#ifdef USE_ESP32
+  // Tracks whether esp_wifi_init() + netif creation has happened. Allows enable()
+  // to be called at runtime without re-allocating, and ensures the heavy init is
+  // skipped entirely when enable_on_boot_ is false until first enable().
+  bool wifi_initialized_{false};
+#endif
   bool got_ipv4_address_{false};
   bool keep_scan_results_{false};
   bool has_completed_scan_after_captive_portal_start_{
