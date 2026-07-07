@@ -11,6 +11,7 @@ static const char *const TAG = "motion.binary_sensor";
 // linear acceleration and cannot be trusted, so those sensors block (hold) instead.
 static constexpr float STILL_ACCEL_TOLERANCE = 0.12f;  // max deviation of |accel| from 1g, in g
 static constexpr float STILL_GYRO_THRESHOLD = 15.0f;   // max angular rate magnitude, in °/s
+static constexpr float GYRO_THRESHOLD_SCALE = 50.0f;   // arbitrary gyro threshold scale, in °/s per g of acceleration
 
 MotionBinarySensor::MotionBinarySensor(MotionComponent *parent, MotionBinarySensorType type)
     : parent_(parent), type_(type) {}
@@ -42,11 +43,18 @@ bool MotionBinarySensor::is_stationary_(const MotionData &data) const {
 
 void MotionBinarySensor::setup() {
   this->parent_->add_listener([this](MotionData const &data) { this->process_motion_data_(data); });
+  this->publish_state(false);  // default to false until the first update
 }
 
+static const char *const MOTION_BINARY_SENSOR_TYPE_NAMES[] = {
+    "face_up",
+    "face_down",
+    "free_fall",
+    "moving",
+};
 void MotionBinarySensor::dump_config() {
   LOG_BINARY_SENSOR("", "Motion Binary Sensor", this);
-  ESP_LOGCONFIG(TAG, "  Type: %d", static_cast<int>(this->type_));
+  ESP_LOGCONFIG(TAG, "  Type: %s", MOTION_BINARY_SENSOR_TYPE_NAMES[this->type_]);
   ESP_LOGCONFIG(TAG, "  Threshold: %.3f", this->threshold_);
   ESP_LOGCONFIG(TAG, "  Duration: %" PRIu32 " ms", this->duration_);
 }
@@ -141,7 +149,7 @@ void MotionBinarySensor::process_motion_data_(const MotionData &data) {
           float dgy = gy - this->last_gyro_[1];
           float dgz = gz - this->last_gyro_[2];
           float gyro_diff = std::sqrt(dgx * dgx + dgy * dgy + dgz * dgz);
-          if (gyro_diff > this->threshold_ * 50.0f) {
+          if (gyro_diff > this->threshold_ * GYRO_THRESHOLD_SCALE) {
             moving = true;
           }
         }
