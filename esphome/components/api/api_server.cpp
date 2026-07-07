@@ -108,7 +108,7 @@ void APIServer::setup() {
   // Initialize last_connected_ for reboot timeout tracking
   this->last_connected_ = App.get_loop_component_start_time();
 #if defined(USE_PROVISIONING) && defined(USE_API_NOISE)
-  // Register with the provisioning manager (esphome: provisioning:) as a source and
+  // Register with the provisioning manager (provisioning:) as a source and
   // report our current state (provisioned == an encryption key is set). When the
   // window closes, disconnect any client still attempting to provision so it learns
   // the reason. The manager owns the timeout, window state and on_timeout automation.
