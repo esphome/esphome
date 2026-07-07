@@ -1,14 +1,11 @@
 psram:
   mode: quad
 
-i2s_audio:
-  i2s_lrclk_pin: GPIO18
-  i2s_bclk_pin: GPIO19
-
 microphone:
   - platform: i2s_audio
     id: echo_microphone
-    i2s_din_pin: GPIO17
+    i2s_audio_id: i2s_audio_bus
+    i2s_din_pin: ${mic_din_pin}
     adc_type: external
     pdm: true
     bits_per_sample: 16bit

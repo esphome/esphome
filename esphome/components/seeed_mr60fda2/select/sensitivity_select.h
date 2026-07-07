@@ -5,7 +5,7 @@
 
 namespace esphome::seeed_mr60fda2 {
 
-class SensitivitySelect : public select::Select, public Parented<MR60FDA2Component> {
+class SensitivitySelect final : public select::Select, public Parented<MR60FDA2Component> {
  public:
   SensitivitySelect() = default;
 

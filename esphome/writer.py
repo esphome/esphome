@@ -93,9 +93,12 @@ def storage_should_clean(old: StorageJSON | None, new: StorageJSON) -> bool:
     ``src_version`` differs, ``build_path`` differs, the build
     ``toolchain`` differs (e.g. switching between the PlatformIO and
     native ESP-IDF toolchains, which produce incompatible build trees),
-    or a previously loaded integration was removed in *new*. Adding
-    integrations or changing unrelated fields (friendly name, esphome
-    version, etc.) does not trigger a clean.
+    the ``framework`` or ``framework_version`` differs (e.g. switching
+    arduino <-> esp-idf, or bumping the ESP-IDF version, which also
+    produce incompatible build trees), or a previously loaded
+    integration was removed in *new*. Adding integrations or changing
+    unrelated fields (friendly name, esphome version, etc.) does not
+    trigger a clean.
 
     Used by esphome-device-builder (esphome/device-builder) to gate
     its remote-build artifact materialiser so a local → remote → local
@@ -112,6 +115,10 @@ def storage_should_clean(old: StorageJSON | None, new: StorageJSON) -> bool:
     if old.build_path != new.build_path:
         return True
     if old.toolchain != new.toolchain:
+        return True
+    if old.framework != new.framework:
+        return True
+    if old.framework_version != new.framework_version:
         return True
     # Check if any components have been removed
     return bool(old.loaded_integrations - new.loaded_integrations)
@@ -645,6 +652,22 @@ def clean_all(configuration: list[str]):
                     item.unlink()
                 elif item.is_dir() and item.name != "storage":
                     rmtree(item)
+
+    # The native toolchain installs live in a machine-global cache dir that
+    # the per-config loop above can't reach. Wipe the default cache root
+    # (also catches leftovers from older install layouts), then the resolved
+    # install paths for the ESPHOME_*_PREFIX overrides (docker/add-on/CI)
+    # that live outside it.
+    import platformdirs
+
+    from esphome.components.nrf52.framework import get_sdk_nrf_tools_path
+    from esphome.espidf.framework import get_idf_tools_path
+
+    cache_root = Path(platformdirs.user_cache_dir("esphome", appauthor=False)).resolve()
+    for install_path in (cache_root, get_idf_tools_path(), get_sdk_nrf_tools_path()):
+        if install_path.is_dir():
+            _LOGGER.info("Deleting %s", install_path)
+            rmtree(install_path)
 
     # Clean PlatformIO project files
     try:

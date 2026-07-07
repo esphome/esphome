@@ -4,7 +4,7 @@
 
 #if defined(USE_ARDUINO) && !defined(USE_ESP32)
 
-#if defined(USE_RP2040)
+#if defined(USE_RP2)
 #include <HTTPClient.h>
 #include <WiFiClient.h>
 #endif
@@ -46,7 +46,7 @@ class HttpContainerArduino : public HttpContainer {
   size_t chunk_remaining_{0};  ///< Bytes remaining in current chunk
 };
 
-class HttpRequestArduino : public HttpRequestComponent {
+class HttpRequestArduino final : public HttpRequestComponent {
  public:
 #ifdef USE_ESP8266
   void set_tls_buffer_size_rx(uint16_t size) { this->tls_buffer_size_rx_ = size; }

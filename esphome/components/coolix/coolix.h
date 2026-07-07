@@ -10,7 +10,7 @@ namespace esphome::coolix {
 const uint8_t COOLIX_TEMP_MIN = 17;  // Celsius
 const uint8_t COOLIX_TEMP_MAX = 30;  // Celsius
 
-class CoolixClimate : public climate_ir::ClimateIR {
+class CoolixClimate final : public climate_ir::ClimateIR {
  public:
   CoolixClimate()
       : climate_ir::ClimateIR(COOLIX_TEMP_MIN, COOLIX_TEMP_MAX, 1.0f, true, true,

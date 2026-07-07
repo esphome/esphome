@@ -7,7 +7,7 @@
 #include "esphome/core/helpers.h"
 // On ESP8266 and RP2040 the scheduler-backed MDNS.update() polling window is armed by
 // IP state listener events on whichever network interface is configured.
-#if (defined(USE_ESP8266) || defined(USE_RP2040)) && \
+#if (defined(USE_ESP8266) || defined(USE_RP2)) && \
     ((defined(USE_WIFI) && defined(USE_WIFI_IP_STATE_LISTENERS)) || \
      (defined(USE_ETHERNET) && defined(USE_ETHERNET_IP_STATE_LISTENERS)))
 #include "esphome/components/network/ip_address.h"
@@ -145,7 +145,7 @@ class MDNSComponent final : public Component
 #ifdef USE_MDNS_STORE_SERVICES
   StaticVector<MDNSService, MDNS_SERVICE_COUNT> services_{};
 #endif
-#if defined(USE_RP2040) && defined(USE_MDNS_EVENT_DRIVEN_POLLING)
+#if defined(USE_RP2) && defined(USE_MDNS_EVENT_DRIVEN_POLLING)
   // RP2040 defers MDNS.begin() until the first IP-up event; this tracks that.
   bool initialized_{false};
 #endif

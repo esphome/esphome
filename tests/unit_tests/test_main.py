@@ -24,6 +24,7 @@ from esphome.__main__ import (
     _make_crystal_freq_callback,
     _redact_with_legacy_fallback,
     _resolve_network_devices,
+    _unresolved_default_error,
     _validate_bootloader_binary,
     _validate_partition_table_binary,
     choose_upload_log_host,
@@ -32,6 +33,8 @@ from esphome.__main__ import (
     command_clean_all,
     command_config,
     command_config_hash,
+    command_dashboard,
+    command_idedata,
     command_rename,
     command_run,
     command_update_all,
@@ -91,7 +94,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_RP2040,
+    PLATFORM_RP2,
     Toolchain,
 )
 from esphome.core import CORE, EsphomeError
@@ -156,9 +159,12 @@ def setup_core(
     CORE.config = config
     CORE.toolchain = Toolchain.PLATFORMIO
 
-    if platform is not None:
-        CORE.data[KEY_CORE] = {}
-        CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = platform
+    # Production always populates CORE.data[KEY_CORE] before upload/logs run
+    # (the platform validator sets it during read_config, and
+    # StorageJSON.apply_to_core sets it on the cache fast path), so mirror
+    # that here. Tests that exercise platform-specific behavior pass a
+    # platform explicitly; the rest get a platform-agnostic None.
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
 
     if tmp_path is not None:
         CORE.config_path = str(tmp_path / f"{name}.yaml")
@@ -436,6 +442,36 @@ def test_redact_with_legacy_fallback__does_not_match_fragment_as_suffix(
     assert not any("legacy substring" in rec.message for rec in caplog.records)
 
 
+def test_redact_with_legacy_fallback__substitutions_redacted_without_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Substitution keys have no schema validator, so their values are still
+    redacted but the unactionable cv.sensitive migration warning is suppressed
+    (see issue #17225)."""
+    text = "substitutions:\n  ota_password: apolloautomation\nesphome:\n  name: x\n"
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback(text)
+    assert "ota_password: \\033[8mapolloautomation\\033[28m" in out
+    assert not any("legacy substring" in rec.message for rec in caplog.records)
+
+
+def test_redact_with_legacy_fallback__warns_after_substitutions_block(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The suppression ends at the next top-level key; a sensitive-shaped field
+    in a later block (a real schema field) still warns, while the substitution
+    above it does not."""
+    text = (
+        "substitutions:\n  ota_password: apolloautomation\nwifi:\n  password: hunter2\n"
+    )
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback(text)
+    assert "ota_password: \\033[8mapolloautomation\\033[28m" in out
+    assert "password: \\033[8mhunter2\\033[28m" in out
+    assert any("'password'" in rec.message for rec in caplog.records)
+    assert not any("ota_password" in rec.message for rec in caplog.records)
+
+
 def test_command_config__invokes_legacy_fallback_when_redacting(
     tmp_path: Path, capfd: CaptureFixture[str]
 ) -> None:
@@ -469,6 +505,88 @@ def test_command_config__show_secrets_skips_redaction(
     output = capfd.readouterr().out
     assert "hunter2" in output
     assert "\\033[8m" not in output
+
+
+def test_command_config__no_defaults_dumps_user_snapshot(
+    tmp_path: Path, capfd: CaptureFixture[str]
+) -> None:
+    """``--no-defaults`` dumps ``config.user_config`` instead of the
+    validated config, so schema defaults don't leak into the output."""
+    from esphome.config import Config
+
+    setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
+    args = MockArgs()
+    args.show_secrets = True
+    args.no_defaults = True
+
+    validated = Config()
+    validated["esphome"] = {"name": "test", "build_path": "build/test"}
+    validated["wifi"] = {"ssid": "MyNet", "reboot_timeout": "15min"}
+    validated.user_config = {
+        "esphome": {"name": "test"},
+        "wifi": {"ssid": "MyNet"},
+    }
+
+    result = command_config(args, validated)
+
+    assert result == 0
+    output = capfd.readouterr().out
+    assert "ssid: MyNet" in output
+    # Defaults present on the validated config must not appear.
+    assert "reboot_timeout" not in output
+    assert "build_path" not in output
+
+
+def test_command_config__no_defaults_warns_when_snapshot_missing(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """If the snapshot is unavailable (e.g. a plain dict was passed in),
+    ``--no-defaults`` logs a warning and falls back to the input config."""
+    setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
+    args = MockArgs()
+    args.show_secrets = True
+    args.no_defaults = True
+
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        result = command_config(args, {"wifi": {"ssid": "MyNet"}})
+
+    assert result == 0
+    output = capfd.readouterr().out
+    assert "ssid: MyNet" in output
+    assert any(
+        "user-only config snapshot is unavailable" in rec.message
+        for rec in caplog.records
+    )
+
+
+def test_command_config__no_defaults_skips_strip_default_ids(
+    tmp_path: Path, capfd: CaptureFixture[str]
+) -> None:
+    """When ``--no-defaults`` is set, ``strip_default_ids`` isn't run --
+    the user snapshot is already free of schema-injected IDs."""
+    from esphome.config import Config
+
+    setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
+    args = MockArgs()
+    args.show_secrets = True
+    args.no_defaults = True
+
+    validated = Config()
+    validated["sensor"] = [{"name": "x", "id": "auto_generated"}]
+    validated.user_config = {"sensor": [{"name": "x"}]}
+
+    with patch(
+        "esphome.__main__.strip_default_ids", side_effect=AssertionError
+    ) as mock_strip:
+        result = command_config(args, validated)
+
+    assert result == 0
+    mock_strip.assert_not_called()
+    output = capfd.readouterr().out
+    assert "name: x" in output
+    assert "auto_generated" not in output
 
 
 def test_choose_upload_log_host_with_string_default() -> None:
@@ -607,13 +725,30 @@ def test_choose_upload_log_host_with_ota_device_with_ota_config() -> None:
     assert result == ["192.168.1.100"]
 
 
+def test_choose_upload_log_host_ota_mdns_disabled_uses_address_cache() -> None:
+    """A .local device with mDNS disabled resolves via the dashboard-supplied cache."""
+    setup_core(
+        config={
+            CONF_API: {},
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
+            CONF_MDNS: {CONF_DISABLED: True},
+        },
+        address="esp32-a1s.local",
+    )
+    CORE.address_cache = AddressCache(mdns_cache={"esp32-a1s.local": ["192.168.1.50"]})
+
+    for purpose in (Purpose.LOGGING, Purpose.UPLOADING):
+        result = choose_upload_log_host(
+            default="OTA", check_default=None, purpose=purpose
+        )
+        assert result == ["192.168.1.50"]
+
+
 def test_choose_upload_log_host_with_ota_device_with_api_config() -> None:
     """Test OTA device when API is configured (no upload without OTA in config)."""
     setup_core(config={CONF_API: {}}, address="192.168.1.100")
 
-    with pytest.raises(
-        EsphomeError, match="All specified devices .* could not be resolved"
-    ):
+    with pytest.raises(EsphomeError, match="no 'ota:' platform is configured"):
         choose_upload_log_host(
             default="OTA",
             check_default=None,
@@ -631,6 +766,57 @@ def test_choose_upload_log_host_with_ota_device_with_api_config_logging() -> Non
         purpose=Purpose.LOGGING,
     )
     assert result == ["192.168.1.100"]
+
+
+def test_choose_upload_log_host_logging_without_api_reports_missing_api() -> None:
+    """A resolvable device with only ota: fails logs with a missing-api message."""
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, address="192.168.1.100"
+    )
+
+    with pytest.raises(EsphomeError, match="no 'api:' component is configured"):
+        choose_upload_log_host(
+            default="OTA",
+            check_default=None,
+            purpose=Purpose.LOGGING,
+        )
+
+
+def test_choose_upload_log_host_logging_no_transport_reports_missing_api() -> None:
+    """A resolvable device with neither api: nor MQTT logging fails clearly."""
+    setup_core(address="192.168.1.100")
+
+    with pytest.raises(EsphomeError, match="no 'api:' component is configured"):
+        choose_upload_log_host(
+            default="OTA",
+            check_default=None,
+            purpose=Purpose.LOGGING,
+        )
+
+
+def test_unresolved_default_error_unresolvable_keeps_dashboard_hint() -> None:
+    """A .local host with mDNS disabled and no cache keeps the dashboard hint."""
+    setup_core(
+        config={CONF_API: {}, CONF_MDNS: {CONF_DISABLED: True}},
+        address="esp32-a1s.local",
+    )
+    CORE.dashboard = True
+
+    msg = _unresolved_default_error(Purpose.LOGGING, ["OTA"])
+    assert "could not be resolved" in msg
+    assert "set 'use_address'" in msg
+
+
+def test_unresolved_default_error_upload_with_ota_is_generic() -> None:
+    """With ota: present the upload error stays generic, not transport-specific."""
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, address="192.168.1.100"
+    )
+    CORE.dashboard = False
+
+    msg = _unresolved_default_error(Purpose.UPLOADING, ["OTA"])
+    assert "could not be resolved" in msg
+    assert "try --device <IP>" in msg
 
 
 @pytest.mark.usefixtures("mock_has_mqtt_logging")
@@ -1040,7 +1226,7 @@ def test_choose_upload_log_host_no_defaults_with_rp2040_bootsel(
     mock_choose_prompt: Mock,
 ) -> None:
     """Test interactive mode shows RP2040 BOOTSEL option via picotool."""
-    setup_core(platform=PLATFORM_RP2040)
+    setup_core(platform=PLATFORM_RP2)
 
     with (
         patch(
@@ -1063,7 +1249,7 @@ def test_choose_upload_log_host_no_defaults_with_rp2040_bootsel(
 @pytest.mark.usefixtures("mock_no_serial_ports")
 def test_choose_upload_log_host_rp2040_no_device_shows_bootsel_help() -> None:
     """Test BOOTSEL instructions shown when no RP2040 device found."""
-    setup_core(platform=PLATFORM_RP2040)
+    setup_core(platform=PLATFORM_RP2)
 
     with (
         patch(
@@ -1085,7 +1271,7 @@ def test_choose_upload_log_host_rp2040_bootsel_tip_with_ota(
 ) -> None:
     """Test BOOTSEL tip shown when only OTA options exist for RP2040."""
     setup_core(
-        platform=PLATFORM_RP2040,
+        platform=PLATFORM_RP2,
         config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]},
         address="192.168.1.100",
     )
@@ -1114,7 +1300,7 @@ def test_choose_upload_log_host_rp2040_bootsel_tip_with_serial_ports(
     mock_choose_prompt: Mock,
 ) -> None:
     """Test BOOTSEL tip shown when serial ports exist but no BOOTSEL device."""
-    setup_core(platform=PLATFORM_RP2040)
+    setup_core(platform=PLATFORM_RP2)
 
     mock_ports = [MockSerialPort("/dev/ttyACM0", "RP2040 Serial")]
     with (
@@ -1139,7 +1325,7 @@ def test_choose_upload_log_host_rp2040_permission_error_no_options(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test permission warning shown when BOOTSEL device found but not accessible."""
-    setup_core(platform=PLATFORM_RP2040)
+    setup_core(platform=PLATFORM_RP2)
 
     with (
         patch(
@@ -1169,7 +1355,7 @@ def test_choose_upload_log_host_rp2040_permission_error_with_ota(
 ) -> None:
     """Test permission warning shown with OTA fallback available."""
     setup_core(
-        platform=PLATFORM_RP2040,
+        platform=PLATFORM_RP2,
         config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]},
         address="192.168.1.100",
     )
@@ -1226,7 +1412,7 @@ def test_choose_upload_log_host_rp2040_serial_and_bootsel(
     mock_choose_prompt: Mock,
 ) -> None:
     """Test both serial ports and BOOTSEL option shown for RP2040."""
-    setup_core(platform=PLATFORM_RP2040)
+    setup_core(platform=PLATFORM_RP2)
 
     mock_ports = [MockSerialPort("/dev/ttyACM0", "RP2040 Serial")]
     with (
@@ -1479,7 +1665,7 @@ def test_upload_using_esptool_with_file_path(
 @pytest.mark.parametrize(
     "platform,device",
     [
-        (PLATFORM_RP2040, "/dev/ttyACM0"),
+        (PLATFORM_RP2, "/dev/ttyACM0"),
         (PLATFORM_BK72XX, "/dev/ttyUSB0"),  # LibreTiny platform
     ],
 )
@@ -1507,11 +1693,34 @@ def test_upload_program_serial_platformio_platforms(
     mock_upload_using_platformio.assert_called_once_with(config, device)
 
 
+@patch("esphome.__main__.importlib.import_module")
+def test_upload_program_serial_unknown_platform(
+    mock_import: Mock,
+    mock_get_port_type: Mock,
+    mock_check_permissions: Mock,
+) -> None:
+    """Serial upload on an unsupported platform falls through to exit_code 1."""
+    setup_core(platform="custom_platform")
+    # Module has no upload_program handler, so the SERIAL branch is reached.
+    mock_import.return_value = MagicMock(spec=[])
+    mock_get_port_type.return_value = "SERIAL"
+
+    config = {}
+    args = MockArgs()
+    devices = ["/dev/ttyUSB0"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 1
+    assert host is None
+    mock_check_permissions.assert_called_once_with("/dev/ttyUSB0")
+
+
 def test_upload_using_platformio_creates_signed_bin_for_rp2040(
     tmp_path: Path,
 ) -> None:
     """Test that upload_using_platformio creates firmware.bin.signed for RP2040."""
-    setup_core(platform=PLATFORM_RP2040)
+    setup_core(platform=PLATFORM_RP2)
 
     build_dir = tmp_path / "build"
     build_dir.mkdir()
@@ -1547,6 +1756,53 @@ def test_upload_using_platformio_skips_signed_bin_for_non_rp2040(
     assert result == 0
 
 
+def test_upload_using_platformio_skips_signed_bin_when_already_present(
+    tmp_path: Path,
+) -> None:
+    """The signed-bin copy is idempotent: if ``firmware.bin.signed`` already
+    exists on the RP2 build path, the upload step must not overwrite it
+    (and must not fail when the unsigned ``firmware.bin`` is absent)."""
+    setup_core(platform=PLATFORM_RP2)
+
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    # Pre-existing signed bin with distinct content — must be preserved.
+    signed_bin = build_dir / "firmware.bin.signed"
+    signed_bin.write_bytes(b"already signed")
+    # No unsigned firmware.bin on disk — the `is_file()` guard must hold.
+    firmware_elf = build_dir / "firmware.elf"
+    firmware_elf.write_bytes(b"elf")
+
+    mock_idedata = MagicMock()
+    mock_idedata.firmware_elf_path = str(firmware_elf)
+
+    with (
+        patch("esphome.platformio.toolchain.get_idedata", return_value=mock_idedata),
+        patch("esphome.platformio.toolchain.run_platformio_cli_run", return_value=0),
+    ):
+        result = upload_using_platformio({}, "/dev/ttyACM0")
+
+    assert result == 0
+    # Pre-existing signed bin is untouched.
+    assert signed_bin.read_bytes() == b"already signed"
+
+
+def test_upload_using_platformio_handles_port_none(tmp_path: Path) -> None:
+    """The upload step must work without a serial port (PlatformIO picks the
+    target itself); the ``--upload-port`` flag is only appended when a port
+    is provided."""
+    setup_core(platform=PLATFORM_ESP32)
+
+    with patch(
+        "esphome.platformio.toolchain.run_platformio_cli_run", return_value=0
+    ) as mock_run:
+        result = upload_using_platformio({}, None)
+
+    assert result == 0
+    args = mock_run.call_args.args
+    assert "--upload-port" not in args
+
+
 def test_upload_program_serial_upload_failed(
     mock_upload_using_esptool: Mock,
     mock_get_port_type: Mock,
@@ -1574,7 +1830,7 @@ def test_upload_program_bootsel(
     mock_get_port_type: Mock,
 ) -> None:
     """Test upload_program with BOOTSEL for RP2040."""
-    setup_core(platform=PLATFORM_RP2040)
+    setup_core(platform=PLATFORM_RP2)
     mock_get_port_type.return_value = "BOOTSEL"
     mock_upload_using_picotool.return_value = 0
 
@@ -1595,7 +1851,7 @@ def test_upload_program_bootsel_failed(
     mock_get_port_type: Mock,
 ) -> None:
     """Test upload_program when BOOTSEL upload fails."""
-    setup_core(platform=PLATFORM_RP2040)
+    setup_core(platform=PLATFORM_RP2)
     mock_get_port_type.return_value = "BOOTSEL"
     mock_upload_using_picotool.return_value = 1
 
@@ -1612,7 +1868,7 @@ def test_upload_program_bootsel_failed(
 
 def test_upload_using_picotool_success(tmp_path: Path) -> None:
     """Test upload_using_picotool succeeds."""
-    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+    setup_core(platform=PLATFORM_RP2, tmp_path=tmp_path)
 
     build_dir = tmp_path / "build"
     build_dir.mkdir()
@@ -1649,7 +1905,7 @@ def test_upload_using_picotool_success(tmp_path: Path) -> None:
 
 def test_upload_using_picotool_no_elf(tmp_path: Path) -> None:
     """Test upload_using_picotool when ELF file is missing."""
-    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+    setup_core(platform=PLATFORM_RP2, tmp_path=tmp_path)
 
     build_dir = tmp_path / "build"
     build_dir.mkdir()
@@ -1667,7 +1923,7 @@ def test_upload_using_picotool_no_elf(tmp_path: Path) -> None:
 
 def test_upload_using_picotool_not_found(tmp_path: Path) -> None:
     """Test upload_using_picotool when picotool binary not found."""
-    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+    setup_core(platform=PLATFORM_RP2, tmp_path=tmp_path)
 
     build_dir = tmp_path / "build"
     build_dir.mkdir()
@@ -1687,7 +1943,7 @@ def test_upload_using_picotool_not_found(tmp_path: Path) -> None:
 
 def test_upload_using_picotool_permission_error(tmp_path: Path) -> None:
     """Test upload_using_picotool shows helpful message on permission error."""
-    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+    setup_core(platform=PLATFORM_RP2, tmp_path=tmp_path)
 
     build_dir = tmp_path / "build"
     build_dir.mkdir()
@@ -3053,6 +3309,22 @@ def test_has_resolvable_address() -> None:
     setup_core(config={CONF_MDNS: {CONF_DISABLED: True}}, address=None)
     assert has_resolvable_address() is False
 
+    # mDNS disabled + .local, but the dashboard cached the address -> resolvable
+    setup_core(
+        config={CONF_MDNS: {CONF_DISABLED: True}}, address="esphome-device.local"
+    )
+    CORE.address_cache = AddressCache(
+        mdns_cache={"esphome-device.local": ["192.168.1.100"]}
+    )
+    assert has_resolvable_address() is True
+
+    # mDNS disabled + .local, cache present but missing this host -> not resolvable
+    setup_core(
+        config={CONF_MDNS: {CONF_DISABLED: True}}, address="esphome-device.local"
+    )
+    CORE.address_cache = AddressCache(mdns_cache={"other-device.local": ["10.0.0.1"]})
+    assert has_resolvable_address() is False
+
 
 def test_has_name_add_mac_suffix() -> None:
     """Test has_name_add_mac_suffix function."""
@@ -3570,6 +3842,45 @@ def test_command_wizard(tmp_path: Path) -> None:
 
         assert result == 0
         mock_wizard.assert_called_once_with(config_file)
+
+
+def test_command_dashboard_errors_with_device_builder_redirect() -> None:
+    """The removed dashboard command points users to ESPHome Device Builder."""
+    args = MockArgs()
+
+    with pytest.raises(EsphomeError, match="esphome-device-builder"):
+        command_dashboard(args)
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["esphome", "dashboard"],
+        ["esphome", "dashboard", "/config"],
+        # Legacy flags must be accepted so old invocations reach the redirect
+        # instead of failing on argparse "unrecognized arguments".
+        ["esphome", "dashboard", "--port", "6052", "/config"],
+        ["esphome", "dashboard", "--username", "u", "--password", "p", "--open-ui"],
+        [
+            "esphome",
+            "dashboard",
+            "--address",
+            "0.0.0.0",
+            "--socket",
+            "/x",
+            "--ha-addon",
+        ],
+    ],
+)
+def test_run_esphome_dashboard_redirects_to_device_builder(
+    argv: list[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """`esphome dashboard` still parses but fails with the redirect message."""
+    result = run_esphome(argv)
+
+    assert result == 1
+    assert "esphome-device-builder" in caplog.text
 
 
 def test_command_config_hash(
@@ -6036,6 +6347,15 @@ def test_should_subscribe_states_env_suppresses() -> None:
         assert _should_subscribe_states(args) is False
 
 
+def test_should_subscribe_states_env_enables() -> None:
+    """Test that ESPHOME_LOG_STATES=true enables states by default."""
+    from esphome.__main__ import _should_subscribe_states
+
+    args = parse_args(["esphome", "logs", "device.yaml"])
+    with patch.dict(os.environ, {"ESPHOME_LOG_STATES": "true"}):
+        assert _should_subscribe_states(args) is True
+
+
 def test_should_subscribe_states_flag_overrides_env() -> None:
     """Test that --states overrides ESPHOME_LOG_STATES=false."""
     from esphome.__main__ import _should_subscribe_states
@@ -6120,10 +6440,77 @@ def test_command_run_defaults_subscribe_states_true(
         ),
         patch("esphome.__main__.upload_program", return_value=(0, "192.168.1.100")),
         patch("esphome.__main__.get_serial_ports", return_value=[]),
+        patch.dict(os.environ, {}, clear=False),
     ):
+        # Ensure the default behavior is not affected by an ambient
+        # ESPHOME_LOG_STATES set in the test runner's environment.
+        os.environ.pop("ESPHOME_LOG_STATES", None)
         result = command_run(args, CORE.config)
 
     assert result == 0
     mock_run_logs.assert_called_once_with(
         CORE.config, ["192.168.1.100"], subscribe_states=True
     )
+
+
+def test_command_run_rp2040_bootsel_redetects_serial_port() -> None:
+    """After a BOOTSEL upload (no device) on RP2040, command_run waits for and
+    picks up the newly enumerated serial port before showing logs."""
+    setup_core(
+        config={"logger": {}, CONF_API: {}, CONF_MDNS: {CONF_DISABLED: False}},
+        platform=PLATFORM_RP2,
+    )
+
+    args = MockArgs()
+    args.no_logs = False
+    args.device = None
+
+    new_port = MockSerialPort("/dev/ttyACM0", "RP2040 Serial")
+
+    with (
+        patch("esphome.__main__.write_cpp", return_value=0),
+        patch("esphome.__main__.compile_program", return_value=0),
+        patch(
+            "esphome.__main__.choose_upload_log_host",
+            side_effect=[[], ["/dev/ttyACM0"]],
+        ) as mock_choose,
+        patch("esphome.__main__.upload_program", return_value=(0, None)),
+        patch(
+            "esphome.__main__.get_serial_ports",
+            side_effect=[[], [new_port]],
+        ),
+        patch("esphome.__main__._wait_for_serial_port") as mock_wait,
+        patch("esphome.__main__.show_logs", return_value=0) as mock_show_logs,
+    ):
+        result = command_run(args, CORE.config)
+
+    assert result == 0
+    mock_wait.assert_called_once_with(known_ports=set())
+    # The re-detected serial port is used as the preferred logging device.
+    assert mock_choose.call_args_list[-1].kwargs["default"] == "/dev/ttyACM0"
+    mock_show_logs.assert_called_once_with(CORE.config, args, ["/dev/ttyACM0"])
+
+
+def test_command_idedata_esp_idf_prints_json(capsys: CaptureFixture) -> None:
+    """Under the native ESP-IDF toolchain, idedata is emitted as JSON."""
+    setup_core()
+    CORE.toolchain = Toolchain.ESP_IDF
+    data = {"cxx_path": "g++", "prog_path": "/build/firmware.elf"}
+
+    with patch("esphome.espidf.toolchain.get_idedata", return_value=data) as mock_get:
+        result = command_idedata(MagicMock(), CORE.config)
+
+    assert result == 0
+    mock_get.assert_called_once_with()
+    assert json.loads(capsys.readouterr().out) == data
+
+
+def test_command_idedata_esp_idf_no_build_errors() -> None:
+    """Under ESP-IDF, a missing build (no idedata) returns an error, not a crash."""
+    setup_core()
+    CORE.toolchain = Toolchain.ESP_IDF
+
+    with patch("esphome.espidf.toolchain.get_idedata", return_value=None):
+        result = command_idedata(MagicMock(), CORE.config)
+
+    assert result == 1
