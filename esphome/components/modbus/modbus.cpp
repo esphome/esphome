@@ -1,4 +1,7 @@
 #include "modbus.h"
+
+#include <algorithm>
+
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -341,11 +344,10 @@ ModbusServerDevice *ModbusServerHub::find_device_(uint8_t address) {
   return nullptr;
 }
 
-bool ModbusServerHub::check_register_range_(uint8_t address, uint8_t function_code, uint16_t start_address,
-                                            uint16_t number_of_registers) {
-  if ((uint32_t) start_address + number_of_registers > 0x10000u) {
-    ESP_LOGW(TAG, "Register address out of range - start: %" PRIu16 " num: %" PRIu16, start_address,
-             number_of_registers);
+bool ModbusServerHub::check_address_range_(uint8_t address, uint8_t function_code, uint16_t start_address,
+                                           uint16_t count) {
+  if ((uint32_t) start_address + count > 0x10000u) {
+    ESP_LOGW(TAG, "Address out of range - start: %" PRIu16 " num: %" PRIu16, start_address, count);
     this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
     return false;
   }
@@ -376,7 +378,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
         this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
         return;
       }
-      if (!this->check_register_range_(address, function_code, start_address, number_of_registers)) {
+      if (!this->check_address_range_(address, function_code, start_address, number_of_registers)) {
         return;
       }
       RegisterValues registers;
@@ -427,7 +429,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
           this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
           return;
         }
-        if (!this->check_register_range_(address, function_code, start_address, number_of_registers)) {
+        if (!this->check_address_range_(address, function_code, start_address, number_of_registers)) {
           return;
         }
       }
@@ -438,6 +440,79 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       }
       status = device->on_write_registers(start_address, registers);
       response_data = data;  // echo the request header per Modbus 6.6, 6.12
+      response_len = 4;
+      break;
+    }
+    case ModbusFunctionCode::READ_COILS:
+    case ModbusFunctionCode::READ_DISCRETE_INPUTS: {
+      // PDU data: start address(2) + quantity(2).
+      uint16_t start_address = helpers::get_data<uint16_t>(data, 0);
+      uint16_t number_of_bits = helpers::get_data<uint16_t>(data, 2);
+      if (number_of_bits == 0 || number_of_bits > MAX_NUM_OF_COILS_TO_READ) {
+        ESP_LOGW(TAG, "Invalid number of bits %" PRIu16, number_of_bits);
+        this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
+        return;
+      }
+      if (!this->check_address_range_(address, function_code, start_address, number_of_bits)) {
+        return;
+      }
+      // Response: byte count(1) + ceil(N/8) packed bytes. The handler sets its bits directly in the
+      // response buffer via the pre-zeroed span, so there is no intermediate container or repack.
+      const uint8_t byte_count = static_cast<uint8_t>((number_of_bits + 7) / 8);
+      response_buffer[response_len++] = byte_count;
+      std::span<uint8_t> packed_out(response_buffer + response_len, byte_count);
+      std::fill(packed_out.begin(), packed_out.end(), 0);
+      MutablePackedBits bits(packed_out, number_of_bits);
+      if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_COILS) {
+        status = device->on_read_coils(start_address, bits);
+      } else {
+        status = device->on_read_discrete_inputs(start_address, bits);
+      }
+      if (status.has_value()) {
+        this->send_exception_(address, function_code, status.value());
+        return;
+      }
+      response_len += byte_count;
+      break;
+    }
+    case ModbusFunctionCode::WRITE_SINGLE_COIL:
+    case ModbusFunctionCode::WRITE_MULTIPLE_COILS: {
+      // PDU data: start address(2) [+ quantity(2) + byte count(1)] + coil values.
+      // A single-coil write carries a 2-byte value (0xFF00 = ON, 0x0000 = OFF), normalized here to a
+      // one-bit packed buffer; a multiple-coil write's packed bytes are passed to the handler as a
+      // span into the receive buffer, so neither form copies or unpacks the values.
+      uint16_t start_address = helpers::get_data<uint16_t>(data, 0);
+      uint16_t count;
+      std::span<const uint8_t> packed_bytes;
+      uint8_t single_bit = 0;
+      if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_SINGLE_COIL) {
+        uint16_t value = helpers::get_data<uint16_t>(data, 2);
+        if (value != 0xFF00 && value != 0x0000) {
+          ESP_LOGW(TAG, "Invalid coil value 0x%04X", value);
+          this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
+          return;
+        }
+        single_bit = value == 0xFF00 ? 0x01 : 0x00;
+        count = 1;
+        packed_bytes = std::span<const uint8_t>(&single_bit, 1);
+      } else {
+        uint16_t number_of_bits = helpers::get_data<uint16_t>(data, 2);
+        uint8_t number_of_bytes = helpers::get_data<uint8_t>(data, 4);
+        if (number_of_bits == 0 || number_of_bits > MAX_NUM_OF_COILS_TO_WRITE ||
+            (number_of_bits + 7) / 8 != number_of_bytes) {
+          ESP_LOGW(TAG, "Invalid number of coils %" PRIu16 " or bytes %" PRIu8, number_of_bits, number_of_bytes);
+          this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
+          return;
+        }
+        if (!this->check_address_range_(address, function_code, start_address, number_of_bits)) {
+          return;
+        }
+        count = number_of_bits;
+        // coil values follow start(2) + quantity(2) + count(1)
+        packed_bytes = std::span<const uint8_t>(data + 5, number_of_bytes);
+      }
+      status = device->on_write_coils(start_address, PackedBits(packed_bytes, count));
+      response_data = data;  // echo the request header per Modbus 6.5, 6.11
       response_len = 4;
       break;
     }

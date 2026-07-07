@@ -1,8 +1,9 @@
 #pragma once
 
+#include <cmath>
+#include <span>
 #include <string>
 #include <vector>
-#include <cmath>
 
 #include "esphome/core/helpers.h"
 #include "esphome/components/modbus/modbus_definitions.h"
@@ -200,6 +201,29 @@ template<typename T> T get_data(const std::vector<uint8_t> &data, size_t buffer_
 inline bool coil_from_vector(int coil, const std::vector<uint8_t> &data) {
   auto data_byte = coil / 8;
   return (data[data_byte] & (1 << (coil % 8))) > 0;
+}
+
+/** Append packed bytes (LSB first) for the given bits onto a growable byte container.
+ * push_back-based so callers can build a payload incrementally (e.g. a std::vector<uint8_t>
+ * with no fixed upper bound). A non-byte-aligned count appends n+1 bytes, the last holding
+ * the remaining bits in its low positions.
+ * @param out destination byte container exposing push_back(uint8_t)
+ * @param bits container of bool exposing range-based iteration
+ */
+template<typename Out, typename Bits> void pack_bits(Out &out, const Bits &bits) {
+  uint8_t byte = 0;
+  uint8_t bit = 0;
+  for (bool b : bits) {
+    if (b)
+      byte |= (1 << bit);
+    if (++bit == 8) {
+      out.push_back(byte);
+      byte = 0;
+      bit = 0;
+    }
+  }
+  if (bit != 0)  // flush the final partial byte
+    out.push_back(byte);
 }
 
 /** Extract bits from value and shift right according to the bitmask

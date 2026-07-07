@@ -146,10 +146,10 @@ class ModbusServerHub : public Modbus {
   void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) override;
   void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data);
   ModbusServerDevice *find_device_(uint8_t address);
-  // Returns true if [start_address, start_address + number_of_registers) fits in the 16-bit address space.
+  // Returns true if [start_address, start_address + count) fits in the 16-bit address space.
+  // Shared by register and coil/discrete-input handlers, which all use the same 16-bit address space.
   // On failure, logs and sends an ILLEGAL_DATA_ADDRESS exception to the client.
-  bool check_register_range_(uint8_t address, uint8_t function_code, uint16_t start_address,
-                             uint16_t number_of_registers);
+  bool check_address_range_(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t count);
   void send_raw_(const uint8_t *payload, uint16_t len);
   void send_exception_(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code);
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
@@ -241,6 +241,23 @@ class ModbusServerDevice {
     return this->on_read_registers(start_address, number_of_registers, registers);
   };
   virtual ResponseStatus on_write_registers(uint16_t start_address, const RegisterValues &registers) {
+    return ModbusExceptionCode::ILLEGAL_FUNCTION;
+  };
+  /// Coil/discrete-input reads: set the requested bits (bit 0 = the coil at start_address) with
+  /// bits.set(). The view covers bits.size() pre-zeroed bits and writes land directly in the hub's
+  /// response buffer (no copy); it is only valid during the call.
+  virtual ResponseStatus on_read_bits(uint16_t start_address, MutablePackedBits bits) {
+    return ModbusExceptionCode::ILLEGAL_FUNCTION;
+  };
+  virtual ResponseStatus on_read_coils(uint16_t start_address, MutablePackedBits bits) {
+    return this->on_read_bits(start_address, bits);
+  };
+  virtual ResponseStatus on_read_discrete_inputs(uint16_t start_address, MutablePackedBits bits) {
+    return this->on_read_bits(start_address, bits);
+  };
+  /// Coil writes deliver the values as a PackedBits view over the hub's receive buffer (only valid
+  /// during the call). A single-coil write (FC 0x05) arrives as bits.size() == 1.
+  virtual ResponseStatus on_write_coils(uint16_t start_address, PackedBits bits) {
     return ModbusExceptionCode::ILLEGAL_FUNCTION;
   };
 

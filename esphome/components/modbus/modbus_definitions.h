@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstdint>
+#include <span>
+
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -75,6 +78,9 @@ enum class ModbusExceptionCode : uint8_t {
 // 6.12 16 (0x10) Write Multiple registers:
 static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_WRITE = 123;  // 0x7B
 
+// 6.11 15 (0x0F) Write Multiple Coils:
+static constexpr uint16_t MAX_NUM_OF_COILS_TO_WRITE = 1968;  // 0x7B0
+
 // 6.1 01 (0x01) Read Coils
 // 6.2 02 (0x02) Read Discrete Inputs
 static constexpr uint16_t MAX_NUM_OF_COILS_TO_READ = 2000;            // 0x7D0
@@ -89,5 +95,47 @@ static constexpr uint16_t MIN_FRAME_SIZE = 4;
 static constexpr uint16_t MAX_PDU_SIZE = 253;  // Max PDU size is 256 - address(1) - CRC(2) = 253
 static constexpr uint16_t MAX_RAW_SIZE = 254;  // Max RAW size is 256 - CRC(2) = 254
 static constexpr uint16_t MAX_FRAME_SIZE = 256;
+/** Read-only view of Modbus-packed bits: bit 0 of byte 0 is the first bit (LSB first), the layout
+ * coil/discrete-input values use on the wire. Bundles the bit count with the packed bytes so the
+ * two cannot desynchronize. The view does not own the bytes - it is only valid while they are.
+ */
+class PackedBits {
+ public:
+  PackedBits(std::span<const uint8_t> data, uint16_t count) : data_(data), count_(count) {}
+  /// Value of the given bit; bit must be < size().
+  bool operator[](size_t bit) const { return (this->data_[bit / 8] & (1 << (bit % 8))) != 0; }
+  /// Number of bits in the view.
+  uint16_t size() const { return this->count_; }
+  /// The underlying packed bytes: ceil(size() / 8) bytes.
+  std::span<const uint8_t> bytes() const { return this->data_; }
+
+ private:
+  std::span<const uint8_t> data_;  // must cover ceil(count_ / 8) bytes
+  uint16_t count_;
+};
+
+/** Mutable counterpart of PackedBits: set() writes bits in place (deliberately no proxy operator[]=).
+ * Converts implicitly to PackedBits for read access.
+ */
+class MutablePackedBits {
+ public:
+  MutablePackedBits(std::span<uint8_t> data, uint16_t count) : data_(data), count_(count) {}
+  bool operator[](size_t bit) const { return (this->data_[bit / 8] & (1 << (bit % 8))) != 0; }
+  /// Set or clear the given bit; bit must be < size().
+  void set(size_t bit, bool value) {
+    if (value) {
+      this->data_[bit / 8] |= (1 << (bit % 8));
+    } else {
+      this->data_[bit / 8] &= ~(1 << (bit % 8));
+    }
+  }
+  uint16_t size() const { return this->count_; }
+  operator PackedBits() const { return PackedBits(this->data_, this->count_); }
+
+ private:
+  std::span<uint8_t> data_;  // must cover ceil(count_ / 8) bytes
+  uint16_t count_;
+};
+
 /// End of Modbus definitions
 }  // namespace esphome::modbus
