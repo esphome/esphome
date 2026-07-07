@@ -54,6 +54,8 @@ def timing_class(name, extras=None):
     return name, schema
 
 
+# TODO - currently the order of arguments to timing classes is expected to be alphabetical, but this is not enforced.
+# It would be better to have a more robust way of passing arguments to the timing classes.
 TIMING_SCHEMA = cv.maybe_simple_value(
     cv.typed_schema(
         dict(
@@ -66,8 +68,8 @@ TIMING_SCHEMA = cv.maybe_simple_value(
                 timing_class(
                     "gravity",
                     {
-                        cv.Optional(CONF_BOUNCE, default=0.5): lv_zero_to_one_float,
                         cv.Optional(CONF_ACCELERATION, default=0.5): lv_positive_float,
+                        cv.Optional(CONF_BOUNCE, default=0.5): lv_zero_to_one_float,
                     },
                 ),
             ]
