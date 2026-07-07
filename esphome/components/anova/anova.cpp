@@ -137,8 +137,15 @@ void Anova::set_unit_of_measurement(const char *unit) { this->want_fahrenheit_ =
 void Anova::update() {
   if (this->node_state != espbt::ClientState::ESTABLISHED)
     return;
-  if (this->poll_step_ != PollStep::IDLE)
-    return;  // a poll cycle is still in flight; don't overlap requests
+  if (this->poll_step_ != PollStep::IDLE) {
+    // The previous cycle never finished within a full polling interval -- a
+    // reply was missed or a write failed. Restart the cycle rather than stall;
+    // the polling interval itself acts as the timeout. A late reply from the
+    // abandoned cycle is harmless: state decoding happens on every notify
+    // regardless of step, and each notify sends at most one follow-up request.
+    ESP_LOGW(TAG, "[%s] Poll cycle incomplete (step %u); restarting cycle", this->parent_->address_str(),
+             static_cast<uint8_t>(this->poll_step_));
+  }
   // Re-assert the configured unit at the start of every poll cycle, then fall
   // through the status/temperature reads via the notification handler. Always
   // command the configured unit (want_fahrenheit_) -- never the last value the
