@@ -10,7 +10,7 @@
 
 namespace esphome::mqtt {
 
-class MQTTSelectComponent : public mqtt::MQTTComponent {
+class MQTTSelectComponent final : public mqtt::MQTTComponent {
  public:
   /** Construct this MQTTSelectComponent instance with the provided friendly_name and select
    *
