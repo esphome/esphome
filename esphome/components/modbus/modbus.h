@@ -108,7 +108,7 @@ class ModbusClientHub : public Modbus {
                                               payload, payload_len),
                    device);
   };
-  void send_pdu(uint8_t address, const StaticVector<uint8_t, MAX_PDU_SIZE> &pdu, ModbusClientDevice *device = nullptr) {
+  void send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr) {
     this->queue_raw_(address, pdu.data(), pdu.size(), device);
   }
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr);
@@ -187,7 +187,7 @@ class ModbusClientDevice {
                                                        payload, payload_len),
                             this);
   }
-  void send_pdu(const StaticVector<uint8_t, MAX_PDU_SIZE> &pdu) { this->parent_->send_pdu(this->address_, pdu, this); }
+  void send_pdu(std::span<const uint8_t> pdu) { this->parent_->send_pdu(this->address_, pdu, this); }
   void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload, this); }
   inline void clear_tx_queue_for_address(bool clear_sent = true) {
     this->parent_->clear_tx_queue_for_address(this->address_, clear_sent);
