@@ -25,7 +25,7 @@ extern "C" eth_esp32_emac_config_t eth_esp32_emac_default_config(void);
 #endif
 #endif  // USE_ESP32
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
 #if defined(USE_ETHERNET_W5500)
 #include <W5500lwIP.h>
 #elif defined(USE_ETHERNET_W5100)
@@ -86,6 +86,8 @@ enum EthernetType : uint8_t {
   ETHERNET_TYPE_ENC28J60,
   ETHERNET_TYPE_W6100,
   ETHERNET_TYPE_W6300,
+  ETHERNET_TYPE_GENERIC,
+  ETHERNET_TYPE_YT8531,
 };
 
 struct ManualIP {
@@ -180,14 +182,14 @@ class EthernetComponent final : public Component {
 #endif  // USE_ETHERNET_SPI
 #endif  // USE_ESP32
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
   void set_clk_pin(uint8_t clk_pin);
   void set_miso_pin(uint8_t miso_pin);
   void set_mosi_pin(uint8_t mosi_pin);
   void set_cs_pin(uint8_t cs_pin);
   void set_interrupt_pin(int8_t interrupt_pin);
   void set_reset_pin(int8_t reset_pin);
-#endif  // USE_RP2040
+#endif  // USE_RP2
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   void add_ip_state_listener(EthernetIPStateListener *listener) { this->ip_state_listeners_.push_back(listener); }
@@ -230,6 +232,11 @@ class EthernetComponent final : public Component {
   /// @brief Set `RMII Reference Clock Select` bit for KSZ8081.
   void ksz8081_set_clock_reference_(esp_eth_mac_t *mac);
 #endif
+#ifdef USE_ETHERNET_YT8531
+  /// @brief Apply YT8531-specific config: re-enable auto-negotiation (disabled on
+  /// reset) and set the RGMII Tx/Rx clock delays needed for reliable data sampling.
+  void yt8531_phy_init_();
+#endif
   /// @brief Set arbitratry PHY registers from config.
   void write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data);
 
@@ -265,7 +272,7 @@ class EthernetComponent final : public Component {
   esp_eth_phy_t *phy_{nullptr};
 #endif  // USE_ESP32
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
   static constexpr uint32_t LINK_CHECK_INTERVAL = 500;  // ms between link/IP polls
 #if defined(USE_ETHERNET_W5100)
   static constexpr uint32_t RESET_DELAY_MS = 150;  // W5100S PLL lock time
@@ -294,7 +301,7 @@ class EthernetComponent final : public Component {
   uint8_t cs_pin_;
   int8_t interrupt_pin_{-1};
   int8_t reset_pin_{-1};
-#endif  // USE_RP2040
+#endif  // USE_RP2
 
   // Common members
 #ifdef USE_ETHERNET_MANUAL_IP

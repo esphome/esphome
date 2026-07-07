@@ -17,19 +17,23 @@ from esphome.components.mipi import (
     MADCTL,
     MODE_BGR,
     MODE_RGB,
+    PAGESEL,
+    PAGESEL1,
     PIXFMT,
     DriverChip,
     dimension_schema,
     get_color_depth,
     map_sequence,
+    model_schema_extractor,
     power_of_two,
     requires_buffer,
 )
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
-from esphome.components.spi import TYPE_OCTAL, TYPE_QUAD, TYPE_SINGLE
+from esphome.components.spi import CONF_SPI_MODE, TYPE_OCTAL, TYPE_QUAD, TYPE_SINGLE
 import esphome.config_validation as cv
 from esphome.config_validation import ALLOW_EXTRA
 from esphome.const import (
+    CONF_AUTO_CLEAR_ENABLED,
     CONF_BRIGHTNESS,
     CONF_BUFFER_SIZE,
     CONF_COLOR_ORDER,
@@ -47,6 +51,7 @@ from esphome.const import (
     CONF_MIRROR_Y,
     CONF_MODEL,
     CONF_RESET_PIN,
+    CONF_ROTATION,
     CONF_SWAP_XY,
     CONF_TRANSFORM,
     CONF_WIDTH,
@@ -118,7 +123,9 @@ def denominator(config):
     """
     model = MODELS[config[CONF_MODEL]]
     frac = config.get(CONF_BUFFER_SIZE)
-    _width, height, _offset_width, _offset_height = model.get_dimensions(config)
+    _width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
+        model.get_dimensions(config)
+    )
     if frac is None or frac > 0.75 or height < 32:
         return 1
     try:
@@ -166,11 +173,28 @@ def model_schema(config):
     ]
     if bus_mode == TYPE_SINGLE:
         other_options.append(CONF_SPI_16)
+    # Calculate default SPI mode. Mode3 for octal bus or single bus with no cs pin, mode0 otherwise.
+    spi_mode = (
+        cv.UNDEFINED if CONF_SPI_MODE in config else model.get_default(CONF_SPI_MODE)
+    )
+    if not spi_mode:
+        if bus_mode == TYPE_OCTAL or (
+            bus_mode == TYPE_SINGLE
+            and config.get(CONF_CS_PIN, model.get_default(CONF_CS_PIN)) is False
+        ):
+            spi_mode = "MODE3"
+            if bus_mode == TYPE_SINGLE:
+                LOGGER.warning(
+                    "No SPI mode specified, defaulting to MODE3 due to lack of CS pin. If you experience issues, try setting SPI mode explicitly to MODE0 or MODE3."
+                )
+        else:
+            spi_mode = "MODE0"
+
     schema = (
         display.FULL_DISPLAY_SCHEMA.extend(
             spi.spi_device_schema(
                 cs_pin_required=False,
-                default_mode="MODE3" if bus_mode == TYPE_OCTAL else "MODE0",
+                default_mode=spi_mode,
                 default_data_rate=model.get_default(CONF_DATA_RATE, 10_000_000),
                 mode=bus_mode,
             )
@@ -225,6 +249,7 @@ def model_schema(config):
     return schema
 
 
+@model_schema_extractor(MODELS, model_schema, extra={CONF_BUS_MODE: TYPE_SINGLE})
 def customise_schema(config):
     """
     Create a customised config schema for a specific model and validate the configuration.
@@ -253,20 +278,38 @@ def customise_schema(config):
     # Check for invalid combinations of MADCTL config
     if init_sequence := config.get(CONF_INIT_SEQUENCE):
         commands = [x[0] for x in init_sequence]
-        if MADCTL in commands and CONF_TRANSFORM in config:
-            raise cv.Invalid(
-                f"transform is not supported when MADCTL ({MADCTL:#X}) is in the init sequence"
-            )
-        if PIXFMT in commands:
-            raise cv.Invalid(
-                f"PIXFMT ({PIXFMT:#X}) should not be in the init sequence, it will be set automatically"
-            )
+        # If there is page swapping, we can't rely on recognising common commands
+        if PAGESEL not in commands and PAGESEL1 not in commands:
+            if MADCTL in commands and CONF_TRANSFORM in config:
+                raise cv.Invalid(
+                    f"transform is not supported when MADCTL ({MADCTL:#X}) is in the init sequence"
+                )
+            if PIXFMT in commands:
+                raise cv.Invalid(
+                    f"PIXFMT ({PIXFMT:#X}) should not be in the init sequence, it will be set automatically"
+                )
 
     if bus_mode == TYPE_QUAD and CONF_DC_PIN in config:
         raise cv.Invalid("DC pin is not supported in quad mode")
     if bus_mode != TYPE_QUAD and CONF_DC_PIN not in config:
         raise cv.Invalid(f"DC pin is required in {bus_mode} mode")
     denominator(config)
+    model = MODELS[config[CONF_MODEL]]
+    has_hardware_transform = model.has_hardware_transform(config)
+    width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
+        model.get_dimensions(config, not has_hardware_transform)
+    )
+    display.add_metadata(
+        config[CONF_ID],
+        width,
+        height,
+        has_hardware_transform,
+        byte_order=config[CONF_BYTE_ORDER],
+        has_writer=requires_buffer(config)
+        or config.get(CONF_AUTO_CLEAR_ENABLED) is True,
+        rotation=config.get(CONF_ROTATION, 0),
+        draw_rounding=config.get(CONF_DRAW_ROUNDING, 0),
+    )
     return config
 
 
@@ -287,14 +330,17 @@ def _final_validate(config):
         # If no drawing methods are configured, and LVGL is not enabled, show a test card
         config[CONF_SHOW_TEST_CARD] = True
 
+    # Always call this to check dimensions during validation
+    width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
+        model.get_dimensions(config)
+    )
+
     if PSRAM_DOMAIN not in global_config and CONF_BUFFER_SIZE not in config:
         # If PSRAM is not enabled, choose a small buffer size by default
         if not requires_buffer(config):
             return  # No need to pick a size
         color_depth = get_color_depth(config)
         frac = denominator(config)
-        width, height, _offset_width, _offset_height = model.get_dimensions(config)
-
         buffer_size = color_depth // 8 * width * height // frac
         # Target a buffer size of 20kB, except for large displays, which shouldn't end up here
         fraction = min(20000.0, buffer_size // 4) / buffer_size
@@ -314,15 +360,9 @@ def get_instance(config):
     :return: type, template arguments
     """
     model = MODELS[config[CONF_MODEL]]
-    has_hardware_transform = config.get(
-        CONF_TRANSFORM
-    ) != CONF_DISABLED and model.transforms == {
-        CONF_MIRROR_X,
-        CONF_MIRROR_Y,
-        CONF_SWAP_XY,
-    }
-    width, height, offset_width, offset_height = model.get_dimensions(
-        config, not has_hardware_transform
+    has_hardware_transform = model.has_hardware_transform(config)
+    width, height, offset_width, offset_height, pad_width, pad_height = (
+        model.get_dimensions(config, not has_hardware_transform)
     )
 
     color_depth = int(config[CONF_COLOR_DEPTH].removesuffix("bit"))
@@ -338,7 +378,6 @@ def get_instance(config):
     buffer_type = cg.uint8 if color_depth == 8 else cg.uint16
     frac = denominator(config)
     madctl = model.get_madctl(model.get_base_transform(config), config)
-    has_writer = requires_buffer(config)
     templateargs = [
         buffer_type,
         bufferpixels,
@@ -349,12 +388,11 @@ def get_instance(config):
         height,
         offset_width,
         offset_height,
+        pad_width,
+        pad_height,
         madctl,
         has_hardware_transform,
     ]
-    display.add_metadata(
-        config[CONF_ID], width, height, has_writer, has_hardware_transform
-    )
     # If a buffer is required, use MipiSpiBuffer, otherwise use MipiSpi
     if requires_buffer(config):
         templateargs.extend(
@@ -387,6 +425,8 @@ async def to_code(config):
         dc_pin = await cg.gpio_pin_expression(dc_pin)
         cg.add(var.set_dc_pin(dc_pin))
 
+    if config.get(CONF_INVERT_COLORS):
+        cg.add(var.set_invert_colors(True))
     if lamb := config.get(CONF_LAMBDA):
         lambda_ = await cg.process_lambda(
             lamb, [(display.DisplayRef, "it")], return_type=cg.void
