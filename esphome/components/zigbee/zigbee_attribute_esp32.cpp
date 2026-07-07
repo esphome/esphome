@@ -100,13 +100,6 @@ void ZigbeeAttribute::process_write() {
   this->has_pending_write_ = false;
 }
 
-#ifdef USE_SWITCH
-template<typename T> void ZigbeeAttribute::connect(switch_::Switch *sw) {
-  this->switch_ = sw;
-  sw->add_on_state_callback([this](bool value) { this->set_attr((T) value); });
-}
-#endif
-
 void ZigbeeAttribute::loop() {
   if (this->set_attr_requested_) {
     this->set_attr_();
