@@ -15,8 +15,7 @@
 #include "esphome/components/climate/climate.h"
 #include "ir_transmitter.h"
 
-namespace esphome {
-namespace midea {
+namespace esphome::midea {
 
 /* Stream from UART component */
 class UARTStream : public Stream {
@@ -98,7 +97,6 @@ template<typename T> class ApplianceBase : public Component {
 #endif
 };
 
-}  // namespace midea
-}  // namespace esphome
+}  // namespace esphome::midea
 
 #endif  // USE_ARDUINO

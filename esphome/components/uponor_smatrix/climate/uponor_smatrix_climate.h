@@ -4,10 +4,9 @@
 #include "esphome/components/uponor_smatrix/uponor_smatrix.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace uponor_smatrix {
+namespace esphome::uponor_smatrix {
 
-class UponorSmatrixClimate : public climate::Climate, public Component, public UponorSmatrixDevice {
+class UponorSmatrixClimate final : public climate::Climate, public Component, public UponorSmatrixDevice {
  public:
   void dump_config() override;
   void loop() override;
@@ -24,5 +23,4 @@ class UponorSmatrixClimate : public climate::Climate, public Component, public U
   uint16_t target_temperature_raw_;
 };
 
-}  // namespace uponor_smatrix
-}  // namespace esphome
+}  // namespace esphome::uponor_smatrix

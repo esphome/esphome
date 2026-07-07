@@ -15,7 +15,6 @@ EKTF2232Touchscreen = ektf2232_ns.class_(
 )
 
 CONF_EKTF2232_ID = "ektf2232_id"
-CONF_RTS_PIN = "rts_pin"  # To be removed before 2026.4.0
 
 CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
     cv.Schema(
@@ -25,9 +24,6 @@ CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
                 pins.internal_gpio_input_pin_schema
             ),
             cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_RTS_PIN): cv.invalid(
-                f"{CONF_RTS_PIN} has been renamed to {CONF_RESET_PIN}"
-            ),
         }
     ).extend(i2c.i2c_device_schema(0x15))
 )

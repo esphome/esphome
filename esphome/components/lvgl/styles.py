@@ -4,12 +4,19 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import ID
 
-from .defines import CONF_STYLE_DEFINITIONS, CONF_THEME, LValidator, literal
-from .helpers import add_lv_use
+from .defines import (
+    CONF_STYLE_DEFINITIONS,
+    CONF_THEME,
+    LValidator,
+    add_lv_use,
+    get_styles_used,
+    get_theme_widget_map,
+    literal,
+)
 from .lvcode import LambdaContext, lv
-from .schemas import ALL_STYLES, FULL_STYLE_SCHEMA, remap_property
+from .schemas import ALL_STYLES, FULL_STYLE_SCHEMA, WIDGET_TYPES, remap_property
 from .types import ObjUpdateAction, lv_style_t
-from .widgets import collect_parts, theme_widget_map, wait_for_widgets
+from .widgets import collect_parts, wait_for_widgets
 
 
 def has_style_props(config) -> bool:
@@ -19,6 +26,7 @@ def has_style_props(config) -> bool:
 async def style_set(svar, style):
     for prop, validator in ALL_STYLES.items():
         if (value := style.get(prop)) is not None:
+            get_styles_used().add(prop)
             if isinstance(validator, LValidator):
                 value = await validator.process(value)
             if isinstance(value, list):
@@ -85,7 +93,7 @@ async def style_update_to_code(config, action_id, template_arg, args):
 async def theme_to_code(config):
     if theme := config.get(CONF_THEME):
         add_lv_use(CONF_THEME)
-        for w_name, style in theme.items():
+        for w_name, style in ((k, v) for k, v in theme.items() if k in WIDGET_TYPES):
             # Work around Python 3.10 bug with nested async comprehensions
             # With Python 3.11 this could be simplified
             # TODO: Now that we require Python 3.11+, this can be updated to use nested comprehensions
@@ -97,4 +105,4 @@ async def theme_to_code(config):
                     )
                     for state, props in states.items()
                 }
-            theme_widget_map[w_name] = styles
+            get_theme_widget_map()[w_name] = styles

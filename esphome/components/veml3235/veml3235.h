@@ -5,8 +5,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace veml3235 {
+namespace esphome::veml3235 {
 
 // Register IDs/locations
 //
@@ -60,7 +59,7 @@ enum VEML3235ComponentGain {
   VEML3235_GAIN_4X = 0b11,
 };
 
-class VEML3235Sensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+class VEML3235Sensor final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -104,5 +103,4 @@ class VEML3235Sensor : public sensor::Sensor, public PollingComponent, public i2
   VEML3235ComponentIntegrationTime integration_time_{VEML3235_INTEGRATION_TIME_50MS};
 };
 
-}  // namespace veml3235
-}  // namespace esphome
+}  // namespace esphome::veml3235

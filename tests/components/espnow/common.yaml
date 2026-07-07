@@ -2,6 +2,7 @@ espnow:
   id: espnow_component
   auto_add_peer: false
   channel: 1
+  max_payload_size: 1470
   peers:
     - 11:22:33:44:55:66
   on_receive:
@@ -29,6 +30,8 @@ espnow:
         data: !lambda 'return {0x01, 0x02, 0x03, 0x04, 0x05};'
     - espnow.broadcast:
         data: "Hello, World!"
+    - espnow.broadcast:
+        data: "it's a test"
     - espnow.broadcast:
         data: [0x01, 0x02, 0x03, 0x04, 0x05]
     - espnow.broadcast:
@@ -60,7 +63,7 @@ packet_transport:
     encryption:
       key: "0123456789abcdef0123456789abcdef"
     sensors:
-      - temp_sensor
+      - espnow_temp_sensor
     providers:
       - name: test-provider
         encryption:
@@ -68,9 +71,9 @@ packet_transport:
 
 sensor:
   - platform: internal_temperature
-    id: temp_sensor
+    id: espnow_temp_sensor
 
   - platform: packet_transport
     provider: test-provider
-    remote_id: temp_sensor
+    remote_id: espnow_temp_sensor
     id: remote_temp

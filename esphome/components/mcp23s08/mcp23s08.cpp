@@ -1,8 +1,7 @@
 #include "mcp23s08.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp23s08 {
+namespace esphome::mcp23s08 {
 
 static const char *const TAG = "mcp23s08";
 
@@ -34,11 +33,14 @@ void MCP23S08::setup() {
     // enable open-drain interrupt pins, 3.3V-safe (addressed, only this chip)
     this->write_reg(mcp23x08_base::MCP23X08_IOCON, IOCON_SEQOP | IOCON_HAEN | IOCON_ODR);
   }
+
+  this->setup_interrupt_pin_();
 }
 
 void MCP23S08::dump_config() {
   ESP_LOGCONFIG(TAG, "MCP23S08:");
   LOG_PIN("  CS Pin: ", this->cs_);
+  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
 }
 
 bool MCP23S08::read_reg(uint8_t reg, uint8_t *value) {
@@ -59,5 +61,4 @@ bool MCP23S08::write_reg(uint8_t reg, uint8_t value) {
   return true;
 }
 
-}  // namespace mcp23s08
-}  // namespace esphome
+}  // namespace esphome::mcp23s08

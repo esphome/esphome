@@ -61,7 +61,7 @@ CONFIG_SCHEMA = cv.Schema(
             # esp8266_arduino=cv.Version(2, 7, 0),
             esp32_arduino=cv.Version(0, 0, 0),
             esp_idf=cv.Version(4, 0, 0),
-            rp2040_arduino=cv.Version(0, 0, 0),
+            rp2_arduino=cv.Version(0, 0, 0),
             host=cv.Version(0, 0, 0),
         ),
         runtime_image.validate_runtime_image_settings,
@@ -100,9 +100,17 @@ async def online_image_action_to_code(config, action_id, template_arg, args):
         template_ = await cg.templatable(config[CONF_URL], args, cg.std_string)
         cg.add(var.set_url(template_))
     if CONF_UPDATE in config:
-        template_ = await cg.templatable(config[CONF_UPDATE], args, bool)
+        template_ = await cg.templatable(config[CONF_UPDATE], args, cg.bool_)
         cg.add(var.set_update(template_))
     return var
+
+
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_DOWNLOAD_FINISHED, "add_on_finished_callback", [(bool, "cached")]
+    ),
+    automation.CallbackAutomation(CONF_ON_ERROR, "add_on_error_callback"),
+)
 
 
 async def to_code(config):
@@ -139,12 +147,4 @@ async def to_code(config):
         else:
             cg.add(var.add_request_header(key, value))
 
-    for conf in config.get(CONF_ON_DOWNLOAD_FINISHED, []):
-        await automation.build_callback_automation(
-            var, "add_on_finished_callback", [(bool, "cached")], conf
-        )
-
-    for conf in config.get(CONF_ON_ERROR, []):
-        await automation.build_callback_automation(
-            var, "add_on_error_callback", [], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)

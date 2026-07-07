@@ -12,11 +12,7 @@ class CAQICalculator : public AbstractAQICalculator {
   uint16_t get_aqi(float pm2_5_value, float pm10_0_value) override {
     float pm2_5_index = calculate_index(pm2_5_value, PM2_5_GRID);
     float pm10_0_index = calculate_index(pm10_0_value, PM10_0_GRID);
-
-    float aqi = std::max(pm2_5_index, pm10_0_index);
-    if (aqi < 0.0f) {
-      aqi = 0.0f;
-    }
+    float aqi = std::max({pm2_5_index, pm10_0_index, 0.0f});
     return static_cast<uint16_t>(std::lround(aqi));
   }
 

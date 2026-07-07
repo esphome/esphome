@@ -4,12 +4,11 @@
 #include "esphome/components/ssd1306_base/ssd1306_base.h"
 #include "esphome/components/spi/spi.h"
 
-namespace esphome {
-namespace ssd1306_spi {
+namespace esphome::ssd1306_spi {
 
-class SPISSD1306 : public ssd1306_base::SSD1306,
-                   public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
-                                         spi::DATA_RATE_8MHZ> {
+class SPISSD1306 final : public ssd1306_base::SSD1306,
+                         public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
+                                               spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_8MHZ> {
  public:
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
 
@@ -25,5 +24,4 @@ class SPISSD1306 : public ssd1306_base::SSD1306,
   GPIOPin *dc_pin_;
 };
 
-}  // namespace ssd1306_spi
-}  // namespace esphome
+}  // namespace esphome::ssd1306_spi
