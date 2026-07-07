@@ -122,7 +122,9 @@ esphome/components/cover/* @esphome/core
 esphome/components/cs5460a/* @balrog-kun
 esphome/components/cse7761/* @berfenger
 esphome/components/cst226/* @clydebarrow
+esphome/components/cst328/* @latonita
 esphome/components/cst816/* @clydebarrow
+esphome/components/cst9220/* @clydebarrow
 esphome/components/ct_clamp/* @jesserockz
 esphome/components/current_based/* @djwmarcx
 esphome/components/dac7678/* @NickB1
@@ -266,6 +268,7 @@ esphome/components/integration/* @OttoWinter
 esphome/components/internal_temperature/* @Mat931
 esphome/components/interval/* @esphome/core
 esphome/components/ir_rf_proxy/* @kbx81
+esphome/components/it8951/* @koosoli @limengdu @Passific
 esphome/components/jsn_sr04t/* @Mafus1
 esphome/components/json/* @esphome/core
 esphome/components/kamstrup_kmp/* @cfeenstra1024
@@ -385,6 +388,7 @@ esphome/components/pcm5122/* @remcom
 esphome/components/pi4ioe5v6408/* @jesserockz
 esphome/components/pid/* @OttoWinter
 esphome/components/pipsolar/* @andreashergert1984
+esphome/components/pixoo/* @jesserockz
 esphome/components/pm1006/* @habbie
 esphome/components/pm2005/* @andrewjswan
 esphome/components/pmsa003i/* @sjtrny
@@ -404,6 +408,7 @@ esphome/components/psram/* @esphome/core
 esphome/components/pulse_meter/* @cstaahl @stevebaxter @TrentHouliston
 esphome/components/pvvx_mithermometer/* @pasiz
 esphome/components/pylontech/* @functionpointer
+esphome/components/qmi8658/* @clydebarrow
 esphome/components/qmp6988/* @andrewpc
 esphome/components/qr_code/* @wjtje
 esphome/components/qspi_dbi/* @clydebarrow
@@ -421,7 +426,7 @@ esphome/components/rf_bridge/* @jesserockz
 esphome/components/rgbct/* @jesserockz
 esphome/components/ring_buffer/* @kahrendt
 esphome/components/router/speaker/* @kahrendt
-esphome/components/rp2040/* @jesserockz
+esphome/components/rp2/* @jesserockz
 esphome/components/rp2040_ble/* @bdraco
 esphome/components/rp2040_pio_led_strip/* @Papa-DMan
 esphome/components/rp2040_pwm/* @jesserockz
@@ -497,6 +502,7 @@ esphome/components/ssd1331_base/* @kbx81
 esphome/components/ssd1331_spi/* @kbx81
 esphome/components/ssd1351_base/* @kbx81
 esphome/components/ssd1351_spi/* @kbx81
+esphome/components/st7123/* @miniskipper
 esphome/components/st7567_base/* @latonita
 esphome/components/st7567_i2c/* @latonita
 esphome/components/st7567_spi/* @latonita

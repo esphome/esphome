@@ -214,9 +214,14 @@ class LvglComponent final : public PollingComponent {
   // @param paused If true, pause the display. If false, resume the display.
   // @param show_snow If true, show the snow effect when paused.
   void set_paused(bool paused, bool show_snow);
+  void set_refresh_interval(uint32_t period) {
+    this->refr_timer_period_ = period;
+    if (this->refr_timer_ != nullptr)
+      lv_timer_set_period(this->refr_timer_, period);
+  }
 
-  // Returns true if the display is explicitly paused, or a blocking display update is in progress.
-  bool is_paused() const;
+  // Returns true if the display has been explicitly paused via set_paused().
+  bool is_paused() const { return this->paused_; }
   // If the display is paused and we have resume_on_input_ set to true, resume the display.
   void maybe_wakeup() {
     if (this->paused_ && this->resume_on_input_) {
@@ -299,6 +304,9 @@ class LvglComponent final : public PollingComponent {
   // Not checking for non-null callback since the
   // LVGL callback that calls it is not set in that case
   void draw_start_() const { this->draw_start_callback_->trigger(); }
+  // Returns true if update_when_display_idle is enabled and at least one underlying display
+  // component is currently busy (e.g. mid-refresh).
+  bool displays_busy_() const;
 
   void write_random_();
   void draw_buffer_(const lv_area_t *area, lv_color_data *ptr);
@@ -316,6 +324,14 @@ class LvglComponent final : public PollingComponent {
 
   uint8_t *draw_buf_{};
   lv_display_t *disp_{};
+  // The display's own periodic refresh timer, effectively paused while the display is busy (see
+  // displays_busy_()) so LVGL neither renders nor flushes to it, without losing track of
+  // invalidated areas. Other timers (indev reading, animations, ...) keep running as normal.
+  lv_timer_t *refr_timer_{};
+  // Tracks whether refr_timer_ is currently paused, so loop() can detect the busy -> idle edge
+  // and kick off an immediate refresh instead of waiting for the timer's next natural period.
+  bool refr_timer_paused_{};
+  uint32_t refr_timer_period_{16};
   uint16_t width_{};
   uint16_t height_{};
   bool paused_{};

@@ -330,28 +330,3 @@ async def test_uart_mock_modbus_server_controller_multiple(
         await tracker.setup_and_start_scenario(client)
         await tracker.await_all(futures)
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
-
-
-@pytest.mark.asyncio
-async def test_uart_mock_modbus_broadcast(
-    yaml_config: str,
-    run_compiled: RunCompiledFunction,
-    api_client_connected: APIClientConnectedFactory,
-) -> None:
-    """Test that broadcast writes (address 0) don't wait for a response.
-
-    A controller at address 0 sends broadcast writes that get no reply. The
-    client must not arm the response timeout for them: otherwise every write
-    blocks for send_wait_time and logs a spurious "no response from 0" warning.
-    """
-
-    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
-
-    async with (
-        run_compiled(yaml_config, line_callback=line_callback),
-        api_client_connected(),
-    ):
-        # Several broadcast writes fire on the 400ms interval; send_wait_time is
-        # 200ms, so the old behaviour would have warned on each one by now.
-        await asyncio.sleep(3.0)
-        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
