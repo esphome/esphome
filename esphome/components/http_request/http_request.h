@@ -510,9 +510,9 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
       return;
     }
 
-    size_t max_length = this->max_response_buffer_size_;
 #ifdef USE_HTTP_REQUEST_RESPONSE
     if (this->capture_response_.value(x...)) {
+      size_t max_length = this->max_response_buffer_size_;
       std::string response_body;
       RAMAllocator<uint8_t> allocator;
       uint8_t *buf = allocator.allocate(max_length);

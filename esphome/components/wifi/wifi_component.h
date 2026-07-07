@@ -46,7 +46,7 @@ extern "C" {
 #endif
 #endif
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
 extern "C" {
 #include "cyw43.h"
 #include "cyw43_country.h"
@@ -181,7 +181,7 @@ static constexpr size_t WIFI_SCAN_RESULT_FILTERED_RESERVE = 8;
 
 // Use std::vector for RP2040 (callback-based) and ESP32 (destructive scan API)
 // Use FixedVector for ESP8266 and LibreTiny where two-pass exact allocation is possible
-#if defined(USE_RP2040) || defined(USE_ESP32)
+#if defined(USE_RP2) || defined(USE_ESP32)
 template<typename T> using wifi_scan_vector_t = std::vector<T>;
 #else
 template<typename T> using wifi_scan_vector_t = FixedVector<T>;
@@ -815,7 +815,7 @@ class WiFiComponent final : public Component {
   friend void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 #endif
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
   static int s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
   void wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
 #endif
