@@ -444,8 +444,7 @@ void USBUartTypeFT23XX::start_input(USBUartChannel *channel) {
         chunk->channel = channel;
         this->usb_data_queue_.push(chunk);
 >>>>>>> 7f0e826c323772a3e146693d41ea66b68427e556
-#ifdef USE_UART_DEBUGGER
-        if (channel->debug_) {
+#ifdef USE_UART_DEBUGGER if (channel->debug_) {
           uart::UARTDebug::log_hex(uart::UART_DIRECTION_RX,
                                    std::vector<uint8_t>(status.data + 2, status.data + 2 + uart_data_len), ',',
                                    channel->debug_prefix_);
