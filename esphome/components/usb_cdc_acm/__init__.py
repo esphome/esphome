@@ -68,14 +68,17 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.Any(
         cv.only_on_nrf52,
-        esp32.only_on_variant(
-            supported=[
-                VARIANT_ESP32H4,
-                VARIANT_ESP32P4,
-                VARIANT_ESP32S2,
-                VARIANT_ESP32S3,
-                VARIANT_ESP32S31,
-            ],
+        cv.All(
+            cv.only_on_esp32,
+            esp32.only_on_variant(
+                supported=[
+                    VARIANT_ESP32H4,
+                    VARIANT_ESP32P4,
+                    VARIANT_ESP32S2,
+                    VARIANT_ESP32S3,
+                    VARIANT_ESP32S31,
+                ],
+            ),
         ),
     ),
 )
