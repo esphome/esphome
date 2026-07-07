@@ -563,7 +563,12 @@ void ModbusServerHub::send_exception_(uint8_t address, uint8_t function_code, Mo
 
 // Raw send for client: pushes to tx queue. Everything except the CRC must be contained in payload.
 void ModbusClientHub::notify_no_response_(ModbusDeviceCommand &wfr) {
-  if (wfr.device != nullptr && wfr.device->on_modbus_no_response())
+  if (wfr.device == nullptr)
+    return;
+  const bool retry = wfr.device->on_modbus_no_response();
+  // The callback may have detached the device (e.g. clear_tx_queue_for_device()); honor the detach
+  // over the retry request rather than re-queueing a frame that can no longer be routed.
+  if (retry && wfr.device != nullptr)
     this->requeue_waiting_frame_(wfr);
   // The old transaction is over either way; never deliver anything else to the device through it.
   wfr.device = nullptr;

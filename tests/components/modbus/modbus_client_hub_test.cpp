@@ -51,6 +51,18 @@ class RetryingDevice : public ModbusClientDevice {
   bool retry_{false};
 };
 
+// A device that clears its own queued traffic from inside the no-response callback, then asks for a retry.
+class ClearingRetryDevice : public ModbusClientDevice {
+ public:
+  ClearingRetryDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  bool on_modbus_no_response() override {
+    this->no_response_count_++;
+    this->clear_tx_queue_for_device();  // detaches this device from the waiting slot mid-callback
+    return true;                        // and still requests a retry
+  }
+  int no_response_count_{0};
+};
+
 constexpr uint8_t READ_PDU[] = {0x03, 0x01, 0x00, 0x00, 0x02};  // read 2 holding registers at 0x100
 
 StaticVector<uint8_t, MAX_PDU_SIZE> read_pdu() {
@@ -146,6 +158,21 @@ TEST(ModbusClientHubNoResponse, RetryBehindInterruptedShell) {
   EXPECT_FALSE(hub.waiting());
   EXPECT_EQ(device.no_response_count_, 1);
   EXPECT_EQ(hub.queued_frames(), 1u);
+}
+
+// A callback that detaches the device (clear_tx_queue_for_device()) wins over its own retry request:
+// no orphaned frame with a null device is re-queued.
+TEST(ModbusClientHubNoResponse, MidCallbackClearCancelsRetry) {
+  NoResponseProbeHub hub;
+  ClearingRetryDevice device(&hub, 0x02);
+
+  device.send_pdu(read_pdu());
+  hub.force_send_front();
+  hub.timeout_waiting();
+
+  EXPECT_EQ(device.no_response_count_, 1);
+  EXPECT_EQ(hub.queued_frames(), 0u);  // the retry was not re-queued for a detached device
+  EXPECT_FALSE(hub.waiting());
 }
 
 }  // namespace esphome::modbus::testing
