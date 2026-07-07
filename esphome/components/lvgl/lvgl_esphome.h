@@ -214,7 +214,7 @@ class LvglComponent final : public PollingComponent {
   // @param paused If true, pause the display. If false, resume the display.
   // @param show_snow If true, show the snow effect when paused.
   void set_paused(bool paused, bool show_snow);
-  void set_set_refresh_interval(uint32_t period) {
+  void set_refresh_interval(uint32_t period) {
     this->refr_timer_period_ = period;
     if (this->refr_timer_ != nullptr)
       lv_timer_set_period(this->refr_timer_, period);
