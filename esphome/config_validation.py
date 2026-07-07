@@ -71,7 +71,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_NRF52,
-    PLATFORM_RP2040,
+    PLATFORM_RP2,
     SCHEDULER_DONT_RUN,
     TYPE_GIT,
     TYPE_LOCAL,
@@ -859,7 +859,38 @@ def only_with_framework(
 only_on_esp32 = only_on(PLATFORM_ESP32)
 only_on_esp8266 = only_on(PLATFORM_ESP8266)
 only_on_nrf52 = only_on(PLATFORM_NRF52)
-only_on_rp2040 = only_on(PLATFORM_RP2040)
+only_on_rp2 = only_on(PLATFORM_RP2)
+
+# CORE.data key for the "deprecation warning already fired this run" flag.
+# Deduped via CORE.data (cleared between runs) to match the framework-alias
+# pattern; one warning per `esphome config|compile|run` invocation is enough.
+_ONLY_ON_RP2040_DEPRECATED_KEY = "_cv_only_on_rp2040_deprecated_warned"
+
+
+def only_on_rp2040(obj):
+    """Deprecated — kept as a back-compat shim for external custom components.
+
+    Pre-RP2350, this was the family check for the RP2 platform; with RP2350
+    landing under the same target platform, the variant axis is now exposed
+    by the rp2 component itself. New code should use one of:
+
+    * :func:`only_on_rp2` — family-level gate (matches the esp32 pattern;
+      same semantics as the pre-RP2350 ``only_on_rp2040``).
+    * ``rp2.only_on_variant(supported=[VARIANT_RP2040])`` — variant-level
+      gate, rejects RP2350 boards on the rp2 platform.
+
+    Scheduled for removal in 2027.7.0.
+    """
+    if not CORE.data.get(_ONLY_ON_RP2040_DEPRECATED_KEY):
+        _LOGGER.warning(
+            "cv.only_on_rp2040 is deprecated; use cv.only_on_rp2 for the "
+            "family gate, or rp2.only_on_variant(supported=[VARIANT_RP2040]) "
+            "for the variant gate. Removed in 2027.7.0."
+        )
+        CORE.data[_ONLY_ON_RP2040_DEPRECATED_KEY] = True
+    return only_on_rp2(obj)
+
+
 only_with_arduino = only_with_framework(Framework.ARDUINO)
 
 
@@ -1220,21 +1251,60 @@ def mac_address(value):
     return core.MACAddress(*parts_int)
 
 
-def bind_key(value, *, name="Bind key"):
-    value = string_strict(value)
-    parts = [value[i : i + 2] for i in range(0, len(value), 2)]
-    if len(parts) != 16:
-        raise Invalid(f"{name} must consist of 16 hexadecimal numbers")
-    parts_int = []
-    if any(len(part) != 2 for part in parts):
-        raise Invalid(f"{name} must be format XX")
-    for part in parts:
-        try:
-            parts_int.append(int(part, 16))
-        except ValueError:
-            raise Invalid(f"{name} must be hex values from 00 to FF") from None
+_BIND_KEY_MISSING = object()
 
-    return "".join(f"{part:02X}" for part in parts_int)
+
+class BindKeyValidator(SensitiveValidator):
+    """Sensitive validator for a 16-byte hex bind/encryption key.
+
+    Use bare as a validator (``cv.bind_key``) for the default error wording, or
+    call it with a custom ``name`` (``cv.bind_key(name="Decryption key")``) to
+    get a validator with tailored error messages. Either way the value is marked
+    sensitive so frontends mask it and dump tooling redacts it.
+    """
+
+    def __init__(self, name: str = "Bind key") -> None:
+        self._name = name
+        super().__init__(self._validate)
+
+    def _validate(self, value: typing.Any) -> str:
+        value = string_strict(value)
+        parts = [value[i : i + 2] for i in range(0, len(value), 2)]
+        if len(parts) != 16:
+            raise Invalid(f"{self._name} must consist of 16 hexadecimal numbers")
+        parts_int = []
+        if any(len(part) != 2 for part in parts):
+            raise Invalid(f"{self._name} must be format XX")
+        for part in parts:
+            try:
+                parts_int.append(int(part, 16))
+            except ValueError:
+                raise Invalid(
+                    f"{self._name} must be hex values from 00 to FF"
+                ) from None
+
+        return "".join(f"{part:02X}" for part in parts_int)
+
+    def __call__(
+        self, value: typing.Any = _BIND_KEY_MISSING, *, name: str | None = None
+    ) -> typing.Any:
+        if value is _BIND_KEY_MISSING:
+            # Factory usage: return a validator with customized error wording.
+            return BindKeyValidator(name if name is not None else self._name)
+        if name is not None and name != self._name:
+            # Direct validation with a one-off custom name.
+            return BindKeyValidator(name)(value)
+        return super().__call__(value)
+
+    def __repr__(self) -> str:
+        # ``self.inner`` is a bound method of this instance, so the inherited
+        # ``SensitiveValidator.__repr__`` (which returns ``repr(self.inner)``)
+        # would recurse infinitely. Provide a stable, name-keyed repr instead so
+        # ``build_language_schema`` dedup and voluptuous errors stay sane.
+        return f"bind_key({self._name!r})"
+
+
+bind_key = BindKeyValidator()
 
 
 def uuid(value):
@@ -1455,9 +1525,7 @@ def ipv6address(value):
 def ipv4address_multi_broadcast(value):
     address = ipv4address(value)
     if not (address.is_multicast or (address == IPv4Address("255.255.255.255"))):
-        raise Invalid(
-            f"{value} is not a multicasst address nor local broadcast address"
-        )
+        raise Invalid(f"{value} is not a multicast address nor local broadcast address")
     return address
 
 
@@ -1953,7 +2021,24 @@ def _get_default_key(*args):
 
 
 class SplitDefault(Optional):
-    """Mark this key to have a split default for ESP8266/ESP32."""
+    """Mark this key to have a split default per target platform / variant / framework.
+
+    Defaults are passed as kwargs keyed on the platform identifier; the most
+    specific match wins. Lookup order (first hit wins):
+
+    1. ``<platform>_<variant>_<framework>`` — e.g. ``esp32_c3_arduino``,
+       ``rp2_2040_arduino``
+    2. ``<platform>_<variant>``             — e.g. ``esp32_c3``, ``rp2_2040``
+    3. ``<platform>_<framework>``           — e.g. ``esp32_arduino``,
+       ``rp2_arduino``
+    4. ``<platform>``                       — e.g. ``esp32``, ``rp2``
+
+    For ESP32 the variant strips the ``ESP32`` prefix from
+    :data:`esp32.VARIANT_*` constants (``ESP32C3`` → ``c3``). For RP2 the
+    variant strips just ``RP`` (``RP2040`` → ``2040``, ``RP2350`` → ``2350``)
+    so kwargs read naturally — `rp2_2040=...` is the override for the
+    Pico / Pico W and `rp2_2350=...` is the override for the Pico 2.
+    """
 
     def __init__(self, key, **kwargs):
         super().__init__(key)
@@ -1972,6 +2057,22 @@ class SplitDefault(Optional):
             variant = get_esp32_variant().replace(VARIANT_ESP32, "").lower()
             framework = CORE.target_framework.replace("esp-", "")
             if variant:
+                keys += _get_default_key(variant, framework)
+                keys += _get_default_key(variant)
+            keys += _get_default_key(framework)
+        elif CORE.is_rp2:
+            # Strip the "RP" prefix to leave the chip number, mirroring
+            # the ESP32 "platform stripped from variant" convention so
+            # kwargs stay short (``rp2_2040`` rather than ``rp2_rp2040``).
+            # Variant lookup is defensive: validators may run before the
+            # rp2 component's ``set_core_data`` (or in tests that wire a
+            # partial ``CORE.data``); in that case we just skip the
+            # variant-specific keys and fall through to the base
+            # platform/framework defaults.
+            raw_variant = CORE.data.get("rp2", {}).get("variant")
+            framework = CORE.target_framework
+            if raw_variant:
+                variant = raw_variant.removeprefix("RP").lower()
                 keys += _get_default_key(variant, framework)
                 keys += _get_default_key(variant)
             keys += _get_default_key(framework)
@@ -2406,18 +2507,58 @@ def require_framework_version(
     extra_message=None,
     **kwargs,
 ):
+    """Constrain the configured framework version per target platform / variant.
+
+    Kwargs are keyed by ``<platform>_<framework>`` (e.g. ``esp32_arduino``,
+    ``rp2_arduino``) with optional variant-specific overrides keyed by
+    ``<platform>_<variant>_<framework>`` (e.g. ``esp32_c3_arduino``,
+    ``rp2_2040_arduino``, ``rp2_2350_arduino``). Variant overrides win when
+    the configured variant matches; otherwise the base platform key is used.
+
+    Special cases: ``host`` (with host framework) and ``esp_idf`` (any ESP32
+    on ESP-IDF) bypass variant lookup.
+    """
+
     def validator(value):
         core_data = CORE.data[KEY_CORE]
         framework = core_data[KEY_TARGET_FRAMEWORK]
 
+        keys_to_try: list[str] = []
         if CORE.is_host and framework == "host":
-            key = "host"
+            keys_to_try.append("host")
         elif framework == "esp-idf":
-            key = "esp_idf"
+            keys_to_try.append("esp_idf")
         else:
-            key = CORE.target_platform + "_" + framework
+            # Try variant-specific key first (mirrors the SplitDefault
+            # precedence). ESP32 strips its platform prefix from variant
+            # constants; RP2 strips just ``RP`` to keep chip-number kwargs
+            # (``rp2_2040``, ``rp2_2350``).
+            if CORE.is_esp32:
+                from esphome.components.esp32 import VARIANT_ESP32, get_esp32_variant
 
-        if key not in kwargs:
+                # Guard against tests that wire CORE.data without an
+                # esp32 variant block; same defensive intent as the rp2
+                # branch below.
+                try:
+                    variant = get_esp32_variant().replace(VARIANT_ESP32, "").lower()
+                except (KeyError, AttributeError):
+                    variant = ""
+                if variant:
+                    keys_to_try.append(f"{CORE.target_platform}_{variant}_{framework}")
+            elif CORE.is_rp2:
+                # Defensive lookup — see the matching block in
+                # ``SplitDefault.default``: the rp2 component's
+                # ``set_core_data`` may not have populated
+                # ``CORE.data["rp2"]["variant"]`` yet (validators run
+                # during schema validation, before code-gen).
+                raw_variant = CORE.data.get("rp2", {}).get("variant")
+                if raw_variant:
+                    variant = raw_variant.removeprefix("RP").lower()
+                    keys_to_try.append(f"{CORE.target_platform}_{variant}_{framework}")
+            keys_to_try.append(f"{CORE.target_platform}_{framework}")
+
+        key = next((k for k in keys_to_try if k in kwargs), None)
+        if key is None:
             msg = f"This feature is incompatible with {CORE.target_platform.upper()} using {framework} framework"
             if extra_message:
                 msg += f". {extra_message}"

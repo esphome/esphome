@@ -1,5 +1,6 @@
 #pragma once
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 
 #include "esphome/core/component.h"
 #include "esphome/core/event_pool.h"
@@ -50,7 +51,7 @@ struct CDCEvent {
 class USBCDCACMComponent;
 
 /// Represents a single CDC ACM interface instance
-class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMComponent> {
+class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBCDCACMComponent> {
  public:
   void setup();
   void loop();
@@ -111,7 +112,7 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
 };
 
 /// Main USB CDC ACM component that manages the USB device and all CDC interfaces
-class USBCDCACMComponent : public Component {
+class USBCDCACMComponent final : public Component {
  public:
   USBCDCACMComponent();
 

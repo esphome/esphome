@@ -785,6 +785,29 @@ def build_schema():
     # bundle core inside esphome
     data["esphome"]["core"] = data.pop("core")["core"]
 
+    # Surface deprecated component aliases (declared via ``ALIASES = [...]``
+    # on the canonical component) so language servers / dashboard
+    # autocomplete still accept legacy top-level keys instead of flagging
+    # them as unknown. Each alias gets its own bundle that mirrors the
+    # canonical schema; ``alias_of`` and the optional ``removal_version``
+    # metadata let consumers render a deprecation hint and point users at
+    # the canonical name. Without this, configs migrated only at runtime
+    # (via the ``_resolve_component_aliases`` pre-pass) would still light
+    # up as errors in the editor.
+    for domain, manifest in components.items():
+        aliases = manifest.aliases
+        if not aliases or domain not in data:
+            continue
+        canonical_bundle = data[domain].get(domain)
+        if canonical_bundle is None:
+            continue
+        for alias in aliases:
+            alias_entry = dict(canonical_bundle)
+            alias_entry["alias_of"] = domain
+            if manifest.alias_removal_version is not None:
+                alias_entry["removal_version"] = manifest.alias_removal_version
+            data[alias] = {alias: alias_entry}
+
     if GENERATED_ID_TYPES:
         print(
             "Unconsumed id_type matchers:",
@@ -951,6 +974,15 @@ def convert(schema, config_var, path):
         elif schema_type == "enum":
             config_var[S_TYPE] = "enum"
             config_var["values"] = dict.fromkeys(list(data.keys()))
+        elif schema_type == "variant_enum":
+            # Per-variant enum (e.g. psram mode/speed): each value carries the
+            # list of variants that accept it so clients can filter to the
+            # user's selected variant. Additive to the plain enum format —
+            # consumers that ignore the metadata still see every option.
+            config_var[S_TYPE] = "enum"
+            config_var["values"] = {
+                value: {"variants": variants} for value, variants in data.items()
+            }
         elif schema_type == "maybe":
             # maybe_simple_value: either a scalar shorthand (mapped to the key in
             # data[1]) or the full wrapped schema. The wrapped schema is usually a

@@ -649,7 +649,13 @@ void WiFiComponent::start() {
 
   this->pref_ = global_preferences->make_preference<wifi::SavedWifiSettings>(hash, true);
 #ifdef USE_WIFI_FAST_CONNECT
-  this->fast_connect_pref_ = global_preferences->make_preference<wifi::SavedWifiFastConnectSettings>(hash + 1, false);
+#ifdef USE_WIFI_FAST_CONNECT_IN_FLASH
+  const bool fast_connect_in_flash = true;
+#else
+  const bool fast_connect_in_flash = false;
+#endif
+  this->fast_connect_pref_ =
+      global_preferences->make_preference<wifi::SavedWifiFastConnectSettings>(hash + 1, fast_connect_in_flash);
 #endif
 
   SavedWifiSettings save{};
@@ -822,7 +828,7 @@ void WiFiComponent::loop() {
               }
               // else: scan in progress, wait
             } else if (this->roaming_state_ == RoamingState::IDLE && this->roaming_attempts_ < ROAMING_MAX_ATTEMPTS &&
-                       now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL) {
+                       now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL && !this->roaming_suppressed_()) {
               this->check_roaming_(now);
             }
           }
@@ -2382,7 +2388,7 @@ void WiFiComponent::clear_roaming_state_() {
 
 void WiFiComponent::release_scan_results_() {
   if (!this->keep_scan_results_) {
-#if defined(USE_RP2040) || defined(USE_ESP32)
+#if defined(USE_RP2) || defined(USE_ESP32)
     // std::vector - use swap trick since shrink_to_fit is non-binding
     decltype(this->scan_result_)().swap(this->scan_result_);
 #else

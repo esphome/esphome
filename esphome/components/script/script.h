@@ -3,6 +3,7 @@
 #include <list>
 #include <memory>
 #include <tuple>
+#include "esphome/core/application.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -57,6 +58,14 @@ template<typename... Ts> class Script : public ScriptLogger, public Trigger<Ts..
     this->execute(std::get<S>(tuple)...);
   }
 
+  // Run the action chain with this script's name published as the current source (RAII save/restore,
+  // so nesting composes), so deferred work inside the script is attributed to it in blocking
+  // warnings. Force-inlined to fold into the always-inlined trigger chain (no extra stack frame).
+  inline void run_actions_(const Ts &...x) ESPHOME_ALWAYS_INLINE {
+    ScopedSourceGuard source_guard{this->name_};
+    this->trigger(x...);
+  }
+
   const LogString *name_{nullptr};
 };
 
@@ -74,7 +83,7 @@ template<typename... Ts> class SingleScript : public Script<Ts...> {
       return;
     }
 
-    this->trigger(x...);
+    this->run_actions_(x...);
   }
 };
 
@@ -91,7 +100,7 @@ template<typename... Ts> class RestartScript : public Script<Ts...> {
       this->stop_action();
     }
 
-    this->trigger(x...);
+    this->run_actions_(x...);
   }
 };
 
@@ -136,7 +145,7 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
       return;
     }
 
-    this->trigger(x...);
+    this->run_actions_(x...);
     // Check if the trigger was immediate and we can continue right away.
     this->loop();
   }
@@ -175,7 +184,7 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
   }
 
   template<size_t... S> void trigger_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
-    this->trigger(std::get<S>(tuple)...);
+    this->run_actions_(std::get<S>(tuple)...);
   }
 
   int num_queued_ = 0;      // Number of queued instances (not including currently running)
@@ -197,7 +206,7 @@ template<typename... Ts> class ParallelScript : public Script<Ts...> {
                       LOG_STR_ARG(this->name_));
       return;
     }
-    this->trigger(x...);
+    this->run_actions_(x...);
   }
   void set_max_runs(int max_runs) { max_runs_ = max_runs; }
 
@@ -207,7 +216,7 @@ template<typename... Ts> class ParallelScript : public Script<Ts...> {
 
 template<class S, typename... Ts> class ScriptExecuteAction;
 
-template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, Ts...> : public Action<Ts...> {
+template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, Ts...> final : public Action<Ts...> {
  public:
   ScriptExecuteAction(Script<As...> *script) : script_(script) {}
 
@@ -245,7 +254,7 @@ template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, T
   Args args_;
 };
 
-template<class C, typename... Ts> class ScriptStopAction : public Action<Ts...> {
+template<class C, typename... Ts> class ScriptStopAction final : public Action<Ts...> {
  public:
   ScriptStopAction(C *script) : script_(script) {}
 
@@ -255,7 +264,7 @@ template<class C, typename... Ts> class ScriptStopAction : public Action<Ts...> 
   C *script_;
 };
 
-template<class C, typename... Ts> class IsRunningCondition : public Condition<Ts...> {
+template<class C, typename... Ts> class IsRunningCondition final : public Condition<Ts...> {
  public:
   explicit IsRunningCondition(C *parent) : parent_(parent) {}
 
@@ -272,7 +281,7 @@ template<class C, typename... Ts> class IsRunningCondition : public Condition<Ts
  * (e.g., rapid button presses, high-frequency sensor updates), so we use
  * queue-based storage for correctness.
  */
-template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>, public Component {
+template<class C, typename... Ts> class ScriptWaitAction final : public Action<Ts...>, public Component {
  public:
   ScriptWaitAction(C *script) : script_(script) {}
 
