@@ -32,8 +32,15 @@
 
 namespace esphome::web_server_idf {
 
+// Status strings not provided by esp_http_server.h
+#ifndef HTTPD_401
+#define HTTPD_401 "401 Unauthorized"
+#endif
 #ifndef HTTPD_409
 #define HTTPD_409 "409 Conflict"
+#endif
+#ifndef HTTPD_422
+#define HTTPD_422 "422 Unprocessable Entity"
 #endif
 
 #define CRLF_STR "\r\n"
@@ -276,11 +283,23 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
     case 200:
       status = HTTPD_200;
       break;
+    case 204:
+      status = HTTPD_204;
+      break;
+    case 400:
+      status = HTTPD_400;
+      break;
+    case 401:
+      status = HTTPD_401;
+      break;
     case 404:
       status = HTTPD_404;
       break;
     case 409:
       status = HTTPD_409;
+      break;
+    case 422:
+      status = HTTPD_422;
       break;
     default:
       status = HTTPD_500;
