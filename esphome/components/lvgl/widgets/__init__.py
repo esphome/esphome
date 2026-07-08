@@ -36,6 +36,7 @@ from ..defines import (
     CONF_SCALE,
     CONF_STYLES,
     CONF_WIDGETS,
+    LOGGER,
     OBJ_FLAGS,
     PARTS,
     STATES,
@@ -582,6 +583,9 @@ def _set_layout_options(w: Widget, layout: dict, base_name: str | None) -> None:
         # Stretch is implemented at creation time by sizing the children; at
         # runtime we can only fall back to centering.
         if cross == "LV_FLEX_ALIGN_STRETCH":
+            LOGGER.warning(
+                "Flex cross alignment 'stretch' is not supported at runtime; using 'center' instead"
+            )
             cross = "LV_FLEX_ALIGN_CENTER"
         w.set_style("flex_cross_place", literal(cross))
     if (track := layout.get(CONF_FLEX_ALIGN_TRACK)) is not None:
