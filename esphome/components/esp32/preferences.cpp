@@ -3,7 +3,10 @@
 #include "preferences.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/preferences_rtc.h"
+#include <esp_attr.h>
 #include <nvs_flash.h>
+#include <soc/soc_caps.h>
 #include <cstring>
 #include <vector>
 
@@ -18,6 +21,48 @@ struct NVSData {
 
 static std::vector<NVSData> s_pending_save;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+// RTC memory backend for preferences requested with in_flash=false. Survives deep sleep and
+// software/CPU resets, but not power loss; integrity is guarded by a per-record checksum so
+// power-on garbage is detected on load. Keep this small: RTC memory is scarce and shared.
+//
+// Only compiled in when USE_ESP32_RTC_PREFERENCES_STORAGE is set (see preferences.h): the storage
+// buffer reserves RTC memory, so it exists only when some config option actually selected RTC
+// storage AND the variant has RTC memory (the ESP32-C2 and -C61 have none, so RTC_NOINIT_ATTR would
+// have no section to land in and fail to link). Otherwise in_flash=false transparently falls back
+// to NVS (see make_preference below).
+//
+// On variants with only RTC fast memory (C3/C6/H2/P4/C5/...) RTC_NOINIT_ATTR lands in RTC fast memory.
+// This is still safe: the linker reserves .rtc_noinit ahead of any RTC-fast-as-heap pool
+// (CONFIG_ESP_SYSTEM_ALLOW_RTC_FAST_MEM_AS_HEAP), and IDF keeps the RTC fast power domain on in deep
+// sleep (forced on whether or not it is used as heap), so the data is retained across both resets and
+// deep sleep -- only power loss clears it.
+#ifdef USE_ESP32_RTC_PREFERENCES_STORAGE
+static constexpr size_t RTC_PREF_SIZE_WORDS = 64;  // 256 bytes
+static constexpr size_t RTC_PREF_MAX_WORDS = 255;  // length_words field is a uint8_t
+
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static RTC_NOINIT_ATTR uint32_t s_rtc_storage[RTC_PREF_SIZE_WORDS];
+
+static bool save_to_rtc(uint16_t offset, uint32_t key, uint8_t length_words, const uint8_t *data, size_t len) {
+  if (rtc_pref_bytes_to_words(len) != length_words)
+    return false;
+  const size_t buffer_size = static_cast<size_t>(length_words) + 1;
+  if (static_cast<size_t>(offset) + buffer_size > RTC_PREF_SIZE_WORDS)
+    return false;
+  rtc_pref_encode(&s_rtc_storage[offset], key, length_words, data, len);
+  return true;
+}
+
+static bool load_from_rtc(uint16_t offset, uint32_t key, uint8_t length_words, uint8_t *data, size_t len) {
+  if (rtc_pref_bytes_to_words(len) != length_words)
+    return false;
+  const size_t buffer_size = static_cast<size_t>(length_words) + 1;
+  if (static_cast<size_t>(offset) + buffer_size > RTC_PREF_SIZE_WORDS)
+    return false;
+  return rtc_pref_decode(&s_rtc_storage[offset], key, length_words, data, len);
+}
+#endif  // USE_ESP32_RTC_PREFERENCES_STORAGE
+
 // open() runs from app_main() before the logger is initialized, so any failure
 // must be deferred until after global_logger is set. This is emitted from the
 // first make_preference() call, which runs from the generated setup() after
@@ -25,6 +70,10 @@ static std::vector<NVSData> s_pending_save;  // NOLINT(cppcoreguidelines-avoid-n
 static esp_err_t s_open_err = ESP_OK;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 bool ESP32PreferenceBackend::save(const uint8_t *data, size_t len) {
+#ifdef USE_ESP32_RTC_PREFERENCES_STORAGE
+  if (!this->in_flash)
+    return save_to_rtc(this->rtc_offset, this->key, this->length_words, data, len);
+#endif
   // try find in pending saves and update that
   for (auto &obj : s_pending_save) {
     if (obj.key == this->key) {
@@ -41,6 +90,10 @@ bool ESP32PreferenceBackend::save(const uint8_t *data, size_t len) {
 }
 
 bool ESP32PreferenceBackend::load(uint8_t *data, size_t len) {
+#ifdef USE_ESP32_RTC_PREFERENCES_STORAGE
+  if (!this->in_flash)
+    return load_from_rtc(this->rtc_offset, this->key, this->length_words, data, len);
+#endif
   // try find in pending saves and load from that
   for (auto &obj : s_pending_save) {
     if (obj.key == this->key) {
@@ -94,6 +147,26 @@ void ESP32Preferences::open() {
   }
 }
 
+ESPPreferenceObject ESP32Preferences::make_preference(size_t length, uint32_t type, bool in_flash) {
+#ifdef USE_ESP32_RTC_PREFERENCES_STORAGE
+  if (!in_flash)
+    return this->make_rtc_preference_(length, type);
+#else
+  if (!in_flash) {
+    // RTC storage is not compiled in (no config option selected it), so this request
+    // falls back to NVS -- the historic ESP32 behavior. Warn once so callers explicitly
+    // asking for RTC storage can discover the fallback.
+    static bool warned = false;
+    if (!warned) {
+      ESP_LOGW(TAG, "RTC preference storage not compiled in; using NVS (enable with 'preferences: rtc_storage: true')");
+      warned = true;
+    }
+  }
+#endif
+  // in_flash, or RTC storage not compiled in: fall back to NVS.
+  return this->make_preference(length, type);
+}
+
 ESPPreferenceObject ESP32Preferences::make_preference(size_t length, uint32_t type) {
   if (s_open_err != ESP_OK) {
     if (this->nvs_handle == 0) {
@@ -106,9 +179,33 @@ ESPPreferenceObject ESP32Preferences::make_preference(size_t length, uint32_t ty
   auto *pref = new ESP32PreferenceBackend();  // NOLINT(cppcoreguidelines-owning-memory)
   pref->nvs_handle = this->nvs_handle;
   pref->key = type;
+  pref->in_flash = true;
 
   return ESPPreferenceObject(pref);
 }
+
+#ifdef USE_ESP32_RTC_PREFERENCES_STORAGE
+ESPPreferenceObject ESP32Preferences::make_rtc_preference_(size_t length, uint32_t type) {
+  const uint32_t length_words = rtc_pref_bytes_to_words(length);
+  if (length_words > RTC_PREF_MAX_WORDS) {
+    ESP_LOGE(TAG, "RTC preference too large: %" PRIu32 " words", length_words);
+    return {};
+  }
+  const uint32_t total_words = length_words + 1;  // +1 for checksum
+  if (static_cast<size_t>(this->current_rtc_offset_) + total_words > RTC_PREF_SIZE_WORDS) {
+    ESP_LOGE(TAG, "RTC preference storage full, cannot allocate %" PRIu32 " words", total_words);
+    return {};
+  }
+  auto *pref = new ESP32PreferenceBackend();  // NOLINT(cppcoreguidelines-owning-memory)
+  pref->key = type;
+  pref->in_flash = false;
+  pref->rtc_offset = this->current_rtc_offset_;
+  pref->length_words = static_cast<uint8_t>(length_words);
+  this->current_rtc_offset_ += static_cast<uint16_t>(total_words);
+
+  return ESPPreferenceObject(pref);
+}
+#endif  // USE_ESP32_RTC_PREFERENCES_STORAGE
 
 bool ESP32Preferences::sync() {
   if (s_pending_save.empty())
@@ -186,6 +283,12 @@ bool ESP32Preferences::is_changed_(uint32_t nvs_handle, const NVSData &to_save, 
 bool ESP32Preferences::reset() {
   ESP_LOGD(TAG, "Erasing storage");
   s_pending_save.clear();
+#ifdef USE_ESP32_RTC_PREFERENCES_STORAGE
+  // Invalidate RTC-backed preferences too (checksum will no longer match). current_rtc_offset_ is
+  // deliberately left alone: existing backends keep pointing at their allocated slots, and reset()
+  // is always followed by a restart (same reason nvs_handle is zeroed below).
+  memset(s_rtc_storage, 0, sizeof(s_rtc_storage));
+#endif
 
   nvs_flash_deinit();
   nvs_flash_erase();

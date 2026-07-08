@@ -19,13 +19,13 @@
 
 // Threading model for static analysis. Match what the real codegen picks per
 // platform (see esphome/components/<platform>/__init__.py ThreadModel.*):
-//   USE_ESP8266 / USE_RP2040 / USE_NRF52 → SINGLE
+//   USE_ESP8266 / USE_RP2 / USE_NRF52 → SINGLE
 //   USE_BK72XX (ARMv5TE, no LDREX/STREX) → MULTI_NO_ATOMICS
 //   everything else (ESP32, host, RTL87XX, LN882X) → MULTI_ATOMICS
 // Without this the clang-tidy envs end up with USE_<single-threaded platform>
 // + MULTI_ATOMICS simultaneously, a combination that can never occur in a
 // real build.
-#if defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_NRF52)
+#if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_NRF52)
 #define ESPHOME_THREAD_SINGLE
 #elif defined(USE_BK72XX)
 #define ESPHOME_THREAD_MULTI_NO_ATOMICS
@@ -148,10 +148,12 @@
 #define USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
 #define USE_NEXTION_WAVEFORM
 #define USE_NUMBER
+#define USE_OTA_STATE_LISTENER
 #define USE_OUTPUT
 #define USE_OUTPUT_FLOAT_POWER_SCALING
 #define USE_POWER_SUPPLY
 #define USE_PREFERENCES_SYNC_EVERY_LOOP
+#define USE_PROVISIONING
 #define USE_QR_CODE
 #define USE_SAFE_MODE_CALLBACK
 #define ESPHOME_SAFE_MODE_CALLBACK_COUNT 1
@@ -211,7 +213,6 @@
 #define USE_RUNTIME_STATS
 #define USE_OTA
 #define USE_OTA_PASSWORD
-#define USE_OTA_STATE_LISTENER
 #define USE_OTA_VERSION 2
 #define USE_TIME_TIMEZONE
 #define USE_WIFI
@@ -227,7 +228,7 @@
 #endif
 
 // Platforms with native 64-bit time sources (no rollover tracking needed)
-#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_ZEPHYR) || defined(USE_RP2040)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_ZEPHYR) || defined(USE_RP2)
 #define USE_NATIVE_64BIT_TIME
 #endif
 
@@ -239,8 +240,12 @@
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 768
 #define USE_OTA_ROLLBACK
 #define USE_OTA_SIGNED_VERIFICATION
+#define USE_OTA_DOWNGRADE_PROTECTION
 #define USE_ESP32_MIN_CHIP_REVISION_SET
+#define USE_ESP32_RTC_PREFERENCES
 #define USE_ESP32_SRAM1_AS_IRAM
+#define USE_ESPNOW
+#define USE_ESPNOW_MAX_PAYLOAD_SIZE 1470
 
 #define USE_BLUETOOTH_PROXY
 #define BLUETOOTH_PROXY_MAX_CONNECTIONS 3
@@ -300,6 +305,7 @@
 #define USE_CAPTIVE_PORTAL_GZIP
 #define USE_WIFI_11KV_SUPPORT
 #define USE_WIFI_FAST_CONNECT
+#define USE_WIFI_FAST_CONNECT_IN_FLASH
 #define USE_WIFI_PHY_MODE
 #define USE_WIFI_IP_STATE_LISTENERS
 #define USE_WIFI_SCAN_RESULTS_LISTENERS
@@ -403,9 +409,12 @@
 #define USE_WEBSERVER_PORT 80  // NOLINT
 #endif
 
-#ifdef USE_RP2040
+// USE_RP2 is the canonical platform define for the RP2 chip family. The
+// rp2/__init__.py codegen also defines USE_RP2040 as a back-compat alias
+// for external custom components that may still test for it.
+#ifdef USE_RP2
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 3, 0)
-#define USE_RP2040_CRASH_HANDLER
+#define USE_RP2_CRASH_HANDLER
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C
 #define USE_LOGGER_USB_CDC
