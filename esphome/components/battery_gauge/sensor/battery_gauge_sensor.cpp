@@ -10,7 +10,7 @@ static const char *const TAG = "battery_gauge.sensor";
 
 void BatteryGaugeSensor::on_current_(float value) {
   if (!std::isfinite(value))
-    return;  // ignore invalid values
+    return;
   auto current = value;
   if (std::isfinite(this->last_current_)) {
     current += this->last_current_;
@@ -28,7 +28,7 @@ void BatteryGaugeSensor::on_current_(float value) {
   this->last_time_ = now;
   if (previous == 0)
     return;
-  // apply efficiency only to charge currents
+  // Apply efficiency only to charge currents
   if (current > 0)
     current *= this->efficiency_;
   float interval = (now - previous) / 1000.0f / 3600.0f;
@@ -50,11 +50,9 @@ void BatteryGaugeSensor::publish_(float new_state) {
     this->saved_percentage_.save(&this->charge_percentage_);
   }
 }
-/**
- * Using voltage thresholds to adjust the charge state. This resynchronises at full charge
- */
+// Using voltage thresholds to adjust the charge state. This resynchronises at full charge
 void BatteryGaugeSensor::on_voltage_(float value) {
-  // don't use voltage to adjust when under significant charge or discharge
+  // Don't use voltage to adjust when under significant charge or discharge
   if (!std::isfinite(value))
     return;
   if (std::abs(this->last_current_) > this->capacity_ / 20)
@@ -66,8 +64,10 @@ void BatteryGaugeSensor::on_voltage_(float value) {
   // smooth the voltage with an EMA filter
   this->filtered_voltage_ = value / 10.0f + this->filtered_voltage_ * 0.9f;
   if (this->filtered_voltage_ >= this->max_charge_voltage_ && this->filtered_current_ < this->capacity_ * .02) {
-    this->publish_(this->capacity_);
-    ESP_LOGD(TAG, "Charging: Voltage %f, state set to 100%%", this->filtered_voltage_);
+    if (this->charge_state_ != this->capacity_) {
+      this->publish_(this->capacity_);
+      ESP_LOGD(TAG, "Charging: Voltage %f, state set to 100%%", this->filtered_voltage_);
+    }
   }
 }
 
