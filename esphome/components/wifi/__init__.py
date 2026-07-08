@@ -14,6 +14,7 @@ from esphome.components.esp32 import (
     request_wifi,
 )
 from esphome.components.network import (
+    add_use_address,
     get_network_priority,
     has_high_performance_networking,
     ip_address_literal,
@@ -590,7 +591,7 @@ async def to_code(config):
     prio = get_network_priority("wifi")
     if prio is not None:
         cg.add(var.set_setup_priority(prio))
-    cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
+    add_use_address(var, config[CONF_USE_ADDRESS])
 
     # Track if any network uses Enterprise authentication
     has_eap = False
