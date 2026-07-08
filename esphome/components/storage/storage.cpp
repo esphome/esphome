@@ -41,7 +41,7 @@ void StorageRegistry::unregister_storage(Storage *s) {
   if (s == nullptr)
     return;
 
-    bool found = false;
+  bool found = false;
   for (auto *entry : this->storages_) {
     if (entry == s) {
       found = true;
