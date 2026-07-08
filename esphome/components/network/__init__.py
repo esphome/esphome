@@ -25,6 +25,20 @@ NetworkComponent = network_ns.class_("NetworkComponent", cg.Component)
 IPAddress = network_ns.class_("IPAddress")
 
 
+def _register_provisioning_source(config: ConfigType) -> ConfigType:
+    """Register network connectivity as a provisioning source.
+
+    The network component is auto-loaded whenever an interface (wifi, ethernet, ...)
+    is configured, so a device with connectivity always has this source: it is
+    considered provisioned once it has connected via any interface, and
+    `provisioning:` is valid without another source.
+    """
+    from esphome.components import provisioning
+
+    provisioning.register_source("network")
+    return config
+
+
 def ip_address_literal(ip: str | int | None) -> cg.MockObj:
     """Generate an IPAddress with compile-time initialization instead of runtime parsing.
 
@@ -57,6 +71,19 @@ def ip_address_literal(ip: str | int | None) -> cg.MockObj:
 
     # Fallback to string constructor if parsing fails
     return IPAddress(str(ip))
+
+
+def add_use_address(var: cg.MockObj, use_address: str) -> None:
+    """Generate a set_use_address() call only when the address must be baked in.
+
+    The default "<name>.local" is not stored in the firmware; it is rebuilt at
+    runtime from the device name (see network::get_use_address_to()), which also
+    picks up the MAC suffix when name_add_mac_suffix is enabled. A compile-time
+    string could never include that suffix, so baking it in would log the wrong
+    address.
+    """
+    if use_address != f"{CORE.name}.local":
+        cg.add(var.set_use_address(use_address))
 
 
 def require_high_performance_networking() -> None:
@@ -115,36 +142,41 @@ def validate_ipv6(value: bool) -> bool:
     return value
 
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(NetworkComponent),
-        cv.SplitDefault(
-            CONF_ENABLE_IPV6,
-            bk72xx=False,
-            esp32=False,
-            esp8266=False,
-            host=False,
-            rp2=False,
-            nrf52=True,
-        ): cv.All(
-            cv.boolean,
-            cv.Any(
-                cv.require_framework_version(
-                    bk72xx_arduino=cv.Version(1, 7, 0),
-                    esp_idf=cv.Version(0, 0, 0),
-                    esp32_arduino=cv.Version(0, 0, 0),
-                    esp8266_arduino=cv.Version(0, 0, 0),
-                    host=cv.Version(0, 0, 0),
-                    rp2_arduino=cv.Version(0, 0, 0),
-                    nrf52_zephyr=cv.Version(0, 0, 0),
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(NetworkComponent),
+            cv.SplitDefault(
+                CONF_ENABLE_IPV6,
+                bk72xx=False,
+                esp32=False,
+                esp8266=False,
+                host=False,
+                rp2=False,
+                nrf52=True,
+            ): cv.All(
+                cv.boolean,
+                cv.Any(
+                    cv.require_framework_version(
+                        bk72xx_arduino=cv.Version(1, 7, 0),
+                        esp_idf=cv.Version(0, 0, 0),
+                        esp32_arduino=cv.Version(0, 0, 0),
+                        esp8266_arduino=cv.Version(0, 0, 0),
+                        host=cv.Version(0, 0, 0),
+                        rp2_arduino=cv.Version(0, 0, 0),
+                        nrf52_zephyr=cv.Version(0, 0, 0),
+                    ),
+                    cv.boolean_false,
                 ),
-                cv.boolean_false,
+                validate_ipv6,
             ),
-            validate_ipv6,
-        ),
-        cv.Optional(CONF_MIN_IPV6_ADDR_COUNT, default=0): cv.positive_int,
-        cv.Optional(CONF_ENABLE_HIGH_PERFORMANCE): cv.All(cv.boolean, cv.only_on_esp32),
-    }
+            cv.Optional(CONF_MIN_IPV6_ADDR_COUNT, default=0): cv.positive_int,
+            cv.Optional(CONF_ENABLE_HIGH_PERFORMANCE): cv.All(
+                cv.boolean, cv.only_on_esp32
+            ),
+        }
+    ),
+    _register_provisioning_source,
 )
 
 
