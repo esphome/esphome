@@ -421,10 +421,11 @@ void WebServer::on_log(uint8_t level, const char *tag, const char *message, size
 #endif
 
 void WebServer::dump_config() {
+  char addr_buf[network::USE_ADDRESS_BUFFER_SIZE];
   ESP_LOGCONFIG(TAG,
                 "Web Server:\n"
                 "  Address: %s:%u",
-                network::get_use_address(), this->base_->get_port());
+                network::get_use_address_to(addr_buf), this->base_->get_port());
 }
 float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f; }
 
