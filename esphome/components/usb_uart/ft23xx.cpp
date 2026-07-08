@@ -442,28 +442,28 @@ void USBUartTypeFT23XX::start_input(USBUartChannel *channel) {
         chunk->channel = channel;
         this->usb_data_queue_.push(chunk);
 #ifdef USE_UART_DEBUGGER
-	if (channel->debug_) {
-        	uart::UARTDebug::log_hex(uart::UART_DIRECTION_RX,
-                                 std::vector<uint8_t>(status.data + 2, status.data + 2 + uart_data_len), ',',
-                                 channel->debug_prefix_);
-	}
+        if (channel->debug_) {
+          uart::UARTDebug::log_hex(uart::UART_DIRECTION_RX,
+                                   std::vector<uint8_t>(status.data + 2, status.data + 2 + uart_data_len), ',',
+                                   channel->debug_prefix_);
+        }
 #endif
-      this->enable_loop_soon_any_context();
-      App.wake_loop_threadsafe();
+        this->enable_loop_soon_any_context();
+        App.wake_loop_threadsafe();
+      }
+    } else if (status.data_len >= 2) {
+      ESP_LOGVV(TAG, "RX: Status packet, modem=0x%02X line=0x%02X, ch=%d", status.data[0], status.data[1],
+                channel->index_);
     }
-  } else if (status.data_len >= 2) {
-    ESP_LOGVV(TAG, "RX: Status packet, modem=0x%02X line=0x%02X, ch=%d", status.data[0], status.data[1],
-              channel->index_);
+
+    channel->input_started_.store(false);
+    this->start_input(channel);
+  };
+
+  if (!this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize)) {
+    ESP_LOGE(TAG, "RX transfer submission failed for ep=0x%02X", ep->bEndpointAddress);
+    channel->input_started_.store(false);
   }
-
-  channel->input_started_.store(false);
-  this->start_input(channel);
-};
-
-if (!this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize)) {
-  ESP_LOGE(TAG, "RX transfer submission failed for ep=0x%02X", ep->bEndpointAddress);
-  channel->input_started_.store(false);
-}
 }  // namespace esphome::usb_uart
 
 void USBUartTypeFT23XX::on_rx_overflow(USBUartChannel *channel) {
