@@ -204,6 +204,10 @@ class USBUartComponent : public usb_host::USBClient {
   // USBUartChannel::load_settings()).
   void apply_channel_settings(USBUartChannel *channel);
 
+  // Called from loop() when input_buffer_ has insufficient space for the incoming chunk.
+  // Default is a no-op; override in device-specific subclasses that need resync on overflow.
+  virtual void on_rx_overflow(USBUartChannel *channel) {}
+
   // Lock-free data transfer from USB task to main loop
   static constexpr int USB_DATA_QUEUE_SIZE = 32;
   LockFreeQueue<UsbDataChunk, USB_DATA_QUEUE_SIZE> usb_data_queue_;
@@ -288,6 +292,7 @@ class USBUartTypeFT23XX : public USBUartTypeCdcAcm {
   USBUartTypeFT23XX(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
 
   void start_input(USBUartChannel *channel) override;
+  void on_rx_overflow(USBUartChannel *channel) override;
 
  protected:
   std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
