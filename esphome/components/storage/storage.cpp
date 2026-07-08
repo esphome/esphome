@@ -10,8 +10,9 @@ static const char *const TAG = "storage";
 StorageRegistry *global_storage_registry = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void StorageRegistry::register_storage(Storage *s) {
-  if (s == nullptr)
+  if (s == nullptr) {
     return;
+  }
 
   for (auto *existing : this->storages_) {
     if (existing == s)
@@ -38,10 +39,11 @@ void StorageRegistry::register_storage(Storage *s) {
 }
 
 void StorageRegistry::unregister_storage(Storage *s) {
-  if (s == nullptr)
+  if (s == nullptr) {
     return;
+  }
 
-    bool found = false;
+  bool found = false;
   for (auto *entry : this->storages_) {
     if (entry == s) {
       found = true;
