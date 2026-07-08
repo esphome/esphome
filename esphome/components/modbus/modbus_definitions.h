@@ -29,12 +29,12 @@ enum class ModbusFunctionCode : uint8_t {
   GET_COMM_EVENT_LOG = 0x0C,      // not implemented
   WRITE_MULTIPLE_COILS = 0x0F,
   WRITE_MULTIPLE_REGISTERS = 0x10,
-  REPORT_SERVER_ID = 0x11,               // not implemented
-  READ_FILE_RECORD = 0x14,               // not implemented
-  WRITE_FILE_RECORD = 0x15,              // not implemented
-  MASK_WRITE_REGISTER = 0x16,            // not implemented
-  READ_WRITE_MULTIPLE_REGISTERS = 0x17,  // not implemented
-  READ_FIFO_QUEUE = 0x18,                // not implemented
+  REPORT_SERVER_ID = 0x11,     // not implemented
+  READ_FILE_RECORD = 0x14,     // not implemented
+  WRITE_FILE_RECORD = 0x15,    // not implemented
+  MASK_WRITE_REGISTER = 0x16,  // not implemented
+  READ_WRITE_MULTIPLE_REGISTERS = 0x17,
+  READ_FIFO_QUEUE = 0x18,  // not implemented
 };
 
 /*Allow direct comparison operators between ModbusFunctionCode and uint8_t*/
@@ -74,6 +74,8 @@ enum class ModbusExceptionCode : uint8_t {
 
 // 6.12 16 (0x10) Write Multiple registers:
 static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_WRITE = 123;  // 0x7B
+// 6.17 23 (0x17) Read/Write Multiple registers: max write quantity per the Modbus spec.
+static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_WRITE_RW = 121;  // 0x79
 
 // 6.1 01 (0x01) Read Coils
 // 6.2 02 (0x02) Read Discrete Inputs

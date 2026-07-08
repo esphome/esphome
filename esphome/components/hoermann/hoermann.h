@@ -45,10 +45,9 @@ class Hoermann : public PollingComponent, public modbus::ModbusServerDevice {
   // Modbus server callbacks. The bus controller polls state and pushes commands with READ_WRITE_MULTIPLE_REGISTERS
   // (0x17) and broadcasts status with WRITE_MULTIPLE_REGISTERS (0x10). For 0x17 the hub calls the write half first
   // (which stores the command register), then the read half (which echoes it back from STATE_REG).
-  modbus::ServerResponseStatus on_modbus_write_registers(uint16_t start_address,
-                                                         const modbus::RegisterValues &registers) override;
-  modbus::ServerResponseStatus on_modbus_read_holding_registers(uint16_t start_address, uint16_t number_of_registers,
-                                                                modbus::RegisterValues &registers) override;
+  modbus::ResponseStatus on_write_registers(uint16_t start_address, const modbus::RegisterValues &registers) override;
+  modbus::ResponseStatus on_read_holding_registers(uint16_t start_address, uint16_t number_of_registers,
+                                                   modbus::RegisterValues &registers) override;
 
   // Control functions.
   void open_door();

@@ -45,9 +45,8 @@ void Hoermann::dump_config() {
                 this->get_address(), static_cast<unsigned>(CONNECTION_TIMEOUT_MS));
 }
 
-modbus::ServerResponseStatus Hoermann::on_modbus_read_holding_registers(uint16_t start_address,
-                                                                        uint16_t number_of_registers,
-                                                                        modbus::RegisterValues &registers) {
+modbus::ResponseStatus Hoermann::on_read_holding_registers(uint16_t start_address, uint16_t number_of_registers,
+                                                           modbus::RegisterValues &registers) {
   this->record_response_();
 
   // 0x17 read half: STATE_REG is read back right after COMMAND_REG was written, so echo the stored message
@@ -95,8 +94,7 @@ modbus::ServerResponseStatus Hoermann::on_modbus_read_holding_registers(uint16_t
   return {};
 }
 
-modbus::ServerResponseStatus Hoermann::on_modbus_write_registers(uint16_t start_address,
-                                                                 const modbus::RegisterValues &registers) {
+modbus::ResponseStatus Hoermann::on_write_registers(uint16_t start_address, const modbus::RegisterValues &registers) {
   this->record_response_();
 
   if (start_address == COMMAND_REG) {

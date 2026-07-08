@@ -10,6 +10,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_DISABLE_CRC, CONF_FLOW_CONTROL_PIN, CONF_ID
 from esphome.cpp_helpers import gpio_pin_expression
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -85,15 +86,28 @@ async def to_code(config):
         cg.add(var.set_turnaround_time(config[CONF_TURNAROUND_TIME]))
 
 
+def _validate_server_address(value: ConfigType) -> ConfigType:
+    address = cv.hex_uint8_t(value)
+    # The broadcast address (0) is delivered to every device and is never answered (Modbus 4.1),
+    # so it cannot identify an individual server device.
+    if address == 0:
+        raise cv.Invalid(
+            "Address 0 is the Modbus broadcast address and cannot be used as a "
+            "server device address. Assign a unique unit address (1–247) instead."
+        )
+    return address
+
+
 def modbus_device_schema(default_address, role: Literal["client", "server"] = "client"):
     hub_type = ModbusClient if role == "client" else ModbusServer
+    address_validator = _validate_server_address if role == "server" else cv.hex_uint8_t
     schema = {
         cv.GenerateID(CONF_MODBUS_ID): cv.use_id(hub_type),
     }
     if default_address is None:
-        schema[cv.Required(CONF_ADDRESS)] = cv.hex_uint8_t
+        schema[cv.Required(CONF_ADDRESS)] = address_validator
     else:
-        schema[cv.Optional(CONF_ADDRESS, default=default_address)] = cv.hex_uint8_t
+        schema[cv.Optional(CONF_ADDRESS, default=default_address)] = address_validator
     return cv.Schema(schema)
 
 

@@ -69,7 +69,7 @@ uint16_t client_frame_length(const uint8_t *frame, size_t size) {
     case ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
       // address(1) + function(1) + read start address(2) + read quantity(2) + write start address(2) +
       // write quantity(2) + byte count(1) + data + CRC(2)
-      return 13 + (size > 10 ? std::min(frame[10], uint8_t(MAX_NUM_OF_REGISTERS_TO_WRITE * 2)) : 0);
+      return 13 + (size > 10 ? std::min(frame[10], uint8_t(MAX_NUM_OF_REGISTERS_TO_WRITE_RW * 2)) : 0);
     case ModbusFunctionCode::READ_FIFO_QUEUE:
       // address(1) + function(1) + fifo address(2) CRC(2)
       return 6;

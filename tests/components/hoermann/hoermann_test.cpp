@@ -25,9 +25,9 @@ RegisterValues make_registers(std::initializer_list<uint16_t> values) {
 // An empty poll (write 2 / read 2) answers with the fixed status word 0x0004.
 TEST(HoermannReadWrite, EmptyPollReturnsStatusWord) {
   Hoermann door;
-  EXPECT_FALSE(door.on_modbus_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})).has_value());
+  EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})).has_value());
   RegisterValues response;
-  auto status = door.on_modbus_read_holding_registers(STATE_REG, 2, response);
+  auto status = door.on_read_holding_registers(STATE_REG, 2, response);
   EXPECT_FALSE(status.has_value());
   ASSERT_EQ(response.size(), 2u);
   EXPECT_EQ(response[0], 0x0004);
@@ -37,9 +37,9 @@ TEST(HoermannReadWrite, EmptyPollReturnsStatusWord) {
 // A bus scan (write 3 / read 5) answers with the fixed device identification block.
 TEST(HoermannReadWrite, BusScanReturnsIdentification) {
   Hoermann door;
-  EXPECT_FALSE(door.on_modbus_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000, 0x0000})).has_value());
+  EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000, 0x0000})).has_value());
   RegisterValues response;
-  auto status = door.on_modbus_read_holding_registers(STATE_REG, 5, response);
+  auto status = door.on_read_holding_registers(STATE_REG, 5, response);
   EXPECT_FALSE(status.has_value());
   ASSERT_EQ(response.size(), 5u);
   EXPECT_EQ(response[1], 0x0005);
@@ -51,9 +51,9 @@ TEST(HoermannReadWrite, BusScanReturnsIdentification) {
 // Without a queued command, the command poll (write 2 / read 8) reports idle and no key press.
 TEST(HoermannReadWrite, IdleCommandPollHasNoCommand) {
   Hoermann door;
-  EXPECT_FALSE(door.on_modbus_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})).has_value());
+  EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})).has_value());
   RegisterValues response;
-  auto status = door.on_modbus_read_holding_registers(STATE_REG, 8, response);
+  auto status = door.on_read_holding_registers(STATE_REG, 8, response);
   EXPECT_FALSE(status.has_value());
   ASSERT_EQ(response.size(), 8u);
   EXPECT_EQ(response[1], 0x0001);
@@ -65,9 +65,9 @@ TEST(HoermannReadWrite, IdleCommandPollHasNoCommand) {
 TEST(HoermannReadWrite, QueuedCommandIsInjectedIntoPoll) {
   Hoermann door;
   door.open_door();
-  EXPECT_FALSE(door.on_modbus_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})).has_value());
+  EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})).has_value());
   RegisterValues response;
-  auto status = door.on_modbus_read_holding_registers(STATE_REG, 8, response);
+  auto status = door.on_read_holding_registers(STATE_REG, 8, response);
   EXPECT_FALSE(status.has_value());
   ASSERT_EQ(response.size(), 8u);
   EXPECT_EQ(response[2], 0x0210);  // COMMAND_OPEN "key pressed" value
@@ -78,7 +78,7 @@ TEST(HoermannReadWrite, QueuedCommandIsInjectedIntoPoll) {
 TEST(HoermannWrite, BroadcastUpdatesStateAndPosition) {
   Hoermann door;
   // registers[1] low byte = position (value / 200), registers[2] high byte = state (0x01 -> opening).
-  auto status = door.on_modbus_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0100}));
+  auto status = door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0100}));
   EXPECT_FALSE(status.has_value());
   EXPECT_EQ(door.get_door_state(), DoorState::OPENING);
   EXPECT_FLOAT_EQ(door.get_current_position(), 0.5f);
