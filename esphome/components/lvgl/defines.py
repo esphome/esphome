@@ -673,6 +673,8 @@ LV_CHART_AXES = (
     "PRIMARY_X",
     "SECONDARY_X",
 )
+LV_CHART_TYPE = LvConstant("LV_CHART_TYPE_", *LV_CHART_TYPES)
+LV_CHART_AXIS = LvConstant("LV_CHART_AXIS_", *LV_CHART_AXES)
 
 CONF_ACCEPTED_CHARS = "accepted_chars"
 CONF_ADJUSTABLE = "adjustable"
@@ -691,6 +693,10 @@ CONF_BG_OPA = "bg_opa"
 CONF_BOTTOM_LAYER = "bottom_layer"
 CONF_BUTTON_STYLE = "button_style"
 CONF_DECIMAL_PLACES = "decimal_places"
+CONF_DECIMALS = "decimals"
+CONF_SERIES = "series"
+CONF_Y_AXIS = "y_axis"
+CONF_POINT_RADIUS = "point_radius"
 CONF_COLUMN = "column"
 CONF_DIGITS = "digits"
 CONF_DISP_BG_COLOR = "disp_bg_color"
@@ -774,9 +780,11 @@ CONF_PAGE = "page"
 CONF_PAGE_WRAP = "page_wrap"
 CONF_PASSWORD_MODE = "password_mode"
 CONF_PAUSED = "paused"
+CONF_PERSIST = "persist"
 CONF_PIVOT_X = "pivot_x"
 CONF_PIVOT_Y = "pivot_y"
 CONF_PLACEHOLDER_TEXT = "placeholder_text"
+CONF_POINT_COUNT = "point_count"
 CONF_POINTS = "points"
 CONF_PREVIOUS = "previous"
 CONF_RADIUS = "radius"
