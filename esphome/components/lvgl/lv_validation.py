@@ -422,7 +422,7 @@ class ImageValidator(LValidator):
                 index = await metadata.from_.convert_value(index)
             return mapping_var.get(index)
 
-        return await super().process(value, args)
+        return await super().process(value, args, raw_lambda)
 
 
 lv_image = ImageValidator()
