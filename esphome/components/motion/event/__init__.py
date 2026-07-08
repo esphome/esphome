@@ -1,26 +1,17 @@
-import logging
-
 import esphome.codegen as cg
 from esphome.components import event
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_THRESHOLD, CONF_UPDATE_INTERVAL
-import esphome.final_validate as fv
+from esphome.const import CONF_ID, CONF_THRESHOLD
 
-from .. import CONF_MOTION_ID, MotionComponent, motion_ns
+from .. import CONF_MOTION_ID, MotionComponent, check_update_interval, motion_ns
 
 DEPENDENCIES = ["motion"]
-
-_LOGGER = logging.getLogger(__name__)
 
 MotionEvent = motion_ns.class_("MotionEvent", event.Event, cg.Component)
 
 EVENT_TYPES = ["shake"]
 
 CONF_COOLDOWN = "cooldown"
-
-# Shake detection needs frequent samples to catch the motion pattern; a slower
-# parent update_interval makes shakes likely to be missed between polls.
-MAX_RECOMMENDED_UPDATE_INTERVAL_MS = 100
 
 CONFIG_SCHEMA = (
     event.event_schema(MotionEvent)
@@ -38,18 +29,7 @@ CONFIG_SCHEMA = (
 
 
 def _final_validate(config: dict) -> None:
-    full_config = fv.full_config.get()
-    motion_path = full_config.get_path_for_id(config[CONF_MOTION_ID])[:-1]
-    motion_config = full_config.get_config_for_path(motion_path)
-    update_interval = motion_config[CONF_UPDATE_INTERVAL]
-    if update_interval.total_milliseconds > MAX_RECOMMENDED_UPDATE_INTERVAL_MS:
-        _LOGGER.warning(
-            "Motion component '%s' has update_interval %s, but shake detection "
-            "works best with an update_interval of %dms or less.",
-            config[CONF_MOTION_ID],
-            update_interval,
-            MAX_RECOMMENDED_UPDATE_INTERVAL_MS,
-        )
+    check_update_interval(config[CONF_MOTION_ID], "shake")
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
