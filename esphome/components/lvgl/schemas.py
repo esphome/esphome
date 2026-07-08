@@ -356,6 +356,10 @@ STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).ex
         cv.Optional(CONF_SCROLL_DIR): df.SCROLL_DIRECTIONS.one_of,
         cv.Optional(CONF_SCROLL_SNAP_X): df.SNAP_DIRECTIONS.one_of,
         cv.Optional(CONF_SCROLL_SNAP_Y): df.SNAP_DIRECTIONS.one_of,
+        # Not just for flex/grid layouts: LVGL widgets that lay out children in columns on their
+        # own (e.g. a chart's BAR/STACKED series columns) read these from LV_PART_MAIN too.
+        cv.Optional(df.CONF_PAD_ROW): lvalid.padding,
+        cv.Optional(df.CONF_PAD_COLUMN): lvalid.padding,
     }
 )
 
@@ -372,8 +376,6 @@ FULL_STYLE_SCHEMA = STYLE_SCHEMA.extend(
     {
         cv.Optional(df.CONF_GRID_CELL_X_ALIGN): grid_alignments,
         cv.Optional(df.CONF_GRID_CELL_Y_ALIGN): grid_alignments,
-        cv.Optional(df.CONF_PAD_ROW): lvalid.padding,
-        cv.Optional(df.CONF_PAD_COLUMN): lvalid.padding,
     }
 )
 
