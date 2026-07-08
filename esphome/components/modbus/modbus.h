@@ -108,7 +108,7 @@ class ModbusClientHub : public Modbus {
                                               payload, payload_len),
                    device);
   };
-  void send_pdu(uint8_t address, const StaticVector<uint8_t, MAX_PDU_SIZE> &pdu, ModbusClientDevice *device = nullptr) {
+  void send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr) {
     this->queue_raw_(address, pdu.data(), pdu.size(), device);
   }
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr);
@@ -121,6 +121,10 @@ class ModbusClientHub : public Modbus {
   // Parsers need to handle standard (ModbusFunctionCode) and custom (uint8_t) function codes, so we use uint8_t here.
   void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) override;
   void send_next_frame_();
+  // Notify the waiting device of no response; re-queues the frame if on_modbus_no_response() returns true.
+  // wfr is the caller's checked reference to waiting_for_response_.
+  void notify_no_response_(ModbusDeviceCommand &wfr);
+  void requeue_waiting_frame_(ModbusDeviceCommand &wfr);
   void queue_raw_(uint8_t address, const uint8_t *pdu, uint16_t pdu_len, ModbusClientDevice *device = nullptr);
 
   uint16_t send_wait_time_{2000};
@@ -179,7 +183,10 @@ class ModbusClientDevice {
   virtual void on_modbus_data(const std::vector<uint8_t> &data) {}
   virtual void on_modbus_error(uint8_t function_code, uint8_t exception_code) {}
   virtual void on_modbus_not_sent() {}
-  virtual void on_modbus_no_response() {}
+  /// Called when no (valid) response arrived; return true to have the hub re-queue the frame for a retry.
+  /// The hub does not bound retries: the device is responsible for limiting them (e.g. track a counter and
+  /// return false when exhausted), or an unresponsive peer will starve other traffic on the bus.
+  virtual bool on_modbus_no_response() { return false; }
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
             const uint8_t *payload = nullptr) {
     this->parent_->send_pdu(this->address_,
@@ -187,7 +194,7 @@ class ModbusClientDevice {
                                                        payload, payload_len),
                             this);
   }
-  void send_pdu(const StaticVector<uint8_t, MAX_PDU_SIZE> &pdu) { this->parent_->send_pdu(this->address_, pdu, this); }
+  void send_pdu(std::span<const uint8_t> pdu) { this->parent_->send_pdu(this->address_, pdu, this); }
   void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload, this); }
   inline void clear_tx_queue_for_address(bool clear_sent = true) {
     this->parent_->clear_tx_queue_for_address(this->address_, clear_sent);
