@@ -1,7 +1,7 @@
+<<: !include common.yaml
+
 network:
   enable_ipv6: true
 
 openthread:
   tlv: 0E080000000000010000
-
-api:
