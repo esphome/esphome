@@ -4,7 +4,7 @@ import logging
 from esphome import automation, pins
 from esphome.automation import Condition
 import esphome.codegen as cg
-from esphome.components.network import ip_address_literal
+from esphome.components.network import add_use_address, ip_address_literal
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -543,7 +543,7 @@ async def to_code(config):
         await _to_code_rp2040(var, config)
 
     cg.add(var.set_type(ETHERNET_TYPES[config[CONF_TYPE]]))
-    cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
+    add_use_address(var, config[CONF_USE_ADDRESS])
     # enable_on_boot defaults to true in C++ - only set if false
     if not config[CONF_ENABLE_ON_BOOT]:
         cg.add(var.set_enable_on_boot(False))

@@ -112,6 +112,23 @@ CONF_MAX_SEND_QUEUE = "max_send_queue"
 CONF_STATE_SUBSCRIPTION_ONLY = "state_subscription_only"
 
 
+def _register_provisioning_source(config: ConfigType) -> ConfigType:
+    """Register the API as a provisioning source when encryption is enabled.
+
+    With no ``key`` the device boots unprovisioned and is set up on first
+    connection; a YAML ``key`` means it is born provisioned. Either way the API
+    drives the provisioning manager, so it counts as a source for `provisioning:`.
+    A hardcoded ``key`` is reported so `provisioning:` can warn about it.
+    """
+    if (encryption := config.get(CONF_ENCRYPTION)) is not None:
+        from esphome.components import provisioning
+
+        provisioning.register_source("api")
+        if CONF_KEY in encryption:
+            provisioning.report_hardcoded_credentials("api")
+    return config
+
+
 def validate_encryption_key(value):
     value = cv.string_strict(value)
     try:
@@ -337,6 +354,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
     _consume_api_sockets,
+    _register_provisioning_source,
 )
 
 
