@@ -197,7 +197,6 @@ class USBUartComponent : public usb_host::USBClient {
 
   virtual void start_input(USBUartChannel *channel);
   void start_output(USBUartChannel *channel);
-  virtual void on_rx_overflow(USBUartChannel *channel) {}
 
   // Begin configuring all channels (full initialisation). Called from on_connected().
   virtual void enable_channels();
