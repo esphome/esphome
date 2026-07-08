@@ -25,7 +25,7 @@ bool parse_ruuvi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data_
 
 optional<RuuviParseResult> parse_ruuvi(const esp32_ble_tracker::ESPBTDevice &device);
 
-class RuuviListener : public esp32_ble_tracker::ESPBTDeviceListener {
+class RuuviListener final : public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
 };

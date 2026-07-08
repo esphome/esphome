@@ -10,9 +10,9 @@
 
 namespace esphome::xiaomi_mjyd02yla {
 
-class XiaomiMJYD02YLA : public Component,
-                        public binary_sensor::BinarySensorInitiallyOff,
-                        public esp32_ble_tracker::ESPBTDeviceListener {
+class XiaomiMJYD02YLA final : public Component,
+                              public binary_sensor::BinarySensorInitiallyOff,
+                              public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; }
   void set_bindkey(const char *bindkey);

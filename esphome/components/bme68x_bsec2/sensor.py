@@ -1,5 +1,10 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import (
+    CONF_BREATH_VOC_EQUIVALENT,
+    CONF_CO2_EQUIVALENT,
+    CONF_IAQ,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_GAS_RESISTANCE,
@@ -29,9 +34,6 @@ from . import CONF_BME68X_BSEC2_ID, SAMPLE_RATE_OPTIONS, BME68xBSEC2Component
 
 DEPENDENCIES = ["bme68x_bsec2"]
 
-CONF_BREATH_VOC_EQUIVALENT = "breath_voc_equivalent"
-CONF_CO2_EQUIVALENT = "co2_equivalent"
-CONF_IAQ = "iaq"
 CONF_IAQ_STATIC = "iaq_static"
 ICON_ACCURACY = "mdi:checkbox-marked-circle-outline"
 UNIT_IAQ = "IAQ"
