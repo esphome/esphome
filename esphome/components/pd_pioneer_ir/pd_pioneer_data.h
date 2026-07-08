@@ -8,8 +8,6 @@ namespace pd_pioneer_ir {
 
 const uint8_t PDPIONEER_TEMPC_MIN = 16;
 const uint8_t PDPIONEER_TEMPC_MAX = 31;
-const uint8_t PDPIONEER_TEMPF_MIN = 61;
-const uint8_t PDPIONEER_TEMPF_MAX = 88;
 
 using climate::ClimateMode;
 using climate::ClimateFanMode;
@@ -19,8 +17,8 @@ class ControlData {
  public:
   ControlData();
 
-  void set_temp(float temp, bool fahrenheit);
-  float get_temp(bool fahrenheit) const;
+  void set_temp(float temp_c);
+  float get_temp() const;
 
   void set_mode(ClimateMode mode);
   ClimateMode get_mode() const;
@@ -63,12 +61,10 @@ class ControlData {
   bool get_power_() const;
 
   void set_fan_from_odd_(uint8_t byte5, uint8_t byte6);
-  void set_fan_from_even_(uint8_t byte8);
   void sync_even_fan_byte_();
 
   PDPioneerData odd_;
   PDPioneerData even_;
-  bool powered_{true};
 };
 
 }  // namespace pd_pioneer_ir

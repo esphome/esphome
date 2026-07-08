@@ -5,7 +5,6 @@ from esphome.const import CONF_USE_FAHRENHEIT
 
 AUTO_LOAD = ["climate_ir"]
 CODEOWNERS = ["@martinsah"]
-DEPENDENCIES = ["remote_transmitter"]
 
 pd_pioneer_ir_ns = cg.esphome_ns.namespace("pd_pioneer_ir")
 PDPioneerIR = pd_pioneer_ir_ns.class_("PDPioneerIR", climate_ir.ClimateIR)

@@ -20,16 +20,12 @@ void ControlData::finalize() {
   this->even_.finalize();
 }
 
-void ControlData::set_power_(bool on) {
-  this->powered_ = on;
-  this->even_[5] = on ? PWR_ON : PWR_OFF;
-}
+void ControlData::set_power_(bool on) { this->even_[5] = on ? PWR_ON : PWR_OFF; }
 
 bool ControlData::get_power_() const { return this->even_[5] != PWR_OFF; }
 
-void ControlData::set_temp(float temp_c, bool fahrenheit) {
-  (void) fahrenheit;
-  // Protocol encodes temperature as code = 31.75 - °C (see temperature_decoding_spreadsheet.ods).
+void ControlData::set_temp(float temp_c) {
+  // Protocol encodes temperature as code = 31.75 - °C.
   // even_[7] = floor(code); even_[12] bit 2 set when fractional part of code is < 0.5.
   temp_c = clamp(temp_c, static_cast<float>(PDPIONEER_TEMPC_MIN), static_cast<float>(PDPIONEER_TEMPC_MAX));
   const float code = 31.75f - temp_c;
@@ -39,8 +35,7 @@ void ControlData::set_temp(float temp_c, bool fahrenheit) {
   this->even_[12] = static_cast<uint8_t>(0x80 | ((frac < 0.5f) ? 0x04 : 0x00));
 }
 
-float ControlData::get_temp(bool fahrenheit) const {
-  (void) fahrenheit;
+float ControlData::get_temp() const {
   if (!this->get_power_())
     return fahrenheit_to_celsius(72.0f);
 
@@ -102,8 +97,6 @@ void ControlData::set_fan_from_odd_(uint8_t byte5, uint8_t byte6) {
   this->odd_[5] = byte5;
   this->odd_[6] = byte6;
 }
-
-void ControlData::set_fan_from_even_(uint8_t byte8) { this->even_[8] = byte8; }
 
 void ControlData::sync_even_fan_byte_() {
   const uint8_t b6 = this->odd_[6];
@@ -199,7 +192,6 @@ void ControlData::apply_odd(const PDPioneerData &data) {
 void ControlData::apply_even(const PDPioneerData &data) {
   for (uint8_t i = 0; i < PDPioneerData::DATA_LEN; i++)
     this->even_[i] = data[i];
-  this->powered_ = this->get_power_();
 }
 
 }  // namespace pd_pioneer_ir

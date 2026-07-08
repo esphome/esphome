@@ -60,7 +60,7 @@ void PDPioneerIR::transmit_state() {
   if (this->eco_) {
     const bool enable = this->preset != climate::CLIMATE_PRESET_ECO;
     if (this->mode != climate::CLIMATE_MODE_OFF && this->mode != climate::CLIMATE_MODE_FAN_ONLY)
-      data.set_temp(this->target_temperature, this->fahrenheit_);
+      data.set_temp(this->target_temperature);
     data.set_fan_mode(this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO));
     data.set_swing_mode(this->swing_mode);
     data.set_eco(enable);
@@ -72,7 +72,7 @@ void PDPioneerIR::transmit_state() {
   }
 
   if (this->mode != climate::CLIMATE_MODE_FAN_ONLY)
-    data.set_temp(this->target_temperature, this->fahrenheit_);
+    data.set_temp(this->target_temperature);
   // Fan first, then swing — vertical swing ORs into even byte 8 after fan encoding.
   data.set_fan_mode(this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO));
   data.set_swing_mode(this->swing_mode);
@@ -96,7 +96,7 @@ bool PDPioneerIR::apply_frame_(const remote_base::PDPioneerData &frame) {
     this->rx_odd_pending_ = false;
 
     if (this->rx_state_.get_mode() != climate::CLIMATE_MODE_FAN_ONLY)
-      this->target_temperature = this->rx_state_.get_temp(this->fahrenheit_);
+      this->target_temperature = this->rx_state_.get_temp();
     this->mode = this->rx_state_.get_mode();
     this->fan_mode = this->rx_state_.get_fan_mode();
     this->swing_mode = this->rx_state_.get_swing_mode();

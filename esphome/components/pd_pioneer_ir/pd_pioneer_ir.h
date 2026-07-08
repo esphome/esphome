@@ -20,10 +20,7 @@ class PDPioneerIR : public climate_ir::ClimateIR {
   void setup() override;
   climate::ClimateTraits traits() override;
 
-  void set_fahrenheit(bool value) {
-    this->fahrenheit_ = value;
-    this->temperature_step_ = value ? 0.5f : 1.0f;
-  }
+  void set_fahrenheit(bool value) { this->temperature_step_ = value ? 0.5f : 1.0f; }
 
  protected:
   void transmit_state() override;
@@ -32,7 +29,6 @@ class PDPioneerIR : public climate_ir::ClimateIR {
   bool on_receive(remote_base::RemoteReceiveData data) override;
   bool apply_frame_(const remote_base::PDPioneerData &frame);
 
-  bool fahrenheit_{false};
   bool eco_{false};
   ControlData rx_state_;
   bool rx_odd_pending_{false};
