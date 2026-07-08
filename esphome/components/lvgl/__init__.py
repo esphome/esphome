@@ -52,9 +52,11 @@ from esphome.writer import clean_build
 from esphome.yaml_util import load_yaml
 
 from . import defines as df, lv_validation as lvalid, widgets
+from .animation import ANIMATION_SCHEMA, add_animation_triggers, animations_to_code
 from .automation import layers_to_code, lvgl_update
 from .defines import (
     CONF_ALIGN_TO_LAMBDA_ID,
+    CONF_ANIMATIONS,
     LOGGER,
     add_lv_use,
     get_focused_widgets,
@@ -435,7 +437,8 @@ async def to_code(configs):
             await layers_to_code(lv_component, config)
             await lvgl_update(lv_component, config)
             await msgboxes_to_code(lv_component, config)
-            # await disp_update(lv_component.get_disp(), config)
+            await animations_to_code(config.get(CONF_ANIMATIONS, []))
+
     # Mark all widgets as completed so awaiters of ``wait_for_widgets`` proceed.
     set_widgets_completed(True)
     async with LvContext():
@@ -443,6 +446,7 @@ async def to_code(configs):
         await generate_align_tos(configs[0])
         for config in configs:
             lv_component = await cg.get_variable(config[CONF_ID])
+            await add_animation_triggers(config.get(CONF_ANIMATIONS, []))
             await generate_page_triggers(config)
             await initial_focus_to_code(config)
             for conf in config.get(CONF_ON_IDLE, ()):
@@ -636,6 +640,7 @@ LVGL_TOP_LEVEL_SCHEMA = (
                 for x in SIMPLE_TRIGGERS
             },
             cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
+            cv.Optional(df.CONF_ANIMATIONS): cv.ensure_list(ANIMATION_SCHEMA),
             cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
             cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
             cv.Optional(df.CONF_BOTTOM_LAYER): container_schema(obj_spec),

@@ -214,11 +214,14 @@ class LValidator:
     has `process()` to convert a value during code generation
     """
 
-    def __init__(self, validator, rtype: MockObj, retmapper=None, requires=None):
+    def __init__(
+        self, validator, rtype: MockObj, retmapper=None, requires=None, animatable=False
+    ):
         self.validator = validator
         self.rtype = rtype
         self.retmapper = retmapper
         self.requires = requires
+        self.animatable = animatable
 
     def __call__(self, value):
         if self.requires:
@@ -228,7 +231,10 @@ class LValidator:
         return self.validator(value)
 
     async def process(
-        self, value: Any, args: list[tuple[SafeExpType, str]] | None = None
+        self,
+        value: Any,
+        args: list[tuple[SafeExpType, str]] | None = None,
+        raw_lambda: bool = False,
     ) -> Expression:
         if value is None:
             return None
@@ -236,11 +242,15 @@ class LValidator:
             # Local import to avoid circular import
             from .lvcode import get_lambda_context_args
 
-            args = args or get_lambda_context_args()
+            # `args is None` means "inherit the enclosing lambda context"; an explicit
+            # empty list means "no parameters" and must be preserved as-is.
+            if args is None:
+                args = get_lambda_context_args()
 
-            return call_lambda(
-                await cg.process_lambda(value, args, return_type=self.rtype)
-            )
+            lamb = await cg.process_lambda(value, args, return_type=self.rtype)
+            if raw_lambda:
+                return lamb
+            return call_lambda(lamb)
         if self.retmapper is not None:
             return self.retmapper(value)
         if isinstance(value, ID):
@@ -751,6 +761,7 @@ CONF_ON_DRAW_END = "on_draw_end"
 CONF_ON_PAUSE = "on_pause"
 CONF_ON_RESUME = "on_resume"
 CONF_ON_SELECT = "on_select"
+CONF_ON_STOP = "on_stop"
 CONF_OPA = "opa"
 CONF_NEXT = "next"
 CONF_PAD_ROW = "pad_row"
