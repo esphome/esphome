@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 from esphome import config_validation as cv
@@ -9,6 +11,7 @@ from esphome.components.provisioning import (
     CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA,
     register_source,
+    report_hardcoded_credentials,
 )
 from esphome.const import CONF_TIMEOUT, PlatformFramework
 from tests.component_tests.types import SetCoreConfigCallable
@@ -35,6 +38,32 @@ def test_provisioning_accepts_a_registered_source(
     register_source("network")
     # Should not raise.
     assert FINAL_VALIDATE_SCHEMA({}) == {}
+
+
+def test_provisioning_warns_on_hardcoded_credentials(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A source with credentials set in the config triggers a warning."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    register_source("network")
+    report_hardcoded_credentials("wifi")
+    with caplog.at_level(logging.WARNING):
+        assert FINAL_VALIDATE_SCHEMA({}) == {}
+    assert "wifi" in caplog.text
+    assert "credentials" in caplog.text
+
+
+def test_provisioning_no_warning_without_hardcoded_credentials(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """No credentials warning when no source reports hardcoded credentials."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    register_source("network")
+    with caplog.at_level(logging.WARNING):
+        assert FINAL_VALIDATE_SCHEMA({}) == {}
+    assert "credentials" not in caplog.text
 
 
 def test_provisioning_rejects_zero_timeout(

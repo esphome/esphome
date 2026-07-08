@@ -118,11 +118,14 @@ def _register_provisioning_source(config: ConfigType) -> ConfigType:
     With no ``key`` the device boots unprovisioned and is set up on first
     connection; a YAML ``key`` means it is born provisioned. Either way the API
     drives the provisioning manager, so it counts as a source for `provisioning:`.
+    A hardcoded ``key`` is reported so `provisioning:` can warn about it.
     """
-    if CONF_ENCRYPTION in config:
+    if (encryption := config.get(CONF_ENCRYPTION)) is not None:
         from esphome.components import provisioning
 
         provisioning.register_source("api")
+        if CONF_KEY in encryption:
+            provisioning.report_hardcoded_credentials("api")
     return config
 
 
