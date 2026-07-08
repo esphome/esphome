@@ -498,9 +498,14 @@ optional<float> RHCorrectionFilter::new_value(float value) {
   if (!this->temperature_sensor_->has_state()) {
     ESP_LOGVV(TAG, "RHCorrectionFilter(%p): no temp available.", this);
     return value;
-  }  
+  }
+  float offset = this->temperature_offset_.value();
+  if (!std::isfinite(offset)) {
+    ESP_LOGW(TAG, "RHCorrectionFilter(%p): Invalid temperature offset: %f");
+    return value;
+  } 
   float tc = this->temperature_sensor_->get_state();
-  float tnc = tc - this->temperature_offset_.value();
+  float tnc = tc - offset;
   if (this->use_fahrenheit_) {
     // The formula described above only works with °C
     // so we need to convert the temperatures if they are in °F
