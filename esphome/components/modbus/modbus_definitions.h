@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::modbus {
 
@@ -28,12 +29,12 @@ enum class ModbusFunctionCode : uint8_t {
   GET_COMM_EVENT_LOG = 0x0C,      // not implemented
   WRITE_MULTIPLE_COILS = 0x0F,
   WRITE_MULTIPLE_REGISTERS = 0x10,
-  REPORT_SERVER_ID = 0x11,     // not implemented
-  READ_FILE_RECORD = 0x14,     // not implemented
-  WRITE_FILE_RECORD = 0x15,    // not implemented
-  MASK_WRITE_REGISTER = 0x16,  // not implemented
-  READ_WRITE_MULTIPLE_REGISTERS = 0x17,
-  READ_FIFO_QUEUE = 0x18,  // not implemented
+  REPORT_SERVER_ID = 0x11,               // not implemented
+  READ_FILE_RECORD = 0x14,               // not implemented
+  WRITE_FILE_RECORD = 0x15,              // not implemented
+  MASK_WRITE_REGISTER = 0x16,            // not implemented
+  READ_WRITE_MULTIPLE_REGISTERS = 0x17,  // not implemented
+  READ_FIFO_QUEUE = 0x18,                // not implemented
 };
 
 /*Allow direct comparison operators between ModbusFunctionCode and uint8_t*/
@@ -48,7 +49,11 @@ enum class ModbusRegisterType : uint8_t {
   COIL = 0x01,
   DISCRETE_INPUT = 0x02,
   HOLDING = 0x03,
-  READ = 0x04,
+  // Named INPUT_REGISTER (not INPUT) because Arduino cores define INPUT as a macro.
+  INPUT_REGISTER = 0x04,
+  // Remove before 2027.2.0
+  READ ESPDEPRECATED("Use ModbusRegisterType::INPUT_REGISTER instead. Removed in 2027.2.0", "2026.7.0") =
+      INPUT_REGISTER,
 };
 
 // 7 MODBUS Exception Responses:
@@ -77,14 +82,12 @@ static constexpr uint16_t MAX_NUM_OF_DISCRETE_INPUTS_TO_READ = 2000;  // 0x7D0
 
 // 6.3 03 (0x03) Read Holding Registers
 // 6.4 04 (0x04) Read Input Registers
-static constexpr uint8_t MAX_NUM_OF_REGISTERS_TO_READ = 125;  // 0x7D
+static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_READ = 125;  // 0x7D
 
 // Smallest possible frame is 4 bytes (custom function with no data): address(1) + function(1) + CRC(2)
 static constexpr uint16_t MIN_FRAME_SIZE = 4;
 static constexpr uint16_t MAX_PDU_SIZE = 253;  // Max PDU size is 256 - address(1) - CRC(2) = 253
-// 6.17 23 (0x17) Read/Write Multiple registers: max write quantity per the Modbus spec.
-static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_WRITE_RW = 121;  // 0x79
-static constexpr uint16_t MAX_RAW_SIZE = 254;                      // Max RAW size is 256 - CRC(2) = 254
+static constexpr uint16_t MAX_RAW_SIZE = 254;  // Max RAW size is 256 - CRC(2) = 254
 static constexpr uint16_t MAX_FRAME_SIZE = 256;
 /// End of Modbus definitions
 }  // namespace esphome::modbus

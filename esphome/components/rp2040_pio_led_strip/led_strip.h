@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
 
 #include "esphome/core/color.h"
 #include "esphome/core/component.h"
@@ -128,4 +128,4 @@ class RP2040PIOLEDStripLightOutput final : public light::AddressableLight {
 
 }  // namespace esphome::rp2040_pio_led_strip
 
-#endif  // USE_RP2040
+#endif  // USE_RP2

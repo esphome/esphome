@@ -6,7 +6,7 @@
 
 namespace esphome::uponor_smatrix {
 
-class UponorSmatrixClimate : public climate::Climate, public Component, public UponorSmatrixDevice {
+class UponorSmatrixClimate final : public climate::Climate, public Component, public UponorSmatrixDevice {
  public:
   void dump_config() override;
   void loop() override;
