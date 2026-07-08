@@ -5,45 +5,34 @@ from __future__ import annotations
 import pytest
 
 from esphome import config_validation as cv
-
-# Importing the api and network components registers their provisioning-source
-# detectors at import time (module-level register_provisioning_source calls), which
-# these tests rely on.
-from esphome.components.api import CONF_ENCRYPTION
-import esphome.components.network  # noqa: F401
-from esphome.components.provisioning import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
-from esphome.const import CONF_ESPHOME, CONF_TIMEOUT, PlatformFramework
+from esphome.components.provisioning import (
+    CONFIG_SCHEMA,
+    FINAL_VALIDATE_SCHEMA,
+    register_source,
+)
+from esphome.const import CONF_TIMEOUT, PlatformFramework
 from tests.component_tests.types import SetCoreConfigCallable
 
 
 def test_provisioning_requires_a_source(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    """Provisioning with no provisioning-capable component is a config error."""
-    set_core_config(PlatformFramework.ESP32_IDF, full_config={CONF_ESPHOME: {}})
+    """Provisioning with no registered source is a config error.
+
+    Sources register themselves during their own config validation; with none
+    registered the window could never resolve, so validation fails.
+    """
+    set_core_config(PlatformFramework.ESP32_IDF)
     with pytest.raises(cv.Invalid, match="provisioning-capable component"):
         FINAL_VALIDATE_SCHEMA({})
 
 
-def test_provisioning_accepts_api_encryption_source(
+def test_provisioning_accepts_a_registered_source(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    """API with encryption enabled is a valid provisioning source."""
-    set_core_config(
-        PlatformFramework.ESP32_IDF, full_config={"api": {CONF_ENCRYPTION: {}}}
-    )
-    # Should not raise.
-    assert FINAL_VALIDATE_SCHEMA({}) == {}
-
-
-def test_provisioning_accepts_network_source(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    """A network interface alone (no api) is a valid provisioning source.
-
-    Covers the Improv-only / no-api device: connectivity satisfies provisioning.
-    """
-    set_core_config(PlatformFramework.ESP32_IDF, full_config={"network": {}})
+    """A component that registered as a provisioning source satisfies validation."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    register_source("network")
     # Should not raise.
     assert FINAL_VALIDATE_SCHEMA({}) == {}
 

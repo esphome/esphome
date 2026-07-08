@@ -1,32 +1,42 @@
-from collections.abc import Callable
+from dataclasses import dataclass, field
 
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ON_TIMEOUT, CONF_TIMEOUT
-import esphome.final_validate as fv
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "provisioning"
 
 provisioning_ns = cg.esphome_ns.namespace("provisioning")
 ProvisioningManager = provisioning_ns.class_("ProvisioningManager", cg.Component)
 
-# Detectors that report whether the full config provides a provisioning-capable
-# source (a transport that boots unprovisioned and is set up by the controller on
-# first connection). Provisioning-capable components register a detector at import
-# time so `provisioning:` can validate at least one is present, without this
-# component needing to know about any specific transport.
-_PROVISIONING_SOURCE_DETECTORS: list[Callable[[ConfigType], bool]] = []
+
+@dataclass
+class ProvisioningData:
+    # Names of the components that registered as a provisioning source this run.
+    sources: set[str] = field(default_factory=set)
 
 
-def register_provisioning_source(detector: Callable[[ConfigType], bool]) -> None:
-    """Register a detector that reports whether the config provides a provisioning source.
+def _get_data() -> ProvisioningData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = ProvisioningData()
+    return CORE.data[DOMAIN]
 
-    The detector receives the full validated config and returns True when its
-    component is configured in a provisioning-capable way.
+
+def register_source(name: str) -> None:
+    """Record that ``name`` is a provisioning source for this configuration.
+
+    A provisioning-capable component (a transport that boots unprovisioned and is
+    set up by the controller on first connection, or a network interface that
+    provisions once connected) calls this while its own config is being processed,
+    typically from a schema validator. `provisioning:` then confirms at least one
+    source is present without inspecting the full config or knowing about any
+    specific component. State lives in CORE.data, which is cleared between runs.
     """
-    _PROVISIONING_SOURCE_DETECTORS.append(detector)
+    _get_data().sources.add(name)
 
 
 CONFIG_SCHEMA = cv.Schema(
@@ -41,9 +51,12 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 def _validate_has_source(config: ConfigType) -> ConfigType:
-    """Require at least one provisioning-capable component when provisioning is used."""
-    full_config = fv.full_config.get()
-    if any(detector(full_config) for detector in _PROVISIONING_SOURCE_DETECTORS):
+    """Require at least one provisioning-capable component when provisioning is used.
+
+    Sources register during their own config validation, so by final validation the
+    set is complete.
+    """
+    if _get_data().sources:
         return config
     raise cv.Invalid(
         "'provisioning' requires at least one provisioning-capable component: "

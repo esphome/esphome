@@ -5,7 +5,6 @@ from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.logger import request_log_listener
-from esphome.components.provisioning import register_provisioning_source
 from esphome.config_helpers import get_logger_level
 import esphome.config_validation as cv
 from esphome.const import (
@@ -113,18 +112,18 @@ CONF_MAX_SEND_QUEUE = "max_send_queue"
 CONF_STATE_SUBSCRIPTION_ONLY = "state_subscription_only"
 
 
-def _is_provisioning_source(full_config: ConfigType) -> bool:
-    """The API is a provisioning source when encryption is enabled.
+def _register_provisioning_source(config: ConfigType) -> ConfigType:
+    """Register the API as a provisioning source when encryption is enabled.
 
     With no ``key`` the device boots unprovisioned and is set up on first
     connection; a YAML ``key`` means it is born provisioned. Either way the API
-    registers with the provisioning manager, so `esphome: provisioning:` is valid.
+    drives the provisioning manager, so it counts as a source for `provisioning:`.
     """
-    api_config = full_config.get(DOMAIN)
-    return api_config is not None and CONF_ENCRYPTION in api_config
+    if CONF_ENCRYPTION in config:
+        from esphome.components import provisioning
 
-
-register_provisioning_source(_is_provisioning_source)
+        provisioning.register_source("api")
+    return config
 
 
 def validate_encryption_key(value):
@@ -352,6 +351,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
     _consume_api_sockets,
+    _register_provisioning_source,
 )
 
 
