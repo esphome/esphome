@@ -3,8 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace esphome {
-namespace climate_ir_siemens_ira211 {
+namespace esphome::climate_ir_siemens_ira211 {
 
 using namespace remote_base;
 
@@ -192,5 +191,4 @@ bool SiemensIRA211Climate::on_receive(RemoteReceiveData data) {
   return true;
 }
 
-}  // namespace climate_ir_siemens_ira211
-}  // namespace esphome
+}  // namespace esphome::climate_ir_siemens_ira211

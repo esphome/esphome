@@ -3,8 +3,7 @@
 #include "esphome/components/climate_ir/climate_ir.h"
 #include "esphome/components/remote_base/ira211_protocol.h"
 
-namespace esphome {
-namespace climate_ir_siemens_ira211 {
+namespace esphome::climate_ir_siemens_ira211 {
 
 class SiemensIRA211Climate : public climate_ir::ClimateIR {
  public:
@@ -30,5 +29,4 @@ class SiemensIRA211Climate : public climate_ir::ClimateIR {
   bool is_on_{false};
 };
 
-}  // namespace climate_ir_siemens_ira211
-}  // namespace esphome
+}  // namespace esphome::climate_ir_siemens_ira211

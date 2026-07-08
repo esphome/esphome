@@ -5,8 +5,7 @@
 #include <array>
 #include <vector>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 // Commands (decoded values)
 enum class IRA211Command : uint8_t {
@@ -358,5 +357,4 @@ template<typename... Ts> class IRA211Action : public RemoteTransmitterActionBase
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base
