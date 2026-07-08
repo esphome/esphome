@@ -75,6 +75,35 @@ ep_configs: dict[str, dict[str, Any]] = {
             },
         ],
     },
+    "binary_output": {
+        DEVICE_TYPE: "CUSTOM_ATTR",
+        CONF_CLUSTERS: [
+            {
+                CONF_ID: "BINARY_OUTPUT",
+                ROLE: CLUSTER_ROLE["SERVER"],
+                CONF_ATTRIBUTES: [
+                    {
+                        CONF_ATTRIBUTE_ID: 0x0055,
+                        CONF_TYPE: "BOOL",
+                        CONF_REPORT: REPORT["default"],
+                        CONF_DEVICE: None,
+                    },
+                    {
+                        CONF_ATTRIBUTE_ID: 0x0051,
+                        CONF_TYPE: "BOOL",
+                    },
+                    {
+                        CONF_ATTRIBUTE_ID: 0x006F,
+                        CONF_TYPE: "MAP8",
+                    },
+                    {
+                        CONF_ATTRIBUTE_ID: 0x001C,
+                        CONF_TYPE: "STRING",
+                    },
+                ],
+            },
+        ],
+    },
     "on_off": {
         DEVICE_TYPE: "ON_OFF_OUTPUT",
         CONF_CLUSTERS: [

@@ -24,6 +24,7 @@ cluster_id = cg.esphome_ns.enum("ezb_zcl_cluster_id_e")
 CLUSTER_ID = {
     "BASIC": cluster_id.EZB_ZCL_CLUSTER_ID_BASIC,
     "BINARY_INPUT": cluster_id.EZB_ZCL_CLUSTER_ID_BINARY_INPUT,
+    "BINARY_OUTPUT": cluster_id.EZB_ZCL_CLUSTER_ID_BINARY_OUTPUT,
     "ANALOG_INPUT": cluster_id.EZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
     "ON_OFF": 0x0006,
 }

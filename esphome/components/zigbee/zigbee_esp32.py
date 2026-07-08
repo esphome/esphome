@@ -47,6 +47,7 @@ from .const_esp32 import (
     CLUSTER_ID,
     CONF_ATTRIBUTE_ID,
     CONF_ATTRIBUTES,
+    CONF_CLUSTER,
     CONF_CLUSTERS,
     CONF_NUM,
     DEVICE_ID,
@@ -216,7 +217,8 @@ def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
 
 
 def validate_switch_esp32(config: ConfigType) -> ConfigType:
-    ep = copy.deepcopy(ep_configs["on_off"])
+    cluster = config.get(CONF_CLUSTER, "binary_output")
+    ep = copy.deepcopy(ep_configs["on_off" if cluster == "on_off" else "binary_output"])
     setup_attributes(config, ep[CONF_CLUSTERS])
     zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
     switch_ep: list[dict] = zb_data.setdefault(KEY_SWITCH_EP, [])

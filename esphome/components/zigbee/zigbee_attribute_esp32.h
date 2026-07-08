@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <type_traits>
 
 #include "esphome/core/automation.h"
@@ -76,10 +77,13 @@ class ZigbeeAttribute final : public Component {
   void *value_p_{nullptr};
   bool set_attr_requested_{false};
   bool force_report_{false};
-  volatile bool has_pending_write_{false};
-  uint8_t pending_value_{0};
+  // std::atomic<uint8_t> over std::atomic<bool> because GCC on Xtensa generates
+  // an indirect function call for atomic<bool>::load() instead of inlining it.
+  std::atomic<uint8_t> has_pending_write_{0};
+  std::atomic<uint8_t> pending_value_{0};
 #ifdef USE_SWITCH
   switch_::Switch *switch_{nullptr};
+  bool suppress_local_write_{false};
 #endif
 };
 
@@ -111,7 +115,11 @@ template<typename T> void ZigbeeAttribute::connect(binary_sensor::BinarySensor *
 #ifdef USE_SWITCH
 template<typename T> void ZigbeeAttribute::connect(switch_::Switch *sw) {
   this->switch_ = sw;
-  sw->add_on_state_callback([this](bool value) { this->set_attr((T) value); });
+  sw->add_on_state_callback([this](bool value) {
+    if (!this->suppress_local_write_) {
+      this->set_attr((T) value);
+    }
+  });
 }
 #endif
 

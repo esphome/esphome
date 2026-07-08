@@ -81,23 +81,25 @@ void ZigbeeAttribute::set_report(ZigbeeReportT report) {
 }
 
 void ZigbeeAttribute::write_from_coordinator(uint8_t value) {
-  this->pending_value_ = value;
-  this->has_pending_write_ = true;
+  this->pending_value_.store(value, std::memory_order_release);
+  this->has_pending_write_.store(1, std::memory_order_release);
   this->enable_loop_soon_any_context();
 }
 
 void ZigbeeAttribute::process_write() {
 #ifdef USE_SWITCH
   if (this->switch_ != nullptr) {
-    bool state = this->pending_value_ != 0;
+    uint8_t raw = this->pending_value_.load(std::memory_order_relaxed);
+    bool state = raw != 0;
+    this->suppress_local_write_ = true;
     if (state) {
       this->switch_->turn_on();
     } else {
       this->switch_->turn_off();
     }
+    this->suppress_local_write_ = false;
   }
 #endif
-  this->has_pending_write_ = false;
 }
 
 void ZigbeeAttribute::loop() {
@@ -105,11 +107,11 @@ void ZigbeeAttribute::loop() {
     this->set_attr_();
   }
 
-  if (this->has_pending_write_) {
+  if (this->has_pending_write_.exchange(0, std::memory_order_acquire)) {
     this->process_write();
   }
 
-  if (!this->set_attr_requested_ && !this->has_pending_write_) {
+  if (!this->set_attr_requested_ && !this->has_pending_write_.load(std::memory_order_relaxed)) {
     this->disable_loop();
   }
 }

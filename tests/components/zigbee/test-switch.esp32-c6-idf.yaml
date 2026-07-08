@@ -1,2 +1,0 @@
-packages:
-  zigbee: !include common_esp32.yaml
