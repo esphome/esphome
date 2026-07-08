@@ -470,7 +470,6 @@ class TextValidator(LValidator):
                 mapping_var = await cg.get_variable(mapping_id)
                 metadata = get_mapping_metadata(mapping_id.id)
                 if metadata.to_ != INDEX_TYPES["string"]:
-                    print(metadata.to_.data_type)
                     raise ValueError(
                         f"Mapping {mapping_id} does not map to strings, cannot use in text"
                     )
