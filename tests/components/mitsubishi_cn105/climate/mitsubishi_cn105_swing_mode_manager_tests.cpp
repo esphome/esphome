@@ -5,12 +5,10 @@
 namespace esphome::mitsubishi_cn105::testing {
 
 static SwingModeManager make_swing_mode_manager(std::initializer_list<climate::ClimateSwingMode> supported_modes) {
-  climate::ClimateSwingModeMask supported_swing_modes;
-  for (const auto mode : supported_modes) {
-    supported_swing_modes.insert(mode);
-  }
   SwingModeManager manager;
-  manager.set_supported_swing_modes(supported_swing_modes);
+  for (const auto mode : supported_modes) {
+    manager.supported_swing_modes().insert(mode);
+  }
   return manager;
 }
 

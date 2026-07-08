@@ -162,30 +162,29 @@ void MitsubishiCN105Climate::apply_values_() {
 }
 
 void MitsubishiCN105Climate::set_supported_swing_mode(climate::ClimateSwingMode mode) {
-  climate::ClimateSwingModeMask supported_swing_modes;
+  this->swing_mode_manager_.supported_swing_modes().clear();
   switch (mode) {
     case climate::CLIMATE_SWING_VERTICAL:
-      supported_swing_modes.insert(climate::CLIMATE_SWING_OFF);
-      supported_swing_modes.insert(climate::CLIMATE_SWING_VERTICAL);
+      this->swing_mode_manager_.supported_swing_modes().insert(climate::CLIMATE_SWING_OFF);
+      this->swing_mode_manager_.supported_swing_modes().insert(climate::CLIMATE_SWING_VERTICAL);
       break;
 
     case climate::CLIMATE_SWING_HORIZONTAL:
-      supported_swing_modes.insert(climate::CLIMATE_SWING_OFF);
-      supported_swing_modes.insert(climate::CLIMATE_SWING_HORIZONTAL);
+      this->swing_mode_manager_.supported_swing_modes().insert(climate::CLIMATE_SWING_OFF);
+      this->swing_mode_manager_.supported_swing_modes().insert(climate::CLIMATE_SWING_HORIZONTAL);
       break;
 
     case climate::CLIMATE_SWING_BOTH:
-      supported_swing_modes.insert(climate::CLIMATE_SWING_OFF);
-      supported_swing_modes.insert(climate::CLIMATE_SWING_VERTICAL);
-      supported_swing_modes.insert(climate::CLIMATE_SWING_HORIZONTAL);
-      supported_swing_modes.insert(climate::CLIMATE_SWING_BOTH);
+      this->swing_mode_manager_.supported_swing_modes().insert(climate::CLIMATE_SWING_OFF);
+      this->swing_mode_manager_.supported_swing_modes().insert(climate::CLIMATE_SWING_VERTICAL);
+      this->swing_mode_manager_.supported_swing_modes().insert(climate::CLIMATE_SWING_HORIZONTAL);
+      this->swing_mode_manager_.supported_swing_modes().insert(climate::CLIMATE_SWING_BOTH);
       break;
 
     case climate::CLIMATE_SWING_OFF:
     default:
       break;
   }
-  this->swing_mode_manager_.set_supported_swing_modes(supported_swing_modes);
 }
 
 }  // namespace esphome::mitsubishi_cn105
