@@ -501,7 +501,7 @@ optional<float> RHCorrectionFilter::new_value(float value) {
   }
   float offset = this->temperature_offset_.value();
   if (!std::isfinite(offset)) {
-    ESP_LOGW(TAG, "RHCorrectionFilter(%p): Invalid temperature offset: %f");
+    ESP_LOGW(TAG, "RHCorrectionFilter(%p): Invalid temperature offset.", this);
     return value;
   } 
   float tc = this->temperature_sensor_->get_state();
