@@ -7,6 +7,7 @@ binary_sensor:
     report: "default"
     device_class: occupancy
     cluster: default
+    endpoint: 1
   - platform: template
     name: "Garage Door Open 12"
     report: "force"
