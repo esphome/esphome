@@ -45,6 +45,10 @@
 #include "esphome/components/improv_serial/improv_serial_component.h"
 #endif
 
+#ifdef USE_PROVISIONING
+#include "esphome/components/provisioning/provisioning.h"
+#endif
+
 namespace esphome::wifi {
 
 static const char *const TAG = "wifi";
@@ -872,8 +876,20 @@ void WiFiComponent::loop() {
 
     if (!this->has_ap() && this->reboot_timeout_ != 0) {
       if (now - this->last_connected_ > this->reboot_timeout_) {
-        ESP_LOGE(TAG, "Can't connect; rebooting");
-        App.reboot();
+        bool suppress = false;
+#ifdef USE_PROVISIONING
+        // Don't reboot while a provisioning window is pending (device unprovisioned).
+        // The device is legitimately waiting to be onboarded (Wi-Fi must come up
+        // before the controller can set credentials), and an auto-reboot would reopen
+        // the window without the deliberate power cycle / reset that is meant to be
+        // required. Resumes normal reboot behavior once provisioned.
+        suppress = provisioning::global_provisioning_manager != nullptr &&
+                   provisioning::global_provisioning_manager->window_pending();
+#endif
+        if (!suppress) {
+          ESP_LOGE(TAG, "Can't connect; rebooting");
+          App.reboot();
+        }
       }
     }
   }
