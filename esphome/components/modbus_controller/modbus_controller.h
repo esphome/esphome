@@ -64,7 +64,8 @@ T get_data(const std::vector<uint8_t> &data, size_t buffer_offset) {
   return modbus::helpers::get_data<T>(data, buffer_offset);
 }
 
-ESPDEPRECATED("Use modbus::helpers::bit_from_packed() instead. Removed in 2026.10.0", "2026.4.0")
+// Remove before 2027.2.0 (window restarted when the migration target changed to bit_from_packed())
+ESPDEPRECATED("Use modbus::helpers::bit_from_packed() instead. Removed in 2027.2.0", "2026.4.0")
 inline bool coil_from_vector(int coil, const std::vector<uint8_t> &data) {
   return modbus::helpers::bit_from_packed(coil, data);
 }
