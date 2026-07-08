@@ -497,17 +497,17 @@ optional<float> RHCorrectionFilter::new_value(float value) {
   }
   float tc = this->temperature_sensor_->get_state();
   float tnc = tc - this->temperature_offset_.value();
-  if (tc < -10 || tc > 60 || tnc < -10 || tnc > 60) {
-    // Not reliable if the range is outside -10 60°C
-    // This check will also prevents invalid values for the calculation below
-    ESP_LOGW(TAG, "RHCorrectionFilter(%p): Invalid temperature values. Tc=%f Tnc=%f", this, tc, tnc);
-    return value;
-  }
   if (this->use_fahrenheit_) {
     // The formula described above only works with °C
     // so we need to convert the temperatures if they are in °F
     tc = (tc - 32) / 1.8;
     tnc = (tnc - 32) / 1.8;
+  }
+  if (tc < -10 || tc > 60 || tnc < -10 || tnc > 60) {
+    // Not reliable if the range is outside -10 60°C
+    // This check will also prevents invalid values for the calculation below
+    ESP_LOGW(TAG, "RHCorrectionFilter(%p): Invalid temperature values. Tc=%f Tnc=%f", this, tc, tnc);
+    return value;
   }
   float rh = value * std::exp(b * (tnc / (tnc + c) - tc / (tc + c)));
   ESP_LOGVV(TAG, "RHCorrectionFilter(%p)::new_value(%f) -> %f", this, value, rh);
