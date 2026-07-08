@@ -501,6 +501,8 @@ class WiFiComponent final : public Component {
 
   network::IPAddress get_dns_address(int num);
   network::IPAddresses get_ip_addresses();
+  /// Returns nullptr when no explicit use_address is configured and the address is
+  /// derived at runtime from the device name (see network::get_use_address_to()).
   const char *get_use_address() const { return this->use_address_; }
   void set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
@@ -996,7 +998,7 @@ class WiFiComponent final : public Component {
  private:
   // Stores a pointer to a string literal (static storage duration).
   // ONLY set from Python-generated code with string literals - never dynamic strings.
-  const char *use_address_{""};
+  const char *use_address_{nullptr};
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

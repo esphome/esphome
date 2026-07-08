@@ -158,6 +158,16 @@ message AuthenticationResponse {
   bool invalid_password = 1;
 }
 
+// Reason a party is requesting the connection be closed.
+enum DisconnectReason {
+  // No specific reason / not provided (default for older peers).
+  DISCONNECT_REASON_UNSPECIFIED = 0;
+  // The device's provisioning window has expired. The device must be reset
+  // (power-cycled) to reopen the provisioning window before it will accept a
+  // connection again.
+  DISCONNECT_REASON_PROVISIONING_CLOSED = 1;
+}
+
 // Request to close the connection.
 // Can be sent by both the client and server
 message DisconnectRequest {
@@ -166,6 +176,10 @@ message DisconnectRequest {
   option (no_delay) = true;
 
   // Do not close the connection before the acknowledgement arrives
+
+  // Optional reason the connection is being closed. Older peers that do not
+  // send this field will report DISCONNECT_REASON_UNSPECIFIED (0).
+  DisconnectReason reason = 1;
 }
 
 message DisconnectResponse {

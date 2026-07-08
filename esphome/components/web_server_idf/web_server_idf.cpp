@@ -32,14 +32,26 @@
 
 namespace esphome::web_server_idf {
 
+// Status strings not provided by esp_http_server.h
+#ifndef HTTPD_401
+#define HTTPD_401 "401 Unauthorized"
+#endif
 #ifndef HTTPD_409
 #define HTTPD_409 "409 Conflict"
+#endif
+#ifndef HTTPD_422
+#define HTTPD_422 "422 Unprocessable Entity"
 #endif
 
 #define CRLF_STR "\r\n"
 #define CRLF_LEN (sizeof(CRLF_STR) - 1)
 
 static const char *const TAG = "web_server_idf";
+
+// Chunk size for streaming request bodies; matches the Arduino AsyncWebServer buffer size.
+// Buffers of this size must live on the heap - the httpd task stack is too small.
+static constexpr size_t RECV_CHUNK_SIZE = 1460;
+static constexpr size_t YIELD_INTERVAL_BYTES = 16 * 1024;  // Yield every 16KB to prevent watchdog
 
 // Global instance to avoid guard variable (saves 8 bytes)
 // This is initialized at program startup before any threads
@@ -184,9 +196,10 @@ esp_err_t AsyncWebServer::request_post_handler(httpd_req_t *r) {
       return server->handle_multipart_upload_(r, content_type_char);
 #endif
     } else {
-      ESP_LOGW(TAG, "Unsupported content type for POST: %s", content_type_char);
-      // fallback to get handler to support backward compatibility
-      return AsyncWebServer::request_handler(r);
+      // Other content types (e.g. application/json) are delivered raw to a matching
+      // custom handler via handleBody(), like the Arduino AsyncWebServer does
+      auto *server = static_cast<AsyncWebServer *>(r->user_ctx);
+      return server->handle_raw_body_(r, content_type_char);
     }
   }
 
@@ -237,6 +250,51 @@ esp_err_t AsyncWebServer::request_handler_(AsyncWebServerRequest *request) const
   return ESP_ERR_NOT_FOUND;
 }
 
+esp_err_t AsyncWebServer::handle_raw_body_(httpd_req_t *r, const char *content_type) {
+  AsyncWebServerRequest req(r);
+  AsyncWebHandler *handler = nullptr;
+  for (auto *h : this->handlers_) {
+    if (h->canHandle(&req)) {
+      handler = h;
+      break;
+    }
+  }
+
+  if (handler == nullptr) {
+    ESP_LOGW(TAG, "Unsupported content type for POST: %s", content_type);
+    // fallback to get handler to support backward compatibility
+    return this->request_handler_(&req);
+  }
+
+  const size_t total = r->content_len;
+  if (total > 0) {
+    auto buffer = std::make_unique_for_overwrite<char[]>(RECV_CHUNK_SIZE);
+    size_t bytes_since_yield = 0;
+
+    for (size_t index = 0; index < total;) {
+      int recv_len = httpd_req_recv(r, buffer.get(), std::min(total - index, RECV_CHUNK_SIZE));
+
+      if (recv_len <= 0) {
+        httpd_resp_send_err(r, recv_len == HTTPD_SOCK_ERR_TIMEOUT ? HTTPD_408_REQ_TIMEOUT : HTTPD_400_BAD_REQUEST,
+                            nullptr);
+        return recv_len == HTTPD_SOCK_ERR_TIMEOUT ? ESP_ERR_TIMEOUT : ESP_FAIL;
+      }
+
+      handler->handleBody(&req, reinterpret_cast<uint8_t *>(buffer.get()), recv_len, index, total);
+      index += recv_len;
+      bytes_since_yield += recv_len;
+
+      if (bytes_since_yield > YIELD_INTERVAL_BYTES) {
+        vTaskDelay(1);
+        bytes_since_yield = 0;
+      }
+    }
+  }
+
+  handler->handleRequest(&req);
+  return ESP_OK;
+}
+
 AsyncWebServerRequest::~AsyncWebServerRequest() {
   delete this->rsp_;
   for (auto *param : this->params_) {
@@ -276,11 +334,23 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
     case 200:
       status = HTTPD_200;
       break;
+    case 204:
+      status = HTTPD_204;
+      break;
+    case 400:
+      status = HTTPD_400;
+      break;
+    case 401:
+      status = HTTPD_401;
+      break;
     case 404:
       status = HTTPD_404;
       break;
     case 409:
       status = HTTPD_409;
+      break;
+    case 422:
+      status = HTTPD_422;
       break;
     default:
       status = HTTPD_500;
@@ -546,10 +616,11 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
 }
 // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
-void AsyncEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
+void AsyncEventSource::try_send_nodefer(const char *message, size_t message_len, const char *event, uint32_t id,
+                                        uint32_t reconnect) {
   for (auto *ses : this->sessions_) {
     if (ses->fd_.load() != 0) {  // Skip dead sessions
-      ses->try_send_nodefer(message, event, id, reconnect);
+      ses->try_send_nodefer(message, message_len, event, id, reconnect);
     }
   }
 }
@@ -600,7 +671,7 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
 
   // tcp send buffer is empty on connect, so these should always go through
   auto message = ws->get_config_json();
-  this->try_send_nodefer(message.c_str(), "ping", millis(), 30000);
+  this->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000);
 
 #ifdef USE_WEBSERVER_SORTING
   for (auto &group : ws->sorting_groups_) {
@@ -612,7 +683,7 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
 
     // a (very) large number of these should be able to be queued initially without defer
     // since the only thing in the send buffer at this point is the initial ping/config
-    this->try_send_nodefer(message.c_str(), "sorting_group");
+    this->try_send_nodefer(message.c_str(), message.size(), "sorting_group");
   }
 #endif
 
@@ -647,7 +718,7 @@ void AsyncEventSourceResponse::process_deferred_queue_() {
   while (!deferred_queue_.empty()) {
     DeferredEvent &de = deferred_queue_.front();
     auto message = de.message_generator_(web_server_, de.source_);
-    if (this->try_send_nodefer(message.c_str(), "state")) {
+    if (this->try_send_nodefer(message.c_str(), message.size(), "state")) {
       // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
       deferred_queue_.erase(deferred_queue_.begin());
     } else {
@@ -718,7 +789,7 @@ void AsyncEventSourceResponse::loop() {
     this->entities_iterator_.advance();
 }
 
-bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char *event, uint32_t id,
+bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t message_len, const char *event, uint32_t id,
                                                 uint32_t reconnect) {
   if (this->fd_.load() == 0) {
     return false;
@@ -764,19 +835,18 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
 
     // Fast path: check if message contains any newlines at all
     // Most SSE messages (JSON state updates) have no newlines
-    const char *first_n = strchr(message, '\n');
-    const char *first_r = strchr(message, '\r');
+    const char *first_n = static_cast<const char *>(memchr(message, '\n', message_len));
+    const char *first_r = static_cast<const char *>(memchr(message, '\r', message_len));
 
     if (first_n == nullptr && first_r == nullptr) {
       // No newlines - fast path (most common case)
       event_buffer_.append("data: ", sizeof("data: ") - 1);
-      event_buffer_.append(message);
+      event_buffer_.append(message, message_len);
       event_buffer_.append(CRLF_STR CRLF_STR, CRLF_LEN * 2);  // data line + blank line terminator
     } else {
       // Has newlines - handle multi-line message
       const char *line_start = message;
-      size_t msg_len = strlen(message);
-      const char *msg_end = message + msg_len;
+      const char *msg_end = message + message_len;
 
       // Reuse the first search results
       const char *next_n = first_n;
@@ -789,7 +859,7 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
         if (next_n == nullptr && next_r == nullptr) {
           // No more line breaks - output remaining text as final line
           event_buffer_.append("data: ", sizeof("data: ") - 1);
-          event_buffer_.append(line_start);
+          event_buffer_.append(line_start, msg_end - line_start);
           event_buffer_.append(CRLF_STR, CRLF_LEN);
           break;
         }
@@ -828,8 +898,8 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
         }
 
         // Search for next newlines only in remaining string
-        next_n = strchr(line_start, '\n');
-        next_r = strchr(line_start, '\r');
+        next_n = static_cast<const char *>(memchr(line_start, '\n', msg_end - line_start));
+        next_r = static_cast<const char *>(memchr(line_start, '\r', msg_end - line_start));
       }
 
       // Terminate message with blank line
@@ -884,7 +954,7 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
     deq_push_back_with_dedup_(source, message_generator);
   } else {
     auto message = message_generator(web_server_, source);
-    if (!this->try_send_nodefer(message.c_str(), "state")) {
+    if (!this->try_send_nodefer(message.c_str(), message.size(), "state")) {
       deq_push_back_with_dedup_(source, message_generator);
     }
   }
@@ -893,9 +963,6 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
 
 #ifdef USE_WEBSERVER_OTA
 esp_err_t AsyncWebServer::handle_multipart_upload_(httpd_req_t *r, const char *content_type) {
-  static constexpr size_t MULTIPART_CHUNK_SIZE = 1460;       // Match Arduino AsyncWebServer buffer size
-  static constexpr size_t YIELD_INTERVAL_BYTES = 16 * 1024;  // Yield every 16KB to prevent watchdog
-
   // Parse boundary and create reader
   const char *boundary_start;
   size_t boundary_len;
@@ -949,12 +1016,11 @@ esp_err_t AsyncWebServer::handle_multipart_upload_(httpd_req_t *r, const char *c
     }
   });
 
-  // Use heap buffer - 1460 bytes is too large for the httpd task stack
-  auto buffer = std::make_unique_for_overwrite<char[]>(MULTIPART_CHUNK_SIZE);
+  auto buffer = std::make_unique_for_overwrite<char[]>(RECV_CHUNK_SIZE);
   size_t bytes_since_yield = 0;
 
   for (size_t remaining = r->content_len; remaining > 0;) {
-    int recv_len = httpd_req_recv(r, buffer.get(), std::min(remaining, MULTIPART_CHUNK_SIZE));
+    int recv_len = httpd_req_recv(r, buffer.get(), std::min(remaining, RECV_CHUNK_SIZE));
 
     if (recv_len <= 0) {
       httpd_resp_send_err(r, recv_len == HTTPD_SOCK_ERR_TIMEOUT ? HTTPD_408_REQ_TIMEOUT : HTTPD_400_BAD_REQUEST,
