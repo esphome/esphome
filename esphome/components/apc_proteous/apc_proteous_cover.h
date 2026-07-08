@@ -24,6 +24,12 @@ class APCProteousCover : public cover::Cover, public PollingComponent, public ua
   void control(const cover::CoverCall &call) override;
   void parse_response_();
 
+  // Debug aid: start logging all UART traffic (commands, queries and every received
+  // frame) after a command is sent, until the gate returns to idle having moved, or
+  // TRACE_MAX_MS elapses (so a dropped command that never moves it does not trace
+  // forever). Used to diagnose unacknowledged commands and bad position reports.
+  void start_trace_(const char *what);
+
   // The published state (current_operation, position) is updated only from status
   // reads, so it always reflects what the controller reports. pending_command_ is a
   // private record of the last movement command we sent; it lets a stop cancel an
@@ -40,6 +46,9 @@ class APCProteousCover : public cover::Cover, public PollingComponent, public ua
   static const uint32_t COMMAND_ACK_MS = 2000;
   static const uint8_t MAX_COMMAND_RETRIES = 3;
 
+  // Safety cap on the UART trace so it always stops even if the gate never moves.
+  static const uint32_t TRACE_MAX_MS = 60000;
+
   std::string rx_buffer_;
   bool query_s_next_{true};
   uint8_t s_status_{0};
@@ -48,6 +57,9 @@ class APCProteousCover : public cover::Cover, public PollingComponent, public ua
   const char *pending_command_{nullptr};
   uint32_t pending_command_time_{0};
   uint8_t command_retries_{0};
+  bool trace_active_{false};
+  bool trace_saw_motion_{false};
+  uint32_t trace_start_time_{0};
 };
 
 }  // namespace esphome::apc_proteous

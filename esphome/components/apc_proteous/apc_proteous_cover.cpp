@@ -43,6 +43,9 @@ void APCProteousCover::loop() {
       // Carriage return marks end of message
       if (data == '\r') {
         if (!this->rx_buffer_.empty()) {
+          if (this->trace_active_) {
+            ESP_LOGD(TAG, "UART trace rx: '%s'", this->rx_buffer_.c_str());
+          }
           this->parse_response_();
           this->rx_buffer_.clear();
         }
@@ -50,6 +53,9 @@ void APCProteousCover::loop() {
         // Ignore line feeds; bound the buffer so missed delimiters or line noise
         // cannot grow it without limit (the longest valid frame is "?s=XX").
         if (this->rx_buffer_.length() >= MAX_RESPONSE_LEN) {
+          if (this->trace_active_) {
+            ESP_LOGD(TAG, "UART trace rx (no CR, discarding): '%s'", this->rx_buffer_.c_str());
+          }
           this->rx_buffer_.clear();
         }
         this->rx_buffer_ += (char) data;
@@ -110,6 +116,16 @@ void APCProteousCover::parse_response_() {
         (this->pending_command_ == CLOSE_CMD && new_operation == COVER_OPERATION_CLOSING)) {
       this->pending_command_ = nullptr;
       this->command_retries_ = 0;
+    }
+
+    // Keep the UART trace running until the gate has moved and then returned to idle.
+    if (this->trace_active_) {
+      if (new_operation != COVER_OPERATION_IDLE) {
+        this->trace_saw_motion_ = true;
+      } else if (this->trace_saw_motion_) {
+        ESP_LOGD(TAG, "UART trace stopped: gate idle");
+        this->trace_active_ = false;
+      }
     }
 
     ESP_LOGV(TAG, "s-status: 0x%02X (operating=%d, opening=%d)", this->s_status_, is_operating, is_opening);
@@ -184,17 +200,30 @@ void APCProteousCover::retry_pending_command_() {
   this->write_str(this->pending_command_);
 }
 
+void APCProteousCover::start_trace_(const char *what) {
+  this->trace_active_ = true;
+  this->trace_saw_motion_ = false;
+  this->trace_start_time_ = millis();
+  ESP_LOGD(TAG, "UART trace started (%s command)", what);
+}
+
 void APCProteousCover::update() {
+  // Stop the debug trace if it has been running too long without the gate moving and stopping.
+  if (this->trace_active_ && (millis() - this->trace_start_time_) > TRACE_MAX_MS) {
+    ESP_LOGD(TAG, "UART trace stopped: timeout");
+    this->trace_active_ = false;
+  }
+
   // Resend a movement command the controller has not acknowledged; the serial link can drop one,
   // leaving the gate stopped until something re-issues the command.
   this->retry_pending_command_();
 
   // Alternate between querying s-status and x-status
-  if (this->query_s_next_) {
-    this->write_str(QUERY_S);
-  } else {
-    this->write_str(QUERY_X);
+  const char *query = this->query_s_next_ ? QUERY_S : QUERY_X;
+  if (this->trace_active_) {
+    ESP_LOGD(TAG, "UART trace tx: %s", this->query_s_next_ ? "?s" : "?x");
   }
+  this->write_str(query);
   this->query_s_next_ = !this->query_s_next_;
 }
 
@@ -220,6 +249,7 @@ void APCProteousCover::send_command_(const char *cmd) {
   this->pending_command_ = cmd;
   this->pending_command_time_ = millis();
   this->command_retries_ = 0;
+  this->start_trace_(cmd == OPEN_CMD ? "open" : "close");
   this->write_str(cmd);
 }
 
@@ -253,6 +283,7 @@ void APCProteousCover::stop_cmd_() {
     return;
   }
   ESP_LOGD(TAG, "Sending stop command");
+  this->start_trace_("stop");
   this->write_str(START_CMD);
   this->pending_command_ = nullptr;
   // current_operation will update from the next status poll.
@@ -287,6 +318,7 @@ void APCProteousCover::control(const CoverCall &call) {
       }
     }
   } else if (call.get_toggle()) {
+    this->start_trace_("toggle");
     this->write_str(START_CMD);
   }
 }
