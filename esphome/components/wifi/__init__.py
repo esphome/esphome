@@ -14,6 +14,7 @@ from esphome.components.esp32 import (
     request_wifi,
 )
 from esphome.components.network import (
+    add_use_address,
     has_high_performance_networking,
     ip_address_literal,
 )
@@ -585,7 +586,7 @@ def wifi_network(config, ap, static_ip):
 @coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
+    add_use_address(var, config[CONF_USE_ADDRESS])
 
     # Track if any network uses Enterprise authentication
     has_eap = False
