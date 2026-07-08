@@ -99,7 +99,7 @@ async def to_code(config):
     cg.add_define("USE_OTA")
     CORE.add_job(final_step)
 
-    if CORE.is_rp2040 and CORE.using_arduino:
+    if CORE.is_rp2 and CORE.using_arduino:
         cg.add_library("Updater", None)
 
 
@@ -158,7 +158,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_IDF,
         },
         "ota_backend_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
-        "ota_backend_arduino_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "ota_backend_arduino_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
         "ota_backend_arduino_libretiny.cpp": {
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,

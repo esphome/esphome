@@ -88,7 +88,7 @@ class AuthMiddlewareHandler : public MiddlewareHandler {
 
 }  // namespace internal
 
-class WebServerBase {
+class WebServerBase final {
  public:
   void init() {
     if (this->initialized_) {
