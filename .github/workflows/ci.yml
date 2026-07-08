@@ -49,7 +49,7 @@ jobs:
         # detects the activated venv via ``VIRTUAL_ENV`` so downstream jobs
         # that ``. venv/bin/activate`` see an identical layout.
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1 # v8.3.1
         with:
           enable-cache: true
           # Pin uv version so the action does not have to fetch the
@@ -112,7 +112,7 @@ jobs:
           script/build_codeowners.py --check
           script/build_language_schema.py --check
           script/generate-esp32-boards.py --check
-          script/generate-rp2040-boards.py --check
+          script/generate-rp2-boards.py --check
           script/ci_check_duplicate_test_ids.py
 
   import-time:
@@ -171,7 +171,7 @@ jobs:
         # install step (order-of-magnitude faster on cold boots,
         # with its own wheel cache). actions/setup-python still
         # provides the interpreter.
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1 # v8.3.1
         with:
           enable-cache: true
           # Pin uv version so the action does not have to fetch the
@@ -372,7 +372,7 @@ jobs:
       - name: Set up uv
         # Only needed on cache miss to populate the venv.
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1 # v8.3.1
         with:
           enable-cache: true
           # Pin uv version so the action does not have to fetch the
@@ -456,7 +456,7 @@ jobs:
           echo "binary=$BINARY" >> $GITHUB_OUTPUT
 
       - name: Run CodSpeed benchmarks
-        uses: CodSpeedHQ/action@a4a36bb07c0638b0b4ca52bf1f3dad1b4289e52f # v4.18.1
+        uses: CodSpeedHQ/action@4e969336ab9acd4f6f8d025fdd793292b0835df0 # v4.18.2
         with:
           run: |
             . venv/bin/activate
@@ -529,7 +529,7 @@ jobs:
         with:
           framework: arduino
 
-      - name: Cache sdk-nrf install
+      - name: Cache nRF Connect SDK install
         if: matrix.cache_sdk_nrf
         uses: ./.github/actions/cache-sdk-nrf
 
@@ -849,7 +849,7 @@ jobs:
         uses: ./.github/actions/cache-esp-idf
         with:
           restore-only: true
-      - name: Cache sdk-nrf install (restore-only)
+      - name: Cache nRF Connect SDK install (restore-only)
         # Only batches whose test platforms include nrf52 need the native
         # sdk-nrf install; never save -- just reuse the shared install the
         # dev nrf52 tidy job cached when present.

@@ -11,6 +11,10 @@ namespace esphome::api {
 
 namespace enums {
 
+enum DisconnectReason : uint32_t {
+  DISCONNECT_REASON_UNSPECIFIED = 0,
+  DISCONNECT_REASON_PROVISIONING_CLOSED = 1,
+};
 enum SerialProxyPortType : uint32_t {
   SERIAL_PROXY_PORT_TYPE_TTL = 0,
   SERIAL_PROXY_PORT_TYPE_RS232 = 1,
@@ -427,18 +431,22 @@ class HelloResponse final : public ProtoMessage {
 
  protected:
 };
-class DisconnectRequest final : public ProtoMessage {
+class DisconnectRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 5;
-  static constexpr uint8_t ESTIMATED_SIZE = 0;
+  static constexpr uint8_t ESTIMATED_SIZE = 2;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("disconnect_request"); }
 #endif
+  enums::DisconnectReason reason{};
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
+  uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class DisconnectResponse final : public ProtoMessage {
  public:

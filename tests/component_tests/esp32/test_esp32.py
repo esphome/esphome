@@ -13,6 +13,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANTS,
     NetworkSdkconfigData,
+    _ota_downgrade_protection_errors,
     _reconcile_network_sdkconfig,
 )
 from esphome.components.esp32.const import (
@@ -174,6 +175,29 @@ def test_esp32_default_toolchain_is_esp_idf(
             r"'ignore_efuse_mac_crc' is not supported on ESP32S3 @ data\['framework'\]\['advanced'\]\['ignore_efuse_mac_crc'\]",
             id="ignore_efuse_mac_crc_only_on_esp32",
         ),
+        pytest.param(
+            {
+                "variant": "esp32",
+                "board": "esp32dev",
+                "framework": {
+                    "type": "esp-idf",
+                    "advanced": {"nvs_encryption": {"key_id": 0}},
+                },
+            },
+            r"NVS encryption \(HMAC scheme\) is not supported on ESP32 .* @ data\['framework'\]\['advanced'\]\['nvs_encryption'\]",
+            id="nvs_encryption_unsupported_on_esp32",
+        ),
+        pytest.param(
+            {
+                "variant": "esp32s3",
+                "framework": {
+                    "type": "esp-idf",
+                    "advanced": {"nvs_encryption": {"key_id": 6}},
+                },
+            },
+            r"value must be at most 5 .* @ data\['framework'\]\['advanced'\]\['nvs_encryption'\]\['key_id'\]",
+            id="nvs_encryption_key_id_out_of_range",
+        ),
     ],
 )
 def test_esp32_configuration_errors(
@@ -211,6 +235,21 @@ def test_execute_from_psram_p4_sdkconfig(
     assert sdkconfig.get("CONFIG_SPIRAM_XIP_FROM_PSRAM") is True
     assert "CONFIG_SPIRAM_FETCH_INSTRUCTIONS" not in sdkconfig
     assert "CONFIG_SPIRAM_RODATA" not in sdkconfig
+
+
+def test_nvs_encryption_sdkconfig(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that nvs_encryption sets the HMAC scheme sdkconfig options."""
+    generate_main(component_config_path("nvs_encryption_s3.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_NVS_ENCRYPTION") is True
+    assert sdkconfig.get("CONFIG_NVS_SEC_KEY_PROTECT_USING_HMAC") is True
+    assert sdkconfig.get("CONFIG_NVS_SEC_HMAC_EFUSE_KEY_ID") == 0
+    # The permanent/irreversible eFuse burn is warned about at config time.
+    assert "PERMANENT and IRREVERSIBLE" in caplog.text
 
 
 @pytest.mark.parametrize(
@@ -560,3 +599,35 @@ def test_network_wifi_ble_coexistence_reconciles_end_to_end(
     assert sdkconfig.get("CONFIG_LWIP_DHCPS") is False
     # WiFi present alongside BT -> WiFi stack must stay enabled.
     assert "CONFIG_ESP_WIFI_ENABLED" not in sdkconfig
+
+
+def test_downgrade_protection_passes_with_numeric_version_and_signing() -> None:
+    assert _ota_downgrade_protection_errors("1.2.3", signed_ota_enabled=True) == []
+
+
+def test_downgrade_protection_accepts_calendar_version() -> None:
+    assert _ota_downgrade_protection_errors("2024.12.0", signed_ota_enabled=True) == []
+
+
+def test_downgrade_protection_requires_project_version() -> None:
+    errs = _ota_downgrade_protection_errors(None, signed_ota_enabled=True)
+    assert len(errs) == 1
+    assert "version" in str(errs[0])
+
+
+def test_downgrade_protection_rejects_non_numeric_version() -> None:
+    errs = _ota_downgrade_protection_errors("1.0-beta", signed_ota_enabled=True)
+    assert len(errs) == 1
+    assert "dotted-numeric" in str(errs[0])
+
+
+def test_downgrade_protection_requires_signed_ota() -> None:
+    errs = _ota_downgrade_protection_errors("1.2.3", signed_ota_enabled=False)
+    assert len(errs) == 1
+    assert "signed_ota_verification" in str(errs[0])
+
+
+def test_downgrade_protection_reports_all_unmet_requirements() -> None:
+    # No project version and no signing -> two distinct errors.
+    errs = _ota_downgrade_protection_errors(None, signed_ota_enabled=False)
+    assert len(errs) == 2
