@@ -398,7 +398,10 @@ class ImageValidator(LValidator):
         )
 
     async def process(
-        self, value: Any, args: list[tuple[SafeExpType, str]] | None = None
+        self,
+        value: Any,
+        args: list[tuple[SafeExpType, str]] | None = None,
+        raw_lambda: bool = False,
     ) -> Expression:
         # Local import to avoid circular import at module level
         from .lvcode import get_lambda_context_args
