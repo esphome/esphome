@@ -31,7 +31,7 @@ update:
 
 sensor:
   - platform: template
-    id: template_sensor1
+    id: prometheus_template_sensor1
     lambda: |-
       if (millis() > 10000) {
         return 42.0;
@@ -91,7 +91,7 @@ binary_sensor:
 
 switch:
   - platform: template
-    id: template_switch1
+    id: prometheus_template_switch1
     lambda: |-
       if (millis() > 10000) {
         return true;
@@ -185,7 +185,7 @@ climate:
 prometheus:
   include_internal: true
   relabel:
-    template_sensor1:
+    prometheus_template_sensor1:
       id: hellow_world
       name: Hello World
     template_text_sensor1:

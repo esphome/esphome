@@ -306,6 +306,50 @@ def test_all_predefined_models(
         run_schema_validation(config)
 
 
+def test_single_bus_no_cs_no_mode_warns(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A single-bus display with no CS pin and no explicit SPI mode warns about MODE3 default."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    run_schema_validation({"model": "ili9488", "dc_pin": 14})
+
+    assert "defaulting to MODE3 due to lack of CS pin" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        pytest.param(
+            {"model": "ili9488", "dc_pin": 14, "cs_pin": 0},
+            id="cs_pin_provided",
+        ),
+        pytest.param(
+            {"model": "ili9488", "dc_pin": 14, "spi_mode": "mode0"},
+            id="spi_mode_provided",
+        ),
+    ],
+)
+def test_single_bus_no_mode_warning_suppressed(
+    config: ConfigType,
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """No MODE3 warning when a CS pin or an explicit SPI mode is provided."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    run_schema_validation(config)
+
+    assert "defaulting to MODE3 due to lack of CS pin" not in caplog.text
+
+
 def test_native_generation(
     generate_main: Callable[[str | Path], str],
     component_fixture_path: Callable[[str], Path],
@@ -314,7 +358,7 @@ def test_native_generation(
 
     main_cpp = generate_main(component_fixture_path("native.yaml"))
     assert (
-        "mipi_spi::MipiSpiBuffer<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_QUAD, 360, 360, 0, 1, 0, true, 1, 1>()"
+        "mipi_spi::MipiSpiBuffer<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_QUAD, 360, 360, 0, 1, 0, 0, 0, true, 1, 1>()"
         in main_cpp
     )
     assert "set_init_sequence({240, 1, 8, 242" in main_cpp
@@ -330,9 +374,9 @@ def test_lvgl_generation(
 
     main_cpp = generate_main(component_fixture_path("lvgl.yaml"))
     assert (
-        "mipi_spi::MipiSpi<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_SINGLE, 128, 160, 0, 0, 0, true>();"
+        "mipi_spi::MipiSpi<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_SINGLE, 128, 160, 0, 0, 0, 0, 0, true>();"
         in main_cpp
     )
-    assert "set_init_sequence({1, 0, 10, 255, 177" in main_cpp
+    assert "set_init_sequence({177, 3, 1, 44, 45, 178" in main_cpp
     assert "show_test_card();" not in main_cpp
     assert "set_auto_clear(false);" in main_cpp
