@@ -233,6 +233,7 @@ class AsyncWebServer {
   static esp_err_t request_post_handler(httpd_req_t *r);
   esp_err_t request_handler_(AsyncWebServerRequest *request) const;
   static void safe_close_with_shutdown(httpd_handle_t hd, int sockfd);
+  esp_err_t handle_raw_body_(httpd_req_t *r, const char *content_type);
 #ifdef USE_WEBSERVER_OTA
   esp_err_t handle_multipart_upload_(httpd_req_t *r, const char *content_type);
 #endif
@@ -291,7 +292,8 @@ class AsyncEventSourceResponse {
   friend class AsyncEventSource;
 
  public:
-  bool try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
+  bool try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
+                        uint32_t reconnect = 0);
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
   void loop();
 
@@ -343,7 +345,8 @@ class AsyncEventSource : public AsyncWebHandler {
   // NOLINTNEXTLINE(readability-identifier-naming)
   void onConnect(connect_handler_t &&cb) { this->on_connect_ = std::move(cb); }
 
-  void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
+  void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
+                        uint32_t reconnect = 0);
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
   /// Returns true if there are sessions remaining (including pending cleanup).
   bool loop();

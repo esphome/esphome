@@ -145,14 +145,16 @@ def clang_options(idedata):
     # defines
     cmd.extend(f"-D{define}" for define in idedata["defines"])
 
-    # add toolchain include directories using -isystem to suppress their errors
+    # toolchain include directories, using -isystem to suppress their errors
     # idedata contains include directories for all toolchains of this platform, only use those from the one in use
     toolchain_dir = os.path.normpath(f"{idedata['cxx_path']}/../../")
+    toolchain_includes = []
     for directory in idedata["includes"]["toolchain"]:
         if directory.startswith(toolchain_dir) and "picolibc" not in directory:
-            cmd.extend(["-isystem", directory])
+            toolchain_includes.extend(["-isystem", directory])
 
-    # add library include directories using -isystem to suppress their errors
+    # library include directories, using -isystem to suppress their errors
+    build_includes = []
     for directory in list(idedata["includes"]["build"]):
         # skip our own directories, we add those later
         if (
@@ -166,7 +168,16 @@ def clang_options(idedata):
             )
             or (directory.startswith(f"{root_path}") and "/.pio/" in directory)
         ):
-            cmd.extend(["-isystem", directory])
+            build_includes.extend(["-isystem", directory])
+
+    if "zephyr" in triplet:
+        # Zephyr's POSIX layer shadows libc headers (sys/select.h, ...) with
+        # coherently-guarded versions; the real build searches the Zephyr
+        # include dirs before the toolchain's, and the shadowed headers clash
+        # (e.g. newlib's sigset_t vs Zephyr's) in the opposite order.
+        cmd.extend(build_includes + toolchain_includes)
+    else:
+        cmd.extend(toolchain_includes + build_includes)
 
     # add the esphome include directory using -I
     cmd.extend(["-I", root_path])

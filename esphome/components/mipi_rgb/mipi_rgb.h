@@ -98,9 +98,9 @@ class MipiRgb : public display::Display {
 };
 
 #ifdef USE_SPI
-class MipiRgbSpi : public MipiRgb,
-                   public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                         spi::DATA_RATE_1MHZ> {
+class MipiRgbSpi final : public MipiRgb,
+                         public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                               spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
   MipiRgbSpi(int width, int height) : MipiRgb(width, height) {}
 
