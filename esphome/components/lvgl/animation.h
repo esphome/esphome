@@ -15,7 +15,7 @@ enum class AnimationState {
 
 class LvAnimationTiming {
  public:
-  //  Map progress in the range [0, 1]
+  // Map progress in the range [0, 1]
   virtual float map_progress(float value) = 0;
 };
 
