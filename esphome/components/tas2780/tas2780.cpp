@@ -534,18 +534,33 @@ bool TAS2780::write_mode_ctrl_(uint8_t mode) {
 }
 
 bool TAS2780::set_mute_off() {
+  bool previous = this->is_muted_;
   this->is_muted_ = false;
-  return this->write_mute_();
+  if (!this->write_mute_()) {
+    this->is_muted_ = previous;
+    return false;
+  }
+  return true;
 }
 
 bool TAS2780::set_mute_on() {
+  bool previous = this->is_muted_;
   this->is_muted_ = true;
-  return this->write_mute_();
+  if (!this->write_mute_()) {
+    this->is_muted_ = previous;
+    return false;
+  }
+  return true;
 }
 
 bool TAS2780::set_volume(float volume) {
+  float previous = this->volume_;
   this->volume_ = clamp<float>(volume, 0.0, 1.0);
-  return this->write_volume_();
+  if (!this->write_volume_()) {
+    this->volume_ = previous;
+    return false;
+  }
+  return true;
 }
 
 bool TAS2780::is_muted() { return this->is_muted_; }
