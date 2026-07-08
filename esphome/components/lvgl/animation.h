@@ -7,8 +7,6 @@
 
 namespace esphome::lvgl {
 
-static const char *const TAG = "lvgl.animation";
-
 enum class AnimationState {
   STOPPED,
   STARTED,
