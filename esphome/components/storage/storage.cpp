@@ -41,22 +41,32 @@ void StorageRegistry::unregister_storage(Storage *s) {
   if (s == nullptr)
     return;
 
-  // Swap-remove: no reallocation, keeps capacity — safe since order doesn't matter here
-  // (for_each* enumerate every entry regardless of position).
-  size_t found_index = this->storages_.size();
-  for (size_t i = 0; i < this->storages_.size(); i++) {
-    if (this->storages_[i] == s) {
-      found_index = i;
+    bool found = false;
+  for (auto *entry : this->storages_) {
+    if (entry == s) {
+      found = true;
       break;
     }
   }
-  if (found_index == this->storages_.size())
+  if (!found)
     return;
 
-  size_t last_index = this->storages_.size() - 1;
-  if (found_index != last_index)
-    this->storages_[found_index] = this->storages_[last_index];
-  this->storages_.pop_back();
+  // TEMPORARY: rebuild via a second FixedVector instead of a swap-remove ending in
+  // pop_back(). FixedVector::pop_back() is a core (esphome/core/helpers.h) addition from this
+  // same PR series that hasn't merged upstream yet, and external_components: can only overlay
+  // component directories, never core files — so anyone testing this driver via
+  // external_components: would hit a missing pop_back() before ever reaching driver code. This
+  // only needs FixedVector APIs that already exist upstream (init()/push_back()/move-assign).
+  // storages_ is sized exactly at setup — safe because we always remove one entry before
+  // rebuilding, so we never exceed capacity. Revert to the swap-remove once
+  // FixedVector::pop_back() has landed in upstream dev.
+  FixedVector<Storage *> tmp;
+  tmp.init(this->storages_.size());
+  for (auto *entry : this->storages_) {
+    if (entry != s)
+      tmp.push_back(entry);
+  }
+  this->storages_ = std::move(tmp);
 
   StorageInfo info{};
   if (s->get_info(&info) == StorageError::OK) {

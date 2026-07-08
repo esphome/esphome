@@ -18,18 +18,18 @@ namespace esphome::storage {
 // above the highest errno in use here, so no accidental collisions creep in later either.
 enum class StorageError : uint8_t {
   OK = 0,
-  NOT_FOUND = ENOENT,            // 2
-  READ_ERROR = EIO,              // 5 — I/O error
-  PERMISSION_DENIED = EACCES,    // 13
-  ALREADY_EXISTS = EEXIST,       // 17
-  NOT_READY = ENODEV,            // 19
-  INVALID_ARGS = EINVAL,         // 22
-  TOO_MANY_OPEN_FILES = EMFILE,  // 24
-  NO_SPACE = ENOSPC,             // 28
-  NOT_EMPTY = ENOTEMPTY,         // 39
-  CORRUPT = EILSEQ,              // 84 on newlib/ESP-IDF — closest POSIX equivalent (illegal byte sequence)
-  NOT_SUPPORTED = ENOTSUP,       // 95 on newlib/ESP-IDF
-  TIMEOUT = ETIMEDOUT,           // 116 on newlib/ESP-IDF
+  NOT_FOUND = ENOENT,           // 2
+  READ_ERROR = EIO,             // 5 — I/O error
+  PERMISSION_DENIED = EACCES,   // 13
+  ALREADY_EXISTS = EEXIST,      // 17
+  NOT_READY = ENODEV,           // 19
+  INVALID_ARGS = EINVAL,        // 22
+  TOO_MANY_OPEN_FILES = EMFILE, // 24
+  NO_SPACE = ENOSPC,            // 28
+  NOT_EMPTY = ENOTEMPTY,        // 39
+  CORRUPT = EILSEQ,             // 84 on newlib/ESP-IDF — closest POSIX equivalent (illegal byte sequence)
+  NOT_SUPPORTED = ENOTSUP,      // 95 on newlib/ESP-IDF
+  TIMEOUT = ETIMEDOUT,          // 116 on newlib/ESP-IDF
   // No distinct POSIX errno for a write-direction I/O error (EIO is used by READ_ERROR
   // above) — assigned its own value past the highest errno referenced here.
   WRITE_ERROR = 120,
