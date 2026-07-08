@@ -495,6 +495,10 @@ optional<float> RHCorrectionFilter::new_value(float value) {
     ESP_LOGW(TAG, "RHCorrectionFilter(%p): No temperature sensor set.", this);
     return value;
   }
+  if (!this->temperature_sensor_->has_state()) {
+    ESP_LOGVV(TAG, "RHCorrectionFilter(%p): no temp available.", this);
+    return value;
+  }  
   float tc = this->temperature_sensor_->get_state();
   float tnc = tc - this->temperature_offset_.value();
   if (this->use_fahrenheit_) {
