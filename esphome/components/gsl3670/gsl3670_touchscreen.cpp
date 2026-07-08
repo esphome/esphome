@@ -114,11 +114,9 @@ void GSL3670Touchscreen::reset_() {
   }
 
   this->write_reg8_(0xe4, 0x04);
-  // delay(2);
 
   uint8_t zeros[4] = {0, 0, 0, 0};
   this->write_reg_(0xbc, zeros, 4);
-  // delay(2);
 }
 
 void GSL3670Touchscreen::load_firmware_() {
