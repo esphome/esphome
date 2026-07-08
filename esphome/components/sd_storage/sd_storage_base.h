@@ -87,7 +87,11 @@ class SdStorageBase : public storage::FilesystemStorage {
   // Captures the FATFS drive string ("N:") for this card. Called by SdMmc::mount()/SdSpi::mount()
   // after a successful mount, since only the subclass holds the sdmmc_card_t* needed to look it
   // up via ff_diskio_get_pdrv_card() (diskio_sdmmc.h).
-  void set_fatfs_drive_(BYTE pdrv) { snprintf(this->fatfs_drive_, sizeof(this->fatfs_drive_), "%u:", pdrv); }
+  void set_fatfs_drive_(BYTE pdrv) {
+    this->fatfs_drive_[0] = static_cast<char>('0' + pdrv);
+    this->fatfs_drive_[1] = ':';
+    this->fatfs_drive_[2] = '\0';
+  }
 
   // Closes every still-open handle before unmount, so nothing is left holding a FILE* into a
   // filesystem that's about to disappear. Best-effort: keeps going even if a flush/close fails
