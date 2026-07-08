@@ -25,6 +25,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
+#ifdef USE_PROVISIONING
+#include "esphome/components/provisioning/provisioning.h"
+#endif
 
 #ifdef USE_DEEP_SLEEP
 #include "esphome/components/deep_sleep/deep_sleep_component.h"
@@ -1724,6 +1727,19 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   resp.server_info = ESPHOME_VERSION_REF;
   resp.name = StringRef(App.get_name());
 
+#ifdef USE_PROVISIONING
+  if (provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed()) {
+    // The provisioning window has closed without the device being provisioned.
+    // Acknowledge the hello so the client can read the server name, then request
+    // disconnect with the reason. Authentication is intentionally not completed.
+    this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("Provisioning closed; rejecting connection"));
+    this->send_message(resp);
+    DisconnectRequest req;
+    req.reason = enums::DISCONNECT_REASON_PROVISIONING_CLOSED;
+    return this->send_message(req);
+  }
+#endif
+
   // Auto-authenticate - password auth was removed in ESPHome 2026.1.0
   this->complete_authentication_();
 
@@ -1874,7 +1890,8 @@ void APIConnection::on_hello_request(const HelloRequest &msg) {
     this->on_fatal_error();
   }
 }
-void APIConnection::on_disconnect_request() {
+void APIConnection::on_disconnect_request(const DisconnectRequest & /*msg*/) {
+  // The reason is informational when a client disconnects us; we always ack and close.
   if (!this->send_disconnect_response_()) {
     this->on_fatal_error();
   }
@@ -2001,6 +2018,15 @@ void APIConnection::on_homeassistant_action_response(const HomeassistantActionRe
 bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptionSetKeyRequest &msg) {
   NoiseEncryptionSetKeyResponse resp;
   resp.success = false;
+
+#ifdef USE_PROVISIONING
+  // Refuse to set a key once the provisioning window has closed (defense in depth;
+  // such connections are already rejected at hello).
+  if (provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed()) {
+    ESP_LOGW(TAG, "Provisioning closed; rejecting key set");
+    return this->send_message(resp);
+  }
+#endif
 
   psk_t psk{};
   if (msg.key_len == 0) {
