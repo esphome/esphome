@@ -137,10 +137,9 @@ modbus::ResponseStatus ModbusServer::on_write_registers(uint16_t start_address,
         if (server_register->write_lambda == nullptr) {
           return false;  // unwritable -> ILLEGAL_DATA_ADDRESS
         }
-        bool error = false;
-        registers_to_number(registers.data() + register_offset, registers.size() - register_offset,
-                            server_register->value_type, &error);
-        if (error) {
+        if (!registers_to_number(registers.data() + register_offset, registers.size() - register_offset,
+                                 server_register->value_type)
+                 .has_value()) {
           precheck = ModbusExceptionCode::ILLEGAL_DATA_VALUE;  // request doesn't supply the full value
           return false;
         }
@@ -154,7 +153,8 @@ modbus::ResponseStatus ModbusServer::on_write_registers(uint16_t start_address,
   // rejecting the value at runtime -- which cannot be rolled back.
   if (!for_each_register([&registers](ServerRegister *server_register, uint16_t register_offset) {
         int64_t number = registers_to_number(registers.data() + register_offset, registers.size() - register_offset,
-                                             server_register->value_type);
+                                             server_register->value_type)
+                             .value_or(0);
         return server_register->write_lambda(number);
       })) {
     ESP_LOGW(TAG, "A register write callback failed mid-sequence; earlier writes were already applied.");

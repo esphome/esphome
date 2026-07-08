@@ -515,25 +515,6 @@ void ModbusClientHub::send_next_frame_() {
   }
 }
 
-void ModbusClientHub::notify_no_response_(ModbusDeviceCommand &wfr) {
-  if (wfr.device != nullptr && wfr.device->on_modbus_no_response())
-    this->requeue_waiting_frame_(wfr);
-  // The old transaction is over either way; never deliver anything else to the device through it.
-  wfr.device = nullptr;
-}
-
-void ModbusClientHub::requeue_waiting_frame_(ModbusDeviceCommand &wfr) {
-  const ModbusFrame &frame = wfr.frame;
-  if (this->tx_buffer_.size() >= MODBUS_TX_BUFFER_SIZE) {
-    ESP_LOGE(TAG, "Write buffer full, dropped retry for address %" PRIu8, frame.data.data()[0]);
-    if (wfr.device != nullptr)
-      wfr.device->on_modbus_not_sent();
-    return;
-  }
-  // Re-queue a copy (not a move): the waiting entry may have to survive as an interrupted shell.
-  this->tx_buffer_.emplace_back(wfr.device, frame.data.data()[0], frame.data.data() + 1, frame.size() - 3);
-}
-
 void ModbusClientHub::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Modbus:\n"
@@ -580,6 +561,30 @@ void ModbusServerHub::send_exception_(uint8_t address, uint8_t function_code, Mo
   raw_frame[1] = function_code | FUNCTION_CODE_EXCEPTION_MASK;
   raw_frame[2] = static_cast<uint8_t>(exception_code);
   this->send_raw_(raw_frame, 3);
+}
+
+void ModbusClientHub::notify_no_response_(ModbusDeviceCommand &wfr) {
+  if (wfr.device == nullptr)
+    return;
+  const bool retry = wfr.device->on_modbus_no_response();
+  // The callback may have detached the device (e.g. clear_tx_queue_for_device()); honor the detach
+  // over the retry request rather than re-queueing a frame that can no longer be routed.
+  if (retry && wfr.device != nullptr)
+    this->requeue_waiting_frame_(wfr);
+  // The old transaction is over either way; never deliver anything else to the device through it.
+  wfr.device = nullptr;
+}
+
+void ModbusClientHub::requeue_waiting_frame_(ModbusDeviceCommand &wfr) {
+  const ModbusFrame &frame = wfr.frame;
+  if (this->tx_buffer_.size() >= MODBUS_TX_BUFFER_SIZE) {
+    ESP_LOGE(TAG, "Write buffer full, dropped retry for address %" PRIu8, frame.data.data()[0]);
+    if (wfr.device != nullptr)
+      wfr.device->on_modbus_not_sent();
+    return;
+  }
+  // Re-queue a copy (not a move): the waiting entry may have to survive as an interrupted shell.
+  this->tx_buffer_.emplace_back(wfr.device, frame.data.data()[0], frame.data.data() + 1, frame.size() - 3);
 }
 
 // Raw send for client: pushes to tx queue. Everything except the CRC must be contained in payload.

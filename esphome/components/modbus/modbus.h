@@ -109,7 +109,7 @@ class ModbusClientHub : public Modbus {
                                               payload, payload_len),
                    device);
   };
-  void send_pdu(uint8_t address, const StaticVector<uint8_t, MAX_PDU_SIZE> &pdu, ModbusClientDevice *device = nullptr) {
+  void send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr) {
     this->queue_raw_(address, pdu.data(), pdu.size(), device);
   }
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr);
@@ -187,6 +187,8 @@ class ModbusClientDevice {
   virtual void on_modbus_error(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {}
   virtual void on_modbus_not_sent() {}
   /// Called when no (valid) response arrived; return true to have the hub re-queue the frame for a retry.
+  /// The hub does not bound retries: the device is responsible for limiting them (e.g. track a counter and
+  /// return false when exhausted), or an unresponsive peer will starve other traffic on the bus.
   virtual bool on_modbus_no_response() { return false; }
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
             const uint8_t *payload = nullptr) {
@@ -195,7 +197,7 @@ class ModbusClientDevice {
                                                        payload, payload_len),
                             this);
   }
-  void send_pdu(const StaticVector<uint8_t, MAX_PDU_SIZE> &pdu) { this->parent_->send_pdu(this->address_, pdu, this); }
+  void send_pdu(std::span<const uint8_t> pdu) { this->parent_->send_pdu(this->address_, pdu, this); }
   void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload, this); }
   inline void clear_tx_queue_for_address(bool clear_sent = true) {
     this->parent_->clear_tx_queue_for_address(this->address_, clear_sent);
