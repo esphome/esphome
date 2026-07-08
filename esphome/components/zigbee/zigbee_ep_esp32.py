@@ -173,13 +173,15 @@ def create_ep(router: bool) -> None:
                     break
             if not added:
                 ep_list_new.append(ep)
-        zb_data[KEY_ZIGBEE_EP_NO_NUM] = ep_list_new
 
         # Add endpoints with no number to the endpoint dict with a new number
         eps = list(ep_dict.keys())
         for ep in ep_list_new:
             ep_num = get_next_ep_num(eps)
             ep_dict[ep_num] = ep
+
+        # clear list so that it is not processed again
+        del zb_data[KEY_ZIGBEE_EP_NO_NUM]
 
     # Add default device type to endpoints that have none
     for ep in ep_dict.values():
@@ -199,8 +201,7 @@ def add_ep(ep: dict[str, Any], ep_num: int | None, use_type: bool | None) -> Non
         if ep_num in ep_dict:
             # check if the existing endpoint has same clusters
             existing_ep = ep_dict[ep_num]
-            if not merge_endpoint(existing_ep, ep_num, ep, use_type, False):
-                raise cv.Invalid(f"Cannot add Entity to Endpoint {ep_num}.")
+            merge_endpoint(existing_ep, ep_num, ep, use_type, False)
         else:
             if use_type is not None:
                 ep[CONF_USE_DEVICE_TYPE] = use_type
