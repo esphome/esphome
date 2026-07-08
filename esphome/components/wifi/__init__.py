@@ -436,6 +436,21 @@ def _validate(config):
     return config
 
 
+def _report_provisioning_credentials(config):
+    """Report baked-in STA credentials to the provisioning component (if used).
+
+    `_validate` has already folded any ``ssid``/``password`` into ``networks``, so a
+    non-empty list means credentials are set in the config. `provisioning:` warns
+    about this, since a device that uses a provisioning window should get its
+    credentials on first connection instead.
+    """
+    if config.get(CONF_NETWORKS):
+        from esphome.components import provisioning
+
+        provisioning.report_hardcoded_credentials("wifi")
+    return config
+
+
 CONF_PASSIVE_SCAN = "passive_scan"
 
 FAST_CONNECT_SCHEMA = cv.Schema(
@@ -517,6 +532,7 @@ CONFIG_SCHEMA = cv.All(
     ),
     _apply_min_auth_mode_default,
     _validate,
+    _report_provisioning_credentials,
 )
 
 
