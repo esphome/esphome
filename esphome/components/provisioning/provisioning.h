@@ -16,6 +16,11 @@ namespace esphome::provisioning {
 // provisioning registers as a "source" and reports its state; the device is
 // considered provisioned once every registered source is provisioned.
 //
+// Network connectivity is a built-in source: a device with a network interface but
+// no other provisioning-capable component (no api encryption, etc.) is still
+// considered provisioned once it has connected via any interface -- so an
+// Improv-only device reports its state correctly.
+//
 // If the window times out while still unprovisioned it closes: the closed state is
 // RAM-only (a power cycle / reset reopens it) and the `on_timeout` automation fires.
 // Components query window_pending()/closed() to suppress reboot timeouts and refuse
@@ -80,6 +85,11 @@ class ProvisioningManager : public Component {
   uint32_t provisioned_mask_{0};
   uint8_t source_count_{0};
   bool closed_{false};
+#ifdef USE_NETWORK
+  // Built-in connectivity source (see loop()): registered in the constructor and
+  // latched provisioned once the device has connected via any network interface.
+  uint8_t network_source_{0};
+#endif
 };
 
 extern ProvisioningManager *global_provisioning_manager;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

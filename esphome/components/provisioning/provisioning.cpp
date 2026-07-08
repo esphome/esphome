@@ -2,6 +2,9 @@
 #ifdef USE_PROVISIONING
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#ifdef USE_NETWORK
+#include "esphome/components/network/util.h"
+#endif
 
 #include <cinttypes>
 
@@ -12,7 +15,15 @@ static const char *const TAG = "provisioning";
 ProvisioningManager *global_provisioning_manager =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
     nullptr;
 
-ProvisioningManager::ProvisioningManager() { global_provisioning_manager = this; }
+ProvisioningManager::ProvisioningManager() {
+  global_provisioning_manager = this;
+#ifdef USE_NETWORK
+  // Network connectivity is a built-in provisioning source. Registered here rather
+  // than from a source's setup() because connectivity is universal, not a pluggable
+  // transport; loop() latches it provisioned once the device has connected.
+  this->network_source_ = this->register_source();
+#endif
+}
 
 uint8_t ProvisioningManager::register_source() {
   if (this->source_count_ >= MAX_SOURCES) {
@@ -28,15 +39,27 @@ uint8_t ProvisioningManager::register_source() {
 }
 
 void ProvisioningManager::loop() {
+  // Sources register during their own setup() (at various priorities), and this
+  // loop() also runs while waiting on a slow component during setup. Evaluating the
+  // provisioning state before every source has registered could conclude
+  // "provisioned" prematurely and disable_loop() for good, defeating the window --
+  // so do nothing until all setup() calls are done.
+  if (!App.is_setup_complete())
+    return;
+
+#ifdef USE_NETWORK
+  // Latch the built-in connectivity source once the device has been reachable via
+  // any interface. network::is_connected() aggregates wifi/ethernet/modem/... (OR
+  // across interfaces), and a disabled interface never connects so it never
+  // contributes. Latched: a later link drop does not un-provision -- the RAM-only
+  // window still reopens only on reboot.
+  if ((this->provisioned_mask_ & (1UL << this->network_source_)) == 0 && network::is_connected())
+    this->set_source_provisioned(this->network_source_, true);
+#endif
+
   // The window is resolved once the device is provisioned or the window has closed;
-  // there is nothing left to track, so stop running entirely.
-  //
-  // The registered_mask_ != 0 guard is essential: sources register during their own
-  // setup(), which runs after ours (we are BEFORE_CONNECTION). ESPHome also runs
-  // already-setup components' loop() while waiting on a slow component during setup,
-  // so this loop() can run before any source has registered. Without the guard,
-  // is_provisioned() would be vacuously true (no registered sources) and we would
-  // disable_loop() permanently before the window ever starts.
+  // there is nothing left to track, so stop running entirely. (registered_mask_ != 0
+  // keeps a source-less `provisioning:` from being vacuously provisioned.)
   if (this->closed_ || (this->registered_mask_ != 0 && this->is_provisioned())) {
     this->disable_loop();
     return;

@@ -46,7 +46,8 @@ def _validate_has_source(config: ConfigType) -> ConfigType:
     if any(detector(full_config) for detector in _PROVISIONING_SOURCE_DETECTORS):
         return config
     raise cv.Invalid(
-        "'provisioning' requires at least one provisioning-capable component. Enable "
+        "'provisioning' requires at least one provisioning-capable component: "
+        "configure a network interface such as 'wifi:' or 'ethernet:', or enable "
         "'api:' with 'encryption:' and no 'key:' so the device boots unprovisioned "
         "and is configured on first connection."
     )

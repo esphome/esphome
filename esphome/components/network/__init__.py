@@ -3,6 +3,7 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.components.provisioning import register_provisioning_source
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
@@ -12,6 +13,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["mdns"]
+DOMAIN = "network"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,6 +25,21 @@ CONF_ENABLE_HIGH_PERFORMANCE = "enable_high_performance"
 network_ns = cg.esphome_ns.namespace("network")
 NetworkComponent = network_ns.class_("NetworkComponent", cg.Component)
 IPAddress = network_ns.class_("IPAddress")
+
+
+def _is_provisioning_source(full_config: ConfigType) -> bool:
+    """Network connectivity is a provisioning source.
+
+    A device with a network interface (wifi, ethernet, ...) but no other
+    provisioning-capable component still reports provisioned once it has connected
+    via any interface, so `provisioning:` is valid on such a device. The network
+    component is auto-loaded whenever an interface is configured, so its presence
+    stands in for "the device has connectivity".
+    """
+    return DOMAIN in full_config
+
+
+register_provisioning_source(_is_provisioning_source)
 
 
 def ip_address_literal(ip: str | int | None) -> cg.MockObj:

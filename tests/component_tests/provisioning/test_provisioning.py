@@ -6,9 +6,11 @@ import pytest
 
 from esphome import config_validation as cv
 
-# Importing the api component registers its provisioning-source detector at import
-# time (module-level register_provisioning_source call), which these tests rely on.
+# Importing the api and network components registers their provisioning-source
+# detectors at import time (module-level register_provisioning_source calls), which
+# these tests rely on.
 from esphome.components.api import CONF_ENCRYPTION
+import esphome.components.network  # noqa: F401
 from esphome.components.provisioning import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
 from esphome.const import CONF_ESPHOME, CONF_TIMEOUT, PlatformFramework
 from tests.component_tests.types import SetCoreConfigCallable
@@ -30,6 +32,18 @@ def test_provisioning_accepts_api_encryption_source(
     set_core_config(
         PlatformFramework.ESP32_IDF, full_config={"api": {CONF_ENCRYPTION: {}}}
     )
+    # Should not raise.
+    assert FINAL_VALIDATE_SCHEMA({}) == {}
+
+
+def test_provisioning_accepts_network_source(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A network interface alone (no api) is a valid provisioning source.
+
+    Covers the Improv-only / no-api device: connectivity satisfies provisioning.
+    """
+    set_core_config(PlatformFramework.ESP32_IDF, full_config={"network": {}})
     # Should not raise.
     assert FINAL_VALIDATE_SCHEMA({}) == {}
 
