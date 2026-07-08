@@ -53,11 +53,9 @@ class ProvisioningManager : public Component {
     }
   }
 
-  // True once every registered source is provisioned. With no sources registered
-  // this is vacuously true: a `provisioning:` block configured without any
-  // provisioning-capable component leaves the reboot timeouts working normally (the
-  // window simply never opens) instead of silently disabling them. dump_config()
-  // warns about that inert configuration.
+  // True once every registered source is provisioned. Config validation guarantees
+  // at least one source, and the built-in connectivity source registers in the
+  // constructor, so registered_mask_ is never zero in practice.
   bool is_provisioned() const { return (this->provisioned_mask_ & this->registered_mask_) == this->registered_mask_; }
   // True while provisioning is still pending: the device is unprovisioned, whether
   // the window is still open or has already closed. Reboot timeouts are suppressed

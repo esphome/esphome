@@ -58,9 +58,9 @@ void ProvisioningManager::loop() {
 #endif
 
   // The window is resolved once the device is provisioned or the window has closed;
-  // there is nothing left to track, so stop running entirely. (registered_mask_ != 0
-  // keeps a source-less `provisioning:` from being vacuously provisioned.)
-  if (this->closed_ || (this->registered_mask_ != 0 && this->is_provisioned())) {
+  // there is nothing left to track, so stop running entirely. Config validation
+  // guarantees at least one source, so is_provisioned() is never vacuously true here.
+  if (this->closed_ || this->is_provisioned()) {
     this->disable_loop();
     return;
   }
@@ -86,12 +86,6 @@ void ProvisioningManager::dump_config() {
                 "  Timeout: %" PRIu32 "ms\n"
                 "  Provisioned: %s",
                 this->timeout_, YESNO(this->is_provisioned()));
-  if (this->registered_mask_ == 0) {
-    // No transport registered as a source, so the window never opens and nothing
-    // can close it. Warn rather than silently leaving the option inert.
-    ESP_LOGW(TAG, "No provisioning-capable component configured (e.g. 'api:' with "
-                  "'encryption:' and no 'key'); the provisioning window is inert");
-  }
 }
 
 }  // namespace esphome::provisioning
