@@ -55,7 +55,7 @@ void HrxlMaxsonarWrComponent::check_buffer_() {
         millimeters = millimeters * 10;
       }
 
-      float meters = float(millimeters) / 1000.0;
+      float meters = float(millimeters) / 1000.0f;
       ESP_LOGV(TAG, "Distance from sensor: %d mm, %f m", millimeters, meters);
       this->publish_state(meters);
     } else {

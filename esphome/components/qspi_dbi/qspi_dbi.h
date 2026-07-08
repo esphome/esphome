@@ -53,9 +53,9 @@ enum Model {
   RM67162,
 };
 
-class QspiDbi : public display::DisplayBuffer,
-                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                      spi::DATA_RATE_1MHZ> {
+class QspiDbi final : public display::DisplayBuffer,
+                      public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+                                            spi::DATA_RATE_1MHZ> {
  public:
   void set_model(const char *model) { this->model_ = model; }
   void update() override;

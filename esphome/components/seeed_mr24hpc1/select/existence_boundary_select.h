@@ -5,7 +5,7 @@
 
 namespace esphome::seeed_mr24hpc1 {
 
-class ExistenceBoundarySelect : public select::Select, public Parented<MR24HPC1Component> {
+class ExistenceBoundarySelect final : public select::Select, public Parented<MR24HPC1Component> {
  public:
   ExistenceBoundarySelect() = default;
 

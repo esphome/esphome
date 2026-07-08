@@ -186,8 +186,12 @@ void APIServer::remove_client_(uint8_t client_index) {
   if (client_index < last_index) {
     std::swap(this->clients_[client_index], this->clients_[last_index]);
   }
-  this->clients_[last_index].reset();
+  // Drop the count before resetting the slot. reset() runs ~APIConnection(), which can reenter the
+  // server (e.g. voice_assistant unsubscribes in its disconnect trigger, publishing entity state ->
+  // on_*_update iterating active_clients()). Excluding the dying slot from the active range first
+  // keeps that reentrant iteration from dereferencing the now-null slot.
   this->api_connection_count_--;
+  this->clients_[last_index].reset();
 
   // Last client disconnected - set warning and start tracking for reboot timeout
   if (this->api_connection_count_ == 0 && this->reboot_timeout_ != 0) {
@@ -236,12 +240,13 @@ void __attribute__((flatten)) APIServer::accept_new_connections_() {
 }
 
 void APIServer::dump_config() {
+  char addr_buf[network::USE_ADDRESS_BUFFER_SIZE];
   ESP_LOGCONFIG(TAG,
                 "Server:\n"
                 "  Address: %s:%u\n"
                 "  Listen backlog: %u\n"
                 "  Max connections: %u",
-                network::get_use_address(), this->port_, this->listen_backlog_, MAX_API_CONNECTIONS);
+                network::get_use_address_to(addr_buf), this->port_, this->listen_backlog_, MAX_API_CONNECTIONS);
 #ifdef USE_API_NOISE
   ESP_LOGCONFIG(TAG, "  Noise encryption: %s", YESNO(this->noise_ctx_.has_psk()));
   if (!this->noise_ctx_.has_psk()) {
