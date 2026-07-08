@@ -6,7 +6,7 @@
 
 namespace esphome::libretiny {
 
-static const char *const TAG = "lt.component";
+static const char *const TAG = "libretiny";
 
 void LTComponent::dump_config() {
   ESP_LOGCONFIG(TAG,

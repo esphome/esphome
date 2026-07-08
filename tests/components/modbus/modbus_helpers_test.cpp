@@ -181,17 +181,52 @@ TEST(ModbusCreateClientPdu, WriteMultipleOverEntityLimitReturnsEmpty) {
 
 TEST(ModbusHelpersTest, PayloadToNumberRejectsOffsetAtEndOfBuffer) {
   const std::vector<uint8_t> data{0x12, 0x34};
-  EXPECT_EQ(payload_to_number(data, SensorValueType::U_WORD, 2, 0xFFFFFFFF), 0);
+  EXPECT_FALSE(payload_to_number(std::span<const uint8_t>(data), SensorValueType::U_WORD, 2, 0xFFFFFFFF).has_value());
 }
 
 TEST(ModbusHelpersTest, PayloadToNumberRejectsTruncatedMultiRegisterValue) {
   const std::vector<uint8_t> data{0x12, 0x34, 0x56};
-  EXPECT_EQ(payload_to_number(data, SensorValueType::U_DWORD, 0, 0xFFFFFFFF), 0);
+  EXPECT_FALSE(payload_to_number(std::span<const uint8_t>(data), SensorValueType::U_DWORD, 0, 0xFFFFFFFF).has_value());
 }
 
 TEST(ModbusHelpersTest, PayloadToNumberDecodesValidWord) {
   const std::vector<uint8_t> data{0x12, 0x34};
-  EXPECT_EQ(payload_to_number(data, SensorValueType::U_WORD, 0, 0xFFFFFFFF), 0x1234);
+  EXPECT_EQ(payload_to_number(std::span<const uint8_t>(data), SensorValueType::U_WORD, 0, 0xFFFFFFFF), 0x1234);
+}
+
+// --- registers_to_number ---------------------------------------------------
+// Register words are host byte order; results must match the byte-based payload_to_number.
+
+TEST(ModbusHelpersTest, RegistersToNumberDecodesWord) {
+  const uint16_t registers[] = {0x1234};
+  EXPECT_EQ(registers_to_number(registers, 1, SensorValueType::U_WORD), 0x1234);
+}
+
+TEST(ModbusHelpersTest, RegistersToNumberDecodesDwordHighWordFirst) {
+  const uint16_t registers[] = {0x1234, 0x5678};
+  EXPECT_EQ(registers_to_number(registers, 2, SensorValueType::U_DWORD), 0x12345678);
+}
+
+TEST(ModbusHelpersTest, RegistersToNumberDecodesAtSpanStart) {
+  // The function decodes the value at the start of the span; the caller advances the pointer.
+  const uint16_t registers[] = {0xAAAA, 0x1234};
+  EXPECT_EQ(registers_to_number(registers + 1, 1, SensorValueType::U_WORD), 0x1234);
+}
+
+TEST(ModbusHelpersTest, RegistersToNumberMatchesPayloadToNumber) {
+  // Same value via both decoders: registers (host order) vs big-endian bytes.
+  const uint16_t registers[] = {0x8001, 0x0002};
+  const std::vector<uint8_t> bytes{0x80, 0x01, 0x00, 0x02};
+  for (auto value_type : {SensorValueType::S_DWORD, SensorValueType::U_DWORD, SensorValueType::S_DWORD_R}) {
+    EXPECT_EQ(registers_to_number(registers, 2, value_type),
+              payload_to_number(std::span<const uint8_t>(bytes), value_type, 0, 0xFFFFFFFF))
+        << "value_type=" << static_cast<int>(value_type);
+  }
+}
+
+TEST(ModbusHelpersTest, RegistersToNumberRejectsTruncatedMultiRegisterValue) {
+  const uint16_t registers[] = {0x1234};
+  EXPECT_FALSE(registers_to_number(registers, 1, SensorValueType::U_DWORD).has_value());
 }
 
 }  // namespace esphome::modbus::helpers

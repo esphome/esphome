@@ -77,6 +77,14 @@ display:
   - platform: epaper_spi
     model: seeed-reterminal-e1002
   - platform: epaper_spi
+    model: seeed-reterminal-e1004
+    cs_pin: 33
+    cs1_pin: 34
+    dc_pin: 35
+    reset_pin: 36
+    busy_pin: 37
+    enable_pin: 39
+  - platform: epaper_spi
     model: seeed-ee04-mono-4.26
     full_update_every: 10
     # Override pins to avoid conflict with other display configs
@@ -161,3 +169,66 @@ display:
     busy_pin:
       allow_other_uses: true
       number: GPIO4
+
+  # Waveshare 2.13" V4 B series 3-color e-paper (122x250, BWR, SSD1680)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: waveshare-2.13in-bv4
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    lambda: |-
+      it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 20, Color::BLACK);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 15, Color(255, 0, 0));
+
+  # Soldered Inkplate 2 3-color e-paper (104x212, BWR)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: inkplate2
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    lambda: |-
+      it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 20, Color::BLACK);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 15, Color(255, 0, 0));
+
+  # Waveshare 7.5" V2 BWR (800x480, UC8179 controller, EDP_7in5b_V2)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: waveshare-7.5in-bv2-bwr
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    lambda: |-
+      it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 100, Color::BLACK);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 60, Color(255, 0, 0));
