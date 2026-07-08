@@ -397,7 +397,14 @@ int USBUartTypeFT23XX::set_dtr_rts_(USBUartChannel *channel) {
 }
 
 void USBUartTypeFT23XX::start_input(USBUartChannel *channel) {
-  if (!channel->initialised_.load() || channel->input_started_.load())
+  if (!channel->initialised_.load())
+    return;
+
+  // Use compare_exchange_strong to avoid a check-then-act race: start_input() is called
+  // from both the USB task (self-restart on success) and the main loop (backpressure
+  // restart), so a plain load()/store() pair can let both threads submit a transfer.
+  auto started = false;
+  if (!channel->input_started_.compare_exchange_strong(started, true))
     return;
 
   const auto *ep = channel->cdc_dev_.in_ep;
@@ -419,29 +426,45 @@ void USBUartTypeFT23XX::start_input(USBUartChannel *channel) {
           this->on_rx_overflow(channel);
         }
         channel->input_buffer_.push(status.data + 2, uart_data_len);
-#ifdef USE_UART_DEBUGGER
-        if (channel->debug_) {
-          uart::UARTDebug::log_hex(uart::UART_DIRECTION_RX,
-                                   std::vector<uint8_t>(status.data + 2, status.data + 2 + uart_data_len), ',',
-                                   channel->debug_prefix_);
+        UsbDataChunk *chunk = this->chunk_pool_.allocate();
+        if (chunk == nullptr) {
+          this->usb_data_queue_.increment_dropped_count();
+          channel->input_started_.store(false);
+          // Queue is full — wake the main loop to drain it, then let read_array()
+          // retrigger start_input() rather than spinning here in the USB task.
+          this->enable_loop_soon_any_context();
+          App.wake_loop_threadsafe();
+          return;
         }
+        // Strip the 2-byte FTDI header before queuing.
+        memcpy(chunk->data, status.data + 2, uart_data_len);
+        chunk->length = static_cast<uint16_t>(uart_data_len);
+        chunk->channel = channel;
+        this->usb_data_queue_.push(chunk);
+#ifdef USE_UART_DEBUGGER
+	if (channel->debug_) {
+        	uart::UARTDebug::log_hex(uart::UART_DIRECTION_RX,
+                                 std::vector<uint8_t>(status.data + 2, status.data + 2 + uart_data_len), ',',
+                                 channel->debug_prefix_);
+	}
 #endif
-      }
-    } else {
-      ESP_LOGVV(TAG, "RX: Status packet, modem=0x%02X line=0x%02X, ch=%d", status.data[0], status.data[1],
-                channel->index_);
+      this->enable_loop_soon_any_context();
+      App.wake_loop_threadsafe();
     }
+  } else if (status.data_len >= 2) {
+    ESP_LOGVV(TAG, "RX: Status packet, modem=0x%02X line=0x%02X, ch=%d", status.data[0], status.data[1],
+              channel->index_);
+  }
 
-    channel->input_started_.store(false);
-    if (channel->dummy_receiver_ ||
-        channel->input_buffer_.get_free_space() >= channel->cdc_dev_.in_ep->wMaxPacketSize) {
-      this->start_input(channel);
-    }
-  };
+  channel->input_started_.store(false);
+  this->start_input(channel);
+};
 
-  channel->input_started_.store(true);
-  this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize);
+if (!this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize)) {
+  ESP_LOGE(TAG, "RX transfer submission failed for ep=0x%02X", ep->bEndpointAddress);
+  channel->input_started_.store(false);
 }
+}  // namespace esphome::usb_uart
 
 void USBUartTypeFT23XX::on_rx_overflow(USBUartChannel *channel) {
   ESP_LOGW(TAG, "RX buffer overflow on channel %d, clearing to resync", channel->index_);

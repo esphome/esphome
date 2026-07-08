@@ -197,13 +197,16 @@ class USBUartComponent : public usb_host::USBClient {
 
   virtual void start_input(USBUartChannel *channel);
   void start_output(USBUartChannel *channel);
-  virtual void on_rx_overflow(USBUartChannel *channel) {}
 
   // Begin configuring all channels (full initialisation). Called from on_connected().
   virtual void enable_channels();
   // Re-apply line settings to a single, already-open channel (used by
   // USBUartChannel::load_settings()).
   void apply_channel_settings(USBUartChannel *channel);
+
+  // Called from loop() when input_buffer_ has insufficient space for the incoming chunk.
+  // Default is a no-op; override in device-specific subclasses that need resync on overflow.
+  virtual void on_rx_overflow(USBUartChannel *channel) {}
 
   // Lock-free data transfer from USB task to main loop
   static constexpr int USB_DATA_QUEUE_SIZE = 32;

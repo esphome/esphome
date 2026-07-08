@@ -222,6 +222,13 @@ class USBClient : public Component {
   const usb_device_desc_t *get_device_desc_() const { return this->device_desc_; }
   const usb_config_desc_t *get_config_desc_() const { return this->config_desc_; }
 };
+// ─────────────────────────────────────────────────────────────────────────────
+// USBHost — USB host stack + stateless transfer submission engine.
+//
+// Acts as the Linux host controller driver: owns usb_host_install(), the lib
+// event loop, and all ESP-IDF transfer submission calls.  Never touches client
+// memory — clients own their TransferRequest pools and hand filled slots here.
+// ─────────────────────────────────────────────────────────────────────────────
 class USBHost final : public Component {
  public:
   float get_setup_priority() const override { return setup_priority::BUS; }
