@@ -53,6 +53,12 @@ lvgl:
         id: meter_arc_indicator
         start_value: 0
         end_value: 180
+    - lvgl.animation.start:
+        id:
+          - anim_slide
+          - anim_color
+        duration: 3s
+        loop: true
   on_invalidate_area:
     logger.log: Invalidate area
   on_resolution_change:
@@ -97,6 +103,52 @@ lvgl:
       - obj:
           bg_color: 0x000000
           bg_opa: cover
+  top_layer:
+    widgets:
+      - obj:
+          id: anim_box
+          x: 0
+          y: 0
+          width: 50
+          height: 50
+          bg_color: 0xFF0000
+      - label:
+          id: anim_label
+          text: anim
+  animations:
+    - id: anim_slide
+      duration: 1s
+      start_delay: 100ms
+      auto_start: true
+      loop: true
+      timing: ease_in_out
+      on_start:
+        - logger.log: anim started
+      on_stop:
+        - logger.log: anim stopped
+      widgets:
+        - id: anim_box
+          x:
+            from: 0
+            to: 100
+          y:
+            from: 0
+            to: !lambda "return 80;"
+          opa:
+            from: 50%
+            to: 100%
+    - id: anim_color
+      duration: 2s
+      timing:
+        - round_trip
+        - type: gravity
+          bounce: 0.3
+          acceleration: 0.8
+      widgets:
+        - id: anim_label
+          text_color:
+            from: 0xFF0000
+            to: color_id
   theme:
     dark_mode: true
     obj:
@@ -199,6 +251,11 @@ lvgl:
           on_click:
             then:
               - lvgl.display.set_rotation: 0
+              - lvgl.animation.stop: anim_slide
+              - lvgl.animation.stop:
+                  id:
+                    - anim_slide
+                    - anim_color
               - lvgl.widget.hide: message_box
               - lvgl.style.update:
                   id: style_test
