@@ -31,8 +31,7 @@ from esphome.const import (
     CONF_TRANSFORM,
     CONF_WIDTH,
 )
-from esphome.core import TimePeriod
-from esphome.final_validate import full_config
+from esphome.core import CORE, TimePeriod
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
 LOGGER = cv.logging.getLogger(__name__)
@@ -643,21 +642,30 @@ class DriverChip:
         # or the delay flag inserted where needed
         return flatten_sequence(sequence)
 
-    def final_validate(self, _config: dict) -> None:
+    def check_requirements(self) -> None:
         """
-        Provides for final validation of the model and configuration after the entire config has been read.
-        """
+        Raise a friendly error if any component this model requires is not configured.
 
-        # Check if the model has any required components and if they are present in the global configuration.
+        This runs during schema validation (before ID references are resolved) so that a
+        model whose default pins live on a pin expander reports the missing expander clearly
+        instead of a cryptic "Couldn't find ID" from the unresolved pin reference.
+        """
         requirements = self.get_default("requires", set())
-        if requirements:
-            global_config = full_config.get()
-            requirements = {x for x in requirements if x not in global_config}
-            if requirements:
-                reqstr = ", ".join([f"'{x}'" for x in requirements])
-                raise cv.Invalid(
-                    f"{self.name} requires component{'s' if len(requirements) > 1 else ''} {reqstr} to be configured"
-                )
+        if not requirements:
+            return
+        # ``raw_config`` is populated before any component schema runs during a real
+        # validation, so presence of a required component is simply a top-level key.
+        # When it is absent (e.g. a unit test that invokes the schema directly) there
+        # is no config to check against, so skip.
+        global_config = CORE.raw_config
+        if global_config is None:
+            return
+        missing = {x for x in requirements if x not in global_config}
+        if missing:
+            reqstr = ", ".join(f"'{x}'" for x in sorted(missing))
+            raise cv.Invalid(
+                f"{self.name} requires component{'s' if len(missing) > 1 else ''} {reqstr} to be configured"
+            )
 
 
 def requires_buffer(config) -> bool:

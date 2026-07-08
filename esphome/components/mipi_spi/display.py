@@ -253,6 +253,7 @@ def customise_schema(config):
         extra=ALLOW_EXTRA,
     )(config)
     model = MODELS[config[CONF_MODEL]]
+    model.check_requirements()
     bus_modes = (TYPE_SINGLE, TYPE_QUAD, TYPE_OCTAL)
     config = cv.Schema(
         {
@@ -323,7 +324,6 @@ def _final_validate(config):
         model.get_dimensions(config)
     )
 
-    model.final_validate(config)
     if PSRAM_DOMAIN not in global_config and CONF_BUFFER_SIZE not in config:
         # If PSRAM is not enabled, choose a small buffer size by default
         if not requires_buffer(config):

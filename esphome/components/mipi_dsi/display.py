@@ -157,6 +157,7 @@ def _config_schema(config):
     )(config)
     config = model_schema(config)(config)
     model = MODELS[config[CONF_MODEL].upper()]
+    model.check_requirements()
     width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
         model.get_dimensions(config)
     )
@@ -175,9 +176,6 @@ def _config_schema(config):
 
 
 def _final_validate(config):
-    model = MODELS[config[CONF_MODEL]]
-    model.final_validate(config)
-
     global_config = full_config.get()
 
     from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN

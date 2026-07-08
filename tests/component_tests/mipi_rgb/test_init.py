@@ -1,5 +1,5 @@
 """Tests for mipi_rgb configuration validation, in particular the per-model
-``requires`` component check (see esphome.components.mipi.DriverChip.final_validate)."""
+``requires`` component check (see esphome.components.mipi.DriverChip.check_requirements)."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from esphome.components.mipi_rgb.display import CONFIG_SCHEMA, FINAL_VALIDATE_SC
 # defaults can be validated by the mipi_rgb CONFIG_SCHEMA in this test.
 import esphome.components.pca9554  # noqa: F401
 from esphome.const import PlatformFramework
+from esphome.core import CORE
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
 
@@ -38,6 +39,7 @@ def test_model_requires_psram(set_core_config: SetCoreConfigCallable) -> None:
         PlatformFramework.ESP32_IDF,
         platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
     )
+    CORE.raw_config = {}
 
     with pytest.raises(
         cv.Invalid,
@@ -56,6 +58,7 @@ def test_model_requires_psram_satisfied(
         platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
     )
     set_component_config("psram", True)
+    CORE.raw_config = {"psram": True}
 
     config = _validated({"model": "ESP32-8048S070"})
     assert config["model"] == "ESP32-8048S070"
@@ -72,6 +75,7 @@ def test_model_requires_psram_and_expander(
     )
     # Only satisfy one of the two requirements.
     set_component_config("psram", True)
+    CORE.raw_config = {"psram": True}
 
     with pytest.raises(
         cv.Invalid,
