@@ -2,16 +2,13 @@ import esphome.codegen as cg
 
 DEVICE_TYPE = "device_type"
 ROLE = "role"
-CONF_MAX_EP_NUMBER = 239
-CONF_NUM = "num"
 CONF_CLUSTERS = "clusters"
 CONF_ATTRIBUTES = "attributes"
-CONF_ENDPOINT = "endpoint"
 CONF_CLUSTER = "cluster"
 SCALE = "scale"
 CONF_ATTRIBUTE_ID = "attribute_id"
-KEY_BS_EP = "binary_sensor_ep"
-KEY_SENSOR_EP = "sensor_ep"
+KEY_ZIGBEE_EP = "zigbee_ep"
+KEY_ZIGBEE_EP_NO_NUM = "zigbee_ep_no_num"
 
 DEVICE_ID = {
     "RANGE_EXTENDER": cg.RawExpression("EZB_ZHA_RANGE_EXTENDER_DEVICE_ID"),
