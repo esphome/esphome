@@ -6,8 +6,8 @@
 
 namespace esphome::esp_audio_stack {
 
-#ifndef ESPHOME_SCALE_SAMPLE_DEFINED
-#define ESPHOME_SCALE_SAMPLE_DEFINED
+#ifndef ESPHOME_AUDIO_STACK_SCALE_SAMPLE_DEFINED
+#define ESPHOME_AUDIO_STACK_SCALE_SAMPLE_DEFINED
 // Scale a 16-bit PCM sample by a float gain with saturation clamping.
 // Supports gains > 1.0 (amplification) unlike ESPHome's Q15 scale_audio_samples().
 static inline int16_t scale_sample(int16_t sample, float gain) {
@@ -20,8 +20,8 @@ static inline int16_t scale_sample(int16_t sample, float gain) {
 }
 #endif
 
-#ifndef ESPHOME_COMPUTE_RMS_DBFS_DEFINED
-#define ESPHOME_COMPUTE_RMS_DBFS_DEFINED
+#ifndef ESPHOME_AUDIO_STACK_COMPUTE_RMS_DBFS_DEFINED
+#define ESPHOME_AUDIO_STACK_COMPUTE_RMS_DBFS_DEFINED
 // 20*log10(32768): subtract from 10*log10(mean) to get dBFS without an
 // extra sqrt() (more numerically stable for small means).
 static constexpr float RMS_DBFS_OFFSET = 90.30899870f;
@@ -60,8 +60,8 @@ static inline float compute_rms_dbfs_i32_top16(const int32_t *data, size_t sampl
 }
 #endif
 
-#ifndef ESPHOME_DC_BLOCKER_STATE_DEFINED
-#define ESPHOME_DC_BLOCKER_STATE_DEFINED
+#ifndef ESPHOME_AUDIO_STACK_DC_BLOCKER_STATE_DEFINED
+#define ESPHOME_AUDIO_STACK_DC_BLOCKER_STATE_DEFINED
 struct DcBlockerState {
   int32_t prev_input_q16{0};
   int32_t prev_output_q16{0};
