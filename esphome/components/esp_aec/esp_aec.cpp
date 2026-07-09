@@ -95,9 +95,9 @@ void EspAec::setup() {
       return;
     }
   }
-  this->handle_ =
-      static_cast<void *>(afe_aec_create("MR", this->filter_length_, static_cast<afe_type_t>(afe_type_from_mode(this->mode_)),
-                                         static_cast<afe_mode_t>(afe_cost_from_mode(this->mode_))));
+  this->handle_ = static_cast<void *>(afe_aec_create("MR", this->filter_length_,
+                                                     static_cast<afe_type_t>(afe_type_from_mode(this->mode_)),
+                                                     static_cast<afe_mode_t>(afe_cost_from_mode(this->mode_))));
   if (this->handle_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create AEC instance");
     vSemaphoreDelete(this->handle_mutex_);
@@ -308,9 +308,7 @@ int EspAec::afe_type_from_mode(int mode) {
   }
 }
 
-int EspAec::afe_cost_from_mode(int mode) {
-  return is_high_perf_mode(mode) ? AFE_MODE_HIGH_PERF : AFE_MODE_LOW_COST;
-}
+int EspAec::afe_cost_from_mode(int mode) { return is_high_perf_mode(mode) ? AFE_MODE_HIGH_PERF : AFE_MODE_LOW_COST; }
 
 }  // namespace esphome::esp_aec
 
