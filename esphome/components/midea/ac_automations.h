@@ -1,6 +1,5 @@
 #pragma once
 
-// MideaUART does not build on RP2 (its manifest excludes the platform)
 #if defined(USE_ARDUINO) && !defined(USE_RP2)
 
 #include "esphome/core/automation.h"

@@ -9,7 +9,6 @@
 #include <memory>
 
 #ifdef USE_RP2
-// arduino-pico's UDP lives in the arduino namespace
 namespace arduino {
 class UDP;
 }  // namespace arduino

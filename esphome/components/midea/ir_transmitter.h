@@ -1,6 +1,5 @@
 #pragma once
 
-// MideaUART does not build on RP2 (its manifest excludes the platform)
 #if defined(USE_ARDUINO) && !defined(USE_RP2)
 #ifdef USE_REMOTE_TRANSMITTER
 #include "esphome/components/remote_base/midea_protocol.h"

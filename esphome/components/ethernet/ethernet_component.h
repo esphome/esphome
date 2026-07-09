@@ -110,7 +110,7 @@ enum class EthernetComponentState : uint8_t {
   CONNECTED,
 };
 
-// Platform-neutral duplex/speed types, mirroring the ESP-IDF esp_eth names
+// Platform-neutral duplex/speed types
 #ifndef USE_ESP32
 // NOLINTBEGIN(readability-identifier-naming)
 enum eth_duplex_t { ETH_DUPLEX_HALF, ETH_DUPLEX_FULL };
