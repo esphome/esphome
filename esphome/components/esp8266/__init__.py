@@ -202,8 +202,12 @@ ARDUINO_FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
-            cv.Optional(CONF_SOURCE): cv.string_strict,
-            cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
+            cv.Optional(
+                CONF_SOURCE, visibility=cv.Visibility.YAML_ONLY
+            ): cv.string_strict,
+            cv.Optional(
+                CONF_PLATFORM_VERSION, visibility=cv.Visibility.YAML_ONLY
+            ): _parse_platform_version,
         }
     ),
     _arduino_check_versions,
@@ -331,6 +335,12 @@ async def to_code(config):
     else:
         for symbol in ("vprintf", "printf", "fprintf"):
             cg.add_build_flag(f"-Wl,--wrap={symbol}")
+
+    # Wrap the lwIP2 glue's do-nothing dhcp_cleanup()/dhcp_release() stubs so the
+    # linker can drop their "STUB: ..." message strings from DRAM.
+    # See lwip_glue_stubs.cpp for implementation.
+    for symbol in ("dhcp_cleanup", "dhcp_release"):
+        cg.add_build_flag(f"-Wl,--wrap={symbol}")
 
     # Wrap Arduino's millis() so all callers (including Arduino libraries and ISR
     # handlers) use our fast accumulator instead of the expensive 4x 64-bit multiply
