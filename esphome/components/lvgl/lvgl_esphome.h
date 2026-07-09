@@ -185,6 +185,12 @@ enum RotationType : uint8_t {
   ROTATION_HARDWARE,
 };
 
+enum class Orientation : uint8_t {
+  UNKNOWN,
+  LANDSCAPE,
+  PORTRAIT,
+};
+
 class LvglComponent final : public PollingComponent {
   constexpr static const char *const TAG = "lvgl";
 
@@ -291,7 +297,11 @@ class LvglComponent final : public PollingComponent {
   void set_resume_trigger(Trigger<> *trigger) { this->resume_callback_ = trigger; }
   void set_draw_start_trigger(Trigger<> *trigger) { this->draw_start_callback_ = trigger; }
   void set_draw_end_trigger(Trigger<> *trigger) { this->draw_end_callback_ = trigger; }
+  void set_landscape_trigger(Trigger<> *trigger) { this->landscape_callback_ = trigger; }
+  void set_portrait_trigger(Trigger<> *trigger) { this->portrait_callback_ = trigger; }
   void set_rotation(display::DisplayRotation rotation);
+  /// Set the rotation from an angle in degrees. Must be a multiple of 90.
+  void set_rotation(int angle);
   display::DisplayRotation get_rotation() const { return this->rotation_; }
   void rotate_coordinates(int32_t &x, int32_t &y) const;
 
@@ -300,6 +310,9 @@ class LvglComponent final : public PollingComponent {
 
  protected:
   void set_resolution_() const;
+  // Determine the current orientation from the effective resolution and fire the
+  // landscape/portrait trigger if it has changed since the last check.
+  void update_orientation_();
   void draw_end_();
   // Not checking for non-null callback since the
   // LVGL callback that calls it is not set in that case
@@ -347,6 +360,9 @@ class LvglComponent final : public PollingComponent {
   Trigger<> *resume_callback_{};
   Trigger<> *draw_start_callback_{};
   Trigger<> *draw_end_callback_{};
+  Trigger<> *landscape_callback_{};
+  Trigger<> *portrait_callback_{};
+  Orientation orientation_{Orientation::UNKNOWN};
   void *rotate_buf_{};
   display::DisplayRotation rotation_{display::DISPLAY_ROTATION_0_DEGREES};
   RotationType rotation_type_;
