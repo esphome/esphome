@@ -7,6 +7,7 @@ xl9535:
 
 display:
   - platform: mipi_spi
+    id: gsl3670_display
     spi_id: spi_bus
     model: t-display-s3-pro
 
@@ -17,10 +18,12 @@ touchscreen:
   # Firmware downloaded from the model's default release URL and cached.
   - platform: gsl3670
     model: seeed-reterminal-d1001
+    display: gsl3670_display
     interrupt_pin: 18
   # Explicit firmware URL + SHA-256 override.
   - platform: gsl3670
     model: seeed-reterminal-d1001
+    display: gsl3670_display
     reset_pin: 10
     interrupt_pin: 11
     firmware:
