@@ -1435,6 +1435,27 @@ lvgl:
                 hidden: true
                 mode: text_lower
 
+        # Keyboard bound to a textarea. Placed before the textarea so the
+        # keyboard->textarea binding exercises the deferred add_textarea() path,
+        # and on_value reads text through the bound textarea.
+        - keyboard:
+            id: lv_keyboard2
+            textarea: lv_textarea1
+            on_value:
+              then:
+                - logger.log:
+                    format: "keyboard text %s"
+                    args: [text.c_str()]
+        - textarea:
+            id: lv_textarea1
+            text: "hello"
+            one_line: true
+            max_length: 32
+        # Keyboard bound to an already-defined textarea -> immediate binding path.
+        - keyboard:
+            id: lv_keyboard3
+            textarea: lv_textarea1
+
         # Grid shorthand "<rows>x": 3 rows specified, columns derived
         # from widget count (4 widgets / 3 rows -> 2 columns)
         - obj:
