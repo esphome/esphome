@@ -24,7 +24,7 @@ static constexpr uint8_t ZWAVE_COMMAND_GET_NETWORK_IDS = 0x20;
 static constexpr uint8_t ZWAVE_COMMAND_TYPE_RESPONSE = 0x01;    // Response type field value
 static constexpr uint8_t ZWAVE_MIN_GET_NETWORK_IDS_LENGTH = 7;  // TYPE + CMD + HOME_ID(4) + checksum
 static constexpr uint8_t ZWAVE_MIN_FRAME_LENGTH = 3;            // TYPE + CMD + checksum (zero-payload frame)
-static constexpr uint32_t ZWAVE_FRAME_TIMEOUT_MS = 1500;        // Abandon a partial frame after this inter-byte gap
+static constexpr uint32_t ZWAVE_FRAME_TIMEOUT_MS = 1500;        // Abandon a frame this long after its start (SOF) byte
 static constexpr uint32_t HOME_ID_TIMEOUT_MS = 100;             // Timeout for waiting for home ID during setup
 static constexpr uint32_t RECONNECT_DELAY_MS = 500;             // Delay between home ID query attempts after reconnect
 static constexpr uint8_t MAX_QUERY_RETRIES = 5;                 // Max attempts to query home ID after reconnect
@@ -113,12 +113,13 @@ void ZWaveProxy::loop() {
 
   this->process_uart_();
 
-  // Abandon a stalled partial frame (e.g. a byte was lost mid-frame); without this, the stale
-  // bytes would silently corrupt the next frame and force a checksum failure + retransmit cycle.
-  // Any SEND_* state was already resolved by response_handler_() above, so a state other than
-  // WAIT_START here always means we are mid-frame.
+  // Abandon a stalled frame reception. The Z-Wave API specification requires a receiver to abort
+  // a data frame reception lasting more than 1500 ms after the SOF byte, without sending a NAK.
+  // Without this, the stale bytes would silently corrupt the next frame. Any SEND_* state was
+  // already resolved by response_handler_() above, so a state other than WAIT_START here always
+  // means we are mid-frame.
   if (this->parsing_state_ != ZWAVE_PARSING_STATE_WAIT_START &&
-      App.get_loop_component_start_time() - this->last_byte_time_ > ZWAVE_FRAME_TIMEOUT_MS) {
+      App.get_loop_component_start_time() - this->frame_start_time_ > ZWAVE_FRAME_TIMEOUT_MS) {
     ESP_LOGW(TAG, "Timeout waiting for frame data; resetting parser");
     this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_START;
     this->buffer_index_ = 0;
@@ -128,7 +129,6 @@ void ZWaveProxy::loop() {
 void ZWaveProxy::process_uart_slow_() {
   // Caller (inline process_uart_) has already confirmed available() > 0, so use do/while to
   // drain bytes — available() is still checked at the tail, but not redundantly on entry.
-  this->last_byte_time_ = App.get_loop_component_start_time();
   do {
     uint8_t byte;
     if (!this->read_byte(&byte)) {
@@ -448,6 +448,7 @@ void ZWaveProxy::parse_start_(uint8_t byte) {
         ESP_LOGD(TAG, "Exited bootloader mode");
         this->in_bootloader_ = false;
       }
+      this->frame_start_time_ = App.get_loop_component_start_time();
       this->buffer_[this->buffer_index_++] = byte;
       this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_LENGTH;
       return;
@@ -456,6 +457,7 @@ void ZWaveProxy::parse_start_(uint8_t byte) {
       // Read the menu tentatively: a stray 0x0D can equally appear in garbled data after the
       // parser loses frame alignment, so bootloader mode is only committed once a plausible
       // menu completes (see READ_BL_MENU handling in parse_byte_)
+      this->frame_start_time_ = App.get_loop_component_start_time();
       this->buffer_[this->buffer_index_++] = byte;
       this->parsing_state_ = ZWAVE_PARSING_STATE_READ_BL_MENU;
       return;

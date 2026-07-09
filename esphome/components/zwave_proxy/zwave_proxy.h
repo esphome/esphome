@@ -117,7 +117,7 @@ class ZWaveProxy final : public uart::UARTDevice, public Component {
   api::APIConnection *api_connection_{nullptr};  // Current subscribed client
   uint32_t setup_time_{0};                       // Time when setup() was called
   uint32_t reconnect_time_{0};                   // Timestamp of reconnect detection (0 = no pending query)
-  uint32_t last_byte_time_{0};                   // Timestamp of last received UART byte (for frame timeout)
+  uint32_t frame_start_time_{0};                 // Timestamp of the current frame's start byte (reception timeout)
 
   // Small values (grouped by size to minimize padding)
   uint16_t buffer_index_{0};     // Index for populating the data buffer
