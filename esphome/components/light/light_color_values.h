@@ -315,14 +315,14 @@ class LightColorValues {
     if (this->color_temperature_ <= 0) {
       return this->color_temperature_;
     }
-    return 1000000.0 / this->color_temperature_;
+    return 1000000.0f / this->color_temperature_;
   }
   /// Set the color temperature property of these light color values in kelvin.
   void set_color_temperature_kelvin(float color_temperature) {
     if (color_temperature <= 0) {
       return;
     }
-    this->color_temperature_ = 1000000.0 / color_temperature;
+    this->color_temperature_ = 1000000.0f / color_temperature;
   }
 
   /// Get the cold white property of these light color values. In range 0.0 to 1.0.

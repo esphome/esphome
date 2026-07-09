@@ -147,18 +147,8 @@ async function detectCoreChanges(changedFiles) {
 }
 
 // Strategy: PR size detection
-async function detectPRSize(prFiles, totalAdditions, totalDeletions, totalChanges, isMegaPR, SMALL_PR_THRESHOLD, MEDIUM_PR_THRESHOLD, TOO_BIG_THRESHOLD) {
+async function detectPRSize(prFiles, totalAdditions, totalDeletions, isMegaPR, SMALL_PR_THRESHOLD, MEDIUM_PR_THRESHOLD, TOO_BIG_THRESHOLD) {
   const labels = new Set();
-
-  if (totalChanges <= SMALL_PR_THRESHOLD) {
-    labels.add('small-pr');
-    return labels;
-  }
-
-  if (totalChanges <= MEDIUM_PR_THRESHOLD) {
-    labels.add('medium-pr');
-    return labels;
-  }
 
   const testAdditions = prFiles
     .filter(file => file.filename.startsWith('tests/'))
@@ -167,7 +157,24 @@ async function detectPRSize(prFiles, totalAdditions, totalDeletions, totalChange
     .filter(file => file.filename.startsWith('tests/'))
     .reduce((sum, file) => sum + (file.deletions || 0), 0);
 
-  const nonTestChanges = (totalAdditions - testAdditions) - (totalDeletions - testDeletions);
+  const nonTestAdditions = totalAdditions - testAdditions;
+  const nonTestDeletions = totalDeletions - testDeletions;
+
+  // small/medium count churn (additions + deletions) so a balanced refactor isn't undersized.
+  const nonTestChurn = nonTestAdditions + nonTestDeletions;
+
+  if (nonTestChurn <= SMALL_PR_THRESHOLD) {
+    labels.add('small-pr');
+    return labels;
+  }
+
+  if (nonTestChurn <= MEDIUM_PR_THRESHOLD) {
+    labels.add('medium-pr');
+    return labels;
+  }
+
+  // too-big uses net line delta (additions - deletions), matching the review message in reviews.js.
+  const nonTestChanges = nonTestAdditions - nonTestDeletions;
 
   // Don't add too-big if mega-pr label is already present
   if (nonTestChanges > TOO_BIG_THRESHOLD && !isMegaPR) {

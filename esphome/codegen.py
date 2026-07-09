@@ -25,6 +25,7 @@ from esphome.cpp_generator import (  # noqa: F401
     add,
     add_build_flag,
     add_build_unflag,
+    add_cxx_build_flag,
     add_define,
     add_global,
     add_library,

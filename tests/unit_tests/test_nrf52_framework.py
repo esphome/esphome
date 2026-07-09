@@ -1,5 +1,6 @@
 """Tests for esphome.components.nrf52.framework helpers."""
 
+import hashlib
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -7,13 +8,30 @@ from unittest.mock import patch
 import pytest
 
 from esphome.components.nrf52.framework import (
-    _TOOLCHAIN_VERSION,
+    _REQUIREMENTS,
+    TOOLCHAIN_VERSION,
     _get_toolchain_platform_info,
     check_and_install,
+    get_sdk_nrf_tools_path,
 )
 from esphome.config_validation import Version
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
+
+
+@pytest.fixture(autouse=True)
+def _isolate_sdk_nrf_install_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Pin the sdk-nrf install root to a tmp dir for every test.
+
+    The default location is the OS user cache dir, so without this any test
+    that builds framework paths or pre-creates the install dir would touch
+    the real ``~/.cache/esphome`` on the developer's machine. Tests that need
+    to exercise the override or default-resolution logic clear/override the
+    env themselves.
+    """
+    monkeypatch.setenv("ESPHOME_SDK_NRF_PREFIX", str(tmp_path / "sdk_nrf_install"))
 
 
 @pytest.mark.parametrize(
@@ -52,10 +70,10 @@ _TEST_SDK_VERSION = "2.9.0"
 def nrf52_dirs(setup_core: Path) -> SimpleNamespace:
     """Populate CORE and pre-create SDK directories so sentinel.touch() succeeds."""
     CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: Version.parse(_TEST_SDK_VERSION)}
-    tools = CORE.data_dir / "sdk-nrf"
+    tools = get_sdk_nrf_tools_path()
     python_env = tools / "penvs" / f"v{_TEST_SDK_VERSION}"
     framework = tools / "frameworks" / f"v{_TEST_SDK_VERSION}"
-    toolchain_dir = tools / "toolchains" / _TOOLCHAIN_VERSION
+    toolchain_dir = tools / "toolchains" / TOOLCHAIN_VERSION
     for d in (python_env, framework, toolchain_dir):
         d.mkdir(parents=True, exist_ok=True)
     zephyr_scripts = framework / "zephyr" / "scripts"
@@ -97,6 +115,12 @@ def mock_nrf52_ops():
 # ---------------------------------------------------------------------------
 
 
+def _mark_venv_ready(python_env: Path) -> None:
+    """Write the venv sentinel with the current requirements hash."""
+    requirements_hash = hashlib.sha256(_REQUIREMENTS.read_bytes()).hexdigest()
+    (python_env / ".ready").write_text(requirements_hash, encoding="utf-8")
+
+
 class TestCheckAndInstall:
     def test_all_installed_skips_all_steps(
         self,
@@ -104,7 +128,7 @@ class TestCheckAndInstall:
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
         """All three sentinels present → nothing downloaded or compiled."""
-        (nrf52_dirs.python_env / ".ready").touch()
+        _mark_venv_ready(nrf52_dirs.python_env)
         (nrf52_dirs.python_env / ".zephyr_reqs_ready").touch()
         (nrf52_dirs.framework / ".ready").touch()
         (nrf52_dirs.toolchain / ".ready").touch()
@@ -141,7 +165,7 @@ class TestCheckAndInstall:
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
         """Venv ready but framework missing → skip venv creation, run SDK init+update."""
-        (nrf52_dirs.python_env / ".ready").touch()
+        _mark_venv_ready(nrf52_dirs.python_env)
 
         check_and_install()
 
@@ -157,7 +181,7 @@ class TestCheckAndInstall:
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
         """Venv and framework ready → only toolchain downloaded and extracted."""
-        (nrf52_dirs.python_env / ".ready").touch()
+        _mark_venv_ready(nrf52_dirs.python_env)
         (nrf52_dirs.python_env / ".zephyr_reqs_ready").touch()
         (nrf52_dirs.framework / ".ready").touch()
 
@@ -186,7 +210,7 @@ class TestCheckAndInstall:
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
         """Failing west init raises EsphomeError."""
-        (nrf52_dirs.python_env / ".ready").touch()
+        _mark_venv_ready(nrf52_dirs.python_env)
         mock_nrf52_ops.run_command_ok.return_value = False
 
         with pytest.raises(EsphomeError, match="Can't initialize"):
@@ -198,7 +222,7 @@ class TestCheckAndInstall:
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
         """Failing west update raises EsphomeError."""
-        (nrf52_dirs.python_env / ".ready").touch()
+        _mark_venv_ready(nrf52_dirs.python_env)
         # init succeeds, update fails
         mock_nrf52_ops.run_command_ok.side_effect = [True, False]
 
@@ -211,7 +235,7 @@ class TestCheckAndInstall:
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
         """download_from_mirrors receives VERSION + platform triple from _get_toolchain_platform_info."""
-        (nrf52_dirs.python_env / ".ready").touch()
+        _mark_venv_ready(nrf52_dirs.python_env)
         (nrf52_dirs.framework / ".ready").touch()
 
         with patch(
@@ -222,7 +246,50 @@ class TestCheckAndInstall:
 
         args, _ = mock_nrf52_ops.download_from_mirrors.call_args
         substitutions = args[1]
-        assert substitutions["VERSION"] == _TOOLCHAIN_VERSION
+        assert substitutions["VERSION"] == TOOLCHAIN_VERSION
         assert substitutions["sysname"] == "linux"
         assert substitutions["machine"] == "x86_64"
         assert substitutions["extension"] == "tar.xz"
+
+
+# ---------------------------------------------------------------------------
+# get_sdk_nrf_tools_path tests
+# ---------------------------------------------------------------------------
+
+
+def testget_tools_path_env_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    override = tmp_path / "custom" / "sdk-nrf"
+    monkeypatch.setenv("ESPHOME_SDK_NRF_PREFIX", str(override))
+    assert get_sdk_nrf_tools_path() == override.resolve()
+
+
+@pytest.mark.parametrize("value", ["", "   "])
+def testget_tools_path_blank_env_falls_back_to_default(
+    value: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A blank ESPHOME_SDK_NRF_PREFIX is treated as unset, not as CWD.
+
+    Path("") would resolve to the working directory, which clean-all could
+    then delete by accident.
+    """
+    import platformdirs
+
+    monkeypatch.setenv("ESPHOME_SDK_NRF_PREFIX", value)
+    expected = (
+        Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "sdk-nrf"
+    ).resolve()
+    assert get_sdk_nrf_tools_path() == expected
+
+
+def testget_tools_path_default_is_global_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import platformdirs
+
+    monkeypatch.delenv("ESPHOME_SDK_NRF_PREFIX", raising=False)
+    expected = (
+        Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "sdk-nrf"
+    ).resolve()
+    assert get_sdk_nrf_tools_path() == expected
