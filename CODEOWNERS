@@ -176,6 +176,7 @@ esphome/components/esp32_improv/* @jesserockz
 esphome/components/esp32_rmt/* @jesserockz
 esphome/components/esp32_rmt_led_strip/* @jesserockz
 esphome/components/esp8266/* @esphome/core
+esphome/components/esp_afe/* @n-IA-hane
 esphome/components/esp_audio_stack/* @n-IA-hane
 esphome/components/esp_audio_stack/microphone/* @n-IA-hane
 esphome/components/esp_audio_stack/speaker/* @n-IA-hane

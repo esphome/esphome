@@ -1,0 +1,66 @@
+esphome:
+  name: test-esp-afe-p4-gmf
+
+esp32:
+  board: esp32-p4_r3-evboard
+  variant: esp32p4
+  flash_size: 32MB
+  cpu_frequency: 360MHz
+  framework:
+    type: esp-idf
+    advanced:
+      enable_idf_experimental_features: true
+
+psram:
+  mode: hex
+  speed: 200MHz
+
+i2c:
+  sda: GPIO47
+  scl: GPIO48
+
+esp_afe:
+  id: afe_processor
+  type: sr
+  mode: low_cost
+  mic_num: 2
+  aec_enabled: true
+  se_enabled: true
+  ns_enabled: false
+  vad_enabled: true
+  input_format: mmr
+
+esp_audio_stack:
+  id: audio_stack
+  processor_id: afe_processor
+  sample_rate: 48000
+  output_sample_rate: 16000
+  bits_per_sample: 32
+  slot_bit_width: 32
+  i2s_mclk_pin: GPIO5
+  i2s_bclk_pin: GPIO6
+  i2s_lrclk_pin: GPIO7
+  i2s_din_pin: GPIO4
+  i2s_dout_pin: GPIO8
+  use_tdm_reference: true
+  tdm_total_slots: 4
+  tdm_mic_slots: [0, 2]
+  tdm_ref_slot: 1
+  tdm_tx_slot: 0
+  codec:
+    input:
+      type: es7210
+      mic_selected: 0x05
+      ref_channel: 1
+    output:
+      type: es8311
+
+microphone:
+  - platform: esp_audio_stack
+    id: clean_mic
+    esp_audio_stack_id: audio_stack
+
+speaker:
+  - platform: esp_audio_stack
+    id: stack_speaker
+    esp_audio_stack_id: audio_stack

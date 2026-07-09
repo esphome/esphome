@@ -1,0 +1,82 @@
+esphome:
+  name: test-esp-afe-p4
+
+esp32:
+  board: esp32-p4_r3-evboard
+  variant: esp32p4
+  flash_size: 32MB
+  cpu_frequency: 360MHz
+  framework:
+    type: esp-idf
+    advanced:
+      enable_idf_experimental_features: true
+
+psram:
+  mode: hex
+  speed: 200MHz
+
+i2c:
+  sda: GPIO47
+  scl: GPIO48
+
+esp_afe:
+  id: afe_processor
+  type: sr
+  mode: low_cost
+  aec_enabled: true
+  ns_enabled: true
+  vad_enabled: true
+
+esp_audio_stack:
+  id: audio_stack
+  processor_id: afe_processor
+  sample_rate: 48000
+  output_sample_rate: 16000
+  bits_per_sample: 32
+  slot_bit_width: 32
+  i2s_mclk_pin: GPIO5
+  i2s_bclk_pin: GPIO6
+  i2s_lrclk_pin: GPIO7
+  i2s_din_pin: GPIO4
+  i2s_dout_pin: GPIO8
+  codec:
+    input:
+      type: es8311
+    output:
+      type: es8311
+
+microphone:
+  - platform: esp_audio_stack
+    id: clean_mic
+    esp_audio_stack_id: audio_stack
+
+speaker:
+  - platform: esp_audio_stack
+    id: stack_speaker
+    esp_audio_stack_id: audio_stack
+
+switch:
+  - platform: esp_afe
+    esp_afe_id: afe_processor
+    aec:
+      name: AFE AEC
+    ns:
+      name: AFE NS
+    vad:
+      name: AFE VAD
+    agc:
+      name: AFE AGC
+
+binary_sensor:
+  - platform: esp_afe
+    esp_afe_id: afe_processor
+    vad:
+      name: AFE Voice Activity
+
+sensor:
+  - platform: esp_afe
+    esp_afe_id: afe_processor
+    input_volume:
+      name: AFE Input Volume
+    output_rms:
+      name: AFE Output RMS
