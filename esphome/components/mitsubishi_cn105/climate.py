@@ -49,7 +49,9 @@ MitsubishiCN105Climate = mitsubishi_ns.class_(
 
 # Legacy climate-owned hub compatibility. Remove in 2027.1.0.
 def _has_top_level_hub_config() -> bool:
-    return DOMAIN in getattr(CORE, "raw_config", {})
+    # raw_config is populated dynamically before validation.
+    # pylint: disable-next=no-member
+    return DOMAIN in CORE.raw_config
 
 
 # Legacy climate-owned hub compatibility. Remove in 2027.1.0.
@@ -141,7 +143,11 @@ FINAL_VALIDATE_SCHEMA = _legacy_final_validate
 
 async def to_code(config: ConfigType) -> None:
     var = await climate.new_climate(config)
-    await cg.register_component(var, config)
+    climate_config = config.copy()
+    if CONF_MITSUBISHI_CN105_ID not in config:
+        # Legacy climate-owned hub compatibility. Remove in 2027.1.0.
+        climate_config.pop(CONF_UPDATE_INTERVAL, None)
+    await cg.register_component(var, climate_config)
     if CONF_MITSUBISHI_CN105_ID in config:
         await register_mitsubishi_cn105_device(var, config)
     else:
