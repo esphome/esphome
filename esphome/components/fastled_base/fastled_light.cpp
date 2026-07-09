@@ -1,4 +1,4 @@
-#if defined(USE_ARDUINO) && !(defined(USE_RP2) && defined(CLANG_TIDY))
+#if defined(USE_ARDUINO) && !defined(USE_RP2)
 
 #include "fastled_light.h"
 #include "esphome/core/log.h"
