@@ -34,7 +34,9 @@ lv_keyboard_t = LvType(
     parents=(KeyProvider, LvCompound),
     largs=[(std_string, "text")],
     has_on_value=True,
-    lvalue=lambda w: literal(f"lv_textarea_get_text({w.obj})"),
+    lvalue=lambda w: literal(
+        f"lv_textarea_get_text(lv_keyboard_get_textarea({w.obj}))"
+    ),
 )
 
 
