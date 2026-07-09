@@ -40,6 +40,7 @@ from script.analyze_component_buses import (
     uses_local_file_references,
 )
 from script.helpers import (
+    components_conflict,
     get_component_test_files,
     is_validate_only_file,
     parse_test_filename,
@@ -788,14 +789,35 @@ def run_grouped_component_tests(
             if plat == platform and sig != NO_BUSES_SIGNATURE
         ]
 
-        if platform_groups:
-            # Distribute no_buses components round-robin across existing groups
-            for i, comp in enumerate(no_buses_comps):
-                sig, _ = platform_groups[i % len(platform_groups)]
-                grouped_components[(platform, sig)].append(comp)
-        else:
-            # No other groups for this platform - keep no_buses components together
-            grouped_components[(platform, NO_BUSES_SIGNATURE)] = no_buses_comps
+        # Distribute no_buses components round-robin across existing groups,
+        # but never place a component into a group it conflicts with. Conflict
+        # splitting (split_conflicting_groups) may have created sibling groups
+        # like "no_buses__conflict1" precisely to keep incompatible components
+        # apart (e.g. on nRF52, network pulls in openthread which zigbee
+        # conflicts with); redistribution must not silently undo that split.
+        leftover: list[str] = []
+        for i, comp in enumerate(no_buses_comps):
+            placed = False
+            # Try groups starting at the round-robin offset to keep the spread.
+            for offset in range(len(platform_groups)):
+                sig, comps = platform_groups[(i + offset) % len(platform_groups)]
+                if any(components_conflict(comp, other, platform) for other in comps):
+                    continue
+                # comps is the same list object stored in grouped_components, so
+                # this also extends the group in grouped_components.
+                comps.append(comp)
+                placed = True
+                break
+            if not placed:
+                leftover.append(comp)
+
+        if leftover:
+            # Components that conflict with every existing group stay together in
+            # their own no_buses group (they were grouped before, so they don't
+            # conflict with each other).
+            grouped_components.setdefault((platform, NO_BUSES_SIGNATURE), []).extend(
+                leftover
+            )
 
     groups_to_test = []
     individual_tests = set()  # Use set to avoid duplicates

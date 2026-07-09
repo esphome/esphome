@@ -1,7 +1,7 @@
 #include "wifi_component.h"
 
 #ifdef USE_WIFI
-#ifdef USE_RP2040
+#ifdef USE_RP2
 
 #include <cassert>
 

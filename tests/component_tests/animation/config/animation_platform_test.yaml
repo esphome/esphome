@@ -1,0 +1,30 @@
+# New `image:` `platform: animation` form. Exercises animation/image.py through
+# the real platform loader and codegen pipeline.
+esphome:
+  name: test
+
+esp32:
+  board: esp32s3box
+
+image:
+  - platform: animation
+    id: test_animation
+    file: anim.gif
+    type: rgb565
+    loop:
+      start_frame: 0
+      end_frame: 2
+      repeat: 3
+  - platform: animation
+    id: test_animation_no_loop
+    file: anim.gif
+    type: rgb565
+
+spi:
+  mosi_pin: 6
+  clk_pin: 7
+
+display:
+  - platform: mipi_spi
+    id: lcd_display
+    model: s3box

@@ -76,7 +76,7 @@ class NextionCommandPacer {
 };
 #endif  // USE_NEXTION_COMMAND_SPACING
 
-class Nextion : public NextionBase, public PollingComponent, public uart::UARTDevice {
+class Nextion final : public NextionBase, public PollingComponent, public uart::UARTDevice {
  public:
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
   /**
