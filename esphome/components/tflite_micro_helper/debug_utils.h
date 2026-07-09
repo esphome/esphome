@@ -10,13 +10,13 @@ namespace tflite_micro_helper {
 // RAII ScopedDuration -- replaces DURATION_START/END/LOG macros
 class ScopedDuration {
  public:
-  explicit ScopedDuration(const char *tag) : tag_(tag), start_(esphome::millis()) {}
+  explicit ScopedDuration(const char *tag);
 
   uint32_t elapsed() const { return esphome::millis() - this->start_; }
 
-  void log_duration(const char *func) { ESP_LOGD(this->tag_, "%s duration: %lums", func, this->elapsed()); }
+  void log_duration(const char *func);
 
-  void log(const char *msg, uint32_t val) { ESP_LOGD(this->tag_, "%s: %lums", msg, val); }
+  void log(const char *msg, uint32_t val);
 
  private:
   const char *tag_;

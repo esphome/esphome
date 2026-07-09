@@ -1,3 +1,7 @@
+// NOLINTBEGIN
+// This file is intentionally an X-macro definition file included inside a switch block
+// in op_resolver.h. It does not have its own include guard; #pragma once would
+// prevent reinclusion with different macro definitions.
 #ifdef TFLM_OPERATORS_ACTIVE
 
 // TFLite Micro Operators Definition File

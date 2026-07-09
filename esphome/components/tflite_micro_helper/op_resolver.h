@@ -14,11 +14,13 @@ namespace tflite_micro_helper {
 
 class OpResolverManager {
  public:
+  // NOLINTNEXTLINE: Template function must stay in header; ESP_LOG macros are required for diagnostics
   template<size_t tOpCount>
   static bool RegisterOps(tflite::MicroMutableOpResolver<tOpCount> &resolver,
                           const std::set<tflite::BuiltinOperator> &required_ops, const char *tag) {
     for (auto op : required_ops) {
       const char *op_name = tflite::EnumNameBuiltinOperator(op);
+      // NOLINTNEXTLINE(readability-redundant-access-to-string-view-data)
       ESP_LOGD(tag, "Registering op: %s", op_name);
 
       TfLiteStatus add_status = kTfLiteError;
@@ -32,6 +34,7 @@ class OpResolverManager {
     add_status = resolver.method(); \
     break;
 
+// NOLINTNEXTLINE: Template function must stay in header; ESP_LOG macros are required for diagnostics
 #define TFLM_OP_UNAVAILABLE(op_name) \
   case tflite::BuiltinOperator_##op_name: \
     ESP_LOGW(tag, "Operator %s is not available in TFLite Micro", #op_name); \
@@ -44,12 +47,14 @@ class OpResolverManager {
 #undef TFLM_OP_AVAILABLE
 #undef TFLM_OP_UNAVAILABLE
 
+        // NOLINTNEXTLINE: Template function must stay in header; ESP_LOG macros are required for diagnostics
         default:
           ESP_LOGE(tag, "Unknown or unsupported operator: %s", op_name);
           return false;
       }
 
       if (add_status != kTfLiteOk) {
+        // NOLINTNEXTLINE: Template function must stay in header; ESP_LOG macros are required for diagnostics
         ESP_LOGE(tag, "Failed to add operator: %s", op_name);
         return false;
       }

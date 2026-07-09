@@ -1,12 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import esp32
 import esphome.config_validation as cv
+from esphome.const import CONF_DEBUG
 from esphome.core import CORE
 
 DEPENDENCIES = ["esp32"]
 MULTI_CONF = True
-
-CONF_DEBUG = "debug"
 
 tflite_micro_helper_ns = cg.esphome_ns.namespace("tflite_micro_helper")
 
