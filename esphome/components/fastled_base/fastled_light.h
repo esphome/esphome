@@ -1,6 +1,7 @@
 #pragma once
 
-#ifdef USE_ARDUINO
+// FastLED is not supported on RP2 (see require_framework_version in fastled_clockless/light.py)
+#if defined(USE_ARDUINO) && !defined(USE_RP2)
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"

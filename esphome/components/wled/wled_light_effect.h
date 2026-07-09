@@ -8,7 +8,15 @@
 #include <vector>
 #include <memory>
 
+#ifdef USE_RP2
+// arduino-pico's UDP lives in the arduino namespace
+namespace arduino {
 class UDP;
+}  // namespace arduino
+using arduino::UDP;  // NOLINT(google-global-names-in-headers)
+#else
+class UDP;
+#endif
 
 namespace esphome::wled {
 

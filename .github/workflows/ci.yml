@@ -504,6 +504,10 @@ jobs:
             options: --environment nrf52-tidy --grep USE_ZEPHYR --grep USE_NRF52
             cache_sdk_nrf: true
             ignore_errors: false
+          - id: clang-tidy
+            name: Run script/clang-tidy for RP2
+            options: --environment rp2-tidy --grep USE_RP2
+            pio_cache_key: tidyrp2
 
     steps:
       - name: Check out code from GitHub

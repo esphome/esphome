@@ -20,7 +20,7 @@ volatile bool g_main_loop_woke = false;
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static volatile bool s_delay_expired = false;
 
-static int64_t alarm_callback_(alarm_id_t id, void *user_data) {
+static int64_t alarm_callback(alarm_id_t id, void *user_data) {
   (void) id;
   (void) user_data;
   s_delay_expired = true;
@@ -43,7 +43,7 @@ void wakeable_delay(uint32_t ms) {
     return;
   }
   s_delay_expired = false;
-  alarm_id_t alarm = add_alarm_in_ms(ms, alarm_callback_, nullptr, true);
+  alarm_id_t alarm = add_alarm_in_ms(ms, alarm_callback, nullptr, true);
   if (alarm <= 0) {
     delay(ms);
     return;
