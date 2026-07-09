@@ -122,11 +122,19 @@ APIError APINoiseFrameHelper::init_from_handoff(const uint8_t *header, uint8_t h
   // Pump the handshake without gating on socket_->ready(): on LWIP the
   // plaintext helper's partial read can drain rcvevent while the rest of the
   // client hello sits in the lastdata cache, so ready() may report false even
-  // though data is available. Reads stop naturally on EWOULDBLOCK.
+  // though data is available.
+  return this->pump_handshake_();
+}
+#endif  // USE_API_PLAINTEXT
+
+/// Drive the handshake state machine until DATA, WOULD_BLOCK, or a fatal
+/// error. WOULD_BLOCK is not an error: reads stop naturally on EWOULDBLOCK
+/// and resume on the next loop().
+APIError APINoiseFrameHelper::pump_handshake_() {
   while (this->state_ != State::DATA) {
-    err = this->state_action_();
+    APIError err = this->state_action_();
     if (err == APIError::WOULD_BLOCK) {
-      return APIError::OK;
+      break;
     }
     if (err != APIError::OK) {
       return err;
@@ -134,7 +142,6 @@ APIError APINoiseFrameHelper::init_from_handoff(const uint8_t *header, uint8_t h
   }
   return APIError::OK;
 }
-#endif  // USE_API_PLAINTEXT
 
 // Helper for handling handshake frame errors
 APIError APINoiseFrameHelper::handle_handshake_frame_error_(APIError aerr) {
@@ -158,16 +165,13 @@ APIError APINoiseFrameHelper::handle_noise_error_(int err, const LogString *func
 
 /// Run through handshake messages (if in that phase)
 APIError APINoiseFrameHelper::loop() {
-  // Cache ready() outside the loop. On ESP8266 LWIP raw TCP, ready() returns false once
-  // the rx buffer is consumed. Re-checking each iteration would block handshake writes
-  // that must follow reads, deadlocking the handshake. state_action() will return
-  // WOULD_BLOCK when no more data is available to read.
-  bool socket_ready = this->socket_->ready();
-  while (state_ != State::DATA && socket_ready) {
-    APIError err = state_action_();
-    if (err == APIError::WOULD_BLOCK) {
-      break;
-    }
+  // Check ready() once, not per state transition. On ESP8266 LWIP raw TCP,
+  // ready() returns false once the rx buffer is consumed. Re-checking each
+  // iteration would block handshake writes that must follow reads,
+  // deadlocking the handshake. pump_handshake_() stops on WOULD_BLOCK when
+  // no more data is available to read.
+  if (state_ != State::DATA && this->socket_->ready()) {
+    APIError err = this->pump_handshake_();
     if (err != APIError::OK) {
       return err;
     }

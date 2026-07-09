@@ -35,6 +35,7 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   APIError write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) override;
 
  protected:
+  APIError pump_handshake_();
   APIError state_action_();
   APIError state_action_client_hello_();
   APIError state_action_server_hello_();
