@@ -1037,7 +1037,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pre-commit
-          # Must match the key esphome/pre-commit-action computes in pre-commit-ci-lite
+          # Must match the restore key in pre-commit-ci-lite
           # yamllint disable-line rule:line-length
           key: pre-commit-3|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
       - name: Install pre-commit hook environments
@@ -1061,9 +1061,22 @@ jobs:
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
-      - uses: esphome/pre-commit-action@43cd1109c09c544d97196f7730ee5b2e0cc6d81e # v3.0.1 fork with pinned actions/cache
+      # Inlined from esphome/pre-commit-action with a restore-only cache
+      # step: the pre-commit-seed-cache job owns saving this cache, so
+      # pull request runs never write per-PR copies.
+      - name: Restore pre-commit cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          # Must match the key pre-commit-seed-cache saves
+          # yamllint disable-line rule:line-length
+          key: pre-commit-3|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
+      - name: Run pre-commit
         env:
           SKIP: pylint,ci-custom
+        run: |
+          python -m pip install pre-commit
+          pre-commit run --show-diff-on-failure --color=always --all-files
       - uses: pre-commit-ci/lite-action@5d6cc0eb514c891a40562a58a8e71576c5c7fb43 # v1.1.0
         if: always()
 
