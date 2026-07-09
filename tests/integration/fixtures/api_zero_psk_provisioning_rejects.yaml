@@ -1,6 +1,0 @@
-esphome:
-  name: zero-psk-rejects-test
-host:
-api:
-  encryption:
-logger:

@@ -97,11 +97,8 @@ const LogString *api_error_to_logstr(APIError err) {
     return LOG_STR("BAD_HANDSHAKE_ERROR_BYTE");
   }
 #endif
-#if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
-  else if (err == APIError::PROTOCOL_SWITCH_TO_NOISE) {
-    return LOG_STR("PROTOCOL_SWITCH_TO_NOISE");
-  }
-#endif
+  // PROTOCOL_SWITCH_TO_NOISE is intercepted in APIConnection::loop() before
+  // any logging can happen, so it intentionally has no entry here.
   return LOG_STR("UNKNOWN");
 }
 

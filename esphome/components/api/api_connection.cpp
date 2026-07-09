@@ -210,10 +210,10 @@ void APIConnection::upgrade_helper_to_noise_() {
   uint8_t header[3];
   uint8_t header_len = plaintext->get_consumed_header(header);
   auto *noise = new APINoiseFrameHelper(plaintext->release_socket_for_switch(), this->parent_->get_noise_ctx());
+  // Carry over the peername-based client name (Hello has not arrived yet)
+  const char *name = plaintext->get_client_name();
+  noise->set_client_name(name, strlen(name));
   this->helper_.reset(noise);  // destroys the plaintext helper
-  // Restore the peername-based client name (Hello has not arrived yet)
-  char peername[socket::SOCKADDR_STR_LEN];
-  noise->set_client_name(noise->get_peername_to(peername), strlen(peername));
   APIError err = noise->init_from_handoff(header, header_len);
   if (err != APIError::OK) {
     this->fatal_error_with_log_(LOG_STR("Noise handoff failed"), err);
@@ -278,12 +278,16 @@ void APIConnection::loop() {
       if (err == APIError::WOULD_BLOCK) {
         // No more data available
         break;
-#if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
-      } else if (err == APIError::PROTOCOL_SWITCH_TO_NOISE) {
-        this->upgrade_helper_to_noise_();
-        return;
-#endif
       } else if (err != APIError::OK) {
+#if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
+        // Checked inside the error branch to keep the hot err == OK path
+        // free of it; this can only fire on the first bytes of a plaintext
+        // helper on an unprovisioned device
+        if (err == APIError::PROTOCOL_SWITCH_TO_NOISE) {
+          this->upgrade_helper_to_noise_();
+          return;
+        }
+#endif
         this->fatal_error_with_log_(LOG_STR("Reading failed"), err);
         return;
       } else {
@@ -1888,10 +1892,10 @@ bool APIConnection::send_device_info_response_() {
 #endif
 #ifdef USE_API_NOISE
   resp.api_encryption_supported = true;
-#ifdef USE_API_PLAINTEXT
-  // Dual build (encryption compiled in, no key from YAML): while no key is
-  // set, the key can be provisioned over a zero-PSK Noise connection instead
-  // of plaintext
+#ifndef USE_API_NOISE_PSK_FROM_YAML
+  // No key from YAML: while no key is set, the key can be provisioned over a
+  // zero-PSK Noise connection. Gated on the YAML define (not the plaintext
+  // one) so this advertisement survives the plaintext removal in 2027.2.0.
   resp.api_encryption_provisionable = !this->parent_->get_noise_ctx().has_psk();
 #endif
 #endif
@@ -2071,10 +2075,9 @@ bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptio
     }
   } else if (base64_decode(msg.key, msg.key_len, psk.data(), psk.size()) != psk.size()) {
     ESP_LOGW(TAG, "Invalid encryption key length");
-  } else if (psk == psk_t{}) {
-    // The all-zeros key is reserved: it marks the device as unprovisioned and
-    // serves as the well-known provisioning PSK. Accepting it would report
-    // success without enabling encryption (or silently clear an existing key).
+  } else if (APINoiseContext::is_all_zeros(psk)) {
+    // Accepting the reserved provisioning PSK would report success without
+    // enabling encryption (or silently clear an existing key)
     ESP_LOGW(TAG, "Rejecting all-zero encryption key");
   } else if (!this->parent_->save_noise_psk(psk, true)) {
     ESP_LOGW(TAG, "Failed to save encryption key");
@@ -2084,8 +2087,7 @@ bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptio
     if (this->helper_->frame_footer_size() == 0) {
       // Plaintext transport has no frame footer; Noise always has the MAC footer.
       // Remove after 2027.2.0 together with plaintext support on keyless devices.
-      ESP_LOGW(TAG, "Key was received on an unencrypted connection; this is deprecated and will stop "
-                    "working in 2027.2.0. Update Home Assistant to provision the key encrypted");
+      ESP_LOGW(TAG, "Key received over plaintext; deprecated, will be removed in 2027.2.0");
     }
 #endif
   }

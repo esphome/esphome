@@ -36,8 +36,38 @@ async def test_api_zero_psk_provisioning(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Provision a key over the zero-PSK channel and verify the switch to it."""
+    """Exercise the reject paths, then provision a key over the zero-PSK channel."""
     async with run_compiled(yaml_config):
+        # --- Pre-provisioning reject paths (device state is unchanged) ---
+
+        # A wrong (non-zero) PSK fails against the zero provisioning PSK
+        with pytest.raises(InvalidEncryptionKeyAPIError):
+            async with api_client_connected(
+                noise_psk=base64.b64encode(b"w" * 32).decode(), timeout=5
+            ) as client:
+                await client.device_info()
+
+        # A plaintext client and a zero-PSK client can be connected at the
+        # same time while the device is unprovisioned
+        async with (
+            api_client_connected() as plaintext_client,
+            api_client_connected(noise_psk=ZERO_PSK) as noise_client,
+        ):
+            plaintext_info = await plaintext_client.device_info()
+            noise_info = await noise_client.device_info()
+            # Both transports advertise provisioning support so old and new
+            # clients can decide how to provision
+            assert plaintext_info.api_encryption_provisionable is True
+            assert noise_info.api_encryption_provisionable is True
+
+            # The all-zeros key is reserved as the provisioning PSK and is
+            # rejected on both transports
+            zero_key = base64.b64encode(bytes(32))
+            assert await noise_client.noise_encryption_set_key(zero_key) is False
+            assert await plaintext_client.noise_encryption_set_key(zero_key) is False
+
+        # --- Provision over the zero-PSK channel ---
+
         # The unprovisioned device accepts the all-zeros PSK; the handshake's
         # ephemeral-ephemeral DH encrypts everything that follows
         async with api_client_connected(noise_psk=ZERO_PSK) as client:
@@ -69,45 +99,6 @@ async def test_api_zero_psk_provisioning(
 
 
 @pytest.mark.asyncio
-async def test_api_zero_psk_provisioning_rejects(
-    yaml_config: str,
-    run_compiled: RunCompiledFunction,
-    api_client_connected: APIClientConnectedFactory,
-) -> None:
-    """Exercise the paths that must not provision a key."""
-    async with run_compiled(yaml_config):
-        # A wrong (non-zero) PSK fails against the zero provisioning PSK
-        with pytest.raises(InvalidEncryptionKeyAPIError):
-            async with api_client_connected(
-                noise_psk=base64.b64encode(b"w" * 32).decode(), timeout=5
-            ) as client:
-                await client.device_info()
-
-        # A plaintext client and a zero-PSK client can be connected at the
-        # same time while the device is unprovisioned
-        async with (
-            api_client_connected() as plaintext_client,
-            api_client_connected(noise_psk=ZERO_PSK) as noise_client,
-        ):
-            plaintext_info = await plaintext_client.device_info()
-            noise_info = await noise_client.device_info()
-            # Both transports advertise provisioning support so old and new
-            # clients can decide how to provision
-            assert plaintext_info.api_encryption_provisionable is True
-            assert noise_info.api_encryption_provisionable is True
-
-            # The all-zeros key is reserved as the provisioning PSK and is
-            # rejected on both transports
-            zero_key = base64.b64encode(bytes(32))
-            assert await noise_client.noise_encryption_set_key(zero_key) is False
-            assert await plaintext_client.noise_encryption_set_key(zero_key) is False
-
-        # Nothing was provisioned: the zero PSK still works
-        async with api_client_connected(noise_psk=ZERO_PSK) as client:
-            assert (await client.device_info()).api_encryption_provisionable is True
-
-
-@pytest.mark.asyncio
 async def test_api_zero_psk_provisioning_plaintext(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -125,7 +116,7 @@ async def test_api_zero_psk_provisioning_plaintext(
         await asyncio.sleep(KEY_ACTIVATION_DELAY)
 
         # The deprecation warning was logged
-        assert any("unencrypted connection" in line for line in log_lines)
+        assert any("deprecated" in line for line in log_lines)
 
         # The new key works; the zero PSK does not
         async with api_client_connected(noise_psk=NEW_KEY.decode()) as client:
