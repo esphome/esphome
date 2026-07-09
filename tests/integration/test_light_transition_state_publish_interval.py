@@ -10,10 +10,11 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
-import aioesphomeapi
-from aioesphomeapi import EntityState, LightState
 import pytest
 import pytest_asyncio
+
+import aioesphomeapi
+from aioesphomeapi import EntityState, LightState
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
@@ -358,7 +359,7 @@ async def test_light_transition_state_publish_interval(
             f"got {len(rgb_timeline)}"
         )
 
-        rgb_times, rgb_states = zip(*rgb_timeline)
+        rgb_times, rgb_states = zip(*rgb_timeline, strict=True)
         last_t_rgb = rgb_times[-1]
         last_state_rgb = rgb_states[-1]
 
@@ -392,7 +393,7 @@ async def test_light_transition_state_publish_interval(
             f"got {len(cwww_timeline)}"
         )
 
-        cwww_times, cwww_states = zip(*cwww_timeline)
+        cwww_times, cwww_states = zip(*cwww_timeline, strict=True)
         last_t_cwww = cwww_times[-1]
         last_state_cwww = cwww_states[-1]
 
@@ -461,7 +462,7 @@ async def test_transition_interval_persistence_semantics(
 
         assert first_run_timeline
 
-        times, states = zip(*first_run_timeline)
+        times, states = zip(*first_run_timeline, strict=True)
         last_t = times[-1]
         last_state = states[-1]
 
@@ -555,7 +556,7 @@ async def test_flash_interval_emits_intermediate_updates(
 
         assert len(flash_timeline) >= 3
 
-        times, states = zip(*flash_timeline)
+        times, states = zip(*flash_timeline, strict=True)
         last_t = times[-1]
         last_state = states[-1]
 

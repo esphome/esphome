@@ -4,6 +4,7 @@ import enum
 import esphome.automation as auto
 import esphome.codegen as cg
 from esphome.components import mqtt, power_supply, web_server
+from esphome.components.const import CONF_TRANSITION_STATE_PUBLISH_INTERVAL
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BLUE,
@@ -33,7 +34,6 @@ from esphome.const import (
     CONF_RED,
     CONF_RESTORE_MODE,
     CONF_STATE,
-    CONF_TRANSITION_STATE_PUBLISH_INTERVAL,
     CONF_TRIGGER_ID,
     CONF_WARM_WHITE,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
