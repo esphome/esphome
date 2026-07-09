@@ -32,6 +32,10 @@ jobs:
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           enable-cache: true
+          # This workflow only runs on pull requests, so a save would land
+          # in the pull request's own cache scope where no other run can
+          # use it; those copies only crowd the repository's 10GB quota.
+          save-cache: "false"
           # Pin uv version so the action does not have to fetch the
           # manifest from raw.githubusercontent.com on every cache
           # miss; that fetch flakes on Windows runners.

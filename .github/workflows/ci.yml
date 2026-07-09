@@ -52,6 +52,11 @@ jobs:
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           enable-cache: true
+          # Pull request runs restore the uv cache from the dev branch scope
+          # but must not save: a save from a pull request lands in that pull
+          # request's own scope where no other run can use it, and dozens of
+          # such copies crowd the repository's 10GB cache quota.
+          save-cache: ${{ github.event_name != 'pull_request' }}
           # Pin uv version so the action does not have to fetch the
           # manifest from raw.githubusercontent.com on every cache
           # miss; that fetch flakes on Windows runners.
@@ -174,6 +179,11 @@ jobs:
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           enable-cache: true
+          # Pull request runs restore the uv cache from the dev branch scope
+          # but must not save: a save from a pull request lands in that pull
+          # request's own scope where no other run can use it, and dozens of
+          # such copies crowd the repository's 10GB cache quota.
+          save-cache: ${{ github.event_name != 'pull_request' }}
           # Pin uv version so the action does not have to fetch the
           # manifest from raw.githubusercontent.com on every cache
           # miss; that fetch flakes on Windows runners.
@@ -375,6 +385,11 @@ jobs:
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           enable-cache: true
+          # Pull request runs restore the uv cache from the dev branch scope
+          # but must not save: a save from a pull request lands in that pull
+          # request's own scope where no other run can use it, and dozens of
+          # such copies crowd the repository's 10GB cache quota.
+          save-cache: ${{ github.event_name != 'pull_request' }}
           # Pin uv version so the action does not have to fetch the
           # manifest from raw.githubusercontent.com on every cache
           # miss; that fetch flakes on Windows runners.
@@ -828,11 +843,14 @@ jobs:
       - name: List components
         run: echo ${{ matrix.batch.components }}
 
-      - name: Cache apt packages
-        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
-        with:
-          packages: libsdl2-dev ccache
-          version: 1.1
+      - name: Install apt packages
+        # Installed directly instead of through cache-apt-pkgs-action: this
+        # job only runs on pull requests, so the action saved a ~21MB cache
+        # into every pull request's own scope that no other run could reuse.
+        # A plain install takes seconds and costs no cache quota.
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libsdl2-dev ccache
 
       - name: Check out code from GitHub
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -1005,6 +1023,42 @@ jobs:
 
           # Arduino framework via PlatformIO (only components with an esp32-ard test are built):
           python3 script/test_build_components.py -e compile -t esp32-ard -c "$TEST_COMPONENTS" -f --toolchain platformio
+
+  pre-commit-seed-cache:
+    name: Seed pre-commit cache
+    runs-on: ubuntu-latest
+    needs:
+      - common
+    # pre-commit.ci lite only runs on pull requests, so it can never save its
+    # cache to the dev branch scope. Without a dev-scoped copy every pull
+    # request misses, rebuilds the hook environments, and saves a private
+    # ~32MB copy into its own merge ref, which crowds out more valuable
+    # caches once the repository hits the 10GB quota. This job saves one
+    # shared copy on every dev push that changes the pre-commit config.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Cache pre-commit environments
+        id: cache-pre-commit
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          # Must match the key esphome/pre-commit-action computes in the
+          # pre-commit-ci-lite job so pull request runs restore this entry
+          # from the dev scope instead of saving their own copies.
+          # yamllint disable-line rule:line-length
+          key: pre-commit-3|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
+      - name: Install pre-commit hook environments
+        if: steps.cache-pre-commit.outputs.cache-hit != 'true'
+        run: |
+          python -m pip install pre-commit
+          pre-commit install-hooks
 
   pre-commit-ci-lite:
     name: pre-commit.ci lite

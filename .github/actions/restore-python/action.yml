@@ -35,6 +35,11 @@ runs:
       uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
       with:
         enable-cache: true
+        # Pull request runs restore the uv cache from the dev branch scope
+        # but must not save: a save from a pull request lands in that pull
+        # request's own scope where no other run can use it, and dozens of
+        # such copies crowd the repository's 10GB cache quota.
+        save-cache: ${{ github.event_name != 'pull_request' }}
         # Pin uv version so the action does not have to fetch the
         # manifest from raw.githubusercontent.com on every cache
         # miss; that fetch flakes on Windows runners.
