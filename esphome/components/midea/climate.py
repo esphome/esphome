@@ -152,6 +152,13 @@ CONFIG_SCHEMA = cv.All(
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
     cv.only_with_arduino,
+    cv.require_framework_version(
+        esp8266_arduino=cv.Version(0, 0, 0),
+        esp32_arduino=cv.Version(0, 0, 0),
+        bk72xx_arduino=cv.Version(0, 0, 0),
+        rtl87xx_arduino=cv.Version(0, 0, 0),
+        ln882x_arduino=cv.Version(0, 0, 0),
+    ),
 )
 
 # Actions
