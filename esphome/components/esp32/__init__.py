@@ -1578,16 +1578,20 @@ FRAMEWORK_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_TYPE): cv.one_of(FRAMEWORK_ESP_IDF, FRAMEWORK_ARDUINO),
         cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
-        cv.Optional(CONF_RELEASE): cv.string_strict,
-        cv.Optional(CONF_SOURCE): cv.string_strict,
-        cv.Optional(CONF_PLATFORM_VERSION): _parse_pio_platform_version,
-        cv.Optional(CONF_SDKCONFIG_OPTIONS, default={}): {
-            cv.string_strict: cv.string_strict
-        },
+        cv.Optional(CONF_RELEASE, visibility=cv.Visibility.YAML_ONLY): cv.string_strict,
+        cv.Optional(CONF_SOURCE, visibility=cv.Visibility.YAML_ONLY): cv.string_strict,
+        cv.Optional(
+            CONF_PLATFORM_VERSION, visibility=cv.Visibility.YAML_ONLY
+        ): _parse_pio_platform_version,
+        cv.Optional(
+            CONF_SDKCONFIG_OPTIONS, default={}, visibility=cv.Visibility.YAML_ONLY
+        ): {cv.string_strict: cv.string_strict},
         cv.Optional(CONF_LOG_LEVEL, default="ERROR"): cv.one_of(
             *LOG_LEVELS_IDF, upper=True
         ),
-        cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
+        cv.Optional(
+            CONF_ADVANCED, default={}, visibility=cv.Visibility.YAML_ONLY
+        ): cv.Schema(
             {
                 cv.Optional(CONF_ASSERTION_LEVEL): cv.one_of(
                     *ASSERTION_LEVELS, upper=True
@@ -1677,7 +1681,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_DISABLE_FATFS, default=True): cv.boolean,
             }
         ),
-        cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
+        cv.Optional(
+            CONF_COMPONENTS, default=[], visibility=cv.Visibility.YAML_ONLY
+        ): cv.ensure_list(
             cv.All(
                 cv.Any(
                     cv.All(cv.string_strict, _parse_idf_component),
@@ -1777,7 +1783,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FLASH_FREQUENCY): cv.one_of(
                 *FLASH_FREQUENCIES, upper=True
             ),
-            cv.Optional(CONF_PARTITIONS): cv.Any(
+            cv.Optional(CONF_PARTITIONS, visibility=cv.Visibility.YAML_ONLY): cv.Any(
                 cv.file_,
                 cv.ensure_list(
                     cv.All(
@@ -1801,7 +1807,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
             cv.Optional(CONF_FRAMEWORK): FRAMEWORK_SCHEMA,
-            cv.Optional(CONF_TOOLCHAIN): _validate_toolchain,
+            cv.Optional(
+                CONF_TOOLCHAIN, visibility=cv.Visibility.ADVANCED
+            ): _validate_toolchain,
             cv.Optional(CONF_WATCHDOG_TIMEOUT, default="5s"): cv.All(
                 cv.positive_time_period_seconds,
                 cv.Range(min=cv.TimePeriod(seconds=5), max=cv.TimePeriod(seconds=60)),
