@@ -74,6 +74,8 @@ def clang_options(idedata, environment):
         "-fno-jump-tables",
         "-fno-shrink-wrap",
         "-mno-target-align",
+        # GCC-only flag emitted by the LibreTiny build
+        "-mthumb-interwork",
     )
 
     if "zephyr" in triplet:
@@ -109,6 +111,23 @@ def clang_options(idedata, environment):
     if environment.startswith("rp2"):
         # clang's ARM backend doesn't know GCC's long_call attribute (IRAM_ATTR)
         cmd.append("-Wno-unknown-attributes")
+    elif environment.startswith(("bk72xx", "ln882h", "rtl87xx")):
+        cmd.extend(
+            [
+                # GCC on arm-none-eabi types (u)int32_t as (unsigned) long; clang
+                # types it as (unsigned) int, clashing with LibreTiny's lwip
+                # port typedefs. Match the GCC type model.
+                "-U__UINT32_TYPE__",
+                "-D__UINT32_TYPE__=long unsigned int",
+                "-U__INT32_TYPE__",
+                "-D__INT32_TYPE__=long int",
+                # newlib's machine/endian.h macroizes __bswap16 into
+                # __builtin_bswap16; the beken BDK then defines __bswap16 as a
+                # function, which GCC tolerates as a builtin redeclaration but
+                # clang rejects
+                "-D__MACHINE_ENDIAN_H__",
+            ]
+        )
     else:
         # replace pgmspace.h, as it uses GNU extensions clang doesn't support
         # https://github.com/earlephilhower/newlib-xtensa/pull/18
@@ -154,8 +173,28 @@ def clang_options(idedata, environment):
     )
     cmd.append("-std=gnu++20")
 
-    # defines
-    cmd.extend(f"-D{define}" for define in idedata["defines"])
+    # defines; LibreTiny wraps some in shell quotes, leaves function-like macro
+    # values unparenthesized (bugprone-macro-parentheses), and its SDK-internal
+    # FAL_PART_TABLE macro trips the same check
+    def sanitize_define(define):
+        define = define.replace("'", "")
+        name, sep, value = define.partition("=")
+        if (
+            sep
+            and value
+            and not value.startswith(("(", '"'))
+            and ("(" in name or not re.fullmatch(r"[\w.]+", value))
+        ):
+            value = f"({value})"
+        return f"-D{name}{sep}{value}"
+
+    # FAL_PART_TABLE and the delay() remap are library-scope LibreTiny flags
+    # that the real build never applies to esphome sources
+    cmd.extend(
+        sanitize_define(define)
+        for define in idedata["defines"]
+        if not define.startswith(("FAL_PART_TABLE", "delay(", "'delay("))
+    )
 
     # toolchain include directories, using -isystem to suppress their errors
     # idedata contains include directories for all toolchains of this platform, only use those from the one in use
@@ -200,7 +239,9 @@ def clang_options(idedata, environment):
 pids = set()
 
 
-def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
+def run_tidy(
+    executable, args, environment, options, tmpdir, path_queue, lock, failed_files
+):
     while True:
         path = path_queue.get()
         invocation = [executable]
@@ -219,8 +260,9 @@ def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
         if sys.stdout.isatty():
             invocation.append("--use-color")
 
-        if args.environment.startswith("rp2"):
-            # MMIO peripheral access on bare-metal RP2 is all fixed-address.
+        if environment.startswith(("rp2", "bk72xx", "ln882h", "rtl87xx")):
+            # MMIO peripheral access on these bare-metal platforms is all
+            # fixed-address.
             # bugprone-pointer-arithmetic-on-polymorphic-object (and its
             # cert-ctr56-cpp alias) crashes clang-tidy 22 with infinite matcher
             # recursion on lvgl_esphome.h under the RP2 defines.
@@ -272,8 +314,9 @@ def main():
     parser.add_argument(
         "-e",
         "--environment",
-        default="esp32-arduino-tidy",
-        help="the PlatformIO environment to use (as defined in platformio.ini)",
+        action="append",
+        help="the PlatformIO environment to use (as defined in platformio.ini); "
+        "may be given multiple times to scan the same files under several environments",
     )
     parser.add_argument(
         "files", nargs="*", default=[], help="files to be processed (regex on path)"
@@ -307,6 +350,11 @@ def main():
         "--all-headers",
         action="store_true",
         help="create a dummy file that checks all headers",
+    )
+    parser.add_argument(
+        "--exclude-header",
+        action="append",
+        help="exclude headers whose path contains this substring from the all-headers file",
     )
     args = parser.parse_args()
 
@@ -353,12 +401,12 @@ def main():
             ]
             changed_headers = filter_changed(all_headers)
             if changed_headers:
-                build_all_include(changed_headers)
+                build_all_include(changed_headers, args.exclude_header)
                 files.insert(0, temp_header_file)
             else:
                 print("No changed headers to check")
         else:
-            build_all_include()
+            build_all_include(exclude_headers=args.exclude_header)
             files.insert(0, temp_header_file)
             print(f"Added all-include header file, new total: {len(files)}")
 
@@ -370,74 +418,82 @@ def main():
     # Print final file list before loading idedata
     print_file_list(files, "Final files to process:")
 
-    # Load idedata and options only if we have files to check
-    idedata = load_idedata(args.environment)
-    options = clang_options(idedata, args.environment)
-
-    tmpdir = None
-    if args.fix:
-        tmpdir = tempfile.mkdtemp()
-
+    environments = args.environment or ["esp32-arduino-tidy"]
     failed_files = []
-    try:
-        executable = get_binary("clang-tidy", 22)
-        task_queue = queue.Queue(args.jobs)
-        lock = threading.Lock()
-        for _ in range(args.jobs):
-            t = threading.Thread(
-                target=run_tidy,
-                args=(
-                    executable,
-                    args,
-                    options,
-                    tmpdir,
-                    task_queue,
-                    lock,
-                    failed_files,
-                ),
-            )
-            t.daemon = True
-            t.start()
+    for environment in environments:
+        if len(environments) > 1:
+            print(f"\nEnvironment {environment}:")
 
-        # Fill the queue with files.
-        with click.progressbar(
-            files, width=30, file=sys.stderr, item_show_func=progress_bar_show
-        ) as progress_bar:
-            for name in progress_bar:
-                task_queue.put(name)
+        # Load idedata and options only if we have files to check
+        idedata = load_idedata(environment)
+        options = clang_options(idedata, environment)
 
-        # Wait for all threads to be done.
-        task_queue.join()
+        tmpdir = None
+        if args.fix:
+            tmpdir = tempfile.mkdtemp()
 
-    except FileNotFoundError:
-        return 1
-    except KeyboardInterrupt:
-        print()
-        print("Ctrl-C detected, goodbye.")
-        if tmpdir:
-            shutil.rmtree(tmpdir)
-        # Kill subprocesses (and ourselves!)
-        # No simple, clean alternative appears to be available.
-        os.kill(0, 9)
-        return 2  # Will not execute.
-
-    if args.fix and failed_files:
-        print("Applying fixes ...")
         try:
-            try:
-                subprocess.call(
-                    ["clang-apply-replacements-22", tmpdir], close_fds=False
+            executable = get_binary("clang-tidy", 22)
+            task_queue = queue.Queue(args.jobs)
+            lock = threading.Lock()
+            for _ in range(args.jobs):
+                t = threading.Thread(
+                    target=run_tidy,
+                    args=(
+                        executable,
+                        args,
+                        environment,
+                        options,
+                        tmpdir,
+                        task_queue,
+                        lock,
+                        failed_files,
+                    ),
                 )
-            except FileNotFoundError:
-                subprocess.call(["clang-apply-replacements", tmpdir], close_fds=False)
+                t.daemon = True
+                t.start()
+
+            # Fill the queue with files.
+            with click.progressbar(
+                files, width=30, file=sys.stderr, item_show_func=progress_bar_show
+            ) as progress_bar:
+                for name in progress_bar:
+                    task_queue.put(name)
+
+            # Wait for all threads to be done.
+            task_queue.join()
+
         except FileNotFoundError:
-            print(
-                "Error please install clang-apply-replacements-22 or clang-apply-replacements.\n",
-                file=sys.stderr,
-            )
-        except:
-            print("Error applying fixes.\n", file=sys.stderr)
-            raise
+            return 1
+        except KeyboardInterrupt:
+            print()
+            print("Ctrl-C detected, goodbye.")
+            if tmpdir:
+                shutil.rmtree(tmpdir)
+            # Kill subprocesses (and ourselves!)
+            # No simple, clean alternative appears to be available.
+            os.kill(0, 9)
+            return 2  # Will not execute.
+
+        if args.fix and failed_files:
+            print("Applying fixes ...")
+            try:
+                try:
+                    subprocess.call(
+                        ["clang-apply-replacements-22", tmpdir], close_fds=False
+                    )
+                except FileNotFoundError:
+                    subprocess.call(
+                        ["clang-apply-replacements", tmpdir], close_fds=False
+                    )
+            except FileNotFoundError:
+                print(
+                    "Error please install clang-apply-replacements-22 or clang-apply-replacements.\n",
+                    file=sys.stderr,
+                )
+            except:
+                print("Error applying fixes.\n", file=sys.stderr)
+                raise
 
     return len(failed_files)
 

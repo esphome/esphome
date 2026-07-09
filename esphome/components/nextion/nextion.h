@@ -23,7 +23,9 @@
 #elif defined(USE_ESP8266)
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
-#endif  // USE_ESP32 vs USE_ESP8266
+#elif defined(USE_LIBRETINY)
+#include <HTTPClient.h>
+#endif  // USE_ESP32 vs USE_ESP8266 vs USE_LIBRETINY
 #endif  // USE_NEXTION_TFT_UPLOAD
 
 namespace esphome::nextion {
