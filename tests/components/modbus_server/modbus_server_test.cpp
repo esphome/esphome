@@ -268,8 +268,7 @@ TEST(ModbusServerRead, ReadLambdaDecliningIsServiceDeviceFailure) {
 
   RegisterValues out;
   auto status = server.on_read_registers(0x0000, 1, out);
-  ASSERT_TRUE(status.has_value());
-  EXPECT_EQ(status.value(), ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
+  EXPECT_EQ(status, ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
 }
 
 // --- partial reads (opt-in) ----------------------------------------------------
@@ -371,12 +370,10 @@ TEST(ModbusServerBits, UnreadableBitRejectsRead) {
 
   uint8_t packed[1] = {0};
   auto status = server.on_read_bits(0x0000, modbus::MutablePackedBits(packed, 2));
-  ASSERT_TRUE(status.has_value());
-  EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+  EXPECT_EQ(status, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
 
   auto unregistered = server.on_read_bits(0x0005, modbus::MutablePackedBits(packed, 1));
-  ASSERT_TRUE(unregistered.has_value());
-  EXPECT_EQ(unregistered.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+  EXPECT_EQ(unregistered, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
 }
 
 // A read lambda returning an empty optional declines the read: the whole request is answered
@@ -392,8 +389,7 @@ TEST(ModbusServerBits, ReadLambdaDecliningIsServiceDeviceFailure) {
 
   uint8_t packed[1] = {0};
   auto status = server.on_read_bits(0x0000, modbus::MutablePackedBits(packed, 2));
-  ASSERT_TRUE(status.has_value());
-  EXPECT_EQ(status.value(), ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
+  EXPECT_EQ(status, ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
 }
 
 // A multi-coil write applies every bit and reports success.
@@ -437,8 +433,7 @@ TEST(ModbusServerBits, UnwritableBitAppliesNothing) {
 
   const uint8_t packed[1] = {0b11};
   auto status = server.on_write_coils(0x0000, modbus::PackedBits(packed, 2));
-  ASSERT_TRUE(status.has_value());
-  EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+  EXPECT_EQ(status, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
   EXPECT_FALSE(written);  // the writable bit must NOT have been applied
 }
 
@@ -459,8 +454,7 @@ TEST(ModbusServerBits, CallbackFailureIsServiceDeviceFailure) {
 
   const uint8_t packed[1] = {0b11};
   auto status = server.on_write_coils(0x0000, modbus::PackedBits(packed, 2));
-  ASSERT_TRUE(status.has_value());
-  EXPECT_EQ(status.value(), ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
+  EXPECT_EQ(status, ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
   EXPECT_TRUE(first_written);
 }
 
