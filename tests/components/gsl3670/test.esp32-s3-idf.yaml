@@ -6,8 +6,8 @@ xl9535:
   id: expander
 
 display:
-  - id: gsl3670_display
-    platform: mipi_spi
+  - platform: mipi_spi
+    id: gsl3670_display
     spi_id: spi_bus
     model: t-display-s3-pro
 
