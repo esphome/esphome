@@ -10,11 +10,10 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
-import pytest
-import pytest_asyncio
-
 import aioesphomeapi
 from aioesphomeapi import EntityState, LightState
+import pytest
+import pytest_asyncio
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
