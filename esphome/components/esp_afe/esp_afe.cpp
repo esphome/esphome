@@ -3,12 +3,13 @@
 #include "../esp_audio_stack/audio_core_scoped_lock.h"
 
 #ifdef USE_ESP32
+#ifndef CLANG_TIDY
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <esp_heap_caps.h>
-#ifdef USE_ESP_AFE_GMF_PATH
+#if defined(USE_ESP_AFE_GMF_PATH) && !defined(CLANG_TIDY)
 #include <esp_gmf_obj.h>
 #endif
 #include <esp_timer.h>
@@ -18,8 +19,7 @@
 #include <cstring>
 #include <string>
 
-namespace esphome {
-namespace esp_afe {
+namespace esphome::esp_afe {
 
 static const char *const TAG = "esp_afe";
 static const TickType_t CONFIG_MUTEX_TIMEOUT = pdMS_TO_TICKS(250);
@@ -1641,7 +1641,7 @@ bool EspAfe::start_reconfigure_task_() {
 
   this->reconfigure_task_running_.store(true, std::memory_order_release);
   if (!esp_audio_stack::start_pinned_task(
-          &EspAfe::reconfigure_task_trampoline_, "afe_reinit", kReconfigureTaskStackBytes, this, 4, 0, false, TAG,
+          &EspAfe::reconfigure_task_trampoline, "afe_reinit", RECONFIGURE_TASK_STACK_BYTES, this, 4, 0, false, TAG,
           &this->reconfigure_task_handle_, &this->reconfigure_task_tcb_, &this->reconfigure_task_stack_)) {
     this->reconfigure_task_running_.store(false, std::memory_order_release);
     return false;
@@ -1688,7 +1688,7 @@ bool EspAfe::is_reconfigure_idle() const {
          uxQueueMessagesWaiting(this->reconfigure_queue_) == 0;
 }
 
-void EspAfe::reconfigure_task_trampoline_(void *arg) {
+void EspAfe::reconfigure_task_trampoline(void *arg) {
   static_cast<EspAfe *>(arg)->reconfigure_task_loop_();
   vTaskDelete(nullptr);
 }
@@ -2197,10 +2197,10 @@ bool EspAfe::prepare_feed_input_ring_() {
 
   if (this->feed_input_ring_ == nullptr) {
     // NOSPLIT ring: xRingbufferSend is atomic per-item; Receive returns a
-    // complete frame. kBridgeRingFrames capacity absorbs BSS jitter without
+    // complete frame. BRIDGE_RING_FRAMES capacity absorbs BSS jitter without
     // memory bloat. Each NOSPLIT item adds an 8-byte header, included in sizing.
     const size_t frame_bytes = static_cast<size_t>(this->feed_chunksize_) * this->total_channels_ * sizeof(int16_t);
-    const size_t ring_size = (frame_bytes + kRingbufferItemHeaderBytes) * kBridgeRingFrames;
+    const size_t ring_size = (frame_bytes + RINGBUFFER_ITEM_HEADER_BYTES) * BRIDGE_RING_FRAMES;
     const uint32_t feed_ring_caps =
         this->feed_ring_in_psram_ ? (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     this->feed_input_ring_storage_ = static_cast<uint8_t *>(heap_caps_malloc(ring_size, feed_ring_caps));
@@ -2233,7 +2233,7 @@ bool EspAfe::prepare_feed_input_ring_() {
       return false;
     }
     ESP_LOGI(TAG, "Feed input ring: %u bytes (%u per frame, %u slots, NOSPLIT)", (unsigned) ring_size,
-             (unsigned) frame_bytes, (unsigned) kBridgeRingFrames);
+             (unsigned) frame_bytes, (unsigned) BRIDGE_RING_FRAMES);
   }
   return true;
 }
@@ -2321,7 +2321,7 @@ bool EspAfe::prepare_fetch_output_ring_() {
     // a whole frame or emits silence; it never consumes a short byte-buffer read
     // that would shift the microphone surface seen by MWW/VA/call components.
     const size_t frame_bytes = static_cast<size_t>(this->fetch_chunksize_) * sizeof(int16_t);
-    const size_t ring_bytes = (frame_bytes + kRingbufferItemHeaderBytes) * kBridgeRingFrames;
+    const size_t ring_bytes = (frame_bytes + RINGBUFFER_ITEM_HEADER_BYTES) * BRIDGE_RING_FRAMES;
     this->fetch_output_ring_ =
         this->fetch_ring_in_psram_
             ? esp_audio_stack::create_nosplit_prefer_psram(ring_bytes, "esp_afe.fetch_output_ring")
@@ -2403,7 +2403,7 @@ EspAfe::~EspAfe() {
   }
 }
 
-}  // namespace esp_afe
-}  // namespace esphome
+}  // namespace esphome::esp_afe
 
+#endif  // !CLANG_TIDY
 #endif  // USE_ESP32

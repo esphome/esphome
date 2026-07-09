@@ -24,7 +24,7 @@ esp_afe:
   vad_enabled: true
 
 esp_audio_stack:
-  id: audio_stack
+  id: afe_audio_stack
   processor_id: afe_processor
   sample_rate: 48000
   output_sample_rate: 16000
@@ -43,13 +43,13 @@ esp_audio_stack:
 
 microphone:
   - platform: esp_audio_stack
-    id: clean_mic
-    esp_audio_stack_id: audio_stack
+    id: afe_clean_mic
+    esp_audio_stack_id: afe_audio_stack
 
 speaker:
   - platform: esp_audio_stack
-    id: stack_speaker
-    esp_audio_stack_id: audio_stack
+    id: afe_stack_speaker
+    esp_audio_stack_id: afe_audio_stack
 
 switch:
   - platform: esp_afe

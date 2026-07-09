@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import psram
@@ -12,7 +10,6 @@ CODEOWNERS = ["@n-IA-hane"]
 DEPENDENCIES = ["esp32"]
 
 _SUPPORTED_VARIANTS = ("ESP32S3", "ESP32P4")
-GMF_AI_AUDIO_PATH = Path(__file__).parent / "idf_components" / "gmf_ai_audio"
 
 
 def _validate_esp32_variant(config):
@@ -258,15 +255,13 @@ async def to_code(config):
         add_idf_component(name="espressif/esp-sr", ref="^2.4.6")
     if config[CONF_MIC_NUM] >= 2:
         cg.add_define("USE_ESP_AFE_GMF_PATH")
-        # Local fork of Espressif GMF AI Audio 1.0.0~1. Upstream pins esp-sr
-        # 2.4.4 even though the ESP-SR headers and public symbols used by GMF
-        # are compatible with 2.4.6 on S3 and P4. Keep the fork minimal: only
-        # the manifest dependency is bumped so dual-mic AFE can pick up
-        # Espressif's 2.4.5/2.4.6 SR fixes without changing GMF source logic.
         add_idf_component(
             name="espressif/gmf_ai_audio",
-            path=str(GMF_AI_AUDIO_PATH),
+            repo="https://github.com/n-IA-hane/esp-gmf.git",
+            ref="gmf-ai-audio-esp-sr-2.4.6",
+            path="elements/gmf_ai_audio",
         )
+        add_idf_component(name="espressif/esp-sr", ref="^2.4.6")
 
 
 @automation.register_action(

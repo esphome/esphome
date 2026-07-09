@@ -16,6 +16,33 @@
 
 #ifdef USE_ESP32
 
+#ifdef CLANG_TIDY
+using aec_mode_t = int;
+struct afe_config_t;
+struct afe_fetch_result_t;
+struct esp_afe_sr_data_t;
+struct esp_afe_sr_iface_t;
+using esp_gmf_afe_evt_t = void;
+using esp_gmf_afe_manager_handle_t = void *;
+using esp_gmf_element_handle_t = void *;
+using esp_gmf_err_io_t = int;
+using esp_gmf_obj_handle_t = void *;
+using esp_gmf_payload_t = void;
+using esp_gmf_pipeline_handle_t = void *;
+using esp_gmf_task_handle_t = void *;
+static constexpr int AEC_MODE_SR_LOW_COST = 0;
+static constexpr int AEC_MODE_SR_HIGH_PERF = 1;
+static constexpr int AEC_MODE_VOIP_LOW_COST = 3;
+static constexpr int AEC_MODE_VOIP_HIGH_PERF = 4;
+static constexpr int AFE_MEMORY_ALLOC_MORE_INTERNAL = 1;
+static constexpr int AFE_MEMORY_ALLOC_INTERNAL_PSRAM_BALANCE = 2;
+static constexpr int AFE_MEMORY_ALLOC_MORE_PSRAM = 3;
+static constexpr int AFE_MODE_LOW_COST = 0;
+static constexpr int AFE_MODE_HIGH_PERF = 1;
+static constexpr int AFE_TYPE_SR = 0;
+static constexpr int AFE_TYPE_VC = 1;
+static constexpr int VAD_MODE_3 = 3;
+#else
 #include <esp_afe_sr_iface.h>
 #include <esp_afe_sr_models.h>
 #include <esp_afe_config.h>
@@ -27,6 +54,7 @@
 #include <esp_gmf_payload.h>
 #include <esp_gmf_port.h>
 #include <esp_gmf_task.h>
+#endif
 #endif
 #include <freertos/queue.h>
 #include <freertos/ringbuf.h>
@@ -41,8 +69,7 @@
 #include <cstring>
 #include <memory>
 
-namespace esphome {
-namespace esp_afe {
+namespace esphome::esp_afe {
 
 using esp_audio_stack::AudioFeature;
 using esp_audio_stack::AudioProcessor;
@@ -223,7 +250,7 @@ class EspAfe : public Component, public AudioProcessor {
   bool recreate_instance_(bool require_same_frame_sizes);
   void clear_process_busy_();
   bool start_reconfigure_task_();
-  static void reconfigure_task_trampoline_(void *arg);
+  static void reconfigure_task_trampoline(void *arg);
   void reconfigure_task_loop_();
   bool set_aec_enabled_runtime_(bool enabled);
   bool set_vad_enabled_runtime_(bool enabled);
@@ -284,8 +311,8 @@ class EspAfe : public Component, public AudioProcessor {
   // esp_audio_stack stages full AFE feed frames into this NOSPLIT bridge.
   // The official esp_gmf_afe element reads them through a GMF input port and
   // writes processed mono frames through a GMF output port.
-  static constexpr size_t kBridgeRingFrames = 4;
-  static constexpr size_t kRingbufferItemHeaderBytes = 8;
+  static constexpr size_t BRIDGE_RING_FRAMES = 4;
+  static constexpr size_t RINGBUFFER_ITEM_HEADER_BYTES = 8;
 
 #ifdef USE_ESP_AFE_GMF_PATH
   RingbufHandle_t feed_input_ring_{nullptr};
@@ -392,7 +419,7 @@ class EspAfe : public Component, public AudioProcessor {
   struct ReconfigureRequest {
     char mode[32]{};
   };
-  static constexpr uint32_t kReconfigureTaskStackBytes = 12288;
+  static constexpr uint32_t RECONFIGURE_TASK_STACK_BYTES = 12288;
   QueueHandle_t reconfigure_queue_{nullptr};
   StaticQueue_t reconfigure_queue_struct_{};
   uint8_t reconfigure_queue_storage_[sizeof(ReconfigureRequest)]{};
@@ -459,21 +486,21 @@ class AfeSwitchBase : public switch_::Switch, public Component, public Parented<
       if (this->parent_->is_initialized()) {
         this->write_state(*initial);
       } else {
-        this->apply_initial_state_(*initial);
-        this->publish_state(this->get_parent_state_());
+        this->apply_initial_state(*initial);
+        this->publish_state(this->get_parent_state());
       }
     } else {
-      this->publish_state(this->get_parent_state_());
+      this->publish_state(this->get_parent_state());
     }
   }
 
  protected:
-  virtual bool get_parent_state_() const = 0;
-  virtual void apply_initial_state_(bool state) {}
+  virtual bool get_parent_state() const = 0;
+  virtual void apply_initial_state(bool state) {}
 
   void publish_parent_state_() {
     if (this->parent_ != nullptr) {
-      this->publish_state(this->get_parent_state_());
+      this->publish_state(this->get_parent_state());
     }
   }
 };
@@ -492,8 +519,8 @@ class AfeAecSwitch : public AfeSwitchBase {
   }
 
  protected:
-  bool get_parent_state_() const override { return this->parent_->is_aec_enabled(); }
-  void apply_initial_state_(bool state) override { this->parent_->set_aec_enabled(state); }
+  bool get_parent_state() const override { return this->parent_->is_aec_enabled(); }
+  void apply_initial_state(bool state) override { this->parent_->set_aec_enabled(state); }
 };
 
 class AfeNsSwitch : public AfeSwitchBase {
@@ -509,8 +536,8 @@ class AfeNsSwitch : public AfeSwitchBase {
   }
 
  protected:
-  bool get_parent_state_() const override { return this->parent_->is_ns_enabled(); }
-  void apply_initial_state_(bool state) override { this->parent_->set_ns_enabled(state); }
+  bool get_parent_state() const override { return this->parent_->is_ns_enabled(); }
+  void apply_initial_state(bool state) override { this->parent_->set_ns_enabled(state); }
 };
 
 class AfeVadSwitch : public AfeSwitchBase {
@@ -526,8 +553,8 @@ class AfeVadSwitch : public AfeSwitchBase {
   }
 
  protected:
-  bool get_parent_state_() const override { return this->parent_->is_vad_enabled(); }
-  void apply_initial_state_(bool state) override { this->parent_->set_vad_enabled(state); }
+  bool get_parent_state() const override { return this->parent_->is_vad_enabled(); }
+  void apply_initial_state(bool state) override { this->parent_->set_vad_enabled(state); }
 };
 
 class AfeAgcSwitch : public AfeSwitchBase {
@@ -543,8 +570,8 @@ class AfeAgcSwitch : public AfeSwitchBase {
   }
 
  protected:
-  bool get_parent_state_() const override { return this->parent_->is_agc_enabled(); }
-  void apply_initial_state_(bool state) override { this->parent_->set_agc_enabled(state); }
+  bool get_parent_state() const override { return this->parent_->is_agc_enabled(); }
+  void apply_initial_state(bool state) override { this->parent_->set_agc_enabled(state); }
 };
 #endif  // USE_SWITCH
 
@@ -598,7 +625,6 @@ template<typename... Ts> class SetModeAction : public Action<Ts...>, public Pare
   void play(const Ts &...x) override { this->parent_->request_reinit_by_name(this->mode_.value(x...)); }
 };
 
-}  // namespace esp_afe
-}  // namespace esphome
+}  // namespace esphome::esp_afe
 
 #endif  // USE_ESP32
