@@ -5,6 +5,7 @@
 #include <span>
 #include <vector>
 
+#include "common.h"
 #include "esphome/components/modbus/modbus.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -53,26 +54,7 @@ class NoBitsDevice : public ModbusServerDevice {
   explicit NoBitsDevice(uint8_t address) { this->set_address(address); }
 };
 
-// A UART that records every byte written so tests can assert on the exact wire response.
-class RecordingUART : public uart::UARTComponent {
- public:
-  RecordingUART() { this->set_baud_rate(9600); }
-
-  void write_array(const uint8_t *data, size_t len) override {
-    this->written.insert(this->written.end(), data, data + len);
-  }
-  bool peek_byte(uint8_t *data) override { return false; }
-  bool read_array(uint8_t *data, size_t len) override { return false; }
-  size_t available() override { return 0; }
-  uart::UARTFlushResult flush() override { return uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS; }
-// load_settings() only exists in the base class on ESP8266/ESP32 builds (e.g. the clang-tidy run).
-#if defined(USE_ESP8266) || defined(USE_ESP32)
-  void load_settings(bool dump_config) override {}
-#endif
-  void check_logger_conflict() override {}
-
-  std::vector<uint8_t> written;
-};
+using testing::RecordingUART;
 
 // Exposes the client-frame parser so a fully CRC-framed request can be pushed through the hub.
 class TestServerHub : public ModbusServerHub {
