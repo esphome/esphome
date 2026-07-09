@@ -1,13 +1,20 @@
-// NOLINTBEGIN
-// This file is intentionally an X-macro definition file included inside a switch block
-// in op_resolver.h. It does not have its own include guard; #pragma once would
-// prevent reinclusion with different macro definitions.
+#pragma once
+
+// NOTE: This is an X-macro definition file included inside a switch block in
+// op_resolver.h. The `#pragma once` and namespace are present for lint
+// compliance only. Macro definitions (TFLM_OP_AVAILABLE, TFLM_OP_UNAVAILABLE)
+// are defined before inclusion and undefined after, so the namespace does not
+// affect macro expansion.
+
 #ifdef TFLM_OPERATORS_ACTIVE
 
 // TFLite Micro Operators Definition File
 // Format:
 //   TFLM_OP_AVAILABLE(BuiltinOperator_suffix, AddMethod)  -> operator exists in ESP32 TFLM library
 //   TFLM_OP_UNAVAILABLE(BuiltinOperator_suffix)            -> operator not available, will be logged as unsupported
+
+namespace esphome {
+namespace tflite_micro_helper {
 
 // ====== Core Neural Network Ops ======
 TFLM_OP_AVAILABLE(CONV_2D, AddConv2D)
@@ -154,5 +161,8 @@ TFLM_OP_UNAVAILABLE(SVDF)
 TFLM_OP_UNAVAILABLE(LSH_PROJECTION)
 TFLM_OP_UNAVAILABLE(SKIP_GRAM)
 TFLM_OP_UNAVAILABLE(CALL)
+
+}  // namespace tflite_micro_helper
+}  // namespace esphome
 
 #endif  // TFLM_OPERATORS_ACTIVE
