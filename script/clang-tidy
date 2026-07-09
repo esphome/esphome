@@ -99,6 +99,10 @@ def clang_options(idedata, environment):
             "-DCLANG_TIDY",
             # (esp-idf) Fix __once_callable in some libstdc++ headers
             "-D_GLIBCXX_HAVE_TLS",
+            # suppress warning about attribute cannot be applied to type
+            # https://github.com/esp8266/Arduino/pull/8258
+            # also keeps deprecation diagnostics consistent across environments
+            "-Ddeprecated(x)=",
         ]
     )
 
@@ -124,9 +128,6 @@ def clang_options(idedata, environment):
                 # this next one is also needed with upstream pgmspace.h
                 # suppress warning about identifier naming in expansion of this macro
                 "-DPSTRN(s, n)=(s)",
-                # suppress warning about attribute cannot be applied to type
-                # https://github.com/esp8266/Arduino/pull/8258
-                "-Ddeprecated(x)=",
             ]
         )
 
