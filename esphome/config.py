@@ -599,6 +599,18 @@ class LoadValidationStep(ConfigValidationStep):
         CORE.loaded_integrations.add(self.domain)
         # For platform components, normalize conf before creating MetadataValidationStep
         if component.is_platform_component:
+            # Legacy config migration: allow a platform component to rewrite a
+            # pre-platform-format top-level config (e.g. a bare list or legacy
+            # dict form) into the normalized list of `platform:` tagged entries.
+            # Removable deprecation shim hook; no-op for components that do not
+            # define LEGACY_CONFIG_MIGRATE.
+            if (
+                (migrate := component.legacy_config_migrate) is not None
+                and self.conf
+                and not isinstance(self.conf, core.AutoLoad)
+                and (migrated := migrate(self.conf)) is not None
+            ):
+                result[self.domain] = self.conf = migrated
             if not self.conf:
                 result[self.domain] = self.conf = []
             elif not isinstance(self.conf, list):

@@ -1307,3 +1307,34 @@ async def test_to_code_adds_libraries(yaml_file: Callable[[str], Path]) -> None:
     mock_cg.add_library.assert_any_call(
         "noise-c", None, "https://github.com/esphome/noise-c.git"
     )
+
+
+def test_esphome_build_internals_are_yaml_only() -> None:
+    """Raw build-system inputs in the ``esphome:`` block are ``YAML_ONLY``.
+
+    These knobs (compiler flags, raw PlatformIO options, C/C++ includes,
+    libraries, build host parallelism, the min-version gate, …) are not
+    meaningful as visual-editor form fields and a wrong value breaks the
+    build, so they must never render in a schema-aware UI.
+    """
+    # CONFIG_SCHEMA is cv.All(cv.Schema({...}), validate_hostname).
+    inner = config.CONFIG_SCHEMA.validators[0].schema
+    markers = {str(k): k for k in inner}
+    yaml_only_fields = {
+        CONF_BUILD_PATH,
+        "platformio_options",
+        "build_flags",
+        "environment_variables",
+        "includes",
+        "includes_c",
+        "libraries",
+        "debug_scheduler",
+    }
+    for field in yaml_only_fields:
+        assert markers[field].visibility is cv.Visibility.YAML_ONLY, field
+    # Packaging / build-host knobs are real but rarely-touched overrides:
+    # surface them under the editor's advanced disclosure, not yaml-only.
+    for field in ("min_version", "compile_process_limit"):
+        assert markers[field].visibility is cv.Visibility.ADVANCED, field
+    # A regular device-config field stays on the main form.
+    assert markers[CONF_NAME_ADD_MAC_SUFFIX].visibility is None
