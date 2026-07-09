@@ -551,5 +551,12 @@ class LvKeyboardType : public key_provider::KeyProvider, public LvCompound {
  public:
   void set_obj(lv_obj_t *lv_obj) override;
 };
+
+// A keyboard has no text of its own; its text is that of the attached textarea. Returns an empty
+// string when no textarea is attached so the on_value trigger stays safe for a textarea-less keyboard.
+inline const char *lv_keyboard_get_text(lv_obj_t *keyboard) {
+  lv_obj_t *textarea = lv_keyboard_get_textarea(keyboard);
+  return textarea == nullptr ? "" : lv_textarea_get_text(textarea);
+}
 #endif  // USE_LVGL_KEYBOARD
 }  // namespace esphome::lvgl
