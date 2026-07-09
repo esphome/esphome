@@ -46,6 +46,40 @@ lvgl:
     - lvgl.display.set_rotation:
         rotation: 0
         lvgl_id: lvgl_id
+    - lvgl.display.set_rotation:
+        rotation: !lambda "return 180;"
+        lvgl_id: lvgl_id
+  on_landscape:
+    - logger.log: LVGL display is now landscape
+    # Re-layout a container in response to orientation changes. The layout type
+    # and grid structure are fixed at creation; only the style options change.
+    - lvgl.widget.update:
+        id: grid_rows_only_shorthand
+        layout:
+          grid_column_align: center
+          grid_row_align: space_between
+          pad_row: 4px
+    - lvgl.update:
+        top_layer:
+          layout:
+            flex_flow: row
+  on_portrait:
+    - logger.log: LVGL display is now portrait
+    - lvgl.widget.update:
+        id: grid_rows_only_shorthand
+        layout:
+          grid_column_align: start
+          pad_row: 2px
+    # Top-level layout applies to the active screen
+    - lvgl.update:
+        layout:
+          flex_flow: column
+          pad_row: 8px
+    - lvgl.update:
+        top_layer:
+          layout:
+            flex_flow: column
+            flex_align_main: center
 
   on_boot:
     - logger.log: LVGL has started
@@ -263,6 +297,9 @@ lvgl:
                   bg_opa: !lambda return 0.5;
               - lvgl.image.update:
                   id: lv_image
+                  src:
+                    mapping: image_map
+                    value: !lambda return round(1.0);
                   scale: !lambda return 512;
                   rotation: !lambda return 100;
                   pivot_x: !lambda return 20;
@@ -388,9 +425,16 @@ lvgl:
             text_font: montserrat_40
             border_post: true
             on_press:
-              lvgl.label.update:
-                id: hello_label
-                text: Goodbye
+              - lvgl.label.update:
+                  id: hello_label
+                  text:
+                    mapping: lvgl_string_map
+                    value: !lambda return 2;
+              - lvgl.label.update:
+                  id: hello_label
+                  text:
+                    mapping: lvgl_string_map
+                    value: 2
             on_click:
               then:
                 - lvgl.animimg.stop: anim_img
@@ -1495,6 +1539,21 @@ image:
     resize: 100x100
     invert_alpha: true
     transparency: alpha_channel
+
+mapping:
+  - id: image_map
+    from: int
+    to: image
+    entries:
+      0: cat_image
+      1: dog_image
+  - id: lvgl_string_map
+    from: int
+    to: string
+    entries:
+      0: "First"
+      1: "Second"
+      2: "Third"
 
 color:
   - id: light_blue

@@ -22,9 +22,12 @@ from esphome.helpers import cpp_string_escape
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import Expression, SafeExpType
 
+from ..mapping import INDEX_TYPES, get_mapping_metadata
 from . import types as ty
 from .defines import (
     CONF_END_VALUE,
+    CONF_IMAGE,
+    CONF_MAPPING,
     CONF_START_VALUE,
     CONF_TIME_FORMAT,
     LV_FONTS,
@@ -328,6 +331,19 @@ lv_angle = LValidator(angle, uint32, retmapper=lambda x: int(x * 10), animatable
 lv_angle_degrees = LValidator(angle, uint32, retmapper=int, animatable=True)
 
 
+def rotation_degrees(value):
+    """Validate a display rotation, returning the angle in whole degrees.
+
+    Accepts the four supported rotations, optionally suffixed with "°".
+    """
+    value = cv.string(value).removesuffix("°")
+    return cv.one_of(0, 90, 180, 270, int=True)(value)
+
+
+# Validator for a display rotation expressed in whole degrees (templatable)
+lv_rotation = LValidator(rotation_degrees, cg.int_)
+
+
 @schema_extractor("one_of")
 def size_validator(value):
     """A size in one axis - one of "size_content", a number (pixels) or a percentage"""
@@ -375,21 +391,57 @@ def stop_value(value):
     return cv.int_range(0, 255)(value)
 
 
-def image_validator(value):
-    value = cv.requires_component("image")(value)
+def _image_validator(value):
+    if isinstance(value, dict) and CONF_MAPPING in value:
+        from .schemas import MAPPING_IMAGE_SCHEMA
+
+        return MAPPING_IMAGE_SCHEMA(value)
     value = cv.use_id(Image_)(value)
     get_lv_images_used().add(value)
     add_lv_use("label")
     return value
 
 
-lv_image = LValidator(
-    image_validator,
-    image.Image_.operator("ptr"),
-    requires="image",
-)
+class ImageValidator(LValidator):
+    def __init__(self):
+        super().__init__(
+            validator=_image_validator,
+            rtype=image.Image_.operator("ptr"),
+            requires=CONF_IMAGE,
+        )
+
+    async def process(
+        self,
+        value: Any,
+        args: list[tuple[SafeExpType, str]] | None = None,
+        raw_lambda: bool = False,
+    ) -> Expression:
+        # Local import to avoid circular import at module level
+        from .lvcode import get_lambda_context_args
+
+        args = args or get_lambda_context_args()
+        if isinstance(value, dict) and CONF_MAPPING in value:
+            mapping_id = value[CONF_MAPPING]
+            mapping_var = await cg.get_variable(mapping_id)
+            metadata = get_mapping_metadata(mapping_id.id)
+            index = value[CONF_VALUE]
+            if isinstance(index, Lambda):
+                index = call_lambda(
+                    await cg.process_lambda(
+                        index, args, return_type=metadata.from_.data_type
+                    )
+                )
+            else:
+                index = await metadata.from_.convert_value(index)
+            return mapping_var.get(index)
+
+        return await super().process(value, args, raw_lambda)
+
+
+lv_image = ImageValidator()
+
 lv_image_list = LValidator(
-    cv.ensure_list(image_validator),
+    cv.ensure_list(_image_validator),
     cg.std_vector.template(image.Image_.operator("ptr")),
     requires="image",
 )
@@ -440,6 +492,24 @@ class TextValidator(LValidator):
                         f"(std::isfinite({arg_expr}) ? {sprintf_str} : {nanval})"
                     )
                 return literal(sprintf_str)
+            if mapping_id := value.get(CONF_MAPPING):
+                mapping_var = await cg.get_variable(mapping_id)
+                metadata = get_mapping_metadata(mapping_id.id)
+                if metadata.to_ != INDEX_TYPES["string"]:
+                    raise ValueError(
+                        f"Mapping {mapping_id} does not map to strings, cannot use in text"
+                    )
+                index = value[CONF_VALUE]
+                if isinstance(index, Lambda):
+                    index = call_lambda(
+                        await cg.process_lambda(
+                            index, args, return_type=metadata.from_.data_type
+                        )
+                    )
+                else:
+                    index = await metadata.from_.convert_value(index)
+                return mapping_var.get(index).c_str()
+
             if time_format := value.get(CONF_TIME_FORMAT):
                 source = value[CONF_TIME]
                 if isinstance(source, Lambda):

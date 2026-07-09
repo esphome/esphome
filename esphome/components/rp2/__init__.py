@@ -244,8 +244,12 @@ ARDUINO_FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
-            cv.Optional(CONF_SOURCE): cv.string_strict,
-            cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
+            cv.Optional(
+                CONF_SOURCE, visibility=cv.Visibility.YAML_ONLY
+            ): cv.string_strict,
+            cv.Optional(
+                CONF_PLATFORM_VERSION, visibility=cv.Visibility.YAML_ONLY
+            ): _parse_platform_version,
         }
     ),
     _arduino_check_versions,
