@@ -56,9 +56,8 @@ namespace esphome::web_server {
 
 static const char *const TAG = "web_server";
 
-// Longest: UPDATE AVAILABLE (16 chars + null terminator, rounded up)
-static constexpr size_t PSTR_LOCAL_SIZE = 18;
-#define PSTR_LOCAL(mode_s) ESPHOME_strncpy_P(buf, (ESPHOME_PGM_P) ((mode_s)), PSTR_LOCAL_SIZE - 1)
+// View a state LogString as a ProgmemStr so ArduinoJson serializes it PROGMEM-aware on ESP8266.
+static ProgmemStr json_state_str(const LogString *s) { return reinterpret_cast<ProgmemStr>(s); }
 
 // Parse URL and return match info
 // URL formats (disambiguated by HTTP method for 3-segment case):
@@ -578,9 +577,9 @@ static void set_json_value(JsonObject &root, EntityBase *obj, const char *prefix
   root[ESPHOME_F("value")] = value;
 }
 
-template<typename T>
-static void set_json_icon_state_value(JsonObject &root, EntityBase *obj, const char *prefix, const char *state,
-                                      const T &value, JsonDetail start_config) {
+template<typename S, typename T>
+static void set_json_icon_state_value(JsonObject &root, EntityBase *obj, const char *prefix, S state, const T &value,
+                                      JsonDetail start_config) {
   set_json_value(root, obj, prefix, value, start_config);
   root[ESPHOME_F("state")] = state;
 }
@@ -1073,8 +1072,7 @@ json::SerializationBuffer<> WebServer::cover_json_(cover::Cover *obj, JsonDetail
 
   set_json_icon_state_value(root, obj, "cover", obj->is_fully_closed() ? "CLOSED" : "OPEN", obj->position,
                             start_config);
-  char buf[PSTR_LOCAL_SIZE];
-  root[ESPHOME_F("current_operation")] = PSTR_LOCAL(cover::cover_operation_to_str(obj->current_operation));
+  root[ESPHOME_F("current_operation")] = json_state_str(cover::cover_operation_to_str(obj->current_operation));
 
   if (obj->get_traits().get_supports_position())
     root[ESPHOME_F("position")] = obj->position;
@@ -1530,17 +1528,16 @@ json::SerializationBuffer<> WebServer::climate_json_(climate::Climate *obj, Json
   const auto traits = obj->get_traits();
   int8_t target_accuracy = traits.get_target_temperature_accuracy_decimals();
   int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
-  char buf[PSTR_LOCAL_SIZE];
   char temp_buf[VALUE_ACCURACY_MAX_LEN];
 
   if (start_config == DETAIL_ALL) {
     JsonArray opt = root[ESPHOME_F("modes")].to<JsonArray>();
     for (climate::ClimateMode m : traits.get_supported_modes())
-      opt.add(PSTR_LOCAL(climate::climate_mode_to_string(m)));
+      opt.add(json_state_str(climate::climate_mode_to_string(m)));
     if (traits.get_supports_fan_modes()) {
       JsonArray opt = root[ESPHOME_F("fan_modes")].to<JsonArray>();
       for (climate::ClimateFanMode m : traits.get_supported_fan_modes())
-        opt.add(PSTR_LOCAL(climate::climate_fan_mode_to_string(m)));
+        opt.add(json_state_str(climate::climate_fan_mode_to_string(m)));
     }
 
     if (!traits.get_supported_custom_fan_modes().empty()) {
@@ -1551,12 +1548,12 @@ json::SerializationBuffer<> WebServer::climate_json_(climate::Climate *obj, Json
     if (traits.get_supports_swing_modes()) {
       JsonArray opt = root[ESPHOME_F("swing_modes")].to<JsonArray>();
       for (auto swing_mode : traits.get_supported_swing_modes())
-        opt.add(PSTR_LOCAL(climate::climate_swing_mode_to_string(swing_mode)));
+        opt.add(json_state_str(climate::climate_swing_mode_to_string(swing_mode)));
     }
     if (traits.get_supports_presets()) {
       JsonArray opt = root[ESPHOME_F("presets")].to<JsonArray>();
       for (climate::ClimatePreset m : traits.get_supported_presets())
-        opt.add(PSTR_LOCAL(climate::climate_preset_to_string(m)));
+        opt.add(json_state_str(climate::climate_preset_to_string(m)));
     }
     if (!traits.get_supported_custom_presets().empty()) {
       JsonArray opt = root[ESPHOME_F("custom_presets")].to<JsonArray>();
@@ -1572,26 +1569,26 @@ json::SerializationBuffer<> WebServer::climate_json_(climate::Climate *obj, Json
   }
 
   bool has_state = false;
-  root[ESPHOME_F("mode")] = PSTR_LOCAL(climate_mode_to_string(obj->mode));
+  root[ESPHOME_F("mode")] = json_state_str(climate_mode_to_string(obj->mode));
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION)) {
-    root[ESPHOME_F("action")] = PSTR_LOCAL(climate_action_to_string(obj->action));
+    root[ESPHOME_F("action")] = json_state_str(climate_action_to_string(obj->action));
     root[ESPHOME_F("state")] = root[ESPHOME_F("action")];
     has_state = true;
   }
   if (traits.get_supports_fan_modes() && obj->fan_mode.has_value()) {
-    root[ESPHOME_F("fan_mode")] = PSTR_LOCAL(climate_fan_mode_to_string(obj->fan_mode.value()));
+    root[ESPHOME_F("fan_mode")] = json_state_str(climate_fan_mode_to_string(obj->fan_mode.value()));
   }
   if (!traits.get_supported_custom_fan_modes().empty() && obj->has_custom_fan_mode()) {
     root[ESPHOME_F("custom_fan_mode")] = obj->get_custom_fan_mode();
   }
   if (traits.get_supports_presets() && obj->preset.has_value()) {
-    root[ESPHOME_F("preset")] = PSTR_LOCAL(climate_preset_to_string(obj->preset.value()));
+    root[ESPHOME_F("preset")] = json_state_str(climate_preset_to_string(obj->preset.value()));
   }
   if (!traits.get_supported_custom_presets().empty() && obj->has_custom_preset()) {
     root[ESPHOME_F("custom_preset")] = obj->get_custom_preset();
   }
   if (traits.get_supports_swing_modes()) {
-    root[ESPHOME_F("swing_mode")] = PSTR_LOCAL(climate_swing_mode_to_string(obj->swing_mode));
+    root[ESPHOME_F("swing_mode")] = json_state_str(climate_swing_mode_to_string(obj->swing_mode));
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE)) {
     root[ESPHOME_F("current_temperature")] =
@@ -1695,8 +1692,7 @@ json::SerializationBuffer<> WebServer::lock_json_(lock::Lock *obj, lock::LockSta
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  char buf[PSTR_LOCAL_SIZE];
-  set_json_icon_state_value(root, obj, "lock", PSTR_LOCAL(lock::lock_state_to_string(value)), value, start_config);
+  set_json_icon_state_value(root, obj, "lock", json_state_str(lock::lock_state_to_string(value)), value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1777,8 +1773,7 @@ json::SerializationBuffer<> WebServer::valve_json_(valve::Valve *obj, JsonDetail
 
   set_json_icon_state_value(root, obj, "valve", obj->is_fully_closed() ? "CLOSED" : "OPEN", obj->position,
                             start_config);
-  char buf[PSTR_LOCAL_SIZE];
-  root[ESPHOME_F("current_operation")] = PSTR_LOCAL(valve::valve_operation_to_str(obj->current_operation));
+  root[ESPHOME_F("current_operation")] = json_state_str(valve::valve_operation_to_str(obj->current_operation));
 
   if (obj->get_traits().get_supports_position())
     root[ESPHOME_F("position")] = obj->position;
@@ -1863,9 +1858,8 @@ json::SerializationBuffer<> WebServer::alarm_control_panel_json_(alarm_control_p
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  char buf[PSTR_LOCAL_SIZE];
-  set_json_icon_state_value(root, obj, "alarm-control-panel", PSTR_LOCAL(alarm_control_panel_state_to_string(value)),
-                            value, start_config);
+  set_json_icon_state_value(root, obj, "alarm-control-panel",
+                            json_state_str(alarm_control_panel_state_to_string(value)), value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1937,10 +1931,9 @@ json::SerializationBuffer<> WebServer::water_heater_all_json_generator(WebServer
 json::SerializationBuffer<> WebServer::water_heater_json_(water_heater::WaterHeater *obj, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
-  char buf[PSTR_LOCAL_SIZE];
 
   const auto mode = obj->get_mode();
-  const char *mode_s = PSTR_LOCAL(water_heater::water_heater_mode_to_string(mode));
+  ProgmemStr mode_s = json_state_str(water_heater::water_heater_mode_to_string(mode));
 
   set_json_icon_state_value(root, obj, "water_heater", mode_s, mode, start_config);
 
@@ -1949,7 +1942,7 @@ json::SerializationBuffer<> WebServer::water_heater_json_(water_heater::WaterHea
   if (start_config == DETAIL_ALL) {
     JsonArray modes = root[ESPHOME_F("modes")].to<JsonArray>();
     for (auto m : traits.get_supported_modes())
-      modes.add(PSTR_LOCAL(water_heater::water_heater_mode_to_string(m)));
+      modes.add(json_state_str(water_heater::water_heater_mode_to_string(m)));
     root[ESPHOME_F("min_temp")] = traits.get_min_temperature();
     root[ESPHOME_F("max_temp")] = traits.get_max_temperature();
     root[ESPHOME_F("step")] = traits.get_target_temperature_step();
@@ -2277,8 +2270,7 @@ json::SerializationBuffer<> WebServer::update_json_(update::UpdateEntity *obj, J
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  char buf[PSTR_LOCAL_SIZE];
-  set_json_icon_state_value(root, obj, "update", PSTR_LOCAL(update::update_state_to_string(obj->state)),
+  set_json_icon_state_value(root, obj, "update", json_state_str(update::update_state_to_string(obj->state)),
                             obj->update_info.latest_version, start_config);
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("current_version")] = obj->update_info.current_version;
