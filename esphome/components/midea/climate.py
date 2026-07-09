@@ -25,6 +25,11 @@ from esphome.const import (
     ICON_POWER,
     ICON_THERMOMETER,
     ICON_WATER_PERCENT,
+    PLATFORM_BK72XX,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_LN882X,
+    PLATFORM_RTL87XX,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
@@ -152,12 +157,14 @@ CONFIG_SCHEMA = cv.All(
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
     cv.only_with_arduino,
-    cv.require_framework_version(
-        esp8266_arduino=cv.Version(0, 0, 0),
-        esp32_arduino=cv.Version(0, 0, 0),
-        bk72xx_arduino=cv.Version(0, 0, 0),
-        rtl87xx_arduino=cv.Version(0, 0, 0),
-        ln882x_arduino=cv.Version(0, 0, 0),
+    cv.only_on(
+        [
+            PLATFORM_ESP32,
+            PLATFORM_ESP8266,
+            PLATFORM_BK72XX,
+            PLATFORM_RTL87XX,
+            PLATFORM_LN882X,
+        ]
     ),
 )
 
