@@ -364,6 +364,33 @@ def print_error_for_file(file: str | Path, body: str | None) -> None:
         print()
 
 
+# Vendor SDKs (realtek basic_types.h) define generic-word object macros (ON,
+# OFF, SUCCESS, u16, ...) that break unrelated esphome declarations when
+# everything shares the synthetic all-include TU; real TUs never mix them, so
+# they are #undef'd after every include. The final entry drops basic_types.h's
+# include guard so vendor code included later that needs the macros re-includes
+# it and gets them back.
+ALL_INCLUDE_DETOX_MACROS = [
+    *[
+        "ON",
+        "OFF",
+        "SUCCESS",
+        "FAIL",
+        "IN",
+        "OUT",
+        "u8",
+        "u16",
+        "u32",
+        "u64",
+        "s8",
+        "s16",
+        "s32",
+        "s64",
+    ],
+    "__BASIC_TYPES_H__",
+]
+
+
 def build_all_include(
     header_files: list[str] | None = None,
     exclude_headers: list[str] | None = None,
@@ -392,30 +419,7 @@ def build_all_include(
     exclude = {ENTITY_TYPES_H_TARGET}
     if exclude_headers:
         exclude.update(h for h in header_files if any(e in h for e in exclude_headers))
-    # Vendor SDKs (realtek basic_types.h) define generic-word object macros (ON,
-    # OFF, SUCCESS, u16, ...) that break unrelated esphome declarations when
-    # everything shares this synthetic TU; real TUs never mix them, so drop the
-    # macros after every include.
-    detox_macros = [
-        "ON",
-        "OFF",
-        "SUCCESS",
-        "FAIL",
-        "IN",
-        "OUT",
-        "u8",
-        "u16",
-        "u32",
-        "u64",
-        "s8",
-        "s16",
-        "s32",
-        "s64",
-    ]
-    # Also drop basic_types.h's include guard so vendor code included later that
-    # needs those macros re-includes it and gets them back.
-    detox_macros.append("__BASIC_TYPES_H__")
-    detox = "".join(f"\n#undef {m}" for m in detox_macros)
+    detox = "".join(f"\n#undef {m}" for m in ALL_INCLUDE_DETOX_MACROS)
     headers = [
         f'#include "{h}"{detox}' for h in sorted(header_files) if h not in exclude
     ]
