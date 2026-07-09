@@ -1,0 +1,2 @@
+packages:
+  tflite_micro_helper: !include common.yaml

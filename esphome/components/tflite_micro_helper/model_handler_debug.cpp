@@ -9,8 +9,6 @@
 #include <vector>
 #include <algorithm>
 #include <limits>
-#include <iomanip>
-#include <sstream>
 
 #ifdef ESP_PLATFORM
 #include "esp_task_wdt.h"

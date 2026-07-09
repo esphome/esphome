@@ -23,10 +23,7 @@ class ScopedDuration {
   uint32_t start_;
 };
 
-}  // namespace tflite_micro_helper
-}  // namespace esphome
-
-// Helper function to convert TfLiteType to string (namespace-agnostic for compatibility)
+// Helper function to convert TfLiteType to string
 inline const char *tflite_type_to_string(TfLiteType type) {
   switch (type) {
     case kTfLiteFloat32:
@@ -49,3 +46,6 @@ inline const char *tflite_type_to_string(TfLiteType type) {
       return "Unknown";
   }
 }
+
+}  // namespace tflite_micro_helper
+}  // namespace esphome

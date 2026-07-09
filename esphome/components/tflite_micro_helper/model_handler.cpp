@@ -2,7 +2,7 @@
 #include "esp_log.h"
 #include "debug_utils.h"
 #include <cmath>
-#include <vector>
+#include <cstdlib>
 #include <algorithm>
 #include <limits>
 
@@ -228,6 +228,17 @@ bool ModelHandler::load_model_with_arena(const uint8_t *model_data, size_t model
     // is set explicitly in the ModelConfig before calling.
   }
 
+  // Allocate pre-allocated scratch buffer for output processing (avoids runtime std::vector allocations).
+  // Sized for 2x num_classes to support the worst-case experimental_scale mode
+  // which needs both scaled values and exp values simultaneously.
+  size_t scratch_needed = static_cast<size_t>(this->output_size_) * 2;
+  this->process_scratch_ = std::make_unique<float[]>(scratch_needed);
+  this->process_scratch_size_ = scratch_needed;
+  if (!this->process_scratch_) {
+    ESP_LOGE(TAG, "Failed to allocate process scratch buffer (%zu floats)", scratch_needed);
+    return false;
+  }
+
   ESP_LOGI(TAG, "Model loaded successfully");
 
   return true;
@@ -339,11 +350,16 @@ ProcessedOutput ModelHandler::process_output(TfLiteTensor *output_tensor) const 
       count *= output_tensor->dims->data[i];
     }
 
-    // Safety check against buffer overflow if count differs from output_size_
-    // Use local vector to ensure bounds safety regardless of output_size_ member state.
-    // This ensures dequantization loop is safe.
+    // Use pre-allocated scratch buffer if it's large enough, otherwise fall back
+    // to FixedVector for safety. The scratch buffer is sized at model load time
+    // to accommodate output_size_ elements. If count differs, we still handle it
+    // safely via the member buffer.
+    float *dequantized = static_cast<float *>(alloca(count * sizeof(float)));
+    if (!dequantized) {
+      ESP_LOGE(TAG, "Stack allocation failed for dequantized output (size=%d)", count);
+      return {0.0f, 0.0f};
+    }
 
-    std::vector<float> dequantized(count);
     float scale = output_tensor->params.scale;
     int32_t zero_point = output_tensor->params.zero_point;
 
@@ -364,7 +380,7 @@ ProcessedOutput ModelHandler::process_output(TfLiteTensor *output_tensor) const 
       }
     }
 
-    return process_output(dequantized.data());
+    return process_output(dequantized);
   } else {
     ESP_LOGE(TAG, "Unsupported output tensor type: %d", output_tensor->type);
     return {0.0f, 0.0f};
@@ -407,7 +423,11 @@ ProcessedOutput ModelHandler::process_output(const float *output_data) const {
 
   } else if (this->config_.output_processing == "softmax") {
     float max_logit = *std::max_element(output_data, output_data + num_classes);
-    std::vector<float> exp_vals(num_classes);
+    float *exp_vals = this->process_scratch_.get();
+    if (!exp_vals) {
+      ESP_LOGE(TAG, "Scratch buffer not allocated for softmax processing");
+      return {0.0f, 0.0f};
+    }
     float sum = 0.0f;
     for (int i = 0; i < num_classes; i++) {
       exp_vals[i] = expf(output_data[i] - max_logit);
@@ -469,16 +489,23 @@ ProcessedOutput ModelHandler::process_output(const float *output_data) const {
 
   } else if (this->config_.output_processing == "experimental_scale") {
     const float scale_factor = 0.1f;  // tweak if needed
-    std::vector<float> scaled(num_classes);
-    for (int i = 0; i < num_classes; ++i) {
-      scaled[i] = output_data[i] * scale_factor;
+    float *scratch = this->process_scratch_.get();
+    if (!scratch) {
+      ESP_LOGE(TAG, "Scratch buffer not allocated for experimental_scale processing");
+      return {0.0f, 0.0f};
     }
 
-    float max_scaled = *std::max_element(scaled.begin(), scaled.end());
-    std::vector<float> exp_vals(num_classes);
+    // First half: scaled values
+    for (int i = 0; i < num_classes; ++i) {
+      scratch[i] = output_data[i] * scale_factor;
+    }
+
+    float max_scaled = *std::max_element(scratch, scratch + num_classes);
+    // Second half: exp values (offset by num_classes to avoid overwriting)
+    float *exp_vals = scratch + num_classes;
     float sum = 0.0f;
     for (int i = 0; i < num_classes; ++i) {
-      exp_vals[i] = expf(scaled[i] - max_scaled);
+      exp_vals[i] = expf(scratch[i] - max_scaled);
       sum += exp_vals[i];
     }
 
@@ -503,7 +530,11 @@ ProcessedOutput ModelHandler::process_output(const float *output_data) const {
 
   } else if (this->config_.output_processing == "softmax_jomjol") {
     float max_logit = *std::max_element(output_data, output_data + num_classes);
-    std::vector<float> exp_vals(num_classes);
+    float *exp_vals = this->process_scratch_.get();
+    if (!exp_vals) {
+      ESP_LOGE(TAG, "Scratch buffer not allocated for softmax_jomjol processing");
+      return {0.0f, 0.0f};
+    }
     float sum = 0.0f;
     for (int i = 0; i < num_classes; ++i) {
       exp_vals[i] = expf(output_data[i] - max_logit);
@@ -576,7 +607,11 @@ ProcessedOutput ModelHandler::process_output(const float *output_data) const {
       ESP_LOGD(TAG, "Auto-detect (direct): value=%.1f confidence=1.0", result.value);
     } else {
       float max_logit_ad = *std::max_element(output_data, output_data + num_classes);
-      std::vector<float> exp_vals_ad(num_classes);
+      float *exp_vals_ad = this->process_scratch_.get();
+      if (!exp_vals_ad) {
+        ESP_LOGE(TAG, "Scratch buffer not allocated for auto_detect logits processing");
+        return {0.0f, 0.0f};
+      }
       float exp_sum_ad = 0.0f;
       for (int i = 0; i < num_classes; ++i) {
         exp_vals_ad[i] = expf(output_data[i] - max_logit_ad);

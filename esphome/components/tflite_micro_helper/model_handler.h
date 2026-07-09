@@ -13,6 +13,7 @@
 
 #include "op_resolver.h"
 #include "memory_manager.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace tflite_micro_helper {
@@ -144,6 +145,12 @@ class ModelHandler {
   std::unique_ptr<tflite::MicroInterpreter> interpreter_;
   ModelConfig config_;
   int output_size_{0};
+
+  // Pre-allocated float scratch buffer for output processing (avoids runtime std::vector allocations).
+  // Size == output_size_ * 2 to accommodate the worst-case processing mode (experimental_scale
+  // which needs both scaled values and exp values simultaneously).
+  std::unique_ptr<float[]> process_scratch_;
+  size_t process_scratch_size_{0};
 
   // Memory management
   MemoryManager memory_manager_;
