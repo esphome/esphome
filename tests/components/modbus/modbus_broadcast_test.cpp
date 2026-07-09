@@ -54,7 +54,7 @@ class RecordingUART : public uart::UARTComponent {
   size_t available() override { return 0; }
   uart::UARTFlushResult flush() override { return uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS; }
   void check_logger_conflict() override {}
-  // USE_ESP32 only: the USE_ESP8266 token would pull this gtest file into the ESP8266 clang-tidy scan.
+  // ESP32-only: naming the ESP8266 macro would grep this gtest file into that clang-tidy scan.
 #ifdef USE_ESP32
   void load_settings(bool dump_config) override {}
 #endif
