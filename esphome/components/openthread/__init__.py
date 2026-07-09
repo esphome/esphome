@@ -14,6 +14,7 @@ from esphome.components.esp32 import (
     require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
+from esphome.components.network import add_use_address
 from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -288,7 +289,7 @@ async def to_code(config):
     enable_mdns_storage()
 
     ot = cg.new_Pvariable(config[CONF_ID])
-    cg.add(ot.set_use_address(config[CONF_USE_ADDRESS]))
+    add_use_address(ot, config[CONF_USE_ADDRESS])
     await cg.register_component(ot, config)
     if (poll_period := config.get(CONF_POLL_PERIOD)) is not None:
         cg.add(ot.set_poll_period(poll_period))

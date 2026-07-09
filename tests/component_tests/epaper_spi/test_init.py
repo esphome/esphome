@@ -154,6 +154,10 @@ def test_all_predefined_models(
         if not model.get_default(CONF_CS_PIN):
             config[CONF_CS_PIN] = 5
 
+        # Dual-CS models (e.g. T133A01) require a second chip-select pin
+        if model.manages_cs and not model.get_default("cs1_pin"):
+            config["cs1_pin"] = 4
+
         # Select an ESP32 variant on which all of this model's pins are valid
         # (some models default to high-numbered pins only present on the S3).
         choose_variant_with_pins(_pins_for(model, config))
@@ -203,6 +207,10 @@ def test_individual_models(
 
     if not model.get_default(CONF_CS_PIN):
         config[CONF_CS_PIN] = 5
+
+    # Dual-CS models (e.g. T133A01) require a second chip-select pin
+    if model.manages_cs and not model.get_default("cs1_pin"):
+        config["cs1_pin"] = 4
 
     # Select an ESP32 variant on which all of this model's pins are valid
     # (some models default to high-numbered pins only present on the S3).
