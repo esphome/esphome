@@ -258,6 +258,20 @@ TEST(ModbusServerRead, UnregisteredRejectedWithoutCourtesy) {
     EXPECT_EQ(status.value(), ExceptionCode::ILLEGAL_DATA_ADDRESS);
 }
 
+// A register read lambda returning an empty optional declines the read: the whole request is
+// answered with SERVICE_DEVICE_FAILURE.
+TEST(ModbusServerRead, ReadLambdaDecliningIsServiceDeviceFailure) {
+  ModbusServer server;
+  ServerRegister reg(0x0000, SensorValueType::U_WORD, 1);
+  reg.read_lambda = []() -> optional<int64_t> { return {}; };
+  server.add_server_register(&reg);
+
+  RegisterValues out;
+  auto status = server.on_read_registers(0x0000, 1, out);
+  ASSERT_TRUE(status.has_value());
+  EXPECT_EQ(status.value(), ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
+}
+
 // --- partial reads (opt-in) ----------------------------------------------------
 
 // With allow_partial_read, reading only the first register of a DWORD returns its high word.

@@ -75,7 +75,13 @@ modbus::ResponseStatus ModbusServer::on_read_registers(uint16_t start_address, u
       return ExceptionCode::ILLEGAL_DATA_ADDRESS;
     }
 
-    int64_t value = server_register->read_lambda();
+    const optional<int64_t> read_value = server_register->read_lambda();
+    if (!read_value.has_value()) {
+      ESP_LOGW(TAG, "Register read at 0x%04X declined to produce a value. Sending exception response.",
+               server_register->address);
+      return ModbusExceptionCode::SERVICE_DEVICE_FAILURE;
+    }
+    const int64_t value = *read_value;
     char value_buf[ServerRegister::FORMAT_VALUE_BUF_SIZE];
     ESP_LOGV(TAG, "Matched register. Address: 0x%02X. Value type: %zu. Register count: %u. Value: %s.",
              server_register->address, static_cast<size_t>(server_register->value_type),
