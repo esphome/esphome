@@ -310,4 +310,144 @@ TEST(ModbusServerRead, PartialReadReversedType) {
   EXPECT_EQ(second[0], 0x1234);
 }
 
+// --- bits (coils / discrete inputs, one shared address space) -------------------
+
+// Bits are read through the shared table regardless of which read function code arrived:
+// the hub routes both 0x01 and 0x02 to on_read_bits().
+TEST(ModbusServerBits, ReadSetsRequestedBits) {
+  ModbusServer server;
+  ServerBit bit0(0x0000);
+  bit0.set_read_lambda([](uint16_t) { return true; });
+  ServerBit bit1(0x0001);
+  bit1.set_read_lambda([](uint16_t) { return false; });
+  ServerBit bit2(0x0002);
+  bit2.set_read_lambda([](uint16_t) { return true; });
+  server.add_server_bit(&bit0);
+  server.add_server_bit(&bit1);
+  server.add_server_bit(&bit2);
+
+  uint8_t packed[1] = {0};
+  auto status = server.on_read_bits(0x0000, modbus::MutablePackedBits(packed, 3));
+  EXPECT_FALSE(status.has_value());
+  EXPECT_EQ(packed[0], 0b101);
+}
+
+// The read lambda receives the bit's address, so one lambda can serve several bits.
+TEST(ModbusServerBits, ReadLambdaReceivesAddress) {
+  ModbusServer server;
+  ServerBit server_bit(0x0007);
+  server_bit.set_read_lambda([](uint16_t address) { return address == 0x0007; });
+  server.add_server_bit(&server_bit);
+
+  uint8_t packed[1] = {0};
+  auto status = server.on_read_bits(0x0007, modbus::MutablePackedBits(packed, 1));
+  EXPECT_FALSE(status.has_value());
+  EXPECT_EQ(packed[0], 0x01);
+}
+
+// An unregistered or write-only bit rejects the whole read with ILLEGAL_DATA_ADDRESS.
+TEST(ModbusServerBits, UnreadableBitRejectsRead) {
+  ModbusServer server;
+  ServerBit readable(0x0000);
+  readable.set_read_lambda([](uint16_t) { return true; });
+  ServerBit write_only(0x0001);
+  write_only.set_write_lambda([](uint16_t, bool) { return true; });
+  server.add_server_bit(&readable);
+  server.add_server_bit(&write_only);
+
+  uint8_t packed[1] = {0};
+  auto status = server.on_read_bits(0x0000, modbus::MutablePackedBits(packed, 2));
+  ASSERT_TRUE(status.has_value());
+  EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+
+  auto unregistered = server.on_read_bits(0x0005, modbus::MutablePackedBits(packed, 1));
+  ASSERT_TRUE(unregistered.has_value());
+  EXPECT_EQ(unregistered.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+}
+
+// A read lambda returning an empty optional declines the read: the whole request is answered
+// with SERVICE_DEVICE_FAILURE.
+TEST(ModbusServerBits, ReadLambdaDecliningIsServiceDeviceFailure) {
+  ModbusServer server;
+  ServerBit ok(0x0000);
+  ok.set_read_lambda([](uint16_t) { return true; });
+  ServerBit declining(0x0001);
+  declining.set_read_lambda([](uint16_t) -> optional<bool> { return {}; });
+  server.add_server_bit(&ok);
+  server.add_server_bit(&declining);
+
+  uint8_t packed[1] = {0};
+  auto status = server.on_read_bits(0x0000, modbus::MutablePackedBits(packed, 2));
+  ASSERT_TRUE(status.has_value());
+  EXPECT_EQ(status.value(), ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
+}
+
+// A multi-coil write applies every bit and reports success.
+TEST(ModbusServerBits, WriteAppliesAllBits) {
+  ModbusServer server;
+  bool state[2] = {false, true};
+  ServerBit bit0(0x0000);
+  bit0.set_write_lambda([&state](uint16_t, bool value) {
+    state[0] = value;
+    return true;
+  });
+  ServerBit bit1(0x0001);
+  bit1.set_write_lambda([&state](uint16_t, bool value) {
+    state[1] = value;
+    return true;
+  });
+  server.add_server_bit(&bit0);
+  server.add_server_bit(&bit1);
+
+  const uint8_t packed[1] = {0b01};  // bit0 on, bit1 off
+  auto status = server.on_write_coils(0x0000, modbus::PackedBits(packed, 2));
+  EXPECT_FALSE(status.has_value());
+  EXPECT_TRUE(state[0]);
+  EXPECT_FALSE(state[1]);
+}
+
+// Pre-flight atomicity: an unwritable bit anywhere in the span rejects the write before any
+// bit is applied.
+TEST(ModbusServerBits, UnwritableBitAppliesNothing) {
+  ModbusServer server;
+  bool written = false;
+  ServerBit writable(0x0000);
+  writable.set_write_lambda([&written](uint16_t, bool) {
+    written = true;
+    return true;
+  });
+  ServerBit read_only(0x0001);
+  read_only.set_read_lambda([](uint16_t) { return false; });
+  server.add_server_bit(&writable);
+  server.add_server_bit(&read_only);
+
+  const uint8_t packed[1] = {0b11};
+  auto status = server.on_write_coils(0x0000, modbus::PackedBits(packed, 2));
+  ASSERT_TRUE(status.has_value());
+  EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+  EXPECT_FALSE(written);  // the writable bit must NOT have been applied
+}
+
+// A write lambda failing at runtime is the one non-atomic case: earlier bits stay applied and
+// the handler reports SERVICE_DEVICE_FAILURE (mirrors the register behavior).
+TEST(ModbusServerBits, CallbackFailureIsServiceDeviceFailure) {
+  ModbusServer server;
+  bool first_written = false;
+  ServerBit first(0x0000);
+  first.set_write_lambda([&first_written](uint16_t, bool) {
+    first_written = true;
+    return true;
+  });
+  ServerBit second(0x0001);
+  second.set_write_lambda([](uint16_t, bool) { return false; });  // rejects at runtime
+  server.add_server_bit(&first);
+  server.add_server_bit(&second);
+
+  const uint8_t packed[1] = {0b11};
+  auto status = server.on_write_coils(0x0000, modbus::PackedBits(packed, 2));
+  ASSERT_TRUE(status.has_value());
+  EXPECT_EQ(status.value(), ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
+  EXPECT_TRUE(first_written);
+}
+
 }  // namespace esphome::modbus_server

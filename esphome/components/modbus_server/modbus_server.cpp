@@ -167,6 +167,63 @@ modbus::ResponseStatus ModbusServer::on_write_registers(uint16_t start_address,
   return {};
 }
 
+ServerBit *ModbusServer::find_bit_(uint16_t address) const {
+  for (auto *server_bit : this->server_bits_) {
+    if (server_bit->address == address) {
+      return server_bit;
+    }
+  }
+  return nullptr;
+}
+
+modbus::ResponseStatus ModbusServer::on_read_bits(uint16_t start_address, modbus::MutablePackedBits bits) {
+  ESP_LOGV(TAG, "Received read coils/discrete inputs for device 0x%X. Start address: 0x%X. Count: 0x%X.",
+           this->address_, start_address, bits.size());
+
+  for (uint16_t i = 0; i < bits.size(); i++) {
+    const uint16_t address = static_cast<uint16_t>(start_address + i);  // range pre-checked by the hub
+    ServerBit *server_bit = this->find_bit_(address);
+    if (server_bit == nullptr || !server_bit->read_lambda) {
+      ESP_LOGW(TAG, "No readable bit at 0x%04X. Sending exception response.", address);
+      return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
+    }
+    const optional<bool> value = server_bit->read_lambda(address);
+    if (!value.has_value()) {
+      ESP_LOGW(TAG, "Bit read at 0x%04X declined to produce a value. Sending exception response.", address);
+      return ModbusExceptionCode::SERVICE_DEVICE_FAILURE;
+    }
+    bits.set(i, *value);
+  }
+  return {};
+}
+
+modbus::ResponseStatus ModbusServer::on_write_coils(uint16_t start_address, modbus::PackedBits bits) {
+  ESP_LOGV(TAG, "Received write coils for device 0x%X. Start address: 0x%X. Count: 0x%X.", this->address_,
+           start_address, bits.size());
+
+  // Pre-flight: every targeted bit must exist and be writable, so we never apply a partial write
+  // before discovering a problem (mirrors the register write's two passes).
+  for (uint16_t i = 0; i < bits.size(); i++) {
+    const uint16_t address = static_cast<uint16_t>(start_address + i);
+    ServerBit *server_bit = this->find_bit_(address);
+    if (server_bit == nullptr || !server_bit->write_lambda) {
+      ESP_LOGW(TAG, "No writable bit at 0x%04X. Sending exception response.", address);
+      return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
+    }
+  }
+
+  // Commit: the only failure now is a user write callback rejecting the value at runtime -- which
+  // cannot be rolled back.
+  for (uint16_t i = 0; i < bits.size(); i++) {
+    const uint16_t address = static_cast<uint16_t>(start_address + i);
+    if (!this->find_bit_(address)->write_lambda(address, bits[i])) {
+      ESP_LOGW(TAG, "A bit write callback failed mid-sequence; earlier writes were already applied.");
+      return ModbusExceptionCode::SERVICE_DEVICE_FAILURE;
+    }
+  }
+  return {};
+}
+
 void ModbusServer::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "ModbusServer:\n"
