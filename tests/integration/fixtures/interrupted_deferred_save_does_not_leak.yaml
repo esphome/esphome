@@ -1,0 +1,70 @@
+esphome:
+  name: ltspi-defer-leak
+  platformio_options:
+    build_flags:
+      - "-DDEBUG"  # Enable assert() statements
+      - "-g"       # Add debug symbols
+      - "-DESPHOME_LIGHT_PREFERENCES_SAVE_LOG"  # Enable light preferences save logging for tests
+
+host:
+
+logger:
+
+api:
+
+preferences:
+  flash_write_interval: 0s
+
+output:
+  - platform: template
+    id: mono_output
+    type: float
+    write_action:
+      - logger.log:
+          format: "mono_output: %.2f"
+          args: [state]
+
+light:
+  - platform: monochromatic
+    id: test_mono_light
+    name: "Test Mono Light Defer Leak"
+    output: mono_output
+    default_transition_length: 1s
+    transition_state_publish_interval: 0.2s
+
+button:
+  - platform: template
+    id: run_interrupted_by_flash
+    name: "Run Interrupted By Flash"
+    on_press:
+      - lambda: |-
+          ESP_LOGI("test", "Starting save=true transition then interrupting with flash");
+          auto call = id(test_mono_light).turn_on();
+          call.set_brightness(1.0f);
+          call.set_transition_length(2000);
+          call.set_save(true);
+          call.perform();
+
+          // Interrupt before the deferred save can run; flashes clear FLAG_SAVE in validate_().
+          auto flash = id(test_mono_light).turn_on();
+          flash.set_brightness(0.2f);
+          flash.set_flash_length(1000);
+          flash.perform();
+
+  - platform: template
+    id: run_interrupted_by_unsaved_transition
+    name: "Run Interrupted By Unsaved Transition"
+    on_press:
+      - lambda: |-
+          ESP_LOGI("test", "Starting save=true transition then interrupting with save=false");
+          auto call = id(test_mono_light).turn_on();
+          call.set_brightness(1.0f);
+          call.set_transition_length(2000);
+          call.set_save(true);
+          call.perform();
+
+          auto interrupt = id(test_mono_light).turn_on();
+          interrupt.set_brightness(0.5f);
+          interrupt.set_transition_length(1000);
+          interrupt.set_save(false);
+          interrupt.perform();

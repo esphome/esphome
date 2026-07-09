@@ -382,6 +382,9 @@ void LightState::stop_effect_() {
 }
 
 void LightState::start_transition_(const LightColorValues &target, uint32_t length) {
+  // Clear any interval-publish / deferred-save state from a previous transformer so an
+  // interrupted save=true transition cannot leak into the next transition or flash.
+  this->reset_transition_publish_state_();
   this->transformer_ = this->output_->create_default_transition();
   this->transformer_->setup(this->current_values, target, length);
   // Enable loop while transition is active
@@ -389,6 +392,8 @@ void LightState::start_transition_(const LightColorValues &target, uint32_t leng
 }
 
 void LightState::start_flash_(const LightColorValues &target, uint32_t length) {
+  // Same reset as start_transition_: flashes must never inherit a deferred preference save.
+  this->reset_transition_publish_state_();
   LightColorValues end_colors = this->remote_values;
   // If starting a flash if one is already happening, set end values to end values of current flash
   // Hacky but works

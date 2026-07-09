@@ -513,6 +513,75 @@ async def test_transition_interval_persistence_semantics(
 
 
 @pytest.mark.asyncio
+async def test_interrupted_deferred_save_does_not_leak(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Interrupted save=true interval transitions must not leak deferred saves.
+
+    A save=true transition sets defer_transition_save_. If a flash or save=false
+    transition interrupts it before completion, that flag must be cleared so the
+    interrupting call does not persist preferences when it finishes.
+    """
+    save_log_count = 0
+
+    def on_log_line(line: str) -> None:
+        nonlocal save_log_count
+        if "LightState preferences saved:" in line:
+            save_log_count += 1
+
+    async with (
+        run_compiled(yaml_config, line_callback=on_log_line),
+        api_client_connected() as client,
+    ):
+        entities, _ = await client.list_entities_services()
+
+        light_infos: dict[str, aioesphomeapi.LightInfo] = {
+            e.object_id: e for e in entities if isinstance(e, aioesphomeapi.LightInfo)
+        }
+        button_infos: dict[str, aioesphomeapi.ButtonInfo] = {
+            e.object_id: e for e in entities if isinstance(e, aioesphomeapi.ButtonInfo)
+        }
+
+        mono = light_infos.get("test_mono_light_defer_leak")
+        flash_button = button_infos.get("run_interrupted_by_flash")
+        transition_button = button_infos.get("run_interrupted_by_unsaved_transition")
+        assert mono is not None
+        assert flash_button is not None
+        assert transition_button is not None
+
+        client.light_command(key=mono.key, state=False, brightness=0.0)
+        await asyncio.sleep(0.2)
+        save_log_count = 0
+
+        await _collect_state_timeline(
+            client,
+            mono.key,
+            lambda: client.button_command(flash_button.key),
+            duration=1.5,
+        )
+        assert save_log_count == 0, (
+            "Flash interrupting a save=true interval transition must not save preferences"
+        )
+
+        client.light_command(key=mono.key, state=False, brightness=0.0)
+        await asyncio.sleep(0.2)
+        save_log_count = 0
+
+        await _collect_state_timeline(
+            client,
+            mono.key,
+            lambda: client.button_command(transition_button.key),
+            duration=1.5,
+        )
+        assert save_log_count == 0, (
+            "save=false transition interrupting a save=true interval transition "
+            "must not save preferences"
+        )
+
+
+@pytest.mark.asyncio
 async def test_flash_interval_emits_intermediate_updates(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
