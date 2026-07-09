@@ -52,6 +52,9 @@ jobs:
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           enable-cache: true
+          # Pull request saves land in per-PR scopes nothing else can
+          # reuse; dev pushes seed the shared copy instead.
+          save-cache: ${{ github.event_name != 'pull_request' }}
           # Pin uv version so the action does not have to fetch the
           # manifest from raw.githubusercontent.com on every cache
           # miss; that fetch flakes on Windows runners.
@@ -174,6 +177,9 @@ jobs:
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           enable-cache: true
+          # Pull request saves land in per-PR scopes nothing else can
+          # reuse; dev pushes seed the shared copy instead.
+          save-cache: ${{ github.event_name != 'pull_request' }}
           # Pin uv version so the action does not have to fetch the
           # manifest from raw.githubusercontent.com on every cache
           # miss; that fetch flakes on Windows runners.
@@ -375,6 +381,9 @@ jobs:
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           enable-cache: true
+          # Pull request saves land in per-PR scopes nothing else can
+          # reuse; dev pushes seed the shared copy instead.
+          save-cache: ${{ github.event_name != 'pull_request' }}
           # Pin uv version so the action does not have to fetch the
           # manifest from raw.githubusercontent.com on every cache
           # miss; that fetch flakes on Windows runners.
@@ -828,11 +837,12 @@ jobs:
       - name: List components
         run: echo ${{ matrix.batch.components }}
 
-      - name: Cache apt packages
-        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
-        with:
-          packages: libsdl2-dev ccache
-          version: 1.1
+      - name: Install apt packages
+        # Not cached: this job is pull-request-only, so a cache save could
+        # never be shared and would only consume quota.
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libsdl2-dev ccache
 
       - name: Check out code from GitHub
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -1006,6 +1016,36 @@ jobs:
           # Arduino framework via PlatformIO (only components with an esp32-ard test are built):
           python3 script/test_build_components.py -e compile -t esp32-ard -c "$TEST_COMPONENTS" -f --toolchain platformio
 
+  pre-commit-seed-cache:
+    name: Seed pre-commit cache
+    runs-on: ubuntu-latest
+    needs:
+      - common
+    # Saves a dev-scoped pre-commit cache that pull request runs can
+    # restore, since pre-commit.ci lite itself never runs on dev pushes.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Cache pre-commit environments
+        id: cache-pre-commit
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          # Must match the restore key in pre-commit-ci-lite
+          # yamllint disable-line rule:line-length
+          key: pre-commit-3|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
+      - name: Install pre-commit hook environments
+        if: steps.cache-pre-commit.outputs.cache-hit != 'true'
+        run: |
+          python -m pip install pre-commit
+          pre-commit install-hooks
+
   pre-commit-ci-lite:
     name: pre-commit.ci lite
     runs-on: ubuntu-latest
@@ -1021,9 +1061,22 @@ jobs:
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
-      - uses: esphome/pre-commit-action@43cd1109c09c544d97196f7730ee5b2e0cc6d81e # v3.0.1 fork with pinned actions/cache
+      # Inlined from esphome/pre-commit-action with a restore-only cache
+      # step: the pre-commit-seed-cache job owns saving this cache, so
+      # pull request runs never write per-PR copies.
+      - name: Restore pre-commit cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          # Must match the key pre-commit-seed-cache saves
+          # yamllint disable-line rule:line-length
+          key: pre-commit-3|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
+      - name: Run pre-commit
         env:
           SKIP: pylint,ci-custom
+        run: |
+          python -m pip install pre-commit
+          pre-commit run --show-diff-on-failure --color=always --all-files
       - uses: pre-commit-ci/lite-action@5d6cc0eb514c891a40562a58a8e71576c5c7fb43 # v1.1.0
         if: always()
 
