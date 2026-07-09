@@ -136,6 +136,19 @@ class ComponentManifest:
         return getattr(self.module, "FINAL_VALIDATE_SCHEMA", None)
 
     @property
+    def legacy_config_migrate(self) -> Callable[[ConfigType], ConfigType | None] | None:
+        """Optional `LEGACY_CONFIG_MIGRATE` callable on a platform component module.
+
+        Called once, before platform entries are processed, with the raw top-level
+        config for this domain. It may transform a pre-platform-format config (e.g.
+        a bare list or legacy dict form) into the normalized list of `platform:`
+        tagged entries and return it. Returning ``None`` means "already in the new
+        format, leave untouched". This is an intentionally removable deprecation
+        shim hook.
+        """
+        return getattr(self.module, "LEGACY_CONFIG_MIGRATE", None)
+
+    @property
     def resources(self) -> list[FileResource]:
         """Return a list of all file resources defined in the package of this component.
 
