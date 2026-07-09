@@ -65,6 +65,7 @@ class RecordingUART : public uart::UARTComponent {
   bool read_array(uint8_t *data, size_t len) override { return false; }
   size_t available() override { return 0; }
   uart::UARTFlushResult flush() override { return uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS; }
+  void load_settings(bool dump_config) override {}
   void check_logger_conflict() override {}
 
   std::vector<uint8_t> written;
