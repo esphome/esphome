@@ -109,6 +109,33 @@ APIError APINoiseFrameHelper::init() {
   state_ = State::CLIENT_HELLO;
   return APIError::OK;
 }
+#ifdef USE_API_PLAINTEXT
+APIError APINoiseFrameHelper::init_from_handoff(const uint8_t *header, uint8_t header_len) {
+  APIError err = this->init();
+  if (err != APIError::OK) {
+    return err;
+  }
+  // Seed the header bytes the plaintext helper consumed before detecting the
+  // Noise indicator; try_read_frame_ resumes from rx_header_buf_len_.
+  std::memcpy(this->rx_header_buf_, header, header_len);
+  this->rx_header_buf_len_ = header_len;
+  // Pump the handshake without gating on socket_->ready(): on LWIP the
+  // plaintext helper's partial read can drain rcvevent while the rest of the
+  // client hello sits in the lastdata cache, so ready() may report false even
+  // though data is available. Reads stop naturally on EWOULDBLOCK.
+  while (this->state_ != State::DATA) {
+    err = this->state_action_();
+    if (err == APIError::WOULD_BLOCK) {
+      return APIError::OK;
+    }
+    if (err != APIError::OK) {
+      return err;
+    }
+  }
+  return APIError::OK;
+}
+#endif  // USE_API_PLAINTEXT
+
 // Helper for handling handshake frame errors
 APIError APINoiseFrameHelper::handle_handshake_frame_error_(APIError aerr) {
   if (aerr == APIError::BAD_INDICATOR) {
