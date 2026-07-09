@@ -25,6 +25,7 @@ CODEOWNERS = ["@clydebarrow"]
 usb_uart_ns = cg.esphome_ns.namespace("usb_uart")
 USBUartComponent = usb_uart_ns.class_("USBUartComponent", Component)
 USBUartChannel = usb_uart_ns.class_("USBUartChannel", UARTComponent)
+CH934XChannel = usb_uart_ns.class_("CH934XChannel", UARTComponent)
 
 UARTParityOptions = usb_uart_ns.enum("UARTParityOptions")
 UART_PARITY_OPTIONS = {
@@ -54,6 +55,7 @@ class Type:
         cls,
         max_channels=1,
         baud_rate_required=True,
+        channel_cls=None,
         max_baud=1_000_000,
     ):
         self.name = name
@@ -63,22 +65,90 @@ class Type:
         self.cls = usb_uart_ns.class_(f"USBUartType{cls}", USBUartComponent)
         self._max_channels = max_channels
         self.baud_rate_required = baud_rate_required
+        self.channel_cls = channel_cls or USBUartChannel
         self.max_baud = max_baud
+
+    # CDC-style devices use one bulk IN + one bulk OUT endpoint per channel.
+    ENDPOINTS_PER_CHANNEL = 2
 
     @property
     def max_channels(self) -> int:
-        return (
-            3
-            if (
-                CORE.is_esp32
-                and get_esp32_variant() != VARIANT_ESP32P4
-                and self._max_channels > 3
-            )
-            else self._max_channels
+        # The USB host controller's endpoint budget caps the usable channel count:
+        # 7 endpoints on ESP32-S3, 15 on ESP32-P4, one of which is always needed
+        # for enumeration/control (EP0). CDC-style: (7-1)//2 = 3 on S3, (15-1)//2 = 7 on P4.
+        total_endpoints = (
+            15 if CORE.is_esp32 and get_esp32_variant() == VARIANT_ESP32P4 else 7
+        )
+        return min(
+            self._max_channels, (total_endpoints - 1) // self.ENDPOINTS_PER_CHANNEL
         )
 
 
+class MpxType(Type):
+    @property
+    def max_channels(self) -> int:
+        # Multiplexed devices (CH934x) route all channels over one shared bulk
+        # IN/OUT pair plus one command IN/OUT pair — 4 endpoints + EP0 in total,
+        # independent of the channel count. The chip's own port count is the
+        # only limit, so even all 8 CH348 channels fit on an ESP32-S3.
+        return self._max_channels
+
+
 uart_types = (
+    MpxType(
+        "CH9344",
+        0x1A86,
+        0xE018,
+        "CH934X",
+        4,
+        channel_cls=CH934XChannel,
+        max_baud=12_000_000,
+    ),
+    MpxType(
+        "CH9344L",
+        0x1A86,
+        0xE018,
+        "CH934X",
+        4,
+        channel_cls=CH934XChannel,
+        max_baud=12_000_000,
+    ),
+    MpxType(
+        "CH9344Q",
+        0x1A86,
+        0xE018,
+        "CH934X",
+        4,
+        channel_cls=CH934XChannel,
+        max_baud=12_000_000,
+    ),
+    MpxType(
+        "CH348",
+        0x1A86,
+        0x55D9,
+        "CH934X",
+        8,
+        channel_cls=CH934XChannel,
+        max_baud=12_000_000,
+    ),
+    MpxType(
+        "CH348L",
+        0x1A86,
+        0x55D9,
+        "CH934X",
+        8,
+        channel_cls=CH934XChannel,
+        max_baud=12_000_000,
+    ),
+    MpxType(
+        "CH348Q",
+        0x1A86,
+        0x55D9,
+        "CH934X",
+        8,
+        channel_cls=CH934XChannel,
+        max_baud=12_000_000,
+    ),
     Type("CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False),
     Type("CH34X", 0x1A86, 0x55D5, "CH34X", 4, max_baud=2_000_000),
     Type("CH340", 0x1A86, 0x7523, "CH34X", 1, max_baud=2_000_000),
@@ -105,7 +175,7 @@ def channel_schema(type_: "Type") -> cv.Schema:
                 cv.ensure_list(
                     cv.Schema(
                         {
-                            cv.GenerateID(): cv.declare_id(USBUartChannel),
+                            cv.GenerateID(): cv.declare_id(type_.channel_cls),
                             cv.Optional(CONF_BUFFER_SIZE, default=256): cv.int_range(
                                 min=64, max=8192
                             ),
