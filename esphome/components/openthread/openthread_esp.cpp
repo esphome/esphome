@@ -111,32 +111,7 @@ void OpenThreadComponent::ot_main() {
 
   ESP_LOGD(TAG, "Thread Version: %" PRIu16, otThreadGetVersion());
 
-  otLinkModeConfig link_mode_config{};
-#if CONFIG_OPENTHREAD_FTD
-  link_mode_config.mRxOnWhenIdle = true;
-  link_mode_config.mDeviceType = true;
-  link_mode_config.mNetworkData = true;
-#elif CONFIG_OPENTHREAD_MTD
-  if (this->poll_period_ > 0) {
-    if (otLinkSetPollPeriod(instance, this->poll_period_) != OT_ERROR_NONE) {
-      ESP_LOGE(TAG, "Failed to set pollperiod");
-    }
-    ESP_LOGD(TAG, "Link Polling Period: %" PRIu32, otLinkGetPollPeriod(instance));
-  }
-  link_mode_config.mRxOnWhenIdle = this->poll_period_ == 0;
-  link_mode_config.mDeviceType = false;
-  link_mode_config.mNetworkData = false;
-#endif
-
-  if (otThreadSetLinkMode(instance, link_mode_config) != OT_ERROR_NONE) {
-    ESP_LOGE(TAG, "Failed to set linkmode");
-  }
-#ifdef ESPHOME_LOG_HAS_DEBUG  // Fetch link mode from OT only when DEBUG
-  link_mode_config = otThreadGetLinkMode(instance);
-  ESP_LOGD(TAG, "Link Mode Device Type: %s, Network Data: %s, RX On When Idle: %s",
-           TRUEFALSE(link_mode_config.mDeviceType), TRUEFALSE(link_mode_config.mNetworkData),
-           TRUEFALSE(link_mode_config.mRxOnWhenIdle));
-#endif
+  this->apply_linkmode_(instance);
 
   if (this->output_power_.has_value()) {
     if (const auto err = otPlatRadioSetTransmitPower(instance, *this->output_power_); err != OT_ERROR_NONE) {
@@ -217,7 +192,7 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
 otInstance *OpenThreadComponent::get_openthread_instance_() { return esp_openthread_get_instance(); }
 
 InstanceLock InstanceLock::try_acquire(int delay) {
-  if (!global_openthread_component->is_lock_initialized()) {
+  if (global_openthread_component == nullptr || !global_openthread_component->is_lock_initialized()) {
     return InstanceLock(false);
   }
   return InstanceLock(esp_openthread_lock_acquire(delay));

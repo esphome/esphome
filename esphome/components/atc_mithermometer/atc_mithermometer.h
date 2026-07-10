@@ -18,7 +18,7 @@ struct ParseResult {
   int raw_offset;
 };
 
-class ATCMiThermometer : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class ATCMiThermometer final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
 

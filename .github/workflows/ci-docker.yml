@@ -1,25 +1,38 @@
 ---
 name: CI for docker images
 
-# Only run when docker paths change
+# Only run on PRs that touch the docker image, its build inputs, or any code
+# whose toolchain the compile smoke test exercises (core + target platforms).
 
 on:
-  push:
-    branches: [dev, beta, release]
-    paths:
-      - "docker/**"
-      - ".github/workflows/ci-docker.yml"
-      - "requirements*.txt"
-      - "platformio.ini"
-      - "script/platformio_install_deps.py"
-
   pull_request:
     paths:
+      # Docker image and its build inputs.
       - "docker/**"
       - ".github/workflows/ci-docker.yml"
       - "requirements*.txt"
+      - "pyproject.toml"
       - "platformio.ini"
+      - "esphome/idf_component.yml"
       - "script/platformio_install_deps.py"
+      # Core, build pipeline, toolchain, and target-platform changes can change
+      # how a toolchain is set up or built, so re-run the per-toolchain compile
+      # smoke test when they change.
+      - "esphome/core/**"
+      - "esphome/writer.py"
+      - "esphome/build_gen/**"
+      - "esphome/espidf/**"
+      - "esphome/platformio/**"
+      - "esphome/components/bk72xx/**"
+      - "esphome/components/esp32/**"
+      - "esphome/components/esp8266/**"
+      - "esphome/components/host/**"
+      - "esphome/components/libretiny/**"
+      - "esphome/components/ln882x/**"
+      - "esphome/components/nrf52/**"
+      - "esphome/components/rp2040/**"
+      - "esphome/components/rtl87xx/**"
+      - "esphome/components/zephyr/**"
 
 permissions:
   contents: read  # actions/checkout only
@@ -48,13 +61,13 @@ jobs:
       tag: ${{ steps.tag.outputs.tag }}
       push: ${{ steps.tag.outputs.push }}
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.11"
+          python-version: "3.12"
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Determine tag and whether to push
         id: tag
@@ -83,7 +96,7 @@ jobs:
 
       - name: Log in to the GitHub container registry
         if: steps.tag.outputs.push == 'true'
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -96,7 +109,26 @@ jobs:
             --arch "${{ matrix.os == 'ubuntu-24.04-arm' && 'aarch64' || 'amd64' }}" \
             --build-type "${{ matrix.build_type }}" \
             --registry ghcr \
-            build ${{ steps.tag.outputs.push == 'true' && '--push --no-cache-to' || '' }}
+            build ${{ steps.tag.outputs.push == 'true' && '--push --no-cache-to' || '' }} ${{ (matrix.os == 'ubuntu-24.04' && matrix.build_type == 'docker') && '--load' || '' }}
+
+      # The amd64 "docker" image is also loaded locally (above) and handed to
+      # compile-test as an artifact, so the smoke test reuses this build instead
+      # of building the image a second time. Using an artifact (rather than the
+      # pushed image) keeps it working for fork PRs, which never push to ghcr.io.
+      - name: Export image for compile-test
+        if: matrix.os == 'ubuntu-24.04' && matrix.build_type == 'docker'
+        run: docker save "ghcr.io/esphome/esphome-amd64:${{ steps.tag.outputs.tag }}" | gzip > compile-test-image.tar.gz
+
+      - name: Upload compile-test image artifact
+        if: matrix.os == 'ubuntu-24.04' && matrix.build_type == 'docker'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          # The tar is already gzipped, so upload it as-is. archive: false skips
+          # the redundant zip and makes the file name the artifact name (the
+          # `name` input is ignored in that mode).
+          path: compile-test-image.tar.gz
+          retention-days: 1
+          archive: false
 
   manifest:
     name: Push ${{ matrix.build_type }} manifest to ghcr.io
@@ -113,16 +145,16 @@ jobs:
           - "ha-addon"
           - "docker"
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.11"
+          python-version: "3.12"
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Log in to the GitHub container registry
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -135,3 +167,51 @@ jobs:
             --build-type "${{ matrix.build_type }}" \
             --registry ghcr \
             manifest
+
+  # Smoke-test the built image by compiling one minimal config per target
+  # platform / toolchain. This catches missing system dependencies in the image
+  # that only surface when a given toolchain is downloaded and run. The image is
+  # the amd64 "docker" build produced by check-docker (shared as an artifact).
+  compile-test:
+    name: Compile ${{ matrix.id }}
+    needs: check-docker
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read  # actions/checkout to load the test configs
+    strategy:
+      fail-fast: false
+      # Cap concurrency so this smoke test doesn't hog all the shared runners.
+      max-parallel: 2
+      matrix:
+        # One entry per distinct toolchain. ESP32 variants (c3/c6/s2/s3/p4)
+        # share a toolchain bundle, so esp32 is exercised on the base variant
+        # across the full framework x toolchain cross-product (arduino/esp-idf
+        # framework, each built with the platformio and native esp-idf
+        # toolchains) so both toolchains stay covered regardless of which one is
+        # the default.
+        id:
+          - esp8266-arduino
+          - esp32-arduino-platformio
+          - esp32-arduino-esp-idf
+          - esp32-idf-platformio
+          - esp32-idf-esp-idf
+          - rp2040-arduino
+          - bk72xx-arduino
+          - rtl87xx-arduino
+          - ln882x-arduino
+          - nrf52
+          - host
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Download image artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: compile-test-image.tar.gz
+      - name: Load image
+        run: docker load --input compile-test-image.tar.gz
+      - name: Compile ${{ matrix.id }}
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}/docker/test_configs:/config" \
+            "ghcr.io/esphome/esphome-amd64:${{ needs.check-docker.outputs.tag }}" \
+            compile "${{ matrix.id }}.yaml"

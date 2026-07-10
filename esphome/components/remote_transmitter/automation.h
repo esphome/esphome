@@ -7,7 +7,8 @@
 
 namespace esphome::remote_transmitter {
 
-template<typename... Ts> class DigitalWriteAction : public Action<Ts...>, public Parented<RemoteTransmitterComponent> {
+template<typename... Ts>
+class DigitalWriteAction final : public Action<Ts...>, public Parented<RemoteTransmitterComponent> {
  public:
   TEMPLATABLE_VALUE(bool, value)
   void play(const Ts &...x) override { this->parent_->digital_write(this->value_.value(x...)); }

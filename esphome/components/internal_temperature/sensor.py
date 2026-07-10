@@ -10,7 +10,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_LN882X,
     PLATFORM_NRF52,
-    PLATFORM_RP2040,
+    PLATFORM_RP2,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     PlatformFramework,
@@ -34,7 +34,7 @@ CONFIG_SCHEMA = cv.All(
     cv.only_on(
         [
             PLATFORM_ESP32,
-            PLATFORM_RP2040,
+            PLATFORM_RP2,
             PLATFORM_BK72XX,
             PLATFORM_NRF52,
             PLATFORM_LN882X,
@@ -58,7 +58,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
-        "internal_temperature_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "internal_temperature_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
         "internal_temperature_bk72xx.cpp": {
             PlatformFramework.BK72XX_ARDUINO,
         },
