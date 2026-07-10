@@ -91,6 +91,7 @@ def main() -> int:
     # ---- end sys.path fix-up -----------------------------------------------
 
     import os
+    from pathlib import Path
     import re
     import runpy
 
@@ -164,6 +165,12 @@ def main() -> int:
             self._line_buffer = ""
 
         def __getattr__(self, name: str):
+            # Hide ``buffer`` so consumers that use either
+            # ``getattr(stream, 'buffer', None)`` or
+            # ``hasattr(stream, 'buffer')`` see this as a text-only stream
+            # and skip writing raw bytes (which would bypass the filter).
+            if name == "buffer":
+                raise AttributeError(name)
             return getattr(self._stream, name)
 
         def isatty(self) -> bool:
@@ -223,7 +230,7 @@ def main() -> int:
     # runpy.run_path does not do this automatically, but idf.py relies
     # on it to import its sibling modules (python_version_checker,
     # idf_py_actions, ...).
-    script_dir = os.path.dirname(os.path.abspath(script_path))
+    script_dir = str(Path(script_path).resolve().parent)
     if script_dir not in sys.path:
         sys.path.insert(0, script_dir)
 

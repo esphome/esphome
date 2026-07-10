@@ -15,6 +15,7 @@ from esphome.yaml_util import (
     DiscoveredYamlFiles,
     ESPHomeDataBase,
     ESPLiteralValue,
+    SensitiveStr,
     discover_user_yaml_files,
     force_load_include_files,
     format_path,
@@ -907,7 +908,7 @@ def test_format_path_current_obj_without_location_falls_back_to_key():
     """An ESPHomeDataBase current_obj with no esp_range falls back to the key's location."""
 
     class _NoRange(ESPHomeDataBase, str):
-        pass
+        __slots__ = ()
 
     obj = _NoRange.__new__(_NoRange, "value")
     str.__init__(obj)
@@ -1340,3 +1341,102 @@ def test_frontmatter_included_file_stored(tmp_path: Path) -> None:
     assert main.resolve() not in core.CORE.frontmatter
     # Included file's frontmatter is captured
     assert core.CORE.frontmatter[inc.resolve()]["child_meta"] == "hello"
+
+
+def test_sensitive_str__is_a_str_subclass() -> None:
+    value = SensitiveStr("hunter2")
+    assert isinstance(value, str)
+    assert value == "hunter2"
+
+
+def test_dump__redacts_sensitive_str_by_default() -> None:
+    out = yaml_util.dump({"password": SensitiveStr("hunter2")})
+    assert "\\033[8mhunter2\\033[28m" in out
+    assert "hunter2" not in out.replace(
+        "\\033[8mhunter2\\033[28m", ""
+    )  # the raw value is only present inside the wrap
+
+
+def test_dump__show_secrets_emits_sensitive_str_raw() -> None:
+    out = yaml_util.dump({"password": SensitiveStr("hunter2")}, show_secrets=True)
+    assert "hunter2" in out
+    assert "\\033[8m" not in out
+    assert "\\033[28m" not in out
+
+
+def test_dump__plain_str_is_not_redacted() -> None:
+    out = yaml_util.dump({"hostname": "myserver"})
+    assert "myserver" in out
+    assert "\\033[8m" not in out
+
+
+def test_dump__secret_reference_wins_over_redaction() -> None:
+    # If the value also has an entry in _SECRET_VALUES (i.e., it was loaded
+    # via !secret), the dump should render it as !secret <name>, not as a
+    # redacted scalar. SensitiveStr layered on top must not change that.
+    value = SensitiveStr("hunter2")
+    yaml_util._SECRET_VALUES[str(value)] = "my_secret_name"
+    try:
+        out = yaml_util.dump({"password": value})
+        assert "!secret" in out
+        assert "my_secret_name" in out
+        assert "\\033[8m" not in out
+    finally:
+        yaml_util._SECRET_VALUES.clear()
+
+
+def test_dump__redaction_flag_does_not_leak_between_calls() -> None:
+    # Per-call _Dumper subclass means show_secrets in one call doesn't
+    # affect another. Run them in both orders to catch any leakage.
+    redacted = yaml_util.dump({"password": SensitiveStr("hunter2")})
+    raw = yaml_util.dump({"password": SensitiveStr("hunter2")}, show_secrets=True)
+    redacted_again = yaml_util.dump({"password": SensitiveStr("hunter2")})
+
+    assert "\\033[8m" in redacted
+    assert "\\033[8m" not in raw
+    assert "\\033[8m" in redacted_again
+
+
+@pytest.fixture(autouse=True)
+def clear_dropped_merge_keys() -> None:
+    """Reset the dropped-merge-key queue between tests."""
+    core.CORE.data.pop(yaml_util._MERGE_WARNINGS_KEY, None)
+    yield
+    core.CORE.data.pop(yaml_util._MERGE_WARNINGS_KEY, None)
+
+
+def test_merge_include_records_dropped_keys(tmp_path: Path) -> None:
+    """A `<<` merge that overlaps an existing key records it (shallow first-wins)."""
+    (tmp_path / "a.yaml").write_text("api:\n  reboot_timeout: 5min\n")
+    (tmp_path / "b.yaml").write_text("api:\n  password: secret\n")
+    test_yaml = tmp_path / "test.yaml"
+    test_yaml.write_text("<<: !include a.yaml\n<<: !include b.yaml\n")
+
+    with patch.object(core.CORE, "config_path", test_yaml):
+        result = yaml_util.load_yaml(test_yaml)
+
+    # First definition wins; the second `api` block is dropped entirely.
+    assert result["api"] == {"reboot_timeout": "5min"}
+
+    dropped = yaml_util.take_dropped_merge_keys()
+    assert len(dropped) == 1
+    key, location = dropped[0]
+    assert key == "api"
+    assert "b.yaml" in location
+    # Queue is drained after being taken.
+    assert yaml_util.take_dropped_merge_keys() == []
+
+
+def test_merge_include_no_overlap_records_nothing(tmp_path: Path) -> None:
+    """A `<<` merge with distinct top-level keys drops nothing."""
+    (tmp_path / "a.yaml").write_text("api:\n  reboot_timeout: 5min\n")
+    (tmp_path / "b.yaml").write_text("logger:\n  level: DEBUG\n")
+    test_yaml = tmp_path / "test.yaml"
+    test_yaml.write_text("<<: !include a.yaml\n<<: !include b.yaml\n")
+
+    with patch.object(core.CORE, "config_path", test_yaml):
+        result = yaml_util.load_yaml(test_yaml)
+
+    assert result["api"] == {"reboot_timeout": "5min"}
+    assert result["logger"] == {"level": "DEBUG"}
+    assert yaml_util.take_dropped_merge_keys() == []

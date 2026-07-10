@@ -124,15 +124,15 @@ def test_code_generation(
 
     main_cpp = generate_main(component_fixture_path("mipi_dsi.yaml"))
     assert (
-        "alignas(mipi_dsi::MIPI_DSI) static unsigned char mipi_dsi__p4_nano__pstorage[sizeof(mipi_dsi::MIPI_DSI)];"
+        "alignas(mipi_dsi::MipiDsi) static unsigned char mipi_dsi__p4_nano__pstorage[sizeof(mipi_dsi::MipiDsi)];"
         in main_cpp
     )
     assert (
-        "static mipi_dsi::MIPI_DSI *const p4_nano = reinterpret_cast<mipi_dsi::MIPI_DSI *>(mipi_dsi__p4_nano__pstorage);"
+        "static mipi_dsi::MipiDsi *const p4_nano = reinterpret_cast<mipi_dsi::MipiDsi *>(mipi_dsi__p4_nano__pstorage);"
         in main_cpp
     )
     assert (
-        "new(p4_nano) mipi_dsi::MIPI_DSI(800, 1280, display::COLOR_BITNESS_565, 16);"
+        "new(p4_nano) mipi_dsi::MipiDsi(800, 1280, display::COLOR_BITNESS_565, 16);"
         in main_cpp
     )
     assert "set_init_sequence({224, 1, 0, 225, 1, 147, 226, 1," in main_cpp

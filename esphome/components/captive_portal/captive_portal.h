@@ -14,7 +14,7 @@
 
 namespace esphome::captive_portal {
 
-class CaptivePortal : public AsyncWebHandler, public Component {
+class CaptivePortal final : public AsyncWebHandler, public Component {
  public:
   CaptivePortal(web_server_base::WebServerBase *base);
   void setup() override;

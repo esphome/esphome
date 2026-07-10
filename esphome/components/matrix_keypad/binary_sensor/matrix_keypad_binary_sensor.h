@@ -5,7 +5,7 @@
 
 namespace esphome::matrix_keypad {
 
-class MatrixKeypadBinarySensor : public MatrixKeypadListener, public binary_sensor::BinarySensorInitiallyOff {
+class MatrixKeypadBinarySensor final : public MatrixKeypadListener, public binary_sensor::BinarySensorInitiallyOff {
  public:
   MatrixKeypadBinarySensor(uint8_t key) : has_key_(true), key_(key){};
   MatrixKeypadBinarySensor(const char *key) : has_key_(true), key_((uint8_t) key[0]){};

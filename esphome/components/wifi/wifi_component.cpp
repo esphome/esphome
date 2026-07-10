@@ -45,6 +45,10 @@
 #include "esphome/components/improv_serial/improv_serial_component.h"
 #endif
 
+#ifdef USE_PROVISIONING
+#include "esphome/components/provisioning/provisioning.h"
+#endif
+
 namespace esphome::wifi {
 
 static const char *const TAG = "wifi";
@@ -632,6 +636,9 @@ void WiFiComponent::setup() {
 #endif
 
   if (this->enable_on_boot_) {
+#ifdef USE_ESP32
+    this->wifi_lazy_init_();
+#endif
     this->start();
   } else {
     this->state_ = WIFI_COMPONENT_STATE_DISABLED;
@@ -646,7 +653,13 @@ void WiFiComponent::start() {
 
   this->pref_ = global_preferences->make_preference<wifi::SavedWifiSettings>(hash, true);
 #ifdef USE_WIFI_FAST_CONNECT
-  this->fast_connect_pref_ = global_preferences->make_preference<wifi::SavedWifiFastConnectSettings>(hash + 1, false);
+#ifdef USE_WIFI_FAST_CONNECT_IN_FLASH
+  const bool fast_connect_in_flash = true;
+#else
+  const bool fast_connect_in_flash = false;
+#endif
+  this->fast_connect_pref_ =
+      global_preferences->make_preference<wifi::SavedWifiFastConnectSettings>(hash + 1, fast_connect_in_flash);
 #endif
 
   SavedWifiSettings save{};
@@ -819,7 +832,7 @@ void WiFiComponent::loop() {
               }
               // else: scan in progress, wait
             } else if (this->roaming_state_ == RoamingState::IDLE && this->roaming_attempts_ < ROAMING_MAX_ATTEMPTS &&
-                       now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL) {
+                       now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL && !this->roaming_suppressed_()) {
               this->check_roaming_(now);
             }
           }
@@ -863,8 +876,20 @@ void WiFiComponent::loop() {
 
     if (!this->has_ap() && this->reboot_timeout_ != 0) {
       if (now - this->last_connected_ > this->reboot_timeout_) {
-        ESP_LOGE(TAG, "Can't connect; rebooting");
-        App.reboot();
+        bool suppress = false;
+#ifdef USE_PROVISIONING
+        // Don't reboot while a provisioning window is pending (device unprovisioned).
+        // The device is legitimately waiting to be onboarded (Wi-Fi must come up
+        // before the controller can set credentials), and an auto-reboot would reopen
+        // the window without the deliberate power cycle / reset that is meant to be
+        // required. Resumes normal reboot behavior once provisioned.
+        suppress = provisioning::global_provisioning_manager != nullptr &&
+                   provisioning::global_provisioning_manager->window_pending();
+#endif
+        if (!suppress) {
+          ESP_LOGE(TAG, "Can't connect; rebooting");
+          App.reboot();
+        }
       }
     }
   }
@@ -1275,6 +1300,11 @@ void WiFiComponent::enable() {
 
   ESP_LOGD(TAG, "Enabling");
   this->state_ = WIFI_COMPONENT_STATE_OFF;
+#ifdef USE_ESP32
+  // Idempotent — only allocates DMA buffers + netifs on the first call. After this,
+  // start() can safely run.
+  this->wifi_lazy_init_();
+#endif
   this->start();
 }
 
@@ -2374,7 +2404,7 @@ void WiFiComponent::clear_roaming_state_() {
 
 void WiFiComponent::release_scan_results_() {
   if (!this->keep_scan_results_) {
-#if defined(USE_RP2040) || defined(USE_ESP32)
+#if defined(USE_RP2) || defined(USE_ESP32)
     // std::vector - use swap trick since shrink_to_fit is non-binding
     decltype(this->scan_result_)().swap(this->scan_result_);
 #else

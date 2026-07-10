@@ -40,8 +40,10 @@ from script.analyze_component_buses import (
     uses_local_file_references,
 )
 from script.helpers import (
+    components_conflict,
     get_component_test_files,
     is_validate_only_file,
+    parse_test_filename,
     split_conflicting_groups,
 )
 from script.merge_component_configs import merge_component_configs
@@ -120,21 +122,6 @@ def find_component_tests(
             component_tests[comp_dir.name] = test_files
 
     return dict(component_tests)
-
-
-def parse_test_filename(test_file: Path) -> tuple[str, str]:
-    """Parse test filename to extract test name and platform.
-
-    Args:
-        test_file: Path to test file
-
-    Returns:
-        Tuple of (test_name, platform)
-    """
-    parts = test_file.stem.split(".")
-    if len(parts) == 2:
-        return parts[0], parts[1]  # test, platform
-    return parts[0], "all"
 
 
 def get_platform_base_files(base_dir: Path) -> dict[str, list[Path]]:
@@ -297,7 +284,7 @@ def write_github_summary(
         test_results: List of all test results
     """
     summary_content = format_github_summary(test_results, toolchain)
-    with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+    with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as f:
         f.write(summary_content)
 
 
@@ -802,14 +789,35 @@ def run_grouped_component_tests(
             if plat == platform and sig != NO_BUSES_SIGNATURE
         ]
 
-        if platform_groups:
-            # Distribute no_buses components round-robin across existing groups
-            for i, comp in enumerate(no_buses_comps):
-                sig, _ = platform_groups[i % len(platform_groups)]
-                grouped_components[(platform, sig)].append(comp)
-        else:
-            # No other groups for this platform - keep no_buses components together
-            grouped_components[(platform, NO_BUSES_SIGNATURE)] = no_buses_comps
+        # Distribute no_buses components round-robin across existing groups,
+        # but never place a component into a group it conflicts with. Conflict
+        # splitting (split_conflicting_groups) may have created sibling groups
+        # like "no_buses__conflict1" precisely to keep incompatible components
+        # apart (e.g. on nRF52, network pulls in openthread which zigbee
+        # conflicts with); redistribution must not silently undo that split.
+        leftover: list[str] = []
+        for i, comp in enumerate(no_buses_comps):
+            placed = False
+            # Try groups starting at the round-robin offset to keep the spread.
+            for offset in range(len(platform_groups)):
+                sig, comps = platform_groups[(i + offset) % len(platform_groups)]
+                if any(components_conflict(comp, other, platform) for other in comps):
+                    continue
+                # comps is the same list object stored in grouped_components, so
+                # this also extends the group in grouped_components.
+                comps.append(comp)
+                placed = True
+                break
+            if not placed:
+                leftover.append(comp)
+
+        if leftover:
+            # Components that conflict with every existing group stay together in
+            # their own no_buses group (they were grouped before, so they don't
+            # conflict with each other).
+            grouped_components.setdefault((platform, NO_BUSES_SIGNATURE), []).extend(
+                leftover
+            )
 
     groups_to_test = []
     individual_tests = set()  # Use set to avoid duplicates
@@ -890,7 +898,7 @@ def run_grouped_component_tests(
     print("=" * 80 + "\n")
 
     # Execute grouped tests
-    for (platform, signature), components in grouped_components.items():
+    for (platform, _signature), components in grouped_components.items():
         # Only group if we have multiple components with same signature
         if len(components) <= 1:
             continue
@@ -1055,7 +1063,7 @@ def test_components(
 
         # Create empty test files for each platform (or filtered platform)
         reference_tests: list[Path] = []
-        for platform_name, base_file in platform_bases.items():
+        for platform_name in platform_bases:
             if platform_filter and not platform_name.startswith(platform_filter):
                 continue
             # Create an empty test file named to match the platform
