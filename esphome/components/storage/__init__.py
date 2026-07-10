@@ -5,7 +5,15 @@ from esphome import automation, core
 import esphome.codegen as cg
 from esphome.components import globals as globals_
 import esphome.config_validation as cv
-from esphome.const import CONF_ARGS, CONF_FORMAT, CONF_INDEX, CONF_PATH
+from esphome.const import (
+    CONF_ARGS,
+    CONF_FORMAT,
+    CONF_GROUP,
+    CONF_INDEX,
+    CONF_KEY,
+    CONF_ON_VALUE,
+    CONF_PATH,
+)
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 
 CODEOWNERS = ["@p1ngb4ck"]
@@ -182,13 +190,10 @@ CONF_CONTENT = "content"
 CONF_NEWLINE = "newline"
 CONF_EXTRACT = "extract"
 CONF_TO_GLOBAL = "to_global"
-CONF_ON_VALUE = "on_value"
 CONF_LINE = "line"
 CONF_SPLIT = "split"
-CONF_KEY = "key"
 CONF_SEPARATOR = "separator"
 CONF_REGEX = "regex"
-CONF_GROUP = "group"
 CONF_TRIM = "trim"
 
 FileWriteAction = storage_ns.class_("FileWriteAction", automation.Action)
