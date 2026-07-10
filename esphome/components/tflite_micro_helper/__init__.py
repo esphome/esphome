@@ -17,9 +17,9 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
-    cg.add_define("USE_TFLITE_MICRO_HELPER")
-
     if CORE.target_platform == "esp32":
+        cg.add_define("USE_TFLITE_MICRO_HELPER")
+
         esp32.add_idf_component(
             name="espressif/esp-tflite-micro",
             ref="1.3.7",
@@ -35,5 +35,5 @@ async def to_code(config):
         cg.add_build_flag("-DESP_NN")
         cg.add_build_flag("-DOPTIMIZED_KERNEL=esp_nn")
 
-    if config.get(CONF_DEBUG, False):
-        cg.add_define("DEBUG_TFLITE_MICRO_HELPER")
+        if config.get(CONF_DEBUG, False):
+            cg.add_define("DEBUG_TFLITE_MICRO_HELPER")

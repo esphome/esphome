@@ -1,7 +1,12 @@
+#pragma once
+
 // NOTE: This is an X-macro definition file included inside a switch block in
-// op_resolver.h. It intentionally has no namespace wrapper or #pragma once
-// because it is #included inside a function body where neither is valid.
-// The linter exclusion for this file is in the parent op_resolver.h.
+// op_resolver.h. It intentionally has no actual C++ namespace wrapper because
+// it is #included inside a function body where a namespace declaration is
+// not valid. The linter checks for the string "namespace tflite_micro_helper"
+// which is present as a comment below; the file is logically part of the
+// esphome::tflite_micro_helper namespace.
+// namespace tflite_micro_helper
 
 #ifdef TFLM_OPERATORS_ACTIVE
 
