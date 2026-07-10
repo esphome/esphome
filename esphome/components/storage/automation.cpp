@@ -74,7 +74,7 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf) {
         if (end == std::string::npos)
           end = buf.size();
         std::string trimmed = extract_trim(buf.substr(start, end - start));
-        if (trimmed.rfind(needle, 0) == 0) {
+        if (trimmed.starts_with(needle)) {
           buf = trimmed.substr(needle.size());
           return true;
         }
