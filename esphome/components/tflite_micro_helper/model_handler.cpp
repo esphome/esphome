@@ -648,10 +648,11 @@ uint32_t ModelHandler::calculate_crc32(const uint8_t *data, size_t length) {
   for (size_t i = 0; i < length; i++) {
     crc ^= data[i];
     for (int j = 0; j < 8; j++) {
-      if (crc & 1)
+      if (crc & 1) {
         crc = (crc >> 1) ^ 0xEDB88320;
-      else
+      } else {
         crc >>= 1;
+      }
     }
   }
   return ~crc;
@@ -723,9 +724,9 @@ bool ModelHandler::validate_model_config() const {
 }
 
 void ModelHandler::report_memory_status() {
-  this->memory_manager_.report_memory_status(this->tensor_arena_size_requested_,
-                                             this->tensor_arena_allocation_.actual_size, this->get_arena_used_bytes(),
-                                             this->model_length_);
+  MemoryManager::report_memory_status(this->tensor_arena_size_requested_,
+                                      this->tensor_arena_allocation_.actual_size, this->get_arena_used_bytes(),
+                                      this->model_length_);
 }
 
 }  // namespace esphome::tflite_micro_helper
