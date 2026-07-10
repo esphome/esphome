@@ -1338,6 +1338,57 @@ def test_visibility_marker_is_per_field_no_mutation() -> None:
     assert inner_yaml_only.visibility is cv.Visibility.YAML_ONLY
 
 
+def test_entity_metadata_visibility_hints() -> None:
+    """Entity and value-describing metadata is classified for visual editors.
+
+    The headline ``name`` stays on the main form (``UI``); descriptive
+    metadata (device_class, unit, …), presentation options, and per-entity
+    integration plumbing (MQTT, web_server ordering) fall to the advanced
+    disclosure (``ADVANCED``).
+    """
+    advanced = cv.Visibility.ADVANCED
+
+    entity_base = {str(k): k for k in cv.ENTITY_BASE_SCHEMA.schema}
+    assert entity_base["name"].visibility is cv.Visibility.UI
+    for field in (
+        "icon",
+        "internal",
+        "disabled_by_default",
+        "entity_category",
+        "device_id",
+    ):
+        assert entity_base[field].visibility is advanced, field
+
+    mqtt = {str(k): k for k in cv.MQTT_COMPONENT_SCHEMA.schema}
+    for field in ("qos", "retain", "discovery", "state_topic", "availability"):
+        assert mqtt[field].visibility is advanced, field
+
+    from esphome.components import binary_sensor, number, sensor
+    from esphome.components.web_server import WEBSERVER_SORTING_SCHEMA
+
+    sensor_markers = {str(k): k for k in sensor.sensor_schema().schema}
+    for field in (
+        "unit_of_measurement",
+        "accuracy_decimals",
+        "device_class",
+        "state_class",
+        "force_update",
+    ):
+        assert sensor_markers[field].visibility is advanced, field
+
+    binary = {str(k): k for k in binary_sensor.binary_sensor_schema().schema}
+    assert binary["device_class"].visibility is advanced
+
+    number_markers = {str(k): k for k in number.number_schema(number.Number).schema}
+    assert number_markers["mode"].visibility is advanced
+    assert number_markers["device_class"].visibility is advanced
+
+    # The whole per-entity web_server block is advanced; children inherit
+    # via the consumer cascade, so only the parent key carries the hint.
+    web = {str(k): k for k in WEBSERVER_SORTING_SCHEMA.schema}
+    assert web["web_server"].visibility is advanced
+
+
 def _wrap_str(value: str) -> ESPHomeDataBase:
     """Wrap a raw string as an ESPHomeDataBase, mimicking a YAML-loaded value."""
     return make_data_base(value)

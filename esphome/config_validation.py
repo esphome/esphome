@@ -2293,16 +2293,25 @@ MQTT_COMPONENT_AVAILABILITY_SCHEMA = Schema(
     }
 )
 
+# Per-entity MQTT plumbing — integration metadata, never a primary UI field.
 MQTT_COMPONENT_SCHEMA = Schema(
     {
-        Optional(CONF_QOS): All(requires_component("mqtt"), mqtt_qos),
-        Optional(CONF_RETAIN): All(requires_component("mqtt"), boolean),
-        Optional(CONF_DISCOVERY): All(requires_component("mqtt"), boolean),
-        Optional(CONF_SUBSCRIBE_QOS): All(requires_component("mqtt"), mqtt_qos),
-        Optional(CONF_STATE_TOPIC): All(
+        Optional(CONF_QOS, visibility=Visibility.ADVANCED): All(
+            requires_component("mqtt"), mqtt_qos
+        ),
+        Optional(CONF_RETAIN, visibility=Visibility.ADVANCED): All(
+            requires_component("mqtt"), boolean
+        ),
+        Optional(CONF_DISCOVERY, visibility=Visibility.ADVANCED): All(
+            requires_component("mqtt"), boolean
+        ),
+        Optional(CONF_SUBSCRIBE_QOS, visibility=Visibility.ADVANCED): All(
+            requires_component("mqtt"), mqtt_qos
+        ),
+        Optional(CONF_STATE_TOPIC, visibility=Visibility.ADVANCED): All(
             requires_component("mqtt"), templatable(publish_topic)
         ),
-        Optional(CONF_AVAILABILITY): All(
+        Optional(CONF_AVAILABILITY, visibility=Visibility.ADVANCED): All(
             requires_component("mqtt"), Any(None, MQTT_COMPONENT_AVAILABILITY_SCHEMA)
         ),
     }
@@ -2310,10 +2319,12 @@ MQTT_COMPONENT_SCHEMA = Schema(
 
 MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
     {
-        Optional(CONF_COMMAND_TOPIC): All(
+        Optional(CONF_COMMAND_TOPIC, visibility=Visibility.ADVANCED): All(
             requires_component("mqtt"), templatable(subscribe_topic)
         ),
-        Optional(CONF_COMMAND_RETAIN): All(requires_component("mqtt"), boolean),
+        Optional(CONF_COMMAND_RETAIN, visibility=Visibility.ADVANCED): All(
+            requires_component("mqtt"), boolean
+        ),
     }
 )
 
@@ -2388,12 +2399,16 @@ def string_no_slash(value):
 
 ENTITY_BASE_SCHEMA = Schema(
     {
-        Optional(CONF_NAME): _validate_entity_name,
-        Optional(CONF_INTERNAL): boolean,
-        Optional(CONF_DISABLED_BY_DEFAULT, default=False): boolean,
-        Optional(CONF_ICON): icon,
-        Optional(CONF_ENTITY_CATEGORY): entity_category,
-        Optional(CONF_DEVICE_ID): sub_device_id,
+        # The name is every entity's headline field — keep it on the
+        # main form rather than letting it fall through to advanced.
+        Optional(CONF_NAME, visibility=Visibility.UI): _validate_entity_name,
+        Optional(CONF_INTERNAL, visibility=Visibility.ADVANCED): boolean,
+        Optional(
+            CONF_DISABLED_BY_DEFAULT, default=False, visibility=Visibility.ADVANCED
+        ): boolean,
+        Optional(CONF_ICON, visibility=Visibility.ADVANCED): icon,
+        Optional(CONF_ENTITY_CATEGORY, visibility=Visibility.ADVANCED): entity_category,
+        Optional(CONF_DEVICE_ID, visibility=Visibility.ADVANCED): sub_device_id,
     }
 )
 
