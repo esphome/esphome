@@ -624,7 +624,10 @@ class DriverChip:
             sequence.append((BRIGHTNESS, brightness))
         # Add a SLPOUT command if required.
         if not self.skip_command("SLPOUT"):
+            # A zero delay will delay until 120ms after reset
+            sequence.append(delay(0))
             sequence.append((SLPOUT,))
+            sequence.append(delay(10))
         sequence.append((DISPON,))
         # Add a delay here because additional commands may be added after this at runtime.
         sequence.append(delay(10))

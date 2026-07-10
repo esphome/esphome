@@ -167,6 +167,9 @@ class MipiSpi : public display::Display,
       uint8_t cmd = vec[index++];
       uint8_t x = vec[index++];
       if (x == DELAY_FLAG) {
+        if (cmd == 0) {
+          cmd = clamp_at_least(when - millis(), 0);
+        }
         esph_log_d(TAG, "Delay %dms", cmd);
         delay(cmd);
       } else {
@@ -175,19 +178,6 @@ class MipiSpi : public display::Display,
           esph_log_e(TAG, "Malformed init sequence");
           this->mark_failed();
           return;
-        }
-        switch (cmd) {
-          case SLEEP_OUT: {
-            // are we ready, boots?
-            int duration = when - millis();
-            if (duration > 0) {
-              esph_log_d(TAG, "Sleep %dms", duration);
-              delay(duration);
-            }
-          } break;
-
-          default:
-            break;
         }
         const auto *ptr = vec.data() + index;
         this->write_command_(cmd, ptr, num_args);
