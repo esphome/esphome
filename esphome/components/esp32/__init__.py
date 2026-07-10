@@ -1207,7 +1207,8 @@ def _validate_signed_ota_keys(config: ConfigType) -> ConfigType:
             raise cv.Invalid(
                 f"Signing scheme 'ecdsa_v1' requires either '{CONF_SIGNING_KEY}' "
                 f"(to sign binaries during the build) or '{CONF_VERIFICATION_KEY}' "
-                f"(to verify binaries signed externally)."
+                f"(to verify binaries signed externally).",
+                path=[CONF_SIGNING_KEY],
             )
     elif has_verification_key:
         raise cv.Invalid(
