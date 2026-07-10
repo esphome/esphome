@@ -652,7 +652,7 @@ class DriverChip:
         """
         if deprecation_reason := self.get_default("deprecation_reason"):
             LOGGER.warning(
-                "dispay model %s is deprecated: %s", self.name, deprecation_reason
+                "Display model %s is deprecated: %s", self.name, deprecation_reason
             )
         if requirements := self.get_default("requires", set()):
             # ``raw_config`` is populated before any component schema runs during a real
