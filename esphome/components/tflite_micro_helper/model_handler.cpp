@@ -724,9 +724,8 @@ bool ModelHandler::validate_model_config() const {
 }
 
 void ModelHandler::report_memory_status() {
-  MemoryManager::report_memory_status(this->tensor_arena_size_requested_,
-                                      this->tensor_arena_allocation_.actual_size, this->get_arena_used_bytes(),
-                                      this->model_length_);
+  MemoryManager::report_memory_status(this->tensor_arena_size_requested_, this->tensor_arena_allocation_.actual_size,
+                                      this->get_arena_used_bytes(), this->model_length_);
 }
 
 }  // namespace esphome::tflite_micro_helper
