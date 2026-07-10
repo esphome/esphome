@@ -6,6 +6,7 @@ from esphome.core import CORE
 
 DEPENDENCIES = ["esp32"]
 MULTI_CONF = True
+CODEOWNERS = ["@nliaudat"]
 
 tflite_micro_helper_ns = cg.esphome_ns.namespace("tflite_micro_helper")
 
