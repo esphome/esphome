@@ -17,9 +17,7 @@
 #include "encryption.h"
 #endif
 
-namespace esphome {
-namespace bthome {
-namespace server {
+namespace esphome::bthome::server {
 
 // Base class with most implementation (non-template)
 class BTHomeServerBase : public Component, public IBLEAdvHandler {
@@ -76,6 +74,4 @@ template<size_t N> class BTHomeServer : public BTHomeServerBase {
   std::array<BTHomeLocalObject *, N> local_sensors_{};
 };
 
-}  // namespace server
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome::server

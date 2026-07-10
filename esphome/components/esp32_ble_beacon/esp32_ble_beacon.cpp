@@ -16,8 +16,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace esp32_ble_beacon {
+namespace esphome::esp32_ble_beacon {
 
 static const char *const TAG = "esp32_ble_beacon";
 
@@ -129,7 +128,6 @@ void ESP32BLEBeacon::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap
   }
 }
 
-}  // namespace esp32_ble_beacon
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_beacon
 
 #endif

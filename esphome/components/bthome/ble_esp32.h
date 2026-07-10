@@ -13,8 +13,7 @@
 #include <esp_gap_ble_api.h>
 #include "esp_bt_device.h"
 
-namespace esphome {
-namespace bthome {
+namespace esphome::bthome {
 
 // ---------------------------------------------------------------------------
 // ESP32BLEAdvertiser — maps to ESP-IDF BLE advertising calls
@@ -53,7 +52,6 @@ class ESP32BLEListener : public IBLEListener, public esp32_ble_tracker::ESPBTDev
   IBTHomeListener *listener_{nullptr};
 };
 
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome
 
 #endif  // USE_ESP32

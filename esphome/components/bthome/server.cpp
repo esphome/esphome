@@ -2,9 +2,7 @@
 #include "ble_esp32.h"
 #include <cstring>
 
-namespace esphome {
-namespace bthome {
-namespace server {
+namespace esphome::bthome::server {
 
 // ---------------------------------------------------------------------------
 // BTHomeServerBase
@@ -196,6 +194,4 @@ void BTHomeServerBase::advertise_immediate_(BTHomeObjectType type) {
   }
 }
 
-}  // namespace server
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome::server

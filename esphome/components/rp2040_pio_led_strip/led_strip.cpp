@@ -1,6 +1,6 @@
 #include "led_strip.h"
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -12,8 +12,7 @@
 #include <pico/sem.h>
 #include <pico/stdlib.h>
 
-namespace esphome {
-namespace rp2040_pio_led_strip {
+namespace esphome::rp2040_pio_led_strip {
 
 static const char *TAG = "rp2040_pio_led_strip";
 
@@ -210,7 +209,6 @@ void RP2040PIOLEDStripLightOutput::dump_config() {
 
 float RP2040PIOLEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-}  // namespace rp2040_pio_led_strip
-}  // namespace esphome
+}  // namespace esphome::rp2040_pio_led_strip
 
 #endif

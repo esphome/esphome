@@ -3,9 +3,7 @@
 #include <cmath>
 #include <cstring>
 
-namespace esphome {
-namespace bthome {
-namespace server {
+namespace esphome::bthome::server {
 
 void BTHomeEncoder::reset() { this->offset_ = 0; }
 
@@ -113,6 +111,4 @@ bool BTHomeEncoder::write_text(BTHomeObjectType type, const char *data, size_t l
   return true;
 }
 
-}  // namespace server
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome::server

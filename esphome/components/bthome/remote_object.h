@@ -1,9 +1,7 @@
 #pragma once
 #include "decoder.h"
 
-namespace esphome {
-namespace bthome {
-namespace client {
+namespace esphome::bthome::client {
 
 class BTHomeRemoteObject {
  public:
@@ -14,6 +12,4 @@ class BTHomeRemoteObject {
   BTHomeObjectType object_type_{};
 };
 
-}  // namespace client
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome::client

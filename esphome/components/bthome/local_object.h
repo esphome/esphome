@@ -6,9 +6,7 @@
 #include "encoder.h"
 #include "bthome.h"
 
-namespace esphome {
-namespace bthome {
-namespace server {
+namespace esphome::bthome::server {
 
 class BTHomeLocalObject {
  public:
@@ -24,16 +22,12 @@ class BTHomeLocalObject {
   BTHomeObjectType object_type_{};
   bool advertise_immediately_{false};
 };
-}  // namespace server
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome::server
 
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace bthome {
-namespace server {
+namespace esphome::bthome::server {
 
 class BTHomeLocalSensor : public BTHomeLocalObject {
  public:
@@ -45,18 +39,14 @@ class BTHomeLocalSensor : public BTHomeLocalObject {
  protected:
   sensor::Sensor *source_{nullptr};
 };
-}  // namespace server
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome::server
 
 #endif
 
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-namespace esphome {
-namespace bthome {
-namespace server {
+namespace esphome::bthome::server {
 
 class BTHomeLocalBinarySensor : public BTHomeLocalObject {
  public:
@@ -68,18 +58,14 @@ class BTHomeLocalBinarySensor : public BTHomeLocalObject {
  protected:
   binary_sensor::BinarySensor *source_{nullptr};
 };
-}  // namespace server
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome::server
 
 #endif
 
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
 
-namespace esphome {
-namespace bthome {
-namespace server {
+namespace esphome::bthome::server {
 
 class BTHomeLocalTextSensor : public BTHomeLocalObject {
  public:
@@ -94,8 +80,6 @@ class BTHomeLocalTextSensor : public BTHomeLocalObject {
   size_t max_length_{5};
 };
 
-}  // namespace server
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome::server
 
 #endif

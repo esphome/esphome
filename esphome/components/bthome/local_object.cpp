@@ -1,8 +1,6 @@
 #include "local_object.h"
 
-namespace esphome {
-namespace bthome {
-namespace server {
+namespace esphome::bthome::server {
 
 #ifdef USE_SENSOR
 size_t BTHomeLocalSensor::get_encoded_size() const {
@@ -56,6 +54,4 @@ void BTHomeLocalTextSensor::register_immediate_callback(std::function<void()> &&
 }
 #endif
 
-}  // namespace server
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome::server

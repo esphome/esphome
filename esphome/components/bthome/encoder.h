@@ -12,9 +12,7 @@
 #define BTHOME_SERVER_MAX_PAYLOAD (BTHOME_MAX_PAYLOAD)
 #endif
 
-namespace esphome {
-namespace bthome {
-namespace server {
+namespace esphome::bthome::server {
 
 class BTHomeEncoder {
  public:
@@ -33,6 +31,4 @@ class BTHomeEncoder {
   size_t offset_{0};
 };
 
-}  // namespace server
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome::server

@@ -2,8 +2,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace bthome {
+namespace esphome::bthome {
 
 #ifdef USE_ESP32
 
@@ -86,5 +85,4 @@ void ESP32BLEAdvertiser::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble
 }
 #endif  // USE_ESP32 && USE_BTHOME_SERVER
 
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome

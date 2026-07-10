@@ -1,6 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
-#ifdef USE_NETWORK
+#if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
 #include <utility>
 #include <vector>
 
@@ -88,7 +88,7 @@ class AuthMiddlewareHandler : public MiddlewareHandler {
 
 }  // namespace internal
 
-class WebServerBase {
+class WebServerBase final {
  public:
   void init() {
     if (this->initialized_) {
@@ -145,4 +145,4 @@ class WebServerBase {
 };
 
 }  // namespace esphome::web_server_base
-#endif
+#endif  // USE_NETWORK && !USE_ZEPHYR

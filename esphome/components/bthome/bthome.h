@@ -6,8 +6,7 @@
 #include <array>
 #include "ble.h"
 
-namespace esphome {
-namespace bthome {
+namespace esphome::bthome {
 
 using EncryptionKey = std::array<uint8_t, 16>;
 
@@ -286,5 +285,4 @@ class MacAddressPtr {
   const uint8_t *addr_{nullptr};
 };
 
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome

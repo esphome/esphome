@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_ID,
     CONF_MOVING_DISTANCE,
     DEVICE_CLASS_DISTANCE,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CENTIMETER,
 )
 
@@ -20,7 +21,9 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(LD2420Sensor),
             cv.GenerateID(CONF_LD2420_ID): cv.use_id(LD2420Component),
             cv.Optional(CONF_MOVING_DISTANCE): sensor.sensor_schema(
-                device_class=DEVICE_CLASS_DISTANCE, unit_of_measurement=UNIT_CENTIMETER
+                device_class=DEVICE_CLASS_DISTANCE,
+                unit_of_measurement=UNIT_CENTIMETER,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     ),

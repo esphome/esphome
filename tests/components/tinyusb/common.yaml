@@ -6,3 +6,8 @@ tinyusb:
   usb_product_str: ESPHomeTestProduct
   usb_serial_str: ESPHomeTestSerialNumber
   usb_vendor_id: 0x2345
+
+# tinyusb requires at least one USB class companion; usb_cdc_acm satisfies that.
+usb_cdc_acm:
+  interfaces:
+    - id: tinyusb_test_cdc

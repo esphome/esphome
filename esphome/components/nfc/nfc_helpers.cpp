@@ -1,7 +1,6 @@
 #include "nfc_helpers.h"
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 static const char *const TAG = "nfc.helpers";
 
@@ -43,5 +42,4 @@ std::string get_random_ha_tag_ndef() {
   return uri;
 }
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

@@ -72,17 +72,35 @@ APIUnregisterServiceCallAction = api_ns.class_(
 
 UserServiceTrigger = api_ns.class_("UserServiceTrigger", automation.Trigger)
 ListEntitiesServicesArgument = api_ns.class_("ListEntitiesServicesArgument")
-SERVICE_ARG_NATIVE_TYPES: dict[str, MockObj] = {
+# Owning element type for each YAML service variable type.  Used to derive both
+# the zero-copy native types and the owning fallback types below.
+_SERVICE_ARG_SCALAR_TYPES: dict[str, MockObj] = {
     "bool": cg.bool_,
     "int": cg.int32,
     "float": cg.float_,
+    "string": cg.std_string,
+}
+SERVICE_ARG_NATIVE_TYPES: dict[str, MockObj] = {
+    # Scalars are passed by value; string uses a non-owning view into rx_buf_.
+    **_SERVICE_ARG_SCALAR_TYPES,
     "string": cg.StringRef,
-    "bool[]": cg.FixedVector.template(cg.bool_).operator("const").operator("ref"),
-    "int[]": cg.FixedVector.template(cg.int32).operator("const").operator("ref"),
-    "float[]": cg.FixedVector.template(cg.float_).operator("const").operator("ref"),
-    "string[]": cg.FixedVector.template(cg.std_string)
-    .operator("const")
-    .operator("ref"),
+    # Arrays are passed as non-owning const references into rx_buf_.
+    **{
+        f"{name}[]": cg.FixedVector.template(t).operator("const").operator("ref")
+        for name, t in _SERVICE_ARG_SCALAR_TYPES.items()
+    },
+}
+# Owning fallback types used when the action chain contains non-synchronous actions
+# (delay, wait_until, script.wait, etc.).  The default non-owning types reference
+# storage in the receive buffer, which is reused once the synchronous portion of
+# the chain returns.  FixedVector is also non-copyable, so the deferred lambda
+# capture in DelayAction::play_complex would fail to compile.
+SERVICE_ARG_FALLBACK_TYPES: dict[str, MockObj] = {
+    "string": cg.std_string,
+    **{
+        f"{name}[]": cg.std_vector.template(t)
+        for name, t in _SERVICE_ARG_SCALAR_TYPES.items()
+    },
 }
 CONF_ENCRYPTION = "encryption"
 CONF_BATCH_DELAY = "batch_delay"
@@ -92,6 +110,23 @@ CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 CONF_LISTEN_BACKLOG = "listen_backlog"
 CONF_MAX_SEND_QUEUE = "max_send_queue"
 CONF_STATE_SUBSCRIPTION_ONLY = "state_subscription_only"
+
+
+def _register_provisioning_source(config: ConfigType) -> ConfigType:
+    """Register the API as a provisioning source when encryption is enabled.
+
+    With no ``key`` the device boots unprovisioned and is set up on first
+    connection; a YAML ``key`` means it is born provisioned. Either way the API
+    drives the provisioning manager, so it counts as a source for `provisioning:`.
+    A hardcoded ``key`` is reported so `provisioning:` can warn about it.
+    """
+    if (encryption := config.get(CONF_ENCRYPTION)) is not None:
+        from esphome.components import provisioning
+
+        provisioning.register_source("api")
+        if CONF_KEY in encryption:
+            provisioning.report_hardcoded_credentials("api")
+    return config
 
 
 def validate_encryption_key(value):
@@ -216,7 +251,7 @@ ACTIONS_SCHEMA = automation.validate_automation(
 
 ENCRYPTION_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_KEY): validate_encryption_key,
+        cv.Optional(CONF_KEY): cv.sensitive(validate_encryption_key),
     }
 )
 
@@ -282,21 +317,23 @@ CONFIG_SCHEMA = cv.All(
                 CONF_LISTEN_BACKLOG,
                 esp8266=1,  # Limited RAM (~40KB free), LWIP raw sockets
                 esp32=4,  # More RAM (520KB), BSD sockets
-                rp2040=1,  # Limited RAM (264KB), LWIP raw sockets like ESP8266
+                rp2=1,  # Limited RAM (264KB), LWIP raw sockets like ESP8266
                 bk72xx=4,  # Moderate RAM, BSD-style sockets
                 rtl87xx=4,  # Moderate RAM, BSD-style sockets
                 host=4,  # Abundant resources
                 ln882x=4,  # Moderate RAM
+                nrf52=4,  # ~256KB RAM, BSD sockets
             ): cv.int_range(min=1, max=10),
             cv.SplitDefault(
                 CONF_MAX_CONNECTIONS,
                 esp8266=4,  # ~40KB free RAM, each connection uses ~500-1000 bytes
-                esp32=8,  # 520KB RAM available
-                rp2040=4,  # 264KB RAM but LWIP constraints
-                bk72xx=8,  # Moderate RAM
-                rtl87xx=8,  # Moderate RAM
+                esp32=5,  # 520KB RAM available
+                rp2=4,  # 264KB RAM but LWIP constraints
+                bk72xx=5,  # Moderate RAM
+                rtl87xx=5,  # Moderate RAM
                 host=8,  # Abundant resources
-                ln882x=8,  # Moderate RAM
+                ln882x=5,  # Moderate RAM
+                nrf52=4,  # ~256KB RAM, BSD sockets, Thread (single HA controller)
             ): cv.int_range(min=1, max=20),
             # Maximum queued send buffers per connection before dropping connection
             # Each buffer uses ~8-12 bytes overhead plus actual message size
@@ -306,7 +343,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_MAX_SEND_QUEUE,
                 esp8266=4,  # Limited RAM, need to fail fast
                 esp32=8,  # More RAM, can buffer more
-                rp2040=8,  # Moderate RAM
+                rp2=8,  # Moderate RAM
                 bk72xx=8,  # Moderate RAM
                 nrf52=8,  # Moderate RAM
                 rtl87xx=8,  # Moderate RAM
@@ -317,6 +354,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
     _consume_api_sockets,
+    _register_provisioning_source,
 )
 
 
@@ -336,8 +374,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_batch_delay(config[CONF_BATCH_DELAY]))
     if CONF_LISTEN_BACKLOG in config:
         cg.add(var.set_listen_backlog(config[CONF_LISTEN_BACKLOG]))
-    if CONF_MAX_CONNECTIONS in config:
-        cg.add(var.set_max_connections(config[CONF_MAX_CONNECTIONS]))
+    cg.add_define("MAX_API_CONNECTIONS", config[CONF_MAX_CONNECTIONS])
     cg.add_define("API_MAX_SEND_QUEUE", config[CONF_MAX_SEND_QUEUE])
 
     # Set USE_API_USER_DEFINED_ACTIONS if any services are enabled
@@ -382,17 +419,20 @@ async def to_code(config: ConfigType) -> None:
                     func_args.append((cg.bool_, "return_response"))
 
             # Check if action chain has non-synchronous actions that would make
-            # non-owning StringRef dangle (rx_buf_ reused after delay)
+            # non-owning args (StringRef, const FixedVector&) dangle once the
+            # rx_buf_ is reused after a delay/wait_until/script.wait/etc.  The
+            # FixedVector references would also fail to compile because they
+            # are non-copyable and DelayAction captures args by value.
             has_non_synchronous = automation.has_non_synchronous_actions(
                 conf.get(CONF_THEN, [])
             )
 
             service_arg_names: list[str] = []
             for name, var_ in conf[CONF_VARIABLES].items():
-                native = SERVICE_ARG_NATIVE_TYPES[var_]
-                # Fall back to std::string for string args if non-synchronous actions exist
-                if has_non_synchronous and native is cg.StringRef:
-                    native = cg.std_string
+                if has_non_synchronous and var_ in SERVICE_ARG_FALLBACK_TYPES:
+                    native = SERVICE_ARG_FALLBACK_TYPES[var_]
+                else:
+                    native = SERVICE_ARG_NATIVE_TYPES[var_]
                 service_template_args.append(native)
                 func_args.append((native, name))
                 service_arg_names.append(name)
@@ -518,17 +558,20 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
 )
 
 
+# synchronous=False: when on_success/on_error is configured, play() stores the
+# trigger args until the HomeassistantActionResponse arrives, so non-owning args
+# (StringRef into the API receive buffer) must not be used.
 @automation.register_action(
     "homeassistant.action",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
-    synchronous=True,
+    synchronous=False,
 )
 @automation.register_action(
     "homeassistant.service",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
-    synchronous=True,
+    synchronous=False,
 )
 async def homeassistant_service_to_code(
     config: ConfigType,
@@ -622,6 +665,8 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
 )
 
 
+# synchronous=True is safe here: the event schema has no on_success/on_error,
+# so play() never stores the trigger args.
 @automation.register_action(
     "homeassistant.event",
     HomeAssistantServiceCallAction,
