@@ -6,9 +6,7 @@ namespace tflite_micro_helper {
 
 static const char *const TAG = "op_resolver";
 
-void op_resolver_log_register(const char *tag, const char *op_name) {
-  ESP_LOGD(tag, "Registering op: %s", op_name);
-}
+void op_resolver_log_register(const char *tag, const char *op_name) { ESP_LOGD(tag, "Registering op: %s", op_name); }
 
 void op_resolver_log_unavailable(const char *tag, const char *op_name) {
   ESP_LOGW(tag, "Operator %s is not available in TFLite Micro", op_name);

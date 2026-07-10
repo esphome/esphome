@@ -10,9 +10,7 @@ void ScopedDuration::log_duration(const char *func) {
   ESP_LOGD(this->tag_, "%s duration: %lums", func, this->elapsed());
 }
 
-void ScopedDuration::log(const char *msg, uint32_t val) {
-  ESP_LOGD(this->tag_, "%s: %lums", msg, val);
-}
+void ScopedDuration::log(const char *msg, uint32_t val) { ESP_LOGD(this->tag_, "%s: %lums", msg, val); }
 
 }  // namespace tflite_micro_helper
 }  // namespace esphome
