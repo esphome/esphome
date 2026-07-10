@@ -628,8 +628,8 @@ void run_stream_step(StreamRequest &req) {
     case StreamState::READING: {
       size_t bytes_read = 0;
       if (req.is_fs) {
-        err = static_cast<FilesystemStorage *>(req.storage)->read(req.handle, req.pending_read_buf, req.pending_len,
-                                                                  &bytes_read);
+        err = static_cast<FilesystemStorage *>(req.storage)
+                  ->read(req.handle, req.pending_read_buf, req.pending_len, &bytes_read);
       } else {
         err = static_cast<NetworkStorage *>(req.storage)
                   ->read_chunk(req.path, req.pending_read_buf, req.offset, req.pending_len, &bytes_read);
