@@ -73,6 +73,9 @@ std::string extract_trim(const std::string &s);
 bool apply_extract_step(const ExtractStep &step, std::string &buf);
 
 // Non-template workers for the actions below — all error logging lives in the .cpp.
+void perform_file_copy(const std::string &from, const std::string &to, bool is_move);
+void perform_file_delete(const std::string &path, bool recursive);
+bool check_file_exists(const std::string &path);
 void perform_file_write(const std::string &path, std::string content, bool append, bool newline);
 bool perform_file_read(const std::string &path, const std::vector<ExtractStep> &steps, std::string &out);
 
@@ -124,6 +127,51 @@ template<typename... Ts> class FileReadAction : public Action<Ts...> {
   std::vector<ExtractStep> steps_;
   std::function<void(const std::string &)> setter_;
   Trigger<std::string> value_trigger_;
+};
+
+// ---------------------------------------------------------------------------
+// storage.file_copy / storage.file_move (move doubles as rename — see .cpp)
+// ---------------------------------------------------------------------------
+
+template<typename... Ts> class FileCopyAction : public Action<Ts...> {
+ public:
+  explicit FileCopyAction(bool is_move) : is_move_(is_move) {}
+
+  TEMPLATABLE_VALUE(std::string, from)
+  TEMPLATABLE_VALUE(std::string, to)
+
+  void play(const Ts &...x) override {
+    perform_file_copy(this->from_.value(x...), this->to_.value(x...), this->is_move_);
+  }
+
+ protected:
+  bool is_move_;
+};
+
+// ---------------------------------------------------------------------------
+// storage.file_delete
+// ---------------------------------------------------------------------------
+
+template<typename... Ts> class FileDeleteAction : public Action<Ts...> {
+ public:
+  TEMPLATABLE_VALUE(std::string, path)
+  void set_recursive(bool recursive) { this->recursive_ = recursive; }
+
+  void play(const Ts &...x) override { perform_file_delete(this->path_.value(x...), this->recursive_); }
+
+ protected:
+  bool recursive_{false};
+};
+
+// ---------------------------------------------------------------------------
+// storage.file_exists condition
+// ---------------------------------------------------------------------------
+
+template<typename... Ts> class FileExistsCondition : public Condition<Ts...> {
+ public:
+  TEMPLATABLE_VALUE(std::string, path)
+
+  bool check(const Ts &...x) override { return check_file_exists(this->path_.value(x...)); }
 };
 
 }  // namespace esphome::storage

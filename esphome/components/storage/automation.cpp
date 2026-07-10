@@ -129,29 +129,52 @@ void perform_file_write(const std::string &path, std::string content, bool appen
     ESP_LOGW(TAG, "file_%s: no storage mounted for '%s'", op, path.c_str());
     return;
   }
-  // v1 supports filesystem-backed storages; NetworkStorage has no append semantics in its
-  // chunk API yet (follow-up).
-  if (ps->get_storage_type() != StorageType::FILESYSTEM) {
-    ESP_LOGW(TAG, "file_%s: '%s' is not on a filesystem storage", op, path.c_str());
-    return;
-  }
-  auto *fs = static_cast<FilesystemStorage *>(ps);
 
-  FileHandle *handle = nullptr;
-  StorageError err = fs->open(rel, handle, append ? OpenMode::APPEND : OpenMode::WRITE);
-  if (err != StorageError::OK) {
-    ESP_LOGW(TAG, "file_%s: open '%s' failed (%s)", op, path.c_str(), error_to_string(err));
-    return;
+  StorageError err;
+  if (!append) {
+    // PathStorage-level helper — works on FILESYSTEM and NETWORK storages alike.
+    err = write_file(ps, rel, reinterpret_cast<const uint8_t *>(content.data()), content.size());
+  } else if (ps->get_storage_type() == StorageType::FILESYSTEM) {
+    // Filesystem append: native handle-based APPEND open.
+    auto *fs = static_cast<FilesystemStorage *>(ps);
+    FileHandle *handle = nullptr;
+    err = fs->open(rel, handle, OpenMode::APPEND);
+    if (err != StorageError::OK) {
+      ESP_LOGW(TAG, "file_append: open '%s' failed (%s)", path.c_str(), error_to_string(err));
+      return;
+    }
+    size_t written = 0;
+    err = fs->write(handle, reinterpret_cast<const uint8_t *>(content.data()), content.size(), &written);
+    // Close errors must surface: FATFS-backed drivers flush on close (see copy() contract).
+    StorageError close_err = fs->close(handle);
+    if (err == StorageError::OK)
+      err = close_err;
+    if (err == StorageError::OK && written != content.size())
+      err = StorageError::WRITE_ERROR;
+  } else {
+    // Network append: the chunk API takes an explicit offset (NFS supports offset writes
+    // natively), so appending is stat-for-size + one write_chunk at EOF — O(1) RAM, no
+    // read-modify-write. A missing file starts at offset 0 (created by the write). The
+    // stat→write window is not atomic against other writers; acceptable for a single node
+    // appending its own logs/values.
+    auto *ns = static_cast<NetworkStorage *>(ps);
+    uint64_t offset = 0;
+    FileStat st{};
+    err = ns->stat(rel, &st);
+    if (err == StorageError::OK) {
+      offset = st.size;
+    } else if (err != StorageError::NOT_FOUND) {
+      ESP_LOGW(TAG, "file_append: stat '%s' failed (%s)", path.c_str(), error_to_string(err));
+      return;
+    }
+    size_t written = 0;
+    err = ns->write_chunk(rel, reinterpret_cast<const uint8_t *>(content.data()), offset, content.size(), &written);
+    if (err == StorageError::OK && written != content.size())
+      err = StorageError::WRITE_ERROR;
   }
-  size_t written = 0;
-  err = fs->write(handle, reinterpret_cast<const uint8_t *>(content.data()), content.size(), &written);
-  // Close errors must surface: FATFS-backed drivers flush on close (see copy() contract).
-  StorageError close_err = fs->close(handle);
-  if (err == StorageError::OK)
-    err = close_err;
-  if (err != StorageError::OK || written != content.size()) {
-    ESP_LOGW(TAG, "file_%s: writing '%s' failed (%s, %zu/%zu bytes)", op, path.c_str(), error_to_string(err), written,
-             content.size());
+
+  if (err != StorageError::OK) {
+    ESP_LOGW(TAG, "file_%s: writing '%s' failed (%s)", op, path.c_str(), error_to_string(err));
   }
 }
 
@@ -169,12 +192,8 @@ bool perform_file_read(const std::string &path, const std::vector<ExtractStep> &
 
   RamBuffer buf;
   size_t size = 0;
-  StorageError err;
-  if (ps->get_storage_type() == StorageType::FILESYSTEM) {
-    err = read_file(static_cast<FilesystemStorage *>(ps), rel, buf, &size);
-  } else {
-    err = read_file(static_cast<NetworkStorage *>(ps), rel, buf, &size);
-  }
+  // PathStorage-level helper — works on FILESYSTEM and NETWORK storages alike.
+  StorageError err = read_file(ps, rel, buf, &size);
   if (err != StorageError::OK) {
     // Error path leaves any configured global untouched and does not fire on_value.
     ESP_LOGW(TAG, "file_read: reading '%s' failed (%s)", path.c_str(), error_to_string(err));
@@ -187,6 +206,64 @@ bool perform_file_read(const std::string &path, const std::vector<ExtractStep> &
       return false;  // step already logged; global untouched, no trigger
   }
   return true;
+}
+
+void perform_file_copy(const std::string &from, const std::string &to, bool is_move) {
+  const char *op = is_move ? "move" : "copy";
+  if (global_storage_registry == nullptr) {
+    ESP_LOGW(TAG, "file_%s: no storage registry", op);
+    return;
+  }
+  const char *src_rel = nullptr;
+  const char *dst_rel = nullptr;
+  PathStorage *src = global_storage_registry->resolve_path(from.c_str(), &src_rel);
+  PathStorage *dst = global_storage_registry->resolve_path(to.c_str(), &dst_rel);
+  if (src == nullptr || dst == nullptr) {
+    ESP_LOGW(TAG, "file_%s: no storage mounted for '%s'", op, src == nullptr ? from.c_str() : to.c_str());
+    return;
+  }
+  // move() internally takes the same-storage rename() fast path and only falls back to
+  // copy+delete across devices — so this action doubles as a rename action. Both helpers are
+  // PathStorage-level (filesystem and network alike) and honor max_blocking_transfer_size.
+  StorageError err = is_move ? move(src, src_rel, dst, dst_rel) : copy(src, src_rel, dst, dst_rel);
+  if (err != StorageError::OK) {
+    ESP_LOGW(TAG, "file_%s: '%s' -> '%s' failed (%s)", op, from.c_str(), to.c_str(), error_to_string(err));
+  }
+}
+
+void perform_file_delete(const std::string &path, bool recursive) {
+  if (global_storage_registry == nullptr) {
+    ESP_LOGW(TAG, "file_delete: no storage registry");
+    return;
+  }
+  const char *rel = nullptr;
+  PathStorage *ps = global_storage_registry->resolve_path(path.c_str(), &rel);
+  if (ps == nullptr) {
+    ESP_LOGW(TAG, "file_delete: no storage mounted for '%s'", path.c_str());
+    return;
+  }
+  // remove() deletes files and empty directories; remove_recursive() walks subtrees.
+  StorageError err = recursive ? remove_recursive(ps, rel) : ps->remove(rel);
+  if (err != StorageError::OK) {
+    ESP_LOGW(TAG, "file_delete: '%s' failed (%s)", path.c_str(), error_to_string(err));
+  }
+}
+
+bool check_file_exists(const std::string &path) {
+  if (global_storage_registry == nullptr)
+    return false;
+  const char *rel = nullptr;
+  PathStorage *ps = global_storage_registry->resolve_path(path.c_str(), &rel);
+  if (ps == nullptr)
+    return false;
+  StorageError err = StorageError::OK;
+  bool found = exists(ps, rel, &err);
+  // Only NOT_FOUND is a clean "no" — surface anything else (unmounted/faulted medium) so a
+  // transient failure is visible instead of silently reading as absence.
+  if (!found && err != StorageError::NOT_FOUND && err != StorageError::OK) {
+    ESP_LOGW(TAG, "file_exists: checking '%s' failed (%s)", path.c_str(), error_to_string(err));
+  }
+  return found;
 }
 
 }  // namespace esphome::storage
