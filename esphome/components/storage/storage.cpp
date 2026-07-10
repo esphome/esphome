@@ -10,20 +10,23 @@ static const char *const TAG = "storage";
 StorageRegistry *global_storage_registry = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void StorageRegistry::register_storage(Storage *s) {
-  if (s == nullptr) {
+  if (s == nullptr)
     return;
-  }
 
-  for (auto *existing : this->storages_) {
-    if (existing == s)
-      return;  // already registered
-  }
+  {
+    // Mutation guarded against the worker task's concurrent is_registered() reads.
+    LockGuard guard(this->registry_lock_);
+    for (auto *existing : this->storages_) {
+      if (existing == s)
+        return;  // already registered
+    }
 
-  if (this->storages_.full()) {
-    ESP_LOGE(TAG, "Registry full — increase device count");
-    return;
+    if (this->storages_.full()) {
+      ESP_LOGE(TAG, "Registry full — increase device count");
+      return;
+    }
+    this->storages_.push_back(s);
   }
-  this->storages_.push_back(s);
 
   // Log regardless of get_info()'s result — an unmounted-but-registered device (e.g. before
   // its medium is mounted) must still show up, per the get_info() contract on Storage above.
@@ -39,46 +42,62 @@ void StorageRegistry::register_storage(Storage *s) {
 }
 
 void StorageRegistry::unregister_storage(Storage *s) {
-  if (s == nullptr) {
+  if (s == nullptr)
     return;
-  }
 
-  bool found = false;
-  for (auto *entry : this->storages_) {
-    if (entry == s) {
-      found = true;
-      break;
+  {
+    LockGuard guard(this->registry_lock_);
+    bool found = false;
+    for (auto *registered : this->storages_) {
+      if (registered == s) {
+        found = true;
+        break;
+      }
     }
+    if (!found)
+      return;
   }
-  if (!found)
-    return;
 
-  // TEMPORARY: rebuild via a second FixedVector instead of a swap-remove ending in
-  // pop_back(). FixedVector::pop_back() is a core (esphome/core/helpers.h) addition from this
-  // same PR series that hasn't merged upstream yet, and external_components: can only overlay
-  // component directories, never core files — so anyone testing this driver via
-  // external_components: would hit a missing pop_back() before ever reaching driver code. This
-  // only needs FixedVector APIs that already exist upstream (init()/push_back()/move-assign).
-  // storages_ is sized exactly at setup — safe because we always remove one entry before
-  // rebuilding, so we never exceed capacity. Revert to the swap-remove once
-  // FixedVector::pop_back() has landed in upstream dev.
-  FixedVector<Storage *> tmp;
-  tmp.init(this->storages_.size());
-  for (auto *entry : this->storages_) {
-    if (entry != s)
-      tmp.push_back(entry);
+  // Drain FIRST, while the entry is still registered: the worker's on_unregistered handler
+  // synchronously cancels/waits out any in-flight task work on this storage, and the task's
+  // per-chunk is_registered() checks must be able to run against an intact vector until that
+  // drain completes. Only then is it safe to mutate storages_ below. (The lock alone is not
+  // enough — removing before the drain would free this storage's slot while the task may
+  // still be inside a blocking I/O call on it.)
+  this->on_unregistered_.call(s);
+
+  {
+    LockGuard guard(this->registry_lock_);
+    // Swap-remove: no reallocation, keeps capacity — safe since order doesn't matter here
+    // (for_each* enumerate every entry regardless of position). Re-locate the entry: the
+    // drain callback above runs arbitrary consumer code that could itself have mutated the
+    // registry.
+    size_t found_index = this->storages_.size();
+    for (size_t i = 0; i < this->storages_.size(); i++) {
+      if (this->storages_[i] == s) {
+        found_index = i;
+        break;
+      }
+    }
+    if (found_index == this->storages_.size())
+      return;
+
+    size_t last_index = this->storages_.size() - 1;
+    if (found_index != last_index)
+      this->storages_[found_index] = this->storages_[last_index];
+    this->storages_.pop_back();
   }
-  this->storages_ = std::move(tmp);
 
   StorageInfo info{};
   if (s->get_info(&info) == StorageError::OK) {
     ESP_LOGI(TAG, "Storage unregistered: %s", info.name != nullptr ? info.name : "?");
   }
-
-  this->on_unregistered_.call(s);
 }
 
 bool StorageRegistry::is_registered(const Storage *s) const {
+  // Called from the worker task (per-chunk cancellation check) concurrently with main-loop
+  // register/unregister mutations — hence the lock. Held only for the short scan.
+  LockGuard guard(this->registry_lock_);
   for (auto *registered : this->storages_) {
     if (registered == s) {
       return true;
@@ -269,6 +288,14 @@ StorageError read_file(FilesystemStorage *storage, const char *path, RamBuffer &
     return StorageError::NO_SPACE;
   auto buf_size = static_cast<size_t>(stat.size);
 
+  // Empty file: legitimate result, not an allocation failure. allocate(0) may return nullptr,
+  // which the check below would misreport as NO_SPACE — return an empty buffer instead.
+  if (buf_size == 0) {
+    out = RamBuffer(nullptr, RamBufferDeleter{0});
+    *size = 0;
+    return StorageError::OK;
+  }
+
   uint8_t *raw = RAMAllocator<uint8_t>().allocate(buf_size);
   if (raw == nullptr)
     return StorageError::NO_SPACE;
@@ -312,6 +339,14 @@ StorageError read_file(NetworkStorage *storage, const char *path, RamBuffer &out
   if (stat.size > SIZE_MAX)
     return StorageError::NO_SPACE;
   auto buf_size = static_cast<size_t>(stat.size);
+
+  // Empty file: legitimate result, not an allocation failure. allocate(0) may return nullptr,
+  // which the check below would misreport as NO_SPACE — return an empty buffer instead.
+  if (buf_size == 0) {
+    out = RamBuffer(nullptr, RamBufferDeleter{0});
+    *size = 0;
+    return StorageError::OK;
+  }
 
   uint8_t *raw = RAMAllocator<uint8_t>().allocate(buf_size);
   if (raw == nullptr)

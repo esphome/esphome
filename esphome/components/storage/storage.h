@@ -325,6 +325,11 @@ class StorageRegistry : public Component {
  protected:
   // Single allocation at set_device_count() — no realloc machinery
   FixedVector<Storage *> storages_;
+  // Guards storages_ against the one cross-thread access pattern: the worker task reads via
+  // is_registered() (per-chunk cancellation check) while the main loop mutates via
+  // register_storage()/unregister_storage(). All other accessors (for_each*, size()/get(),
+  // resolve_path()) are main-loop-only by contract and need no lock — the task never calls them.
+  mutable Mutex registry_lock_;
 
   // LazyCallbackManager: 4-byte nullptr until first subscriber — saves RAM
   // on devices where no component listens for hotplug events
