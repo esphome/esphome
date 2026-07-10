@@ -6,3 +6,40 @@ storage:
   task_stack_size: 8192
   task_priority: 1
   max_pending: 4
+
+globals:
+  - id: g_setpoint
+    type: float
+    initial_value: "0"
+  - id: g_label
+    type: std::string
+
+script:
+  - id: exercise_file_ops
+    then:
+      - storage.file_append:
+          path: /sdcard/logs/test.log
+          format: "value=%.1f"
+          args: ["21.5f"]
+      - storage.file_write:
+          path: !lambda 'return "/sdcard/state.txt";'
+          content: !lambda 'return "hello";'
+      - storage.file_read:
+          path: /sdcard/config/setpoint.txt
+          extract:
+            - line: 2
+            - split: ","
+              index: 1
+            - trim: true
+          to_global: g_setpoint
+      - storage.file_read:
+          path: /sdcard/config/device.conf
+          extract:
+            - key: name
+              separator: "="
+            - regex: "([A-Za-z0-9_]+)"
+          to_global: g_label
+          on_value:
+            - logger.log:
+                format: "read: %s"
+                args: ["x.c_str()"]
