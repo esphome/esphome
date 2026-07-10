@@ -1,114 +1,36 @@
-import logging
+# ---------------------------------------------------------------------------
+# Legacy top-level `animation:` deprecation shim -- REMOVE this whole file after
+# 2027.1.0.
+#
+# Animations are now a platform of the `image:` component (`platform:
+# animation`); the real schema, actions and codegen live in `image.py`. This
+# module only keeps the deprecated top-level `animation:` key working during the
+# deprecation window: it reuses that schema/codegen and adds a one-shot
+# deprecation warning (with a pasteable migrated `image:` block) at validation
+# time. Deleting this file drops the top-level form entirely.
+# ---------------------------------------------------------------------------
 
-from esphome import automation
-import esphome.codegen as cg
-from esphome.components.const import CONF_LOOP
 import esphome.components.image as espImage
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_REPEAT
 
-_LOGGER = logging.getLogger(__name__)
+from .image import ANIMATION_CONFIG_SCHEMA, setup_animation
 
-AUTO_LOAD = ["image"]
+AUTO_LOAD = ["image", "file"]
 CODEOWNERS = ["@syndlex"]
 DEPENDENCIES = ["display"]
 MULTI_CONF = True
 MULTI_CONF_NO_DEFAULT = True
 
-CONF_START_FRAME = "start_frame"
-CONF_END_FRAME = "end_frame"
-CONF_FRAME = "frame"
+DOMAIN = "animation"
 
-animation_ns = cg.esphome_ns.namespace("animation")
+LEGACY_REMOVAL_VERSION = "2027.1.0"
 
-Animation_ = animation_ns.class_("Animation", espImage.Image_)
-
-# Actions
-NextFrameAction = animation_ns.class_(
-    "AnimationNextFrameAction", automation.Action, cg.Parented.template(Animation_)
-)
-PrevFrameAction = animation_ns.class_(
-    "AnimationPrevFrameAction", automation.Action, cg.Parented.template(Animation_)
-)
-SetFrameAction = animation_ns.class_(
-    "AnimationSetFrameAction", automation.Action, cg.Parented.template(Animation_)
+_capture_legacy_entry, _warn_legacy_animation = (
+    espImage.legacy_platform_migration_warning(DOMAIN, DOMAIN, LEGACY_REMOVAL_VERSION)
 )
 
-CONFIG_SCHEMA = cv.All(
-    espImage.IMAGE_SCHEMA.extend(
-        {
-            cv.Required(CONF_ID): cv.declare_id(Animation_),
-            cv.Optional(CONF_LOOP): cv.All(
-                {
-                    cv.Optional(CONF_START_FRAME, default=0): cv.positive_int,
-                    cv.Optional(CONF_END_FRAME): cv.positive_int,
-                    cv.Optional(CONF_REPEAT): cv.positive_int,
-                }
-            ),
-        },
-    ),
-    espImage.validate_settings,
-)
+CONFIG_SCHEMA = cv.All(_capture_legacy_entry, ANIMATION_CONFIG_SCHEMA)
 
+FINAL_VALIDATE_SCHEMA = _warn_legacy_animation
 
-NEXT_FRAME_SCHEMA = automation.maybe_simple_id(
-    {
-        cv.GenerateID(): cv.use_id(Animation_),
-    }
-)
-PREV_FRAME_SCHEMA = automation.maybe_simple_id(
-    {
-        cv.GenerateID(): cv.use_id(Animation_),
-    }
-)
-SET_FRAME_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.use_id(Animation_),
-        cv.Required(CONF_FRAME): cv.uint16_t,
-    }
-)
-
-
-@automation.register_action(
-    "animation.next_frame", NextFrameAction, NEXT_FRAME_SCHEMA, synchronous=True
-)
-@automation.register_action(
-    "animation.prev_frame", PrevFrameAction, PREV_FRAME_SCHEMA, synchronous=True
-)
-@automation.register_action(
-    "animation.set_frame", SetFrameAction, SET_FRAME_SCHEMA, synchronous=True
-)
-async def animation_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-
-    if (frame := config.get(CONF_FRAME)) is not None:
-        template_ = await cg.templatable(frame, args, cg.uint16)
-        cg.add(var.set_frame(template_))
-    return var
-
-
-async def to_code(config):
-    (
-        prog_arr,
-        width,
-        height,
-        image_type,
-        trans_value,
-        frame_count,
-    ) = await espImage.write_image(config, all_frames=True)
-
-    var = cg.new_Pvariable(
-        config[CONF_ID],
-        prog_arr,
-        width,
-        height,
-        frame_count,
-        image_type,
-        trans_value,
-    )
-    if loop_config := config.get(CONF_LOOP):
-        start = loop_config[CONF_START_FRAME]
-        end = loop_config.get(CONF_END_FRAME, frame_count)
-        count = loop_config.get(CONF_REPEAT, -1)
-        cg.add(var.set_loop(start, end, count))
+to_code = setup_animation
