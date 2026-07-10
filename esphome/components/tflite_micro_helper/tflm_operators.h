@@ -1,10 +1,7 @@
-#pragma once
-
 // NOTE: This is an X-macro definition file included inside a switch block in
-// op_resolver.h. The `#pragma once` and namespace are present for lint
-// compliance only. Macro definitions (TFLM_OP_AVAILABLE, TFLM_OP_UNAVAILABLE)
-// are defined before inclusion and undefined after, so the namespace does not
-// affect macro expansion.
+// op_resolver.h. It intentionally has no namespace wrapper or #pragma once
+// because it is #included inside a function body where neither is valid.
+// The linter exclusion for this file is in the parent op_resolver.h.
 
 #ifdef TFLM_OPERATORS_ACTIVE
 
@@ -12,9 +9,6 @@
 // Format:
 //   TFLM_OP_AVAILABLE(BuiltinOperator_suffix, AddMethod)  -> operator exists in ESP32 TFLM library
 //   TFLM_OP_UNAVAILABLE(BuiltinOperator_suffix)            -> operator not available, will be logged as unsupported
-
-namespace esphome {
-namespace tflite_micro_helper {
 
 // ====== Core Neural Network Ops ======
 TFLM_OP_AVAILABLE(CONV_2D, AddConv2D)
@@ -161,8 +155,5 @@ TFLM_OP_UNAVAILABLE(SVDF)
 TFLM_OP_UNAVAILABLE(LSH_PROJECTION)
 TFLM_OP_UNAVAILABLE(SKIP_GRAM)
 TFLM_OP_UNAVAILABLE(CALL)
-
-}  // namespace tflite_micro_helper
-}  // namespace esphome
 
 #endif  // TFLM_OPERATORS_ACTIVE

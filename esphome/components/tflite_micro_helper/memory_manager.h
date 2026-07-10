@@ -14,7 +14,8 @@ class MemoryManager {
  public:
   struct AllocationResult {
     struct HeapCapsDeleter {
-      void operator()(const uint8_t *p) const {
+      // NOLINTNEXTLINE: heap_caps_free requires non-const void*
+      void operator()(uint8_t *p) const {
         if (p)
           heap_caps_free(p);
       }
