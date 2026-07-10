@@ -10,13 +10,12 @@
 
 #include "op_resolver_utils.h"
 
-namespace esphome {
-namespace tflite_micro_helper {
+namespace esphome::tflite_micro_helper {
 
 class OpResolverManager {
  public:
   template<size_t tOpCount>
-  static bool RegisterOps(tflite::MicroMutableOpResolver<tOpCount> &resolver,
+  static bool register_ops(tflite::MicroMutableOpResolver<tOpCount> &resolver,
                           const std::set<tflite::BuiltinOperator> &required_ops, const char *tag) {
     for (auto op : required_ops) {
       const char *op_name = tflite::EnumNameBuiltinOperator(op);
@@ -59,7 +58,6 @@ class OpResolverManager {
   }
 };
 
-}  // namespace tflite_micro_helper
-}  // namespace esphome
+}  // namespace esphome::tflite_micro_helper
 
 #endif  // USE_TFLITE_MICRO_HELPER

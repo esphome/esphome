@@ -6,8 +6,7 @@
 #include <algorithm>
 #include <limits>
 
-namespace esphome {
-namespace tflite_micro_helper {
+namespace esphome::tflite_micro_helper {
 
 static const char *const TAG = "ModelHandler";
 
@@ -158,7 +157,7 @@ bool ModelHandler::load_model_with_arena(const uint8_t *model_data, size_t model
     required_ops.insert(op_code->builtin_code());
   }
 
-  if (!OpResolverManager::RegisterOps<MAX_OPERATORS>(*this->resolver_, required_ops, TAG)) {
+  if (!OpResolverManager::register_ops<MAX_OPERATORS>(*this->resolver_, required_ops, TAG)) {
     ESP_LOGE(TAG, "Failed to register operators");
     return false;
   }
@@ -729,5 +728,4 @@ void ModelHandler::report_memory_status() {
                                              this->model_length_);
 }
 
-}  // namespace tflite_micro_helper
-}  // namespace esphome
+}  // namespace esphome::tflite_micro_helper

@@ -2,10 +2,11 @@
 
 #include "esphome/core/hal.h"  // For millis()
 #include "esphome/core/log.h"
+#ifdef USE_TFLITE_MICRO_HELPER
 #include "tensorflow/lite/c/common.h"  // For TfLiteType
+#endif
 
-namespace esphome {
-namespace tflite_micro_helper {
+namespace esphome::tflite_micro_helper {
 
 // RAII ScopedDuration -- replaces DURATION_START/END/LOG macros
 class ScopedDuration {
@@ -23,6 +24,7 @@ class ScopedDuration {
   uint32_t start_;
 };
 
+#ifdef USE_TFLITE_MICRO_HELPER
 // Helper function to convert TfLiteType to string
 inline const char *tflite_type_to_string(TfLiteType type) {
   switch (type) {
@@ -46,6 +48,6 @@ inline const char *tflite_type_to_string(TfLiteType type) {
       return "Unknown";
   }
 }
+#endif
 
-}  // namespace tflite_micro_helper
-}  // namespace esphome
+}  // namespace esphome::tflite_micro_helper

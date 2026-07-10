@@ -15,8 +15,7 @@
 #include "memory_manager.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace tflite_micro_helper {
+namespace esphome::tflite_micro_helper {
 
 // Maximum number of operators to register
 // Can be overridden by build flag -DMAX_OPERATORS=N (set by meter_reader_tflite codegen from .txt file)
@@ -162,7 +161,6 @@ class ModelHandler {
   bool debug_{false};
 };
 
-}  // namespace tflite_micro_helper
-}  // namespace esphome
+}  // namespace esphome::tflite_micro_helper
 
 #endif  // USE_TFLITE_MICRO_HELPER

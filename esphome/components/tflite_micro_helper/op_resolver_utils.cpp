@@ -1,8 +1,7 @@
 #include "op_resolver_utils.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tflite_micro_helper {
+namespace esphome::tflite_micro_helper {
 
 static const char *const TAG = "op_resolver";
 
@@ -20,5 +19,4 @@ void op_resolver_log_failed(const char *tag, const char *op_name) {
   ESP_LOGE(tag, "Failed to add operator: %s", op_name);
 }
 
-}  // namespace tflite_micro_helper
-}  // namespace esphome
+}  // namespace esphome::tflite_micro_helper

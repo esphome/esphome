@@ -8,14 +8,13 @@
 #include <cstdint>
 #include "esp_heap_caps.h"
 
-namespace esphome {
-namespace tflite_micro_helper {
+namespace esphome::tflite_micro_helper {
 
 class MemoryManager {
  public:
   struct AllocationResult {
     struct HeapCapsDeleter {
-      void operator()(uint8_t *p) const {
+      void operator()(const uint8_t *p) const {
         if (p)
           heap_caps_free(p);
       }
@@ -48,7 +47,6 @@ class MemoryManager {
   static bool has_psram();
 };
 
-}  // namespace tflite_micro_helper
-}  // namespace esphome
+}  // namespace esphome::tflite_micro_helper
 
 #endif  // USE_TFLITE_MICRO_HELPER

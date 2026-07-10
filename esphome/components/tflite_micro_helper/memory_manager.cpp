@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "debug_utils.h"
 
-namespace esphome {
-namespace tflite_micro_helper {
+namespace esphome::tflite_micro_helper {
 
 static const char *const TAG = "MemoryManager";
 
@@ -180,5 +179,4 @@ void MemoryManager::report_memory_status(size_t requested_size, size_t allocated
   }
 }
 
-}  // namespace tflite_micro_helper
-}  // namespace esphome
+}  // namespace esphome::tflite_micro_helper

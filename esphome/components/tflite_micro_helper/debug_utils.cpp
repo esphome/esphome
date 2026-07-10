@@ -1,8 +1,7 @@
 #include "debug_utils.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tflite_micro_helper {
+namespace esphome::tflite_micro_helper {
 
 ScopedDuration::ScopedDuration(const char *tag) : tag_(tag), start_(esphome::millis()) {}
 
@@ -12,5 +11,4 @@ void ScopedDuration::log_duration(const char *func) {
 
 void ScopedDuration::log(const char *msg, uint32_t val) { ESP_LOGD(this->tag_, "%s: %lums", msg, val); }
 
-}  // namespace tflite_micro_helper
-}  // namespace esphome
+}  // namespace esphome::tflite_micro_helper
