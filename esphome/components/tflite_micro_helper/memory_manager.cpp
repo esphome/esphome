@@ -34,7 +34,7 @@ size_t MemoryManager::parse_size_string(const std::string &size_str) {
     // Check for overflow: size_value * multiplier must fit in size_t
     uint64_t total = static_cast<uint64_t>(size_value) * multiplier;
     if (total > SIZE_MAX) {
-      ESP_LOGE(TAG, "Size value overflow: %ld * %zu exceeds SIZE_MAX", size_value, multiplier);
+      ESP_LOGE(TAG, "Size value overflow: %d * %zu exceeds SIZE_MAX", size_value, multiplier);
       return 0;
     }
     return static_cast<size_t>(total);
