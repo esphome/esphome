@@ -49,7 +49,12 @@ void SdSpi::setup() {
   // card happens to be present. No mark_failed() here: a failed mount is not a broken
   // component, and this lets sd_storage.mount retry later without a reboot.
   if (storage::global_storage_registry != nullptr)
-    storage::global_storage_registry->register_storage(this);
+    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
+      // Registry full = codegen/runtime device-count mismatch: the device would be invisible
+      // to resolve_path()/consumers. Fatal — do not run with a silently missing device.
+      ESP_LOGE(TAG, "Storage registration failed");
+      this->mark_failed();
+    }
 
   if (this->cd_pin_ != nullptr) {
     // With a CD pin configured, only mount if a card is actually seen at boot — otherwise wait
@@ -167,7 +172,12 @@ StorageError SdSpi::mount() {
            static_cast<uint32_t>(this->card_->max_freq_khz), static_cast<uint32_t>(this->card_->real_freq_khz));
 
   if (storage::global_storage_registry != nullptr)
-    storage::global_storage_registry->register_storage(this);
+    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
+      // Registry full = codegen/runtime device-count mismatch: the device would be invisible
+      // to resolve_path()/consumers. Fatal — do not run with a silently missing device.
+      ESP_LOGE(TAG, "Storage registration failed");
+      this->mark_failed();
+    }
 
   this->on_mounted_.call(this->mount_path_);
 
@@ -201,7 +211,12 @@ StorageError SdSpi::unmount() {
   // for this device (see setup()'s comment) — unregistering here was only ever about the
   // teardown window itself, not about removing the device from the registry permanently.
   if (storage::global_storage_registry != nullptr)
-    storage::global_storage_registry->register_storage(this);
+    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
+      // Registry full = codegen/runtime device-count mismatch: the device would be invisible
+      // to resolve_path()/consumers. Fatal — do not run with a silently missing device.
+      ESP_LOGE(TAG, "Storage registration failed");
+      this->mark_failed();
+    }
 
   return StorageError::OK;
 }
