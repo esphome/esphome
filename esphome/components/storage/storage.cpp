@@ -9,20 +9,26 @@ static const char *const TAG = "storage";
 
 StorageRegistry *global_storage_registry = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-void StorageRegistry::register_storage(Storage *s) {
+StorageError StorageRegistry::register_storage(Storage *s) {
   if (s == nullptr)
-    return;
+    return StorageError::INVALID_ARGS;
 
-  for (auto *existing : this->storages_) {
-    if (existing == s)
-      return;  // already registered
-  }
+  {
+    // Mutation guarded against the worker task's concurrent is_registered() reads.
+    LockGuard guard(this->registry_lock_);
+    for (auto *existing : this->storages_) {
+      if (existing == s)
+        return StorageError::OK;  // already registered — idempotent
+    }
 
-  if (this->storages_.full()) {
-    ESP_LOGE(TAG, "Registry full — increase device count");
-    return;
+    if (this->storages_.full()) {
+      // Codegen sizes the registry to the exact configured device count, so hitting this
+      // means a codegen/runtime mismatch — surface it so the driver can fail loudly.
+      ESP_LOGE(TAG, "Registry full — increase device count");
+      return StorageError::NO_SPACE;
+    }
+    this->storages_.push_back(s);
   }
-  this->storages_.push_back(s);
 
   // Log regardless of get_info()'s result — an unmounted-but-registered device (e.g. before
   // its medium is mounted) must still show up, per the get_info() contract on Storage above.
@@ -35,38 +41,66 @@ void StorageRegistry::register_storage(Storage *s) {
   }
 
   this->on_registered_.call(s);
+  return StorageError::OK;
 }
 
 void StorageRegistry::unregister_storage(Storage *s) {
   if (s == nullptr)
     return;
 
-  // Swap-remove: no reallocation, keeps capacity — safe since order doesn't matter here
-  // (for_each* enumerate every entry regardless of position).
-  size_t found_index = this->storages_.size();
-  for (size_t i = 0; i < this->storages_.size(); i++) {
-    if (this->storages_[i] == s) {
-      found_index = i;
-      break;
+  {
+    LockGuard guard(this->registry_lock_);
+    bool found = false;
+    for (auto *registered : this->storages_) {
+      if (registered == s) {
+        found = true;
+        break;
+      }
     }
+    if (!found)
+      return;
   }
-  if (found_index == this->storages_.size())
-    return;
 
-  size_t last_index = this->storages_.size() - 1;
-  if (found_index != last_index)
-    this->storages_[found_index] = this->storages_[last_index];
-  this->storages_.pop_back();
+  // Drain FIRST, while the entry is still registered: the worker's on_unregistered handler
+  // synchronously cancels/waits out any in-flight task work on this storage, and the task's
+  // per-chunk is_registered() checks must be able to run against an intact vector until that
+  // drain completes. Only then is it safe to mutate storages_ below. (The lock alone is not
+  // enough — removing before the drain would free this storage's slot while the task may
+  // still be inside a blocking I/O call on it.)
+  this->on_unregistered_.call(s);
+
+  {
+    LockGuard guard(this->registry_lock_);
+    // Swap-remove: no reallocation, keeps capacity — safe since order doesn't matter here
+    // (for_each* enumerate every entry regardless of position). Re-locate the entry: the
+    // drain callback above runs arbitrary consumer code that could itself have mutated the
+    // registry.
+    size_t found_index = this->storages_.size();
+    for (size_t i = 0; i < this->storages_.size(); i++) {
+      if (this->storages_[i] == s) {
+        found_index = i;
+        break;
+      }
+    }
+    if (found_index == this->storages_.size())
+      return;
+
+    size_t last_index = this->storages_.size() - 1;
+    if (found_index != last_index)
+      this->storages_[found_index] = this->storages_[last_index];
+    this->storages_.pop_back();
+  }
 
   StorageInfo info{};
   if (s->get_info(&info) == StorageError::OK) {
     ESP_LOGI(TAG, "Storage unregistered: %s", info.name != nullptr ? info.name : "?");
   }
-
-  this->on_unregistered_.call(s);
 }
 
 bool StorageRegistry::is_registered(const Storage *s) const {
+  // Called from the worker task (per-chunk cancellation check) concurrently with main-loop
+  // register/unregister mutations — hence the lock. Held only for the short scan.
+  LockGuard guard(this->registry_lock_);
   for (auto *registered : this->storages_) {
     if (registered == s) {
       return true;
@@ -229,9 +263,14 @@ const char *error_to_string(StorageError error) {
   return "UNKNOWN";
 }
 
-bool exists(PathStorage *storage, const char *path) {
+bool exists(PathStorage *storage, const char *path, StorageError *err_out) {
   FileStat stat{};
-  return storage->stat(path, &stat) == StorageError::OK;
+  StorageError err = storage->stat(path, &stat);
+  if (err_out != nullptr)
+    *err_out = err;
+  // Only NOT_FOUND is a clean "no"; other errors also yield false but are reported via
+  // err_out — see the header comment (a transient NOT_READY must not look like absence).
+  return err == StorageError::OK;
 }
 
 StorageError file_size(PathStorage *storage, const char *path, uint64_t *size) {
@@ -256,6 +295,14 @@ StorageError read_file(FilesystemStorage *storage, const char *path, RamBuffer &
   if (stat.size > SIZE_MAX)
     return StorageError::NO_SPACE;
   auto buf_size = static_cast<size_t>(stat.size);
+
+  // Empty file: legitimate result, not an allocation failure. allocate(0) may return nullptr,
+  // which the check below would misreport as NO_SPACE — return an empty buffer instead.
+  if (buf_size == 0) {
+    out = RamBuffer(nullptr, RamBufferDeleter{0});
+    *size = 0;
+    return StorageError::OK;
+  }
 
   uint8_t *raw = RAMAllocator<uint8_t>().allocate(buf_size);
   if (raw == nullptr)
@@ -300,6 +347,14 @@ StorageError read_file(NetworkStorage *storage, const char *path, RamBuffer &out
   if (stat.size > SIZE_MAX)
     return StorageError::NO_SPACE;
   auto buf_size = static_cast<size_t>(stat.size);
+
+  // Empty file: legitimate result, not an allocation failure. allocate(0) may return nullptr,
+  // which the check below would misreport as NO_SPACE — return an empty buffer instead.
+  if (buf_size == 0) {
+    out = RamBuffer(nullptr, RamBufferDeleter{0});
+    *size = 0;
+    return StorageError::OK;
+  }
 
   uint8_t *raw = RAMAllocator<uint8_t>().allocate(buf_size);
   if (raw == nullptr)
@@ -369,6 +424,28 @@ StorageError write_file(NetworkStorage *storage, const char *path, const uint8_t
     App.feed_wdt();
   }
   return StorageError::OK;
+}
+
+StorageError read_file(PathStorage *storage, const char *path, RamBuffer &out, size_t *size) {
+  switch (storage->get_storage_type()) {
+    case StorageType::FILESYSTEM:
+      return read_file(static_cast<FilesystemStorage *>(storage), path, out, size);
+    case StorageType::NETWORK:
+      return read_file(static_cast<NetworkStorage *>(storage), path, out, size);
+    default:
+      return StorageError::NOT_SUPPORTED;
+  }
+}
+
+StorageError write_file(PathStorage *storage, const char *path, const uint8_t *data, size_t size) {
+  switch (storage->get_storage_type()) {
+    case StorageType::FILESYSTEM:
+      return write_file(static_cast<FilesystemStorage *>(storage), path, data, size);
+    case StorageType::NETWORK:
+      return write_file(static_cast<NetworkStorage *>(storage), path, data, size);
+    default:
+      return StorageError::NOT_SUPPORTED;
+  }
 }
 
 StorageError copy(PathStorage *src_storage, const char *src_path, PathStorage *dst_storage, const char *dst_path) {
