@@ -342,7 +342,7 @@ bool Mcp4461Component::increase_wiper_(Mcp4461WiperIdx wiper) {
   ESP_LOGV(TAG, "Increasing wiper %u", wiper_idx);
   uint8_t addr = this->get_wiper_address_(wiper_idx);
   uint8_t reg = addr | static_cast<uint8_t>(Mcp4461Commands::INCREMENT);
-  auto err = this->write(&this->address_, reg);
+  auto err = this->write(&reg, 1);
   if (err != i2c::ERROR_OK) {
     this->error_code_ = MCP4461_STATUS_I2C_ERROR;
     this->status_set_warning();
@@ -373,7 +373,7 @@ bool Mcp4461Component::decrease_wiper_(Mcp4461WiperIdx wiper) {
   ESP_LOGV(TAG, "Decreasing wiper %u", wiper_idx);
   uint8_t addr = this->get_wiper_address_(wiper_idx);
   uint8_t reg = addr | static_cast<uint8_t>(Mcp4461Commands::DECREMENT);
-  auto err = this->write(&this->address_, reg);
+  auto err = this->write(&reg, 1);
   if (err != i2c::ERROR_OK) {
     this->error_code_ = MCP4461_STATUS_I2C_ERROR;
     this->status_set_warning();
