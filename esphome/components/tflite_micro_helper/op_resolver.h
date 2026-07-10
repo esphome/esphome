@@ -16,7 +16,7 @@ class OpResolverManager {
  public:
   template<size_t tOpCount>
   static bool register_ops(tflite::MicroMutableOpResolver<tOpCount> &resolver,
-                          const std::set<tflite::BuiltinOperator> &required_ops, const char *tag) {
+                           const std::set<tflite::BuiltinOperator> &required_ops, const char *tag) {
     for (auto op : required_ops) {
       const char *op_name = tflite::EnumNameBuiltinOperator(op);
       op_resolver_log_register(tag, op_name);
