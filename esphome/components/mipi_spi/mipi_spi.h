@@ -151,14 +151,11 @@ class MipiSpi : public display::Display,
       this->reset_pin_->digital_write(false);
       delay(5);
       this->reset_pin_->digital_write(true);
-    } else {
-      // no reset pin, send software reset command
-      this->write_command_(SW_RESET_CMD);
+      // required delay after reset is already in the init sequence, don't duplicate
     }
 
     // need to know when the display is ready for SLPOUT command - will be 120ms after reset
     auto when = millis() + 120;
-    delay(10);
     size_t index = 0;
     auto &vec = this->init_sequence_;
     while (index != vec.size()) {
@@ -195,8 +192,6 @@ class MipiSpi : public display::Display,
         const auto *ptr = vec.data() + index;
         this->write_command_(cmd, ptr, num_args);
         index += num_args;
-        if (cmd == SLEEP_OUT)
-          delay(10);
       }
     }
     this->reset_params_();
