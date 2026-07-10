@@ -11,6 +11,7 @@ binary_sensor:
   - platform: template
     name: "Garage Door Open 12"
     report: "force"
+    endpoint: 1
 
 sensor:
   - platform: template
