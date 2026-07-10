@@ -168,7 +168,7 @@ class MipiSpi : public display::Display,
       uint8_t x = vec[index++];
       if (x == DELAY_FLAG) {
         if (cmd == 0) {
-          cmd = clamp_at_least((int)(when - millis()), 0);
+          cmd = clamp_at_least((int) (when - millis()), 0);
         }
         esph_log_d(TAG, "Delay %dms", cmd);
         delay(cmd);
