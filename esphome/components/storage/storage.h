@@ -284,7 +284,11 @@ class StorageRegistry : public Component {
   void set_max_blocking_transfer_size(uint64_t size) { this->max_blocking_transfer_size_ = size; }
   uint64_t get_max_blocking_transfer_size() const { return this->max_blocking_transfer_size_; }
 
-  void register_storage(Storage *s);
+  // Returns OK on success (idempotent: re-registering an already-registered device is OK),
+  // INVALID_ARGS for nullptr, NO_SPACE when the registry is at its codegen-sized capacity —
+  // the latter indicates a codegen/runtime device-count mismatch; drivers should treat it as
+  // fatal (log + mark_failed()) instead of running with an invisibly missing device.
+  StorageError register_storage(Storage *s);
   void unregister_storage(Storage *s);
   bool is_registered(const Storage *s) const;
 
@@ -352,7 +356,11 @@ const char *error_to_string(StorageError error);
 
 // stat()-based existence/size checks — thin wrappers, work on any PathStorage
 // (FilesystemStorage or NetworkStorage).
-bool exists(PathStorage *storage, const char *path);
+// exists(): only StorageError::NOT_FOUND maps to a clean "no". Any OTHER non-OK error
+// (NOT_READY, READ_ERROR, PERMISSION_DENIED, ...) also returns false but is surfaced via
+// err_out so callers can distinguish "file is absent" from "medium is unmounted/faulted"
+// before deciding to create/overwrite or to report 'not found'.
+bool exists(PathStorage *storage, const char *path, StorageError *err_out = nullptr);
 StorageError file_size(PathStorage *storage, const char *path, uint64_t *size);
 
 // Deleter that frees memory obtained from RAMAllocator<uint8_t> (malloc/heap_caps_malloc_prefer)

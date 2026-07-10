@@ -9,21 +9,23 @@ static const char *const TAG = "storage";
 
 StorageRegistry *global_storage_registry = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-void StorageRegistry::register_storage(Storage *s) {
+StorageError StorageRegistry::register_storage(Storage *s) {
   if (s == nullptr)
-    return;
+    return StorageError::INVALID_ARGS;
 
   {
     // Mutation guarded against the worker task's concurrent is_registered() reads.
     LockGuard guard(this->registry_lock_);
     for (auto *existing : this->storages_) {
       if (existing == s)
-        return;  // already registered
+        return StorageError::OK;  // already registered — idempotent
     }
 
     if (this->storages_.full()) {
+      // Codegen sizes the registry to the exact configured device count, so hitting this
+      // means a codegen/runtime mismatch — surface it so the driver can fail loudly.
       ESP_LOGE(TAG, "Registry full — increase device count");
-      return;
+      return StorageError::NO_SPACE;
     }
     this->storages_.push_back(s);
   }
@@ -39,6 +41,7 @@ void StorageRegistry::register_storage(Storage *s) {
   }
 
   this->on_registered_.call(s);
+  return StorageError::OK;
 }
 
 void StorageRegistry::unregister_storage(Storage *s) {
@@ -260,9 +263,14 @@ const char *error_to_string(StorageError error) {
   return "UNKNOWN";
 }
 
-bool exists(PathStorage *storage, const char *path) {
+bool exists(PathStorage *storage, const char *path, StorageError *err_out) {
   FileStat stat{};
-  return storage->stat(path, &stat) == StorageError::OK;
+  StorageError err = storage->stat(path, &stat);
+  if (err_out != nullptr)
+    *err_out = err;
+  // Only NOT_FOUND is a clean "no"; other errors also yield false but are reported via
+  // err_out — see the header comment (a transient NOT_READY must not look like absence).
+  return err == StorageError::OK;
 }
 
 StorageError file_size(PathStorage *storage, const char *path, uint64_t *size) {
