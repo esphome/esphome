@@ -48,7 +48,6 @@ void LgIrClimate::transmit_state() {
     this->send_swing_cmd_ = false;
     remote_state |= COMMAND_SWING;
     this->transmit_(remote_state);
-    this->publish_state();
     return;
   } else {
     bool climate_is_off = (this->mode_before_ == climate::CLIMATE_MODE_OFF);
@@ -107,7 +106,6 @@ void LgIrClimate::transmit_state() {
   }
 
   this->transmit_(remote_state);
-  this->publish_state();
 }
 
 bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
