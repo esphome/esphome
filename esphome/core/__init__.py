@@ -574,6 +574,9 @@ class EsphomeCore:
         self.build_path: Path | None = None
         # The validated configuration, this is None until the config has been validated
         self.config: ConfigType | None = None
+        # The raw configuration as read from YAML (after packages/substitutions),
+        # available during validation before the config is fully validated
+        self.raw_config: ConfigType | None = None
         # YAML frontmatter loaded from user YAML files. Frontmatter is a leading
         # YAML document separated by `---` from the actual configuration. It is
         # ignored by config validation and code generation, but kept here so it
@@ -650,6 +653,7 @@ class EsphomeCore:
         self.config_path = None
         self.build_path = None
         self.config = None
+        self.raw_config = None
         self.frontmatter = {}
         self.event_loop = _FakeEventLoop()
         self.task_counter = 0

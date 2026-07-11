@@ -105,8 +105,8 @@ void log_unsupported_value_type(SensorValueType value_type) {
   ESP_LOGE(TAG, "Invalid data type for modbus number to payload conversion: %d", static_cast<uint16_t>(value_type));
 }
 
-int64_t payload_to_number(const uint8_t *data, size_t size, SensorValueType sensor_value_type, uint8_t offset,
-                          uint32_t bitmask, bool *error_return) {
+std::optional<int64_t> payload_to_number(const uint8_t *data, size_t size, SensorValueType sensor_value_type,
+                                         uint8_t offset, uint32_t bitmask) {
   int64_t value = 0;  // int64_t because it can hold signed and unsigned 32 bits
 
   // Validate offset against the buffer for all types, including RAW/unsupported, so
@@ -114,9 +114,7 @@ int64_t payload_to_number(const uint8_t *data, size_t size, SensorValueType sens
   if (static_cast<size_t>(offset) > size) {
     ESP_LOGE(TAG, "not enough data for value type=%u offset=%u size=%zu", static_cast<unsigned int>(sensor_value_type),
              static_cast<unsigned int>(offset), size);
-    if (error_return)
-      *error_return = true;
-    return value;
+    return std::nullopt;
   }
 
   const size_t required_size = required_payload_size(sensor_value_type);
@@ -127,9 +125,7 @@ int64_t payload_to_number(const uint8_t *data, size_t size, SensorValueType sens
   if (size - offset < required_size) {
     ESP_LOGE(TAG, "not enough data for value type=%u offset=%u size=%zu required=%zu",
              static_cast<unsigned int>(sensor_value_type), static_cast<unsigned int>(offset), size, required_size);
-    if (error_return)
-      *error_return = true;
-    return value;
+    return std::nullopt;
   }
 
   switch (sensor_value_type) {
@@ -179,8 +175,7 @@ int64_t payload_to_number(const uint8_t *data, size_t size, SensorValueType sens
   return value;
 }
 
-int64_t registers_to_number(const uint16_t *registers, size_t count, SensorValueType sensor_value_type,
-                            bool *error_return) {
+std::optional<int64_t> registers_to_number(const uint16_t *registers, size_t count, SensorValueType sensor_value_type) {
   const size_t required_size = required_payload_size(sensor_value_type);
   if (required_size == 0) {
     return 0;  // RAW/unsupported: nothing to read
@@ -189,9 +184,7 @@ int64_t registers_to_number(const uint16_t *registers, size_t count, SensorValue
   if (required_words > count) {
     ESP_LOGE(TAG, "not enough registers for value type=%u count=%zu required=%zu",
              static_cast<unsigned int>(sensor_value_type), count, required_words);
-    if (error_return)
-      *error_return = true;
-    return 0;
+    return std::nullopt;
   }
   // Serialize the needed words back to big-endian bytes and reuse the audited byte decoder so the
   // sign-extension behaviour stays identical to the wire path.
@@ -201,7 +194,7 @@ int64_t registers_to_number(const uint16_t *registers, size_t count, SensorValue
     bytes[i * 2] = static_cast<uint8_t>(reg >> 8);
     bytes[i * 2 + 1] = static_cast<uint8_t>(reg & 0xFF);
   }
-  return payload_to_number(bytes, required_size, sensor_value_type, 0, 0xFFFFFFFF, error_return);
+  return payload_to_number(bytes, required_size, sensor_value_type, 0, 0xFFFFFFFF);
 }
 
 StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(ModbusFunctionCode function_code, uint16_t start_address,

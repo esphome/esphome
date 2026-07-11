@@ -250,7 +250,9 @@ CONFIG_SCHEMA = cv.All(
                 {
                     cv.Optional(CONF_VERSION): cv.string_strict,
                     cv.Optional(CONF_LIBC_NANO, default=True): cv.boolean,
-                    cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
+                    cv.Optional(
+                        CONF_ADVANCED, default={}, visibility=cv.Visibility.YAML_ONLY
+                    ): cv.Schema(
                         {
                             cv.Optional(
                                 CONF_ENABLE_OTA_ROLLBACK, default=True
