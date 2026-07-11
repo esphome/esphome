@@ -405,16 +405,23 @@ async def setup_light_core_(light_var, config, output_var):
         flash_transition_length := config.get(CONF_FLASH_TRANSITION_LENGTH)
     ) is not None:
         cg.add(light_var.set_flash_transition_length(flash_transition_length))
+    # Only wire up the transition-state publish machinery (and pay its per-light
+    # RAM/flash cost) when a light actually opts in with a non-zero interval. The
+    # default "0s" leaves USE_LIGHT_TRANSITION_PUBLISH_INTERVAL undefined so the
+    # feature compiles out entirely for configs that don't use it.
+    transition_state_publish_interval = config.get(
+        CONF_TRANSITION_STATE_PUBLISH_INTERVAL
+    )
     if (
-        transition_state_publish_interval := config.get(
-            CONF_TRANSITION_STATE_PUBLISH_INTERVAL
-        )
-    ) is not None:
+        transition_state_publish_interval is not None
+        and transition_state_publish_interval.total_milliseconds > 0
+    ):
         cg.add(
             light_var.set_transition_state_publish_interval(
                 transition_state_publish_interval
             )
         )
+        cg.add_define("USE_LIGHT_TRANSITION_PUBLISH_INTERVAL")
     if (gamma_correct := config.get(CONF_GAMMA_CORRECT)) is not None:
         cg.add(light_var.set_gamma_correct(gamma_correct))
         fwd_arr = _get_or_create_gamma_table(gamma_correct)

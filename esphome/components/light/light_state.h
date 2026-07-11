@@ -168,8 +168,10 @@ class LightState : public EntityBase, public Component {
   void set_gamma_correct(float gamma_correct);
   float get_gamma_correct() const { return this->gamma_correct_; }
 
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
   void set_transition_state_publish_interval(uint32_t transition_state_publish_interval);
   uint32_t get_transition_state_publish_interval() const { return this->transition_state_publish_interval_; }
+#endif
 
 #ifdef USE_LIGHT_GAMMA_LUT
   /// Set pre-computed gamma forward lookup table (256-entry uint16 PROGMEM array)
@@ -306,7 +308,10 @@ class LightState : public EntityBase, public Component {
   /// Internal method to set the color values to target immediately (with no transition).
   void set_immediately_(const LightColorValues &target);
 
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+  /// Clear interval-publish / deferred-save flags when a transformer completes or is replaced.
   void reset_transition_publish_state_();
+#endif
 
   /// Internal method to save the current remote_values to the preferences
   void save_remote_values_();
@@ -358,8 +363,10 @@ class LightState : public EntityBase, public Component {
   uint32_t default_transition_length_{};
   /// Transition length to use for flash transitions.
   uint32_t flash_transition_length_{};
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
   uint32_t transition_state_publish_interval_{0};
   uint32_t last_transition_state_publish_{0};
+#endif
   /// Gamma correction factor for the light.
   float gamma_correct_{};
 #ifdef USE_LIGHT_GAMMA_LUT
@@ -370,10 +377,12 @@ class LightState : public EntityBase, public Component {
   bool next_write_{true};
   // for effects, true if a transformer (transition) is active.
   bool is_transformer_active_{false};
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
   bool transition_publish_enabled_{false};
   // When a transition uses interval-based publishing and a call requested save=true,
   // defer saving until the transformer has reached the final state in loop().
   bool defer_transition_save_{false};
+#endif
 
   /// Restore mode of the light.
   LightRestoreMode restore_mode_;

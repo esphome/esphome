@@ -80,8 +80,13 @@ void LightCall::perform() {
   const bool save = this->get_save_();
   const bool has_flash = this->has_flash_();
   const bool has_transition = this->has_transition_();
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
   const bool use_interval =
       publish && this->parent_->get_transition_state_publish_interval() > 0 && (has_flash || has_transition);
+#else
+  // Feature compiled out: no light in this config requested interval publishing.
+  const bool use_interval = false;
+#endif
 
   if (publish) {
     ESP_LOGV(TAG, "'%s' Setting:", name);
@@ -132,10 +137,12 @@ void LightCall::perform() {
     }
 
     this->parent_->start_flash_(v, this->flash_length_);
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
     if (use_interval) {
       this->parent_->transition_publish_enabled_ = true;
       this->parent_->last_transition_state_publish_ = 0;
     }
+#endif
   } else if (has_transition) {
     // TRANSITION
     if (publish) {
@@ -151,10 +158,12 @@ void LightCall::perform() {
     }
 
     this->parent_->start_transition_(v, this->transition_length_);
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
     if (use_interval) {
       this->parent_->transition_publish_enabled_ = true;
       this->parent_->last_transition_state_publish_ = 0;
     }
+#endif
 
   } else if (this->has_effect_()) {
     // EFFECT
@@ -200,11 +209,17 @@ void LightCall::perform() {
     this->parent_->publish_state();
   }
   if (save) {
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
     if (use_interval && has_transition) {
+      // Defer the save until loop() sees the transformer reach its final value, so an
+      // interrupted transition doesn't persist an intermediate brightness.
       this->parent_->defer_transition_save_ = true;
     } else {
       this->parent_->save_remote_values_();
     }
+#else
+    this->parent_->save_remote_values_();
+#endif
   }
 }
 

@@ -1,7 +1,9 @@
 #include "light_state.h"
 #include "esp_color_correction.h"
 #include "esphome/core/defines.h"
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
 #include "esphome/core/application.h"
+#endif
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 #include "light_output.h"
@@ -94,12 +96,19 @@ void LightState::dump_config() {
   ESP_LOGCONFIG(TAG, "Light '%s'", this->get_name().c_str());
   auto traits = this->get_traits();
   if (traits.supports_color_capability(ColorCapability::BRIGHTNESS)) {
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
     ESP_LOGCONFIG(TAG,
                   "  Default Transition Length: %.1fs\n"
                   "  Transition State Publish Interval: %.1fs\n"
                   "  Gamma Correct: %.2f",
                   this->default_transition_length_ / 1e3f, this->transition_state_publish_interval_ / 1e3f,
                   this->gamma_correct_);
+#else
+    ESP_LOGCONFIG(TAG,
+                  "  Default Transition Length: %.1fs\n"
+                  "  Gamma Correct: %.2f",
+                  this->default_transition_length_ / 1e3f, this->gamma_correct_);
+#endif
   }
   if (traits.supports_color_capability(ColorCapability::COLOR_TEMPERATURE)) {
     ESP_LOGCONFIG(TAG,
@@ -125,6 +134,7 @@ void LightState::loop() {
       this->next_write_ = true;
     }
 
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
     if (this->transition_publish_enabled_ && this->transition_state_publish_interval_ > 0) {
       const uint32_t now = App.get_loop_component_start_time();
       if (this->last_transition_state_publish_ == 0 ||
@@ -134,11 +144,13 @@ void LightState::loop() {
         this->last_transition_state_publish_ = now;
       }
     }
+#endif
 
     if (this->transformer_->is_finished()) {
       // if the transition has written directly to the output, current_values is outdated, so update it
       this->current_values = this->transformer_->get_target_values();
 
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
       if (this->transition_publish_enabled_ && this->transition_state_publish_interval_ > 0) {
         this->remote_values = this->current_values;
         this->publish_state();
@@ -147,6 +159,7 @@ void LightState::loop() {
         }
       }
       this->reset_transition_publish_state_();
+#endif
 
       this->transformer_->stop();
       this->is_transformer_active_ = false;
@@ -216,9 +229,11 @@ void LightState::set_flash_transition_length(uint32_t flash_transition_length) {
   this->flash_transition_length_ = flash_transition_length;
 }
 uint32_t LightState::get_flash_transition_length() const { return this->flash_transition_length_; }
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
 void LightState::set_transition_state_publish_interval(uint32_t transition_state_publish_interval) {
   this->transition_state_publish_interval_ = transition_state_publish_interval;
 }
+#endif
 void LightState::set_gamma_correct(float gamma_correct) { this->gamma_correct_ = gamma_correct; }
 void LightState::set_restore_mode(LightRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
 void LightState::set_initial_state(void (*callback)(LightStateRTCState &)) { this->initial_state_callback_ = callback; }
@@ -376,15 +391,19 @@ void LightState::stop_effect_() {
     effect->stop();
   }
   this->active_effect_index_ = 0;
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
   this->reset_transition_publish_state_();
+#endif
   // Disable loop if idle (no effect and no transformer)
   this->disable_loop_if_idle_();
 }
 
 void LightState::start_transition_(const LightColorValues &target, uint32_t length) {
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
   // Clear any interval-publish / deferred-save state from a previous transformer so an
   // interrupted save=true transition cannot leak into the next transition or flash.
   this->reset_transition_publish_state_();
+#endif
   this->transformer_ = this->output_->create_default_transition();
   this->transformer_->setup(this->current_values, target, length);
   // Enable loop while transition is active
@@ -392,8 +411,10 @@ void LightState::start_transition_(const LightColorValues &target, uint32_t leng
 }
 
 void LightState::start_flash_(const LightColorValues &target, uint32_t length) {
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
   // Same reset as start_transition_: flashes must never inherit a deferred preference save.
   this->reset_transition_publish_state_();
+#endif
   LightColorValues end_colors = this->remote_values;
   // If starting a flash if one is already happening, set end values to end values of current flash
   // Hacky but works
@@ -409,7 +430,9 @@ void LightState::start_flash_(const LightColorValues &target, uint32_t length) {
 void LightState::set_immediately_(const LightColorValues &target) {
   this->is_transformer_active_ = false;
   this->transformer_ = nullptr;
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
   this->reset_transition_publish_state_();
+#endif
   this->current_values = target;
   this->output_->update_state(this);
   this->schedule_write_();
@@ -422,11 +445,13 @@ void LightState::disable_loop_if_idle_() {
   }
 }
 
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
 void LightState::reset_transition_publish_state_() {
   this->transition_publish_enabled_ = false;
   this->last_transition_state_publish_ = 0;
   this->defer_transition_save_ = false;
 }
+#endif
 
 void LightState::save_remote_values_() {
   LightStateRTCState saved;
