@@ -147,6 +147,17 @@ void StorageRegistry::for_each_path_based(void (*cb)(PathStorage *s, void *ctx),
   }
 }
 
+void StorageRegistry::for_each_path_based(void (*cb)(PathStorage *s, StorageType type, void *ctx), void *ctx) {
+  for (auto *s : this->storages_) {
+    StorageType type = s->get_storage_type();
+    if (type == StorageType::FILESYSTEM) {
+      cb(static_cast<FilesystemStorage *>(s), type, ctx);
+    } else if (type == StorageType::NETWORK) {
+      cb(static_cast<NetworkStorage *>(s), type, ctx);
+    }
+  }
+}
+
 PathStorage *StorageRegistry::resolve_path(const char *vfs_path, const char **rel_out) {
   StringRef path_ref(vfs_path);
   PathStorage *best = nullptr;
