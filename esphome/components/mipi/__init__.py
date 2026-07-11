@@ -649,6 +649,8 @@ class DriverChip:
         This runs during schema validation (before ID references are resolved) so that a
         model whose default pins live on a pin expander reports the missing expander clearly
         instead of a cryptic "Couldn't find ID" from the unresolved pin reference.
+
+        Also logs a warning if the model is deprecated.
         """
         if deprecation_reason := self.get_default("deprecation_reason"):
             LOGGER.warning(
