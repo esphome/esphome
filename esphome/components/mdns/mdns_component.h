@@ -24,6 +24,8 @@
 
 // Device info TXT records (version, mac, config_hash) are published on the _esphomelib service
 // when the native API is enabled, otherwise on the _http service (web_server's or the fallback one).
+// When neither applies (only prometheus, sendspin or user-defined services are configured), no
+// device info records are published and the buffers below are not needed.
 #if defined(USE_API) || defined(USE_WEBSERVER) || \
     (!defined(USE_PROMETHEUS) && !defined(USE_SENDSPIN) && !defined(USE_MDNS_EXTRA_SERVICES))
 #define USE_MDNS_DEVICE_INFO_TXT
