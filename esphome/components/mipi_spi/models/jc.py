@@ -1,12 +1,16 @@
 from esphome.components.mipi import MODE_RGB, DriverChip
 from esphome.components.spi import TYPE_QUAD
-import esphome.config_validation as cv
-from esphome.const import CONF_IGNORE_STRAPPING_WARNING, CONF_NUMBER
+from esphome.const import (
+    CONF_IGNORE_STRAPPING_WARNING,
+    CONF_MIRROR_X,
+    CONF_MIRROR_Y,
+    CONF_NUMBER,
+)
 
 AXS15231 = DriverChip(
     "AXS15231",
     draw_rounding=8,
-    swap_xy=cv.UNDEFINED,
+    transforms={CONF_MIRROR_X, CONF_MIRROR_Y},
     color_order=MODE_RGB,
     bus_mode=TYPE_QUAD,
     no_swreset=True,
@@ -23,6 +27,7 @@ AXS15231.extend(
     height=480,
     cs_pin={CONF_NUMBER: 45, CONF_IGNORE_STRAPPING_WARNING: True},
     data_rate="40MHz",
+    requires={"psram"},
 )
 
 DriverChip(
@@ -37,6 +42,7 @@ DriverChip(
     color_order=MODE_RGB,
     bus_mode=TYPE_QUAD,
     data_rate="40MHz",
+    requires={"psram"},
     initsequence=(
         (0xF0, 0x08),
         (0xF2, 0x08),
@@ -268,6 +274,7 @@ DriverChip(
     color_order=MODE_RGB,
     bus_mode=TYPE_QUAD,
     data_rate="40MHz",
+    requires={"psram"},
     initsequence=(
         (0xF0, 0x28),
         (0xF2, 0x28),
@@ -496,6 +503,7 @@ DriverChip(
     color_order=MODE_RGB,
     bus_mode=TYPE_QUAD,
     data_rate="20MHz",
+    requires={"psram"},
     initsequence=(
         (0xFF, 0xA5),
         (0x41, 0x03),
