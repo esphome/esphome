@@ -15,13 +15,10 @@ void MDNSComponent::setup() {
 #ifdef USE_MDNS_DEVICE_INFO_TXT
   get_mac_address_into_buffer(this->mac_address_);
   char *mac_ptr = this->mac_address_;
-#else
-  char *mac_ptr = nullptr;
-#endif
-#ifdef USE_API
   format_hex_to(this->config_hash_str_, App.get_config_hash());
   char *cfg_ptr = this->config_hash_str_;
 #else
+  char *mac_ptr = nullptr;
   char *cfg_ptr = nullptr;
 #endif
   this->compile_records_(this->services_, mac_ptr, cfg_ptr);

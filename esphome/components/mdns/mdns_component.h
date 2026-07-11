@@ -22,8 +22,8 @@
 #endif
 #endif
 
-// Device info TXT records (version, mac) are published on the _esphomelib service when the
-// native API is enabled, otherwise on the _http service (web_server's or the fallback one).
+// Device info TXT records (version, mac, config_hash) are published on the _esphomelib service
+// when the native API is enabled, otherwise on the _http service (web_server's or the fallback one).
 #if defined(USE_API) || defined(USE_WEBSERVER) || \
     (!defined(USE_PROMETHEUS) && !defined(USE_SENDSPIN) && !defined(USE_MDNS_EXTRA_SERVICES))
 #define USE_MDNS_DEVICE_INFO_TXT
@@ -146,8 +146,6 @@ class MDNSComponent final : public Component
 #if defined(USE_MDNS_DEVICE_INFO_TXT) && defined(USE_MDNS_STORE_SERVICES)
   /// Fixed buffer for MAC address (only needed when services are stored)
   char mac_address_[MAC_ADDRESS_BUFFER_SIZE];
-#endif
-#if defined(USE_API) && defined(USE_MDNS_STORE_SERVICES)
   /// Fixed buffer for config hash hex string (only needed when services are stored)
   char config_hash_str_[CONFIG_HASH_STR_SIZE];
 #endif

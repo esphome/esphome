@@ -51,25 +51,18 @@ void MDNSComponent::setup_buffers_and_register_(PlatformRegisterFn platform_regi
 #ifdef USE_MDNS_STORE_SERVICES
   get_mac_address_into_buffer(this->mac_address_);
   char *mac_ptr = this->mac_address_;
-#else
-  char mac_address[MAC_ADDRESS_BUFFER_SIZE];
-  get_mac_address_into_buffer(mac_address);
-  char *mac_ptr = mac_address;
-#endif
-#else
-  char *mac_ptr = nullptr;
-#endif
-
-#ifdef USE_API
-#ifdef USE_MDNS_STORE_SERVICES
   format_hex_to(this->config_hash_str_, App.get_config_hash());
   char *cfg_ptr = this->config_hash_str_;
 #else
+  char mac_address[MAC_ADDRESS_BUFFER_SIZE];
   char config_hash_str[CONFIG_HASH_STR_SIZE];
+  get_mac_address_into_buffer(mac_address);
   format_hex_to(config_hash_str, App.get_config_hash());
+  char *mac_ptr = mac_address;
   char *cfg_ptr = config_hash_str;
 #endif
 #else
+  char *mac_ptr = nullptr;
   char *cfg_ptr = nullptr;
 #endif
 
@@ -85,12 +78,12 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
 #ifdef USE_MDNS_DEVICE_INFO_TXT
   MDNS_STATIC_CONST_CHAR(TXT_VERSION, "version");
   MDNS_STATIC_CONST_CHAR(TXT_MAC, "mac");
+  MDNS_STATIC_CONST_CHAR(TXT_CONFIG_HASH, "config_hash");
 #endif
 
 #ifdef USE_API
   MDNS_STATIC_CONST_CHAR(SERVICE_ESPHOMELIB, "_esphomelib");
   MDNS_STATIC_CONST_CHAR(TXT_FRIENDLY_NAME, "friendly_name");
-  MDNS_STATIC_CONST_CHAR(TXT_CONFIG_HASH, "config_hash");
   MDNS_STATIC_CONST_CHAR(TXT_PLATFORM, "platform");
   MDNS_STATIC_CONST_CHAR(TXT_BOARD, "board");
   MDNS_STATIC_CONST_CHAR(TXT_NETWORK, "network");
@@ -226,7 +219,8 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   // Without the native API there is no _esphomelib service, so publish the
   // device info here for the device builder to discover.
   web_service.txt_records = {{MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)},
-                             {MDNS_STR(TXT_MAC), MDNS_STR(mac_address_buf)}};
+                             {MDNS_STR(TXT_MAC), MDNS_STR(mac_address_buf)},
+                             {MDNS_STR(TXT_CONFIG_HASH), MDNS_STR(config_hash_buf)}};
 #endif
 #endif
 
@@ -241,7 +235,8 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   fallback_service.proto = MDNS_STR(SERVICE_TCP);
   fallback_service.port = []() -> uint16_t { return USE_WEBSERVER_PORT; };
   fallback_service.txt_records = {{MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)},
-                                  {MDNS_STR(TXT_MAC), MDNS_STR(mac_address_buf)}};
+                                  {MDNS_STR(TXT_MAC), MDNS_STR(mac_address_buf)},
+                                  {MDNS_STR(TXT_CONFIG_HASH), MDNS_STR(config_hash_buf)}};
 #endif
 }
 
