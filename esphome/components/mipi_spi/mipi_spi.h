@@ -13,6 +13,8 @@ constexpr static const char *const TAG = "display.mipi_spi";
 
 // Maximum bytes to log for commands (truncated if larger)
 static constexpr size_t MIPI_SPI_MAX_CMD_LOG_BYTES = 64;
+
+// Command codes for MIPI SPI displays. Not all currently used, kept here for reference.
 static constexpr uint8_t SW_RESET_CMD = 0x01;
 static constexpr uint8_t SLEEP_OUT = 0x11;
 static constexpr uint8_t NORON = 0x13;
