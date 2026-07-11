@@ -301,11 +301,13 @@ class NFSClient : public storage::NetworkStorage {
   void set_server(const char *server) { this->server_ = server; }
   void set_port(uint16_t port) { this->port_ = port; }
   void set_export(const char *export_path) { this->export_path_ = export_path; }
-  void set_mount_path(const char *mount_path) { this->mount_path_ = mount_path; }
+  // Feeds the inherited PathStorage mount path — resolve_path()/consumers read it from there.
+  // (A private shadow member here previously left PathStorage's copy null, making this device
+  // invisible to path routing despite registering fine.)
+  void set_mount_path(const char *mount_path) { this->set_mount_path_(mount_path); }
   void set_uid(uint32_t uid) { this->uid_ = uid; }
   void set_gid(uint32_t gid) { this->gid_ = gid; }
 
-  const char *get_mount_path() const { return this->mount_path_; }
   bool is_mounted() const { return this->mounted_; }
 
   //========================================================================
@@ -342,7 +344,6 @@ class NFSClient : public storage::NetworkStorage {
   std::string server_;
   uint16_t port_{NFS_DEFAULT_PORT};
   std::string export_path_;
-  const char *mount_path_{nullptr};
   uint32_t uid_{0};
   uint32_t gid_{0};
 
