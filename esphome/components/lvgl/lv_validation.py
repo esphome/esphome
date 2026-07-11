@@ -22,40 +22,49 @@ from esphome.helpers import cpp_string_escape
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import Expression, SafeExpType
 
+from ..mapping import INDEX_TYPES, get_mapping_metadata
 from . import types as ty
 from .defines import (
     CONF_END_VALUE,
+    CONF_IMAGE,
+    CONF_MAPPING,
     CONF_START_VALUE,
     CONF_TIME_FORMAT,
     LV_FONTS,
     LValidator,
     LvConstant,
+    StaticCastExpression,
+    add_lv_use,
     call_lambda,
+    get_esphome_fonts_used,
+    get_lv_fonts_used,
+    get_lv_images_used,
     literal,
 )
-from .helpers import (
-    CONF_IF_NAN,
-    add_lv_use,
-    esphome_fonts_used,
-    lv_fonts_used,
-    requires_component,
-)
-from .types import lv_gradient_t
+from .helpers import CONF_IF_NAN
+from .types import lv_coord_t, lv_gradient_t, lv_opa_t
 
-opacity_consts = LvConstant("LV_OPA_", "TRANSP", "COVER")
+LV_OPA = LvConstant("LV_OPA_", "TRANSP", "COVER")
 
 
 @schema_extractor("one_of")
 def opacity_validator(value):
     if value == SCHEMA_EXTRACT:
-        return opacity_consts.choices
-    value = cv.Any(cv.percentage, opacity_consts.one_of)(value)
-    if isinstance(value, float):
-        return int(value * 255)
-    return value
+        return LV_OPA.choices
+    value = cv.Any(cv.percentage, LV_OPA.one_of)(value)
+    if value == str(LV_OPA.COVER):
+        value = 1.0
+    if value == str(LV_OPA.TRANSP):
+        value = 0.0
+    return cv.float_range(0.0, 1.0)(value)
 
 
-opacity = LValidator(opacity_validator, uint32, retmapper=literal)
+opacity = LValidator(
+    opacity_validator,
+    lv_opa_t,
+    retmapper=lambda opa: StaticCastExpression(cg.uint8, opa * 255.0),
+    animatable=True,
+)
 
 COLOR_NAMES = {
     "aliceblue": 0xF0F8FF,
@@ -218,23 +227,41 @@ def color(value):
     )
 
 
-def color_retmapper(value):
-    if isinstance(value, cv.Lambda):
-        return cv.returning_lambda(value)
+def get_component_colors(value):
     if isinstance(value, str) and value in COLOR_NAMES:
         value = COLOR_NAMES[value]
     if isinstance(value, int):
-        return literal(
-            f"lv_color_make({(value >> 16) & 0xFF}, {(value >> 8) & 0xFF}, {value & 0xFF})"
-        )
+        return value >> 16, value >> 8 & 0xFF, value & 0xFF
     if isinstance(value, ID):
         cval = [x for x in CORE.config[CONF_COLOR] if x[CONF_ID] == value][0]
         if CONF_HEX in cval:
             r, g, b = cval[CONF_HEX]
         else:
             r, g, b, _ = from_rgbw(cval)
-        return literal(f"lv_color_make({r}, {g}, {b})")
-    assert False
+        return r, g, b
+    raise AssertionError(f"Unhandled lv_color value: {value!r}")
+
+
+def color_retmapper(value):
+    if isinstance(value, cv.Lambda):
+        return cv.returning_lambda(value)
+    r, g, b = get_component_colors(value)
+    return literal(f"lv_color_make({r}, {g}, {b})")
+
+
+class LvColor(LValidator):
+    def __init__(self):
+        super().__init__(
+            color, ty.lv_color_t, retmapper=color_retmapper, animatable=True
+        )
+
+    def __getattr__(self, item):
+        if item in COLOR_NAMES:
+            return color_retmapper(COLOR_NAMES[item])
+        raise AttributeError(item)
+
+
+lv_color = LvColor()
 
 
 def option_string(value):
@@ -244,24 +271,23 @@ def option_string(value):
     return value
 
 
-lv_color = LValidator(color, ty.lv_color_t, retmapper=color_retmapper)
-
-
 def pixels_or_percent_validator(value):
     """A length in one axis - either a number (pixels) or a percentage"""
     if value == SCHEMA_EXTRACT:
         return ["pixels", "..%"]
     if isinstance(value, str) and value.lower().endswith("px"):
-        value = cv.int_(value[:-2])
+        return cv.int_(value[:-2])
     if isinstance(value, str) and re.match(r"^lv_pct\((\d+)\)$", value):
-        return value
-    value = cv.Any(cv.int_, cv.percentage)(value)
-    if isinstance(value, int):
-        return value
-    return f"lv_pct({int(value * 100)})"
+        return int(value[6:-1]) / 100.0
+    return cv.Any(cv.int_, cv.possibly_negative_percentage)(value)
 
 
-pixels_or_percent = LValidator(pixels_or_percent_validator, uint32, retmapper=literal)
+pixels_or_percent = LValidator(
+    pixels_or_percent_validator,
+    lv_coord_t,
+    retmapper=lambda x: x if isinstance(x, int) else literal(f"lv_pct({int(x * 100)})"),
+    animatable=True,
+)
 
 
 def pixels_validator(value):
@@ -282,15 +308,11 @@ def padding_validator(value):
 padding = LValidator(padding_validator, int32, retmapper=literal)
 
 
-def zoom_validator(value):
+def scale_validator(value):
     return cv.float_range(0.1, 10.0)(value)
 
 
-def zoom_retmapper(value):
-    return int(value * 256)
-
-
-zoom = LValidator(zoom_validator, uint32, retmapper=zoom_retmapper)
+scale = LValidator(scale_validator, uint32, retmapper=lambda x: int(x * 256))
 
 
 def angle(value):
@@ -303,10 +325,23 @@ def angle(value):
 
 
 # Validator for angles in LVGL expressed in 1/10 degree units.
-lv_angle = LValidator(angle, uint32, retmapper=lambda x: int(x * 10))
+lv_angle = LValidator(angle, uint32, retmapper=lambda x: int(x * 10), animatable=True)
 
 # Validator for angles in LVGL expressed in whole degrees
-lv_angle_degrees = LValidator(angle, uint32, retmapper=int)
+lv_angle_degrees = LValidator(angle, uint32, retmapper=int, animatable=True)
+
+
+def rotation_degrees(value):
+    """Validate a display rotation, returning the angle in whole degrees.
+
+    Accepts the four supported rotations, optionally suffixed with "°".
+    """
+    value = cv.string(value).removesuffix("°")
+    return cv.one_of(0, 90, 180, 270, int=True)(value)
+
+
+# Validator for a display rotation expressed in whole degrees (templatable)
+lv_rotation = LValidator(rotation_degrees, cg.int_)
 
 
 @schema_extractor("one_of")
@@ -321,17 +356,23 @@ def size_validator(value):
     return pixels_or_percent_validator(value)
 
 
-size = LValidator(size_validator, uint32, retmapper=literal)
+size = LValidator(
+    size_validator,
+    uint32,
+    retmapper=lambda x: (
+        literal(x) if isinstance(x, str) else pixels_or_percent.retmapper(x)
+    ),
+)
 
 
-radius_consts = LvConstant("LV_RADIUS_", "CIRCLE")
+LV_RADIUS = LvConstant("LV_RADIUS_", "CIRCLE")
 
 
 @schema_extractor("one_of")
 def fraction_validator(value):
     if value == SCHEMA_EXTRACT:
-        return radius_consts.choices
-    value = cv.Any(size, cv.percentage, radius_consts.one_of)(value)
+        return LV_RADIUS.choices
+    value = cv.Any(size, cv.percentage, LV_RADIUS.one_of)(value)
     if isinstance(value, float):
         return int(value * 255)
     return value
@@ -350,34 +391,61 @@ def stop_value(value):
     return cv.int_range(0, 255)(value)
 
 
-lv_images_used = set()
+def _image_validator(value):
+    if isinstance(value, dict) and CONF_MAPPING in value:
+        from .schemas import MAPPING_IMAGE_SCHEMA
 
-
-def image_validator(value):
-    value = requires_component("image")(value)
+        return MAPPING_IMAGE_SCHEMA(value)
     value = cv.use_id(Image_)(value)
-    lv_images_used.add(value)
-    add_lv_use("img", "label")
+    get_lv_images_used().add(value)
+    add_lv_use("label")
     return value
 
 
-lv_image = LValidator(
-    image_validator,
-    image.Image_.operator("ptr"),
-    requires="image",
-)
+class ImageValidator(LValidator):
+    def __init__(self):
+        super().__init__(
+            validator=_image_validator,
+            rtype=image.Image_.operator("ptr"),
+            requires=CONF_IMAGE,
+        )
+
+    async def process(
+        self,
+        value: Any,
+        args: list[tuple[SafeExpType, str]] | None = None,
+        raw_lambda: bool = False,
+    ) -> Expression:
+        # Local import to avoid circular import at module level
+        from .lvcode import get_lambda_context_args
+
+        args = args or get_lambda_context_args()
+        if isinstance(value, dict) and CONF_MAPPING in value:
+            mapping_id = value[CONF_MAPPING]
+            mapping_var = await cg.get_variable(mapping_id)
+            metadata = get_mapping_metadata(mapping_id.id)
+            index = value[CONF_VALUE]
+            if isinstance(index, Lambda):
+                index = call_lambda(
+                    await cg.process_lambda(
+                        index, args, return_type=metadata.from_.data_type
+                    )
+                )
+            else:
+                index = await metadata.from_.convert_value(index)
+            return mapping_var.get(index)
+
+        return await super().process(value, args, raw_lambda)
+
+
+lv_image = ImageValidator()
+
 lv_image_list = LValidator(
-    cv.ensure_list(image_validator),
+    cv.ensure_list(_image_validator),
     cg.std_vector.template(image.Image_.operator("ptr")),
     requires="image",
 )
 lv_bool = LValidator(cv.boolean, cg.bool_, retmapper=literal)
-
-
-def lv_pct(value: int | float):
-    if isinstance(value, float):
-        value = int(value * 100)
-    return literal(f"lv_pct({value})")
 
 
 def lvms_validator_(value):
@@ -401,7 +469,10 @@ class TextValidator(LValidator):
         return super().__call__(value)
 
     async def process(
-        self, value: Any, args: list[tuple[SafeExpType, str]] | None = None
+        self,
+        value: Any,
+        args: list[tuple[SafeExpType, str]] | None = None,
+        raw_lambda: bool = False,
     ) -> Expression:
         # Local import to avoid circular import at module level
         from .lvcode import get_lambda_context_args
@@ -421,55 +492,79 @@ class TextValidator(LValidator):
                         f"(std::isfinite({arg_expr}) ? {sprintf_str} : {nanval})"
                     )
                 return literal(sprintf_str)
+            if mapping_id := value.get(CONF_MAPPING):
+                mapping_var = await cg.get_variable(mapping_id)
+                metadata = get_mapping_metadata(mapping_id.id)
+                if metadata.to_ != INDEX_TYPES["string"]:
+                    raise ValueError(
+                        f"Mapping {mapping_id} does not map to strings, cannot use in text"
+                    )
+                index = value[CONF_VALUE]
+                if isinstance(index, Lambda):
+                    index = call_lambda(
+                        await cg.process_lambda(
+                            index, args, return_type=metadata.from_.data_type
+                        )
+                    )
+                else:
+                    index = await metadata.from_.convert_value(index)
+                return mapping_var.get(index).c_str()
+
             if time_format := value.get(CONF_TIME_FORMAT):
                 source = value[CONF_TIME]
                 if isinstance(source, Lambda):
-                    time_format = cpp_string_escape(time_format)
-                    return cg.RawExpression(
+                    source = MockObj(
                         call_lambda(
                             await cg.process_lambda(source, args, return_type=ESPTime)
                         )
-                        + f".strftime({time_format}).c_str()"
                     )
                 # must be an ID
-                source = await cg.get_variable(source)
-                return source.now().strftime(time_format).c_str()
+                else:
+                    source = (await cg.get_variable(source)).now()
+                return source.strftime(time_format).c_str()
         if isinstance(value, Lambda):
             value = call_lambda(
                 await cg.process_lambda(value, args, return_type=self.rtype)
             )
+            textvalue = str(value)
 
             # Was the lambda call reduced to a string?
-            if value.endswith("c_str()") or (
-                value.endswith('"') and value.startswith('"')
+            if textvalue.endswith("c_str()") or (
+                textvalue.endswith('"') and textvalue.startswith('"')
             ):
-                pass
-            else:
-                # Either a std::string or a lambda call returning that. We need const char*
-                value = f"({value}).c_str()"
-            return cg.RawExpression(value)
-        return await super().process(value, args)
+                return value
+            # Either a std::string or a lambda call returning that. We need const char*
+            return MockObj(f"({value}).c_str()")
+        return await super().process(value, args, raw_lambda)
 
 
 lv_text = TextValidator()
 lv_float = LValidator(cv.float_, cg.float_)
-lv_int = LValidator(cv.int_, cg.int_)
-lv_positive_int = LValidator(cv.positive_int, cg.int_)
-lv_brightness = LValidator(cv.percentage, cg.float_, retmapper=lambda x: int(x * 255))
+lv_positive_float = LValidator(cv.positive_float, cg.float_)
+lv_zero_to_one_float = LValidator(cv.zero_to_one_float, cg.float_)
+lv_int = LValidator(cv.int_, cg.int_, animatable=True)
+lv_positive_int = LValidator(cv.positive_int, cg.int_, animatable=True)
+lv_brightness = LValidator(
+    cv.percentage, cg.float_, retmapper=lambda x: int(x * 255), animatable=True
+)
 
 
-def gradient_mapper(value):
-    return MockObj(value)
+def _percentage_validator(value):
+    value = cv.Any(cv.percentage, cv.float_range(0.0, 1.0), cv.int_range(0, 255))(value)
+    if isinstance(value, int):
+        return value / 255.0
+    return value
 
 
-def gradient_validator(value):
-    return cv.use_id(lv_gradient_t)(value)
+lv_percentage = LValidator(
+    _percentage_validator, cg.float_, retmapper=lambda x: int(x * 255)
+)
 
 
 lv_gradient = LValidator(
-    validator=gradient_validator,
+    validator=cv.use_id(lv_gradient_t),
     rtype=lv_gradient_t,
-    retmapper=gradient_mapper,
+    retmapper=MockObj,
 )
 
 
@@ -481,7 +576,7 @@ class LvFont(LValidator):
     def __init__(self):
         def lv_builtin_font(value):
             fontval = cv.one_of(*LV_FONTS, lower=True)(value)
-            lv_fonts_used.add(fontval)
+            get_lv_fonts_used().add(fontval)
             return fontval
 
         def validator(value):
@@ -491,19 +586,24 @@ class LvFont(LValidator):
                 return lv_builtin_font(value)
             add_lv_use("font")
             fontval = cv.use_id(Font)(value)
-            esphome_fonts_used.add(fontval)
-            return requires_component("font")(fontval)
+            get_esphome_fonts_used().add(fontval)
+            return cv.requires_component("font")(fontval)
 
         # Use font::Font* as return type for lambdas returning ESPHome fonts
         # The inline overloads in lvgl_esphome.h handle conversion to lv_font_t*
         super().__init__(validator, Font.operator("ptr"))
 
-    async def process(self, value, args=()):
+    async def process(
+        self,
+        value: Any,
+        args: list[tuple[SafeExpType, str]] | None = None,
+        raw_lambda: bool = False,
+    ):
         if is_lv_font(value):
             return literal(f"&lv_font_{value}")
         if isinstance(value, str):
             return literal(f"{value}")
-        return await super().process(value, args)
+        return await super().process(value, args, raw_lambda)
 
 
 lv_font = LvFont()

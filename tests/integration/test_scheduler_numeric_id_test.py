@@ -19,6 +19,7 @@ async def test_scheduler_numeric_id_test(
     timeout_count = 0
     interval_count = 0
     retry_count = 0
+    defer_count = 0
 
     # Events for each test completion
     numeric_timeout_1001_fired = asyncio.Event()
@@ -33,6 +34,9 @@ async def test_scheduler_numeric_id_test(
     max_id_timeout_fired = asyncio.Event()
     numeric_retry_done = asyncio.Event()
     numeric_retry_cancelled = asyncio.Event()
+    numeric_defer_7001_fired = asyncio.Event()
+    numeric_defer_7002_fired = asyncio.Event()
+    numeric_defer_cancelled = asyncio.Event()
     final_results_logged = asyncio.Event()
 
     # Track interval counts
@@ -40,7 +44,7 @@ async def test_scheduler_numeric_id_test(
     numeric_retry_count = 0
 
     def on_log_line(line: str) -> None:
-        nonlocal timeout_count, interval_count, retry_count
+        nonlocal timeout_count, interval_count, retry_count, defer_count
         nonlocal numeric_interval_count, numeric_retry_count
 
         # Strip ANSI color codes
@@ -105,15 +109,27 @@ async def test_scheduler_numeric_id_test(
         elif "Cancelled numeric retry 6002" in clean_line:
             numeric_retry_cancelled.set()
 
+        # Check for numeric defer tests
+        elif "Component numeric defer 7001 fired" in clean_line:
+            numeric_defer_7001_fired.set()
+
+        elif "Component numeric defer 7002 fired" in clean_line:
+            numeric_defer_7002_fired.set()
+
+        elif "Cancelled numeric defer 8001: true" in clean_line:
+            numeric_defer_cancelled.set()
+
         # Check for final results
         elif "Final results" in clean_line:
             match = re.search(
-                r"Timeouts: (\d+), Intervals: (\d+), Retries: (\d+)", clean_line
+                r"Timeouts: (\d+), Intervals: (\d+), Retries: (\d+), Defers: (\d+)",
+                clean_line,
             )
             if match:
                 timeout_count = int(match.group(1))
                 interval_count = int(match.group(2))
                 retry_count = int(match.group(3))
+                defer_count = int(match.group(4))
                 final_results_logged.set()
 
     async with (
@@ -201,6 +217,23 @@ async def test_scheduler_numeric_id_test(
             "Numeric retry 6002 should have been cancelled"
         )
 
+        # Wait for numeric defer tests
+        try:
+            await asyncio.wait_for(numeric_defer_7001_fired.wait(), timeout=0.5)
+        except TimeoutError:
+            pytest.fail("Numeric defer 7001 did not fire within 0.5 seconds")
+
+        try:
+            await asyncio.wait_for(numeric_defer_7002_fired.wait(), timeout=0.5)
+        except TimeoutError:
+            pytest.fail("Numeric defer 7002 did not fire within 0.5 seconds")
+
+        # Verify numeric defer was cancelled
+        try:
+            await asyncio.wait_for(numeric_defer_cancelled.wait(), timeout=0.5)
+        except TimeoutError:
+            pytest.fail("Numeric defer 8001 cancel confirmation not received")
+
         # Wait for final results
         try:
             await asyncio.wait_for(final_results_logged.wait(), timeout=3.0)
@@ -215,3 +248,4 @@ async def test_scheduler_numeric_id_test(
         assert retry_count >= 2, (
             f"Expected at least 2 retry attempts, got {retry_count}"
         )
+        assert defer_count >= 2, f"Expected at least 2 defer fires, got {defer_count}"

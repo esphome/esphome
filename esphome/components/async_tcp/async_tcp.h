@@ -7,9 +7,9 @@
 #elif defined(USE_ESP8266)
 // Use ESPAsyncTCP library for ESP8266 (always Arduino)
 #include <ESPAsyncTCP.h>
-#elif defined(USE_RP2040)
-// Use AsyncTCP_RP2040W library for RP2040
-#include <AsyncTCP_RP2040W.h>
+#elif defined(USE_RP2)
+// Use RPAsyncTCP library for RP2040
+#include <RPAsyncTCP.h>
 #else
 // Use socket-based implementation for other platforms
 #include "async_tcp_socket.h"

@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace tx20 {
+namespace esphome::tx20 {
 
 /// Store data in a class that doesn't use multiple-inheritance (vtables in flash)
 struct Tx20ComponentStore {
@@ -22,7 +21,7 @@ struct Tx20ComponentStore {
 };
 
 /// This class implements support for the Tx20 Wind sensor.
-class Tx20Component : public Component {
+class Tx20Component final : public Component {
  public:
   /// Get the textual representation of the wind direction ('N', 'SSE', ..).
   std::string get_wind_cardinal_direction() const;
@@ -35,7 +34,6 @@ class Tx20Component : public Component {
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void loop() override;
 
  protected:
@@ -48,5 +46,4 @@ class Tx20Component : public Component {
   Tx20ComponentStore store_;
 };
 
-}  // namespace tx20
-}  // namespace esphome
+}  // namespace esphome::tx20

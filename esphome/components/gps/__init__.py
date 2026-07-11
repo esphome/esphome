@@ -34,7 +34,7 @@ AUTO_LOAD = ["sensor"]
 CODEOWNERS = ["@coogle", "@ximex"]
 
 gps_ns = cg.esphome_ns.namespace("gps")
-GPS = gps_ns.class_("GPS", cg.Component, uart.UARTDevice)
+GPS = gps_ns.class_("GPS", cg.PollingComponent, uart.UARTDevice)
 GPSListener = gps_ns.class_("GPSListener")
 
 MULTI_CONF = True
@@ -98,33 +98,25 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if latitude_config := config.get(CONF_LATITUDE):
-        sens = await sensor.new_sensor(latitude_config)
-        cg.add(var.set_latitude_sensor(sens))
+    # Pre-create all sensor variables so automations that reference
+    # sibling sensors don't deadlock waiting for unregistered IDs.
+    sensors = [
+        (cg.new_Pvariable(conf[CONF_ID]), conf, setter)
+        for key, setter in (
+            (CONF_LATITUDE, "set_latitude_sensor"),
+            (CONF_LONGITUDE, "set_longitude_sensor"),
+            (CONF_SPEED, "set_speed_sensor"),
+            (CONF_COURSE, "set_course_sensor"),
+            (CONF_ALTITUDE, "set_altitude_sensor"),
+            (CONF_SATELLITES, "set_satellites_sensor"),
+            (CONF_HDOP, "set_hdop_sensor"),
+        )
+        if (conf := config.get(key))
+    ]
 
-    if longitude_config := config.get(CONF_LONGITUDE):
-        sens = await sensor.new_sensor(longitude_config)
-        cg.add(var.set_longitude_sensor(sens))
-
-    if speed_config := config.get(CONF_SPEED):
-        sens = await sensor.new_sensor(speed_config)
-        cg.add(var.set_speed_sensor(sens))
-
-    if course_config := config.get(CONF_COURSE):
-        sens = await sensor.new_sensor(course_config)
-        cg.add(var.set_course_sensor(sens))
-
-    if altitude_config := config.get(CONF_ALTITUDE):
-        sens = await sensor.new_sensor(altitude_config)
-        cg.add(var.set_altitude_sensor(sens))
-
-    if satellites_config := config.get(CONF_SATELLITES):
-        sens = await sensor.new_sensor(satellites_config)
-        cg.add(var.set_satellites_sensor(sens))
-
-    if hdop_config := config.get(CONF_HDOP):
-        sens = await sensor.new_sensor(hdop_config)
-        cg.add(var.set_hdop_sensor(sens))
+    for sens, conf, setter in sensors:
+        await sensor.register_sensor(sens, conf)
+        cg.add(getattr(var, setter)(sens))
 
     # https://platformio.org/lib/show/1655/TinyGPSPlus
     # Using fork of TinyGPSPlus patched to build on ESP-IDF

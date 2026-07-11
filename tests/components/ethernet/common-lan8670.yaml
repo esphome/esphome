@@ -12,3 +12,7 @@ ethernet:
     gateway: 192.168.178.1
     subnet: 255.255.255.0
   domain: .local
+  on_connect:
+    - logger.log: "Ethernet connected!"
+  on_disconnect:
+    - logger.log: "Ethernet disconnected!"

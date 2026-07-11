@@ -7,8 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace i2c {
+namespace esphome::i2c {
 
 static const char *const TAG = "i2c.arduino";
 
@@ -19,14 +18,16 @@ void ArduinoI2CBus::setup() {
   this->recover_();
 
 #if defined(USE_ESP8266)
-  this->wire_ = new TwoWire();  // NOLINT(cppcoreguidelines-owning-memory)
-#elif defined(USE_RP2040)
-  static bool first = true;
-  if (first) {
+  wire_ = new TwoWire();  // NOLINT(cppcoreguidelines-owning-memory)
+#elif defined(USE_RP2)
+  // Select Wire instance based on pin assignment, not definition order.
+  // I2C controller = (gpio / 2) % 2: even pairs (0-1,4-5,...) → I2C0, odd pairs (2-3,6-7,...) → I2C1
+  // RP2040 datasheet Table 2 (section 1.4.3): https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
+  // RP2350 datasheet Table 7 (section 9.4): https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf
+  if ((this->sda_pin_ / 2) % 2 == 0) {
     this->wire_ = &Wire;
-    first = false;
   } else {
-    this->wire_ = &Wire1;  // NOLINT(cppcoreguidelines-owning-memory)
+    this->wire_ = &Wire1;
   }
 #endif
 
@@ -40,20 +41,20 @@ void ArduinoI2CBus::setup() {
 }
 
 void ArduinoI2CBus::set_pins_and_clock_() {
-#ifdef USE_RP2040
+#ifdef USE_RP2
   this->wire_->setSDA(this->sda_pin_);
   this->wire_->setSCL(this->scl_pin_);
   this->wire_->begin();
 #else
-  this->wire_->begin(static_cast<int>(this->sda_pin_), static_cast<int>(this->scl_pin_));
+  this->wire_->begin(static_cast<int>(sda_pin_), static_cast<int>(scl_pin_));
 #endif
-  if (this->timeout_ > 0) {  // if timeout specified in yaml
+  if (timeout_ > 0) {  // if timeout specified in yaml
 #if defined(USE_ESP8266)
     // https://github.com/esp8266/Arduino/blob/master/libraries/Wire/Wire.h
-    this->wire_->setClockStretchLimit(this->timeout_);  // unit: us
-#elif defined(USE_RP2040)
+    this->wire_->setClockStretchLimit(timeout_);  // unit: us
+#elif defined(USE_RP2)
     // https://github.com/earlephilhower/ArduinoCore-API/blob/e37df85425e0ac020bfad226d927f9b00d2e0fb7/api/Stream.h
-    this->wire_->setTimeout(this->timeout_ / 1000);  // unit: ms
+    this->wire_->setTimeout(timeout_ / 1000);  // unit: ms
 #endif
   }
   this->wire_->setClock(this->frequency_);
@@ -69,7 +70,7 @@ void ArduinoI2CBus::dump_config() {
   if (this->timeout_ > 0) {
 #if defined(USE_ESP8266)
     ESP_LOGCONFIG(TAG, "  Timeout: %u us", this->timeout_);
-#elif defined(USE_RP2040)
+#elif defined(USE_RP2)
     ESP_LOGCONFIG(TAG, "  Timeout: %u ms", this->timeout_ / 1000);
 #endif
   }
@@ -134,25 +135,23 @@ ErrorCode ArduinoI2CBus::write_readv(uint8_t address, const uint8_t *write_buffe
     for (size_t j = 0; j != read_count; j++)
       read_buffer[j] = this->wire_->read();
   }
-  switch (status) {
-    case 0:
-      return ERROR_OK;
-    case 1:
-      // transmit buffer not large enough
-      ESP_LOGVV(TAG, "TX failed: buffer not large enough");
-      return ERROR_UNKNOWN;
-    case 2:
-    case 3:
-      ESP_LOGVV(TAG, "TX failed: not acknowledged: %d", status);
-      return ERROR_NOT_ACKNOWLEDGED;
-    case 5:
-      ESP_LOGVV(TAG, "TX failed: timeout");
-      return ERROR_UNKNOWN;
-    case 4:
-    default:
-      ESP_LOGVV(TAG, "TX failed: unknown error %u", status);
-      return ERROR_UNKNOWN;
+  // Avoid switch to prevent compiler-generated lookup table in RAM on ESP8266
+  if (status == 0)
+    return ERROR_OK;
+  if (status == 1) {
+    ESP_LOGVV(TAG, "TX failed: buffer not large enough");
+    return ERROR_UNKNOWN;
   }
+  if (status == 2 || status == 3) {
+    ESP_LOGVV(TAG, "TX failed: not acknowledged: %u", status);
+    return ERROR_NOT_ACKNOWLEDGED;
+  }
+  if (status == 5) {
+    ESP_LOGVV(TAG, "TX failed: timeout");
+    return ERROR_UNKNOWN;
+  }
+  ESP_LOGVV(TAG, "TX failed: unknown error %u", status);
+  return ERROR_UNKNOWN;
 }
 
 ErrorCode ArduinoI2CBus::set_frequency(uint32_t frequency) {
@@ -275,7 +274,6 @@ void ArduinoI2CBus::recover_() {
 
   this->recovery_result_ = RECOVERY_COMPLETED;
 }
-}  // namespace i2c
-}  // namespace esphome
+}  // namespace esphome::i2c
 
 #endif  // defined(USE_ARDUINO) && !defined(USE_ESP32)

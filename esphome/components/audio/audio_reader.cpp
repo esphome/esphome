@@ -11,8 +11,7 @@
 #include "esp_crt_bundle.h"
 #endif
 
-namespace esphome {
-namespace audio {
+namespace esphome::audio {
 
 static const uint32_t READ_WRITE_TIMEOUT_MS = 20;
 
@@ -55,7 +54,7 @@ enum HttpStatus {
 
 AudioReader::~AudioReader() { this->cleanup_connection_(); }
 
-esp_err_t AudioReader::add_sink(const std::weak_ptr<RingBuffer> &output_ring_buffer) {
+esp_err_t AudioReader::add_sink(const std::weak_ptr<ring_buffer::RingBuffer> &output_ring_buffer) {
   if (current_audio_file_ != nullptr) {
     // A transfer buffer isn't ncessary for a local file
     this->file_ring_buffer_ = output_ring_buffer.lock();
@@ -185,21 +184,8 @@ esp_err_t AudioReader::start(const std::string &uri, AudioFileType &file_type) {
       return err;
     }
 
-    if (str_endswith_ignore_case(url, ".wav")) {
-      file_type = AudioFileType::WAV;
-    }
-#ifdef USE_AUDIO_MP3_SUPPORT
-    else if (str_endswith_ignore_case(url, ".mp3")) {
-      file_type = AudioFileType::MP3;
-    }
-#endif
-#ifdef USE_AUDIO_FLAC_SUPPORT
-    else if (str_endswith_ignore_case(url, ".flac")) {
-      file_type = AudioFileType::FLAC;
-    }
-#endif
-    else {
-      file_type = AudioFileType::NONE;
+    file_type = detect_audio_file_type(nullptr, url);
+    if (file_type == AudioFileType::NONE) {
       this->cleanup_connection_();
       return ESP_ERR_NOT_SUPPORTED;
     }
@@ -227,24 +213,6 @@ AudioReaderState AudioReader::read() {
   return AudioReaderState::FAILED;
 }
 
-AudioFileType AudioReader::get_audio_type(const char *content_type) {
-#ifdef USE_AUDIO_MP3_SUPPORT
-  if (strcasecmp(content_type, "mp3") == 0 || strcasecmp(content_type, "audio/mp3") == 0 ||
-      strcasecmp(content_type, "audio/mpeg") == 0) {
-    return AudioFileType::MP3;
-  }
-#endif
-  if (strcasecmp(content_type, "audio/wav") == 0) {
-    return AudioFileType::WAV;
-  }
-#ifdef USE_AUDIO_FLAC_SUPPORT
-  if (strcasecmp(content_type, "audio/flac") == 0 || strcasecmp(content_type, "audio/x-flac") == 0) {
-    return AudioFileType::FLAC;
-  }
-#endif
-  return AudioFileType::NONE;
-}
-
 esp_err_t AudioReader::http_event_handler(esp_http_client_event_t *evt) {
   // Based on https://github.com/maroc81/WeatherLily/tree/main/main/net accessed 20241224
   AudioReader *this_reader = (AudioReader *) evt->user_data;
@@ -252,7 +220,7 @@ esp_err_t AudioReader::http_event_handler(esp_http_client_event_t *evt) {
   switch (evt->event_id) {
     case HTTP_EVENT_ON_HEADER:
       if (strcasecmp(evt->header_key, "Content-Type") == 0) {
-        this_reader->audio_file_type_ = get_audio_type(evt->header_value);
+        this_reader->audio_file_type_ = detect_audio_file_type(evt->header_value, nullptr);
       }
       break;
     default:
@@ -320,7 +288,6 @@ void AudioReader::cleanup_connection_() {
   }
 }
 
-}  // namespace audio
-}  // namespace esphome
+}  // namespace esphome::audio
 
 #endif

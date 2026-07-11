@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace tmp102 {
+namespace esphome::tmp102 {
 
 static const char *const TAG = "tmp102";
 
@@ -46,7 +45,4 @@ void TMP102Component::update() {
   });
 }
 
-float TMP102Component::get_setup_priority() const { return setup_priority::DATA; }
-
-}  // namespace tmp102
-}  // namespace esphome
+}  // namespace esphome::tmp102

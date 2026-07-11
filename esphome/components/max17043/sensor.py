@@ -71,7 +71,9 @@ MAX17043_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action("max17043.sleep_mode", SleepAction, MAX17043_ACTION_SCHEMA)
+@automation.register_action(
+    "max17043.sleep_mode", SleepAction, MAX17043_ACTION_SCHEMA, synchronous=True
+)
 async def max17043_sleep_mode_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)

@@ -48,9 +48,12 @@ namespace esphome::ota {
 
 static const char *const TAG = "ota.esp8266";
 
-std::unique_ptr<ota::OTABackend> make_ota_backend() { return make_unique<ota::ESP8266OTABackend>(); }
+std::unique_ptr<ESP8266OTABackend> make_ota_backend() { return make_unique<ESP8266OTABackend>(); }
 
-OTAResponseTypes ESP8266OTABackend::begin(size_t image_size) {
+OTAResponseTypes ESP8266OTABackend::begin(size_t image_size, OTAType ota_type) {
+  if (ota_type != OTA_TYPE_UPDATE_APP) {
+    return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
+  }
   // Handle UPDATE_SIZE_UNKNOWN (0) by calculating available space
   if (image_size == 0) {
     // Round down to sector boundary: subtract one sector, then mask to sector alignment
@@ -60,6 +63,7 @@ OTAResponseTypes ESP8266OTABackend::begin(size_t image_size) {
 
   // Check boot mode - if boot mode is UART download mode,
   // we will not be able to reset into normal mode once update is done
+  // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- GPI is MMIO at a fixed address
   int boot_mode = (GPI >> BOOT_MODE_SHIFT) & BOOT_MODE_MASK;
   if (boot_mode == BOOT_MODE_UART_DOWNLOAD) {
     return OTA_RESPONSE_ERROR_INVALID_BOOTSTRAPPING;
@@ -105,6 +109,7 @@ OTAResponseTypes ESP8266OTABackend::begin(size_t image_size) {
 
   this->current_address_ = this->start_address_;
   this->image_size_ = image_size;
+  this->bytes_received_ = 0;
   this->buffer_len_ = 0;
   this->md5_set_ = false;
 
@@ -140,6 +145,7 @@ OTAResponseTypes ESP8266OTABackend::write(uint8_t *data, size_t len) {
     size_t to_buffer = std::min(len - written, this->buffer_size_ - this->buffer_len_);
     memcpy(this->buffer_.get() + this->buffer_len_, data + written, to_buffer);
     this->buffer_len_ += to_buffer;
+    this->bytes_received_ += to_buffer;
     written += to_buffer;
 
     // If buffer is full, write to flash
@@ -252,8 +258,8 @@ OTAResponseTypes ESP8266OTABackend::end() {
     }
   }
 
-  // Calculate actual bytes written
-  size_t actual_size = this->current_address_ - this->start_address_;
+  // Calculate actual bytes written (exact uploaded size, excluding flash write padding)
+  size_t actual_size = this->bytes_received_;
 
   // Check if any data was written
   if (actual_size == 0) {
@@ -304,6 +310,7 @@ void ESP8266OTABackend::abort() {
   this->buffer_.reset();
   this->buffer_len_ = 0;
   this->image_size_ = 0;
+  this->bytes_received_ = 0;
   esp8266::preferences_prevent_write(false);
 }
 

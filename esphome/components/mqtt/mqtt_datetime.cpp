@@ -66,15 +66,17 @@ bool MQTTDateTimeComponent::send_initial_state() {
 }
 bool MQTTDateTimeComponent::publish_state(uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute,
                                           uint8_t second) {
-  return this->publish_json(this->get_state_topic_(), [year, month, day, hour, minute, second](JsonObject root) {
-    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-    root[ESPHOME_F("year")] = year;
-    root[ESPHOME_F("month")] = month;
-    root[ESPHOME_F("day")] = day;
-    root[ESPHOME_F("hour")] = hour;
-    root[ESPHOME_F("minute")] = minute;
-    root[ESPHOME_F("second")] = second;
-  });
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->publish_json(this->get_state_topic_to_(topic_buf),
+                            [year, month, day, hour, minute, second](JsonObject root) {
+                              // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+                              root[ESPHOME_F("year")] = year;
+                              root[ESPHOME_F("month")] = month;
+                              root[ESPHOME_F("day")] = day;
+                              root[ESPHOME_F("hour")] = hour;
+                              root[ESPHOME_F("minute")] = minute;
+                              root[ESPHOME_F("second")] = second;
+                            });
 }
 
 }  // namespace esphome::mqtt

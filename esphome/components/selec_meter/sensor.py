@@ -14,10 +14,13 @@ from esphome.const import (
     CONF_POWER_FACTOR,
     CONF_REACTIVE_POWER,
     CONF_VOLTAGE,
+    DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
+    DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_VOLTAGE,
     ICON_CURRENT_AC,
     STATE_CLASS_MEASUREMENT,
@@ -29,6 +32,7 @@ from esphome.const import (
     UNIT_VOLT_AMPS_REACTIVE,
     UNIT_WATT,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["modbus"]
 CODEOWNERS = ["@sourabhjaiswal"]
@@ -46,7 +50,7 @@ UNIT_KILOVOLT_AMPS_REACTIVE_HOURS = "kVARh"
 
 selec_meter_ns = cg.esphome_ns.namespace("selec_meter")
 SelecMeter = selec_meter_ns.class_(
-    "SelecMeter", cg.PollingComponent, modbus.ModbusDevice
+    "SelecMeter", cg.PollingComponent, modbus.ModbusClientDevice
 )
 
 SENSORS = {
@@ -97,11 +101,13 @@ SENSORS = {
     CONF_REACTIVE_POWER: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
         accuracy_decimals=3,
+        device_class=DEVICE_CLASS_REACTIVE_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_APPARENT_POWER: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT_AMPS,
         accuracy_decimals=3,
+        device_class=DEVICE_CLASS_APPARENT_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_VOLTAGE: sensor.sensor_schema(
@@ -125,6 +131,7 @@ SENSORS = {
         unit_of_measurement=UNIT_HERTZ,
         icon=ICON_CURRENT_AC,
         accuracy_decimals=2,
+        device_class=DEVICE_CLASS_FREQUENCY,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_MAXIMUM_DEMAND_ACTIVE_POWER: sensor.sensor_schema(
@@ -136,11 +143,13 @@ SENSORS = {
     CONF_MAXIMUM_DEMAND_REACTIVE_POWER: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
         accuracy_decimals=3,
+        device_class=DEVICE_CLASS_REACTIVE_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_MAXIMUM_DEMAND_APPARENT_POWER: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT_AMPS,
         accuracy_decimals=3,
+        device_class=DEVICE_CLASS_APPARENT_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
 }
@@ -155,10 +164,17 @@ CONFIG_SCHEMA = (
 )
 
 
+def _final_validate(config: ConfigType) -> ConfigType:
+    return modbus.final_validate_modbus_device("selec_meter", role="client")(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await modbus.register_modbus_device(var, config)
+    await modbus.register_modbus_client_device(var, config)
     for name in SENSORS:
         if name in config:
             sens = await sensor.new_sensor(config[name])

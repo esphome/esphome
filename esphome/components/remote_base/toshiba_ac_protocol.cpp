@@ -2,19 +2,18 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.toshibaac";
 
-static const uint32_t HEADER_HIGH_US = 4500;
-static const uint32_t HEADER_LOW_US = 4500;
-static const uint32_t BIT_HIGH_US = 560;
-static const uint32_t BIT_ONE_LOW_US = 1690;
-static const uint32_t BIT_ZERO_LOW_US = 560;
-static const uint32_t FOOTER_HIGH_US = 560;
-static const uint32_t FOOTER_LOW_US = 4500;
-static const uint16_t PACKET_SPACE = 5500;
+static constexpr uint32_t HEADER_HIGH_US = 4500;
+static constexpr uint32_t HEADER_LOW_US = 4500;
+static constexpr uint32_t BIT_HIGH_US = 560;
+static constexpr uint32_t BIT_ONE_LOW_US = 1690;
+static constexpr uint32_t BIT_ZERO_LOW_US = 560;
+static constexpr uint32_t FOOTER_HIGH_US = 560;
+static constexpr uint32_t FOOTER_LOW_US = 4500;
+static constexpr uint16_t PACKET_SPACE = 5500;
 
 void ToshibaAcProtocol::encode(RemoteTransmitData *dst, const ToshibaAcData &data) {
   dst->set_carrier_frequency(38000);
@@ -111,5 +110,4 @@ void ToshibaAcProtocol::dump(const ToshibaAcData &data) {
   }
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

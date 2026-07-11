@@ -164,7 +164,8 @@ template<enums::SupportsResponseType Mode, typename... Ts> class UserServiceTrig
 
 // Specialization for NONE - no extra trigger arguments
 template<typename... Ts>
-class UserServiceTrigger<enums::SUPPORTS_RESPONSE_NONE, Ts...> : public UserServiceBase<Ts...>, public Trigger<Ts...> {
+class UserServiceTrigger<enums::SUPPORTS_RESPONSE_NONE, Ts...> final : public UserServiceBase<Ts...>,
+                                                                       public Trigger<Ts...> {
  public:
   UserServiceTrigger(const char *name, const std::array<const char *, sizeof...(Ts)> &arg_names)
       : UserServiceBase<Ts...>(name, arg_names, enums::SUPPORTS_RESPONSE_NONE) {}
@@ -175,8 +176,8 @@ class UserServiceTrigger<enums::SUPPORTS_RESPONSE_NONE, Ts...> : public UserServ
 
 // Specialization for OPTIONAL - call_id and return_response trigger arguments
 template<typename... Ts>
-class UserServiceTrigger<enums::SUPPORTS_RESPONSE_OPTIONAL, Ts...> : public UserServiceBase<Ts...>,
-                                                                     public Trigger<uint32_t, bool, Ts...> {
+class UserServiceTrigger<enums::SUPPORTS_RESPONSE_OPTIONAL, Ts...> final : public UserServiceBase<Ts...>,
+                                                                           public Trigger<uint32_t, bool, Ts...> {
  public:
   UserServiceTrigger(const char *name, const std::array<const char *, sizeof...(Ts)> &arg_names)
       : UserServiceBase<Ts...>(name, arg_names, enums::SUPPORTS_RESPONSE_OPTIONAL) {}
@@ -189,8 +190,8 @@ class UserServiceTrigger<enums::SUPPORTS_RESPONSE_OPTIONAL, Ts...> : public User
 
 // Specialization for ONLY - just call_id trigger argument
 template<typename... Ts>
-class UserServiceTrigger<enums::SUPPORTS_RESPONSE_ONLY, Ts...> : public UserServiceBase<Ts...>,
-                                                                 public Trigger<uint32_t, Ts...> {
+class UserServiceTrigger<enums::SUPPORTS_RESPONSE_ONLY, Ts...> final : public UserServiceBase<Ts...>,
+                                                                       public Trigger<uint32_t, Ts...> {
  public:
   UserServiceTrigger(const char *name, const std::array<const char *, sizeof...(Ts)> &arg_names)
       : UserServiceBase<Ts...>(name, arg_names, enums::SUPPORTS_RESPONSE_ONLY) {}
@@ -201,8 +202,8 @@ class UserServiceTrigger<enums::SUPPORTS_RESPONSE_ONLY, Ts...> : public UserServ
 
 // Specialization for STATUS - just call_id trigger argument (reports success/error without data)
 template<typename... Ts>
-class UserServiceTrigger<enums::SUPPORTS_RESPONSE_STATUS, Ts...> : public UserServiceBase<Ts...>,
-                                                                   public Trigger<uint32_t, Ts...> {
+class UserServiceTrigger<enums::SUPPORTS_RESPONSE_STATUS, Ts...> final : public UserServiceBase<Ts...>,
+                                                                         public Trigger<uint32_t, Ts...> {
  public:
   UserServiceTrigger(const char *name, const std::array<const char *, sizeof...(Ts)> &arg_names)
       : UserServiceBase<Ts...>(name, arg_names, enums::SUPPORTS_RESPONSE_STATUS) {}
@@ -221,7 +222,7 @@ class UserServiceTrigger<enums::SUPPORTS_RESPONSE_STATUS, Ts...> : public UserSe
 
 namespace esphome::api {
 
-template<typename... Ts> class APIRespondAction : public Action<Ts...> {
+template<typename... Ts> class APIRespondAction final : public Action<Ts...> {
  public:
   explicit APIRespondAction(APIServer *parent) : parent_(parent) {}
 
@@ -230,7 +231,7 @@ template<typename... Ts> class APIRespondAction : public Action<Ts...> {
   void set_is_optional_mode(bool is_optional) { this->is_optional_mode_ = is_optional; }
 
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-  void set_data(std::function<void(Ts..., JsonObject)> func) {
+  void set_data(std::function<void(Ts..., JsonObject)> &&func) {
     this->json_builder_ = std::move(func);
     this->has_data_ = true;
   }
@@ -264,9 +265,9 @@ template<typename... Ts> class APIRespondAction : public Action<Ts...> {
       // Build and send JSON response
       json::JsonBuilder builder;
       this->json_builder_(x..., builder.root());
-      std::string json_str = builder.serialize();
+      auto json_buf = builder.serialize();
       this->parent_->send_action_response(call_id, success, StringRef(error_message),
-                                          reinterpret_cast<const uint8_t *>(json_str.data()), json_str.size());
+                                          reinterpret_cast<const uint8_t *>(json_buf.data()), json_buf.size());
       return;
     }
 #endif
@@ -275,7 +276,7 @@ template<typename... Ts> class APIRespondAction : public Action<Ts...> {
 
  protected:
   APIServer *parent_;
-  TemplatableValue<bool, Ts...> success_{true};
+  TemplatableFn<bool, Ts...> success_{[](Ts...) -> bool { return true; }};
   TemplatableValue<std::string, Ts...> error_message_{""};
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
   std::function<void(Ts..., JsonObject)> json_builder_;
@@ -286,7 +287,7 @@ template<typename... Ts> class APIRespondAction : public Action<Ts...> {
 
 // Action to unregister a service call after execution completes
 // Automatically appended to the end of action lists for non-none response modes
-template<typename... Ts> class APIUnregisterServiceCallAction : public Action<Ts...> {
+template<typename... Ts> class APIUnregisterServiceCallAction final : public Action<Ts...> {
  public:
   explicit APIUnregisterServiceCallAction(APIServer *parent) : parent_(parent) {}
 

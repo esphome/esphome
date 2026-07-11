@@ -3,8 +3,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace atc_mithermometer {
+namespace esphome::atc_mithermometer {
 
 static const char *const TAG = "atc_mithermometer";
 
@@ -61,6 +60,10 @@ optional<ParseResult> ATCMiThermometer::parse_header_(const esp32_ble_tracker::S
   }
 
   auto raw = service_data.data;
+  if (raw.size() < 13) {
+    ESP_LOGVV(TAG, "parse_header_(): service data too short (%zu).", raw.size());
+    return {};
+  }
 
   static uint8_t last_frame_count = 0;
   if (last_frame_count == raw[12]) {
@@ -129,7 +132,6 @@ bool ATCMiThermometer::report_results_(const optional<ParseResult> &result, cons
   return true;
 }
 
-}  // namespace atc_mithermometer
-}  // namespace esphome
+}  // namespace esphome::atc_mithermometer
 
 #endif

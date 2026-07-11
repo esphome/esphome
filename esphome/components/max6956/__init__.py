@@ -112,11 +112,12 @@ async def max6956_pin_to_code(config):
         },
         key=CONF_BRIGHTNESS_GLOBAL,
     ),
+    synchronous=True,
 )
 async def max6956_set_brightness_global_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_BRIGHTNESS_GLOBAL], args, float)
+    template_ = await cg.templatable(config[CONF_BRIGHTNESS_GLOBAL], args, cg.uint8)
     cg.add(var.set_brightness_global(template_))
     return var
 
@@ -133,10 +134,13 @@ async def max6956_set_brightness_global_to_code(config, action_id, template_arg,
         },
         key=CONF_BRIGHTNESS_MODE,
     ),
+    synchronous=True,
 )
 async def max6956_set_brightness_mode_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_BRIGHTNESS_MODE], args, float)
+    template_ = await cg.templatable(
+        config[CONF_BRIGHTNESS_MODE], args, MAX6956_CURRENTMODE
+    )
     cg.add(var.set_brightness_mode(template_))
     return var

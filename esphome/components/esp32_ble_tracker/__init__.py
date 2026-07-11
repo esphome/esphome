@@ -6,7 +6,11 @@ import logging
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32_ble, ota
-from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.components.esp32 import (
+    add_idf_sdkconfig_option,
+    request_bluetooth,
+    request_software_coexistence,
+)
 from esphome.components.esp32_ble import (
     IDF_MAX_CONNECTIONS,
     BTLoggers,
@@ -90,8 +94,6 @@ esp32_ble_tracker_ns = cg.esphome_ns.namespace("esp32_ble_tracker")
 ESP32BLETracker = esp32_ble_tracker_ns.class_(
     "ESP32BLETracker",
     cg.Component,
-    esp32_ble.GAPEventHandler,
-    esp32_ble.GATTcEventHandler,
     cg.Parented.template(esp32_ble.ESP32BLE),
 )
 ESPBTClient = esp32_ble_tracker_ns.class_("ESPBTClient")
@@ -317,9 +319,9 @@ async def to_code(config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
-    add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
+    request_bluetooth()
     if config.get(CONF_SOFTWARE_COEXISTENCE):
-        add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", True)
+        request_software_coexistence()
     # https://github.com/espressif/esp-idf/issues/4101
     # https://github.com/espressif/esp-idf/issues/2503
     # Match arduino CONFIG_BTU_TASK_STACK_SIZE
@@ -373,13 +375,15 @@ ESP32_BLE_START_SCAN_ACTION_SCHEMA = cv.Schema(
     "esp32_ble_tracker.start_scan",
     ESP32BLEStartScanAction,
     ESP32_BLE_START_SCAN_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def esp32_ble_tracker_start_scan_action_to_code(
     config, action_id, template_arg, args
 ):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    cg.add(var.set_continuous(config[CONF_CONTINUOUS]))
+    template_ = await cg.templatable(config[CONF_CONTINUOUS], args, cg.bool_)
+    cg.add(var.set_continuous(template_))
     return var
 
 
@@ -396,6 +400,7 @@ ESP32_BLE_STOP_SCAN_ACTION_SCHEMA = automation.maybe_simple_id(
     "esp32_ble_tracker.stop_scan",
     ESP32BLEStopScanAction,
     ESP32_BLE_STOP_SCAN_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def esp32_ble_tracker_stop_scan_action_to_code(
     config, action_id, template_arg, args

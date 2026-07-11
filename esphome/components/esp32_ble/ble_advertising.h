@@ -10,19 +10,10 @@
 #ifdef USE_ESP32
 #ifdef USE_ESP32_BLE_ADVERTISING
 
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
-#include <esp_bt.h>
-#endif
 #include <esp_gap_ble_api.h>
 #include <esp_gatts_api.h>
 
 namespace esphome::esp32_ble {
-
-using raw_adv_data_t = struct {
-  uint8_t *data;
-  size_t length;
-  esp_power_level_t power_level;
-};
 
 class ESPBTUUID;
 

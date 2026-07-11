@@ -7,12 +7,12 @@ constinit const Color Color::BLACK(0, 0, 0, 0);
 constinit const Color Color::WHITE(255, 255, 255, 255);
 
 Color Color::gradient(const Color &to_color, uint8_t amnt) {
+  uint8_t inv = 255 - amnt;
   Color new_color;
-  float amnt_f = float(amnt) / 255.0f;
-  new_color.r = amnt_f * (to_color.r - this->r) + this->r;
-  new_color.g = amnt_f * (to_color.g - this->g) + this->g;
-  new_color.b = amnt_f * (to_color.b - this->b) + this->b;
-  new_color.w = amnt_f * (to_color.w - this->w) + this->w;
+  new_color.r = (uint16_t(this->r) * inv + uint16_t(to_color.r) * amnt) / 255;
+  new_color.g = (uint16_t(this->g) * inv + uint16_t(to_color.g) * amnt) / 255;
+  new_color.b = (uint16_t(this->b) * inv + uint16_t(to_color.b) * amnt) / 255;
+  new_color.w = (uint16_t(this->w) * inv + uint16_t(to_color.w) * amnt) / 255;
   return new_color;
 }
 

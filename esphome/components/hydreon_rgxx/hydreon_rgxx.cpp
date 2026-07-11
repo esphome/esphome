@@ -1,8 +1,7 @@
 #include "hydreon_rgxx.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace hydreon_rgxx {
+namespace esphome::hydreon_rgxx {
 
 static const char *const TAG = "hydreon_rgxx.sensor";
 static const int MAX_DATA_LENGTH_BYTES = 80;
@@ -284,7 +283,4 @@ void HydreonRGxxComponent::process_line_() {
   }
 }
 
-float HydreonRGxxComponent::get_setup_priority() const { return setup_priority::DATA; }
-
-}  // namespace hydreon_rgxx
-}  // namespace esphome
+}  // namespace esphome::hydreon_rgxx

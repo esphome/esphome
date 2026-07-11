@@ -4,12 +4,23 @@ host:
 api:
 logger:
 
+globals:
+  - id: global_away
+    type: bool
+    initial_value: "false"
+  - id: global_is_on
+    type: bool
+    initial_value: "true"
+
 water_heater:
   - platform: template
     id: test_boiler
     name: Test Boiler
     optimistic: true
     current_temperature: !lambda "return 45.0f;"
+    target_temperature: !lambda "return 60.0f;"
+    away: !lambda "return id(global_away);"
+    is_on: !lambda "return id(global_is_on);"
     # Note: No mode lambda - we want optimistic mode changes to stick
     # A mode lambda would override mode changes in loop()
     supported_modes:
@@ -21,3 +32,8 @@ water_heater:
       min_temperature: 30.0
       max_temperature: 85.0
       target_temperature_step: 0.5
+    set_action:
+      - lambda: |-
+          // Sync optimistic state back to globals so lambdas reflect the change
+          id(global_away) = id(test_boiler).is_away();
+          id(global_is_on) = id(test_boiler).is_on();

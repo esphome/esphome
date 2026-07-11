@@ -8,8 +8,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace pvvx_mithermometer {
+namespace esphome::pvvx_mithermometer {
 
 struct ParseResult {
   optional<float> temperature;
@@ -19,7 +18,7 @@ struct ParseResult {
   int raw_offset;
 };
 
-class PVVXMiThermometer : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class PVVXMiThermometer final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
 
@@ -39,12 +38,13 @@ class PVVXMiThermometer : public Component, public esp32_ble_tracker::ESPBTDevic
   sensor::Sensor *battery_voltage_{nullptr};
   sensor::Sensor *signal_strength_{nullptr};
 
+  uint8_t last_frame_count_{0};
+
   optional<ParseResult> parse_header_(const esp32_ble_tracker::ServiceData &service_data);
   bool parse_message_(const std::vector<uint8_t> &message, ParseResult &result);
   bool report_results_(const optional<ParseResult> &result, const char *address);
 };
 
-}  // namespace pvvx_mithermometer
-}  // namespace esphome
+}  // namespace esphome::pvvx_mithermometer
 
 #endif

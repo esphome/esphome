@@ -1,5 +1,10 @@
 <<: !include tinyusb_common.yaml
 
+# S2 defaults logger to USB_CDC, which conflicts with tinyusb on the shared
+# USB OTG peripheral; route the logger to UART0 so the fixture builds.
+logger:
+  hardware_uart: UART0
+
 usb_cdc_acm:
   interfaces:
     - id: usb_cdc_acm1

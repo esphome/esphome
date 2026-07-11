@@ -1,0 +1,20 @@
+esphome:
+  name: componenttestesp32c2idf
+  friendly_name: $component_name
+
+esp32:
+  board: esp32-c2-devkitm-1
+  framework:
+    type: esp-idf
+  # Use custom partition table with larger app partition (3MB)
+  # Default IDF partitions only allow 1.75MB which is too small for grouped tests
+  partitions: ../partitions_testing.csv
+
+logger:
+  level: VERY_VERBOSE
+
+packages:
+  component_under_test: !include
+    file: $component_test_file
+    vars:
+      component_test_file: $component_test_file

@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_VOLTAGE,
@@ -25,11 +26,12 @@ from esphome.const import (
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["modbus"]
 
 pzemac_ns = cg.esphome_ns.namespace("pzemac")
-PZEMAC = pzemac_ns.class_("PZEMAC", cg.PollingComponent, modbus.ModbusDevice)
+PZEMAC = pzemac_ns.class_("PZEMAC", cg.PollingComponent, modbus.ModbusClientDevice)
 
 # Actions
 ResetEnergyAction = pzemac_ns.class_("ResetEnergyAction", automation.Action)
@@ -66,6 +68,7 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_HERTZ,
                 icon=ICON_CURRENT_AC,
                 accuracy_decimals=1,
+                device_class=DEVICE_CLASS_FREQUENCY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(
@@ -88,16 +91,24 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_ID): cv.use_id(PZEMAC),
         }
     ),
+    synchronous=True,
 )
 async def reset_energy_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
+def _final_validate(config: ConfigType) -> ConfigType:
+    return modbus.final_validate_modbus_device("pzemac", role="client")(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await modbus.register_modbus_device(var, config)
+    await modbus.register_modbus_client_device(var, config)
 
     if CONF_VOLTAGE in config:
         conf = config[CONF_VOLTAGE]
