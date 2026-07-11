@@ -23,6 +23,8 @@
 
 namespace esphome::sd_storage {
 
+static const char *const TAG = "sd_storage";
+
 void SdMmc::setup() {
   ESP_LOGI(TAG, "Initializing SD/MMC card");
   ESP_LOGI(TAG, "  CLK pin: %d, CMD pin: %d, DATA0 pin: %d", this->clk_pin_, this->cmd_pin_, this->data0_pin_);

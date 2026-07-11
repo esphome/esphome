@@ -52,7 +52,7 @@ void SdSpi::setup() {
     if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
       // Registry full = codegen/runtime device-count mismatch: the device would be invisible
       // to resolve_path()/consumers. Fatal — do not run with a silently missing device.
-      ESP_LOGE(TAG, "Storage registration failed");
+      ESP_LOGE(TAG_SPI, "Storage registration failed");
       this->mark_failed();
     }
 
@@ -175,7 +175,7 @@ StorageError SdSpi::mount() {
     if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
       // Registry full = codegen/runtime device-count mismatch: the device would be invisible
       // to resolve_path()/consumers. Fatal — do not run with a silently missing device.
-      ESP_LOGE(TAG, "Storage registration failed");
+      ESP_LOGE(TAG_SPI, "Storage registration failed");
       this->mark_failed();
     }
 
@@ -214,7 +214,7 @@ StorageError SdSpi::unmount() {
     if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
       // Registry full = codegen/runtime device-count mismatch: the device would be invisible
       // to resolve_path()/consumers. Fatal — do not run with a silently missing device.
-      ESP_LOGE(TAG, "Storage registration failed");
+      ESP_LOGE(TAG_SPI, "Storage registration failed");
       this->mark_failed();
     }
 

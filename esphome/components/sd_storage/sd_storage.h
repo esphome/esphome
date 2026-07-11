@@ -10,8 +10,6 @@
 
 namespace esphome::sd_storage {
 
-static const char *const TAG = "sd_storage";
-
 class SdMmc : public SdStorageBase {
  public:
   void setup() override;
