@@ -667,23 +667,27 @@ class DriverChip:
         This runs during schema validation (before ID references are resolved) so that a
         model whose default pins live on a pin expander reports the missing expander clearly
         instead of a cryptic "Couldn't find ID" from the unresolved pin reference.
+
+        Also logs a warning if the model is deprecated.
         """
-        requirements = self.get_default("requires", set())
-        if not requirements:
-            return
-        # ``raw_config`` is populated before any component schema runs during a real
-        # validation, so presence of a required component is simply a top-level key.
-        # When it is absent (e.g. a unit test that invokes the schema directly) there
-        # is no config to check against, so skip.
-        global_config = CORE.raw_config
-        if global_config is None:
-            return
-        missing = {x for x in requirements if x not in global_config}
-        if missing:
-            reqstr = ", ".join(f"'{x}'" for x in sorted(missing))
-            raise cv.Invalid(
-                f"{self.name} requires component{'s' if len(missing) > 1 else ''} {reqstr} to be configured"
+        if deprecation_reason := self.get_default("deprecation_reason"):
+            LOGGER.warning(
+                "Display model %s is deprecated: %s", self.name, deprecation_reason
             )
+        if requirements := self.get_default("requires", set()):
+            # ``raw_config`` is populated before any component schema runs during a real
+            # validation, so presence of a required component is simply a top-level key.
+            # When it is absent (e.g. a unit test that invokes the schema directly) there
+            # is no config to check against, so skip.
+            global_config = CORE.raw_config
+            if global_config is None:
+                return
+            missing = {x for x in requirements if x not in global_config}
+            if missing:
+                reqstr = ", ".join(f"'{x}'" for x in sorted(missing))
+                raise cv.Invalid(
+                    f"{self.name} requires component{'s' if len(missing) > 1 else ''} {reqstr} to be configured"
+                )
 
 
 def requires_buffer(config) -> bool:
