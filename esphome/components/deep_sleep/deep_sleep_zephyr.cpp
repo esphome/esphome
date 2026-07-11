@@ -3,6 +3,10 @@
 #include "esphome/core/log.h"
 #include "esphome/core/wake.h"
 #include <zephyr/sys/poweroff.h>
+#ifdef USE_NRF52
+#include <hal/nrf_gpio.h>
+#include <zephyr/sys/reboot.h>
+#endif
 
 namespace esphome::deep_sleep {
 
@@ -10,11 +14,60 @@ static const char *const TAG = "deep_sleep";
 
 optional<uint32_t> DeepSleepComponent::get_run_duration_() const { return this->run_duration_; }
 
-void DeepSleepComponent::dump_config_platform_() {}
+void DeepSleepComponent::dump_config_platform_() {
+#ifdef USE_NRF52
+  if (this->wakeup_pin_ != nullptr) {
+    LOG_PIN("  Wakeup Pin: ", this->wakeup_pin_);
+  }
+#endif
+}
 
-bool DeepSleepComponent::prepare_to_sleep_() { return true; }
+bool DeepSleepComponent::prepare_to_sleep_() {
+#ifdef USE_NRF52
+  if (this->wakeup_pin_ != nullptr && !this->sleep_duration_.has_value() &&
+      this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_KEEP_AWAKE) {
+    // digital_read() already returns the logical (inversion-applied) state, so true means active.
+    const bool active = this->wakeup_pin_->digital_read();
+    if (active) {
+      if (!this->next_enter_deep_sleep_) {
+        this->status_set_warning();
+        ESP_LOGV(TAG, "Waiting for pin to switch state to enter deep sleep...");
+      }
+      this->next_enter_deep_sleep_ = true;
+      return false;
+    }
+  }
+#endif
+  return true;
+}
+
+#ifdef USE_NRF52
+void DeepSleepComponent::set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode) {
+  this->wakeup_pin_mode_ = wakeup_pin_mode;
+}
+
+static void configure_nrf52_wakeup_pin(InternalGPIOPin *wakeup_pin, WakeupPinMode wakeup_pin_mode) {
+  if (wakeup_pin == nullptr) {
+    return;
+  }
+
+  bool wake_high = !wakeup_pin->is_inverted();
+  if (wakeup_pin_mode == WAKEUP_PIN_MODE_INVERT_WAKEUP) {
+    // digital_read() already returns the logical (inversion-applied) state, so true means active.
+    const bool active = wakeup_pin->digital_read();
+    if (active) {
+      wake_high = !wake_high;
+    }
+  }
+  nrf_gpio_cfg_sense_set(wakeup_pin->get_pin(), wake_high ? NRF_GPIO_PIN_SENSE_HIGH : NRF_GPIO_PIN_SENSE_LOW);
+}
+#endif
 
 void DeepSleepComponent::deep_sleep_() {
+#ifdef USE_NRF52
+  configure_nrf52_wakeup_pin(this->wakeup_pin_, this->wakeup_pin_mode_);
+#endif
+
   if (this->sleep_duration_.has_value()) {
     esphome::internal::wakeable_delay(static_cast<uint32_t>(*this->sleep_duration_ / 1000));
   } else {
@@ -37,6 +90,13 @@ void DeepSleepComponent::deep_sleep_() {
     ESP_LOGD(TAG, "Woken up by another thread");
   } else {
     ESP_LOGD(TAG, "Timeout expired (normal sleep)");
+#ifdef USE_NRF52
+    if (this->sleep_duration_.has_value()) {
+      // Timer path uses a kernel delay (not System OFF), so reset to mimic
+      // deep-sleep wake-on-reset semantics used by other platforms.
+      sys_reboot(SYS_REBOOT_COLD);
+    }
+#endif
   }
 }
 

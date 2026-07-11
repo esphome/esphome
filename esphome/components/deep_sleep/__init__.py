@@ -1,3 +1,5 @@
+import logging
+
 from esphome import automation, core, pins
 import esphome.codegen as cg
 from esphome.components import esp32, time
@@ -39,6 +41,8 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 WAKEUP_PINS = {
     VARIANT_ESP32: [
@@ -170,6 +174,18 @@ def validate_config(config: ConfigType) -> ConfigType:
             "Your platform does not support providing multiple entries in wakeup_pin"
         )
 
+    if CORE.is_nrf52 and CONF_SLEEP_DURATION in config and CONF_WAKEUP_PIN in config:
+        # On nRF52 a set sleep_duration takes the timer (kernel delay) path, which
+        # the GPIO SENSE latch used for the wakeup pin cannot interrupt -- so the
+        # wakeup pin never wakes the device. Omit sleep_duration to use the wakeup
+        # pin (System OFF), or remove wakeup_pin for a pure timer wakeup.
+        _LOGGER.warning(
+            "On nRF52, 'wakeup_pin' cannot wake the device while 'sleep_duration' is "
+            "set: the timer path uses a kernel delay that the GPIO SENSE latch cannot "
+            "interrupt. Omit 'sleep_duration' to wake from the pin (System OFF), or "
+            "remove 'wakeup_pin' for a pure timer wakeup."
+        )
+
     return config
 
 
@@ -270,7 +286,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_WAKEUP_PIN): validate_wakeup_pin,
             cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(
-                cv.only_on([PLATFORM_ESP32, PLATFORM_BK72XX]),
+                cv.only_on([PLATFORM_ESP32, PLATFORM_BK72XX, PLATFORM_NRF52]),
                 cv.enum(WAKEUP_PIN_MODES, upper=True),
             ),
             cv.Optional(CONF_ESP32_EXT1_WAKEUP): cv.All(
@@ -376,6 +392,10 @@ async def to_code(config):
         cg.add(var.set_touch_wakeup(config[CONF_TOUCH_WAKEUP]))
     if CORE.using_zephyr and "zigbee" not in CORE.loaded_integrations:
         zephyr_add_prj_conf("POWEROFF", True)
+    if CORE.is_nrf52:
+        zephyr_add_prj_conf("REBOOT", True)
+        zephyr_add_prj_conf("PM", True)
+        zephyr_add_prj_conf("PM_DEVICE", True)
 
     cg.add_define("USE_DEEP_SLEEP")
 
