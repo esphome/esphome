@@ -1,5 +1,8 @@
 <<: !include common.yaml
 
+api:
+  transport: ip
+
 wifi:
   ssid: MySSID
   password: password1

@@ -4,6 +4,7 @@
 #ifdef USE_API_NOISE
 #include "noise/protocol.h"
 #include "api_noise_context.h"
+#include "api_socket.h"
 
 namespace esphome::api {
 
@@ -16,7 +17,7 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   // Pos 7+: actual payload data
   static constexpr uint8_t HEADER_PADDING = 1 + 2 + 2 + 2;  // indicator + size + type + data_len
 
-  APINoiseFrameHelper(std::unique_ptr<socket::Socket> socket, APINoiseContext &ctx)
+  APINoiseFrameHelper(std::unique_ptr<APISocket> socket, APINoiseContext &ctx)
       : APIFrameHelper(std::move(socket)), ctx_(ctx) {
     frame_header_padding_ = HEADER_PADDING;
   }

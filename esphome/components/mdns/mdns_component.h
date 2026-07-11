@@ -136,7 +136,7 @@ class MDNSComponent final : public Component
   StaticVector<std::string, MDNS_DYNAMIC_TXT_COUNT> dynamic_txt_values_;
 #endif
 
-#if defined(USE_API) && defined(USE_MDNS_STORE_SERVICES)
+#if defined(USE_API_TRANSPORT_IP) && defined(USE_MDNS_STORE_SERVICES)
   /// Fixed buffer for MAC address (only needed when services are stored)
   char mac_address_[MAC_ADDRESS_BUFFER_SIZE];
   /// Fixed buffer for config hash hex string (only needed when services are stored)

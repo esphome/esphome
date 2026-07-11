@@ -3,6 +3,8 @@
 #ifdef USE_API
 #ifdef USE_API_PLAINTEXT
 
+#include "api_socket.h"
+
 namespace esphome::api {
 
 class APIPlaintextFrameHelper final : public APIFrameHelper {
@@ -14,7 +16,7 @@ class APIPlaintextFrameHelper final : public APIFrameHelper {
   // Pos 6+: actual payload data
   static constexpr uint8_t HEADER_PADDING = 1 + 3 + 2;  // indicator + size varint + type varint
 
-  explicit APIPlaintextFrameHelper(std::unique_ptr<socket::Socket> socket) : APIFrameHelper(std::move(socket)) {
+  explicit APIPlaintextFrameHelper(std::unique_ptr<APISocket> socket) : APIFrameHelper(std::move(socket)) {
     frame_header_padding_ = HEADER_PADDING;
   }
   ~APIPlaintextFrameHelper() override = default;

@@ -31,7 +31,7 @@ static constexpr size_t API_MAX_LOG_BYTES = 168;
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
 #define HELPER_LOG(msg, ...) \
   do { \
-    char peername_buf[socket::SOCKADDR_STR_LEN]; \
+    char peername_buf[API_SOCKADDR_STR_LEN]; \
     this->get_peername_to(peername_buf); \
     ESP_LOGVV(TAG, "%s (%s): " msg, this->client_name_, peername_buf, ##__VA_ARGS__); \
   } while (0)

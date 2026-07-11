@@ -26,6 +26,7 @@
 #endif
 #include "esphome/core/entity_base.h"
 #include "esphome/core/string_ref.h"
+#include "api_socket.h"
 
 #include <functional>
 #include <limits>
@@ -64,7 +65,8 @@ class APIConnection final : public APIServerConnectionBase {
   friend void bench_clear_batch(APIConnection *conn);
   friend void bench_process_batch(APIConnection *conn);
 #endif
-  APIConnection(std::unique_ptr<socket::Socket> socket, APIServer *parent);
+
+  APIConnection(std::unique_ptr<APISocket> socket, APIServer *parent);
   ~APIConnection();
 
   void start();
@@ -366,7 +368,7 @@ class APIConnection final : public APIServerConnectionBase {
 
   const char *get_name() const { return this->helper_->get_client_name(); }
   /// Get peer name (IP address) into caller-provided buffer, returns buf for convenience
-  const char *get_peername_to(std::span<char, socket::SOCKADDR_STR_LEN> buf) const {
+  const char *get_peername_to(std::span<char, API_SOCKADDR_STR_LEN> buf) const {
     return this->helper_->get_peername_to(buf);
   }
 

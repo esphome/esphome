@@ -98,11 +98,14 @@ struct sockaddr_storage {
 };
 using socklen_t = uint32_t;
 
+#ifndef IOVEC
+#define IOVEC
 // NOLINTNEXTLINE(readability-identifier-naming)
 struct iovec {
   void *iov_base;
   size_t iov_len;
 };
+#endif
 
 #if defined(USE_ESP8266) || defined(USE_RP2)
 // arduino-esp8266 declares a global vars called INADDR_NONE/ANY which are invalid with the define

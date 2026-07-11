@@ -11,7 +11,7 @@ APIOverflowBuffer::~APIOverflowBuffer() {
   }
 }
 
-ssize_t APIOverflowBuffer::try_drain(socket::Socket *socket) {
+ssize_t APIOverflowBuffer::try_drain(APISocket *socket) {
   while (this->count_ > 0) {
     Entry *front = this->queue_[this->head_];
 

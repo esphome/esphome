@@ -19,7 +19,9 @@
 #ifdef USE_ESP8266
 #include <pgmspace.h>
 #endif
+#ifdef USE_API_TRANSPORT_IP
 #include "esphome/components/network/util.h"
+#endif
 #include "esphome/core/application.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
@@ -136,7 +138,7 @@ static const int CAMERA_STOP_STREAM = 5000;
 
 #endif  // USE_DEVICES
 
-APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent) : parent_(parent) {
+APIConnection::APIConnection(std::unique_ptr<APISocket> sock, APIServer *parent) : parent_(parent) {
 #if defined(USE_API_PLAINTEXT) && defined(USE_API_NOISE)
   auto &noise_ctx = parent->get_noise_ctx();
   if (noise_ctx.has_psk()) {
@@ -168,7 +170,7 @@ void APIConnection::start() {
     return;
   }
   // Initialize client name with peername (IP address) until Hello message provides actual name
-  char peername[socket::SOCKADDR_STR_LEN];
+  char peername[API_SOCKADDR_STR_LEN];
   this->helper_->set_client_name(this->helper_->get_peername_to(peername), strlen(peername));
 }
 
@@ -1268,9 +1270,9 @@ void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &ms
     // Use API Audio
     voice_assistant::global_voice_assistant->start_streaming();
   } else {
-    struct sockaddr_storage storage;
+    api_sockaddr_storage_t storage;
     socklen_t len = sizeof(storage);
-    this->helper_->getpeername((struct sockaddr *) &storage, &len);
+    this->helper_->getpeername((api_sockaddr_t *) &storage, &len);
     voice_assistant::global_voice_assistant->start_streaming(&storage, msg.port);
   }
 };
@@ -1688,7 +1690,7 @@ void APIConnection::complete_authentication_() {
   this->log_client_(ESPHOME_LOG_LEVEL_DEBUG, LOG_STR("connected"));
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
   {
-    char peername[socket::SOCKADDR_STR_LEN];
+    char peername[API_SOCKADDR_STR_LEN];
     this->parent_->get_client_connected_trigger()->trigger(std::string(this->helper_->get_client_name()),
                                                            std::string(this->helper_->get_peername_to(peername)));
   }
@@ -1710,7 +1712,7 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   this->helper_->set_client_name(msg.client_info.c_str(), msg.client_info.size());
   this->client_api_version_major_ = msg.api_version_major;
   this->client_api_version_minor_ = msg.api_version_minor;
-  char peername[socket::SOCKADDR_STR_LEN];
+  char peername[API_SOCKADDR_STR_LEN];
   ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu16 ".%" PRIu16, this->helper_->get_client_name(),
            this->helper_->get_peername_to(peername), this->client_api_version_major_, this->client_api_version_minor_);
 
@@ -2104,8 +2106,10 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
     return false;
   }
 
+#ifdef USE_API_TRANSPORT_IP
   // Set TCP_NODELAY based on message type - see set_nodelay_for_message() for details
   this->helper_->set_nodelay_for_message(is_log_message);
+#endif
 
   APIError err = this->helper_->write_protobuf_packet(message_type, buffer);
   if (err == APIError::WOULD_BLOCK)
@@ -2162,14 +2166,14 @@ void APIConnection::process_batch_() {
     this->flags_.batch_scheduled = false;
     return;
   }
-
+#ifdef USE_API_TRANSPORT_IP
   // Ensure TCP_NODELAY is on before draining overflow and writing batch data.
   // Log messages enable Nagle (NODELAY off) to coalesce small packets.
   // If Nagle is still on when we try to drain, LWIP holds data in the
   // Nagle buffer, the TCP send buffer stays full, and the overflow
   // buffer can never drain — blocking the batch write indefinitely.
   this->helper_->set_nodelay_for_message(false);
-
+#endif
   // Try to clear buffer first
   if (!this->try_to_clear_buffer(true)) {
     // Can't write now, we'll try again later
@@ -2473,13 +2477,13 @@ void APIConnection::process_state_subscriptions_() {
 #endif  // USE_API_HOMEASSISTANT_STATES
 
 void APIConnection::log_client_(int level, const LogString *message) {
-  char peername[socket::SOCKADDR_STR_LEN];
+  char peername[API_SOCKADDR_STR_LEN];
   esp_log_printf_(level, TAG, __LINE__, ESPHOME_LOG_FORMAT("%s (%s): %s"), this->helper_->get_client_name(),
                   this->helper_->get_peername_to(peername), LOG_STR_ARG(message));
 }
 
 void APIConnection::log_warning_(const LogString *message, APIError err) {
-  char peername[socket::SOCKADDR_STR_LEN];
+  char peername[API_SOCKADDR_STR_LEN];
   ESP_LOGW(TAG, "%s (%s): %s %s errno=%d", this->helper_->get_client_name(), this->helper_->get_peername_to(peername),
            LOG_STR_ARG(message), LOG_STR_ARG(api_error_to_logstr(err)), errno);
 }

@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ID
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["rp2"]
@@ -29,3 +30,4 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_BLUETOOTH")
 
     cg.add_define("USE_RP2040_BLE")
+    cg.add_define("BLE_DEVICE_NAME", CORE.name)

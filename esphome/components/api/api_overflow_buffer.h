@@ -6,8 +6,7 @@
 #include "esphome/core/defines.h"
 #ifdef USE_API
 
-#include "esphome/components/socket/headers.h"
-#include "esphome/components/socket/socket.h"
+#include "api_socket.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::api {
@@ -57,7 +56,7 @@ class APIOverflowBuffer {
   /// -1 on error (caller must check errno to distinguish EWOULDBLOCK from hard errors).
   /// Callers only need to act on -1; 0 and positive values both mean "no error".
   /// Frees entries as they are fully sent.
-  ssize_t try_drain(socket::Socket *socket);
+  ssize_t try_drain(APISocket *socket);
 
   /// Enqueue unsent IOV data into the backlog.
   /// Copies iov data starting at byte offset `skip` into a new entry.

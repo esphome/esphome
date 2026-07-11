@@ -290,6 +290,7 @@ def highlight(s):
     exclude=[
         "esphome/core/log.h",
         "esphome/components/socket/headers.h",
+        "esphome/components/socket_ble/headers.h",
         "esphome/core/defines.h",
         "esphome/components/http_request/httplib.h",
     ],
@@ -650,6 +651,7 @@ def lint_relative_py_import(fname: Path, line, col, content):
     ],
     exclude=[
         "esphome/components/socket/headers.h",
+        "esphome/components/socket_ble/headers.h",
         "esphome/components/async_tcp/async_tcp.h",
         "esphome/components/esp32/core.cpp",
         "esphome/components/esp8266/core.cpp",
