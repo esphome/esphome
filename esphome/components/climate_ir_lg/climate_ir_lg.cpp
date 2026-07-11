@@ -142,7 +142,6 @@ void LgIrClimate::transmit_state() {
     // The remote's swing button sends a fixed code with no fan speed or temperature bits, so the
     // frame goes out as is instead of falling through to them
     this->transmit_(remote_state);
-    this->publish_state();
     return;
   } else {  // Mode commands
     const bool climate_is_off = (this->mode_before_ == climate::CLIMATE_MODE_OFF);
@@ -210,7 +209,6 @@ void LgIrClimate::transmit_state() {
   }
 
   this->transmit_(remote_state);
-  this->publish_state();
 }
 
 bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
