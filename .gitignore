@@ -150,3 +150,6 @@ sdkconfig.*
 /dependencies.lock
 
 api-docs/
+
+# Pranjal's local planning/docs - never commit
+pranjal-docs/

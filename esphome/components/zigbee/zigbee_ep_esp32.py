@@ -86,7 +86,7 @@ ep_configs: dict[str, dict[str, Any]] = {
         CONF_CLUSTERS: [
             {
                 CONF_ID: "BINARY_OUTPUT",
-                ROLE: CLUSTER_ROLE["SERVER"],
+                ROLE: "SERVER",
                 CONF_ATTRIBUTES: [
                     {
                         CONF_ATTRIBUTE_ID: 0x0055,
@@ -115,7 +115,7 @@ ep_configs: dict[str, dict[str, Any]] = {
         CONF_CLUSTERS: [
             {
                 CONF_ID: "ON_OFF",
-                ROLE: CLUSTER_ROLE["SERVER"],
+                ROLE: "SERVER",
                 CONF_ATTRIBUTES: [
                     {
                         CONF_ATTRIBUTE_ID: 0x0000,
