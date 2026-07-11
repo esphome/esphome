@@ -130,8 +130,10 @@ static void zb_action_handler(ezb_zcl_core_action_callback_id_t callback_id, voi
       zb_attribute_handler((ezb_zcl_set_attr_value_message_t *) message);
       break;
     case EZB_ZCL_CORE_DEFAULT_RSP_CB_ID: {
+#ifdef ESPHOME_LOG_HAS_VERBOSE
       ezb_zcl_cmd_default_rsp_message_t *default_rsp = (ezb_zcl_cmd_default_rsp_message_t *) message;
       ESP_LOGV(TAG, "Received ZCL Default Response: 0x%02x", default_rsp->in.status_code);
+#endif
     } break;
     default:
       ESP_LOGD(TAG, "Receive Zigbee action(0x%04x) callback", static_cast<unsigned>(callback_id));
@@ -200,19 +202,25 @@ void ZigbeeComponent::update_basic_cluster_(ezb_af_ep_desc_t ep_desc) {
   ezb_af_endpoint_add_cluster_desc(ep_desc, cluster_desc);
 }
 
-void ZigbeeComponent::register_device() {
+bool ZigbeeComponent::register_device() {
   if (ezb_af_device_desc_register(this->dev_desc_) != EZB_ERR_NONE) {
     ESP_LOGE(TAG, "Could not register the endpoint list");
     this->mark_failed();
-    return;
+    return false;
   }
+  return true;
 }
 
 static void ezb_task(void *pv_parameters) {
-  global_zigbee->register_device();
+  if (!global_zigbee->register_device()) {
+    vTaskDelete(NULL);
+    return;
+  }
   if (esp_zigbee_start(false) != ESP_OK) {
     ESP_LOGE(TAG, "Could not setup Zigbee");
+    global_zigbee->mark_failed();
     vTaskDelete(NULL);
+    return;  // vTaskDelete(NULL) never returns, but keep intent explicit
   }
 
   // Increase priority to 5 to align with openthread or BLE
