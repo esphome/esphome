@@ -260,6 +260,11 @@ ErrorCode HostI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, 
   return ERROR_OK;
 }
 
+ErrorCode HostI2CBus::set_frequency(uint32_t frequency) {
+  this->frequency_ = frequency;
+  return ERROR_OK;
+}
+
 ErrorCode HostI2CBus::map_errno_to_error_code_(int err) {
   switch (err) {
     case ENXIO:
