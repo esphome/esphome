@@ -305,6 +305,9 @@ class StorageRegistry : public Component {
   // Both FILESYSTEM and NETWORK expose PathStorage — use this to browse/operate on
   // any path-based storage without caring whether it's local or network-backed.
   void for_each_path_based(void (*cb)(PathStorage *s, void *ctx), void *ctx);
+  // Typed overload: additionally hands the StorageType to the callback, sparing consumers the
+  // per-entry virtual get_storage_type() call when they need to distinguish local vs. network.
+  void for_each_path_based(void (*cb)(PathStorage *s, StorageType type, void *ctx), void *ctx);
 
   // Longest-prefix match of vfs_path against every registered PathStorage's mount point.
   // Prefix matches only at a '/' boundary or an exact match (e.g. "/sd2/x" does NOT match a

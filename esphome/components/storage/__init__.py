@@ -8,11 +8,13 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ARGS,
     CONF_FORMAT,
+    CONF_FROM,
     CONF_GROUP,
     CONF_INDEX,
     CONF_KEY,
     CONF_ON_VALUE,
     CONF_PATH,
+    CONF_TO,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 
@@ -316,20 +318,31 @@ async def _build_write_action(config, action_id, template_arg, args, append):
 
 
 @automation.register_action(
-    "storage.file_write", FileWriteAction, _file_write_schema(newline_default=False)
+    "storage.file_write",
+    FileWriteAction,
+    _file_write_schema(newline_default=False),
+    synchronous=True,
 )
 async def file_write_action_to_code(config, action_id, template_arg, args):
     return await _build_write_action(config, action_id, template_arg, args, False)
 
 
 @automation.register_action(
-    "storage.file_append", FileWriteAction, _file_write_schema(newline_default=True)
+    "storage.file_append",
+    FileWriteAction,
+    _file_write_schema(newline_default=True),
+    synchronous=True,
 )
 async def file_append_action_to_code(config, action_id, template_arg, args):
     return await _build_write_action(config, action_id, template_arg, args, True)
 
 
-@automation.register_action("storage.file_read", FileReadAction, _FILE_READ_SCHEMA)
+@automation.register_action(
+    "storage.file_read",
+    FileReadAction,
+    _FILE_READ_SCHEMA,
+    synchronous=True,
+)
 async def file_read_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     template_ = await cg.templatable(config[CONF_PATH], args, cg.std_string)
@@ -381,4 +394,71 @@ async def file_read_action_to_code(config, action_id, template_arg, args):
         await automation.build_automation(
             var.get_value_trigger(), [(cg.std_string, "x")], config[CONF_ON_VALUE]
         )
+    return var
+
+
+CONF_RECURSIVE = "recursive"
+
+FileCopyAction = storage_ns.class_("FileCopyAction", automation.Action)
+FileDeleteAction = storage_ns.class_("FileDeleteAction", automation.Action)
+FileExistsCondition = storage_ns.class_("FileExistsCondition", automation.Condition)
+
+_FILE_COPY_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_FROM): cv.templatable(cv.string),
+        cv.Required(CONF_TO): cv.templatable(cv.string),
+    }
+)
+
+
+async def _build_copy_action(config, action_id, template_arg, args, is_move):
+    var = cg.new_Pvariable(action_id, template_arg, is_move)
+    cg.add(var.set_from(await cg.templatable(config[CONF_FROM], args, cg.std_string)))
+    cg.add(var.set_to(await cg.templatable(config[CONF_TO], args, cg.std_string)))
+    return var
+
+
+@automation.register_action(
+    "storage.file_copy", FileCopyAction, _FILE_COPY_SCHEMA, synchronous=True
+)
+async def file_copy_action_to_code(config, action_id, template_arg, args):
+    return await _build_copy_action(config, action_id, template_arg, args, False)
+
+
+# Doubles as a rename action: same-storage moves take the rename() fast path internally.
+@automation.register_action(
+    "storage.file_move", FileCopyAction, _FILE_COPY_SCHEMA, synchronous=True
+)
+async def file_move_action_to_code(config, action_id, template_arg, args):
+    return await _build_copy_action(config, action_id, template_arg, args, True)
+
+
+@automation.register_action(
+    "storage.file_delete",
+    FileDeleteAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_PATH): cv.templatable(cv.string),
+            cv.Optional(CONF_RECURSIVE, default=False): cv.boolean,
+        }
+    ),
+    synchronous=True,
+)
+async def file_delete_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    cg.add(var.set_path(await cg.templatable(config[CONF_PATH], args, cg.std_string)))
+    cg.add(var.set_recursive(config[CONF_RECURSIVE]))
+    return var
+
+
+@automation.register_condition(
+    "storage.file_exists",
+    FileExistsCondition,
+    cv.maybe_simple_value(
+        {cv.Required(CONF_PATH): cv.templatable(cv.string)}, key=CONF_PATH
+    ),
+)
+async def file_exists_condition_to_code(config, condition_id, template_arg, args):
+    var = cg.new_Pvariable(condition_id, template_arg)
+    cg.add(var.set_path(await cg.templatable(config[CONF_PATH], args, cg.std_string)))
     return var
