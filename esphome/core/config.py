@@ -284,14 +284,24 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_COMMENT): cv.All(
                 cv.string, cv.ByteLength(max=COMMENT_MAX_LEN)
             ),
-            cv.Required(CONF_BUILD_PATH): cv.string,
-            cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
+            cv.Required(CONF_BUILD_PATH, visibility=cv.Visibility.YAML_ONLY): cv.string,
+            cv.Optional(
+                CONF_PLATFORMIO_OPTIONS,
+                default={},
+                visibility=cv.Visibility.YAML_ONLY,
+            ): cv.Schema(
                 {
                     cv.string_strict: cv.Any([cv.string], cv.string),
                 }
             ),
-            cv.Optional(CONF_BUILD_FLAGS, default=[]): cv.ensure_list(cv.string_strict),
-            cv.Optional(CONF_ENVIRONMENT_VARIABLES, default={}): cv.Schema(
+            cv.Optional(
+                CONF_BUILD_FLAGS, default=[], visibility=cv.Visibility.YAML_ONLY
+            ): cv.ensure_list(cv.string_strict),
+            cv.Optional(
+                CONF_ENVIRONMENT_VARIABLES,
+                default={},
+                visibility=cv.Visibility.YAML_ONLY,
+            ): cv.Schema(
                 {
                     cv.string_strict: cv.string,
                 }
@@ -313,12 +323,20 @@ CONFIG_SCHEMA = cv.All(
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoopTrigger),
                 }
             ),
-            cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(valid_include),
-            cv.Optional(CONF_INCLUDES_C, default=[]): cv.ensure_list(valid_include),
-            cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
+            cv.Optional(
+                CONF_INCLUDES, default=[], visibility=cv.Visibility.YAML_ONLY
+            ): cv.ensure_list(valid_include),
+            cv.Optional(
+                CONF_INCLUDES_C, default=[], visibility=cv.Visibility.YAML_ONLY
+            ): cv.ensure_list(valid_include),
+            cv.Optional(
+                CONF_LIBRARIES, default=[], visibility=cv.Visibility.YAML_ONLY
+            ): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_NAME_ADD_MAC_SUFFIX, default=False): cv.boolean,
             cv.Optional(CONF_MERGE_WARNINGS, default=True): cv.boolean,
-            cv.Optional(CONF_DEBUG_SCHEDULER, default=False): cv.boolean,
+            cv.Optional(
+                CONF_DEBUG_SCHEDULER, default=False, visibility=cv.Visibility.YAML_ONLY
+            ): cv.boolean,
             cv.Optional(CONF_PROJECT): cv.Schema(
                 {
                     cv.Required(CONF_NAME): cv.All(
@@ -338,11 +356,15 @@ CONFIG_SCHEMA = cv.All(
                     ),
                 }
             ),
-            cv.Optional(CONF_MIN_VERSION, default=ESPHOME_VERSION): cv.All(
-                cv.version_number, cv.validate_esphome_version
-            ),
             cv.Optional(
-                CONF_COMPILE_PROCESS_LIMIT, default=_compile_process_limit_default
+                CONF_MIN_VERSION,
+                default=ESPHOME_VERSION,
+                visibility=cv.Visibility.ADVANCED,
+            ): cv.All(cv.version_number, cv.validate_esphome_version),
+            cv.Optional(
+                CONF_COMPILE_PROCESS_LIMIT,
+                default=_compile_process_limit_default,
+                visibility=cv.Visibility.ADVANCED,
             ): cv.int_range(min=1, max=get_usable_cpu_count()),
             cv.Optional(CONF_AREAS, default=[]): cv.ensure_list(AREA_SCHEMA),
             cv.Optional(CONF_DEVICES, default=[]): cv.ensure_list(DEVICE_SCHEMA),
