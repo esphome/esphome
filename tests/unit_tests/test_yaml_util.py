@@ -1349,6 +1349,37 @@ def test_sensitive_str__is_a_str_subclass() -> None:
     assert value == "hunter2"
 
 
+def test_dump_path_without_relative_to_is_unchanged() -> None:
+    """Test that Path values dump as str(path) when relative_to is not given."""
+    path = Path("some") / "dir" / "file.ttf"
+    output = yaml_util.dump({"file": path})
+    assert output.strip() == f"file: {path}"
+
+
+def test_dump_path_relative_to_anchor_dir() -> None:
+    """Test that Path values under relative_to dump as relative POSIX paths."""
+    anchor = Path("/config/esphome").absolute()
+    data = {"file": anchor / "fonts" / "arial.ttf"}
+    output = yaml_util.dump(data, relative_to=anchor)
+    assert output.strip() == "file: fonts/arial.ttf"
+
+
+def test_dump_path_outside_anchor_dir_normalized() -> None:
+    """Test that Path values outside relative_to keep their POSIX form."""
+    anchor = Path("/config/esphome").absolute()
+    outside = Path("/other/place/file.ttf").absolute()
+    output = yaml_util.dump({"file": outside}, relative_to=anchor)
+    assert output.strip() == f"file: {outside.as_posix()}"
+
+
+def test_dump_relative_to_does_not_leak_between_calls() -> None:
+    """Test that the relative_to flag is scoped to a single dump call."""
+    anchor = Path("/config/esphome").absolute()
+    path = anchor / "fonts" / "arial.ttf"
+    assert "fonts/arial.ttf" in yaml_util.dump({"file": path}, relative_to=anchor)
+    assert yaml_util.dump({"file": path}).strip() == f"file: {path}"
+
+
 def test_dump__redacts_sensitive_str_by_default() -> None:
     out = yaml_util.dump({"password": SensitiveStr("hunter2")})
     assert "\\033[8mhunter2\\033[28m" in out
