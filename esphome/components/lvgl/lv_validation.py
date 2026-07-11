@@ -331,6 +331,19 @@ lv_angle = LValidator(angle, uint32, retmapper=lambda x: int(x * 10), animatable
 lv_angle_degrees = LValidator(angle, uint32, retmapper=int, animatable=True)
 
 
+def rotation_degrees(value):
+    """Validate a display rotation, returning the angle in whole degrees.
+
+    Accepts the four supported rotations, optionally suffixed with "°".
+    """
+    value = cv.string(value).removesuffix("°")
+    return cv.one_of(0, 90, 180, 270, int=True)(value)
+
+
+# Validator for a display rotation expressed in whole degrees (templatable)
+lv_rotation = LValidator(rotation_degrees, cg.int_)
+
+
 @schema_extractor("one_of")
 def size_validator(value):
     """A size in one axis - one of "size_content", a number (pixels) or a percentage"""
@@ -398,7 +411,10 @@ class ImageValidator(LValidator):
         )
 
     async def process(
-        self, value: Any, args: list[tuple[SafeExpType, str]] | None = None
+        self,
+        value: Any,
+        args: list[tuple[SafeExpType, str]] | None = None,
+        raw_lambda: bool = False,
     ) -> Expression:
         # Local import to avoid circular import at module level
         from .lvcode import get_lambda_context_args
@@ -419,7 +435,7 @@ class ImageValidator(LValidator):
                 index = await metadata.from_.convert_value(index)
             return mapping_var.get(index)
 
-        return await super().process(value, args)
+        return await super().process(value, args, raw_lambda)
 
 
 lv_image = ImageValidator()

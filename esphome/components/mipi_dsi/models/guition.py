@@ -1,8 +1,7 @@
-from esphome.components.mipi import DriverChip
-import esphome.config_validation as cv
+from . import DsiDriverChip
 
 # fmt: off
-DriverChip(
+DsiDriverChip(
     "JC1060P470",
     width=1024,
     height=600,
@@ -14,7 +13,6 @@ DriverChip(
     vsync_front_porch=12,
     pclk_frequency="54MHz",
     lane_bit_rate="750Mbps",
-    swap_xy=cv.UNDEFINED,
     color_order="RGB",
     initsequence=[
         (0x30, 0x00), (0xF7, 0x49, 0x61, 0x02, 0x00), (0x30, 0x01), (0x04, 0x0C), (0x05, 0x00), (0x06, 0x00),
@@ -46,7 +44,7 @@ DriverChip(
 # * Horizontal Timing (hsync_pulse_width=12, hsync_back_porch=42, hsync_front_porch=42)
 # * Vertical Timing (vsync_pulse_width=2, vsync_back_porch=8, vsync_front_porch=166)
 # ----------------------------------------------------------------------------------------------------------------------
-DriverChip(
+DsiDriverChip(
     "JC4880P443",
     width=480,
     height=800,
@@ -58,7 +56,6 @@ DriverChip(
     vsync_front_porch=166,
     pclk_frequency="34MHz",
     lane_bit_rate="500Mbps",
-    swap_xy=cv.UNDEFINED,
     color_order="RGB",
     reset_pin=5,
     initsequence=[
@@ -111,7 +108,7 @@ DriverChip(
 # * Horizontal Timing (hsync_pulse_width=20, hsync_back_porch=20, hsync_front_porch=40)
 # * Vertical Timing (vsync_pulse_width=4, vsync_back_porch=8, vsync_front_porch=20)
 # ----------------------------------------------------------------------------------------------------------------------
-DriverChip(
+DsiDriverChip(
     "JC8012P4A1",
     width=800,
     height=1280,
@@ -123,7 +120,6 @@ DriverChip(
     vsync_front_porch=20,
     pclk_frequency="60MHz",
     lane_bit_rate="1Gbps",
-    swap_xy=cv.UNDEFINED,
     color_order="RGB",
     reset_pin=27,
     initsequence=[
