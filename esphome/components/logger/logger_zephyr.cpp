@@ -12,6 +12,7 @@
 #include <esphome/components/zephyr/reset_reason.h>
 #endif
 #ifdef USE_ZEPHYR_LOG_BACKEND
+#include <cinttypes>
 #include <zephyr/logging/log.h>
 #include <zephyr/logging/log_backend.h>
 #include <zephyr/logging/log_core.h>
@@ -264,7 +265,11 @@ void esphome_zephyr_backend_process(const struct log_backend *const backend, uni
 }
 
 void esphome_zephyr_backend_dropped(const struct log_backend *const backend, uint32_t cnt) {
-  log_output_dropped_process(&esphome_zephyr_log_output, cnt);
+  if (esphome::logger::global_logger != nullptr && !esphome_zephyr_in_backend) {
+    esphome_zephyr_in_backend = true;
+    esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_WARN, ZEPHYR_BACKEND_TAG, 0, "%" PRIu32 " messages dropped", cnt);
+    esphome_zephyr_in_backend = false;
+  }
 }
 
 void esphome_zephyr_backend_panic(const struct log_backend *const backend) {
