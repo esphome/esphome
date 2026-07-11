@@ -13,6 +13,7 @@ AXS15231 = DriverChip(
     transforms={CONF_MIRROR_X, CONF_MIRROR_Y},
     color_order=MODE_RGB,
     bus_mode=TYPE_QUAD,
+    no_swreset=True,
     initsequence=(
         (0xBB, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5A, 0xA5),
         (0xC1, 0x33),

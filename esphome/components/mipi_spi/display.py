@@ -397,7 +397,7 @@ def get_instance(config):
 async def to_code(config):
     model = MODELS[config[CONF_MODEL]]
     var_id = config[CONF_ID]
-    init_sequence = model.get_sequence(config, False)
+    init_sequence = model.get_sequence(config, add_madctl=False, add_reset=True)
     var_id.type, templateargs = get_instance(config)
     var = cg.new_Pvariable(var_id, TemplateArguments(*templateargs))
     cg.add(var.set_init_sequence(init_sequence))
