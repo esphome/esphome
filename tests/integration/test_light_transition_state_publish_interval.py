@@ -10,10 +10,11 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
-import aioesphomeapi
-from aioesphomeapi import EntityState, LightState
 import pytest
 import pytest_asyncio
+
+import aioesphomeapi
+from aioesphomeapi import EntityState, LightState
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
@@ -374,6 +375,18 @@ async def test_light_transition_state_publish_interval(
 
         # 3) CWWW/CT transition: verify intermediate updates and that the final
         #    color temperature reaches the requested value.
+        # Establish a known starting color temperature (cold end, 153 mireds)
+        # instantly so the transition to 300 mireds always spans a real gradient;
+        # otherwise the light's power-on color temperature could coincide with the
+        # target and produce no intermediate values to observe.
+        client.light_command(
+            key=cwww.key,
+            state=True,
+            color_temperature=153.0,
+            brightness=1.0,
+            transition_length=0.0,
+        )
+        await asyncio.sleep(0.3)
         cwww_timeline = await _collect_state_timeline(
             client,
             cwww.key,
