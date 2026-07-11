@@ -12,7 +12,6 @@ from .const import (
     REPORT,
 )
 from .const_esp32 import (
-    CLUSTER_ROLE,
     CONF_ATTRIBUTE_ID,
     CONF_ATTRIBUTES,
     CONF_CLUSTERS,
