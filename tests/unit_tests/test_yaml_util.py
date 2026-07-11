@@ -1364,12 +1364,32 @@ def test_dump_path_relative_to_anchor_dir() -> None:
     assert output.strip() == "file: fonts/arial.ttf"
 
 
-def test_dump_path_outside_anchor_dir_normalized() -> None:
-    """Test that Path values outside relative_to keep their POSIX form."""
+def test_dump_path_outside_anchor_dir_walks_up() -> None:
+    """Test that Path values outside relative_to walk up with ".." segments."""
     anchor = Path("/config/esphome").absolute()
-    outside = Path("/other/place/file.ttf").absolute()
+    outside = Path("/config/fonts/file.ttf").absolute()
     output = yaml_util.dump({"file": outside}, relative_to=anchor)
-    assert output.strip() == f"file: {outside.as_posix()}"
+    assert output.strip() == "file: ../fonts/file.ttf"
+
+
+def test_dump_path_with_dotdot_segments_is_normalized() -> None:
+    """Test that ".." segments do not defeat relativization.
+
+    A path like /config/other/../esphome/fonts/x.ttf is under the anchor
+    once normalized, so it must dump as a plain relative path.
+    """
+    anchor = Path("/config/esphome").absolute()
+    path = Path("/config/other/../esphome/fonts/x.ttf").absolute()
+    output = yaml_util.dump({"file": path}, relative_to=anchor)
+    assert output.strip() == "file: fonts/x.ttf"
+
+
+def test_dump_path_dotdot_reference_outside_anchor() -> None:
+    """Test the relative_config_path("../...") shape stays relative."""
+    anchor = Path("/config/esphome").absolute()
+    path = anchor / ".." / "shared" / "font.ttf"
+    output = yaml_util.dump({"file": path}, relative_to=anchor)
+    assert output.strip() == "file: ../shared/font.ttf"
 
 
 def test_dump_relative_to_does_not_leak_between_calls() -> None:

@@ -1051,11 +1051,17 @@ class ESPHomeDumper(yaml.SafeDumper):
 
     def represent_path(self, value: Path) -> yaml.ScalarNode:
         if self._relative_to is not None:
-            # A path outside the anchor directory stays as-is; as_posix()
-            # still normalizes separators across operating systems.
+            # Normalize both sides lexically (no symlink resolution) so ".."
+            # segments do not defeat the prefix match, and walk up so files
+            # referenced outside the anchor directory stay relative too. A
+            # path that still cannot be relativized (e.g. a different drive)
+            # keeps its POSIX form so separators stay stable across OSes.
+            path = Path(os.path.normpath(value))
             with suppress(ValueError):
-                value = value.relative_to(self._relative_to)
-            return self.represent_stringify(value.as_posix())
+                path = path.relative_to(
+                    os.path.normpath(self._relative_to), walk_up=True
+                )
+            return self.represent_stringify(path.as_posix())
         return self.represent_stringify(value)
 
     def represent_sensitive(self, value: SensitiveStr) -> yaml.ScalarNode:
