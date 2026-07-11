@@ -257,7 +257,10 @@ FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
-            cv.Optional(CONF_SOURCE): cv.string_strict,
+            # Raw PlatformIO package source — build internal, not a UI field.
+            cv.Optional(
+                CONF_SOURCE, visibility=cv.Visibility.YAML_ONLY
+            ): cv.string_strict,
             cv.Optional(CONF_LOGLEVEL, default="warn"): (
                 cv.one_of(*LT_LOGLEVELS, upper=True)
             ),

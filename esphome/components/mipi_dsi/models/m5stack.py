@@ -1,8 +1,7 @@
-from esphome.components.mipi import DriverChip
-import esphome.config_validation as cv
+from . import DsiDriverChip
 
 # fmt: off
-DriverChip(
+DsiDriverChip(
     "M5STACK-TAB5",
     height=1280,
     width=720,
@@ -14,7 +13,6 @@ DriverChip(
     vsync_front_porch=20,
     pclk_frequency="60MHz",
     lane_bit_rate="730Mbps",
-    swap_xy=cv.UNDEFINED,
     color_order="RGB",
     initsequence=[
         (0xFF, 0x98, 0x81, 0x01),  # Select Page 1
@@ -56,7 +54,7 @@ DriverChip(
     ],
 )
 
-DriverChip(
+DsiDriverChip(
     "M5STACK-TAB5-V2",
     height=1280,
     width=720,
@@ -68,7 +66,6 @@ DriverChip(
     vsync_front_porch=220,
     pclk_frequency="80MHz",
     lane_bit_rate="960Mbps",
-    swap_xy=cv.UNDEFINED,
     color_order="RGB",
     initsequence=[
         (0x01,),
