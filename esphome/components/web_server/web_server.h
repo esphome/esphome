@@ -76,7 +76,7 @@ struct UrlMatch {
   bool method_equals(const __FlashStringHelper *str) const { return this->method == str; }
 #endif
 
-  /// Match entity by name first, then fall back to object_id with deprecation warning
+  /// Match entity by name
   /// Returns EntityMatchResult with match status and whether action segment is empty
   EntityMatchResult match_entity(EntityBase *entity) const;
 };
@@ -160,7 +160,8 @@ class DeferredUpdateEventSource final : public AsyncEventSource {
   void loop();
 
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
-  void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
+  void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
+                        uint32_t reconnect = 0);
 };
 
 class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEventSource *> {
@@ -173,7 +174,8 @@ class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEvent
   bool loop();
 
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
-  void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
+  void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
+                        uint32_t reconnect = 0);
 
   void add_new_client(WebServer *ws, AsyncWebServerRequest *request);
 };
@@ -462,6 +464,12 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 
   static json::SerializationBuffer<> infrared_all_json_generator(WebServer *web_server, void *source);
 #endif
+#ifdef USE_RADIO_FREQUENCY
+  /// Handle a radio frequency request under '/radio_frequency/<id>/transmit'.
+  void handle_radio_frequency_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  static json::SerializationBuffer<> radio_frequency_all_json_generator(WebServer *web_server, void *source);
+#endif
 
 #ifdef USE_EVENT
   void on_event(event::Event *obj) override;
@@ -653,6 +661,9 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 #ifdef USE_INFRARED
   json::SerializationBuffer<> infrared_json_(infrared::Infrared *obj, JsonDetail start_config);
+#endif
+#ifdef USE_RADIO_FREQUENCY
+  json::SerializationBuffer<> radio_frequency_json_(radio_frequency::RadioFrequency *obj, JsonDetail start_config);
 #endif
 #ifdef USE_UPDATE
   json::SerializationBuffer<> update_json_(update::UpdateEntity *obj, JsonDetail start_config);

@@ -21,7 +21,7 @@ class APIServerConnectionBase {
 
   void on_hello_request(const HelloRequest &value){};
 
-  void on_disconnect_request(){};
+  void on_disconnect_request(const DisconnectRequest &value){};
   void on_disconnect_response(){};
   void on_ping_request(){};
   void on_ping_response(){};
@@ -211,7 +211,7 @@ class APIServerConnectionBase {
   void on_z_wave_proxy_request(const ZWaveProxyRequest &value){};
 #endif
 
-#ifdef USE_IR_RF
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
   void on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &value){};
 #endif
 

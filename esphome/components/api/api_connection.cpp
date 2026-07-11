@@ -1,5 +1,6 @@
 #include "api_connection.h"
 #ifdef USE_API
+#include "api_connection_buffer.h"  // for encode_to_buffer / get_batch_delay_ms_ inlines
 #ifdef USE_API_NOISE
 #include "api_frame_helper_noise.h"
 #endif
@@ -24,6 +25,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
+#ifdef USE_PROVISIONING
+#include "esphome/components/provisioning/provisioning.h"
+#endif
 
 #ifdef USE_DEEP_SLEEP
 #include "esphome/components/deep_sleep/deep_sleep_component.h"
@@ -48,6 +52,9 @@
 #endif
 #ifdef USE_INFRARED
 #include "esphome/components/infrared/infrared.h"
+#endif
+#ifdef USE_RADIO_FREQUENCY
+#include "esphome/components/radio_frequency/radio_frequency.h"
 #endif
 
 namespace esphome::api {
@@ -100,6 +107,12 @@ static const int CAMERA_STOP_STREAM = 5000;
   entity_type *entity_var = App.get_##getter_name##_by_key(msg.key, msg.device_id); \
   if ((entity_var) == nullptr) \
     return;
+
+// Helper macro for multi-entity dispatch: looks up an entity by key and device_id without early return or make_call().
+// Use when multiple entity types must be checked in sequence (at most one will match).
+#define ENTITY_COMMAND_LOOKUP(entity_type, entity_var, getter_name) \
+  entity_type *entity_var = App.get_##getter_name##_by_key(msg.key, msg.device_id)
+
 #else  // No device support, use simpler macros
 // Helper macro for entity command handlers - gets entity by key, returns if not found, and creates call
 // object
@@ -115,6 +128,12 @@ static const int CAMERA_STOP_STREAM = 5000;
   entity_type *entity_var = App.get_##getter_name##_by_key(msg.key); \
   if ((entity_var) == nullptr) \
     return;
+
+// Helper macro for multi-entity dispatch: looks up an entity by key without early return or make_call().
+// Use when multiple entity types must be checked in sequence (at most one will match).
+#define ENTITY_COMMAND_LOOKUP(entity_type, entity_var, getter_name) \
+  entity_type *entity_var = App.get_##getter_name##_by_key(msg.key)
+
 #endif  // USE_DEVICES
 
 APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent) : parent_(parent) {
@@ -359,7 +378,7 @@ void APIConnection::finalize_iterator_sync_() {
 
 void APIConnection::process_iterator_batch_(ComponentIterator &iterator) {
   size_t initial_size = this->deferred_batch_.size();
-  size_t max_batch = this->get_max_batch_size_();
+  size_t max_batch = MAX_INITIAL_PER_BATCH;
   while (!iterator.completed() && (this->deferred_batch_.size() - initial_size) < max_batch) {
     iterator.advance();
   }
@@ -401,16 +420,6 @@ uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResp
                                                     APIConnection *conn, uint32_t remaining_size) {
   // Set common fields that are shared by all entity types
   msg.key = entity->get_object_id_hash();
-
-  // API 1.14+ clients compute object_id client-side from the entity name
-  // For older clients, we must send object_id for backward compatibility
-  // See: https://github.com/esphome/backlog/issues/76
-  // TODO: Remove this backward compat code before 2026.7.0 - all clients should support API 1.14 by then
-  // Buffer must remain in scope until encode_to_buffer is called
-  char object_id_buf[OBJECT_ID_MAX_LEN];
-  if (!conn->client_supports_api_version(1, 14)) {
-    msg.object_id = entity->get_object_id_to(object_id_buf);
-  }
 
   if (entity->has_own_name()) {
     msg.name = entity->get_name();
@@ -1153,7 +1162,7 @@ void APIConnection::on_camera_image_request(const CameraImageRequest &msg) {
 void APIConnection::on_get_time_response(const GetTimeResponse &value) {
   if (homeassistant::global_homeassistant_time != nullptr) {
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
-#ifdef USE_TIME_TIMEZONE
+#if defined(USE_HOMEASSISTANT_TIMEZONE) && defined(USE_TIME_TIMEZONE)
     if (!value.timezone.empty()) {
       // Check if the sender provided pre-parsed timezone data.
       // If std_offset is non-zero or DST rules are present, the parsed data was populated.
@@ -1290,6 +1299,9 @@ void APIConnection::on_voice_assistant_announce_request(const VoiceAssistantAnno
 bool APIConnection::send_voice_assistant_get_configuration_response_(const VoiceAssistantConfigurationRequest &msg) {
   VoiceAssistantConfigurationResponse resp;
   if (!this->check_voice_assistant_api_connection_()) {
+    // send_message encodes synchronously, so this stack local outlives the encode
+    const std::vector<std::string> empty_wake_words;
+    resp.active_wake_words = &empty_wake_words;
     return this->send_message(resp);
   }
 
@@ -1471,19 +1483,36 @@ uint16_t APIConnection::try_send_event_info(EntityBase *entity, APIConnection *c
 }
 #endif
 
-#ifdef USE_IR_RF
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
 void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg) {
-  // TODO: When RF is implemented, add a field to the message to distinguish IR vs RF
-  // and dispatch to the appropriate entity type based on that field.
+  // Dispatch by key: infrared entities are checked first, then radio frequency entities.
+  // The key is unique across all entity instances on a device, so at most one lookup will succeed.
 #ifdef USE_INFRARED
-  ENTITY_COMMAND_MAKE_CALL(infrared::Infrared, infrared, infrared)
-  call.set_carrier_frequency(msg.carrier_frequency);
-  call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
-  call.set_repeat_count(msg.repeat_count);
-  call.perform();
+  ENTITY_COMMAND_LOOKUP(infrared::Infrared, infrared, infrared);
+  if (infrared != nullptr) {
+    auto call = infrared->make_call();
+    call.set_carrier_frequency(msg.carrier_frequency);
+    call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
+    call.set_repeat_count(msg.repeat_count);
+    call.perform();
+    return;
+  }
+#endif
+#ifdef USE_RADIO_FREQUENCY
+  ENTITY_COMMAND_LOOKUP(radio_frequency::RadioFrequency, radio_frequency, radio_frequency);
+  if (radio_frequency != nullptr) {
+    auto call = radio_frequency->make_call();
+    call.set_frequency(msg.carrier_frequency);
+    call.set_modulation(static_cast<radio_frequency::RadioFrequencyModulation>(msg.modulation));
+    call.set_repeat_count(msg.repeat_count);
+    call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
+    call.perform();
+  }
 #endif
 }
+#endif
 
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
 void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg) { this->send_message(msg); }
 #endif
 
@@ -1577,6 +1606,19 @@ uint16_t APIConnection::try_send_infrared_info(EntityBase *entity, APIConnection
   msg.capabilities = infrared->get_capability_flags();
   msg.receiver_frequency = infrared->get_traits().get_receiver_frequency_hz();
   return fill_and_encode_entity_info(infrared, msg, conn, remaining_size);
+}
+#endif
+
+#ifdef USE_RADIO_FREQUENCY
+uint16_t APIConnection::try_send_radio_frequency_info(EntityBase *entity, APIConnection *conn,
+                                                      uint32_t remaining_size) {
+  auto *rf = static_cast<radio_frequency::RadioFrequency *>(entity);
+  ListEntitiesRadioFrequencyResponse msg;
+  msg.capabilities = rf->get_capability_flags();
+  msg.frequency_min = rf->get_traits().get_frequency_min_hz();
+  msg.frequency_max = rf->get_traits().get_frequency_max_hz();
+  msg.supported_modulations = rf->get_traits().get_supported_modulations();
+  return fill_and_encode_entity_info(rf, msg, conn, remaining_size);
 }
 #endif
 
@@ -1685,6 +1727,19 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   resp.server_info = ESPHOME_VERSION_REF;
   resp.name = StringRef(App.get_name());
 
+#ifdef USE_PROVISIONING
+  if (provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed()) {
+    // The provisioning window has closed without the device being provisioned.
+    // Acknowledge the hello so the client can read the server name, then request
+    // disconnect with the reason. Authentication is intentionally not completed.
+    this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("Provisioning closed; rejecting connection"));
+    this->send_message(resp);
+    DisconnectRequest req;
+    req.reason = enums::DISCONNECT_REASON_PROVISIONING_CLOSED;
+    return this->send_message(req);
+  }
+#endif
+
   // Auto-authenticate - password auth was removed in ESPHome 2026.1.0
   this->complete_authentication_();
 
@@ -1720,7 +1775,7 @@ bool APIConnection::send_device_info_response_() {
   // Manufacturer string - define once, handle ESP8266 PROGMEM separately
 #if defined(USE_ESP8266) || defined(USE_ESP32)
 #define ESPHOME_MANUFACTURER "Espressif"
-#elif defined(USE_RP2040)
+#elif defined(USE_RP2)
 #define ESPHOME_MANUFACTURER "Raspberry Pi"
 #elif defined(USE_BK72XX)
 #define ESPHOME_MANUFACTURER "Beken"
@@ -1835,7 +1890,8 @@ void APIConnection::on_hello_request(const HelloRequest &msg) {
     this->on_fatal_error();
   }
 }
-void APIConnection::on_disconnect_request() {
+void APIConnection::on_disconnect_request(const DisconnectRequest & /*msg*/) {
+  // The reason is informational when a client disconnects us; we always ack and close.
   if (!this->send_disconnect_response_()) {
     this->on_fatal_error();
   }
@@ -1962,6 +2018,15 @@ void APIConnection::on_homeassistant_action_response(const HomeassistantActionRe
 bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptionSetKeyRequest &msg) {
   NoiseEncryptionSetKeyResponse resp;
   resp.success = false;
+
+#ifdef USE_PROVISIONING
+  // Refuse to set a key once the provisioning window has closed (defense in depth;
+  // such connections are already rejected at hello).
+  if (provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed()) {
+    ESP_LOGW(TAG, "Provisioning closed; rejecting key set");
+    return this->send_message(resp);
+  }
+#endif
 
   psk_t psk{};
   if (msg.key_len == 0) {
@@ -2340,6 +2405,9 @@ uint16_t APIConnection::dispatch_message_(const DeferredBatch::BatchItem &item, 
 #endif
 #ifdef USE_INFRARED
     CASE_INFO_ONLY(infrared, ListEntitiesInfraredResponse)
+#endif
+#ifdef USE_RADIO_FREQUENCY
+    CASE_INFO_ONLY(radio_frequency, ListEntitiesRadioFrequencyResponse)
 #endif
 #ifdef USE_EVENT
     CASE_INFO_ONLY(event, ListEntitiesEventResponse)

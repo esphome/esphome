@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sx127x {
+namespace esphome::sx127x {
 
 static const char *const TAG = "sx127x";
 static const uint32_t FXOSC = 32000000u;
@@ -202,8 +201,8 @@ void SX127x::configure_fsk_ook_() {
   this->write_register_(REG_OOK_AVG, OOK_AVG_RESERVED | OOK_THRESH_DEC_1_8);
 
   // set rx floor
-  this->write_register_(REG_OOK_FIX, 256 + int(this->rx_floor_ * 2.0));
-  this->write_register_(REG_RSSI_THRESH, std::abs(int(this->rx_floor_ * 2.0)));
+  this->write_register_(REG_OOK_FIX, 256 + int(this->rx_floor_ * 2.0f));
+  this->write_register_(REG_RSSI_THRESH, std::abs(int(this->rx_floor_ * 2.0f)));
 }
 
 void SX127x::configure_lora_() {
@@ -226,7 +225,7 @@ void SX127x::configure_lora_() {
   }
 
   // optimize detection
-  float duration = 1000.0f * std::pow(2, this->spreading_factor_) / BW_HZ[this->bandwidth_];
+  float duration = 1000.0f * (1UL << this->spreading_factor_) / BW_HZ[this->bandwidth_];
   if (duration > 16) {
     this->write_register_(REG_MODEM_CONFIG3, MODEM_AGC_AUTO_ON | LOW_DATA_RATE_OPTIMIZE_ON);
   } else {
@@ -507,5 +506,4 @@ void SX127x::dump_config() {
   }
 }
 
-}  // namespace sx127x
-}  // namespace esphome
+}  // namespace esphome::sx127x

@@ -294,57 +294,59 @@ void Rtttl::play(std::string rtttl) {
   }
   ESP_LOGD(TAG, "Playing song %.*s", (int) this->position_, this->rtttl_.c_str());
 
-  // Get default duration
-  this->position_ = this->rtttl_.find("d=", this->position_);
-  if (this->position_ == std::string::npos) {
-    ESP_LOGE(TAG, "Missing 'd='");
-    return;
-  }
-  this->position_ += 2;
-  num = this->get_integer_();
-  if (num == 1 || num == 2 || num == 4 || num == 8 || num == 16 || num == 32) {
-    this->default_note_denominator_ = num;
-  } else {
-    ESP_LOGE(TAG, "Invalid default duration: %d", num);
-    return;
-  }
-
-  // Get default octave
-  this->position_ = this->rtttl_.find("o=", this->position_);
-  if (this->position_ == std::string::npos) {
-    ESP_LOGE(TAG, "Missing 'o=");
-    return;
-  }
-  this->position_ += 2;
-  num = this->get_integer_();
-  if (num >= MIN_OCTAVE && num <= MAX_OCTAVE) {
-    this->default_octave_ = num;
-  } else {
-    ESP_LOGE(TAG, "Invalid default octave: %d", num);
-    return;
-  }
-
-  // Get BPM
-  this->position_ = this->rtttl_.find("b=", this->position_);
-  if (this->position_ == std::string::npos) {
-    ESP_LOGE(TAG, "Missing b=");
-    return;
-  }
-  this->position_ += 2;
-  num = this->get_integer_();
-  if (num >= 4) {  // Below 4 is not realistic and would cause a integer overflow
-    bpm = num;
-  } else {
-    ESP_LOGE(TAG, "Invalid BPM: %d", num);
-    return;
-  }
-
-  this->position_ = this->rtttl_.find(':', this->position_);
-  if (this->position_ == std::string::npos) {
+  size_t name_end_position = this->position_;
+  size_t control_end = this->rtttl_.find(':', name_end_position + 1);
+  if (control_end == std::string::npos) {
     ESP_LOGE(TAG, "Missing second ':'");
     return;
   }
-  this->position_++;
+
+  // Get default duration
+  size_t pos = this->rtttl_.find("d=", name_end_position);
+  if (pos == std::string::npos || pos >= control_end) {
+    ESP_LOGW(TAG, "Missing 'd='; use default duration %d", this->default_note_denominator_);
+  } else {
+    this->position_ = pos + 2;
+    num = this->get_integer_();
+    if (num == 1 || num == 2 || num == 4 || num == 8 || num == 16 || num == 32) {
+      this->default_note_denominator_ = num;
+    } else {
+      ESP_LOGE(TAG, "Invalid default duration: %d", num);
+      return;
+    }
+  }
+
+  // Get default octave
+  pos = this->rtttl_.find("o=", name_end_position);
+  if (pos == std::string::npos || pos >= control_end) {
+    ESP_LOGW(TAG, "Missing 'o='; use default octave %d", this->default_octave_);
+  } else {
+    this->position_ = pos + 2;
+    num = this->get_integer_();
+    if (num >= MIN_OCTAVE && num <= MAX_OCTAVE) {
+      this->default_octave_ = num;
+    } else {
+      ESP_LOGE(TAG, "Invalid default octave: %d", num);
+      return;
+    }
+  }
+
+  // Get BPM
+  pos = this->rtttl_.find("b=", name_end_position);
+  if (pos == std::string::npos || pos >= control_end) {
+    ESP_LOGW(TAG, "Missing 'b='; use default BPM %d", bpm);
+  } else {
+    this->position_ = pos + 2;
+    num = this->get_integer_();
+    if (num >= 4) {  // Below 4 is not realistic and would cause a integer overflow
+      bpm = num;
+    } else {
+      ESP_LOGE(TAG, "Invalid BPM: %d", num);
+      return;
+    }
+  }
+
+  this->position_ = control_end + 1;
 
   // BPM usually expresses the number of quarter notes per minute
   this->wholenote_duration_ = 60 * 1000L * 4 / bpm;  // This is the time for whole note (in milliseconds)
@@ -422,7 +424,9 @@ void Rtttl::set_state_(State state) {
   // Clear loop_done when transitioning from `State::STOPPED` to any other state
   if (state == State::STOPPED) {
     this->disable_loop();
+#ifdef USE_RTTTL_FINISHED_PLAYBACK_CALLBACK
     this->on_finished_playback_callback_.call();
+#endif
     ESP_LOGD(TAG, "Playback finished");
   } else if (old_state == State::STOPPED) {
     this->enable_loop();

@@ -5,8 +5,7 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace camera {
+namespace esphome::camera {
 
 /** Different sources for filtering.
  *  IDLE: Camera requests to send an image to the API.
@@ -134,5 +133,4 @@ class Camera : public EntityBase, public Component {
   static Camera *global_camera;
 };
 
-}  // namespace camera
-}  // namespace esphome
+}  // namespace esphome::camera

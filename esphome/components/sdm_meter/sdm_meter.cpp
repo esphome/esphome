@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sdm_meter {
+namespace esphome::sdm_meter {
 
 static const char *const TAG = "sdm_meter";
 
@@ -110,5 +109,4 @@ void SDMMeter::dump_config() {
   LOG_SENSOR("  ", "Export Reactive Energy", this->export_reactive_energy_sensor_);
 }
 
-}  // namespace sdm_meter
-}  // namespace esphome
+}  // namespace esphome::sdm_meter

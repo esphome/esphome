@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp23xxx_base {
+namespace esphome::mcp23xxx_base {
 
 template<uint8_t N> void MCP23XXXGPIOPin<N>::setup() {
   this->pin_mode(flags_);
@@ -28,5 +27,4 @@ template<uint8_t N> size_t MCP23XXXGPIOPin<N>::dump_summary(char *buffer, size_t
 template class MCP23XXXGPIOPin<8>;
 template class MCP23XXXGPIOPin<16>;
 
-}  // namespace mcp23xxx_base
-}  // namespace esphome
+}  // namespace esphome::mcp23xxx_base

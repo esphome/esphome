@@ -254,21 +254,22 @@ class ExponentialMovingAverageFilter : public Filter {
  *
  * It takes the average of all the values received in a period of time.
  */
-class ThrottleAverageFilter : public Filter, public Component {
+class ThrottleAverageFilter : public Filter {
  public:
   explicit ThrottleAverageFilter(uint32_t time_period);
 
-  void setup() override;
+  void initialize(Sensor *parent, Filter *next) override;
 
   optional<float> new_value(float value) override;
 
-  float get_setup_priority() const override;
-
  protected:
   float sum_{0.0f};
-  unsigned int n_{0};
   uint32_t time_period_;
-  bool have_nan_{false};
+  // Sample count packed with NaN-seen flag in a single 32-bit word.
+  // n_ is bounded by YAML cap on time_period_ (24 h) × max plausible source
+  // rate (1 kHz) = 86.4M ≪ 2^31, so 31 bits has 25x headroom.
+  uint32_t n_ : 31 {0};
+  uint32_t have_nan_ : 1 {0};
 };
 
 using lambda_filter_t = std::function<optional<float>(float)>;
@@ -399,7 +400,44 @@ template<size_t N> class ThrottleWithPriorityFilter : public ValueListFilter<N> 
   uint32_t min_time_between_inputs_;
 };
 
-// Base class for timeout filters - contains common loop logic
+/// Specialization of ThrottleWithPriorityFilter for the common "prioritize NaN"
+/// case: skips the TemplatableFn<float> array + lambda and inlines the check.
+class ThrottleWithPriorityNanFilter : public Filter {
+ public:
+  explicit ThrottleWithPriorityNanFilter(uint32_t min_time_between_inputs);
+
+  optional<float> new_value(float value) override;
+
+ protected:
+  uint32_t last_input_{0};
+  uint32_t min_time_between_inputs_;
+};
+
+// Base class for timeout filters - contains common loop logic.
+//
+// Why this intentionally inherits Component (and does NOT use the self-keyed
+// `App.scheduler.set_timeout(this, ...)` pattern that the other Filter classes
+// migrated to):
+//
+// Timeout filters re-arm on every input, so on devices with many sensors
+// using timeout filters (e.g. multi-LD2450 boards) every armed filter would
+// require a live SchedulerItem in RAM at the same time. A SchedulerItem is
+// substantially larger than the Component bookkeeping bytes carried by this
+// class, so paying the Component cost per filter (one-time, BSS) is cheaper
+// than paying for a SchedulerItem per filter (live, while armed). #11922
+// is the original symptom and switchover to the loop-based design; #16173
+// attempted to migrate this onto the scheduler and was closed for exactly
+// this reason — even if the scheduler pool were unbounded, RAM per armed
+// filter would still be dominated by the SchedulerItem itself, not by
+// anything we can shrink in the scheduler.
+//
+// The loop-based design has additional advantages on top of the RAM win:
+// `enable_loop()` / `disable_loop()` partitions the cost away when no
+// timeout is armed; while armed, work is a single timestamp compare per
+// active filter, with no per-input scheduler cancel/insert path.
+//
+// Don't try to migrate this class onto the self-keyed scheduler. The math
+// doesn't work — at scale, this design is the smaller one.
 class TimeoutFilterBase : public Filter, public Component {
  public:
   void loop() override;
@@ -441,25 +479,22 @@ class TimeoutFilterConfigured : public TimeoutFilterBase {
   // Total: 8 (base) + 4 = 12 bytes + vtable ptr + Component overhead
 };
 
-class DebounceFilter : public Filter, public Component {
+class DebounceFilter : public Filter {
  public:
   explicit DebounceFilter(uint32_t time_period);
 
   optional<float> new_value(float value) override;
 
-  float get_setup_priority() const override;
-
  protected:
   uint32_t time_period_;
 };
 
-class HeartbeatFilter : public Filter, public Component {
+class HeartbeatFilter : public Filter {
  public:
   explicit HeartbeatFilter(uint32_t time_period);
 
-  void setup() override;
+  void initialize(Sensor *parent, Filter *next) override;
   optional<float> new_value(float value) override;
-  float get_setup_priority() const override;
 
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 
@@ -589,6 +624,19 @@ class RoundMultipleFilter : public Filter {
 
  protected:
   float multiple_;
+};
+
+template<uint8_t Digits> class RoundSignificantDigitsFilter : public Filter {
+ public:
+  optional<float> new_value(float value) override {
+    if (std::isfinite(value)) {
+      if (value == 0.0f)
+        return 0.0f;
+      float factor = pow10_int(Digits - 1 - ilog10(value));
+      return roundf(value * factor) / factor;
+    }
+    return value;
+  }
 };
 
 class ToNTCResistanceFilter : public Filter {

@@ -17,7 +17,7 @@ class OpenThreadInstancePollingComponent : public PollingComponent {
       return;
     }
 
-    this->update_instance(lock->get_instance());
+    this->update_instance(lock.get_instance());
   }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 

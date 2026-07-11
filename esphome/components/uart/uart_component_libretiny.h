@@ -10,7 +10,7 @@
 
 namespace esphome::uart {
 
-class LibreTinyUARTComponent : public UARTComponent, public Component {
+class LibreTinyUARTComponent final : public UARTComponent, public Component {
  public:
   void setup() override;
   void dump_config() override;

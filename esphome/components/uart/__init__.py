@@ -49,7 +49,7 @@ IDFUARTComponent = uart_ns.class_("IDFUARTComponent", UARTComponent, cg.Componen
 ESP8266UartComponent = uart_ns.class_(
     "ESP8266UartComponent", UARTComponent, cg.Component
 )
-RP2040UartComponent = uart_ns.class_("RP2040UartComponent", UARTComponent, cg.Component)
+RP2UartComponent = uart_ns.class_("RP2UartComponent", UARTComponent, cg.Component)
 LibreTinyUARTComponent = uart_ns.class_(
     "LibreTinyUARTComponent", UARTComponent, cg.Component
 )
@@ -59,7 +59,7 @@ HostUartComponent = uart_ns.class_("HostUartComponent", UARTComponent, cg.Compon
 NATIVE_UART_CLASSES = (
     str(IDFUARTComponent),
     str(ESP8266UartComponent),
-    str(RP2040UartComponent),
+    str(RP2UartComponent),
     str(LibreTinyUARTComponent),
 )
 
@@ -157,8 +157,8 @@ def _uart_declare_type(value):
         return cv.declare_id(ESP8266UartComponent)(value)
     if CORE.is_esp32:
         return cv.declare_id(IDFUARTComponent)(value)
-    if CORE.is_rp2040:
-        return cv.declare_id(RP2040UartComponent)(value)
+    if CORE.is_rp2:
+        return cv.declare_id(RP2UartComponent)(value)
     if CORE.is_libretiny:
         return cv.declare_id(LibreTinyUARTComponent)(value)
     if CORE.is_host:
@@ -513,10 +513,11 @@ async def uart_write_to_code(config, action_id, template_arg, args):
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
     """Final code generation step to configure optional UART features."""
-    if CORE.is_esp32 and CORE.has_networking:
-        # Wake-on-RX is essentially free on ESP32 (just an ISR function pointer
-        # registration) — enable by default to reduce RX buffer overflow risk
-        # by waking the main loop immediately when data arrives.
+    if (CORE.is_esp32 or CORE.is_esp8266) and CORE.has_networking:
+        # Wake-on-RX is essentially free (just an ISR function pointer
+        # registration on ESP32, an inline flag set on ESP8266 software
+        # serial) — enable by default to reduce RX buffer overflow risk by
+        # waking the main loop immediately when data arrives.
         cg.add_define("USE_UART_WAKE_LOOP_ON_RX")
 
 
@@ -528,7 +529,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
         "uart_component_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
         "uart_component_host.cpp": {PlatformFramework.HOST_NATIVE},
-        "uart_component_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "uart_component_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
         "uart_component_libretiny.cpp": {
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,

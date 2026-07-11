@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import audio, esp32, speaker
+from esphome.components import audio, psram, speaker
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BITS_PER_SAMPLE,
@@ -44,18 +44,8 @@ SOURCE_SPEAKER_SCHEMA = speaker.SPEAKER_SCHEMA.extend(
             cv.positive_time_period_milliseconds,
             cv.one_of(CONF_NEVER, lower=True),
         ),
-        cv.Optional(CONF_BITS_PER_SAMPLE, default=16): cv.int_range(16, 16),
     }
 )
-
-
-def _set_stream_limits(config):
-    audio.set_stream_limits(
-        min_bits_per_sample=16,
-        max_bits_per_sample=16,
-    )(config)
-
-    return config
 
 
 def _validate_source_speaker(config):
@@ -67,15 +57,25 @@ def _validate_source_speaker(config):
     output_speaker_id = fconf.get_config_for_path(path)
     config[CONF_OUTPUT_SPEAKER] = output_speaker_id
 
+    inherit_property_from(CONF_BITS_PER_SAMPLE, CONF_OUTPUT_SPEAKER)(config)
     inherit_property_from(CONF_NUM_CHANNELS, CONF_OUTPUT_SPEAKER)(config)
     inherit_property_from(CONF_SAMPLE_RATE, CONF_OUTPUT_SPEAKER)(config)
 
     audio.final_validate_audio_schema(
         "mixer",
         audio_device=CONF_OUTPUT_SPEAKER,
+        sample_rate=config.get(CONF_SAMPLE_RATE),
+    )(config)
+
+    return config
+
+
+def _validate_output_speaker(config):
+    audio.final_validate_audio_schema(
+        "mixer",
+        audio_device=CONF_OUTPUT_SPEAKER,
         bits_per_sample=config.get(CONF_BITS_PER_SAMPLE),
         channels=config.get(CONF_NUM_CHANNELS),
-        sample_rate=config.get(CONF_SAMPLE_RATE),
     )(config)
 
     return config
@@ -89,24 +89,26 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_SOURCE_SPEAKERS): cv.All(
                 cv.ensure_list(SOURCE_SPEAKER_SCHEMA),
                 cv.Length(min=2, max=8),
-                [_set_stream_limits],
             ),
+            cv.Optional(CONF_BITS_PER_SAMPLE): cv.one_of(8, 16, 24, 32, int=True),
             cv.Optional(CONF_NUM_CHANNELS): cv.int_range(min=1, max=2),
             cv.Optional(CONF_QUEUE_MODE, default=False): cv.boolean,
-            cv.Optional(CONF_TASK_STACK_IN_PSRAM, default=False): cv.boolean,
+            cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
         }
     ),
     cv.only_on([PLATFORM_ESP32]),
 )
 
 FINAL_VALIDATE_SCHEMA = cv.All(
+    inherit_property_from(CONF_BITS_PER_SAMPLE, CONF_OUTPUT_SPEAKER),
+    inherit_property_from(CONF_NUM_CHANNELS, CONF_OUTPUT_SPEAKER),
     cv.Schema(
         {
             cv.Optional(CONF_SOURCE_SPEAKERS): [_validate_source_speaker],
         },
         extra=cv.ALLOW_EXTRA,
     ),
-    inherit_property_from(CONF_NUM_CHANNELS, CONF_OUTPUT_SPEAKER),
+    _validate_output_speaker,
 )
 
 
@@ -116,16 +118,14 @@ async def to_code(config):
 
     spkr = await cg.get_variable(config[CONF_OUTPUT_SPEAKER])
 
+    cg.add(var.set_output_bits_per_sample(config[CONF_BITS_PER_SAMPLE]))
     cg.add(var.set_output_channels(config[CONF_NUM_CHANNELS]))
     cg.add(var.set_output_speaker(spkr))
     cg.add(var.set_queue_mode(config[CONF_QUEUE_MODE]))
 
-    if task_stack_in_psram := config.get(CONF_TASK_STACK_IN_PSRAM):
-        cg.add(var.set_task_stack_in_psram(task_stack_in_psram))
-        if task_stack_in_psram and config[CONF_TASK_STACK_IN_PSRAM]:
-            esp32.add_idf_sdkconfig_option(
-                "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
-            )
+    if config.get(CONF_TASK_STACK_IN_PSRAM):
+        cg.add(var.set_task_stack_in_psram(True))
+        psram.request_external_task_stack()
 
     # Initialize FixedVector with exact count of source speakers
     cg.add(var.init_source_speakers(len(config[CONF_SOURCE_SPEAKERS])))
