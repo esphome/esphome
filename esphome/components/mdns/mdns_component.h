@@ -156,8 +156,8 @@ class MDNSComponent final : public Component
   // RP2040 defers MDNS.begin() until the first IP-up event; this tracks that.
   bool initialized_{false};
 #endif
-  void compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, char *mac_address_buf,
-                        char *config_hash_buf);
+  void compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, const char *mac_address_buf,
+                        const char *config_hash_buf);
 };
 
 }  // namespace esphome::mdns

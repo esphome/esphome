@@ -70,8 +70,8 @@ void MDNSComponent::setup_buffers_and_register_(PlatformRegisterFn platform_regi
   platform_register(this, services);
 }
 
-void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, char *mac_address_buf,
-                                     char *config_hash_buf) {
+void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services,
+                                     const char *mac_address_buf, const char *config_hash_buf) {
   // IMPORTANT: The #ifdef blocks below must match COMPONENTS_WITH_MDNS_SERVICES
   // in mdns/__init__.py. If you add a new service here, update both locations.
 
