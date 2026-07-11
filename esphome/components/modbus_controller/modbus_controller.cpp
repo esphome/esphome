@@ -57,7 +57,7 @@ bool ModbusController::send_next_command_() {
 }
 
 // Queue incoming response
-void ModbusController::on_modbus_data(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
+void ModbusController::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
   if (this->command_queue_.empty()) {
     ESP_LOGW(TAG, "Received modbus data but command queue is empty");
     return;
@@ -95,12 +95,11 @@ void ModbusController::process_modbus_data_(const ModbusCommandItem *response) {
   response->on_data_func(response->register_type, response->register_address, response->payload);
 }
 
-void ModbusController::on_modbus_error(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
-  // The frame parser only dispatches complete exception frames: {function code | 0x80, exception code}.
-  // Mask off the exception bit so the log matches the request function code, as before.
-  const uint8_t function_code = response_pdu[0] & modbus::FUNCTION_CODE_MASK;
-  const uint8_t exception_code = response_pdu[1];
-  ESP_LOGE(TAG, "Modbus error function code: 0x%X exception: %d ", function_code, exception_code);
+void ModbusController::on_error(std::span<const uint8_t> request_pdu, modbus::ModbusExceptionCode exception_code) {
+  // The request function code (request_pdu[0]) already carries what the log needs; the exception bit only
+  // ever appears on the response, so no masking is needed here.
+  const uint8_t function_code = request_pdu.empty() ? 0 : request_pdu[0];
+  ESP_LOGE(TAG, "Modbus error function code: 0x%X exception: %d ", function_code, static_cast<uint8_t>(exception_code));
   if (this->command_queue_.empty()) {
     return;
   }

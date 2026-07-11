@@ -37,11 +37,11 @@ class NoResponseProbeHub : public ModbusClientHub {
   }
 };
 
-// A device with a scripted answer to on_modbus_no_response().
+// A device with a scripted answer to on_no_response().
 class RetryingDevice : public ModbusClientDevice {
  public:
   RetryingDevice(ModbusClientHub *hub, uint8_t address, bool retry) : ModbusClientDevice(hub, address), retry_(retry) {}
-  bool on_modbus_no_response() override {
+  bool on_no_response() override {
     this->no_response_count_++;
     return this->retry_;
   }
@@ -55,7 +55,7 @@ class RetryingDevice : public ModbusClientDevice {
 class ClearingRetryDevice : public ModbusClientDevice {
  public:
   ClearingRetryDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
-  bool on_modbus_no_response() override {
+  bool on_no_response() override {
     this->no_response_count_++;
     this->clear_tx_queue_for_device();  // detaches this device from the waiting slot mid-callback
     return true;                        // and still requests a retry

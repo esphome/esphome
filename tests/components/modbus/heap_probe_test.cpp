@@ -77,7 +77,7 @@ class InjectableUART : public uart::UARTComponent {
 class NullDevice : public ModbusClientDevice {
  public:
   using ModbusClientDevice::ModbusClientDevice;
-  void on_modbus_data(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {
+  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {
     this->responses++;
   }
   int responses{0};

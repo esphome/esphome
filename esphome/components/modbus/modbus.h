@@ -121,7 +121,7 @@ class ModbusClientHub : public Modbus {
   void parse_modbus_frames() override;
   void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) override;
   void send_next_frame_();
-  // Notify the waiting device of no response; re-queues the frame if on_modbus_no_response() returns true.
+  // Notify the waiting device of no response; re-queues the frame if on_no_response() returns true.
   // wfr is the caller's checked reference to waiting_for_response_.
   void notify_no_response_(ModbusDeviceCommand &wfr);
   void requeue_waiting_frame_(ModbusDeviceCommand &wfr);
@@ -182,14 +182,14 @@ class ModbusClientDevice {
   /// Called with the request PDU this device sent and the response PDU received (both: function code +
   /// data, no address, no CRC). The spans are only valid for the duration of the call - copy the bytes
   /// if they must outlive it. Slice the payload out of the response with helpers::server_pdu_payload().
-  virtual void on_modbus_data(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {}
-  /// Called with the request PDU and the exception response PDU {function code | 0x80, exception code}.
-  virtual void on_modbus_error(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {}
-  virtual void on_modbus_not_sent() {}
+  virtual void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {}
+  /// Called with the request PDU and the modbus exception code decoded from the error response.
+  virtual void on_error(std::span<const uint8_t> request_pdu, ModbusExceptionCode exception_code) {}
+  virtual void on_not_sent() {}
   /// Called when no (valid) response arrived; return true to have the hub re-queue the frame for a retry.
   /// The hub does not bound retries: the device is responsible for limiting them (e.g. track a counter and
   /// return false when exhausted), or an unresponsive peer will starve other traffic on the bus.
-  virtual bool on_modbus_no_response() { return false; }
+  virtual bool on_no_response() { return false; }
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
             const uint8_t *payload = nullptr) {
     this->parent_->send_pdu(this->address_,

@@ -304,10 +304,10 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
                  "Error function code: 0x%X exception: %" PRIu8 ", address: %" PRIu8 ", %" PRIu32 "ms after last send",
                  function_code, exception, address, this->last_modbus_byte_ - this->last_send_);
         if (device)
-          device->on_modbus_error(request_pdu, pdu);
+          device->on_error(request_pdu, static_cast<ModbusExceptionCode>(exception));
 
       } else if (device) {  // Not an error response
-        device->on_modbus_data(request_pdu, pdu);
+        device->on_response(request_pdu, pdu);
       } else {  // Not an error response, but no device to respond to
         ESP_LOGV(TAG, "Ignoring response from %" PRIu8 " - no callback device set, %" PRIu32 "ms after last send",
                  address, this->last_modbus_byte_ - this->last_send_);
@@ -505,7 +505,7 @@ void ModbusClientHub::send_next_frame_() {
     this->waiting_for_response_ = std::move(command);
   } else {
     if (command.device)
-      command.device->on_modbus_not_sent();
+      command.device->on_not_sent();
   }
 
   this->tx_buffer_.pop_front();
@@ -566,7 +566,7 @@ void ModbusServerHub::send_exception_(uint8_t address, uint8_t function_code, Mo
 void ModbusClientHub::notify_no_response_(ModbusDeviceCommand &wfr) {
   if (wfr.device == nullptr)
     return;
-  const bool retry = wfr.device->on_modbus_no_response();
+  const bool retry = wfr.device->on_no_response();
   // The callback may have detached the device (e.g. clear_tx_queue_for_device()); honor the detach
   // over the retry request rather than re-queueing a frame that can no longer be routed.
   if (retry && wfr.device != nullptr)
@@ -580,7 +580,7 @@ void ModbusClientHub::requeue_waiting_frame_(ModbusDeviceCommand &wfr) {
   if (this->tx_buffer_.size() >= MODBUS_TX_BUFFER_SIZE) {
     ESP_LOGE(TAG, "Write buffer full, dropped retry for address %" PRIu8, frame.data.data()[0]);
     if (wfr.device != nullptr)
-      wfr.device->on_modbus_not_sent();
+      wfr.device->on_not_sent();
     return;
   }
   // Re-queue a copy (not a move): the waiting entry may have to survive as an interrupted shell.
@@ -591,7 +591,7 @@ void ModbusClientHub::requeue_waiting_frame_(ModbusDeviceCommand &wfr) {
 void ModbusClientHub::queue_raw_(uint8_t address, const uint8_t *pdu, uint16_t pdu_len, ModbusClientDevice *device) {
   if (pdu_len == 0) {
     if (device)
-      device->on_modbus_not_sent();
+      device->on_not_sent();
     return;
   }
 
@@ -607,7 +607,7 @@ void ModbusClientHub::queue_raw_(uint8_t address, const uint8_t *pdu, uint16_t p
 #endif
     ESP_LOGE(TAG, "Write buffer full, dropped: %" PRIu8 ":%s", address, format_hex_pretty_to(hex_buf, pdu, pdu_len));
     if (device)
-      device->on_modbus_not_sent();
+      device->on_not_sent();
   }
 }
 
@@ -646,7 +646,7 @@ void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
 void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device) {
   if (payload.size() < 2) {
     if (device)
-      device->on_modbus_not_sent();
+      device->on_not_sent();
     return;
   }
   this->queue_raw_(payload[0], payload.data() + 1, static_cast<uint16_t>(payload.size() - 1), device);
