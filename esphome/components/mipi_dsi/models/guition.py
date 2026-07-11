@@ -329,7 +329,7 @@ DsiDriverChip(
 # * Horizontal Timing (hsync_pulse_width=20, hsync_back_porch=20, hsync_front_porch=40)
 # * Vertical Timing (vsync_pulse_width=4, vsync_back_porch=10, vsync_front_porch=20)
 # ----------------------------------------------------------------------------------------------------------------------
-DriverChip(
+DsiDriverChip(
     "JC8012P4A1-V2",
     width=800,
     height=1280,
@@ -341,7 +341,6 @@ DriverChip(
     vsync_front_porch=20,
     pclk_frequency="70MHz",
     lane_bit_rate="1500Mbps",
-    swap_xy=cv.UNDEFINED,
     color_order="RGB",
     reset_pin=27,
     initsequence=[
