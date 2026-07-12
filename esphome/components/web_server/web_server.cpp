@@ -57,7 +57,7 @@ namespace esphome::web_server {
 static const char *const TAG = "web_server";
 
 // View a state LogString as a ProgmemStr so ArduinoJson serializes it PROGMEM-aware on ESP8266.
-static ProgmemStr json_state_str(const LogString *s) { return reinterpret_cast<ProgmemStr>(s); }
+[[maybe_unused]] static ProgmemStr json_state_str(const LogString *s) { return reinterpret_cast<ProgmemStr>(s); }
 
 // Parse URL and return match info
 // URL formats (disambiguated by HTTP method for 3-segment case):

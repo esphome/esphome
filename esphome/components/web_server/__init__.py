@@ -172,7 +172,9 @@ sorting_group = {
 
 WEBSERVER_SORTING_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_WEB_SERVER): cv.Schema(
+        # The per-entity web_server block is cosmetic dashboard ordering —
+        # mark the whole block advanced; the children inherit via the cascade.
+        cv.Optional(CONF_WEB_SERVER, visibility=cv.Visibility.ADVANCED): cv.Schema(
             {
                 cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(WebServer),
                 cv.Optional(CONF_SORTING_WEIGHT): cv.All(
