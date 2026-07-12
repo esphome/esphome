@@ -376,6 +376,7 @@ async def to_code(config):
     if config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]:
         cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")
     if (allowed_origins := config.get(CONF_ALLOWED_ORIGINS)) is not None:
+        cg.add_define("USE_WEBSERVER_ALLOWED_ORIGINS")
         cg.add(var.set_allowed_origins(allowed_origins))
     if CONF_AUTH in config:
         cg.add_define("USE_WEBSERVER_AUTH")

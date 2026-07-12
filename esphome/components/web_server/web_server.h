@@ -242,6 +242,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
    */
   void set_expose_log(bool expose_log) { this->expose_log_ = expose_log; }
 
+#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
   /** Set the origins that browsers are allowed to make cross-origin requests from.
    *
    * Requests without an `Origin` header (e.g. non-browser clients like curl or the native API)
@@ -255,6 +256,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
    * @param origins The list of allowed origins.
    */
   void set_allowed_origins(std::initializer_list<const char *> origins) { this->allowed_origins_ = origins; }
+#endif
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -607,12 +609,15 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
   const char *js_include_{nullptr};
 #endif
   bool expose_log_{true};
-  // Origins allowed to make cross-origin browser requests ("*" means any origin). Empty means
-  // same-origin only. Same-origin and requests without an Origin header are always allowed.
+#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
+  // Extra origins allowed to make cross-origin browser requests ("*" means any origin).
+  // Only compiled when allowed_origins is configured; same-origin is always allowed regardless.
   FixedVector<const char *> allowed_origins_;
+#endif
 
-  /// Check whether the given request Origin is permitted (see set_allowed_origins()).
-  /// The caller passes the already-read Origin header to avoid re-reading it.
+  /// Check whether the given request Origin is permitted. Same-origin (matching the Host the
+  /// request was sent to) and requests without an Origin header are always allowed; any other
+  /// origin must be listed in allowed_origins. The caller passes the already-read Origin header.
   bool is_request_origin_allowed_(AsyncWebServerRequest *request, const std::string &origin);
 
  private:
