@@ -4,6 +4,8 @@ sensor:
       name: CSE7761 Voltage
     frequency:
       name: CSE7761 Frequency
+    power_factor:
+      name: CSE7761 Power Factor
     current_1:
       name: CSE7761 Current 1
     current_2:

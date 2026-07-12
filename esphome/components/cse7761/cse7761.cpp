@@ -27,17 +27,18 @@ static constexpr uint8_t CSE7761_REG_HFCONST = 0x02;    // (2) Pulse frequency r
 static constexpr uint8_t CSE7761_REG_EMUCON2 = 0x13;    // (2) Metering control register 2 (0x0001)
 static constexpr uint8_t CSE7761_REG_PULSE1SEL = 0x1D;  // (2) Pin function output select register (0x3210)
 
-static constexpr uint8_t CSE7761_REG_UFREQ = 0x23;      // (2) Voltage frequency (0x0000)
-static constexpr uint8_t CSE7761_REG_RMSIA = 0x24;      // (3) The effective value of channel A current (0x000000)
-static constexpr uint8_t CSE7761_REG_RMSIB = 0x25;      // (3) The effective value of channel B current (0x000000)
-static constexpr uint8_t CSE7761_REG_RMSU = 0x26;       // (3) Voltage RMS (0x000000)
-static constexpr uint8_t CSE7761_REG_ENERGY_PA = 0x28;  // (3) Channel A active energy pulse count, cleared on
-                                                        // overflow only (EPA_CB=1) (0x000000)
-static constexpr uint8_t CSE7761_REG_ENERGY_PB = 0x29;  // (3) Channel B active energy pulse count, cleared on
-                                                        // overflow only (EPB_CB=1) (0x000000)
-static constexpr uint8_t CSE7761_REG_POWERPA = 0x2C;    // (4) Channel A active power, update rate 27.2Hz (0x00000000)
-static constexpr uint8_t CSE7761_REG_POWERPB = 0x2D;    // (4) Channel B active power, update rate 27.2Hz (0x00000000)
-static constexpr uint8_t CSE7761_REG_SYSSTATUS = 0x43;  // (1) System status register
+static constexpr uint8_t CSE7761_REG_UFREQ = 0x23;        // (2) Voltage frequency (0x0000)
+static constexpr uint8_t CSE7761_REG_RMSIA = 0x24;        // (3) The effective value of channel A current (0x000000)
+static constexpr uint8_t CSE7761_REG_RMSIB = 0x25;        // (3) The effective value of channel B current (0x000000)
+static constexpr uint8_t CSE7761_REG_RMSU = 0x26;         // (3) Voltage RMS (0x000000)
+static constexpr uint8_t CSE7761_REG_POWERFACTOR = 0x27;  // (3) Power factor of the selected channel (0x7FFFFF)
+static constexpr uint8_t CSE7761_REG_ENERGY_PA = 0x28;    // (3) Channel A active energy pulse count, cleared on
+                                                          // overflow only (EPA_CB=1) (0x000000)
+static constexpr uint8_t CSE7761_REG_ENERGY_PB = 0x29;    // (3) Channel B active energy pulse count, cleared on
+                                                          // overflow only (EPB_CB=1) (0x000000)
+static constexpr uint8_t CSE7761_REG_POWERPA = 0x2C;      // (4) Channel A active power, update rate 27.2Hz (0x00000000)
+static constexpr uint8_t CSE7761_REG_POWERPB = 0x2D;      // (4) Channel B active power, update rate 27.2Hz (0x00000000)
+static constexpr uint8_t CSE7761_REG_SYSSTATUS = 0x43;    // (1) System status register
 
 static constexpr uint8_t CSE7761_REG_COEFFCHKSUM = 0x6F;  // (2) Coefficient checksum
 static constexpr uint8_t CSE7761_REG_RMSIAC = 0x70;       // (2) Channel A effective current conversion coefficient
@@ -74,6 +75,7 @@ void CSE7761Component::dump_config() {
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Frequency", this->frequency_sensor_);
+  LOG_SENSOR("  ", "Power Factor", this->power_factor_sensor_);
   LOG_SENSOR("  ", "Energy 1", this->energy_sensor_1_);
   LOG_SENSOR("  ", "Energy 2", this->energy_sensor_2_);
   this->check_uart_settings(38400, 1, uart::UART_CONFIG_PARITY_EVEN, 8);
@@ -270,6 +272,15 @@ void CSE7761Component::get_data_() {
       this->data_.frequency ? static_cast<float>(CSE7761_SYSTEM_CLOCK) / 8.0f / this->data_.frequency : 0.0f;
   if (this->frequency_sensor_ != nullptr) {
     this->frequency_sensor_->publish_state(frequency);
+  }
+
+  if (this->power_factor_sensor_ != nullptr) {
+    // PowerFactor is 24-bit two's complement (sign-extend before converting); 0x7FFFFF = 1.0, 0x800000 = -1.0.
+    // With ADC2ON=1 (set in chip_init_()) the chip always reports Channel A here, regardless of any
+    // channel-select command, so this is a single value rather than one per channel.
+    uint32_t raw_pf = this->read_(CSE7761_REG_POWERFACTOR, 3);
+    int32_t pf = (raw_pf & 0x800000) ? static_cast<int32_t>(raw_pf - 0x1000000) : static_cast<int32_t>(raw_pf);
+    this->power_factor_sensor_->publish_state(static_cast<float>(pf) / 8388608.0f);  // 0x800000
   }
 
   for (uint8_t channel = 0; channel < 2; channel++) {
