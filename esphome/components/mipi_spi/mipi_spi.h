@@ -13,6 +13,8 @@ constexpr static const char *const TAG = "display.mipi_spi";
 
 // Maximum bytes to log for commands (truncated if larger)
 static constexpr size_t MIPI_SPI_MAX_CMD_LOG_BYTES = 64;
+
+// Command codes for MIPI SPI displays. Not all currently used, kept here for reference.
 static constexpr uint8_t SW_RESET_CMD = 0x01;
 static constexpr uint8_t SLEEP_OUT = 0x11;
 static constexpr uint8_t NORON = 0x13;
@@ -151,14 +153,11 @@ class MipiSpi : public display::Display,
       this->reset_pin_->digital_write(false);
       delay(5);
       this->reset_pin_->digital_write(true);
-    } else {
-      // no reset pin, send software reset command
-      this->write_command_(SW_RESET_CMD);
+      // required delay after reset is already in the init sequence, don't duplicate
     }
 
     // need to know when the display is ready for SLPOUT command - will be 120ms after reset
     auto when = millis() + 120;
-    delay(10);
     size_t index = 0;
     auto &vec = this->init_sequence_;
     while (index != vec.size()) {
@@ -170,6 +169,9 @@ class MipiSpi : public display::Display,
       uint8_t cmd = vec[index++];
       uint8_t x = vec[index++];
       if (x == DELAY_FLAG) {
+        if (cmd == 0) {
+          cmd = clamp_at_least((int) (when - millis()), 0);
+        }
         esph_log_d(TAG, "Delay %dms", cmd);
         delay(cmd);
       } else {
@@ -179,24 +181,9 @@ class MipiSpi : public display::Display,
           this->mark_failed();
           return;
         }
-        switch (cmd) {
-          case SLEEP_OUT: {
-            // are we ready, boots?
-            int duration = when - millis();
-            if (duration > 0) {
-              esph_log_d(TAG, "Sleep %dms", duration);
-              delay(duration);
-            }
-          } break;
-
-          default:
-            break;
-        }
         const auto *ptr = vec.data() + index;
         this->write_command_(cmd, ptr, num_args);
         index += num_args;
-        if (cmd == SLEEP_OUT)
-          delay(10);
       }
     }
     this->reset_params_();
