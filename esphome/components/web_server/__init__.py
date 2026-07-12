@@ -46,6 +46,7 @@ AUTO_LOAD = ["json", "web_server_base"]
 CONF_SORTING_GROUP_ID = "sorting_group_id"
 CONF_SORTING_GROUPS = "sorting_groups"
 CONF_SORTING_WEIGHT = "sorting_weight"
+CONF_ALLOWED_ORIGINS = "allowed_origins"
 
 
 web_server_ns = cg.esphome_ns.namespace("web_server")
@@ -100,6 +101,23 @@ def validate_ota(config: ConfigType) -> ConfigType:
             f"ota:\n"
             f"  - platform: web_server\n\n"
             f"See https://esphome.io/components/ota for more information."
+        )
+    return config
+
+
+def validate_private_network_access(config: ConfigType) -> ConfigType:
+    # PNA preflights are always cross-origin, so they can only be authorized against the
+    # allowed_origins list. Enabling PNA without any origins would deny every PNA request.
+    if (
+        config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]
+        and config.get(CONF_ALLOWED_ORIGINS) is None
+    ):
+        raise cv.Invalid(
+            f"'{CONF_ALLOWED_ORIGINS}' must be set when "
+            f"'{CONF_ENABLE_PRIVATE_NETWORK_ACCESS}' is enabled. List each origin that is "
+            f"allowed to reach the device (e.g. 'https://example.com'). '*' allows any origin "
+            f"but is not recommended.",
+            path=[CONF_ENABLE_PRIVATE_NETWORK_ACCESS],
         )
     return config
 
@@ -199,7 +217,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CSS_INCLUDE): cv.file_,
             cv.Optional(CONF_JS_URL): cv.string,
             cv.Optional(CONF_JS_INCLUDE): cv.file_,
-            cv.Optional(CONF_ENABLE_PRIVATE_NETWORK_ACCESS, default=True): cv.boolean,
+            cv.Optional(CONF_ENABLE_PRIVATE_NETWORK_ACCESS, default=False): cv.boolean,
+            cv.Optional(CONF_ALLOWED_ORIGINS): cv.All(
+                cv.ensure_list(cv.string_strict), cv.Length(min=1)
+            ),
             cv.Optional(CONF_AUTH): cv.Schema(
                 {
                     cv.Required(CONF_USERNAME): cv.All(
@@ -236,6 +257,7 @@ CONFIG_SCHEMA = cv.All(
     validate_local,
     validate_sorting_groups,
     validate_ota,
+    validate_private_network_access,
     _consume_web_server_sockets,
 )
 
@@ -332,6 +354,8 @@ async def to_code(config):
         request_log_listener()  # Request a log listener slot for web server log streaming
     if config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]:
         cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")
+    if (allowed_origins := config.get(CONF_ALLOWED_ORIGINS)) is not None:
+        cg.add(var.set_allowed_origins(allowed_origins))
     if CONF_AUTH in config:
         cg.add_define("USE_WEBSERVER_AUTH")
         cg.add(paren.set_auth_username(config[CONF_AUTH][CONF_USERNAME]))
