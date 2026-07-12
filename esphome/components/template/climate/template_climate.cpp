@@ -137,77 +137,70 @@ void TemplateClimate::dump_config() {
 void TemplateClimate::control(const climate::ClimateCall &call) {
   // Read lambdas (loop) poll the device state each iteration.
   // Set actions send new settings to the controlled device.
-  // optimistic=true:  also update the entity state immediately after an action,
-  //   so the UI reflects the change right away; the next loop() read will
-  //   confirm or correct it.
-  // optimistic=false: do not update the entity state after an action; wait for
-  //   the next loop() read lambda to reflect the device's actual state.
-  // When no read lambdas are configured, always update entity state immediately
-  // since nothing will otherwise update it.
-  const bool has_state_lambdas =
-      this->target_temperature_f_.has_value() || this->target_temperature_low_f_.has_value() ||
-      this->target_temperature_high_f_.has_value() || this->target_humidity_f_.has_value() ||
-      this->mode_f_.has_value() || this->action_f_.has_value() || this->fan_mode_f_.has_value() ||
-      this->custom_fan_mode_f_.has_value() || this->swing_mode_f_.has_value() || this->preset_f_.has_value() ||
-      this->custom_preset_f_.has_value();
-  const bool apply_state = !has_state_lambdas || this->optimistic_;
+  // Per field: optimistic=true, or no read lambda configured for that field, updates the
+  //   entity state immediately after an action, so the UI reflects the change right away;
+  //   the next loop() read (if any) will confirm or correct it.
+  // optimistic=false with a read lambda configured for that field: do not update the entity
+  //   state after an action; wait for the next loop() read lambda to reflect the device's
+  //   actual state. This is decided per field so that fields without a read lambda are
+  //   never left stuck at a stale value.
 
   if (auto mode = call.get_mode()) {
-    if (apply_state)
+    if (this->optimistic_ || !this->mode_f_.has_value())
       this->mode = *mode;
     this->set_mode_trigger_.trigger(*mode);
   }
 
   if (auto target_temp = call.get_target_temperature()) {
-    if (apply_state)
+    if (this->optimistic_ || !this->target_temperature_f_.has_value())
       this->target_temperature = *target_temp;
     this->set_target_temperature_trigger_.trigger(*target_temp);
   }
 
   if (auto target_temp_low = call.get_target_temperature_low()) {
-    if (apply_state)
+    if (this->optimistic_ || !this->target_temperature_low_f_.has_value())
       this->target_temperature_low = *target_temp_low;
     this->set_target_temperature_low_trigger_.trigger(*target_temp_low);
   }
 
   if (auto target_temp_high = call.get_target_temperature_high()) {
-    if (apply_state)
+    if (this->optimistic_ || !this->target_temperature_high_f_.has_value())
       this->target_temperature_high = *target_temp_high;
     this->set_target_temperature_high_trigger_.trigger(*target_temp_high);
   }
 
   if (auto target_humidity = call.get_target_humidity()) {
-    if (apply_state)
+    if (this->optimistic_ || !this->target_humidity_f_.has_value())
       this->target_humidity = *target_humidity;
     this->set_target_humidity_trigger_.trigger(*target_humidity);
   }
 
   if (auto fan_mode = call.get_fan_mode()) {
-    if (apply_state)
+    if (this->optimistic_ || !this->fan_mode_f_.has_value())
       this->set_fan_mode_(*fan_mode);
     this->set_fan_mode_trigger_.trigger(*fan_mode);
   }
 
   if (call.has_custom_fan_mode()) {
-    if (apply_state)
+    if (this->optimistic_ || !this->custom_fan_mode_f_.has_value())
       this->set_custom_fan_mode_(call.get_custom_fan_mode());
     this->set_custom_fan_mode_trigger_.trigger(std::string(call.get_custom_fan_mode()));
   }
 
   if (auto swing_mode = call.get_swing_mode()) {
-    if (apply_state)
+    if (this->optimistic_ || !this->swing_mode_f_.has_value())
       this->swing_mode = *swing_mode;
     this->set_swing_mode_trigger_.trigger(*swing_mode);
   }
 
   if (auto preset = call.get_preset()) {
-    if (apply_state)
+    if (this->optimistic_ || !this->preset_f_.has_value())
       this->set_preset_(*preset);
     this->set_preset_trigger_.trigger(*preset);
   }
 
   if (call.has_custom_preset()) {
-    if (apply_state)
+    if (this->optimistic_ || !this->custom_preset_f_.has_value())
       this->set_custom_preset_(call.get_custom_preset());
     this->set_custom_preset_trigger_.trigger(std::string(call.get_custom_preset()));
   }

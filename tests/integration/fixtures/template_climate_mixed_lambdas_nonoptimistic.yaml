@@ -1,0 +1,40 @@
+esphome:
+  name: tmpl-clim-mix-nopt
+host:
+api:
+logger:
+
+# `mode` simulates an external device that owns its own state: the
+# set_mode_action lambda writes to the global, and the mode state lambda
+# reads it back on the next loop iteration (non-optimistic device echo).
+#
+# `swing_mode` has no state lambda at all -- nothing ever polls it back, so
+# it must always be applied directly by control(), regardless of
+# `optimistic: false`. This is a regression test for a bug where a single
+# component-wide "has any state lambda" flag suppressed direct application
+# for fields that had no lambda of their own.
+globals:
+  - id: ext_mode
+    type: int
+    initial_value: "0"  # CLIMATE_MODE_OFF
+
+climate:
+  - platform: template
+    id: test_climate
+    name: Test Mixed Climate
+    optimistic: false
+    current_temperature: !lambda "return 22.5f;"
+    mode: !lambda "return static_cast<climate::ClimateMode>(id(ext_mode));"
+    supported_modes:
+      - "OFF"
+      - HEAT
+      - COOL
+    supported_swing_modes:
+      - "OFF"
+      - VERTICAL
+    visual:
+      min_temperature: 16.0
+      max_temperature: 30.0
+      temperature_step: 0.5
+    set_mode_action:
+      - lambda: "id(ext_mode) = (int) x;"
