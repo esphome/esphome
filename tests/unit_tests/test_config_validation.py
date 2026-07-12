@@ -1174,9 +1174,10 @@ def test_update_interval__never_passes_through() -> None:
 def test_optional_default_visibility_is_none() -> None:
     """An ``Optional`` with no ``visibility`` kwarg reports ``None``.
 
-    Consumers can read the attribute directly with plain attribute
-    access; absence (``None``) means "render on the editor's main
-    form."
+    The marker stays faithful to what the author wrote: ESPHome does
+    not encode the default on it. Resolving ``None`` to an effective
+    visibility is the consumer's job — a schema-aware editor treats an
+    unset ``Optional`` as ``ADVANCED`` (see :class:`Visibility`).
     """
     o = cv.Optional("foo")
     assert o.visibility is None
@@ -1194,6 +1195,17 @@ def test_optional_visibility_yaml_only() -> None:
     assert o.visibility is cv.Visibility.YAML_ONLY
 
 
+def test_optional_visibility_ui() -> None:
+    """``visibility=Visibility.UI`` is recorded on the marker.
+
+    ``UI`` promotes an ``Optional`` onto the editor's main form,
+    overriding the consumer's default of ``ADVANCED`` for unset
+    optionals.
+    """
+    o = cv.Optional("foo", visibility=cv.Visibility.UI)
+    assert o.visibility is cv.Visibility.UI
+
+
 def test_visibility_str_values_match_dump_emission() -> None:
     """``Visibility`` is a ``StrEnum`` whose values are the literal
     strings the schema dumper emits.
@@ -1203,6 +1215,7 @@ def test_visibility_str_values_match_dump_emission() -> None:
     field — pinning the on-the-wire spelling here keeps the dump
     contract stable.
     """
+    assert str(cv.Visibility.UI) == "ui"
     assert str(cv.Visibility.ADVANCED) == "advanced"
     assert str(cv.Visibility.YAML_ONLY) == "yaml_only"
 
@@ -1323,6 +1336,57 @@ def test_visibility_marker_is_per_field_no_mutation() -> None:
     assert parent.visibility is cv.Visibility.ADVANCED
     assert inner_unset.visibility is None
     assert inner_yaml_only.visibility is cv.Visibility.YAML_ONLY
+
+
+def test_entity_metadata_visibility_hints() -> None:
+    """Entity and value-describing metadata is classified for visual editors.
+
+    The headline ``name`` stays on the main form (``UI``); descriptive
+    metadata (device_class, unit, …), presentation options, and per-entity
+    integration plumbing (MQTT, web_server ordering) fall to the advanced
+    disclosure (``ADVANCED``).
+    """
+    advanced = cv.Visibility.ADVANCED
+
+    entity_base = {str(k): k for k in cv.ENTITY_BASE_SCHEMA.schema}
+    assert entity_base["name"].visibility is cv.Visibility.UI
+    for field in (
+        "icon",
+        "internal",
+        "disabled_by_default",
+        "entity_category",
+        "device_id",
+    ):
+        assert entity_base[field].visibility is advanced, field
+
+    mqtt = {str(k): k for k in cv.MQTT_COMPONENT_SCHEMA.schema}
+    for field in ("qos", "retain", "discovery", "state_topic", "availability"):
+        assert mqtt[field].visibility is advanced, field
+
+    from esphome.components import binary_sensor, number, sensor
+    from esphome.components.web_server import WEBSERVER_SORTING_SCHEMA
+
+    sensor_markers = {str(k): k for k in sensor.sensor_schema().schema}
+    for field in (
+        "unit_of_measurement",
+        "accuracy_decimals",
+        "device_class",
+        "state_class",
+        "force_update",
+    ):
+        assert sensor_markers[field].visibility is advanced, field
+
+    binary = {str(k): k for k in binary_sensor.binary_sensor_schema().schema}
+    assert binary["device_class"].visibility is advanced
+
+    number_markers = {str(k): k for k in number.number_schema(number.Number).schema}
+    assert number_markers["mode"].visibility is advanced
+    assert number_markers["device_class"].visibility is advanced
+
+    # The whole per-entity web_server block is advanced; children inherit
+    # via the consumer cascade, so only the parent key carries the hint.
+    web = {str(k): k for k in WEBSERVER_SORTING_SCHEMA.schema}
+    assert web["web_server"].visibility is advanced
 
 
 def _wrap_str(value: str) -> ESPHomeDataBase:

@@ -187,6 +187,7 @@ esphome/components/ezo_pmp/* @carlos-sarmiento
 esphome/components/factory_reset/* @anatoly-savchenkov
 esphome/components/fastled_base/* @OttoWinter
 esphome/components/feedback/* @ianchi
+esphome/components/file/* @esphome/core
 esphome/components/fingerprint_grow/* @alexborro @loongyh @OnFreund
 esphome/components/font/* @clydebarrow @esphome/core
 esphome/components/fs3000/* @kahrendt
@@ -208,6 +209,7 @@ esphome/components/gree/switch/* @nagyrobi
 esphome/components/grove_gas_mc_v2/* @YorkshireIoT
 esphome/components/grove_tb6612fng/* @max246
 esphome/components/growatt_solar/* @leeuwte
+esphome/components/gsl3670/* @clydebarrow
 esphome/components/gt911/* @clydebarrow @jesserockz
 esphome/components/haier/* @paveldn
 esphome/components/haier/binary_sensor/* @paveldn

@@ -390,16 +390,6 @@ def fix_mapping():
     output["mapping"][S_SCHEMAS][S_CONFIG_SCHEMA] = config
 
 
-def fix_image():
-    if "image" not in output:
-        return
-    from esphome.components.image import IMAGE_SCHEMA
-
-    config = convert_config(IMAGE_SCHEMA, "image/CONFIG_SCHEMA")
-    config["is_list"] = True
-    output["image"][S_SCHEMAS][S_CONFIG_SCHEMA] = config
-
-
 def fix_menu():
     if "display_menu_base" not in output:
         return
@@ -763,7 +753,6 @@ def build_schema():
     fix_font()
     fix_globals()
     fix_mapping()
-    fix_image()
     add_logger_tags()
     shrink()
     fix_menu()
