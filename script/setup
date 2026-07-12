@@ -4,7 +4,12 @@
 set -e
 
 cd "$(dirname "$0")/.."
-if [ ! -n "$VIRTUAL_ENV" ]; then
+if [ -n "$VIRTUAL_ENV" ]; then
+  # A virtual environment is already active (e.g. the devcontainer's pre-provisioned
+  # esphome-venv). Install into it rather than creating a ./venv in the workspace.
+  created_venv=false
+else
+  created_venv=true
   if [ -x "$(command -v uv)" ]; then
     uv venv --seed venv
   else
@@ -26,4 +31,10 @@ mkdir -p .temp
 
 echo
 echo
-echo "Virtual environment created. Run 'source venv/bin/activate' to use it."
+if [ "$created_venv" = true ]; then
+  echo "Virtual environment created at ./venv. Run 'source venv/bin/activate' to use it."
+else
+  echo "Dependencies installed into the active virtual environment:"
+  echo "  $VIRTUAL_ENV"
+  echo "It is already active in this shell, so no 'source venv/bin/activate' is needed."
+fi

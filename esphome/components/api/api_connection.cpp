@@ -25,6 +25,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
+#ifdef USE_PROVISIONING
+#include "esphome/components/provisioning/provisioning.h"
+#endif
 
 #ifdef USE_DEEP_SLEEP
 #include "esphome/components/deep_sleep/deep_sleep_component.h"
@@ -375,7 +378,7 @@ void APIConnection::finalize_iterator_sync_() {
 
 void APIConnection::process_iterator_batch_(ComponentIterator &iterator) {
   size_t initial_size = this->deferred_batch_.size();
-  size_t max_batch = this->get_max_batch_size_();
+  size_t max_batch = MAX_INITIAL_PER_BATCH;
   while (!iterator.completed() && (this->deferred_batch_.size() - initial_size) < max_batch) {
     iterator.advance();
   }
@@ -417,16 +420,6 @@ uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResp
                                                     APIConnection *conn, uint32_t remaining_size) {
   // Set common fields that are shared by all entity types
   msg.key = entity->get_object_id_hash();
-
-  // API 1.14+ clients compute object_id client-side from the entity name
-  // For older clients, we must send object_id for backward compatibility
-  // See: https://github.com/esphome/backlog/issues/76
-  // TODO: Remove this backward compat code before 2026.7.0 - all clients should support API 1.14 by then
-  // Buffer must remain in scope until encode_to_buffer is called
-  char object_id_buf[OBJECT_ID_MAX_LEN];
-  if (!conn->client_supports_api_version(1, 14)) {
-    msg.object_id = entity->get_object_id_to(object_id_buf);
-  }
 
   if (entity->has_own_name()) {
     msg.name = entity->get_name();
@@ -1734,6 +1727,19 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   resp.server_info = ESPHOME_VERSION_REF;
   resp.name = StringRef(App.get_name());
 
+#ifdef USE_PROVISIONING
+  if (provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed()) {
+    // The provisioning window has closed without the device being provisioned.
+    // Acknowledge the hello so the client can read the server name, then request
+    // disconnect with the reason. Authentication is intentionally not completed.
+    this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("Provisioning closed; rejecting connection"));
+    this->send_message(resp);
+    DisconnectRequest req;
+    req.reason = enums::DISCONNECT_REASON_PROVISIONING_CLOSED;
+    return this->send_message(req);
+  }
+#endif
+
   // Auto-authenticate - password auth was removed in ESPHome 2026.1.0
   this->complete_authentication_();
 
@@ -1769,7 +1775,7 @@ bool APIConnection::send_device_info_response_() {
   // Manufacturer string - define once, handle ESP8266 PROGMEM separately
 #if defined(USE_ESP8266) || defined(USE_ESP32)
 #define ESPHOME_MANUFACTURER "Espressif"
-#elif defined(USE_RP2040)
+#elif defined(USE_RP2)
 #define ESPHOME_MANUFACTURER "Raspberry Pi"
 #elif defined(USE_BK72XX)
 #define ESPHOME_MANUFACTURER "Beken"
@@ -1884,7 +1890,8 @@ void APIConnection::on_hello_request(const HelloRequest &msg) {
     this->on_fatal_error();
   }
 }
-void APIConnection::on_disconnect_request() {
+void APIConnection::on_disconnect_request(const DisconnectRequest & /*msg*/) {
+  // The reason is informational when a client disconnects us; we always ack and close.
   if (!this->send_disconnect_response_()) {
     this->on_fatal_error();
   }
@@ -2011,6 +2018,15 @@ void APIConnection::on_homeassistant_action_response(const HomeassistantActionRe
 bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptionSetKeyRequest &msg) {
   NoiseEncryptionSetKeyResponse resp;
   resp.success = false;
+
+#ifdef USE_PROVISIONING
+  // Refuse to set a key once the provisioning window has closed (defense in depth;
+  // such connections are already rejected at hello).
+  if (provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed()) {
+    ESP_LOGW(TAG, "Provisioning closed; rejecting key set");
+    return this->send_message(resp);
+  }
+#endif
 
   psk_t psk{};
   if (msg.key_len == 0) {

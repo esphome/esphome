@@ -60,40 +60,79 @@ def validate_calibration(calibration_config):
     return calibration_config
 
 
-CALIBRATION_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Required(CONF_X_MIN): cv.int_range(min=0, max=4095),
-            cv.Required(CONF_X_MAX): cv.int_range(min=0, max=4095),
-            cv.Required(CONF_Y_MIN): cv.int_range(min=0, max=4095),
-            cv.Required(CONF_Y_MAX): cv.int_range(min=0, max=4095),
-        }
-    ),
-    validate_calibration,
-)
+def option_with_default(option: str, defaults: dict, required: bool = False):
+    if option in defaults or not required:
+        return cv.Optional(option, default=defaults.get(option, cv.UNDEFINED))
+    return cv.Required(option)
 
 
-def touchscreen_schema(default_touch_timeout=cv.UNDEFINED, calibration_required=False):
-    calibration = (
-        cv.Required(CONF_CALIBRATION)
-        if calibration_required
-        else cv.Optional(CONF_CALIBRATION)
-    )
+_CALIBRATION_KEYS = {CONF_X_MIN, CONF_X_MAX, CONF_Y_MIN, CONF_Y_MAX}
+_TRANSFORM_KEYS = {CONF_SWAP_XY, CONF_MIRROR_X, CONF_MIRROR_Y}
+
+
+def _calibration_schema(defaults: dict, required: bool) -> dict:
+    """
+    Generate Calibration schema. If defaults are provided for all suboptions,
+    the entire calibration config is optional with a populated default value.
+    Otherwise, it's optional or required as specified.
+    """
+    if _CALIBRATION_KEYS.issubset(defaults):
+        key = cv.Optional(
+            CONF_CALIBRATION,
+            default={k: v for k, v in defaults.items() if k in _CALIBRATION_KEYS},
+        )
+    elif required:
+        key = cv.Required(CONF_CALIBRATION)
+    else:
+        key = cv.Optional(CONF_CALIBRATION)
+    return {
+        key: cv.All(
+            cv.Schema(
+                {
+                    option_with_default(x, defaults, True): cv.int_range(
+                        min=0, max=4095
+                    )
+                    for x in _CALIBRATION_KEYS
+                }
+            ),
+            validate_calibration,
+        )
+    }
+
+
+def _transform_schema(defaults: dict) -> dict:
+    if _TRANSFORM_KEYS.issubset(defaults):
+        key = cv.Optional(
+            CONF_TRANSFORM,
+            default={k: v for k, v in defaults.items() if k in _TRANSFORM_KEYS},
+        )
+    else:
+        key = cv.Optional(CONF_TRANSFORM)
+    return {
+        key: cv.Schema(
+            {
+                cv.Optional(x, default=defaults.get(x, False)): cv.boolean
+                for x in _TRANSFORM_KEYS
+            }
+        )
+    }
+
+
+def touchscreen_schema(
+    default_touch_timeout=cv.UNDEFINED,
+    calibration_required=False,
+    defaults: dict = None,
+) -> cv.Schema:
+    defaults = defaults or {}
     return cv.Schema(
         {
             cv.GenerateID(CONF_DISPLAY): cv.use_id(display.Display),
-            cv.Optional(CONF_TRANSFORM): cv.Schema(
-                {
-                    cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
-                    cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
-                    cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
-                }
-            ),
             cv.Optional(CONF_TOUCH_TIMEOUT, default=default_touch_timeout): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=cv.TimePeriod(milliseconds=65535)),
             ),
-            calibration: CALIBRATION_SCHEMA,
+            **_transform_schema(defaults),
+            **_calibration_schema(defaults, calibration_required),
             cv.Optional(CONF_ON_TOUCH): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_UPDATE): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_RELEASE): automation.validate_automation(single=True),

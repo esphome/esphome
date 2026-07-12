@@ -5,6 +5,7 @@ from esphome.components.audio_dac import AudioDac
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BITS_PER_SAMPLE,
+    CONF_ENABLE_PIN,
     CONF_ID,
     CONF_INPUT,
     CONF_INVERTED,
@@ -15,6 +16,11 @@ from esphome.const import (
 
 CODEOWNERS = ["@remcom"]
 DEPENDENCIES = ["i2c"]
+
+CONF_ANALOG_GAIN = "analog_gain"
+CONF_CHANNEL_MIX = "channel_mix"
+CONF_VOLUME_MIN_DB = "volume_min_db"
+CONF_VOLUME_MAX_DB = "volume_max_db"
 
 pcm5122_ns = cg.esphome_ns.namespace("pcm5122")
 PCM5122 = pcm5122_ns.class_("PCM5122", AudioDac, cg.Component, i2c.I2CDevice)
@@ -27,7 +33,27 @@ PCM5122_BITS_PER_SAMPLE_ENUM = {
     32: pcm5122_bits_per_sample.PCM5122_BITS_PER_SAMPLE_32,
 }
 
+pcm5122_analog_gain = pcm5122_ns.enum("PCM5122AnalogGain")
+PCM5122_ANALOG_GAIN_ENUM = {
+    "0db": pcm5122_analog_gain.PCM5122_ANALOG_GAIN_0DB,
+    "-6db": pcm5122_analog_gain.PCM5122_ANALOG_GAIN_MINUS_6DB,
+}
+
+pcm5122_channel_mix = pcm5122_ns.enum("PCM5122ChannelMix")
+PCM5122_CHANNEL_MIX_ENUM = {
+    "stereo": pcm5122_channel_mix.PCM5122_CHANNEL_MIX_STEREO,
+    "left": pcm5122_channel_mix.PCM5122_CHANNEL_MIX_LEFT_ONLY,
+    "right": pcm5122_channel_mix.PCM5122_CHANNEL_MIX_RIGHT_ONLY,
+    "swapped": pcm5122_channel_mix.PCM5122_CHANNEL_MIX_SWAPPED,
+}
+
 _validate_bits = cv.float_with_unit("bits", "bit")
+
+
+def _validate_volume_range(config):
+    if config[CONF_VOLUME_MIN_DB] >= config[CONF_VOLUME_MAX_DB]:
+        raise cv.Invalid(f"{CONF_VOLUME_MIN_DB} must be less than {CONF_VOLUME_MAX_DB}")
+    return config
 
 
 PCM5122GPIOPin = pcm5122_ns.class_(
@@ -36,17 +62,31 @@ PCM5122GPIOPin = pcm5122_ns.class_(
     cg.Parented.template(PCM5122),
 )
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PCM5122),
             cv.Optional(CONF_BITS_PER_SAMPLE, default="16bit"): cv.All(
                 _validate_bits, cv.enum(PCM5122_BITS_PER_SAMPLE_ENUM)
             ),
+            cv.Optional(CONF_ANALOG_GAIN, default="0db"): cv.enum(
+                PCM5122_ANALOG_GAIN_ENUM, lower=True
+            ),
+            cv.Optional(CONF_CHANNEL_MIX, default="stereo"): cv.enum(
+                PCM5122_CHANNEL_MIX_ENUM, lower=True
+            ),
+            cv.Optional(CONF_VOLUME_MIN_DB, default="-52.5dB"): cv.All(
+                cv.decibel, cv.float_range(min=-103.0, max=24.0)
+            ),
+            cv.Optional(CONF_VOLUME_MAX_DB, default="0dB"): cv.All(
+                cv.decibel, cv.float_range(min=-103.0, max=24.0)
+            ),
+            cv.Optional(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(i2c.i2c_device_schema(0x4D))
+    .extend(i2c.i2c_device_schema(0x4D)),
+    _validate_volume_range,
 )
 
 
@@ -96,3 +136,10 @@ async def to_code(config):
     await i2c.register_i2c_device(var, config)
 
     cg.add(var.set_bits_per_sample(config[CONF_BITS_PER_SAMPLE]))
+    cg.add(var.set_analog_gain(config[CONF_ANALOG_GAIN]))
+    cg.add(var.set_channel_mix(config[CONF_CHANNEL_MIX]))
+    cg.add(var.set_volume_min_db(config[CONF_VOLUME_MIN_DB]))
+    cg.add(var.set_volume_max_db(config[CONF_VOLUME_MAX_DB]))
+    if enable_pin_config := config.get(CONF_ENABLE_PIN):
+        enable_pin = await cg.gpio_pin_expression(enable_pin_config)
+        cg.add(var.set_enable_pin(enable_pin))
