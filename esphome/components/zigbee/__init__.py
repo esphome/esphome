@@ -18,10 +18,13 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 from .const import (
+    CONF_ENDPOINT,
+    CONF_MAX_EP_NUMBER,
     CONF_ON_JOIN,
     CONF_POWER_SOURCE,
     CONF_REPORT,
     CONF_ROUTER,
+    CONF_USE_DEVICE_TYPE,
     CONF_WIPE_ON_BOOT,
     KEY_ZIGBEE,
     POWER_SOURCE,
@@ -31,7 +34,7 @@ from .const import (
 )
 from .const_zephyr import (
     CONF_IEEE802154_VENDOR_OUI,
-    CONF_MAX_EP_NUMBER,
+    CONF_MAX_EP_NUMBER_ZEPHYR,
     CONF_SLEEPY,
     CONF_ZIGBEE_ID,
     KEY_EP_NUMBER,
@@ -71,7 +74,17 @@ BASE_SCHEMA = cv.Schema(
             cv.requires_component("esp32"),
             _check_report_deprecation,
             cv.enum(REPORT, lower=True),
-        )
+        ),
+        cv.Optional(CONF_ENDPOINT): cv.All(
+            cv.requires_component("zigbee"),
+            cv.requires_component("esp32"),
+            cv.int_range(1, CONF_MAX_EP_NUMBER),
+        ),
+        cv.Optional(CONF_USE_DEVICE_TYPE): cv.All(
+            cv.requires_component("zigbee"),
+            cv.requires_component("esp32"),
+            cv.boolean,
+        ),
     }
 )
 BINARY_SENSOR_SCHEMA = cv.Schema({}).extend(BASE_SCHEMA).extend(zephyr_binary_sensor)
@@ -148,8 +161,8 @@ def validate_number_of_ep(config: ConfigType) -> ConfigType:
         _LOGGER.warning(
             "Single endpoint requires ZHA or at leatst Zigbee2MQTT 2.8.0. For older versions of Zigbee2MQTT use multiple endpoints"
         )
-    if count > CONF_MAX_EP_NUMBER and not CORE.testing_mode:
-        raise cv.Invalid(f"Maximum number of end points is {CONF_MAX_EP_NUMBER}")
+    if count > CONF_MAX_EP_NUMBER_ZEPHYR and not CORE.testing_mode:
+        raise cv.Invalid(f"Maximum number of end points is {CONF_MAX_EP_NUMBER_ZEPHYR}")
 
     return config
 
