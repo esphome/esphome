@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Literal
 
-from esphome import pins
+from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
@@ -22,12 +22,14 @@ ModbusClient = modbus_ns.class_("ModbusClientHub", Modbus)
 ModbusDevice = modbus_ns.class_("ModbusDevice")
 ModbusClientDevice = modbus_ns.class_("ModbusClientDevice")
 ModbusServerDevice = modbus_ns.class_("ModbusServerDevice")
+ModbusSendAction = modbus_ns.class_("ModbusSendAction", automation.Action)
 MULTI_CONF = True
 
 CONF_ROLE = "role"
 CONF_MODBUS_ID = "modbus_id"
 CONF_SEND_WAIT_TIME = "send_wait_time"
 CONF_TURNAROUND_TIME = "turnaround_time"
+CONF_PDU = "pdu"
 
 MODBUS_ROLES = ["client", "server"]
 
@@ -138,3 +140,25 @@ async def register_modbus_device(var, config):
         "instead. Will be removed in 2026.12.0"
     )
     return await register_modbus_client_device(var, config)
+
+
+MODBUS_SEND_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_MODBUS_ID): cv.use_id(ModbusClient),
+        cv.Required(CONF_ADDRESS): cv.templatable(cv.hex_uint8_t),
+        cv.Required(CONF_PDU): cv.templatable(cv.ensure_list(cv.hex_uint8_t)),
+    }
+)
+
+
+@automation.register_action(
+    "modbus.send", ModbusSendAction, MODBUS_SEND_SCHEMA, synchronous=True
+)
+async def modbus_send_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_MODBUS_ID])
+    address = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
+    cg.add(var.set_address(address))
+    pdu = await cg.templatable(config[CONF_PDU], args, cg.std_vector.template(cg.uint8))
+    cg.add(var.set_pdu(pdu))
+    return var

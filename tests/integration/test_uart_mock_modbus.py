@@ -330,3 +330,29 @@ async def test_uart_mock_modbus_server_controller_multiple(
         await tracker.setup_and_start_scenario(client)
         await tracker.await_all(futures)
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_send(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test the modbus.send fire-and-forget action on the hub.
+
+    The Start Scenario button fires `modbus.send` with a write-single-register PDU
+    ([0x06, 0x00, 0x10, 0x12, 0x34]) to the server at address 1. No client device is attached, so the reply
+    is dropped; the write lands and the server's write_lambda stores 0x1234 in a global, which a template
+    sensor reports as written_value. This exercises the address-per-call, no-declaration, fire-and-forget
+    path that pairs with broadcast writes.
+    """
+
+    tracker = SensorTracker(["written_value"])
+    wrote = tracker.expect("written_value", 0x1234)
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_change(wrote, "written_value", timeout=4.0)

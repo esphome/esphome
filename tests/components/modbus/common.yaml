@@ -3,3 +3,17 @@ modbus:
   flow_control_pin: ${flow_control_pin}
   send_wait_time: 500ms
   turnaround_time: 100ms
+
+button:
+  - platform: template
+    name: "Broadcast write"
+    on_press:
+      # Fire-and-forget write single register 0x0010 = 0x1234 to a slave (static PDU) and via a lambda.
+      - modbus.send:
+          modbus_id: mod_bus1
+          address: 0x02
+          pdu: [0x06, 0x00, 0x10, 0x12, 0x34]
+      - modbus.send:
+          modbus_id: mod_bus1
+          address: !lambda "return 0;"
+          pdu: !lambda "return {0x06, 0x00, 0x10, 0x12, 0x34};"

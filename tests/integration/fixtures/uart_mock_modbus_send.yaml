@@ -1,0 +1,84 @@
+esphome:
+  name: uart-mock-modbus-send
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  - id: virtual_uart_server
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_client
+              data: !lambda return data;
+  - id: virtual_uart_client
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_server
+              data: !lambda return data;
+
+globals:
+  - id: written
+    type: uint16_t
+    initial_value: "0"
+
+modbus:
+  - uart_id: virtual_uart_server
+    id: virtual_modbus_server
+    role: server
+  - uart_id: virtual_uart_client
+    id: virtual_modbus_client
+    role: client
+    turnaround_time: 10ms
+
+modbus_server:
+  - address: 1
+    modbus_id: virtual_modbus_server
+    id: modbus_server_1
+    registers:
+      - address: 0x10
+        value_type: U_WORD
+        read_lambda: return id(written);
+        write_lambda: |-
+          id(written) = x;
+          return true;
+
+# A template sensor that reports the server-side global, so the test can observe the fire-and-forget write.
+sensor:
+  - platform: template
+    name: "written_value"
+    id: written_value
+    update_interval: 0.5s
+    lambda: "return id(written);"
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      # Fire-and-forget write-single-register 0x10 = 0x1234 to the server at address 1. No client device is
+      # involved and the reply is dropped; success is observed via the server's write_lambda side effect.
+      - modbus.send:
+          modbus_id: virtual_modbus_client
+          address: 1
+          pdu: [0x06, 0x00, 0x10, 0x12, 0x34]
