@@ -61,6 +61,7 @@ class EPaperBase : public Display,
     this->update_effective_transform_();
   }
   void set_full_update_every(uint8_t full_update_every) { this->full_update_every_ = full_update_every; }
+  void trigger_full_update() { this->update_count_ = 0; }
   void dump_config() override;
 
   void command(uint8_t value);
