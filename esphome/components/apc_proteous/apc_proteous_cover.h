@@ -20,6 +20,7 @@ class APCProteousCover : public cover::Cover, public PollingComponent, public ua
   void close_cmd_();
   void stop_cmd_();
   void send_command_(const char *cmd);
+  void write_command_(const char *cmd);
   void retry_pending_command_();
   void control(const cover::CoverCall &call) override;
   void parse_response_();
@@ -46,6 +47,12 @@ class APCProteousCover : public cover::Cover, public PollingComponent, public ua
   static const uint32_t COMMAND_ACK_MS = 2000;
   static const uint8_t MAX_COMMAND_RETRIES = 3;
 
+  // The controller echoes every command it receives, sometimes without a terminator. A query
+  // sent too soon after a command collides with that echo, producing a corrupt frame and a
+  // dropped command. After sending a command, hold off polling for COMMAND_QUIET_MS so the
+  // echo drains and the command takes effect before the next query.
+  static const uint32_t COMMAND_QUIET_MS = 250;
+
   // Safety cap on the UART trace so it always stops even if the gate never moves.
   static const uint32_t TRACE_MAX_MS = 60000;
 
@@ -56,6 +63,7 @@ class APCProteousCover : public cover::Cover, public PollingComponent, public ua
   float target_position_{0};
   const char *pending_command_{nullptr};
   uint32_t pending_command_time_{0};
+  uint32_t last_command_tx_{0};
   uint8_t command_retries_{0};
   bool trace_active_{false};
   bool trace_saw_motion_{false};

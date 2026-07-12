@@ -197,7 +197,7 @@ void APCProteousCover::retry_pending_command_() {
   ESP_LOGD(TAG, "Gate did not respond, resending %s command (retry %u)", is_open_cmd ? "open" : "close",
            this->command_retries_);
   this->pending_command_time_ = millis();
-  this->write_str(this->pending_command_);
+  this->write_command_(this->pending_command_);
 }
 
 void APCProteousCover::start_trace_(const char *what) {
@@ -217,6 +217,21 @@ void APCProteousCover::update() {
   // Resend a movement command the controller has not acknowledged; the serial link can drop one,
   // leaving the gate stopped until something re-issues the command.
   this->retry_pending_command_();
+
+  // Hold off polling right after a command so the command and its echo do not collide with a
+  // query. The next update() (500ms later) will poll once the quiet period has passed.
+  if ((millis() - this->last_command_tx_) < COMMAND_QUIET_MS) {
+    return;
+  }
+
+  // Discard any unterminated echo the controller left in the buffer so it cannot merge with the
+  // response to this query. By now the line is idle, so anything here is a stale command echo.
+  if (!this->rx_buffer_.empty()) {
+    if (this->trace_active_) {
+      ESP_LOGD(TAG, "UART trace: discarding stale rx '%s' before query", this->rx_buffer_.c_str());
+    }
+    this->rx_buffer_.clear();
+  }
 
   // Alternate between querying s-status and x-status
   const char *query = this->query_s_next_ ? QUERY_S : QUERY_X;
@@ -241,6 +256,13 @@ CoverTraits APCProteousCover::get_traits() {
   return traits;
 }
 
+void APCProteousCover::write_command_(const char *cmd) {
+  // All commands go through here so update() can hold off polling for COMMAND_QUIET_MS
+  // afterwards, keeping the command (and the controller's echo of it) clear of the queries.
+  this->last_command_tx_ = millis();
+  this->write_str(cmd);
+}
+
 void APCProteousCover::send_command_(const char *cmd) {
   // Don't publish state here: current_operation and position are updated only from
   // status reads, so the published state always reflects what the controller reports.
@@ -250,7 +272,7 @@ void APCProteousCover::send_command_(const char *cmd) {
   this->pending_command_time_ = millis();
   this->command_retries_ = 0;
   this->start_trace_(cmd == OPEN_CMD ? "open" : "close");
-  this->write_str(cmd);
+  this->write_command_(cmd);
 }
 
 void APCProteousCover::open_cmd_() {
@@ -284,7 +306,7 @@ void APCProteousCover::stop_cmd_() {
   }
   ESP_LOGD(TAG, "Sending stop command");
   this->start_trace_("stop");
-  this->write_str(START_CMD);
+  this->write_command_(START_CMD);
   this->pending_command_ = nullptr;
   // current_operation will update from the next status poll.
 }
@@ -319,7 +341,7 @@ void APCProteousCover::control(const CoverCall &call) {
     }
   } else if (call.get_toggle()) {
     this->start_trace_("toggle");
-    this->write_str(START_CMD);
+    this->write_command_(START_CMD);
   }
 }
 
