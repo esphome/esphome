@@ -225,21 +225,10 @@ void CSE7761Component::accumulate_energy_(uint8_t channel, uint8_t reg) {
   // resistors -- the same assumption coefficient_by_unit_() already makes for RMS/power).
   double wh_per_pulse =
       static_cast<double>(this->data_.coefficient[ENERGY_AC + channel]) * this->hf_const_ / CSE7761_ENERGY_WH_DIVISOR;
-  float delta_wh = static_cast<float>(delta * wh_per_pulse);
-  ESP_LOGD(TAG, "Channel %d energy pulses %u (+%u), %f Wh/pulse, +%f Wh", channel + 1, raw, delta, wh_per_pulse,
-           delta_wh);
-  this->energy_wh_[channel] += delta_wh;
+  this->energy_wh_[channel] += static_cast<float>(delta * wh_per_pulse);
 }
 
 void CSE7761Component::get_data_() {
-  if (!this->logged_energy_coefficients_) {
-    // Logged here (rather than chip_init_()/setup()) so it isn't lost when the log connection
-    // comes up after an OTA reconnect.
-    ESP_LOGD(TAG, "HFConst=%u, EnergyAC=%u, EnergyBC=%u", this->hf_const_, this->data_.coefficient[ENERGY_AC],
-             this->data_.coefficient[ENERGY_BC]);
-    this->logged_energy_coefficients_ = true;
-  }
-
   // The effective value of current and voltage Rms is a 24-bit signed number,
   // the highest bit is 0 for valid data,
   //   and when the highest bit is 1, the reading will be processed as zero
