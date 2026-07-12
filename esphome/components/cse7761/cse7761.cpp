@@ -18,12 +18,16 @@ static constexpr int CSE7761_UREF = 42563;  // RmsUc
 static constexpr int CSE7761_IREF = 52241;  // RmsIAC
 static constexpr int CSE7761_PREF = 44513;  // PowerPAC
 
+// System clock (3.579545MHz), used to convert the raw Ufreq register into a line frequency in Hz.
+static constexpr uint32_t CSE7761_SYSTEM_CLOCK = 3579545;
+
 static constexpr uint8_t CSE7761_REG_SYSCON = 0x00;     // (2) System Control Register (0x0A04)
 static constexpr uint8_t CSE7761_REG_EMUCON = 0x01;     // (2) Metering control register (0x0000)
 static constexpr uint8_t CSE7761_REG_HFCONST = 0x02;    // (2) Pulse frequency register (0x1000)
 static constexpr uint8_t CSE7761_REG_EMUCON2 = 0x13;    // (2) Metering control register 2 (0x0001)
 static constexpr uint8_t CSE7761_REG_PULSE1SEL = 0x1D;  // (2) Pin function output select register (0x3210)
 
+static constexpr uint8_t CSE7761_REG_UFREQ = 0x23;      // (2) Voltage frequency (0x0000)
 static constexpr uint8_t CSE7761_REG_RMSIA = 0x24;      // (3) The effective value of channel A current (0x000000)
 static constexpr uint8_t CSE7761_REG_RMSIB = 0x25;      // (3) The effective value of channel B current (0x000000)
 static constexpr uint8_t CSE7761_REG_RMSU = 0x26;       // (3) Voltage RMS (0x000000)
@@ -69,6 +73,7 @@ void CSE7761Component::dump_config() {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
+  LOG_SENSOR("  ", "Frequency", this->frequency_sensor_);
   LOG_SENSOR("  ", "Energy 1", this->energy_sensor_1_);
   LOG_SENSOR("  ", "Energy 2", this->energy_sensor_2_);
   this->check_uart_settings(38400, 1, uart::UART_CONFIG_PARITY_EVEN, 8);
@@ -197,7 +202,7 @@ bool CSE7761Component::chip_init_() {
   if (sys_status & 0x10) {  // Write enable to protected registers (WREN)
     this->write_(CSE7761_REG_SYSCON | 0x80, 0xFF04);
     this->write_(CSE7761_REG_EMUCON | 0x80, 0x1183);
-    this->write_(CSE7761_REG_EMUCON2 | 0x80, 0x0FC1);
+    this->write_(CSE7761_REG_EMUCON2 | 0x80, 0x0FC5);  // ZxEN=1: enable voltage frequency measurement
     this->write_(CSE7761_REG_PULSE1SEL | 0x80, 0x3290);
   } else {
     ESP_LOGD(TAG, "Write failed at chip_init");
@@ -237,6 +242,10 @@ void CSE7761Component::get_data_() {
   uint32_t value = this->read_(CSE7761_REG_RMSU, 3);
   this->data_.voltage_rms = (value >= 0x800000) ? 0 : value;
 
+  // Ufreq is a 16-bit unsigned number; the highest bit set means invalid/no signal.
+  value = this->read_(CSE7761_REG_UFREQ, 2);
+  this->data_.frequency = (value >= 0x8000) ? 0 : value;
+
   value = this->read_(CSE7761_REG_RMSIA, 3);
   this->data_.current_rms[0] = ((value >= 0x800000) || (value < 1600)) ? 0 : value;  // No load threshold of 10mA
   value = this->read_(CSE7761_REG_POWERPA, 4);
@@ -254,6 +263,13 @@ void CSE7761Component::get_data_() {
   float voltage = static_cast<float>(this->data_.voltage_rms) / this->coefficient_by_unit_(RMS_UC);
   if (this->voltage_sensor_ != nullptr) {
     this->voltage_sensor_->publish_state(voltage);
+  }
+
+  // Frequency = system clock / 8 / Ufreq
+  float frequency =
+      this->data_.frequency ? static_cast<float>(CSE7761_SYSTEM_CLOCK) / 8.0f / this->data_.frequency : 0.0f;
+  if (this->frequency_sensor_ != nullptr) {
+    this->frequency_sensor_->publish_state(frequency);
   }
 
   for (uint8_t channel = 0; channel < 2; channel++) {
