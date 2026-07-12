@@ -46,9 +46,6 @@ class CSE7761Component final : public PollingComponent, public uart::UARTDevice 
   uint32_t last_energy_pulses_[2] = {0};
   bool energy_pulses_valid_[2] = {false, false};
   float energy_wh_[2] = {0};
-  // Logged once from get_data_() (rather than setup()) so it survives an OTA reconnect, which can
-  // otherwise lose the earliest boot log lines before the log connection is established.
-  bool logged_energy_coefficients_{false};
 
   void write_(uint8_t reg, uint16_t data);
   bool read_once_(uint8_t reg, uint8_t size, uint32_t *value);
