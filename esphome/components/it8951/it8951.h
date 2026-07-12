@@ -193,6 +193,18 @@ class IT8951Display : public Display,
   // --- Display API ---
   void update() override;
   void update_mode(UpdateMode mode);
+  // Double-buffering split (it8951.load / it8951.refresh actions):
+  // load_buffer() transfers the framebuffer's dirty region into controller
+  // RAM WITHOUT displaying it (gated on LUT idle so an in-progress waveform
+  // is never torn); refresh_full() displays the full screen from controller
+  // RAM WITHOUT transferring. Together they let a page be preloaded while
+  // another is on the panel, making the swap a single ~1s waveform instead
+  // of render + transfer + waveform.
+  void load_buffer();
+  void refresh_full(UpdateMode mode);
+  // True when no update is in progress or pending — i.e. buffer_ is not
+  // being streamed and may be re-rendered (e.g. to preload another page).
+  bool is_idle() const { return this->phase_ == Phase::IDLE && !this->update_pending_; }
   DisplayType get_display_type() override { return this->grayscale_ ? DISPLAY_TYPE_GRAYSCALE : DISPLAY_TYPE_BINARY; }
   void fill(Color color) override;
   void clear() override { this->fill(Color::WHITE); }
@@ -240,7 +252,7 @@ class IT8951Display : public Display,
   void process_op_(const Op &op);
   void advance_phase_();
   void set_phase_(Phase next);
-  void start_update_(UpdateMode mode);
+  void start_update_(UpdateMode mode, bool load_only = false, bool refresh_only = false);
 
   // --- SPI primitives (each is one CS-asserted burst, fully non-blocking) ---
   void spi_cmd_(uint16_t cmd);
@@ -284,10 +296,15 @@ class IT8951Display : public Display,
   // so 20ms transfer slices aren't separated by the ~16ms default loop interval.
   HighFrequencyLoopRequester high_freq_;
 
-  // Pending update bookkeeping
+  // Pending update bookkeeping. The load/refresh flags ride along with the
+  // mode; coalescing keeps only the latest pending request (latest wins).
   bool update_pending_{false};
   UpdateMode pending_update_mode_{UPDATE_MODE_NONE};
+  bool pending_load_only_{false};
+  bool pending_refresh_only_{false};
   UpdateMode active_mode_{UPDATE_MODE_NONE};
+  bool active_load_only_{false};
+  bool active_refresh_only_{false};
   uint16_t area_x_{0}, area_y_{0}, area_w_{0}, area_h_{0};
   uint16_t transfer_row_{0};
   bool initialised_{false};
@@ -365,6 +382,38 @@ template<typename... Ts> class IT8951UpdateAction : public Action<Ts...> {
     } else {
       this->display_->update();
     }
+  }
+
+  IT8951Display *display_;
+};
+
+// it8951.load — transfer the framebuffer to controller RAM without displaying.
+template<typename... Ts> class IT8951LoadAction : public Action<Ts...> {
+ public:
+  explicit IT8951LoadAction(IT8951Display *display) : display_(display) {}
+
+ protected:
+  void play(const Ts &...x) override {
+    if (!this->display_->is_ready())
+      return;
+    this->display_->load_buffer();
+  }
+
+  IT8951Display *display_;
+};
+
+// it8951.refresh — display the full screen from controller RAM without
+// transferring (shows whatever was last loaded, e.g. by it8951.load).
+template<typename... Ts> class IT8951RefreshAction : public Action<Ts...> {
+ public:
+  explicit IT8951RefreshAction(IT8951Display *display) : display_(display) {}
+  TEMPLATABLE_VALUE(UpdateMode, mode)
+
+ protected:
+  void play(const Ts &...x) override {
+    if (!this->display_->is_ready())
+      return;
+    this->display_->refresh_full(this->mode_.has_value() ? this->mode_.value(x...) : UPDATE_MODE_GC16);
   }
 
   IT8951Display *display_;
