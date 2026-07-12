@@ -305,9 +305,10 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
                  function_code, exception, address, this->last_modbus_byte_ - this->last_send_);
         if (device)
           device->on_error(request_pdu, static_cast<ModbusExceptionCode>(exception));
-
+        this->maybe_requeue_completed_(command, /*success=*/false);
       } else if (device) {  // Not an error response
         device->on_response(request_pdu, pdu);
+        this->maybe_requeue_completed_(command, /*success=*/true);
       } else {  // Not an error response, but no device to respond to
         ESP_LOGV(TAG, "Ignoring response from %" PRIu8 " - no callback device set, %" PRIu32 "ms after last send",
                  address, this->last_modbus_byte_ - this->last_send_);
@@ -500,15 +501,23 @@ void ModbusClientHub::send_next_frame_() {
   }
 
   ModbusDeviceCommand &command = this->tx_buffer_.front();
+  ModbusClientDevice *device = command.device;
+  const bool sent = this->send_frame_(command.frame);
 
-  if (this->send_frame_(command.frame)) {
+  if (sent) {
     this->waiting_for_response_ = std::move(command);
-  } else {
-    if (command.device)
-      command.device->on_not_sent();
+  } else if (device) {
+    device->on_not_sent(command.frame.pdu());
   }
 
   this->tx_buffer_.pop_front();
+
+  // Notify after the queue is consistent again: the callback may send or clear queues. The frame
+  // now lives in the waiting slot; its PDU is the frame without the leading address and trailing CRC.
+  if (sent && device && this->waiting_for_response_.has_value()) {
+    const ModbusFrame &frame = this->waiting_for_response_.value().frame;
+    device->on_sent(frame.pdu());
+  }
 
   if (!this->tx_buffer_.empty()) {
     ESP_LOGV(TAG, "Write queue contains %zu items.", this->tx_buffer_.size());
@@ -566,32 +575,83 @@ void ModbusServerHub::send_exception_(uint8_t address, uint8_t function_code, Mo
 void ModbusClientHub::notify_no_response_(ModbusDeviceCommand &wfr) {
   if (wfr.device == nullptr)
     return;
-  const bool retry = wfr.device->on_no_response();
+  // A device-requested retry (on_no_response() returns true) is not a resolution - the same request
+  // is re-attempted. READ_AGAIN (an extra request the dedup absorbed) also forces one more run even if the
+  // device declines. Track the two reasons separately so requeue_waiting_frame_ can keep a READ_AGAIN's
+  // extra request pending across a device retry, and demote it only on the READ_AGAIN-forced run.
+  const bool device_retry = wfr.device->on_no_response(wfr.frame.pdu());
+  const bool retry = device_retry || wfr.priority == CommandPriority::READ_AGAIN;
   // The callback may have detached the device (e.g. clear_tx_queue_for_device()); honor the detach
   // over the retry request rather than re-queueing a frame that can no longer be routed.
   if (retry && wfr.device != nullptr)
-    this->requeue_waiting_frame_(wfr);
+    this->requeue_waiting_frame_(wfr, device_retry);
   // The old transaction is over either way; never deliver anything else to the device through it.
   wfr.device = nullptr;
 }
 
-void ModbusClientHub::requeue_waiting_frame_(ModbusDeviceCommand &wfr) {
+void ModbusClientHub::requeue_waiting_frame_(ModbusDeviceCommand &wfr, bool device_retry) {
   const ModbusFrame &frame = wfr.frame;
   if (this->tx_buffer_.size() >= MODBUS_TX_BUFFER_SIZE) {
     ESP_LOGE(TAG, "Write buffer full, dropped retry for address %" PRIu8, frame.address());
     if (wfr.device != nullptr)
-      wfr.device->on_not_sent();
+      wfr.device->on_not_sent(frame.pdu());
     return;
   }
-  // Re-queue a copy (not a move): the waiting entry may have to survive as an interrupted shell.
-  this->tx_buffer_.emplace_back(wfr.device, frame.address(), frame.pdu());
+  // Re-queue a copy (not a move): the waiting entry may have to survive as an interrupted shell. Preserve the
+  // frame's priority on retry: a write keeps WRITE (stays ahead of reads and never drops to a priority a
+  // duplicate could promote), and a continuous read stays continuous - an explicit retry of a continuous poll
+  // is assumed to still want continuous polling. A READ_AGAIN entry carries an extra request the dedup
+  // absorbed: keep it when the device asked to retry (nothing was resolved, both requests still pending), and
+  // demote to READ_ONCE only when the retry is READ_AGAIN-forced (the device gave up, resolving one request,
+  // so the frame runs once more for the other and then stops).
+  CommandPriority priority = wfr.priority;
+  if (wfr.priority == CommandPriority::READ_AGAIN && !device_retry)
+    priority = CommandPriority::READ_ONCE;
+  this->insert_by_priority_(ModbusDeviceCommand(wfr.device, frame.address(), frame.pdu(), priority));
+}
+
+void ModbusClientHub::insert_by_priority_(ModbusDeviceCommand &&command) {
+  auto it = std::find_if(this->tx_buffer_.begin(), this->tx_buffer_.end(),
+                         [&command](const ModbusDeviceCommand &cmd) { return cmd.priority < command.priority; });
+  // emplace_back for the common append case: deque::insert at begin() takes the push-front path,
+  // which allocates a front block even when the back block has room (caught by the heap probe).
+  if (it == this->tx_buffer_.end()) {
+    this->tx_buffer_.emplace_back(std::move(command));
+  } else {
+    this->tx_buffer_.insert(it, std::move(command));
+  }
+}
+
+void ModbusClientHub::maybe_requeue_completed_(ModbusDeviceCommand &command, bool success) {
+  // Known limitation: command was moved out of the waiting slot before the response callback ran, so a
+  // device that cleared its own queue from inside on_response()/on_error() is not detected here
+  // and its continuous/READ_AGAIN re-queue still happens (see the lifecycle note on ModbusClientDevice).
+  if (command.device == nullptr)
+    return;
+  CommandPriority priority = CommandPriority::READ_ONCE;
+  if (command.priority == CommandPriority::READ_AGAIN) {
+    // Explicitly re-requested; runs once more (demoted) whether this attempt succeeded or not.
+  } else if (command.priority == CommandPriority::READ_CONTINUOUS && success) {
+    priority = CommandPriority::READ_CONTINUOUS;
+  } else {
+    return;
+  }
+  if (this->tx_buffer_.size() >= MODBUS_TX_BUFFER_SIZE) {
+    ESP_LOGE(TAG, "Write buffer full, dropped re-queue for address %" PRIu8, command.frame.address());
+    // The re-queue is refused, so the chain ends here; a continuous poller learns its polling stopped.
+    command.device->on_not_sent(command.frame.pdu());
+    return;
+  }
+  const ModbusFrame &frame = command.frame;
+  this->insert_by_priority_(ModbusDeviceCommand(command.device, frame.address(), frame.pdu(), priority));
 }
 
 // Raw send for client: pushes to tx queue. Everything except the CRC must be contained in payload.
-void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device) {
+void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device,
+                               CommandOptions options) {
   if (pdu.empty()) {
     if (device)
-      device->on_not_sent();
+      device->on_not_sent(pdu);
     return;
   }
 
@@ -599,8 +659,54 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   if (pdu.size() > MAX_PDU_SIZE) {
     ESP_LOGE(TAG, "Frame too large, dropped: %" PRIu8 ":%zu bytes", address, pdu.size());
     if (device)
-      device->on_not_sent();
+      device->on_not_sent(pdu);
     return;
+  }
+
+  // Writes outrank reads on the wire; the priority is derived from the frame, never chosen by
+  // callers. continuous is ignored for writes (re-writing a value forever is never intended).
+  CommandPriority priority = CommandPriority::READ_ONCE;
+  if (helpers::is_function_code_write(pdu[0])) {
+    priority = CommandPriority::WRITE;
+    if (options.continuous)
+      ESP_LOGV(TAG, "continuous is ignored for a write (function 0x%X, address %" PRIu8 ")", pdu[0], address);
+  } else if (options.continuous) {
+    priority = CommandPriority::READ_CONTINUOUS;
+  }
+  // A write is never requeueable: re-sending a write is not idempotent in general (it can double a
+  // command/increment register), so a duplicate of a write is always dropped, never promoted to
+  // READ_AGAIN. Only reads (and custom read PDUs) can be re-queued. Checked explicitly rather than
+  // relying on WRITE sorting above READ_AGAIN, so a retried write (re-queued at a lower priority) can
+  // never be promoted either.
+  const bool is_write = priority == CommandPriority::WRITE;
+
+  // A frame identical to one already queued or in flight is not queued twice: the existing entry is
+  // promoted to READ_AGAIN, which re-queues it once more after it completes.
+  // Every request resolves in exactly one callback: a promotion is absorbed into the promoted
+  // entry's future on_response(); a request that cannot promote further (already READ_AGAIN,
+  // or a duplicate write) is dropped and reports on_not_sent().
+  for (auto &item : this->tx_buffer_) {
+    if (item.device == device && item.same_frame(address, pdu)) {
+      if (!is_write && item.priority < CommandPriority::READ_AGAIN) {
+        item.priority = CommandPriority::READ_AGAIN;
+        ESP_LOGV(TAG, "Frame already queued for %" PRIu8 ", promoted for re-queue", address);
+      } else if (device) {
+        device->on_not_sent(pdu);
+      }
+      return;
+    }
+  }
+  if (this->waiting_for_response_.has_value()) {
+    ModbusDeviceCommand &wfr = this->waiting_for_response_.value();
+    if (wfr.device == device && wfr.device != nullptr && wfr.same_frame(address, pdu)) {
+      if (!is_write && wfr.priority < CommandPriority::READ_AGAIN) {
+        wfr.priority = CommandPriority::READ_AGAIN;
+        ESP_LOGV(TAG, "Frame already in flight for %" PRIu8 ", promoted for re-queue", address);
+      } else if (device) {
+        device->on_not_sent(pdu);
+      }
+      return;
+    }
   }
 
   if (this->tx_buffer_.size() < MODBUS_TX_BUFFER_SIZE) {
@@ -609,7 +715,7 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
 #endif
     ESP_LOGV(TAG, "Adding frame to tx queue: %" PRIu8 ":%s", address,
              format_hex_pretty_to(hex_buf, pdu.data(), pdu.size()));
-    this->tx_buffer_.emplace_back(device, address, pdu);
+    this->insert_by_priority_(ModbusDeviceCommand(device, address, pdu, priority));
   } else {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
     char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
@@ -617,7 +723,7 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
     ESP_LOGE(TAG, "Write buffer full, dropped: %" PRIu8 ":%s", address,
              format_hex_pretty_to(hex_buf, pdu.data(), pdu.size()));
     if (device)
-      device->on_not_sent();
+      device->on_not_sent(pdu);
   }
 }
 
@@ -655,7 +761,7 @@ void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
 void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device) {
   if (payload.size() < 2) {
     if (device)
-      device->on_not_sent();
+      device->on_not_sent({});  // too short to contain a PDU
     return;
   }
   this->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), device);
@@ -710,19 +816,20 @@ void Modbus::clear_rx_buffer_(const LogString *reason, bool warn, size_t bytes_t
   }
 }
 
-void ModbusClientDevice::read_entities(EntityType entity_type, uint16_t start_address, uint16_t number_of_entities) {
+void ModbusClientDevice::read_entities(EntityType entity_type, uint16_t start_address, uint16_t number_of_entities,
+                                       CommandOptions options) {
   switch (entity_type) {
     case EntityType::HOLDING:
-      this->read_holding_registers(start_address, number_of_entities);
+      this->read_holding_registers(start_address, number_of_entities, options);
       return;
     case EntityType::INPUT_REGISTER:
-      this->read_input_registers(start_address, number_of_entities);
+      this->read_input_registers(start_address, number_of_entities, options);
       return;
     case EntityType::COIL:
-      this->read_coils(start_address, number_of_entities);
+      this->read_coils(start_address, number_of_entities, options);
       return;
     case EntityType::DISCRETE_INPUT:
-      this->read_discrete_inputs(start_address, number_of_entities);
+      this->read_discrete_inputs(start_address, number_of_entities, options);
       return;
     default:
       ESP_LOGW(TAG, "Invalid entity type for read_entities: %d", (int) entity_type);

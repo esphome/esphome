@@ -16,7 +16,10 @@
 
 namespace esphome::modbus {
 
-static constexpr uint16_t MODBUS_TX_BUFFER_SIZE = 15;
+// Tx queue backstop. Duplicate frames dedup into one entry, so reads can never approach this in a
+// sane config - it exists to stop a runaway generator of distinct frames (e.g. a loop writing a
+// changing value) from growing the heap unboundedly. The deque grows on demand; this reserves nothing.
+static constexpr uint16_t MODBUS_TX_BUFFER_SIZE = 128;
 static constexpr uint16_t MODBUS_TX_MAX_DELAY_MS = 5;
 
 // Typical frames -- reads and single-register/coil writes -- are exactly 8 bytes
@@ -88,17 +91,41 @@ class Modbus : public uart::UARTDevice, public Component {
 class ModbusClientDevice;
 class ModbusServerDevice;
 
+// Transmit priority, highest value sends first. Internal - derived from the frame, never chosen by
+// callers: writes outrank everything, a re-requested queued frame (READ_AGAIN) outranks fresh reads,
+// and continuous polls fill whatever bus time is left.
+enum class CommandPriority : uint8_t { READ_CONTINUOUS = 0, READ_ONCE, READ_AGAIN, WRITE };
+
+/// Per-command options for the send helpers. Extended append-only; prefer designated initializers
+/// at call sites ({.continuous = true}) so added fields never disturb existing callers.
+struct CommandOptions {
+  /// Re-queue this read at the lowest priority each time it completes successfully, filling idle
+  /// bus time with polling. Failures are not re-queued (the caller's normal update path recovers).
+  /// Ignored for writes.
+  bool continuous{false};
+};
+
 struct ModbusDeviceCommand {
   ModbusClientDevice *device;
   ModbusFrame frame;
+  CommandPriority priority{CommandPriority::READ_ONCE};
   bool interrupted{false};
 
-  ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, const uint8_t *src, uint16_t len)
-      : device(device), frame(address, src, len) {}
+  ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, const uint8_t *src, uint16_t len,
+                      CommandPriority priority = CommandPriority::READ_ONCE)
+      : device(device), frame(address, src, len), priority(priority) {}
   /// Build a command from a PDU span: a caller-supplied PDU, or an existing frame's own pdu() when re-queueing
   /// Callers must bound the PDU to MAX_PDU_SIZE
-  ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, std::span<const uint8_t> pdu)
-      : device(device), frame(address, pdu.data(), static_cast<uint16_t>(pdu.size())) {}
+  ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, std::span<const uint8_t> pdu,
+                      CommandPriority priority = CommandPriority::READ_ONCE)
+      : device(device), frame(address, pdu.data(), static_cast<uint16_t>(pdu.size())), priority(priority) {}
+
+  /// True if this command carries the same wire frame (address + PDU) as the given one.
+  bool same_frame(uint8_t address, std::span<const uint8_t> pdu) const {
+    const auto own_pdu = this->frame.pdu();
+    return own_pdu.size() == pdu.size() && this->frame.address() == address &&
+           memcmp(own_pdu.data(), pdu.data(), pdu.size()) == 0;
+  }
 };
 
 class ModbusClientHub : public Modbus {
@@ -118,9 +145,12 @@ class ModbusClientHub : public Modbus {
                                               payload, payload_len),
                    device);
   };
-  void send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr);
+  void send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr,
+                CommandOptions options = {});
   ESPDEPRECATED("Use send_pdu(payload[0], <pdu bytes>, device) instead. Removed in 2027.2.0", "2026.8.0")
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr);
+  // Drop the queued commands for an address / a device. These SILENTLY discard the frames - no terminal
+  // callback is delivered (used during teardown/offline handling); see the lifecycle note on ModbusClientDevice.
   void clear_tx_queue_for_address(uint8_t address, bool clear_sent = true);
   void clear_tx_queue_for_device(ModbusClientDevice *device);
 
@@ -132,7 +162,14 @@ class ModbusClientHub : public Modbus {
   // Notify the waiting device of no response; re-queues the frame if on_no_response() returns true.
   // wfr is the caller's checked reference to waiting_for_response_.
   void notify_no_response_(ModbusDeviceCommand &wfr);
-  void requeue_waiting_frame_(ModbusDeviceCommand &wfr);
+  // device_retry is what on_no_response() returned (true = the device asked to retry, so this attempt
+  // is not a resolution); it decides whether a READ_AGAIN entry keeps its extra pending request or is demoted.
+  void requeue_waiting_frame_(ModbusDeviceCommand &wfr, bool device_retry);
+  // Inserts before the first lower-priority entry (FIFO within a priority class).
+  void insert_by_priority_(ModbusDeviceCommand &&command);
+  // Re-queues a completed command if its priority asks for it (READ_AGAIN always, demoted to
+  // READ_ONCE; READ_CONTINUOUS only after a successful response).
+  void maybe_requeue_completed_(ModbusDeviceCommand &command, bool success);
 
   uint16_t send_wait_time_{2000};
   uint16_t turnaround_delay_ms_{0};
@@ -189,6 +226,20 @@ class ModbusClientDevice {
   ModbusClientDevice &operator=(ModbusClientDevice &&) = delete;
   void set_parent(ModbusClientHub *parent) { this->parent_ = parent; }
   void set_address(uint8_t address) { this->address_ = address; }
+  /// Command lifecycle: each accepted command (a send_pdu()/typed-helper call, a hub re-queue from a
+  /// retry or READ_AGAIN promotion, or a continuous re-queue) ends in exactly ONE terminal callback:
+  /// on_response() (valid response), on_error() (exception response), on_no_response()
+  /// (timeout or interrupted transaction), or on_not_sent() (never transmitted: send failure,
+  /// full queue, or refused as an unpromotable duplicate). on_sent() is additional, not
+  /// terminal: it fires once per wire transmission, before whichever of data/error/no_response follows,
+  /// and never for a command that ends in on_not_sent().
+  /// The one exception to "exactly one terminal": clear_tx_queue_for_address()/clear_tx_queue_for_device()
+  /// drop queued commands SILENTLY (no terminal callback), because they are used during teardown/offline
+  /// handling where delivering a callback would be unsafe or unwanted. Related limitation: clearing a
+  /// device's own queue from inside on_response()/on_error() does not cancel that command's
+  /// pending continuous/READ_AGAIN re-queue (unlike on_no_response(), which honors a mid-callback
+  /// detach); stop a continuous poll from on_no_response() or by not re-requesting it.
+  ///
   /// Low-level response hook: called with the request PDU this device sent and the response PDU received
   /// The spans are only valid for the duration of the call - copy the bytes if they must outlive it.
   /// The default implementation decodes standard responses and dispatches to on_read_* / on_write_* callbacks below.
@@ -202,13 +253,14 @@ class ModbusClientDevice {
   virtual void on_error(std::span<const uint8_t> request_pdu, ModbusExceptionCode exception_code) {
     this->dispatch_response_(request_pdu, {}, exception_code);
   }
-
   /// Called when no request could be sent (e.g. queue full, transmission blocked)
   /// Do not attempt to queue a command in this callback.
-  virtual void on_not_sent() {}
+  virtual void on_not_sent(std::span<const uint8_t> request_pdu) {}
+  /// Called when this device's frame is actually written to the wire
+  virtual void on_sent(std::span<const uint8_t> request_pdu) {}
   /// Called when no matching, uninterrupted response arrived; return true to have the hub re-queue the frame for a
   /// retry. The hub does not bound retries: the device is responsible for limiting them.
-  virtual bool on_no_response() { return false; }
+  virtual bool on_no_response(std::span<const uint8_t> request_pdu) { return false; }
 
   /// High-level typed response callbacks, fired by the default on_response()/on_error() with arguments
   /// parsed from the request and response PDUs.
@@ -261,7 +313,9 @@ class ModbusClientDevice {
                                                        payload, payload_len),
                             this);
   }
-  void send_pdu(std::span<const uint8_t> pdu) { this->parent_->send_pdu(this->address_, pdu, this); }
+  void send_pdu(std::span<const uint8_t> pdu, CommandOptions options = {}) {
+    this->parent_->send_pdu(this->address_, pdu, this, options);
+  }
   ESPDEPRECATED("Use send_pdu() instead (the device address is prepended for you). Removed in 2027.2.0", "2026.8.0")
   void send_raw(const std::vector<uint8_t> &payload) {
     if (payload.empty())
@@ -269,20 +323,24 @@ class ModbusClientDevice {
     this->parent_->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
   }
   // Dispatches to the matching read_* method; defined in modbus.cpp because it logs on an invalid type.
-  void read_entities(EntityType entity_type, uint16_t start_address, uint16_t number_of_entities);
-  void read_input_registers(uint16_t start_address, uint16_t number_of_registers) {
+  void read_entities(EntityType entity_type, uint16_t start_address, uint16_t number_of_entities,
+                     CommandOptions options = {});
+  void read_input_registers(uint16_t start_address, uint16_t number_of_registers, CommandOptions options = {}) {
     this->send_pdu(
-        helpers::create_read_pdu(ModbusFunctionCode::READ_INPUT_REGISTERS, start_address, number_of_registers));
+        helpers::create_read_pdu(ModbusFunctionCode::READ_INPUT_REGISTERS, start_address, number_of_registers),
+        options);
   }
-  void read_holding_registers(uint16_t start_address, uint16_t number_of_registers) {
+  void read_holding_registers(uint16_t start_address, uint16_t number_of_registers, CommandOptions options = {}) {
     this->send_pdu(
-        helpers::create_read_pdu(ModbusFunctionCode::READ_HOLDING_REGISTERS, start_address, number_of_registers));
+        helpers::create_read_pdu(ModbusFunctionCode::READ_HOLDING_REGISTERS, start_address, number_of_registers),
+        options);
   }
-  void read_coils(uint16_t start_address, uint16_t number_of_coils) {
-    this->send_pdu(helpers::create_read_pdu(ModbusFunctionCode::READ_COILS, start_address, number_of_coils));
+  void read_coils(uint16_t start_address, uint16_t number_of_coils, CommandOptions options = {}) {
+    this->send_pdu(helpers::create_read_pdu(ModbusFunctionCode::READ_COILS, start_address, number_of_coils), options);
   }
-  void read_discrete_inputs(uint16_t start_address, uint16_t number_of_inputs) {
-    this->send_pdu(helpers::create_read_pdu(ModbusFunctionCode::READ_DISCRETE_INPUTS, start_address, number_of_inputs));
+  void read_discrete_inputs(uint16_t start_address, uint16_t number_of_inputs, CommandOptions options = {}) {
+    this->send_pdu(helpers::create_read_pdu(ModbusFunctionCode::READ_DISCRETE_INPUTS, start_address, number_of_inputs),
+                   options);
   }
   void write_single_register(uint16_t start_address, uint16_t value) {
     this->send_pdu(helpers::create_write_single_register_pdu(start_address, value));

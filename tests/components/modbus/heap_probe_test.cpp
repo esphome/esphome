@@ -131,6 +131,7 @@ TEST(HeapProbe, QueueingTypicalCommandsIsAllocationFree) {
   constexpr int n = 12;
   size_t total = 0;
   for (int i = 0; i != n; i++) {
+    req[2] = static_cast<uint8_t>(i);  // distinct start addresses: identical frames would dedup, not enqueue
     total += sample([&] { device.send_pdu(req); }).count;
   }
   printf("HEAPPROBE queue_%d_typical_commands total_allocs=%zu\n", n, total);
