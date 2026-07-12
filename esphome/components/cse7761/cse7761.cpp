@@ -38,8 +38,9 @@ static constexpr uint8_t CSE7761_REG_SYSSTATUS = 0x43;  // (1) System status reg
 static constexpr uint8_t CSE7761_REG_COEFFCHKSUM = 0x6F;  // (2) Coefficient checksum
 static constexpr uint8_t CSE7761_REG_RMSIAC = 0x70;       // (2) Channel A effective current conversion coefficient
 
-// Datasheet energy formula denominator: K1*K2*2^29*4096 with K1=K2=1 (see coefficient_by_unit_ for the same
-// assumption applied to RMS/power), scaled by 1e6 up front to convert the formula's native kWh result to Wh.
+// Datasheet active energy formula denominator: K1*K2*2^29*4096 with K1=K2=1 (the same assumption
+// coefficient_by_unit_() already makes for RMS/power), pre-scaled by 1e6 to convert the formula's
+// native kWh result to Wh in one division.
 static constexpr double CSE7761_ENERGY_WH_DIVISOR = 2199023255552.0 /* 2^41 */ / 1.0e6;
 
 static constexpr uint8_t CSE7761_SPECIAL_COMMAND = 0xEA;  // Start special command
@@ -188,6 +189,8 @@ bool CSE7761Component::chip_init_() {
   }
 
   this->hf_const_ = this->read_(CSE7761_REG_HFCONST, 2);
+  ESP_LOGD(TAG, "HFConst=%u, EnergyAC=%u, EnergyBC=%u", this->hf_const_, this->data_.coefficient[ENERGY_AC],
+           this->data_.coefficient[ENERGY_BC]);
 
   this->write_(CSE7761_SPECIAL_COMMAND, CSE7761_CMD_ENABLE_WRITE);
 
@@ -223,7 +226,10 @@ void CSE7761Component::accumulate_energy_(uint8_t channel, uint8_t reg) {
   // resistors -- the same assumption coefficient_by_unit_() already makes for RMS/power).
   double wh_per_pulse =
       static_cast<double>(this->data_.coefficient[ENERGY_AC + channel]) * this->hf_const_ / CSE7761_ENERGY_WH_DIVISOR;
-  this->energy_wh_[channel] += static_cast<float>(delta * wh_per_pulse);
+  float delta_wh = static_cast<float>(delta * wh_per_pulse);
+  ESP_LOGD(TAG, "Channel %d energy pulses %u (+%u), %f Wh/pulse, +%f Wh", channel + 1, raw, delta, wh_per_pulse,
+           delta_wh);
+  this->energy_wh_[channel] += delta_wh;
 }
 
 void CSE7761Component::get_data_() {
