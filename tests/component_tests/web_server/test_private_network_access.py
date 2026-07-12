@@ -5,6 +5,7 @@ import pytest
 from esphome import config_validation as cv
 from esphome.components.web_server import (
     CONF_ALLOWED_ORIGINS,
+    validate_origin,
     validate_private_network_access,
 )
 from esphome.const import CONF_ENABLE_PRIVATE_NETWORK_ACCESS
@@ -45,3 +46,41 @@ def test_pna_disabled_without_origins_passes() -> None:
     """PNA disabled and no origins specified passes validation."""
     config: ConfigType = {CONF_ENABLE_PRIVATE_NETWORK_ACCESS: False}
     assert validate_private_network_access(config) == config
+
+
+def test_validate_origin_wildcard() -> None:
+    """The '*' wildcard is accepted as-is."""
+    assert validate_origin("*") == "*"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "https://example.com",
+        "http://example.com:8080",
+        "https://192.168.1.5",
+    ],
+)
+def test_validate_origin_valid(value: str) -> None:
+    """Well-formed origins pass through unchanged."""
+    assert validate_origin(value) == value
+
+
+def test_validate_origin_lowercased() -> None:
+    """Scheme and host are normalized to lowercase to match the browser Origin header."""
+    assert validate_origin("HTTPS://App.Example.com") == "https://app.example.com"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "https://example.com/",  # trailing slash
+        "https://example.com/path",  # path segment
+        "example.com",  # missing scheme
+        "",  # empty
+    ],
+)
+def test_validate_origin_invalid(value: str) -> None:
+    """Malformed origins are rejected at config time instead of silently 403ing."""
+    with pytest.raises(cv.Invalid, match="not a valid origin"):
+        validate_origin(value)

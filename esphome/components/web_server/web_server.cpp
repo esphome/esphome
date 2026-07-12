@@ -461,8 +461,8 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 static std::string get_request_header(AsyncWebServerRequest *request, const char *name) {
 #ifdef USE_ESP32
   // ESP32 (Arduino and ESP-IDF) uses the web_server_idf backend.
-  const optional<std::string> value = request->get_header(name);
-  return value.has_value() ? *value : std::string();
+  optional<std::string> value = request->get_header(name);
+  return value.has_value() ? std::move(*value) : std::string();
 #else
   // ESP8266, RP2040 and LibreTiny use the Arduino ESPAsyncWebServer backend.
   const AsyncWebHeader *header = request->getHeader(name);
@@ -470,8 +470,7 @@ static std::string get_request_header(AsyncWebServerRequest *request, const char
 #endif
 }
 
-bool WebServer::is_request_origin_allowed_(AsyncWebServerRequest *request) {
-  const std::string origin = get_request_header(request, "Origin");
+bool WebServer::is_request_origin_allowed_(AsyncWebServerRequest *request, const std::string &origin) {
   // No Origin header: not a browser cross-origin request (e.g. curl, native API client). Allow.
   if (origin.empty())
     return true;
@@ -498,12 +497,11 @@ bool WebServer::is_request_origin_allowed_(AsyncWebServerRequest *request) {
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
 void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
-  if (!this->is_request_origin_allowed_(request)) {
+  const std::string origin = get_request_header(request, "Origin");
+  if (!this->is_request_origin_allowed_(request, origin)) {
     request->send(403);
     return;
   }
-
-  const std::string origin = get_request_header(request, "Origin");
 
   AsyncWebServerResponse *response = request->beginResponse(200, ESPHOME_F(""));
   // Echo the specific origin back so the response is valid even when auth (credentials) is enabled.
@@ -2507,7 +2505,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #endif
 
   // Reject cross-origin browser requests unless the origin is explicitly allowed.
-  if (!this->is_request_origin_allowed_(request)) {
+  if (!this->is_request_origin_allowed_(request, get_request_header(request, "Origin"))) {
     request->send(403);
     return;
   }

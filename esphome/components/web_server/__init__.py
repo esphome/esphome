@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gzip
 import logging
+import re
 
 import esphome.codegen as cg
 from esphome.components import web_server_base
@@ -103,6 +104,24 @@ def validate_ota(config: ConfigType) -> ConfigType:
             f"See https://esphome.io/components/ota for more information."
         )
     return config
+
+
+# An Origin header is always "scheme://host[:port]" with no path or trailing slash.
+_ORIGIN_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://[^/\s]+$")
+
+
+def validate_origin(value: str) -> str:
+    # "*" is the wildcard that allows any origin.
+    if value == "*":
+        return value
+    value = cv.string_strict(value)
+    if not _ORIGIN_RE.match(value):
+        raise cv.Invalid(
+            f"'{value}' is not a valid origin. An origin must be 'scheme://host[:port]' with no "
+            f"path or trailing slash (e.g. 'https://example.com'), or '*' to allow any origin."
+        )
+    # Browsers send the scheme and host lowercased in the Origin header, so normalize to match.
+    return value.lower()
 
 
 def validate_private_network_access(config: ConfigType) -> ConfigType:
@@ -221,7 +240,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_JS_INCLUDE): cv.file_,
             cv.Optional(CONF_ENABLE_PRIVATE_NETWORK_ACCESS, default=False): cv.boolean,
             cv.Optional(CONF_ALLOWED_ORIGINS): cv.All(
-                cv.ensure_list(cv.string_strict), cv.Length(min=1)
+                cv.ensure_list(validate_origin), cv.Length(min=1)
             ),
             cv.Optional(CONF_AUTH): cv.Schema(
                 {

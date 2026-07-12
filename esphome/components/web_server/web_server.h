@@ -611,8 +611,9 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
   // same-origin only. Same-origin and requests without an Origin header are always allowed.
   FixedVector<const char *> allowed_origins_;
 
-  /// Check whether a request's Origin header is permitted (see set_allowed_origins()).
-  bool is_request_origin_allowed_(AsyncWebServerRequest *request);
+  /// Check whether the given request Origin is permitted (see set_allowed_origins()).
+  /// The caller passes the already-read Origin header to avoid re-reading it.
+  bool is_request_origin_allowed_(AsyncWebServerRequest *request, const std::string &origin);
 
  private:
 #ifdef USE_SENSOR
