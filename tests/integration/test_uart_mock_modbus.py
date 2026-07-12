@@ -535,6 +535,33 @@ async def test_uart_mock_modbus_register_offset(
 
 
 @pytest.mark.asyncio
+async def test_uart_mock_modbus_response_size(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test that response_size locates later sensors past a wide register's extra bytes.
+
+    The mock is a non-conformant server: for a 2-register read (0x30..0x31) it returns 6 data bytes
+    instead of 4, because register 0x30 emits 2 extra bytes. This is the case response_size exists for
+    ("the server responds with more bytes than the number of registers would normally allow"). The
+    response payload is [0x1111][0xEEEE (extra)][0x2222]. wide_first declares response_size: 4, so
+    after_wide must be read from bytes [4..5] = 0x2222 (8738). Without response_size honored, after_wide
+    is read from bytes [2..3] = 0xEEEE (61166) and this wait times out.
+    """
+
+    tracker = SensorTracker(["wide_first", "after_wide"])
+    expected = tracker.expect_all({"wide_first": 4369, "after_wide": 8738})
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(expected, timeout=6.0)
+
+
+@pytest.mark.asyncio
 async def test_uart_mock_modbus_continuous(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
