@@ -204,7 +204,9 @@ bool CSE7761Component::chip_init_() {
   if (sys_status & 0x10) {  // Write enable to protected registers (WREN)
     this->write_(CSE7761_REG_SYSCON | 0x80, 0xFF04);
     this->write_(CSE7761_REG_EMUCON | 0x80, 0x1183);
-    this->write_(CSE7761_REG_EMUCON2 | 0x80, 0x0FC5);  // ZxEN=1: enable voltage frequency measurement
+    // WaveEN=1, ZxEN=1: voltage frequency measurement requires the instantaneous data function
+    // (WaveEN) to be enabled first, per the datasheet's zero-crossing/frequency section header.
+    this->write_(CSE7761_REG_EMUCON2 | 0x80, 0x0FE5);
     this->write_(CSE7761_REG_PULSE1SEL | 0x80, 0x3290);
   } else {
     ESP_LOGD(TAG, "Write failed at chip_init");
