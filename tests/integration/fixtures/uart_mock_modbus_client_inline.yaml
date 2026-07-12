@@ -1,0 +1,97 @@
+esphome:
+  name: uart-mock-modbus-client-inline
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  - id: virtual_uart_server
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_client
+              data: !lambda return data;
+  - id: virtual_uart_client
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_server
+              data: !lambda return data;
+
+modbus:
+  - uart_id: virtual_uart_server
+    id: virtual_modbus_server
+    role: server
+  - uart_id: virtual_uart_client
+    id: virtual_modbus_client
+    role: client
+    turnaround_time: 10ms
+    # Short wait so the no-reply case (address 2 below) times out well within the test window.
+    send_wait_time: 500ms
+
+modbus_server:
+  - address: 1
+    modbus_id: virtual_modbus_server
+    id: modbus_server_1
+    registers:
+      - address: 0x10
+        value_type: U_WORD
+        read_lambda: return 1234;
+
+# client_ok targets the served device (1); client_gone targets an address no server answers (2).
+modbus_client:
+  - id: client_ok
+    modbus_id: virtual_modbus_client
+    address: 1
+  - id: client_gone
+    modbus_id: virtual_modbus_client
+    address: 2
+
+sensor:
+  - platform: template
+    name: "inline_value"
+    id: inline_value
+  - platform: template
+    name: "timeout_flag"
+    id: timeout_flag
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      # Per-send inline on_response: decode this reply where the send was fired (fire-and-continue).
+      - modbus_client.send:
+          id: client_ok
+          pdu: [0x03, 0x00, 0x10, 0x00, 0x01]
+          on_response:
+            then:
+              - lambda: |-
+                  if (response.size() >= 4)
+                    id(inline_value).publish_state((response[2] << 8) | response[3]);
+      # No server answers address 2, so this resolves via on_no_response.
+      - modbus_client.send:
+          id: client_gone
+          pdu: [0x03, 0x00, 0x10, 0x00, 0x01]
+          on_no_response:
+            then:
+              - lambda: "id(timeout_flag).publish_state(1);"

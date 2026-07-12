@@ -1,0 +1,36 @@
+modbus_client:
+  - id: my_client
+    modbus_id: modbus_bus
+    address: 0x01
+    on_response:
+      then:
+        - lambda: |-
+            if (response.size() >= 4)
+              ESP_LOGI("modbus_client.test", "value=%d", (response[2] << 8) | response[3]);
+    on_error:
+      then:
+        - lambda: 'ESP_LOGW("modbus_client.test", "client-level exception %d", (int) exception_code);'
+    on_no_response:
+      then:
+        - logger.log: "no reply from device"
+
+button:
+  - platform: template
+    name: "Send Read"
+    on_press:
+      - modbus_client.send:
+          id: my_client
+          pdu: [0x03, 0x00, 0x10, 0x00, 0x01]
+      # Per-send inline reply handlers (fire-and-continue): they run when this send's reply arrives.
+      - modbus_client.send:
+          id: my_client
+          pdu: !lambda "return {0x03, 0x00, 0x10, 0x00, 0x01};"
+          on_response:
+            then:
+              - lambda: 'ESP_LOGI("modbus_client.test", "got %d bytes", (int) response.size());'
+          on_error:
+            then:
+              - lambda: 'ESP_LOGW("modbus_client.test", "exception %d", (int) exception_code);'
+          on_no_response:
+            then:
+              - logger.log: "no reply"
