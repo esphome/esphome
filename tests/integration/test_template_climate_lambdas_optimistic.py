@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import aioesphomeapi
 from aioesphomeapi import (
+    ClimateAction,
     ClimateFanMode,
     ClimateInfo,
     ClimateMode,
@@ -69,6 +70,7 @@ async def test_template_climate_lambdas_optimistic(
         assert initial is not None, "No initial climate state received"
         assert isinstance(initial, aioesphomeapi.ClimateState)
         assert initial.mode == ClimateMode.OFF  # ext_mode = 0
+        assert initial.action == ClimateAction.IDLE  # ext_action = 4
         assert initial.current_temperature == pytest.approx(22.5, abs=0.1)
         assert initial.target_temperature == pytest.approx(21.0, abs=0.1)
         assert initial.fan_mode == ClimateFanMode.AUTO  # ext_fan_mode = 2

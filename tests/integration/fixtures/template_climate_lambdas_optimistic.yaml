@@ -27,12 +27,6 @@ globals:
   - id: ext_action
     type: int
     initial_value: "4"  # CLIMATE_ACTION_IDLE
-  - id: ext_current_humidity
-    type: float
-    initial_value: "55.0"
-  - id: ext_target_humidity
-    type: float
-    initial_value: "50.0"
 
 climate:
   - platform: template
@@ -43,8 +37,6 @@ climate:
     target_temperature: !lambda "return id(ext_target_temp);"
     mode: !lambda "return static_cast<climate::ClimateMode>(id(ext_mode));"
     action: !lambda "return static_cast<climate::ClimateAction>(id(ext_action));"
-    current_humidity: !lambda "return id(ext_current_humidity);"
-    target_humidity: !lambda "return id(ext_target_humidity);"
     fan_mode: !lambda "return static_cast<climate::ClimateFanMode>(id(ext_fan_mode));"
     swing_mode: !lambda "return static_cast<climate::ClimateSwingMode>(id(ext_swing_mode));"
     preset: !lambda "return static_cast<climate::ClimatePreset>(id(ext_preset));"
@@ -78,5 +70,3 @@ climate:
       - lambda: "id(ext_swing_mode) = (int) x;"
     set_preset_action:
       - lambda: "id(ext_preset) = (int) x;"
-    set_target_humidity_action:
-      - lambda: "id(ext_target_humidity) = x;"
