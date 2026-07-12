@@ -9,7 +9,7 @@
 
 namespace esphome::xiaomi_cgdk2 {
 
-class XiaomiCGDK2 : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class XiaomiCGDK2 final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
   void set_bindkey(const char *bindkey);

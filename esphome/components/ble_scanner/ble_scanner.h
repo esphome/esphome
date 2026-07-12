@@ -12,7 +12,9 @@
 
 namespace esphome::ble_scanner {
 
-class BLEScanner : public text_sensor::TextSensor, public esp32_ble_tracker::ESPBTDeviceListener, public Component {
+class BLEScanner final : public text_sensor::TextSensor,
+                         public esp32_ble_tracker::ESPBTDeviceListener,
+                         public Component {
  public:
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override {
     char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];

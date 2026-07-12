@@ -5,7 +5,7 @@
 
 namespace esphome::ld2410 {
 
-class BluetoothSwitch : public switch_::Switch, public Parented<LD2410Component> {
+class BluetoothSwitch final : public switch_::Switch, public Parented<LD2410Component> {
  public:
   BluetoothSwitch() = default;
 

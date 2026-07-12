@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.7.0-dev"
+__version__ = "2026.8.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -33,7 +33,12 @@ class Platform(StrEnum):
     LIBRETINY_OLDSTYLE = "libretiny"
     LN882X = "ln882x"
     NRF52 = "nrf52"
-    RP2040 = "rp2040"
+    RP2 = "rp2"  # canonical name for the RP2 family (RP2040, RP2350, …)
+    # Deprecated: use Platform.RP2 instead. Python enum aliasing makes this
+    # the same member as RP2 (same string value), so ``Platform.RP2040`` and
+    # ``Platform.RP2`` remain interchangeable for external custom components.
+    # Scheduled for removal in 2027.7.0.
+    RP2040 = "rp2"
     RTL87XX = "rtl87xx"
 
 
@@ -86,6 +91,9 @@ class PlatformFramework(Enum):
 
     # Arduino framework platforms
     ESP8266_ARDUINO = (Platform.ESP8266, Framework.ARDUINO)
+    RP2_ARDUINO = (Platform.RP2, Framework.ARDUINO)
+    # Deprecated: use PlatformFramework.RP2_ARDUINO instead. Kept as an
+    # alias for backwards compatibility; scheduled for removal in 2027.7.0.
     RP2040_ARDUINO = (Platform.RP2040, Framework.ARDUINO)
     BK72XX_ARDUINO = (Platform.BK72XX, Framework.ARDUINO)
     RTL87XX_ARDUINO = (Platform.RTL87XX, Framework.ARDUINO)
@@ -106,6 +114,9 @@ PLATFORM_HOST = Platform.HOST
 PLATFORM_LIBRETINY_OLDSTYLE = Platform.LIBRETINY_OLDSTYLE
 PLATFORM_LN882X = Platform.LN882X
 PLATFORM_NRF52 = Platform.NRF52
+PLATFORM_RP2 = Platform.RP2
+# Deprecated: use PLATFORM_RP2 instead. Kept as a back-compat alias;
+# scheduled for removal in 2027.7.0.
 PLATFORM_RP2040 = Platform.RP2040
 PLATFORM_RTL87XX = Platform.RTL87XX
 
@@ -613,6 +624,7 @@ CONF_MEASUREMENT_SEQUENCE_NUMBER = "measurement_sequence_number"
 CONF_MEDIA_PLAYER = "media_player"
 CONF_MEDIUM = "medium"
 CONF_MEMORY_BLOCKS = "memory_blocks"
+CONF_MERGE_WARNINGS = "merge_warnings"
 CONF_MESSAGE = "message"
 CONF_METHANE = "methane"
 CONF_METHOD = "method"
@@ -975,6 +987,7 @@ CONF_STEP_PIN = "step_pin"
 CONF_STILL_THRESHOLD = "still_threshold"
 CONF_STOP = "stop"
 CONF_STOP_ACTION = "stop_action"
+CONF_STORAGE = "storage"
 CONF_STORE_BASELINE = "store_baseline"
 CONF_SUBNET = "subnet"
 CONF_SUBSCRIBE_QOS = "subscribe_qos"
@@ -1242,6 +1255,7 @@ UNIT_KILOVOLT_AMPS_REACTIVE_HOURS = "kvarh"
 UNIT_KILOWATT = "kW"
 UNIT_KILOWATT_HOURS = "kWh"
 UNIT_LITRE = "L"
+UNIT_LITRE_PER_HOUR = "L/h"
 UNIT_LITRE_PER_SECOND = "L/s"
 UNIT_LUX = "lx"
 UNIT_MEGAJOULE = "MJ"
@@ -1350,6 +1364,7 @@ DEVICE_CLASS_PRECIPITATION_INTENSITY = "precipitation_intensity"
 DEVICE_CLASS_PRESENCE = "presence"
 DEVICE_CLASS_PRESSURE = "pressure"
 DEVICE_CLASS_PROBLEM = "problem"
+DEVICE_CLASS_RADON = "radon"
 DEVICE_CLASS_REACTIVE_ENERGY = "reactive_energy"
 DEVICE_CLASS_REACTIVE_POWER = "reactive_power"
 DEVICE_CLASS_RESTART = "restart"

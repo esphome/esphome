@@ -136,12 +136,8 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(DlmsMeterComponent),
-            cv.Optional(CONF_DECRYPTION_KEY): lambda value: cv.bind_key(
-                value, name="Decryption key"
-            ),
-            cv.Optional(CONF_AUTH_KEY): lambda value: cv.bind_key(
-                value, name="Authentication key"
-            ),
+            cv.Optional(CONF_DECRYPTION_KEY): cv.bind_key(name="Decryption key"),
+            cv.Optional(CONF_AUTH_KEY): cv.bind_key(name="Authentication key"),
             cv.Optional(CONF_CUSTOM_PATTERNS): cv.ensure_list(CUSTOM_PATTERN_SCHEMA),
             cv.Optional(CONF_SKIP_CRC, default=False): cv.boolean,
             cv.Optional(CONF_PROVIDER): cv.string,

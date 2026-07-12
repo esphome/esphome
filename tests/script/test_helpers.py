@@ -35,6 +35,8 @@ def clear_helpers_cache() -> None:
     helpers._get_github_event_data.cache_clear()
     helpers._get_changed_files_github_actions.cache_clear()
     helpers.get_components_per_integration_fixture.cache_clear()
+    helpers._get_test_config_components.cache_clear()
+    helpers._conflict_walk.cache_clear()
 
 
 @pytest.mark.parametrize(
@@ -1504,6 +1506,8 @@ def fake_components(tmp_path: Path) -> Path:
     write("callable_auto", "def AUTO_LOAD():\n    return ['beta']\n")
     write("broken", "this is not valid python !!!")
     helpers.parse_component_metadata.cache_clear()
+    helpers._get_test_config_components.cache_clear()
+    helpers._conflict_walk.cache_clear()
     return tmp_path
 
 
@@ -1622,6 +1626,47 @@ def test_split_conflicting_groups_preserves_original_signature_for_first_bucket(
     platform, signature = next(iter(extra))
     assert platform == "esp32"
     assert signature.startswith("i2c__conflict")
+
+
+def test_split_conflicting_groups_seeds_from_test_config(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """A conflict reachable only via a component's test config splits the group.
+
+    ``host_user`` declares no static conflict with ``beta``, but its
+    ``test.<platform>.yaml`` pulls in ``beta_variant`` (which AUTO_LOADs
+    ``beta``). On that platform the group must split; on another platform
+    (no such test config) it must stay together.
+    """
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+
+    # host_user has no static metadata, but its esp32 test config references
+    # beta_variant -> AUTO_LOAD beta, which conflicts with alpha.
+    tests_dir = fake_components / "tests" / "components" / "host_user"
+    tests_dir.mkdir(parents=True)
+    (tests_dir / "test.esp32.yaml").write_text("beta_variant:\n")
+    (fake_components / "esphome" / "components" / "host_user").mkdir()
+    (
+        fake_components / "esphome" / "components" / "host_user" / "__init__.py"
+    ).write_text("")
+
+    helpers.parse_component_metadata.cache_clear()
+    helpers._get_test_config_components.cache_clear()
+    helpers._conflict_walk.cache_clear()
+
+    # On esp32, host_user pulls in beta (via its test config) -> conflicts with alpha.
+    result = helpers.split_conflicting_groups(
+        {("esp32", "no_buses"): ["alpha", "host_user"]}
+    )
+    buckets = list(result.values())
+    for bucket in buckets:
+        assert not ({"alpha", "host_user"} <= set(bucket))
+
+    # On a platform without that test config, they stay grouped together.
+    result_other = helpers.split_conflicting_groups(
+        {("rp2040", "no_buses"): ["alpha", "host_user"]}
+    )
+    assert result_other == {("rp2040", "no_buses"): ["alpha", "host_user"]}
 
 
 # ---------------------------------------------------------------------------
