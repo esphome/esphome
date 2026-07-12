@@ -39,9 +39,10 @@ static constexpr uint8_t CSE7761_REG_COEFFCHKSUM = 0x6F;  // (2) Coefficient che
 static constexpr uint8_t CSE7761_REG_RMSIAC = 0x70;       // (2) Channel A effective current conversion coefficient
 
 // Datasheet active energy formula denominator: K1*K2*2^29*4096 with K1=K2=1 (the same assumption
-// coefficient_by_unit_() already makes for RMS/power), pre-scaled by 1e6 to convert the formula's
-// native kWh result to Wh in one division.
-static constexpr double CSE7761_ENERGY_WH_DIVISOR = 2199023255552.0 /* 2^41 */ / 1.0e6;
+// coefficient_by_unit_() already makes for RMS/power), pre-scaled by 1e3 -- the formula's own
+// trailing "*1000" already yields Wh directly (empirically confirmed against a real device; an
+// earlier version of this code assumed it yielded kWh and scaled by another 1e3 too many).
+static constexpr double CSE7761_ENERGY_WH_DIVISOR = 2199023255552.0 /* 2^41 */ / 1.0e3;
 
 static constexpr uint8_t CSE7761_SPECIAL_COMMAND = 0xEA;  // Start special command
 static constexpr uint8_t CSE7761_CMD_RESET = 0x96;        // Reset command, after receiving the command, the chip resets
@@ -189,8 +190,6 @@ bool CSE7761Component::chip_init_() {
   }
 
   this->hf_const_ = this->read_(CSE7761_REG_HFCONST, 2);
-  ESP_LOGD(TAG, "HFConst=%u, EnergyAC=%u, EnergyBC=%u", this->hf_const_, this->data_.coefficient[ENERGY_AC],
-           this->data_.coefficient[ENERGY_BC]);
 
   this->write_(CSE7761_SPECIAL_COMMAND, CSE7761_CMD_ENABLE_WRITE);
 
@@ -221,7 +220,7 @@ void CSE7761Component::accumulate_energy_(uint8_t channel, uint8_t reg) {
   if (delta == 0)
     return;
 
-  // Energy[Wh] = pulses * EnergyXC * HFConst / 2^41 * 1e6, per the datasheet's active energy formula,
+  // Energy[Wh] = pulses * EnergyXC * HFConst / 2^41 * 1000, per the datasheet's active energy formula,
   // assuming K1=K2=1 (i.e. the chip's factory-trimmed coefficients already match the board's sense
   // resistors -- the same assumption coefficient_by_unit_() already makes for RMS/power).
   double wh_per_pulse =
@@ -233,6 +232,14 @@ void CSE7761Component::accumulate_energy_(uint8_t channel, uint8_t reg) {
 }
 
 void CSE7761Component::get_data_() {
+  if (!this->logged_energy_coefficients_) {
+    // Logged here (rather than chip_init_()/setup()) so it isn't lost when the log connection
+    // comes up after an OTA reconnect.
+    ESP_LOGD(TAG, "HFConst=%u, EnergyAC=%u, EnergyBC=%u", this->hf_const_, this->data_.coefficient[ENERGY_AC],
+             this->data_.coefficient[ENERGY_BC]);
+    this->logged_energy_coefficients_ = true;
+  }
+
   // The effective value of current and voltage Rms is a 24-bit signed number,
   // the highest bit is 0 for valid data,
   //   and when the highest bit is 1, the reading will be processed as zero
