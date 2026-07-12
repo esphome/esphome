@@ -47,6 +47,26 @@ uint32_t HelloResponse::calculate_size() const {
   size += 2 + this->name.size();
   return size;
 }
+bool DisconnectRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
+  switch (field_id) {
+    case 1:
+      this->reason = static_cast<enums::DisconnectReason>(value);
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+uint8_t *DisconnectRequest::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, static_cast<uint32_t>(this->reason));
+  return pos;
+}
+uint32_t DisconnectRequest::calculate_size() const {
+  uint32_t size = 0;
+  size += this->reason ? 2 : 0;
+  return size;
+}
 #ifdef USE_AREAS
 uint8_t *AreaInfo::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();

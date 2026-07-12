@@ -26,11 +26,12 @@ from esphome.const import (
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["modbus"]
 
 pzemac_ns = cg.esphome_ns.namespace("pzemac")
-PZEMAC = pzemac_ns.class_("PZEMAC", cg.PollingComponent, modbus.ModbusDevice)
+PZEMAC = pzemac_ns.class_("PZEMAC", cg.PollingComponent, modbus.ModbusClientDevice)
 
 # Actions
 ResetEnergyAction = pzemac_ns.class_("ResetEnergyAction", automation.Action)
@@ -97,10 +98,17 @@ async def reset_energy_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
+def _final_validate(config: ConfigType) -> ConfigType:
+    return modbus.final_validate_modbus_device("pzemac", role="client")(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await modbus.register_modbus_device(var, config)
+    await modbus.register_modbus_client_device(var, config)
 
     if CONF_VOLTAGE in config:
         conf = config[CONF_VOLTAGE]
