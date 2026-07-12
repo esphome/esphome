@@ -20,18 +20,27 @@ static constexpr int CSE7761_PREF = 44513;  // PowerPAC
 
 static constexpr uint8_t CSE7761_REG_SYSCON = 0x00;     // (2) System Control Register (0x0A04)
 static constexpr uint8_t CSE7761_REG_EMUCON = 0x01;     // (2) Metering control register (0x0000)
+static constexpr uint8_t CSE7761_REG_HFCONST = 0x02;    // (2) Pulse frequency register (0x1000)
 static constexpr uint8_t CSE7761_REG_EMUCON2 = 0x13;    // (2) Metering control register 2 (0x0001)
 static constexpr uint8_t CSE7761_REG_PULSE1SEL = 0x1D;  // (2) Pin function output select register (0x3210)
 
 static constexpr uint8_t CSE7761_REG_RMSIA = 0x24;      // (3) The effective value of channel A current (0x000000)
 static constexpr uint8_t CSE7761_REG_RMSIB = 0x25;      // (3) The effective value of channel B current (0x000000)
 static constexpr uint8_t CSE7761_REG_RMSU = 0x26;       // (3) Voltage RMS (0x000000)
+static constexpr uint8_t CSE7761_REG_ENERGY_PA = 0x28;  // (3) Channel A active energy pulse count, cleared on
+                                                        // overflow only (EPA_CB=1) (0x000000)
+static constexpr uint8_t CSE7761_REG_ENERGY_PB = 0x29;  // (3) Channel B active energy pulse count, cleared on
+                                                        // overflow only (EPB_CB=1) (0x000000)
 static constexpr uint8_t CSE7761_REG_POWERPA = 0x2C;    // (4) Channel A active power, update rate 27.2Hz (0x00000000)
 static constexpr uint8_t CSE7761_REG_POWERPB = 0x2D;    // (4) Channel B active power, update rate 27.2Hz (0x00000000)
 static constexpr uint8_t CSE7761_REG_SYSSTATUS = 0x43;  // (1) System status register
 
 static constexpr uint8_t CSE7761_REG_COEFFCHKSUM = 0x6F;  // (2) Coefficient checksum
 static constexpr uint8_t CSE7761_REG_RMSIAC = 0x70;       // (2) Channel A effective current conversion coefficient
+
+// Datasheet energy formula denominator: K1*K2*2^29*4096 with K1=K2=1 (see coefficient_by_unit_ for the same
+// assumption applied to RMS/power), scaled by 1e6 up front to convert the formula's native kWh result to Wh.
+static constexpr double CSE7761_ENERGY_WH_DIVISOR = 2199023255552.0 /* 2^41 */ / 1.0e6;
 
 static constexpr uint8_t CSE7761_SPECIAL_COMMAND = 0xEA;  // Start special command
 static constexpr uint8_t CSE7761_CMD_RESET = 0x96;        // Reset command, after receiving the command, the chip resets
@@ -58,6 +67,8 @@ void CSE7761Component::dump_config() {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
+  LOG_SENSOR("  ", "Energy 1", this->energy_sensor_1_);
+  LOG_SENSOR("  ", "Energy 2", this->energy_sensor_2_);
   this->check_uart_settings(38400, 1, uart::UART_CONFIG_PARITY_EVEN, 8);
 }
 
@@ -176,6 +187,8 @@ bool CSE7761Component::chip_init_() {
     this->data_.coefficient[POWER_PAC] = CSE7761_PREF;
   }
 
+  this->hf_const_ = this->read_(CSE7761_REG_HFCONST, 2);
+
   this->write_(CSE7761_SPECIAL_COMMAND, CSE7761_CMD_ENABLE_WRITE);
 
   uint8_t sys_status = this->read_(CSE7761_REG_SYSSTATUS, 1);
@@ -189,6 +202,28 @@ bool CSE7761Component::chip_init_() {
     return false;
   }
   return true;
+}
+
+void CSE7761Component::accumulate_energy_(uint8_t channel, uint8_t reg) {
+  // E_PA/E_PB are 24-bit pulse counters that free-run without clearing on read (EPA_CB/EPB_CB are
+  // set in chip_init_(), as required for UART mode), so track deltas with 24-bit wraparound.
+  uint32_t raw = this->read_(reg, 3);
+  if (!this->energy_pulses_valid_[channel]) {
+    this->last_energy_pulses_[channel] = raw;
+    this->energy_pulses_valid_[channel] = true;
+    return;
+  }
+  uint32_t delta = (raw - this->last_energy_pulses_[channel]) & 0xFFFFFF;
+  this->last_energy_pulses_[channel] = raw;
+  if (delta == 0)
+    return;
+
+  // Energy[Wh] = pulses * EnergyXC * HFConst / 2^41 * 1e6, per the datasheet's active energy formula,
+  // assuming K1=K2=1 (i.e. the chip's factory-trimmed coefficients already match the board's sense
+  // resistors -- the same assumption coefficient_by_unit_() already makes for RMS/power).
+  double wh_per_pulse =
+      static_cast<double>(this->data_.coefficient[ENERGY_AC + channel]) * this->hf_const_ / CSE7761_ENERGY_WH_DIVISOR;
+  this->energy_wh_[channel] += static_cast<float>(delta * wh_per_pulse);
 }
 
 void CSE7761Component::get_data_() {
@@ -225,6 +260,7 @@ void CSE7761Component::get_data_() {
         static_cast<float>(this->data_.active_power[channel]) / this->coefficient_by_unit_(POWER_PAC);        // W
     float amps = static_cast<float>(this->data_.current_rms[channel]) / this->coefficient_by_unit_(RMS_IAC);  // A
     ESP_LOGD(TAG, "Channel %d power %f W, current %f A", channel + 1, active_power, amps);
+    this->accumulate_energy_(channel, (channel == 0) ? CSE7761_REG_ENERGY_PA : CSE7761_REG_ENERGY_PB);
     if (channel == 0) {
       if (this->power_sensor_1_ != nullptr) {
         this->power_sensor_1_->publish_state(active_power);
@@ -232,12 +268,18 @@ void CSE7761Component::get_data_() {
       if (this->current_sensor_1_ != nullptr) {
         this->current_sensor_1_->publish_state(amps);
       }
+      if (this->energy_sensor_1_ != nullptr) {
+        this->energy_sensor_1_->publish_state(this->energy_wh_[0]);
+      }
     } else if (channel == 1) {
       if (this->power_sensor_2_ != nullptr) {
         this->power_sensor_2_->publish_state(active_power);
       }
       if (this->current_sensor_2_ != nullptr) {
         this->current_sensor_2_->publish_state(amps);
+      }
+      if (this->energy_sensor_2_ != nullptr) {
+        this->energy_sensor_2_->publish_state(this->energy_wh_[1]);
       }
     }
   }
