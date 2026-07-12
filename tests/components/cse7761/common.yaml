@@ -2,6 +2,8 @@ sensor:
   - platform: cse7761
     voltage:
       name: CSE7761 Voltage
+    frequency:
+      name: CSE7761 Frequency
     current_1:
       name: CSE7761 Current 1
     current_2:
