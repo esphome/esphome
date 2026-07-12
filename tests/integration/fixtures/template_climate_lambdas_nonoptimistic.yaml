@@ -22,6 +22,9 @@ globals:
   - id: ext_preset
     type: int
     initial_value: "5"  # CLIMATE_PRESET_ECO
+  - id: ext_action
+    type: int
+    initial_value: "4"  # CLIMATE_ACTION_IDLE
 
 climate:
   - platform: template
@@ -31,6 +34,7 @@ climate:
     current_temperature: !lambda "return 22.5f;"
     target_temperature: !lambda "return id(ext_target_temp);"
     mode: !lambda "return static_cast<climate::ClimateMode>(id(ext_mode));"
+    action: !lambda "return static_cast<climate::ClimateAction>(id(ext_action));"
     fan_mode: !lambda "return static_cast<climate::ClimateFanMode>(id(ext_fan_mode));"
     swing_mode: !lambda "return static_cast<climate::ClimateSwingMode>(id(ext_swing_mode));"
     preset: !lambda "return static_cast<climate::ClimatePreset>(id(ext_preset));"
