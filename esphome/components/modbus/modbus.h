@@ -109,9 +109,8 @@ class ModbusClientHub : public Modbus {
                                               payload, payload_len),
                    device);
   };
-  void send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr) {
-    this->queue_raw_(address, pdu.data(), pdu.size(), device);
-  }
+  void send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr);
+  ESPDEPRECATED("Use send_pdu(payload[0], <pdu bytes>, device) instead. Removed in 2027.2.0", "2026.8.0")
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr);
   void clear_tx_queue_for_address(uint8_t address, bool clear_sent = true);
   void clear_tx_queue_for_device(ModbusClientDevice *device);
@@ -125,7 +124,6 @@ class ModbusClientHub : public Modbus {
   // wfr is the caller's checked reference to waiting_for_response_.
   void notify_no_response_(ModbusDeviceCommand &wfr);
   void requeue_waiting_frame_(ModbusDeviceCommand &wfr);
-  void queue_raw_(uint8_t address, const uint8_t *pdu, uint16_t pdu_len, ModbusClientDevice *device = nullptr);
 
   uint16_t send_wait_time_{2000};
   uint16_t turnaround_delay_ms_{0};
@@ -165,6 +163,11 @@ class ModbusServerHub : public Modbus {
   uint16_t deferred_payload_len_{0};
 };
 
+// Status of a completed client transaction: std::nullopt on success, otherwise the Modbus exception code the
+// server returned. Timeouts and unsent commands are reported separately via on_no_response() /
+// on_not_sent(), never through this status.
+using ResponseStatus = std::optional<ModbusExceptionCode>;
+
 class ModbusClientDevice {
  public:
   ModbusClientDevice() = default;
@@ -179,17 +182,59 @@ class ModbusClientDevice {
   ModbusClientDevice &operator=(ModbusClientDevice &&) = delete;
   void set_parent(ModbusClientHub *parent) { this->parent_ = parent; }
   void set_address(uint8_t address) { this->address_ = address; }
-  /// Called with the request PDU this device sent and the response PDU received (both: function code +
-  /// data, no address, no CRC). The spans are only valid for the duration of the call - copy the bytes
-  /// if they must outlive it. Slice the payload out of the response with helpers::server_pdu_payload().
-  virtual void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {}
-  /// Called with the request PDU and the modbus exception code decoded from the error response.
-  virtual void on_error(std::span<const uint8_t> request_pdu, ModbusExceptionCode exception_code) {}
+  /// Low-level response hook: called with the request PDU this device sent and the response PDU received
+  /// (both: function code + data, no address, no CRC). The spans are only valid for the duration of the
+  /// call - copy the bytes if they must outlive it. The default implementation decodes standard read/write
+  /// responses and dispatches to the matching typed on_read_* / on_write_* callback below; override it to handle raw
+  /// PDUs directly.
+  virtual void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
+    this->dispatch_response_(request_pdu, response_pdu, std::nullopt);
+  }
+  /// Low-level error hook: called with the request PDU and the modbus exception code decoded from the error
+  /// response. The default implementation dispatches to the same typed callbacks with the exception code as
+  /// status, so devices implementing the typed callbacks see success and failure through one interface.
+  virtual void on_error(std::span<const uint8_t> request_pdu, ModbusExceptionCode exception_code) {
+    this->dispatch_response_(request_pdu, {}, exception_code);
+  }
   virtual void on_not_sent() {}
   /// Called when no (valid) response arrived; return true to have the hub re-queue the frame for a retry.
   /// The hub does not bound retries: the device is responsible for limiting them (e.g. track a counter and
   /// return false when exhausted), or an unresponsive peer will starve other traffic on the bus.
   virtual bool on_no_response() { return false; }
+
+  /// Typed response callbacks, fired by the default on_response()/on_error() with arguments
+  /// parsed from the request and response PDUs. status is std::nullopt on success; on failure it holds
+  /// the exception code and the data arguments are empty (register/coil payloads) or taken from the
+  /// request echo (write addresses/values). Register values are in host byte order; spans are only valid
+  /// for the duration of the call.
+  virtual void on_read_registers(EntityType entity_type, uint16_t start_address, std::span<const uint16_t> registers,
+                                 ResponseStatus status) {}
+  virtual void on_read_holding_registers(uint16_t start_address, std::span<const uint16_t> registers,
+                                         ResponseStatus status) {
+    this->on_read_registers(EntityType::HOLDING, start_address, registers, status);
+  }
+  virtual void on_read_input_registers(uint16_t start_address, std::span<const uint16_t> registers,
+                                       ResponseStatus status) {
+    this->on_read_registers(EntityType::INPUT_REGISTER, start_address, registers, status);
+  }
+  /// Coil/discrete-input reads are delivered as a PackedBits view (bit 0 = the bit at start_address,
+  /// bits.size() = the count requested). The view points into the hub's receive buffer and is only
+  /// valid during the call.
+  virtual void on_read_bits(EntityType entity_type, uint16_t start_address, PackedBits bits, ResponseStatus status) {}
+  virtual void on_read_coils(uint16_t start_address, PackedBits bits, ResponseStatus status) {
+    this->on_read_bits(EntityType::COIL, start_address, bits, status);
+  }
+  virtual void on_read_discrete_inputs(uint16_t start_address, PackedBits bits, ResponseStatus status) {
+    this->on_read_bits(EntityType::DISCRETE_INPUT, start_address, bits, status);
+  }
+  virtual void on_write_single_register(uint16_t address, uint16_t value, ResponseStatus status) {}
+  virtual void on_write_single_coil(uint16_t address, bool value, ResponseStatus status) {}
+  virtual void on_write_multiple_registers(uint16_t start_address, uint16_t count, ResponseStatus status) {}
+  virtual void on_write_multiple_coils(uint16_t start_address, uint16_t count, ResponseStatus status) {}
+  /// Catch-all for custom or otherwise unparseable function codes; on failure the response is the exception PDU.
+  virtual void on_custom_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
+                                  ResponseStatus status) {}
+  ESPDEPRECATED("Use the typed read_*/write_* helpers or send_pdu() instead. Removed in 2027.2.0", "2026.8.0")
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
             const uint8_t *payload = nullptr) {
     this->parent_->send_pdu(this->address_,
@@ -198,7 +243,47 @@ class ModbusClientDevice {
                             this);
   }
   void send_pdu(std::span<const uint8_t> pdu) { this->parent_->send_pdu(this->address_, pdu, this); }
-  void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload, this); }
+  ESPDEPRECATED("Use send_pdu() instead (the device address is prepended for you). Removed in 2027.2.0", "2026.8.0")
+  void send_raw(const std::vector<uint8_t> &payload) {
+    if (payload.empty())
+      return;
+    this->parent_->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
+  }
+  // Dispatches to the matching read_* method; defined in modbus.cpp because it logs on an invalid type.
+  void read_entities(EntityType entity_type, uint16_t start_address, uint16_t number_of_entities);
+  void read_input_registers(uint16_t start_address, uint16_t number_of_registers) {
+    this->send_pdu(
+        helpers::create_read_pdu(ModbusFunctionCode::READ_INPUT_REGISTERS, start_address, number_of_registers));
+  }
+  void read_holding_registers(uint16_t start_address, uint16_t number_of_registers) {
+    this->send_pdu(
+        helpers::create_read_pdu(ModbusFunctionCode::READ_HOLDING_REGISTERS, start_address, number_of_registers));
+  }
+  void read_coils(uint16_t start_address, uint16_t number_of_coils) {
+    this->send_pdu(helpers::create_read_pdu(ModbusFunctionCode::READ_COILS, start_address, number_of_coils));
+  }
+  void read_discrete_inputs(uint16_t start_address, uint16_t number_of_inputs) {
+    this->send_pdu(helpers::create_read_pdu(ModbusFunctionCode::READ_DISCRETE_INPUTS, start_address, number_of_inputs));
+  }
+  void write_single_register(uint16_t start_address, uint16_t value) {
+    this->send_pdu(helpers::create_write_single_register_pdu(start_address, value));
+  }
+  void write_single_coil(uint16_t address, bool value) {
+    this->send_pdu(helpers::create_write_single_coil_pdu(address, value));
+  }
+  void write_multiple_registers(uint16_t start_address, std::span<const uint16_t> values) {
+    this->send_pdu(helpers::create_write_registers_pdu(start_address, values));
+  }
+  /// Note: std::vector<bool> cannot bind to std::span<const bool>; use a contiguous bool container or the packed
+  /// overload.
+  void write_multiple_coils(uint16_t start_address, std::span<const bool> values) {
+    this->send_pdu(helpers::create_write_coils_pdu(start_address, values));
+  }
+  /// Packed variant: a PackedBits view (the same layout on_read_coils() delivers), so
+  /// read-modify-write needs no unpack/repack.
+  void write_multiple_coils(uint16_t start_address, PackedBits bits) {
+    this->send_pdu(helpers::create_write_coils_pdu(start_address, bits));
+  }
   inline void clear_tx_queue_for_address(bool clear_sent = true) {
     this->parent_->clear_tx_queue_for_address(this->address_, clear_sent);
   }
@@ -210,6 +295,11 @@ class ModbusClientDevice {
   bool ready_for_immediate_send() { return this->parent_->tx_buffer_empty() && !this->parent_->tx_blocked(); }
 
  protected:
+  /// Parses the request/response PDU pair and dispatches to the matching typed callback; defined in
+  /// modbus.cpp. Called by the default on_response()/on_error().
+  void dispatch_response_(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
+                          ResponseStatus status);
+
   ModbusClientHub *parent_{nullptr};
   uint8_t address_{0};
 };

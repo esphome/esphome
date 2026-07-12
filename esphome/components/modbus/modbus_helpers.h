@@ -47,20 +47,6 @@ uint16_t server_frame_length(const uint8_t *frame, size_t size);
 // If the frame is too short to determine the length, returns the minimum length
 uint16_t client_frame_length(const uint8_t *frame, size_t size);
 
-inline uint8_t server_frame_data_offset(const uint8_t *frame, size_t size) {
-  if (size < 2)
-    return 0;
-  switch (static_cast<ModbusFunctionCode>(frame[1])) {
-    case ModbusFunctionCode::READ_COILS:
-    case ModbusFunctionCode::READ_DISCRETE_INPUTS:
-    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
-    case ModbusFunctionCode::READ_INPUT_REGISTERS:
-      return 3;  // address(1) + function(1) + byte count(1) + data + CRC(2)
-    default:
-      return 2;
-  }
-}
-
 /** Returns the payload portion of a server response PDU: the bytes after the function code, and for
  * read responses also after the byte-count byte. Returns an empty span if the PDU is too short.
  */
@@ -94,30 +80,30 @@ inline bool value_type_is_float(SensorValueType v) {
   return v == SensorValueType::FP32 || v == SensorValueType::FP32_R;
 }
 
-inline ModbusFunctionCode modbus_register_read_function(ModbusRegisterType reg_type) {
+inline ModbusFunctionCode modbus_register_read_function(EntityType reg_type) {
   switch (reg_type) {
-    case ModbusRegisterType::COIL:
+    case EntityType::COIL:
       return ModbusFunctionCode::READ_COILS;
-    case ModbusRegisterType::DISCRETE_INPUT:
+    case EntityType::DISCRETE_INPUT:
       return ModbusFunctionCode::READ_DISCRETE_INPUTS;
-    case ModbusRegisterType::HOLDING:
+    case EntityType::HOLDING:
       return ModbusFunctionCode::READ_HOLDING_REGISTERS;
-    case ModbusRegisterType::INPUT_REGISTER:
+    case EntityType::INPUT_REGISTER:
       return ModbusFunctionCode::READ_INPUT_REGISTERS;
     default:
       return ModbusFunctionCode::INVALID;
   }
 }
 
-inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_type, bool multiple = false) {
+inline ModbusFunctionCode modbus_register_write_function(EntityType reg_type, bool multiple = false) {
   switch (reg_type) {
-    case ModbusRegisterType::COIL:
+    case EntityType::COIL:
       return multiple ? ModbusFunctionCode::WRITE_MULTIPLE_COILS : ModbusFunctionCode::WRITE_SINGLE_COIL;
-    case ModbusRegisterType::HOLDING:
+    case EntityType::HOLDING:
       return multiple ? ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS : ModbusFunctionCode::WRITE_SINGLE_REGISTER;
     // These register types can't be written (per spec)
-    case ModbusRegisterType::INPUT_REGISTER:
-    case ModbusRegisterType::DISCRETE_INPUT:
+    case EntityType::INPUT_REGISTER:
+    case EntityType::DISCRETE_INPUT:
     default:
       return ModbusFunctionCode::INVALID;
   }
@@ -318,7 +304,19 @@ inline int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueTy
  */
 std::optional<int64_t> registers_to_number(const uint16_t *registers, size_t count, SensorValueType sensor_value_type);
 
-/** Create a modbus clinet pdu for reading/writing single/multiple coils/register/inputs.
+/** Create a modbus read request PDU.
+ * @param function_code one of READ_COILS, READ_DISCRETE_INPUTS, READ_HOLDING_REGISTERS, READ_INPUT_REGISTERS
+ * @param start_address coil/register/input starting address
+ * @param number_of_entities number of coils/registers/inputs to read
+ * @return PDU (function code + data, no address, no CRC); empty on invalid input
+ */
+StaticVector<uint8_t, READ_PDU_SIZE> create_read_pdu(ModbusFunctionCode function_code, uint16_t start_address,
+                                                     uint16_t number_of_entities);
+
+/** Create a modbus client pdu for reading/writing single/multiple coils/register/inputs.
+ * Generic entry point; prefer the direction- and type-specific builders (create_read_pdu(),
+ * create_write_registers_pdu(), create_write_single_register_pdu(), create_write_coils_pdu(),
+ * create_write_single_coil_pdu()) which bound their inputs per spec.
  * @param function_code the modbus function code to use. One of:
  * READ_COILS
  * READ_DISCRETE_INPUTS
@@ -338,7 +336,57 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(ModbusFunctionCode functio
                                                       uint16_t number_of_entities, const uint8_t *values = nullptr,
                                                       size_t values_len = 0);
 
-inline std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type) {
+/** Create modbus write multiple registers command
+ *  Function 0x10 Write Multiple Registers
+ * @param start_address modbus address of the first register to write
+ * @param values register values to write; the register count is values.size() (at most
+ *               MAX_NUM_OF_REGISTERS_TO_WRITE, an over-long set is rejected and an empty PDU is returned).
+ *               Any contiguous uint16_t container converts (std::vector, std::array).
+ * @return PDU (function code + data, no address, no CRC)
+ */
+StaticVector<uint8_t, MAX_PDU_SIZE> create_write_registers_pdu(uint16_t start_address,
+                                                               std::span<const uint16_t> values);
+
+/** Create modbus write single register command
+ *  Function 0x06 Write Single Register
+ * @param start_address modbus address of the register to write
+ * @param value uint16_t value to write
+ * @return PDU (function code + data, no address, no CRC)
+ */
+StaticVector<uint8_t, WRITE_SINGLE_PDU_SIZE> create_write_single_register_pdu(uint16_t start_address, uint16_t value);
+
+/** Create modbus write single coil command
+ *  Function 0x05 Write Single Coil
+ * @param address modbus address of the coil to write
+ * @param value coil value to write
+ * @return PDU (function code + data, no address, no CRC)
+ */
+StaticVector<uint8_t, WRITE_SINGLE_PDU_SIZE> create_write_single_coil_pdu(uint16_t address, bool value);
+
+/** Create modbus write multiple coils command
+ *  Function 0x0F Write Multiple Coils
+ * @param start_address modbus address of the first coil to write
+ * @param values coil values to write; the coil count is values.size() (at most MAX_NUM_OF_COILS_TO_WRITE, an
+ *               over-long set is rejected and an empty PDU is returned). Note std::vector<bool> is bit-packed and
+ *               does not convert to a span; pass a std::array<bool, N> or other contiguous bool container.
+ * @return PDU (function code + data, no address, no CRC)
+ */
+StaticVector<uint8_t, MAX_PDU_SIZE> create_write_coils_pdu(uint16_t start_address, std::span<const bool> values);
+
+/** Create modbus write multiple coils command (function 0x0F) from bits packed as on the wire.
+ * @param start_address modbus address of the first coil to write
+ * @param bits PackedBits view of the coils to write (at most MAX_NUM_OF_COILS_TO_WRITE); invalid
+ *             input returns an empty PDU
+ * @return PDU (function code + data, no address, no CRC)
+ */
+StaticVector<uint8_t, MAX_PDU_SIZE> create_write_coils_pdu(uint16_t start_address, PackedBits bits);
+
+/** Append a float converted to register words to any push_back container (heap-free with StaticVector).
+ * @param data container the register words are appended to
+ * @param value value to convert
+ * @param value_type  defines if 16/32/64 bits or FP32 is used
+ */
+template<typename Container> void float_to_payload(Container &data, float value, SensorValueType value_type) {
   int64_t val;
 
   if (value_type_is_float(value_type)) {
@@ -347,8 +395,14 @@ inline std::vector<uint16_t> float_to_payload(float value, SensorValueType value
     val = llroundf(value);
   }
 
-  std::vector<uint16_t> data;
   number_to_payload(data, val, value_type);
+}
+
+// Remove before 2027.2.0
+ESPDEPRECATED("Use the container overload of float_to_payload() instead. Removed in 2027.2.0", "2026.8.0")
+inline std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type) {
+  std::vector<uint16_t> data;
+  float_to_payload(data, value, value_type);
   return data;
 }
 

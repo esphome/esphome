@@ -17,19 +17,19 @@ MODBUS_FUNCTION_CODE = {
     "write_multiple_registers": ModbusFunctionCode.WRITE_MULTIPLE_REGISTERS,
 }
 
-ModbusRegisterType_ns = modbus_ns.namespace("ModbusRegisterType")
-ModbusRegisterType = ModbusRegisterType_ns.enum("ModbusRegisterType")
+EntityType_ns = modbus_ns.namespace("EntityType")
+EntityType = EntityType_ns.enum("EntityType")
 
 MODBUS_WRITE_REGISTER_TYPE = {
-    "custom": ModbusRegisterType.CUSTOM,
-    "coil": ModbusRegisterType.COIL,
-    "holding": ModbusRegisterType.HOLDING,
+    "custom": EntityType.CUSTOM,
+    "coil": EntityType.COIL,
+    "holding": EntityType.HOLDING,
 }
 
 MODBUS_REGISTER_TYPE = {
     **MODBUS_WRITE_REGISTER_TYPE,
-    "discrete_input": ModbusRegisterType.DISCRETE_INPUT,
-    "read": ModbusRegisterType.INPUT_REGISTER,
+    "discrete_input": EntityType.DISCRETE_INPUT,
+    "read": EntityType.INPUT_REGISTER,
 }
 
 SensorValueType_ns = modbus_helpers_ns.namespace("SensorValueType")

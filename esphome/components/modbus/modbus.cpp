@@ -588,8 +588,16 @@ void ModbusClientHub::requeue_waiting_frame_(ModbusDeviceCommand &wfr) {
 }
 
 // Raw send for client: pushes to tx queue. Everything except the CRC must be contained in payload.
-void ModbusClientHub::queue_raw_(uint8_t address, const uint8_t *pdu, uint16_t pdu_len, ModbusClientDevice *device) {
-  if (pdu_len == 0) {
+void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device) {
+  if (pdu.empty()) {
+    if (device)
+      device->on_not_sent();
+    return;
+  }
+
+  // Bound the PDU so the wire frame (address + pdu + CRC) stays within the Modbus RTU 256-byte limit.
+  if (pdu.size() > MAX_PDU_SIZE) {
+    ESP_LOGE(TAG, "Frame too large, dropped: %" PRIu8 ":%zu bytes", address, pdu.size());
     if (device)
       device->on_not_sent();
     return;
@@ -599,13 +607,16 @@ void ModbusClientHub::queue_raw_(uint8_t address, const uint8_t *pdu, uint16_t p
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
 #endif
-    ESP_LOGV(TAG, "Adding frame to tx queue: %" PRIu8 ":%s", address, format_hex_pretty_to(hex_buf, pdu, pdu_len));
-    this->tx_buffer_.emplace_back(device, address, pdu, pdu_len);
+    ESP_LOGV(TAG, "Adding frame to tx queue: %" PRIu8 ":%s", address,
+             format_hex_pretty_to(hex_buf, pdu.data(), pdu.size()));
+    // size() is bounded by MAX_PDU_SIZE above, so the cast cannot truncate.
+    this->tx_buffer_.emplace_back(device, address, pdu.data(), static_cast<uint16_t>(pdu.size()));
   } else {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
     char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
 #endif
-    ESP_LOGE(TAG, "Write buffer full, dropped: %" PRIu8 ":%s", address, format_hex_pretty_to(hex_buf, pdu, pdu_len));
+    ESP_LOGE(TAG, "Write buffer full, dropped: %" PRIu8 ":%s", address,
+             format_hex_pretty_to(hex_buf, pdu.data(), pdu.size()));
     if (device)
       device->on_not_sent();
   }
@@ -649,7 +660,7 @@ void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClient
       device->on_not_sent();
     return;
   }
-  this->queue_raw_(payload[0], payload.data() + 1, static_cast<uint16_t>(payload.size() - 1), device);
+  this->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), device);
 }
 
 // Send raw command for server replies immediately. Except CRC everything must be contained in payload
@@ -698,6 +709,119 @@ void Modbus::clear_rx_buffer_(const LogString *reason, bool warn, size_t bytes_t
     } else {
       this->rx_buffer_.erase(this->rx_buffer_.begin(), this->rx_buffer_.begin() + bytes);
     }
+  }
+}
+
+void ModbusClientDevice::read_entities(EntityType entity_type, uint16_t start_address, uint16_t number_of_entities) {
+  switch (entity_type) {
+    case EntityType::HOLDING:
+      this->read_holding_registers(start_address, number_of_entities);
+      return;
+    case EntityType::INPUT_REGISTER:
+      this->read_input_registers(start_address, number_of_entities);
+      return;
+    case EntityType::COIL:
+      this->read_coils(start_address, number_of_entities);
+      return;
+    case EntityType::DISCRETE_INPUT:
+      this->read_discrete_inputs(start_address, number_of_entities);
+      return;
+    default:
+      ESP_LOGW(TAG, "Invalid entity type for read_entities: %d", (int) entity_type);
+      return;
+  }
+}
+
+void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
+                                            ResponseStatus status) {
+  if (request_pdu.empty())
+    return;
+  auto function_code = static_cast<ModbusFunctionCode>(request_pdu[0]);
+  // All standard requests handled below are function code + start address + count/value (5 bytes);
+  // anything shorter cannot be parsed and is handed to the catch-all.
+  if (request_pdu.size() < 5) {
+    this->on_custom_response(request_pdu, response_pdu, status);
+    return;
+  }
+  const uint16_t start_address = helpers::get_data<uint16_t>(request_pdu.data(), 1);
+  // count for reads/multi-writes, value for single writes
+  const uint16_t count_or_value = helpers::get_data<uint16_t>(request_pdu.data(), 3);
+
+  // Validate a success read response's length against its request before decoding: the parser
+  // guarantees the frame is self-consistent (its length matches its own byte-count header, and
+  // write echoes are fixed-length), but only the request knows how many registers or bits the
+  // response should carry. A mismatched response cannot be decoded per its function-code
+  // contract, so it is handed to the catch-all with the raw PDUs.
+  if (!status.has_value() && helpers::is_function_code_read(static_cast<uint8_t>(function_code))) {
+    const bool bits =
+        function_code == ModbusFunctionCode::READ_COILS || function_code == ModbusFunctionCode::READ_DISCRETE_INPUTS;
+    const size_t expected_size =
+        2 + (bits ? (static_cast<size_t>(count_or_value) + 7) / 8 : static_cast<size_t>(count_or_value) * 2);
+    if (response_pdu.size() != expected_size) {
+      ESP_LOGW(TAG, "Response length %zu does not match request (expected %zu) for function code 0x%X",
+               response_pdu.size(), expected_size, static_cast<uint8_t>(function_code));
+      this->on_custom_response(request_pdu, response_pdu, status);
+      return;
+    }
+  }
+
+  switch (function_code) {
+    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
+    case ModbusFunctionCode::READ_INPUT_REGISTERS: {
+      // Decode the big-endian register words into host byte order, clamped to what the response
+      // actually carries (its byte-count header and real length) and to the protocol maximum.
+      RegisterValues registers;
+      if (!status.has_value() && response_pdu.size() >= 2) {
+        size_t available = std::min({(size_t) count_or_value, (size_t) (response_pdu[1] / 2),
+                                     (response_pdu.size() - 2) / 2, (size_t) MAX_NUM_OF_REGISTERS_TO_READ});
+        for (size_t i = 0; i != available; i++) {
+          registers.push_back(helpers::get_data<uint16_t>(response_pdu.data(), 2 + 2 * i));
+        }
+      }
+      std::span<const uint16_t> register_span(registers.data(), registers.size());
+      if (function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS) {
+        this->on_read_holding_registers(start_address, register_span, status);
+      } else {
+        this->on_read_input_registers(start_address, register_span, status);
+      }
+      break;
+    }
+    case ModbusFunctionCode::READ_COILS:
+    case ModbusFunctionCode::READ_DISCRETE_INPUTS: {
+      // Deliver the bits packed as on the wire, clamped to the response's byte-count header and real
+      // length; the reported count is clamped to the delivered bits so indexing packed_bits is safe.
+      std::span<const uint8_t> packed_bytes;
+      uint16_t count = count_or_value;
+      if (!status.has_value() && response_pdu.size() >= 2) {
+        size_t available = std::min((size_t) response_pdu[1], response_pdu.size() - 2);
+        packed_bytes = response_pdu.subspan(2, available);
+        count = std::min<size_t>(count, available * 8);
+      }
+      PackedBits bits(packed_bytes, count);
+      if (function_code == ModbusFunctionCode::READ_COILS) {
+        this->on_read_coils(start_address, bits, status);
+      } else {
+        this->on_read_discrete_inputs(start_address, bits, status);
+      }
+      break;
+    }
+    // Write arguments are parsed from the request (identical to the success echo, and the only copy
+    // available when the response is an exception).
+    case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
+      this->on_write_single_register(start_address, count_or_value, status);
+      break;
+    case ModbusFunctionCode::WRITE_SINGLE_COIL:
+      this->on_write_single_coil(start_address, count_or_value == 0xFF00, status);
+      break;
+    case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
+      this->on_write_multiple_registers(start_address, count_or_value, status);
+      break;
+    case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
+      this->on_write_multiple_coils(start_address, count_or_value, status);
+      break;
+    default:
+      this->on_custom_response(request_pdu, response_pdu, status);
+      break;
   }
 }
 

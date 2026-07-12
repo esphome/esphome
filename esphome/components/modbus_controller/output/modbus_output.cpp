@@ -33,7 +33,7 @@ void ModbusFloatOutput::write_state(float value) {
   }
   // lambda didn't set payload
   if (data.empty()) {
-    data = modbus::helpers::float_to_payload(value, this->sensor_value_type);
+    modbus::helpers::float_to_payload(data, value, this->sensor_value_type);
   }
 
   ESP_LOGD(TAG, "Updating register: start address=0x%X register count=%d new value=%.02f (val=%.02f)",
@@ -89,7 +89,7 @@ void ModbusBinaryOutput::write_state(bool state) {
              format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
     cmd = ModbusCommandItem::create_custom_command(
         this->parent_, data,
-        [this, cmd](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
+        [this, cmd](EntityType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
           this->parent_->on_write_register_response(cmd.register_type, this->start_address, data);
         });
   } else {

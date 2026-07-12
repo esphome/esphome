@@ -229,4 +229,66 @@ TEST(ModbusHelpersTest, RegistersToNumberRejectsTruncatedMultiRegisterValue) {
   EXPECT_FALSE(registers_to_number(registers, 1, SensorValueType::U_DWORD).has_value());
 }
 
+// --- create_write_coils_pdu (packed) ---------------------------------------
+
+TEST(ModbusWriteCoilsPacked, MatchesBoolBuilder) {
+  const bool coils[] = {true, false, true, true, false, false, true, false, true, true};
+  uint8_t packed[] = {0b01001101, 0b00000011};
+  auto from_bools = create_write_coils_pdu(0x13, coils);
+  auto from_packed = create_write_coils_pdu(0x13, PackedBits(packed, 10));
+  ASSERT_EQ(from_packed.size(), from_bools.size());
+  EXPECT_EQ(0, memcmp(from_packed.data(), from_bools.data(), from_bools.size()));
+}
+
+TEST(ModbusWriteCoilsPacked, MasksUnusedTrailingBits) {
+  uint8_t packed[] = {0xFF};
+  auto pdu = create_write_coils_pdu(0, PackedBits(packed, 3));
+  ASSERT_EQ(pdu.size(), 7u);
+  EXPECT_EQ(pdu[6], 0x07);
+}
+
+TEST(ModbusWriteCoilsPacked, RejectsShortBufferAndZeroCount) {
+  uint8_t packed[] = {0xFF};
+  EXPECT_TRUE(create_write_coils_pdu(0, PackedBits(packed, 9)).empty());  // needs 2 bytes
+  EXPECT_TRUE(create_write_coils_pdu(0, PackedBits(packed, 0)).empty());
+}
+
+TEST(ModbusHelpersTest, PackedBitsReadsLsbFirst) {
+  const uint8_t packed[] = {0x0D, 0x03};  // bits 0,2,3 and 8,9
+  PackedBits bits(packed, 11);
+  EXPECT_EQ(bits.size(), 11u);
+  EXPECT_TRUE(bits[0]);
+  EXPECT_FALSE(bits[1]);
+  EXPECT_TRUE(bits[2]);
+  EXPECT_TRUE(bits[3]);
+  EXPECT_FALSE(bits[7]);
+  EXPECT_TRUE(bits[8]);
+  EXPECT_TRUE(bits[9]);
+  EXPECT_FALSE(bits[10]);
+  EXPECT_EQ(bits.bytes().size(), 2u);
+}
+
+TEST(ModbusHelpersTest, MutablePackedBitsSetsAndClears) {
+  uint8_t packed[2] = {0x00, 0xFF};
+  MutablePackedBits bits(packed, 16);
+  bits.set(0, true);
+  bits.set(3, true);
+  bits.set(9, false);
+  EXPECT_EQ(packed[0], 0x09);  // bits 0 and 3
+  EXPECT_EQ(packed[1], 0xFD);  // bit 9 (bit 1 of byte 1) cleared
+}
+
+TEST(ModbusHelpersTest, MutablePackedBitsRoundTripAndConversion) {
+  const bool original[] = {true, true, false, true, false, false, false, false, true, false, true};
+  constexpr uint16_t count = sizeof(original);
+  uint8_t packed[(count + 7) / 8] = {};
+  MutablePackedBits out(packed, count);
+  for (uint16_t i = 0; i != count; i++)
+    out.set(i, original[i]);
+  PackedBits view = out;  // implicit conversion to the read-only view
+  ASSERT_EQ(view.size(), count);
+  for (uint16_t i = 0; i != count; i++)
+    EXPECT_EQ(view[i], original[i]) << "bit " << i;
+}
+
 }  // namespace esphome::modbus::helpers

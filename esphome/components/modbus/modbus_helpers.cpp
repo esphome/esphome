@@ -197,24 +197,8 @@ std::optional<int64_t> registers_to_number(const uint16_t *registers, size_t cou
   return payload_to_number(bytes, required_size, sensor_value_type, 0, 0xFFFFFFFF);
 }
 
-StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(ModbusFunctionCode function_code, uint16_t start_address,
-                                                      uint16_t number_of_entities, const uint8_t *values,
-                                                      size_t values_len) {
-  if (is_function_code_read(static_cast<uint8_t>(function_code))) {
-    if (values != nullptr || values_len > 0) {
-      ESP_LOGW(TAG, "Values provided for read function code %02X, but will be ignored",
-               static_cast<uint8_t>(function_code));
-    }
-  } else if (is_function_code_write(static_cast<uint8_t>(function_code))) {
-    if (values == nullptr || values_len == 0) {
-      ESP_LOGE(TAG, "No values provided for write function code %02X", static_cast<uint8_t>(function_code));
-      return {};
-    }
-  } else {
-    ESP_LOGE(TAG, "Unsupported function code %02X for client PDU creation", static_cast<uint8_t>(function_code));
-    return {};
-  }
-
+StaticVector<uint8_t, READ_PDU_SIZE> create_read_pdu(ModbusFunctionCode function_code, uint16_t start_address,
+                                                     uint16_t number_of_entities) {
   if (number_of_entities == 0) {
     ESP_LOGE(TAG, "Number of entities is zero for function code %02X", static_cast<uint8_t>(function_code));
     return {};
@@ -243,55 +227,184 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(ModbusFunctionCode functio
         return {};
       }
       break;
-    case ModbusFunctionCode::WRITE_SINGLE_COIL:
-    case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
-      break;  // number_of_entities is ignored for single write, so no need to validate
-    case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
-    case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
-      if (number_of_entities > MAX_NUM_OF_REGISTERS_TO_WRITE) {
-        ESP_LOGE(TAG, "number_of_entities %u exceeds maximum registers to write %u for function code %02X",
-                 number_of_entities, MAX_NUM_OF_REGISTERS_TO_WRITE, static_cast<uint8_t>(function_code));
-        return {};
-      }
-      break;
     default:
-      ESP_LOGE(TAG, "Unsupported function code %u for client PDU creation", static_cast<unsigned int>(function_code));
+      ESP_LOGE(TAG, "Unsupported function code %02X for read PDU creation", static_cast<uint8_t>(function_code));
       return {};
+  }
+
+  StaticVector<uint8_t, READ_PDU_SIZE> pdu;
+  pdu.push_back(static_cast<uint8_t>(function_code));
+  pdu.push_back(start_address >> 8);
+  pdu.push_back(start_address >> 0);
+  pdu.push_back(number_of_entities >> 8);
+  pdu.push_back(number_of_entities >> 0);
+  return pdu;
+}
+
+StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(ModbusFunctionCode function_code, uint16_t start_address,
+                                                      uint16_t number_of_entities, const uint8_t *values,
+                                                      size_t values_len) {
+  // Generic entry point; prefer the direction- and type-specific builders (create_read_pdu(),
+  // create_write_registers_pdu(), etc.) which bound their inputs per spec.
+  if (is_function_code_read(static_cast<uint8_t>(function_code))) {
+    if (values != nullptr || values_len > 0) {
+      ESP_LOGW(TAG, "Values provided for read function code %02X, but will be ignored",
+               static_cast<uint8_t>(function_code));
+    }
+    auto read_pdu = create_read_pdu(function_code, start_address, number_of_entities);
+    StaticVector<uint8_t, MAX_PDU_SIZE> pdu;
+    pdu.assign(read_pdu.begin(), read_pdu.end());
+    return pdu;
+  }
+  if (!is_function_code_write(static_cast<uint8_t>(function_code))) {
+    ESP_LOGE(TAG, "Unsupported function code %02X for client PDU creation", static_cast<uint8_t>(function_code));
+    return {};
+  }
+
+  // Generic write builder: raw caller-supplied bytes, so we can only guard against the PDU byte capacity here.
+  if (values == nullptr || values_len == 0) {
+    ESP_LOGE(TAG, "No values provided for write function code %02X", static_cast<uint8_t>(function_code));
+    return {};
+  }
+  if (number_of_entities == 0) {
+    ESP_LOGE(TAG, "Number of entities is zero for function code %02X", static_cast<uint8_t>(function_code));
+    return {};
+  }
+  const bool is_single = function_code == ModbusFunctionCode::WRITE_SINGLE_COIL ||
+                         function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER;
+  // number_of_entities is ignored for single write, so only validate it for the multiple variants.
+  if (!is_single && number_of_entities > MAX_NUM_OF_REGISTERS_TO_WRITE) {
+    ESP_LOGE(TAG, "number_of_entities %u exceeds maximum registers to write %u for function code %02X",
+             number_of_entities, MAX_NUM_OF_REGISTERS_TO_WRITE, static_cast<uint8_t>(function_code));
+    return {};
   }
 
   StaticVector<uint8_t, MAX_PDU_SIZE> pdu;
   pdu.push_back(static_cast<uint8_t>(function_code));
   pdu.push_back(start_address >> 8);
   pdu.push_back(start_address >> 0);
-  if (function_code != ModbusFunctionCode::WRITE_SINGLE_COIL &&
-      function_code != ModbusFunctionCode::WRITE_SINGLE_REGISTER) {
+  if (!is_single) {
     pdu.push_back(number_of_entities >> 8);
     pdu.push_back(number_of_entities >> 0);
-  }
-
-  if (is_function_code_write(static_cast<uint8_t>(function_code))) {
-    if (function_code == ModbusFunctionCode::WRITE_MULTIPLE_COILS ||
-        function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
-      // 6 bytes of overhead (fc + start_addr×2 + qty×2 + byte_count) leave MAX_PDU_SIZE-6 bytes for values
-      static constexpr size_t MAX_WRITE_MULTIPLE_VALUES_LEN = MAX_PDU_SIZE - 6;
-      if (values_len > MAX_WRITE_MULTIPLE_VALUES_LEN) {
-        ESP_LOGE(TAG, "values_len %zu exceeds PDU capacity %zu, dropping request", values_len,
-                 MAX_WRITE_MULTIPLE_VALUES_LEN);
-        return {};
-      }
-      pdu.push_back(values_len);  // Byte count is required for write multiple
-      for (size_t i = 0; i < values_len; i++)
-        pdu.push_back(values[i]);
-    } else {
-      // Write single register or coil (2 bytes)
-      if (values_len < 2) {
-        ESP_LOGE(TAG, "values_len %zu too small for write-single command (need 2), dropping request", values_len);
-        return {};
-      }
-      pdu.push_back(values[0]);
-      pdu.push_back(values[1]);
+    // 6 bytes of overhead (fc + start_addr×2 + qty×2 + byte_count) leave MAX_PDU_SIZE-6 bytes for values
+    static constexpr size_t MAX_WRITE_MULTIPLE_VALUES_LEN = MAX_PDU_SIZE - 6;
+    if (values_len > MAX_WRITE_MULTIPLE_VALUES_LEN) {
+      ESP_LOGE(TAG, "values_len %zu exceeds PDU capacity %zu, dropping request", values_len,
+               MAX_WRITE_MULTIPLE_VALUES_LEN);
+      return {};
     }
+    pdu.push_back(values_len);  // Byte count is required for write multiple
+    for (size_t i = 0; i < values_len; i++)
+      pdu.push_back(values[i]);
+  } else {
+    // Write single register or coil (2 bytes)
+    if (values_len < 2) {
+      ESP_LOGE(TAG, "values_len %zu too small for write-single command (need 2), dropping request", values_len);
+      return {};
+    }
+    pdu.push_back(values[0]);
+    pdu.push_back(values[1]);
   }
   return pdu;
+}
+
+StaticVector<uint8_t, MAX_PDU_SIZE> create_write_registers_pdu(uint16_t start_address,
+                                                               std::span<const uint16_t> values) {
+  if (values.empty()) {
+    ESP_LOGE(TAG, "No values provided for write multiple registers, dropping request");
+    return {};
+  }
+  // Byte count is registers × 2 (per spec); bounding the register count keeps the PDU within MAX_PDU_SIZE.
+  if (values.size() > MAX_NUM_OF_REGISTERS_TO_WRITE) {
+    ESP_LOGE(TAG, "values.size() %zu exceeds maximum registers to write %u, dropping request", values.size(),
+             MAX_NUM_OF_REGISTERS_TO_WRITE);
+    return {};
+  }
+  StaticVector<uint8_t, MAX_PDU_SIZE> pdu;
+  pdu.push_back(static_cast<uint8_t>(ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS));
+  pdu.push_back(start_address >> 8);
+  pdu.push_back(start_address >> 0);
+  pdu.push_back(values.size() >> 8);
+  pdu.push_back(values.size() >> 0);
+  pdu.push_back(static_cast<uint8_t>(values.size() * 2));  // byte count
+  for (auto v : values) {
+    auto decoded_value = decode_value(v);
+    pdu.push_back(decoded_value[0]);
+    pdu.push_back(decoded_value[1]);
+  }
+  return pdu;
+}
+
+StaticVector<uint8_t, WRITE_SINGLE_PDU_SIZE> create_write_single_register_pdu(uint16_t start_address, uint16_t value) {
+  auto decoded_value = decode_value(value);
+  StaticVector<uint8_t, WRITE_SINGLE_PDU_SIZE> pdu;
+  pdu.push_back(static_cast<uint8_t>(ModbusFunctionCode::WRITE_SINGLE_REGISTER));
+  pdu.push_back(start_address >> 8);
+  pdu.push_back(start_address >> 0);
+  pdu.push_back(decoded_value[0]);
+  pdu.push_back(decoded_value[1]);
+  return pdu;
+}
+
+StaticVector<uint8_t, WRITE_SINGLE_PDU_SIZE> create_write_single_coil_pdu(uint16_t address, bool value) {
+  StaticVector<uint8_t, WRITE_SINGLE_PDU_SIZE> pdu;
+  pdu.push_back(static_cast<uint8_t>(ModbusFunctionCode::WRITE_SINGLE_COIL));
+  pdu.push_back(address >> 8);
+  pdu.push_back(address >> 0);
+  pdu.push_back(value ? 0xFF : 0x00);
+  pdu.push_back(0x00);
+  return pdu;
+}
+
+StaticVector<uint8_t, MAX_PDU_SIZE> create_write_coils_pdu(uint16_t start_address, PackedBits bits) {
+  const uint16_t count = bits.size();
+  const std::span<const uint8_t> packed_bits = bits.bytes();
+  if (count == 0) {
+    ESP_LOGE(TAG, "No coils requested for write multiple coils, dropping request");
+    return {};
+  }
+  if (count > MAX_NUM_OF_COILS_TO_WRITE) {
+    ESP_LOGE(TAG, "count %u exceeds maximum coils to write %u, dropping request", count, MAX_NUM_OF_COILS_TO_WRITE);
+    return {};
+  }
+  const size_t byte_count = (count + 7) / 8;
+  if (packed_bits.size() < byte_count) {
+    ESP_LOGE(TAG, "packed_bits (%zu bytes) does not cover %u coils (%zu bytes), dropping request", packed_bits.size(),
+             count, byte_count);
+    return {};
+  }
+  StaticVector<uint8_t, MAX_PDU_SIZE> pdu;
+  pdu.push_back(static_cast<uint8_t>(ModbusFunctionCode::WRITE_MULTIPLE_COILS));
+  pdu.push_back(start_address >> 8);
+  pdu.push_back(start_address >> 0);
+  pdu.push_back(count >> 8);
+  pdu.push_back(count >> 0);
+  pdu.push_back(static_cast<uint8_t>(byte_count));
+  for (size_t i = 0; i != byte_count; i++) {
+    pdu.push_back(packed_bits[i]);
+  }
+  // Zero the unused bits of the final byte, as the spec requires
+  if (count % 8 != 0) {
+    pdu[pdu.size() - 1] &= static_cast<uint8_t>((1 << (count % 8)) - 1);
+  }
+  return pdu;
+}
+
+StaticVector<uint8_t, MAX_PDU_SIZE> create_write_coils_pdu(uint16_t start_address, std::span<const bool> values) {
+  // Bound before packing so the transient buffer below cannot overflow; the packed overload validates the rest.
+  if (values.size() > MAX_NUM_OF_COILS_TO_WRITE) {
+    ESP_LOGE(TAG, "values.size() %zu exceeds maximum coils to write %u, dropping request", values.size(),
+             MAX_NUM_OF_COILS_TO_WRITE);
+    return {};
+  }
+  StaticVector<uint8_t, (MAX_NUM_OF_COILS_TO_WRITE + 7) / 8> packed;
+  for (size_t i = 0; i != values.size(); i++) {
+    if (i % 8 == 0)
+      packed.push_back(0);
+    if (values[i])
+      packed[i / 8] |= (1 << (i % 8));
+  }
+  return create_write_coils_pdu(start_address,
+                                PackedBits(std::span<const uint8_t>(packed.data(), packed.size()), values.size()));
 }
 }  // namespace esphome::modbus::helpers
