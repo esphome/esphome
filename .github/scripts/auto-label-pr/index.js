@@ -123,7 +123,7 @@ module.exports = async ({ github, context }) => {
     detectNewComponents(github, context, prFiles),
     detectNewPlatforms(github, context, prFiles, apiData),
     detectCoreChanges(changedFiles),
-    detectPRSize(prFiles, totalAdditions, totalDeletions, totalChanges, isMegaPR, SMALL_PR_THRESHOLD, MEDIUM_PR_THRESHOLD, TOO_BIG_THRESHOLD),
+    detectPRSize(prFiles, totalAdditions, totalDeletions, isMegaPR, SMALL_PR_THRESHOLD, MEDIUM_PR_THRESHOLD, TOO_BIG_THRESHOLD),
     detectDashboardChanges(changedFiles),
     detectGitHubActionsChanges(changedFiles),
     detectCodeOwner(github, context, changedFiles),

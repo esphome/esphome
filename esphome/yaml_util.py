@@ -51,6 +51,29 @@ _load_listeners: list[Callable[[Path], None]] = []
 
 DocumentPath = list[str | int]
 
+# Key under CORE.data used to accumulate keys that a `<<` merge silently
+# dropped. The warning is emitted later (see esphome.config.validate_config),
+# because the esphome: option that suppresses it isn't known while parsing.
+_MERGE_WARNINGS_KEY = "yaml_dropped_merge_keys"
+
+
+def _record_dropped_merge_key(parent_file: Path, key: Any) -> None:
+    """Record a mapping key that a ``<<`` merge silently dropped.
+
+    Merge keys follow the YAML spec's shallow, first-wins semantics: a key that
+    already exists in the mapping (or came from an earlier merge) is discarded
+    rather than deep-merged the way ``packages:`` would combine it. We collect
+    these so a single warning can be emitted once the config is loaded.
+    """
+    esp_range = getattr(key, "esp_range", None)
+    location = str(esp_range.start_mark) if esp_range is not None else str(parent_file)
+    CORE.data.setdefault(_MERGE_WARNINGS_KEY, []).append((str(key), location))
+
+
+def take_dropped_merge_keys() -> list[tuple[str, str]]:
+    """Return and clear the keys dropped during ``<<`` merges so far."""
+    return CORE.data.pop(_MERGE_WARNINGS_KEY, [])
+
 
 class SensitiveStr(str):
     """Marker subclass for validated strings that should be masked in
@@ -551,6 +574,10 @@ class ESPHomeLoaderMixin:
                     #  is expected to contain mapping nodes and each of these nodes is merged in
                     #  turn according to its order in the sequence. Keys in mapping nodes earlier
                     #  in the sequence override keys specified in later mapping nodes."
+                    #
+                    # This is a silent shallow drop (unlike `packages:`, which deep-merges).
+                    # Record it so a warning can be emitted after the config loads.
+                    _record_dropped_merge_key(self.name, key)
                     continue
                 pairs.append((key, value))
                 # Add key node to seen keys, for sequence merge values.
@@ -813,17 +840,22 @@ def _load_yaml_internal_with_type(
         loader.dispose()
 
 
-def dump(dict_, show_secrets=False, sort_keys=False):
-    """Dump YAML to a string and remove null."""
+def dump(dict_, show_secrets=False, sort_keys=False, relative_to: Path | None = None):
+    """Dump YAML to a string and remove null.
+
+    When ``relative_to`` is given, Path values are dumped relative to that
+    directory (POSIX form) so the output is machine independent.
+    """
     if show_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
 
-    # Per-call subclass so the redaction flag doesn't leak across calls.
+    # Per-call subclass so the flags don't leak across calls.
     # (``_SECRET_VALUES`` / ``_SECRET_CACHE`` remain module globals; YAML
-    # processing is single-threaded today, so this isolates only the flag.)
+    # processing is single-threaded today, so this isolates only the flags.)
     class _Dumper(ESPHomeDumper):
         _redact_sensitive = not show_secrets
+        _relative_to = relative_to
 
     return yaml.dump(
         dict_,
@@ -975,9 +1007,13 @@ def format_path(path: DocumentPath, current_obj: Any) -> str:
 
 
 class ESPHomeDumper(yaml.SafeDumper):
-    # Default for the base class; per-call subclass in ``dump()`` overrides.
+    # Defaults for the base class; per-call subclass in ``dump()`` overrides.
     # When True, ``represent_sensitive`` wraps values in ANSI conceal codes.
     _redact_sensitive: bool = False
+    # When set, ``represent_path`` dumps Path values relative to this
+    # directory (in POSIX form) so the output does not depend on where the
+    # config lives on the machine that produced it.
+    _relative_to: Path | None = None
 
     def represent_mapping(self, tag, mapping, flow_style=None):
         value = []
@@ -1012,6 +1048,21 @@ class ESPHomeDumper(yaml.SafeDumper):
         if is_secret(value):
             return self.represent_secret(value)
         return self.represent_scalar(tag="tag:yaml.org,2002:str", value=str(value))
+
+    def represent_path(self, value: Path) -> yaml.ScalarNode:
+        if self._relative_to is not None:
+            # Normalize both sides lexically (no symlink resolution) so ".."
+            # segments do not defeat the prefix match, and walk up so files
+            # referenced outside the anchor directory stay relative too. A
+            # path that still cannot be relativized (e.g. a different drive)
+            # keeps its POSIX form so separators stay stable across OSes.
+            path = Path(os.path.normpath(value))
+            with suppress(ValueError):
+                path = path.relative_to(
+                    os.path.normpath(self._relative_to), walk_up=True
+                )
+            return self.represent_stringify(path.as_posix())
+        return self.represent_stringify(value)
 
     def represent_sensitive(self, value: SensitiveStr) -> yaml.ScalarNode:
         # Only the redact-and-not-a-secret branch is unique to sensitive
@@ -1111,5 +1162,5 @@ ESPHomeDumper.add_multi_representer(Extend, ESPHomeDumper.represent_extend)
 ESPHomeDumper.add_multi_representer(Remove, ESPHomeDumper.represent_remove)
 ESPHomeDumper.add_multi_representer(core.ID, ESPHomeDumper.represent_id)
 ESPHomeDumper.add_multi_representer(uuid.UUID, ESPHomeDumper.represent_stringify)
-ESPHomeDumper.add_multi_representer(Path, ESPHomeDumper.represent_stringify)
+ESPHomeDumper.add_multi_representer(Path, ESPHomeDumper.represent_path)
 ESPHomeDumper.add_multi_representer(IncludeFile, ESPHomeDumper.represent_include_file)
