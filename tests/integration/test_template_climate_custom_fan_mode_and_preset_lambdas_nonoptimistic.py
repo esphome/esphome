@@ -8,13 +8,11 @@ next loop iteration.
 
 from __future__ import annotations
 
-import asyncio
-
 import aioesphomeapi
-from aioesphomeapi import ClimateInfo, EntityState
+from aioesphomeapi import ClimateInfo
 import pytest
 
-from .state_utils import InitialStateHelper
+from .state_utils import InitialStateHelper, wait_for_state
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -38,26 +36,14 @@ async def test_template_climate_custom_fan_mode_and_preset_lambdas_nonoptimistic
       the action writes the globals the lambda reads, so the sequence is:
       command → action → global update → lambda polls → state published
     """
-    loop = asyncio.get_running_loop()
     async with run_compiled(yaml_config), api_client_connected() as client:
-        state_future: asyncio.Future[aioesphomeapi.ClimateState] = loop.create_future()
-
-        def on_state(state: EntityState) -> None:
-            if (
-                isinstance(state, aioesphomeapi.ClimateState)
-                and not state_future.done()
-            ):
-                state_future.set_result(state)
 
         async def wait_for_climate_state(
             timeout: float = 5.0,
         ) -> aioesphomeapi.ClimateState:
-            nonlocal state_future
-            state_future = loop.create_future()
-            try:
-                return await asyncio.wait_for(state_future, timeout)
-            finally:
-                state_future = loop.create_future()
+            return await wait_for_state(
+                client, lambda s: isinstance(s, aioesphomeapi.ClimateState), timeout
+            )
 
         entities, _ = await client.list_entities_services()
         initial_state_helper = InitialStateHelper(entities)
@@ -79,7 +65,9 @@ async def test_template_climate_custom_fan_mode_and_preset_lambdas_nonoptimistic
             "max",
         }
 
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+        client.subscribe_states(
+            initial_state_helper.on_state_wrapper(lambda state: None)
+        )
 
         try:
             await initial_state_helper.wait_for_initial_states()
