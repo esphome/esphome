@@ -146,7 +146,9 @@ class USBUartChannel final : public uart::UARTComponent, public Parented<USBUart
   size_t available() override { return this->input_buffer_.get_available(); }
   bool is_connected() override { return this->initialised_.load(); }
   uart::UARTFlushResult flush() override;
-  void check_logger_conflict() override {}
+  // Re-apply the current line settings (baud, parity, etc) to this already-open channel.
+  void load_settings(bool dump_config) override;
+  using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
   void set_parity(UARTParityOptions parity) { this->parity_ = parity; }
   void set_debug(bool debug) { this->debug_ = debug; }
   void set_dummy_receiver(bool dummy_receiver) { this->dummy_receiver_ = dummy_receiver; }
@@ -160,6 +162,7 @@ class USBUartChannel final : public uart::UARTComponent, public Parented<USBUart
   void set_rx_callback(std::function<void()> cb) { this->rx_callback_ = std::move(cb); }
 
  protected:
+  void check_logger_conflict() override {}
   // Larger structures first (8+ bytes)
   RingBuffer input_buffer_;
   LockFreeQueue<UsbOutputChunk, USB_OUTPUT_CHUNK_COUNT> output_queue_;
@@ -195,6 +198,12 @@ class USBUartComponent : public usb_host::USBClient {
   virtual void start_input(USBUartChannel *channel);
   void start_output(USBUartChannel *channel);
 
+  // Begin configuring all channels (full initialisation). Called from on_connected().
+  void enable_channels();
+  // Re-apply line settings to a single, already-open channel (used by
+  // USBUartChannel::load_settings()).
+  void apply_channel_settings(USBUartChannel *channel);
+
   // Called from loop() when input_buffer_ has insufficient space for the incoming chunk.
   // Default is a no-op; override in device-specific subclasses that need resync on overflow.
   virtual void on_rx_overflow(USBUartChannel *channel) {}
@@ -206,7 +215,41 @@ class USBUartComponent : public usb_host::USBClient {
   EventPool<UsbDataChunk, USB_DATA_QUEUE_SIZE - 1> chunk_pool_;
 
  protected:
+  // Issue one control transfer as part of the setup state machine. The completion
+  // callback (USB-task context) records the result/IN data, marks the step done and
+  // wakes the loop so run_config_machine_() advances on the loop thread. Call exactly
+  // once from config_step_()/config_device_step_() when issuing a step.
+  void config_transfer_(uint8_t type, uint8_t request, uint16_t value, uint16_t index,
+                        const std::vector<uint8_t> &data = {});
+  // (Re)start the config state machine. reload=false runs full init over all channels;
+  // reload=true re-applies settings to cfg_single_ only.
+  void start_config_(bool reload);
+  // Advance the config state machine; called from loop(). Returns true if it did work.
+  bool run_config_machine_();
+
+  // Per-subclass per-channel settings sequence. For the given zero-based step, issue the
+  // next control transfer via config_transfer_() and return true, or return false when the
+  // channel has no more steps. reload=true ⇒ apply only baud/parity/stop/data (skip
+  // enable/reset/DTR-RTS). ok/response carry the previous step's result and IN data.
+  virtual bool config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) = 0;
+  // Optional one-time device-level setup run before the per-channel phase on init only
+  // (e.g. CH34x chip detection). Same contract as config_step_(). Default: no steps.
+  virtual bool config_device_step(uint8_t step, bool ok, const uint8_t *response) { return false; }
+
   std::vector<USBUartChannel *> channels_{};
+
+  // Config state machine
+  USBUartChannel *cfg_single_{nullptr};          // non-null: reload of a single channel
+  USBUartChannel *cfg_pending_reload_{nullptr};  // reload requested while the machine was busy
+  std::atomic<bool> cfg_done_{false};            // synchronizes cfg_ok_/cfg_response_ across threads
+  uint8_t cfg_response_[8]{};                    // last IN transfer payload (for detection reads)
+  uint8_t cfg_channel_idx_{0};
+  uint8_t cfg_step_{0};
+  bool cfg_active_{false};
+  bool cfg_reload_{false};
+  bool cfg_device_phase_{false};
+  bool cfg_in_flight_{false};
+  bool cfg_ok_{true};
 };
 
 class USBUartTypeCdcAcm : public USBUartComponent {
@@ -217,11 +260,7 @@ class USBUartTypeCdcAcm : public USBUartComponent {
   virtual std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl);
   void on_connected() override;
   void on_disconnected() override;
-  virtual void enable_channels();
-  /// Resets per-channel transfer flags and posts the first bulk IN transfer.
-  /// Called by enable_channels() and by vendor-specific subclass overrides that
-  /// handle their own line-coding setup before starting data flow.
-  void start_channels_();
+  bool config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
 };
 
 class USBUartTypeCP210X : public USBUartTypeCdcAcm {
@@ -230,7 +269,7 @@ class USBUartTypeCP210X : public USBUartTypeCdcAcm {
 
  protected:
   std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
-  void enable_channels() override;
+  bool config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
 };
 class USBUartTypeCH34X : public USBUartTypeCdcAcm {
  public:
@@ -238,11 +277,11 @@ class USBUartTypeCH34X : public USBUartTypeCdcAcm {
   void dump_config() override;
 
  protected:
-  void enable_channels() override;
+  bool config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
+  bool config_device_step(uint8_t step, bool ok, const uint8_t *response) override;
   std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
 
  private:
-  void apply_line_settings_();
   CH34xChipType chiptype_{CHIP_UNKNOWN};
   const char *chip_name_{"unknown"};
   uint8_t num_ports_{1};
@@ -257,12 +296,7 @@ class USBUartTypeFT23XX : public USBUartTypeCdcAcm {
 
  protected:
   std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
-  void enable_channels() override;
-
-  int reset_(USBUartChannel *channel);
-  int set_baudrate_(USBUartChannel *channel, uint32_t baudrate = 0);
-  int set_line_properties_(USBUartChannel *channel);
-  int set_dtr_rts_(USBUartChannel *channel);
+  bool config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
 
   uint8_t chip_type_{255};
 };
@@ -285,7 +319,7 @@ class USBUartTypePL2303 : public USBUartTypeCdcAcm {
 
  protected:
   std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
-  void enable_channels() override;
+  bool config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
 
   Pl2303ChipType chip_type_{PL2303_TYPE_UNKNOWN};
 };
