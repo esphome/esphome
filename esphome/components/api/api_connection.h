@@ -626,6 +626,11 @@ class APIConnection final : public APIServerConnectionBase {
   void destroy_active_iterator_();
   void begin_iterator_(ActiveIterator type);
   void finalize_iterator_sync_();
+#if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
+  // Swap the plaintext helper for a Noise helper after the client opened
+  // with a Noise hello on an unprovisioned device (zero-PSK provisioning).
+  void upgrade_helper_to_noise_();
+#endif
 #ifdef USE_CAMERA
   std::unique_ptr<camera::CameraImageReader> image_reader_;
 #endif
