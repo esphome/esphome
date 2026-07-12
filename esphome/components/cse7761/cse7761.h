@@ -20,6 +20,7 @@ class CSE7761Component final : public PollingComponent, public uart::UARTDevice 
  public:
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_frequency_sensor(sensor::Sensor *frequency_sensor) { frequency_sensor_ = frequency_sensor; }
+  void set_power_factor_sensor(sensor::Sensor *power_factor_sensor) { power_factor_sensor_ = power_factor_sensor; }
   void set_active_power_1_sensor(sensor::Sensor *power_sensor_1) { power_sensor_1_ = power_sensor_1; }
   void set_current_1_sensor(sensor::Sensor *current_sensor_1) { current_sensor_1_ = current_sensor_1; }
   void set_energy_1_sensor(sensor::Sensor *energy_sensor_1) { energy_sensor_1_ = energy_sensor_1; }
@@ -34,6 +35,7 @@ class CSE7761Component final : public PollingComponent, public uart::UARTDevice 
   // Sensors
   sensor::Sensor *voltage_sensor_{nullptr};
   sensor::Sensor *frequency_sensor_{nullptr};
+  sensor::Sensor *power_factor_sensor_{nullptr};
   sensor::Sensor *power_sensor_1_{nullptr};
   sensor::Sensor *current_sensor_1_{nullptr};
   sensor::Sensor *energy_sensor_1_{nullptr};
