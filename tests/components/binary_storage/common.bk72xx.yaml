@@ -1,0 +1,6 @@
+binary_storage:
+  - type: ONEWIRE_EEPROM
+    id: onewire_eeprom_raw
+    pin: ${onewire_pin}
+    model: DS2431
+    storage_name: "DS2431"

@@ -1,0 +1,10 @@
+substitutions:
+  spi_flash_cs_pin: GPIO6
+  spi_fram_cs_pin: GPIO7
+  spi_mram_cs_pin: GPIO8
+  onewire_pin: GPIO10
+
+packages:
+  i2c: !include ../../test_build_components/common/i2c/rp2040-ard.yaml
+  spi: !include ../../test_build_components/common/spi/rp2040-ard.yaml
+  common: !include common.yaml
