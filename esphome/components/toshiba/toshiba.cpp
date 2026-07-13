@@ -23,7 +23,7 @@ const uint16_t TOSHIBA_ONE_SPACE = 1620;
 const uint16_t TOSHIBA_CARRIER_FREQUENCY = 38000;
 const uint8_t TOSHIBA_HEADER_LENGTH = 4;
 const ToshibaTimings TOSHIBA_GENERIC_TIMINGS{TOSHIBA_HEADER_MARK, TOSHIBA_HEADER_SPACE, TOSHIBA_BIT_MARK,
-                                             TOSHIBA_ONE_SPACE, TOSHIBA_ZERO_SPACE, TOSHIBA_GAP_SPACE};
+                                             TOSHIBA_ONE_SPACE,   TOSHIBA_ZERO_SPACE,   TOSHIBA_GAP_SPACE};
 // The RAS-B10N3KV2 family uses the same message content as GENERIC but requires the timings
 // used by the RAS-B13 remote family (values from IRremoteESP8266's TOSHIBA_AC protocol)
 const ToshibaTimings RAS_B10N3KV2_TIMINGS{4400, 4300, 580, 1600, 490, 7400};
