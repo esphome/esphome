@@ -2,7 +2,9 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/climate/climate.h"
+#ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
+#endif
 
 namespace esphome::template_ {
 
@@ -13,6 +15,7 @@ class TemplateClimate final : public climate::Climate, public Component {
 
   climate::ClimateTraits traits() override { return this->traits_; }
 
+#ifdef USE_SENSOR
   void set_sensor(sensor::Sensor *sensor) {
     this->sensor_ = sensor;
     this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
@@ -21,6 +24,7 @@ class TemplateClimate final : public climate::Climate, public Component {
     this->humidity_sensor_ = sensor;
     this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
   }
+#endif
   void set_supports_action() { this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_ACTION); }
 
   void add_supported_mode(climate::ClimateMode mode) { this->traits_.add_supported_mode(mode); }
@@ -63,8 +67,10 @@ class TemplateClimate final : public climate::Climate, public Component {
   climate::ClimateTraits traits_;
   bool optimistic_{true};
 
+#ifdef USE_SENSOR
   sensor::Sensor *sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
+#endif
 };
 
 }  // namespace esphome::template_

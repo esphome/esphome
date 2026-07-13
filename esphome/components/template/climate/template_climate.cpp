@@ -17,6 +17,7 @@ void TemplateClimate::setup() {
   // Sensors publish on every reading, not just on change, so only re-publish the climate state
   // when the value actually moved -- otherwise a fast-polling backing sensor would spam
   // publish_state() with no new information.
+#ifdef USE_SENSOR
   if (this->sensor_ != nullptr) {
     this->current_temperature = this->sensor_->state;
     this->sensor_->add_on_state_callback([this](float state) {
@@ -36,6 +37,7 @@ void TemplateClimate::setup() {
       }
     });
   }
+#endif
 }
 
 void TemplateClimate::dump_config() {
