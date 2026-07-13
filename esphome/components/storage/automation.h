@@ -73,6 +73,7 @@ std::string extract_trim(const std::string &s);
 bool apply_extract_step(const ExtractStep &step, std::string &buf);
 
 // Non-template workers for the actions below — all error logging lives in the .cpp.
+void perform_mount(MountableStorage *target, bool mount);
 void perform_file_copy(const std::string &from, const std::string &to, bool is_move);
 void perform_file_delete(const std::string &path, bool recursive);
 bool check_file_exists(const std::string &path);
@@ -172,6 +173,22 @@ template<typename... Ts> class FileExistsCondition : public Condition<Ts...> {
   TEMPLATABLE_VALUE(std::string, path)
 
   bool check(const Ts &...x) override { return check_file_exists(this->path_.value(x...)); }
+};
+
+// ---------------------------------------------------------------------------
+// storage.mount / storage.unmount — target must opt in via MountableStorage
+// (validated at YAML time through the codegen class hierarchy)
+// ---------------------------------------------------------------------------
+
+template<typename... Ts> class MountAction : public Action<Ts...> {
+ public:
+  explicit MountAction(MountableStorage *target, bool mount) : target_(target), mount_(mount) {}
+
+  void play(const Ts &...x) override { perform_mount(this->target_, this->mount_); }
+
+ protected:
+  MountableStorage *target_;
+  bool mount_;
 };
 
 }  // namespace esphome::storage

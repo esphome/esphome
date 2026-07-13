@@ -1,4 +1,7 @@
 #include "esphome/components/storage/storage.h"
+#ifdef USE_STORAGE_WORKER
+#include "esphome/components/storage/storage_worker.h"
+#endif
 
 #if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
     defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
@@ -577,9 +580,46 @@ storage::StorageError USBStorageDevice::mount() {
   return this->fs_mounted_ ? storage::StorageError::OK : storage::StorageError::NOT_READY;
 }
 
+bool USBStorageDevice::has_open_handles_() const {
+  for (const auto &h : this->handle_pool_) {
+    if (h.in_use)
+      return true;
+  }
+  return false;
+}
+
 storage::StorageError USBStorageDevice::unmount() {
-  this->unmount_device();
+  // Already unmounted -> target state reached, no error (see design notes).
+  if (!this->fs_mounted_)
+    return storage::StorageError::OK;
+  // An unmount is already being carried out asynchronously.
+  if (this->unmount_pending_)
+    return storage::StorageError::NOT_READY;
+  // Request the unmount; loop() completes it once the device is quiescent (no open handle,
+  // no worker job referencing this device). Typical USB "safe eject" behaviour: in-flight
+  // transfers finish, then we sync and unmount. Returns OK = unmount accepted/initiated.
+  this->unmount_pending_ = true;
+  ESP_LOGI(TAG, "Unmount requested; will complete once active transfers finish");
   return storage::StorageError::OK;
+}
+
+void USBStorageDevice::loop() {
+  if (!this->unmount_pending_)
+    return;
+  // Wait until nothing references the device: no open file handle, and no worker job whose
+  // src/dst is this device. The worker keeps a handle open for a transfer's whole duration,
+  // so has_open_handles_() already covers active copies; the extra registry check guards the
+  // brief open()/close() edges where a job exists but its handle is momentarily not counted.
+  if (this->has_open_handles_())
+    return;
+#ifdef USE_STORAGE_WORKER
+  if (storage::global_storage_worker != nullptr && storage::global_storage_worker->is_busy_with(this))
+    return;
+#endif
+  // Quiescent — sync then physically unmount.
+  this->sync();
+  this->unmount_pending_ = false;
+  this->unmount_device();
 }
 
 storage::StorageError USBStorageDevice::format() {
@@ -587,7 +627,20 @@ storage::StorageError USBStorageDevice::format() {
   return storage::StorageError::NOT_SUPPORTED;
 }
 
-storage::StorageError USBStorageDevice::sync() { return storage::StorageError::OK; }
+storage::StorageError USBStorageDevice::sync() {
+  // Flush any open handle's buffered data to the medium (same as SdStorageBase::sync()).
+  // handle->file is a POSIX FILE* on the FAT VFS mount. In the deferred-unmount path there
+  // are usually no open handles left (unmount waits for that), but sync() is also callable
+  // on its own, and flushing here still commits FATFS-internal buffers on the next write.
+  storage::StorageError err = storage::StorageError::OK;
+  for (auto &h : this->handle_pool_) {
+    if (!h.in_use || h.file == nullptr)
+      continue;
+    if (fflush(h.file) != 0 || fsync(fileno(h.file)) != 0)
+      err = storage::StorageError::WRITE_ERROR;
+  }
+  return err;
+}
 
 storage::StorageError USBStorageDevice::open(const char *path, storage::FileHandle *&handle, storage::OpenMode mode) {
   if (!this->fs_mounted_)

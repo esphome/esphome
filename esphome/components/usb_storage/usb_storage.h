@@ -114,13 +114,14 @@ struct USBFileHandle : public esphome::storage::FileHandle {
 // in the StorageRegistry. Mount/unmount are driven by USBStorageClient events;
 // all file ops go through POSIX (FAT is already VFS-registered by the client).
 // ─────────────────────────────────────────────────────────────────────────────
-class USBStorageDevice : public esphome::storage::FilesystemStorage {
+class USBStorageDevice : public esphome::storage::FilesystemStorage, public esphome::storage::MountableStorage {
   friend class USBStorageClient;
 
  public:
   static constexpr int MAX_OPEN_FILES = 4;
 
   void setup() override;
+  void loop() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
 
@@ -144,6 +145,12 @@ class USBStorageDevice : public esphome::storage::FilesystemStorage {
   storage::StorageError get_info(storage::StorageInfo *info) override;
   storage::StorageError mount() override;
   storage::StorageError unmount() override;
+
+  // No-RTTI downcast hook — see PathStorage::as_mountable().
+  storage::MountableStorage *as_mountable() override { return this; }
+  // The FAT mount lifecycle is owned by the USB hotplug client — insertion auto-mounts, so
+  // only the safe-eject direction may be invoked externally (mount() below is a status no-op).
+  uint8_t get_mount_caps() const override { return storage::MountableStorage::MOUNT_CAP_UNMOUNT; }
   storage::StorageError format() override;
   storage::StorageError sync() override;
   storage::StorageError open(const char *path, storage::FileHandle *&handle, storage::OpenMode mode) override;
@@ -187,6 +194,16 @@ class USBStorageDevice : public esphome::storage::FilesystemStorage {
   uint16_t pid_{0};
   const char *storage_id_{nullptr};
   bool fs_mounted_{false};
+  // Deferred-unmount state: unmount() only requests the unmount (sets this flag); loop()
+  // performs the actual sync + unmount once no file handle is open and no worker job still
+  // touches this device. is_mounted() stays true until then, so an interval-based remount
+  // check does not race the pending unmount.
+  bool unmount_pending_{false};
+  // True while a worker job that references this device is in flight — the worker cannot be
+  // queried for "jobs touching storage X" cheaply, so the device tracks it via open handles
+  // (every transfer holds a handle open for its duration) plus this guard for the brief
+  // windows around open/close. Open-handle count is derived from handle_pool_.
+  bool has_open_handles_() const;
   char fatfs_drive_[3]{};  // "N:" — captured from client_->get_fatfs_drive() on connect
 
   USBFileHandle handle_pool_[MAX_OPEN_FILES]{};

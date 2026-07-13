@@ -18,19 +18,12 @@ void StorageWorker::setup() {
   if (global_storage_registry != nullptr) {
     global_storage_registry->add_on_unregistered_callback([this](Storage *s) { this->on_storage_unregistered_(s); });
   }
-
-  // loop() has nothing to do until the first async transfer is submitted (see
-  // ensure_started_()/submit_() below, which re-enables it) — an idle empty-pool scan every
-  // main loop iteration is pure overhead for a driver that links in the worker but never
-  // actually calls async_copy()/async_move().
-  this->disable_loop();
 }
 
 void StorageWorker::ensure_started_() {
   if (this->started_)
     return;
   this->started_ = true;
-  this->enable_loop();
 
   this->pool_.init(this->max_pending_);
   for (size_t i = 0; i < this->max_pending_; i++) {
@@ -95,6 +88,21 @@ bool StorageWorker::overlaps_active_(const TransferRequest &candidate) const {
       continue;
     if (req.src_storage == candidate.src_storage || req.src_storage == candidate.dst_storage ||
         req.dst_storage == candidate.src_storage || req.dst_storage == candidate.dst_storage)
+      return true;
+  }
+  return false;
+}
+
+bool StorageWorker::is_busy_with(const storage::Storage *storage) const {
+  if (storage == nullptr)
+    return false;
+  // PENDING counts too: a submitted-but-not-yet-started job already "owns" the device from
+  // the caller's point of view, so unmounting out from under it must wait.
+  for (const auto &req : this->pool_) {
+    RequestState state = req.state.load();
+    if (state == RequestState::FREE || state == RequestState::DONE)
+      continue;
+    if (req.src_storage == storage || req.dst_storage == storage)
       return true;
   }
   return false;
@@ -313,6 +321,21 @@ void StorageWorker::on_storage_unregistered_(Storage *s) {
 }
 
 void StorageWorker::loop() {
+  // Nothing to do until the first async transfer is submitted. Cheap early-out every main
+  // loop pass — far simpler and race-free compared to disable_loop()/enable_loop() gymnastics
+  // around lazy start (an enable_loop() issued while the component is still in LOOP state is a
+  // no-op, so a pre-start disable could never be undone — that was the stall).
+  if (!this->started_)
+    return;
+
+  // TEMP PROBE 1: proves this loop() actually executes on this build once the first async
+  // transfer has been submitted. One-shot — remove together with the other probes.
+  static bool probe_worker_loop_alive = false;
+  if (!probe_worker_loop_alive) {
+    probe_worker_loop_alive = true;
+    ESP_LOGI(TAG, "PROBE1: StorageWorker::loop() alive (first pass after start)");
+  }
+
   // Deliver completions and free slots. Runs regardless of which engine finished the
   // request, so this is the single place user callbacks are invoked — always on the main
   // loop, per the public API's contract.
@@ -320,6 +343,10 @@ void StorageWorker::loop() {
     if (req.state.load() == RequestState::DONE) {
       CompletionCallback cb = std::move(req.callback);
       StorageError result = req.result;
+      // TEMP PROBE 2: proves completion delivery reaches the callback invocation, and whether
+      // a callback was actually stored for this slot.
+      ESP_LOGI(TAG, "PROBE2: delivering DONE slot=%d result=%d has_cb=%d", (int) (&req - this->pool_.begin()),
+               (int) result, (int) static_cast<bool>(cb));
       req.callback = nullptr;
       req.src_storage = nullptr;
       req.dst_storage = nullptr;

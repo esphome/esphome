@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_FORMAT,
     CONF_FROM,
     CONF_GROUP,
+    CONF_ID,
     CONF_INDEX,
     CONF_KEY,
     CONF_ON_VALUE,
@@ -37,6 +38,7 @@ storage_ns = cg.esphome_ns.namespace("storage")
 Storage = storage_ns.class_("Storage", cg.Component)
 StoragePtr = Storage.operator("ptr")
 PathStorage = storage_ns.class_("PathStorage", Storage)
+MountableStorage = storage_ns.class_("MountableStorage")
 StorageRegistry = storage_ns.class_("StorageRegistry", cg.Component)
 StorageWorker = storage_ns.class_("StorageWorker", cg.Component)
 
@@ -462,3 +464,30 @@ async def file_exists_condition_to_code(config, condition_id, template_arg, args
     var = cg.new_Pvariable(condition_id, template_arg)
     cg.add(var.set_path(await cg.templatable(config[CONF_PATH], args, cg.std_string)))
     return var
+
+
+MountAction = storage_ns.class_("MountAction", automation.Action)
+
+_MOUNT_SCHEMA = cv.maybe_simple_value(
+    {cv.Required(CONF_ID): cv.use_id(MountableStorage)}, key=CONF_ID
+)
+
+
+async def _build_mount_action(config, action_id, template_arg, args, mount):
+    # cv.use_id(MountableStorage) already rejected non-removable targets at YAML time.
+    target = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, target, mount)
+
+
+@automation.register_action(
+    "storage.mount", MountAction, _MOUNT_SCHEMA, synchronous=True
+)
+async def mount_action_to_code(config, action_id, template_arg, args):
+    return await _build_mount_action(config, action_id, template_arg, args, True)
+
+
+@automation.register_action(
+    "storage.unmount", MountAction, _MOUNT_SCHEMA, synchronous=True
+)
+async def unmount_action_to_code(config, action_id, template_arg, args):
+    return await _build_mount_action(config, action_id, template_arg, args, False)
