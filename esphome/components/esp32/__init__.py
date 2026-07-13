@@ -2145,12 +2145,25 @@ async def _reconcile_vfs_fatfs_sdkconfig(
         # enough FATFS volumes for several drivers at once (SD + USB + wear levelling —
         # every esp_vfs_fat mount consumes one). All of these are only defaults: override
         # any of them via esp32 -> framework -> advanced -> sdkconfig_options.
-        set_opt("CONFIG_FATFS_LFN_NONE", False)
-        set_opt("CONFIG_FATFS_LFN_HEAP", True)
-        set_opt("CONFIG_FATFS_MAX_LFN", 255)
+        lfn_choice_keys = (
+            "CONFIG_FATFS_LFN_NONE",
+            "CONFIG_FATFS_LFN_HEAP",
+            "CONFIG_FATFS_LFN_STACK",
+        )
+        if not any(k in opts for k in lfn_choice_keys):
+            set_opt("CONFIG_FATFS_LFN_NONE", False)
+            set_opt("CONFIG_FATFS_LFN_HEAP", True)
+        if not opts.get("CONFIG_FATFS_LFN_NONE", False):
+            set_opt("CONFIG_FATFS_MAX_LFN", 255)
         set_opt("CONFIG_FATFS_VOLUME_COUNT", 4)
     elif disable_fatfs:
-        set_opt("CONFIG_FATFS_LFN_NONE", True)
+        lfn_choice_keys = (
+            "CONFIG_FATFS_LFN_NONE",
+            "CONFIG_FATFS_LFN_HEAP",
+            "CONFIG_FATFS_LFN_STACK",
+        )
+        if not any(k in opts for k in lfn_choice_keys):
+            set_opt("CONFIG_FATFS_LFN_NONE", True)
         # Kconfig range is [1,10]; 0 gets clamped to the default.
         set_opt("CONFIG_FATFS_VOLUME_COUNT", 1)
 
