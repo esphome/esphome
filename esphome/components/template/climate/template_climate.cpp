@@ -104,8 +104,13 @@ void TemplateClimate::loop() {
 
   if (auto val = this->custom_fan_mode_f_()) {
     if (this->get_custom_fan_mode() != *val) {
-      if (this->set_custom_fan_mode_(val->c_str()))
+      this->set_custom_fan_mode_(val->c_str());
+      if (this->get_custom_fan_mode() == *val) {
         changed = true;
+      } else if (!this->custom_fan_mode_warned_) {
+        ESP_LOGW(TAG, "Custom fan mode '%s' from lambda is not in custom_fan_modes", val->c_str());
+        this->custom_fan_mode_warned_ = true;
+      }
     }
   }
 
@@ -123,8 +128,13 @@ void TemplateClimate::loop() {
 
   if (auto val = this->custom_preset_f_()) {
     if (this->get_custom_preset() != *val) {
-      if (this->set_custom_preset_(val->c_str()))
+      this->set_custom_preset_(val->c_str());
+      if (this->get_custom_preset() == *val) {
         changed = true;
+      } else if (!this->custom_preset_warned_) {
+        ESP_LOGW(TAG, "Custom preset '%s' from lambda is not in custom_presets", val->c_str());
+        this->custom_preset_warned_ = true;
+      }
     }
   }
 

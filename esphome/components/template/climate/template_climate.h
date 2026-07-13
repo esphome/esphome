@@ -67,6 +67,10 @@ class TemplateClimate final : public climate::Climate, public Component {
 
   climate::ClimateTraits traits_;
   bool optimistic_{true};
+  // Set once a lambda-reported custom fan mode/preset outside the configured custom_fan_modes/
+  // custom_presets list has been warned about, so the log isn't spammed on every loop() iteration.
+  bool custom_fan_mode_warned_{false};
+  bool custom_preset_warned_{false};
 
   TemplateLambda<float> current_temperature_f_;
   TemplateLambda<float> current_humidity_f_;
