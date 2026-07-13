@@ -13,8 +13,11 @@ import aioesphomeapi
 from aioesphomeapi import ClimateInfo, ClimateMode
 import pytest
 
+from .host_prefs import clear_host_prefs
 from .state_utils import InitialStateHelper, wait_for_state
 from .types import APIClientConnectedFactory, RunCompiledFunction
+
+DEVICE_NAME = "tmpl-clim-two-point"
 
 
 @pytest.mark.asyncio
@@ -32,6 +35,7 @@ async def test_template_climate_two_point_temperature(
       target_humidity are reflected once the device (lambda) confirms them.
     - Low and high can also be set together in a single command.
     """
+    clear_host_prefs(DEVICE_NAME)
     async with run_compiled(yaml_config), api_client_connected() as client:
 
         async def wait_for_climate_state(

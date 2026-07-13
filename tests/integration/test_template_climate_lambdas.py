@@ -27,6 +27,7 @@ from aioesphomeapi import (
 )
 import pytest
 
+from .host_prefs import clear_host_prefs
 from .state_utils import InitialStateHelper, wait_for_state
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
@@ -102,6 +103,7 @@ async def test_template_climate_lambdas_optimistic(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """State-readback lambdas + optimistic=true: commands are also shown immediately as a preview."""
+    clear_host_prefs("tmpl-clim-lam-opt")
     async with run_compiled(yaml_config), api_client_connected() as client:
         await _run_lambdas_scenario(client)
 
@@ -113,5 +115,6 @@ async def test_template_climate_lambdas_nonoptimistic(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """State-readback lambdas + optimistic=false: HA state is driven entirely by device lambdas."""
+    clear_host_prefs("tmpl-clim-lam-nopt")
     async with run_compiled(yaml_config), api_client_connected() as client:
         await _run_lambdas_scenario(client)
