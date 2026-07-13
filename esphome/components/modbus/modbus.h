@@ -41,11 +41,9 @@ struct ModbusFrame {
 
   uint16_t size() const { return static_cast<uint16_t>(this->data.size()); }
 
-  // A frame is [address][PDU...][CRC lo][CRC hi]. These are the only places that know that layout;
-  // everything else should go through them rather than re-deriving the offsets.
+  // A frame is [address][PDU...][CRC lo][CRC hi]. These are the only places that need to know that layout
   uint8_t address() const { return this->data.data()[0]; }
-  /// The PDU: function code + data, without the leading address or the trailing CRC. The span points into
-  /// this frame's buffer, so it is only valid while the frame is alive.
+  /// The PDU: function code + data, without address or CRC. Only valid while the frame is alive
   std::span<const uint8_t> pdu() const { return std::span<const uint8_t>(this->data.data() + 1, this->size() - 3u); }
 };
 
@@ -97,8 +95,8 @@ struct ModbusDeviceCommand {
 
   ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, const uint8_t *src, uint16_t len)
       : device(device), frame(address, src, len) {}
-  /// Build a command from a PDU span: a caller-supplied PDU, or an existing frame's own pdu() when
-  /// re-queueing a retry. Callers bound the PDU to MAX_PDU_SIZE, so the cast cannot truncate.
+  /// Build a command from a PDU span: a caller-supplied PDU, or an existing frame's own pdu() when re-queueing
+  /// Callers must bound the PDU to MAX_PDU_SIZE
   ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, std::span<const uint8_t> pdu)
       : device(device), frame(address, pdu.data(), static_cast<uint16_t>(pdu.size())) {}
 };
@@ -174,11 +172,7 @@ class ModbusServerHub : public Modbus {
   uint16_t deferred_payload_len_{0};
 };
 
-// Transaction status: std::nullopt on success, otherwise the Modbus exception code the server returned.
-// Note the inversion: the optional holds the *error*, not the value - an engaged optional means failure.
-// Named without a side prefix so both directions share it: server handlers return it, client response
-// callbacks receive it. Timeouts and unsent commands are reported separately via on_no_response() /
-// on_not_sent(), never through this status.
+// Transaction status: std::nullopt on success, otherwise a Modbus exception code
 using ResponseStatus = std::optional<ModbusExceptionCode>;
 
 class ModbusClientDevice {
@@ -196,30 +190,30 @@ class ModbusClientDevice {
   void set_parent(ModbusClientHub *parent) { this->parent_ = parent; }
   void set_address(uint8_t address) { this->address_ = address; }
   /// Low-level response hook: called with the request PDU this device sent and the response PDU received
-  /// (both: function code + data, no address, no CRC). The spans are only valid for the duration of the
-  /// call - copy the bytes if they must outlive it. The default implementation decodes standard read/write
-  /// responses and dispatches to the matching typed on_read_* / on_write_* callback below; override it to handle raw
-  /// PDUs directly.
+  /// The spans are only valid for the duration of the call - copy the bytes if they must outlive it.
+  /// The default implementation decodes standard responses and dispatches to on_read_* / on_write_* callbacks below.
+  /// Override it to handle raw PDUs directly.
   virtual void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
     this->dispatch_response_(request_pdu, response_pdu, std::nullopt);
   }
-  /// Low-level error hook: called with the request PDU and the modbus exception code decoded from the error
-  /// response. The default implementation dispatches to the same typed callbacks with the exception code as
-  /// status, so devices implementing the typed callbacks see success and failure through one interface.
+  /// Low-level error hook: called with the request PDU and the modbus exception code from the error response.
+  /// The default implementation dispatches to the same typed callbacks with the exception code as status.
+  /// Devices implementing the High-level typed callbacks see success and failure through one interface.
   virtual void on_error(std::span<const uint8_t> request_pdu, ModbusExceptionCode exception_code) {
     this->dispatch_response_(request_pdu, {}, exception_code);
   }
+
+  /// Called when no request could be sent (e.g. queue full, transmission blocked)
+  /// Do not attempt to queue a command in this callback.
   virtual void on_not_sent() {}
-  /// Called when no (valid) response arrived; return true to have the hub re-queue the frame for a retry.
-  /// The hub does not bound retries: the device is responsible for limiting them (e.g. track a counter and
-  /// return false when exhausted), or an unresponsive peer will starve other traffic on the bus.
+  /// Called when no matching, uninterrupted response arrived; return true to have the hub re-queue the frame for a
+  /// retry. The hub does not bound retries: the device is responsible for limiting them.
   virtual bool on_no_response() { return false; }
 
-  /// Typed response callbacks, fired by the default on_response()/on_error() with arguments
-  /// parsed from the request and response PDUs. status is std::nullopt on success; on failure it holds
-  /// the exception code and the data arguments are empty (register/coil payloads) or taken from the
-  /// request echo (write addresses/values). Register values are in host byte order; spans are only valid
-  /// for the duration of the call.
+  /// High-level typed response callbacks, fired by the default on_response()/on_error() with arguments
+  /// parsed from the request and response PDUs.
+  /// Status is std::nullopt on success; holds the excpetion code on failure.
+  /// Register values are in host byte order; spans are only valid for the duration of the call.
   virtual void on_read_registers(EntityType entity_type, uint16_t start_address, std::span<const uint16_t> registers,
                                  ResponseStatus status) {}
   virtual void on_read_holding_registers(uint16_t start_address, std::span<const uint16_t> registers,
@@ -240,10 +234,19 @@ class ModbusClientDevice {
   virtual void on_read_discrete_inputs(uint16_t start_address, PackedBits bits, ResponseStatus status) {
     this->on_read_bits(EntityType::DISCRETE_INPUT, start_address, bits, status);
   }
+  /// Write acknowledgements. These deliberately mirror the read callbacks' shapes, so a write ack can be fed
+  /// through the same handler as a read (registers.size() / bits.size() gives the count)
+  ///
+  /// IMPORTANT - these are the values that were REQUESTED, not device-confirmed state. A write ack only echoes
+  /// the start address and count, so the values are decoded from the request PDU, and they are delivered even
+  /// when status holds an exception code. Always check status, and treat publishing them as an optimistic
+  /// update rather than a read-back: a device that clamps, rounds, or silently rejects a value reports none of
+  /// that here, so the only way to learn its real state is to read it back.
   virtual void on_write_single_register(uint16_t address, uint16_t value, ResponseStatus status) {}
   virtual void on_write_single_coil(uint16_t address, bool value, ResponseStatus status) {}
-  virtual void on_write_multiple_registers(uint16_t start_address, uint16_t count, ResponseStatus status) {}
-  virtual void on_write_multiple_coils(uint16_t start_address, uint16_t count, ResponseStatus status) {}
+  virtual void on_write_multiple_registers(uint16_t start_address, std::span<const uint16_t> registers,
+                                           ResponseStatus status) {}
+  virtual void on_write_multiple_coils(uint16_t start_address, PackedBits bits, ResponseStatus status) {}
   /// Catch-all for custom or otherwise unparseable function codes; on failure the response is the exception PDU.
   virtual void on_custom_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
                                   ResponseStatus status) {}
@@ -308,8 +311,7 @@ class ModbusClientDevice {
   bool ready_for_immediate_send() { return this->parent_->tx_buffer_empty() && !this->parent_->tx_blocked(); }
 
  protected:
-  /// Parses the request/response PDU pair and dispatches to the matching typed callback; defined in
-  /// modbus.cpp. Called by the default on_response()/on_error().
+  /// Parses the request/response PDU pair and dispatches to the matching high-level typed callback
   void dispatch_response_(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
                           ResponseStatus status);
 

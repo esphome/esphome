@@ -7,74 +7,139 @@ namespace esphome::modbus::helpers {
 
 static const char *const TAG = "modbus_helpers";
 
-uint16_t server_frame_length(const uint8_t *frame, size_t size) {
-  if (size < 2)
-    return MIN_FRAME_SIZE;
-  if (is_function_code_exception(frame[1])) {
-    return 5;  // address(1) + function(1) + exception(1) + CRC(2)
+uint16_t server_pdu_length(const uint8_t *frame, size_t size) {
+  if (size < MIN_PDU_SIZE)
+    return MIN_PDU_SIZE;
+  if (is_function_code_exception(frame[0])) {
+    return 2;  // function(1) + exception(1)
   }
-  switch (static_cast<ModbusFunctionCode>(frame[1])) {
+  switch (static_cast<ModbusFunctionCode>(frame[0])) {
     case ModbusFunctionCode::READ_COILS:
     case ModbusFunctionCode::READ_DISCRETE_INPUTS:
     case ModbusFunctionCode::READ_HOLDING_REGISTERS:
     case ModbusFunctionCode::READ_INPUT_REGISTERS:
-      // address(1) + function(1) + byte count(1) + data + CRC(2)
-      return 5 + (size > 2 ? std::min(frame[2], uint8_t(MAX_NUM_OF_REGISTERS_TO_READ * 2)) : 0);
+      // function(1) + byte count(1) + data
+      return 2 + (size > 1 ? std::min(frame[1], uint8_t(MAX_NUM_OF_REGISTERS_TO_READ * 2)) : 0);
     case ModbusFunctionCode::WRITE_SINGLE_COIL:
     case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
     case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
     case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
-      return 8;  // address(1) + function(1) + output/register address(2) + value(2) + CRC(2)
+      return 5;  // function(1) + output/register address(2) + value(2)
     // Unsupported function codes. Included here to prevent parser failures. Excluding Serial Line specific functions.
     case ModbusFunctionCode::READ_FILE_RECORD:
     case ModbusFunctionCode::WRITE_FILE_RECORD:
-      // address(1) + function(1) + byte count(1) + data + CRC(2)
-      return 5 + (size > 2 ? std::min(frame[2], uint8_t(MAX_FRAME_SIZE - 5)) : 0);
+      // function(1) + byte count(1) + data
+      return 2 + (size > 1 ? std::min(frame[1], uint8_t(MAX_PDU_SIZE - 5)) : 0);
     case ModbusFunctionCode::MASK_WRITE_REGISTER:
-      return 10;  // address(1) + function(1) + reference address(2) + AND mask(2) + OR mask(2) + CRC(2)
+      return 7;  // function(1) + reference address(2) + AND mask(2) + OR mask(2)
     case ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
-      // address(1) + function(1) + byte count(1) + data + CRC(2)
-      return 5 + (size > 2 ? std::min(frame[2], uint8_t(MAX_NUM_OF_REGISTERS_TO_READ * 2)) : 0);
+      // function(1) + byte count(1) + data
+      return 2 + (size > 1 ? std::min(frame[1], uint8_t(MAX_NUM_OF_REGISTERS_TO_READ * 2)) : 0);
     case ModbusFunctionCode::READ_FIFO_QUEUE:
-      // address(1) + function(1) + fifo address(2) CRC(2)
-      return 6;
+      // function(1) + fifo address(2)
+      return 3;
     default:
-      return MIN_FRAME_SIZE;  // unknown length
+      return MIN_PDU_SIZE;  // unknown length
   }
 }
 
-uint16_t client_frame_length(const uint8_t *frame, size_t size) {
-  if (size < 2)
-    return MIN_FRAME_SIZE;
-  switch (static_cast<ModbusFunctionCode>(frame[1])) {
+uint16_t client_pdu_length(const uint8_t *frame, size_t size) {
+  if (size < MIN_PDU_SIZE)
+    return MIN_PDU_SIZE;
+  switch (static_cast<ModbusFunctionCode>(frame[0])) {
     case ModbusFunctionCode::READ_COILS:
     case ModbusFunctionCode::READ_DISCRETE_INPUTS:
     case ModbusFunctionCode::READ_HOLDING_REGISTERS:
     case ModbusFunctionCode::READ_INPUT_REGISTERS:
-      // address(1) + function(1) + start address(2) + quantity(2) + CRC(2)
+      // function(1) + start address(2) + quantity(2)
     case ModbusFunctionCode::WRITE_SINGLE_COIL:
     case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
-      return 8;  // address(1) + function(1) + output/register address(2) + value(2) + CRC(2)
+      return 5;  // function(1) + output/register address(2) + value(2)
     case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
     case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
-      // address(1) + function(1) + start address(2) + quantity(2) + byte count(1) + data + CRC(2)
-      return 9 + (size > 6 ? std::min(frame[6], uint8_t(MAX_NUM_OF_REGISTERS_TO_WRITE * 2)) : 0);
+      // function(1) + start address(2) + quantity(2) + byte count(1) + data
+      return 6 + (size > 5 ? std::min(frame[5], uint8_t(MAX_NUM_OF_REGISTERS_TO_WRITE * 2)) : 0);
     // Unsupported function codes. Included here to prevent parser failures. Excluding Serial Line specific functions.
     case ModbusFunctionCode::READ_FILE_RECORD:
     case ModbusFunctionCode::WRITE_FILE_RECORD:
-      // address(1) + function(1) + byte count(1) + data + CRC(2)
-      return 5 + (size > 2 ? std::min(frame[2], uint8_t(MAX_FRAME_SIZE - 5)) : 0);
+      // function(1) + byte count(1) + data
+      return 2 + (size > 1 ? std::min(frame[1], uint8_t(MAX_PDU_SIZE - 5)) : 0);
     case ModbusFunctionCode::MASK_WRITE_REGISTER:
-      return 10;  // address(1) + function(1) + reference address(2) + AND mask(2) + OR mask(2) + CRC(2)
+      return 7;  // function(1) + reference address(2) + AND mask(2) + OR mask(2)
     case ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
-      // address(1) + function(1) + read start address(2) + read quantity(2) + write start address(2) +
-      // write quantity(2) + byte count(1) + data + CRC(2)
-      return 13 + (size > 10 ? std::min(frame[10], uint8_t(MAX_NUM_OF_REGISTERS_TO_WRITE * 2)) : 0);
+      // function(1) + read start address(2) + read quantity(2) + write start address(2) +
+      // write quantity(2) + byte count(1) + data
+      return 10 + (size > 9 ? std::min(frame[9], uint8_t(MAX_NUM_OF_REGISTERS_TO_WRITE_RW * 2)) : 0);
     case ModbusFunctionCode::READ_FIFO_QUEUE:
-      // address(1) + function(1) + fifo address(2) CRC(2)
-      return 6;
+      // function(1) + fifo address(2)
+      return 3;
     default:
-      return MIN_FRAME_SIZE;  // unknown length
+      return MIN_PDU_SIZE;  // unknown length
+  }
+}
+
+bool is_server_pdu_standard(const uint8_t *pdu, size_t size) {
+  if (server_pdu_length(pdu, size) != size)
+    return false;
+
+  switch (static_cast<ModbusFunctionCode>(pdu[0])) {
+    case ModbusFunctionCode::READ_COILS:
+    case ModbusFunctionCode::READ_DISCRETE_INPUTS:
+    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
+    case ModbusFunctionCode::READ_INPUT_REGISTERS:
+      return pdu[1] <= uint8_t(MAX_NUM_OF_REGISTERS_TO_READ * 2);
+    case ModbusFunctionCode::READ_FILE_RECORD:
+    case ModbusFunctionCode::WRITE_FILE_RECORD:
+      return pdu[1] <= uint8_t(MAX_PDU_SIZE - 5);
+    case ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
+      return pdu[1] <= uint8_t(MAX_NUM_OF_REGISTERS_TO_READ * 2);
+    default:
+      return true;  // All other function codes validated by length alone
+  }
+}
+
+bool is_client_pdu_standard(const uint8_t *pdu, size_t size) {
+  if (client_pdu_length(pdu, size) != size)
+    return false;
+
+  switch (static_cast<ModbusFunctionCode>(pdu[0])) {
+    case ModbusFunctionCode::READ_COILS:
+    case ModbusFunctionCode::READ_DISCRETE_INPUTS:
+    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
+    case ModbusFunctionCode::READ_INPUT_REGISTERS: {
+      const bool bits = static_cast<ModbusFunctionCode>(pdu[0]) == ModbusFunctionCode::READ_COILS ||
+                        static_cast<ModbusFunctionCode>(pdu[0]) == ModbusFunctionCode::READ_DISCRETE_INPUTS;
+      const uint16_t start_address = get_data<uint16_t>(pdu, 1);
+      const uint16_t quantity = get_data<uint16_t>(pdu, 3);
+      const uint16_t max_quantity = bits ? MAX_NUM_OF_COILS_TO_READ : MAX_NUM_OF_REGISTERS_TO_READ;
+      return quantity != 0 && quantity <= max_quantity && (uint32_t) start_address + quantity <= 0x10000u;
+    }
+    case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
+    case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS: {
+      const bool bits = static_cast<ModbusFunctionCode>(pdu[0]) == ModbusFunctionCode::WRITE_MULTIPLE_COILS;
+      const uint16_t start_address = get_data<uint16_t>(pdu, 1);
+      const uint16_t quantity = get_data<uint16_t>(pdu, 3);
+      const uint16_t max_quantity = bits ? MAX_NUM_OF_COILS_TO_WRITE : MAX_NUM_OF_REGISTERS_TO_WRITE;
+      // Coils are packed 8 per data byte; registers are 2 bytes each.
+      const size_t expected_data_bytes = bits ? (static_cast<size_t>(quantity) + 7) / 8 : quantity * 2;
+      return quantity != 0 && quantity <= max_quantity && (uint32_t) start_address + quantity <= 0x10000u &&
+             pdu[5] == expected_data_bytes;
+    }
+    case ModbusFunctionCode::READ_FILE_RECORD:
+    case ModbusFunctionCode::WRITE_FILE_RECORD:
+      return pdu[1] <= MAX_PDU_SIZE - 5;
+    case ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS: {
+      const uint16_t start_address_read = get_data<uint16_t>(pdu, 1);
+      const uint16_t quantity_read = get_data<uint16_t>(pdu, 3);
+      const uint16_t start_address_write = get_data<uint16_t>(pdu, 5);
+      const uint16_t quantity_write = get_data<uint16_t>(pdu, 7);
+      return quantity_read != 0 && quantity_read <= MAX_NUM_OF_REGISTERS_TO_READ && quantity_write != 0 &&
+             quantity_write <= MAX_NUM_OF_REGISTERS_TO_WRITE_RW &&
+             (uint32_t) start_address_read + quantity_read <= 0x10000u &&
+             (uint32_t) start_address_write + quantity_write <= 0x10000u && pdu[9] == quantity_write * 2;
+    }
+    default:
+      return true;  // All other function codes validated by length alone
   }
 }
 

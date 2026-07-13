@@ -745,34 +745,49 @@ void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu
   // count for reads/multi-writes, value for single writes
   const uint16_t count_or_value = helpers::get_data<uint16_t>(request_pdu.data(), 3);
 
-  // Validate a success read response's length against its request before decoding: the parser
-  // guarantees the frame is self-consistent (its length matches its own byte-count header, and
-  // write echoes are fixed-length), but only the request knows how many registers or bits the
-  // response should carry. A mismatched response cannot be decoded per its function-code
-  // contract, so it is handed to the catch-all with the raw PDUs.
-  if (!status.has_value() && helpers::is_function_code_read(static_cast<uint8_t>(function_code))) {
-    const bool bits =
-        function_code == ModbusFunctionCode::READ_COILS || function_code == ModbusFunctionCode::READ_DISCRETE_INPUTS;
-    const size_t expected_size =
-        2 + (bits ? (static_cast<size_t>(count_or_value) + 7) / 8 : static_cast<size_t>(count_or_value) * 2);
-    if (response_pdu.size() != expected_size) {
-      ESP_LOGW(TAG, "Response length %zu does not match request (expected %zu) for function code 0x%X",
-               response_pdu.size(), expected_size, static_cast<uint8_t>(function_code));
-      this->on_custom_response(request_pdu, response_pdu, status);
-      return;
+  // Gatekeeper for the typed dispatch below: anything that is not a standard-conformant transaction is
+  // handed to on_custom_response() with the raw PDUs, so the decode cases can trust every length, byte
+  // count, and quantity field without re-clamping.
+  //  - The REQUEST must be standard: nothing upstream validates a caller-built request PDU, so its
+  //    internal byte count, quantity, and address range are checked here (is_client_pdu_standard()).
+  //  - On success, the RESPONSE must be standard (self-consistent; the frame parser already guarantees
+  //    most of this, but the check keeps the safety proof local), and a read response's length must also
+  //    match the REQUESTED count - the per-PDU checks cannot see that relationship, and a short but
+  //    self-consistent response must be diverted, never silently clamped and delivered as complete.
+  //  - On failure (status engaged) the response is empty by design (see on_error()), so only the request
+  //    is validated.
+  bool custom = !helpers::is_client_pdu_standard(request_pdu.data(), request_pdu.size());
+  if (!custom && !status.has_value()) {
+    custom = !helpers::is_server_pdu_standard(response_pdu.data(), response_pdu.size());
+    if (!custom && helpers::is_function_code_read(static_cast<uint8_t>(function_code))) {
+      const bool bits =
+          function_code == ModbusFunctionCode::READ_COILS || function_code == ModbusFunctionCode::READ_DISCRETE_INPUTS;
+      const size_t expected_data_size =
+          bits ? (static_cast<size_t>(count_or_value) + 7) / 8 : static_cast<size_t>(count_or_value) * 2;
+      if (response_pdu.size() != expected_data_size + 2) {
+        ESP_LOGD(TAG, "Response length %zu does not match request (expected %zu) for function code 0x%X",
+                 response_pdu.size(), expected_data_size + 2, static_cast<uint8_t>(function_code));
+        custom = true;
+      }
     }
+  }
+  if (custom) {
+    ESP_LOGD(TAG, "Non-standard request or response for function code 0x%X - dispatching to on_custom_response()",
+             static_cast<uint8_t>(function_code));
+    this->on_custom_response(request_pdu, response_pdu, status);
+    return;
   }
 
   switch (function_code) {
     case ModbusFunctionCode::READ_HOLDING_REGISTERS:
     case ModbusFunctionCode::READ_INPUT_REGISTERS: {
-      // Decode the big-endian register words into host byte order, clamped to what the response
-      // actually carries (its byte-count header and real length) and to the protocol maximum.
+      // Decode the big-endian register words into host byte order. The gate guarantees a success response
+      // carries exactly count_or_value registers (and count_or_value <= MAX_NUM_OF_REGISTERS_TO_READ, the
+      // capacity of RegisterValues); a mismatch was diverted to on_custom_response(), never clamped. On
+      // failure the registers span is empty.
       RegisterValues registers;
-      if (!status.has_value() && response_pdu.size() >= 2) {
-        size_t available = std::min({(size_t) count_or_value, (size_t) (response_pdu[1] / 2),
-                                     (response_pdu.size() - 2) / 2, (size_t) MAX_NUM_OF_REGISTERS_TO_READ});
-        for (size_t i = 0; i != available; i++) {
+      if (!status.has_value()) {
+        for (size_t i = 0; i != count_or_value; i++) {
           registers.push_back(helpers::get_data<uint16_t>(response_pdu.data(), 2 + 2 * i));
         }
       }
@@ -786,14 +801,14 @@ void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu
     }
     case ModbusFunctionCode::READ_COILS:
     case ModbusFunctionCode::READ_DISCRETE_INPUTS: {
-      // Deliver the bits packed as on the wire, clamped to the response's byte-count header and real
-      // length; the reported count is clamped to the delivered bits so indexing packed_bits is safe.
+      // Deliver the bits packed as on the wire; the gate guarantees a success response carries exactly
+      // (count_or_value + 7) / 8 data bytes. On failure the view is empty AND the count is zero -
+      // PackedBits::operator[] is unchecked, so size() must never promise bits with no bytes behind them.
       std::span<const uint8_t> packed_bytes;
-      uint16_t count = count_or_value;
-      if (!status.has_value() && response_pdu.size() >= 2) {
-        size_t available = std::min((size_t) response_pdu[1], response_pdu.size() - 2);
-        packed_bytes = response_pdu.subspan(2, available);
-        count = std::min<size_t>(count, available * 8);
+      uint16_t count = 0;
+      if (!status.has_value()) {
+        packed_bytes = response_pdu.subspan(2);
+        count = count_or_value;
       }
       PackedBits bits(packed_bytes, count);
       if (function_code == ModbusFunctionCode::READ_COILS) {
@@ -811,12 +826,29 @@ void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu
     case ModbusFunctionCode::WRITE_SINGLE_COIL:
       this->on_write_single_coil(start_address, count_or_value == 0xFF00, status);
       break;
-    case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
-      this->on_write_multiple_registers(start_address, count_or_value, status);
+    case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS: {
+      // Request layout: [0] function code, [1..2] start address, [3..4] register count, [5] byte count,
+      // [6..] register data. The gate guarantees the request carries exactly count_or_value registers
+      // (<= MAX_NUM_OF_REGISTERS_TO_WRITE, within RegisterValues capacity). Decoded from the request and
+      // delivered regardless of status - see the write-acknowledgement note in modbus.h.
+      RegisterValues registers;
+      for (size_t i = 0; i != count_or_value; i++) {
+        registers.push_back(helpers::get_data<uint16_t>(request_pdu.data(), 6 + 2 * i));
+      }
+      std::span<const uint16_t> register_span(registers.data(), registers.size());
+      this->on_write_multiple_registers(start_address, register_span, status);
       break;
-    case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
-      this->on_write_multiple_coils(start_address, count_or_value, status);
+    }
+    case ModbusFunctionCode::WRITE_MULTIPLE_COILS: {
+      // Request layout: [0] function code, [1..2] start address, [3..4] coil count, [5] byte count,
+      // [6..] packed bits. The gate guarantees the request carries exactly (count_or_value + 7) / 8 packed
+      // bytes. Decoded from the request and delivered regardless of status - see the write-acknowledgement
+      // note in modbus.h.
+      std::span<const uint8_t> packed_bytes = request_pdu.subspan(6);
+      PackedBits bits(packed_bytes, count_or_value);
+      this->on_write_multiple_coils(start_address, bits, status);
       break;
+    }
     default:
       this->on_custom_response(request_pdu, response_pdu, status);
       break;

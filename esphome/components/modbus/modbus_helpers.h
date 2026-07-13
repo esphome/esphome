@@ -39,13 +39,33 @@ inline bool is_function_code_custom(uint8_t function_code) {
           masked_function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_2_END);
 }
 
-// Returns the expected length of a server response frame based on the function code
-// If the frame is too short to determine the length, returns the minimum length
-uint16_t server_frame_length(const uint8_t *frame, size_t size);
+// Returns the expected length of a server response PDU based on the function code.
+// If too few bytes have arrived to determine the length, returns the minimum length. `size` is the
+// number of bytes available so far, which may exceed the eventual PDU (e.g. include the frame's CRC
+// bytes): only fixed header positions are interpreted, so surplus bytes are never misread.
+uint16_t server_pdu_length(const uint8_t *frame, size_t size);
+// Frame counterpart: address(1) + PDU + CRC(2). Passes every received byte after the address through,
+// so header fields (e.g. a byte count) are interpreted as soon as they arrive.
+inline uint16_t server_frame_length(const uint8_t *frame, size_t size) {
+  if (size < 2)
+    return MIN_FRAME_SIZE;  // function code not received yet
+  return server_pdu_length(frame + 1, size - 1) + 3;
+}
 
-// Returns the expected length of a client request frame based on the function code
-// If the frame is too short to determine the length, returns the minimum length
-uint16_t client_frame_length(const uint8_t *frame, size_t size);
+// Returns the expected length of a client request PDU based on the function code.
+// Same contract as server_pdu_length(): `size` is bytes available so far, may exceed the PDU.
+uint16_t client_pdu_length(const uint8_t *frame, size_t size);
+inline uint16_t client_frame_length(const uint8_t *frame, size_t size) {
+  if (size < 2)
+    return MIN_FRAME_SIZE;  // function code not received yet
+  return client_pdu_length(frame + 1, size - 1) + 3;
+}
+
+// Returns true if pdu is internally consistent & standard 2-byte registers
+bool is_server_pdu_standard(const uint8_t *pdu, size_t size);
+
+// Returns true if pdu is internally consistent, in range, standard 2-byte registers
+bool is_client_pdu_standard(const uint8_t *pdu, size_t size);
 
 /** Returns the payload portion of a server response PDU: the bytes after the function code, and for
  * read responses also after the byte-count byte. Returns an empty span if the PDU is too short.

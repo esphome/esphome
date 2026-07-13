@@ -52,11 +52,13 @@ class RecordingDevice : public ModbusClientDevice {
   void on_write_single_coil(uint16_t address, bool value, ResponseStatus status) override {
     this->write_single_coil_calls.push_back({address, static_cast<uint16_t>(value), status});
   }
-  void on_write_multiple_registers(uint16_t start_address, uint16_t count, ResponseStatus status) override {
-    this->write_multiple_registers_calls.push_back({start_address, count, status});
+  void on_write_multiple_registers(uint16_t start_address, std::span<const uint16_t> registers,
+                                   ResponseStatus status) override {
+    this->write_multiple_registers_calls.push_back({start_address, {registers.begin(), registers.end()}, status});
   }
-  void on_write_multiple_coils(uint16_t start_address, uint16_t count, ResponseStatus status) override {
-    this->write_multiple_coils_calls.push_back({start_address, count, status});
+  void on_write_multiple_coils(uint16_t start_address, PackedBits bits, ResponseStatus status) override {
+    this->write_multiple_coils_calls.push_back(
+        {start_address, bits.size(), {bits.bytes().begin(), bits.bytes().end()}, status});
   }
   void on_custom_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
                           ResponseStatus status) override {
@@ -71,8 +73,8 @@ class RecordingDevice : public ModbusClientDevice {
   std::vector<ReadBitsCall> discrete_calls;
   std::vector<WriteCall> write_single_register_calls;
   std::vector<WriteCall> write_single_coil_calls;
-  std::vector<WriteCall> write_multiple_registers_calls;
-  std::vector<WriteCall> write_multiple_coils_calls;
+  std::vector<ReadRegistersCall> write_multiple_registers_calls;
+  std::vector<ReadBitsCall> write_multiple_coils_calls;
   std::vector<std::vector<uint8_t>> custom_requests;
   std::vector<std::vector<uint8_t>> custom_responses;
   std::vector<ResponseStatus> custom_statuses;
@@ -250,21 +252,78 @@ TEST(ModbusClientDeviceFanOut, CustomFunctionCodeGoesToCatchAll) {
   EXPECT_TRUE(device.custom_responses.back().empty());
 }
 
-TEST(ModbusClientDeviceFanOut, WriteMultipleAcksReportStartAndCount) {
+// A write ack only echoes the start address and count, so the data that was written is decoded from the
+// request PDU: [0] function code, [1..2] start address, [3..4] count, [5] byte count, [6..] data.
+TEST(ModbusClientDeviceFanOut, WriteMultipleAcksReportStartAndData) {
   RecordingDevice device;
+  // Write 2 registers (0x0001, 0x0002) at 0x0020: byte count 4, data from offset 6.
   const uint8_t reg_request[] = {0x10, 0x00, 0x20, 0x00, 0x02, 0x04, 0x00, 0x01, 0x00, 0x02};
   const uint8_t reg_ack[] = {0x10, 0x00, 0x20, 0x00, 0x02};
   device.on_response(reg_request, reg_ack);
+  // Write 10 coils at 0x0030: byte count 2, packed bits 0xFF 0x03 from offset 6.
   const uint8_t coil_request[] = {0x0F, 0x00, 0x30, 0x00, 0x0A, 0x02, 0xFF, 0x03};
   const uint8_t coil_ack[] = {0x0F, 0x00, 0x30, 0x00, 0x0A};
   device.on_response(coil_request, coil_ack);
 
   ASSERT_EQ(device.write_multiple_registers_calls.size(), 1u);
-  EXPECT_EQ(device.write_multiple_registers_calls.front().address, 0x20);
-  EXPECT_EQ(device.write_multiple_registers_calls.front().value, 2);
+  EXPECT_EQ(device.write_multiple_registers_calls.front().start_address, 0x20);
+  EXPECT_EQ(device.write_multiple_registers_calls.front().registers, (std::vector<uint16_t>{0x0001, 0x0002}));
   ASSERT_EQ(device.write_multiple_coils_calls.size(), 1u);
-  EXPECT_EQ(device.write_multiple_coils_calls.front().address, 0x30);
-  EXPECT_EQ(device.write_multiple_coils_calls.front().value, 10);
+  EXPECT_EQ(device.write_multiple_coils_calls.front().start_address, 0x30);
+  EXPECT_EQ(device.write_multiple_coils_calls.front().count, 10);
+  EXPECT_EQ(device.write_multiple_coils_calls.front().packed, (std::vector<uint8_t>{0xFF, 0x03}));
+}
+
+// A truncated request (byte-count header promises more data than the PDU carries) is not a standard
+// write-multiple, so it is diverted to on_custom_response() - never clamped and delivered as if complete.
+TEST(ModbusClientDeviceFanOut, WriteMultipleTruncatedRequestDispatchesAsCustom) {
+  RecordingDevice device;
+  // Header claims 2 registers / 4 data bytes, but only one register's worth is present.
+  const uint8_t reg_request[] = {0x10, 0x00, 0x20, 0x00, 0x02, 0x04, 0x00, 0x01};
+  const uint8_t reg_ack[] = {0x10, 0x00, 0x20, 0x00, 0x02};
+  device.on_response(reg_request, reg_ack);
+
+  EXPECT_TRUE(device.write_multiple_registers_calls.empty());
+  ASSERT_EQ(device.custom_requests.size(), 1u);
+  EXPECT_EQ(device.custom_requests.front(), (std::vector<uint8_t>{0x10, 0x00, 0x20, 0x00, 0x02, 0x04, 0x00, 0x01}));
+}
+
+// A request whose byte-count header disagrees with its own quantity field (here: 2 registers but a
+// byte count of 2 instead of 4, with matching data) is non-standard and diverted to the catch-all.
+TEST(ModbusClientDeviceFanOut, WriteMultipleInconsistentByteCountDispatchesAsCustom) {
+  RecordingDevice device;
+  const uint8_t reg_request[] = {0x10, 0x00, 0x20, 0x00, 0x02, 0x02, 0x00, 0x01};
+  const uint8_t reg_ack[] = {0x10, 0x00, 0x20, 0x00, 0x02};
+  device.on_response(reg_request, reg_ack);
+
+  EXPECT_TRUE(device.write_multiple_registers_calls.empty());
+  EXPECT_EQ(device.custom_requests.size(), 1u);
+}
+
+// An exception on a read still dispatches to the typed callback (empty data, status set): the gate must
+// not require a standard response on the failure path, because on_error() delivers an empty response by
+// design.
+TEST(ModbusClientDeviceFanOut, ReadErrorWithEmptyResponseStillDispatchesTyped) {
+  RecordingDevice device;
+  const uint8_t read_request[] = {0x03, 0x01, 0x00, 0x00, 0x02};
+  device.on_error(read_request, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+
+  ASSERT_EQ(device.holding_calls.size(), 1u);
+  EXPECT_TRUE(device.holding_calls.front().registers.empty());
+  EXPECT_EQ(device.holding_calls.front().status, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+  EXPECT_TRUE(device.custom_requests.empty());
+}
+
+// An error on a coil read must deliver a PackedBits view whose size() is zero - the count must never
+// promise bits that have no bytes behind them (operator[] is unchecked).
+TEST(ModbusClientDeviceFanOut, ReadCoilsErrorDeliversZeroCountBits) {
+  RecordingDevice device;
+  const uint8_t read_request[] = {0x01, 0x01, 0x00, 0x00, 0x0A};
+  device.on_error(read_request, ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
+
+  ASSERT_EQ(device.coil_calls.size(), 1u);
+  EXPECT_EQ(device.coil_calls.front().count, 0);
+  EXPECT_TRUE(device.coil_calls.front().packed.empty());
 }
 
 }  // namespace esphome::modbus::testing
