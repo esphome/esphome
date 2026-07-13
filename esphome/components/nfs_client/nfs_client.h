@@ -287,7 +287,7 @@ class RPCClient {
 class NFSClient final : public storage::NetworkStorage, public storage::MountableStorage {
  public:
   NFSClient() = default;
-  ~NFSClient();
+  ~NFSClient() override;
 
   void setup() override;
   void loop() override;
