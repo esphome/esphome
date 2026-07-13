@@ -3,7 +3,7 @@
 namespace esphome::epaper_spi {
 
 bool EpaperWaveshare2P9V2::initialise(bool partial) {
-  EPaperBase::initialise(partial);
+  this->send_init_sequence_(this->init_sequence_, this->init_sequence_length_);
   if (partial) {
     this->cmd_data(0x32, this->partial_lut_, this->partial_lut_length_);
     this->cmd_data(0x37, {0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00});
