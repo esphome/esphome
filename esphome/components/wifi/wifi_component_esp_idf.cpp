@@ -35,6 +35,11 @@
 #include "lwip/apps/sntp.h"
 #include "lwip/dns.h"
 #include "lwip/err.h"
+#ifdef USE_WIFI_LEASE_CACHE
+#include <esp_netif_net_stack.h>  // esp_netif_get_netif_impl()
+#include "lwip/dhcp.h"
+#include "lwip/netif.h"
+#endif
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -653,6 +658,20 @@ void WiFiComponent::save_lease_settings_() {
     lease.dns2 = dns.ip.u_addr.ip4.addr;
   }
 
+  // Lease timing and the DHCP server id have no public esp_netif API; they live in lwIP's
+  // internal per-netif dhcp state. Read them under the TCP/IP core lock (LwIPLock is a no-op
+  // when core locking is disabled). Peek can fail (e.g. DHCP inactive) -> leave timing invalid.
+  if (auto *impl = static_cast<struct netif *>(esp_netif_get_netif_impl(s_sta_netif))) {
+    LwIPLock lock;
+    if (struct dhcp *d = netif_dhcp_data(impl)) {
+      lease.server_id = ip_2_ip4(&d->server_ip_addr)->addr;
+      lease.lease_secs = d->offered_t0_lease;
+      lease.t1_renew = d->offered_t1_renew;
+      lease.t2_rebind = d->offered_t2_rebind;
+      lease.flags |= LEASE_FLAG_HAS_TIMING;
+    }
+  }
+
   // Debounce: skip the write when nothing changed, to limit flash wear (matches fast_connect).
   SavedWifiLeaseSettings previous{};
   if (this->lease_cache_pref_.load(&previous) && memcmp(&previous, &lease, sizeof(lease)) == 0) {
@@ -662,7 +681,12 @@ void WiFiComponent::save_lease_settings_() {
   this->lease_cache_pref_.save(&lease);
 
   const uint8_t *ip = reinterpret_cast<const uint8_t *>(&lease.ip);
-  ESP_LOGD(TAG, "Lease cache: saved %u.%u.%u.%u (network %d)", ip[0], ip[1], ip[2], ip[3], lease.ap_index);
+  if (lease.flags & LEASE_FLAG_HAS_TIMING) {
+    ESP_LOGD(TAG, "Lease cache: saved %u.%u.%u.%u (network %d, lease %us)", ip[0], ip[1], ip[2], ip[3], lease.ap_index,
+             lease.lease_secs);
+  } else {
+    ESP_LOGD(TAG, "Lease cache: saved %u.%u.%u.%u (network %d, no timing)", ip[0], ip[1], ip[2], ip[3], lease.ap_index);
+  }
 }
 #endif
 

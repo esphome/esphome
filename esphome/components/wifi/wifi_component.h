@@ -86,18 +86,26 @@ struct SavedWifiFastConnectSettings {
 
 #ifdef USE_WIFI_LEASE_CACHE
 // Cached DHCP lease persisted across boots. IPv4 fields are stored in network byte order.
-// version/flags leave room to add lease timing + DHCP server id later without a migration break.
 struct SavedWifiLeaseSettings {
   uint8_t version;   // schema version (currently 1)
   int8_t ap_index;   // configured network this lease belongs to (-1 = unknown)
-  uint8_t flags;     // reserved; bit0 = timing fields present (future)
+  uint8_t flags;     // see LEASE_FLAG_* below
   uint8_t reserved;  // padding / future use
   uint32_t ip;
   uint32_t netmask;
   uint32_t gateway;
   uint32_t dns1;  // 0.0.0.0 if unset
   uint32_t dns2;  // 0.0.0.0 if unset
-} PACKED;         // NOLINT
+  // Lease timing and DHCP server id, read from lwIP. Only meaningful when
+  // LEASE_FLAG_HAS_TIMING is set (the lwIP peek can fail, e.g. DHCP inactive).
+  uint32_t server_id;   // DHCP server that granted the lease (network byte order)
+  uint32_t lease_secs;  // offered_t0_lease: full lease length, seconds
+  uint32_t t1_renew;    // offered_t1_renew: renewal time, seconds
+  uint32_t t2_rebind;   // offered_t2_rebind: rebind time, seconds
+} PACKED;               // NOLINT
+
+/// SavedWifiLeaseSettings::flags -- the timing/server-id fields hold valid data.
+static constexpr uint8_t LEASE_FLAG_HAS_TIMING = 0x01;
 #endif
 
 enum WiFiComponentState : uint8_t {

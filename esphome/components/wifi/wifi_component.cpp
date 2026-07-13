@@ -2338,7 +2338,12 @@ void WiFiComponent::load_lease_settings_() {
   }
   // Phase 1 is capture-only: log what a later phase would apply, without changing boot behaviour.
   const uint8_t *ip = reinterpret_cast<const uint8_t *>(&lease.ip);  // stored in network byte order
-  ESP_LOGI(TAG, "Lease cache: would apply %u.%u.%u.%u (network %d)", ip[0], ip[1], ip[2], ip[3], lease.ap_index);
+  if (lease.flags & LEASE_FLAG_HAS_TIMING) {
+    ESP_LOGI(TAG, "Lease cache: would apply %u.%u.%u.%u (network %d, lease %us)", ip[0], ip[1], ip[2], ip[3],
+             lease.ap_index, lease.lease_secs);
+  } else {
+    ESP_LOGI(TAG, "Lease cache: would apply %u.%u.%u.%u (network %d)", ip[0], ip[1], ip[2], ip[3], lease.ap_index);
+  }
 }
 #endif
 
