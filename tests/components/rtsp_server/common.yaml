@@ -1,0 +1,28 @@
+psram:
+  ignore_not_found: false
+
+ethernet:
+  type: IP101
+  mdc_pin: GPIO31
+  mdio_pin: GPIO52
+  clk:
+    mode: CLK_EXT_IN
+    pin: GPIO0
+  phy_addr: 1
+  power_pin: GPIO51
+
+csi_camera:
+  id: csi_cam
+  address: 0x36
+  power_down_pin: 27
+
+camera_h264:
+  id: h264_enc
+  video_source_id: csi_cam
+
+rtsp_server:
+  stream_id: h264_enc
+  port: 8554
+  username: test
+  password: test
+  rtp_payload_size: 1200
