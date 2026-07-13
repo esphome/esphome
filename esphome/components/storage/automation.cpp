@@ -266,4 +266,11 @@ bool check_file_exists(const std::string &path) {
   return found;
 }
 
+void perform_mount(MountableStorage *target, bool mount) {
+  StorageError err = mount ? target->mount() : target->unmount();
+  if (err != StorageError::OK) {
+    ESP_LOGW(TAG, "%s failed (%s)", mount ? "mount" : "unmount", error_to_string(err));
+  }
+}
+
 }  // namespace esphome::storage

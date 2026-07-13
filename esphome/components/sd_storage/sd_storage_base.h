@@ -35,12 +35,21 @@ template<typename... Ts> class ListFilesAction;
 
 // Base class for both SDMMC and SPI implementations.
 // Extends FilesystemStorage so both SdMmc and SdSpi satisfy the storage interface.
-class SdStorageBase : public storage::FilesystemStorage {
+class SdStorageBase : public storage::FilesystemStorage, public storage::MountableStorage {
  public:
   void set_mount_path(const char *path) { this->set_mount_path_(path); }
   void set_id(const char *id) { this->storage_id_ = id; }
   void set_cd_pin(GPIOPin *pin) { this->cd_pin_ = pin; }
   bool is_mounted() const { return this->is_mounted_; }
+  // No-RTTI downcast hook — see PathStorage::as_mountable().
+  storage::MountableStorage *as_mountable() override { return this; }
+
+  // Both FilesystemStorage and MountableStorage declare mount()/unmount(); redeclaring them
+  // here merges the two inherited slots into one final declaration point, so lookup through a
+  // SdStorageBase* (e.g. the driver's own mount/unmount actions) is unambiguous. SdMmc/SdSpi
+  // overrides are unchanged and satisfy both bases.
+  storage::StorageError mount() override = 0;
+  storage::StorageError unmount() override = 0;
 
   template<typename F> void add_on_mounted_callback(F &&cb) { this->on_mounted_.add(std::forward<F>(cb)); }
   template<typename F> void add_on_removed_callback(F &&cb) { this->on_removed_.add(std::forward<F>(cb)); }
