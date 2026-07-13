@@ -739,7 +739,7 @@ void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu
   auto function_code = static_cast<ModbusFunctionCode>(request_pdu[0]);
   // All standard requests handled below are function code + start address + count/value (5 bytes);
   // anything shorter cannot be parsed and is handed to the catch-all.
-  if (request_pdu.size() < 5) {
+  if (request_pdu.size() < READ_PDU_SIZE) {
     this->on_custom_response(request_pdu, response_pdu, status);
     return;
   }
