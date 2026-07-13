@@ -1,0 +1,23 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-p4-idf.yaml
+  camera_h264: !include common.yaml
+
+esphome:
+  name: camera-h264-options-test
+
+esp32:
+  board: esp32-p4-evboard
+  variant: ESP32P4
+  framework:
+    type: esp-idf
+
+logger:
+
+camera_h264:
+  fps: 30
+  bitrate: 4000000
+  gop: 30
+  qp_min: 18
+  qp_max: 42
+  encoded_frame_buffers: 4
+  output_buffer_size: 1048576
