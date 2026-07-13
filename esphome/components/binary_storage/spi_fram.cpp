@@ -69,21 +69,25 @@ void SPIFram::dump_config() {
 // BinaryStorage Interface
 //========================================================================
 
-storage::StorageError SPIFram::read(size_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
+storage::StorageError SPIFram::read(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
+  if (!this->is_valid_address_(offset, len))
+    return storage::StorageError::INVALID_ARGS;
   bool ok = this->read_raw(static_cast<uint32_t>(offset), buf, len);
   if (bytes_transferred != nullptr)
     *bytes_transferred = ok ? len : 0;
   return ok ? storage::StorageError::OK : storage::StorageError::READ_ERROR;
 }
 
-storage::StorageError SPIFram::write(size_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) {
+storage::StorageError SPIFram::write(uint64_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) {
+  if (!this->is_valid_address_(offset, len))
+    return storage::StorageError::INVALID_ARGS;
   bool ok = this->write_raw(static_cast<uint32_t>(offset), buf, len);
   if (bytes_transferred != nullptr)
     *bytes_transferred = ok ? len : 0;
   return ok ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
 }
 
-storage::StorageError SPIFram::erase(size_t offset, size_t len) { return storage::StorageError::OK; }
+storage::StorageError SPIFram::erase(uint64_t offset, size_t len) { return storage::StorageError::OK; }
 
 storage::StorageError SPIFram::format() { return this->BinaryStorage::format(); }
 

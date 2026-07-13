@@ -14,7 +14,6 @@
 
 namespace esphome::binary_storage {
 
-using storage::STORAGE_MAX_PATH_LEN;
 
 static inline lfs_t *lfs_cast(void *p) { return static_cast<lfs_t *>(p); }
 static inline lfs_config *cfg_cast(void *p) { return static_cast<lfs_config *>(p); }
@@ -608,7 +607,7 @@ storage::StorageError LittleFSMount::open(const char *path, storage::FileHandle 
 
   // Build full VFS path (mount_path_ + path)
   char full_path[STORAGE_MAX_PATH_LEN];
-  snprintf(full_path, sizeof(full_path), "%s%s", this->mount_path_, path[0] == '/' ? path : "/");
+  snprintf(full_path, sizeof(full_path), "%s/%s", this->mount_path_, path[0] == '/' ? path + 1 : path);
 
   const char *fopen_mode;
   switch (mode) {
@@ -686,41 +685,51 @@ storage::StorageError LittleFSMount::write(storage::FileHandle *handle, const ui
   return storage::StorageError::OK;
 }
 
-storage::StorageError LittleFSMount::seek(storage::FileHandle *handle, size_t offset) {
+storage::StorageError LittleFSMount::seek(storage::FileHandle *handle, int64_t offset, storage::SeekMode mode) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr)
     return storage::StorageError::INVALID_ARGS;
 
-  if (fseek(handle->file, static_cast<int32_t>(offset), SEEK_SET) != 0)
+  int whence = SEEK_SET;
+  if (mode == storage::SeekMode::CUR) {
+    whence = SEEK_CUR;
+  } else if (mode == storage::SeekMode::END) {
+    whence = SEEK_END;
+  }
+  if (fseek(handle->file, static_cast<long>(offset), whence) != 0)
     return storage::StorageError::INVALID_ARGS;
 
   return storage::StorageError::OK;
 }
 
-storage::StorageError LittleFSMount::tell(storage::FileHandle *handle, size_t *position) {
+storage::StorageError LittleFSMount::tell(storage::FileHandle *handle, uint64_t *position) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr || position == nullptr)
     return storage::StorageError::INVALID_ARGS;
 
-  int32_t pos = ftell(handle->file);
+  long pos = ftell(handle->file);
   if (pos < 0)
     return storage::StorageError::READ_ERROR;
 
-  *position = (size_t) pos;
+  *position = static_cast<uint64_t>(pos);
   return storage::StorageError::OK;
 }
 
 storage::StorageError LittleFSMount::stat(const char *path, storage::FileStat *stat_out) {
-  if (!this->mounted_ || path == nullptr || stat_out == nullptr)
+  if (!this->mounted_)
+    return storage::StorageError::NOT_READY;
+  if (path == nullptr || stat_out == nullptr)
     return storage::StorageError::INVALID_ARGS;
 
   char full_path[STORAGE_MAX_PATH_LEN];
-  snprintf(full_path, sizeof(full_path), "%s%s", this->mount_path_, path[0] == '/' ? path : "/");
+  snprintf(full_path, sizeof(full_path), "%s/%s", this->mount_path_, path[0] == '/' ? path + 1 : path);
 
   struct stat st;
   if (::stat(full_path, &st) != 0)
     return storage::StorageError::NOT_FOUND;
 
-  strncpy(stat_out->name, path, STORAGE_MAX_PATH_LEN - 1);
-  stat_out->name[STORAGE_MAX_PATH_LEN - 1] = '\0';
+  const char *base = strrchr(path, '/');
+  base = (base != nullptr) ? base + 1 : path;  // FileStat.name is the basename only, by contract
+  strncpy(stat_out->name, base, sizeof(stat_out->name) - 1);
+  stat_out->name[sizeof(stat_out->name) - 1] = '\0';
   stat_out->size = (size_t) st.st_size;
   stat_out->is_dir = S_ISDIR(st.st_mode);
 
@@ -728,12 +737,14 @@ storage::StorageError LittleFSMount::stat(const char *path, storage::FileStat *s
 }
 
 storage::StorageError LittleFSMount::list_dir(const char *path,
-                                              void (*callback)(const storage::FileStat *entry, void *ctx), void *ctx) {
-  if (!this->mounted_ || path == nullptr || callback == nullptr)
+                                              bool (*callback)(const storage::FileStat *entry, void *ctx), void *ctx) {
+  if (!this->mounted_)
+    return storage::StorageError::NOT_READY;
+  if (path == nullptr || callback == nullptr)
     return storage::StorageError::INVALID_ARGS;
 
   char full_path[STORAGE_MAX_PATH_LEN];
-  snprintf(full_path, sizeof(full_path), "%s%s", this->mount_path_, path[0] == '/' ? path : "/");
+  snprintf(full_path, sizeof(full_path), "%s/%s", this->mount_path_, path[0] == '/' ? path + 1 : path);
 
   DIR *dir = opendir(full_path);
   if (dir == nullptr)
@@ -763,7 +774,8 @@ storage::StorageError LittleFSMount::list_dir(const char *path,
         fs_entry.size = (size_t) st.st_size;
     }
 
-    callback(&fs_entry, ctx);
+    if (!callback(&fs_entry, ctx))
+      break;  // caller stopped enumeration early — not an error
   }
 
   closedir(dir);
@@ -771,11 +783,13 @@ storage::StorageError LittleFSMount::list_dir(const char *path,
 }
 
 storage::StorageError LittleFSMount::mkdir(const char *path) {
-  if (!this->mounted_ || path == nullptr)
+  if (!this->mounted_)
+    return storage::StorageError::NOT_READY;
+  if (path == nullptr)
     return storage::StorageError::INVALID_ARGS;
 
   char full_path[STORAGE_MAX_PATH_LEN];
-  snprintf(full_path, sizeof(full_path), "%s%s", this->mount_path_, path[0] == '/' ? path : "/");
+  snprintf(full_path, sizeof(full_path), "%s/%s", this->mount_path_, path[0] == '/' ? path + 1 : path);
 
   if (::mkdir(full_path, 0755) != 0)
     return errno == EEXIST ? storage::StorageError::INVALID_ARGS : storage::StorageError::WRITE_ERROR;
@@ -783,48 +797,31 @@ storage::StorageError LittleFSMount::mkdir(const char *path) {
   return storage::StorageError::OK;
 }
 
-storage::StorageError LittleFSMount::rmdir(const char *path, bool recursive) {
-  if (!this->mounted_ || path == nullptr)
+storage::StorageError LittleFSMount::rmdir(const char *path) {
+  if (!this->mounted_)
+    return storage::StorageError::NOT_READY;
+  if (path == nullptr)
     return storage::StorageError::INVALID_ARGS;
 
   char full_path[STORAGE_MAX_PATH_LEN];
-  snprintf(full_path, sizeof(full_path), "%s%s", this->mount_path_, path[0] == '/' ? path : "/");
+  snprintf(full_path, sizeof(full_path), "%s/%s", this->mount_path_, path[0] == '/' ? path + 1 : path);
 
-  if (recursive) {
-    // Remove all contents first via LittleFS directly
-    // Only one level of recursion needed — LittleFS doesn't support nested dirs in practice
-    lfs_dir_t dir;
-    int err = lfs_dir_open(lfs_cast(this->lfs_), &dir, path);
-    if (err == LFS_ERR_OK) {
-      struct lfs_info info;
-      char child[STORAGE_MAX_PATH_LEN];
-      while (lfs_dir_read(lfs_cast(this->lfs_), &dir, &info) > 0) {
-        if (strcmp(info.name, ".") == 0 || strcmp(info.name, "..") == 0)
-          continue;
-        if (strlen(path) + 1 + strlen(info.name) + 1 > STORAGE_MAX_PATH_LEN) {
-          ESP_LOGE(TAG, "Path too long: %s/%s", path, info.name);
-          lfs_dir_close(lfs_cast(this->lfs_), &dir);
-          return storage::StorageError::INVALID_ARGS;
-        }
-        snprintf(child, sizeof(child), "%s/%s", path, info.name);
-        lfs_remove(lfs_cast(this->lfs_), child);
-      }
-      lfs_dir_close(lfs_cast(this->lfs_), &dir);
-    }
-  }
-
+  // Non-recursive by contract — a populated directory must fail with NOT_EMPTY
+  // (recursive delete is provided by the free storage::remove_recursive() helper).
   if (::rmdir(full_path) != 0)
-    return storage::StorageError::WRITE_ERROR;
+    return errno == ENOTEMPTY ? storage::StorageError::NOT_EMPTY : storage::StorageError::WRITE_ERROR;
 
   return storage::StorageError::OK;
 }
 
 storage::StorageError LittleFSMount::remove(const char *path) {
-  if (!this->mounted_ || path == nullptr)
+  if (!this->mounted_)
+    return storage::StorageError::NOT_READY;
+  if (path == nullptr)
     return storage::StorageError::INVALID_ARGS;
 
   char full_path[STORAGE_MAX_PATH_LEN];
-  snprintf(full_path, sizeof(full_path), "%s%s", this->mount_path_, path[0] == '/' ? path : "/");
+  snprintf(full_path, sizeof(full_path), "%s/%s", this->mount_path_, path[0] == '/' ? path + 1 : path);
 
   if (::unlink(full_path) != 0)
     return storage::StorageError::NOT_FOUND;
@@ -833,61 +830,21 @@ storage::StorageError LittleFSMount::remove(const char *path) {
 }
 
 storage::StorageError LittleFSMount::rename(const char *old_path, const char *new_path) {
-  if (!this->mounted_ || old_path == nullptr || new_path == nullptr)
+  if (!this->mounted_)
+    return storage::StorageError::NOT_READY;
+  if (old_path == nullptr || new_path == nullptr)
     return storage::StorageError::INVALID_ARGS;
 
   char full_old[STORAGE_MAX_PATH_LEN];
   char full_new[STORAGE_MAX_PATH_LEN];
-  snprintf(full_old, sizeof(full_old), "%s%s", this->mount_path_, old_path[0] == '/' ? old_path : "/");
-  snprintf(full_new, sizeof(full_new), "%s%s", this->mount_path_, new_path[0] == '/' ? new_path : "/");
+  snprintf(full_old, sizeof(full_old), "%s/%s", this->mount_path_, old_path[0] == '/' ? old_path + 1 : old_path);
+  snprintf(full_new, sizeof(full_new), "%s/%s", this->mount_path_, new_path[0] == '/' ? new_path + 1 : new_path);
 
   if (::rename(full_old, full_new) != 0)
     return storage::StorageError::WRITE_ERROR;
 
   return storage::StorageError::OK;
 }
-
-storage::StorageError LittleFSMount::copy(const char *src_path, const char *dst_path) {
-  if (!this->mounted_ || src_path == nullptr || dst_path == nullptr)
-    return storage::StorageError::INVALID_ARGS;
-
-  char full_src[STORAGE_MAX_PATH_LEN];
-  char full_dst[STORAGE_MAX_PATH_LEN];
-  snprintf(full_src, sizeof(full_src), "%s%s", this->mount_path_, src_path[0] == '/' ? src_path : "/");
-  snprintf(full_dst, sizeof(full_dst), "%s%s", this->mount_path_, dst_path[0] == '/' ? dst_path : "/");
-
-  FILE *src = fopen(full_src, "rb");
-  if (src == nullptr)
-    return storage::StorageError::NOT_FOUND;
-
-  FILE *dst = fopen(full_dst, "wb");
-  if (dst == nullptr) {
-    fclose(src);
-    return storage::StorageError::WRITE_ERROR;
-  }
-
-  uint8_t buf[256];
-  size_t n;
-  storage::StorageError result = storage::StorageError::OK;
-
-  while ((n = fread(buf, 1, sizeof(buf), src)) > 0) {
-    if (fwrite(buf, 1, n, dst) != n) {
-      result = storage::StorageError::WRITE_ERROR;
-      break;
-    }
-  }
-
-  if (ferror(src))
-    result = storage::StorageError::READ_ERROR;
-
-  fclose(src);
-  fclose(dst);
-  return result;
-}
-
-//========================================================================
-// Extras
-//========================================================================
 
 bool LittleFSMount::remount() {
   if (this->mounted_) {

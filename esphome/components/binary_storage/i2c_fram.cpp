@@ -149,21 +149,25 @@ uint16_t I2CFram::get_product_id() { return this->get_meta_data_(1); }
 
 uint16_t I2CFram::get_density() { return this->get_meta_data_(2); }
 
-storage::StorageError I2CFram::read(size_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
+storage::StorageError I2CFram::read(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
+  if (!this->is_valid_address_(offset, len))
+    return storage::StorageError::INVALID_ARGS;
   bool ok = this->read_raw(static_cast<uint32_t>(offset), buf, len);
   if (bytes_transferred != nullptr)
     *bytes_transferred = ok ? len : 0;
   return ok ? storage::StorageError::OK : storage::StorageError::READ_ERROR;
 }
 
-storage::StorageError I2CFram::write(size_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) {
+storage::StorageError I2CFram::write(uint64_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) {
+  if (!this->is_valid_address_(offset, len))
+    return storage::StorageError::INVALID_ARGS;
   bool ok = this->write_raw(static_cast<uint32_t>(offset), buf, len);
   if (bytes_transferred != nullptr)
     *bytes_transferred = ok ? len : 0;
   return ok ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
 }
 
-storage::StorageError I2CFram::erase(size_t offset, size_t len) { return storage::StorageError::OK; }
+storage::StorageError I2CFram::erase(uint64_t offset, size_t len) { return storage::StorageError::OK; }
 
 storage::StorageError I2CFram::format() { return this->BinaryStorage::format(); }
 

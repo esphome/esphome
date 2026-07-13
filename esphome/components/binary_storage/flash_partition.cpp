@@ -11,7 +11,7 @@
 
 namespace esphome::binary_storage {
 
-using storage::STORAGE_MAX_PATH_LEN;
+// STORAGE_MAX_PATH_LEN is defined in this component (see flash_partition.h / binary_storage.h).
 
 static const char *const TAG = "flash_partition";
 
@@ -226,30 +226,38 @@ storage::StorageError FlashPartition::write(storage::FileHandle *handle, const u
   return storage::StorageError::OK;
 }
 
-storage::StorageError FlashPartition::seek(storage::FileHandle *handle, size_t offset) {
+storage::StorageError FlashPartition::seek(storage::FileHandle *handle, int64_t offset, storage::SeekMode mode) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr)
     return storage::StorageError::INVALID_ARGS;
 
-  if (fseek(handle->file, static_cast<int32_t>(offset), SEEK_SET) != 0)
+  int whence = SEEK_SET;
+  if (mode == storage::SeekMode::CUR) {
+    whence = SEEK_CUR;
+  } else if (mode == storage::SeekMode::END) {
+    whence = SEEK_END;
+  }
+  if (fseek(handle->file, static_cast<long>(offset), whence) != 0)
     return storage::StorageError::INVALID_ARGS;
 
   return storage::StorageError::OK;
 }
 
-storage::StorageError FlashPartition::tell(storage::FileHandle *handle, size_t *position) {
+storage::StorageError FlashPartition::tell(storage::FileHandle *handle, uint64_t *position) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr || position == nullptr)
     return storage::StorageError::INVALID_ARGS;
 
-  int32_t pos = ftell(handle->file);
+  long pos = ftell(handle->file);
   if (pos < 0)
     return storage::StorageError::READ_ERROR;
 
-  *position = (size_t) pos;
+  *position = static_cast<uint64_t>(pos);
   return storage::StorageError::OK;
 }
 
 storage::StorageError FlashPartition::stat(const char *path, storage::FileStat *stat_out) {
-  if (!this->mounted_ || path == nullptr || stat_out == nullptr)
+  if (!this->mounted_)
+    return storage::StorageError::NOT_READY;
+  if (path == nullptr || stat_out == nullptr)
     return storage::StorageError::INVALID_ARGS;
 
   char full_path[STORAGE_MAX_PATH_LEN];
@@ -259,8 +267,10 @@ storage::StorageError FlashPartition::stat(const char *path, storage::FileStat *
   if (::stat(full_path, &st) != 0)
     return storage::StorageError::NOT_FOUND;
 
-  strncpy(stat_out->name, path, STORAGE_MAX_PATH_LEN - 1);
-  stat_out->name[STORAGE_MAX_PATH_LEN - 1] = '\0';
+  const char *base = strrchr(path, '/');
+  base = (base != nullptr) ? base + 1 : path;  // FileStat.name is the basename only, by contract
+  strncpy(stat_out->name, base, sizeof(stat_out->name) - 1);
+  stat_out->name[sizeof(stat_out->name) - 1] = '\0';
   stat_out->size = (size_t) st.st_size;
   stat_out->is_dir = S_ISDIR(st.st_mode);
 
@@ -268,8 +278,10 @@ storage::StorageError FlashPartition::stat(const char *path, storage::FileStat *
 }
 
 storage::StorageError FlashPartition::list_dir(const char *path,
-                                               void (*callback)(const storage::FileStat *entry, void *ctx), void *ctx) {
-  if (!this->mounted_ || path == nullptr || callback == nullptr)
+                                               bool (*callback)(const storage::FileStat *entry, void *ctx), void *ctx) {
+  if (!this->mounted_)
+    return storage::StorageError::NOT_READY;
+  if (path == nullptr || callback == nullptr)
     return storage::StorageError::INVALID_ARGS;
 
   char full_path[STORAGE_MAX_PATH_LEN];
@@ -303,7 +315,8 @@ storage::StorageError FlashPartition::list_dir(const char *path,
         fs_entry.size = (size_t) st.st_size;
     }
 
-    callback(&fs_entry, ctx);
+    if (!callback(&fs_entry, ctx))
+      break;  // caller stopped enumeration early — not an error
   }
 
   closedir(dir);
@@ -311,7 +324,9 @@ storage::StorageError FlashPartition::list_dir(const char *path,
 }
 
 storage::StorageError FlashPartition::mkdir(const char *path) {
-  if (!this->mounted_ || path == nullptr)
+  if (!this->mounted_)
+    return storage::StorageError::NOT_READY;
+  if (path == nullptr)
     return storage::StorageError::INVALID_ARGS;
 
   char full_path[STORAGE_MAX_PATH_LEN];
@@ -323,54 +338,27 @@ storage::StorageError FlashPartition::mkdir(const char *path) {
   return storage::StorageError::OK;
 }
 
-storage::StorageError FlashPartition::rmdir(const char *path, bool recursive) {
-  if (!this->mounted_ || path == nullptr)
+storage::StorageError FlashPartition::rmdir(const char *path) {
+  if (!this->mounted_)
+    return storage::StorageError::NOT_READY;
+  if (path == nullptr)
     return storage::StorageError::INVALID_ARGS;
 
   char full_path[STORAGE_MAX_PATH_LEN];
   this->build_path_(full_path, sizeof(full_path), path);
 
-  if (recursive) {
-    DIR *dir = opendir(full_path);
-    if (dir != nullptr) {
-      struct dirent *entry;
-      while ((entry = readdir(dir)) != nullptr) {
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-          continue;
-
-        char child[STORAGE_MAX_PATH_LEN];
-        if (strlen(full_path) + 1 + strlen(entry->d_name) + 1 > STORAGE_MAX_PATH_LEN) {
-          ESP_LOGE(TAG, "Path too long: %s/%s", full_path, entry->d_name);
-          closedir(dir);
-          return storage::StorageError::INVALID_ARGS;
-        }
-        snprintf(child, sizeof(child), "%s/%s", full_path, entry->d_name);
-
-        if (entry->d_type == DT_DIR) {
-          char rel_child[STORAGE_MAX_PATH_LEN];
-          if (strlen(path) + 1 + strlen(entry->d_name) + 1 > STORAGE_MAX_PATH_LEN) {
-            ESP_LOGE(TAG, "Path too long: %s/%s", path, entry->d_name);
-            closedir(dir);
-            return storage::StorageError::INVALID_ARGS;
-          }
-          snprintf(rel_child, sizeof(rel_child), "%s/%s", path, entry->d_name);
-          this->rmdir(rel_child, true);
-        } else {
-          ::unlink(child);
-        }
-      }
-      closedir(dir);
-    }
-  }
-
+  // Non-recursive by contract — a populated directory must fail with NOT_EMPTY
+  // (recursive delete is provided by the free storage::remove_recursive() helper).
   if (::rmdir(full_path) != 0)
-    return storage::StorageError::WRITE_ERROR;
+    return errno == ENOTEMPTY ? storage::StorageError::NOT_EMPTY : storage::StorageError::WRITE_ERROR;
 
   return storage::StorageError::OK;
 }
 
 storage::StorageError FlashPartition::remove(const char *path) {
-  if (!this->mounted_ || path == nullptr)
+  if (!this->mounted_)
+    return storage::StorageError::NOT_READY;
+  if (path == nullptr)
     return storage::StorageError::INVALID_ARGS;
 
   char full_path[STORAGE_MAX_PATH_LEN];
@@ -383,7 +371,9 @@ storage::StorageError FlashPartition::remove(const char *path) {
 }
 
 storage::StorageError FlashPartition::rename(const char *old_path, const char *new_path) {
-  if (!this->mounted_ || old_path == nullptr || new_path == nullptr)
+  if (!this->mounted_)
+    return storage::StorageError::NOT_READY;
+  if (old_path == nullptr || new_path == nullptr)
     return storage::StorageError::INVALID_ARGS;
 
   char full_old[STORAGE_MAX_PATH_LEN];
@@ -395,78 +385,6 @@ storage::StorageError FlashPartition::rename(const char *old_path, const char *n
     return storage::StorageError::WRITE_ERROR;
 
   return storage::StorageError::OK;
-}
-
-storage::StorageError FlashPartition::copy(const char *src_path, const char *dst_path) {
-  if (!this->mounted_ || src_path == nullptr || dst_path == nullptr)
-    return storage::StorageError::INVALID_ARGS;
-
-  char full_src[STORAGE_MAX_PATH_LEN];
-  char full_dst[STORAGE_MAX_PATH_LEN];
-  this->build_path_(full_src, sizeof(full_src), src_path);
-  this->build_path_(full_dst, sizeof(full_dst), dst_path);
-
-  FILE *src = fopen(full_src, "rb");
-  if (src == nullptr)
-    return storage::StorageError::NOT_FOUND;
-
-  FILE *dst = fopen(full_dst, "wb");
-  if (dst == nullptr) {
-    fclose(src);
-    return storage::StorageError::WRITE_ERROR;
-  }
-
-  uint8_t buf[256];
-  storage::StorageError result = storage::StorageError::OK;
-
-  while (!feof(src) && !ferror(src)) {
-    size_t n = fread(buf, 1, sizeof(buf), src);
-    if (n == 0)
-      break;
-    if (fwrite(buf, 1, n, dst) != n) {
-      result = storage::StorageError::WRITE_ERROR;
-      break;
-    }
-  }
-
-  if (ferror(src))
-    result = storage::StorageError::READ_ERROR;
-
-  fclose(src);
-  fclose(dst);
-  return result;
-}
-
-//========================================================================
-// Extras
-//========================================================================
-
-bool FlashPartition::remount() {
-  if (this->mounted_) {
-    if (!this->unmount_lfs_())
-      return false;
-  }
-
-  esp_vfs_littlefs_conf_t conf = {
-      .base_path = this->mount_path_,
-      .partition_label = this->partition_label_,
-      .format_if_mount_failed = false,
-      .dont_mount = false,
-  };
-
-  if (esp_vfs_littlefs_register(&conf) != ESP_OK)
-    return false;
-
-  this->mounted_ = true;
-  return true;
-}
-
-//========================================================================
-// Internal helpers
-//========================================================================
-
-void FlashPartition::build_path_(char *out, size_t out_size, const char *path) const {
-  snprintf(out, out_size, "%s%s%s", this->mount_path_, (path[0] == '/') ? "" : "/", path);
 }
 
 bool FlashPartition::unmount_lfs_() {

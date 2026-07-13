@@ -86,9 +86,9 @@ class SPIFlash : public BinaryStorage,
   uint32_t get_erase_size() const override { return this->sector_size_; }
 
   // RawStorage interface
-  storage::StorageError read(size_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) override;
-  storage::StorageError write(size_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) override;
-  storage::StorageError erase(size_t offset, size_t len) override;
+  storage::StorageError read(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) override;
+  storage::StorageError write(uint64_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) override;
+  storage::StorageError erase(uint64_t offset, size_t len) override;
   storage::StorageError format() override;
 
   // Hardware-level byte access

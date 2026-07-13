@@ -4,6 +4,7 @@
 #ifdef USE_ESP_IDF
 #include "esphome/components/storage/storage.h"
 #include "esp_partition.h"
+#include "binary_storage.h"  // shared STORAGE_MAX_PATH_LEN
 
 namespace esphome::binary_storage {
 
@@ -26,7 +27,7 @@ class FlashPartition : public storage::FilesystemStorage {
   //========================================================================
 
   void set_partition_label(const char *label) { this->partition_label_ = label; }
-  void set_mount_path(const char *path) { this->mount_path_ = path; }
+  void set_mount_path(const char *path) { this->set_mount_path_(path); }
   void set_auto_format(bool format) { this->auto_format_ = format; }
   void set_storage_id(const char *id) { this->storage_id_ = id; }
   void set_storage_name(const char *name) { this->storage_name_ = name; }
@@ -36,6 +37,10 @@ class FlashPartition : public storage::FilesystemStorage {
   //========================================================================
 
   storage::StorageError get_info(storage::StorageInfo *info) override;
+  // esp_littlefs guards every lfs operation with an internal mutex and esp_partition
+  // read/write/erase are task-safe in ESP-IDF, so the data plane may run on the async
+  // worker task (calls per instance are externally serialized by the caller anyway).
+  uint8_t get_capabilities() const override { return storage::StorageCaps::STORAGE_CAP_IO_TASK_SAFE; }
   storage::StorageError mount() override;
   storage::StorageError unmount() override;
   storage::StorageError format() override;
@@ -45,28 +50,26 @@ class FlashPartition : public storage::FilesystemStorage {
   storage::StorageError read(storage::FileHandle *handle, uint8_t *buf, size_t len, size_t *bytes_transferred) override;
   storage::StorageError write(storage::FileHandle *handle, const uint8_t *buf, size_t len,
                               size_t *bytes_transferred) override;
-  storage::StorageError seek(storage::FileHandle *handle, size_t offset) override;
-  storage::StorageError tell(storage::FileHandle *handle, size_t *position) override;
+  storage::StorageError seek(storage::FileHandle *handle, int64_t offset, storage::SeekMode mode) override;
+  using storage::FilesystemStorage::seek;  // keep the (handle, offset) convenience overload visible
+  storage::StorageError tell(storage::FileHandle *handle, uint64_t *position) override;
   storage::StorageError stat(const char *path, storage::FileStat *stat) override;
-  storage::StorageError list_dir(const char *path, void (*callback)(const storage::FileStat *entry, void *ctx),
+  storage::StorageError list_dir(const char *path, bool (*callback)(const storage::FileStat *entry, void *ctx),
                                  void *ctx) override;
   storage::StorageError mkdir(const char *path) override;
-  storage::StorageError rmdir(const char *path, bool recursive) override;
+  storage::StorageError rmdir(const char *path) override;
   storage::StorageError remove(const char *path) override;
   storage::StorageError rename(const char *old_path, const char *new_path) override;
-  storage::StorageError copy(const char *src_path, const char *dst_path) override;
 
   //========================================================================
   // Extras
   //========================================================================
 
   bool is_mounted() const { return this->mounted_; }
-  const char *get_mount_path() const { return this->mount_path_; }
   bool remount();
 
  protected:
   const char *partition_label_{nullptr};
-  const char *mount_path_{"/littlefs"};
   const char *storage_id_{nullptr};
   const char *storage_name_{nullptr};
   bool auto_format_{true};
@@ -75,7 +78,7 @@ class FlashPartition : public storage::FilesystemStorage {
   // Pool of FileHandles for open() — no heap allocation per open call
   static constexpr int MAX_OPEN_FILES = 8;
   storage::FileHandle handle_pool_[MAX_OPEN_FILES]{};
-  char handle_paths_[MAX_OPEN_FILES][storage::STORAGE_MAX_PATH_LEN]{};
+  char handle_paths_[MAX_OPEN_FILES][STORAGE_MAX_PATH_LEN]{};
 
   //========================================================================
   // Internal helpers

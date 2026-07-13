@@ -100,21 +100,25 @@ void OneWireEEPROM::dump_config() {
 // BinaryStorage Interface
 //========================================================================
 
-storage::StorageError OneWireEEPROM::read(size_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
+storage::StorageError OneWireEEPROM::read(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
+  if (!this->is_valid_address_(offset, len))
+    return storage::StorageError::INVALID_ARGS;
   bool ok = this->read_raw(static_cast<uint32_t>(offset), buf, len);
   if (bytes_transferred != nullptr)
     *bytes_transferred = ok ? len : 0;
   return ok ? storage::StorageError::OK : storage::StorageError::READ_ERROR;
 }
 
-storage::StorageError OneWireEEPROM::write(size_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) {
+storage::StorageError OneWireEEPROM::write(uint64_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) {
+  if (!this->is_valid_address_(offset, len))
+    return storage::StorageError::INVALID_ARGS;
   bool ok = this->write_raw(static_cast<uint32_t>(offset), buf, len);
   if (bytes_transferred != nullptr)
     *bytes_transferred = ok ? len : 0;
   return ok ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
 }
 
-storage::StorageError OneWireEEPROM::erase(size_t offset, size_t len) { return storage::StorageError::OK; }
+storage::StorageError OneWireEEPROM::erase(uint64_t offset, size_t len) { return storage::StorageError::OK; }
 
 storage::StorageError OneWireEEPROM::format() { return this->BinaryStorage::format(); }
 

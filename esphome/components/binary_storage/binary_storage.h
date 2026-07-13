@@ -9,6 +9,10 @@
 
 namespace esphome::binary_storage {
 
+// Local path-buffer bound for the filesystem drivers in this component
+// (the storage API itself only bounds names via storage::STORAGE_NAME_MAX).
+static constexpr size_t STORAGE_MAX_PATH_LEN = 256;
+
 #ifdef USE_BINARY_STORAGE_LITTLEFS
 // Block device configuration for LittleFS integration.
 // LittleFS requires block-oriented operations — this provides the translation
@@ -45,14 +49,20 @@ class BinaryStorage : public storage::RawStorage {
   virtual uint32_t get_erase_size() const { return 0; }
   virtual bool is_ready() { return true; }
 
+  // Deliberately explicit (not just the inherited default): every binary_storage device is an
+  // external bus device (I2C/SPI/OneWire) and the bus is typically shared with components
+  // driven from the main loop, so data-plane I/O must never run on the async worker task.
+  // See StorageCaps in storage.h — do NOT add STORAGE_CAP_IO_TASK_SAFE here or in subclasses.
+  uint8_t get_capabilities() const override { return 0; }
+
   //========================================================================
   // RawStorage interface (pure virtuals — implement in each device driver)
   //========================================================================
 
   storage::StorageError get_info(storage::StorageInfo *info) override;
-  storage::StorageError read(size_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) override = 0;
-  storage::StorageError write(size_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) override = 0;
-  storage::StorageError erase(size_t offset, size_t len) override = 0;
+  storage::StorageError read(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) override = 0;
+  storage::StorageError write(uint64_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) override = 0;
+  storage::StorageError erase(uint64_t offset, size_t len) override = 0;
   storage::StorageError format() override;
 
   //========================================================================
@@ -82,7 +92,11 @@ class BinaryStorage : public storage::RawStorage {
   void set_storage_name(const char *name) { this->storage_name_ = name; }
 
  protected:
-  bool is_valid_address_(uint32_t address, size_t length) const { return (address + length) <= this->get_capacity(); }
+  // Overflow-proof: valid iff [address, address+length) fits within capacity.
+  bool is_valid_address_(uint64_t address, size_t length) const {
+    const uint64_t cap = this->get_capacity();
+    return length <= cap && address <= cap - length;
+  }
 
   const char *storage_id_{nullptr};
   const char *storage_name_{nullptr};

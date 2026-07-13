@@ -10,7 +10,10 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     require_vfs_dir,
 )
-from esphome.components.storage import request_storage_device
+from esphome.components.storage import (
+    request_storage_device,
+    request_storage_worker,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -79,6 +82,17 @@ IsReadyCondition = binary_storage_ns.class_("IsReadyCondition", automation.Condi
 CONF_PAGE_SIZE = "page_size"
 CONF_ADDRESSING_BITS = "addressing_bits"
 CONF_MOUNT_PATH = "mount_path"
+
+
+def _validate_mount_path(value):
+    # PathStorage contract: must start with '/', must not end with '/', not '' or '/'
+    value = cv.string_strict(value)
+    if not value.startswith("/") or (len(value) > 1 and value.endswith("/")) or value == "/":
+        raise cv.Invalid(
+            "mount_path must be absolute (start with '/'), must not end with '/', "
+            "and must not be just '/'"
+        )
+    return value
 CONF_AUTO_FORMAT = "auto_format"
 CONF_PARTITION_LABEL = "partition_label"
 CONF_FILESYSTEM = "filesystem"
@@ -143,7 +157,7 @@ EEPROM_SCHEMA = (
             cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
                 MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
             ),
-            cv.Optional(CONF_MOUNT_PATH): cv.string,
+            cv.Optional(CONF_MOUNT_PATH): _validate_mount_path,
             cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
             cv.Optional(CONF_MOUNT_ID): cv.declare_id(LittleFSMount),
             cv.Optional(CONF_STORAGE_ID): cv.string,
@@ -165,7 +179,7 @@ FRAM_SCHEMA = (
             cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
                 MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
             ),
-            cv.Optional(CONF_MOUNT_PATH): cv.string,
+            cv.Optional(CONF_MOUNT_PATH): _validate_mount_path,
             cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
             cv.Optional(CONF_MOUNT_ID): cv.declare_id(LittleFSMount),
             cv.Optional(CONF_STORAGE_ID): cv.string,
@@ -190,7 +204,7 @@ SPI_FLASH_SCHEMA = (
             cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
                 MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
             ),
-            cv.Optional(CONF_MOUNT_PATH): cv.string,
+            cv.Optional(CONF_MOUNT_PATH): _validate_mount_path,
             cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
             cv.Optional(CONF_MOUNT_ID): cv.declare_id(LittleFSMount),
             cv.Optional(CONF_STORAGE_ID): cv.string,
@@ -212,7 +226,7 @@ SPI_FRAM_SCHEMA = (
             cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
                 MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
             ),
-            cv.Optional(CONF_MOUNT_PATH): cv.string,
+            cv.Optional(CONF_MOUNT_PATH): _validate_mount_path,
             cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
             cv.Optional(CONF_MOUNT_ID): cv.declare_id(LittleFSMount),
             cv.Optional(CONF_STORAGE_ID): cv.string,
@@ -234,7 +248,7 @@ SPI_MRAM_SCHEMA = (
             cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
                 MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
             ),
-            cv.Optional(CONF_MOUNT_PATH): cv.string,
+            cv.Optional(CONF_MOUNT_PATH): _validate_mount_path,
             cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
             cv.Optional(CONF_MOUNT_ID): cv.declare_id(LittleFSMount),
             cv.Optional(CONF_STORAGE_ID): cv.string,
@@ -257,7 +271,7 @@ ONEWIRE_EEPROM_SCHEMA = cv.Schema(
         cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
             MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
         ),
-        cv.Optional(CONF_MOUNT_PATH): cv.string,
+        cv.Optional(CONF_MOUNT_PATH): _validate_mount_path,
         cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
         cv.Optional(CONF_MOUNT_ID): cv.declare_id(LittleFSMount),
         cv.Optional(CONF_STORAGE_ID): cv.string,
@@ -270,7 +284,7 @@ FLASH_PARTITION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(FlashPartition),
         cv.Required(CONF_PARTITION_LABEL): cv.string,
-        cv.Optional(CONF_MOUNT_PATH, default="/littlefs"): cv.string,
+        cv.Optional(CONF_MOUNT_PATH, default="/littlefs"): _validate_mount_path,
         cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
         cv.Optional(CONF_STORAGE_ID): cv.string,
         cv.Optional(CONF_STORAGE_NAME): cv.string,
@@ -397,6 +411,10 @@ async def to_code(config):
         cg.add(var.set_storage_name(storage_name))
 
         request_storage_device()
+        # Path-based driver -> async worker. task_safe: esp_littlefs serializes internally
+        # and esp_partition flash I/O is task-safe in IDF for every instance of this driver
+        # (see FlashPartition::get_capabilities()).
+        request_storage_worker(task_safe=True)
         return
 
     # External memory devices (FRAM, EEPROM, SPI Flash, MRAM, OneWire)
@@ -485,6 +503,9 @@ async def to_code(config):
 
         # LittleFSMount registers as a separate filesystem storage device
         request_storage_device()
+        # Path-based driver -> async worker; never task-safe (bus-attached backing device,
+        # see LittleFSMount::get_capabilities()).
+        request_storage_worker()
 
 
 # ============================================================================

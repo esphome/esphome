@@ -180,21 +180,25 @@ bool I2CEeprom::read_block_(uint32_t address, uint8_t *data, size_t length) {
   return true;
 }
 
-storage::StorageError I2CEeprom::read(size_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
+storage::StorageError I2CEeprom::read(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
+  if (!this->is_valid_address_(offset, len))
+    return storage::StorageError::INVALID_ARGS;
   bool ok = this->read_raw(static_cast<uint32_t>(offset), buf, len);
   if (bytes_transferred != nullptr)
     *bytes_transferred = ok ? len : 0;
   return ok ? storage::StorageError::OK : storage::StorageError::READ_ERROR;
 }
 
-storage::StorageError I2CEeprom::write(size_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) {
+storage::StorageError I2CEeprom::write(uint64_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) {
+  if (!this->is_valid_address_(offset, len))
+    return storage::StorageError::INVALID_ARGS;
   bool ok = this->write_raw(static_cast<uint32_t>(offset), buf, len);
   if (bytes_transferred != nullptr)
     *bytes_transferred = ok ? len : 0;
   return ok ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
 }
 
-storage::StorageError I2CEeprom::erase(size_t offset, size_t len) { return storage::StorageError::OK; }
+storage::StorageError I2CEeprom::erase(uint64_t offset, size_t len) { return storage::StorageError::OK; }
 
 storage::StorageError I2CEeprom::format() { return this->BinaryStorage::format(); }
 
