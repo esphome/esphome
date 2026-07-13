@@ -67,6 +67,29 @@ enum class RequestState : uint8_t {
 using TransferJob = uint32_t;
 static constexpr TransferJob INVALID_TRANSFER_JOB = 0;
 
+// 64-bit progress counter for TransferRequest, atomic only when it has to be. With the
+// background worker task the counters are written from the task while the main loop reads
+// them concurrently — that build uses std::atomic<uint64_t>. Every other build runs the
+// loop-sliced engine exclusively, so all access is main-loop-only and a plain field is
+// sufficient; this matters because 64-bit atomics are not lock-free on several supported
+// cores and GCC lowers them to __atomic_*_8 libcalls that toolchains without libatomic
+// (e.g. arm-none-eabi as used for LibreTiny/bk72xx) fail to link. The plain variant mirrors
+// the tiny slice of the std::atomic interface the worker actually uses (load/store/assign)
+// so every call site compiles unchanged against either type.
+#if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
+using ProgressCounter = std::atomic<uint64_t>;
+#else
+struct ProgressCounter {
+  uint64_t value{0};
+  uint64_t load() const { return this->value; }
+  void store(uint64_t v) { this->value = v; }
+  ProgressCounter &operator=(uint64_t v) {
+    this->value = v;
+    return *this;
+  }
+};
+#endif
+
 // Snapshot of a transfer's externally observable state — see get_transfer_status().
 struct TransferStatus {
   RequestState state{RequestState::FREE};
@@ -109,10 +132,11 @@ struct TransferRequest {
 
   // Externally observable progress (see get_transfer_status()): bytes_done is advanced by
   // run_chunk_() on whichever engine runs the transfer (possibly the worker task) while the
-  // main loop may query concurrently — hence atomics. bytes_total is stat()ed once at
+  // main loop may query concurrently — atomic in task builds only, see ProgressCounter above.
+  // bytes_total is stat()ed once at
   // transfer start; 0 means unknown (e.g. rename fast path, stat failure).
-  std::atomic<uint64_t> bytes_done{0};
-  std::atomic<uint64_t> bytes_total{0};
+  ProgressCounter bytes_done{};
+  ProgressCounter bytes_total{};
   // Job-handle generation: bumped on every slot claim so a recycled slot invalidates stale
   // TransferJob handles (never 0 — 0 is reserved for the invalid job). Main-loop-only.
   uint32_t generation{0};
