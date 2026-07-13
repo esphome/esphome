@@ -50,10 +50,11 @@ from esphome.const import (
     Toolchain,
     __version__,
 )
-from esphome.core import CORE, EsphomeError, HexInt
+from esphome.core import CORE, EsphomeError, HexInt, TimePeriod
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
 from esphome.espidf.component import generate_idf_components
+from esphome.espidf.toolchain import _get_idf_path
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -72,6 +73,7 @@ from .const import (
     KEY_FULL_CERT_BUNDLE,
     KEY_IDF_VERSION,
     KEY_NETWORK_SDKCONFIG,
+    KEY_OVERRIDE_PATH,
     KEY_PATH,
     KEY_REF,
     KEY_REPO,
@@ -673,24 +675,63 @@ def add_idf_component(
     repo: str | None = None,
     ref: str | None = None,
     path: str | None = None,
+    override_path: str | None = None,
+    refresh: TimePeriod | None = None,
+    components: list[str] | None = None,
+    submodules: list[str] | None = None,
 ):
-    """Add an esp-idf component to the project."""
-    if not repo and not ref and not path:
-        raise ValueError("Requires at least one of repo, ref or path")
-    components_registry = CORE.data[KEY_ESP32][KEY_COMPONENTS]
-    existing = components_registry.get(name)
-    if existing and existing.get(KEY_REF) != ref:
+    """Add an esp-idf component to the project.
+
+    Args:
+        name: Component name
+        repo: Git repository URL
+        ref: Git ref (tag/branch/commit)
+        path: Path within repository
+        override_path: Override path for built-in components (to replace ESP-IDF built-in components)
+        refresh: Deprecated
+        components: Deprecated
+        submodules: Deprecated
+    """
+    if not repo and not ref and not path and not override_path:
+        raise ValueError("Requires at least one of repo, ref, path, or override_path")
+    if refresh or submodules or components:
         _LOGGER.warning(
-            "IDF component %s version conflict %s replaced by %s",
-            name,
-            existing.get(KEY_REF),
-            ref,
+            "The refresh, components and submodules parameters in add_idf_component() are "
+            "deprecated and will be removed in ESPHome 2026.1. If you are seeing this, report "
+            "an issue to the external_component author and ask them to update it."
         )
-    components_registry[name] = {
-        KEY_REPO: repo,
-        KEY_REF: ref,
-        KEY_PATH: path,
-    }
+    components_registry = CORE.data[KEY_ESP32][KEY_COMPONENTS]
+    if components:
+        for comp in components:
+            existing = components_registry.get(comp)
+            if existing and existing.get(KEY_REF) != ref:
+                _LOGGER.warning(
+                    "IDF component %s version conflict %s replaced by %s",
+                    comp,
+                    existing.get(KEY_REF),
+                    ref,
+                )
+            components_registry[comp] = {
+                KEY_REPO: repo,
+                KEY_REF: ref,
+                KEY_PATH: f"{path}/{comp}" if path else comp,
+                KEY_OVERRIDE_PATH: override_path,
+            }
+    else:
+        existing = components_registry.get(name)
+        if existing and existing.get(KEY_REF) != ref:
+            _LOGGER.warning(
+                "IDF component %s version conflict %s replaced by %s",
+                name,
+                existing.get(KEY_REF),
+                ref,
+            )
+        components_registry[name] = {
+            KEY_REPO: repo,
+            KEY_REF: ref,
+            KEY_PATH: path,
+            KEY_OVERRIDE_PATH: override_path,
+        }
 
 
 def get_managed_component_require_names() -> list[str]:
@@ -2057,12 +2098,21 @@ async def _reconcile_network_sdkconfig() -> None:
     # Software coexistence: enable when requested (the schema only allows it
     # alongside WiFi). Disable only in the Ethernet-without-WiFi case.
     if net.software_coexistence:
-        set_opt("CONFIG_SW_COEXIST_ENABLE", True)
+        set_opt("CONFIG_ESP_COEX_SW_COEXIST_ENABLE", True)
     elif wifi_disabled:
-        set_opt("CONFIG_SW_COEXIST_ENABLE", False)
+        set_opt("CONFIG_ESP_COEX_SW_COEXIST_ENABLE", False)
 
     # SoftAP support: drop it when WiFi is used without AP mode (IDF only).
-    if not is_arduino and net.wifi and not net.wifi_ap:
+    # Skip on esp32_hosted — symbol is owned by the co-processor component.
+    # Skip on IDF >= 6.1.0 — the symbol's Kconfig dependency is no longer satisfied there,
+    # so IDF disables it and flags any user-set value as a "disabled symbol" warning.
+    if (
+        not is_arduino
+        and net.wifi
+        and not net.wifi_ap
+        and "esp32_hosted" not in CORE.config
+        and idf_version() < cv.Version(6, 1, 0)
+    ):
         set_opt("CONFIG_ESP_WIFI_SOFTAP_SUPPORT", False)
 
     # LWIP DHCP server: a WiFi-AP-mode / enable_lwip_dhcp_server concern (not
@@ -2087,6 +2137,47 @@ async def _add_yaml_idf_components(components: list[ConfigType]):
             ref=component.get(CONF_REF),
             path=component.get(CONF_PATH),
         )
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _patch_idf_kconfig_files():
+    """Patch IDF 6.1.0 Kconfig files that use 'default 0' for bool symbols.
+
+    Newer Kconfig parsers reject 'default 0' for boolean symbols and emit
+    warnings. Patch in-place before cmake runs.
+    """
+    if idf_version() < cv.Version(6, 1, 0):
+        return
+    idf_base = _get_idf_path()
+    if idf_base is None:
+        return
+    # Each entry: (glob_pattern, old_string, new_string)
+    # Exact surrounding context prevents accidental matches on other symbols.
+    fixes = [
+        (
+            "components/bt/**/Kconfig.in",
+            'config BT_NIMBLE_MESH_PROVISIONER\n        bool "Enable BLE mesh provisioner"\n        default 0\n',
+            'config BT_NIMBLE_MESH_PROVISIONER\n        bool "Enable BLE mesh provisioner"\n        default n\n',
+        ),
+        (
+            "components/fatfs/Kconfig",
+            '        bool "Make fatfs f_printf() support long long argument"\n        default 0\n',
+            '        bool "Make fatfs f_printf() support long long argument"\n        default n\n',
+        ),
+        (
+            "components/fatfs/Kconfig",
+            '        bool "Make fatfs f_printf() support floating point argument"\n        default 0\n',
+            '        bool "Make fatfs f_printf() support floating point argument"\n        default n\n',
+        ),
+    ]
+    for pattern, old, new in fixes:
+        for kconfig_path in idf_base.glob(pattern):
+            if not kconfig_path.is_file():
+                continue
+            original = kconfig_path.read_text()
+            if old in original:
+                kconfig_path.write_text(original.replace(old, new, 1))
+                _LOGGER.debug("Patched Kconfig default in %s", kconfig_path)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -2145,12 +2236,25 @@ async def _reconcile_vfs_fatfs_sdkconfig(
         # enough FATFS volumes for several drivers at once (SD + USB + wear levelling —
         # every esp_vfs_fat mount consumes one). All of these are only defaults: override
         # any of them via esp32 -> framework -> advanced -> sdkconfig_options.
-        set_opt("CONFIG_FATFS_LFN_NONE", False)
-        set_opt("CONFIG_FATFS_LFN_HEAP", True)
-        set_opt("CONFIG_FATFS_MAX_LFN", 255)
+        lfn_choice_keys = (
+            "CONFIG_FATFS_LFN_NONE",
+            "CONFIG_FATFS_LFN_HEAP",
+            "CONFIG_FATFS_LFN_STACK",
+        )
+        if not any(k in opts for k in lfn_choice_keys):
+            set_opt("CONFIG_FATFS_LFN_NONE", False)
+            set_opt("CONFIG_FATFS_LFN_HEAP", True)
+        if not opts.get("CONFIG_FATFS_LFN_NONE", False):
+            set_opt("CONFIG_FATFS_MAX_LFN", 255)
         set_opt("CONFIG_FATFS_VOLUME_COUNT", 4)
     elif disable_fatfs:
-        set_opt("CONFIG_FATFS_LFN_NONE", True)
+        lfn_choice_keys = (
+            "CONFIG_FATFS_LFN_NONE",
+            "CONFIG_FATFS_LFN_HEAP",
+            "CONFIG_FATFS_LFN_STACK",
+        )
+        if not any(k in opts for k in lfn_choice_keys):
+            set_opt("CONFIG_FATFS_LFN_NONE", True)
         # Kconfig range is [1,10]; 0 gets clamped to the default.
         set_opt("CONFIG_FATFS_VOLUME_COUNT", 1)
 
@@ -2453,7 +2557,11 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_LOG_TAG_LEVEL_IMPL_NONE", True)
 
     # Reduce PHY TX power in the event of a brownout
-    add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
+    # Not applicable on esp32_hosted — PHY lives on the co-processor
+    # Not applicable on IDF >= 6.1.0 — the symbol's Kconfig dependency is no longer
+    # satisfied there, so IDF disables it and flags any user-set value as a warning.
+    if "esp32_hosted" not in CORE.config and idf_version() < cv.Version(6, 1, 0):
+        add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
 
     # Set default CPU frequency
     add_idf_sdkconfig_option(
@@ -2680,6 +2788,9 @@ async def to_code(config):
 
     # FINAL priority: runs after every network/coexistence request_*() call
     CORE.add_job(_reconcile_network_sdkconfig)
+
+    # FINAL priority: patch IDF 6.1.0 Kconfig 'default 0' bool symbols before cmake runs
+    CORE.add_job(_patch_idf_kconfig_files)
 
     # FINAL priority: runs after every require_vfs_*() / require_fatfs() call — components
     # make those calls from their own to_code, which runs after this platform to_code, so
@@ -3039,6 +3150,8 @@ def _write_idf_component_yml():
                 dependency["git"] = component[KEY_REPO]
             if component[KEY_PATH]:
                 dependency["path"] = component[KEY_PATH]
+            if component.get(KEY_OVERRIDE_PATH):
+                dependency["override_path"] = component[KEY_OVERRIDE_PATH]
             dependencies[name] = dependency
 
     contents = yaml_util.dump({"dependencies": dependencies}) if dependencies else ""
