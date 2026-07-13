@@ -167,9 +167,9 @@ def setup_core(
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
 
     if tmp_path is not None:
-        CORE.config_path = str(tmp_path / f"{name}.yaml")
+        CORE.config_path = tmp_path / f"{name}.yaml"
         CORE.name = name
-        CORE.build_path = str(tmp_path / ".esphome" / "build" / name)
+        CORE.build_path = tmp_path / ".esphome" / "build" / name
 
 
 @pytest.fixture

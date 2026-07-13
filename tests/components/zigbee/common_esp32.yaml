@@ -5,6 +5,7 @@ binary_sensor:
   - platform: template
     name: "Garage Door Open 10"
     report: "default"
+    use_device_type: false
   - platform: template
     name: "Garage Door Open 12"
     report: "force"
