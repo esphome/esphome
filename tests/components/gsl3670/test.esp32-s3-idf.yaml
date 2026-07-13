@@ -1,5 +1,5 @@
 packages:
-  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+  i2c: !include ../../test_build_components/common/i2c/esp32-s3-idf.yaml
   spi: !include ../../test_build_components/common/spi/esp32-s3-idf.yaml
 
 xl9535:
@@ -10,6 +10,9 @@ display:
     id: gsl3670_display
     spi_id: spi_bus
     model: t-display-s3-pro
+    # The model's default DC pin (GPIO9) clashes with the shared i2c bus SCL
+    # pin, so override it onto a free pin for this test.
+    dc_pin: GPIO5
 
 psram:
   mode: quad
