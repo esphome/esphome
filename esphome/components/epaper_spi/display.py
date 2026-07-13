@@ -235,3 +235,27 @@ async def to_code(config):
     )
     if transform_str:
         cg.add(var.set_transform(RawExpression(transform_str)))
+
+
+# Automation
+from esphome import automation
+
+EPaperSPITriggerFullUpdateAction = epaper_spi_ns.class_(
+    "EPaperSPITriggerFullUpdateAction", automation.Action
+)
+
+
+@automation.register_action(
+    "display.epaper_spi.trigger_full_update",
+    EPaperSPITriggerFullUpdateAction,
+    automation.maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(EPaperBase),
+        }
+    ),
+    synchronous=True,
+)
+async def epaper_spi_trigger_full_update_to_code(config, action_id, template_arg, args):
+    display_var = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, display_var)
+    return var

@@ -4,6 +4,7 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/split_buffer/split_buffer.h"
 #include "esphome/core/component.h"
+#include "esphome/core/automation.h"
 
 namespace esphome::epaper_spi {
 using namespace display;
@@ -61,7 +62,7 @@ class EPaperBase : public Display,
     this->update_effective_transform_();
   }
   void set_full_update_every(uint8_t full_update_every) { this->full_update_every_ = full_update_every; }
-  void trigger_full_update() { this->update_count_ = 0; }
+  void set_update_count(uint8_t update_count) { this->update_count_ = update_count; }
   void dump_config() override;
 
   void command(uint8_t value);
@@ -202,6 +203,19 @@ class EPaperBase : public Display,
   EPaperState state_{EPaperState::IDLE};
   uint32_t reset_duration_{10};
   uint8_t full_update_every_{1};
+};
+
+template<typename... Ts> class EPaperSPITriggerFullUpdateAction : public Action<Ts...> {
+ public:
+  explicit EPaperSPITriggerFullUpdateAction(EPaperBase *display) : display_(display) {}
+
+ protected:
+  void play(const Ts &...x) override {
+    this->display_->set_update_count(0);
+    this->display_->update();
+  }
+
+  EPaperBase *display_;
 };
 
 }  // namespace esphome::epaper_spi

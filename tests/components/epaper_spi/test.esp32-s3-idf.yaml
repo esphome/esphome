@@ -3,6 +3,7 @@ packages:
 
 display:
   - platform: epaper_spi
+    id: test_display
     spi_id: spi_bus
     model: spectra-e6
     dimensions:
@@ -232,3 +233,8 @@ display:
       it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
       it.circle(it.get_width() / 2, it.get_height() / 2, 100, Color::BLACK);
       it.circle(it.get_width() / 2, it.get_height() / 2, 60, Color(255, 0, 0));
+
+script:
+  - id: test_script
+    then:
+      - display.epaper_spi.trigger_full_update: test_display
