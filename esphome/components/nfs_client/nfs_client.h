@@ -284,10 +284,10 @@ class RPCClient {
 // NFS Client Component
 //========================================================================
 
-class NFSClient final : public storage::NetworkStorage, public storage::MountableStorage {
+class NFSClient : public storage::NetworkStorage, public storage::MountableStorage {
  public:
   NFSClient() = default;
-  ~NFSClient() override;
+  ~NFSClient();
 
   void setup() override;
   void loop() override;

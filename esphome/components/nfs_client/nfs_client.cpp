@@ -520,22 +520,24 @@ storage::StorageError NFSClient::get_info(storage::StorageInfo *info) {
   if (info == nullptr) {
     return storage::StorageError::INVALID_ARGS;
   }
-  if (!this->mounted_) {
-    info->is_mounted = false;
-    return storage::StorageError::NOT_READY;
-  }
-
-  uint64_t total = 0, free_b = 0;
-  this->get_space_info(total, free_b);
-
+  // Storage contract: get_info() must succeed even when registered-but-unmounted and
+  // report that via is_mounted — never via a non-OK error, and never with a server
+  // round-trip while unmounted.
   info->id = (this->mount_path_ != nullptr) ? this->mount_path_ : "nfs";
   info->name = "NFS";
-  info->total_bytes = total;
-  info->free_bytes = free_b;
   info->block_size = 4096;
-  info->is_mounted = true;
   info->is_removable = false;
   info->is_read_only = false;
+  info->is_mounted = this->mounted_;
+  info->total_bytes = 0;
+  info->free_bytes = 0;
+
+  if (this->mounted_) {
+    uint64_t total = 0, free_b = 0;
+    this->get_space_info(total, free_b);
+    info->total_bytes = total;
+    info->free_bytes = free_b;
+  }
   return storage::StorageError::OK;
 }
 
@@ -1390,6 +1392,26 @@ bool NFSClient::mount_export_(const std::string &export_path, NFSFileHandle &fh)
 
 bool NFSClient::unmount_export_(const std::string &export_path) {
   ESP_LOGD(TAG, "Unmounting export: %s", export_path.c_str());
+
+  // MOUNTPROC3_UMNT belongs to the MOUNT program: it must be sent to the MOUNT service
+  // port, not down the established NFS-port connection (the server would answer with
+  // RPC accept status PROG_UNAVAIL there). Reconnect to the MOUNT port for this one
+  // call; the caller closes the connection right afterwards anyway. Best effort: UMNT
+  // is advisory server-side bookkeeping (RFC 1813), so a failure here must not block
+  // the local unmount.
+  if (!this->mount_port_discovered_) {
+    ESP_LOGD(TAG, "MOUNT port unknown — skipping advisory UMNT");
+    return false;
+  }
+  this->close_connection_();
+  MountState prev_state = this->mount_state_;
+  this->mount_state_ = MountState::CONNECTING_MOUNT;  // connect_tcp_() port selector
+  bool connected = this->connect_tcp_();
+  this->mount_state_ = prev_state;
+  if (!connected) {
+    ESP_LOGD(TAG, "Could not reach MOUNT service for advisory UMNT — skipping");
+    return false;
+  }
 
   uint32_t xid = RPCClient::generate_xid();
   XDRBuffer request;
