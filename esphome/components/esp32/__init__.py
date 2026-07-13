@@ -1171,7 +1171,12 @@ _SIGNED_OTA_VERIFICATION_SCHEMA = cv.Schema(
 )
 
 
+@schema_extractor("schema")
 def _validate_signed_ota_verification(value):
+    if value is SCHEMA_EXTRACT:
+        # Expose the inner schema so the language-schema dumper can walk the
+        # signing_key / verification_key / signing_scheme options.
+        return _SIGNED_OTA_VERIFICATION_SCHEMA
     if value is None:
         # A bare `signed_ota_verification:` block is valid: the default V2
         # scheme needs no keys (verify externally-signed binaries).
