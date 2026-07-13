@@ -2,10 +2,14 @@ from typing import Any, Self
 
 import esphome.config_validation as cv
 from esphome.const import CONF_DIMENSIONS, CONF_HEIGHT, CONF_WIDTH
+from esphome.cpp_generator import MockObj
 
 
 class EpaperModel:
     models: dict[str, Self] = {}
+
+    # Whether the driver manages chip-select itself instead of via the SPI bus.
+    manages_cs: bool = False
 
     def __init__(
         self,
@@ -34,6 +38,25 @@ class EpaperModel:
 
     def get_constructor_args(self, config) -> tuple:
         return ()
+
+    def get_config_options(self) -> dict:
+        """
+        Return model-specific configuration schema options.
+        The base implementation adds nothing; specific models override this to
+        declare extra options without cluttering the shared schema.
+        :return: A mapping suitable for cv.Schema.extend()
+        """
+        return {}
+
+    async def to_code(self, var: MockObj, config: dict) -> dict:
+        """
+        Generate model-specific code for the options added by add_options().
+        The base implementation does nothing; specific models override this.
+        The config can be updated in place to add or remove options.
+        :param var: The component variable
+        :param config: The validated configuration
+        """
+        return config
 
     def get_dimensions(self, config) -> tuple[int, int]:
         if CONF_DIMENSIONS in config:

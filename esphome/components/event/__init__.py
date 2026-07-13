@@ -50,7 +50,9 @@ _EVENT_SCHEMA = (
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTEventComponent),
             cv.GenerateID(): cv.declare_id(Event),
-            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
+            cv.Optional(
+                CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): validate_device_class,
             cv.Optional(CONF_ON_EVENT): automation.validate_automation({}),
         }
     )

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::modbus {
 
@@ -48,7 +49,11 @@ enum class ModbusRegisterType : uint8_t {
   COIL = 0x01,
   DISCRETE_INPUT = 0x02,
   HOLDING = 0x03,
-  READ = 0x04,
+  // Named INPUT_REGISTER (not INPUT) because Arduino cores define INPUT as a macro.
+  INPUT_REGISTER = 0x04,
+  // Remove before 2027.2.0
+  READ ESPDEPRECATED("Use ModbusRegisterType::INPUT_REGISTER instead. Removed in 2027.2.0", "2026.7.0") =
+      INPUT_REGISTER,
 };
 
 // 7 MODBUS Exception Responses:
@@ -77,7 +82,7 @@ static constexpr uint16_t MAX_NUM_OF_DISCRETE_INPUTS_TO_READ = 2000;  // 0x7D0
 
 // 6.3 03 (0x03) Read Holding Registers
 // 6.4 04 (0x04) Read Input Registers
-static constexpr uint8_t MAX_NUM_OF_REGISTERS_TO_READ = 125;  // 0x7D
+static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_READ = 125;  // 0x7D
 
 // Smallest possible frame is 4 bytes (custom function with no data): address(1) + function(1) + CRC(2)
 static constexpr uint16_t MIN_FRAME_SIZE = 4;
