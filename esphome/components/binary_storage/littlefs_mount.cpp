@@ -14,7 +14,6 @@
 
 namespace esphome::binary_storage {
 
-
 static inline lfs_t *lfs_cast(void *p) { return static_cast<lfs_t *>(p); }
 static inline lfs_config *cfg_cast(void *p) { return static_cast<lfs_config *>(p); }
 

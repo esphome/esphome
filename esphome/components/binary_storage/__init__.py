@@ -10,10 +10,7 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     require_vfs_dir,
 )
-from esphome.components.storage import (
-    request_storage_device,
-    request_storage_worker,
-)
+from esphome.components.storage import request_storage_device, request_storage_worker
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -87,12 +84,18 @@ CONF_MOUNT_PATH = "mount_path"
 def _validate_mount_path(value):
     # PathStorage contract: must start with '/', must not end with '/', not '' or '/'
     value = cv.string_strict(value)
-    if not value.startswith("/") or (len(value) > 1 and value.endswith("/")) or value == "/":
+    if (
+        not value.startswith("/")
+        or (len(value) > 1 and value.endswith("/"))
+        or value == "/"
+    ):
         raise cv.Invalid(
             "mount_path must be absolute (start with '/'), must not end with '/', "
             "and must not be just '/'"
         )
     return value
+
+
 CONF_AUTO_FORMAT = "auto_format"
 CONF_PARTITION_LABEL = "partition_label"
 CONF_FILESYSTEM = "filesystem"
