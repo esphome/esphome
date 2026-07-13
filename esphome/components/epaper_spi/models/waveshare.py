@@ -6,7 +6,9 @@ from . import EpaperModel
 
 
 class WaveshareModel(EpaperModel):
-    def __init__(self, name, lut, lut_partial=None, class_name="EpaperWaveshare", **defaults):
+    def __init__(
+        self, name, lut, lut_partial=None, class_name="EpaperWaveshare", **defaults
+    ):
         super().__init__(name, class_name, **defaults)
         self.lut = lut
         self.lut_partial = lut_partial
