@@ -284,7 +284,7 @@ class RPCClient {
 // NFS Client Component
 //========================================================================
 
-class NFSClient : public storage::NetworkStorage {
+class NFSClient : public storage::NetworkStorage, public storage::MountableStorage {
  public:
   NFSClient() = default;
   ~NFSClient();
@@ -307,14 +307,32 @@ class NFSClient : public storage::NetworkStorage {
   void set_mount_path(const char *mount_path) { this->set_mount_path_(mount_path); }
   void set_uid(uint32_t uid) { this->uid_ = uid; }
   void set_gid(uint32_t gid) { this->gid_ = gid; }
+  // Fire one mount attempt on each rising edge of network connectivity (see loop()).
+  void set_auto_connect(bool auto_connect) { this->auto_connect_ = auto_connect; }
 
   bool is_mounted() const { return this->mounted_; }
+
+  //========================================================================
+  // MountableStorage interface
+  //========================================================================
+
+  // No-RTTI downcast hook — see PathStorage::as_mountable().
+  storage::MountableStorage *as_mountable() override { return this; }
+
+  // mount() requests one asynchronous mount attempt; loop() carries it out step by step
+  // (never blocking the caller). unmount() tears the mount down synchronously, following
+  // the SD-card safe-eject pattern: unregister (drains async worker traffic per the registry
+  // contract), UMNT + close, re-register as registered-but-unmounted.
+  storage::StorageError mount() override;
+  storage::StorageError unmount() override;
 
   //========================================================================
   // NetworkStorage interface
   //========================================================================
 
   storage::StorageError get_info(storage::StorageInfo *info) override;
+  // connect()/disconnect() are the NetworkStorage names for the same two operations —
+  // they delegate to mount()/unmount() above (one implementation, two interface names).
   storage::StorageError connect() override;
   storage::StorageError disconnect() override;
   storage::StorageError read_chunk(const char *path, uint8_t *buf, uint64_t offset, size_t len,
@@ -377,8 +395,14 @@ class NFSClient : public storage::NetworkStorage {
   };
 
   MountState mount_state_{MountState::IDLE};
-  uint32_t last_mount_attempt_{0};
-  uint32_t mount_retry_interval_{30000};
+  // Set by mount()/connect() or the auto-connect edge below; consumed by loop() to start one
+  // mount attempt. No periodic retry exists anymore — FAILED is terminal until the next
+  // request (users schedule retries themselves via interval:/automations + storage.mount).
+  bool mount_requested_{false};
+  // Fire one mount attempt on each rising edge of network connectivity (default on). The
+  // boot pass counts as an edge when the network is already up by then.
+  bool auto_connect_{true};
+  bool network_was_connected_{false};
 
 #if defined(USE_ESP_IDF) || defined(USE_ESP32)
   struct sockaddr_in server_addr_ {};

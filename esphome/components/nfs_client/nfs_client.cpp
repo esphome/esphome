@@ -2,6 +2,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/components/network/util.h"
 
 #include <cstring>
 #include <algorithm>
@@ -377,17 +378,46 @@ void NFSClient::setup() {
   }
 
   this->mount_state_ = MountState::IDLE;
-  ESP_LOGI(TAG, "NFS mount will be attempted asynchronously in loop()");
+
+  // Register before any mount attempt, not only on success — get_info() reports is_mounted
+  // correctly either way, and this lets the device (and storage.mount/unmount actions, the
+  // web file browser, path routing) see the share even while it is unmounted. Same pattern
+  // as sd_storage: registered-but-unmounted is the normal state for a mountable device.
+  if (storage::global_storage_registry != nullptr) {
+    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
+      // Registry full = codegen/runtime device-count mismatch: the device would be invisible
+      // to resolve_path()/consumers. Fatal — do not run with a silently missing device.
+      ESP_LOGE(TAG, "Storage registration failed");
+      this->mark_failed();
+    }
+  }
 }
 
 void NFSClient::loop() {
-  uint32_t now = millis();
+  // Auto-connect: fire ONE mount attempt on each rising edge of network connectivity.
+  // network::is_connected() covers wifi, ethernet, modem and openthread alike, so no
+  // per-stack wiring is needed; the check costs a flag read per pass and the attempt starts
+  // within one main-loop pass of the network coming up (event-edge, never periodic). The
+  // first pass after boot counts as an edge when the network is already up by then, and a
+  // network drop re-arms the edge so a reconnect remounts an unmounted share automatically.
+  const bool net_connected = network::is_connected();
+  if (this->auto_connect_ && net_connected && !this->network_was_connected_ && !this->mounted_) {
+    ESP_LOGD(TAG, "Network up — auto-connect requests NFS mount");
+    this->mount_requested_ = true;
+  }
+  this->network_was_connected_ = net_connected;
+
+  // A pending request only starts a new attempt from a resting state; FAILED is terminal
+  // otherwise (no periodic retry — retries are the user's decision via interval:/automations
+  // calling storage.mount, or the next network-up edge above).
+  if (this->mount_requested_ && (this->mount_state_ == MountState::IDLE || this->mount_state_ == MountState::FAILED)) {
+    this->mount_requested_ = false;
+    ESP_LOGD(TAG, "Starting NFS mount attempt for %s:%s", this->server_.c_str(), this->export_path_.c_str());
+    this->mount_state_ = MountState::CONNECTING_PMAP;
+  }
 
   switch (this->mount_state_) {
     case MountState::IDLE:
-      ESP_LOGD(TAG, "Starting NFS mount attempt for %s:%s", this->server_.c_str(), this->export_path_.c_str());
-      this->mount_state_ = MountState::CONNECTING_PMAP;
-      this->last_mount_attempt_ = now;
       break;
 
     case MountState::CONNECTING_PMAP:
@@ -395,10 +425,8 @@ void NFSClient::loop() {
         ESP_LOGD(TAG, "Connected to portmapper, querying for MOUNT service...");
         this->mount_state_ = MountState::QUERYING_PMAP_MOUNT;
       } else {
-        ESP_LOGW(TAG, "Failed to connect to portmapper, will retry in %" PRIu32 " seconds",
-                 this->mount_retry_interval_ / 1000);
+        ESP_LOGW(TAG, "Failed to connect to portmapper");
         this->mount_state_ = MountState::FAILED;
-        this->last_mount_attempt_ = now;
       }
       break;
 
@@ -409,11 +437,9 @@ void NFSClient::loop() {
         this->close_connection_();
         this->mount_state_ = MountState::CONNECTING_MOUNT;
       } else {
-        ESP_LOGW(TAG, "Failed to query portmapper for MOUNT, will retry in %" PRIu32 " seconds",
-                 this->mount_retry_interval_ / 1000);
+        ESP_LOGW(TAG, "Failed to query portmapper for MOUNT");
         this->close_connection_();
         this->mount_state_ = MountState::FAILED;
-        this->last_mount_attempt_ = now;
       }
       break;
 
@@ -422,10 +448,8 @@ void NFSClient::loop() {
         ESP_LOGD(TAG, "Connected to MOUNT service, attempting mount...");
         this->mount_state_ = MountState::MOUNTING;
       } else {
-        ESP_LOGW(TAG, "Failed to connect to MOUNT service, will retry in %" PRIu32 " seconds",
-                 this->mount_retry_interval_ / 1000);
+        ESP_LOGW(TAG, "Failed to connect to MOUNT service");
         this->mount_state_ = MountState::FAILED;
-        this->last_mount_attempt_ = now;
       }
       break;
 
@@ -435,11 +459,9 @@ void NFSClient::loop() {
         this->close_connection_();
         this->mount_state_ = MountState::QUERYING_PMAP_NFS;
       } else {
-        ESP_LOGW(TAG, "Failed to mount NFS export, will retry in %" PRIu32 " seconds",
-                 this->mount_retry_interval_ / 1000);
+        ESP_LOGW(TAG, "Failed to mount NFS export");
         this->unmount_();
         this->mount_state_ = MountState::FAILED;
-        this->last_mount_attempt_ = now;
       }
       break;
 
@@ -451,9 +473,6 @@ void NFSClient::loop() {
           this->nfs_port_discovered_ = false;
           this->mounted_ = true;
           this->mount_state_ = MountState::MOUNTED;
-          if (storage::global_storage_registry != nullptr) {
-            storage::global_storage_registry->register_storage(this);
-          }
           break;
         }
       }
@@ -469,20 +488,15 @@ void NFSClient::loop() {
       this->close_connection_();
       this->mounted_ = true;
       this->mount_state_ = MountState::MOUNTED;
-
-      if (storage::global_storage_registry != nullptr) {
-        storage::global_storage_registry->register_storage(this);
-      }
       break;
 
     case MountState::MOUNTED:
+      // A request that arrived mid-attempt has reached its target state — drop it so it
+      // cannot restart the pipeline after a later manual unmount.
+      this->mount_requested_ = false;
       break;
 
     case MountState::FAILED:
-      if (now - this->last_mount_attempt_ >= this->mount_retry_interval_) {
-        ESP_LOGI(TAG, "Retrying NFS mount...");
-        this->mount_state_ = MountState::IDLE;
-      }
       break;
   }
 }
@@ -492,6 +506,7 @@ void NFSClient::dump_config() {
   ESP_LOGCONFIG(TAG, "  Server: %s:%u", this->server_.c_str(), this->port_);
   ESP_LOGCONFIG(TAG, "  Export: %s", this->export_path_.c_str());
   ESP_LOGCONFIG(TAG, "  Status: %s", this->mounted_ ? "Mounted" : "Not mounted");
+  ESP_LOGCONFIG(TAG, "  Auto connect on network up: %s", YESNO(this->auto_connect_));
   if (this->mount_path_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Mount path: %s", this->mount_path_);
   }
@@ -524,27 +539,51 @@ storage::StorageError NFSClient::get_info(storage::StorageInfo *info) {
   return storage::StorageError::OK;
 }
 
-storage::StorageError NFSClient::connect() {
-  // Trigger async mount — actual connection happens in loop()
-  if (this->mount_state_ == MountState::IDLE || this->mount_state_ == MountState::FAILED) {
-    this->mount_state_ = MountState::IDLE;
+storage::StorageError NFSClient::mount() {
+  // Already mounted -> target state reached, no error.
+  if (this->mounted_)
+    return storage::StorageError::OK;
+  // Request one asynchronous attempt; loop() runs the pipeline one step per pass. A request
+  // arriving while an attempt is already in flight simply coalesces with it.
+  this->mount_requested_ = true;
+  return storage::StorageError::OK;
+}
+
+storage::StorageError NFSClient::unmount() {
+  if (!this->mounted_)
+    return storage::StorageError::OK;
+  // SD-card safe-eject pattern: unregister first — the registry contract guarantees
+  // unregister_storage() doesn't return until any in-flight storage_worker data-plane calls
+  // against this device have drained, so tearing the protocol state down right after is safe.
+  if (storage::global_storage_registry != nullptr)
+    storage::global_storage_registry->unregister_storage(this);
+
+  this->unmount_export_(this->export_path_);
+  this->close_connection_();
+  this->root_fh_.data.clear();
+  this->mounted_ = false;
+  this->mount_state_ = MountState::IDLE;
+  ESP_LOGI(TAG, "NFS unmounted");
+
+  // Re-register: registered-but-unmounted is the normal state for this device (see setup()) —
+  // unregistering above was only ever about the teardown window itself.
+  if (storage::global_storage_registry != nullptr) {
+    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
+      ESP_LOGE(TAG, "Storage registration failed");
+      this->mark_failed();
+    }
   }
   return storage::StorageError::OK;
 }
 
+storage::StorageError NFSClient::connect() {
+  // NetworkStorage name for the same operation — see the header.
+  return this->mount();
+}
+
 storage::StorageError NFSClient::disconnect() {
-  if (!this->mounted_) {
-    return storage::StorageError::OK;
-  }
-  if (storage::global_storage_registry != nullptr) {
-    storage::global_storage_registry->unregister_storage(this);
-  }
-  this->unmount_export_(this->export_path_);
-  this->root_fh_.data.clear();
-  this->mounted_ = false;
-  this->mount_state_ = MountState::FAILED;
-  ESP_LOGI(TAG, "NFS disconnected");
-  return storage::StorageError::OK;
+  // NetworkStorage name for the same operation — see the header.
+  return this->unmount();
 }
 
 storage::StorageError NFSClient::read_chunk(const char *path, uint8_t *buf, uint64_t offset, size_t len,

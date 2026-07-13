@@ -1,5 +1,9 @@
 import esphome.codegen as cg
-from esphome.components.storage import request_storage_device, request_storage_worker
+from esphome.components.storage import (
+    MountableStorage,
+    request_storage_device,
+    request_storage_worker,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -20,9 +24,12 @@ CONF_SERVER = "server"
 CONF_EXPORT = "export"
 CONF_MOUNT_PATH = "mount_path"
 CONF_GID = "gid"
+CONF_AUTO_CONNECT = "auto_connect"
 
 nfs_client_ns = cg.esphome_ns.namespace("nfs_client")
-NFSClient = nfs_client_ns.class_("NFSClient", cg.Component)
+# MountableStorage parent makes nfs ids valid targets for the generic storage.mount /
+# storage.unmount actions (cv.use_id(MountableStorage) checks declared Python parents).
+NFSClient = nfs_client_ns.class_("NFSClient", cg.Component, MountableStorage)
 
 DEFAULT_PORT = 2049
 DEFAULT_UID = 0
@@ -37,6 +44,10 @@ NFS_SHARE_SCHEMA = cv.Schema(
         cv.Optional(CONF_MOUNT_PATH): cv.string,
         cv.Optional(CONF_UID, default=DEFAULT_UID): cv.int_range(min=0, max=65535),
         cv.Optional(CONF_GID, default=DEFAULT_GID): cv.int_range(min=0, max=65535),
+        # Fire one mount attempt on each rising edge of network connectivity (wifi,
+        # ethernet, modem or openthread — whichever the config uses). No periodic retry:
+        # schedule retries yourself via interval:/automations calling storage.mount.
+        cv.Optional(CONF_AUTO_CONNECT, default=True): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -79,6 +90,7 @@ async def to_code(config):
         cg.add(var.set_export(share_config[CONF_EXPORT]))
         cg.add(var.set_uid(share_config[CONF_UID]))
         cg.add(var.set_gid(share_config[CONF_GID]))
+        cg.add(var.set_auto_connect(share_config[CONF_AUTO_CONNECT]))
 
         if (mount_path := share_config.get(CONF_MOUNT_PATH)) is not None:
             cg.add(var.set_mount_path(mount_path))
