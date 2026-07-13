@@ -2,7 +2,16 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_STATE
+from esphome.const import (
+    CONF_ACCURACY_DECIMALS,
+    CONF_DEVICE_CLASS,
+    CONF_FORCE_UPDATE,
+    CONF_ID,
+    CONF_LAMBDA,
+    CONF_STATE,
+    CONF_STATE_CLASS,
+    CONF_UNIT_OF_MEASUREMENT,
+)
 
 from .. import template_ns
 
@@ -11,9 +20,14 @@ TemplateSensor = template_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(
-        TemplateSensor,
-        accuracy_decimals=1,
+    cv.with_visibility(
+        sensor.sensor_schema(TemplateSensor, accuracy_decimals=1),
+        cv.Visibility.UI,
+        CONF_UNIT_OF_MEASUREMENT,
+        CONF_ACCURACY_DECIMALS,
+        CONF_DEVICE_CLASS,
+        CONF_STATE_CLASS,
+        CONF_FORCE_UPDATE,
     )
     .extend(
         {
