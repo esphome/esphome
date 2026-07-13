@@ -420,18 +420,22 @@ void USBStorageClient::on_connected() {
   this->notify_connected_(vid, pid);
 }
 
+void USBStorageClient::unmount_filesystem() {
+  if (!this->mounted_)
+    return;
+  char drive_path[8];
+  snprintf(drive_path, sizeof(drive_path), "%d:", this->fatfs_drive_);
+  f_mount(nullptr, drive_path, 0);
+  esp_vfs_fat_unregister_path(this->mount_path_);
+  this->mounted_ = false;
+  ESP_LOGI(TAG, "FAT filesystem unmounted from '%s'", this->mount_path_);
+}
+
 void USBStorageClient::on_disconnected() {
   this->notify_disconnected_();
   this->disk_ready_ = false;
 
-  if (this->mounted_) {
-    char drive_path[8];
-    snprintf(drive_path, sizeof(drive_path), "%d:", this->fatfs_drive_);
-    f_mount(nullptr, drive_path, 0);
-    esp_vfs_fat_unregister_path(this->mount_path_);
-    this->mounted_ = false;
-    ESP_LOGI(TAG, "FAT filesystem unmounted from '%s'", this->mount_path_);
-  }
+  this->unmount_filesystem();
 
   if (this->msc_interface_ != 0xFF) {
     this->release_interface(this->msc_interface_);
@@ -490,8 +494,15 @@ bool USBStorageDevice::remount_device() {
 void USBStorageDevice::unmount_device() {
   if (!this->fs_mounted_)
     return;
+  // Safe-eject semantics: unregister from the storage registry first (drains worker jobs,
+  // see the registry contract), then tear the FAT mount + VFS registration down completely.
+  // The device intentionally "disappears" — get_mount_caps() is UNMOUNT-only, so there is no
+  // mount button; the next mount happens when the stick is physically (re)inserted, which
+  // re-runs the client's connect flow.
   ESP_LOGI(TAG, "Device unmounted");
   this->on_device_disconnected();
+  if (this->client_ != nullptr)
+    this->client_->unmount_filesystem();
 }
 
 void USBStorageDevice::log_list_dir_start_(const char *path) const { ESP_LOGI(TAG, "Listing files in: %s", path); }

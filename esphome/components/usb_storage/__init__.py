@@ -112,6 +112,8 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+
+
 async def to_code(config):
     require_vfs_dir()
     require_vfs_select()

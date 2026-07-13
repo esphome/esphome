@@ -60,6 +60,11 @@ class USBStorageClient : public usb_host::USBClient {
  protected:
   void on_connected() override;
   void on_disconnected() override;
+  // Tear down the FAT mount + VFS registration without touching the USB level.
+  // Used by USBStorageDevice::unmount_device() (safe eject): after this the mount
+  // path is gone from the VFS entirely; the next physical (re)insertion runs the
+  // normal connect flow and mounts again.
+  void unmount_filesystem();
   void on_removed(usb_device_handle_t handle) override;
 
   bool parse_msc_endpoints_();
