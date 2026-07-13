@@ -361,6 +361,22 @@ bool ESP32BLE::ble_setup_() {
       return false;
     }
   }
+
+  if (this->init_key_) {
+    err = esp_ble_gap_set_security_param(ESP_BLE_SM_SET_INIT_KEY, &(this->init_key_.value()), sizeof(uint8_t));
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_ble_gap_set_security_param init_key failed: %d", err);
+      return false;
+    }
+  }
+
+  if (this->rsp_key_) {
+    err = esp_ble_gap_set_security_param(ESP_BLE_SM_SET_RSP_KEY, &(this->rsp_key_.value()), sizeof(uint8_t));
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_ble_gap_set_security_param rsp_key failed: %d", err);
+      return false;
+    }
+  }
 #endif  // ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
 
   // BLE takes some time to be fully set up, 200ms should be more than enough

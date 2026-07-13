@@ -249,11 +249,28 @@ CONF_IO_CAPABILITY = "io_capability"
 CONF_AUTH_REQ_MODE = "auth_req_mode"
 CONF_MAX_KEY_SIZE = "max_key_size"
 CONF_MIN_KEY_SIZE = "min_key_size"
+CONF_INIT_KEY = "init_key"
+CONF_RSP_KEY = "rsp_key"
 CONF_ADVERTISING = "advertising"
 CONF_ADVERTISING_CYCLE_TIME = "advertising_cycle_time"
 CONF_DISABLE_BT_LOGS = "disable_bt_logs"
 CONF_CONNECTION_TIMEOUT = "connection_timeout"
 CONF_MAX_NOTIFICATIONS = "max_notifications"
+
+KEY_MASKS = {
+    "enc": 1 << 0,  # ESP_BLE_ENC_KEY_MASK
+    "id": 1 << 1,  # ESP_BLE_ID_KEY_MASK
+    "sign": 1 << 2,  # ESP_BLE_CSRK_KEY_MASK
+    "link": 1 << 3,  # ESP_BLE_LINK_KEY_MASK
+}
+
+
+def validate_key_mask(value):
+    mask = 0
+    for key in value:
+        mask |= KEY_MASKS[key]
+    return mask
+
 
 # BLE connection limits
 # ESP-IDF CONFIG_BT_ACL_CONNECTIONS has range 1-9, default 4
@@ -331,6 +348,12 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_AUTH_REQ_MODE): cv.enum(AUTH_REQ_MODE, lower=True),
         cv.Optional(CONF_MAX_KEY_SIZE): cv.int_range(min=7, max=16),
         cv.Optional(CONF_MIN_KEY_SIZE): cv.int_range(min=7, max=16),
+        cv.Optional(CONF_INIT_KEY): cv.All(
+            cv.ensure_list(cv.enum(KEY_MASKS, lower=True)), validate_key_mask
+        ),
+        cv.Optional(CONF_RSP_KEY): cv.All(
+            cv.ensure_list(cv.enum(KEY_MASKS, lower=True)), validate_key_mask
+        ),
         cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
         cv.Optional(CONF_ADVERTISING, default=False): cv.boolean,
         cv.Optional(
@@ -585,6 +608,8 @@ async def to_code(config):
         CONF_AUTH_REQ_MODE in config
         or CONF_MAX_KEY_SIZE in config
         or CONF_MIN_KEY_SIZE in config
+        or CONF_INIT_KEY in config
+        or CONF_RSP_KEY in config
     ):
         cg.add_define("ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS", None)
 
@@ -594,6 +619,10 @@ async def to_code(config):
         cg.add(var.set_max_key_size(config[CONF_MAX_KEY_SIZE]))
     if CONF_MIN_KEY_SIZE in config:
         cg.add(var.set_min_key_size(config[CONF_MIN_KEY_SIZE]))
+    if CONF_INIT_KEY in config:
+        cg.add(var.set_init_key(config[CONF_INIT_KEY]))
+    if CONF_RSP_KEY in config:
+        cg.add(var.set_rsp_key(config[CONF_RSP_KEY]))
 
     cg.add(var.set_advertising_cycle_time(config[CONF_ADVERTISING_CYCLE_TIME]))
     if (name := config.get(CONF_NAME)) is not None:

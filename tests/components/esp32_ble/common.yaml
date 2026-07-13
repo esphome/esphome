@@ -1,2 +1,4 @@
 esp32_ble:
   io_capability: keyboard_only
+  init_key: [enc, sign, link]
+  rsp_key: [enc]
