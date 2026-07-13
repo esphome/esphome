@@ -4,38 +4,20 @@ host:
 api:
 logger:
 
-# Globals simulate an external device that supports two-point (heat_cool) temperature
-# control and humidity reporting/control.
-# The device reports separate low/high target temperatures, the current temperature,
-# and current/target humidity.
-globals:
-  - id: ext_mode
-    type: int
-    initial_value: "1"  # CLIMATE_MODE_HEAT_COOL
-  - id: ext_target_temp_low
-    type: float
-    initial_value: "18.0"
-  - id: ext_target_temp_high
-    type: float
-    initial_value: "24.0"
-  - id: ext_current_humidity
-    type: float
-    initial_value: "55.0"
-  - id: ext_target_humidity
-    type: float
-    initial_value: "50.0"
-
+# current_temperature is a genuinely-measured value, pushed by the referenced sensor (no
+# polling). Everything settable (mode, target_temperature_low/high, target_humidity) is plain
+# internal Climate state: on_control forwards commands out (logged here, stands in for "send to
+# the real device"), and a button's climate.template.publish simulates the device reporting its
+# own authoritative state, e.g. because someone changed a setting on the physical unit --
+# independent of any prior command.
 climate:
   - platform: template
     id: test_climate
     name: Test Two-Point Heatpump
     optimistic: true
-    current_temperature: !lambda "return 21.0f;"
-    target_temperature_low: !lambda "return id(ext_target_temp_low);"
-    target_temperature_high: !lambda "return id(ext_target_temp_high);"
-    current_humidity: !lambda "return id(ext_current_humidity);"
-    target_humidity: !lambda "return id(ext_target_humidity);"
-    mode: !lambda "return static_cast<climate::ClimateMode>(id(ext_mode));"
+    sensor: test_climate_current_temperature
+    supports_two_point_target_temperature: true
+    supports_target_humidity: true
     supported_modes:
       - "OFF"
       - HEAT_COOL
@@ -45,11 +27,32 @@ climate:
       min_temperature: 16.0
       max_temperature: 30.0
       temperature_step: 0.5
-    set_mode_action:
-      - lambda: "id(ext_mode) = (int) x;"
-    set_target_temperature_low_action:
-      - lambda: "id(ext_target_temp_low) = x;"
-    set_target_temperature_high_action:
-      - lambda: "id(ext_target_temp_high) = x;"
-    set_target_humidity_action:
-      - lambda: "id(ext_target_humidity) = x;"
+    on_control:
+      - lambda: |-
+          if (x.get_mode().has_value())
+            ESP_LOGD("test", "on_control mode=%d", (int) *x.get_mode());
+          if (x.get_target_temperature_low().has_value())
+            ESP_LOGD("test", "on_control target_temperature_low=%.1f", *x.get_target_temperature_low());
+          if (x.get_target_temperature_high().has_value())
+            ESP_LOGD("test", "on_control target_temperature_high=%.1f", *x.get_target_temperature_high());
+          if (x.get_target_humidity().has_value())
+            ESP_LOGD("test", "on_control target_humidity=%.1f", *x.get_target_humidity());
+
+sensor:
+  - platform: template
+    id: test_climate_current_temperature
+    name: Test Climate Current Temperature
+    lambda: "return 21.0f;"
+    update_interval: 10ms
+
+button:
+  - platform: template
+    id: simulate_device_report
+    name: Simulate Device Report
+    on_press:
+      - climate.template.publish:
+          id: test_climate
+          mode: HEAT_COOL
+          target_temperature_low: 18.0
+          target_temperature_high: 24.0
+          target_humidity: 50.0

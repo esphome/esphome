@@ -4,6 +4,9 @@ host:
 api:
 logger:
 
+# No read-lambdas: ESPHome owns the state directly. on_control (inherited for free from the base
+# Climate component) is what a real device-backed config would use to forward each command to the
+# physical device; here it just logs, so the test can confirm it actually fires.
 climate:
   - platform: template
     id: test_climate
@@ -29,23 +32,15 @@ climate:
       min_temperature: 16.0
       max_temperature: 30.0
       temperature_step: 0.5
-    set_mode_action:
-      - logger.log:
-          format: "Mode: %d"
-          args: ["(int) x"]
-    set_target_temperature_action:
-      - logger.log:
-          format: "Target temp: %.1f"
-          args: ["x"]
-    set_fan_mode_action:
-      - logger.log:
-          format: "Fan mode: %d"
-          args: ["(int) x"]
-    set_swing_mode_action:
-      - logger.log:
-          format: "Swing mode: %d"
-          args: ["(int) x"]
-    set_preset_action:
-      - logger.log:
-          format: "Preset: %d"
-          args: ["(int) x"]
+    on_control:
+      - lambda: |-
+          if (x.get_mode().has_value())
+            ESP_LOGD("test", "on_control mode=%d", (int) *x.get_mode());
+          if (x.get_target_temperature().has_value())
+            ESP_LOGD("test", "on_control target_temperature=%.1f", *x.get_target_temperature());
+          if (x.get_fan_mode().has_value())
+            ESP_LOGD("test", "on_control fan_mode=%d", (int) *x.get_fan_mode());
+          if (x.get_swing_mode().has_value())
+            ESP_LOGD("test", "on_control swing_mode=%d", (int) *x.get_swing_mode());
+          if (x.get_preset().has_value())
+            ESP_LOGD("test", "on_control preset=%d", (int) *x.get_preset());

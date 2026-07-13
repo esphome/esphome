@@ -25,6 +25,27 @@ esphome:
         away: !lambda "return true;"
         is_on: !lambda "return false;"
 
+    - climate.template.publish:
+        id: template_climate
+        current_temperature: 21.0
+        mode: HEAT
+        fan_mode: AUTO
+        swing_mode: "OFF"
+        preset: NONE
+        target_temperature: 22.0
+
+    # Templated
+    - climate.template.publish:
+        id: template_climate
+        current_temperature: !lambda "return 21.5f;"
+        mode: !lambda "return climate::CLIMATE_MODE_COOL;"
+        target_temperature: !lambda "return 23.0f;"
+
+    - climate.template.publish:
+        id: template_climate_custom_modes
+        custom_fan_mode: "turbo"
+        custom_preset: "eco_plus"
+
     # Test C++ API: set_template() with stateless lambda (no captures)
     # NOTE: set_template() is not intended to be a public API, but we test it to ensure it doesn't break.
     - lambda: |-
@@ -518,12 +539,8 @@ climate:
     id: template_climate
     name: "Template Climate"
     optimistic: true
-    current_temperature: !lambda "return 22.5f;"
-    mode: !lambda "return climate::CLIMATE_MODE_HEAT;"
-    fan_mode: !lambda "return climate::CLIMATE_FAN_AUTO;"
-    swing_mode: !lambda "return climate::CLIMATE_SWING_OFF;"
-    preset: !lambda "return climate::CLIMATE_PRESET_NONE;"
-    target_temperature: !lambda "return 21.0f;"
+    sensor: template_template_sens
+    supports_action: true
     supported_modes:
       - "OFF"
       - HEAT
@@ -542,24 +559,16 @@ climate:
       min_temperature: 16.0
       max_temperature: 30.0
       temperature_step: 0.5
-    set_mode_action:
-      - logger.log: "set_mode_action"
-    set_fan_mode_action:
-      - logger.log: "set_fan_mode_action"
-    set_swing_mode_action:
-      - logger.log: "set_swing_mode_action"
-    set_preset_action:
-      - logger.log: "set_preset_action"
-    set_target_temperature_action:
-      - logger.log: "set_target_temperature_action"
+    on_control:
+      - logger.log: "on_control fired"
+    on_state:
+      - logger.log: "on_state fired"
 
   - platform: template
     id: template_climate_custom_modes
     name: "Template Climate Custom Modes"
     optimistic: true
-    current_temperature: !lambda "return 22.5f;"
-    custom_fan_mode: !lambda "return std::string{\"turbo\"};"
-    custom_preset: !lambda "return std::string{\"eco_plus\"};"
+    sensor: template_template_sens
     custom_fan_modes:
       - turbo
       - silent
@@ -572,14 +581,6 @@ climate:
       min_temperature: 16.0
       max_temperature: 30.0
       temperature_step: 0.5
-    set_custom_fan_mode_action:
-      - logger.log:
-          format: "set_custom_fan_mode_action: %s"
-          args: ["x.c_str()"]
-    set_custom_preset_action:
-      - logger.log:
-          format: "set_custom_preset_action: %s"
-          args: ["x.c_str()"]
 
 water_heater:
   - platform: template

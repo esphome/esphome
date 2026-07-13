@@ -1,0 +1,73 @@
+esphome:
+  name: tmpl-clim-basic
+  on_boot:
+    - climate.template.publish:
+        id: test_climate
+        action: IDLE
+host:
+api:
+logger:
+
+# current_temperature/current_humidity are pushed by the referenced sensor/humidity_sensor (no
+# polling). action has no sensor equivalent, so it's set once at boot via climate.template.publish
+# to give the entity an initial value -- supports_action: true declares the trait, since (unlike
+# modes/fan modes/presets) there's no list whose presence would otherwise imply it.
+# mode/fan_mode/swing_mode/preset are plain internal state: on_control forwards commands out
+# (logged here), and a button's climate.template.publish simulates the device reporting its own
+# state, independent of any prior command.
+climate:
+  - platform: template
+    id: test_climate
+    name: Test Basic Climate
+    optimistic: true
+    sensor: test_climate_current_temperature
+    humidity_sensor: test_climate_current_humidity
+    supports_action: true
+    supported_modes:
+      - "OFF"
+      - HEAT
+      - COOL
+    supported_fan_modes:
+      - AUTO
+      - LOW
+      - HIGH
+    supported_swing_modes:
+      - "OFF"
+      - VERTICAL
+    supported_presets:
+      - NONE
+      - ECO
+    on_control:
+      - lambda: |-
+          if (x.get_mode().has_value())
+            ESP_LOGD("test", "on_control mode=%d", (int) *x.get_mode());
+          if (x.get_fan_mode().has_value())
+            ESP_LOGD("test", "on_control fan_mode=%d", (int) *x.get_fan_mode());
+          if (x.get_swing_mode().has_value())
+            ESP_LOGD("test", "on_control swing_mode=%d", (int) *x.get_swing_mode());
+          if (x.get_preset().has_value())
+            ESP_LOGD("test", "on_control preset=%d", (int) *x.get_preset());
+
+sensor:
+  - platform: template
+    id: test_climate_current_temperature
+    name: Test Climate Current Temperature
+    lambda: "return 22.5f;"
+    update_interval: 10ms
+  - platform: template
+    id: test_climate_current_humidity
+    name: Test Climate Current Humidity
+    lambda: "return 55.0f;"
+    update_interval: 10ms
+
+button:
+  - platform: template
+    id: simulate_device_report
+    name: Simulate Device Report
+    on_press:
+      - climate.template.publish:
+          id: test_climate
+          mode: "OFF"
+          fan_mode: AUTO
+          swing_mode: "OFF"
+          preset: NONE

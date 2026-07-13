@@ -1,10 +1,15 @@
-"""Integration tests for template climate: no state-readback lambdas, optimistic=true.
+"""Integration tests for template climate: no read-lambdas, optimistic=true.
 
-When no state-readback lambdas are present ESPHome owns the internal state.
-Commands apply immediately — no external confirmation is needed.
+When no read-lambdas are configured, ESPHome owns the climate's internal state directly --
+commands apply immediately, no external confirmation needed. on_control (inherited for free from
+the base Climate component, not anything template-specific) is what a real device-backed config
+hooks into to forward the command to the physical device; this test confirms it actually fires
+with the full ClimateCall contents.
 """
 
 from __future__ import annotations
+
+import asyncio
 
 import aioesphomeapi
 from aioesphomeapi import (
@@ -29,12 +34,19 @@ async def test_template_climate_no_lambdas_optimistic(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """No state-readback lambdas + optimistic: every command is reflected in HA immediately.
-
-    ESPHome owns the state — no lambdas are needed to confirm commands.
-    """
+    """No read-lambdas + optimistic: commands apply immediately, on_control forwards them."""
     clear_host_prefs(DEVICE_NAME)
-    async with run_compiled(yaml_config), api_client_connected() as client:
+
+    log_lines: list[str] = []
+
+    def on_log_line(line: str) -> None:
+        if "on_control " in line:
+            log_lines.append(line)
+
+    async with (
+        run_compiled(yaml_config, line_callback=on_log_line),
+        api_client_connected() as client,
+    ):
 
         async def wait_for_climate_state(
             timeout: float = 5.0,
@@ -80,24 +92,42 @@ async def test_template_climate_no_lambdas_optimistic(
         assert initial is not None, "No initial climate state received"
         assert isinstance(initial, aioesphomeapi.ClimateState)
         assert initial.mode == ClimateMode.OFF
+        # Nothing was commanded yet: on_control must not have fired.
+        assert not log_lines
 
-        # Each command updates ESPHome's internal state immediately.
+        # Each command updates ESPHome's internal state immediately, and on_control fires with
+        # the same value.
         client.climate_command(test_climate.key, mode=ClimateMode.HEAT)
         state = await wait_for_climate_state()
         assert state.mode == ClimateMode.HEAT
+        await asyncio.sleep(0.2)
+        assert any(
+            "on_control mode=3" in line for line in log_lines
+        )  # CLIMATE_MODE_HEAT
 
         client.climate_command(test_climate.key, target_temperature=22.5)
         state = await wait_for_climate_state()
         assert state.target_temperature == pytest.approx(22.5, abs=0.1)
+        await asyncio.sleep(0.2)
+        assert any("on_control target_temperature=22.5" in line for line in log_lines)
 
         client.climate_command(test_climate.key, fan_mode=ClimateFanMode.HIGH)
         state = await wait_for_climate_state()
         assert state.fan_mode == ClimateFanMode.HIGH
+        await asyncio.sleep(0.2)
+        assert any("on_control fan_mode=" in line for line in log_lines)
 
         client.climate_command(test_climate.key, swing_mode=ClimateSwingMode.VERTICAL)
         state = await wait_for_climate_state()
         assert state.swing_mode == ClimateSwingMode.VERTICAL
+        await asyncio.sleep(0.2)
+        assert any("on_control swing_mode=" in line for line in log_lines)
 
         client.climate_command(test_climate.key, preset=ClimatePreset.AWAY)
         state = await wait_for_climate_state()
         assert state.preset == ClimatePreset.AWAY
+        await asyncio.sleep(0.2)
+        assert any("on_control preset=" in line for line in log_lines)
+
+        # Exactly one on_control log line per command, none extra (e.g. from a stray republish).
+        assert len(log_lines) == 5
