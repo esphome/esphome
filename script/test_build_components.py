@@ -88,6 +88,38 @@ def show_disk_space_if_ci(esphome_command: str) -> None:
     sys.stdout.flush()
 
 
+def start_log_group(title: str) -> None:
+    """Begin a collapsible log group in the GitHub Actions log viewer.
+
+    Everything printed until the matching :func:`end_log_group` is folded away
+    by default, so the full ``esphome config``/``compile`` dump for one
+    configuration no longer pushes the pass/fail result thousands of lines down
+    the log. Outside CI this is a no-op so local runs stay plain.
+
+    Args:
+        title: Text shown on the (collapsed) group header line.
+    """
+    if not os.environ.get("GITHUB_ACTIONS"):
+        return
+    # Flush so the marker is ordered correctly relative to the child process
+    # output that follows (the subprocess writes straight to our stdout).
+    sys.stdout.flush()
+    print(f"::group::{title}")
+    sys.stdout.flush()
+
+
+def end_log_group() -> None:
+    """Close the collapsible log group opened by :func:`start_log_group`.
+
+    Outside CI this is a no-op.
+    """
+    if not os.environ.get("GITHUB_ACTIONS"):
+        return
+    sys.stdout.flush()
+    print("::endgroup::")
+    sys.stdout.flush()
+
+
 def find_component_tests(
     components_dir: Path,
     component_pattern: str = "*",
@@ -383,8 +415,11 @@ def run_esphome_test(
     # Build command string for display/logging
     cmd_str = " ".join(cmd)
 
-    # Run command
-    print(f"> [{component}] [{test_name}] [{platform_with_version}]")
+    # Run command inside a collapsible CI log group so the full esphome output
+    # for this configuration can be folded away by default.
+    group_title = f"[{component}] [{test_name}] [{platform_with_version}]"
+    start_log_group(group_title)
+    print(f"> {group_title}")
     if use_testing_mode:
         print("  (using --testing-mode)")
 
@@ -398,6 +433,10 @@ def run_esphome_test(
 
         # Show disk space after build in CI during compile
         show_disk_space_if_ci(esphome_command)
+
+        # Close the group before reporting status so a failure and its
+        # reproduce command stay visible without expanding the group.
+        end_log_group()
 
         if not success and not continue_on_fail:
             # Print command immediately for failed tests
@@ -534,9 +573,12 @@ def run_grouped_test(
     # Build command string for display/logging
     cmd_str = " ".join(cmd)
 
-    # Run command
+    # Run command inside a collapsible CI log group so the full esphome output
+    # for this grouped configuration can be folded away by default.
     components_str = ", ".join(components)
-    print(f"> [GROUPED: {components_str}] [{platform_with_version}]")
+    group_title = f"[GROUPED: {components_str}] [{platform_with_version}]"
+    start_log_group(group_title)
+    print(f"> {group_title}")
     print("  (using --testing-mode)")
 
     start_time = time.time()
@@ -549,6 +591,10 @@ def run_grouped_test(
 
         # Show disk space after build in CI during compile
         show_disk_space_if_ci(esphome_command)
+
+        # Close the group before reporting status so a failure and its
+        # reproduce command stay visible without expanding the group.
+        end_log_group()
 
         if not success and not continue_on_fail:
             # Print command immediately for failed tests
