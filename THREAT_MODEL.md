@@ -79,6 +79,48 @@ These *are* security bugs in this repo, and we want to hear about them privately
 - Flaws that weaken the device's API encryption (Noise), OTA, or web server auth
   below their documented guarantees.
 
+## The web server is an open HTTP API by design
+
+The `web_server` component exposes a plain HTTP interface for viewing and
+controlling entities, and, when the `web_server` OTA platform is enabled, for
+uploading firmware at `/update`. Its only access controls are the optional
+`web_server` `auth:` credentials and the network the device sits on.
+
+When `auth:` is not configured, every endpoint is reachable by any client that
+can reach the device. This is intentional; enabling `web_server` without `auth:`
+is choosing an open control surface, in the same way that running native OTA
+without a password leaves OTA open. The API is documented and is meant to be
+called by other devices, scripts, and pages.
+
+As defense-in-depth, the web server checks the `Origin` header on browser requests
+to its entity control and state endpoints: a request whose `Origin` does not match
+the address the device is served on is rejected, and the `allowed_origins` option
+widens that list. This blocks the common "confused deputy" (CSRF) case where a page
+the operator visits drives the device through their browser. It is **not** an
+authentication boundary: it only constrains browsers. Any client that omits the
+`Origin` header — `curl`, scripts, or other non-browser callers on the same
+network — reaches every endpoint exactly as before. The check also does not cover
+the web OTA `/update` endpoint. The device performs no CSRF-token or `Referer`
+validation. The following are therefore **not** vulnerabilities in this repository:
+
+- Requests without an `Origin` header (for example `curl`) reaching the control
+  endpoints, whether or not `web_server` `auth:` is set.
+- Requests from an origin the operator added to `allowed_origins`.
+- Cross-origin or CSRF firmware upload through the web OTA endpoint (`/update`) when
+  web OTA is enabled without `web_server` `auth:`. The `/update` endpoint is not
+  covered by the `Origin` check; this is the same exposure as running OTA without a
+  password.
+
+The supported defenses are `web_server` `auth:`, protecting OTA (a web password or
+a native OTA password), and keeping devices on a trusted, segmented network. See
+the security best practices guide linked above.
+
+What remains in scope is bypassing `web_server` `auth:` when it *is* configured,
+and any memory-safety or protocol bug in the server reachable without credentials.
+
+This section documents the current design and scope; it is not a judgment that the
+design is optimal or that it will not change.
+
 ## Explicitly out of scope
 
 - Local attackers who already have shell access on the host that runs `esphome`.
@@ -86,6 +128,10 @@ These *are* security bugs in this repo, and we want to hear about them privately
 - Operator-supplied hostile YAML (covered above — config authoring is trusted).
 - Attacks that require an already-authenticated device peer (someone who already
   holds the API key / OTA / web credentials).
+- Access to the device web server or its web OTA endpoint by non-browser clients
+  (those that send no `Origin` header). The web server is an open HTTP API by
+  design (see above); browser cross-origin requests are blocked by default, but the
+  real controls are `web_server` `auth:` and network isolation.
 - Anything in the dashboard / device-builder — report that in its own repository
   (linked at the top).
 - Deployments where the operator removed protections or exposed credentials. See

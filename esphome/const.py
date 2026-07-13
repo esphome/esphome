@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.7.0-dev"
+__version__ = "2026.8.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -1255,6 +1255,7 @@ UNIT_KILOVOLT_AMPS_REACTIVE_HOURS = "kvarh"
 UNIT_KILOWATT = "kW"
 UNIT_KILOWATT_HOURS = "kWh"
 UNIT_LITRE = "L"
+UNIT_LITRE_PER_HOUR = "L/h"
 UNIT_LITRE_PER_SECOND = "L/s"
 UNIT_LUX = "lx"
 UNIT_MEGAJOULE = "MJ"

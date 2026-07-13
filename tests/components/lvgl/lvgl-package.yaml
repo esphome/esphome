@@ -25,20 +25,6 @@ binary_sensor:
     widget: button_a
     state: checked
   - platform: lvgl
-    id: button_checker
-    name: LVGL button
-    widget: button_button
-    state: checked
-    on_state:
-      then:
-        - lvgl.checkbox.update:
-            id: checkbox_id
-            state:
-              checked: !lambda |-
-                  auto y = x; // block inlining of one line return
-                  return y;
-
-  - platform: lvgl
     id: button_presser
     name: Button pressed
     widget: button_button
@@ -49,6 +35,9 @@ lvgl:
   rotation: 90
   log_level: debug
   resume_on_input: true
+  paused: true
+  update_when_display_idle: true
+  refresh_interval: 30ms
   on_pause:
     - logger.log: LVGL is Paused
     - lvgl.display.set_rotation: 90
@@ -57,6 +46,40 @@ lvgl:
     - lvgl.display.set_rotation:
         rotation: 0
         lvgl_id: lvgl_id
+    - lvgl.display.set_rotation:
+        rotation: !lambda "return 180;"
+        lvgl_id: lvgl_id
+  on_landscape:
+    - logger.log: LVGL display is now landscape
+    # Re-layout a container in response to orientation changes. The layout type
+    # and grid structure are fixed at creation; only the style options change.
+    - lvgl.widget.update:
+        id: grid_rows_only_shorthand
+        layout:
+          grid_column_align: center
+          grid_row_align: space_between
+          pad_row: 4px
+    - lvgl.update:
+        top_layer:
+          layout:
+            flex_flow: row
+  on_portrait:
+    - logger.log: LVGL display is now portrait
+    - lvgl.widget.update:
+        id: grid_rows_only_shorthand
+        layout:
+          grid_column_align: start
+          pad_row: 2px
+    # Top-level layout applies to the active screen
+    - lvgl.update:
+        layout:
+          flex_flow: column
+          pad_row: 8px
+    - lvgl.update:
+        top_layer:
+          layout:
+            flex_flow: column
+            flex_align_main: center
 
   on_boot:
     - logger.log: LVGL has started
@@ -64,6 +87,12 @@ lvgl:
         id: meter_arc_indicator
         start_value: 0
         end_value: 180
+    - lvgl.animation.start:
+        id:
+          - anim_slide
+          - anim_color
+        duration: 3s
+        loop: true
   on_invalidate_area:
     logger.log: Invalidate area
   on_resolution_change:
@@ -108,6 +137,52 @@ lvgl:
       - obj:
           bg_color: 0x000000
           bg_opa: cover
+  top_layer:
+    widgets:
+      - obj:
+          id: anim_box
+          x: 0
+          y: 0
+          width: 50
+          height: 50
+          bg_color: 0xFF0000
+      - label:
+          id: anim_label
+          text: anim
+  animations:
+    - id: anim_slide
+      duration: 1s
+      start_delay: 100ms
+      auto_start: true
+      loop: true
+      timing: ease_in_out
+      on_start:
+        - logger.log: anim started
+      on_stop:
+        - logger.log: anim stopped
+      widgets:
+        - id: anim_box
+          x:
+            from: 0
+            to: 100
+          y:
+            from: 0
+            to: !lambda "return 80;"
+          opa:
+            from: 50%
+            to: 100%
+    - id: anim_color
+      duration: 2s
+      timing:
+        - round_trip
+        - type: gravity
+          bounce: 0.3
+          acceleration: 0.8
+      widgets:
+        - id: anim_label
+          text_color:
+            from: 0xFF0000
+            to: color_id
   theme:
     dark_mode: true
     obj:
@@ -210,6 +285,11 @@ lvgl:
           on_click:
             then:
               - lvgl.display.set_rotation: 0
+              - lvgl.animation.stop: anim_slide
+              - lvgl.animation.stop:
+                  id:
+                    - anim_slide
+                    - anim_color
               - lvgl.widget.hide: message_box
               - lvgl.style.update:
                   id: style_test
@@ -217,6 +297,9 @@ lvgl:
                   bg_opa: !lambda return 0.5;
               - lvgl.image.update:
                   id: lv_image
+                  src:
+                    mapping: image_map
+                    value: !lambda return round(1.0);
                   scale: !lambda return 512;
                   rotation: !lambda return 100;
                   pivot_x: !lambda return 20;
@@ -342,9 +425,16 @@ lvgl:
             text_font: montserrat_40
             border_post: true
             on_press:
-              lvgl.label.update:
-                id: hello_label
-                text: Goodbye
+              - lvgl.label.update:
+                  id: hello_label
+                  text:
+                    mapping: lvgl_string_map
+                    value: !lambda return 2;
+              - lvgl.label.update:
+                  id: hello_label
+                  text:
+                    mapping: lvgl_string_map
+                    value: 2
             on_click:
               then:
                 - lvgl.animimg.stop: anim_img
@@ -1449,6 +1539,21 @@ image:
     resize: 100x100
     invert_alpha: true
     transparency: alpha_channel
+
+mapping:
+  - id: image_map
+    from: int
+    to: image
+    entries:
+      0: cat_image
+      1: dog_image
+  - id: lvgl_string_map
+    from: int
+    to: string
+    entries:
+      0: "First"
+      1: "Second"
+      2: "Third"
 
 color:
   - id: light_blue
