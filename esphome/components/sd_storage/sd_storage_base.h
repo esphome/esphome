@@ -114,6 +114,14 @@ class SdStorageBase : public storage::FilesystemStorage, public storage::Mountab
   // observed change is accurate regardless of when the caller last polled.
   bool card_present_();
 
+  // Card-detect handling shared by SdMmc::loop()/SdSpi::loop(). Strictly EDGE-triggered:
+  // (re)mount only when the debounced CD state CHANGES to present, unmount only when it
+  // changes to absent — never on levels. A manual unmount with the card still seated
+  // therefore stays unmounted until the card is physically re-inserted (or mounted
+  // manually). Without a configured CD pin this is a no-op: mount happens once at boot
+  // (setup()), afterwards strictly manually via the mount/unmount actions.
+  void loop_cd_();
+
   // True at most once every CD_POLL_MS — gates how often a driver's loop() acts on
   // card_present_()'s result (auto-mount/unmount), independent of how often loop() itself
   // runs. card_present_() itself must still be called every iteration regardless (see above).
@@ -150,6 +158,11 @@ class SdStorageBase : public storage::FilesystemStorage, public storage::Mountab
   // first differed from last_confirmed_ so the debounce window is wall-clock based rather than
   // counted in loop() iterations (whose frequency varies with the rest of the node's config).
   bool cd_debounce_started_{false};
+  // Edge detection for loop_cd_(): last debounced state that was acted upon, and whether
+  // it has been seeded yet (the first sample after boot must not count as an edge —
+  // setup() already handled the boot-time mount decision).
+  bool cd_last_present_{false};
+  bool cd_state_seeded_{false};
   bool last_confirmed_present_{true};
   bool candidate_present_{true};
   uint32_t candidate_since_ms_{0};

@@ -71,23 +71,7 @@ void SdMmc::setup() {
   }
 }
 
-void SdMmc::loop() {
-  bool present = this->card_present_();
-  if (!this->should_poll_cd_())
-    return;
-
-  if (this->is_mounted_ && !present) {
-    ESP_LOGI(TAG, "Card removed (CD)");
-    this->unmount();
-    this->on_removed_.call();
-  } else if (!this->is_mounted_ && present) {
-    ESP_LOGI(TAG, "Card inserted (CD)");
-    bool ok = this->mount() == storage::StorageError::OK;
-    this->log_mount_result_(ok);
-    if (ok)
-      this->on_inserted_.call();
-  }
-}
+void SdMmc::loop() { this->loop_cd_(); }
 
 void SdMmc::dump_config() {
   ESP_LOGCONFIG(TAG, "SD/MMC Card:");

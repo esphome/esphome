@@ -95,6 +95,42 @@ storage::StorageError SdStorageBase::format() {
   return storage::StorageError::NOT_SUPPORTED;
 }
 
+void SdStorageBase::loop_cd_() {
+  // No CD pin: card management is boot mount + manual actions only. In particular this
+  // must NOT auto-remount after a manual unmount (card_present_() reports always-present
+  // without a pin, so any level-based logic would remount on the next poll).
+  if (this->cd_pin_ == nullptr)
+    return;
+
+  // Debounce tracking must run every loop() iteration (see card_present_()), the
+  // mount/unmount reaction only at the poll interval.
+  bool present = this->card_present_();
+  if (!this->should_poll_cd_())
+    return;
+
+  if (!this->cd_state_seeded_) {
+    // Seed with the current state — the boot-time mount decision was setup()'s.
+    this->cd_last_present_ = present;
+    this->cd_state_seeded_ = true;
+    return;
+  }
+  if (present == this->cd_last_present_)
+    return;  // level unchanged — edges only
+  this->cd_last_present_ = present;
+
+  if (present) {
+    ESP_LOGI(TAG_BASE, "Card inserted (CD edge)");
+    bool ok = this->mount() == storage::StorageError::OK;
+    this->log_mount_result_(ok);
+    if (ok)
+      this->on_inserted_.call();
+  } else if (this->is_mounted_) {
+    ESP_LOGI(TAG_BASE, "Card removed (CD edge)");
+    this->unmount();
+    this->on_removed_.call();
+  }
+}
+
 bool SdStorageBase::card_present_() {
   if (this->cd_pin_ == nullptr)
     return true;

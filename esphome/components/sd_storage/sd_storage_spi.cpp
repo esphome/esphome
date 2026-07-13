@@ -73,23 +73,7 @@ void SdSpi::setup() {
   }
 }
 
-void SdSpi::loop() {
-  bool present = this->card_present_();
-  if (!this->should_poll_cd_())
-    return;
-
-  if (this->is_mounted_ && !present) {
-    ESP_LOGI(TAG_SPI, "Card removed (CD)");
-    this->unmount();
-    this->on_removed_.call();
-  } else if (!this->is_mounted_ && present) {
-    ESP_LOGI(TAG_SPI, "Card inserted (CD)");
-    bool ok = this->mount() == StorageError::OK;
-    this->log_mount_result_(ok);
-    if (ok)
-      this->on_inserted_.call();
-  }
-}
+void SdSpi::loop() { this->loop_cd_(); }
 
 void SdSpi::dump_config() {
   ESP_LOGCONFIG(TAG_SPI, "SD Storage (SPI):");
