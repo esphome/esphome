@@ -130,15 +130,18 @@ void VEML3235Sensor::set_sensitivity_factor_(uint16_t factor) {
 }
 
 bool VEML3235Sensor::adjust_sensitivity_(uint16_t counts) {
+  // Test for clipping before the window test: with an upper threshold configured at or above the clip
+  // point, a saturated reading would otherwise count as "in window" and sensitivity would never recover
+  const bool clipped = counts >= CLIPPED_COUNTS;
   const uint16_t low = uint16_t(UINT16_MAX * this->auto_gain_threshold_low_);
   const uint16_t high = uint16_t(UINT16_MAX * this->auto_gain_threshold_high_);
-  if (counts >= low && counts <= high) {
+  if (!clipped && counts >= low && counts <= high) {
     return false;
   }
 
   const uint16_t current_factor = this->sensitivity_factor_();
   uint16_t new_factor;
-  if (counts >= CLIPPED_COUNTS) {
+  if (clipped) {
     new_factor = 1;
   } else if (counts == 0) {
     new_factor = MAX_SENSITIVITY_FACTOR;
