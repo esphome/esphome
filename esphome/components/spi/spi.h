@@ -4,8 +4,13 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <map>
+#include <array>
 #include <utility>
 #include <vector>
+
+#ifdef USE_ESP32
+#include "soc/gpio_struct.h"
+#endif
 
 #ifdef USE_ESP32
 
@@ -141,6 +146,16 @@ class Utility {
     if (((InternalGPIOPin *) pin)->is_inverted())
       return -1;
     return ((InternalGPIOPin *) pin)->get_pin();
+  }
+
+  static int get_internal_pin_no(GPIOPin *pin) {
+    if (pin == nullptr || !pin->is_internal())
+      return -1;
+    return ((InternalGPIOPin *) pin)->get_pin();
+  }
+
+  static bool is_inverted(GPIOPin *pin) {
+    return pin != nullptr && pin->is_internal() && ((InternalGPIOPin *) pin)->is_inverted();
   }
 
   static SPIMode get_mode(SPIClockPolarity polarity, SPIClockPhase phase) {
@@ -313,14 +328,61 @@ class SPIDelegateBitBash : public SPIDelegate {
   uint16_t transfer_(uint16_t data, size_t num_bits);
 };
 
+#ifdef USE_ESP32
+class SPIDelegateMultiBitBash : public SPIDelegate {
+ public:
+  SPIDelegateMultiBitBash(uint32_t clock, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin, GPIOPin *clk_pin,
+                          const std::vector<uint8_t> &data_pins)
+      : SPIDelegate(clock, bit_order, mode, cs_pin), clk_pin_(clk_pin), data_pins_(data_pins) {
+    this->wait_cycle_ = uint32_t(arch_get_cpu_freq_hz()) / this->data_rate_ / 2ULL;
+    this->clock_polarity_ = Utility::get_polarity(this->mode_);
+    this->clock_phase_ = Utility::get_phase(this->mode_);
+  }
+
+  bool is_ready() override { return this->ready_; }
+  uint8_t transfer(uint8_t data) override;
+  void write_cmd_addr_data(size_t cmd_bits, uint32_t cmd, size_t addr_bits, uint32_t address, const uint8_t *data,
+                           size_t length, uint8_t bus_width) override;
+  void write_array(const uint8_t *ptr, size_t length) override;
+
+ protected:
+  GPIOPin *clk_pin_;
+  std::vector<uint8_t> data_pins_;
+  std::array<uint32_t, 256> data_set_masks_{};
+  uint32_t data_clear_mask_{0};
+  uint32_t clk_mask_{0};
+  uint32_t last_transition_{0};
+  uint32_t wait_cycle_;
+  SPIClockPolarity clock_polarity_;
+  SPIClockPhase clock_phase_;
+  bool ready_{false};
+
+  void setup_bus_();
+  void HOT cycle_clock_() {
+    while (this->last_transition_ - arch_get_cpu_cycle_count() < this->wait_cycle_)
+      continue;
+    this->last_transition_ += this->wait_cycle_;
+  }
+
+  void write_multi_width_(const uint8_t *data, size_t length, uint8_t bus_width);
+  void write_bits_(uint32_t data, size_t num_bits);
+};
+#endif
+
 class SPIBus {
  public:
   SPIBus() = default;
 
-  SPIBus(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) : clk_pin_(clk), sdo_pin_(sdo), sdi_pin_(sdi) {}
+  SPIBus(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, std::vector<uint8_t> data_pins = {})
+      : clk_pin_(clk), sdo_pin_(sdo), sdi_pin_(sdi), data_pins_(std::move(data_pins)) {}
 
   virtual SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
                                     bool release_device, bool write_only) {
+#ifdef USE_ESP32
+    if (!this->data_pins_.empty()) {
+      return new SPIDelegateMultiBitBash(data_rate, bit_order, mode, cs_pin, this->clk_pin_, this->data_pins_);
+    }
+#endif
     return new SPIDelegateBitBash(data_rate, bit_order, mode, cs_pin, this->clk_pin_, this->sdo_pin_, this->sdi_pin_);
   }
 
@@ -330,6 +392,7 @@ class SPIBus {
   GPIOPin *clk_pin_{};
   GPIOPin *sdo_pin_{};
   GPIOPin *sdi_pin_{};
+  std::vector<uint8_t> data_pins_{};
 };
 
 class SPIClient;

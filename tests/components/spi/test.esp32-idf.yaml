@@ -1,4 +1,19 @@
 packages:
   spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
 
+spi:
+  - id: octal_sw_spi
+    type: octal
+    interface: software
+    clk_pin: GPIO4
+    data_pins:
+      - GPIO12
+      - GPIO13
+      - GPIO26
+      - GPIO25
+      - GPIO19
+      - GPIO18
+      - GPIO27
+      - GPIO14
+
 <<: !include common.yaml
