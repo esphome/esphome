@@ -1,0 +1,9 @@
+# Compiles the DHCP lease cache capture path. `lease_cache: true` uses the bool
+# shorthand and the default storage (RTC on this variant), which also pulls in the
+# ESP32 RTC preferences backend. common.yaml provides DHCP networks (no manual_ip),
+# so the capture code path is active.
+wifi:
+  lease_cache: true
+
+packages:
+  - !include common.yaml

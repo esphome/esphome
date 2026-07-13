@@ -661,6 +661,16 @@ void WiFiComponent::start() {
   this->fast_connect_pref_ =
       global_preferences->make_preference<wifi::SavedWifiFastConnectSettings>(hash + 1, fast_connect_in_flash);
 #endif
+#ifdef USE_WIFI_LEASE_CACHE
+#ifdef USE_WIFI_LEASE_CACHE_IN_FLASH
+  const bool lease_cache_in_flash = true;
+#else
+  const bool lease_cache_in_flash = false;
+#endif
+  this->lease_cache_pref_ =
+      global_preferences->make_preference<wifi::SavedWifiLeaseSettings>(hash + 2, lease_cache_in_flash);
+  this->load_lease_settings_();
+#endif
 
   SavedWifiSettings save{};
   if (this->pref_.load(&save)) {
@@ -764,6 +774,14 @@ void WiFiComponent::loop() {
   if (events_processed || !this->connected_) {
     this->update_connected_state_();
   }
+
+#ifdef USE_WIFI_LEASE_CACHE
+  // Persist a freshly captured DHCP lease here (main task), not in the event handler.
+  if (this->lease_capture_pending_) {
+    this->lease_capture_pending_ = false;
+    this->save_lease_settings_();
+  }
+#endif
 
   if (this->has_sta()) {
 #if defined(USE_WIFI_CONNECT_TRIGGER) || defined(USE_WIFI_DISCONNECT_TRIGGER)
@@ -2309,6 +2327,18 @@ void WiFiComponent::save_fast_connect_settings_() {
   this->fast_connect_pref_.save(&fast_connect_save);
 
   ESP_LOGD(TAG, "Saved fast_connect settings");
+}
+#endif
+
+#ifdef USE_WIFI_LEASE_CACHE
+void WiFiComponent::load_lease_settings_() {
+  SavedWifiLeaseSettings lease{};
+  if (!this->lease_cache_pref_.load(&lease)) {
+    return;  // no cached lease, or the record was never written / failed its checksum
+  }
+  // Phase 1 is capture-only: log what a later phase would apply, without changing boot behaviour.
+  const uint8_t *ip = reinterpret_cast<const uint8_t *>(&lease.ip);  // stored in network byte order
+  ESP_LOGI(TAG, "Lease cache: would apply %u.%u.%u.%u (network %d)", ip[0], ip[1], ip[2], ip[3], lease.ap_index);
 }
 #endif
 

@@ -84,6 +84,22 @@ struct SavedWifiFastConnectSettings {
   int8_t ap_index;
 } PACKED;  // NOLINT
 
+#ifdef USE_WIFI_LEASE_CACHE
+// Cached DHCP lease persisted across boots. IPv4 fields are stored in network byte order.
+// version/flags leave room to add lease timing + DHCP server id later without a migration break.
+struct SavedWifiLeaseSettings {
+  uint8_t version;   // schema version (currently 1)
+  int8_t ap_index;   // configured network this lease belongs to (-1 = unknown)
+  uint8_t flags;     // reserved; bit0 = timing fields present (future)
+  uint8_t reserved;  // padding / future use
+  uint32_t ip;
+  uint32_t netmask;
+  uint32_t gateway;
+  uint32_t dns1;  // 0.0.0.0 if unset
+  uint32_t dns2;  // 0.0.0.0 if unset
+} PACKED;         // NOLINT
+#endif
+
 enum WiFiComponentState : uint8_t {
   /** Nothing has been initialized yet. Internal AP, if configured, is disabled at this point. */
   WIFI_COMPONENT_STATE_OFF = 0,
@@ -774,6 +790,12 @@ class WiFiComponent final : public Component {
   void save_fast_connect_settings_();
 #endif
 
+#ifdef USE_WIFI_LEASE_CACHE
+  // Phase 1: capture the DHCP-assigned lease and log what would be applied next boot.
+  void load_lease_settings_();
+  void save_lease_settings_();
+#endif
+
   // Post-connect roaming methods
   void check_roaming_(uint32_t now);
   void process_roaming_scan_();
@@ -850,6 +872,12 @@ class WiFiComponent final : public Component {
   ESPPreferenceObject pref_;
 #ifdef USE_WIFI_FAST_CONNECT
   ESPPreferenceObject fast_connect_pref_;
+#endif
+#ifdef USE_WIFI_LEASE_CACHE
+  ESPPreferenceObject lease_cache_pref_;
+  // Set from the IP_EVENT_STA_GOT_IP handler (event thread); drained in loop() so the
+  // preference write happens in the main task, not on the tcpip/event thread.
+  bool lease_capture_pending_{false};
 #endif
 #ifdef USE_WIFI_CONNECT_TRIGGER
   Trigger<> connect_trigger_;

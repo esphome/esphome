@@ -620,6 +620,52 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   return true;
 }
 
+#ifdef USE_WIFI_LEASE_CACHE
+void WiFiComponent::save_lease_settings_() {
+  if (s_sta_netif == nullptr)
+    return;
+
+#ifdef USE_WIFI_MANUAL_IP
+  // The cache is inert when the user configured a static IP for this network.
+  if (this->selected_sta_index_ >= 0 && static_cast<size_t>(this->selected_sta_index_) < this->sta_.size() &&
+      this->sta_[this->selected_sta_index_].get_manual_ip().has_value()) {
+    return;
+  }
+#endif
+
+  esp_netif_ip_info_t info;
+  if (esp_netif_get_ip_info(s_sta_netif, &info) != ESP_OK || info.ip.addr == 0) {
+    return;  // no usable lease to cache yet
+  }
+
+  SavedWifiLeaseSettings lease{};
+  lease.version = 1;
+  lease.ap_index = this->selected_sta_index_;
+  lease.ip = info.ip.addr;  // esp_ip4_addr_t stores the address in network byte order
+  lease.netmask = info.netmask.addr;
+  lease.gateway = info.gw.addr;
+
+  esp_netif_dns_info_t dns;
+  if (esp_netif_get_dns_info(s_sta_netif, ESP_NETIF_DNS_MAIN, &dns) == ESP_OK && dns.ip.type == ESP_IPADDR_TYPE_V4) {
+    lease.dns1 = dns.ip.u_addr.ip4.addr;
+  }
+  if (esp_netif_get_dns_info(s_sta_netif, ESP_NETIF_DNS_BACKUP, &dns) == ESP_OK && dns.ip.type == ESP_IPADDR_TYPE_V4) {
+    lease.dns2 = dns.ip.u_addr.ip4.addr;
+  }
+
+  // Debounce: skip the write when nothing changed, to limit flash wear (matches fast_connect).
+  SavedWifiLeaseSettings previous{};
+  if (this->lease_cache_pref_.load(&previous) && memcmp(&previous, &lease, sizeof(lease)) == 0) {
+    return;
+  }
+
+  this->lease_cache_pref_.save(&lease);
+
+  const uint8_t *ip = reinterpret_cast<const uint8_t *>(&lease.ip);
+  ESP_LOGD(TAG, "Lease cache: saved %u.%u.%u.%u (network %d)", ip[0], ip[1], ip[2], ip[3], lease.ap_index);
+}
+#endif
+
 network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   if (!this->has_sta())
     return {};
@@ -869,6 +915,10 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #endif /* USE_NETWORK_IPV6 */
     ESP_LOGV(TAG, "static_ip=" IPSTR " gateway=" IPSTR, IP2STR(&it.ip_info.ip), IP2STR(&it.ip_info.gw));
     this->got_ipv4_address_ = true;
+#ifdef USE_WIFI_LEASE_CACHE
+    // Persist the lease from loop() (main task); this handler runs on the tcpip/event thread.
+    this->lease_capture_pending_ = true;
+#endif
 #ifdef USE_WIFI_IP_STATE_LISTENERS
     this->notify_ip_state_listeners_();
 #endif
