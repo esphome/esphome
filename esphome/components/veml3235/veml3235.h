@@ -36,7 +36,7 @@ static const float LUX_MULTIPLIER_BASE = 0.00213f;
 // Specific values of the enum constants are register values taken from the VEML3235 datasheet.
 // Longer times mean more accurate results, but will take more energy/more time.
 //
-enum VEML3235ComponentIntegrationTime {
+enum VEML3235ComponentIntegrationTime : uint8_t {
   VEML3235_INTEGRATION_TIME_50MS = 0b000,
   VEML3235_INTEGRATION_TIME_100MS = 0b001,
   VEML3235_INTEGRATION_TIME_200MS = 0b010,
@@ -47,7 +47,7 @@ enum VEML3235ComponentIntegrationTime {
 // Enum for digital gain settings for the VEML3235.
 // Higher values are better for low light situations, but can increase noise.
 //
-enum VEML3235ComponentDigitalGain {
+enum VEML3235ComponentDigitalGain : uint8_t {
   VEML3235_DIGITAL_GAIN_1X = 0b0,
   VEML3235_DIGITAL_GAIN_2X = 0b1,
 };
@@ -55,7 +55,7 @@ enum VEML3235ComponentDigitalGain {
 // Enum for gain settings for the VEML3235.
 // Higher values are better for low light situations, but can increase noise.
 //
-enum VEML3235ComponentGain {
+enum VEML3235ComponentGain : uint8_t {
   VEML3235_GAIN_1X = 0b00,
   VEML3235_GAIN_2X = 0b01,
   VEML3235_GAIN_4X = 0b11,
@@ -107,13 +107,14 @@ class VEML3235Sensor final : public sensor::Sensor, public PollingComponent, pub
   uint8_t gain_factor_() const;
   uint16_t integration_time_ms_() const { return 50 << this->integration_time_; }
 
-  bool auto_gain_{true};
-  bool measurement_in_progress_{false};
+  // Members are ordered largest to smallest to minimize padding
   float auto_gain_threshold_high_{0.9};
   float auto_gain_threshold_low_{0.2};
   VEML3235ComponentDigitalGain digital_gain_{VEML3235_DIGITAL_GAIN_1X};
   VEML3235ComponentGain gain_{VEML3235_GAIN_1X};
   VEML3235ComponentIntegrationTime integration_time_{VEML3235_INTEGRATION_TIME_50MS};
+  bool auto_gain_{true};
+  bool measurement_in_progress_{false};
 };
 
 }  // namespace esphome::veml3235
