@@ -533,7 +533,7 @@ class SerialProxyInfo final : public ProtoMessage {
 class DeviceInfoResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 10;
-  static constexpr uint16_t ESTIMATED_SIZE = 309;
+  static constexpr uint16_t ESTIMATED_SIZE = 312;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("device_info_response"); }
 #endif
@@ -588,6 +588,9 @@ class DeviceInfoResponse final : public ProtoMessage {
 #endif
 #ifdef USE_SERIAL_PROXY
   std::array<SerialProxyInfo, SERIAL_PROXY_COUNT> serial_proxies{};
+#endif
+#ifdef USE_API_NOISE
+  bool api_encryption_provisionable{false};
 #endif
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;

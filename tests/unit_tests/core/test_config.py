@@ -1113,6 +1113,48 @@ def test_config_hash_different_for_different_configs() -> None:
     assert hash1 != hash2
 
 
+def test_config_hash_ignores_build_path() -> None:
+    """Test that config_hash does not depend on the build_path value.
+
+    build_path embeds ESPHOME_BUILD_PATH and OS path separators, so it must
+    not make the hash differ between machines.
+    """
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test", "build_path": "build\\test"}}
+    hash1 = CORE.config_hash
+
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test", "build_path": "/build/test"}}
+    hash2 = CORE.config_hash
+
+    assert hash1 == hash2
+
+
+def test_config_hash_same_for_different_config_dirs(tmp_path: Path) -> None:
+    """Test that Path values under the config dir hash the same everywhere.
+
+    Simulates the same project checked out at two different locations; the
+    absolute paths differ but the layout relative to the config dir is the
+    same, so the hashes must match.
+    """
+    dir1 = tmp_path / "machine_a" / "project"
+    dir2 = tmp_path / "machine_b" / "somewhere" / "else"
+    dir1.mkdir(parents=True)
+    dir2.mkdir(parents=True)
+
+    CORE.reset()
+    CORE.config_path = dir1 / "device.yaml"
+    CORE.config = {"esphome": {"name": "test"}, "file": dir1 / "fonts" / "arial.ttf"}
+    hash1 = CORE.config_hash
+
+    CORE.reset()
+    CORE.config_path = dir2 / "device.yaml"
+    CORE.config = {"esphome": {"name": "test"}, "file": dir2 / "fonts" / "arial.ttf"}
+    hash2 = CORE.config_hash
+
+    assert hash1 == hash2
+
+
 def test_make_app_name_cpp_no_mac_simple() -> None:
     """Test simple name without MAC suffix returns string literal."""
     cpp_expr, global_decl, byte_len = make_app_name_cpp(
