@@ -1,9 +1,9 @@
 #if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
     defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
-#include <inttypes.h>
 #include "usb_uart.h"
 #include "usb/usb_host.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome::usb_uart {
 
@@ -292,7 +292,7 @@ bool USBUartTypePL2303::config_step(USBUartChannel *channel, uint8_t step, bool 
       // Data bits
       line_coding[6] = channel->get_data_bits();
 
-      ESP_LOGD(TAG, "PL2303: SET_LINE_REQUEST baud=%" PRIu32 " stop=%u parity=%u data=%u", (uint32_t)baud, line_coding[4], line_coding[5],
+      ESP_LOGD(TAG, "PL2303: SET_LINE_REQUEST baud=%u stop=%u parity=%u data=%u", baud, line_coding[4], line_coding[5],
                line_coding[6]);
 
       std::vector<uint8_t> lc_vec(line_coding, line_coding + 7);

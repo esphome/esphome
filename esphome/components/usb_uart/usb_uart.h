@@ -293,7 +293,6 @@ class USBUartTypeFT23XX : public USBUartTypeCdcAcm {
 
   void start_input(USBUartChannel *channel) override;
   void on_rx_overflow(USBUartChannel *channel) override;
-  void enable_channels() override;
 
  protected:
   std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;

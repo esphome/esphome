@@ -58,22 +58,22 @@ class Type:
     ):
         self.name = name
         cls = cls or name
-        self.cls_name = cls
         self.vid = vid
         self.pid = pid
         self.cls = usb_uart_ns.class_(f"USBUartType{cls}", USBUartComponent)
         self._max_channels = max_channels
         self.baud_rate_required = baud_rate_required
-        self.channel_cls = USBUartChannel
         self.max_baud = max_baud
 
     @property
-    def max_channels(self):
+    def max_channels(self) -> int:
         return (
             3
-            if CORE.is_esp32
-            and get_esp32_variant() != VARIANT_ESP32P4
-            and self._max_channels > 3
+            if (
+                CORE.is_esp32
+                and get_esp32_variant() != VARIANT_ESP32P4
+                and self._max_channels > 3
+            )
             else self._max_channels
         )
 
@@ -98,26 +98,24 @@ uart_types = (
 )
 
 
-def channel_schema(type_: "Type", baud_rate_required):
-    max_channels = type_.max_channels
-    max_baud = type_.max_baud
+def channel_schema(type_: "Type") -> cv.Schema:
     return cv.Schema(
         {
             cv.Required(CONF_CHANNELS): cv.All(
                 cv.ensure_list(
                     cv.Schema(
                         {
-                            cv.GenerateID(): cv.declare_id(type_.channel_cls),
+                            cv.GenerateID(): cv.declare_id(USBUartChannel),
                             cv.Optional(CONF_BUFFER_SIZE, default=256): cv.int_range(
                                 min=64, max=8192
                             ),
                             (
                                 cv.Required(CONF_BAUD_RATE)
-                                if baud_rate_required
+                                if type_.baud_rate_required
                                 else cv.Optional(
                                     CONF_BAUD_RATE, default=DEFAULT_BAUD_RATE
                                 )
-                            ): cv.int_range(min=300, max=max_baud),
+                            ): cv.int_range(min=300, max=type_.max_baud),
                             cv.Optional(CONF_STOP_BITS, default="1"): cv.enum(
                                 UART_STOP_BITS_OPTIONS, upper=True
                             ),
@@ -137,8 +135,8 @@ def channel_schema(type_: "Type", baud_rate_required):
                     )
                 ),
                 cv.Length(
-                    max=max_channels,
-                    msg=f"{type_.name} supports a maximum of {max_channels} channels on this ESP32 variant",
+                    max=type_.max_channels,
+                    msg=f"Device type {type_.name} supports a maximum of {type_.max_channels} channels",
                 ),
             )
         }
@@ -149,7 +147,7 @@ CONFIG_SCHEMA = cv.ensure_list(
     cv.typed_schema(
         {
             it.name: usb_device_schema(it.cls, it.vid, it.pid).extend(
-                channel_schema(it, it.baud_rate_required)
+                channel_schema(it)
             )
             for it in uart_types
         },
@@ -170,6 +168,8 @@ async def to_code(config):
     )
     output_chunk_count = max(max_buffer_size // get_max_packet_size(), 2) + 1
     cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
+    # The refactored usb_host compiles its bulk/interrupt and control transfer paths only
+    # when a consumer requests them (Linux-URB-style submission engine); usb_uart needs both.
     cg.add_define("USE_USB_BULK_TRANSFERS")
     cg.add_define("USE_USB_CONTROL_TRANSFERS")
 
