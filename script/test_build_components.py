@@ -426,50 +426,37 @@ def run_esphome_test(
     start_time = time.time()
     test_id = f"{component}.{test_name}.{platform_with_version}"
 
+    # Always close the group, even if the subprocess or disk-space reporting
+    # raises, so later output is never folded into the wrong CI log section.
     try:
         result = subprocess.run(cmd, check=False)
-        success = result.returncode == 0
-        duration = time.time() - start_time
-
         # Show disk space after build in CI during compile
         show_disk_space_if_ci(esphome_command)
-
-        # Close the group before reporting status so a failure and its
-        # reproduce command stay visible without expanding the group.
+    finally:
         end_log_group()
 
-        if not success and not continue_on_fail:
-            # Print command immediately for failed tests
-            print(f"\n{'=' * 80}")
-            print("FAILED - Command to reproduce:")
-            print(f"{'=' * 80}")
-            print(cmd_str)
-            print()
-            raise subprocess.CalledProcessError(result.returncode, cmd)
+    success = result.returncode == 0
+    duration = time.time() - start_time
 
-        return TestResult(
-            test_id=test_id,
-            components=[component],
-            platform=platform_with_version,
-            success=success,
-            duration=duration,
-            command=cmd_str,
-            test_type=esphome_command,
-        )
-    except subprocess.CalledProcessError:
-        duration = time.time() - start_time
-        # Re-raise if we're not continuing on fail
-        if not continue_on_fail:
-            raise
-        return TestResult(
-            test_id=test_id,
-            components=[component],
-            platform=platform_with_version,
-            success=False,
-            duration=duration,
-            command=cmd_str,
-            test_type=esphome_command,
-        )
+    if not success and not continue_on_fail:
+        # Print command immediately for failed tests. The group is already
+        # closed, so the failure and reproduce command stay visible.
+        print(f"\n{'=' * 80}")
+        print("FAILED - Command to reproduce:")
+        print(f"{'=' * 80}")
+        print(cmd_str)
+        print()
+        raise subprocess.CalledProcessError(result.returncode, cmd)
+
+    return TestResult(
+        test_id=test_id,
+        components=[component],
+        platform=platform_with_version,
+        success=success,
+        duration=duration,
+        command=cmd_str,
+        test_type=esphome_command,
+    )
 
 
 def run_grouped_test(
@@ -584,50 +571,37 @@ def run_grouped_test(
     start_time = time.time()
     test_id = f"GROUPED[{','.join(components)}].{platform_with_version}"
 
+    # Always close the group, even if the subprocess or disk-space reporting
+    # raises, so later output is never folded into the wrong CI log section.
     try:
         result = subprocess.run(cmd, check=False)
-        success = result.returncode == 0
-        duration = time.time() - start_time
-
         # Show disk space after build in CI during compile
         show_disk_space_if_ci(esphome_command)
-
-        # Close the group before reporting status so a failure and its
-        # reproduce command stay visible without expanding the group.
+    finally:
         end_log_group()
 
-        if not success and not continue_on_fail:
-            # Print command immediately for failed tests
-            print(f"\n{'=' * 80}")
-            print("FAILED - Command to reproduce:")
-            print(f"{'=' * 80}")
-            print(cmd_str)
-            print()
-            raise subprocess.CalledProcessError(result.returncode, cmd)
+    success = result.returncode == 0
+    duration = time.time() - start_time
 
-        return TestResult(
-            test_id=test_id,
-            components=components,
-            platform=platform_with_version,
-            success=success,
-            duration=duration,
-            command=cmd_str,
-            test_type=esphome_command,
-        )
-    except subprocess.CalledProcessError:
-        duration = time.time() - start_time
-        # Re-raise if we're not continuing on fail
-        if not continue_on_fail:
-            raise
-        return TestResult(
-            test_id=test_id,
-            components=components,
-            platform=platform_with_version,
-            success=False,
-            duration=duration,
-            command=cmd_str,
-            test_type=esphome_command,
-        )
+    if not success and not continue_on_fail:
+        # Print command immediately for failed tests. The group is already
+        # closed, so the failure and reproduce command stay visible.
+        print(f"\n{'=' * 80}")
+        print("FAILED - Command to reproduce:")
+        print(f"{'=' * 80}")
+        print(cmd_str)
+        print()
+        raise subprocess.CalledProcessError(result.returncode, cmd)
+
+    return TestResult(
+        test_id=test_id,
+        components=components,
+        platform=platform_with_version,
+        success=success,
+        duration=duration,
+        command=cmd_str,
+        test_type=esphome_command,
+    )
 
 
 def run_grouped_component_tests(
