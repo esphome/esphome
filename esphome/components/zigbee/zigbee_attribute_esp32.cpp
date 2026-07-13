@@ -50,25 +50,6 @@ void ZigbeeAttribute::report_(bool has_lock) {
   }
 }
 
-void ZigbeeAttribute::setup_reporting() {
-  ezb_zcl_reporting_info_t reporting_info = ezb_zcl_reporting_info_find(
-      this->endpoint_id_, this->cluster_id_, this->role_, this->attr_id_, EZB_ZCL_STD_MANUF_CODE);
-  if (reporting_info == EZB_ZCL_INVALID_REPORTING_INFO) {
-    ESP_LOGD(TAG, "Could not find reporting info for attribute 0x%04X in cluster 0x%04X in endpoint %u", this->attr_id_,
-             this->cluster_id_, this->endpoint_id_);
-    this->report_enabled = false;
-    this->force_report_ = false;
-  } else {
-    ESP_LOGD(TAG, "Found reporting info for attr 0x%04X in cluster 0x%04X", this->attr_id_, this->cluster_id_);
-    ezb_zcl_attr_variable_t delta = {.u64 = 0};
-    ezb_zcl_reporting_info_update_default_interval(reporting_info, 0, 65000);
-    ezb_zcl_reporting_info_update(reporting_info, 0, 65000, &delta);
-    if (ezb_zcl_reporting_start_attr_report(reporting_info) != EZB_ERR_NONE) {
-      ESP_LOGE(TAG, "Could not start reporting for attribute");
-    }
-  }
-}
-
 void ZigbeeAttribute::set_report(ZigbeeReportT report) {
   this->report_enabled = true;
   if (report == ZigbeeReportT::ZIGBEE_REPORT_FORCE) {

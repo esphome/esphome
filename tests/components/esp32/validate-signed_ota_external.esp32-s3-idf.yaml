@@ -1,0 +1,11 @@
+# Secure Boot V2 schemes carry the public key inside each image's signature
+# block, so verifying externally-signed binaries needs no key in the config:
+# a bare block enables verification with the default rsa3072 scheme.
+esp32:
+  variant: esp32s3
+  framework:
+    type: esp-idf
+    advanced:
+      signed_ota_verification:
+
+<<: !include common.yaml
