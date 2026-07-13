@@ -1,4 +1,5 @@
 sensor:
+  # Basic INA226 without alert function
   - platform: ina226
     i2c_id: i2c_bus
     address: 0x40
@@ -13,3 +14,139 @@ sensor:
       name: INA226 Shunt Voltage
     max_current: 3.2A
     update_interval: 15s
+    alert:
+      function: none
+      conversion_ready: false
+      active_high: false
+      latch: false
+
+  # INA226 with shunt_over alert function
+  - platform: ina226
+    i2c_id: i2c_bus
+    address: 0x41
+    shunt_resistance: 0.1 ohm
+    current:
+      name: INA226 Shunt Over Current
+    max_current: 3.2A
+    update_interval: 15s
+    alert:
+      function: shunt_over
+      limit: 0.075  # 75mV, about 3A overcurrent protection
+      conversion_ready: false
+      active_high: true
+      latch: true
+
+  # INA226 with shunt_under alert function (reverse current detection)
+  - platform: ina226
+    i2c_id: i2c_bus
+    address: 0x42
+    shunt_resistance: 0.1 ohm
+    current:
+      name: INA226 Shunt Under Current
+    max_current: 3.2A
+    update_interval: 15s
+    alert:
+      function: shunt_under
+      limit: -0.01  # -10mV, detect reverse current
+      conversion_ready: false
+      active_high: false
+      latch: false
+
+  # INA226 with bus_over alert function
+  - platform: ina226
+    i2c_id: i2c_bus
+    address: 0x43
+    shunt_resistance: 0.1 ohm
+    bus_voltage:
+      name: INA226 Bus Over Voltage
+    max_current: 3.2A
+    update_interval: 15s
+    alert:
+      function: bus_over
+      limit: 15.0  # V
+      conversion_ready: false
+      active_high: true
+      latch: false
+
+  # INA226 with bus_under alert function
+  - platform: ina226
+    i2c_id: i2c_bus
+    address: 0x44
+    shunt_resistance: 0.1 ohm
+    bus_voltage:
+      name: INA226 Bus Under Voltage
+    max_current: 3.2A
+    update_interval: 15s
+    alert:
+      function: bus_under
+      limit: 10.0  # V
+      conversion_ready: false
+      active_high: false
+      latch: true
+
+  # INA226 with power_over alert function
+  - platform: ina226
+    i2c_id: i2c_bus
+    address: 0x45
+    shunt_resistance: 0.1 ohm
+    power:
+      name: INA226 Power Over Power
+    max_current: 3.2A
+    update_interval: 15s
+    alert:
+      function: power_over
+      limit: 50.0  # W
+      conversion_ready: false
+      active_high: true
+      latch: false
+
+  # INA226 with conversion_ready enabled
+  - platform: ina226
+    i2c_id: i2c_bus
+    address: 0x46
+    shunt_resistance: 0.1 ohm
+    current:
+      name: INA226 Conversion Ready Current
+    max_current: 3.2A
+    update_interval: 15s
+    alert:
+      function: none
+      conversion_ready: true
+      active_high: true
+      latch: false
+
+  # INA226 with conversion_ready and alert function combined
+  - platform: ina226
+    i2c_id: i2c_bus
+    address: 0x47
+    shunt_resistance: 0.1 ohm
+    current:
+      name: INA226 Conv Ready with Alert Current
+    max_current: 3.2A
+    update_interval: 15s
+    alert:
+      function: power_over
+      limit: 100.0  # W
+      conversion_ready: true
+      active_high: true
+      latch: true
+
+  # INA226 with custom ADC settings and alert
+  - platform: ina226
+    i2c_id: i2c_bus
+    address: 0x48
+    shunt_resistance: 0.1 ohm
+    current:
+      name: INA226 Custom ADC Alert Current
+    max_current: 3.2A
+    update_interval: 15s
+    adc_time:
+      voltage: 8244 us
+      current: 8244 us
+    adc_averaging: 1024
+    alert:
+      function: bus_over
+      limit: 14.0  # V
+      conversion_ready: true
+      active_high: false
+      latch: true
