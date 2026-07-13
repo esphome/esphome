@@ -285,6 +285,9 @@ async def to_code(config):
             [(float, "x")],
             config[CONF_SET_TARGET_TEMPERATURE_LOW_ACTION],
         )
+        if CONF_TARGET_TEMPERATURE_LOW not in config:
+            # Write-only: no read-back lambda for setup() to detect this feature from.
+            cg.add(var.set_supports_two_point_target_temperature())
 
     if CONF_SET_TARGET_TEMPERATURE_HIGH_ACTION in config:
         await automation.build_automation(
@@ -292,6 +295,8 @@ async def to_code(config):
             [(float, "x")],
             config[CONF_SET_TARGET_TEMPERATURE_HIGH_ACTION],
         )
+        if CONF_TARGET_TEMPERATURE_LOW not in config:
+            cg.add(var.set_supports_two_point_target_temperature())
 
     if CONF_SET_TARGET_HUMIDITY_ACTION in config:
         await automation.build_automation(
@@ -299,6 +304,9 @@ async def to_code(config):
             [(float, "x")],
             config[CONF_SET_TARGET_HUMIDITY_ACTION],
         )
+        if CONF_TARGET_HUMIDITY not in config:
+            # Write-only: no read-back lambda for setup() to detect this feature from.
+            cg.add(var.set_supports_target_humidity())
 
     if CONF_SET_FAN_MODE_ACTION in config:
         await automation.build_automation(

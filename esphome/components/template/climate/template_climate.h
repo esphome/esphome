@@ -42,6 +42,13 @@ class TemplateClimate final : public climate::Climate, public Component {
   void add_supported_swing_mode(climate::ClimateSwingMode mode) { this->traits_.add_supported_swing_mode(mode); }
   void add_supported_preset(climate::ClimatePreset preset) { this->traits_.add_supported_preset(preset); }
 
+  // Called at codegen time for "write-only" configs (a set_*_action but no matching read-back
+  // lambda), so the feature is still advertised even though setup() has no lambda to detect it from.
+  void set_supports_target_humidity() { this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY); }
+  void set_supports_two_point_target_temperature() {
+    this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE);
+  }
+
   Trigger<climate::ClimateMode> *get_set_mode_trigger() { return &this->set_mode_trigger_; }
   Trigger<float> *get_set_target_temperature_trigger() { return &this->set_target_temperature_trigger_; }
   Trigger<float> *get_set_target_temperature_low_trigger() { return &this->set_target_temperature_low_trigger_; }

@@ -16,9 +16,12 @@ void TemplateClimate::setup() {
   if (this->current_humidity_f_.has_value()) {
     this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
   }
+  // Write-only configs (a set action but no read-back lambda) mark these feature flags directly
+  // via set_supports_target_humidity() at codegen time.
   if (this->target_humidity_f_.has_value()) {
     this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY);
   }
+  // Same as above for set_supports_two_point_target_temperature().
   if (this->target_temperature_low_f_.has_value()) {
     this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE);
   }
