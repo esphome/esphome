@@ -30,6 +30,10 @@ TEST(LgIrClimateTests, SwingCommandIsIndependentOfClimateState) {
   swing_call.set_swing_mode(climate::CLIMATE_SWING_VERTICAL);
   sut.control(swing_call);
 
+  // A complete LG frame is header (2) + 28 bit pairs (56) + trailing mark (1).
+  // Guard against out-of-bounds reads in decode_lg_frame() if the transmission failed.
+  ASSERT_GE(transmitter.last_data.size(), 2u + 28u * 2u + 1u);
+
   uint32_t transmitted = decode_lg_frame(transmitter.last_data, bit_one_low);
 
   // The swing command is always this exact fixed code, regardless of climate state.
