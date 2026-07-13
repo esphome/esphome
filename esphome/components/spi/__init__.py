@@ -1,5 +1,5 @@
 import re
-from typing import Any
+from typing import Any, cast
 
 from esphome import pins
 import esphome.codegen as cg
@@ -31,6 +31,7 @@ from esphome.const import (
     CONF_MOSI_PIN,
     CONF_NUMBER,
     CONF_SPI_ID,
+    CONF_TYPE,
     KEY_CORE,
     KEY_TARGET_PLATFORM,
     KEY_VARIANT,
@@ -292,10 +293,38 @@ def validate_hw_pins(spi: ConfigType, index: int = -1) -> bool:
 
 def get_hw_spi(config: ConfigType, available: list[int]) -> int | None:
     """Get an available hardware spi interface suitable for this config"""
+    if config[CONF_TYPE] == TYPE_OCTAL and get_target_variant() not in [
+        VARIANT_ESP32P4,
+        VARIANT_ESP32S2,
+        VARIANT_ESP32S3,
+        VARIANT_ESP32S31,
+    ]:
+        return None
     matching = list(filter(lambda idx: validate_hw_pins(config, idx), available))
     if len(matching) != 0:
         return matching[0]
     return None
+
+
+def validate_software_multi_pins(spi: ConfigType) -> None:
+    """Validate pins used by the ESP32 software quad/octal implementation."""
+    clk_pin = cast(ConfigType, spi[CONF_CLK_PIN])
+    if pins.PIN_SCHEMA_REGISTRY.get_key(clk_pin) != CORE.target_platform:
+        raise cv.Invalid(
+            "Software quad/octal SPI clock pin must be an internal GPIO pin",
+            [CONF_CLK_PIN],
+        )
+    if cast(int, clk_pin[CONF_NUMBER]) > 31:
+        raise cv.Invalid(
+            "Software quad/octal SPI only supports clock pins GPIO0-GPIO31",
+            [CONF_CLK_PIN],
+        )
+    for index, pin in enumerate(cast(list[int], spi[CONF_DATA_PINS])):
+        if pin > 31:
+            raise cv.Invalid(
+                "Software quad/octal SPI only supports data pins GPIO0-GPIO31",
+                [CONF_DATA_PINS, index],
+            )
 
 
 def validate_spi_config(config: list[ConfigType]) -> list[ConfigType]:
@@ -331,12 +360,30 @@ def validate_spi_config(config: list[ConfigType]) -> list[ConfigType]:
             if index is not None:
                 spi[CONF_INTERFACE_INDEX] = index
                 available.remove(index)
+            else:
+                spi[CONF_INTERFACE] = "software"
         if CONF_INTERFACE_INDEX in spi and not validate_hw_pins(
             spi, spi[CONF_INTERFACE_INDEX]
         ):
             raise cv.Invalid("Invalid pin selections for hardware SPI interface")
-        if CONF_DATA_PINS in spi and CONF_INTERFACE_INDEX not in spi:
-            raise cv.Invalid("Quad and octal modes requires a hardware interface")
+        bus_type = spi[CONF_TYPE]
+        if bus_type != TYPE_SINGLE and spi[CONF_INTERFACE] == "software":
+            validate_software_multi_pins(spi)
+        if (
+            bus_type == TYPE_OCTAL
+            and spi[CONF_INTERFACE] != "software"
+            and get_target_variant()
+            not in [
+                VARIANT_ESP32P4,
+                VARIANT_ESP32S2,
+                VARIANT_ESP32S3,
+                VARIANT_ESP32S31,
+            ]
+        ):
+            raise cv.Invalid(
+                "Hardware octal SPI is only supported on ESP32-P4, ESP32-S2, "
+                "ESP32-S3 and ESP32-S31; use interface: software"
+            )
 
     return config
 
@@ -382,15 +429,8 @@ def spi_mode_schema(mode: str) -> cv.Schema:
     if mode == TYPE_SINGLE:
         return SPI_SINGLE_SCHEMA
     pin_count = 4 if mode == TYPE_QUAD else 8
-    onlys = [cv.only_on([PLATFORM_ESP32])]
-    if pin_count == 8:
-        onlys.append(
-            only_on_variant(
-                supported=[VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3]
-            )
-        )
     return cv.All(
-        *onlys,
+        cv.only_on([PLATFORM_ESP32]),
         cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(TYPE_CLASS[mode]),
@@ -401,7 +441,7 @@ def spi_mode_schema(mode: str) -> cv.Schema:
                 ),
                 cv.Optional(
                     CONF_INTERFACE, default="hardware"
-                ): one_of_interface_validator(["hardware"]),
+                ): one_of_interface_validator(["software", "hardware", "any"]),
                 cv.Optional(CONF_MISO_PIN): cv.invalid(
                     f"'miso_pin' should not be used with {mode} SPI"
                 ),

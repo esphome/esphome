@@ -2,6 +2,12 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
+#ifdef USE_ESP32
+#include "driver/gpio.h"
+#include "soc/gpio_reg.h"
+#include "soc/soc.h"
+#endif
+
 namespace esphome::spi {
 
 const char *const TAG = "spi";
@@ -54,11 +60,13 @@ void SPIComponent::setup() {
       this->mark_failed();
     }
   } else {
-    this->spi_bus_ = new SPIBus(this->clk_pin_, this->sdo_pin_, this->sdi_pin_);  // NOLINT
+    this->spi_bus_ = new SPIBus(this->clk_pin_, this->sdo_pin_, this->sdi_pin_, this->data_pins_);  // NOLINT
     this->clk_pin_->setup();
     this->clk_pin_->digital_write(true);
-    this->sdo_pin_->setup();
-    this->sdi_pin_->setup();
+    if (this->data_pins_.empty()) {
+      this->sdo_pin_->setup();
+      this->sdi_pin_->setup();
+    }
   }
 }
 
@@ -117,6 +125,246 @@ uint16_t SPIDelegateBitBash::transfer_(uint16_t data, size_t num_bits) {
   App.feed_wdt();
   return out_data;
 }
+
+#ifdef USE_ESP32
+// NOLINTBEGIN(clang-analyzer-core.FixedAddressDereference) -- REG_WRITE accesses GPIO MMIO registers
+void SPIDelegateMultiBitBash::setup_bus_() {
+  if (this->ready_)
+    return;
+
+  const int clk_pin = Utility::get_internal_pin_no(this->clk_pin_);
+  if (clk_pin < 0 || clk_pin > 31) {
+    ESP_LOGE(TAG, "Software quad/octal SPI clock pin must be an internal GPIO0-31 pin");
+    return;
+  }
+  this->clk_mask_ = 1UL << clk_pin;
+  if (Utility::is_inverted(this->clk_pin_)) {
+    this->clock_polarity_ = this->clock_polarity_ == CLOCK_POLARITY_HIGH ? CLOCK_POLARITY_LOW : CLOCK_POLARITY_HIGH;
+  }
+  this->clk_pin_->setup();
+  if (this->clock_polarity_) {
+    REG_WRITE(GPIO_OUT_W1TS_REG, this->clk_mask_);
+  } else {
+    REG_WRITE(GPIO_OUT_W1TC_REG, this->clk_mask_);
+  }
+
+  if (this->data_pins_.size() != 4 && this->data_pins_.size() != 8) {
+    ESP_LOGE(TAG, "Software multi-bit SPI requires exactly 4 or 8 data pins");
+    return;
+  }
+
+  this->data_clear_mask_ = 0;
+  for (uint8_t pin : this->data_pins_) {
+    if (pin > 31) {
+      ESP_LOGE(TAG, "Software quad/octal SPI data pins must be internal GPIO0-31 pins");
+      return;
+    }
+    gpio_reset_pin(static_cast<gpio_num_t>(pin));
+    gpio_set_direction(static_cast<gpio_num_t>(pin), GPIO_MODE_OUTPUT);
+    REG_WRITE(GPIO_OUT_W1TC_REG, 1UL << pin);
+    this->data_clear_mask_ |= 1UL << pin;
+  }
+
+  for (size_t value = 0; value < this->data_set_masks_.size(); value++) {
+    uint32_t mask = 0;
+    for (size_t bit = 0; bit < this->data_pins_.size(); bit++) {
+      if (value & (1 << bit))
+        mask |= 1UL << this->data_pins_[bit];
+    }
+    this->data_set_masks_[value] = mask;
+  }
+  this->last_transition_ = arch_get_cpu_cycle_count();
+  this->ready_ = true;
+}
+
+uint8_t SPIDelegateMultiBitBash::transfer(uint8_t data) {
+  this->write_array(&data, 1);
+  return 0;
+}
+
+void SPIDelegateMultiBitBash::write_multi_width_(const uint8_t *data, size_t length, uint8_t bus_width) {
+  if (!this->ready_) {
+    ESP_LOGE(TAG, "Software multi-bit SPI bus is not ready");
+    return;
+  }
+  // The multi-bit paths are deliberately expanded to avoid call and branch overhead.
+  if (bus_width == 8 && this->data_pins_.size() >= 8) {
+    if (this->clock_phase_ == CLOCK_PHASE_LEADING) {
+      if (this->clock_polarity_) {
+        while (length-- != 0) {
+          REG_WRITE(GPIO_OUT_W1TC_REG, this->data_clear_mask_);
+          REG_WRITE(GPIO_OUT_W1TS_REG, this->data_set_masks_[*data++]);
+          this->cycle_clock_();
+          REG_WRITE(GPIO_OUT_W1TC_REG, this->clk_mask_);
+          this->cycle_clock_();
+          REG_WRITE(GPIO_OUT_W1TS_REG, this->clk_mask_);
+        }
+      } else {
+        while (length-- != 0) {
+          REG_WRITE(GPIO_OUT_W1TC_REG, this->data_clear_mask_);
+          REG_WRITE(GPIO_OUT_W1TS_REG, this->data_set_masks_[*data++]);
+          this->cycle_clock_();
+          REG_WRITE(GPIO_OUT_W1TS_REG, this->clk_mask_);
+          this->cycle_clock_();
+          REG_WRITE(GPIO_OUT_W1TC_REG, this->clk_mask_);
+        }
+      }
+    } else if (this->clock_polarity_) {
+      while (length-- != 0) {
+        this->cycle_clock_();
+        REG_WRITE(GPIO_OUT_W1TC_REG, this->clk_mask_);
+        REG_WRITE(GPIO_OUT_W1TC_REG, this->data_clear_mask_);
+        REG_WRITE(GPIO_OUT_W1TS_REG, this->data_set_masks_[*data++]);
+        this->cycle_clock_();
+        REG_WRITE(GPIO_OUT_W1TS_REG, this->clk_mask_);
+      }
+    } else {
+      while (length-- != 0) {
+        this->cycle_clock_();
+        REG_WRITE(GPIO_OUT_W1TS_REG, this->clk_mask_);
+        REG_WRITE(GPIO_OUT_W1TC_REG, this->data_clear_mask_);
+        REG_WRITE(GPIO_OUT_W1TS_REG, this->data_set_masks_[*data++]);
+        this->cycle_clock_();
+        REG_WRITE(GPIO_OUT_W1TC_REG, this->clk_mask_);
+      }
+    }
+  } else if (bus_width == 4 && this->data_pins_.size() >= 4) {
+    if (this->clock_phase_ == CLOCK_PHASE_LEADING) {
+      if (this->clock_polarity_) {
+        while (length-- != 0) {
+          const uint8_t value = *data++;
+          REG_WRITE(GPIO_OUT_W1TC_REG, this->data_clear_mask_);
+          REG_WRITE(GPIO_OUT_W1TS_REG, this->data_set_masks_[value >> 4]);
+          this->cycle_clock_();
+          REG_WRITE(GPIO_OUT_W1TC_REG, this->clk_mask_);
+          this->cycle_clock_();
+          REG_WRITE(GPIO_OUT_W1TS_REG, this->clk_mask_);
+          REG_WRITE(GPIO_OUT_W1TC_REG, this->data_clear_mask_);
+          REG_WRITE(GPIO_OUT_W1TS_REG, this->data_set_masks_[value & 0x0F]);
+          this->cycle_clock_();
+          REG_WRITE(GPIO_OUT_W1TC_REG, this->clk_mask_);
+          this->cycle_clock_();
+          REG_WRITE(GPIO_OUT_W1TS_REG, this->clk_mask_);
+        }
+      } else {
+        while (length-- != 0) {
+          const uint8_t value = *data++;
+          REG_WRITE(GPIO_OUT_W1TC_REG, this->data_clear_mask_);
+          REG_WRITE(GPIO_OUT_W1TS_REG, this->data_set_masks_[value >> 4]);
+          this->cycle_clock_();
+          REG_WRITE(GPIO_OUT_W1TS_REG, this->clk_mask_);
+          this->cycle_clock_();
+          REG_WRITE(GPIO_OUT_W1TC_REG, this->clk_mask_);
+          REG_WRITE(GPIO_OUT_W1TC_REG, this->data_clear_mask_);
+          REG_WRITE(GPIO_OUT_W1TS_REG, this->data_set_masks_[value & 0x0F]);
+          this->cycle_clock_();
+          REG_WRITE(GPIO_OUT_W1TS_REG, this->clk_mask_);
+          this->cycle_clock_();
+          REG_WRITE(GPIO_OUT_W1TC_REG, this->clk_mask_);
+        }
+      }
+    } else if (this->clock_polarity_) {
+      while (length-- != 0) {
+        const uint8_t value = *data++;
+        this->cycle_clock_();
+        REG_WRITE(GPIO_OUT_W1TC_REG, this->clk_mask_);
+        REG_WRITE(GPIO_OUT_W1TC_REG, this->data_clear_mask_);
+        REG_WRITE(GPIO_OUT_W1TS_REG, this->data_set_masks_[value >> 4]);
+        this->cycle_clock_();
+        REG_WRITE(GPIO_OUT_W1TS_REG, this->clk_mask_);
+        this->cycle_clock_();
+        REG_WRITE(GPIO_OUT_W1TC_REG, this->clk_mask_);
+        REG_WRITE(GPIO_OUT_W1TC_REG, this->data_clear_mask_);
+        REG_WRITE(GPIO_OUT_W1TS_REG, this->data_set_masks_[value & 0x0F]);
+        this->cycle_clock_();
+        REG_WRITE(GPIO_OUT_W1TS_REG, this->clk_mask_);
+      }
+    } else {
+      while (length-- != 0) {
+        const uint8_t value = *data++;
+        this->cycle_clock_();
+        REG_WRITE(GPIO_OUT_W1TS_REG, this->clk_mask_);
+        REG_WRITE(GPIO_OUT_W1TC_REG, this->data_clear_mask_);
+        REG_WRITE(GPIO_OUT_W1TS_REG, this->data_set_masks_[value >> 4]);
+        this->cycle_clock_();
+        REG_WRITE(GPIO_OUT_W1TC_REG, this->clk_mask_);
+        this->cycle_clock_();
+        REG_WRITE(GPIO_OUT_W1TS_REG, this->clk_mask_);
+        REG_WRITE(GPIO_OUT_W1TC_REG, this->data_clear_mask_);
+        REG_WRITE(GPIO_OUT_W1TS_REG, this->data_set_masks_[value & 0x0F]);
+        this->cycle_clock_();
+        REG_WRITE(GPIO_OUT_W1TC_REG, this->clk_mask_);
+      }
+    }
+  } else if (bus_width == 1) {
+    while (length-- != 0)
+      this->write_bits_(*data++, 8);
+  } else {
+    ESP_LOGE(TAG, "Unsupported software SPI bus width %u for %u data pins", bus_width,
+             (unsigned) this->data_pins_.size());
+  }
+  App.feed_wdt();
+}
+
+void SPIDelegateMultiBitBash::write_bits_(uint32_t data, size_t num_bits) {
+  if (!this->ready_)
+    return;
+  if (this->clock_phase_ == CLOCK_PHASE_LEADING) {
+    for (size_t i = 0; i < num_bits; i++) {
+      const size_t shift = this->bit_order_ == BIT_ORDER_MSB_FIRST ? num_bits - 1 - i : i;
+      REG_WRITE(GPIO_OUT_W1TC_REG, this->data_clear_mask_);
+      REG_WRITE(GPIO_OUT_W1TS_REG, this->data_set_masks_[(data >> shift) & 0x01]);
+      this->cycle_clock_();
+      if (this->clock_polarity_) {
+        REG_WRITE(GPIO_OUT_W1TC_REG, this->clk_mask_);
+        this->cycle_clock_();
+        REG_WRITE(GPIO_OUT_W1TS_REG, this->clk_mask_);
+      } else {
+        REG_WRITE(GPIO_OUT_W1TS_REG, this->clk_mask_);
+        this->cycle_clock_();
+        REG_WRITE(GPIO_OUT_W1TC_REG, this->clk_mask_);
+      }
+    }
+  } else {
+    for (size_t i = 0; i < num_bits; i++) {
+      const size_t shift = this->bit_order_ == BIT_ORDER_MSB_FIRST ? num_bits - 1 - i : i;
+      this->cycle_clock_();
+      if (this->clock_polarity_) {
+        REG_WRITE(GPIO_OUT_W1TC_REG, this->clk_mask_);
+      } else {
+        REG_WRITE(GPIO_OUT_W1TS_REG, this->clk_mask_);
+      }
+      REG_WRITE(GPIO_OUT_W1TC_REG, this->data_clear_mask_);
+      REG_WRITE(GPIO_OUT_W1TS_REG, this->data_set_masks_[(data >> shift) & 0x01]);
+      this->cycle_clock_();
+      if (this->clock_polarity_) {
+        REG_WRITE(GPIO_OUT_W1TS_REG, this->clk_mask_);
+      } else {
+        REG_WRITE(GPIO_OUT_W1TC_REG, this->clk_mask_);
+      }
+    }
+  }
+}
+
+void SPIDelegateMultiBitBash::write_cmd_addr_data(size_t cmd_bits, uint32_t cmd, size_t addr_bits, uint32_t address,
+                                                  const uint8_t *data, size_t length, uint8_t bus_width) {
+  this->setup_bus_();
+  if (!this->ready_)
+    return;
+  if (cmd_bits != 0)
+    this->write_bits_(cmd, cmd_bits);
+  if (addr_bits != 0)
+    this->write_bits_(address, addr_bits);
+  if (data != nullptr && length != 0)
+    this->write_multi_width_(data, length, bus_width);
+}
+
+void SPIDelegateMultiBitBash::write_array(const uint8_t *ptr, size_t length) {
+  this->setup_bus_();
+  this->write_multi_width_(ptr, length, this->data_pins_.size());
+}
+// NOLINTEND(clang-analyzer-core.FixedAddressDereference)
+#endif
 
 #if !defined(USE_ESP32) && !defined(USE_ARDUINO)
 // Stub for unsupported platforms (host, Zephyr, etc.) - hardware SPI is unavailable
