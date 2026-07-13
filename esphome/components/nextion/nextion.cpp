@@ -905,7 +905,6 @@ void Nextion::process_nextion_commands_() {
   }
 
   ESP_LOGN(TAG, "Loop end");
-  // App.feed_wdt(); Remove before master merge
   this->process_serial_();
 }  // Nextion::process_nextion_commands_()
 
