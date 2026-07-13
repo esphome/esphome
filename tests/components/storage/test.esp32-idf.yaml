@@ -43,3 +43,16 @@ script:
             - logger.log:
                 format: "read: %s"
                 args: ["x.c_str()"]
+      - storage.file_copy:
+          from: /sdcard/a.txt
+          to: /usb/a.txt
+      - storage.file_move:
+          from: !lambda 'return "/sdcard/old.log";'
+          to: /sdcard/archive/old.log
+      - if:
+          condition:
+            storage.file_exists: /sdcard/config.txt
+          then:
+            - storage.file_delete:
+                path: /sdcard/tmp
+                recursive: true
