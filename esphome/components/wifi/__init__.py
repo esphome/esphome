@@ -471,6 +471,7 @@ def _fast_connect_schema(value: Any) -> ConfigType:
 
 
 CONF_LEASE_CACHE = "lease_cache"
+CONF_MAX_AGE = "max_age"
 
 LEASE_CACHE_SCHEMA = cv.Schema(
     {
@@ -479,12 +480,15 @@ LEASE_CACHE_SCHEMA = cv.Schema(
         # when the variant has no RTC memory -- is resolved in to_code, so NVS is
         # never selected implicitly (it wears flash and must be opted into).
         cv.Optional(CONF_STORAGE): preferences.validate_storage,
+        # Optional safety cap: never trust a cached lease older than this, regardless
+        # of the lease length the DHCP server granted.
+        cv.Optional(CONF_MAX_AGE): cv.positive_time_period_seconds,
     }
 )
 
 
 def _lease_cache_schema(value: Any) -> ConfigType:
-    """Accept a plain boolean shorthand or a dict with enabled/storage keys."""
+    """Accept a plain boolean shorthand or a dict with enabled/storage/max_age keys."""
     if not isinstance(value, dict):
         value = {CONF_ENABLED: value}
     value = LEASE_CACHE_SCHEMA(value)
@@ -709,6 +713,8 @@ async def to_code(config):
             # is_in_flash() also emits USE_ESP32_RTC_PREFERENCES when rtc is chosen.
             if preferences.is_in_flash(storage):
                 cg.add_define("USE_WIFI_LEASE_CACHE_IN_FLASH")
+            if (max_age := lease_cache.get(CONF_MAX_AGE)) is not None:
+                cg.add(var.set_lease_cache_max_age(int(max_age.total_seconds)))
     # passive_scan defaults to false in C++ - only set if true
     if config[CONF_PASSIVE_SCAN]:
         cg.add(var.set_passive_scan(True))

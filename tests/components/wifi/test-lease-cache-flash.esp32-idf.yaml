@@ -1,0 +1,16 @@
+# Compiles the storage: flash lease-cache branch (USE_WIFI_LEASE_CACHE_IN_FLASH, i.e. the offsetof
+# save debounce and the flash preference), together with manual_ip so the #ifdef USE_WIFI_MANUAL_IP
+# guard inside save_lease_settings_ is compiled under USE_WIFI_LEASE_CACHE. A static manual_ip makes
+# the cache inert at runtime, but this is a compile-coverage test: both #ifdef branches are built.
+wifi:
+  lease_cache:
+    enabled: true
+    storage: flash
+  manual_ip:
+    static_ip: 192.168.1.100
+    gateway: 192.168.1.1
+    subnet: 255.255.255.0
+    dns1: 1.1.1.1
+
+packages:
+  - !include common.yaml

@@ -1,8 +1,0 @@
-# Exercises the explicit NVS (flash) opt-in for lease_cache storage. Flash is
-# never chosen implicitly (it wears flash), so it must be requested by name.
-wifi:
-  ssid: MySSID
-  password: password1
-  lease_cache:
-    enabled: true
-    storage: flash

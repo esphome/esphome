@@ -776,7 +776,8 @@ void WiFiComponent::loop() {
   }
 
 #ifdef USE_WIFI_LEASE_CACHE
-  // Persist a freshly captured DHCP lease here (main task), not in the event handler.
+  // Persist a freshly captured DHCP lease once per loop(), after wifi_loop_ has drained the event
+  // batch that may have set the flag (the GOT_IP handler only sets it, it does not write here).
   if (this->lease_capture_pending_) {
     this->lease_capture_pending_ = false;
     this->save_lease_settings_();
@@ -2332,18 +2333,20 @@ void WiFiComponent::save_fast_connect_settings_() {
 
 #ifdef USE_WIFI_LEASE_CACHE
 void WiFiComponent::load_lease_settings_() {
-  SavedWifiLeaseSettings lease{};
-  if (!this->lease_cache_pref_.load(&lease)) {
+  if (!this->lease_cache_pref_.load(&this->cached_lease_)) {
     return;  // no cached lease, or the record was never written / failed its checksum
   }
-  // Phase 1 is capture-only: log what a later phase would apply, without changing boot behaviour.
-  const uint8_t *ip = reinterpret_cast<const uint8_t *>(&lease.ip);  // stored in network byte order
-  if (lease.flags & LEASE_FLAG_HAS_TIMING) {
-    ESP_LOGI(TAG, "Lease cache: would apply %u.%u.%u.%u (network %d, lease %us)", ip[0], ip[1], ip[2], ip[3],
-             lease.ap_index, lease.lease_secs);
-  } else {
-    ESP_LOGI(TAG, "Lease cache: would apply %u.%u.%u.%u (network %d)", ip[0], ip[1], ip[2], ip[3], lease.ap_index);
+  if (this->cached_lease_.version != SAVED_WIFI_LEASE_VERSION) {
+    // Same-size record from a different firmware layout: discard rather than misinterpret it.
+    ESP_LOGD(TAG, "Ignoring cached lease with unexpected version %u", this->cached_lease_.version);
+    return;
   }
+  this->have_cached_lease_ = true;
+  // Whether it actually gets applied is decided in wifi_sta_ip_config_ once the AP is selected
+  // (see lease_valid_for_apply_): it needs a matching network and a trusted age.
+  const uint8_t *ip = reinterpret_cast<const uint8_t *>(&this->cached_lease_.ip);  // network byte order
+  ESP_LOGD(TAG, "Loaded cached lease %u.%u.%u.%u (network %d, lease %us)", ip[0], ip[1], ip[2], ip[3],
+           this->cached_lease_.ap_index, this->cached_lease_.lease_secs);
 }
 #endif
 
