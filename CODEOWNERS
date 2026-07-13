@@ -105,6 +105,7 @@ esphome/components/button/* @esphome/core
 esphome/components/bytebuffer/* @clydebarrow
 esphome/components/camera/* @bdraco @DT-art1
 esphome/components/camera_encoder/* @DT-art1
+esphome/components/camera_h264/* @jvgelder
 esphome/components/camera_video/* @jvgelder
 esphome/components/canbus/* @danielschramm @mvturnho
 esphome/components/cap1188/* @mreditor97
