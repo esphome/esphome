@@ -180,8 +180,38 @@ class RawStorage : public Storage {
 // Common path-based operations shared by FilesystemStorage and NetworkStorage.
 // Lets path-oriented consumers (e.g. a file browser/server) enumerate and operate
 // on any storage that exposes a path namespace, regardless of local vs. network backing.
+// Optional interface for drivers whose medium can be mounted/unmounted at runtime (removable
+// media: SD cards, USB sticks, network shares). Drivers inherit this IN ADDITION to their
+// storage base class. Consumers reach it via PathStorage::as_mountable() below — the no-RTTI
+// downcast hook (ESPHome builds with -fno-rtti, so dynamic_cast is unavailable).
+// NOTE: FilesystemStorage declares mount()/unmount() with identical signatures as part of its
+// own contract; a driver inheriting both provides ONE override that satisfies both bases (the
+// standard sibling-interface pattern). This interface exists as an explicit opt-in marker:
+// non-removable filesystems simply don't inherit it.
+class MountableStorage {
+ public:
+  // Which of the two operations may be invoked externally (YAML actions, web UI). A driver
+  // whose medium controls its own mount lifecycle (e.g. USB: hotplug auto-mounts on insertion)
+  // supports only UNMOUNT ("safe eject"); manually managed media (SD card, NFS export) support
+  // both. Consumers building UI must gate each button on its bit — as_mountable() != nullptr
+  // alone only says "at least one of the two works".
+  static constexpr uint8_t MOUNT_CAP_MOUNT = 1 << 0;
+  static constexpr uint8_t MOUNT_CAP_UNMOUNT = 1 << 1;
+
+  virtual ~MountableStorage() = default;
+  virtual uint8_t get_mount_caps() const { return MOUNT_CAP_MOUNT | MOUNT_CAP_UNMOUNT; }
+  virtual StorageError mount() = 0;
+  virtual StorageError unmount() = 0;
+};
+
 class PathStorage : public Storage {
  public:
+  // No-RTTI downcast hook: consumers holding a PathStorage* (e.g. from resolve_path() or
+  // for_each_path_based()) use this to reach the optional MountableStorage interface —
+  // dynamic_cast is unavailable (ESPHome builds with -fno-rtti). Drivers that inherit
+  // MountableStorage override this with `return this;`.
+  virtual MountableStorage *as_mountable() { return nullptr; }
+
   // The VFS mount point this storage is reachable under (e.g. "/sdcard", "/usb"). Set once by
   // the driver (typically from YAML) and treated as invariant for the lifetime of the instance —
   // it does not change across mount()/unmount() cycles. Contract, enforced by the driver at set
