@@ -18,19 +18,12 @@ void StorageWorker::setup() {
   if (global_storage_registry != nullptr) {
     global_storage_registry->add_on_unregistered_callback([this](Storage *s) { this->on_storage_unregistered_(s); });
   }
-
-  // loop() has nothing to do until the first async transfer is submitted (see
-  // ensure_started_()/submit_() below, which re-enables it) — an idle empty-pool scan every
-  // main loop iteration is pure overhead for a driver that links in the worker but never
-  // actually calls async_copy()/async_move().
-  this->disable_loop();
 }
 
 void StorageWorker::ensure_started_() {
   if (this->started_)
     return;
   this->started_ = true;
-  this->enable_loop();
 
   this->pool_.init(this->max_pending_);
   for (size_t i = 0; i < this->max_pending_; i++) {
@@ -100,8 +93,23 @@ bool StorageWorker::overlaps_active_(const TransferRequest &candidate) const {
   return false;
 }
 
+bool StorageWorker::is_busy_with(const storage::Storage *storage) const {
+  if (storage == nullptr)
+    return false;
+  // PENDING counts too: a submitted-but-not-yet-started job already "owns" the device from
+  // the caller's point of view, so unmounting out from under it must wait.
+  for (const auto &req : this->pool_) {
+    RequestState state = req.state.load();
+    if (state == RequestState::FREE || state == RequestState::DONE)
+      continue;
+    if (req.src_storage == storage || req.dst_storage == storage)
+      return true;
+  }
+  return false;
+}
+
 StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *src_path, PathStorage *dst,
-                                    const char *dst_path, CompletionCallback &&on_done) {
+                                    const char *dst_path, CompletionCallback &&on_done, TransferJob *job_out) {
   this->ensure_started_();
 
   if (strlen(src_path) >= STORAGE_WORKER_MAX_PATH || strlen(dst_path) >= STORAGE_WORKER_MAX_PATH)
@@ -138,6 +146,15 @@ StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *
   slot->chunk_size = 0;
   slot->src_is_fs = src->get_storage_type() == StorageType::FILESYSTEM;
   slot->dst_is_fs = dst->get_storage_type() == StorageType::FILESYSTEM;
+  slot->bytes_done = 0;
+  slot->bytes_total = 0;
+  // Bump the generation on claim (skipping 0) so stale TransferJob handles from a previous
+  // occupant of this slot stop resolving. Main loop only — submissions never race each other.
+  if (++slot->generation == 0)
+    slot->generation = 1;
+  if (job_out != nullptr) {
+    *job_out = (slot->generation << 8) | static_cast<uint32_t>(slot - this->pool_.begin());
+  }
 
 #if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
   // Skip task dispatch if another active (RUNNING/CANCELLED) request already shares a storage
@@ -163,13 +180,37 @@ StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *
 }
 
 StorageError StorageWorker::async_copy(PathStorage *src, const char *src_path, PathStorage *dst, const char *dst_path,
-                                       CompletionCallback &&on_done) {
-  return this->submit_(RequestOp::COPY, src, src_path, dst, dst_path, std::move(on_done));
+                                       CompletionCallback &&on_done, TransferJob *job_out) {
+  return this->submit_(RequestOp::COPY, src, src_path, dst, dst_path, std::move(on_done), job_out);
 }
 
 StorageError StorageWorker::async_move(PathStorage *src, const char *src_path, PathStorage *dst, const char *dst_path,
-                                       CompletionCallback &&on_done) {
-  return this->submit_(RequestOp::MOVE, src, src_path, dst, dst_path, std::move(on_done));
+                                       CompletionCallback &&on_done, TransferJob *job_out) {
+  return this->submit_(RequestOp::MOVE, src, src_path, dst, dst_path, std::move(on_done), job_out);
+}
+
+bool StorageWorker::get_transfer_status(TransferJob job, TransferStatus *out) const {
+  if (job == INVALID_TRANSFER_JOB || out == nullptr)
+    return false;
+  size_t slot_index = job & 0xFF;
+  uint32_t generation = job >> 8;
+  // Lazy init: before the first submission the pool is empty and no job can exist.
+  if (slot_index >= this->pool_.size())
+    return false;
+  const TransferRequest &req = this->pool_[slot_index];
+  // A recycled slot bumped its generation on claim; a freed slot is FREE. Either way the
+  // handle is expired — the final DONE snapshot is only observable until loop() releases the
+  // slot after the completion callback (see the header comment on capturing final results).
+  if (req.generation != generation)
+    return false;
+  RequestState state = req.state.load();
+  if (state == RequestState::FREE)
+    return false;
+  out->state = state;
+  out->result = req.result;
+  out->bytes_done = req.bytes_done.load();
+  out->bytes_total = req.bytes_total.load();
+  return true;
 }
 
 void StorageWorker::on_storage_unregistered_(Storage *s) {
@@ -280,6 +321,21 @@ void StorageWorker::on_storage_unregistered_(Storage *s) {
 }
 
 void StorageWorker::loop() {
+  // Nothing to do until the first async transfer is submitted. Cheap early-out every main
+  // loop pass — far simpler and race-free compared to disable_loop()/enable_loop() gymnastics
+  // around lazy start (an enable_loop() issued while the component is still in LOOP state is a
+  // no-op, so a pre-start disable could never be undone — that was the stall).
+  if (!this->started_)
+    return;
+
+  // TEMP PROBE 1: proves this loop() actually executes on this build once the first async
+  // transfer has been submitted. One-shot — remove together with the other probes.
+  static bool probe_worker_loop_alive = false;
+  if (!probe_worker_loop_alive) {
+    probe_worker_loop_alive = true;
+    ESP_LOGI(TAG, "PROBE1: StorageWorker::loop() alive (first pass after start)");
+  }
+
   // Deliver completions and free slots. Runs regardless of which engine finished the
   // request, so this is the single place user callbacks are invoked — always on the main
   // loop, per the public API's contract.
@@ -287,6 +343,10 @@ void StorageWorker::loop() {
     if (req.state.load() == RequestState::DONE) {
       CompletionCallback cb = std::move(req.callback);
       StorageError result = req.result;
+      // TEMP PROBE 2: proves completion delivery reaches the callback invocation, and whether
+      // a callback was actually stored for this slot.
+      ESP_LOGI(TAG, "PROBE2: delivering DONE slot=%d result=%d has_cb=%d", (int) (&req - this->pool_.begin()),
+               (int) result, (int) static_cast<bool>(cb));
       req.callback = nullptr;
       req.src_storage = nullptr;
       req.dst_storage = nullptr;
@@ -445,6 +505,16 @@ void StorageWorker::run_chunk_(TransferRequest &req) {
       return;
     }
 
+    // Progress total for get_transfer_status(): one cheap stat on the source. A failure here
+    // is not fatal — bytes_total stays 0, which consumers must treat as "unknown/indeterminate"
+    // (the transfer itself still detects a truly missing source at open()/read time).
+    {
+      FileStat src_stat{};
+      if (req.src_storage->stat(req.src_path, &src_stat) == StorageError::OK && !src_stat.is_dir) {
+        req.bytes_total.store(src_stat.size);
+      }
+    }
+
     size_t chunk_size = STORAGE_COPY_CHUNK_SIZE;
     uint8_t *raw = nullptr;
     while (chunk_size >= 4096) {
@@ -531,6 +601,10 @@ void StorageWorker::run_chunk_(TransferRequest &req) {
   }
 
   req.offset += bytes_read;
+  // Progress for get_transfer_status(): offset equals bytes fully read AND written at this
+  // point (the write loop above completed), so it doubles as bytes_done. Atomic store because
+  // the main loop may snapshot progress while the worker task runs this transfer.
+  req.bytes_done.store(req.offset);
   // Request stays RUNNING; the next call (next loop() iteration, or the task's own loop)
   // picks up at the new offset. No watchdog feed here by design — see task_loop_()'s comment
   // for the task path; the loop-sliced path returns to the main loop's own feed_wdt() between
