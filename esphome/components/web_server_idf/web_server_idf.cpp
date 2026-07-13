@@ -595,7 +595,7 @@ void AsyncWebServerRequest::requestAuthentication() const {
   bytes_to_hex(random_bytes, sizeof(random_bytes), nonce);
   esp_fill_random(random_bytes, sizeof(random_bytes));
   bytes_to_hex(random_bytes, sizeof(random_bytes), opaque);
-  snprintf(header, sizeof(header), "Digest realm=\"Login Required\", qop=\"auth\", nonce=\"%s\", opaque=\"%s\"", nonce,
+  snprintf(header, sizeof(header), R"(Digest realm="Login Required", qop="auth", nonce="%s", opaque="%s")", nonce,
            opaque);
   httpd_resp_set_hdr(*this, "WWW-Authenticate", header);
 #else
