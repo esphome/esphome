@@ -320,6 +320,15 @@ class StorageRegistry : public Component {
   // fatal (log + mark_failed()) instead of running with an invisibly missing device.
   StorageError register_storage(Storage *s);
   void unregister_storage(Storage *s);
+  // Drain-only variant of unregister_storage() for drivers whose registration is permanent
+  // but whose medium comes and goes (SD safe-eject, NFS unmount): fires the same drain
+  // callbacks — by return, no in-flight data-plane call against `s` remains and pending
+  // worker requests touching it are completed with NOT_READY — but the entry stays
+  // registered. The driver flips its mounted state right after; subsequent data-plane calls
+  // fail with NOT_READY at the driver, so staying registered is safe. No-op if `s` is not
+  // registered. Avoids the unregistered/registered churn (log noise, consumers briefly
+  // seeing the device vanish) of the unregister+re-register pattern.
+  void quiesce_storage(Storage *s);
   bool is_registered(const Storage *s) const;
 
   // Stable enumeration by index — pairs with get_mount_path() on PathStorage entries to let a
