@@ -90,8 +90,8 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf) {
     case ExtractStepType::TRIM:
       buf = extract_trim(buf);
       return true;
-#ifdef USE_STORAGE_JSON_EXTRACT
     case ExtractStepType::JSON: {
+#ifdef USE_STORAGE_JSON_EXTRACT
       // '/'-separated pointer: object keys and array indices ("a/b/0").
       // Scalars yield their string form; objects/arrays yield serialized
       // JSON so further steps (or nested json steps) can keep working on it.
@@ -135,8 +135,10 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf) {
         buf = std::move(serialized);
       }
       return true;
-    }
+#else
+      return false;  // step cannot be configured without the define — defensive
 #endif  // USE_STORAGE_JSON_EXTRACT
+    }
     case ExtractStepType::REGEX: {
 #ifdef USE_STORAGE_REGEX_EXTRACT
       // Pattern syntax was validated at config time (ECMAScript grammar, std::regex default).

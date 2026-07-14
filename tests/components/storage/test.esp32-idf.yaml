@@ -10,9 +10,11 @@ storage:
 globals:
   - id: g_setpoint
     type: float
+    restore_value: true
     initial_value: "0"
   - id: g_label
     type: std::string
+    restore_value: true
 
 script:
   - id: exercise_file_ops
@@ -56,3 +58,24 @@ script:
             - storage.file_delete:
                 path: /sdcard/tmp
                 recursive: true
+
+button:
+  - platform: template
+    name: "Backup selected preferences"
+    on_press:
+      - storage.export_preferences:
+          path: /sdcard/prefs-selected.kv
+          preferences: [g_setpoint, g_label]
+  - platform: template
+    name: "Backup all preferences"
+    on_press:
+      - storage.export_preferences:
+          path: !lambda 'return "/sdcard/prefs.json";'
+          format: json
+  - platform: template
+    name: "Restore preferences"
+    on_press:
+      - storage.import_preferences:
+          path: /sdcard/prefs-selected.kv
+          preferences: [g_setpoint]
+          reboot: true

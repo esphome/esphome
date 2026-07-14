@@ -36,6 +36,11 @@ CONF_MAX_STREAMS = "max_streams"
 CONF_ON_REGISTERED = "on_registered"
 CONF_ON_UNREGISTERED = "on_unregistered"
 
+# json is header-only (ArduinoJson): auto-loading it costs nothing when unused
+# and lets the json extract step and the preferences json format work without
+# an explicit `json:` block in the config.
+AUTO_LOAD = ["json"]
+
 storage_ns = cg.esphome_ns.namespace("storage")
 Storage = storage_ns.class_("Storage", cg.Component)
 StoragePtr = Storage.operator("ptr")
@@ -272,8 +277,7 @@ _EXTRACT_STEP_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_LINE): cv.positive_not_null_int,
-            # '/'-separated pointer into a JSON document ("a/b/0"). Requires
-            # the json component (add `json:` to the config).
+            # '/'-separated pointer into a JSON document ("a/b/0").
             cv.Optional(CONF_JSON): cv.string_strict,
             cv.Optional(CONF_SPLIT): cv.string_strict,
             cv.Optional(CONF_INDEX): cv.positive_int,
@@ -595,15 +599,11 @@ _PREFERENCES_ACTION_BASE = {
 
 _EXPORT_PREFERENCES_SCHEMA = cv.All(
     cv.only_on(["esp32"]),
-    # ArduinoJson (via the json component) backs the json format and is
-    # linked whenever the actions compile in — add `json:` to the config.
-    cv.requires_component("json"),
     cv.Schema(_PREFERENCES_ACTION_BASE),
 )
 
 _IMPORT_PREFERENCES_SCHEMA = cv.All(
     cv.only_on(["esp32"]),
-    cv.requires_component("json"),
     cv.Schema(
         {
             **_PREFERENCES_ACTION_BASE,

@@ -373,7 +373,7 @@ bool preferences_export_to_storage(const char *path, const char *format, const P
         prefs[s != nullptr ? s->name : key_str] = value;
       });
     });
-    out.assign(buf.begin(), buf.end());
+    out.assign(buf.data(), buf.size());
   } else {
     out += "# ESPHome preferences export (kv v1)\n";
     out += "# <global id or numeric NVS key>=<typed value or hex:...>\n";
@@ -493,7 +493,7 @@ bool preferences_import_from_storage(const char *path, const char *format, bool 
   size_t imported = 0, skipped = 0;
   bool ok = true;
   if (as_json) {
-    ok = json::parse_json(buf.data(), size, [&](JsonObject root) -> bool {
+    ok = json::parse_json(buf.get(), size, [&](JsonObject root) -> bool {
       JsonObject prefs = root["preferences"];
       if (prefs.isNull()) {
         ESP_LOGE(TAG, "JSON import: missing 'preferences' object");
@@ -513,7 +513,7 @@ bool preferences_import_from_storage(const char *path, const char *format, bool 
       return true;
     });
   } else {
-    const char *data = reinterpret_cast<const char *>(buf.data());
+    const char *data = reinterpret_cast<const char *>(buf.get());
     size_t pos = 0;
     while (ok && pos < size) {
       size_t eol = pos;

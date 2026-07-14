@@ -1,6 +1,9 @@
 #pragma once
 
 #include "storage.h"
+#if defined(USE_STORAGE_PREFERENCES) && defined(USE_ESP32)
+#include "preferences_backup.h"  // PrefSelection — file scope, NOT inside the namespace below
+#endif
 #include "esphome/core/alloc_helpers.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
@@ -194,8 +197,6 @@ template<typename... Ts> class MountAction : public Action<Ts...> {
 
 
 #if defined(USE_STORAGE_PREFERENCES) && defined(USE_ESP32)
-#include "preferences_backup.h"
-
 // storage.export_preferences / storage.import_preferences — see
 // preferences_backup.h. The selection table (name/key/type/count) is
 // codegen-baked per action instance from its optional `preferences:` list;
