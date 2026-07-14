@@ -506,6 +506,19 @@ void LittleFSMount::setup() {
   if (this->mount() != storage::StorageError::OK) {
     ESP_LOGE(TAG, "Failed to mount LittleFS!");
     this->mark_failed();
+    return;
+  }
+
+  // Permanent registration: registered-but-unmounted is this device's normal state after a
+  // manual unmount — mount()/unmount() only flip the mounted state (unmount quiesces), the
+  // registry entry stays for the device's lifetime.
+  if (storage::global_storage_registry != nullptr) {
+    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
+      // Registry full = codegen/runtime device-count mismatch: the device would be invisible
+      // to resolve_path()/consumers. Fatal — do not run with a silently missing device.
+      ESP_LOGE(TAG, "Storage registration failed");
+      this->mark_failed();
+    }
   }
 }
 
@@ -560,23 +573,31 @@ storage::StorageError LittleFSMount::get_info(storage::StorageInfo *info) {
 }
 
 storage::StorageError LittleFSMount::mount() {
+  if (this->mounted_)
+    return storage::StorageError::OK;
+
   if (!this->mount_lfs_())
     return storage::StorageError::READ_ERROR;
 
   this->register_with_vfs_();
 
-  if (storage::global_storage_registry != nullptr)
-    storage::global_storage_registry->register_storage(this);
-
   return storage::StorageError::OK;
 }
 
 storage::StorageError LittleFSMount::unmount() {
+  if (!this->mounted_)
+    return storage::StorageError::OK;
+
+  // Drain BEFORE teardown: after quiesce_storage() no worker data-plane call against this
+  // device is in flight, so lfs_unmount() and the VFS unregistration below cannot race a
+  // running chunk. The registry entry stays (permanent registration, see setup()).
+  if (storage::global_storage_registry != nullptr)
+    storage::global_storage_registry->quiesce_storage(this);
+
   if (!this->unmount_lfs_())
     return storage::StorageError::WRITE_ERROR;
 
-  if (storage::global_storage_registry != nullptr)
-    storage::global_storage_registry->unregister_storage(this);
+  this->unregister_from_vfs_();
 
   return storage::StorageError::OK;
 }
@@ -1030,12 +1051,27 @@ void LittleFSMount::register_with_vfs_() {
   vfs.mkdir_p = &vfs_lfs_mkdir;
   vfs.rmdir_p = &vfs_lfs_rmdir;
 
+  if (this->vfs_registered_)
+    return;  // re-mount after a manual unmount — slot is per mount cycle, never doubled
+
   esp_err_t err = esp_vfs_register(this->mount_path_, &vfs, this->vfs_context_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to register LittleFS with VFS: %s", esp_err_to_name(err));
   } else {
+    this->vfs_registered_ = true;
     ESP_LOGI(TAG, "LittleFS registered with VFS at %s", this->mount_path_);
   }
+}
+
+void LittleFSMount::unregister_from_vfs_() {
+  if (!this->vfs_registered_)
+    return;
+  // Free the esp_vfs slot — the slots are a small global resource (CONFIG_VFS_MAX_COUNT);
+  // holding one while unmounted would leak a slot per mount/unmount cycle.
+  esp_err_t err = esp_vfs_unregister(this->mount_path_);
+  if (err != ESP_OK)
+    ESP_LOGW(TAG, "esp_vfs_unregister failed: %s", esp_err_to_name(err));
+  this->vfs_registered_ = false;
 }
 
 storage::FileHandle *LittleFSMount::alloc_handle_(const char *path) {

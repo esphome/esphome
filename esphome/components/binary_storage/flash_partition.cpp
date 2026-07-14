@@ -55,6 +55,18 @@ void FlashPartition::setup() {
   if (esp_littlefs_info(this->partition_label_, &total, &used) == ESP_OK) {
     ESP_LOGI(TAG, "Partition size: total=%" PRIu32 ", used=%" PRIu32, (uint32_t) total, (uint32_t) used);
   }
+
+  // Permanent registration: registered-but-unmounted is this device's normal state after a
+  // manual unmount — mount()/unmount() only flip the mounted state (unmount quiesces), the
+  // registry entry stays for the device's lifetime.
+  if (storage::global_storage_registry != nullptr) {
+    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
+      // Registry full = codegen/runtime device-count mismatch: the device would be invisible
+      // to resolve_path()/consumers. Fatal — do not run with a silently missing device.
+      ESP_LOGE(TAG, "Storage registration failed");
+      this->mark_failed();
+    }
+  }
 }
 
 void FlashPartition::dump_config() {
@@ -118,18 +130,22 @@ storage::StorageError FlashPartition::mount() {
 
   this->mounted_ = true;
 
-  if (storage::global_storage_registry != nullptr)
-    storage::global_storage_registry->register_storage(this);
-
   return storage::StorageError::OK;
 }
 
 storage::StorageError FlashPartition::unmount() {
+  if (!this->mounted_)
+    return storage::StorageError::OK;
+
+  // Drain BEFORE teardown: after quiesce_storage() no worker data-plane call against this
+  // device is in flight, so the esp_littlefs unregistration below (which frees the esp_vfs
+  // slot) cannot race a running chunk. The registry entry stays (permanent registration,
+  // see setup()).
+  if (storage::global_storage_registry != nullptr)
+    storage::global_storage_registry->quiesce_storage(this);
+
   if (!this->unmount_lfs_())
     return storage::StorageError::WRITE_ERROR;
-
-  if (storage::global_storage_registry != nullptr)
-    storage::global_storage_registry->unregister_storage(this);
 
   return storage::StorageError::OK;
 }

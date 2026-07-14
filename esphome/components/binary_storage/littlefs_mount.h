@@ -16,7 +16,7 @@ struct LfsVfsContext;
 
 // Mounts a BinaryStorage device as a LittleFS filesystem in the ESP-IDF VFS.
 // Extends FilesystemStorage — all file operations go through POSIX/VFS after mount.
-class LittleFSMount : public storage::FilesystemStorage {
+class LittleFSMount : public storage::FilesystemStorage, public storage::MountableStorage {
  public:
   LittleFSMount() = default;
   ~LittleFSMount();
@@ -40,6 +40,14 @@ class LittleFSMount : public storage::FilesystemStorage {
   //========================================================================
 
   storage::StorageError get_info(storage::StorageInfo *info) override;
+  // No-RTTI downcast hook — see PathStorage::as_mountable().
+  storage::MountableStorage *as_mountable() override { return this; }
+  // External media (SPI flash / FRAM / EEPROM chips): mount/unmount are meaningful user
+  // actions — e.g. multi-chip setups with one CS per flash on a dedicated bus, where
+  // individual filesystems get taken offline and brought back deliberately.
+  uint8_t get_mount_caps() const override {
+    return storage::MountableStorage::MOUNT_CAP_MOUNT | storage::MountableStorage::MOUNT_CAP_UNMOUNT;
+  }
   // Task-safety is inherited from the backing device: lfs itself only needs the
   // per-instance serialization the caller already guarantees, but every block
   // callback lands on the underlying BinaryStorage — safe off the main loop only
@@ -87,6 +95,9 @@ class LittleFSMount : public storage::FilesystemStorage {
   BinaryStorage *storage_{nullptr};
   bool auto_format_{true};
   bool mounted_{false};
+  // esp_vfs slot state: set by register_with_vfs_(), cleared by unregister_from_vfs_().
+  // Guards against double registration on re-mount and slot leaks on unmount.
+  bool vfs_registered_{false};
 
   // Pool of FileHandles for open() — no heap allocation per open call
   storage::FileHandle handle_pool_[LFS_VFS_MAX_FDS]{};
@@ -115,6 +126,7 @@ class LittleFSMount : public storage::FilesystemStorage {
   bool unmount_lfs_();
   bool format_lfs_();
   void register_with_vfs_();
+  void unregister_from_vfs_();
 
   storage::FileHandle *alloc_handle_(const char *path);
   void free_handle_(storage::FileHandle *handle);

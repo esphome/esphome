@@ -37,6 +37,11 @@ class FlashPartition : public storage::FilesystemStorage {
   //========================================================================
 
   storage::StorageError get_info(storage::StorageInfo *info) override;
+  // Deliberately NOT MountableStorage (as_mountable() stays nullptr from the base): an
+  // internal flash partition can never be removed, so user-facing mount/unmount makes no
+  // sense — the device is statically registered and mounted at boot. The mount()/unmount()
+  // implementations below are interface machinery only (format() remount path, quiesce-
+  // protected), never offered to consumers.
   // esp_littlefs guards every lfs operation with an internal mutex and esp_partition
   // read/write/erase are task-safe in ESP-IDF, so the data plane may run on the async
   // worker task (calls per instance are externally serialized by the caller anyway).
