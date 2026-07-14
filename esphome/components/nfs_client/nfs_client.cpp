@@ -787,8 +787,14 @@ storage::StorageError NFSClient::mkdir(const char *path) {
   }
 
   NFSFileHandle fh;
-  return this->nfs_mkdir_(parent_fh, dirname, 0777, fh) ? storage::StorageError::OK
-                                                        : storage::StorageError::WRITE_ERROR;
+  uint32_t nfs_status = 0;
+  if (this->nfs_mkdir_(parent_fh, dirname, 0777, fh, &nfs_status)) {
+    return storage::StorageError::OK;
+  }
+  // Distinguish 'already there' (fine for mkdir-p style callers, e.g. the
+  // store_yaml export tree recreation) from real write failures — same
+  // mapping the local-filesystem drivers use for EEXIST.
+  return nfs_status == NFS3ERR_EXIST ? storage::StorageError::ALREADY_EXISTS : storage::StorageError::WRITE_ERROR;
 }
 
 storage::StorageError NFSClient::rmdir(const char *path) {
@@ -1762,7 +1768,8 @@ bool NFSClient::nfs_remove_(const NFSFileHandle &dir_fh, const std::string &name
   return true;
 }
 
-bool NFSClient::nfs_mkdir_(const NFSFileHandle &dir_fh, const std::string &name, uint32_t mode, NFSFileHandle &fh) {
+bool NFSClient::nfs_mkdir_(const NFSFileHandle &dir_fh, const std::string &name, uint32_t mode, NFSFileHandle &fh,
+                           uint32_t *nfs_status_out) {
   ESP_LOGD(TAG, "NFS MKDIR: %s (mode 0%" PRIo32 ")", name.c_str(), (uint32_t) mode);
 
   uint32_t xid = RPCClient::generate_xid();
@@ -1792,8 +1799,15 @@ bool NFSClient::nfs_mkdir_(const NFSFileHandle &dir_fh, const std::string &name,
   }
 
   uint32_t nfs_status{0};
-  if (!response.decode_uint32(nfs_status) || nfs_status != NFS3_OK) {
-    ESP_LOGW(TAG, "MKDIR failed: status=%" PRIu32, nfs_status);
+  bool decoded = response.decode_uint32(nfs_status);
+  if (nfs_status_out != nullptr)
+    *nfs_status_out = decoded ? nfs_status : 0;
+  if (!decoded || nfs_status != NFS3_OK) {
+    // NFS3ERR_EXIST is an expected answer for idempotent mkdir-p callers —
+    // the StorageError mapping below reports it, no warning spam here.
+    if (nfs_status != NFS3ERR_EXIST) {
+      ESP_LOGW(TAG, "MKDIR failed: status=%" PRIu32, nfs_status);
+    }
     return false;
   }
 
