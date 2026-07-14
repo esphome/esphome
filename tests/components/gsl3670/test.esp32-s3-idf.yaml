@@ -1,0 +1,34 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-s3-idf.yaml
+  spi: !include ../../test_build_components/common/spi/esp32-s3-idf.yaml
+
+xl9535:
+  id: expander
+
+display:
+  - platform: mipi_spi
+    id: gsl3670_display
+    spi_id: spi_bus
+    model: t-display-s3-pro
+    # The model's default DC pin (GPIO9) clashes with the shared i2c bus SCL
+    # pin, so override it onto a free pin for this test.
+    dc_pin: GPIO5
+
+psram:
+  mode: quad
+
+touchscreen:
+  # Firmware downloaded from the model's default release URL and cached.
+  - platform: gsl3670
+    model: seeed-reterminal-d1001
+    display: gsl3670_display
+    interrupt_pin: 18
+  # Explicit firmware URL + SHA-256 override.
+  - platform: gsl3670
+    model: seeed-reterminal-d1001
+    display: gsl3670_display
+    reset_pin: 10
+    interrupt_pin: 11
+    firmware:
+      url: https://github.com/esphome-libs/gsl3670-firmware/releases/download/v1.0.0/seeed-d1001-fw.bin
+      sha256: 2e50501ad83656fb6fa3d92591f9f31add4d442c8e8a79f29f5c4d335bd127a4

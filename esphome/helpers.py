@@ -397,17 +397,13 @@ def rmtree(path: Path | str) -> None:
     read-only flag and retrying.
     """
 
-    def _onerror(func, path, exc_info):
+    def _onexc(func, path, exc):
         if os.access(path, os.W_OK):
-            raise exc_info[1].with_traceback(exc_info[2])
+            raise exc
         Path(path).chmod(stat.S_IWUSR | stat.S_IRUSR)
         func(path)
 
-    # ``onerror`` is deprecated in 3.12 in favour of ``onexc`` (different
-    # callable signature); keep the existing handler shape for now and
-    # silence the lint locally so this PR doesn't bundle an unrelated
-    # migration.
-    shutil.rmtree(path, onerror=_onerror)  # pylint: disable=deprecated-argument
+    shutil.rmtree(path, onexc=_onexc)
 
 
 def walk_files(path: Path):
