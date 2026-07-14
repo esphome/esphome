@@ -285,10 +285,11 @@ static bool nvs_read_entry(nvs_handle_t handle, uint32_t key, NvsEntry &e) {
 }
 
 template<typename EmitFn>
-static size_t collect_entries(nvs_handle_t handle, const PrefSelection *sel, size_t count, EmitFn &&emit) {
+static size_t collect_entries(nvs_handle_t handle, const PrefSelection *sel, size_t count, bool restrict_to_selection,
+                              EmitFn &&emit) {
   size_t n = 0;
   NvsEntry e;
-  if (count > 0) {
+  if (restrict_to_selection) {
     for (size_t i = 0; i < count; i++) {
       if (nvs_read_entry(handle, sel[i].key, e)) {
         emit(e, &sel[i]);
@@ -307,7 +308,9 @@ static size_t collect_entries(nvs_handle_t handle, const PrefSelection *sel, siz
     char *end = nullptr;
     unsigned long key = strtoul(info.key, &end, 10);
     if (end != nullptr && *end == '\0' && nvs_read_entry(handle, static_cast<uint32_t>(key), e)) {
-      emit(e, nullptr);
+      // Unrestricted mode still knows names/types for everything codegen
+      // could see (all restore_value globals) — render those readable.
+      emit(e, find_by_key(static_cast<uint32_t>(key), sel, count));
       n++;
     }
     err = nvs_entry_next(&it);
@@ -331,7 +334,8 @@ static PathStorage *resolve_file_target(const char *path, const char **rel) {
 
 // ---- export ----
 
-bool preferences_export_to_storage(const char *path, const char *format, const PrefSelection *sel, size_t count) {
+bool preferences_export_to_storage(const char *path, const char *format, const PrefSelection *sel, size_t count,
+                                   bool restrict_to_selection) {
   const bool as_json = strcmp(format, "json") == 0;
   if (!as_json && strcmp(format, "kv") != 0) {
     ESP_LOGE(TAG, "Unsupported format '%s'", format);
@@ -358,7 +362,7 @@ bool preferences_export_to_storage(const char *path, const char *format, const P
     auto buf = json::build_json([&](JsonObject root) {
       root["version"] = 1;
       JsonObject prefs = root["preferences"].to<JsonObject>();
-      exported = collect_entries(handle, sel, count, [&](const NvsEntry &e, const PrefSelection *s) {
+      exported = collect_entries(handle, sel, count, restrict_to_selection, [&](const NvsEntry &e, const PrefSelection *s) {
         char key_str[16];
         snprintf(key_str, sizeof(key_str), "%" PRIu32, e.key);
         std::string value;
@@ -377,7 +381,7 @@ bool preferences_export_to_storage(const char *path, const char *format, const P
   } else {
     out += "# ESPHome preferences export (kv v1)\n";
     out += "# <global id or numeric NVS key>=<typed value or hex:...>\n";
-    exported = collect_entries(handle, sel, count, [&](const NvsEntry &e, const PrefSelection *s) {
+    exported = collect_entries(handle, sel, count, restrict_to_selection, [&](const NvsEntry &e, const PrefSelection *s) {
       if (s != nullptr) {
         out += s->name;
         out += '=';
@@ -408,7 +412,8 @@ bool preferences_export_to_storage(const char *path, const char *format, const P
 
 // Writes one parsed name/value pair to NVS; shared by both formats.
 static bool import_one(nvs_handle_t handle, const char *name, size_t name_len, const char *value, size_t value_len,
-                       const PrefSelection *sel, size_t count, size_t &imported, size_t &skipped) {
+                       const PrefSelection *sel, size_t count, bool restrict_to_selection, size_t &imported,
+                       size_t &skipped) {
   const PrefSelection *s = find_by_name(name, name_len, sel, count);
   uint32_t key;
   if (s != nullptr) {
@@ -423,7 +428,8 @@ static bool import_one(nvs_handle_t handle, const char *name, size_t name_len, c
     buf[name_len] = '\0';
     char *end = nullptr;
     unsigned long v = strtoul(buf, &end, 10);
-    if (end == nullptr || *end != '\0' || (count > 0 && find_by_key(v, sel, count) == nullptr)) {
+    if (end == nullptr || *end != '\0' ||
+        (restrict_to_selection && find_by_key(v, sel, count) == nullptr)) {
       skipped++;  // unknown name, or filtered out by the configured selection
       return true;
     }
@@ -464,7 +470,7 @@ static bool import_one(nvs_handle_t handle, const char *name, size_t name_len, c
 }
 
 bool preferences_import_from_storage(const char *path, const char *format, bool reboot, const PrefSelection *sel,
-                                     size_t count) {
+                                     size_t count, bool restrict_to_selection) {
   const bool as_json = strcmp(format, "json") == 0;
   if (!as_json && strcmp(format, "kv") != 0) {
     ESP_LOGE(TAG, "Unsupported format '%s'", format);
@@ -506,8 +512,8 @@ bool preferences_import_from_storage(const char *path, const char *format, bool 
           skipped++;
           continue;
         }
-        if (!import_one(handle, kv.key().c_str(), strlen(kv.key().c_str()), value, strlen(value), sel, count, imported,
-                        skipped))
+        if (!import_one(handle, kv.key().c_str(), strlen(kv.key().c_str()), value, strlen(value), sel, count,
+                        restrict_to_selection, imported, skipped))
           return false;
       }
       return true;
@@ -532,7 +538,8 @@ bool preferences_import_from_storage(const char *path, const char *format, bool 
         skipped++;
         continue;
       }
-      ok = import_one(handle, line, eq - line, eq + 1, line_len - (eq + 1 - line), sel, count, imported, skipped);
+      ok = import_one(handle, line, eq - line, eq + 1, line_len - (eq + 1 - line), sel, count,
+                      restrict_to_selection, imported, skipped);
     }
   }
   if (ok && (err = nvs_commit(handle)) != ESP_OK) {

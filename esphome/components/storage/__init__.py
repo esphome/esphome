@@ -554,7 +554,7 @@ _ARRAY_TYPE_RE = re.compile(r"^\s*(.+?)\s*\[\s*(\d+)\s*\]\s*$")
 def _pref_type_for_global(global_id: str) -> tuple[str, int]:
     """(PrefType tag, count) for a global's YAML entry — HEX,0 if unknown."""
     for entry in CORE.config.get("globals", []):
-        if str(entry[CONF_ID]) != global_id:
+        if entry[CONF_ID].id != global_id:
             continue
         if not entry.get("restore_value", False):
             raise cv.Invalid(
@@ -622,10 +622,26 @@ async def _build_preferences_action(config, action_id, template_arg, args):
     template_ = await cg.templatable(config[CONF_PATH], args, cg.std_string)
     cg.add(var.set_path(template_))
     cg.add(var.set_format(config[CONF_FORMAT]))
+    # The name/type table is ALWAYS baked: from the explicit list when given
+    # (restrict=True — only those entries round-trip), otherwise from every
+    # restore_value global in the config (restrict=False — the whole
+    # namespace round-trips, but everything codegen can name renders
+    # readable; only truly unknown keys like entity states stay hex).
     if selection := config.get(CONF_PREFERENCES):
+        # ID has no __str__ (str() falls back to the ID<...> repr) — use .id,
+        # exactly what globals/__init__.py feeds into its md5 name hash.
+        names = [gid.id for gid in selection]
+        restrict = True
+    else:
+        names = [
+            entry[CONF_ID].id
+            for entry in CORE.config.get("globals", [])
+            if entry.get("restore_value", False)
+        ]
+        restrict = False
+    if names:
         entries = []
-        for gid in selection:
-            name = str(gid)
+        for name in names:
             tag, count = _pref_type_for_global(name)
             key = _global_nvs_key(name)
             entries.append(
@@ -639,7 +655,11 @@ async def _build_preferences_action(config, action_id, template_arg, args):
                 + "}"
             )
         )
-        cg.add(var.set_selection(cg.RawExpression(arr), len(entries)))
+        cg.add(
+            var.set_selection(
+                cg.RawExpression(arr), len(entries), restrict
+            )
+        )
     return var
 
 

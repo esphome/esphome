@@ -36,12 +36,15 @@ struct PrefSelection {
   uint16_t count;
 };
 
-// selection == nullptr / count == 0 means "all preferences": full namespace
-// enumeration on export, unfiltered numeric-key import — values fall back to
-// hex there (types are a codegen-time concept and unknown for unlisted keys).
-bool preferences_export_to_storage(const char *path, const char *format, const PrefSelection *selection, size_t count);
-bool preferences_import_from_storage(const char *path, const char *format, bool reboot, const PrefSelection *selection,
-                                     size_t count);
+// The selection table provides names and types. Codegen ALWAYS bakes it: from
+// the action's `preferences:` list when given (restrict == true: only those
+// entries round-trip), otherwise from every restore_value global in the
+// config (restrict == false: the whole namespace round-trips, table entries
+// render readable, unknown keys — entity states etc. — fall back to hex).
+bool preferences_export_to_storage(const char *path, const char *format, const PrefSelection *selection,
+                                   size_t count, bool restrict_to_selection);
+bool preferences_import_from_storage(const char *path, const char *format, bool reboot,
+                                     const PrefSelection *selection, size_t count, bool restrict_to_selection);
 
 }  // namespace esphome::storage
 
