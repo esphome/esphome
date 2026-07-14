@@ -1,3 +1,4 @@
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
@@ -26,6 +27,23 @@ CHANNEL_OPTIONS = {
 CONF_TERMINAL_A = "terminal_a"
 CONF_TERMINAL_B = "terminal_b"
 CONF_TERMINAL_W = "terminal_w"
+CONF_NONVOLATILE = "nonvolatile"
+CONF_NONVOLATILE_WRITE_DELAY = "nonvolatile_write_delay"
+
+# Volatile wiper channels that have a nonvolatile shadow register on the chip
+VOLATILE_CHANNELS = ("A", "B", "C", "D")
+
+
+def _validate_nonvolatile(config):
+    # Channels E-H address the nonvolatile registers directly — the mirroring options only
+    # make sense for the volatile channels A-D.
+    if str(config[CONF_CHANNEL]) not in VOLATILE_CHANNELS:
+        if config[CONF_NONVOLATILE]:
+            raise cv.Invalid(
+                f"'{CONF_NONVOLATILE}' is only valid for the volatile channels A-D; "
+                f"channels E-H are the nonvolatile registers themselves"
+            )
+    return config
 
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
@@ -36,8 +54,19 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
         cv.Optional(CONF_TERMINAL_B, default=True): cv.boolean,
         cv.Optional(CONF_TERMINAL_W, default=True): cv.boolean,
         cv.Optional(CONF_INITIAL_VALUE): cv.float_range(min=0.0, max=1.0),
+        # Default true: the chip restores the nonvolatile wiper levels at power-on, so
+        # persisting every (settled) level change is the least surprising behavior — the pot
+        # simply comes back where it was. The write is deferred until the level has been
+        # stable for nonvolatile_write_delay to debounce transitions and protect the
+        # EEPROM's endurance.
+        cv.Optional(CONF_NONVOLATILE, default=True): cv.boolean,
+        cv.Optional(
+            CONF_NONVOLATILE_WRITE_DELAY, default="1s"
+        ): cv.positive_time_period_milliseconds,
     }
 )
+
+FINAL_VALIDATE_SCHEMA = _validate_nonvolatile
 
 
 async def to_code(config):
@@ -57,5 +86,65 @@ async def to_code(config):
         cg.add(
             parent.set_initial_value(config[CONF_CHANNEL], config[CONF_INITIAL_VALUE])
         )
+    if str(config[CONF_CHANNEL]) in VOLATILE_CHANNELS and config[CONF_NONVOLATILE]:
+        cg.add(
+            parent.set_nonvolatile(
+                config[CONF_CHANNEL],
+                config[CONF_NONVOLATILE_WRITE_DELAY],
+            )
+        )
     await output.register_output(var, config)
     await cg.register_parented(var, config[CONF_MCP4461_ID])
+
+
+# ---- Actions ----
+WiperIncreaseAction = mcp4461_ns.class_("WiperIncreaseAction", automation.Action)
+WiperDecreaseAction = mcp4461_ns.class_("WiperDecreaseAction", automation.Action)
+WiperStoreNonvolatileAction = mcp4461_ns.class_(
+    "WiperStoreNonvolatileAction", automation.Action
+)
+WiperSetTerminalAction = mcp4461_ns.class_("WiperSetTerminalAction", automation.Action)
+
+WIPER_ACTION_SCHEMA = automation.maybe_simple_id(
+    {cv.Required(CONF_ID): cv.use_id(Mcp4461Wiper)}
+)
+
+CONF_TERMINAL = "terminal"
+CONF_ENABLE = "enable"
+
+TERMINAL_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(Mcp4461Wiper),
+        cv.Required(CONF_TERMINAL): cv.one_of("a", "b", "w", "h", lower=True),
+        cv.Required(CONF_ENABLE): cv.boolean,
+    }
+)
+
+
+@automation.register_action(
+    "mcp4461.wiper.increase", WiperIncreaseAction, WIPER_ACTION_SCHEMA
+)
+@automation.register_action(
+    "mcp4461.wiper.decrease", WiperDecreaseAction, WIPER_ACTION_SCHEMA
+)
+async def mcp4461_wiper_step_to_code(config, action_id, template_arg, args):
+    wiper = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, wiper)
+
+
+@automation.register_action(
+    "mcp4461.wiper.store_nonvolatile", WiperStoreNonvolatileAction, WIPER_ACTION_SCHEMA
+)
+async def mcp4461_wiper_store_to_code(config, action_id, template_arg, args):
+    wiper = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, wiper)
+
+
+@automation.register_action(
+    "mcp4461.wiper.set_terminal", WiperSetTerminalAction, TERMINAL_ACTION_SCHEMA
+)
+async def mcp4461_wiper_terminal_to_code(config, action_id, template_arg, args):
+    wiper = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(
+        action_id, template_arg, wiper, ord(config[CONF_TERMINAL]), config[CONF_ENABLE]
+    )

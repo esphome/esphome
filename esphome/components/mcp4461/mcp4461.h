@@ -17,6 +17,16 @@ struct WiperState {
   bool wiper_lock_active = false;
   bool update_level = false;
   bool update_terminal = false;
+  // Nonvolatile persistence (volatile wipers 0-3 only): when enabled, every level change is
+  // mirrored into the chip's NV wiper register after nonvolatile_write_delay of stability, so
+  // the chip restores it on power-on. The delay both debounces bursts (e.g. light transitions
+  // writing dozens of levels per second) and protects the EEPROM's limited endurance —
+  // without it, every intermediate step would cost one of the ~1M erase/write cycles and
+  // stall the bus for up to t_WC (10 ms) each.
+  bool nonvolatile = false;
+  uint32_t nonvolatile_write_delay_ms = 1000;
+  bool nonvolatile_dirty = false;
+  uint32_t last_level_change_ms = 0;
 };
 
 // default wiper state is 128 / 0x80h
@@ -86,6 +96,11 @@ class Mcp4461Component final : public Component, public i2c::I2CDevice {
   /// @param[in] wiper - the wiper to set the value for
   /// @param[in] initial_value - the initial value in range 0-1.0 as float
   void set_initial_value(Mcp4461WiperIdx wiper, float initial_value);
+  /// @brief enable nonvolatile persistence for a volatile wiper (0-3): every level change is
+  ///        mirrored to the corresponding NV wiper register after the given stability delay
+  /// @param[in] wiper - the (volatile) wiper to persist
+  /// @param[in] write_delay_ms - stability delay before the NV write (debounce / EEPROM wear)
+  void set_nonvolatile(Mcp4461WiperIdx wiper, uint32_t write_delay_ms);
   /// @brief public function used to set disable terminal config
   /// @param[in] wiper - the wiper to set the value for
   /// @param[in] terminal - the terminal to disable, one of ['a','b','w','h']
@@ -110,6 +125,11 @@ class Mcp4461Component final : public Component, public i2c::I2CDevice {
   void enable_terminal_(Mcp4461WiperIdx wiper, char terminal);
   void disable_terminal_(Mcp4461WiperIdx, char terminal);
   bool is_writing_();
+  /// Copy the current volatile level of wiper 0-3 into its NV register (immediate, blocking
+  /// only for a pending previous EEPROM cycle). Returns false while WP is active or on error.
+  bool store_level_nonvolatile_(Mcp4461WiperIdx wiper);
+  /// Deferred NV mirroring driven from loop() — see WiperState::nonvolatile.
+  void process_nonvolatile_dirty_();
   bool is_eeprom_ready_for_writing_(bool wait_if_not_ready);
   void write_wiper_level_(uint8_t wiper, uint16_t value);
   bool mcp4461_write_(uint8_t addr, uint16_t data, bool nonvolatile = false);

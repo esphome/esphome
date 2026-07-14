@@ -21,7 +21,15 @@ void Mcp4461Component::setup() {
     auto init_val = this->reg_[i].initial_value;
     if (init_val.has_value()) {
       uint16_t initial_state = static_cast<uint16_t>(*init_val * 256.0f);
-      this->write_wiper_level_(i, initial_state);
+      if (i > 3) {
+        // NV wiper: an unconditional write would cost one EEPROM erase/write cycle on EVERY
+        // boot. Only write when the stored value actually differs.
+        if (this->read_wiper_level_(i) != initial_state) {
+          this->write_wiper_level_(i, initial_state);
+        }
+      } else {
+        this->write_wiper_level_(i, initial_state);
+      }
     }
     if (this->reg_[i].enabled) {
       this->reg_[i].state = this->read_wiper_level_(i);
@@ -34,6 +42,23 @@ void Mcp4461Component::setup() {
       }
     }
   }
+  // Push the YAML terminal configuration to the TCON registers. TCON is volatile — on POR
+  // the chip restores wiper levels from the NV registers but resets TCON to "all terminals
+  // connected", so any terminal_a/b/w disables from the config MUST be written here.
+  for (uint8_t t = 0; t < 2; t++) {
+    Mcp4461TerminalIdx terminal_connector = static_cast<Mcp4461TerminalIdx>(t);
+    uint8_t terminal_byte = this->calc_terminal_connector_byte_(terminal_connector);
+    this->set_terminal_register_(terminal_connector, terminal_byte);
+  }
+}
+
+void Mcp4461Component::set_nonvolatile(Mcp4461WiperIdx wiper, uint32_t write_delay_ms) {
+  uint8_t wiper_idx = static_cast<uint8_t>(wiper);
+  if (wiper_idx > 3) {
+    return;  // NV channels E-H are the persistence target themselves
+  }
+  this->reg_[wiper_idx].nonvolatile = true;
+  this->reg_[wiper_idx].nonvolatile_write_delay_ms = write_delay_ms;
 }
 
 void Mcp4461Component::set_initial_value(Mcp4461WiperIdx wiper, float initial_value) {
@@ -112,6 +137,56 @@ void Mcp4461Component::loop() {
     }
     this->reg_[i].update_terminal = false;
   }
+  this->process_nonvolatile_dirty_();
+}
+
+void Mcp4461Component::process_nonvolatile_dirty_() {
+  const uint32_t now = millis();
+  for (uint8_t i = 0; i < 4; i++) {
+    if (!this->reg_[i].nonvolatile || !this->reg_[i].nonvolatile_dirty) {
+      continue;
+    }
+    if ((now - this->reg_[i].last_level_change_ms) < this->reg_[i].nonvolatile_write_delay_ms) {
+      continue;  // still settling — debounce window not over yet
+    }
+    // Never block the loop on a still-running EEPROM cycle (t_WC up to 10 ms); datasheet:
+    // during an EEPROM write only volatile commands are accepted. Retry on the next loop.
+    if (this->is_writing_()) {
+      continue;
+    }
+    if (this->store_level_nonvolatile_(static_cast<Mcp4461WiperIdx>(i))) {
+      this->reg_[i].nonvolatile_dirty = false;
+    } else if (this->write_protected_ || this->reg_[i].wiper_lock_active) {
+      // Permanently blocked — drop the dirty flag instead of retrying forever.
+      this->reg_[i].nonvolatile_dirty = false;
+    }
+  }
+}
+
+bool Mcp4461Component::store_level_nonvolatile_(Mcp4461WiperIdx wiper) {
+  if (this->is_failed()) {
+    ESP_LOGE(TAG, "%s", LOG_STR_ARG(this->get_message_string(this->error_code_)));
+    return false;
+  }
+  uint8_t wiper_idx = static_cast<uint8_t>(wiper);
+  if (wiper_idx > 3) {
+    return false;
+  }
+  if (this->reg_[wiper_idx].wiper_lock_active) {
+    ESP_LOGW(TAG, "%s", LOG_STR_ARG(this->get_message_string(MCP4461_WIPER_LOCKED)));
+    return false;
+  }
+  const uint16_t level = this->reg_[wiper_idx].state;
+  // Skip the EEPROM cycle entirely when the NV register already holds the value.
+  if (this->read_wiper_level_(wiper_idx + 4) == level) {
+    return true;
+  }
+  ESP_LOGV(TAG, "Persisting wiper %u level %u to nonvolatile register", wiper_idx, level);
+  if (!this->mcp4461_write_(this->get_wiper_address_(wiper_idx + 4), level, true)) {
+    ESP_LOGW(TAG, "Error persisting wiper %u level %u", wiper_idx, level);
+    return false;
+  }
+  return true;
 }
 
 uint8_t Mcp4461Component::get_status_register_() {
@@ -265,6 +340,10 @@ bool Mcp4461Component::set_wiper_level_(Mcp4461WiperIdx wiper, uint16_t value) {
   ESP_LOGV(TAG, "Setting MCP4461 wiper %u to %u", wiper_idx, value);
   this->reg_[wiper_idx].state = value;
   this->reg_[wiper_idx].update_level = true;
+  if (this->reg_[wiper_idx].nonvolatile) {
+    this->reg_[wiper_idx].nonvolatile_dirty = true;
+    this->reg_[wiper_idx].last_level_change_ms = millis();
+  }
   return true;
 }
 
@@ -335,6 +414,12 @@ bool Mcp4461Component::increase_wiper_(Mcp4461WiperIdx wiper) {
     ESP_LOGW(TAG, "%s", LOG_STR_ARG(this->get_message_string(MCP4461_WIPER_LOCKED)));
     return false;
   }
+  if (wiper_idx > 3) {
+    // Datasheet: increment commands are only valid for the volatile wiper registers —
+    // the chip NACKs them on nonvolatile addresses.
+    ESP_LOGW(TAG, "%s", LOG_STR_ARG(this->get_message_string(MCP4461_PROHIBITED_FOR_NONVOLATILE)));
+    return false;
+  }
   if (this->reg_[wiper_idx].state == 256) {
     ESP_LOGV(TAG, "Maximum wiper level reached, further increase of wiper %u prohibited", wiper_idx);
     return false;
@@ -349,6 +434,10 @@ bool Mcp4461Component::increase_wiper_(Mcp4461WiperIdx wiper) {
     return false;
   }
   this->reg_[wiper_idx].state++;
+  if (this->reg_[wiper_idx].nonvolatile) {
+    this->reg_[wiper_idx].nonvolatile_dirty = true;
+    this->reg_[wiper_idx].last_level_change_ms = millis();
+  }
   return true;
 }
 
@@ -366,6 +455,12 @@ bool Mcp4461Component::decrease_wiper_(Mcp4461WiperIdx wiper) {
     ESP_LOGW(TAG, "%s", LOG_STR_ARG(this->get_message_string(MCP4461_WIPER_LOCKED)));
     return false;
   }
+  if (wiper_idx > 3) {
+    // Datasheet: decrement commands are only valid for the volatile wiper registers —
+    // the chip NACKs them on nonvolatile addresses.
+    ESP_LOGW(TAG, "%s", LOG_STR_ARG(this->get_message_string(MCP4461_PROHIBITED_FOR_NONVOLATILE)));
+    return false;
+  }
   if (this->reg_[wiper_idx].state == 0) {
     ESP_LOGV(TAG, "Minimum wiper level reached, further decrease of wiper %u prohibited", wiper_idx);
     return false;
@@ -380,6 +475,10 @@ bool Mcp4461Component::decrease_wiper_(Mcp4461WiperIdx wiper) {
     return false;
   }
   this->reg_[wiper_idx].state--;
+  if (this->reg_[wiper_idx].nonvolatile) {
+    this->reg_[wiper_idx].nonvolatile_dirty = true;
+    this->reg_[wiper_idx].last_level_change_ms = millis();
+  }
   return true;
 }
 

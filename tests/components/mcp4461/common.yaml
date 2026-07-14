@@ -12,11 +12,14 @@ output:
     id: digipot_wiper_2
     mcp4461_id: mcp4461_digipot_01
     channel: B
+    nonvolatile: false
 
   - platform: mcp4461
     id: digipot_wiper_3
     mcp4461_id: mcp4461_digipot_01
     channel: C
+    nonvolatile_write_delay: 5s
+    initial_value: 0.5
 
   - platform: mcp4461
     id: digipot_wiper_4
@@ -30,3 +33,21 @@ output:
     terminal_a: false
     terminal_b: false
     terminal_w: false
+
+  - platform: mcp4461
+    id: digipot_nv_wiper_1
+    mcp4461_id: mcp4461_digipot_01
+    channel: E
+    nonvolatile: false
+
+button:
+  - platform: template
+    name: "Digipot test actions"
+    on_press:
+      - mcp4461.wiper.increase: digipot_wiper_1
+      - mcp4461.wiper.decrease: digipot_wiper_1
+      - mcp4461.wiper.store_nonvolatile: digipot_wiper_2
+      - mcp4461.wiper.set_terminal:
+          id: digipot_wiper_1
+          terminal: a
+          enable: false
