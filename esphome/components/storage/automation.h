@@ -195,7 +195,6 @@ template<typename... Ts> class MountAction : public Action<Ts...> {
   bool mount_;
 };
 
-
 #if defined(USE_STORAGE_PREFERENCES) && defined(USE_ESP32)
 // storage.export_preferences / storage.import_preferences — see
 // preferences_backup.h. The selection table (name/key/type/count) is

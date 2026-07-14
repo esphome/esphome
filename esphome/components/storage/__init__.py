@@ -16,8 +16,8 @@ from esphome.const import (
     CONF_KEY,
     CONF_ON_VALUE,
     CONF_PATH,
-    CONF_TYPE,
     CONF_TO,
+    CONF_TYPE,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 
@@ -261,7 +261,9 @@ def _exactly_one_step_kind(config):
             f"Each extract step needs exactly one of line/split/key/regex/trim/json, got {kinds}"
         )
     if CONF_JSON in config:
-        fv_note = None  # validated for emptiness only; component presence is checked below
+        fv_note = (
+            None  # validated for emptiness only; component presence is checked below
+        )
         if not config[CONF_JSON]:
             raise cv.Invalid("'json' pointer must not be empty")
     if CONF_INDEX in config and CONF_SPLIT not in config:
@@ -577,8 +579,13 @@ def _pref_type_for_global(global_id: str) -> tuple[str, int]:
         return "HEX", 0
     return "HEX", 0
 
-ExportPreferencesAction = storage_ns.class_("ExportPreferencesAction", automation.Action)
-ImportPreferencesAction = storage_ns.class_("ImportPreferencesAction", automation.Action)
+
+ExportPreferencesAction = storage_ns.class_(
+    "ExportPreferencesAction", automation.Action
+)
+ImportPreferencesAction = storage_ns.class_(
+    "ImportPreferencesAction", automation.Action
+)
 
 
 def _global_nvs_key(global_id: str) -> int:

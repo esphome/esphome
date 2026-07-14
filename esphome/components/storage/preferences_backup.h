@@ -39,10 +39,9 @@ struct PrefSelection {
 // selection == nullptr / count == 0 means "all preferences": full namespace
 // enumeration on export, unfiltered numeric-key import — values fall back to
 // hex there (types are a codegen-time concept and unknown for unlisted keys).
-bool preferences_export_to_storage(const char *path, const char *format, const PrefSelection *selection,
-                                   size_t count);
-bool preferences_import_from_storage(const char *path, const char *format, bool reboot,
-                                     const PrefSelection *selection, size_t count);
+bool preferences_export_to_storage(const char *path, const char *format, const PrefSelection *selection, size_t count);
+bool preferences_import_from_storage(const char *path, const char *format, bool reboot, const PrefSelection *selection,
+                                     size_t count);
 
 }  // namespace esphome::storage
 

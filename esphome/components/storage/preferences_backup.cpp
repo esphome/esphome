@@ -506,8 +506,8 @@ bool preferences_import_from_storage(const char *path, const char *format, bool 
           skipped++;
           continue;
         }
-        if (!import_one(handle, kv.key().c_str(), strlen(kv.key().c_str()), value, strlen(value), sel, count,
-                        imported, skipped))
+        if (!import_one(handle, kv.key().c_str(), strlen(kv.key().c_str()), value, strlen(value), sel, count, imported,
+                        skipped))
           return false;
       }
       return true;
