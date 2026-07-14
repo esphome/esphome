@@ -154,10 +154,10 @@ void Mcp4461Component::process_nonvolatile_dirty_() {
     if (this->is_writing_()) {
       continue;
     }
-    if (this->store_level_nonvolatile_(static_cast<Mcp4461WiperIdx>(i))) {
-      this->reg_[i].nonvolatile_dirty = false;
-    } else if (this->write_protected_ || this->reg_[i].wiper_lock_active) {
-      // Permanently blocked — drop the dirty flag instead of retrying forever.
+    // Clear the dirty flag on success — and equally when WP or WiperLock block the write
+    // permanently, instead of retrying forever.
+    if (this->store_level_nonvolatile_(static_cast<Mcp4461WiperIdx>(i)) || this->write_protected_ ||
+        this->reg_[i].wiper_lock_active) {
       this->reg_[i].nonvolatile_dirty = false;
     }
   }

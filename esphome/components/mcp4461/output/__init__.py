@@ -37,12 +37,11 @@ VOLATILE_CHANNELS = ("A", "B", "C", "D")
 def _validate_nonvolatile(config):
     # Channels E-H address the nonvolatile registers directly — the mirroring options only
     # make sense for the volatile channels A-D.
-    if str(config[CONF_CHANNEL]) not in VOLATILE_CHANNELS:
-        if config[CONF_NONVOLATILE]:
-            raise cv.Invalid(
-                f"'{CONF_NONVOLATILE}' is only valid for the volatile channels A-D; "
-                f"channels E-H are the nonvolatile registers themselves"
-            )
+    if str(config[CONF_CHANNEL]) not in VOLATILE_CHANNELS and config[CONF_NONVOLATILE]:
+        raise cv.Invalid(
+            f"'{CONF_NONVOLATILE}' is only valid for the volatile channels A-D; "
+            f"channels E-H are the nonvolatile registers themselves"
+        )
     return config
 
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
