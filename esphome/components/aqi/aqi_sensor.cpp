@@ -5,17 +5,31 @@ namespace esphome::aqi {
 
 static const char *const TAG = "aqi";
 
+// Helper function to convert the internal calculation type enum into a human readable string
+static const char *calculation_type_to_string(AQICalculatorType type) {
+  switch (type) {
+    case AQI_TYPE:
+      return "AQI";
+    case CAQI_TYPE:
+      return "CAQI";
+    case EAQI_TYPE:
+      return "EAQI";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 void AQISensor::setup() {
   if (this->pm_2_5_sensor_ != nullptr) {
     this->pm_2_5_sensor_->add_on_state_callback([this](float value) {
       this->pm_2_5_value_ = value;
-      // Defer calculation to avoid double-publishing if both sensors update in the same loop
       this->defer("update", [this]() { this->calculate_aqi_(); });
     });
   }
   if (this->pm_10_0_sensor_ != nullptr) {
     this->pm_10_0_sensor_->add_on_state_callback([this](float value) {
       this->pm_10_0_value_ = value;
+      // Defer calculation to avoid double-publishing if both sensors update in the same loop
       this->defer("update", [this]() { this->calculate_aqi_(); });
     });
   }
@@ -23,7 +37,8 @@ void AQISensor::setup() {
 
 void AQISensor::dump_config() {
   ESP_LOGCONFIG(TAG, "AQI Sensor:");
-  ESP_LOGCONFIG(TAG, "  Calculation Type: %s", this->aqi_calc_type_ == AQI_TYPE ? "AQI" : "CAQI");
+  // Use the string conversion helper to display the active calculation standard
+  ESP_LOGCONFIG(TAG, "  Calculation Type: %s", calculation_type_to_string(this->aqi_calc_type_));
   if (this->pm_2_5_sensor_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  PM2.5 Sensor: '%s'", this->pm_2_5_sensor_->get_name().c_str());
   }
@@ -43,9 +58,8 @@ void AQISensor::calculate_aqi_() {
     ESP_LOGW(TAG, "Unknown AQI calculator type");
     return;
   }
-
-  uint16_t aqi = calculator->get_aqi(this->pm_2_5_value_, this->pm_10_0_value_);
-  this->publish_state(aqi);
+  // Calculate the final AQI using the configured calculation standard and instantly publish the new state.
+  this->publish_state(calculator->get_aqi(this->pm_2_5_value_, this->pm_10_0_value_));
 }
 
 }  // namespace esphome::aqi
