@@ -448,7 +448,7 @@ def test_uc8179_e1001_code_generation(
 
     # The model must instantiate the UC8179 driver class with the panel dimensions
     assert "epaper_spi::EPaperUC8179" in main_cpp
-    assert '"SEEED-RETERMINAL-E1001", 800, 480' in main_cpp
+    assert re.search(r'"SEEED-RETERMINAL-E1001",\s*800,\s*480', main_cpp)
 
     # The generated init sequence must contain the UC8179 resolution setting
     # for 800x480: command 0x61, 4 data bytes 0x03 0x20 0x01 0xE0

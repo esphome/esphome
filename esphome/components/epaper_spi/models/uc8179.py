@@ -5,13 +5,13 @@ Supported models:
 - seeed-reterminal-e1001: Seeed reTerminal E1001, which uses the same
   7.5" 800x480 panel on an integrated ESP32-S3 board
 
-Panel configuration is sent during the INITIALISE state. Power-on is handled
-in the POWER_ON state, after data transfer, so the state machine's built-in
-busy wait covers the power-on delay.
+Panel configuration and power-on (0x04) are both sent during the INITIALISE
+state; the state machine's built-in busy wait then covers the power-on delay
+before the waveform/mode registers and image data are transferred.
 
 These displays support fast full and partial refresh: set ``full_update_every``
-greater than 1 to enable it. Every ``full_update_every`` updates a fast full
-refresh is performed, with partial refreshes in between.
+greater than 1 to enable it. Every ``full_update_every``-th update is a fast
+full refresh, with partial refreshes in between.
 """
 
 from typing import Any
@@ -37,8 +37,9 @@ class UC8179(EpaperModel):
     def get_init_sequence(self, config: dict) -> tuple:
         """Generate the initialization sequence for UC8179 mono displays.
 
-        Panel configuration only — power-on is handled separately in power_on()
-        after data transfer, with the state machine busy-waiting before refresh.
+        Panel configuration only — the driver appends power-on (0x04) at the
+        end of the INITIALISE state, and the state machine busy-waits for it
+        to complete before the data transfer starts.
         """
         width, height = self.get_dimensions(config)
         return (

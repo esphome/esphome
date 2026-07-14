@@ -118,7 +118,8 @@ void EPaperUC8179::power_on() {
 void EPaperUC8179::refresh_screen(bool /*partial*/) {
   ESP_LOGV(TAG, "Refresh");
   this->command(0x12);  // DISPLAY REFRESH
-  // The busy line needs at least 200us to assert after the refresh command
+  // Delay the next busy poll: the busy line takes a short time to assert after
+  // the refresh command, and polling too early would read it as already idle
   this->next_delay_ = 100;
 }
 
