@@ -291,8 +291,9 @@ FLASH_PARTITION_SCHEMA = cv.Schema(
         # Size of the data partition that gets appended to the generated partition table.
         # Must be 4KB aligned. Ignored when the esp32 config supplies its own partitions CSV
         # (the generated table is not used then) — in that case the CSV must contain a data
-        # partition with this label itself.
-        cv.Optional(CONF_PARTITION_SIZE, default="512KB"): cv.All(
+        # partition with this label itself. Unit casing follows validate_bytes /
+        # SI: lowercase k ("512kB"), uppercase M/G ("16MB").
+        cv.Optional(CONF_PARTITION_SIZE, default="512kB"): cv.All(
             cv.validate_bytes, cv.Range(min=0x1000)
         ),
         cv.Optional(CONF_MOUNT_PATH, default="/littlefs"): _validate_mount_path,
