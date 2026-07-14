@@ -48,6 +48,30 @@ Trigger<uint16_t> *BLETriggers::create_server_on_disconnect_trigger(BLEServer *s
 }
 #endif
 
+#ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_REQUEST
+Trigger<> *BLETriggers::create_server_on_passkey_request_trigger(BLEServer *server) {
+  Trigger<> *trigger = new Trigger<>();  // NOLINT(cppcoreguidelines-owning-memory)
+  server->on_passkey_request([trigger]() { trigger->trigger(); });
+  return trigger;
+}
+#endif
+
+#ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_NOTIFICATION
+Trigger<uint32_t> *BLETriggers::create_server_on_passkey_notification_trigger(BLEServer *server) {
+  Trigger<uint32_t> *trigger = new Trigger<uint32_t>();  // NOLINT(cppcoreguidelines-owning-memory)
+  server->on_passkey_notification([trigger](uint32_t passkey) { trigger->trigger(passkey); });
+  return trigger;
+}
+#endif
+
+#ifdef USE_ESP32_BLE_SERVER_ON_NUMERIC_COMPARISON_REQUEST
+Trigger<uint32_t> *BLETriggers::create_server_on_numeric_comparison_request_trigger(BLEServer *server) {
+  Trigger<uint32_t> *trigger = new Trigger<uint32_t>();  // NOLINT(cppcoreguidelines-owning-memory)
+  server->on_numeric_comparison_request([trigger](uint32_t passkey) { trigger->trigger(passkey); });
+  return trigger;
+}
+#endif
+
 #ifdef USE_ESP32_BLE_SERVER_SET_VALUE_ACTION
 void BLECharacteristicSetValueActionManager::set_listener(BLECharacteristic *characteristic,
                                                           const std::function<void()> &pre_notify_listener) {

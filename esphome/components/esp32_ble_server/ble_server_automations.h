@@ -31,6 +31,15 @@ class BLETriggers {
 #ifdef USE_ESP32_BLE_SERVER_ON_DISCONNECT
   static Trigger<uint16_t> *create_server_on_disconnect_trigger(BLEServer *server);
 #endif
+#ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_REQUEST
+  static Trigger<> *create_server_on_passkey_request_trigger(BLEServer *server);
+#endif
+#ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_NOTIFICATION
+  static Trigger<uint32_t> *create_server_on_passkey_notification_trigger(BLEServer *server);
+#endif
+#ifdef USE_ESP32_BLE_SERVER_ON_NUMERIC_COMPARISON_REQUEST
+  static Trigger<uint32_t> *create_server_on_numeric_comparison_request_trigger(BLEServer *server);
+#endif
 };
 
 #ifdef USE_ESP32_BLE_SERVER_SET_VALUE_ACTION
@@ -124,6 +133,90 @@ template<typename... Ts> class BLEDescriptorSetValueAction final : public Action
   BLEDescriptor *parent_;
 };
 #endif  // USE_ESP32_BLE_SERVER_DESCRIPTOR_SET_VALUE_ACTION
+
+template<typename... Ts> class BLEServerPasskeyReplyAction : public Action<Ts...> {
+ public:
+  BLEServerPasskeyReplyAction(BLEServer *server) : parent_(server) {}
+  void play(const Ts &...x) override {
+    uint32_t passkey;
+    if (this->has_simple_value_) {
+      passkey = this->value_.simple;
+    } else {
+      passkey = this->value_.template_func(x...);
+    }
+    if (passkey > 999999)
+      return;
+    esp_bd_addr_t remote_bda;
+    memcpy(remote_bda, this->parent_->get_pairing_remote_bda(), sizeof(esp_bd_addr_t));
+    esp_ble_passkey_reply(remote_bda, true, passkey);
+  }
+  void set_value_template(uint32_t (*func)(Ts...)) {
+    this->value_.template_func = func;
+    this->has_simple_value_ = false;
+  }
+  void set_value_simple(const uint32_t &value) {
+    this->value_.simple = value;
+    this->has_simple_value_ = true;
+  }
+
+ protected:
+  BLEServer *parent_;
+  bool has_simple_value_ = true;
+  union {
+    uint32_t simple;
+    uint32_t (*template_func)(Ts...);
+  } value_{.simple = 0};
+};
+
+template<typename... Ts> class BLEServerNumericComparisonReplyAction : public Action<Ts...> {
+ public:
+  BLEServerNumericComparisonReplyAction(BLEServer *server) : parent_(server) {}
+  void play(const Ts &...x) override {
+    esp_bd_addr_t remote_bda;
+    memcpy(remote_bda, this->parent_->get_pairing_remote_bda(), sizeof(esp_bd_addr_t));
+    if (this->has_simple_value_) {
+      esp_ble_confirm_reply(remote_bda, this->value_.simple);
+    } else {
+      esp_ble_confirm_reply(remote_bda, this->value_.template_func(x...));
+    }
+  }
+  void set_value_template(bool (*func)(Ts...)) {
+    this->value_.template_func = func;
+    this->has_simple_value_ = false;
+  }
+  void set_value_simple(const bool &value) {
+    this->value_.simple = value;
+    this->has_simple_value_ = true;
+  }
+
+ protected:
+  BLEServer *parent_;
+  bool has_simple_value_ = true;
+  union {
+    bool simple;
+    bool (*template_func)(Ts...);
+  } value_{.simple = false};
+};
+
+template<typename... Ts> class BLEServerRemoveBondAction : public Action<Ts...> {
+ public:
+  BLEServerRemoveBondAction(BLEServer *server) : parent_(server) {}
+  TEMPLATABLE_VALUE(std::string, address)
+  void play(const Ts &...x) override {
+    std::string address = this->address_.value(x...);
+    if (address.length() != 17) {
+      return;
+    }
+    esp_bd_addr_t remote_bda;
+    for (int i = 0; i < 6; i++) {
+      remote_bda[i] = strtoul(address.substr(i * 3, 2).c_str(), nullptr, 16);
+    }
+    esp_ble_remove_bond_device(remote_bda);
+  }
+
+ protected:
+  BLEServer *parent_;
+};
 
 }  // namespace esphome::esp32_ble_server::esp32_ble_server_automations
 

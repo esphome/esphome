@@ -38,6 +38,7 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
     this->restart_advertising_();
   }
 
+  void set_passkey(uint32_t passkey) { this->passkey_ = passkey; }
   void set_max_clients(uint8_t max_clients) { this->max_clients_ = max_clients; }
   uint8_t get_max_clients() const { return this->max_clients_; }
 
@@ -56,12 +57,25 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
 
   void ble_before_disabled_event_handler();
 
+  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
+
+  const uint8_t *get_pairing_remote_bda() const { return this->pairing_remote_bda_; }
+
   // Direct callback registration - supports multiple callbacks
   void on_connect(std::function<void(uint16_t)> &&callback) {
     this->callbacks_.push_back({CallbackType::ON_CONNECT, std::move(callback)});
   }
   void on_disconnect(std::function<void(uint16_t)> &&callback) {
     this->callbacks_.push_back({CallbackType::ON_DISCONNECT, std::move(callback)});
+  }
+  void on_passkey_request(std::function<void()> &&callback) {
+    this->passkey_request_callback_.add(std::move(callback));
+  }
+  void on_passkey_notification(std::function<void(uint32_t)> &&callback) {
+    this->passkey_notification_callback_.add(std::move(callback));
+  }
+  void on_numeric_comparison_request(std::function<void(uint32_t)> &&callback) {
+    this->numeric_comparison_request_callback_.add(std::move(callback));
   }
 
  protected:
@@ -89,7 +103,12 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
   void dispatch_callbacks_(CallbackType type, uint16_t conn_id);
 
   std::vector<CallbackEntry> callbacks_;
+  CallbackManager<void()> passkey_request_callback_;
+  CallbackManager<void(uint32_t)> passkey_notification_callback_;
+  CallbackManager<void(uint32_t)> numeric_comparison_request_callback_;
 
+  int32_t passkey_{0};
+  esp_bd_addr_t pairing_remote_bda_{};
   std::vector<uint8_t> manufacturer_data_{};
   esp_gatt_if_t gatts_if_{0};
   bool registered_{false};

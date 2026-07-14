@@ -236,6 +236,40 @@ void BLEServer::ble_before_disabled_event_handler() {
   this->state_ = INIT;
 }
 
+void BLEServer::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
+  switch (event) {
+    case ESP_GAP_BLE_SEC_REQ_EVT:
+      if (this->passkey_) {
+        esp_ble_gap_set_security_param(ESP_BLE_SM_SET_STATIC_PASSKEY, &this->passkey_, sizeof(uint32_t));
+      }
+      esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, true);
+      break;
+    case ESP_GAP_BLE_AUTH_CMPL_EVT:
+      esp_bd_addr_t bd_addr;
+      memcpy(bd_addr, param->ble_security.auth_cmpl.bd_addr, sizeof(esp_bd_addr_t));
+      ESP_LOGW(TAG, "remote BD_ADDR: %08x%04x",
+               (bd_addr[0] << 24) + (bd_addr[1] << 16) + (bd_addr[2] << 8) + bd_addr[3],
+               (bd_addr[4] << 8) + bd_addr[5]);
+      ESP_LOGW(TAG, "address type = %d", param->ble_security.auth_cmpl.addr_type);
+      ESP_LOGW(TAG, "pair status = %s", param->ble_security.auth_cmpl.success ? "success" : "fail");
+      break;
+    case ESP_GAP_BLE_PASSKEY_REQ_EVT:
+      memcpy(this->pairing_remote_bda_, param->ble_security.ble_req.bd_addr, sizeof(esp_bd_addr_t));
+      this->passkey_request_callback_.call();
+      break;
+    case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
+      memcpy(this->pairing_remote_bda_, param->ble_security.ble_req.bd_addr, sizeof(esp_bd_addr_t));
+      this->passkey_notification_callback_.call(param->ble_security.key_notif.passkey);
+      break;
+    case ESP_GAP_BLE_NC_REQ_EVT:
+      memcpy(this->pairing_remote_bda_, param->ble_security.ble_req.bd_addr, sizeof(esp_bd_addr_t));
+      this->numeric_comparison_request_callback_.call(param->ble_security.key_notif.passkey);
+      break;
+    default:
+      break;
+  }
+}
+
 float BLEServer::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH + 10; }
 
 void BLEServer::dump_config() {

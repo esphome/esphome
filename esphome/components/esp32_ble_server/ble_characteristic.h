@@ -40,6 +40,8 @@ class BLECharacteristic final {
   void set_read_property(bool value);
   void set_write_property(bool value);
   void set_write_no_response_property(bool value);
+  void set_read_permission(bool value);
+  void set_write_permission(bool value);
 
   void notify();
 
@@ -60,6 +62,8 @@ class BLECharacteristic final {
   static constexpr uint32_t PROPERTY_BROADCAST = 1 << 3;
   static constexpr uint32_t PROPERTY_INDICATE = 1 << 4;
   static constexpr uint32_t PROPERTY_WRITE_NR = 1 << 5;
+  static constexpr uint32_t PROPERTY_READ_ENCRYPT = 1 << 6;
+  static constexpr uint32_t PROPERTY_WRITE_ENCRYPT = 1 << 7;
 
   bool is_created();
   bool is_failed();
