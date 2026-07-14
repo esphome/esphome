@@ -12,6 +12,10 @@ binary_sensor:
     name: "Garage Door Open 12"
     report: "force"
     endpoint: 1
+  - platform: template
+    name: "Garage Door Open 13"
+    endpoint: 2
+    use_device_type: false
 
 sensor:
   - platform: template

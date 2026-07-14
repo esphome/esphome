@@ -42,7 +42,6 @@ class ZigbeeAttribute final : public Component {
         scale_(scale) {}
   void loop() override;
   template<typename T> void add_attr(T value);
-  void setup_reporting();
   template<typename T> void set_attr(const T &value);
   uint8_t attr_type() { return attr_type_; }
   void set_report(ZigbeeReportT report);

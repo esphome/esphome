@@ -300,7 +300,7 @@ def get_next_ep_num(eps: list[int]) -> int:
 def compare_clusters(
     existing_ep: dict[str, Any],
     ep: dict[str, Any],
-) -> tuple[int, str] | None:
+) -> tuple[str | int, str] | None:
     existing_clusters = [(cl[CONF_ID], cl[ROLE]) for cl in existing_ep[CONF_CLUSTERS]]
     for cl in [(cl[CONF_ID], cl[ROLE]) for cl in ep[CONF_CLUSTERS]]:
         if cl in existing_clusters:
@@ -310,7 +310,6 @@ def compare_clusters(
 
 def merge_endpoints(
     existing_ep: dict[str, Any],
-    ep_num: int | None,
     ep: dict[str, Any],
     use_type: bool | None,
 ) -> bool:
@@ -338,7 +337,7 @@ def merge_endpoints(
     return True
 
 
-def validate_endpoints(ep_dict):
+def validate_endpoints(ep_dict: dict[int, dict]) -> None:
     for num, ep in ep_dict.items():
         types_dict = ep.get(CONF_USE_DEVICE_TYPE)
         if not types_dict:
@@ -377,7 +376,7 @@ def create_ep(router: bool) -> None:
         for ep in ep_list:
             added = False
             for existing_ep in ep_list_new:
-                if merge_endpoints(existing_ep, None, ep, ep.get(CONF_USE_DEVICE_TYPE)):
+                if merge_endpoints(existing_ep, ep, ep.get(CONF_USE_DEVICE_TYPE)):
                     added = True
                     break
             if not added:
