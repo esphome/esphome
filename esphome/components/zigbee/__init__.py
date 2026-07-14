@@ -44,6 +44,7 @@ from .zigbee_esp32 import (
     final_validate_esp32,
     validate_binary_sensor_esp32,
     validate_sensor_esp32,
+    validate_switch_esp32,
     zigbee_require_vfs_select,
 )
 from .zigbee_zephyr import (
@@ -95,7 +96,7 @@ BASE_SCHEMA = cv.Schema(
 )
 BINARY_SENSOR_SCHEMA = cv.Schema({}).extend(BASE_SCHEMA).extend(zephyr_binary_sensor)
 SENSOR_SCHEMA = cv.Schema({}).extend(BASE_SCHEMA).extend(zephyr_sensor)
-SWITCH_SCHEMA = cv.Schema({}).extend(zephyr_switch)
+SWITCH_SCHEMA = cv.Schema({}).extend(BASE_SCHEMA).extend(zephyr_switch)
 NUMBER_SCHEMA = cv.Schema({}).extend(zephyr_number)
 
 
@@ -208,7 +209,7 @@ async def setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
             return
         from .zigbee_zephyr import add_binary_sensor
     else:
-        from .zigbee_esp32 import add_binary_sensor
+        from .zigbee_esp32 import add_component as add_binary_sensor
     CORE.add_job(add_binary_sensor, entity, config)
 
 
@@ -225,12 +226,15 @@ async def setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
 
 
 async def setup_switch(entity: cg.MockObj, config: ConfigType) -> None:
-    if not config.get(CONF_ZIGBEE_ID) or config.get(CONF_INTERNAL):
+    if config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
-        from .zigbee_zephyr import zephyr_setup_switch
-
-        await zephyr_setup_switch(entity, config)
+        if not config.get(CONF_ZIGBEE_ID):
+            return
+        from .zigbee_zephyr import add_switch
+    else:
+        from .zigbee_esp32 import add_component as add_switch
+    CORE.add_job(add_switch, entity, config)
 
 
 async def setup_number(
@@ -283,7 +287,7 @@ def validate_switch(config: ConfigType) -> ConfigType:
     if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return config
     if CORE.is_esp32:
-        return config
+        return validate_switch_esp32(config)
     return consume_endpoint(config)
 
 

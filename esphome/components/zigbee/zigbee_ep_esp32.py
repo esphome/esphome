@@ -104,6 +104,51 @@ ep_configs: dict[str, dict[str, Any]] = {
             },
         ],
     },
+    "binary_output": {
+        CONF_CLUSTERS: [
+            {
+                CONF_ID: "BINARY_OUTPUT",
+                ROLE: "SERVER",
+                CONF_ATTRIBUTES: [
+                    {
+                        CONF_ATTRIBUTE_ID: 0x55,
+                        CONF_TYPE: "BOOL",
+                        CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
+                        CONF_DEVICE: None,
+                    },
+                    {
+                        CONF_ATTRIBUTE_ID: 0x51,
+                        CONF_TYPE: "BOOL",
+                    },
+                    {
+                        CONF_ATTRIBUTE_ID: 0x6F,
+                        CONF_TYPE: "MAP8",
+                    },
+                    {
+                        CONF_ATTRIBUTE_ID: 0x1C,
+                        CONF_TYPE: "STRING",
+                    },
+                ],
+            },
+        ],
+    },
+    "on_off": {
+        DEVICE_TYPE: "ON_OFF_OUTPUT",
+        CONF_CLUSTERS: [
+            {
+                CONF_ID: "ON_OFF",
+                ROLE: "SERVER",
+                CONF_ATTRIBUTES: [
+                    {
+                        CONF_ATTRIBUTE_ID: 0x0,
+                        CONF_TYPE: "BOOL",
+                        CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
+                        CONF_DEVICE: None,
+                    },
+                ],
+            },
+        ],
+    },
     DEVICE_CLASS_TEMPERATURE: {
         CONF_UNIT_OF_MEASUREMENT: UNIT_CELSIUS,
         DEVICE_TYPE: "TEMPERATURE_SENSOR",

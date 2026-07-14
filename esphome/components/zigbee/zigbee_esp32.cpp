@@ -115,6 +115,31 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
   return true;
 }
 
+void load_zb_event(ZBEvent *event, ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute) {
+  event->load_set_attr_value_event(info, attribute);
+}
+
+template<typename... Args> void enqueue_zb_event(Args... args) {
+  // Allocate an event from the pool
+  ZBEvent *event = global_zigbee->zb_event_pool_.allocate();
+  if (event == nullptr) {
+    // No events available - queue is full or we're out of memory
+    global_zigbee->zb_events_.increment_dropped_count();
+    return;
+  }
+
+  // Load new event data (replaces previous event)
+  load_zb_event(event, args...);
+
+  // Push the event to the queue
+  global_zigbee->zb_events_.push(event);
+  // Push always succeeds because we're the only producer and the pool ensures we never exceed queue size
+  global_zigbee->enable_loop_soon_any_context();
+}
+
+// Explicit template instantiations for the friend function
+template void enqueue_zb_event(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute);
+
 static void zb_attribute_handler(ezb_zcl_set_attr_value_message_t *message) {
   ESP_RETURN_ON_FALSE(message, , TAG, "Empty message");
   ESP_RETURN_ON_FALSE(message->info.status == EZB_ZCL_STATUS_SUCCESS, , TAG, "Received message: error status(%d)",
@@ -122,6 +147,7 @@ static void zb_attribute_handler(ezb_zcl_set_attr_value_message_t *message) {
   ESP_LOGD(TAG, "ZCL SetAttributeValue message for endpoint(%d) cluster(0x%04x) %s with status(0x%02x)",
            message->info.dst_ep, message->info.cluster_id,
            message->info.cluster_role == EZB_ZCL_CLUSTER_SERVER ? "server" : "client", message->info.status);
+  enqueue_zb_event(message->info, message->in.attribute);
 }
 
 static void zb_action_handler(ezb_zcl_core_action_callback_id_t callback_id, void *message) {
@@ -138,6 +164,13 @@ static void zb_action_handler(ezb_zcl_core_action_callback_id_t callback_id, voi
     default:
       ESP_LOGD(TAG, "Receive Zigbee action(0x%04x) callback", static_cast<unsigned>(callback_id));
       break;
+  }
+}
+
+void ZigbeeComponent::handle_attribute(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute) {
+  if (this->attributes_.find({info.dst_ep, info.cluster_id, EZB_ZCL_CLUSTER_SERVER, attribute.id}) !=
+      this->attributes_.end()) {
+    this->attributes_[{info.dst_ep, info.cluster_id, EZB_ZCL_CLUSTER_SERVER, attribute.id}]->on_value(attribute);
   }
 }
 
@@ -298,6 +331,29 @@ void ZigbeeComponent::setup() {
 }
 
 void ZigbeeComponent::loop() {
+  // Process all pending events
+  ZBEvent *event = this->zb_events_.pop();
+  while (event != nullptr) {
+    // Handle the event
+    switch (event->callback_id_) {
+      case EZB_ZCL_CORE_SET_ATTR_VALUE_CB_ID:
+        this->handle_attribute(event->event_.set_attr.info, event->event_.set_attr.attribute);
+        break;
+      default:
+        ESP_LOGW(TAG, "Received event with unhandled callback id: 0x%lx", event->callback_id_);
+        break;
+    }
+
+    // Free the event back to the pool
+    this->zb_event_pool_.release(event);
+    // Get the next event
+    event = this->zb_events_.pop();
+  }
+  // Log dropped events periodically
+  uint16_t dropped = this->zb_events_.get_and_reset_dropped_count();
+  if (dropped > 0) {
+    ESP_LOGW(TAG, "Dropped %u Zigbee events due to buffer overflow", dropped);
+  }
   if (this->joined.exchange(false)) {
     this->connected_ = true;
     this->join_cb_.call(this->factory_new);

@@ -306,10 +306,6 @@ async def _ctx_to_code(config: ConfigType) -> None:
     cg.add(cg.RawExpression("ZB_AF_REGISTER_DEVICE_CTX(&zb_device_ctx)"))
 
 
-async def zephyr_setup_switch(entity: cg.MockObj, config: ConfigType) -> None:
-    CORE.add_job(_add_switch, entity, config)
-
-
 async def zephyr_setup_number(
     entity: cg.MockObj,
     config: ConfigType,
@@ -417,7 +413,7 @@ async def add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     )
 
 
-async def _add_switch(entity: cg.MockObj, config: ConfigType) -> None:
+async def add_switch(entity: cg.MockObj, config: ConfigType) -> None:
     await _add_zigbee_ep(
         entity,
         config,

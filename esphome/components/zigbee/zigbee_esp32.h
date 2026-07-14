@@ -12,11 +12,10 @@
 #include "ezbee/zha.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/lock_free_queue.h"
+#include "esphome/core/event_pool.h"
 #include "zigbee_helpers_esp32.h"
-
-#ifdef USE_BINARY_SENSOR
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#endif
+#include "zigbee_event_esp32.h"
 
 namespace esphome::zigbee {
 
@@ -24,6 +23,7 @@ namespace esphome::zigbee {
 static const uint16_t ED_KEEP_ALIVE = 3000; /* 3000 millisecond */
 static const uint8_t MAX_CHILDREN = 10;
 static const uint32_t EZB_PRIMARY_CHANNEL_MASK = 0x07FFF800U; /* channels 11-26 */
+static constexpr uint8_t MAX_ZB_QUEUE_SIZE = 32;
 
 #define EZB_DEFAULT_RADIO_CONFIG() \
   { .radio_mode = ESP_ZIGBEE_RADIO_MODE_NATIVE, }
@@ -86,12 +86,16 @@ class ZigbeeComponent final : public Component {
   template<typename T>
   void add_attr_(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
                  T *value_p);
+  void handle_attribute(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute);
   // attributes_ will be used during operation in zigbee callbacks to update the attribute values and trigger
   // automations
   // key tuple could be replaced by single 64 (48) bit int with bit fields for endpoint, cluster, role and attr_id
   std::map<std::tuple<uint8_t, uint16_t, uint8_t, uint16_t>, ZigbeeAttribute *> attributes_;
   ezb_af_device_desc_t dev_desc_;
   CallbackManager<void(bool)> join_cb_{};
+  template<typename... Args> friend void enqueue_zb_event(Args... args);
+  esphome::LockFreeQueue<ZBEvent, MAX_ZB_QUEUE_SIZE> zb_events_;
+  esphome::EventPool<ZBEvent, MAX_ZB_QUEUE_SIZE> zb_event_pool_;
 };
 
 template<typename T>

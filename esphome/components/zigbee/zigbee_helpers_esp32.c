@@ -27,6 +27,12 @@ ezb_err_t esphome_zb_add_or_update_cluster(uint16_t cluster_id, ezb_af_ep_desc_t
 ezb_af_ep_desc_t esphome_zb_zha_default_ep_desc_create(uint8_t ep_id, uint16_t device_id, uint8_t power_source) {
   ezb_af_ep_desc_t ep_desc;
   switch (device_id) {
+    case EZB_ZHA_MAINS_POWER_OUTLET_DEVICE_ID: {
+      ezb_zha_mains_power_outlet_config_t config = EZB_ZHA_MAINS_POWER_OUTLET_CONFIG();
+      config.basic_cfg.power_source = power_source;
+      ep_desc = ezb_zha_create_mains_power_outlet(ep_id, &config);
+      break;
+    }
     case EZB_ZHA_TEMPERATURE_SENSOR_DEVICE_ID: {
       ezb_zha_temperature_sensor_config_t config = EZB_ZHA_TEMPERATURE_SENSOR_CONFIG();
       config.basic_cfg.power_source = power_source;
@@ -51,10 +57,14 @@ ezb_zcl_cluster_desc_t esphome_zb_default_cluster_dscr_create(uint16_t cluster_i
       return ezb_zcl_basic_create_cluster_desc(NULL, role_mask);
     case EZB_ZCL_CLUSTER_ID_IDENTIFY:
       return ezb_zcl_identify_create_cluster_desc(NULL, role_mask);
+    case EZB_ZCL_CLUSTER_ID_ON_OFF:
+      return ezb_zcl_on_off_create_cluster_desc(NULL, role_mask);
     case EZB_ZCL_CLUSTER_ID_ANALOG_INPUT:
       return ezb_zcl_analog_input_create_cluster_desc(NULL, role_mask);
     case EZB_ZCL_CLUSTER_ID_BINARY_INPUT:
       return ezb_zcl_binary_input_create_cluster_desc(NULL, role_mask);
+    case EZB_ZCL_CLUSTER_ID_BINARY_OUTPUT:
+      return ezb_zcl_binary_output_create_cluster_desc(NULL, role_mask);
     case EZB_ZCL_CLUSTER_ID_ILLUMINANCE_MEASUREMENT:
       return ezb_zcl_illuminance_measurement_create_cluster_desc(NULL, role_mask);
     case EZB_ZCL_CLUSTER_ID_TEMPERATURE_MEASUREMENT:
@@ -85,10 +95,14 @@ ezb_err_t esphome_zb_cluster_add_attr(uint16_t cluster_id, ezb_zcl_cluster_desc_
       return ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
     case EZB_ZCL_CLUSTER_ID_IDENTIFY:
       return ezb_zcl_identify_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
+    case EZB_ZCL_CLUSTER_ID_ON_OFF:
+      return ezb_zcl_on_off_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
     case EZB_ZCL_CLUSTER_ID_ANALOG_INPUT:
       return ezb_zcl_analog_input_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
     case EZB_ZCL_CLUSTER_ID_BINARY_INPUT:
       return ezb_zcl_binary_input_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
+    case EZB_ZCL_CLUSTER_ID_BINARY_OUTPUT:
+      return ezb_zcl_binary_output_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
     case EZB_ZCL_CLUSTER_ID_ILLUMINANCE_MEASUREMENT:
       return ezb_zcl_illuminance_measurement_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
     case EZB_ZCL_CLUSTER_ID_TEMPERATURE_MEASUREMENT:

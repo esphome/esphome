@@ -25,6 +25,7 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
     CONF_WIFI,
+    DEVICE_CLASS_OUTLET,
 )
 from esphome.core import CORE
 from esphome.coroutine import CoroPriority, coroutine_with_priority
@@ -239,6 +240,19 @@ def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_switch_esp32(config: ConfigType) -> ConfigType:
+    dev_class = config.get(CONF_DEVICE_CLASS)
+    if config[CONF_CLUSTER] == "default":
+        ep = copy.deepcopy(ep_configs["on_off"])
+        if ep_configs.get(dev_class) == DEVICE_CLASS_OUTLET:
+            ep[DEVICE_TYPE] = "MAINS_POWER_OUTLET"
+    else:
+        ep = copy.deepcopy(ep_configs["binary_output"])
+    setup_attributes(config, ep[CONF_CLUSTERS])
+    add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
+    return config
+
+
 def zigbee_require_vfs_select(config: ConfigType) -> ConfigType:
     """Register VFS select requirement during config validation."""
     # Zigbee uses esp_vfs_eventfd which requires VFS select support
@@ -349,7 +363,7 @@ async def add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
             cg.add(zb_attr.connect(template_arg, entity))
 
 
-async def add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
+async def add_component(entity: cg.MockObj, config: ConfigType) -> None:
     attr_ids = config.get(CONF_ZIGBEE_ATTR_IDS, [])
     for attr in attr_ids:
         zb_attr = await cg.get_variable(attr[CONF_ID])
