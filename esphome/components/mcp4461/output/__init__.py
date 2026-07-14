@@ -133,7 +133,10 @@ async def mcp4461_wiper_step_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "mcp4461.wiper.store_nonvolatile", WiperStoreNonvolatileAction, WIPER_ACTION_SCHEMA, synchronous=True
+    "mcp4461.wiper.store_nonvolatile",
+    WiperStoreNonvolatileAction,
+    WIPER_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def mcp4461_wiper_store_to_code(config, action_id, template_arg, args):
     wiper = await cg.get_variable(config[CONF_ID])
@@ -141,7 +144,10 @@ async def mcp4461_wiper_store_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "mcp4461.wiper.set_terminal", WiperSetTerminalAction, TERMINAL_ACTION_SCHEMA, synchronous=True
+    "mcp4461.wiper.set_terminal",
+    WiperSetTerminalAction,
+    TERMINAL_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def mcp4461_wiper_terminal_to_code(config, action_id, template_arg, args):
     wiper = await cg.get_variable(config[CONF_ID])
