@@ -191,7 +191,6 @@ StorageError SdSpi::unmount() {
   sdspi_host_deinit();
   ESP_LOGI(TAG_SPI, "SD card unmounted safely");
 
-
   return StorageError::OK;
 }
 

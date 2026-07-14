@@ -190,7 +190,6 @@ storage::StorageError SdMmc::unmount() {
   this->is_mounted_ = false;
   ESP_LOGI(TAG, "SD/MMC card unmounted safely");
 
-
   return storage::StorageError::OK;
 }
 
