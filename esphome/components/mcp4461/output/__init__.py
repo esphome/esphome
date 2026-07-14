@@ -44,6 +44,7 @@ def _validate_nonvolatile(config):
         )
     return config
 
+
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
         cv.Required(CONF_ID): cv.declare_id(Mcp4461Wiper),
