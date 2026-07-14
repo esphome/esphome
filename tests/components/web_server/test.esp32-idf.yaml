@@ -5,3 +5,4 @@ web_server:
   auth:
     username: admin
     password: password
+    type: digest
