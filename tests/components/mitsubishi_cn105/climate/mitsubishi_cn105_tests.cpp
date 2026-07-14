@@ -435,14 +435,12 @@ TEST(MitsubishiCN105Tests, WriteInterruptsWaitingForNextStatusUpdate) {
   ctx.sut.set_state(TestableMitsubishiCN105::State::SCHEDULE_NEXT_STATUS_UPDATE);
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
   EXPECT_EQ(ctx.sut.operation_start_ms_, 5000);
-  EXPECT_EQ(ctx.sut.status_update_wait_credit_ms_, 0);
 
   // Nothing to do in update (rx empty, no timeout)
   ctx.sut.set_current_time(5500);
   ASSERT_FALSE(ctx.sut.update());
   EXPECT_TRUE(ctx.uart.tx.empty());
   EXPECT_EQ(ctx.sut.operation_start_ms_, 5000);
-  EXPECT_EQ(ctx.sut.status_update_wait_credit_ms_, 0);
 
   // Write new values
   ctx.sut.use_temperature_encoding_b_ = true;
@@ -455,7 +453,6 @@ TEST(MitsubishiCN105Tests, WriteInterruptsWaitingForNextStatusUpdate) {
   // Waiting for next status update must be interrupted and new values send to AC
   ctx.sut.set_current_time(6000);
   ASSERT_FALSE(ctx.sut.update());
-  EXPECT_EQ(ctx.sut.status_update_wait_credit_ms_, 1000);
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::APPLYING_SETTINGS);
   EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x01, 0x1F, 0x00, 0x00, 0x01, 0x00,
                                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xB2, 0x00, 0xAB));
@@ -465,8 +462,46 @@ TEST(MitsubishiCN105Tests, WriteInterruptsWaitingForNextStatusUpdate) {
   ctx.sut.set_current_time(6500);
   ASSERT_FALSE(ctx.sut.update());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
-  EXPECT_EQ(ctx.sut.operation_start_ms_, 6500 - 1000);
-  EXPECT_EQ(ctx.sut.status_update_wait_credit_ms_, 0);
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 6500);
+}
+
+TEST(MitsubishiCN105Tests, WriteAckRestartsStatusUpdateInterval) {
+  auto ctx = TestContext{};
+  ctx.sut.set_update_interval(4000);
+  ctx.sut.set_current_time(1000);
+
+  ctx.sut.state_ = TestableMitsubishiCN105::State::STATUS_UPDATED;
+  ctx.sut.set_state(TestableMitsubishiCN105::State::SCHEDULE_NEXT_STATUS_UPDATE);
+
+  // Send a mode change just before the scheduled status update.
+  ctx.sut.set_current_time(4900);
+  ctx.sut.set_power(true);
+  ctx.sut.set_mode(MitsubishiCN105::Mode::COOL);
+  ASSERT_FALSE(ctx.sut.update());
+  ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::APPLYING_SETTINGS);
+
+  ctx.uart.push_rx({0xFC, 0x61, 0x01, 0x30, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5E});
+  ctx.sut.set_current_time(5000);
+  ASSERT_FALSE(ctx.sut.update());
+  ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+
+  ctx.uart.tx.clear();
+
+  // The previous polling wait must not make the next status request run early.
+  ctx.sut.set_current_time(5100);
+  ASSERT_FALSE(ctx.sut.update());
+  ASSERT_TRUE(ctx.uart.tx.empty());
+  ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+
+  ctx.sut.set_current_time(8999);
+  ASSERT_FALSE(ctx.sut.update());
+  ASSERT_TRUE(ctx.uart.tx.empty());
+
+  ctx.sut.set_current_time(9000);
+  ASSERT_FALSE(ctx.sut.update());
+  EXPECT_FALSE(ctx.uart.tx.empty());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::UPDATING_STATUS);
 }
 
 TEST(MitsubishiCN105Tests, SetAndClearRemoteRoomTemp) {
@@ -506,6 +541,7 @@ TEST(MitsubishiCN105Tests, SetAndClearRemoteRoomTemp) {
 
 TEST(MitsubishiCN105Tests, ApplyQueuedSettingsThenRemoteRoomTempInSecondWrite) {
   auto ctx = TestContext{};
+  ctx.sut.set_current_time(1000);
 
   // Queue normal settings plus remote temperature together.
   ctx.sut.use_temperature_encoding_b_ = true;
@@ -531,20 +567,22 @@ TEST(MitsubishiCN105Tests, ApplyQueuedSettingsThenRemoteRoomTempInSecondWrite) {
   ctx.uart.tx.clear();
   ctx.uart.push_rx({0xFC, 0x61, 0x01, 0x30, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5E});
+  ctx.sut.set_current_time(1100);
   ASSERT_FALSE(ctx.sut.update());
 
   EXPECT_TRUE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
 
   // The next apply sends the remote-temperature packet and clears the last pending flag.
   ctx.uart.tx.clear();
-  ctx.sut.set_state(TestableMitsubishiCN105::State::APPLYING_SETTINGS);
+  ctx.sut.set_current_time(1101);
+  ASSERT_FALSE(ctx.sut.update());
 
   EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x07, 0x01, 0x29, 0xB9, 0x00, 0x00,
                                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x94));
   EXPECT_FALSE(ctx.sut.pending_updates_.any());
 }
 
-TEST(MitsubishiCN105Tests, WriteTimeoutClearsStatusUpdateWaitCreditOnReconnect) {
+TEST(MitsubishiCN105Tests, WriteTimeoutReconnects) {
   auto ctx = TestContext{};
   ctx.sut.set_update_interval(2000);
   ctx.sut.set_current_time(5000);
@@ -554,9 +592,8 @@ TEST(MitsubishiCN105Tests, WriteTimeoutClearsStatusUpdateWaitCreditOnReconnect) 
   ctx.sut.set_state(TestableMitsubishiCN105::State::SCHEDULE_NEXT_STATUS_UPDATE);
   ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
   ASSERT_EQ(ctx.sut.operation_start_ms_, 5000);
-  ASSERT_EQ(ctx.sut.status_update_wait_credit_ms_, 0);
 
-  // Interrupt that wait with a write so credit is accumulated.
+  // Interrupt that wait with a write.
   ctx.sut.use_temperature_encoding_b_ = true;
   ctx.sut.set_power(false);
   ctx.sut.set_target_temperature(25.0f);
@@ -566,15 +603,12 @@ TEST(MitsubishiCN105Tests, WriteTimeoutClearsStatusUpdateWaitCreditOnReconnect) 
   ASSERT_FALSE(ctx.sut.update());
   ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::APPLYING_SETTINGS);
   ASSERT_EQ(ctx.sut.operation_start_ms_, 6000);
-  ASSERT_EQ(ctx.sut.status_update_wait_credit_ms_, 1000);
 
-  // Do not ACK the write. Advance time far enough to force timeout/reconnect
-  // handling and verify that stale wait credit is cleared during recovery.
+  // Do not ACK the write. Advance time far enough to force timeout/reconnect.
   ctx.sut.set_current_time(36000);
   ASSERT_FALSE(ctx.sut.update());
-  EXPECT_NE(ctx.sut.state_, TestableMitsubishiCN105::State::APPLYING_SETTINGS);
-  ASSERT_EQ(ctx.sut.operation_start_ms_, 36000);
-  EXPECT_EQ(ctx.sut.status_update_wait_credit_ms_, 0);
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::CONNECTING);
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 36000);
 }
 
 TEST(MitsubishiCN105Tests, SetOutOfRangeRemoteRoomTempIsIgnored) {

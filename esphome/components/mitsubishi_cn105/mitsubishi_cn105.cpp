@@ -135,8 +135,6 @@ bool MitsubishiCN105::update() {
   switch (this->state_) {
     case State::WAITING_FOR_SCHEDULED_STATUS_UPDATE:
       if (this->pending_updates_.any()) {
-        this->status_update_wait_credit_ms_ =
-            std::min(this->update_interval_ms_, get_loop_time_ms() - this->operation_start_ms_);
         this->set_state_(State::APPLYING_SETTINGS);
         return false;
       }
@@ -237,10 +235,8 @@ void MitsubishiCN105::did_transition_(State to) {
       }
       break;
     }
-
     case State::SCHEDULE_NEXT_STATUS_UPDATE:
-      this->operation_start_ms_ = get_loop_time_ms() - this->status_update_wait_credit_ms_;
-      this->status_update_wait_credit_ms_ = 0;
+      this->operation_start_ms_ = get_loop_time_ms();
       this->current_status_msg_type_ = STATUS_MSG_SETTINGS;
       this->set_state_(State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
       break;
@@ -255,7 +251,6 @@ void MitsubishiCN105::did_transition_(State to) {
 
     case State::READ_TIMEOUT:
       this->frame_parser_.reset();
-      this->status_update_wait_credit_ms_ = 0;
       this->set_state_(State::CONNECTING);
       break;
 
