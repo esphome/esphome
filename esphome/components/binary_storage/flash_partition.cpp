@@ -393,6 +393,33 @@ storage::StorageError FlashPartition::rename(const char *old_path, const char *n
   return storage::StorageError::OK;
 }
 
+void FlashPartition::build_path_(char *out, size_t out_size, const char *path) const {
+  // Join mount_path_ and a user-supplied path (with or without leading '/').
+  // Exact-length memcpy join instead of snprintf — GCC cannot see callers'
+  // length validation and would raise -Wformat-truncation (see list_dir()).
+  const size_t base_len = strlen(this->mount_path_);
+  if (base_len + 2 > out_size) {  // no room for even "<base>/" + NUL
+    if (out_size > 0)
+      out[0] = '\0';
+    return;
+  }
+  const char *rel = (path != nullptr && path[0] == '/') ? path + 1 : (path != nullptr ? path : "");
+  size_t rel_len = strlen(rel);
+  const size_t max_rel = out_size - base_len - 2;
+  if (rel_len > max_rel)
+    rel_len = max_rel;  // defensive truncation; length-sensitive callers validate beforehand
+  memcpy(out, this->mount_path_, base_len);
+  out[base_len] = '/';
+  memcpy(out + base_len + 1, rel, rel_len);
+  out[base_len + 1 + rel_len] = '\0';
+}
+
+bool FlashPartition::remount() {
+  // Used by format_lfs_() to bring the freshly formatted filesystem back up.
+  // mount() is idempotent and carries the full register sequence.
+  return this->mount() == storage::StorageError::OK;
+}
+
 bool FlashPartition::unmount_lfs_() {
   if (!this->mounted_)
     return true;
