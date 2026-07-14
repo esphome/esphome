@@ -54,7 +54,9 @@ _UPDATE_SCHEMA = (
     .extend(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTUpdateComponent),
-            cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
+            cv.Optional(
+                CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): cv.one_of(*DEVICE_CLASSES, lower=True),
             cv.Optional(CONF_ON_UPDATE_AVAILABLE): automation.validate_automation(
                 single=True
             ),
@@ -136,7 +138,9 @@ async def to_code(config):
     automation.maybe_simple_id(
         {
             cv.GenerateID(): cv.use_id(UpdateEntity),
-            cv.Optional(CONF_FORCE_UPDATE, default=False): cv.templatable(cv.boolean),
+            cv.Optional(
+                CONF_FORCE_UPDATE, default=False, visibility=cv.Visibility.ADVANCED
+            ): cv.templatable(cv.boolean),
         }
     ),
     synchronous=True,

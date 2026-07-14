@@ -76,7 +76,7 @@ class NextionCommandPacer {
 };
 #endif  // USE_NEXTION_COMMAND_SPACING
 
-class Nextion : public NextionBase, public PollingComponent, public uart::UARTDevice {
+class Nextion final : public NextionBase, public PollingComponent, public uart::UARTDevice {
  public:
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
   /**
@@ -1486,6 +1486,10 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   void process_nextion_commands_();
   void process_serial_();
+  /// Drop queue entries older than max_q_age_ms_. Called from loop() so it also runs when the
+  /// display sends no data at all (disconnected or asleep), which would otherwise grow the queue
+  /// without bound.
+  void purge_stale_queue_entries_();
   uint16_t touch_sleep_timeout_ = 0;
   uint8_t wake_up_page_ = 255;
 #ifdef USE_NEXTION_CONF_START_UP_PAGE
