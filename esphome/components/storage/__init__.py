@@ -260,12 +260,6 @@ def _exactly_one_step_kind(config):
         raise cv.Invalid(
             f"Each extract step needs exactly one of line/split/key/regex/trim/json, got {kinds}"
         )
-    if CONF_JSON in config:
-        fv_note = (
-            None  # validated for emptiness only; component presence is checked below
-        )
-        if not config[CONF_JSON]:
-            raise cv.Invalid("'json' pointer must not be empty")
     if CONF_INDEX in config and CONF_SPLIT not in config:
         raise cv.Invalid("'index' is only valid with 'split'")
     if CONF_SEPARATOR in config and CONF_KEY not in config:
