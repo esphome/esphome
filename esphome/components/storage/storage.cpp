@@ -44,6 +44,28 @@ StorageError StorageRegistry::register_storage(Storage *s) {
   return StorageError::OK;
 }
 
+void StorageRegistry::quiesce_storage(Storage *s) {
+  if (s == nullptr)
+    return;
+  {
+    // Only drain for entries that are actually registered — the callbacks' contract is
+    // "stop using this registered storage now".
+    LockGuard guard(this->registry_lock_);
+    bool found = false;
+    for (Storage *registered : this->storages_) {
+      if (registered == s) {
+        found = true;
+        break;
+      }
+    }
+    if (!found)
+      return;
+  }
+  // Same drain as unregister_storage() (see the comment there on why this must run while
+  // the entry is still registered) — just without the removal afterwards.
+  this->on_unregistered_.call(s);
+}
+
 void StorageRegistry::unregister_storage(Storage *s) {
   if (s == nullptr)
     return;
