@@ -53,6 +53,7 @@ template<typename GlobT> void assign_from_string(GlobT *g, const std::string &s)
 enum class ExtractStepType : uint8_t {
   LINE,   // pick the Nth line (1-based)
   SPLIT,  // split at a separator string, pick the Nth element (0-based)
+  JSON,   // resolve a '/'-separated pointer (object keys, array indices) in a JSON document
   KEY,    // find the first line starting with "<key><separator>", yield the remainder
   TRIM,   // strip leading/trailing whitespace
   REGEX,  // regex_search, yield the given capture group
@@ -190,5 +191,56 @@ template<typename... Ts> class MountAction : public Action<Ts...> {
   MountableStorage *target_;
   bool mount_;
 };
+
+
+#if defined(USE_STORAGE_PREFERENCES) && defined(USE_ESP32)
+#include "preferences_backup.h"
+
+// storage.export_preferences / storage.import_preferences — see
+// preferences_backup.h. The selection table (name/key/type/count) is
+// codegen-baked per action instance from its optional `preferences:` list;
+// empty selection = all preferences (hex round-trip, types unknown).
+template<typename... Ts> class ExportPreferencesAction : public Action<Ts...> {
+ public:
+  TEMPLATABLE_VALUE(std::string, path)
+  void set_format(const char *format) { this->format_ = format; }
+  void set_selection(const PrefSelection *selection, size_t count) {
+    this->selection_ = selection;
+    this->count_ = count;
+  }
+
+  void play(Ts... x) override {
+    const std::string path = this->path_.value(x...);
+    preferences_export_to_storage(path.c_str(), this->format_, this->selection_, this->count_);
+  }
+
+ protected:
+  const char *format_{"kv"};
+  const PrefSelection *selection_{nullptr};
+  size_t count_{0};
+};
+
+template<typename... Ts> class ImportPreferencesAction : public Action<Ts...> {
+ public:
+  TEMPLATABLE_VALUE(std::string, path)
+  void set_format(const char *format) { this->format_ = format; }
+  void set_reboot(bool reboot) { this->reboot_ = reboot; }
+  void set_selection(const PrefSelection *selection, size_t count) {
+    this->selection_ = selection;
+    this->count_ = count;
+  }
+
+  void play(Ts... x) override {
+    const std::string path = this->path_.value(x...);
+    preferences_import_from_storage(path.c_str(), this->format_, this->reboot_, this->selection_, this->count_);
+  }
+
+ protected:
+  const char *format_{"kv"};
+  bool reboot_{false};
+  const PrefSelection *selection_{nullptr};
+  size_t count_{0};
+};
+#endif  // USE_STORAGE_PREFERENCES && USE_ESP32
 
 }  // namespace esphome::storage

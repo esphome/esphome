@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import hashlib
 import re
 
 from esphome import automation, core
@@ -15,6 +16,7 @@ from esphome.const import (
     CONF_KEY,
     CONF_ON_VALUE,
     CONF_PATH,
+    CONF_TYPE,
     CONF_TO,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
@@ -193,6 +195,7 @@ async def to_code(config):
 CONF_CONTENT = "content"
 CONF_NEWLINE = "newline"
 CONF_EXTRACT = "extract"
+CONF_JSON = "json"
 CONF_TO_GLOBAL = "to_global"
 CONF_LINE = "line"
 CONF_SPLIT = "split"
@@ -245,13 +248,17 @@ def _validate_regex(value):
 def _exactly_one_step_kind(config):
     kinds = [
         k
-        for k in (CONF_LINE, CONF_SPLIT, CONF_KEY, CONF_REGEX, CONF_TRIM)
+        for k in (CONF_LINE, CONF_SPLIT, CONF_KEY, CONF_REGEX, CONF_TRIM, CONF_JSON)
         if k in config
     ]
     if len(kinds) != 1:
         raise cv.Invalid(
-            f"Each extract step needs exactly one of line/split/key/regex/trim, got {kinds}"
+            f"Each extract step needs exactly one of line/split/key/regex/trim/json, got {kinds}"
         )
+    if CONF_JSON in config:
+        fv_note = None  # validated for emptiness only; component presence is checked below
+        if not config[CONF_JSON]:
+            raise cv.Invalid("'json' pointer must not be empty")
     if CONF_INDEX in config and CONF_SPLIT not in config:
         raise cv.Invalid("'index' is only valid with 'split'")
     if CONF_SEPARATOR in config and CONF_KEY not in config:
@@ -265,6 +272,9 @@ _EXTRACT_STEP_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_LINE): cv.positive_not_null_int,
+            # '/'-separated pointer into a JSON document ("a/b/0"). Requires
+            # the json component (add `json:` to the config).
+            cv.Optional(CONF_JSON): cv.string_strict,
             cv.Optional(CONF_SPLIT): cv.string_strict,
             cv.Optional(CONF_INDEX): cv.positive_int,
             cv.Optional(CONF_KEY): cv.string_strict,
@@ -368,6 +378,9 @@ async def file_read_action_to_code(config, action_id, template_arg, args):
                     0,
                 )
             )
+        elif CONF_JSON in step:
+            cg.add_define("USE_STORAGE_JSON_EXTRACT")
+            cg.add(var.add_step(ExtractStepType.JSON, step[CONF_JSON], "", 0))
         elif CONF_REGEX in step:
             cg.add_define("USE_STORAGE_REGEX_EXTRACT")
             # group default: 1 (first capture) if the pattern has groups, else whole match
@@ -491,3 +504,161 @@ async def mount_action_to_code(config, action_id, template_arg, args):
 )
 async def unmount_action_to_code(config, action_id, template_arg, args):
     return await _build_mount_action(config, action_id, template_arg, args, False)
+
+
+# ==================== PREFERENCES BACKUP/RESTORE ====================
+# storage.export_preferences / storage.import_preferences: back up ESPHome
+# preferences (the "esphome" NVS namespace) to a storage target and restore
+# them. Provided by storage itself, guard-protected: the C++ only compiles
+# in when one of these actions is used, and only on esp32 (preferences are
+# always NVS-backed there — no extra YAML needed to "enable" them).
+#
+# Selection is an option on the action: `preferences:` lists global IDs —
+# with it, only those entries round-trip and export under their YAML id;
+# without it, the whole namespace round-trips under numeric NVS keys.
+
+CONF_PREFERENCES = "preferences"
+CONF_REBOOT = "reboot"
+
+# Keep in sync with globals_component.h ("1944399030U ^ this->name_hash_")
+# and the md5-based name hash in globals/__init__.py.
+_GLOBALS_KEY_XOR = 1944399030
+
+# YAML `type:` -> (PrefType tag, element size irrelevant here). Blob layouts:
+# scalars/arrays are raw T bytes; std::string is length-prefixed char[SZ]
+# with SZ = max_restore_data_length (default 63) + 1 — keep in sync with
+# globals/__init__.py.
+_PREF_SCALAR_TYPES = {
+    "bool": "BOOL",
+    "int8_t": "I8",
+    "char": "I8",
+    "uint8_t": "U8",
+    "unsigned char": "U8",
+    "int16_t": "I16",
+    "short": "I16",
+    "uint16_t": "U16",
+    "unsigned short": "U16",
+    "int": "I32",
+    "int32_t": "I32",
+    "long": "I32",
+    "uint32_t": "U32",
+    "unsigned int": "U32",
+    "unsigned long": "U32",
+    "size_t": "U32",
+    "float": "F32",
+    "double": "F64",
+}
+_ARRAY_TYPE_RE = re.compile(r"^\s*(.+?)\s*\[\s*(\d+)\s*\]\s*$")
+
+
+def _pref_type_for_global(global_id: str) -> tuple[str, int]:
+    """(PrefType tag, count) for a global's YAML entry — HEX,0 if unknown."""
+    for entry in CORE.config.get("globals", []):
+        if str(entry[CONF_ID]) != global_id:
+            continue
+        if not entry.get("restore_value", False):
+            raise cv.Invalid(
+                f"Global '{global_id}' has no restore_value — it stores no preference"
+            )
+        type_str = entry[CONF_TYPE].strip()
+        if type_str == "std::string":
+            return "STRING", entry.get("max_restore_data_length", 63) + 1
+        if type_str in _PREF_SCALAR_TYPES:
+            return _PREF_SCALAR_TYPES[type_str], 1
+        if m := _ARRAY_TYPE_RE.match(type_str):
+            base, count = m.group(1), int(m.group(2))
+            if base in _PREF_SCALAR_TYPES:
+                return _PREF_SCALAR_TYPES[base], count
+        # Unknown C++ type: still round-trips, just as hex.
+        return "HEX", 0
+    return "HEX", 0
+
+ExportPreferencesAction = storage_ns.class_("ExportPreferencesAction", automation.Action)
+ImportPreferencesAction = storage_ns.class_("ImportPreferencesAction", automation.Action)
+
+
+def _global_nvs_key(global_id: str) -> int:
+    name_hash = int(hashlib.md5(global_id.encode()).hexdigest()[:8], 16)
+    return (_GLOBALS_KEY_XOR ^ name_hash) & 0xFFFFFFFF
+
+
+_PREFERENCES_ACTION_BASE = {
+    cv.Required(CONF_PATH): cv.templatable(cv.string_strict),
+    cv.Optional(CONF_FORMAT, default="kv"): cv.one_of("kv", "json", lower=True),
+    # Globals with restore_value. cv.use_id(cg.Component) because the globals
+    # component declares several unrelated classes (GlobalsComponent,
+    # RestoringGlobalsComponent, RestoringGlobalStringComponent) — only the
+    # id string is consumed here (baked into the name<->key table), the
+    # variable itself is never awaited.
+    cv.Optional(CONF_PREFERENCES): cv.ensure_list(cv.use_id(cg.Component)),
+}
+
+_EXPORT_PREFERENCES_SCHEMA = cv.All(
+    cv.only_on(["esp32"]),
+    # ArduinoJson (via the json component) backs the json format and is
+    # linked whenever the actions compile in — add `json:` to the config.
+    cv.requires_component("json"),
+    cv.Schema(_PREFERENCES_ACTION_BASE),
+)
+
+_IMPORT_PREFERENCES_SCHEMA = cv.All(
+    cv.only_on(["esp32"]),
+    cv.requires_component("json"),
+    cv.Schema(
+        {
+            **_PREFERENCES_ACTION_BASE,
+            # Preferences are read at boot — imported values only take effect
+            # after a restart. Opt-in convenience.
+            cv.Optional(CONF_REBOOT, default=False): cv.boolean,
+        }
+    ),
+)
+
+
+async def _build_preferences_action(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    cg.add_define("USE_STORAGE_PREFERENCES")
+    template_ = await cg.templatable(config[CONF_PATH], args, cg.std_string)
+    cg.add(var.set_path(template_))
+    cg.add(var.set_format(config[CONF_FORMAT]))
+    if selection := config.get(CONF_PREFERENCES):
+        entries = []
+        for gid in selection:
+            name = str(gid)
+            tag, count = _pref_type_for_global(name)
+            key = _global_nvs_key(name)
+            entries.append(
+                f'{{"{name}", {key}UL, esphome::storage::PrefType::{tag}, {count}}}'
+            )
+        arr = f"{action_id}_psel"
+        cg.add_global(
+            cg.RawExpression(
+                f"static const esphome::storage::PrefSelection {arr}[] = {{"
+                + ", ".join(entries)
+                + "}"
+            )
+        )
+        cg.add(var.set_selection(cg.RawExpression(arr), len(entries)))
+    return var
+
+
+@automation.register_action(
+    "storage.export_preferences",
+    ExportPreferencesAction,
+    _EXPORT_PREFERENCES_SCHEMA,
+    synchronous=True,
+)
+async def export_preferences_to_code(config, action_id, template_arg, args):
+    return await _build_preferences_action(config, action_id, template_arg, args)
+
+
+@automation.register_action(
+    "storage.import_preferences",
+    ImportPreferencesAction,
+    _IMPORT_PREFERENCES_SCHEMA,
+    synchronous=True,
+)
+async def import_preferences_to_code(config, action_id, template_arg, args):
+    var = await _build_preferences_action(config, action_id, template_arg, args)
+    cg.add(var.set_reboot(config[CONF_REBOOT]))
+    return var

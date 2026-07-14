@@ -1,5 +1,9 @@
 #include "automation.h"
 
+#ifdef USE_STORAGE_JSON_EXTRACT
+#include "esphome/components/json/json_util.h"
+#endif
+
 #include "esphome/core/log.h"
 
 #ifdef USE_STORAGE_REGEX_EXTRACT
@@ -86,6 +90,53 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf) {
     case ExtractStepType::TRIM:
       buf = extract_trim(buf);
       return true;
+#ifdef USE_STORAGE_JSON_EXTRACT
+    case ExtractStepType::JSON: {
+      // '/'-separated pointer: object keys and array indices ("a/b/0").
+      // Scalars yield their string form; objects/arrays yield serialized
+      // JSON so further steps (or nested json steps) can keep working on it.
+      JsonDocument doc = json::parse_json(reinterpret_cast<const uint8_t *>(buf.data()), buf.size());
+      JsonVariantConst node = doc.as<JsonVariantConst>();
+      if (node.isNull()) {
+        ESP_LOGW(TAG, "extract json: invalid JSON document");
+        return false;
+      }
+      const std::string &ptr = step.arg;
+      size_t start = 0;
+      while (start <= ptr.size() && !ptr.empty()) {
+        size_t sep = ptr.find('/', start);
+        std::string token = ptr.substr(start, sep == std::string::npos ? std::string::npos : sep - start);
+        if (!token.empty()) {
+          if (node.is<JsonArrayConst>()) {
+            char *end = nullptr;
+            unsigned long idx = strtoul(token.c_str(), &end, 10);
+            if (end == nullptr || *end != '\0') {
+              ESP_LOGW(TAG, "extract json: '%s' is not an array index", token.c_str());
+              return false;
+            }
+            node = node.as<JsonArrayConst>()[idx];
+          } else {
+            node = node[token.c_str()];
+          }
+          if (node.isNull()) {
+            ESP_LOGW(TAG, "extract json: path element '%s' not found", token.c_str());
+            return false;
+          }
+        }
+        if (sep == std::string::npos)
+          break;
+        start = sep + 1;
+      }
+      if (node.is<const char *>()) {
+        buf = node.as<const char *>();  // unquoted string scalar
+      } else {
+        std::string serialized;
+        serializeJson(node, serialized);
+        buf = std::move(serialized);
+      }
+      return true;
+    }
+#endif  // USE_STORAGE_JSON_EXTRACT
     case ExtractStepType::REGEX: {
 #ifdef USE_STORAGE_REGEX_EXTRACT
       // Pattern syntax was validated at config time (ECMAScript grammar, std::regex default).

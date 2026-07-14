@@ -34,10 +34,10 @@ StorageError StorageRegistry::register_storage(Storage *s) {
   // its medium is mounted) must still show up, per the get_info() contract on Storage above.
   StorageInfo info{};
   if (s->get_info(&info) == StorageError::OK) {
-    ESP_LOGI(TAG, "Storage registered: %s (%s)%s", info.name != nullptr ? info.name : "?",
+    ESP_LOGD(TAG, "Storage registered: %s (%s)%s", info.name != nullptr ? info.name : "?",
              info.id != nullptr ? info.id : "?", info.is_mounted ? "" : " [not mounted]");
   } else {
-    ESP_LOGI(TAG, "Storage registered (get_info failed)");
+    ESP_LOGD(TAG, "Storage registered (get_info failed)");
   }
 
   this->on_registered_.call(s);
@@ -115,7 +115,7 @@ void StorageRegistry::unregister_storage(Storage *s) {
 
   StorageInfo info{};
   if (s->get_info(&info) == StorageError::OK) {
-    ESP_LOGI(TAG, "Storage unregistered: %s", info.name != nullptr ? info.name : "?");
+    ESP_LOGD(TAG, "Storage unregistered: %s", info.name != nullptr ? info.name : "?");
   }
 }
 
