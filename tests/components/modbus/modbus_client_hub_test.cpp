@@ -94,8 +94,9 @@ TEST(ModbusClientHubNoResponse, RetryRequeuesWaitingFrame) {
   EXPECT_EQ(requeued.device, &device);
   // address + PDU + CRC
   ASSERT_EQ(requeued.frame.size(), sizeof(READ_PDU) + 3);
-  EXPECT_EQ(requeued.frame.data.data()[0], 0x02);
-  EXPECT_EQ(0, memcmp(requeued.frame.data.data() + 1, READ_PDU, sizeof(READ_PDU)));
+  EXPECT_EQ(requeued.frame.address(), 0x02);
+  ASSERT_EQ(requeued.frame.pdu().size(), sizeof(READ_PDU));
+  EXPECT_EQ(0, memcmp(requeued.frame.pdu().data(), READ_PDU, sizeof(READ_PDU)));
 }
 
 // A device that declines the retry has the frame dropped.

@@ -40,6 +40,13 @@ struct ModbusFrame {
   }
 
   uint16_t size() const { return static_cast<uint16_t>(this->data.size()); }
+
+  // A frame is [address][PDU...][CRC lo][CRC hi]. These are the only places that know that layout;
+  // everything else should go through them rather than re-deriving the offsets.
+  uint8_t address() const { return this->data.data()[0]; }
+  /// The PDU: function code + data, without the leading address or the trailing CRC. The span points into
+  /// this frame's buffer, so it is only valid while the frame is alive.
+  std::span<const uint8_t> pdu() const { return std::span<const uint8_t>(this->data.data() + 1, this->size() - 3u); }
 };
 
 class Modbus : public uart::UARTDevice, public Component {
@@ -90,6 +97,10 @@ struct ModbusDeviceCommand {
 
   ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, const uint8_t *src, uint16_t len)
       : device(device), frame(address, src, len) {}
+  /// Build a command from a PDU span: a caller-supplied PDU, or an existing frame's own pdu() when
+  /// re-queueing a retry. Callers bound the PDU to MAX_PDU_SIZE, so the cast cannot truncate.
+  ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, std::span<const uint8_t> pdu)
+      : device(device), frame(address, pdu.data(), static_cast<uint16_t>(pdu.size())) {}
 };
 
 class ModbusClientHub : public Modbus {
