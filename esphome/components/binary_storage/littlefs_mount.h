@@ -16,10 +16,10 @@ struct LfsVfsContext;
 
 // Mounts a BinaryStorage device as a LittleFS filesystem in the ESP-IDF VFS.
 // Extends FilesystemStorage — all file operations go through POSIX/VFS after mount.
-class LittleFSMount : public storage::FilesystemStorage, public storage::MountableStorage {
+class LittleFSMount final : public storage::FilesystemStorage, public storage::MountableStorage {
  public:
   LittleFSMount() = default;
-  ~LittleFSMount();
+  ~LittleFSMount() override;
 
   // Component lifecycle
   void setup() override;
