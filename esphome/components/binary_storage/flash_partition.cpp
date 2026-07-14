@@ -355,7 +355,7 @@ storage::StorageError FlashPartition::mkdir(const char *path) {
   this->build_path_(full_path, sizeof(full_path), path);
 
   if (::mkdir(full_path, 0755) != 0)
-    return errno == EEXIST ? storage::StorageError::INVALID_ARGS : storage::StorageError::WRITE_ERROR;
+    return errno == EEXIST ? storage::StorageError::ALREADY_EXISTS : storage::StorageError::WRITE_ERROR;
 
   return storage::StorageError::OK;
 }
