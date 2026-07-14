@@ -172,12 +172,12 @@ StorageError SdSpi::unmount() {
   if (!this->is_mounted_ || this->card_ == nullptr)
     return StorageError::OK;
 
-  // Unregister before the VFS unmount below — the registry contract guarantees
-  // unregister_storage() doesn't return until any in-flight storage_worker data-plane calls
-  // against this device have drained (closing any handles the worker itself opened), so it's
-  // safe to tear the filesystem down immediately afterward.
+  // Quiesce before the VFS unmount below — same drain guarantee as unregister_storage()
+  // (no in-flight storage_worker data-plane call against this device remains, handles the
+  // worker opened are closed), but the device stays registered: registered-but-unmounted
+  // is its normal state, so there is nothing to re-register afterwards.
   if (storage::global_storage_registry != nullptr)
-    storage::global_storage_registry->unregister_storage(this);
+    storage::global_storage_registry->quiesce_storage(this);
 
   ESP_LOGI(TAG_SPI, "Syncing filesystem before unmount");
   // Closes any handles still open from user/lambda code, while the VFS is still mounted to
@@ -191,16 +191,6 @@ StorageError SdSpi::unmount() {
   sdspi_host_deinit();
   ESP_LOGI(TAG_SPI, "SD card unmounted safely");
 
-  // Re-register now that the drain above is done: registered-but-unmounted is the normal state
-  // for this device (see setup()'s comment) — unregistering here was only ever about the
-  // teardown window itself, not about removing the device from the registry permanently.
-  if (storage::global_storage_registry != nullptr)
-    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
-      // Registry full = codegen/runtime device-count mismatch: the device would be invisible
-      // to resolve_path()/consumers. Fatal — do not run with a silently missing device.
-      ESP_LOGE(TAG_SPI, "Storage registration failed");
-      this->mark_failed();
-    }
 
   return StorageError::OK;
 }
