@@ -554,11 +554,12 @@ storage::StorageError NFSClient::mount() {
 storage::StorageError NFSClient::unmount() {
   if (!this->mounted_)
     return storage::StorageError::OK;
-  // SD-card safe-eject pattern: unregister first — the registry contract guarantees
-  // unregister_storage() doesn't return until any in-flight storage_worker data-plane calls
-  // against this device have drained, so tearing the protocol state down right after is safe.
+  // Quiesce first — same drain guarantee as unregister_storage() (no in-flight
+  // storage_worker data-plane call against this device remains), but the device stays
+  // registered: registered-but-unmounted is its normal state (see setup()), so there is
+  // nothing to re-register afterwards and consumers never see it vanish.
   if (storage::global_storage_registry != nullptr)
-    storage::global_storage_registry->unregister_storage(this);
+    storage::global_storage_registry->quiesce_storage(this);
 
   this->unmount_export_(this->export_path_);
   this->close_connection_();
@@ -567,14 +568,6 @@ storage::StorageError NFSClient::unmount() {
   this->mount_state_ = MountState::IDLE;
   ESP_LOGI(TAG, "NFS unmounted");
 
-  // Re-register: registered-but-unmounted is the normal state for this device (see setup()) —
-  // unregistering above was only ever about the teardown window itself.
-  if (storage::global_storage_registry != nullptr) {
-    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
-      ESP_LOGE(TAG, "Storage registration failed");
-      this->mark_failed();
-    }
-  }
   return storage::StorageError::OK;
 }
 
