@@ -1,12 +1,28 @@
 #include "epaper_waveshare_2p9_v2.h"
 
-#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
 
 static const char *const TAG = "epaper_spi.waveshare_2p9_v2";
+
+bool EpaperWaveshare2P9V2::reset() {
+  // Partial updates need the previous frame in controller RAM. Skip SWRESET (0x12);
+  // pin reset only, matching WaveshareEPaper2P9InV2R2::reset_/display().
+  if (this->update_count_ != 0) {
+    if (this->reset_pin_ == nullptr) {
+      return true;
+    }
+    if (this->state_ == EPaperState::RESET) {
+      this->reset_pin_->digital_write(false);
+      return false;
+    }
+    this->reset_pin_->digital_write(true);
+    return true;
+  }
+  return EPaperMono::reset();
+}
 
 bool EpaperWaveshare2P9V2::initialise(bool partial) {
   if (!partial) {
@@ -17,14 +33,7 @@ bool EpaperWaveshare2P9V2::initialise(bool partial) {
     return true;
   }
 
-  // Partial path matches WaveshareEPaper2P9InV2R2::display() (SDK Rev 2.1).
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->digital_write(false);
-    delay(this->reset_duration_);  // NOLINT
-    this->reset_pin_->digital_write(true);
-    delay(this->reset_duration_);  // NOLINT
-  }
-
+  // Pin reset already done in reset(); load partial LUT + 0x37 (SDK Rev 2.1).
   this->cmd_data(0x32, this->partial_lut_, this->partial_lut_length_);
   this->cmd_data(0x37, {0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00});
   this->cmd_data(0x3C, {0x80});

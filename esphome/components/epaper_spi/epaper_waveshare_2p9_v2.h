@@ -16,6 +16,7 @@ class EpaperWaveshare2P9V2 final : public EpaperWaveshare {
   using EpaperWaveshare::EpaperWaveshare;
 
  protected:
+  bool reset() override;
   bool initialise(bool partial) override;
   void refresh_screen(bool partial) override;
   void deep_sleep() override {}
