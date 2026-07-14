@@ -91,9 +91,22 @@ void LvglComponent::set_rotation(display::DisplayRotation rotation) {
   this->rotation_ = rotation;
   if (this->is_ready()) {
     this->set_resolution_();
+    this->update_orientation_();
     lv_obj_update_layout(this->get_screen_active());
     lv_obj_invalidate(this->get_screen_active());
   }
+}
+
+void LvglComponent::set_rotation(int angle) {
+  // Normalize to [0, 360). The DisplayRotation enum values are the angles in degrees.
+  angle %= 360;
+  if (angle < 0)
+    angle += 360;
+  if (angle % 90 != 0) {
+    ESP_LOGW(TAG, "Invalid rotation angle %d; must be a multiple of 90 degrees.", angle);
+    return;
+  }
+  this->set_rotation(static_cast<display::DisplayRotation>(angle));
 }
 
 void LvglComponent::rotate_coordinates(int32_t &x, int32_t &y) const {
@@ -147,7 +160,6 @@ void LvglComponent::render_start_cb(lv_event_t *event) {
   comp->draw_start_();
 }
 
-lv_event_code_t lv_api_event;     // NOLINT
 lv_event_code_t lv_update_event;  // NOLINT
 void LvglComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -194,7 +206,6 @@ void LvglComponent::esphome_lvgl_init() {
   LV_GLOBAL_DEFAULT()->font_draw_buf_handlers.buf_free_cb = lv_free_core;
   lv_tick_set_cb([] { return millis(); });
   lv_update_event = static_cast<lv_event_code_t>(lv_event_register_id());
-  lv_api_event = static_cast<lv_event_code_t>(lv_event_register_id());
 }
 
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event) {
@@ -403,7 +414,10 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
 }
 
 void LvglComponent::flush_cb_(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p) {
-  if (!this->is_paused()) {
+  // no guard here for display busy, since LVGL will not call flush_cb until the refresh timer fires,
+  // and while the display is busy this is reset to 5 minutes. If that expires and the display is still
+  // busy there are bigger problems.
+  if (!this->paused_) {
     auto now = millis();
     this->draw_buffer_(area, reinterpret_cast<lv_color_data *>(color_p));
     ESP_LOGV(TAG, "flush_cb, area=%d/%d, %d/%d took %dms", (int) area->x1, (int) area->y1,
@@ -454,10 +468,12 @@ void LVTouchListener::update(const touchscreen::TouchPoints_t &tpoints) {
 
 #ifdef USE_LVGL_METER
 
-int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int value) {
+int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int32_t value) {
   auto *scale = lv_obj_get_parent(obj);
   auto min_value = lv_scale_get_range_min_value(scale);
-  return ((value - min_value) * lv_scale_get_angle_range(scale) / (lv_scale_get_range_max_value(scale) - min_value) +
+  auto max_value = lv_scale_get_range_max_value(scale);
+  value = clamp(value, min_value, max_value);
+  return ((value - min_value) * lv_scale_get_angle_range(scale) / (max_value - min_value) +
           lv_scale_get_rotation((scale))) %
          360;
 }
@@ -545,7 +561,7 @@ void LvSelectable::set_selected_text(const std::string &text, lv_anim_enable_t a
   auto index = std::find(this->options_.begin(), this->options_.end(), text);
   if (index != this->options_.end()) {
     this->set_selected_index(index - this->options_.begin(), anim);
-    lv_obj_send_event(this->obj, lv_api_event, nullptr);
+    lv_obj_send_event(this->obj, lv_update_event, nullptr);
   }
 }
 
@@ -572,7 +588,7 @@ void LvButtonMatrixType::set_obj(lv_obj_t *lv_obj) {
         auto key_idx = lv_buttonmatrix_get_selected_button(self->obj);
         if (key_idx == LV_BUTTONMATRIX_BUTTON_NONE)
           return;
-        if (self->key_map_.count(key_idx) != 0) {
+        if (self->key_map_.contains(key_idx)) {
           self->send_key_(self->key_map_[key_idx]);
           return;
         }
@@ -620,20 +636,20 @@ void LvKeyboardType::set_obj(lv_obj_t *lv_obj) {
 void LvglComponent::draw_end_() {
   if (this->draw_end_callback_ != nullptr)
     this->draw_end_callback_->trigger();
+  // Only reachable once the display is idle again: while busy, the display's refr_timer_ is
+  // paused (see loop()), so LVGL never renders/flushes and this event never fires.
   if (this->update_when_display_idle_) {
     for (auto *disp : this->displays_)
       disp->update();
   }
 }
 
-bool LvglComponent::is_paused() const {
-  if (this->paused_)
-    return true;
-  if (this->update_when_display_idle_) {
-    for (auto *disp : this->displays_) {
-      if (!disp->is_idle())
-        return true;
-    }
+bool LvglComponent::displays_busy_() const {
+  if (!this->update_when_display_idle_)
+    return false;
+  for (auto *disp : this->displays_) {
+    if (!disp->is_idle())
+      return true;
   }
   return false;
 }
@@ -642,26 +658,28 @@ void LvglComponent::write_random_() {
   int iterations = 6 - lv_display_get_inactive_time(this->disp_) / 60000;
   if (iterations <= 0)
     iterations = 1;
+  int16_t width = lv_display_get_horizontal_resolution(this->disp_);
+  int16_t height = lv_display_get_vertical_resolution(this->disp_);
   while (iterations-- != 0) {
-    int32_t col = random_uint32() % this->width_;
+    int32_t col = random_uint32() % width;
     col = col / this->draw_rounding * this->draw_rounding;
-    int32_t row = random_uint32() % this->height_;
+    int32_t row = random_uint32() % height;
     row = row / this->draw_rounding * this->draw_rounding;
     // size will be between 8 and 32, and a multiple of draw_rounding
     int32_t size = (random_uint32() % 25 + 8) / this->draw_rounding * this->draw_rounding;
-    lv_area_t area{col, row, col + size - 1, row + size - 1};
+    lv_area_t area{.x1 = col, .y1 = row, .x2 = col + size - 1, .y2 = row + size - 1};
     // clip to display bounds just in case
-    if (area.x2 >= this->width_)
-      area.x2 = this->width_ - 1;
-    if (area.y2 >= this->height_)
-      area.y2 = this->height_ - 1;
+    if (area.x2 >= width)
+      area.x2 = width - 1;
+    if (area.y2 >= height)
+      area.y2 = height - 1;
 
     // line_len can't exceed 1024, and minimum buffer size is 2048, so this won't overflow the buffer
     size_t line_len = lv_area_get_width(&area) * lv_area_get_height(&area) / 2;
     for (size_t i = 0; i != line_len; i++) {
-      ((uint32_t *) (this->draw_buf_))[i] = random_uint32();
+      reinterpret_cast<uint32_t *>(this->draw_buf_)[i] = random_uint32();
     }
-    this->draw_buffer_(&area, (lv_color_data *) this->draw_buf_);
+    this->draw_buffer_(&area, reinterpret_cast<lv_color_data *>(this->draw_buf_));
   }
 }
 
@@ -714,6 +732,18 @@ void LvglComponent::set_resolution_() const {
   }
   lv_display_set_resolution(this->disp_, width, height);
 }
+
+void LvglComponent::update_orientation_() {
+  // A square display is treated as landscape.
+  auto orientation = this->get_width() >= this->get_height() ? Orientation::LANDSCAPE : Orientation::PORTRAIT;
+  if (orientation == this->orientation_)
+    return;
+  this->orientation_ = orientation;
+  auto *trigger = orientation == Orientation::LANDSCAPE ? this->landscape_callback_ : this->portrait_callback_;
+  if (trigger != nullptr)
+    trigger->trigger();
+}
+
 void LvglComponent::setup() {
   auto *display = this->displays_[0];
   auto rounding = this->draw_rounding;
@@ -752,7 +782,7 @@ void LvglComponent::setup() {
   lv_display_add_event_cb(this->disp_, rounder_cb, LV_EVENT_INVALIDATE_AREA, this);
   lv_display_set_buffers(this->disp_, this->draw_buf_, nullptr, buf_bytes,
                          this->full_refresh_ ? LV_DISPLAY_RENDER_MODE_FULL : LV_DISPLAY_RENDER_MODE_PARTIAL);
-  if (this->rotation_type_ == RotationType::ROTATION_SOFTWARE) {
+  if (this->rotation_type_ == ROTATION_SOFTWARE) {
     this->rotate_buf_ = static_cast<lv_color_t *>(lv_alloc_draw_buf(buf_bytes, false));  // NOLINT
     if (this->rotate_buf_ == nullptr) {
       this->status_set_error(LOG_STR("Memory allocation failure"));
@@ -775,6 +805,8 @@ void LvglComponent::setup() {
   if (this->draw_end_callback_ != nullptr || this->update_when_display_idle_) {
     lv_display_add_event_cb(this->disp_, render_end_cb, LV_EVENT_REFR_READY, this);
   }
+  this->refr_timer_ = lv_display_get_refr_timer(this->disp_);
+  lv_timer_set_period(this->refr_timer_, this->refr_timer_period_);
 #if LV_USE_LOG
   lv_log_register_print_cb([](lv_log_level_t level, const char *buf) {
     auto next = strchr(buf, ')');
@@ -789,6 +821,7 @@ void LvglComponent::setup() {
 #endif
   this->show_page(0, LV_SCREEN_LOAD_ANIM_NONE, 0);
   lv_display_trigger_activity(this->disp_);
+  this->update_orientation_();
 }
 
 void LvglComponent::update() {
@@ -800,21 +833,32 @@ void LvglComponent::update() {
 }
 
 void LvglComponent::loop() {
-  if (this->is_paused()) {
-    if (this->paused_ && this->show_snow_)
+  if (this->paused_) {
+    if (this->show_snow_)
       this->write_random_();
-  } else {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    auto now = millis();
-    lv_timer_handler();
-    auto elapsed = millis() - now;
-    if (elapsed > 15) {
-      ESP_LOGV(TAG, "lv_timer_handler took %dms", (int) (millis() - now));
-    }
-#else
-    lv_timer_handler();
-#endif
+    return;
   }
+  // Pause/resume the display's own refresh timer to track its busy state. While paused, LVGL
+  // still keeps track of invalidated areas but won't render or flush them, so nothing needs to
+  // be discarded or replayed: once resumed, the accumulated areas are simply drawn as normal.
+  // Input events and other timers keep being processed below regardless of this state.
+  if (this->update_when_display_idle_) {
+    bool busy = this->displays_busy_();
+    if (busy && !this->refr_timer_paused_) {
+      this->refr_timer_paused_ = true;
+      // calling lv_timer_pause() here would be ineffective; LVGL pauses and resumes the timer based on its own internal
+      // state, which is not aware of the display's busy state. Instead, we extend the timer period to avoid it firing
+      // while the display is busy.
+      lv_timer_set_period(this->refr_timer_, 5 * 60 * 1000);
+    } else if (!busy && this->refr_timer_paused_) {
+      this->refr_timer_paused_ = false;
+      lv_timer_set_period(this->refr_timer_, this->refr_timer_period_);
+      // Don't wait for the timer's next natural period: refresh right away now that the
+      // display is idle again.
+      lv_timer_ready(this->refr_timer_);
+    }
+  }
+  lv_timer_handler();
 }
 
 #ifdef USE_LVGL_ANIMIMG
@@ -862,6 +906,46 @@ void lv_scale_draw_event_cb(lv_event_t *e, int16_t range_start, int16_t range_en
 }
 #endif  // USE_LVGL_SCALE
 
+#ifdef USE_LVGL_GRADIENT
+/**
+ *
+ * @param dsc The gradient descriptor containing the color stops
+ * @param pos The current position to calculate the color for
+ * @return The color for the given position
+ */
+
+lv_color_t lv_grad_calculate_color(const lv_grad_dsc_t *dsc, int32_t pos) {
+  if (dsc->stops_count == 0)
+    return lv_color_black();
+  if (dsc->stops_count == 1 || pos <= dsc->stops[0].frac)
+    return dsc->stops[0].color;
+  if (pos >= dsc->stops[dsc->stops_count - 1].frac)
+    return dsc->stops[dsc->stops_count - 1].color;
+  int i = 1;
+  while (i < dsc->stops_count && dsc->stops[i].frac < pos)
+    i++;
+  auto *stop1 = &dsc->stops[i - 1];
+  auto *stop2 = &dsc->stops[i];
+  int32_t range = stop2->frac - stop1->frac;
+  int32_t offset = pos - stop1->frac;
+  return lv_color_mix(stop2->color, stop1->color, range == 0 ? 0 : (offset * 255) / range);
+}
+#endif  // USE_LVGL_GRADIENT
+
+lv_point_t LvglComponent::get_touch_relative_to_obj(lv_obj_t *obj) {
+  auto *indev = lv_indev_get_act();
+  if (indev == nullptr) {
+    return {INT32_MAX, INT32_MAX};
+  }
+  lv_point_t point;
+  lv_indev_get_point(indev, &point);
+  lv_area_t coords;
+  lv_obj_get_coords(obj, &coords);
+  point.x -= coords.x1;
+  point.y -= coords.y1;
+  return point;
+}
+
 static void lv_container_constructor(const lv_obj_class_t *class_p, lv_obj_t *obj) {
   LV_TRACE_OBJ_CREATE("begin");
   LV_UNUSED(class_p);
@@ -887,7 +971,7 @@ void lv_mem_init() {}
 
 void lv_mem_deinit() {}
 
-#if defined(USE_HOST) || defined(USE_RP2040) || defined(USE_ESP8266)
+#if defined(USE_HOST) || defined(USE_RP2) || defined(USE_ESP8266)
 void *lv_malloc_core(size_t size) {
   auto *ptr = malloc(size);  // NOLINT
   if (ptr == nullptr) {

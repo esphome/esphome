@@ -1,0 +1,8 @@
+command_line_substitutions:
+  subs_file: 15-substitutions_inc
+
+substitutions: !include ${subs_file}.yaml
+
+wifi:
+  ssid: main_ssid
+  password: $wifi_password

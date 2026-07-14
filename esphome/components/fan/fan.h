@@ -8,8 +8,7 @@
 #include "esphome/core/string_ref.h"
 #include "fan_traits.h"
 
-namespace esphome {
-namespace fan {
+namespace esphome::fan {
 
 #define LOG_FAN(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -199,5 +198,4 @@ class Fan : public EntityBase {
   const char *preset_mode_{nullptr};
 };
 
-}  // namespace fan
-}  // namespace esphome
+}  // namespace esphome::fan

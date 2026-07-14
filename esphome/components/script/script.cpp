@@ -1,8 +1,7 @@
 #include "script.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace script {
+namespace esphome::script {
 
 static const char *const TAG = "script";
 
@@ -16,5 +15,4 @@ void ScriptLogger::esp_log_(int level, int line, const char *format, const char 
 }
 #endif
 
-}  // namespace script
-}  // namespace esphome
+}  // namespace esphome::script

@@ -5,8 +5,7 @@
 
 #include "weikai_spi.h"
 
-namespace esphome {
-namespace weikai_spi {
+namespace esphome::weikai_spi {
 using namespace weikai;
 static const char *const TAG = "weikai_spi";
 
@@ -187,5 +186,4 @@ void WeikaiComponentSPI::dump_config() {
   }
 }
 
-}  // namespace weikai_spi
-}  // namespace esphome
+}  // namespace esphome::weikai_spi

@@ -3,6 +3,7 @@ from pathlib import Path
 
 from esphome import core, external_files
 import esphome.codegen as cg
+from esphome.components.const import CONF_STATE_SAVE_INTERVAL
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -13,6 +14,7 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@neffs", "@kbx81"]
+CONFLICTS_WITH = ["bme680_bsec"]
 
 DOMAIN = "bme68x_bsec2"
 
@@ -23,7 +25,6 @@ CONF_ALGORITHM_OUTPUT = "algorithm_output"
 CONF_BME68X_BSEC2_ID = "bme68x_bsec2_id"
 CONF_IAQ_MODE = "iaq_mode"
 CONF_OPERATING_AGE = "operating_age"
-CONF_STATE_SAVE_INTERVAL = "state_save_interval"
 CONF_SUPPLY_VOLTAGE = "supply_voltage"
 
 bme68x_bsec2_ns = cg.esphome_ns.namespace("bme68x_bsec2")
@@ -168,10 +169,12 @@ async def to_code_base(config):
     path = _compute_local_file_path(_compute_url(config))
 
     try:
-        with open(path, encoding="utf-8") as f:
+        with path.open(encoding="utf-8") as f:
             bsec2_iaq_config = f.read()
     except Exception as e:
-        raise core.EsphomeError(f"Could not open binary configuration file {path}: {e}")
+        raise core.EsphomeError(
+            f"Could not open binary configuration file {path}: {e}"
+        ) from e
 
     # Convert retrieved BSEC2 config to an array of ints
     rhs = [int(x) for x in bsec2_iaq_config.split(",")]

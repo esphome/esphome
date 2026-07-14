@@ -1,8 +1,7 @@
 #include "sht3xd.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sht3xd {
+namespace esphome::sht3xd {
 
 static const char *const TAG = "sht3xd";
 
@@ -82,5 +81,4 @@ void SHT3XDComponent::update() {
   });
 }
 
-}  // namespace sht3xd
-}  // namespace esphome
+}  // namespace esphome::sht3xd

@@ -12,8 +12,7 @@
 #include <algorithm>
 #include <cstring>
 
-namespace esphome {
-namespace resampler {
+namespace esphome::resampler {
 
 static const UBaseType_t RESAMPLER_TASK_PRIORITY = 1;
 
@@ -41,11 +40,19 @@ enum ResamplingEventGroupBits : uint32_t {
 };
 
 void ResamplerSpeaker::dump_config() {
-  ESP_LOGCONFIG(TAG,
-                "Resampler Speaker:\n"
-                "  Target Bits Per Sample: %u\n"
-                "  Target Sample Rate: %" PRIu32 " Hz",
-                this->target_bits_per_sample_, this->target_sample_rate_);
+  if (this->passthrough_bits_per_sample_) {
+    ESP_LOGCONFIG(TAG,
+                  "Resampler Speaker:\n"
+                  "  Target Bits Per Sample: passthrough\n"
+                  "  Target Sample Rate: %" PRIu32 " Hz",
+                  this->target_sample_rate_);
+  } else {
+    ESP_LOGCONFIG(TAG,
+                  "Resampler Speaker:\n"
+                  "  Target Bits Per Sample: %" PRIu8 "\n"
+                  "  Target Sample Rate: %" PRIu32 " Hz",
+                  this->target_bits_per_sample_, this->target_sample_rate_);
+  }
 }
 
 void ResamplerSpeaker::setup() {
@@ -227,7 +234,7 @@ size_t ResamplerSpeaker::play(const uint8_t *data, size_t length, TickType_t tic
   if ((this->output_speaker_->is_running()) && (!this->requires_resampling_())) {
     bytes_written = this->output_speaker_->play(data, length, ticks_to_wait);
   } else {
-    std::shared_ptr<RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
     if (temp_ring_buffer) {
       // Only write to the ring buffer if the reference is valid
       bytes_written = temp_ring_buffer->write_without_replacement(data, length, ticks_to_wait);
@@ -254,8 +261,12 @@ void ResamplerSpeaker::send_command_(uint32_t command_bit, bool wake_loop) {
 void ResamplerSpeaker::start() { this->send_command_(ResamplingEventGroupBits::COMMAND_START, true); }
 
 esp_err_t ResamplerSpeaker::start_() {
-  this->target_stream_info_ = audio::AudioStreamInfo(
-      this->target_bits_per_sample_, this->audio_stream_info_.get_channels(), this->target_sample_rate_);
+  // In passthrough mode, the output keeps the input's bits per sample so only the sample rate is resampled.
+  const uint8_t target_bits_per_sample = this->passthrough_bits_per_sample_
+                                             ? this->audio_stream_info_.get_bits_per_sample()
+                                             : this->target_bits_per_sample_;
+  this->target_stream_info_ = audio::AudioStreamInfo(target_bits_per_sample, this->audio_stream_info_.get_channels(),
+                                                     this->target_sample_rate_);
 
   this->output_speaker_->set_audio_stream_info(this->target_stream_info_);
   this->output_speaker_->start();
@@ -287,7 +298,7 @@ void ResamplerSpeaker::finish() { this->send_command_(ResamplingEventGroupBits::
 bool ResamplerSpeaker::has_buffered_data() const {
   bool has_ring_buffer_data = false;
   if (this->requires_resampling_()) {
-    std::shared_ptr<RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
     if (temp_ring_buffer) {
       has_ring_buffer_data = (temp_ring_buffer->available() > 0);
     }
@@ -306,7 +317,11 @@ void ResamplerSpeaker::set_volume(float volume) {
 }
 
 bool ResamplerSpeaker::requires_resampling_() const {
-  return (this->audio_stream_info_.get_sample_rate() != this->target_sample_rate_) ||
+  if (this->audio_stream_info_.get_sample_rate() != this->target_sample_rate_) {
+    return true;
+  }
+  // In passthrough mode the bits per sample always matches the input, so it never forces resampling.
+  return !this->passthrough_bits_per_sample_ &&
          (this->audio_stream_info_.get_bits_per_sample() != this->target_bits_per_sample_);
 }
 
@@ -324,8 +339,8 @@ void ResamplerSpeaker::resample_task(void *params) {
                                      this_resampler->taps_, this_resampler->filters_);
 
     if (err == ESP_OK) {
-      std::shared_ptr<RingBuffer> temp_ring_buffer =
-          RingBuffer::create(this_resampler->audio_stream_info_.ms_to_bytes(this_resampler->buffer_duration_ms_));
+      std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(
+          this_resampler->audio_stream_info_.ms_to_bytes(this_resampler->buffer_duration_ms_));
 
       if (!temp_ring_buffer) {
         err = ESP_ERR_NO_MEM;
@@ -373,7 +388,6 @@ void ResamplerSpeaker::resample_task(void *params) {
   vTaskSuspend(nullptr);  // Suspend this task indefinitely until the loop method deletes it
 }
 
-}  // namespace resampler
-}  // namespace esphome
+}  // namespace esphome::resampler
 
 #endif

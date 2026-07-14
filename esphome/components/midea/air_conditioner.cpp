@@ -7,9 +7,7 @@
 #include <cmath>
 #include <cstdint>
 
-namespace esphome {
-namespace midea {
-namespace ac {
+namespace esphome::midea::ac {
 
 static void set_sensor(Sensor *sensor, float value) {
   if (sensor != nullptr && (!sensor->has_state() || sensor->get_raw_state() != value))
@@ -132,8 +130,8 @@ ClimateTraits AirConditioner::traits() {
 void AirConditioner::dump_config() {
   ESP_LOGCONFIG(Constants::TAG,
                 "MideaDongle:\n"
-                "  [x] Period: %dms\n"
-                "  [x] Response timeout: %dms\n"
+                "  [x] Period: %" PRIu32 "ms\n"
+                "  [x] Response timeout: %" PRIu32 "ms\n"
                 "  [x] Request attempts: %d",
                 this->base_.getPeriod(), this->base_.getTimeout(), this->base_.getNumAttempts());
 #ifdef USE_REMOTE_TRANSMITTER
@@ -197,8 +195,6 @@ void AirConditioner::do_display_toggle() {
   }
 }
 
-}  // namespace ac
-}  // namespace midea
-}  // namespace esphome
+}  // namespace esphome::midea::ac
 
 #endif  // USE_ARDUINO

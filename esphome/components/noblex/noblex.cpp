@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace noblex {
+namespace esphome::noblex {
 
 static const char *const TAG = "noblex.climate";
 
@@ -299,5 +298,4 @@ bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
   return true;
 }  // end on_receive()
 
-}  // namespace noblex
-}  // namespace esphome
+}  // namespace esphome::noblex

@@ -1,8 +1,7 @@
 #include "pca9554.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pca9554 {
+namespace esphome::pca9554 {
 
 // for 16 bit expanders, these addresses will be doubled.
 const uint8_t INPUT_REG = 0;
@@ -50,8 +49,10 @@ void IRAM_ATTR PCA9554Component::gpio_intr(PCA9554Component *arg) { arg->enable_
 void PCA9554Component::loop() {
   // Invalidate the cache so the next digital_read() triggers a fresh I2C read
   this->reset_pin_cache_();
-  if (this->interrupt_pin_ != nullptr) {
-    // Interrupt-driven: disable loop until next interrupt fires
+  // Only disable the loop once INT has actually gone HIGH. Input transitions that straddle the
+  // I2C read leave INT asserted without re-firing a falling edge, which would strand us with
+  // stale state forever; keep looping until the line is released so we self-heal.
+  if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read()) {
     this->disable_loop();
   }
 }
@@ -150,5 +151,4 @@ size_t PCA9554GPIOPin::dump_summary(char *buffer, size_t len) const {
   return buf_append_printf(buffer, len, 0, "%u via PCA9554", this->pin_);
 }
 
-}  // namespace pca9554
-}  // namespace esphome
+}  // namespace esphome::pca9554
