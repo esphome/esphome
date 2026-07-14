@@ -98,6 +98,7 @@ def _validate_mount_path(value):
 
 CONF_AUTO_FORMAT = "auto_format"
 CONF_PARTITION_LABEL = "partition_label"
+CONF_PARTITION_SIZE = "partition_size"
 CONF_FILESYSTEM = "filesystem"
 CONF_STORAGE_DEVICE = "storage_device"
 CONF_ERASE_SIZE = "erase_size"
@@ -287,6 +288,13 @@ FLASH_PARTITION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(FlashPartition),
         cv.Required(CONF_PARTITION_LABEL): cv.string,
+        # Size of the data partition that gets appended to the generated partition table.
+        # Must be 4KB aligned. Ignored when the esp32 config supplies its own partitions CSV
+        # (the generated table is not used then) — in that case the CSV must contain a data
+        # partition with this label itself.
+        cv.Optional(CONF_PARTITION_SIZE, default="512KB"): cv.All(
+            cv.validate_bytes, cv.Range(min=0x1000)
+        ),
         cv.Optional(CONF_MOUNT_PATH, default="/littlefs"): _validate_mount_path,
         cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
         cv.Optional(CONF_STORAGE_ID): cv.string,
@@ -403,6 +411,20 @@ async def to_code(config):
 
         var = cg.new_Pvariable(config[CONF_ID])
         await cg.register_component(var, config)
+
+        # Append the backing data partition to the generated partition table so the
+        # label actually exists at runtime (esp_littlefs locates it by LABEL with
+        # subtype ANY). add_partition() raises on duplicate names / invalid values —
+        # surface that as a config error instead of a traceback.
+        from esphome.components.esp32 import add_partition
+
+        size = config[CONF_PARTITION_SIZE]
+        if size % 0x1000 != 0:
+            size = (size + 0xFFF) & ~0xFFF
+        try:
+            add_partition(config[CONF_PARTITION_LABEL], "data", "littlefs", size)
+        except ValueError as err:
+            raise cv.Invalid(str(err)) from err
 
         cg.add(var.set_partition_label(config[CONF_PARTITION_LABEL]))
         cg.add(var.set_mount_path(config[CONF_MOUNT_PATH]))

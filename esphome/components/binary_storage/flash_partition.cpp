@@ -304,12 +304,18 @@ storage::StorageError FlashPartition::list_dir(const char *path,
 
     if (!fs_entry.is_dir) {
       char entry_path[STORAGE_MAX_PATH_LEN];
-      if (strlen(full_path) + 1 + strlen(entry->d_name) + 1 > STORAGE_MAX_PATH_LEN) {
+      const size_t base_len = strlen(full_path);
+      const size_t name_len = strlen(entry->d_name);
+      if (base_len + 1 + name_len + 1 > sizeof(entry_path)) {
         ESP_LOGE(TAG, "Path too long: %s/%s", full_path, entry->d_name);
         closedir(dir);
         return storage::StorageError::INVALID_ARGS;
       }
-      snprintf(entry_path, sizeof(entry_path), "%s/%s", full_path, entry->d_name);
+      // Exact-length join (the guard above makes it provably fitting) — snprintf here
+      // draws -Wformat-truncation because GCC cannot see the runtime length check.
+      memcpy(entry_path, full_path, base_len);
+      entry_path[base_len] = '/';
+      memcpy(entry_path + base_len + 1, entry->d_name, name_len + 1);
       struct stat st;
       if (::stat(entry_path, &st) == 0)
         fs_entry.size = (size_t) st.st_size;
