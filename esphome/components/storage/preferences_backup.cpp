@@ -362,40 +362,42 @@ bool preferences_export_to_storage(const char *path, const char *format, const P
     auto buf = json::build_json([&](JsonObject root) {
       root["version"] = 1;
       JsonObject prefs = root["preferences"].to<JsonObject>();
-      exported = collect_entries(handle, sel, count, restrict_to_selection, [&](const NvsEntry &e, const PrefSelection *s) {
-        char key_str[16];
-        snprintf(key_str, sizeof(key_str), "%" PRIu32, e.key);
-        std::string value;
-        if (s != nullptr) {
-          encode_value(value, *s, e.blob, e.len);
-        } else {
-          value = HEX_PREFIX;
-          append_hex(value, e.blob, e.len);
-        }
-        // Values as strings uniformly (incl. "hex:..."): keeps import
-        // parsing symmetric and avoids float round-trip surprises.
-        prefs[s != nullptr ? s->name : key_str] = value;
-      });
+      exported =
+          collect_entries(handle, sel, count, restrict_to_selection, [&](const NvsEntry &e, const PrefSelection *s) {
+            char key_str[16];
+            snprintf(key_str, sizeof(key_str), "%" PRIu32, e.key);
+            std::string value;
+            if (s != nullptr) {
+              encode_value(value, *s, e.blob, e.len);
+            } else {
+              value = HEX_PREFIX;
+              append_hex(value, e.blob, e.len);
+            }
+            // Values as strings uniformly (incl. "hex:..."): keeps import
+            // parsing symmetric and avoids float round-trip surprises.
+            prefs[s != nullptr ? s->name : key_str] = value;
+          });
     });
     out.assign(buf.data(), buf.size());
   } else {
     out += "# ESPHome preferences export (kv v1)\n";
     out += "# <global id or numeric NVS key>=<typed value or hex:...>\n";
-    exported = collect_entries(handle, sel, count, restrict_to_selection, [&](const NvsEntry &e, const PrefSelection *s) {
-      if (s != nullptr) {
-        out += s->name;
-        out += '=';
-        encode_value(out, *s, e.blob, e.len);
-      } else {
-        char key_str[16];
-        snprintf(key_str, sizeof(key_str), "%" PRIu32, e.key);
-        out += key_str;
-        out += '=';
-        out += HEX_PREFIX;
-        append_hex(out, e.blob, e.len);
-      }
-      out += '\n';
-    });
+    exported =
+        collect_entries(handle, sel, count, restrict_to_selection, [&](const NvsEntry &e, const PrefSelection *s) {
+          if (s != nullptr) {
+            out += s->name;
+            out += '=';
+            encode_value(out, *s, e.blob, e.len);
+          } else {
+            char key_str[16];
+            snprintf(key_str, sizeof(key_str), "%" PRIu32, e.key);
+            out += key_str;
+            out += '=';
+            out += HEX_PREFIX;
+            append_hex(out, e.blob, e.len);
+          }
+          out += '\n';
+        });
   }
   nvs_close(handle);
 
@@ -428,8 +430,7 @@ static bool import_one(nvs_handle_t handle, const char *name, size_t name_len, c
     buf[name_len] = '\0';
     char *end = nullptr;
     unsigned long v = strtoul(buf, &end, 10);
-    if (end == nullptr || *end != '\0' ||
-        (restrict_to_selection && find_by_key(v, sel, count) == nullptr)) {
+    if (end == nullptr || *end != '\0' || (restrict_to_selection && find_by_key(v, sel, count) == nullptr)) {
       skipped++;  // unknown name, or filtered out by the configured selection
       return true;
     }
@@ -538,8 +539,8 @@ bool preferences_import_from_storage(const char *path, const char *format, bool 
         skipped++;
         continue;
       }
-      ok = import_one(handle, line, eq - line, eq + 1, line_len - (eq + 1 - line), sel, count,
-                      restrict_to_selection, imported, skipped);
+      ok = import_one(handle, line, eq - line, eq + 1, line_len - (eq + 1 - line), sel, count, restrict_to_selection,
+                      imported, skipped);
     }
   }
   if (ok && (err = nvs_commit(handle)) != ESP_OK) {

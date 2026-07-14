@@ -41,10 +41,10 @@ struct PrefSelection {
 // entries round-trip), otherwise from every restore_value global in the
 // config (restrict == false: the whole namespace round-trips, table entries
 // render readable, unknown keys — entity states etc. — fall back to hex).
-bool preferences_export_to_storage(const char *path, const char *format, const PrefSelection *selection,
-                                   size_t count, bool restrict_to_selection);
-bool preferences_import_from_storage(const char *path, const char *format, bool reboot,
-                                     const PrefSelection *selection, size_t count, bool restrict_to_selection);
+bool preferences_export_to_storage(const char *path, const char *format, const PrefSelection *selection, size_t count,
+                                   bool restrict_to_selection);
+bool preferences_import_from_storage(const char *path, const char *format, bool reboot, const PrefSelection *selection,
+                                     size_t count, bool restrict_to_selection);
 
 }  // namespace esphome::storage
 

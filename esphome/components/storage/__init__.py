@@ -655,11 +655,7 @@ async def _build_preferences_action(config, action_id, template_arg, args):
                 + "}"
             )
         )
-        cg.add(
-            var.set_selection(
-                cg.RawExpression(arr), len(entries), restrict
-            )
-        )
+        cg.add(var.set_selection(cg.RawExpression(arr), len(entries), restrict))
     return var
 
 
