@@ -15,7 +15,7 @@ class ZBEvent {
  public:
   ZBEvent(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute) {
     this->callback_id_ = EZB_ZCL_CORE_SET_ATTR_VALUE_CB_ID;
-    this->init_set_attr_value_data(info, attribute);
+    this->init_set_attr_value_data_(info, attribute);
   }
 
   ~ZBEvent() { this->release(); }
@@ -40,7 +40,7 @@ class ZBEvent {
   void load_set_attr_value_event(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute) {
     this->release();
     this->callback_id_ = EZB_ZCL_CORE_SET_ATTR_VALUE_CB_ID;
-    this->init_set_attr_value_data(info, attribute);
+    this->init_set_attr_value_data_(info, attribute);
   }
 
   // Disable copy to prevent double-delete
@@ -48,7 +48,7 @@ class ZBEvent {
   ZBEvent &operator=(const ZBEvent &) = delete;
 
   union {
-    struct set_attr_event {
+    struct SetAttrEvent {
       ezb_zcl_message_info_t info;
       ezb_zcl_attribute_t attribute;
       uint8_t inline_data[4];  // For small data types (<= 32 bit)
@@ -58,7 +58,7 @@ class ZBEvent {
   ezb_zcl_core_action_callback_id_t callback_id_;
 
  private:
-  void init_set_attr_value_data(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute) {
+  void init_set_attr_value_data_(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute) {
     this->event_.set_attr.info = info;
     this->event_.set_attr.attribute = attribute;
     // get attribute.data.value with correct type

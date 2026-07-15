@@ -115,14 +115,14 @@ template<typename T> void ZigbeeAttribute::connect(binary_sensor::BinarySensor *
 #endif
 #ifdef USE_SWITCH
 template<typename T> void ZigbeeAttribute::connect(switch_::Switch *device) {
-  this->add_on_value_callback([=, this](ezb_zcl_attribute_t attribute) {
+  this->add_on_value_callback([device](ezb_zcl_attribute_t attribute) {
     if (*(T *) attribute.data.value) {
       device->turn_on();
     } else {
       device->turn_off();
     }
   });
-  device->add_on_state_callback([=, this](bool value) { this->set_attr((T) (this->scale_ * value)); });
+  device->add_on_state_callback([this](bool value) { this->set_attr((T) (this->scale_ * value)); });
 }
 #endif
 
