@@ -21,10 +21,14 @@ output:
     nonvolatile_write_delay: 5s
     initial_value: 0.5
 
+  # TCON1 coverage: terminal flags on a channel D output exercise the
+  # calc_terminal_connector_byte_() write path for wipers 2/3.
   - platform: mcp4461
     id: digipot_wiper_4
     mcp4461_id: mcp4461_digipot_01
     channel: D
+    terminal_a: false
+    terminal_w: false
 
   - platform: mcp4461
     id: digipot_wiper_5
@@ -32,15 +36,6 @@ output:
     channel: A
     terminal_a: false
     terminal_b: false
-    terminal_w: false
-
-  # TCON1 coverage: terminal flags on a channel C output exercise the
-  # calc_terminal_connector_byte_() write path for wipers 2/3.
-  - platform: mcp4461
-    id: digipot_wiper_6
-    mcp4461_id: mcp4461_digipot_01
-    channel: C
-    terminal_a: false
     terminal_w: false
 
   # Bare NV-channel output — the pre-existing persistence workaround; must

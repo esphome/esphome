@@ -23,8 +23,11 @@ void Mcp4461Component::setup() {
       uint16_t initial_state = static_cast<uint16_t>(*init_val * 256.0f);
       if (i > 3) {
         // NV wiper: an unconditional write would cost one EEPROM erase/write cycle on EVERY
-        // boot. Only write when the stored value actually differs.
-        if (this->read_wiper_level_(i) != initial_state) {
+        // boot. Only write when the stored value actually differs — and always write when
+        // the read itself failed (a failed read returns 0, which would silently skip the
+        // write whenever initial_value is 0).
+        bool read_ok = false;
+        if (this->read_wiper_level_(i, &read_ok) != initial_state || !read_ok) {
           this->write_wiper_level_(i, initial_state);
         }
       } else {
@@ -159,6 +162,11 @@ void Mcp4461Component::process_nonvolatile_dirty_() {
     if (this->store_level_nonvolatile_(static_cast<Mcp4461WiperIdx>(i)) || this->write_protected_ ||
         this->reg_[i].wiper_lock_active) {
       this->reg_[i].nonvolatile_dirty = false;
+    } else {
+      // Transient failure (e.g. I2C error): without this, the retry fires on every single
+      // loop() iteration, spamming a warning each time. Re-arming the timestamp reuses the
+      // stability delay as a natural retry backoff.
+      this->reg_[i].last_level_change_ms = now;
     }
   }
 }
@@ -170,6 +178,9 @@ bool Mcp4461Component::store_level_nonvolatile_(Mcp4461WiperIdx wiper) {
   }
   uint8_t wiper_idx = static_cast<uint8_t>(wiper);
   if (wiper_idx > 3) {
+    // E-H ARE the nonvolatile registers — keep this consistent with the other guards
+    // instead of failing silently (reachable via the store_nonvolatile action).
+    ESP_LOGW(TAG, "%s", LOG_STR_ARG(this->get_message_string(MCP4461_PROHIBITED_FOR_NONVOLATILE)));
     return false;
   }
   if (this->reg_[wiper_idx].wiper_lock_active) {
@@ -177,8 +188,11 @@ bool Mcp4461Component::store_level_nonvolatile_(Mcp4461WiperIdx wiper) {
     return false;
   }
   const uint16_t level = this->reg_[wiper_idx].state;
-  // Skip the EEPROM cycle entirely when the NV register already holds the value.
-  if (this->read_wiper_level_(wiper_idx + 4) == level) {
+  // Skip the EEPROM cycle entirely when the NV register already holds the value. A failed
+  // read must NOT count as a match (it returns 0): fall through to the write instead — if
+  // the bus is really down, the write fails too and the dirty flag stays set for a retry.
+  bool read_ok = false;
+  if (this->read_wiper_level_(wiper_idx + 4, &read_ok) == level && read_ok) {
     return true;
   }
   ESP_LOGV(TAG, "Persisting wiper %u level %u to nonvolatile register", wiper_idx, level);
@@ -285,7 +299,10 @@ uint16_t Mcp4461Component::get_wiper_level_(Mcp4461WiperIdx wiper) {
   return this->read_wiper_level_(wiper_idx);
 }
 
-uint16_t Mcp4461Component::read_wiper_level_(uint8_t wiper_idx) {
+uint16_t Mcp4461Component::read_wiper_level_(uint8_t wiper_idx, bool *ok) {
+  if (ok != nullptr) {
+    *ok = false;
+  }
   uint8_t addr = this->get_wiper_address_(wiper_idx);
   uint8_t reg = addr | static_cast<uint8_t>(Mcp4461Commands::READ);
   if (wiper_idx > 3) {
@@ -299,6 +316,9 @@ uint16_t Mcp4461Component::read_wiper_level_(uint8_t wiper_idx) {
     this->status_set_warning();
     ESP_LOGW(TAG, "Error fetching %swiper %u value", (wiper_idx > 3) ? "nonvolatile " : "", wiper_idx);
     return 0;
+  }
+  if (ok != nullptr) {
+    *ok = true;
   }
   return buf;
 }

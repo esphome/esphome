@@ -113,7 +113,10 @@ class Mcp4461Component final : public Component, public i2c::I2CDevice {
   bool read_16_(uint8_t address, uint16_t *buf);
   void update_write_protection_status_();
   uint8_t get_wiper_address_(uint8_t wiper);
-  uint16_t read_wiper_level_(uint8_t wiper);
+  /// Read a wiper register. On I2C failure returns 0 — callers that must distinguish
+  /// a real 0 from a failed read pass `ok` (added for the NV read-compare paths, where
+  /// acting on a failed read would skip a required write or drop a pending persist).
+  uint16_t read_wiper_level_(uint8_t wiper, bool *ok = nullptr);
   uint8_t get_status_register_();
   uint16_t get_wiper_level_(Mcp4461WiperIdx wiper);
   bool set_wiper_level_(Mcp4461WiperIdx wiper, uint16_t value);
@@ -160,7 +163,7 @@ class Mcp4461Component final : public Component, public i2c::I2CDevice {
       case MCP4461_STATUS_OK:
         return LOG_STR("Status OK");
       case MCP4461_PROHIBITED_FOR_NONVOLATILE:
-        return LOG_STR("Increment/decrement and terminal control are prohibited on the nonvolatile wipers (E-H).");
+        return LOG_STR("Increment/decrement, store, and terminal control are prohibited on the nonvolatile wipers (E-H).");
       default:
         return LOG_STR("Unknown");
     }
