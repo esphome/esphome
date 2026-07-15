@@ -12,13 +12,6 @@
 
 #ifdef USE_ESP32
 
-#include <esp_idf_version.h>
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-// mbedtls 4.0 (IDF 6.0) removed the legacy mbedtls AES API.
-// Use the PSA Crypto API instead.
-#define USE_BLE_TRACKER_PSA_AES
-#endif
-
 #include <esp_bt_defs.h>
 #include <esp_gap_ble_api.h>
 #include <esp_gattc_api.h>
@@ -26,6 +19,8 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
+#include "esphome/components/ble_device_base/ble_device.h"
+#include "esphome/components/ble_device_base/ble_hub.h"
 #include "esphome/components/esp32_ble/ble.h"
 #include "esphome/components/esp32_ble/ble_uuid.h"
 #include "esphome/components/esp32_ble/ble_scan_result.h"
@@ -38,7 +33,7 @@ namespace esphome::esp32_ble_tracker {
 
 using namespace esp32_ble;
 
-using adv_data_t = std::vector<uint8_t>;
+using adv_data_t = ble_device_base::adv_data_t;
 
 enum AdvertisementParserType {
   PARSED_ADVERTISEMENTS,
@@ -46,105 +41,27 @@ enum AdvertisementParserType {
 };
 
 #ifdef USE_ESP32_BLE_UUID
-struct ServiceData {
-  ESPBTUUID uuid;
-  adv_data_t data;
-};
+using ServiceData = ble_device_base::ServiceData;
 #endif
 
 #ifdef USE_ESP32_BLE_DEVICE
-class ESPBLEiBeacon {
- public:
-  ESPBLEiBeacon() { memset(&this->beacon_data_, 0, sizeof(this->beacon_data_)); }
-  ESPBLEiBeacon(const uint8_t *data);
-  static optional<ESPBLEiBeacon> from_manufacturer_data(const ServiceData &data);
-
-  uint16_t get_major() { return byteswap(this->beacon_data_.major); }
-  uint16_t get_minor() { return byteswap(this->beacon_data_.minor); }
-  int8_t get_signal_power() { return this->beacon_data_.signal_power; }
-  ESPBTUUID get_uuid() { return ESPBTUUID::from_raw_reversed(this->beacon_data_.proximity_uuid); }
-
- protected:
-  struct {
-    uint8_t sub_type;
-    uint8_t length;
-    uint8_t proximity_uuid[16];
-    uint16_t major;
-    uint16_t minor;
-    int8_t signal_power;
-  } PACKED beacon_data_;
-};
-
-class ESPBTDevice {
- public:
-  void parse_scan_rst(const BLEScanResult &scan_result);
-
-  std::string address_str() const;
-
-  /// Format MAC address into provided buffer, returns pointer to buffer for convenience
-  const char *address_str_to(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) const {
-    format_mac_addr_upper(this->address_, buf.data());
-    return buf.data();
-  }
-
-  uint64_t address_uint64() const;
-
-  const uint8_t *address() const { return address_; }
-
-  esp_ble_addr_type_t get_address_type() const { return this->address_type_; }
-  int get_rssi() const { return rssi_; }
-  const std::string &get_name() const { return this->name_; }
-
-  const std::vector<int8_t> &get_tx_powers() const { return tx_powers_; }
-
-  const optional<uint16_t> &get_appearance() const { return appearance_; }
-  const optional<uint8_t> &get_ad_flag() const { return ad_flag_; }
-  const std::vector<ESPBTUUID> &get_service_uuids() const { return service_uuids_; }
-
-  const std::vector<ServiceData> &get_manufacturer_datas() const { return manufacturer_datas_; }
-
-  const std::vector<ServiceData> &get_service_datas() const { return service_datas_; }
-
-  // Exposed through a function for use in lambdas
-  const BLEScanResult &get_scan_result() const { return *scan_result_; }
-
-  bool resolve_irk(const uint8_t *irk) const;
-
-  optional<ESPBLEiBeacon> get_ibeacon() const {
-    for (auto &it : this->manufacturer_datas_) {
-      auto res = ESPBLEiBeacon::from_manufacturer_data(it);
-      if (res.has_value())
-        return res;
-    }
-    return {};
-  }
-
- protected:
-  void parse_adv_(const uint8_t *payload, uint8_t len);
-
-  esp_bd_addr_t address_{
-      0,
-  };
-  esp_ble_addr_type_t address_type_{BLE_ADDR_TYPE_PUBLIC};
-  int rssi_{0};
-  std::string name_{};
-  std::vector<int8_t> tx_powers_{};
-  optional<uint16_t> appearance_{};
-  optional<uint8_t> ad_flag_{};
-  std::vector<ESPBTUUID> service_uuids_{};
-  std::vector<ServiceData> manufacturer_datas_{};
-  std::vector<ServiceData> service_datas_{};
-  const BLEScanResult *scan_result_{nullptr};
-};
+// The advertisement device types are owned by the platform-neutral
+// ble_device_base layer; re-exported here (esp32 only) for backward
+// compatibility. ESPBTDevice::parse_scan_rst() (esp32-only) adapts BLEScanResult.
+using ESPBLEiBeacon = ble_device_base::ESPBLEiBeacon;
+using ESPBTDevice = ble_device_base::ESPBTDevice;
 #endif  // USE_ESP32_BLE_DEVICE
 
 class ESP32BLETracker;
 
-class ESPBTDeviceListener {
+// esp32-flavored listener: the neutral parse_device/on_scan_end come from
+// ble_device_base; this subclass adds the esp32-only raw-advertisement path
+// (BLEScanResult batches) and the tracker back-pointer.
+class ESPBTDeviceListener : public ble_device_base::ESPBTDeviceListener {
  public:
-  virtual void on_scan_end() {}
-#ifdef USE_ESP32_BLE_DEVICE
-  virtual bool parse_device(const ESPBTDevice &device) = 0;
+#ifndef USE_ESP32_BLE_DEVICE
+  // Raw-only build: no parsed-device support is compiled in.
+  bool parse_device(const ble_device_base::ESPBTDevice &device) override { return false; }
 #endif
   virtual bool parse_devices(const BLEScanResult *scan_results, size_t count) { return false; };
   virtual AdvertisementParserType get_advertisement_parser_type() {
@@ -295,6 +212,7 @@ class ESPBTClient : public ESPBTDeviceListener {
 };
 
 class ESP32BLETracker final : public Component,
+                              public ble_device_base::BLEHub,
 #ifdef USE_OTA_STATE_LISTENER
                               public ota::OTAGlobalStateListener,
 #endif
@@ -314,9 +232,22 @@ class ESP32BLETracker final : public Component,
 
   void loop() override;
 
+  // esp32-flavored path (unmigrated esp32 sensors; sets the tracker back-pointer).
   void register_listener(ESPBTDeviceListener *listener);
   void register_client(ESPBTClient *client);
   void recalculate_advertisement_parser_types();
+
+  // ---- ble_device_base::BLEHub (the platform-neutral tracker contract) ----
+  void register_listener(ble_device_base::ESPBTDeviceListener *listener) override;
+  void set_raw_advertisement_callback(ble_device_base::RawAdvertisementCallback cb) override {
+    this->raw_advertisement_callback_ = std::move(cb);
+  }
+  ble_device_base::HubCapabilities get_capabilities() const override {
+    return {/* active_scan = */ true, /* merges_scan_response = */ true, /* gatt = */ true};
+  }
+  void get_adapter_mac(uint8_t out[6]) override;
+  bool scan_running() override { return this->scanner_state_ == ScannerState::RUNNING; }
+  bool scan_active() override { return this->scan_active_; }
 
 #ifdef USE_ESP32_BLE_DEVICE
   void print_bt_device_info(const ESPBTDevice &device);
@@ -405,6 +336,12 @@ class ESP32BLETracker final : public Component,
   StaticVector<ESPBTClient *, ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT> clients_;
 #endif
   std::vector<BLEScannerStateListener *> scanner_state_listeners_;
+  // Parsed listeners registered through the neutral BLEHub contract (migrated
+  // sensors); dispatched alongside listeners_.
+#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
+  StaticVector<ble_device_base::ESPBTDeviceListener *, ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT> neutral_listeners_;
+#endif
+  ble_device_base::RawAdvertisementCallback raw_advertisement_callback_{nullptr};
 #ifdef USE_ESP32_BLE_DEVICE
   /// Vector of addresses that have already been printed in print_bt_device_info
   std::vector<uint64_t> already_discovered_;
