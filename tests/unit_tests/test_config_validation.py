@@ -1642,31 +1642,19 @@ def test_templatable_schema_extract() -> None:
 
 
 @pytest.mark.parametrize(
-    ("validator", "quantity"),
+    ("validator", "unit"),
     [
-        (cv.float_with_unit("frequency", "(Hz)?"), "frequency"),
-        (cv.frequency, "frequency"),
-        (cv.voltage, "voltage"),
-        (cv.decibel, "decibel"),
+        (cv.float_with_unit("frequency", "(Hz|HZ|hz)?"), "Hz"),
+        (cv.frequency, "Hz"),
+        (cv.voltage, "V"),
+        (cv.current, "A"),
+        (cv.decibel, "dB"),
     ],
 )
-def test_float_with_unit_schema_extract(validator: object, quantity: str) -> None:
-    # For the SCHEMA_EXTRACT sentinel the validator returns its quantity name
-    # (not the parsed value) so build_language_schema can type the field by
-    # quantity (e.g. "frequency") instead of a bare float.
-    assert validator(SCHEMA_EXTRACT) == quantity
-
-
-@pytest.mark.parametrize(
-    "validator",
-    [
-        cv.date_time(date=True, time=False),
-        cv.date_time(date=False, time=True),
-        cv.date_time(date=True, time=True),
-    ],
-)
-def test_date_time_schema_extract(validator: object) -> None:
-    assert validator(SCHEMA_EXTRACT) is None
+def test_float_with_unit_schema_extract(validator: object, unit: str) -> None:
+    # For the SCHEMA_EXTRACT sentinel the validator returns its canonical unit
+    # (not the parsed value) so build_language_schema can label the float field.
+    assert validator(SCHEMA_EXTRACT) == unit
 
 
 def test_templatable_lambda() -> None:

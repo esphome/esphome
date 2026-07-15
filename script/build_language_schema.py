@@ -155,12 +155,7 @@ _CV_STRING_VALIDATORS = (
     cv.dimensions,
     cv.none,
 )
-_CV_INTEGER_VALIDATORS = (
-    cv.hex_int,
-    cv.percentage_int,
-    cv.mqtt_qos,
-    cv.validate_bytes,
-)
+_CV_INTEGER_VALIDATORS = (cv.hex_int, cv.percentage_int, cv.mqtt_qos)
 _CV_FLOAT_VALIDATORS = (
     cv.percentage,
     cv.possibly_negative_percentage,
@@ -1129,10 +1124,12 @@ def convert(schema, config_var, path):
             config_var["registry"] = "light.effects"
             config_var["filter"] = data[0]
         elif schema_type == "float":
-            # cv.float_with_unit returns its quantity name (e.g. "frequency")
-            # for SCHEMA_EXTRACT, so the field type is the specific quantity
-            # rather than a bare "float". Other float sources return None.
-            config_var[S_TYPE] = data if isinstance(data, str) else "float"
+            config_var[S_TYPE] = "float"
+            # cv.float_with_unit reports its canonical unit (e.g. "Hz", "V") for
+            # SCHEMA_EXTRACT; surface it next to the type so editors can label
+            # the field. Other float sources return None (no unit).
+            if isinstance(data, str):
+                config_var["unit"] = data
         elif schema_type in ("string", "integer", "time", "lambda"):
             # Scalar validators (e.g. cv.date_time) that declare their result
             # type via schema_extractor. ``data`` is unused (the decorated

@@ -333,7 +333,6 @@ def _convert(validator: object) -> dict:
         (cv.directory, "string"),
         (cv.mqtt_qos, "integer"),
         (cv.hex_int, "integer"),
-        (cv.validate_bytes, "integer"),
         (cv.percentage, "float"),
         (cv.temperature, "float"),
         (cv.color_temperature, "float"),
@@ -378,28 +377,32 @@ def test_convert_scalar_schema_extractor(scalar: str) -> None:
         del ejs.hidden_schemas[repr(decorated)]
 
 
-def test_convert_float_with_unit_uses_quantity_as_type() -> None:
-    """A float schema_extractor whose probe returns a quantity types by quantity."""
+def test_convert_float_with_unit_reports_unit() -> None:
+    """A float schema_extractor whose probe returns a unit types float + unit."""
     import voluptuous as vol
 
     from esphome import schema_extractors as ejs
 
     def frequency_validator(value: object) -> object:
-        return "frequency" if value is ejs.SCHEMA_EXTRACT else value
+        return "Hz" if value is ejs.SCHEMA_EXTRACT else value
 
     ejs.hidden_schemas[repr(frequency_validator)] = "float"
     try:
-        assert _convert(frequency_validator).get("type") == "frequency"
+        entry = _convert(frequency_validator)
+        assert entry.get("type") == "float"
+        assert entry.get("unit") == "Hz"
     finally:
         del ejs.hidden_schemas[repr(frequency_validator)]
 
-    # A float source that does not name a quantity falls back to "float".
+    # A float source with no unit is a bare float (no unit key).
     def plain_float(value: object) -> object:
         return None if value is ejs.SCHEMA_EXTRACT else value
 
     ejs.hidden_schemas[repr(plain_float)] = "float"
     try:
-        assert _convert(plain_float).get("type") == "float"
+        entry = _convert(plain_float)
+        assert entry.get("type") == "float"
+        assert "unit" not in entry
     finally:
         del ejs.hidden_schemas[repr(plain_float)]
 
@@ -461,13 +464,14 @@ def test_cv_types_end_to_end(full_schema_dir: Path) -> None:
     ]["config_vars"]["abbwelcome"]["schema"]["config_vars"]
     assert abbwelcome["message_type"]["type"] == "integer"
 
-    # cv.All(cv.frequency, cv.float_range(45, 66)) -> quantity type + min/max
+    # cv.All(cv.frequency, cv.float_range(45, 66)) -> float + unit + min/max
     # inline, next to type.
     ade = json.loads((full_schema_dir / "ade7880.json").read_text())
     freq = ade["ade7880.sensor"]["schemas"]["CONFIG_SCHEMA"]["schema"]["config_vars"][
         "frequency"
     ]
-    assert freq["type"] == "frequency"
+    assert freq["type"] == "float"
+    assert freq["unit"] == "Hz"
     assert freq["min"] == 45.0
     assert freq["max"] == 66.0
 
