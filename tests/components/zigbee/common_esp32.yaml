@@ -30,9 +30,11 @@ sensor:
 switch:
   - platform: template
     name: "Template Switch 1"
+    optimistic: true
     cluster: default
   - platform: template
     name: "Template Switch 2"
+    optimistic: true
     cluster: default
     device_class: outlet
 
