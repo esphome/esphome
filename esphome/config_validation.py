@@ -1196,7 +1196,10 @@ def date_time(date: bool, time: bool):
             }
         )
 
+    @schema_extractor("string")
     def validator(value):
+        if value is SCHEMA_EXTRACT:
+            return None
         if isinstance(value, dict):
             return schema(value)
         value = string(value)
@@ -1365,7 +1368,12 @@ def float_with_unit(quantity, regex_suffix, optional_unit=False):
         f"^([-+]?[0-9]*\\.?[0-9]*)\\s*(\\w*?){regex_suffix}$", re.UNICODE
     )
 
+    @schema_extractor("float")
     def validator(value):
+        if value is SCHEMA_EXTRACT:
+            # Report the specific quantity (e.g. "frequency", "voltage") so the
+            # schema dump can use it as the field type instead of a bare float.
+            return quantity
         if optional_unit:
             try:
                 return float_(value)
