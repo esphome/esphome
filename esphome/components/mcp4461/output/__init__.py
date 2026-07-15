@@ -56,6 +56,11 @@ def _validate_nonvolatile(config):
             CONF_NONVOLATILE_WRITE_DELAY,
             cv.positive_time_period_milliseconds("1s"),
         )
+    elif CONF_NONVOLATILE_WRITE_DELAY in config:
+        # Same consistency as the E-H rejection above: never silently ignore user input.
+        raise cv.Invalid(
+            f"'{CONF_NONVOLATILE_WRITE_DELAY}' requires '{CONF_NONVOLATILE}: true'"
+        )
     return config
 
 

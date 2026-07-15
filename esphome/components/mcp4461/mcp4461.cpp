@@ -120,8 +120,10 @@ void Mcp4461Component::loop() {
   }
   for (uint8_t i = 0; i < 8; i++) {
     if (this->reg_[i].update_level) {
-      // set wiper i state if changed
-      if (this->reg_[i].state != this->read_wiper_level_(i)) {
+      // set wiper i state if changed — a failed read (returns 0) must not suppress the
+      // write when the target state is 0, same hardening as the NV read-compare paths
+      bool read_ok = false;
+      if (this->reg_[i].state != this->read_wiper_level_(i, &read_ok) || !read_ok) {
         this->write_wiper_level_(i, this->reg_[i].state);
       }
     }

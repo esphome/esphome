@@ -3,10 +3,15 @@ mcp4461:
     i2c_id: i2c_bus
 
 output:
+  # All-terminals-off coverage lives here (folded from a former second channel-A
+  # output — one output per channel keeps the reg_ state deterministic).
   - platform: mcp4461
     id: digipot_wiper_1
     mcp4461_id: mcp4461_digipot_01
     channel: A
+    terminal_a: false
+    terminal_b: false
+    terminal_w: false
 
   - platform: mcp4461
     id: digipot_wiper_2
@@ -28,14 +33,6 @@ output:
     mcp4461_id: mcp4461_digipot_01
     channel: D
     terminal_a: false
-    terminal_w: false
-
-  - platform: mcp4461
-    id: digipot_wiper_5
-    mcp4461_id: mcp4461_digipot_01
-    channel: A
-    terminal_a: false
-    terminal_b: false
     terminal_w: false
 
   # Bare NV-channel output — the pre-existing persistence workaround; must
