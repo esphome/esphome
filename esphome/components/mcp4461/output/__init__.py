@@ -77,9 +77,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
         # is deferred by nonvolatile_write_delay to debounce transitions and protect the
         # EEPROM's endurance.
         cv.Optional(CONF_NONVOLATILE): cv.boolean,
-        cv.Optional(
-            CONF_NONVOLATILE_WRITE_DELAY
-        ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_NONVOLATILE_WRITE_DELAY): cv.positive_time_period_milliseconds,
     }
 )
 
