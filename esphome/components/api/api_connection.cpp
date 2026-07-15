@@ -198,6 +198,29 @@ APIConnection::~APIConnection() {
 #endif
 }
 
+#if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
+void APIConnection::upgrade_helper_to_noise_() {
+  // The client opened with a Noise hello while this device has no encryption
+  // key set. Replace the plaintext helper with a Noise helper so the key can
+  // be provisioned over an encrypted channel: the noise context PSK is all
+  // zeros when unprovisioned, and NNpsk0 still runs a fresh ephemeral X25519
+  // exchange, so a passive listener cannot read the session. A publicly known
+  // PSK authenticates nobody; this protects against sniffing only.
+  auto *plaintext = static_cast<APIPlaintextFrameHelper *>(this->helper_.get());
+  uint8_t header[3];
+  uint8_t header_len = plaintext->get_consumed_header(header);
+  auto *noise = new APINoiseFrameHelper(plaintext->release_socket_for_switch(), this->parent_->get_noise_ctx());
+  // Carry over the peername-based client name (Hello has not arrived yet)
+  const char *name = plaintext->get_client_name();
+  noise->set_client_name(name, strlen(name));
+  this->helper_.reset(noise);  // destroys the plaintext helper
+  APIError err = noise->init_from_handoff(header, header_len);
+  if (err != APIError::OK) {
+    this->fatal_error_with_log_(LOG_STR("Noise handoff failed"), err);
+  }
+}
+#endif  // USE_API_NOISE && USE_API_PLAINTEXT
+
 void APIConnection::destroy_active_iterator_() {
   switch (this->active_iterator_) {
     case ActiveIterator::LIST_ENTITIES:
@@ -256,6 +279,15 @@ void APIConnection::loop() {
         // No more data available
         break;
       } else if (err != APIError::OK) {
+#if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
+        // Checked inside the error branch to keep the hot err == OK path
+        // free of it; this can only fire on the first bytes of a plaintext
+        // helper on an unprovisioned device
+        if (err == APIError::PROTOCOL_SWITCH_TO_NOISE) {
+          this->upgrade_helper_to_noise_();
+          return;
+        }
+#endif
         this->fatal_error_with_log_(LOG_STR("Reading failed"), err);
         return;
       } else {
@@ -1351,7 +1383,7 @@ void APIConnection::on_voice_assistant_set_configuration(const VoiceAssistantSet
 
 #ifdef USE_ZWAVE_PROXY
 void APIConnection::on_z_wave_proxy_frame(const ZWaveProxyFrame &msg) {
-  zwave_proxy::global_zwave_proxy->send_frame(msg.data, msg.data_len);
+  zwave_proxy::global_zwave_proxy->send_frame(this, msg.data, msg.data_len);
 }
 
 void APIConnection::on_z_wave_proxy_request(const ZWaveProxyRequest &msg) {
@@ -1860,6 +1892,12 @@ bool APIConnection::send_device_info_response_() {
 #endif
 #ifdef USE_API_NOISE
   resp.api_encryption_supported = true;
+#ifndef USE_API_NOISE_PSK_FROM_YAML
+  // No key from YAML: while no key is set, the key can be provisioned over a
+  // zero-PSK Noise connection. Gated on the YAML define (not the plaintext
+  // one) so this advertisement survives the plaintext removal in 2027.2.0.
+  resp.api_encryption_provisionable = !this->parent_->get_noise_ctx().has_psk();
+#endif
 #endif
 #ifdef USE_DEVICES
   size_t device_index = 0;
@@ -2037,10 +2075,21 @@ bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptio
     }
   } else if (base64_decode(msg.key, msg.key_len, psk.data(), psk.size()) != psk.size()) {
     ESP_LOGW(TAG, "Invalid encryption key length");
+  } else if (APINoiseContext::is_all_zeros(psk)) {
+    // Accepting the reserved provisioning PSK would report success without
+    // enabling encryption (or silently clear an existing key)
+    ESP_LOGW(TAG, "Rejecting all-zero encryption key");
   } else if (!this->parent_->save_noise_psk(psk, true)) {
     ESP_LOGW(TAG, "Failed to save encryption key");
   } else {
     resp.success = true;
+#ifdef USE_API_PLAINTEXT
+    if (this->helper_->frame_footer_size() == 0) {
+      // Plaintext transport has no frame footer; Noise always has the MAC footer.
+      // Remove after 2027.2.0 together with plaintext support on keyless devices.
+      ESP_LOGW(TAG, "Key received over plaintext; deprecated, will be removed in 2027.2.0");
+    }
+#endif
   }
 
   return this->send_message(resp);
