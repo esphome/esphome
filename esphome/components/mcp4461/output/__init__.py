@@ -35,12 +35,23 @@ VOLATILE_CHANNELS = ("A", "B", "C", "D")
 
 
 def _validate_nonvolatile(config):
+    channel = str(config[CONF_CHANNEL])
+
     # Channels E-H address the nonvolatile registers directly — the mirroring options only
     # make sense for the volatile channels A-D.
-    if str(config[CONF_CHANNEL]) not in VOLATILE_CHANNELS and config[CONF_NONVOLATILE]:
-        raise cv.Invalid(
-            f"'{CONF_NONVOLATILE}' is only valid for the volatile channels A-D; "
-            f"channels E-H are the nonvolatile registers themselves"
+    if channel not in VOLATILE_CHANNELS:
+        if CONF_NONVOLATILE in config or CONF_NONVOLATILE_WRITE_DELAY in config:
+            raise cv.Invalid(
+                f"'{CONF_NONVOLATILE}' and '{CONF_NONVOLATILE_WRITE_DELAY}' are only valid for the volatile channels A-D; "
+                f"channels E-H are the nonvolatile registers themselves"
+            )
+        return config
+
+    config.setdefault(CONF_NONVOLATILE, True)
+    if config[CONF_NONVOLATILE]:
+        config.setdefault(
+            CONF_NONVOLATILE_WRITE_DELAY,
+            cv.positive_time_period_milliseconds("1s"),
         )
     return config
 
@@ -133,7 +144,10 @@ async def mcp4461_wiper_step_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "mcp4461.wiper.store_nonvolatile", WiperStoreNonvolatileAction, WIPER_ACTION_SCHEMA, synchronous=True
+    "mcp4461.wiper.store_nonvolatile",
+    WiperStoreNonvolatileAction,
+    WIPER_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def mcp4461_wiper_store_to_code(config, action_id, template_arg, args):
     wiper = await cg.get_variable(config[CONF_ID])
@@ -141,7 +155,10 @@ async def mcp4461_wiper_store_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "mcp4461.wiper.set_terminal", WiperSetTerminalAction, TERMINAL_ACTION_SCHEMA, synchronous=True
+    "mcp4461.wiper.set_terminal",
+    WiperSetTerminalAction,
+    TERMINAL_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def mcp4461_wiper_terminal_to_code(config, action_id, template_arg, args):
     wiper = await cg.get_variable(config[CONF_ID])
