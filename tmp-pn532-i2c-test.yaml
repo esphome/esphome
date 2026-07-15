@@ -1,0 +1,33 @@
+esphome:
+  name: tmp-pn532-i2c-test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+pn532_i2c:
+  id: pn532_i2c_reader
+
+binary_sensor:
+  - platform: pn532
+    pn532_id: pn532_i2c_reader
+    name: "PN532 Tag"
+    uid: 74-10-37-94
+
+interval:
+  - interval: 60s
+    then:
+      - if:
+          condition:
+            pn532.is_writing:
+              id: pn532_i2c_reader
+          then:
+            - lambda: |-
+                ESP_LOGI("test", "pn532 writing");

@@ -148,3 +148,6 @@ sdkconfig.*
 /managed_components
 
 api-docs/
+
+# agent-loop artifacts
+.sisyphus/

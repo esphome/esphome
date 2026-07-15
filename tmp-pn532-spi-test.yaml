@@ -1,0 +1,35 @@
+esphome:
+  name: tmp-pn532-spi-test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+
+pn532_spi:
+  id: pn532_spi_reader
+  cs_pin: GPIO5
+
+binary_sensor:
+  - platform: pn532
+    pn532_id: pn532_spi_reader
+    name: "PN532 SPI Tag"
+    uid: 74-10-37-94
+
+interval:
+  - interval: 60s
+    then:
+      - if:
+          condition:
+            pn532.is_writing:
+              id: pn532_spi_reader
+          then:
+            - lambda: |-
+                ESP_LOGI("test", "pn532 writing");

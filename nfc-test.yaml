@@ -1,0 +1,60 @@
+substitutions:
+  name: nfc-test
+  friendly_name: "NFC Test"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: m5stack-atom
+  framework:
+    type: arduino
+
+wifi:
+  ap:
+    ssid: "nfc-test"
+
+api:
+logger:
+  logs:
+    nfc: DEBUG
+    rc522: DEBUG
+
+ota:
+  - platform: esphome
+
+i2c:
+  sda: GPIO26
+  scl: GPIO32
+  frequency: 400kHz
+  scan: true
+
+rc522_i2c:
+  address: 0x28
+  on_tag:
+    then:
+      - lambda: |-
+          ESP_LOGI("nfc-test", "=== Tag detected ===");
+          std::string uid_str;
+          for (auto b : tag.get_uid()) {
+            if (!uid_str.empty()) uid_str += ' ';
+            char buf[4];
+            snprintf(buf, sizeof(buf), "%02X", b);
+            uid_str += buf;
+          }
+          ESP_LOGI("nfc-test", "  UID: %s", uid_str.c_str());
+          ESP_LOGI("nfc-test", "  Type: %s", tag.get_tag_type().c_str());
+          if (tag.has_ndef_message()) {
+            auto msg = tag.get_ndef_message();
+            if (msg != nullptr) {
+              ESP_LOGI("nfc-test", "  NDEF records: %d", msg->get_records().size());
+              for (const auto &record : msg->get_records()) {
+                ESP_LOGI("nfc-test", "    Record type: %s", record->get_type().c_str());
+                ESP_LOGI("nfc-test", "    Payload: %s", record->get_payload().c_str());
+              }
+            }
+          } else {
+            ESP_LOGI("nfc-test", "  No NDEF message found");
+          }
+          ESP_LOGI("nfc-test", "===================");

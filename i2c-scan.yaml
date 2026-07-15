@@ -1,0 +1,29 @@
+substitutions:
+  name: i2c-scan
+  friendly_name: "I2C Scanner"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: m5stack-atom
+  framework:
+    type: arduino
+
+wifi:
+  ap:
+    ssid: "nfc-test"
+
+api:
+logger:
+  level: VERY_VERBOSE
+
+ota:
+  - platform: esphome
+
+i2c:
+  sda: GPIO26
+  scl: GPIO32
+  scan: true
+  id: bus_a

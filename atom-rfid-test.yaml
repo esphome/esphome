@@ -1,0 +1,49 @@
+esphome:
+  name: atom-rfid
+  friendly_name: Atom RFID Reader
+
+esp32:
+  board: m5stack-atom
+  framework:
+    type: esp-idf
+
+logger:
+  level: VERBOSE
+  baud_rate: 115200
+
+wifi:
+  ap:
+    ssid: "atom-rfid-setup"
+    password: "12345678"
+
+api:
+
+ota:
+  - platform: esphome
+
+i2c:
+  sda: GPIO26
+  scl: GPIO32
+  scan: true
+
+rc522_i2c:
+  - id: nfc_reader
+    address: 0x28
+    update_interval: 500ms
+    on_tag:
+      - lambda: |-
+          ESP_LOGI("rfid", "Tag detected - UID: %s", x.c_str());
+          if (tag.has_ndef_message()) {
+            auto msg = tag.get_ndef_message();
+            ESP_LOGI("rfid", "NDEF message with %d record(s)", msg->get_records().size());
+            for (auto &record : msg->get_records()) {
+              ESP_LOGI("rfid", "  Type: %s  Payload: %s",
+                       record->get_type().c_str(),
+                       record->get_payload().c_str());
+            }
+          } else {
+            ESP_LOGI("rfid", "No NDEF message found on tag");
+          }
+    on_tag_removed:
+      - lambda: |-
+          ESP_LOGI("rfid", "Tag removed - UID: %s", x.c_str());
