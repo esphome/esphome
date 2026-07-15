@@ -105,9 +105,12 @@ void Mcp4461Component::dump_config() {
     // so also invalid for nonvolatile. For these, only print current level.
     // reworked to be a one-line intentionally, as output would not be in order
     if (i < 4) {
-      ESP_LOGCONFIG(TAG, "  ├── Volatile wiper [%u] level: %u, Status: %s, HW: %s, A: %s, B: %s, W: %s", i,
-                    this->reg_[i].state, ONOFF(this->reg_[i].enabled), ONOFF(this->reg_[i].terminal_hw),
-                    ONOFF(this->reg_[i].terminal_a), ONOFF(this->reg_[i].terminal_b), ONOFF(this->reg_[i].terminal_w));
+      ESP_LOGCONFIG(TAG,
+                    "  ├── Volatile wiper [%u] level: %u, Status: %s, HW: %s, "
+                    "A: %s, B: %s, W: %s, NV: %s",
+                    i, this->reg_[i].state, ONOFF(this->reg_[i].enabled), ONOFF(this->reg_[i].terminal_hw),
+                    ONOFF(this->reg_[i].terminal_a), ONOFF(this->reg_[i].terminal_b), ONOFF(this->reg_[i].terminal_w),
+                    ONOFF(this->reg_[i].nonvolatile));
     } else {
       ESP_LOGCONFIG(TAG, "  ├── Nonvolatile wiper [%u] level: %u", i, this->reg_[i].state);
     }
