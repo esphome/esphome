@@ -23,12 +23,12 @@ class LvAnimationTiming {
 class LvAnimationTimingRoundTrip : public LvAnimationTiming {
  public:
   // moving_length is a nvalue between 0.1 and 0.5 representing the time spent moving in each direction
-  LvAnimationTimingRoundTrip(float pause) : moving_length_(1.0 - pause) {}
+  LvAnimationTimingRoundTrip(float pause) : moving_length_((1.0f - pause) / 2.0f) {}
   float map_progress(float value) override {
-    if (value <= this->moving_length_) {
+    if (value < this->moving_length_) {
       return value / this->moving_length_;
     }
-    if (value >= 1.0f - this->moving_length_) {
+    if (value > 1.0f - this->moving_length_) {
       return (1.0f - value) / this->moving_length_;
     }
     // pause in the middle
