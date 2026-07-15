@@ -163,7 +163,8 @@ class Mcp4461Component final : public Component, public i2c::I2CDevice {
       case MCP4461_STATUS_OK:
         return LOG_STR("Status OK");
       case MCP4461_PROHIBITED_FOR_NONVOLATILE:
-        return LOG_STR("Increment/decrement, store, and terminal control are prohibited on the nonvolatile wipers (E-H).");
+        return LOG_STR(
+            "Increment/decrement, store, and terminal control are prohibited on the nonvolatile wipers (E-H).");
       default:
         return LOG_STR("Unknown");
     }
