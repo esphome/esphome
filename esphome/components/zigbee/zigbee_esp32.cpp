@@ -341,7 +341,7 @@ void ZigbeeComponent::loop() {
         this->handle_attribute_(event->event_.set_attr.info, event->event_.set_attr.attribute);
         break;
       default:
-        ESP_LOGW(TAG, "Received event with unhandled callback id: 0x%x", event->callback_id_);
+        ESP_LOGW(TAG, "Received event with unhandled callback id: 0x%lx", event->callback_id_);
         break;
     }
 

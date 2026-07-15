@@ -13,23 +13,30 @@ namespace esphome::zigbee {
 
 class ZBEvent {
  public:
+  // IMPORTANT: We MUST copy all values because the pointer from ESP-IDF
+  // is only valid during the callback execution. Since ZB events are processed
+  // asynchronously in the main loop, we store our own copy inline to ensure
+  // the data remains valid until the event is processed.
   ZBEvent(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute) {
     this->callback_id_ = EZB_ZCL_CORE_SET_ATTR_VALUE_CB_ID;
     this->init_set_attr_value_data_(info, attribute);
   }
 
+  // Destructor to clean up heap allocations
   ~ZBEvent() { this->release(); }
 
+  // Default constructor for pre-allocation in pool
   ZBEvent() : event_{}, callback_id_(EZB_ZCL_CORE_CB_ID_END) {}
 
+  // Invoked on return to EventPool - clean up any heap-allocated data
   void release() {
     // Free any allocated memory within the event
     switch (this->callback_id_) {
       case EZB_ZCL_CORE_SET_ATTR_VALUE_CB_ID:
-        if (this->event_.set_attr.attribute.data.value != nullptr &&
-            this->event_.set_attr.attribute.data.value != this->event_.set_attr.inline_data) {
-          free(this->event_.set_attr.attribute.data.value);
-          this->event_.set_attr.attribute.data.value = nullptr;
+        if (this->event_.set_attr.data.heap_data != nullptr &&
+            this->event_.set_attr.attribute.data.value == this->event_.set_attr.data.heap_data) {
+          delete[] this->event_.set_attr.data.heap_data;
+          this->event_.set_attr.data.heap_data = nullptr;
         }
         break;
       default:
@@ -37,8 +44,11 @@ class ZBEvent {
     }
   }
 
+  // Load new event data for reuse (replaces previous event data)
+  // Note: release() is NOT called here because EventPool::release() already
+  // calls event->release() before returning to the free list. Every event
+  // from allocate() is already in a clean state.
   void load_set_attr_value_event(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute) {
-    this->release();
     this->callback_id_ = EZB_ZCL_CORE_SET_ATTR_VALUE_CB_ID;
     this->init_set_attr_value_data_(info, attribute);
   }
@@ -48,10 +58,14 @@ class ZBEvent {
   ZBEvent &operator=(const ZBEvent &) = delete;
 
   union {
-    struct SetAttrEvent {
+    // NOLINTNEXTLINE(readability-identifier-naming)
+    struct set_attr_event {
       ezb_zcl_message_info_t info;
       ezb_zcl_attribute_t attribute;
-      uint8_t inline_data[4];  // For small data types (<= 32 bit)
+      union {
+        uint8_t *heap_data;
+        uint8_t inline_data[4];  // For small data types (<= 32 bit)
+      } data;
     } set_attr;
   } event_;
 
@@ -66,13 +80,12 @@ class ZBEvent {
       // Copy the attribute value to avoid dangling pointer issues
       size_t value_size = ezb_zcl_get_attr_value_size(attribute.data.type, attribute.data.value);
       if (value_size > 4) {
-        this->event_.set_attr.attribute.data.value = malloc(value_size);
-        if (this->event_.set_attr.attribute.data.value != nullptr) {
-          memcpy(this->event_.set_attr.attribute.data.value, attribute.data.value, value_size);
-        }
+        this->event_.set_attr.data.heap_data = new uint8_t[value_size];
+        memcpy(this->event_.set_attr.data.heap_data, attribute.data.value, value_size);
+        this->event_.set_attr.attribute.data.value = this->event_.set_attr.data.heap_data;
       } else {
-        memcpy(this->event_.set_attr.inline_data, attribute.data.value, value_size);
-        this->event_.set_attr.attribute.data.value = this->event_.set_attr.inline_data;
+        memcpy(this->event_.set_attr.data.inline_data, attribute.data.value, value_size);
+        this->event_.set_attr.attribute.data.value = this->event_.set_attr.data.inline_data;
       }
     }
   }
