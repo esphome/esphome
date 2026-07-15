@@ -63,7 +63,14 @@ TIMING_SCHEMA = cv.maybe_simple_value(
             [
                 timing_class(
                     "round_trip",
-                    {cv.Optional(CONF_PAUSE, default=0.0): cv.percentage},
+                    {
+                        cv.Optional(CONF_PAUSE, default=0.0): cv.All(
+                            cv.percentage,
+                            cv.float_range(
+                                min=0.0, max=1.0, min_included=True, max_included=False
+                            ),
+                        )
+                    },
                 ),
                 timing_class(
                     "ease_in_out",

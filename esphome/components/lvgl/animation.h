@@ -22,7 +22,7 @@ class LvAnimationTiming {
 
 class LvAnimationTimingRoundTrip : public LvAnimationTiming {
  public:
-  // moving_length is a nvalue between 0.1 and 0.5 representing the time spent moving in each direction
+  // moving_length is a nvalue between 0 and 0.5 representing the time spent moving in each direction
   LvAnimationTimingRoundTrip(float pause) : moving_length_((1.0f - pause) / 2.0f) {}
   float map_progress(float value) override {
     if (value < this->moving_length_) {
