@@ -423,7 +423,7 @@ class WeikaiChannel final : public uart::UARTComponent {
 
   /// @brief check if channel is alive
   /// @return true if OK
-  bool check_channel_down();
+  bool check_channel_down_();
 
 #ifdef TEST_COMPONENT
   /// @ingroup test_
