@@ -54,7 +54,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_LN882X,
     PLATFORM_NRF52,
-    PLATFORM_RP2040,
+    PLATFORM_RP2,
     PLATFORM_RTL87XX,
     PlatformFramework,
 )
@@ -154,7 +154,7 @@ HARDWARE_UART_TO_SERIAL = {
         UART2: cg.global_ns.Serial2,
         DEFAULT: cg.global_ns.Serial,
     },
-    PLATFORM_RP2040: {
+    PLATFORM_RP2: {
         UART0: cg.global_ns.Serial1,
         UART1: cg.global_ns.Serial2,
         USB_CDC: cg.global_ns.Serial,
@@ -171,7 +171,7 @@ def uart_selection(value):
             return cv.one_of(*UART_SELECTION_ESP32[variant], upper=True)(value)
     if CORE.is_esp8266:
         return cv.one_of(*UART_SELECTION_ESP8266, upper=True)(value)
-    if CORE.is_rp2040:
+    if CORE.is_rp2:
         return cv.one_of(*UART_SELECTION_RP2040, upper=True)(value)
     if CORE.is_libretiny:
         family = get_libretiny_family()
@@ -282,7 +282,7 @@ CONFIG_SCHEMA = cv.All(
                 esp32_s2=USB_CDC,
                 esp32_s3=USB_SERIAL_JTAG,
                 esp32_s31=USB_SERIAL_JTAG,
-                rp2040=USB_CDC,
+                rp2=USB_CDC,
                 bk72xx=DEFAULT,
                 ln882x=DEFAULT,
                 rtl87xx=DEFAULT,
@@ -292,7 +292,7 @@ CONFIG_SCHEMA = cv.All(
                     [
                         PLATFORM_ESP8266,
                         PLATFORM_ESP32,
-                        PLATFORM_RP2040,
+                        PLATFORM_RP2,
                         PLATFORM_BK72XX,
                         PLATFORM_LN882X,
                         PLATFORM_RTL87XX,
@@ -417,11 +417,7 @@ async def _late_logger_init(config: ConfigType) -> None:
             cg.add_define("USE_ESP8266_LOGGER_SERIAL1")
             enable_serial1()
 
-    if (
-        (CORE.is_esp8266 or CORE.is_rp2040)
-        and has_serial_logging
-        and is_at_least_verbose
-    ):
+    if (CORE.is_esp8266 or CORE.is_rp2) and has_serial_logging and is_at_least_verbose:
         debug_serial_port = HARDWARE_UART_TO_SERIAL[CORE.target_platform][
             config.get(CONF_HARDWARE_UART)
         ]
@@ -605,7 +601,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
         "logger_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
         "logger_host.cpp": {PlatformFramework.HOST_NATIVE},
-        "logger_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "logger_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
         "logger_libretiny.cpp": {
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,

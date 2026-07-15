@@ -21,6 +21,7 @@ MULTI_CONF = True
 
 ns = cg.esphome_ns.namespace("cc1101")
 CC1101Component = ns.class_("CC1101Component", cg.Component, spi.SPIDevice)
+CC1101Listener = ns.class_("CC1101Listener")
 
 # Config keys
 CONF_RX_ATTENUATION = "rx_attenuation"

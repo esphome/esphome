@@ -68,7 +68,9 @@ ESPHOME_DATA_EXTRA_CMAKE_KEY = "EXTRA_CMAKE"
 
 
 class Source:
-    def download(self, dir_suffix: str, force: bool = False, salt: str = "") -> Path:
+    def download(
+        self, dir_suffix: str, force: bool = False, salt: str = "", namespace: str = ""
+    ) -> Path:
         raise NotImplementedError
 
 
@@ -76,8 +78,14 @@ class URLSource(Source):
     def __init__(self, url: str):
         self.url = url
 
-    def download(self, dir_suffix: str, force: bool = False, salt: str = "") -> Path:
+    def download(
+        self, dir_suffix: str, force: bool = False, salt: str = "", namespace: str = ""
+    ) -> Path:
+        # Namespace the cache per backend (e.g. pio_components/idf, .../zephyr) so
+        # the build files each backend writes into the library dir can't collide.
         base_dir = Path(CORE.data_dir) / DOMAIN
+        if namespace:
+            base_dir = base_dir / namespace
         h = hashlib.new("sha256")
         h.update(self.url.encode())
         if salt:
@@ -113,12 +121,19 @@ class GitSource(Source):
         self.url = url
         self.ref = ref
 
-    def download(self, dir_suffix: str, force: bool = False, salt: str = "") -> Path:
+    def download(
+        self, dir_suffix: str, force: bool = False, salt: str = "", namespace: str = ""
+    ) -> Path:
+        domain = DOMAIN
+        if namespace:
+            domain = f"{domain}/{namespace}"
+        if salt:
+            domain = f"{domain}/{salt}"
         path, _ = git.clone_or_update(
             url=self.url,
             ref=self.ref,
             refresh=git.NEVER_REFRESH if not force else None,
-            domain=f"{DOMAIN}/{salt}" if salt else DOMAIN,
+            domain=domain,
             submodules=[],
             subpath=Path(dir_suffix),
         )
@@ -167,16 +182,16 @@ class ConvertedLibrary:
     def get_require_name(self):
         return self.get_sanitized_name().replace("/", "__")
 
-    def download(self, force: bool = False, salt: str = ""):
+    def download(self, force: bool = False, salt: str = "", namespace: str = ""):
         """Fetch the library into the shared cache and record its ``path``.
 
         The cache directory is named after the sanitized library name; backends
         rely on that name to identify the unit they build (e.g. ESP-IDF uses the
         directory name as the component name, replacing ``/`` with ``__`` via
-        ``get_require_name``).
+        ``get_require_name``). ``namespace`` keeps each backend's cache separate.
         """
         self.path = self.source.download(
-            self.get_sanitized_name(), force=force, salt=salt
+            self.get_sanitized_name(), force=force, salt=salt, namespace=namespace
         )
 
 
@@ -188,11 +203,15 @@ class LibraryBackend:
     ``emit`` writes the toolchain-specific build files into a resolved library's
     ``path`` (e.g. the ESP-IDF ``CMakeLists.txt`` + ``idf_component.yml``, or a
     Zephyr ``module.yml`` + ``CMakeLists.txt``).
+    ``cache_key`` namespaces the download cache (``pio_components/<cache_key>/``)
+    so the differing build files two backends emit into a library dir never
+    collide when the same config dir hosts both an ESP-IDF and a Zephyr build.
     """
 
-    platform: str
+    platform: str | None
     framework: str
     emit: Callable[["ConvertedLibrary"], None]
+    cache_key: str
 
 
 def ensure_list[T](obj: T | list[T]) -> list[T]:
@@ -306,7 +325,7 @@ def split_list_by_condition(
     return matched, non_matched
 
 
-def check_library_data(data: dict, platform: str, framework: str):
+def check_library_data(data: dict, platform: str | None, framework: str):
     """
     Check whether a library manifest is compatible with the target toolchain.
 
@@ -319,7 +338,9 @@ def check_library_data(data: dict, platform: str, framework: str):
     Args:
         data: PIO library manifest dict being processed.
         platform: The PlatformIO platform token the build targets (e.g.
-            ``espressif32``).
+            ``espressif32``). ``None`` skips the platform check entirely — useful
+            for targets (e.g. Zephyr) where PIO manifests rarely declare the
+            platform yet portable libraries still build.
         framework: The active framework name (e.g. ``espidf``, ``arduino``,
             ``zephyr``) the manifest is expected to declare.
 
@@ -332,7 +353,7 @@ def check_library_data(data: dict, platform: str, framework: str):
     platforms = ensure_list(platforms)
 
     # Check if library supports the target platform
-    valid_platforms = "*" in platforms or platform in platforms
+    valid_platforms = platform is None or "*" in platforms or platform in platforms
 
     if not valid_platforms:
         raise InvalidLibrary(f"Unsupported library platforms: {platforms}")
@@ -613,7 +634,7 @@ def convert_libraries(
             component = ConvertedLibrary(
                 _owner_pkgname_to_name(owner, name), version, URLSource(url)
             )
-        component.download(salt=salt)
+        component.download(salt=salt, namespace=backend.cache_key)
 
         library_json_path = component.path / "library.json"
         library_properties_path = component.path / "library.properties"
