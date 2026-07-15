@@ -12,7 +12,7 @@ from esphome.components.mipi import (
     PWSET,
     DriverChip,
 )
-import esphome.config_validation as cv
+from esphome.const import CONF_MIRROR_X, CONF_MIRROR_Y
 
 from .amoled import CO5300
 from .ili import ILI9488_A, ST7789V
@@ -155,7 +155,7 @@ ST7789P = DriverChip(
 
 ILI9488_A.extend(
     "PICO-RESTOUCH-LCD-3.5",
-    swap_xy=cv.UNDEFINED,
+    transforms={CONF_MIRROR_X, CONF_MIRROR_Y},
     spi_16=True,
     pixel_mode="16bit",
     mirror_x=True,
@@ -175,6 +175,22 @@ CO5300.extend(
     offset_width=6,
     cs_pin=12,
     reset_pin=39,
+    requires={"psram"},
+)
+
+# Waveshare ESP32-S3 Touch AMOLED 2.16" (CO5300 controller)
+# Pin assignments are the same as the 1.75" devkit: CS=12, RESET=39. Width/height set to 480x480.
+CO5300.extend(
+    "WAVESHARE-ESP32-S3-TOUCH-AMOLED-2.16",
+    width=480,
+    height=480,
+    pixel_mode="16bit",
+    offset_height=0,
+    offset_width=0,
+    cs_pin=12,
+    reset_pin=39,
+    data_rate="40MHz",
+    requires={"psram"},
 )
 
 AXS15231.extend(
@@ -184,6 +200,7 @@ AXS15231.extend(
     data_rate="80MHz",
     cs_pin=9,
     reset_pin=21,
+    requires={"psram"},
 )
 
 # Waveshare 1.83-v2
@@ -254,4 +271,29 @@ ST7789V.extend(
     reset_pin=21,
     cs_pin=14,
     dc_pin={"number": 15, "ignore_strapping_warning": True},
+)
+
+ST7789V.extend(
+    "WAVESHARE-ESP32-S3-GEEK",
+    cs_pin=10,
+    dc_pin=8,
+    reset_pin=9,
+    width=135,
+    height=240,
+    offset_width=52,
+    offset_height=40,
+    invert_colors=True,
+    data_rate="40MHz",
+    requires={"psram"},
+)
+
+CO5300.extend(
+    "WAVESHARE-ESP32-S3-TOUCH-AMOLED-1.64",
+    width=280,
+    height=456,
+    offset_width=20,
+    cs_pin=9,
+    reset_pin=21,
+    enable_pin=1,
+    requires={"psram"},
 )

@@ -376,14 +376,14 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _load_model_data(manifest_path: Path):
-    with open(manifest_path, encoding="utf-8") as f:
+    with manifest_path.open(encoding="utf-8") as f:
         manifest = json.load(f)
 
     _validate_manifest_version(manifest)
 
     model_path = manifest_path.parent / manifest[CONF_MODEL]
 
-    with open(model_path, "rb") as f:
+    with model_path.open("rb") as f:
         model = f.read()
 
     if manifest.get(KEY_VERSION) == 1:

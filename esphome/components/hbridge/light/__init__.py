@@ -1,14 +1,14 @@
 import esphome.codegen as cg
 from esphome.components import light, output
 import esphome.config_validation as cv
-from esphome.const import CONF_OUTPUT_ID, CONF_PIN_A, CONF_PIN_B
+from esphome.const import CONF_OUTPUT_ID, CONF_PIN_A, CONF_PIN_B, CONF_UPDATE_INTERVAL
 
 from .. import hbridge_ns
 
 CODEOWNERS = ["@DotNetDann"]
 
 HBridgeLightOutput = hbridge_ns.class_(
-    "HBridgeLightOutput", cg.Component, light.LightOutput
+    "HBridgeLightOutput", cg.PollingComponent, light.LightOutput
 )
 
 CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend(
@@ -16,12 +16,14 @@ CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend(
         cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(HBridgeLightOutput),
         cv.Required(CONF_PIN_A): cv.use_id(output.FloatOutput),
         cv.Required(CONF_PIN_B): cv.use_id(output.FloatOutput),
+        cv.Optional(CONF_UPDATE_INTERVAL, default="8ms"): cv.update_interval,
     }
 )
 
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
+    cg.add(var.set_update_interval(config.pop(CONF_UPDATE_INTERVAL)))
     await cg.register_component(var, config)
     await light.register_light(var, config)
 

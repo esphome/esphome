@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
 
 #include "esphome/core/color.h"
 #include "esphome/core/component.h"
@@ -57,7 +57,7 @@ inline const char *rgb_order_to_string(RGBOrder order) {
 
 using init_fn = void (*)(PIO pio, uint sm, uint offset, uint pin, float freq);
 
-class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
+class RP2040PIOLEDStripLightOutput final : public light::AddressableLight {
  public:
   void setup() override;
   void write_state(light::LightState *state) override;
@@ -128,4 +128,4 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
 
 }  // namespace esphome::rp2040_pio_led_strip
 
-#endif  // USE_RP2040
+#endif  // USE_RP2

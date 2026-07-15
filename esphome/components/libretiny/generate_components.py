@@ -1,7 +1,7 @@
 # Copyright (c) Kuba Szczodrzyński 2023-06-01.
 
 # pylint: skip-file
-# flake8: noqa
+# ruff: noqa: C408, I001
 
 import json
 import re
@@ -313,8 +313,12 @@ def write_const(
     # build component constants
     comp_str = "\n".join(f'COMPONENT_{f} = "{f.lower()}"' for f in components)
     # replace the 2nd regex group only
-    repl = lambda m: m.group(1) + comp_str + m.group(3)
-    code = re.sub(comp_regex, repl, code, flags=re.DOTALL | re.MULTILINE)
+    code = re.sub(
+        comp_regex,
+        lambda m: m.group(1) + comp_str + m.group(3),
+        code,
+        flags=re.DOTALL | re.MULTILINE,
+    )
 
     # regex for finding the family list block
     fam_regex = r"(# FAMILIES.+?\n)(.*?)(\n# FAMILIES)"
@@ -337,8 +341,12 @@ def write_const(
     ]
     var_str = "\n".join(fam_lines)
     # replace the 2nd regex group only
-    repl = lambda m: m.group(1) + var_str + m.group(3)
-    code = re.sub(fam_regex, repl, code, flags=re.DOTALL | re.MULTILINE)
+    code = re.sub(
+        fam_regex,
+        lambda m: m.group(1) + var_str + m.group(3),
+        code,
+        flags=re.DOTALL | re.MULTILINE,
+    )
 
     # format with black
     code = format_str(code, mode=FileMode())
@@ -351,7 +359,9 @@ if __name__ == "__main__":
     check_base_code(BASE_CODE_INIT)
     # list all boards from ltchiptool
     components_dir = Path(__file__).parent.parent
-    boards = [Board(b) for b in Board.get_list()]
+    # Board.get_list() returns glob (filesystem) order, which is non-deterministic
+    # and produces noisy diffs on regeneration; sort by board id for stable output.
+    boards = sorted((Board(b) for b in Board.get_list()), key=lambda b: b.name)
     # keep track of all supported root- and chip-families
     components = set()
     families = {}

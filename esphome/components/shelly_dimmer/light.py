@@ -7,6 +7,7 @@ import requests
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import light, sensor, uart
+from esphome.components.const import CONF_SHA256
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CURRENT,
@@ -39,7 +40,6 @@ ShellyDimmer = shelly_dimmer_ns.class_(
 )
 
 CONF_FIRMWARE = "firmware"
-CONF_SHA256 = "sha256"
 CONF_UPDATE = "update"
 
 CONF_LEADING_EDGE = "leading_edge"
@@ -184,6 +184,10 @@ CONFIG_SCHEMA = (
     )
     .extend(cv.polling_component_schema("10s"))
     .extend(uart.UART_DEVICE_SCHEMA)
+)
+
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "shelly_dimmer", baud_rate=115200, require_rx=True, require_tx=True
 )
 
 

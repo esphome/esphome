@@ -64,9 +64,10 @@ T get_data(const std::vector<uint8_t> &data, size_t buffer_offset) {
   return modbus::helpers::get_data<T>(data, buffer_offset);
 }
 
-ESPDEPRECATED("Use modbus::helpers::coil_from_vector() instead. Removed in 2026.10.0", "2026.4.0")
+// Remove before 2027.2.0 (window restarted when the migration target changed to bit_from_packed())
+ESPDEPRECATED("Use modbus::helpers::bit_from_packed() instead. Removed in 2027.2.0", "2026.4.0")
 inline bool coil_from_vector(int coil, const std::vector<uint8_t> &data) {
-  return modbus::helpers::coil_from_vector(coil, data);
+  return modbus::helpers::bit_from_packed(coil, data);
 }
 
 template<typename N>
@@ -83,7 +84,8 @@ inline void number_to_payload(std::vector<uint16_t> &data, int64_t value, Sensor
 ESPDEPRECATED("Use modbus::helpers::payload_to_number() instead. Removed in 2026.10.0", "2026.4.0")
 inline int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
                                  uint32_t bitmask) {
-  return modbus::helpers::payload_to_number(data, sensor_value_type, offset, bitmask);
+  return modbus::helpers::payload_to_number(std::span<const uint8_t>(data), sensor_value_type, offset, bitmask)
+      .value_or(0);
 }
 
 ESPDEPRECATED("Use modbus::helpers::float_to_payload() instead. Removed in 2026.10.0", "2026.4.0")
@@ -279,7 +281,7 @@ class ModbusCommandItem {
  * Responses for the commands are dispatched to the modbus sensor items.
  */
 
-class ModbusController : public PollingComponent, public modbus::ModbusDevice {
+class ModbusController final : public PollingComponent, public modbus::ModbusClientDevice {
  public:
   void dump_config() override;
   void loop() override;
@@ -377,8 +379,9 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
  * @param item SensorItem object
  * @return float value of data
  */
-inline float payload_to_float(const std::vector<uint8_t> &data, const SensorItem &item) {
-  int64_t number = modbus::helpers::payload_to_number(data, item.sensor_value_type, item.offset, item.bitmask);
+inline float payload_to_float(std::span<const uint8_t> data, const SensorItem &item) {
+  int64_t number =
+      modbus::helpers::payload_to_number(data, item.sensor_value_type, item.offset, item.bitmask).value_or(0);
 
   float float_value;
   if (modbus::helpers::value_type_is_float(item.sensor_value_type)) {

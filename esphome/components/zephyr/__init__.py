@@ -8,6 +8,7 @@ from esphome.const import CONF_BOARD, KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, write_file_if_changed
 from esphome.types import ConfigType
+from esphome.writer import clean_cmake_cache
 
 from .const import (
     CONF_CDC_ACM,
@@ -17,6 +18,7 @@ from .const import (
     KEY_OVERLAY,
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
+    KEY_SYSBUILD,
     KEY_USER,
     KEY_ZEPHYR,
     zephyr_ns,
@@ -54,6 +56,7 @@ class ZephyrData(TypedDict):
     pm_static: list[Section]
     user: dict[str, list[str]]
     kconfig: str
+    sysbuild: bool
 
 
 def zephyr_set_core_data(config: ConfigType) -> None:
@@ -68,6 +71,10 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         pm_static=[],
         user={},
         kconfig="",
+        # When OTA is disabled, the image is built without a bootloader even if the
+        # config says `bootloader: mcuboot`, so the image can be smaller. This was
+        # the default behaviour in SDK 2.6.1.
+        sysbuild=False,
     )
 
 
@@ -76,7 +83,10 @@ def zephyr_data() -> ZephyrData:
 
 
 def zephyr_add_prj_conf(
-    name: str, value: PrjConfValueType, required: bool = True, image: str = ""
+    name: str,
+    value: PrjConfValueType,
+    required: bool = True,
+    image: str = "",
 ) -> None:
     """Set an zephyr prj conf value."""
     if not name.startswith("CONFIG_"):
@@ -124,16 +134,14 @@ def zephyr_to_code(config: ConfigType) -> None:
     cg.add_define("USE_NATIVE_64BIT_TIME")
     cg.set_cpp_standard("gnu++20")
     # c++ support
-    zephyr_add_prj_conf("NEWLIB_LIBC", True)
     zephyr_add_prj_conf("FPU", True)
-    zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
     zephyr_add_prj_conf("STD_CPP20", True)
     # random_bytes() uses sys_rand_get() which requires the entropy subsystem
     zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
 
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
-    zephyr_add_prj_conf("MAIN_STACK_SIZE", 2048)
+    zephyr_add_prj_conf("MAIN_STACK_SIZE", 2048, required=False)
 
     CORE.add_job(_cdc_acm_to_code, config)
 
@@ -200,7 +208,20 @@ def zephyr_add_user(key, value):
     user[key] += [value]
 
 
-def copy_files():
+def _write_file_if_changed_or_remove_when_empty(path: Path, content: str) -> bool:
+    """Write content to path, or remove a stale file when content is empty.
+
+    Returns True if the file changed on disk.
+    """
+    if content:
+        return write_file_if_changed(path, content)
+    if path.is_file():
+        path.unlink()
+        return True
+    return False
+
+
+def copy_files() -> None:
     user = zephyr_data()[KEY_USER]
     if user:
         entries = " ".join(
@@ -216,6 +237,8 @@ def copy_files():
             """
         )
 
+    changed = False
+
     for image, want_opts in zephyr_data()[KEY_PRJ_CONF].items():
         prj_conf = (
             "\n".join(
@@ -230,26 +253,25 @@ def copy_files():
         else:
             path = CORE.relative_build_path("zephyr/prj.conf")
 
-        write_file_if_changed(CORE.relative_build_path(path), prj_conf)
+        changed |= write_file_if_changed(path, prj_conf)
 
     for image, content in zephyr_data()[KEY_OVERLAY].items():
         if image:
             path = CORE.relative_build_path(f"sysbuild/{image}.overlay")
         else:
             path = CORE.relative_build_path("zephyr/app.overlay")
-        write_file_if_changed(path, content)
+        changed |= write_file_if_changed(path, content)
 
     for filename, path in zephyr_data()[KEY_EXTRA_BUILD_FILES].items():
-        copy_file_if_changed(
+        changed |= copy_file_if_changed(
             path,
             CORE.relative_build_path(filename),
         )
 
     pm_static = "\n".join(str(item) for item in zephyr_data()[KEY_PM_STATIC])
-    if pm_static:
-        write_file_if_changed(
-            CORE.relative_build_path("zephyr/pm_static.yml"), pm_static
-        )
+    changed |= _write_file_if_changed_or_remove_when_empty(
+        CORE.relative_build_path("zephyr/pm_static.yml"), pm_static
+    )
 
     kconfig = zephyr_data()[KEY_KCONFIG]
     if kconfig:
@@ -264,4 +286,19 @@ def copy_files():
             + "\n"
             + kconfig
         )
-        write_file_if_changed(CORE.relative_build_path("zephyr/Kconfig"), kconfig)
+    changed |= _write_file_if_changed_or_remove_when_empty(
+        CORE.relative_build_path("zephyr/Kconfig"), kconfig
+    )
+
+    sysbuild_conf = ""
+    if zephyr_data()[KEY_SYSBUILD]:
+        sysbuild_conf = "SB_CONFIG_BOOTLOADER_MCUBOOT=y\n"
+    changed |= _write_file_if_changed_or_remove_when_empty(
+        CORE.relative_build_path("zephyr/sysbuild.conf"), sysbuild_conf
+    )
+
+    if changed:
+        # A configure-time input changed; drop the CMake cache so the build
+        # can't reuse stale configure results (the native sdk-nrf toolchain
+        # rebuilds pristine when the cache is missing).
+        clean_cmake_cache()

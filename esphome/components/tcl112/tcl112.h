@@ -8,7 +8,7 @@ namespace esphome::tcl112 {
 const float TCL112_TEMP_MAX = 31.0;
 const float TCL112_TEMP_MIN = 16.0;
 
-class Tcl112Climate : public climate_ir::ClimateIR {
+class Tcl112Climate final : public climate_ir::ClimateIR {
  public:
   Tcl112Climate()
       : climate_ir::ClimateIR(TCL112_TEMP_MIN, TCL112_TEMP_MAX, .5f, true, true,

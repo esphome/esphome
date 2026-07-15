@@ -56,9 +56,8 @@ namespace esphome::web_server {
 
 static const char *const TAG = "web_server";
 
-// Longest: UPDATE AVAILABLE (16 chars + null terminator, rounded up)
-static constexpr size_t PSTR_LOCAL_SIZE = 18;
-#define PSTR_LOCAL(mode_s) ESPHOME_strncpy_P(buf, (ESPHOME_PGM_P) ((mode_s)), PSTR_LOCAL_SIZE - 1)
+// View a state LogString as a ProgmemStr so ArduinoJson serializes it PROGMEM-aware on ESP8266.
+[[maybe_unused]] static ProgmemStr json_state_str(const LogString *s) { return reinterpret_cast<ProgmemStr>(s); }
 
 // Parse URL and return match info
 // URL formats (disambiguated by HTTP method for 3-segment case):
@@ -164,36 +163,9 @@ EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
   }
 #endif
 
-  // Try matching by entity name (new format)
+  // Match by entity name
   if (this->id == entity->get_name()) {
     result.matched = true;
-    return result;
-  }
-
-  // Fall back to object_id (deprecated format)
-  char object_id_buf[OBJECT_ID_MAX_LEN];
-  StringRef object_id = entity->get_object_id_to(object_id_buf);
-  if (this->id == object_id) {
-    result.matched = true;
-    // Log deprecation warning
-#ifdef USE_DEVICES
-    Device *device = entity->get_device();
-    if (device != nullptr) {
-      ESP_LOGW(TAG,
-               "Deprecated URL format: /%.*s/%.*s/%.*s - use entity name '/%.*s/%s/%s' instead. "
-               "Object ID URLs will be removed in 2026.7.0.",
-               (int) this->domain.size(), this->domain.c_str(), (int) this->device_name.size(),
-               this->device_name.c_str(), (int) this->id.size(), this->id.c_str(), (int) this->domain.size(),
-               this->domain.c_str(), device->get_name(), entity->get_name().c_str());
-    } else
-#endif
-    {
-      ESP_LOGW(TAG,
-               "Deprecated URL format: /%.*s/%.*s - use entity name '/%.*s/%s' instead. "
-               "Object ID URLs will be removed in 2026.7.0.",
-               (int) this->domain.size(), this->domain.c_str(), (int) this->id.size(), this->id.c_str(),
-               (int) this->domain.size(), this->domain.c_str(), entity->get_name().c_str());
-    }
   }
 
   return result;
@@ -284,8 +256,10 @@ void DeferredUpdateEventSource::deferrable_send_state(void *source, const char *
 }
 
 // used for logs plus the initial ping/config
-void DeferredUpdateEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id,
-                                                 uint32_t reconnect) {
+void DeferredUpdateEventSource::try_send_nodefer(const char *message, size_t message_len, const char *event,
+                                                 uint32_t id, uint32_t reconnect) {
+  // ESPAsyncWebServer's send() only accepts null-terminated strings
+  (void) message_len;
   this->send(message, event, id, reconnect);
 }
 
@@ -306,10 +280,10 @@ void DeferredUpdateEventSourceList::deferrable_send_state(void *source, const ch
   }
 }
 
-void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, const char *event, uint32_t id,
-                                                     uint32_t reconnect) {
+void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, size_t message_len, const char *event,
+                                                     uint32_t id, uint32_t reconnect) {
   for (DeferredUpdateEventSource *dues : *this) {
-    dues->try_send_nodefer(message, event, id, reconnect);
+    dues->try_send_nodefer(message, message_len, event, id, reconnect);
   }
 }
 
@@ -331,7 +305,7 @@ void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource
     // Configure reconnect timeout and send config
     // this should always go through since the AsyncEventSourceClient event queue is empty on connect
     auto message = ws->get_config_json();
-    source->try_send_nodefer(message.c_str(), "ping", millis(), 30000);
+    source->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000);
 
 #ifdef USE_WEBSERVER_SORTING
     for (auto &group : ws->sorting_groups_) {
@@ -342,7 +316,7 @@ void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource
       auto group_msg = builder.serialize();
 
       // up to 31 groups should be able to be queued initially without defer
-      source->try_send_nodefer(group_msg.c_str(), "sorting_group");
+      source->try_send_nodefer(group_msg.c_str(), group_msg.size(), "sorting_group");
     }
 #endif
 
@@ -422,8 +396,8 @@ void WebServer::setup() {
       return;
     char buf[32];
     auto uptime = static_cast<uint32_t>(millis_64() / 1000);
-    buf_append_printf(buf, sizeof(buf), 0, "{\"uptime\":%" PRIu32 "}", uptime);
-    this->events_.try_send_nodefer(buf, "ping", millis(), 30000);
+    size_t len = buf_append_printf(buf, sizeof(buf), 0, "{\"uptime\":%" PRIu32 "}", uptime);
+    this->events_.try_send_nodefer(buf, len, "ping", millis(), 30000);
   });
 }
 void WebServer::loop() {
@@ -441,16 +415,16 @@ void WebServer::loop() {
 void WebServer::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
   (void) level;
   (void) tag;
-  (void) message_len;
-  this->events_.try_send_nodefer(message, "log", millis());
+  this->events_.try_send_nodefer(message, message_len, "log", millis());
 }
 #endif
 
 void WebServer::dump_config() {
+  char addr_buf[network::USE_ADDRESS_BUFFER_SIZE];
   ESP_LOGCONFIG(TAG,
                 "Web Server:\n"
                 "  Address: %s:%u",
-                network::get_use_address(), this->base_->get_port());
+                network::get_use_address_to(addr_buf), this->base_->get_port());
 }
 float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f; }
 
@@ -482,9 +456,58 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 }
 #endif
 
+// Read a request header value portably across the Arduino and ESP-IDF web servers.
+// Returns an empty string when the header is absent (only allocates when a value is present).
+static std::string get_request_header(AsyncWebServerRequest *request, const char *name) {
+#ifdef USE_ESP32
+  // ESP32 (Arduino and ESP-IDF) uses the web_server_idf backend.
+  optional<std::string> value = request->get_header(name);
+  return value.has_value() ? std::move(*value) : std::string();
+#else
+  // ESP8266, RP2040 and LibreTiny use the Arduino ESPAsyncWebServer backend.
+  const AsyncWebHeader *header = request->getHeader(name);
+  return header != nullptr ? std::string(header->value().c_str()) : std::string();
+#endif
+}
+
+bool WebServer::is_request_origin_allowed_(AsyncWebServerRequest *request, const std::string &origin) {
+  // No Origin header: not a browser cross-origin request (e.g. curl, native API client). Allow.
+  if (origin.empty())
+    return true;
+
+  // Same-origin: the Origin authority (scheme stripped) matches the Host the request was sent to.
+  // This covers the device's own IP, mDNS name, or DNS name without knowing any at compile time.
+  const size_t scheme_sep = origin.find("://");
+  if (scheme_sep != std::string::npos) {
+    const std::string host = get_request_header(request, "Host");
+    if (!host.empty() && origin.compare(scheme_sep + 3, std::string::npos, host) == 0)
+      return true;
+  }
+
+#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
+  // Otherwise the origin must be explicitly allowed via configuration.
+  for (const char *allowed_origin : this->allowed_origins_) {
+    // A single "*" entry allows any origin.
+    if (allowed_origin[0] == '*' && allowed_origin[1] == '\0')
+      return true;
+    if (origin == allowed_origin)
+      return true;
+  }
+#endif
+  return false;
+}
+
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
 void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
+  const std::string origin = get_request_header(request, "Origin");
+  if (!this->is_request_origin_allowed_(request, origin)) {
+    request->send(403);
+    return;
+  }
+
   AsyncWebServerResponse *response = request->beginResponse(200, ESPHOME_F(""));
+  // Echo the specific origin back so the response is valid even when auth (credentials) is enabled.
+  response->addHeader(ESPHOME_F("Access-Control-Allow-Origin"), origin.empty() ? "*" : origin.c_str());
   response->addHeader(ESPHOME_F("Access-Control-Allow-Private-Network"), ESPHOME_F("true"));
   response->addHeader(ESPHOME_F("Private-Network-Access-Name"), App.get_name().c_str());
   char mac_s[18];
@@ -603,9 +626,9 @@ static void set_json_value(JsonObject &root, EntityBase *obj, const char *prefix
   root[ESPHOME_F("value")] = value;
 }
 
-template<typename T>
-static void set_json_icon_state_value(JsonObject &root, EntityBase *obj, const char *prefix, const char *state,
-                                      const T &value, JsonDetail start_config) {
+template<typename S, typename T>
+static void set_json_icon_state_value(JsonObject &root, EntityBase *obj, const char *prefix, S state, const T &value,
+                                      JsonDetail start_config) {
   set_json_value(root, obj, prefix, value, start_config);
   root[ESPHOME_F("state")] = state;
 }
@@ -1098,8 +1121,7 @@ json::SerializationBuffer<> WebServer::cover_json_(cover::Cover *obj, JsonDetail
 
   set_json_icon_state_value(root, obj, "cover", obj->is_fully_closed() ? "CLOSED" : "OPEN", obj->position,
                             start_config);
-  char buf[PSTR_LOCAL_SIZE];
-  root[ESPHOME_F("current_operation")] = PSTR_LOCAL(cover::cover_operation_to_str(obj->current_operation));
+  root[ESPHOME_F("current_operation")] = json_state_str(cover::cover_operation_to_str(obj->current_operation));
 
   if (obj->get_traits().get_supports_position())
     root[ESPHOME_F("position")] = obj->position;
@@ -1555,17 +1577,16 @@ json::SerializationBuffer<> WebServer::climate_json_(climate::Climate *obj, Json
   const auto traits = obj->get_traits();
   int8_t target_accuracy = traits.get_target_temperature_accuracy_decimals();
   int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
-  char buf[PSTR_LOCAL_SIZE];
   char temp_buf[VALUE_ACCURACY_MAX_LEN];
 
   if (start_config == DETAIL_ALL) {
     JsonArray opt = root[ESPHOME_F("modes")].to<JsonArray>();
     for (climate::ClimateMode m : traits.get_supported_modes())
-      opt.add(PSTR_LOCAL(climate::climate_mode_to_string(m)));
+      opt.add(json_state_str(climate::climate_mode_to_string(m)));
     if (traits.get_supports_fan_modes()) {
       JsonArray opt = root[ESPHOME_F("fan_modes")].to<JsonArray>();
       for (climate::ClimateFanMode m : traits.get_supported_fan_modes())
-        opt.add(PSTR_LOCAL(climate::climate_fan_mode_to_string(m)));
+        opt.add(json_state_str(climate::climate_fan_mode_to_string(m)));
     }
 
     if (!traits.get_supported_custom_fan_modes().empty()) {
@@ -1576,12 +1597,12 @@ json::SerializationBuffer<> WebServer::climate_json_(climate::Climate *obj, Json
     if (traits.get_supports_swing_modes()) {
       JsonArray opt = root[ESPHOME_F("swing_modes")].to<JsonArray>();
       for (auto swing_mode : traits.get_supported_swing_modes())
-        opt.add(PSTR_LOCAL(climate::climate_swing_mode_to_string(swing_mode)));
+        opt.add(json_state_str(climate::climate_swing_mode_to_string(swing_mode)));
     }
     if (traits.get_supports_presets()) {
       JsonArray opt = root[ESPHOME_F("presets")].to<JsonArray>();
       for (climate::ClimatePreset m : traits.get_supported_presets())
-        opt.add(PSTR_LOCAL(climate::climate_preset_to_string(m)));
+        opt.add(json_state_str(climate::climate_preset_to_string(m)));
     }
     if (!traits.get_supported_custom_presets().empty()) {
       JsonArray opt = root[ESPHOME_F("custom_presets")].to<JsonArray>();
@@ -1597,26 +1618,26 @@ json::SerializationBuffer<> WebServer::climate_json_(climate::Climate *obj, Json
   }
 
   bool has_state = false;
-  root[ESPHOME_F("mode")] = PSTR_LOCAL(climate_mode_to_string(obj->mode));
+  root[ESPHOME_F("mode")] = json_state_str(climate_mode_to_string(obj->mode));
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION)) {
-    root[ESPHOME_F("action")] = PSTR_LOCAL(climate_action_to_string(obj->action));
+    root[ESPHOME_F("action")] = json_state_str(climate_action_to_string(obj->action));
     root[ESPHOME_F("state")] = root[ESPHOME_F("action")];
     has_state = true;
   }
   if (traits.get_supports_fan_modes() && obj->fan_mode.has_value()) {
-    root[ESPHOME_F("fan_mode")] = PSTR_LOCAL(climate_fan_mode_to_string(obj->fan_mode.value()));
+    root[ESPHOME_F("fan_mode")] = json_state_str(climate_fan_mode_to_string(obj->fan_mode.value()));
   }
   if (!traits.get_supported_custom_fan_modes().empty() && obj->has_custom_fan_mode()) {
     root[ESPHOME_F("custom_fan_mode")] = obj->get_custom_fan_mode();
   }
   if (traits.get_supports_presets() && obj->preset.has_value()) {
-    root[ESPHOME_F("preset")] = PSTR_LOCAL(climate_preset_to_string(obj->preset.value()));
+    root[ESPHOME_F("preset")] = json_state_str(climate_preset_to_string(obj->preset.value()));
   }
   if (!traits.get_supported_custom_presets().empty() && obj->has_custom_preset()) {
     root[ESPHOME_F("custom_preset")] = obj->get_custom_preset();
   }
   if (traits.get_supports_swing_modes()) {
-    root[ESPHOME_F("swing_mode")] = PSTR_LOCAL(climate_swing_mode_to_string(obj->swing_mode));
+    root[ESPHOME_F("swing_mode")] = json_state_str(climate_swing_mode_to_string(obj->swing_mode));
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE)) {
     root[ESPHOME_F("current_temperature")] =
@@ -1720,8 +1741,7 @@ json::SerializationBuffer<> WebServer::lock_json_(lock::Lock *obj, lock::LockSta
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  char buf[PSTR_LOCAL_SIZE];
-  set_json_icon_state_value(root, obj, "lock", PSTR_LOCAL(lock::lock_state_to_string(value)), value, start_config);
+  set_json_icon_state_value(root, obj, "lock", json_state_str(lock::lock_state_to_string(value)), value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1802,8 +1822,7 @@ json::SerializationBuffer<> WebServer::valve_json_(valve::Valve *obj, JsonDetail
 
   set_json_icon_state_value(root, obj, "valve", obj->is_fully_closed() ? "CLOSED" : "OPEN", obj->position,
                             start_config);
-  char buf[PSTR_LOCAL_SIZE];
-  root[ESPHOME_F("current_operation")] = PSTR_LOCAL(valve::valve_operation_to_str(obj->current_operation));
+  root[ESPHOME_F("current_operation")] = json_state_str(valve::valve_operation_to_str(obj->current_operation));
 
   if (obj->get_traits().get_supports_position())
     root[ESPHOME_F("position")] = obj->position;
@@ -1888,9 +1907,8 @@ json::SerializationBuffer<> WebServer::alarm_control_panel_json_(alarm_control_p
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  char buf[PSTR_LOCAL_SIZE];
-  set_json_icon_state_value(root, obj, "alarm-control-panel", PSTR_LOCAL(alarm_control_panel_state_to_string(value)),
-                            value, start_config);
+  set_json_icon_state_value(root, obj, "alarm-control-panel",
+                            json_state_str(alarm_control_panel_state_to_string(value)), value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1962,10 +1980,9 @@ json::SerializationBuffer<> WebServer::water_heater_all_json_generator(WebServer
 json::SerializationBuffer<> WebServer::water_heater_json_(water_heater::WaterHeater *obj, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
-  char buf[PSTR_LOCAL_SIZE];
 
   const auto mode = obj->get_mode();
-  const char *mode_s = PSTR_LOCAL(water_heater::water_heater_mode_to_string(mode));
+  ProgmemStr mode_s = json_state_str(water_heater::water_heater_mode_to_string(mode));
 
   set_json_icon_state_value(root, obj, "water_heater", mode_s, mode, start_config);
 
@@ -1974,7 +1991,7 @@ json::SerializationBuffer<> WebServer::water_heater_json_(water_heater::WaterHea
   if (start_config == DETAIL_ALL) {
     JsonArray modes = root[ESPHOME_F("modes")].to<JsonArray>();
     for (auto m : traits.get_supported_modes())
-      modes.add(PSTR_LOCAL(water_heater::water_heater_mode_to_string(m)));
+      modes.add(json_state_str(water_heater::water_heater_mode_to_string(m)));
     root[ESPHOME_F("min_temp")] = traits.get_min_temperature();
     root[ESPHOME_F("max_temp")] = traits.get_max_temperature();
     root[ESPHOME_F("step")] = traits.get_target_temperature_step();
@@ -2302,8 +2319,7 @@ json::SerializationBuffer<> WebServer::update_json_(update::UpdateEntity *obj, J
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  char buf[PSTR_LOCAL_SIZE];
-  set_json_icon_state_value(root, obj, "update", PSTR_LOCAL(update::update_state_to_string(obj->state)),
+  set_json_icon_state_value(root, obj, "update", json_state_str(update::update_state_to_string(obj->state)),
                             obj->update_info.latest_version, start_config);
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("current_version")] = obj->update_info.current_version;
@@ -2481,6 +2497,21 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
     return;
   }
 
+#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
+  // Private Network Access preflight carries a cross-origin Origin by design; its handler does the
+  // origin check itself, so let it run before the general enforcement below.
+  if (request->method() == HTTP_OPTIONS && request->hasHeader(ESPHOME_F("Access-Control-Request-Private-Network"))) {
+    this->handle_pna_cors_request(request);
+    return;
+  }
+#endif
+
+  // Reject cross-origin browser requests unless the origin is explicitly allowed.
+  if (!this->is_request_origin_allowed_(request, get_request_header(request, "Origin"))) {
+    request->send(403);
+    return;
+  }
+
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
   if (url == ESPHOME_F("/events")) {
     this->events_.add_new_client(this, request);
@@ -2498,13 +2529,6 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_WEBSERVER_JS_INCLUDE
   if (url == ESPHOME_F("/0.js")) {
     this->handle_js_request(request);
-    return;
-  }
-#endif
-
-#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
-  if (request->method() == HTTP_OPTIONS && request->hasHeader(ESPHOME_F("Access-Control-Request-Private-Network"))) {
-    this->handle_pna_cors_request(request);
     return;
   }
 #endif
