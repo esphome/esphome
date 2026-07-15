@@ -27,6 +27,15 @@ sensor:
     use_device_type: true
     cluster: default
 
+switch:
+  - platform: template
+    name: "Template Switch"
+    cluster: default
+  - platform: template
+    name: "Template Switch"
+    cluster: default
+    device_class: outlet
+
 zigbee:
   model: zigbee_test
   router: false
