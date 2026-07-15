@@ -9,9 +9,9 @@
 
 namespace esphome::xiaomi_mue4094rt {
 
-class XiaomiMUE4094RT : public Component,
-                        public binary_sensor::BinarySensorInitiallyOff,
-                        public esp32_ble_tracker::ESPBTDeviceListener {
+class XiaomiMUE4094RT final : public Component,
+                              public binary_sensor::BinarySensorInitiallyOff,
+                              public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; }
 

@@ -653,14 +653,21 @@ def clean_all(configuration: list[str]):
                 elif item.is_dir() and item.name != "storage":
                     rmtree(item)
 
-    # The native ESP-IDF install lives in a machine-global cache dir, outside
-    # any .esphome data dir, so the per-config loop above won't reach it.
-    from esphome.espidf.framework import _get_idf_tools_path
+    # The native toolchain installs live in a machine-global cache dir that
+    # the per-config loop above can't reach. Wipe the default cache root
+    # (also catches leftovers from older install layouts), then the resolved
+    # install paths for the ESPHOME_*_PREFIX overrides (docker/add-on/CI)
+    # that live outside it.
+    import platformdirs
 
-    idf_install_path = _get_idf_tools_path()
-    if idf_install_path.is_dir():
-        _LOGGER.info("Deleting %s", idf_install_path)
-        rmtree(idf_install_path)
+    from esphome.components.nrf52.framework import get_sdk_nrf_tools_path
+    from esphome.espidf.framework import get_idf_tools_path
+
+    cache_root = Path(platformdirs.user_cache_dir("esphome", appauthor=False)).resolve()
+    for install_path in (cache_root, get_idf_tools_path(), get_sdk_nrf_tools_path()):
+        if install_path.is_dir():
+            _LOGGER.info("Deleting %s", install_path)
+            rmtree(install_path)
 
     # Clean PlatformIO project files
     try:
