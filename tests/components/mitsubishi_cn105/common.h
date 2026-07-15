@@ -8,7 +8,6 @@
 #include <vector>
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/components/mitsubishi_cn105/mitsubishi_cn105.h"
-#include "esphome/components/mitsubishi_cn105/mitsubishi_cn105_climate.h"
 
 namespace esphome::mitsubishi_cn105::testing {
 
@@ -58,15 +57,6 @@ class TestableMitsubishiCN105 : public MitsubishiCN105 {
   static inline uint32_t test_loop_time_ms = 0;
 
   void set_current_time(uint32_t ms) { test_loop_time_ms = ms; }
-};
-
-class TestableMitsubishiCN105Climate : public MitsubishiCN105Climate {
- public:
-  using MitsubishiCN105Climate::apply_values_;
-  using MitsubishiCN105Climate::last_non_swing_vane_mode_;
-  using MitsubishiCN105Climate::last_non_swing_wide_vane_mode_;
-
-  MitsubishiCN105::Status &status() { return static_cast<TestableMitsubishiCN105 &>(this->hp_).status_; }
 };
 
 }  // namespace esphome::mitsubishi_cn105::testing
