@@ -426,11 +426,11 @@ void APIServer::set_batch_delay(uint16_t batch_delay) { this->batch_delay_ = bat
 
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 void APIServer::send_homeassistant_action(const HomeassistantActionRequest &call) {
-  bool sent = false;
+  bool has_subscriber = false;
   for (auto &client : this->active_clients()) {
-    sent |= client->send_homeassistant_action(call);
+    has_subscriber |= client->send_homeassistant_action(call);
   }
-  if (!sent) {
+  if (!has_subscriber) {
     // Home Assistant subscribes to actions shortly *after* authenticating, so actions
     // fired right at connection time (on_client_connected, on_time_sync, ...) can
     // arrive before the subscription and are lost - warn instead of failing silently.

@@ -166,8 +166,9 @@ class APIConnection final : public APIServerConnectionBase {
 #endif
   bool try_send_log_message(int level, const char *tag, const char *line, size_t message_len);
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-  // Returns false if this client has not (yet) subscribed to Home Assistant actions,
-  // so the caller can warn when an action was not delivered to any client.
+  // Returns whether this client has subscribed to Home Assistant actions; the message
+  // is only handed to the send path when subscribed. A true return does not guarantee
+  // delivery - it lets the caller warn when no connected client has the subscription.
   bool send_homeassistant_action(const HomeassistantActionRequest &call) {
     if (!this->flags_.service_call_subscription)
       return false;
