@@ -231,6 +231,10 @@ void CC1101Component::maybe_switch_long_packet_to_fixed_() {
     return;
   }
 
+  // PKTLEN is intentionally not rewritten here: TI Design Note DN500 (SWRA109) section 2.3 sets PKTLEN
+  // once to (length % 256) and keeps that same value across both the infinite and fixed phases, for both
+  // TX and RX. Writing PKTLEN = remaining here instead would use an MCU-observed, FIFO-drain-timing-
+  // dependent value in place of the datasheet's fixed target, misaligning the internal byte counter.
   this->state_.LENGTH_CONFIG = static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_FIXED);
   this->write_(Register::PKTCTRL0);
   this->packet_fixed_mode_armed_ = true;
@@ -282,6 +286,12 @@ void CC1101Component::handle_long_packet_(uint8_t rx_bytes) {
   }
 
   const size_t old_size = this->packet_.size();
+  // Reserve the known target length once, so growth below stays within already-reserved capacity
+  // instead of reallocating repeatedly. A no-op once capacity() already covers it (e.g. every call
+  // after the first for a fixed packet_length, or every call after packet_length_lambda resolves it).
+  if (this->packet_expected_length_ > 0 && this->packet_.capacity() < this->packet_expected_length_) {
+    this->packet_.reserve(this->packet_expected_length_);
+  }
   this->packet_.resize(old_size + to_read);
   this->read_(Register::FIFO, this->packet_.data() + old_size, to_read);
   this->packet_last_byte_ms_ = millis();
@@ -308,7 +318,7 @@ void CC1101Component::handle_long_packet_(uint8_t rx_bytes) {
       this->restart_long_packet_rx_();
       return;
     }
-    if (length > 0 && length <= this->packet_.size()) {
+    if (length > 0 && static_cast<size_t>(length) < this->packet_.size()) {
       ESP_LOGW(TAG, "Invalid computed packet length, discarding packet: length=%" PRId32 " received=%u", length,
                static_cast<uint16_t>(this->packet_.size()));
       this->restart_long_packet_rx_();
