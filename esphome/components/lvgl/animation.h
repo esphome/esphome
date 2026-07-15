@@ -17,16 +17,26 @@ class LvAnimationTiming {
  public:
   // Map progress in the range [0, 1]
   virtual float map_progress(float value) = 0;
+  virtual ~LvAnimationTiming() = default;
 };
 
 class LvAnimationTimingRoundTrip : public LvAnimationTiming {
  public:
+  // moving_length is a nvalue between 0.1 and 0.5 representing the time spent moving in each direction
+  LvAnimationTimingRoundTrip(float pause) : moving_length_(1.0 - pause) {}
   float map_progress(float value) override {
-    value *= 2.0f;
-    if (value > 1.0f)
-      return 2.0f - value;
-    return value;
+    if (value <= this->moving_length_) {
+      return value / this->moving_length_;
+    }
+    if (value >= 1.0f - this->moving_length_) {
+      return (1.0f - value) / this->moving_length_;
+    }
+    // pause in the middle
+    return 1.0f;
   }
+
+ protected:
+  float moving_length_{};
 };
 
 class LvAnimationTimingGravity : public LvAnimationTiming {
