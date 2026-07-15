@@ -135,6 +135,7 @@ template<typename... Args> void enqueue_zb_event(Args... args) {
   global_zigbee->zb_events_.push(event);
   // Push always succeeds because we're the only producer and the pool ensures we never exceed queue size
   global_zigbee->enable_loop_soon_any_context();
+  App.wake_loop_threadsafe();
 }
 
 // Explicit template instantiations for the friend function
