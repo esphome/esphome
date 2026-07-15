@@ -502,6 +502,9 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
 
   void stop() override {
     this->var_queue_.clear();
+    // Tell any process_queue_() call further down the stack that the items it is
+    // still holding were cancelled
+    this->stop_generation_++;
     this->disable_loop();
   }
 
@@ -511,33 +514,57 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
   }
 
  protected:
+  using QueueItem = std::tuple<uint32_t, optional<uint32_t>, std::tuple<Ts...>>;
+
   // Helper: Process queue, triggering completed items and removing them
   // Returns true if queue still has pending items
   bool process_queue_(uint32_t now) {
-    // Process each queued wait_until and remove completed ones
-    this->var_queue_.remove_if([&](auto &queued) {
-      auto start = std::get<uint32_t>(queued);
-      auto timeout = std::get<optional<uint32_t>>(queued);
-      auto &var = std::get<std::tuple<Ts...>>(queued);
+    // Completed items run the rest of the action chain synchronously, and that chain
+    // can re-enter this same action (e.g. a script with mode: restart that executes
+    // itself) and add to or clear var_queue_. Iterating the member list directly would
+    // then corrupt it, so move it aside and iterate a local list instead.
+    std::list<QueueItem> queue;
+    queue.swap(this->var_queue_);
+    std::list<QueueItem> pending;
+    while (!queue.empty()) {
+      auto it = queue.begin();
+      auto start = std::get<uint32_t>(*it);
+      auto timeout = std::get<optional<uint32_t>>(*it);
 
       // Check if timeout has expired
       auto expired = timeout && (now - start) >= *timeout;
 
       // Keep waiting if not expired and condition not met
-      if (!expired && !this->condition_->check_tuple(var)) {
-        return false;
+      if (!expired && !this->condition_->check_tuple(std::get<std::tuple<Ts...>>(*it))) {
+        pending.splice(pending.end(), queue, it);
+        continue;
       }
 
-      // Condition met or timed out - trigger next action
-      this->play_next_tuple_(var);
-      return true;
-    });
+      // Condition met or timed out - trigger the next action. Keep the item in a local
+      // holder so its arguments stay valid while the chain runs, without any nested
+      // process_queue_() call being able to see (and fire) it again.
+      std::list<QueueItem> completed;
+      completed.splice(completed.begin(), queue, it);
+      uint8_t generation = this->stop_generation_;
+      this->play_next_tuple_(std::get<std::tuple<Ts...>>(completed.front()));
+      if (generation != this->stop_generation_) {
+        // stop() ran inside the chain - the items still held locally were cancelled
+        pending.clear();
+        break;
+      }
+    }
+
+    // Re-entrant continuations may have enqueued new waits into var_queue_; put the
+    // older still-waiting items back in front of them to keep FIFO firing order
+    this->var_queue_.splice(this->var_queue_.begin(), pending);
 
     return !this->var_queue_.empty();
   }
 
   Condition<Ts...> *condition_;
-  std::list<std::tuple<uint32_t, optional<uint32_t>, std::tuple<Ts...>>> var_queue_{};
+  std::list<QueueItem> var_queue_{};
+  // Bumped by stop() so process_queue_() can detect a stop from inside play_next_tuple_()
+  uint8_t stop_generation_{0};
 };
 
 template<typename... Ts> class UpdateComponentAction : public Action<Ts...> {
