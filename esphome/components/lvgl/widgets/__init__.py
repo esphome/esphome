@@ -230,7 +230,7 @@ class WidgetType:
         :param config: Its configuration
         """
 
-    def get_uses(self):
+    def get_uses(self) -> tuple:
         """
         Get a list of other widgets used by this one
         :return:

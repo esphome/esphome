@@ -1179,6 +1179,42 @@ lvgl:
             id: checkbox_id
             text: Checkbox
             align: bottom_right
+        - list:
+            id: test_list_id
+            align: top_right
+            width: 150px
+            height: 120px
+            on_click:
+              - lvgl.list.add_text:
+                  id: test_list_id
+                  text: !lambda return "Section";
+              - lvgl.list.add_button:
+                  id: test_list_id
+                  text: "Entry"
+                  checkable: true
+              - lvgl.list.add:
+                  id: test_list_id
+                  obj:
+                    widgets:
+                      - label:
+                          text: !lambda return "Dynamic row " + std::to_string(millis());
+                      - button:
+                          widgets:
+                            - label:
+                                text: "Tap"
+                          on_click:
+                            - logger.log: "dynamic row button clicked"
+                      - dropdown:
+                          options:
+                            - "One"
+                            - "Two"
+                          on_value:
+                            - logger.log: "dynamic row dropdown changed"
+              - lvgl.list.remove:
+                  id: test_list_id
+                  index: 0
+              - lvgl.list.clear:
+                  id: test_list_id
         - slider:
             id: slider_id
             align: top_mid

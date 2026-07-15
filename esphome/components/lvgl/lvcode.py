@@ -242,7 +242,7 @@ class LocalVariable(MockObj):
                     self.base.type, self.modifier, self.base.id
                 )
             )
-        return MockObj(self.base)
+        return MockObj(self.base, "->" if self.modifier == "*" else ".")
 
     def __exit__(self, *args):
         CodeContext.end_block()

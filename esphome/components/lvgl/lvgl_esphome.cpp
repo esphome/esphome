@@ -208,21 +208,21 @@ void LvglComponent::esphome_lvgl_init() {
   lv_update_event = static_cast<lv_event_code_t>(lv_event_register_id());
 }
 
-void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event) {
-  lv_obj_add_event_cb(obj, callback, event, nullptr);
+void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event, void *user_data) {
+  lv_obj_add_event_cb(obj, callback, event, user_data);
 }
 
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1,
-                                 lv_event_code_t event2) {
-  add_event_cb(obj, callback, event1);
-  add_event_cb(obj, callback, event2);
+                                 lv_event_code_t event2, void *user_data) {
+  add_event_cb(obj, callback, event1, user_data);
+  add_event_cb(obj, callback, event2, user_data);
 }
 
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1,
-                                 lv_event_code_t event2, lv_event_code_t event3) {
-  add_event_cb(obj, callback, event1);
-  add_event_cb(obj, callback, event2);
-  add_event_cb(obj, callback, event3);
+                                 lv_event_code_t event2, lv_event_code_t event3, void *user_data) {
+  add_event_cb(obj, callback, event1, user_data);
+  add_event_cb(obj, callback, event2, user_data);
+  add_event_cb(obj, callback, event3, user_data);
 }
 
 void LvglComponent::add_page(LvPageType *page) {

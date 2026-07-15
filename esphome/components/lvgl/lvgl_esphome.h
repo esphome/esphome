@@ -135,6 +135,12 @@ class LvCompound {
   lv_obj_t *obj{};
 };
 
+// Frees a heap-allocated LvCompound wrapper on LV_EVENT_DELETE, since lv_obj_del() only knows how to destroy LVGL's own
+// object tree, not a separate C++ object paired with one of its nodes.
+template<typename T> void delete_lv_compound_on_delete(lv_event_t *e) {
+  delete static_cast<T *>(lv_event_get_user_data(e));
+}
+
 class LvglComponent;
 
 class LvPageType : public Parented<LvglComponent> {
@@ -241,10 +247,11 @@ class LvglComponent final : public PollingComponent {
   static void esphome_lvgl_init();
 
   //  Convenience overloads for adding a callback for one or more events
-  static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event);
-  static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2);
+  static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event, void *user_data = nullptr);
   static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2,
-                           lv_event_code_t event3);
+                           void *user_data = nullptr);
+  static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2,
+                           lv_event_code_t event3, void *user_data = nullptr);
 
   // change the state of a widget and fire an event if changed (only needed for CHECKED)
 
