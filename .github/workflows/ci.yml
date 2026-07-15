@@ -744,7 +744,10 @@ jobs:
         include:
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 S3
-            options: --environment esp32s3-idf-tidy --grep USE_ESP32_VARIANT_ESP32S3
+            # Also lint the USB-CDC logger paths and the tsens temperature driver,
+            # which the original ESP32 build compiles out.
+            # yamllint disable-line rule:line-length
+            options: --environment esp32s3-idf-tidy --grep USE_ESP32_VARIANT_ESP32S3 --grep SOC_TEMP_SENSOR_SUPPORTED --grep USE_LOGGER_USB_CDC
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 P4
             # P4 has no native Wi-Fi/BLE; those run over the hosted co-processor,
@@ -753,8 +756,10 @@ jobs:
             options: --environment esp32p4-idf-tidy --grep USE_ESP32_VARIANT_ESP32P4 --grep USE_ESP32_HOSTED --grep USE_WIFI --grep USE_BLE
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 C6
+            # Also lint the low-power I2C/UART peripheral code, which only newer
+            # chips (C5/C6/P4) have.
             # yamllint disable-line rule:line-length
-            options: --environment esp32c6-idf-tidy --grep USE_ESP32_VARIANT_ESP32C6 --grep USE_OPENTHREAD --grep USE_ZIGBEE
+            options: --environment esp32c6-idf-tidy --grep USE_ESP32_VARIANT_ESP32C6 --grep USE_OPENTHREAD --grep USE_ZIGBEE --grep SOC_LP_I2C_SUPPORTED --grep SOC_UART_LP_NUM
 
     steps:
       - name: Check out code from GitHub
