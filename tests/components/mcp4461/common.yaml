@@ -34,10 +34,28 @@ output:
     terminal_b: false
     terminal_w: false
 
+  # TCON1 coverage: terminal flags on a channel C output exercise the
+  # calc_terminal_connector_byte_() write path for wipers 2/3.
+  - platform: mcp4461
+    id: digipot_wiper_6
+    mcp4461_id: mcp4461_digipot_01
+    channel: C
+    terminal_a: false
+    terminal_w: false
+
+  # Bare NV-channel output — the pre-existing persistence workaround; must
+  # keep validating without any nonvolatile key (regression: schema default
+  # used to materialize the key on every channel and fail final validation).
   - platform: mcp4461
     id: digipot_nv_wiper_1
     mcp4461_id: mcp4461_digipot_01
     channel: E
+
+  # Explicit opt-out on an NV channel is a harmless no-op and stays valid.
+  - platform: mcp4461
+    id: digipot_nv_wiper_2
+    mcp4461_id: mcp4461_digipot_01
+    channel: F
     nonvolatile: false
 
 button:

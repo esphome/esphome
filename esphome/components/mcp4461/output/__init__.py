@@ -40,10 +40,13 @@ def _validate_nonvolatile(config):
     # Channels E-H address the nonvolatile registers directly — the mirroring options only
     # make sense for the volatile channels A-D.
     if channel not in VOLATILE_CHANNELS:
-        if CONF_NONVOLATILE in config or CONF_NONVOLATILE_WRITE_DELAY in config:
+        # Only reject what the user EXPLICITLY asked for and cannot have: enabling the
+        # mirroring or tuning its delay on E-H. An explicit `nonvolatile: false` is a
+        # harmless no-op and stays valid; bare configs (no key at all) must keep working.
+        if config.get(CONF_NONVOLATILE) or CONF_NONVOLATILE_WRITE_DELAY in config:
             raise cv.Invalid(
-                f"'{CONF_NONVOLATILE}' and '{CONF_NONVOLATILE_WRITE_DELAY}' are only valid for the volatile channels A-D; "
-                f"channels E-H are the nonvolatile registers themselves"
+                f"enabling '{CONF_NONVOLATILE}' or setting '{CONF_NONVOLATILE_WRITE_DELAY}' is only valid for the "
+                f"volatile channels A-D; channels E-H are the nonvolatile registers themselves"
             )
         return config
 
@@ -65,14 +68,17 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
         cv.Optional(CONF_TERMINAL_B, default=True): cv.boolean,
         cv.Optional(CONF_TERMINAL_W, default=True): cv.boolean,
         cv.Optional(CONF_INITIAL_VALUE): cv.float_range(min=0.0, max=1.0),
-        # Default true: the chip restores the nonvolatile wiper levels at power-on, so
-        # persisting every (settled) level change is the least surprising behavior — the pot
-        # simply comes back where it was. The write is deferred until the level has been
-        # stable for nonvolatile_write_delay to debounce transitions and protect the
+        # No schema defaults here: a default would materialize the keys on EVERY channel,
+        # making existing bare E-H configs fail final validation. The effective defaults
+        # (nonvolatile: true, delay 1s) are applied for the volatile channels A-D inside
+        # _validate_nonvolatile instead. Default-on rationale: the chip restores the
+        # nonvolatile wiper levels at power-on, so persisting every settled level change is
+        # the least surprising behavior — the pot simply comes back where it was. The write
+        # is deferred by nonvolatile_write_delay to debounce transitions and protect the
         # EEPROM's endurance.
-        cv.Optional(CONF_NONVOLATILE, default=True): cv.boolean,
+        cv.Optional(CONF_NONVOLATILE): cv.boolean,
         cv.Optional(
-            CONF_NONVOLATILE_WRITE_DELAY, default="1s"
+            CONF_NONVOLATILE_WRITE_DELAY
         ): cv.positive_time_period_milliseconds,
     }
 )

@@ -483,7 +483,10 @@ bool Mcp4461Component::decrease_wiper_(Mcp4461WiperIdx wiper) {
 }
 
 uint8_t Mcp4461Component::calc_terminal_connector_byte_(Mcp4461TerminalIdx terminal_connector) {
-  uint8_t i = static_cast<uint8_t>(terminal_connector) <= 1 ? 0 : 2;
+  // TCON0 covers wipers 0/1 (A/B), TCON1 covers wipers 2/3 (C/D). The enum only holds
+  // 0 and 1, so the old `<= 1 ? 0 : 2` collapsed to always-0 and built TCON1 from
+  // channels A/B's flags — mirror the (correct) read path in update_terminal_register_().
+  uint8_t i = static_cast<uint8_t>(terminal_connector) == 0 ? 0 : 2;
   uint8_t new_value_byte = 0;
   new_value_byte += static_cast<uint8_t>(this->reg_[i].terminal_b);
   new_value_byte += static_cast<uint8_t>(this->reg_[i].terminal_w) << 1;
@@ -570,6 +573,12 @@ void Mcp4461Component::enable_terminal_(Mcp4461WiperIdx wiper, char terminal) {
     return;
   }
   uint8_t wiper_idx = static_cast<uint8_t>(wiper);
+  if (wiper_idx > 3) {
+    // Terminal control only exists for the volatile wipers; loop() would otherwise emit
+    // an unrelated TCON write and silently drop the request.
+    ESP_LOGW(TAG, "%s", LOG_STR_ARG(this->get_message_string(MCP4461_PROHIBITED_FOR_NONVOLATILE)));
+    return;
+  }
   ESP_LOGV(TAG, "Enabling terminal %c of wiper %u", terminal, wiper_idx);
   switch (terminal) {
     case 'h':
@@ -597,6 +606,10 @@ void Mcp4461Component::disable_terminal_(Mcp4461WiperIdx wiper, char terminal) {
     return;
   }
   uint8_t wiper_idx = static_cast<uint8_t>(wiper);
+  if (wiper_idx > 3) {
+    ESP_LOGW(TAG, "%s", LOG_STR_ARG(this->get_message_string(MCP4461_PROHIBITED_FOR_NONVOLATILE)));
+    return;
+  }
   ESP_LOGV(TAG, "Disabling terminal %c of wiper %u", terminal, wiper_idx);
   switch (terminal) {
     case 'h':

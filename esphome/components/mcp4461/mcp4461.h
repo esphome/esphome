@@ -159,6 +159,8 @@ class Mcp4461Component final : public Component, public i2c::I2CDevice {
         return LOG_STR("MCP4461 Wiper is locked using WiperLock-technology. All actions on this wiper are prohibited.");
       case MCP4461_STATUS_OK:
         return LOG_STR("Status OK");
+      case MCP4461_PROHIBITED_FOR_NONVOLATILE:
+        return LOG_STR("Increment/decrement and terminal control are prohibited on the nonvolatile wipers (E-H).");
       default:
         return LOG_STR("Unknown");
     }
