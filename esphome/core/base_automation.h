@@ -525,6 +525,7 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
     // then corrupt it, so move it aside and iterate a local list instead.
     std::list<QueueItem> queue;
     queue.swap(this->var_queue_);
+    std::list<QueueItem> pending;
     while (!queue.empty()) {
       auto it = queue.begin();
       auto start = std::get<uint32_t>(*it);
@@ -535,7 +536,7 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
 
       // Keep waiting if not expired and condition not met
       if (!expired && !this->condition_->check_tuple(std::get<std::tuple<Ts...>>(*it))) {
-        this->var_queue_.splice(this->var_queue_.end(), queue, it);
+        pending.splice(pending.end(), queue, it);
         continue;
       }
 
@@ -547,10 +548,15 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
       uint8_t generation = this->stop_generation_;
       this->play_next_tuple_(std::get<std::tuple<Ts...>>(completed.front()));
       if (generation != this->stop_generation_) {
-        // stop() ran inside the chain - the items still waiting locally were cancelled
+        // stop() ran inside the chain - the items still held locally were cancelled
+        pending.clear();
         break;
       }
     }
+
+    // Re-entrant continuations may have enqueued new waits into var_queue_; put the
+    // older still-waiting items back in front of them to keep FIFO firing order
+    this->var_queue_.splice(this->var_queue_.begin(), pending);
 
     return !this->var_queue_.empty();
   }

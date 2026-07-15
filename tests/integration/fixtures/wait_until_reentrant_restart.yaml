@@ -13,6 +13,12 @@ api:
         - globals.set:
             id: gate_open
             value: 'false'
+        # num 0 is a blocker: its condition never becomes true, so it is still
+        # waiting (already checked and set aside) when num 1 stops the script -
+        # it must be cancelled, not restored, so its timeout must never fire
+        - script.execute:
+            id: waiter
+            num: 0
         - script.execute:
             id: waiter
             num: 1
@@ -74,7 +80,7 @@ script:
     then:
       - wait_until:
           condition:
-            lambda: 'return id(gate_open);'
-          timeout: 5s
+            lambda: 'return num != 0 && id(gate_open);'
+          timeout: 1s
       - lambda: 'ESP_LOGD("test", "gate passed %d", num);'
       - script.stop: waiter

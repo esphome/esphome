@@ -73,11 +73,17 @@ async def test_wait_until_reentrant_restart(
         assert attempts == [1, 2, 3, 4, 5], attempts
 
         # Scenario 2: the first waiter through the gate stops the script while
-        # the two remaining waiters are still queued in the same wait_until;
-        # they must be cancelled, not fired.
+        # the other waiters are still queued in the same wait_until; both the
+        # not-yet-checked waiters (2, 3) and the already-checked still-waiting
+        # blocker (0) must be cancelled, not fired.
         await client.execute_service(stop_service, {})
         try:
             await asyncio.wait_for(stop_complete.wait(), timeout=10.0)
         except TimeoutError:
             pytest.fail(f"Stop-during-wait did not finish. Gate passed: {gate_passed}")
+        assert gate_passed == [1], gate_passed
+
+        # If the cancelled blocker had been kept, its 1s wait_until timeout
+        # would still fire - give it the chance and check it stays silent.
+        await asyncio.sleep(1.5)
         assert gate_passed == [1], gate_passed
