@@ -174,8 +174,10 @@ class ModbusServerHub : public Modbus {
   uint16_t deferred_payload_len_{0};
 };
 
-// Status of a completed client transaction: std::nullopt on success, otherwise the Modbus exception code the
-// server returned. Timeouts and unsent commands are reported separately via on_no_response() /
+// Transaction status: std::nullopt on success, otherwise the Modbus exception code the server returned.
+// Note the inversion: the optional holds the *error*, not the value - an engaged optional means failure.
+// Named without a side prefix so both directions share it: server handlers return it, client response
+// callbacks receive it. Timeouts and unsent commands are reported separately via on_no_response() /
 // on_not_sent(), never through this status.
 using ResponseStatus = std::optional<ModbusExceptionCode>;
 
@@ -320,9 +322,6 @@ class ModbusClientDevice {
 using ModbusDevice ESPDEPRECATED("Use ModbusClientDevice instead. Removed in 2026.12.0",
                                  "2026.6.0") = ModbusClientDevice;
 
-// Transaction status: std::nullopt on success, otherwise the Modbus exception code. Server handlers return it;
-// (future) client response callbacks receive it. Named without a side prefix so both directions share it.
-using ResponseStatus = std::optional<ModbusExceptionCode>;
 // Register values exchanged with server handlers, in host byte order. Sized at the larger of the two protocol
 // maxima (read = 125 / 0x7D, write = 123 / 0x7B); the per-direction count limit is enforced by the hub, not by
 // the capacity of this type.
