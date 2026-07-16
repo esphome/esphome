@@ -32,7 +32,7 @@ class RP2040BLE final : public Component {
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
 
  protected:
-  static void packet_handler_(uint8_t type, uint16_t channel, uint8_t *packet, uint16_t size);
+  static void packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, uint16_t size);
 
   btstack_packet_callback_registration_t hci_event_callback_registration_{};
   btstack_packet_callback_registration_t sm_event_callback_registration_{};
