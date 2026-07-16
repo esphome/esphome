@@ -511,7 +511,6 @@ jobs:
           - id: clang-tidy
             name: Run script/clang-tidy for LibreTiny
             environments: bk72xx-tidy ln882h-tidy rtl87xxb-tidy rtl87xxc-tidy
-            # yamllint disable-line rule:line-length
             options: --grep USE_LIBRETINY --grep USE_BK72XX --grep USE_RTL87XX --grep USE_LN882X
             pio_cache_key: tidylibretiny
 
