@@ -93,6 +93,17 @@ BASE_SCHEMA = sensor.sensor_schema(EmonTxSensor).extend(
 )
 
 
+def _apply_defaults(config: ConfigType, defaults: dict) -> None:
+    """Inject defaults into config, skipping keys already set by the user.
+    state_class values are run through validate_state_class so they are
+    code-generation-ready, matching what sensor_schema() would normally do."""
+    for key, value in defaults.items():
+        if key not in config:
+            if key == CONF_STATE_CLASS:
+                value = sensor.validate_state_class(value)
+            config[key] = value
+
+
 def apply_tag_defaults(config: ConfigType) -> ConfigType:
     """Apply defaults based on tag prefix if applicable, but don't restrict any tags."""
     tag = config[CONF_TAG_NAME]
@@ -102,27 +113,20 @@ def apply_tag_defaults(config: ConfigType) -> ConfigType:
 
         for pattern, pattern_config in PATTERN_CONFIGS.items():
             if tag_upper.startswith(pattern):
-                for key, value in pattern_config.items():
-                    if key not in config:
-                        if key == CONF_STATE_CLASS:
-                            value = sensor.validate_state_class(value)
-                        config[key] = value
+                _apply_defaults(config, pattern_config)
                 return config
 
         # Only apply defaults for known prefixes with numeric indices (e.g. E1, V2, T3)
         prefix = tag_upper[0]
         if prefix in SENSOR_CONFIGS and tag[1:].isdigit():
-            for key, value in SENSOR_CONFIGS[prefix].items():
-                if key not in config:
-                    if key == CONF_STATE_CLASS:
-                        value = sensor.validate_state_class(value)
-                    config[key] = value
+            _apply_defaults(config, SENSOR_CONFIGS[prefix])
             return config
 
     # Fall back to generic defaults for tags with no known prefix
-    if CONF_STATE_CLASS not in config:
-        config[CONF_STATE_CLASS] = sensor.validate_state_class(STATE_CLASS_MEASUREMENT)
-    config.setdefault(CONF_ACCURACY_DECIMALS, 0)
+    _apply_defaults(config, {
+        CONF_STATE_CLASS: STATE_CLASS_MEASUREMENT,
+        CONF_ACCURACY_DECIMALS: 0,
+    })
     return config
 
 
