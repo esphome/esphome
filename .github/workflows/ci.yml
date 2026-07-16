@@ -585,8 +585,9 @@ jobs:
           if [ -n "${{ matrix.environments }}" ]; then
             rc=0
             for env in ${{ matrix.environments }}; do
-              echo "=== environment: $env ==="
+              echo "::group::clang-tidy $env"
               script/clang-tidy --all-headers --fix $changed --environment "$env" ${{ matrix.options }} || rc=1
+              echo "::endgroup::"
             done
             exit $rc
           else
