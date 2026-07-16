@@ -133,9 +133,7 @@ def run_detailed_analysis(build_dir: str) -> dict | None:
 
     elf_path = find_elf_path(build_path)
     if not elf_path:
-        print(
-            f"firmware.elf/raw_firmware.elf not found in {build_dir}", file=sys.stderr
-        )
+        print(f"No firmware ELF found in {build_dir}", file=sys.stderr)
         return None
 
     idedata = None

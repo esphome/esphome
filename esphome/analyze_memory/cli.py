@@ -762,7 +762,7 @@ def main():
 
     elf_path = find_elf_path(build_path)
     if not elf_path:
-        print(f"Error: firmware.elf not found in {build_dir}", file=sys.stderr)
+        print(f"Error: no firmware ELF found in {build_dir}", file=sys.stderr)
         sys.exit(1)
     elf_file = str(elf_path)
 

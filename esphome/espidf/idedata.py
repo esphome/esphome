@@ -209,9 +209,10 @@ def _cc_path_from_cxx(cxx_path: str) -> str:
         if cxx_path.endswith(".exe")
         else (cxx_path, "")
     )
-    # Rewrite only a real g++ program name, so a prefixed toolchain such as
-    # xtensa-esp32-elf-g++ maps to xtensa-esp32-elf-gcc while clang++ is left
-    # alone (it also ends in "g++", but its C compiler is not "clangcc").
+    # Rewrite the program name only when it is g++ itself, or a toolchain
+    # prefixed one such as xtensa-esp32-elf-g++ -> xtensa-esp32-elf-gcc.
+    # Requiring a separator before the "g++" keeps names that merely end in
+    # those three characters intact: "clang++" must not become "clangcc".
     head = stem[: -len("g++")]
     if stem.endswith("g++") and (not head or head.endswith(("-", "/", "\\"))):
         stem = f"{head}gcc"
