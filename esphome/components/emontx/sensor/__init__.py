@@ -14,7 +14,6 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_NONE,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
     UNIT_CELSIUS,
@@ -80,12 +79,14 @@ PATTERN_CONFIGS = {
     },
 }
 
-# Create a base schema that's flexible for any tag
-BASE_SCHEMA = sensor.sensor_schema(
-    EmonTxSensor,
-    state_class=STATE_CLASS_NONE,
-    accuracy_decimals=0,
-).extend(
+# Create a base schema that's flexible for any tag.
+# Do not pre-fill state_class or accuracy_decimals here: sensor_schema() registers
+# them as cv.Optional(key, default=...), which means they are always present in the
+# validated config dict. The guard `if key not in config` in apply_tag_defaults would
+# then silently skip every per-prefix override. Instead we leave them absent so
+# apply_tag_defaults can inject the correct per-prefix values, and fall back to
+# generic defaults at the end of that function for tags with no known prefix.
+BASE_SCHEMA = sensor.sensor_schema(EmonTxSensor).extend(
     {
         cv.GenerateID(CONF_EMONTX_ID): cv.use_id(EmonTx),
         cv.Required(CONF_TAG_NAME): cv.string,
@@ -97,38 +98,25 @@ def apply_tag_defaults(config: ConfigType) -> ConfigType:
     """Apply defaults based on tag prefix if applicable, but don't restrict any tags."""
     tag = config[CONF_TAG_NAME]
 
-    # Skip if tag is too short
-    if len(tag) < 2:
-        return config
+    if len(tag) >= 2:
+        tag_upper = tag.upper()
 
-    # Check if this tag starts with a known prefix
-    tag_upper = tag.upper()
+        for pattern, pattern_config in PATTERN_CONFIGS.items():
+            if tag_upper.startswith(pattern):
+                for key, value in pattern_config.items():
+                    config.setdefault(key, value)
+                return config
 
-    for pattern, pattern_config in PATTERN_CONFIGS.items():
-        if tag_upper.startswith(pattern):
-            # Apply pattern defaults if not overridden by user
-            for key, value in pattern_config.items():
-                if key == CONF_STATE_CLASS:
-                    # Only override if the user left it at the sentinel STATE_CLASS_NONE
-                    if config.get(CONF_STATE_CLASS) == STATE_CLASS_NONE:
-                        config[key] = value
-                elif key not in config:
-                    config[key] = value
+        # Only apply defaults for known prefixes with numeric indices (e.g. E1, V2, T3)
+        prefix = tag_upper[0]
+        if prefix in SENSOR_CONFIGS and tag[1:].isdigit():
+            for key, value in SENSOR_CONFIGS[prefix].items():
+                config.setdefault(key, value)
             return config
 
-    # Only apply defaults for known prefixes with numeric indices
-    prefix = tag_upper[0]
-    if prefix in SENSOR_CONFIGS and len(tag) > 1 and tag[1:].isdigit():
-        # Apply defaults for known tag types, but only if not overridden by user
-        defaults = SENSOR_CONFIGS[prefix]
-        for key, value in defaults.items():
-            if key == CONF_STATE_CLASS:
-                # Only override if the user left it at the sentinel STATE_CLASS_NONE
-                if config.get(CONF_STATE_CLASS) == STATE_CLASS_NONE:
-                    config[key] = value
-            elif key not in config:
-                config[key] = value
-
+    # Fall back to generic defaults for tags with no known prefix
+    config.setdefault(CONF_STATE_CLASS, STATE_CLASS_MEASUREMENT)
+    config.setdefault(CONF_ACCURACY_DECIMALS, 0)
     return config
 
 
