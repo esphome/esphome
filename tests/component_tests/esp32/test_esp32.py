@@ -740,3 +740,28 @@ def test_signed_ota_keys_invalid_combinations(config: dict, match: str) -> None:
 
     with pytest.raises(cv.Invalid, match=match):
         _validate_signed_ota_keys(config)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        # Full x.y.z versions are rewritten into pioarduino release URLs
+        (
+            "55.3.30",
+            "https://github.com/pioarduino/platform-espressif32/releases/download/55.03.30/platform-espressif32.zip",
+        ),
+        (
+            "55.3.31-2",
+            "https://github.com/pioarduino/platform-espressif32/releases/download/55.03.31-2/platform-espressif32.zip",
+        ),
+        # Non-version values pass through untouched
+        (
+            "https://github.com/pioarduino/platform-espressif32.git#develop",
+            "https://github.com/pioarduino/platform-espressif32.git#develop",
+        ),
+    ],
+)
+def test_parse_pio_platform_version(value: str, expected: str) -> None:
+    from esphome.components.esp32 import _parse_pio_platform_version
+
+    assert _parse_pio_platform_version(value) == expected
