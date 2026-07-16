@@ -72,7 +72,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
 
   bool status = container->client_.begin(*stream_ptr, url.c_str());
 
-#elif defined(USE_RP2040)
+#elif defined(USE_RP2)
   if (secure) {
     container->client_.setInsecure();
   }

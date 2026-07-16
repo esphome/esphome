@@ -49,7 +49,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_HOST,
     PLATFORM_NRF52,
-    PLATFORM_RP2040,
+    PLATFORM_RP2,
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -130,7 +130,7 @@ def validate_config(config):
         return cv.require_framework_version(
             esp_idf=cv.Version(5, 4, 2), esp32_arduino=cv.Version(3, 2, 1)
         )(config)
-    if CORE.is_rp2040:
+    if CORE.is_rp2:
         sda_controller = _rp2040_i2c_controller(config[CONF_SDA])
         scl_controller = _rp2040_i2c_controller(config[CONF_SCL])
         if sda_controller != scl_controller:
@@ -171,7 +171,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_SDA,
                 esp32="SDA",
                 esp8266="SDA",
-                rp2040="SDA",
+                rp2="SDA",
                 nrf52="SDA",
             ): pins.internal_gpio_pin_number,
             cv.SplitDefault(CONF_SDA_PULLUP_ENABLED, esp32=True): cv.All(
@@ -181,7 +181,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_SCL,
                 esp32="SCL",
                 esp8266="SCL",
-                rp2040="SCL",
+                rp2="SCL",
                 nrf52="SCL",
             ): pins.internal_gpio_pin_number,
             cv.SplitDefault(CONF_SCL_PULLUP_ENABLED, esp32=True): cv.All(
@@ -191,7 +191,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_FREQUENCY,
                 esp32="50kHz",
                 esp8266="50kHz",
-                rp2040="50kHz",
+                rp2="50kHz",
                 nrf52="100kHz",
                 host="50kHz",
             ): cv.All(
@@ -219,7 +219,7 @@ CONFIG_SCHEMA = cv.All(
         [
             PLATFORM_ESP32,
             PLATFORM_ESP8266,
-            PLATFORM_RP2040,
+            PLATFORM_RP2,
             PLATFORM_NRF52,
             PLATFORM_HOST,
         ]
@@ -233,7 +233,7 @@ def _final_validate(config):
     full_config = fv.full_config.get()[CONF_I2C]
     if CORE.using_zephyr and len(full_config) > 1:
         raise cv.Invalid("Second i2c is not implemented on Zephyr yet")
-    if CORE.is_rp2040:
+    if CORE.is_rp2:
         if len(full_config) > 2:
             raise cv.Invalid(
                 "The maximum number of I2C interfaces for RP2040/RP2350 is 2"
@@ -443,7 +443,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
         "i2c_bus_arduino.cpp": {
             PlatformFramework.ESP8266_ARDUINO,
-            PlatformFramework.RP2040_ARDUINO,
+            PlatformFramework.RP2_ARDUINO,
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
