@@ -28,6 +28,7 @@ from esphome.const import (
     TYPE_LOCAL,
 )
 from esphome.core import CORE, HexInt
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ DOMAIN = "micro_wake_word"
 
 
 CONF_FEATURE_STEP_SIZE = "feature_step_size"
+CONF_MODEL_FILE = "model_file"
 CONF_MODELS = "models"
 CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
 CONF_PROBABILITY_CUTOFF = "probability_cutoff"
@@ -236,10 +238,36 @@ HTTP_SCHEMA = cv.All(
     _process_http_source,
 )
 
-LOCAL_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_PATH): cv.All(_validate_json_filename, cv.file_),
-    }
+
+def _add_local_model_file(config: ConfigType) -> ConfigType:
+    """Record the model file that the manifest points to.
+
+    The manifest names its model file relative to itself, so that path never appears
+    in the YAML and ``esphome bundle`` cannot find it. Storing it in the validated
+    config lets the bundle walker pick it up; see esphome/bundle.py.
+
+    Problems with the manifest are ignored here; they are reported later with better
+    messages. Raising would also be swallowed by the shorthand validator, which then
+    reports a confusing error about a missing file in a git repository.
+    """
+    manifest_path: Path = config[CONF_PATH]
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        model = manifest[CONF_MODEL]
+    except (OSError, ValueError, KeyError, TypeError):
+        return config
+    if isinstance(model, str):
+        config[CONF_MODEL_FILE] = manifest_path.parent / model
+    return config
+
+
+LOCAL_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_PATH): cv.All(_validate_json_filename, cv.file_),
+        }
+    ),
+    _add_local_model_file,
 )
 
 
