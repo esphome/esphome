@@ -19,6 +19,9 @@ namespace esphome::runtime_image {
 
 static const char *const TAG = "runtime_image";
 
+// Widest supported format is 4 bytes/pixel, so 32767 * 32767 * 4 still fits a 32-bit size_t
+static constexpr int MAX_IMAGE_DIMENSION = 32767;
+
 inline bool is_color_on(const Color &color) {
   // This produces the most accurate monochrome conversion, but is slightly slower.
   //  return (0.2125 * color.r + 0.7154 * color.g + 0.0721 * color.b) > 127;
@@ -292,30 +295,15 @@ size_t RuntimeImage::resize_buffer_(int width, int height) {
 }
 
 size_t RuntimeImage::get_buffer_size_(int width, int height) const {
-  // Image dimensions come from a remote header; reject anything that overflows size_t
-  if (width <= 0 || height <= 0) {
+  // Dimensions come from a remote image header; reject absurd values so the size math cannot overflow
+  if (width <= 0 || height <= 0 || width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
     return 0;
   }
-  size_t w = width;
-  size_t h = height;
-  size_t size;
   if (this->get_type() == image::IMAGE_TYPE_RGB565 && this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
     // Add extra alpha channel for RGB565 with alpha
-    if (__builtin_mul_overflow(w, h, &size) || __builtin_mul_overflow(size, static_cast<size_t>(3), &size)) {
-      return 0;
-    }
-    return size;
+    return static_cast<size_t>(width) * height * 3;
   }
-  // (get_bpp() * width + 7) / 8 * height
-  size_t bits;
-  if (__builtin_mul_overflow(static_cast<size_t>(this->get_bpp()), w, &bits)) {
-    return 0;
-  }
-  size_t row_bytes = bits / 8u + (bits % 8u != 0u ? 1u : 0u);
-  if (__builtin_mul_overflow(row_bytes, h, &size)) {
-    return 0;
-  }
-  return size;
+  return (static_cast<size_t>(this->get_bpp()) * width + 7u) / 8u * height;
 }
 
 int RuntimeImage::get_position_(int x, int y) const { return (x + y * this->buffer_width_) * this->get_bpp() / 8; }
