@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 
 #ifdef USE_RUNTIME_IMAGE_BMP
@@ -257,6 +258,11 @@ void RuntimeImage::release_buffer_() {
 size_t RuntimeImage::resize_buffer_(int width, int height) {
   size_t new_size = this->get_buffer_size_(width, height);
 
+  if (new_size == 0) {
+    ESP_LOGE(TAG, "Refusing to allocate buffer for invalid image dimensions %dx%d", width, height);
+    return 0;
+  }
+
   if (this->buffer_ && this->buffer_width_ == width && this->buffer_height_ == height) {
     // Buffer already allocated with correct size
     return new_size;
@@ -287,11 +293,23 @@ size_t RuntimeImage::resize_buffer_(int width, int height) {
 }
 
 size_t RuntimeImage::get_buffer_size_(int width, int height) const {
+  if (width <= 0 || height <= 0) {
+    return 0;
+  }
+  // 64-bit math: image dimensions come from a remote header and must not wrap size_t
+  uint64_t size;
   if (this->get_type() == image::IMAGE_TYPE_RGB565 && this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
     // Add extra alpha channel for RGB565 with alpha
-    return width * height * 3;
+    size = static_cast<uint64_t>(width) * height * 3;
+  } else {
+    size = (static_cast<uint64_t>(this->get_bpp()) * width + 7u) / 8u * height;
   }
-  return (this->get_bpp() * width + 7u) / 8u * height;
+#if SIZE_MAX < UINT64_MAX
+  if (size > SIZE_MAX) {
+    return 0;
+  }
+#endif
+  return static_cast<size_t>(size);
 }
 
 int RuntimeImage::get_position_(int x, int y) const { return (x + y * this->buffer_width_) * this->get_bpp() / 8; }
