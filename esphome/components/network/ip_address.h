@@ -71,15 +71,6 @@ struct IPAddress {
   bool is_ip4() const { return false; }
   bool is_ip6() const { return this->is_set(); }
   bool is_multicast() const { return net_ipv6_is_addr_mcast(&ip_addr_); }
-  // Remove before 2026.8.0
-  ESPDEPRECATED(
-      "str() is deprecated: use 'char buf[IP_ADDRESS_BUFFER_SIZE]; ip.str_to(buf);' instead. Removed in 2026.8.0",
-      "2026.2.0")
-  std::string str() const {
-    char buf[IP_ADDRESS_BUFFER_SIZE];
-    this->str_to(buf);
-    return buf;
-  }
   char *str_to(char *buf) const {
     if (inet_ntop(AF_INET6, &ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE) == nullptr)
       buf[0] = '\0';
@@ -95,15 +86,6 @@ struct IPAddress {
   }
   IPAddress(const std::string &in_address) { inet_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
-  // Remove before 2026.8.0
-  ESPDEPRECATED(
-      "str() is deprecated: use 'char buf[IP_ADDRESS_BUFFER_SIZE]; ip.str_to(buf);' instead. Removed in 2026.8.0",
-      "2026.2.0")
-  std::string str() const {
-    char buf[IP_ADDRESS_BUFFER_SIZE];
-    this->str_to(buf);
-    return buf;
-  }
   /// Write IP address to buffer. Buffer must be at least IP_ADDRESS_BUFFER_SIZE bytes.
   char *str_to(char *buf) const {
     inet_ntop(AF_INET, &ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE);
@@ -186,15 +168,6 @@ struct IPAddress {
   bool is_ip4() const { return IP_IS_V4(&ip_addr_); }
   bool is_ip6() const { return IP_IS_V6(&ip_addr_); }
   bool is_multicast() const { return ip_addr_ismulticast(&ip_addr_); }
-  // Remove before 2026.8.0
-  ESPDEPRECATED(
-      "str() is deprecated: use 'char buf[IP_ADDRESS_BUFFER_SIZE]; ip.str_to(buf);' instead. Removed in 2026.8.0",
-      "2026.2.0")
-  std::string str() const {
-    char buf[IP_ADDRESS_BUFFER_SIZE];
-    this->str_to(buf);
-    return buf;
-  }
   /// Write IP address to buffer. Buffer must be at least IP_ADDRESS_BUFFER_SIZE bytes.
   /// Output is lowercased per RFC 5952 (IPv6 hex digits a-f).
   char *str_to(char *buf) const {
