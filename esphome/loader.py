@@ -389,10 +389,14 @@ def _build_alias_map() -> tuple[dict[str, str], dict[str, AliasMeta]]:
 
     Raises if the same alias is claimed by two canonical components, since
     silently picking one would cause non-deterministic routing depending on
-    directory-iteration order. Also raises if an alias shadows an existing
-    component package: that would hijack a live component domain and, in the
-    self-alias case (alias == canonical), send ``_lookup_module`` into
-    infinite recursion redirecting a domain to itself.
+    directory-iteration order. An alias that shadows an existing component
+    package is skipped with a warning instead: the on-disk package keeps
+    working and the alias is ignored. Shadowing would otherwise hijack a
+    live component domain and, in the self-alias case (alias == canonical),
+    send ``_lookup_module`` into infinite recursion redirecting a domain to
+    itself. A hard error here would break every config on installs that
+    have a stale leftover directory from a previous version (e.g. an
+    interrupted upgrade), so this is deliberately not fatal.
     """
     import ast
 
@@ -414,13 +418,19 @@ def _build_alias_map() -> tuple[dict[str, str], dict[str, AliasMeta]]:
         canonical = child.name
         for alias in aliases:
             if (CORE_COMPONENTS_PATH / alias / "__init__.py").is_file():
-                from esphome.core import EsphomeError
-
-                raise EsphomeError(
-                    f"Component alias '{alias}' (declared by '{canonical}') "
-                    "shadows an existing component package of the same name. "
-                    "An alias may only name a component that no longer exists."
+                _LOGGER.warning(
+                    "Component alias '%s' (declared by '%s') shadows an existing "
+                    "component package of the same name; ignoring the alias. "
+                    "This usually means an external component was copied or "
+                    "mounted into %s, or the directory is a leftover from a "
+                    "previous ESPHome version. Load external components via "
+                    "the 'external_components' config option instead, or "
+                    "reinstall ESPHome to clean up stale files.",
+                    alias,
+                    canonical,
+                    CORE_COMPONENTS_PATH / alias,
                 )
+                continue
             if alias in alias_to_canonical:
                 from esphome.core import EsphomeError
 

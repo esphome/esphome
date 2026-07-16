@@ -1,6 +1,7 @@
 """Unit tests for esphome.loader module."""
 
 import ast
+import logging
 from pathlib import Path
 import sys
 import textwrap
@@ -454,6 +455,29 @@ def test_build_alias_map_rejects_duplicate_alias(tmp_path: Path) -> None:
         pytest.raises(EsphomeError, match="shared"),
     ):
         _build_alias_map()
+
+
+def test_build_alias_map_skips_alias_shadowing_existing_component(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An alias that names a component package still present on disk is
+    ignored with a warning rather than raising. A stale leftover directory
+    from a previous version (e.g. an interrupted upgrade) must not make
+    every config on the install fail to load; the on-disk package wins and
+    other aliases keep working."""
+    _write_component(tmp_path, "newcomp", "ALIASES = ['oldcomp', 'gone']\n")
+    _write_component(tmp_path, "oldcomp", "")
+
+    with (
+        patch("esphome.loader.CORE_COMPONENTS_PATH", tmp_path),
+        caplog.at_level(logging.WARNING),
+    ):
+        alias_map, meta_map = _build_alias_map()
+
+    assert "oldcomp" not in alias_map
+    assert alias_map == {"gone": "newcomp"}
+    assert "gone" in meta_map
+    assert "shadows an existing component package" in caplog.text
 
 
 def test_build_alias_map_handles_missing_dir(tmp_path: Path) -> None:
