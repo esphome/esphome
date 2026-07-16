@@ -83,7 +83,7 @@ def get_c_type(attr_type: str) -> Any | None:
         return getattr(cg, "uint" + get_c_size(test.group(2), [8, 16, 32, 64]))
     test = re.match(r"^INT(\d{1,2})$", attr_type)
     if test and test.group(1):
-        return getattr(cg, "int" + get_c_size(test.group(1), [16, 32, 64]))
+        return getattr(cg, "int" + get_c_size(test.group(1), [8, 16, 32, 64]))
     return None
 
 
@@ -211,13 +211,13 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
                     CONF_TYPE: "UINT32",
                 },
             )
-            ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
-                {
-                    CONF_ATTRIBUTE_ID: 0x75,
-                    CONF_VALUE: bacunit,
-                    CONF_TYPE: "ENUM16",
-                },
-            )
+        ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
+            {
+                CONF_ATTRIBUTE_ID: 0x75,
+                CONF_VALUE: bacunit,
+                CONF_TYPE: "ENUM16",
+            },
+        )
     setup_attributes(config, ep[CONF_CLUSTERS])
     add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
     return config
