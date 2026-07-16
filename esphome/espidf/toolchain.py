@@ -94,6 +94,14 @@ def _get_idf_env(version: str | None = None) -> dict[str, str]:
 def _get_cmake_output(build_dir) -> str:
     cmake_output_cache = _cache().cmake_output
     if build_dir not in cmake_output_cache:
+        # Check the build before resolving the env: _get_idf_env() runs
+        # check_esp_idf_install(), which can download and install the whole
+        # framework. Never start that for a build that isn't there. Callers
+        # such as the log stack-trace decoder run against devices that were
+        # never compiled on this machine.
+        if not (Path(build_dir) / "CMakeCache.txt").is_file():
+            raise EsphomeError(f"No ESP-IDF build found in {build_dir}")
+
         cmd = ["cmake", "-LA", "-N", "."]
 
         env = _get_idf_env()
