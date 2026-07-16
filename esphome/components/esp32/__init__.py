@@ -1046,12 +1046,6 @@ def _check_versions(config: ConfigType) -> ConfigType:
 
 def _parse_pio_platform_version(value):
     try:
-        # Only full x.y.z versions are rewritten into pioarduino release URLs;
-        # anything else (git URLs, refs) passes through verbatim. Checked on
-        # the raw value since Version.parse also accepts two-part versions,
-        # which have no corresponding pioarduino release.
-        if not re.match(r"^\d+\.\d+\.\d+", cv.string_strict(value)):
-            return value
         ver = cv.Version.parse(cv.version_number(value))
         release = f"{ver.major}.{ver.minor:02d}.{ver.patch:02d}"
         if ver.extra:
