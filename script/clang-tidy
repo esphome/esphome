@@ -174,11 +174,11 @@ def clang_options(idedata, environment):
     cmd.append("-std=gnu++20")
 
     if environment.startswith(("bk72xx", "ln882h", "rtl87xx")):
-        # defines; LibreTiny wraps some in shell quotes, leaves function-like macro
-        # values unparenthesized (bugprone-macro-parentheses), and its SDK-internal
-        # FAL_PART_TABLE macro trips the same check
+        # LibreTiny leaves function-like macro values unparenthesized
+        # (bugprone-macro-parentheses); its SDK-internal FAL_PART_TABLE macro trips the same
+        # check. Assumes define values are always expressions (never type- or char-literal),
+        # which holds for the current LibreTiny idedata.
         def sanitize_define(define):
-            define = define.replace("'", "")
             name, sep, value = define.partition("=")
             if (
                 sep
@@ -189,13 +189,14 @@ def clang_options(idedata, environment):
                 value = f"({value})"
             return f"-D{name}{sep}{value}"
 
-        # FAL_PART_TABLE and the delay() remap are library-scope LibreTiny flags
-        # that the real build never applies to esphome sources
-        cmd.extend(
-            sanitize_define(define)
-            for define in idedata["defines"]
-            if not define.startswith(("FAL_PART_TABLE", "delay(", "'delay("))
-        )
+        # FAL_PART_TABLE and the delay() remap are library-scope LibreTiny flags that the real
+        # build never applies to esphome sources. Strip LibreTiny's shell quoting from define
+        # names first so the skip list matches regardless of which names it happens to quote.
+        for define in idedata["defines"]:
+            define = define.replace("'", "")
+            if define.startswith(("FAL_PART_TABLE", "delay(")):
+                continue
+            cmd.append(sanitize_define(define))
     else:
         cmd.extend(f"-D{define}" for define in idedata["defines"])
 
