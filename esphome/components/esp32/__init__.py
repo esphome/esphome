@@ -3069,8 +3069,12 @@ def _decode_pc(config, addr):
         try:
             addr2line_path = idf_toolchain.get_addr2line_path()
             firmware_elf_path = idf_toolchain.get_elf_path()
-        except RuntimeError as err:
+        except (RuntimeError, OSError) as err:
+            # OSError covers a missing build directory or a cmake that isn't
+            # on PATH; both surface from the subprocess call, not as RuntimeError.
             raise EsphomeError(f"ESP-IDF toolchain not available: {err}") from err
+        if not firmware_elf_path.is_file():
+            raise EsphomeError(f"Firmware ELF not found: {firmware_elf_path}")
     else:
         from esphome.platformio import toolchain
 

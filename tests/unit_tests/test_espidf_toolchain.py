@@ -5,10 +5,13 @@
 import json
 import os
 from pathlib import Path
+import subprocess
 from unittest.mock import patch
 
+import pytest
+
 from esphome.const import CONF_FRAMEWORK, CONF_SOURCE
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 from esphome.espidf import toolchain
 
 
@@ -182,6 +185,77 @@ def test_get_idf_env_sets_git_ceiling_directories(setup_core: Path) -> None:
         env = toolchain._get_idf_env(version="5.5.4")
     assert CORE.config_dir == setup_core
     assert str(CORE.config_dir) in env["GIT_CEILING_DIRECTORIES"].split(os.pathsep)
+
+
+def test_get_cmake_output_without_build_dir(setup_core: Path) -> None:
+    """A build dir that was never created raises EsphomeError.
+
+    Without this, subprocess.run(cwd=build_dir) raises FileNotFoundError, which
+    the log stack-trace decoder doesn't recognise as a decode failure.
+    """
+    _setup_build(setup_core)
+    build_dir = CORE.relative_build_path("build")
+    assert not build_dir.exists()
+
+    with pytest.raises(EsphomeError, match="No ESP-IDF build found"):
+        toolchain._get_cmake_output(build_dir)
+
+
+def test_get_cmake_output_without_cmake_cache(setup_core: Path) -> None:
+    """A build dir that exists but was never configured raises EsphomeError."""
+    _setup_build(setup_core)
+    build_dir = CORE.relative_build_path("build")
+    build_dir.mkdir(parents=True)
+
+    with pytest.raises(EsphomeError, match="No ESP-IDF build found"):
+        toolchain._get_cmake_output(build_dir)
+
+
+def test_get_cmake_output_with_configured_build(setup_core: Path) -> None:
+    """A configured build still runs cmake and caches the output.
+
+    The missing-build guard must not get in the way of a real build.
+    """
+    _setup_build(setup_core)
+    build_dir = CORE.relative_build_path("build")
+    build_dir.mkdir(parents=True)
+    (build_dir / "CMakeCache.txt").write_text("")
+
+    completed = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout="CMAKE_ADDR2LINE:FILEPATH=/tool/addr2line\n"
+    )
+    with (
+        patch.object(toolchain, "_get_idf_env", return_value={}),
+        patch.object(toolchain.subprocess, "run", return_value=completed) as mock_run,
+    ):
+        assert toolchain._get_cmake_output(build_dir) == completed.stdout
+        # Second call is served from the cache rather than re-running cmake.
+        assert toolchain._get_cmake_output(build_dir) == completed.stdout
+
+    mock_run.assert_called_once()
+    assert toolchain._get_cmake_tool_path("CMAKE_ADDR2LINE") == Path("/tool/addr2line")
+
+
+def test_get_cmake_output_missing_build_does_not_resolve_idf_env(
+    setup_core: Path,
+) -> None:
+    """The build check runs before the env is resolved.
+
+    Resolving the env calls check_esp_idf_install(), which can download and
+    extract the whole framework. A doomed call must never start that.
+    """
+    _setup_build(setup_core)
+    build_dir = CORE.relative_build_path("build")
+
+    with (
+        patch.object(toolchain, "_get_idf_env") as mock_env,
+        patch.object(toolchain.subprocess, "run") as mock_run,
+        pytest.raises(EsphomeError),
+    ):
+        toolchain._get_cmake_output(build_dir)
+
+    mock_env.assert_not_called()
+    mock_run.assert_not_called()
 
 
 def test_get_core_framework_version_from_core_data():
