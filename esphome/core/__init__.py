@@ -8,6 +8,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from esphome.const import (
+    CONF_BUILD_PATH,
     CONF_COMMENT,
     CONF_ESPHOME,
     CONF_ETHERNET,
@@ -574,6 +575,9 @@ class EsphomeCore:
         self.build_path: Path | None = None
         # The validated configuration, this is None until the config has been validated
         self.config: ConfigType | None = None
+        # The raw configuration as read from YAML (after packages/substitutions),
+        # available during validation before the config is fully validated
+        self.raw_config: ConfigType | None = None
         # YAML frontmatter loaded from user YAML files. Frontmatter is a leading
         # YAML document separated by `---` from the actual configuration. It is
         # ignored by config validation and code generation, but kept here so it
@@ -650,6 +654,7 @@ class EsphomeCore:
         self.config_path = None
         self.build_path = None
         self.config = None
+        self.raw_config = None
         self.frontmatter = {}
         self.event_loop = _FakeEventLoop()
         self.task_counter = 0
@@ -727,12 +732,28 @@ class EsphomeCore:
 
         The hash is computed lazily and cached for performance.
         Uses sort_keys=True to ensure deterministic ordering.
+
+        The hash must be reproducible across machines so the device builder
+        can compare a locally computed hash against the one a device
+        advertises. Machine-local data is kept out of the input: build_path
+        (which embeds ESPHOME_BUILD_PATH and OS path separators) is excluded,
+        and Path values are dumped relative to the config directory.
         """
         if self._config_hash is None:
             from esphome import yaml_util
             from esphome.helpers import fnv1a_32bit_hash
 
-            config_str = yaml_util.dump(self.config, show_secrets=True, sort_keys=True)
+            config = dict(self.config)
+            if (esphome_conf := config.get(CONF_ESPHOME)) is not None:
+                esphome_conf = dict(esphome_conf)
+                esphome_conf.pop(CONF_BUILD_PATH, None)
+                config[CONF_ESPHOME] = esphome_conf
+            config_str = yaml_util.dump(
+                config,
+                show_secrets=True,
+                sort_keys=True,
+                relative_to=self.config_dir if self.config_path is not None else None,
+            )
             self._config_hash = fnv1a_32bit_hash(config_str)
         return self._config_hash
 

@@ -41,14 +41,11 @@ from esphome.const import (
     CONF_DATA_RATE,
     CONF_DC_PIN,
     CONF_DIMENSIONS,
-    CONF_DISABLED,
     CONF_ENABLE_PIN,
     CONF_ID,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
     CONF_LAMBDA,
-    CONF_MIRROR_X,
-    CONF_MIRROR_Y,
     CONF_MODEL,
     CONF_RESET_PIN,
     CONF_ROTATION,
@@ -138,16 +135,7 @@ def denominator(config):
 def model_schema(config):
     model = MODELS[config[CONF_MODEL]]
     bus_mode = config[CONF_BUS_MODE]
-    transform = cv.Any(
-        cv.Schema(
-            {
-                cv.Required(CONF_MIRROR_X): cv.boolean,
-                cv.Required(CONF_MIRROR_Y): cv.boolean,
-                **model.swap_xy_schema(),
-            }
-        ),
-        cv.one_of(CONF_DISABLED, lower=True),
-    )
+    transform = model.transform_schema()
     # CUSTOM model will need to provide a custom init sequence
     iseqconf = (
         cv.Required(CONF_INIT_SEQUENCE)
@@ -265,6 +253,7 @@ def customise_schema(config):
         extra=ALLOW_EXTRA,
     )(config)
     model = MODELS[config[CONF_MODEL]]
+    model.check_requirements()
     bus_modes = (TYPE_SINGLE, TYPE_QUAD, TYPE_OCTAL)
     config = cv.Schema(
         {
@@ -408,7 +397,7 @@ def get_instance(config):
 async def to_code(config):
     model = MODELS[config[CONF_MODEL]]
     var_id = config[CONF_ID]
-    init_sequence = model.get_sequence(config, False)
+    init_sequence = model.get_sequence(config, add_madctl=False, add_reset=True)
     var_id.type, templateargs = get_instance(config)
     var = cg.new_Pvariable(var_id, TemplateArguments(*templateargs))
     cg.add(var.set_init_sequence(init_sequence))
