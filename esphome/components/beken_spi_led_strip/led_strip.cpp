@@ -37,13 +37,13 @@ namespace esphome::beken_spi_led_strip {
 
 static const char *const TAG = "beken_spi_led_strip";
 
-struct SpiDataT {
+struct SpiData {
   SemaphoreHandle_t dma_tx_semaphore;
   volatile bool tx_in_progress;
   bool first_run;
 };
 
-static SpiDataT *spi_data = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static SpiData *spi_data = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static void set_spi_ctrl_register(uint32_t bit, bool val) {
   uint32_t value = REG_READ(SPI_CTRL);
@@ -110,7 +110,7 @@ static void spi_set_clock(uint32_t max_hz) {
   param &= ~(SPI_CKR_MASK << SPI_CKR_POSI);
   param |= (div << SPI_CKR_POSI);
   REG_WRITE(SPI_CTRL, param);
-  ESP_LOGD(TAG, "target frequency: %lu, actual frequency: %d", max_hz, source_clk / 2 / div);
+  ESP_LOGD(TAG, "target frequency: %" PRIu32 ", actual frequency: %d", max_hz, source_clk / 2 / div);
 }
 
 void spi_dma_tx_finish_callback(unsigned int param) {
@@ -161,7 +161,7 @@ void BekenSPILEDStripLightOutput::setup() {
     return;
   }
 
-  spi_data = (SpiDataT *) calloc(1, sizeof(SpiDataT));  // NOLINT(cppcoreguidelines-no-malloc)
+  spi_data = (SpiData *) calloc(1, sizeof(SpiData));  // NOLINT(cppcoreguidelines-no-malloc)
   if (spi_data == nullptr) {
     ESP_LOGE(TAG, "Cannot allocate spi_data!");
     this->mark_failed();

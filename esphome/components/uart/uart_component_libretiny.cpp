@@ -136,7 +136,7 @@ void LibreTinyUARTComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);
   }
   ESP_LOGCONFIG(TAG,
-                "  Baud Rate: %lu baud\n"
+                "  Baud Rate: %" PRIu32 " baud\n"
                 "  Data Bits: %u\n"
                 "  Parity: %s\n"
                 "  Stop bits: %u",

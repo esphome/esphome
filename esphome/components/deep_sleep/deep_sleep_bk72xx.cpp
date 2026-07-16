@@ -59,7 +59,7 @@ void DeepSleepComponent::deep_sleep_() {
         item.wakeup_level = !item.wakeup_level;
       }
     }
-    ESP_LOGI(TAG, "Wake-up on P%u %s (%ld)", item.wakeup_pin->get_pin(), item.wakeup_level ? "HIGH" : "LOW",
+    ESP_LOGI(TAG, "Wake-up on P%u %s (%" PRId32 ")", item.wakeup_pin->get_pin(), item.wakeup_level ? "HIGH" : "LOW",
              static_cast<int32_t>(item.wakeup_pin_mode));
   }
 

@@ -173,28 +173,31 @@ def clang_options(idedata, environment):
     )
     cmd.append("-std=gnu++20")
 
-    # defines; LibreTiny wraps some in shell quotes, leaves function-like macro
-    # values unparenthesized (bugprone-macro-parentheses), and its SDK-internal
-    # FAL_PART_TABLE macro trips the same check
-    def sanitize_define(define):
-        define = define.replace("'", "")
-        name, sep, value = define.partition("=")
-        if (
-            sep
-            and value
-            and not value.startswith(("(", '"'))
-            and ("(" in name or not re.fullmatch(r"[\w.]+", value))
-        ):
-            value = f"({value})"
-        return f"-D{name}{sep}{value}"
+    if environment.startswith(("bk72xx", "ln882h", "rtl87xx")):
+        # defines; LibreTiny wraps some in shell quotes, leaves function-like macro
+        # values unparenthesized (bugprone-macro-parentheses), and its SDK-internal
+        # FAL_PART_TABLE macro trips the same check
+        def sanitize_define(define):
+            define = define.replace("'", "")
+            name, sep, value = define.partition("=")
+            if (
+                sep
+                and value
+                and not value.startswith(("(", '"'))
+                and ("(" in name or not re.fullmatch(r"[\w.]+", value))
+            ):
+                value = f"({value})"
+            return f"-D{name}{sep}{value}"
 
-    # FAL_PART_TABLE and the delay() remap are library-scope LibreTiny flags
-    # that the real build never applies to esphome sources
-    cmd.extend(
-        sanitize_define(define)
-        for define in idedata["defines"]
-        if not define.startswith(("FAL_PART_TABLE", "delay(", "'delay("))
-    )
+        # FAL_PART_TABLE and the delay() remap are library-scope LibreTiny flags
+        # that the real build never applies to esphome sources
+        cmd.extend(
+            sanitize_define(define)
+            for define in idedata["defines"]
+            if not define.startswith(("FAL_PART_TABLE", "delay(", "'delay("))
+        )
+    else:
+        cmd.extend(f"-D{define}" for define in idedata["defines"])
 
     # toolchain include directories, using -isystem to suppress their errors
     # idedata contains include directories for all toolchains of this platform, only use those from the one in use
@@ -495,7 +498,9 @@ def main():
                 print("Error applying fixes.\n", file=sys.stderr)
                 raise
 
-    return len(failed_files)
+    # Cap at 255: shells truncate exit codes to one byte, so 256 failures
+    # would otherwise report success
+    return min(len(failed_files), 255)
 
 
 if __name__ == "__main__":

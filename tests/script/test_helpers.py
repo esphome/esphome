@@ -799,6 +799,26 @@ def test_build_all_include_with_git(tmp_path: Path) -> None:
     assert content == "\n".join(expected_lines)
 
 
+def test_build_all_include_exclude_headers(tmp_path: Path) -> None:
+    """Headers whose path contains an exclude_headers substring are dropped."""
+    git_output = "esphome/core/component.h\nesphome/components/wifi/wifi.h\nesphome/components/api/api.h\n"
+
+    mock_proc = Mock()
+    mock_proc.returncode = 0
+    mock_proc.stdout = git_output
+
+    with (
+        patch("subprocess.run", return_value=mock_proc),
+        patch("helpers.temp_header_file", str(tmp_path / "all-include.cpp")),
+    ):
+        build_all_include(exclude_headers=["components/wifi/"])
+
+    content = (tmp_path / "all-include.cpp").read_text()
+    assert '#include "esphome/components/wifi/wifi.h"' not in content
+    assert '#include "esphome/components/api/api.h"' in content
+    assert '#include "esphome/core/component.h"' in content
+
+
 def test_build_all_include_empty_output(tmp_path: Path) -> None:
     """Test build_all_include with empty git output."""
     # Mock git returning empty output
