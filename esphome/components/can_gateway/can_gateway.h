@@ -234,7 +234,7 @@ class GatewayPort {
   bool bus_off_head_reclaimed_{true};
   /// Return a slot to its owning pool (route forward pool or port inject
   /// pool). Dissolves into its ISR callers (always_inline, no flash symbol).
-  static CAN_GATEWAY_CORE_INLINE void release_slot_(TxSlot *slot) {
+  static CAN_GATEWAY_CORE_INLINE void release_slot(TxSlot *slot) {
     if (slot->route != nullptr) {
       slot->route->pool_.release(slot->index);
     } else {
@@ -303,7 +303,7 @@ class CyclicSend {
   bool is_running() const { return this->enabled_; }
 
   /// Called from CanGateway::loop(); transmits when due.
-  void loop_(uint32_t now_ms) {
+  void loop(uint32_t now_ms) {
     if (!this->enabled_ || now_ms - this->last_ms_ < this->interval_ms_)
       return;
     // Advance the schedule by exactly one interval so the average period tracks

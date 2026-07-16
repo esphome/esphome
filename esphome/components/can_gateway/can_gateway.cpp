@@ -563,13 +563,13 @@ void IRAM_ATTR GatewayPort::handle_tx_done_isr(const twai_tx_done_event_data_t *
   // tracked entry older than this one was orphaned by a bus-off the loop
   // never got to handle — reclaim those first (lazy self-healing).
   this->outstanding_.complete(slot, [this](TxSlot *orphan) { this->reclaim_orphan_(orphan); });
-  release_slot_(slot);
+  release_slot(slot);
 }
 
 void IRAM_ATTR GatewayPort::reclaim_orphan_(TxSlot *orphan) {
   // A frame the driver halted at bus-off and will never complete: its
   // transmission failed on the wire, so it counts as tx_fail on this port.
-  release_slot_(orphan);
+  release_slot(orphan);
   count(this->counters_.tx_fail);
 }
 
@@ -629,13 +629,13 @@ void CanGateway::setup() {
   // Wiring afterwards guarantees the ISR can never hand a frame to a
   // destination whose node does not exist yet (the driver rejects a null node
   // with a log from ISR context, once per received frame).
-  for (uint8_t i = 0; i < this->ports_.size(); i++) {
+  for (size_t i = 0; i < this->ports_.size(); i++) {
     if (!this->ports_[i]->start_(route_for[i], &this->enabled_, this->interrupt_priority_)) {
       // Leave no half-alive data plane behind: no route was wired, so started
       // ports only discard frames — and disabling their nodes removes the
       // interrupt sources entirely, since a FAILED component never runs
       // loop() again to service them.
-      for (uint8_t j = 0; j < i; j++)
+      for (size_t j = 0; j < i; j++)
         twai_node_disable(this->ports_[j]->node_);
       this->mark_failed();
       return;
@@ -644,7 +644,7 @@ void CanGateway::setup() {
   // Both nodes are up; make the ports forward. The ISRs may already be
   // running: a single aligned pointer store publishes each route (a frame
   // arriving mid-loop sees either nullptr — discarded — or the full route).
-  for (uint8_t i = 0; i < this->ports_.size(); i++)
+  for (size_t i = 0; i < this->ports_.size(); i++)
     this->ports_[i]->route_out_ = route_for[i];
 }
 
@@ -654,7 +654,7 @@ void CanGateway::loop() {
     port->loop_(now);
 #ifdef USE_CAN_GATEWAY_CYCLIC
   for (auto *cyclic : this->cyclic_sends_)
-    cyclic->loop_(now);
+    cyclic->loop(now);
 #endif
 #ifdef USE_CAN_GATEWAY_STATS
   if (this->stats_log_interval_ms_ > 0 && now - this->last_stats_log_ms_ >= this->stats_log_interval_ms_) {
