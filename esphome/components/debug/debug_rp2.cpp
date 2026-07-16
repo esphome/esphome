@@ -74,7 +74,7 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   constexpr size_t size = DEVICE_INFO_BUFFER_SIZE;
   char *buf = buffer.data();
 
-  uint32_t cpu_freq = ::rp2040.f_cpu();
+  uint32_t cpu_freq = RP2040::f_cpu();
   ESP_LOGD(TAG, "CPU Frequency: %" PRIu32, cpu_freq);
   pos = buf_append_printf(buf, size, pos, "|CPU Frequency: %" PRIu32, cpu_freq);
 
