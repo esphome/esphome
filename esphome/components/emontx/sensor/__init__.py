@@ -68,6 +68,7 @@ PATTERN_CONFIGS = {
     "PULSE": {
         CONF_UNIT_OF_MEASUREMENT: UNIT_PULSES,
         CONF_DEVICE_CLASS: DEVICE_CLASS_ENERGY,
+        CONF_STATE_CLASS: STATE_CLASS_TOTAL_INCREASING,
         CONF_ACCURACY_DECIMALS: 0,
     },
     "PF": {
@@ -81,7 +82,6 @@ PATTERN_CONFIGS = {
 # Create a base schema that's flexible for any tag
 BASE_SCHEMA = sensor.sensor_schema(
     EmonTxSensor,
-    state_class=STATE_CLASS_MEASUREMENT,
     accuracy_decimals=0,
 ).extend(
     {

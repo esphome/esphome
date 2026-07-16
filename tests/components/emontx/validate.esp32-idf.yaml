@@ -1,0 +1,66 @@
+packages:
+  uart_115200: !include ../../test_build_components/common/uart_115200/esp32-idf.yaml
+  emontx: !include common.yaml
+
+# Validate that each sensor type gets the correct default state_class,
+# unit_of_measurement, and device_class when using default parameters.
+
+sensor:
+  # Energy sensor: state_class must be total_increasing
+  - platform: emontx
+    tag_name: E1
+    name: Energy 1
+    emontx_id: test_emontx
+    state_class: total_increasing
+    unit_of_measurement: Wh
+    device_class: energy
+
+  # Voltage sensor: state_class must be measurement
+  - platform: emontx
+    tag_name: V1
+    name: Voltage 1
+    emontx_id: test_emontx
+    state_class: measurement
+    unit_of_measurement: V
+    device_class: voltage
+
+  # Current sensor: state_class must be measurement
+  - platform: emontx
+    tag_name: I1
+    name: Current 1
+    emontx_id: test_emontx
+    state_class: measurement
+    unit_of_measurement: A
+    device_class: current
+
+  # Temperature sensor: state_class must be measurement
+  - platform: emontx
+    tag_name: T1
+    name: Temperature 1
+    emontx_id: test_emontx
+    state_class: measurement
+    unit_of_measurement: °C
+    device_class: temperature
+
+  # Pulse sensor: state_class must be total_increasing
+  - platform: emontx
+    tag_name: PULSE1
+    name: Pulse 1
+    emontx_id: test_emontx
+    state_class: total_increasing
+    unit_of_measurement: pulses
+    device_class: energy
+
+  # Power factor sensor: state_class must be measurement
+  - platform: emontx
+    tag_name: PF1
+    name: Power Factor 1
+    emontx_id: test_emontx
+    state_class: measurement
+    device_class: power_factor
+
+  # Unknown tag: no prefix match, no defaults applied
+  - platform: emontx
+    tag_name: CUSTOM1
+    name: Custom sensor
+    emontx_id: test_emontx
