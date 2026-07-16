@@ -123,10 +123,13 @@ def apply_tag_defaults(config: ConfigType) -> ConfigType:
             return config
 
     # Fall back to generic defaults for tags with no known prefix
-    _apply_defaults(config, {
-        CONF_STATE_CLASS: STATE_CLASS_MEASUREMENT,
-        CONF_ACCURACY_DECIMALS: 0,
-    })
+    _apply_defaults(
+        config,
+        {
+            CONF_STATE_CLASS: STATE_CLASS_MEASUREMENT,
+            CONF_ACCURACY_DECIMALS: 0,
+        },
+    )
     return config
 
 
