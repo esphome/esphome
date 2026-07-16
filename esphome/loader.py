@@ -420,8 +420,9 @@ def _build_alias_map() -> tuple[dict[str, str], dict[str, AliasMeta]]:
             if (CORE_COMPONENTS_PATH / alias / "__init__.py").is_file():
                 _LOGGER.warning(
                     "Ignoring component alias '%s' (declared by '%s'): a component "
-                    "with that name still exists at %s. This is usually a copied-in "
-                    "external component or a leftover from a previous ESPHome version.",
+                    "with that name still exists at %s. This usually means an external "
+                    "component was copied into the ESPHome installation; use the "
+                    "'external_components' config option instead.",
                     alias,
                     canonical,
                     CORE_COMPONENTS_PATH / alias,
