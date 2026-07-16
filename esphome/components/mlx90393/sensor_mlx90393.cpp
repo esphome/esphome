@@ -1,3 +1,5 @@
+#ifndef USE_LIBRETINY
+
 #include "sensor_mlx90393.h"
 #include "esphome/core/log.h"
 
@@ -270,3 +272,5 @@ void MLX90393Cls::verify_settings_timeout_(MLX90393Setting stage) {
 }
 
 }  // namespace esphome::mlx90393
+
+#endif  // USE_LIBRETINY
