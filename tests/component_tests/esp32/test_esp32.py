@@ -601,6 +601,40 @@ def test_network_wifi_ble_coexistence_reconciles_end_to_end(
     assert "CONFIG_ESP_WIFI_ENABLED" not in sdkconfig
 
 
+def test_esp32_build_internals_are_yaml_only() -> None:
+    """ESP32 raw framework / build inputs are ``YAML_ONLY``.
+
+    The framework block's PlatformIO package pins, raw ESP-IDF
+    sdkconfig options, the low-level ``advanced`` block, extra IDF
+    component sources, plus the partition table and toolchain override
+    on the main schema are build internals — never UI form fields.
+    User-facing choices (framework type/version, board, variant, …)
+    stay on the main form.
+    """
+    from esphome.components.esp32 import CONFIG_SCHEMA, FRAMEWORK_SCHEMA
+
+    fw_markers = {str(k): k for k in FRAMEWORK_SCHEMA.schema}
+    for field in (
+        "release",
+        "source",
+        "platform_version",
+        "sdkconfig_options",
+        "advanced",
+        "components",
+    ):
+        assert fw_markers[field].visibility is cv.Visibility.YAML_ONLY, field
+    # Framework type/version remain user-facing.
+    assert fw_markers["type"].visibility is None
+    assert fw_markers["version"].visibility is None
+
+    main_markers = {str(k): k for k in CONFIG_SCHEMA.validators[0].schema}
+    assert main_markers["partitions"].visibility is cv.Visibility.YAML_ONLY
+    # toolchain is a real but rarely-touched override -> advanced disclosure.
+    assert main_markers["toolchain"].visibility is cv.Visibility.ADVANCED
+    assert main_markers["board"].visibility is None
+    assert main_markers["flash_size"].visibility is None
+
+
 def test_downgrade_protection_passes_with_numeric_version_and_signing() -> None:
     assert _ota_downgrade_protection_errors("1.2.3", signed_ota_enabled=True) == []
 
@@ -631,3 +665,78 @@ def test_downgrade_protection_reports_all_unmet_requirements() -> None:
     # No project version and no signing -> two distinct errors.
     errs = _ota_downgrade_protection_errors(None, signed_ota_enabled=False)
     assert len(errs) == 2
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        # V2 schemes: signing key (sign during build) or no key at all
+        # (external signing; the public key travels in the signature block).
+        {"signing_scheme": "rsa3072", "signing_key": "key.pem"},
+        {"signing_scheme": "rsa3072"},
+        {"signing_scheme": "ecdsa256", "signing_key": "key.pem"},
+        {"signing_scheme": "ecdsa256"},
+        # V1 ECDSA: exactly one of signing key / verification key.
+        {"signing_scheme": "ecdsa_v1", "signing_key": "key.pem"},
+        {"signing_scheme": "ecdsa_v1", "verification_key": "key.bin"},
+    ],
+)
+def test_signed_ota_keys_valid_combinations(config: dict) -> None:
+    from esphome.components.esp32 import _validate_signed_ota_keys
+
+    assert _validate_signed_ota_keys(config) is config
+
+
+@pytest.mark.parametrize("value", [None, {}])
+def test_signed_ota_bare_block_selects_v2_external_signing(value: dict | None) -> None:
+    """A bare `signed_ota_verification:` block is valid: the default V2
+    scheme embeds the public key in the signature block, so verifying
+    externally-signed binaries needs no keys in the config."""
+    from esphome.components.esp32 import _validate_signed_ota_verification
+
+    config = _validate_signed_ota_verification(value)
+    assert config == {"signing_scheme": "rsa3072"}
+
+
+@pytest.mark.parametrize(
+    ("config", "match"),
+    [
+        # A verification key is meaningless with the V2 schemes -- the public
+        # key is embedded in each image's signature block.
+        (
+            {"signing_scheme": "rsa3072", "verification_key": "key.bin"},
+            "only used with signing scheme 'ecdsa_v1'",
+        ),
+        (
+            {"signing_scheme": "ecdsa256", "verification_key": "key.bin"},
+            "only used with signing scheme 'ecdsa_v1'",
+        ),
+        # V1 ECDSA needs a key either way.
+        (
+            {"signing_scheme": "ecdsa_v1"},
+            "Signing scheme 'ecdsa_v1' requires either",
+        ),
+        # Never both keys at once.
+        (
+            {
+                "signing_scheme": "rsa3072",
+                "signing_key": "key.pem",
+                "verification_key": "key.bin",
+            },
+            "not both",
+        ),
+        (
+            {
+                "signing_scheme": "ecdsa_v1",
+                "signing_key": "key.pem",
+                "verification_key": "key.bin",
+            },
+            "not both",
+        ),
+    ],
+)
+def test_signed_ota_keys_invalid_combinations(config: dict, match: str) -> None:
+    from esphome.components.esp32 import _validate_signed_ota_keys
+
+    with pytest.raises(cv.Invalid, match=match):
+        _validate_signed_ota_keys(config)

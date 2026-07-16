@@ -112,6 +112,23 @@ CONF_MAX_SEND_QUEUE = "max_send_queue"
 CONF_STATE_SUBSCRIPTION_ONLY = "state_subscription_only"
 
 
+def _register_provisioning_source(config: ConfigType) -> ConfigType:
+    """Register the API as a provisioning source when encryption is enabled.
+
+    With no ``key`` the device boots unprovisioned and is set up on first
+    connection; a YAML ``key`` means it is born provisioned. Either way the API
+    drives the provisioning manager, so it counts as a source for `provisioning:`.
+    A hardcoded ``key`` is reported so `provisioning:` can warn about it.
+    """
+    if (encryption := config.get(CONF_ENCRYPTION)) is not None:
+        from esphome.components import provisioning
+
+        provisioning.register_source("api")
+        if CONF_KEY in encryption:
+            provisioning.report_hardcoded_credentials("api")
+    return config
+
+
 def validate_encryption_key(value):
     value = cv.string_strict(value)
     try:
@@ -337,6 +354,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
     _consume_api_sockets,
+    _register_provisioning_source,
 )
 
 
@@ -470,8 +488,11 @@ async def to_code(config: ConfigType) -> None:
             cg.add_define("USE_API_NOISE_PSK_FROM_YAML")
         else:
             # No key provided, but encryption desired
-            # This will allow a plaintext client to provide a noise key,
-            # send it to the device, and then switch to noise.
+            # Until a key is set, the device accepts both Noise connections
+            # using the well-known all-zeros PSK (preferred: the key travels
+            # encrypted, protecting against passive sniffing) and plaintext
+            # connections (deprecated, remove after 2027.2.0) so a client can
+            # provide a noise key and the device then switches to noise only.
             # The key will be saved in flash and used for future connections
             # and plaintext disabled. Only a factory reset can remove it.
             cg.add_define("USE_API_PLAINTEXT")

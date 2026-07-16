@@ -18,6 +18,8 @@ from esphome.components.mipi import (
     CONF_HSYNC_BACK_PORCH,
     CONF_HSYNC_FRONT_PORCH,
     CONF_HSYNC_PULSE_WIDTH,
+    CONF_PCLK_FREQUENCY,
+    CONF_PCLK_INVERTED,
     CONF_PCLK_PIN,
     CONF_PIXEL_MODE,
     CONF_USE_AXIS_FLIPS,
@@ -34,9 +36,11 @@ from esphome.components.mipi import (
     power_of_two,
     requires_buffer,
 )
-from esphome.components.rpi_dpi_rgb.display import (
-    CONF_PCLK_FREQUENCY,
-    CONF_PCLK_INVERTED,
+from esphome.components.spi import (
+    CONF_SPI_MODE,
+    SPI_DATA_RATE_SCHEMA,
+    SPI_MODE_OPTIONS,
+    SPIComponent,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -48,7 +52,6 @@ from esphome.const import (
     CONF_DATA_RATE,
     CONF_DC_PIN,
     CONF_DIMENSIONS,
-    CONF_DISABLED,
     CONF_ENABLE_PIN,
     CONF_GREEN,
     CONF_HSYNC_PIN,
@@ -57,8 +60,6 @@ from esphome.const import (
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
     CONF_LAMBDA,
-    CONF_MIRROR_X,
-    CONF_MIRROR_Y,
     CONF_MODEL,
     CONF_NUMBER,
     CONF_RED,
@@ -72,10 +73,10 @@ from esphome.const import (
 )
 from esphome.final_validate import full_config
 
-from ..spi import CONF_SPI_MODE, SPI_DATA_RATE_SCHEMA, SPI_MODE_OPTIONS, SPIComponent
 from . import models
+from .models import RgbDriverChip
 
-DEPENDENCIES = ["esp32", "psram"]
+DEPENDENCIES = ["esp32"]
 
 mipi_rgb_ns = cg.esphome_ns.namespace("mipi_rgb")
 mipi_rgb = mipi_rgb_ns.class_("MipiRgb", display.Display, cg.Component)
@@ -86,7 +87,7 @@ ColorOrder = display.display_ns.enum("ColorMode")
 
 DATA_PIN_SCHEMA = pins.internal_gpio_output_pin_schema
 
-DriverChip("CUSTOM")
+RgbDriverChip("CUSTOM")
 
 # Import all models dynamically from the models package
 
@@ -120,16 +121,7 @@ def data_pin_set(length):
 
 def model_schema(config):
     model = MODELS[config[CONF_MODEL].upper()]
-    transform = cv.Any(
-        cv.Schema(
-            {
-                cv.Required(CONF_MIRROR_X): cv.boolean,
-                cv.Required(CONF_MIRROR_Y): cv.boolean,
-                **model.swap_xy_schema(),
-            }
-        ),
-        cv.one_of(CONF_DISABLED, lower=True),
-    )
+    transform = model.transform_schema()
     # RPI model does not use an init sequence, indicates with empty list
     if model.initsequence is None:
         # Custom model requires an init sequence
@@ -235,6 +227,7 @@ def _config_schema(config):
         only_on_variant(supported=[VARIANT_ESP32S3, VARIANT_ESP32P4]),
     )(config)
     model = MODELS[config[CONF_MODEL].upper()]
+    model.check_requirements()
     width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
         model.get_dimensions(config)
     )
