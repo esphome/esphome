@@ -365,32 +365,32 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       this->send_response_(data);
       return true;
     }
-    case GET_NETWORK_STATE: {
+    case improv::GET_NETWORK_STATE: {
       // Reports general device connectivity and which network interfaces are present, decoupled
       // from the Wi-Fi-only provisioning state machine. data[0] is a decimal flags byte;
       // when online, the reachable device URL(s) follow.
       uint8_t flags = 0;
       if (network::is_connected())
-        flags |= NET_IS_ONLINE;
+        flags |= improv::NETWORK_IS_ONLINE;
 #ifdef USE_WIFI
-      flags |= NET_SUPPORTS_WIFI;
+      flags |= improv::NETWORK_SUPPORTS_WIFI;
 #endif
 #ifdef USE_ETHERNET
-      flags |= NET_SUPPORTS_ETHERNET;
+      flags |= improv::NETWORK_SUPPORTS_ETHERNET;
 #endif
 #ifdef USE_OPENTHREAD
-      flags |= NET_SUPPORTS_THREAD;
+      flags |= improv::NETWORK_SUPPORTS_THREAD;
 #endif
 #ifdef USE_MODEM
-      flags |= NET_SUPPORTS_MODEM;
+      flags |= improv::NETWORK_SUPPORTS_MODEM;
 #endif
       std::vector<std::string> datum;
       char flags_buf[4];  // uint8_t: max "255" + null
       snprintf(flags_buf, sizeof(flags_buf), "%u", flags);
       datum.emplace_back(flags_buf);
-      if (flags & NET_IS_ONLINE)
+      if (flags & improv::NETWORK_IS_ONLINE)
         this->collect_device_urls_(datum);
-      std::vector<uint8_t> data = improv::build_rpc_response(GET_NETWORK_STATE, datum, false);
+      std::vector<uint8_t> data = improv::build_rpc_response(improv::GET_NETWORK_STATE, datum, false);
       this->send_response_(data);
       return true;
     }

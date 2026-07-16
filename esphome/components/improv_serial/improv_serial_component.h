@@ -48,21 +48,6 @@ enum ImprovSerialType : uint8_t {
 static const uint16_t IMPROV_SERIAL_TIMEOUT = 100;
 static const uint8_t IMPROV_SERIAL_VERSION = 1;
 
-// RPC command for querying general device connectivity / network state, decoupled from the
-// Wi-Fi-only provisioning state machine. Not (yet) part of the bundled Improv enum; the lib passes
-// the command byte through untouched. 0x05 (Hostname) and 0x06 (Device Name) are spec-defined, so
-// this uses the next free value, 0x07.
-static constexpr improv::Command GET_NETWORK_STATE = static_cast<improv::Command>(0x07);
-
-// Network-state flags returned (as a decimal byte) by GET_NETWORK_STATE. Mirror the shared
-// improv::NetworkState bitmask; adopt improv::NETWORK_* directly once the bundled Improv lib is
-// bumped to a version that has them.
-static constexpr uint8_t NET_IS_ONLINE = 1 << 0;          // 0x01 network::is_connected()
-static constexpr uint8_t NET_SUPPORTS_WIFI = 1 << 1;      // 0x02 USE_WIFI
-static constexpr uint8_t NET_SUPPORTS_ETHERNET = 1 << 2;  // 0x04 USE_ETHERNET
-static constexpr uint8_t NET_SUPPORTS_THREAD = 1 << 3;    // 0x08 USE_OPENTHREAD
-static constexpr uint8_t NET_SUPPORTS_MODEM = 1 << 4;     // 0x10 USE_MODEM
-
 class ImprovSerialComponent final : public Component, public improv_base::ImprovBase {
  public:
   void setup() override;
