@@ -489,6 +489,29 @@ def test_check_esp_idf_install_unparseable_version(
     espidf_mocks.extract.assert_called_once()
 
 
+@pytest.mark.parametrize(
+    ("version", "short_version"),
+    [
+        ("6.0.0", "6.0"),
+        ("6.0.0-rc1", "6.0-rc1"),
+        ("5.5.4", None),  # vX.Y tags only exist for X.Y.0 releases
+    ],
+)
+def test_check_esp_idf_install_short_version_substitution(
+    espidf_mocks: SimpleNamespace, version: str, short_version: str | None
+) -> None:
+    """SHORT_VERSION is only offered for x.y.0 releases, so the vX.Y mirror
+    template is never tried for versions whose tag cannot exist."""
+    _get_framework_path(version).mkdir(parents=True, exist_ok=True)
+    check_esp_idf_install(version, force=True)
+
+    # First call downloads the framework archive; a later call fetches the
+    # constraints file with its own substitutions.
+    substitutions = espidf_mocks.download.call_args_list[0][0][1]
+    assert substitutions.get("SHORT_VERSION") == short_version
+    assert substitutions["VERSION"] == version
+
+
 # ---------------------------------------------------------------------------
 # _patch_tools_json_for_linux_arm64 (arm64-only ninja backport)
 # ---------------------------------------------------------------------------
