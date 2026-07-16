@@ -379,9 +379,17 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
 }
 
 void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags) {
-  if (this->api_connection_ != nullptr) {
-    ESP_LOGE(TAG, "Only one API subscription is allowed at a time");
-    return;
+  if (this->api_connection_ != nullptr && this->api_connection_ != api_connection) {
+    // A previous subscriber still holds the slot. This is almost always a stale
+    // connection from a client that dropped without a clean disconnect and has
+    // not yet hit the keepalive timeout; rejecting the new subscriber would
+    // silently starve it of advertisements until it reconnects, so the newest
+    // subscriber wins instead.
+    char old_peername[socket::SOCKADDR_STR_LEN];
+    char new_peername[socket::SOCKADDR_STR_LEN];
+    ESP_LOGW(TAG, "Subscription from %s (%s) replaces %s (%s)", api_connection->get_name(),
+             api_connection->get_peername_to(new_peername), this->api_connection_->get_name(),
+             this->api_connection_->get_peername_to(old_peername));
   }
   this->api_connection_ = api_connection;
   this->parent_->recalculate_advertisement_parser_types();

@@ -26,6 +26,7 @@ from esphome.framework_helpers import (
     create_venv,
     download_from_mirrors,
     get_project_compile_flags,
+    get_project_cxx_compile_flags,
     get_project_link_flags,
     get_python_env_executable_path,
     get_system_python_path,
@@ -1048,3 +1049,25 @@ class TestGetProjectLinkFlags:
         ):
             result = get_project_link_flags()
             assert result == sorted(result)
+
+
+def _make_core_cxx(flags: set[str]) -> MagicMock:
+    core = MagicMock()
+    core.cxx_build_flags = flags
+    return core
+
+
+class TestGetProjectCxxCompileFlags:
+    def test_returns_sorted_flags(self) -> None:
+        with patch(
+            "esphome.core.CORE",
+            _make_core_cxx({"-Wno-volatile", "-Wno-deprecated"}),
+        ):
+            assert get_project_cxx_compile_flags() == [
+                "-Wno-deprecated",
+                "-Wno-volatile",
+            ]
+
+    def test_empty_flags(self) -> None:
+        with patch("esphome.core.CORE", _make_core_cxx(set())):
+            assert get_project_cxx_compile_flags() == []
