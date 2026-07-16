@@ -364,10 +364,7 @@ def print_error_for_file(file: str | Path, body: str | None) -> None:
         print()
 
 
-def build_all_include(
-    header_files: list[str] | None = None,
-    exclude_headers: list[str] | None = None,
-) -> None:
+def build_all_include(header_files: list[str] | None = None) -> None:
     # Build a cpp file that includes header files for clang-tidy to check.
     # If header_files is provided, only include those headers.
     # Otherwise, include all header files in the esphome directory.
@@ -390,9 +387,8 @@ def build_all_include(
     # X-macro files are included multiple times with different macro definitions
     # and must not be included bare in the all-include header
     exclude = {ENTITY_TYPES_H_TARGET}
-    if exclude_headers:
-        exclude.update(h for h in header_files if any(e in h for e in exclude_headers))
-    headers = [f'#include "{h}"' for h in sorted(header_files) if h not in exclude]
+    headers = [f'#include "{h}"' for h in header_files if h not in exclude]
+    headers.sort()
     headers.append("")
     content = "\n".join(headers)
     p = Path(temp_header_file)
