@@ -542,7 +542,7 @@ def _check_esphome_idf_framework_install(
             plus any extra and only available for x.y.0 versions — a URL
             referencing it is skipped for other versions). When set, it
             replaces the default mirror list — no implicit fallback, so a
-            misspelled or skipped URL fails loudly with a RuntimeError naming
+            misspelled or skipped URL fails loudly with an EsphomeError naming
             the URL.
 
     Returns:

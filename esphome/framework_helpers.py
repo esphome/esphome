@@ -556,9 +556,11 @@ def _failure_reason(e: Exception) -> str:
     """Format a download exception for the aggregated error message.
 
     ``requests`` appends " for url: <url>" to HTTP errors; the URL is already
-    printed on the line above, so strip the suffix to keep lines short.
+    printed on the line above, so strip the suffix to keep lines short. Falls
+    back to the repr for exceptions with no message (e.g. ``TimeoutError()``)
+    so the line always names the failure.
     """
-    return str(e).split(" for url: ", maxsplit=1)[0]
+    return str(e).split(" for url: ", maxsplit=1)[0] or repr(e)
 
 
 def download_from_mirrors(
@@ -585,13 +587,15 @@ def download_from_mirrors(
 
     Raises:
         ValueError: If mirrors list is empty.
-        RuntimeError: If all download attempts fail; the message lists every
+        EsphomeError: If all download attempts fail; the message lists every
             attempted URL with its individual failure reason. Also raised if
             no template matched the provided substitutions.
     """
     # Imported lazily: requests is a heavy import (~85ms) and is only needed
     # when actually downloading a toolchain, never during config validation.
     import requests
+
+    from esphome.core import EsphomeError
 
     # 1. Open target file for writing if path given
     with ExitStack() as stack:
@@ -606,18 +610,27 @@ def download_from_mirrors(
 
         # 2. Try each mirror in order
         failures: list[tuple[str, Exception]] = []
-        skipped: list[tuple[str, Exception]] = []
+        skipped: list[tuple[str, str]] = []
 
         for mirror in mirrors:
-            # 3. Apply substitutions to URL. A template referencing a
-            # substitution that wasn't provided doesn't apply to this
-            # download (e.g. SHORT_VERSION only exists for x.y.0 framework
-            # versions) and is skipped.
+            # 3. Apply substitutions to URL
             try:
                 url = mirror.format(**substitutions)
-            except (KeyError, IndexError, ValueError) as e:
-                _LOGGER.debug("Skipping mirror %s: %r", mirror, e)
-                skipped.append((mirror, e))
+            except KeyError as e:
+                # The template references a substitution not provided for
+                # this download (e.g. SHORT_VERSION only exists for x.y.0
+                # versions) - expected, the template just doesn't apply.
+                _LOGGER.debug("Skipping mirror %s: %s not available", mirror, e)
+                skipped.append((mirror, f"not applicable ({e.args[0]} not available)"))
+                continue
+            except (IndexError, ValueError) as e:
+                # A malformed template (unbalanced braces, bad format spec)
+                # is an authoring error, not an expected fallthrough - warn
+                # even if a later mirror succeeds.
+                _LOGGER.warning(
+                    "Skipping malformed mirror URL template %s: %r", mirror, e
+                )
+                skipped.append((mirror, f"skipped ({e!r})"))
                 continue
 
             _LOGGER.debug("Trying to download from %s", url)
@@ -666,14 +679,16 @@ def download_from_mirrors(
                 f"\n  {url}\n    {_failure_reason(e)}" for url, e in failures
             )
             attempts += "".join(
-                f"\n  {mirror}\n    skipped ({e!r})" for mirror, e in skipped
+                f"\n  {mirror}\n    {reason}" for mirror, reason in skipped
             )
-            raise RuntimeError(
+            raise EsphomeError(
                 f"Failed to download from all mirrors:{attempts}"
             ) from failures[0][1]
         if skipped:
-            details = "".join(f"\n  {mirror}\n    {e!r}" for mirror, e in skipped)
-            raise RuntimeError(
+            details = "".join(
+                f"\n  {mirror}\n    {reason}" for mirror, reason in skipped
+            )
+            raise EsphomeError(
                 f"No mirror URL template matched the provided substitutions:{details}"
             )
         raise ValueError("download_from_mirrors called with an empty mirrors list")

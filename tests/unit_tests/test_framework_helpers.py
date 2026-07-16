@@ -16,6 +16,7 @@ import zipfile
 import pytest
 import requests as req
 
+from esphome.core import EsphomeError
 from esphome.framework_helpers import (
     _7z_extract_all,
     _detect_archive_root,
@@ -567,10 +568,10 @@ class TestDownloadFromMirrors:
         assert url == "https://example.com/1.2.3.bin"
         assert mock_get.call_count == 1
 
-    def test_all_templates_skipped_raises_runtime_error(self, tmp_path: Path) -> None:
+    def test_all_templates_skipped_raises_esphome_error(self, tmp_path: Path) -> None:
         with (
             patch("requests.get") as mock_get,
-            pytest.raises(RuntimeError, match="No mirror URL template matched") as ei,
+            pytest.raises(EsphomeError, match="No mirror URL template matched") as ei,
         ):
             download_from_mirrors(
                 ["https://example.com/{MISSING}.bin"],
@@ -591,7 +592,7 @@ class TestDownloadFromMirrors:
                 "requests.get",
                 return_value=_mock_response(b"", ok=False),
             ),
-            pytest.raises(RuntimeError, match="all mirrors") as ei,
+            pytest.raises(EsphomeError, match="all mirrors") as ei,
         ):
             download_from_mirrors(
                 [
@@ -603,7 +604,41 @@ class TestDownloadFromMirrors:
             )
         message = str(ei.value)
         assert "https://example.com/1.2.3.bin" in message
-        assert "https://example.com/{TYPO}.bin\n    skipped" in message
+        assert (
+            "https://example.com/{TYPO}.bin\n    not applicable (TYPO not available)"
+            in message
+        )
+
+    def test_malformed_template_warns_and_is_reported(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A structurally malformed template is an authoring error: warned
+        about even when another mirror succeeds, and named in the aggregate
+        error when everything fails."""
+        with (
+            patch("requests.get", return_value=_mock_response(b"x")),
+            caplog.at_level(logging.WARNING, logger="esphome.framework_helpers"),
+        ):
+            url = download_from_mirrors(
+                ["https://example.com/{oops.bin", "https://example.com/{VERSION}.bin"],
+                {"VERSION": "1.2.3"},
+                tmp_path / "out.bin",
+            )
+        assert url == "https://example.com/1.2.3.bin"
+        assert "malformed mirror URL template" in caplog.text
+
+        with (
+            patch("requests.get", return_value=_mock_response(b"", ok=False)),
+            pytest.raises(EsphomeError, match="all mirrors") as ei,
+        ):
+            download_from_mirrors(
+                ["https://example.com/{oops.bin", "https://example.com/{VERSION}.bin"],
+                {"VERSION": "1.2.3"},
+                tmp_path / "out.bin",
+            )
+        assert "https://example.com/{oops.bin\n    skipped (ValueError(" in str(
+            ei.value
+        )
 
     def test_falls_back_to_second_mirror(self, tmp_path: Path) -> None:
         with patch(
@@ -626,7 +661,7 @@ class TestDownloadFromMirrors:
                 "requests.get",
                 return_value=_mock_response(b"", ok=False),
             ),
-            pytest.raises(RuntimeError, match="all mirrors") as excinfo,
+            pytest.raises(EsphomeError, match="all mirrors") as excinfo,
         ):
             download_from_mirrors(
                 ["https://mirror1.com/f", "https://mirror2.com/f"],
