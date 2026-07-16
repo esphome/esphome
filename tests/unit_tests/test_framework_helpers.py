@@ -546,6 +546,39 @@ class TestDownloadFromMirrors:
             )
         assert mock_get.call_args[0][0] == "https://example.com/1.2.3.bin"
 
+    def test_template_with_missing_substitution_is_skipped(
+        self, tmp_path: Path
+    ) -> None:
+        """A template referencing an unavailable substitution is skipped, not
+        formatted into a bogus URL (e.g. SHORT_VERSION only exists for x.y.0
+        framework versions)."""
+        with patch(
+            "requests.get",
+            return_value=_mock_response(b"x"),
+        ) as mock_get:
+            url = download_from_mirrors(
+                [
+                    "https://example.com/{SHORT_VERSION}.bin",
+                    "https://example.com/{VERSION}.bin",
+                ],
+                {"VERSION": "1.2.3"},
+                tmp_path / "out.bin",
+            )
+        assert url == "https://example.com/1.2.3.bin"
+        assert mock_get.call_count == 1
+
+    def test_all_templates_skipped_raises_runtime_error(self, tmp_path: Path) -> None:
+        with (
+            patch("requests.get") as mock_get,
+            pytest.raises(RuntimeError, match="No mirror URL template matched"),
+        ):
+            download_from_mirrors(
+                ["https://example.com/{MISSING}.bin"],
+                {"VERSION": "1.2.3"},
+                tmp_path / "out.bin",
+            )
+        mock_get.assert_not_called()
+
     def test_falls_back_to_second_mirror(self, tmp_path: Path) -> None:
         with patch(
             "requests.get",

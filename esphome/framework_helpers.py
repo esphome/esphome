@@ -570,10 +570,15 @@ def download_from_mirrors(
     Returns:
         The source URL.
 
+    Mirror URL templates that reference a substitution not present in
+    ``substitutions`` are skipped, so callers can offer templates that only
+    apply to some downloads.
+
     Raises:
         ValueError: If mirrors list is empty.
         RuntimeError: If all download attempts fail; the message lists every
-            attempted URL with its individual failure reason.
+            attempted URL with its individual failure reason. Also raised if
+            no template matched the provided substitutions.
     """
     # Imported lazily: requests is a heavy import (~85ms) and is only needed
     # when actually downloading a toolchain, never during config validation.
@@ -594,8 +599,15 @@ def download_from_mirrors(
         failures: list[tuple[str, Exception]] = []
 
         for mirror in mirrors:
-            # 3. Apply substitutions to URL
-            url = mirror.format(**substitutions)
+            # 3. Apply substitutions to URL. A template referencing a
+            # substitution that wasn't provided doesn't apply to this
+            # download (e.g. SHORT_VERSION only exists for x.y.0 framework
+            # versions) and is skipped.
+            try:
+                url = mirror.format(**substitutions)
+            except (KeyError, IndexError):
+                _LOGGER.debug("Skipping mirror %s: substitution not available", mirror)
+                continue
 
             _LOGGER.debug("Trying downloading from %s", url)
 
@@ -643,4 +655,9 @@ def download_from_mirrors(
             raise RuntimeError(
                 f"Failed to download from all mirrors:\n{attempts}"
             ) from failures[0][1]
+        if mirrors:
+            raise RuntimeError(
+                "No mirror URL template matched the provided substitutions: "
+                + ", ".join(mirrors)
+            )
         raise ValueError("download_from_mirrors called with an empty mirrors list")

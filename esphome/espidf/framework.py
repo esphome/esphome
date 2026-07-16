@@ -63,7 +63,7 @@ ESPHOME_IDF_FRAMEWORK_MIRRORS = str_to_lst_of_str(
     os.environ.get("ESPHOME_IDF_FRAMEWORK_MIRRORS")
     or [
         "https://github.com/esphome-libs/esp-idf/releases/download/v{VERSION}/esp-idf-v{VERSION}.tar.xz",
-        "https://github.com/esphome-libs/esp-idf/releases/download/v{MAJOR}.{MINOR}{EXTRA}/esp-idf-v{MAJOR}.{MINOR}{EXTRA}.tar.xz",
+        "https://github.com/esphome-libs/esp-idf/releases/download/v{SHORT_VERSION}/esp-idf-v{SHORT_VERSION}.tar.xz",
     ]
 )
 
@@ -588,7 +588,11 @@ def _check_esphome_idf_framework_install(
             with tempfile.NamedTemporaryFile() as tmp:
                 _LOGGER.info("Downloading ESP-IDF %s framework ...", version)
 
-                # Create substitutions for the URLs
+                # Create substitutions for the URLs. SHORT_VERSION (x.y with
+                # optional -extra) is only provided for x.y.0 releases, since
+                # the vX.Y release tags only exist for those; templates that
+                # reference it are skipped for other versions by
+                # download_from_mirrors.
                 substitutions = {"VERSION": version}
                 try:
                     ver = Version.parse(version)
@@ -596,6 +600,10 @@ def _check_esphome_idf_framework_install(
                     substitutions["MINOR"] = str(ver.minor)
                     substitutions["PATCH"] = str(ver.patch)
                     substitutions["EXTRA"] = f"-{ver.extra}" if ver.extra else ""
+                    if ver.patch == 0:
+                        substitutions["SHORT_VERSION"] = (
+                            f"{ver.major}.{ver.minor}{substitutions['EXTRA']}"
+                        )
                 except ValueError:
                     pass
 
