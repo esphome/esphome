@@ -494,8 +494,11 @@ def test_check_esp_idf_install_failure_libusb_hint(
     """A failed tools install only shows the libusb hint when libusb-1.0 is
     actually missing."""
     espidf_mocks.run_ok.return_value = False
+    # Fake Linux so the gate is exercised on all CI hosts; faking Linux is safe
+    # everywhere (unlike faking Windows, which pulls in winreg on other hosts)
     with (
         patch("esphome.espidf.framework.find_library", return_value=lib),
+        patch("esphome.espidf.framework.platform.system", return_value="Linux"),
         caplog.at_level(logging.ERROR, logger="esphome.espidf.framework"),
         pytest.raises(RuntimeError, match="framework installation failure"),
     ):
