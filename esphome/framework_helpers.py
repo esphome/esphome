@@ -552,6 +552,17 @@ def archive_extract_all(
         matched_fct(archive_ref, extract_dir, progress_header=progress_header)
 
 
+def _failure_reason(e: Exception) -> str:
+    """Format a download exception for the aggregated error message.
+
+    ``requests`` appends " for url: <url>" to HTTP errors; the URL is already
+    printed on the line above, so strip the suffix to keep lines short. Falls
+    back to the repr for exceptions with no message (e.g. ``TimeoutError()``)
+    so the line always names the failure.
+    """
+    return str(e).split(" for url: ", maxsplit=1)[0] or repr(e)
+
+
 def download_from_mirrors(
     mirrors: list[str],
     substitutions: dict[str, str],
@@ -570,13 +581,21 @@ def download_from_mirrors(
     Returns:
         The source URL.
 
+    Mirror URL templates that reference a substitution not present in
+    ``substitutions`` are skipped, so callers can offer templates that only
+    apply to some downloads.
+
     Raises:
         ValueError: If mirrors list is empty.
-        Exception: If all download attempts fail.
+        EsphomeError: If all download attempts fail; the message lists every
+            attempted URL with its individual failure reason. Also raised if
+            no template matched the provided substitutions.
     """
     # Imported lazily: requests is a heavy import (~85ms) and is only needed
     # when actually downloading a toolchain, never during config validation.
     import requests
+
+    from esphome.core import EsphomeError
 
     # 1. Open target file for writing if path given
     with ExitStack() as stack:
@@ -590,13 +609,31 @@ def download_from_mirrors(
             )
 
         # 2. Try each mirror in order
-        last_exception = None
+        failures: list[tuple[str, Exception]] = []
+        skipped: list[tuple[str, str]] = []
 
         for mirror in mirrors:
             # 3. Apply substitutions to URL
-            url = mirror.format(**substitutions)
+            try:
+                url = mirror.format(**substitutions)
+            except KeyError as e:
+                # The template references a substitution not provided for
+                # this download (e.g. SHORT_VERSION only exists for x.y.0
+                # versions) - expected, the template just doesn't apply.
+                _LOGGER.debug("Skipping mirror %s: %s not available", mirror, e)
+                skipped.append((mirror, f"not applicable ({e.args[0]} not available)"))
+                continue
+            except (IndexError, ValueError) as e:
+                # A malformed template (unbalanced braces, bad format spec)
+                # is an authoring error, not an expected fallthrough - warn
+                # even if a later mirror succeeds.
+                _LOGGER.warning(
+                    "Skipping malformed mirror URL template %s: %r", mirror, e
+                )
+                skipped.append((mirror, f"skipped ({e!r})"))
+                continue
 
-            _LOGGER.debug("Trying downloading from %s", url)
+            _LOGGER.debug("Trying to download from %s", url)
 
             try:
                 # 4. Reset file pointer and download
@@ -631,9 +668,27 @@ def download_from_mirrors(
 
             except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
                 _LOGGER.debug("Failed to download %s: %s", url, str(e))
-                last_exception = e
+                failures.append((url, e))
 
-        # 7. Raise last exception if all mirrors failed
-        if last_exception:
-            raise last_exception
+        # 7. Report every attempted URL if all mirrors failed. Falling back
+        # past an early mirror is normal (e.g. only one of the framework URL
+        # templates matches a given version's tag), so raising only the last
+        # error would hide the failure that actually matters.
+        if failures:
+            attempts = "".join(
+                f"\n  {url}\n    {_failure_reason(e)}" for url, e in failures
+            )
+            attempts += "".join(
+                f"\n  {mirror}\n    {reason}" for mirror, reason in skipped
+            )
+            raise EsphomeError(
+                f"Failed to download from all mirrors:{attempts}"
+            ) from failures[0][1]
+        if skipped:
+            details = "".join(
+                f"\n  {mirror}\n    {reason}" for mirror, reason in skipped
+            )
+            raise EsphomeError(
+                f"No mirror URL template matched the provided substitutions:{details}"
+            )
         raise ValueError("download_from_mirrors called with an empty mirrors list")
