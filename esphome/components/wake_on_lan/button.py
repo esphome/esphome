@@ -8,7 +8,7 @@ DEPENDENCIES = ["network"]
 
 
 def AUTO_LOAD():
-    if CORE.is_esp8266 or CORE.is_rp2040:
+    if CORE.is_esp8266 or CORE.is_rp2:
         return []
     return ["socket"]
 

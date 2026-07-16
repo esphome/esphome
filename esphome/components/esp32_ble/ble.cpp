@@ -9,6 +9,8 @@
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
 #else
+#include "esphome/components/watchdog/watchdog.h"
+#include <cinttypes>
 extern "C" {
 #include <esp_hosted.h>
 #include <esp_hosted_misc.h>
@@ -32,6 +34,19 @@ extern "C" bool btInUse() { return true; }  // NOLINT(readability-identifier-nam
 namespace esphome::esp32_ble {
 
 static const char *const TAG = "esp32_ble";
+
+#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+// Bringing up the remote BT controller issues synchronous RPCs to the
+// co-processor with 5 second response timeouts, and the default task watchdog
+// is also 5 seconds. If the co-processor firmware does not answer (for example
+// factory firmware without Bluetooth support), the watchdog would reboot the
+// device before the RPC could return an error, causing a boot loop. Raise the
+// watchdog for the duration of the bring-up so failures surface as error
+// returns instead. 60 seconds covers the worst case: transport reconnect
+// (up to ~20s), version preflight (1s), controller init/enable (5s each) and
+// the bluedroid host bring-up over the hosted HCI transport.
+static constexpr uint32_t HOSTED_BT_WDT_TIMEOUT_MS = 60000;
+#endif
 
 // GAP event groups for deduplication across gap_event_handler and dispatch_gap_event_
 #define GAP_SCAN_COMPLETE_EVENTS \
@@ -164,6 +179,9 @@ void ESP32BLE::advertising_init_() {
 
 bool ESP32BLE::ble_setup_() {
   esp_err_t err;
+#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+  watchdog::WatchdogManager wdt(HOSTED_BT_WDT_TIMEOUT_MS);
+#endif
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
     // start bt controller
@@ -192,15 +210,35 @@ bool ESP32BLE::ble_setup_() {
 
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 #else
-  esp_hosted_connect_to_slave();  // NOLINT
+  if (esp_hosted_connect_to_slave() != ESP_OK) {  // NOLINT
+    ESP_LOGE(TAG, "Co-processor transport failed; BLE disabled");
+    return false;
+  }
+
+  // Fast preflight (1 second RPC timeout): verifies the co-processor answers
+  // RPCs at all before the 5 second timeout BT controller RPCs below, and
+  // before hosted_hci_bluedroid_open(), which aborts if the transport is down.
+  esp_hosted_coprocessor_fwver_t fw_ver{};
+  if (esp_hosted_get_coprocessor_fwversion(&fw_ver) != ESP_OK) {
+    ESP_LOGE(TAG, "Co-processor not responding; BLE disabled. Update its firmware with the esp32_hosted "
+                  "update component");
+    return false;
+  }
+  ESP_LOGD(TAG, "Co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32, fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
 
   if (esp_hosted_bt_controller_init() != ESP_OK) {
-    ESP_LOGW(TAG, "esp_hosted_bt_controller_init failed");
+    ESP_LOGE(TAG,
+             "BT controller init failed; co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32
+             " may lack BT support. Update it with the esp32_hosted update component; BLE disabled",
+             fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
     return false;
   }
 
   if (esp_hosted_bt_controller_enable() != ESP_OK) {
-    ESP_LOGW(TAG, "esp_hosted_bt_controller_enable failed");
+    ESP_LOGE(TAG,
+             "BT controller enable failed; co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32
+             " may lack BT support. Update it with the esp32_hosted update component; BLE disabled",
+             fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
     return false;
   }
 
@@ -332,6 +370,10 @@ bool ESP32BLE::ble_setup_() {
 }
 
 bool ESP32BLE::ble_dismantle_() {
+#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+  // Same 5 second RPCs as the bring-up path; see HOSTED_BT_WDT_TIMEOUT_MS
+  watchdog::WatchdogManager wdt(HOSTED_BT_WDT_TIMEOUT_MS);
+#endif
   esp_err_t err = esp_bluedroid_disable();
   if (err != ESP_OK) {
     // ESP_ERR_INVALID_STATE means Bluedroid is already disabled, which is fine
@@ -377,12 +419,12 @@ bool ESP32BLE::ble_dismantle_() {
   }
 #else
   if (esp_hosted_bt_controller_disable() != ESP_OK) {
-    ESP_LOGW(TAG, "esp_hosted_bt_controller_disable failed");
+    ESP_LOGE(TAG, "esp_hosted_bt_controller_disable failed");
     return false;
   }
 
   if (esp_hosted_bt_controller_deinit(false) != ESP_OK) {
-    ESP_LOGW(TAG, "esp_hosted_bt_controller_deinit failed");
+    ESP_LOGE(TAG, "esp_hosted_bt_controller_deinit failed");
     return false;
   }
 
