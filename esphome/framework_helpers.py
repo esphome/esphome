@@ -605,11 +605,11 @@ def download_from_mirrors(
             # versions) and is skipped.
             try:
                 url = mirror.format(**substitutions)
-            except (KeyError, IndexError):
+            except (KeyError, IndexError, ValueError):
                 _LOGGER.debug("Skipping mirror %s: substitution not available", mirror)
                 continue
 
-            _LOGGER.debug("Trying downloading from %s", url)
+            _LOGGER.debug("Trying to download from %s", url)
 
             try:
                 # 4. Reset file pointer and download
