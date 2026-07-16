@@ -100,7 +100,7 @@ def test_get_idedata_uses_cache_when_valid(setup_core: Path) -> None:
     compile_commands.parent.mkdir(parents=True, exist_ok=True)
     compile_commands.write_text("[]")
     cache.parent.mkdir(parents=True, exist_ok=True)
-    cache.write_text('{"cxx_path": "cached"}')
+    cache.write_text('{"cc_path": "cached-gcc", "cxx_path": "cached"}')
     cc_mtime = compile_commands.stat().st_mtime
     os.utime(cache, (cc_mtime + 1, cc_mtime + 1))
 
@@ -108,7 +108,31 @@ def test_get_idedata_uses_cache_when_valid(setup_core: Path) -> None:
         result = toolchain.get_idedata()
 
     mock_transform.assert_not_called()
-    assert result == {"cxx_path": "cached"}
+    assert result == {"cc_path": "cached-gcc", "cxx_path": "cached"}
+
+
+def test_get_idedata_regenerates_cache_without_cc_path(setup_core: Path) -> None:
+    """A cache predating cc_path is rebuilt even though it is newer.
+
+    Such a cache stays newer than the compile DB forever, so consumers that
+    derive the binutils paths from cc_path would keep failing on it.
+    """
+    compile_commands, cache = _setup_build(setup_core)
+    compile_commands.parent.mkdir(parents=True, exist_ok=True)
+    compile_commands.write_text("[]")
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text('{"cxx_path": "cached"}')
+    cc_mtime = compile_commands.stat().st_mtime
+    os.utime(cache, (cc_mtime + 1, cc_mtime + 1))
+
+    with patch(
+        "esphome.espidf.idedata.idedata_from_build",
+        return_value={"cc_path": "gcc", "cxx_path": "g++"},
+    ) as mock_transform:
+        result = toolchain.get_idedata()
+
+    mock_transform.assert_called_once()
+    assert result["cc_path"] == "gcc"
 
 
 def test_get_idedata_regenerates_when_compile_commands_newer(setup_core: Path) -> None:
