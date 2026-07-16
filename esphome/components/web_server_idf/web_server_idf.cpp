@@ -16,6 +16,11 @@
 #include "utils.h"
 #include "web_server_idf.h"
 
+#ifdef USE_WEBSERVER_AUTH_DIGEST
+#include <esp_random.h>
+#include <esp_rom_md5.h>
+#endif
+
 #ifdef USE_WEBSERVER_OTA
 #include <multipart_parser.h>
 #include "multipart.h"  // For parse_multipart_boundary and other utils
@@ -372,6 +377,135 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
 }
 
 #ifdef USE_WEBSERVER_AUTH
+
+#ifdef USE_WEBSERVER_AUTH_DIGEST
+namespace {
+
+// Hex-encode `len` bytes into `out`, which must hold at least 2 * len + 1 bytes. Null-terminated.
+void bytes_to_hex(const uint8_t *data, size_t len, char *out) {
+  static const char HEX[] = "0123456789abcdef";
+  for (size_t i = 0; i < len; i++) {
+    out[i * 2] = HEX[data[i] >> 4];
+    out[i * 2 + 1] = HEX[data[i] & 0x0f];
+  }
+  out[len * 2] = '\0';
+}
+
+// Extract the value of a Digest auth parameter (e.g. "nonce") from the comma-separated
+// parameter list. Values may be quoted or bare. Returns an empty ref when the key is absent.
+// Only whole parameter names match, so "nc" does not match inside "cnonce".
+StringRef digest_param(StringRef params, const char *key) {
+  size_t key_len = strlen(key);
+  const char *base = params.c_str();
+  size_t n = params.size();
+  size_t i = 0;
+  while (i < n) {
+    while (i < n && (base[i] == ' ' || base[i] == ','))
+      i++;
+    size_t name_start = i;
+    while (i < n && base[i] != '=' && base[i] != ',')
+      i++;
+    if (i >= n || base[i] == ',')
+      continue;  // token without a '=', skip it
+    size_t name_len = i - name_start;
+    while (name_len > 0 && base[name_start + name_len - 1] == ' ')
+      name_len--;
+    i++;  // consume '='
+    const char *val_start;
+    size_t val_len;
+    if (i < n && base[i] == '"') {
+      i++;
+      val_start = base + i;
+      while (i < n && base[i] != '"')
+        i++;
+      val_len = (base + i) - val_start;
+      if (i < n)
+        i++;  // consume closing quote
+    } else {
+      val_start = base + i;
+      while (i < n && base[i] != ',')
+        i++;
+      val_len = (base + i) - val_start;
+    }
+    if (name_len == key_len && memcmp(base + name_start, key, key_len) == 0)
+      return StringRef(val_start, val_len);
+    while (i < n && base[i] != ',')
+      i++;
+  }
+  return StringRef();
+}
+
+// Verify an RFC 2617 Digest response. Stateless (the nonce we issued is not tracked), which
+// matches the ESPAsyncWebServer backend used on the Arduino platforms.
+bool check_digest_auth(const char *username, const char *password, const std::string &header, const char *method) {
+  const size_t prefix_len = sizeof("Digest ") - 1;
+  StringRef params(header.c_str() + prefix_len, header.size() - prefix_len);
+
+  if (digest_param(params, "username") != username)
+    return false;
+
+  StringRef realm = digest_param(params, "realm");
+  StringRef nonce = digest_param(params, "nonce");
+  StringRef uri = digest_param(params, "uri");
+  StringRef qop = digest_param(params, "qop");
+  StringRef nc = digest_param(params, "nc");
+  StringRef cnonce = digest_param(params, "cnonce");
+  StringRef response = digest_param(params, "response");
+  if (response.size() != 32)
+    return false;
+
+  // Compute the three MD5 hashes by streaming the pieces straight into the ROM MD5 engine, so
+  // nothing is concatenated on the heap. Each hash is emitted as 32 lowercase hex characters.
+  md5_context_t ctx;
+  uint8_t digest[16];
+
+  // HA1 = MD5(username:realm:password) -- uses the realm the client echoed back.
+  char ha1[33];
+  esp_rom_md5_init(&ctx);
+  esp_rom_md5_update(&ctx, username, strlen(username));
+  esp_rom_md5_update(&ctx, ":", 1);
+  esp_rom_md5_update(&ctx, realm.c_str(), realm.size());
+  esp_rom_md5_update(&ctx, ":", 1);
+  esp_rom_md5_update(&ctx, password, strlen(password));
+  esp_rom_md5_final(digest, &ctx);
+  bytes_to_hex(digest, sizeof(digest), ha1);
+
+  // HA2 = MD5(method:uri) -- uses the uri the client echoed back.
+  char ha2[33];
+  esp_rom_md5_init(&ctx);
+  esp_rom_md5_update(&ctx, method, strlen(method));
+  esp_rom_md5_update(&ctx, ":", 1);
+  esp_rom_md5_update(&ctx, uri.c_str(), uri.size());
+  esp_rom_md5_final(digest, &ctx);
+  bytes_to_hex(digest, sizeof(digest), ha2);
+
+  // expected = MD5(HA1:nonce:nc:cnonce:qop:HA2)
+  char expected[33];
+  esp_rom_md5_init(&ctx);
+  esp_rom_md5_update(&ctx, ha1, 32);
+  esp_rom_md5_update(&ctx, ":", 1);
+  esp_rom_md5_update(&ctx, nonce.c_str(), nonce.size());
+  esp_rom_md5_update(&ctx, ":", 1);
+  esp_rom_md5_update(&ctx, nc.c_str(), nc.size());
+  esp_rom_md5_update(&ctx, ":", 1);
+  esp_rom_md5_update(&ctx, cnonce.c_str(), cnonce.size());
+  esp_rom_md5_update(&ctx, ":", 1);
+  esp_rom_md5_update(&ctx, qop.c_str(), qop.size());
+  esp_rom_md5_update(&ctx, ":", 1);
+  esp_rom_md5_update(&ctx, ha2, 32);
+  esp_rom_md5_final(digest, &ctx);
+  bytes_to_hex(digest, sizeof(digest), expected);
+
+  // Constant-time comparison of the two 32-char hex digests.
+  uint8_t result = 0;
+  for (size_t i = 0; i < 32; i++)
+    result |= static_cast<uint8_t>(expected[i] ^ response[i]);
+  return result == 0;
+}
+
+}  // namespace
+#endif  // USE_WEBSERVER_AUTH_DIGEST
+
 bool AsyncWebServerRequest::authenticate(const char *username, const char *password) const {
   if (username == nullptr || password == nullptr || *username == 0) {
     return true;
@@ -383,9 +517,18 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
 
   auto *auth_str = auth.value().c_str();
 
+#ifdef USE_WEBSERVER_AUTH_DIGEST
+  // The build fixed the scheme to Digest, so the Basic path is compiled out entirely.
+  const auto auth_prefix_len = sizeof("Digest ") - 1;
+  if (strncmp("Digest ", auth_str, auth_prefix_len) != 0) {
+    ESP_LOGW(TAG, "Only Digest authorization supported");
+    return false;
+  }
+  return check_digest_auth(username, password, auth.value(), http_method_str(this->method()));
+#else
   const auto auth_prefix_len = sizeof("Basic ") - 1;
   if (strncmp("Basic ", auth_str, auth_prefix_len) != 0) {
-    ESP_LOGW(TAG, "Only Basic authorization supported yet");
+    ESP_LOGW(TAG, "Only Basic authorization supported");
     return false;
   }
 
@@ -434,16 +577,33 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
     result |= static_cast<uint8_t>(digest[i] ^ provided_ch);
   }
   return result == 0;
+#endif  // USE_WEBSERVER_AUTH_DIGEST
 }
 
-void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
+void AsyncWebServerRequest::requestAuthentication() const {
   httpd_resp_set_hdr(*this, "Connection", "keep-alive");
-  // Note: realm is never configured in ESPHome, always nullptr -> "Login Required"
-  (void) realm;  // Unused - always use default
+#ifdef USE_WEBSERVER_AUTH_DIGEST
+  // Issue a fresh random nonce and opaque. The nonce is not stored, so this is stateless and
+  // does not defend against replay -- its purpose is to keep the password off the wire.
+  // The header value must stay alive until httpd_resp_send_err() below sends it, so the buffer
+  // lives on this stack frame (httpd_resp_set_hdr stores the pointer, it does not copy).
+  uint8_t random_bytes[16];
+  char nonce[33];
+  char opaque[33];
+  char header[160];
+  esp_fill_random(random_bytes, sizeof(random_bytes));
+  bytes_to_hex(random_bytes, sizeof(random_bytes), nonce);
+  esp_fill_random(random_bytes, sizeof(random_bytes));
+  bytes_to_hex(random_bytes, sizeof(random_bytes), opaque);
+  snprintf(header, sizeof(header), R"(Digest realm="Login Required", qop="auth", nonce="%s", opaque="%s")", nonce,
+           opaque);
+  httpd_resp_set_hdr(*this, "WWW-Authenticate", header);
+#else
   httpd_resp_set_hdr(*this, "WWW-Authenticate", "Basic realm=\"Login Required\"");
+#endif  // USE_WEBSERVER_AUTH_DIGEST
   httpd_resp_send_err(*this, HTTPD_401_UNAUTHORIZED, nullptr);
 }
-#endif
+#endif  // USE_WEBSERVER_AUTH
 
 AsyncWebParameter *AsyncWebServerRequest::getParam(const char *name) {
   // Check cache first - only successful lookups are cached

@@ -22,12 +22,20 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   }
   ~APINoiseFrameHelper() override;
   APIError init() override;
+#ifdef USE_API_PLAINTEXT
+  // Take over a connection whose first bytes were consumed by a plaintext
+  // helper on an unprovisioned device (see APIError::PROTOCOL_SWITCH_TO_NOISE).
+  // Seeds the already-read header bytes and pumps the handshake state machine
+  // until it would block.
+  APIError init_from_handoff(const uint8_t *header, uint8_t header_len);
+#endif
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
   APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) override;
   APIError write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) override;
 
  protected:
+  APIError pump_handshake_();
   APIError state_action_();
   APIError state_action_client_hello_();
   APIError state_action_server_hello_();
