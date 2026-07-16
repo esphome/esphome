@@ -22,13 +22,13 @@ veml3235_ns = cg.esphome_ns.namespace("veml3235")
 VEML3235Sensor = veml3235_ns.class_(
     "VEML3235Sensor", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice
 )
-VEML3235IntegrationTime = veml3235_ns.enum("VEML3235IntegrationTime")
+VEML3235ComponentIntegrationTime = veml3235_ns.enum("VEML3235ComponentIntegrationTime")
 VEML3235_INTEGRATION_TIMES = {
-    "50ms": VEML3235IntegrationTime.VEML3235_INTEGRATION_TIME_50MS,
-    "100ms": VEML3235IntegrationTime.VEML3235_INTEGRATION_TIME_100MS,
-    "200ms": VEML3235IntegrationTime.VEML3235_INTEGRATION_TIME_200MS,
-    "400ms": VEML3235IntegrationTime.VEML3235_INTEGRATION_TIME_400MS,
-    "800ms": VEML3235IntegrationTime.VEML3235_INTEGRATION_TIME_800MS,
+    "50ms": VEML3235ComponentIntegrationTime.VEML3235_INTEGRATION_TIME_50MS,
+    "100ms": VEML3235ComponentIntegrationTime.VEML3235_INTEGRATION_TIME_100MS,
+    "200ms": VEML3235ComponentIntegrationTime.VEML3235_INTEGRATION_TIME_200MS,
+    "400ms": VEML3235ComponentIntegrationTime.VEML3235_INTEGRATION_TIME_400MS,
+    "800ms": VEML3235ComponentIntegrationTime.VEML3235_INTEGRATION_TIME_800MS,
 }
 VEML3235ComponentDigitalGain = veml3235_ns.enum("VEML3235ComponentDigitalGain")
 DIGITAL_GAINS = {
@@ -40,10 +40,18 @@ GAINS = {
     "1X": VEML3235ComponentGain.VEML3235_GAIN_1X,
     "2X": VEML3235ComponentGain.VEML3235_GAIN_2X,
     "4X": VEML3235ComponentGain.VEML3235_GAIN_4X,
-    "AUTO": VEML3235ComponentGain.VEML3235_GAIN_AUTO,
 }
 
-CONFIG_SCHEMA = (
+
+def _validate_auto_gain_thresholds(config):
+    if config[CONF_AUTO_GAIN_THRESHOLD_LOW] >= config[CONF_AUTO_GAIN_THRESHOLD_HIGH]:
+        raise cv.Invalid(
+            f"'{CONF_AUTO_GAIN_THRESHOLD_LOW}' must be less than '{CONF_AUTO_GAIN_THRESHOLD_HIGH}'"
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         VEML3235Sensor,
         unit_of_measurement=UNIT_LUX,
@@ -67,7 +75,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(i2c.i2c_device_schema(0x10))
+    .extend(i2c.i2c_device_schema(0x10)),
+    _validate_auto_gain_thresholds,
 )
 
 
