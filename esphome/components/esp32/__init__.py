@@ -1160,6 +1160,74 @@ def _ota_downgrade_protection_errors(
     return errs
 
 
+_SIGNED_OTA_VERIFICATION_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_SIGNING_KEY): cv.file_,
+        cv.Optional(CONF_VERIFICATION_KEY): cv.file_,
+        cv.Optional(CONF_SIGNING_SCHEME, default="rsa3072"): cv.one_of(
+            *SIGNING_SCHEMES, lower=True
+        ),
+    }
+)
+
+
+@schema_extractor("schema")
+def _validate_signed_ota_verification(value):
+    if value is SCHEMA_EXTRACT:
+        # Expose the inner schema so the language-schema dumper can walk the
+        # signing_key / verification_key / signing_scheme options.
+        return _SIGNED_OTA_VERIFICATION_SCHEMA
+    if value is None:
+        # A bare `signed_ota_verification:` block is valid: the default V2
+        # scheme needs no keys (verify externally-signed binaries).
+        value = {}
+    return _validate_signed_ota_keys(_SIGNED_OTA_VERIFICATION_SCHEMA(value))
+
+
+def _validate_signed_ota_keys(config: ConfigType) -> ConfigType:
+    """Validate the signing/verification key combination for the selected scheme.
+
+    A verification key is only used by the Secure Boot V1 scheme (ecdsa_v1):
+    the public key is compiled into the app so it can verify externally-signed
+    images. ESP-IDF's CONFIG_SECURE_BOOT_VERIFICATION_KEY only takes effect
+    when the V1 ECDSA scheme is selected and binaries are not signed during
+    the build (see SECURE_BOOT_VERIFICATION_KEY in the bootloader Kconfig).
+
+    The V2 schemes (rsa3072, ecdsa256) embed the public key in the signature
+    block appended to each image, so verifying externally-signed binaries
+    needs no key in the config at all -- omitting both keys selects that
+    external-signing mode.
+    """
+    has_signing_key = CONF_SIGNING_KEY in config
+    has_verification_key = CONF_VERIFICATION_KEY in config
+    scheme = config[CONF_SIGNING_SCHEME]
+    if has_signing_key and has_verification_key:
+        raise cv.Invalid(
+            f"Provide at most one of '{CONF_SIGNING_KEY}' and "
+            f"'{CONF_VERIFICATION_KEY}', not both.",
+            path=[CONF_VERIFICATION_KEY],
+        )
+    if scheme == "ecdsa_v1":
+        if not has_signing_key and not has_verification_key:
+            raise cv.Invalid(
+                f"Signing scheme 'ecdsa_v1' requires either '{CONF_SIGNING_KEY}' "
+                f"(to sign binaries during the build) or '{CONF_VERIFICATION_KEY}' "
+                f"(to verify binaries signed externally).",
+                path=[CONF_SIGNING_KEY],
+            )
+    elif has_verification_key:
+        raise cv.Invalid(
+            f"'{CONF_VERIFICATION_KEY}' is only used with signing scheme "
+            f"'ecdsa_v1'. With '{scheme}' the public key is embedded in each "
+            f"image's signature block, so no key file is needed to verify "
+            f"externally-signed binaries: remove '{CONF_VERIFICATION_KEY}', and "
+            f"set '{CONF_SIGNING_KEY}' only if binaries should be signed during "
+            f"the build.",
+            path=[CONF_VERIFICATION_KEY],
+        )
+    return config
+
+
 def final_validate(config):
     # Imported locally to avoid circular import issues
     from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
@@ -1361,7 +1429,7 @@ def final_validate(config):
             )
         else:
             _LOGGER.info(
-                "Signed OTA verification is configured with a public verification key. "
+                "Signed OTA verification is enabled without a signing key. "
                 "Binaries will NOT be signed automatically during build. "
                 "You must sign them externally before flashing."
             )
@@ -1640,18 +1708,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(
                     CONF_ENABLE_OTA_DOWNGRADE_PROTECTION, default=False
                 ): cv.boolean,
-                cv.Optional(CONF_SIGNED_OTA_VERIFICATION): cv.All(
-                    cv.Schema(
-                        {
-                            cv.Optional(CONF_SIGNING_KEY): cv.file_,
-                            cv.Optional(CONF_VERIFICATION_KEY): cv.file_,
-                            cv.Optional(
-                                CONF_SIGNING_SCHEME, default="rsa3072"
-                            ): cv.one_of(*SIGNING_SCHEMES, lower=True),
-                        }
-                    ),
-                    cv.has_exactly_one_key(CONF_SIGNING_KEY, CONF_VERIFICATION_KEY),
-                ),
+                cv.Optional(
+                    CONF_SIGNED_OTA_VERIFICATION
+                ): _validate_signed_ota_verification,
                 cv.Optional(CONF_NVS_ENCRYPTION): cv.Schema(
                     {
                         # eFuse key block (0-5) that stores the HMAC key from
@@ -2498,12 +2557,16 @@ async def to_code(config):
                 signed_ota[CONF_SIGNING_KEY].resolve().as_posix(),
             )
         else:
-            # Public key mode — verification only, external signing required
+            # External signing mode — binaries must be signed after the build
             add_idf_sdkconfig_option("CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES", False)
-            add_idf_sdkconfig_option(
-                "CONFIG_SECURE_BOOT_VERIFICATION_KEY",
-                signed_ota[CONF_VERIFICATION_KEY].resolve().as_posix(),
-            )
+            if CONF_VERIFICATION_KEY in signed_ota:
+                # V1 ECDSA only: the public key is compiled into the app to
+                # verify externally-signed images. V2 schemes carry the public
+                # key in each image's signature block and need no key here.
+                add_idf_sdkconfig_option(
+                    "CONFIG_SECURE_BOOT_VERIFICATION_KEY",
+                    signed_ota[CONF_VERIFICATION_KEY].resolve().as_posix(),
+                )
 
         cg.add_define("USE_OTA_SIGNED_VERIFICATION")
 
