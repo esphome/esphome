@@ -383,10 +383,10 @@ namespace {
 
 // Hex-encode `len` bytes into `out`, which must hold at least 2 * len + 1 bytes. Null-terminated.
 void bytes_to_hex(const uint8_t *data, size_t len, char *out) {
-  static const char hex_chars[] = "0123456789abcdef";
+  static const char HEX_CHARS[] = "0123456789abcdef";
   for (size_t i = 0; i < len; i++) {
-    out[i * 2] = hex_chars[data[i] >> 4];
-    out[i * 2 + 1] = hex_chars[data[i] & 0x0f];
+    out[i * 2] = HEX_CHARS[data[i] >> 4];
+    out[i * 2 + 1] = HEX_CHARS[data[i] & 0x0f];
   }
   out[len * 2] = '\0';
 }
