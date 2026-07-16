@@ -169,8 +169,7 @@ static void zb_action_handler(ezb_zcl_core_action_callback_id_t callback_id, voi
 }
 
 void ZigbeeComponent::handle_attribute_(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute) {
-  if (this->attributes_.find({info.dst_ep, info.cluster_id, EZB_ZCL_CLUSTER_SERVER, attribute.id}) !=
-      this->attributes_.end()) {
+  if (this->attributes_.contains({info.dst_ep, info.cluster_id, EZB_ZCL_CLUSTER_SERVER, attribute.id})) {
     this->attributes_[{info.dst_ep, info.cluster_id, EZB_ZCL_CLUSTER_SERVER, attribute.id}]->on_value(attribute);
   }
 }
@@ -341,7 +340,7 @@ void ZigbeeComponent::loop() {
         this->handle_attribute_(event->event_.set_attr.info, event->event_.set_attr.attribute);
         break;
       default:
-        ESP_LOGW(TAG, "Received event with unhandled callback id: 0x%lx", event->callback_id_);
+        ESP_LOGW(TAG, "Received event with unhandled callback id: 0x%x", static_cast<unsigned>(event->callback_id_));
         break;
     }
 
