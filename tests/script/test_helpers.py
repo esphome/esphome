@@ -786,14 +786,10 @@ def test_build_all_include_with_git(tmp_path: Path) -> None:
     assert include_file.exists()
 
     content = include_file.read_text()
-    detox_lines = [f"#undef {m}" for m in helpers.ALL_INCLUDE_DETOX_MACROS]
     expected_lines = [
         '#include "esphome/components/api/api.h"',
-        *detox_lines,
         '#include "esphome/components/wifi/wifi.h"',
-        *detox_lines,
         '#include "esphome/core/component.h"',
-        *detox_lines,
         "",  # Empty line at end
     ]
     assert content == "\n".join(expected_lines)

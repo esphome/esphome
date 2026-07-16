@@ -11,7 +11,7 @@
 namespace esphome::rp2040_ble {
 
 enum class BLEComponentState : uint8_t {
-  OFF = 0,
+  STATE_OFF = 0,
   ENABLING,
   ACTIVE,
   DISABLING,
@@ -37,7 +37,7 @@ class RP2040BLE final : public Component {
   btstack_packet_callback_registration_t hci_event_callback_registration_{};
   btstack_packet_callback_registration_t sm_event_callback_registration_{};
 
-  BLEComponentState state_{BLEComponentState::OFF};
+  BLEComponentState state_{BLEComponentState::STATE_OFF};
   bool enable_on_boot_{true};
   bool btstack_initialized_{false};
   bool active_logged_{false};

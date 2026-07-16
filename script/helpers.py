@@ -364,15 +364,6 @@ def print_error_for_file(file: str | Path, body: str | None) -> None:
         print()
 
 
-# Vendor SDKs (realtek basic_types.h) define generic-word object macros that
-# break unrelated esphome enum members when everything shares the synthetic
-# all-include TU; real TUs never mix them, so they are #undef'd after every
-# include. Only macros that are never consumed by later SDK headers may be
-# listed here — undefining SDK type macros (u8, u16, ...) or include guards
-# breaks vendor code included further down the TU.
-ALL_INCLUDE_DETOX_MACROS = ["ON", "OFF", "SUCCESS"]
-
-
 def build_all_include(
     header_files: list[str] | None = None,
     exclude_headers: list[str] | None = None,
@@ -401,10 +392,7 @@ def build_all_include(
     exclude = {ENTITY_TYPES_H_TARGET}
     if exclude_headers:
         exclude.update(h for h in header_files if any(e in h for e in exclude_headers))
-    detox = "".join(f"\n#undef {m}" for m in ALL_INCLUDE_DETOX_MACROS)
-    headers = [
-        f'#include "{h}"{detox}' for h in sorted(header_files) if h not in exclude
-    ]
+    headers = [f'#include "{h}"' for h in sorted(header_files) if h not in exclude]
     headers.append("")
     content = "\n".join(headers)
     p = Path(temp_header_file)
