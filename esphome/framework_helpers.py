@@ -552,6 +552,15 @@ def archive_extract_all(
         matched_fct(archive_ref, extract_dir, progress_header=progress_header)
 
 
+def _failure_reason(e: Exception) -> str:
+    """Format a download exception for the aggregated error message.
+
+    ``requests`` appends " for url: <url>" to HTTP errors; the URL is already
+    printed on the line above, so strip the suffix to keep lines short.
+    """
+    return str(e).split(" for url: ", maxsplit=1)[0]
+
+
 def download_from_mirrors(
     mirrors: list[str],
     substitutions: dict[str, str],
@@ -653,16 +662,18 @@ def download_from_mirrors(
         # templates matches a given version's tag), so raising only the last
         # error would hide the failure that actually matters.
         if failures:
-            attempts = "\n".join(f"  {url}: {e}" for url, e in failures)
+            attempts = "".join(
+                f"\n  {url}\n    {_failure_reason(e)}" for url, e in failures
+            )
             attempts += "".join(
-                f"\n  {mirror}: skipped ({e!r})" for mirror, e in skipped
+                f"\n  {mirror}\n    skipped ({e!r})" for mirror, e in skipped
             )
             raise RuntimeError(
-                f"Failed to download from all mirrors:\n{attempts}"
+                f"Failed to download from all mirrors:{attempts}"
             ) from failures[0][1]
         if skipped:
-            details = "\n".join(f"  {mirror}: {e!r}" for mirror, e in skipped)
+            details = "".join(f"\n  {mirror}\n    {e!r}" for mirror, e in skipped)
             raise RuntimeError(
-                f"No mirror URL template matched the provided substitutions:\n{details}"
+                f"No mirror URL template matched the provided substitutions:{details}"
             )
         raise ValueError("download_from_mirrors called with an empty mirrors list")

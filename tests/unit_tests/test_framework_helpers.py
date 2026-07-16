@@ -603,7 +603,7 @@ class TestDownloadFromMirrors:
             )
         message = str(ei.value)
         assert "https://example.com/1.2.3.bin" in message
-        assert "https://example.com/{TYPO}.bin: skipped" in message
+        assert "https://example.com/{TYPO}.bin\n    skipped" in message
 
     def test_falls_back_to_second_mirror(self, tmp_path: Path) -> None:
         with patch(
