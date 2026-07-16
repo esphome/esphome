@@ -7,7 +7,7 @@ and compiled directly: ``esphome compile my_device.esphomebundle.tar.gz``
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 import io
 import json
@@ -31,6 +31,8 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError
 
 _LOGGER = logging.getLogger(__name__)
+
+DOMAIN = "bundle"
 
 BUNDLE_EXTENSION = ".esphomebundle.tar.gz"
 MANIFEST_FILENAME = "manifest.json"
@@ -118,6 +120,32 @@ def _find_used_secret_keys(yaml_files: list[Path]) -> set[str]:
         for match in _SECRET_RE.finditer(text):
             keys.add(match.group(1))
     return keys
+
+
+@dataclass
+class BundleData:
+    """Files components asked to include, keyed under DOMAIN in CORE.data."""
+
+    extra_files: list[Path] = field(default_factory=list)
+
+
+def _get_data() -> BundleData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = BundleData()
+    return CORE.data[DOMAIN]
+
+
+def add_bundle_file(path: Path) -> None:
+    """Register a file that a bundle must include.
+
+    Bundle discovery walks the validated config, so it only finds files the config
+    names. Components call this during validation for files it cannot see, such as a
+    file that is referenced from inside another file.
+
+    A relative path is taken as relative to the config directory. Files outside the
+    config directory are skipped when the bundle is built.
+    """
+    _get_data().extra_files.append(CORE.relative_config_path(path))
 
 
 @dataclass
@@ -286,12 +314,17 @@ class ConfigBundleCreator:
         with known file extensions are also resolved and checked.
 
         Core ESPHome concepts that use relative paths or directories
-        are handled explicitly.
+        are handled explicitly. Files the config does not name at all are
+        registered by their component with add_bundle_file().
         """
         config = self._config
 
         # Generic walk: find all file paths in the validated config
         self._walk_config_for_files(config)
+
+        # Files registered by components during validation
+        for extra_file in _get_data().extra_files:
+            self._add_file(extra_file)
 
         # --- Core ESPHome concepts needing explicit handling ---
 
