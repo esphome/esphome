@@ -140,10 +140,12 @@ def add_bundle_file(path: Path) -> None:
 
     Bundle discovery walks the validated config, so it only finds files the config
     names. Components call this during validation for files it cannot see, such as a
-    file that is referenced from inside another file. The path must be absolute;
-    files outside the config directory are skipped when the bundle is built.
+    file that is referenced from inside another file.
+
+    A relative path is taken as relative to the config directory. Files outside the
+    config directory are skipped when the bundle is built.
     """
-    _get_data().extra_files.append(path)
+    _get_data().extra_files.append(CORE.relative_config_path(path))
 
 
 @dataclass

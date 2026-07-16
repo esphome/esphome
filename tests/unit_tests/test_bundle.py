@@ -630,6 +630,24 @@ def test_discover_files_includes_registered_files(tmp_path: Path) -> None:
     assert "models/model.tflite" in paths
 
 
+def test_discover_files_registered_relative_file(tmp_path: Path) -> None:
+    """A relative registered path is taken as relative to the config directory.
+
+    Not the working directory, which is where Path.resolve() would put it.
+    """
+    _setup_config_dir(
+        tmp_path,
+        files={"models/model.tflite": "fake model data"},
+    )
+    add_bundle_file(Path("models/model.tflite"))
+
+    creator = ConfigBundleCreator({})
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert "models/model.tflite" in paths
+
+
 def test_discover_files_registered_file_outside_config_dir(tmp_path: Path) -> None:
     """A registered file outside the config directory is skipped, not bundled."""
     _setup_config_dir(tmp_path)
