@@ -6,6 +6,7 @@ import io
 import logging
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import time
@@ -112,6 +113,44 @@ def get_python_env_executable_path(root: PathType, binary: str) -> Path:
     return Path(root) / "bin" / binary
 
 
+# Matches the dynamic loader error printed when a binary needs a system
+# library the host doesn't have (e.g. IDF's openocd needs libusb-1.0)
+_SHARED_LIB_ERROR_RE = re.compile(
+    r"(?P<binary>\S+): error while loading shared libraries: (?P<library>\S+?):"
+)
+
+# System packages providing shared libraries commonly missing on minimal
+# hosts (containers, LXC), keyed by library soname
+_SHARED_LIB_PACKAGES = {
+    "libusb-1.0.so.0": "libusb-1.0-0 (Debian/Ubuntu), libusb1 (Fedora), libusb (Alpine/Arch)",
+}
+
+# How much trailing subprocess output to retain in stream mode for
+# post-failure inspection
+_STREAM_TAIL_LIMIT = 64 * 1024
+
+
+def _log_missing_shared_library(*outputs: str | None) -> None:
+    """Explain a missing-system-library failure found in subprocess output."""
+    for output in outputs:
+        if not output or not (match := _SHARED_LIB_ERROR_RE.search(output)):
+            continue
+        binary = Path(match.group("binary")).name
+        library = match.group("library")
+        if packages := _SHARED_LIB_PACKAGES.get(library):
+            hint = f"install {packages}"
+        else:
+            hint = f"install the system package that provides '{library}'"
+        _LOGGER.error(
+            "'%s' could not run because the system is missing the shared "
+            "library '%s'. To fix, %s, then run the build again.",
+            binary,
+            library,
+            hint,
+        )
+        return
+
+
 def run_command(
     cmd: list[str],
     msg: str | None = None,
@@ -126,14 +165,15 @@ def run_command(
         cmd: list of command arguments
         msg: Optional custom message for logging
         env: Optional dictionary of environment variables to set
-        stream_output: If True, inherit parent stdio so the subprocess prints
-            directly to the terminal (useful for commands that produce their
-            own progress output). stdout/stderr are not captured in this mode.
+        stream_output: If True, relay the subprocess output live to stdout
+            (useful for commands that produce their own progress output)
+            while retaining a bounded tail of it, combined, as stdout.
         cwd: Optional working directory for the subprocess.
 
     Returns:
         tuple of (success: bool, stdout: str or None, stderr: str or None).
-        When stream_output is True, stdout and stderr are always None.
+        When stream_output is True, stdout holds the tail of the combined
+        output and stderr is always None.
     """
     cmd_str = msg or " ".join(cmd)
     try:
@@ -144,8 +184,30 @@ def run_command(
             run_env.update(env)
 
         if stream_output:
-            result = subprocess.run(cmd, check=False, env=run_env, cwd=cwd)
-            stdout = stderr = None
+            # Relay live instead of inheriting stdio, so failure output can
+            # be inspected afterwards (e.g. for missing system libraries)
+            tail = bytearray()
+            out = getattr(sys.stdout, "buffer", None)
+            with subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                env=run_env,
+                cwd=cwd,
+            ) as proc:
+                while chunk := proc.stdout.read(4096):
+                    if out is not None:
+                        out.write(chunk)
+                        out.flush()
+                    else:
+                        sys.stdout.write(chunk.decode("utf-8", "replace"))
+                        sys.stdout.flush()
+                    tail += chunk
+                    if len(tail) > _STREAM_TAIL_LIMIT:
+                        del tail[:-_STREAM_TAIL_LIMIT]
+            result = proc
+            stdout = tail.decode("utf-8", "replace")
+            stderr = None
         else:
             result = subprocess.run(
                 cmd,
@@ -169,6 +231,7 @@ def run_command(
                     result.returncode,
                     tail,
                 )
+            _log_missing_shared_library(stderr, stdout)
             return False, stdout, stderr
 
         _LOGGER.debug("%s - executed successfully", cmd_str)

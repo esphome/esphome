@@ -147,19 +147,66 @@ def test_run_command_failure_returns_false(mock_subprocess_run: Mock) -> None:
     assert stderr == "boom"
 
 
-def test_run_command_stream_output_success(mock_subprocess_run: Mock) -> None:
-    mock_subprocess_run.return_value = Mock(returncode=0)
-    ok, stdout, stderr = run_command(["cmd"], stream_output=True)
+def test_run_command_stream_output_success() -> None:
+    ok, stdout, stderr = run_command(
+        [sys.executable, "-c", "print('streamed')"], stream_output=True
+    )
     assert ok is True
-    assert stdout is None
+    assert "streamed" in stdout
     assert stderr is None
 
 
-def test_run_command_stream_output_failure(mock_subprocess_run: Mock) -> None:
-    mock_subprocess_run.return_value = Mock(returncode=2)
-    ok, stdout, _stderr = run_command(["cmd"], stream_output=True)
+def test_run_command_stream_output_failure_captures_tail() -> None:
+    code = "import sys; print('to out'); print('to err', file=sys.stderr); sys.exit(2)"
+    ok, stdout, stderr = run_command([sys.executable, "-c", code], stream_output=True)
     assert ok is False
-    assert stdout is None
+    assert "to out" in stdout
+    assert "to err" in stdout
+    assert stderr is None
+
+
+def test_run_command_stream_output_hints_missing_shared_library(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    line = (
+        "/tools/openocd-esp32/bin/openocd: error while loading shared libraries: "
+        "libusb-1.0.so.0: cannot open shared object file: No such file or directory"
+    )
+    code = f"import sys; print({line!r}); sys.exit(1)"
+    with caplog.at_level(logging.ERROR):
+        ok, _stdout, _stderr = run_command(
+            [sys.executable, "-c", code], stream_output=True
+        )
+    assert ok is False
+    assert "'openocd' could not run" in caplog.text
+    assert "libusb-1.0.so.0" in caplog.text
+    assert "libusb-1.0-0 (Debian/Ubuntu)" in caplog.text
+
+
+def test_run_command_hints_unknown_shared_library(
+    mock_subprocess_run: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    stderr_text = (
+        "/opt/tool/bin/sometool: error while loading shared libraries: "
+        "libfoo.so.3: cannot open shared object file: No such file or directory"
+    )
+    mock_subprocess_run.return_value = Mock(
+        returncode=127, stdout="", stderr=stderr_text
+    )
+    with caplog.at_level(logging.ERROR):
+        ok, _stdout, _stderr = run_command(["sometool"])
+    assert ok is False
+    assert "'sometool' could not run" in caplog.text
+    assert "provides 'libfoo.so.3'" in caplog.text
+
+
+def test_run_command_no_hint_without_loader_error(
+    mock_subprocess_run: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    mock_subprocess_run.return_value = Mock(returncode=1, stdout="", stderr="boom")
+    with caplog.at_level(logging.ERROR):
+        run_command(["bad"])
+    assert "could not run because the system is missing" not in caplog.text
 
 
 def test_run_command_subprocess_error_returns_false(mock_subprocess_run: Mock) -> None:
