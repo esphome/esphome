@@ -43,6 +43,7 @@ def _validate_nonvolatile(config):
         # Only reject what the user EXPLICITLY asked for and cannot have: enabling the
         # mirroring or tuning its delay on E-H. An explicit `nonvolatile: false` is a
         # harmless no-op and stays valid; bare configs (no key at all) must keep working.
+        # NOTE: FINAL_VALIDATE_SCHEMA intentionally mutates `config` in-place (uses setdefault) to apply defaults for callers.
         if config.get(CONF_NONVOLATILE) or CONF_NONVOLATILE_WRITE_DELAY in config:
             raise cv.Invalid(
                 f"enabling '{CONF_NONVOLATILE}' or setting '{CONF_NONVOLATILE_WRITE_DELAY}' is only valid for the "
