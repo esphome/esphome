@@ -1046,9 +1046,10 @@ def _check_versions(config: ConfigType) -> ConfigType:
 
 def _parse_pio_platform_version(value):
     try:
-        # Only full x.y.z versions are rewritten into pioarduino release URLs.
-        # Shorter forms (e.g. "6.5") pass through to PlatformIO verbatim as a
-        # registry version spec, even though Version.parse would accept them.
+        # Only full x.y.z versions are rewritten into pioarduino release URLs;
+        # anything else (git URLs, refs) passes through verbatim. Checked on
+        # the raw value since Version.parse also accepts two-part versions,
+        # which have no corresponding pioarduino release.
         if not re.match(r"^\d+\.\d+\.\d+", cv.string_strict(value)):
             return value
         ver = cv.Version.parse(cv.version_number(value))
