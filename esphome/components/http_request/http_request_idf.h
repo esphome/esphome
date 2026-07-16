@@ -24,8 +24,7 @@ class HttpContainerIDF : public HttpContainer {
  protected:
   friend class HttpRequestIDF;
   esp_http_client_handle_t client_;
-  // Owned copy: the response header event handler runs during read(), after perform() has
-  // returned, so it cannot reference perform()'s (often temporary) collect-headers argument
+  // Owned copy (not a reference): must outlive perform() for the response-header event handler
   std::vector<std::string> collect_headers_;
 };
 
