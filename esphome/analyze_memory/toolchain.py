@@ -55,6 +55,31 @@ def find_elf_path(build_path: Path) -> Path | None:
     return None
 
 
+def idedata_candidates(build_path: Path) -> list[Path]:
+    """Return the idedata locations searched for a build directory, in order.
+
+    Exposed so a caller reporting "not found" can name the paths it tried
+    without keeping its own copy of the list.
+
+    Args:
+        build_path: Path to an ESPHome build directory
+
+    Returns:
+        The candidate idedata JSON paths, most specific first
+    """
+    name = build_path.name
+    return [
+        # In .pioenvs for test builds
+        build_path / ".pioenvs" / name / "idedata.json",
+        # Both toolchains cache it in the data dir, which holds this build dir:
+        # <data_dir>/idedata/<name>.json next to <data_dir>/build/<name>
+        build_path.parent.parent / "idedata" / f"{name}.json",
+        # Regular builds, invoked from the config dir or from anywhere
+        Path.cwd() / ".esphome" / "idedata" / f"{name}.json",
+        Path.home() / ".esphome" / "idedata" / f"{name}.json",
+    ]
+
+
 def find_idedata_path(build_path: Path) -> Path | None:
     """Locate the idedata JSON belonging to an ESPHome build directory.
 
@@ -64,17 +89,7 @@ def find_idedata_path(build_path: Path) -> Path | None:
     Returns:
         Path to the idedata JSON, or None if it was not found
     """
-    name = build_path.name
-    for candidate in (
-        # In .pioenvs for test builds
-        build_path / ".pioenvs" / name / "idedata.json",
-        # Both toolchains cache it in the data dir, which holds this build dir:
-        # <data_dir>/idedata/<name>.json next to <data_dir>/build/<name>
-        build_path.parent.parent / "idedata" / f"{name}.json",
-        # Regular builds, invoked from the config dir or from anywhere
-        Path.cwd() / ".esphome" / "idedata" / f"{name}.json",
-        Path.home() / ".esphome" / "idedata" / f"{name}.json",
-    ):
+    for candidate in idedata_candidates(build_path):
         if candidate.is_file():
             return candidate
     return None

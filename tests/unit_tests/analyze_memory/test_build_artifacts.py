@@ -4,7 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from esphome.analyze_memory.toolchain import find_elf_path, find_idedata_path
+from esphome.analyze_memory.toolchain import (
+    find_elf_path,
+    find_idedata_path,
+    idedata_candidates,
+)
 from esphome.espidf.idedata import _cc_path_from_cxx
 from esphome.platformio.toolchain import IDEData
 
@@ -93,6 +97,29 @@ def test_find_idedata_path_missing(
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
 
     assert find_idedata_path(_make_build_dir(tmp_path)) is None
+
+
+def test_idedata_candidates_are_what_find_probes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every advertised candidate is one find_idedata_path actually accepts.
+
+    The candidates are reported to the user when idedata is missing, so a list
+    that drifts from the lookup would send someone hunting in the wrong place.
+    """
+    # Two candidates are relative to the cwd and to home; keep the test from
+    # writing into the real ones.
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+
+    build_path = _make_build_dir(tmp_path)
+    candidates = idedata_candidates(build_path)
+
+    assert candidates, "no candidates advertised"
+    for candidate in candidates:
+        _touch(candidate)
+        assert find_idedata_path(build_path) == candidate
+        candidate.unlink()
 
 
 @pytest.mark.parametrize(

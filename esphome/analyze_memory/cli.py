@@ -20,7 +20,7 @@ from . import (
     RAM_SECTIONS,
     MemoryAnalyzer,
 )
-from .toolchain import find_elf_path, find_idedata_path
+from .toolchain import find_elf_path, find_idedata_path, idedata_candidates
 
 if TYPE_CHECKING:
     from . import ComponentMemory
@@ -777,7 +777,8 @@ def main():
             print(f"Warning: Failed to load idedata: {e}", file=sys.stderr)
 
     if not idedata:
-        print(f"Warning: idedata not found for {build_path.name}", file=sys.stderr)
+        searched = "\n  ".join(str(p) for p in idedata_candidates(build_path))
+        print(f"Warning: idedata not found, searched:\n  {searched}", file=sys.stderr)
 
     analyzer = MemoryAnalyzerCLI(elf_file, idedata=idedata)
     analyzer.analyze()

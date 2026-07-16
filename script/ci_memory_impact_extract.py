@@ -33,7 +33,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # pylint: disable=wrong-import-position
 from esphome.analyze_memory import MemoryAnalyzer
-from esphome.analyze_memory.toolchain import find_elf_path, find_idedata_path
+from esphome.analyze_memory.toolchain import (
+    find_elf_path,
+    find_idedata_path,
+    idedata_candidates,
+)
 from esphome.platformio.toolchain import IDEData
 from script.ci_helpers import write_github_output
 
@@ -148,6 +152,12 @@ def run_detailed_analysis(build_dir: str) -> dict | None:
                 f"Warning: Failed to load idedata from {idedata_path}: {e}",
                 file=sys.stderr,
             )
+    else:
+        # Without idedata the analyzer falls back to whatever binutils are on
+        # PATH, which are the wrong architecture for a cross build, so say where
+        # we looked rather than let the results quietly get worse.
+        searched = "\n  ".join(str(p) for p in idedata_candidates(build_path))
+        print(f"Warning: idedata not found, searched:\n  {searched}", file=sys.stderr)
 
     analyzer = MemoryAnalyzer(str(elf_path), idedata=idedata)
     components = analyzer.analyze()
