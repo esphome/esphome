@@ -477,7 +477,7 @@ def test_build_alias_map_skips_alias_shadowing_existing_component(
     assert "oldcomp" not in alias_map
     assert alias_map == {"gone": "newcomp"}
     assert "gone" in meta_map
-    assert "shadows an existing component package" in caplog.text
+    assert "Ignoring component alias 'oldcomp'" in caplog.text
 
 
 def test_build_alias_map_handles_missing_dir(tmp_path: Path) -> None:
