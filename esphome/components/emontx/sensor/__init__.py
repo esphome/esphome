@@ -29,36 +29,42 @@ from .. import CONF_EMONTX_ID, CONF_TAG_NAME, EmonTx, emontx_ns
 
 EmonTxSensor = emontx_ns.class_("EmonTxSensor", sensor.Sensor, cg.Component)
 
+# Pre-validate state class strings into StateClass enum values so they are
+# code-generation-ready when injected by apply_tag_defaults (bypassing the
+# schema validator that would normally handle this conversion).
+_SC_MEASUREMENT = sensor.validate_state_class(STATE_CLASS_MEASUREMENT)
+_SC_TOTAL_INCREASING = sensor.validate_state_class(STATE_CLASS_TOTAL_INCREASING)
+
 # Define sensor type configurations by prefix
 SENSOR_CONFIGS = {
     "P": {
         CONF_UNIT_OF_MEASUREMENT: UNIT_WATT,
         CONF_DEVICE_CLASS: DEVICE_CLASS_POWER,
-        CONF_STATE_CLASS: STATE_CLASS_MEASUREMENT,
+        CONF_STATE_CLASS: _SC_MEASUREMENT,
         CONF_ACCURACY_DECIMALS: 0,
     },
     "E": {
         CONF_UNIT_OF_MEASUREMENT: UNIT_WATT_HOURS,
         CONF_DEVICE_CLASS: DEVICE_CLASS_ENERGY,
-        CONF_STATE_CLASS: STATE_CLASS_TOTAL_INCREASING,
+        CONF_STATE_CLASS: _SC_TOTAL_INCREASING,
         CONF_ACCURACY_DECIMALS: 0,
     },
     "V": {
         CONF_UNIT_OF_MEASUREMENT: UNIT_VOLT,
         CONF_DEVICE_CLASS: DEVICE_CLASS_VOLTAGE,
-        CONF_STATE_CLASS: STATE_CLASS_MEASUREMENT,
+        CONF_STATE_CLASS: _SC_MEASUREMENT,
         CONF_ACCURACY_DECIMALS: 2,
     },
     "I": {
         CONF_UNIT_OF_MEASUREMENT: UNIT_AMPERE,
         CONF_DEVICE_CLASS: DEVICE_CLASS_CURRENT,
-        CONF_STATE_CLASS: STATE_CLASS_MEASUREMENT,
+        CONF_STATE_CLASS: _SC_MEASUREMENT,
         CONF_ACCURACY_DECIMALS: 2,
     },
     "T": {
         CONF_UNIT_OF_MEASUREMENT: UNIT_CELSIUS,
         CONF_DEVICE_CLASS: DEVICE_CLASS_TEMPERATURE,
-        CONF_STATE_CLASS: STATE_CLASS_MEASUREMENT,
+        CONF_STATE_CLASS: _SC_MEASUREMENT,
         CONF_ACCURACY_DECIMALS: 2,
     },
 }
@@ -68,13 +74,13 @@ PATTERN_CONFIGS = {
     "PULSE": {
         CONF_UNIT_OF_MEASUREMENT: UNIT_PULSES,
         CONF_DEVICE_CLASS: DEVICE_CLASS_ENERGY,
-        CONF_STATE_CLASS: STATE_CLASS_TOTAL_INCREASING,
+        CONF_STATE_CLASS: _SC_TOTAL_INCREASING,
         CONF_ACCURACY_DECIMALS: 0,
     },
     "PF": {
         CONF_UNIT_OF_MEASUREMENT: UNIT_EMPTY,
         CONF_DEVICE_CLASS: DEVICE_CLASS_POWER_FACTOR,
-        CONF_STATE_CLASS: STATE_CLASS_MEASUREMENT,
+        CONF_STATE_CLASS: _SC_MEASUREMENT,
         CONF_ACCURACY_DECIMALS: 2,
     },
 }
@@ -115,7 +121,7 @@ def apply_tag_defaults(config: ConfigType) -> ConfigType:
             return config
 
     # Fall back to generic defaults for tags with no known prefix
-    config.setdefault(CONF_STATE_CLASS, STATE_CLASS_MEASUREMENT)
+    config.setdefault(CONF_STATE_CLASS, _SC_MEASUREMENT)
     config.setdefault(CONF_ACCURACY_DECIMALS, 0)
     return config
 
