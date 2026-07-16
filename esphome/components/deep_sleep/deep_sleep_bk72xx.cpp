@@ -36,9 +36,9 @@ bool DeepSleepComponent::pin_prevents_sleep_(WakeUpPinItem &pin_item) const {
 }
 
 bool DeepSleepComponent::prepare_to_sleep_() {
-  if (!wakeup_pins_.empty()) {
+  if (!this->wakeup_pins_.empty()) {
     for (WakeUpPinItem &item : this->wakeup_pins_) {
-      if (pin_prevents_sleep_(item)) {
+      if (this->pin_prevents_sleep_(item)) {
         // Defer deep sleep until inactive
         if (!this->next_enter_deep_sleep_) {
           this->status_set_warning();
