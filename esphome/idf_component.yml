@@ -48,7 +48,7 @@ dependencies:
     rules:
       - if: "target in [esp32, esp32p4]"
   espressif/esp-zigbee-lib:
-    version: 2.0.2
+    version: 2.0.3
     rules:
       - if: "target in [esp32h2, esp32c5, esp32c6]"
   espressif/lan87xx:

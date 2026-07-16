@@ -504,6 +504,10 @@ jobs:
             options: --environment nrf52-tidy --grep USE_ZEPHYR --grep USE_NRF52
             cache_sdk_nrf: true
             ignore_errors: false
+          - id: clang-tidy
+            name: Run script/clang-tidy for RP2
+            options: --environment rp2-tidy --grep USE_RP2
+            pio_cache_key: tidyrp2
 
     steps:
       - name: Check out code from GitHub
@@ -744,7 +748,8 @@ jobs:
         include:
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 S3
-            options: --environment esp32s3-idf-tidy --grep USE_ESP32_VARIANT_ESP32S3
+            # yamllint disable-line rule:line-length
+            options: --environment esp32s3-idf-tidy --grep SOC_TEMP_SENSOR_SUPPORTED --grep USE_ESP32_VARIANT_ESP32S3 --grep USE_LOGGER_USB_CDC
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 P4
             # P4 has no native Wi-Fi/BLE; those run over the hosted co-processor,
@@ -754,7 +759,7 @@ jobs:
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 C6
             # yamllint disable-line rule:line-length
-            options: --environment esp32c6-idf-tidy --grep USE_ESP32_VARIANT_ESP32C6 --grep USE_OPENTHREAD --grep USE_ZIGBEE
+            options: --environment esp32c6-idf-tidy --grep SOC_LP_I2C_SUPPORTED --grep USE_ESP32_VARIANT_ESP32C6 --grep USE_OPENTHREAD --grep USE_ZIGBEE
 
     steps:
       - name: Check out code from GitHub

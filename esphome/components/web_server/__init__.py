@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gzip
 import logging
+import re
 
 import esphome.codegen as cg
 from esphome.components import web_server_base
@@ -24,6 +25,7 @@ from esphome.const import (
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PORT,
+    CONF_TYPE,
     CONF_USERNAME,
     CONF_VERSION,
     CONF_WEB_SERVER,
@@ -43,9 +45,13 @@ _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["json", "web_server_base"]
 
+AUTH_TYPE_BASIC = "basic"
+AUTH_TYPE_DIGEST = "digest"
+
 CONF_SORTING_GROUP_ID = "sorting_group_id"
 CONF_SORTING_GROUPS = "sorting_groups"
 CONF_SORTING_WEIGHT = "sorting_weight"
+CONF_ALLOWED_ORIGINS = "allowed_origins"
 
 
 web_server_ns = cg.esphome_ns.namespace("web_server")
@@ -83,6 +89,19 @@ def validate_version_deprecated(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_auth_type_deprecated(auth: ConfigType) -> ConfigType:
+    # Remove before 2027.1.0: the default auth scheme changes from basic to digest.
+    if CONF_TYPE not in auth:
+        _LOGGER.warning(
+            "The 'web_server' 'auth' scheme currently defaults to 'basic', which sends the "
+            "password over the network in an easily reversible form. The default will change "
+            "to 'digest' in ESPHome 2027.1.0. To keep using basic authentication, set "
+            "'type: basic' under 'auth:' explicitly; otherwise set 'type: digest' now to "
+            "adopt the more secure scheme."
+        )
+    return auth
+
+
 def validate_local(config: ConfigType) -> ConfigType:
     if CONF_LOCAL in config and config[CONF_VERSION] == 1:
         raise cv.Invalid("'local' is not supported in version 1")
@@ -100,6 +119,41 @@ def validate_ota(config: ConfigType) -> ConfigType:
             f"ota:\n"
             f"  - platform: web_server\n\n"
             f"See https://esphome.io/components/ota for more information."
+        )
+    return config
+
+
+# An Origin header is always "scheme://host[:port]" with no path or trailing slash.
+_ORIGIN_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://[^/\s]+$")
+
+
+def validate_origin(value: str) -> str:
+    # "*" is the wildcard that allows any origin.
+    if value == "*":
+        return value
+    value = cv.string_strict(value)
+    if not _ORIGIN_RE.match(value):
+        raise cv.Invalid(
+            f"'{value}' is not a valid origin. An origin must be 'scheme://host[:port]' with no "
+            f"path or trailing slash (e.g. 'https://example.com'), or '*' to allow any origin."
+        )
+    # Browsers send the scheme and host lowercased in the Origin header, so normalize to match.
+    return value.lower()
+
+
+def validate_private_network_access(config: ConfigType) -> ConfigType:
+    # PNA preflights are always cross-origin, so they can only be authorized against the
+    # allowed_origins list. Enabling PNA without any origins would deny every PNA request.
+    if (
+        config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]
+        and config.get(CONF_ALLOWED_ORIGINS) is None
+    ):
+        raise cv.Invalid(
+            f"'{CONF_ALLOWED_ORIGINS}' must be set when "
+            f"'{CONF_ENABLE_PRIVATE_NETWORK_ACCESS}' is enabled. List each origin that is "
+            f"allowed to reach the device (e.g. 'https://example.com'). '*' allows any origin "
+            f"but is not recommended.",
+            path=[CONF_ENABLE_PRIVATE_NETWORK_ACCESS],
         )
     return config
 
@@ -201,16 +255,25 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CSS_INCLUDE): cv.file_,
             cv.Optional(CONF_JS_URL): cv.string,
             cv.Optional(CONF_JS_INCLUDE): cv.file_,
-            cv.Optional(CONF_ENABLE_PRIVATE_NETWORK_ACCESS, default=True): cv.boolean,
-            cv.Optional(CONF_AUTH): cv.Schema(
-                {
-                    cv.Required(CONF_USERNAME): cv.All(
-                        cv.string_strict, cv.Length(min=1)
-                    ),
-                    cv.Required(CONF_PASSWORD): cv.sensitive(
-                        cv.All(cv.string_strict, cv.Length(min=1))
-                    ),
-                }
+            cv.Optional(CONF_ENABLE_PRIVATE_NETWORK_ACCESS, default=False): cv.boolean,
+            cv.Optional(CONF_ALLOWED_ORIGINS): cv.All(
+                cv.ensure_list(validate_origin), cv.Length(min=1)
+            ),
+            cv.Optional(CONF_AUTH): cv.All(
+                cv.Schema(
+                    {
+                        cv.Required(CONF_USERNAME): cv.All(
+                            cv.string_strict, cv.Length(min=1)
+                        ),
+                        cv.Required(CONF_PASSWORD): cv.sensitive(
+                            cv.All(cv.string_strict, cv.Length(min=1))
+                        ),
+                        cv.Optional(CONF_TYPE): cv.one_of(
+                            AUTH_TYPE_BASIC, AUTH_TYPE_DIGEST, lower=True
+                        ),
+                    }
+                ),
+                validate_auth_type_deprecated,
             ),
             cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
                 web_server_base.WebServerBase
@@ -238,6 +301,7 @@ CONFIG_SCHEMA = cv.All(
     validate_local,
     validate_sorting_groups,
     validate_ota,
+    validate_private_network_access,
     _consume_web_server_sockets,
 )
 
@@ -334,10 +398,18 @@ async def to_code(config):
         request_log_listener()  # Request a log listener slot for web server log streaming
     if config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]:
         cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")
-    if CONF_AUTH in config:
+    if (allowed_origins := config.get(CONF_ALLOWED_ORIGINS)) is not None:
+        cg.add_define("USE_WEBSERVER_ALLOWED_ORIGINS")
+        cg.add(var.set_allowed_origins(allowed_origins))
+    if (auth := config.get(CONF_AUTH)) is not None:
         cg.add_define("USE_WEBSERVER_AUTH")
-        cg.add(paren.set_auth_username(config[CONF_AUTH][CONF_USERNAME]))
-        cg.add(paren.set_auth_password(config[CONF_AUTH][CONF_PASSWORD]))
+        # The scheme is fixed at build time so the unused Basic/Digest code path is compiled
+        # out. Basic is the current default (the absence of this define); an explicit
+        # 'type: digest' opts in early. Default changes to digest in 2027.1.0.
+        if auth.get(CONF_TYPE) == AUTH_TYPE_DIGEST:
+            cg.add_define("USE_WEBSERVER_AUTH_DIGEST")
+        cg.add(paren.set_auth_username(auth[CONF_USERNAME]))
+        cg.add(paren.set_auth_password(auth[CONF_PASSWORD]))
     if CONF_CSS_INCLUDE in config:
         cg.add_define("USE_WEBSERVER_CSS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_CSS_INCLUDE])
