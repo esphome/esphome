@@ -243,9 +243,7 @@ def clang_options(idedata, environment):
 pids = set()
 
 
-def run_tidy(
-    executable, args, environment, options, tmpdir, path_queue, lock, failed_files
-):
+def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
     while True:
         path = path_queue.get()
         invocation = [executable]
@@ -264,7 +262,7 @@ def run_tidy(
         if sys.stdout.isatty():
             invocation.append("--use-color")
 
-        if environment.startswith(("rp2", "bk72xx", "ln882h", "rtl87xx")):
+        if args.environment.startswith(("rp2", "bk72xx", "ln882h", "rtl87xx")):
             # MMIO peripheral access on these bare-metal platforms is all
             # fixed-address.
             # bugprone-pointer-arithmetic-on-polymorphic-object (and its
@@ -318,9 +316,8 @@ def main():
     parser.add_argument(
         "-e",
         "--environment",
-        action="append",
-        help="the PlatformIO environment to use (as defined in platformio.ini); "
-        "may be given multiple times to scan the same files under several environments",
+        default="esp32-arduino-tidy",
+        help="the PlatformIO environment to use (as defined in platformio.ini)",
     )
     parser.add_argument(
         "files", nargs="*", default=[], help="files to be processed (regex on path)"
@@ -417,82 +414,74 @@ def main():
     # Print final file list before loading idedata
     print_file_list(files, "Final files to process:")
 
-    environments = args.environment or ["esp32-arduino-tidy"]
+    # Load idedata and options only if we have files to check
+    idedata = load_idedata(args.environment)
+    options = clang_options(idedata, args.environment)
+
+    tmpdir = None
+    if args.fix:
+        tmpdir = tempfile.mkdtemp()
+
     failed_files = []
-    for environment in environments:
-        if len(environments) > 1:
-            print(f"\nEnvironment {environment}:")
+    try:
+        executable = get_binary("clang-tidy", 22)
+        task_queue = queue.Queue(args.jobs)
+        lock = threading.Lock()
+        for _ in range(args.jobs):
+            t = threading.Thread(
+                target=run_tidy,
+                args=(
+                    executable,
+                    args,
+                    options,
+                    tmpdir,
+                    task_queue,
+                    lock,
+                    failed_files,
+                ),
+            )
+            t.daemon = True
+            t.start()
 
-        # Load idedata and options only if we have files to check
-        idedata = load_idedata(environment)
-        options = clang_options(idedata, environment)
+        # Fill the queue with files.
+        with click.progressbar(
+            files, width=30, file=sys.stderr, item_show_func=progress_bar_show
+        ) as progress_bar:
+            for name in progress_bar:
+                task_queue.put(name)
 
-        tmpdir = None
-        if args.fix:
-            tmpdir = tempfile.mkdtemp()
+        # Wait for all threads to be done.
+        task_queue.join()
 
+    except FileNotFoundError:
+        return 1
+    except KeyboardInterrupt:
+        print()
+        print("Ctrl-C detected, goodbye.")
+        if tmpdir:
+            shutil.rmtree(tmpdir)
+        # Kill subprocesses (and ourselves!)
+        # No simple, clean alternative appears to be available.
+        os.kill(0, 9)
+        return 2  # Will not execute.
+
+    if args.fix and failed_files:
+        print("Applying fixes ...")
         try:
-            executable = get_binary("clang-tidy", 22)
-            task_queue = queue.Queue(args.jobs)
-            lock = threading.Lock()
-            for _ in range(args.jobs):
-                t = threading.Thread(
-                    target=run_tidy,
-                    args=(
-                        executable,
-                        args,
-                        environment,
-                        options,
-                        tmpdir,
-                        task_queue,
-                        lock,
-                        failed_files,
-                    ),
-                )
-                t.daemon = True
-                t.start()
-
-            # Fill the queue with files.
-            with click.progressbar(
-                files, width=30, file=sys.stderr, item_show_func=progress_bar_show
-            ) as progress_bar:
-                for name in progress_bar:
-                    task_queue.put(name)
-
-            # Wait for all threads to be done.
-            task_queue.join()
-
-        except FileNotFoundError:
-            return 1
-        except KeyboardInterrupt:
-            print()
-            print("Ctrl-C detected, goodbye.")
-            if tmpdir:
-                shutil.rmtree(tmpdir)
-            # Kill subprocesses (and ourselves!)
-            # No simple, clean alternative appears to be available.
-            os.kill(0, 9)
-            return 2  # Will not execute.
-
-        if args.fix and failed_files:
-            print("Applying fixes ...")
             try:
-                try:
-                    subprocess.call(
-                        ["clang-apply-replacements-22", tmpdir], close_fds=False
-                    )
-                except FileNotFoundError:
-                    subprocess.call(
-                        ["clang-apply-replacements", tmpdir], close_fds=False
-                    )
-            except FileNotFoundError:
-                print(
-                    "Error please install clang-apply-replacements-22 or clang-apply-replacements.\n",
-                    file=sys.stderr,
+                subprocess.call(
+                    ["clang-apply-replacements-22", tmpdir], close_fds=False
                 )
-            except:
-                print("Error applying fixes.\n", file=sys.stderr)
-                raise
+            except FileNotFoundError:
+                subprocess.call(["clang-apply-replacements", tmpdir], close_fds=False)
+        except FileNotFoundError:
+            print(
+                "Error please install clang-apply-replacements-22 or clang-apply-replacements.\n",
+                file=sys.stderr,
+            )
+        except:
+            print("Error applying fixes.\n", file=sys.stderr)
+            raise
 
     # Cap at 255: shells truncate exit codes to one byte, so 256 failures
     # would otherwise report success

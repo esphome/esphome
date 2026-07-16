@@ -510,10 +510,11 @@ jobs:
             pio_cache_key: tidyrp2
           - id: clang-tidy
             name: Run script/clang-tidy for LibreTiny
-            options: >-
-              --environment bk72xx-tidy --environment ln882h-tidy
-              --environment rtl87xxb-tidy --environment rtl87xxc-tidy
-              --grep USE_LIBRETINY --grep USE_BK72XX --grep USE_RTL87XX --grep USE_LN882X
+            # Scan the same files under each LibreTiny variant in one job; the run step
+            # loops over these and invokes script/clang-tidy once per environment.
+            environments: bk72xx-tidy ln882h-tidy rtl87xxb-tidy rtl87xxc-tidy
+            # yamllint disable-line rule:line-length
+            options: --grep USE_LIBRETINY --grep USE_BK72XX --grep USE_RTL87XX --grep USE_LN882X
             pio_cache_key: tidylibretiny
 
     steps:
@@ -578,10 +579,21 @@ jobs:
           . venv/bin/activate
           if [ "${{ steps.check_full_scan.outputs.full_scan }}" = "true" ]; then
             echo "Running FULL clang-tidy scan (reason: ${{ steps.check_full_scan.outputs.reason }})"
-            script/clang-tidy --all-headers --fix ${{ matrix.options }} ${{ matrix.ignore_errors && '|| true' || '' }}
+            changed=""
           else
             echo "Running clang-tidy on changed files only"
-            script/clang-tidy --all-headers --fix --changed ${{ matrix.options }} ${{ matrix.ignore_errors && '|| true' || '' }}
+            changed="--changed"
+          fi
+          if [ -n "${{ matrix.environments }}" ]; then
+            # Multiple environments in one job: script/clang-tidy scans one at a time.
+            rc=0
+            for env in ${{ matrix.environments }}; do
+              echo "=== environment: $env ==="
+              script/clang-tidy --all-headers --fix $changed --environment "$env" ${{ matrix.options }} || rc=1
+            done
+            exit $rc
+          else
+            script/clang-tidy --all-headers --fix $changed ${{ matrix.options }} ${{ matrix.ignore_errors && '|| true' || '' }}
           fi
         env:
           # Also cache libdeps, store them in a ~/.platformio subfolder
