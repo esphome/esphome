@@ -2,9 +2,9 @@
 
 import pytest
 
-import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.components.emontx.sensor import BASE_SCHEMA, apply_tag_defaults
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
     CONF_STATE_CLASS,
