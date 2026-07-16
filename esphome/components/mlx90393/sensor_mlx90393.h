@@ -1,6 +1,6 @@
 #pragma once
 
-#ifndef USE_LIBRETINY
+#ifndef USE_BK72XX
 
 #include <MLX90393.h>
 #include <MLX90393Hal.h>
@@ -79,4 +79,4 @@ class MLX90393Cls final : public PollingComponent, public i2c::I2CDevice, public
 
 }  // namespace esphome::mlx90393
 
-#endif  // USE_LIBRETINY
+#endif  // USE_BK72XX
