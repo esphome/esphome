@@ -33,12 +33,13 @@ def _registered_files() -> list[Path]:
 
 
 @pytest.fixture
-def config_dir(setup_core: Path) -> Path:
+def config_dir(tmp_path: Path) -> Path:
     """A config dir holding a manifest and its model file."""
-    (setup_core / "models").mkdir()
-    (setup_core / "models" / "hey_jarvis.tflite").write_bytes(b"fake model")
-    (setup_core / "models" / "hey_jarvis.json").write_text(json.dumps(MANIFEST))
-    return setup_core
+    (tmp_path / "models").mkdir()
+    (tmp_path / "models" / "hey_jarvis.tflite").write_bytes(b"fake model")
+    (tmp_path / "models" / "hey_jarvis.json").write_text(json.dumps(MANIFEST))
+    CORE.config_path = tmp_path / "test.yaml"
+    return tmp_path
 
 
 def test_local_schema_registers_model_file(config_dir: Path) -> None:
