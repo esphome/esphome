@@ -200,18 +200,42 @@ void ImprovSerialComponent::collect_device_urls_(std::vector<std::string> &urls)
   }
 #endif
 #ifdef USE_WEBSERVER
-  for (auto &ip : network::get_ip_addresses()) {
-    if (ip.is_ip4()) {
+  // The webserver listens on every interface, so advertise each one that has a
+  // usable IPv4. network::get_ip_addresses() can't be used here: it returns only
+  // the highest-priority interface's addresses, which are all-unset (0.0.0.0)
+  // when e.g. Ethernet has no link while the device is online via Wi-Fi — and
+  // 0.0.0.0 must not become the advertised URL. Collect per interface instead,
+  // skipping addresses that aren't set.
+  // TODO: This section should be reworked once #14255 (and any related subsequent PRs) is merged.
+  const auto append_urls = [&urls](const network::IPAddresses &addresses) {
+    for (const auto &ip : addresses) {
+      if (!ip.is_ip4() || !ip.is_set())
+        continue;
       char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
       ip.str_to(ip_buf);
       // "http://" (7) + IP (40) + ":" (1) + port (5) + null (1) = 54
       char webserver_url[7 + network::IP_ADDRESS_BUFFER_SIZE + 1 + 5 + 1];
       snprintf(webserver_url, sizeof(webserver_url), "http://%s:%u", ip_buf, USE_WEBSERVER_PORT);
       urls.emplace_back(webserver_url);
-      break;
     }
-  }
+  };
+#ifdef USE_ETHERNET
+  if (ethernet::global_eth_component != nullptr)
+    append_urls(ethernet::global_eth_component->get_ip_addresses());
 #endif
+#ifdef USE_MODEM
+  if (modem::global_modem_component != nullptr)
+    append_urls(modem::global_modem_component->get_ip_addresses());
+#endif
+#ifdef USE_WIFI
+  if (wifi::global_wifi_component != nullptr)
+    append_urls(wifi::global_wifi_component->get_ip_addresses());
+#endif
+#ifdef USE_OPENTHREAD
+  if (openthread::global_openthread_component != nullptr)
+    append_urls(openthread::global_openthread_component->get_ip_addresses());
+#endif
+#endif  // USE_WEBSERVER
 }
 
 std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv::Command command) {
