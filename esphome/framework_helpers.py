@@ -597,6 +597,7 @@ def download_from_mirrors(
 
         # 2. Try each mirror in order
         failures: list[tuple[str, Exception]] = []
+        skipped: list[tuple[str, Exception]] = []
 
         for mirror in mirrors:
             # 3. Apply substitutions to URL. A template referencing a
@@ -605,8 +606,9 @@ def download_from_mirrors(
             # versions) and is skipped.
             try:
                 url = mirror.format(**substitutions)
-            except (KeyError, IndexError, ValueError):
-                _LOGGER.debug("Skipping mirror %s: substitution not available", mirror)
+            except (KeyError, IndexError, ValueError) as e:
+                _LOGGER.debug("Skipping mirror %s: %r", mirror, e)
+                skipped.append((mirror, e))
                 continue
 
             _LOGGER.debug("Trying to download from %s", url)
@@ -652,12 +654,15 @@ def download_from_mirrors(
         # error would hide the failure that actually matters.
         if failures:
             attempts = "\n".join(f"  {url}: {e}" for url, e in failures)
+            attempts += "".join(
+                f"\n  {mirror}: skipped ({e!r})" for mirror, e in skipped
+            )
             raise RuntimeError(
                 f"Failed to download from all mirrors:\n{attempts}"
             ) from failures[0][1]
-        if mirrors:
+        if skipped:
+            details = "\n".join(f"  {mirror}: {e!r}" for mirror, e in skipped)
             raise RuntimeError(
-                "No mirror URL template matched the provided substitutions: "
-                + ", ".join(mirrors)
+                f"No mirror URL template matched the provided substitutions:\n{details}"
             )
         raise ValueError("download_from_mirrors called with an empty mirrors list")

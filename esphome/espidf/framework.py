@@ -536,10 +536,14 @@ def _check_esphome_idf_framework_install(
         env: Optional dictionary of environment variables to set
         source_url: Optional override URL for the framework tarball. Supports
             the same ``{VERSION}`` / ``{MAJOR}`` / ``{MINOR}`` / ``{PATCH}`` /
-            ``{EXTRA}`` substitutions as ESPHOME_IDF_FRAMEWORK_MIRRORS
-            (``{EXTRA}`` includes its leading ``-``, e.g. ``-rc1``, or is empty).
-            When set, it replaces the default mirror list — no implicit fallback,
-            so a misspelled URL fails loudly.
+            ``{EXTRA}`` / ``{SHORT_VERSION}`` substitutions as
+            ESPHOME_IDF_FRAMEWORK_MIRRORS (``{EXTRA}`` includes its leading
+            ``-``, e.g. ``-rc1``, or is empty; ``{SHORT_VERSION}`` is ``x.y``
+            plus any extra and only available for x.y.0 versions — a URL
+            referencing it is skipped for other versions). When set, it
+            replaces the default mirror list — no implicit fallback, so a
+            misspelled or skipped URL fails loudly with a RuntimeError naming
+            the URL.
 
     Returns:
         tuple of (framework_path, install_flag)
@@ -605,7 +609,12 @@ def _check_esphome_idf_framework_install(
                             f"{ver.major}.{ver.minor}{substitutions['EXTRA']}"
                         )
                 except ValueError:
-                    pass
+                    _LOGGER.warning(
+                        "ESP-IDF version '%s' is not a valid version number; "
+                        "only the {VERSION} substitution is available for "
+                        "mirror URLs",
+                        version,
+                    )
 
                 mirrors = [source_url] if source_url else ESPHOME_IDF_FRAMEWORK_MIRRORS
                 download_from_mirrors(mirrors, substitutions, tmp.file)

@@ -570,7 +570,7 @@ class TestDownloadFromMirrors:
     def test_all_templates_skipped_raises_runtime_error(self, tmp_path: Path) -> None:
         with (
             patch("requests.get") as mock_get,
-            pytest.raises(RuntimeError, match="No mirror URL template matched"),
+            pytest.raises(RuntimeError, match="No mirror URL template matched") as ei,
         ):
             download_from_mirrors(
                 ["https://example.com/{MISSING}.bin"],
@@ -578,6 +578,32 @@ class TestDownloadFromMirrors:
                 tmp_path / "out.bin",
             )
         mock_get.assert_not_called()
+        # The skipped template and its missing substitution are named
+        assert "https://example.com/{MISSING}.bin" in str(ei.value)
+        assert "MISSING" in str(ei.value)
+
+    def test_failure_message_includes_skipped_templates(self, tmp_path: Path) -> None:
+        """When downloads fail, templates that were skipped for missing
+        substitutions are also listed so a typo'd custom mirror is
+        attributable."""
+        with (
+            patch(
+                "requests.get",
+                return_value=_mock_response(b"", ok=False),
+            ),
+            pytest.raises(RuntimeError, match="all mirrors") as ei,
+        ):
+            download_from_mirrors(
+                [
+                    "https://example.com/{TYPO}.bin",
+                    "https://example.com/{VERSION}.bin",
+                ],
+                {"VERSION": "1.2.3"},
+                tmp_path / "out.bin",
+            )
+        message = str(ei.value)
+        assert "https://example.com/1.2.3.bin" in message
+        assert "https://example.com/{TYPO}.bin: skipped" in message
 
     def test_falls_back_to_second_mirror(self, tmp_path: Path) -> None:
         with patch(
