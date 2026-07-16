@@ -3,7 +3,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include <algorithm>
-#include <cstdint>
 #include <cstring>
 
 #ifdef USE_RUNTIME_IMAGE_BMP
@@ -293,23 +292,30 @@ size_t RuntimeImage::resize_buffer_(int width, int height) {
 }
 
 size_t RuntimeImage::get_buffer_size_(int width, int height) const {
+  // Image dimensions come from a remote header; reject anything that overflows size_t
   if (width <= 0 || height <= 0) {
     return 0;
   }
-  // 64-bit math: image dimensions come from a remote header and must not wrap size_t
-  uint64_t size;
+  size_t w = width;
+  size_t h = height;
+  size_t size;
   if (this->get_type() == image::IMAGE_TYPE_RGB565 && this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
     // Add extra alpha channel for RGB565 with alpha
-    size = static_cast<uint64_t>(width) * height * 3;
-  } else {
-    size = (static_cast<uint64_t>(this->get_bpp()) * width + 7u) / 8u * height;
+    if (__builtin_mul_overflow(w, h, &size) || __builtin_mul_overflow(size, static_cast<size_t>(3), &size)) {
+      return 0;
+    }
+    return size;
   }
-#if SIZE_MAX < UINT64_MAX
-  if (size > SIZE_MAX) {
+  // (get_bpp() * width + 7) / 8 * height
+  size_t bits;
+  if (__builtin_mul_overflow(static_cast<size_t>(this->get_bpp()), w, &bits)) {
     return 0;
   }
-#endif
-  return static_cast<size_t>(size);
+  size_t row_bytes = bits / 8u + (bits % 8u != 0u ? 1u : 0u);
+  if (__builtin_mul_overflow(row_bytes, h, &size)) {
+    return 0;
+  }
+  return size;
 }
 
 int RuntimeImage::get_position_(int x, int y) const { return (x + y * this->buffer_width_) * this->get_bpp() / 8; }
