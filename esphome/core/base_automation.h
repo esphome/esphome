@@ -201,7 +201,7 @@ template<typename... Ts> class DelayAction : public Action<Ts...> {
           /* component= */ nullptr, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::SELF_POINTER,
           /* static_name= */ reinterpret_cast<const char *>(this), /* hash_or_id= */ 0, this->delay_.value(),
           [this]() { this->play_next_(); },
-          /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1,
+          /* skip_cancel= */ this->num_running_ > 1,
           // Record the owning script (if any) so the blocking warning can name it; propagates across
           // chained delays via the scheduler.
           /* source= */ App.get_current_source());
@@ -215,7 +215,7 @@ template<typename... Ts> class DelayAction : public Action<Ts...> {
           /* component= */ nullptr, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::SELF_POINTER,
           /* static_name= */ reinterpret_cast<const char *>(this), /* hash_or_id= */ 0, this->delay_.value(x...),
           std::move(f),
-          /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1,
+          /* skip_cancel= */ this->num_running_ > 1,
           // See the no-argument branch above: record the owning script for log attribution.
           /* source= */ App.get_current_source());
     }
