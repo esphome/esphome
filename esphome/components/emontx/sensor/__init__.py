@@ -2,11 +2,7 @@ import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ACCURACY_DECIMALS,
-    CONF_DEVICE_CLASS,
     CONF_ID,
-    CONF_STATE_CLASS,
-    CONF_UNIT_OF_MEASUREMENT,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
@@ -29,104 +25,101 @@ from .. import CONF_EMONTX_ID, CONF_TAG_NAME, EmonTx, emontx_ns
 
 EmonTxSensor = emontx_ns.class_("EmonTxSensor", sensor.Sensor, cg.Component)
 
-# Pre-validate state class strings into StateClass enum values so they are
-# code-generation-ready when injected by apply_tag_defaults (bypassing the
-# schema validator that would normally handle this conversion).
-_SC_MEASUREMENT = sensor.validate_state_class(STATE_CLASS_MEASUREMENT)
-_SC_TOTAL_INCREASING = sensor.validate_state_class(STATE_CLASS_TOTAL_INCREASING)
-
-# Define sensor type configurations by prefix
-SENSOR_CONFIGS = {
-    "P": {
-        CONF_UNIT_OF_MEASUREMENT: UNIT_WATT,
-        CONF_DEVICE_CLASS: DEVICE_CLASS_POWER,
-        CONF_STATE_CLASS: _SC_MEASUREMENT,
-        CONF_ACCURACY_DECIMALS: 0,
-    },
-    "E": {
-        CONF_UNIT_OF_MEASUREMENT: UNIT_WATT_HOURS,
-        CONF_DEVICE_CLASS: DEVICE_CLASS_ENERGY,
-        CONF_STATE_CLASS: _SC_TOTAL_INCREASING,
-        CONF_ACCURACY_DECIMALS: 0,
-    },
-    "V": {
-        CONF_UNIT_OF_MEASUREMENT: UNIT_VOLT,
-        CONF_DEVICE_CLASS: DEVICE_CLASS_VOLTAGE,
-        CONF_STATE_CLASS: _SC_MEASUREMENT,
-        CONF_ACCURACY_DECIMALS: 2,
-    },
-    "I": {
-        CONF_UNIT_OF_MEASUREMENT: UNIT_AMPERE,
-        CONF_DEVICE_CLASS: DEVICE_CLASS_CURRENT,
-        CONF_STATE_CLASS: _SC_MEASUREMENT,
-        CONF_ACCURACY_DECIMALS: 2,
-    },
-    "T": {
-        CONF_UNIT_OF_MEASUREMENT: UNIT_CELSIUS,
-        CONF_DEVICE_CLASS: DEVICE_CLASS_TEMPERATURE,
-        CONF_STATE_CLASS: _SC_MEASUREMENT,
-        CONF_ACCURACY_DECIMALS: 2,
-    },
+_COMMON = {
+    cv.GenerateID(CONF_EMONTX_ID): cv.use_id(EmonTx),
+    cv.Required(CONF_TAG_NAME): cv.string,
 }
 
-# Pattern-based configurations
-PATTERN_CONFIGS = {
-    "PULSE": {
-        CONF_UNIT_OF_MEASUREMENT: UNIT_PULSES,
-        CONF_DEVICE_CLASS: DEVICE_CLASS_ENERGY,
-        CONF_STATE_CLASS: _SC_TOTAL_INCREASING,
-        CONF_ACCURACY_DECIMALS: 0,
-    },
-    "PF": {
-        CONF_UNIT_OF_MEASUREMENT: UNIT_EMPTY,
-        CONF_DEVICE_CLASS: DEVICE_CLASS_POWER_FACTOR,
-        CONF_STATE_CLASS: _SC_MEASUREMENT,
-        CONF_ACCURACY_DECIMALS: 2,
-    },
+# One fully-validated schema per tag prefix (E1, P1, V1, I1, T1, ...)
+_SCHEMA_BY_PREFIX = {
+    "P": sensor.sensor_schema(
+        EmonTxSensor,
+        unit_of_measurement=UNIT_WATT,
+        device_class=DEVICE_CLASS_POWER,
+        state_class=STATE_CLASS_MEASUREMENT,
+        accuracy_decimals=0,
+    ).extend(_COMMON),
+    "E": sensor.sensor_schema(
+        EmonTxSensor,
+        unit_of_measurement=UNIT_WATT_HOURS,
+        device_class=DEVICE_CLASS_ENERGY,
+        state_class=STATE_CLASS_TOTAL_INCREASING,
+        accuracy_decimals=0,
+    ).extend(_COMMON),
+    "V": sensor.sensor_schema(
+        EmonTxSensor,
+        unit_of_measurement=UNIT_VOLT,
+        device_class=DEVICE_CLASS_VOLTAGE,
+        state_class=STATE_CLASS_MEASUREMENT,
+        accuracy_decimals=2,
+    ).extend(_COMMON),
+    "I": sensor.sensor_schema(
+        EmonTxSensor,
+        unit_of_measurement=UNIT_AMPERE,
+        device_class=DEVICE_CLASS_CURRENT,
+        state_class=STATE_CLASS_MEASUREMENT,
+        accuracy_decimals=2,
+    ).extend(_COMMON),
+    "T": sensor.sensor_schema(
+        EmonTxSensor,
+        unit_of_measurement=UNIT_CELSIUS,
+        device_class=DEVICE_CLASS_TEMPERATURE,
+        state_class=STATE_CLASS_MEASUREMENT,
+        accuracy_decimals=2,
+    ).extend(_COMMON),
 }
 
-# Create a base schema that's flexible for any tag.
-# Do not pre-fill state_class or accuracy_decimals here: sensor_schema() registers
-# them as cv.Optional(key, default=...), which means they are always present in the
-# validated config dict. The guard `if key not in config` in apply_tag_defaults would
-# then silently skip every per-prefix override. Instead we leave them absent so
-# apply_tag_defaults can inject the correct per-prefix values, and fall back to
-# generic defaults at the end of that function for tags with no known prefix.
-BASE_SCHEMA = sensor.sensor_schema(EmonTxSensor).extend(
+# One fully-validated schema per tag pattern (PULSE*, PF*)
+_SCHEMA_BY_PATTERN = {
+    "PULSE": sensor.sensor_schema(
+        EmonTxSensor,
+        unit_of_measurement=UNIT_PULSES,
+        device_class=DEVICE_CLASS_ENERGY,
+        state_class=STATE_CLASS_TOTAL_INCREASING,
+        accuracy_decimals=0,
+    ).extend(_COMMON),
+    "PF": sensor.sensor_schema(
+        EmonTxSensor,
+        unit_of_measurement=UNIT_EMPTY,
+        device_class=DEVICE_CLASS_POWER_FACTOR,
+        state_class=STATE_CLASS_MEASUREMENT,
+        accuracy_decimals=2,
+    ).extend(_COMMON),
+}
+
+# Fallback for tags that match no known prefix or pattern
+_SCHEMA_GENERIC = sensor.sensor_schema(
+    EmonTxSensor,
+    state_class=STATE_CLASS_MEASUREMENT,
+    accuracy_decimals=0,
+).extend(_COMMON)
+
+# Minimal first-pass schema: only needs to validate tag_name so the dispatcher
+# can select the correct full schema.
+_TAG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_EMONTX_ID): cv.use_id(EmonTx),
         cv.Required(CONF_TAG_NAME): cv.string,
-    }
+    },
+    extra=cv.ALLOW_EXTRA,
 )
 
 
-def apply_tag_defaults(config: ConfigType) -> ConfigType:
-    """Apply defaults based on tag prefix if applicable, but don't restrict any tags."""
-    tag = config[CONF_TAG_NAME]
+def _emontx_sensor_schema(config: ConfigType) -> ConfigType:
+    """Select and apply the correct sensor schema based on the tag name."""
+    tag = config[CONF_TAG_NAME].upper()
 
-    if len(tag) >= 2:
-        tag_upper = tag.upper()
+    for pattern, schema in _SCHEMA_BY_PATTERN.items():
+        if tag.startswith(pattern):
+            return schema(config)
 
-        for pattern, pattern_config in PATTERN_CONFIGS.items():
-            if tag_upper.startswith(pattern):
-                for key, value in pattern_config.items():
-                    config.setdefault(key, value)
-                return config
+    if len(tag) >= 2 and tag[1:].isdigit() and (schema := _SCHEMA_BY_PREFIX.get(tag[0])):
+        return schema(config)
 
-        # Only apply defaults for known prefixes with numeric indices (e.g. E1, V2, T3)
-        prefix = tag_upper[0]
-        if prefix in SENSOR_CONFIGS and tag[1:].isdigit():
-            for key, value in SENSOR_CONFIGS[prefix].items():
-                config.setdefault(key, value)
-            return config
-
-    # Fall back to generic defaults for tags with no known prefix
-    config.setdefault(CONF_STATE_CLASS, _SC_MEASUREMENT)
-    config.setdefault(CONF_ACCURACY_DECIMALS, 0)
-    return config
+    return _SCHEMA_GENERIC(config)
 
 
-CONFIG_SCHEMA = cv.All(BASE_SCHEMA, apply_tag_defaults)
+CONFIG_SCHEMA = cv.All(_TAG_SCHEMA, _emontx_sensor_schema)
 
 
 async def to_code(config: ConfigType) -> None:
