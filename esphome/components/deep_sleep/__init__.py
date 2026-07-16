@@ -354,7 +354,7 @@ async def to_code(config):
     if CONF_WAKEUP_PIN in config:
         pins_as_list = config.get(CONF_WAKEUP_PIN, [])
         if CORE.is_bk72xx:
-            cg.add(var.init_wakeup_pins_(len(pins_as_list)))
+            cg.add(var.init_wakeup_pins(len(pins_as_list)))
             for item in pins_as_list:
                 cg.add(
                     var.add_wakeup_pin(
