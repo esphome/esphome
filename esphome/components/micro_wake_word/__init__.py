@@ -245,18 +245,28 @@ def _register_local_model_file(config: ConfigType) -> ConfigType:
     The manifest names its model file relative to itself, so that path never appears
     in the YAML and bundle discovery cannot find it on its own.
 
-    Problems with the manifest are ignored here; they are reported later with better
-    messages. Raising would also be swallowed by the shorthand validator, which then
-    reports a confusing error about a missing file in a git repository.
+    Problems with the manifest are logged and ignored here rather than raised. Loading
+    the manifest later reports them with better messages, and raising would be
+    swallowed by the shorthand validator, which then reports a confusing error about a
+    missing file in a git repository. Logging keeps the skipped registration
+    diagnosable if the manifest is only briefly unreadable, since the bundle would
+    then be built without the model file.
     """
     manifest_path: Path = config[CONF_PATH]
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         model = manifest[CONF_MODEL]
-    except (OSError, ValueError, KeyError, TypeError):
+    except (OSError, ValueError, KeyError, TypeError) as err:
+        _LOGGER.debug("Not registering a model file from %s: %s", manifest_path, err)
         return config
-    if isinstance(model, str):
-        add_bundle_file(manifest_path.parent / model)
+    if not isinstance(model, str):
+        _LOGGER.debug(
+            "Not registering a model file from %s: 'model' is %s, expected a string",
+            manifest_path,
+            type(model).__name__,
+        )
+        return config
+    add_bundle_file(manifest_path.parent / model)
     return config
 
 

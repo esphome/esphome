@@ -1,6 +1,7 @@
 """Tests for micro_wake_word local model validation."""
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -93,11 +94,17 @@ def test_local_schema_missing_model_file_still_validates(config_dir: Path) -> No
     ],
 )
 def test_local_schema_bad_manifest_does_not_raise(
-    config_dir: Path, contents: str
+    config_dir: Path, contents: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Manifest problems are left to later stages, which report them better."""
+    """Manifest problems are left to later stages, which report them better.
+
+    The skipped registration is logged so a bundle built without the model file can
+    be diagnosed.
+    """
     (config_dir / "models" / "hey_jarvis.json").write_text(contents)
 
-    LOCAL_SCHEMA({"path": "models/hey_jarvis.json"})
+    with caplog.at_level(logging.DEBUG):
+        LOCAL_SCHEMA({"path": "models/hey_jarvis.json"})
 
     assert _registered_files() == []
+    assert "Not registering a model file" in caplog.text
