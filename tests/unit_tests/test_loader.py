@@ -470,7 +470,7 @@ def test_build_alias_map_skips_alias_shadowing_existing_component(
 
     with (
         patch("esphome.loader.CORE_COMPONENTS_PATH", tmp_path),
-        caplog.at_level(logging.WARNING),
+        caplog.at_level(logging.WARNING, logger="esphome.loader"),
     ):
         alias_map, meta_map = _build_alias_map()
 
