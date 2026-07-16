@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from esphome.const import CONF_FRAMEWORK, CONF_SOURCE
 from esphome.core import CORE
 from esphome.espidf import toolchain
@@ -100,7 +102,7 @@ def test_get_idedata_uses_cache_when_valid(setup_core: Path) -> None:
     compile_commands.parent.mkdir(parents=True, exist_ok=True)
     compile_commands.write_text("[]")
     cache.parent.mkdir(parents=True, exist_ok=True)
-    cache.write_text('{"cxx_path": "cached"}')
+    cache.write_text('{"cc_path": "cached-gcc", "cxx_path": "cached"}')
     cc_mtime = compile_commands.stat().st_mtime
     os.utime(cache, (cc_mtime + 1, cc_mtime + 1))
 
@@ -108,7 +110,31 @@ def test_get_idedata_uses_cache_when_valid(setup_core: Path) -> None:
         result = toolchain.get_idedata()
 
     mock_transform.assert_not_called()
-    assert result == {"cxx_path": "cached"}
+    assert result == {"cc_path": "cached-gcc", "cxx_path": "cached"}
+
+
+def test_get_idedata_regenerates_cache_without_cc_path(setup_core: Path) -> None:
+    """A cache predating cc_path is rebuilt even though it is newer.
+
+    Such a cache stays newer than the compile DB forever, so consumers that
+    derive the binutils paths from cc_path would keep failing on it.
+    """
+    compile_commands, cache = _setup_build(setup_core)
+    compile_commands.parent.mkdir(parents=True, exist_ok=True)
+    compile_commands.write_text("[]")
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text('{"cxx_path": "cached"}')
+    cc_mtime = compile_commands.stat().st_mtime
+    os.utime(cache, (cc_mtime + 1, cc_mtime + 1))
+
+    with patch(
+        "esphome.espidf.idedata.idedata_from_build",
+        return_value={"cc_path": "gcc", "cxx_path": "g++"},
+    ) as mock_transform:
+        result = toolchain.get_idedata()
+
+    mock_transform.assert_called_once()
+    assert result["cc_path"] == "gcc"
 
 
 def test_get_idedata_regenerates_when_compile_commands_newer(setup_core: Path) -> None:
@@ -129,6 +155,33 @@ def test_get_idedata_regenerates_when_compile_commands_newer(setup_core: Path) -
 
     mock_transform.assert_called_once()
     assert result == {"cxx_path": "fresh", "prog_path": str(toolchain.get_elf_path())}
+
+
+@pytest.mark.parametrize("cached", ['"cc_path is a string"', "[]", "42"])
+def test_get_idedata_regenerates_on_non_dict_cache(
+    setup_core: Path, cached: str
+) -> None:
+    """A newer cache holding valid JSON that is not an object is regenerated.
+
+    A bare string would otherwise pass the cc_path check by substring and be
+    handed to consumers expecting a dict.
+    """
+    compile_commands, cache = _setup_build(setup_core)
+    compile_commands.parent.mkdir(parents=True, exist_ok=True)
+    compile_commands.write_text("[]")
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(cached)
+    cc_mtime = compile_commands.stat().st_mtime
+    os.utime(cache, (cc_mtime + 1, cc_mtime + 1))
+
+    with patch(
+        "esphome.espidf.idedata.idedata_from_build",
+        return_value={"cc_path": "gcc", "cxx_path": "g++"},
+    ) as mock_transform:
+        result = toolchain.get_idedata()
+
+    mock_transform.assert_called_once()
+    assert isinstance(result, dict)
 
 
 def test_get_idedata_regenerates_on_corrupted_cache(setup_core: Path) -> None:
