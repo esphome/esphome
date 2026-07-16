@@ -652,10 +652,10 @@ def _check_esphome_idf_framework_install(
             stream_output=True,
         ):
             _LOGGER.error(
-                "If the output above shows 'error while loading shared libraries', "
-                "the system is missing a library the ESP-IDF tools need. The most "
-                "common case is openocd needing libusb: install libusb-1.0-0 "
-                "(Debian/Ubuntu), libusb1 (Fedora) or libusb (Alpine/Arch), then "
+                "If the output above shows 'error while loading shared libraries',\n"
+                "the system is missing a library the ESP-IDF tools need. The most\n"
+                "common case is openocd needing libusb: install libusb-1.0-0\n"
+                "(Debian/Ubuntu), libusb1 (Fedora) or libusb (Alpine/Arch), then\n"
                 "run the build again."
             )
             raise RuntimeError(f"ESP-IDF {version} framework installation failure")
