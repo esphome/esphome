@@ -1907,7 +1907,7 @@ json::SerializationBuffer<> WebServer::alarm_control_panel_json_(alarm_control_p
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "alarm-control-panel",
+  set_json_icon_state_value(root, obj, "alarm_control_panel",
                             json_state_str(alarm_control_panel_state_to_string(value)), value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
