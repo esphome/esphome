@@ -7,7 +7,7 @@
 namespace esphome::tee501 {
 
 /// This class implements support for the tee501 of temperature i2c sensors.
-class TEE501Component : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+class TEE501Component final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

@@ -6,7 +6,7 @@
 
 namespace esphome::valve {
 
-template<typename... Ts> class OpenAction : public Action<Ts...> {
+template<typename... Ts> class OpenAction final : public Action<Ts...> {
  public:
   explicit OpenAction(Valve *valve) : valve_(valve) {}
 
@@ -16,7 +16,7 @@ template<typename... Ts> class OpenAction : public Action<Ts...> {
   Valve *valve_;
 };
 
-template<typename... Ts> class CloseAction : public Action<Ts...> {
+template<typename... Ts> class CloseAction final : public Action<Ts...> {
  public:
   explicit CloseAction(Valve *valve) : valve_(valve) {}
 
@@ -26,7 +26,7 @@ template<typename... Ts> class CloseAction : public Action<Ts...> {
   Valve *valve_;
 };
 
-template<typename... Ts> class StopAction : public Action<Ts...> {
+template<typename... Ts> class StopAction final : public Action<Ts...> {
  public:
   explicit StopAction(Valve *valve) : valve_(valve) {}
 
@@ -36,7 +36,7 @@ template<typename... Ts> class StopAction : public Action<Ts...> {
   Valve *valve_;
 };
 
-template<typename... Ts> class ToggleAction : public Action<Ts...> {
+template<typename... Ts> class ToggleAction final : public Action<Ts...> {
  public:
   explicit ToggleAction(Valve *valve) : valve_(valve) {}
 
@@ -58,7 +58,7 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
 // (e.g. `const T & &` if Ts already carries a reference, or `const const
 // T &` if Ts already carries a const). This keeps trigger args no-copy
 // regardless of whether the trigger supplies `T`, `T &`, or `const T &`.
-template<typename... Ts> class ControlAction : public Action<Ts...> {
+template<typename... Ts> class ControlAction final : public Action<Ts...> {
  public:
   using ApplyFn = void (*)(ValveCall &, const std::remove_cvref_t<Ts> &...);
   ControlAction(Valve *valve, ApplyFn apply) : valve_(valve), apply_(apply) {}
@@ -74,7 +74,7 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
   ApplyFn apply_;
 };
 
-template<typename... Ts> class ValveIsOpenCondition : public Condition<Ts...> {
+template<typename... Ts> class ValveIsOpenCondition final : public Condition<Ts...> {
  public:
   ValveIsOpenCondition(Valve *valve) : valve_(valve) {}
   bool check(const Ts &...x) override { return this->valve_->is_fully_open(); }
@@ -83,7 +83,7 @@ template<typename... Ts> class ValveIsOpenCondition : public Condition<Ts...> {
   Valve *valve_;
 };
 
-template<typename... Ts> class ValveIsClosedCondition : public Condition<Ts...> {
+template<typename... Ts> class ValveIsClosedCondition final : public Condition<Ts...> {
  public:
   ValveIsClosedCondition(Valve *valve) : valve_(valve) {}
   bool check(const Ts &...x) override { return this->valve_->is_fully_closed(); }
@@ -92,7 +92,7 @@ template<typename... Ts> class ValveIsClosedCondition : public Condition<Ts...> 
   Valve *valve_;
 };
 
-class ValveOpenTrigger : public Trigger<> {
+class ValveOpenTrigger final : public Trigger<> {
  public:
   ValveOpenTrigger(Valve *a_valve) : valve_(a_valve) {
     a_valve->add_on_state_callback([this]() {
@@ -106,7 +106,7 @@ class ValveOpenTrigger : public Trigger<> {
   Valve *valve_;
 };
 
-class ValveClosedTrigger : public Trigger<> {
+class ValveClosedTrigger final : public Trigger<> {
  public:
   ValveClosedTrigger(Valve *a_valve) : valve_(a_valve) {
     a_valve->add_on_state_callback([this]() {
