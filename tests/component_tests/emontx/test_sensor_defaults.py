@@ -2,8 +2,8 @@
 
 import pytest
 
-from esphome.components.emontx.sensor import apply_tag_defaults
 from esphome.components import sensor
+from esphome.components.emontx.sensor import apply_tag_defaults
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
     CONF_STATE_CLASS,
@@ -61,7 +61,9 @@ def test_apply_tag_defaults(tag, expected_state_class, expected_decimals):
         ("CUSTOM1", STATE_CLASS_TOTAL_INCREASING, 4),
     ],
 )
-def test_apply_tag_defaults_respects_user_overrides(tag, user_state_class, user_decimals):
+def test_apply_tag_defaults_respects_user_overrides(
+    tag, user_state_class, user_decimals
+):
     """apply_tag_defaults must not overwrite values already set by the user."""
     config = _make_config(tag)
     config[CONF_STATE_CLASS] = sensor.validate_state_class(user_state_class)
