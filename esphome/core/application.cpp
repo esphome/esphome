@@ -15,6 +15,7 @@
 #include "esphome/core/version.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
+#include <array>
 #include <ranges>
 
 #ifdef USE_STATUS_LED
@@ -50,6 +51,63 @@ static void insertion_sort_by_priority(Iterator first, Iterator last) {
   }
 }
 
+// ===========================================================================
+// DO NOT MERGE
+//
+// Test-only code that deliberately adds flash, so the memory impact analysis
+// has something to report. Exists to prove the analysis reports the component
+// breakdown and the symbol level tables again; delete before merging.
+//
+// Living in core (not in a component) makes the analysis take its fallback
+// path, which pins it to the api component on esp32-idf.
+// ===========================================================================
+namespace dnm_flash_test {
+
+// Read through a volatile so the table and the mixers survive the optimizer.
+volatile uint32_t sink = 0;
+
+constexpr size_t LOOKUP_SIZE = 512;
+
+constexpr std::array<uint32_t, LOOKUP_SIZE> make_lookup() {
+  std::array<uint32_t, LOOKUP_SIZE> table{};
+  for (uint32_t i = 0; i < LOOKUP_SIZE; i++) {
+    table[i] = (i * 2654435761u) ^ (i << 7);
+  }
+  return table;
+}
+
+// ~2 KB of rodata
+const std::array<uint32_t, LOOKUP_SIZE> LOOKUP = make_lookup();
+
+// noinline keeps each of these as its own symbol in the memory impact tables
+__attribute__((noinline)) uint32_t mix_a(uint32_t v) {
+  v ^= v >> 15;
+  v *= 2246822519u;
+  return v ^ (v >> 13);
+}
+
+__attribute__((noinline)) uint32_t mix_b(uint32_t v) {
+  v += 0x9e3779b9u;
+  v = (v << 7) | (v >> 25);
+  return v * 2654435761u;
+}
+
+__attribute__((noinline)) uint32_t mix_c(uint32_t v) {
+  v ^= LOOKUP[v % LOOKUP_SIZE];
+  v = (v >> 3) | (v << 29);
+  return v ^ 0x85ebca6bu;
+}
+
+__attribute__((noinline)) uint32_t run(uint32_t seed) {
+  uint32_t v = seed;
+  for (uint32_t i = 0; i < 8; i++) {
+    v = mix_c(mix_b(mix_a(v + i)));
+  }
+  return v;
+}
+
+}  // namespace dnm_flash_test
+
 void Application::register_component_impl_(Component *comp, bool has_loop) {
   if (has_loop) {
     comp->component_state_ |= COMPONENT_HAS_LOOP;
@@ -57,6 +115,9 @@ void Application::register_component_impl_(Component *comp, bool has_loop) {
   this->components_.push_back(comp);
 }
 void Application::setup() {
+  // DO NOT MERGE: keeps the test-only flash above from being stripped
+  dnm_flash_test::sink = dnm_flash_test::run(dnm_flash_test::sink);
+
   ESP_LOGI(TAG, "Running through setup()");
   ESP_LOGV(TAG, "Sorting components by setup priority");
 
