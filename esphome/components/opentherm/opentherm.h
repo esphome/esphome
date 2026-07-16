@@ -178,7 +178,7 @@ enum BitPositions { STOP_BIT = 33 };
 
 /**
  * Structure to hold Opentherm data packet content.
- * Use get_f88(), get_u16() or get_s16() functions to get appropriate value of data packet accoridng to id of message.
+ * Use get_f88(), get_u16() or get_s16() functions to get appropriate value of data packet according to id of message.
  */
 struct OpenthermData {
   uint8_t type;
