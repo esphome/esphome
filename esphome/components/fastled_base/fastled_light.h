@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && !defined(USE_RP2)
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"

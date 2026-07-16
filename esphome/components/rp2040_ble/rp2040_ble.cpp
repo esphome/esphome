@@ -35,10 +35,10 @@ void RP2040BLE::enable() {
     l2cap_init();
     sm_init();
 
-    this->hci_event_callback_registration_.callback = &RP2040BLE::packet_handler_;
+    this->hci_event_callback_registration_.callback = &RP2040BLE::packet_handler;
     hci_add_event_handler(&this->hci_event_callback_registration_);
 
-    this->sm_event_callback_registration_.callback = &RP2040BLE::packet_handler_;
+    this->sm_event_callback_registration_.callback = &RP2040BLE::packet_handler;
     sm_add_event_handler(&this->sm_event_callback_registration_);
 
     this->btstack_initialized_ = true;
@@ -95,7 +95,7 @@ void RP2040BLE::dump_config() {
 
 float RP2040BLE::get_setup_priority() const { return setup_priority::BLUETOOTH; }
 
-void RP2040BLE::packet_handler_(uint8_t type, uint16_t channel, uint8_t *packet, uint16_t size) {
+void RP2040BLE::packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, uint16_t size) {
   if (global_ble == nullptr) {
     return;
   }
