@@ -514,7 +514,6 @@ jobs:
               --environment bk72xx-tidy --environment ln882h-tidy
               --environment rtl87xxb-tidy --environment rtl87xxc-tidy
               --exclude-header components/midea/ --exclude-header components/mlx90393/
-              --exclude-header components/opentherm/
               --grep USE_LIBRETINY --grep USE_BK72XX --grep USE_RTL87XX --grep USE_LN882X
             pio_cache_key: tidylibretiny
 
