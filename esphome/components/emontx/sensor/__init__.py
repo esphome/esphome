@@ -113,7 +113,11 @@ def _emontx_sensor_schema(config: ConfigType) -> ConfigType:
         if tag.startswith(pattern):
             return schema(config)
 
-    if len(tag) >= 2 and tag[1:].isdigit() and (schema := _SCHEMA_BY_PREFIX.get(tag[0])):
+    if (
+        len(tag) >= 2
+        and tag[1:].isdigit()
+        and (schema := _SCHEMA_BY_PREFIX.get(tag[0]))
+    ):
         return schema(config)
 
     return _SCHEMA_GENERIC(config)
