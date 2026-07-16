@@ -28,9 +28,13 @@ class PngDecoder : public ImageDecoder {
   void increment_pixels_decoded(uint32_t count) { this->pixels_decoded_ += count; }
   uint32_t get_pixels_decoded() const { return this->pixels_decoded_; }
 
+  void set_size_valid(bool valid) { this->size_valid_ = valid; }
+  bool size_valid() const { return this->size_valid_; }
+
  protected:
   pngle_t *pngle_{nullptr};
   uint32_t pixels_decoded_{0};
+  bool size_valid_{true};
 };
 
 }  // namespace esphome::runtime_image

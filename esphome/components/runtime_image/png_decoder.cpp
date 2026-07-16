@@ -20,7 +20,7 @@ namespace esphome::runtime_image {
  */
 static void init_callback(pngle_t *pngle, uint32_t w, uint32_t h) {
   PngDecoder *decoder = (PngDecoder *) pngle_get_user_data(pngle);
-  decoder->set_size(w, h);
+  decoder->set_size_valid(decoder->set_size(w, h));
 }
 
 /**
@@ -36,6 +36,9 @@ static void init_callback(pngle_t *pngle, uint32_t w, uint32_t h) {
  */
 static void draw_callback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint8_t rgba[4]) {
   PngDecoder *decoder = (PngDecoder *) pngle_get_user_data(pngle);
+  if (!decoder->size_valid()) {
+    return;
+  }
   Color color(rgba[0], rgba[1], rgba[2], rgba[3]);
   decoder->draw(x, y, w, h, color);
 
@@ -96,6 +99,8 @@ int HOT PngDecoder::decode(uint8_t *buffer, size_t size) {
   if (fed < 0) {
     ESP_LOGE(TAG, "Error decoding image: %s", pngle_error(this->pngle_));
     return DECODE_ERROR_INTERNAL_DECODER_ERROR;
+  } else if (!this->size_valid_) {
+    return DECODE_ERROR_OUT_OF_MEMORY;
   } else {
     this->decoded_bytes_ += fed;
   }

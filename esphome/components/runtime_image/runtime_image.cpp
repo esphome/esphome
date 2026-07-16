@@ -3,7 +3,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
+#include <limits>
 
 #ifdef USE_RUNTIME_IMAGE_BMP
 #include "bmp_decoder.h"
@@ -21,6 +23,10 @@ static const char *const TAG = "runtime_image";
 
 // Widest supported format is 4 bytes/pixel, so 32767 * 32767 * 4 still fits a 32-bit size_t
 static constexpr int MAX_IMAGE_DIMENSION = 32767;
+static constexpr int MAX_IMAGE_BPP = 32;
+static_assert((static_cast<uint64_t>(MAX_IMAGE_BPP) * MAX_IMAGE_DIMENSION + 7) / 8 * MAX_IMAGE_DIMENSION <=
+                  std::numeric_limits<size_t>::max(),
+              "MAX_IMAGE_DIMENSION must keep the worst-case buffer size within size_t");
 
 inline bool is_color_on(const Color &color) {
   // This produces the most accurate monochrome conversion, but is slightly slower.
