@@ -559,15 +559,26 @@ class TestDownloadFromMirrors:
         assert url == "https://mirror2.com/f"
         assert (tmp_path / "out.bin").read_bytes() == b"second"
 
-    def test_all_mirrors_fail_reraises_last_exception(self, tmp_path: Path) -> None:
+    def test_all_mirrors_fail_raises_error_listing_every_attempt(
+        self, tmp_path: Path
+    ) -> None:
         with (
             patch(
                 "requests.get",
                 return_value=_mock_response(b"", ok=False),
             ),
-            pytest.raises(req.HTTPError),
+            pytest.raises(RuntimeError, match="all mirrors") as excinfo,
         ):
-            download_from_mirrors(["https://example.com/f"], {}, tmp_path / "out.bin")
+            download_from_mirrors(
+                ["https://mirror1.com/f", "https://mirror2.com/f"],
+                {},
+                tmp_path / "out.bin",
+            )
+        # Every attempted URL appears in the message, and the first mirror's
+        # exception (the primary URL, usually the one that matters) is chained.
+        assert "https://mirror1.com/f" in str(excinfo.value)
+        assert "https://mirror2.com/f" in str(excinfo.value)
+        assert isinstance(excinfo.value.__cause__, req.HTTPError)
 
     def test_empty_mirrors_raises_value_error(self, tmp_path: Path) -> None:
         with pytest.raises(ValueError, match="empty mirrors list"):

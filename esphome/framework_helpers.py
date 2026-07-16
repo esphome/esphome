@@ -572,7 +572,8 @@ def download_from_mirrors(
 
     Raises:
         ValueError: If mirrors list is empty.
-        Exception: If all download attempts fail.
+        RuntimeError: If all download attempts fail; the message lists every
+            attempted URL with its individual failure reason.
     """
     # Imported lazily: requests is a heavy import (~85ms) and is only needed
     # when actually downloading a toolchain, never during config validation.
@@ -590,7 +591,7 @@ def download_from_mirrors(
             )
 
         # 2. Try each mirror in order
-        last_exception = None
+        failures: list[tuple[str, Exception]] = []
 
         for mirror in mirrors:
             # 3. Apply substitutions to URL
@@ -631,9 +632,15 @@ def download_from_mirrors(
 
             except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
                 _LOGGER.debug("Failed to download %s: %s", url, str(e))
-                last_exception = e
+                failures.append((url, e))
 
-        # 7. Raise last exception if all mirrors failed
-        if last_exception:
-            raise last_exception
+        # 7. Report every attempted URL if all mirrors failed. Falling back
+        # past an early mirror is normal (e.g. only one of the framework URL
+        # templates matches a given version's tag), so raising only the last
+        # error would hide the failure that actually matters.
+        if failures:
+            attempts = "\n".join(f"  {url}: {e}" for url, e in failures)
+            raise RuntimeError(
+                f"Failed to download from all mirrors:\n{attempts}"
+            ) from failures[0][1]
         raise ValueError("download_from_mirrors called with an empty mirrors list")
