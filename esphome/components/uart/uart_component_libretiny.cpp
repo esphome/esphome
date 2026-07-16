@@ -57,7 +57,7 @@ void LibreTinyUARTComponent::setup() {
         has_flags(this->rx_pin_,
                   gpio::Flags::FLAG_OPEN_DRAIN | gpio::Flags::FLAG_PULLUP | gpio::Flags::FLAG_PULLDOWN)) {
 #if LT_ARD_HAS_SOFTSERIAL
-      ESP_LOGI(TAG, "Pins has flags set. Using Software Serial");
+      ESP_LOGI(TAG, "Pins have flags set. Using Software Serial");
       return true;
 #else
       ESP_LOGW(TAG, "Pin flags are set but not supported for hardware serial. Ignoring");
