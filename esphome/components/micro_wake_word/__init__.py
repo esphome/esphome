@@ -6,6 +6,7 @@ from urllib.parse import urljoin
 
 from esphome import automation, external_files, git
 from esphome.automation import register_action, register_condition
+from esphome.bundle import add_bundle_file
 import esphome.codegen as cg
 from esphome.components import esp32, microphone, ota, psram
 import esphome.config_validation as cv
@@ -40,7 +41,6 @@ DOMAIN = "micro_wake_word"
 
 
 CONF_FEATURE_STEP_SIZE = "feature_step_size"
-CONF_MODEL_FILE = "model_file"
 CONF_MODELS = "models"
 CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
 CONF_PROBABILITY_CUTOFF = "probability_cutoff"
@@ -239,12 +239,11 @@ HTTP_SCHEMA = cv.All(
 )
 
 
-def _add_local_model_file(config: ConfigType) -> ConfigType:
-    """Record the model file that the manifest points to.
+def _register_local_model_file(config: ConfigType) -> ConfigType:
+    """Register the model file that the manifest points to, so bundles include it.
 
     The manifest names its model file relative to itself, so that path never appears
-    in the YAML and ``esphome bundle`` cannot find it. Storing it in the validated
-    config lets the bundle walker pick it up; see esphome/bundle.py.
+    in the YAML and bundle discovery cannot find it on its own.
 
     Problems with the manifest are ignored here; they are reported later with better
     messages. Raising would also be swallowed by the shorthand validator, which then
@@ -257,7 +256,7 @@ def _add_local_model_file(config: ConfigType) -> ConfigType:
     except (OSError, ValueError, KeyError, TypeError):
         return config
     if isinstance(model, str):
-        config[CONF_MODEL_FILE] = manifest_path.parent / model
+        add_bundle_file(manifest_path.parent / model)
     return config
 
 
@@ -267,7 +266,7 @@ LOCAL_SCHEMA = cv.All(
             cv.Required(CONF_PATH): cv.All(_validate_json_filename, cv.file_),
         }
     ),
-    _add_local_model_file,
+    _register_local_model_file,
 )
 
 
