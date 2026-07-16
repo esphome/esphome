@@ -3058,19 +3058,23 @@ def copy_files():
 
 
 def _decode_pc(config, addr):
-    # _decode_pc runs from the api log processor's asyncio callback, which
-    # only catches EsphomeError. Any other exception escaping here tears down
-    # the protocol and triggers an infinite reconnect/replay loop. Convert
-    # toolchain-resolution errors (e.g. missing build dir / cmake cache) into
-    # EsphomeError so the caller can disable decoding cleanly.
+    # Convert toolchain-resolution errors (e.g. missing build dir / cmake
+    # cache) into EsphomeError. The api log processor stops decoding on any
+    # exception, so this is about the message it reports rather than about
+    # catching it at all: EsphomeError carries an explanation worth showing
+    # the user, where a raw OSError repr does not.
     if CORE.using_toolchain_esp_idf:
         from esphome.espidf import toolchain as idf_toolchain
 
         try:
             addr2line_path = idf_toolchain.get_addr2line_path()
             firmware_elf_path = idf_toolchain.get_elf_path()
-        except RuntimeError as err:
+        except (RuntimeError, OSError) as err:
+            # OSError covers a missing build directory or a cmake that isn't
+            # on PATH; both surface from the subprocess call, not as RuntimeError.
             raise EsphomeError(f"ESP-IDF toolchain not available: {err}") from err
+        if not firmware_elf_path.is_file():
+            raise EsphomeError(f"Firmware ELF not found: {firmware_elf_path}")
     else:
         from esphome.platformio import toolchain
 
