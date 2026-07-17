@@ -300,12 +300,11 @@ def _glob_include_candidates(parent_dir: Path, pattern: str) -> list[Path]:
 def _candidate_include_paths(include: IncludeFile) -> list[Path]:
     """Enumerate resolved files an expression-templated ``!include`` could select.
 
-    Patterns come from ``substitutions.include_candidate_patterns``:
-    substitution spans glob (``keys/${name}.yaml`` matches every
-    ``keys/*.yaml``, hidden files excluded like ``!include_dir_*``) and Jinja
-    string literals are tried verbatim, so a branch file loads even when it
-    contains glob metacharacters or is hidden. Matches still carrying
-    expression markers or pointing back at the including file are skipped.
+    Wildcard patterns from ``substitutions.include_candidate_patterns`` glob
+    under the including file's directory with hidden files excluded (like
+    ``!include_dir_*``); literal branch patterns are tried verbatim. Matches
+    still carrying expression markers or pointing back at the including file
+    are skipped.
     """
     # Deferred import — the substitutions component imports this module.
     from esphome.components.substitutions import include_candidate_patterns

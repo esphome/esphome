@@ -385,16 +385,14 @@ def include_candidate_patterns(value: str) -> list[str]:
     """Expand a substitution/Jinja-templated path into glob-style candidate patterns.
 
     Mirrors the two phases of :func:`_expand_substitutions` without variable
-    values: ``$var`` / ``${var}`` references become ``*``, and each remaining
+    values: ``$var`` / ``${var}`` references become ``*`` and each remaining
     Jinja expression contributes one pattern per quoted string literal it
     holds (``*`` when it holds none), so every conditional branch is a
-    candidate. Deliberately over-inclusive — discovery ships every file the
-    expression could plausibly select. Adjacent wildcards collapse to one so
-    no variant emits ``**``, which globs recursively, and ``[`` / ``?`` from
-    the filename text are escaped in wildcard variants so glob metacharacters
-    in real file names stay literal. Variants reduced to nothing but
-    wildcards and separators are dropped, so a fully dynamic filename never
-    expands to "everything in the directory".
+    candidate — deliberately over-inclusive. Emitted wildcard patterns are
+    glob-safe: adjacent wildcards collapse (no recursive ``**``), ``[`` /
+    ``?`` from the filename text are escaped, and variants reduced to
+    nothing but wildcards and separators are dropped so a fully dynamic
+    filename never expands to "everything in the directory".
     """
     # Replacing $var / ${var} first also keeps JINJA_PROG's first-} span
     # matching correct for references nested inside string literals, the
