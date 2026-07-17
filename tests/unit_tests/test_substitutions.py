@@ -1001,6 +1001,25 @@ def test_remote_package_scalar_yaml_raises_helpful_error(
         ),
         pytest.param('${ "a.yaml" if x }', ["a.yaml"], id="conditional_no_else"),
         pytest.param(
+            '${ "NO BLUETOOTH SUPPORT ON ESP8266.yaml"'
+            ' if enable_bluetooth_proxy else "../empty.yaml" }',
+            ["NO BLUETOOTH SUPPORT ON ESP8266.yaml", "../empty.yaml"],
+            id="issue_17650_verbatim",
+        ),
+        pytest.param(
+            '${ "" if x else "b.yaml" }', ["b.yaml"], id="empty_literal_dropped"
+        ),
+        pytest.param(
+            "keys\\${system_name}.yaml",
+            ["keys\\*.yaml"],
+            id="backslash_separator",
+        ),
+        pytest.param(
+            '${ "it\'s.yaml" if x else "b.yaml" }',
+            ["it's.yaml", "b.yaml"],
+            id="apostrophe_in_literal",
+        ),
+        pytest.param(
             '${ "a-${x}.yaml" if c else "b.yaml" }',
             ["a-*.yaml", "b.yaml"],
             id="substitution_inside_literal",

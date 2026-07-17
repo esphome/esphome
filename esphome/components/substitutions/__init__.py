@@ -407,7 +407,7 @@ def include_candidate_patterns(value: str) -> list[str]:
     )
     patterns: list[str] = []
     for variant in dict.fromkeys(variants):
-        if _WILDCARDS_ONLY_RE.fullmatch(variant):
+        if not variant or _WILDCARDS_ONLY_RE.fullmatch(variant):
             continue
         if "*" in variant:
             variant = _GLOB_META_RE.sub(lambda m: f"[{m.group(0)}]", variant)

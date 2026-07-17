@@ -1226,6 +1226,30 @@ def test_discover_user_yaml_files_jinja_literal_candidates(tmp_path: Path) -> No
     assert (tmp_path / "empty.yaml").resolve() in discovered.files
 
 
+def test_discover_user_yaml_files_loads_both_branches_of_issue_conditional(
+    tmp_path: Path,
+) -> None:
+    """Both branch files of the issue-17650 conditional load when present,
+    including the filename with spaces."""
+    _write(tmp_path, "empty.yaml", "{}\n")
+    _write(tmp_path, "boards/NO BLUETOOTH SUPPORT ON ESP8266.yaml", "api:\n")
+    _write(
+        tmp_path,
+        "boards/esp8266.yaml",
+        "packages:\n"
+        '  - !include ${ "NO BLUETOOTH SUPPORT ON ESP8266.yaml"'
+        ' if enable_bluetooth_proxy else "../empty.yaml" }\n',
+    )
+    discovered = discover_user_yaml_files(
+        _write_entry_including(tmp_path, "boards/esp8266.yaml")
+    )
+    resolved = set(discovered.files)
+    assert (tmp_path / "boards/NO BLUETOOTH SUPPORT ON ESP8266.yaml").resolve() in (
+        resolved
+    )
+    assert (tmp_path / "empty.yaml").resolve() in resolved
+
+
 def test_discover_user_yaml_files_glob_matches_bracket_filenames(
     tmp_path: Path,
 ) -> None:
