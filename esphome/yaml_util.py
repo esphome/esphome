@@ -275,6 +275,32 @@ def _is_visible_path(rel: Path) -> bool:
     return all(part == ".." or _is_file_valid(part) for part in rel.parts)
 
 
+def _glob_include_candidates(parent_dir: Path, pattern: str) -> list[Path]:
+    """
+    Expand a candidate glob under *parent_dir*, keeping hidden files out.
+
+    An absolute pattern globs from its own anchor and yields absolute
+    matches — ``Path.glob`` alone rejects non-relative patterns, which
+    would crash discovery instead of skipping the include.
+    """
+    base = parent_dir
+    keep_absolute = False
+    pattern_path = Path(pattern)
+    if pattern_path.is_absolute():
+        base = Path(pattern_path.anchor)
+        pattern = str(pattern_path.relative_to(base))
+        keep_absolute = True
+    try:
+        found_paths = base.glob(pattern)
+        return [
+            found if keep_absolute else rel
+            for found in found_paths
+            if _is_visible_path(rel := found.relative_to(base))
+        ]
+    except (NotImplementedError, ValueError, OSError):  # pragma: no cover
+        return []
+
+
 def _candidate_include_paths(include: IncludeFile) -> list[tuple[Path, Path]]:
     """Enumerate ``(relative, resolved)`` files an expression-templated
     ``!include`` could select.
@@ -294,10 +320,7 @@ def _candidate_include_paths(include: IncludeFile) -> list[tuple[Path, Path]]:
     candidates: list[tuple[Path, Path]] = []
     for pattern in include_candidate_patterns(str(include.file)):
         if "*" in pattern:
-            relatives = (
-                found.relative_to(parent_dir) for found in parent_dir.glob(pattern)
-            )
-            matches = sorted(rel for rel in relatives if _is_visible_path(rel))
+            matches = sorted(_glob_include_candidates(parent_dir, pattern))
         else:
             matches = [Path(pattern)]
         for match in matches:
@@ -343,7 +366,8 @@ def _load_include_candidates(
         try:
             loaded = include.with_file(candidate).load()
         except (EsphomeError, Invalid) as err:
-            _LOGGER.debug(
+            log = _LOGGER.warning if warn_on_unresolved else _LOGGER.debug
+            log(
                 "Failed to load candidate %s for !include %s: %s",
                 candidate,
                 include.file,

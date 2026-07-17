@@ -1283,6 +1283,44 @@ def test_discover_user_yaml_files_mapping_include_with_vars(tmp_path: Path) -> N
     assert (tmp_path / "keys/a.yaml").resolve() in discovered.files
 
 
+def test_discover_user_yaml_files_absolute_templated_include(tmp_path: Path) -> None:
+    """An absolute templated include globs from its anchor instead of crashing."""
+    shared = tmp_path / "shared"
+    _write(tmp_path, "shared/common.yaml", "api:\n")
+    discovered = discover_user_yaml_files(
+        _write_entry_including(tmp_path, f"{shared}/${{x}}.yaml")
+    )
+    assert (shared / "common.yaml").resolve() in discovered.files
+
+
+def test_discover_user_yaml_files_glob_skips_dollar_named_files(
+    tmp_path: Path,
+) -> None:
+    """An on-disk filename containing ``$`` can't load; the glob skips it."""
+    _write(tmp_path, "keys/a.yaml", "api:\n")
+    _write(tmp_path, "keys/b$roken.yaml", "api:\n")
+    discovered = discover_user_yaml_files(
+        _write_entry_including(tmp_path, "keys/${n}.yaml")
+    )
+    names = {p.name for p in discovered.files}
+    assert "a.yaml" in names
+    assert "b$roken.yaml" not in names
+
+
+def test_force_load_candidate_failure_warns_by_default(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A broken candidate logs at WARNING outside the discovery re-parse."""
+    _write(tmp_path, "keys/bad.yaml", "esphome: [unterminated\n")
+    entry = _write_entry_including(tmp_path, "keys/${n}.yaml")
+    with caplog.at_level("DEBUG", logger="esphome.yaml_util"):
+        force_load_include_files(yaml_util.load_yaml(entry))
+    matching = [
+        r.levelname for r in caplog.records if "Failed to load candidate" in r.message
+    ]
+    assert matching == ["WARNING"]
+
+
 def test_discover_user_yaml_files_glob_skips_hidden_files(tmp_path: Path) -> None:
     """Candidate globs exclude hidden files, matching ``!include_dir_*``."""
     _write(tmp_path, "keys/device-a.yaml", "api:\n")
