@@ -9,7 +9,7 @@
 
 namespace esphome::xiaomi_mhoc401 {
 
-class XiaomiMHOC401 : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class XiaomiMHOC401 final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
   void set_bindkey(const char *bindkey);
