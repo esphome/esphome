@@ -9,7 +9,7 @@
 
 namespace esphome::xiaomi_lywsd02mmc {
 
-class XiaomiLYWSD02MMC : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class XiaomiLYWSD02MMC final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { this->address_ = address; }
   void set_bindkey(const char *bindkey);

@@ -19,13 +19,13 @@
 
 // Threading model for static analysis. Match what the real codegen picks per
 // platform (see esphome/components/<platform>/__init__.py ThreadModel.*):
-//   USE_ESP8266 / USE_RP2040 / USE_NRF52 → SINGLE
+//   USE_ESP8266 / USE_RP2 / USE_NRF52 → SINGLE
 //   USE_BK72XX (ARMv5TE, no LDREX/STREX) → MULTI_NO_ATOMICS
 //   everything else (ESP32, host, RTL87XX, LN882X) → MULTI_ATOMICS
 // Without this the clang-tidy envs end up with USE_<single-threaded platform>
 // + MULTI_ATOMICS simultaneously, a combination that can never occur in a
 // real build.
-#if defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_NRF52)
+#if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_NRF52)
 #define ESPHOME_THREAD_SINGLE
 #elif defined(USE_BK72XX)
 #define ESPHOME_THREAD_MULTI_NO_ATOMICS
@@ -56,6 +56,7 @@
 #define USE_DATETIME_TIME
 #define USE_DEBUG
 #define USE_DEEP_SLEEP
+#define USE_DEEP_SLEEP_ON_WAKE
 #define USE_DEVICES
 #define USE_DISPLAY
 #define USE_ENTITY_DEVICE_CLASS
@@ -89,6 +90,7 @@
 #define USE_LOGGER_LEVEL_LISTENERS
 #define USE_LOGGER_RUNTIME_TAG_LEVELS
 #define USE_LVGL
+#define USE_LVGL_ANIMATION
 #define USE_LVGL_ANIMIMG
 #define USE_LVGL_ARC
 #define USE_LVGL_BINARY_SENSOR
@@ -148,10 +150,12 @@
 #define USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
 #define USE_NEXTION_WAVEFORM
 #define USE_NUMBER
+#define USE_OTA_STATE_LISTENER
 #define USE_OUTPUT
 #define USE_OUTPUT_FLOAT_POWER_SCALING
 #define USE_POWER_SUPPLY
 #define USE_PREFERENCES_SYNC_EVERY_LOOP
+#define USE_PROVISIONING
 #define USE_QR_CODE
 #define USE_SAFE_MODE_CALLBACK
 #define ESPHOME_SAFE_MODE_CALLBACK_COUNT 1
@@ -202,8 +206,11 @@
 #define MAX_API_CONNECTIONS 6
 #define USE_MD5
 #define USE_SHA256
+#ifndef USE_RP2  // no MQTT backend or esp_wireguard library on RP2
 #define USE_MQTT
 #define USE_MQTT_COVER_JSON
+#define USE_WIREGUARD
+#endif
 #define USE_RTTTL_FINISHED_PLAYBACK_CALLBACK
 #define USE_RUNTIME_IMAGE_BMP
 #define USE_RUNTIME_IMAGE_PNG
@@ -211,13 +218,11 @@
 #define USE_RUNTIME_STATS
 #define USE_OTA
 #define USE_OTA_PASSWORD
-#define USE_OTA_STATE_LISTENER
 #define USE_OTA_VERSION 2
 #define USE_TIME_TIMEZONE
 #define USE_WIFI
 #define USE_WIFI_AP
 #define USE_WIFI_MANUAL_IP
-#define USE_WIREGUARD
 #endif
 
 // Arduino-specific feature flags
@@ -227,7 +232,7 @@
 #endif
 
 // Platforms with native 64-bit time sources (no rollover tracking needed)
-#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_ZEPHYR) || defined(USE_RP2040)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_ZEPHYR) || defined(USE_RP2)
 #define USE_NATIVE_64BIT_TIME
 #endif
 
@@ -239,8 +244,12 @@
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 768
 #define USE_OTA_ROLLBACK
 #define USE_OTA_SIGNED_VERIFICATION
+#define USE_OTA_DOWNGRADE_PROTECTION
 #define USE_ESP32_MIN_CHIP_REVISION_SET
+#define USE_ESP32_RTC_PREFERENCES
 #define USE_ESP32_SRAM1_AS_IRAM
+#define USE_ESPNOW
+#define USE_ESPNOW_MAX_PAYLOAD_SIZE 1470
 
 #define USE_BLUETOOTH_PROXY
 #define BLUETOOTH_PROXY_MAX_CONNECTIONS 3
@@ -292,14 +301,17 @@
 #define USE_VOICE_ASSISTANT
 #define USE_WEBSERVER
 #define USE_WEBSERVER_AUTH
+#define USE_WEBSERVER_AUTH_DIGEST
 #define USE_WEBSERVER_OTA
 #define USE_WEBSERVER_PORT 80  // NOLINT
 #define USE_WEBSERVER_GZIP
 #define USE_WEBSERVER_SORTING
+#define USE_WEBSERVER_ALLOWED_ORIGINS
 #define WEB_SERVER_DEFAULT_HEADERS_COUNT 1
 #define USE_CAPTIVE_PORTAL_GZIP
 #define USE_WIFI_11KV_SUPPORT
 #define USE_WIFI_FAST_CONNECT
+#define USE_WIFI_FAST_CONNECT_IN_FLASH
 #define USE_WIFI_PHY_MODE
 #define USE_WIFI_IP_STATE_LISTENERS
 #define USE_WIFI_SCAN_RESULTS_LISTENERS
@@ -327,6 +339,8 @@
 #define USE_ETHERNET_JL1101
 #define USE_ETHERNET_KSZ8081
 #define USE_ETHERNET_LAN8670
+#define USE_ETHERNET_GENERIC
+#define USE_ETHERNET_YT8531
 #define USE_ETHERNET_SPI
 #define USE_ETHERNET_SPI_POLLING_SUPPORT
 #define USE_ETHERNET_OPENETH
@@ -399,12 +413,16 @@
 
 #define USE_WEBSERVER
 #define USE_WEBSERVER_AUTH
+#define USE_WEBSERVER_AUTH_DIGEST
 #define USE_WEBSERVER_PORT 80  // NOLINT
 #endif
 
-#ifdef USE_RP2040
+// USE_RP2 is the canonical platform define for the RP2 chip family. The
+// rp2/__init__.py codegen also defines USE_RP2040 as a back-compat alias
+// for external custom components that may still test for it.
+#ifdef USE_RP2
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 3, 0)
-#define USE_RP2040_CRASH_HANDLER
+#define USE_RP2_CRASH_HANDLER
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C
 #define USE_LOGGER_USB_CDC
@@ -418,6 +436,11 @@
 #ifndef USE_ETHERNET_SPI
 #define USE_ETHERNET_SPI
 #endif
+#define USE_ETHERNET_W5500
+#define USE_WIFI_IP_STATE_LISTENERS
+#define ESPHOME_WIFI_IP_STATE_LISTENERS 2
+#define USE_ETHERNET_IP_STATE_LISTENERS
+#define ESPHOME_ETHERNET_IP_STATE_LISTENERS 2
 #endif
 
 #ifdef USE_LIBRETINY
@@ -426,6 +449,7 @@
 #define USE_LWIP_FAST_SELECT
 #define USE_WEBSERVER
 #define USE_WEBSERVER_AUTH
+#define USE_WEBSERVER_AUTH_DIGEST
 #define USE_WEBSERVER_PORT 80  // NOLINT
 #define USE_ESPHOME_TASK_LOG_BUFFER
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 768

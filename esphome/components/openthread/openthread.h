@@ -20,12 +20,12 @@ namespace esphome::openthread {
 class InstanceLock;
 
 enum class OtcTeardownStage : uint8_t {
-  OTC_TEARDOWN_NOT_STARTED = 0,
-  OTC_TEARDOWN_STARTED,
-  OTC_TEARDOWN_DETACH_COMPLETED,
-  OTC_TEARDOWN_STOP_STARTED,
-  OTC_TEARDOWN_STOP_IN_PROCESS,
-  OTC_TEARDOWN_COMPLETED
+  NOT_STARTED = 0,
+  STARTED,
+  DETACH_COMPLETED,
+  STOP_STARTED,
+  STOP_IN_PROCESS,
+  COMPLETED
 };
 
 template<typename... Ts> class OpenThreadComponentPollPeriodAction;
@@ -45,11 +45,14 @@ class OpenThreadComponent final : public Component {
   network::IPAddresses get_ip_addresses();
   std::optional<otIp6Address> get_omr_address();
 #ifdef USE_OPENTHREAD_GRACEFUL_DETACH_ON_SHUTDOWN
+  // Signature matches otDetachGracefullyCallback: void(*)(void *aContext) -- no otError parameter.
   static void detach_callback(void *context);
 #endif
   void on_factory_reset(std::function<void()> callback);
   void defer_factory_reset_external_callback();
 
+  /// Returns nullptr when no explicit use_address is configured and the address is
+  /// derived at runtime from the device name (see network::get_use_address_to()).
   const char *get_use_address() const { return this->use_address_; }
   void set_use_address(const char *use_address) { this->use_address_ = use_address; }
 #if CONFIG_OPENTHREAD_MTD
@@ -78,7 +81,7 @@ class OpenThreadComponent final : public Component {
    */
   void apply_linkmode_(otInstance *instance);
 
-  std::atomic<OtcTeardownStage> teardown_stage_{OtcTeardownStage::OTC_TEARDOWN_NOT_STARTED};
+  std::atomic<OtcTeardownStage> teardown_stage_{OtcTeardownStage::NOT_STARTED};
 
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
   otInstance *get_openthread_instance_();
@@ -99,7 +102,7 @@ class OpenThreadComponent final : public Component {
  private:
   // Stores a pointer to a string literal (static storage duration).
   // ONLY set from Python-generated code with string literals - never dynamic strings.
-  const char *use_address_{""};
+  const char *use_address_{nullptr};
 };
 
 extern OpenThreadComponent *global_openthread_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -108,7 +111,7 @@ class OpenThreadSrpComponent final : public Component {
  public:
   void set_mdns(esphome::mdns::MDNSComponent *mdns);
   // This has to run after the mdns component or else no services are available to advertise
-  float get_setup_priority() const override { return this->mdns_->get_setup_priority() - 1.0; }
+  float get_setup_priority() const override { return this->mdns_->get_setup_priority() - 1.0f; }
   void setup() override;
   static void srp_callback(otError err, const otSrpClientHostInfo *host_info, const otSrpClientService *services,
                            const otSrpClientService *removed_services, void *context);

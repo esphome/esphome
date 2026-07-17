@@ -232,10 +232,13 @@ void OpenThreadSrpComponent::set_mdns(esphome::mdns::MDNSComponent *mdns) { this
 
 bool OpenThreadComponent::teardown() {
   switch (this->teardown_stage_) {
-    case OtcTeardownStage::OTC_TEARDOWN_NOT_STARTED: {
+    case OtcTeardownStage::NOT_STARTED: {
       // start tearing down
-      this->teardown_stage_ = OtcTeardownStage::OTC_TEARDOWN_STARTED;
+      this->teardown_stage_ = OtcTeardownStage::STARTED;
       ESP_LOGV(TAG, "Clear Srp");
+      // If the lock can't be acquired here, the OT task is likely wedged, so give up on
+      // teardown entirely rather than forcing the stop stage without the lock -- we're
+      // already shutting down, so this is an accepted low-risk failure mode.
       auto lock = InstanceLock::try_acquire(100);
       if (!lock) {
         ESP_LOGW(TAG, "Failed to acquire OpenThread lock during teardown, leaking memory");
@@ -248,18 +251,20 @@ bool OpenThreadComponent::teardown() {
       const otError err = otThreadDetachGracefully(instance, OpenThreadComponent::detach_callback, this);
       if (err != OT_ERROR_NONE) {
         ESP_LOGW(TAG, "Failed to detach gracefully: %s", otThreadErrorToString(err));
-        this->teardown_stage_ = OtcTeardownStage::OTC_TEARDOWN_DETACH_COMPLETED;
+        this->teardown_stage_ = OtcTeardownStage::DETACH_COMPLETED;
       }
 #else
       // skip graceful detach, parent will not remove child from its child table
-      this->teardown_stage_ = OtcTeardownStage::OTC_TEARDOWN_DETACH_COMPLETED;
+      this->teardown_stage_ = OtcTeardownStage::DETACH_COMPLETED;
 #endif
     } break;
-    case OtcTeardownStage::OTC_TEARDOWN_STARTED:
+    case OtcTeardownStage::STARTED:
       // waiting on callback
       break;
-    case OtcTeardownStage::OTC_TEARDOWN_DETACH_COMPLETED: {
-      this->teardown_stage_ = OtcTeardownStage::OTC_TEARDOWN_STOP_STARTED;
+    case OtcTeardownStage::DETACH_COMPLETED: {
+      this->teardown_stage_ = OtcTeardownStage::STOP_STARTED;
+      // Same accepted tradeoff as the lock acquire above: give up rather than force the
+      // stop stage without the lock.
       auto lock = InstanceLock::try_acquire(100);
       if (!lock) {
         ESP_LOGW(TAG, "Failed to acquire OpenThread lock during teardown, leaking memory");
@@ -273,9 +278,9 @@ bool OpenThreadComponent::teardown() {
         ESP_LOGW(TAG, "Failed to disable IPv6 during teardown");
       }
     } break;
-    case OtcTeardownStage::OTC_TEARDOWN_STOP_STARTED: {
+    case OtcTeardownStage::STOP_STARTED: {
       // stop openthread
-      this->teardown_stage_ = OtcTeardownStage::OTC_TEARDOWN_STOP_IN_PROCESS;
+      this->teardown_stage_ = OtcTeardownStage::STOP_IN_PROCESS;
       global_openthread_component = nullptr;
       ESP_LOGV(TAG, "Stop Openthread");
       int error = this->openthread_stop_();
@@ -284,10 +289,10 @@ bool OpenThreadComponent::teardown() {
         return true;
       }
     } break;
-    case OtcTeardownStage::OTC_TEARDOWN_STOP_IN_PROCESS:
+    case OtcTeardownStage::STOP_IN_PROCESS:
       // waiting on openthread stop
       break;
-    case OtcTeardownStage::OTC_TEARDOWN_COMPLETED:
+    case OtcTeardownStage::COMPLETED:
       ESP_LOGV(TAG, "OpenthreadComponent Teardown Complete");
       return true;
   }
@@ -297,7 +302,7 @@ bool OpenThreadComponent::teardown() {
 #ifdef USE_OPENTHREAD_GRACEFUL_DETACH_ON_SHUTDOWN
 void OpenThreadComponent::detach_callback(void *context) {
   auto *obj = static_cast<OpenThreadComponent *>(context);
-  obj->teardown_stage_ = OtcTeardownStage::OTC_TEARDOWN_DETACH_COMPLETED;
+  obj->teardown_stage_ = OtcTeardownStage::DETACH_COMPLETED;
 }
 #endif
 

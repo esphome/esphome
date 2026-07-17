@@ -12,7 +12,7 @@ dependencies:
   esphome/micro-flac:
     version: 0.2.0
   esphome/micro-mp3:
-    version: 0.3.0
+    version: 0.4.0
   esphome/micro-opus:
     version: 0.4.1
   esphome/micro-wav:
@@ -47,12 +47,8 @@ dependencies:
     version: "2.0.0"
     rules:
       - if: "target in [esp32, esp32p4]"
-  espressif/esp-zboss-lib:
-    version: 1.6.4
-    rules:
-      - if: "target in [esp32h2, esp32c5, esp32c6]"
   espressif/esp-zigbee-lib:
-    version: 1.6.8
+    version: 2.0.3
     rules:
       - if: "target in [esp32h2, esp32c5, esp32c6]"
   espressif/lan87xx:

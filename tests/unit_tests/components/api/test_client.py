@@ -12,11 +12,9 @@ from esphome.core import EsphomeError
 def test_decoder_swallows_esphome_error() -> None:
     """A failing stack-trace decode must not propagate.
 
-    on_log runs inside an asyncio protocol callback; if EsphomeError
-    escapes, the loop reports "Fatal error: protocol.data_received()
-    call failed.", tears the connection down, and ReconnectLogic loops
-    forever as the device replays the same crash trace on every
-    reconnect.
+    aioesphomeapi isolates exceptions raised by log handlers, so an
+    escaping one logs a full traceback for every line it fires on rather
+    than being reported once as an unavailable decoder.
     """
     config = {"esphome": {"name": "test"}}
 
@@ -43,6 +41,32 @@ def test_decoder_swallows_platform_handler_error() -> None:
     assert processor.backtrace_state is False
 
 
+def test_decoder_swallows_non_esphome_error() -> None:
+    """Decoding failures that aren't EsphomeError must be contained too.
+
+    A missing build directory surfaces as FileNotFoundError from the toolchain
+    subprocess. aioesphomeapi isolates it, so the session survives, but it logs
+    a traceback for every PC/BT line and decoding is never disabled, which
+    buries the crash dump the user is trying to read.
+    """
+    config = {"esphome": {"name": "test"}}
+
+    with patch.object(
+        esp32,
+        "process_stacktrace",
+        side_effect=FileNotFoundError(
+            2, "No such file or directory", "/build/ol/build"
+        ),
+    ) as mock_process:
+        processor = api_client._LogLineProcessor(config, esp32.process_stacktrace)
+        processor.process_line("PC: 0x4010496e")
+        processor.process_line("BT0: 0x4010496e")
+
+    # Disabled after the first failure rather than retried per backtrace line.
+    assert mock_process.call_count == 1
+    assert processor.backtrace_state is False
+
+
 def test_decoder_warning_uses_fallback_for_empty_error(caplog) -> None:
     """_run_idedata raises EsphomeError with no message; the warning
     must show a useful explanation rather than empty parens.
@@ -61,7 +85,7 @@ def test_decoder_warning_uses_fallback_for_empty_error(caplog) -> None:
 def test_decoder_short_circuits_after_failure() -> None:
     """After one failure, subsequent lines must not retry the decoder.
 
-    _decode_pc shells out to PlatformIO; a crash dump can contain many
+    _decode_pc shells out to the toolchain; a crash dump can contain many
     PC/BT lines and retrying the failing subprocess for each one would
     stall log streaming.
     """

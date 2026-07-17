@@ -139,7 +139,10 @@ int OpenThreadComponent::openthread_stop_() {
   // Clean up - reset lock flag before deinit destroys the semaphore
   this->lock_initialized_ = false;
   int error = esp_openthread_stop();
-  this->teardown_stage_ = OtcTeardownStage::OTC_TEARDOWN_COMPLETED;
+  // Mark complete even on failure: we're already mid-shutdown/reboot, so there's no
+  // recovery path to retry into -- leaving the stage stuck would only burn the full
+  // teardown timeout for no benefit.
+  this->teardown_stage_ = OtcTeardownStage::COMPLETED;
   return error;
 }
 
