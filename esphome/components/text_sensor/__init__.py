@@ -144,7 +144,9 @@ _TEXT_SENSOR_SCHEMA = (
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextSensor),
             cv.GenerateID(): cv.declare_id(TextSensor),
-            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
+            cv.Optional(
+                CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): validate_device_class,
             cv.Optional(CONF_FILTERS): validate_filters,
             cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation({}),

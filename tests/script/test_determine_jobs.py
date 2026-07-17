@@ -231,14 +231,16 @@ def test_main_all_tests_should_run(
     assert output["memory_impact"]["should_run"] == "false"
     assert output["cpp_unit_tests_run_all"] is False
     assert output["cpp_unit_tests_components"] == ["wifi", "api", "sensor"]
-    # component_test_batches should be present and be a list of space-separated strings
+    # component_test_batches should be a list of matrix entries carrying the
+    # space-separated component list and the toolchain-need flags
     assert "component_test_batches" in output
     assert isinstance(output["component_test_batches"], list)
-    # Each batch should be a space-separated string of component names
     for batch in output["component_test_batches"]:
-        assert isinstance(batch, str)
+        assert isinstance(batch, dict)
         # Should contain at least one component (no empty batches)
-        assert len(batch) > 0
+        assert len(batch["components"]) > 0
+        assert isinstance(batch["needs_idf"], bool)
+        assert isinstance(batch["needs_nrf"], bool)
 
 
 def test_main_no_tests_should_run(
@@ -2223,15 +2225,33 @@ def test_detect_memory_impact_config_runs_at_component_limit(tmp_path: Path) -> 
             "esphome/components/libretiny/wifi_ln882x.cpp",
             determine_jobs.Platform.LN882X_ARD,
         ),
-        # RP2040 / Raspberry Pi Pico detection
+        # RP2 family detection — explicit chip names only.
+        # RP2040 chip: _rp2040.*, _pico.* (Pico / Pico W)
         ("esphome/components/gpio/gpio_rp2040.cpp", determine_jobs.Platform.RP2040_ARD),
         ("esphome/components/wifi/wifi_rp2040.cpp", determine_jobs.Platform.RP2040_ARD),
         ("esphome/components/i2c/i2c_pico.cpp", determine_jobs.Platform.RP2040_ARD),
         ("esphome/components/spi/spi_pico.cpp", determine_jobs.Platform.RP2040_ARD),
         (
-            "tests/components/rp2040/test.rp2040-ard.yaml",
+            "tests/components/rp2/test.rp2040-ard.yaml",
             determine_jobs.Platform.RP2040_ARD,
         ),
+        # RP2350 chip: _rp2350.*, _pico2.* (Pico 2 / Pico 2 W)
+        (
+            "esphome/components/foo/foo_rp2350.cpp",
+            determine_jobs.Platform.RP2350_ARD,
+        ),
+        (
+            "esphome/components/wifi/wifi_pico2.cpp",
+            determine_jobs.Platform.RP2350_ARD,
+        ),
+        (
+            "tests/components/rp2/test.rp2350-ard.yaml",
+            determine_jobs.Platform.RP2350_ARD,
+        ),
+        # Family-wide files (_rp2.*) intentionally do NOT get a hint —
+        # they apply to both RP2040 and RP2350 chips.
+        ("esphome/components/debug/debug_rp2.cpp", None),
+        ("esphome/components/logger/logger_rp2.h", None),
         # nRF52 / Zephyr detection
         (
             "tests/components/logger/test.nrf52-adafruit.yaml",
@@ -2278,6 +2298,11 @@ def test_detect_memory_impact_config_runs_at_component_limit(tmp_path: Path) -> 
         "pico_i2c",
         "pico_spi",
         "rp2040_test_yaml",
+        "rp2350_cpp",
+        "pico2_cpp",
+        "rp2350_test_yaml",
+        "rp2_family_debug_no_hint",
+        "rp2_family_logger_h_no_hint",
         "nrf52_test_yaml",
         "nrf52_gpio",
         "zephyr_core",
@@ -2417,16 +2442,16 @@ def test_component_batching_beta_branch_40_per_batch(
     assert len(batches) == 3, f"Expected 3 batches, got {len(batches)}"
 
     # Each batch should have approximately 40 components (all weight=1, groupable)
-    for i, batch_str in enumerate(batches):
-        batch_components = batch_str.split()
+    for i, batch in enumerate(batches):
+        batch_components = batch["components"].split()
         assert len(batch_components) == 40, (
             f"Batch {i} should have 40 components, got {len(batch_components)}"
         )
 
     # Verify all 120 components are in batches
     all_components = []
-    for batch_str in batches:
-        all_components.extend(batch_str.split())
+    for batch in batches:
+        all_components.extend(batch["components"].split())
     assert len(all_components) == 120
     assert set(all_components) == set(component_names)
 
@@ -2968,3 +2993,53 @@ def test_main_force_all_off_uses_detection(
     assert output["component_test_count"] == 0
     mock_determine_integration_tests.assert_called_once()
     mock_should_run_clang_tidy.assert_called_once()
+
+
+# Every platform the memory impact analysis can select must produce an ELF that
+# find_elf_path knows how to locate. The analysis fails the job when it cannot
+# find one, so a platform with an unknown layout would turn a clean build red.
+_MEMORY_IMPACT_ELF_LAYOUTS = {
+    # Native ESP-IDF toolchain (the esp32 default): <build>/build/firmware.elf
+    "esp32-c6-idf": "build/firmware.elf",
+    "esp32-idf": "build/firmware.elf",
+    "esp32-c3-idf": "build/firmware.elf",
+    "esp32-s2-idf": "build/firmware.elf",
+    "esp32-s3-idf": "build/firmware.elf",
+    # PlatformIO: <build>/.pioenvs/<name>/firmware.elf
+    "esp8266-ard": ".pioenvs/{name}/firmware.elf",
+    "rp2040-ard": ".pioenvs/{name}/firmware.elf",
+    "rp2350-ard": ".pioenvs/{name}/firmware.elf",
+    # LibreTiny: <build>/.pioenvs/<name>/raw_firmware.elf
+    "bk72xx-ard": ".pioenvs/{name}/raw_firmware.elf",
+    "rtl87xx-ard": ".pioenvs/{name}/raw_firmware.elf",
+    "ln882x-ard": ".pioenvs/{name}/raw_firmware.elf",
+    # Zephyr: <build>/.pioenvs/<name>/zephyr/[zephyr/]zephyr.elf
+    "nrf52-adafruit": ".pioenvs/{name}/zephyr/zephyr/zephyr.elf",
+}
+
+
+def test_memory_impact_platforms_have_known_elf_layout() -> None:
+    """Every selectable memory impact platform has a documented ELF layout.
+
+    Adding a platform to the preference list without teaching find_elf_path
+    where its ELF lands would fail the memory impact job on a clean build.
+    """
+    selectable = {
+        platform.value for platform in determine_jobs.MEMORY_IMPACT_PLATFORM_PREFERENCE
+    }
+    selectable.add(determine_jobs.MEMORY_IMPACT_FALLBACK_PLATFORM.value)
+
+    assert selectable == set(_MEMORY_IMPACT_ELF_LAYOUTS)
+
+
+def test_memory_impact_elf_layouts_are_found(tmp_path: Path) -> None:
+    """find_elf_path locates the ELF each memory impact platform produces."""
+    from esphome.analyze_memory.toolchain import find_elf_path
+
+    for platform, layout in _MEMORY_IMPACT_ELF_LAYOUTS.items():
+        build_path = tmp_path / platform / ".esphome" / "build" / "mydevice"
+        elf = build_path / layout.format(name=build_path.name)
+        elf.parent.mkdir(parents=True)
+        elf.write_text("")
+
+        assert find_elf_path(build_path) == elf, f"{platform} ELF not found"
