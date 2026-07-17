@@ -7,6 +7,21 @@ namespace esphome::deep_sleep {
 
 static const char *const TAG = "deep_sleep.bk72xx";
 
+#ifdef USE_DEEP_SLEEP_ON_WAKE
+WakeupCause get_wakeup_cause() {
+  switch (lt_get_reboot_reason()) {
+    case REBOOT_REASON_SLEEP_GPIO:
+      return WAKEUP_CAUSE_GPIO;
+    case REBOOT_REASON_SLEEP_RTC:
+      return WAKEUP_CAUSE_TIMER;
+    case REBOOT_REASON_SLEEP_USB:
+      return WAKEUP_CAUSE_UNKNOWN;
+    default:
+      return WAKEUP_CAUSE_NONE;
+  }
+}
+#endif  // USE_DEEP_SLEEP_ON_WAKE
+
 optional<uint32_t> DeepSleepComponent::get_run_duration_() const { return this->run_duration_; }
 
 void DeepSleepComponent::dump_config_platform_() {
@@ -15,15 +30,15 @@ void DeepSleepComponent::dump_config_platform_() {
   }
 }
 
-bool DeepSleepComponent::pin_prevents_sleep_(WakeUpPinItem &pinItem) const {
-  return (pinItem.wakeup_pin_mode == WAKEUP_PIN_MODE_KEEP_AWAKE && pinItem.wakeup_pin != nullptr &&
-          !this->sleep_duration_.has_value() && (pinItem.wakeup_level == get_real_pin_state_(*pinItem.wakeup_pin)));
+bool DeepSleepComponent::pin_prevents_sleep_(WakeUpPinItem &pin_item) const {
+  return (pin_item.wakeup_pin_mode == WAKEUP_PIN_MODE_KEEP_AWAKE && pin_item.wakeup_pin != nullptr &&
+          !this->sleep_duration_.has_value() && (pin_item.wakeup_level == get_real_pin_state_(*pin_item.wakeup_pin)));
 }
 
 bool DeepSleepComponent::prepare_to_sleep_() {
-  if (wakeup_pins_.size() > 0) {
+  if (!this->wakeup_pins_.empty()) {
     for (WakeUpPinItem &item : this->wakeup_pins_) {
-      if (pin_prevents_sleep_(item)) {
+      if (this->pin_prevents_sleep_(item)) {
         // Defer deep sleep until inactive
         if (!this->next_enter_deep_sleep_) {
           this->status_set_warning();
@@ -44,7 +59,7 @@ void DeepSleepComponent::deep_sleep_() {
         item.wakeup_level = !item.wakeup_level;
       }
     }
-    ESP_LOGI(TAG, "Wake-up on P%u %s (%d)", item.wakeup_pin->get_pin(), item.wakeup_level ? "HIGH" : "LOW",
+    ESP_LOGI(TAG, "Wake-up on P%u %s (%" PRId32 ")", item.wakeup_pin->get_pin(), item.wakeup_level ? "HIGH" : "LOW",
              static_cast<int32_t>(item.wakeup_pin_mode));
   }
 

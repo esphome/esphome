@@ -171,6 +171,9 @@ uint8_t *DeviceInfoResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_
     ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 25, it);
   }
 #endif
+#ifdef USE_API_NOISE
+  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 26, this->api_encryption_provisionable);
+#endif
   return pos;
 }
 uint32_t DeviceInfoResponse::calculate_size() const {
@@ -232,6 +235,9 @@ uint32_t DeviceInfoResponse::calculate_size() const {
   for (const auto &it : this->serial_proxies) {
     size += ProtoSize::calc_message_force(2, it.calculate_size());
   }
+#endif
+#ifdef USE_API_NOISE
+  size += ProtoSize::calc_bool(2, this->api_encryption_provisionable);
 #endif
   return size;
 }

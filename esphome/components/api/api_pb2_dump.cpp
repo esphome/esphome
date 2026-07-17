@@ -983,6 +983,9 @@ const char *DeviceInfoResponse::dump_to(DumpBuffer &out) const {
     out.append("\n");
   }
 #endif
+#ifdef USE_API_NOISE
+  dump_field(out, ESPHOME_PSTR("api_encryption_provisionable"), this->api_encryption_provisionable);
+#endif
   return out.c_str();
 }
 const char *ListEntitiesDoneResponse::dump_to(DumpBuffer &out) const {
