@@ -2,6 +2,7 @@
     defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "usb_cdc_acm.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 #include <cstring>
@@ -233,17 +234,26 @@ void USBCDCACMInstance::usb_tx_task() {
       }
 
       // Bytes not yet handed to TinyUSB plus bytes still sitting in its transmit FIFO.
-      const size_t pending = tx_data_size + (CONFIG_TINYUSB_CDC_TX_BUFSIZE - tud_cdc_n_write_available(this->itf_));
+      // tud_cdc_n_write_occupied() is not public API in the pinned TinyUSB release, so
+      // derive the occupancy from the FIFO depth TinyUSB itself is configured with.
+      const size_t pending = tx_data_size + (CFG_TUD_CDC_TX_BUFSIZE - tud_cdc_n_write_available(this->itf_));
 
       // A flush timeout only means TinyUSB's transmit FIFO did not fully drain within
       // the wait window; the queued bytes are untouched and TinyUSB keeps sending them
       // from its transfer-complete callback once the host polls again. Clearing the
       // FIFO here would discard the tail of a frame whose head is already on the wire,
-      // corrupting the stream mid-frame. While a host is attached, hold the data and
-      // retry; sustained backpressure then propagates to the ring buffer, which drops
-      // whole writes with a warning instead of splitting a frame.
-      if (flush_ret == ESP_ERR_TIMEOUT && tud_ready()) {
-        const uint32_t now = esp_log_timestamp();
+      // corrupting the stream mid-frame. Hold the data and retry instead; sustained
+      // backpressure then propagates to the ring buffer, which drops whole writes with
+      // a warning instead of splitting a frame.
+      //
+      // Gate the retry on DTR (tud_cdc_n_connected()) rather than tud_ready(): an
+      // enumerated-but-idle host (no application holding the port open) never polls
+      // the IN endpoint, so retrying on tud_ready() alone would wedge this task -- and
+      // stall every write_array()/flush() caller behind a full ring buffer -- for as
+      // long as the board sits plugged into an idle PC. DTR means an application has
+      // the port open and is expected to eventually read.
+      if (flush_ret == ESP_ERR_TIMEOUT && tud_cdc_n_connected(this->itf_)) {
+        const uint32_t now = millis();
         if ((now - stall_log_ms) >= 1000) {
           stall_log_ms = now;
           ESP_LOGW(TAG, "USB TX itf=%d: host not reading; %zu bytes pending", this->itf_, pending);
@@ -251,10 +261,16 @@ void USBCDCACMInstance::usb_tx_task() {
         continue;
       }
 
-      // No host is attached (or the interface failed), so the data can never be
-      // delivered. TinyUSB does not clear its transmit FIFO on bus reset; drop the
-      // data here so a stale partial frame is not replayed to the next host.
-      ESP_LOGW(TAG, "USB TX itf=%d: no host; dropping %zu bytes", this->itf_, pending);
+      if (flush_ret == ESP_ERR_TIMEOUT) {
+        // No application has the port open (DTR deasserted) or the device is detached,
+        // so the data cannot be delivered. TinyUSB does not clear its transmit FIFO on
+        // bus reset; drop the data here so a stale partial frame is not replayed when
+        // the port is (re)opened.
+        ESP_LOGW(TAG, "USB TX itf=%d: not connected; dropping %zu bytes", this->itf_, pending);
+      } else {
+        ESP_LOGE(TAG, "USB TX itf=%d: flush failed (%s); dropping %zu bytes", this->itf_, esp_err_to_name(flush_ret),
+                 pending);
+      }
       tud_cdc_n_write_clear(this->itf_);
       break;
     }
