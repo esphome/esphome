@@ -247,9 +247,12 @@ class ModbusClientDevice {
   virtual void on_write_multiple_registers(uint16_t start_address, std::span<const uint16_t> registers,
                                            ResponseStatus status) {}
   virtual void on_write_multiple_coils(uint16_t start_address, PackedBits bits, ResponseStatus status) {}
-  /// Catch-all for custom or otherwise unparseable function codes; on failure the response is the exception PDU.
+  /// Catch-all for custom function codes and anything that is not a standard-conformant transaction
+  /// (see dispatch_response_()); on failure the response is empty and the exception code is in status.
+  /// The default implementation only logs a warning that the response is going unhandled - override it
+  /// to handle custom traffic (which also silences the warning).
   virtual void on_custom_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
-                                  ResponseStatus status) {}
+                                  ResponseStatus status);
   ESPDEPRECATED("Use the typed read_*/write_* helpers or send_pdu() instead. Removed in 2027.2.0", "2026.8.0")
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
             const uint8_t *payload = nullptr) {

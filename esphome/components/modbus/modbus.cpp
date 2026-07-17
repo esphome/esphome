@@ -772,8 +772,6 @@ void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu
     }
   }
   if (custom) {
-    ESP_LOGD(TAG, "Non-standard request or response for function code 0x%X - dispatching to on_custom_response()",
-             static_cast<uint8_t>(function_code));
     this->on_custom_response(request_pdu, response_pdu, status);
     return;
   }
@@ -853,6 +851,15 @@ void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu
       this->on_custom_response(request_pdu, response_pdu, status);
       break;
   }
+}
+
+// Default on_custom_response handler to warn when responses unexpectedly trigger on_custom_response
+void ModbusClientDevice::on_custom_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
+                                            ResponseStatus status) {
+  // The dispatcher never calls this with an empty request, but this is a public virtual - stay safe.
+  const uint8_t function_code = request_pdu.empty() ? 0 : request_pdu[0];
+  ESP_LOGW(TAG, "Non-standard request or response for function code 0x%X. No on_custom_response handler declared",
+           function_code);
 }
 
 }  // namespace esphome::modbus
