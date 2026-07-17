@@ -288,7 +288,8 @@ async def attributes_to_code(
         )
         await cg.register_component(attr_var, attr)
 
-        cg.add(attr_var.add_attr(attr[CONF_VALUE]))
+        template_arg = cg.TemplateArguments(get_c_type(attr[CONF_TYPE]))
+        cg.add(attr_var.add_attr(template_arg, attr[CONF_VALUE]))
         if CONF_REPORT in attr:
             cg.add(attr_var.set_report(attr[CONF_REPORT]))
 
