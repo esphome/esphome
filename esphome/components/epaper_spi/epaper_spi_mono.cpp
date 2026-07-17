@@ -14,10 +14,9 @@ void EPaperMono::refresh_screen(bool partial) {
 }
 
 void EPaperMono::deep_sleep() {
-  ESP_LOGV(TAG, "Deep sleep");
-  if (this->is_using_partial_update_()) {
-    this->cmd_data(0x10, {0x00});  // sleep in power on mode
-  } else {
+  // Deep sleep loses RAM so cannot be used with partial update
+  if (!this->is_using_partial_update_()) {
+    ESP_LOGV(TAG, "Deep sleep");
     this->cmd_data(0x10, {0x03});  // deep sleep
   }
 }

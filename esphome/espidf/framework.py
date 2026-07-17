@@ -9,6 +9,8 @@ import re
 import shutil
 import tempfile
 
+import platformdirs
+
 from esphome.config_validation import Version
 from esphome.core import CORE
 from esphome.framework_helpers import (
@@ -61,7 +63,7 @@ ESPHOME_IDF_FRAMEWORK_MIRRORS = str_to_lst_of_str(
     os.environ.get("ESPHOME_IDF_FRAMEWORK_MIRRORS")
     or [
         "https://github.com/esphome-libs/esp-idf/releases/download/v{VERSION}/esp-idf-v{VERSION}.tar.xz",
-        "https://github.com/esphome-libs/esp-idf/releases/download/v{MAJOR}.{MINOR}{EXTRA}/esp-idf-v{MAJOR}.{MINOR}{EXTRA}.tar.xz",
+        "https://github.com/esphome-libs/esp-idf/releases/download/v{SHORT_VERSION}/esp-idf-v{SHORT_VERSION}.tar.xz",
     ]
 )
 
@@ -73,17 +75,25 @@ ESP_IDF_CONSTRAINTS_MIRRORS = str_to_lst_of_str(
 )
 
 
-def _get_idf_tools_path() -> Path:
+def get_idf_tools_path() -> Path:
     """
     Get the path to the ESP-IDF tools directory.
 
     Returns:
         Path object pointing to the ESP-IDF tools directory
     """
-    if "ESPHOME_ESP_IDF_PREFIX" in os.environ:
-        path = Path(get_str_env("ESPHOME_ESP_IDF_PREFIX", None)).expanduser()
+    # Treat an empty/whitespace ESPHOME_ESP_IDF_PREFIX as unset: Path("")
+    # resolves to the CWD, which would install into (and let clean-all delete)
+    # the working directory by accident.
+    if prefix := get_str_env("ESPHOME_ESP_IDF_PREFIX", "").strip():
+        path = Path(prefix).expanduser()
     else:
-        path = CORE.data_dir / "idf"
+        # Machine-global so all projects share the multi-GB install instead of
+        # a per-config-directory copy. The user cache dir (not ~/.esphome)
+        # avoids colliding with data_dir when configs live in the home dir.
+        # appauthor=False drops the redundant <author>\ segment on Windows
+        # (which otherwise repeats "esphome\esphome\") to keep the path short.
+        path = Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "idf"
     # Resolve so an unnormalized config path (e.g. compiling ``../config/x.yaml``)
     # doesn't leave ``..`` segments in the IDF_TOOLS_PATH handed to idf.py, which
     # otherwise warns that the venv interpreter path doesn't match the install.
@@ -131,7 +141,7 @@ def _check_windows_path_length() -> None:
     """
     if platform.system() != "Windows" or _windows_long_paths_enabled():
         return
-    tools_path = str(_get_idf_tools_path())
+    tools_path = str(get_idf_tools_path())
     projected = len(tools_path) + _TOOLCHAIN_NESTED_PATH_LEN
     if projected <= _WINDOWS_MAX_PATH:
         return
@@ -145,10 +155,11 @@ def _check_windows_path_length() -> None:
         "  fatal error: bits/c++config.h: No such file or directory\n"
         "  cannot execute 'as': CreateProcess: No such file or directory\n"
         "To fix, either:\n"
-        "  - Enable Windows long path support: set\n"
-        "    HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem\\LongPathsEnabled\n"
-        "    to 1 and reboot, or\n"
-        "  - Move your ESPHome project to a shorter path\n"
+        "  - Enable Windows long path support, then reboot. In an elevated\n"
+        "    PowerShell run:\n"
+        "      Set-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\FileSystem' LongPathsEnabled 1\n"
+        "    Details: https://learn.microsoft.com/windows/win32/fileio/maximum-file-path-limitation\n"
+        "  - Or set ESPHOME_ESP_IDF_PREFIX to a shorter path (e.g. C:\\ESPHome\\idf)\n"
         "Then delete the ESP-IDF tools directory above so the toolchain "
         "reinstalls cleanly.",
         tools_path,
@@ -169,7 +180,7 @@ def _get_framework_path(version: str) -> Path:
     Returns:
         Path object pointing to the framework directory
     """
-    return _get_idf_tools_path() / "frameworks" / f"{version}"
+    return get_idf_tools_path() / "frameworks" / f"{version}"
 
 
 def _get_python_env_path(version: str) -> Path:
@@ -182,7 +193,7 @@ def _get_python_env_path(version: str) -> Path:
     Returns:
         Path object pointing to the Python environment directory
     """
-    return _get_idf_tools_path() / "penvs" / f"{version}"
+    return get_idf_tools_path() / "penvs" / f"{version}"
 
 
 def _check_stamp(file: PathType, data: dict[str, str]) -> bool:
@@ -525,10 +536,14 @@ def _check_esphome_idf_framework_install(
         env: Optional dictionary of environment variables to set
         source_url: Optional override URL for the framework tarball. Supports
             the same ``{VERSION}`` / ``{MAJOR}`` / ``{MINOR}`` / ``{PATCH}`` /
-            ``{EXTRA}`` substitutions as ESPHOME_IDF_FRAMEWORK_MIRRORS
-            (``{EXTRA}`` includes its leading ``-``, e.g. ``-rc1``, or is empty).
-            When set, it replaces the default mirror list — no implicit fallback,
-            so a misspelled URL fails loudly.
+            ``{EXTRA}`` / ``{SHORT_VERSION}`` substitutions as
+            ESPHOME_IDF_FRAMEWORK_MIRRORS (``{EXTRA}`` includes its leading
+            ``-``, e.g. ``-rc1``, or is empty; ``{SHORT_VERSION}`` is ``x.y``
+            plus any extra and only available for x.y.0 versions — a URL
+            referencing it is skipped for other versions). When set, it
+            replaces the default mirror list — no implicit fallback, so a
+            misspelled or skipped URL fails loudly with an EsphomeError naming
+            the URL.
 
     Returns:
         tuple of (framework_path, install_flag)
@@ -553,7 +568,7 @@ def _check_esphome_idf_framework_install(
     # Logged every invocation (not just on install) so the user can verify the
     # override. A changed URL needs ``esphome clean-all`` to force a re-download
     # (``esphome clean`` only wipes the build dir, not the extracted framework
-    # under <data_dir>/idf/frameworks/<version>).
+    # under the global install dir's ``frameworks/<version>``).
     if source_url:
         _LOGGER.info("Using framework source override: %s", source_url)
 
@@ -577,7 +592,11 @@ def _check_esphome_idf_framework_install(
             with tempfile.NamedTemporaryFile() as tmp:
                 _LOGGER.info("Downloading ESP-IDF %s framework ...", version)
 
-                # Create substitutions for the URLs
+                # Create substitutions for the URLs. SHORT_VERSION (x.y with
+                # optional -extra) is only provided for x.y.0 releases, since
+                # the vX.Y release tags only exist for those; templates that
+                # reference it are skipped for other versions by
+                # download_from_mirrors.
                 substitutions = {"VERSION": version}
                 try:
                     ver = Version.parse(version)
@@ -585,8 +604,17 @@ def _check_esphome_idf_framework_install(
                     substitutions["MINOR"] = str(ver.minor)
                     substitutions["PATCH"] = str(ver.patch)
                     substitutions["EXTRA"] = f"-{ver.extra}" if ver.extra else ""
+                    if ver.patch == 0:
+                        substitutions["SHORT_VERSION"] = (
+                            f"{ver.major}.{ver.minor}{substitutions['EXTRA']}"
+                        )
                 except ValueError:
-                    pass
+                    _LOGGER.warning(
+                        "ESP-IDF version '%s' is not a valid version number; "
+                        "only the {VERSION} substitution is available for "
+                        "mirror URLs",
+                        version,
+                    )
 
                 mirrors = [source_url] if source_url else ESPHOME_IDF_FRAMEWORK_MIRRORS
                 download_from_mirrors(mirrors, substitutions, tmp.file)
@@ -696,7 +724,7 @@ def _check_esp_idf_python_env_install(
 
         esp_idf_version = _get_idf_version(framework_path, env=env)
         constraint_file_path = (
-            _get_idf_tools_path() / f"espidf.constraints.v{esp_idf_version}.txt"
+            get_idf_tools_path() / f"espidf.constraints.v{esp_idf_version}.txt"
         )
         _LOGGER.debug("ESP-IDF version %s", esp_idf_version)
 
@@ -787,7 +815,7 @@ def check_esp_idf_install(
     _check_windows_path_length()
 
     env = {}
-    env["IDF_TOOLS_PATH"] = str(_get_idf_tools_path())
+    env["IDF_TOOLS_PATH"] = str(get_idf_tools_path())
     env["IDF_PATH"] = ""
 
     targets = targets or ESPHOME_IDF_DEFAULT_TARGETS
@@ -822,11 +850,9 @@ def _ccache_env() -> dict[str, str]:
 
     Enabled by default whenever the ``ccache`` binary is on PATH; set
     ``IDF_CCACHE_ENABLE=0`` in the environment to opt out. The cache lives under
-    the IDF tools path. How widely it is shared depends on where that resolves:
-    across projects (and surviving ``clean-all``) when it is a common location
-    (``ESPHOME_ESP_IDF_PREFIX`` or the add-on ``/data``), but per-project under
-    ``.esphome/idf`` for a default pip install, where ``clean-all`` clears it
-    along with the framework.
+    the IDF tools path (the machine-global cache dir, or
+    ``ESPHOME_ESP_IDF_PREFIX``), so it is shared across all projects and removed
+    by ``esphome clean-all`` along with the framework.
 
     Depend mode keeps cache-miss overhead low (hashes the compiler's depfiles
     instead of preprocessing). ``CCACHE_BASEDIR`` rewrites the per-build
@@ -858,7 +884,7 @@ def _ccache_env() -> dict[str, str]:
 
     defaults = {
         "IDF_CCACHE_ENABLE": "1",
-        "CCACHE_DIR": str(_get_idf_tools_path() / "ccache"),
+        "CCACHE_DIR": str(get_idf_tools_path() / "ccache"),
         "CCACHE_NOHASHDIR": "true",
         "CCACHE_DEPEND": "1",
         "CCACHE_BASEDIR": str(Path(CORE.build_path).resolve()),
@@ -885,7 +911,7 @@ def get_framework_env(
     """
     # 1. Initialize base environment with extra ESP-IDF environment variables
     env = env.copy() if env else {}
-    env["IDF_TOOLS_PATH"] = str(_get_idf_tools_path())
+    env["IDF_TOOLS_PATH"] = str(get_idf_tools_path())
     env["IDF_PATH"] = ""
 
     # 2. Get existing PATH from env or os.environ

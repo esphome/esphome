@@ -10,7 +10,7 @@
 
 namespace esphome::mqtt {
 
-class MQTTSensorComponent : public mqtt::MQTTComponent {
+class MQTTSensorComponent final : public mqtt::MQTTComponent {
  public:
   /** Construct this MQTTSensorComponent instance with the provided friendly_name and sensor
    *

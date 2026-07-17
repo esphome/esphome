@@ -51,13 +51,12 @@ void ModbusClientHub::loop() {
   //  If we're past the send_wait_time timeout and response buffer doesn't have the start of the expected response
   if (this->waiting_for_response_.has_value()) {
     ModbusDeviceCommand &wfr = this->waiting_for_response_.value();
-    uint8_t expected_address = wfr.frame.data.get()[0];
+    uint8_t expected_address = wfr.frame.data.data()[0];
     if (this->last_receive_check_ - this->last_send_ > this->last_send_tx_offset_ + this->send_wait_time_ &&
         (this->rx_buffer_.empty() || this->rx_buffer_[0] != expected_address)) {
       ESP_LOGW(TAG, "Stop waiting for response from %" PRIu8 " %" PRIu32 "ms after last send", expected_address,
                this->last_receive_check_ - this->last_send_);
-      if (wfr.device)
-        wfr.device->on_modbus_no_response();
+      this->notify_no_response_(wfr);
       this->waiting_for_response_.reset();
     }
   }
@@ -92,14 +91,10 @@ int32_t Modbus::tx_delay_remaining() {
 
 int32_t ModbusClientHub::tx_delay_remaining() {
   const uint32_t now = millis();
-  // Turnaround delay only applies after a broadcast: no response is expected, so we must give listening devices
-  // quiet time to process it before the next request. For normal unicast request/response the received reply already
-  // provides the inter-frame timing, so adding turnaround there just throttles throughput.
-  const uint16_t turnaround = this->last_send_was_broadcast_ ? this->turnaround_delay_ms_ : 0;
-  return std::max(
-      {(int32_t) 0,
-       (int32_t) (this->last_send_tx_offset_ + this->frame_delay_ms_ + turnaround - (now - this->last_send_)),
-       (int32_t) (this->frame_delay_ms_ + turnaround - (now - this->last_modbus_byte_))});
+  return std::max({(int32_t) 0,
+                   (int32_t) (this->last_send_tx_offset_ + this->frame_delay_ms_ + this->turnaround_delay_ms_ -
+                              (now - this->last_send_)),
+                   (int32_t) (this->frame_delay_ms_ + this->turnaround_delay_ms_ - (now - this->last_modbus_byte_))});
 }
 
 bool Modbus::tx_blocked() {
@@ -258,7 +253,7 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   std::memcpy(data, this->rx_buffer_.data() + data_offset, data_len);
   this->clear_rx_buffer_(LOG_STR("parse succeeded"), false, frame_length);
 
-  this->process_modbus_client_frame_(address, function_code, data, data_len);
+  this->process_modbus_client_frame_(address, function_code, data);
 
   return true;
 }
@@ -274,19 +269,18 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t funct
     // Check if the response matches the expected address and function code
 
     ModbusDeviceCommand &wfr = this->waiting_for_response_.value();
-    uint8_t expected_address = wfr.frame.data.get()[0];
-    uint8_t expected_function_code = wfr.frame.data.get()[1];
+    uint8_t expected_address = wfr.frame.data.data()[0];
+    uint8_t expected_function_code = wfr.frame.data.data()[1];
     if (expected_address != address || expected_function_code != (function_code & FUNCTION_CODE_MASK)) {
       ESP_LOGW(TAG,
                "Received incorrect frame address %" PRIu8 " <> %" PRIu8 " or function code 0x%X <> 0x%X, %" PRIu32
                "ms after last send",
                address, expected_address, (function_code & FUNCTION_CODE_MASK), expected_function_code,
                this->last_modbus_byte_ - this->last_send_);
-      // Invalidate the waiting device so it won't process this response.
-      if (wfr.device)
-        wfr.device->on_modbus_no_response();
+      // Invalidate the device; the entry survives as an interrupted shell so the late response is ignored.
+      // A retry requested here stays queued behind the shell until the send-wait timeout clears it.
+      this->notify_no_response_(wfr);
       wfr.interrupted = true;
-      wfr.device = nullptr;
       return;
     }
 
@@ -321,10 +315,8 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t funct
 }
 
 void ModbusServerHub::process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *, uint16_t) {
-  for (auto *device : this->devices_) {
-    if (device->address_ == address) {
-      ESP_LOGE(TAG, "Unexpected response from address %" PRIu8 ", which is mapped to this device.", address);
-    }
+  if (this->find_device_(address) != nullptr) {
+    ESP_LOGE(TAG, "Unexpected response from address %" PRIu8 ", which is mapped to this device.", address);
   }
 
   if (this->expecting_peer_response_ == address) {
@@ -338,31 +330,124 @@ void ModbusServerHub::process_modbus_server_frame(uint8_t address, uint8_t funct
   this->expecting_peer_response_ = 0;
 }
 
-void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data,
-                                                   uint16_t len) {
-  bool found = false;
-
+ModbusServerDevice *ModbusServerHub::find_device_(uint8_t address) {
   for (auto *device : this->devices_) {
-    if (device->address_ == address) {
-      found = true;
-
-      if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
-          static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_INPUT_REGISTERS) {
-        device->on_modbus_read_registers(function_code, helpers::get_data<uint16_t>(data, 0),
-                                         helpers::get_data<uint16_t>(data, 2));
-      } else if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
-                 static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
-        device->on_modbus_write_registers(function_code, std::vector<uint8_t>(data, data + len));
-      } else {
-        ESP_LOGW(TAG, "Unsupported function code %" PRIu8, function_code);
-        device->send_error(function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
-      }
+    if (device->get_address() == address) {
+      return device;
     }
   }
+  return nullptr;
+}
 
-  if (!found) {
+bool ModbusServerHub::check_register_range_(uint8_t address, uint8_t function_code, uint16_t start_address,
+                                            uint16_t number_of_registers) {
+  if ((uint32_t) start_address + number_of_registers > 0x10000u) {
+    ESP_LOGW(TAG, "Register address out of range - start: %" PRIu16 " num: %" PRIu16, start_address,
+             number_of_registers);
+    this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+    return false;
+  }
+  return true;
+}
+
+void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data) {
+  ModbusServerDevice *device = this->find_device_(address);
+  if (device == nullptr) {
     this->expecting_peer_response_ = address;
     ESP_LOGV(TAG, "Request to peer %" PRIu8 " received", address);
+    return;
+  }
+
+  ResponseStatus status;
+  uint8_t response_buffer[modbus::MAX_RAW_SIZE];
+  const uint8_t *response_data = response_buffer;
+  uint16_t response_len = 0;
+
+  switch (static_cast<ModbusFunctionCode>(function_code)) {
+    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
+    case ModbusFunctionCode::READ_INPUT_REGISTERS: {
+      // PDU data: start address(2) + quantity(2).
+      uint16_t start_address = helpers::get_data<uint16_t>(data, 0);
+      uint16_t number_of_registers = helpers::get_data<uint16_t>(data, 2);
+      if (number_of_registers == 0 || number_of_registers > MAX_NUM_OF_REGISTERS_TO_READ) {
+        ESP_LOGW(TAG, "Invalid number of registers %" PRIu16, number_of_registers);
+        this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
+        return;
+      }
+      if (!this->check_register_range_(address, function_code, start_address, number_of_registers)) {
+        return;
+      }
+      RegisterValues registers;
+      if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_HOLDING_REGISTERS) {
+        status = device->on_read_holding_registers(start_address, number_of_registers, registers);
+      } else {
+        status = device->on_read_input_registers(start_address, number_of_registers, registers);
+      }
+
+      // A handler that returns an exception leaves registers partially filled, so check the exception
+      // first and forward it before validating the register count on the success path.
+      if (status.has_value()) {
+        this->send_exception_(address, function_code, status.value());
+        return;
+      }
+
+      if (registers.size() != number_of_registers) {
+        ESP_LOGE(TAG, "Incorrect response %" PRIu16 " requested, %zu returned", number_of_registers, registers.size());
+        this->send_exception_(address, function_code, ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
+        return;
+      }
+
+      response_buffer[response_len++] = static_cast<uint8_t>(number_of_registers * 2);  // actual byte count
+      for (auto r : registers) {
+        auto register_bytes = decode_value(r);
+        response_buffer[response_len++] = register_bytes[0];
+        response_buffer[response_len++] = register_bytes[1];
+      }
+      break;
+    }
+    case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
+    case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS: {
+      // PDU data: start address(2) [+ quantity(2) + byte count(1)] + register values.
+      // A single-register write always targets one register; for a multiple-register write the
+      // quantity is in the frame and its byte count must equal quantity * 2. The register values are
+      // assembled into registers below so the handler doesn't have to know the request framing.
+      uint16_t start_address = helpers::get_data<uint16_t>(data, 0);
+      uint16_t number_of_registers = 1;
+      uint16_t values_offset = 2;  // single write: values follow the 2-byte start address
+      if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
+        number_of_registers = helpers::get_data<uint16_t>(data, 2);
+        uint8_t number_of_bytes = helpers::get_data<uint8_t>(data, 4);
+        values_offset = 5;  // multiple write: values follow start address(2) + quantity(2) + byte count(1)
+        if (number_of_registers == 0 || number_of_registers > MAX_NUM_OF_REGISTERS_TO_WRITE ||
+            number_of_registers * 2 != number_of_bytes) {
+          ESP_LOGW(TAG, "Invalid number of registers %" PRIu16 " or bytes %" PRIu8, number_of_registers,
+                   number_of_bytes);
+          this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
+          return;
+        }
+        if (!this->check_register_range_(address, function_code, start_address, number_of_registers)) {
+          return;
+        }
+      }
+      // Assemble the register values (host byte order) so the handler never sees wire framing.
+      RegisterValues registers;
+      for (uint16_t i = 0; i < number_of_registers; i++) {
+        registers.push_back(helpers::get_data<uint16_t>(data, values_offset + i * 2));
+      }
+      status = device->on_write_registers(start_address, registers);
+      response_data = data;  // echo the request header per Modbus 6.6, 6.12
+      response_len = 4;
+      break;
+    }
+    default:
+      ESP_LOGW(TAG, "Unsupported function code %" PRIu8, function_code);
+      this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
+      return;
+  }
+  if (status.has_value()) {
+    this->send_exception_(address, function_code, status.value());
+  } else {
+    this->send_response_(address, function_code, response_data, response_len);
   }
 }
 
@@ -371,7 +456,7 @@ bool Modbus::send_frame_(const ModbusFrame &frame) {
     ESP_LOGE(TAG, "Attempted to send while transmission blocked");
     return false;
   }
-  if (frame.size > MAX_FRAME_SIZE) {
+  if (frame.size() > MAX_FRAME_SIZE) {
     ESP_LOGE(TAG, "Attempted to send frame larger than max frame size of %" PRIu16 " bytes", MAX_FRAME_SIZE);
     return false;
   }
@@ -383,13 +468,13 @@ bool Modbus::send_frame_(const ModbusFrame &frame) {
 
   if (this->flow_control_pin_ != nullptr) {
     this->flow_control_pin_->digital_write(true);
-    this->write_array(frame.data.get(), frame.size);
+    this->write_array(frame.data.data(), frame.size());
     this->flush();
     this->flow_control_pin_->digital_write(false);
     this->last_send_tx_offset_ = 0;
   } else {
-    this->write_array(frame.data.get(), frame.size);
-    this->last_send_tx_offset_ = frame.size * MODBUS_BITS_PER_CHAR * MS_PER_SEC / this->parent_->get_baud_rate() + 1;
+    this->write_array(frame.data.data(), frame.size());
+    this->last_send_tx_offset_ = frame.size() * MODBUS_BITS_PER_CHAR * MS_PER_SEC / this->parent_->get_baud_rate() + 1;
   }
 
   uint32_t now = millis();
@@ -397,10 +482,9 @@ bool Modbus::send_frame_(const ModbusFrame &frame) {
   char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
 #endif
   ESP_LOGV(TAG, "Write: %s %" PRIu32 "ms after last send, %" PRIu32 "ms after last receive",
-           format_hex_pretty_to(hex_buf, frame.data.get(), frame.size), now - this->last_send_,
+           format_hex_pretty_to(hex_buf, frame.data.data(), frame.size()), now - this->last_send_,
            now - this->last_modbus_byte_);
   this->last_send_ = now;
-  this->last_send_was_broadcast_ = frame.size > 0 && frame.data[0] == 0;
   return true;
 }
 
@@ -416,8 +500,7 @@ void ModbusClientHub::send_next_frame_() {
   ModbusDeviceCommand &command = this->tx_buffer_.front();
 
   if (this->send_frame_(command.frame)) {
-    if (!this->last_send_was_broadcast_)
-      this->waiting_for_response_ = std::move(command);
+    this->waiting_for_response_ = std::move(command);
   } else {
     if (command.device)
       command.device->on_modbus_not_sent();
@@ -455,20 +538,54 @@ float Modbus::get_setup_priority() const {
   return setup_priority::BUS - 1.0f;
 }
 
-void ModbusServerHub::send(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &payload) {
-  const uint16_t len = static_cast<uint16_t>(2 + payload.size());
-  if (len > MAX_RAW_SIZE) {
-    ESP_LOGE(TAG, "Server send frame too large (%" PRIu16 " bytes)", len);
+void ModbusServerHub::send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload,
+                                     uint16_t payload_len) {
+  // Build the raw frame (address + function code + payload) in a stack buffer; it's consumed
+  // immediately by send_raw_ and a full raw frame never exceeds MAX_RAW_SIZE.
+  if (payload_len + 2 > MAX_RAW_SIZE) {
+    ESP_LOGE(TAG, "Server response too large (%" PRIu16 " bytes)", static_cast<uint16_t>(payload_len + 2));
     return;
   }
   uint8_t raw_frame[MAX_RAW_SIZE];
   raw_frame[0] = address;
   raw_frame[1] = function_code;
-  std::memcpy(raw_frame + 2, payload.data(), payload.size());
-  this->send_raw_(raw_frame, len);
+  std::memcpy(raw_frame + 2, payload, payload_len);
+  this->send_raw_(raw_frame, payload_len + 2);
+}
+
+void ModbusServerHub::send_exception_(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code) {
+  uint8_t raw_frame[3];
+  raw_frame[0] = address;
+  raw_frame[1] = function_code | FUNCTION_CODE_EXCEPTION_MASK;
+  raw_frame[2] = static_cast<uint8_t>(exception_code);
+  this->send_raw_(raw_frame, 3);
 }
 
 // Raw send for client: pushes to tx queue. Everything except the CRC must be contained in payload.
+void ModbusClientHub::notify_no_response_(ModbusDeviceCommand &wfr) {
+  if (wfr.device == nullptr)
+    return;
+  const bool retry = wfr.device->on_modbus_no_response();
+  // The callback may have detached the device (e.g. clear_tx_queue_for_device()); honor the detach
+  // over the retry request rather than re-queueing a frame that can no longer be routed.
+  if (retry && wfr.device != nullptr)
+    this->requeue_waiting_frame_(wfr);
+  // The old transaction is over either way; never deliver anything else to the device through it.
+  wfr.device = nullptr;
+}
+
+void ModbusClientHub::requeue_waiting_frame_(ModbusDeviceCommand &wfr) {
+  const ModbusFrame &frame = wfr.frame;
+  if (this->tx_buffer_.size() >= MODBUS_TX_BUFFER_SIZE) {
+    ESP_LOGE(TAG, "Write buffer full, dropped retry for address %" PRIu8, frame.data.data()[0]);
+    if (wfr.device != nullptr)
+      wfr.device->on_modbus_not_sent();
+    return;
+  }
+  // Re-queue a copy (not a move): the waiting entry may have to survive as an interrupted shell.
+  this->tx_buffer_.emplace_back(wfr.device, frame.data.data()[0], frame.data.data() + 1, frame.size() - 3);
+}
+
 void ModbusClientHub::queue_raw_(uint8_t address, const uint8_t *pdu, uint16_t pdu_len, ModbusClientDevice *device) {
   if (pdu_len == 0) {
     if (device)
@@ -495,12 +612,13 @@ void ModbusClientHub::queue_raw_(uint8_t address, const uint8_t *pdu, uint16_t p
 void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sent) {
   // Remove any pending commands for this address from the tx buffer
   auto &tx_buffer = this->tx_buffer_;
-  tx_buffer.erase(std::remove_if(tx_buffer.begin(), tx_buffer.end(),
-                                 [address](const ModbusDeviceCommand &cmd) { return cmd.frame.data[0] == address; }),
-                  tx_buffer.end());
+  tx_buffer.erase(
+      std::remove_if(tx_buffer.begin(), tx_buffer.end(),
+                     [address](const ModbusDeviceCommand &cmd) { return cmd.frame.data.data()[0] == address; }),
+      tx_buffer.end());
 
   if (clear_sent && this->waiting_for_response_.has_value() && this->waiting_for_response_.value().device) {
-    if (this->waiting_for_response_.value().frame.data[0] == address) {
+    if (this->waiting_for_response_.value().frame.data.data()[0] == address) {
       ESP_LOGV(TAG, "Clearing waiting for response for address %" PRIu8, address);
       // Invalidate the waiting device so it won't process a response.
       this->waiting_for_response_.value().device = nullptr;

@@ -52,9 +52,11 @@ from esphome.writer import clean_build
 from esphome.yaml_util import load_yaml
 
 from . import defines as df, lv_validation as lvalid, widgets
+from .animation import ANIMATION_SCHEMA, add_animation_triggers, animations_to_code
 from .automation import layers_to_code, lvgl_update
 from .defines import (
     CONF_ALIGN_TO_LAMBDA_ID,
+    CONF_ANIMATIONS,
     LOGGER,
     add_lv_use,
     get_focused_widgets,
@@ -146,6 +148,8 @@ SIMPLE_TRIGGERS = (
     df.CONF_ON_RESUME,
     df.CONF_ON_DRAW_START,
     df.CONF_ON_DRAW_END,
+    df.CONF_ON_LANDSCAPE,
+    df.CONF_ON_PORTRAIT,
 )
 
 
@@ -414,6 +418,10 @@ async def to_code(configs):
         await cg.register_component(lv_component, config)
         if rotation := config.get(CONF_ROTATION):
             cg.add(lv_component.set_rotation(rotation))
+        if paused := config[df.CONF_PAUSED]:
+            cg.add(lv_component.set_paused(paused, False))
+        if refr_time := config.get(df.CONF_REFRESH_INTERVAL):
+            cg.add(lv_component.set_refresh_interval(refr_time.total_milliseconds))
         Widget.create(config[CONF_ID], lv_component, LvScrActType(), config)
 
         lv_scr_act = get_screen_active(lv_component)
@@ -431,7 +439,8 @@ async def to_code(configs):
             await layers_to_code(lv_component, config)
             await lvgl_update(lv_component, config)
             await msgboxes_to_code(lv_component, config)
-            # await disp_update(lv_component.get_disp(), config)
+            await animations_to_code(config.get(CONF_ANIMATIONS, []))
+
     # Mark all widgets as completed so awaiters of ``wait_for_widgets`` proceed.
     set_widgets_completed(True)
     async with LvContext():
@@ -439,6 +448,7 @@ async def to_code(configs):
         await generate_align_tos(configs[0])
         for config in configs:
             lv_component = await cg.get_variable(config[CONF_ID])
+            await add_animation_triggers(config.get(CONF_ANIMATIONS, []))
             await generate_page_triggers(config)
             await initial_focus_to_code(config)
             for conf in config.get(CONF_ON_IDLE, ()):
@@ -598,6 +608,7 @@ LVGL_TOP_LEVEL_SCHEMA = (
             cv.Optional(df.CONF_DEFAULT_FONT, default="montserrat_14"): lvalid.lv_font,
             cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
             cv.Optional(df.CONF_UPDATE_WHEN_DISPLAY_IDLE, default=False): cv.boolean,
+            cv.Optional(df.CONF_REFRESH_INTERVAL): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_DRAW_ROUNDING, default=2): cv.positive_int,
             cv.Optional(CONF_BUFFER_SIZE, default=0): cv.percentage,
             cv.Optional(CONF_ROTATION): validate_rotation,
@@ -631,6 +642,7 @@ LVGL_TOP_LEVEL_SCHEMA = (
                 for x in SIMPLE_TRIGGERS
             },
             cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
+            cv.Optional(df.CONF_ANIMATIONS): cv.ensure_list(ANIMATION_SCHEMA),
             cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
             cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
             cv.Optional(df.CONF_BOTTOM_LAYER): container_schema(obj_spec),
@@ -642,6 +654,7 @@ LVGL_TOP_LEVEL_SCHEMA = (
             cv.Optional(df.CONF_KEYPADS, default=None): KEYPADS_CONFIG,
             cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),
             cv.Optional(df.CONF_RESUME_ON_INPUT, default=True): cv.boolean,
+            cv.Optional(df.CONF_PAUSED, default=False): cv.boolean,
         }
     )
     .extend(DISP_BG_SCHEMA)

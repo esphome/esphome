@@ -138,6 +138,7 @@ def _request_high_performance_networking(config: ConfigType) -> ConfigType:
     socket.consume_sockets(1, "sendspin_websocket_client")(config)
 
     wifi.enable_runtime_power_save_control()
+    wifi.enable_runtime_roaming_suppression()
     return config
 
 

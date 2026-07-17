@@ -13,6 +13,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANTS,
     NetworkSdkconfigData,
+    _ota_downgrade_protection_errors,
     _reconcile_network_sdkconfig,
 )
 from esphome.components.esp32.const import (
@@ -174,6 +175,29 @@ def test_esp32_default_toolchain_is_esp_idf(
             r"'ignore_efuse_mac_crc' is not supported on ESP32S3 @ data\['framework'\]\['advanced'\]\['ignore_efuse_mac_crc'\]",
             id="ignore_efuse_mac_crc_only_on_esp32",
         ),
+        pytest.param(
+            {
+                "variant": "esp32",
+                "board": "esp32dev",
+                "framework": {
+                    "type": "esp-idf",
+                    "advanced": {"nvs_encryption": {"key_id": 0}},
+                },
+            },
+            r"NVS encryption \(HMAC scheme\) is not supported on ESP32 .* @ data\['framework'\]\['advanced'\]\['nvs_encryption'\]",
+            id="nvs_encryption_unsupported_on_esp32",
+        ),
+        pytest.param(
+            {
+                "variant": "esp32s3",
+                "framework": {
+                    "type": "esp-idf",
+                    "advanced": {"nvs_encryption": {"key_id": 6}},
+                },
+            },
+            r"value must be at most 5 .* @ data\['framework'\]\['advanced'\]\['nvs_encryption'\]\['key_id'\]",
+            id="nvs_encryption_key_id_out_of_range",
+        ),
     ],
 )
 def test_esp32_configuration_errors(
@@ -211,6 +235,21 @@ def test_execute_from_psram_p4_sdkconfig(
     assert sdkconfig.get("CONFIG_SPIRAM_XIP_FROM_PSRAM") is True
     assert "CONFIG_SPIRAM_FETCH_INSTRUCTIONS" not in sdkconfig
     assert "CONFIG_SPIRAM_RODATA" not in sdkconfig
+
+
+def test_nvs_encryption_sdkconfig(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that nvs_encryption sets the HMAC scheme sdkconfig options."""
+    generate_main(component_config_path("nvs_encryption_s3.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_NVS_ENCRYPTION") is True
+    assert sdkconfig.get("CONFIG_NVS_SEC_KEY_PROTECT_USING_HMAC") is True
+    assert sdkconfig.get("CONFIG_NVS_SEC_HMAC_EFUSE_KEY_ID") == 0
+    # The permanent/irreversible eFuse burn is warned about at config time.
+    assert "PERMANENT and IRREVERSIBLE" in caplog.text
 
 
 @pytest.mark.parametrize(
@@ -560,3 +599,169 @@ def test_network_wifi_ble_coexistence_reconciles_end_to_end(
     assert sdkconfig.get("CONFIG_LWIP_DHCPS") is False
     # WiFi present alongside BT -> WiFi stack must stay enabled.
     assert "CONFIG_ESP_WIFI_ENABLED" not in sdkconfig
+
+
+def test_esp32_build_internals_are_yaml_only() -> None:
+    """ESP32 raw framework / build inputs are ``YAML_ONLY``.
+
+    The framework block's PlatformIO package pins, raw ESP-IDF
+    sdkconfig options, the low-level ``advanced`` block, extra IDF
+    component sources, plus the partition table and toolchain override
+    on the main schema are build internals — never UI form fields.
+    User-facing choices (framework type/version, board, variant, …)
+    stay on the main form.
+    """
+    from esphome.components.esp32 import CONFIG_SCHEMA, FRAMEWORK_SCHEMA
+
+    fw_markers = {str(k): k for k in FRAMEWORK_SCHEMA.schema}
+    for field in (
+        "release",
+        "source",
+        "platform_version",
+        "sdkconfig_options",
+        "advanced",
+        "components",
+    ):
+        assert fw_markers[field].visibility is cv.Visibility.YAML_ONLY, field
+    # Framework type/version remain user-facing.
+    assert fw_markers["type"].visibility is None
+    assert fw_markers["version"].visibility is None
+
+    main_markers = {str(k): k for k in CONFIG_SCHEMA.validators[0].schema}
+    assert main_markers["partitions"].visibility is cv.Visibility.YAML_ONLY
+    # toolchain is a real but rarely-touched override -> advanced disclosure.
+    assert main_markers["toolchain"].visibility is cv.Visibility.ADVANCED
+    assert main_markers["board"].visibility is None
+    assert main_markers["flash_size"].visibility is None
+
+
+def test_downgrade_protection_passes_with_numeric_version_and_signing() -> None:
+    assert _ota_downgrade_protection_errors("1.2.3", signed_ota_enabled=True) == []
+
+
+def test_downgrade_protection_accepts_calendar_version() -> None:
+    assert _ota_downgrade_protection_errors("2024.12.0", signed_ota_enabled=True) == []
+
+
+def test_downgrade_protection_requires_project_version() -> None:
+    errs = _ota_downgrade_protection_errors(None, signed_ota_enabled=True)
+    assert len(errs) == 1
+    assert "version" in str(errs[0])
+
+
+def test_downgrade_protection_rejects_non_numeric_version() -> None:
+    errs = _ota_downgrade_protection_errors("1.0-beta", signed_ota_enabled=True)
+    assert len(errs) == 1
+    assert "dotted-numeric" in str(errs[0])
+
+
+def test_downgrade_protection_requires_signed_ota() -> None:
+    errs = _ota_downgrade_protection_errors("1.2.3", signed_ota_enabled=False)
+    assert len(errs) == 1
+    assert "signed_ota_verification" in str(errs[0])
+
+
+def test_downgrade_protection_reports_all_unmet_requirements() -> None:
+    # No project version and no signing -> two distinct errors.
+    errs = _ota_downgrade_protection_errors(None, signed_ota_enabled=False)
+    assert len(errs) == 2
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        # V2 schemes: signing key (sign during build) or no key at all
+        # (external signing; the public key travels in the signature block).
+        {"signing_scheme": "rsa3072", "signing_key": "key.pem"},
+        {"signing_scheme": "rsa3072"},
+        {"signing_scheme": "ecdsa256", "signing_key": "key.pem"},
+        {"signing_scheme": "ecdsa256"},
+        # V1 ECDSA: exactly one of signing key / verification key.
+        {"signing_scheme": "ecdsa_v1", "signing_key": "key.pem"},
+        {"signing_scheme": "ecdsa_v1", "verification_key": "key.bin"},
+    ],
+)
+def test_signed_ota_keys_valid_combinations(config: dict) -> None:
+    from esphome.components.esp32 import _validate_signed_ota_keys
+
+    assert _validate_signed_ota_keys(config) is config
+
+
+@pytest.mark.parametrize("value", [None, {}])
+def test_signed_ota_bare_block_selects_v2_external_signing(value: dict | None) -> None:
+    """A bare `signed_ota_verification:` block is valid: the default V2
+    scheme embeds the public key in the signature block, so verifying
+    externally-signed binaries needs no keys in the config."""
+    from esphome.components.esp32 import _validate_signed_ota_verification
+
+    config = _validate_signed_ota_verification(value)
+    assert config == {"signing_scheme": "rsa3072"}
+
+
+@pytest.mark.parametrize(
+    ("config", "match"),
+    [
+        # A verification key is meaningless with the V2 schemes -- the public
+        # key is embedded in each image's signature block.
+        (
+            {"signing_scheme": "rsa3072", "verification_key": "key.bin"},
+            "only used with signing scheme 'ecdsa_v1'",
+        ),
+        (
+            {"signing_scheme": "ecdsa256", "verification_key": "key.bin"},
+            "only used with signing scheme 'ecdsa_v1'",
+        ),
+        # V1 ECDSA needs a key either way.
+        (
+            {"signing_scheme": "ecdsa_v1"},
+            "Signing scheme 'ecdsa_v1' requires either",
+        ),
+        # Never both keys at once.
+        (
+            {
+                "signing_scheme": "rsa3072",
+                "signing_key": "key.pem",
+                "verification_key": "key.bin",
+            },
+            "not both",
+        ),
+        (
+            {
+                "signing_scheme": "ecdsa_v1",
+                "signing_key": "key.pem",
+                "verification_key": "key.bin",
+            },
+            "not both",
+        ),
+    ],
+)
+def test_signed_ota_keys_invalid_combinations(config: dict, match: str) -> None:
+    from esphome.components.esp32 import _validate_signed_ota_keys
+
+    with pytest.raises(cv.Invalid, match=match):
+        _validate_signed_ota_keys(config)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        # Full x.y.z versions are rewritten into pioarduino release URLs
+        (
+            "55.3.30",
+            "https://github.com/pioarduino/platform-espressif32/releases/download/55.03.30/platform-espressif32.zip",
+        ),
+        (
+            "55.3.31-2",
+            "https://github.com/pioarduino/platform-espressif32/releases/download/55.03.31-2/platform-espressif32.zip",
+        ),
+        # Non-version values pass through untouched
+        (
+            "https://github.com/pioarduino/platform-espressif32.git#develop",
+            "https://github.com/pioarduino/platform-espressif32.git#develop",
+        ),
+    ],
+)
+def test_parse_pio_platform_version(value: str, expected: str) -> None:
+    from esphome.components.esp32 import _parse_pio_platform_version
+
+    assert _parse_pio_platform_version(value) == expected

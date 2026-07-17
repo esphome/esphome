@@ -50,7 +50,9 @@ _BUTTON_SCHEMA = (
     .extend(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTButtonComponent),
-            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
+            cv.Optional(
+                CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): validate_device_class,
             cv.Optional(CONF_ON_PRESS): automation.validate_automation({}),
         }
     )

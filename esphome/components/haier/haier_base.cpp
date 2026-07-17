@@ -132,7 +132,7 @@ void HaierClimateBase::save_settings() {
 }
 
 bool HaierClimateBase::get_display_state() const {
-  return (this->display_status_ == SwitchState::ON) || (this->display_status_ == SwitchState::PENDING_ON);
+  return (this->display_status_ == SwitchState::SWITCH_ON) || (this->display_status_ == SwitchState::PENDING_ON);
 }
 
 void HaierClimateBase::set_display_state(bool state) {
@@ -144,7 +144,7 @@ void HaierClimateBase::set_display_state(bool state) {
 }
 
 bool HaierClimateBase::get_health_mode() const {
-  return (this->health_mode_ == SwitchState::ON) || (this->health_mode_ == SwitchState::PENDING_ON);
+  return (this->health_mode_ == SwitchState::SWITCH_ON) || (this->health_mode_ == SwitchState::PENDING_ON);
 }
 
 void HaierClimateBase::set_health_mode(bool state) {
