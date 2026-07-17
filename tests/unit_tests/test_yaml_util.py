@@ -1003,8 +1003,10 @@ class _StubInclude:
         load_result: object = None,
         raise_on_load: EsphomeError | None = None,
     ) -> None:
+        # Default parent lives in a nonexistent directory so unresolved
+        # stubs never glob real files during candidate expansion.
         self.file = Path(file)
-        self.parent_file = parent_file or Path("/tmp/parent.yaml")
+        self.parent_file = parent_file or Path("/nonexistent/parent.yaml")
         self._unresolved = unresolved
         self._load_result = load_result if load_result is not None else {}
         self._raise = raise_on_load
@@ -1180,6 +1182,114 @@ def test_discover_user_yaml_files_deduplicates(tmp_path: Path) -> None:
     discovered = discover_user_yaml_files(entry)
     wifi_resolved = (tmp_path / "wifi.yaml").resolve()
     assert discovered.files.count(wifi_resolved) == 1
+
+
+def test_discover_user_yaml_files_expands_substitution_candidates(
+    tmp_path: Path,
+) -> None:
+    """A substitution-templated include path globs and loads every candidate."""
+    _write(tmp_path, "keys/device-a.yaml", "api:\n")
+    _write(tmp_path, "keys/device-b.yaml", "api:\n")
+    discovered = discover_user_yaml_files(
+        _write_entry_including(tmp_path, "keys/${system_name}.yaml")
+    )
+    names = {p.name for p in discovered.files}
+    assert {"device-a.yaml", "device-b.yaml"} <= names
+
+
+def test_discover_user_yaml_files_expands_directory_substitution(
+    tmp_path: Path,
+) -> None:
+    """A substitution spanning a directory segment globs across directories."""
+    _write(tmp_path, "network/eth01/config.yaml", "ethernet:\n")
+    _write(tmp_path, "network/eth02/config.yaml", "ethernet:\n")
+    discovered = discover_user_yaml_files(
+        _write_entry_including(tmp_path, "network/${eth_model}/config.yaml")
+    )
+    resolved = set(discovered.files)
+    assert (tmp_path / "network/eth01/config.yaml").resolve() in resolved
+    assert (tmp_path / "network/eth02/config.yaml").resolve() in resolved
+
+
+def test_discover_user_yaml_files_jinja_literal_candidates(tmp_path: Path) -> None:
+    """Conditional-branch literals load verbatim, reaching a ``../`` parent
+    path a glob can't ascend to; a branch with no file is skipped silently."""
+    _write(tmp_path, "empty.yaml", "{}\n")
+    _write(
+        tmp_path,
+        "boards/esp8266.yaml",
+        'packages:\n  - !include ${ "NO BT.yaml" if bt else "../empty.yaml" }\n',
+    )
+    discovered = discover_user_yaml_files(
+        _write_entry_including(tmp_path, "boards/esp8266.yaml")
+    )
+    assert (tmp_path / "empty.yaml").resolve() in discovered.files
+
+
+def test_discover_user_yaml_files_bare_expression_not_expanded(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A fully dynamic filename never globs the whole directory."""
+    _write(tmp_path, "sibling.yaml", "api:\n")
+    with caplog.at_level("DEBUG", logger="esphome.yaml_util"):
+        discovered = discover_user_yaml_files(
+            _write_entry_including(tmp_path, "${file}")
+        )
+    assert (tmp_path / "sibling.yaml").resolve() not in discovered.files
+    assert any(
+        "Cannot resolve !include" in r.message and r.levelname == "DEBUG"
+        for r in caplog.records
+    )
+
+
+def test_discover_user_yaml_files_self_glob_match_skipped(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A glob whose only match is the including file itself claims nothing."""
+    entry = _write_entry_including(tmp_path, "${platform}.yaml")
+    with caplog.at_level("DEBUG", logger="esphome.yaml_util"):
+        discovered = discover_user_yaml_files(entry)
+    assert [p.name for p in discovered.files] == ["entry.yaml"]
+    assert any("Cannot resolve !include" in r.message for r in caplog.records)
+
+
+def test_discover_user_yaml_files_candidate_cycle_terminates(tmp_path: Path) -> None:
+    """Mutually glob-matching includes expand finitely and capture both files."""
+    _write(tmp_path, "sub/a.yaml", "p: !include ${x}.yaml\n")
+    _write(tmp_path, "sub/b.yaml", "p: !include ${y}.yaml\n")
+    entry = _write(tmp_path, "entry.yaml", "wifi: !include sub/a.yaml\n")
+    discovered = discover_user_yaml_files(entry)
+    names = {p.name for p in discovered.files}
+    assert names == {"entry.yaml", "a.yaml", "b.yaml"}
+
+
+def test_discover_user_yaml_files_bad_candidate_still_tracked(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A candidate that fails to parse logs at DEBUG, stays tracked (the load
+    listener fires before parsing), and doesn't block other candidates."""
+    _write(tmp_path, "keys/good.yaml", "api:\n")
+    _write(tmp_path, "keys/bad.yaml", "esphome: [unterminated\n")
+    with caplog.at_level("DEBUG", logger="esphome.yaml_util"):
+        discovered = discover_user_yaml_files(
+            _write_entry_including(tmp_path, "keys/${name}.yaml")
+        )
+    resolved = set(discovered.files)
+    assert (tmp_path / "keys/good.yaml").resolve() in resolved
+    assert (tmp_path / "keys/bad.yaml").resolve() in resolved
+    assert any("Failed to load candidate" in r.message for r in caplog.records)
+
+
+def test_discover_user_yaml_files_tolerates_templated_top_level_include(
+    tmp_path: Path,
+) -> None:
+    """A literal include whose entire content is a templated ``!include`` is
+    tracked and skipped instead of aborting discovery."""
+    _write(tmp_path, "wrapper.yaml", "!include ${x}_settings.yaml\n")
+    discovered = discover_user_yaml_files(
+        _write_entry_including(tmp_path, "wrapper.yaml")
+    )
+    assert (tmp_path / "wrapper.yaml").resolve() in discovered.files
 
 
 def test_track_yaml_loads_records_resolved_paths(tmp_path: Path) -> None:

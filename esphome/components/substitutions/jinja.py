@@ -17,6 +17,7 @@ TemplateSyntaxError = jinja.TemplateSyntaxError
 TemplateRuntimeError = jinja.TemplateRuntimeError
 UndefinedError = jinja.UndefinedError
 Undefined = jinja.Undefined
+nodes = jinja.nodes
 # Sentinel key for resolver callback in ContextVars.
 # Dots are invalid in substitution names so this can never collide with user keys.
 Resolver = ".resolver"

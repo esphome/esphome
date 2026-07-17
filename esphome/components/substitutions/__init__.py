@@ -1,5 +1,7 @@
 from collections import ChainMap
+from itertools import product
 import logging
+import re
 from typing import Any
 
 import esphome
@@ -19,7 +21,16 @@ from esphome.yaml_util import (
     make_data_base,
 )
 
-from .jinja import Jinja, JinjaError, Missing, Resolver, UndefinedError, has_jinja
+from .jinja import (
+    Jinja,
+    JinjaError,
+    Missing,
+    Resolver,
+    TemplateSyntaxError,
+    UndefinedError,
+    has_jinja,
+    nodes,
+)
 
 CODEOWNERS = ["@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
@@ -372,6 +383,54 @@ def resolve_include(
             f"\n{format_path(path, original)}",
             path + [f"<{filename}>"],
         ) from err
+
+
+def include_candidate_patterns(value: str) -> list[str]:
+    """Expand a substitution/Jinja-templated path into glob-style candidate patterns.
+
+    Mirrors the two phases of :func:`_expand_substitutions` without variable
+    values: ``$var`` / ``${var}`` references become ``*``, and each remaining
+    Jinja expression contributes one pattern per string literal a conditional
+    branch could select (``*`` when fully dynamic). Variants reduced to
+    nothing but wildcards and separators are dropped, so a fully dynamic
+    filename never expands to "everything in the directory".
+    """
+    value = cv.VARIABLE_PROG.sub("*", value)
+    segments: list[list[str]] = []
+    if has_jinja(value):
+        try:
+            template_ast = jinja.parse(value)
+        except TemplateSyntaxError:
+            return []
+        for part in template_ast.body:
+            if not isinstance(part, nodes.Output):
+                return []
+            for child in part.nodes:
+                if isinstance(child, nodes.TemplateData):
+                    segments.append([child.data])
+                else:
+                    segments.append(_expression_string_options(child))
+    else:
+        segments.append([value])
+
+    patterns: list[str] = []
+    for combination in product(*segments):
+        variant = re.sub(r"\*+", "*", "".join(combination))
+        if re.search(r"[^*/\\]", variant) and variant not in patterns:
+            patterns.append(variant)
+    return patterns
+
+
+def _expression_string_options(node: nodes.Node) -> list[str]:
+    """String values a template expression could yield; ``*`` when dynamic."""
+    if isinstance(node, nodes.Const):
+        return [node.value if isinstance(node.value, str) else "*"]
+    if isinstance(node, nodes.CondExpr):
+        options = _expression_string_options(node.expr1)
+        if node.expr2 is not None:
+            options += _expression_string_options(node.expr2)
+        return options
+    return ["*"]
 
 
 def _substitute_include(

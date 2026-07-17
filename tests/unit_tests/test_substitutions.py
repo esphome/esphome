@@ -961,3 +961,50 @@ def test_remote_package_scalar_yaml_raises_helpful_error(
     msg = str(exc_info.value)
     assert "mapping at the top level" in msg
     assert "file1.yaml" in msg
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        pytest.param("wifi.yaml", ["wifi.yaml"], id="literal_passthrough"),
+        pytest.param(
+            "keys/${system_name}.yaml", ["keys/*.yaml"], id="embedded_substitution"
+        ),
+        pytest.param(
+            "network/${eth_model}/config.yaml",
+            ["network/*/config.yaml"],
+            id="directory_substitution",
+        ),
+        pytest.param(
+            "device-$platform.yaml", ["device-*.yaml"], id="unbraced_substitution"
+        ),
+        pytest.param("${a}${b}.yaml", ["*.yaml"], id="adjacent_wildcards_collapse"),
+        pytest.param(
+            '${ "a.yaml" if x else "../empty.yaml" }',
+            ["a.yaml", "../empty.yaml"],
+            id="conditional_literals",
+        ),
+        pytest.param(
+            'pre-${ "a" if c else "b" }.yaml',
+            ["pre-a.yaml", "pre-b.yaml"],
+            id="conditional_spliced",
+        ),
+        pytest.param(
+            '${ "x.yaml" if a else ("y.yaml" if b else "z.yaml") }',
+            ["x.yaml", "y.yaml", "z.yaml"],
+            id="nested_conditional",
+        ),
+        pytest.param(
+            '${ "same.yaml" if x else "same.yaml" }',
+            ["same.yaml"],
+            id="duplicate_literals_dedupe",
+        ),
+        pytest.param("${file}", [], id="bare_variable_dropped"),
+        pytest.param('${ name ~ ".yaml" }', [], id="dynamic_expression_dropped"),
+        pytest.param("${ if }", [], id="syntax_error_dropped"),
+        pytest.param("<% if x %>a.yaml<% endif %>", [], id="block_statement_dropped"),
+    ],
+)
+def test_include_candidate_patterns(value: str, expected: list[str]) -> None:
+    """Templated include paths expand to glob patterns and branch literals."""
+    assert substitutions.include_candidate_patterns(value) == expected

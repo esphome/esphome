@@ -267,11 +267,101 @@ class IncludeFile:
         return has_substitution_or_expression(str(self.file))
 
 
+def _candidate_include_paths(include: IncludeFile) -> list[Path]:
+    """Enumerate on-disk files an expression-templated ``!include`` could select.
+
+    Patterns come from ``substitutions.include_candidate_patterns``:
+    substitution spans glob (``keys/${name}.yaml`` matches every
+    ``keys/*.yaml``) and Jinja string literals are tried verbatim (the only
+    route to a ``../file.yaml`` branch a glob can't ascend to). Matches still
+    carrying expression markers or pointing back at the including file are
+    skipped.
+    """
+    # Deferred import — the substitutions component imports this module.
+    from esphome.components.substitutions import include_candidate_patterns
+
+    parent_dir = include.parent_file.parent
+    parent_resolved = include.parent_file.resolve()
+    seen: set[Path] = set()
+    candidates: list[Path] = []
+    for pattern in include_candidate_patterns(str(include.file)):
+        if "*" in pattern:
+            matches = sorted(
+                str(found.relative_to(parent_dir)) for found in parent_dir.glob(pattern)
+            )
+        else:
+            matches = [pattern]
+        for match in matches:
+            if has_substitution_or_expression(match):
+                continue
+            candidate = parent_dir / match
+            if not candidate.is_file():
+                continue
+            resolved = candidate.resolve()
+            if resolved == parent_resolved or resolved in seen:
+                continue
+            seen.add(resolved)
+            candidates.append(Path(match))
+    return candidates
+
+
+def _load_include_candidates(
+    include: IncludeFile,
+    *,
+    warn_on_unresolved: bool,
+    _seen: set[int],
+    _expanded_paths: set[Path],
+) -> None:
+    """Load every filesystem candidate for an unresolved ``IncludeFile``."""
+    from esphome.config_validation import Invalid
+
+    candidates = _candidate_include_paths(include)
+    if not candidates:
+        log = _LOGGER.warning if warn_on_unresolved else _LOGGER.debug
+        log(
+            "Cannot resolve !include %s (referenced from %s) with substitutions in path",
+            include.file,
+            include.parent_file,
+        )
+        return
+    _LOGGER.debug(
+        "Expanding !include %s (referenced from %s) to %d candidate file(s)",
+        include.file,
+        include.parent_file,
+        len(candidates),
+    )
+    for candidate in candidates:
+        resolved = (include.parent_file.parent / candidate).resolve()
+        if resolved in _expanded_paths:
+            continue
+        _expanded_paths.add(resolved)
+        candidate_include = IncludeFile(
+            include.parent_file, candidate, include.vars, include.yaml_loader
+        )
+        try:
+            loaded = candidate_include.load()
+        except (EsphomeError, Invalid) as err:
+            _LOGGER.debug(
+                "Failed to load candidate %s for !include %s: %s",
+                candidate,
+                include.file,
+                err,
+            )
+            continue
+        force_load_include_files(
+            loaded,
+            warn_on_unresolved=warn_on_unresolved,
+            _seen=_seen,
+            _expanded_paths=_expanded_paths,
+        )
+
+
 def force_load_include_files(
     obj: Any,
     *,
     warn_on_unresolved: bool = True,
     _seen: set[int] | None = None,
+    _expanded_paths: set[Path] | None = None,
 ) -> None:
     """Recursively resolve any deferred ``IncludeFile`` instances in a YAML tree.
 
@@ -282,29 +372,35 @@ def force_load_include_files(
     loader fires and records every reachable file.
 
     ``IncludeFile`` instances whose path contains unresolved substitution
-    variables cannot be loaded. By default a warning is logged for each one;
-    pass ``warn_on_unresolved=False`` (used by discovery paths that run on a
-    fresh re-parse where substitutions haven't been applied yet) to demote it
-    to a debug log.
+    variables or Jinja expressions are expanded against the filesystem and
+    every existing candidate file is loaded, so bundles ship all branches the
+    expression could select. By default a warning is logged when no candidate
+    exists; pass ``warn_on_unresolved=False`` (used by discovery paths that
+    run on a fresh re-parse where substitutions haven't been applied yet) to
+    demote it to a debug log.
     """
+    from esphome.config_validation import Invalid
+
     if _seen is None:
         _seen = set()
+    if _expanded_paths is None:
+        _expanded_paths = set()
 
     if isinstance(obj, IncludeFile):
         if id(obj) in _seen:
             return
         _seen.add(id(obj))
         if obj.has_unresolved_expressions():
-            log = _LOGGER.warning if warn_on_unresolved else _LOGGER.debug
-            log(
-                "Cannot resolve !include %s (referenced from %s) with substitutions in path",
-                obj.file,
-                obj.parent_file,
+            _load_include_candidates(
+                obj,
+                warn_on_unresolved=warn_on_unresolved,
+                _seen=_seen,
+                _expanded_paths=_expanded_paths,
             )
             return
         try:
             loaded = obj.load()
-        except EsphomeError as err:
+        except (EsphomeError, Invalid) as err:
             _LOGGER.warning(
                 "Failed to load !include %s (referenced from %s): %s",
                 obj.file,
@@ -313,7 +409,10 @@ def force_load_include_files(
             )
             return
         force_load_include_files(
-            loaded, warn_on_unresolved=warn_on_unresolved, _seen=_seen
+            loaded,
+            warn_on_unresolved=warn_on_unresolved,
+            _seen=_seen,
+            _expanded_paths=_expanded_paths,
         )
     elif isinstance(obj, dict):
         if id(obj) in _seen:
@@ -321,7 +420,10 @@ def force_load_include_files(
         _seen.add(id(obj))
         for value in obj.values():
             force_load_include_files(
-                value, warn_on_unresolved=warn_on_unresolved, _seen=_seen
+                value,
+                warn_on_unresolved=warn_on_unresolved,
+                _seen=_seen,
+                _expanded_paths=_expanded_paths,
             )
     elif isinstance(obj, (list, tuple)):
         if id(obj) in _seen:
@@ -329,7 +431,10 @@ def force_load_include_files(
         _seen.add(id(obj))
         for item in obj:
             force_load_include_files(
-                item, warn_on_unresolved=warn_on_unresolved, _seen=_seen
+                item,
+                warn_on_unresolved=warn_on_unresolved,
+                _seen=_seen,
+                _expanded_paths=_expanded_paths,
             )
 
 
