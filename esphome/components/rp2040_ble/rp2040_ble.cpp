@@ -48,7 +48,7 @@ void RP2040BLE::enable() {
 }
 
 void RP2040BLE::disable() {
-  if (this->state_ == BLEComponentState::DISABLED || this->state_ == BLEComponentState::OFF) {
+  if (this->state_ == BLEComponentState::DISABLED || this->state_ == BLEComponentState::STATE_OFF) {
     return;
   }
 
@@ -70,7 +70,7 @@ void RP2040BLE::loop() {
 
 static const char *state_to_str(BLEComponentState state) {
   switch (state) {
-    case BLEComponentState::OFF:
+    case BLEComponentState::STATE_OFF:
       return "OFF";
     case BLEComponentState::ENABLING:
       return "ENABLING";
