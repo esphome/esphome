@@ -102,6 +102,27 @@ class ComponentManifest:
         return getattr(self.module, "CODEOWNERS", [])
 
     @property
+    def aliases(self) -> list[str]:
+        """Legacy names that should transparently route to this component.
+
+        See the :func:`_build_alias_map` documentation for how aliases are
+        discovered (AST scan, no execution) and registered both for the YAML
+        loader (top-level key rename in :mod:`esphome.config`) and for
+        Python imports (``sys.meta_path`` finder, below).
+        """
+        return getattr(self.module, "ALIASES", [])
+
+    @property
+    def alias_removal_version(self) -> str | None:
+        """Optional ESPHome version when the alias warning becomes a hard error.
+
+        Surfaced in the deprecation warning emitted by the YAML pre-pass so
+        users know how long they have to migrate. ``None`` means the warning
+        does not mention a specific version.
+        """
+        return getattr(self.module, "ALIAS_REMOVAL_VERSION", None)
+
+    @property
     def instance_type(self) -> "MockObjClass | None":
         return getattr(self.module, "INSTANCE_TYPE", None)
 
@@ -113,6 +134,19 @@ class ComponentManifest:
         Note that the function can't mutate the configuration - no changes are saved
         """
         return getattr(self.module, "FINAL_VALIDATE_SCHEMA", None)
+
+    @property
+    def legacy_config_migrate(self) -> Callable[[ConfigType], ConfigType | None] | None:
+        """Optional `LEGACY_CONFIG_MIGRATE` callable on a platform component module.
+
+        Called once, before platform entries are processed, with the raw top-level
+        config for this domain. It may transform a pre-platform-format config (e.g.
+        a bare list or legacy dict form) into the normalized list of `platform:`
+        tagged entries and return it. Returning ``None`` means "already in the new
+        format, leave untouched". This is an intentionally removable deprecation
+        shim hook.
+        """
+        return getattr(self.module, "LEGACY_CONFIG_MIGRATE", None)
 
     @property
     def resources(self) -> list[FileResource]:
@@ -216,6 +250,17 @@ def _lookup_module(domain: str, exception: bool) -> ComponentManifest | None:
         _COMPONENT_CACHE[domain] = manif
         return manif
 
+    # If `domain` is the legacy name of a renamed component, redirect to the
+    # canonical module so the rest of the loader (and every caller of
+    # `get_component(legacy)`) transparently sees the new component.
+    alias_map = _get_alias_map()
+    if domain in alias_map:
+        canonical = alias_map[domain]
+        manif = _lookup_module(canonical, exception)
+        if manif is not None:
+            _COMPONENT_CACHE[domain] = manif
+        return manif
+
     try:
         module = importlib.import_module(f"esphome.components.{domain}")
     except ImportError as e:
@@ -261,3 +306,276 @@ def _replace_component_manifest(domain: str, manifest: ComponentManifest) -> Non
     code should never call this.
     """
     _COMPONENT_CACHE[domain] = manifest
+
+
+# ---------------------------------------------------------------------------
+# Component aliases (renamed-platform back-compat)
+# ---------------------------------------------------------------------------
+#
+# A component can declare ``ALIASES = ["legacy_name"]`` (and optionally
+# ``ALIAS_REMOVAL_VERSION = "YYYY.M.0"``) in its ``__init__.py``. Two
+# integrations are then wired up automatically:
+#
+#   1. **Python imports** — a ``sys.meta_path`` finder (``_AliasFinder``)
+#      intercepts ``esphome.components.<legacy>``/``...<legacy>.<sub>``
+#      imports and resolves them against the canonical component so external
+#      custom components that still import from the old path keep working.
+#
+#   2. **YAML loader** — ``_lookup_module`` consults the alias map so
+#      ``get_component("legacy")`` returns the canonical manifest. The
+#      ``esphome.config`` pre-pass uses the same map to rewrite legacy
+#      top-level keys in the user's config (with a deprecation warning) so
+#      dependency checks, schema validation and codegen all see only the
+#      canonical name.
+#
+# Both lookups are populated by ``_build_alias_map``, which **AST-parses**
+# every component's ``__init__.py`` rather than importing it. That keeps the
+# cost low: scanning ~400 components on disk takes ~5 ms instead of the
+# multi-second cost of executing every component's import side-effects.
+
+
+_ALIAS_MAP_CACHE: dict[str, str] | None = None
+_ALIAS_META_CACHE: dict[str, "AliasMeta"] | None = None
+
+
+@dataclass(frozen=True)
+class AliasMeta:
+    """Metadata for a single deprecated alias entry.
+
+    Used by the YAML pre-pass in :mod:`esphome.config` to produce a
+    deprecation warning citing the canonical name and (optionally) the
+    removal version declared by the canonical component.
+    """
+
+    canonical: str
+    removal_version: str | None
+
+
+def _ensure_alias_caches() -> None:
+    """Populate both alias caches from a single directory scan.
+
+    ``_build_alias_map`` returns both maps together, so building them in one
+    shot avoids scanning every component's ``__init__.py`` twice when a run
+    needs both the canonical map (loader) and the metadata map (config
+    pre-pass).
+    """
+    global _ALIAS_MAP_CACHE, _ALIAS_META_CACHE
+    if _ALIAS_MAP_CACHE is None or _ALIAS_META_CACHE is None:
+        _ALIAS_MAP_CACHE, _ALIAS_META_CACHE = _build_alias_map()
+
+
+def _get_alias_map() -> dict[str, str]:
+    """Return the legacy-name → canonical-name map, building it lazily."""
+    _ensure_alias_caches()
+    return _ALIAS_MAP_CACHE
+
+
+def get_alias_metadata() -> dict[str, AliasMeta]:
+    """Return the legacy-name → :class:`AliasMeta` map (cached).
+
+    Used by the YAML pre-pass to format a per-alias deprecation warning.
+    """
+    _ensure_alias_caches()
+    return _ALIAS_META_CACHE
+
+
+def _build_alias_map() -> tuple[dict[str, str], dict[str, AliasMeta]]:
+    """Scan every core component dir for ``ALIASES`` declarations.
+
+    Uses :mod:`ast` to read each component's ``__init__.py`` without
+    executing it — component import side-effects (logger setup,
+    namespace registration, etc.) shouldn't run just because we're
+    enumerating aliases.
+
+    Raises if the same alias is claimed by two canonical components, since
+    silently picking one would cause non-deterministic routing depending on
+    directory-iteration order. Also raises if an alias shadows an existing
+    component package: that would hijack a live component domain and, in the
+    self-alias case (alias == canonical), send ``_lookup_module`` into
+    infinite recursion redirecting a domain to itself.
+    """
+    import ast
+
+    alias_to_canonical: dict[str, str] = {}
+    alias_to_meta: dict[str, AliasMeta] = {}
+
+    if not CORE_COMPONENTS_PATH.is_dir():
+        return alias_to_canonical, alias_to_meta
+
+    for child in sorted(CORE_COMPONENTS_PATH.iterdir()):
+        if not child.is_dir():
+            continue
+        init = child / "__init__.py"
+        if not init.is_file():
+            continue
+        aliases, removal_version = _read_aliases(init, ast)
+        if not aliases:
+            continue
+        canonical = child.name
+        for alias in aliases:
+            if (CORE_COMPONENTS_PATH / alias / "__init__.py").is_file():
+                from esphome.core import EsphomeError
+
+                raise EsphomeError(
+                    f"Component alias '{alias}' (declared by '{canonical}') "
+                    "shadows an existing component package of the same name. "
+                    "An alias may only name a component that no longer exists."
+                )
+            if alias in alias_to_canonical:
+                from esphome.core import EsphomeError
+
+                raise EsphomeError(
+                    f"Component alias '{alias}' is declared by both "
+                    f"'{alias_to_canonical[alias]}' and '{canonical}'. "
+                    "Each alias must map to exactly one canonical component."
+                )
+            alias_to_canonical[alias] = canonical
+            alias_to_meta[alias] = AliasMeta(
+                canonical=canonical, removal_version=removal_version
+            )
+    return alias_to_canonical, alias_to_meta
+
+
+def _read_aliases(
+    init_path: Path, ast_module: ModuleType
+) -> tuple[list[str], str | None]:
+    """Extract ``ALIASES`` and ``ALIAS_REMOVAL_VERSION`` from a component
+    ``__init__.py`` via AST parsing.
+
+    Only handles the simple ``NAME = [str_literal, ...]`` / ``NAME = "..."``
+    forms — anything more dynamic (function call, conditional, etc.) is
+    silently ignored. Components should keep their alias declarations
+    static so this scanner can see them.
+    """
+    try:
+        source = init_path.read_text(encoding="utf-8")
+    except OSError as err:
+        _LOGGER.warning(
+            "Could not read %s while scanning for component aliases: %s",
+            init_path,
+            err,
+        )
+        return [], None
+
+    # Cheap substring pre-filter: almost no component declares ALIASES, and
+    # parsing every component __init__.py with ast is comparatively expensive.
+    # Skip the parse entirely unless the token appears in the file at all.
+    if "ALIASES" not in source:
+        return [], None
+
+    try:
+        tree = ast_module.parse(source)
+    except SyntaxError as err:
+        _LOGGER.warning(
+            "Could not parse %s while scanning for component aliases: %s",
+            init_path,
+            err,
+        )
+        return [], None
+
+    aliases: list[str] = []
+    removal_version: str | None = None
+
+    for node in tree.body:
+        if not isinstance(node, ast_module.Assign):
+            continue
+        for target in node.targets:
+            if not isinstance(target, ast_module.Name):
+                continue
+            if target.id == "ALIASES" and isinstance(node.value, ast_module.List):
+                aliases.extend(
+                    elt.value
+                    for elt in node.value.elts
+                    if isinstance(elt, ast_module.Constant)
+                    and isinstance(elt.value, str)
+                )
+            elif (
+                target.id == "ALIAS_REMOVAL_VERSION"
+                and isinstance(node.value, ast_module.Constant)
+                and isinstance(node.value.value, str)
+            ):
+                removal_version = node.value.value
+    return aliases, removal_version
+
+
+class _AliasFinder(importlib.abc.MetaPathFinder):
+    """``sys.meta_path`` finder that resolves legacy-component imports.
+
+    Routes ``esphome.components.<alias>[.<submod>]`` to the canonical
+    component's module/submodule of the same name, so external code that
+    still imports ``from esphome.components.rp2040 import boards`` keeps
+    working without the canonical component having to maintain a shim
+    package on disk.
+
+    The finder caches the resolved module in ``sys.modules`` under the
+    legacy name on first lookup, so subsequent imports hit the cache and
+    skip this finder entirely.
+    """
+
+    _PREFIX = "esphome.components."
+
+    def find_spec(self, fullname, path, target=None):  # noqa: ARG002
+        if not fullname.startswith(self._PREFIX):
+            return None
+        # Anything matching the ``esphome.components.`` prefix splits into at
+        # least three parts, so ``parts[2]`` (the domain) always exists.
+        parts = fullname.split(".")
+        domain = parts[2]
+        alias_map = _get_alias_map()
+        if domain not in alias_map:
+            return None
+
+        parts[2] = alias_map[domain]
+        canonical_fullname = ".".join(parts)
+        try:
+            canonical_module = importlib.import_module(canonical_fullname)
+        except ModuleNotFoundError as err:
+            # Only treat a missing *canonical target* as "no alias to
+            # resolve" (let the normal import machinery report it). If some
+            # other module is missing, the canonical exists but failed to
+            # import one of its own dependencies — surface that real error
+            # rather than masking it as an unresolved alias.
+            if err.name == canonical_fullname:
+                return None
+            raise
+        # Do NOT pre-populate ``sys.modules[fullname]`` here. Python's
+        # ``_find_spec`` (in importlib._bootstrap) has an optimization that
+        # detects ``name in sys.modules`` after a finder returns and prefers
+        # ``sys.modules[name].__spec__`` over the finder's spec — for an
+        # alias, that's the canonical module's own SourceFileLoader spec,
+        # which Python then *re-loads*, defeating the aliasing. Letting
+        # ``_load_unlocked`` populate sys.modules itself (via our
+        # ``_AliasLoader.create_module``) sidesteps that branch.
+        return importlib.util.spec_from_loader(fullname, _AliasLoader(canonical_module))
+
+
+class _AliasLoader(importlib.abc.Loader):
+    """No-op loader that returns the already-resolved canonical module.
+
+    :class:`_AliasFinder` populates ``sys.modules`` itself; this loader
+    just satisfies the :mod:`importlib` protocol so Python doesn't try to
+    re-execute the module.
+    """
+
+    def __init__(self, module: ModuleType) -> None:
+        self._module = module
+
+    def create_module(self, spec):  # noqa: ARG002
+        return self._module
+
+    def exec_module(self, module):  # noqa: ARG002
+        # Nothing to execute — the canonical module is already initialized.
+        return None
+
+
+# Register once at module load. Idempotent: re-installing the finder on
+# repeated imports (e.g. by tests that reload `esphome.loader`) is a no-op
+# because we check for an existing instance first.
+def _install_alias_finder() -> None:
+    for entry in sys.meta_path:
+        if isinstance(entry, _AliasFinder):
+            return
+    sys.meta_path.append(_AliasFinder())
+
+
+_install_alias_finder()

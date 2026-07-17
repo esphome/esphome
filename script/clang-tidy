@@ -29,7 +29,7 @@ from helpers import (
 )
 
 
-def clang_options(idedata):
+def clang_options(idedata, environment):
     cmd = []
 
     # extract target architecture from triplet in g++ filename
@@ -95,29 +95,41 @@ def clang_options(idedata):
         [
             # disable built-in include directories from the host
             "-nostdinc",
-            # replace pgmspace.h, as it uses GNU extensions clang doesn't support
-            # https://github.com/earlephilhower/newlib-xtensa/pull/18
-            "-D_PGMSPACE_H_",
-            "-Dpgm_read_byte(s)=(*(const uint8_t *)(s))",
-            "-Dpgm_read_byte_near(s)=(*(const uint8_t *)(s))",
-            "-Dpgm_read_word(s)=(*(const uint16_t *)(s))",
-            "-Dpgm_read_dword(s)=(*(const uint32_t *)(s))",
-            "-Dpgm_read_ptr(s)=(*(const void *const *)(s))",
-            "-DPROGMEM=",
-            "-DPGM_P=const char *",
-            "-DPSTR(s)=(s)",
-            # this next one is also needed with upstream pgmspace.h
-            # suppress warning about identifier naming in expansion of this macro
-            "-DPSTRN(s, n)=(s)",
-            # suppress warning about attribute cannot be applied to type
-            # https://github.com/esp8266/Arduino/pull/8258
-            "-Ddeprecated(x)=",
             # allow to condition code on the presence of clang-tidy
             "-DCLANG_TIDY",
             # (esp-idf) Fix __once_callable in some libstdc++ headers
             "-D_GLIBCXX_HAVE_TLS",
+            # suppress warning about attribute cannot be applied to type
+            # https://github.com/esp8266/Arduino/pull/8258
+            # also keeps deprecation diagnostics consistent across environments
+            "-Ddeprecated(x)=",
         ]
     )
+
+    if environment.startswith("rp2"):
+        # clang's ARM backend doesn't know GCC's long_call attribute (IRAM_ATTR)
+        cmd.append("-Wno-unknown-attributes")
+    else:
+        # replace pgmspace.h, as it uses GNU extensions clang doesn't support
+        # https://github.com/earlephilhower/newlib-xtensa/pull/18
+        # arduino-pico ships clang-parseable pgmspace inline functions, so the
+        # replacements are skipped there (they clash with those definitions).
+        cmd.extend(
+            [
+                "-D_PGMSPACE_H_",
+                "-Dpgm_read_byte(s)=(*(const uint8_t *)(s))",
+                "-Dpgm_read_byte_near(s)=(*(const uint8_t *)(s))",
+                "-Dpgm_read_word(s)=(*(const uint16_t *)(s))",
+                "-Dpgm_read_dword(s)=(*(const uint32_t *)(s))",
+                "-Dpgm_read_ptr(s)=(*(const void *const *)(s))",
+                "-DPROGMEM=",
+                "-DPGM_P=const char *",
+                "-DPSTR(s)=(s)",
+                # this next one is also needed with upstream pgmspace.h
+                # suppress warning about identifier naming in expansion of this macro
+                "-DPSTRN(s, n)=(s)",
+            ]
+        )
 
     # Copy compiler flags, dropping: ones clang doesn't understand; -Werror*
     # (clang-tidy enforces .clang-tidy's WarningsAsErrors, and a build -Werror
@@ -145,14 +157,16 @@ def clang_options(idedata):
     # defines
     cmd.extend(f"-D{define}" for define in idedata["defines"])
 
-    # add toolchain include directories using -isystem to suppress their errors
+    # toolchain include directories, using -isystem to suppress their errors
     # idedata contains include directories for all toolchains of this platform, only use those from the one in use
     toolchain_dir = os.path.normpath(f"{idedata['cxx_path']}/../../")
+    toolchain_includes = []
     for directory in idedata["includes"]["toolchain"]:
         if directory.startswith(toolchain_dir) and "picolibc" not in directory:
-            cmd.extend(["-isystem", directory])
+            toolchain_includes.extend(["-isystem", directory])
 
-    # add library include directories using -isystem to suppress their errors
+    # library include directories, using -isystem to suppress their errors
+    build_includes = []
     for directory in list(idedata["includes"]["build"]):
         # skip our own directories, we add those later
         if (
@@ -166,7 +180,16 @@ def clang_options(idedata):
             )
             or (directory.startswith(f"{root_path}") and "/.pio/" in directory)
         ):
-            cmd.extend(["-isystem", directory])
+            build_includes.extend(["-isystem", directory])
+
+    if "zephyr" in triplet:
+        # Zephyr's POSIX layer shadows libc headers (sys/select.h, ...) with
+        # coherently-guarded versions; the real build searches the Zephyr
+        # include dirs before the toolchain's, and the shadowed headers clash
+        # (e.g. newlib's sigset_t vs Zephyr's) in the opposite order.
+        cmd.extend(build_includes + toolchain_includes)
+    else:
+        cmd.extend(toolchain_includes + build_includes)
 
     # add the esphome include directory using -I
     cmd.extend(["-I", root_path])
@@ -196,6 +219,15 @@ def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
         if sys.stdout.isatty():
             invocation.append("--use-color")
 
+        if args.environment.startswith("rp2"):
+            # MMIO peripheral access on bare-metal RP2 is all fixed-address.
+            # bugprone-pointer-arithmetic-on-polymorphic-object (and its
+            # cert-ctr56-cpp alias) crashes clang-tidy 22 with infinite matcher
+            # recursion on lvgl_esphome.h under the RP2 defines.
+            invocation.append(
+                "--checks=-clang-analyzer-core.FixedAddressDereference,"
+                "-bugprone-pointer-arithmetic-on-polymorphic-object,-cert-ctr56-cpp"
+            )
         invocation.append(f"--header-filter={Path(basepath).resolve()}/.*")
         invocation.append(str(Path(path).resolve()))
         invocation.append("--")
@@ -340,7 +372,7 @@ def main():
 
     # Load idedata and options only if we have files to check
     idedata = load_idedata(args.environment)
-    options = clang_options(idedata)
+    options = clang_options(idedata, args.environment)
 
     tmpdir = None
     if args.fix:

@@ -4,7 +4,7 @@ import logging
 from esphome import automation, pins
 from esphome.automation import Condition
 import esphome.codegen as cg
-from esphome.components.network import ip_address_literal
+from esphome.components.network import add_use_address, ip_address_literal
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -126,6 +126,8 @@ ETHERNET_TYPES = {
     "ENC28J60": EthernetType.ETHERNET_TYPE_ENC28J60,
     "W6100": EthernetType.ETHERNET_TYPE_W6100,
     "W6300": EthernetType.ETHERNET_TYPE_W6300,
+    "GENERIC": EthernetType.ETHERNET_TYPE_GENERIC,
+    "YT8531": EthernetType.ETHERNET_TYPE_YT8531,
 }
 
 # PHY types that need compile-time defines for conditional compilation
@@ -145,6 +147,8 @@ _PHY_TYPE_TO_DEFINE = {
     "ENC28J60": "USE_ETHERNET_ENC28J60",
     "W6100": "USE_ETHERNET_W6100",
     "W6300": "USE_ETHERNET_W6300",
+    "GENERIC": "USE_ETHERNET_GENERIC",
+    "YT8531": "USE_ETHERNET_YT8531",
 }
 
 
@@ -175,9 +179,11 @@ _ALWAYS_EXTERNAL_IDF_COMPONENTS = {"LAN8670", "ENC28J60"}
 
 # ESP32-only SPI ethernet types (W5100 is RP2040-only, no ESP-IDF driver)
 SPI_ETHERNET_TYPES = {"W5500", "DM9051", "ENC28J60"}
-# RP2040-supported ethernet types (SPI and PIO QSPI)
-RP2040_ETHERNET_TYPES = {"W5100", "W5500", "W6100", "W6300", "ENC28J60"}
-_RP2040_SPI_LIBRARIES = {
+# RP2-supported ethernet types (SPI and PIO QSPI). Applies to the whole
+# RP2 family (RP2040 and RP2350); the chip-specific W5100 caveat in the
+# comment above is about ESP-IDF driver coverage, not the RP2 platform.
+RP2_ETHERNET_TYPES = {"W5100", "W5500", "W6100", "W6300", "ENC28J60"}
+_RP2_SPI_LIBRARIES = {
     "W5100": "lwIP_w5100",
     "W5500": "lwIP_w5500",
     "ENC28J60": "lwIP_enc28j60",
@@ -309,6 +315,24 @@ def _validate(config):
                         f"({CORE.target_framework} {CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}), "
                         f"'{CONF_INTERRUPT_PIN}' is a required option for [ethernet]."
                     )
+        elif config[CONF_TYPE] in ("GENERIC", "YT8531"):
+            from esphome.components.esp32 import (
+                VARIANT_ESP32S31,
+                get_esp32_variant,
+                idf_version,
+            )
+
+            eth_type = config[CONF_TYPE]
+            variant = get_esp32_variant()
+            if variant != VARIANT_ESP32S31:
+                raise cv.Invalid(
+                    f"The '{eth_type}' (RGMII) PHY is only supported on gigabit-capable "
+                    f"variants (ESP32-S31), not {variant}"
+                )
+            if idf_version() < cv.Version(6, 0, 0):
+                raise cv.Invalid(
+                    f"The '{eth_type}' (RGMII) PHY requires ESP-IDF 6.0 or newer."
+                )
         elif config[CONF_TYPE] != "OPENETH":
             from esphome.components.esp32 import (
                 VARIANT_ESP32,
@@ -324,7 +348,7 @@ def _validate(config):
                     "  clk:\n"
                     "    mode: %s\n"
                     "    pin: %s\n"
-                    "Removal scheduled for 2026.7.0.",
+                    "Removal scheduled for 2026.9.0.",
                     config[CONF_CLK_MODE],
                     mode,
                     pin,
@@ -339,10 +363,10 @@ def _validate(config):
                     f"{config[CONF_TYPE]} PHY requires RMII interface and is only supported "
                     f"on ESP32 classic and ESP32-P4, not {variant}"
                 )
-    elif CORE.is_rp2040 and config[CONF_TYPE] not in RP2040_ETHERNET_TYPES:
+    elif CORE.is_rp2 and config[CONF_TYPE] not in RP2_ETHERNET_TYPES:
         raise cv.Invalid(
-            f"Only {', '.join(sorted(RP2040_ETHERNET_TYPES))} are supported on RP2040, "
-            f"not {config[CONF_TYPE]}"
+            f"Only {', '.join(sorted(RP2_ETHERNET_TYPES))} are supported on the RP2 "
+            f"platform, not {config[CONF_TYPE]}"
         )
     return config
 
@@ -392,6 +416,23 @@ RMII_SCHEMA = cv.All(
     cv.only_on([Platform.ESP32]),
 )
 
+# Generic IEEE 802.3 PHY over the internal EMAC RGMII interface (e.g. ESP32-S31).
+# RGMII data pins come from the IDF per-target default config.
+GENERIC_SCHEMA = cv.All(
+    BASE_SCHEMA.extend(
+        cv.Schema(
+            {
+                cv.Required(CONF_MDC_PIN): pins.internal_gpio_output_pin_number,
+                cv.Required(CONF_MDIO_PIN): pins.internal_gpio_output_pin_number,
+                cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
+                cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_number,
+                cv.Optional(CONF_PHY_REGISTERS): cv.ensure_list(PHY_REGISTER_SCHEMA),
+            }
+        )
+    ),
+    cv.only_on([Platform.ESP32]),
+)
+
 SPI_SCHEMA = cv.All(
     BASE_SCHEMA.extend(
         cv.Schema(
@@ -420,7 +461,7 @@ SPI_SCHEMA = cv.All(
             }
         ),
     ),
-    cv.only_on([Platform.ESP32, Platform.RP2040]),
+    cv.only_on([Platform.ESP32, Platform.RP2]),
     _validate_spi_interface,
 )
 
@@ -434,14 +475,16 @@ CONFIG_SCHEMA = cv.All(
             "JL1101": RMII_SCHEMA,
             "KSZ8081": RMII_SCHEMA,
             "KSZ8081RNA": RMII_SCHEMA,
-            "W5100": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2040])),
+            "W5100": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2])),
             "W5500": SPI_SCHEMA,
             "OPENETH": cv.All(BASE_SCHEMA, cv.only_on([Platform.ESP32])),
             "DM9051": SPI_SCHEMA,
             "ENC28J60": SPI_SCHEMA,
-            "W6100": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2040])),
-            "W6300": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2040])),
+            "W6100": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2])),
+            "W6300": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2])),
             "LAN8670": RMII_SCHEMA,
+            "GENERIC": GENERIC_SCHEMA,
+            "YT8531": GENERIC_SCHEMA,
         },
         upper=True,
     ),
@@ -496,11 +539,11 @@ async def to_code(config):
 
     if CORE.is_esp32:
         await _to_code_esp32(var, config)
-    elif CORE.is_rp2040:
+    elif CORE.is_rp2:
         await _to_code_rp2040(var, config)
 
     cg.add(var.set_type(ETHERNET_TYPES[config[CONF_TYPE]]))
-    cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
+    add_use_address(var, config[CONF_USE_ADDRESS])
     # enable_on_boot defaults to true in C++ - only set if false
     if not config[CONF_ENABLE_ON_BOOT]:
         cg.add(var.set_enable_on_boot(False))
@@ -540,6 +583,7 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
         add_idf_sdkconfig_option,
         idf_version,
         include_builtin_idf_component,
+        request_ethernet,
     )
 
     if config[CONF_TYPE] in SPI_ETHERNET_TYPES:
@@ -570,6 +614,20 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
     elif config[CONF_TYPE] == "OPENETH":
         cg.add_define("USE_ETHERNET_OPENETH")
         add_idf_sdkconfig_option("CONFIG_ETH_USE_OPENETH", True)
+    elif config[CONF_TYPE] in ("GENERIC", "YT8531"):
+        # RGMII data pins come from the IDF default config; set MDC/MDIO + PHY addr.
+        cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
+        cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))
+        cg.add(var.set_mdio_pin(config[CONF_MDIO_PIN]))
+        if CONF_POWER_PIN in config:
+            cg.add(var.set_power_pin(config[CONF_POWER_PIN]))
+        for register_value in config.get(CONF_PHY_REGISTERS, []):
+            reg = phy_register(
+                register_value.get(CONF_ADDRESS),
+                register_value.get(CONF_VALUE),
+                register_value.get(CONF_PAGE_ID),
+            )
+            cg.add(var.add_phy_register(reg))
     else:
         cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
         cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))
@@ -586,10 +644,9 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
             )
             cg.add(var.add_phy_register(reg))
 
-    # Disable WiFi when using Ethernet to save memory
-    add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENABLED", False)
-    # Also disable WiFi/BT coexistence since WiFi is disabled
-    add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
+    # Register Ethernet with the esp32 sdkconfig reconciler, which disables the
+    # WiFi stack and WiFi/BT coexistence when Ethernet is used without WiFi.
+    request_ethernet()
 
     # Re-enable ESP-IDF's Ethernet driver (excluded by default to save compile time)
     include_builtin_idf_component("esp_eth")
@@ -615,7 +672,7 @@ async def _to_code_rp2040(var: cg.Pvariable, config: ConfigType) -> None:
         cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
 
     cg.add_define("USE_ETHERNET_SPI")
-    cg.add_library(_RP2040_SPI_LIBRARIES[config[CONF_TYPE]], None)
+    cg.add_library(_RP2_SPI_LIBRARIES[config[CONF_TYPE]], None)
 
 
 def _final_validate_rmii_pins(config: ConfigType) -> None:
@@ -697,7 +754,7 @@ _platform_filter = filter_source_files_from_platform(
             PlatformFramework.ESP32_IDF,
             PlatformFramework.ESP32_ARDUINO,
         },
-        "ethernet_component_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "ethernet_component_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
         "esp_eth_phy_jl1101.c": {
             PlatformFramework.ESP32_IDF,
             PlatformFramework.ESP32_ARDUINO,
