@@ -17,7 +17,6 @@ TemplateSyntaxError = jinja.TemplateSyntaxError
 TemplateRuntimeError = jinja.TemplateRuntimeError
 UndefinedError = jinja.UndefinedError
 Undefined = jinja.Undefined
-nodes = jinja.nodes
 # Sentinel key for resolver callback in ContextVars.
 # Dots are invalid in substitution names so this can never collide with user keys.
 Resolver = ".resolver"
@@ -127,6 +126,18 @@ def _concat_nodes_override(values: Iterator[Any]) -> Any:
     return raw
 
 
+def _expression_string_options(node: jinja.nodes.Node) -> list[str | None]:
+    """String values a template expression could yield; ``None`` when dynamic."""
+    if isinstance(node, jinja.nodes.Const):
+        return [node.value if isinstance(node.value, str) else None]
+    if isinstance(node, jinja.nodes.CondExpr):
+        options = _expression_string_options(node.expr1)
+        if node.expr2 is not None:
+            options += _expression_string_options(node.expr2)
+        return options
+    return [None]
+
+
 class Jinja(jinja.Environment):
     """Jinja environment configured for ESPHome substitution expressions."""
 
@@ -185,6 +196,31 @@ class Jinja(jinja.Environment):
             self.context_trace = old_trace
 
         return result
+
+    def template_string_options(self, value: str) -> list[list[str | None]] | None:
+        """
+        Per-segment string options for a template string.
+
+        Returns one options list per template segment: literal text yields
+        its single value, an expression yields every string literal a
+        conditional branch could select, and a fully dynamic value yields
+        ``None``. Returns ``None`` when the string doesn't parse or contains
+        block statements.
+        """
+        try:
+            template_ast = self.parse(value)
+        except TemplateSyntaxError:
+            return None
+        segments: list[list[str | None]] = []
+        for part in template_ast.body:
+            if not isinstance(part, jinja.nodes.Output):
+                return None
+            for child in part.nodes:
+                if isinstance(child, jinja.nodes.TemplateData):
+                    segments.append([child.data])
+                else:
+                    segments.append(_expression_string_options(child))
+        return segments
 
 
 class JinjaTemplate(NativeTemplate):

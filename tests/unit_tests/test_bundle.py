@@ -1002,13 +1002,16 @@ def test_discover_files_bundles_substitution_include_candidates(
     tmp_path: Path,
 ) -> None:
     """!include with substitution vars in path bundles every candidate file."""
-    config_dir = _setup_config_dir(tmp_path)
+    config_dir = _setup_config_dir(
+        tmp_path,
+        files={
+            "boards/esp32.yaml": "esp32:\n  board: esp32dev\n",
+            "boards/esp8266.yaml": "esp8266:\n  board: d1_mini\n",
+        },
+    )
     (config_dir / "test.yaml").write_text(
         "esphome:\n  name: test\nwifi: !include boards/${platform}.yaml\n"
     )
-    (config_dir / "boards").mkdir()
-    (config_dir / "boards" / "esp32.yaml").write_text("esp32:\n  board: esp32dev\n")
-    (config_dir / "boards" / "esp8266.yaml").write_text("esp8266:\n  board: d1_mini\n")
 
     creator = ConfigBundleCreator({})
     files = creator.discover_files()

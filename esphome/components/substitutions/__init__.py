@@ -21,16 +21,7 @@ from esphome.yaml_util import (
     make_data_base,
 )
 
-from .jinja import (
-    Jinja,
-    JinjaError,
-    Missing,
-    Resolver,
-    TemplateSyntaxError,
-    UndefinedError,
-    has_jinja,
-    nodes,
-)
+from .jinja import Jinja, JinjaError, Missing, Resolver, UndefinedError, has_jinja
 
 CODEOWNERS = ["@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
@@ -396,41 +387,18 @@ def include_candidate_patterns(value: str) -> list[str]:
     filename never expands to "everything in the directory".
     """
     value = cv.VARIABLE_PROG.sub("*", value)
-    segments: list[list[str]] = []
     if has_jinja(value):
-        try:
-            template_ast = jinja.parse(value)
-        except TemplateSyntaxError:
+        segments = jinja.template_string_options(value)
+        if segments is None:
             return []
-        for part in template_ast.body:
-            if not isinstance(part, nodes.Output):
-                return []
-            for child in part.nodes:
-                if isinstance(child, nodes.TemplateData):
-                    segments.append([child.data])
-                else:
-                    segments.append(_expression_string_options(child))
+        options = [["*" if opt is None else opt for opt in seg] for seg in segments]
     else:
-        segments.append([value])
+        options = [[value]]
 
-    patterns: list[str] = []
-    for combination in product(*segments):
-        variant = re.sub(r"\*+", "*", "".join(combination))
-        if re.search(r"[^*/\\]", variant) and variant not in patterns:
-            patterns.append(variant)
-    return patterns
-
-
-def _expression_string_options(node: nodes.Node) -> list[str]:
-    """String values a template expression could yield; ``*`` when dynamic."""
-    if isinstance(node, nodes.Const):
-        return [node.value if isinstance(node.value, str) else "*"]
-    if isinstance(node, nodes.CondExpr):
-        options = _expression_string_options(node.expr1)
-        if node.expr2 is not None:
-            options += _expression_string_options(node.expr2)
-        return options
-    return ["*"]
+    variants = (
+        re.sub(r"\*+", "*", "".join(combination)) for combination in product(*options)
+    )
+    return [v for v in dict.fromkeys(variants) if v.strip("*/\\")]
 
 
 def _substitute_include(

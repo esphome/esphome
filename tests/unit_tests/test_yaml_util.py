@@ -1226,6 +1226,18 @@ def test_discover_user_yaml_files_jinja_literal_candidates(tmp_path: Path) -> No
     assert (tmp_path / "empty.yaml").resolve() in discovered.files
 
 
+def test_discover_user_yaml_files_glob_skips_hidden_files(tmp_path: Path) -> None:
+    """Candidate globs exclude hidden files, matching ``!include_dir_*``."""
+    _write(tmp_path, "keys/device-a.yaml", "api:\n")
+    _write(tmp_path, "keys/.hidden.yaml", "api:\n")
+    discovered = discover_user_yaml_files(
+        _write_entry_including(tmp_path, "keys/${name}.yaml")
+    )
+    names = {p.name for p in discovered.files}
+    assert "device-a.yaml" in names
+    assert ".hidden.yaml" not in names
+
+
 def test_discover_user_yaml_files_bare_expression_not_expanded(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

@@ -267,41 +267,46 @@ class IncludeFile:
         return has_substitution_or_expression(str(self.file))
 
 
-def _candidate_include_paths(include: IncludeFile) -> list[Path]:
-    """Enumerate on-disk files an expression-templated ``!include`` could select.
+def _is_visible_path(rel: Path) -> bool:
+    """Report whether no component of *rel* is hidden (``..`` stays valid)."""
+    return all(part == ".." or _is_file_valid(part) for part in rel.parts)
+
+
+def _candidate_include_paths(include: IncludeFile) -> list[tuple[Path, Path]]:
+    """Enumerate ``(relative, resolved)`` files an expression-templated
+    ``!include`` could select.
 
     Patterns come from ``substitutions.include_candidate_patterns``:
     substitution spans glob (``keys/${name}.yaml`` matches every
-    ``keys/*.yaml``) and Jinja string literals are tried verbatim (the only
-    route to a ``../file.yaml`` branch a glob can't ascend to). Matches still
-    carrying expression markers or pointing back at the including file are
-    skipped.
+    ``keys/*.yaml``, hidden files excluded like ``!include_dir_*``) and Jinja
+    string literals are tried verbatim (the only route to a ``../file.yaml``
+    branch a glob can't ascend to). Matches still carrying expression markers
+    or pointing back at the including file are skipped.
     """
     # Deferred import — the substitutions component imports this module.
     from esphome.components.substitutions import include_candidate_patterns
 
     parent_dir = include.parent_file.parent
     parent_resolved = include.parent_file.resolve()
-    seen: set[Path] = set()
-    candidates: list[Path] = []
+    candidates: list[tuple[Path, Path]] = []
     for pattern in include_candidate_patterns(str(include.file)):
         if "*" in pattern:
-            matches = sorted(
-                str(found.relative_to(parent_dir)) for found in parent_dir.glob(pattern)
+            relatives = (
+                found.relative_to(parent_dir) for found in parent_dir.glob(pattern)
             )
+            matches = sorted(rel for rel in relatives if _is_visible_path(rel))
         else:
-            matches = [pattern]
+            matches = [Path(pattern)]
         for match in matches:
-            if has_substitution_or_expression(match):
+            if has_substitution_or_expression(str(match)):
                 continue
             candidate = parent_dir / match
             if not candidate.is_file():
                 continue
             resolved = candidate.resolve()
-            if resolved == parent_resolved or resolved in seen:
+            if resolved == parent_resolved:
                 continue
-            seen.add(resolved)
-            candidates.append(Path(match))
+            candidates.append((match, resolved))
     return candidates
 
 
@@ -330,8 +335,7 @@ def _load_include_candidates(
         include.parent_file,
         len(candidates),
     )
-    for candidate in candidates:
-        resolved = (include.parent_file.parent / candidate).resolve()
+    for candidate, resolved in candidates:
         if resolved in _expanded_paths:
             continue
         _expanded_paths.add(resolved)
@@ -379,14 +383,15 @@ def force_load_include_files(
     run on a fresh re-parse where substitutions haven't been applied yet) to
     demote it to a debug log.
     """
-    from esphome.config_validation import Invalid
-
     if _seen is None:
         _seen = set()
     if _expanded_paths is None:
         _expanded_paths = set()
 
     if isinstance(obj, IncludeFile):
+        # Deferred import kept off the per-node recursion path.
+        from esphome.config_validation import Invalid
+
         if id(obj) in _seen:
             return
         _seen.add(id(obj))
