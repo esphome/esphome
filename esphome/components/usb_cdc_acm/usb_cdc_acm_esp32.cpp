@@ -24,6 +24,9 @@ static constexpr size_t USB_CDC_MAX_LOG_BYTES = 168;
 static constexpr size_t USB_TX_TASK_STACK_SIZE = 4096;
 static constexpr size_t USB_TX_TASK_STACK_SIZE_VV = 8192;
 
+// Upper bound on how long flush() waits for the TX ring buffer to drain.
+static constexpr uint32_t FLUSH_TIMEOUT_MS = 100;
+
 static USBCDCACMInstance *get_instance_by_itf(int itf) {
   if (global_usb_cdc_component == nullptr) {
     return nullptr;
@@ -186,6 +189,7 @@ void USBCDCACMInstance::usb_tx_task_fn(void *arg) {
 void USBCDCACMInstance::usb_tx_task() {
   uint8_t data[CONFIG_TINYUSB_CDC_TX_BUFSIZE] = {0};
   size_t tx_data_size = 0;
+  uint32_t stall_log_ms = 0;
 
   while (true) {
     // Wait for a notification from the bridge component
@@ -224,11 +228,35 @@ void USBCDCACMInstance::usb_tx_task() {
       esp_err_t flush_ret =
           tinyusb_cdcacm_write_flush(static_cast<tinyusb_cdcacm_itf_t>(this->itf_), pdMS_TO_TICKS(10));
 
-      if (flush_ret != ESP_OK) {
-        ESP_LOGE(TAG, "USB TX itf=%d: flush failed", this->itf_);
-        tud_cdc_n_write_clear(this->itf_);
-        break;
+      if (flush_ret == ESP_OK) {
+        continue;
       }
+
+      // Bytes not yet handed to TinyUSB plus bytes still sitting in its transmit FIFO.
+      const size_t pending = tx_data_size + (CONFIG_TINYUSB_CDC_TX_BUFSIZE - tud_cdc_n_write_available(this->itf_));
+
+      // A flush timeout only means TinyUSB's transmit FIFO did not fully drain within
+      // the wait window; the queued bytes are untouched and TinyUSB keeps sending them
+      // from its transfer-complete callback once the host polls again. Clearing the
+      // FIFO here would discard the tail of a frame whose head is already on the wire,
+      // corrupting the stream mid-frame. While a host is attached, hold the data and
+      // retry; sustained backpressure then propagates to the ring buffer, which drops
+      // whole writes with a warning instead of splitting a frame.
+      if (flush_ret == ESP_ERR_TIMEOUT && tud_ready()) {
+        const uint32_t now = esp_log_timestamp();
+        if ((now - stall_log_ms) >= 1000) {
+          stall_log_ms = now;
+          ESP_LOGW(TAG, "USB TX itf=%d: host not reading; %zu bytes pending", this->itf_, pending);
+        }
+        continue;
+      }
+
+      // No host is attached (or the interface failed), so the data can never be
+      // delivered. TinyUSB does not clear its transmit FIFO on bus reset; drop the
+      // data here so a stale partial frame is not replayed to the next host.
+      ESP_LOGW(TAG, "USB TX itf=%d: no host; dropping %zu bytes", this->itf_, pending);
+      tud_cdc_n_write_clear(this->itf_);
+      break;
     }
   }
 }
@@ -332,10 +360,18 @@ uart::UARTFlushResult USBCDCACMInstance::flush() {
     return uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
   }
 
+  // Bound the wait: when the host stalls or disconnects, the TX task holds on to
+  // pending data rather than discarding it, so the ring buffer may not drain for as
+  // long as the host stays away. flush() runs on the caller's (typically the main
+  // loop) task and must not block indefinitely.
+  const TickType_t start = xTaskGetTickCount();
   UBaseType_t waiting = 1;
   while (waiting > 0) {
     vRingbufferGetInfo(this->usb_tx_ringbuf_, nullptr, nullptr, nullptr, nullptr, &waiting);
     if (waiting > 0) {
+      if ((xTaskGetTickCount() - start) >= pdMS_TO_TICKS(FLUSH_TIMEOUT_MS)) {
+        return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+      }
       vTaskDelay(pdMS_TO_TICKS(1));
     }
   }
