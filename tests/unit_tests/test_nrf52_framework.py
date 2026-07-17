@@ -1,6 +1,7 @@
 """Tests for esphome.components.nrf52.framework helpers."""
 
 import hashlib
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -12,11 +13,13 @@ from esphome.components.nrf52.framework import (
     TOOLCHAIN_VERSION,
     _get_toolchain_platform_info,
     check_and_install,
+    get_build_env,
     get_sdk_nrf_tools_path,
 )
 from esphome.config_validation import Version
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
+from esphome.framework_helpers import get_python_env_executable_path
 
 
 @pytest.fixture(autouse=True)
@@ -250,6 +253,42 @@ class TestCheckAndInstall:
         assert substitutions["sysname"] == "linux"
         assert substitutions["machine"] == "x86_64"
         assert substitutions["extension"] == "tar.xz"
+
+
+# ---------------------------------------------------------------------------
+# get_build_env tests
+# ---------------------------------------------------------------------------
+
+
+def test_get_build_env(
+    nrf52_dirs: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """get_build_env exposes ZEPHYR_SDK_INSTALL_DIR pointing at the toolchain root.
+
+    ZEPHYR_SDK_INSTALL_DIR is the variable Zephyr's FindZephyr-sdk.cmake
+    explicitly consumes (from the environment) and uses as a find_package
+    HINT. The old Zephyr-sdk_DIR environment hint proved unreliable in
+    containerized non-root builds and was removed.
+    """
+    monkeypatch.setenv("SOME_PREEXISTING_VAR", "kept")
+
+    env = get_build_env()
+
+    tools = get_sdk_nrf_tools_path()
+    venv_bin_dir = get_python_env_executable_path(
+        tools / "penvs" / f"v{_TEST_SDK_VERSION}", "python"
+    ).parent
+    assert env["PATH"].startswith(str(venv_bin_dir) + os.pathsep)
+    assert env["ZEPHYR_BASE"] == str(
+        tools / "frameworks" / f"v{_TEST_SDK_VERSION}" / "zephyr"
+    )
+    # Toolchain root, not the cmake/ subdir
+    assert env["ZEPHYR_SDK_INSTALL_DIR"] == str(
+        tools / "toolchains" / TOOLCHAIN_VERSION
+    )
+    assert "Zephyr-sdk_DIR" not in env
+    # The rest of the process environment is inherited
+    assert env["SOME_PREEXISTING_VAR"] == "kept"
 
 
 # ---------------------------------------------------------------------------
