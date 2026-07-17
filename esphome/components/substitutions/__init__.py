@@ -29,6 +29,11 @@ _LOGGER = logging.getLogger(__name__)
 ContextVars = ChainMap[str, Any]
 ErrList = list[tuple[UndefinedError, DocumentPath, Any]]
 
+# Candidate-pattern shaping for include_candidate_patterns.
+_ADJACENT_WILDCARDS_RE = re.compile(r"\*+")
+_WILDCARDS_ONLY_RE = re.compile(r"[*/\\]+")
+_GLOB_META_RE = re.compile(r"[?\[]")
+
 # Module-level instance is safe: context_vars is passed per-call, and context_trace
 # is stack-saved/restored within expand(). Not thread-safe — only use from one thread.
 jinja = Jinja()
@@ -362,9 +367,7 @@ def resolve_include(
     )
     substituted = filename != original_str
     if substituted:
-        include = IncludeFile(
-            include.parent_file, filename, include.vars, include.yaml_loader
-        )
+        include = include.with_file(filename)
     try:
         return include.load()
     except esphome.core.EsphomeError as err:
@@ -382,7 +385,10 @@ def include_candidate_patterns(value: str) -> list[str]:
     Mirrors the two phases of :func:`_expand_substitutions` without variable
     values: ``$var`` / ``${var}`` references become ``*``, and each remaining
     Jinja expression contributes one pattern per string literal a conditional
-    branch could select (``*`` when fully dynamic). Variants reduced to
+    branch could select (``*`` when fully dynamic). Adjacent wildcards
+    collapse to one so no variant emits ``**``, which globs recursively, and
+    ``[`` / ``?`` from the filename text are escaped in wildcard variants so
+    glob metacharacters in real file names stay literal. Variants reduced to
     nothing but wildcards and separators are dropped, so a fully dynamic
     filename never expands to "everything in the directory".
     """
@@ -396,9 +402,17 @@ def include_candidate_patterns(value: str) -> list[str]:
         options = [[value]]
 
     variants = (
-        re.sub(r"\*+", "*", "".join(combination)) for combination in product(*options)
+        _ADJACENT_WILDCARDS_RE.sub("*", "".join(combination))
+        for combination in product(*options)
     )
-    return [v for v in dict.fromkeys(variants) if v.strip("*/\\")]
+    patterns: list[str] = []
+    for variant in dict.fromkeys(variants):
+        if _WILDCARDS_ONLY_RE.fullmatch(variant):
+            continue
+        if "*" in variant:
+            variant = _GLOB_META_RE.sub(lambda m: f"[{m.group(0)}]", variant)
+        patterns.append(variant)
+    return patterns
 
 
 def _substitute_include(

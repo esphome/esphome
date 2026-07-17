@@ -1226,6 +1226,39 @@ def test_discover_user_yaml_files_jinja_literal_candidates(tmp_path: Path) -> No
     assert (tmp_path / "empty.yaml").resolve() in discovered.files
 
 
+def test_discover_user_yaml_files_glob_matches_bracket_filenames(
+    tmp_path: Path,
+) -> None:
+    """Glob metacharacters in the literal filename text stay literal."""
+    _write(tmp_path, "sensor [a].yaml", "api:\n")
+    discovered = discover_user_yaml_files(
+        _write_entry_including(tmp_path, "sensor [${x}].yaml")
+    )
+    assert "sensor [a].yaml" in {p.name for p in discovered.files}
+
+
+def test_discover_user_yaml_files_ascending_glob(tmp_path: Path) -> None:
+    """A templated include reaching into a sibling directory via ``..`` globs."""
+    _write(tmp_path, "shared/common.yaml", "api:\n")
+    _write(tmp_path, "nodes/dev.yaml", "p: !include ../shared/${x}.yaml\n")
+    discovered = discover_user_yaml_files(
+        _write_entry_including(tmp_path, "nodes/dev.yaml")
+    )
+    assert (tmp_path / "shared/common.yaml").resolve() in discovered.files
+
+
+def test_discover_user_yaml_files_mapping_include_with_vars(tmp_path: Path) -> None:
+    """The mapping !include form (file + vars) expands a templated filename."""
+    _write(tmp_path, "keys/a.yaml", "pin: ${num}\n")
+    entry = _write(
+        tmp_path,
+        "entry.yaml",
+        "wifi: !include\n  file: keys/${n}.yaml\n  vars:\n    num: 4\n",
+    )
+    discovered = discover_user_yaml_files(entry)
+    assert (tmp_path / "keys/a.yaml").resolve() in discovered.files
+
+
 def test_discover_user_yaml_files_glob_skips_hidden_files(tmp_path: Path) -> None:
     """Candidate globs exclude hidden files, matching ``!include_dir_*``."""
     _write(tmp_path, "keys/device-a.yaml", "api:\n")

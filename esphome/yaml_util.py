@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 import uuid
 
+from voluptuous import Invalid
 import yaml
 from yaml import SafeLoader as PurePythonLoader
 import yaml.constructor
@@ -253,8 +254,6 @@ class IncludeFile:
         if self._content is not _UNSET:
             return self._content
         if self.has_unresolved_expressions():
-            from esphome.config_validation import Invalid
-
             raise Invalid(
                 f"Cannot load include with unresolved substitutions: {self.file}"
             )
@@ -265,6 +264,10 @@ class IncludeFile:
     def has_unresolved_expressions(self) -> bool:
         """Check if the filename contains substitution variables or Jinja expressions."""
         return has_substitution_or_expression(str(self.file))
+
+    def with_file(self, file: Path | str) -> IncludeFile:
+        """Clone this include with *file* as the filename."""
+        return IncludeFile(self.parent_file, file, self.vars, self.yaml_loader)
 
 
 def _is_visible_path(rel: Path) -> bool:
@@ -314,12 +317,10 @@ def _load_include_candidates(
     include: IncludeFile,
     *,
     warn_on_unresolved: bool,
-    _seen: set[int],
-    _expanded_paths: set[Path],
+    seen: set[int],
+    expanded_paths: set[Path],
 ) -> None:
     """Load every filesystem candidate for an unresolved ``IncludeFile``."""
-    from esphome.config_validation import Invalid
-
     candidates = _candidate_include_paths(include)
     if not candidates:
         log = _LOGGER.warning if warn_on_unresolved else _LOGGER.debug
@@ -336,14 +337,11 @@ def _load_include_candidates(
         len(candidates),
     )
     for candidate, resolved in candidates:
-        if resolved in _expanded_paths:
+        if resolved in expanded_paths:
             continue
-        _expanded_paths.add(resolved)
-        candidate_include = IncludeFile(
-            include.parent_file, candidate, include.vars, include.yaml_loader
-        )
+        expanded_paths.add(resolved)
         try:
-            loaded = candidate_include.load()
+            loaded = include.with_file(candidate).load()
         except (EsphomeError, Invalid) as err:
             _LOGGER.debug(
                 "Failed to load candidate %s for !include %s: %s",
@@ -355,8 +353,8 @@ def _load_include_candidates(
         force_load_include_files(
             loaded,
             warn_on_unresolved=warn_on_unresolved,
-            _seen=_seen,
-            _expanded_paths=_expanded_paths,
+            _seen=seen,
+            _expanded_paths=expanded_paths,
         )
 
 
@@ -389,9 +387,6 @@ def force_load_include_files(
         _expanded_paths = set()
 
     if isinstance(obj, IncludeFile):
-        # Deferred import kept off the per-node recursion path.
-        from esphome.config_validation import Invalid
-
         if id(obj) in _seen:
             return
         _seen.add(id(obj))
@@ -399,8 +394,8 @@ def force_load_include_files(
             _load_include_candidates(
                 obj,
                 warn_on_unresolved=warn_on_unresolved,
-                _seen=_seen,
-                _expanded_paths=_expanded_paths,
+                seen=_seen,
+                expanded_paths=_expanded_paths,
             )
             return
         try:

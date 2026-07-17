@@ -999,6 +999,19 @@ def test_remote_package_scalar_yaml_raises_helpful_error(
             ["same.yaml"],
             id="duplicate_literals_dedupe",
         ),
+        pytest.param('${ "a.yaml" if x }', ["a.yaml"], id="conditional_no_else"),
+        pytest.param(
+            '${ "a-${x}.yaml" if c else "b.yaml" }',
+            ["a-*.yaml", "b.yaml"],
+            id="substitution_inside_literal",
+        ),
+        pytest.param("sensor [${x}].yaml", ["sensor [[]*].yaml"], id="bracket_escaped"),
+        pytest.param(
+            "config?${x}.yaml", ["config[?]*.yaml"], id="question_mark_escaped"
+        ),
+        pytest.param(
+            "../${x}/config.yaml", ["../*/config.yaml"], id="ascending_directory"
+        ),
         pytest.param("${file}", [], id="bare_variable_dropped"),
         pytest.param('${ name ~ ".yaml" }', [], id="dynamic_expression_dropped"),
         pytest.param("${ if }", [], id="syntax_error_dropped"),

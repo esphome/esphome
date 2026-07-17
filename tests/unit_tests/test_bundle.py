@@ -998,29 +998,6 @@ def test_discover_files_nested_include_unresolved_substitution(
     assert "test.yaml" in paths
 
 
-def test_discover_files_bundles_substitution_include_candidates(
-    tmp_path: Path,
-) -> None:
-    """!include with substitution vars in path bundles every candidate file."""
-    config_dir = _setup_config_dir(
-        tmp_path,
-        files={
-            "boards/esp32.yaml": "esp32:\n  board: esp32dev\n",
-            "boards/esp8266.yaml": "esp8266:\n  board: d1_mini\n",
-        },
-    )
-    (config_dir / "test.yaml").write_text(
-        "esphome:\n  name: test\nwifi: !include boards/${platform}.yaml\n"
-    )
-
-    creator = ConfigBundleCreator({})
-    files = creator.discover_files()
-
-    paths = [f.path for f in files]
-    assert "boards/esp32.yaml" in paths
-    assert "boards/esp8266.yaml" in paths
-
-
 def test_discover_files_bundles_all_include_candidates(tmp_path: Path) -> None:
     """The issue-2143 layout: templated package includes chain through a glob
     candidate into a Jinja conditional whose ``../`` branch is bundled."""

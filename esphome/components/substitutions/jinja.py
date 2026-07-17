@@ -126,14 +126,16 @@ def _concat_nodes_override(values: Iterator[Any]) -> Any:
     return raw
 
 
-def _expression_string_options(node: jinja.nodes.Node) -> list[str | None]:
-    """String values a template expression could yield; ``None`` when dynamic."""
+def _node_string_options(node: jinja.nodes.Node) -> list[str | None]:
+    """String values a template node could yield; ``None`` when dynamic."""
+    if isinstance(node, jinja.nodes.TemplateData):
+        return [node.data]
     if isinstance(node, jinja.nodes.Const):
         return [node.value if isinstance(node.value, str) else None]
     if isinstance(node, jinja.nodes.CondExpr):
-        options = _expression_string_options(node.expr1)
+        options = _node_string_options(node.expr1)
         if node.expr2 is not None:
-            options += _expression_string_options(node.expr2)
+            options += _node_string_options(node.expr2)
         return options
     return [None]
 
@@ -215,11 +217,7 @@ class Jinja(jinja.Environment):
         for part in template_ast.body:
             if not isinstance(part, jinja.nodes.Output):
                 return None
-            for child in part.nodes:
-                if isinstance(child, jinja.nodes.TemplateData):
-                    segments.append([child.data])
-                else:
-                    segments.append(_expression_string_options(child))
+            segments.extend(_node_string_options(child) for child in part.nodes)
         return segments
 
 
