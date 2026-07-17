@@ -28,6 +28,9 @@ static constexpr size_t USB_TX_TASK_STACK_SIZE_VV = 8192;
 // Upper bound on how long flush() waits for the TX ring buffer to drain.
 static constexpr uint32_t FLUSH_TIMEOUT_MS = 100;
 
+// Minimum interval between repeated warnings while a host stall persists.
+static constexpr uint32_t LOG_THROTTLE_MS = 1000;
+
 static USBCDCACMInstance *get_instance_by_itf(int itf) {
   if (global_usb_cdc_component == nullptr) {
     return nullptr;
@@ -193,8 +196,15 @@ void USBCDCACMInstance::usb_tx_task() {
   uint32_t stall_log_ms = 0;
 
   while (true) {
+    // Not holding any data while blocked waiting for more.
+    this->usb_tx_busy_ = false;
+
     // Wait for a notification from the bridge component
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+    // Raise the busy flag before pulling data out of the ring buffer, so at every
+    // instant flush() sees pending bytes in the ring buffer count or in this flag.
+    this->usb_tx_busy_ = true;
 
     // When we do wake up, we can be sure there is data in the ring buffer
     esp_err_t ret = ringbuf_read_bytes(this->usb_tx_ringbuf_, data, CONFIG_TINYUSB_CDC_TX_BUFSIZE, &tx_data_size, 0);
@@ -254,7 +264,7 @@ void USBCDCACMInstance::usb_tx_task() {
       // the port open and is expected to eventually read.
       if (flush_ret == ESP_ERR_TIMEOUT && tud_cdc_n_connected(this->itf_)) {
         const uint32_t now = millis();
-        if ((now - stall_log_ms) >= 1000) {
+        if ((now - stall_log_ms) >= LOG_THROTTLE_MS) {
           stall_log_ms = now;
           ESP_LOGW(TAG, "USB TX itf=%d: host not reading; %zu bytes pending", this->itf_, pending);
         }
@@ -289,7 +299,16 @@ void USBCDCACMInstance::write_array(const uint8_t *data, size_t len) {
   // Write data to TX ring buffer
   BaseType_t send_res = xRingbufferSend(this->usb_tx_ringbuf_, data, len, 0);
   if (send_res != pdTRUE) {
-    ESP_LOGW(TAG, "USB TX itf=%d: buffer full, %u bytes dropped", this->itf_, len);
+    // During a sustained host stall the ring buffer stays full (that is the intended
+    // backpressure), so this path runs for every write; throttle the warning and
+    // accumulate the count so the log stays readable without losing the total.
+    this->tx_dropped_bytes_ += len;
+    const uint32_t now = millis();
+    if ((now - this->tx_dropped_log_ms_) >= LOG_THROTTLE_MS) {
+      this->tx_dropped_log_ms_ = now;
+      ESP_LOGW(TAG, "USB TX itf=%d: buffer full, %" PRIu32 " bytes dropped", this->itf_, this->tx_dropped_bytes_);
+      this->tx_dropped_bytes_ = 0;
+    }
     return;
   }
 
@@ -381,15 +400,19 @@ uart::UARTFlushResult USBCDCACMInstance::flush() {
   // long as the host stays away. flush() runs on the caller's (typically the main
   // loop) task and must not block indefinitely.
   const TickType_t start = xTaskGetTickCount();
-  UBaseType_t waiting = 1;
-  while (waiting > 0) {
+  while (true) {
+    UBaseType_t waiting = 0;
     vRingbufferGetInfo(this->usb_tx_ringbuf_, nullptr, nullptr, nullptr, nullptr, &waiting);
-    if (waiting > 0) {
-      if ((xTaskGetTickCount() - start) >= pdMS_TO_TICKS(FLUSH_TIMEOUT_MS)) {
-        return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
-      }
-      vTaskDelay(pdMS_TO_TICKS(1));
+    // The busy flag covers bytes the TX task has pulled from the ring buffer but not
+    // yet handed to TinyUSB (it holds them while the host applies backpressure);
+    // those are in neither the ring buffer count nor TinyUSB's FIFO.
+    if (waiting == 0 && !this->usb_tx_busy_) {
+      break;
     }
+    if ((xTaskGetTickCount() - start) >= pdMS_TO_TICKS(FLUSH_TIMEOUT_MS)) {
+      return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+    }
+    vTaskDelay(pdMS_TO_TICKS(1));
   }
 
   // Also wait for USB to finish transmitting

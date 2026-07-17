@@ -7,6 +7,7 @@
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/components/uart/uart_component.h"
 
+#include <atomic>
 #include <functional>
 #include "freertos/ringbuf.h"
 #include "tinyusb_cdc_acm.h"
@@ -100,6 +101,14 @@ class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBC
 
   RingbufHandle_t usb_tx_ringbuf_{nullptr};
   RingbufHandle_t usb_rx_ringbuf_{nullptr};
+  // True while the TX task holds bytes it has pulled from the ring buffer but not yet
+  // handed to TinyUSB; lets flush() account for data that is in neither the ring
+  // buffer nor TinyUSB's FIFO.
+  std::atomic<bool> usb_tx_busy_{false};
+  // Bytes dropped by write_array() since the last "buffer full" log line, and the
+  // timestamp of that line (throttled so a sustained host stall doesn't flood the log).
+  uint32_t tx_dropped_bytes_{0};
+  uint32_t tx_dropped_log_ms_{0};
   // RX buffer for peek functionality
   uint8_t peek_buffer_{0};
   bool has_peek_{false};
