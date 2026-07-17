@@ -109,6 +109,34 @@ api:
               - name.c_str()
               - int_arr.size()
               - string_arr.size()
+    # Test string + array args used by homeassistant.action's deferred
+    # on_success/on_error response callback.  homeassistant.action registers
+    # synchronous=False, so the api codegen must fall back to owning
+    # std::string / std::vector args here: the non-owning defaults would
+    # dangle once rx_buf_ is reused before the response arrives, and the
+    # non-copyable FixedVector would fail to compile when captured into
+    # the response callback.
+    - action: action_response_args
+      variables:
+        name: string
+        int_arr: int[]
+      then:
+        - homeassistant.action:
+            action: notify.notify
+            data:
+              message: !lambda 'return name;'
+            on_success:
+              - logger.log:
+                  format: "Notified %s (%u ints)"
+                  args:
+                    - name.c_str()
+                    - int_arr.size()
+            on_error:
+              - logger.log:
+                  format: "Notify failed (%s): %s"
+                  args:
+                    - error.c_str()
+                    - name.c_str()
     # Test ContinuationAction (IfAction with then/else branches)
     - action: test_if_action
       variables:
