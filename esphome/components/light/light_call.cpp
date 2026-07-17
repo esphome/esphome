@@ -221,7 +221,7 @@ LightColorValues LightCall::validate_() {
 
   // Make sure a simple (no specific brightness) turn-on makes the light visible
   if (this->has_state() && this->state_ && (color_mode & ColorCapability::BRIGHTNESS) && !this->has_brightness() &&
-      this->parent_->remote_values.get_brightness() == 0) {
+      this->parent_->remote_values.get_brightness() == 0.0f) {
     this->brightness_ = 1.0f;
     this->set_flag_(FLAG_HAS_BRIGHTNESS);
   }
