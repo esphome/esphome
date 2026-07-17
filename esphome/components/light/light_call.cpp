@@ -219,17 +219,11 @@ LightColorValues LightCall::validate_() {
     this->set_flag_(FLAG_HAS_STATE);
   }
 
-  // Make sure a turn-on makes the light visible: if the resulting brightness would be zero
-  // (e.g. restored from a brightness=0 turn-off), reset it to full brightness.
-  // Skip this while an effect is active: effects (e.g. pulse, strobe) intentionally drive
-  // brightness to 0 while keeping the light logically on, and must not be overridden.
-  if (this->has_state() && this->state_ && (color_mode & ColorCapability::BRIGHTNESS) &&
-      this->parent_->get_current_effect_index() == 0) {
-    float brightness = this->has_brightness() ? this->brightness_ : this->parent_->remote_values.get_brightness();
-    if (brightness == 0.0f) {
-      this->brightness_ = 1.0f;
-      this->set_flag_(FLAG_HAS_BRIGHTNESS);
-    }
+  // Make sure a simple (no specific brightness) turn-on makes the light visible
+  if (this->has_state() && this->state_ && (color_mode & ColorCapability::BRIGHTNESS) && !this->has_brightness() &&
+      this->parent_->remote_values.get_brightness() == 0) {
+    this->brightness_ = 1.0f;
+    this->set_flag_(FLAG_HAS_BRIGHTNESS);
   }
 
   // Set color brightness to 100% if currently zero and a color is set.
