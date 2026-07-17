@@ -156,6 +156,13 @@ def validate_ipv6(value: bool) -> bool:
     return value
 
 
+def validate_ipv4(value: bool) -> bool:
+    if CORE.is_nrf52 and value:
+        raise cv.Invalid("On nRF52, enable_ipv4 must be false")
+
+    return value
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -188,7 +195,15 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_HIGH_PERFORMANCE): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
-            cv.Optional(CONF_ENABLE_IPV4, default=True): cv.boolean,
+            cv.SplitDefault(
+                CONF_ENABLE_IPV4,
+                bk72xx=True,
+                esp32=True,
+                esp8266=True,
+                host=True,
+                rp2=True,
+                nrf52=False,
+            ): cv.All(cv.boolean, validate_ipv4),
         }
     ),
     _register_provisioning_source,
@@ -197,10 +212,10 @@ CONFIG_SCHEMA = cv.All(
 
 def _final_validate(config):
     full_config = fv.full_config.get()
-    enable_ipv4 = config[CONF_ENABLE_IPV4]
+    enable_ipv4 = config.get(CONF_ENABLE_IPV4, True)
     if not enable_ipv4:
-        if not CORE.is_esp32:
-            raise cv.Invalid("Disabling IPv4 is only supported on ESP32")
+        if not CORE.is_esp32 and not CORE.is_nrf52:
+            raise cv.Invalid("Disabling IPv4 is only supported on ESP32 or Zephyr")
         for comp in _DISABLE_IPV4_DENY_LIST:
             if comp in full_config:
                 raise cv.Invalid(
@@ -215,6 +230,8 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config):
     cg.add_define("USE_NETWORK")
     # ESP32 with Arduino uses ESP-IDF network APIs directly, no Arduino Network library needed
+    enable_ipv4 = config.get(CONF_ENABLE_IPV4, True)
+    enable_ipv6 = config.get(CONF_ENABLE_IPV6, None)
 
     # Apply high performance networking settings
     # Config can explicitly enable/disable, or default to component-driven behavior
@@ -281,7 +298,8 @@ async def to_code(config):
 
     if CORE.is_nrf52:
         zephyr_add_prj_conf("NETWORKING", True)
-        zephyr_add_prj_conf("NET_IPV6", True)
+        zephyr_add_prj_conf("NET_IPV4", enable_ipv4)
+        zephyr_add_prj_conf("NET_IPV6", enable_ipv6)
         zephyr_add_prj_conf("NET_TCP", True)
         zephyr_add_prj_conf("NET_UDP", True)
         # The nRF Connect SDK replaces mbedTLS with PSA/Oberon crypto and does not provide the
@@ -306,7 +324,7 @@ async def to_code(config):
         zephyr_add_prj_conf("NET_TCP_MAX_RECV_WINDOW_SIZE", 2280)
         zephyr_add_prj_conf("NET_TCP_MAX_SEND_WINDOW_SIZE", 2280)
 
-    if (enable_ipv6 := config.get(CONF_ENABLE_IPV6, None)) is not None:
+    if enable_ipv6 is not None:
         cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
         if enable_ipv6:
             cg.add_define(
@@ -335,7 +353,6 @@ async def to_code(config):
     if CORE.is_esp32:
         CORE.add_job(network_component_to_code, config)
 
-    enable_ipv4 = config[CONF_ENABLE_IPV4]
     cg.add_define("USE_NETWORK_IPV4", enable_ipv4)
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_LWIP_IPV4", enable_ipv4)

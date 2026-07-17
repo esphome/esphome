@@ -11,6 +11,7 @@ from tests.component_tests.types import SetCoreConfigCallable
 _ESP8266_CORE_DATA = {KEY_FRAMEWORK_VERSION: cv.Version(0, 0, 0)}
 _ESP32_CORE_DATA = {KEY_FRAMEWORK_VERSION: cv.Version(0, 0, 0)}
 _ESP32_PLATFORM_DATA = {KEY_VARIANT: VARIANT_ESP32C6}
+_NRF52_CORE_DATA = {KEY_FRAMEWORK_VERSION: cv.Version(0, 0, 0)}
 
 
 @pytest.mark.parametrize(
@@ -64,4 +65,25 @@ def test_disable_ipv4_esp32_idf_valid(
     from esphome.components.network import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
 
     config = CONFIG_SCHEMA({CONF_ENABLE_IPV4: False})
+    FINAL_VALIDATE_SCHEMA(config)  # should not raise
+
+
+def test_enable_ipv4_nrf52_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.NRF52_ZEPHYR, core_data=_NRF52_CORE_DATA)
+    from esphome.components.network import CONFIG_SCHEMA
+
+    with pytest.raises(cv.Invalid, match="On nRF52, enable_ipv4 must be false"):
+        CONFIG_SCHEMA({CONF_ENABLE_IPV4: True})
+
+
+def test_enable_ipv4_nrf52_default_valid(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.NRF52_ZEPHYR, core_data=_NRF52_CORE_DATA)
+    from esphome.components.network import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
+
+    config = CONFIG_SCHEMA({})
+    assert config[CONF_ENABLE_IPV4] is False
     FINAL_VALIDATE_SCHEMA(config)  # should not raise
