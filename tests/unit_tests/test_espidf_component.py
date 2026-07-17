@@ -150,6 +150,21 @@ target_link_libraries(${{COMPONENT_LIB}} INTERFACE
     )
 
 
+def test_generate_cmakelists_txt_multi_token_flag(tmp_component):
+    # PlatformIO shell-lexes each build.flags entry, so a single entry can
+    # carry a flag and its argument. The generated CMakeLists must emit them
+    # as separate compile options, not one argument with an embedded space.
+    src_dir = tmp_component.path / "src"
+    src_dir.mkdir()
+    (src_dir / "main.c").write_text("int main() {}")
+
+    tmp_component.data = {"build": {"flags": ["-include cp_custom_alloc.h", "-DTEST"]}}
+
+    content = generate_cmakelists_txt(tmp_component)
+    assert '"-include cp_custom_alloc.h"' not in content
+    assert '  "-include"\n  "cp_custom_alloc.h"\n' in content
+
+
 def test_generate_cmakelists_txt_references_project_managed_components_variable(
     tmp_component: IDFComponent,
 ) -> None:

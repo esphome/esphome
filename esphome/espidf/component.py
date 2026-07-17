@@ -10,6 +10,7 @@ ESP-IDF platform/framework compatibility defaults.
 import logging
 import os
 from pathlib import Path
+import shlex
 
 from esphome.core import CORE, Library
 from esphome.helpers import write_file_if_changed
@@ -105,6 +106,11 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     build_flags = ensure_list(
         component.data.get("build", {}).get("flags", DEFAULT_BUILD_FLAGS)
     )
+    # PlatformIO shell-lexes each build.flags entry, so one entry can carry a
+    # flag and its argument (e.g. "-include cp_custom_alloc.h"). Split the
+    # same way; emitting such an entry as a single quoted compile option
+    # hands the compiler one argv with an embedded space.
+    build_flags = [token for entry in build_flags for token in shlex.split(entry)]
 
     # List all sources files
     build_src_files = collect_filtered_files(
