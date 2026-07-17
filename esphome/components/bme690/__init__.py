@@ -5,7 +5,6 @@ import urllib.parse
 from esphome import core, external_files
 import esphome.codegen as cg
 from esphome.components import esp32, i2c
-from esphome.components.const import CONF_STATE_SAVE_INTERVAL
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -16,6 +15,12 @@ from esphome.const import (
     Framework,
 )
 from esphome.core import CORE
+
+try:
+    from esphome.components.const import CONF_STATE_SAVE_INTERVAL
+except ImportError:
+    # Support loading this PR as an external component with ESPHome 2026.6.5.
+    CONF_STATE_SAVE_INTERVAL = "state_save_interval"
 
 CODEOWNERS = ["@berikv"]
 DEPENDENCIES = ["i2c"]
