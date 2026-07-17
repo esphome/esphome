@@ -5,6 +5,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
 #include <cstring>
 #include <sys/param.h>
 #include "freertos/FreeRTOS.h"
@@ -25,7 +26,8 @@ static constexpr size_t USB_CDC_MAX_LOG_BYTES = 168;
 static constexpr size_t USB_TX_TASK_STACK_SIZE = 4096;
 static constexpr size_t USB_TX_TASK_STACK_SIZE_VV = 8192;
 
-// Upper bound on how long flush() waits for the TX ring buffer to drain.
+// Upper bound on how long flush() may block in total: the TX ring buffer drain and
+// the final TinyUSB flush share this budget.
 static constexpr uint32_t FLUSH_TIMEOUT_MS = 100;
 
 // Minimum interval between repeated warnings while a host stall persists.
@@ -193,7 +195,9 @@ void USBCDCACMInstance::usb_tx_task_fn(void *arg) {
 void USBCDCACMInstance::usb_tx_task() {
   uint8_t data[CONFIG_TINYUSB_CDC_TX_BUFSIZE] = {0};
   size_t tx_data_size = 0;
-  uint32_t stall_log_ms = 0;
+  // Back-dated so a stall within the first LOG_THROTTLE_MS of uptime still logs
+  // immediately (unsigned arithmetic keeps this wrap-safe).
+  uint32_t stall_log_ms = millis() - LOG_THROTTLE_MS;
 
   while (true) {
     // Not holding any data while blocked waiting for more.
@@ -300,14 +304,17 @@ void USBCDCACMInstance::write_array(const uint8_t *data, size_t len) {
   BaseType_t send_res = xRingbufferSend(this->usb_tx_ringbuf_, data, len, 0);
   if (send_res != pdTRUE) {
     // During a sustained host stall the ring buffer stays full (that is the intended
-    // backpressure), so this path runs for every write; throttle the warning and
-    // accumulate the count so the log stays readable without losing the total.
+    // backpressure), so this path runs for every write; throttle the warning so the
+    // log stays readable. The counter is a running total that is never reset: each
+    // line reports all bytes dropped so far, so bytes dropped in the tail of one
+    // stall are still accounted for by the next line, whenever that is. It also makes
+    // the very first drop since boot detectable, which is logged unthrottled.
+    const bool first_drop = this->tx_dropped_bytes_ == 0;
     this->tx_dropped_bytes_ += len;
     const uint32_t now = millis();
-    if ((now - this->tx_dropped_log_ms_) >= LOG_THROTTLE_MS) {
+    if (first_drop || (now - this->tx_dropped_log_ms_) >= LOG_THROTTLE_MS) {
       this->tx_dropped_log_ms_ = now;
-      ESP_LOGW(TAG, "USB TX itf=%d: buffer full, %" PRIu32 " bytes dropped", this->itf_, this->tx_dropped_bytes_);
-      this->tx_dropped_bytes_ = 0;
+      ESP_LOGW(TAG, "USB TX itf=%d: buffer full, %" PRIu32 " bytes dropped total", this->itf_, this->tx_dropped_bytes_);
     }
     return;
   }
@@ -415,11 +422,16 @@ uart::UARTFlushResult USBCDCACMInstance::flush() {
     vTaskDelay(pdMS_TO_TICKS(1));
   }
 
-  // Also wait for USB to finish transmitting
-  esp_err_t err = tinyusb_cdcacm_write_flush(static_cast<tinyusb_cdcacm_itf_t>(this->itf_), pdMS_TO_TICKS(100));
+  // Also wait for USB to finish transmitting, within whatever remains of the budget.
+  const uint32_t elapsed_ms = pdTICKS_TO_MS(xTaskGetTickCount() - start);
+  const uint32_t remaining_ms = FLUSH_TIMEOUT_MS - std::min(elapsed_ms, FLUSH_TIMEOUT_MS);
+  esp_err_t err =
+      tinyusb_cdcacm_write_flush(static_cast<tinyusb_cdcacm_itf_t>(this->itf_), pdMS_TO_TICKS(remaining_ms));
   if (err == ESP_OK)
     return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
-  if (err == ESP_ERR_TIMEOUT)
+  // With a zero remaining budget the call is non-blocking and reports unfinished
+  // output as ESP_ERR_NOT_FINISHED rather than ESP_ERR_TIMEOUT.
+  if (err == ESP_ERR_TIMEOUT || err == ESP_ERR_NOT_FINISHED)
     return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
   return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
 }

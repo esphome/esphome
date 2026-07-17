@@ -105,8 +105,9 @@ class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBC
   // handed to TinyUSB; lets flush() account for data that is in neither the ring
   // buffer nor TinyUSB's FIFO.
   std::atomic<bool> usb_tx_busy_{false};
-  // Bytes dropped by write_array() since the last "buffer full" log line, and the
-  // timestamp of that line (throttled so a sustained host stall doesn't flood the log).
+  // Running total of bytes dropped by write_array() (never reset), and the timestamp
+  // of the last "buffer full" log line (throttled so a sustained host stall doesn't
+  // flood the log).
   uint32_t tx_dropped_bytes_{0};
   uint32_t tx_dropped_log_ms_{0};
   // RX buffer for peek functionality
