@@ -18,7 +18,7 @@
 namespace esphome::udp {
 
 static const size_t MAX_PACKET_SIZE = 508;
-class UDPComponent : public Component {
+class UDPComponent final : public Component {
  public:
   void set_addresses(std::initializer_list<const char *> addresses) { this->addresses_ = addresses; }
   /// Prevent accidental use of std::string which would dangle

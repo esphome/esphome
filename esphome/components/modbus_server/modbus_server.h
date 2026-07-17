@@ -84,23 +84,28 @@ class ServerRegister {
     }
   }
 
+  void set_allow_partial_read(bool allow_partial_read) { this->allow_partial_read = allow_partial_read; }
+
   uint16_t address{0};
   SensorValueType value_type{SensorValueType::RAW};
   uint8_t register_count{0};
+  // When true, a read may cover only part of this multi-register value; otherwise it must read the whole value.
+  bool allow_partial_read{false};
   ReadLambda read_lambda;
   WriteLambda write_lambda;
 };
 
-class ModbusServer : public Component, public modbus::ModbusServerDevice {
+class ModbusServer final : public Component, public modbus::ModbusServerDevice {
  public:
   void dump_config() override;
 
   /// Registers a server register with the controller. Called by esphomes code generator
   void add_server_register(ServerRegister *server_register) { server_registers_.push_back(server_register); }
   /// called when a modbus request (function code 0x03 or 0x04) was parsed without errors
-  void on_modbus_read_registers(uint8_t function_code, uint16_t start_address, uint16_t number_of_registers) final;
+  modbus::ResponseStatus on_read_registers(uint16_t start_address, uint16_t number_of_registers,
+                                           modbus::RegisterValues &registers) final;
   /// called when a modbus request (function code 0x06 or 0x10) was parsed without errors
-  void on_modbus_write_registers(uint8_t function_code, const std::vector<uint8_t> &data) final;
+  modbus::ResponseStatus on_write_registers(uint16_t start_address, const modbus::RegisterValues &registers) final;
   /// Called by esphome generated code to set the server courtesy response object
   void set_server_courtesy_response(const ServerCourtesyResponse &server_courtesy_response) {
     this->server_courtesy_response_ = server_courtesy_response;
@@ -109,6 +114,8 @@ class ModbusServer : public Component, public modbus::ModbusServerDevice {
   ServerCourtesyResponse get_server_courtesy_response() const { return this->server_courtesy_response_; }
 
  protected:
+  /// Find the registered value whose register span contains address, or nullptr if none does.
+  ServerRegister *find_containing_register_(uint32_t address) const;
   /// Collection of all server registers for this component
   std::vector<ServerRegister *> server_registers_{};
   /// Server courtesy response

@@ -8,6 +8,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from esphome.const import (
+    CONF_BUILD_PATH,
     CONF_COMMENT,
     CONF_ESPHOME,
     CONF_ETHERNET,
@@ -25,7 +26,7 @@ from esphome.const import (
     PLATFORM_HOST,
     PLATFORM_LN882X,
     PLATFORM_NRF52,
-    PLATFORM_RP2040,
+    PLATFORM_RP2,
     PLATFORM_RTL87XX,
     Toolchain,
 )
@@ -51,6 +52,11 @@ _LOGGER = logging.getLogger(__name__)
 
 # Key for tracking controller count in CORE.data for ControllerRegistry StaticVector sizing
 KEY_CONTROLLER_REGISTRY_COUNT = "controller_registry_count"
+
+# CORE.data key for the "is_rp2040 deprecation warning already fired this
+# run" flag. Mirrors the ``cv.only_on_rp2040`` dedupe pattern; cleared
+# between runs so each fresh invocation warns once.
+_IS_RP2040_DEPRECATED_KEY = "_core_is_rp2040_deprecated_warned"
 
 
 class EsphomeError(Exception):
@@ -569,6 +575,9 @@ class EsphomeCore:
         self.build_path: Path | None = None
         # The validated configuration, this is None until the config has been validated
         self.config: ConfigType | None = None
+        # The raw configuration as read from YAML (after packages/substitutions),
+        # available during validation before the config is fully validated
+        self.raw_config: ConfigType | None = None
         # YAML frontmatter loaded from user YAML files. Frontmatter is a leading
         # YAML document separated by `---` from the actual configuration. It is
         # ignored by config validation and code generation, but kept here so it
@@ -591,6 +600,9 @@ class EsphomeCore:
         self.platformio_libraries: dict[str, Library] = {}
         # A set of build flags to set in the platformio project
         self.build_flags: set[str] = set()
+        # A set of build flags that apply to C++ compiles only (CXXFLAGS /
+        # CXX_COMPILE_OPTIONS), for flags GCC rejects or warns about on C
+        self.cxx_build_flags: set[str] = set()
         # A set of build unflags to set in the platformio project
         self.build_unflags: set[str] = set()
         # The C++ language standard for the build (e.g. "gnu++20"), set via cg.set_cpp_standard()
@@ -642,6 +654,7 @@ class EsphomeCore:
         self.config_path = None
         self.build_path = None
         self.config = None
+        self.raw_config = None
         self.frontmatter = {}
         self.event_loop = _FakeEventLoop()
         self.task_counter = 0
@@ -650,6 +663,7 @@ class EsphomeCore:
         self.global_statements = []
         self.platformio_libraries = {}
         self.build_flags = set()
+        self.cxx_build_flags = set()
         self.build_unflags = set()
         self.cpp_standard = None
         self.defines = set()
@@ -718,12 +732,28 @@ class EsphomeCore:
 
         The hash is computed lazily and cached for performance.
         Uses sort_keys=True to ensure deterministic ordering.
+
+        The hash must be reproducible across machines so the device builder
+        can compare a locally computed hash against the one a device
+        advertises. Machine-local data is kept out of the input: build_path
+        (which embeds ESPHOME_BUILD_PATH and OS path separators) is excluded,
+        and Path values are dumped relative to the config directory.
         """
         if self._config_hash is None:
             from esphome import yaml_util
             from esphome.helpers import fnv1a_32bit_hash
 
-            config_str = yaml_util.dump(self.config, show_secrets=True, sort_keys=True)
+            config = dict(self.config)
+            if (esphome_conf := config.get(CONF_ESPHOME)) is not None:
+                esphome_conf = dict(esphome_conf)
+                esphome_conf.pop(CONF_BUILD_PATH, None)
+                config[CONF_ESPHOME] = esphome_conf
+            config_str = yaml_util.dump(
+                config,
+                show_secrets=True,
+                sort_keys=True,
+                relative_to=self.config_dir if self.config_path is not None else None,
+            )
             self._config_hash = fnv1a_32bit_hash(config_str)
         return self._config_hash
 
@@ -827,8 +857,37 @@ class EsphomeCore:
         return self.target_platform == PLATFORM_ESP32
 
     @property
+    def is_rp2(self):
+        """Return True if the target platform is the RP2 chip family.
+
+        Canonical umbrella check covering RP2040, RP2350, and any future
+        RP2-series chip. Mirrors :attr:`is_esp32` for the ESP32 family.
+        For variant-specific gating (RP2040 vs RP2350), use
+        ``rp2.get_rp2040_variant()`` or ``rp2.only_on_variant(...)`` from
+        the rp2 component — variant detection doesn't belong on ``CORE``.
+        """
+        return self.target_platform == PLATFORM_RP2
+
+    @property
     def is_rp2040(self):
-        return self.target_platform == PLATFORM_RP2040
+        """Deprecated: use :attr:`is_rp2` for the family check, or
+        ``rp2.get_rp2040_variant() == rp2.VARIANT_RP2040`` for the
+        variant-specific check. Kept as an alias since pre-RP2350
+        callers used it as a family check, identical to ``is_rp2``.
+
+        Scheduled for removal in 2027.7.0. Logs a one-shot deprecation
+        warning per run (deduped via ``self.data`` so repeated reads in
+        the same invocation don't spam) to match the parallel
+        ``cv.only_on_rp2040`` shim.
+        """
+        if not self.data.get(_IS_RP2040_DEPRECATED_KEY):
+            _LOGGER.warning(
+                "CORE.is_rp2040 is deprecated; use CORE.is_rp2 for the family "
+                "gate, or rp2.get_rp2040_variant() == rp2.VARIANT_RP2040 for "
+                "the variant-specific check. Removed in 2027.7.0."
+            )
+            self.data[_IS_RP2040_DEPRECATED_KEY] = True
+        return self.is_rp2
 
     @property
     def is_bk72xx(self):
@@ -955,6 +1014,11 @@ class EsphomeCore:
     def add_build_flag(self, build_flag: str) -> str:
         self.build_flags.add(build_flag)
         _LOGGER.debug("Adding build flag: %s", build_flag)
+        return build_flag
+
+    def add_cxx_build_flag(self, build_flag: str) -> str:
+        self.cxx_build_flags.add(build_flag)
+        _LOGGER.debug("Adding C++ build flag: %s", build_flag)
         return build_flag
 
     def add_build_unflag(self, build_unflag: str) -> None:
