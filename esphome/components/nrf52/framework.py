@@ -133,7 +133,15 @@ def get_build_env() -> dict:
     env = os.environ.copy()
     env["PATH"] = str(venv_bin_dir) + os.pathsep + env.get("PATH", "")
     env["ZEPHYR_BASE"] = str(_get_framework_path(version) / "zephyr")
-    env["Zephyr-sdk_DIR"] = str(_get_toolchain_path(TOOLCHAIN_VERSION) / "cmake")
+    # ZEPHYR_SDK_INSTALL_DIR is the variable Zephyr documents for pointing at
+    # the SDK: FindZephyr-sdk.cmake reads it (from the environment, via
+    # zephyr_get) and passes it straight to find_package as a HINT. This
+    # matters because the SDK lives in the esphome cache dir, which is not on
+    # the module's static search path (/usr, /opt, $HOME, ...). A generic
+    # "Zephyr-sdk_DIR" environment hint proved unreliable here: containerized
+    # non-root builds failed to locate the SDK with it, while
+    # ZEPHYR_SDK_INSTALL_DIR fixed the same invocation.
+    env["ZEPHYR_SDK_INSTALL_DIR"] = str(_get_toolchain_path(TOOLCHAIN_VERSION))
     return env
 
 
