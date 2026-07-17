@@ -17,6 +17,7 @@ from esphome.components.nrf52.framework import (
     _get_platformio_penv_path,
     _get_toolchain_platform_info,
     check_and_install,
+    get_build_env,
     get_sdk_nrf_tools_path,
     setup_platformio_python_env,
 )
@@ -433,6 +434,42 @@ def test_get_penv_site_packages(
     penv_path = tmp_path / "penv"
     with patch("os.name", os_name):
         assert _get_penv_site_packages(penv_path) == penv_path.joinpath(*expected_parts)
+
+
+# ---------------------------------------------------------------------------
+# get_build_env tests
+# ---------------------------------------------------------------------------
+
+
+def test_get_build_env(
+    nrf52_dirs: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """get_build_env exposes ZEPHYR_SDK_INSTALL_DIR pointing at the toolchain root.
+
+    ZEPHYR_SDK_INSTALL_DIR is the variable Zephyr's FindZephyr-sdk.cmake
+    explicitly consumes (from the environment) and uses as a find_package
+    HINT. The old Zephyr-sdk_DIR environment hint proved unreliable in
+    containerized non-root builds and was removed.
+    """
+    monkeypatch.setenv("SOME_PREEXISTING_VAR", "kept")
+
+    env = get_build_env()
+
+    tools = get_sdk_nrf_tools_path()
+    venv_bin_dir = get_python_env_executable_path(
+        tools / "penvs" / f"v{_TEST_SDK_VERSION}", "python"
+    ).parent
+    assert env["PATH"].startswith(str(venv_bin_dir) + os.pathsep)
+    assert env["ZEPHYR_BASE"] == str(
+        tools / "frameworks" / f"v{_TEST_SDK_VERSION}" / "zephyr"
+    )
+    # Toolchain root, not the cmake/ subdir
+    assert env["ZEPHYR_SDK_INSTALL_DIR"] == str(
+        tools / "toolchains" / TOOLCHAIN_VERSION
+    )
+    assert "Zephyr-sdk_DIR" not in env
+    # The rest of the process environment is inherited
+    assert env["SOME_PREEXISTING_VAR"] == "kept"
 
 
 # ---------------------------------------------------------------------------
