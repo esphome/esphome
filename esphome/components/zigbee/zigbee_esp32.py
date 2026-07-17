@@ -53,9 +53,9 @@ from .const_esp32 import (
     CONF_ATTRIBUTE_ID,
     CONF_ATTRIBUTES,
     CONF_CLUSTERS,
-    CONF_ZIGBEE_ATTR_IDS,
     DEVICE_ID,
     DEVICE_TYPE,
+    KEY_ZIGBEE_ATTR_DICT,
     KEY_ZIGBEE_EP,
     ROLE,
     SCALE,
@@ -177,7 +177,7 @@ def setup_attributes(config: ConfigType, clusters: list[dict[str, Any]]) -> None
                 if CONF_REPORT in config:
                     attr[CONF_REPORT] = config[CONF_REPORT]
                 attr[CONF_ID] = cv.declare_id(ZigbeeAttribute)(None)
-                ids_dict = config.setdefault(CONF_ZIGBEE_ATTR_IDS, [])
+                ids_dict = config.setdefault(KEY_ZIGBEE_ATTR_DICT, [])
                 ids_dict.append(attr)
             else:
                 attr[CONF_ID] = None
@@ -335,7 +335,7 @@ async def esp32_to_code(config: ConfigType) -> "MockObj":
 
 
 async def add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    attr_ids = config.get(CONF_ZIGBEE_ATTR_IDS, [])
+    attr_ids = config.get(KEY_ZIGBEE_ATTR_DICT, [])
     for attr in attr_ids:
         zb_attr = await cg.get_variable(attr[CONF_ID])
         template_arg = cg.TemplateArguments(get_c_type(attr[CONF_TYPE]))
@@ -351,7 +351,7 @@ async def add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
 
 
 async def add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    attr_ids = config.get(CONF_ZIGBEE_ATTR_IDS, [])
+    attr_ids = config.get(KEY_ZIGBEE_ATTR_DICT, [])
     for attr in attr_ids:
         zb_attr = await cg.get_variable(attr[CONF_ID])
         template_arg = cg.TemplateArguments(get_c_type(attr[CONF_TYPE]))
