@@ -46,7 +46,7 @@ extern "C" {
 #endif
 #endif
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
 extern "C" {
 #include "cyw43.h"
 #include "cyw43_country.h"
@@ -181,7 +181,7 @@ static constexpr size_t WIFI_SCAN_RESULT_FILTERED_RESERVE = 8;
 
 // Use std::vector for RP2040 (callback-based) and ESP32 (destructive scan API)
 // Use FixedVector for ESP8266 and LibreTiny where two-pass exact allocation is possible
-#if defined(USE_RP2040) || defined(USE_ESP32)
+#if defined(USE_RP2) || defined(USE_ESP32)
 template<typename T> using wifi_scan_vector_t = std::vector<T>;
 #else
 template<typename T> using wifi_scan_vector_t = FixedVector<T>;
@@ -501,6 +501,8 @@ class WiFiComponent final : public Component {
 
   network::IPAddress get_dns_address(int num);
   network::IPAddresses get_ip_addresses();
+  /// Returns nullptr when no explicit use_address is configured and the address is
+  /// derived at runtime from the device name (see network::get_use_address_to()).
   const char *get_use_address() const { return this->use_address_; }
   void set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
@@ -815,9 +817,9 @@ class WiFiComponent final : public Component {
   friend void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 #endif
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
   static int s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
-  void wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
+  void wifi_scan_result_(void *env, const cyw43_ev_scan_result_t *result);
 #endif
 
 #ifdef USE_LIBRETINY
@@ -996,7 +998,7 @@ class WiFiComponent final : public Component {
  private:
   // Stores a pointer to a string literal (static storage duration).
   // ONLY set from Python-generated code with string literals - never dynamic strings.
-  const char *use_address_{""};
+  const char *use_address_{nullptr};
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

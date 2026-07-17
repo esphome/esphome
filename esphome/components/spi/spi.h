@@ -13,11 +13,11 @@
 
 using SPIInterface = spi_host_device_t;
 
-#elif defined(USE_ARDUINO)
+#elif defined(USE_ARDUINO) && !defined(USE_LIBRETINY)
 
 #include <SPI.h>
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
 using SPIInterface = SPIClassRP2040 *;
 #else
 using SPIInterface = SPIClass *;

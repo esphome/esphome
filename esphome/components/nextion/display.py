@@ -4,7 +4,17 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import display, esp32, uart
 import esphome.config_validation as cv
-from esphome.const import CONF_BRIGHTNESS, CONF_ID, CONF_LAMBDA, CONF_ON_TOUCH
+from esphome.const import (
+    CONF_BRIGHTNESS,
+    CONF_ID,
+    CONF_LAMBDA,
+    CONF_ON_TOUCH,
+    PLATFORM_BK72XX,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_LN882X,
+    PLATFORM_RTL87XX,
+)
 from esphome.core import CORE, TimePeriod
 
 from . import (  # noqa: F401  pylint: disable=unused-import
@@ -135,7 +145,20 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_TFT_URL): cv.url,
+            # TFT upload needs an HTTP client and runtime UART reconfiguration,
+            # neither of which is implemented for the RP2 or host platforms.
+            cv.Optional(CONF_TFT_URL): cv.All(
+                cv.url,
+                cv.only_on(
+                    [
+                        PLATFORM_ESP32,
+                        PLATFORM_ESP8266,
+                        PLATFORM_BK72XX,
+                        PLATFORM_RTL87XX,
+                        PLATFORM_LN882X,
+                    ]
+                ),
+            ),
             cv.Optional(CONF_TOUCH_SLEEP_TIMEOUT): cv.Any(
                 0, cv.int_range(min=3, max=65535)
             ),

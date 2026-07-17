@@ -42,7 +42,7 @@ class ZigbeeComponent final : public Component {
   void set_basic_cluster(const char *model, const char *manufacturer, uint8_t power_source);
   void add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role);
   void create_default_cluster(uint8_t endpoint_id, uint16_t device_id);
-  void setup_reporting();
+  bool register_device();
 
   template<typename T>
   void add_attr(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
