@@ -125,6 +125,16 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
 }
 #pragma GCC diagnostic pop
 
+template<> const char *proto_enum_to_string<enums::DisconnectReason>(enums::DisconnectReason value) {
+  switch (value) {
+    case enums::DISCONNECT_REASON_UNSPECIFIED:
+      return ESPHOME_PSTR("DISCONNECT_REASON_UNSPECIFIED");
+    case enums::DISCONNECT_REASON_PROVISIONING_CLOSED:
+      return ESPHOME_PSTR("DISCONNECT_REASON_PROVISIONING_CLOSED");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
 template<> const char *proto_enum_to_string<enums::SerialProxyPortType>(enums::SerialProxyPortType value) {
   switch (value) {
     case enums::SERIAL_PROXY_PORT_TYPE_TTL:
@@ -864,7 +874,8 @@ const char *HelloResponse::dump_to(DumpBuffer &out) const {
   return out.c_str();
 }
 const char *DisconnectRequest::dump_to(DumpBuffer &out) const {
-  out.append_p(ESPHOME_PSTR("DisconnectRequest {}"));
+  MessageDumpHelper helper(out, ESPHOME_PSTR("DisconnectRequest"));
+  dump_field(out, ESPHOME_PSTR("reason"), static_cast<enums::DisconnectReason>(this->reason));
   return out.c_str();
 }
 const char *DisconnectResponse::dump_to(DumpBuffer &out) const {
@@ -971,6 +982,9 @@ const char *DeviceInfoResponse::dump_to(DumpBuffer &out) const {
     it.dump_to(out);
     out.append("\n");
   }
+#endif
+#ifdef USE_API_NOISE
+  dump_field(out, ESPHOME_PSTR("api_encryption_provisionable"), this->api_encryption_provisionable);
 #endif
   return out.c_str();
 }

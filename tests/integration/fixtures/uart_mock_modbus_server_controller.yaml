@@ -53,8 +53,8 @@ modbus:
 modbus_controller:
   - address: 1
     modbus_id: virtual_modbus_controller
-    update_interval: 1s
     id: modbus_controller_1
+    update_interval: 1s
 
 modbus_server:
   - address: 1
@@ -176,6 +176,4 @@ button:
   - platform: template
     name: "Start Scenario"
     id: start_scenario_btn
-    on_press:
-      - lambda: "id(virtual_uart_server).start_scenario();"
-      - lambda: "id(virtual_uart_controller).start_scenario();"
+    # This test does not have anything to start (mock is autostart)

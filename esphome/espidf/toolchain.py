@@ -14,6 +14,7 @@ from esphome.const import CONF_FRAMEWORK, CONF_SOURCE
 from esphome.core import CORE, EsphomeError
 from esphome.espidf.framework import check_esp_idf_install, get_framework_env
 from esphome.espidf.size_summary import print_summary
+from esphome.helpers import add_git_ceiling_directory
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -82,12 +83,25 @@ def _get_idf_env(version: str | None = None) -> dict[str, str]:
             env_cache[version] |= get_framework_env(
                 *_get_esphome_esp_idf_paths(version)
             )
+
+        # Cap git's repo search at the config directory so ESP-IDF's
+        # `git describe` for the app version can't error out on an
+        # uninitialized or corrupt git repo in a parent directory.
+        add_git_ceiling_directory(env_cache[version], CORE.config_dir)
     return env_cache[version]
 
 
 def _get_cmake_output(build_dir) -> str:
     cmake_output_cache = _cache().cmake_output
     if build_dir not in cmake_output_cache:
+        # Check the build before resolving the env: _get_idf_env() runs
+        # check_esp_idf_install(), which can download and install the whole
+        # framework. Never start that for a build that isn't there. Callers
+        # such as the log stack-trace decoder run against devices that were
+        # never compiled on this machine.
+        if not (Path(build_dir) / "CMakeCache.txt").is_file():
+            raise EsphomeError(f"No ESP-IDF build found in {build_dir}")
+
         cmd = ["cmake", "-LA", "-N", "."]
 
         env = _get_idf_env()
@@ -441,6 +455,42 @@ def get_readelf_path() -> Path:
 
 def get_addr2line_path() -> Path:
     return _get_cmake_tool_path("CMAKE_ADDR2LINE")
+
+
+def get_idedata() -> dict | None:
+    """Derive idedata from the build's compile_commands.json.
+
+    The native ESP-IDF toolchain has no ``pio run -t idedata`` equivalent, but
+    its CMake build emits ``build/compile_commands.json``. Parse that into the
+    idedata fields IDE integrations and clang-tidy expect, cached alongside the
+    PlatformIO idedata path. Returns None if the compile DB doesn't exist yet.
+    """
+    from esphome.espidf.idedata import idedata_from_build
+
+    compile_commands = CORE.relative_build_path("build", "compile_commands.json")
+    if not compile_commands.is_file():
+        _LOGGER.debug("No %s yet; skipping idedata generation", compile_commands)
+        return None
+
+    cache = CORE.relative_internal_path("idedata", f"{CORE.name}.json")
+    if cache.is_file() and cache.stat().st_mtime >= compile_commands.stat().st_mtime:
+        try:
+            cached = json.loads(cache.read_text(encoding="utf-8"))
+        except ValueError:
+            pass
+        else:
+            # Caches written before cc_path was emitted stay newer than
+            # compile_commands.json forever, so rebuild them on the field rather
+            # than on the timestamp. Check the type too: a corrupted cache can
+            # still be valid JSON, and "in" would match a substring of a string.
+            if isinstance(cached, dict) and "cc_path" in cached:
+                return cached
+
+    data = idedata_from_build(compile_commands)
+    data["prog_path"] = str(get_elf_path())
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    return data
 
 
 def create_factory_bin() -> bool:
