@@ -1314,7 +1314,7 @@ def test_discover_user_yaml_files_glob_skips_dollar_named_files(
 def test_discover_user_yaml_files_glob_error_skips_include(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A filesystem error during candidate globbing skips the include."""
+    """A filesystem error during candidate globbing warns and skips the include."""
     entry = _write_entry_including(tmp_path, "keys/${n}.yaml")
     with (
         patch.object(Path, "glob", side_effect=OSError("boom")),
@@ -1322,7 +1322,12 @@ def test_discover_user_yaml_files_glob_error_skips_include(
     ):
         discovered = discover_user_yaml_files(entry)
     assert [p.name for p in discovered.files] == ["entry.yaml"]
-    assert any("Cannot glob include pattern" in r.message for r in caplog.records)
+    matching = [
+        r.levelname
+        for r in caplog.records
+        if "I/O error globbing include pattern" in r.message
+    ]
+    assert matching == ["WARNING"]
 
 
 def test_force_load_candidate_failure_warns_by_default(

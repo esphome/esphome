@@ -289,8 +289,11 @@ def _glob_include_candidates(parent_dir: Path, pattern: str) -> list[Path]:
             for found in found_paths
             if _is_visible_path(rel := found.relative_to(parent_dir))
         ]
-    except (NotImplementedError, ValueError, OSError) as err:
+    except (NotImplementedError, ValueError) as err:
         _LOGGER.debug("Cannot glob include pattern %r: %s", pattern, err)
+        return []
+    except OSError as err:
+        _LOGGER.warning("I/O error globbing include pattern %r: %s", pattern, err)
         return []
 
 
