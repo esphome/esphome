@@ -9,7 +9,7 @@ This document provides essential context for AI models interacting with this pro
 
 ## 2. Core Technologies & Stack
 
-*   **Languages:** Python (>=3.11), C++ (gnu++20)
+*   **Languages:** Python (>=3.12), C++ (gnu++20)
 *   **Frameworks & Runtimes:** PlatformIO, Arduino, ESP-IDF.
 *   **Build Systems:** PlatformIO is the primary build system. CMake is used as an alternative.
 *   **Configuration:** YAML.
@@ -427,13 +427,14 @@ This document provides essential context for AI models interacting with this pro
 
         When a PR's only edits to a component are `validate.*.yaml` files (no source changes, no `test.*.yaml` changes, and the component isn't pulled in as a dependency of another changed component), CI skips the compile stage for that component entirely and only runs config validation. This is decided in `script/determine-jobs.py` via `_component_change_is_validate_only` and surfaced as the `validate_only_components` output that the `test-build-components-split` job consumes.
 
-    *   **Test Grouping with Packages:** Components that use shared bus packages can be grouped together in CI to reduce build count. **Never define buses (uart, i2c, spi, modbus) directly in test YAML files** — always use packages from `test_build_components/common/`:
+    *   **Test Grouping with Packages:** Components that use shared bus packages can be grouped together in CI to reduce build count. **Never define buses (uart, i2c, spi, modbus) directly in test YAML files** — always use packages from `test_build_components/common/`.
+
+        All includes in test files must go through dict-style `packages:` so that batch grouping works correctly — the grouping scripts only understand dict-style packages. Never use list-style packages (`packages: [- !include ...]`) or top-level merge keys (`<<: !include common.yaml`). Bus packages are keyed by the bus name; the component's `common.yaml` is keyed by the component name (e.g. `cst328: !include common.yaml`):
         ```yaml
-        # test.esp32-idf.yaml — use packages for buses
+        # test.esp32-idf.yaml — everything included via named packages
         packages:
           uart: !include ../../test_build_components/common/uart_115200/esp32-idf.yaml
-
-        <<: !include common.yaml
+          my_component: !include common.yaml
         ```
         ```yaml
         # common.yaml — component config only, NO bus definitions
@@ -709,3 +710,9 @@ This document provides essential context for AI models interacting with this pro
         _LOGGER.warning(f"'{CONF_OLD_KEY}' deprecated, use '{CONF_NEW_KEY}'. Removed in 2026.6.0")
         config[CONF_NEW_KEY] = config.pop(CONF_OLD_KEY)  # Auto-migrate
     ```
+## 9. English Language
+
+The project uses English for non-code content. When drafting documentation, code comments, commit messages,
+PR descriptions, and similar text, avoid technical jargon. Instead, express concepts in plain English,
+using standard technical terms only when required. Ensure the text is readily comprehensible to a wide
+audience, including non-native English speakers.

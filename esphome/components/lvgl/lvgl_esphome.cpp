@@ -91,9 +91,22 @@ void LvglComponent::set_rotation(display::DisplayRotation rotation) {
   this->rotation_ = rotation;
   if (this->is_ready()) {
     this->set_resolution_();
+    this->update_orientation_();
     lv_obj_update_layout(this->get_screen_active());
     lv_obj_invalidate(this->get_screen_active());
   }
+}
+
+void LvglComponent::set_rotation(int angle) {
+  // Normalize to [0, 360). The DisplayRotation enum values are the angles in degrees.
+  angle %= 360;
+  if (angle < 0)
+    angle += 360;
+  if (angle % 90 != 0) {
+    ESP_LOGW(TAG, "Invalid rotation angle %d; must be a multiple of 90 degrees.", angle);
+    return;
+  }
+  this->set_rotation(static_cast<display::DisplayRotation>(angle));
 }
 
 void LvglComponent::rotate_coordinates(int32_t &x, int32_t &y) const {
@@ -401,7 +414,10 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
 }
 
 void LvglComponent::flush_cb_(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p) {
-  if (!this->is_paused()) {
+  // no guard here for display busy, since LVGL will not call flush_cb until the refresh timer fires,
+  // and while the display is busy this is reset to 5 minutes. If that expires and the display is still
+  // busy there are bigger problems.
+  if (!this->paused_) {
     auto now = millis();
     this->draw_buffer_(area, reinterpret_cast<lv_color_data *>(color_p));
     ESP_LOGV(TAG, "flush_cb, area=%d/%d, %d/%d took %dms", (int) area->x1, (int) area->y1,
@@ -620,20 +636,20 @@ void LvKeyboardType::set_obj(lv_obj_t *lv_obj) {
 void LvglComponent::draw_end_() {
   if (this->draw_end_callback_ != nullptr)
     this->draw_end_callback_->trigger();
+  // Only reachable once the display is idle again: while busy, the display's refr_timer_ is
+  // paused (see loop()), so LVGL never renders/flushes and this event never fires.
   if (this->update_when_display_idle_) {
     for (auto *disp : this->displays_)
       disp->update();
   }
 }
 
-bool LvglComponent::is_paused() const {
-  if (this->paused_)
-    return true;
-  if (this->update_when_display_idle_) {
-    for (auto *disp : this->displays_) {
-      if (!disp->is_idle())
-        return true;
-    }
+bool LvglComponent::displays_busy_() const {
+  if (!this->update_when_display_idle_)
+    return false;
+  for (auto *disp : this->displays_) {
+    if (!disp->is_idle())
+      return true;
   }
   return false;
 }
@@ -716,6 +732,18 @@ void LvglComponent::set_resolution_() const {
   }
   lv_display_set_resolution(this->disp_, width, height);
 }
+
+void LvglComponent::update_orientation_() {
+  // A square display is treated as landscape.
+  auto orientation = this->get_width() >= this->get_height() ? Orientation::LANDSCAPE : Orientation::PORTRAIT;
+  if (orientation == this->orientation_)
+    return;
+  this->orientation_ = orientation;
+  auto *trigger = orientation == Orientation::LANDSCAPE ? this->landscape_callback_ : this->portrait_callback_;
+  if (trigger != nullptr)
+    trigger->trigger();
+}
+
 void LvglComponent::setup() {
   auto *display = this->displays_[0];
   auto rounding = this->draw_rounding;
@@ -754,7 +782,7 @@ void LvglComponent::setup() {
   lv_display_add_event_cb(this->disp_, rounder_cb, LV_EVENT_INVALIDATE_AREA, this);
   lv_display_set_buffers(this->disp_, this->draw_buf_, nullptr, buf_bytes,
                          this->full_refresh_ ? LV_DISPLAY_RENDER_MODE_FULL : LV_DISPLAY_RENDER_MODE_PARTIAL);
-  if (this->rotation_type_ == RotationType::ROTATION_SOFTWARE) {
+  if (this->rotation_type_ == ROTATION_SOFTWARE) {
     this->rotate_buf_ = static_cast<lv_color_t *>(lv_alloc_draw_buf(buf_bytes, false));  // NOLINT
     if (this->rotate_buf_ == nullptr) {
       this->status_set_error(LOG_STR("Memory allocation failure"));
@@ -777,6 +805,8 @@ void LvglComponent::setup() {
   if (this->draw_end_callback_ != nullptr || this->update_when_display_idle_) {
     lv_display_add_event_cb(this->disp_, render_end_cb, LV_EVENT_REFR_READY, this);
   }
+  this->refr_timer_ = lv_display_get_refr_timer(this->disp_);
+  lv_timer_set_period(this->refr_timer_, this->refr_timer_period_);
 #if LV_USE_LOG
   lv_log_register_print_cb([](lv_log_level_t level, const char *buf) {
     auto next = strchr(buf, ')');
@@ -791,6 +821,7 @@ void LvglComponent::setup() {
 #endif
   this->show_page(0, LV_SCREEN_LOAD_ANIM_NONE, 0);
   lv_display_trigger_activity(this->disp_);
+  this->update_orientation_();
 }
 
 void LvglComponent::update() {
@@ -802,21 +833,32 @@ void LvglComponent::update() {
 }
 
 void LvglComponent::loop() {
-  if (this->is_paused()) {
-    if (this->paused_ && this->show_snow_)
+  if (this->paused_) {
+    if (this->show_snow_)
       this->write_random_();
-  } else {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    auto now = millis();
-    lv_timer_handler();
-    auto elapsed = millis() - now;
-    if (elapsed > 15) {
-      ESP_LOGV(TAG, "lv_timer_handler took %dms", (int) (millis() - now));
-    }
-#else
-    lv_timer_handler();
-#endif
+    return;
   }
+  // Pause/resume the display's own refresh timer to track its busy state. While paused, LVGL
+  // still keeps track of invalidated areas but won't render or flush them, so nothing needs to
+  // be discarded or replayed: once resumed, the accumulated areas are simply drawn as normal.
+  // Input events and other timers keep being processed below regardless of this state.
+  if (this->update_when_display_idle_) {
+    bool busy = this->displays_busy_();
+    if (busy && !this->refr_timer_paused_) {
+      this->refr_timer_paused_ = true;
+      // calling lv_timer_pause() here would be ineffective; LVGL pauses and resumes the timer based on its own internal
+      // state, which is not aware of the display's busy state. Instead, we extend the timer period to avoid it firing
+      // while the display is busy.
+      lv_timer_set_period(this->refr_timer_, 5 * 60 * 1000);
+    } else if (!busy && this->refr_timer_paused_) {
+      this->refr_timer_paused_ = false;
+      lv_timer_set_period(this->refr_timer_, this->refr_timer_period_);
+      // Don't wait for the timer's next natural period: refresh right away now that the
+      // display is idle again.
+      lv_timer_ready(this->refr_timer_);
+    }
+  }
+  lv_timer_handler();
 }
 
 #ifdef USE_LVGL_ANIMIMG
@@ -929,7 +971,7 @@ void lv_mem_init() {}
 
 void lv_mem_deinit() {}
 
-#if defined(USE_HOST) || defined(USE_RP2040) || defined(USE_ESP8266)
+#if defined(USE_HOST) || defined(USE_RP2) || defined(USE_ESP8266)
 void *lv_malloc_core(size_t size) {
   auto *ptr = malloc(size);  // NOLINT
   if (ptr == nullptr) {

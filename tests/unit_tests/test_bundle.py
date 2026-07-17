@@ -22,6 +22,7 @@ from esphome.bundle import (
     _add_bytes_to_tar,
     _default_target_dir,
     _find_used_secret_keys,
+    add_bundle_file,
     extract_bundle,
     is_bundle_path,
     prepare_bundle_for_compile,
@@ -609,6 +610,70 @@ def test_discover_files_includes_config(tmp_path: Path) -> None:
 
     paths = [f.path for f in files]
     assert "test.yaml" in paths
+
+
+def test_discover_files_includes_registered_files(tmp_path: Path) -> None:
+    """Files registered with add_bundle_file() are included.
+
+    The config does not name them, so discovery cannot find them on its own.
+    """
+    config_dir = _setup_config_dir(
+        tmp_path,
+        files={"models/model.tflite": "fake model data"},
+    )
+    add_bundle_file(config_dir / "models" / "model.tflite")
+
+    creator = ConfigBundleCreator({})
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert "models/model.tflite" in paths
+
+
+def test_discover_files_registered_relative_file(tmp_path: Path) -> None:
+    """A relative registered path is taken as relative to the config directory.
+
+    Not the working directory, which is where Path.resolve() would put it.
+    """
+    _setup_config_dir(
+        tmp_path,
+        files={"models/model.tflite": "fake model data"},
+    )
+    add_bundle_file(Path("models/model.tflite"))
+
+    creator = ConfigBundleCreator({})
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert "models/model.tflite" in paths
+
+
+def test_discover_files_registered_file_outside_config_dir(tmp_path: Path) -> None:
+    """A registered file outside the config directory is skipped, not bundled."""
+    _setup_config_dir(tmp_path)
+    outside = tmp_path / "outside.tflite"
+    outside.write_text("fake model data")
+    add_bundle_file(outside)
+
+    creator = ConfigBundleCreator({})
+    files = creator.discover_files()
+
+    assert [f.path for f in files] == ["test.yaml"]
+
+
+def test_discover_files_registered_file_deduplicated(tmp_path: Path) -> None:
+    """Registering the same file twice adds it once."""
+    config_dir = _setup_config_dir(
+        tmp_path,
+        files={"models/model.tflite": "fake model data"},
+    )
+    add_bundle_file(config_dir / "models" / "model.tflite")
+    add_bundle_file(config_dir / "models" / "model.tflite")
+
+    creator = ConfigBundleCreator({})
+    files = creator.discover_files()
+
+    assert [f.path for f in files].count("models/model.tflite") == 1
 
 
 def test_discover_files_finds_path_objects(tmp_path: Path) -> None:

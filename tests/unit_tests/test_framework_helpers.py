@@ -16,6 +16,7 @@ import zipfile
 import pytest
 import requests as req
 
+from esphome.core import EsphomeError
 from esphome.framework_helpers import (
     _7z_extract_all,
     _detect_archive_root,
@@ -26,6 +27,7 @@ from esphome.framework_helpers import (
     create_venv,
     download_from_mirrors,
     get_project_compile_flags,
+    get_project_cxx_compile_flags,
     get_project_link_flags,
     get_python_env_executable_path,
     get_system_python_path,
@@ -545,6 +547,99 @@ class TestDownloadFromMirrors:
             )
         assert mock_get.call_args[0][0] == "https://example.com/1.2.3.bin"
 
+    def test_template_with_missing_substitution_is_skipped(
+        self, tmp_path: Path
+    ) -> None:
+        """A template referencing an unavailable substitution is skipped, not
+        formatted into a bogus URL (e.g. SHORT_VERSION only exists for x.y.0
+        framework versions)."""
+        with patch(
+            "requests.get",
+            return_value=_mock_response(b"x"),
+        ) as mock_get:
+            url = download_from_mirrors(
+                [
+                    "https://example.com/{SHORT_VERSION}.bin",
+                    "https://example.com/{VERSION}.bin",
+                ],
+                {"VERSION": "1.2.3"},
+                tmp_path / "out.bin",
+            )
+        assert url == "https://example.com/1.2.3.bin"
+        assert mock_get.call_count == 1
+
+    def test_all_templates_skipped_raises_esphome_error(self, tmp_path: Path) -> None:
+        with (
+            patch("requests.get") as mock_get,
+            pytest.raises(EsphomeError, match="No mirror URL template matched") as ei,
+        ):
+            download_from_mirrors(
+                ["https://example.com/{MISSING}.bin"],
+                {"VERSION": "1.2.3"},
+                tmp_path / "out.bin",
+            )
+        mock_get.assert_not_called()
+        # The skipped template and its missing substitution are named
+        assert "https://example.com/{MISSING}.bin" in str(ei.value)
+        assert "MISSING" in str(ei.value)
+
+    def test_failure_message_includes_skipped_templates(self, tmp_path: Path) -> None:
+        """When downloads fail, templates that were skipped for missing
+        substitutions are also listed so a typo'd custom mirror is
+        attributable."""
+        with (
+            patch(
+                "requests.get",
+                return_value=_mock_response(b"", ok=False),
+            ),
+            pytest.raises(EsphomeError, match="all mirrors") as ei,
+        ):
+            download_from_mirrors(
+                [
+                    "https://example.com/{TYPO}.bin",
+                    "https://example.com/{VERSION}.bin",
+                ],
+                {"VERSION": "1.2.3"},
+                tmp_path / "out.bin",
+            )
+        message = str(ei.value)
+        assert "https://example.com/1.2.3.bin" in message
+        assert (
+            "https://example.com/{TYPO}.bin\n    not applicable (TYPO not available)"
+            in message
+        )
+
+    def test_malformed_template_warns_and_is_reported(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A structurally malformed template is an authoring error: warned
+        about even when another mirror succeeds, and named in the aggregate
+        error when everything fails."""
+        with (
+            patch("requests.get", return_value=_mock_response(b"x")),
+            caplog.at_level(logging.WARNING, logger="esphome.framework_helpers"),
+        ):
+            url = download_from_mirrors(
+                ["https://example.com/{oops.bin", "https://example.com/{VERSION}.bin"],
+                {"VERSION": "1.2.3"},
+                tmp_path / "out.bin",
+            )
+        assert url == "https://example.com/1.2.3.bin"
+        assert "malformed mirror URL template" in caplog.text
+
+        with (
+            patch("requests.get", return_value=_mock_response(b"", ok=False)),
+            pytest.raises(EsphomeError, match="all mirrors") as ei,
+        ):
+            download_from_mirrors(
+                ["https://example.com/{oops.bin", "https://example.com/{VERSION}.bin"],
+                {"VERSION": "1.2.3"},
+                tmp_path / "out.bin",
+            )
+        assert "https://example.com/{oops.bin\n    skipped (ValueError(" in str(
+            ei.value
+        )
+
     def test_falls_back_to_second_mirror(self, tmp_path: Path) -> None:
         with patch(
             "requests.get",
@@ -558,15 +653,26 @@ class TestDownloadFromMirrors:
         assert url == "https://mirror2.com/f"
         assert (tmp_path / "out.bin").read_bytes() == b"second"
 
-    def test_all_mirrors_fail_reraises_last_exception(self, tmp_path: Path) -> None:
+    def test_all_mirrors_fail_raises_error_listing_every_attempt(
+        self, tmp_path: Path
+    ) -> None:
         with (
             patch(
                 "requests.get",
                 return_value=_mock_response(b"", ok=False),
             ),
-            pytest.raises(req.HTTPError),
+            pytest.raises(EsphomeError, match="all mirrors") as excinfo,
         ):
-            download_from_mirrors(["https://example.com/f"], {}, tmp_path / "out.bin")
+            download_from_mirrors(
+                ["https://mirror1.com/f", "https://mirror2.com/f"],
+                {},
+                tmp_path / "out.bin",
+            )
+        # Every attempted URL appears in the message, and the first mirror's
+        # exception (the primary URL, usually the one that matters) is chained.
+        assert "https://mirror1.com/f" in str(excinfo.value)
+        assert "https://mirror2.com/f" in str(excinfo.value)
+        assert isinstance(excinfo.value.__cause__, req.HTTPError)
 
     def test_empty_mirrors_raises_value_error(self, tmp_path: Path) -> None:
         with pytest.raises(ValueError, match="empty mirrors list"):
@@ -658,11 +764,6 @@ def test_get_python_env_executable_path_nt() -> None:
 
 
 class TestTarExtractAllBranches:
-    @pytest.mark.skipif(
-        sys.version_info < (3, 12),
-        reason="patching os.name makes pathlib build a WindowsPath, which only "
-        "instantiates on POSIX in 3.12+",
-    )
     def test_windows_drive_path_skipped(self, tmp_path: Path) -> None:
         """Windows-style drive path (C:/...) is skipped when os.name == 'nt'."""
         info = tarfile.TarInfo(name="C:/secret.txt")
@@ -755,11 +856,6 @@ class TestTarExtractAllBranches:
 
 
 class TestZipExtractAllBranches:
-    @pytest.mark.skipif(
-        sys.version_info < (3, 12),
-        reason="patching os.name makes pathlib build a WindowsPath, which only "
-        "instantiates on POSIX in 3.12+",
-    )
     def test_windows_drive_path_skipped(self, tmp_path: Path) -> None:
         """Windows-style drive path (C:/...) is skipped when os.name == 'nt'."""
         buf = _make_zip([("C:/secret.txt", "bad")])
@@ -1058,3 +1154,25 @@ class TestGetProjectLinkFlags:
         ):
             result = get_project_link_flags()
             assert result == sorted(result)
+
+
+def _make_core_cxx(flags: set[str]) -> MagicMock:
+    core = MagicMock()
+    core.cxx_build_flags = flags
+    return core
+
+
+class TestGetProjectCxxCompileFlags:
+    def test_returns_sorted_flags(self) -> None:
+        with patch(
+            "esphome.core.CORE",
+            _make_core_cxx({"-Wno-volatile", "-Wno-deprecated"}),
+        ):
+            assert get_project_cxx_compile_flags() == [
+                "-Wno-deprecated",
+                "-Wno-volatile",
+            ]
+
+    def test_empty_flags(self) -> None:
+        with patch("esphome.core.CORE", _make_core_cxx(set())):
+            assert get_project_cxx_compile_flags() == []
