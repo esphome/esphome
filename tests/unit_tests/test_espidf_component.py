@@ -86,6 +86,19 @@ def test_collect_filtered_files_exclude(tmp_path):
     assert str(f2) not in result
 
 
+def test_collect_filtered_files_exclude_pattern_in_subdir(tmp_path):
+    src = tmp_path / "lib" / "src"
+    src.mkdir(parents=True)
+    kept = src / "a.c"
+    excluded = src / "hasty.c"
+    kept.write_text("int a;")
+    excluded.write_text("int b;")
+
+    result = collect_filtered_files(tmp_path, ["+<lib/src/*.c>", "-<lib/src/hasty.c>"])
+    assert str(kept) in result
+    assert str(excluded) not in result
+
+
 def test_split_list_by_condition():
     items = ["-Iinclude", "-Llib", "-Wall"]
 
