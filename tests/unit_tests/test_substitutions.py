@@ -1,3 +1,5 @@
+from collections import ChainMap
+from fnmatch import fnmatchcase
 import logging
 from pathlib import Path
 from typing import Any
@@ -1044,3 +1046,50 @@ def test_remote_package_scalar_yaml_raises_helpful_error(
 def test_include_candidate_patterns(value: str, expected: list[str]) -> None:
     """Templated include paths expand to glob patterns and branch literals."""
     assert substitutions.include_candidate_patterns(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("template", "variables"),
+    [
+        pytest.param(
+            "keys/${system_name}.yaml", {"system_name": "esp-buero"}, id="embedded"
+        ),
+        pytest.param("device-$platform.yaml", {"platform": "esp32"}, id="unbraced"),
+        pytest.param(
+            "network/${eth_model}/config.yaml", {"eth_model": "eth01"}, id="directory"
+        ),
+        pytest.param(
+            '${ "NO BT.yaml" if bt else "../empty.yaml" }',
+            {"bt": True},
+            id="conditional_true",
+        ),
+        pytest.param(
+            '${ "NO BT.yaml" if bt else "../empty.yaml" }',
+            {"bt": False},
+            id="conditional_false",
+        ),
+        pytest.param('pre-${ "a" if c else "b" }.yaml', {"c": True}, id="spliced"),
+        pytest.param("${a}${b}.yaml", {"a": "x", "b": "y"}, id="adjacent"),
+        pytest.param("sensor [${x}].yaml", {"x": "a"}, id="bracket"),
+    ],
+)
+def test_include_candidate_patterns_cover_real_expansion(
+    template: str, variables: dict[str, Any]
+) -> None:
+    """
+    Lockstep pin against the real substitution machinery.
+
+    include_candidate_patterns mirrors _expand_substitutions without
+    variable values (the evaluator returns the one selected branch, so it
+    cannot enumerate candidates itself); this asserts every filename the
+    real pass resolves is covered by a candidate pattern, so a change to
+    reference syntax or expansion order breaks here instead of silently
+    dropping files from bundles.
+    """
+    resolved = str(
+        substitutions._expand_substitutions(
+            template, [], ChainMap(variables), True, None
+        )
+    )
+    patterns = substitutions.include_candidate_patterns(template)
+    assert any(fnmatchcase(resolved, p) or resolved == p for p in patterns)
