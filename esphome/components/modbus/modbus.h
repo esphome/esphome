@@ -18,19 +18,27 @@ namespace esphome::modbus {
 static constexpr uint16_t MODBUS_TX_BUFFER_SIZE = 15;
 static constexpr uint16_t MODBUS_TX_MAX_DELAY_MS = 5;
 
-struct ModbusFrame {
-  // Frame with exact-size allocation to avoid std::vector overhead
-  std::unique_ptr<uint8_t[]> data;
-  uint16_t size;  // Modbus RTU max is 256 bytes
+// Typical frames -- reads and single-register/coil writes -- are exactly 8 bytes
+// (address + 5-byte PDU + 2-byte CRC) and fit inline with no heap allocation.
+static constexpr uint16_t MODBUS_FRAME_INLINE_SIZE = 8;
 
-  ModbusFrame(uint8_t address, const uint8_t *pdu, uint16_t pdu_len)
-      : data(std::make_unique<uint8_t[]>(pdu_len + 3)), size(pdu_len + 3) {
-    data[0] = address;
-    memcpy(data.get() + 1, pdu, pdu_len);
-    auto crc = crc16(data.get(), pdu_len + 1);
-    data[pdu_len + 1] = crc >> 0;
-    data[pdu_len + 2] = crc >> 8;
+struct ModbusFrame {
+  // Frame held in a small-buffer-optimized buffer. Typical frames fit inline; only larger
+  // multi-register or custom frames spill to a single heap allocation. This keeps the common,
+  // high-frequency tx traffic off the heap entirely, avoiding per-frame alloc/free churn.
+  // The buffer tracks its own length, so no separate size field is needed.
+  SmallInlineBuffer<MODBUS_FRAME_INLINE_SIZE> data;  // Modbus RTU max is 256 bytes
+
+  ModbusFrame(uint8_t address, const uint8_t *pdu, uint16_t pdu_len) {
+    uint8_t *buf = this->data.init(pdu_len + 3);
+    buf[0] = address;
+    memcpy(buf + 1, pdu, pdu_len);
+    auto crc = crc16(buf, pdu_len + 1);
+    buf[pdu_len + 1] = crc >> 0;
+    buf[pdu_len + 2] = crc >> 8;
   }
+
+  uint16_t size() const { return static_cast<uint16_t>(this->data.size()); }
 };
 
 class Modbus : public uart::UARTDevice, public Component {
@@ -63,7 +71,6 @@ class Modbus : public uart::UARTDevice, public Component {
   uint32_t last_receive_check_{0};
   uint32_t last_send_{0};
   uint32_t last_send_tx_offset_{0};
-  bool last_send_was_broadcast_{false};
   uint16_t frame_delay_ms_{5};
   uint16_t long_rx_buffer_delay_ms_{0};
 
@@ -101,7 +108,7 @@ class ModbusClientHub : public Modbus {
                                               payload, payload_len),
                    device);
   };
-  void send_pdu(uint8_t address, const StaticVector<uint8_t, MAX_PDU_SIZE> &pdu, ModbusClientDevice *device = nullptr) {
+  void send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr) {
     this->queue_raw_(address, pdu.data(), pdu.size(), device);
   }
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr);
@@ -114,6 +121,10 @@ class ModbusClientHub : public Modbus {
   // Parsers need to handle standard (ModbusFunctionCode) and custom (uint8_t) function codes, so we use uint8_t here.
   void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) override;
   void send_next_frame_();
+  // Notify the waiting device of no response; re-queues the frame if on_modbus_no_response() returns true.
+  // wfr is the caller's checked reference to waiting_for_response_.
+  void notify_no_response_(ModbusDeviceCommand &wfr);
+  void requeue_waiting_frame_(ModbusDeviceCommand &wfr);
   void queue_raw_(uint8_t address, const uint8_t *pdu, uint16_t pdu_len, ModbusClientDevice *device = nullptr);
 
   uint16_t send_wait_time_{2000};
@@ -130,22 +141,22 @@ class ModbusServerHub : public Modbus {
  public:
   ModbusServerHub() = default;
   void dump_config() override;
-  void send(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &payload);
-  ESPDEPRECATED("Use ModbusServerDevice::send_raw instead. Removed in 2026.10.0", "2026.4.0")
-  void send_raw(const std::vector<uint8_t> &payload) {
-    this->send_raw_(payload.data(), static_cast<uint16_t>(payload.size()));
-  };
   void register_device(ModbusServerDevice *device) { this->devices_.push_back(device); }
 
  protected:
-  friend class ModbusServerDevice;
-
   void parse_modbus_frames() override;
   bool parse_modbus_client_frame_();
   // Parsers need to handle standard (ModbusFunctionCode) and custom (uint8_t) function codes, so we use uint8_t here.
   void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) override;
-  void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len);
+  void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data);
+  ModbusServerDevice *find_device_(uint8_t address);
+  // Returns true if [start_address, start_address + number_of_registers) fits in the 16-bit address space.
+  // On failure, logs and sends an ILLEGAL_DATA_ADDRESS exception to the client.
+  bool check_register_range_(uint8_t address, uint8_t function_code, uint16_t start_address,
+                             uint16_t number_of_registers);
   void send_raw_(const uint8_t *payload, uint16_t len);
+  void send_exception_(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code);
+  void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
   uint8_t expecting_peer_response_{0};
   std::vector<ModbusServerDevice *> devices_;
 
@@ -172,7 +183,10 @@ class ModbusClientDevice {
   virtual void on_modbus_data(const std::vector<uint8_t> &data) {}
   virtual void on_modbus_error(uint8_t function_code, uint8_t exception_code) {}
   virtual void on_modbus_not_sent() {}
-  virtual void on_modbus_no_response() {}
+  /// Called when no (valid) response arrived; return true to have the hub re-queue the frame for a retry.
+  /// The hub does not bound retries: the device is responsible for limiting them (e.g. track a counter and
+  /// return false when exhausted), or an unresponsive peer will starve other traffic on the bus.
+  virtual bool on_modbus_no_response() { return false; }
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
             const uint8_t *payload = nullptr) {
     this->parent_->send_pdu(this->address_,
@@ -180,7 +194,7 @@ class ModbusClientDevice {
                                                        payload, payload_len),
                             this);
   }
-  void send_pdu(const StaticVector<uint8_t, MAX_PDU_SIZE> &pdu) { this->parent_->send_pdu(this->address_, pdu, this); }
+  void send_pdu(std::span<const uint8_t> pdu) { this->parent_->send_pdu(this->address_, pdu, this); }
   void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload, this); }
   inline void clear_tx_queue_for_address(bool clear_sent = true) {
     this->parent_->clear_tx_queue_for_address(this->address_, clear_sent);
@@ -198,37 +212,46 @@ class ModbusClientDevice {
 };
 
 // This is for compatibility with external components using the former class name
-using ModbusDevice = ModbusClientDevice;
+// Remove before 2026.12.0
+using ModbusDevice ESPDEPRECATED("Use ModbusClientDevice instead. Removed in 2026.12.0",
+                                 "2026.6.0") = ModbusClientDevice;
+
+// Transaction status: std::nullopt on success, otherwise the Modbus exception code. Server handlers return it;
+// (future) client response callbacks receive it. Named without a side prefix so both directions share it.
+using ResponseStatus = std::optional<ModbusExceptionCode>;
+// Register values exchanged with server handlers, in host byte order. Sized at the larger of the two protocol
+// maxima (read = 125 / 0x7D, write = 123 / 0x7B); the per-direction count limit is enforced by the hub, not by
+// the capacity of this type.
+using RegisterValues = StaticVector<uint16_t, MAX_NUM_OF_REGISTERS_TO_READ>;
 
 class ModbusServerDevice {
  public:
-  ModbusServerDevice() = default;
-  ModbusServerDevice(ModbusServerHub *parent, uint8_t address) : parent_(parent), address_(address) {}
   virtual ~ModbusServerDevice() = default;
+  ModbusServerDevice() = default;
+  // Polymorphic base: non-copyable and non-movable to prevent slicing (Rule of Five).
   ModbusServerDevice(const ModbusServerDevice &) = delete;
   ModbusServerDevice &operator=(const ModbusServerDevice &) = delete;
   ModbusServerDevice(ModbusServerDevice &&) = delete;
   ModbusServerDevice &operator=(ModbusServerDevice &&) = delete;
-  void set_parent(ModbusServerHub *parent) { this->parent_ = parent; }
   void set_address(uint8_t address) { this->address_ = address; }
-  virtual void on_modbus_read_registers(uint8_t function_code, uint16_t start_address, uint16_t number_of_registers){};
-  virtual void on_modbus_write_registers(uint8_t function_code, const std::vector<uint8_t> &data){};
-  void send(uint8_t function, const std::vector<uint8_t> &payload) {
-    this->parent_->send(this->address_, function, payload);
-  }
-  void send_raw(const std::vector<uint8_t> &payload) {
-    this->parent_->send_raw_(payload.data(), static_cast<uint16_t>(payload.size()));
-  }
-  void send_error(uint8_t function_code, ModbusExceptionCode exception_code) {
-    uint8_t error_response[3] = {this->address_, uint8_t(function_code | FUNCTION_CODE_EXCEPTION_MASK),
-                                 static_cast<uint8_t>(exception_code)};
-    this->parent_->send_raw_(error_response, 3);
-  }
+  uint8_t get_address() const { return this->address_; }
+  virtual ResponseStatus on_read_registers(uint16_t start_address, uint16_t number_of_registers,
+                                           RegisterValues &registers) {
+    return ModbusExceptionCode::ILLEGAL_FUNCTION;
+  };
+  virtual ResponseStatus on_read_input_registers(uint16_t start_address, uint16_t number_of_registers,
+                                                 RegisterValues &registers) {
+    return this->on_read_registers(start_address, number_of_registers, registers);
+  };
+  virtual ResponseStatus on_read_holding_registers(uint16_t start_address, uint16_t number_of_registers,
+                                                   RegisterValues &registers) {
+    return this->on_read_registers(start_address, number_of_registers, registers);
+  };
+  virtual ResponseStatus on_write_registers(uint16_t start_address, const RegisterValues &registers) {
+    return ModbusExceptionCode::ILLEGAL_FUNCTION;
+  };
 
  protected:
-  friend ModbusServerHub;
-
-  ModbusServerHub *parent_{nullptr};
   uint8_t address_{0};
 };
 

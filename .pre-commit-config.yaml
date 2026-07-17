@@ -40,7 +40,7 @@ repos:
     rev: v3.21.2
     hooks:
       - id: pyupgrade
-        args: [--py311-plus]
+        args: [--py312-plus]
   - repo: https://github.com/adrienverge/yamllint.git
     rev: v1.37.1
     hooks:
