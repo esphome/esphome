@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ID
 from esphome.types import ConfigType
 
-DEPENDENCIES = ["rp2040"]
+DEPENDENCIES = ["rp2"]
 CODEOWNERS = ["@bdraco"]
 
 rp2040_ble_ns = cg.esphome_ns.namespace("rp2040_ble")
