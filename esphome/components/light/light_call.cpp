@@ -224,7 +224,7 @@ LightColorValues LightCall::validate_() {
   // Skip this while an effect is active: effects (e.g. pulse, strobe) intentionally drive
   // brightness to 0 while keeping the light logically on, and must not be overridden.
   if (this->has_state() && this->state_ && (color_mode & ColorCapability::BRIGHTNESS) &&
-      this->parent_->active_effect_index_ == 0) {
+      this->parent_->get_current_effect_index() == 0) {
     float brightness = this->has_brightness() ? this->brightness_ : this->parent_->remote_values.get_brightness();
     if (brightness == 0.0f) {
       this->brightness_ = 1.0f;

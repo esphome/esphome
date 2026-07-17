@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import asyncio
 import re
+from typing import Any
 
+from aioesphomeapi import EntityState, LightState
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -43,23 +45,31 @@ async def test_light_effect_zero_brightness(
         entities, _ = await client.list_entities_services()
         light = next(e for e in entities if e.object_id == "test_pulse_light")
 
-        state_future: asyncio.Future[object] = (
-            asyncio.get_running_loop().create_future()
-        )
+        state_futures: dict[int, asyncio.Future[LightState]] = {}
 
-        def on_state(state: object) -> None:
-            if not state_future.done():
-                state_future.set_result(state)
+        def on_state(state: EntityState) -> None:
+            if isinstance(state, LightState) and state.key in state_futures:
+                future = state_futures[state.key]
+                if not future.done():
+                    future.set_result(state)
 
         client.subscribe_states(on_state)
 
+        async def send_and_wait(timeout: float = 5.0, **kwargs: Any) -> LightState:
+            """Send a light command and wait for the matching state response."""
+            state_futures[light.key] = asyncio.get_running_loop().create_future()
+            client.light_command(key=light.key, **kwargs)
+            return await asyncio.wait_for(state_futures[light.key], timeout=timeout)
+
         # Turn the light on first so the effect starts from a known, visible state.
-        client.light_command(key=light.key, state=True, brightness=1.0)
-        await asyncio.wait_for(state_future, timeout=5.0)
+        state = await send_and_wait(state=True, brightness=1.0)
+        assert state.state is True
+        assert state.brightness == pytest.approx(1.0)
 
         for effect_name in ("Fast Pulse", "Fast Strobe"):
             observed.clear()
-            client.light_command(key=light.key, effect=effect_name)
+            state = await send_and_wait(effect=effect_name)
+            assert state.effect == effect_name
             # Let several effect cycles run (update_interval/duration is 50ms in the fixture).
             await asyncio.sleep(1.0)
 
