@@ -37,6 +37,13 @@ def get_project_compile_flags() -> list[str]:
     ]
 
 
+def get_project_cxx_compile_flags() -> list[str]:
+    """Return the sorted flags that apply to C++ compiles only."""
+    from esphome.core import CORE  # local import to avoid circular dependency
+
+    return sorted(CORE.cxx_build_flags)
+
+
 def str_to_lst_of_str(a: str | list[str]) -> list[str]:
     """
     Convert a string to a list of string
@@ -239,22 +246,19 @@ def _tar_extract_all(
     """
     Extract a TAR archive to the specified directory.
 
-    Implementation is inspired by Python 3.12's tarfile data filtering logic.
-    This can be replaced with the standard library implementation once
-    support for Python 3.11 is no longer required.
+    Path-traversal, link, permission and ownership sanitization is delegated to
+    the stdlib ``tarfile.data_filter`` (PEP 706). We keep the wrapper-directory
+    stripping (no stdlib equivalent) and the absolute-path reject (data_filter's
+    check is os.path-dependent and would miss a Windows drive path when
+    extracting on POSIX).
 
     Args:
         data: File-like object containing the TAR archive
         extract_dir: Directory to extract contents to
         progress_header: If set, show a progress bar with this header
     """
-    import stat
     import tarfile
 
-    # Tar extraction safety: os.path.realpath / commonpath / normpath have no
-    # pathlib equivalents and Path.resolve() would follow symlinks unsafely.
-    # Use os.path for the security-sensitive parts; the simple checks move to
-    # Path.
     extract_dir = os.fspath(extract_dir)
     abs_dest = os.path.abspath(extract_dir)  # noqa: PTH100
 
@@ -269,18 +273,14 @@ def _tar_extract_all(
         safe_members = []
 
         for member in all_members:
-            name = member.name
-
-            # 1. Strip leading slashes
-            name = name.lstrip("/" + os.sep)
-
-            # 2. Reject absolute paths (incl. Windows drive)
+            # Strip leading slashes, then reject absolute / Windows-drive paths
+            name = member.name.lstrip("/" + os.sep)
             if Path(name).is_absolute() or (
                 os.name == "nt" and ":" in name.split(os.sep)[0]  # noqa: PTH206
             ):
                 continue
 
-            # 3. Strip wrapper directory if one was detected
+            # Strip wrapper directory if one was detected
             if strip_prefix is not None:
                 norm = name.replace("\\", "/")
                 if norm in (strip_root, strip_prefix):
@@ -288,87 +288,28 @@ def _tar_extract_all(
                 if not norm.startswith(strip_prefix):
                     continue
                 name = norm[len(strip_prefix) :]
-
-            # 4. Compute final path
-            target_path = os.path.realpath(os.path.join(abs_dest, name))  # noqa: PTH118
-            if os.path.commonpath([abs_dest, target_path]) != abs_dest:
-                continue
-
-            # 5. Validate links properly
-            if member.issym() or member.islnk():
-                linkname = member.linkname
-
-                # Reject absolute link targets
-                if Path(linkname).is_absolute():
-                    continue
-
-                if member.islnk() and strip_prefix is not None:
-                    # Hard-link linknames reference another archive member
-                    # by its archive name. We've stripped the wrapper prefix
-                    # from member.name above (step 3); strip it here too so
-                    # tarfile._find_link_target can resolve the target during
-                    # extraction. Symlink linknames are filesystem-relative
-                    # paths, not archive-member references, so they don't
-                    # need this treatment.
-                    norm_link = linkname.replace("\\", "/")
-                    if norm_link in (strip_root, strip_prefix):
-                        continue
-                    if not norm_link.startswith(strip_prefix):
-                        continue
-                    linkname = norm_link[len(strip_prefix) :]
-
-                # Strip leading slashes
-                linkname = os.path.normpath(linkname)
-
-                if member.issym():
-                    link_target = os.path.join(  # noqa: PTH118
-                        abs_dest,
-                        os.path.dirname(name),  # noqa: PTH120
-                        linkname,
-                    )
-                else:
-                    link_target = os.path.join(abs_dest, linkname)  # noqa: PTH118
-                link_target = os.path.realpath(link_target)
-
-                if os.path.commonpath([abs_dest, link_target]) != abs_dest:
-                    continue
-
-                # write back normalized linkname
-                member.linkname = linkname
-
-            # 6. Sanitize permissions
-            mode = member.mode
-            if mode is not None:
-                # Strip high bits & group/other write bits
-                mode &= (
-                    stat.S_IRWXU
-                    | stat.S_IRGRP
-                    | stat.S_IXGRP
-                    | stat.S_IROTH
-                    | stat.S_IXOTH
-                )
-                if member.isfile() or member.islnk():
-                    # remove exec bits unless explicitly user-executable
-                    if not (mode & stat.S_IXUSR):
-                        mode &= ~(stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-                    mode |= stat.S_IRUSR | stat.S_IWUSR
-                elif not (member.isdir() or member.issym()):
-                    # Block special files. Directories and symlinks keep
-                    # their masked-original mode — passing None here would
-                    # crash tarfile.extract on Python <3.12 (its chmod
-                    # path calls os.chmod unconditionally).
-                    continue
-
-                member.mode = mode
-
-            # 7. Strip ownership
-            member.uid = None
-            member.gid = None
-            member.uname = None
-            member.gname = None
-
-            # 8. Assign sanitized name back
             member.name = name
+
+            # Hard-link linknames reference another archive member by its
+            # archive name; strip the wrapper prefix here too so
+            # tarfile._find_link_target can resolve the target during
+            # extraction. Symlink linknames are filesystem-relative paths,
+            # not archive-member references, so they don't need this.
+            if member.islnk() and strip_prefix is not None:
+                norm_link = member.linkname.replace("\\", "/")
+                if norm_link in (strip_root, strip_prefix):
+                    continue
+                if not norm_link.startswith(strip_prefix):
+                    continue
+                member.linkname = norm_link[len(strip_prefix) :]
+
+            # Delegate traversal, link, permission and ownership sanitization
+            # to the stdlib data filter; it raises FilterError for unsafe
+            # members (path traversal, links outside dest, special files).
+            try:
+                member = tarfile.data_filter(member, abs_dest)
+            except tarfile.FilterError:
+                continue
 
             safe_members.append(member)
 
@@ -611,6 +552,17 @@ def archive_extract_all(
         matched_fct(archive_ref, extract_dir, progress_header=progress_header)
 
 
+def _failure_reason(e: Exception) -> str:
+    """Format a download exception for the aggregated error message.
+
+    ``requests`` appends " for url: <url>" to HTTP errors; the URL is already
+    printed on the line above, so strip the suffix to keep lines short. Falls
+    back to the repr for exceptions with no message (e.g. ``TimeoutError()``)
+    so the line always names the failure.
+    """
+    return str(e).split(" for url: ", maxsplit=1)[0] or repr(e)
+
+
 def download_from_mirrors(
     mirrors: list[str],
     substitutions: dict[str, str],
@@ -629,13 +581,21 @@ def download_from_mirrors(
     Returns:
         The source URL.
 
+    Mirror URL templates that reference a substitution not present in
+    ``substitutions`` are skipped, so callers can offer templates that only
+    apply to some downloads.
+
     Raises:
         ValueError: If mirrors list is empty.
-        Exception: If all download attempts fail.
+        EsphomeError: If all download attempts fail; the message lists every
+            attempted URL with its individual failure reason. Also raised if
+            no template matched the provided substitutions.
     """
     # Imported lazily: requests is a heavy import (~85ms) and is only needed
     # when actually downloading a toolchain, never during config validation.
     import requests
+
+    from esphome.core import EsphomeError
 
     # 1. Open target file for writing if path given
     with ExitStack() as stack:
@@ -649,13 +609,31 @@ def download_from_mirrors(
             )
 
         # 2. Try each mirror in order
-        last_exception = None
+        failures: list[tuple[str, Exception]] = []
+        skipped: list[tuple[str, str]] = []
 
         for mirror in mirrors:
             # 3. Apply substitutions to URL
-            url = mirror.format(**substitutions)
+            try:
+                url = mirror.format(**substitutions)
+            except KeyError as e:
+                # The template references a substitution not provided for
+                # this download (e.g. SHORT_VERSION only exists for x.y.0
+                # versions) - expected, the template just doesn't apply.
+                _LOGGER.debug("Skipping mirror %s: %s not available", mirror, e)
+                skipped.append((mirror, f"not applicable ({e.args[0]} not available)"))
+                continue
+            except (IndexError, ValueError) as e:
+                # A malformed template (unbalanced braces, bad format spec)
+                # is an authoring error, not an expected fallthrough - warn
+                # even if a later mirror succeeds.
+                _LOGGER.warning(
+                    "Skipping malformed mirror URL template %s: %r", mirror, e
+                )
+                skipped.append((mirror, f"skipped ({e!r})"))
+                continue
 
-            _LOGGER.debug("Trying downloading from %s", url)
+            _LOGGER.debug("Trying to download from %s", url)
 
             try:
                 # 4. Reset file pointer and download
@@ -690,9 +668,27 @@ def download_from_mirrors(
 
             except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
                 _LOGGER.debug("Failed to download %s: %s", url, str(e))
-                last_exception = e
+                failures.append((url, e))
 
-        # 7. Raise last exception if all mirrors failed
-        if last_exception:
-            raise last_exception
+        # 7. Report every attempted URL if all mirrors failed. Falling back
+        # past an early mirror is normal (e.g. only one of the framework URL
+        # templates matches a given version's tag), so raising only the last
+        # error would hide the failure that actually matters.
+        if failures:
+            attempts = "".join(
+                f"\n  {url}\n    {_failure_reason(e)}" for url, e in failures
+            )
+            attempts += "".join(
+                f"\n  {mirror}\n    {reason}" for mirror, reason in skipped
+            )
+            raise EsphomeError(
+                f"Failed to download from all mirrors:{attempts}"
+            ) from failures[0][1]
+        if skipped:
+            details = "".join(
+                f"\n  {mirror}\n    {reason}" for mirror, reason in skipped
+            )
+            raise EsphomeError(
+                f"No mirror URL template matched the provided substitutions:{details}"
+            )
         raise ValueError("download_from_mirrors called with an empty mirrors list")

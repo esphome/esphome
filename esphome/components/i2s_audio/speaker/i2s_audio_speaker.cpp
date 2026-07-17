@@ -139,7 +139,7 @@ void I2SAudioSpeakerBase::set_volume(float volume) {
   this->volume_ = volume;
 #ifdef USE_AUDIO_DAC
   if (this->audio_dac_ != nullptr) {
-    if (volume > 0.0) {
+    if (volume > 0.0f) {
       this->audio_dac_->set_mute_off();
     }
     this->audio_dac_->set_volume(volume);
