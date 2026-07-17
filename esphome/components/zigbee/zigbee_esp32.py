@@ -194,11 +194,17 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
             raise cv.Invalid(
                 f"Device class '{dev_class}' is not supported as default cluster. Use basic cluster instead."
             )
-        if unit != ep_configs[dev_class][CONF_UNIT_OF_MEASUREMENT]:
-            raise cv.Invalid(
-                f"Device class '{dev_class}' requires unit '{ep_configs[dev_class][CONF_UNIT_OF_MEASUREMENT]}'."
-            )
         ep = copy.deepcopy(ep_configs[dev_class])
+        if unit not in ep[CONF_UNIT_OF_MEASUREMENT]:
+            raise cv.Invalid(
+                f"Device class '{dev_class}' requires one of units {', '.join(ep[CONF_UNIT_OF_MEASUREMENT])}."
+            )
+        if len(ep[CONF_UNIT_OF_MEASUREMENT]) > 1:
+            for attr in ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES]:
+                if isinstance(attr.get(SCALE), dict):
+                    attr[SCALE] = attr[SCALE][unit]
+                if isinstance(attr.get(CONF_LAMBDA), dict):
+                    attr[CONF_LAMBDA] = attr[CONF_LAMBDA][unit]
     else:
         ep = copy.deepcopy(ep_configs["analog_input"])
         apptype = ANALOG_INPUT_APPTYPE.get((dev_class, unit))
