@@ -41,7 +41,7 @@ DeletePeerAction = espnow_ns.class_("DeletePeerAction", automation.Action)
 ESPNowHandlerTrigger = automation.Trigger.template(
     ESPNowRecvInfoConstRef,
     cg.uint8.operator("const").operator("ptr"),
-    cg.uint8,
+    cg.uint16,
 )
 
 OnUnknownPeerTrigger = espnow_ns.class_(
@@ -56,6 +56,20 @@ OnBroadcastTrigger = espnow_ns.class_(
 
 
 CONF_AUTO_ADD_PEER = "auto_add_peer"
+CONF_MAX_PAYLOAD_SIZE = "max_payload_size"
+
+# Payload limits of ESP-NOW v1 and v2 frames. The radio negotiates the
+# protocol version per peer on its own; the option only sizes this device's
+# packet buffers, whose static RAM cost is proportional to it (~8 KB at 250
+# bytes, ~44 KB at 1470).
+ESPNOW_PAYLOAD_V1 = 250
+ESPNOW_PAYLOAD_V2 = 1470
+
+# Config-time cap for action payloads. The per-device limit is the
+# ``max_payload_size`` option, which the action schema cannot see; send()
+# enforces it at runtime.
+MAX_ESPNOW_PACKET_SIZE = ESPNOW_PAYLOAD_V2
+
 CONF_PEERS = "peers"
 CONF_ON_SENT = "on_sent"
 CONF_ON_UNKNOWN_PEER = "on_unknown_peer"
@@ -63,7 +77,15 @@ CONF_ON_BROADCAST = "on_broadcast"
 CONF_CONTINUE_ON_ERROR = "continue_on_error"
 CONF_WAIT_FOR_SENT = "wait_for_sent"
 
-MAX_ESPNOW_PACKET_SIZE = 250  # Maximum size of the payload in bytes
+
+def _validate_max_payload_size(value: int) -> int:
+    if value > ESPNOW_PAYLOAD_V1:
+        return cv.require_framework_version(
+            esp_idf=cv.Version(5, 4, 0),
+            esp32_arduino=cv.Version(3, 2, 0),
+            extra_message="ESP-NOW v2 frames need an ESP-NOW v2 capable framework",
+        )(value)
+    return value
 
 
 def validate_channel(value):
@@ -78,6 +100,9 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(ESPNowComponent),
             cv.OnlyWithout(CONF_CHANNEL, CONF_WIFI): validate_channel,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
+            cv.Optional(CONF_MAX_PAYLOAD_SIZE, default=ESPNOW_PAYLOAD_V1): cv.All(
+                cv.int_range(min=1, max=ESPNOW_PAYLOAD_V2), _validate_max_payload_size
+            ),
             cv.Optional(CONF_AUTO_ADD_PEER, default=False): cv.boolean,
             cv.Optional(CONF_PEERS): cv.ensure_list(cv.mac_address),
             cv.Optional(CONF_ON_UNKNOWN_PEER): automation.validate_automation(
@@ -113,7 +138,7 @@ async def _trigger_to_code(config):
         [
             (ESPNowRecvInfoConstRef, "info"),
             (cg.uint8.operator("const").operator("ptr"), "data"),
-            (cg.uint8, "size"),
+            (cg.uint16, "size"),
         ],
         config,
     )
@@ -125,6 +150,7 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     cg.add_define("USE_ESPNOW")
+    cg.add_define("USE_ESPNOW_MAX_PAYLOAD_SIZE", config[CONF_MAX_PAYLOAD_SIZE])
     if wifi_channel := config.get(CONF_CHANNEL):
         cg.add(var.set_wifi_channel(wifi_channel))
 

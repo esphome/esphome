@@ -11,6 +11,7 @@ from typing import Any
 
 from esphome import yaml_util
 import esphome.codegen as cg
+from esphome.components.const import CONF_ENABLE_OTA_DOWNGRADE_PROTECTION
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
@@ -29,6 +30,7 @@ from esphome.const import (
     CONF_PATH,
     CONF_PLATFORM_VERSION,
     CONF_PLATFORMIO_OPTIONS,
+    CONF_PROJECT,
     CONF_REF,
     CONF_SAFE_MODE,
     CONF_SIZE,
@@ -107,7 +109,9 @@ CONF_ENGINEERING_SAMPLE = "engineering_sample"
 CONF_INCLUDE_BUILTIN_IDF_COMPONENTS = "include_builtin_idf_components"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
+CONF_KEY_ID = "key_id"
 CONF_MINIMUM_CHIP_REVISION = "minimum_chip_revision"
+CONF_NVS_ENCRYPTION = "nvs_encryption"
 CONF_RELEASE = "release"
 CONF_SIGNED_OTA_VERIFICATION = "signed_ota_verification"
 CONF_SIGNING_KEY = "signing_key"
@@ -163,6 +167,20 @@ SIGNED_OTA_V2_ECC_ONLY_VARIANTS = {
 # Based on SOC_SECURE_BOOT_V1 in soc_caps.h.
 SIGNED_OTA_V1_ECDSA_VARIANTS = {
     VARIANT_ESP32,
+}
+
+# NVS encryption (HMAC peripheral scheme) is only available on variants that
+# expose the HMAC peripheral (SOC_HMAC_SUPPORTED in soc_caps.h). The original
+# ESP32 and ESP32-C2 do not have it. New variants with an HMAC peripheral
+# should be added here.
+NVS_ENCRYPTION_HMAC_VARIANTS = {
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32P4,
 }
 
 COMPILER_OPTIMIZATIONS = {
@@ -1098,6 +1116,118 @@ def _detect_variant(value):
     return value
 
 
+def _ota_downgrade_protection_errors(
+    project_version: str | None, signed_ota_enabled: bool
+) -> list[cv.Invalid]:
+    """Validate prerequisites for OTA downgrade protection.
+
+    Called only when the feature is enabled. Returns a ``cv.Invalid`` for each
+    unmet requirement: a dotted-numeric project version (the firmware version
+    compared on-device) and signed OTA (so the embedded version cannot be
+    forged).
+    """
+    path = [CONF_FRAMEWORK, CONF_ADVANCED, CONF_ENABLE_OTA_DOWNGRADE_PROTECTION]
+    errs: list[cv.Invalid] = []
+    if not project_version:
+        errs.append(
+            cv.Invalid(
+                f"'{CONF_ENABLE_OTA_DOWNGRADE_PROTECTION}' requires a "
+                f"'{CONF_PROJECT}' with a '{CONF_VERSION}' to be set in the "
+                f"'{CONF_ESPHOME}' section; this version is the firmware version "
+                "compared during OTA.",
+                path=path,
+            )
+        )
+    elif not re.fullmatch(r"\d+(\.\d+)*", project_version):
+        # The on-device comparison parses dotted-numeric versions only.
+        errs.append(
+            cv.Invalid(
+                f"'{CONF_ENABLE_OTA_DOWNGRADE_PROTECTION}' requires the "
+                f"'{CONF_PROJECT}' '{CONF_VERSION}' to be dotted-numeric (such "
+                f"as '1.2.3'), got '{project_version}'.",
+                path=path,
+            )
+        )
+    if not signed_ota_enabled:
+        errs.append(
+            cv.Invalid(
+                f"'{CONF_ENABLE_OTA_DOWNGRADE_PROTECTION}' requires "
+                f"'{CONF_SIGNED_OTA_VERIFICATION}' to be enabled; without signed "
+                "OTA the embedded version cannot be trusted.",
+                path=path,
+            )
+        )
+    return errs
+
+
+_SIGNED_OTA_VERIFICATION_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_SIGNING_KEY): cv.file_,
+        cv.Optional(CONF_VERIFICATION_KEY): cv.file_,
+        cv.Optional(CONF_SIGNING_SCHEME, default="rsa3072"): cv.one_of(
+            *SIGNING_SCHEMES, lower=True
+        ),
+    }
+)
+
+
+@schema_extractor("schema")
+def _validate_signed_ota_verification(value):
+    if value is SCHEMA_EXTRACT:
+        # Expose the inner schema so the language-schema dumper can walk the
+        # signing_key / verification_key / signing_scheme options.
+        return _SIGNED_OTA_VERIFICATION_SCHEMA
+    if value is None:
+        # A bare `signed_ota_verification:` block is valid: the default V2
+        # scheme needs no keys (verify externally-signed binaries).
+        value = {}
+    return _validate_signed_ota_keys(_SIGNED_OTA_VERIFICATION_SCHEMA(value))
+
+
+def _validate_signed_ota_keys(config: ConfigType) -> ConfigType:
+    """Validate the signing/verification key combination for the selected scheme.
+
+    A verification key is only used by the Secure Boot V1 scheme (ecdsa_v1):
+    the public key is compiled into the app so it can verify externally-signed
+    images. ESP-IDF's CONFIG_SECURE_BOOT_VERIFICATION_KEY only takes effect
+    when the V1 ECDSA scheme is selected and binaries are not signed during
+    the build (see SECURE_BOOT_VERIFICATION_KEY in the bootloader Kconfig).
+
+    The V2 schemes (rsa3072, ecdsa256) embed the public key in the signature
+    block appended to each image, so verifying externally-signed binaries
+    needs no key in the config at all -- omitting both keys selects that
+    external-signing mode.
+    """
+    has_signing_key = CONF_SIGNING_KEY in config
+    has_verification_key = CONF_VERIFICATION_KEY in config
+    scheme = config[CONF_SIGNING_SCHEME]
+    if has_signing_key and has_verification_key:
+        raise cv.Invalid(
+            f"Provide at most one of '{CONF_SIGNING_KEY}' and "
+            f"'{CONF_VERIFICATION_KEY}', not both.",
+            path=[CONF_VERIFICATION_KEY],
+        )
+    if scheme == "ecdsa_v1":
+        if not has_signing_key and not has_verification_key:
+            raise cv.Invalid(
+                f"Signing scheme 'ecdsa_v1' requires either '{CONF_SIGNING_KEY}' "
+                f"(to sign binaries during the build) or '{CONF_VERIFICATION_KEY}' "
+                f"(to verify binaries signed externally).",
+                path=[CONF_SIGNING_KEY],
+            )
+    elif has_verification_key:
+        raise cv.Invalid(
+            f"'{CONF_VERIFICATION_KEY}' is only used with signing scheme "
+            f"'ecdsa_v1'. With '{scheme}' the public key is embedded in each "
+            f"image's signature block, so no key file is needed to verify "
+            f"externally-signed binaries: remove '{CONF_VERIFICATION_KEY}', and "
+            f"set '{CONF_SIGNING_KEY}' only if binaries should be signed during "
+            f"the build.",
+            path=[CONF_VERIFICATION_KEY],
+        )
+    return config
+
+
 def final_validate(config):
     # Imported locally to avoid circular import issues
     from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
@@ -1299,10 +1429,41 @@ def final_validate(config):
             )
         else:
             _LOGGER.info(
-                "Signed OTA verification is configured with a public verification key. "
+                "Signed OTA verification is enabled without a signing key. "
                 "Binaries will NOT be signed automatically during build. "
                 "You must sign them externally before flashing."
             )
+    if (nvs_enc := advanced.get(CONF_NVS_ENCRYPTION)) is not None:
+        variant = config[CONF_VARIANT]
+        if variant in NVS_ENCRYPTION_HMAC_VARIANTS:
+            _LOGGER.warning(
+                "NVS encryption will burn an HMAC key into eFuse key block %d on the "
+                "first boot of each device. This is PERMANENT and IRREVERSIBLE: "
+                "the block cannot be erased or reused afterwards. Enabling (or "
+                "later disabling) encryption also wipes any previously saved "
+                "preferences once, because the older data can no longer be read.",
+                nvs_enc[CONF_KEY_ID],
+            )
+        else:
+            supported = ", ".join(
+                sorted(VARIANT_FRIENDLY[v] for v in NVS_ENCRYPTION_HMAC_VARIANTS)
+            )
+            errs.append(
+                cv.Invalid(
+                    f"NVS encryption (HMAC scheme) is not supported on "
+                    f"{VARIANT_FRIENDLY[variant]} (it has no HMAC peripheral). "
+                    f"Supported variants: {supported}.",
+                    path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_NVS_ENCRYPTION],
+                )
+            )
+    if advanced[CONF_ENABLE_OTA_DOWNGRADE_PROTECTION]:
+        project = full_config[CONF_ESPHOME].get(CONF_PROJECT)
+        errs.extend(
+            _ota_downgrade_protection_errors(
+                project[CONF_VERSION] if project else None,
+                bool(advanced.get(CONF_SIGNED_OTA_VERIFICATION)),
+            )
+        )
     if errs:
         raise cv.MultipleInvalid(errs)
 
@@ -1485,16 +1646,20 @@ FRAMEWORK_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_TYPE): cv.one_of(FRAMEWORK_ESP_IDF, FRAMEWORK_ARDUINO),
         cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
-        cv.Optional(CONF_RELEASE): cv.string_strict,
-        cv.Optional(CONF_SOURCE): cv.string_strict,
-        cv.Optional(CONF_PLATFORM_VERSION): _parse_pio_platform_version,
-        cv.Optional(CONF_SDKCONFIG_OPTIONS, default={}): {
-            cv.string_strict: cv.string_strict
-        },
+        cv.Optional(CONF_RELEASE, visibility=cv.Visibility.YAML_ONLY): cv.string_strict,
+        cv.Optional(CONF_SOURCE, visibility=cv.Visibility.YAML_ONLY): cv.string_strict,
+        cv.Optional(
+            CONF_PLATFORM_VERSION, visibility=cv.Visibility.YAML_ONLY
+        ): _parse_pio_platform_version,
+        cv.Optional(
+            CONF_SDKCONFIG_OPTIONS, default={}, visibility=cv.Visibility.YAML_ONLY
+        ): {cv.string_strict: cv.string_strict},
         cv.Optional(CONF_LOG_LEVEL, default="ERROR"): cv.one_of(
             *LOG_LEVELS_IDF, upper=True
         ),
-        cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
+        cv.Optional(
+            CONF_ADVANCED, default={}, visibility=cv.Visibility.YAML_ONLY
+        ): cv.Schema(
             {
                 cv.Optional(CONF_ASSERTION_LEVEL): cv.one_of(
                     *ASSERTION_LEVELS, upper=True
@@ -1540,17 +1705,20 @@ FRAMEWORK_SCHEMA = cv.Schema(
                     min=8192, max=32768
                 ),
                 cv.Optional(CONF_ENABLE_OTA_ROLLBACK, default=True): cv.boolean,
-                cv.Optional(CONF_SIGNED_OTA_VERIFICATION): cv.All(
-                    cv.Schema(
-                        {
-                            cv.Optional(CONF_SIGNING_KEY): cv.file_,
-                            cv.Optional(CONF_VERIFICATION_KEY): cv.file_,
-                            cv.Optional(
-                                CONF_SIGNING_SCHEME, default="rsa3072"
-                            ): cv.one_of(*SIGNING_SCHEMES, lower=True),
-                        }
-                    ),
-                    cv.has_exactly_one_key(CONF_SIGNING_KEY, CONF_VERIFICATION_KEY),
+                cv.Optional(
+                    CONF_ENABLE_OTA_DOWNGRADE_PROTECTION, default=False
+                ): cv.boolean,
+                cv.Optional(
+                    CONF_SIGNED_OTA_VERIFICATION
+                ): _validate_signed_ota_verification,
+                cv.Optional(CONF_NVS_ENCRYPTION): cv.Schema(
+                    {
+                        # eFuse key block (0-5) that stores the HMAC key from
+                        # which the NVS encryption keys are derived. The block is
+                        # written on first boot if empty -- an irreversible
+                        # operation -- so it must be chosen explicitly.
+                        cv.Required(CONF_KEY_ID): cv.int_range(min=0, max=5),
+                    }
                 ),
                 cv.Optional(
                     CONF_USE_FULL_CERTIFICATE_BUNDLE, default=False
@@ -1572,7 +1740,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_DISABLE_FATFS, default=True): cv.boolean,
             }
         ),
-        cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
+        cv.Optional(
+            CONF_COMPONENTS, default=[], visibility=cv.Visibility.YAML_ONLY
+        ): cv.ensure_list(
             cv.All(
                 cv.Any(
                     cv.All(cv.string_strict, _parse_idf_component),
@@ -1672,7 +1842,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FLASH_FREQUENCY): cv.one_of(
                 *FLASH_FREQUENCIES, upper=True
             ),
-            cv.Optional(CONF_PARTITIONS): cv.Any(
+            cv.Optional(CONF_PARTITIONS, visibility=cv.Visibility.YAML_ONLY): cv.Any(
                 cv.file_,
                 cv.ensure_list(
                     cv.All(
@@ -1696,7 +1866,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
             cv.Optional(CONF_FRAMEWORK): FRAMEWORK_SCHEMA,
-            cv.Optional(CONF_TOOLCHAIN): _validate_toolchain,
+            cv.Optional(
+                CONF_TOOLCHAIN, visibility=cv.Visibility.ADVANCED
+            ): _validate_toolchain,
             cv.Optional(CONF_WATCHDOG_TIMEOUT, default="5s"): cv.All(
                 cv.positive_time_period_seconds,
                 cv.Range(min=cv.TimePeriod(seconds=5), max=cv.TimePeriod(seconds=60)),
@@ -2358,6 +2530,16 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE", True)
         cg.add_define("USE_OTA_ROLLBACK")
 
+    # Enable software OTA downgrade protection. Embed the project version into
+    # the image's esp_app_desc_t so the OTA backend can compare it against the
+    # running version (final_validate guarantees a dotted-numeric project
+    # version and that signed OTA is enabled).
+    if advanced[CONF_ENABLE_OTA_DOWNGRADE_PROTECTION]:
+        project_version = CORE.config[CONF_ESPHOME][CONF_PROJECT][CONF_VERSION]
+        add_idf_sdkconfig_option("CONFIG_APP_PROJECT_VER_FROM_CONFIG", True)
+        add_idf_sdkconfig_option("CONFIG_APP_PROJECT_VER", project_version)
+        cg.add_define("USE_OTA_DOWNGRADE_PROTECTION")
+
     # Enable signed app verification without hardware secure boot
     if signed_ota := advanced.get(CONF_SIGNED_OTA_VERIFICATION):
         add_idf_sdkconfig_option("CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT", True)
@@ -2375,14 +2557,32 @@ async def to_code(config):
                 signed_ota[CONF_SIGNING_KEY].resolve().as_posix(),
             )
         else:
-            # Public key mode — verification only, external signing required
+            # External signing mode — binaries must be signed after the build
             add_idf_sdkconfig_option("CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES", False)
-            add_idf_sdkconfig_option(
-                "CONFIG_SECURE_BOOT_VERIFICATION_KEY",
-                signed_ota[CONF_VERIFICATION_KEY].resolve().as_posix(),
-            )
+            if CONF_VERIFICATION_KEY in signed_ota:
+                # V1 ECDSA only: the public key is compiled into the app to
+                # verify externally-signed images. V2 schemes carry the public
+                # key in each image's signature block and need no key here.
+                add_idf_sdkconfig_option(
+                    "CONFIG_SECURE_BOOT_VERIFICATION_KEY",
+                    signed_ota[CONF_VERIFICATION_KEY].resolve().as_posix(),
+                )
 
         cg.add_define("USE_OTA_SIGNED_VERIFICATION")
+
+    # Encrypt NVS using the HMAC peripheral scheme. The NVS encryption keys are
+    # derived at runtime from an HMAC key stored in the configured eFuse block
+    # (no flash encryption required). The HMAC key is generated and burned into
+    # the eFuse block on first boot if it is empty. With the scheme selected,
+    # nvs_sec_provider registers it at startup and the default nvs_flash_init()
+    # (used in esp32/preferences.cpp) transparently performs the secure init, so
+    # no C++ changes are needed.
+    if (nvs_enc := advanced.get(CONF_NVS_ENCRYPTION)) is not None:
+        add_idf_sdkconfig_option("CONFIG_NVS_ENCRYPTION", True)
+        add_idf_sdkconfig_option("CONFIG_NVS_SEC_KEY_PROTECT_USING_HMAC", True)
+        add_idf_sdkconfig_option(
+            "CONFIG_NVS_SEC_HMAC_EFUSE_KEY_ID", nvs_enc[CONF_KEY_ID]
+        )
 
     cg.add_define("ESPHOME_LOOP_TASK_STACK_SIZE", advanced[CONF_LOOP_TASK_STACK_SIZE])
 
@@ -2858,19 +3058,23 @@ def copy_files():
 
 
 def _decode_pc(config, addr):
-    # _decode_pc runs from the api log processor's asyncio callback, which
-    # only catches EsphomeError. Any other exception escaping here tears down
-    # the protocol and triggers an infinite reconnect/replay loop. Convert
-    # toolchain-resolution errors (e.g. missing build dir / cmake cache) into
-    # EsphomeError so the caller can disable decoding cleanly.
+    # Convert toolchain-resolution errors (e.g. missing build dir / cmake
+    # cache) into EsphomeError. The api log processor stops decoding on any
+    # exception, so this is about the message it reports rather than about
+    # catching it at all: EsphomeError carries an explanation worth showing
+    # the user, where a raw OSError repr does not.
     if CORE.using_toolchain_esp_idf:
         from esphome.espidf import toolchain as idf_toolchain
 
         try:
             addr2line_path = idf_toolchain.get_addr2line_path()
             firmware_elf_path = idf_toolchain.get_elf_path()
-        except RuntimeError as err:
+        except (RuntimeError, OSError) as err:
+            # OSError covers a missing build directory or a cmake that isn't
+            # on PATH; both surface from the subprocess call, not as RuntimeError.
             raise EsphomeError(f"ESP-IDF toolchain not available: {err}") from err
+        if not firmware_elf_path.is_file():
+            raise EsphomeError(f"Firmware ELF not found: {firmware_elf_path}")
     else:
         from esphome.platformio import toolchain
 

@@ -1,4 +1,4 @@
-name: Cache sdk-nrf
+name: Cache nRF Connect SDK
 description: >
   Resolve the pinned sdk-nrf version and cache the native sdk-nrf install
   (west workspace, Zephyr SDK toolchain, python env) at ~/.esphome-sdk-nrf.
@@ -33,14 +33,14 @@ runs:
     # Mirror cache-esp-idf: only dev-branch runs write the shared cache (so it
     # lives in the default-branch scope readable by all PRs); PRs are
     # restore-only and never push multi-GB artifacts into their own scope.
-    - name: Cache sdk-nrf install (write on dev)
+    - name: Cache nRF Connect SDK install (write on dev)
       if: github.ref == 'refs/heads/dev' && inputs.restore-only != 'true'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.esphome-sdk-nrf
         # yamllint disable-line rule:line-length
         key: ${{ runner.os }}-esphome-sdk-nrf-${{ steps.version.outputs.version }}-${{ hashFiles('esphome/components/nrf52/requirements.txt') }}
-    - name: Cache sdk-nrf install (restore-only off dev)
+    - name: Cache nRF Connect SDK install (restore-only off dev)
       if: github.ref != 'refs/heads/dev' || inputs.restore-only == 'true'
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:

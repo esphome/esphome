@@ -2,6 +2,7 @@ espnow:
   id: espnow_component
   auto_add_peer: false
   channel: 1
+  max_payload_size: 1470
   peers:
     - 11:22:33:44:55:66
   on_receive:

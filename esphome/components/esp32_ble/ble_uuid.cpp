@@ -181,12 +181,6 @@ const char *ESPBTUUID::to_str(std::span<char, UUID_STR_LEN> output) const {
       return output.data();
   }
 }
-std::string ESPBTUUID::to_string() const {
-  char buf[UUID_STR_LEN];
-  this->to_str(buf);
-  return std::string(buf);
-}
-
 }  // namespace esphome::esp32_ble
 
 #endif  // USE_ESP32_BLE_UUID

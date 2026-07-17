@@ -220,7 +220,7 @@ def function_code_to_register(function_code):
         "read_coils": ModbusRegisterType.COIL,
         "read_discrete_inputs": ModbusRegisterType.DISCRETE_INPUT,
         "read_holding_registers": ModbusRegisterType.HOLDING,
-        "read_input_registers": ModbusRegisterType.READ,
+        "read_input_registers": ModbusRegisterType.INPUT_REGISTER,
         "write_single_coil": ModbusRegisterType.COIL,
         "write_single_register": ModbusRegisterType.HOLDING,
         "write_multiple_coils": ModbusRegisterType.COIL,
