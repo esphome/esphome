@@ -1283,14 +1283,18 @@ def test_discover_user_yaml_files_mapping_include_with_vars(tmp_path: Path) -> N
     assert (tmp_path / "keys/a.yaml").resolve() in discovered.files
 
 
-def test_discover_user_yaml_files_absolute_templated_include(tmp_path: Path) -> None:
-    """An absolute templated include globs from its anchor instead of crashing."""
+def test_discover_user_yaml_files_absolute_templated_include_skipped(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An absolute templated include is skipped gracefully instead of crashing."""
     shared = tmp_path / "shared"
     _write(tmp_path, "shared/common.yaml", "api:\n")
-    discovered = discover_user_yaml_files(
-        _write_entry_including(tmp_path, f"{shared}/${{x}}.yaml")
-    )
-    assert (shared / "common.yaml").resolve() in discovered.files
+    with caplog.at_level("DEBUG", logger="esphome.yaml_util"):
+        discovered = discover_user_yaml_files(
+            _write_entry_including(tmp_path, f"{shared}/${{x}}.yaml")
+        )
+    assert (shared / "common.yaml").resolve() not in discovered.files
+    assert any("Cannot glob include pattern" in r.message for r in caplog.records)
 
 
 def test_discover_user_yaml_files_glob_skips_dollar_named_files(

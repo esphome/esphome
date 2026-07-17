@@ -279,32 +279,23 @@ def _glob_include_candidates(parent_dir: Path, pattern: str) -> list[Path]:
     """
     Expand a candidate glob under *parent_dir*, keeping hidden files out.
 
-    An absolute pattern globs from its own anchor and yields absolute
-    matches — ``Path.glob`` alone rejects non-relative patterns, which
-    would crash discovery instead of skipping the include.
+    An un-globbable pattern (absolute, or one the filesystem rejects) is
+    skipped instead of crashing discovery.
     """
-    base = parent_dir
-    keep_absolute = False
-    pattern_path = Path(pattern)
-    if pattern_path.is_absolute():
-        base = Path(pattern_path.anchor)
-        pattern = str(pattern_path.relative_to(base))
-        keep_absolute = True
     try:
-        found_paths = base.glob(pattern)
+        found_paths = parent_dir.glob(pattern)
         return [
-            found if keep_absolute else rel
+            rel
             for found in found_paths
-            if _is_visible_path(rel := found.relative_to(base))
+            if _is_visible_path(rel := found.relative_to(parent_dir))
         ]
     except (NotImplementedError, ValueError, OSError) as err:
         _LOGGER.debug("Cannot glob include pattern %r: %s", pattern, err)
         return []
 
 
-def _candidate_include_paths(include: IncludeFile) -> list[tuple[Path, Path]]:
-    """Enumerate ``(relative, resolved)`` files an expression-templated
-    ``!include`` could select.
+def _candidate_include_paths(include: IncludeFile) -> list[Path]:
+    """Enumerate resolved files an expression-templated ``!include`` could select.
 
     Patterns come from ``substitutions.include_candidate_patterns``:
     substitution spans glob (``keys/${name}.yaml`` matches every
@@ -318,7 +309,7 @@ def _candidate_include_paths(include: IncludeFile) -> list[tuple[Path, Path]]:
 
     parent_dir = include.parent_file.parent
     parent_resolved = include.parent_file.resolve()
-    candidates: list[tuple[Path, Path]] = []
+    candidates: list[Path] = []
     for pattern in include_candidate_patterns(str(include.file)):
         if "*" in pattern:
             matches = sorted(_glob_include_candidates(parent_dir, pattern))
@@ -333,7 +324,7 @@ def _candidate_include_paths(include: IncludeFile) -> list[tuple[Path, Path]]:
             resolved = candidate.resolve()
             if resolved == parent_resolved:
                 continue
-            candidates.append((match, resolved))
+            candidates.append(resolved)
     return candidates
 
 
@@ -360,10 +351,10 @@ def _load_include_candidates(
         include.parent_file,
         len(candidates),
     )
-    for candidate, resolved in candidates:
-        if resolved in expanded_paths:
+    for candidate in candidates:
+        if candidate in expanded_paths:
             continue
-        expanded_paths.add(resolved)
+        expanded_paths.add(candidate)
         try:
             loaded = include.with_file(candidate).load()
         except (EsphomeError, Invalid) as err:

@@ -1032,9 +1032,13 @@ def test_remote_package_scalar_yaml_raises_helpful_error(
             "../${x}/config.yaml", ["../*/config.yaml"], id="ascending_directory"
         ),
         pytest.param("${file}", [], id="bare_variable_dropped"),
-        pytest.param('${ name ~ ".yaml" }', [], id="dynamic_expression_dropped"),
-        pytest.param("${ if }", [], id="syntax_error_dropped"),
-        pytest.param("<% if x %>a.yaml<% endif %>", [], id="block_statement_dropped"),
+        pytest.param(
+            '${ name ~ ".yaml" }', [".yaml"], id="dynamic_concat_extracts_literal"
+        ),
+        pytest.param("${ if }", [], id="no_literal_expression_dropped"),
+        pytest.param(
+            "<% if x %>a.yaml<% endif %>", ["*a.yaml*"], id="block_statement_globs"
+        ),
     ],
 )
 def test_include_candidate_patterns(value: str, expected: list[str]) -> None:

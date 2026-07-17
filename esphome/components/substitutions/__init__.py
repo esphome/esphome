@@ -9,6 +9,7 @@ from esphome import core
 from esphome.config_helpers import Extend, Remove, merge_config, merge_dicts_ordered
 import esphome.config_validation as cv
 from esphome.const import CONF_SUBSTITUTIONS, VALID_SUBSTITUTIONS_CHARACTERS
+from esphome.expression import JINJA_PROG
 from esphome.types import ConfigType
 from esphome.util import OrderedDict
 from esphome.yaml_util import (
@@ -33,6 +34,7 @@ ErrList = list[tuple[UndefinedError, DocumentPath, Any]]
 _ADJACENT_WILDCARDS_RE = re.compile(r"\*+")
 _WILDCARDS_ONLY_RE = re.compile(r"[*/\\]+")
 _GLOB_META_RE = re.compile(r"[?\[]")
+_STRING_LITERAL_RE = re.compile(r"'([^']*)'|\"([^\"]*)\"")
 
 # Module-level instance is safe: context_vars is passed per-call, and context_trace
 # is stack-saved/restored within expand(). Not thread-safe — only use from one thread.
@@ -384,27 +386,37 @@ def include_candidate_patterns(value: str) -> list[str]:
 
     Mirrors the two phases of :func:`_expand_substitutions` without variable
     values: ``$var`` / ``${var}`` references become ``*``, and each remaining
-    Jinja expression contributes one pattern per string literal a conditional
-    branch could select (``*`` when fully dynamic). Adjacent wildcards
-    collapse to one so no variant emits ``**``, which globs recursively, and
-    ``[`` / ``?`` from the filename text are escaped in wildcard variants so
-    glob metacharacters in real file names stay literal. Variants reduced to
-    nothing but wildcards and separators are dropped, so a fully dynamic
-    filename never expands to "everything in the directory".
+    Jinja expression contributes one pattern per quoted string literal it
+    holds (``*`` when it holds none), so every conditional branch is a
+    candidate. Deliberately over-inclusive — discovery ships every file the
+    expression could plausibly select. Adjacent wildcards collapse to one so
+    no variant emits ``**``, which globs recursively, and ``[`` / ``?`` from
+    the filename text are escaped in wildcard variants so glob metacharacters
+    in real file names stay literal. Variants reduced to nothing but
+    wildcards and separators are dropped, so a fully dynamic filename never
+    expands to "everything in the directory".
     """
+    # Replacing $var / ${var} first also keeps JINJA_PROG's first-} span
+    # matching correct for references nested inside string literals, the
+    # same ordering _expand_substitutions relies on.
     value = cv.VARIABLE_PROG.sub("*", value)
-    if has_jinja(value):
-        segments = jinja.template_string_options(value)
-        if segments is None:
-            return []
-        options = [["*" if opt is None else opt for opt in seg] for seg in segments]
-    else:
-        options = [[value]]
+    spans = list(JINJA_PROG.finditer(value))
+    options = [
+        [a or b for a, b in _STRING_LITERAL_RE.findall(span.group(0))] or ["*"]
+        for span in spans
+    ]
 
-    variants = (
-        _ADJACENT_WILDCARDS_RE.sub("*", "".join(combination))
-        for combination in product(*options)
-    )
+    variants: list[str] = []
+    for combination in product(*options):
+        parts: list[str] = []
+        last_end = 0
+        for span, replacement in zip(spans, combination, strict=True):
+            parts.append(value[last_end : span.start()])
+            parts.append(replacement)
+            last_end = span.end()
+        parts.append(value[last_end:])
+        variants.append(_ADJACENT_WILDCARDS_RE.sub("*", "".join(parts)))
+
     patterns: list[str] = []
     for variant in dict.fromkeys(variants):
         if not variant or _WILDCARDS_ONLY_RE.fullmatch(variant):

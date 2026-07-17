@@ -1,7 +1,6 @@
 from ast import literal_eval
 from collections.abc import Iterator, Mapping
 from itertools import chain, islice
-import logging
 import math
 from types import GeneratorType
 from typing import Any
@@ -12,8 +11,6 @@ from jinja2.runtime import missing as Missing
 
 # Re-exported for backward compatibility — consumers import has_jinja from here
 from esphome.expression import has_jinja  # noqa: F401  # pylint: disable=unused-import
-
-_LOGGER = logging.getLogger(__name__)
 
 TemplateError = jinja.TemplateError
 TemplateSyntaxError = jinja.TemplateSyntaxError
@@ -129,20 +126,6 @@ def _concat_nodes_override(values: Iterator[Any]) -> Any:
     return raw
 
 
-def _node_string_options(node: jinja.nodes.Node) -> list[str | None]:
-    """String values a template node could yield; ``None`` when dynamic."""
-    if isinstance(node, jinja.nodes.TemplateData):
-        return [node.data]
-    if isinstance(node, jinja.nodes.Const):
-        return [node.value if isinstance(node.value, str) else None]
-    if isinstance(node, jinja.nodes.CondExpr):
-        options = _node_string_options(node.expr1)
-        if node.expr2 is not None:
-            options += _node_string_options(node.expr2)
-        return options
-    return [None]
-
-
 class Jinja(jinja.Environment):
     """Jinja environment configured for ESPHome substitution expressions."""
 
@@ -201,28 +184,6 @@ class Jinja(jinja.Environment):
             self.context_trace = old_trace
 
         return result
-
-    def template_string_options(self, value: str) -> list[list[str | None]] | None:
-        """
-        Per-segment string options for a template string.
-
-        Returns one options list per template segment: literal text yields
-        its single value, an expression yields every string literal a
-        conditional branch could select, and a fully dynamic value yields
-        ``None``. Returns ``None`` when the string doesn't parse or contains
-        block statements.
-        """
-        try:
-            template_ast = self.parse(value)
-        except TemplateSyntaxError as err:
-            _LOGGER.debug("Template %r failed to parse: %s", value, err)
-            return None
-        segments: list[list[str | None]] = []
-        for part in template_ast.body:
-            if not isinstance(part, jinja.nodes.Output):
-                return None
-            segments.extend(_node_string_options(child) for child in part.nodes)
-        return segments
 
 
 class JinjaTemplate(NativeTemplate):
