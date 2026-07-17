@@ -58,15 +58,38 @@ def test_direction_follows_datasheet_semantics() -> None:
     assert DIRECTION["COUNTERCLOCKWISE"] == 0
 
 
+@pytest.mark.parametrize(
+    ("config_file", "output_mode_call", "out_pin_call"),
+    [
+        # code 0 keys must generate false, not true
+        (
+            "mt6701_i2c_modes.yaml",
+            "set_output_mode_uvw(false)",
+            "set_out_pin_pwm(false)",
+        ),
+        # code 1 keys must generate true, not false
+        (
+            "mt6701_i2c_modes_uvw_pwm.yaml",
+            "set_output_mode_uvw(true)",
+            "set_out_pin_pwm(true)",
+        ),
+    ],
+)
 def test_enum_options_generate_register_codes_not_truthiness(
-    generate_main, component_config_path
+    generate_main,
+    component_config_path,
+    config_file: str,
+    output_mode_call: str,
+    out_pin_call: str,
 ) -> None:
     """cv.enum returns the (always truthy) key string; codegen must use the
     register code, not bool(key). Regression test for output_mode/out_pin mode.
-    """
-    main_cpp = generate_main(component_config_path("mt6701_i2c_modes.yaml"))
 
-    # output_mode: ABZ (code 0) must generate false, not true
-    assert "set_output_mode_uvw(false)" in main_cpp
-    # out_pin mode: ANALOG (code 0) must generate false, not true
-    assert "set_out_pin_pwm(false)" in main_cpp
+    Both endpoints of the enum->bool mapping are pinned (code 0 -> false and
+    code 1 -> true) so that hardcoding a constant or reading a different
+    also-zero field is caught, not only the always-truthy regression.
+    """
+    main_cpp = generate_main(component_config_path(config_file))
+
+    assert output_mode_call in main_cpp
+    assert out_pin_call in main_cpp
