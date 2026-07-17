@@ -400,29 +400,23 @@ def include_candidate_patterns(value: str) -> list[str]:
     # matching correct for references nested inside string literals, the
     # same ordering _expand_substitutions relies on.
     value = cv.VARIABLE_PROG.sub("*", value)
-    spans = list(JINJA_PROG.finditer(value))
     options = [
-        [a or b for a, b in _STRING_LITERAL_RE.findall(span.group(0))] or ["*"]
-        for span in spans
+        [a or b for a, b in _STRING_LITERAL_RE.findall(expr)] or ["*"]
+        for expr in JINJA_PROG.findall(value)
     ]
 
     variants: list[str] = []
     for combination in product(*options):
-        parts: list[str] = []
-        last_end = 0
-        for span, replacement in zip(spans, combination, strict=True):
-            parts.append(value[last_end : span.start()])
-            parts.append(replacement)
-            last_end = span.end()
-        parts.append(value[last_end:])
-        variants.append(_ADJACENT_WILDCARDS_RE.sub("*", "".join(parts)))
+        replacements = iter(combination)
+        spliced = JINJA_PROG.sub(lambda _, _next=replacements: next(_next), value)
+        variants.append(_ADJACENT_WILDCARDS_RE.sub("*", spliced))
 
     patterns: list[str] = []
     for variant in dict.fromkeys(variants):
         if not variant or _WILDCARDS_ONLY_RE.fullmatch(variant):
             continue
         if "*" in variant:
-            variant = _GLOB_META_RE.sub(lambda m: f"[{m.group(0)}]", variant)
+            variant = _GLOB_META_RE.sub(r"[\g<0>]", variant)
         patterns.append(variant)
     return patterns
 

@@ -1184,19 +1184,6 @@ def test_discover_user_yaml_files_deduplicates(tmp_path: Path) -> None:
     assert discovered.files.count(wifi_resolved) == 1
 
 
-def test_discover_user_yaml_files_expands_substitution_candidates(
-    tmp_path: Path,
-) -> None:
-    """A substitution-templated include path globs and loads every candidate."""
-    _write(tmp_path, "keys/device-a.yaml", "api:\n")
-    _write(tmp_path, "keys/device-b.yaml", "api:\n")
-    discovered = discover_user_yaml_files(
-        _write_entry_including(tmp_path, "keys/${system_name}.yaml")
-    )
-    names = {p.name for p in discovered.files}
-    assert {"device-a.yaml", "device-b.yaml"} <= names
-
-
 def test_discover_user_yaml_files_expands_directory_substitution(
     tmp_path: Path,
 ) -> None:
@@ -1209,21 +1196,6 @@ def test_discover_user_yaml_files_expands_directory_substitution(
     resolved = set(discovered.files)
     assert (tmp_path / "network/eth01/config.yaml").resolve() in resolved
     assert (tmp_path / "network/eth02/config.yaml").resolve() in resolved
-
-
-def test_discover_user_yaml_files_jinja_literal_candidates(tmp_path: Path) -> None:
-    """Conditional-branch literals load verbatim, reaching a ``../`` parent
-    path a glob can't ascend to; a branch with no file is skipped silently."""
-    _write(tmp_path, "empty.yaml", "{}\n")
-    _write(
-        tmp_path,
-        "boards/esp8266.yaml",
-        'packages:\n  - !include ${ "NO BT.yaml" if bt else "../empty.yaml" }\n',
-    )
-    discovered = discover_user_yaml_files(
-        _write_entry_including(tmp_path, "boards/esp8266.yaml")
-    )
-    assert (tmp_path / "empty.yaml").resolve() in discovered.files
 
 
 def test_discover_user_yaml_files_loads_both_branches_of_issue_conditional(

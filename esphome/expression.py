@@ -1,4 +1,4 @@
-"""Helpers for detecting substitution variables and Jinja expressions."""
+"""Helpers for detecting and matching substitution variables and Jinja expressions."""
 
 import re
 

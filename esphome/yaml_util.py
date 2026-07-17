@@ -303,9 +303,9 @@ def _candidate_include_paths(include: IncludeFile) -> list[Path]:
     Patterns come from ``substitutions.include_candidate_patterns``:
     substitution spans glob (``keys/${name}.yaml`` matches every
     ``keys/*.yaml``, hidden files excluded like ``!include_dir_*``) and Jinja
-    string literals are tried verbatim (the only route to a ``../file.yaml``
-    branch a glob can't ascend to). Matches still carrying expression markers
-    or pointing back at the including file are skipped.
+    string literals are tried verbatim, so a branch file loads even when it
+    contains glob metacharacters or is hidden. Matches still carrying
+    expression markers or pointing back at the including file are skipped.
     """
     # Deferred import — the substitutions component imports this module.
     from esphome.components.substitutions import include_candidate_patterns
@@ -339,9 +339,9 @@ def _load_include_candidates(
     expanded_paths: set[Path],
 ) -> None:
     """Load every filesystem candidate for an unresolved ``IncludeFile``."""
+    log = _LOGGER.warning if warn_on_unresolved else _LOGGER.debug
     candidates = _candidate_include_paths(include)
     if not candidates:
-        log = _LOGGER.warning if warn_on_unresolved else _LOGGER.debug
         log(
             "Cannot resolve !include %s (referenced from %s) with substitutions in path",
             include.file,
@@ -361,7 +361,6 @@ def _load_include_candidates(
         try:
             loaded = include.with_file(candidate).load()
         except (EsphomeError, Invalid) as err:
-            log = _LOGGER.warning if warn_on_unresolved else _LOGGER.debug
             log(
                 "Failed to load candidate %s for !include %s: %s",
                 candidate,
