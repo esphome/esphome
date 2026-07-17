@@ -1,6 +1,7 @@
 from ast import literal_eval
 from collections.abc import Iterator, Mapping
 from itertools import chain, islice
+import logging
 import math
 from types import GeneratorType
 from typing import Any
@@ -11,6 +12,8 @@ from jinja2.runtime import missing as Missing
 
 # Re-exported for backward compatibility — consumers import has_jinja from here
 from esphome.expression import has_jinja  # noqa: F401  # pylint: disable=unused-import
+
+_LOGGER = logging.getLogger(__name__)
 
 TemplateError = jinja.TemplateError
 TemplateSyntaxError = jinja.TemplateSyntaxError
@@ -211,7 +214,8 @@ class Jinja(jinja.Environment):
         """
         try:
             template_ast = self.parse(value)
-        except TemplateSyntaxError:
+        except TemplateSyntaxError as err:
+            _LOGGER.debug("Template %r failed to parse: %s", value, err)
             return None
         segments: list[list[str | None]] = []
         for part in template_ast.body:

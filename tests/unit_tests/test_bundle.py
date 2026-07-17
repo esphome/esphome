@@ -999,7 +999,7 @@ def test_discover_files_nested_include_unresolved_substitution(
 
 
 def test_discover_files_bundles_all_include_candidates(tmp_path: Path) -> None:
-    """The issue-2143 layout: templated package includes chain through a glob
+    """The issue-17650 layout: templated package includes chain through a glob
     candidate into a Jinja conditional whose ``../`` branch is bundled."""
     config_dir = _setup_config_dir(
         tmp_path,
