@@ -20,6 +20,7 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_EXTERNAL_COMPONENTS,
     CONF_ID,
+    CONF_MERGE_WARNINGS,
     CONF_MIN_VERSION,
     CONF_PACKAGES,
     CONF_PLATFORM,
@@ -598,6 +599,18 @@ class LoadValidationStep(ConfigValidationStep):
         CORE.loaded_integrations.add(self.domain)
         # For platform components, normalize conf before creating MetadataValidationStep
         if component.is_platform_component:
+            # Legacy config migration: allow a platform component to rewrite a
+            # pre-platform-format top-level config (e.g. a bare list or legacy
+            # dict form) into the normalized list of `platform:` tagged entries.
+            # Removable deprecation shim hook; no-op for components that do not
+            # define LEGACY_CONFIG_MIGRATE.
+            if (
+                (migrate := component.legacy_config_migrate) is not None
+                and self.conf
+                and not isinstance(self.conf, core.AutoLoad)
+                and (migrated := migrate(self.conf)) is not None
+            ):
+                result[self.domain] = self.conf = migrated
             if not self.conf:
                 result[self.domain] = self.conf = []
             elif not isinstance(self.conf, list):
@@ -1183,6 +1196,24 @@ def validate_config(
             [],
         )
         return result
+
+    # Warn about any keys silently dropped by `<<` merge includes (shallow,
+    # first-wins). The esphome: section is now known, so we can honor its
+    # `merge_warnings:` opt-out. Always drain the queue to keep it from leaking
+    # into a later run.
+    if (dropped := yaml_util.take_dropped_merge_keys()) and (
+        not isinstance(esphome_conf := config[CONF_ESPHOME], dict)
+        or esphome_conf.get(CONF_MERGE_WARNINGS, True)
+    ):
+        for key, location in dict.fromkeys(dropped):
+            _LOGGER.warning(
+                "Key '%s' (%s) was dropped while processing a '<<' merge because it "
+                "is already defined. Merge keys don't combine sections - the first "
+                "definition wins. Use 'packages:' to merge sections, or set "
+                "'esphome: { merge_warnings: false }' to silence this.",
+                key,
+                location,
+            )
 
     # Snapshot the user's config before any schema validation defaults are
     # applied. preload_core_config and later validation steps rewrite entries

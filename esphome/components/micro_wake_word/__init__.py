@@ -6,6 +6,7 @@ from urllib.parse import urljoin
 
 from esphome import automation, external_files, git
 from esphome.automation import register_action, register_condition
+from esphome.bundle import add_bundle_file
 import esphome.codegen as cg
 from esphome.components import esp32, microphone, ota, psram
 import esphome.config_validation as cv
@@ -28,6 +29,7 @@ from esphome.const import (
     TYPE_LOCAL,
 )
 from esphome.core import CORE, HexInt
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -236,10 +238,45 @@ HTTP_SCHEMA = cv.All(
     _process_http_source,
 )
 
-LOCAL_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_PATH): cv.All(_validate_json_filename, cv.file_),
-    }
+
+def _register_local_model_file(config: ConfigType) -> ConfigType:
+    """Register the model file that the manifest points to, so bundles include it.
+
+    The manifest names its model file relative to itself, so that path never appears
+    in the YAML and bundle discovery cannot find it on its own.
+
+    Problems with the manifest are logged and ignored here rather than raised. Loading
+    the manifest later reports them with better messages, and raising would be
+    swallowed by the shorthand validator, which then reports a confusing error about a
+    missing file in a git repository. Logging keeps the skipped registration
+    diagnosable if the manifest is only briefly unreadable, since the bundle would
+    then be built without the model file.
+    """
+    manifest_path: Path = config[CONF_PATH]
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        model = manifest[CONF_MODEL]
+    except (OSError, ValueError, KeyError, TypeError) as err:
+        _LOGGER.debug("Not registering a model file from %s: %s", manifest_path, err)
+        return config
+    if not isinstance(model, str):
+        _LOGGER.debug(
+            "Not registering a model file from %s: 'model' is %s, expected a string",
+            manifest_path,
+            type(model).__name__,
+        )
+        return config
+    add_bundle_file(manifest_path.parent / model)
+    return config
+
+
+LOCAL_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_PATH): cv.All(_validate_json_filename, cv.file_),
+        }
+    ),
+    _register_local_model_file,
 )
 
 
