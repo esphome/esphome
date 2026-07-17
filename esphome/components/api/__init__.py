@@ -112,6 +112,23 @@ CONF_MAX_SEND_QUEUE = "max_send_queue"
 CONF_STATE_SUBSCRIPTION_ONLY = "state_subscription_only"
 
 
+def _register_provisioning_source(config: ConfigType) -> ConfigType:
+    """Register the API as a provisioning source when encryption is enabled.
+
+    With no ``key`` the device boots unprovisioned and is set up on first
+    connection; a YAML ``key`` means it is born provisioned. Either way the API
+    drives the provisioning manager, so it counts as a source for `provisioning:`.
+    A hardcoded ``key`` is reported so `provisioning:` can warn about it.
+    """
+    if (encryption := config.get(CONF_ENCRYPTION)) is not None:
+        from esphome.components import provisioning
+
+        provisioning.register_source("api")
+        if CONF_KEY in encryption:
+            provisioning.report_hardcoded_credentials("api")
+    return config
+
+
 def validate_encryption_key(value):
     value = cv.string_strict(value)
     try:
@@ -300,21 +317,23 @@ CONFIG_SCHEMA = cv.All(
                 CONF_LISTEN_BACKLOG,
                 esp8266=1,  # Limited RAM (~40KB free), LWIP raw sockets
                 esp32=4,  # More RAM (520KB), BSD sockets
-                rp2040=1,  # Limited RAM (264KB), LWIP raw sockets like ESP8266
+                rp2=1,  # Limited RAM (264KB), LWIP raw sockets like ESP8266
                 bk72xx=4,  # Moderate RAM, BSD-style sockets
                 rtl87xx=4,  # Moderate RAM, BSD-style sockets
                 host=4,  # Abundant resources
                 ln882x=4,  # Moderate RAM
+                nrf52=4,  # ~256KB RAM, BSD sockets
             ): cv.int_range(min=1, max=10),
             cv.SplitDefault(
                 CONF_MAX_CONNECTIONS,
                 esp8266=4,  # ~40KB free RAM, each connection uses ~500-1000 bytes
                 esp32=5,  # 520KB RAM available
-                rp2040=4,  # 264KB RAM but LWIP constraints
+                rp2=4,  # 264KB RAM but LWIP constraints
                 bk72xx=5,  # Moderate RAM
                 rtl87xx=5,  # Moderate RAM
                 host=8,  # Abundant resources
                 ln882x=5,  # Moderate RAM
+                nrf52=4,  # ~256KB RAM, BSD sockets, Thread (single HA controller)
             ): cv.int_range(min=1, max=20),
             # Maximum queued send buffers per connection before dropping connection
             # Each buffer uses ~8-12 bytes overhead plus actual message size
@@ -324,7 +343,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_MAX_SEND_QUEUE,
                 esp8266=4,  # Limited RAM, need to fail fast
                 esp32=8,  # More RAM, can buffer more
-                rp2040=8,  # Moderate RAM
+                rp2=8,  # Moderate RAM
                 bk72xx=8,  # Moderate RAM
                 nrf52=8,  # Moderate RAM
                 rtl87xx=8,  # Moderate RAM
@@ -335,6 +354,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
     _consume_api_sockets,
+    _register_provisioning_source,
 )
 
 
@@ -468,8 +488,11 @@ async def to_code(config: ConfigType) -> None:
             cg.add_define("USE_API_NOISE_PSK_FROM_YAML")
         else:
             # No key provided, but encryption desired
-            # This will allow a plaintext client to provide a noise key,
-            # send it to the device, and then switch to noise.
+            # Until a key is set, the device accepts both Noise connections
+            # using the well-known all-zeros PSK (preferred: the key travels
+            # encrypted, protecting against passive sniffing) and plaintext
+            # connections (deprecated, remove after 2027.2.0) so a client can
+            # provide a noise key and the device then switches to noise only.
             # The key will be saved in flash and used for future connections
             # and plaintext disabled. Only a factory reset can remove it.
             cg.add_define("USE_API_PLAINTEXT")
@@ -538,17 +561,20 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
 )
 
 
+# synchronous=False: when on_success/on_error is configured, play() stores the
+# trigger args until the HomeassistantActionResponse arrives, so non-owning args
+# (StringRef into the API receive buffer) must not be used.
 @automation.register_action(
     "homeassistant.action",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
-    synchronous=True,
+    synchronous=False,
 )
 @automation.register_action(
     "homeassistant.service",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
-    synchronous=True,
+    synchronous=False,
 )
 async def homeassistant_service_to_code(
     config: ConfigType,
@@ -642,6 +668,8 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
 )
 
 
+# synchronous=True is safe here: the event schema has no on_success/on_error,
+# so play() never stores the trigger args.
 @automation.register_action(
     "homeassistant.event",
     HomeAssistantServiceCallAction,
