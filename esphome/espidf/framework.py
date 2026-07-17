@@ -1,5 +1,6 @@
 """ESP-IDF framework tools for ESPHome."""
 
+from ctypes.util import find_library
 import json
 import logging
 import os
@@ -668,6 +669,14 @@ def _check_esphome_idf_framework_install(
             env=env,
             stream_output=True,
         ):
+            if platform.system() == "Linux" and find_library("usb-1.0") is None:
+                _LOGGER.error(
+                    "libusb-1.0.so.0 was not found on this system and the ESP-IDF "
+                    "tools need it (openocd fails its install check without it). "
+                    "Install the libusb 1.0 package, e.g. libusb-1.0-0 "
+                    "(Debian/Ubuntu), libusb1 (Fedora) or libusb (Alpine/Arch), "
+                    "then run the build again."
+                )
             raise RuntimeError(f"ESP-IDF {version} framework installation failure")
 
         _write_stamp(env_stamp_file, stamp_info)

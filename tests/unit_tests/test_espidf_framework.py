@@ -478,6 +478,34 @@ def test_check_esp_idf_install_python_stamp_mismatch_rebuilds_venv(
     espidf_mocks.venv.assert_called_once()
 
 
+@pytest.mark.parametrize(
+    ("lib", "expect_hint"),
+    [
+        (None, True),
+        ("libusb-1.0.so.0", False),
+    ],
+)
+def test_check_esp_idf_install_failure_libusb_hint(
+    espidf_mocks: SimpleNamespace,
+    caplog: pytest.LogCaptureFixture,
+    lib: str | None,
+    expect_hint: bool,
+) -> None:
+    """A failed tools install only shows the libusb hint when libusb-1.0 is
+    actually missing."""
+    espidf_mocks.run_ok.return_value = False
+    # Fake Linux so the gate is exercised on all CI hosts; faking Linux is safe
+    # everywhere (unlike faking Windows, which pulls in winreg on other hosts)
+    with (
+        patch("esphome.espidf.framework.find_library", return_value=lib),
+        patch("esphome.espidf.framework.platform.system", return_value="Linux"),
+        caplog.at_level(logging.ERROR, logger="esphome.espidf.framework"),
+        pytest.raises(RuntimeError, match="framework installation failure"),
+    ):
+        check_esp_idf_install(_IDF_VERSION, force=True)
+    assert ("libusb-1.0.so.0 was not found" in caplog.text) == expect_hint
+
+
 def test_check_esp_idf_install_unparseable_version(
     espidf_mocks: SimpleNamespace,
 ) -> None:
