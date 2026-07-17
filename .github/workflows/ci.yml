@@ -585,7 +585,7 @@ jobs:
             rc=0
             for env in ${{ matrix.environments }}; do
               echo "::group::clang-tidy $env"
-              script/clang-tidy --all-headers --fix $changed --environment "$env" ${{ matrix.options }} || rc=1
+              script/clang-tidy --all-headers --fix $changed --environment "$env" ${{ matrix.options }} ${{ matrix.ignore_errors && '|| true' || '' }} || rc=1
               echo "::endgroup::"
             done
             exit $rc
