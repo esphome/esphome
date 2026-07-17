@@ -380,7 +380,7 @@ void VEML7700Component::apply_lux_compensation_(Readings &data) {
   // if this light level is exceeded"
   auto compensate = [&local_data](float &lux) {
     auto calculate_high_lux_compensation = [](float lux_veml) -> float {
-      return (((6.0135e-13 * lux_veml - 9.3924e-9) * lux_veml + 8.1488e-5) * lux_veml + 1.0023) * lux_veml;
+      return (((6.0135e-13f * lux_veml - 9.3924e-9f) * lux_veml + 8.1488e-5f) * lux_veml + 1.0023f) * lux_veml;
     };
 
     if (lux > 1000.0f || local_data.actual_gain == Gain::X_1_8 || local_data.actual_gain == Gain::X_1_4) {

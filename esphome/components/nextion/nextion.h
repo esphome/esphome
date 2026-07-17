@@ -23,7 +23,9 @@
 #elif defined(USE_ESP8266)
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
-#endif  // USE_ESP32 vs USE_ESP8266
+#elif defined(USE_LIBRETINY)
+#include <HTTPClient.h>
+#endif  // USE_ESP32 vs USE_ESP8266 vs USE_LIBRETINY
 #endif  // USE_NEXTION_TFT_UPLOAD
 
 namespace esphome::nextion {
@@ -1486,6 +1488,10 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
 
   void process_nextion_commands_();
   void process_serial_();
+  /// Drop queue entries older than max_q_age_ms_. Called from loop() so it also runs when the
+  /// display sends no data at all (disconnected or asleep), which would otherwise grow the queue
+  /// without bound.
+  void purge_stale_queue_entries_();
   uint16_t touch_sleep_timeout_ = 0;
   uint8_t wake_up_page_ = 255;
 #ifdef USE_NEXTION_CONF_START_UP_PAGE
