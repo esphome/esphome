@@ -423,14 +423,18 @@ uart::UARTFlushResult USBCDCACMInstance::flush() {
   }
 
   // Also wait for USB to finish transmitting, within whatever remains of the budget.
+  // Floor at one tick: a zero-tick timeout takes esp_tinyusb's non-blocking branch,
+  // whose return contract is that library's internal detail and may differ between
+  // releases. One tick keeps the call on the blocking branch (ESP_OK/ESP_ERR_TIMEOUT)
+  // at the cost of at most one tick over budget.
   const uint32_t elapsed_ms = pdTICKS_TO_MS(xTaskGetTickCount() - start);
   const uint32_t remaining_ms = FLUSH_TIMEOUT_MS - std::min(elapsed_ms, FLUSH_TIMEOUT_MS);
-  esp_err_t err =
-      tinyusb_cdcacm_write_flush(static_cast<tinyusb_cdcacm_itf_t>(this->itf_), pdMS_TO_TICKS(remaining_ms));
+  const TickType_t flush_ticks = std::max(pdMS_TO_TICKS(remaining_ms), (TickType_t) 1);
+  esp_err_t err = tinyusb_cdcacm_write_flush(static_cast<tinyusb_cdcacm_itf_t>(this->itf_), flush_ticks);
   if (err == ESP_OK)
     return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
-  // With a zero remaining budget the call is non-blocking and reports unfinished
-  // output as ESP_ERR_NOT_FINISHED rather than ESP_ERR_TIMEOUT.
+  // ESP_ERR_NOT_FINISHED is the non-blocking branch's "still draining" result; map it
+  // like a timeout in case a future esp_tinyusb release returns it here.
   if (err == ESP_ERR_TIMEOUT || err == ESP_ERR_NOT_FINISHED)
     return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
   return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
