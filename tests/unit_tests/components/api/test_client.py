@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from esphome.components import esp32
 from esphome.components.api import client as api_client
-from esphome.core import EsphomeError
+from esphome.const import CONF_PORT, KEY_CORE, KEY_TARGET_PLATFORM
+from esphome.core import CORE, EsphomeError
 
 
 def test_decoder_swallows_esphome_error() -> None:
@@ -136,3 +139,30 @@ def test_decoder_uses_platform_handler_when_provided() -> None:
     assert calls == [(config, "BT0: 0x4010496e", False)]
     assert mock_generic.called is False
     assert processor.backtrace_state is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("extra_config", "expected_deep_sleep"),
+    [({"deep_sleep": {}}, True), ({}, False)],
+)
+async def test_async_run_logs_passes_deep_sleep(
+    extra_config: dict, expected_deep_sleep: bool
+) -> None:
+    """async_run_logs tells async_run whether the device deep sleeps, from the config."""
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+    config = {"esphome": {"name": "test"}, "api": {CONF_PORT: 6053}, **extra_config}
+    # async_run blocks forever after connecting; raise to unwind async_run_logs
+    # once we have captured how it was called.
+    sentinel = RuntimeError("stop the wait")
+
+    with (
+        patch.object(
+            api_client, "async_run", AsyncMock(side_effect=sentinel)
+        ) as mock_run,
+        patch.object(api_client, "APIClient"),
+        pytest.raises(RuntimeError, match="stop the wait"),
+    ):
+        await api_client.async_run_logs(config, ["1.2.3.4"])
+
+    assert mock_run.call_args.kwargs["deep_sleep"] is expected_deep_sleep
