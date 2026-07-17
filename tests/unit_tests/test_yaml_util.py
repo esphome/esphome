@@ -1307,6 +1307,20 @@ def test_discover_user_yaml_files_glob_skips_dollar_named_files(
     assert "b$roken.yaml" not in names
 
 
+def test_discover_user_yaml_files_glob_error_skips_include(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A filesystem error during candidate globbing skips the include."""
+    entry = _write_entry_including(tmp_path, "keys/${n}.yaml")
+    with (
+        patch.object(Path, "glob", side_effect=OSError("boom")),
+        caplog.at_level("DEBUG", logger="esphome.yaml_util"),
+    ):
+        discovered = discover_user_yaml_files(entry)
+    assert [p.name for p in discovered.files] == ["entry.yaml"]
+    assert any("Cannot glob include pattern" in r.message for r in caplog.records)
+
+
 def test_force_load_candidate_failure_warns_by_default(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
