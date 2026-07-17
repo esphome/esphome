@@ -27,6 +27,12 @@ ezb_err_t esphome_zb_add_or_update_cluster(uint16_t cluster_id, ezb_af_ep_desc_t
 ezb_af_ep_desc_t esphome_zb_zha_default_ep_desc_create(uint8_t ep_id, uint16_t device_id, uint8_t power_source) {
   ezb_af_ep_desc_t ep_desc;
   switch (device_id) {
+    case EZB_ZHA_LIGHT_SENSOR_DEVICE_ID: {
+      ezb_zha_light_sensor_config_t config = EZB_ZHA_LIGHT_SENSOR_CONFIG();
+      config.basic_cfg.power_source = power_source;
+      ep_desc = ezb_zha_create_light_sensor(ep_id, &config);
+      break;
+    }
     case EZB_ZHA_TEMPERATURE_SENSOR_DEVICE_ID: {
       ezb_zha_temperature_sensor_config_t config = EZB_ZHA_TEMPERATURE_SENSOR_CONFIG();
       config.basic_cfg.power_source = power_source;

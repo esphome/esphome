@@ -189,7 +189,7 @@ ep_configs: dict[str, dict[str, Any]] = {
                         CONF_TYPE: "UINT16",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
                         CONF_DEVICE: None,
-                        SCALE: 100,
+                        SCALE: 0.01,
                     },
                 ],
             },
@@ -207,7 +207,13 @@ ep_configs: dict[str, dict[str, Any]] = {
                         CONF_ATTRIBUTE_ID: 0x0,
                         CONF_TYPE: "UINT16",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                        CONF_LAMBDA: cv.lambda_(Lambda("return log10(x)*10000 + 1;")),
+                        CONF_LAMBDA: cv.lambda_(
+                            Lambda(
+                                "if (x <= 0.0f || isnan(x)) return 0xFFF;"  # NaN
+                                " if (x < 1.0f) return 0;"  # too small to measure
+                                " return (uint16_t)(log10(x)*10000 + 1);"
+                            )
+                        ),
                         CONF_DEVICE: None,
                     },
                 ],
