@@ -41,7 +41,7 @@ enum HlkFm22xNoteType {
 };
 
 enum HlkFm22xResult {
-  SUCCESS = 0x00,
+  SUCCEEDED = 0x00,
   REJECTED = 0x01,
   ABORTED = 0x02,
   FAILED4_CAMERA = 0x04,

@@ -145,6 +145,7 @@ esphome/components/dlms_meter/* @latonita @PolarGoose @SimonFischer04 @Tomer27cz
 esphome/components/dps310/* @kbx81
 esphome/components/ds1307/* @badbadc0ffee
 esphome/components/ds2484/* @mrk-its
+esphome/components/ds248x/* @tomwellnitz
 esphome/components/dsmr/* @glmnet @PolarGoose
 esphome/components/duty_time/* @dudanov
 esphome/components/ee895/* @Stock-M
@@ -209,6 +210,7 @@ esphome/components/gree/switch/* @nagyrobi
 esphome/components/grove_gas_mc_v2/* @YorkshireIoT
 esphome/components/grove_tb6612fng/* @max246
 esphome/components/growatt_solar/* @leeuwte
+esphome/components/gsl3670/* @clydebarrow
 esphome/components/gt911/* @clydebarrow @jesserockz
 esphome/components/haier/* @paveldn
 esphome/components/haier/binary_sensor/* @paveldn
