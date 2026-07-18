@@ -74,6 +74,8 @@ def clang_options(idedata, environment):
         "-fno-jump-tables",
         "-fno-shrink-wrap",
         "-mno-target-align",
+        # GCC-only flag emitted by the LibreTiny build
+        "-mthumb-interwork",
     )
 
     if "zephyr" in triplet:
@@ -109,6 +111,23 @@ def clang_options(idedata, environment):
     if environment.startswith("rp2"):
         # clang's ARM backend doesn't know GCC's long_call attribute (IRAM_ATTR)
         cmd.append("-Wno-unknown-attributes")
+    elif environment.startswith(("bk72xx", "ln882h", "rtl87xx")):
+        cmd.extend(
+            [
+                # GCC on arm-none-eabi types (u)int32_t as (unsigned) long; clang
+                # types it as (unsigned) int, clashing with LibreTiny's lwip
+                # port typedefs. Match the GCC type model.
+                "-U__UINT32_TYPE__",
+                "-D__UINT32_TYPE__=long unsigned int",
+                "-U__INT32_TYPE__",
+                "-D__INT32_TYPE__=long int",
+                # newlib's machine/endian.h macroizes __bswap16 into
+                # __builtin_bswap16; the beken BDK then defines __bswap16 as a
+                # function, which GCC tolerates as a builtin redeclaration but
+                # clang rejects
+                "-D__MACHINE_ENDIAN_H__",
+            ]
+        )
     else:
         # replace pgmspace.h, as it uses GNU extensions clang doesn't support
         # https://github.com/earlephilhower/newlib-xtensa/pull/18
@@ -154,8 +173,32 @@ def clang_options(idedata, environment):
     )
     cmd.append("-std=gnu++20")
 
-    # defines
-    cmd.extend(f"-D{define}" for define in idedata["defines"])
+    if environment.startswith(("bk72xx", "ln882h", "rtl87xx")):
+        # LibreTiny leaves function-like macro values unparenthesized
+        # (bugprone-macro-parentheses); its SDK-internal FAL_PART_TABLE macro trips the same
+        # check. Assumes define values are always expressions (never type- or char-literal),
+        # which holds for the current LibreTiny idedata.
+        def sanitize_define(define):
+            name, sep, value = define.partition("=")
+            if (
+                sep
+                and value
+                and not value.startswith(("(", '"'))
+                and ("(" in name or not re.fullmatch(r"[\w.]+", value))
+            ):
+                value = f"({value})"
+            return f"-D{name}{sep}{value}"
+
+        # FAL_PART_TABLE and the delay() remap are library-scope LibreTiny flags that the real
+        # build never applies to esphome sources. Strip LibreTiny's shell quoting from define
+        # names first so the skip list matches regardless of which names it happens to quote.
+        for define in idedata["defines"]:
+            define = define.replace("'", "")
+            if define.startswith(("FAL_PART_TABLE", "delay(")):
+                continue
+            cmd.append(sanitize_define(define))
+    else:
+        cmd.extend(f"-D{define}" for define in idedata["defines"])
 
     # toolchain include directories, using -isystem to suppress their errors
     # idedata contains include directories for all toolchains of this platform, only use those from the one in use
@@ -219,8 +262,9 @@ def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
         if sys.stdout.isatty():
             invocation.append("--use-color")
 
-        if args.environment.startswith("rp2"):
-            # MMIO peripheral access on bare-metal RP2 is all fixed-address.
+        if args.environment.startswith(("rp2", "bk72xx", "ln882h", "rtl87xx")):
+            # MMIO peripheral access on these bare-metal platforms is all
+            # fixed-address.
             # bugprone-pointer-arithmetic-on-polymorphic-object (and its
             # cert-ctr56-cpp alias) crashes clang-tidy 22 with infinite matcher
             # recursion on lvgl_esphome.h under the RP2 defines.
@@ -439,7 +483,9 @@ def main():
             print("Error applying fixes.\n", file=sys.stderr)
             raise
 
-    return len(failed_files)
+    # Cap at 255: shells truncate exit codes to one byte, so 256 failures
+    # would otherwise report success
+    return min(len(failed_files), 255)
 
 
 if __name__ == "__main__":
