@@ -10,11 +10,18 @@ from .defines import (
     LValidator,
     add_lv_use,
     get_styles_used,
+    get_theme_update_requests,
     get_theme_widget_map,
     literal,
 )
 from .lvcode import LambdaContext, lv
-from .schemas import ALL_STYLES, FULL_STYLE_SCHEMA, WIDGET_TYPES, remap_property
+from .schemas import (
+    ALL_STYLES,
+    FULL_STYLE_SCHEMA,
+    WIDGET_TYPES,
+    remap_property,
+    theme_update_schema,
+)
 from .types import ObjUpdateAction, lv_style_t
 from .widgets import collect_parts, wait_for_widgets
 
@@ -91,18 +98,44 @@ async def style_update_to_code(config, action_id, template_arg, args):
 
 
 async def theme_to_code(config):
-    if theme := config.get(CONF_THEME):
-        add_lv_use(CONF_THEME)
-        for w_name, style in ((k, v) for k, v in theme.items() if k in WIDGET_TYPES):
-            # Work around Python 3.10 bug with nested async comprehensions
-            # With Python 3.11 this could be simplified
-            # TODO: Now that we require Python 3.11+, this can be updated to use nested comprehensions
-            styles = {}
-            for part, states in collect_parts(style).items():
-                styles[part] = {
-                    state: await create_style(
+    theme = config.get(CONF_THEME) or {}
+    requests = get_theme_update_requests()
+    widget_names = {k for k in theme if k in WIDGET_TYPES} | set(requests)
+    if not widget_names:
+        return
+    add_lv_use(CONF_THEME)
+    theme_map = get_theme_widget_map()
+    for w_name in widget_names:
+        parts = collect_parts(theme.get(w_name, {}))
+        for part, state in requests.get(w_name, ()):
+            parts.setdefault(part, {}).setdefault(state, {})
+        widget_styles = theme_map.setdefault(w_name, {})
+        for part, states in parts.items():
+            part_styles = widget_styles.setdefault(part, {})
+            for state, props in states.items():
+                if state not in part_styles:
+                    part_styles[state] = await create_style(
                         "_lv_theme_style_" + w_name + "_" + part + "_" + state, props
                     )
-                    for state, props in states.items()
-                }
-            get_theme_widget_map()[w_name] = styles
+
+
+@automation.register_action(
+    "lvgl.theme.update",
+    ObjUpdateAction,
+    theme_update_schema,
+    synchronous=True,
+)
+async def theme_update_to_code(config, action_id, template_arg, args):
+    await wait_for_widgets()
+    theme_map = get_theme_widget_map()
+    to_update = [
+        (theme_map[w_name][part][state], props)
+        for w_name, style in config.items()
+        for part, states in collect_parts(style).items()
+        for state, props in states.items()
+    ]
+    async with LambdaContext(parameters=args, where=action_id) as context:
+        for style_var, props in to_update:
+            await style_set(style_var, props)
+
+    return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())

@@ -33,6 +33,7 @@ KEY_NAMED_STYLES = "named_styles"
 KEY_REFRESHED_WIDGETS = "refreshed_widgets"
 KEY_REMAPPED_USES = "remapped_uses"
 KEY_STYLES_USED = "styles_used"
+KEY_THEME_UPDATE_REQUESTS = "theme_update_requests"
 KEY_THEME_WIDGET_MAP = "theme_widget_map"
 KEY_UPDATED_WIDGETS = "updated_widgets"
 KEY_WIDGET_MAP = "widget_map"
@@ -116,6 +117,10 @@ def get_updated_widgets() -> dict:
 
 def get_theme_widget_map() -> dict[str, Any]:
     return _get_data(KEY_THEME_WIDGET_MAP, {})
+
+
+def get_theme_update_requests() -> dict[str, set[tuple[str, str]]]:
+    return _get_data(KEY_THEME_UPDATE_REQUESTS, {})
 
 
 def get_styles_used() -> set[str]:

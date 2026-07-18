@@ -1,4 +1,5 @@
 from collections.abc import Callable
+import functools
 from typing import Any
 
 from esphome import config_validation as cv
@@ -69,7 +70,7 @@ from .types import (
     lv_pseudo_button_t,
     lv_style_t,
 )
-from .widgets import WidgetType
+from .widgets import WidgetType, collect_parts
 
 # this will be populated later, in __init__.py to avoid circular imports.
 WIDGET_TYPES: dict = {}
@@ -589,6 +590,59 @@ def obj_schema(widget_type: WidgetType) -> cv.Schema:
     schema = cv.Schema(obj_dict(widget_type))
     _OBJ_SCHEMA_CACHE[id(widget_type)] = (widget_type, schema)
     return schema
+
+
+@functools.cache
+def _build_theme_schema(
+    widget_types: tuple[tuple[str, WidgetType], ...],
+    include_dark_mode: bool = True,
+) -> cv.Schema:
+    # The theme schema is value-independent: it depends only on the set of
+    # registered widget types. Key the cache on a snapshot of WIDGET_TYPES so
+    # that an external component registering a new widget after the first
+    # validation (legal per any_widget_schema's lazy-evaluation contract)
+    # produces a fresh tuple, a cache miss, and a rebuilt schema -- the cache
+    # self-heals instead of stale-rejecting valid themes. See obj_dict() above
+    # for why chained .extend() is avoided here.
+    return cv.Schema(
+        {
+            **(
+                {cv.Optional(df.CONF_DARK_MODE, default=False): cv.boolean}
+                if include_dark_mode
+                else {}
+            ),
+            **{
+                cv.Optional(name): cv.Schema(
+                    {**obj_dict(w), **FULL_STYLE_SCHEMA.schema}
+                )
+                for name, w in widget_types
+            },
+        }
+    )
+
+
+def theme_schema(value: dict) -> dict:
+    return _build_theme_schema(tuple(WIDGET_TYPES.items()))(value)
+
+
+def theme_update_schema(value: dict) -> dict:
+    """
+    Schema for `lvgl.theme.update`: same shape as `theme:` minus `dark_mode`.
+    As a validation side effect, records which (widget type, part, state)
+    combos are targeted so `theme_to_code` can make sure a hidden style
+    exists for each -- even ones never mentioned under `theme:` -- and gets
+    it attached to widgets at the same point real theme styles are.
+    """
+    validated = _build_theme_schema(
+        tuple(WIDGET_TYPES.items()), include_dark_mode=False
+    )(value)
+    for w_name, style in validated.items():
+        for part, states in collect_parts(style).items():
+            for state in states:
+                df.get_theme_update_requests().setdefault(w_name, set()).add(
+                    (part, state)
+                )
+    return validated
 
 
 ALIGN_TO_SCHEMA = {
