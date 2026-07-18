@@ -1,7 +1,9 @@
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "usb_uart.h"
 #include "usb/usb_host.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome::usb_uart {
 
@@ -198,101 +200,116 @@ std::vector<CdcEps> USBUartTypePL2303::parse_descriptors(usb_device_handle_t dev
   return cdc_devs;
 }
 
-void USBUartTypePL2303::enable_channels() {
-  if (this->channels_.empty())
-    return;
+// Vendor init sequence for non-HXN chips (mirrors pl2303_startup in the Linux driver):
+// read 0x8484, write 0x0404=0, read 0x8484, read 0x8383, read 0x8484, write 0x0404=1,
+// read 0x8484, read 0x8383, write 0=1, write 1=0, write 2=0x24 (legacy) or 0x44 (HX+).
+// The final entry's wIndex is patched at runtime depending on the chip type.
+struct Pl2303InitStep {
+  uint8_t type;
+  uint8_t request;
+  uint16_t value;
+  uint16_t index;
+  bool read;  // reads need a 1-byte buffer to set wLength=1 so the IN data stage runs
+};
+static const Pl2303InitStep PL2303_INIT[] = {
+    {VENDOR_READ_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8484, 0, true},
+    {VENDOR_WRITE_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0404, 0, false},
+    {VENDOR_READ_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8484, 0, true},
+    {VENDOR_READ_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8383, 0, true},
+    {VENDOR_READ_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8484, 0, true},
+    {VENDOR_WRITE_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0404, 1, false},
+    {VENDOR_READ_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8484, 0, true},
+    {VENDOR_READ_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8383, 0, true},
+    {VENDOR_WRITE_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0, 1, false},
+    {VENDOR_WRITE_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 1, 0, false},
+    {VENDOR_WRITE_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 2, 0, false},
+};
+static constexpr uint8_t PL2303_INIT_COUNT = sizeof(PL2303_INIT) / sizeof(PL2303_INIT[0]);
 
-  auto *channel = this->channels_[0];
+bool USBUartTypePL2303::config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok,
+                                    const uint8_t *response) {
   bool is_legacy = (this->chip_type_ == PL2303_TYPE_H);
   bool is_hxn = (this->chip_type_ == PL2303_TYPE_HXN);
 
-  usb_host::transfer_cb_t nop_cb = [](const usb_host::TransferStatus &status) {
-    if (!status.success)
-      ESP_LOGW(TAG, "PL2303: vendor init transfer failed");
-  };
-
-  // Init sequence for non-HXN chips (mirrors pl2303_startup in Linux driver):
-  // Read 0x8484, write 0x0404=0, read 0x8484, read 0x8383, read 0x8484,
-  // write 0x0404=1, read 0x8484, read 0x8383,
-  // write 0=1, write 1=0, write 2=0x24 (legacy) or 0x44 (HX+)
-  if (!is_hxn) {
-    uint8_t req = VENDOR_READ_REQUEST;
-    uint8_t wreq = VENDOR_WRITE_REQUEST;
-
-    // Fire-and-forget vendor reads: result discarded, chip requires this sequence.
-    // Pass a 1-byte buffer to set wLength=1 so the IN data stage is performed.
-    this->control_transfer(VENDOR_READ_REQUEST_TYPE, req, 0x8484, 0, nop_cb, {0});
-    this->control_transfer(VENDOR_WRITE_REQUEST_TYPE, wreq, 0x0404, 0, nop_cb);
-    this->control_transfer(VENDOR_READ_REQUEST_TYPE, req, 0x8484, 0, nop_cb, {0});
-    this->control_transfer(VENDOR_READ_REQUEST_TYPE, req, 0x8383, 0, nop_cb, {0});
-    this->control_transfer(VENDOR_READ_REQUEST_TYPE, req, 0x8484, 0, nop_cb, {0});
-    this->control_transfer(VENDOR_WRITE_REQUEST_TYPE, wreq, 0x0404, 1, nop_cb);
-    this->control_transfer(VENDOR_READ_REQUEST_TYPE, req, 0x8484, 0, nop_cb, {0});
-    this->control_transfer(VENDOR_READ_REQUEST_TYPE, req, 0x8383, 0, nop_cb, {0});
-    this->control_transfer(VENDOR_WRITE_REQUEST_TYPE, wreq, 0, 1, nop_cb);
-    this->control_transfer(VENDOR_WRITE_REQUEST_TYPE, wreq, 1, 0, nop_cb);
-    this->control_transfer(VENDOR_WRITE_REQUEST_TYPE, wreq, 2, is_legacy ? 0x24 : 0x44, nop_cb);
+  // Vendor init burst runs only on full init for non-HXN chips.
+  uint8_t init_count = (!reload && !is_hxn) ? PL2303_INIT_COUNT : 0;
+  if (step < init_count) {
+    const auto &e = PL2303_INIT[step];
+    uint16_t index = (step == PL2303_INIT_COUNT - 1) ? (is_legacy ? 0x24 : 0x44) : e.index;
+    this->config_transfer_(e.type, e.request, e.value, index,
+                           e.read ? std::vector<uint8_t>{0} : std::vector<uint8_t>{});
+    return true;
   }
+  step -= init_count;
 
-  // Build 7-byte line coding structure:
-  // [0-3] baud rate (LE32), [4] stop bits, [5] parity, [6] data bits
-  uint8_t line_coding[7] = {};
-  uint32_t baud = channel->get_baud_rate();
-
-  // Choose baud encoding based on chip type
-  uint32_t nearest = nearest_supported_baud(baud);
-  if (baud == nearest || this->chip_type_ == PL2303_TYPE_HXN) {
-    encode_baud_direct(line_coding, baud);
-  } else if (this->chip_type_ == PL2303_TYPE_TA || this->chip_type_ == PL2303_TYPE_TB) {
-    encode_baud_divisor_alt(line_coding, baud);
-  } else {
-    encode_baud_divisor(line_coding, baud);
-  }
-
-  // Stop bits: 0=1, 1=1.5, 2=2
-  switch (channel->get_stop_bits()) {
-    case 2:
-      line_coding[4] = 2;
-      break;
-    default:
-      line_coding[4] = 0;
-      break;
-  }
-
-  // Parity: 0=none, 1=odd, 2=even, 3=mark, 4=space
-  switch (channel->parity_) {
-    case UART_CONFIG_PARITY_ODD:
-      line_coding[5] = 1;
-      break;
-    case UART_CONFIG_PARITY_EVEN:
-      line_coding[5] = 2;
-      break;
-    case UART_CONFIG_PARITY_MARK:
-      line_coding[5] = 3;
-      break;
-    case UART_CONFIG_PARITY_SPACE:
-      line_coding[5] = 4;
-      break;
-    default:
-      line_coding[5] = 0;
-      break;
-  }
-
-  // Data bits
-  line_coding[6] = channel->get_data_bits();
-
-  ESP_LOGD(TAG, "PL2303: SET_LINE_REQUEST baud=%u stop=%u parity=%u data=%u", baud, line_coding[4], line_coding[5],
-           line_coding[6]);
-
-  std::vector<uint8_t> lc_vec(line_coding, line_coding + 7);
   uint16_t iface = channel->cdc_dev_.bulk_interface_number;
-  this->control_transfer(SET_LINE_REQUEST_TYPE, SET_LINE_REQUEST, 0, iface, nop_cb, lc_vec);
+  switch (step) {
+    case 0: {
+      // Build 7-byte line coding structure:
+      // [0-3] baud rate (LE32), [4] stop bits, [5] parity, [6] data bits
+      uint8_t line_coding[7] = {};
+      uint32_t baud = channel->get_baud_rate();
 
-  // Assert DTR + RTS
-  this->control_transfer(SET_CONTROL_REQUEST_TYPE, SET_CONTROL_REQUEST, CONTROL_DTR | CONTROL_RTS, iface, nop_cb);
+      // Choose baud encoding based on chip type
+      uint32_t nearest = nearest_supported_baud(baud);
+      if (baud == nearest || this->chip_type_ == PL2303_TYPE_HXN) {
+        encode_baud_direct(line_coding, baud);
+      } else if (this->chip_type_ == PL2303_TYPE_TA || this->chip_type_ == PL2303_TYPE_TB) {
+        encode_baud_divisor_alt(line_coding, baud);
+      } else {
+        encode_baud_divisor(line_coding, baud);
+      }
 
-  this->start_channels_();
+      // Stop bits: 0=1, 1=1.5, 2=2
+      switch (channel->get_stop_bits()) {
+        case 2:
+          line_coding[4] = 2;
+          break;
+        default:
+          line_coding[4] = 0;
+          break;
+      }
+
+      // Parity: 0=none, 1=odd, 2=even, 3=mark, 4=space
+      switch (channel->parity_) {
+        case UART_CONFIG_PARITY_ODD:
+          line_coding[5] = 1;
+          break;
+        case UART_CONFIG_PARITY_EVEN:
+          line_coding[5] = 2;
+          break;
+        case UART_CONFIG_PARITY_MARK:
+          line_coding[5] = 3;
+          break;
+        case UART_CONFIG_PARITY_SPACE:
+          line_coding[5] = 4;
+          break;
+        default:
+          line_coding[5] = 0;
+          break;
+      }
+
+      // Data bits
+      line_coding[6] = channel->get_data_bits();
+
+      ESP_LOGD(TAG, "PL2303: SET_LINE_REQUEST baud=%u stop=%u parity=%u data=%u", baud, line_coding[4], line_coding[5],
+               line_coding[6]);
+
+      std::vector<uint8_t> lc_vec(line_coding, line_coding + 7);
+      this->config_transfer_(SET_LINE_REQUEST_TYPE, SET_LINE_REQUEST, 0, iface, lc_vec);
+      return true;
+    }
+    case 1:
+      // Assert DTR + RTS (init only)
+      if (reload)
+        return false;
+      this->config_transfer_(SET_CONTROL_REQUEST_TYPE, SET_CONTROL_REQUEST, CONTROL_DTR | CONTROL_RTS, iface);
+      return true;
+    default:
+      return false;
+  }
 }
 
 }  // namespace esphome::usb_uart
-#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 ||
+        // USE_ESP32_VARIANT_ESP32S31 || USE_ESP32_VARIANT_ESP32H4

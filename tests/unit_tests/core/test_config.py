@@ -152,15 +152,21 @@ def test_multiple_areas_and_devices(yaml_file: Callable[[str], str]) -> None:
         ("multiple_areas_devices.yaml", "Main Area"),
     ],
 )
-async def test_to_code_records_core_area(
+async def test_core_area_recorded_at_config_load(
     yaml_file: Callable[[str], Path],
     fixture: str,
     expected_area: str,
 ) -> None:
-    """``to_code`` records the node's area name on CORE for StorageJSON."""
+    """The node's area name is recorded on CORE for StorageJSON.
+
+    It must be set during config load (preload_core_config), not deferred to
+    to_code(): storage.json is written before to_code() runs, so a late
+    assignment left the area as null in storage.json (regression #17218).
+    """
     result = load_config_from_fixture(yaml_file, fixture, FIXTURES_DIR)
     assert result is not None
-    assert CORE.area is None
+    # Recorded already at config-load time, before any code generation.
+    assert CORE.area == expected_area
 
     with patch("esphome.core.config.cg") as mock_cg:
         mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
@@ -168,6 +174,23 @@ async def test_to_code_records_core_area(
         await config.to_code(result[CONF_ESPHOME])
 
     assert CORE.area == expected_area
+
+
+def test_config_load_without_area_clears_stale_core_area(
+    yaml_file: Callable[[str], Path],
+) -> None:
+    """A config without an area must not inherit a stale CORE.area.
+
+    preload_core_config assigns CORE.area unconditionally, so the area from a
+    previous load in a long-running process cannot leak into a config that
+    omits it.
+    """
+    CORE.area = "Stale Area From Previous Load"
+    result = load_config_from_fixture(
+        yaml_file, "device_without_area.yaml", FIXTURES_DIR
+    )
+    assert result is not None
+    assert CORE.area is None
 
 
 def test_legacy_string_area(
@@ -1090,6 +1113,48 @@ def test_config_hash_different_for_different_configs() -> None:
     assert hash1 != hash2
 
 
+def test_config_hash_ignores_build_path() -> None:
+    """Test that config_hash does not depend on the build_path value.
+
+    build_path embeds ESPHOME_BUILD_PATH and OS path separators, so it must
+    not make the hash differ between machines.
+    """
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test", "build_path": "build\\test"}}
+    hash1 = CORE.config_hash
+
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test", "build_path": "/build/test"}}
+    hash2 = CORE.config_hash
+
+    assert hash1 == hash2
+
+
+def test_config_hash_same_for_different_config_dirs(tmp_path: Path) -> None:
+    """Test that Path values under the config dir hash the same everywhere.
+
+    Simulates the same project checked out at two different locations; the
+    absolute paths differ but the layout relative to the config dir is the
+    same, so the hashes must match.
+    """
+    dir1 = tmp_path / "machine_a" / "project"
+    dir2 = tmp_path / "machine_b" / "somewhere" / "else"
+    dir1.mkdir(parents=True)
+    dir2.mkdir(parents=True)
+
+    CORE.reset()
+    CORE.config_path = dir1 / "device.yaml"
+    CORE.config = {"esphome": {"name": "test"}, "file": dir1 / "fonts" / "arial.ttf"}
+    hash1 = CORE.config_hash
+
+    CORE.reset()
+    CORE.config_path = dir2 / "device.yaml"
+    CORE.config = {"esphome": {"name": "test"}, "file": dir2 / "fonts" / "arial.ttf"}
+    hash2 = CORE.config_hash
+
+    assert hash1 == hash2
+
+
 def test_make_app_name_cpp_no_mac_simple() -> None:
     """Test simple name without MAC suffix returns string literal."""
     cpp_expr, global_decl, byte_len = make_app_name_cpp(
@@ -1284,3 +1349,34 @@ async def test_to_code_adds_libraries(yaml_file: Callable[[str], Path]) -> None:
     mock_cg.add_library.assert_any_call(
         "noise-c", None, "https://github.com/esphome/noise-c.git"
     )
+
+
+def test_esphome_build_internals_are_yaml_only() -> None:
+    """Raw build-system inputs in the ``esphome:`` block are ``YAML_ONLY``.
+
+    These knobs (compiler flags, raw PlatformIO options, C/C++ includes,
+    libraries, build host parallelism, the min-version gate, …) are not
+    meaningful as visual-editor form fields and a wrong value breaks the
+    build, so they must never render in a schema-aware UI.
+    """
+    # CONFIG_SCHEMA is cv.All(cv.Schema({...}), validate_hostname).
+    inner = config.CONFIG_SCHEMA.validators[0].schema
+    markers = {str(k): k for k in inner}
+    yaml_only_fields = {
+        CONF_BUILD_PATH,
+        "platformio_options",
+        "build_flags",
+        "environment_variables",
+        "includes",
+        "includes_c",
+        "libraries",
+        "debug_scheduler",
+    }
+    for field in yaml_only_fields:
+        assert markers[field].visibility is cv.Visibility.YAML_ONLY, field
+    # Packaging / build-host knobs are real but rarely-touched overrides:
+    # surface them under the editor's advanced disclosure, not yaml-only.
+    for field in ("min_version", "compile_process_limit"):
+        assert markers[field].visibility is cv.Visibility.ADVANCED, field
+    # A regular device-config field stays on the main form.
+    assert markers[CONF_NAME_ADD_MAC_SUFFIX].visibility is None

@@ -60,6 +60,65 @@ struct WakeupCauseToRunDuration {
 
 #endif  // USE_ESP32
 
+#ifdef USE_DEEP_SLEEP_ON_WAKE
+
+/// Why the device woke from deep sleep. Passed to on_wake automations.
+enum WakeupCause : uint8_t {
+  /// The device did not wake from deep sleep (for example a cold boot, reset or OTA restart).
+  WAKEUP_CAUSE_NONE = 0,
+  /// The device woke from deep sleep, but the source could not be identified.
+  WAKEUP_CAUSE_UNKNOWN,
+  /// The device was woken by the sleep timer.
+  WAKEUP_CAUSE_TIMER,
+  /// The device was woken by a GPIO pin (wakeup_pin or esp32_ext1_wakeup).
+  WAKEUP_CAUSE_GPIO,
+  /// The device was woken by a touch pad.
+  WAKEUP_CAUSE_TOUCH,
+};
+
+/// Return why the device woke from deep sleep. Implemented per platform.
+WakeupCause get_wakeup_cause();
+
+/** Setup priority of on_wake triggers.
+ *
+ * Between restoring global variables (setup_priority::HARDWARE, 800) and on_boot automations at
+ * their default priority (600), so on_wake automations can update state (e.g. globals) that
+ * on_boot automations then use.
+ */
+inline constexpr float ON_WAKE_TRIGGER_SETUP_PRIORITY = 700.0f;
+
+/// Fires once on boot when the device woke from deep sleep, with the wakeup cause.
+class WakeTrigger : public Trigger<WakeupCause>, public Component {
+ public:
+  void setup() override {
+    const WakeupCause cause = get_wakeup_cause();
+    if (cause != WAKEUP_CAUSE_NONE) {
+      this->trigger(cause);
+    }
+  }
+  float get_setup_priority() const override { return ON_WAKE_TRIGGER_SETUP_PRIORITY; }
+};
+
+#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)
+/// Fires once on boot when the device was woken from deep sleep by the given ext1 pin.
+class Ext1WakeTrigger : public Trigger<>, public Component {
+ public:
+  explicit Ext1WakeTrigger(uint8_t pin) : pin_(pin) {}
+  void setup() override {
+    if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1 &&
+        (esp_sleep_get_ext1_wakeup_status() & (1ULL << this->pin_))) {
+      this->trigger();
+    }
+  }
+  float get_setup_priority() const override { return ON_WAKE_TRIGGER_SETUP_PRIORITY; }
+
+ protected:
+  uint8_t pin_;
+};
+#endif
+
+#endif  // USE_DEEP_SLEEP_ON_WAKE
+
 template<typename... Ts> class EnterDeepSleepAction;
 
 template<typename... Ts> class PreventDeepSleepAction;
@@ -84,7 +143,7 @@ class DeepSleepComponent final : public Component {
 #endif  // USE_ESP32
 
 #if defined(USE_BK72XX)
-  void init_wakeup_pins_(size_t capacity) { this->wakeup_pins_.init(capacity); }
+  void init_wakeup_pins(size_t capacity) { this->wakeup_pins_.init(capacity); }
   void add_wakeup_pin(InternalGPIOPin *wakeup_pin, WakeupPinMode wakeup_pin_mode) {
     this->wakeup_pins_.emplace_back(WakeUpPinItem{wakeup_pin, wakeup_pin_mode, !wakeup_pin->is_inverted()});
   }
@@ -96,7 +155,8 @@ class DeepSleepComponent final : public Component {
 #endif
 
 #if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3) && \
-    !defined(USE_ESP32_VARIANT_ESP32C6) && !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32H2)
+    !defined(USE_ESP32_VARIANT_ESP32C5) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
+    !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32H2)
   void set_touch_wakeup(bool touch_wakeup);
 #endif
 
@@ -131,7 +191,7 @@ class DeepSleepComponent final : public Component {
   bool should_teardown_();
 
 #ifdef USE_BK72XX
-  bool pin_prevents_sleep_(WakeUpPinItem &pinItem) const;
+  bool pin_prevents_sleep_(WakeUpPinItem &pin_item) const;
   bool get_real_pin_state_(InternalGPIOPin &pin) const { return (pin.digital_read() ^ pin.is_inverted()); }
 #endif  // USE_BK72XX
 

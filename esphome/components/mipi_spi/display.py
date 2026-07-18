@@ -17,6 +17,8 @@ from esphome.components.mipi import (
     MADCTL,
     MODE_BGR,
     MODE_RGB,
+    PAGESEL,
+    PAGESEL1,
     PIXFMT,
     DriverChip,
     dimension_schema,
@@ -39,14 +41,11 @@ from esphome.const import (
     CONF_DATA_RATE,
     CONF_DC_PIN,
     CONF_DIMENSIONS,
-    CONF_DISABLED,
     CONF_ENABLE_PIN,
     CONF_ID,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
     CONF_LAMBDA,
-    CONF_MIRROR_X,
-    CONF_MIRROR_Y,
     CONF_MODEL,
     CONF_RESET_PIN,
     CONF_ROTATION,
@@ -136,16 +135,7 @@ def denominator(config):
 def model_schema(config):
     model = MODELS[config[CONF_MODEL]]
     bus_mode = config[CONF_BUS_MODE]
-    transform = cv.Any(
-        cv.Schema(
-            {
-                cv.Required(CONF_MIRROR_X): cv.boolean,
-                cv.Required(CONF_MIRROR_Y): cv.boolean,
-                **model.swap_xy_schema(),
-            }
-        ),
-        cv.one_of(CONF_DISABLED, lower=True),
-    )
+    transform = model.transform_schema()
     # CUSTOM model will need to provide a custom init sequence
     iseqconf = (
         cv.Required(CONF_INIT_SEQUENCE)
@@ -263,6 +253,7 @@ def customise_schema(config):
         extra=ALLOW_EXTRA,
     )(config)
     model = MODELS[config[CONF_MODEL]]
+    model.check_requirements()
     bus_modes = (TYPE_SINGLE, TYPE_QUAD, TYPE_OCTAL)
     config = cv.Schema(
         {
@@ -276,14 +267,16 @@ def customise_schema(config):
     # Check for invalid combinations of MADCTL config
     if init_sequence := config.get(CONF_INIT_SEQUENCE):
         commands = [x[0] for x in init_sequence]
-        if MADCTL in commands and CONF_TRANSFORM in config:
-            raise cv.Invalid(
-                f"transform is not supported when MADCTL ({MADCTL:#X}) is in the init sequence"
-            )
-        if PIXFMT in commands:
-            raise cv.Invalid(
-                f"PIXFMT ({PIXFMT:#X}) should not be in the init sequence, it will be set automatically"
-            )
+        # If there is page swapping, we can't rely on recognising common commands
+        if PAGESEL not in commands and PAGESEL1 not in commands:
+            if MADCTL in commands and CONF_TRANSFORM in config:
+                raise cv.Invalid(
+                    f"transform is not supported when MADCTL ({MADCTL:#X}) is in the init sequence"
+                )
+            if PIXFMT in commands:
+                raise cv.Invalid(
+                    f"PIXFMT ({PIXFMT:#X}) should not be in the init sequence, it will be set automatically"
+                )
 
     if bus_mode == TYPE_QUAD and CONF_DC_PIN in config:
         raise cv.Invalid("DC pin is not supported in quad mode")
@@ -291,13 +284,7 @@ def customise_schema(config):
         raise cv.Invalid(f"DC pin is required in {bus_mode} mode")
     denominator(config)
     model = MODELS[config[CONF_MODEL]]
-    has_hardware_transform = config.get(
-        CONF_TRANSFORM
-    ) != CONF_DISABLED and model.transforms == {
-        CONF_MIRROR_X,
-        CONF_MIRROR_Y,
-        CONF_SWAP_XY,
-    }
+    has_hardware_transform = model.has_hardware_transform(config)
     width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
         model.get_dimensions(config, not has_hardware_transform)
     )
@@ -362,13 +349,7 @@ def get_instance(config):
     :return: type, template arguments
     """
     model = MODELS[config[CONF_MODEL]]
-    has_hardware_transform = config.get(
-        CONF_TRANSFORM
-    ) != CONF_DISABLED and model.transforms == {
-        CONF_MIRROR_X,
-        CONF_MIRROR_Y,
-        CONF_SWAP_XY,
-    }
+    has_hardware_transform = model.has_hardware_transform(config)
     width, height, offset_width, offset_height, pad_width, pad_height = (
         model.get_dimensions(config, not has_hardware_transform)
     )
@@ -416,7 +397,7 @@ def get_instance(config):
 async def to_code(config):
     model = MODELS[config[CONF_MODEL]]
     var_id = config[CONF_ID]
-    init_sequence = model.get_sequence(config, False)
+    init_sequence = model.get_sequence(config, add_madctl=False, add_reset=True)
     var_id.type, templateargs = get_instance(config)
     var = cg.new_Pvariable(var_id, TemplateArguments(*templateargs))
     cg.add(var.set_init_sequence(init_sequence))
@@ -433,6 +414,8 @@ async def to_code(config):
         dc_pin = await cg.gpio_pin_expression(dc_pin)
         cg.add(var.set_dc_pin(dc_pin))
 
+    if config.get(CONF_INVERT_COLORS):
+        cg.add(var.set_invert_colors(True))
     if lamb := config.get(CONF_LAMBDA):
         lambda_ = await cg.process_lambda(
             lamb, [(display.DisplayRef, "it")], return_type=cg.void
