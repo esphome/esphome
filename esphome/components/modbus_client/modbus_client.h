@@ -132,10 +132,11 @@ class ModbusClientSendAction : public Action<Ts...>,
     // Only register a per-send handler when an on_response/on_error/on_no_response is configured; otherwise
     // this is a plain fire-and-forget send with no pending bookkeeping. The reply arrives later
     // (fire-and-continue), so the triggers expose only the reply - not the outer automation's arguments.
-    if (this->has_response_handlers_)
+    if (this->has_response_handlers_) {
       this->parent_->send_with_handler(std::span<const uint8_t>(pdu), this);
-    else
+    } else {
       this->parent_->send(std::span<const uint8_t>(pdu));
+    }
   }
 
   void handle_modbus_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {
