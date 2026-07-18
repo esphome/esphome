@@ -209,7 +209,6 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   http_client.setTimeout(this->tft_upload_http_timeout_);
 
   bool begin_status = false;
-#ifdef USE_ESP8266
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
   http_client.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 #elif USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
@@ -219,7 +218,6 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   http_client.setRedirectLimit(3);
 #endif
   begin_status = http_client.begin(*this->get_wifi_client_(), this->tft_url_.c_str());
-#endif  // USE_ESP8266
   if (!begin_status) {
     this->connection_state_.is_updating_ = false;
     ESP_LOGD(TAG, "Connection failed");
@@ -356,7 +354,6 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   return upload_end_(true);
 }
 
-#ifdef USE_ESP8266
 WiFiClient *Nextion::get_wifi_client_() {
   if (this->tft_url_.starts_with("https:")) {
     if (this->wifi_client_secure_ == nullptr) {
@@ -374,7 +371,6 @@ WiFiClient *Nextion::get_wifi_client_() {
   }
   return this->wifi_client_;
 }
-#endif  // USE_ESP8266
 
 }  // namespace esphome::nextion
 
