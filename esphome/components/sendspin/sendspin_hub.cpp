@@ -129,6 +129,7 @@ void SendspinHub::on_request_high_performance() {
 #ifdef USE_WIFI
   if (wifi::global_wifi_component != nullptr) {
     wifi::global_wifi_component->request_high_performance();
+    wifi::global_wifi_component->request_roaming_suppression();
   }
 #endif
 }
@@ -137,6 +138,7 @@ void SendspinHub::on_release_high_performance() {
 #ifdef USE_WIFI
   if (wifi::global_wifi_component != nullptr) {
     wifi::global_wifi_component->release_high_performance();
+    wifi::global_wifi_component->release_roaming_suppression();
   }
 #endif
 }
