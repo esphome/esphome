@@ -2,9 +2,7 @@
 #include <vector>
 #include "esphome/components/remote_base/nec_protocol.h"
 
-namespace esphome {
-namespace remote_base {
-namespace testing {
+namespace esphome::remote_base::testing {
 
 TEST(NECProtocolTest, EncodeWithoutRepeats) {
   NECProtocol protocol;
@@ -79,9 +77,11 @@ TEST(NECProtocolTest, DecodeWithoutRepeats) {
   auto decoded = protocol.decode(rx);
 
   ASSERT_TRUE(decoded.has_value());
-  EXPECT_EQ(decoded->address, 0x1234);
-  EXPECT_EQ(decoded->command, 0x5678);
-  EXPECT_EQ(decoded->command_repeats, 1);
+  if (decoded.has_value()) {
+    EXPECT_EQ(decoded->address, 0x1234);
+    EXPECT_EQ(decoded->command, 0x5678);
+    EXPECT_EQ(decoded->command_repeats, 1);
+  }
 }
 
 TEST(NECProtocolTest, DecodeWithRepeats) {
@@ -98,11 +98,11 @@ TEST(NECProtocolTest, DecodeWithRepeats) {
   auto decoded = protocol.decode(rx);
 
   ASSERT_TRUE(decoded.has_value());
-  EXPECT_EQ(decoded->address, 0x1234);
-  EXPECT_EQ(decoded->command, 0x5678);
-  EXPECT_EQ(decoded->command_repeats, 4);
+  if (decoded.has_value()) {
+    EXPECT_EQ(decoded->address, 0x1234);
+    EXPECT_EQ(decoded->command, 0x5678);
+    EXPECT_EQ(decoded->command_repeats, 4);
+  }
 }
 
-}  // namespace testing
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base::testing
