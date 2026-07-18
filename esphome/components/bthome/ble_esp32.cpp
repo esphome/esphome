@@ -4,7 +4,7 @@
 
 namespace esphome::bthome {
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && defined(USE_BTHOME_CLIENT)
 
 static const char *const TAG = "bthome";
 
@@ -35,7 +35,7 @@ bool ESP32BLEListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device
   return matched;
 }
 
-#endif  // USE_ESP32
+#endif  // USE_ESP32 && USE_BTHOME_CLIENT
 
 #if defined(USE_ESP32) && defined(USE_BTHOME_SERVER)
 static constexpr esp_ble_adv_params_t BLE_ADV_PARAMS{

@@ -5,7 +5,9 @@
 
 #ifdef USE_ESP32
 #include "esphome/components/esp32_ble/ble.h"
+#ifdef USE_BTHOME_CLIENT
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+#endif
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
 #endif
@@ -41,6 +43,8 @@ class ESP32BLEAdvertiser : public IBLEAdvertiser {
 // ESP32BLEListener — receives BLE advertisements and dispatches BTHome data
 // ---------------------------------------------------------------------------
 
+#ifdef USE_BTHOME_CLIENT
+
 class ESP32BLEListener : public IBLEListener, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void setup(IBTHomeListener *listener) override { this->listener_ = listener; }
@@ -51,6 +55,8 @@ class ESP32BLEListener : public IBLEListener, public esp32_ble_tracker::ESPBTDev
  private:
   IBTHomeListener *listener_{nullptr};
 };
+
+#endif  // USE_BTHOME_CLIENT
 
 }  // namespace esphome::bthome
 

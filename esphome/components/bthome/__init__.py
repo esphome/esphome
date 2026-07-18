@@ -34,7 +34,7 @@ from .bthome import (
 )
 
 CODEOWNERS = ["@jpeletier"]
-DEPENDENCIES = ["esp32", "esp32_ble_tracker"]
+DEPENDENCIES = ["esp32"]
 
 
 AUTO_LOAD = ["esp32_ble"]
@@ -223,21 +223,33 @@ def _validate_has_content(config):
             "At least one of 'remote_devices', 'sensors', 'binary_sensors', "
             "or 'text_sensors' must be configured"
         )
+    if has_client:
+        cv.requires_component("esp32_ble_tracker")(config)
     return config
 
 
+_BASE_CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(esp32_ble.CONF_BLE_ID): cv.use_id(esp32_ble.ESP32BLE),
+        cv.GenerateID(): cv.declare_id(BTHomeServerBase),
+        cv.Optional(CONF_REMOTE_DEVICES): [_REMOTE_DEVICE_SCHEMA],
+        cv.Optional(CONF_KEY): cv.bind_key,
+        cv.Optional(CONF_SENSORS): [_SERVER_SENSOR_SCHEMA],
+        cv.Optional(CONF_BINARY_SENSORS): [_SERVER_BINARY_SENSOR_SCHEMA],
+        cv.Optional(CONF_TEXT_SENSORS): [_SERVER_TEXT_SENSOR_SCHEMA],
+    }
+)
+
+
+def _validate_role_schema(config):
+    schema = _BASE_CONFIG_SCHEMA
+    if CONF_REMOTE_DEVICES in config:
+        schema = schema.extend(BLE_DEVICE_SCHEMA)
+    return schema(config)
+
+
 CONFIG_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.GenerateID(esp32_ble.CONF_BLE_ID): cv.use_id(esp32_ble.ESP32BLE),
-            cv.GenerateID(): cv.declare_id(BTHomeServerBase),
-            cv.Optional(CONF_REMOTE_DEVICES): [_REMOTE_DEVICE_SCHEMA],
-            cv.Optional(CONF_KEY): cv.bind_key,
-            cv.Optional(CONF_SENSORS): [_SERVER_SENSOR_SCHEMA],
-            cv.Optional(CONF_BINARY_SENSORS): [_SERVER_BINARY_SENSOR_SCHEMA],
-            cv.Optional(CONF_TEXT_SENSORS): [_SERVER_TEXT_SENSOR_SCHEMA],
-        }
-    ).extend(BLE_DEVICE_SCHEMA),
+    _validate_role_schema,
     _validate_has_content,
     _validate_server_config,
 )
@@ -298,6 +310,8 @@ def _parse_key_bytes(key: str) -> list[int]:
 
 async def _client_to_code(config):
     """Generate code for client-side (remote devices)."""
+    cg.add_define("USE_BTHOME_CLIENT")
+
     # Need a DeviceListener ID — generate one programmatically
     listener_id = core.ID("bthome_listener", False, DeviceListener)
     listener = cg.new_Pvariable(
@@ -376,6 +390,7 @@ async def _server_to_code(config):
         cg.add_define("USE_BTHOME_ENCRYPTION")
 
     cg.add_define("USE_ESP32_BLE_ADVERTISING")
+    cg.add_define("USE_ESP32_BLE_UUID")
 
     # Create local sensor wrappers
     for i, (_, kind, entry) in enumerate(all_entries):
