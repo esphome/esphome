@@ -9,6 +9,7 @@ from esphome.components.time import RealTimeClock
 from esphome.config_validation import prepend_path
 from esphome.const import (
     CONF_ARGS,
+    CONF_DEFAULT,
     CONF_FORMAT,
     CONF_GROUP,
     CONF_ID,
@@ -621,8 +622,38 @@ def _build_theme_schema(
     )
 
 
+def _reject_theme_styles_key(validated: dict) -> dict:
+    """
+    `styles:` (a list of already-declared named styles) is not allowed inside
+    `theme:` -- the hidden style objects theme: creates only carry direct
+    style properties, so a `styles:` reference there would be silently
+    dropped by `style_set`, which only walks `ALL_STYLES`.
+    """
+    for w_name, style in validated.items():
+        if w_name not in WIDGET_TYPES:
+            continue
+        for part, states in collect_parts(style).items():
+            for state, props in states.items():
+                if df.CONF_STYLES not in props:
+                    continue
+                path = [w_name]
+                if part != df.CONF_MAIN:
+                    path.append(part)
+                if state != CONF_DEFAULT:
+                    path.append(state)
+                path.append(df.CONF_STYLES)
+                raise cv.Invalid(
+                    "'styles:' is not allowed inside 'theme:'. "
+                    "Set style properties directly instead.",
+                    path,
+                )
+    return validated
+
+
 def theme_schema(value: dict) -> dict:
-    return _build_theme_schema(tuple(WIDGET_TYPES.items()))(value)
+    return _reject_theme_styles_key(
+        _build_theme_schema(tuple(WIDGET_TYPES.items()))(value)
+    )
 
 
 def theme_update_schema(value: dict) -> dict:
@@ -633,9 +664,9 @@ def theme_update_schema(value: dict) -> dict:
     exists for each -- even ones never mentioned under `theme:` -- and gets
     it attached to widgets at the same point real theme styles are.
     """
-    validated = _build_theme_schema(
-        tuple(WIDGET_TYPES.items()), include_dark_mode=False
-    )(value)
+    validated = _reject_theme_styles_key(
+        _build_theme_schema(tuple(WIDGET_TYPES.items()), include_dark_mode=False)(value)
+    )
     for w_name, style in validated.items():
         for part, states in collect_parts(style).items():
             for state in states:
