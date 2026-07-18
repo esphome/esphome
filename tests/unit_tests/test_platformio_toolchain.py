@@ -2,12 +2,14 @@
 
 # pylint: disable=protected-access
 
+from collections.abc import Generator
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
 import shutil
+import sys
 import threading
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, call, patch
@@ -1093,3 +1095,304 @@ def test_filter_platformio_lines_blocks_noisy_messages(msg: str) -> None:
 def test_filter_platformio_lines_allows_other_messages(msg: str) -> None:
     """Test that non-noisy platformio output lines pass through RedirectText."""
     assert _filter_through_redirect(msg) == msg + "\n"
+
+
+# ---------------------------------------------------------------------------
+# PlatformIO python-version cache heal
+# ---------------------------------------------------------------------------
+
+_CURRENT_MINOR = f"{sys.version_info.major}.{sys.version_info.minor}"
+# Captured before the autouse guard patches the name, so tests can exercise the
+# real implementation.
+_REAL_GET_PLATFORMIO_CONFIG = toolchain.get_platformio_config
+
+
+@pytest.fixture(autouse=True)
+def _guard_real_platformio() -> Generator[None, None, None]:
+    """Default the PlatformIO config lookup to None so no test in this module
+    touches a real ~/.platformio; the heal tests re-patch it at a temp dir."""
+    with patch.object(toolchain, "get_platformio_config", return_value=None):
+        yield
+
+
+def _pio_layout(core_dir: Path) -> dict[str, Path]:
+    """PlatformIO dir layout with cache/packages/platforms nested under core."""
+    return {
+        "core_dir": core_dir,
+        "packages_dir": core_dir / "packages",
+        "platforms_dir": core_dir / "platforms",
+        "cache_dir": core_dir / ".cache",
+    }
+
+
+def _make_pio_config(core_dir: Path) -> MagicMock:
+    """A ProjectConfig stand-in resolving platformio dir options under *core_dir*."""
+    layout = _pio_layout(core_dir)
+    config = MagicMock()
+    config.get.side_effect = (
+        lambda section, option: str(layout[option]) if section == "platformio" else ""
+    )
+    return config
+
+
+@contextmanager
+def _use_pio_config(core_dir: Path) -> Generator[MagicMock, None, None]:
+    """Point ``get_platformio_config`` at a temp *core_dir* for the block."""
+    config = _make_pio_config(core_dir)
+    with patch.object(toolchain, "get_platformio_config", return_value=config):
+        yield config
+
+
+def _write_pyvenv(core_dir: Path, version: str, *, key: str = "version_info") -> None:
+    """Seed ``penv/pyvenv.cfg`` recording *version* under *key*."""
+    penv = core_dir / "penv"
+    penv.mkdir(parents=True, exist_ok=True)
+    (penv / "pyvenv.cfg").write_text(
+        f"home = /usr/bin\n{key} = {version}\nimplementation = CPython\n",
+        encoding="utf-8",
+    )
+
+
+def _stamp_version(core_dir: Path) -> str | None:
+    """Read the python version recorded in the heal stamp under *core_dir*."""
+    return toolchain._read_pio_stamp_python(
+        core_dir / toolchain._PIO_PYTHON_STAMP_FILE
+    )
+
+
+def _cache_wiped(core_dir: Path) -> bool:
+    """True when the seeded cache subdir markers are gone."""
+    return not any(
+        (core_dir / sub / "marker").exists()
+        for sub in ("packages", "platforms", ".cache")
+    )
+
+
+@pytest.fixture
+def pio_core_dir(tmp_path: Path) -> Path:
+    """A populated PlatformIO core dir (packages/platforms/.cache/penv seeded)."""
+    core = tmp_path / "dot-platformio"
+    for sub in ("packages", "platforms", ".cache", "penv"):
+        seeded = core / sub
+        seeded.mkdir(parents=True)
+        (seeded / "marker").write_text("x", encoding="utf-8")
+    return core
+
+
+def test_current_python_minor_matches_running_interpreter() -> None:
+    """_current_python_minor returns major.minor of the running interpreter."""
+    assert toolchain._current_python_minor() == _CURRENT_MINOR
+
+
+@pytest.mark.parametrize(
+    ("cfg", "expected"),
+    [
+        ("home = /u\nversion_info = 3.12.7\n", "3.12"),
+        ("version = 3.13.1\n", "3.13"),
+        ("version_info = 3.14.0\n", "3.14"),
+        ("version_info = 3.9\n", "3.9"),
+        ("implementation = CPython\n", None),
+        ("version = notaversion\n", None),
+        ("", None),
+    ],
+)
+def test_read_pyvenv_python_minor(
+    tmp_path: Path, cfg: str, expected: str | None
+) -> None:
+    """pyvenv.cfg parsing extracts major.minor from either key spelling."""
+    penv = tmp_path / "penv"
+    penv.mkdir()
+    (penv / "pyvenv.cfg").write_text(cfg, encoding="utf-8")
+    assert toolchain._read_pyvenv_python_minor(penv) == expected
+
+
+def test_read_pyvenv_python_minor_missing_file(tmp_path: Path) -> None:
+    """A missing pyvenv.cfg yields None, not an error."""
+    assert toolchain._read_pyvenv_python_minor(tmp_path / "penv") is None
+
+
+def test_pio_stamp_round_trip(tmp_path: Path) -> None:
+    """The stamp writer/reader round-trips and records the schema version."""
+    stamp = tmp_path / toolchain._PIO_PYTHON_STAMP_FILE
+    toolchain._write_pio_stamp_python(stamp, "3.13")
+    assert toolchain._read_pio_stamp_python(stamp) == "3.13"
+    assert json.loads(stamp.read_text()) == {
+        "schema_version": toolchain._PIO_PYTHON_STAMP_SCHEMA,
+        "python_version": "3.13",
+    }
+
+
+def test_read_pio_stamp_missing(tmp_path: Path) -> None:
+    """A missing stamp file yields None."""
+    assert toolchain._read_pio_stamp_python(tmp_path / "nope.json") is None
+
+
+def test_read_pio_stamp_malformed(tmp_path: Path) -> None:
+    """A corrupt stamp file yields None instead of raising."""
+    stamp = tmp_path / "bad.json"
+    stamp.write_text("{not json", encoding="utf-8")
+    assert toolchain._read_pio_stamp_python(stamp) is None
+
+
+def test_read_pio_stamp_without_python_version(tmp_path: Path) -> None:
+    """A stamp missing python_version yields None."""
+    stamp = tmp_path / "s.json"
+    stamp.write_text(json.dumps({"schema_version": "0"}), encoding="utf-8")
+    assert toolchain._read_pio_stamp_python(stamp) is None
+
+
+def test_clean_platformio_cache_none_config_is_noop() -> None:
+    """clean_platformio_cache is a no-op when PlatformIO is unavailable."""
+    with patch.object(toolchain, "get_platformio_config", return_value=None):
+        toolchain.clean_platformio_cache()
+
+
+def test_clean_platformio_cache_wipes_everything(pio_core_dir: Path) -> None:
+    """clean_platformio_cache removes cache/packages/platforms and core_dir."""
+    with _use_pio_config(pio_core_dir):
+        toolchain.clean_platformio_cache()
+    assert not pio_core_dir.exists()
+
+
+def test_heal_none_config_is_noop() -> None:
+    """heal is a no-op (no error) when PlatformIO is unavailable."""
+    with patch.object(toolchain, "get_platformio_config", return_value=None):
+        toolchain.heal_platformio_python_env()
+
+
+def test_heal_fresh_cache_stamps_without_wipe(tmp_path: Path) -> None:
+    """A fresh core dir (no stamp, no penv) is stamped, not wiped."""
+    core = tmp_path / "pio"
+    with _use_pio_config(core):
+        toolchain.heal_platformio_python_env()
+    assert _stamp_version(core) == _CURRENT_MINOR
+
+
+def test_heal_stamp_matches_current_no_wipe(pio_core_dir: Path) -> None:
+    """A stamp matching the running interpreter leaves the cache untouched."""
+    toolchain._write_pio_stamp_python(
+        pio_core_dir / toolchain._PIO_PYTHON_STAMP_FILE, _CURRENT_MINOR
+    )
+    with _use_pio_config(pio_core_dir):
+        toolchain.heal_platformio_python_env()
+    assert not _cache_wiped(pio_core_dir)
+    assert (pio_core_dir / "penv" / "marker").exists()
+
+
+def test_heal_stale_stamp_wipes_and_restamps(pio_core_dir: Path) -> None:
+    """A stamp from an older interpreter triggers a wipe + restamp; core_dir stays."""
+    toolchain._write_pio_stamp_python(
+        pio_core_dir / toolchain._PIO_PYTHON_STAMP_FILE, "2.7"
+    )
+    with _use_pio_config(pio_core_dir):
+        toolchain.heal_platformio_python_env()
+    assert _cache_wiped(pio_core_dir)
+    assert not (pio_core_dir / "penv").exists()
+    assert pio_core_dir.is_dir()
+    assert _stamp_version(pio_core_dir) == _CURRENT_MINOR
+
+
+def test_heal_no_stamp_old_pyvenv_heals_existing_user(pio_core_dir: Path) -> None:
+    """Real fs: an already-broken cache (old pyvenv.cfg, no stamp) is healed."""
+    _write_pyvenv(pio_core_dir, "3.11.4")
+    with _use_pio_config(pio_core_dir):
+        toolchain.heal_platformio_python_env()
+    assert _cache_wiped(pio_core_dir)
+    assert not (pio_core_dir / "penv").exists()
+    assert _stamp_version(pio_core_dir) == _CURRENT_MINOR
+
+
+def test_heal_no_stamp_current_pyvenv_spares_healthy_user(pio_core_dir: Path) -> None:
+    """Real fs: a healthy cache (pyvenv.cfg matches current, no stamp) is not wiped."""
+    _write_pyvenv(pio_core_dir, f"{_CURRENT_MINOR}.9")
+    with _use_pio_config(pio_core_dir):
+        toolchain.heal_platformio_python_env()
+    assert not _cache_wiped(pio_core_dir)
+    assert (pio_core_dir / "penv" / "marker").exists()
+    assert _stamp_version(pio_core_dir) == _CURRENT_MINOR
+
+
+def test_heal_no_stamp_malformed_pyvenv_no_wipe(pio_core_dir: Path) -> None:
+    """An unparseable pyvenv.cfg reads as unknown provenance, so no wipe."""
+    (pio_core_dir / "penv" / "pyvenv.cfg").write_text("garbage\n", encoding="utf-8")
+    with _use_pio_config(pio_core_dir):
+        toolchain.heal_platformio_python_env()
+    assert not _cache_wiped(pio_core_dir)
+    assert _stamp_version(pio_core_dir) == _CURRENT_MINOR
+
+
+def test_heal_stamp_takes_precedence_over_pyvenv(pio_core_dir: Path) -> None:
+    """A current stamp wins over an old-looking pyvenv.cfg (no wipe)."""
+    toolchain._write_pio_stamp_python(
+        pio_core_dir / toolchain._PIO_PYTHON_STAMP_FILE, _CURRENT_MINOR
+    )
+    _write_pyvenv(pio_core_dir, "2.7.1")
+    with _use_pio_config(pio_core_dir):
+        toolchain.heal_platformio_python_env()
+    assert not _cache_wiped(pio_core_dir)
+
+
+def test_heal_pyvenv_stdlib_version_key(pio_core_dir: Path) -> None:
+    """A stdlib-venv pyvenv.cfg (``version`` key) is honoured for the heal."""
+    _write_pyvenv(pio_core_dir, "2.7.1", key="version")
+    with _use_pio_config(pio_core_dir):
+        toolchain.heal_platformio_python_env()
+    assert _cache_wiped(pio_core_dir)
+
+
+def test_heal_is_idempotent_across_runs(pio_core_dir: Path) -> None:
+    """After a heal writes the stamp, a re-provisioned cache is not wiped again."""
+    _write_pyvenv(pio_core_dir, "2.7.1")
+    with _use_pio_config(pio_core_dir):
+        toolchain.heal_platformio_python_env()
+        repop = pio_core_dir / "packages"
+        repop.mkdir(exist_ok=True)
+        (repop / "marker").write_text("x", encoding="utf-8")
+        toolchain.heal_platformio_python_env()
+    assert (pio_core_dir / "packages" / "marker").exists()
+
+
+def test_get_platformio_config_returns_project_config() -> None:
+    """The real lookup returns a usable ProjectConfig when PlatformIO is present."""
+    config = _REAL_GET_PLATFORMIO_CONFIG()
+    assert config is not None
+    assert hasattr(config, "get")
+
+
+def test_get_platformio_config_none_when_platformio_absent() -> None:
+    """The lookup returns None when PlatformIO cannot be imported."""
+    with patch.dict(sys.modules, {"platformio.project.config": None}):
+        assert _REAL_GET_PLATFORMIO_CONFIG() is None
+
+
+def test_delete_platformio_dirs_skips_missing(tmp_path: Path) -> None:
+    """A named dir that does not exist is skipped without error."""
+    (tmp_path / "packages").mkdir()
+    (tmp_path / "packages" / "marker").write_text("x", encoding="utf-8")
+    config = _make_pio_config(tmp_path)
+    # platforms_dir does not exist; packages_dir does.
+    toolchain._delete_platformio_dirs(config, ["packages_dir", "platforms_dir"])
+    assert not (tmp_path / "packages").exists()
+
+
+def test_heal_stale_stamp_wipes_when_penv_absent(pio_core_dir: Path) -> None:
+    """The penv wipe is skipped cleanly when no penv exists."""
+    shutil.rmtree(pio_core_dir / "penv")
+    toolchain._write_pio_stamp_python(
+        pio_core_dir / toolchain._PIO_PYTHON_STAMP_FILE, "2.7"
+    )
+    with _use_pio_config(pio_core_dir):
+        toolchain.heal_platformio_python_env()
+    assert _cache_wiped(pio_core_dir)
+    assert _stamp_version(pio_core_dir) == _CURRENT_MINOR
+
+
+def test_run_platformio_cli_invokes_heal(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """run_platformio_cli runs the heal before spawning PlatformIO."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    mock_run_external_process.return_value = 0
+    with patch.object(toolchain, "heal_platformio_python_env") as mock_heal:
+        toolchain.run_platformio_cli("test")
+    mock_heal.assert_called_once()
