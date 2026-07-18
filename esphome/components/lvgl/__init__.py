@@ -214,6 +214,17 @@ def multi_conf_validate(configs: list[dict]):
                     raise cv.Invalid(
                         f"'{item}' must have an explicit group set when using multiple LVGL instances"
                     )
+    # The hidden styles a `theme:` block creates are tracked in a single map shared
+    # by all LVGL instances (keyed only by widget type, not by instance), so a
+    # second instance's `theme:` would silently lose to whichever instance is
+    # processed first instead of doing what its config implies.
+    themed_configs = sum(
+        1 for config in configs if config.get(df.CONF_THEME) is not None
+    )
+    if themed_configs > 1:
+        raise cv.Invalid(
+            "'theme' may only be set on one LVGL instance when using multiple LVGL instances"
+        )
     base_config = configs[0]
     for config in configs[1:]:
         for item in (
