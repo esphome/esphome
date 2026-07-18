@@ -1,7 +1,7 @@
 #include "nextion.h"
 
 #ifdef USE_NEXTION_TFT_UPLOAD
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+#ifdef USE_ESP8266
 
 #include <cinttypes>
 #include "esphome/components/network/util.h"
@@ -378,5 +378,5 @@ WiFiClient *Nextion::get_wifi_client_() {
 
 }  // namespace esphome::nextion
 
-#endif  // USE_ESP8266 || USE_LIBRETINY
+#endif  // USE_ESP8266
 #endif  // USE_NEXTION_TFT_UPLOAD
