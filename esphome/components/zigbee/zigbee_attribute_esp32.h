@@ -58,7 +58,7 @@ class ZigbeeAttribute final : public Component {
 
 #ifdef USE_SENSOR
   template<typename T> void connect(sensor::Sensor *sensor);
-  template<typename T> void connect(sensor::Sensor *sensor, std::function<T(float)> &&f);
+  template<typename T, typename F> void connect(sensor::Sensor *sensor, F &&f);
 #endif
 #ifdef USE_BINARY_SENSOR
   template<typename T> void connect(binary_sensor::BinarySensor *sensor);
@@ -104,8 +104,8 @@ template<typename T> void ZigbeeAttribute::set_attr(const T &value) {
 template<typename T> void ZigbeeAttribute::connect(sensor::Sensor *sensor) {
   sensor->add_on_state_callback([this](float value) { this->set_attr((T) (this->scale_ * value)); });
 }
-template<typename T> void ZigbeeAttribute::connect(sensor::Sensor *sensor, std::function<T(float)> &&f) {
-  sensor->add_on_state_callback([f, this](float value) { this->set_attr(f(value)); });
+template<typename T, typename F> void ZigbeeAttribute::connect(sensor::Sensor *sensor, F &&f) {
+  sensor->add_on_state_callback([f = std::forward<F>(f), this](float value) { this->set_attr((T) f(value)); });
 }
 #endif
 #ifdef USE_BINARY_SENSOR

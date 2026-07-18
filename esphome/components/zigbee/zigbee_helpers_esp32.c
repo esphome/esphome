@@ -33,13 +33,19 @@ ezb_af_ep_desc_t esphome_zb_zha_default_ep_desc_create(uint8_t ep_id, uint16_t d
       ep_desc = ezb_zha_create_mains_power_outlet(ep_id, &config);
       break;
     }
+    case EZB_ZHA_LIGHT_SENSOR_DEVICE_ID: {
+      ezb_zha_light_sensor_config_t config = EZB_ZHA_LIGHT_SENSOR_CONFIG();
+      config.basic_cfg.power_source = power_source;
+      ep_desc = ezb_zha_create_light_sensor(ep_id, &config);
+      break;
+    }
     case EZB_ZHA_TEMPERATURE_SENSOR_DEVICE_ID: {
       ezb_zha_temperature_sensor_config_t config = EZB_ZHA_TEMPERATURE_SENSOR_CONFIG();
       config.basic_cfg.power_source = power_source;
       ep_desc = ezb_zha_create_temperature_sensor(ep_id, &config);
       break;
     }
-    default:
+    default: {
       ezb_af_ep_config_t config = {
           .ep_id = ep_id,
           .app_profile_id = EZB_AF_HA_PROFILE_ID,
@@ -47,6 +53,8 @@ ezb_af_ep_desc_t esphome_zb_zha_default_ep_desc_create(uint8_t ep_id, uint16_t d
           .app_device_version = 0,
       };
       ep_desc = ezb_af_create_endpoint_desc(&config);
+      break;
+    }
   }
   return ep_desc;
 }

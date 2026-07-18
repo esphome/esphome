@@ -18,11 +18,13 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLUME_FLOW_RATE,
     UNIT_CELSIUS,
+    UNIT_CUBIC_METER_PER_HOUR,
     UNIT_HECTOPASCAL,
     UNIT_LITRE_PER_HOUR,
     UNIT_LUX,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     UNIT_PARTS_PER_MILLION,
+    UNIT_PASCAL,
     UNIT_PERCENT,
 )
 from esphome.core import CORE, Lambda
@@ -150,7 +152,7 @@ ep_configs: dict[str, dict[str, Any]] = {
         ],
     },
     DEVICE_CLASS_TEMPERATURE: {
-        CONF_UNIT_OF_MEASUREMENT: UNIT_CELSIUS,
+        CONF_UNIT_OF_MEASUREMENT: [UNIT_CELSIUS],
         DEVICE_TYPE: "TEMPERATURE_SENSOR",
         CONF_CLUSTERS: [
             {
@@ -169,7 +171,7 @@ ep_configs: dict[str, dict[str, Any]] = {
         ],
     },
     DEVICE_CLASS_HUMIDITY: {
-        CONF_UNIT_OF_MEASUREMENT: UNIT_PERCENT,
+        CONF_UNIT_OF_MEASUREMENT: [UNIT_PERCENT],
         CONF_CLUSTERS: [
             {
                 CONF_ID: "REL_HUMIDITY_MEASUREMENT",
@@ -187,7 +189,7 @@ ep_configs: dict[str, dict[str, Any]] = {
         ],
     },
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE: {
-        CONF_UNIT_OF_MEASUREMENT: UNIT_HECTOPASCAL,
+        CONF_UNIT_OF_MEASUREMENT: [UNIT_HECTOPASCAL, UNIT_PASCAL],
         CONF_CLUSTERS: [
             {
                 CONF_ID: "PRESSURE_MEASUREMENT",
@@ -198,13 +200,17 @@ ep_configs: dict[str, dict[str, Any]] = {
                         CONF_TYPE: "INT16",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
                         CONF_DEVICE: None,
+                        SCALE: {
+                            UNIT_HECTOPASCAL: 1,
+                            UNIT_PASCAL: 0.01,
+                        },
                     },
                 ],
             },
         ],
     },
     DEVICE_CLASS_PRESSURE: {
-        CONF_UNIT_OF_MEASUREMENT: UNIT_HECTOPASCAL,
+        CONF_UNIT_OF_MEASUREMENT: [UNIT_HECTOPASCAL, UNIT_PASCAL],
         DEVICE_TYPE: "PRESSURE_SENSOR",
         CONF_CLUSTERS: [
             {
@@ -216,13 +222,17 @@ ep_configs: dict[str, dict[str, Any]] = {
                         CONF_TYPE: "INT16",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
                         CONF_DEVICE: None,
+                        SCALE: {
+                            UNIT_HECTOPASCAL: 1,
+                            UNIT_PASCAL: 0.01,
+                        },
                     },
                 ],
             },
         ],
     },
     DEVICE_CLASS_VOLUME_FLOW_RATE: {
-        CONF_UNIT_OF_MEASUREMENT: UNIT_LITRE_PER_HOUR,
+        CONF_UNIT_OF_MEASUREMENT: [UNIT_LITRE_PER_HOUR, UNIT_CUBIC_METER_PER_HOUR],
         DEVICE_TYPE: "FLOW_SENSOR",
         CONF_CLUSTERS: [
             {
@@ -234,14 +244,17 @@ ep_configs: dict[str, dict[str, Any]] = {
                         CONF_TYPE: "UINT16",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
                         CONF_DEVICE: None,
-                        SCALE: 100,
+                        SCALE: {
+                            UNIT_LITRE_PER_HOUR: 0.01,
+                            UNIT_CUBIC_METER_PER_HOUR: 10,
+                        },
                     },
                 ],
             },
         ],
     },
     DEVICE_CLASS_ILLUMINANCE: {
-        CONF_UNIT_OF_MEASUREMENT: UNIT_LUX,
+        CONF_UNIT_OF_MEASUREMENT: [UNIT_LUX],
         DEVICE_TYPE: "LIGHT_SENSOR",
         CONF_CLUSTERS: [
             {
@@ -252,7 +265,13 @@ ep_configs: dict[str, dict[str, Any]] = {
                         CONF_ATTRIBUTE_ID: 0x0,
                         CONF_TYPE: "UINT16",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                        CONF_LAMBDA: cv.lambda_(Lambda("return log10(x)*10000 + 1;")),
+                        CONF_LAMBDA: cv.lambda_(
+                            Lambda(
+                                "if (x < 0.0f || isnan(x)) return 0xFFFF;"  # NaN
+                                " if (x < 1.0f) return 0;"  # too small to measure
+                                " return (uint16_t)(log10(x)*10000 + 1);"
+                            )
+                        ),
                         CONF_DEVICE: None,
                     },
                 ],
@@ -260,7 +279,7 @@ ep_configs: dict[str, dict[str, Any]] = {
         ],
     },
     DEVICE_CLASS_PM25: {
-        CONF_UNIT_OF_MEASUREMENT: UNIT_MICROGRAMS_PER_CUBIC_METER,
+        CONF_UNIT_OF_MEASUREMENT: [UNIT_MICROGRAMS_PER_CUBIC_METER],
         CONF_CLUSTERS: [
             {
                 CONF_ID: "PM2_5_MEASUREMENT",
@@ -282,7 +301,7 @@ ep_configs: dict[str, dict[str, Any]] = {
         ],
     },
     DEVICE_CLASS_CARBON_DIOXIDE: {
-        CONF_UNIT_OF_MEASUREMENT: UNIT_PARTS_PER_MILLION,
+        CONF_UNIT_OF_MEASUREMENT: [UNIT_PARTS_PER_MILLION],
         CONF_CLUSTERS: [
             {
                 CONF_ID: "CARBON_DIOXIDE_MEASUREMENT",

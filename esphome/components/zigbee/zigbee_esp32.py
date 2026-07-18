@@ -54,9 +54,9 @@ from .const_esp32 import (
     CONF_ATTRIBUTE_ID,
     CONF_ATTRIBUTES,
     CONF_CLUSTERS,
-    CONF_ZIGBEE_ATTR_IDS,
     DEVICE_ID,
     DEVICE_TYPE,
+    KEY_ZIGBEE_ATTR_DICT,
     KEY_ZIGBEE_EP,
     ROLE,
     SCALE,
@@ -84,7 +84,7 @@ def get_c_type(attr_type: str) -> Any | None:
         return getattr(cg, "uint" + get_c_size(test.group(2), [8, 16, 32, 64]))
     test = re.match(r"^INT(\d{1,2})$", attr_type)
     if test and test.group(1):
-        return getattr(cg, "int" + get_c_size(test.group(1), [16, 32, 64]))
+        return getattr(cg, "int" + get_c_size(test.group(1), [8, 16, 32, 64]))
     return None
 
 
@@ -178,7 +178,7 @@ def setup_attributes(config: ConfigType, clusters: list[dict[str, Any]]) -> None
                 if CONF_REPORT in config:
                     attr[CONF_REPORT] = config[CONF_REPORT]
                 attr[CONF_ID] = cv.declare_id(ZigbeeAttribute)(None)
-                ids_dict = config.setdefault(CONF_ZIGBEE_ATTR_IDS, [])
+                ids_dict = config.setdefault(KEY_ZIGBEE_ATTR_DICT, [])
                 ids_dict.append(attr)
             else:
                 attr[CONF_ID] = None
@@ -195,11 +195,17 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
             raise cv.Invalid(
                 f"Device class '{dev_class}' is not supported as default cluster. Use basic cluster instead."
             )
-        if unit != ep_configs[dev_class][CONF_UNIT_OF_MEASUREMENT]:
-            raise cv.Invalid(
-                f"Device class '{dev_class}' requires unit '{ep_configs[dev_class][CONF_UNIT_OF_MEASUREMENT]}'."
-            )
         ep = copy.deepcopy(ep_configs[dev_class])
+        if unit not in ep[CONF_UNIT_OF_MEASUREMENT]:
+            raise cv.Invalid(
+                f"Device class '{dev_class}' requires one of units {', '.join(ep[CONF_UNIT_OF_MEASUREMENT])}."
+            )
+        if len(ep[CONF_UNIT_OF_MEASUREMENT]) > 1:
+            for attr in ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES]:
+                if isinstance(attr.get(SCALE), dict):
+                    attr[SCALE] = attr[SCALE][unit]
+                if isinstance(attr.get(CONF_LAMBDA), dict):
+                    attr[CONF_LAMBDA] = attr[CONF_LAMBDA][unit]
     else:
         ep = copy.deepcopy(ep_configs["analog_input"])
         apptype = ANALOG_INPUT_APPTYPE.get((dev_class, unit))
@@ -212,13 +218,13 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
                     CONF_TYPE: "UINT32",
                 },
             )
-            ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
-                {
-                    CONF_ATTRIBUTE_ID: 0x75,
-                    CONF_VALUE: bacunit,
-                    CONF_TYPE: "ENUM16",
-                },
-            )
+        ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
+            {
+                CONF_ATTRIBUTE_ID: 0x75,
+                CONF_VALUE: bacunit,
+                CONF_TYPE: "ENUM16",
+            },
+        )
     setup_attributes(config, ep[CONF_CLUSTERS])
     add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
     return config
@@ -302,7 +308,8 @@ async def attributes_to_code(
         )
         await cg.register_component(attr_var, attr)
 
-        cg.add(attr_var.add_attr(attr[CONF_VALUE]))
+        template_arg = cg.TemplateArguments(get_c_type(attr[CONF_TYPE]))
+        cg.add(attr_var.add_attr(template_arg, attr[CONF_VALUE]))
         if CONF_REPORT in attr:
             cg.add(attr_var.set_report(attr[CONF_REPORT]))
 
@@ -348,7 +355,7 @@ async def esp32_to_code(config: ConfigType) -> "MockObj":
 
 
 async def add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    attr_ids = config.get(CONF_ZIGBEE_ATTR_IDS, [])
+    attr_ids = config.get(KEY_ZIGBEE_ATTR_DICT, [])
     for attr in attr_ids:
         zb_attr = await cg.get_variable(attr[CONF_ID])
         template_arg = cg.TemplateArguments(get_c_type(attr[CONF_TYPE]))
@@ -364,7 +371,7 @@ async def add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
 
 
 async def add_component(entity: cg.MockObj, config: ConfigType) -> None:
-    attr_ids = config.get(CONF_ZIGBEE_ATTR_IDS, [])
+    attr_ids = config.get(KEY_ZIGBEE_ATTR_DICT, [])
     for attr in attr_ids:
         zb_attr = await cg.get_variable(attr[CONF_ID])
         template_arg = cg.TemplateArguments(get_c_type(attr[CONF_TYPE]))
