@@ -128,7 +128,13 @@ def _read_pio_stamp_python(stamp_file: Path) -> str | None:
     try:
         with stamp_file.open(encoding="utf-8") as f:
             data = json.load(f)
-    except (json.JSONDecodeError, OSError):
+    except FileNotFoundError:
+        return None
+    except (json.JSONDecodeError, OSError) as err:
+        # A present-but-unreadable stamp is a distinct signal from an absent
+        # one; surface it so recurring corruption or permission problems are
+        # observable.
+        _LOGGER.debug("Could not read %s: %s", stamp_file, err)
         return None
     version = data.get("python_version")
     return version if isinstance(version, str) else None
@@ -153,9 +159,13 @@ def _read_pyvenv_python_minor(penv_dir: Path) -> str | None:
     PlatformIO records it in ``penv/pyvenv.cfg`` as ``version_info`` (uv) or
     ``version`` (stdlib venv); the first recognised key wins.
     """
+    pyvenv_cfg = penv_dir / "pyvenv.cfg"
     try:
-        text = (penv_dir / "pyvenv.cfg").read_text(encoding="utf-8")
-    except OSError:
+        text = pyvenv_cfg.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    except OSError as err:
+        _LOGGER.debug("Could not read %s: %s", pyvenv_cfg, err)
         return None
     for line in text.splitlines():
         key, sep, value = line.partition("=")

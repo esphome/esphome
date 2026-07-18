@@ -1253,6 +1253,28 @@ def test_read_pio_stamp_malformed(tmp_path: Path) -> None:
     assert toolchain._read_pio_stamp_python(stamp) is None
 
 
+def test_read_pio_stamp_unreadable_logs_debug(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A present-but-unreadable stamp yields None and logs the failure."""
+    stamp = tmp_path / "stamp.json"
+    stamp.mkdir()
+    with caplog.at_level("DEBUG"):
+        assert toolchain._read_pio_stamp_python(stamp) is None
+    assert "Could not read" in caplog.text
+
+
+def test_read_pyvenv_unreadable_logs_debug(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A present-but-unreadable pyvenv.cfg yields None and logs the failure."""
+    penv = tmp_path / "penv"
+    (penv / "pyvenv.cfg").mkdir(parents=True)
+    with caplog.at_level("DEBUG"):
+        assert toolchain._read_pyvenv_python_minor(penv) is None
+    assert "Could not read" in caplog.text
+
+
 def test_read_pio_stamp_without_python_version(tmp_path: Path) -> None:
     """A stamp missing python_version yields None."""
     stamp = tmp_path / "s.json"
