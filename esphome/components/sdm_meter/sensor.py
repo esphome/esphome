@@ -43,6 +43,8 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
+CONF_CHUNK_SIZE = "chunk_size"
+
 AUTO_LOAD = ["modbus"]
 CODEOWNERS = ["@polyfaces", "@jesserockz"]
 
@@ -141,6 +143,7 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=2,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
+            cv.Optional(CONF_CHUNK_SIZE, default=80): cv.int_range(min=1, max=80),
         }
     )
     .extend(cv.polling_component_schema("10s"))
@@ -159,6 +162,8 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await modbus.register_modbus_client_device(var, config)
+
+    cg.add(var.set_chunk_size(config[CONF_CHUNK_SIZE]))
 
     if CONF_TOTAL_POWER in config:
         sens = await sensor.new_sensor(config[CONF_TOTAL_POWER])
