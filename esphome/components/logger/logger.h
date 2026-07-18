@@ -174,6 +174,12 @@ class Logger final : public Component {
 #endif
   uint8_t get_log_level() { return this->current_level_; }
 
+  /// Re-emit WARN/ERROR messages captured during boot through the normal log
+  /// dispatch so connected listeners (API, MQTT, ...) can see them. Stops
+  /// further capture; safe to call multiple times. Warns when the logger was
+  /// built without 'boot_log_buffer_size'.
+  void replay_boot_logs();
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Set up this component.
@@ -291,6 +297,9 @@ class Logger final : public Component {
     {
       this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, buf, thread_name);
     }
+#ifdef USE_LOGGER_BOOT_LOG_BUFFER
+    this->boot_log_capture_(level, buf);
+#endif
     this->notify_listeners_(level, tag, buf);
     this->write_log_buffer_to_console_(buf);
   }
@@ -303,12 +312,20 @@ class Logger final : public Component {
                                                       LogBuffer &buf) {
     buf.write_header(level, tag, line, thread_name);
     buf.write_body(text, text_length);
+#ifdef USE_LOGGER_BOOT_LOG_BUFFER
+    this->boot_log_capture_(level, buf);
+#endif
     this->notify_listeners_(level, tag, buf);
   }
 #endif
 
 #ifndef USE_HOST
   const LogString *get_uart_selection_();
+#endif
+
+#ifdef USE_LOGGER_BOOT_LOG_BUFFER
+  /// Copy a formatted WARN/ERROR line (ANSI codes stripped) into the boot log buffer.
+  void boot_log_capture_(uint8_t level, const LogBuffer &buf);
 #endif
 
   // Group 4-byte aligned members first
@@ -350,6 +367,11 @@ class Logger final : public Component {
   std::vector<LoggerLevelListener *> level_listeners_;  // Log level change listeners
 #endif
   // Group smaller types together at the end
+#ifdef USE_LOGGER_BOOT_LOG_BUFFER
+  uint16_t boot_log_pos_{0};      // Bytes used in boot_log_buffer_
+  uint16_t boot_log_dropped_{0};  // Lines that did not fit
+  bool boot_log_done_{false};     // Set on first replay; stops further capture
+#endif
   uint8_t current_level_{ESPHOME_LOG_LEVEL_VERY_VERBOSE};
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_ZEPHYR)
   UARTSelection uart_{UART_SELECTION_UART0};
@@ -368,6 +390,10 @@ class Logger final : public Component {
 
   // Large buffers placed last to keep frequently-accessed member offsets small
   char tx_buffer_[ESPHOME_LOGGER_TX_BUFFER_SIZE + 1];  // +1 for null terminator
+#ifdef USE_LOGGER_BOOT_LOG_BUFFER
+  // Sequential records of early WARN/ERROR lines: u16 text_len | u8 level | u32 millis | text
+  char boot_log_buffer_[ESPHOME_LOGGER_BOOT_LOG_BUFFER_SIZE];
+#endif
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   logger::TaskLogBuffer log_buffer_;  // Embedded in Logger (no separate heap allocation)
 #endif
