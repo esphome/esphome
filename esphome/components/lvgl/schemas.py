@@ -643,7 +643,7 @@ def _reject_theme_styles_key(validated: dict) -> dict:
                     path.append(state)
                 path.append(df.CONF_STYLES)
                 raise cv.Invalid(
-                    "'styles:' is not allowed inside 'theme:'. "
+                    "'styles:' is not allowed in LVGL theme styles. "
                     "Set style properties directly instead.",
                     path,
                 )
