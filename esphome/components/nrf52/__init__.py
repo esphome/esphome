@@ -69,7 +69,12 @@ from .const import (
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
 )
-from .framework import check_and_install, get_build_env, get_build_paths
+from .framework import (
+    check_and_install,
+    get_build_env,
+    get_build_paths,
+    setup_platformio_python_env,
+)
 
 # force import gpio to register pin schema
 from .gpio import nrf52_pin_to_code  # noqa: F401
@@ -514,6 +519,7 @@ def _upload_using_platformio(
 ) -> int | str:
     from esphome.platformio import toolchain
 
+    setup_platformio_python_env()
     if port is not None:
         upload_args += ["--upload-port", port]
     return toolchain.run_platformio_cli_run(config, CORE.verbose, *upload_args)
@@ -809,6 +815,10 @@ def _copy_if_exists(src: Path, dst: Path) -> None:
 
 def run_compile(args, config: ConfigType) -> bool:
     if CORE.using_toolchain_platformio:
+        # The actual build is done by PlatformIO (the caller falls through to
+        # it when this returns False); prepare the Python environment its
+        # Zephyr build script expects first.
+        setup_platformio_python_env()
         return False
     if not CORE.using_toolchain_sdk_nrf:
         raise EsphomeError(
