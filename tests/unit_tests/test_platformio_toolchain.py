@@ -1129,8 +1129,8 @@ def _make_pio_config(core_dir: Path) -> MagicMock:
     """A ProjectConfig stand-in resolving platformio dir options under *core_dir*."""
     layout = _pio_layout(core_dir)
     config = MagicMock()
-    config.get.side_effect = (
-        lambda section, option: str(layout[option]) if section == "platformio" else ""
+    config.get.side_effect = lambda section, option: (
+        str(layout[option]) if section == "platformio" else ""
     )
     return config
 
@@ -1155,9 +1155,7 @@ def _write_pyvenv(core_dir: Path, version: str, *, key: str = "version_info") ->
 
 def _stamp_version(core_dir: Path) -> str | None:
     """Read the python version recorded in the heal stamp under *core_dir*."""
-    return toolchain._read_pio_stamp_python(
-        core_dir / toolchain._PIO_PYTHON_STAMP_FILE
-    )
+    return toolchain._read_pio_stamp_python(core_dir / toolchain._PIO_PYTHON_STAMP_FILE)
 
 
 def _cache_wiped(core_dir: Path) -> bool:
