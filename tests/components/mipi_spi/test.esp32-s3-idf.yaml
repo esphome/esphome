@@ -1,0 +1,16 @@
+esp32:
+  variant: esp32s3
+
+psram:
+  mode: quad
+
+spi:
+  - id: qspi_bus
+    type: quad
+    clk_pin: GPIO18
+    data_pins: [GPIO46, GPIO13, GPIO11, GPIO12]
+
+display:
+  - platform: mipi_spi
+    spi_id: qspi_bus
+    model: ESP-VOCAT
