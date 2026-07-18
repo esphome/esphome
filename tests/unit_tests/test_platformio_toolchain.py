@@ -1320,6 +1320,23 @@ def test_heal_oserror_is_nonfatal(
     assert "build environment check failed" in caplog.text
 
 
+def test_heal_stamp_write_failure_is_nonfatal(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A failed stamp write (EsphomeError from write_file) warns, not aborts."""
+    with (
+        _use_pio_config(tmp_path / "pio"),
+        patch.object(
+            toolchain,
+            "_write_pio_stamp_python",
+            side_effect=EsphomeError("disk full"),
+        ),
+        caplog.at_level("WARNING"),
+    ):
+        toolchain.heal_platformio_python_env()
+    assert "build environment check failed" in caplog.text
+
+
 def test_heal_is_idempotent_across_runs(pio_core_dir: Path) -> None:
     """After a heal writes the stamp, a re-provisioned cache is not wiped again."""
     with _use_pio_config(pio_core_dir):

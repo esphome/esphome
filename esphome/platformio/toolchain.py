@@ -173,9 +173,10 @@ def heal_platformio_python_env() -> None:
         return
     try:
         _check_platformio_python_stamp(config)
-    except OSError as err:
+    except (EsphomeError, OSError) as err:
         # The check is a best-effort repair; a full or read-only cache volume
-        # must not abort a build that might otherwise work.
+        # must not abort a build that might otherwise work. The stamp write
+        # surfaces as EsphomeError (write_file wraps OSError).
         _LOGGER.warning("PlatformIO build environment check failed: %s", err)
 
 
