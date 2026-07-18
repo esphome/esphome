@@ -360,9 +360,8 @@ def test_check_esp_idf_install_fresh(espidf_mocks: SimpleNamespace) -> None:
     espidf_mocks.venv.assert_called_once()
     espidf_mocks.clone.assert_not_called()
     # the tool download cache (<IDF_TOOLS_PATH>/dist) is pruned after install
-    assert any(
-        call.args and Path(call.args[0]).name == "dist"
-        for call in espidf_mocks.rmdir.call_args_list
+    espidf_mocks.rmdir.assert_any_call(
+        get_idf_tools_path() / "dist", msg="Remove ESP-IDF tool download cache"
     )
 
 
