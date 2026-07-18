@@ -292,6 +292,12 @@ def collect_filtered_files(src_dir: PathType, src_filters: list[str]) -> list[st
                 for root, _, files in os.walk(item):
                     matched.extend([str(Path(root) / f) for f in files])
 
+        # glob keeps the pattern's literal separators for non-wildcard path
+        # components, so on Windows the same file can surface with different
+        # separators depending on where the wildcards sit; normalize so the
+        # include/exclude set operations below compare equal paths.
+        matched = [os.path.normpath(m) for m in matched]
+
         # FILTER_REGEX only ever captures "+" or "-", so the else is the "-" case.
         if sign == "+":
             selected.update(matched)

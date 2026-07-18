@@ -1,0 +1,15 @@
+# A device provisioned over the network (wifi / Improv) with no api: network
+# connectivity alone satisfies provisioning, so `provisioning:` is valid without an
+# api encryption source. Config-only -- exercises the network provisioning-source
+# validation path (the Improv-only case from the review).
+provisioning:
+  timeout: 1min
+  on_timeout:
+    then:
+      - logger.log: "Provisioning window expired"
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+improv_serial:
