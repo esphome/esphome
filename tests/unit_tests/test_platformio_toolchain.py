@@ -1116,7 +1116,7 @@ def _guard_real_platformio() -> Generator[None, None, None]:
 
 
 def _pio_layout(core_dir: Path) -> dict[str, Path]:
-    """PlatformIO dir layout with cache/packages/platforms nested under core."""
+    """Return the PlatformIO dir layout with cache/packages/platforms under core."""
     return {
         "core_dir": core_dir,
         "packages_dir": core_dir / "packages",
@@ -1253,7 +1253,7 @@ def test_clean_platformio_cache_wipes_everything(pio_core_dir: Path) -> None:
 
 
 def test_heal_none_config_is_noop() -> None:
-    """heal is a no-op (no error) when PlatformIO is unavailable."""
+    """Heal is a no-op (no error) when PlatformIO is unavailable."""
     with patch.object(toolchain, "get_platformio_config", return_value=None):
         toolchain.heal_platformio_python_env()
 

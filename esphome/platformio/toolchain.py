@@ -72,7 +72,7 @@ def get_platformio_config() -> "ProjectConfig | None":
 
 
 def _delete_platformio_dirs(config: "ProjectConfig", pio_dirs: Iterable[str]) -> None:
-    """rmtree each named PlatformIO dir resolved from *config*."""
+    """Delete each named PlatformIO dir resolved from *config*."""
     for pio_dir in pio_dirs:
         path = Path(config.get("platformio", pio_dir))
         if path.is_dir():
