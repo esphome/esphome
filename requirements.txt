@@ -1,4 +1,7 @@
-cryptography==49.0.0
+# cryptography 49+ ships no Intel macOS wheels (arm64 only); esptool caps <49 there.
+# Keep 48.0.1, the last universal2 release, so esphome stays installable on Intel Macs.
+cryptography==49.0.0; platform_system != "Darwin" or platform_machine != "x86_64"
+cryptography==48.0.1; platform_system == "Darwin" and platform_machine == "x86_64"
 voluptuous==0.16.0
 PyYAML==6.0.3
 paho-mqtt==1.6.1
