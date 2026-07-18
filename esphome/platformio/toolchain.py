@@ -132,9 +132,8 @@ def _read_pio_stamp_python(stamp_file: Path) -> str | None:
         return None
     except (json.JSONDecodeError, OSError) as err:
         # A present-but-unreadable stamp is a distinct signal from an absent
-        # one; surface it so recurring corruption or permission problems are
-        # observable.
-        _LOGGER.debug("Could not read %s: %s", stamp_file, err)
+        # one, and it drives a cache clean; surface why at normal verbosity.
+        _LOGGER.warning("Could not read %s: %s", stamp_file, err)
         return None
     version = data.get("python_version")
     return version if isinstance(version, str) else None

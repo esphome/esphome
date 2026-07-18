@@ -1216,13 +1216,13 @@ def test_read_pio_stamp_malformed(tmp_path: Path) -> None:
     assert toolchain._read_pio_stamp_python(stamp) is None
 
 
-def test_read_pio_stamp_unreadable_logs_debug(
+def test_read_pio_stamp_unreadable_logs_warning(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A present-but-unreadable stamp yields None and logs the failure."""
+    """A present-but-unreadable stamp yields None and warns."""
     stamp = tmp_path / "stamp.json"
     stamp.mkdir()
-    with caplog.at_level("DEBUG"):
+    with caplog.at_level("WARNING"):
         assert toolchain._read_pio_stamp_python(stamp) is None
     assert "Could not read" in caplog.text
 
