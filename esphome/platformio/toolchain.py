@@ -153,48 +153,34 @@ def _write_pio_stamp_python(stamp_file: Path, python_version: str) -> None:
     )
 
 
-def _read_pyvenv_python_minor(penv_dir: Path) -> str | None:
-    """Return the ``major.minor`` PlatformIO built its penv with, or None.
-
-    PlatformIO records it in ``penv/pyvenv.cfg`` as ``version_info`` (uv) or
-    ``version`` (stdlib venv); the first recognised key wins.
-    """
-    pyvenv_cfg = penv_dir / "pyvenv.cfg"
-    try:
-        text = pyvenv_cfg.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return None
-    except OSError as err:
-        _LOGGER.debug("Could not read %s: %s", pyvenv_cfg, err)
-        return None
-    for line in text.splitlines():
-        key, sep, value = line.partition("=")
-        if (
-            sep
-            and key.strip() in ("version_info", "version")
-            and (match := re.match(r"\s*(\d+)\.(\d+)", value))
-        ):
-            return f"{match.group(1)}.{match.group(2)}"
-    return None
-
-
 def heal_platformio_python_env() -> None:
-    """Wipe the PlatformIO cache when the running Python version changed.
+    """Wipe the PlatformIO cache unless it is stamped for the running Python.
 
     A PlatformIO platform/tool package pins the Python versions it accepts when
     it is provisioned, and ESPHome pins platforms to exact, immutable versions,
     so a later interpreter bump (a container upgrading its base Python) leaves
     the cached platform rejecting the new interpreter ("Python version must be
-    between ...") until the cache is wiped. This detects the ``major.minor``
-    change and wipes the same PlatformIO dirs ``clean-all`` does so PlatformIO
-    re-resolves, matching Reset Build Environment automatically. The native
+    between ...") until the cache is wiped. A stamp records the ``major.minor``
+    the cache was provisioned for; when it doesn't match the running
+    interpreter (or has never been written for an existing cache), the same
+    PlatformIO dirs ``clean-all`` wipes are cleaned so PlatformIO
+    re-provisions, matching Reset Build Environment automatically. The native
     ESP-IDF toolchain already self-heals through its own stamp; this covers the
     PlatformIO path. No-op when PlatformIO is unavailable.
     """
     config = get_platformio_config()
     if config is None:
         return
-    core_dir = Path(config.get("platformio", "core_dir"))
+    try:
+        _check_platformio_python_stamp(config)
+    except OSError as err:
+        # The check is a best-effort repair; a full or read-only cache volume
+        # must not abort a build that might otherwise work.
+        _LOGGER.warning("PlatformIO build environment check failed: %s", err)
+
+
+def _check_platformio_python_stamp(config: "ProjectConfig") -> None:
+    """Compare the stamp to the running interpreter; wipe and restamp on mismatch."""
     current = _current_python_minor()
     stamp_dir = _pio_stamp_dir(config)
     # Host the stamp/lock even before PlatformIO's first run creates the dir.
@@ -207,17 +193,32 @@ def heal_platformio_python_env() -> None:
         provisioned = _read_pio_stamp_python(stamp_file)
         if provisioned == current:
             return
-        # No stamp yet (first build after this ships): fall back to the
-        # interpreter PlatformIO recorded when it built its penv, so an
-        # already-broken cache is healed instead of silently stamped.
-        provisioned = provisioned or _read_pyvenv_python_minor(core_dir / "penv")
-        if provisioned is not None and provisioned != current:
-            _LOGGER.info(
-                "Python version changed (%s -> %s); cleaning PlatformIO build "
-                "environment so it re-provisions for the new interpreter",
-                provisioned,
-                current,
+        core_dir = Path(config.get("platformio", "core_dir"))
+        has_cache = (
+            any(
+                Path(config.get("platformio", pio_dir)).is_dir()
+                for pio_dir in _PIO_CACHE_DIRS
             )
+            or (core_dir / "penv").is_dir()
+        )
+        if has_cache:
+            if provisioned is None:
+                # An existing cache with no stamp predates the stamp: its
+                # provisioning interpreter is unknown, so clean once rather
+                # than leave a possibly-stale cache failing every build.
+                _LOGGER.info(
+                    "Cleaning the PlatformIO build environment once so it "
+                    "re-provisions for Python %s",
+                    current,
+                )
+            else:
+                _LOGGER.info(
+                    "Python version changed (%s -> %s); cleaning PlatformIO "
+                    "build environment so it re-provisions for the new "
+                    "interpreter",
+                    provisioned,
+                    current,
+                )
             _clean_platformio_python_env(config, core_dir)
         _write_pio_stamp_python(stamp_file, current)
 

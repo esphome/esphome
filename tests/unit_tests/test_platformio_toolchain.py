@@ -1164,16 +1164,6 @@ def _use_pio_config(layout: dict[str, Path] | Path) -> Generator[MagicMock, None
         yield config
 
 
-def _write_pyvenv(core_dir: Path, version: str, *, key: str = "version_info") -> None:
-    """Seed ``penv/pyvenv.cfg`` recording *version* under *key*."""
-    penv = core_dir / "penv"
-    penv.mkdir(parents=True, exist_ok=True)
-    (penv / "pyvenv.cfg").write_text(
-        f"home = /usr/bin\n{key} = {version}\nimplementation = CPython\n",
-        encoding="utf-8",
-    )
-
-
 def _stamp_version(core_dir: Path) -> str | None:
     """Read the python version recorded in the heal stamp under *core_dir*."""
     return toolchain._read_pio_stamp_python(core_dir / toolchain._PIO_PYTHON_STAMP_FILE)
@@ -1201,33 +1191,6 @@ def pio_core_dir(tmp_path: Path) -> Path:
 def test_current_python_minor_matches_running_interpreter() -> None:
     """_current_python_minor returns major.minor of the running interpreter."""
     assert toolchain._current_python_minor() == _CURRENT_MINOR
-
-
-@pytest.mark.parametrize(
-    ("cfg", "expected"),
-    [
-        ("home = /u\nversion_info = 3.12.7\n", "3.12"),
-        ("version = 3.13.1\n", "3.13"),
-        ("version_info = 3.14.0\n", "3.14"),
-        ("version_info = 3.9\n", "3.9"),
-        ("implementation = CPython\n", None),
-        ("version = notaversion\n", None),
-        ("", None),
-    ],
-)
-def test_read_pyvenv_python_minor(
-    tmp_path: Path, cfg: str, expected: str | None
-) -> None:
-    """pyvenv.cfg parsing extracts major.minor from either key spelling."""
-    penv = tmp_path / "penv"
-    penv.mkdir()
-    (penv / "pyvenv.cfg").write_text(cfg, encoding="utf-8")
-    assert toolchain._read_pyvenv_python_minor(penv) == expected
-
-
-def test_read_pyvenv_python_minor_missing_file(tmp_path: Path) -> None:
-    """A missing pyvenv.cfg yields None, not an error."""
-    assert toolchain._read_pyvenv_python_minor(tmp_path / "penv") is None
 
 
 def test_pio_stamp_round_trip(tmp_path: Path) -> None:
@@ -1261,17 +1224,6 @@ def test_read_pio_stamp_unreadable_logs_debug(
     stamp.mkdir()
     with caplog.at_level("DEBUG"):
         assert toolchain._read_pio_stamp_python(stamp) is None
-    assert "Could not read" in caplog.text
-
-
-def test_read_pyvenv_unreadable_logs_debug(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A present-but-unreadable pyvenv.cfg yields None and logs the failure."""
-    penv = tmp_path / "penv"
-    (penv / "pyvenv.cfg").mkdir(parents=True)
-    with caplog.at_level("DEBUG"):
-        assert toolchain._read_pyvenv_python_minor(penv) is None
     assert "Could not read" in caplog.text
 
 
@@ -1333,57 +1285,43 @@ def test_heal_stale_stamp_wipes_and_restamps(pio_core_dir: Path) -> None:
     assert _stamp_version(pio_core_dir) == _CURRENT_MINOR
 
 
-def test_heal_no_stamp_old_pyvenv_heals_existing_user(pio_core_dir: Path) -> None:
-    """Real fs: an already-broken cache (old pyvenv.cfg, no stamp) is healed."""
-    _write_pyvenv(pio_core_dir, "3.11.4")
-    with _use_pio_config(pio_core_dir):
+def test_heal_no_stamp_existing_cache_wipes_once(
+    pio_core_dir: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An existing cache with no stamp is cleaned once and stamped."""
+    with _use_pio_config(pio_core_dir), caplog.at_level("INFO"):
         toolchain.heal_platformio_python_env()
     assert _cache_wiped(pio_core_dir)
     assert not (pio_core_dir / "penv").exists()
     assert _stamp_version(pio_core_dir) == _CURRENT_MINOR
+    assert "once" in caplog.text
 
 
-def test_heal_no_stamp_current_pyvenv_spares_healthy_user(pio_core_dir: Path) -> None:
-    """Real fs: a healthy cache (pyvenv.cfg matches current, no stamp) is not wiped."""
-    _write_pyvenv(pio_core_dir, f"{_CURRENT_MINOR}.9")
-    with _use_pio_config(pio_core_dir):
+def test_heal_no_stamp_penv_only_counts_as_cache(tmp_path: Path) -> None:
+    """A core dir holding only a penv still triggers the one-time clean."""
+    core = tmp_path / "pio"
+    penv = core / "penv"
+    penv.mkdir(parents=True)
+    (penv / "marker").write_text("x", encoding="utf-8")
+    with _use_pio_config(core):
         toolchain.heal_platformio_python_env()
-    assert not _cache_wiped(pio_core_dir)
-    assert (pio_core_dir / "penv" / "marker").exists()
-    assert _stamp_version(pio_core_dir) == _CURRENT_MINOR
+    assert not penv.exists()
+    assert _stamp_version(core) == _CURRENT_MINOR
 
 
-def test_heal_no_stamp_malformed_pyvenv_no_wipe(pio_core_dir: Path) -> None:
-    """An unparseable pyvenv.cfg reads as unknown provenance, so no wipe."""
-    (pio_core_dir / "penv" / "pyvenv.cfg").write_text("garbage\n", encoding="utf-8")
-    with _use_pio_config(pio_core_dir):
+def test_heal_oserror_is_nonfatal(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A filesystem failure during the check warns instead of aborting the build."""
+    blocker = tmp_path / "pio"
+    blocker.write_text("not a directory", encoding="utf-8")
+    with _use_pio_config(blocker), caplog.at_level("WARNING"):
         toolchain.heal_platformio_python_env()
-    assert not _cache_wiped(pio_core_dir)
-    assert _stamp_version(pio_core_dir) == _CURRENT_MINOR
-
-
-def test_heal_stamp_takes_precedence_over_pyvenv(pio_core_dir: Path) -> None:
-    """A current stamp wins over an old-looking pyvenv.cfg (no wipe)."""
-    toolchain._write_pio_stamp_python(
-        pio_core_dir / toolchain._PIO_PYTHON_STAMP_FILE, _CURRENT_MINOR
-    )
-    _write_pyvenv(pio_core_dir, "2.7.1")
-    with _use_pio_config(pio_core_dir):
-        toolchain.heal_platformio_python_env()
-    assert not _cache_wiped(pio_core_dir)
-
-
-def test_heal_pyvenv_stdlib_version_key(pio_core_dir: Path) -> None:
-    """A stdlib-venv pyvenv.cfg (``version`` key) is honoured for the heal."""
-    _write_pyvenv(pio_core_dir, "2.7.1", key="version")
-    with _use_pio_config(pio_core_dir):
-        toolchain.heal_platformio_python_env()
-    assert _cache_wiped(pio_core_dir)
+    assert "build environment check failed" in caplog.text
 
 
 def test_heal_is_idempotent_across_runs(pio_core_dir: Path) -> None:
     """After a heal writes the stamp, a re-provisioned cache is not wiped again."""
-    _write_pyvenv(pio_core_dir, "2.7.1")
     with _use_pio_config(pio_core_dir):
         toolchain.heal_platformio_python_env()
         repop = pio_core_dir / "packages"
@@ -1420,7 +1358,7 @@ def test_heal_container_layout_stale_stamp_wipes_persistent_cache(
     _seed_layout(layout)
     persistent = layout["platforms_dir"].parent
     toolchain._write_pio_stamp_python(
-        persistent / toolchain._PIO_PYTHON_STAMP_FILE, "3.12"
+        persistent / toolchain._PIO_PYTHON_STAMP_FILE, "2.7"
     )
     with _use_pio_config(layout):
         toolchain.heal_platformio_python_env()
@@ -1437,7 +1375,7 @@ def test_heal_container_layout_survives_core_dir_wipe(tmp_path: Path) -> None:
     shutil.rmtree(layout["core_dir"])
     persistent = layout["platforms_dir"].parent
     toolchain._write_pio_stamp_python(
-        persistent / toolchain._PIO_PYTHON_STAMP_FILE, "3.12"
+        persistent / toolchain._PIO_PYTHON_STAMP_FILE, "2.7"
     )
     with _use_pio_config(layout):
         toolchain.heal_platformio_python_env()
