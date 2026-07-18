@@ -285,6 +285,8 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       sta.set_password(command.password.c_str());
       this->connecting_sta_ = sta;
 
+      // Sampled before start_connecting(): the old connection drops asynchronously after it.
+      const bool switching = wifi::global_wifi_component->is_connected();
       wifi::global_wifi_component->set_sta(sta);
       wifi::global_wifi_component->start_connecting(sta);
       // Re-arm the gate: don't accept success until Wi-Fi has actually left the prior network.
@@ -293,9 +295,8 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       ESP_LOGD(TAG, "Received settings: SSID=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                command.password.c_str());
 
-      // Allow enough time to connect; switching networks on an already-connected device can take
-      // well over 30 s on the first attempt. Matches esp32_improv's default wifi_timeout (90 s).
-      this->set_timeout("wifi-connect-timeout", 90000, [this]() { this->on_wifi_connect_timeout_(); });
+      this->set_timeout("wifi-connect-timeout", switching ? WIFI_SWITCH_TIMEOUT_MS : WIFI_CONNECT_TIMEOUT_MS,
+                        [this]() { this->on_wifi_connect_timeout_(); });
 #else
       // No Wi-Fi support compiled in; there is nothing to provision.
       ESP_LOGW(TAG, "Wi-Fi not supported; cannot provision");
