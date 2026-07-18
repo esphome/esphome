@@ -44,7 +44,7 @@ void arch_init() {
 
 void arch_restart() {
   lt_reboot();
-  while (1) {
+  while (true) {
   }
 }
 

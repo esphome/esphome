@@ -71,7 +71,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_NRF52,
-    PLATFORM_RP2040,
+    PLATFORM_RP2,
     SCHEDULER_DONT_RUN,
     TYPE_GIT,
     TYPE_LOCAL,
@@ -292,10 +292,14 @@ class Visibility(StrEnum):
     the same way. ESPHome itself ignores the value at runtime;
     consumers downstream of the schema dump act on it.
 
-    A field with no ``visibility`` set (the default) renders on the
-    editor's main form. The two values below are points along a
-    single axis of "how prominently to surface this":
+    Three points along a single axis of "how prominently to surface
+    this", from least to most hidden:
 
+    - ``UI`` — always render on the editor's main form. Use to
+      promote an ``Optional`` that would otherwise fall through to
+      the advanced disclosure (see the default rule below): the
+      "headline" config a user reaches for first (e.g. a sensor's
+      ``name`` or its primary pin/address).
     - ``ADVANCED`` — render under the editor's "advanced settings"
       disclosure. Use for fields whose default is right for ~all
       users (e.g. ``update_interval`` on time platforms — 15 min is
@@ -307,25 +311,35 @@ class Visibility(StrEnum):
       tweaks can break boot). The YAML escape hatch stays
       available for the rare power-user override.
 
-    The single-axis shape encodes "yaml-only is strictly stronger
-    than advanced" at the type level — there's no way to ask for
-    both at once, and no way to set a contradictory state like
-    "advanced=False, yaml_only=True".
+    Default when unset (``visibility=None``): resolved by the
+    consumer, not encoded on the marker. A schema-aware editor
+    treats an ``Optional`` with no setting as ``ADVANCED`` (most
+    optional knobs have sensible defaults and would clutter the
+    form), and a ``Required`` with no setting as ``UI`` (a required
+    field needs the user's attention). Pass an explicit value to
+    override either default — most commonly ``UI`` to keep a
+    high-value ``Optional`` on the main form.
+
+    The single-axis shape encodes the strictness ladder
+    (``UI`` < ``ADVANCED`` < ``YAML_ONLY``) at the type level —
+    there's no way to set a contradictory state.
 
     Per-field; the dumper walks recursively into nested schemas
-    and emits each field's setting independently. Cascading
-    semantics — "a stricter parent makes its descendants at-least
-    as strict" — belong on the consumer side: the schema marker
-    is faithfully what the field author wrote, and a consumer that
-    cares about effective visibility walks the parent chain and
-    takes the strictest setting. ``YAML_ONLY`` is strictly stronger
-    than ``ADVANCED``, which is strictly stronger than no setting.
-    Inner fields can declare their own visibility; an inner
+    and emits each field's setting independently, omitting the key
+    when unset so the dump stays compact and the per-field default
+    is the consumer's to apply. Cascading semantics — "a stricter
+    parent makes its descendants at-least as strict" — belong on the
+    consumer side: the schema marker is faithfully what the field
+    author wrote, and a consumer that cares about effective
+    visibility walks the parent chain and takes the strictest
+    setting. Inner fields can declare their own visibility; an inner
     ``YAML_ONLY`` under an ``ADVANCED`` parent stays ``YAML_ONLY``,
-    and the consumer's cascade keeps siblings under the parent at
-    ``ADVANCED`` regardless of their own (less-strict) setting.
+    and the consumer's cascade keeps a ``UI`` sibling under an
+    ``ADVANCED`` parent at ``ADVANCED`` regardless of its own
+    (less-strict) setting.
     """
 
+    UI = "ui"
     ADVANCED = "advanced"
     YAML_ONLY = "yaml_only"
 
@@ -347,6 +361,9 @@ class Optional(vol.Optional):
 
     See :class:`Visibility` for the ``visibility`` kwarg — a UI
     hint for schema-driven editors that doesn't affect validation.
+    Left unset, an ``Optional`` is treated as ``Visibility.ADVANCED``
+    by schema-aware editors; pass ``Visibility.UI`` to keep it on the
+    main form.
     """
 
     def __init__(
@@ -369,9 +386,11 @@ class Required(vol.Required):
 
     See :class:`Visibility` for the ``visibility`` kwarg — a UI
     hint for schema-driven editors that doesn't affect validation.
-    Required fields rarely need it (a required field by definition
-    needs the user's attention) but the kwarg is exposed for
-    symmetry so consumers can apply uniform logic across key markers.
+    Required fields rarely need it: left unset, a ``Required`` is
+    treated as on the main form (``Visibility.UI``) by schema-aware
+    editors, since a required field needs the user's attention. The
+    kwarg is exposed for symmetry so consumers can apply uniform
+    logic across key markers.
     """
 
     def __init__(
@@ -403,12 +422,14 @@ class Version:
 
     @classmethod
     def parse(cls, value: str) -> Version:
-        match = re.match(r"^(\d+).(\d+).(\d+)[-.]?(\w*)$", value)
+        # The patch component is optional and defaults to 0, so "6.0" and
+        # "6.0-rc1" parse as 6.0.0 and 6.0.0-rc1.
+        match = re.match(r"^(\d+)\.(\d+)(?:\.(\d+))?[-.]?(\w*)$", value)
         if match is None:
             raise ValueError(f"Not a valid version number {value}")
         major = int(match[1])
         minor = int(match[2])
-        patch = int(match[3])
+        patch = int(match[3] or 0)
         extra = match[4] or ""
         return Version(major=major, minor=minor, patch=patch, extra=extra)
 
@@ -859,7 +880,38 @@ def only_with_framework(
 only_on_esp32 = only_on(PLATFORM_ESP32)
 only_on_esp8266 = only_on(PLATFORM_ESP8266)
 only_on_nrf52 = only_on(PLATFORM_NRF52)
-only_on_rp2040 = only_on(PLATFORM_RP2040)
+only_on_rp2 = only_on(PLATFORM_RP2)
+
+# CORE.data key for the "deprecation warning already fired this run" flag.
+# Deduped via CORE.data (cleared between runs) to match the framework-alias
+# pattern; one warning per `esphome config|compile|run` invocation is enough.
+_ONLY_ON_RP2040_DEPRECATED_KEY = "_cv_only_on_rp2040_deprecated_warned"
+
+
+def only_on_rp2040(obj):
+    """Deprecated — kept as a back-compat shim for external custom components.
+
+    Pre-RP2350, this was the family check for the RP2 platform; with RP2350
+    landing under the same target platform, the variant axis is now exposed
+    by the rp2 component itself. New code should use one of:
+
+    * :func:`only_on_rp2` — family-level gate (matches the esp32 pattern;
+      same semantics as the pre-RP2350 ``only_on_rp2040``).
+    * ``rp2.only_on_variant(supported=[VARIANT_RP2040])`` — variant-level
+      gate, rejects RP2350 boards on the rp2 platform.
+
+    Scheduled for removal in 2027.7.0.
+    """
+    if not CORE.data.get(_ONLY_ON_RP2040_DEPRECATED_KEY):
+        _LOGGER.warning(
+            "cv.only_on_rp2040 is deprecated; use cv.only_on_rp2 for the "
+            "family gate, or rp2.only_on_variant(supported=[VARIANT_RP2040]) "
+            "for the variant gate. Removed in 2027.7.0."
+        )
+        CORE.data[_ONLY_ON_RP2040_DEPRECATED_KEY] = True
+    return only_on_rp2(obj)
+
+
 only_with_arduino = only_with_framework(Framework.ARDUINO)
 
 
@@ -1990,7 +2042,24 @@ def _get_default_key(*args):
 
 
 class SplitDefault(Optional):
-    """Mark this key to have a split default for ESP8266/ESP32."""
+    """Mark this key to have a split default per target platform / variant / framework.
+
+    Defaults are passed as kwargs keyed on the platform identifier; the most
+    specific match wins. Lookup order (first hit wins):
+
+    1. ``<platform>_<variant>_<framework>`` — e.g. ``esp32_c3_arduino``,
+       ``rp2_2040_arduino``
+    2. ``<platform>_<variant>``             — e.g. ``esp32_c3``, ``rp2_2040``
+    3. ``<platform>_<framework>``           — e.g. ``esp32_arduino``,
+       ``rp2_arduino``
+    4. ``<platform>``                       — e.g. ``esp32``, ``rp2``
+
+    For ESP32 the variant strips the ``ESP32`` prefix from
+    :data:`esp32.VARIANT_*` constants (``ESP32C3`` → ``c3``). For RP2 the
+    variant strips just ``RP`` (``RP2040`` → ``2040``, ``RP2350`` → ``2350``)
+    so kwargs read naturally — `rp2_2040=...` is the override for the
+    Pico / Pico W and `rp2_2350=...` is the override for the Pico 2.
+    """
 
     def __init__(self, key, **kwargs):
         super().__init__(key)
@@ -2009,6 +2078,22 @@ class SplitDefault(Optional):
             variant = get_esp32_variant().replace(VARIANT_ESP32, "").lower()
             framework = CORE.target_framework.replace("esp-", "")
             if variant:
+                keys += _get_default_key(variant, framework)
+                keys += _get_default_key(variant)
+            keys += _get_default_key(framework)
+        elif CORE.is_rp2:
+            # Strip the "RP" prefix to leave the chip number, mirroring
+            # the ESP32 "platform stripped from variant" convention so
+            # kwargs stay short (``rp2_2040`` rather than ``rp2_rp2040``).
+            # Variant lookup is defensive: validators may run before the
+            # rp2 component's ``set_core_data`` (or in tests that wire a
+            # partial ``CORE.data``); in that case we just skip the
+            # variant-specific keys and fall through to the base
+            # platform/framework defaults.
+            raw_variant = CORE.data.get("rp2", {}).get("variant")
+            framework = CORE.target_framework
+            if raw_variant:
+                variant = raw_variant.removeprefix("RP").lower()
                 keys += _get_default_key(variant, framework)
                 keys += _get_default_key(variant)
             keys += _get_default_key(framework)
@@ -2210,16 +2295,25 @@ MQTT_COMPONENT_AVAILABILITY_SCHEMA = Schema(
     }
 )
 
+# Per-entity MQTT plumbing — integration metadata, never a primary UI field.
 MQTT_COMPONENT_SCHEMA = Schema(
     {
-        Optional(CONF_QOS): All(requires_component("mqtt"), mqtt_qos),
-        Optional(CONF_RETAIN): All(requires_component("mqtt"), boolean),
-        Optional(CONF_DISCOVERY): All(requires_component("mqtt"), boolean),
-        Optional(CONF_SUBSCRIBE_QOS): All(requires_component("mqtt"), mqtt_qos),
-        Optional(CONF_STATE_TOPIC): All(
+        Optional(CONF_QOS, visibility=Visibility.ADVANCED): All(
+            requires_component("mqtt"), mqtt_qos
+        ),
+        Optional(CONF_RETAIN, visibility=Visibility.ADVANCED): All(
+            requires_component("mqtt"), boolean
+        ),
+        Optional(CONF_DISCOVERY, visibility=Visibility.ADVANCED): All(
+            requires_component("mqtt"), boolean
+        ),
+        Optional(CONF_SUBSCRIBE_QOS, visibility=Visibility.ADVANCED): All(
+            requires_component("mqtt"), mqtt_qos
+        ),
+        Optional(CONF_STATE_TOPIC, visibility=Visibility.ADVANCED): All(
             requires_component("mqtt"), templatable(publish_topic)
         ),
-        Optional(CONF_AVAILABILITY): All(
+        Optional(CONF_AVAILABILITY, visibility=Visibility.ADVANCED): All(
             requires_component("mqtt"), Any(None, MQTT_COMPONENT_AVAILABILITY_SCHEMA)
         ),
     }
@@ -2227,10 +2321,12 @@ MQTT_COMPONENT_SCHEMA = Schema(
 
 MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
     {
-        Optional(CONF_COMMAND_TOPIC): All(
+        Optional(CONF_COMMAND_TOPIC, visibility=Visibility.ADVANCED): All(
             requires_component("mqtt"), templatable(subscribe_topic)
         ),
-        Optional(CONF_COMMAND_RETAIN): All(requires_component("mqtt"), boolean),
+        Optional(CONF_COMMAND_RETAIN, visibility=Visibility.ADVANCED): All(
+            requires_component("mqtt"), boolean
+        ),
     }
 )
 
@@ -2305,12 +2401,16 @@ def string_no_slash(value):
 
 ENTITY_BASE_SCHEMA = Schema(
     {
-        Optional(CONF_NAME): _validate_entity_name,
-        Optional(CONF_INTERNAL): boolean,
-        Optional(CONF_DISABLED_BY_DEFAULT, default=False): boolean,
-        Optional(CONF_ICON): icon,
-        Optional(CONF_ENTITY_CATEGORY): entity_category,
-        Optional(CONF_DEVICE_ID): sub_device_id,
+        # The name is every entity's headline field — keep it on the
+        # main form rather than letting it fall through to advanced.
+        Optional(CONF_NAME, visibility=Visibility.UI): _validate_entity_name,
+        Optional(CONF_INTERNAL, visibility=Visibility.ADVANCED): boolean,
+        Optional(
+            CONF_DISABLED_BY_DEFAULT, default=False, visibility=Visibility.ADVANCED
+        ): boolean,
+        Optional(CONF_ICON, visibility=Visibility.ADVANCED): icon,
+        Optional(CONF_ENTITY_CATEGORY, visibility=Visibility.ADVANCED): entity_category,
+        Optional(CONF_DEVICE_ID, visibility=Visibility.ADVANCED): sub_device_id,
     }
 )
 
@@ -2443,18 +2543,58 @@ def require_framework_version(
     extra_message=None,
     **kwargs,
 ):
+    """Constrain the configured framework version per target platform / variant.
+
+    Kwargs are keyed by ``<platform>_<framework>`` (e.g. ``esp32_arduino``,
+    ``rp2_arduino``) with optional variant-specific overrides keyed by
+    ``<platform>_<variant>_<framework>`` (e.g. ``esp32_c3_arduino``,
+    ``rp2_2040_arduino``, ``rp2_2350_arduino``). Variant overrides win when
+    the configured variant matches; otherwise the base platform key is used.
+
+    Special cases: ``host`` (with host framework) and ``esp_idf`` (any ESP32
+    on ESP-IDF) bypass variant lookup.
+    """
+
     def validator(value):
         core_data = CORE.data[KEY_CORE]
         framework = core_data[KEY_TARGET_FRAMEWORK]
 
+        keys_to_try: list[str] = []
         if CORE.is_host and framework == "host":
-            key = "host"
+            keys_to_try.append("host")
         elif framework == "esp-idf":
-            key = "esp_idf"
+            keys_to_try.append("esp_idf")
         else:
-            key = CORE.target_platform + "_" + framework
+            # Try variant-specific key first (mirrors the SplitDefault
+            # precedence). ESP32 strips its platform prefix from variant
+            # constants; RP2 strips just ``RP`` to keep chip-number kwargs
+            # (``rp2_2040``, ``rp2_2350``).
+            if CORE.is_esp32:
+                from esphome.components.esp32 import VARIANT_ESP32, get_esp32_variant
 
-        if key not in kwargs:
+                # Guard against tests that wire CORE.data without an
+                # esp32 variant block; same defensive intent as the rp2
+                # branch below.
+                try:
+                    variant = get_esp32_variant().replace(VARIANT_ESP32, "").lower()
+                except (KeyError, AttributeError):
+                    variant = ""
+                if variant:
+                    keys_to_try.append(f"{CORE.target_platform}_{variant}_{framework}")
+            elif CORE.is_rp2:
+                # Defensive lookup — see the matching block in
+                # ``SplitDefault.default``: the rp2 component's
+                # ``set_core_data`` may not have populated
+                # ``CORE.data["rp2"]["variant"]`` yet (validators run
+                # during schema validation, before code-gen).
+                raw_variant = CORE.data.get("rp2", {}).get("variant")
+                if raw_variant:
+                    variant = raw_variant.removeprefix("RP").lower()
+                    keys_to_try.append(f"{CORE.target_platform}_{variant}_{framework}")
+            keys_to_try.append(f"{CORE.target_platform}_{framework}")
+
+        key = next((k for k in keys_to_try if k in kwargs), None)
+        if key is None:
             msg = f"This feature is incompatible with {CORE.target_platform.upper()} using {framework} framework"
             if extra_message:
                 msg += f". {extra_message}"

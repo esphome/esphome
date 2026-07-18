@@ -33,6 +33,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # pylint: disable=wrong-import-position
 from esphome.analyze_memory import MemoryAnalyzer
+from esphome.analyze_memory.toolchain import (
+    find_elf_path,
+    find_idedata_path,
+    idedata_candidates,
+)
 from esphome.platformio.toolchain import IDEData
 from script.ci_helpers import write_github_output
 
@@ -130,53 +135,31 @@ def run_detailed_analysis(build_dir: str) -> dict | None:
         print(f"Build directory not found: {build_dir}", file=sys.stderr)
         return None
 
-    # Find firmware.elf (or raw_firmware.elf for LibreTiny)
-    elf_path = None
-    for elf_candidate in [
-        build_path / "firmware.elf",
-        build_path / ".pioenvs" / build_path.name / "firmware.elf",
-        # LibreTiny uses raw_firmware.elf
-        build_path / "raw_firmware.elf",
-        build_path / ".pioenvs" / build_path.name / "raw_firmware.elf",
-    ]:
-        if elf_candidate.exists():
-            elf_path = str(elf_candidate)
-            break
-
+    elf_path = find_elf_path(build_path)
     if not elf_path:
-        print(
-            f"firmware.elf/raw_firmware.elf not found in {build_dir}", file=sys.stderr
-        )
+        print(f"No firmware ELF found in {build_dir}", file=sys.stderr)
         return None
 
-    # Find idedata.json - check multiple locations
-    device_name = build_path.name
-    idedata_candidates = [
-        # In .pioenvs for test builds
-        build_path / ".pioenvs" / device_name / "idedata.json",
-        # In .esphome/idedata for regular builds
-        Path.home() / ".esphome" / "idedata" / f"{device_name}.json",
-        # Check parent directories for .esphome/idedata (for test_build_components)
-        build_path.parent.parent.parent / "idedata" / f"{device_name}.json",
-    ]
-
     idedata = None
-    for idedata_path in idedata_candidates:
-        if not idedata_path.exists():
-            continue
+    if idedata_path := find_idedata_path(build_path):
         try:
             with idedata_path.open(encoding="utf-8") as f:
                 raw_data = json.load(f)
             idedata = IDEData(raw_data)
             print(f"Loaded idedata from: {idedata_path}", file=sys.stderr)
-            break
         except (json.JSONDecodeError, OSError) as e:
             print(
                 f"Warning: Failed to load idedata from {idedata_path}: {e}",
                 file=sys.stderr,
             )
+    else:
+        # Without idedata the analyzer falls back to whatever binutils are on
+        # PATH, which are the wrong architecture for a cross build, so say where
+        # we looked rather than let the results quietly get worse.
+        searched = "\n  ".join(str(p) for p in idedata_candidates(build_path))
+        print(f"Warning: idedata not found, searched:\n  {searched}", file=sys.stderr)
 
-    analyzer = MemoryAnalyzer(elf_path, idedata=idedata)
+    analyzer = MemoryAnalyzer(str(elf_path), idedata=idedata)
     components = analyzer.analyze()
 
     # Convert to JSON-serializable format
@@ -319,6 +302,19 @@ def main() -> int:
         )
     else:
         print(f"{ram_bytes},{flash_bytes}")
+
+    # The build produced usable totals, so a missing detailed analysis means the
+    # build layout moved out from under this script rather than a broken build.
+    # Fail loudly: the comment would otherwise silently drop the component
+    # breakdown and the symbol tables, which is easy to miss for a long time.
+    if detailed_analysis is None:
+        print(
+            "::error::Detailed memory analysis unavailable even though the build "
+            f"succeeded (build directory: {build_dir or 'not detected'}). The PR "
+            "comment would be missing its component breakdown and symbol changes.",
+            file=sys.stderr,
+        )
+        return 1
 
     return 0
 
