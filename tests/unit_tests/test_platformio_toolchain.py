@@ -1234,6 +1234,14 @@ def test_read_pio_stamp_without_python_version(tmp_path: Path) -> None:
     assert toolchain._read_pio_stamp_python(stamp) is None
 
 
+@pytest.mark.parametrize("payload", ["42", '"x"', "[1, 2]", "null"])
+def test_read_pio_stamp_non_object_json(tmp_path: Path, payload: str) -> None:
+    """Valid-but-non-object JSON in the stamp yields None, not a crash."""
+    stamp = tmp_path / "s.json"
+    stamp.write_text(payload, encoding="utf-8")
+    assert toolchain._read_pio_stamp_python(stamp) is None
+
+
 def test_clean_platformio_cache_none_config_is_noop() -> None:
     """clean_platformio_cache is a no-op when PlatformIO is unavailable."""
     with patch.object(toolchain, "get_platformio_config", return_value=None):

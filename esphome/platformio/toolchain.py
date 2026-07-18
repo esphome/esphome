@@ -135,6 +135,8 @@ def _read_pio_stamp_python(stamp_file: Path) -> str | None:
         # one, and it drives a cache clean; surface why at normal verbosity.
         _LOGGER.warning("Could not read %s: %s", stamp_file, err)
         return None
+    if not isinstance(data, dict):
+        return None
     version = data.get("python_version")
     return version if isinstance(version, str) else None
 
