@@ -82,7 +82,7 @@ class ZigbeeAttribute final : public Component {
   void *value_p_{nullptr};
   bool set_attr_requested_{false};
   bool force_report_{false};
-  CallbackManager<void(ezb_zcl_attribute_t attribute)> on_value_callback_{};
+  LazyCallbackManager<void(ezb_zcl_attribute_t attribute)> on_value_callback_{};
 };
 
 template<typename T> void ZigbeeAttribute::add_attr(T value) {

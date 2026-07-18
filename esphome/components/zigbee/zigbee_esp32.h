@@ -95,7 +95,13 @@ class ZigbeeComponent final : public Component {
   CallbackManager<void(bool)> join_cb_{};
   template<typename... Args> friend void enqueue_zb_event(Args... args);
   esphome::LockFreeQueue<ZBEvent, MAX_ZB_QUEUE_SIZE> zb_events_;
-  esphome::EventPool<ZBEvent, MAX_ZB_QUEUE_SIZE> zb_event_pool_;
+  // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
+  // buffer that holds N-1 elements (one slot distinguishes full from empty).
+  // This guarantees allocate() returns nullptr before push() can fail, which:
+  //  1. Prevents leaking a pool slot (the Nth allocate succeeds but push fails)
+  //  2. Avoids needing release() on the producer path after a failed push(),
+  //     preserving the SPSC contract on the pool's internal free list
+  esphome::EventPool<ZBEvent, MAX_ZB_QUEUE_SIZE - 1> zb_event_pool_;
 };
 
 template<typename T>

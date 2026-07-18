@@ -33,8 +33,7 @@ class ZBEvent {
     // Free any allocated memory within the event
     switch (this->callback_id_) {
       case EZB_ZCL_CORE_SET_ATTR_VALUE_CB_ID:
-        if (this->event_.set_attr.data.heap_data != nullptr &&
-            this->event_.set_attr.attribute.data.value == this->event_.set_attr.data.heap_data) {
+        if (!this->event_.set_attr.is_inline && this->event_.set_attr.data.heap_data != nullptr) {
           delete[] this->event_.set_attr.data.heap_data;
           this->event_.set_attr.data.heap_data = nullptr;
         }
@@ -66,6 +65,7 @@ class ZBEvent {
         uint8_t *heap_data;
         uint8_t inline_data[4];  // For small data types (<= 32 bit)
       } data;
+      bool is_inline;
     } set_attr;
   } event_;
 
@@ -83,9 +83,11 @@ class ZBEvent {
         this->event_.set_attr.data.heap_data = new uint8_t[value_size];
         memcpy(this->event_.set_attr.data.heap_data, attribute.data.value, value_size);
         this->event_.set_attr.attribute.data.value = this->event_.set_attr.data.heap_data;
+        this->event_.set_attr.is_inline = false;
       } else {
         memcpy(this->event_.set_attr.data.inline_data, attribute.data.value, value_size);
         this->event_.set_attr.attribute.data.value = this->event_.set_attr.data.inline_data;
+        this->event_.set_attr.is_inline = true;
       }
     }
   }
