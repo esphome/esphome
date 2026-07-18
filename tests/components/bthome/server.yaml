@@ -1,0 +1,31 @@
+sensor:
+  - platform: template
+    id: advertised_temperature
+    name: "Advertised Temperature"
+    lambda: "return 22.5;"
+    update_interval: 60s
+
+binary_sensor:
+  - platform: template
+    id: advertised_motion
+    name: "Advertised Motion"
+
+text_sensor:
+  - platform: template
+    id: advertised_text
+    name: "Advertised Text"
+
+esp32_ble:
+
+bthome:
+  sensors:
+    - type: TEMPERATURE
+      id: advertised_temperature
+  binary_sensors:
+    - type: MOTION_DETECTED
+      id: advertised_motion
+      advertise_immediately: true
+  text_sensors:
+    - type: TEXT
+      id: advertised_text
+      max_length: 10
