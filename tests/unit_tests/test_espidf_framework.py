@@ -365,6 +365,23 @@ def test_check_esp_idf_install_fresh(espidf_mocks: SimpleNamespace) -> None:
     )
 
 
+def test_check_esp_idf_install_dist_prune_failure_ignored(
+    espidf_mocks: SimpleNamespace,
+) -> None:
+    """A failure to prune the tool download cache must not fail the install."""
+    tools_dist = get_idf_tools_path() / "dist"
+
+    def rmdir_side_effect(directory: Path, msg: str | None = None) -> None:
+        if directory == tools_dist:
+            raise RuntimeError("cannot remove dist")
+
+    espidf_mocks.rmdir.side_effect = rmdir_side_effect
+
+    # install still succeeds despite the failed prune
+    framework_path, _ = check_esp_idf_install(_IDF_VERSION, force=True)
+    assert framework_path == _get_framework_path(_IDF_VERSION)
+
+
 def test_check_esp_idf_install_git_source(espidf_mocks: SimpleNamespace) -> None:
     """A git source_url clones instead of downloading; explicit tools skip discovery."""
     check_esp_idf_install(
