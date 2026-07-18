@@ -679,6 +679,10 @@ def _check_esphome_idf_framework_install(
                 )
             raise RuntimeError(f"ESP-IDF {version} framework installation failure")
 
+        # idf_tools.py extracts tool archives from <IDF_TOOLS_PATH>/dist into tools/; the
+        # archives are not needed afterward and, already compressed, dominate the cached install
+        rmdir(get_idf_tools_path() / "dist", msg="Remove ESP-IDF tool download cache")
+
         _write_stamp(env_stamp_file, stamp_info)
 
     return framework_path, install

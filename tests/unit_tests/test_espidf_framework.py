@@ -317,7 +317,7 @@ def espidf_mocks(setup_core: Path):
     # extracted-marker touch writes into.
     _get_framework_path(_IDF_VERSION).mkdir(parents=True, exist_ok=True)
     with (
-        patch("esphome.espidf.framework.rmdir"),
+        patch("esphome.espidf.framework.rmdir") as rmdir_mock,
         patch(
             "esphome.espidf.framework.download_from_mirrors",
             return_value="https://example.com/idf.tar.xz",
@@ -344,6 +344,7 @@ def espidf_mocks(setup_core: Path):
             run_ok=run_ok,
             tool_paths=tool_paths,
             clone=clone,
+            rmdir=rmdir_mock,
         )
 
 
@@ -358,6 +359,11 @@ def test_check_esp_idf_install_fresh(espidf_mocks: SimpleNamespace) -> None:
     espidf_mocks.extract.assert_called_once()
     espidf_mocks.venv.assert_called_once()
     espidf_mocks.clone.assert_not_called()
+    # the tool download cache (<IDF_TOOLS_PATH>/dist) is pruned after install
+    assert any(
+        call.args and Path(call.args[0]).name == "dist"
+        for call in espidf_mocks.rmdir.call_args_list
+    )
 
 
 def test_check_esp_idf_install_git_source(espidf_mocks: SimpleNamespace) -> None:
