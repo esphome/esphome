@@ -23,9 +23,9 @@ _LOGGER = logging.getLogger(__name__)
 _PIO_CACHE_DIRS = ("cache_dir", "packages_dir", "platforms_dir")
 
 # Marker recording the Python major.minor the PlatformIO cache was provisioned
-# under, plus the lock guarding the check/wipe. Both sit directly under
-# ``core_dir`` (siblings of penv/platforms/packages), so the heal wipe can clear
-# the cache without deleting them.
+# under, plus the lock guarding the check/wipe. Both live in the dir resolved
+# by ``_pio_stamp_dir`` (NOT wiped by the heal), so they survive the wipe and
+# are rewritten after it.
 _PIO_PYTHON_STAMP_FILE = ".esphome.pio.stamp.json"
 _PIO_PYTHON_STAMP_LOCK = ".esphome.pio.stamp.lock"
 _PIO_PYTHON_STAMP_SCHEMA = "0"
@@ -69,6 +69,19 @@ def get_platformio_config() -> "ProjectConfig | None":
     except ImportError:
         return None
     return ProjectConfig.get_instance()
+
+
+def _pio_stamp_dir(config: "ProjectConfig") -> Path:
+    """Return the persistent home for the python-version stamp and lock.
+
+    The parent of ``platforms_dir``, not ``core_dir``: the container/add-on
+    images relocate the platform/package caches to a persistent volume while
+    ``core_dir`` stays at the ephemeral default (its ``appstate.json`` must not
+    move), so a stamp under ``core_dir`` would be wiped on every image update
+    while the stale cache it guards survives. Everywhere else ``platforms_dir``
+    sits inside ``core_dir`` and this resolves to ``core_dir``.
+    """
+    return Path(config.get("platformio", "platforms_dir")).parent
 
 
 def _delete_platformio_dirs(config: "ProjectConfig", pio_dirs: Iterable[str]) -> None:
@@ -173,13 +186,14 @@ def heal_platformio_python_env() -> None:
         return
     core_dir = Path(config.get("platformio", "core_dir"))
     current = _current_python_minor()
-    # Host the stamp/lock even before PlatformIO's first run creates core_dir.
-    core_dir.mkdir(parents=True, exist_ok=True)
-    stamp_file = core_dir / _PIO_PYTHON_STAMP_FILE
+    stamp_dir = _pio_stamp_dir(config)
+    # Host the stamp/lock even before PlatformIO's first run creates the dir.
+    stamp_dir.mkdir(parents=True, exist_ok=True)
+    stamp_file = stamp_dir / _PIO_PYTHON_STAMP_FILE
 
     from filelock import FileLock
 
-    with FileLock(str(core_dir / _PIO_PYTHON_STAMP_LOCK)):
+    with FileLock(str(stamp_dir / _PIO_PYTHON_STAMP_LOCK)):
         provisioned = _read_pio_stamp_python(stamp_file)
         if provisioned == current:
             return

@@ -1125,20 +1125,41 @@ def _pio_layout(core_dir: Path) -> dict[str, Path]:
     }
 
 
-def _make_pio_config(core_dir: Path) -> MagicMock:
-    """A ProjectConfig stand-in resolving platformio dir options under *core_dir*."""
-    layout = _pio_layout(core_dir)
+def _split_pio_layout(tmp_path: Path) -> dict[str, Path]:
+    """Container-shape layout: caches on a persistent root, core_dir ephemeral."""
+    persistent = tmp_path / "data" / "platformio"
+    return {
+        "core_dir": tmp_path / "root" / ".platformio",
+        "platforms_dir": persistent / "platforms",
+        "packages_dir": persistent / "packages",
+        "cache_dir": persistent / "cache",
+    }
+
+
+def _seed_layout(layout: dict[str, Path]) -> None:
+    """Populate each cache dir (and the core penv) with a marker file."""
+    for key in ("platforms_dir", "packages_dir", "cache_dir"):
+        layout[key].mkdir(parents=True, exist_ok=True)
+        (layout[key] / "marker").write_text("x", encoding="utf-8")
+    penv = layout["core_dir"] / "penv"
+    penv.mkdir(parents=True, exist_ok=True)
+    (penv / "marker").write_text("x", encoding="utf-8")
+
+
+def _make_pio_config(layout: dict[str, Path] | Path) -> MagicMock:
+    """A ProjectConfig stand-in resolving platformio dir options from *layout*."""
+    resolved = _pio_layout(layout) if isinstance(layout, Path) else layout
     config = MagicMock()
     config.get.side_effect = lambda section, option: (
-        str(layout[option]) if section == "platformio" else ""
+        str(resolved[option]) if section == "platformio" else ""
     )
     return config
 
 
 @contextmanager
-def _use_pio_config(core_dir: Path) -> Generator[MagicMock, None, None]:
-    """Point ``get_platformio_config`` at a temp *core_dir* for the block."""
-    config = _make_pio_config(core_dir)
+def _use_pio_config(layout: dict[str, Path] | Path) -> Generator[MagicMock, None, None]:
+    """Point ``get_platformio_config`` at a temp layout for the block."""
+    config = _make_pio_config(layout)
     with patch.object(toolchain, "get_platformio_config", return_value=config):
         yield config
 
@@ -1348,6 +1369,59 @@ def test_heal_is_idempotent_across_runs(pio_core_dir: Path) -> None:
         (repop / "marker").write_text("x", encoding="utf-8")
         toolchain.heal_platformio_python_env()
     assert (pio_core_dir / "packages" / "marker").exists()
+
+
+def test_pio_stamp_dir_is_platforms_parent(tmp_path: Path) -> None:
+    """The stamp home is the parent of platforms_dir, not core_dir."""
+    layout = _split_pio_layout(tmp_path)
+    config = _make_pio_config(layout)
+    assert toolchain._pio_stamp_dir(config) == layout["platforms_dir"].parent
+    nested = _make_pio_config(tmp_path / "pio")
+    assert toolchain._pio_stamp_dir(nested) == tmp_path / "pio"
+
+
+def test_heal_container_layout_stamps_persistent_root(tmp_path: Path) -> None:
+    """Container shape: the stamp lands on the persistent cache root."""
+    layout = _split_pio_layout(tmp_path)
+    with _use_pio_config(layout):
+        toolchain.heal_platformio_python_env()
+    persistent = layout["platforms_dir"].parent
+    assert _stamp_version(persistent) == _CURRENT_MINOR
+    assert not (layout["core_dir"] / toolchain._PIO_PYTHON_STAMP_FILE).exists()
+
+
+def test_heal_container_layout_stale_stamp_wipes_persistent_cache(
+    tmp_path: Path,
+) -> None:
+    """Container shape: a stale stamp wipes the relocated persistent caches."""
+    layout = _split_pio_layout(tmp_path)
+    _seed_layout(layout)
+    persistent = layout["platforms_dir"].parent
+    toolchain._write_pio_stamp_python(
+        persistent / toolchain._PIO_PYTHON_STAMP_FILE, "3.12"
+    )
+    with _use_pio_config(layout):
+        toolchain.heal_platformio_python_env()
+    for key in ("platforms_dir", "packages_dir", "cache_dir"):
+        assert not layout[key].exists()
+    assert not (layout["core_dir"] / "penv").exists()
+    assert _stamp_version(persistent) == _CURRENT_MINOR
+
+
+def test_heal_container_layout_survives_core_dir_wipe(tmp_path: Path) -> None:
+    """A python change is still detected after an image update wiped core_dir."""
+    layout = _split_pio_layout(tmp_path)
+    _seed_layout(layout)
+    shutil.rmtree(layout["core_dir"])
+    persistent = layout["platforms_dir"].parent
+    toolchain._write_pio_stamp_python(
+        persistent / toolchain._PIO_PYTHON_STAMP_FILE, "3.12"
+    )
+    with _use_pio_config(layout):
+        toolchain.heal_platformio_python_env()
+    for key in ("platforms_dir", "packages_dir", "cache_dir"):
+        assert not layout[key].exists()
+    assert _stamp_version(persistent) == _CURRENT_MINOR
 
 
 def test_get_platformio_config_returns_project_config() -> None:
