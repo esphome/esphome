@@ -119,8 +119,6 @@ void ControlData::set_fan_mode(ClimateFanMode mode) {
       this->set_fan_from_odd_(0x40, 0x60);
       break;
     case ClimateFanMode::CLIMATE_FAN_HIGH:
-      this->set_fan_from_odd_(0x40, 0xC0);
-      break;
     default:
       this->set_fan_from_odd_(0x40, 0xC0);
       break;

@@ -15,11 +15,11 @@ static const int32_t BIT_ZERO_SPACE_US = 312;
 static const int32_t FOOTER_MARK_US = 520;
 static const int32_t FOOTER_SPACE_US = 10010;
 
-static void encode_bit_(RemoteTransmitData *dst, bool bit) {
+static void encode_bit(RemoteTransmitData *dst, bool bit) {
   dst->item(BIT_PULSE_US, bit ? BIT_ONE_SPACE_US : BIT_ZERO_SPACE_US);
 }
 
-static bool decode_bit_(RemoteReceiveData &src, bool *bit) {
+static bool decode_bit(RemoteReceiveData &src, bool *bit) {
   if (!src.is_valid(1))
     return false;
   int32_t mark = src.peek(0);
@@ -40,19 +40,19 @@ void PDPioneerProtocol::encode(RemoteTransmitData *dst, const PDPioneerData &src
 
   for (uint8_t idx = 0; idx < PDPioneerData::FRAME_SIZE; idx++) {
     for (uint8_t mask = 1; mask; mask <<= 1)
-      encode_bit_(dst, (src[idx] & mask) != 0);
+      encode_bit(dst, (src[idx] & mask) != 0);
   }
 
   dst->item(FOOTER_MARK_US, FOOTER_SPACE_US);
 }
 
-static bool decode_frame_(RemoteReceiveData &src, PDPioneerData &dst) {
+static bool decode_frame(RemoteReceiveData &src, PDPioneerData &dst) {
   bool bit;
 
   for (uint8_t idx = 0; idx < PDPioneerData::FRAME_SIZE; idx++) {
     uint8_t data = 0;
     for (uint8_t mask = 1; mask; mask <<= 1) {
-      if (!decode_bit_(src, &bit))
+      if (!decode_bit(src, &bit))
         return false;
       if (bit)
         data |= mask;
@@ -69,7 +69,7 @@ optional<PDPioneerData> PDPioneerProtocol::decode(RemoteReceiveData src) {
   if (!src.expect_item(HEADER_MARK_US, HEADER_SPACE_US))
     return {};
 
-  if (!decode_frame_(src, out))
+  if (!decode_frame(src, out))
     return {};
 
   if (!src.peek_mark_at_least(FOOTER_MARK_US))
