@@ -10,7 +10,6 @@ ESP-IDF platform/framework compatibility defaults.
 import logging
 import os
 from pathlib import Path
-import shlex
 
 from esphome.core import CORE, Library
 from esphome.helpers import write_file_if_changed
@@ -84,6 +83,10 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     Returns:
         str: The complete CMakeLists.txt content as a string
     """
+    # Late import: this module loads with the esp32 platform on every
+    # validate/compile, but shlex is only needed when generating component
+    # CMakeLists.
+    import shlex
 
     def escape_entry(p: PathType) -> str:
         # In CMakeLists.txt, backslashes need to be escaped
