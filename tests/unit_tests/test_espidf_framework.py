@@ -317,7 +317,7 @@ def espidf_mocks(setup_core: Path):
     # extracted-marker touch writes into.
     _get_framework_path(_IDF_VERSION).mkdir(parents=True, exist_ok=True)
     with (
-        patch("esphome.espidf.framework.rmdir"),
+        patch("esphome.espidf.framework.rmdir") as rmdir_mock,
         patch(
             "esphome.espidf.framework.download_from_mirrors",
             return_value="https://example.com/idf.tar.xz",
@@ -344,6 +344,7 @@ def espidf_mocks(setup_core: Path):
             run_ok=run_ok,
             tool_paths=tool_paths,
             clone=clone,
+            rmdir=rmdir_mock,
         )
 
 
@@ -358,6 +359,27 @@ def test_check_esp_idf_install_fresh(espidf_mocks: SimpleNamespace) -> None:
     espidf_mocks.extract.assert_called_once()
     espidf_mocks.venv.assert_called_once()
     espidf_mocks.clone.assert_not_called()
+    # the tool download cache (<IDF_TOOLS_PATH>/dist) is pruned after install
+    espidf_mocks.rmdir.assert_any_call(
+        get_idf_tools_path() / "dist", msg="Remove ESP-IDF tool download cache"
+    )
+
+
+def test_check_esp_idf_install_dist_prune_failure_ignored(
+    espidf_mocks: SimpleNamespace,
+) -> None:
+    """A failure to prune the tool download cache must not fail the install."""
+    tools_dist = get_idf_tools_path() / "dist"
+
+    def rmdir_side_effect(directory: Path, msg: str | None = None) -> None:
+        if directory == tools_dist:
+            raise RuntimeError("cannot remove dist")
+
+    espidf_mocks.rmdir.side_effect = rmdir_side_effect
+
+    # install still succeeds despite the failed prune
+    framework_path, _ = check_esp_idf_install(_IDF_VERSION, force=True)
+    assert framework_path == _get_framework_path(_IDF_VERSION)
 
 
 def test_check_esp_idf_install_git_source(espidf_mocks: SimpleNamespace) -> None:
@@ -476,6 +498,34 @@ def test_check_esp_idf_install_python_stamp_mismatch_rebuilds_venv(
 
     espidf_mocks.extract.assert_not_called()
     espidf_mocks.venv.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    ("lib", "expect_hint"),
+    [
+        (None, True),
+        ("libusb-1.0.so.0", False),
+    ],
+)
+def test_check_esp_idf_install_failure_libusb_hint(
+    espidf_mocks: SimpleNamespace,
+    caplog: pytest.LogCaptureFixture,
+    lib: str | None,
+    expect_hint: bool,
+) -> None:
+    """A failed tools install only shows the libusb hint when libusb-1.0 is
+    actually missing."""
+    espidf_mocks.run_ok.return_value = False
+    # Fake Linux so the gate is exercised on all CI hosts; faking Linux is safe
+    # everywhere (unlike faking Windows, which pulls in winreg on other hosts)
+    with (
+        patch("esphome.espidf.framework.find_library", return_value=lib),
+        patch("esphome.espidf.framework.platform.system", return_value="Linux"),
+        caplog.at_level(logging.ERROR, logger="esphome.espidf.framework"),
+        pytest.raises(RuntimeError, match="framework installation failure"),
+    ):
+        check_esp_idf_install(_IDF_VERSION, force=True)
+    assert ("libusb-1.0.so.0 was not found" in caplog.text) == expect_hint
 
 
 def test_check_esp_idf_install_unparseable_version(
