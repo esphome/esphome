@@ -6328,6 +6328,23 @@ def test_parse_args_logs_states() -> None:
     assert args.states is True
 
 
+def test_parse_args_argcomplete_only_runs_when_completing() -> None:
+    """Only import and invoke argcomplete when _ARGCOMPLETE is set.
+
+    The shell-completion machinery sets _ARGCOMPLETE when it invokes the
+    CLI; a normal invocation must skip the import entirely so every
+    esphome subprocess (e.g. parallel dashboard uploads) avoids paying
+    for it.
+    """
+    fake_argcomplete = MagicMock()
+    with (
+        patch.dict(os.environ, {"_ARGCOMPLETE": "1"}),
+        patch.dict(sys.modules, {"argcomplete": fake_argcomplete}),
+    ):
+        parse_args(["esphome", "version"])
+    fake_argcomplete.autocomplete.assert_called_once()
+
+
 def test_should_subscribe_states_default() -> None:
     """Test that states are shown by default when nothing is set."""
     from esphome.__main__ import _should_subscribe_states
