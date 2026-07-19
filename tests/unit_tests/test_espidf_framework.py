@@ -661,6 +661,19 @@ def test_demote_openocd_patches_install_type(tmp_path: Path) -> None:
     assert cmake["install"] == "always"
 
 
+def test_patch_tools_json_unexpected_structure_warns_and_skips(
+    tmp_path: Path,
+) -> None:
+    """Valid JSON with an unexpected shape must skip the patch, not raise."""
+    tools_dir = tmp_path / "tools"
+    tools_dir.mkdir()
+    tools_json = tools_dir / "tools.json"
+    tools_json.write_text('["not", "a", "dict"]', encoding="utf-8")
+    before = tools_json.read_text(encoding="utf-8")
+    _patch_tools_json_demote_openocd(tmp_path)  # AttributeError -> skip
+    assert tools_json.read_text(encoding="utf-8") == before
+
+
 def test_demote_openocd_already_patched_is_noop(tmp_path: Path) -> None:
     tools_json = _write_tools_json(
         tmp_path, {"tools": [{"name": "openocd-esp32", "install": "on_request"}]}

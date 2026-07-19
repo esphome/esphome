@@ -490,16 +490,21 @@ def _patch_tools_json(
     try:
         with tools_json.open(encoding="utf-8") as f:
             data = json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
+        # apply_patch also raises inside the guard: a tools.json that is
+        # valid JSON but not the expected shape (e.g. a top-level list)
+        # must skip the patch, not crash the install check this patch is
+        # meant to recover.
+        changed = apply_patch(data)
+    except (json.JSONDecodeError, OSError, AttributeError, TypeError, KeyError) as e:
         _LOGGER.warning(
-            "Could not parse %s (%s); skipping tools.json patch. A clean "
+            "Could not apply tools.json patch to %s (%s); skipping. A clean "
             "reinstall of the framework directory may be needed.",
             tools_json,
             e,
         )
         return
 
-    if apply_patch(data):
+    if changed:
         # write_file_if_changed stages a tempfile in the destination dir
         # and atomically replaces — safe against mid-write interruption
         # and concurrent invocations.
