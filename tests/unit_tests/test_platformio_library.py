@@ -212,6 +212,48 @@ def test_convert_libraries_handles_unparsable_dependency_version(tmp_path, monke
     assert [d.name for d in top[0].dependencies] == ["C"]
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (None, None),
+        ("", None),
+        ("http://[::1", None),  # malformed IPv6 makes urlsplit raise ValueError
+        ("foo/bar", None),
+        ("file:///no/host", None),
+        ("https://github.com/x/y", "https://github.com/x/y"),
+    ],
+)
+def test_url_or_none(value: str | None, expected: str | None) -> None:
+    assert lib._url_or_none(value) == expected
+
+
+def test_convert_libraries_url_in_name_resolves_as_git(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # add_library("https://github.com/x/y", None) puts a git URL in the name
+    # position; it must resolve as a git source and never hit the registry.
+    _patch_download_with_manifests(
+        monkeypatch, tmp_path, {"pstolarz/OneWireNg": {"name": "OneWireNg"}}
+    )
+
+    def fail_registry(owner: str, pkgname: str, requirements: set[str]) -> None:
+        raise AssertionError(f"registry consulted for {owner}/{pkgname}")
+
+    # After the helper so this stub wins over the helper's benign one
+    monkeypatch.setattr(lib, "_resolve_registry_version", fail_registry)
+
+    top = convert_libraries(
+        [Library("https://github.com/pstolarz/OneWireNg", None, None)], _backend()
+    )
+
+    assert [c.name for c in top] == ["pstolarz/OneWireNg"]
+    assert top[0].data["name"] == "OneWireNg"
+    source = top[0].source
+    assert isinstance(source, GitSource)
+    assert source.url == "https://github.com/pstolarz/OneWireNg"
+    assert source.ref is None
+
+
 def test_convert_libraries_skips_incompatible_dependency(tmp_path, monkeypatch):
     # A dependency that declares an incompatible platform is skipped (the
     # top-level library still builds).
