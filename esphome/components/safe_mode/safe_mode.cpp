@@ -278,12 +278,13 @@ void SafeModeComponent::clean_rtc() {
 void SafeModeComponent::on_safe_shutdown() {
   if (this->read_rtc_() != SafeModeComponent::ENTER_SAFE_MODE_MAGIC)
     this->clean_rtc();
-#ifdef USE_OTA_ROLLBACK
+#if defined(USE_OTA_ROLLBACK) && defined(USE_SAFE_MODE_BOOT_IS_GOOD_ON_SHUTDOWN)
   // An orderly shutdown (deep sleep, restart, power off) means the firmware is
   // functional, so confirm the running app image even if boot_is_good_after has
   // not elapsed yet. Without this, a device that enters deep sleep shortly
   // after waking would have every OTA update rolled back by the bootloader on
-  // the next wake.
+  // the next wake. Can be turned off with boot_is_good_on_shutdown: false for
+  // strict rollback semantics.
   this->confirm_app_image_();
 #endif
 }
