@@ -66,11 +66,9 @@ void BQ27220Component::update() {
   }
 
   if (this->time_to_empty_sensor_ != nullptr) {
-    if (this->read_word_(BQ27220_REG_TIME_TO_EMPTY, raw)) {
-      // 0xFFFF means not discharging / N/A
-      if (raw != 0xFFFF)
-        this->time_to_empty_sensor_->publish_state(raw);
-    }
+    if (this->read_word_(BQ27220_REG_TIME_TO_EMPTY, raw))
+      // 0xFFFF means not discharging / N/A; publish NAN so the sensor shows Unknown
+      this->time_to_empty_sensor_->publish_state(raw == 0xFFFF ? NAN : static_cast<float>(raw));
   }
 
   if (this->state_of_health_sensor_ != nullptr) {

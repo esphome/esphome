@@ -13,23 +13,14 @@ namespace bq27220 {
 // BQ27220 Standard Command registers (16-bit, little-endian)
 // Source: BQ27220 Technical Reference Manual (SLUUBD4A)
 static const uint8_t BQ27220_REG_CONTROL = 0x00;
-static const uint8_t BQ27220_REG_TEMPERATURE = 0x06;  // 0.1 K units
-static const uint8_t BQ27220_REG_VOLTAGE = 0x08;      // mV
-static const uint8_t BQ27220_REG_BATTERY_STATUS = 0x0A;
+static const uint8_t BQ27220_REG_TEMPERATURE = 0x06;           // 0.1 K units
+static const uint8_t BQ27220_REG_VOLTAGE = 0x08;               // mV
 static const uint8_t BQ27220_REG_CURRENT = 0x0C;               // mA (signed, instantaneous)
 static const uint8_t BQ27220_REG_REMAINING_CAPACITY = 0x10;    // mAh
 static const uint8_t BQ27220_REG_FULL_CHARGE_CAPACITY = 0x12;  // mAh
 static const uint8_t BQ27220_REG_TIME_TO_EMPTY = 0x16;         // min (0xFFFF = N/A)
 static const uint8_t BQ27220_REG_STATE_OF_CHARGE = 0x2C;       // %
 static const uint8_t BQ27220_REG_STATE_OF_HEALTH = 0x2E;       // %
-
-// Control subcommands
-static const uint16_t BQ27220_CTRL_DEVICE_TYPE = 0x0001;
-
-// BatteryStatus register bits
-static const uint16_t BQ27220_FLAG_DSG = (1 << 0);   // Discharging
-static const uint16_t BQ27220_FLAG_FC = (1 << 9);    // Full charge
-static const uint16_t BQ27220_FLAG_OTC = (1 << 15);  // Over-temp during charge
 
 class BQ27220Component final : public PollingComponent, public i2c::I2CDevice {
  public:

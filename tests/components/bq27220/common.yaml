@@ -1,5 +1,6 @@
 bq27220:
   id: bq27220_id
+  i2c_id: i2c_bus
   address: 0x55
   update_interval: 60s
   voltage:
