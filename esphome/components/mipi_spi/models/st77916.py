@@ -9,9 +9,9 @@ from esphome.const import CONF_INVERTED, CONF_NUMBER
 
 # Init sequence for the ST77916 QSPI display on the ESP-VoCat v1.2 board.
 # Source: disp_init_data.h from espressif/esp-bsp (bsp/esp_vocat/priv_include).
-# The final three commands (INVON, SLPOUT, NOP+delay) are omitted because
-# the mipi_spi framework appends them automatically from the invert_colors and
-# no_slpout settings.
+# The standard INVON/INVOFF and SLPOUT+DISPON commands (and required delays) are omitted because
+# the mipi_spi framework appends them automatically based on the invert_colors and no_slpout settings.
+# (So this sequence only contains panel-specific setup commands.)
 _ESP_VOCAT_INIT = (
     # Page 1a — startup unlock
     (0xF0, 0x28),
