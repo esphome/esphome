@@ -49,6 +49,10 @@ STAMP_SCHEMA_VERSION = "0"
 ESPHOME_IDF_DEFAULT_TARGETS = str_to_lst_of_str(
     os.environ.get("ESPHOME_IDF_DEFAULT_TARGETS", "all")
 )
+# An explicitly set ESPHOME_IDF_DEFAULT_TARGETS overrides the per-variant
+# targets a caller requests, so a builder image can still pre-warm every
+# target with one env var.
+_IDF_DEFAULT_TARGETS_EXPLICIT = bool(os.environ.get("ESPHOME_IDF_DEFAULT_TARGETS"))
 
 ESPHOME_IDF_DEFAULT_TOOLS = str_to_lst_of_str(
     os.environ.get("ESPHOME_IDF_DEFAULT_TOOLS", "cmake;ninja")
@@ -199,6 +203,16 @@ def _get_python_env_path(version: str) -> Path:
     return get_idf_tools_path() / "penvs" / f"{version}"
 
 
+def _read_stamp(file: PathType) -> dict | None:
+    """Return a stamp file's dict contents, or None if missing or invalid."""
+    try:
+        with Path(file).open(encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
 def _check_stamp(file: PathType, data: dict[str, str]) -> bool:
     """
     Check if a stamp file contains the expected data.
@@ -210,14 +224,28 @@ def _check_stamp(file: PathType, data: dict[str, str]) -> bool:
     Returns:
         True if file exists and contains expected data, False otherwise
     """
-    if not Path(file).is_file():
-        return False
+    return _read_stamp(file) == data
 
-    try:
-        with Path(file).open(encoding="utf-8") as f:
-            return json.load(f) == data
-    except (json.JSONDecodeError, OSError):
+
+def _stamp_covers(stored: dict | None, requested: dict) -> bool:
+    """Return True if a stored framework stamp already covers this request.
+
+    ``schema_version`` and ``tools`` must match exactly. ``targets`` may be a
+    superset of the requested ones: ``idf_tools.py install`` accumulates
+    targets in idf-env.json across runs, so a framework installed for more
+    targets than this build needs is still valid. A stored ``all`` covers
+    every target.
+    """
+    if stored is None:
         return False
+    if stored.get("schema_version") != requested["schema_version"]:
+        return False
+    if stored.get("tools") != requested["tools"]:
+        return False
+    stored_targets = stored.get("targets")
+    if not isinstance(stored_targets, list):
+        return False
+    return "all" in stored_targets or set(requested["targets"]) <= set(stored_targets)
 
 
 def _write_stamp(file: PathType, data: dict[str, str]):
@@ -695,7 +723,9 @@ def _check_esphome_idf_framework_install(
             the URL.
 
     Returns:
-        tuple of (framework_path, install_flag)
+        tuple of (framework_path, fresh_extract_flag). The flag is True only
+        when the framework tree was downloaded and extracted this run, not
+        when tools were installed into an existing tree.
     """
 
     # Sanitize inputs
@@ -728,8 +758,8 @@ def _check_esphome_idf_framework_install(
     # avoids post-extraction renames that race with antivirus on Windows.
     # Tool install state is tracked separately by the stamp file in step 3,
     # so we only re-extract when extraction itself is missing or incomplete.
-    install = force or not extracted_marker.is_file()
-    if install:
+    fresh_extract = force or not extracted_marker.is_file()
+    if fresh_extract:
         rmdir(framework_path, msg=f"Clean up ESP-IDF {version} framework")
 
         git_source = _parse_git_source(source_url) if source_url else None
@@ -800,9 +830,11 @@ def _check_esphome_idf_framework_install(
     _patch_tools_json_demote_unused_tools(framework_path)
 
     # 3. Check if the framework tools are the same and correctly installed
+    stored_stamp = None if fresh_extract else _read_stamp(env_stamp_file)
+    install = fresh_extract
     if not install:
         install = True
-        if _check_stamp(env_stamp_file, stamp_info):
+        if _stamp_covers(stored_stamp, stamp_info):
             _LOGGER.info("Checking ESP-IDF %s framework installation ...", version)
             # Validate via the managed tool-path resolution, not ``idf_tools.py check``:
             # ``check`` probes tools on the system PATH and aborts if any fail to run (e.g. a
@@ -853,9 +885,17 @@ def _check_esphome_idf_framework_install(
         except RuntimeError as err:
             _LOGGER.debug("Could not remove ESP-IDF tool download cache: %s", err)
 
+        # Record the union of every target installed so far, not just this
+        # build's. idf_tools.py accumulates targets in idf-env.json and the
+        # ``required`` metapackage installs tools for all of them, so the
+        # union is what is actually on disk — and it keeps two variants
+        # alternating between builds from re-running the installer each time.
+        if stored_stamp and isinstance(stored_stamp.get("targets"), list):
+            merged = set(stamp_info["targets"]) | set(stored_stamp["targets"])
+            stamp_info["targets"] = ["all"] if "all" in merged else sorted(merged)
         _write_stamp(env_stamp_file, stamp_info)
 
-    return framework_path, install
+    return framework_path, fresh_extract
 
 
 def _check_esp_idf_python_env_install(
@@ -1001,7 +1041,11 @@ def check_esp_idf_install(
     env["IDF_TOOLS_PATH"] = str(get_idf_tools_path())
     env["IDF_PATH"] = ""
 
-    targets = targets or ESPHOME_IDF_DEFAULT_TARGETS
+    # An explicit ESPHOME_IDF_DEFAULT_TARGETS wins over the caller's
+    # per-variant request (builder-image pre-warm); otherwise the caller's
+    # targets are used, falling back to the default when none were given.
+    if _IDF_DEFAULT_TARGETS_EXPLICIT or not targets:
+        targets = ESPHOME_IDF_DEFAULT_TARGETS
 
     # Determine which tools need to be installed if not provided
     if tools is None:
@@ -1014,15 +1058,18 @@ def check_esp_idf_install(
                 tools.append(tool)
 
     # 1) Framework
-    framework_path, installed = _check_esphome_idf_framework_install(
+    framework_path, fresh_extract = _check_esphome_idf_framework_install(
         version, targets, tools, force=force, env=env, source_url=source_url
     )
 
     features = features or ESPHOME_IDF_DEFAULT_FEATURES
 
-    # 2) Python env
-    python_env_path, installed = _check_esp_idf_python_env_install(
-        version, features, force=force or installed, env=env
+    # 2) Python env. Only a freshly extracted framework forces a rebuild —
+    # the venv depends on the framework version and features, not on which
+    # toolchains are installed, so adding a target to an existing tree must
+    # not wipe it. It still self-validates against its own stamp.
+    python_env_path, _ = _check_esp_idf_python_env_install(
+        version, features, force=force or fresh_extract, env=env
     )
 
     return framework_path, python_env_path

@@ -19,7 +19,10 @@ from unittest.mock import patch
 import pytest
 
 from esphome.espidf.framework import (
+    ESPHOME_STAMP_FILE,
+    STAMP_SCHEMA_VERSION,
     _ccache_env,
+    _check_esphome_idf_framework_install,
     _check_stamp,
     _check_windows_path_length,
     _clone_idf_with_submodules,
@@ -32,6 +35,7 @@ from esphome.espidf.framework import (
     _patch_tools_json_demote_unused_tools,
     _patch_tools_json_for_linux_arm64,
     _prefetch_idf_tool_archives,
+    _stamp_covers,
     _windows_long_paths_enabled,
     _write_idf_version_txt,
     _write_stamp,
@@ -356,6 +360,7 @@ def espidf_mocks(setup_core: Path):
         patch("esphome.espidf.framework._prefetch_idf_tool_archives"),
         patch("esphome.espidf.framework._write_stamp"),
         patch("esphome.espidf.framework._check_stamp", return_value=True),
+        patch("esphome.espidf.framework._stamp_covers", return_value=True),
         patch("esphome.espidf.framework._get_idf_version", return_value=_IDF_VERSION),
         patch("esphome.espidf.framework._get_python_version", return_value="3.11.0"),
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
@@ -485,13 +490,17 @@ def _mark_installed() -> None:
 def test_check_esp_idf_install_stamp_mismatch_reinstalls(
     espidf_mocks: SimpleNamespace,
 ) -> None:
-    """A stamp mismatch reinstalls tools (marker present, so no re-extract)."""
+    """A stamp mismatch reinstalls tools (marker present, so no re-extract).
+
+    The python env is left alone: it depends on the framework version and
+    features, not on which toolchains are installed.
+    """
     _mark_installed()
-    with patch("esphome.espidf.framework._check_stamp", return_value=False):
+    with patch("esphome.espidf.framework._stamp_covers", return_value=False):
         check_esp_idf_install(_IDF_VERSION)
 
     espidf_mocks.extract.assert_not_called()  # marker present -> no re-extract
-    espidf_mocks.venv.assert_called_once()  # tools reinstall -> venv rebuilt
+    espidf_mocks.venv.assert_not_called()  # tools-only install -> venv kept
 
 
 def test_check_esp_idf_install_check_command_failure_reinstalls(
@@ -504,7 +513,7 @@ def test_check_esp_idf_install_check_command_failure_reinstalls(
     check_esp_idf_install(_IDF_VERSION, features=["fb"])
 
     espidf_mocks.extract.assert_not_called()
-    espidf_mocks.venv.assert_called_once()
+    espidf_mocks.venv.assert_not_called()  # tools-only install -> venv kept
 
 
 def test_check_esp_idf_install_unknown_python_version_reinstalls(
@@ -524,8 +533,8 @@ def test_check_esp_idf_install_python_stamp_mismatch_rebuilds_venv(
 ) -> None:
     """Framework stamp matches but the python-env stamp does not -> venv rebuilt."""
 
-    # _check_stamp passes for the framework (no python_version key) and fails
-    # for the python env (carries python_version), so only the venv rebuilds.
+    # _check_stamp only guards the python env now (the framework uses
+    # _stamp_covers, patched True by the fixture); failing it rebuilds the venv.
     def stamp_ok(_stamp_file, info: dict) -> bool:
         return "python_version" not in info
 
@@ -535,6 +544,129 @@ def test_check_esp_idf_install_python_stamp_mismatch_rebuilds_venv(
 
     espidf_mocks.extract.assert_not_called()
     espidf_mocks.venv.assert_called_once()
+
+
+def _requested_stamp(targets: list[str], tools: list[str] | None = None) -> dict:
+    return {
+        "schema_version": STAMP_SCHEMA_VERSION,
+        "targets": targets,
+        "tools": tools or ["required"],
+    }
+
+
+@pytest.mark.parametrize(
+    ("stored", "targets", "expected"),
+    [
+        # a stored "all" covers any target
+        (_requested_stamp(["all"]), ["esp32"], True),
+        # exact match and superset both cover
+        (_requested_stamp(["esp32"]), ["esp32"], True),
+        (_requested_stamp(["esp32", "esp32c3"]), ["esp32"], True),
+        # a new target is not covered
+        (_requested_stamp(["esp32"]), ["esp32c3"], False),
+        # tools and schema_version must match exactly
+        (_requested_stamp(["all"], tools=["cmake", "required"]), ["esp32"], False),
+        (_requested_stamp(["all"]) | {"schema_version": "no"}, ["esp32"], False),
+        # missing/corrupt stamps never cover
+        (None, ["esp32"], False),
+        (
+            {"schema_version": STAMP_SCHEMA_VERSION, "tools": ["required"]},
+            ["esp32"],
+            False,
+        ),
+    ],
+)
+def test_stamp_covers(stored: dict | None, targets: list[str], expected: bool) -> None:
+    assert _stamp_covers(stored, _requested_stamp(targets)) is expected
+
+
+@contextmanager
+def _framework_install_patches():
+    """Patches for calling _check_esphome_idf_framework_install directly with
+    real stamp files (unlike espidf_mocks, which stubs the stamp layer)."""
+    with (
+        patch("esphome.espidf.framework.run_command_ok", return_value=True) as run_ok,
+        patch("esphome.espidf.framework._get_idf_tool_paths", return_value=([], {})),
+        patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
+        patch("esphome.espidf.framework.rmdir"),
+    ):
+        yield run_ok
+
+
+def _extracted_framework_with_stamp(stamp: dict) -> Path:
+    framework_path = _get_framework_path(_IDF_VERSION)
+    framework_path.mkdir(parents=True, exist_ok=True)
+    (framework_path / ".esphome_extracted").touch()
+    _write_stamp(framework_path / ESPHOME_STAMP_FILE, stamp)
+    return framework_path
+
+
+def test_framework_install_target_subset_skips_install() -> None:
+    """A stamp holding a superset of the requested targets skips the installer."""
+    framework_path = _extracted_framework_with_stamp(_requested_stamp(["all"]))
+
+    with _framework_install_patches() as run_ok:
+        _, fresh_extract = _check_esphome_idf_framework_install(
+            _IDF_VERSION, ["esp32"], ["required"]
+        )
+
+    run_ok.assert_not_called()
+    assert fresh_extract is False
+    # the stamp is untouched
+    stamp = json.loads((framework_path / ESPHOME_STAMP_FILE).read_text())
+    assert stamp["targets"] == ["all"]
+
+
+def test_framework_install_new_target_installs_and_merges_stamp() -> None:
+    """A new target runs the installer for just that target and the stamp
+    records the union of everything installed so far."""
+    framework_path = _extracted_framework_with_stamp(_requested_stamp(["esp32"]))
+
+    with _framework_install_patches() as run_ok:
+        _, fresh_extract = _check_esphome_idf_framework_install(
+            _IDF_VERSION, ["esp32c3"], ["required"]
+        )
+
+    assert fresh_extract is False
+    assert "--targets=esp32c3" in run_ok.call_args[0][0]
+    stamp = json.loads((framework_path / ESPHOME_STAMP_FILE).read_text())
+    assert stamp["targets"] == ["esp32", "esp32c3"]
+
+
+def test_check_esp_idf_install_env_targets_override_wins(
+    espidf_mocks: SimpleNamespace,
+) -> None:
+    """An explicitly set ESPHOME_IDF_DEFAULT_TARGETS overrides per-variant targets."""
+    with patch("esphome.espidf.framework._IDF_DEFAULT_TARGETS_EXPLICIT", True):
+        check_esp_idf_install(_IDF_VERSION, force=True, targets=["esp32"])
+
+    install_cmd = espidf_mocks.run_ok.call_args_list[0][0][0]
+    assert "--targets=all" in install_cmd
+
+
+def test_check_esp_idf_install_uses_requested_targets(
+    espidf_mocks: SimpleNamespace,
+) -> None:
+    """Without the env override, the caller's per-variant targets are installed."""
+    check_esp_idf_install(_IDF_VERSION, force=True, targets=["esp32"])
+
+    install_cmd = espidf_mocks.run_ok.call_args_list[0][0][0]
+    assert "--targets=esp32" in install_cmd
+
+
+def test_framework_install_merge_with_all_stays_all() -> None:
+    """Merging into a stamp that already holds "all" collapses back to "all"
+    (here the tools list changed, so the installer re-runs despite "all")."""
+    framework_path = _extracted_framework_with_stamp(
+        _requested_stamp(["all"], tools=["cmake", "required"])
+    )
+
+    with _framework_install_patches() as run_ok:
+        _check_esphome_idf_framework_install(_IDF_VERSION, ["esp32"], ["required"])
+
+    run_ok.assert_called_once()
+    stamp = json.loads((framework_path / ESPHOME_STAMP_FILE).read_text())
+    assert stamp["targets"] == ["all"]
 
 
 @pytest.mark.parametrize(

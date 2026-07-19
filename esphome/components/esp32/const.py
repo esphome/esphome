@@ -63,4 +63,10 @@ VARIANT_FRIENDLY = {
     VARIANT_ESP32S31: "ESP32-S31",
 }
 
+
+def variant_to_idf_target(variant: str) -> str:
+    """Map an esp32 variant name (e.g. "ESP32S3") to its ESP-IDF target name."""
+    return variant.lower().replace("-", "")
+
+
 esp32_ns = cg.esphome_ns.namespace("esp32")
