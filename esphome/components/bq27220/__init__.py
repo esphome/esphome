@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BATTERY_LEVEL,
     CONF_CURRENT,
     CONF_ID,
     CONF_TEMPERATURE,
@@ -28,7 +29,6 @@ BQ27220Component = bq27220_ns.class_(
     "BQ27220Component", cg.PollingComponent, i2c.I2CDevice
 )
 
-CONF_BATTERY_LEVEL = "battery_level"
 CONF_REMAINING_CAPACITY = "remaining_capacity"
 CONF_FULL_CHARGE_CAPACITY = "full_charge_capacity"
 CONF_TIME_TO_EMPTY = "time_to_empty"
