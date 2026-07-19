@@ -10,7 +10,7 @@ import time
 import urllib.parse
 
 import esphome.config_validation as cv
-from esphome.core import CORE, TimePeriodSeconds
+from esphome.core import CORE, EsphomeError, TimePeriodSeconds
 from esphome.helpers import rmtree, write_file
 
 _LOGGER = logging.getLogger(__name__)
@@ -267,18 +267,26 @@ def clone_or_update(
                     git_dir=repo_dir,
                 )
 
-            # Every step succeeded; the key and hash dir name are recorded
-            # purely to make cache debugging easier.
-            write_file(
-                _clone_complete_marker_path(repo_dir),
-                f"key={key}\nhash={hash_dir_name}\n",
-            )
         except GitException:
             # Remove incomplete clone to prevent stale state. Without this,
             # a failed ref fetch leaves a clone on the default branch, and
             # subsequent calls skip the update due to the refresh window.
             _remove_repo_dir(repo_dir)
             raise
+
+        # Every git step succeeded; the key and hash dir name are recorded
+        # purely to make cache debugging easier. The marker is only a
+        # validity signal, so a failed write must not fail an otherwise
+        # complete clone: the only cost is a re-clone on the next run.
+        try:
+            write_file(
+                _clone_complete_marker_path(repo_dir),
+                f"key={key}\nhash={hash_dir_name}\n",
+            )
+        except EsphomeError as err:
+            _LOGGER.warning(
+                "Could not write clone completion marker for %s: %s", key, err
+            )
 
     else:
         if refresh == NEVER_REFRESH or CORE.skip_external_update:
@@ -355,6 +363,7 @@ def clone_or_update(
                     username=username,
                     password=password,
                     submodules=submodules,
+                    subpath=subpath,
                     _recover_broken=False,
                 )
                 _LOGGER.info("Repository %s successfully recovered", key)

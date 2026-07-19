@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from esphome import git
-from esphome.core import CORE, TimePeriodSeconds
+from esphome.core import CORE, EsphomeError, TimePeriodSeconds
 from esphome.git import GitCommandError
 
 
@@ -972,6 +972,96 @@ def test_marker_is_deleted_before_rmtree(
     # rmtree never deleted anything, yet the marker is gone
     assert repo_dir.is_dir()
     assert not _marker_path(repo_dir).is_file()
+
+
+def test_failed_marker_write_does_not_fail_the_clone(
+    tmp_path: Path,
+    mock_run_git_command: Mock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A marker write failure must not fail an otherwise complete clone.
+
+    The clone is valid; the missing marker only costs a re-clone on the next
+    run, so the error is logged as a warning instead of propagating.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
+
+    with patch(
+        "esphome.git.write_file", side_effect=EsphomeError("Could not write file")
+    ):
+        result_dir, _ = git.clone_or_update(
+            url=url, ref=None, refresh=git.NEVER_REFRESH, domain=domain
+        )
+
+    assert result_dir == repo_dir
+    assert not _marker_path(repo_dir).is_file()
+    assert "Could not write clone completion marker" in caplog.text
+
+
+def test_clone_or_update_recovery_preserves_subpath(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Recovery must re-clone into the same subpath-ed directory.
+
+    Without passing subpath through, the recursive recovery call would
+    recompute the destination without the subpath and clone (and write the
+    completion marker) at the wrong location.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = "main"
+    domain = "test"
+    subpath = Path("mylib")
+    repo_dir = _compute_repo_dir(url, ref, domain) / subpath
+
+    _setup_old_repo(repo_dir)
+
+    call_counts: dict[str, int] = {}
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        cmd_type = _get_git_command_type(cmd)
+        if cmd_type:
+            call_counts[cmd_type] = call_counts.get(cmd_type, 0) + 1
+        # First rev-parse fails (broken repo) to trigger recovery
+        if cmd_type == "rev-parse" and call_counts[cmd_type] == 1:
+            raise GitCommandError(
+                "ambiguous argument 'HEAD': unknown revision or path not in the working tree."
+            )
+        if cmd_type == "clone":
+            # Create whatever directory the clone was asked to target
+            target = Path(cmd[-1])
+            target.mkdir(parents=True, exist_ok=True)
+            (target / ".git").mkdir(exist_ok=True)
+        if cmd_type == "rev-parse":
+            return "abc123"
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    result_dir, _ = git.clone_or_update(
+        url=url,
+        ref=ref,
+        refresh=TimePeriodSeconds(days=1),
+        domain=domain,
+        subpath=subpath,
+    )
+
+    # The recovery re-clone must target the subpath-ed directory and the
+    # completion marker must land there too
+    clone_calls = [c for c in mock_run_git_command.call_args_list if "clone" in c[0][0]]
+    assert len(clone_calls) == 1
+    assert clone_calls[0][0][0][-1] == str(repo_dir)
+    assert result_dir == repo_dir
+    assert _marker_path(repo_dir).is_file()
 
 
 def test_clone_with_ref_uses_shallow_fetch(
