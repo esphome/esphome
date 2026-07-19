@@ -266,7 +266,7 @@ LOCAL_SCHEMA = cv.All(
 # overlap with local paths, http(s) urls, or git shorthands
 # ("github://user/repo/file.json@ref"), which the shorthand validator tries
 # next; anything containing "/", ":" or "@" is not a model name.
-_MODEL_NAME_RE = re.compile(r"^[\w.-]+$")
+_MODEL_NAME_RE = re.compile(r"[A-Za-z0-9_.-]+")
 
 
 def _validate_source_model_name(value):
@@ -276,7 +276,7 @@ def _validate_source_model_name(value):
     if value.endswith(".json"):
         raise cv.Invalid("Model name must not end with .json")
 
-    if not _MODEL_NAME_RE.match(value):
+    if not _MODEL_NAME_RE.fullmatch(value):
         raise cv.Invalid("Model name may only contain letters, numbers, . _ -")
 
     return MODEL_SOURCE_SCHEMA(

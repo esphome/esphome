@@ -65,7 +65,9 @@ def test_shorthand_local_path_not_captured_as_model_name(
     assert Path(config[CONF_PATH]) == manifest
 
 
-@pytest.mark.parametrize("value", ["some/path/file", "name@ref", "bad:name"])
+@pytest.mark.parametrize(
+    "value", ["some/path/file", "name@ref", "bad:name", "okay_nabu\n", "héllo"]
+)
 def test_model_name_rejects_non_identifiers(value: str) -> None:
     with pytest.raises(cv.Invalid):
         mww._validate_source_model_name(value)
