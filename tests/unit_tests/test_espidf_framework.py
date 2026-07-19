@@ -1169,6 +1169,11 @@ def test_demote_unused_tools_already_patched_is_noop(tmp_path: Path) -> None:
                 {"name": "xtensa-esp-elf-gdb", "install": "on_request"},
                 {"name": "riscv32-esp-elf-gdb", "install": "on_request"},
                 {"name": "esp32ulp-elf", "install": "on_request"},
+                {
+                    "name": "riscv32-esp-elf",
+                    "install": "always",
+                    "supported_targets": ["esp32c3", "esp32p4"],
+                },
             ]
         },
     )
