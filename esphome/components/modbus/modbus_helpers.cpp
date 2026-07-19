@@ -351,11 +351,16 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(ModbusFunctionCode functio
   if (!is_single) {
     pdu.push_back(number_of_entities >> 8);
     pdu.push_back(number_of_entities >> 0);
-    // 6 bytes of overhead (fc + start_addr×2 + qty×2 + byte_count) leave MAX_PDU_SIZE-6 bytes for values
-    static constexpr size_t MAX_WRITE_MULTIPLE_VALUES_LEN = MAX_PDU_SIZE - 6;
-    if (values_len > MAX_WRITE_MULTIPLE_VALUES_LEN) {
-      ESP_LOGE(TAG, "values_len %zu exceeds PDU capacity %zu, dropping request", values_len,
-               MAX_WRITE_MULTIPLE_VALUES_LEN);
+    // The quantity is spec-bounded above, so the data length just has to agree with it exactly
+    // (registers are 2 bytes each, coils pack 8 per byte). This is the same consistency the response
+    // dispatch enforces via is_client_pdu_standard(), so a frame built here can never be classified
+    // non-standard on reply, and the spec bound keeps the PDU within capacity by construction.
+    const bool bits = function_code == ModbusFunctionCode::WRITE_MULTIPLE_COILS;
+    const size_t expected_len =
+        bits ? (static_cast<size_t>(number_of_entities) + 7) / 8 : static_cast<size_t>(number_of_entities) * 2;
+    if (values_len != expected_len) {
+      ESP_LOGE(TAG, "values_len %zu does not match %u entities (expected %zu) for function code %02X, dropping request",
+               values_len, number_of_entities, expected_len, static_cast<uint8_t>(function_code));
       return {};
     }
     pdu.push_back(values_len);  // Byte count is required for write multiple

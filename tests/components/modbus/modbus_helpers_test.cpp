@@ -224,6 +224,19 @@ TEST(ModbusCreateClientPdu, WriteMultipleOverEntityLimitReturnsEmpty) {
   EXPECT_TRUE(pdu.empty());
 }
 
+// The generic write path requires the data length to agree exactly with the entity count
+// (registers: 2 bytes each; coils: 8 packed per byte) - the same rule the response dispatch
+// enforces via is_client_pdu_standard(), so a frame built here always passes that gate.
+TEST(ModbusCreateClientPdu, WriteMultipleRejectsMismatchedDataLength) {
+  const uint8_t values[] = {0x00, 0x0B, 0x00, 0x16};
+  // 2 registers need exactly 4 data bytes.
+  EXPECT_TRUE(create_client_pdu(FC::WRITE_MULTIPLE_REGISTERS, 0x0000, 2, values, 3).empty());
+  EXPECT_FALSE(create_client_pdu(FC::WRITE_MULTIPLE_REGISTERS, 0x0000, 2, values, 4).empty());
+  // 10 coils pack into exactly 2 data bytes - the coil formula, not the register one.
+  EXPECT_FALSE(create_client_pdu(FC::WRITE_MULTIPLE_COILS, 0x0000, 10, values, 2).empty());
+  EXPECT_TRUE(create_client_pdu(FC::WRITE_MULTIPLE_COILS, 0x0000, 10, values, 4).empty());
+}
+
 TEST(ModbusHelpersTest, PayloadToNumberRejectsOffsetAtEndOfBuffer) {
   const std::vector<uint8_t> data{0x12, 0x34};
   EXPECT_FALSE(payload_to_number(std::span<const uint8_t>(data), SensorValueType::U_WORD, 2, 0xFFFFFFFF).has_value());
