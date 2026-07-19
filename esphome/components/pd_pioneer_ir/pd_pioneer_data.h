@@ -3,8 +3,7 @@
 #include "esphome/components/remote_base/pd_pioneer_protocol.h"
 #include "esphome/components/climate/climate_mode.h"
 
-namespace esphome {
-namespace pd_pioneer_ir {
+namespace esphome::pd_pioneer_ir {
 
 const uint8_t PDPIONEER_TEMPC_MIN = 16;
 const uint8_t PDPIONEER_TEMPC_MAX = 31;
@@ -67,5 +66,4 @@ class ControlData {
   PDPioneerData even_;
 };
 
-}  // namespace pd_pioneer_ir
-}  // namespace esphome
+}  // namespace esphome::pd_pioneer_ir

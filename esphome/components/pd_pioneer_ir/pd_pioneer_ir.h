@@ -3,8 +3,7 @@
 #include "esphome/components/climate_ir/climate_ir.h"
 #include "pd_pioneer_data.h"
 
-namespace esphome {
-namespace pd_pioneer_ir {
+namespace esphome::pd_pioneer_ir {
 
 class PDPioneerIR : public climate_ir::ClimateIR {
  public:
@@ -34,5 +33,4 @@ class PDPioneerIR : public climate_ir::ClimateIR {
   bool rx_odd_pending_{false};
 };
 
-}  // namespace pd_pioneer_ir
-}  // namespace esphome
+}  // namespace esphome::pd_pioneer_ir

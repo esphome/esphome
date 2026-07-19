@@ -1,8 +1,7 @@
 #include "pd_pioneer_ir.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pd_pioneer_ir {
+namespace esphome::pd_pioneer_ir {
 
 static const char *const TAG = "pd_pioneer_ir.climate";
 
@@ -115,5 +114,4 @@ bool PDPioneerIR::on_receive(remote_base::RemoteReceiveData data) {
   return this->apply_frame_(*decoded);
 }
 
-}  // namespace pd_pioneer_ir
-}  // namespace esphome
+}  // namespace esphome::pd_pioneer_ir

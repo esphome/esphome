@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include <cmath>
 
-namespace esphome {
-namespace pd_pioneer_ir {
+namespace esphome::pd_pioneer_ir {
 
 static const uint8_t DEFAULT_ODD[] = {0x23, 0xCB, 0x26, 0x02, 0x00, 0x40, 0xC0,
                                       0x00, 0xC3, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -194,5 +193,4 @@ void ControlData::apply_even(const PDPioneerData &data) {
     this->even_[i] = data[i];
 }
 
-}  // namespace pd_pioneer_ir
-}  // namespace esphome
+}  // namespace esphome::pd_pioneer_ir
