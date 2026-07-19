@@ -111,9 +111,14 @@ def _remove_repo_dir(repo_dir: Path) -> None:
     """Remove a repo directory, deleting the completion marker first.
 
     Marker-first ordering guarantees an interrupted removal can never leave a
-    marker behind next to a partially deleted worktree.
+    marker behind next to a partially deleted worktree. The unlink is best
+    effort: if it fails (e.g. a file lock on Windows), rmtree below still
+    gets the chance to remove the directory, marker included.
     """
-    _clone_complete_marker_path(repo_dir).unlink(missing_ok=True)
+    try:
+        _clone_complete_marker_path(repo_dir).unlink(missing_ok=True)
+    except OSError as err:
+        _LOGGER.debug("Could not delete clone completion marker first: %s", err)
     if repo_dir.is_dir():
         rmtree(repo_dir)
 

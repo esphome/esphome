@@ -1004,6 +1004,20 @@ def test_failed_marker_write_does_not_fail_the_clone(
     assert "Could not write clone completion marker" in caplog.text
 
 
+def test_remove_repo_dir_tolerates_marker_unlink_failure(tmp_path: Path) -> None:
+    """A locked marker file must not abort the directory removal."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    (repo_dir / ".git").mkdir()
+    _mark_clone_complete(repo_dir)
+
+    with patch.object(Path, "unlink", side_effect=PermissionError("locked")):
+        git._remove_repo_dir(repo_dir)
+
+    # rmtree still removed the directory, marker included
+    assert not repo_dir.exists()
+
+
 def test_clone_or_update_recovery_preserves_subpath(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
