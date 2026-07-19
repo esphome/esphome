@@ -595,6 +595,16 @@ _UNUSED_IDF_TOOLS: tuple[str, ...] = (
     "xtensa-esp-elf-gdb",
 )
 
+# tools.json also lists riscv32-esp-elf as supported on the xtensa chips
+# because the S2/S3 ULP coprocessor is a RISC-V core, so installing for an
+# S2/S3 target pulls in the whole riscv compiler (~290MB download, 2GB disk)
+# just for ULP programs — which ESPHome never builds (the IDF ``ulp``
+# component is excluded from every build). Removing the xtensa chips from its
+# supported targets keeps it out of xtensa-only installs; building a RISC-V
+# variant still installs it. Xtensa is a closed set (every newer chip is
+# RISC-V), so this list cannot go stale.
+_XTENSA_TARGETS: tuple[str, ...] = ("esp32", "esp32s2", "esp32s3")
+
 
 def _patch_tools_json_demote_unused_tools(framework_path: Path) -> None:
     """Demote tools ESPHome never runs from ``install: always`` to ``on_request``.
@@ -610,6 +620,10 @@ def _patch_tools_json_demote_unused_tools(framework_path: Path) -> None:
     its stamp file) heals on the next build without a clean. A user who
     wants one of these tools can still name it explicitly in
     ESPHOME_IDF_DEFAULT_TOOLS; explicit names bypass install-type filtering.
+
+    Also removes the xtensa chips from riscv32-esp-elf's supported targets
+    (see ``_XTENSA_TARGETS``) so xtensa-only installs don't pull in the
+    RISC-V compiler for ULP programs ESPHome never builds.
     """
 
     def apply_patch(data: dict) -> bool:
@@ -621,13 +635,20 @@ def _patch_tools_json_demote_unused_tools(framework_path: Path) -> None:
             ):
                 tool["install"] = "on_request"
                 changed = True
+            if tool.get("name") == "riscv32-esp-elf":
+                targets = tool.get("supported_targets", [])
+                if any(t in targets for t in _XTENSA_TARGETS):
+                    tool["supported_targets"] = [
+                        t for t in targets if t not in _XTENSA_TARGETS
+                    ]
+                    changed = True
         return changed
 
     _patch_tools_json(
         framework_path,
         apply_patch,
         "Patched %s to skip installing tools ESPHome does not use "
-        "(openocd, gdb, ULP toolchain).",
+        "(openocd, gdb, ULP toolchains).",
     )
 
 

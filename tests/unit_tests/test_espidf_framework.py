@@ -1117,6 +1117,36 @@ def test_demote_unused_tools_patches_install_type(tmp_path: Path) -> None:
     }
 
 
+def test_demote_unused_tools_drops_xtensa_from_riscv_targets(tmp_path: Path) -> None:
+    """riscv32-esp-elf loses the xtensa chips (ULP-RISC-V only, which ESPHome
+    never builds) but keeps its RISC-V targets; other tools are untouched."""
+    tools_json = _write_tools_json(
+        tmp_path,
+        {
+            "tools": [
+                {
+                    "name": "riscv32-esp-elf",
+                    "install": "always",
+                    "supported_targets": ["esp32s2", "esp32s3", "esp32c3", "esp32p4"],
+                },
+                {
+                    "name": "xtensa-esp-elf",
+                    "install": "always",
+                    "supported_targets": ["esp32", "esp32s2", "esp32s3"],
+                },
+            ]
+        },
+    )
+    _patch_tools_json_demote_unused_tools(tmp_path)
+
+    data = json.loads(tools_json.read_text(encoding="utf-8"))
+    riscv = next(t for t in data["tools"] if t["name"] == "riscv32-esp-elf")
+    xtensa = next(t for t in data["tools"] if t["name"] == "xtensa-esp-elf")
+    assert riscv["supported_targets"] == ["esp32c3", "esp32p4"]
+    assert riscv["install"] == "always"
+    assert xtensa["supported_targets"] == ["esp32", "esp32s2", "esp32s3"]
+
+
 def test_patch_tools_json_unexpected_structure_warns_and_skips(
     tmp_path: Path,
 ) -> None:
