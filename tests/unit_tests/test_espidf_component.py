@@ -462,6 +462,25 @@ def test_node_key_custom_name_equals_url_is_git():
     )
 
 
+def test_node_key_url_in_name_with_query_containing_equals():
+    # A bare URL whose query string contains ``=`` must not be split by the
+    # CustomName=URL handling.
+    key, is_git, locator = _node_key("https://host/x/y.git?ref=main", None, None)
+    assert (key, is_git, locator) == (
+        "x/y",
+        True,
+        ("https://host/x/y.git?ref=main", None),
+    )
+
+
+@pytest.mark.parametrize("name", ["http://[::1", "CustomName=http://[::1"])
+def test_node_key_malformed_url_in_name_raises(name: str) -> None:
+    # A name that was clearly meant to be a URL but does not parse must fail
+    # fast instead of degrading to a confusing registry lookup error.
+    with pytest.raises(RuntimeError, match="Invalid PIO library URL"):
+        _node_key(name, None, None)
+
+
 def test_node_key_name_with_equals_but_no_url_is_registry():
     key, is_git, locator = _node_key("FOO=BAR", "1.0", None)
     assert (key, is_git, locator) == ("FOO=BAR", False, (None, "FOO=BAR"))

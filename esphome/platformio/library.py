@@ -551,9 +551,14 @@ def _node_key(
     so such specs resolve as git sources instead of failing a registry lookup.
     """
     if not repository and name and "://" in name:
-        # ``CustomName=URL``: the key derives from the URL path, so the
-        # custom name on the left is irrelevant.
-        repository = _url_or_none(name.split("=", 1)[-1])
+        # Try the whole name first so a bare URL whose query contains ``=``
+        # stays intact; fall back to the ``CustomName=URL`` form, where the
+        # key derives from the URL path and the custom name is irrelevant.
+        repository = _url_or_none(name) or _url_or_none(name.split("=", 1)[-1])
+        if repository is None:
+            # Anything with ``://`` was meant to be a URL; failing it fast
+            # beats a confusing registry "package not found" error.
+            raise RuntimeError(f"Invalid PIO library URL: {name}")
     if repository:
         split_result = urlsplit(repository.removeprefix("git+"))
         key = str(split_result.path).strip("/").removesuffix(".git")
