@@ -111,6 +111,18 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     # same way; emitting such an entry as a single quoted compile option
     # hands the compiler one argv with an embedded space.
     build_flags = [token for entry in build_flags for token in shlex.split(entry)]
+    # Re-glue bare -I/-L/-l tokens to their argument ("-I foo" -> "-Ifoo") so
+    # the prefix classifiers below still route them to INCLUDE_DIRS and the
+    # link handling.
+    tokens, build_flags = build_flags, []
+    i = 0
+    while i < len(tokens):
+        if tokens[i] in ("-I", "-L", "-l") and i + 1 < len(tokens):
+            build_flags.append(tokens[i] + tokens[i + 1])
+            i += 2
+        else:
+            build_flags.append(tokens[i])
+            i += 1
 
     # List all sources files
     build_src_files = collect_filtered_files(

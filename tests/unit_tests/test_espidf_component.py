@@ -165,6 +165,32 @@ def test_generate_cmakelists_txt_multi_token_flag(tmp_component):
     assert '  "-include"\n  "cp_custom_alloc.h"\n' in content
 
 
+def test_generate_cmakelists_txt_space_separated_classified_flags(tmp_component):
+    # Space-separated -I/-L/-l entries routed to INCLUDE_DIRS and the link
+    # handling before the shlex split was added; splitting must not leak
+    # them into raw compile options.
+    src_dir = tmp_component.path / "src"
+    src_dir.mkdir()
+    (src_dir / "main.c").write_text("int main() {}")
+    (tmp_component.path / "extra_inc").mkdir()
+
+    tmp_component.data = {
+        "build": {"flags": ["-I extra_inc", "-L extra_lib", "-l extralib", "-DTEST"]}
+    }
+
+    content = generate_cmakelists_txt(tmp_component)
+    assert 'INCLUDE_DIRS "src" "extra_inc"' in content
+    assert 'target_link_directories(${COMPONENT_LIB} INTERFACE\n  "extra_lib"\n)' in (
+        content
+    )
+    assert 'target_link_libraries(${COMPONENT_LIB} INTERFACE\n  "extralib"\n)' in (
+        content
+    )
+    assert '"-I"' not in content
+    assert '"-L"' not in content
+    assert '"-l"' not in content
+
+
 def test_generate_cmakelists_txt_references_project_managed_components_variable(
     tmp_component: IDFComponent,
 ) -> None:
