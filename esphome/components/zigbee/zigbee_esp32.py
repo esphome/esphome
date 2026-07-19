@@ -189,7 +189,7 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
         ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
             {
                 CONF_ATTRIBUTE_ID: 0x100,
-                CONF_VALUE: (apptype << 16) | 0xFFFF,
+                CONF_VALUE: (apptype << 16) & 0xFFFF,
                 CONF_TYPE: "UINT32",
             },
         )
