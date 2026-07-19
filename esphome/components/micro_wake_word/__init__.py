@@ -398,7 +398,7 @@ def _download_http_models(config: ConfigType) -> ConfigType:
     for path, url in http_models.items():
         try:
             manifest_data = json.loads((path / "manifest.json").read_bytes())
-        except ValueError as e:
+        except (OSError, ValueError) as e:
             errors.append(cv.Invalid(f"Invalid manifest file at {url}: {e}"))
             continue
         if not isinstance(manifest_data, dict):
