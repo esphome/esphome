@@ -139,6 +139,8 @@ def _patch_download_with_manifests(monkeypatch, tmp_path, manifests, *, properti
     def fake_download(self, force=False, salt="", namespace=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         self.path.mkdir(parents=True, exist_ok=True)
+        if self.name not in manifests:
+            return
         if self.name in properties:
             (self.path / "library.properties").write_text(manifests[self.name])
         else:
@@ -210,6 +212,19 @@ def test_convert_libraries_handles_unparsable_dependency_version(tmp_path, monke
     top = convert_libraries([Library("esphome/A", "1.0.0", None)], _backend())
 
     assert [d.name for d in top[0].dependencies] == ["C"]
+
+
+def test_convert_libraries_error_for_missing_manifest_includes_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The error must name the cache directory so users can find the broken
+    # entry instead of guessing where the library was unpacked.
+    _patch_download_with_manifests(monkeypatch, tmp_path, {})
+
+    with pytest.raises(RuntimeError, match="Invalid PIO library") as excinfo:
+        convert_libraries([Library("esphome/A", "1.0.0", None)], _backend())
+
+    assert str(tmp_path / "esphome__A") in str(excinfo.value)
 
 
 def test_convert_libraries_skips_incompatible_dependency(tmp_path, monkeypatch):
