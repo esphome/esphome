@@ -1004,6 +1004,48 @@ def test_failed_marker_write_does_not_fail_the_clone(
     assert "Could not write clone completion marker" in caplog.text
 
 
+def test_corrupt_git_dir_without_head_recovers(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A .git with neither FETCH_HEAD nor HEAD must recover, not crash.
+
+    The age check stats FETCH_HEAD falling back to HEAD; if both are gone
+    (partially deleted clone) the stat raised an unhandled FileNotFoundError
+    before the broken-repository recovery could run.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    # Marker present but .git gutted: no FETCH_HEAD, no HEAD
+    repo_dir.mkdir(parents=True)
+    (repo_dir / ".git").mkdir()
+    _mark_clone_complete(repo_dir)
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        cmd_type = _get_git_command_type(cmd)
+        if cmd_type == "rev-parse":
+            raise GitCommandError("ambiguous argument 'HEAD': unknown revision")
+        if cmd_type == "clone":
+            _simulate_cloned_repo(repo_dir)
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    result_dir, _ = git.clone_or_update(
+        url=url, ref=None, refresh=TimePeriodSeconds(days=1), domain=domain
+    )
+
+    assert result_dir == repo_dir
+    clone_calls = [c for c in mock_run_git_command.call_args_list if "clone" in c[0][0]]
+    assert len(clone_calls) == 1
+    assert _marker_path(repo_dir).is_file()
+
+
 def test_remove_repo_dir_tolerates_marker_unlink_failure(tmp_path: Path) -> None:
     """A locked marker file must not abort the directory removal."""
     repo_dir = tmp_path / "repo"

@@ -302,7 +302,13 @@ def clone_or_update(
         # On first clone, FETCH_HEAD does not exist
         if not file_timestamp.exists():
             file_timestamp = Path(repo_dir / ".git" / "HEAD")
-        age_seconds = time.time() - file_timestamp.stat().st_mtime
+        try:
+            age_seconds = time.time() - file_timestamp.stat().st_mtime
+        except OSError:
+            # A .git with neither FETCH_HEAD nor HEAD is corrupt (e.g. a
+            # partially deleted clone). Force the update path so the
+            # broken-repository recovery below removes and re-clones it.
+            age_seconds = float("inf")
         if refresh is None or age_seconds > refresh.total_seconds:
             # Try to update the repository, recovering from broken state if needed
             old_sha: str | None = None
