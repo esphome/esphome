@@ -23,6 +23,7 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed
+from esphome.platformio.toolchain import copy_ccache_script
 from esphome.types import ConfigType
 
 from .boards import BOARDS, ESP8266_LD_SCRIPTS
@@ -417,12 +418,12 @@ def copy_files() -> None:
         "exclude_updater",
         "exclude_waveform",
         "remove_float_scanf",
-        "ccache",
     ):
         copy_file_if_changed(
             dir / f"{script}.py.script",
             CORE.relative_build_path(f"{script}.py"),
         )
+    copy_ccache_script()
 
 
 # ESP logs stack trace decoder, based on https://github.com/me-no-dev/EspExceptionDecoder
