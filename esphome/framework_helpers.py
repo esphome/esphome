@@ -684,11 +684,17 @@ def download_with_resume(
     # files restart from zero.
     can_verify = sha256 is not None or size is not None
     validator: str | None = None
+    expected_total = 0
 
     for _ in range(attempts):
         try:
             offset = part.stat().st_size if part.is_file() else 0
-            if not can_verify and validator is None:
+            # Without sha/size verification, a stitched resume is only safe
+            # when the server proved content identity (If-Range validator)
+            # AND completeness is checkable (a known total length) — a
+            # resumed stream that ends cleanly but short must not pass for a
+            # complete file. Otherwise restart from zero.
+            if not can_verify and (validator is None or not expected_total):
                 offset = 0
             if size is None or offset < size:
                 resp, offset = _open_ranged(url, offset, timeout, validator)
@@ -698,6 +704,7 @@ def download_with_resume(
                     with resp, part.open("ab") as f:
                         if offset == 0:
                             validator = _response_validator(resp)
+                            expected_total = int(resp.headers.get("content-length", 0))
                         _stream_response_to_file(resp, f, offset, size)
             # else: a previous run already wrote every byte (or more) but
             # was killed before the rename below. Skip the network entirely
@@ -705,9 +712,11 @@ def download_with_resume(
             # verification decide whether to promote the file or discard it
             # and start over.
 
-            if size is not None and part.stat().st_size != size:
+            expected_size = size if size is not None else expected_total
+            if expected_size and part.stat().st_size != expected_size:
                 raise EsphomeError(
-                    f"size mismatch: expected {size}, got {part.stat().st_size}"
+                    f"size mismatch: expected {expected_size}, "
+                    f"got {part.stat().st_size}"
                 )
             if sha256 is not None:
                 with part.open("rb") as pf:
@@ -866,9 +875,11 @@ def download_from_mirrors(
                 except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
                     # Mid-stream drop: keep the received bytes and retry this
                     # mirror from the current position — but only when the
-                    # server gave a validator to resume against safely.
+                    # server gave a validator to resume against safely AND a
+                    # total length to prove the stitched file complete (the
+                    # length check above is the only verification here).
                     _LOGGER.debug("Failed to download %s: %s", url, str(e))
-                    offset = f.tell() if validator else 0
+                    offset = f.tell() if validator and expected_total else 0
                     if attempt == _MIRROR_ATTEMPTS - 1:
                         failures.append((url, e))
 

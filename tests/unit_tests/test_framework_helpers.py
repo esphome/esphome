@@ -602,12 +602,11 @@ class TestDownloadWithResume:
 
     def test_mid_stream_drop_resumes_with_range(self, tmp_path: Path) -> None:
         dest = tmp_path / "tool.tar.gz"
+        first = _interrupted_response(b"1234", etag='"v1"')
+        first.headers = {**first.headers, "content-length": "8"}
         with patch(
             "requests.get",
-            side_effect=[
-                _interrupted_response(b"1234", etag='"v1"'),
-                _resumed_response(b"5678"),
-            ],
+            side_effect=[first, _resumed_response(b"5678")],
         ) as mock_get:
             download_with_resume("https://example.com/t", dest)
         # earlier bytes were kept, remainder appended conditionally
@@ -616,6 +615,37 @@ class TestDownloadWithResume:
             "Range": "bytes=4-",
             "If-Range": '"v1"',
         }
+
+    def test_unverifiable_drop_without_length_restarts(self, tmp_path: Path) -> None:
+        """A validator alone is not enough to stitch when nothing can prove
+        the stitched file complete (no sha/size and no content-length)."""
+        dest = tmp_path / "tool.tar.gz"
+        with patch(
+            "requests.get",
+            side_effect=[
+                _interrupted_response(b"1234", etag='"v1"'),
+                _mock_response(b"full"),
+            ],
+        ) as mock_get:
+            download_with_resume("https://example.com/t", dest)
+        assert dest.read_bytes() == b"full"
+        assert "Range" not in mock_get.call_args_list[1][1]["headers"]
+
+    def test_resumed_clean_but_short_body_discarded(self, tmp_path: Path) -> None:
+        """A resumed stream that ends cleanly but short of the advertised
+        total is rejected and re-downloaded, not promoted."""
+        dest = tmp_path / "tool.tar.gz"
+        first = _interrupted_response(b"abcd", etag='"v1"')
+        first.headers = {**first.headers, "content-length": "8"}
+        # resume ends cleanly after only 2 of the 4 missing bytes
+        short = _resumed_response(b"ef")
+        full = _mock_response(b"abcdefgh")
+        full.headers = {**full.headers, "content-length": "8"}
+        with patch("requests.get", side_effect=[first, short, full]) as mock_get:
+            download_with_resume("https://example.com/t", dest)
+        assert dest.read_bytes() == b"abcdefgh"
+        # the short stitch was discarded; the final attempt started fresh
+        assert "Range" not in mock_get.call_args_list[2][1]["headers"]
 
     def test_unverifiable_drop_without_validator_restarts(self, tmp_path: Path) -> None:
         """No sha/size and no server validator: the retry must not stitch."""
@@ -714,13 +744,12 @@ class TestDownloadWithResume:
     def test_attempts_exhausted_keeps_part_file(self, tmp_path: Path) -> None:
         """Mid-stream failures keep the partial file so a later run resumes."""
         dest = tmp_path / "tool.tar.gz"
+        first = _interrupted_response(b"12", etag='"v1"')
+        first.headers = {**first.headers, "content-length": "4"}
         second = _interrupted_response(b"34")
         second.status_code = 206
         with (
-            patch(
-                "requests.get",
-                side_effect=[_interrupted_response(b"12", etag='"v1"'), second],
-            ),
+            patch("requests.get", side_effect=[first, second]),
             pytest.raises(EsphomeError, match="after 2 attempts"),
         ):
             download_with_resume("https://example.com/t", dest, attempts=2)
@@ -730,12 +759,14 @@ class TestDownloadWithResume:
         """Each attempt appends its bytes; three partial responses complete
         the file."""
         dest = tmp_path / "tool.tar.gz"
+        first = _interrupted_response(b"ab", etag='"v1"')
+        first.headers = {**first.headers, "content-length": "6"}
         second = _interrupted_response(b"cd")
         second.status_code = 206
         third = _resumed_response(b"ef")
         with patch(
             "requests.get",
-            side_effect=[_interrupted_response(b"ab", etag='"v1"'), second, third],
+            side_effect=[first, second, third],
         ) as mock_get:
             download_with_resume("https://example.com/t", dest)
         assert dest.read_bytes() == b"abcdef"
@@ -1028,6 +1059,20 @@ class TestDownloadFromMirrors:
         assert url == "https://mirror1.com/f"
         assert (tmp_path / "out.bin").read_bytes() == b"1234"
         assert mock_get.call_count == 2
+
+    def test_mirror_drop_without_length_restarts(self, tmp_path: Path) -> None:
+        """With no content-length there is no way to prove a stitched file
+        complete, so the retry restarts even though a validator exists."""
+        with patch(
+            "requests.get",
+            side_effect=[
+                _interrupted_response(b"1234", etag='"v1"'),
+                _mock_response(b"full"),
+            ],
+        ) as mock_get:
+            download_from_mirrors(["https://mirror1.com/f"], {}, tmp_path / "out.bin")
+        assert (tmp_path / "out.bin").read_bytes() == b"full"
+        assert "Range" not in mock_get.call_args_list[1][1]["headers"]
 
     def test_resumed_short_body_fails_length_check(self, tmp_path: Path) -> None:
         """A stitched file whose final length disagrees with the advertised
