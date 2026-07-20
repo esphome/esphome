@@ -457,6 +457,19 @@ def test_redact_with_legacy_fallback__skips_public_key_fields(
     assert not any("legacy substring" in rec.message for rec in caplog.records)
 
 
+def test_redact_with_legacy_fallback__public_substitution_still_redacted(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Substitution keys are user-named with no schema behind them, so the
+    public-key exemption does not apply there; a ``public``-named substitution
+    keeps the conservative silent redaction."""
+    text = "substitutions:\n  public_key: something\nesphome:\n  name: x\n"
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback(text)
+    assert "public_key: \\033[8msomething\\033[28m" in out
+    assert not any("legacy substring" in rec.message for rec in caplog.records)
+
+
 def test_redact_with_legacy_fallback__public_must_be_a_whole_segment(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

@@ -1511,12 +1511,14 @@ def _redact_with_legacy_fallback(output: str) -> str:
         if m is None:
             continue
         key = m.group("key")
-        # Public keys (e.g. wireguard's peer_public_key) are not secret;
-        # redacting them and telling maintainers to mark them cv.sensitive
-        # would be wrong on both counts.
-        if "public" in key.split("_"):
-            continue
         if not in_substitutions:
+            # Public keys (e.g. wireguard's peer_public_key) are not secret;
+            # redacting them and telling maintainers to mark them cv.sensitive
+            # would be wrong on both counts. Substitution keys are user-named
+            # with no schema behind them, so anything secret-shaped there
+            # (public or not) stays conservatively redacted.
+            if "public" in key.split("_"):
+                continue
             unmarked.add(key)
         lines[i] = (
             f"{line[: m.start()]}{key}: "
