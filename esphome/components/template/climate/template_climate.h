@@ -20,32 +20,23 @@ class TemplateClimate final : public climate::Climate, public Component {
 
   climate::ClimateTraits traits() override { return this->traits_; }
 
-  void set_supports_current_temperature() {
-    this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
-  }
-  void set_supports_current_humidity() { this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY); }
+  void add_feature_flags(uint32_t flags) { this->traits_.add_feature_flags(flags); }
 
 #ifdef USE_SENSOR
   void set_sensor(sensor::Sensor *sensor) {
     this->sensor_ = sensor;
-    this->set_supports_current_temperature();
+    this->add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
   }
   void set_humidity_sensor(sensor::Sensor *sensor) {
     this->humidity_sensor_ = sensor;
-    this->set_supports_current_humidity();
+    this->add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
   }
 #endif
-  void set_supports_action() { this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_ACTION); }
 
   void add_supported_mode(climate::ClimateMode mode) { this->traits_.add_supported_mode(mode); }
   void add_supported_fan_mode(climate::ClimateFanMode mode) { this->traits_.add_supported_fan_mode(mode); }
   void add_supported_swing_mode(climate::ClimateSwingMode mode) { this->traits_.add_supported_swing_mode(mode); }
   void add_supported_preset(climate::ClimatePreset preset) { this->traits_.add_supported_preset(preset); }
-
-  void set_supports_target_humidity() { this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY); }
-  void set_supports_two_point_target_temperature() {
-    this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE);
-  }
 
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
   void set_restore_mode(TemplateClimateRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }

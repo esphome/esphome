@@ -1,6 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import climate, sensor
+from esphome.components.climate import climate_ns
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTION,
@@ -137,13 +138,13 @@ async def to_code(config):
         cg.add(var.set_humidity_sensor(await cg.get_variable(sens)))
 
     if config[CONF_SUPPORTS_ACTION]:
-        cg.add(var.set_supports_action())
+        cg.add(var.add_feature_flags(climate_ns.CLIMATE_SUPPORTS_ACTION))
 
     if config[CONF_SUPPORTS_CURRENT_TEMPERATURE]:
-        cg.add(var.set_supports_current_temperature())
+        cg.add(var.add_feature_flags(climate_ns.CLIMATE_SUPPORTS_CURRENT_TEMPERATURE))
 
     if config[CONF_SUPPORTS_CURRENT_HUMIDITY]:
-        cg.add(var.set_supports_current_humidity())
+        cg.add(var.add_feature_flags(climate_ns.CLIMATE_SUPPORTS_CURRENT_HUMIDITY))
 
     for mode in config.get(CONF_SUPPORTED_MODES, []):
         cg.add(var.add_supported_mode(mode))
@@ -172,10 +173,14 @@ async def to_code(config):
         )
 
     if config[CONF_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE]:
-        cg.add(var.set_supports_two_point_target_temperature())
+        cg.add(
+            var.add_feature_flags(
+                climate_ns.CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE
+            )
+        )
 
     if config[CONF_SUPPORTS_TARGET_HUMIDITY]:
-        cg.add(var.set_supports_target_humidity())
+        cg.add(var.add_feature_flags(climate_ns.CLIMATE_SUPPORTS_TARGET_HUMIDITY))
 
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
