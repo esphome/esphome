@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::modbus {
 
@@ -14,7 +15,8 @@ const uint8_t FUNCTION_CODE_USER_DEFINED_SPACE_2_INIT = 100;  // 0x64
 const uint8_t FUNCTION_CODE_USER_DEFINED_SPACE_2_END = 110;   // 0x6E
 
 enum class ModbusFunctionCode : uint8_t {
-  CUSTOM = 0x00,
+  INVALID = 0x00,  // 0x00 is not a valid function code (even for custom functions).
+  CUSTOM = 0x00,   // The CUSTOM alias should be removed in future.
   READ_COILS = 0x01,
   READ_DISCRETE_INPUTS = 0x02,
   READ_HOLDING_REGISTERS = 0x03,
@@ -35,19 +37,11 @@ enum class ModbusFunctionCode : uint8_t {
   READ_FIFO_QUEUE = 0x18,                // not implemented
 };
 
-/*Allow  comparison operators between ModbusFunctionCode and uint8_t*/
+/*Allow direct comparison operators between ModbusFunctionCode and uint8_t*/
 inline bool operator==(ModbusFunctionCode lhs, uint8_t rhs) { return static_cast<uint8_t>(lhs) == rhs; }
 inline bool operator==(uint8_t lhs, ModbusFunctionCode rhs) { return lhs == static_cast<uint8_t>(rhs); }
 inline bool operator!=(ModbusFunctionCode lhs, uint8_t rhs) { return !(static_cast<uint8_t>(lhs) == rhs); }
 inline bool operator!=(uint8_t lhs, ModbusFunctionCode rhs) { return !(lhs == static_cast<uint8_t>(rhs)); }
-inline bool operator<(ModbusFunctionCode lhs, uint8_t rhs) { return static_cast<uint8_t>(lhs) < rhs; }
-inline bool operator<(uint8_t lhs, ModbusFunctionCode rhs) { return lhs < static_cast<uint8_t>(rhs); }
-inline bool operator<=(ModbusFunctionCode lhs, uint8_t rhs) { return static_cast<uint8_t>(lhs) <= rhs; }
-inline bool operator<=(uint8_t lhs, ModbusFunctionCode rhs) { return lhs <= static_cast<uint8_t>(rhs); }
-inline bool operator>(ModbusFunctionCode lhs, uint8_t rhs) { return static_cast<uint8_t>(lhs) > rhs; }
-inline bool operator>(uint8_t lhs, ModbusFunctionCode rhs) { return lhs > static_cast<uint8_t>(rhs); }
-inline bool operator>=(ModbusFunctionCode lhs, uint8_t rhs) { return static_cast<uint8_t>(lhs) >= rhs; }
-inline bool operator>=(uint8_t lhs, ModbusFunctionCode rhs) { return lhs >= static_cast<uint8_t>(rhs); }
 
 // 4.3 MODBUS Data model
 enum class ModbusRegisterType : uint8_t {
@@ -55,7 +49,11 @@ enum class ModbusRegisterType : uint8_t {
   COIL = 0x01,
   DISCRETE_INPUT = 0x02,
   HOLDING = 0x03,
-  READ = 0x04,
+  // Named INPUT_REGISTER (not INPUT) because Arduino cores define INPUT as a macro.
+  INPUT_REGISTER = 0x04,
+  // Remove before 2027.2.0
+  READ ESPDEPRECATED("Use ModbusRegisterType::INPUT_REGISTER instead. Removed in 2027.2.0", "2026.7.0") =
+      INPUT_REGISTER,
 };
 
 // 7 MODBUS Exception Responses:
@@ -75,12 +73,21 @@ enum class ModbusExceptionCode : uint8_t {
 };
 
 // 6.12 16 (0x10) Write Multiple registers:
-const uint8_t MAX_NUM_OF_REGISTERS_TO_WRITE = 123;  // 0x7B
+static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_WRITE = 123;  // 0x7B
+
+// 6.1 01 (0x01) Read Coils
+// 6.2 02 (0x02) Read Discrete Inputs
+static constexpr uint16_t MAX_NUM_OF_COILS_TO_READ = 2000;            // 0x7D0
+static constexpr uint16_t MAX_NUM_OF_DISCRETE_INPUTS_TO_READ = 2000;  // 0x7D0
 
 // 6.3 03 (0x03) Read Holding Registers
 // 6.4 04 (0x04) Read Input Registers
-const uint8_t MAX_NUM_OF_REGISTERS_TO_READ = 125;  // 0x7D
+static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_READ = 125;  // 0x7D
 
+// Smallest possible frame is 4 bytes (custom function with no data): address(1) + function(1) + CRC(2)
+static constexpr uint16_t MIN_FRAME_SIZE = 4;
+static constexpr uint16_t MAX_PDU_SIZE = 253;  // Max PDU size is 256 - address(1) - CRC(2) = 253
+static constexpr uint16_t MAX_RAW_SIZE = 254;  // Max RAW size is 256 - CRC(2) = 254
 static constexpr uint16_t MAX_FRAME_SIZE = 256;
 /// End of Modbus definitions
 }  // namespace esphome::modbus
