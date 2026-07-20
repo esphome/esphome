@@ -310,7 +310,10 @@ bool HOT EPaperT133A01::transfer_data() {
       half++;
       this->current_data_index_ = half;
 
-      if (millis() - start_time > MAX_TRANSFER_TIME) {
+      // Only yield if there are rows left in this phase. Yielding on the final row would
+      // leave the phase complete but reported as unfinished, so the next call would skip
+      // the epilogue below and never release the bus.
+      if (half < total_rows && millis() - start_time > MAX_TRANSFER_TIME) {
         return false;
       }
     }
@@ -345,7 +348,9 @@ bool HOT EPaperT133A01::transfer_data() {
       half++;
       this->current_data_index_ = half;
 
-      if (millis() - start_time > MAX_TRANSFER_TIME) {
+      // Same as the CS phase: a yield on the final row would strand the open transaction,
+      // and here the function would go on to report the whole transfer complete.
+      if (half < total_rows * 2 && millis() - start_time > MAX_TRANSFER_TIME) {
         return false;
       }
     }
