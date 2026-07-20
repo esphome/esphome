@@ -2,6 +2,7 @@
 
 from collections.abc import Iterable
 from contextlib import ExitStack
+import hashlib
 import io
 import logging
 import os
@@ -9,13 +10,20 @@ from pathlib import Path
 import subprocess
 import sys
 import time
-from typing import IO
+from typing import IO, TYPE_CHECKING
 
 from esphome.helpers import ProgressBar, rmtree
+
+if TYPE_CHECKING:
+    import requests
 
 PathType = str | os.PathLike
 
 _LOGGER = logging.getLogger(__name__)
+
+# Attempts per mirror URL before falling through to the next mirror; only
+# mid-stream drops retry (with resume), connect errors move on immediately.
+_MIRROR_ATTEMPTS = 3
 
 
 def get_project_link_flags() -> list[str]:
@@ -552,6 +560,128 @@ def archive_extract_all(
         matched_fct(archive_ref, extract_dir, progress_header=progress_header)
 
 
+def _open_ranged(
+    url: str, offset: int, timeout: int
+) -> tuple["requests.Response", int]:
+    """Open a streaming GET, asking the server to resume at ``offset``.
+
+    Returns ``(response, effective_offset)``: the offset drops to 0 when the
+    server ignored the ``Range`` header (no 206), meaning the caller must
+    restart the file. Raises on connect errors and HTTP error statuses; the
+    response is closed on failure.
+    """
+    import requests
+
+    headers = {"Range": f"bytes={offset}-"} if offset else {}
+    resp = requests.get(url, stream=True, timeout=timeout, headers=headers)
+    if offset and resp.status_code != 206:
+        _LOGGER.debug(
+            "Server did not resume %s (HTTP %s), restarting", url, resp.status_code
+        )
+        offset = 0
+    if not resp.ok:
+        resp.close()
+    resp.raise_for_status()
+    if offset:
+        _LOGGER.info("Resuming download at %d bytes ...", offset)
+    return resp, offset
+
+
+def _stream_response_to_file(
+    resp: "requests.Response", f: IO[bytes], offset: int, size: int | None = None
+) -> None:
+    """Stream an open ``_open_ranged`` response body into ``f`` at ``offset``.
+
+    Truncates ``f`` to ``offset`` first, so a server-rejected resume
+    (effective offset 0) discards the stale bytes. ``offset`` also seeds the
+    progress bar so a resumed download shows overall progress. ``size`` is
+    the known full file size; when None it is derived from the response's
+    content-length, and without either there is no progress bar.
+    """
+    f.seek(offset)
+    f.truncate(offset)
+    total_size = size or offset + int(resp.headers.get("content-length", 0))
+    downloaded = offset
+    progress = ProgressBar("Downloading") if total_size > 0 else None
+    for chunk in resp.iter_content(chunk_size=256 * 1024):
+        if chunk:
+            f.write(chunk)
+            downloaded += len(chunk)
+        if progress is not None:
+            progress.update(downloaded / total_size)
+    if progress is not None:
+        progress.update(1)
+
+
+def download_with_resume(
+    url: str,
+    dest: PathType,
+    sha256: str | None = None,
+    size: int | None = None,
+    # More attempts than _MIRROR_ATTEMPTS: a single-URL download has no
+    # mirror fallback, and each retry only re-fetches the remainder.
+    attempts: int = 5,
+    timeout: int = 30,
+) -> None:
+    """Download ``url`` to ``dest``, resuming partial downloads.
+
+    The body streams into ``<dest>.part``, which persists across attempts and
+    esphome runs: a mid-stream connection drop only costs one attempt and the
+    next continues from where it stopped, so an unstable connection converges
+    on a complete file instead of restarting from zero each retry (#17703).
+    When ``size`` / ``sha256`` are given the completed file is verified and a
+    mismatch restarts from scratch; success renames the part file into place.
+
+    Raises EsphomeError when all attempts are exhausted.
+    """
+    # Imported lazily: requests is a heavy import (~85ms) and is only needed
+    # when actually downloading a toolchain, never during config validation.
+    import requests
+
+    from esphome.core import EsphomeError
+
+    dest = Path(dest)
+    part = dest.with_name(dest.name + ".part")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    last_error: Exception | None = None
+
+    for _ in range(attempts):
+        try:
+            offset = part.stat().st_size if part.is_file() else 0
+            resp, offset = _open_ranged(url, offset, timeout)
+            with resp, part.open("ab") as f:
+                _stream_response_to_file(resp, f, offset, size)
+
+            if size is not None and part.stat().st_size != size:
+                raise EsphomeError(
+                    f"size mismatch: expected {size}, got {part.stat().st_size}"
+                )
+            if sha256 is not None:
+                with part.open("rb") as pf:
+                    digest = hashlib.file_digest(pf, "sha256").hexdigest()
+                if digest != sha256:
+                    raise EsphomeError(f"sha256 mismatch: got {digest}")
+            part.replace(dest)
+            return
+        except requests.RequestException as e:
+            # Mid-stream network failures keep the part file for the next
+            # attempt (or the next esphome run) to resume from. Checked
+            # before OSError: RequestException subclasses IOError.
+            _LOGGER.debug("Download of %s interrupted: %s", url, e)
+            last_error = e
+        except (OSError, EsphomeError) as e:
+            # A completed-but-corrupt file (or local disk error) can't be
+            # trusted for resume; start over.
+            _LOGGER.debug("Discarding %s: %s", part, e)
+            part.unlink(missing_ok=True)
+            last_error = e
+
+    raise EsphomeError(
+        f"Failed to download {url} after {attempts} attempts: "
+        f"{_failure_reason(last_error)}"
+    ) from last_error
+
+
 def _failure_reason(e: Exception) -> str:
     """Format a download exception for the aggregated error message.
 
@@ -591,10 +721,6 @@ def download_from_mirrors(
             attempted URL with its individual failure reason. Also raised if
             no template matched the provided substitutions.
     """
-    # Imported lazily: requests is a heavy import (~85ms) and is only needed
-    # when actually downloading a toolchain, never during config validation.
-    import requests
-
     from esphome.core import EsphomeError
 
     # 1. Open target file for writing if path given
@@ -635,42 +761,37 @@ def download_from_mirrors(
 
             _LOGGER.debug("Trying to download from %s", url)
 
-            try:
-                # 4. Reset file pointer and download
-                f.seek(0)
-                f.truncate(0)
+            # 4. Download; mid-stream failures retry the same mirror with
+            # resume (see download_with_resume) instead of starting over.
+            offset = 0
+            for attempt in range(_MIRROR_ATTEMPTS):
+                try:
+                    resp, offset = _open_ranged(url, offset, timeout)
+                except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+                    # Connect/HTTP error, no bytes flowed — next mirror.
+                    _LOGGER.debug("Failed to download %s: %s", url, str(e))
+                    failures.append((url, e))
+                    break
 
-                with requests.get(url, stream=True, timeout=timeout) as r:
-                    r.raise_for_status()
+                try:
+                    with resp:
+                        _stream_response_to_file(resp, f, offset)
 
-                    total_size = int(r.headers.get("content-length", 0))
-                    downloaded = 0
+                    _LOGGER.debug("Downloaded successfully from: %s", url)
 
-                    progress = ProgressBar("Downloading") if total_size > 0 else None
+                    # 5. Reset file pointer and return
+                    f.seek(0)
+                    return url
 
-                    for chunk in r.iter_content(chunk_size=8192):
-                        if chunk:
-                            f.write(chunk)
+                except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+                    # Mid-stream drop: keep the received bytes and retry this
+                    # mirror from the current position.
+                    _LOGGER.debug("Failed to download %s: %s", url, str(e))
+                    offset = f.tell()
+                    if attempt == _MIRROR_ATTEMPTS - 1:
+                        failures.append((url, e))
 
-                        downloaded += len(chunk)
-
-                        if progress is not None:
-                            progress.update(downloaded / total_size)
-
-                    if progress is not None:
-                        progress.update(1)
-
-                _LOGGER.debug("Downloaded successfully from: %s", url)
-
-                # 6. Reset file pointer and return
-                f.seek(0)
-                return url
-
-            except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-                _LOGGER.debug("Failed to download %s: %s", url, str(e))
-                failures.append((url, e))
-
-        # 7. Report every attempted URL if all mirrors failed. Falling back
+        # 6. Report every attempted URL if all mirrors failed. Falling back
         # past an early mirror is normal (e.g. only one of the framework URL
         # templates matches a given version's tag), so raising only the last
         # error would hide the failure that actually matters.
