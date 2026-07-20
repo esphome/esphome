@@ -86,4 +86,24 @@ void TemplateClimate::control(const climate::ClimateCall &call) {
   }
 }
 
+// Unlike control(), a climate.template.publish report (and initial_state:) never goes through
+// ClimateCall::validate_(), so an unsupported custom mode isn't caught anywhere upstream -- check
+// it here (the same lookup set_custom_fan_mode_()/set_custom_preset_() use internally) so a
+// typo'd custom_fan_mode/custom_preset doesn't get silently dropped.
+void TemplateClimate::set_custom_fan_mode(const char *mode) {
+  if (this->find_custom_fan_mode_(mode) == nullptr) {
+    ESP_LOGW(TAG, "'%s' - Unsupported custom fan mode '%s'", this->get_name().c_str(), mode);
+    return;
+  }
+  this->set_custom_fan_mode_(mode);
+}
+
+void TemplateClimate::set_custom_preset(const char *preset) {
+  if (this->find_custom_preset_(preset) == nullptr) {
+    ESP_LOGW(TAG, "'%s' - Unsupported custom preset '%s'", this->get_name().c_str(), preset);
+    return;
+  }
+  this->set_custom_preset_(preset);
+}
+
 }  // namespace esphome::template_
