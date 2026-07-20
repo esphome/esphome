@@ -244,7 +244,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _check_rosetta() -> None:
+def check_rosetta() -> None:
     """Fail fast when the x86_64 ESP8266 toolchain cannot run on this Mac.
 
     There is no native arm64 build of the xtensa-lx106 toolchain; on Apple
@@ -272,8 +272,6 @@ def _check_rosetta() -> None:
 
 @coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config):
-    _check_rosetta()
-
     cg.add(esp8266_ns.setup_preferences())
 
     cg.add_platformio_option("lib_ldf_mode", "off")
