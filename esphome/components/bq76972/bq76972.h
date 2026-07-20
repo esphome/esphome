@@ -14,7 +14,7 @@ class BQ76972AddressNumber;
 
 class BQ76972Component final : public PollingComponent, public i2c::I2CDevice {
  public:
-  void update();
+  void update() override;
   void setup() override;
   void dump_config() override;
 
@@ -25,8 +25,8 @@ class BQ76972Component final : public PollingComponent, public i2c::I2CDevice {
   void set_address(uint8_t i2c_address) { this->i2c_address_ = i2c_address; }
 
   // Custom I²C routines
-  bool wait_for_cfgupdate(void);
-  bool wait_for_subcommand(void);
+  bool wait_for_cfgupdate();
+  bool wait_for_subcommand();
   uint8_t compute_crc8(const uint8_t *data, size_t len);
   bool read_block(uint8_t start_register, uint8_t *data, size_t len);
   bool write_block(uint8_t start_register, const uint8_t *data, size_t len);
@@ -42,7 +42,7 @@ class BQ76972Component final : public PollingComponent, public i2c::I2CDevice {
   bool store_int_temp();
 
   // Temperature Sensor Setters
-  void publish_temperature_from_buffer_(const uint16_t temperature_uint16t, sensor::Sensor *sens);
+  void publish_temperature_from_buffer(uint16_t temperature_uint16t, sensor::Sensor *sens);
   void set_internal_temp_sensor(sensor::Sensor *s) { this->internal_temp_sensor_ = s; }
   void set_cfetoff_temp_sensor(sensor::Sensor *s) { this->cfetoff_temp_sensor_ = s; }
   void set_dfetoff_temp_sensor(sensor::Sensor *s) { this->dfetoff_temp_sensor_ = s; }

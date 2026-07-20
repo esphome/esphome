@@ -40,7 +40,7 @@ uint8_t BQ76972Component::compute_crc8(const uint8_t *data, size_t len) {
   return crc;
 }
 
-bool BQ76972Component::wait_for_subcommand(void) {
+bool BQ76972Component::wait_for_subcommand() {
   uint8_t reg_uint8;
   while (true) {
     if (!this->read_block(BQ76972_SUBCOMMAND_LSB_REG, &reg_uint8, 1))
@@ -59,7 +59,7 @@ bool BQ76972Component::wait_for_subcommand(void) {
   return true;
 }
 
-bool BQ76972Component::wait_for_cfgupdate(void) {
+bool BQ76972Component::wait_for_cfgupdate() {
   uint16_t reg_uint16;
   while (true) {
     if (!this->bq76972_read_multi_16_le(BQ76972_CMD_BAT_STATUS, &reg_uint16, 1))
@@ -472,7 +472,7 @@ void BQ76972Component::program_address_from_number() {
   }
 }
 
-void BQ76972Component::publish_temperature_from_buffer_(const uint16_t temperature_uint16t, sensor::Sensor *sens) {
+void BQ76972Component::publish_temperature_from_buffer(uint16_t temperature_uint16t, sensor::Sensor *sens) {
   if (sens == nullptr) {
     return;  // Skip sensors that were not declared in YAML
   }
@@ -528,16 +528,16 @@ void BQ76972Component::update() {
   }
 
   // Publish state if needed
-  this->publish_temperature_from_buffer_(temperature_buffer[0], this->internal_temp_sensor_);
-  this->publish_temperature_from_buffer_(temperature_buffer[1], this->cfetoff_temp_sensor_);
-  this->publish_temperature_from_buffer_(temperature_buffer[2], this->dfetoff_temp_sensor_);
-  this->publish_temperature_from_buffer_(temperature_buffer[3], this->alert_temp_sensor_);
-  this->publish_temperature_from_buffer_(temperature_buffer[4], this->ts1_temp_sensor_);
-  this->publish_temperature_from_buffer_(temperature_buffer[5], this->ts2_temp_sensor_);
-  this->publish_temperature_from_buffer_(temperature_buffer[6], this->ts3_temp_sensor_);
-  this->publish_temperature_from_buffer_(temperature_buffer[7], this->hdq_temp_sensor_);
-  this->publish_temperature_from_buffer_(temperature_buffer[8], this->dchg_temp_sensor_);
-  this->publish_temperature_from_buffer_(temperature_buffer[9], this->ddsg_temp_sensor_);
+  this->publish_temperature_from_buffer(temperature_buffer[0], this->internal_temp_sensor_);
+  this->publish_temperature_from_buffer(temperature_buffer[1], this->cfetoff_temp_sensor_);
+  this->publish_temperature_from_buffer(temperature_buffer[2], this->dfetoff_temp_sensor_);
+  this->publish_temperature_from_buffer(temperature_buffer[3], this->alert_temp_sensor_);
+  this->publish_temperature_from_buffer(temperature_buffer[4], this->ts1_temp_sensor_);
+  this->publish_temperature_from_buffer(temperature_buffer[5], this->ts2_temp_sensor_);
+  this->publish_temperature_from_buffer(temperature_buffer[6], this->ts3_temp_sensor_);
+  this->publish_temperature_from_buffer(temperature_buffer[7], this->hdq_temp_sensor_);
+  this->publish_temperature_from_buffer(temperature_buffer[8], this->dchg_temp_sensor_);
+  this->publish_temperature_from_buffer(temperature_buffer[9], this->ddsg_temp_sensor_);
 }
 
 }  // namespace esphome::bq76972
