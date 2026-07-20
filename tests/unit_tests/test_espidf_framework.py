@@ -29,6 +29,7 @@ from esphome.espidf.framework import (
     _get_python_env_path,
     _get_python_version,
     _parse_git_source,
+    _patch_tools_json_demote_openocd,
     _patch_tools_json_for_linux_arm64,
     _prefetch_idf_tool_archives,
     _windows_long_paths_enabled,
@@ -351,6 +352,7 @@ def espidf_mocks(setup_core: Path):
         patch("esphome.espidf.framework._clone_idf_with_submodules") as clone,
         patch("esphome.espidf.framework._write_idf_version_txt"),
         patch("esphome.espidf.framework._patch_tools_json_for_linux_arm64"),
+        patch("esphome.espidf.framework._patch_tools_json_demote_openocd"),
         patch("esphome.espidf.framework._prefetch_idf_tool_archives"),
         patch("esphome.espidf.framework._write_stamp"),
         patch("esphome.espidf.framework._check_stamp", return_value=True),
@@ -947,6 +949,53 @@ def test_get_tool_downloads_inprocess_explicit_tool_specs(
         "cmake@9.9.9",
     )
     assert [d["name"] for d in downloads] == ["cmake@3.30.2"]
+
+
+# ---------------------------------------------------------------------------
+# _patch_tools_json_demote_openocd (openocd-esp32 made optional)
+# ---------------------------------------------------------------------------
+
+
+def test_demote_openocd_patches_install_type(tmp_path: Path) -> None:
+    tools_json = _write_tools_json(
+        tmp_path,
+        {
+            "tools": [
+                {"name": "openocd-esp32", "install": "always"},
+                {"name": "cmake", "install": "always"},
+            ]
+        },
+    )
+    _patch_tools_json_demote_openocd(tmp_path)
+
+    data = json.loads(tools_json.read_text(encoding="utf-8"))
+    openocd = next(t for t in data["tools"] if t["name"] == "openocd-esp32")
+    cmake = next(t for t in data["tools"] if t["name"] == "cmake")
+    assert openocd["install"] == "on_request"
+    # other tools are left untouched
+    assert cmake["install"] == "always"
+
+
+def test_patch_tools_json_unexpected_structure_warns_and_skips(
+    tmp_path: Path,
+) -> None:
+    """Valid JSON with an unexpected shape must skip the patch, not raise."""
+    tools_dir = tmp_path / "tools"
+    tools_dir.mkdir()
+    tools_json = tools_dir / "tools.json"
+    tools_json.write_text('["not", "a", "dict"]', encoding="utf-8")
+    before = tools_json.read_text(encoding="utf-8")
+    _patch_tools_json_demote_openocd(tmp_path)  # AttributeError -> skip
+    assert tools_json.read_text(encoding="utf-8") == before
+
+
+def test_demote_openocd_already_patched_is_noop(tmp_path: Path) -> None:
+    tools_json = _write_tools_json(
+        tmp_path, {"tools": [{"name": "openocd-esp32", "install": "on_request"}]}
+    )
+    before = tools_json.read_text(encoding="utf-8")
+    _patch_tools_json_demote_openocd(tmp_path)
+    assert tools_json.read_text(encoding="utf-8") == before
 
 
 # ---------------------------------------------------------------------------

@@ -10,13 +10,21 @@ import time
 import urllib.parse
 
 import esphome.config_validation as cv
-from esphome.core import CORE, TimePeriodSeconds
-from esphome.helpers import rmtree
+from esphome.core import CORE, EsphomeError, TimePeriodSeconds
+from esphome.helpers import rmtree, write_file
 
 _LOGGER = logging.getLogger(__name__)
 
 # Special value to indicate never refresh
 NEVER_REFRESH = TimePeriodSeconds(seconds=-1)
+
+# Written inside .git only after every clone step (clone, ref fetch, reset,
+# submodule init) has completed. A directory without it is an interrupted
+# clone (e.g. the process was killed mid-clone) and must be re-cloned; without
+# this check such a directory would be trusted forever when the caller uses
+# NEVER_REFRESH. Lives in .git so stash/reset/checkout can never touch it and
+# it does not pollute the worktree.
+_CLONE_COMPLETE_MARKER = "esphome_clone_complete"
 
 
 class GitException(cv.Invalid):
@@ -93,6 +101,26 @@ def _compute_destination_path(key: str, domain: str) -> Path:
     h = hashlib.new("sha256")
     h.update(key.encode())
     return base_dir / h.hexdigest()[:8]
+
+
+def _clone_complete_marker_path(repo_dir: Path) -> Path:
+    return repo_dir / ".git" / _CLONE_COMPLETE_MARKER
+
+
+def _remove_repo_dir(repo_dir: Path) -> None:
+    """Remove a repo directory, deleting the completion marker first.
+
+    Marker-first ordering guarantees an interrupted removal can never leave a
+    marker behind next to a partially deleted worktree. The unlink is best
+    effort: if it fails (e.g. a file lock on Windows), rmtree below still
+    gets the chance to remove the directory, marker included.
+    """
+    try:
+        _clone_complete_marker_path(repo_dir).unlink(missing_ok=True)
+    except OSError as err:
+        _LOGGER.debug("Could not delete clone completion marker first: %s", err)
+    if repo_dir.is_dir():
+        rmtree(repo_dir)
 
 
 def resolve_symlink_stub(repo_dir: Path, file_path: Path) -> Path | None:
@@ -201,8 +229,18 @@ def clone_or_update(
         )
 
     repo_dir = _compute_destination_path(key, domain)
+    hash_dir_name = repo_dir.name
     if subpath:
         repo_dir = repo_dir / subpath
+
+    if repo_dir.is_dir() and not _clone_complete_marker_path(repo_dir).is_file():
+        # The last clone never finished (killed process, container stop) or
+        # predates the marker; either way it cannot be trusted, especially
+        # with NEVER_REFRESH where it would otherwise be reused forever.
+        _LOGGER.warning(
+            "Removing incomplete clone of %s at %s, will re-clone", key, repo_dir
+        )
+        _remove_repo_dir(repo_dir)
 
     if not repo_dir.is_dir():
         _LOGGER.info("Cloning %s", key)
@@ -233,13 +271,27 @@ def clone_or_update(
                     + submodules,
                     git_dir=repo_dir,
                 )
+
         except GitException:
             # Remove incomplete clone to prevent stale state. Without this,
             # a failed ref fetch leaves a clone on the default branch, and
             # subsequent calls skip the update due to the refresh window.
-            if repo_dir.is_dir():
-                rmtree(repo_dir)
+            _remove_repo_dir(repo_dir)
             raise
+
+        # Every git step succeeded; the key and hash dir name are recorded
+        # purely to make cache debugging easier. The marker is only a
+        # validity signal, so a failed write must not fail an otherwise
+        # complete clone: the only cost is a re-clone on the next run.
+        try:
+            write_file(
+                _clone_complete_marker_path(repo_dir),
+                f"key={key}\nhash={hash_dir_name}\n",
+            )
+        except EsphomeError as err:
+            _LOGGER.warning(
+                "Could not write clone completion marker for %s: %s", key, err
+            )
 
     else:
         if refresh == NEVER_REFRESH or CORE.skip_external_update:
@@ -250,7 +302,13 @@ def clone_or_update(
         # On first clone, FETCH_HEAD does not exist
         if not file_timestamp.exists():
             file_timestamp = Path(repo_dir / ".git" / "HEAD")
-        age_seconds = time.time() - file_timestamp.stat().st_mtime
+        try:
+            age_seconds = time.time() - file_timestamp.stat().st_mtime
+        except OSError:
+            # A .git with neither FETCH_HEAD nor HEAD is corrupt (e.g. a
+            # partially deleted clone). Force the update path so the
+            # broken-repository recovery below removes and re-clones it.
+            age_seconds = float("inf")
         if refresh is None or age_seconds > refresh.total_seconds:
             # Try to update the repository, recovering from broken state if needed
             old_sha: str | None = None
@@ -303,7 +361,7 @@ def clone_or_update(
                     err,
                 )
                 _LOGGER.info("Removing broken repository at %s", repo_dir)
-                rmtree(repo_dir)
+                _remove_repo_dir(repo_dir)
                 _LOGGER.info("Successfully removed broken repository, re-cloning...")
 
                 # Recursively call clone_or_update to re-clone
@@ -316,6 +374,7 @@ def clone_or_update(
                     username=username,
                     password=password,
                     submodules=submodules,
+                    subpath=subpath,
                     _recover_broken=False,
                 )
                 _LOGGER.info("Repository %s successfully recovered", key)
