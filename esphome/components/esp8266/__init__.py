@@ -411,36 +411,18 @@ async def finalize_serial_config() -> None:
 # Called by writer.py
 def copy_files() -> None:
     dir = Path(__file__).parent
-    post_build_file = dir / "post_build.py.script"
-    copy_file_if_changed(
-        post_build_file,
-        CORE.relative_build_path("post_build.py"),
-    )
-    testing_mode_file = dir / "testing_mode.py.script"
-    copy_file_if_changed(
-        testing_mode_file,
-        CORE.relative_build_path("testing_mode.py"),
-    )
-    exclude_updater_file = dir / "exclude_updater.py.script"
-    copy_file_if_changed(
-        exclude_updater_file,
-        CORE.relative_build_path("exclude_updater.py"),
-    )
-    exclude_waveform_file = dir / "exclude_waveform.py.script"
-    copy_file_if_changed(
-        exclude_waveform_file,
-        CORE.relative_build_path("exclude_waveform.py"),
-    )
-    remove_float_scanf_file = dir / "remove_float_scanf.py.script"
-    copy_file_if_changed(
-        remove_float_scanf_file,
-        CORE.relative_build_path("remove_float_scanf.py"),
-    )
-    ccache_file = dir / "ccache.py.script"
-    copy_file_if_changed(
-        ccache_file,
-        CORE.relative_build_path("ccache.py"),
-    )
+    for script in (
+        "post_build",
+        "testing_mode",
+        "exclude_updater",
+        "exclude_waveform",
+        "remove_float_scanf",
+        "ccache",
+    ):
+        copy_file_if_changed(
+            dir / f"{script}.py.script",
+            CORE.relative_build_path(f"{script}.py"),
+        )
 
 
 # ESP logs stack trace decoder, based on https://github.com/me-no-dev/EspExceptionDecoder
