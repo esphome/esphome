@@ -424,6 +424,18 @@ def test_run_platformio_cli_passes_ccache_env_to_subprocess_only(
         assert "CCACHE_BASEDIR" not in os.environ
 
 
+def test_ccache_env_requires_build_path(setup_core: Path) -> None:
+    """Enabling ccache without a build path fails loudly."""
+    CORE.build_path = None
+
+    with (
+        patch.dict(os.environ, {}, clear=True),
+        patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
+        pytest.raises(ValueError, match="CORE.build_path must be set"),
+    ):
+        toolchain._ccache_env()
+
+
 def test_run_platformio_cli_merges_caller_env(
     setup_core: Path, mock_run_external_process: Mock
 ) -> None:
