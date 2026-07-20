@@ -5450,6 +5450,43 @@ def _setup_build_info_test(
     return build_info_path, firmware_path
 
 
+def test_compile_program_esp8266_runs_rosetta_check(tmp_path: Path) -> None:
+    """Test that compile_program runs the Rosetta preflight for ESP8266 targets."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test_device")
+
+    config: dict[str, Any] = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    args = MockArgs()
+
+    with (
+        patch(
+            "esphome.components.esp8266.check_rosetta",
+            side_effect=EsphomeError("Rosetta 2 is not installed"),
+        ) as mock_check,
+        pytest.raises(EsphomeError, match="Rosetta 2 is not installed"),
+    ):
+        compile_program(args, config)
+
+    mock_check.assert_called_once()
+
+
+def test_compile_program_skips_rosetta_check_on_other_platforms(
+    tmp_path: Path,
+    mock_compile_build_info_run_compile: Mock,
+    mock_compile_build_info_get_idedata: Mock,
+) -> None:
+    """Test that the Rosetta preflight does not run for non-ESP8266 targets."""
+    _setup_build_info_test(tmp_path, firmware_first=True)
+
+    config: dict[str, Any] = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    args = MockArgs()
+
+    with patch("esphome.components.esp8266.check_rosetta") as mock_check:
+        result = compile_program(args, config)
+
+    assert result == 0
+    mock_check.assert_not_called()
+
+
 def test_compile_program_emits_build_info_when_firmware_rebuilt(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,

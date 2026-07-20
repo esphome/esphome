@@ -776,6 +776,13 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
 
         check_placeholder_credentials(config)
 
+    # Keep this here, NOT in codegen: config-hash and --only-generate must keep
+    # working on machines that cannot run the toolchain.
+    if CORE.is_esp8266:
+        from esphome.components.esp8266 import check_rosetta
+
+        check_rosetta()
+
     # NOTE: "Build path:" format is parsed by script/ci_memory_impact_extract.py
     # If you change this format, update the regex in that script as well
     _LOGGER.info("Compiling app... Build path: %s", CORE.build_path)
