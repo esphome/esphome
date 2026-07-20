@@ -275,8 +275,15 @@ bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_ind
   // other scopes. LwIP: NETIF_NO_INDEX=0 is always rejected.
   bool joined = false;
   foreach_eligible_ipv6_if([&](unsigned int idx) {
+#ifdef USE_ZEPHYR
+    // This Zephyr fork's struct ipv6_mreq has no "ipv6mr_interface" (POSIX name) and no
+    // IPV6_JOIN_GROUP alias -- only the RFC 3678 legacy ipv6mr_ifindex/IPV6_ADD_MEMBERSHIP names.
+    imreq6.ipv6mr_ifindex = idx;
+    if (sock->setsockopt(IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, &imreq6, sizeof(imreq6)) == 0) {
+#else
     imreq6.ipv6mr_interface = idx;
     if (sock->setsockopt(IPPROTO_IPV6, IPV6_JOIN_GROUP, &imreq6, sizeof(imreq6)) == 0) {
+#endif
       joined = true;
       return true;
     }
@@ -286,7 +293,11 @@ bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_ind
     return false;
   }
   if (if_index_out != nullptr) {
+#ifdef USE_ZEPHYR
+    *if_index_out = imreq6.ipv6mr_ifindex;
+#else
     *if_index_out = imreq6.ipv6mr_interface;
+#endif
   }
   return true;
 #else
@@ -297,6 +308,15 @@ bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_ind
 
 #if USE_NETWORK_IPV6
 bool set_ipv6_multicast_if(Socket *sock, uint32_t if_index_in) {
+#ifdef USE_ZEPHYR
+  // This Zephyr fork has no IPV6_MULTICAST_IF setsockopt at all. That's not a gap to work
+  // around: nRF52 is a Thread/OpenThread device with exactly one IPv6-capable interface, so
+  // there is nothing to select between -- whatever the stack already sends on is "the"
+  // multicast interface. Treat this as trivially already satisfied.
+  (void) sock;
+  (void) if_index_in;
+  return true;
+#else
   uint32_t ifindex = if_index_in;
   if (ifindex == 0) {
     foreach_eligible_ipv6_if([&](unsigned int idx) {
@@ -308,6 +328,7 @@ bool set_ipv6_multicast_if(Socket *sock, uint32_t if_index_in) {
     }
   }
   return sock->setsockopt(IPPROTO_IPV6, IPV6_MULTICAST_IF, &ifindex, sizeof(ifindex)) == 0;
+#endif
 }
 #endif  // USE_NETWORK_IPV6
 #endif  // USE_SOCKET_IMPL_BSD_SOCKETS || USE_SOCKET_IMPL_LWIP_SOCKETS
