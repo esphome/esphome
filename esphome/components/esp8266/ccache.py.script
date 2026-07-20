@@ -1,0 +1,71 @@
+import os
+import shutil
+
+import platformdirs
+
+# pylint: disable=E0602
+Import("env")  # noqa
+
+
+def ccache_enabled():
+    """Decide whether to route compiles through ccache.
+
+    Enabled by default whenever the ``ccache`` binary is on PATH; set
+    ``ESPHOME_CCACHE_ENABLE=0`` in the environment to opt out (or ``1`` to
+    force it on). Mirrors the behavior of the ESP-IDF build integration,
+    which uses ccache the same way.
+    """
+    value = os.environ.get("ESPHOME_CCACHE_ENABLE")
+    if value is not None:
+        return value.lower() in ("1", "true")
+    return shutil.which("ccache") is not None
+
+
+# This is a "pre" script, so the platform's builder (which sets CC/CXX and
+# clones the construction environment for framework and library builds) runs
+# after it. Replacing CC/CXX here would be overwritten, and replacing them in
+# a "post" script would miss the already-cloned library environments. Wrapping
+# SPAWN instead is ordering-proof: clones copy the wrapper, and every compiler
+# invocation from every environment funnels through it at execution time.
+if ccache_enabled() and (ccache_path := shutil.which("ccache")) is not None:
+    # The cache lives under the machine-global ESPHome cache dir, so it is
+    # shared across all projects and removed by `esphome clean-all`.
+    #
+    # CCACHE_BASEDIR rewrites the per-device absolute paths (the generated
+    # sources under src/, the .pioenvs build dir) so different devices with
+    # identical source share cache entries. Framework and toolchain paths
+    # live outside the project dir and are already identical across devices.
+    #
+    # Only defaults for values the user has not set are applied, so a custom
+    # CCACHE_DIR / CCACHE_MAXSIZE / etc. in the environment is respected.
+    ccache_defaults = {
+        key: value
+        for key, value in {
+            "CCACHE_DIR": os.path.join(
+                platformdirs.user_cache_dir("esphome", appauthor=False),
+                "platformio-ccache",
+            ),
+            "CCACHE_BASEDIR": os.path.realpath(env.subst("$PROJECT_DIR")),
+            "CCACHE_NOHASHDIR": "true",
+        }.items()
+        if key not in os.environ
+    }
+
+    original_spawn = env["SPAWN"]
+
+    def ccache_spawn(sh, escape, cmd, args, child_env):
+        prog = os.path.basename(cmd)
+        if prog.endswith(".exe"):
+            prog = prog[:-4]
+        # Only wrap compile steps (gcc/g++ with -c); linking, archiving and
+        # the other tools gain nothing from ccache.
+        if (prog.endswith("gcc") or prog.endswith("g++")) and "-c" in args:
+            for key, value in ccache_defaults.items():
+                child_env.setdefault(key, value)
+            wrapper = escape(ccache_path) if " " in ccache_path else ccache_path
+            cmd = ccache_path
+            args = [wrapper] + list(args)
+        return original_spawn(sh, escape, cmd, args, child_env)
+
+    env.Replace(SPAWN=ccache_spawn)
+    print("ESPHome: Compiling with ccache")

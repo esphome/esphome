@@ -261,6 +261,7 @@ async def to_code(config):
         )
 
     extra_scripts = [
+        "pre:ccache.py",
         "pre:testing_mode.py",
         "pre:exclude_updater.py",
         "pre:exclude_waveform.py",
@@ -434,6 +435,11 @@ def copy_files() -> None:
     copy_file_if_changed(
         remove_float_scanf_file,
         CORE.relative_build_path("remove_float_scanf.py"),
+    )
+    ccache_file = dir / "ccache.py.script"
+    copy_file_if_changed(
+        ccache_file,
+        CORE.relative_build_path("ccache.py"),
     )
 
 
