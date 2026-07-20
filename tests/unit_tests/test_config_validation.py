@@ -2942,6 +2942,20 @@ def test_rename_key_removed_in_absent_key_no_warning(
     assert not caplog.records
 
 
+def test_rename_key_removed_in_with_component_prefixes_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="esphome.config_validation"):
+        result = cv.rename_key(
+            "old", "new", removed_in="2026.8.0", component="my_component"
+        )({"old": 5})
+    assert result == {"new": 5}
+    assert (
+        "[my_component] 'old' is deprecated, use 'new'. Will be removed in 2026.8.0"
+        in caplog.text
+    )
+
+
 def test_file__existing_relative_path(setup_core: Path) -> None:
     (setup_core / "partitions.csv").write_text("csv\n")
 
