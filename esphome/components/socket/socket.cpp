@@ -8,9 +8,11 @@
 #ifdef USE_HOST
 #include "esphome/core/wake.h"
 #endif
-#if defined(USE_HOST) || defined(USE_ZEPHYR)
+#if defined(USE_HOST)
 #include <ifaddrs.h>
 #include <net/if.h>
+#elif defined(USE_ZEPHYR)
+#include <zephyr/net/net_if.h>
 #else
 #include "lwip/netif.h"
 #endif
@@ -144,7 +146,7 @@ std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol) {
 
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 template<typename F> static bool foreach_eligible_ipv6_if(F &&callback) {
-#if defined(USE_HOST) || defined(USE_ZEPHYR)
+#if defined(USE_HOST)
   struct ifaddrs *ifaddr;
   if (getifaddrs(&ifaddr) != 0) {
     return false;
@@ -171,6 +173,33 @@ template<typename F> static bool foreach_eligible_ipv6_if(F &&callback) {
     errno = EADDRNOTAVAIL;
   }
   return found_any;
+#elif defined(USE_ZEPHYR)
+  // Zephyr has no getifaddrs()/ifaddrs.h; enumerate interfaces via the native net_if API.
+  // NET_IF_IPV6_NO_MLD is the direct analog of the LwIP branch's NETIF_FLAG_MLD6 check below.
+  struct EligibleIfContext {
+    F *callback;
+    bool found_any = false;
+  };
+  EligibleIfContext ctx{&callback};
+  net_if_foreach(
+      [](struct net_if *iface, void *user_data) {
+        auto *ctx = static_cast<EligibleIfContext *>(user_data);
+        if (!net_if_flag_is_set(iface, NET_IF_UP) || !net_if_flag_is_set(iface, NET_IF_IPV6) ||
+            net_if_flag_is_set(iface, NET_IF_IPV6_NO_MLD)) {
+          return;
+        }
+        int idx = net_if_get_by_iface(iface);
+        if (idx <= 0) {
+          return;
+        }
+        ctx->found_any = true;
+        (*ctx->callback)(static_cast<unsigned int>(idx));
+      },
+      &ctx);
+  if (!ctx.found_any) {
+    errno = EADDRNOTAVAIL;
+  }
+  return ctx.found_any;
 #else
   bool found_any = false;
   struct netif *netif;
@@ -204,8 +233,16 @@ bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_ind
       errno = EINVAL;
       return false;
     }
+#ifdef USE_ZEPHYR
+    // Zephyr's setsockopt(IP_ADD_MEMBERSHIP) requires exactly sizeof(struct ip_mreqn); it has
+    // no plain "struct ip_mreq" at all (unlike POSIX/lwIP).
+    struct ip_mreqn imreq {};
+    imreq.imr_address.s_addr = ESPHOME_INADDR_ANY;
+    imreq.imr_ifindex = 0;
+#else
     struct ip_mreq imreq {};
     imreq.imr_interface.s_addr = ESPHOME_INADDR_ANY;
+#endif
     imreq.imr_multiaddr = ipv4mc;
     if (sock->setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, &imreq, sizeof(imreq)) < 0) {
       return false;
