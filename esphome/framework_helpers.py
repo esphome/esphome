@@ -995,7 +995,7 @@ def download_from_mirrors(
         for attempt in range(_MIRROR_ATTEMPTS):
             try:
                 resp, offset = _open_ranged(url, offset, timeout, validator)
-            except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            except (requests.RequestException, OSError) as e:
                 # Connect/HTTP error, no bytes flowed — next mirror.
                 _LOGGER.debug("Failed to download %s: %s", url, str(e))
                 failures.append((url, e))
@@ -1030,7 +1030,7 @@ def download_from_mirrors(
                 f.seek(0)
                 return url
 
-            except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            except (requests.RequestException, OSError, EsphomeError) as e:
                 # Mid-stream drop: keep the received bytes and retry this
                 # mirror from the current position — but only when the
                 # server gave a validator to resume against safely AND a
