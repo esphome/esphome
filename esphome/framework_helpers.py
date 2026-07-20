@@ -826,11 +826,13 @@ def download_with_resume(
                 # No sha, no size, and the server sent no usable
                 # content-length: nothing can prove the download complete
                 # (urllib3 still errors on most short bodies, but not on a
-                # cleanly closed chunked stream). Promote with a warning
-                # rather than fail: refusing would regress servers that
-                # never send a length, and every current caller extracts
-                # the file afterwards, where corruption fails loudly.
-                _LOGGER.warning(
+                # cleanly closed chunked stream). Promote with a debug
+                # note rather than fail or warn: some servers (e.g. the
+                # Espressif constraints host) never send a length, the user
+                # can do nothing about it, and every current caller
+                # extracts or parses the file afterwards, where corruption
+                # fails loudly.
+                _LOGGER.debug(
                     "Downloaded %s without any way to verify completeness",
                     dest.name,
                 )
@@ -1017,7 +1019,7 @@ def download_from_mirrors(
                 if not expected_total:
                     # Same trust decision as download_with_resume's
                     # unverifiable promotion; surface it at the same level.
-                    _LOGGER.warning(
+                    _LOGGER.debug(
                         "Downloaded %s without any way to verify completeness",
                         url,
                     )

@@ -719,13 +719,17 @@ class TestDownloadWithResume:
             "If-Range": '"v1"',
         }
 
-    def test_unverifiable_download_warns(
+    def test_unverifiable_download_logged(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """No sha, no size, no content-length: the download is promoted but
-        a warning notes completeness could not be verified."""
+        """No sha, no size, no content-length: the download is promoted with
+        a debug note (routine for e.g. the constraints host, so not a
+        warning) that completeness could not be verified."""
         dest = tmp_path / "tool.tar.gz"
-        with patch("requests.get", return_value=_mock_response(b"data")):
+        with (
+            caplog.at_level(logging.DEBUG, logger="esphome.framework_helpers"),
+            patch("requests.get", return_value=_mock_response(b"data")),
+        ):
             download_with_resume("https://example.com/t", dest)
         assert dest.read_bytes() == b"data"
         assert "without any way to verify completeness" in caplog.text
