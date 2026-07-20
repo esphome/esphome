@@ -329,8 +329,11 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     cmd = [python_exe, "-m", "esphome.platformio.runner"] + list(args)
 
     # ccache settings go into the subprocess environment only (see
-    # _ccache_env() for why they must not leak into os.environ).
-    env = os.environ | _ccache_env()
+    # _ccache_env() for why they must not leak into os.environ). A caller
+    # supplied env is used as the base when present.
+    base_env = kwargs.pop("env", None)
+    env = dict(os.environ if base_env is None else base_env)
+    env.update(_ccache_env())
 
     return run_external_process(*cmd, env=env, **kwargs)
 

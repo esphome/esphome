@@ -424,6 +424,24 @@ def test_run_platformio_cli_passes_ccache_env_to_subprocess_only(
         assert "CCACHE_BASEDIR" not in os.environ
 
 
+def test_run_platformio_cli_merges_caller_env(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """A caller-supplied env is the base and gains the ccache settings."""
+    CORE.build_path = str(setup_core / "build" / "test")
+
+    with patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"):
+        mock_run_external_process.return_value = 0
+        toolchain.run_platformio_cli(
+            "test", env={"CUSTOM_VAR": "1", "ESPHOME_CCACHE_ENABLE": "0"}
+        )
+
+    env = mock_run_external_process.call_args[1]["env"]
+    assert env["CUSTOM_VAR"] == "1"
+    # The normalized enable flag still lands in the subprocess env.
+    assert "ESPHOME_CCACHE_ENABLE" in env
+
+
 def test_copy_ccache_script(setup_core: Path) -> None:
     """The shared ccache pre-script is copied into the build dir."""
     CORE.build_path = setup_core / "build" / "test"
