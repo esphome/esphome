@@ -1,22 +1,30 @@
 """Tests for esphome.components.nrf52.framework helpers."""
 
 import hashlib
+import os
 from pathlib import Path
+import sys
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
 from esphome.components.nrf52.framework import (
+    _PLATFORMIO_PENV_REQUIREMENTS,
     _REQUIREMENTS,
     TOOLCHAIN_VERSION,
+    _get_penv_site_packages,
+    _get_platformio_penv_path,
     _get_toolchain_platform_info,
     check_and_install,
+    get_build_env,
     get_sdk_nrf_tools_path,
+    setup_platformio_python_env,
 )
 from esphome.config_validation import Version
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
+from esphome.framework_helpers import get_python_env_executable_path
 
 
 @pytest.fixture(autouse=True)
@@ -250,6 +258,218 @@ class TestCheckAndInstall:
         assert substitutions["sysname"] == "linux"
         assert substitutions["machine"] == "x86_64"
         assert substitutions["extension"] == "tar.xz"
+
+
+# ---------------------------------------------------------------------------
+# setup_platformio_python_env tests
+# ---------------------------------------------------------------------------
+
+
+def _platformio_requirements_hash() -> str:
+    return hashlib.sha256(
+        _REQUIREMENTS.read_bytes()
+        + "\n".join(_PLATFORMIO_PENV_REQUIREMENTS).encode()
+        + f"python{sys.version_info.major}.{sys.version_info.minor}".encode()
+    ).hexdigest()
+
+
+@pytest.fixture
+def platformio_penv_dir() -> Path:
+    """Pre-create the PlatformIO penv dir so sentinel writes succeed.
+
+    create_venv is mocked in these tests, so the directory it would have
+    created must exist for ``sentinel.write_text`` to work.
+    """
+    penv_path = _get_platformio_penv_path()
+    penv_path.mkdir(parents=True, exist_ok=True)
+    return penv_path
+
+
+class TestSetupPlatformioPythonEnv:
+    def test_fresh_install_creates_venv_and_sets_env(
+        self,
+        platformio_penv_dir: Path,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """No sentinel → venv created, requirements installed, env exported."""
+        with patch.dict(os.environ):
+            os.environ.pop("PYTHONPATH", None)
+
+            setup_platformio_python_env()
+
+            mock_nrf52_ops.rmdir.assert_called_once()
+            mock_nrf52_ops.create_venv.assert_called_once_with(
+                platformio_penv_dir, msg="PlatformIO toolchain"
+            )
+            mock_nrf52_ops.run_command_ok.assert_called_once()
+            cmd = mock_nrf52_ops.run_command_ok.call_args[0][0]
+            assert cmd[1:4] == ["-m", "pip", "install"]
+            assert "-r" in cmd
+            assert str(_REQUIREMENTS) in cmd
+            for requirement in _PLATFORMIO_PENV_REQUIREMENTS:
+                assert requirement in cmd
+            sentinel = platformio_penv_dir / ".ready"
+            assert sentinel.read_text(encoding="utf-8") == (
+                _platformio_requirements_hash()
+            )
+
+            assert os.environ["VIRTUAL_ENV"] == str(platformio_penv_dir)
+            site_packages = str(_get_penv_site_packages(platformio_penv_dir))
+            assert os.environ["PYTHONPATH"] == site_packages
+            bin_dir = str(
+                get_python_env_executable_path(platformio_penv_dir, "python").parent
+            )
+            assert os.environ["PATH"].split(os.pathsep)[0] == bin_dir
+
+    def test_ready_sentinel_skips_install_but_sets_env(
+        self,
+        platformio_penv_dir: Path,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """Current sentinel → no install work, env vars still exported."""
+        (platformio_penv_dir / ".ready").write_text(
+            _platformio_requirements_hash(), encoding="utf-8"
+        )
+
+        with patch.dict(os.environ):
+            setup_platformio_python_env()
+
+            mock_nrf52_ops.rmdir.assert_not_called()
+            mock_nrf52_ops.create_venv.assert_not_called()
+            mock_nrf52_ops.run_command_ok.assert_not_called()
+            assert os.environ["VIRTUAL_ENV"] == str(platformio_penv_dir)
+
+    def test_stale_sentinel_reinstalls(
+        self,
+        platformio_penv_dir: Path,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """A sentinel from different requirements → venv rebuilt from scratch."""
+        sentinel = platformio_penv_dir / ".ready"
+        sentinel.write_text("stale-hash", encoding="utf-8")
+
+        with patch.dict(os.environ):
+            setup_platformio_python_env()
+
+        mock_nrf52_ops.rmdir.assert_called_once()
+        mock_nrf52_ops.create_venv.assert_called_once()
+        mock_nrf52_ops.run_command_ok.assert_called_once()
+        assert sentinel.read_text(encoding="utf-8") == _platformio_requirements_hash()
+
+    def test_install_failure_raises(
+        self,
+        platformio_penv_dir: Path,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """Failing pip install raises EsphomeError and writes no sentinel."""
+        mock_nrf52_ops.run_command_ok.return_value = False
+
+        with (
+            patch.dict(os.environ),
+            pytest.raises(
+                EsphomeError, match="Install requirements for PlatformIO toolchain"
+            ),
+        ):
+            setup_platformio_python_env()
+
+        assert not (platformio_penv_dir / ".ready").exists()
+
+    def test_repeated_calls_do_not_duplicate_env_entries(
+        self,
+        platformio_penv_dir: Path,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """Compile then upload in one process must not grow PYTHONPATH/PATH."""
+        (platformio_penv_dir / ".ready").write_text(
+            _platformio_requirements_hash(), encoding="utf-8"
+        )
+        site_packages = str(_get_penv_site_packages(platformio_penv_dir))
+        bin_dir = str(
+            get_python_env_executable_path(platformio_penv_dir, "python").parent
+        )
+
+        with patch.dict(os.environ):
+            setup_platformio_python_env()
+            setup_platformio_python_env()
+
+            assert os.environ["PYTHONPATH"].split(os.pathsep).count(site_packages) == 1
+            assert os.environ["PATH"].split(os.pathsep).count(bin_dir) == 1
+
+    def test_existing_pythonpath_preserved(
+        self,
+        platformio_penv_dir: Path,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """A pre-existing PYTHONPATH keeps its entries after the venv entry."""
+        (platformio_penv_dir / ".ready").write_text(
+            _platformio_requirements_hash(), encoding="utf-8"
+        )
+        site_packages = str(_get_penv_site_packages(platformio_penv_dir))
+
+        with patch.dict(os.environ, {"PYTHONPATH": "/existing/path"}):
+            setup_platformio_python_env()
+
+            assert os.environ["PYTHONPATH"] == os.pathsep.join(
+                [site_packages, "/existing/path"]
+            )
+
+
+@pytest.mark.parametrize(
+    ("os_name", "expected_parts"),
+    [
+        (
+            "posix",
+            (
+                "lib",
+                f"python{sys.version_info.major}.{sys.version_info.minor}",
+                "site-packages",
+            ),
+        ),
+        ("nt", ("Lib", "site-packages")),
+    ],
+)
+def test_get_penv_site_packages(
+    tmp_path: Path, os_name: str, expected_parts: tuple[str, ...]
+) -> None:
+    penv_path = tmp_path / "penv"
+    with patch("os.name", os_name):
+        assert _get_penv_site_packages(penv_path) == penv_path.joinpath(*expected_parts)
+
+
+# ---------------------------------------------------------------------------
+# get_build_env tests
+# ---------------------------------------------------------------------------
+
+
+def test_get_build_env(
+    nrf52_dirs: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """get_build_env exposes ZEPHYR_SDK_INSTALL_DIR pointing at the toolchain root.
+
+    ZEPHYR_SDK_INSTALL_DIR is the variable Zephyr's FindZephyr-sdk.cmake
+    explicitly consumes (from the environment) and uses as a find_package
+    HINT. The old Zephyr-sdk_DIR environment hint proved unreliable in
+    containerized non-root builds and was removed.
+    """
+    monkeypatch.setenv("SOME_PREEXISTING_VAR", "kept")
+
+    env = get_build_env()
+
+    tools = get_sdk_nrf_tools_path()
+    venv_bin_dir = get_python_env_executable_path(
+        tools / "penvs" / f"v{_TEST_SDK_VERSION}", "python"
+    ).parent
+    assert env["PATH"].startswith(str(venv_bin_dir) + os.pathsep)
+    assert env["ZEPHYR_BASE"] == str(
+        tools / "frameworks" / f"v{_TEST_SDK_VERSION}" / "zephyr"
+    )
+    # Toolchain root, not the cmake/ subdir
+    assert env["ZEPHYR_SDK_INSTALL_DIR"] == str(
+        tools / "toolchains" / TOOLCHAIN_VERSION
+    )
+    assert "Zephyr-sdk_DIR" not in env
+    # The rest of the process environment is inherited
+    assert env["SOME_PREEXISTING_VAR"] == "kept"
 
 
 # ---------------------------------------------------------------------------
