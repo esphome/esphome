@@ -12,7 +12,7 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["i2c"]
-AUTO_LOAD = ["number"]
+AUTO_LOAD = ["number", "sensor"]
 
 bq76972_ns = cg.esphome_ns.namespace("bq76972")
 BQ76972Component = bq76972_ns.class_(
