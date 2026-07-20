@@ -26,7 +26,7 @@ esp32_ble_server:
   on_passkey_request:
     - logger.log: "Got passkey request"
     - ble_server.passkey_reply:
-        id: my_ble_server
+        id: ble_server
         address: !lambda return address;
         passkey: 123456
 
