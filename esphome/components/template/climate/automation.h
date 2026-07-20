@@ -42,13 +42,13 @@ class TemplateClimatePublishAction final : public Action<Ts...>, public Parented
     if (this->fan_mode_.has_value())
       this->parent_->set_fan_mode(this->fan_mode_.value(x...));
     if (this->custom_fan_mode_.has_value())
-      this->parent_->set_custom_fan_mode(this->custom_fan_mode_.value(x...).c_str());
+      this->parent_->set_custom_fan_mode(StringRef(this->custom_fan_mode_.value(x...)));
     if (this->swing_mode_.has_value())
       this->parent_->set_swing_mode(this->swing_mode_.value(x...));
     if (this->preset_.has_value())
       this->parent_->set_preset(this->preset_.value(x...));
     if (this->custom_preset_.has_value())
-      this->parent_->set_custom_preset(this->custom_preset_.value(x...).c_str());
+      this->parent_->set_custom_preset(StringRef(this->custom_preset_.value(x...)));
 
     this->parent_->publish_state();
   }

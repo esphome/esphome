@@ -88,17 +88,17 @@ void TemplateClimate::control(const climate::ClimateCall &call) {
 // ClimateCall::validate_(), so an unsupported custom mode isn't caught anywhere upstream -- check
 // it here (the same lookup set_custom_fan_mode_()/set_custom_preset_() use internally) so a
 // typo'd custom_fan_mode/custom_preset doesn't get silently dropped.
-void TemplateClimate::set_custom_fan_mode(const char *mode) {
-  if (this->find_custom_fan_mode_(mode) == nullptr) {
-    ESP_LOGW(TAG, "'%s' - Unsupported custom fan mode '%s'", this->get_name().c_str(), mode);
+void TemplateClimate::set_custom_fan_mode(StringRef mode) {
+  if (this->find_custom_fan_mode_(mode.c_str(), mode.size()) == nullptr) {
+    ESP_LOGW(TAG, "'%s' - Unsupported custom fan mode '%s'", this->get_name().c_str(), mode.c_str());
     return;
   }
   this->set_custom_fan_mode_(mode);
 }
 
-void TemplateClimate::set_custom_preset(const char *preset) {
-  if (this->find_custom_preset_(preset) == nullptr) {
-    ESP_LOGW(TAG, "'%s' - Unsupported custom preset '%s'", this->get_name().c_str(), preset);
+void TemplateClimate::set_custom_preset(StringRef preset) {
+  if (this->find_custom_preset_(preset.c_str(), preset.size()) == nullptr) {
+    ESP_LOGW(TAG, "'%s' - Unsupported custom preset '%s'", this->get_name().c_str(), preset.c_str());
     return;
   }
   this->set_custom_preset_(preset);

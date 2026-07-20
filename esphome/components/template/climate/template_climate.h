@@ -60,9 +60,11 @@ class TemplateClimate final : public climate::Climate, public Component {
   void set_mode(climate::ClimateMode mode) { this->mode = mode; }
   void set_swing_mode(climate::ClimateSwingMode mode) { this->swing_mode = mode; }
   void set_fan_mode(climate::ClimateFanMode mode) { this->set_fan_mode_(mode); }
-  void set_custom_fan_mode(const char *mode);
+  void set_custom_fan_mode(const char *mode) { this->set_custom_fan_mode(StringRef(mode)); }
+  void set_custom_fan_mode(StringRef mode);
   void set_preset(climate::ClimatePreset preset) { this->set_preset_(preset); }
-  void set_custom_preset(const char *preset);
+  void set_custom_preset(const char *preset) { this->set_custom_preset(StringRef(preset)); }
+  void set_custom_preset(StringRef preset);
 
  protected:
   void control(const climate::ClimateCall &call) override;
