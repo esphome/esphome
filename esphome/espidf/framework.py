@@ -9,6 +9,7 @@ import platform
 import re
 import shutil
 import tempfile
+from typing import NoReturn
 
 import platformdirs
 
@@ -257,7 +258,7 @@ def _run_idf_tools_script(
     )
 
 
-def _raise_script_failure(what: str, root: PathType, stderr: str | None) -> None:
+def _raise_script_failure(what: str, root: PathType, stderr: str | None) -> NoReturn:
     """Raise RuntimeError for a failed helper script, appending stderr detail."""
     detail = (stderr or "").strip()
     raise RuntimeError(

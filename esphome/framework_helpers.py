@@ -402,17 +402,23 @@ def _zip_extract_all(
             progress.update(1)
 
 
-def _rename_with_retry(src: Path, dst: Path, attempts: int = 5) -> None:
+def _rename_with_retry(
+    src: Path, dst: Path, attempts: int = 5, overwrite: bool = False
+) -> None:
     """Rename ``src`` to ``dst`` with backoff retries on Windows sharing violations.
 
     Antivirus/indexer handles on freshly-written files can briefly block
     ``os.rename`` with ERROR_SHARING_VIOLATION / ERROR_ACCESS_DENIED. The
     handle is released within tens of ms in practice, so exponential backoff
-    works.
+    works. With ``overwrite`` an existing ``dst`` is replaced instead of
+    failing.
     """
     for i in range(attempts):
         try:
-            src.rename(dst)
+            if overwrite:
+                src.replace(dst)
+            else:
+                src.rename(dst)
             return
         except PermissionError:
             if i == attempts - 1:
@@ -652,10 +658,11 @@ def download_with_resume(
                 resp, offset = _open_ranged(url, offset, timeout)
                 with resp, part.open("ab") as f:
                     _stream_response_to_file(resp, f, offset, size)
-            # else: a previous run wrote every byte but was killed before the
-            # rename below. Skip the network entirely — a Range request past
-            # EOF would draw HTTP 416 — and let verification decide whether
-            # to promote the file or discard it and start over.
+            # else: a previous run already wrote every byte (or more) but
+            # was killed before the rename below. Skip the network entirely
+            # — a Range request past EOF would draw HTTP 416 — and let
+            # verification decide whether to promote the file or discard it
+            # and start over.
 
             if size is not None and part.stat().st_size != size:
                 raise EsphomeError(
@@ -666,10 +673,15 @@ def download_with_resume(
                     digest = hashlib.file_digest(pf, "sha256").hexdigest()
                 if digest != sha256:
                     raise EsphomeError(f"sha256 mismatch: got {digest}")
-            part.replace(dest)
+            # Retry on Windows sharing violations: an antivirus handle on the
+            # freshly-written file must not get the verified download deleted
+            # as corrupt by the except clause below.
+            _rename_with_retry(part, dest, overwrite=True)
             return
         except requests.RequestException as e:
-            # Mid-stream network failures keep the part file for the next
+            # Network failures — including connect errors, which unlike in
+            # download_from_mirrors are retried here since a single URL has
+            # no mirror-list fallback — keep the part file for the next
             # attempt (or the next esphome run) to resume from. Checked
             # before OSError: RequestException subclasses IOError.
             _LOGGER.debug("Download of %s interrupted: %s", url, e)

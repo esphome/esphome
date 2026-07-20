@@ -712,6 +712,31 @@ class TestDownloadWithResume:
             download_with_resume("https://example.com/t", dest, sha256=good, size=4)
         assert dest.read_bytes() == b"data"
 
+    def test_corrupt_partial_resumed_then_discarded_then_redownloaded(
+        self, tmp_path: Path
+    ) -> None:
+        """The full recovery cycle for a corrupted partial download: the
+        resume completes it, verification fails, the poisoned part file is
+        discarded, and the next attempt re-downloads from scratch."""
+        dest = tmp_path / "tool.tar.gz"
+        # a previous run left a corrupted 4-byte prefix behind
+        (tmp_path / "tool.tar.gz.part").write_bytes(b"BAD!")
+        good = hashlib.sha256(b"data66").hexdigest()
+        with patch(
+            "requests.get",
+            side_effect=[
+                _resumed_response(b"66"),  # resume "completes" the bad part
+                _mock_response(b"data66"),  # clean retry from zero
+            ],
+        ) as mock_get:
+            download_with_resume("https://example.com/t", dest, sha256=good, size=6)
+        # first attempt resumed at the corrupt offset, failed verification;
+        # second attempt started fresh (no Range header) and succeeded
+        assert mock_get.call_args_list[0][1]["headers"] == {"Range": "bytes=4-"}
+        assert "Range" not in mock_get.call_args_list[1][1]["headers"]
+        assert dest.read_bytes() == b"data66"
+        assert not (tmp_path / "tool.tar.gz.part").exists()
+
     def test_complete_part_file_promoted_without_network(self, tmp_path: Path) -> None:
         """A .part holding every byte (killed between write and rename) is
         verified in place and promoted; no request is made, so no 416 loop."""
