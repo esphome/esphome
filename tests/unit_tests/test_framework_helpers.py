@@ -905,6 +905,22 @@ class TestDownloadWithResume:
             download_with_resume("https://example.com/t", dest, sha256=good, size=4)
         assert dest.read_bytes() == b"data"
 
+    def test_existing_dest_with_size_only_kept(self, tmp_path: Path) -> None:
+        dest = tmp_path / "tool.tar.gz"
+        dest.write_bytes(b"data")
+        with patch("requests.get") as mock_get:
+            download_with_resume("https://example.com/t", dest, size=4)
+        mock_get.assert_not_called()
+
+    def test_existing_dest_with_sha_only_kept(self, tmp_path: Path) -> None:
+        """sha-only verification also authorizes reusing a completed dest."""
+        dest = tmp_path / "tool.tar.gz"
+        dest.write_bytes(b"data")
+        good = hashlib.sha256(b"data").hexdigest()
+        with patch("requests.get") as mock_get:
+            download_with_resume("https://example.com/t", dest, sha256=good)
+        mock_get.assert_not_called()
+
     def test_meta_write_failure_is_best_effort(self, tmp_path: Path) -> None:
         """A failure to persist the resume sidecar must not fail the
         download itself."""
@@ -1141,6 +1157,7 @@ class TestDownloadFromMirrors:
         )
 
     def test_falls_back_to_second_mirror(self, tmp_path: Path) -> None:
+        buf = io.BytesIO()
         with patch(
             "requests.get",
             side_effect=[_mock_response(b"", ok=False), _mock_response(b"second")],
@@ -1148,10 +1165,10 @@ class TestDownloadFromMirrors:
             url = download_from_mirrors(
                 ["https://mirror1.com/f", "https://mirror2.com/f"],
                 {},
-                tmp_path / "out.bin",
+                buf,
             )
         assert url == "https://mirror2.com/f"
-        assert (tmp_path / "out.bin").read_bytes() == b"second"
+        assert buf.getvalue() == b"second"
 
     def test_mid_stream_drop_resumes_same_mirror(self, tmp_path: Path) -> None:
         """A mid-stream failure retries the same mirror with Range and
@@ -1159,6 +1176,7 @@ class TestDownloadFromMirrors:
         to the next."""
         first = _interrupted_response(b"1234", etag='"v1"')
         first.headers = {**first.headers, "content-length": "8"}
+        buf = io.BytesIO()
         with patch(
             "requests.get",
             side_effect=[first, _resumed_response(b"5678")],
@@ -1166,10 +1184,10 @@ class TestDownloadFromMirrors:
             url = download_from_mirrors(
                 ["https://mirror1.com/f", "https://mirror2.com/f"],
                 {},
-                tmp_path / "out.bin",
+                buf,
             )
         assert url == "https://mirror1.com/f"
-        assert (tmp_path / "out.bin").read_bytes() == b"12345678"
+        assert buf.getvalue() == b"12345678"
         assert mock_get.call_count == 2
         assert mock_get.call_args_list[1][0][0] == "https://mirror1.com/f"
         # the resume is conditional on the content being unchanged
@@ -1181,12 +1199,13 @@ class TestDownloadFromMirrors:
     def test_mid_stream_drop_without_validator_restarts(self, tmp_path: Path) -> None:
         """A server offering no ETag/Last-Modified cannot be resumed safely;
         the retry restarts from zero instead of stitching unverified bytes."""
+        buf = io.BytesIO()
         with patch(
             "requests.get",
             side_effect=[_interrupted_response(b"1234"), _mock_response(b"full")],
         ) as mock_get:
-            download_from_mirrors(["https://mirror1.com/f"], {}, tmp_path / "out.bin")
-        assert (tmp_path / "out.bin").read_bytes() == b"full"
+            download_from_mirrors(["https://mirror1.com/f"], {}, buf)
+        assert buf.getvalue() == b"full"
         assert "Range" not in mock_get.call_args_list[1][1]["headers"]
 
     def test_drop_after_last_byte_recovers_via_416(self, tmp_path: Path) -> None:
@@ -1197,17 +1216,17 @@ class TestDownloadFromMirrors:
         first.headers = {**first.headers, "content-length": "4"}
         r416 = _mock_response(b"", ok=False)
         r416.status_code = 416
+        buf = io.BytesIO()
         with patch("requests.get", side_effect=[first, r416]) as mock_get:
-            url = download_from_mirrors(
-                ["https://mirror1.com/f"], {}, tmp_path / "out.bin"
-            )
+            url = download_from_mirrors(["https://mirror1.com/f"], {}, buf)
         assert url == "https://mirror1.com/f"
-        assert (tmp_path / "out.bin").read_bytes() == b"1234"
+        assert buf.getvalue() == b"1234"
         assert mock_get.call_count == 2
 
     def test_mirror_drop_without_length_restarts(self, tmp_path: Path) -> None:
         """With no content-length there is no way to prove a stitched file
         complete, so the retry restarts even though a validator exists."""
+        buf = io.BytesIO()
         with patch(
             "requests.get",
             side_effect=[
@@ -1215,8 +1234,8 @@ class TestDownloadFromMirrors:
                 _mock_response(b"full"),
             ],
         ) as mock_get:
-            download_from_mirrors(["https://mirror1.com/f"], {}, tmp_path / "out.bin")
-        assert (tmp_path / "out.bin").read_bytes() == b"full"
+            download_from_mirrors(["https://mirror1.com/f"], {}, buf)
+        assert buf.getvalue() == b"full"
         assert "Range" not in mock_get.call_args_list[1][1]["headers"]
 
     def test_path_target_resumes_across_runs(self, tmp_path: Path) -> None:
@@ -1260,11 +1279,12 @@ class TestDownloadFromMirrors:
         short_resume = _resumed_response(b"5")
         short_fresh = _mock_response(b"56")
         short_fresh.headers = {**short_fresh.headers, "content-length": "8"}
+        buf = io.BytesIO()
         with (
             patch("requests.get", side_effect=[first, short_resume, short_fresh]),
             pytest.raises(EsphomeError, match="all mirrors"),
         ):
-            download_from_mirrors(["https://mirror1.com/f"], {}, tmp_path / "out.bin")
+            download_from_mirrors(["https://mirror1.com/f"], {}, buf)
 
     def test_failed_mirror_leftovers_not_kept_for_next_mirror(
         self, tmp_path: Path
@@ -1276,6 +1296,7 @@ class TestDownloadFromMirrors:
             r = _interrupted_response(b"BB")
             r.status_code = 206
             exhausted.append(r)
+        buf = io.BytesIO()
         with patch(
             "requests.get",
             side_effect=exhausted + [_mock_response(b"clean")],
@@ -1283,10 +1304,10 @@ class TestDownloadFromMirrors:
             url = download_from_mirrors(
                 ["https://mirror1.com/f", "https://mirror2.com/f"],
                 {},
-                tmp_path / "out.bin",
+                buf,
             )
         assert url == "https://mirror2.com/f"
-        assert (tmp_path / "out.bin").read_bytes() == b"clean"
+        assert buf.getvalue() == b"clean"
         # the second mirror starts fresh, without a Range header
         assert mock_get.call_args_list[3][0][0] == "https://mirror2.com/f"
         assert "Range" not in mock_get.call_args_list[3][1]["headers"]
@@ -1304,7 +1325,7 @@ class TestDownloadFromMirrors:
             download_from_mirrors(
                 ["https://mirror1.com/f", "https://mirror2.com/f"],
                 {},
-                tmp_path / "out.bin",
+                io.BytesIO(),
             )
         # Every attempted URL appears in the message, and the first mirror's
         # exception (the primary URL, usually the one that matters) is chained.

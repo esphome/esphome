@@ -16,7 +16,7 @@ or written — this script only reports what the install would download.
 
 # pylint: disable=import-error  # idf_tools is on PYTHONPATH at runtime only
 
-from contextlib import redirect_stdout, suppress
+from contextlib import redirect_stdout
 import json
 import os
 from pathlib import Path
@@ -55,8 +55,12 @@ def collect_downloads() -> list[dict]:
         version = version or tool.get_recommended_version()
         if version is None:
             continue
-        with suppress(ToolBinaryError):
+        try:
             tool.find_installed_versions()
+        except ToolBinaryError as e:
+            # A broken installed binary is idf_tools' problem to repair on
+            # install; note it and treat the version as not installed.
+            print(f"tool {name} failed its binary check: {e}", file=sys.stderr)
         if version in tool.versions_installed or version not in tool.versions:
             continue
         download = tool.versions[version].get_download_for_platform(CURRENT_PLATFORM)
