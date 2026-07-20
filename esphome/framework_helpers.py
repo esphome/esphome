@@ -4,6 +4,7 @@ from collections.abc import Iterable
 from contextlib import ExitStack
 import hashlib
 import io
+import json
 import logging
 import os
 from pathlib import Path
@@ -540,8 +541,8 @@ def archive_extract_all(
         ValueError: If archive format is unsupported
     """
 
-    # 1. Handle different archive input types
     with ExitStack() as stack:
+        # 1. Handle different archive input types
         archive_ref: io.BufferedIOBase
         if isinstance(archive, (str, os.PathLike)):
             archive_ref = stack.enter_context(Path(archive).open("rb"))
@@ -609,6 +610,58 @@ def _open_ranged(
     return resp, offset
 
 
+def _file_matches(path: Path, sha256: str | None, size: int | None) -> bool:
+    """Return True unless ``path`` fails an available sha256/size check."""
+    if size is not None and path.stat().st_size != size:
+        return False
+    if sha256 is not None:
+        with path.open("rb") as f:
+            if hashlib.file_digest(f, "sha256").hexdigest() != sha256:
+                return False
+    return True
+
+
+def _load_download_meta(meta: Path, url: str) -> tuple[str | None, int]:
+    """Return the ``(validator, total)`` a previous run recorded for ``url``.
+
+    ``(None, 0)`` when there is no sidecar, it is unreadable, or it belongs
+    to a different URL (e.g. a different mirror was tried last time).
+    """
+    try:
+        with meta.open(encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None, 0
+    if not isinstance(data, dict) or data.get("url") != url:
+        return None, 0
+    validator = data.get("validator")
+    total = data.get("total")
+    return (
+        validator if isinstance(validator, str) else None,
+        total if isinstance(total, int) else 0,
+    )
+
+
+def _write_download_meta(
+    meta: Path, url: str, validator: str | None, total: int
+) -> None:
+    """Persist resume metadata next to the part file; best-effort.
+
+    Without a validator there is nothing a later run could resume against,
+    so any stale sidecar is removed instead.
+    """
+    try:
+        if validator is None:
+            meta.unlink(missing_ok=True)
+        else:
+            meta.write_text(
+                json.dumps({"url": url, "validator": validator, "total": total}),
+                encoding="utf-8",
+            )
+    except OSError as e:
+        _LOGGER.debug("Could not update download metadata %s: %s", meta, e)
+
+
 def _content_length(resp: "requests.Response") -> int:
     """Return the response's Content-Length, or 0 when absent or malformed.
 
@@ -669,6 +722,7 @@ def download_with_resume(
     # mirror fallback, and each retry only re-fetches the remainder.
     attempts: int = 5,
     timeout: int = 30,
+    retry_connect_errors: bool = True,
 ) -> None:
     """Download ``url`` to ``dest``, resuming partial downloads.
 
@@ -678,8 +732,18 @@ def download_with_resume(
     on a complete file instead of restarting from zero each retry (#17703).
     When ``size`` / ``sha256`` are given the completed file is verified and a
     mismatch restarts from scratch; success renames the part file into place.
-    Resuming a part file from an earlier run requires ``sha256`` — a size
-    alone cannot detect a same-length content change on the server.
+    An already-present ``dest`` that passes verification is kept as-is.
+
+    Resuming a part file from an earlier run needs proof the content is
+    unchanged: ``sha256`` when the caller has one, or otherwise the server's
+    If-Range validator recorded in a ``<dest>.part.meta`` sidecar by the run
+    that started the download — a size alone cannot detect a same-length
+    content change on the server.
+
+    With ``retry_connect_errors`` disabled, a failure before any body bytes
+    flow (connect error, HTTP error status) propagates immediately instead
+    of consuming attempts — for callers with their own fallback, like
+    ``download_from_mirrors``.
 
     Raises EsphomeError when all attempts are exhausted.
     """
@@ -691,16 +755,25 @@ def download_with_resume(
 
     dest = Path(dest)
     part = dest.with_name(dest.name + ".part")
+    meta = part.with_name(part.name + ".meta")
     dest.parent.mkdir(parents=True, exist_ok=True)
     last_error: Exception | None = None
-    # sha256/size verification catches a resume stitched onto changed
-    # content; without either, a resume is only safe when backed by an
-    # If-Range validator from this run, so unverifiable leftover part
-    # files restart from zero.
-    validator: str | None = None
-    expected_total = 0
+
+    # An earlier run already completed this download. Only trust it when
+    # there is something to verify it against; without sha/size the remote
+    # content may have changed (e.g. a refreshed constraints file), so
+    # re-download and atomically replace it.
+    if dest.is_file() and (sha256 is not None or size is not None):
+        if _file_matches(dest, sha256, size):
+            return
+        dest.unlink()
+
+    # Adopt the validator/total the run that started this part file recorded,
+    # so an unfinished download resumes across runs even without a sha256.
+    validator, expected_total = _load_download_meta(meta, url)
 
     for _ in range(attempts):
+        streamed = False
         try:
             offset = part.stat().st_size if part.is_file() else 0
             # A stitched resume needs two proofs: content identity (the
@@ -729,9 +802,13 @@ def download_with_resume(
                 # every byte the server has; fall through to verification.
                 if resp is not None:
                     with resp, part.open("ab") as f:
+                        streamed = True
                         if offset == 0:
                             validator = _response_validator(resp)
                             expected_total = _content_length(resp)
+                            # Recorded so a later run can prove an If-Range
+                            # resume of this part file safe.
+                            _write_download_meta(meta, url, validator, expected_total)
                         _stream_response_to_file(resp, f, offset, size)
             # else: a previous run already wrote every byte (or more) but
             # was killed before the rename below. Skip the network entirely
@@ -763,13 +840,16 @@ def download_with_resume(
             # freshly-written file must not get the verified download deleted
             # as corrupt by the except clause below.
             _rename_with_retry(part, dest, overwrite=True)
+            meta.unlink(missing_ok=True)
             return
         except requests.RequestException as e:
-            # Network failures — including connect errors, which unlike in
-            # download_from_mirrors are retried here since a single URL has
-            # no mirror-list fallback — keep the part file for the next
-            # attempt (or the next esphome run) to resume from. Checked
+            # Network failures — including connect errors, since a single
+            # URL has no mirror-list fallback — keep the part file for the
+            # next attempt (or the next esphome run) to resume from. Checked
             # before OSError: RequestException subclasses IOError.
+            if not retry_connect_errors and not streamed:
+                # The caller falls back to another URL on pre-body failures.
+                raise
             _LOGGER.debug("Download of %s interrupted: %s", url, e)
             last_error = e
         except (OSError, EsphomeError) as e:
@@ -777,6 +857,7 @@ def download_with_resume(
             # trusted for resume; start over.
             _LOGGER.debug("Discarding %s: %s", part, e)
             part.unlink(missing_ok=True)
+            meta.unlink(missing_ok=True)
             last_error = e
 
     raise EsphomeError(
@@ -818,6 +899,10 @@ def download_from_mirrors(
     ``substitutions`` are skipped, so callers can offer templates that only
     apply to some downloads.
 
+    A path target downloads through ``download_with_resume``, so an
+    interrupted download resumes on the next esphome run; a file-like target
+    only resumes mid-stream drops within this call.
+
     Raises:
         ValueError: If mirrors list is empty.
         EsphomeError: If all download attempts fail; the message lists every
@@ -826,126 +911,141 @@ def download_from_mirrors(
     """
     from esphome.core import EsphomeError
 
-    # 1. Open target file for writing if path given
-    with ExitStack() as stack:
-        if isinstance(target, (str, os.PathLike)):
-            f = stack.enter_context(Path(target).open("wb"))
-        elif isinstance(target, (io.RawIOBase, io.IOBase)):
-            f = target
-        else:
-            raise TypeError(
-                f"target must be str, Path, or file-like object: {type(target)}"
-            )
+    # 1. Classify the target: filesystem path or open file object
+    path_target: Path | None = None
+    f: IO[bytes] | None = None
+    if isinstance(target, (str, os.PathLike)):
+        path_target = Path(target)
+    elif isinstance(target, (io.RawIOBase, io.IOBase)):
+        f = target
+    else:
+        raise TypeError(
+            f"target must be str, Path, or file-like object: {type(target)}"
+        )
 
-        # 2. Try each mirror in order
-        failures: list[tuple[str, Exception]] = []
-        skipped: list[tuple[str, str]] = []
+    # 2. Try each mirror in order
+    failures: list[tuple[str, Exception]] = []
+    skipped: list[tuple[str, str]] = []
 
-        for mirror in mirrors:
-            # 3. Apply substitutions to URL
+    for mirror in mirrors:
+        # 3. Apply substitutions to URL
+        try:
+            url = mirror.format(**substitutions)
+        except KeyError as e:
+            # The template references a substitution not provided for
+            # this download (e.g. SHORT_VERSION only exists for x.y.0
+            # versions) - expected, the template just doesn't apply.
+            _LOGGER.debug("Skipping mirror %s: %s not available", mirror, e)
+            skipped.append((mirror, f"not applicable ({e.args[0]} not available)"))
+            continue
+        except (IndexError, ValueError) as e:
+            # A malformed template (unbalanced braces, bad format spec)
+            # is an authoring error, not an expected fallthrough - warn
+            # even if a later mirror succeeds.
+            _LOGGER.warning("Skipping malformed mirror URL template %s: %r", mirror, e)
+            skipped.append((mirror, f"skipped ({e!r})"))
+            continue
+
+        _LOGGER.debug("Trying to download from %s", url)
+
+        # Path targets delegate to download_with_resume so a partial
+        # download persists (and resumes) across esphome runs.
+        if path_target is not None:
             try:
-                url = mirror.format(**substitutions)
-            except KeyError as e:
-                # The template references a substitution not provided for
-                # this download (e.g. SHORT_VERSION only exists for x.y.0
-                # versions) - expected, the template just doesn't apply.
-                _LOGGER.debug("Skipping mirror %s: %s not available", mirror, e)
-                skipped.append((mirror, f"not applicable ({e.args[0]} not available)"))
-                continue
-            except (IndexError, ValueError) as e:
-                # A malformed template (unbalanced braces, bad format spec)
-                # is an authoring error, not an expected fallthrough - warn
-                # even if a later mirror succeeds.
-                _LOGGER.warning(
-                    "Skipping malformed mirror URL template %s: %r", mirror, e
+                download_with_resume(
+                    url,
+                    path_target,
+                    attempts=_MIRROR_ATTEMPTS,
+                    timeout=timeout,
+                    # Pre-body failures (connect/HTTP errors) fall to the
+                    # next mirror immediately; only mid-stream drops
+                    # retry-with-resume on the same URL.
+                    retry_connect_errors=False,
                 )
-                skipped.append((mirror, f"skipped ({e!r})"))
+                return url
+            except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+                _LOGGER.debug("Failed to download %s: %s", url, str(e))
+                failures.append((url, e))
                 continue
 
-            _LOGGER.debug("Trying to download from %s", url)
+        # 4. Download; mid-stream failures retry the same mirror with
+        # resume (see download_with_resume) instead of starting over.
+        # There is no checksum to verify a resumed file against, so a
+        # stitch is only trusted when the server proves consistency: the
+        # If-Range validator guarantees 206 only for unchanged content,
+        # and the expected total length (when the first response carried
+        # one) guards against short or shifted bodies. Without a
+        # validator the retry restarts from zero.
+        offset = 0
+        expected_total = 0
+        validator = None
+        for attempt in range(_MIRROR_ATTEMPTS):
+            try:
+                resp, offset = _open_ranged(url, offset, timeout, validator)
+            except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+                # Connect/HTTP error, no bytes flowed — next mirror.
+                _LOGGER.debug("Failed to download %s: %s", url, str(e))
+                failures.append((url, e))
+                break
 
-            # 4. Download; mid-stream failures retry the same mirror with
-            # resume (see download_with_resume) instead of starting over.
-            # There is no checksum to verify a resumed file against, so a
-            # stitch is only trusted when the server proves consistency: the
-            # If-Range validator guarantees 206 only for unchanged content,
-            # and the expected total length (when the first response carried
-            # one) guards against short or shifted bodies. Without a
-            # validator the retry restarts from zero.
-            offset = 0
-            expected_total = 0
-            validator = None
-            for attempt in range(_MIRROR_ATTEMPTS):
-                try:
-                    resp, offset = _open_ranged(url, offset, timeout, validator)
-                except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-                    # Connect/HTTP error, no bytes flowed — next mirror.
-                    _LOGGER.debug("Failed to download %s: %s", url, str(e))
+            try:
+                # A None response means HTTP 416: the file already holds
+                # every byte the server has (a drop after the last byte);
+                # only the length check below remains.
+                if resp is not None:
+                    with resp:
+                        if offset == 0:
+                            validator = _response_validator(resp)
+                            expected_total = _content_length(resp)
+                        _stream_response_to_file(resp, f, offset)
+
+                if expected_total and f.tell() != expected_total:
+                    raise EsphomeError(
+                        f"size mismatch: expected {expected_total}, got {f.tell()}"
+                    )
+
+                _LOGGER.debug("Downloaded successfully from: %s", url)
+
+                # 5. Reset file pointer and return
+                f.seek(0)
+                return url
+
+            except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+                # Mid-stream drop: keep the received bytes and retry this
+                # mirror from the current position — but only when the
+                # server gave a validator to resume against safely AND a
+                # total length to prove the stitched file complete (the
+                # length check above is the only verification here).
+                _LOGGER.debug("Failed to download %s: %s", url, str(e))
+                if validator and expected_total:
+                    offset = f.tell()
+                else:
+                    _LOGGER.debug(
+                        "Restarting %s from zero: cannot prove a "
+                        "resumed file complete (validator=%s, total=%s)",
+                        url,
+                        validator is not None,
+                        expected_total,
+                    )
+                    offset = 0
+                if attempt == _MIRROR_ATTEMPTS - 1:
                     failures.append((url, e))
-                    break
 
-                try:
-                    # A None response means HTTP 416: the file already holds
-                    # every byte the server has (a drop after the last byte);
-                    # only the length check below remains.
-                    if resp is not None:
-                        with resp:
-                            if offset == 0:
-                                validator = _response_validator(resp)
-                                expected_total = _content_length(resp)
-                            _stream_response_to_file(resp, f, offset)
-
-                    if expected_total and f.tell() != expected_total:
-                        raise EsphomeError(
-                            f"size mismatch: expected {expected_total}, got {f.tell()}"
-                        )
-
-                    _LOGGER.debug("Downloaded successfully from: %s", url)
-
-                    # 5. Reset file pointer and return
-                    f.seek(0)
-                    return url
-
-                except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-                    # Mid-stream drop: keep the received bytes and retry this
-                    # mirror from the current position — but only when the
-                    # server gave a validator to resume against safely AND a
-                    # total length to prove the stitched file complete (the
-                    # length check above is the only verification here).
-                    _LOGGER.debug("Failed to download %s: %s", url, str(e))
-                    if validator and expected_total:
-                        offset = f.tell()
-                    else:
-                        _LOGGER.debug(
-                            "Restarting %s from zero: cannot prove a "
-                            "resumed file complete (validator=%s, total=%s)",
-                            url,
-                            validator is not None,
-                            expected_total,
-                        )
-                        offset = 0
-                    if attempt == _MIRROR_ATTEMPTS - 1:
-                        failures.append((url, e))
-
-        # 6. Report every attempted URL if all mirrors failed. Falling back
-        # past an early mirror is normal (e.g. only one of the framework URL
-        # templates matches a given version's tag), so raising only the last
-        # error would hide the failure that actually matters.
-        if failures:
-            attempts = "".join(
-                f"\n  {url}\n    {_failure_reason(e)}" for url, e in failures
-            )
-            attempts += "".join(
-                f"\n  {mirror}\n    {reason}" for mirror, reason in skipped
-            )
-            raise EsphomeError(
-                f"Failed to download from all mirrors:{attempts}"
-            ) from failures[0][1]
-        if skipped:
-            details = "".join(
-                f"\n  {mirror}\n    {reason}" for mirror, reason in skipped
-            )
-            raise EsphomeError(
-                f"No mirror URL template matched the provided substitutions:{details}"
-            )
-        raise ValueError("download_from_mirrors called with an empty mirrors list")
+    # 6. Report every attempted URL if all mirrors failed. Falling back
+    # past an early mirror is normal (e.g. only one of the framework URL
+    # templates matches a given version's tag), so raising only the last
+    # error would hide the failure that actually matters.
+    if failures:
+        attempts = "".join(
+            f"\n  {url}\n    {_failure_reason(e)}" for url, e in failures
+        )
+        attempts += "".join(f"\n  {mirror}\n    {reason}" for mirror, reason in skipped)
+        raise EsphomeError(
+            f"Failed to download from all mirrors:{attempts}"
+        ) from failures[0][1]
+    if skipped:
+        details = "".join(f"\n  {mirror}\n    {reason}" for mirror, reason in skipped)
+        raise EsphomeError(
+            f"No mirror URL template matched the provided substitutions:{details}"
+        )
+    raise ValueError("download_from_mirrors called with an empty mirrors list")

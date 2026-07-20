@@ -8,7 +8,6 @@ from pathlib import Path
 import platform
 import re
 import shutil
-import tempfile
 from typing import NoReturn
 
 import platformdirs
@@ -662,41 +661,54 @@ def _check_esphome_idf_framework_install(
             git_url, ref = git_source
             _clone_idf_with_submodules(framework_path, git_url, ref)
         else:
-            # Download in temporary file
-            with tempfile.NamedTemporaryFile() as tmp:
-                _LOGGER.info("Downloading ESP-IDF %s framework ...", version)
+            _LOGGER.info("Downloading ESP-IDF %s framework ...", version)
 
-                # Create substitutions for the URLs. SHORT_VERSION (x.y with
-                # optional -extra) is only provided for x.y.0 releases, since
-                # the vX.Y release tags only exist for those; templates that
-                # reference it are skipped for other versions by
-                # download_from_mirrors.
-                substitutions = {"VERSION": version}
-                try:
-                    ver = Version.parse(version)
-                    substitutions["MAJOR"] = str(ver.major)
-                    substitutions["MINOR"] = str(ver.minor)
-                    substitutions["PATCH"] = str(ver.patch)
-                    substitutions["EXTRA"] = f"-{ver.extra}" if ver.extra else ""
-                    if ver.patch == 0:
-                        substitutions["SHORT_VERSION"] = (
-                            f"{ver.major}.{ver.minor}{substitutions['EXTRA']}"
-                        )
-                except ValueError:
-                    _LOGGER.warning(
-                        "ESP-IDF version '%s' is not a valid version number; "
-                        "only the {VERSION} substitution is available for "
-                        "mirror URLs",
-                        version,
+            # Create substitutions for the URLs. SHORT_VERSION (x.y with
+            # optional -extra) is only provided for x.y.0 releases, since
+            # the vX.Y release tags only exist for those; templates that
+            # reference it are skipped for other versions by
+            # download_from_mirrors.
+            substitutions = {"VERSION": version}
+            try:
+                ver = Version.parse(version)
+                substitutions["MAJOR"] = str(ver.major)
+                substitutions["MINOR"] = str(ver.minor)
+                substitutions["PATCH"] = str(ver.patch)
+                substitutions["EXTRA"] = f"-{ver.extra}" if ver.extra else ""
+                if ver.patch == 0:
+                    substitutions["SHORT_VERSION"] = (
+                        f"{ver.major}.{ver.minor}{substitutions['EXTRA']}"
                     )
-
-                mirrors = [source_url] if source_url else ESPHOME_IDF_FRAMEWORK_MIRRORS
-                download_from_mirrors(mirrors, substitutions, tmp.file)
-
-                _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
-                archive_extract_all(
-                    tmp.file, framework_path, progress_header="Extracting"
+            except ValueError:
+                _LOGGER.warning(
+                    "ESP-IDF version '%s' is not a valid version number; "
+                    "only the {VERSION} substitution is available for "
+                    "mirror URLs",
+                    version,
                 )
+
+            mirrors = [source_url] if source_url else ESPHOME_IDF_FRAMEWORK_MIRRORS
+            # Download to a persistent file in the tool download cache (not
+            # a temp file) so an interrupted download resumes on the next
+            # run; the cache is pruned after a successful install anyway.
+            tarball_path = get_idf_tools_path() / "dist" / f"esp-idf-{version}.tar.xz"
+            download_from_mirrors(mirrors, substitutions, tarball_path)
+
+            _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
+            try:
+                with tarball_path.open("rb") as tarball:
+                    archive_extract_all(
+                        tarball, framework_path, progress_header="Extracting"
+                    )
+            except Exception:
+                # A corrupt archive (e.g. torn by an unclean shutdown that
+                # zero-filled part of the file) must not be reused: without
+                # a checksum, only the failed extraction can expose it, so
+                # drop it here to make the next run re-download.
+                tarball_path.unlink(missing_ok=True)
+                raise
+            # Extracted; drop the archive rather than caching ~70MB twice.
+            tarball_path.unlink(missing_ok=True)
         extracted_marker.touch()
 
     # Idempotent post-extract patch: written every invocation so a build

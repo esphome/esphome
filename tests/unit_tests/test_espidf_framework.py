@@ -315,6 +315,21 @@ class TestTarExtractHardLinkPrefixStripping:
 _IDF_VERSION = "5.1.2"
 
 
+def _fake_download_from_mirrors(
+    mirrors: list[str],
+    substitutions: dict[str, str],
+    target: object,
+    **kwargs: object,
+) -> str:
+    """Stand-in for download_from_mirrors that creates path targets, since
+    the framework code opens the downloaded tarball afterwards."""
+    if isinstance(target, (str, os.PathLike)):
+        path = Path(target)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+    return "https://example.com/idf.tar.xz"
+
+
 @pytest.fixture
 def espidf_mocks(setup_core: Path):
     """Patch the heavy I/O of check_esp_idf_install and pre-create the framework dir."""
@@ -325,7 +340,7 @@ def espidf_mocks(setup_core: Path):
         patch("esphome.espidf.framework.rmdir") as rmdir_mock,
         patch(
             "esphome.espidf.framework.download_from_mirrors",
-            return_value="https://example.com/idf.tar.xz",
+            side_effect=_fake_download_from_mirrors,
         ) as download,
         patch("esphome.espidf.framework.archive_extract_all") as extract,
         patch("esphome.espidf.framework.create_venv") as venv,
@@ -415,6 +430,20 @@ def test_check_esp_idf_install_already_installed(espidf_mocks: SimpleNamespace) 
 
     espidf_mocks.extract.assert_not_called()
     espidf_mocks.venv.assert_not_called()
+
+
+def test_corrupt_tarball_removed_when_extraction_fails(
+    espidf_mocks: SimpleNamespace,
+) -> None:
+    """A tarball that fails to extract (e.g. torn by an unclean shutdown) is
+    deleted so the next run re-downloads instead of failing forever."""
+    espidf_mocks.extract.side_effect = RuntimeError("xz: unexpected end of input")
+    tarball = get_idf_tools_path() / "dist" / f"esp-idf-{_IDF_VERSION}.tar.xz"
+
+    with pytest.raises(RuntimeError, match="unexpected end of input"):
+        check_esp_idf_install(_IDF_VERSION, force=True)
+
+    assert not tarball.exists()
 
 
 def test_check_esp_idf_install_framework_failure(espidf_mocks: SimpleNamespace) -> None:

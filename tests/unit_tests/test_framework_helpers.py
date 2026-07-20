@@ -5,6 +5,7 @@
 import hashlib
 import importlib.util
 import io
+import json
 import logging
 import os
 from pathlib import Path
@@ -877,6 +878,95 @@ class TestDownloadWithResume:
         assert dest.read_bytes() == b"data66"
         assert not (tmp_path / "tool.tar.gz.part").exists()
 
+    def test_existing_dest_passing_verification_kept(self, tmp_path: Path) -> None:
+        """A dest completed by an earlier run is reused without any request."""
+        dest = tmp_path / "tool.tar.gz"
+        dest.write_bytes(b"data")
+        good = hashlib.sha256(b"data").hexdigest()
+        with patch("requests.get") as mock_get:
+            download_with_resume("https://example.com/t", dest, sha256=good, size=4)
+        mock_get.assert_not_called()
+        assert dest.read_bytes() == b"data"
+
+    @pytest.mark.parametrize(
+        "stale",
+        [
+            pytest.param(b"corrupt!", id="wrong-size"),
+            pytest.param(b"bad!", id="right-size-wrong-hash"),
+        ],
+    )
+    def test_existing_dest_failing_verification_redownloaded(
+        self, tmp_path: Path, stale: bytes
+    ) -> None:
+        dest = tmp_path / "tool.tar.gz"
+        dest.write_bytes(stale)
+        good = hashlib.sha256(b"data").hexdigest()
+        with patch("requests.get", return_value=_mock_response(b"data")):
+            download_with_resume("https://example.com/t", dest, sha256=good, size=4)
+        assert dest.read_bytes() == b"data"
+
+    def test_meta_write_failure_is_best_effort(self, tmp_path: Path) -> None:
+        """A failure to persist the resume sidecar must not fail the
+        download itself."""
+        dest = tmp_path / "f.tar.xz"
+        first = _mock_response(b"data")
+        first.headers = {**first.headers, "ETag": '"v1"', "content-length": "4"}
+        with (
+            patch("requests.get", return_value=first),
+            patch.object(Path, "write_text", side_effect=OSError("read-only")),
+        ):
+            download_with_resume("https://example.com/f", dest)
+        assert dest.read_bytes() == b"data"
+
+    def test_meta_sidecar_written_and_removed(self, tmp_path: Path) -> None:
+        """The validator sidecar appears while downloading and is cleaned up
+        with the promotion."""
+        dest = tmp_path / "f.tar.xz"
+        meta = tmp_path / "f.tar.xz.part.meta"
+        seen: list[bool] = []
+        first = _interrupted_response(b"1234", etag='"v1"')
+        first.headers = {**first.headers, "content-length": "8"}
+
+        def check_meta(*args: object, **kwargs: object) -> "MagicMock":
+            seen.append(meta.is_file())
+            return _resumed_response(b"5678")
+
+        with patch("requests.get", side_effect=[first, check_meta("x")]):
+            download_with_resume("https://example.com/f", dest)
+        assert dest.read_bytes() == b"12345678"
+        assert not meta.exists()  # cleaned up on success
+
+    def test_meta_sidecar_resumes_across_runs_without_sha(self, tmp_path: Path) -> None:
+        """A later run resumes an unfinished download using the validator the
+        first run stored — the cross-run fix for the framework tarball."""
+        dest = tmp_path / "f.tar.xz"
+        (tmp_path / "f.tar.xz.part").write_bytes(b"1234")
+        (tmp_path / "f.tar.xz.part.meta").write_text(
+            json.dumps(
+                {"url": "https://example.com/f", "validator": '"v1"', "total": 8}
+            )
+        )
+        with patch("requests.get", return_value=_resumed_response(b"5678")) as mock_get:
+            download_with_resume("https://example.com/f", dest)
+        assert dest.read_bytes() == b"12345678"
+        assert mock_get.call_args[1]["headers"] == {
+            "Range": "bytes=4-",
+            "If-Range": '"v1"',
+        }
+
+    def test_meta_sidecar_for_other_url_ignored(self, tmp_path: Path) -> None:
+        """Metadata from a different mirror URL must not authorize a stitch."""
+        dest = tmp_path / "f.tar.xz"
+        (tmp_path / "f.tar.xz.part").write_bytes(b"1234")
+        (tmp_path / "f.tar.xz.part.meta").write_text(
+            json.dumps({"url": "https://other.com/f", "validator": '"v1"', "total": 8})
+        )
+        full = _mock_response(b"12345678")
+        with patch("requests.get", return_value=full) as mock_get:
+            download_with_resume("https://example.com/f", dest)
+        assert "Range" not in mock_get.call_args[1]["headers"]
+        assert dest.read_bytes() == b"12345678"
+
     def test_complete_part_file_promoted_without_network(self, tmp_path: Path) -> None:
         """A .part holding every byte (killed between write and rename) is
         verified in place and promoted; no request is made, so no 416 loop."""
@@ -1129,15 +1219,49 @@ class TestDownloadFromMirrors:
         assert (tmp_path / "out.bin").read_bytes() == b"full"
         assert "Range" not in mock_get.call_args_list[1][1]["headers"]
 
+    def test_path_target_resumes_across_runs(self, tmp_path: Path) -> None:
+        """A path target routes through download_with_resume: a part file and
+        metadata from a previous run resume instead of restarting."""
+        dest = tmp_path / "idf.tar.xz"
+        (tmp_path / "idf.tar.xz.part").write_bytes(b"1234")
+        (tmp_path / "idf.tar.xz.part.meta").write_text(
+            json.dumps(
+                {"url": "https://mirror1.com/f", "validator": '"v1"', "total": 8}
+            )
+        )
+        with patch("requests.get", return_value=_resumed_response(b"5678")) as mock_get:
+            url = download_from_mirrors(["https://mirror1.com/f"], {}, dest)
+        assert url == "https://mirror1.com/f"
+        assert dest.read_bytes() == b"12345678"
+        assert mock_get.call_args[1]["headers"] == {
+            "Range": "bytes=4-",
+            "If-Range": '"v1"',
+        }
+
+    def test_path_target_falls_back_to_next_mirror(self, tmp_path: Path) -> None:
+        dest = tmp_path / "idf.tar.xz"
+        with patch(
+            "requests.get",
+            side_effect=[req.ConnectionError("down"), _mock_response(b"data")],
+        ):
+            url = download_from_mirrors(
+                ["https://mirror1.com/f", "https://mirror2.com/f"], {}, dest
+            )
+        assert url == "https://mirror2.com/f"
+        assert dest.read_bytes() == b"data"
+
     def test_resumed_short_body_fails_length_check(self, tmp_path: Path) -> None:
         """A stitched file whose final length disagrees with the advertised
         total is rejected instead of reported as success."""
         first = _interrupted_response(b"1234", etag='"v1"')
         first.headers = {**first.headers, "content-length": "8"}
-        # resumed responses end early each time; the total never reaches 8
-        shorts = [_resumed_response(b"5"), _resumed_response(b"6")]
+        # the resume ends early (5 of 8 bytes); the poisoned part is then
+        # discarded and the fresh retry also delivers a short body
+        short_resume = _resumed_response(b"5")
+        short_fresh = _mock_response(b"56")
+        short_fresh.headers = {**short_fresh.headers, "content-length": "8"}
         with (
-            patch("requests.get", side_effect=[first, *shorts]),
+            patch("requests.get", side_effect=[first, short_resume, short_fresh]),
             pytest.raises(EsphomeError, match="all mirrors"),
         ):
             download_from_mirrors(["https://mirror1.com/f"], {}, tmp_path / "out.bin")
