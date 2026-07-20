@@ -836,8 +836,15 @@ def download_with_resume(
                 )
             # Retry on Windows sharing violations: an antivirus handle on the
             # freshly-written file must not get the verified download deleted
-            # as corrupt by the except clause below.
-            _rename_with_retry(part, dest, overwrite=True)
+            # as corrupt by the except clause below. If even the backoff
+            # retries fail, keep the verified part so the next attempt (or
+            # run) only has to redo the rename, not the download.
+            try:
+                _rename_with_retry(part, dest, overwrite=True)
+            except PermissionError as e:
+                _LOGGER.debug("Could not move %s into place: %s", part, e)
+                last_error = e
+                continue
             meta.unlink(missing_ok=True)
             return
         except requests.RequestException as e:

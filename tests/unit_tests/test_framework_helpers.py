@@ -942,15 +942,58 @@ class TestDownloadWithResume:
         seen: list[bool] = []
         first = _interrupted_response(b"1234", etag='"v1"')
         first.headers = {**first.headers, "content-length": "8"}
+        responses = [first]
 
-        def check_meta(*args: object, **kwargs: object) -> "MagicMock":
+        def get(*args: object, **kwargs: object) -> MagicMock:
+            if responses:
+                return responses.pop(0)
+            # the resume request: the sidecar written by the first response
+            # must already be on disk at this point
             seen.append(meta.is_file())
             return _resumed_response(b"5678")
 
-        with patch("requests.get", side_effect=[first, check_meta("x")]):
+        with patch("requests.get", side_effect=get):
             download_with_resume("https://example.com/f", dest)
         assert dest.read_bytes() == b"12345678"
+        assert seen == [True]  # sidecar existed during the resume attempt
         assert not meta.exists()  # cleaned up on success
+
+    def test_locked_promotion_keeps_verified_part(self, tmp_path: Path) -> None:
+        """A rename that stays blocked (e.g. a long-lived Windows file lock)
+        must not delete the verified download; the next attempt retries just
+        the rename without touching the network."""
+        dest = tmp_path / "tool.tar.gz"
+        good = hashlib.sha256(b"data").hexdigest()
+        with (
+            patch("requests.get", return_value=_mock_response(b"data")) as mock_get,
+            patch(
+                "esphome.framework_helpers._rename_with_retry",
+                side_effect=[PermissionError("locked"), None],
+            ) as rename,
+        ):
+            download_with_resume("https://example.com/t", dest, sha256=good, size=4)
+        # one download; the second attempt only redid the rename
+        assert mock_get.call_count == 1
+        assert rename.call_count == 2
+
+    def test_locked_promotion_exhausted_keeps_part_for_next_run(
+        self, tmp_path: Path
+    ) -> None:
+        dest = tmp_path / "tool.tar.gz"
+        good = hashlib.sha256(b"data").hexdigest()
+        with (
+            patch("requests.get", return_value=_mock_response(b"data")),
+            patch(
+                "esphome.framework_helpers._rename_with_retry",
+                side_effect=PermissionError("locked"),
+            ),
+            pytest.raises(EsphomeError, match="after 1 attempts"),
+        ):
+            download_with_resume(
+                "https://example.com/t", dest, sha256=good, size=4, attempts=1
+            )
+        # the verified bytes survive for the next run
+        assert (tmp_path / "tool.tar.gz.part").read_bytes() == b"data"
 
     def test_meta_sidecar_resumes_across_runs_without_sha(self, tmp_path: Path) -> None:
         """A later run resumes an unfinished download using the validator the
