@@ -270,6 +270,14 @@ def _ccache_env() -> dict[str, str]:
     env = {"ESPHOME_CCACHE_ENABLE": "1" if enabled else "0"}
     if not enabled:
         return env
+    # build_path is set during preload for every config-loading command, so it
+    # being unset means a caller built the environment too early; fail loudly
+    # rather than with an opaque TypeError from Path(None).
+    if CORE.build_path is None:
+        raise ValueError(
+            "CORE.build_path must be set before constructing the PlatformIO "
+            "build environment"
+        )
     env["CCACHE_BASEDIR"] = str(Path(CORE.build_path).resolve())
     defaults = {
         "CCACHE_DIR": str(
