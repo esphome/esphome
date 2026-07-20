@@ -609,6 +609,19 @@ def _open_ranged(
     return resp, offset
 
 
+def _content_length(resp: "requests.Response") -> int:
+    """Return the response's Content-Length, or 0 when absent or malformed.
+
+    0 means "unknown", which downstream disables the progress bar and the
+    resume/completeness logic — a garbage header from a broken proxy must
+    degrade to a plain single-stream download, not crash the attempt.
+    """
+    try:
+        return int(resp.headers.get("content-length", 0))
+    except ValueError:
+        return 0
+
+
 def _response_validator(resp: "requests.Response") -> str | None:
     """Return the response's strong validator for ``If-Range`` resumes.
 
@@ -634,7 +647,7 @@ def _stream_response_to_file(
     """
     f.seek(offset)
     f.truncate(offset)
-    total_size = size or offset + int(resp.headers.get("content-length", 0))
+    total_size = size or offset + _content_length(resp)
     downloaded = offset
     progress = ProgressBar("Downloading") if total_size > 0 else None
     for chunk in resp.iter_content(chunk_size=256 * 1024):
@@ -704,7 +717,7 @@ def download_with_resume(
                     with resp, part.open("ab") as f:
                         if offset == 0:
                             validator = _response_validator(resp)
-                            expected_total = int(resp.headers.get("content-length", 0))
+                            expected_total = _content_length(resp)
                         _stream_response_to_file(resp, f, offset, size)
             # else: a previous run already wrote every byte (or more) but
             # was killed before the rename below. Skip the network entirely
@@ -856,9 +869,7 @@ def download_from_mirrors(
                         with resp:
                             if offset == 0:
                                 validator = _response_validator(resp)
-                                expected_total = int(
-                                    resp.headers.get("content-length", 0)
-                                )
+                                expected_total = _content_length(resp)
                             _stream_response_to_file(resp, f, offset)
 
                     if expected_total and f.tell() != expected_total:

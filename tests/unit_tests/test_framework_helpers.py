@@ -869,6 +869,21 @@ class TestDownloadWithResume:
             download_with_resume("https://example.com/t", dest, sha256=good, size=4)
         assert dest.read_bytes() == b"data"
 
+    def test_malformed_content_length_degrades_gracefully(self, tmp_path: Path) -> None:
+        """A garbage Content-Length must not crash the attempt; it means
+        "unknown", so a drop restarts instead of stitching and a clean
+        download still succeeds."""
+        dest = tmp_path / "tool.tar.gz"
+        first = _interrupted_response(b"1234", etag='"v1"')
+        first.headers = {**first.headers, "content-length": "explode"}
+        retry = _mock_response(b"full")
+        retry.headers = {**retry.headers, "content-length": "explode"}
+        with patch("requests.get", side_effect=[first, retry]) as mock_get:
+            download_with_resume("https://example.com/t", dest)
+        assert dest.read_bytes() == b"full"
+        # unknown length -> completeness unprovable -> no resume attempted
+        assert "Range" not in mock_get.call_args_list[1][1]["headers"]
+
     def test_zero_byte_part_file_sends_no_range(self, tmp_path: Path) -> None:
         """An empty leftover part file is a fresh download, not a resume."""
         dest = tmp_path / "tool.tar.gz"
