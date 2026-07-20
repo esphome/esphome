@@ -42,8 +42,6 @@ class TemplateClimate final : public climate::Climate, public Component {
   void add_supported_swing_mode(climate::ClimateSwingMode mode) { this->traits_.add_supported_swing_mode(mode); }
   void add_supported_preset(climate::ClimatePreset preset) { this->traits_.add_supported_preset(preset); }
 
-  // Called at codegen time from the supports_target_humidity/supports_two_point_target_temperature
-  // config booleans, since these features can no longer be inferred from lambda presence.
   void set_supports_target_humidity() { this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY); }
   void set_supports_two_point_target_temperature() {
     this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE);

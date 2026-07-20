@@ -2,8 +2,8 @@
 
 Covers the supports_two_point_target_temperature/supports_target_humidity boolean flags plus
 on_control (forwarding commands out) and climate.template.publish (the device reporting its own
-authoritative state, independent of any prior command -- the redesign's core scenario: a device
-that owns its own setpoint, e.g. changed via a physical remote).
+authoritative state, independent of any prior command -- e.g. a device that owns its own setpoint,
+changed via a physical remote).
 """
 
 from __future__ import annotations

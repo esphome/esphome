@@ -1,10 +1,10 @@
 """Integration test for template climate: climate.template.publish covering every field at once.
 
-Also proves the "pure bypass" design decision: a single climate.template.publish call resolves
-into exactly one ClimateState update, and never triggers on_control (which would misrepresent a
-device state report as a fresh command). This also exercises that a sensor/humidity_sensor whose
-reading matches what's about to be published doesn't sneak in an extra state update of its own
-(the sensor callback only re-publishes on an actual change).
+A single climate.template.publish call resolves into exactly one ClimateState update, and never
+triggers on_control (which would misrepresent a device state report as a fresh command). This also
+exercises that a sensor/humidity_sensor whose reading matches what's about to be published doesn't
+sneak in an extra state update of its own (the sensor callback only re-publishes on an actual
+change).
 """
 
 from __future__ import annotations

@@ -45,12 +45,10 @@ void TemplateClimate::dump_config() {
 }
 
 void TemplateClimate::control(const climate::ClimateCall &call) {
-  // Settable properties are plain internal state now: with optimistic: true they're applied
-  // directly here; with optimistic: false they're left untouched until a climate.template.publish
-  // action reports the device's actual state. There is nothing per-field left to gate on, since
-  // none of these fields are ever polled by a lambda any more -- on_control (inherited for free
-  // from the base Climate component) is what a real device-backed config hooks into to forward
-  // this call's contents to the physical device.
+  // optimistic: true applies the requested values immediately; optimistic: false leaves them
+  // untouched until a climate.template.publish action reports the device's actual state.
+  // on_control (from the base Climate component) is what a real device-backed config uses to
+  // forward this call's contents to the physical device.
   if (this->optimistic_) {
     if (auto mode = call.get_mode())
       this->mode = *mode;
