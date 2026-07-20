@@ -135,6 +135,17 @@ def validate_scan_parameters(config):
             f"Scan window ({window}) needs to be smaller than scan interval ({interval})"
         )
 
+    if window == interval:
+        _LOGGER.warning(
+            "Scan window (%s) equals scan interval (%s), so the radio scans "
+            "continuously with no idle time. On single-antenna ESP32 variants "
+            "this starves Wi-Fi and active BLE connections of radio time and can "
+            "cause Wi-Fi instability and dropped bluetooth_proxy connections. "
+            "Set a scan window smaller than the scan interval to leave idle time.",
+            window,
+            interval,
+        )
+
     if interval.total_milliseconds * 3 > duration.total_milliseconds:
         raise cv.Invalid(
             "Scan duration needs to be at least three times the scan interval to"
