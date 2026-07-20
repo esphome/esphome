@@ -12,9 +12,11 @@ from esphome.const import (
     CONF_FAN_MODE,
     CONF_HUMIDITY_SENSOR,
     CONF_ID,
+    CONF_INITIAL_STATE,
     CONF_MODE,
     CONF_OPTIMISTIC,
     CONF_PRESET,
+    CONF_RESTORE_MODE,
     CONF_SENSOR,
     CONF_SUPPORTED_FAN_MODES,
     CONF_SUPPORTED_MODES,
@@ -33,12 +35,56 @@ CONF_TARGET_HUMIDITY = "target_humidity"
 CONF_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE = "supports_two_point_target_temperature"
 CONF_SUPPORTS_TARGET_HUMIDITY = "supports_target_humidity"
 CONF_SUPPORTS_ACTION = "supports_action"
+CONF_SUPPORTS_CURRENT_TEMPERATURE = "supports_current_temperature"
+CONF_SUPPORTS_CURRENT_HUMIDITY = "supports_current_humidity"
 
 TemplateClimate = template_ns.class_("TemplateClimate", climate.Climate, cg.Component)
 TemplateClimatePublishAction = template_ns.class_(
     "TemplateClimatePublishAction",
     automation.Action,
     cg.Parented.template(TemplateClimate),
+)
+
+TemplateClimateRestoreMode = template_ns.enum("TemplateClimateRestoreMode")
+CLIMATE_RESTORE_MODES = {
+    "NO_RESTORE": TemplateClimateRestoreMode.CLIMATE_NO_RESTORE,
+    "RESTORE": TemplateClimateRestoreMode.CLIMATE_RESTORE,
+}
+
+
+def _validate_two_point(config):
+    has_low = CONF_TARGET_TEMPERATURE_LOW in config
+    has_high = CONF_TARGET_TEMPERATURE_HIGH in config
+    if has_low != has_high:
+        raise cv.Invalid(
+            f"'{CONF_TARGET_TEMPERATURE_LOW}' and '{CONF_TARGET_TEMPERATURE_HIGH}' must be used together"
+        )
+    if (has_low or has_high) and CONF_TARGET_TEMPERATURE in config:
+        raise cv.Invalid(
+            f"'{CONF_TARGET_TEMPERATURE}' cannot be used together with "
+            f"'{CONF_TARGET_TEMPERATURE_LOW}'/'{CONF_TARGET_TEMPERATURE_HIGH}'"
+        )
+    return config
+
+
+# Same settable fields as climate.template.publish, minus current_temperature/current_humidity/
+# action: those are reported values (from a sensor or the device), not meaningful static defaults.
+INITIAL_STATE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_MODE): climate.validate_climate_mode,
+            cv.Optional(CONF_TARGET_TEMPERATURE): cv.temperature,
+            cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.temperature,
+            cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.temperature,
+            cv.Optional(CONF_TARGET_HUMIDITY): cv.percentage_int,
+            cv.Exclusive(CONF_FAN_MODE, "fan_mode"): climate.validate_climate_fan_mode,
+            cv.Exclusive(CONF_CUSTOM_FAN_MODE, "fan_mode"): cv.string_strict,
+            cv.Optional(CONF_SWING_MODE): climate.validate_climate_swing_mode,
+            cv.Exclusive(CONF_PRESET, "preset"): climate.validate_climate_preset,
+            cv.Exclusive(CONF_CUSTOM_PRESET, "preset"): cv.string_strict,
+        }
+    ),
+    _validate_two_point,
 )
 
 CONFIG_SCHEMA = (
@@ -48,6 +94,8 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_SENSOR): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_HUMIDITY_SENSOR): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_SUPPORTS_ACTION, default=False): cv.boolean,
+            cv.Optional(CONF_SUPPORTS_CURRENT_TEMPERATURE, default=False): cv.boolean,
+            cv.Optional(CONF_SUPPORTS_CURRENT_HUMIDITY, default=False): cv.boolean,
             cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(
                 climate.validate_climate_mode
             ),
@@ -67,6 +115,10 @@ CONFIG_SCHEMA = (
             ): cv.boolean,
             cv.Optional(CONF_SUPPORTS_TARGET_HUMIDITY, default=False): cv.boolean,
             cv.Optional(CONF_OPTIMISTIC, default=True): cv.boolean,
+            cv.Optional(CONF_RESTORE_MODE, default="RESTORE"): cv.enum(
+                CLIMATE_RESTORE_MODES, upper=True
+            ),
+            cv.Optional(CONF_INITIAL_STATE): INITIAL_STATE_SCHEMA,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -86,6 +138,12 @@ async def to_code(config):
 
     if config[CONF_SUPPORTS_ACTION]:
         cg.add(var.set_supports_action())
+
+    if config[CONF_SUPPORTS_CURRENT_TEMPERATURE]:
+        cg.add(var.set_supports_current_temperature())
+
+    if config[CONF_SUPPORTS_CURRENT_HUMIDITY]:
+        cg.add(var.set_supports_current_humidity())
 
     for mode in config.get(CONF_SUPPORTED_MODES, []):
         cg.add(var.add_supported_mode(mode))
@@ -120,21 +178,29 @@ async def to_code(config):
         cg.add(var.set_supports_target_humidity())
 
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
+    cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
-
-def _validate_publish_two_point(config):
-    has_low = CONF_TARGET_TEMPERATURE_LOW in config
-    has_high = CONF_TARGET_TEMPERATURE_HIGH in config
-    if has_low != has_high:
-        raise cv.Invalid(
-            f"'{CONF_TARGET_TEMPERATURE_LOW}' and '{CONF_TARGET_TEMPERATURE_HIGH}' must be used together"
-        )
-    if (has_low or has_high) and CONF_TARGET_TEMPERATURE in config:
-        raise cv.Invalid(
-            f"'{CONF_TARGET_TEMPERATURE}' cannot be used together with "
-            f"'{CONF_TARGET_TEMPERATURE_LOW}'/'{CONF_TARGET_TEMPERATURE_HIGH}'"
-        )
-    return config
+    if (initial_state := config.get(CONF_INITIAL_STATE)) is not None:
+        if (v := initial_state.get(CONF_MODE)) is not None:
+            cg.add(var.set_mode(v))
+        if (v := initial_state.get(CONF_TARGET_TEMPERATURE)) is not None:
+            cg.add(var.set_target_temperature(v))
+        if (v := initial_state.get(CONF_TARGET_TEMPERATURE_LOW)) is not None:
+            cg.add(var.set_target_temperature_low(v))
+        if (v := initial_state.get(CONF_TARGET_TEMPERATURE_HIGH)) is not None:
+            cg.add(var.set_target_temperature_high(v))
+        if (v := initial_state.get(CONF_TARGET_HUMIDITY)) is not None:
+            cg.add(var.set_target_humidity(v))
+        if (v := initial_state.get(CONF_FAN_MODE)) is not None:
+            cg.add(var.set_fan_mode(v))
+        if (v := initial_state.get(CONF_CUSTOM_FAN_MODE)) is not None:
+            cg.add(var.set_custom_fan_mode(v))
+        if (v := initial_state.get(CONF_SWING_MODE)) is not None:
+            cg.add(var.set_swing_mode(v))
+        if (v := initial_state.get(CONF_PRESET)) is not None:
+            cg.add(var.set_preset(v))
+        if (v := initial_state.get(CONF_CUSTOM_PRESET)) is not None:
+            cg.add(var.set_custom_preset(v))
 
 
 CLIMATE_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.All(
@@ -181,7 +247,7 @@ CLIMATE_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.All(
         CONF_PRESET,
         CONF_CUSTOM_PRESET,
     ),
-    _validate_publish_two_point,
+    _validate_two_point,
 )
 
 

@@ -541,6 +541,12 @@ climate:
     optimistic: true
     sensor: template_template_sens
     supports_action: true
+    supports_current_humidity: true
+    restore_mode: NO_RESTORE
+    initial_state:
+      mode: HEAT
+      target_temperature: 21.0
+      fan_mode: LOW
     supported_modes:
       - "OFF"
       - HEAT
@@ -577,6 +583,9 @@ climate:
       - eco_plus
       - power_save
       - max
+    initial_state:
+      custom_fan_mode: eco
+      custom_preset: max
     visual:
       min_temperature: 16.0
       max_temperature: 30.0

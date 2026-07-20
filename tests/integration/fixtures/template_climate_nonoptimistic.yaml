@@ -1,17 +1,17 @@
 esphome:
-  name: tmpl-clim-no-lam-opt
+  name: tmpl-clim-nonopt
 host:
 api:
 logger:
 
-# No read-lambdas: ESPHome owns the state directly. on_control (inherited for free from the base
-# Climate component) is what a real device-backed config would use to forward each command to the
-# physical device; here it just logs, so the test can confirm it actually fires.
+# optimistic: false: commands must NOT change the entity's own state.
+# on_control still fires (a real device-backed config uses it to forward the command out), but
+# the entity only updates once climate.template.publish reports the device's confirmed state.
 climate:
   - platform: template
     id: test_climate
-    name: Test Template Climate
-    optimistic: true
+    name: Test Template Climate Nonoptimistic
+    optimistic: false
     supported_modes:
       - "OFF"
       - HEAT
@@ -44,3 +44,16 @@ climate:
             ESP_LOGD("test", "on_control swing_mode=%d", (int) *x.get_swing_mode());
           if (x.get_preset().has_value())
             ESP_LOGD("test", "on_control preset=%d", (int) *x.get_preset());
+
+button:
+  - platform: template
+    id: simulate_device_confirmation
+    name: Simulate Device Confirmation
+    on_press:
+      - climate.template.publish:
+          id: test_climate
+          mode: HEAT
+          target_temperature: 22.5
+          fan_mode: HIGH
+          swing_mode: VERTICAL
+          preset: AWAY

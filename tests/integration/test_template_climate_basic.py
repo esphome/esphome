@@ -1,11 +1,12 @@
-"""Integration test for template climate: the core redesigned architecture end to end.
+"""Integration test for template climate: sensor-pushed measured values, on_control + publish
+for the settable ones.
 
 current_temperature/current_humidity are pushed by a referenced sensor/humidity_sensor (no
 polling); action is set once at boot via climate.template.publish, since it has no sensor
-equivalent. mode/fan_mode/swing_mode/preset are plain internal state: on_control forwards
-commands out, and climate.template.publish simulates the device reporting its own state
-independent of any prior command -- and that report is authoritative, overriding whatever was
-optimistically applied by an earlier command.
+equivalent. mode/target_temperature/fan_mode/swing_mode/preset are plain internal state:
+on_control fires exactly once per command (never before the first one), and
+climate.template.publish simulates the device reporting its own state independent of any prior
+command -- that report is authoritative, overriding whatever was optimistically applied earlier.
 """
 
 from __future__ import annotations
@@ -64,6 +65,21 @@ async def test_template_climate_basic(
         assert len(climate_infos) == 1, "Expected exactly 1 climate entity"
         test_climate = climate_infos[0]
 
+        # Advertised capabilities come straight from the supported_*/custom_* config lists.
+        assert ClimateMode.OFF in test_climate.supported_modes
+        assert ClimateMode.HEAT in test_climate.supported_modes
+        assert ClimateMode.COOL in test_climate.supported_modes
+
+        assert ClimateFanMode.AUTO in test_climate.supported_fan_modes
+        assert ClimateFanMode.LOW in test_climate.supported_fan_modes
+        assert ClimateFanMode.HIGH in test_climate.supported_fan_modes
+
+        assert ClimateSwingMode.OFF in test_climate.supported_swing_modes
+        assert ClimateSwingMode.VERTICAL in test_climate.supported_swing_modes
+
+        assert ClimatePreset.NONE in test_climate.supported_presets
+        assert ClimatePreset.ECO in test_climate.supported_presets
+
         report_button = require_entity(entities, "simulate_device_report", ButtonInfo)
 
         client.subscribe_states(
@@ -81,11 +97,17 @@ async def test_template_climate_basic(
         assert initial.current_humidity == pytest.approx(55.0, abs=0.1)
         assert initial.action == ClimateAction.IDLE
         assert initial.mode == ClimateMode.OFF
+        # Nothing was commanded yet: on_control must not have fired.
+        assert not log_lines
 
         # Commands apply optimistically and on_control fires with the same values.
         client.climate_command(test_climate.key, mode=ClimateMode.HEAT)
         state = await wait_for_climate_state()
         assert state.mode == ClimateMode.HEAT
+
+        client.climate_command(test_climate.key, target_temperature=22.5)
+        state = await wait_for_climate_state()
+        assert state.target_temperature == pytest.approx(22.5, abs=0.1)
 
         client.climate_command(test_climate.key, fan_mode=ClimateFanMode.HIGH)
         state = await wait_for_climate_state()
@@ -103,9 +125,12 @@ async def test_template_climate_basic(
         assert any(
             "on_control mode=3" in line for line in log_lines
         )  # CLIMATE_MODE_HEAT
+        assert any("on_control target_temperature=22.5" in line for line in log_lines)
         assert any("on_control fan_mode=" in line for line in log_lines)
         assert any("on_control swing_mode=" in line for line in log_lines)
         assert any("on_control preset=" in line for line in log_lines)
+        # Exactly one on_control log line per command, none extra (e.g. from a stray republish).
+        assert len(log_lines) == 5
 
         # measured values are untouched by any of the above (no set action exists for them).
         assert state.current_temperature == pytest.approx(22.5, abs=0.1)

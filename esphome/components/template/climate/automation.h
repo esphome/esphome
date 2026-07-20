@@ -24,31 +24,31 @@ class TemplateClimatePublishAction final : public Action<Ts...>, public Parented
 
   void play(const Ts &...x) override {
     if (this->current_temperature_.has_value())
-      this->parent_->publish_current_temperature(this->current_temperature_.value(x...));
+      this->parent_->current_temperature = this->current_temperature_.value(x...);
     if (this->current_humidity_.has_value())
-      this->parent_->publish_current_humidity(this->current_humidity_.value(x...));
+      this->parent_->current_humidity = this->current_humidity_.value(x...);
     if (this->target_temperature_.has_value())
-      this->parent_->publish_target_temperature(this->target_temperature_.value(x...));
+      this->parent_->set_target_temperature(this->target_temperature_.value(x...));
     if (this->target_temperature_low_.has_value())
-      this->parent_->publish_target_temperature_low(this->target_temperature_low_.value(x...));
+      this->parent_->set_target_temperature_low(this->target_temperature_low_.value(x...));
     if (this->target_temperature_high_.has_value())
-      this->parent_->publish_target_temperature_high(this->target_temperature_high_.value(x...));
+      this->parent_->set_target_temperature_high(this->target_temperature_high_.value(x...));
     if (this->target_humidity_.has_value())
-      this->parent_->publish_target_humidity(this->target_humidity_.value(x...));
+      this->parent_->set_target_humidity(this->target_humidity_.value(x...));
     if (this->mode_.has_value())
-      this->parent_->publish_mode(this->mode_.value(x...));
+      this->parent_->set_mode(this->mode_.value(x...));
     if (this->action_.has_value())
-      this->parent_->publish_action(this->action_.value(x...));
+      this->parent_->action = this->action_.value(x...);
     if (this->fan_mode_.has_value())
-      this->parent_->publish_fan_mode(this->fan_mode_.value(x...));
+      this->parent_->set_fan_mode(this->fan_mode_.value(x...));
     if (this->custom_fan_mode_.has_value())
-      this->parent_->publish_custom_fan_mode(this->custom_fan_mode_.value(x...));
+      this->parent_->set_custom_fan_mode(this->custom_fan_mode_.value(x...).c_str());
     if (this->swing_mode_.has_value())
-      this->parent_->publish_swing_mode(this->swing_mode_.value(x...));
+      this->parent_->set_swing_mode(this->swing_mode_.value(x...));
     if (this->preset_.has_value())
-      this->parent_->publish_preset(this->preset_.value(x...));
+      this->parent_->set_preset(this->preset_.value(x...));
     if (this->custom_preset_.has_value())
-      this->parent_->publish_custom_preset(this->custom_preset_.value(x...));
+      this->parent_->set_custom_preset(this->custom_preset_.value(x...).c_str());
 
     this->parent_->publish_state();
   }

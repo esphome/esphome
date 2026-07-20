@@ -1,6 +1,5 @@
 """Integration test: on_control fires before control()/on_state, with the full ClimateCall.
 
-Directly documents review point #4 (on_control is already free from the base Climate component):
 on_control's lambda argument exposes get_mode()/etc. on the *requested* ClimateCall, while the
 entity's own .mode field still reflects the state *before* control() applies the change --
 proving the firing order is on_control, then control(), then on_state.

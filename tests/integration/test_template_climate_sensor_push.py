@@ -1,10 +1,8 @@
 """Integration test for template climate: current_temperature/current_humidity live sensor push.
 
-Proves the core "no polling" claim end to end: the backing sensors have no lambda/update_interval
-of their own (driven entirely by sensor.template.publish, standing in for e.g. a BLE scan callback
-elsewhere in a real config), and a *later* change to a sensor's value -- not just the initial
-reading at boot -- propagates into a new climate state via add_on_state_callback. Also proves that
-re-publishing the same value again does not cause a redundant climate state update.
+A *later* change to a backing sensor's value -- not just its initial reading at boot -- propagates
+into a new climate state via add_on_state_callback. Re-publishing the same sensor value again must
+not cause a redundant climate state update.
 """
 
 from __future__ import annotations

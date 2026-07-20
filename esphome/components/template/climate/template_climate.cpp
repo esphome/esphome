@@ -6,14 +6,13 @@ namespace esphome::template_ {
 static const char *const TAG = "template_climate";
 
 void TemplateClimate::setup() {
-  auto restore = this->restore_state_();
-  if (restore.has_value()) {
-    restore->apply(this);
+  if (this->restore_mode_ == CLIMATE_RESTORE) {
+    auto restore = this->restore_state_();
+    if (restore.has_value()) {
+      restore->apply(this);
+    }
   }
 
-  // current_temperature/current_humidity are pushed by the referenced sensor, not polled: the
-  // CLIMATE_SUPPORTS_CURRENT_TEMPERATURE/CLIMATE_SUPPORTS_CURRENT_HUMIDITY feature flags are
-  // already set in set_sensor()/set_humidity_sensor() at codegen time, same as supports_action.
   // Sensors publish on every reading, not just on change, so only re-publish the climate state
   // when the value actually moved -- otherwise a fast-polling backing sensor would spam
   // publish_state() with no new information.

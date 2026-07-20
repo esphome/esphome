@@ -8,6 +8,11 @@
 
 namespace esphome::template_ {
 
+enum TemplateClimateRestoreMode {
+  CLIMATE_NO_RESTORE,
+  CLIMATE_RESTORE,
+};
+
 class TemplateClimate final : public climate::Climate, public Component {
  public:
   void setup() override;
@@ -15,14 +20,19 @@ class TemplateClimate final : public climate::Climate, public Component {
 
   climate::ClimateTraits traits() override { return this->traits_; }
 
+  void set_supports_current_temperature() {
+    this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+  }
+  void set_supports_current_humidity() { this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY); }
+
 #ifdef USE_SENSOR
   void set_sensor(sensor::Sensor *sensor) {
     this->sensor_ = sensor;
-    this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+    this->set_supports_current_temperature();
   }
   void set_humidity_sensor(sensor::Sensor *sensor) {
     this->humidity_sensor_ = sensor;
-    this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
+    this->set_supports_current_humidity();
   }
 #endif
   void set_supports_action() { this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_ACTION); }
@@ -40,32 +50,28 @@ class TemplateClimate final : public climate::Climate, public Component {
   }
 
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
+  void set_restore_mode(TemplateClimateRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
 
-  // Public wrappers for TemplateClimatePublishAction (a Parented<TemplateClimate>, not a Climate
-  // subclass, so it cannot reach the protected validated setters below directly). Each sets the
-  // field/validated-state directly; publish_state() is called once by the action after all
-  // configured fields for that invocation have been applied. This bypasses control()/ClimateCall/
-  // on_control entirely, by design: this represents the device reporting its actual state, not a
-  // new command, so it must not re-trigger on_control as if the entity were being commanded.
-  void publish_current_temperature(float value) { this->current_temperature = value; }
-  void publish_current_humidity(float value) { this->current_humidity = value; }
-  void publish_target_temperature(float value) { this->target_temperature = value; }
-  void publish_target_temperature_low(float value) { this->target_temperature_low = value; }
-  void publish_target_temperature_high(float value) { this->target_temperature_high = value; }
-  void publish_target_humidity(float value) { this->target_humidity = value; }
-  void publish_mode(climate::ClimateMode mode) { this->mode = mode; }
-  void publish_action(climate::ClimateAction action) { this->action = action; }
-  void publish_fan_mode(climate::ClimateFanMode mode) { this->set_fan_mode_(mode); }
-  void publish_custom_fan_mode(const std::string &mode) { this->set_custom_fan_mode_(mode.c_str(), mode.size()); }
-  void publish_swing_mode(climate::ClimateSwingMode mode) { this->swing_mode = mode; }
-  void publish_preset(climate::ClimatePreset preset) { this->set_preset_(preset); }
-  void publish_custom_preset(const std::string &preset) { this->set_custom_preset_(preset.c_str(), preset.size()); }
+  // Plain field setters, used both by TemplateClimatePublishAction (a Parented<TemplateClimate>,
+  // not a Climate subclass, so it cannot reach the protected validated setters below directly)
+  // and by codegen to apply `initial_state:` before setup() runs.
+  void set_target_temperature(float value) { this->target_temperature = value; }
+  void set_target_temperature_low(float value) { this->target_temperature_low = value; }
+  void set_target_temperature_high(float value) { this->target_temperature_high = value; }
+  void set_target_humidity(float value) { this->target_humidity = value; }
+  void set_mode(climate::ClimateMode mode) { this->mode = mode; }
+  void set_swing_mode(climate::ClimateSwingMode mode) { this->swing_mode = mode; }
+  void set_fan_mode(climate::ClimateFanMode mode) { this->set_fan_mode_(mode); }
+  void set_custom_fan_mode(const char *mode) { this->set_custom_fan_mode_(mode); }
+  void set_preset(climate::ClimatePreset preset) { this->set_preset_(preset); }
+  void set_custom_preset(const char *preset) { this->set_custom_preset_(preset); }
 
  protected:
   void control(const climate::ClimateCall &call) override;
 
   climate::ClimateTraits traits_;
   bool optimistic_{true};
+  TemplateClimateRestoreMode restore_mode_{CLIMATE_RESTORE};
 
 #ifdef USE_SENSOR
   sensor::Sensor *sensor_{nullptr};

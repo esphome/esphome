@@ -1,9 +1,8 @@
-"""Integration test for template climate: no read-lambdas, optimistic=false.
+"""Integration test for template climate: optimistic: false.
 
-Mirrors test_template_climate_no_lambdas_optimistic, but with optimistic: false. A command still
-fires on_control (so a real device-backed config can forward it out), but must NOT change the
-entity's own state -- only an explicit climate.template.publish call (standing in for the device
-confirming the command actually took effect) does that.
+A command still fires on_control (so a real device-backed config can forward it out), but must
+NOT change the entity's own state -- only an explicit climate.template.publish call (standing in
+for the device confirming the command actually took effect) does that.
 """
 
 from __future__ import annotations
@@ -25,11 +24,11 @@ from .host_prefs import clear_host_prefs
 from .state_utils import InitialStateHelper, require_entity, wait_for_state
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
-DEVICE_NAME = "tmpl-clim-no-lam-nonopt"
+DEVICE_NAME = "tmpl-clim-nonopt"
 
 
 @pytest.mark.asyncio
-async def test_template_climate_no_lambdas_nonoptimistic(
+async def test_template_climate_nonoptimistic(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
