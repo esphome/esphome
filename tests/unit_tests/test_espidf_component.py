@@ -1,3 +1,4 @@
+import glob
 import hashlib
 import json
 import os
@@ -86,6 +87,48 @@ def test_collect_filtered_files_exclude(tmp_path):
     assert str(f2) not in result
 
 
+def test_collect_filtered_files_exclude_pattern_in_subdir(tmp_path):
+    src = tmp_path / "lib" / "src"
+    src.mkdir(parents=True)
+    kept = src / "a.c"
+    excluded = src / "hasty.c"
+    kept.write_text("int a;")
+    excluded.write_text("int b;")
+
+    result = collect_filtered_files(tmp_path, ["+<lib/src/*.c>", "-<lib/src/hasty.c>"])
+    assert str(kept) in result
+    assert str(excluded) not in result
+
+
+def test_collect_filtered_files_exclude_unnormalized_glob_output(tmp_path, monkeypatch):
+    # On Windows, glob keeps the pattern's literal separators for non-wildcard
+    # path components, so the "+" wildcard pattern and the "-" literal pattern
+    # yield the same file spelled differently and the exclude set difference
+    # misses it. Backslash is a regular filename character on POSIX (such paths
+    # fail the final is_file filter), so reproduce the unnormalized-output
+    # mismatch portably with dot segments, which normpath also collapses.
+    src = tmp_path / "lib" / "src"
+    src.mkdir(parents=True)
+    kept = src / "a.c"
+    excluded = src / "hasty.c"
+    kept.write_text("int a;")
+    excluded.write_text("int b;")
+
+    real_glob = glob.glob
+
+    def unnormalized_glob(pattern, recursive=False):
+        if "*" in pattern:
+            base = str(tmp_path)
+            return [base + "/lib/./src/a.c", base + "/lib/./src/hasty.c"]
+        return real_glob(pattern, recursive=recursive)
+
+    monkeypatch.setattr(glob, "glob", unnormalized_glob)
+
+    result = collect_filtered_files(tmp_path, ["+<lib/src/*.c>", "-<lib/src/hasty.c>"])
+    assert [Path(r).name for r in result] == ["a.c"]
+    assert str(kept) in result
+
+
 def test_split_list_by_condition():
     items = ["-Iinclude", "-Llib", "-Wall"]
 
@@ -148,6 +191,47 @@ target_link_libraries(${{COMPONENT_LIB}} INTERFACE
 )
 """
     )
+
+
+def test_generate_cmakelists_txt_multi_token_flag(tmp_component):
+    # PlatformIO shell-lexes each build.flags entry, so a single entry can
+    # carry a flag and its argument. The generated CMakeLists must emit them
+    # as separate compile options, not one argument with an embedded space.
+    src_dir = tmp_component.path / "src"
+    src_dir.mkdir()
+    (src_dir / "main.c").write_text("int main() {}")
+
+    tmp_component.data = {"build": {"flags": ["-include cp_custom_alloc.h", "-DTEST"]}}
+
+    content = generate_cmakelists_txt(tmp_component)
+    assert '"-include cp_custom_alloc.h"' not in content
+    assert '  "-include"\n  "cp_custom_alloc.h"\n' in content
+
+
+def test_generate_cmakelists_txt_space_separated_classified_flags(tmp_component):
+    # Space-separated -I/-L/-l entries routed to INCLUDE_DIRS and the link
+    # handling before the shlex split was added; splitting must not leak
+    # them into raw compile options.
+    src_dir = tmp_component.path / "src"
+    src_dir.mkdir()
+    (src_dir / "main.c").write_text("int main() {}")
+    (tmp_component.path / "extra_inc").mkdir()
+
+    tmp_component.data = {
+        "build": {"flags": ["-I extra_inc", "-L extra_lib", "-l extralib", "-DTEST"]}
+    }
+
+    content = generate_cmakelists_txt(tmp_component)
+    assert 'INCLUDE_DIRS "src" "extra_inc"' in content
+    assert 'target_link_directories(${COMPONENT_LIB} INTERFACE\n  "extra_lib"\n)' in (
+        content
+    )
+    assert 'target_link_libraries(${COMPONENT_LIB} INTERFACE\n  "extralib"\n)' in (
+        content
+    )
+    assert '"-I"' not in content
+    assert '"-L"' not in content
+    assert '"-l"' not in content
 
 
 def test_generate_cmakelists_txt_references_project_managed_components_variable(
