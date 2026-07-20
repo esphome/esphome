@@ -25,7 +25,7 @@ from pathlib import Path
 import re
 import tempfile
 from typing import Any
-from urllib.parse import urlparse, urlsplit, urlunsplit
+from urllib.parse import urlsplit, urlunsplit
 
 from esphome import git
 from esphome.core import CORE, Library
@@ -523,6 +523,17 @@ class _LibNode:
     edges: set[str] = field(default_factory=set)
 
 
+def _url_or_none(value: Any) -> str | None:
+    """Return ``value`` if it parses as a URL (scheme and host), else None."""
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return None
+    return value if parsed.scheme and parsed.netloc else None
+
+
 def _node_key(
     name: str | None, version: str | None, repository: str | None
 ) -> tuple[str, bool, tuple[str | None, str | None]]:
@@ -533,9 +544,23 @@ def _node_key(
     inconsistently -- bare ``name`` vs ``owner/name``, or git vs registry -- maps
     to distinct keys and isn't deduplicated; ``convert_libraries`` warns about
     that after resolution rather than merging the nodes.
+
+    PlatformIO's Library Manager also accepted a git URL in the *name*
+    position (``add_library("https://github.com/x/y", None)``), including the
+    ``git+`` VCS prefix and the ``CustomName=URL`` form; recognize those here
+    so such specs resolve as git sources instead of failing a registry lookup.
     """
+    if not repository and name and "://" in name:
+        # Try the whole name first so a bare URL whose query contains ``=``
+        # stays intact; fall back to the ``CustomName=URL`` form, where the
+        # key derives from the URL path and the custom name is irrelevant.
+        repository = _url_or_none(name) or _url_or_none(name.split("=", 1)[-1])
+        if repository is None:
+            # Anything with ``://`` was meant to be a URL; failing it fast
+            # beats a confusing registry "package not found" error.
+            raise RuntimeError(f"Invalid PIO library URL: {name}")
     if repository:
-        split_result = urlsplit(repository)
+        split_result = urlsplit(repository.removeprefix("git+"))
         key = str(split_result.path).strip("/").removesuffix(".git")
         ref = split_result.fragment.strip() or None
         url = urlunsplit(split_result._replace(fragment=""))
@@ -687,13 +712,9 @@ def convert_libraries(
                 continue
             # The version field may actually be a URL (git/archive dependency).
             dep_version = dependency["version"]
-            dep_url = None
-            try:
-                parsed = urlparse(dep_version)
-                if all([parsed.scheme, parsed.netloc]):
-                    dep_url, dep_version = dep_version, None
-            except (TypeError, ValueError):
-                pass
+            dep_url = _url_or_none(dep_version)
+            if dep_url is not None:
+                dep_version = None
             dep_key = add_spec(dep_name, dep_version, dep_url)
             node.edges.add(dep_key)
             worklist.append(dep_key)

@@ -456,6 +456,84 @@ def test_node_key_git_no_ref():
     assert locator == ("https://github.com/foo/bar.git", None)
 
 
+def test_node_key_url_in_name_is_git():
+    # add_library("https://github.com/x/y", None): PlatformIO accepted a bare
+    # git URL as the library name, so the converter must too.
+    key, is_git, locator = _node_key(
+        "https://github.com/pstolarz/OneWireNg", None, None
+    )
+    assert key == "pstolarz/OneWireNg"
+    assert is_git is True
+    assert locator == ("https://github.com/pstolarz/OneWireNg", None)
+
+
+def test_node_key_url_in_name_with_ref():
+    key, is_git, locator = _node_key(
+        "https://github.com/foo/bar.git#v1.2.3", None, None
+    )
+    assert (key, is_git, locator) == (
+        "foo/bar",
+        True,
+        ("https://github.com/foo/bar.git", "v1.2.3"),
+    )
+
+
+def test_node_key_url_in_name_git_plus_prefix():
+    key, is_git, locator = _node_key("git+https://github.com/foo/bar", None, None)
+    assert (key, is_git, locator) == (
+        "foo/bar",
+        True,
+        ("https://github.com/foo/bar", None),
+    )
+
+
+def test_node_key_git_plus_prefix_in_repository():
+    _key, is_git, locator = _node_key("name", None, "git+https://github.com/foo/bar")
+    assert (is_git, locator) == (True, ("https://github.com/foo/bar", None))
+
+
+def test_node_key_custom_name_equals_url_is_git():
+    key, is_git, locator = _node_key(
+        "OneWireNg=https://github.com/pstolarz/OneWireNg", None, None
+    )
+    assert (key, is_git, locator) == (
+        "pstolarz/OneWireNg",
+        True,
+        ("https://github.com/pstolarz/OneWireNg", None),
+    )
+
+
+def test_node_key_url_in_name_with_query_containing_equals():
+    # A bare URL whose query string contains ``=`` must not be split by the
+    # CustomName=URL handling.
+    key, is_git, locator = _node_key("https://host/x/y.git?ref=main", None, None)
+    assert (key, is_git, locator) == (
+        "x/y",
+        True,
+        ("https://host/x/y.git?ref=main", None),
+    )
+
+
+@pytest.mark.parametrize("name", ["http://[::1", "CustomName=http://[::1"])
+def test_node_key_malformed_url_in_name_raises(name: str) -> None:
+    # A name that was clearly meant to be a URL but does not parse must fail
+    # fast instead of degrading to a confusing registry lookup error.
+    with pytest.raises(RuntimeError, match="Invalid PIO library URL"):
+        _node_key(name, None, None)
+
+
+def test_node_key_name_with_equals_but_no_url_is_registry():
+    key, is_git, locator = _node_key("FOO=BAR", "1.0", None)
+    assert (key, is_git, locator) == ("FOO=BAR", False, (None, "FOO=BAR"))
+
+
+def test_node_key_version_url_still_ignored_when_name_plain():
+    # A version that is a URL is handled by the dependency walk, not here;
+    # a plain name must stay a registry spec regardless of version shape.
+    key, is_git, _locator = _node_key("bar", "https://github.com/foo/bar", None)
+    assert (key, is_git) == ("bar", False)
+
+
 def test_node_key_registry_owner_name():
     key, is_git, locator = _node_key("foo/bar", "^1.0.0", None)
     assert (key, is_git, locator) == ("foo/bar", False, ("foo", "bar"))
