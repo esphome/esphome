@@ -12,7 +12,13 @@ import platformdirs
 
 from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
 from esphome.core import CORE, EsphomeError
-from esphome.helpers import add_git_ceiling_directory, get_bool_env, rmtree, write_file
+from esphome.helpers import (
+    add_git_ceiling_directory,
+    copy_file_if_changed,
+    get_bool_env,
+    rmtree,
+    write_file,
+)
 from esphome.util import FlashImage, run_external_process
 
 if TYPE_CHECKING:
@@ -272,8 +278,31 @@ def _ccache_env() -> dict[str, str]:
         ),
         "CCACHE_NOHASHDIR": "true",
     }
+    if CORE.is_libretiny:
+        # Ignore __DATE__/__TIME__ when hashing: LibreTiny's libretiny.h
+        # embeds them in its banner macro, which would otherwise disable
+        # ccache's direct mode for every file that includes it and re-miss
+        # on every rebuild. The trade-off is that a cached object can carry
+        # the timestamp of its first compile in such banner strings. Other
+        # platforms don't need the sloppiness, so they keep exact hashing.
+        defaults["CCACHE_SLOPPINESS"] = "time_macros"
     env.update({k: v for k, v in defaults.items() if k not in os.environ})
     return env
+
+
+def copy_ccache_script() -> None:
+    """Copy the shared ccache SCons pre-script into the build dir.
+
+    Platform components call this from their ``copy_files()`` and add
+    ``pre:ccache.py`` to their ``extra_scripts``. The script wraps compiler
+    invocations inside SCons with ccache; it is platform-agnostic, so it
+    lives here next to ``_ccache_env()`` rather than being duplicated per
+    component.
+    """
+    copy_file_if_changed(
+        Path(__file__).parent / "ccache.py.script",
+        CORE.relative_build_path("ccache.py"),
+    )
 
 
 def run_platformio_cli(*args, **kwargs) -> str | int:
