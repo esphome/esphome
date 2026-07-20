@@ -424,6 +424,17 @@ def test_run_platformio_cli_passes_ccache_env_to_subprocess_only(
         assert "CCACHE_BASEDIR" not in os.environ
 
 
+def test_copy_ccache_script(setup_core: Path) -> None:
+    """The shared ccache pre-script is copied into the build dir."""
+    CORE.build_path = setup_core / "build" / "test"
+
+    toolchain.copy_ccache_script()
+
+    dest = setup_core / "build" / "test" / "ccache.py"
+    source = Path(toolchain.__file__).parent / "ccache.py.script"
+    assert dest.read_text() == source.read_text()
+
+
 @pytest.mark.parametrize(
     ("platform", "input_path", "expected"),
     [
