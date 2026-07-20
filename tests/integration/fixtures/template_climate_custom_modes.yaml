@@ -4,9 +4,6 @@ host:
 api:
 logger:
 
-# Custom fan modes/presets are plain internal state, same as their enum counterparts: on_control
-# forwards commands out, and a button's climate.template.publish simulates the device reporting
-# its own state.
 climate:
   - platform: template
     id: test_climate

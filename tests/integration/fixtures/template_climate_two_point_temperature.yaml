@@ -4,12 +4,6 @@ host:
 api:
 logger:
 
-# current_temperature is a genuinely-measured value, pushed by the referenced sensor (no
-# polling). Everything settable (mode, target_temperature_low/high, target_humidity) is plain
-# internal Climate state: on_control forwards commands out (logged here, stands in for "send to
-# the real device"), and a button's climate.template.publish simulates the device reporting its
-# own authoritative state, e.g. because someone changed a setting on the physical unit --
-# independent of any prior command.
 climate:
   - platform: template
     id: test_climate

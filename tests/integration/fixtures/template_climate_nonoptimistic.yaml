@@ -4,9 +4,6 @@ host:
 api:
 logger:
 
-# optimistic: false: commands must NOT change the entity's own state.
-# on_control still fires (a real device-backed config uses it to forward the command out), but
-# the entity only updates once climate.template.publish reports the device's confirmed state.
 climate:
   - platform: template
     id: test_climate

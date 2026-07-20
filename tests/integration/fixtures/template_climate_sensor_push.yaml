@@ -4,12 +4,8 @@ host:
 api:
 logger:
 
-# current_temperature/current_humidity are pushed by the referenced sensor/humidity_sensor, not
-# polled. The two sensors below have no lambda/update_interval of their own -- they're driven
-# entirely by sensor.template.publish (buttons here stand in for e.g. a BLE scan callback
-# elsewhere in a real config). This proves a *later* change to the backing sensor's value (not
-# just its initial reading at boot) propagates into a new climate state, with no polling and no
-# explicit climate.template.publish call for the temperature/humidity fields themselves.
+# No lambda/update_interval: these sensors only ever report a value when a button below
+# publishes one (standing in for e.g. a BLE scan callback in a real config).
 sensor:
   - platform: template
     id: room_temperature

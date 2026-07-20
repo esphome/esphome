@@ -8,13 +8,6 @@ host:
 api:
 logger:
 
-# current_temperature/current_humidity are pushed by the referenced sensor/humidity_sensor (no
-# polling). action has no sensor equivalent, so it's set once at boot via climate.template.publish
-# to give the entity an initial value -- supports_action: true declares the trait, since (unlike
-# modes/fan modes/presets) there's no list whose presence would otherwise imply it.
-# mode/fan_mode/swing_mode/preset are plain internal state: on_control forwards commands out
-# (logged here), and a button's climate.template.publish simulates the device reporting its own
-# state, independent of any prior command.
 climate:
   - platform: template
     id: test_climate
