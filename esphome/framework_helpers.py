@@ -648,9 +648,14 @@ def download_with_resume(
     for _ in range(attempts):
         try:
             offset = part.stat().st_size if part.is_file() else 0
-            resp, offset = _open_ranged(url, offset, timeout)
-            with resp, part.open("ab") as f:
-                _stream_response_to_file(resp, f, offset, size)
+            if size is None or offset < size:
+                resp, offset = _open_ranged(url, offset, timeout)
+                with resp, part.open("ab") as f:
+                    _stream_response_to_file(resp, f, offset, size)
+            # else: a previous run wrote every byte but was killed before the
+            # rename below. Skip the network entirely — a Range request past
+            # EOF would draw HTTP 416 — and let verification decide whether
+            # to promote the file or discard it and start over.
 
             if size is not None and part.stat().st_size != size:
                 raise EsphomeError(

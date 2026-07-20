@@ -712,6 +712,38 @@ class TestDownloadWithResume:
             download_with_resume("https://example.com/t", dest, sha256=good, size=4)
         assert dest.read_bytes() == b"data"
 
+    def test_complete_part_file_promoted_without_network(self, tmp_path: Path) -> None:
+        """A .part holding every byte (killed between write and rename) is
+        verified in place and promoted; no request is made, so no 416 loop."""
+        dest = tmp_path / "tool.tar.gz"
+        (tmp_path / "tool.tar.gz.part").write_bytes(b"data")
+        good = hashlib.sha256(b"data").hexdigest()
+        with patch("requests.get") as mock_get:
+            download_with_resume("https://example.com/t", dest, sha256=good, size=4)
+        mock_get.assert_not_called()
+        assert dest.read_bytes() == b"data"
+
+    def test_complete_but_corrupt_part_file_redownloaded(self, tmp_path: Path) -> None:
+        """A full-size .part with a wrong hash is discarded and re-downloaded
+        from scratch."""
+        dest = tmp_path / "tool.tar.gz"
+        (tmp_path / "tool.tar.gz.part").write_bytes(b"bad!")
+        good = hashlib.sha256(b"data").hexdigest()
+        with patch("requests.get", return_value=_mock_response(b"data")) as mock_get:
+            download_with_resume("https://example.com/t", dest, sha256=good, size=4)
+        assert "Range" not in mock_get.call_args[1]["headers"]
+        assert dest.read_bytes() == b"data"
+
+    def test_oversized_part_file_discarded(self, tmp_path: Path) -> None:
+        """A .part larger than the expected size fails verification and is
+        replaced by a fresh download."""
+        dest = tmp_path / "tool.tar.gz"
+        (tmp_path / "tool.tar.gz.part").write_bytes(b"toolong")
+        good = hashlib.sha256(b"data").hexdigest()
+        with patch("requests.get", return_value=_mock_response(b"data")):
+            download_with_resume("https://example.com/t", dest, sha256=good, size=4)
+        assert dest.read_bytes() == b"data"
+
     def test_zero_byte_part_file_sends_no_range(self, tmp_path: Path) -> None:
         """An empty leftover part file is a fresh download, not a resume."""
         dest = tmp_path / "tool.tar.gz"
