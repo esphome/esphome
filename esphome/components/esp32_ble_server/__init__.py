@@ -668,21 +668,21 @@ async def to_code(config):
         cg.add_define("USE_ESP32_BLE_SERVER_ON_PASSKEY_REQUEST")
         await automation.build_automation(
             BLETriggers_ns.create_server_on_passkey_request_trigger(var),
-            [],
+            [(cg.std_string, "address")],
             config[CONF_ON_PASSKEY_REQUEST],
         )
     if CONF_ON_PASSKEY_NOTIFICATION in config:
         cg.add_define("USE_ESP32_BLE_SERVER_ON_PASSKEY_NOTIFICATION")
         await automation.build_automation(
             BLETriggers_ns.create_server_on_passkey_notification_trigger(var),
-            [(cg.uint32, "passkey")],
+            [(cg.std_string, "address"), (cg.uint32, "passkey")],
             config[CONF_ON_PASSKEY_NOTIFICATION],
         )
     if CONF_ON_NUMERIC_COMPARISON_REQUEST in config:
         cg.add_define("USE_ESP32_BLE_SERVER_ON_NUMERIC_COMPARISON_REQUEST")
         await automation.build_automation(
             BLETriggers_ns.create_server_on_numeric_comparison_request_trigger(var),
-            [(cg.uint32, "passkey")],
+            [(cg.std_string, "address"), (cg.uint32, "passkey")],
             config[CONF_ON_NUMERIC_COMPARISON_REQUEST],
         )
     cg.add_define("USE_ESP32_BLE_SERVER")
@@ -755,6 +755,7 @@ async def ble_server_characteristic_notify(config, action_id, template_arg, args
 BLE_NUMERIC_COMPARISON_REPLY_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.use_id(BLEServer),
+        cv.Required(CONF_ADDRESS): cv.templatable(cv.mac_address),
         cv.Required(CONF_ACCEPT): cv.templatable(cv.boolean),
     }
 )
@@ -762,6 +763,7 @@ BLE_NUMERIC_COMPARISON_REPLY_ACTION_SCHEMA = cv.Schema(
 BLE_PASSKEY_REPLY_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.use_id(BLEServer),
+        cv.Required(CONF_ADDRESS): cv.templatable(cv.mac_address),
         cv.Required(CONF_PASSKEY): cv.templatable(cv.int_range(min=0, max=999999)),
     }
 )
@@ -789,6 +791,13 @@ async def numeric_comparison_reply_to_code(config, action_id, template_arg, args
         cg.add(var.set_value_template(templ))
     else:
         cg.add(var.set_value_simple(accept))
+
+    address = config[CONF_ADDRESS]
+    if cg.is_template(address):
+        templ = await cg.templatable(address, args, cg.std_string)
+        cg.add(var.set_address(templ))
+    else:
+        cg.add(var.set_address(str(address)))
     return var
 
 
@@ -807,6 +816,13 @@ async def passkey_reply_to_code(config, action_id, template_arg, args):
         cg.add(var.set_value_template(templ))
     else:
         cg.add(var.set_value_simple(passkey))
+
+    address = config[CONF_ADDRESS]
+    if cg.is_template(address):
+        templ = await cg.templatable(address, args, cg.std_string)
+        cg.add(var.set_address(templ))
+    else:
+        cg.add(var.set_address(str(address)))
     return var
 
 

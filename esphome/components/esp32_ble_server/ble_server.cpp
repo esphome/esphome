@@ -1,9 +1,10 @@
 #include "ble_server.h"
 
 #include "esphome/components/esp32_ble/ble.h"
-#include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/application.h"
 #include "esphome/core/version.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_ESP32
 
@@ -253,18 +254,24 @@ void BLEServer::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
       ESP_LOGW(TAG, "address type = %d", param->ble_security.auth_cmpl.addr_type);
       ESP_LOGW(TAG, "pair status = %s", param->ble_security.auth_cmpl.success ? "success" : "fail");
       break;
-    case ESP_GAP_BLE_PASSKEY_REQ_EVT:
-      memcpy(this->pairing_remote_bda_, param->ble_security.ble_req.bd_addr, sizeof(esp_bd_addr_t));
-      this->passkey_request_callback_.call();
+    case ESP_GAP_BLE_PASSKEY_REQ_EVT: {
+      char mac_buf[18];
+      format_mac_addr_upper(param->ble_security.ble_req.bd_addr, mac_buf);
+      this->passkey_request_callback_.call(mac_buf);
       break;
-    case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
-      memcpy(this->pairing_remote_bda_, param->ble_security.ble_req.bd_addr, sizeof(esp_bd_addr_t));
-      this->passkey_notification_callback_.call(param->ble_security.key_notif.passkey);
+    }
+    case ESP_GAP_BLE_PASSKEY_NOTIF_EVT: {
+      char mac_buf[18];
+      format_mac_addr_upper(param->ble_security.ble_req.bd_addr, mac_buf);
+      this->passkey_notification_callback_.call(mac_buf, param->ble_security.key_notif.passkey);
       break;
-    case ESP_GAP_BLE_NC_REQ_EVT:
-      memcpy(this->pairing_remote_bda_, param->ble_security.ble_req.bd_addr, sizeof(esp_bd_addr_t));
-      this->numeric_comparison_request_callback_.call(param->ble_security.key_notif.passkey);
+    }
+    case ESP_GAP_BLE_NC_REQ_EVT: {
+      char mac_buf[18];
+      format_mac_addr_upper(param->ble_security.ble_req.bd_addr, mac_buf);
+      this->numeric_comparison_request_callback_.call(mac_buf, param->ble_security.key_notif.passkey);
       break;
+    }
     default:
       break;
   }

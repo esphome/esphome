@@ -32,13 +32,13 @@ class BLETriggers {
   static Trigger<uint16_t> *create_server_on_disconnect_trigger(BLEServer *server);
 #endif
 #ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_REQUEST
-  static Trigger<> *create_server_on_passkey_request_trigger(BLEServer *server);
+  static Trigger<std::string> *create_server_on_passkey_request_trigger(BLEServer *server);
 #endif
 #ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_NOTIFICATION
-  static Trigger<uint32_t> *create_server_on_passkey_notification_trigger(BLEServer *server);
+  static Trigger<std::string, uint32_t> *create_server_on_passkey_notification_trigger(BLEServer *server);
 #endif
 #ifdef USE_ESP32_BLE_SERVER_ON_NUMERIC_COMPARISON_REQUEST
-  static Trigger<uint32_t> *create_server_on_numeric_comparison_request_trigger(BLEServer *server);
+  static Trigger<std::string, uint32_t> *create_server_on_numeric_comparison_request_trigger(BLEServer *server);
 #endif
 };
 
@@ -137,6 +137,7 @@ template<typename... Ts> class BLEDescriptorSetValueAction final : public Action
 template<typename... Ts> class BLEServerPasskeyReplyAction : public Action<Ts...> {
  public:
   BLEServerPasskeyReplyAction(BLEServer *server) : parent_(server) {}
+  TEMPLATABLE_VALUE(std::string, address)
   void play(const Ts &...x) override {
     uint32_t passkey;
     if (this->has_simple_value_) {
@@ -146,8 +147,13 @@ template<typename... Ts> class BLEServerPasskeyReplyAction : public Action<Ts...
     }
     if (passkey > 999999)
       return;
+    std::string address = this->address_.value(x...);
+    if (address.length() != 17)
+      return;
     esp_bd_addr_t remote_bda;
-    memcpy(remote_bda, this->parent_->get_pairing_remote_bda(), sizeof(esp_bd_addr_t));
+    for (int i = 0; i < 6; i++) {
+      remote_bda[i] = strtoul(address.substr(i * 3, 2).c_str(), nullptr, 16);
+    }
     esp_ble_passkey_reply(remote_bda, true, passkey);
   }
   void set_value_template(uint32_t (*func)(Ts...)) {
@@ -171,9 +177,16 @@ template<typename... Ts> class BLEServerPasskeyReplyAction : public Action<Ts...
 template<typename... Ts> class BLEServerNumericComparisonReplyAction : public Action<Ts...> {
  public:
   BLEServerNumericComparisonReplyAction(BLEServer *server) : parent_(server) {}
+  TEMPLATABLE_VALUE(std::string, address)
   void play(const Ts &...x) override {
+    std::string address = this->address_.value(x...);
+    if (address.length() != 17)
+      return;
     esp_bd_addr_t remote_bda;
-    memcpy(remote_bda, this->parent_->get_pairing_remote_bda(), sizeof(esp_bd_addr_t));
+    for (int i = 0; i < 6; i++) {
+      remote_bda[i] = strtoul(address.substr(i * 3, 2).c_str(), nullptr, 16);
+    }
+
     if (this->has_simple_value_) {
       esp_ble_confirm_reply(remote_bda, this->value_.simple);
     } else {
