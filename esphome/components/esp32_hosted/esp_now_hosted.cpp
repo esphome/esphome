@@ -61,8 +61,12 @@ volatile int32_t g_resp_status = 0;
 uint8_t g_resp_ret[16];
 volatile uint16_t g_resp_ret_len = 0;
 
-esp_now_recv_cb_t g_recv_cb = nullptr;
-esp_now_send_cb_t g_send_cb = nullptr;
+// Written from the main loop (register/unregister/deinit), read from the
+// esp-hosted RX thread (on_recv/on_send). volatile for the same reason the
+// g_resp_* globals are: force the RX thread to observe an updated pointer
+// (e.g. a nulling by esp_now_deinit) rather than a cached one.
+volatile esp_now_recv_cb_t g_recv_cb = nullptr;
+volatile esp_now_send_cb_t g_send_cb = nullptr;
 
 // ── CustomRpc event handlers (run on the esp-hosted RPC RX thread) ──────────
 // Keep them short and non-blocking. In particular they MUST NOT call back into
