@@ -5,7 +5,7 @@ import shutil
 Import("env")  # noqa
 
 # ESPHome decides whether ccache is used and exports the CCACHE_* settings
-# into the environment before PlatformIO starts (_configure_ccache() in
+# into the environment before PlatformIO starts (_ccache_env() in
 # esphome/platformio/toolchain.py); this script only supplies the SCons-level
 # mechanism.
 #

@@ -322,26 +322,27 @@ def test_run_platformio_cli_sets_environment_variables(
         assert "arg" in args
 
 
-def test_configure_ccache_enabled_by_default(setup_core: Path) -> None:
+def test_ccache_env_enabled_by_default(setup_core: Path) -> None:
     """Ccache is enabled when the binary is on PATH and no override is set."""
     CORE.build_path = setup_core / "build" / "test"
 
-    env: dict[str, str] = {}
     with (
-        patch.dict(os.environ, env, clear=True),
+        patch.dict(os.environ, {}, clear=True),
         patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
     ):
-        toolchain._configure_ccache()
+        env = toolchain._ccache_env()
 
-        assert os.environ["ESPHOME_CCACHE_ENABLE"] == "1"
-        assert os.environ["CCACHE_BASEDIR"] == str(
-            (setup_core / "build" / "test").resolve()
-        )
-        assert os.environ["CCACHE_DIR"].endswith("platformio-ccache")
-        assert os.environ["CCACHE_NOHASHDIR"] == "true"
+    assert env["ESPHOME_CCACHE_ENABLE"] == "1"
+    assert env["CCACHE_BASEDIR"] == str((setup_core / "build" / "test").resolve())
+    assert env["CCACHE_DIR"].endswith("platformio-ccache")
+    assert env["CCACHE_NOHASHDIR"] == "true"
+    # Nothing may leak into os.environ: a later ESP-IDF build in the same
+    # process would otherwise skip its own ccache defaults.
+    assert "CCACHE_BASEDIR" not in os.environ
+    assert "ESPHOME_CCACHE_ENABLE" not in os.environ
 
 
-def test_configure_ccache_disabled_without_binary(setup_core: Path) -> None:
+def test_ccache_env_disabled_without_binary(setup_core: Path) -> None:
     """Ccache stays off when the binary is not on PATH."""
     CORE.build_path = setup_core / "build" / "test"
 
@@ -349,13 +350,12 @@ def test_configure_ccache_disabled_without_binary(setup_core: Path) -> None:
         patch.dict(os.environ, {}, clear=True),
         patch.object(toolchain.shutil, "which", return_value=None),
     ):
-        toolchain._configure_ccache()
+        env = toolchain._ccache_env()
 
-        assert os.environ["ESPHOME_CCACHE_ENABLE"] == "0"
-        assert "CCACHE_BASEDIR" not in os.environ
+    assert env == {"ESPHOME_CCACHE_ENABLE": "0"}
 
 
-def test_configure_ccache_opt_out(setup_core: Path) -> None:
+def test_ccache_env_opt_out(setup_core: Path) -> None:
     """ESPHOME_CCACHE_ENABLE=0 disables ccache even with the binary present."""
     CORE.build_path = setup_core / "build" / "test"
 
@@ -363,13 +363,12 @@ def test_configure_ccache_opt_out(setup_core: Path) -> None:
         patch.dict(os.environ, {"ESPHOME_CCACHE_ENABLE": "0"}, clear=True),
         patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
     ):
-        toolchain._configure_ccache()
+        env = toolchain._ccache_env()
 
-        assert os.environ["ESPHOME_CCACHE_ENABLE"] == "0"
-        assert "CCACHE_BASEDIR" not in os.environ
+    assert env == {"ESPHOME_CCACHE_ENABLE": "0"}
 
 
-def test_configure_ccache_normalizes_enable_value(setup_core: Path) -> None:
+def test_ccache_env_normalizes_enable_value(setup_core: Path) -> None:
     """A truthy override value is normalized to "1" for the build scripts."""
     CORE.build_path = setup_core / "build" / "test"
 
@@ -377,31 +376,52 @@ def test_configure_ccache_normalizes_enable_value(setup_core: Path) -> None:
         patch.dict(os.environ, {"ESPHOME_CCACHE_ENABLE": "yes"}, clear=True),
         patch.object(toolchain.shutil, "which", return_value=None),
     ):
-        toolchain._configure_ccache()
+        env = toolchain._ccache_env()
 
-        assert os.environ["ESPHOME_CCACHE_ENABLE"] == "1"
+    assert env["ESPHOME_CCACHE_ENABLE"] == "1"
 
 
-def test_configure_ccache_respects_user_values_and_refreshes_basedir(
+def test_ccache_env_respects_user_values_and_refreshes_basedir(
     setup_core: Path,
 ) -> None:
     """User CCACHE_* values win, but CCACHE_BASEDIR follows the build dir."""
-    env = {
+    user_env = {
         "CCACHE_DIR": "/custom/cache",
         "CCACHE_BASEDIR": "/stale/other-device",
     }
     CORE.build_path = setup_core / "build" / "test"
 
     with (
-        patch.dict(os.environ, env, clear=True),
+        patch.dict(os.environ, user_env, clear=True),
         patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
     ):
-        toolchain._configure_ccache()
+        env = toolchain._ccache_env()
 
-        assert os.environ["CCACHE_DIR"] == "/custom/cache"
-        assert os.environ["CCACHE_BASEDIR"] == str(
-            (setup_core / "build" / "test").resolve()
-        )
+    # CCACHE_DIR is not returned, so the user's os.environ value applies in
+    # the subprocess; CCACHE_BASEDIR is always refreshed to the build dir.
+    assert "CCACHE_DIR" not in env
+    assert env["CCACHE_BASEDIR"] == str((setup_core / "build" / "test").resolve())
+
+
+def test_run_platformio_cli_passes_ccache_env_to_subprocess_only(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """The ccache settings reach the subprocess env without touching os.environ."""
+    CORE.build_path = str(setup_core / "build" / "test")
+
+    with (
+        patch.dict(os.environ, {}, clear=False),
+        patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
+    ):
+        os.environ.pop("ESPHOME_CCACHE_ENABLE", None)
+        mock_run_external_process.return_value = 0
+        toolchain.run_platformio_cli("test", "arg")
+
+        env = mock_run_external_process.call_args[1]["env"]
+        assert env["ESPHOME_CCACHE_ENABLE"] == "1"
+        assert env["CCACHE_BASEDIR"] == str((setup_core / "build" / "test").resolve())
+        assert "ESPHOME_CCACHE_ENABLE" not in os.environ
+        assert "CCACHE_BASEDIR" not in os.environ
 
 
 @pytest.mark.parametrize(

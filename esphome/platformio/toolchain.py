@@ -228,8 +228,8 @@ def _check_platformio_python_stamp(config: "ProjectConfig") -> None:
         _write_pio_stamp_python(stamp_file, current)
 
 
-def _configure_ccache() -> None:
-    """Export ccache settings for PlatformIO builds into the environment.
+def _ccache_env() -> dict[str, str]:
+    """Return ccache settings for PlatformIO builds.
 
     Enabled by default whenever the ``ccache`` binary is on PATH; set
     ``ESPHOME_CCACHE_ENABLE=0`` in the environment to opt out (or ``1`` to
@@ -237,6 +237,12 @@ def _configure_ccache() -> None:
     so platform build scripts (e.g. the esp8266 ``ccache.py`` extra script,
     which wraps compiler invocations inside SCons) only have to check for
     ``"1"`` instead of re-implementing the policy.
+
+    The returned values are merged into the environment of the PlatformIO
+    subprocess only, never into ``os.environ``: a long-running process
+    (e.g. the dashboard) also runs ESP-IDF builds, whose own ccache setup
+    skips defaults for ``CCACHE_*`` keys it finds already set, so leaking
+    these values would hand it the wrong cache dir and a stale basedir.
 
     This mirrors ``_ccache_env()`` in ``esphome/espidf/framework.py``. The
     cache lives under the machine-global ESPHome cache dir, so it is shared
@@ -247,28 +253,27 @@ def _configure_ccache() -> None:
 
     ``CCACHE_BASEDIR`` rewrites the per-device absolute paths (the generated
     sources under src/, the .pioenvs build dir) so different devices with
-    identical source share cache entries. It is always set to the current
-    build dir: a long-running process (e.g. the dashboard) compiles many
-    devices, so it must be refreshed per build rather than treated as a
-    user override. The other ``CCACHE_*`` values the user already set in
-    the environment are respected.
+    identical source share cache entries; it is always set to the current
+    build dir. The other ``CCACHE_*`` values the user already set in the
+    environment are respected.
     """
     if "ESPHOME_CCACHE_ENABLE" in os.environ:
         enabled = get_bool_env("ESPHOME_CCACHE_ENABLE")
     else:
         enabled = shutil.which("ccache") is not None
-    os.environ["ESPHOME_CCACHE_ENABLE"] = "1" if enabled else "0"
+    env = {"ESPHOME_CCACHE_ENABLE": "1" if enabled else "0"}
     if not enabled:
-        return
-    os.environ["CCACHE_BASEDIR"] = str(Path(CORE.build_path).resolve())
-    os.environ.setdefault(
-        "CCACHE_DIR",
-        str(
+        return env
+    env["CCACHE_BASEDIR"] = str(Path(CORE.build_path).resolve())
+    defaults = {
+        "CCACHE_DIR": str(
             Path(platformdirs.user_cache_dir("esphome", appauthor=False))
             / "platformio-ccache"
         ),
-    )
-    os.environ.setdefault("CCACHE_NOHASHDIR", "true")
+        "CCACHE_NOHASHDIR": "true",
+    }
+    env.update({k: v for k, v in defaults.items() if k not in os.environ})
+    return env
 
 
 def run_platformio_cli(*args, **kwargs) -> str | int:
@@ -281,7 +286,6 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ.setdefault(
         "PLATFORMIO_LIBDEPS_DIR", str(CORE.relative_piolibdeps_path().absolute())
     )
-    _configure_ccache()
     # Suppress Python syntax warnings from third-party scripts during compilation
     os.environ.setdefault("PYTHONWARNINGS", "ignore::SyntaxWarning")
     # Increase uv retry count to handle transient network errors (default is 3)
@@ -303,7 +307,11 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
         os.environ["PYTHONEXEPATH"] = python_exe
     cmd = [python_exe, "-m", "esphome.platformio.runner"] + list(args)
 
-    return run_external_process(*cmd, **kwargs)
+    # ccache settings go into the subprocess environment only (see
+    # _ccache_env() for why they must not leak into os.environ).
+    env = os.environ | _ccache_env()
+
+    return run_external_process(*cmd, env=env, **kwargs)
 
 
 def run_platformio_cli_run(config, verbose, *args, **kwargs) -> str | int:
