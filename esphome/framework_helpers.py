@@ -1008,9 +1008,10 @@ def download_from_mirrors(
                         f"size mismatch: expected {expected_total}, got {f.tell()}"
                     )
                 if not expected_total:
-                    _LOGGER.debug(
-                        "Downloaded %s without a content-length; completeness "
-                        "not verifiable",
+                    # Same trust decision as download_with_resume's
+                    # unverifiable promotion; surface it at the same level.
+                    _LOGGER.warning(
+                        "Downloaded %s without any way to verify completeness",
                         url,
                     )
 
