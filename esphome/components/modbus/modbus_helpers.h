@@ -1,8 +1,10 @@
 #pragma once
 
+#include <cmath>
+#include <optional>
+#include <span>
 #include <string>
 #include <vector>
-#include <cmath>
 
 #include "esphome/core/helpers.h"
 #include "esphome/components/modbus/modbus_definitions.h"
@@ -90,7 +92,7 @@ inline ModbusFunctionCode modbus_register_read_function(ModbusRegisterType reg_t
       return ModbusFunctionCode::READ_DISCRETE_INPUTS;
     case ModbusRegisterType::HOLDING:
       return ModbusFunctionCode::READ_HOLDING_REGISTERS;
-    case ModbusRegisterType::READ:
+    case ModbusRegisterType::INPUT_REGISTER:
       return ModbusFunctionCode::READ_INPUT_REGISTERS;
     default:
       return ModbusFunctionCode::INVALID;
@@ -104,7 +106,7 @@ inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_
     case ModbusRegisterType::HOLDING:
       return multiple ? ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS : ModbusFunctionCode::WRITE_SINGLE_REGISTER;
     // These register types can't be written (per spec)
-    case ModbusRegisterType::READ:
+    case ModbusRegisterType::INPUT_REGISTER:
     case ModbusRegisterType::DISCRETE_INPUT:
     default:
       return ModbusFunctionCode::INVALID;
@@ -197,10 +199,14 @@ template<typename T> T get_data(const std::vector<uint8_t> &data, size_t buffer_
  * @param data modbus response buffer (uint8_t)
  * @return content of coil register
  */
-inline bool coil_from_vector(int coil, const std::vector<uint8_t> &data) {
-  auto data_byte = coil / 8;
-  return (data[data_byte] & (1 << (coil % 8))) > 0;
+inline bool bit_from_packed(int bit, std::span<const uint8_t> data) {
+  auto data_byte = bit / 8;
+  return (data[data_byte] & (1 << (bit % 8))) > 0;
 }
+
+// Remove before 2027.2.0
+ESPDEPRECATED("Use bit_from_packed() instead. Removed in 2027.2.0", "2026.8.0")
+inline bool coil_from_vector(int coil, std::span<const uint8_t> data) { return bit_from_packed(coil, data); }
 
 /** Extract bits from value and shift right according to the bitmask
  * if the bitmask is 0x00F0  we want the values frrom bit 5 - 8.
@@ -224,23 +230,83 @@ template<typename N> N mask_and_shift_by_rightbit(N data, uint32_t mask) {
   return 0;
 }
 
-/** Convert float value to vector<uint16_t> suitable for sending
- * @param data target for payload
- * @param value float value to convert
- * @param value_type defines if 16/32 or FP32 is used
- * @return vector containing the modbus register words in correct order
- */
-void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueType value_type);
+// Logs an error for an unsupported value type. Defined in the .cpp so logging stays out of headers.
+void log_unsupported_value_type(SensorValueType value_type);
 
-/** Convert vector<uint8_t> response payload to number.
+/** Append the Modbus register words for value to data.
+ * Works with any container exposing push_back(uint16_t) (e.g. std::vector or StaticVector).
+ */
+template<typename Container> void number_to_payload(Container &data, int64_t value, SensorValueType value_type) {
+  switch (value_type) {
+    case SensorValueType::U_WORD:
+    case SensorValueType::S_WORD:
+      data.push_back(value & 0xFFFF);
+      break;
+    case SensorValueType::U_DWORD:
+    case SensorValueType::S_DWORD:
+    case SensorValueType::FP32:
+      data.push_back((value & 0xFFFF0000) >> 16);
+      data.push_back(value & 0xFFFF);
+      break;
+    case SensorValueType::U_DWORD_R:
+    case SensorValueType::S_DWORD_R:
+    case SensorValueType::FP32_R:
+      data.push_back(value & 0xFFFF);
+      data.push_back((value & 0xFFFF0000) >> 16);
+      break;
+    case SensorValueType::U_QWORD:
+    case SensorValueType::S_QWORD:
+      data.push_back((value & 0xFFFF000000000000) >> 48);
+      data.push_back((value & 0xFFFF00000000) >> 32);
+      data.push_back((value & 0xFFFF0000) >> 16);
+      data.push_back(value & 0xFFFF);
+      break;
+    case SensorValueType::U_QWORD_R:
+    case SensorValueType::S_QWORD_R:
+      data.push_back(value & 0xFFFF);
+      data.push_back((value & 0xFFFF0000) >> 16);
+      data.push_back((value & 0xFFFF00000000) >> 32);
+      data.push_back((value & 0xFFFF000000000000) >> 48);
+      break;
+    default:
+      log_unsupported_value_type(value_type);
+      break;
+  }
+}
+
+/** Convert a raw response payload to a number.
  * @param data payload with the data to convert
+ * @param size number of bytes available in data
  * @param sensor_value_type defines if 16/32/64 bits or FP32 is used
  * @param offset offset to the data in data
  * @param bitmask bitmask used for masking and shifting
  * @return 64-bit number of the payload
  */
-int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
-                          uint32_t bitmask, bool *error_return = nullptr);
+std::optional<int64_t> payload_to_number(const uint8_t *data, size_t size, SensorValueType sensor_value_type,
+                                         uint8_t offset, uint32_t bitmask);
+
+/** Convert a response payload span to number; std::nullopt if the payload is too short. */
+inline std::optional<int64_t> payload_to_number(std::span<const uint8_t> data, SensorValueType sensor_value_type,
+                                                uint8_t offset, uint32_t bitmask) {
+  return payload_to_number(data.data(), data.size(), sensor_value_type, offset, bitmask);
+}
+
+// Remove before 2027.2.0
+ESPDEPRECATED("Use the std::span overload returning std::optional<int64_t> instead. Removed in 2027.2.0", "2026.8.0")
+inline int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
+                                 uint32_t bitmask) {
+  // Released behavior: a too-short payload logs an error and decodes to 0.
+  return payload_to_number(std::span<const uint8_t>(data), sensor_value_type, offset, bitmask).value_or(0);
+}
+
+/** Reconstruct a number from register words (host byte order). Inverse of number_to_payload.
+ * Decodes the value at the start of the given span; advance the pointer to read successive values.
+ * @param registers register values in host byte order
+ * @param count number of registers available in registers
+ * @param sensor_value_type defines if 16/32/64 bits or FP32 is used
+ * @return 64-bit number of the registers
+ */
+std::optional<int64_t> registers_to_number(const uint16_t *registers, size_t count, SensorValueType sensor_value_type);
 
 /** Create a modbus clinet pdu for reading/writing single/multiple coils/register/inputs.
  * @param function_code the modbus function code to use. One of:

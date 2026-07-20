@@ -3,17 +3,16 @@
 #include "esphome/core/log.h"
 #include "internal_temperature.h"
 
+#include <soc/soc_caps.h>
+
 #if defined(USE_ESP32_VARIANT_ESP32)
 // there is no official API available on the original ESP32
 extern "C" {
 uint8_t temprature_sens_read();
 }
-#elif defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C3) || \
-    defined(USE_ESP32_VARIANT_ESP32C5) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32C61) || \
-    defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || \
-    defined(USE_ESP32_VARIANT_ESP32S3)
+#elif SOC_TEMP_SENSOR_SUPPORTED
 #include "driver/temperature_sensor.h"
-#endif  // USE_ESP32_VARIANT
+#endif
 
 namespace esphome::internal_temperature {
 
@@ -27,10 +26,7 @@ void InternalTemperatureSensor::update() {
   ESP_LOGV(TAG, "Raw temperature value: %d", raw);
   temperature = (raw - 32) / 1.8f;
   success = (raw != 128);
-#elif defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C3) || \
-    defined(USE_ESP32_VARIANT_ESP32C5) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32C61) || \
-    defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || \
-    defined(USE_ESP32_VARIANT_ESP32S3)
+#elif SOC_TEMP_SENSOR_SUPPORTED
   esp_err_t result = temperature_sensor_get_celsius(this->tsens_, &temperature);
   success = (result == ESP_OK);
   if (!success) {
@@ -49,9 +45,7 @@ void InternalTemperatureSensor::update() {
 }
 
 void InternalTemperatureSensor::setup() {
-#if defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C5) || \
-    defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32C61) || defined(USE_ESP32_VARIANT_ESP32H2) || \
-    defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if SOC_TEMP_SENSOR_SUPPORTED
   temperature_sensor_config_t tsens_config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(-10, 80);
 
   esp_err_t result = temperature_sensor_install(&tsens_config, &this->tsens_);

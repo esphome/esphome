@@ -108,6 +108,7 @@ class ImageDecoder {
   size_t decoded_bytes_ = 0;  // Bytes processed so far
   double x_scale_ = 1.0;
   double y_scale_ = 1.0;
+  bool size_valid_ = true;  // Last set_size() result; draw() no-ops while false
 };
 
 }  // namespace esphome::runtime_image

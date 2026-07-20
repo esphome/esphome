@@ -1,5 +1,7 @@
 """ESP-IDF framework tools for ESPHome."""
 
+from collections.abc import Callable
+from ctypes.util import find_library
 import json
 import logging
 import os
@@ -8,6 +10,8 @@ import platform
 import re
 import shutil
 import tempfile
+
+import platformdirs
 
 from esphome.config_validation import Version
 from esphome.core import CORE
@@ -61,7 +65,7 @@ ESPHOME_IDF_FRAMEWORK_MIRRORS = str_to_lst_of_str(
     os.environ.get("ESPHOME_IDF_FRAMEWORK_MIRRORS")
     or [
         "https://github.com/esphome-libs/esp-idf/releases/download/v{VERSION}/esp-idf-v{VERSION}.tar.xz",
-        "https://github.com/esphome-libs/esp-idf/releases/download/v{MAJOR}.{MINOR}{EXTRA}/esp-idf-v{MAJOR}.{MINOR}{EXTRA}.tar.xz",
+        "https://github.com/esphome-libs/esp-idf/releases/download/v{SHORT_VERSION}/esp-idf-v{SHORT_VERSION}.tar.xz",
     ]
 )
 
@@ -73,17 +77,25 @@ ESP_IDF_CONSTRAINTS_MIRRORS = str_to_lst_of_str(
 )
 
 
-def _get_idf_tools_path() -> Path:
+def get_idf_tools_path() -> Path:
     """
     Get the path to the ESP-IDF tools directory.
 
     Returns:
         Path object pointing to the ESP-IDF tools directory
     """
-    if "ESPHOME_ESP_IDF_PREFIX" in os.environ:
-        path = Path(get_str_env("ESPHOME_ESP_IDF_PREFIX", None)).expanduser()
+    # Treat an empty/whitespace ESPHOME_ESP_IDF_PREFIX as unset: Path("")
+    # resolves to the CWD, which would install into (and let clean-all delete)
+    # the working directory by accident.
+    if prefix := get_str_env("ESPHOME_ESP_IDF_PREFIX", "").strip():
+        path = Path(prefix).expanduser()
     else:
-        path = CORE.data_dir / "idf"
+        # Machine-global so all projects share the multi-GB install instead of
+        # a per-config-directory copy. The user cache dir (not ~/.esphome)
+        # avoids colliding with data_dir when configs live in the home dir.
+        # appauthor=False drops the redundant <author>\ segment on Windows
+        # (which otherwise repeats "esphome\esphome\") to keep the path short.
+        path = Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "idf"
     # Resolve so an unnormalized config path (e.g. compiling ``../config/x.yaml``)
     # doesn't leave ``..`` segments in the IDF_TOOLS_PATH handed to idf.py, which
     # otherwise warns that the venv interpreter path doesn't match the install.
@@ -131,7 +143,7 @@ def _check_windows_path_length() -> None:
     """
     if platform.system() != "Windows" or _windows_long_paths_enabled():
         return
-    tools_path = str(_get_idf_tools_path())
+    tools_path = str(get_idf_tools_path())
     projected = len(tools_path) + _TOOLCHAIN_NESTED_PATH_LEN
     if projected <= _WINDOWS_MAX_PATH:
         return
@@ -145,10 +157,11 @@ def _check_windows_path_length() -> None:
         "  fatal error: bits/c++config.h: No such file or directory\n"
         "  cannot execute 'as': CreateProcess: No such file or directory\n"
         "To fix, either:\n"
-        "  - Enable Windows long path support: set\n"
-        "    HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem\\LongPathsEnabled\n"
-        "    to 1 and reboot, or\n"
-        "  - Move your ESPHome project to a shorter path\n"
+        "  - Enable Windows long path support, then reboot. In an elevated\n"
+        "    PowerShell run:\n"
+        "      Set-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\FileSystem' LongPathsEnabled 1\n"
+        "    Details: https://learn.microsoft.com/windows/win32/fileio/maximum-file-path-limitation\n"
+        "  - Or set ESPHOME_ESP_IDF_PREFIX to a shorter path (e.g. C:\\ESPHome\\idf)\n"
         "Then delete the ESP-IDF tools directory above so the toolchain "
         "reinstalls cleanly.",
         tools_path,
@@ -169,7 +182,7 @@ def _get_framework_path(version: str) -> Path:
     Returns:
         Path object pointing to the framework directory
     """
-    return _get_idf_tools_path() / "frameworks" / f"{version}"
+    return get_idf_tools_path() / "frameworks" / f"{version}"
 
 
 def _get_python_env_path(version: str) -> Path:
@@ -182,7 +195,7 @@ def _get_python_env_path(version: str) -> Path:
     Returns:
         Path object pointing to the Python environment directory
     """
-    return _get_idf_tools_path() / "penvs" / f"{version}"
+    return get_idf_tools_path() / "penvs" / f"{version}"
 
 
 def _check_stamp(file: PathType, data: dict[str, str]) -> bool:
@@ -455,17 +468,21 @@ _NINJA_ARM64_BACKPORT: dict[str, dict[str, str | int]] = {
 }
 
 
-def _patch_tools_json_for_linux_arm64(framework_path: Path) -> None:
-    """Inject ninja linux-arm64 entries into the framework's tools.json on aarch64.
+def _patch_tools_json(
+    framework_path: Path,
+    apply_patch: Callable[[dict], bool],
+    patched_log: str,
+) -> None:
+    """Apply an in-place fixup to the framework's tools/tools.json.
 
-    Idempotent: a tools.json that already has the entry, or a host that
-    isn't aarch64, is a no-op. Applied unconditionally on every install
-    check so a build dir extracted before the backport got fixed up
-    without forcing a clean.
+    Shared plumbing for the tools.json patches below: a missing file is a
+    no-op, an unparseable file logs a warning and skips, and when
+    ``apply_patch`` reports a change the file is written back atomically.
+    ``patched_log`` is the info log line, with a single ``%s`` placeholder
+    for the tools.json path. Patches are idempotent and applied on every
+    install check, so an already-extracted framework picks them up on the
+    next build without forcing a clean.
     """
-    if platform.machine() != "aarch64":
-        return
-
     tools_json = framework_path / "tools" / "tools.json"
     if not tools_json.is_file():
         return
@@ -473,37 +490,93 @@ def _patch_tools_json_for_linux_arm64(framework_path: Path) -> None:
     try:
         with tools_json.open(encoding="utf-8") as f:
             data = json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
+        # apply_patch also raises inside the guard: a tools.json that is
+        # valid JSON but not the expected shape (e.g. a top-level list)
+        # must skip the patch, not crash the install check this patch is
+        # meant to recover.
+        changed = apply_patch(data)
+    except (json.JSONDecodeError, OSError, AttributeError, TypeError, KeyError) as e:
         _LOGGER.warning(
-            "Could not parse %s for linux-arm64 backport (%s); "
-            "skipping. A clean reinstall of the framework directory "
-            "may be needed.",
+            "Could not apply tools.json patch to %s (%s); skipping. A clean "
+            "reinstall of the framework directory may be needed.",
             tools_json,
             e,
         )
         return
-
-    changed = False
-    for tool in data.get("tools", []):
-        if tool.get("name") != "ninja":
-            continue
-        for ver in tool.get("versions", []):
-            entry = _NINJA_ARM64_BACKPORT.get(ver.get("name"))
-            if entry is None or ver.get("linux-arm64"):
-                continue
-            ver["linux-arm64"] = entry
-            changed = True
 
     if changed:
         # write_file_if_changed stages a tempfile in the destination dir
         # and atomically replaces — safe against mid-write interruption
         # and concurrent invocations.
         write_file_if_changed(tools_json, json.dumps(data, indent=2) + "\n")
-        _LOGGER.info(
-            "Patched %s to add ninja linux-arm64 download "
-            "(espressif/esp-idf#18272 backport).",
-            tools_json,
-        )
+        _LOGGER.info(patched_log, tools_json)
+
+
+def _patch_tools_json_for_linux_arm64(framework_path: Path) -> None:
+    """Inject ninja linux-arm64 entries into the framework's tools.json on aarch64.
+
+    A tools.json that already has the entry, or a host that isn't aarch64,
+    is a no-op.
+    """
+    if platform.machine() != "aarch64":
+        return
+
+    def apply_patch(data: dict) -> bool:
+        changed = False
+        for tool in data.get("tools", []):
+            if tool.get("name") != "ninja":
+                continue
+            for ver in tool.get("versions", []):
+                entry = _NINJA_ARM64_BACKPORT.get(ver.get("name"))
+                if entry is None or ver.get("linux-arm64"):
+                    continue
+                ver["linux-arm64"] = entry
+                changed = True
+        return changed
+
+    _patch_tools_json(
+        framework_path,
+        apply_patch,
+        "Patched %s to add ninja linux-arm64 download "
+        "(espressif/esp-idf#18272 backport).",
+    )
+
+
+def _patch_tools_json_demote_openocd(framework_path: Path) -> None:
+    """Demote openocd-esp32 from ``install: always`` to ``install: on_request``.
+
+    ``idf_tools.py install required`` installs every tool marked ``always`` in
+    tools.json and validates each one after extraction by running its version
+    command. openocd links against libusb-1.0, which minimal systems (bare LXC
+    containers, slim images) often lack, so that one validation aborted the
+    whole framework install and left it permanently retrying (#17685) — even
+    though ESPHome never runs openocd (it is a JTAG debugging tool). Demoting
+    it drops it from the ``required`` set: it is no longer downloaded or
+    validated, and the tool-path export treats a missing ``on_request`` tool
+    as fine. A user who wants it can still name ``openocd-esp32`` explicitly
+    in ESPHOME_IDF_DEFAULT_TOOLS; explicit names bypass install-type
+    filtering.
+
+    Because this runs on every install check, an install stuck in the
+    failing state (which never wrote its stamp file) heals on the next
+    build without a clean.
+    """
+
+    def apply_patch(data: dict) -> bool:
+        changed = False
+        for tool in data.get("tools", []):
+            if tool.get("name") == "openocd-esp32" and tool.get("install") == "always":
+                tool["install"] = "on_request"
+                changed = True
+        return changed
+
+    _patch_tools_json(
+        framework_path,
+        apply_patch,
+        "Patched %s to make openocd-esp32 optional (not needed for "
+        "building, and its install check fails on systems without "
+        "libusb-1.0).",
+    )
 
 
 def _check_esphome_idf_framework_install(
@@ -525,10 +598,14 @@ def _check_esphome_idf_framework_install(
         env: Optional dictionary of environment variables to set
         source_url: Optional override URL for the framework tarball. Supports
             the same ``{VERSION}`` / ``{MAJOR}`` / ``{MINOR}`` / ``{PATCH}`` /
-            ``{EXTRA}`` substitutions as ESPHOME_IDF_FRAMEWORK_MIRRORS
-            (``{EXTRA}`` includes its leading ``-``, e.g. ``-rc1``, or is empty).
-            When set, it replaces the default mirror list — no implicit fallback,
-            so a misspelled URL fails loudly.
+            ``{EXTRA}`` / ``{SHORT_VERSION}`` substitutions as
+            ESPHOME_IDF_FRAMEWORK_MIRRORS (``{EXTRA}`` includes its leading
+            ``-``, e.g. ``-rc1``, or is empty; ``{SHORT_VERSION}`` is ``x.y``
+            plus any extra and only available for x.y.0 versions — a URL
+            referencing it is skipped for other versions). When set, it
+            replaces the default mirror list — no implicit fallback, so a
+            misspelled or skipped URL fails loudly with an EsphomeError naming
+            the URL.
 
     Returns:
         tuple of (framework_path, install_flag)
@@ -553,7 +630,7 @@ def _check_esphome_idf_framework_install(
     # Logged every invocation (not just on install) so the user can verify the
     # override. A changed URL needs ``esphome clean-all`` to force a re-download
     # (``esphome clean`` only wipes the build dir, not the extracted framework
-    # under <data_dir>/idf/frameworks/<version>).
+    # under the global install dir's ``frameworks/<version>``).
     if source_url:
         _LOGGER.info("Using framework source override: %s", source_url)
 
@@ -577,7 +654,11 @@ def _check_esphome_idf_framework_install(
             with tempfile.NamedTemporaryFile() as tmp:
                 _LOGGER.info("Downloading ESP-IDF %s framework ...", version)
 
-                # Create substitutions for the URLs
+                # Create substitutions for the URLs. SHORT_VERSION (x.y with
+                # optional -extra) is only provided for x.y.0 releases, since
+                # the vX.Y release tags only exist for those; templates that
+                # reference it are skipped for other versions by
+                # download_from_mirrors.
                 substitutions = {"VERSION": version}
                 try:
                     ver = Version.parse(version)
@@ -585,8 +666,17 @@ def _check_esphome_idf_framework_install(
                     substitutions["MINOR"] = str(ver.minor)
                     substitutions["PATCH"] = str(ver.patch)
                     substitutions["EXTRA"] = f"-{ver.extra}" if ver.extra else ""
+                    if ver.patch == 0:
+                        substitutions["SHORT_VERSION"] = (
+                            f"{ver.major}.{ver.minor}{substitutions['EXTRA']}"
+                        )
                 except ValueError:
-                    pass
+                    _LOGGER.warning(
+                        "ESP-IDF version '%s' is not a valid version number; "
+                        "only the {VERSION} substitution is available for "
+                        "mirror URLs",
+                        version,
+                    )
 
                 mirrors = [source_url] if source_url else ESPHOME_IDF_FRAMEWORK_MIRRORS
                 download_from_mirrors(mirrors, substitutions, tmp.file)
@@ -606,6 +696,11 @@ def _check_esphome_idf_framework_install(
     # fresh extracts — idempotent and cheap, and lets a build dir carrying
     # a pre-patch tools.json get fixed up without forcing a clean.
     _patch_tools_json_for_linux_arm64(framework_path)
+
+    # Drop openocd-esp32 from the required tool set on every invocation so
+    # an install that previously failed on its libusb check recovers on the
+    # next build.
+    _patch_tools_json_demote_openocd(framework_path)
 
     # 3. Check if the framework tools are the same and correctly installed
     if not install:
@@ -640,7 +735,25 @@ def _check_esphome_idf_framework_install(
             env=env,
             stream_output=True,
         ):
+            if platform.system() == "Linux" and find_library("usb-1.0") is None:
+                _LOGGER.error(
+                    "libusb-1.0.so.0 was not found on this system. If the error "
+                    "above mentions it (openocd fails its install check without "
+                    "it), install the libusb 1.0 package, e.g. libusb-1.0-0 "
+                    "(Debian/Ubuntu), libusb1 (Fedora) or libusb (Alpine/Arch), "
+                    "then run the build again."
+                )
             raise RuntimeError(f"ESP-IDF {version} framework installation failure")
+
+        # idf_tools.py extracts tool archives from <IDF_TOOLS_PATH>/dist into tools/; the
+        # archives are not needed afterward and, already compressed, dominate the cached install.
+        # Best-effort: a failure to prune must not fail an otherwise successful install.
+        try:
+            rmdir(
+                get_idf_tools_path() / "dist", msg="Remove ESP-IDF tool download cache"
+            )
+        except RuntimeError as err:
+            _LOGGER.debug("Could not remove ESP-IDF tool download cache: %s", err)
 
         _write_stamp(env_stamp_file, stamp_info)
 
@@ -696,7 +809,7 @@ def _check_esp_idf_python_env_install(
 
         esp_idf_version = _get_idf_version(framework_path, env=env)
         constraint_file_path = (
-            _get_idf_tools_path() / f"espidf.constraints.v{esp_idf_version}.txt"
+            get_idf_tools_path() / f"espidf.constraints.v{esp_idf_version}.txt"
         )
         _LOGGER.debug("ESP-IDF version %s", esp_idf_version)
 
@@ -787,7 +900,7 @@ def check_esp_idf_install(
     _check_windows_path_length()
 
     env = {}
-    env["IDF_TOOLS_PATH"] = str(_get_idf_tools_path())
+    env["IDF_TOOLS_PATH"] = str(get_idf_tools_path())
     env["IDF_PATH"] = ""
 
     targets = targets or ESPHOME_IDF_DEFAULT_TARGETS
@@ -822,11 +935,9 @@ def _ccache_env() -> dict[str, str]:
 
     Enabled by default whenever the ``ccache`` binary is on PATH; set
     ``IDF_CCACHE_ENABLE=0`` in the environment to opt out. The cache lives under
-    the IDF tools path. How widely it is shared depends on where that resolves:
-    across projects (and surviving ``clean-all``) when it is a common location
-    (``ESPHOME_ESP_IDF_PREFIX`` or the add-on ``/data``), but per-project under
-    ``.esphome/idf`` for a default pip install, where ``clean-all`` clears it
-    along with the framework.
+    the IDF tools path (the machine-global cache dir, or
+    ``ESPHOME_ESP_IDF_PREFIX``), so it is shared across all projects and removed
+    by ``esphome clean-all`` along with the framework.
 
     Depend mode keeps cache-miss overhead low (hashes the compiler's depfiles
     instead of preprocessing). ``CCACHE_BASEDIR`` rewrites the per-build
@@ -858,7 +969,7 @@ def _ccache_env() -> dict[str, str]:
 
     defaults = {
         "IDF_CCACHE_ENABLE": "1",
-        "CCACHE_DIR": str(_get_idf_tools_path() / "ccache"),
+        "CCACHE_DIR": str(get_idf_tools_path() / "ccache"),
         "CCACHE_NOHASHDIR": "true",
         "CCACHE_DEPEND": "1",
         "CCACHE_BASEDIR": str(Path(CORE.build_path).resolve()),
@@ -885,7 +996,7 @@ def get_framework_env(
     """
     # 1. Initialize base environment with extra ESP-IDF environment variables
     env = env.copy() if env else {}
-    env["IDF_TOOLS_PATH"] = str(_get_idf_tools_path())
+    env["IDF_TOOLS_PATH"] = str(get_idf_tools_path())
     env["IDF_PATH"] = ""
 
     # 2. Get existing PATH from env or os.environ
