@@ -1,5 +1,6 @@
 """Tests for git.py module."""
 
+from collections.abc import Callable
 import os
 from pathlib import Path
 import time
@@ -9,7 +10,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from esphome import git
-from esphome.core import CORE, TimePeriodSeconds
+from esphome.core import CORE, EsphomeError, TimePeriodSeconds
 from esphome.git import GitCommandError
 
 
@@ -17,6 +18,15 @@ def _compute_repo_dir(url: str, ref: str | None, domain: str) -> Path:
     """Helper to compute the expected repo directory path using git module's logic."""
     key = f"{url}@{ref}"
     return git._compute_destination_path(key, domain)
+
+
+# The tests must probe the exact location the implementation uses
+_marker_path = git._clone_complete_marker_path
+
+
+def _mark_clone_complete(repo_dir: Path) -> None:
+    """Write the completion marker so a hand-made repo dir is treated as valid."""
+    _marker_path(repo_dir).write_text("test")
 
 
 def _setup_old_repo(repo_dir: Path, days_old: int = 2) -> None:
@@ -30,6 +40,7 @@ def _setup_old_repo(repo_dir: Path, days_old: int = 2) -> None:
     repo_dir.mkdir(parents=True)
     git_dir = repo_dir / ".git"
     git_dir.mkdir()
+    _mark_clone_complete(repo_dir)
 
     # Create FETCH_HEAD file with old timestamp
     fetch_head = git_dir / "FETCH_HEAD"
@@ -52,6 +63,25 @@ def _get_git_command_type(cmd: list[str]) -> str | None:
     if len(cmd) > 1:
         return cmd[1]
     return None
+
+
+def _simulate_cloned_repo(repo_dir: Path) -> None:
+    """Create the directory structure a successful git clone would leave."""
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    (repo_dir / ".git").mkdir(exist_ok=True)
+
+
+def _make_clone_side_effect(repo_dir: Path) -> Callable[..., str]:
+    """Return a run_git_command side effect whose clone creates the repo dir."""
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "clone":
+            _simulate_cloned_repo(repo_dir)
+        return ""
+
+    return git_command_side_effect
 
 
 def test_run_git_command_success(tmp_path: Path) -> None:
@@ -217,6 +247,7 @@ def test_clone_or_update_with_never_refresh(
     repo_dir.mkdir(parents=True)
     git_dir = repo_dir / ".git"
     git_dir.mkdir()
+    _mark_clone_complete(repo_dir)
 
     # Create FETCH_HEAD file with current timestamp
     fetch_head = git_dir / "FETCH_HEAD"
@@ -250,6 +281,7 @@ def test_clone_or_update_skips_when_core_skip_external_update(
     repo_dir.mkdir(parents=True)
     git_dir = repo_dir / ".git"
     git_dir.mkdir()
+    _mark_clone_complete(repo_dir)
     (git_dir / "FETCH_HEAD").write_text("test")
 
     CORE.skip_external_update = True
@@ -281,6 +313,7 @@ def test_clone_or_update_with_refresh_updates_old_repo(
     repo_dir.mkdir(parents=True)
     git_dir = repo_dir / ".git"
     git_dir.mkdir()
+    _mark_clone_complete(repo_dir)
 
     # Create FETCH_HEAD file with old timestamp (2 days ago)
     fetch_head = git_dir / "FETCH_HEAD"
@@ -329,6 +362,7 @@ def test_clone_or_update_with_refresh_skips_fresh_repo(
     repo_dir.mkdir(parents=True)
     git_dir = repo_dir / ".git"
     git_dir.mkdir()
+    _mark_clone_complete(repo_dir)
 
     # Create FETCH_HEAD file with recent timestamp (1 hour ago)
     fetch_head = git_dir / "FETCH_HEAD"
@@ -371,6 +405,8 @@ def test_clone_or_update_clones_missing_repo(
     # repo_dir should NOT exist
     assert not repo_dir.exists()
 
+    mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
+
     # Test with NEVER_REFRESH - should still clone since repo doesn't exist
     result_dir, revert = git.clone_or_update(
         url=url,
@@ -405,6 +441,7 @@ def test_clone_or_update_with_none_refresh_always_updates(
     repo_dir.mkdir(parents=True)
     git_dir = repo_dir / ".git"
     git_dir.mkdir()
+    _mark_clone_complete(repo_dir)
 
     # Create FETCH_HEAD file with very recent timestamp (1 second ago)
     fetch_head = git_dir / "FETCH_HEAD"
@@ -486,6 +523,9 @@ def test_clone_or_update_recovers_from_git_failures(
         # Default successful responses
         if cmd_type == "rev-parse":
             return "abc123"
+        if cmd_type == "clone":
+            # Simulate the recovery re-clone creating the repo directory
+            _simulate_cloned_repo(repo_dir)
         return ""
 
     mock_run_git_command.side_effect = git_command_side_effect
@@ -811,6 +851,273 @@ def test_clone_or_update_stale_clone_is_retried_after_cleanup(
     assert repo_dir.exists()
     assert call_count["clone"] == 2
     assert call_count["fetch"] == 2
+
+
+def test_clone_or_update_recloned_when_marker_missing_with_never_refresh(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A repo dir without the completion marker is an interrupted clone.
+
+    It must be removed and re-cloned even with NEVER_REFRESH, which would
+    otherwise trust the broken directory forever.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = "1.8.4"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, ref, domain)
+
+    # Simulate an interrupted clone: directory exists, no marker
+    repo_dir.mkdir(parents=True)
+    (repo_dir / ".git").mkdir()
+
+    mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
+
+    result_dir, _ = git.clone_or_update(
+        url=url, ref=ref, refresh=git.NEVER_REFRESH, domain=domain
+    )
+
+    clone_calls = [c for c in mock_run_git_command.call_args_list if "clone" in c[0][0]]
+    assert len(clone_calls) == 1
+    assert result_dir == repo_dir
+    # The fresh clone completed, so the marker must now be present
+    assert _marker_path(repo_dir).is_file()
+
+
+def test_clone_or_update_recloned_when_marker_missing_with_skip_external_update(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """skip_external_update must not preserve an interrupted clone."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    repo_dir.mkdir(parents=True)
+    (repo_dir / ".git").mkdir()
+
+    mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
+
+    CORE.skip_external_update = True
+    result_dir, _ = git.clone_or_update(
+        url=url, ref=None, refresh=TimePeriodSeconds(days=1), domain=domain
+    )
+
+    clone_calls = [c for c in mock_run_git_command.call_args_list if "clone" in c[0][0]]
+    assert len(clone_calls) == 1
+    assert result_dir == repo_dir
+    assert _marker_path(repo_dir).is_file()
+
+
+def test_fresh_clone_writes_completion_marker_with_debug_info(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """The marker is written after a fresh clone and records key and hash dir."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = "main"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, ref, domain)
+
+    mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
+
+    git.clone_or_update(url=url, ref=ref, refresh=git.NEVER_REFRESH, domain=domain)
+
+    marker = _marker_path(repo_dir)
+    assert marker.is_file()
+    content = marker.read_text()
+    assert f"{url}@{ref}" in content
+    assert repo_dir.name in content
+
+
+def test_marker_is_deleted_before_rmtree(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """The marker must be gone even if rmtree fails partway.
+
+    Simulated by an rmtree that does nothing: the directory survives but the
+    marker must already have been deleted, so the next run still re-clones
+    instead of trusting a partially deleted worktree.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = "main"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, ref, domain)
+
+    _setup_old_repo(repo_dir)
+    assert _marker_path(repo_dir).is_file()
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "stash":
+            raise GitCommandError("fatal: unable to write new index file")
+        return "abc123"
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    with (
+        patch("esphome.git.rmtree"),
+        pytest.raises(GitCommandError),
+    ):
+        git.clone_or_update(
+            url=url, ref=ref, refresh=TimePeriodSeconds(days=1), domain=domain
+        )
+
+    # rmtree never deleted anything, yet the marker is gone
+    assert repo_dir.is_dir()
+    assert not _marker_path(repo_dir).is_file()
+
+
+def test_failed_marker_write_does_not_fail_the_clone(
+    tmp_path: Path,
+    mock_run_git_command: Mock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A marker write failure must not fail an otherwise complete clone.
+
+    The clone is valid; the missing marker only costs a re-clone on the next
+    run, so the error is logged as a warning instead of propagating.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
+
+    with patch(
+        "esphome.git.write_file", side_effect=EsphomeError("Could not write file")
+    ):
+        result_dir, _ = git.clone_or_update(
+            url=url, ref=None, refresh=git.NEVER_REFRESH, domain=domain
+        )
+
+    assert result_dir == repo_dir
+    assert not _marker_path(repo_dir).is_file()
+    assert "Could not write clone completion marker" in caplog.text
+
+
+def test_corrupt_git_dir_without_head_recovers(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A .git with neither FETCH_HEAD nor HEAD must recover, not crash.
+
+    The age check stats FETCH_HEAD falling back to HEAD; if both are gone
+    (partially deleted clone) the stat raised an unhandled FileNotFoundError
+    before the broken-repository recovery could run.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    # Marker present but .git gutted: no FETCH_HEAD, no HEAD
+    repo_dir.mkdir(parents=True)
+    (repo_dir / ".git").mkdir()
+    _mark_clone_complete(repo_dir)
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        cmd_type = _get_git_command_type(cmd)
+        if cmd_type == "rev-parse":
+            raise GitCommandError("ambiguous argument 'HEAD': unknown revision")
+        if cmd_type == "clone":
+            _simulate_cloned_repo(repo_dir)
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    result_dir, _ = git.clone_or_update(
+        url=url, ref=None, refresh=TimePeriodSeconds(days=1), domain=domain
+    )
+
+    assert result_dir == repo_dir
+    clone_calls = [c for c in mock_run_git_command.call_args_list if "clone" in c[0][0]]
+    assert len(clone_calls) == 1
+    assert _marker_path(repo_dir).is_file()
+
+
+def test_remove_repo_dir_tolerates_marker_unlink_failure(tmp_path: Path) -> None:
+    """A locked marker file must not abort the directory removal."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    (repo_dir / ".git").mkdir()
+    _mark_clone_complete(repo_dir)
+
+    with patch.object(Path, "unlink", side_effect=PermissionError("locked")):
+        git._remove_repo_dir(repo_dir)
+
+    # rmtree still removed the directory, marker included
+    assert not repo_dir.exists()
+
+
+def test_clone_or_update_recovery_preserves_subpath(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Recovery must re-clone into the same subpath-ed directory.
+
+    Without passing subpath through, the recursive recovery call would
+    recompute the destination without the subpath and clone (and write the
+    completion marker) at the wrong location.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = "main"
+    domain = "test"
+    subpath = Path("mylib")
+    repo_dir = _compute_repo_dir(url, ref, domain) / subpath
+
+    _setup_old_repo(repo_dir)
+
+    call_counts: dict[str, int] = {}
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        cmd_type = _get_git_command_type(cmd)
+        if cmd_type:
+            call_counts[cmd_type] = call_counts.get(cmd_type, 0) + 1
+        # First rev-parse fails (broken repo) to trigger recovery
+        if cmd_type == "rev-parse" and call_counts[cmd_type] == 1:
+            raise GitCommandError(
+                "ambiguous argument 'HEAD': unknown revision or path not in the working tree."
+            )
+        if cmd_type == "clone":
+            # Create whatever directory the clone was asked to target
+            target = Path(cmd[-1])
+            target.mkdir(parents=True, exist_ok=True)
+            (target / ".git").mkdir(exist_ok=True)
+        if cmd_type == "rev-parse":
+            return "abc123"
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    result_dir, _ = git.clone_or_update(
+        url=url,
+        ref=ref,
+        refresh=TimePeriodSeconds(days=1),
+        domain=domain,
+        subpath=subpath,
+    )
+
+    # The recovery re-clone must target the subpath-ed directory and the
+    # completion marker must land there too
+    clone_calls = [c for c in mock_run_git_command.call_args_list if "clone" in c[0][0]]
+    assert len(clone_calls) == 1
+    assert clone_calls[0][0][0][-1] == str(repo_dir)
+    assert result_dir == repo_dir
+    assert _marker_path(repo_dir).is_file()
 
 
 def test_clone_with_ref_uses_shallow_fetch(

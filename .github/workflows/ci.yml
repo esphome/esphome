@@ -508,6 +508,11 @@ jobs:
             name: Run script/clang-tidy for RP2
             options: --environment rp2-tidy --grep USE_RP2
             pio_cache_key: tidyrp2
+          - id: clang-tidy
+            name: Run script/clang-tidy for LibreTiny
+            environments: bk72xx-tidy ln882h-tidy rtl87xxb-tidy rtl87xxc-tidy
+            options: --grep USE_LIBRETINY --grep USE_BK72XX --grep USE_RTL87XX --grep USE_LN882X
+            pio_cache_key: tidylibretiny
 
     steps:
       - name: Check out code from GitHub
@@ -571,10 +576,21 @@ jobs:
           . venv/bin/activate
           if [ "${{ steps.check_full_scan.outputs.full_scan }}" = "true" ]; then
             echo "Running FULL clang-tidy scan (reason: ${{ steps.check_full_scan.outputs.reason }})"
-            script/clang-tidy --all-headers --fix ${{ matrix.options }} ${{ matrix.ignore_errors && '|| true' || '' }}
+            changed=""
           else
             echo "Running clang-tidy on changed files only"
-            script/clang-tidy --all-headers --fix --changed ${{ matrix.options }} ${{ matrix.ignore_errors && '|| true' || '' }}
+            changed="--changed"
+          fi
+          if [ -n "${{ matrix.environments }}" ]; then
+            rc=0
+            for env in ${{ matrix.environments }}; do
+              echo "::group::clang-tidy $env"
+              script/clang-tidy --all-headers --fix $changed --environment "$env" ${{ matrix.options }} ${{ matrix.ignore_errors && '|| true' || '' }} || rc=1
+              echo "::endgroup::"
+            done
+            exit $rc
+          else
+            script/clang-tidy --all-headers --fix $changed ${{ matrix.options }} ${{ matrix.ignore_errors && '|| true' || '' }}
           fi
         env:
           # Also cache libdeps, store them in a ~/.platformio subfolder
