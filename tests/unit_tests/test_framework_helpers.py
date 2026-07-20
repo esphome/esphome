@@ -1156,7 +1156,7 @@ class TestDownloadFromMirrors:
             ei.value
         )
 
-    def test_falls_back_to_second_mirror(self, tmp_path: Path) -> None:
+    def test_falls_back_to_second_mirror(self) -> None:
         buf = io.BytesIO()
         with patch(
             "requests.get",
@@ -1170,7 +1170,7 @@ class TestDownloadFromMirrors:
         assert url == "https://mirror2.com/f"
         assert buf.getvalue() == b"second"
 
-    def test_mid_stream_drop_resumes_same_mirror(self, tmp_path: Path) -> None:
+    def test_mid_stream_drop_resumes_same_mirror(self) -> None:
         """A mid-stream failure retries the same mirror with Range and
         If-Range headers, keeping the bytes already received, before falling
         to the next."""
@@ -1196,7 +1196,7 @@ class TestDownloadFromMirrors:
             "If-Range": '"v1"',
         }
 
-    def test_mid_stream_drop_without_validator_restarts(self, tmp_path: Path) -> None:
+    def test_mid_stream_drop_without_validator_restarts(self) -> None:
         """A server offering no ETag/Last-Modified cannot be resumed safely;
         the retry restarts from zero instead of stitching unverified bytes."""
         buf = io.BytesIO()
@@ -1208,7 +1208,7 @@ class TestDownloadFromMirrors:
         assert buf.getvalue() == b"full"
         assert "Range" not in mock_get.call_args_list[1][1]["headers"]
 
-    def test_drop_after_last_byte_recovers_via_416(self, tmp_path: Path) -> None:
+    def test_drop_after_last_byte_recovers_via_416(self) -> None:
         """A connection drop after the final body byte leaves a complete file;
         the retry's 416 answer plus the length check turn it into success
         instead of a wasted refetch."""
@@ -1223,7 +1223,7 @@ class TestDownloadFromMirrors:
         assert buf.getvalue() == b"1234"
         assert mock_get.call_count == 2
 
-    def test_mirror_drop_without_length_restarts(self, tmp_path: Path) -> None:
+    def test_mirror_drop_without_length_restarts(self) -> None:
         """With no content-length there is no way to prove a stitched file
         complete, so the retry restarts even though a validator exists."""
         buf = io.BytesIO()
@@ -1269,7 +1269,7 @@ class TestDownloadFromMirrors:
         assert url == "https://mirror2.com/f"
         assert dest.read_bytes() == b"data"
 
-    def test_resumed_short_body_fails_length_check(self, tmp_path: Path) -> None:
+    def test_resumed_short_body_fails_length_check(self) -> None:
         """A stitched file whose final length disagrees with the advertised
         total is rejected instead of reported as success."""
         first = _interrupted_response(b"1234", etag='"v1"')
@@ -1286,9 +1286,7 @@ class TestDownloadFromMirrors:
         ):
             download_from_mirrors(["https://mirror1.com/f"], {}, buf)
 
-    def test_failed_mirror_leftovers_not_kept_for_next_mirror(
-        self, tmp_path: Path
-    ) -> None:
+    def test_failed_mirror_leftovers_not_kept_for_next_mirror(self) -> None:
         """Bytes from a mirror that failed all attempts must not leak into the
         next mirror's download (no bogus Range request, fresh content)."""
         exhausted = [_interrupted_response(b"AAAA", etag='"a1"')]
@@ -1312,9 +1310,7 @@ class TestDownloadFromMirrors:
         assert mock_get.call_args_list[3][0][0] == "https://mirror2.com/f"
         assert "Range" not in mock_get.call_args_list[3][1]["headers"]
 
-    def test_all_mirrors_fail_raises_error_listing_every_attempt(
-        self, tmp_path: Path
-    ) -> None:
+    def test_all_mirrors_fail_raises_error_listing_every_attempt(self) -> None:
         with (
             patch(
                 "requests.get",

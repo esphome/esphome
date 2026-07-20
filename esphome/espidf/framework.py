@@ -700,15 +700,12 @@ def _check_esphome_idf_framework_install(
                     archive_extract_all(
                         tarball, framework_path, progress_header="Extracting"
                     )
-            except Exception:
-                # A corrupt archive (e.g. torn by an unclean shutdown that
-                # zero-filled part of the file) must not be reused: without
-                # a checksum, only the failed extraction can expose it, so
-                # drop it here to make the next run re-download.
+            finally:
+                # Success: drop the archive rather than caching ~70MB twice.
+                # Failure: a corrupt archive (e.g. torn by an unclean
+                # shutdown) must not be reused — without a checksum only a
+                # failed extraction can expose it, so force a re-download.
                 tarball_path.unlink(missing_ok=True)
-                raise
-            # Extracted; drop the archive rather than caching ~70MB twice.
-            tarball_path.unlink(missing_ok=True)
         extracted_marker.touch()
 
     # Idempotent post-extract patch: written every invocation so a build
