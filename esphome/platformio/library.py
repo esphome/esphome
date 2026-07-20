@@ -692,7 +692,7 @@ def convert_libraries(
         else:
             raise RuntimeError(
                 f"Invalid PIO library {key}: missing library.json and "
-                "library.properties"
+                f"library.properties in {component.path}"
             )
 
         try:
