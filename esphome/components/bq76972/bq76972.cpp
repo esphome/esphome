@@ -282,8 +282,8 @@ bool BQ76972Component::store_int_temp() {
 void BQ76972Component::setup() {
   // Read internal temperature to check comms
   if (!this->store_int_temp()) {
-    static std::string failure_reason = this->component_id_ + " failed to communicate over I2C";
-    this->mark_failed(failure_reason.c_str());
+    ESP_LOGE(TAG, "%s: failed to communicate over I2C", this->component_id_.c_str());
+    this->mark_failed();
     return;
   }
 
@@ -300,8 +300,8 @@ void BQ76972Component::setup() {
     // Check reg12 initial configuration
     uint8_t reg_uint8;
     if (!this->read_subcommand(BQ76972_MEM_REG12_CONFIG, &reg_uint8, 1)) {
-      static std::string failure_reason = this->component_id_ + ": couldn't read reg12 config";
-      this->mark_failed(failure_reason.c_str());
+      ESP_LOGE(TAG, "%s: couldn't read reg12 config", this->component_id_.c_str());
+      this->mark_failed();
       return;
     }
     if (reg_uint8 != 0)
@@ -309,8 +309,8 @@ void BQ76972Component::setup() {
 
     // Check reg0 initial configuration
     if (!this->read_subcommand(BQ76972_MEM_REG0_CONFIG, &reg_uint8, 1)) {
-      static std::string failure_reason = this->component_id_ + ": couldn't read reg0 config";
-      this->mark_failed(failure_reason.c_str());
+      ESP_LOGE(TAG, "%s: couldn't read reg0 config", this->component_id_.c_str());
+      this->mark_failed();
       return;
     }
     if ((reg_uint8 & 0x01) != 0)
@@ -319,53 +319,53 @@ void BQ76972Component::setup() {
     if (!reg_already_disabled) {
       // Enter CONFIG_UPDATE mode
       if (!this->write_subcommand(BQ76972_SUBCMD_ENTER_CFG_UPDATE, nullptr, 0)) {
-        static std::string failure_reason = this->component_id_ + ": couldn't enter config update mode";
-        this->mark_failed(failure_reason.c_str());
+        ESP_LOGE(TAG, "%s: couldn't enter config update mode", this->component_id_.c_str());
+        this->mark_failed();
         return;
       }
       delay(10);
 
       // Wait for config updatemode
       if (!this->wait_for_cfgupdate()) {
-        static std::string failure_reason = this->component_id_ + ": couldn't wait for update mode";
-        this->mark_failed(failure_reason.c_str());
+        ESP_LOGE(TAG, "%s: couldn't wait for update mode", this->component_id_.c_str());
+        this->mark_failed();
         return;
       }
 
       // Send new configuration with reg1&2 disabled
       uint8_t reg12_data[1] = {0x00};
       if (!this->write_subcommand(BQ76972_MEM_REG12_CONFIG, reg12_data, 1)) {
-        static std::string failure_reason = this->component_id_ + ": couldn't set reg12 regiser";
-        this->mark_failed(failure_reason.c_str());
+        ESP_LOGE(TAG, "%s: couldn't set reg12 regiser", this->component_id_.c_str());
+        this->mark_failed();
         return;
       }
 
       // Send new configuration with reg0 disabled
       uint8_t reg0_data[1] = {0x00};
       if (!this->write_subcommand(BQ76972_MEM_REG0_CONFIG, reg0_data, 1)) {
-        static std::string failure_reason = this->component_id_ + ": couldn't set reg0 regiser";
-        this->mark_failed(failure_reason.c_str());
+        ESP_LOGE(TAG, "%s: couldn't set reg0 regiser", this->component_id_.c_str());
+        this->mark_failed();
         return;
       }
 
       // Exit CONFIG_UPDATE mode
       if (!this->write_subcommand(BQ76972_SUBCMD_EXIT_CFG_UPDATE, nullptr, 0)) {
-        static std::string failure_reason = this->component_id_ + ": couldn't exit config update mode";
-        this->mark_failed(failure_reason.c_str());
+        ESP_LOGE(TAG, "%s: couldn't exit config update mode", this->component_id_.c_str());
+        this->mark_failed();
         return;
       }
 
       // Check success: reg12
       if (!this->read_subcommand(BQ76972_MEM_REG12_CONFIG, &reg_uint8, 1) || (reg_uint8 != 0)) {
-        static std::string failure_reason = this->component_id_ + ": couldn't disable reg12";
-        this->mark_failed(failure_reason.c_str());
+        ESP_LOGE(TAG, "%s: couldn't disable reg12", this->component_id_.c_str());
+        this->mark_failed();
         return;
       }
 
       // Check success
       if (!this->read_subcommand(BQ76972_MEM_REG0_CONFIG, &reg_uint8, 1) || ((reg_uint8 & 0x01) != 0)) {
-        static std::string failure_reason = this->component_id_ + ": couldn't disable pre-regulator";
-        this->mark_failed(failure_reason.c_str());
+        ESP_LOGE(TAG, "%s: couldn't disable pre-regulator", this->component_id_.c_str());
+        this->mark_failed();
         return;
       }
     }
@@ -382,16 +382,16 @@ void BQ76972Component::setup() {
 
   // Enter CONFIG_UPDATE mode
   if (!this->write_subcommand(BQ76972_SUBCMD_ENTER_CFG_UPDATE, nullptr, 0)) {
-    static std::string failure_reason = this->component_id_ + ": couldn't enter config update mode";
-    this->mark_failed(failure_reason.c_str());
+    ESP_LOGE(TAG, "%s: couldn't enter config update mode", this->component_id_.c_str());
+    this->mark_failed();
     return;
   }
   delay(10);
 
   // Wait for config updatemode
   if (!this->wait_for_cfgupdate()) {
-    static std::string failure_reason = this->component_id_ + ": couldn't wait for update mode";
-    this->mark_failed(failure_reason.c_str());
+    ESP_LOGE(TAG, "%s: couldn't wait for update mode", this->component_id_.c_str());
+    this->mark_failed();
     return;
   }
 
@@ -399,8 +399,8 @@ void BQ76972Component::setup() {
   for (const auto &t : thermistors) {
     if (t.sensor != nullptr) {
       if (!this->write_subcommand(t.subcommand, &register_for_thermistor_mes, 1)) {
-        std::string failure_reason = this->component_id_ + ": couldn't program " + t.name + " pin input for thermistor";
-        this->mark_failed(failure_reason.c_str());
+        ESP_LOGE(TAG, "%s: couldn't program %s pin input for thermistor", this->component_id_.c_str(), t.name);
+        this->mark_failed();
         return;
       }
     }
@@ -408,8 +408,8 @@ void BQ76972Component::setup() {
 
   // Exit CONFIG_UPDATE mode
   if (!this->write_subcommand(BQ76972_SUBCMD_EXIT_CFG_UPDATE, nullptr, 0)) {
-    static std::string failure_reason = this->component_id_ + ": couldn't exit config update mode";
-    this->mark_failed(failure_reason.c_str());
+    ESP_LOGE(TAG, "%s: couldn't exit config update mode", this->component_id_.c_str());
+    this->mark_failed();
     return;
   }
 
