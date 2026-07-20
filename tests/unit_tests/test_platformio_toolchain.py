@@ -16,15 +16,9 @@ from unittest.mock import MagicMock, Mock, call, patch
 
 import pytest
 
-from esphome.const import KEY_CORE, KEY_TARGET_PLATFORM
 from esphome.core import CORE, EsphomeError
 from esphome.platformio import runner, toolchain
 from esphome.util import FlashImage
-
-
-def _set_target_platform(platform: str) -> None:
-    """Set the target platform key that _ccache_env reads via CORE."""
-    CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = platform
 
 
 def test_idedata_firmware_elf_path(setup_core: Path) -> None:
@@ -298,7 +292,6 @@ def test_run_platformio_cli_sets_environment_variables(
 ) -> None:
     """Test run_platformio_cli sets correct environment variables."""
     CORE.build_path = str(setup_core / "build" / "test")
-    _set_target_platform("esp8266")
 
     with patch.dict(os.environ, {}, clear=False):
         mock_run_external_process.return_value = 0
@@ -332,7 +325,6 @@ def test_run_platformio_cli_sets_environment_variables(
 def test_ccache_env_enabled_by_default(setup_core: Path) -> None:
     """Ccache is enabled when the binary is on PATH and no override is set."""
     CORE.build_path = setup_core / "build" / "test"
-    _set_target_platform("esp8266")
 
     with (
         patch.dict(os.environ, {}, clear=True),
@@ -353,7 +345,6 @@ def test_ccache_env_enabled_by_default(setup_core: Path) -> None:
 def test_ccache_env_disabled_without_binary(setup_core: Path) -> None:
     """Ccache stays off when the binary is not on PATH."""
     CORE.build_path = setup_core / "build" / "test"
-    _set_target_platform("esp8266")
 
     with (
         patch.dict(os.environ, {}, clear=True),
@@ -367,7 +358,6 @@ def test_ccache_env_disabled_without_binary(setup_core: Path) -> None:
 def test_ccache_env_opt_out(setup_core: Path) -> None:
     """ESPHOME_CCACHE_ENABLE=0 disables ccache even with the binary present."""
     CORE.build_path = setup_core / "build" / "test"
-    _set_target_platform("esp8266")
 
     with (
         patch.dict(os.environ, {"ESPHOME_CCACHE_ENABLE": "0"}, clear=True),
@@ -381,7 +371,6 @@ def test_ccache_env_opt_out(setup_core: Path) -> None:
 def test_ccache_env_normalizes_enable_value(setup_core: Path) -> None:
     """A truthy override value is normalized to "1" for the build scripts."""
     CORE.build_path = setup_core / "build" / "test"
-    _set_target_platform("esp8266")
 
     with (
         patch.dict(os.environ, {"ESPHOME_CCACHE_ENABLE": "yes"}, clear=True),
@@ -401,7 +390,6 @@ def test_ccache_env_respects_user_values_and_refreshes_basedir(
         "CCACHE_BASEDIR": "/stale/other-device",
     }
     CORE.build_path = setup_core / "build" / "test"
-    _set_target_platform("esp8266")
 
     with (
         patch.dict(os.environ, user_env, clear=True),
@@ -420,7 +408,6 @@ def test_run_platformio_cli_passes_ccache_env_to_subprocess_only(
 ) -> None:
     """The ccache settings reach the subprocess env without touching os.environ."""
     CORE.build_path = str(setup_core / "build" / "test")
-    _set_target_platform("esp8266")
 
     with (
         patch.dict(os.environ, {}, clear=False),
@@ -522,7 +509,6 @@ def test_run_platformio_cli_does_not_set_pythonexepath_without_strip(
     interfere with non-Windows tooling that has no prefix to strip).
     """
     CORE.build_path = str(setup_core / "build" / "test")
-    _set_target_platform("esp8266")
     plain_exe = "/usr/bin/python3"
 
     with (
@@ -1568,7 +1554,6 @@ def test_run_platformio_cli_invokes_heal(
 ) -> None:
     """run_platformio_cli runs the heal before spawning PlatformIO."""
     CORE.build_path = str(setup_core / "build" / "test")
-    _set_target_platform("esp8266")
     mock_run_external_process.return_value = 0
     with patch.object(toolchain, "heal_platformio_python_env") as mock_heal:
         toolchain.run_platformio_cli("test")
