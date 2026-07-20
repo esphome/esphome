@@ -707,7 +707,14 @@ def download_with_resume(
             # AND completeness is checkable (a known total length) — a
             # resumed stream that ends cleanly but short must not pass for a
             # complete file. Otherwise restart from zero.
-            if not can_verify and (validator is None or not expected_total):
+            if offset and not can_verify and (validator is None or not expected_total):
+                _LOGGER.debug(
+                    "Restarting %s from zero: no way to prove a resumed "
+                    "file complete (no sha/size, validator=%s, total=%s)",
+                    url,
+                    validator is not None,
+                    expected_total,
+                )
                 offset = 0
             if size is None or offset < size:
                 resp, offset = _open_ranged(url, offset, timeout, validator)
@@ -890,7 +897,17 @@ def download_from_mirrors(
                     # total length to prove the stitched file complete (the
                     # length check above is the only verification here).
                     _LOGGER.debug("Failed to download %s: %s", url, str(e))
-                    offset = f.tell() if validator and expected_total else 0
+                    if validator and expected_total:
+                        offset = f.tell()
+                    else:
+                        _LOGGER.debug(
+                            "Restarting %s from zero: cannot prove a "
+                            "resumed file complete (validator=%s, total=%s)",
+                            url,
+                            validator is not None,
+                            expected_total,
+                        )
+                        offset = 0
                     if attempt == _MIRROR_ATTEMPTS - 1:
                         failures.append((url, e))
 
