@@ -610,15 +610,17 @@ def _open_ranged(
     return resp, offset
 
 
-def _file_matches(path: Path, sha256: str | None, size: int | None) -> bool:
-    """Return True unless ``path`` fails an available sha256/size check."""
+def _verify_file(path: Path, sha256: str | None, size: int | None) -> None:
+    """Raise EsphomeError when ``path`` fails an available sha256/size check."""
+    from esphome.core import EsphomeError
+
     if size is not None and path.stat().st_size != size:
-        return False
+        raise EsphomeError(f"size mismatch: expected {size}, got {path.stat().st_size}")
     if sha256 is not None:
         with path.open("rb") as f:
-            if hashlib.file_digest(f, "sha256").hexdigest() != sha256:
-                return False
-    return True
+            digest = hashlib.file_digest(f, "sha256").hexdigest()
+        if digest != sha256:
+            raise EsphomeError(f"sha256 mismatch: got {digest}")
 
 
 def _load_download_meta(meta: Path, url: str) -> tuple[str | None, int]:
@@ -764,9 +766,11 @@ def download_with_resume(
     # content may have changed (e.g. a refreshed constraints file), so
     # re-download and atomically replace it.
     if dest.is_file() and (sha256 is not None or size is not None):
-        if _file_matches(dest, sha256, size):
+        try:
+            _verify_file(dest, sha256, size)
             return
-        dest.unlink()
+        except EsphomeError:
+            dest.unlink()
 
     # Adopt the validator/total the run that started this part file recorded,
     # so an unfinished download resumes across runs even without a sha256.
@@ -817,16 +821,7 @@ def download_with_resume(
             # and start over.
 
             expected_size = size if size is not None else expected_total
-            if expected_size and part.stat().st_size != expected_size:
-                raise EsphomeError(
-                    f"size mismatch: expected {expected_size}, "
-                    f"got {part.stat().st_size}"
-                )
-            if sha256 is not None:
-                with part.open("rb") as pf:
-                    digest = hashlib.file_digest(pf, "sha256").hexdigest()
-                if digest != sha256:
-                    raise EsphomeError(f"sha256 mismatch: got {digest}")
+            _verify_file(part, sha256, expected_size or None)
             if not expected_size and sha256 is None:
                 # No sha, no size, and the server sent no usable
                 # content-length: nothing can prove the download complete
@@ -912,6 +907,10 @@ def download_from_mirrors(
             attempted URL with its individual failure reason. Also raised if
             no template matched the provided substitutions.
     """
+    # Imported lazily: requests is a heavy import (~85ms) and is only
+    # needed when actually downloading, never during config validation.
+    import requests
+
     from esphome.core import EsphomeError
 
     # 1. Classify the target: filesystem path or open file object
@@ -966,7 +965,9 @@ def download_from_mirrors(
                     retry_connect_errors=False,
                 )
                 return url
-            except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            except (requests.RequestException, OSError, EsphomeError) as e:
+                # Everything download_with_resume classifies as a download
+                # failure; programming errors propagate.
                 _LOGGER.debug("Failed to download %s: %s", url, str(e))
                 failures.append((url, e))
                 continue
