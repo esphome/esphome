@@ -54,6 +54,7 @@ const char *const TAG = "esp_now_hosted";
 // being mistaken for ours.
 SemaphoreHandle_t g_req_mutex = nullptr;
 SemaphoreHandle_t g_resp_sem = nullptr;  // given when the matching RESP lands
+bool g_setup_done = false;               // set only after setup fully succeeds
 uint8_t g_seq = 0;
 volatile uint8_t g_expect_seq = 0;
 volatile int32_t g_resp_status = 0;
@@ -124,10 +125,16 @@ void on_send(uint32_t /*msg_id*/, const uint8_t *data, size_t len, void * /*ctx*
 }
 
 esp_err_t ensure_setup() {
-  if (g_req_mutex != nullptr)
+  // Gate on g_setup_done, not on g_req_mutex: a failure part-way through (a
+  // semaphore that did not allocate, a callback that did not register) must not
+  // leave a later call thinking setup completed. Semaphore creation is guarded
+  // so a retry after a partial failure does not leak the earlier handles.
+  if (g_setup_done)
     return ESP_OK;
-  g_req_mutex = xSemaphoreCreateMutex();
-  g_resp_sem = xSemaphoreCreateBinary();
+  if (g_req_mutex == nullptr)
+    g_req_mutex = xSemaphoreCreateMutex();
+  if (g_resp_sem == nullptr)
+    g_resp_sem = xSemaphoreCreateBinary();
   if (g_req_mutex == nullptr || g_resp_sem == nullptr)
     return ESP_ERR_NO_MEM;
   esp_err_t err;
@@ -137,6 +144,7 @@ esp_err_t ensure_setup() {
     return err;
   if ((err = esp_hosted_register_custom_callback(ESP_NOW_HOSTED_MSG_SEND, on_send, nullptr)) != ESP_OK)
     return err;
+  g_setup_done = true;
   return ESP_OK;
 }
 
@@ -260,6 +268,8 @@ bool esp_now_is_peer_exist(const uint8_t *peer_addr) {
 esp_err_t esp_now_send(const uint8_t *peer_addr, const uint8_t *data, size_t len) {
   if (len > ESP_NOW_HOSTED_MAX_FRAME)
     return ESP_ERR_ESPNOW_ARG;
+  if (data == nullptr && len != 0)  // native esp_now_send treats this as an arg error
+    return ESP_ERR_ESPNOW_ARG;
   static uint8_t buf[sizeof(esp_now_hosted_send_req_t) + ESP_NOW_HOSTED_MAX_FRAME];  // guarded below
   // esp_now_send is only called from the main loop, so a plain static build
   // buffer is safe; request() then serializes the actual transmit.
@@ -291,7 +301,9 @@ esp_err_t esp_now_get_peer(const uint8_t * /*peer_addr*/, esp_now_peer_info_t * 
 }
 esp_err_t esp_now_fetch_peer(bool /*from_head*/, esp_now_peer_info_t * /*peer*/) { return ESP_ERR_NOT_SUPPORTED; }
 esp_err_t esp_now_get_peer_num(esp_now_peer_num_t * /*num*/) { return ESP_ERR_NOT_SUPPORTED; }
-esp_err_t esp_now_set_wake_window(uint16_t /*window*/) { return ESP_OK; }
+esp_err_t esp_now_set_wake_window(uint16_t /*window*/) {
+  return ESP_ERR_NOT_SUPPORTED;  // power-save wake window is not forwarded; don't claim success
+}
 esp_err_t esp_now_set_peer_rate_config(const uint8_t * /*peer_addr*/, esp_now_rate_config_t * /*cfg*/) {
   return ESP_ERR_NOT_SUPPORTED;
 }
