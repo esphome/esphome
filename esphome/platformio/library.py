@@ -669,9 +669,25 @@ def convert_libraries(
 
         library_json_path = component.path / "library.json"
         library_properties_path = component.path / "library.properties"
-        if library_json_path.is_file():
+        has_json = library_json_path.is_file()
+        has_properties = library_properties_path.is_file()
+        if not has_json and not has_properties:
+            # The shared cache can hold a broken copy (e.g. a clone or an
+            # extraction interrupted by a killed process). Force one
+            # re-download so a bad cache entry self-heals instead of failing
+            # every build until the user runs a full clean.
+            _LOGGER.warning(
+                "Library %s at %s is missing library.json and library.properties; "
+                "re-downloading",
+                key,
+                component.path,
+            )
+            component.download(force=True, salt=salt, namespace=backend.cache_key)
+            has_json = library_json_path.is_file()
+            has_properties = library_properties_path.is_file()
+        if has_json:
             component.data = _parse_library_json(library_json_path)
-        elif library_properties_path.is_file():
+        elif has_properties:
             component.data = _parse_library_properties(library_properties_path)
         else:
             raise RuntimeError(
