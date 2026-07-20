@@ -25,6 +25,7 @@ from esphome.espidf.framework import (
     _get_python_env_path,
     _get_python_version,
     _parse_git_source,
+    _patch_tools_json_demote_openocd,
     _patch_tools_json_for_linux_arm64,
     _windows_long_paths_enabled,
     _write_idf_version_txt,
@@ -317,7 +318,7 @@ def espidf_mocks(setup_core: Path):
     # extracted-marker touch writes into.
     _get_framework_path(_IDF_VERSION).mkdir(parents=True, exist_ok=True)
     with (
-        patch("esphome.espidf.framework.rmdir"),
+        patch("esphome.espidf.framework.rmdir") as rmdir_mock,
         patch(
             "esphome.espidf.framework.download_from_mirrors",
             return_value="https://example.com/idf.tar.xz",
@@ -331,6 +332,7 @@ def espidf_mocks(setup_core: Path):
         patch("esphome.espidf.framework._clone_idf_with_submodules") as clone,
         patch("esphome.espidf.framework._write_idf_version_txt"),
         patch("esphome.espidf.framework._patch_tools_json_for_linux_arm64"),
+        patch("esphome.espidf.framework._patch_tools_json_demote_openocd"),
         patch("esphome.espidf.framework._write_stamp"),
         patch("esphome.espidf.framework._check_stamp", return_value=True),
         patch("esphome.espidf.framework._get_idf_version", return_value=_IDF_VERSION),
@@ -344,6 +346,7 @@ def espidf_mocks(setup_core: Path):
             run_ok=run_ok,
             tool_paths=tool_paths,
             clone=clone,
+            rmdir=rmdir_mock,
         )
 
 
@@ -358,6 +361,27 @@ def test_check_esp_idf_install_fresh(espidf_mocks: SimpleNamespace) -> None:
     espidf_mocks.extract.assert_called_once()
     espidf_mocks.venv.assert_called_once()
     espidf_mocks.clone.assert_not_called()
+    # the tool download cache (<IDF_TOOLS_PATH>/dist) is pruned after install
+    espidf_mocks.rmdir.assert_any_call(
+        get_idf_tools_path() / "dist", msg="Remove ESP-IDF tool download cache"
+    )
+
+
+def test_check_esp_idf_install_dist_prune_failure_ignored(
+    espidf_mocks: SimpleNamespace,
+) -> None:
+    """A failure to prune the tool download cache must not fail the install."""
+    tools_dist = get_idf_tools_path() / "dist"
+
+    def rmdir_side_effect(directory: Path, msg: str | None = None) -> None:
+        if directory == tools_dist:
+            raise RuntimeError("cannot remove dist")
+
+    espidf_mocks.rmdir.side_effect = rmdir_side_effect
+
+    # install still succeeds despite the failed prune
+    framework_path, _ = check_esp_idf_install(_IDF_VERSION, force=True)
+    assert framework_path == _get_framework_path(_IDF_VERSION)
 
 
 def test_check_esp_idf_install_git_source(espidf_mocks: SimpleNamespace) -> None:
@@ -478,6 +502,34 @@ def test_check_esp_idf_install_python_stamp_mismatch_rebuilds_venv(
     espidf_mocks.venv.assert_called_once()
 
 
+@pytest.mark.parametrize(
+    ("lib", "expect_hint"),
+    [
+        (None, True),
+        ("libusb-1.0.so.0", False),
+    ],
+)
+def test_check_esp_idf_install_failure_libusb_hint(
+    espidf_mocks: SimpleNamespace,
+    caplog: pytest.LogCaptureFixture,
+    lib: str | None,
+    expect_hint: bool,
+) -> None:
+    """A failed tools install only shows the libusb hint when libusb-1.0 is
+    actually missing."""
+    espidf_mocks.run_ok.return_value = False
+    # Fake Linux so the gate is exercised on all CI hosts; faking Linux is safe
+    # everywhere (unlike faking Windows, which pulls in winreg on other hosts)
+    with (
+        patch("esphome.espidf.framework.find_library", return_value=lib),
+        patch("esphome.espidf.framework.platform.system", return_value="Linux"),
+        caplog.at_level(logging.ERROR, logger="esphome.espidf.framework"),
+        pytest.raises(RuntimeError, match="framework installation failure"),
+    ):
+        check_esp_idf_install(_IDF_VERSION, force=True)
+    assert ("libusb-1.0.so.0 was not found" in caplog.text) == expect_hint
+
+
 def test_check_esp_idf_install_unparseable_version(
     espidf_mocks: SimpleNamespace,
 ) -> None:
@@ -487,6 +539,29 @@ def test_check_esp_idf_install_unparseable_version(
     check_esp_idf_install(bad_version, force=True)
 
     espidf_mocks.extract.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    ("version", "short_version"),
+    [
+        ("6.0.0", "6.0"),
+        ("6.0.0-rc1", "6.0-rc1"),
+        ("5.5.4", None),  # vX.Y tags only exist for X.Y.0 releases
+    ],
+)
+def test_check_esp_idf_install_short_version_substitution(
+    espidf_mocks: SimpleNamespace, version: str, short_version: str | None
+) -> None:
+    """SHORT_VERSION is only offered for x.y.0 releases, so the vX.Y mirror
+    template is never tried for versions whose tag cannot exist."""
+    _get_framework_path(version).mkdir(parents=True, exist_ok=True)
+    check_esp_idf_install(version, force=True)
+
+    # First call downloads the framework archive; a later call fetches the
+    # constraints file with its own substitutions.
+    substitutions = espidf_mocks.download.call_args_list[0][0][1]
+    assert substitutions.get("SHORT_VERSION") == short_version
+    assert substitutions["VERSION"] == version
 
 
 # ---------------------------------------------------------------------------
@@ -558,6 +633,53 @@ def test_patch_tools_json_already_patched_is_noop(tmp_path: Path) -> None:
     before = tools_json.read_text(encoding="utf-8")
     with patch("esphome.espidf.framework.platform.machine", return_value="aarch64"):
         _patch_tools_json_for_linux_arm64(tmp_path)
+    assert tools_json.read_text(encoding="utf-8") == before
+
+
+# ---------------------------------------------------------------------------
+# _patch_tools_json_demote_openocd (openocd-esp32 made optional)
+# ---------------------------------------------------------------------------
+
+
+def test_demote_openocd_patches_install_type(tmp_path: Path) -> None:
+    tools_json = _write_tools_json(
+        tmp_path,
+        {
+            "tools": [
+                {"name": "openocd-esp32", "install": "always"},
+                {"name": "cmake", "install": "always"},
+            ]
+        },
+    )
+    _patch_tools_json_demote_openocd(tmp_path)
+
+    data = json.loads(tools_json.read_text(encoding="utf-8"))
+    openocd = next(t for t in data["tools"] if t["name"] == "openocd-esp32")
+    cmake = next(t for t in data["tools"] if t["name"] == "cmake")
+    assert openocd["install"] == "on_request"
+    # other tools are left untouched
+    assert cmake["install"] == "always"
+
+
+def test_patch_tools_json_unexpected_structure_warns_and_skips(
+    tmp_path: Path,
+) -> None:
+    """Valid JSON with an unexpected shape must skip the patch, not raise."""
+    tools_dir = tmp_path / "tools"
+    tools_dir.mkdir()
+    tools_json = tools_dir / "tools.json"
+    tools_json.write_text('["not", "a", "dict"]', encoding="utf-8")
+    before = tools_json.read_text(encoding="utf-8")
+    _patch_tools_json_demote_openocd(tmp_path)  # AttributeError -> skip
+    assert tools_json.read_text(encoding="utf-8") == before
+
+
+def test_demote_openocd_already_patched_is_noop(tmp_path: Path) -> None:
+    tools_json = _write_tools_json(
+        tmp_path, {"tools": [{"name": "openocd-esp32", "install": "on_request"}]}
+    )
+    before = tools_json.read_text(encoding="utf-8")
+    _patch_tools_json_demote_openocd(tmp_path)
     assert tools_json.read_text(encoding="utf-8") == before
 
 
