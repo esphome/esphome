@@ -50,7 +50,7 @@ bq76972:
   i2c_address_setter:
     name: "New I2C Address"
     mode: box
-    
+
 button:
   - platform: template
     name: "Program BQ I2C Address"

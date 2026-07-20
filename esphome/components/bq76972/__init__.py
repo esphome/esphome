@@ -15,7 +15,9 @@ DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["number"]
 
 bq76972_ns = cg.esphome_ns.namespace("bq76972")
-BQ76972Component = bq76972_ns.class_("BQ76972Component", cg.PollingComponent, i2c.I2CDevice)
+BQ76972Component = bq76972_ns.class_(
+    "BQ76972Component", cg.PollingComponent, i2c.I2CDevice
+)
 BQ76972AddressNumber = bq76972_ns.class_("BQ76972AddressNumber", number.Number)
 
 CONF_REG_DISABLED = "reg_disabled"
@@ -59,12 +61,17 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_CRC_ENABLED, default=False): cv.boolean,
             cv.Optional(CONF_REG_DISABLED, default=True): cv.boolean,
             cv.Optional(CONF_STACK_VOLTAGE): voltage_sensor_schema,
-            cv.Optional(CONF_I2C_ADDRESS_SETTER): number.number_schema(BQ76972AddressNumber),
+            cv.Optional(CONF_I2C_ADDRESS_SETTER): number.number_schema(
+                BQ76972AddressNumber
+            ),
         }
     )
     .extend(
         cv.Schema(
-            {cv.Optional(cell_key): voltage_sensor_schema for cell_key in CONF_CELL_VOLTAGES}
+            {
+                cv.Optional(cell_key): voltage_sensor_schema
+                for cell_key in CONF_CELL_VOLTAGES
+            }
         )
     )
     .extend(
