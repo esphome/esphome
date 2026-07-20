@@ -15,7 +15,7 @@ static const char *const TAG = "zephyr_pwm";
 
 void ZephyrPWMChannel::setup() {
   if (!device_is_ready(this->device_)) {
-    ESP_LOGE(TAG, "pwm is not ready.");
+    ESP_LOGE(TAG, "PWM is not ready.");
     this->mark_failed();
     return;
   }
