@@ -96,6 +96,8 @@ int HOT PngDecoder::decode(uint8_t *buffer, size_t size) {
   if (fed < 0) {
     ESP_LOGE(TAG, "Error decoding image: %s", pngle_error(this->pngle_));
     return DECODE_ERROR_INTERNAL_DECODER_ERROR;
+  } else if (!this->size_valid_) {
+    return DECODE_ERROR_OUT_OF_MEMORY;
   } else {
     this->decoded_bytes_ += fed;
   }

@@ -20,8 +20,7 @@ namespace esphome {
 // arch_feed_wdt(), arch_get_cpu_cycle_count() inlined in components/rp2/hal.h.
 void arch_restart() {
   watchdog_reboot(0, 0, 10);
-  while (1) {
-    continue;
+  while (true) {
   }
 }
 
