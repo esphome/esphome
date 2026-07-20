@@ -1436,9 +1436,41 @@ def test_version_parse_with_extra() -> None:
     assert version.extra == "dev20240101"
 
 
-def test_version_parse_invalid() -> None:
+def test_version_parse_without_patch() -> None:
+    """A two-part version parses with patch defaulting to 0, so framework
+    shorthands like '6.0' and '6.0-rc1' are accepted."""
+    version = cv.Version.parse("6.0")
+    assert (version.major, version.minor, version.patch, version.extra) == (
+        6,
+        0,
+        0,
+        "",
+    )
+    version = cv.Version.parse("6.0-rc1")
+    assert (version.major, version.minor, version.patch, version.extra) == (
+        6,
+        0,
+        0,
+        "rc1",
+    )
+
+
+def test_version_parse_numeric_extra() -> None:
+    """Four-part versions keep the trailing component as extra (pioarduino
+    packaging revisions, e.g. 5.5.3.1)."""
+    version = cv.Version.parse("5.5.3.1")
+    assert (version.major, version.minor, version.patch, version.extra) == (
+        5,
+        5,
+        3,
+        "1",
+    )
+
+
+@pytest.mark.parametrize("value", ["not.a.version", "6", "a.b", ""])
+def test_version_parse_invalid(value: str) -> None:
     with pytest.raises(ValueError, match="Not a valid version number"):
-        cv.Version.parse("not.a.version")
+        cv.Version.parse(value)
 
 
 def test_version_is_beta() -> None:
