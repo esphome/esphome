@@ -2718,10 +2718,17 @@ SOURCE_SCHEMA = Any(
 )
 
 
-def rename_key(old_key, new_key):
+def rename_key(old_key, new_key, *, removed_in: str | None = None):
     def validator(config: dict) -> dict:
         config = config.copy()
         if old_key in config:
+            if removed_in is not None:
+                _LOGGER.warning(
+                    "'%s' is deprecated, use '%s'. Will be removed in %s",
+                    old_key,
+                    new_key,
+                    removed_in,
+                )
             config[new_key] = config.pop(old_key)
         return config
 
