@@ -292,6 +292,9 @@ def highlight(s):
         "esphome/components/socket/headers.h",
         "esphome/core/defines.h",
         "esphome/components/http_request/httplib.h",
+        # Shared C wire header (byte-identical with the co-processor firmware);
+        # these are protocol constants and constexpr is C++-only.
+        "esphome/components/esp32_hosted/esp_now_hosted_rpc.h",
     ],
 )
 def lint_no_defines(fname, match):
@@ -664,6 +667,10 @@ def lint_relative_py_import(fname: Path, line, col, content):
         "esphome/components/host/helpers.cpp",
         "esphome/components/zephyr/helpers.cpp",
         "esphome/components/http_request/httplib.h",
+        # Global extern "C" esp_now_* linker symbols + shared C wire header;
+        # neither can live in a C++ namespace.
+        "esphome/components/esp32_hosted/esp_now_hosted.cpp",
+        "esphome/components/esp32_hosted/esp_now_hosted_rpc.h",
     ],
 )
 def lint_namespace(fname: Path, content: str) -> str | None:
@@ -689,7 +696,15 @@ def lint_esphome_h(fname, line, col, content):
     )
 
 
-@lint_content_check(include=["*.h"], exclude=["esphome/core/entity_types.h"])
+@lint_content_check(
+    include=["*.h"],
+    exclude=[
+        "esphome/core/entity_types.h",
+        # Shared C wire header; uses a classic #ifndef guard for portability
+        # across the co-processor firmware repo it stays byte-identical with.
+        "esphome/components/esp32_hosted/esp_now_hosted_rpc.h",
+    ],
+)
 def lint_pragma_once(fname, content):
     if "#pragma once" not in content:
         return (
