@@ -34,6 +34,7 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,10 +48,14 @@ SEN6XComponent = sen6x_ns.class_(
 )
 
 
-def _deprecate_gas_index_keys(config):
+def _deprecate_gas_index_keys(config: ConfigType) -> ConfigType:
     config = config.copy()
     for old_key, new_key in ((CONF_VOC, CONF_VOC_INDEX), (CONF_NOX, CONF_NOX_INDEX)):
         if old_key in config:
+            if new_key in config:
+                raise cv.Invalid(
+                    f"Cannot specify both '{old_key}' and '{new_key}'; use only '{new_key}'"
+                )
             _LOGGER.warning(
                 "'%s' is deprecated, use '%s'. Will be removed in 2027.2.0",
                 old_key,
