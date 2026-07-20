@@ -22,7 +22,8 @@ PathType = str | os.PathLike
 _LOGGER = logging.getLogger(__name__)
 
 # Attempts per mirror URL before falling through to the next mirror; only
-# mid-stream drops retry (with resume), connect errors move on immediately.
+# mid-stream drops retry (resuming when the server gave a validator),
+# connect errors move on immediately.
 _MIRROR_ATTEMPTS = 3
 
 
@@ -568,7 +569,7 @@ def archive_extract_all(
 
 def _open_ranged(
     url: str, offset: int, timeout: int, validator: str | None = None
-) -> tuple["requests.Response", int]:
+) -> tuple["requests.Response | None", int]:
     """Open a streaming GET, asking the server to resume at ``offset``.
 
     ``validator`` is an ETag or Last-Modified value from the interrupted
@@ -577,10 +578,14 @@ def _open_ranged(
     file was replaced between requests — the resumed bytes can then never be
     stitched onto a different file's prefix.
 
-    Returns ``(response, effective_offset)``: the offset drops to 0 when the
-    server ignored the ``Range`` header (no 206), meaning the caller must
-    restart the file. Raises on connect errors and HTTP error statuses; the
-    response is closed on failure.
+    Returns ``(response, effective_offset)``. The response is None when the
+    server answered 416 Range Not Satisfiable: the file holds every byte the
+    server has (a previous attempt was interrupted after the last byte), so
+    there is nothing to stream and the caller's verification decides whether
+    the file is good. The offset drops to 0 when the server ignored the
+    ``Range`` header (no 206), meaning the caller must restart the file.
+    Raises on connect errors and HTTP error statuses; the response is closed
+    on failure.
     """
     import requests
 
@@ -588,6 +593,9 @@ def _open_ranged(
     if offset and validator:
         headers["If-Range"] = validator
     resp = requests.get(url, stream=True, timeout=timeout, headers=headers)
+    if offset and resp.status_code == 416:
+        resp.close()
+        return None, offset
     if offset and resp.status_code != 206:
         _LOGGER.debug(
             "Server did not resume %s (HTTP %s), restarting", url, resp.status_code
@@ -684,10 +692,13 @@ def download_with_resume(
                 offset = 0
             if size is None or offset < size:
                 resp, offset = _open_ranged(url, offset, timeout, validator)
-                with resp, part.open("ab") as f:
-                    if offset == 0:
-                        validator = _response_validator(resp)
-                    _stream_response_to_file(resp, f, offset, size)
+                # A None response means HTTP 416: the part file already holds
+                # every byte the server has; fall through to verification.
+                if resp is not None:
+                    with resp, part.open("ab") as f:
+                        if offset == 0:
+                            validator = _response_validator(resp)
+                        _stream_response_to_file(resp, f, offset, size)
             # else: a previous run already wrote every byte (or more) but
             # was killed before the rename below. Skip the network entirely
             # — a Range request past EOF would draw HTTP 416 — and let
@@ -829,11 +840,17 @@ def download_from_mirrors(
                     break
 
                 try:
-                    with resp:
-                        if offset == 0:
-                            validator = _response_validator(resp)
-                            expected_total = int(resp.headers.get("content-length", 0))
-                        _stream_response_to_file(resp, f, offset)
+                    # A None response means HTTP 416: the file already holds
+                    # every byte the server has (a drop after the last byte);
+                    # only the length check below remains.
+                    if resp is not None:
+                        with resp:
+                            if offset == 0:
+                                validator = _response_validator(resp)
+                                expected_total = int(
+                                    resp.headers.get("content-length", 0)
+                                )
+                            _stream_response_to_file(resp, f, offset)
 
                     if expected_total and f.tell() != expected_total:
                         raise EsphomeError(

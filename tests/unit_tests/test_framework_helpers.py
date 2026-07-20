@@ -652,10 +652,42 @@ class TestDownloadWithResume:
     def test_server_without_range_support_restarts(self, tmp_path: Path) -> None:
         """HTTP 200 in response to a Range request truncates and restarts."""
         dest = tmp_path / "tool.tar.gz"
-        (tmp_path / "tool.tar.gz.part").write_bytes(b"stale")
-        with patch("requests.get", return_value=_mock_response(b"fresh")):
-            download_with_resume("https://example.com/t", dest)
+        (tmp_path / "tool.tar.gz.part").write_bytes(b"sta")
+        with patch("requests.get", return_value=_mock_response(b"fresh")) as mock_get:
+            download_with_resume("https://example.com/t", dest, size=5)
+        # the Range request was sent (verifiable resume) and downgraded
+        assert mock_get.call_args[1]["headers"] == {"Range": "bytes=3-"}
         assert dest.read_bytes() == b"fresh"
+
+    def test_416_promotes_complete_part_when_size_unknown(self, tmp_path: Path) -> None:
+        """sha256-only caller with a byte-complete part file: the server's
+        416 confirms nothing is missing, verification promotes in place, and
+        the 416 must not loop as a retryable error."""
+        dest = tmp_path / "tool.tar.gz"
+        (tmp_path / "tool.tar.gz.part").write_bytes(b"data")
+        good = hashlib.sha256(b"data").hexdigest()
+        r416 = _mock_response(b"", ok=False)
+        r416.status_code = 416
+        with patch("requests.get", return_value=r416) as mock_get:
+            download_with_resume("https://example.com/t", dest, sha256=good)
+        assert mock_get.call_count == 1
+        r416.close.assert_called_once()
+        assert dest.read_bytes() == b"data"
+
+    def test_416_with_corrupt_part_discards_and_redownloads(
+        self, tmp_path: Path
+    ) -> None:
+        dest = tmp_path / "tool.tar.gz"
+        (tmp_path / "tool.tar.gz.part").write_bytes(b"bad!")
+        good = hashlib.sha256(b"data").hexdigest()
+        r416 = _mock_response(b"", ok=False)
+        r416.status_code = 416
+        with patch(
+            "requests.get", side_effect=[r416, _mock_response(b"data")]
+        ) as mock_get:
+            download_with_resume("https://example.com/t", dest, sha256=good)
+        assert "Range" not in mock_get.call_args_list[1][1]["headers"]
+        assert dest.read_bytes() == b"data"
 
     def test_hash_mismatch_discards_and_retries(self, tmp_path: Path) -> None:
         dest = tmp_path / "tool.tar.gz"
@@ -980,6 +1012,22 @@ class TestDownloadFromMirrors:
             download_from_mirrors(["https://mirror1.com/f"], {}, tmp_path / "out.bin")
         assert (tmp_path / "out.bin").read_bytes() == b"full"
         assert "Range" not in mock_get.call_args_list[1][1]["headers"]
+
+    def test_drop_after_last_byte_recovers_via_416(self, tmp_path: Path) -> None:
+        """A connection drop after the final body byte leaves a complete file;
+        the retry's 416 answer plus the length check turn it into success
+        instead of a wasted refetch."""
+        first = _interrupted_response(b"1234", etag='"v1"')
+        first.headers = {**first.headers, "content-length": "4"}
+        r416 = _mock_response(b"", ok=False)
+        r416.status_code = 416
+        with patch("requests.get", side_effect=[first, r416]) as mock_get:
+            url = download_from_mirrors(
+                ["https://mirror1.com/f"], {}, tmp_path / "out.bin"
+            )
+        assert url == "https://mirror1.com/f"
+        assert (tmp_path / "out.bin").read_bytes() == b"1234"
+        assert mock_get.call_count == 2
 
     def test_resumed_short_body_fails_length_check(self, tmp_path: Path) -> None:
         """A stitched file whose final length disagrees with the advertised
