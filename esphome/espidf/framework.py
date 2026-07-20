@@ -208,7 +208,13 @@ def _read_stamp(file: PathType) -> dict | None:
     try:
         with Path(file).open(encoding="utf-8") as f:
             data = json.load(f)
-    except (json.JSONDecodeError, OSError):
+    except FileNotFoundError:
+        return None
+    except json.JSONDecodeError as e:
+        _LOGGER.debug("Ignoring corrupt stamp file %s: %s", file, e)
+        return None
+    except OSError as e:
+        _LOGGER.debug("Could not read stamp file %s: %s", file, e)
         return None
     return data if isinstance(data, dict) else None
 

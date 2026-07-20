@@ -35,6 +35,7 @@ from esphome.espidf.framework import (
     _patch_tools_json_demote_unused_tools,
     _patch_tools_json_for_linux_arm64,
     _prefetch_idf_tool_archives,
+    _read_stamp,
     _stamp_covers,
     _windows_long_paths_enabled,
     _write_idf_version_txt,
@@ -1406,6 +1407,42 @@ def test_check_stamp_corrupt_file(tmp_path: Path) -> None:
     f = tmp_path / "s.json"
     f.write_text("{ not json", encoding="utf-8")
     assert _check_stamp(f, {"a": "1"}) is False
+
+
+def test_read_stamp_corrupt_file_logs_debug(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # A corrupt stamp must leave a debug trace so repeated reinstalls caused
+    # by a bad file are diagnosable, unlike the silent missing-file case.
+    f = tmp_path / "s.json"
+    f.write_text("{ not json", encoding="utf-8")
+    with caplog.at_level(logging.DEBUG, logger="esphome.espidf.framework"):
+        assert _read_stamp(f) is None
+    assert "Ignoring corrupt stamp file" in caplog.text
+
+
+def test_read_stamp_unreadable_file_logs_debug(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # An I/O fault (permissions, disk error) is distinguished from a simply
+    # missing stamp with a debug line before falling back to reinstall.
+    f = tmp_path / "s.json"
+    f.write_text(json.dumps({"a": "1"}), encoding="utf-8")
+    with (
+        patch.object(Path, "open", side_effect=PermissionError("denied")),
+        caplog.at_level(logging.DEBUG, logger="esphome.espidf.framework"),
+    ):
+        assert _read_stamp(f) is None
+    assert "Could not read stamp file" in caplog.text
+
+
+def test_read_stamp_missing_file_is_silent(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Missing stamps are the normal first-install case and must not log.
+    with caplog.at_level(logging.DEBUG, logger="esphome.espidf.framework"):
+        assert _read_stamp(tmp_path / "nope.json") is None
+    assert "stamp file" not in caplog.text
 
 
 def test_write_idf_version_txt_writes_when_missing(tmp_path: Path) -> None:
