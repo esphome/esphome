@@ -22,6 +22,7 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@rggammon"]
+AUTO_LOAD = ["sensor"]
 DEPENDENCIES = ["i2c"]
 
 bq27220_ns = cg.esphome_ns.namespace("bq27220")
