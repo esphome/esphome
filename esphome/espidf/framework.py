@@ -1,5 +1,6 @@
 """ESP-IDF framework tools for ESPHome."""
 
+from collections.abc import Callable
 from ctypes.util import find_library
 import json
 import logging
@@ -467,17 +468,21 @@ _NINJA_ARM64_BACKPORT: dict[str, dict[str, str | int]] = {
 }
 
 
-def _patch_tools_json_for_linux_arm64(framework_path: Path) -> None:
-    """Inject ninja linux-arm64 entries into the framework's tools.json on aarch64.
+def _patch_tools_json(
+    framework_path: Path,
+    apply_patch: Callable[[dict], bool],
+    patched_log: str,
+) -> None:
+    """Apply an in-place fixup to the framework's tools/tools.json.
 
-    Idempotent: a tools.json that already has the entry, or a host that
-    isn't aarch64, is a no-op. Applied unconditionally on every install
-    check so a build dir extracted before the backport got fixed up
-    without forcing a clean.
+    Shared plumbing for the tools.json patches below: a missing file is a
+    no-op, an unparseable file logs a warning and skips, and when
+    ``apply_patch`` reports a change the file is written back atomically.
+    ``patched_log`` is the info log line, with a single ``%s`` placeholder
+    for the tools.json path. Patches are idempotent and applied on every
+    install check, so an already-extracted framework picks them up on the
+    next build without forcing a clean.
     """
-    if platform.machine() != "aarch64":
-        return
-
     tools_json = framework_path / "tools" / "tools.json"
     if not tools_json.is_file():
         return
@@ -485,37 +490,93 @@ def _patch_tools_json_for_linux_arm64(framework_path: Path) -> None:
     try:
         with tools_json.open(encoding="utf-8") as f:
             data = json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
+        # apply_patch also raises inside the guard: a tools.json that is
+        # valid JSON but not the expected shape (e.g. a top-level list)
+        # must skip the patch, not crash the install check this patch is
+        # meant to recover.
+        changed = apply_patch(data)
+    except (json.JSONDecodeError, OSError, AttributeError, TypeError, KeyError) as e:
         _LOGGER.warning(
-            "Could not parse %s for linux-arm64 backport (%s); "
-            "skipping. A clean reinstall of the framework directory "
-            "may be needed.",
+            "Could not apply tools.json patch to %s (%s); skipping. A clean "
+            "reinstall of the framework directory may be needed.",
             tools_json,
             e,
         )
         return
-
-    changed = False
-    for tool in data.get("tools", []):
-        if tool.get("name") != "ninja":
-            continue
-        for ver in tool.get("versions", []):
-            entry = _NINJA_ARM64_BACKPORT.get(ver.get("name"))
-            if entry is None or ver.get("linux-arm64"):
-                continue
-            ver["linux-arm64"] = entry
-            changed = True
 
     if changed:
         # write_file_if_changed stages a tempfile in the destination dir
         # and atomically replaces — safe against mid-write interruption
         # and concurrent invocations.
         write_file_if_changed(tools_json, json.dumps(data, indent=2) + "\n")
-        _LOGGER.info(
-            "Patched %s to add ninja linux-arm64 download "
-            "(espressif/esp-idf#18272 backport).",
-            tools_json,
-        )
+        _LOGGER.info(patched_log, tools_json)
+
+
+def _patch_tools_json_for_linux_arm64(framework_path: Path) -> None:
+    """Inject ninja linux-arm64 entries into the framework's tools.json on aarch64.
+
+    A tools.json that already has the entry, or a host that isn't aarch64,
+    is a no-op.
+    """
+    if platform.machine() != "aarch64":
+        return
+
+    def apply_patch(data: dict) -> bool:
+        changed = False
+        for tool in data.get("tools", []):
+            if tool.get("name") != "ninja":
+                continue
+            for ver in tool.get("versions", []):
+                entry = _NINJA_ARM64_BACKPORT.get(ver.get("name"))
+                if entry is None or ver.get("linux-arm64"):
+                    continue
+                ver["linux-arm64"] = entry
+                changed = True
+        return changed
+
+    _patch_tools_json(
+        framework_path,
+        apply_patch,
+        "Patched %s to add ninja linux-arm64 download "
+        "(espressif/esp-idf#18272 backport).",
+    )
+
+
+def _patch_tools_json_demote_openocd(framework_path: Path) -> None:
+    """Demote openocd-esp32 from ``install: always`` to ``install: on_request``.
+
+    ``idf_tools.py install required`` installs every tool marked ``always`` in
+    tools.json and validates each one after extraction by running its version
+    command. openocd links against libusb-1.0, which minimal systems (bare LXC
+    containers, slim images) often lack, so that one validation aborted the
+    whole framework install and left it permanently retrying (#17685) — even
+    though ESPHome never runs openocd (it is a JTAG debugging tool). Demoting
+    it drops it from the ``required`` set: it is no longer downloaded or
+    validated, and the tool-path export treats a missing ``on_request`` tool
+    as fine. A user who wants it can still name ``openocd-esp32`` explicitly
+    in ESPHOME_IDF_DEFAULT_TOOLS; explicit names bypass install-type
+    filtering.
+
+    Because this runs on every install check, an install stuck in the
+    failing state (which never wrote its stamp file) heals on the next
+    build without a clean.
+    """
+
+    def apply_patch(data: dict) -> bool:
+        changed = False
+        for tool in data.get("tools", []):
+            if tool.get("name") == "openocd-esp32" and tool.get("install") == "always":
+                tool["install"] = "on_request"
+                changed = True
+        return changed
+
+    _patch_tools_json(
+        framework_path,
+        apply_patch,
+        "Patched %s to make openocd-esp32 optional (not needed for "
+        "building, and its install check fails on systems without "
+        "libusb-1.0).",
+    )
 
 
 def _check_esphome_idf_framework_install(
@@ -636,6 +697,11 @@ def _check_esphome_idf_framework_install(
     # a pre-patch tools.json get fixed up without forcing a clean.
     _patch_tools_json_for_linux_arm64(framework_path)
 
+    # Drop openocd-esp32 from the required tool set on every invocation so
+    # an install that previously failed on its libusb check recovers on the
+    # next build.
+    _patch_tools_json_demote_openocd(framework_path)
+
     # 3. Check if the framework tools are the same and correctly installed
     if not install:
         install = True
@@ -671,9 +737,9 @@ def _check_esphome_idf_framework_install(
         ):
             if platform.system() == "Linux" and find_library("usb-1.0") is None:
                 _LOGGER.error(
-                    "libusb-1.0.so.0 was not found on this system and the ESP-IDF "
-                    "tools need it (openocd fails its install check without it). "
-                    "Install the libusb 1.0 package, e.g. libusb-1.0-0 "
+                    "libusb-1.0.so.0 was not found on this system. If the error "
+                    "above mentions it (openocd fails its install check without "
+                    "it), install the libusb 1.0 package, e.g. libusb-1.0-0 "
                     "(Debian/Ubuntu), libusb1 (Fedora) or libusb (Alpine/Arch), "
                     "then run the build again."
                 )
