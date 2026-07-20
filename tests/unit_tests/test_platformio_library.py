@@ -261,15 +261,18 @@ def test_convert_libraries_raises_when_manifest_missing_after_retry(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # If the forced re-download still yields no manifest, the error is raised
-    # after exactly one retry (no retry loop).
+    # after exactly one retry (no retry loop). The error must name the cache
+    # directory so users can find the broken entry instead of guessing where
+    # the library was unpacked.
     calls = _patch_download_without_manifest(
         monkeypatch, tmp_path, manifest_on_force=False
     )
 
-    with pytest.raises(RuntimeError, match="Invalid PIO library"):
+    with pytest.raises(RuntimeError, match="Invalid PIO library") as excinfo:
         convert_libraries([Library("esphome/A", "1.0.0", None)], _backend())
 
     assert calls == [False, True]
+    assert str(tmp_path / "esphome__A") in str(excinfo.value)
 
 
 @pytest.mark.parametrize(

@@ -612,6 +612,8 @@ class LoopBlockingGuard {
     uint32_t blocking_time = curr_time - App.get_loop_component_start_time();
     if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
       warn_blocking(blocking_time);
+      // Exclude synchronous warning-log time from the next operation.
+      curr_time = MillisInternal::get();
     }
 #endif
     return curr_time;
