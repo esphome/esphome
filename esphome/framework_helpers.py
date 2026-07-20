@@ -567,9 +567,15 @@ def archive_extract_all(
 
 
 def _open_ranged(
-    url: str, offset: int, timeout: int
+    url: str, offset: int, timeout: int, validator: str | None = None
 ) -> tuple["requests.Response", int]:
     """Open a streaming GET, asking the server to resume at ``offset``.
+
+    ``validator`` is an ETag or Last-Modified value from the interrupted
+    response; it is sent as ``If-Range`` so the server only honors the Range
+    when the content is unchanged, replying 200 (full body, restart) if the
+    file was replaced between requests — the resumed bytes can then never be
+    stitched onto a different file's prefix.
 
     Returns ``(response, effective_offset)``: the offset drops to 0 when the
     server ignored the ``Range`` header (no 206), meaning the caller must
@@ -579,6 +585,8 @@ def _open_ranged(
     import requests
 
     headers = {"Range": f"bytes={offset}-"} if offset else {}
+    if offset and validator:
+        headers["If-Range"] = validator
     resp = requests.get(url, stream=True, timeout=timeout, headers=headers)
     if offset and resp.status_code != 206:
         _LOGGER.debug(
@@ -591,6 +599,18 @@ def _open_ranged(
     if offset:
         _LOGGER.info("Resuming download at %d bytes ...", offset)
     return resp, offset
+
+
+def _response_validator(resp: "requests.Response") -> str | None:
+    """Return the response's strong validator for ``If-Range`` resumes.
+
+    Weak ETags (``W/...``) are not usable for byte-range conditionals, so
+    fall back to Last-Modified, or None when the server offers neither.
+    """
+    etag = resp.headers.get("ETag")
+    if etag and not etag.startswith("W/"):
+        return etag
+    return resp.headers.get("Last-Modified")
 
 
 def _stream_response_to_file(
@@ -650,13 +670,23 @@ def download_with_resume(
     part = dest.with_name(dest.name + ".part")
     dest.parent.mkdir(parents=True, exist_ok=True)
     last_error: Exception | None = None
+    # sha256/size verification catches a resume stitched onto changed
+    # content; without either, a resume is only safe when backed by an
+    # If-Range validator from this run, so unverifiable leftover part
+    # files restart from zero.
+    can_verify = sha256 is not None or size is not None
+    validator: str | None = None
 
     for _ in range(attempts):
         try:
             offset = part.stat().st_size if part.is_file() else 0
+            if not can_verify and validator is None:
+                offset = 0
             if size is None or offset < size:
-                resp, offset = _open_ranged(url, offset, timeout)
+                resp, offset = _open_ranged(url, offset, timeout, validator)
                 with resp, part.open("ab") as f:
+                    if offset == 0:
+                        validator = _response_validator(resp)
                     _stream_response_to_file(resp, f, offset, size)
             # else: a previous run already wrote every byte (or more) but
             # was killed before the rename below. Skip the network entirely
@@ -780,10 +810,18 @@ def download_from_mirrors(
 
             # 4. Download; mid-stream failures retry the same mirror with
             # resume (see download_with_resume) instead of starting over.
+            # There is no checksum to verify a resumed file against, so a
+            # stitch is only trusted when the server proves consistency: the
+            # If-Range validator guarantees 206 only for unchanged content,
+            # and the expected total length (when the first response carried
+            # one) guards against short or shifted bodies. Without a
+            # validator the retry restarts from zero.
             offset = 0
+            expected_total = 0
+            validator = None
             for attempt in range(_MIRROR_ATTEMPTS):
                 try:
-                    resp, offset = _open_ranged(url, offset, timeout)
+                    resp, offset = _open_ranged(url, offset, timeout, validator)
                 except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
                     # Connect/HTTP error, no bytes flowed — next mirror.
                     _LOGGER.debug("Failed to download %s: %s", url, str(e))
@@ -792,7 +830,15 @@ def download_from_mirrors(
 
                 try:
                     with resp:
+                        if offset == 0:
+                            validator = _response_validator(resp)
+                            expected_total = int(resp.headers.get("content-length", 0))
                         _stream_response_to_file(resp, f, offset)
+
+                    if expected_total and f.tell() != expected_total:
+                        raise EsphomeError(
+                            f"size mismatch: expected {expected_total}, got {f.tell()}"
+                        )
 
                     _LOGGER.debug("Downloaded successfully from: %s", url)
 
@@ -802,9 +848,10 @@ def download_from_mirrors(
 
                 except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
                     # Mid-stream drop: keep the received bytes and retry this
-                    # mirror from the current position.
+                    # mirror from the current position — but only when the
+                    # server gave a validator to resume against safely.
                     _LOGGER.debug("Failed to download %s: %s", url, str(e))
-                    offset = f.tell()
+                    offset = f.tell() if validator else 0
                     if attempt == _MIRROR_ATTEMPTS - 1:
                         failures.append((url, e))
 

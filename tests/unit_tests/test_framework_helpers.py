@@ -529,14 +529,20 @@ def _mock_response(content: bytes, ok: bool = True) -> MagicMock:
     return r
 
 
-def _interrupted_response(content: bytes) -> MagicMock:
-    """A response whose body yields ``content`` and then drops mid-stream."""
+def _interrupted_response(content: bytes, etag: str | None = None) -> MagicMock:
+    """A response whose body yields ``content`` and then drops mid-stream.
+
+    ``etag`` makes the response resumable: without a validator the retry
+    logic restarts from zero rather than stitching unverified bytes.
+    """
 
     def body(chunk_size):
         yield content
         raise req.exceptions.ChunkedEncodingError("connection dropped")
 
     r = _mock_response(b"")
+    if etag is not None:
+        r.headers = {**r.headers, "ETag": etag}
     r.iter_content.side_effect = body
     return r
 
@@ -598,21 +604,50 @@ class TestDownloadWithResume:
         dest = tmp_path / "tool.tar.gz"
         with patch(
             "requests.get",
-            side_effect=[_interrupted_response(b"1234"), _resumed_response(b"5678")],
+            side_effect=[
+                _interrupted_response(b"1234", etag='"v1"'),
+                _resumed_response(b"5678"),
+            ],
         ) as mock_get:
             download_with_resume("https://example.com/t", dest)
-        # earlier bytes were kept, remainder appended
+        # earlier bytes were kept, remainder appended conditionally
         assert dest.read_bytes() == b"12345678"
-        assert mock_get.call_args_list[1][1]["headers"] == {"Range": "bytes=4-"}
+        assert mock_get.call_args_list[1][1]["headers"] == {
+            "Range": "bytes=4-",
+            "If-Range": '"v1"',
+        }
+
+    def test_unverifiable_drop_without_validator_restarts(self, tmp_path: Path) -> None:
+        """No sha/size and no server validator: the retry must not stitch."""
+        dest = tmp_path / "tool.tar.gz"
+        with patch(
+            "requests.get",
+            side_effect=[_interrupted_response(b"1234"), _mock_response(b"full")],
+        ) as mock_get:
+            download_with_resume("https://example.com/t", dest)
+        assert dest.read_bytes() == b"full"
+        assert "Range" not in mock_get.call_args_list[1][1]["headers"]
 
     def test_resume_across_invocations_from_part_file(self, tmp_path: Path) -> None:
-        """A .part file left by a previous run is resumed, not restarted."""
+        """A .part file left by a previous run is resumed, not restarted,
+        when sha/size verification will vouch for the stitched result."""
         dest = tmp_path / "tool.tar.gz"
         (tmp_path / "tool.tar.gz.part").write_bytes(b"12345")
+        good = hashlib.sha256(b"12345678").hexdigest()
         with patch("requests.get", return_value=_resumed_response(b"678")) as mock_get:
-            download_with_resume("https://example.com/t", dest)
+            download_with_resume("https://example.com/t", dest, sha256=good, size=8)
         assert dest.read_bytes() == b"12345678"
         assert mock_get.call_args[1]["headers"] == {"Range": "bytes=5-"}
+
+    def test_unverifiable_leftover_part_file_ignored(self, tmp_path: Path) -> None:
+        """Without sha/size there is no way to vouch for a cross-run stitch,
+        so a leftover part file starts over."""
+        dest = tmp_path / "tool.tar.gz"
+        (tmp_path / "tool.tar.gz.part").write_bytes(b"12345")
+        with patch("requests.get", return_value=_mock_response(b"fresh")) as mock_get:
+            download_with_resume("https://example.com/t", dest)
+        assert dest.read_bytes() == b"fresh"
+        assert "Range" not in mock_get.call_args[1]["headers"]
 
     def test_server_without_range_support_restarts(self, tmp_path: Path) -> None:
         """HTTP 200 in response to a Range request truncates and restarts."""
@@ -652,7 +687,7 @@ class TestDownloadWithResume:
         with (
             patch(
                 "requests.get",
-                side_effect=[_interrupted_response(b"12"), second],
+                side_effect=[_interrupted_response(b"12", etag='"v1"'), second],
             ),
             pytest.raises(EsphomeError, match="after 2 attempts"),
         ):
@@ -668,12 +703,14 @@ class TestDownloadWithResume:
         third = _resumed_response(b"ef")
         with patch(
             "requests.get",
-            side_effect=[_interrupted_response(b"ab"), second, third],
+            side_effect=[_interrupted_response(b"ab", etag='"v1"'), second, third],
         ) as mock_get:
             download_with_resume("https://example.com/t", dest)
         assert dest.read_bytes() == b"abcdef"
-        assert mock_get.call_args_list[1][1]["headers"] == {"Range": "bytes=2-"}
-        assert mock_get.call_args_list[2][1]["headers"] == {"Range": "bytes=4-"}
+        expected = {"Range": "bytes=2-", "If-Range": '"v1"'}
+        assert mock_get.call_args_list[1][1]["headers"] == expected
+        expected = {"Range": "bytes=4-", "If-Range": '"v1"'}
+        assert mock_get.call_args_list[2][1]["headers"] == expected
 
     def test_connect_error_then_success(self, tmp_path: Path) -> None:
         """A connect error (no response at all) consumes an attempt and the
@@ -909,11 +946,14 @@ class TestDownloadFromMirrors:
         assert (tmp_path / "out.bin").read_bytes() == b"second"
 
     def test_mid_stream_drop_resumes_same_mirror(self, tmp_path: Path) -> None:
-        """A mid-stream failure retries the same mirror with a Range header,
-        keeping the bytes already received, before falling to the next."""
+        """A mid-stream failure retries the same mirror with Range and
+        If-Range headers, keeping the bytes already received, before falling
+        to the next."""
+        first = _interrupted_response(b"1234", etag='"v1"')
+        first.headers = {**first.headers, "content-length": "8"}
         with patch(
             "requests.get",
-            side_effect=[_interrupted_response(b"1234"), _resumed_response(b"5678")],
+            side_effect=[first, _resumed_response(b"5678")],
         ) as mock_get:
             url = download_from_mirrors(
                 ["https://mirror1.com/f", "https://mirror2.com/f"],
@@ -924,14 +964,42 @@ class TestDownloadFromMirrors:
         assert (tmp_path / "out.bin").read_bytes() == b"12345678"
         assert mock_get.call_count == 2
         assert mock_get.call_args_list[1][0][0] == "https://mirror1.com/f"
-        assert mock_get.call_args_list[1][1]["headers"] == {"Range": "bytes=4-"}
+        # the resume is conditional on the content being unchanged
+        assert mock_get.call_args_list[1][1]["headers"] == {
+            "Range": "bytes=4-",
+            "If-Range": '"v1"',
+        }
+
+    def test_mid_stream_drop_without_validator_restarts(self, tmp_path: Path) -> None:
+        """A server offering no ETag/Last-Modified cannot be resumed safely;
+        the retry restarts from zero instead of stitching unverified bytes."""
+        with patch(
+            "requests.get",
+            side_effect=[_interrupted_response(b"1234"), _mock_response(b"full")],
+        ) as mock_get:
+            download_from_mirrors(["https://mirror1.com/f"], {}, tmp_path / "out.bin")
+        assert (tmp_path / "out.bin").read_bytes() == b"full"
+        assert "Range" not in mock_get.call_args_list[1][1]["headers"]
+
+    def test_resumed_short_body_fails_length_check(self, tmp_path: Path) -> None:
+        """A stitched file whose final length disagrees with the advertised
+        total is rejected instead of reported as success."""
+        first = _interrupted_response(b"1234", etag='"v1"')
+        first.headers = {**first.headers, "content-length": "8"}
+        # resumed responses end early each time; the total never reaches 8
+        shorts = [_resumed_response(b"5"), _resumed_response(b"6")]
+        with (
+            patch("requests.get", side_effect=[first, *shorts]),
+            pytest.raises(EsphomeError, match="all mirrors"),
+        ):
+            download_from_mirrors(["https://mirror1.com/f"], {}, tmp_path / "out.bin")
 
     def test_failed_mirror_leftovers_not_kept_for_next_mirror(
         self, tmp_path: Path
     ) -> None:
         """Bytes from a mirror that failed all attempts must not leak into the
         next mirror's download (no bogus Range request, fresh content)."""
-        exhausted = [_interrupted_response(b"AAAA")]
+        exhausted = [_interrupted_response(b"AAAA", etag='"a1"')]
         for _ in range(2):
             r = _interrupted_response(b"BB")
             r.status_code = 206
