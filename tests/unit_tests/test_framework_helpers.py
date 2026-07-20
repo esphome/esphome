@@ -683,11 +683,51 @@ class TestDownloadWithResume:
         """HTTP 200 in response to a Range request truncates and restarts."""
         dest = tmp_path / "tool.tar.gz"
         (tmp_path / "tool.tar.gz.part").write_bytes(b"sta")
+        good = hashlib.sha256(b"fresh").hexdigest()
         with patch("requests.get", return_value=_mock_response(b"fresh")) as mock_get:
-            download_with_resume("https://example.com/t", dest, size=5)
+            download_with_resume("https://example.com/t", dest, sha256=good, size=5)
         # the Range request was sent (verifiable resume) and downgraded
         assert mock_get.call_args[1]["headers"] == {"Range": "bytes=3-"}
         assert dest.read_bytes() == b"fresh"
+
+    def test_size_only_leftover_part_restarts(self, tmp_path: Path) -> None:
+        """A size alone cannot detect a same-length content change on the
+        server, so a cross-run part without sha256 restarts from zero."""
+        dest = tmp_path / "tool.tar.gz"
+        (tmp_path / "tool.tar.gz.part").write_bytes(b"12")
+        with patch("requests.get", return_value=_mock_response(b"1234")) as mock_get:
+            download_with_resume("https://example.com/t", dest, size=4)
+        assert "Range" not in mock_get.call_args[1]["headers"]
+        assert dest.read_bytes() == b"1234"
+
+    def test_size_only_in_run_drop_resumes_with_validator(self, tmp_path: Path) -> None:
+        """Within a run the If-Range validator proves identity, so size-only
+        callers still resume mid-stream drops."""
+        dest = tmp_path / "tool.tar.gz"
+        with patch(
+            "requests.get",
+            side_effect=[
+                _interrupted_response(b"12", etag='"v1"'),
+                _resumed_response(b"34"),
+            ],
+        ) as mock_get:
+            download_with_resume("https://example.com/t", dest, size=4)
+        assert dest.read_bytes() == b"1234"
+        assert mock_get.call_args_list[1][1]["headers"] == {
+            "Range": "bytes=2-",
+            "If-Range": '"v1"',
+        }
+
+    def test_unverifiable_download_warns(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """No sha, no size, no content-length: the download is promoted but
+        a warning notes completeness could not be verified."""
+        dest = tmp_path / "tool.tar.gz"
+        with patch("requests.get", return_value=_mock_response(b"data")):
+            download_with_resume("https://example.com/t", dest)
+        assert dest.read_bytes() == b"data"
+        assert "without any way to verify completeness" in caplog.text
 
     def test_416_promotes_complete_part_when_size_unknown(self, tmp_path: Path) -> None:
         """sha256-only caller with a byte-complete part file: the server's

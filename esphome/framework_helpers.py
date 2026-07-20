@@ -678,6 +678,8 @@ def download_with_resume(
     on a complete file instead of restarting from zero each retry (#17703).
     When ``size`` / ``sha256`` are given the completed file is verified and a
     mismatch restarts from scratch; success renames the part file into place.
+    Resuming a part file from an earlier run requires ``sha256`` — a size
+    alone cannot detect a same-length content change on the server.
 
     Raises EsphomeError when all attempts are exhausted.
     """
@@ -695,25 +697,30 @@ def download_with_resume(
     # content; without either, a resume is only safe when backed by an
     # If-Range validator from this run, so unverifiable leftover part
     # files restart from zero.
-    can_verify = sha256 is not None or size is not None
     validator: str | None = None
     expected_total = 0
 
     for _ in range(attempts):
         try:
             offset = part.stat().st_size if part.is_file() else 0
-            # Without sha/size verification, a stitched resume is only safe
-            # when the server proved content identity (If-Range validator)
-            # AND completeness is checkable (a known total length) — a
-            # resumed stream that ends cleanly but short must not pass for a
-            # complete file. Otherwise restart from zero.
-            if offset and not can_verify and (validator is None or not expected_total):
+            # A stitched resume needs two proofs: content identity (the
+            # bytes being appended belong to the same file as the prefix)
+            # and completeness. sha256 provides both, across runs. Without
+            # it, identity needs this run's If-Range validator — a size
+            # alone cannot detect a same-length content change, so a
+            # leftover part file from an earlier run must restart — and
+            # completeness needs a known total length.
+            if (
+                offset
+                and sha256 is None
+                and (validator is None or not (size or expected_total))
+            ):
                 _LOGGER.debug(
-                    "Restarting %s from zero: no way to prove a resumed "
-                    "file complete (no sha/size, validator=%s, total=%s)",
+                    "Restarting %s from zero: cannot prove a resumed "
+                    "file correct (no sha256, validator=%s, total=%s)",
                     url,
                     validator is not None,
-                    expected_total,
+                    size or expected_total,
                 )
                 offset = 0
             if size is None or offset < size:
@@ -743,6 +750,15 @@ def download_with_resume(
                     digest = hashlib.file_digest(pf, "sha256").hexdigest()
                 if digest != sha256:
                     raise EsphomeError(f"sha256 mismatch: got {digest}")
+            if not expected_size and sha256 is None:
+                # No sha, no size, and the server sent no usable
+                # content-length: nothing can prove the download complete
+                # (urllib3 still errors on most short bodies, but not on a
+                # cleanly closed chunked stream).
+                _LOGGER.warning(
+                    "Downloaded %s without any way to verify completeness",
+                    dest.name,
+                )
             # Retry on Windows sharing violations: an antivirus handle on the
             # freshly-written file must not get the verified download deleted
             # as corrupt by the except clause below.
