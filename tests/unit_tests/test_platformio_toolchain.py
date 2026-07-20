@@ -344,22 +344,6 @@ def test_ccache_env_enabled_by_default(setup_core: Path) -> None:
     assert env["CCACHE_BASEDIR"] == str((setup_core / "build" / "test").resolve())
     assert env["CCACHE_DIR"].endswith("platformio-ccache")
     assert env["CCACHE_NOHASHDIR"] == "true"
-    # Sloppiness is libretiny-only; other platforms keep exact hashing.
-    assert "CCACHE_SLOPPINESS" not in env
-
-
-def test_ccache_env_libretiny_time_macros_sloppiness(setup_core: Path) -> None:
-    """Builds for LibreTiny ignore __DATE__/__TIME__ when hashing."""
-    CORE.build_path = setup_core / "build" / "test"
-    _set_target_platform("bk72xx")
-
-    with (
-        patch.dict(os.environ, {}, clear=True),
-        patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
-    ):
-        env = toolchain._ccache_env()
-
-    assert env["CCACHE_SLOPPINESS"] == "time_macros"
     # Nothing may leak into os.environ: a later ESP-IDF build in the same
     # process would otherwise skip its own ccache defaults.
     assert "CCACHE_BASEDIR" not in os.environ

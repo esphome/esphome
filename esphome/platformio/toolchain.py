@@ -278,14 +278,6 @@ def _ccache_env() -> dict[str, str]:
         ),
         "CCACHE_NOHASHDIR": "true",
     }
-    if CORE.is_libretiny:
-        # Ignore __DATE__/__TIME__ when hashing: LibreTiny's libretiny.h
-        # embeds them in its banner macro, which would otherwise disable
-        # ccache's direct mode for every file that includes it and re-miss
-        # on every rebuild. The trade-off is that a cached object can carry
-        # the timestamp of its first compile in such banner strings. Other
-        # platforms don't need the sloppiness, so they keep exact hashing.
-        defaults["CCACHE_SLOPPINESS"] = "time_macros"
     env.update({k: v for k, v in defaults.items() if k not in os.environ})
     return env
 
