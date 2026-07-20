@@ -442,6 +442,33 @@ def test_redact_with_legacy_fallback__does_not_match_fragment_as_suffix(
     assert not any("legacy substring" in rec.message for rec in caplog.records)
 
 
+@pytest.mark.parametrize("field", ["public_key", "peer_public_key"])
+def test_redact_with_legacy_fallback__skips_public_key_fields(
+    field: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Public keys are not secret; fields with a ``public`` name segment
+    must pass through unredacted and without the migration warning
+    (see issue #17718)."""
+    text = f"{field}: c29tZXB1YmxpY2tleQ==\n"
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback(text)
+    assert out == text
+    assert not any("legacy substring" in rec.message for rec in caplog.records)
+
+
+def test_redact_with_legacy_fallback__public_must_be_a_whole_segment(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The exemption matches ``public`` as an underscore-separated segment,
+    not a substring; an unrelated name like ``republic_key`` keeps the
+    conservative redaction."""
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback("republic_key: abc\n")
+    assert "republic_key: \\033[8mabc\\033[28m" in out
+    assert any("'republic_key'" in rec.message for rec in caplog.records)
+
+
 def test_redact_with_legacy_fallback__substitutions_redacted_without_warning(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
