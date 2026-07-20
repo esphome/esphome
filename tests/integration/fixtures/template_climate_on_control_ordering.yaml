@@ -5,9 +5,9 @@ api:
 logger:
 
 # on_control fires with the full ClimateCall (arg `x`) from the base Climate component's
-# ClimateCall::perform(), before validate_()/control() run -- so the entity's own .mode is still
-# the OLD value at the point on_control's lambda executes, even though x.get_mode() already
-# reports the NEW requested value. on_state fires afterward, once control() has applied it.
+# ClimateCall::perform(), before validate_()/control() run -- so when the lambda action below
+# runs, the entity's own .mode is still the OLD value, even though x.get_mode() already reports
+# the NEW requested value. on_state fires afterward, once control() has applied it.
 climate:
   - platform: template
     id: test_climate
