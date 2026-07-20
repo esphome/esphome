@@ -1,5 +1,8 @@
+import logging
+
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
+from esphome.components.const import CONF_NOX_INDEX, CONF_VOC_INDEX
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ALGORITHM_TUNING,
@@ -19,6 +22,8 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
 )
 
+_LOGGER = logging.getLogger(__name__)
+
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
 CODEOWNERS = ["@SenexCrenshaw", "@martgras"]
@@ -34,10 +39,23 @@ SGP4xComponent = sgp4x_ns.class_(
 CONF_HUMIDITY_SOURCE = "humidity_source"
 
 
+def _deprecate_gas_index_keys(config):
+    config = config.copy()
+    for old_key, new_key in ((CONF_VOC, CONF_VOC_INDEX), (CONF_NOX, CONF_NOX_INDEX)):
+        if old_key in config:
+            _LOGGER.warning(
+                "'%s' is deprecated, use '%s'. Will be removed in 2027.2.0",
+                old_key,
+                new_key,
+            )
+            config[new_key] = config.pop(old_key)
+    return config
+
+
 def validate_sensors(config):
-    if CONF_VOC not in config and CONF_NOX not in config:
+    if CONF_VOC_INDEX not in config and CONF_NOX_INDEX not in config:
         raise cv.Invalid(
-            f"At least one sensor is required. Define {CONF_VOC} and/or {CONF_NOX}"
+            f"At least one sensor is required. Define {CONF_VOC_INDEX} and/or {CONF_NOX_INDEX}"
         )
     return config
 
@@ -65,15 +83,16 @@ VOC_SENSOR = _gas_sensor_schema(100)
 NOX_SENSOR = _gas_sensor_schema(1)
 
 CONFIG_SCHEMA = cv.All(
+    _deprecate_gas_index_keys,
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SGP4xComponent),
-            cv.Optional(CONF_VOC): sensor.sensor_schema(
+            cv.Optional(CONF_VOC_INDEX): sensor.sensor_schema(
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(VOC_SENSOR),
-            cv.Optional(CONF_NOX): sensor.sensor_schema(
+            cv.Optional(CONF_NOX_INDEX): sensor.sensor_schema(
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
@@ -107,11 +126,11 @@ async def to_code(config):
 
     cg.add(var.set_store_baseline(config[CONF_STORE_BASELINE]))
 
-    if CONF_VOC in config:
-        sens = await sensor.new_sensor(config[CONF_VOC])
+    if CONF_VOC_INDEX in config:
+        sens = await sensor.new_sensor(config[CONF_VOC_INDEX])
         cg.add(var.set_voc_sensor(sens))
-        if CONF_ALGORITHM_TUNING in config[CONF_VOC]:
-            cfg = config[CONF_VOC][CONF_ALGORITHM_TUNING]
+        if CONF_ALGORITHM_TUNING in config[CONF_VOC_INDEX]:
+            cfg = config[CONF_VOC_INDEX][CONF_ALGORITHM_TUNING]
             cg.add(
                 var.set_voc_algorithm_tuning(
                     cfg[CONF_INDEX_OFFSET],
@@ -123,11 +142,11 @@ async def to_code(config):
                 )
             )
 
-    if CONF_NOX in config:
-        sens = await sensor.new_sensor(config[CONF_NOX])
+    if CONF_NOX_INDEX in config:
+        sens = await sensor.new_sensor(config[CONF_NOX_INDEX])
         cg.add(var.set_nox_sensor(sens))
-        if CONF_ALGORITHM_TUNING in config[CONF_NOX]:
-            cfg = config[CONF_NOX][CONF_ALGORITHM_TUNING]
+        if CONF_ALGORITHM_TUNING in config[CONF_NOX_INDEX]:
+            cfg = config[CONF_NOX_INDEX][CONF_ALGORITHM_TUNING]
             cg.add(
                 var.set_nox_algorithm_tuning(
                     cfg[CONF_INDEX_OFFSET],
