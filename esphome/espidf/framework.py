@@ -9,7 +9,7 @@ from pathlib import Path
 import platform
 import re
 import shutil
-import tempfile
+from typing import NoReturn
 
 import platformdirs
 
@@ -20,6 +20,7 @@ from esphome.framework_helpers import (
     archive_extract_all,
     create_venv,
     download_from_mirrors,
+    download_with_resume,
     get_python_env_executable_path,
     get_system_python_path,
     rmdir,
@@ -231,6 +232,40 @@ def _write_stamp(file: PathType, data: dict[str, str]):
         json.dump(data, fp)
 
 
+def _run_idf_tools_script(
+    idf_framework_root: PathType,
+    script_name: str,
+    msg: str,
+    args: list[str] | None = None,
+    env: dict[str, str] | None = None,
+) -> tuple[bool, str | None, str | None]:
+    """Run one of the sibling idf_tools-backed helper scripts.
+
+    The script is executed with the framework's ``tools`` directory on
+    PYTHONPATH so it imports the framework's own ``idf_tools`` module.
+    """
+    cmd = [
+        get_system_python_path(),
+        str(_SCRIPTS_DIR / script_name),
+        str(idf_framework_root),
+        *(args or []),
+    ]
+    return run_command(
+        cmd,
+        msg=msg,
+        env=(env or os.environ)
+        | {"PYTHONPATH": str(Path(idf_framework_root) / "tools")},
+    )
+
+
+def _raise_script_failure(what: str, root: PathType, stderr: str | None) -> NoReturn:
+    """Raise RuntimeError for a failed helper script, appending stderr detail."""
+    detail = (stderr or "").strip()
+    raise RuntimeError(
+        f"Can't get {what} of {root}" + (f": {detail}" if detail else "")
+    )
+
+
 def _get_idf_version(
     idf_framework_root: PathType, env: dict[str, str] | None = None
 ) -> str:
@@ -248,26 +283,13 @@ def _get_idf_version(
         RuntimeError: If ESP-IDF version cannot be determined
     """
 
-    cmd = [
-        get_system_python_path(),
-        str(_SCRIPTS_DIR / "get_idf_version.py"),
-        str(idf_framework_root),
-    ]
-
-    success, stdout, stderr = run_command(
-        cmd,
-        msg="ESP-IDF version",
-        env=(env or os.environ)
-        | {"PYTHONPATH": str(Path(idf_framework_root) / "tools")},
+    success, stdout, stderr = _run_idf_tools_script(
+        idf_framework_root, "get_idf_version.py", "ESP-IDF version", env=env
     )
     if stdout:
         stdout = stdout.strip()
     if not success or not stdout:
-        detail = (stderr or "").strip()
-        raise RuntimeError(
-            f"Can't get ESP-IDF version of {idf_framework_root}"
-            + (f": {detail}" if detail else "")
-        )
+        _raise_script_failure("ESP-IDF version", idf_framework_root, stderr)
     return stdout
 
 
@@ -288,24 +310,11 @@ def _get_idf_tool_paths(
         RuntimeError: If ESP-IDF tool paths cannot be determined
     """
 
-    cmd = [
-        get_system_python_path(),
-        str(_SCRIPTS_DIR / "get_idf_tool_paths.py"),
-        str(idf_framework_root),
-    ]
-
-    success, stdout, stderr = run_command(
-        cmd,
-        msg="ESP-IDF tool paths",
-        env=(env or os.environ)
-        | {"PYTHONPATH": str(Path(idf_framework_root) / "tools")},
+    success, stdout, stderr = _run_idf_tools_script(
+        idf_framework_root, "get_idf_tool_paths.py", "ESP-IDF tool paths", env=env
     )
     if not success or not stdout:
-        detail = (stderr or "").strip()
-        raise RuntimeError(
-            f"Can't get ESP-IDF tool paths of {idf_framework_root}"
-            + (f": {detail}" if detail else "")
-        )
+        _raise_script_failure("ESP-IDF tool paths", idf_framework_root, stderr)
 
     # Extract json values
     try:
@@ -579,6 +588,69 @@ def _patch_tools_json_demote_openocd(framework_path: Path) -> None:
     )
 
 
+def _prefetch_idf_tool_archives(
+    framework_path: Path,
+    targets_str: str,
+    tools: list[str],
+    env: dict[str, str] | None,
+) -> None:
+    """Pre-download the tool archives ``idf_tools.py install`` would fetch.
+
+    ``idf_tools.py``'s own downloader restarts from byte zero on every retry,
+    which makes large archives effectively impossible to fetch on unstable
+    connections (#17703). This asks the framework's idf_tools (via
+    ``get_tool_downloads.py``) which archives the coming install needs, then
+    downloads each into ``<IDF_TOOLS_PATH>/dist`` with
+    ``download_with_resume``. The installer then finds the verified archives
+    already in place ("file ... is already downloaded") and never touches the
+    network.
+
+    Strictly best-effort: any failure here just logs and returns, leaving
+    ``idf_tools.py install`` to download whatever is missing exactly as
+    before. Leftover ``.part`` files live in ``dist/`` and are removed by the
+    post-install cache prune.
+    """
+    try:
+        success, stdout, stderr = _run_idf_tools_script(
+            framework_path,
+            "get_tool_downloads.py",
+            "ESP-IDF tool download list",
+            args=[targets_str, *tools],
+            env=env,
+        )
+        if not success or not stdout:
+            _LOGGER.warning(
+                "Could not determine ESP-IDF tool downloads: %s",
+                (stderr or "").strip(),
+            )
+            return
+        dist_path = get_idf_tools_path() / "dist"
+        entries = [
+            entry
+            for entry in json.loads(stdout)
+            if not (dist_path / entry["dest"]).is_file()
+        ]
+        for index, entry in enumerate(entries, start=1):
+            _LOGGER.info(
+                "Downloading %s (%d/%d) ...", entry["name"], index, len(entries)
+            )
+            try:
+                download_with_resume(
+                    entry["url"],
+                    dist_path / entry["dest"],
+                    sha256=entry["sha256"],
+                    size=entry["size"],
+                )
+            except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+                # Keep prefetching the remaining archives; the installer
+                # will retry this one itself (without resume).
+                _LOGGER.warning("Could not prefetch %s: %s", entry["name"], e)
+    except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        # The installer downloads anything missing itself; never let the
+        # prefetch become a new way for the install to fail.
+        _LOGGER.warning("ESP-IDF tool prefetch failed: %s", e)
+
+
 def _check_esphome_idf_framework_install(
     version: str,
     targets: list[str],
@@ -650,41 +722,51 @@ def _check_esphome_idf_framework_install(
             git_url, ref = git_source
             _clone_idf_with_submodules(framework_path, git_url, ref)
         else:
-            # Download in temporary file
-            with tempfile.NamedTemporaryFile() as tmp:
-                _LOGGER.info("Downloading ESP-IDF %s framework ...", version)
+            _LOGGER.info("Downloading ESP-IDF %s framework ...", version)
 
-                # Create substitutions for the URLs. SHORT_VERSION (x.y with
-                # optional -extra) is only provided for x.y.0 releases, since
-                # the vX.Y release tags only exist for those; templates that
-                # reference it are skipped for other versions by
-                # download_from_mirrors.
-                substitutions = {"VERSION": version}
-                try:
-                    ver = Version.parse(version)
-                    substitutions["MAJOR"] = str(ver.major)
-                    substitutions["MINOR"] = str(ver.minor)
-                    substitutions["PATCH"] = str(ver.patch)
-                    substitutions["EXTRA"] = f"-{ver.extra}" if ver.extra else ""
-                    if ver.patch == 0:
-                        substitutions["SHORT_VERSION"] = (
-                            f"{ver.major}.{ver.minor}{substitutions['EXTRA']}"
-                        )
-                except ValueError:
-                    _LOGGER.warning(
-                        "ESP-IDF version '%s' is not a valid version number; "
-                        "only the {VERSION} substitution is available for "
-                        "mirror URLs",
-                        version,
+            # Create substitutions for the URLs. SHORT_VERSION (x.y with
+            # optional -extra) is only provided for x.y.0 releases, since
+            # the vX.Y release tags only exist for those; templates that
+            # reference it are skipped for other versions by
+            # download_from_mirrors.
+            substitutions = {"VERSION": version}
+            try:
+                ver = Version.parse(version)
+                substitutions["MAJOR"] = str(ver.major)
+                substitutions["MINOR"] = str(ver.minor)
+                substitutions["PATCH"] = str(ver.patch)
+                substitutions["EXTRA"] = f"-{ver.extra}" if ver.extra else ""
+                if ver.patch == 0:
+                    substitutions["SHORT_VERSION"] = (
+                        f"{ver.major}.{ver.minor}{substitutions['EXTRA']}"
                     )
-
-                mirrors = [source_url] if source_url else ESPHOME_IDF_FRAMEWORK_MIRRORS
-                download_from_mirrors(mirrors, substitutions, tmp.file)
-
-                _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
-                archive_extract_all(
-                    tmp.file, framework_path, progress_header="Extracting"
+            except ValueError:
+                _LOGGER.warning(
+                    "ESP-IDF version '%s' is not a valid version number; "
+                    "only the {VERSION} substitution is available for "
+                    "mirror URLs",
+                    version,
                 )
+
+            mirrors = [source_url] if source_url else ESPHOME_IDF_FRAMEWORK_MIRRORS
+            # Download to a persistent file in the tool download cache (not
+            # a temp file) so an interrupted download resumes on the next
+            # run; the cache is pruned after a successful install anyway.
+            tarball_path = get_idf_tools_path() / "dist" / f"esp-idf-{version}.tar.xz"
+            download_from_mirrors(mirrors, substitutions, tarball_path)
+
+            _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
+            try:
+                with tarball_path.open("rb") as tarball:
+                    archive_extract_all(
+                        tarball, framework_path, progress_header="Extracting"
+                    )
+            finally:
+                # Success: drop the archive rather than caching ~70MB twice.
+                # Failure: a corrupt archive (e.g. torn by an unclean
+                # shutdown) must not be reused — without a checksum only a
+                # failed extraction can expose it, so force a re-download.
+                tarball_path.unlink(missing_ok=True)
         extracted_marker.touch()
 
     # Idempotent post-extract patch: written every invocation so a build
@@ -722,6 +804,7 @@ def _check_esphome_idf_framework_install(
     if install:
         _LOGGER.info("Installing ESP-IDF %s framework ...", version)
         targets_str = ",".join(targets)
+        _prefetch_idf_tool_archives(framework_path, targets_str, tools, env)
         cmd = [
             get_system_python_path(),
             str(idf_tools_path),
