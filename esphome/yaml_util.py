@@ -840,17 +840,22 @@ def _load_yaml_internal_with_type(
         loader.dispose()
 
 
-def dump(dict_, show_secrets=False, sort_keys=False):
-    """Dump YAML to a string and remove null."""
+def dump(dict_, show_secrets=False, sort_keys=False, relative_to: Path | None = None):
+    """Dump YAML to a string and remove null.
+
+    When ``relative_to`` is given, Path values are dumped relative to that
+    directory (POSIX form) so the output is machine independent.
+    """
     if show_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
 
-    # Per-call subclass so the redaction flag doesn't leak across calls.
+    # Per-call subclass so the flags don't leak across calls.
     # (``_SECRET_VALUES`` / ``_SECRET_CACHE`` remain module globals; YAML
-    # processing is single-threaded today, so this isolates only the flag.)
+    # processing is single-threaded today, so this isolates only the flags.)
     class _Dumper(ESPHomeDumper):
         _redact_sensitive = not show_secrets
+        _relative_to = relative_to
 
     return yaml.dump(
         dict_,
@@ -1002,9 +1007,13 @@ def format_path(path: DocumentPath, current_obj: Any) -> str:
 
 
 class ESPHomeDumper(yaml.SafeDumper):
-    # Default for the base class; per-call subclass in ``dump()`` overrides.
+    # Defaults for the base class; per-call subclass in ``dump()`` overrides.
     # When True, ``represent_sensitive`` wraps values in ANSI conceal codes.
     _redact_sensitive: bool = False
+    # When set, ``represent_path`` dumps Path values relative to this
+    # directory (in POSIX form) so the output does not depend on where the
+    # config lives on the machine that produced it.
+    _relative_to: Path | None = None
 
     def represent_mapping(self, tag, mapping, flow_style=None):
         value = []
@@ -1039,6 +1048,21 @@ class ESPHomeDumper(yaml.SafeDumper):
         if is_secret(value):
             return self.represent_secret(value)
         return self.represent_scalar(tag="tag:yaml.org,2002:str", value=str(value))
+
+    def represent_path(self, value: Path) -> yaml.ScalarNode:
+        if self._relative_to is not None:
+            # Normalize both sides lexically (no symlink resolution) so ".."
+            # segments do not defeat the prefix match, and walk up so files
+            # referenced outside the anchor directory stay relative too. A
+            # path that still cannot be relativized (e.g. a different drive)
+            # keeps its POSIX form so separators stay stable across OSes.
+            path = Path(os.path.normpath(value))
+            with suppress(ValueError):
+                path = path.relative_to(
+                    os.path.normpath(self._relative_to), walk_up=True
+                )
+            return self.represent_stringify(path.as_posix())
+        return self.represent_stringify(value)
 
     def represent_sensitive(self, value: SensitiveStr) -> yaml.ScalarNode:
         # Only the redact-and-not-a-secret branch is unique to sensitive
@@ -1138,5 +1162,5 @@ ESPHomeDumper.add_multi_representer(Extend, ESPHomeDumper.represent_extend)
 ESPHomeDumper.add_multi_representer(Remove, ESPHomeDumper.represent_remove)
 ESPHomeDumper.add_multi_representer(core.ID, ESPHomeDumper.represent_id)
 ESPHomeDumper.add_multi_representer(uuid.UUID, ESPHomeDumper.represent_stringify)
-ESPHomeDumper.add_multi_representer(Path, ESPHomeDumper.represent_stringify)
+ESPHomeDumper.add_multi_representer(Path, ESPHomeDumper.represent_path)
 ESPHomeDumper.add_multi_representer(IncludeFile, ESPHomeDumper.represent_include_file)
