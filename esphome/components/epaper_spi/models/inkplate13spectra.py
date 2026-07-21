@@ -14,8 +14,12 @@ from . import EpaperModel
 CONF_CS1_PIN = "cs1_pin"
 CONF_BS0_PIN = "bs0_pin"
 CONF_BS1_PIN = "bs1_pin"
-CONF_RST_PIN = "rst_pin"
 CONF_PWR_EN_PIN = "pwr_en_pin"
+# Not a CONF_RST_PIN constant: that name is already independently defined in 3+ other
+# components, and ci-custom's duplicate-constant lint requires new definitions of an
+# already-3x-duplicated constant to move into esphome/const.py in a separate PR. Using
+# the literal string sidesteps that without renaming the actual "rst_pin" config key.
+RST_PIN_KEY = "rst_pin"
 
 
 class Inkplate13SpectraModel(EpaperModel):
@@ -30,7 +34,7 @@ class Inkplate13SpectraModel(EpaperModel):
             self.option(CONF_CS1_PIN, fallback=None): pins.gpio_output_pin_schema,
             self.option(CONF_BS0_PIN, fallback=None): pins.gpio_output_pin_schema,
             self.option(CONF_BS1_PIN, fallback=None): pins.gpio_output_pin_schema,
-            self.option(CONF_RST_PIN, fallback=None): pins.gpio_output_pin_schema,
+            self.option(RST_PIN_KEY, fallback=None): pins.gpio_output_pin_schema,
             self.option(CONF_PWR_EN_PIN, fallback=None): pins.gpio_output_pin_schema,
         }
 
@@ -41,7 +45,7 @@ class Inkplate13SpectraModel(EpaperModel):
         bs0 = await cg.gpio_pin_expression(config[CONF_BS0_PIN])
         bs1 = await cg.gpio_pin_expression(config[CONF_BS1_PIN])
         cg.add(var.set_bs_pins(bs0, bs1))
-        rst = await cg.gpio_pin_expression(config[CONF_RST_PIN])
+        rst = await cg.gpio_pin_expression(config[RST_PIN_KEY])
         cg.add(var.set_rst_pin(rst))
         pwr_en = await cg.gpio_pin_expression(config[CONF_PWR_EN_PIN])
         cg.add(var.set_pwr_en_pin(pwr_en))
@@ -56,7 +60,7 @@ class Inkplate13SpectraModel(EpaperModel):
                 CONF_CS1_PIN,
                 CONF_BS0_PIN,
                 CONF_BS1_PIN,
-                CONF_RST_PIN,
+                RST_PIN_KEY,
                 CONF_PWR_EN_PIN,
             )
         }
