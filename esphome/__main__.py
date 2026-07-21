@@ -355,7 +355,7 @@ def choose_upload_log_host(
     bootsel_permission_error = False
     if (
         purpose == Purpose.UPLOADING
-        and CORE.is_rp2040
+        and CORE.is_rp2
         and (picotool := _find_picotool()) is not None
     ):
         bootsel = detect_rp2040_bootsel(picotool)
@@ -402,7 +402,7 @@ def choose_upload_log_host(
     # Show helpful BOOTSEL instructions for RP2040 when no BOOTSEL device is found
     if (
         purpose == Purpose.UPLOADING
-        and CORE.is_rp2040
+        and CORE.is_rp2
         and not any(get_port_type(opt[1]) == PortType.BOOTSEL for opt in options)
     ):
         if bootsel_permission_error:
@@ -776,6 +776,13 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
 
         check_placeholder_credentials(config)
 
+    # Keep this here, NOT in codegen: config-hash and --only-generate must keep
+    # working on machines that cannot run the toolchain.
+    if CORE.is_esp8266:
+        from esphome.components.esp8266 import check_rosetta
+
+        check_rosetta()
+
     # NOTE: "Build path:" format is parsed by script/ci_memory_impact_extract.py
     # If you change this format, update the regex in that script as well
     _LOGGER.info("Compiling app... Build path: %s", CORE.build_path)
@@ -985,7 +992,7 @@ def upload_using_platformio(config: ConfigType, port: str) -> int:
     # RP2040 platform-raspberrypi build recipe expects firmware.bin.signed for
     # the upload target, but 'nobuild' skips the build phase that creates it.
     # Create it here so the upload doesn't fail.
-    if CORE.is_rp2040:
+    if CORE.is_rp2:
         idedata = toolchain.get_idedata(config)
         build_dir = Path(idedata.firmware_elf_path).parent
         firmware_bin = build_dir / "firmware.bin"
@@ -1173,7 +1180,7 @@ def upload_program(
         if CORE.is_esp32 or CORE.is_esp8266:
             file = getattr(args, "file", None)
             exit_code = upload_using_esptool(config, host, file, args.upload_speed)
-        elif CORE.is_rp2040 or CORE.is_libretiny:
+        elif CORE.is_rp2 or CORE.is_libretiny:
             exit_code = upload_using_platformio(config, host)
         # else: Unknown target platform, exit_code remains 1
 
@@ -1510,10 +1517,18 @@ def _redact_with_legacy_fallback(output: str) -> str:
         m = _LEGACY_REDACTION_RE.search(line)
         if m is None:
             continue
+        key = m.group("key")
         if not in_substitutions:
-            unmarked.add(m.group("key"))
+            # Public keys (e.g. wireguard's peer_public_key) are not secret;
+            # redacting them and telling maintainers to mark them cv.sensitive
+            # would be wrong on both counts. Substitution keys are user-named
+            # with no schema behind them, so anything secret-shaped there
+            # (public or not) stays conservatively redacted.
+            if "public" in key.split("_"):
+                continue
+            unmarked.add(key)
         lines[i] = (
-            f"{line[: m.start()]}{m.group('key')}: "
+            f"{line[: m.start()]}{key}: "
             f"\\033[8m{m.group('val')}\\033[28m{line[m.end() :]}"
         )
     output = "\n".join(lines)
@@ -1647,7 +1662,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     # After BOOTSEL upload, wait for a new serial port to appear
     # so it shows up in the log chooser
-    if successful_device is None and CORE.is_rp2040:
+    if successful_device is None and CORE.is_rp2:
         _wait_for_serial_port(known_ports=pre_upload_ports)
         # If exactly one new serial port appeared, use it directly
         serial_ports = get_serial_ports()
