@@ -219,14 +219,11 @@ LightColorValues LightCall::validate_() {
     this->set_flag_(FLAG_HAS_STATE);
   }
 
-  // Make sure a turn-on makes the light visible: if the resulting brightness would be zero
-  // (e.g. restored from a brightness=0 turn-off), reset it to full brightness.
-  if (this->has_state() && this->state_ && (color_mode & ColorCapability::BRIGHTNESS)) {
-    float brightness = this->has_brightness() ? this->brightness_ : this->parent_->remote_values.get_brightness();
-    if (brightness == 0.0f) {
-      this->brightness_ = 1.0f;
-      this->set_flag_(FLAG_HAS_BRIGHTNESS);
-    }
+  // Make sure a simple (no specific brightness) turn-on makes the light visible
+  if (this->has_state() && this->state_ && (color_mode & ColorCapability::BRIGHTNESS) && !this->has_brightness() &&
+      this->parent_->remote_values.get_brightness() == 0.0f) {
+    this->brightness_ = 1.0f;
+    this->set_flag_(FLAG_HAS_BRIGHTNESS);
   }
 
   // Set color brightness to 100% if currently zero and a color is set.
