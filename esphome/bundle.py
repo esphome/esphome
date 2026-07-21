@@ -619,13 +619,14 @@ def read_bundle_manifest(bundle_path: Path) -> BundleManifest:
     except tarfile.TarError as err:
         raise EsphomeError(f"Failed to read bundle: {err}") from err
 
+    config_dir = manifest.get(ManifestKey.CONFIG_DIR)
     return BundleManifest(
         manifest_version=manifest[ManifestKey.MANIFEST_VERSION],
         esphome_version=manifest.get(ManifestKey.ESPHOME_VERSION, "unknown"),
         config_filename=manifest[ManifestKey.CONFIG_FILENAME],
         files=manifest.get(ManifestKey.FILES, []),
         has_secrets=manifest.get(ManifestKey.HAS_SECRETS, False),
-        config_dir=manifest.get(ManifestKey.CONFIG_DIR),
+        config_dir=config_dir if isinstance(config_dir, str) else None,
     )
 
 

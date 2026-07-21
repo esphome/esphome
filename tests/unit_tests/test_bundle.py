@@ -516,6 +516,15 @@ def test_read_bundle_manifest_minimal(tmp_path: Path) -> None:
     assert result.config_dir is None
 
 
+def test_read_bundle_manifest_non_string_config_dir(tmp_path: Path) -> None:
+    """A malformed config_dir value is dropped rather than propagated."""
+    bundle_path = _make_bundle(
+        tmp_path, manifest_overrides={ManifestKey.CONFIG_DIR: 42}
+    )
+
+    assert read_bundle_manifest(bundle_path).config_dir is None
+
+
 # ---------------------------------------------------------------------------
 # remap_bundle_path
 # ---------------------------------------------------------------------------
