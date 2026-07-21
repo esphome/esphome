@@ -353,7 +353,8 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
     default:
       break;
   }
-
+  
+  this->mode_before_ = this->mode;
   this->publish_state();
 
   return true;
