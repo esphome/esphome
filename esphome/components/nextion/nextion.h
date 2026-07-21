@@ -1469,6 +1469,9 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   void all_components_send_state_(bool force_update = false);
   uint32_t comok_sent_ = 0;
   bool remove_from_q_(bool report_empty = true);
+  /// Deliver a 0x71 numeric return to the first SENSOR/BINARY_SENSOR/SWITCH entry in the queue,
+  /// skipping any NO_RESULT entries ahead of it (those are consumed by their own 0x01 ACK).
+  void set_numeric_return_(int value);
 
   /**
    * @brief Status flags for Nextion display state management
