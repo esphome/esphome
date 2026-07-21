@@ -1,0 +1,118 @@
+#pragma once
+
+#include "epaper_spi.h"
+
+namespace esphome::epaper_spi {
+
+/**
+ * Soldered Inkplate 13 Spectra: 1200x1600 6-color (black/white/yellow/red/blue/green)
+ * e-paper, dual-chip controller (13.3" E Ink Spectra 6 panel). The panel is split into
+ * two halves, each with its own chip-select: CS (master, left half of every row) and
+ * CS1 (slave, right half). BS0/BS1 select the controllers' interface mode.
+ *
+ * GPIO power-on bring-up (all-pins-low, then IO setup + PWR_EN, then an RST pulse) runs
+ * inside reset(), not initialise(). reset()/RESET_END is the one state EPaperBase never
+ * busy-gates (see epaper_spi.h), so this sequence completes before the panel is powered
+ * -- and before power-on, BUSY reads the same level as "genuinely busy", so gating on it
+ * there would hang forever. initialise() only starts once the panel is actually powered,
+ * so its busy-pin checks reflect a real signal.
+ *
+ * Partial (PTLW) update is not implemented -- not needed yet, and EPaperBase's automatic
+ * full/partial toggle only carries a bool, not a rectangle, so it would need new public
+ * API surface to even be reachable.
+ */
+class EPaperInkplate13Spectra final : public EPaperBase {
+ public:
+  EPaperInkplate13Spectra(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
+                           size_t init_sequence_length)
+      : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_COLOR) {
+    this->buffer_length_ = (size_t) width * height / 2;  // 2 pixels per byte at 4bpp
+  }
+
+  void set_rst_pin(GPIOPin *p) { this->rst_pin_ = p; }
+  void set_pwr_en_pin(GPIOPin *p) { this->pwr_en_pin_ = p; }
+  void set_cs_pins(GPIOPin *cs_m, GPIOPin *cs_s) {
+    this->cs_m_pin_ = cs_m;
+    this->cs_s_pin_ = cs_s;
+  }
+  void set_bs_pins(GPIOPin *bs0, GPIOPin *bs1) {
+    this->bs0_pin_ = bs0;
+    this->bs1_pin_ = bs1;
+  }
+
+  void setup() override;
+  void dump_config() override;
+  void fill(Color color) override;
+  void draw_pixel_at(int x, int y, Color color) override;
+
+ protected:
+  // Rows sent per transfer_data() tick -- keeps each SPI burst short enough that the
+  // main loop stays responsive during a multi-second refresh.
+  static constexpr size_t ROWS_PER_CHUNK = 16;
+
+  // GPIO power-on bring-up, run inside reset()/RESET_END (see class-level comment).
+  enum ResetSub {
+    RST_PINS_LOW,
+    RST_PINS_LOW_WAIT,    // 50 ms
+    RST_IO_WAIT,          // 100 ms after PWR_EN goes high
+    RST_LOW_WAIT,         // 100 ms RST low
+    RST_HIGH_WAIT,        // 100 ms RST high
+    RST_DONE,
+  };
+
+  enum InitSub {
+    INIT_SEND_SEQUENCE,
+    INIT_WAIT_PON,  // busy wait after PON command
+    INIT_DONE,
+  };
+
+  enum TransferSub {
+    TRF_MASTER,
+    TRF_WAIT_MASTER,
+    TRF_SLAVE,
+    TRF_WAIT_SLAVE,
+    TRF_DONE,
+  };
+
+  bool reset() override;
+  bool initialise(bool partial) override;
+  bool transfer_data() override;
+  void power_on() override;
+  void refresh_screen(bool partial) override;
+  void power_off() override;
+  void deep_sleep() override;
+
+  void set_io_pins_();
+  void set_all_pins_low_();
+
+  /// Send a command (and optional data) to one or both chips. chip: 1=master, 2=slave, 3=both.
+  void write_command_to_chip_(uint8_t cmd, const uint8_t *data, size_t len, uint8_t chip);
+  void write_command_to_chip_(uint8_t cmd, std::initializer_list<uint8_t> data, uint8_t chip) {
+    this->write_command_to_chip_(cmd, data.begin(), data.size(), chip);
+  }
+  void write_command_to_chip_(uint8_t cmd, uint8_t chip) { this->write_command_to_chip_(cmd, nullptr, 0, chip); }
+
+  /// Replays the panel register init table.
+  void send_init_sequence_();
+
+  /// Throttled (1/s) debug log of the raw busy pin state, for bring-up diagnostics.
+  void log_busy_state_(const char *where);
+
+  /// Convert Color to the 4-bit hardware palette index (0=black,1=white,2=yellow,3=red,5=blue,6=green).
+  static uint8_t color_to_index(Color color);
+
+  GPIOPin *rst_pin_{nullptr};
+  GPIOPin *pwr_en_pin_{nullptr};
+  GPIOPin *cs_m_pin_{nullptr};
+  GPIOPin *cs_s_pin_{nullptr};
+  GPIOPin *bs0_pin_{nullptr};
+  GPIOPin *bs1_pin_{nullptr};
+
+  ResetSub reset_sub_{RST_PINS_LOW};
+  InitSub trf_init_sub_{INIT_SEND_SEQUENCE};
+  TransferSub transfer_sub_{TRF_MASTER};
+  size_t transfer_row_{0};
+  uint32_t wait_log_ms_{0};
+};
+
+}  // namespace esphome::epaper_spi
