@@ -17,9 +17,12 @@ namespace esphome::epaper_spi {
  * there would hang forever. initialise() only starts once the panel is actually powered,
  * so its busy-pin checks reflect a real signal.
  *
- * Partial (PTLW) update is not implemented -- not needed yet, and EPaperBase's automatic
- * full/partial toggle only carries a bool, not a rectangle, so it would need new public
- * API surface to even be reachable.
+ * Partial update sends a sub-rectangle instead of the full buffer: each chip gets a PTLW
+ * (partial window) command describing its slice of the region, then only those rows/bytes.
+ * The panel requires both chips to complete a full CMD66->PTLW->DTM cycle on every partial
+ * refresh, so a chip untouched by the requested rectangle still gets a null (4x4, at
+ * origin) PTLW. display_partial() does not run the display's lambda -- the caller must
+ * already have drawn the updated pixels into the buffer before calling it.
  */
 class EPaperInkplate13Spectra final : public EPaperBase {
  public:
@@ -44,6 +47,11 @@ class EPaperInkplate13Spectra final : public EPaperBase {
   void dump_config() override;
   void fill(Color color) override;
   void draw_pixel_at(int x, int y, Color color) override;
+  void update() override;
+
+  // Trigger a partial (subregion) update. x/y/w/h are in logical (rotated) coords.
+  // The buffer must already contain the updated pixels before calling this.
+  void display_partial(int x, int y, int w, int h);
 
  protected:
   // Rows sent per transfer_data() tick -- keeps each SPI burst short enough that the
@@ -66,12 +74,32 @@ class EPaperInkplate13Spectra final : public EPaperBase {
     INIT_DONE,
   };
 
+  // Full path:    TRF_MASTER -> TRF_WAIT_MASTER -> TRF_SLAVE -> TRF_WAIT_SLAVE -> TRF_DONE
+  // Partial path: TRF_PARTIAL_SETUP_M -> TRF_PARTIAL_DATA_M -> TRF_PARTIAL_WAIT_M
+  //               -> TRF_PARTIAL_SETUP_S -> TRF_PARTIAL_DATA_S -> TRF_PARTIAL_WAIT_S -> TRF_DONE
   enum TransferSub {
     TRF_MASTER,
     TRF_WAIT_MASTER,
     TRF_SLAVE,
     TRF_WAIT_SLAVE,
     TRF_DONE,
+    TRF_PARTIAL_SETUP_M,
+    TRF_PARTIAL_DATA_M,
+    TRF_PARTIAL_WAIT_M,
+    TRF_PARTIAL_SETUP_S,
+    TRF_PARTIAL_DATA_S,
+    TRF_PARTIAL_WAIT_S,
+  };
+
+  // Per-chip PTLW parameters, computed once per partial cycle in compute_ptlw_params_()
+  // so transfer_data() can stream data without recomputing anything mid-transfer.
+  struct PartialChipParams {
+    bool needed{false};  // false -> chip is outside the update region, send a null PTLW
+    uint8_t ptlw[9]{};   // 9-byte PTLW payload: HRST(2), HRED(2), VRST(2), VRED(2), PT(1)
+    int mem_col_off{0};  // byte offset from the start of a row in buffer_ for this chip's window
+    int bytes_per_row{0};
+    int row_start{0};  // first physical row to send (inclusive)
+    int row_end{0};     // last physical row to send (inclusive)
   };
 
   bool reset() override;
@@ -95,6 +123,9 @@ class EPaperInkplate13Spectra final : public EPaperBase {
   /// Replays the panel register init table.
   void send_init_sequence_();
 
+  /// Fills ptlw_master_/ptlw_slave_ from partial_x_/y_/w_/h_.
+  void compute_ptlw_params_();
+
   /// Throttled (1/s) debug log of the raw busy pin state, for bring-up diagnostics.
   void log_busy_state_(const char *where);
 
@@ -113,6 +144,14 @@ class EPaperInkplate13Spectra final : public EPaperBase {
   TransferSub transfer_sub_{TRF_MASTER};
   size_t transfer_row_{0};
   uint32_t wait_log_ms_{0};
+
+  bool partial_update_{false};
+  int partial_x_{0};
+  int partial_y_{0};
+  int partial_w_{0};
+  int partial_h_{0};
+  PartialChipParams ptlw_master_;
+  PartialChipParams ptlw_slave_;
 };
 
 }  // namespace esphome::epaper_spi

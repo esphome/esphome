@@ -12,10 +12,18 @@ static constexpr uint8_t REG_DTM = 0x10;
 static constexpr uint8_t REG_DRF = 0x12;
 static constexpr uint8_t REG_PON = 0x04;
 static constexpr uint8_t REG_POF = 0x02;
+static constexpr uint8_t REG_PTLW = 0x83;   // partial window
+static constexpr uint8_t REG_CMD66 = 0xF0;  // waveform select, required again before PTLW
 
 static constexpr uint8_t CHIP_MASTER = 1;
 static constexpr uint8_t CHIP_SLAVE = 2;
 static constexpr uint8_t CHIP_BOTH = 3;
+
+static constexpr uint8_t CMD66_V[] = {0x49, 0x55, 0x13, 0x5D, 0x05, 0x10};
+
+// 4x4 window at physical origin -- sent to whichever chip the requested rectangle
+// doesn't touch, so both chips still complete a full CMD66->PTLW->DTM cycle.
+static constexpr uint8_t NULL_PTLW[9] = {0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x01, 0x01};
 
 void EPaperInkplate13Spectra::setup() {
   EPaperBase::setup();
@@ -35,6 +43,31 @@ void EPaperInkplate13Spectra::dump_config() {
   LOG_PIN("  CS_S Pin: ", this->cs_s_pin_);
   LOG_PIN("  BS0 Pin: ", this->bs0_pin_);
   LOG_PIN("  BS1 Pin: ", this->bs1_pin_);
+}
+
+// A normal update() always does a full refresh; only display_partial() below does a
+// sub-rectangle. transfer_sub_ decides which path transfer_data() takes, so it has to
+// be set here, before the state machine starts.
+void EPaperInkplate13Spectra::update() {
+  this->partial_update_ = false;
+  this->transfer_sub_ = TRF_MASTER;
+  EPaperBase::update();
+}
+
+void EPaperInkplate13Spectra::display_partial(int x, int y, int w, int h) {
+  if (this->state_ != EPaperState::IDLE) {
+    ESP_LOGW(TAG, "display_partial(): skipped, display busy (state %s)", this->epaper_state_to_string_());
+    return;
+  }
+  this->partial_x_ = x;
+  this->partial_y_ = y;
+  this->partial_w_ = w;
+  this->partial_h_ = h;
+  this->partial_update_ = true;
+  this->transfer_sub_ = TRF_PARTIAL_SETUP_M;
+  this->compute_ptlw_params_();
+  this->enable_loop();
+  this->set_state_(EPaperState::RESET);
 }
 
 uint8_t EPaperInkplate13Spectra::color_to_index(Color color) {
@@ -111,6 +144,118 @@ void EPaperInkplate13Spectra::send_init_sequence_() {
   this->write_command_to_chip_(0x05, {0xD8, 0x18}, CHIP_MASTER);                                            // BTST_N
   this->write_command_to_chip_(0xB0, {0x01}, CHIP_MASTER);                                                  // BUCK_BOOST_VDDN
   this->write_command_to_chip_(0xB1, {0x02}, CHIP_MASTER);                                                  // TFT_VCOM_POWER
+}
+
+// Maps the requested logical (rotated) rectangle to physical panel columns/rows, then
+// splits that physical window across the two chips (master: cols 0..599, slave: cols
+// 600..1199). HRST/HRED are in half-column units, VRST/VRED in half-row units -- that's
+// the panel's own addressing granularity, not something this code chose.
+void EPaperInkplate13Spectra::compute_ptlw_params_() {
+  this->ptlw_master_.needed = false;
+  this->ptlw_slave_.needed = false;
+
+  int x = this->partial_x_, y = this->partial_y_, w = this->partial_w_, h = this->partial_h_;
+
+  // Clip the requested region to the logical (rotation-aware) canvas.
+  if (x < 0) {
+    w += x;
+    x = 0;
+  }
+  if (y < 0) {
+    h += y;
+    y = 0;
+  }
+  if (x + w > this->get_width()) w = this->get_width() - x;
+  if (y + h > this->get_height()) h = this->get_height() - y;
+  if (w <= 0 || h <= 0) return;
+
+  const int16_t W = (int16_t) this->width_;   // physical panel width  = 1200
+  const int16_t H = (int16_t) this->height_;  // physical panel height = 1600
+
+  // Map logical coords to physical col/row by running both rectangle corners through
+  // the same effective_transform_ (rotation + mirror_x/mirror_y) that draw_pixel_at()
+  // uses via rotate_coordinates_(). This has to be the same transform as draw_pixel_at,
+  // or the window pushed to the panel and the pixels actually drawn land in different
+  // places -- rotation_ alone isn't enough on boards that also need a static mirror.
+  int x0 = x, y0 = y, x1 = x + w - 1, y1 = y + h - 1;
+  if (this->effective_transform_ & SWAP_XY) {
+    std::swap(x0, y0);
+    std::swap(x1, y1);
+  }
+  if (this->effective_transform_ & MIRROR_X) {
+    x0 = this->width_ - x0 - 1;
+    x1 = this->width_ - x1 - 1;
+  }
+  if (this->effective_transform_ & MIRROR_Y) {
+    y0 = this->height_ - y0 - 1;
+    y1 = this->height_ - y1 - 1;
+  }
+  int16_t col_start = (int16_t) std::min(x0, x1);
+  int16_t col_end = (int16_t) std::max(x0, x1);
+  int16_t row_start = (int16_t) std::min(y0, y1);
+  int16_t row_end = (int16_t) std::max(y0, y1);
+
+  // Align to hardware constraints: columns start/end on multiples of 4, rows in pairs.
+  col_start = (col_start / 4) * 4;
+  col_end = (((col_end + 4) / 4) * 4) - 1;
+  if (col_end >= W) col_end = W - 1;
+  if (row_start % 2) row_start--;
+  if (row_start < 0) row_start = 0;
+  if ((row_end + 1) % 2) row_end++;
+  if (row_end >= H) row_end = H - 1;
+
+  const int16_t HALF_W = W / 2;       // 600 physical cols per chip
+  const int16_t HALF_BYTES = HALF_W / 2;  // 300 bytes per row per chip
+
+  // Master chip handles physical cols 0..HALF_W-1.
+  if (col_start < HALF_W) {
+    int16_t lcs = col_start;
+    int16_t lce = (col_end < HALF_W) ? col_end : (int16_t) (HALF_W - 1);
+    uint16_t hrst = (uint16_t) lcs * 2;
+    uint16_t hred = (uint16_t) (lce + 1) * 2 - 1;
+    uint16_t vrst = (uint16_t) row_start / 2;
+    uint16_t vred = (uint16_t) (row_end + 1) / 2 - 1;
+    auto &p = this->ptlw_master_;
+    p.ptlw[0] = hrst >> 8;
+    p.ptlw[1] = hrst & 0xFF;
+    p.ptlw[2] = hred >> 8;
+    p.ptlw[3] = hred & 0xFF;
+    p.ptlw[4] = vrst >> 8;
+    p.ptlw[5] = vrst & 0xFF;
+    p.ptlw[6] = vred >> 8;
+    p.ptlw[7] = vred & 0xFF;
+    p.ptlw[8] = 0x01;
+    p.bytes_per_row = (lce - lcs + 1) / 2;
+    p.mem_col_off = lcs / 2;
+    p.row_start = row_start;
+    p.row_end = row_end;
+    p.needed = true;
+  }
+
+  // Slave chip handles physical cols HALF_W..W-1.
+  if (col_end >= HALF_W) {
+    int16_t lcs = (col_start >= HALF_W) ? (int16_t) (col_start - HALF_W) : 0;
+    int16_t lce = col_end - HALF_W;
+    uint16_t hrst = (uint16_t) lcs * 2;
+    uint16_t hred = (uint16_t) (lce + 1) * 2 - 1;
+    uint16_t vrst = (uint16_t) row_start / 2;
+    uint16_t vred = (uint16_t) (row_end + 1) / 2 - 1;
+    auto &p = this->ptlw_slave_;
+    p.ptlw[0] = hrst >> 8;
+    p.ptlw[1] = hrst & 0xFF;
+    p.ptlw[2] = hred >> 8;
+    p.ptlw[3] = hred & 0xFF;
+    p.ptlw[4] = vrst >> 8;
+    p.ptlw[5] = vrst & 0xFF;
+    p.ptlw[6] = vred >> 8;
+    p.ptlw[7] = vred & 0xFF;
+    p.ptlw[8] = 0x01;
+    p.bytes_per_row = (lce - lcs + 1) / 2;
+    p.mem_col_off = HALF_BYTES + lcs / 2;
+    p.row_start = row_start;
+    p.row_end = row_end;
+    p.needed = true;
+  }
 }
 
 void EPaperInkplate13Spectra::set_all_pins_low_() {
@@ -291,6 +436,112 @@ bool EPaperInkplate13Spectra::transfer_data() {
       this->transfer_sub_ = TRF_DONE;
       return true;
 
+    // Null PTLW: 4-col x 4-row window at the physical origin of this chip, sent to a
+    // chip the requested rectangle doesn't touch so it still completes CMD66->PTLW->DTM.
+    case TRF_PARTIAL_SETUP_M: {
+      this->write_command_to_chip_(REG_CMD66, CMD66_V, sizeof(CMD66_V), CHIP_MASTER);
+      if (!this->ptlw_master_.needed) {
+        this->write_command_to_chip_(REG_PTLW, NULL_PTLW, 9, CHIP_MASTER);
+        this->cs_m_pin_->digital_write(false);
+        this->enable();
+        this->write_byte(REG_DTM);
+        for (int r = 0; r < 4; r++) {
+          size_t row_off = (size_t) r * bytes_per_row;
+          for (size_t j = 0; j < 2; j++) row_buf[j] = this->buffer_[row_off + j];
+          this->write_array(row_buf, 2);
+        }
+        this->disable();
+        this->cs_m_pin_->digital_write(true);
+        this->transfer_sub_ = TRF_PARTIAL_WAIT_M;
+      } else {
+        ESP_LOGD(TAG, "transfer: partial master CMD66+PTLW+DTM start");
+        this->write_command_to_chip_(REG_PTLW, this->ptlw_master_.ptlw, 9, CHIP_MASTER);
+        this->cs_m_pin_->digital_write(false);
+        this->enable();
+        this->write_byte(REG_DTM);
+        this->transfer_row_ = (size_t) this->ptlw_master_.row_start;
+        this->transfer_sub_ = TRF_PARTIAL_DATA_M;
+      }
+      return false;
+    }
+
+    case TRF_PARTIAL_DATA_M: {
+      size_t end = std::min(this->transfer_row_ + ROWS_PER_CHUNK, (size_t) (this->ptlw_master_.row_end + 1));
+      for (size_t i = this->transfer_row_; i < end; i++) {
+        size_t row_off = i * bytes_per_row + (size_t) this->ptlw_master_.mem_col_off;
+        for (int j = 0; j < this->ptlw_master_.bytes_per_row; j++) row_buf[j] = this->buffer_[row_off + j];
+        this->write_array(row_buf, this->ptlw_master_.bytes_per_row);
+      }
+      this->transfer_row_ = end;
+      if (this->transfer_row_ > (size_t) this->ptlw_master_.row_end) {
+        this->disable();
+        this->cs_m_pin_->digital_write(true);
+        this->transfer_sub_ = TRF_PARTIAL_WAIT_M;
+        ESP_LOGD(TAG, "transfer: partial master DTM done");
+      }
+      return false;
+    }
+
+    case TRF_PARTIAL_WAIT_M:
+      if (!this->is_idle_()) {
+        this->log_busy_state_("transfer_data(): TRF_PARTIAL_WAIT_M");
+        return false;
+      }
+      this->transfer_sub_ = TRF_PARTIAL_SETUP_S;
+      return false;
+
+    case TRF_PARTIAL_SETUP_S: {
+      this->write_command_to_chip_(REG_CMD66, CMD66_V, sizeof(CMD66_V), CHIP_SLAVE);
+      if (!this->ptlw_slave_.needed) {
+        this->write_command_to_chip_(REG_PTLW, NULL_PTLW, 9, CHIP_SLAVE);
+        this->cs_s_pin_->digital_write(false);
+        this->enable();
+        this->write_byte(REG_DTM);
+        for (int r = 0; r < 4; r++) {
+          size_t row_off = (size_t) r * bytes_per_row + half;
+          for (size_t j = 0; j < 2; j++) row_buf[j] = this->buffer_[row_off + j];
+          this->write_array(row_buf, 2);
+        }
+        this->disable();
+        this->cs_s_pin_->digital_write(true);
+        this->transfer_sub_ = TRF_PARTIAL_WAIT_S;
+      } else {
+        ESP_LOGD(TAG, "transfer: partial slave CMD66+PTLW+DTM start");
+        this->write_command_to_chip_(REG_PTLW, this->ptlw_slave_.ptlw, 9, CHIP_SLAVE);
+        this->cs_s_pin_->digital_write(false);
+        this->enable();
+        this->write_byte(REG_DTM);
+        this->transfer_row_ = (size_t) this->ptlw_slave_.row_start;
+        this->transfer_sub_ = TRF_PARTIAL_DATA_S;
+      }
+      return false;
+    }
+
+    case TRF_PARTIAL_DATA_S: {
+      size_t end = std::min(this->transfer_row_ + ROWS_PER_CHUNK, (size_t) (this->ptlw_slave_.row_end + 1));
+      for (size_t i = this->transfer_row_; i < end; i++) {
+        size_t row_off = i * bytes_per_row + (size_t) this->ptlw_slave_.mem_col_off;
+        for (int j = 0; j < this->ptlw_slave_.bytes_per_row; j++) row_buf[j] = this->buffer_[row_off + j];
+        this->write_array(row_buf, this->ptlw_slave_.bytes_per_row);
+      }
+      this->transfer_row_ = end;
+      if (this->transfer_row_ > (size_t) this->ptlw_slave_.row_end) {
+        this->disable();
+        this->cs_s_pin_->digital_write(true);
+        this->transfer_sub_ = TRF_PARTIAL_WAIT_S;
+        ESP_LOGD(TAG, "transfer: partial slave DTM done");
+      }
+      return false;
+    }
+
+    case TRF_PARTIAL_WAIT_S:
+      if (!this->is_idle_()) {
+        this->log_busy_state_("transfer_data(): TRF_PARTIAL_WAIT_S");
+        return false;
+      }
+      this->transfer_sub_ = TRF_DONE;
+      return true;
+
     case TRF_DONE:
       return true;
   }
@@ -325,10 +576,11 @@ void EPaperInkplate13Spectra::deep_sleep() {
   this->rst_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->rst_pin_->digital_write(false);
 
-  // Prime sub-state counters for the next cycle's reset()/initialise()/transfer_data().
+  // Prime shared sub-state counters for the next cycle. transfer_sub_'s starting state
+  // is decided in update()/display_partial() instead, since only they know at that point
+  // whether the next cycle is a full or partial refresh.
   this->reset_sub_ = RST_PINS_LOW;
   this->trf_init_sub_ = INIT_SEND_SEQUENCE;
-  this->transfer_sub_ = TRF_MASTER;
   this->transfer_row_ = 0;
   ESP_LOGD(TAG, "panel deep sleep");
 }
