@@ -227,6 +227,10 @@ def remap_bundle_path(value: str) -> Path | None:
         rel = path.relative_to(original_dir)
     except ValueError:
         return None
+    # relative_to is lexical, so ".." segments survive it. Refuse them: the
+    # remapped file must land strictly inside the extracted config tree.
+    if ".." in rel.parts:
+        return None
     remapped = CORE.relative_config_path(Path(*rel.parts))
     if not remapped.exists():
         return None

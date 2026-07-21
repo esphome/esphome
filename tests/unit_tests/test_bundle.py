@@ -595,6 +595,24 @@ def test_remap_bundle_path_windows_bundle_path_not_under_config_dir(
     assert remap_bundle_path(r"D:\other\partitions.csv") is None
 
 
+def test_remap_bundle_path_windows_profile_with_spaces(tmp_path: Path) -> None:
+    r"""A Windows profile like C:\Users\First Last remaps like any other dir."""
+    extract_dir = _setup_extracted_dir(
+        tmp_path,
+        _bundle_manifest_dict(
+            **{ManifestKey.CONFIG_DIR: r"C:\Users\First Last\esphome"}
+        ),
+        files={"boards/my partitions.csv": "csv\n"},
+    )
+
+    remapped = remap_bundle_path(
+        r"C:\Users\First Last\esphome\boards\my partitions.csv"
+    )
+
+    assert remapped == extract_dir / "boards" / "my partitions.csv"
+    assert remapped.is_file()
+
+
 def test_remap_bundle_path_unc_config_dir(tmp_path: Path) -> None:
     """A bundle created from a UNC share remaps like any other Windows path."""
     extract_dir = _setup_extracted_dir(
@@ -617,6 +635,15 @@ def test_remap_bundle_path_flavor_mismatch(tmp_path: Path) -> None:
     )
 
     assert remap_bundle_path("/original/config/partitions.csv") is None
+
+
+def test_remap_bundle_path_rejects_traversal(tmp_path: Path) -> None:
+    """A remap may never escape the extracted config tree."""
+    extract_dir = _setup_extracted_dir(tmp_path, _bundle_manifest_dict())
+    (tmp_path / "outside.csv").write_text("csv\n")
+    assert (extract_dir / ".." / "outside.csv").resolve().is_file()
+
+    assert remap_bundle_path(f"{ORIGINAL_CONFIG_DIR}/../outside.csv") is None
 
 
 def test_remap_bundle_path_relative_value(tmp_path: Path) -> None:
