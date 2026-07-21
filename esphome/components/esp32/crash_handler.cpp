@@ -351,8 +351,9 @@ void crash_handler_log() {
   ESP_LOGE(TAG, "  PC:  0x%08" PRIX32 "  (fault location)", s_raw_crash_data.pc);
   // Faulting memory address — only meaningful for real CPU faults, not
   // aborts/watchdogs or SoC-level pseudo exceptions. Uses the same register
-  // names as ESP-IDF's live register dump so the CLI decodes EXCVADDR when it
-  // happens to be a code address.
+  // name as ESP-IDF's live register dump for the architecture (EXCVADDR on
+  // Xtensa, MTVAL on RISC-V) so the CLI decodes it when it happens to be a
+  // code address.
   if (s_raw_crash_data.exception == PANIC_EXCEPTION_FAULT && !s_raw_crash_data.pseudo_excause) {
 #if CONFIG_IDF_TARGET_ARCH_XTENSA
     ESP_LOGE(TAG, "  EXCVADDR: 0x%08" PRIX32 "  (faulting address)", s_raw_crash_data.fault_addr);
