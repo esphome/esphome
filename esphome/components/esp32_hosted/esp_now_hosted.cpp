@@ -74,27 +74,43 @@ volatile esp_now_send_cb_t g_send_cb = nullptr;
 // RX thread that delivers the response, and deadlock.
 
 void on_resp(uint32_t /*msg_id*/, const uint8_t *data, size_t len, void * /*ctx*/) {
-  if (len < sizeof(esp_now_hosted_resp_t))
+  if (len < sizeof(esp_now_hosted_resp_t)) {
+    ESP_LOGW(TAG, "RESP too short: %u bytes", static_cast<unsigned>(len));
     return;
+  }
   const auto *r = reinterpret_cast<const esp_now_hosted_resp_t *>(data);
-  if (r->seq != g_expect_seq)  // stale response from a timed-out request
+  if (r->seq != g_expect_seq) {  // late response from a timed-out request (expected)
+    ESP_LOGV(TAG, "dropping stale RESP seq %u (want %u)", r->seq, g_expect_seq);
     return;
+  }
   g_resp_status = r->status;
   uint16_t rl = r->ret_len;
   if (rl > sizeof(g_resp_ret))
     rl = sizeof(g_resp_ret);
-  if (len >= sizeof(esp_now_hosted_resp_t) + rl)
+  if (len >= sizeof(esp_now_hosted_resp_t) + rl) {
     memcpy(g_resp_ret, r->ret, rl);
+  } else {
+    // Truncated frame: fail closed. Never hand the caller stale bytes left in
+    // g_resp_ret by a previous response — report zero return bytes instead.
+    ESP_LOGW(TAG, "RESP truncated: claims %u ret bytes, frame too short", rl);
+    rl = 0;
+  }
   g_resp_ret_len = rl;
   xSemaphoreGive(g_resp_sem);
 }
 
 void on_recv(uint32_t /*msg_id*/, const uint8_t *data, size_t len, void * /*ctx*/) {
-  if (g_recv_cb == nullptr || len < sizeof(esp_now_hosted_recv_evt_t))
+  if (g_recv_cb == nullptr)
     return;
+  if (len < sizeof(esp_now_hosted_recv_evt_t)) {
+    ESP_LOGW(TAG, "RECV too short: %u bytes", static_cast<unsigned>(len));
+    return;
+  }
   const auto *e = reinterpret_cast<const esp_now_hosted_recv_evt_t *>(data);
-  if (len < sizeof(esp_now_hosted_recv_evt_t) + e->data_len)
+  if (len < sizeof(esp_now_hosted_recv_evt_t) + e->data_len) {
+    ESP_LOGW(TAG, "RECV data_len %u exceeds frame", e->data_len);
     return;
+  }
 
   // ESPHome dereferences info->rx_ctrl->{rssi,timestamp}; give it a real one.
   wifi_pkt_rx_ctrl_t rx_ctrl;
@@ -111,8 +127,12 @@ void on_recv(uint32_t /*msg_id*/, const uint8_t *data, size_t len, void * /*ctx*
 }
 
 void on_send(uint32_t /*msg_id*/, const uint8_t *data, size_t len, void * /*ctx*/) {
-  if (g_send_cb == nullptr || len < sizeof(esp_now_hosted_send_evt_t))
+  if (g_send_cb == nullptr)
     return;
+  if (len < sizeof(esp_now_hosted_send_evt_t)) {
+    ESP_LOGW(TAG, "SEND evt too short: %u bytes", static_cast<unsigned>(len));
+    return;
+  }
   const auto *e = reinterpret_cast<const esp_now_hosted_send_evt_t *>(data);
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
   // IDF >= 5.5: esp_now_send_cb_t takes esp_now_send_info_t (== wifi_tx_info_t),
@@ -264,8 +284,13 @@ bool esp_now_is_peer_exist(const uint8_t *peer_addr) {
     return false;
   uint8_t exist = 0;
   uint16_t rl = 0;
-  if (request(ESP_NOW_HOSTED_OP_IS_PEER_EXIST, peer_addr, 6, &exist, 1, &rl) != ESP_OK)
+  esp_err_t err = request(ESP_NOW_HOSTED_OP_IS_PEER_EXIST, peer_addr, 6, &exist, 1, &rl);
+  if (err != ESP_OK) {
+    // Distinguish a transport failure from a genuinely absent peer in the logs;
+    // the native bool signature forces both to return false here.
+    ESP_LOGW(TAG, "is_peer_exist RPC failed: %s", esp_err_to_name(err));
     return false;
+  }
   return exist != 0;
 }
 
