@@ -119,17 +119,8 @@ void SEN5XComponent::setup() {
       }
 
       if (this->model_override_.has_value()) {
-        if (product_name_read_ok && detected_type != Sen5xType::UNKNOWN &&
-            detected_type != this->model_override_.value()) {
-          ESP_LOGW(TAG,
-                   "Detected %s but model is configured as %s; using configured model. Sensor data for "
-                   "capabilities not present on the physical device may be invalid",
-                   LOG_STR_ARG(type_to_string(detected_type)),
-                   LOG_STR_ARG(type_to_string(this->model_override_.value())));
-        } else if (!product_name_read_ok || detected_type == Sen5xType::UNKNOWN) {
-          ESP_LOGW(TAG,
-                   "Could not determine sensor model; using configured model %s. Sensor data for "
-                   "capabilities not present on the physical device may be invalid",
+        if (detected_type != this->model_override_.value()) {
+          ESP_LOGW(TAG, "Detected %s, using %s", LOG_STR_ARG(type_to_string(detected_type)),
                    LOG_STR_ARG(type_to_string(this->model_override_.value())));
         }
         this->type_ = this->model_override_.value();
