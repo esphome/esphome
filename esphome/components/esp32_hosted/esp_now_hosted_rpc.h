@@ -18,7 +18,11 @@
 #ifndef ESP_NOW_HOSTED_RPC_H
 #define ESP_NOW_HOSTED_RPC_H
 
+#ifdef __cplusplus
+#include <cstdint>
+#else
 #include <stdint.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -58,6 +62,11 @@ enum {
 
 /* ── Envelopes ──────────────────────────────────────────────────────────── */
 
+/* These payloads are shared verbatim with the C co-processor firmware, so they
+ * use C's `typedef struct {...} name;` idiom rather than C++ `using` aliases,
+ * which would not compile there. Silence clang-tidy's modernize-use-using for
+ * the shared struct block. */
+// NOLINTBEGIN(modernize-use-using)
 typedef struct {
   uint8_t opcode;       /* one of ESP_NOW_HOSTED_OP_*                        */
   uint8_t seq;          /* wraps 0..255; echoed in the response for matching */
@@ -110,6 +119,7 @@ typedef struct {
   uint8_t des_addr[6];
   uint8_t status; /* esp_now_send_status_t (0 = success)               */
 } __attribute__((packed)) esp_now_hosted_send_evt_t;
+// NOLINTEND(modernize-use-using)
 
 #ifdef __cplusplus
 }
