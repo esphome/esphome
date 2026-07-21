@@ -128,7 +128,7 @@ bool I2SAudioMicrophone::start_driver_() {
         .sample_rate_hz = this->sample_rate_,
         .clk_src = clk_src,
         .mclk_multiple = this->mclk_multiple_,
-        .dn_sample_mode = I2S_PDM_DSR_8S,
+        .dn_sample_mode = this->pdm_dsr_,
     };
 
     i2s_pdm_rx_slot_config_t slot_cfg = I2S_PDM_RX_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, this->slot_mode_);

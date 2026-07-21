@@ -29,6 +29,8 @@ class I2SAudioMicrophone final : public I2SAudioIn, public microphone::Microphon
 
   void set_pdm(bool pdm) { this->pdm_ = pdm; }
 
+  void set_pdm_dsr(i2s_pdm_dsr_t pdm_dsr) { this->pdm_dsr_ = pdm_dsr; }
+
  protected:
   /// @brief Starts the I2S driver. Updates the ``audio_stream_info_`` member variable with the current setttings.
   /// @return True if succesful, false otherwise
@@ -57,6 +59,7 @@ class I2SAudioMicrophone final : public I2SAudioIn, public microphone::Microphon
   gpio_num_t din_pin_{I2S_GPIO_UNUSED};
   i2s_chan_handle_t rx_handle_;
   bool pdm_{false};
+  i2s_pdm_dsr_t pdm_dsr_;
 
   bool correct_dc_offset_;
   bool locked_driver_{false};

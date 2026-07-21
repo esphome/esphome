@@ -17,6 +17,7 @@ from .. import (
     CONF_LEFT,
     CONF_MONO,
     CONF_PDM,
+    CONF_PDM_DSR,
     CONF_RIGHT,
     I2SAudioIn,
     i2s_audio_component_schema,
@@ -37,6 +38,12 @@ I2SAudioMicrophone = i2s_audio_ns.class_(
 
 INTERNAL_ADC_VARIANTS = [esp32.VARIANT_ESP32]
 PDM_VARIANTS = [esp32.VARIANT_ESP32, esp32.VARIANT_ESP32S3, esp32.VARIANT_ESP32P4]
+
+i2s_pdm_dsr_t = cg.global_ns.enum("i2s_pdm_dsr_t")
+I2S_PDM_DSR = {
+	8: i2s_pdm_dsr_t.I2S_PDM_DSR_8S,
+	16: i2s_pdm_dsr_t.I2S_PDM_DSR_16S,
+}
 
 
 def _validate_esp32_variant(config):
@@ -111,6 +118,7 @@ CONFIG_SCHEMA = cv.All(
                 {
                     cv.Required(CONF_I2S_DIN_PIN): pins.internal_gpio_input_pin_number,
                     cv.Optional(CONF_PDM, default=False): cv.boolean,
+                    cv.Optional(CONF_PDM_DSR, default=8): cv.one_of(*I2S_PDM_DSR),
                 }
             ),
         },
@@ -142,5 +150,6 @@ async def to_code(config):
 
     cg.add(var.set_din_pin(config[CONF_I2S_DIN_PIN]))
     cg.add(var.set_pdm(config[CONF_PDM]))
+    cg.add(var.set_pdm_dsr(I2S_PDM_DSR[config[CONF_PDM_DSR]]))
 
     cg.add(var.set_correct_dc_offset(config[CONF_CORRECT_DC_OFFSET]))
