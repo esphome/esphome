@@ -12,7 +12,7 @@ pyserial==3.5
 platformio==6.1.19
 esptool==5.3.1
 click==8.3.3
-aioesphomeapi==45.6.2
+aioesphomeapi==45.7.0
 zeroconf==0.150.0
 puremagic==2.2.0
 ruamel.yaml==0.19.1 # dashboard_import
