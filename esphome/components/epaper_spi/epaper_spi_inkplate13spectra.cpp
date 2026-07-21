@@ -139,15 +139,15 @@ void EPaperInkplate13Spectra::log_busy_state_(const char *where) {
 
 void EPaperInkplate13Spectra::send_init_sequence_() {
   this->write_command_to_chip_(0x74, {0xC0, 0x1C, 0x1C, 0xCC, 0xCC, 0xCC, 0x15, 0x15, 0x55}, CHIP_PRIMARY);  // AN_TM
-  this->write_command_to_chip_(0xF0, {0x49, 0x55, 0x13, 0x5D, 0x05, 0x10}, CHIP_BOTH);                      // CMD66
-  this->write_command_to_chip_(0x00, {0xDF, 0x6B}, CHIP_BOTH);                                              // PSR
-  this->write_command_to_chip_(0x30, {0x08}, CHIP_BOTH);                                                    // PLL
-  this->write_command_to_chip_(0x50, {0xF7}, CHIP_BOTH);                                                    // CDI
-  this->write_command_to_chip_(0x60, {0x03, 0x03}, CHIP_BOTH);                                              // TCON
-  this->write_command_to_chip_(0x86, {0x10}, CHIP_BOTH);                                                    // AGID
-  this->write_command_to_chip_(0xE3, {0x22}, CHIP_BOTH);                                                    // PWS
-  this->write_command_to_chip_(0xE0, {0x01}, CHIP_BOTH);                                                    // CCSET
-  this->write_command_to_chip_(0x61, {0x04, 0xB0, 0x03, 0x20}, CHIP_BOTH);                                  // TRES
+  this->write_command_to_chip_(0xF0, {0x49, 0x55, 0x13, 0x5D, 0x05, 0x10}, CHIP_BOTH);                       // CMD66
+  this->write_command_to_chip_(0x00, {0xDF, 0x6B}, CHIP_BOTH);                                               // PSR
+  this->write_command_to_chip_(0x30, {0x08}, CHIP_BOTH);                                                     // PLL
+  this->write_command_to_chip_(0x50, {0xF7}, CHIP_BOTH);                                                     // CDI
+  this->write_command_to_chip_(0x60, {0x03, 0x03}, CHIP_BOTH);                                               // TCON
+  this->write_command_to_chip_(0x86, {0x10}, CHIP_BOTH);                                                     // AGID
+  this->write_command_to_chip_(0xE3, {0x22}, CHIP_BOTH);                                                     // PWS
+  this->write_command_to_chip_(0xE0, {0x01}, CHIP_BOTH);                                                     // CCSET
+  this->write_command_to_chip_(0x61, {0x04, 0xB0, 0x03, 0x20}, CHIP_BOTH);                                   // TRES
   this->write_command_to_chip_(0x01, {0x0F, 0x00, 0x28, 0x2C, 0x28, 0x38}, CHIP_PRIMARY);                    // PWR
   this->write_command_to_chip_(0xB6, {0x07}, CHIP_PRIMARY);                                                  // EN_BUF
   this->write_command_to_chip_(0x06, {0xD8, 0x18}, CHIP_PRIMARY);                                            // BTST_P
