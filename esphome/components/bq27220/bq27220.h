@@ -7,8 +7,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace bq27220 {
+namespace esphome::bq27220 {
 
 // BQ27220 Standard Command registers (16-bit, little-endian)
 // Source: BQ27220 Technical Reference Manual (SLUUBD4A)
@@ -51,5 +50,4 @@ class BQ27220Component final : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *state_of_health_sensor_{nullptr};
 };
 
-}  // namespace bq27220
-}  // namespace esphome
+}  // namespace esphome::bq27220
