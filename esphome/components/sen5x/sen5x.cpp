@@ -264,7 +264,8 @@ void SEN5XComponent::dump_config() {
                 "  Type: %s%s\n"
                 "  Firmware version: %d\n"
                 "  Serial number: %s",
-                LOG_STR_ARG(type_to_string(this->type_)), this->model_override_.has_value() ? " (overridden)" : "",
+                LOG_STR_ARG(type_to_string(this->type_)),
+                LOG_STR_ARG(this->model_override_.has_value() ? LOG_STR(" (overridden)") : LOG_STR("")),
                 this->firmware_version_, this->serial_number_);
   if (this->auto_cleaning_interval_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Auto cleaning interval: %" PRId32 "s", this->auto_cleaning_interval_.value());
