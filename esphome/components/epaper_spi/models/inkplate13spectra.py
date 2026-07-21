@@ -1,5 +1,5 @@
-# The panel is split into two halves, each with its own chip-select: CS (master, left half
-# of every row) and CS1 (slave, right half). BS0/BS1 select the controllers' interface mode.
+# The panel is split into two halves, each with its own chip-select: CS (primary, left half
+# of every row) and CS1 (secondary, right half). BS0/BS1 select the controllers' interface mode.
 # RST and PWR_EN are driven directly by this driver (not through the generic reset_pin_ /
 # enable_pins_ mechanisms) because the power-on sequence toggles them dynamically on every
 # refresh cycle, not just once at setup.

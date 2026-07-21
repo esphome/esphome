@@ -15,8 +15,8 @@ static constexpr uint8_t REG_POF = 0x02;
 static constexpr uint8_t REG_PTLW = 0x83;   // partial window
 static constexpr uint8_t REG_CMD66 = 0xF0;  // waveform select, required again before PTLW
 
-static constexpr uint8_t CHIP_MASTER = 1;
-static constexpr uint8_t CHIP_SLAVE = 2;
+static constexpr uint8_t CHIP_PRIMARY = 1;
+static constexpr uint8_t CHIP_SECONDARY = 2;
 static constexpr uint8_t CHIP_BOTH = 3;
 
 static constexpr uint8_t CMD66_V[] = {0x49, 0x55, 0x13, 0x5D, 0x05, 0x10};
@@ -50,7 +50,7 @@ void EPaperInkplate13Spectra::dump_config() {
 // be set here, before the state machine starts.
 void EPaperInkplate13Spectra::update() {
   this->partial_update_ = false;
-  this->transfer_sub_ = TRF_MASTER;
+  this->transfer_sub_ = TRF_PRIMARY;
   EPaperBase::update();
 }
 
@@ -72,12 +72,18 @@ void EPaperInkplate13Spectra::display_partial(int x, int y, int w, int h) {
 
 uint8_t EPaperInkplate13Spectra::color_to_index(Color color) {
   uint8_t r = color.r, g = color.g, b = color.b;
-  if (r > 200 && g > 200 && b > 200) return 0x01;  // WHITE
-  if (r < 50 && g < 50 && b < 50) return 0x00;      // BLACK
-  if (r > 150 && g < 100 && b < 100) return 0x03;   // RED
-  if (r < 100 && g > 150 && b < 100) return 0x06;   // GREEN
-  if (r < 100 && g < 100 && b > 150) return 0x05;   // BLUE
-  if (r > 150 && g > 150 && b < 100) return 0x02;   // YELLOW
+  if (r > 200 && g > 200 && b > 200)
+    return 0x01;  // WHITE
+  if (r < 50 && g < 50 && b < 50)
+    return 0x00;  // BLACK
+  if (r > 150 && g < 100 && b < 100)
+    return 0x03;  // RED
+  if (r < 100 && g > 150 && b < 100)
+    return 0x06;  // GREEN
+  if (r < 100 && g < 100 && b > 150)
+    return 0x05;  // BLUE
+  if (r > 150 && g > 150 && b < 100)
+    return 0x02;  // YELLOW
   return 0x00;
 }
 
@@ -105,8 +111,10 @@ void HOT EPaperInkplate13Spectra::draw_pixel_at(int x, int y, Color color) {
 
 void EPaperInkplate13Spectra::write_command_to_chip_(uint8_t cmd, const uint8_t *data, size_t len, uint8_t chip) {
   ESP_LOGD(TAG, "write_command_to_chip_: cmd=0x%02X len=%u chip=%u", cmd, (unsigned) len, (unsigned) chip);
-  if (chip & CHIP_MASTER) this->cs_m_pin_->digital_write(false);
-  if (chip & CHIP_SLAVE) this->cs_s_pin_->digital_write(false);
+  if (chip & CHIP_PRIMARY)
+    this->cs_m_pin_->digital_write(false);
+  if (chip & CHIP_SECONDARY)
+    this->cs_s_pin_->digital_write(false);
 
   this->enable();
   this->write_byte(cmd);
@@ -114,20 +122,23 @@ void EPaperInkplate13Spectra::write_command_to_chip_(uint8_t cmd, const uint8_t 
     this->write_array(data, len);
   this->disable();
 
-  if (chip & CHIP_MASTER) this->cs_m_pin_->digital_write(true);
-  if (chip & CHIP_SLAVE) this->cs_s_pin_->digital_write(true);
+  if (chip & CHIP_PRIMARY)
+    this->cs_m_pin_->digital_write(true);
+  if (chip & CHIP_SECONDARY)
+    this->cs_s_pin_->digital_write(true);
 }
 
 void EPaperInkplate13Spectra::log_busy_state_(const char *where) {
   uint32_t now = millis();
-  if (now - this->wait_log_ms_ < 1000) return;
+  if (now - this->wait_log_ms_ < 1000)
+    return;
   this->wait_log_ms_ = now;
   ESP_LOGD(TAG, "%s: waiting -- busy_pin raw digital_read=%d, is_idle_()=%d", where,
            (int) this->busy_pin_->digital_read(), (int) this->is_idle_());
 }
 
 void EPaperInkplate13Spectra::send_init_sequence_() {
-  this->write_command_to_chip_(0x74, {0xC0, 0x1C, 0x1C, 0xCC, 0xCC, 0xCC, 0x15, 0x15, 0x55}, CHIP_MASTER);  // AN_TM
+  this->write_command_to_chip_(0x74, {0xC0, 0x1C, 0x1C, 0xCC, 0xCC, 0xCC, 0x15, 0x15, 0x55}, CHIP_PRIMARY);  // AN_TM
   this->write_command_to_chip_(0xF0, {0x49, 0x55, 0x13, 0x5D, 0x05, 0x10}, CHIP_BOTH);                      // CMD66
   this->write_command_to_chip_(0x00, {0xDF, 0x6B}, CHIP_BOTH);                                              // PSR
   this->write_command_to_chip_(0x30, {0x08}, CHIP_BOTH);                                                    // PLL
@@ -136,23 +147,23 @@ void EPaperInkplate13Spectra::send_init_sequence_() {
   this->write_command_to_chip_(0x86, {0x10}, CHIP_BOTH);                                                    // AGID
   this->write_command_to_chip_(0xE3, {0x22}, CHIP_BOTH);                                                    // PWS
   this->write_command_to_chip_(0xE0, {0x01}, CHIP_BOTH);                                                    // CCSET
-  this->write_command_to_chip_(0x61, {0x04, 0xB0, 0x03, 0x20}, CHIP_BOTH);                                   // TRES
-  this->write_command_to_chip_(0x01, {0x0F, 0x00, 0x28, 0x2C, 0x28, 0x38}, CHIP_MASTER);                    // PWR
-  this->write_command_to_chip_(0xB6, {0x07}, CHIP_MASTER);                                                  // EN_BUF
-  this->write_command_to_chip_(0x06, {0xD8, 0x18}, CHIP_MASTER);                                            // BTST_P
-  this->write_command_to_chip_(0xB7, {0x01}, CHIP_MASTER);                                                  // BOOST_VDDP_EN
-  this->write_command_to_chip_(0x05, {0xD8, 0x18}, CHIP_MASTER);                                            // BTST_N
-  this->write_command_to_chip_(0xB0, {0x01}, CHIP_MASTER);                                                  // BUCK_BOOST_VDDN
-  this->write_command_to_chip_(0xB1, {0x02}, CHIP_MASTER);                                                  // TFT_VCOM_POWER
+  this->write_command_to_chip_(0x61, {0x04, 0xB0, 0x03, 0x20}, CHIP_BOTH);                                  // TRES
+  this->write_command_to_chip_(0x01, {0x0F, 0x00, 0x28, 0x2C, 0x28, 0x38}, CHIP_PRIMARY);                    // PWR
+  this->write_command_to_chip_(0xB6, {0x07}, CHIP_PRIMARY);                                                  // EN_BUF
+  this->write_command_to_chip_(0x06, {0xD8, 0x18}, CHIP_PRIMARY);                                            // BTST_P
+  this->write_command_to_chip_(0xB7, {0x01}, CHIP_PRIMARY);        // BOOST_VDDP_EN
+  this->write_command_to_chip_(0x05, {0xD8, 0x18}, CHIP_PRIMARY);  // BTST_N
+  this->write_command_to_chip_(0xB0, {0x01}, CHIP_PRIMARY);        // BUCK_BOOST_VDDN
+  this->write_command_to_chip_(0xB1, {0x02}, CHIP_PRIMARY);        // TFT_VCOM_POWER
 }
 
 // Maps the requested logical (rotated) rectangle to physical panel columns/rows, then
-// splits that physical window across the two chips (master: cols 0..599, slave: cols
+// splits that physical window across the two chips (primary: cols 0..599, secondary: cols
 // 600..1199). HRST/HRED are in half-column units, VRST/VRED in half-row units -- that's
 // the panel's own addressing granularity, not something this code chose.
 void EPaperInkplate13Spectra::compute_ptlw_params_() {
-  this->ptlw_master_.needed = false;
-  this->ptlw_slave_.needed = false;
+  this->ptlw_primary_.needed = false;
+  this->ptlw_secondary_.needed = false;
 
   int x = this->partial_x_, y = this->partial_y_, w = this->partial_w_, h = this->partial_h_;
 
@@ -165,9 +176,12 @@ void EPaperInkplate13Spectra::compute_ptlw_params_() {
     h += y;
     y = 0;
   }
-  if (x + w > this->get_width()) w = this->get_width() - x;
-  if (y + h > this->get_height()) h = this->get_height() - y;
-  if (w <= 0 || h <= 0) return;
+  if (x + w > this->get_width())
+    w = this->get_width() - x;
+  if (y + h > this->get_height())
+    h = this->get_height() - y;
+  if (w <= 0 || h <= 0)
+    return;
 
   const int16_t W = (int16_t) this->width_;   // physical panel width  = 1200
   const int16_t H = (int16_t) this->height_;  // physical panel height = 1600
@@ -198,16 +212,21 @@ void EPaperInkplate13Spectra::compute_ptlw_params_() {
   // Align to hardware constraints: columns start/end on multiples of 4, rows in pairs.
   col_start = (col_start / 4) * 4;
   col_end = (((col_end + 4) / 4) * 4) - 1;
-  if (col_end >= W) col_end = W - 1;
-  if (row_start % 2) row_start--;
-  if (row_start < 0) row_start = 0;
-  if ((row_end + 1) % 2) row_end++;
-  if (row_end >= H) row_end = H - 1;
+  if (col_end >= W)
+    col_end = W - 1;
+  if (row_start % 2)
+    row_start--;
+  if (row_start < 0)
+    row_start = 0;
+  if ((row_end + 1) % 2)
+    row_end++;
+  if (row_end >= H)
+    row_end = H - 1;
 
-  const int16_t HALF_W = W / 2;       // 600 physical cols per chip
+  const int16_t HALF_W = W / 2;           // 600 physical cols per chip
   const int16_t HALF_BYTES = HALF_W / 2;  // 300 bytes per row per chip
 
-  // Master chip handles physical cols 0..HALF_W-1.
+  // Primary chip handles physical cols 0..HALF_W-1.
   if (col_start < HALF_W) {
     int16_t lcs = col_start;
     int16_t lce = (col_end < HALF_W) ? col_end : (int16_t) (HALF_W - 1);
@@ -215,7 +234,7 @@ void EPaperInkplate13Spectra::compute_ptlw_params_() {
     uint16_t hred = (uint16_t) (lce + 1) * 2 - 1;
     uint16_t vrst = (uint16_t) row_start / 2;
     uint16_t vred = (uint16_t) (row_end + 1) / 2 - 1;
-    auto &p = this->ptlw_master_;
+    auto &p = this->ptlw_primary_;
     p.ptlw[0] = hrst >> 8;
     p.ptlw[1] = hrst & 0xFF;
     p.ptlw[2] = hred >> 8;
@@ -232,7 +251,7 @@ void EPaperInkplate13Spectra::compute_ptlw_params_() {
     p.needed = true;
   }
 
-  // Slave chip handles physical cols HALF_W..W-1.
+  // Secondary chip handles physical cols HALF_W..W-1.
   if (col_end >= HALF_W) {
     int16_t lcs = (col_start >= HALF_W) ? (int16_t) (col_start - HALF_W) : 0;
     int16_t lce = col_end - HALF_W;
@@ -240,7 +259,7 @@ void EPaperInkplate13Spectra::compute_ptlw_params_() {
     uint16_t hred = (uint16_t) (lce + 1) * 2 - 1;
     uint16_t vrst = (uint16_t) row_start / 2;
     uint16_t vred = (uint16_t) (row_end + 1) / 2 - 1;
-    auto &p = this->ptlw_slave_;
+    auto &p = this->ptlw_secondary_;
     p.ptlw[0] = hrst >> 8;
     p.ptlw[1] = hrst & 0xFF;
     p.ptlw[2] = hred >> 8;
@@ -261,8 +280,8 @@ void EPaperInkplate13Spectra::compute_ptlw_params_() {
 void EPaperInkplate13Spectra::set_all_pins_low_() {
   ESP_LOGD(TAG, "set_all_pins_low_()");
   GPIOPin *pins[] = {
-      this->rst_pin_, this->dc_pin_, this->cs_m_pin_, this->cs_s_pin_,
-      this->busy_pin_, this->pwr_en_pin_, this->bs0_pin_, this->bs1_pin_,
+      this->rst_pin_,  this->dc_pin_,     this->cs_m_pin_, this->cs_s_pin_,
+      this->busy_pin_, this->pwr_en_pin_, this->bs0_pin_,  this->bs1_pin_,
   };
   for (auto *p : pins) {
     p->pin_mode(gpio::FLAG_OUTPUT);
@@ -367,12 +386,12 @@ bool EPaperInkplate13Spectra::transfer_data() {
   const size_t rows = (size_t) this->height_;
   const size_t bytes_per_row = (size_t) this->width_ / 2;
   const size_t half = bytes_per_row / 2;  // bytes per row per chip
-  uint8_t row_buf[512];  // half is 300 bytes for the 1200x1600 panel
+  uint8_t row_buf[512];                   // half is 300 bytes for the 1200x1600 panel
 
   switch (this->transfer_sub_) {
-    case TRF_MASTER: {
+    case TRF_PRIMARY: {
       if (this->transfer_row_ == 0) {
-        ESP_LOGD(TAG, "transfer: master start");
+        ESP_LOGD(TAG, "transfer: primary start");
         this->cs_m_pin_->digital_write(false);
         this->enable();
         this->write_byte(REG_DTM);
@@ -380,7 +399,8 @@ bool EPaperInkplate13Spectra::transfer_data() {
       size_t end = std::min(this->transfer_row_ + ROWS_PER_CHUNK, rows);
       for (size_t i = this->transfer_row_; i < end; i++) {
         size_t row_off = i * bytes_per_row;
-        for (size_t j = 0; j < half; j++) row_buf[j] = this->buffer_[row_off + j];
+        for (size_t j = 0; j < half; j++)
+          row_buf[j] = this->buffer_[row_off + j];
         this->write_array(row_buf, half);
       }
       this->transfer_row_ = end;
@@ -388,24 +408,24 @@ bool EPaperInkplate13Spectra::transfer_data() {
         this->disable();
         this->cs_m_pin_->digital_write(true);
         this->transfer_row_ = 0;
-        this->transfer_sub_ = TRF_WAIT_MASTER;
-        ESP_LOGD(TAG, "transfer: master done");
+        this->transfer_sub_ = TRF_WAIT_PRIMARY;
+        ESP_LOGD(TAG, "transfer: primary done");
       }
       return false;
     }
 
-    case TRF_WAIT_MASTER:
+    case TRF_WAIT_PRIMARY:
       if (!this->is_idle_()) {
-        this->log_busy_state_("transfer_data(): TRF_WAIT_MASTER");
+        this->log_busy_state_("transfer_data(): TRF_WAIT_PRIMARY");
         return false;
       }
-      ESP_LOGD(TAG, "transfer_data(): TRF_WAIT_MASTER done -> TRF_SLAVE");
-      this->transfer_sub_ = TRF_SLAVE;
+      ESP_LOGD(TAG, "transfer_data(): TRF_WAIT_PRIMARY done -> TRF_SECONDARY");
+      this->transfer_sub_ = TRF_SECONDARY;
       return false;
 
-    case TRF_SLAVE: {
+    case TRF_SECONDARY: {
       if (this->transfer_row_ == 0) {
-        ESP_LOGD(TAG, "transfer: slave start");
+        ESP_LOGD(TAG, "transfer: secondary start");
         this->cs_s_pin_->digital_write(false);
         this->enable();
         this->write_byte(REG_DTM);
@@ -413,7 +433,8 @@ bool EPaperInkplate13Spectra::transfer_data() {
       size_t end = std::min(this->transfer_row_ + ROWS_PER_CHUNK, rows);
       for (size_t i = this->transfer_row_; i < end; i++) {
         size_t row_off = i * bytes_per_row + half;
-        for (size_t j = 0; j < half; j++) row_buf[j] = this->buffer_[row_off + j];
+        for (size_t j = 0; j < half; j++)
+          row_buf[j] = this->buffer_[row_off + j];
         this->write_array(row_buf, half);
       }
       this->transfer_row_ = end;
@@ -421,63 +442,65 @@ bool EPaperInkplate13Spectra::transfer_data() {
         this->disable();
         this->cs_s_pin_->digital_write(true);
         this->transfer_row_ = 0;
-        this->transfer_sub_ = TRF_WAIT_SLAVE;
-        ESP_LOGD(TAG, "transfer: slave done");
+        this->transfer_sub_ = TRF_WAIT_SECONDARY;
+        ESP_LOGD(TAG, "transfer: secondary done");
       }
       return false;
     }
 
-    case TRF_WAIT_SLAVE:
+    case TRF_WAIT_SECONDARY:
       if (!this->is_idle_()) {
-        this->log_busy_state_("transfer_data(): TRF_WAIT_SLAVE");
+        this->log_busy_state_("transfer_data(): TRF_WAIT_SECONDARY");
         return false;
       }
-      ESP_LOGD(TAG, "transfer_data(): TRF_WAIT_SLAVE done -> TRF_DONE");
+      ESP_LOGD(TAG, "transfer_data(): TRF_WAIT_SECONDARY done -> TRF_DONE");
       this->transfer_sub_ = TRF_DONE;
       return true;
 
     // Null PTLW: 4-col x 4-row window at the physical origin of this chip, sent to a
     // chip the requested rectangle doesn't touch so it still completes CMD66->PTLW->DTM.
     case TRF_PARTIAL_SETUP_M: {
-      this->write_command_to_chip_(REG_CMD66, CMD66_V, sizeof(CMD66_V), CHIP_MASTER);
-      if (!this->ptlw_master_.needed) {
-        this->write_command_to_chip_(REG_PTLW, NULL_PTLW, 9, CHIP_MASTER);
+      this->write_command_to_chip_(REG_CMD66, CMD66_V, sizeof(CMD66_V), CHIP_PRIMARY);
+      if (!this->ptlw_primary_.needed) {
+        this->write_command_to_chip_(REG_PTLW, NULL_PTLW, 9, CHIP_PRIMARY);
         this->cs_m_pin_->digital_write(false);
         this->enable();
         this->write_byte(REG_DTM);
         for (int r = 0; r < 4; r++) {
           size_t row_off = (size_t) r * bytes_per_row;
-          for (size_t j = 0; j < 2; j++) row_buf[j] = this->buffer_[row_off + j];
+          for (size_t j = 0; j < 2; j++)
+            row_buf[j] = this->buffer_[row_off + j];
           this->write_array(row_buf, 2);
         }
         this->disable();
         this->cs_m_pin_->digital_write(true);
         this->transfer_sub_ = TRF_PARTIAL_WAIT_M;
       } else {
-        ESP_LOGD(TAG, "transfer: partial master CMD66+PTLW+DTM start");
-        this->write_command_to_chip_(REG_PTLW, this->ptlw_master_.ptlw, 9, CHIP_MASTER);
+        ESP_LOGD(TAG, "transfer: partial primary CMD66+PTLW+DTM start");
+        this->write_command_to_chip_(REG_PTLW, this->ptlw_primary_.ptlw, 9, CHIP_PRIMARY);
         this->cs_m_pin_->digital_write(false);
         this->enable();
         this->write_byte(REG_DTM);
-        this->transfer_row_ = (size_t) this->ptlw_master_.row_start;
+        this->transfer_row_ = (size_t) this->ptlw_primary_.row_start;
         this->transfer_sub_ = TRF_PARTIAL_DATA_M;
       }
       return false;
     }
 
     case TRF_PARTIAL_DATA_M: {
-      size_t end = std::min(this->transfer_row_ + ROWS_PER_CHUNK, (size_t) (this->ptlw_master_.row_end + 1));
+      size_t end = std::min(this->transfer_row_ + ROWS_PER_CHUNK, (size_t) (this->ptlw_primary_.row_end + 1));
       for (size_t i = this->transfer_row_; i < end; i++) {
-        size_t row_off = i * bytes_per_row + (size_t) this->ptlw_master_.mem_col_off;
-        for (int j = 0; j < this->ptlw_master_.bytes_per_row; j++) row_buf[j] = this->buffer_[row_off + j];
-        this->write_array(row_buf, this->ptlw_master_.bytes_per_row);
+        size_t row_off = i * bytes_per_row + (size_t) this->ptlw_primary_.mem_col_off;
+        for (int j = 0; j < this->ptlw_primary_.bytes_per_row; j++)
+          row_buf[j] = this->buffer_[row_off + j];
+        this->write_array(row_buf, this->ptlw_primary_.bytes_per_row);
       }
       this->transfer_row_ = end;
-      if (this->transfer_row_ > (size_t) this->ptlw_master_.row_end) {
+      if (this->transfer_row_ > (size_t) this->ptlw_primary_.row_end) {
         this->disable();
         this->cs_m_pin_->digital_write(true);
         this->transfer_sub_ = TRF_PARTIAL_WAIT_M;
-        ESP_LOGD(TAG, "transfer: partial master DTM done");
+        ESP_LOGD(TAG, "transfer: partial primary DTM done");
       }
       return false;
     }
@@ -491,45 +514,47 @@ bool EPaperInkplate13Spectra::transfer_data() {
       return false;
 
     case TRF_PARTIAL_SETUP_S: {
-      this->write_command_to_chip_(REG_CMD66, CMD66_V, sizeof(CMD66_V), CHIP_SLAVE);
-      if (!this->ptlw_slave_.needed) {
-        this->write_command_to_chip_(REG_PTLW, NULL_PTLW, 9, CHIP_SLAVE);
+      this->write_command_to_chip_(REG_CMD66, CMD66_V, sizeof(CMD66_V), CHIP_SECONDARY);
+      if (!this->ptlw_secondary_.needed) {
+        this->write_command_to_chip_(REG_PTLW, NULL_PTLW, 9, CHIP_SECONDARY);
         this->cs_s_pin_->digital_write(false);
         this->enable();
         this->write_byte(REG_DTM);
         for (int r = 0; r < 4; r++) {
           size_t row_off = (size_t) r * bytes_per_row + half;
-          for (size_t j = 0; j < 2; j++) row_buf[j] = this->buffer_[row_off + j];
+          for (size_t j = 0; j < 2; j++)
+            row_buf[j] = this->buffer_[row_off + j];
           this->write_array(row_buf, 2);
         }
         this->disable();
         this->cs_s_pin_->digital_write(true);
         this->transfer_sub_ = TRF_PARTIAL_WAIT_S;
       } else {
-        ESP_LOGD(TAG, "transfer: partial slave CMD66+PTLW+DTM start");
-        this->write_command_to_chip_(REG_PTLW, this->ptlw_slave_.ptlw, 9, CHIP_SLAVE);
+        ESP_LOGD(TAG, "transfer: partial secondary CMD66+PTLW+DTM start");
+        this->write_command_to_chip_(REG_PTLW, this->ptlw_secondary_.ptlw, 9, CHIP_SECONDARY);
         this->cs_s_pin_->digital_write(false);
         this->enable();
         this->write_byte(REG_DTM);
-        this->transfer_row_ = (size_t) this->ptlw_slave_.row_start;
+        this->transfer_row_ = (size_t) this->ptlw_secondary_.row_start;
         this->transfer_sub_ = TRF_PARTIAL_DATA_S;
       }
       return false;
     }
 
     case TRF_PARTIAL_DATA_S: {
-      size_t end = std::min(this->transfer_row_ + ROWS_PER_CHUNK, (size_t) (this->ptlw_slave_.row_end + 1));
+      size_t end = std::min(this->transfer_row_ + ROWS_PER_CHUNK, (size_t) (this->ptlw_secondary_.row_end + 1));
       for (size_t i = this->transfer_row_; i < end; i++) {
-        size_t row_off = i * bytes_per_row + (size_t) this->ptlw_slave_.mem_col_off;
-        for (int j = 0; j < this->ptlw_slave_.bytes_per_row; j++) row_buf[j] = this->buffer_[row_off + j];
-        this->write_array(row_buf, this->ptlw_slave_.bytes_per_row);
+        size_t row_off = i * bytes_per_row + (size_t) this->ptlw_secondary_.mem_col_off;
+        for (int j = 0; j < this->ptlw_secondary_.bytes_per_row; j++)
+          row_buf[j] = this->buffer_[row_off + j];
+        this->write_array(row_buf, this->ptlw_secondary_.bytes_per_row);
       }
       this->transfer_row_ = end;
-      if (this->transfer_row_ > (size_t) this->ptlw_slave_.row_end) {
+      if (this->transfer_row_ > (size_t) this->ptlw_secondary_.row_end) {
         this->disable();
         this->cs_s_pin_->digital_write(true);
         this->transfer_sub_ = TRF_PARTIAL_WAIT_S;
-        ESP_LOGD(TAG, "transfer: partial slave DTM done");
+        ESP_LOGD(TAG, "transfer: partial secondary DTM done");
       }
       return false;
     }

@@ -7,8 +7,8 @@ namespace esphome::epaper_spi {
 /**
  * Soldered Inkplate 13 Spectra: 1200x1600 6-color (black/white/yellow/red/blue/green)
  * e-paper, dual-chip controller (13.3" E Ink Spectra 6 panel). The panel is split into
- * two halves, each with its own chip-select: CS (master, left half of every row) and
- * CS1 (slave, right half). BS0/BS1 select the controllers' interface mode.
+ * two halves, each with its own chip-select: CS (primary, left half of every row) and
+ * CS1 (secondary, right half). BS0/BS1 select the controllers' interface mode.
  *
  * GPIO power-on bring-up (all-pins-low, then IO setup + PWR_EN, then an RST pulse) runs
  * inside reset(), not initialise(). reset()/RESET_END is the one state EPaperBase never
@@ -27,7 +27,7 @@ namespace esphome::epaper_spi {
 class EPaperInkplate13Spectra final : public EPaperBase {
  public:
   EPaperInkplate13Spectra(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
-                           size_t init_sequence_length)
+                          size_t init_sequence_length)
       : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_COLOR) {
     this->buffer_length_ = (size_t) width * height / 2;  // 2 pixels per byte at 4bpp
   }
@@ -61,10 +61,10 @@ class EPaperInkplate13Spectra final : public EPaperBase {
   // GPIO power-on bring-up, run inside reset()/RESET_END (see class-level comment).
   enum ResetSub {
     RST_PINS_LOW,
-    RST_PINS_LOW_WAIT,    // 50 ms
-    RST_IO_WAIT,          // 100 ms after PWR_EN goes high
-    RST_LOW_WAIT,         // 100 ms RST low
-    RST_HIGH_WAIT,        // 100 ms RST high
+    RST_PINS_LOW_WAIT,  // 50 ms
+    RST_IO_WAIT,        // 100 ms after PWR_EN goes high
+    RST_LOW_WAIT,       // 100 ms RST low
+    RST_HIGH_WAIT,      // 100 ms RST high
     RST_DONE,
   };
 
@@ -74,14 +74,14 @@ class EPaperInkplate13Spectra final : public EPaperBase {
     INIT_DONE,
   };
 
-  // Full path:    TRF_MASTER -> TRF_WAIT_MASTER -> TRF_SLAVE -> TRF_WAIT_SLAVE -> TRF_DONE
+  // Full path:    TRF_PRIMARY -> TRF_WAIT_PRIMARY -> TRF_SECONDARY -> TRF_WAIT_SECONDARY -> TRF_DONE
   // Partial path: TRF_PARTIAL_SETUP_M -> TRF_PARTIAL_DATA_M -> TRF_PARTIAL_WAIT_M
   //               -> TRF_PARTIAL_SETUP_S -> TRF_PARTIAL_DATA_S -> TRF_PARTIAL_WAIT_S -> TRF_DONE
   enum TransferSub {
-    TRF_MASTER,
-    TRF_WAIT_MASTER,
-    TRF_SLAVE,
-    TRF_WAIT_SLAVE,
+    TRF_PRIMARY,
+    TRF_WAIT_PRIMARY,
+    TRF_SECONDARY,
+    TRF_WAIT_SECONDARY,
     TRF_DONE,
     TRF_PARTIAL_SETUP_M,
     TRF_PARTIAL_DATA_M,
@@ -99,7 +99,7 @@ class EPaperInkplate13Spectra final : public EPaperBase {
     int mem_col_off{0};  // byte offset from the start of a row in buffer_ for this chip's window
     int bytes_per_row{0};
     int row_start{0};  // first physical row to send (inclusive)
-    int row_end{0};     // last physical row to send (inclusive)
+    int row_end{0};    // last physical row to send (inclusive)
   };
 
   bool reset() override;
@@ -113,7 +113,7 @@ class EPaperInkplate13Spectra final : public EPaperBase {
   void set_io_pins_();
   void set_all_pins_low_();
 
-  /// Send a command (and optional data) to one or both chips. chip: 1=master, 2=slave, 3=both.
+  /// Send a command (and optional data) to one or both chips. chip: 1=primary, 2=secondary, 3=both.
   void write_command_to_chip_(uint8_t cmd, const uint8_t *data, size_t len, uint8_t chip);
   void write_command_to_chip_(uint8_t cmd, std::initializer_list<uint8_t> data, uint8_t chip) {
     this->write_command_to_chip_(cmd, data.begin(), data.size(), chip);
@@ -123,7 +123,7 @@ class EPaperInkplate13Spectra final : public EPaperBase {
   /// Replays the panel register init table.
   void send_init_sequence_();
 
-  /// Fills ptlw_master_/ptlw_slave_ from partial_x_/y_/w_/h_.
+  /// Fills ptlw_primary_/ptlw_secondary_ from partial_x_/y_/w_/h_.
   void compute_ptlw_params_();
 
   /// Throttled (1/s) debug log of the raw busy pin state, for bring-up diagnostics.
@@ -141,7 +141,7 @@ class EPaperInkplate13Spectra final : public EPaperBase {
 
   ResetSub reset_sub_{RST_PINS_LOW};
   InitSub trf_init_sub_{INIT_SEND_SEQUENCE};
-  TransferSub transfer_sub_{TRF_MASTER};
+  TransferSub transfer_sub_{TRF_PRIMARY};
   size_t transfer_row_{0};
   uint32_t wait_log_ms_{0};
 
@@ -150,8 +150,8 @@ class EPaperInkplate13Spectra final : public EPaperBase {
   int partial_y_{0};
   int partial_w_{0};
   int partial_h_{0};
-  PartialChipParams ptlw_master_;
-  PartialChipParams ptlw_slave_;
+  PartialChipParams ptlw_primary_;
+  PartialChipParams ptlw_secondary_;
 };
 
 }  // namespace esphome::epaper_spi
