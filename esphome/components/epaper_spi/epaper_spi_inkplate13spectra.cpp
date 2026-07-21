@@ -183,8 +183,8 @@ void EPaperInkplate13Spectra::compute_ptlw_params_() {
   if (w <= 0 || h <= 0)
     return;
 
-  const int16_t W = (int16_t) this->width_;   // physical panel width  = 1200
-  const int16_t H = (int16_t) this->height_;  // physical panel height = 1600
+  const int16_t panel_w = (int16_t) this->width_;   // physical panel width  = 1200
+  const int16_t panel_h = (int16_t) this->height_;  // physical panel height = 1600
 
   // Map logical coords to physical col/row by running both rectangle corners through
   // the same effective_transform_ (rotation + mirror_x/mirror_y) that draw_pixel_at()
@@ -212,24 +212,24 @@ void EPaperInkplate13Spectra::compute_ptlw_params_() {
   // Align to hardware constraints: columns start/end on multiples of 4, rows in pairs.
   col_start = (col_start / 4) * 4;
   col_end = (((col_end + 4) / 4) * 4) - 1;
-  if (col_end >= W)
-    col_end = W - 1;
+  if (col_end >= panel_w)
+    col_end = panel_w - 1;
   if (row_start % 2)
     row_start--;
   if (row_start < 0)
     row_start = 0;
   if ((row_end + 1) % 2)
     row_end++;
-  if (row_end >= H)
-    row_end = H - 1;
+  if (row_end >= panel_h)
+    row_end = panel_h - 1;
 
-  const int16_t HALF_W = W / 2;           // 600 physical cols per chip
-  const int16_t HALF_BYTES = HALF_W / 2;  // 300 bytes per row per chip
+  const int16_t half_w = panel_w / 2;     // 600 physical cols per chip
+  const int16_t half_bytes = half_w / 2;  // 300 bytes per row per chip
 
-  // Primary chip handles physical cols 0..HALF_W-1.
-  if (col_start < HALF_W) {
+  // Primary chip handles physical cols 0..half_w-1.
+  if (col_start < half_w) {
     int16_t lcs = col_start;
-    int16_t lce = (col_end < HALF_W) ? col_end : (int16_t) (HALF_W - 1);
+    int16_t lce = (col_end < half_w) ? col_end : (int16_t) (half_w - 1);
     uint16_t hrst = (uint16_t) lcs * 2;
     uint16_t hred = (uint16_t) (lce + 1) * 2 - 1;
     uint16_t vrst = (uint16_t) row_start / 2;
@@ -251,10 +251,10 @@ void EPaperInkplate13Spectra::compute_ptlw_params_() {
     p.needed = true;
   }
 
-  // Secondary chip handles physical cols HALF_W..W-1.
-  if (col_end >= HALF_W) {
-    int16_t lcs = (col_start >= HALF_W) ? (int16_t) (col_start - HALF_W) : 0;
-    int16_t lce = col_end - HALF_W;
+  // Secondary chip handles physical cols half_w..panel_w-1.
+  if (col_end >= half_w) {
+    int16_t lcs = (col_start >= half_w) ? (int16_t) (col_start - half_w) : 0;
+    int16_t lce = col_end - half_w;
     uint16_t hrst = (uint16_t) lcs * 2;
     uint16_t hred = (uint16_t) (lce + 1) * 2 - 1;
     uint16_t vrst = (uint16_t) row_start / 2;
@@ -270,7 +270,7 @@ void EPaperInkplate13Spectra::compute_ptlw_params_() {
     p.ptlw[7] = vred & 0xFF;
     p.ptlw[8] = 0x01;
     p.bytes_per_row = (lce - lcs + 1) / 2;
-    p.mem_col_off = HALF_BYTES + lcs / 2;
+    p.mem_col_off = half_bytes + lcs / 2;
     p.row_start = row_start;
     p.row_end = row_end;
     p.needed = true;
