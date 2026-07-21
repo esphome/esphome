@@ -1,9 +1,14 @@
 """Tests for the ``network: priority:`` list validator."""
 
+from collections.abc import Callable
+from pathlib import Path
+import re
+
 import pytest
 from voluptuous import Invalid
 
 from esphome.components.network import (
+    _SETUP_PRIORITY_AFTER_WIFI,
     KEY_NETWORK_PRIORITY,
     NETWORK_PRIORITY_BASE,
     NETWORK_PRIORITY_STEP,
@@ -131,3 +136,52 @@ def test_final_validate_noop_without_priority_list() -> None:
     """A network config without a 'priority' list imposes no component requirements."""
     fv.full_config.set({})
     _final_validate({})  # must not raise
+
+
+def _cpp_setup_priority(name: str) -> float:
+    """Read a setup_priority constant straight from esphome/core/component.h."""
+    header = Path(__file__).parents[3] / "esphome" / "core" / "component.h"
+    match = re.search(
+        rf"inline constexpr float {name} = ([\d.]+)f;", header.read_text()
+    )
+    assert match is not None, f"setup_priority::{name} not found in component.h"
+    return float(match.group(1))
+
+
+def test_priority_band_constants_match_cpp_setup_priority() -> None:
+    """The Python priority-band constants mirror the C++ setup_priority values.
+
+    NETWORK_PRIORITY_BASE must equal the historical setup_priority::WIFI /
+    ::ETHERNET default so a single-entry priority list reproduces the legacy
+    setup order, and the band guard must track setup_priority::AFTER_WIFI.
+    Reading the values from component.h turns a silent desync into a CI
+    failure if either side is ever rebalanced.
+    """
+    assert _cpp_setup_priority("WIFI") == NETWORK_PRIORITY_BASE
+    assert _cpp_setup_priority("ETHERNET") == NETWORK_PRIORITY_BASE
+    assert _cpp_setup_priority("AFTER_WIFI") == _SETUP_PRIORITY_AFTER_WIFI
+    # Must stay below AFTER_BLUETOOTH (NetworkComponent's own priority) so
+    # interfaces never set up before esp_netif_init().
+    assert _cpp_setup_priority("AFTER_BLUETOOTH") > NETWORK_PRIORITY_BASE
+
+
+def test_primary_interface_define_follows_first_priority_entry(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The first priority entry becomes the USE_NETWORK_PRIMARY_INTERFACE_* define."""
+    generate_main(component_config_path("priority_wifi_first.yaml"))
+    defines = {d.name for d in CORE.defines}
+    assert "USE_NETWORK_PRIMARY_INTERFACE_WIFI" in defines
+    assert "USE_NETWORK_PRIMARY_INTERFACE_ETHERNET" not in defines
+
+
+def test_no_primary_interface_define_without_priority(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Without a priority list, no primary-interface define is emitted."""
+    generate_main(component_config_path("wifi_only.yaml"))
+    assert not any(
+        d.name.startswith("USE_NETWORK_PRIMARY_INTERFACE_") for d in CORE.defines
+    )

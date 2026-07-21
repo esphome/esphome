@@ -338,6 +338,13 @@ async def to_code(config):
         # calls below have a defined symbol to link against. Without this define
         # the implementation in core/component.cpp is compiled out.
         cg.add_define("USE_SETUP_PRIORITY_OVERRIDE")
+        # The first entry is the compile-time "primary" interface: network/util.cpp
+        # prefers it in get_use_address_to() and get_ip_addresses() so the reported
+        # address matches the declared preference instead of a fixed ethernet-first
+        # order. Runtime (active-interface) selection is a planned follow-up.
+        cg.add_define(
+            f"USE_NETWORK_PRIMARY_INTERFACE_{priority_list[0]['interface'].upper()}"
+        )
 
         _LOGGER.info(
             "Network interface priority: %s",

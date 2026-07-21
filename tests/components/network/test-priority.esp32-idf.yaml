@@ -1,6 +1,8 @@
 # Compiled dual-stack test: wifi + ethernet coexisting via network: priority:.
 # This is the first build path that keeps both radios' stacks compiled in, so
 # it must actually compile (not just validate) to guard the reconciler wiring.
+# WiFi is listed first so the build also exercises the wifi-primary branch in
+# network/util.cpp (the ethernet-primary branch matches the legacy order).
 wifi:
   ssid: MySSID
   password: password1
@@ -17,5 +19,5 @@ ethernet:
 
 network:
   priority:
-    - ethernet
     - wifi
+    - ethernet
