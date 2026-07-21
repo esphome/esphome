@@ -102,8 +102,7 @@ void SEN5XComponent::setup() {
 
       uint16_t raw_product_name[16];
       Sen5xType detected_type = Sen5xType::UNKNOWN;
-      bool product_name_read_ok = this->get_register(SEN5X_CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20);
-      if (product_name_read_ok) {
+      if (this->get_register(SEN5X_CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20)) {
         const char *product_name = sensirion_convert_to_string_in_place(raw_product_name, 16);
         if (strncmp(product_name, "SEN50", 5) == 0) {
           detected_type = Sen5xType::SEN50;
@@ -111,11 +110,7 @@ void SEN5XComponent::setup() {
           detected_type = Sen5xType::SEN54;
         } else if (strncmp(product_name, "SEN55", 5) == 0) {
           detected_type = Sen5xType::SEN55;
-        } else if (!this->model_override_.has_value()) {
-          ESP_LOGE(TAG, "Unknown product name: %.32s", product_name);
         }
-      } else if (!this->model_override_.has_value()) {
-        ESP_LOGE(TAG, "Failed to read product name");
       }
 
       if (this->model_override_.has_value()) {
@@ -124,10 +119,6 @@ void SEN5XComponent::setup() {
                    LOG_STR_ARG(type_to_string(this->model_override_.value())));
         }
         this->type_ = this->model_override_.value();
-      } else if (!product_name_read_ok) {
-        this->error_code_ = PRODUCT_NAME_FAILED;
-        this->mark_failed();
-        return;
       } else if (detected_type == Sen5xType::UNKNOWN) {
         this->type_ = Sen5xType::UNKNOWN;
         this->error_code_ = PRODUCT_NAME_FAILED;
