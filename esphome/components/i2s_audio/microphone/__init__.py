@@ -41,8 +41,8 @@ PDM_VARIANTS = [esp32.VARIANT_ESP32, esp32.VARIANT_ESP32S3, esp32.VARIANT_ESP32P
 
 i2s_pdm_dsr_t = cg.global_ns.enum("i2s_pdm_dsr_t")
 I2S_PDM_DSR = {
-	8: i2s_pdm_dsr_t.I2S_PDM_DSR_8S,
-	16: i2s_pdm_dsr_t.I2S_PDM_DSR_16S,
+    8: i2s_pdm_dsr_t.I2S_PDM_DSR_8S,
+    16: i2s_pdm_dsr_t.I2S_PDM_DSR_16S,
 }
 
 
