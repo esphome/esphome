@@ -423,7 +423,7 @@ class MipiSpi : public display::Display,
     ptr += y_offset * (x_offset + w + x_pad) + x_offset;
     if constexpr (BUFFERPIXEL == DISPLAYPIXEL) {
       this->write_display_data_(reinterpret_cast<const uint8_t *>(ptr), w * sizeof(BUFFERTYPE), h,
-                                x_pad * sizeof(BUFFERTYPE));
+                                (x_offset + x_pad) * sizeof(BUFFERTYPE));
     } else {
       // type conversion required, do it in chunks
       uint8_t dbuffer[DISPLAYPIXEL * 48];
