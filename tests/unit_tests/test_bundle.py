@@ -699,6 +699,16 @@ def test_remap_bundle_path_untrusted_manifest(
     assert remap_bundle_path(f"{ORIGINAL_CONFIG_DIR}/partitions.csv") is None
 
 
+def test_remap_bundle_path_unreadable_manifest_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A present but broken manifest is reported, not silently ignored."""
+    _setup_extracted_dir(tmp_path, "{not json", files={"partitions.csv": "csv\n"})
+
+    assert remap_bundle_path(f"{ORIGINAL_CONFIG_DIR}/partitions.csv") is None
+    assert "ignoring unreadable" in caplog.text
+
+
 def test_remap_bundle_path_outside_original_config_dir(tmp_path: Path) -> None:
     """Paths that were not under the original config dir are left alone."""
     _setup_extracted_dir(tmp_path, _bundle_manifest_dict())

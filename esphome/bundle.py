@@ -177,7 +177,13 @@ def _load_original_config_dir() -> PurePath | None:
     manifest_path = CORE.config_dir / MANIFEST_FILENAME
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+    except FileNotFoundError:
+        # The common case: this config dir is not an extracted bundle.
+        return None
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as err:
+        # A manifest.json is present but unreadable or malformed. Say so
+        # instead of letting it look identical to "not a bundle".
+        _LOGGER.warning("Bundle: ignoring unreadable %s: %s", manifest_path, err)
         return None
     if not isinstance(manifest, dict):
         return None
