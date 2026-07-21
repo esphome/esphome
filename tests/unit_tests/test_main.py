@@ -442,6 +442,46 @@ def test_redact_with_legacy_fallback__does_not_match_fragment_as_suffix(
     assert not any("legacy substring" in rec.message for rec in caplog.records)
 
 
+@pytest.mark.parametrize("field", ["public_key", "peer_public_key"])
+def test_redact_with_legacy_fallback__skips_public_key_fields(
+    field: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Public keys are not secret; fields with a ``public`` name segment
+    must pass through unredacted and without the migration warning
+    (see issue #17718)."""
+    text = f"{field}: c29tZXB1YmxpY2tleQ==\n"
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback(text)
+    assert out == text
+    assert not any("legacy substring" in rec.message for rec in caplog.records)
+
+
+def test_redact_with_legacy_fallback__public_substitution_still_redacted(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Substitution keys are user-named with no schema behind them, so the
+    public-key exemption does not apply there; a ``public``-named substitution
+    keeps the conservative silent redaction."""
+    text = "substitutions:\n  public_key: something\nesphome:\n  name: x\n"
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback(text)
+    assert "public_key: \\033[8msomething\\033[28m" in out
+    assert not any("legacy substring" in rec.message for rec in caplog.records)
+
+
+def test_redact_with_legacy_fallback__public_must_be_a_whole_segment(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The exemption matches ``public`` as an underscore-separated segment,
+    not a substring; an unrelated name like ``republic_key`` keeps the
+    conservative redaction."""
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback("republic_key: abc\n")
+    assert "republic_key: \\033[8mabc\\033[28m" in out
+    assert any("'republic_key'" in rec.message for rec in caplog.records)
+
+
 def test_redact_with_legacy_fallback__substitutions_redacted_without_warning(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -5408,6 +5448,43 @@ def _setup_build_info_test(
         create_firmware_file()
 
     return build_info_path, firmware_path
+
+
+def test_compile_program_esp8266_runs_rosetta_check(tmp_path: Path) -> None:
+    """Test that compile_program runs the Rosetta preflight for ESP8266 targets."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test_device")
+
+    config: dict[str, Any] = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    args = MockArgs()
+
+    with (
+        patch(
+            "esphome.components.esp8266.check_rosetta",
+            side_effect=EsphomeError("Rosetta 2 is not installed"),
+        ) as mock_check,
+        pytest.raises(EsphomeError, match="Rosetta 2 is not installed"),
+    ):
+        compile_program(args, config)
+
+    mock_check.assert_called_once()
+
+
+def test_compile_program_skips_rosetta_check_on_other_platforms(
+    tmp_path: Path,
+    mock_compile_build_info_run_compile: Mock,
+    mock_compile_build_info_get_idedata: Mock,
+) -> None:
+    """Test that the Rosetta preflight does not run for non-ESP8266 targets."""
+    _setup_build_info_test(tmp_path, firmware_first=True)
+
+    config: dict[str, Any] = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    args = MockArgs()
+
+    with patch("esphome.components.esp8266.check_rosetta") as mock_check:
+        result = compile_program(args, config)
+
+    assert result == 0
+    mock_check.assert_not_called()
 
 
 def test_compile_program_emits_build_info_when_firmware_rebuilt(

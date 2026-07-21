@@ -665,3 +665,103 @@ def test_downgrade_protection_reports_all_unmet_requirements() -> None:
     # No project version and no signing -> two distinct errors.
     errs = _ota_downgrade_protection_errors(None, signed_ota_enabled=False)
     assert len(errs) == 2
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        # V2 schemes: signing key (sign during build) or no key at all
+        # (external signing; the public key travels in the signature block).
+        {"signing_scheme": "rsa3072", "signing_key": "key.pem"},
+        {"signing_scheme": "rsa3072"},
+        {"signing_scheme": "ecdsa256", "signing_key": "key.pem"},
+        {"signing_scheme": "ecdsa256"},
+        # V1 ECDSA: exactly one of signing key / verification key.
+        {"signing_scheme": "ecdsa_v1", "signing_key": "key.pem"},
+        {"signing_scheme": "ecdsa_v1", "verification_key": "key.bin"},
+    ],
+)
+def test_signed_ota_keys_valid_combinations(config: dict) -> None:
+    from esphome.components.esp32 import _validate_signed_ota_keys
+
+    assert _validate_signed_ota_keys(config) is config
+
+
+@pytest.mark.parametrize("value", [None, {}])
+def test_signed_ota_bare_block_selects_v2_external_signing(value: dict | None) -> None:
+    """A bare `signed_ota_verification:` block is valid: the default V2
+    scheme embeds the public key in the signature block, so verifying
+    externally-signed binaries needs no keys in the config."""
+    from esphome.components.esp32 import _validate_signed_ota_verification
+
+    config = _validate_signed_ota_verification(value)
+    assert config == {"signing_scheme": "rsa3072"}
+
+
+@pytest.mark.parametrize(
+    ("config", "match"),
+    [
+        # A verification key is meaningless with the V2 schemes -- the public
+        # key is embedded in each image's signature block.
+        (
+            {"signing_scheme": "rsa3072", "verification_key": "key.bin"},
+            "only used with signing scheme 'ecdsa_v1'",
+        ),
+        (
+            {"signing_scheme": "ecdsa256", "verification_key": "key.bin"},
+            "only used with signing scheme 'ecdsa_v1'",
+        ),
+        # V1 ECDSA needs a key either way.
+        (
+            {"signing_scheme": "ecdsa_v1"},
+            "Signing scheme 'ecdsa_v1' requires either",
+        ),
+        # Never both keys at once.
+        (
+            {
+                "signing_scheme": "rsa3072",
+                "signing_key": "key.pem",
+                "verification_key": "key.bin",
+            },
+            "not both",
+        ),
+        (
+            {
+                "signing_scheme": "ecdsa_v1",
+                "signing_key": "key.pem",
+                "verification_key": "key.bin",
+            },
+            "not both",
+        ),
+    ],
+)
+def test_signed_ota_keys_invalid_combinations(config: dict, match: str) -> None:
+    from esphome.components.esp32 import _validate_signed_ota_keys
+
+    with pytest.raises(cv.Invalid, match=match):
+        _validate_signed_ota_keys(config)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        # Full x.y.z versions are rewritten into pioarduino release URLs
+        (
+            "55.3.30",
+            "https://github.com/pioarduino/platform-espressif32/releases/download/55.03.30/platform-espressif32.zip",
+        ),
+        (
+            "55.3.31-2",
+            "https://github.com/pioarduino/platform-espressif32/releases/download/55.03.31-2/platform-espressif32.zip",
+        ),
+        # Non-version values pass through untouched
+        (
+            "https://github.com/pioarduino/platform-espressif32.git#develop",
+            "https://github.com/pioarduino/platform-espressif32.git#develop",
+        ),
+    ],
+)
+def test_parse_pio_platform_version(value: str, expected: str) -> None:
+    from esphome.components.esp32 import _parse_pio_platform_version
+
+    assert _parse_pio_platform_version(value) == expected

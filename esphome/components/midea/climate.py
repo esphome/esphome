@@ -25,6 +25,8 @@ from esphome.const import (
     ICON_POWER,
     ICON_THERMOMETER,
     ICON_WATER_PERCENT,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
@@ -152,6 +154,12 @@ CONFIG_SCHEMA = cv.All(
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
     cv.only_with_arduino,
+    cv.only_on(
+        [
+            PLATFORM_ESP32,
+            PLATFORM_ESP8266,
+        ]
+    ),
 )
 
 # Actions
