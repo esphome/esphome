@@ -422,12 +422,14 @@ class Version:
 
     @classmethod
     def parse(cls, value: str) -> Version:
-        match = re.match(r"^(\d+).(\d+).(\d+)[-.]?(\w*)$", value)
+        # The patch component is optional and defaults to 0, so "6.0" and
+        # "6.0-rc1" parse as 6.0.0 and 6.0.0-rc1.
+        match = re.match(r"^(\d+)\.(\d+)(?:\.(\d+))?[-.]?(\w*)$", value)
         if match is None:
             raise ValueError(f"Not a valid version number {value}")
         major = int(match[1])
         minor = int(match[2])
-        patch = int(match[3])
+        patch = int(match[3] or 0)
         extra = match[4] or ""
         return Version(major=major, minor=minor, patch=patch, extra=extra)
 
