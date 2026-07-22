@@ -1405,11 +1405,8 @@ def final_validate_file_system(config) -> None:
 
 async def file_system_to_code(var, config) -> None:
     """Emit the selection define + setter — only when the option may exist at all."""
-    from esphome.core import CORE
-
     if not _esp32_exfat_enabled(CORE.config):
         return  # not even the auto path is compiled in
-    import esphome.codegen as cg
 
     cg.add_define("USE_STORAGE_FILE_SYSTEM_SELECT")
     fs = config.get(CONF_FILE_SYSTEM, FILE_SYSTEM_AUTO)
