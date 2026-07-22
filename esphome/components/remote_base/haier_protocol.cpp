@@ -11,7 +11,7 @@ constexpr uint32_t HEADER_HIGH_US = 4400;
 constexpr uint32_t BIT_MARK_US = 540;
 constexpr uint32_t BIT_ONE_SPACE_US = 1650;
 constexpr uint32_t BIT_ZERO_SPACE_US = 580;
-constexpr unsigned int HAIER_IR_PACKET_BIT_SIZE = 112;
+constexpr unsigned int HAIER_IR_PACKET_BIT_SIZE = 72;  // 112;
 // Max data bytes in packet (excluding checksum)
 constexpr size_t HAIER_MAX_DATA_BYTES = (HAIER_IR_PACKET_BIT_SIZE / 8);
 
