@@ -20,7 +20,7 @@ enum Inkplate6ColorHex : uint8_t {
   ORANGE = 6,
 };
 
-uint8_t EPaperInkplate6Color::color_to_native_(Color color) {
+uint8_t EPaperInkplate6Color::color_to_native(Color color) {
   return color_to_bwyrgbo<uint8_t>(color, BLACK, WHITE, YELLOW, RED, GREEN, BLUE, ORANGE);
 }
 

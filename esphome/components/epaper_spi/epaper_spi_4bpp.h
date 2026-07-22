@@ -9,7 +9,7 @@ namespace esphome::epaper_spi {
  *
  * Owns buffer sizing, fill()/clear()/draw_pixel_at() and the chunked SPI transfer loop shared by
  * this family of controllers. Concrete subclasses supply only their RGB -> 4-bit color mapping via
- * color_to_native_() plus their IC-specific power/refresh/sleep command sequences.
+ * color_to_native() plus their IC-specific power/refresh/sleep command sequences.
  */
 class EPaper4bpp : public EPaperBase {
  public:
@@ -27,7 +27,7 @@ class EPaper4bpp : public EPaperBase {
   bool transfer_data() override;
 
   /// Map an RGB color to this panel's native 4-bit color key (low nibble).
-  virtual uint8_t color_to_native_(Color color) = 0;
+  virtual uint8_t color_to_native(Color color) = 0;
 
   static constexpr uint8_t CMD_TRANSFER_DATA = 0x10;
 };

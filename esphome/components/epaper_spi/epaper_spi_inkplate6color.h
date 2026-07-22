@@ -11,7 +11,7 @@ class EPaperInkplate6Color final : public EPaper4bpp {
   using EPaper4bpp::EPaper4bpp;
 
  protected:
-  uint8_t color_to_native_(Color color) override;
+  uint8_t color_to_native(Color color) override;
 
   void refresh_screen(bool partial) override;
   void power_on() override;

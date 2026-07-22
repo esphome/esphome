@@ -16,7 +16,7 @@ enum E6Color : uint8_t {
   GREEN = 6,
 };
 
-uint8_t EPaperSpectraE6::color_to_native_(Color color) {
+uint8_t EPaperSpectraE6::color_to_native(Color color) {
   return color_to_bwyrgb<uint8_t>(color, BLACK, WHITE, YELLOW, RED, GREEN, BLUE);
 }
 

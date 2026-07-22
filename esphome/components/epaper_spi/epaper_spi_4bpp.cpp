@@ -13,7 +13,7 @@ void EPaper4bpp::fill(Color color) {
     return;
   }
 
-  auto pixel_color = this->color_to_native_(color);
+  auto pixel_color = this->color_to_native(color);
 
   // We store 2 pixels per byte
   this->buffer_.fill(pixel_color + (pixel_color << 4));
@@ -27,7 +27,7 @@ void EPaper4bpp::clear() {
 void HOT EPaper4bpp::draw_pixel_at(int x, int y, Color color) {
   if (!this->rotate_coordinates_(x, y))
     return;
-  auto pixel_bits = this->color_to_native_(color);
+  auto pixel_bits = this->color_to_native(color);
   uint32_t pixel_position = x + y * this->get_width_internal();
   uint32_t byte_position = pixel_position / 2;
   auto original = this->buffer_[byte_position];
