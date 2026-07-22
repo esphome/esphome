@@ -455,7 +455,9 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
   // Zero unconditionally so a null frame doesn't leave stale .noinit data from a previous boot
   s_raw_crash_data.cause = 0;
   s_raw_crash_data.fault_addr = 0;
-  // Record which build's ELF the captured addresses belong to (RAM read, panic-safe)
+  // Record which build's ELF the captured addresses belong to (RAM read, panic-safe).
+  // Still 0 if the panic precedes arch_init(), so such a crash reports as a
+  // foreign build — conservative: addresses are shown raw instead of decoded.
   s_raw_crash_data.build_time = s_current_build_time;
 #if SOC_CPU_CORES_NUM > 1
   s_raw_crash_data.other_backtrace_count = 0;
