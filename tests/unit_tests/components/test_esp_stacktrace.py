@@ -179,3 +179,30 @@ def test_process_stacktrace_esp32_crash_handler(
     state = process_stacktrace(config, line_mtval_data, False)
     mock_esp32_decode_pc.assert_not_called()
     assert state is False
+
+
+def test_process_stacktrace_esp32_foreign_crash(
+    setup_core: Path, mock_esp32_decode_pc: Mock
+) -> None:
+    """Crash records from a different firmware build must not be decoded."""
+    from esphome.components.esp32 import process_stacktrace
+
+    config = {"name": "test"}
+
+    line_note = (
+        "[E][esp32.crash:390]:   Captured by a different firmware build; "
+        "addresses belong to that build's ELF"
+    )
+    state = process_stacktrace(config, line_note, False)
+    mock_esp32_decode_pc.assert_not_called()
+    assert state is False
+
+    # Lowercase labels and bare hex addresses are deliberately not matched
+    # by any decoder regex, since symbols would come from the wrong ELF
+    line_addrs = (
+        "[E][esp32.crash:391]:   Old-build addresses: pc 0x400D1234 "
+        "excvaddr 0x400D5678 mtval 0x42001234 0x400F19A6 0x42005ABC"
+    )
+    state = process_stacktrace(config, line_addrs, False)
+    mock_esp32_decode_pc.assert_not_called()
+    assert state is False
