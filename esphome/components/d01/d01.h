@@ -15,5 +15,4 @@ class D01Component final : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *pm25_sensor_{nullptr};
 };
 
-}  // namespace d01
-  // namespace esphome
+}  // namespace esphome::d01

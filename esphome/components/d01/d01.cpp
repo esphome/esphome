@@ -4,14 +4,16 @@
 // uart specification for d01 sensor from https://manuals.plus/ae/1005006417362019:
 //
 // A frame of serial output data includes 4 bytes, formatted as follows:
-//  Characteristic byte: Fixed value 0xA5.
-//  Data byte: DATAH is the high 7 bits of the concentration value, and DATAL is the low 7 bits of the concentration value.
-//  Check byte: The low 7 bits of the sum of all bytes before the check byte.
+// __Characteristic byte: Fixed value 0xA5.
+// __Data byte: DATAH is the high 7 bits of the concentration value, and DATAL is the low 7 bits of the concentration
+// value.
+// __Check byte: The low 7 bits of the sum of all bytes before the check byte.
 //
 // If the serial output is 4 bytes of data: 0*A5 0*01 0*2C 0*52, then DATAH = 0*01 = 1, DATAL = 0*2C = 44.
 // Concentration value = 1*128 + 44 = 172 µg/m³.
 //
-// The PM2.5 dust concentration value obtained from the dust sensor needs to be calibrated with a K value coefficient based on the TSI instrument's photometric method. It is generally recommended to use 0.4.
+// The PM2.5 dust concentration value obtained from the dust sensor needs to be calibrated with a K value coefficient
+// based on the TSI instrument's photometric method. It is generally recommended to use 0.4.
 
 namespace esphome::d01 {
 
@@ -27,7 +29,10 @@ void D01Component::dump_config() {
 void D01Component::update() {
   uint8_t buf[4];
   while (this->available() >= 4) {
-    if (this->peek() != D01_FRAME_HEADER) { this->read(); continue; }
+    if (this->peek() != D01_FRAME_HEADER) {
+      this->read();
+      continue;
+    }
     this->read_array(buf, 4);
     uint8_t sum = (buf[0] + buf[1] + buf[2]) & 0x7F;
     if (sum != buf[3]) {
@@ -41,5 +46,4 @@ void D01Component::update() {
   }
 }
 
-}  // namespace d01
-  // namespace esphome
+}  // namespace esphome::d01
