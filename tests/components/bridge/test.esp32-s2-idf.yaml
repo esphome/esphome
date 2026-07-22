@@ -3,11 +3,12 @@
 logger:
   hardware_uart: UART0
 
-bridge:
-  platform: usb_uart
-  uart_id: uart_0
-  usb_cdc_acm_id: cdc_acm_1
-  dtr_pin: 40
-  rts_pin: 41
+packages:
+  bridge: !include common.yaml
 
-<<: !include bridge-common.yaml
+bridge:
+  - platform: usb_uart
+    uart_id: uart_0
+    usb_cdc_acm_id: cdc_acm_1
+    dtr_pin: 40
+    rts_pin: 41
