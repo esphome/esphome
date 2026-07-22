@@ -1928,6 +1928,8 @@ static bool find_free_stream_slot(FixedVector<StreamRequest> &pool, size_t *out_
     StreamState expected = StreamState::FREE;
     if (pool[i].state.compare_exchange_strong(expected, StreamState::OPENING)) {
       pool[i].last_activity_ms = millis();
+      if (++pool[i].generation == 0)
+        pool[i].generation = 1;  // 0 stays the never-claimed value
       *out_index = i;
       return true;
     }
@@ -1954,6 +1956,17 @@ void StorageWorker::dispatch_stream_step_(StreamRequest &req, size_t index) {
   this->start_poller();
 }
 
+// Resolves a caller's handle to its slot, or nullptr when the handle no longer refers to the
+// stream it was issued for -- out of range, or the slot has been reclaimed since.
+StreamRequest *StorageWorker::stream_for_handle_(const StreamHandle &handle) {
+  if (handle.index >= this->stream_pool_.size())
+    return nullptr;
+  StreamRequest &req = this->stream_pool_[handle.index];
+  if (req.generation != handle.generation)
+    return nullptr;
+  return &req;
+}
+
 StorageError StorageWorker::begin_write(PathStorage *storage, const char *path, StreamHandle *out_handle,
                                         CompletionCallback &&on_open) {
   this->ensure_started_();
@@ -1976,6 +1989,7 @@ StorageError StorageWorker::begin_write(PathStorage *storage, const char *path, 
   req.result = StorageError::OK;
 
   out_handle->index = index;
+  out_handle->generation = req.generation;
   this->dispatch_stream_step_(req, index);
   return StorageError::OK;
 }
@@ -2002,15 +2016,17 @@ StorageError StorageWorker::begin_read(PathStorage *storage, const char *path, S
   req.result = StorageError::OK;
 
   out_handle->index = index;
+  out_handle->generation = req.generation;
   this->dispatch_stream_step_(req, index);
   return StorageError::OK;
 }
 
 StorageError StorageWorker::write_chunk(const StreamHandle &handle, const uint8_t *data, size_t len,
                                         CompletionCallback &&on_written) {
-  if (handle.index >= this->stream_pool_.size())
+  StreamRequest *slot = this->stream_for_handle_(handle);
+  if (slot == nullptr)
     return StorageError::INVALID_ARGS;
-  StreamRequest &req = this->stream_pool_[handle.index];
+  StreamRequest &req = *slot;
   StreamState expected = StreamState::IDLE;
   if (!req.state.compare_exchange_strong(expected, StreamState::WRITING))
     return StorageError::NOT_READY;
@@ -2025,9 +2041,10 @@ StorageError StorageWorker::write_chunk(const StreamHandle &handle, const uint8_
 
 StorageError StorageWorker::read_chunk(const StreamHandle &handle, uint8_t *buf, size_t len, size_t *bytes_read,
                                        CompletionCallback &&on_read) {
-  if (handle.index >= this->stream_pool_.size())
+  StreamRequest *slot = this->stream_for_handle_(handle);
+  if (slot == nullptr)
     return StorageError::INVALID_ARGS;
-  StreamRequest &req = this->stream_pool_[handle.index];
+  StreamRequest &req = *slot;
   StreamState expected = StreamState::IDLE;
   if (!req.state.compare_exchange_strong(expected, StreamState::READING))
     return StorageError::NOT_READY;
@@ -2042,9 +2059,10 @@ StorageError StorageWorker::read_chunk(const StreamHandle &handle, uint8_t *buf,
 }
 
 StorageError StorageWorker::end_write(const StreamHandle &handle, CompletionCallback &&on_closed) {
-  if (handle.index >= this->stream_pool_.size())
+  StreamRequest *slot = this->stream_for_handle_(handle);
+  if (slot == nullptr)
     return StorageError::INVALID_ARGS;
-  StreamRequest &req = this->stream_pool_[handle.index];
+  StreamRequest &req = *slot;
   StreamState expected = StreamState::IDLE;
   if (!req.state.compare_exchange_strong(expected, StreamState::CLOSING))
     return StorageError::NOT_READY;

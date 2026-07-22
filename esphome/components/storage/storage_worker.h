@@ -308,10 +308,16 @@ enum class StreamState : uint8_t {
   DONE,
 };
 
-// Opaque handle returned to the caller — stable for the stream's lifetime (begin_* through
-// end_*/DONE). Callers must not dereference; it only identifies a pool slot.
+// Opaque handle returned to the caller — valid for the stream's lifetime (begin_* through
+// end_*/DONE) and not a moment longer. Callers must not dereference it.
+//
+// The generation is what makes "not a moment longer" enforceable rather than a rule to
+// remember: it is bumped every time a slot is claimed, so a handle held past end_* stops
+// matching once someone else takes the slot, and the call is refused instead of writing into
+// a stranger's file. TransferJob does the same thing for the same reason.
 struct StreamHandle {
   size_t index;
+  uint32_t generation;
 };
 
 // One pooled stream. Fixed-size, no heap allocation — pool is a FixedVector sized to
@@ -341,6 +347,10 @@ struct StreamRequest {
   size_t pending_len{0};
   uint8_t *pending_read_buf{nullptr};
   size_t *bytes_transferred_out{nullptr};  // read_chunk() writes the actual count here
+
+  // Bumped on every slot claim so a StreamHandle from a finished stream stops matching once
+  // the slot is reused (never 0 — that is the unclaimed value). Main-loop-only.
+  uint32_t generation{0};
 
   // Set by dispatch_stream_step_() when a step was queued for the loop-sliced engine rather
   // than run immediately — loop() picks it up and runs it there, so the callback always fires
@@ -550,6 +560,9 @@ class StorageWorker : public PollingComponent {
   // holding each other forever. At dispatch time (from_loop=false) it does contend, so the
   // candidate goes to the loop as well instead of racing it from the task.
   bool stream_overlaps_active_(const StreamRequest &candidate, bool from_loop) const;
+  // The slot a caller's handle refers to, or nullptr once it refers to nothing — see
+  // StreamHandle. Every entry point that takes a handle goes through here.
+  StreamRequest *stream_for_handle_(const StreamHandle &handle);
 
   // True if another request that is currently RUNNING or CANCELLED (i.e. still owned by an
   // engine) shares a storage instance with `candidate`. Used at both dispatch points to

@@ -1551,6 +1551,11 @@ static bool import_one(nvs_handle_t handle, const char *name, size_t name_len, c
                        const PrefSelection *sel, size_t count, bool restrict_to_selection,
                        esphome::EntityBase *const *selected_entities, size_t selected_entity_count, size_t &imported,
                        size_t &skipped) {
+  // One buffer for both paths below. They never overlap in time, but MAX_BLOB_LEN is 4 kB and
+  // whether the compiler folds two of them into one stack slot is not something to rely on --
+  // this runs on the main loop, whose stack is 8 kB by default.
+  uint8_t blob[MAX_BLOB_LEN];
+  size_t blob_len = 0;
   const PrefSelection *s = find_by_name(name, name_len, sel, count);
   uint32_t key;
   if (s != nullptr) {
@@ -1560,8 +1565,6 @@ static bool import_one(nvs_handle_t handle, const char *name, size_t name_len, c
     key = re->key;
     // typed parse first; hex: prefix (and stale-format hex) still accepted below
     if (value_len < strlen(HEX_PREFIX) || memcmp(value, HEX_PREFIX, strlen(HEX_PREFIX)) != 0) {
-      uint8_t blob[MAX_BLOB_LEN];
-      size_t blob_len = 0;
       if (decode_entity_value(value, value_len, *re, blob, &blob_len)) {
         char key_str[16];
         snprintf(key_str, sizeof(key_str), "%" PRIu32, key);
@@ -1592,8 +1595,7 @@ static bool import_one(nvs_handle_t handle, const char *name, size_t name_len, c
     s = find_by_key(key, sel, count);
   }
 
-  uint8_t blob[MAX_BLOB_LEN];
-  size_t blob_len = 0;
+  blob_len = 0;
   bool ok;
   if (s != nullptr) {
     ok = decode_value(value, value_len, *s, blob, &blob_len);

@@ -2151,9 +2151,17 @@ async def _reconcile_vfs_fatfs_sdkconfig(
         # enough FATFS volumes for several drivers at once (SD + USB + wear levelling —
         # every esp_vfs_fat mount consumes one). All of these are only defaults: override
         # any of them via esp32 -> framework -> advanced -> sdkconfig_options.
-        set_opt("CONFIG_FATFS_LFN_NONE", False)
-        set_opt("CONFIG_FATFS_LFN_HEAP", True)
-        set_opt("CONFIG_FATFS_MAX_LFN", 255)
+        # Long filenames, unless the user turned them off. With CONFIG_FATFS_LFN_NONE set,
+        # FatFs is 8.3-only and the two options that size the LFN buffer have no dependency
+        # left to satisfy -- writing them then sets a symbol IDF has disabled. A YAML
+        # sdkconfig_options value arrives wrapped so it is written out verbatim; one set from
+        # here is a plain bool, hence reading through both shapes.
+        lfn_off = opts.get("CONFIG_FATFS_LFN_NONE")
+        lfn_off = getattr(lfn_off, "value", lfn_off)
+        if str(lfn_off).strip().lower() not in ("y", "true", "1"):
+            set_opt("CONFIG_FATFS_LFN_NONE", False)
+            set_opt("CONFIG_FATFS_LFN_HEAP", True)
+            set_opt("CONFIG_FATFS_MAX_LFN", 255)
         set_opt("CONFIG_FATFS_VOLUME_COUNT", 4)
         # Long filenames are a hard requirement of exFAT and are already set right above;
         # the FatFs #defines themselves come via a patched project-local component copy.

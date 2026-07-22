@@ -35,7 +35,10 @@ void fatfs_log_format_done(const char *tag, bool want_exfat);
 // Internal helpers for boot-sector/partition probing, kept inline in this header (they are
 // used only by ensure_requested_filesystem below). Names are prefixed to avoid clashing with
 // any other storage-scope symbols.
-enum class FatfsDetected : uint8_t { NONE, FAT, EXFAT };
+// NONE means the medium was readable and carries nothing this code recognises. UNREADABLE
+// means the question could not be answered at all -- the two must stay apart, because the
+// caller reformats on the first and must not on the second.
+enum class FatfsDetected : uint8_t { NONE, UNREADABLE, FAT, EXFAT };
 
 inline bool fatfs_has_boot_signature(const uint8_t *sec) { return sec[510] == 0x55 && sec[511] == 0xAA; }
 
@@ -58,7 +61,7 @@ inline FatfsDetected fatfs_probe(const char *tag, uint8_t pdrv) {
   auto sec = std::make_unique<uint8_t[]>(FF_MAX_SS);
   if (disk_read(pdrv, sec.get(), 0, 1) != RES_OK) {
     fatfs_log_probe_read_failed(tag);
-    return FatfsDetected::NONE;
+    return FatfsDetected::UNREADABLE;
   }
   FatfsDetected direct = fatfs_classify_boot_sector(sec.get());
   if (direct != FatfsDetected::NONE)
@@ -73,16 +76,26 @@ inline FatfsDetected fatfs_probe(const char *tag, uint8_t pdrv) {
   if (part_type == 0xEE) {
     // Protective MBR -> GPT. Header at LBA 1: entry array start LBA at offset 72; the first
     // entry's first LBA at offset 32 within the entry.
-    if (disk_read(pdrv, sec.get(), 1, 1) != RES_OK || memcmp(sec.get(), "EFI PART", 8) != 0)
-      return FatfsDetected::NONE;
+    if (disk_read(pdrv, sec.get(), 1, 1) != RES_OK) {
+      fatfs_log_probe_read_failed(tag);
+      return FatfsDetected::UNREADABLE;
+    }
+    if (memcmp(sec.get(), "EFI PART", 8) != 0)
+      return FatfsDetected::NONE;  // protective MBR without a GPT behind it
     uint64_t entries_lba = 0;
     memcpy(&entries_lba, sec.get() + 72, sizeof(entries_lba));
-    if (disk_read(pdrv, sec.get(), static_cast<LBA_t>(entries_lba), 1) != RES_OK)
-      return FatfsDetected::NONE;
+    if (disk_read(pdrv, sec.get(), static_cast<LBA_t>(entries_lba), 1) != RES_OK) {
+      fatfs_log_probe_read_failed(tag);
+      return FatfsDetected::UNREADABLE;
+    }
     memcpy(&start_lba, sec.get() + 32, sizeof(start_lba));
   }
-  if (start_lba == 0 || disk_read(pdrv, sec.get(), static_cast<LBA_t>(start_lba), 1) != RES_OK)
-    return FatfsDetected::NONE;
+  if (start_lba == 0)
+    return FatfsDetected::NONE;  // no first partition to look into
+  if (disk_read(pdrv, sec.get(), static_cast<LBA_t>(start_lba), 1) != RES_OK) {
+    fatfs_log_probe_read_failed(tag);
+    return FatfsDetected::UNREADABLE;
+  }
   return fatfs_classify_boot_sector(sec.get());
 }
 
@@ -97,6 +110,12 @@ inline bool ensure_requested_filesystem(const char *tag, uint8_t pdrv, const cha
     return true;
   const bool want_exfat = requested == FS_SELECT_EXFAT;
   FatfsDetected found = fatfs_probe(tag, pdrv);
+  if (found == FatfsDetected::UNREADABLE) {
+    // The probe could not read the medium, which says nothing about what is on it. Formatting
+    // here would destroy a perfectly good filesystem over a card that was not ready yet or a
+    // connector that flickered. Leave it alone and let the mount below report the trouble.
+    return true;
+  }
   if ((found == FatfsDetected::EXFAT) == want_exfat && found != FatfsDetected::NONE)
     return true;
   if (found == FatfsDetected::NONE) {
