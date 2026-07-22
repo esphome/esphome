@@ -172,20 +172,22 @@ void LgIrClimate::transmit_state() {
   ESP_LOGD(TAG, "climate_lg_ir mode code: 0x%02X", this->mode);
 
   // Set fan speed
-  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
-    case climate::CLIMATE_FAN_HIGH:
-      remote_state |= FAN_MAX;
-      break;
-    case climate::CLIMATE_FAN_MEDIUM:
-      remote_state |= FAN_MED;
-      break;
-    case climate::CLIMATE_FAN_LOW:
-      remote_state |= FAN_MIN;
-      break;
-    case climate::CLIMATE_FAN_AUTO:
-    default:
-      remote_state |= FAN_AUTO;
-      break;
+  if (this->mode != climate::CLIMATE_MODE_OFF)  { // https://github.com/esphome/esphome/pull/10875#issuecomment-5042765948
+      switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
+      case climate::CLIMATE_FAN_HIGH:
+        remote_state |= FAN_MAX;
+        break;
+      case climate::CLIMATE_FAN_MEDIUM:
+        remote_state |= FAN_MED;
+        break;
+      case climate::CLIMATE_FAN_LOW:
+        remote_state |= FAN_MIN;
+        break;
+      case climate::CLIMATE_FAN_AUTO:
+      default:
+        remote_state |= FAN_AUTO;
+        break;
+    }
   }
 
   uint8_t temp;
