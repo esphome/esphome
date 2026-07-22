@@ -1,0 +1,4 @@
+sensor:
+  - platform: d01
+    pm_2_5:
+      name: D01 PM2.5 Concentration
