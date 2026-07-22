@@ -2822,9 +2822,9 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_version: str, variant: str) ->
     probed = set()
     skip_dirs = {"test_apps", "host_test", "fatfs_utils"}
     for f in dest.rglob("*"):
-        if f.suffix not in (".c", ".h") or skip_dirs & set(
+        if f.suffix not in (".c", ".h") or skip_dirs & {
             part.name for part in f.parents
-        ):
+        }:
             continue
         for line in f.read_text(errors="replace").splitlines():
             if re.search(r"#\s*if(n?def)?\b", line) or "defined" in line:
