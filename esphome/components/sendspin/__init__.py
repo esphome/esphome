@@ -129,7 +129,7 @@ def _request_high_performance_networking(config: ConfigType) -> ConfigType:
     """
     network.require_high_performance_networking()
     # Socket consumption varies by mode:
-    # - Server mode: 1 listening socket + 4 client connections (for handoff)
+    # - Server mode: 1 listening socket + 4 client connections (established connection, unproven connections, and a spare)
     # - Client mode: 1 outbound connection
     socket.consume_sockets(
         1, "sendspin_websocket_server", socket.SocketType.TCP_LISTEN
