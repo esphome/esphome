@@ -13,8 +13,7 @@
 //
 // The PM2.5 dust concentration value obtained from the dust sensor needs to be calibrated with a K value coefficient based on the TSI instrument's photometric method. It is generally recommended to use 0.4.
 
-namespace esphome {
-namespace d01 {
+namespace esphome::d01 {
 
 static const char *const TAG = "d01";
 static const uint8_t D01_FRAME_HEADER = 0xA5;
@@ -42,5 +41,5 @@ void D01Component::update() {
   }
 }
 
-}
-}
+}  // namespace d01
+  // namespace esphome

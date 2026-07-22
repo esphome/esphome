@@ -3,8 +3,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace d01 {
+namespace esphome::d01 {
 
 class D01Component final : public PollingComponent, public uart::UARTDevice {
  public:
@@ -16,5 +15,5 @@ class D01Component final : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *pm25_sensor_{nullptr};
 };
 
-}
-}
+}  // namespace d01
+  // namespace esphome
