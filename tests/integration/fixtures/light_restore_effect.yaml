@@ -1,0 +1,47 @@
+esphome:
+  name: light-restore-effect
+
+host:
+
+api:
+
+logger:
+  level: DEBUG
+
+output:
+  - platform: template
+    id: light_output
+    type: float
+    write_action:
+      - logger.log:
+          format: "LIGHT_OUTPUT:%.2f"
+          args: [state]
+
+light:
+  - platform: monochromatic
+    name: "Test Light Restore"
+    id: test_light_restore
+    output: light_output
+    restore_effect: true
+    effects:
+      - pulse:
+          name: "Pulse Effect"
+          transition_length: 20ms
+          update_interval: 50ms
+      - strobe:
+          name: "Strobe Effect"
+          colors:
+            - state: true
+              duration: 50ms
+            - state: false
+              duration: 50ms
+  - platform: monochromatic
+    name: "Test Light No Restore"
+    id: test_light_no_restore
+    output: light_output
+    restore_effect: false
+    effects:
+      - pulse:
+          name: "Pulse Effect"
+          transition_length: 20ms
+          update_interval: 50ms
