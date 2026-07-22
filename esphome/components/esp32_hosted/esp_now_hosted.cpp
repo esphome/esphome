@@ -68,6 +68,64 @@ volatile uint16_t g_resp_ret_len = 0;
 volatile esp_now_recv_cb_t g_recv_cb = nullptr;
 volatile esp_now_send_cb_t g_send_cb = nullptr;
 
+// Local mirror of the co-processor's peer table. ESPHome's espnow component
+// calls esp_now_is_peer_exist() on the main loop for every received frame
+// (twice) and every send; forwarding each as a blocking RPC round-trip stalls
+// the loop. The shim is the only path that mutates the co-processor peer table
+// (add/del/deinit all go through here), so this mirror is authoritative and
+// esp_now_is_peer_exist() can answer from it with no round-trip.
+//
+// esp_now_* are public C symbols: any component or user lambda may call them,
+// and although ESPHome's espnow touches peers only from the main loop today
+// (its RX/TX callbacks merely enqueue), the shim cannot rely on that. A short
+// spinlock keeps the mirror consistent from any task/core, matching native
+// esp_now_*'s own internal thread-safety. The critical sections are a bounded
+// (<=20-entry) scan, so they stay tiny. ESP_NOW_MAX_TOTAL_PEER_NUM is 20.
+constexpr size_t ESP_NOW_HOSTED_MAX_PEERS = 20;
+uint8_t g_peer_cache[ESP_NOW_HOSTED_MAX_PEERS][6];
+size_t g_peer_count = 0;
+portMUX_TYPE g_peer_lock = portMUX_INITIALIZER_UNLOCKED;
+
+// Caller must hold g_peer_lock.
+int peer_cache_find_locked(const uint8_t *mac) {
+  for (size_t i = 0; i < g_peer_count; i++) {
+    if (memcmp(g_peer_cache[i], mac, 6) == 0)
+      return static_cast<int>(i);
+  }
+  return -1;
+}
+
+bool peer_cache_contains(const uint8_t *mac) {
+  portENTER_CRITICAL(&g_peer_lock);
+  const bool found = peer_cache_find_locked(mac) >= 0;
+  portEXIT_CRITICAL(&g_peer_lock);
+  return found;
+}
+
+void peer_cache_add(const uint8_t *mac) {
+  portENTER_CRITICAL(&g_peer_lock);
+  if (peer_cache_find_locked(mac) < 0 && g_peer_count < ESP_NOW_HOSTED_MAX_PEERS)
+    memcpy(g_peer_cache[g_peer_count++], mac, 6);
+  portEXIT_CRITICAL(&g_peer_lock);
+}
+
+void peer_cache_remove(const uint8_t *mac) {
+  portENTER_CRITICAL(&g_peer_lock);
+  const int idx = peer_cache_find_locked(mac);
+  if (idx >= 0) {
+    g_peer_count--;
+    if (static_cast<size_t>(idx) != g_peer_count)  // move the last entry into the gap
+      memcpy(g_peer_cache[idx], g_peer_cache[g_peer_count], 6);
+  }
+  portEXIT_CRITICAL(&g_peer_lock);
+}
+
+void peer_cache_clear() {
+  portENTER_CRITICAL(&g_peer_lock);
+  g_peer_count = 0;
+  portEXIT_CRITICAL(&g_peer_lock);
+}
+
 // ── CustomRpc event handlers (run on the esp-hosted RPC RX thread) ──────────
 // Keep them short and non-blocking. In particular they MUST NOT call back into
 // any esp_now_* shim function: that would try to take g_req_mutex / wait on the
@@ -184,8 +242,11 @@ esp_err_t ensure_setup() {
   return ESP_OK;
 }
 
-// Send one request envelope and block until its response (or timeout).
-esp_err_t request(uint8_t opcode, const void *payload, uint16_t plen, void *ret, uint16_t ret_cap, uint16_t *ret_len) {
+// Send one request envelope. With wait=true (default) block until the matching
+// response (or timeout); with wait=false return as soon as the frame is handed
+// to the transport (fire-and-forget, used by esp_now_send).
+esp_err_t request(uint8_t opcode, const void *payload, uint16_t plen, void *ret, uint16_t ret_cap, uint16_t *ret_len,
+                  bool wait = true) {
   esp_err_t err = ensure_setup();
   if (err != ESP_OK)
     return err;
@@ -209,6 +270,15 @@ esp_err_t request(uint8_t opcode, const void *payload, uint16_t plen, void *ret,
   if (err != ESP_OK) {
     xSemaphoreGive(g_req_mutex);
     return err;
+  }
+  if (!wait) {
+    // Fire-and-forget (esp_now_send): the co-processor enqueues the frame and
+    // reports the real TX result later via the async SEND event, exactly like
+    // native esp_now_send. Returning here keeps the main loop off the ~100 ms+
+    // RPC round-trip. The matching RESP is ignored (seq won't match the next
+    // waited request, so on_resp drops it).
+    xSemaphoreGive(g_req_mutex);
+    return ESP_OK;
   }
   if (xSemaphoreTake(g_resp_sem, pdMS_TO_TICKS(ESP_NOW_HOSTED_TIMEOUT_MS)) != pdTRUE) {
     ESP_LOGW(TAG, "opcode %u timed out", opcode);
@@ -237,6 +307,7 @@ esp_err_t esp_now_init(void) { return request(ESP_NOW_HOSTED_OP_INIT, nullptr, 0
 esp_err_t esp_now_deinit(void) {
   g_recv_cb = nullptr;
   g_send_cb = nullptr;
+  peer_cache_clear();  // the co-processor drops all peers on deinit
   return request(ESP_NOW_HOSTED_OP_DEINIT, nullptr, 0, nullptr, 0, nullptr);
 }
 
@@ -274,7 +345,7 @@ esp_err_t esp_now_unregister_send_cb(void) {
   return ESP_OK;
 }
 
-static esp_err_t add_or_mod_peer(uint8_t opcode, const esp_now_peer_info_t *peer) {
+static esp_err_t add_or_mod_peer(uint8_t opcode, const esp_now_peer_info_t *peer, bool wait) {
   if (peer == nullptr)
     return ESP_ERR_ESPNOW_ARG;
   esp_now_hosted_peer_t p;
@@ -284,34 +355,48 @@ static esp_err_t add_or_mod_peer(uint8_t opcode, const esp_now_peer_info_t *peer
   p.channel = peer->channel;
   p.ifidx = static_cast<uint8_t>(peer->ifidx);
   p.encrypt = peer->encrypt ? 1 : 0;
-  return request(opcode, &p, sizeof(p), nullptr, 0, nullptr);
+  return request(opcode, &p, sizeof(p), nullptr, 0, nullptr, wait);
 }
 esp_err_t esp_now_add_peer(const esp_now_peer_info_t *peer) {
-  return add_or_mod_peer(ESP_NOW_HOSTED_OP_ADD_PEER, peer);
+  // Fire-and-forget (wait=false): adding a peer is a blocking RPC round-trip,
+  // and ESPHome's espnow calls it on the main loop when a device joins the mesh
+  // — under co-processor load that stalls the UI (peer-churn stutter). Issue it
+  // without waiting and mirror it locally. Safe against a following
+  // esp_now_send to the same peer: both ride the same in-order CustomRpc
+  // channel (mutex-serialized on the host) and the co-processor processes REQs
+  // FIFO, so ADD_PEER is applied before the SEND. Trade-off: a co-processor-side
+  // failure (e.g. peer table full) is no longer reported synchronously — the
+  // same limitation as esp_now_send — but ESPHome only adds peers it validated.
+  esp_err_t err = add_or_mod_peer(ESP_NOW_HOSTED_OP_ADD_PEER, peer, /*wait=*/false);
+  if (err == ESP_OK)
+    peer_cache_add(peer->peer_addr);  // keep the local mirror in sync
+  return err;
 }
 esp_err_t esp_now_mod_peer(const esp_now_peer_info_t *peer) {
-  return add_or_mod_peer(ESP_NOW_HOSTED_OP_MOD_PEER, peer);
+  // mod_peer changes a peer's parameters, not its existence, so the cache is
+  // unaffected. Kept synchronous — it is not on any hot path (espnow never
+  // calls it), so the extra round-trip does not matter and the status is useful.
+  return add_or_mod_peer(ESP_NOW_HOSTED_OP_MOD_PEER, peer, /*wait=*/true);
 }
 
 esp_err_t esp_now_del_peer(const uint8_t *peer_addr) {
   if (peer_addr == nullptr)
     return ESP_ERR_ESPNOW_ARG;
-  return request(ESP_NOW_HOSTED_OP_DEL_PEER, peer_addr, 6, nullptr, 0, nullptr);
+  // Fire-and-forget for the same reason as add_peer (peer churn on the main
+  // loop). Removal is order-independent, so this is strictly safe.
+  esp_err_t err = request(ESP_NOW_HOSTED_OP_DEL_PEER, peer_addr, 6, nullptr, 0, nullptr, /*wait=*/false);
+  if (err == ESP_OK)
+    peer_cache_remove(peer_addr);  // keep the local mirror in sync
+  return err;
 }
 
 bool esp_now_is_peer_exist(const uint8_t *peer_addr) {
   if (peer_addr == nullptr)
     return false;
-  uint8_t exist = 0;
-  uint16_t rl = 0;
-  esp_err_t err = request(ESP_NOW_HOSTED_OP_IS_PEER_EXIST, peer_addr, 6, &exist, 1, &rl);
-  if (err != ESP_OK) {
-    // Distinguish a transport failure from a genuinely absent peer in the logs;
-    // the native bool signature forces both to return false here.
-    ESP_LOGW(TAG, "is_peer_exist RPC failed: %s", esp_err_to_name(err));
-    return false;
-  }
-  return exist != 0;
+  // Answered from the local mirror — no RPC round-trip. ESPHome's espnow calls
+  // this on the main loop for every received frame and every send, so a
+  // blocking round-trip here would stall rendering under mesh traffic.
+  return peer_cache_contains(peer_addr);
 }
 
 esp_err_t esp_now_send(const uint8_t *peer_addr, const uint8_t *data, size_t len) {
@@ -331,8 +416,14 @@ esp_err_t esp_now_send(const uint8_t *peer_addr, const uint8_t *data, size_t len
   s->data_len = static_cast<uint16_t>(len);
   if (len != 0)
     memcpy(s->data, data, len);
+  // Fire-and-forget (wait=false): native esp_now_send returns once the frame is
+  // queued, with the real TX result delivered later through the send callback.
+  // The co-processor mirrors that — it acks enqueue immediately and reports the
+  // outcome via the async SEND event (on_send -> on_send_report). Waiting for
+  // the RPC RESP here would block the main loop for the full round-trip on
+  // every transmit.
   return request(ESP_NOW_HOSTED_OP_SEND, buf, static_cast<uint16_t>(sizeof(esp_now_hosted_send_req_t) + len), nullptr,
-                 0, nullptr);
+                 0, nullptr, /*wait=*/false);
 }
 
 esp_err_t esp_now_set_pmk(const uint8_t *pmk) {
