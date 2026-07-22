@@ -52,7 +52,19 @@ class LN882HBLETracker : public Component,
   void set_scan_interval(uint16_t scan_interval) { this->scan_interval_ = scan_interval; }
   void set_scan_window(uint16_t scan_window) { this->scan_window_ = scan_window; }
   void set_scan_duration(uint32_t scan_duration) { this->scan_duration_ = scan_duration; }
-  void set_scan_continuous(bool scan_continuous) { this->scan_continuous_ = scan_continuous; }
+  /// Set from YAML (scan_parameters.continuous); also the value
+  /// restore_configured_continuous() returns to.
+  void set_scan_continuous(bool scan_continuous) {
+    this->scan_continuous_ = scan_continuous;
+    this->scan_continuous_configured_ = scan_continuous;
+  }
+  /// Runtime override that does not change the configured value, so a later
+  /// restore_configured_continuous() still returns to what YAML asked for.
+  void set_scan_continuous_runtime(bool scan_continuous) { this->scan_continuous_ = scan_continuous; }
+  void restore_configured_continuous() { this->scan_continuous_ = this->scan_continuous_configured_; }
+  /// Re-anchor the duration/period window of a running scan to now — used when
+  /// an action changes the scan mode without stopping the radio.
+  void restart_scan_window();
 
   // ---- Public scan control ----
   // Mirrors esp32_ble_tracker: set_scan_continuous() + start_scan() / stop_scan().
@@ -125,6 +137,7 @@ class LN882HBLETracker : public Component,
   uint16_t scan_window_{80};     // 80 × 0.625 ms = 50 ms (SDK SCAN_WINDOW_DEF; 50/100 = 50 %)
   uint32_t scan_duration_{300000};
   bool scan_continuous_{true};
+  bool scan_continuous_configured_{true};  // YAML value; stop_scan() must not lose it
 #ifdef USE_OTA_STATE_LISTENER
   bool scan_continuous_before_ota_{false};  // continuous mode saved at OTA start, restored on OTA failure
   bool scan_running_before_ota_{false};     // one-shot scan running at OTA start, restarted on OTA failure
