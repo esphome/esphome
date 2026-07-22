@@ -255,9 +255,6 @@ async def to_code(config: ConfigType) -> None:
         if psram_stack:
             psram.request_external_task_stack()
 
-        # Library defaults: priority 18 (one above httpd_priority 17 so the decoder is not
-        # starved by the HTTP server during the initial encoded-audio burst at stream start),
-        # decode buffer location PREFER_EXTERNAL.
         player_struct_fields = [
             ("audio_formats", audio_format_structs),
             ("audio_buffer_capacity", player_cfg[CONF_BUFFER_SIZE]),
