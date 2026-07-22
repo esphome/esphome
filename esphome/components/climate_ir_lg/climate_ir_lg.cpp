@@ -172,8 +172,9 @@ void LgIrClimate::transmit_state() {
   ESP_LOGD(TAG, "climate_lg_ir mode code: 0x%02X", this->mode);
 
   // Set fan speed
-  if (this->mode != climate::CLIMATE_MODE_OFF)  { // https://github.com/esphome/esphome/pull/10875#issuecomment-5042765948
-      switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
+  if (this->mode !=
+      climate::CLIMATE_MODE_OFF) {  // https://github.com/esphome/esphome/pull/10875#issuecomment-5042765948
+    switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
       case climate::CLIMATE_FAN_HIGH:
         remote_state |= FAN_MAX;
         break;
