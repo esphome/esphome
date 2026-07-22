@@ -74,7 +74,7 @@ class ImprovSerialComponent final : public Component, public improv_base::Improv
   void on_wifi_connect_timeout_();
 #endif
 
-  void collect_device_urls_(std::vector<std::string> &urls);
+  void collect_webserver_urls_(std::vector<std::string> &urls);
   std::vector<uint8_t> build_rpc_settings_response_(improv::Command command);
   std::vector<uint8_t> build_version_info_();
 

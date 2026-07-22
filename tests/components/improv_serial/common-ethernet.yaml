@@ -11,4 +11,7 @@ ethernet:
 logger:
   hardware_uart: UART0
 
+# Exercises the per-interface webserver URL collection at compile time
+web_server:
+
 improv_serial:

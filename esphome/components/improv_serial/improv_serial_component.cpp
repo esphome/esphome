@@ -189,23 +189,15 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
 #endif
 }
 
-void ImprovSerialComponent::collect_device_urls_(std::vector<std::string> &urls) {
-#ifdef USE_IMPROV_SERIAL_NEXT_URL
-  {
-    char url_buffer[384];
-    size_t len = this->get_formatted_next_url_(url_buffer, sizeof(url_buffer));
-    if (len > 0) {
-      urls.emplace_back(url_buffer, len);
-    }
-  }
-#endif
+void ImprovSerialComponent::collect_webserver_urls_(std::vector<std::string> &urls) {
 #ifdef USE_WEBSERVER
   // The webserver listens on every interface, so advertise each one that has a
   // usable IPv4. network::get_ip_addresses() can't be used here: it returns only
   // the highest-priority interface's addresses, which are all-unset (0.0.0.0)
   // when e.g. Ethernet has no link while the device is online via Wi-Fi — and
   // 0.0.0.0 must not become the advertised URL. Collect per interface instead,
-  // skipping addresses that aren't set.
+  // skipping addresses that aren't set. OpenThread is deliberately omitted: it
+  // only ever has IPv6 addresses, which cannot form a usable IPv4 http:// URL.
   // TODO: This section should be reworked once #14255 (and any related subsequent PRs) is merged.
   const auto append_urls = [&urls](const network::IPAddresses &addresses) {
     for (const auto &ip : addresses) {
@@ -231,16 +223,21 @@ void ImprovSerialComponent::collect_device_urls_(std::vector<std::string> &urls)
   if (wifi::global_wifi_component != nullptr)
     append_urls(wifi::global_wifi_component->get_ip_addresses());
 #endif
-#ifdef USE_OPENTHREAD
-  if (openthread::global_openthread_component != nullptr)
-    append_urls(openthread::global_openthread_component->get_ip_addresses());
-#endif
 #endif  // USE_WEBSERVER
 }
 
 std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv::Command command) {
   std::vector<std::string> urls;
-  this->collect_device_urls_(urls);
+#ifdef USE_IMPROV_SERIAL_NEXT_URL
+  {
+    char url_buffer[384];
+    size_t len = this->get_formatted_next_url_(url_buffer, sizeof(url_buffer));
+    if (len > 0) {
+      urls.emplace_back(url_buffer, len);
+    }
+  }
+#endif
+  this->collect_webserver_urls_(urls);
   std::vector<uint8_t> data = improv::build_rpc_response(command, urls, false);
   return data;
 }
@@ -390,7 +387,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       snprintf(flags_buf, sizeof(flags_buf), "%u", flags);
       datum.emplace_back(flags_buf);
       if (flags & improv::NETWORK_IS_ONLINE)
-        this->collect_device_urls_(datum);
+        this->collect_webserver_urls_(datum);
       std::vector<uint8_t> data = improv::build_rpc_response(improv::GET_NETWORK_STATE, datum, false);
       this->send_response_(data);
       return true;
