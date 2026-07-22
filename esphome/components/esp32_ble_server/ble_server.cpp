@@ -155,6 +155,7 @@ BLEService *BLEServer::get_service(ESPBTUUID uuid, uint8_t inst_id) {
   return nullptr;
 }
 
+#if defined(USE_ESP32_BLE_SERVER_ON_CONNECT) || defined(USE_ESP32_BLE_SERVER_ON_DISCONNECT)
 void BLEServer::dispatch_callbacks_(CallbackType type, uint16_t conn_id) {
   for (auto &entry : this->callbacks_) {
     if (entry.type == type) {
@@ -162,6 +163,7 @@ void BLEServer::dispatch_callbacks_(CallbackType type, uint16_t conn_id) {
     }
   }
 }
+#endif
 
 void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                     esp_ble_gatts_cb_param_t *param) {
@@ -173,14 +175,18 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
       if (this->client_count_ < this->max_clients_) {
         this->parent_->advertising_start();
       }
+#ifdef USE_ESP32_BLE_SERVER_ON_CONNECT
       this->dispatch_callbacks_(CallbackType::ON_CONNECT, param->connect.conn_id);
+#endif
       break;
     }
     case ESP_GATTS_DISCONNECT_EVT: {
       ESP_LOGD(TAG, "BLE Client disconnected");
       this->remove_client_(param->disconnect.conn_id);
       this->parent_->advertising_start();
+#ifdef USE_ESP32_BLE_SERVER_ON_DISCONNECT
       this->dispatch_callbacks_(CallbackType::ON_DISCONNECT, param->disconnect.conn_id);
+#endif
       break;
     }
     case ESP_GATTS_REG_EVT: {
@@ -238,6 +244,7 @@ void BLEServer::ble_before_disabled_event_handler() {
 }
 
 void BLEServer::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
+#ifdef ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
   switch (event) {
     case ESP_GAP_BLE_SEC_REQ_EVT:
       if (this->passkey_) {
@@ -254,27 +261,34 @@ void BLEServer::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
       ESP_LOGW(TAG, "address type = %d", param->ble_security.auth_cmpl.addr_type);
       ESP_LOGW(TAG, "pair status = %s", param->ble_security.auth_cmpl.success ? "success" : "fail");
       break;
+#ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_REQUEST
     case ESP_GAP_BLE_PASSKEY_REQ_EVT: {
       char mac_buf[18];
       format_mac_addr_upper(param->ble_security.ble_req.bd_addr, mac_buf);
       this->passkey_request_callback_.call(mac_buf);
       break;
     }
+#endif
+#ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_NOTIFICATION
     case ESP_GAP_BLE_PASSKEY_NOTIF_EVT: {
       char mac_buf[18];
       format_mac_addr_upper(param->ble_security.ble_req.bd_addr, mac_buf);
       this->passkey_notification_callback_.call(mac_buf, param->ble_security.key_notif.passkey);
       break;
     }
+#endif
+#ifdef USE_ESP32_BLE_SERVER_ON_NUMERIC_COMPARISON_REQUEST
     case ESP_GAP_BLE_NC_REQ_EVT: {
       char mac_buf[18];
       format_mac_addr_upper(param->ble_security.ble_req.bd_addr, mac_buf);
       this->numeric_comparison_request_callback_.call(mac_buf, param->ble_security.key_notif.passkey);
       break;
     }
+#endif
     default:
       break;
   }
+#endif
 }
 
 float BLEServer::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH + 10; }

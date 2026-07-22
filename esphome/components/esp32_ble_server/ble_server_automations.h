@@ -134,6 +134,7 @@ template<typename... Ts> class BLEDescriptorSetValueAction final : public Action
 };
 #endif  // USE_ESP32_BLE_SERVER_DESCRIPTOR_SET_VALUE_ACTION
 
+#ifdef USE_ESP32_BLE_SERVER_PASSKEY_REPLY_ACTION
 template<typename... Ts> class BLEServerPasskeyReplyAction : public Action<Ts...> {
  public:
   BLEServerPasskeyReplyAction(BLEServer *server) : parent_(server) {}
@@ -173,7 +174,9 @@ template<typename... Ts> class BLEServerPasskeyReplyAction : public Action<Ts...
     uint32_t (*template_func)(Ts...);
   } value_{.simple = 0};
 };
+#endif  // USE_ESP32_BLE_SERVER_PASSKEY_REPLY_ACTION
 
+#ifdef USE_ESP32_BLE_SERVER_NUMERIC_COMPARISON_REPLY_ACTION
 template<typename... Ts> class BLEServerNumericComparisonReplyAction : public Action<Ts...> {
  public:
   BLEServerNumericComparisonReplyAction(BLEServer *server) : parent_(server) {}
@@ -210,7 +213,9 @@ template<typename... Ts> class BLEServerNumericComparisonReplyAction : public Ac
     bool (*template_func)(Ts...);
   } value_{.simple = false};
 };
+#endif  // USE_ESP32_BLE_SERVER_NUMERIC_COMPARISON_REPLY_ACTION
 
+#ifdef USE_ESP32_BLE_SERVER_REMOVE_BOND_ACTION
 template<typename... Ts> class BLEServerRemoveBondAction : public Action<Ts...> {
  public:
   BLEServerRemoveBondAction(BLEServer *server) : parent_(server) {}
@@ -230,6 +235,7 @@ template<typename... Ts> class BLEServerRemoveBondAction : public Action<Ts...> 
  protected:
   BLEServer *parent_;
 };
+#endif  // USE_ESP32_BLE_SERVER_REMOVE_BOND_ACTION
 
 }  // namespace esphome::esp32_ble_server::esp32_ble_server_automations
 

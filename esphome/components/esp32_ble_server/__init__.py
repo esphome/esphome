@@ -454,8 +454,6 @@ CHARACTERISTIC_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(BLECharacteristic),
         cv.Required(CONF_UUID): cv.Any(bt_uuid, cv.hex_uint32_t),
         cv.Optional(CONF_VALUE): value_schema(templatable=True),
-        cv.Optional(CONF_READ_ENCRYPT, default=False): cv.boolean,
-        cv.Optional(CONF_WRITE_ENCRYPT, default=False): cv.boolean,
         cv.GenerateID(CONF_CHAR_VALUE_ACTION_ID_): cv.declare_id(
             BLECharacteristicSetValueAction
         ),
@@ -494,7 +492,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MANUFACTURER_DATA): cv.Schema([cv.uint8_t]),
         cv.Optional(CONF_MAX_CLIENTS, default=1): cv.int_range(min=1, max=9),
         cv.Optional(CONF_SERVICES, default=[]): cv.ensure_list(SERVICE_SCHEMA),
-        cv.Optional(CONF_PASSKEY, default=0): cv.int_range(min=0, max=999999),
+        cv.Optional(CONF_PASSKEY): cv.int_range(min=0, max=999999),
         cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_PASSKEY_REQUEST): automation.validate_automation(
@@ -581,6 +579,12 @@ async def to_code_characteristic(service_var, char_conf):
             parse_properties(char_conf),
         ),
     )
+
+    if (CONF_READ_ENCRYPT in char_conf and char_conf[CONF_READ_ENCRYPT]) or (
+        CONF_WRITE_ENCRYPT in char_conf and char_conf[CONF_WRITE_ENCRYPT]
+    ):
+        cg.add_define("ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS", None)
+
     if CONF_ON_WRITE in char_conf:
         on_write_conf = char_conf[CONF_ON_WRITE]
         cg.add_define("USE_ESP32_BLE_SERVER_CHARACTERISTIC_ON_WRITE")
@@ -632,6 +636,7 @@ async def to_code(config):
     if CONF_MANUFACTURER_DATA in config:
         cg.add(var.set_manufacturer_data(config[CONF_MANUFACTURER_DATA]))
     if CONF_PASSKEY in config:
+        cg.add_define("ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS", None)
         cg.add(var.set_passkey(config[CONF_PASSKEY]))
     for service_config in config[CONF_SERVICES]:
         # Calculate the optimal number of handles based on the number of characteristics and descriptors
@@ -752,34 +757,16 @@ async def ble_server_characteristic_notify(config, action_id, template_arg, args
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-BLE_NUMERIC_COMPARISON_REPLY_ACTION_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(CONF_ID): cv.use_id(BLEServer),
-        cv.Required(CONF_ADDRESS): cv.templatable(cv.mac_address),
-        cv.Required(CONF_ACCEPT): cv.templatable(cv.boolean),
-    }
-)
-
-BLE_PASSKEY_REPLY_ACTION_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(CONF_ID): cv.use_id(BLEServer),
-        cv.Required(CONF_ADDRESS): cv.templatable(cv.mac_address),
-        cv.Required(CONF_PASSKEY): cv.templatable(cv.int_range(min=0, max=999999)),
-    }
-)
-
-BLE_REMOVE_BOND_ACTION_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(CONF_ID): cv.use_id(BLEServer),
-        cv.Required(CONF_ADDRESS): cv.templatable(cv.mac_address),
-    }
-)
-
-
 @automation.register_action(
     "ble_server.numeric_comparison_reply",
     BLEServerNumericComparisonReplyAction,
-    BLE_NUMERIC_COMPARISON_REPLY_ACTION_SCHEMA,
+    cv.Schema(
+        {
+            cv.GenerateID(CONF_ID): cv.use_id(BLEServer),
+            cv.Required(CONF_ADDRESS): cv.templatable(cv.mac_address),
+            cv.Required(CONF_ACCEPT): cv.templatable(cv.boolean),
+        }
+    ),
     synchronous=True,
 )
 async def numeric_comparison_reply_to_code(config, action_id, template_arg, args):
@@ -798,13 +785,20 @@ async def numeric_comparison_reply_to_code(config, action_id, template_arg, args
         cg.add(var.set_address(templ))
     else:
         cg.add(var.set_address(str(address)))
+    cg.add_define("USE_ESP32_BLE_SERVER_NUMERIC_COMPARISON_REPLY_ACTION")
     return var
 
 
 @automation.register_action(
     "ble_server.passkey_reply",
     BLEServerPasskeyReplyAction,
-    BLE_PASSKEY_REPLY_ACTION_SCHEMA,
+    cv.Schema(
+        {
+            cv.GenerateID(CONF_ID): cv.use_id(BLEServer),
+            cv.Required(CONF_ADDRESS): cv.templatable(cv.mac_address),
+            cv.Required(CONF_PASSKEY): cv.templatable(cv.int_range(min=0, max=999999)),
+        }
+    ),
     synchronous=True,
 )
 async def passkey_reply_to_code(config, action_id, template_arg, args):
@@ -823,13 +817,19 @@ async def passkey_reply_to_code(config, action_id, template_arg, args):
         cg.add(var.set_address(templ))
     else:
         cg.add(var.set_address(str(address)))
+    cg.add_define("USE_ESP32_BLE_SERVER_PASSKEY_REPLY_ACTION")
     return var
 
 
 @automation.register_action(
     "ble_server.remove_bond",
     BLEServerRemoveBondAction,
-    BLE_REMOVE_BOND_ACTION_SCHEMA,
+    cv.Schema(
+        {
+            cv.GenerateID(CONF_ID): cv.use_id(BLEServer),
+            cv.Required(CONF_ADDRESS): cv.templatable(cv.mac_address),
+        }
+    ),
     synchronous=True,
 )
 async def remove_bond_to_code(config, action_id, template_arg, args):
@@ -841,4 +841,5 @@ async def remove_bond_to_code(config, action_id, template_arg, args):
         cg.add(var.set_address(templ))
     else:
         cg.add(var.set_address(str(address)))
+    cg.add_define("USE_ESP32_BLE_SERVER_REMOVE_BOND_ACTION")
     return var
