@@ -85,22 +85,31 @@ void on_resp(uint32_t /*msg_id*/, const uint8_t *data, size_t len, void * /*ctx*
   }
   g_resp_status = r->status;
   uint16_t rl = r->ret_len;
-  if (rl > sizeof(g_resp_ret))
+  if (rl > sizeof(g_resp_ret)) {
+    // Larger than any real opcode return — a likely wire-format drift signal.
+    ESP_LOGW(TAG, "RESP ret_len %u exceeds buffer, clamping (wire drift?)", rl);
     rl = sizeof(g_resp_ret);
+  }
   if (len >= sizeof(esp_now_hosted_resp_t) + rl) {
     memcpy(g_resp_ret, r->ret, rl);
   } else {
     // Truncated frame: fail closed. Never hand the caller stale bytes left in
-    // g_resp_ret by a previous response — report zero return bytes instead.
+    // g_resp_ret by a previous response, and don't let request() report a
+    // zeroed payload as success — override the status to an error.
     ESP_LOGW(TAG, "RESP truncated: claims %u ret bytes, frame too short", rl);
     rl = 0;
+    g_resp_status = ESP_ERR_INVALID_RESPONSE;
   }
   g_resp_ret_len = rl;
   xSemaphoreGive(g_resp_sem);
 }
 
 void on_recv(uint32_t /*msg_id*/, const uint8_t *data, size_t len, void * /*ctx*/) {
-  if (g_recv_cb == nullptr)
+  // Read the volatile pointer once: esp_now_unregister_recv_cb()/deinit() (via
+  // the espnow component's disable()) can null it on the main loop between the
+  // guard and the call, which would otherwise turn the call into a null-deref.
+  const esp_now_recv_cb_t cb = g_recv_cb;
+  if (cb == nullptr)
     return;
   if (len < sizeof(esp_now_hosted_recv_evt_t)) {
     ESP_LOGW(TAG, "RECV too short: %u bytes", static_cast<unsigned>(len));
@@ -123,11 +132,14 @@ void on_recv(uint32_t /*msg_id*/, const uint8_t *data, size_t len, void * /*ctx*
   info.src_addr = const_cast<uint8_t *>(e->src_addr);
   info.des_addr = const_cast<uint8_t *>(e->des_addr);
   info.rx_ctrl = &rx_ctrl;
-  g_recv_cb(&info, e->data, static_cast<int>(e->data_len));
+  cb(&info, e->data, static_cast<int>(e->data_len));
 }
 
 void on_send(uint32_t /*msg_id*/, const uint8_t *data, size_t len, void * /*ctx*/) {
-  if (g_send_cb == nullptr)
+  // Read the volatile pointer once (see on_recv): disable()/deinit() can null it
+  // on the main loop concurrently with this RX-thread callback.
+  const esp_now_send_cb_t cb = g_send_cb;
+  if (cb == nullptr)
     return;
   if (len < sizeof(esp_now_hosted_send_evt_t)) {
     ESP_LOGW(TAG, "SEND evt too short: %u bytes", static_cast<unsigned>(len));
@@ -142,9 +154,9 @@ void on_send(uint32_t /*msg_id*/, const uint8_t *data, size_t len, void * /*ctx*
   esp_now_send_info_t si;
   memset(&si, 0, sizeof(si));
   si.des_addr = const_cast<uint8_t *>(e->des_addr);
-  g_send_cb(&si, static_cast<esp_now_send_status_t>(e->status));
+  cb(&si, static_cast<esp_now_send_status_t>(e->status));
 #else
-  g_send_cb(e->des_addr, static_cast<esp_now_send_status_t>(e->status));
+  cb(e->des_addr, static_cast<esp_now_send_status_t>(e->status));
 #endif
 }
 
@@ -238,16 +250,24 @@ esp_err_t esp_now_get_version(uint32_t *version) {
 }
 
 esp_err_t esp_now_register_recv_cb(esp_now_recv_cb_t cb) {
+  // Only arm the callback once the CustomRpc handlers are actually registered,
+  // so a failed setup leaves g_recv_cb null rather than falsely "registered".
+  esp_err_t err = ensure_setup();
+  if (err != ESP_OK)
+    return err;
   g_recv_cb = cb;
-  return ensure_setup();
+  return ESP_OK;
 }
 esp_err_t esp_now_unregister_recv_cb(void) {
   g_recv_cb = nullptr;
   return ESP_OK;
 }
 esp_err_t esp_now_register_send_cb(esp_now_send_cb_t cb) {
+  esp_err_t err = ensure_setup();
+  if (err != ESP_OK)
+    return err;
   g_send_cb = cb;
-  return ensure_setup();
+  return ESP_OK;
 }
 esp_err_t esp_now_unregister_send_cb(void) {
   g_send_cb = nullptr;
