@@ -13,22 +13,37 @@ static const uint8_t CH422G_REG_OUT_UPPER = 0x23;    // write reg for output bit
 static const char *const TAG = "ch422g";
 
 void CH422GComponent::setup() {
-  // set outputs before mode
-  this->write_outputs_();
-  // Set mode and check for errors
-  if (!this->set_mode_(this->mode_value_) || !this->read_inputs_()) {
-    ESP_LOGE(TAG, "CH422G not detected at 0x%02X", this->address_);
-    this->mark_failed();
-    return;
-  }
-
-  ESP_LOGCONFIG(TAG, "Initialization complete. Warning: %d, Error: %d", this->status_has_warning(),
-                this->status_has_error());
+  // Depending on board init order, the I2C bus (or the device itself) may
+  // not be ready yet on this very first attempt. Do not mark_failed() here;
+  // loop() below keeps retrying until ensure_initialized_() succeeds.
+  this->ensure_initialized_();
 }
 
 void CH422GComponent::loop() {
   // Clear all the previously read flags.
   this->pin_read_flags_ = 0x00;
+
+  if (!this->initialized_) {
+    this->ensure_initialized_();
+  }
+}
+
+bool CH422GComponent::ensure_initialized_() {
+  if (this->initialized_) {
+    return true;
+  }
+  // set outputs before mode
+  this->write_outputs_();
+  // Set mode and check for errors
+  if (!this->set_mode_(this->mode_value_) || !this->read_inputs_()) {
+    ESP_LOGW(TAG, "CH422G not detected yet at 0x%02X, will retry", this->address_);
+    return false;
+  }
+
+  this->initialized_ = true;
+  ESP_LOGCONFIG(TAG, "Initialization complete. Warning: %d, Error: %d", this->status_has_warning(),
+                this->status_has_error());
+  return true;
 }
 
 void CH422GComponent::dump_config() {

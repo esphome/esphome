@@ -25,6 +25,9 @@ class CH422GComponent final : public Component, public i2c::I2CDevice {
   void dump_config() override;
 
  protected:
+  /// Attempts the register handshake once. Safe to call repeatedly; returns
+  /// true immediately if already initialized.
+  bool ensure_initialized_();
   bool write_reg_(uint8_t reg, uint8_t value);
   uint8_t read_reg_(uint8_t reg);
   bool set_mode_(uint8_t mode);
@@ -39,6 +42,8 @@ class CH422GComponent final : public Component, public i2c::I2CDevice {
   uint8_t input_bits_ = {0x00};
   /// Copy of the mode value
   uint8_t mode_value_{};
+  /// True once the initial register handshake with the chip has succeeded
+  bool initialized_{false};
 };
 
 /// Helper class to expose a CH422G pin as a GPIO pin.
