@@ -5,6 +5,7 @@ from esphome.components.esp32 import VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_E
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_UART_ID
 from esphome.core import CORE
+import esphome.final_validate as fv
 
 CODEOWNERS = ["@kbx81"]
 DEPENDENCIES = ["tinyusb", "uart", "usb_cdc_acm"]
@@ -41,6 +42,19 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _subtree_references_uart(node, uart_id: str) -> bool:
+    """Return True if any dict in the subtree has a uart_id entry naming this bus."""
+    if isinstance(node, dict):
+        return any(
+            (key == CONF_UART_ID and str(value) == uart_id)
+            or _subtree_references_uart(value, uart_id)
+            for key, value in node.items()
+        )
+    if isinstance(node, list):
+        return any(_subtree_references_uart(item, uart_id) for item in node)
+    return False
+
+
 def _final_validate(config):
     # Each bridge must own its UART and USB CDC-ACM interface exclusively. If two
     # bridges shared either, their RX/TX tasks would contend on the same ring buffers
@@ -60,6 +74,23 @@ def _final_validate(config):
                 [conf_key],
             )
         used.add(key)
+
+    # The same exclusivity applies to regular UART devices: the bridge's worker tasks
+    # own the UART driver, so any other consumer would read/write it from the main
+    # loop and race them, garbling both streams. Scan the rest of the config for
+    # anything else referencing this bus via uart_id. (References through a bare
+    # `id:`, such as a uart.write action, cannot be distinguished and aren't caught.)
+    uart_id = str(config[CONF_UART_ID])
+    for domain, domain_conf in fv.full_config.get().items():
+        # Bridge-vs-bridge sharing is already rejected above.
+        if domain == "bridge":
+            continue
+        if _subtree_references_uart(domain_conf, uart_id):
+            raise cv.Invalid(
+                f"The UART '{uart_id}' is also used by '{domain}'; a bridge requires "
+                f"exclusive use of its UART.",
+                [CONF_UART_ID],
+            )
     return config
 
 
