@@ -165,15 +165,29 @@ def test_priority_band_constants_match_cpp_setup_priority() -> None:
     assert _cpp_setup_priority("AFTER_BLUETOOTH") > NETWORK_PRIORITY_BASE
 
 
-def test_primary_interface_define_follows_first_priority_entry(
+def test_wifi_first_priority_emits_primary_interface_define(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """The first priority entry becomes the USE_NETWORK_PRIMARY_INTERFACE_* define."""
+    """A wifi-first priority list emits USE_NETWORK_PRIMARY_INTERFACE_WIFI."""
     generate_main(component_config_path("priority_wifi_first.yaml"))
     defines = {d.name for d in CORE.defines}
     assert "USE_NETWORK_PRIMARY_INTERFACE_WIFI" in defines
-    assert "USE_NETWORK_PRIMARY_INTERFACE_ETHERNET" not in defines
+    # Emitted by cg.set_setup_priority() at the wifi/ethernet call sites.
+    assert "USE_SETUP_PRIORITY_OVERRIDE" in defines
+
+
+def test_ethernet_first_priority_emits_no_primary_interface_define(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Ethernet-first matches the built-in preference order, so no define is emitted."""
+    generate_main(component_config_path("priority_ethernet_first.yaml"))
+    assert not any(
+        d.name.startswith("USE_NETWORK_PRIMARY_INTERFACE_") for d in CORE.defines
+    )
+    # The setup-priority overrides themselves are still emitted.
+    assert "USE_SETUP_PRIORITY_OVERRIDE" in {d.name for d in CORE.defines}
 
 
 def test_no_primary_interface_define_without_priority(

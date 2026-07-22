@@ -545,7 +545,7 @@ async def to_code(config):
     # setup_priority: still wins over the network-priority-derived value.
     prio = get_network_priority("ethernet")
     if prio is not None:
-        cg.add(var.set_setup_priority(prio))
+        cg.set_setup_priority(var, prio)
 
     await cg.register_component(var, config)
 

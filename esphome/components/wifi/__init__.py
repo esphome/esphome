@@ -606,7 +606,7 @@ async def to_code(config):
 
     prio = get_network_priority("wifi")
     if prio is not None:
-        cg.add(var.set_setup_priority(prio))
+        cg.set_setup_priority(var, prio)
     add_use_address(var, config[CONF_USE_ADDRESS])
 
     # Track if any network uses Enterprise authentication

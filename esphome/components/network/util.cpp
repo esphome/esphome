@@ -24,13 +24,11 @@ bool is_disabled() {
 
 const char *get_use_address_to(std::span<char, USE_ADDRESS_BUFFER_SIZE> buf) {
   // Global component pointers are guaranteed to be set by component constructors when USE_* is defined.
-  // When network: priority: is configured, USE_NETWORK_PRIMARY_INTERFACE_* selects the
-  // highest-priority interface. The paired USE_* check keeps the branch compilable when
-  // static analysis defines all primary-interface macros at once.
+  // A wifi-first network: priority: list sets USE_NETWORK_PRIMARY_INTERFACE_WIFI to lift
+  // wifi ahead of the fixed ethernet-first order below; an ethernet-first list already
+  // matches that order, so no define exists for it.
   const char *addr = nullptr;
-#if defined(USE_NETWORK_PRIMARY_INTERFACE_ETHERNET) && defined(USE_ETHERNET)
-  addr = ethernet::global_eth_component->get_use_address();
-#elif defined(USE_NETWORK_PRIMARY_INTERFACE_WIFI) && defined(USE_WIFI)
+#if defined(USE_NETWORK_PRIMARY_INTERFACE_WIFI) && defined(USE_WIFI)
   addr = wifi::global_wifi_component->get_use_address();
 #elif defined(USE_ETHERNET)
   addr = ethernet::global_eth_component->get_use_address();
@@ -51,18 +49,9 @@ const char *get_use_address_to(std::span<char, USE_ADDRESS_BUFFER_SIZE> buf) {
 }
 
 network::IPAddresses get_ip_addresses() {
-  // Prefer the highest-priority interface from network: priority: while it has a
-  // valid IP; otherwise fall through to the fixed legacy order below. Selection
-  // based on the runtime-active interface is a planned follow-up.
-#if defined(USE_NETWORK_PRIMARY_INTERFACE_ETHERNET) && defined(USE_ETHERNET)
-  if (ethernet::global_eth_component != nullptr) {
-    auto ips = ethernet::global_eth_component->get_ip_addresses();
-    for (const auto &ip : ips) {
-      if (ip.is_set())
-        return ips;
-    }
-  }
-#endif
+  // With a wifi-first network: priority: list, prefer wifi while it has a valid IP;
+  // otherwise fall through to the fixed ethernet-first order below. Selection based
+  // on the runtime-active interface is a planned follow-up.
 #if defined(USE_NETWORK_PRIMARY_INTERFACE_WIFI) && defined(USE_WIFI)
   if (wifi::global_wifi_component != nullptr) {
     auto ips = wifi::global_wifi_component->get_ip_addresses();

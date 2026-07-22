@@ -222,7 +222,7 @@ def get_network_priority(iface: str) -> float | None:
 
             prio = network.get_network_priority("ethernet")
             if prio is not None:
-                cg.add(var.set_setup_priority(prio))
+                cg.set_setup_priority(var, prio)
 
             await cg.register_component(var, config)
             ...
@@ -334,17 +334,12 @@ async def to_code(config):
     if CONF_PRIORITY in config:
         priority_list = config[CONF_PRIORITY]
         CORE.data[KEY_NETWORK_PRIORITY] = priority_list
-        # Enable Component::set_setup_priority() so the per-interface to_code
-        # calls below have a defined symbol to link against. Without this define
-        # the implementation in core/component.cpp is compiled out.
-        cg.add_define("USE_SETUP_PRIORITY_OVERRIDE")
-        # The first entry is the compile-time "primary" interface: network/util.cpp
-        # prefers it in get_use_address_to() and get_ip_addresses() so the reported
-        # address matches the declared preference instead of a fixed ethernet-first
-        # order. Runtime (active-interface) selection is a planned follow-up.
-        cg.add_define(
-            f"USE_NETWORK_PRIMARY_INTERFACE_{priority_list[0]['interface'].upper()}"
-        )
+        # network/util.cpp resolves the reported address (get_use_address_to,
+        # get_ip_addresses) in a fixed ethernet-first order; a wifi-first priority
+        # list is the only case that deviates from it, so it is the only case that
+        # needs a define. Runtime (active-interface) selection is a planned follow-up.
+        if priority_list[0]["interface"] == "wifi":
+            cg.add_define("USE_NETWORK_PRIMARY_INTERFACE_WIFI")
 
         _LOGGER.info(
             "Network interface priority: %s",
