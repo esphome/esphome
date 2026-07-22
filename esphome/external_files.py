@@ -165,11 +165,8 @@ def download_content(url: str, path: Path, timeout: int = NETWORK_TIMEOUT) -> by
         _LOGGER.debug("Remote file has not changed %s", url)
         return path.read_bytes()
 
-    _LOGGER.debug(
-        "Remote file has changed, downloading from %s to %s",
-        url,
-        path,
-    )
+    _LOGGER.info("Downloading %s", url)
+    _LOGGER.debug("Saving to %s", path)
 
     try:
         req = requests.get(
@@ -210,8 +207,12 @@ def download_content_many(
     items: Iterable[tuple[str, Path]],
     timeout: int = NETWORK_TIMEOUT,
     max_workers: int = DEFAULT_DOWNLOAD_WORKERS,
+    description: str = "remote file(s)",
 ) -> None:
     """Run `download_content` for each (url, path) pair concurrently.
+
+    `description` names the kind of files in the progress log line, e.g.
+    "wake word manifest(s)".
 
     Wall time drops from `sum(latency)` to roughly `max(latency)` for cached
     files where the HEAD round-trip dominates. All workers run to
@@ -230,6 +231,7 @@ def download_content_many(
     seen: dict[Path, str] = {path: url for url, path in items}
     if not seen:
         return
+    _LOGGER.info("Checking %d %s for updates", len(seen), description)
     if len(seen) == 1:
         path, url = next(iter(seen.items()))
         download_content(url, path, timeout)

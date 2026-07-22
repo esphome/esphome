@@ -17,13 +17,13 @@ extern "C" unsigned long micros(void);
 extern "C" unsigned long millis(void);
 // NOLINTEND(google-runtime-int,readability-identifier-naming,readability-redundant-declaration)
 
-// Forward decl from <pico/time.h>.
+// Forward decls from <pico/time.h> and the pico-sdk / FreeRTOS port for the
+// inline arch_* wrappers below.
+// NOLINTBEGIN(google-runtime-int,readability-identifier-naming,readability-redundant-declaration)
 extern "C" uint64_t time_us_64(void);
-
-// Forward decls from pico-sdk / FreeRTOS port for the inline arch_*
-// wrappers below.
 extern "C" void watchdog_update(void);
 extern "C" unsigned long ulMainGetRunTimeCounterValue(void);
+// NOLINTEND(google-runtime-int,readability-identifier-naming,readability-redundant-declaration)
 
 namespace esphome::rp2 {}
 
