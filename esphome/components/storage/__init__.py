@@ -1,5 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import hashlib
+import logging
 import re
 
 from esphome import automation, core
@@ -7,7 +8,11 @@ import esphome.codegen as cg
 from esphome.components import globals as globals_
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADDRESS,
+    CONF_ALL,
     CONF_ARGS,
+    CONF_DATA,
+    CONF_DEVICE,
     CONF_FORMAT,
     CONF_FROM,
     CONF_GROUP,
@@ -16,21 +21,28 @@ from esphome.const import (
     CONF_KEY,
     CONF_ON_VALUE,
     CONF_PATH,
+    CONF_SIZE,
     CONF_TO,
-    CONF_TYPE,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+import esphome.final_validate as fv
 
 CODEOWNERS = ["@p1ngb4ck"]
+
+_LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "storage"
 
 CONF_COPY_CHUNK_SIZE = "copy_chunk_size"
+CONF_PATH_MAX = "path_max"
 CONF_MAX_BLOCKING_TRANSFER_SIZE = "max_blocking_transfer_size"
+CONF_MOVE_FALLBACK_COPY = "move_fallback_copy"
 CONF_TASK_STACK_SIZE = "task_stack_size"
 CONF_TASK_PRIORITY = "task_priority"
 CONF_MAX_PENDING = "max_pending"
 CONF_MAX_STREAMS = "max_streams"
+CONF_WORKER_UPDATE_INTERVAL = "worker_update_interval"
+CONF_ON_COMPLETE = "on_complete"
 
 # Not yet in esphome/const.py
 CONF_ON_REGISTERED = "on_registered"
@@ -43,11 +55,13 @@ AUTO_LOAD = ["json"]
 
 storage_ns = cg.esphome_ns.namespace("storage")
 Storage = storage_ns.class_("Storage", cg.Component)
+TransferBuffer = storage_ns.class_("TransferBuffer", cg.Component)
 StoragePtr = Storage.operator("ptr")
 PathStorage = storage_ns.class_("PathStorage", Storage)
+RawStorage = storage_ns.class_("RawStorage", Storage)
 MountableStorage = storage_ns.class_("MountableStorage")
 StorageRegistry = storage_ns.class_("StorageRegistry", cg.Component)
-StorageWorker = storage_ns.class_("StorageWorker", cg.Component)
+StorageWorker = storage_ns.class_("StorageWorker", cg.PollingComponent)
 
 
 def validate_sector_multiple(value):
@@ -72,13 +86,38 @@ def validate_sector_multiple(value):
 # unused, same as any other config key with no effect in a given configuration.
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.Optional("enable_psram_transfer_buffer"): cv.boolean,
+        cv.Optional("psram_transfer_buffer_size"): cv.All(
+            cv.validate_bytes, cv.Range(min=64 * 1024)
+        ),
+        cv.Optional("psram_transfer_buffer_override_limit", default=False): cv.boolean,
         cv.GenerateID(): cv.declare_id(StorageRegistry),
-        cv.Optional(CONF_COPY_CHUNK_SIZE, default=16384): cv.All(
+        # No static default: an absent value means "use the per-platform default"
+        # (see _default_copy_chunk_size() / to_code). An explicit value overrides it and
+        # is still range- and sector-checked here.
+        cv.Optional(CONF_COPY_CHUNK_SIZE): cv.All(
             cv.int_range(min=4096, max=131072), validate_sector_multiple
         ),
-        # Guard-rail for the blocking copy/read/write helpers: 0 means unlimited (default,
-        # preserves current behavior). See max_blocking_transfer_size's comment in storage.h.
-        cv.Optional(CONF_MAX_BLOCKING_TRANSFER_SIZE, default=0): cv.int_range(min=0),
+        # Longest relative path the API carries. No static default: absent means "the largest
+        # any configured driver asked for" (see request_path_length / to_code). Raising it also
+        # raises the tree walks' stack use -- two buffers per recursion level -- so the range
+        # is bounded and _validate_walk_budget() below checks it against task_stack_size.
+        cv.Optional(CONF_PATH_MAX): cv.int_range(min=64, max=1024),
+        # Guard-rail for the blocking copy/read/write helpers, which hold the whole payload
+        # in RAM: storage.file_read takes whatever size the file happens to be, and on a node
+        # without PSRAM that is the one storage action whose cost the automation author does
+        # not choose. Anything bigger belongs on the worker (storage.file_copy, raw_write
+        # from_file). It also bounds storage.preferences_export/import, which share these
+        # helpers -- an export past the ceiling is a sign to narrow it with the action's
+        # `preferences:` filter. 0 disables the check. See storage.h for the C++ side.
+        cv.Optional(CONF_MAX_BLOCKING_TRANSFER_SIZE, default=16384): cv.int_range(
+            min=0
+        ),
+        # A same-storage move is a rename, which some backends refuse across their own
+        # internals (an NFS export can span file systems, and RENAME never crosses one).
+        # On, such a refusal is redone as copy + remove so the move still happens; off, it is
+        # reported instead of quietly turning a directory-entry update into a full copy.
+        cv.Optional(CONF_MOVE_FALLBACK_COPY, default=True): cv.boolean,
         # FATFS LFN + NFS/lwIP transfers both need headroom on the worker task's stack.
         cv.Optional(CONF_TASK_STACK_SIZE, default=8192): cv.int_range(
             min=4096, max=32768
@@ -92,6 +131,12 @@ CONFIG_SCHEMA = cv.Schema(
         # streams are typically much longer-lived than a single copy/move (e.g. one HTTP
         # upload in progress), so a node doing one at a time needs very few slots.
         cv.Optional(CONF_MAX_STREAMS, default=2): cv.int_range(min=1, max=8),
+        # How often the async worker's engine runs (PollingComponent update_interval). The
+        # worker is driven by this scheduler interval, not the gated component loop(); a small
+        # value keeps chunked transfers moving at a good rate without busy-spinning the CPU.
+        cv.Optional(
+            CONF_WORKER_UPDATE_INTERVAL, default="5ms"
+        ): cv.positive_time_period_milliseconds,
         # Fired for every storage device, not just file-browser-style consumers — any
         # component that cares about hotplug/availability can listen here instead of
         # each reinventing its own notion of "storage changed". See
@@ -106,8 +151,19 @@ CONFIG_SCHEMA = cv.Schema(
 @dataclass
 class StorageData:
     device_count: int = 0
+    # Largest path length any configured driver reported via request_path_length().
+    path_max: int = 0
+    # Set by FATFS-backed drivers, whose bound is not a constant but whatever
+    # CONFIG_FATFS_MAX_LFN ends up being — see request_fatfs_path_length().
+    fatfs_path_bound: bool = False
     worker_count: int = 0
     worker_task_safe: bool = False
+    # Raw preference regions per device id: every export/import action's address, plus the
+    # container size when it can be computed. Filled while the actions are built and resolved
+    # once at the end — see _resolve_raw_pref_regions().
+    raw_pref_regions: dict = field(default_factory=dict)
+    raw_pref_job_queued: bool = False
+    sensor_pref_job_queued: bool = False
 
 
 def _get_data() -> StorageData:
@@ -123,6 +179,28 @@ def request_storage_device() -> None:
     internal FixedVector is sized exactly — no compile-time upper bound needed.
     """
     _get_data().device_count += 1
+
+
+def request_path_length(length: int) -> None:
+    """Called by each storage driver's to_code() with the longest relative path it can carry.
+
+    The API sizes its own buffers to the largest of these, so a driver with a tighter limit of
+    its own still refuses over-long paths itself -- that is the driver's business, not this
+    bound's. An explicit `path_max:` in YAML overrides the collected value.
+    """
+    data = _get_data()
+    data.path_max = max(data.path_max, length)
+
+
+def request_fatfs_path_length() -> None:
+    """Called by drivers whose paths are bounded by FATFS long filenames.
+
+    Their limit is not a constant: CONFIG_FATFS_MAX_LFN is a sdkconfig option the esp32
+    component sets a default for and the user can override. Resolving it here at codegen time
+    (rather than baking 255 into the driver) means a user who lowers it to save flash gets an
+    API bound that matches, and one who has no FATFS driver at all is unaffected.
+    """
+    _get_data().fatfs_path_bound = True
 
 
 def request_storage_worker(task_safe: bool = False) -> None:
@@ -144,6 +222,118 @@ def request_storage_worker(task_safe: bool = False) -> None:
         data.worker_task_safe = True
 
 
+def _transfer_buffer_final_validate(config):
+    has_psram = "psram" in fv.full_config.get()
+    if "enable_psram_transfer_buffer" in config and not has_psram:
+        raise cv.Invalid(
+            "'enable_psram_transfer_buffer' is only available with the psram component"
+        )
+    enabled = config.get("enable_psram_transfer_buffer", has_psram)
+    if "psram_transfer_buffer_size" in config:
+        if not has_psram:
+            raise cv.Invalid(
+                "'psram_transfer_buffer_size' is only available with the psram component"
+            )
+        if not enabled:
+            raise cv.Invalid(
+                "'psram_transfer_buffer_size' requires 'enable_psram_transfer_buffer' to be true"
+            )
+    if config.get("psram_transfer_buffer_override_limit") and (
+        not has_psram or not enabled
+    ):
+        raise cv.Invalid(
+            "'psram_transfer_buffer_override_limit' requires an enabled psram transfer buffer"
+        )
+    # The 25% default and the 80% ceiling are enforced in setup(): the actual PSRAM
+    # size is detected at boot and unknowable at config time.
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _transfer_buffer_final_validate
+
+
+# Default streaming/copy chunk size. Flat 16 kB on every platform: the 20 ms loop-slice budget
+# (see the buffer-usage plan) caps a main-loop chunk near 16 kB even on the fastest S3 SD path,
+# so a larger loop chunk is unsafe. The platform distinction lives one level down, in the C++
+# allocator (alloc_dma_capable): on the worker task — which has no 20 ms budget — S3/P4 stage a
+# 32 kB chunk in DMA-capable PSRAM, while every loop-path buffer stays 16 kB internal. An
+# explicit copy_chunk_size still overrides this default (the user's last word). Multiple of 512
+# to keep FATFS whole-sector transfers.
+_DEFAULT_COPY_CHUNK_SIZE = 16384
+
+
+# Fallback when no driver reported anything (storage configured without a device).
+# Mirrors STORAGE_PATH_MAX's compile-time fallback in storage.h.
+_DEFAULT_PATH_MAX = 256
+
+# The copy walk's two path buffers are allocated once and shared by every level (see
+# append_path_segment in storage.cpp), so they are a flat cost. What scales with depth is the
+# walk's own frame plus the driver's list_dir()/remove() frames, where the FATFS LFN buffers
+# dominate. Keep 25% of the task stack free for whatever called into the walk.
+_WALK_DRIVER_STACK_PER_LEVEL = 830
+_WALK_STACK_HEADROOM = 0.75
+
+# Max directory nesting the tree walks descend into. Emitted as a define so storage.h and the
+# budget check below cannot drift apart.
+_MAX_RECURSION_DEPTH = 4
+
+
+def _walk_stack_bytes(path_max: int, depth: int) -> int:
+    """Worst-case stack the tree walks need for `depth` levels of recursion."""
+    return 2 * path_max + (depth + 1) * _WALK_DRIVER_STACK_PER_LEVEL
+
+
+# ESP-IDF's own default when nothing sets CONFIG_FATFS_MAX_LFN; the esp32 component applies
+# the same value from _reconcile_vfs_fatfs_sdkconfig(). Only read as a fallback for the case
+# where that has not run at all (no FATFS driver -> the option is never touched).
+_FATFS_MAX_LFN_DEFAULT = 255
+
+
+def _resolve_path_max(config) -> int:
+    """The API's path bound, resolved once every contributor has had its say.
+
+    An explicit `path_max:` wins. Otherwise it is the largest bound any configured driver
+    needs -- the maximum, not the minimum: the buffers have to carry the longest path any of
+    them accepts, and a driver with a tighter limit of its own refuses over-long paths itself.
+    FATFS-backed drivers contribute CONFIG_FATFS_MAX_LFN rather than a constant, which is why
+    this runs at FINAL - 1: esp32 reconciles that option at FINAL.
+    """
+    if (explicit := config.get(CONF_PATH_MAX)) is not None:
+        return explicit
+    data = _get_data()
+    # Only what drivers actually reported counts. _DEFAULT_PATH_MAX is the answer when nobody
+    # did (storage configured without a device), not a floor under the derivation — used as
+    # one it would swallow a lowered CONFIG_FATFS_MAX_LFN and make this whole resolution moot.
+    bounds = []
+    if data.path_max > 0:
+        bounds.append(data.path_max)
+    if data.fatfs_path_bound and CORE.is_esp32:
+        from esphome.components.esp32.const import KEY_ESP32, KEY_SDKCONFIG_OPTIONS
+
+        opts = CORE.data.get(KEY_ESP32, {}).get(KEY_SDKCONFIG_OPTIONS, {})
+        lfn = opts.get("CONFIG_FATFS_MAX_LFN", _FATFS_MAX_LFN_DEFAULT)
+        # A YAML sdkconfig_options entry arrives wrapped so it is written out verbatim; the
+        # esp32 component's own default is a plain int. Both carry the same number.
+        lfn = getattr(lfn, "value", lfn)
+        try:
+            # A name plus its terminator is the longest single component FATFS will hand back.
+            bounds.append(int(lfn) + 1)
+        except (TypeError, ValueError):
+            _LOGGER.warning(
+                "storage: CONFIG_FATFS_MAX_LFN is %r, which is not a number — using %d for the "
+                "path bound instead",
+                lfn,
+                _DEFAULT_PATH_MAX,
+            )
+            bounds.append(_DEFAULT_PATH_MAX)
+    return max(bounds) if bounds else _DEFAULT_PATH_MAX
+
+
+def _default_copy_chunk_size() -> int:
+    """The loop-safe base chunk size (platform-independent — see the note above)."""
+    return _DEFAULT_COPY_CHUNK_SIZE
+
+
 # storage is a dependency of every driver and would otherwise run BEFORE them (default
 # priority), reading device_count/worker_count as 0 — every driver's own to_code() is where
 # request_storage_device()/request_storage_worker() actually get called. LATE (-100) runs
@@ -152,16 +342,57 @@ def request_storage_worker(task_safe: bool = False) -> None:
 # are unaffected either way, since that call already suspends until the variable exists.
 @coroutine_with_priority(CoroPriority.LATE)
 async def to_code(config):
+    tb_enabled = config.get("enable_psram_transfer_buffer", "psram" in CORE.config)
+    if tb_enabled:
+        cg.add_define("USE_STORAGE_TRANSFER_BUFFER")
+        tb_id = ID("storage_transfer_buffer", is_declaration=True, type=TransferBuffer)
+        CORE.component_ids.add(str(tb_id))
+        tb = cg.new_Pvariable(tb_id)
+        await cg.register_component(tb, {})
+        # 0 = auto: setup() sizes the arena to 25% of the detected PSRAM
+        cg.add(tb.set_size(config.get("psram_transfer_buffer_size", 0)))
+        cg.add(tb.set_override_limit(config["psram_transfer_buffer_override_limit"]))
     var = cg.new_Pvariable(config[cv.GenerateID()])
     await cg.register_component(var, config)
 
     device_count = _get_data().device_count
     cg.add(var.set_device_count(device_count))
+    # Compile-time bound for the enumeration snapshot in StorageRegistry::for_each*.
+    cg.add_define("USE_STORAGE_MAX_DEVICES", device_count)
 
     cg.add(cg.RawExpression(f"{storage_ns}::global_storage_registry = {var}"))
 
-    cg.add_define("USE_STORAGE_COPY_CHUNK_SIZE", config[CONF_COPY_CHUNK_SIZE])
+    cg.add_define("USE_STORAGE")
+    cg.add_define("USE_STORAGE_MAX_RECURSION_DEPTH", _MAX_RECURSION_DEPTH)
+
+    # The path bound cannot be settled here: a FATFS driver contributes CONFIG_FATFS_MAX_LFN,
+    # which the esp32 component reconciles at FINAL. Emit it from behind that.
+    @coroutine_with_priority(CoroPriority.FINAL - 1)
+    async def _emit_path_max():
+        path_max = _resolve_path_max(config)
+        cg.add_define("USE_STORAGE_PATH_MAX", path_max)
+        # The tree walks run on the worker task when one is configured; a path bound raised
+        # past what its stack can carry would overflow rather than fail cleanly.
+        if _get_data().worker_count > 0:
+            needed = _walk_stack_bytes(path_max, _MAX_RECURSION_DEPTH)
+            budget = int(config[CONF_TASK_STACK_SIZE] * _WALK_STACK_HEADROOM)
+            if needed > budget:
+                _LOGGER.warning(
+                    "storage: a %d-level tree walk with path_max %d needs roughly %d bytes of "
+                    "stack, leaving little headroom in task_stack_size (%d). Raise "
+                    "task_stack_size if deep copy/remove operations misbehave.",
+                    _MAX_RECURSION_DEPTH,
+                    path_max,
+                    needed,
+                    config[CONF_TASK_STACK_SIZE],
+                )
+
+    CORE.add_job(_emit_path_max)
+    # Absent copy_chunk_size -> per-platform default; explicit value overrides.
+    copy_chunk_size = config.get(CONF_COPY_CHUNK_SIZE) or _default_copy_chunk_size()
+    cg.add_define("USE_STORAGE_COPY_CHUNK_SIZE", copy_chunk_size)
     cg.add(var.set_max_blocking_transfer_size(config[CONF_MAX_BLOCKING_TRANSFER_SIZE]))
+    cg.add(var.set_move_fallback_copy(config[CONF_MOVE_FALLBACK_COPY]))
 
     for conf in config.get(CONF_ON_REGISTERED, []):
         await automation.build_callback_automation(
@@ -187,6 +418,7 @@ async def to_code(config):
         cg.add(worker_var.set_task_priority(config[CONF_TASK_PRIORITY]))
         cg.add(worker_var.set_max_pending(config[CONF_MAX_PENDING]))
         cg.add(worker_var.set_max_streams(config[CONF_MAX_STREAMS]))
+        cg.add(worker_var.set_update_interval(config[CONF_WORKER_UPDATE_INTERVAL]))
 
         cg.add(cg.RawExpression(f"{storage_ns}::global_storage_worker = {worker_var}"))
 
@@ -210,6 +442,9 @@ CONF_TRIM = "trim"
 
 FileWriteAction = storage_ns.class_("FileWriteAction", automation.Action)
 FileReadAction = storage_ns.class_("FileReadAction", automation.Action)
+RawReadAction = storage_ns.class_("RawReadAction", automation.Action)
+RawWriteAction = storage_ns.class_("RawWriteAction", automation.Action)
+RawEraseAction = storage_ns.class_("RawEraseAction", automation.Action)
 ExtractStepType = storage_ns.enum("ExtractStepType", is_class=True)
 
 
@@ -318,7 +553,11 @@ async def _build_write_action(config, action_id, template_arg, args, append):
         # Render printf-style format + args into the content string, logger.log-style:
         # the validated arg lambdas are embedded verbatim as C++ expressions.
         format_literal = str(cg.safe_exp(config[CONF_FORMAT]))
-        arg_exprs = "".join(f", {x}" for x in config[CONF_ARGS])
+        # each arg is normalized through printf_arg(): std::string -> c_str(),
+        # everything else passes through (see automation.h for the UB rationale)
+        arg_exprs = "".join(
+            f", esphome::storage::printf_arg({x})" for x in config[CONF_ARGS]
+        )
         lambda_ = await cg.process_lambda(
             core.Lambda(f"return str_sprintf({format_literal}{arg_exprs});"),
             args,
@@ -422,14 +661,28 @@ _FILE_COPY_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_FROM): cv.templatable(cv.string),
         cv.Required(CONF_TO): cv.templatable(cv.string),
+        # Fired from the worker's completion callback (main loop). `x` is the error text,
+        # empty string on success. The copy/move runs asynchronously — the action sequence
+        # does not wait for it.
+        cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(single=True),
     }
 )
 
 
 async def _build_copy_action(config, action_id, template_arg, args, is_move):
+    # file_copy/move prefer the async worker (see perform_file_copy_async). We deliberately do
+    # NOT request_storage_worker() here: action codegen can run after the storage to_code has
+    # already snapshotted the worker count (LATE), so a late request would compile the action
+    # against a worker that was never created. Instead the C++ side degrades cleanly — if the
+    # worker isn't compiled in (no path driver requested it), it runs the blocking helper. Any
+    # node that can actually do file ops has a path driver, which requests the worker anyway.
     var = cg.new_Pvariable(action_id, template_arg, is_move)
     cg.add(var.set_from(await cg.templatable(config[CONF_FROM], args, cg.std_string)))
     cg.add(var.set_to(await cg.templatable(config[CONF_TO], args, cg.std_string)))
+    if CONF_ON_COMPLETE in config:
+        await automation.build_automation(
+            var.get_complete_trigger(), [(cg.std_string, "x")], config[CONF_ON_COMPLETE]
+        )
     return var
 
 
@@ -507,6 +760,203 @@ async def unmount_action_to_code(config, action_id, template_arg, args):
 
 
 # ==================== PREFERENCES BACKUP/RESTORE ====================
+# ---------------------------------------------------------------------------
+# storage.raw_read / storage.raw_write / storage.raw_erase
+# ---------------------------------------------------------------------------
+# Address-based access to a RawStorage device. Ranges and capabilities are the device's own
+# answer at runtime (RawGeometry/RawEraseCaps) — codegen only wires the parameters through.
+
+CONF_TO_FILE = "to_file"
+CONF_FROM_FILE = "from_file"
+CONF_ERASE_FIRST = "erase_first"
+CONF_FORCE_SLICED_ERASE = "force_sliced_erase"
+
+
+def _validate_raw_data(value):
+    if isinstance(value, str):
+        return value.encode("utf-8")
+    if isinstance(value, list):
+        return cv.Schema([cv.hex_uint8_t])(value)
+    raise cv.Invalid(
+        "data must either be a string wrapped in quotes or a list of bytes"
+    )
+
+
+def _validate_raw_read(config):
+    if CONF_TO_FILE not in config and CONF_ON_VALUE not in config:
+        raise cv.Invalid("At least one of 'to_file' or 'on_value' is required")
+    if CONF_SIZE not in config and CONF_TO_FILE not in config:
+        raise cv.Invalid("'size' is required unless reading into a file with 'to_file'")
+    return config
+
+
+def _validate_raw_write(config):
+    if (CONF_DATA in config) == (CONF_FROM_FILE in config):
+        raise cv.Invalid("Exactly one of 'data' or 'from_file' is required")
+    return config
+
+
+def _validate_raw_erase(config):
+    if config[CONF_ALL]:
+        if CONF_ADDRESS in config or CONF_SIZE in config:
+            raise cv.Invalid("'all' erases the whole device — remove 'address'/'size'")
+    elif CONF_SIZE not in config:
+        raise cv.Invalid(
+            "'size' is required unless erasing the whole device with 'all'"
+        )
+    return config
+
+
+_RAW_READ_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(RawStorage),
+            cv.Optional(CONF_ADDRESS): cv.templatable(cv.hex_uint32_t),
+            # Omitted with to_file: read to the end of the device (0 = rest, see the action).
+            cv.Optional(CONF_SIZE): cv.templatable(cv.positive_int),
+            cv.Optional(CONF_TO_FILE): cv.templatable(cv.string),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation(single=True),
+            # Fires (error text, empty = success) when a to_file read lands on the worker.
+            cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(single=True),
+        }
+    ),
+    _validate_raw_read,
+)
+
+_RAW_WRITE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(RawStorage),
+            cv.Optional(CONF_ADDRESS): cv.templatable(cv.hex_uint32_t),
+            cv.Optional(CONF_DATA): cv.templatable(_validate_raw_data),
+            cv.Optional(CONF_FROM_FILE): cv.templatable(cv.string),
+            # Media reporting RAW_WRITE_NEEDS_ERASE (NOR flash) need the covering sectors erased
+            # first — which also wipes whatever else shares them, hence opt-in.
+            cv.Optional(CONF_ERASE_FIRST, default=False): cv.boolean,
+            # Fires (error text, empty = success) when a from_file write lands on the worker.
+            cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(single=True),
+        }
+    ),
+    _validate_raw_write,
+)
+
+_RAW_ERASE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(RawStorage),
+            cv.Optional(CONF_ADDRESS): cv.templatable(cv.hex_uint32_t),
+            cv.Optional(CONF_SIZE): cv.templatable(cv.positive_int),
+            cv.Optional(CONF_ALL, default=False): cv.boolean,
+            # Opt out of the whole-chip fast path: force the block-by-block erase even where a
+            # single chip erase would be used (task-safe device, full span). Default keeps the
+            # fast path. Mainly a testing/benchmarking knob.
+            cv.Optional(CONF_FORCE_SLICED_ERASE, default=False): cv.boolean,
+            # Fires (error text, empty = success) when the erase finishes on the worker.
+            cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(single=True),
+        }
+    ),
+    _validate_raw_erase,
+)
+
+
+@automation.register_action(
+    "storage.raw_read", RawReadAction, _RAW_READ_SCHEMA, synchronous=True
+)
+async def raw_read_action_to_code(config, action_id, template_arg, args):
+    cg.add_define("USE_STORAGE_RAW_ACTIONS")
+    device = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, device)
+    cg.add(
+        var.set_address(
+            await cg.templatable(config.get(CONF_ADDRESS, 0), args, cg.uint32)
+        )
+    )
+    cg.add(
+        var.set_size(await cg.templatable(config.get(CONF_SIZE, 0), args, cg.uint32))
+    )
+    if CONF_TO_FILE in config:
+        cg.add(
+            var.set_to_file(
+                await cg.templatable(config[CONF_TO_FILE], args, cg.std_string)
+            )
+        )
+        cg.add(var.set_has_to_file(True))
+    if CONF_ON_VALUE in config:
+        await automation.build_automation(
+            var.get_value_trigger(),
+            [(cg.std_vector.template(cg.uint8), "x")],
+            config[CONF_ON_VALUE],
+        )
+    if CONF_ON_COMPLETE in config:
+        await automation.build_automation(
+            var.get_complete_trigger(), [(cg.std_string, "x")], config[CONF_ON_COMPLETE]
+        )
+    return var
+
+
+@automation.register_action(
+    "storage.raw_write", RawWriteAction, _RAW_WRITE_SCHEMA, synchronous=True
+)
+async def raw_write_action_to_code(config, action_id, template_arg, args):
+    cg.add_define("USE_STORAGE_RAW_ACTIONS")
+    device = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, device)
+    cg.add(
+        var.set_address(
+            await cg.templatable(config.get(CONF_ADDRESS, 0), args, cg.uint32)
+        )
+    )
+    cg.add(var.set_erase_first(config[CONF_ERASE_FIRST]))
+    if CONF_FROM_FILE in config:
+        cg.add(
+            var.set_from_file(
+                await cg.templatable(config[CONF_FROM_FILE], args, cg.std_string)
+            )
+        )
+        cg.add(var.set_has_from_file(True))
+    if CONF_ON_COMPLETE in config:
+        await automation.build_automation(
+            var.get_complete_trigger(), [(cg.std_string, "x")], config[CONF_ON_COMPLETE]
+        )
+        return var
+    data = config[CONF_DATA]
+    if isinstance(data, bytes):
+        data = list(data)
+    if cg.is_template(data):
+        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
+        cg.add(var.set_data_template(templ))
+    else:
+        # Static payload stays in flash — no RAM copy (same as uart.write).
+        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
+        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
+        cg.add(var.set_data_static(arr, len(data)))
+    return var
+
+
+@automation.register_action(
+    "storage.raw_erase", RawEraseAction, _RAW_ERASE_SCHEMA, synchronous=True
+)
+async def raw_erase_action_to_code(config, action_id, template_arg, args):
+    cg.add_define("USE_STORAGE_RAW_ACTIONS")
+    device = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, device)
+    cg.add(
+        var.set_address(
+            await cg.templatable(config.get(CONF_ADDRESS, 0), args, cg.uint32)
+        )
+    )
+    cg.add(
+        var.set_size(await cg.templatable(config.get(CONF_SIZE, 0), args, cg.uint32))
+    )
+    cg.add(var.set_all(config[CONF_ALL]))
+    cg.add(var.set_force_sliced_erase(config[CONF_FORCE_SLICED_ERASE]))
+    if CONF_ON_COMPLETE in config:
+        await automation.build_automation(
+            var.get_complete_trigger(), [(cg.std_string, "x")], config[CONF_ON_COMPLETE]
+        )
+    return var
+
+
 # storage.export_preferences / storage.import_preferences: back up ESPHome
 # preferences (the "esphome" NVS namespace) to a storage target and restore
 # them. Provided by storage itself, guard-protected: the C++ only compiles
@@ -550,28 +1000,84 @@ _PREF_SCALAR_TYPES = {
 }
 _ARRAY_TYPE_RE = re.compile(r"^\s*(.+?)\s*\[\s*(\d+)\s*\]\s*$")
 
+_RESTORING_RE = re.compile(r"RestoringGlobalsComponent<\s*(.+?)\s*>\s*$")
+_RESTORING_STRING_RE = re.compile(
+    r"RestoringGlobalStringComponent<\s*.+?,\s*(\d+)\s*>\s*$"
+)
 
-def _pref_type_for_global(global_id: str) -> tuple[str, int]:
-    """(PrefType tag, count) for a global's YAML entry — HEX,0 if unknown."""
-    for entry in CORE.config.get("globals", []):
-        if entry[CONF_ID].id != global_id:
+
+# Sensor platforms whose restore type codegen can name but the runtime sweep cannot: they all
+# arrive as sensor::Sensor in App's list, four bytes wide, and a build without RTTI cannot tell
+# them apart. The platform is right there in the YAML, so map the registered class to the kind
+# and let register_entity_pref() carry it over. A platform that is not listed here keeps the
+# sweep's RAW entry -- named, hex value -- which is the safe fallback: a wrong kind would render
+# a wrong number AND write wrong bytes back on import.
+_SENSOR_PREF_KINDS = {
+    "total_daily_energy::TotalDailyEnergy": "FLOAT",
+    "integration::IntegrationSensor": "FLOAT",
+    "duty_time_sensor::DutyTimeSensor": "U32",
+    "rotary_encoder::RotaryEncoderSensor": "I32",
+}
+
+
+# Preferences owned by a component rather than an entity: (component, C++ symbol, exported
+# name, kind). Emitted only when that component is configured, and by SYMBOL -- the value stays
+# in the owning component's header, so a rename breaks the build instead of silently exporting a
+# number that has moved on. Without this they show up as a bare key, since the sweep only walks
+# entities.
+_COMPONENT_PREF_KEYS = (("safe_mode", "safe_mode::RTC_KEY", "safe_mode", "U32"),)
+
+
+async def _register_component_prefs():
+    """Names the component-owned preferences whose owners are part of this build."""
+    for component, symbol, name, kind in _COMPONENT_PREF_KEYS:
+        if component not in CORE.config:
             continue
-        if not entry.get("restore_value", False):
-            raise cv.Invalid(
-                f"Global '{global_id}' has no restore_value — it stores no preference"
+        cg.add(
+            cg.RawExpression(
+                f'{storage_ns}::register_key_pref({symbol}, "{name}", '
+                f"{storage_ns}::EntityKind::{kind})"
             )
-        type_str = entry[CONF_TYPE].strip()
-        if type_str == "std::string":
-            return "STRING", entry.get("max_restore_data_length", 63) + 1
-        if type_str in _PREF_SCALAR_TYPES:
-            return _PREF_SCALAR_TYPES[type_str], 1
-        if m := _ARRAY_TYPE_RE.match(type_str):
-            base, count = m.group(1), int(m.group(2))
+        )
+
+
+async def _register_typed_sensors():
+    """Emits one register_entity_pref() per sensor whose restore type is known.
+
+    FINAL priority: every sensor platform's own to_code() must have registered its variable
+    before CORE.variables can be walked for them.
+    """
+    for reg_id in CORE.variables:
+        # Registered types carry no esphome:: prefix; tolerate one anyway.
+        type_str = str(reg_id.type).removeprefix("esphome::")
+        kind = _SENSOR_PREF_KINDS.get(type_str)
+        if kind is None:
+            continue
+        var = await cg.get_variable(reg_id)
+        cg.add(
+            cg.RawExpression(
+                f"{storage_ns}::register_entity_pref({var}, "
+                f"{storage_ns}::EntityKind::{kind})"
+            )
+        )
+
+
+def _pref_type_from_class(type_str: str) -> tuple[str, int] | None:
+    """(PrefType tag, count) from a declared global's C++ class string —
+    codegen-world data only (ID.type of the registered variable). None when
+    the class is not a restoring global at all."""
+    if m := _RESTORING_STRING_RE.search(type_str):
+        return "STRING", int(m.group(1))  # SZ straight from the template arg
+    if m := _RESTORING_RE.search(type_str):
+        inner = m.group(1)
+        if inner in _PREF_SCALAR_TYPES:
+            return _PREF_SCALAR_TYPES[inner], 1
+        if am := _ARRAY_TYPE_RE.match(inner):
+            base, count = am.group(1), int(am.group(2))
             if base in _PREF_SCALAR_TYPES:
                 return _PREF_SCALAR_TYPES[base], count
-        # Unknown C++ type: still round-trips, just as hex.
-        return "HEX", 0
-    return "HEX", 0
+        return "HEX", 0  # restoring, but a type we cannot render — hex round-trip
+    return None
 
 
 ExportPreferencesAction = storage_ns.class_(
@@ -588,8 +1094,14 @@ def _global_nvs_key(global_id: str) -> int:
 
 
 _PREFERENCES_ACTION_BASE = {
-    cv.Required(CONF_PATH): cv.templatable(cv.string_strict),
-    cv.Optional(CONF_FORMAT, default="kv"): cv.one_of("kv", "json", lower=True),
+    cv.Optional(CONF_PATH): cv.templatable(cv.string_strict),
+    # No default: the presence of the key is what distinguishes a file target from a raw one
+    # (a default would fill it in and make that check meaningless).
+    cv.Optional(CONF_FORMAT): cv.one_of("kv", "json", lower=True),
+    cv.Optional(CONF_DEVICE): cv.use_id(RawStorage),
+    # Not templatable on purpose: codegen computes each region's room from these addresses,
+    # which a runtime lambda would hide.
+    cv.Optional(CONF_ADDRESS): cv.hex_uint32_t,
     # Globals with restore_value. cv.use_id(cg.Component) because the globals
     # component declares several unrelated classes (GlobalsComponent,
     # RestoringGlobalsComponent, RestoringGlobalStringComponent) — only the
@@ -598,9 +1110,29 @@ _PREFERENCES_ACTION_BASE = {
     cv.Optional(CONF_PREFERENCES): cv.ensure_list(cv.use_id(cg.Component)),
 }
 
+
+def _validate_preferences_target(config):
+    has_path = CONF_PATH in config
+    has_device = CONF_DEVICE in config
+    if has_path == has_device:
+        raise cv.Invalid("Exactly one of 'path' or 'device' is required")
+    if has_device:
+        if CONF_FORMAT in config:
+            raise cv.Invalid(
+                "'format' does not apply to a raw device: the blob is written as stored, "
+                "there is nothing to render"
+            )
+        if CONF_ADDRESS not in config:
+            raise cv.Invalid("'address' is required when the target is a raw device")
+    elif CONF_ADDRESS in config:
+        raise cv.Invalid("'address' only applies to a raw device target ('device:')")
+    return config
+
+
 _EXPORT_PREFERENCES_SCHEMA = cv.All(
     cv.only_on(["esp32"]),
     cv.Schema(_PREFERENCES_ACTION_BASE),
+    _validate_preferences_target,
 )
 
 _IMPORT_PREFERENCES_SCHEMA = cv.All(
@@ -613,40 +1145,124 @@ _IMPORT_PREFERENCES_SCHEMA = cv.All(
             cv.Optional(CONF_REBOOT, default=False): cv.boolean,
         }
     ),
+    _validate_preferences_target,
 )
+
+
+# Per-type version constants of EntityBase::make_entity_preference_() callers.
+# Keep in sync: fan/fan.cpp, climate/climate.cpp; every other core entity uses
+# the default version 0. template text is special-cased (trait-salted key).
+# (module, class, version, EntityKind) — kinds map to real-struct codecs in
+# preferences_backup.cpp; anything not matched below registers as RAW (named,
+# hex value). datetime template platforms carry their own versions.
+# Container arithmetic, used to catch overlapping regions at config time. Layout is fixed by
+# preferences_backup.cpp: a 16-byte header plus {key u32, len u16, blob} per entry.
+_RAW_PREF_HEADER = 16
+_RAW_PREF_ENTRY_OVERHEAD = 6
+_PREF_TYPE_SIZES = {
+    "BOOL": 1,
+    "I8": 1,
+    "U8": 1,
+    "I16": 2,
+    "U16": 2,
+    "I32": 4,
+    "U32": 4,
+    "F32": 4,
+    "F64": 8,
+}
+
+
+def _raw_pref_size(entries: list[tuple[str, int]]) -> int:
+    """Exact container size for an explicit selection: (PrefType tag, count) per entry."""
+    total = _RAW_PREF_HEADER
+    for tag, count in entries:
+        # STRING blobs are length-prefixed char[SZ], with SZ already carried in count.
+        elem = 1 if tag == "STRING" else _PREF_TYPE_SIZES[tag]
+        total += _RAW_PREF_ENTRY_OVERHEAD + elem * count
+    return total
+
+
+async def _resolve_raw_pref_regions():
+    """Hands every raw preferences action the room it actually has, and rejects regions that
+    would run into each other.
+
+    Codegen knows every action's address, so nobody has to repeat "and it may use N bytes":
+    a region reaches up to the next address on the same device, and the last one to the end of
+    the device — which only the device knows, hence window 0 for it. An export and its import
+    share one address by design (that is the pair), so actions are grouped by address, not
+    counted individually.
+
+    Where a selection is explicit the container size is exact and a collision is a config
+    error. An unrestricted selection grows with the app, so that case cannot be sized here and
+    is caught at runtime by the window instead — the export refuses rather than writing into
+    the neighbouring region."""
+    for device, actions in _get_data().raw_pref_regions.items():
+        by_address: dict[int, dict] = {}
+        for action in actions:
+            region = by_address.setdefault(
+                action["address"], {"size": None, "actions": []}
+            )
+            region["actions"].append(action)
+            if action["size"] is not None:
+                region["size"] = max(region["size"] or 0, action["size"])
+
+        addresses = sorted(by_address)
+        for i, address in enumerate(addresses):
+            region = by_address[address]
+            if i + 1 < len(addresses):
+                window = addresses[i + 1] - address
+                size = region["size"]
+                if size is not None and size > window:
+                    raise cv.Invalid(
+                        f"The preferences region at 0x{address:X} on '{device}' needs {size} "
+                        f"bytes and would run into the region at 0x{addresses[i + 1]:X} "
+                        f"({window} bytes apart)"
+                    )
+            else:
+                window = 0  # to the end of the device
+            for action in region["actions"]:
+                cg.add(action["var"].set_raw_target(action["device"], address, window))
+
+
+def _register_raw_pref_region(device_id, device_var, address, size, var):
+    data = _get_data()
+    data.raw_pref_regions.setdefault(str(device_id), []).append(
+        {"address": address, "size": size, "var": var, "device": device_var}
+    )
+    if not data.raw_pref_job_queued:
+        data.raw_pref_job_queued = True
+        # FINAL: every action must be built before the regions can be laid out.
+        CORE.add_job(
+            coroutine_with_priority(CoroPriority.FINAL)(_resolve_raw_pref_regions)
+        )
 
 
 async def _build_preferences_action(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     cg.add_define("USE_STORAGE_PREFERENCES")
-    template_ = await cg.templatable(config[CONF_PATH], args, cg.std_string)
-    cg.add(var.set_path(template_))
-    cg.add(var.set_format(config[CONF_FORMAT]))
-    # The name/type table is ALWAYS baked: from the explicit list when given
-    # (restrict=True — only those entries round-trip), otherwise from every
-    # restore_value global in the config (restrict=False — the whole
-    # namespace round-trips, but everything codegen can name renders
-    # readable; only truly unknown keys like entity states stay hex).
-    if selection := config.get(CONF_PREFERENCES):
-        # ID has no __str__ (str() falls back to the ID<...> repr) — use .id,
-        # exactly what globals/__init__.py feeds into its md5 name hash.
-        names = [gid.id for gid in selection]
-        restrict = True
-    else:
-        names = [
-            entry[CONF_ID].id
-            for entry in CORE.config.get("globals", [])
-            if entry.get("restore_value", False)
-        ]
-        restrict = False
-    if names:
-        entries = []
-        for name in names:
-            tag, count = _pref_type_for_global(name)
-            key = _global_nvs_key(name)
-            entries.append(
-                f'{{"{name}", {key}UL, esphome::storage::PrefType::{tag}, {count}}}'
-            )
+    # Once per build, not per action: naming is a property of the node, not of the action.
+    data = _get_data()
+    if not data.sensor_pref_job_queued:
+        data.sensor_pref_job_queued = True
+        CORE.add_job(
+            coroutine_with_priority(CoroPriority.FINAL)(_register_typed_sensors)
+        )
+        CORE.add_job(
+            coroutine_with_priority(CoroPriority.FINAL)(_register_component_prefs)
+        )
+    if CONF_PATH in config:
+        template_ = await cg.templatable(config[CONF_PATH], args, cg.std_string)
+        cg.add(var.set_path(template_))
+        cg.add(var.set_format(config.get(CONF_FORMAT, "kv")))
+
+    def _bake(entries, restrict):
+        # entity-only selections produce zero table entries: emitting
+        # "static const T x[] = {}" would be a zero-size array (GNU
+        # extension, not ISO C++) — pass a null table instead
+        if not entries:
+            cg.add(var.set_selection(cg.nullptr, 0, restrict))
+            return
+
         arr = f"{action_id}_psel"
         cg.add_global(
             cg.RawExpression(
@@ -655,10 +1271,67 @@ async def _build_preferences_action(config, action_id, template_arg, args):
                 + "}"
             )
         )
-        cg.add(
-            var.set_selection(
-                cg.RawExpression(arr), len(entries), restrict
-            )
+        cg.add(var.set_selection(cg.RawExpression(arr), len(entries), restrict))
+
+    def _entry(name, tag, count):
+        key = _global_nvs_key(name)
+        return f'{{"{name}", {key}UL, esphome::storage::PrefType::{tag}, {count}}}'
+
+    if selection := config.get(CONF_PREFERENCES):
+        # get_variable_with_full_id is a coroutine: it suspends until the
+        # global's own to_code has registered the variable — the declaration
+        # ID it returns carries the real C++ class (codegen-world data, no
+        # validation-step leftovers).
+        entries = []
+        sizes = []
+        has_entities = False
+        for gid in selection:
+            full_id, obj = await cg.get_variable_with_full_id(gid)
+            parsed = _pref_type_from_class(str(full_id.type))
+            if parsed is not None:
+                entries.append(_entry(gid.id, *parsed))
+                sizes.append(parsed)
+                continue
+            # anything else is treated as an entity: the runtime sweep
+            # resolves name/kind/key from the live object; unresolvable
+            # selections log a loud skip at play time
+            cg.add(var.add_selected_entity(obj))
+            has_entities = True
+        if entries or has_entities:
+            _bake(entries, True)
+        # Entity selections carry no codegen-known blob size (their layout is a component
+        # private, resolved by the runtime sweep) — the size stays unknown then, and only the
+        # window guards that case.
+        raw_size = None if has_entities else _raw_pref_size(sizes)
+    else:
+        # All mode: enumerate the codegen variable registry once every
+        # pending to_code has run. Scheduled as its own coroutine job — it is
+        # enqueued behind all already-queued component jobs, so the globals
+        # are registered by the time it executes.
+        # globals' own to_code runs at CoroPriority.LATE (-100) — an
+        # unprioritized job would enumerate CORE.variables BEFORE any global
+        # is registered (verified empirically: 14 vars, zero globals).
+        # FINAL (-1000) queues the bake after every component job.
+        @coroutine_with_priority(CoroPriority.FINAL)
+        async def _bake_all():
+            # globals only — entity naming is entirely the runtime sweep's job
+            entries = []
+            for reg_id in CORE.variables:
+                parsed = _pref_type_from_class(str(reg_id.type))
+                if parsed is not None:
+                    entries.append(_entry(reg_id.id, *parsed))
+            if entries:
+                _bake(entries, False)
+
+        CORE.add_job(_bake_all)
+        raw_size = (
+            None  # the namespace grows with the app — only the window can guard this
+        )
+
+    if CONF_DEVICE in config:
+        device_var = await cg.get_variable(config[CONF_DEVICE])
+        _register_raw_pref_region(
+            config[CONF_DEVICE], device_var, config[CONF_ADDRESS], raw_size, var
         )
     return var
 
@@ -683,3 +1356,62 @@ async def import_preferences_to_code(config, action_id, template_arg, args):
     var = await _build_preferences_action(config, action_id, template_arg, args)
     cg.add(var.set_reboot(config[CONF_REBOOT]))
     return var
+
+
+# ---- file_system option (sd_storage / usb_storage) --------------------------------------
+# The option does not exist without esp32 enable_exfat: without exFAT the filesystem is
+# always FAT32, there is nothing to choose and nothing to probe — the mount path stays
+# exactly as it is today. With exFAT enabled the option appears with default "auto"
+# (FatFs' own boot-sector detection inside f_mount); an explicit fat32/exfat probes the
+# medium BEFORE the mount and reformats first on mismatch, so the one mount that happens
+# is already on the requested filesystem.
+CONF_FILE_SYSTEM = "file_system"
+FILE_SYSTEM_AUTO = "auto"
+FILE_SYSTEM_FAT32 = "fat32"
+FILE_SYSTEM_EXFAT = "exfat"
+
+FILE_SYSTEM_SCHEMA_ENTRY = cv.Optional(CONF_FILE_SYSTEM)
+validate_file_system_value = cv.one_of(
+    FILE_SYSTEM_AUTO, FILE_SYSTEM_FAT32, FILE_SYSTEM_EXFAT, lower=True
+)
+
+
+def _esp32_exfat_enabled(fconf) -> bool:
+    from esphome.components.esp32 import CONF_ENABLE_EXFAT
+    from esphome.components.esp32.const import KEY_ESP32
+    from esphome.const import CONF_ADVANCED, CONF_FRAMEWORK
+
+    esp32 = fconf.get(KEY_ESP32)
+    if not esp32:
+        return False
+    return bool(
+        esp32.get(CONF_FRAMEWORK, {})
+        .get(CONF_ADVANCED, {})
+        .get(CONF_ENABLE_EXFAT, False)
+    )
+
+
+def final_validate_file_system(config) -> None:
+    """Reject the option outright when exFAT is not compiled in."""
+    if CONF_FILE_SYSTEM not in config:
+        return
+    if not _esp32_exfat_enabled(fv.full_config.get()):
+        raise cv.Invalid(
+            f"'{CONF_FILE_SYSTEM}' is not available without 'enable_exfat: true' in the "
+            f"esp32 framework advanced options — without exFAT the filesystem is always "
+            f"FAT32 and there is nothing to choose"
+        )
+
+
+async def file_system_to_code(var, config) -> None:
+    """Emit the selection define + setter — only when the option may exist at all."""
+    from esphome.core import CORE
+
+    if not _esp32_exfat_enabled(CORE.config):
+        return  # not even the auto path is compiled in
+    import esphome.codegen as cg
+
+    cg.add_define("USE_STORAGE_FILE_SYSTEM_SELECT")
+    fs = config.get(CONF_FILE_SYSTEM, FILE_SYSTEM_AUTO)
+    value = {FILE_SYSTEM_AUTO: 0, FILE_SYSTEM_FAT32: 1, FILE_SYSTEM_EXFAT: 2}[fs]
+    cg.add(var.set_requested_file_system(value))
