@@ -105,9 +105,7 @@ TEST(ExtractSplit, PicksTheRequestedElement) {
   EXPECT_EQ(apply(split_step(",", 2), "a,b,c").buf, "c");
 }
 
-TEST(ExtractSplit, HandlesAMultiCharacterSeparator) {
-  EXPECT_EQ(apply(split_step("::", 1), "a::b::c").buf, "b");
-}
+TEST(ExtractSplit, HandlesAMultiCharacterSeparator) { EXPECT_EQ(apply(split_step("::", 1), "a::b::c").buf, "b"); }
 
 TEST(ExtractSplit, YieldsAnEmptyElementBetweenAdjacentSeparators) {
   const StepResult r = apply(split_step(",", 1), "a,,c");
