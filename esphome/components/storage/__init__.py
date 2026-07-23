@@ -140,7 +140,6 @@ def request_fatfs_path_length() -> None:
     _get_data().fatfs_path_bound = True
 
 
-
 def _transfer_buffer_final_validate(config):
     has_psram = "psram" in fv.full_config.get()
     if "enable_psram_transfer_buffer" in config and not has_psram:
