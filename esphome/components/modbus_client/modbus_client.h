@@ -19,7 +19,7 @@ namespace esphome::modbus_client {
 /// dropped and resolves via on_not_sent.
 template<typename... Ts> class ClientActionBase : public Action<Ts...>, public modbus::ModbusClientDevice {
  public:
-  TEMPLATABLE_VALUE(uint16_t, target_address)  // device address 1-247, or 0 to broadcast (no reply)
+  TEMPLATABLE_VALUE(uint8_t, target_address)  // device address 1-247, or 0 to broadcast (no reply)
 
   Trigger<modbus::ModbusExceptionCode> *get_error_trigger() { return &this->error_trigger_; }
   Trigger<> *get_no_response_trigger() { return &this->no_response_trigger_; }
@@ -32,12 +32,14 @@ template<typename... Ts> class ClientActionBase : public Action<Ts...>, public m
     this->no_response_trigger_.trigger();
     return false;
   }
+  /// Stamp the templated device address before every play(): subclasses cannot forget it, and the hub
+  /// routes each reply by device pointer, so a changed address never mis-routes earlier replies.
+  void play_complex(const Ts &...x) override {
+    this->set_address(this->target_address_.value(x...));
+    Action<Ts...>::play_complex(x...);
+  }
 
  protected:
-  /// Stamp the templated device address for this send; the hub routes the reply by device pointer, so a
-  /// changed address never mis-routes earlier replies.
-  void stamp_address_(const Ts &...x) { this->set_address(static_cast<uint8_t>(this->target_address_.value(x...))); }
-
   Trigger<modbus::ModbusExceptionCode> error_trigger_;
   Trigger<> no_response_trigger_;
   Trigger<> not_sent_trigger_;
@@ -56,10 +58,8 @@ template<typename... Ts> class ModbusClientSendAction : public ClientActionBase<
 
   void play(const Ts &...x) override {
     auto pdu = this->pdu_.value(x...);
-    if (pdu.empty())
-      return;
-    this->stamp_address_(x...);
-    this->send_pdu(std::span<const uint8_t>(pdu));
+    if (!pdu.empty())
+      this->send_pdu(std::span<const uint8_t>(pdu));
   }
 
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {

@@ -52,7 +52,7 @@ async def register_client_action(var, config, args, response_args):
     cg.add(var.set_parent(parent))
     cg.add(
         var.set_target_address(
-            await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
+            await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
         )
     )
     if response_conf := config.get(CONF_ON_RESPONSE):
