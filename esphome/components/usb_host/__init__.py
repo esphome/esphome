@@ -7,6 +7,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
     add_idf_component,
     add_idf_sdkconfig_option,
+    get_esp32_variant,
     idf_version,
     only_on_variant,
 )
@@ -58,6 +59,17 @@ def get_max_packet_size() -> int:
     return CORE.data.get(DOMAIN, {}).get(CONF_MAX_PACKET_SIZE, 64)
 
 
+def _default_max_packet_size() -> int:
+    """Largest bulk/interrupt packet the controller in this variant moves at once.
+
+    USB_HOST_MAX_PACKET_SIZE sizes every allocated transfer and rounds transfer lengths up to a
+    multiple of itself (see usb_host_client.cpp). A high-speed controller -- the ESP32-P4's --
+    uses 512 byte bulk packets, so a flat 64 leaves mass storage transfers too small and
+    misaligned. Full-speed variants stay at 64.
+    """
+    return 512 if get_esp32_variant() == VARIANT_ESP32P4 else 64
+
+
 CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
         {
@@ -66,9 +78,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_TRANSFER_REQUESTS, default=16): cv.int_range(
                 min=1, max=32
             ),
-            cv.Optional(CONF_MAX_PACKET_SIZE, default=64): cv.one_of(
-                64, 128, 256, 512, 1024, int=True
-            ),
+            cv.Optional(
+                CONF_MAX_PACKET_SIZE, default=_default_max_packet_size
+            ): cv.one_of(64, 128, 256, 512, 1024, int=True),
             cv.Optional(CONF_DEVICES): cv.ensure_list(usb_device_schema()),
         }
     ),
