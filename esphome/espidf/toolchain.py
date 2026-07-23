@@ -94,6 +94,14 @@ def _get_idf_env(version: str | None = None) -> dict[str, str]:
 def _get_cmake_output(build_dir) -> str:
     cmake_output_cache = _cache().cmake_output
     if build_dir not in cmake_output_cache:
+        # Check the build before resolving the env: _get_idf_env() runs
+        # check_esp_idf_install(), which can download and install the whole
+        # framework. Never start that for a build that isn't there. Callers
+        # such as the log stack-trace decoder run against devices that were
+        # never compiled on this machine.
+        if not (Path(build_dir) / "CMakeCache.txt").is_file():
+            raise EsphomeError(f"No ESP-IDF build found in {build_dir}")
+
         cmd = ["cmake", "-LA", "-N", "."]
 
         env = _get_idf_env()
@@ -467,9 +475,16 @@ def get_idedata() -> dict | None:
     cache = CORE.relative_internal_path("idedata", f"{CORE.name}.json")
     if cache.is_file() and cache.stat().st_mtime >= compile_commands.stat().st_mtime:
         try:
-            return json.loads(cache.read_text(encoding="utf-8"))
+            cached = json.loads(cache.read_text(encoding="utf-8"))
         except ValueError:
             pass
+        else:
+            # Caches written before cc_path was emitted stay newer than
+            # compile_commands.json forever, so rebuild them on the field rather
+            # than on the timestamp. Check the type too: a corrupted cache can
+            # still be valid JSON, and "in" would match a substring of a string.
+            if isinstance(cached, dict) and "cc_path" in cached:
+                return cached
 
     data = idedata_from_build(compile_commands)
     data["prog_path"] = str(get_elf_path())
