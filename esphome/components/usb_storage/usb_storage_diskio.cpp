@@ -32,13 +32,17 @@ static DSTATUS diskio_status(BYTE drive) {
   return get_clients()[drive]->is_disk_ready() ? 0 : STA_NOINIT;
 }
 
-static DRESULT diskio_read(BYTE drive, BYTE *buf, LBA_t sector, UINT count) {
+// Sector parameters are uint32_t by ESP-IDF's ff_diskio_impl_t contract — the glue layer is
+// 32-bit regardless of FF_FS_EXFAT/FF_LBA64 in our patched FatFs copy (without it, LBA_t is
+// the same 32-bit type, so this compiles identically in both builds). Practical ceiling:
+// 2 TiB at 512-byte sectors, far beyond any MSC medium this drives.
+static DRESULT diskio_read(BYTE drive, BYTE *buf, uint32_t sector, UINT count) {
   if (drive >= MAX_DRIVES || get_clients()[drive] == nullptr)
     return RES_NOTRDY;
   return get_clients()[drive]->scsi_read(sector, buf, count) ? RES_OK : RES_ERROR;
 }
 
-static DRESULT diskio_write(BYTE drive, const BYTE *buf, LBA_t sector, UINT count) {
+static DRESULT diskio_write(BYTE drive, const BYTE *buf, uint32_t sector, UINT count) {
   if (drive >= MAX_DRIVES || get_clients()[drive] == nullptr)
     return RES_NOTRDY;
   return get_clients()[drive]->scsi_write(sector, buf, count) ? RES_OK : RES_ERROR;

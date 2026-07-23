@@ -7,6 +7,7 @@
     defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 
 #include "usb_storage.h"
+#include "esphome/components/storage/fatfs_select.h"
 #include "usb_storage_diskio.h"
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
@@ -222,7 +223,7 @@ bool USBStorageClient::scsi_inquiry_() {
   char vendor[9]{}, product[17]{};
   memcpy(vendor, resp.vendor_id, 8);
   memcpy(product, resp.product_id, 16);
-  ESP_LOGI(TAG, "SCSI INQUIRY: vendor='%s' product='%s' type=0x%02X", vendor, product,
+  ESP_LOGD(TAG, "SCSI INQUIRY: vendor='%s' product='%s' type=0x%02X", vendor, product,
            resp.peripheral_qualifier_type & 0x1F);
   return (resp.peripheral_qualifier_type & 0x1F) == 0x00;
 }
@@ -249,7 +250,7 @@ bool USBStorageClient::scsi_read_capacity_() {
 
   this->sector_count_ = __builtin_bswap32(resp.last_lba) + 1;
   this->sector_size_ = __builtin_bswap32(resp.block_size);
-  ESP_LOGI(TAG, "SCSI READ CAPACITY: sectors=%" PRIu32 " sector_size=%" PRIu32 " (%.1f MB)", this->sector_count_,
+  ESP_LOGD(TAG, "SCSI READ CAPACITY: sectors=%" PRIu32 " sector_size=%" PRIu32 " (%.1f MB)", this->sector_count_,
            this->sector_size_, static_cast<float>(this->sector_count_) * this->sector_size_ / (1024.0f * 1024.0f));
   return this->sector_size_ > 0 && this->sector_count_ > 0;
 }
@@ -387,6 +388,17 @@ void USBStorageClient::on_connected() {
   char drive_path[8];
   snprintf(drive_path, sizeof(drive_path), "%d:", this->fatfs_drive_);
 
+#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
+  // Before the one and only f_mount below: probe the first sectors and, if a manually
+  // requested filesystem mismatches what is on the medium, reformat first — the mount then
+  // happens on the correct filesystem from the start.
+  if (!storage::ensure_requested_filesystem(TAG, this->fatfs_drive_, drive_path, this->requested_file_system_)) {
+    this->disk_ready_ = false;
+    this->disconnect();
+    return;
+  }
+#endif
+
   FATFS *fs = nullptr;
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
   esp_vfs_fat_conf_t vfs_conf = {
@@ -415,6 +427,13 @@ void USBStorageClient::on_connected() {
   }
 
   this->mounted_ = true;
+#ifdef USE_STORAGE_CHANGE_FEED
+  // Mount state is part of the roots listing: whoever flipped it (CD pin, hotplug, HTTP,
+  // automation), the browser's change poll must see it — including recovery after an error.
+  if (storage::global_storage_registry != nullptr)
+    storage::global_storage_registry->note_dir_changed("");
+#endif
+
   ESP_LOGI(TAG, "FAT filesystem mounted at '%s'", this->mount_path_);
 
   this->notify_connected_(vid, pid);
@@ -428,6 +447,13 @@ void USBStorageClient::unmount_filesystem() {
   f_mount(nullptr, drive_path, 0);
   esp_vfs_fat_unregister_path(this->mount_path_);
   this->mounted_ = false;
+#ifdef USE_STORAGE_CHANGE_FEED
+  // Mount state is part of the roots listing: whoever flipped it (CD pin, hotplug, HTTP,
+  // automation), the browser's change poll must see it — including recovery after an error.
+  if (storage::global_storage_registry != nullptr)
+    storage::global_storage_registry->note_dir_changed("");
+#endif
+
   ESP_LOGI(TAG, "FAT filesystem unmounted from '%s'", this->mount_path_);
 }
 
@@ -505,13 +531,13 @@ void USBStorageDevice::unmount_device() {
     this->client_->unmount_filesystem();
 }
 
-void USBStorageDevice::log_list_dir_start_(const char *path) const { ESP_LOGI(TAG, "Listing files in: %s", path); }
+void USBStorageDevice::log_list_dir_start_(const char *path) const { ESP_LOGD(TAG, "Listing files in: %s", path); }
 
 bool USBStorageDevice::log_list_dir_entry(const storage::FileStat *entry, void *ctx) {
   if (entry->is_dir) {
-    ESP_LOGI(TAG, "  [DIR]  %s", entry->name);
+    ESP_LOGD(TAG, "  [DIR]  %s", entry->name);
   } else {
-    ESP_LOGI(TAG, "  [FILE] %s (%llu bytes)", entry->name, static_cast<unsigned long long>(entry->size));
+    ESP_LOGD(TAG, "  [FILE] %s (%llu bytes)", entry->name, static_cast<unsigned long long>(entry->size));
   }
   return true;  // keep enumerating — this is a "list everything" action
 }
@@ -563,6 +589,7 @@ bool USBStorageDevice::build_fatfs_path_(const char *rel_path, char *out, size_t
 storage::StorageError USBStorageDevice::get_info(storage::StorageInfo *info) {
   info->id = this->mount_path_;
   info->name = "USB Storage";
+  info->kind = "usb";
   info->is_mounted = this->fs_mounted_;
   info->is_removable = true;
   info->is_read_only = false;
@@ -610,7 +637,7 @@ storage::StorageError USBStorageDevice::unmount() {
   // no worker job referencing this device). Typical USB "safe eject" behaviour: in-flight
   // transfers finish, then we sync and unmount. Returns OK = unmount accepted/initiated.
   this->unmount_pending_ = true;
-  ESP_LOGI(TAG, "Unmount requested; will complete once active transfers finish");
+  ESP_LOGD(TAG, "Unmount requested; will complete once active transfers finish");
   return storage::StorageError::OK;
 }
 
@@ -922,7 +949,12 @@ storage::StorageError USBStorageDevice::rename(const char *old_path, const char 
   char new_full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   this->build_path_(old_full, sizeof(old_full), old_path);
   this->build_path_(new_full, sizeof(new_full), new_path);
-  return ::rename(old_full, new_full) == 0 ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+  // Report why it failed: FatFs refuses an existing destination (FR_EXIST -> EEXIST), and a
+  // caller that cannot tell that apart from an I/O error cannot offer to overwrite.
+  errno = 0;
+  if (::rename(old_full, new_full) != 0)
+    return storage::error_from_errno(errno, true);
+  return storage::StorageError::OK;
 }
 
 }  // namespace esphome::usb_storage
