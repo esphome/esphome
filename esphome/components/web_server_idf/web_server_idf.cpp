@@ -872,6 +872,9 @@ void AsyncEventSourceResponse::process_deferred_queue_() {
     DeferredEvent &de = deferred_queue_.front();
     auto message = de.message_generator_(web_server_, de.source_);
     if (this->try_send_nodefer(message.c_str(), message.size(), "state")) {
+      if (this->close_requested_.load() || deferred_queue_.empty()) {
+        return;
+      }
       // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
       deferred_queue_.erase(deferred_queue_.begin());
     } else {
