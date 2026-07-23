@@ -268,13 +268,13 @@ class ClimateTraits {
   uint32_t feature_flags_{0};
   float visual_min_temperature_{10};
   float visual_max_temperature_{30};
-  TemperatureUnit temperature_unit_{TemperatureUnit::CELSIUS};
   float visual_target_temperature_step_{0.1};
   float visual_current_temperature_step_{0.1};
   float visual_min_humidity_{30};
   float visual_max_humidity_{99};
 
   climate::ClimateModeMask supported_modes_{climate::CLIMATE_MODE_OFF};
+  TemperatureUnit temperature_unit_{TemperatureUnit::CELSIUS};
   climate::ClimateFanModeMask supported_fan_modes_;
   climate::ClimateSwingModeMask supported_swing_modes_;
   climate::ClimatePresetMask supported_presets_;
