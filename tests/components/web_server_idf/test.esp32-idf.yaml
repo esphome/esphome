@@ -1,5 +1,4 @@
 packages:
   web_server_idf: !include common.yaml
-  sse_lifecycle_hil: !include sse_lifecycle_hil_package.yaml
 
 web_server:

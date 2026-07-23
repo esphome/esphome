@@ -956,6 +956,7 @@ void AsyncEventSourceResponse::process_buffer_() {
   if (bytes_sent == HTTPD_SOCK_ERR_TIMEOUT) {
     // EAGAIN/EWOULDBLOCK - socket buffer full, try again later
     // NOTE: Similar logic exists in web_server/web_server.cpp in DeferredUpdateEventSource::process_deferred_queue_().
+    // The IDF path is intentionally time-based and closes through HTTPD to preserve session ownership.
     const uint32_t now = millis();
     if (this->consecutive_send_failures_ == 0) {
       this->send_failure_started_ms_ = now;
