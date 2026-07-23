@@ -1,4 +1,3 @@
-packages:
-  web_server_idf: !include common.yaml
+<<: !include common.yaml
 
 web_server:
