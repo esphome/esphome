@@ -628,6 +628,239 @@ class ChainOnSentDevice : public ModbusClientDevice {
 };
 }  // namespace
 
+// clear_tx_queue_for_address() resolves every dropped frame via its owner's on_not_sent(), so a device
+// sharing the address with the clearer (e.g. a modbus_client action alongside an offline controller)
+// observes the drop; frames for other addresses are untouched.
+TEST(ModbusClientHubQueue, ClearAddressQueueNotifiesEveryOwner) {
+  NoResponseProbeHub hub;
+  SentCountingDevice controller_like(&hub, 0x02);
+  SentCountingDevice bystander_same(&hub, 0x02);
+  SentCountingDevice bystander_other(&hub, 0x03);
+
+  const uint8_t read_a[] = {0x03, 0x01, 0x00, 0x00, 0x02};
+  const uint8_t read_b[] = {0x03, 0x02, 0x00, 0x00, 0x02};
+  const uint8_t read_c[] = {0x03, 0x03, 0x00, 0x00, 0x02};
+  controller_like.send_pdu(read_a);
+  bystander_same.send_pdu(read_b);
+  bystander_other.send_pdu(read_c);
+  ASSERT_EQ(hub.queued_frames(), 3u);
+
+  controller_like.clear_tx_queue_for_address(false);
+
+  ASSERT_EQ(hub.queued_frames(), 1u);  // only the other-address frame remains
+  EXPECT_EQ(hub.front().frame.address(), 0x03);
+  EXPECT_EQ(controller_like.not_sent_count_, 1);
+  EXPECT_EQ(bystander_same.not_sent_count_, 1);
+  EXPECT_EQ(bystander_other.not_sent_count_, 0);
+  // each owner saw its own request PDU
+  EXPECT_EQ(bystander_same.last_not_sent_pdu_, std::vector<uint8_t>(std::begin(read_b), std::end(read_b)));
+}
+
+namespace {
+// Re-sends its frame once from inside on_not_sent - the re-queued frame must survive the sweep.
+class ResendOnNotSentDevice : public ModbusClientDevice {
+ public:
+  ResendOnNotSentDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_not_sent(std::span<const uint8_t> request_pdu) override {
+    this->not_sent_count_++;
+    if (this->not_sent_count_ == 1) {
+      const uint8_t again[] = {0x06, 0x00, 0x40, 0x00, 0x01};  // a write: priority-inserts at the front
+      this->send_pdu(again);
+    }
+  }
+  int not_sent_count_{0};
+};
+}  // namespace
+
+// A handler that re-sends to the same address from inside on_not_sent() neither corrupts the sweep nor
+// loops it: only initially-marked frames are swept, so the re-queued frame stays queued.
+TEST(ModbusClientHubQueue, ClearAddressReentrantResendSurvives) {
+  NoResponseProbeHub hub;
+  ResendOnNotSentDevice device(&hub, 0x02);
+
+  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
+  device.send_pdu(read);
+  ASSERT_EQ(hub.queued_frames(), 1u);
+
+  hub.clear_tx_queue_for_address(0x02, false);
+
+  // The original frame resolved via on_not_sent; the re-send from inside that callback remains queued.
+  EXPECT_EQ(device.not_sent_count_, 1);
+  ASSERT_EQ(hub.queued_frames(), 1u);
+  EXPECT_EQ(hub.front().frame.address(), 0x02);
+}
+
+// The hard case for the sweep: the notified handler re-queues a WRITE to the cleared address, which
+// insert_by_priority_() places AHEAD of a remaining other-address read. The re-queued frame is unmarked,
+// so the sweep must neither drop it nor notify its owner a second time - and the bystander's frame at the
+// other address survives untouched.
+TEST(ModbusClientHubQueue, ClearAddressReentrantResendNotSweptDespitePriorityInsert) {
+  NoResponseProbeHub hub;
+  ResendOnNotSentDevice resender(&hub, 0x02);
+  SentCountingDevice bystander_other(&hub, 0x03);
+
+  const uint8_t read_victim[] = {0x03, 0x00, 0x10, 0x00, 0x01};
+  const uint8_t read_other[] = {0x03, 0x00, 0x20, 0x00, 0x01};
+  resender.send_pdu(read_victim);
+  bystander_other.send_pdu(read_other);
+  ASSERT_EQ(hub.queued_frames(), 2u);
+
+  hub.clear_tx_queue_for_address(0x02, false);
+
+  EXPECT_EQ(resender.not_sent_count_, 1);  // notified once, never re-notified for the re-send
+  ASSERT_EQ(hub.queued_frames(), 2u);      // the re-queued write AND the other-address read survive
+  // the write re-queued from inside the callback outranks the read and sits at the front
+  EXPECT_EQ(hub.front().frame.address(), 0x02);
+  EXPECT_EQ(hub.front().frame.pdu()[0], 0x06);
+  EXPECT_EQ(hub.queued(1).frame.address(), 0x03);
+}
+
+namespace {
+// Retries from EVERY on_not_sent - against a full queue this recursed without bound before the guard.
+class AlwaysRetryDevice : public ModbusClientDevice {
+ public:
+  AlwaysRetryDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_not_sent(std::span<const uint8_t> request_pdu) override {
+    this->not_sent_count_++;
+    const uint8_t again[] = {0x03, 0x00, 0x50, 0x00, 0x01};
+    this->send_pdu(again);
+  }
+  int not_sent_count_{0};
+};
+
+// From inside on_not_sent, clears ANOTHER address - those victims must still be notified (the recursion
+// guard suppresses nested REFUSALS only, never sweep deliveries).
+class ClearOtherOnNotSentDevice : public ModbusClientDevice {
+ public:
+  ClearOtherOnNotSentDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_not_sent(std::span<const uint8_t> request_pdu) override {
+    this->not_sent_count_++;
+    this->parent_->clear_tx_queue_for_address(0x03, false);
+  }
+  int not_sent_count_{0};
+};
+}  // namespace
+
+// A handler that retries from every on_not_sent() against a FULL queue must not recurse: the first
+// refusal notifies once, the nested refusal is dropped without a callback (the documented guard).
+TEST(ModbusClientHubQueue, FullQueueRetryFromNotSentDoesNotRecurse) {
+  NoResponseProbeHub hub;
+  SentCountingDevice filler(&hub, 0x05);
+  AlwaysRetryDevice retrier(&hub, 0x02);
+
+  // Fill the queue with distinct frames (distinct start addresses defeat dedup).
+  for (uint16_t i = 0; i < MODBUS_TX_BUFFER_SIZE; i++) {
+    const uint8_t fill[] = {0x03, static_cast<uint8_t>(i >> 8), static_cast<uint8_t>(i & 0xFF), 0x00, 0x01};
+    filler.send_pdu(fill);
+  }
+  ASSERT_EQ(hub.queued_frames(), MODBUS_TX_BUFFER_SIZE);
+
+  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
+  retrier.send_pdu(read);  // refused (full) -> on_not_sent -> retry -> refused under the guard, silently
+
+  EXPECT_EQ(retrier.not_sent_count_, 1);
+  EXPECT_EQ(hub.queued_frames(), MODBUS_TX_BUFFER_SIZE);
+}
+
+// The guard must not over-suppress: a sweep started from inside on_not_sent() still delivers its
+// victims' notifications (only nested refusals are silenced).
+TEST(ModbusClientHubQueue, NestedClearFromNotSentStillNotifiesVictims) {
+  NoResponseProbeHub hub;
+  ClearOtherOnNotSentDevice clearer(&hub, 0x02);
+  SentCountingDevice victim(&hub, 0x03);
+
+  const uint8_t read_a[] = {0x03, 0x00, 0x10, 0x00, 0x01};
+  const uint8_t read_b[] = {0x03, 0x00, 0x20, 0x00, 0x01};
+  clearer.send_pdu(read_a);
+  victim.send_pdu(read_b);
+  ASSERT_EQ(hub.queued_frames(), 2u);
+
+  hub.clear_tx_queue_for_address(0x02, false);  // clearer's on_not_sent clears address 0x03 in turn
+
+  EXPECT_EQ(clearer.not_sent_count_, 1);
+  EXPECT_EQ(victim.not_sent_count_, 1);  // delivered despite arriving from a nested sweep
+  EXPECT_EQ(hub.queued_frames(), 0u);
+}
+
+namespace {
+// tx_blocked() flips to blocked after the first check, so send_next_frame_() passes its own gate but
+// send_frame_() refuses - a deterministic transmit failure.
+class FlakyBlockHub : public NoResponseProbeHub {
+ public:
+  bool tx_blocked() override {
+    this->tx_blocked_calls_++;
+    return this->tx_blocked_calls_ > 1;
+  }
+  int tx_blocked_calls_{0};
+};
+
+// Reacts to a transmit failure by sending a WRITE, which insert_by_priority_() puts at the queue front.
+class WriteOnNotSentDevice : public ModbusClientDevice {
+ public:
+  WriteOnNotSentDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_not_sent(std::span<const uint8_t> request_pdu) override {
+    this->not_sent_count_++;
+    const uint8_t write[] = {0x06, 0x00, 0x40, 0x01, 0x02};
+    this->send_pdu(write);
+  }
+  int not_sent_count_{0};
+};
+
+// From on_not_sent (delivered by the sweep), re-sends a frame identical to ANOTHER still-marked queued
+// frame; the dedup must not promote the doomed entry.
+class ResendSecondFrameDevice : public ModbusClientDevice {
+ public:
+  ResendSecondFrameDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_not_sent(std::span<const uint8_t> request_pdu) override {
+    this->not_sent_count_++;
+    if (this->not_sent_count_ == 1) {
+      const uint8_t same_as_r2[] = {0x03, 0x00, 0x22, 0x00, 0x01};
+      this->send_pdu(same_as_r2);
+    }
+  }
+  int not_sent_count_{0};
+};
+}  // namespace
+
+// A transmit failure must resolve with the failed frame OUT of the queue before its on_not_sent runs: a
+// handler that reacts by sending a write (priority-inserted at the FRONT) must not have that write
+// discarded by the pop that follows - the failed frame is popped first, the new write survives.
+TEST(ModbusClientHubQueue, TransmitFailurePopsBeforeNotify) {
+  FlakyBlockHub hub;
+  WriteOnNotSentDevice device(&hub, 0x02);
+
+  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
+  device.send_pdu(read);
+  ASSERT_EQ(hub.queued_frames(), 1u);
+
+  hub.send_next_for_test();  // tx_blocked gate passes, send_frame_ refuses -> failure path
+
+  EXPECT_EQ(device.not_sent_count_, 1);
+  ASSERT_EQ(hub.queued_frames(), 1u);           // the handler's write survives...
+  EXPECT_EQ(hub.front().frame.pdu()[0], 0x06);  // ...and it is the write, not the failed read
+}
+
+// A send during a sweep that matches a still-marked (doomed) frame must queue fresh, not promote the
+// marked entry - promotion would absorb the new request into a frame the sweep then drops.
+TEST(ModbusClientHubQueue, SweepDedupSkipsMarkedFrames) {
+  NoResponseProbeHub hub;
+  ResendSecondFrameDevice device(&hub, 0x02);
+
+  const uint8_t r1[] = {0x03, 0x00, 0x21, 0x00, 0x01};
+  const uint8_t r2[] = {0x03, 0x00, 0x22, 0x00, 0x01};
+  device.send_pdu(r1);
+  device.send_pdu(r2);
+  ASSERT_EQ(hub.queued_frames(), 2u);
+
+  hub.clear_tx_queue_for_address(0x02, false);
+  // r1's notification re-sent a frame identical to the still-marked r2. Without the dedup skip it is
+  // promoted onto r2 and then swept away with it; with the skip it queues fresh and survives.
+
+  EXPECT_EQ(device.not_sent_count_, 2);  // r1 and r2 both resolved
+  ASSERT_EQ(hub.queued_frames(), 1u);    // the re-send survives
+  EXPECT_EQ(hub.front().frame.pdu()[2], 0x22);
+}
+
 // clear_tx_queue_for_device() drops queued frames SILENTLY - no terminal callback (the documented
 // exception to the exactly-one-terminal contract; used during teardown/offline handling).
 TEST(ModbusClientHubQueue, ClearDeviceQueueDropsSilently) {

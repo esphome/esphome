@@ -508,23 +508,25 @@ void ModbusClientHub::send_next_frame_() {
     return;
   }
 
-  ModbusDeviceCommand &command = this->tx_buffer_.front();
+  // Move the command out and pop BEFORE attempting the send: no callback may run while the frame still
+  // sits in the queue (the same principle as the clear sweep). A failure callback that sends would
+  // otherwise insert_by_priority_() a new write at the front and pop_front() would discard it - and the
+  // deque reference / PDU span could be invalidated mid-callback.
+  ModbusDeviceCommand command = std::move(this->tx_buffer_.front());
+  this->tx_buffer_.pop_front();
   ModbusClientDevice *device = command.device;
   const bool sent = this->send_frame_(command.frame);
 
   if (sent) {
     this->waiting_for_response_ = std::move(command);
-  } else if (device) {
-    device->on_not_sent(command.frame.pdu());
-  }
-
-  this->tx_buffer_.pop_front();
-
-  // Notify after the queue is consistent again: the callback may send or clear queues. The frame
-  // now lives in the waiting slot; its PDU is the frame without the leading address and trailing CRC.
-  if (sent && device && this->waiting_for_response_.has_value()) {
-    const ModbusFrame &frame = this->waiting_for_response_.value().frame;
-    device->on_sent(frame.pdu());
+    // The frame now lives in the waiting slot; its PDU is the frame without the leading address and
+    // trailing CRC.
+    if (device != nullptr && this->waiting_for_response_.has_value()) {
+      const ModbusFrame &frame = this->waiting_for_response_.value().frame;
+      device->on_sent(frame.pdu());
+    }
+  } else {
+    this->notify_not_sent_(device, command.frame.pdu());
   }
 
   if (!this->tx_buffer_.empty()) {
@@ -601,8 +603,7 @@ void ModbusClientHub::requeue_waiting_frame_(ModbusDeviceCommand &wfr, bool devi
   const ModbusFrame &frame = wfr.frame;
   if (this->tx_buffer_.size() >= MODBUS_TX_BUFFER_SIZE) {
     ESP_LOGE(TAG, "Write buffer full, dropped retry for address %" PRIu8, frame.address());
-    if (wfr.device != nullptr)
-      wfr.device->on_not_sent(frame.pdu());
+    this->notify_not_sent_(wfr.device, frame.pdu());
     return;
   }
   // Re-queue a copy (not a move): the waiting entry may have to survive as an interrupted shell. Preserve the
@@ -647,7 +648,7 @@ void ModbusClientHub::maybe_requeue_completed_(ModbusDeviceCommand &command, boo
   if (this->tx_buffer_.size() >= MODBUS_TX_BUFFER_SIZE) {
     ESP_LOGE(TAG, "Write buffer full, dropped re-queue for address %" PRIu8, command.frame.address());
     // The re-queue is refused, so the chain ends here; a continuous poller learns its polling stopped.
-    command.device->on_not_sent(command.frame.pdu());
+    this->notify_not_sent_(command.device, command.frame.pdu());
     return;
   }
   const ModbusFrame &frame = command.frame;
@@ -658,16 +659,14 @@ void ModbusClientHub::maybe_requeue_completed_(ModbusDeviceCommand &command, boo
 void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device,
                                CommandOptions options) {
   if (pdu.empty()) {
-    if (device)
-      device->on_not_sent(pdu);
+    this->notify_not_sent_(device, pdu);
     return;
   }
 
   // Bound the PDU so the wire frame (address + pdu + CRC) stays within the Modbus RTU 256-byte limit.
   if (pdu.size() > MAX_PDU_SIZE) {
     ESP_LOGE(TAG, "Frame too large, dropped: %" PRIu8 ":%zu bytes", address, pdu.size());
-    if (device)
-      device->on_not_sent(pdu);
+    this->notify_not_sent_(device, pdu);
     return;
   }
 
@@ -694,12 +693,14 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   // entry's future on_response(); a request that cannot promote further (already READ_AGAIN,
   // or a duplicate write) is dropped and reports on_not_sent().
   for (auto &item : this->tx_buffer_) {
+    if (item.sweeping)
+      continue;  // marked for drop by an in-progress clear: a new identical send queues fresh instead
     if (item.device == device && item.same_frame(address, pdu)) {
       if (!is_write && item.priority < CommandPriority::READ_AGAIN) {
         item.priority = CommandPriority::READ_AGAIN;
         ESP_LOGV(TAG, "Frame already queued for %" PRIu8 ", promoted for re-queue", address);
-      } else if (device) {
-        device->on_not_sent(pdu);
+      } else {
+        this->notify_not_sent_(device, pdu);
       }
       return;
     }
@@ -710,8 +711,8 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
       if (!is_write && wfr.priority < CommandPriority::READ_AGAIN) {
         wfr.priority = CommandPriority::READ_AGAIN;
         ESP_LOGV(TAG, "Frame already in flight for %" PRIu8 ", promoted for re-queue", address);
-      } else if (device) {
-        device->on_not_sent(pdu);
+      } else {
+        this->notify_not_sent_(device, pdu);
       }
       return;
     }
@@ -730,17 +731,50 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
 #endif
     ESP_LOGE(TAG, "Write buffer full, dropped: %" PRIu8 ":%s", address,
              format_hex_pretty_to(hex_buf, pdu.data(), pdu.size()));
-    if (device)
-      device->on_not_sent(pdu);
+    this->notify_not_sent_(device, pdu);
   }
 }
 
+// Deliver the terminal callback for a refused send. The flag breaks the recursion a retry-from-
+// on_not_sent() would otherwise cause (send -> refuse -> notify -> send, unbounded against a full
+// queue): while one refusal notification is on the stack, a further refusal delivers nothing.
+// Sending from on_not_sent() is documented as hazardous for exactly this reason. The clear-queue
+// sweep deliberately does NOT go through this guard (its deliveries must never be suppressed, e.g.
+// for a nested clear from inside a handler); it calls on_not_sent() directly.
+void ModbusClientHub::notify_not_sent_(ModbusClientDevice *device, std::span<const uint8_t> pdu) {
+  if (device == nullptr)
+    return;
+  if (this->notifying_not_sent_) {
+    ESP_LOGE(TAG, "Send refused during a not-sent notification; dropped without callback");
+    return;
+  }
+  this->notifying_not_sent_ = true;
+  device->on_not_sent(pdu);
+  this->notifying_not_sent_ = false;
+}
+
 void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sent) {
-  // Remove any pending commands for this address from the tx buffer
-  auto &tx_buffer = this->tx_buffer_;
-  tx_buffer.erase(std::remove_if(tx_buffer.begin(), tx_buffer.end(),
-                                 [address](const ModbusDeviceCommand &cmd) { return cmd.frame.address() == address; }),
-                  tx_buffer.end());
+  // Drop the queued frames for this address, delivering on_not_sent() to each frame's owner: other
+  // devices talking to the same physical device (e.g. a modbus_client action alongside a controller that
+  // just went offline) must observe the drop, or their command never resolves. Mark first, then sweep
+  // only marked frames: anything a callback re-queues is unmarked (regardless of where
+  // insert_by_priority_() places it), so it is never swept - or re-notified - by the clear that
+  // triggered it. Each marked frame is moved out and erased BEFORE its callback runs, so handlers see a
+  // consistent queue; termination is guaranteed because only the initially-marked frames are ever swept.
+  for (auto &cmd : this->tx_buffer_) {
+    if (cmd.frame.address() == address)
+      cmd.sweeping = true;
+  }
+  for (;;) {
+    auto it = std::find_if(this->tx_buffer_.begin(), this->tx_buffer_.end(),
+                           [](const ModbusDeviceCommand &cmd) { return cmd.sweeping; });
+    if (it == this->tx_buffer_.end())
+      break;
+    ModbusDeviceCommand dropped = std::move(*it);
+    this->tx_buffer_.erase(it);
+    if (dropped.device != nullptr)
+      dropped.device->on_not_sent(dropped.frame.pdu());
+  }
 
   if (clear_sent && this->waiting_for_response_.has_value() && this->waiting_for_response_.value().device) {
     if (this->waiting_for_response_.value().frame.address() == address) {
@@ -768,8 +802,7 @@ void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
 
 void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device) {
   if (payload.size() < 2) {
-    if (device)
-      device->on_not_sent({});  // too short to contain a PDU
+    this->notify_not_sent_(device, {});  // too short to contain a PDU
     return;
   }
   this->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), device);

@@ -112,6 +112,9 @@ struct ModbusDeviceCommand {
   ModbusFrame frame;
   CommandPriority priority{CommandPriority::READ_ONCE};
   bool interrupted{false};
+  /// Marked by clear_tx_queue_for_address() before it starts notifying, so frames re-queued by an
+  /// on_not_sent() callback (which are unmarked) are never swept by the clear that triggered them.
+  bool sweeping{false};
 
   ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, const uint8_t *src, uint16_t len,
                       CommandPriority priority = CommandPriority::READ_ONCE)
@@ -151,8 +154,10 @@ class ModbusClientHub : public Modbus {
                 CommandOptions options = {});
   ESPDEPRECATED("Use send_pdu(payload[0], <pdu bytes>, device) instead. Removed in 2027.2.0", "2026.8.0")
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr);
-  // Drop the queued commands for an address / a device. These SILENTLY discard the frames - no terminal
-  // callback is delivered (used during teardown/offline handling); see the lifecycle note on ModbusClientDevice.
+  // Drop the queued commands for an address; every dropped frame resolves via its owner's on_not_sent(),
+  // so other devices sharing the address observe the drop. The in-flight frame is only detached (silently)
+  // when clear_sent is set. clear_tx_queue_for_device() SILENTLY discards the caller's own frames
+  // (supersede/teardown semantics); see the lifecycle note on ModbusClientDevice.
   void clear_tx_queue_for_address(uint8_t address, bool clear_sent = true);
   void clear_tx_queue_for_device(ModbusClientDevice *device);
 
@@ -181,6 +186,12 @@ class ModbusClientHub : public Modbus {
   // requests will be queued. Each modbus component may queue multiple requests, and the sequence of scheduling
   // may change at run time.
   std::deque<ModbusDeviceCommand> tx_buffer_;
+  /// Deliver on_not_sent() for a REFUSED send. While one refusal notification is on the stack a further
+  /// refusal delivers nothing - a handler retrying from on_not_sent() that is refused again would
+  /// otherwise recurse without bound. (Sweep deliveries bypass this guard on purpose.)
+  void notify_not_sent_(ModbusClientDevice *device, std::span<const uint8_t> pdu);
+  /// True while a refusal notification is being delivered (see notify_not_sent_()).
+  bool notifying_not_sent_{false};
 };
 
 class ModbusServerHub : public Modbus {
@@ -235,12 +246,17 @@ class ModbusClientDevice {
   /// full queue, or refused as an unpromotable duplicate). on_sent() is additional, not
   /// terminal: it fires once per wire transmission, before whichever of data/error/no_response follows,
   /// and never for a command that ends in on_not_sent().
-  /// The one exception to "exactly one terminal": clear_tx_queue_for_address()/clear_tx_queue_for_device()
-  /// drop queued commands SILENTLY (no terminal callback), because they are used during teardown/offline
-  /// handling where delivering a callback would be unsafe or unwanted. Related limitation: clearing a
-  /// device's own queue from inside on_response()/on_error() does not cancel that command's
-  /// pending continuous/READ_AGAIN re-queue (unlike on_no_response(), which honors a mid-callback
-  /// detach); stop a continuous poll from on_no_response() or by not re-requesting it.
+  /// The exceptions to "exactly one terminal": clear_tx_queue_for_device() drops the caller's OWN
+  /// queued commands SILENTLY (supersede/teardown semantics), and both clear variants detach the
+  /// in-flight frame silently. clear_tx_queue_for_address() DOES resolve every queued frame it drops via
+  /// the owner's on_not_sent() (delivered one at a time, after that frame leaves the queue).
+  /// Sending from inside on_not_sent() is hazardous: the notification may itself mean the queue is full
+  /// or refusing, and a retry that is refused again is dropped WITHOUT a callback (the recursion guard
+  /// that breaks what would otherwise be unbounded re-entry) - prefer re-sending from a later trigger or
+  /// the component's update()/loop(). Related limitation:
+  /// clearing a device's own queue from inside on_response()/on_error() does not cancel that command's pending
+  /// continuous/READ_AGAIN re-queue (unlike on_no_response(), which honors a mid-callback detach); stop a continuous
+  /// poll from on_no_response() or by not re-requesting it.
   ///
   /// Low-level response hook: called with the request PDU this device sent and the response PDU received
   /// The spans are only valid for the duration of the call - copy the bytes if they must outlive it.
