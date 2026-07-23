@@ -220,7 +220,7 @@ def test_run_esphome_upload_and_logs_use_cache_when_fresh(
 
     with (
         caplog.at_level("INFO", logger="esphome.__main__"),
-        patch("esphome.__main__.read_config") as mock_read,
+        patch("esphome.config.read_config") as mock_read,
         patch.dict("esphome.__main__.POST_CONFIG_ACTIONS", {command: _stub}),
     ):
         assert run_esphome(["esphome", command, str(fresh_cache_files)]) == 0
@@ -242,7 +242,7 @@ def test_run_esphome_upload_and_logs_fall_back_when_no_cache(
     yaml_path.write_text("esphome:\n  name: lite_test\n")
 
     with (
-        patch("esphome.__main__.read_config", return_value=None) as mock_read,
+        patch("esphome.config.read_config", return_value=None) as mock_read,
         patch.dict(
             "esphome.__main__.POST_CONFIG_ACTIONS",
             {command: lambda args, config: 0},
@@ -266,7 +266,7 @@ def test_run_esphome_upload_does_not_refresh_cache_without_sidecar(
 
     with (
         patch(
-            "esphome.__main__.read_config",
+            "esphome.config.read_config",
             return_value={"esphome": {"name": "lite_test"}},
         ),
         patch("esphome.compiled_config.save_compiled_config") as mock_save,
@@ -299,7 +299,7 @@ def test_run_esphome_upload_and_logs_refresh_cache_on_fallback(
     fresh_config = {"esphome": {"name": "lite_test"}, "logger": {}}
 
     with (
-        patch("esphome.__main__.read_config", return_value=fresh_config),
+        patch("esphome.config.read_config", return_value=fresh_config),
         patch(
             "esphome.compiled_config.save_compiled_config", wraps=save_compiled_config
         ) as mock_save,
@@ -322,7 +322,7 @@ def test_run_esphome_upload_with_substitution_does_not_refresh_cache(
     """`-s` substitutions skip the cache on both read and write -- saving
     here would clobber the cache with a substitution-specific config."""
     with (
-        patch("esphome.__main__.read_config", return_value={"esphome": {}}),
+        patch("esphome.config.read_config", return_value={"esphome": {}}),
         patch("esphome.compiled_config.save_compiled_config") as mock_save,
         patch.dict(
             "esphome.__main__.POST_CONFIG_ACTIONS",
@@ -341,7 +341,7 @@ def test_run_esphome_compile_does_not_refresh_cache_via_fallback(
     upload/logs fallback path -- the fallback save would skip the
     storage_should_clean check."""
     with (
-        patch("esphome.__main__.read_config", return_value={"esphome": {}}),
+        patch("esphome.config.read_config", return_value={"esphome": {}}),
         patch("esphome.compiled_config.save_compiled_config") as mock_save,
         patch.dict(
             "esphome.__main__.POST_CONFIG_ACTIONS",
@@ -360,7 +360,7 @@ def test_run_esphome_upload_with_substitution_skips_cache(
     against the prior substitution set, so reusing it would silently
     ignore the override."""
     with (
-        patch("esphome.__main__.read_config", return_value=None) as mock_read,
+        patch("esphome.config.read_config", return_value=None) as mock_read,
         patch.dict(
             "esphome.__main__.POST_CONFIG_ACTIONS",
             {"upload": lambda args, config: 0},
@@ -374,7 +374,7 @@ def test_run_esphome_upload_with_substitution_skips_cache(
 def test_run_esphome_compile_does_not_use_cache(fresh_cache_files: Path) -> None:
     """The compile subcommand always re-validates -- it's what writes the cache."""
     with (
-        patch("esphome.__main__.read_config", return_value=None) as mock_read,
+        patch("esphome.config.read_config", return_value=None) as mock_read,
         patch.dict(
             "esphome.__main__.POST_CONFIG_ACTIONS",
             {"compile": lambda args, config: 0},
