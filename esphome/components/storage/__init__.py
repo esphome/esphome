@@ -133,7 +133,6 @@ def request_fatfs_path_length() -> None:
     _get_data().fatfs_path_bound = True
 
 
-
 # Default streaming/copy chunk size. Flat 16 kB on every platform: the 20 ms loop-slice budget
 # (see the buffer-usage plan) caps a main-loop chunk near 16 kB even on the fastest S3 SD path,
 # so a larger loop chunk is unsafe. The platform distinction lives one level down, in the C++
