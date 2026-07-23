@@ -107,6 +107,7 @@ CONF_RUNTIME_TAG_LEVELS = "runtime_tag_levels"
 CONF_TASK_LOG_BUFFER_SIZE = "task_log_buffer_size"
 CONF_WAIT_FOR_CDC = "wait_for_cdc"
 CONF_EARLY_MESSAGE = "early_message"
+CONF_CRLF_LINE_ENDINGS = "crlf_line_endings"
 
 UART_SELECTION_ESP32 = {
     VARIANT_ESP32: [UART0, UART1, UART2],
@@ -325,6 +326,7 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_EARLY_MESSAGE, nrf52=False): cv.All(
                 cv.only_on(PLATFORM_NRF52), cv.boolean
             ),
+            cv.Optional(CONF_CRLF_LINE_ENDINGS, default=False): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     validate_local_no_higher_than_global,
@@ -350,6 +352,8 @@ async def to_code(config: ConfigType) -> None:
     if task_log_buffer_size > 0:
         cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
         cg.add_define("ESPHOME_TASK_LOG_BUFFER_SIZE", task_log_buffer_size)
+    if config[CONF_CRLF_LINE_ENDINGS]:
+        cg.add_define("USE_LOGGER_CRLF_LINE_ENDINGS")
     log = cg.new_Pvariable(
         config[CONF_ID],
         baud_rate,

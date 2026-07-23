@@ -40,13 +40,24 @@ struct LogBuffer {
   // Must be called after notify_listeners_() since listeners need null-terminated strings.
   // Console output uses length-based writes (buf.pos), so null terminator is not needed.
   void terminate_with_newline() {
-    if (this->pos < this->size) {
+#ifdef USE_LOGGER_CRLF_LINE_ENDINGS
+    if (this->remaining_() >= 2) {
+      this->data[this->pos++] = '\r';
+      this->data[this->pos++] = '\n';
+    } else if (this->size > 1) {
+      this->data[this->size - 1] = '\n';
+      this->data[this->size - 2] = '\r';
+      this->pos = this->size;
+    }
+#else
+    if (this->remaining_() >= 1) {
       this->data[this->pos++] = '\n';
     } else if (this->size > 0) {
       // Buffer was full - replace last char with newline to ensure it's visible
       this->data[this->size - 1] = '\n';
       this->pos = this->size;
     }
+#endif
   }
   void HOT write_header(uint8_t level, const char *tag, int line, const char *thread_name) {
     // Early return if insufficient space - intentionally don't update pos to prevent partial writes
@@ -101,16 +112,19 @@ struct LogBuffer {
 
     this->pos = p - this->data;
   }
-  void HOT format_body(const char *format, va_list args) {
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+#define VSNPRINTF vsnprintf_P
+#define FORMAT_TYPE PGM_P
+#else
+#define VSNPRINTF vsnprintf
+#define FORMAT_TYPE const char *
+#endif
+
+  void HOT format_body(FORMAT_TYPE format, va_list args) {
     this->format_vsnprintf_(format, args);
     this->finalize_();
   }
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  void HOT format_body_P(PGM_P format, va_list args) {
-    this->format_vsnprintf_P_(format, args);
-    this->finalize_();
-  }
-#endif
+
   void write_body(const char *text, uint16_t text_length) {
     const uint16_t available = this->remaining_();
     const uint16_t copy_len = (text_length < available) ? text_length : available;
@@ -122,18 +136,19 @@ struct LogBuffer {
   }
 
  private:
-  bool full_() const { return this->pos >= this->size; }
-  uint16_t remaining_() const { return this->size - this->pos; }
+  bool full_() const { return this->pos + ANSI_RESET_LEN >= this->size; }
+  uint16_t remaining_() const { return full_() ? 0 : this->size - this->pos - ANSI_RESET_LEN; }
   char *current_() { return this->data + this->pos; }
   void finalize_() {
     this->write_ansi_reset_();
     // Null terminate
-    this->data[this->full_() ? this->size - 1 : this->pos] = '\0';
+    const bool full = this->pos >= this->size;
+    this->data[full ? this->size - 1 : this->pos] = '\0';
   }
   // Write ANSI reset sequence inline ("\033[0m") - avoids write_() call overhead
   static constexpr uint16_t ANSI_RESET_LEN = 4;  // "\033[0m"
   void write_ansi_reset_() {
-    if (this->remaining_() >= ANSI_RESET_LEN) {
+    if (this->size - this->pos >= ANSI_RESET_LEN) {
       char *p = this->current_();
       *p++ = '\033';
       *p++ = '[';
@@ -142,29 +157,64 @@ struct LogBuffer {
       this->pos += ANSI_RESET_LEN;
     }
   }
-  void strip_trailing_newlines_() {
-    while (this->pos > 0 && this->data[this->pos - 1] == '\n')
-      this->pos--;
-  }
-  void process_vsnprintf_result_(int ret) {
-    if (ret < 0)
-      return;
-    const uint16_t rem = this->remaining_();
-    this->pos += (ret >= rem) ? (rem - 1) : static_cast<uint16_t>(ret);
-    this->strip_trailing_newlines_();
-  }
-  void format_vsnprintf_(const char *format, va_list args) {
+  void format_vsnprintf_(FORMAT_TYPE format, va_list args) {
     if (this->full_())
       return;
-    this->process_vsnprintf_result_(vsnprintf(this->current_(), this->remaining_(), format, args));
-  }
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  void format_vsnprintf_P_(PGM_P format, va_list args) {
-    if (this->full_())
-      return;
-    this->process_vsnprintf_result_(vsnprintf_P(this->current_(), this->remaining_(), format, args));
-  }
+    // Reserve space for the ANSI reset sequence written by finalize_() after this returns.
+    const uint16_t budget = this->remaining_();
+    if (budget <= 1)
+      return;  // buffer full because there is no space even for null terminator
+    int vsnprintf_result = VSNPRINTF(this->current_(), budget, format, args);
+    const bool error = vsnprintf_result < 0;
+    if (error) {
+      return;  // error in vsnprintf, don't update pos or try to process result
+    }
+    const bool cropped = vsnprintf_result >= budget;
+    uint16_t offset = cropped ? (budget - 1) : static_cast<uint16_t>(vsnprintf_result);
+    if (offset <= 0) {
+      return;  // nothing to append to the buffer; only null terminator
+    }
+    // discard trailing LF (and a preceding CR, so a manually-included trailing "\r\n" is also stripped)
+    while (offset > 0 && this->data[this->pos + offset - 1] == '\n') {
+      offset--;
+#ifdef USE_LOGGER_CRLF_LINE_ENDINGS
+      if (offset > 0 && this->data[this->pos + offset - 1] == '\r')
+        offset--;
 #endif
+    }
+#ifdef USE_LOGGER_CRLF_LINE_ENDINGS
+    // inplace expansion of LF characters into CR+LF; count_chars is capped so that
+    // count_chars + count_lf_chars never exceeds `budget`, discarding trailing chars rather than overflowing the
+    // buffer (this also means we never split a CR+LF pair, since we stop before consuming the LF that wouldn't fit)
+    uint16_t count_lf_chars = 0;
+    uint16_t count_chars = 0;
+    while (count_chars < offset) {
+      const uint16_t i = this->pos + count_chars;
+      const bool is_lone_lf = this->data[i] == '\n' && (i == 0 || this->data[i - 1] != '\r');
+      const uint16_t width_if_consumed = count_chars + count_lf_chars + 1 + (is_lone_lf ? 1 : 0);
+      if (width_if_consumed > budget)
+        break;  // would overflow the reserved space - stop here and discard the rest
+      count_chars++;
+      if (is_lone_lf)
+        count_lf_chars++;
+    }
+    if (count_lf_chars > 0) {
+      uint16_t src = this->pos + count_chars;
+      uint16_t dst = src + count_lf_chars;
+      while (src > this->pos) {
+        const char c = this->data[--src];
+        this->data[--dst] = c;
+        if (c == '\n' && (src == 0 || this->data[src - 1] != '\r')) {
+          this->data[--dst] = '\r';
+        }
+      }
+    }
+    offset = count_chars + count_lf_chars;
+#endif
+    this->pos += offset;
+  }
+#undef VSNPRINTF
+#undef FORMAT_TYPE
   // Extract one decimal digit via subtraction (no division - important for ESP8266)
   static inline void ESPHOME_ALWAYS_INLINE write_digit(char *&p, int &value, int divisor) {
     char d = '0';

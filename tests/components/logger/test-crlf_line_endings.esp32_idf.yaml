@@ -1,0 +1,5 @@
+<<: !include common-default_uart.yaml
+
+logger:
+  id: logger_id
+  crlf_line_endings: true
