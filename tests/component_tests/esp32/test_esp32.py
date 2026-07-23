@@ -601,6 +601,23 @@ def test_network_wifi_ble_coexistence_reconciles_end_to_end(
     assert "CONFIG_ESP_WIFI_ENABLED" not in sdkconfig
 
 
+def test_network_wifi_ethernet_priority_keeps_wifi_enabled(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """End-to-end: with both WiFi and Ethernet declared under network: priority:,
+    the reconciler must NOT disable the WiFi stack or coexistence (the
+    multi-interface case unlocked by composing network priority with the
+    sdkconfig reconciler)."""
+    generate_main(component_config_path("network_wifi_ethernet_priority.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert "CONFIG_ESP_WIFI_ENABLED" not in sdkconfig
+    assert "CONFIG_SW_COEXIST_ENABLE" not in sdkconfig
+    # WiFi has no AP here, so SoftAP/DHCP server are still dropped.
+    assert sdkconfig.get("CONFIG_ESP_WIFI_SOFTAP_SUPPORT") is False
+    assert sdkconfig.get("CONFIG_LWIP_DHCPS") is False
+
+
 def test_esp32_build_internals_are_yaml_only() -> None:
     """ESP32 raw framework / build inputs are ``YAML_ONLY``.
 
