@@ -2,13 +2,26 @@ from collections.abc import Callable, MutableMapping
 from dataclasses import dataclass
 from enum import Enum
 import logging
-import re
 from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
+
+# bt_uuid validation lives in the platform-neutral ble_device_base; re-exported
+# here for backward compatibility.
+from esphome.components.ble_device_base import (  # noqa: F401  # pylint: disable=unused-import
+    BT_UUID16_FORMAT as bt_uuid16_format,
+    BT_UUID32_FORMAT as bt_uuid32_format,
+    BT_UUID128_FORMAT as bt_uuid128_format,
+    bt_uuid,
+)
 from esphome.components.const import CONF_USE_PSRAM
-from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
+from esphome.components.esp32 import (
+    add_idf_sdkconfig_option,
+    const,
+    get_esp32_variant,
+    request_bluetooth,
+)
 from esphome.components.esp32.const import VARIANT_ESP32C2
 import esphome.config_validation as cv
 from esphome.const import (
@@ -23,6 +36,7 @@ from esphome.core import CORE, CoroPriority, TimePeriod, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
+AUTO_LOAD = ["ble_device_base"]  # ble_uuid.h builds on the neutral ESPBTUUID
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@jesserockz", "@Rapsssito", "@bdraco"]
 DOMAIN = "esp32_ble"
@@ -367,43 +381,6 @@ def _validate_key_sizes(config: ConfigType) -> ConfigType:
 CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, _validate_key_sizes)
 
 
-bt_uuid16_format = "XXXX"
-bt_uuid32_format = "XXXXXXXX"
-bt_uuid128_format = "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
-
-
-def bt_uuid(value):
-    in_value = cv.string_strict(value)
-    value = in_value.upper()
-
-    if len(value) == len(bt_uuid16_format):
-        pattern = re.compile("^[A-F0-9]{4,}$")
-        if not pattern.match(value):
-            raise cv.Invalid(
-                f"Invalid hexadecimal value for 16 bit UUID format: '{in_value}'"
-            )
-        return value
-    if len(value) == len(bt_uuid32_format):
-        pattern = re.compile("^[A-F0-9]{8,}$")
-        if not pattern.match(value):
-            raise cv.Invalid(
-                f"Invalid hexadecimal value for 32 bit UUID format: '{in_value}'"
-            )
-        return value
-    if len(value) == len(bt_uuid128_format):
-        pattern = re.compile(
-            "^[A-F0-9]{8,}-[A-F0-9]{4,}-[A-F0-9]{4,}-[A-F0-9]{4,}-[A-F0-9]{12,}$"
-        )
-        if not pattern.match(value):
-            raise cv.Invalid(
-                f"Invalid hexadecimal value for 128 UUID format: '{in_value}'"
-            )
-        return value
-    raise cv.Invalid(
-        f"Bluetooth UUID must be in 16 bit '{bt_uuid16_format}', 32 bit '{bt_uuid32_format}', or 128 bit '{bt_uuid128_format}' format"
-    )
-
-
 def validate_variant(_):
     variant = get_esp32_variant()
     if variant in NO_BLUETOOTH_VARIANTS:
@@ -599,8 +576,7 @@ async def to_code(config):
     max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)
     cg.add_define("USE_ESP32_BLE_MAX_CONNECTIONS", max_connections)
 
-    add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
-    add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
+    request_bluetooth(ble_42=True)
 
     # When PSRAM and BT are used together, Bluedroid should prefer SPIRAM for
     # heap allocations and use dynamic (heap-based) environment memory tables

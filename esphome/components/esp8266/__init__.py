@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+import platform
 import re
 import subprocess
 
@@ -20,9 +21,15 @@ from esphome.const import (
     PLATFORM_ESP8266,
     ThreadModel,
 )
-from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    CoroPriority,
+    EsphomeError,
+    Lambda,
+    coroutine_with_priority,
+)
 from esphome.core.config import BOARD_MAX_LENGTH
-from esphome.helpers import copy_file_if_changed
+from esphome.helpers import IS_MACOS, copy_file_if_changed
 from esphome.types import ConfigType
 
 from .boards import BOARDS, ESP8266_LD_SCRIPTS
@@ -97,15 +104,13 @@ def set_core_data(config):
 def get_download_types(storage_json):
     """Binary-download entries for a built ESP8266 firmware.
 
-    Used by:
-    - esphome.dashboard (legacy "Download .bin" button)
-    - device-builder (esphome/device-builder) — same dispatch via
-      ``importlib.import_module(f"esphome.components.{platform}")``
-      then ``module.get_download_types(storage)``. The contract is
-      "returns ``list[dict]`` with at least ``title`` /
-      ``description`` / ``file`` / ``download`` keys"; please keep
-      the shape stable so the new dashboard's download panel
-      doesn't have to special-case per-platform schemas.
+    Used by device-builder (esphome/device-builder), via
+    ``importlib.import_module(f"esphome.components.{platform}")``
+    then ``module.get_download_types(storage)``. The contract is
+    "returns ``list[dict]`` with at least ``title`` /
+    ``description`` / ``file`` / ``download`` keys"; please keep
+    the shape stable so the download panel
+    doesn't have to special-case per-platform schemas.
     """
     return [
         {
@@ -133,7 +138,6 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 #    The new version needs to be thoroughly validated before changing the
 #    recommended version as otherwise a bunch of devices could be bricked
 #  * For all constants below, update platformio.ini (in this repo)
-#    and platformio.ini/platformio-lint.ini in the esphome-docker-base repository
 
 # The default/recommended arduino framework version
 #  - https://github.com/esp8266/Arduino/releases
@@ -205,8 +209,12 @@ ARDUINO_FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
-            cv.Optional(CONF_SOURCE): cv.string_strict,
-            cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
+            cv.Optional(
+                CONF_SOURCE, visibility=cv.Visibility.YAML_ONLY
+            ): cv.string_strict,
+            cv.Optional(
+                CONF_PLATFORM_VERSION, visibility=cv.Visibility.YAML_ONLY
+            ): _parse_platform_version,
         }
     ),
     _arduino_check_versions,
@@ -234,6 +242,32 @@ CONFIG_SCHEMA = cv.All(
     ),
     set_core_data,
 )
+
+
+def check_rosetta() -> None:
+    """Fail fast when the x86_64 ESP8266 toolchain cannot run on this Mac.
+
+    There is no native arm64 build of the xtensa-lx106 toolchain; on Apple
+    Silicon it runs under Rosetta 2, which macOS updates can remove.
+    """
+    if not IS_MACOS or platform.machine() != "arm64":
+        return
+    try:
+        result = subprocess.run(
+            ["/usr/bin/arch", "-x86_64", "/usr/bin/true"],
+            capture_output=True,
+            close_fds=False,
+            check=False,
+        )
+    except OSError:
+        return  # arch(1) unavailable; let the build proceed
+    if result.returncode != 0:
+        raise EsphomeError(
+            "ESP8266 builds on Apple Silicon Macs use an Intel (x86_64) "
+            "compiler that requires Rosetta 2, which is not installed on "
+            "this system. Install it with:\n"
+            "  softwareupdate --install-rosetta --agree-to-license"
+        )
 
 
 @coroutine_with_priority(CoroPriority.PLATFORM)
@@ -313,6 +347,14 @@ async def to_code(config):
     # For cases where nullptrs can be handled, use nothrow: `new (std::nothrow) T;`
     cg.add_build_flag("-DNEW_OOM_ABORT")
 
+    # Force-include inline std::__throw_* overrides so GCC dead-strips the unused
+    # libstdc++ error message strings (e.g. "basic_string::_M_create") from DRAM.
+    # See throw_stubs.h for details. Must be prepended before <string>, so this
+    # uses build_src_flags with -include.
+    cg.add_platformio_option(
+        "build_src_flags", "-include esphome/components/esp8266/throw_stubs.h"
+    )
+
     # In testing mode, fake larger memory to allow linking grouped component tests
     # Real ESP8266 hardware only has 32KB IRAM and ~80KB RAM, but for CI testing
     # we pretend it has much larger memory to test that components compile together
@@ -326,6 +368,12 @@ async def to_code(config):
     else:
         for symbol in ("vprintf", "printf", "fprintf"):
             cg.add_build_flag(f"-Wl,--wrap={symbol}")
+
+    # Wrap the lwIP2 glue's do-nothing dhcp_cleanup()/dhcp_release() stubs so the
+    # linker can drop their "STUB: ..." message strings from DRAM.
+    # See lwip_glue_stubs.cpp for implementation.
+    for symbol in ("dhcp_cleanup", "dhcp_release"):
+        cg.add_build_flag(f"-Wl,--wrap={symbol}")
 
     # Wrap Arduino's millis() so all callers (including Arduino libraries and ISR
     # handlers) use our fast accumulator instead of the expensive 4x 64-bit multiply

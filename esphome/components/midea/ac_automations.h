@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)
 
 #include "esphome/core/automation.h"
 #include "air_conditioner.h"

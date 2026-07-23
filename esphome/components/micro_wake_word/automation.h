@@ -7,22 +7,22 @@
 
 namespace esphome::micro_wake_word {
 
-template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<MicroWakeWord> {
+template<typename... Ts> class StartAction final : public Action<Ts...>, public Parented<MicroWakeWord> {
  public:
   void play(const Ts &...x) override { this->parent_->start(); }
 };
 
-template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<MicroWakeWord> {
+template<typename... Ts> class StopAction final : public Action<Ts...>, public Parented<MicroWakeWord> {
  public:
   void play(const Ts &...x) override { this->parent_->stop(); }
 };
 
-template<typename... Ts> class IsRunningCondition : public Condition<Ts...>, public Parented<MicroWakeWord> {
+template<typename... Ts> class IsRunningCondition final : public Condition<Ts...>, public Parented<MicroWakeWord> {
  public:
   bool check(const Ts &...x) override { return this->parent_->is_running(); }
 };
 
-template<typename... Ts> class EnableModelAction : public Action<Ts...> {
+template<typename... Ts> class EnableModelAction final : public Action<Ts...> {
  public:
   explicit EnableModelAction(WakeWordModel *wake_word_model) : wake_word_model_(wake_word_model) {}
   void play(const Ts &...x) override { this->wake_word_model_->enable(); }
@@ -31,7 +31,7 @@ template<typename... Ts> class EnableModelAction : public Action<Ts...> {
   WakeWordModel *wake_word_model_;
 };
 
-template<typename... Ts> class DisableModelAction : public Action<Ts...> {
+template<typename... Ts> class DisableModelAction final : public Action<Ts...> {
  public:
   explicit DisableModelAction(WakeWordModel *wake_word_model) : wake_word_model_(wake_word_model) {}
   void play(const Ts &...x) override { this->wake_word_model_->disable(); }
@@ -40,7 +40,7 @@ template<typename... Ts> class DisableModelAction : public Action<Ts...> {
   WakeWordModel *wake_word_model_;
 };
 
-template<typename... Ts> class ModelIsEnabledCondition : public Condition<Ts...> {
+template<typename... Ts> class ModelIsEnabledCondition final : public Condition<Ts...> {
  public:
   explicit ModelIsEnabledCondition(WakeWordModel *wake_word_model) : wake_word_model_(wake_word_model) {}
   bool check(const Ts &...x) override { return this->wake_word_model_->is_enabled(); }
