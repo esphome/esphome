@@ -12,7 +12,7 @@ from esphome.components.mipi import (
     PWSET,
     DriverChip,
 )
-import esphome.config_validation as cv
+from esphome.const import CONF_MIRROR_X, CONF_MIRROR_Y
 
 from .amoled import CO5300
 from .ili import ILI9488_A, ST7789V
@@ -155,7 +155,7 @@ ST7789P = DriverChip(
 
 ILI9488_A.extend(
     "PICO-RESTOUCH-LCD-3.5",
-    swap_xy=cv.UNDEFINED,
+    transforms={CONF_MIRROR_X, CONF_MIRROR_Y},
     spi_16=True,
     pixel_mode="16bit",
     mirror_x=True,
@@ -175,6 +175,7 @@ CO5300.extend(
     offset_width=6,
     cs_pin=12,
     reset_pin=39,
+    requires={"psram"},
 )
 
 # Waveshare ESP32-S3 Touch AMOLED 2.16" (CO5300 controller)
@@ -189,6 +190,7 @@ CO5300.extend(
     cs_pin=12,
     reset_pin=39,
     data_rate="40MHz",
+    requires={"psram"},
 )
 
 AXS15231.extend(
@@ -198,6 +200,7 @@ AXS15231.extend(
     data_rate="80MHz",
     cs_pin=9,
     reset_pin=21,
+    requires={"psram"},
 )
 
 # Waveshare 1.83-v2
@@ -281,6 +284,7 @@ ST7789V.extend(
     offset_height=40,
     invert_colors=True,
     data_rate="40MHz",
+    requires={"psram"},
 )
 
 CO5300.extend(
@@ -291,4 +295,5 @@ CO5300.extend(
     cs_pin=9,
     reset_pin=21,
     enable_pin=1,
+    requires={"psram"},
 )

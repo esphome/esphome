@@ -14,9 +14,9 @@
 namespace esphome::sgp4x {
 
 struct SGP4xBaselines {
-  int32_t state0;
-  int32_t state1;
-} PACKED;  // NOLINT
+  float state0;
+  float state1;
+};
 
 enum SgpType { SGP40, SGP41 };
 
@@ -49,7 +49,11 @@ static const uint16_t SPG41_SELFTEST_TIME = 320;  // 320 ms for self test
 static const uint16_t SGP40_MEASURE_TIME = 30;
 static const uint16_t SGP41_MEASURE_TIME = 55;
 // Store anyway if the baseline difference exceeds the max storage diff value
-const float MAXIMUM_STORAGE_DIFF = 50.0f;
+// state0 is mean of variance estimator, hence can have larger absolute values and a larger diff threshold
+const float MAXIMUM_STORAGE_DIFF_STATE0 = 50.0f;
+// state1 is std of variance estimator, so it typically has smaller absolute values than state0, hence we use a smaller
+// diff threshold
+const float MAXIMUM_STORAGE_DIFF_STATE1 = 5.0f;
 
 class SGP4xComponent;
 

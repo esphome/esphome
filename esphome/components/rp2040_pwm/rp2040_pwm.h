@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
 
 #include "esphome/components/output/float_output.h"
 #include "esphome/core/automation.h"
@@ -54,4 +54,4 @@ template<typename... Ts> class SetFrequencyAction final : public Action<Ts...> {
 
 }  // namespace esphome::rp2040_pwm
 
-#endif  // USE_RP2040
+#endif  // USE_RP2

@@ -621,6 +621,9 @@ def convert_path_to_relative(abspath, current):
         "esphome/components/web_server/__init__.py",
         # const.py has absolute import in docstring example for external components
         "esphome/components/esp8266/const.py",
+        # rp2040/__init__.py is the deprecation shim that documents the canonical
+        # rp2 module path and its own legacy import paths in docstrings/comments.
+        "esphome/components/rp2040/__init__.py",
     ],
 )
 def lint_relative_py_import(fname: Path, line, col, content):
@@ -650,13 +653,13 @@ def lint_relative_py_import(fname: Path, line, col, content):
         "esphome/components/async_tcp/async_tcp.h",
         "esphome/components/esp32/core.cpp",
         "esphome/components/esp8266/core.cpp",
-        "esphome/components/rp2040/core.cpp",
+        "esphome/components/rp2/core.cpp",
         "esphome/components/libretiny/core.cpp",
         "esphome/components/host/core.cpp",
         "esphome/components/zephyr/core.cpp",
         "esphome/components/esp32/helpers.cpp",
         "esphome/components/esp8266/helpers.cpp",
-        "esphome/components/rp2040/helpers.cpp",
+        "esphome/components/rp2/helpers.cpp",
         "esphome/components/libretiny/helpers.cpp",
         "esphome/components/host/helpers.cpp",
         "esphome/components/zephyr/helpers.cpp",

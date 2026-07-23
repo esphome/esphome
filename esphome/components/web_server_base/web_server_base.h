@@ -59,7 +59,15 @@ class AuthMiddlewareHandler : public MiddlewareHandler {
   bool check_auth(AsyncWebServerRequest *request) {
     bool success = request->authenticate(credentials_->username.c_str(), credentials_->password.c_str());
     if (!success) {
+      // The scheme is chosen at build time (USE_WEBSERVER_AUTH_DIGEST); the unused path is
+      // compiled out. On ESP32 our own server picks the scheme internally.
+#if USE_ESP32
       request->requestAuthentication();
+#elif defined(USE_WEBSERVER_AUTH_DIGEST)
+      request->requestAuthentication(nullptr, true);
+#else
+      request->requestAuthentication(nullptr, false);
+#endif
     }
     return success;
   }
