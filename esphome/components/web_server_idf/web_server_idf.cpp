@@ -1173,6 +1173,10 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
   process_buffer_();
   process_deferred_queue_();
 
+  if (this->close_requested_.load()) {
+    return;
+  }
+
   if (!event_buffer_.empty() || !deferred_queue_.empty()) {
     // outgoing event buffer or deferred queue still not empty which means downstream tcp send buffer full, no point
     // trying to send first

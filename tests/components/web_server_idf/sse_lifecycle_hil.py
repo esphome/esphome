@@ -252,9 +252,25 @@ def _check_headroom(
         status, _, _ = _request(host, port, "/", credentials)
         if status != 200:
             raise RuntimeError(f"health request returned HTTP {status}")
+        for index, stream in enumerate(streams, start=1):
+            _verify_stream_still_open(stream, index)
     finally:
         for stream in streams:
             stream.sock.close()
+
+
+def _verify_stream_still_open(response: HttpResponse, index: int) -> None:
+    deadline = time.monotonic() + 1.0
+    response.sock.settimeout(0.1)
+    while time.monotonic() < deadline:
+        try:
+            chunk = response.sock.recv(4096)
+        except TimeoutError:
+            continue
+        if not chunk:
+            raise RuntimeError(
+                f"headroom EventSource {index} closed during health probe"
+            )
 
 
 def _credentials(args: argparse.Namespace) -> Credentials | None:
