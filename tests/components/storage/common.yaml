@@ -1,0 +1,41 @@
+# Shared by the platform tests that have no storage driver available (bk72xx, esp8266,
+# ln882x, nrf52, rp2040, rtl87xx). Those cannot register a device, so the registry stays
+# empty and nothing is mounted at runtime — but the action layer is platform-neutral and
+# has to compile everywhere the component does. With `storage:` alone it did not: no
+# action means automation.h/.cpp are never instantiated, so these tests only proved that
+# the schema validates and the registry links.
+#
+# The actions below cover the parts that are the same on every target: the printf-style
+# write path, the extraction pipeline, a condition, and a delete. Deliberately no json:
+# or regex: step (each pulls in a heavy dependency that is not the point here), and no
+# raw or preferences action (those need a device, or are ESP32-only).
+
+storage:
+
+globals:
+  - id: g_read_back
+    type: std::string
+    restore_value: false
+
+script:
+  - id: exercise_actions
+    then:
+      - storage.file_write:
+          path: /storage/state.txt
+          content: hello
+      - storage.file_append:
+          path: /storage/log.txt
+          format: "value=%.1f"
+          args: ["21.5f"]
+      - storage.file_read:
+          path: /storage/state.txt
+          extract:
+            - line: 1
+            - trim: true
+          to_global: g_read_back
+      - if:
+          condition:
+            storage.file_exists: /storage/state.txt
+          then:
+            - storage.file_delete:
+                path: /storage/state.txt

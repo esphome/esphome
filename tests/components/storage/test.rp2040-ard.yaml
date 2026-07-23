@@ -1,1 +1,1 @@
-storage:
+<<: !include common.yaml

@@ -25,7 +25,6 @@ from esphome.const import (
     CONF_TO,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
-import esphome.final_validate as fv
 
 CODEOWNERS = ["@p1ngb4ck"]
 
@@ -55,7 +54,6 @@ AUTO_LOAD = ["json"]
 
 storage_ns = cg.esphome_ns.namespace("storage")
 Storage = storage_ns.class_("Storage", cg.Component)
-TransferBuffer = storage_ns.class_("TransferBuffer", cg.Component)
 StoragePtr = Storage.operator("ptr")
 PathStorage = storage_ns.class_("PathStorage", Storage)
 RawStorage = storage_ns.class_("RawStorage", Storage)
@@ -86,11 +84,6 @@ def validate_sector_multiple(value):
 # unused, same as any other config key with no effect in a given configuration.
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.Optional("enable_psram_transfer_buffer"): cv.boolean,
-        cv.Optional("psram_transfer_buffer_size"): cv.All(
-            cv.validate_bytes, cv.Range(min=64 * 1024)
-        ),
-        cv.Optional("psram_transfer_buffer_override_limit", default=False): cv.boolean,
         cv.GenerateID(): cv.declare_id(StorageRegistry),
         # No static default: an absent value means "use the per-platform default"
         # (see _default_copy_chunk_size() / to_code). An explicit value overrides it and
@@ -222,36 +215,6 @@ def request_storage_worker(task_safe: bool = False) -> None:
         data.worker_task_safe = True
 
 
-def _transfer_buffer_final_validate(config):
-    has_psram = "psram" in fv.full_config.get()
-    if "enable_psram_transfer_buffer" in config and not has_psram:
-        raise cv.Invalid(
-            "'enable_psram_transfer_buffer' is only available with the psram component"
-        )
-    enabled = config.get("enable_psram_transfer_buffer", has_psram)
-    if "psram_transfer_buffer_size" in config:
-        if not has_psram:
-            raise cv.Invalid(
-                "'psram_transfer_buffer_size' is only available with the psram component"
-            )
-        if not enabled:
-            raise cv.Invalid(
-                "'psram_transfer_buffer_size' requires 'enable_psram_transfer_buffer' to be true"
-            )
-    if config.get("psram_transfer_buffer_override_limit") and (
-        not has_psram or not enabled
-    ):
-        raise cv.Invalid(
-            "'psram_transfer_buffer_override_limit' requires an enabled psram transfer buffer"
-        )
-    # The 25% default and the 80% ceiling are enforced in setup(): the actual PSRAM
-    # size is detected at boot and unknowable at config time.
-    return config
-
-
-FINAL_VALIDATE_SCHEMA = _transfer_buffer_final_validate
-
-
 # Default streaming/copy chunk size. Flat 16 kB on every platform: the 20 ms loop-slice budget
 # (see the buffer-usage plan) caps a main-loop chunk near 16 kB even on the fastest S3 SD path,
 # so a larger loop chunk is unsafe. The platform distinction lives one level down, in the C++
@@ -354,16 +317,6 @@ def _default_copy_chunk_size() -> int:
 # are unaffected either way, since that call already suspends until the variable exists.
 @coroutine_with_priority(CoroPriority.LATE)
 async def to_code(config):
-    tb_enabled = config.get("enable_psram_transfer_buffer", "psram" in CORE.config)
-    if tb_enabled:
-        cg.add_define("USE_STORAGE_TRANSFER_BUFFER")
-        tb_id = ID("storage_transfer_buffer", is_declaration=True, type=TransferBuffer)
-        CORE.component_ids.add(str(tb_id))
-        tb = cg.new_Pvariable(tb_id)
-        await cg.register_component(tb, {})
-        # 0 = auto: setup() sizes the arena to 25% of the detected PSRAM
-        cg.add(tb.set_size(config.get("psram_transfer_buffer_size", 0)))
-        cg.add(tb.set_override_limit(config["psram_transfer_buffer_override_limit"]))
     var = cg.new_Pvariable(config[cv.GenerateID()])
     await cg.register_component(var, config)
 
@@ -1371,59 +1324,3 @@ async def import_preferences_to_code(config, action_id, template_arg, args):
     var = await _build_preferences_action(config, action_id, template_arg, args)
     cg.add(var.set_reboot(config[CONF_REBOOT]))
     return var
-
-
-# ---- file_system option (sd_storage / usb_storage) --------------------------------------
-# The option does not exist without esp32 enable_exfat: without exFAT the filesystem is
-# always FAT32, there is nothing to choose and nothing to probe — the mount path stays
-# exactly as it is today. With exFAT enabled the option appears with default "auto"
-# (FatFs' own boot-sector detection inside f_mount); an explicit fat32/exfat probes the
-# medium BEFORE the mount and reformats first on mismatch, so the one mount that happens
-# is already on the requested filesystem.
-CONF_FILE_SYSTEM = "file_system"
-FILE_SYSTEM_AUTO = "auto"
-FILE_SYSTEM_FAT32 = "fat32"
-FILE_SYSTEM_EXFAT = "exfat"
-
-FILE_SYSTEM_SCHEMA_ENTRY = cv.Optional(CONF_FILE_SYSTEM)
-validate_file_system_value = cv.one_of(
-    FILE_SYSTEM_AUTO, FILE_SYSTEM_FAT32, FILE_SYSTEM_EXFAT, lower=True
-)
-
-
-def _esp32_exfat_enabled(fconf) -> bool:
-    from esphome.components.esp32 import CONF_ENABLE_EXFAT
-    from esphome.components.esp32.const import KEY_ESP32
-    from esphome.const import CONF_ADVANCED, CONF_FRAMEWORK
-
-    esp32 = fconf.get(KEY_ESP32)
-    if not esp32:
-        return False
-    return bool(
-        esp32.get(CONF_FRAMEWORK, {})
-        .get(CONF_ADVANCED, {})
-        .get(CONF_ENABLE_EXFAT, False)
-    )
-
-
-def final_validate_file_system(config) -> None:
-    """Reject the option outright when exFAT is not compiled in."""
-    if CONF_FILE_SYSTEM not in config:
-        return
-    if not _esp32_exfat_enabled(fv.full_config.get()):
-        raise cv.Invalid(
-            f"'{CONF_FILE_SYSTEM}' is not available without 'enable_exfat: true' in the "
-            f"esp32 framework advanced options — without exFAT the filesystem is always "
-            f"FAT32 and there is nothing to choose"
-        )
-
-
-async def file_system_to_code(var, config) -> None:
-    """Emit the selection define + setter — only when the option may exist at all."""
-    if not _esp32_exfat_enabled(CORE.config):
-        return  # not even the auto path is compiled in
-
-    cg.add_define("USE_STORAGE_FILE_SYSTEM_SELECT")
-    fs = config.get(CONF_FILE_SYSTEM, FILE_SYSTEM_AUTO)
-    value = {FILE_SYSTEM_AUTO: 0, FILE_SYSTEM_FAT32: 1, FILE_SYSTEM_EXFAT: 2}[fs]
-    cg.add(var.set_requested_file_system(value))
