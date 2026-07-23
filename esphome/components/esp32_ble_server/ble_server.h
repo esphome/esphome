@@ -62,16 +62,12 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 
   // Direct callback registration - supports multiple callbacks
-#ifdef USE_ESP32_BLE_SERVER_ON_CONNECT
   void on_connect(std::function<void(uint16_t)> &&callback) {
     this->callbacks_.push_back({CallbackType::ON_CONNECT, std::move(callback)});
   }
-#endif
-#ifdef USE_ESP32_BLE_SERVER_ON_DISCONNECT
   void on_disconnect(std::function<void(uint16_t)> &&callback) {
     this->callbacks_.push_back({CallbackType::ON_DISCONNECT, std::move(callback)});
   }
-#endif
 #ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_REQUEST
   void on_passkey_request(std::function<void(std::string)> &&callback) {
     this->passkey_request_callback_.add(std::move(callback));
@@ -110,11 +106,9 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
   int8_t find_client_index_(uint16_t conn_id) const;
   void add_client_(uint16_t conn_id);
   void remove_client_(uint16_t conn_id);
-
-#if defined(USE_ESP32_BLE_SERVER_ON_CONNECT) || defined(USE_ESP32_BLE_SERVER_ON_DISCONNECT)
   void dispatch_callbacks_(CallbackType type, uint16_t conn_id);
+
   std::vector<CallbackEntry> callbacks_;
-#endif
 #ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_REQUEST
   CallbackManager<void(std::string)> passkey_request_callback_;
 #endif

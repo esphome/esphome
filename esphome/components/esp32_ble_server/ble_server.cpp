@@ -155,7 +155,6 @@ BLEService *BLEServer::get_service(ESPBTUUID uuid, uint8_t inst_id) {
   return nullptr;
 }
 
-#if defined(USE_ESP32_BLE_SERVER_ON_CONNECT) || defined(USE_ESP32_BLE_SERVER_ON_DISCONNECT)
 void BLEServer::dispatch_callbacks_(CallbackType type, uint16_t conn_id) {
   for (auto &entry : this->callbacks_) {
     if (entry.type == type) {
@@ -163,7 +162,6 @@ void BLEServer::dispatch_callbacks_(CallbackType type, uint16_t conn_id) {
     }
   }
 }
-#endif
 
 void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                     esp_ble_gatts_cb_param_t *param) {
@@ -175,18 +173,14 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
       if (this->client_count_ < this->max_clients_) {
         this->parent_->advertising_start();
       }
-#ifdef USE_ESP32_BLE_SERVER_ON_CONNECT
       this->dispatch_callbacks_(CallbackType::ON_CONNECT, param->connect.conn_id);
-#endif
       break;
     }
     case ESP_GATTS_DISCONNECT_EVT: {
       ESP_LOGD(TAG, "BLE Client disconnected");
       this->remove_client_(param->disconnect.conn_id);
       this->parent_->advertising_start();
-#ifdef USE_ESP32_BLE_SERVER_ON_DISCONNECT
       this->dispatch_callbacks_(CallbackType::ON_DISCONNECT, param->disconnect.conn_id);
-#endif
       break;
     }
     case ESP_GATTS_REG_EVT: {
