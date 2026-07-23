@@ -1,3 +1,6 @@
+packages:
+  storage: !include common.yaml
+
 # The two storage options that cost real flash, kept out of the base test so the memory-impact
 # job measures what the component costs rather than what its most expensive corners cost.
 #
@@ -9,9 +12,6 @@
 # actually asks for them, so a node that copies files and reads a key=value file pays neither.
 # This variant exists so both still get compiled on every run -- ``test-*`` files are part of
 # the normal test set and only skipped by ``--base-only`` builds, which the memory job uses.
-
-storage:
-
 globals:
   - id: g_label
     type: std::string
