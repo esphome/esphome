@@ -83,8 +83,8 @@ void SGP4xComponent::setup() {
       ESP_LOGV(TAG, "Loaded VOC baseline state0: %f, state1: %f", this->voc_baselines_storage_.state0,
                this->voc_baselines_storage_.state1);
 
-      if (std::fpclassify(this->voc_baselines_storage_.state0) == FP_NORMAL &&
-          std::fpclassify(this->voc_baselines_storage_.state1) == FP_NORMAL) {
+      if (std::isnormal(this->voc_baselines_storage_.state0) &&
+          std::isnormal(this->voc_baselines_storage_.state1)) {
         ESP_LOGV(TAG, "Setting VOC baseline from save state0: %f, state1: %f", this->voc_baselines_storage_.state0,
                  this->voc_baselines_storage_.state1);
         voc_algorithm_.set_states(this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
