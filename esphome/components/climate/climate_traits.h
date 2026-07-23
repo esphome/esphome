@@ -274,7 +274,6 @@ class ClimateTraits {
   float visual_max_humidity_{99};
 
   climate::ClimateModeMask supported_modes_{climate::CLIMATE_MODE_OFF};
-  TemperatureUnit temperature_unit_{TemperatureUnit::CELSIUS};
   climate::ClimateFanModeMask supported_fan_modes_;
   climate::ClimateSwingModeMask supported_swing_modes_;
   climate::ClimatePresetMask supported_presets_;
