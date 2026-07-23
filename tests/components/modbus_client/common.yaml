@@ -2,17 +2,6 @@ modbus_client:
   - id: my_client
     modbus_id: modbus_bus
     address: 0x01
-    on_response:
-      then:
-        - lambda: |-
-            if (response.size() >= 4)
-              ESP_LOGI("modbus_client.test", "value=%d", (response[2] << 8) | response[3]);
-    on_error:
-      then:
-        - lambda: 'ESP_LOGW("modbus_client.test", "client-level exception %d", (int) exception_code);'
-    on_no_response:
-      then:
-        - logger.log: "no reply from device"
 
 button:
   - platform: template
@@ -34,3 +23,6 @@ button:
           on_no_response:
             then:
               - logger.log: "no reply"
+          on_not_sent:
+            then:
+              - logger.log: "not sent"

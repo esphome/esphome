@@ -333,32 +333,6 @@ async def test_uart_mock_modbus_server_controller_multiple(
 
 
 @pytest.mark.asyncio
-async def test_uart_mock_modbus_client(
-    yaml_config: str,
-    run_compiled: RunCompiledFunction,
-    api_client_connected: APIClientConnectedFactory,
-) -> None:
-    """Test the modbus_client component: an ad-hoc request/response from an automation.
-
-    The Start Scenario button fires `modbus_client.send` with a raw read-holding PDU
-    ([0x03, 0x00, 0x10, 0x00, 0x01]); the mock server replies with register 0x10 = 1234, and the client's
-    on_response handler decodes the reply and publishes it to the adhoc_value sensor. This exercises the
-    whole path: the send action -> hub -> server -> on_modbus_data -> the on_response callback/trigger,
-    the imperative case the entity model doesn't cover.
-    """
-
-    tracker = SensorTracker(["adhoc_value"])
-    got = tracker.expect("adhoc_value", 1234)
-
-    async with (
-        run_compiled(yaml_config),
-        api_client_connected() as client,
-    ):
-        await tracker.setup_and_start_scenario(client)
-        await tracker.await_change(got, "adhoc_value", timeout=4.0)
-
-
-@pytest.mark.asyncio
 async def test_uart_mock_modbus_client_inline(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -369,7 +343,7 @@ async def test_uart_mock_modbus_client_inline(
     Start Scenario fires two sends: client_ok reads register 0x10 (served, = 1234) and decodes the reply in
     its inline on_response -> inline_value; client_gone targets address 2 which no server answers, so it
     resolves via on_no_response -> timeout_flag. This exercises the fire-and-continue per-send routing
-    (matched by the exact request PDU) and the no-reply path, distinct from the client-level trigger.
+    (matched by the exact request PDU) and the no-reply path.
     """
 
     tracker = SensorTracker(["inline_value", "timeout_flag"])

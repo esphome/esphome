@@ -23,48 +23,18 @@ ModbusClientSendAction = modbus_client_ns.class_(
 # The exception code passed to on_error handlers.
 ModbusExceptionCode = modbus.modbus_ns.enum("ModbusExceptionCode")
 
-# Lambda argument types shared by the callbacks: the request/response PDUs (function code + data). The
-# spans are only valid for the duration of the callback.
+# Lambda argument types for the per-send handlers: the request/response PDUs (function code + data). The
+# spans are only valid for the duration of the handler.
 _PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ModbusCallbackClient),
-            cv.Optional(CONF_ON_RESPONSE): automation.validate_automation({}),
-            cv.Optional(CONF_ON_ERROR): automation.validate_automation({}),
-            cv.Optional(CONF_ON_NO_RESPONSE): automation.validate_automation({}),
-            cv.Optional(CONF_ON_NOT_SENT): automation.validate_automation({}),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(modbus.modbus_device_schema(None))
-)
-
-_CALLBACK_AUTOMATIONS = (
-    automation.CallbackAutomation(
-        CONF_ON_RESPONSE,
-        "add_on_response",
-        [(_PDU_SPAN, "request"), (_PDU_SPAN, "response")],
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_ERROR,
-        "add_on_error",
-        [
-            (_PDU_SPAN, "request"),
-            (ModbusExceptionCode, "exception_code"),
-        ],
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_NO_RESPONSE,
-        "add_on_no_response",
-        [(_PDU_SPAN, "request")],
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_NOT_SENT,
-        "add_on_not_sent",
-        [(_PDU_SPAN, "request")],
-    ),
 )
 
 
@@ -72,7 +42,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await modbus.register_modbus_client_device(var, config)
-    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 MODBUS_CLIENT_SEND_SCHEMA = cv.Schema(
