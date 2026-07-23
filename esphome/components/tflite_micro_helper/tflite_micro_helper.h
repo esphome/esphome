@@ -86,7 +86,7 @@ class TFLiteMicroHelper {
   bool is_model_loaded() const { return this->model_loaded_.load(); }
 
   // -- Inference ------------------------------------------------------
-  TfLiteStatus invoke() { return this->model_handler_.invoke(); }
+  TfLiteStatus invoke();
 
   TfLiteTensor *input_tensor() { return this->model_handler_.input_tensor(); }
   const TfLiteTensor *input_tensor() const { return this->model_handler_.input_tensor(); }
@@ -155,6 +155,7 @@ class TFLiteMicroHelper {
 
   // State
   std::atomic<bool> model_loaded_{false};
+  mutable std::mutex model_mutex_;
 
   // Expected CRC32 (0 = skip verification, set from __init__.py)
   uint32_t expected_crc32_{0};
@@ -163,6 +164,9 @@ class TFLiteMicroHelper {
   bool allocate_tensor_arena_();
   ModelConfig build_config_();
   bool validate_input_tensor_(const uint8_t *src_data, size_t src_size) const;
+
+  // Lock-free inference helper (caller must hold model_mutex_)
+  bool run_inference_on_buffer_locked_(const uint8_t *src_data, size_t src_size);
 };
 
 }  // namespace tflite_micro_helper
