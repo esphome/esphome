@@ -350,7 +350,7 @@ async def test_uart_mock_modbus_client_typed(
     """Test the typed modbus_client actions end to end (each action its own hub device).
 
     Start Scenario fires three typed actions: write_single_register puts 777 in server register 0x10 (the
-    ack fires on_response with the device address -> ack_flag = 1); read_holding_registers reads it back,
+    ack fires on_response -> ack_flag); read_holding_registers reads it back,
     with the reply decoded by the shared device dispatch into host-order words (values[0] -> typed_value);
     a read of unserved register 0x99 resolves via on_error with the device's exception code
     (ILLEGAL_DATA_ADDRESS = 2 -> error_code); a coil read of the register-only server resolves via

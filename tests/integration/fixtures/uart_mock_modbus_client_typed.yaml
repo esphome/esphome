@@ -101,7 +101,7 @@ sensor:
     name: "multi_coil_error"
     id: multi_coil_error
 
-# Typed actions end to end: a typed write lands on the server (ack -> ack_flag = the device address), the typed read-back
+# Typed actions end to end: a typed write lands on the server (ack -> ack_flag), the typed read-back
 # decodes the written value from the reply words (values[0] -> typed_value), and a read of an unserved
 # register resolves via on_error with the device's exception code (-> error_code).
 button:
@@ -115,14 +115,14 @@ button:
           value: 777
           on_response:
             then:
-              - lambda: "id(ack_flag).publish_state(address);"
+              - lambda: "id(ack_flag).publish_state(1);"
       - modbus_client.read_holding_registers:
           address: 1
           start_address: 0x10
           on_response:
             then:
               - lambda: |-
-                  if (address == 1 && !values.empty())
+                  if (!values.empty())
                     id(typed_value).publish_state(values[0]);
       - modbus_client.read_holding_registers:
           address: 1

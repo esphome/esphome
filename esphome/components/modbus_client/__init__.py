@@ -227,9 +227,7 @@ async def _read_registers_to_code(config, action_id, template_arg, args, holding
         )
     )
     cg.add(var.set_count(await cg.templatable(config[CONF_COUNT], args, cg.uint16)))
-    return await register_client_action(
-        var, config, args, [(cg.uint8, "address"), (_REGISTER_SPAN, "values")]
-    )
+    return await register_client_action(var, config, args, [(_REGISTER_SPAN, "values")])
 
 
 @automation.register_action(
@@ -260,7 +258,7 @@ async def _write_single_to_code(config, action_id, template_arg, args, coil):
         )
     )
     cg.add(var.set_value(await cg.templatable(config[CONF_VALUE], args, cg.uint16)))
-    return await register_client_action(var, config, args, [(cg.uint8, "address")])
+    return await register_client_action(var, config, args, [])
 
 
 @automation.register_action(
@@ -301,9 +299,7 @@ async def _read_bits_to_code(config, action_id, template_arg, args, coils):
         )
     )
     cg.add(var.set_count(await cg.templatable(config[CONF_COUNT], args, cg.uint16)))
-    return await register_client_action(
-        var, config, args, [(cg.uint8, "address"), (PackedBits, "bits")]
-    )
+    return await register_client_action(var, config, args, [(PackedBits, "bits")])
 
 
 @automation.register_action(
@@ -365,7 +361,7 @@ async def write_multiple_registers_to_code(config, action_id, template_arg, args
             )
         )
     )
-    return await register_client_action(var, config, args, [(cg.uint8, "address")])
+    return await register_client_action(var, config, args, [])
 
 
 @automation.register_action(
@@ -388,4 +384,4 @@ async def write_multiple_coils_to_code(config, action_id, template_arg, args):
             )
         )
     )
-    return await register_client_action(var, config, args, [(cg.uint8, "address")])
+    return await register_client_action(var, config, args, [])
