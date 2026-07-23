@@ -4,8 +4,7 @@ import logging
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
-import esphome.final_validate as fv
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 
 CODEOWNERS = ["@p1ngb4ck"]
 
@@ -26,7 +25,6 @@ CONF_ON_UNREGISTERED = "on_unregistered"
 
 storage_ns = cg.esphome_ns.namespace("storage")
 Storage = storage_ns.class_("Storage", cg.Component)
-TransferBuffer = storage_ns.class_("TransferBuffer", cg.Component)
 StoragePtr = Storage.operator("ptr")
 PathStorage = storage_ns.class_("PathStorage", Storage)
 RawStorage = storage_ns.class_("RawStorage", Storage)
@@ -50,11 +48,6 @@ def validate_sector_multiple(value):
 # is a sanity cap so a typo can't request an unreasonable single allocation (e.g. 16777216).
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.Optional("enable_psram_transfer_buffer"): cv.boolean,
-        cv.Optional("psram_transfer_buffer_size"): cv.All(
-            cv.validate_bytes, cv.Range(min=64 * 1024)
-        ),
-        cv.Optional("psram_transfer_buffer_override_limit", default=False): cv.boolean,
         cv.GenerateID(): cv.declare_id(StorageRegistry),
         # No static default: an absent value means "use the per-platform default"
         # (see _default_copy_chunk_size() / to_code). An explicit value overrides it and
@@ -139,35 +132,6 @@ def request_fatfs_path_length() -> None:
     """
     _get_data().fatfs_path_bound = True
 
-
-def _transfer_buffer_final_validate(config):
-    has_psram = "psram" in fv.full_config.get()
-    if "enable_psram_transfer_buffer" in config and not has_psram:
-        raise cv.Invalid(
-            "'enable_psram_transfer_buffer' is only available with the psram component"
-        )
-    enabled = config.get("enable_psram_transfer_buffer", has_psram)
-    if "psram_transfer_buffer_size" in config:
-        if not has_psram:
-            raise cv.Invalid(
-                "'psram_transfer_buffer_size' is only available with the psram component"
-            )
-        if not enabled:
-            raise cv.Invalid(
-                "'psram_transfer_buffer_size' requires 'enable_psram_transfer_buffer' to be true"
-            )
-    if config.get("psram_transfer_buffer_override_limit") and (
-        not has_psram or not enabled
-    ):
-        raise cv.Invalid(
-            "'psram_transfer_buffer_override_limit' requires an enabled psram transfer buffer"
-        )
-    # The 25% default and the 80% ceiling are enforced in setup(): the actual PSRAM
-    # size is detected at boot and unknowable at config time.
-    return config
-
-
-FINAL_VALIDATE_SCHEMA = _transfer_buffer_final_validate
 
 
 # Default streaming/copy chunk size. Flat 16 kB on every platform: the 20 ms loop-slice budget
@@ -272,16 +236,6 @@ def _default_copy_chunk_size() -> int:
 # are unaffected either way, since that call already suspends until the variable exists.
 @coroutine_with_priority(CoroPriority.LATE)
 async def to_code(config):
-    tb_enabled = config.get("enable_psram_transfer_buffer", "psram" in CORE.config)
-    if tb_enabled:
-        cg.add_define("USE_STORAGE_TRANSFER_BUFFER")
-        tb_id = ID("storage_transfer_buffer", is_declaration=True, type=TransferBuffer)
-        CORE.component_ids.add(str(tb_id))
-        tb = cg.new_Pvariable(tb_id)
-        await cg.register_component(tb, {})
-        # 0 = auto: setup() sizes the arena to 25% of the detected PSRAM
-        cg.add(tb.set_size(config.get("psram_transfer_buffer_size", 0)))
-        cg.add(tb.set_override_limit(config["psram_transfer_buffer_override_limit"]))
     var = cg.new_Pvariable(config[cv.GenerateID()])
     await cg.register_component(var, config)
 
