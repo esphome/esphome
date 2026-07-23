@@ -20,6 +20,7 @@ class SFA40Component final : public PollingComponent, public sensirion_common::S
   void set_formaldehyde_sensor(sensor::Sensor *formaldehyde) { this->formaldehyde_sensor_ = formaldehyde; }
   void set_temperature_sensor(sensor::Sensor *temperature) { this->temperature_sensor_ = temperature; }
   void set_humidity_sensor(sensor::Sensor *humidity) { this->humidity_sensor_ = humidity; }
+  void set_wait_for_ready(bool wait_for_ready) { this->wait_for_ready_ = wait_for_ready; }
 
  protected:
   bool detect_protocol_();
@@ -28,6 +29,7 @@ class SFA40Component final : public PollingComponent, public sensirion_common::S
   char device_marking_[32] = {0};
   bool initialized_{false};
   ErrorCode error_code_{UNKNOWN};
+  bool wait_for_ready_{false};
 
   sensor::Sensor *formaldehyde_sensor_{nullptr};
   sensor::Sensor *temperature_sensor_{nullptr};

@@ -6,6 +6,7 @@ namespace esphome::sfa40 {
 static const char *const TAG = "sfa40";
 
 // SFA40 Datasheet: https://sensirion.com/media/documents/5B06EDD9/69F84BD8/Sensirion_Datasheet_SFA40.pdf
+
 static const uint16_t SFA40_CMD_START_MEASUREMENT = 0x00AC;
 static const uint16_t SFA40_CMD_STOP_MEASUREMENT  = 0x50D2;
 static const uint16_t SFA40_CMD_READ_MEASURE_PROD = 0xC0EB;
@@ -102,6 +103,22 @@ void SFA40Component::update() {
     uint16_t raw[4];
     if (!this->read_data(raw, 4)) {
       ESP_LOGW(TAG, "Error reading measurement data");
+      this->status_set_warning();
+      return;
+    }
+
+    const uint8_t status = raw[3] >> 8;
+    ESP_LOGD(TAG, "raw[3]=0x%04X status_byte=0x%02X wait_for_ready=%s", raw[3], status,
+             this->wait_for_ready_ ? "true" : "false");
+    if (this->wait_for_ready_) {
+      if (status & 0x01) {
+        ESP_LOGD(TAG, "Skipping publish: status bit 0 set");
+      }
+      if (status & 0x02) {
+        ESP_LOGD(TAG, "Skipping publish: status bit 1 set");
+      }
+    }
+    if (this->wait_for_ready_ && (status & 0x03)) {
       this->status_set_warning();
       return;
     }

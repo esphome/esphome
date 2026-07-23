@@ -21,6 +21,8 @@ from esphome.const import (
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
 
+CONF_WAIT_FOR_READY = "wait_for_ready"
+
 sfa40_ns = cg.esphome_ns.namespace("sfa40")
 SFA40Component = sfa40_ns.class_(
     "SFA40Component", cg.PollingComponent, sensirion_common.SensirionI2CDevice
@@ -30,6 +32,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.declare_id(SFA40Component),
+            cv.Optional(CONF_WAIT_FOR_READY, default=True): cv.boolean,
             cv.Optional(CONF_FORMALDEHYDE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_BILLION,
                 icon=ICON_FLASK_OUTLINE,
@@ -68,6 +71,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+    cg.add(var.set_wait_for_ready(config[CONF_WAIT_FOR_READY]))
 
     for key, func_name in SENSOR_MAP.items():
         if sensor_config := config.get(key):
