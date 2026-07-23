@@ -3,7 +3,7 @@
 #
 #   regex:        pulls in <regex>, which is ~50-100 kB of libstdc++ on this target (see the
 #                 comment above the include in automation.cpp)
-#   format: json  pulls in ArduinoJson
+#   json:         pulls in ArduinoJson
 #
 # Both are opt-in: codegen only sets USE_STORAGE_REGEX_EXTRACT / the json path when a config
 # actually asks for them, so a node that copies files and reads a key=value file pays neither.
@@ -28,10 +28,10 @@ script:
             - regex: "([A-Za-z0-9_]+)"
           to_global: g_label
 
-button:
-  - platform: template
-    name: "Backup as json"
-    on_press:
-      - storage.export_preferences:
-          path: /sdcard/prefs.json
-          format: json
+  - id: exercise_json_extract
+    then:
+      - storage.file_read:
+          path: /sdcard/config/device.json
+          extract:
+            - json: name
+          to_global: g_label

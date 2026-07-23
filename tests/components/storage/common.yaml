@@ -8,7 +8,7 @@
 # The actions below cover the parts that are the same on every target: the printf-style
 # write path, the extraction pipeline, a condition, and a delete. Deliberately no json:
 # or regex: step (each pulls in a heavy dependency that is not the point here), and no
-# raw or preferences action (those need a device, or are ESP32-only).
+# raw action (those need a device).
 
 storage:
 
