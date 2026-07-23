@@ -1,0 +1,18 @@
+# Test-only traffic generator for sse_lifecycle_hil.py. Include this package in
+# an ESP32-IDF device config, run the test, then remove it from the firmware.
+text_sensor:
+  - platform: template
+    id: web_server_idf_sse_lifecycle_flood
+    name: "SSE Lifecycle Flood"
+
+interval:
+  - interval: 10ms
+    then:
+      - lambda: |-
+          static uint32_t sequence = 0;
+          char payload[512];
+          const int prefix_length =
+              snprintf(payload, sizeof(payload), "%lu:", static_cast<unsigned long>(sequence++));
+          memset(payload + prefix_length, 'x', sizeof(payload) - prefix_length - 1);
+          payload[sizeof(payload) - 1] = '\0';
+          id(web_server_idf_sse_lifecycle_flood).publish_state(payload);

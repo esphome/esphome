@@ -307,6 +307,9 @@ class AsyncEventSourceResponse {
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
   void process_deferred_queue_();
   void process_buffer_();
+  void request_close_();
+  void process_close_();
+  static void close_session_work(void *arg);
 
   static void destroy(void *p);
   AsyncEventSource *server_;
@@ -318,7 +321,14 @@ class AsyncEventSourceResponse {
   std::string event_buffer_;
   size_t event_bytes_sent_;
   uint16_t consecutive_send_failures_{0};
-  static constexpr uint16_t MAX_CONSECUTIVE_SEND_FAILURES = 2500;  // ~20 seconds at 125Hz loop rate
+  uint32_t send_failure_started_ms_{0};
+  uint32_t next_close_attempt_ms_{0};
+  bool close_retry_warning_logged_{false};
+  std::atomic<bool> close_work_queued_{false};
+  std::atomic<bool> close_requested_{false};
+  static constexpr uint32_t SEND_STALL_TIMEOUT_MS = 20000;
+  static constexpr uint32_t CLOSE_RETRY_INTERVAL_MS = 250;
+  static constexpr uint32_t CLOSE_CONFIRM_INTERVAL_MS = 1000;
 };
 
 using AsyncEventSourceClient = AsyncEventSourceResponse;
