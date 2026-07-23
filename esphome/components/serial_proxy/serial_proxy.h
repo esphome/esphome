@@ -67,12 +67,14 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   api::enums::SerialProxyPortType get_port_type() const { return this->port_type_; }
 
   /// Configure UART parameters and apply them
+  /// @param api_connection The API connection requesting the change
   /// @param baudrate Baud rate in bits per second
   /// @param flow_control True to enable hardware flow control
   /// @param parity Parity setting (0=none, 1=even, 2=odd)
   /// @param stop_bits Number of stop bits (1 or 2)
   /// @param data_size Number of data bits (5-8)
-  void configure(uint32_t baudrate, bool flow_control, uint8_t parity, uint8_t stop_bits, uint8_t data_size);
+  void configure(api::APIConnection *api_connection, uint32_t baudrate, bool flow_control, uint8_t parity,
+                 uint8_t stop_bits, uint8_t data_size);
 
   /// Get the currently subscribed API connection (nullptr if none)
   api::APIConnection *get_api_connection() { return this->api_connection_; }
@@ -81,12 +83,13 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   void serial_proxy_request(api::APIConnection *api_connection, api::enums::SerialProxyRequestType type);
 
   /// Write data received from an API client to the serial device
+  /// @param api_connection The API connection sending the data
   /// @param data Pointer to data buffer
   /// @param len Number of bytes to write
-  void write_from_client(const uint8_t *data, size_t len);
+  void write_from_client(api::APIConnection *api_connection, const uint8_t *data, size_t len);
 
   /// Set modem pin states from a bitmask of SerialProxyLineStateFlag values
-  void set_modem_pins(uint32_t line_states);
+  void set_modem_pins(api::APIConnection *api_connection, uint32_t line_states);
 
   /// Get current modem pin states as a bitmask of SerialProxyLineStateFlag values
   uint32_t get_modem_pins() const;
@@ -104,6 +107,9 @@ class SerialProxy final : public uart::UARTDevice, public Component {
 #ifdef USE_API
   /// Read from UART and send to API client (slow path with 256-byte stack buffer)
   void read_and_send_(size_t available);
+
+  /// True when a live subscriber other than the given connection holds the port
+  bool port_claimed_by_other_(api::APIConnection *api_connection) const;
 #endif
 
   /// Instance index for identifying this proxy in API messages
