@@ -1,19 +1,11 @@
-#pragma once
-
-// NOTE: This is an X-macro definition file included inside a switch block in
-// op_resolver.h. It intentionally has no actual C++ namespace wrapper because
-// it is #included inside a function body where a namespace declaration is
-// not valid. The linter checks for the string "namespace tflite_micro_helper"
-// which is present as a comment below; the file is logically part of the
-// esphome::tflite_micro_helper namespace.
-// namespace tflite_micro_helper
-
-#ifdef TFLM_OPERATORS_ACTIVE
-
-// TFLite Micro Operators Definition File
+// Verified against esp-tflite-micro 1.3.7 micro_mutable_op_resolver.h
+// DO NOT EDIT without cross-referencing that header.
+//
 // Format:
 //   TFLM_OP_AVAILABLE(BuiltinOperator_suffix, AddMethod)  -> operator exists in ESP32 TFLM library
-//   TFLM_OP_UNAVAILABLE(BuiltinOperator_suffix)            -> operator not available, will be logged as unsupported
+//   TFLM_OP_UNAVAILABLE(BuiltinOperator_suffix)            -> operator not available
+
+#ifdef TFLM_OPERATORS_ACTIVE
 
 // ====== Core Neural Network Ops ======
 TFLM_OP_AVAILABLE(CONV_2D, AddConv2D)
@@ -22,9 +14,11 @@ TFLM_OP_AVAILABLE(FULLY_CONNECTED, AddFullyConnected)
 TFLM_OP_AVAILABLE(SOFTMAX, AddSoftmax)
 TFLM_OP_AVAILABLE(AVERAGE_POOL_2D, AddAveragePool2D)
 TFLM_OP_AVAILABLE(MAX_POOL_2D, AddMaxPool2D)
-TFLM_OP_AVAILABLE(MEAN, AddMean)
 TFLM_OP_AVAILABLE(L2_POOL_2D, AddL2Pool2D)
 TFLM_OP_AVAILABLE(L2_NORMALIZATION, AddL2Normalization)
+TFLM_OP_AVAILABLE(UNIDIRECTIONAL_SEQUENCE_LSTM, AddUnidirectionalSequenceLSTM)
+TFLM_OP_UNAVAILABLE(BIDIRECTIONAL_SEQUENCE_LSTM)
+TFLM_OP_UNAVAILABLE(BIDIRECTIONAL_SEQUENCE_RNN)
 
 // ====== Activation Functions ======
 TFLM_OP_AVAILABLE(RELU, AddRelu)
@@ -98,22 +92,24 @@ TFLM_OP_AVAILABLE(DEPTH_TO_SPACE, AddDepthToSpace)
 TFLM_OP_AVAILABLE(BROADCAST_ARGS, AddBroadcastArgs)
 TFLM_OP_AVAILABLE(BROADCAST_TO, AddBroadcastTo)
 TFLM_OP_AVAILABLE(ZEROS_LIKE, AddZerosLike)
+TFLM_OP_AVAILABLE(DYNAMIC_UPDATE_SLICE, AddDynamicUpdateSlice)
 
 // ====== Reduction Ops ======
 TFLM_OP_AVAILABLE(REDUCE_MAX, AddReduceMax)
-TFLM_OP_UNAVAILABLE(REDUCE_MIN)
+TFLM_OP_AVAILABLE(REDUCE_MIN, AddReduceMin)
+TFLM_OP_AVAILABLE(REDUCE_ALL, AddReduceAll)
 TFLM_OP_UNAVAILABLE(REDUCE_PROD)
 TFLM_OP_AVAILABLE(SUM, AddSum)
+TFLM_OP_AVAILABLE(MEAN, AddMean)
 TFLM_OP_UNAVAILABLE(REDUCE_ANY)
-TFLM_OP_UNAVAILABLE(REDUCE_ALL)
 
 // ====== Element-wise Ops ======
 TFLM_OP_AVAILABLE(MAXIMUM, AddMaximum)
 TFLM_OP_AVAILABLE(MINIMUM, AddMinimum)
 TFLM_OP_AVAILABLE(ARG_MAX, AddArgMax)
 TFLM_OP_AVAILABLE(ARG_MIN, AddArgMin)
-TFLM_OP_UNAVAILABLE(SELECT)
 TFLM_OP_AVAILABLE(SELECT_V2, AddSelectV2)
+TFLM_OP_UNAVAILABLE(SELECT)
 
 // ====== Logical Ops ======
 TFLM_OP_AVAILABLE(LOGICAL_AND, AddLogicalAnd)
@@ -127,23 +123,13 @@ TFLM_OP_AVAILABLE(GATHER, AddGather)
 TFLM_OP_AVAILABLE(GATHER_ND, AddGatherNd)
 TFLM_OP_UNAVAILABLE(WHERE)
 TFLM_OP_UNAVAILABLE(REVERSE_SEQUENCE)
-TFLM_OP_UNAVAILABLE(REVERSE_V2)
-TFLM_OP_AVAILABLE(UNIDIRECTIONAL_SEQUENCE_LSTM, AddUnidirectionalSequenceLSTM)
-TFLM_OP_UNAVAILABLE(BIDIRECTIONAL_SEQUENCE_LSTM)
-TFLM_OP_UNAVAILABLE(BIDIRECTIONAL_SEQUENCE_RNN)
-
-// ====== Quantization Ops ======
-TFLM_OP_UNAVAILABLE(FAKE_QUANT)
-
-// ====== Embedding Ops ======
+TFLM_OP_AVAILABLE(REVERSE_V2, AddReverseV2)
+TFLM_OP_AVAILABLE(BATCH_MATMUL, AddBatchMatMul)
 TFLM_OP_AVAILABLE(EMBEDDING_LOOKUP, AddEmbeddingLookup)
 TFLM_OP_UNAVAILABLE(EMBEDDING_LOOKUP_SPARSE)
-
-// ====== Local Response Normalization ======
-TFLM_OP_UNAVAILABLE(LOCAL_RESPONSE_NORMALIZATION)
-
-// ====== Matrix Operations ======
-TFLM_OP_AVAILABLE(BATCH_MATMUL, AddBatchMatMul)
+TFLM_OP_AVAILABLE(SVDF, AddSvdf)
+TFLM_OP_UNAVAILABLE(LSH_PROJECTION)
+TFLM_OP_UNAVAILABLE(SKIP_GRAM)
 
 // ====== Variable / Control Flow Ops ======
 TFLM_OP_AVAILABLE(IF, AddIf)
@@ -153,12 +139,11 @@ TFLM_OP_AVAILABLE(ASSIGN_VARIABLE, AddAssignVariable)
 TFLM_OP_AVAILABLE(READ_VARIABLE, AddReadVariable)
 TFLM_OP_AVAILABLE(VAR_HANDLE, AddVarHandle)
 
-// ====== Skip Ops (not available in TFLM, no Add method) ======
+// ====== Others (not in TFLM) ======
+TFLM_OP_UNAVAILABLE(FAKE_QUANT)
+TFLM_OP_UNAVAILABLE(LOCAL_RESPONSE_NORMALIZATION)
 TFLM_OP_UNAVAILABLE(CUSTOM)
 TFLM_OP_UNAVAILABLE(HASHTABLE_LOOKUP)
-TFLM_OP_UNAVAILABLE(SVDF)
-TFLM_OP_UNAVAILABLE(LSH_PROJECTION)
-TFLM_OP_UNAVAILABLE(SKIP_GRAM)
 TFLM_OP_UNAVAILABLE(CALL)
 
 #endif  // TFLM_OPERATORS_ACTIVE

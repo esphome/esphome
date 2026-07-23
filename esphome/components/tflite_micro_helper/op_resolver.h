@@ -7,25 +7,25 @@
 #include <set>
 #include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
 #include "tensorflow/lite/schema/schema_generated.h"
+#include "esphome/core/log.h"
 
-#include "op_resolver_utils.h"
-
-namespace esphome::tflite_micro_helper {
+namespace esphome {
+namespace tflite_micro_helper {
 
 class OpResolverManager {
  public:
   template<size_t tOpCount>
-  static bool register_ops(tflite::MicroMutableOpResolver<tOpCount> &resolver,
-                           const std::set<tflite::BuiltinOperator> &required_ops, const char *tag) {
+  static bool RegisterOps(tflite::MicroMutableOpResolver<tOpCount> &resolver,
+                          const std::set<tflite::BuiltinOperator> &required_ops, const char *tag) {
     for (auto op : required_ops) {
       const char *op_name = tflite::EnumNameBuiltinOperator(op);
-      op_resolver_log_register(tag, op_name);
+      ESP_LOGD(tag, "Registering op: %s", op_name);
 
       TfLiteStatus add_status = kTfLiteError;
 
-      // X-Macro: generate case statements from tflm_operators.h
-      // For available operators: call resolver.AddXxx()
-      // For unavailable operators: log warning and return false
+      // X-Macro: generates case statements from tflm_operators.h
+      // For available operators: calls resolver.AddXxx()
+      // For unavailable operators: logs warning and returns false
       switch (op) {
 #define TFLM_OP_AVAILABLE(op_name, method) \
   case tflite::BuiltinOperator_##op_name: \
@@ -34,7 +34,7 @@ class OpResolverManager {
 
 #define TFLM_OP_UNAVAILABLE(op_name) \
   case tflite::BuiltinOperator_##op_name: \
-    op_resolver_log_unavailable(tag, #op_name); \
+    ESP_LOGW(tag, "Operator %s is not available in TFLite Micro", #op_name); \
     return false; \
     break;
 
@@ -45,12 +45,12 @@ class OpResolverManager {
 #undef TFLM_OP_UNAVAILABLE
 
         default:
-          op_resolver_log_unknown(tag, op_name);
+          ESP_LOGE(tag, "Unknown or unsupported operator: %s", op_name);
           return false;
       }
 
       if (add_status != kTfLiteOk) {
-        op_resolver_log_failed(tag, op_name);
+        ESP_LOGE(tag, "Failed to add operator: %s", op_name);
         return false;
       }
     }
@@ -58,6 +58,7 @@ class OpResolverManager {
   }
 };
 
-}  // namespace esphome::tflite_micro_helper
+}  // namespace tflite_micro_helper
+}  // namespace esphome
 
 #endif  // USE_TFLITE_MICRO_HELPER

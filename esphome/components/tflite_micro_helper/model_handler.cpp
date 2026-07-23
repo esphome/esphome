@@ -2,11 +2,13 @@
 #include "esp_log.h"
 #include "debug_utils.h"
 #include <cmath>
-#include <cstdlib>
+#include <esp_heap_caps.h>
+#include <vector>
 #include <algorithm>
 #include <limits>
 
-namespace esphome::tflite_micro_helper {
+namespace esphome {
+namespace tflite_micro_helper {
 
 static const char *const TAG = "ModelHandler";
 
@@ -30,18 +32,7 @@ void ModelHandler::unload() {
 bool ModelHandler::load_model(const uint8_t *model_data, size_t model_size, const ModelConfig &config) {
   this->model_length_ = model_size;
 
-  // Determine tensor arena size from config (uses shared parser in MemoryManager)
-  if (!config.tensor_arena_size.empty()) {
-    size_t parsed = MemoryManager::parse_size_string(config.tensor_arena_size);
-    if (parsed > 0) {
-      this->tensor_arena_size_requested_ = parsed;
-      ESP_LOGI(TAG, "Using model-specific tensor arena size: %s (%zu bytes)", config.tensor_arena_size.c_str(),
-               this->tensor_arena_size_requested_);
-    } else {
-      ESP_LOGW(TAG, "Failed to parse tensor arena size from config: %s", config.tensor_arena_size.c_str());
-    }
-  }
-
+  // Use configured arena size, or fall back to default
   if (this->tensor_arena_size_requested_ == 0) {
     this->tensor_arena_size_requested_ = 100 * 1024;  // Default 100KB
     ESP_LOGW(TAG, "Using default tensor arena size: 100KB");
@@ -60,7 +51,8 @@ bool ModelHandler::load_model(const uint8_t *model_data, size_t model_size, cons
 }
 
 bool ModelHandler::load_model_with_arena(const uint8_t *model_data, size_t model_size, uint8_t *tensor_arena,
-                                         size_t tensor_arena_size, const ModelConfig &config) {
+                                         size_t tensor_arena_size, const ModelConfig &config,
+                                         tflite::MicroResourceVariables *mrv) {
   if (this->debug_) {
     ESP_LOGD(TAG, "Loading model with config:");
     ESP_LOGD(TAG, "  Description: %s", config.description.c_str());
@@ -157,13 +149,19 @@ bool ModelHandler::load_model_with_arena(const uint8_t *model_data, size_t model
     required_ops.insert(op_code->builtin_code());
   }
 
-  if (!OpResolverManager::register_ops<MAX_OPERATORS>(*this->resolver_, required_ops, TAG)) {
+  if (!OpResolverManager::RegisterOps<MAX_OPERATORS>(*this->resolver_, required_ops, TAG)) {
     ESP_LOGE(TAG, "Failed to register operators");
     return false;
   }
 
-  this->interpreter_ = std::make_unique<tflite::MicroInterpreter>(this->tflite_model_, *this->resolver_, tensor_arena,
-                                                                  tensor_arena_size);
+  // Conditional interpreter construction: with MRV for streaming, without for standard
+  if (mrv != nullptr) {
+    this->interpreter_ = std::make_unique<tflite::MicroInterpreter>(this->tflite_model_, *this->resolver_, tensor_arena,
+                                                                    tensor_arena_size, mrv);
+  } else {
+    this->interpreter_ = std::make_unique<tflite::MicroInterpreter>(this->tflite_model_, *this->resolver_, tensor_arena,
+                                                                    tensor_arena_size);
+  }
 
   if (this->interpreter_->AllocateTensors() != kTfLiteOk) {
     ESP_LOGE(TAG, "Failed to allocate tensors");
@@ -227,17 +225,6 @@ bool ModelHandler::load_model_with_arena(const uint8_t *model_data, size_t model
     // is set explicitly in the ModelConfig before calling.
   }
 
-  // Allocate pre-allocated scratch buffer for output processing (avoids runtime std::vector allocations).
-  // Sized for 2x num_classes to support the worst-case experimental_scale mode
-  // which needs both scaled values and exp values simultaneously.
-  size_t scratch_needed = static_cast<size_t>(this->output_size_) * 2;
-  this->process_scratch_ = std::make_unique<float[]>(scratch_needed);
-  this->process_scratch_size_ = scratch_needed;
-  if (!this->process_scratch_) {
-    ESP_LOGE(TAG, "Failed to allocate process scratch buffer (%zu floats)", scratch_needed);
-    return false;
-  }
-
   ESP_LOGI(TAG, "Model loaded successfully");
 
   return true;
@@ -252,16 +239,16 @@ void ModelHandler::log_input_stats() const {
   const int sample_size = std::min(20, total_elements);  // Show first 20 values
 
   ESP_LOGD(TAG, "First %d %s inputs (%s):", sample_size, input->type == kTfLiteFloat32 ? "float32" : "uint8",
-           this->config_.normalize ? "normalized" : "raw");
+           this->image_config_.normalize ? "normalized" : "raw");
 
   if (input->type == kTfLiteFloat32) {
     const float *data = input->data.f;
     for (int i = 0; i < sample_size; i++) {
       ESP_LOGD(TAG, "  [%d]: %.4f", i, data[i]);
       // Log channel groups for RGB/BGR
-      if (this->config_.input_channels >= 3 && i % this->config_.input_channels == 2) {
-        ESP_LOGD(TAG, "    -> %s: [%.3f, %.3f, %.3f]", this->config_.input_order.c_str(), data[i - 2], data[i - 1],
-                 data[i]);
+      if (this->image_config_.input_channels >= 3 && i % this->image_config_.input_channels == 2) {
+        ESP_LOGD(TAG, "    -> %s: [%.3f, %.3f, %.3f]", this->image_config_.input_order.c_str(), data[i - 2],
+                 data[i - 1], data[i]);
       }
     }
   } else {
@@ -269,8 +256,9 @@ void ModelHandler::log_input_stats() const {
     for (int i = 0; i < sample_size; i++) {
       ESP_LOGD(TAG, "  [%d]: %u", i, data[i]);
       // Log channel groups for RGB/BGR
-      if (this->config_.input_channels >= 3 && i % this->config_.input_channels == 2) {
-        ESP_LOGD(TAG, "    -> %s: [%u, %u, %u]", this->config_.input_order.c_str(), data[i - 2], data[i - 1], data[i]);
+      if (this->image_config_.input_channels >= 3 && i % this->image_config_.input_channels == 2) {
+        ESP_LOGD(TAG, "    -> %s: [%u, %u, %u]", this->image_config_.input_order.c_str(), data[i - 2], data[i - 1],
+                 data[i]);
       }
     }
   }
@@ -349,16 +337,11 @@ ProcessedOutput ModelHandler::process_output(TfLiteTensor *output_tensor) const 
       count *= output_tensor->dims->data[i];
     }
 
-    // Use pre-allocated scratch buffer if it's large enough, otherwise fall back
-    // to FixedVector for safety. The scratch buffer is sized at model load time
-    // to accommodate output_size_ elements. If count differs, we still handle it
-    // safely via the member buffer.
-    float *dequantized = static_cast<float *>(alloca(count * sizeof(float)));
-    if (!dequantized) {
-      ESP_LOGE(TAG, "Stack allocation failed for dequantized output (size=%d)", count);
-      return {0.0f, 0.0f};
-    }
+    // Safety check against buffer overflow if count differs from output_size_
+    // Use local vector to ensure bounds safety regardless of output_size_ member state.
+    // This ensures dequantization loop is safe.
 
+    std::vector<float> dequantized(count);
     float scale = output_tensor->params.scale;
     int32_t zero_point = output_tensor->params.zero_point;
 
@@ -379,7 +362,7 @@ ProcessedOutput ModelHandler::process_output(TfLiteTensor *output_tensor) const 
       }
     }
 
-    return process_output(dequantized);
+    return process_output(dequantized.data());
   } else {
     ESP_LOGE(TAG, "Unsupported output tensor type: %d", output_tensor->type);
     return {0.0f, 0.0f};
@@ -422,11 +405,7 @@ ProcessedOutput ModelHandler::process_output(const float *output_data) const {
 
   } else if (this->config_.output_processing == "softmax") {
     float max_logit = *std::max_element(output_data, output_data + num_classes);
-    float *exp_vals = this->process_scratch_.get();
-    if (!exp_vals) {
-      ESP_LOGE(TAG, "Scratch buffer not allocated for softmax processing");
-      return {0.0f, 0.0f};
-    }
+    std::vector<float> exp_vals(num_classes);
     float sum = 0.0f;
     for (int i = 0; i < num_classes; i++) {
       exp_vals[i] = expf(output_data[i] - max_logit);
@@ -488,23 +467,16 @@ ProcessedOutput ModelHandler::process_output(const float *output_data) const {
 
   } else if (this->config_.output_processing == "experimental_scale") {
     const float scale_factor = 0.1f;  // tweak if needed
-    float *scratch = this->process_scratch_.get();
-    if (!scratch) {
-      ESP_LOGE(TAG, "Scratch buffer not allocated for experimental_scale processing");
-      return {0.0f, 0.0f};
-    }
-
-    // First half: scaled values
+    std::vector<float> scaled(num_classes);
     for (int i = 0; i < num_classes; ++i) {
-      scratch[i] = output_data[i] * scale_factor;
+      scaled[i] = output_data[i] * scale_factor;
     }
 
-    float max_scaled = *std::max_element(scratch, scratch + num_classes);
-    // Second half: exp values (offset by num_classes to avoid overwriting)
-    float *exp_vals = scratch + num_classes;
+    float max_scaled = *std::max_element(scaled.begin(), scaled.end());
+    std::vector<float> exp_vals(num_classes);
     float sum = 0.0f;
     for (int i = 0; i < num_classes; ++i) {
-      exp_vals[i] = expf(scratch[i] - max_scaled);
+      exp_vals[i] = expf(scaled[i] - max_scaled);
       sum += exp_vals[i];
     }
 
@@ -521,39 +493,6 @@ ProcessedOutput ModelHandler::process_output(const float *output_data) const {
     result.value = static_cast<float>(exp_max_idx) / this->config_.scale_factor;
     result.confidence = exp_max_val;
     ESP_LOGD(TAG, "Experimental scale - Value: %.1f, Confidence: %.6f", result.value, result.confidence);
-
-  } else if (this->config_.output_processing == "logits_jomjol") {
-    result.value = static_cast<float>(max_idx) / this->config_.scale_factor;
-    result.confidence = max_val_output;  // raw max as confidence
-    ESP_LOGD(TAG, "Logits jomjol - Value: %.1f, Raw Max: %.6f", result.value, max_val_output);
-
-  } else if (this->config_.output_processing == "softmax_jomjol") {
-    float max_logit = *std::max_element(output_data, output_data + num_classes);
-    float *exp_vals = this->process_scratch_.get();
-    if (!exp_vals) {
-      ESP_LOGE(TAG, "Scratch buffer not allocated for softmax_jomjol processing");
-      return {0.0f, 0.0f};
-    }
-    float sum = 0.0f;
-    for (int i = 0; i < num_classes; ++i) {
-      exp_vals[i] = expf(output_data[i] - max_logit);
-      sum += exp_vals[i];
-    }
-
-    int sm_max_idx = 0;
-    float sm_max_val = 0.0f;
-    for (int i = 0; i < num_classes; ++i) {
-      float prob = exp_vals[i] / sum;
-      if (prob > sm_max_val) {
-        sm_max_val = prob;
-        sm_max_idx = i;
-      }
-    }
-
-    result.value = static_cast<float>(sm_max_idx) / this->config_.scale_factor;
-    result.confidence = sm_max_val;
-
-    ESP_LOGD(TAG, "Softmax jomjol - Value: %.1f, Confidence: %.6f", result.value, result.confidence);
 
   } else if (this->config_.output_processing == "auto_detect") {
     float min_val_ad = output_data[0];
@@ -606,11 +545,7 @@ ProcessedOutput ModelHandler::process_output(const float *output_data) const {
       ESP_LOGD(TAG, "Auto-detect (direct): value=%.1f confidence=1.0", result.value);
     } else {
       float max_logit_ad = *std::max_element(output_data, output_data + num_classes);
-      float *exp_vals_ad = this->process_scratch_.get();
-      if (!exp_vals_ad) {
-        ESP_LOGE(TAG, "Scratch buffer not allocated for auto_detect logits processing");
-        return {0.0f, 0.0f};
-      }
+      std::vector<float> exp_vals_ad(num_classes);
       float exp_sum_ad = 0.0f;
       for (int i = 0; i < num_classes; ++i) {
         exp_vals_ad[i] = expf(output_data[i] - max_logit_ad);
@@ -648,30 +583,28 @@ uint32_t ModelHandler::calculate_crc32(const uint8_t *data, size_t length) {
   for (size_t i = 0; i < length; i++) {
     crc ^= data[i];
     for (int j = 0; j < 8; j++) {
-      if (crc & 1) {
+      if (crc & 1)
         crc = (crc >> 1) ^ 0xEDB88320;
-      } else {
+      else
         crc >>= 1;
-      }
     }
   }
   return ~crc;
 }
 
-bool ModelHandler::verify_model_crc(const uint8_t *model_data, size_t length) {
+bool ModelHandler::verify_model_crc(const uint8_t *model_data, size_t length, uint32_t expected_crc) {
   uint32_t crc = calculate_crc32(model_data, length);
-  ESP_LOGI(TAG, "Model CRC32: 0x%08X", crc);
-#ifdef MODEL_CRC32
-  if (crc != MODEL_CRC32) {
-    ESP_LOGE(TAG, "Model CRC32 mismatch! Expected: 0x%08X, Got: 0x%08X", MODEL_CRC32, crc);
+  ESP_LOGI(TAG, "Computed CRC32: 0x%08X", crc);
+  if (expected_crc == 0) {
+    ESP_LOGW(TAG, "No expected CRC32 provided -- skipping verification");
+    return true;
+  }
+  if (crc != expected_crc) {
+    ESP_LOGE(TAG, "Model CRC32 mismatch! Expected: 0x%08X, Got: 0x%08X", expected_crc, crc);
     return false;
   }
   ESP_LOGI(TAG, "Model CRC32 verification passed");
   return true;
-#else
-  ESP_LOGW(TAG, "MODEL_CRC32 not defined -- skipping verification");
-  return true;
-#endif
 }
 
 void ModelHandler::debug_model_architecture() const {
@@ -706,16 +639,17 @@ bool ModelHandler::validate_model_config() const {
     int width = input->dims->data[2];
     int channels = input->dims->data[3];
 
-    if (this->config_.input_size.size() >= 2) {
-      if (width != this->config_.input_size[0] || height != this->config_.input_size[1]) {
-        ESP_LOGW(TAG, "Model input size mismatch! Config: %dx%d, Model: %dx%d", this->config_.input_size[0],
-                 this->config_.input_size[1], width, height);
+    if (this->image_config_.input_size.size() >= 2) {
+      if (width != this->image_config_.input_size[0] || height != this->image_config_.input_size[1]) {
+        ESP_LOGW(TAG, "Model input size mismatch! Config: %dx%d, Model: %dx%d", this->image_config_.input_size[0],
+                 this->image_config_.input_size[1], width, height);
         return false;
       }
     }
 
-    if (channels != this->config_.input_channels) {
-      ESP_LOGW(TAG, "Model input channels mismatch! Config: %d, Model: %d", this->config_.input_channels, channels);
+    if (channels != this->image_config_.input_channels) {
+      ESP_LOGW(TAG, "Model input channels mismatch! Config: %d, Model: %d", this->image_config_.input_channels,
+               channels);
       return false;
     }
   }
@@ -724,8 +658,55 @@ bool ModelHandler::validate_model_config() const {
 }
 
 void ModelHandler::report_memory_status() {
-  MemoryManager::report_memory_status(this->tensor_arena_size_requested_, this->tensor_arena_allocation_.actual_size,
-                                      this->get_arena_used_bytes(), this->model_length_);
+  size_t effective_arena_size = this->tensor_arena_allocation_.actual_size;
+  if (effective_arena_size == 0) {
+    effective_arena_size = this->tensor_arena_size_requested_;
+  }
+  this->memory_manager_.report_memory_status(this->tensor_arena_size_requested_, effective_arena_size,
+                                             this->get_arena_used_bytes(), this->model_length_);
 }
 
-}  // namespace esphome::tflite_micro_helper
+size_t ModelHandler::probe_arena_size_(const uint8_t *model_start, size_t initial_size,
+                                       const tflite::MicroMutableOpResolver<MAX_OPERATORS> &resolver) {
+  const tflite::Model *model = tflite::GetModel(model_start);
+  if (model->version() != TFLITE_SCHEMA_VERSION) {
+    ESP_LOGE(TAG, "probe_arena_size_: Model schema version mismatch");
+    return 0;
+  }
+
+  size_t attempt_sizes[] = {(initial_size + 15) & ~15, (initial_size * 3 / 2 + 15) & ~15,
+                            (initial_size * 2 + 15) & ~15};
+
+  for (size_t attempt_size : attempt_sizes) {
+    uint8_t *probe_arena = static_cast<uint8_t *>(heap_caps_aligned_alloc(16, attempt_size, MALLOC_CAP_8BIT));
+    if (probe_arena == nullptr)
+      continue;
+
+    auto probe_interpreter = std::make_unique<tflite::MicroInterpreter>(model, resolver, probe_arena, attempt_size);
+    if (probe_interpreter->AllocateTensors() != kTfLiteOk) {
+      probe_interpreter.reset();
+      heap_caps_free(probe_arena);
+      continue;
+    }
+
+    size_t lower = (probe_interpreter->arena_used_bytes() + 16 + 15) & ~15;
+    probe_interpreter.reset();
+    size_t upper = attempt_size;
+
+    while (lower < upper) {
+      auto test_interpreter = std::make_unique<tflite::MicroInterpreter>(model, resolver, probe_arena, lower);
+      bool ok = test_interpreter->AllocateTensors() == kTfLiteOk;
+      test_interpreter.reset();
+      if (ok) {
+        upper = lower + 16;
+        break;
+      }
+      lower = ((lower + upper) / 2 + 15) & ~15;
+    }
+    heap_caps_free(probe_arena);
+    return upper;
+  }
+  return 0;
+}
+}  // namespace tflite_micro_helper
+}  // namespace esphome

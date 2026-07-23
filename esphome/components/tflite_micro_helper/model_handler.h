@@ -9,43 +9,59 @@
 #include <vector>
 #include "tensorflow/lite/micro/micro_interpreter.h"
 #include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
+#include "tensorflow/lite/micro/micro_resource_variable.h"
 #include "tensorflow/lite/schema/schema_generated.h"
 
 #include "op_resolver.h"
 #include "memory_manager.h"
-#include "esphome/core/helpers.h"
 
-namespace esphome::tflite_micro_helper {
+namespace esphome {
+namespace tflite_micro_helper {
 
 // Maximum number of operators to register
 // Can be overridden by build flag -DMAX_OPERATORS=N (set by meter_reader_tflite codegen from .txt file)
 #ifndef MAX_OPERATORS
-static constexpr uint8_t MAX_OPERATORS = 30;
+#define MAX_OPERATORS 30
 #endif
 
+// Base model config: fields shared by ALL model types (image, audio, etc.)
 struct ModelConfig {
   std::string description;
-  std::string tensor_arena_size;
   std::string output_processing;
   float scale_factor{1.0f};
-  std::string input_type;
+};
+
+// Image-specific model config (replaces old combined ModelConfig)
+struct ImageModelConfig {
+  std::string input_type{"uint8"};
   int input_channels{3};
   std::string input_order{"RGB"};
-  std::vector<int> input_size;
+  std::vector<int> input_size;  // [width, height]
   bool normalize{false};
   bool invert{false};
+};
+
+// Audio-specific model config (streaming models)
+struct AudioModelConfig {
+  uint8_t probability_cutoff{128};  // quantized 0-255 (from 0.0-1.0)
+  size_t sliding_window_size{10};
+  uint8_t features_step_size{20};  // ms between feature slices
+  size_t feature_count{40};        // Mel filterbank bins (e.g., PREPROCESSOR_FEATURE_SIZE)
 };
 
 struct ProcessedOutput {
   float value;
   float confidence;
 };
+
+#ifdef DEBUG_TFLITE_MICRO_HELPER
 struct ConfigTestResult {
-  ModelConfig config;
+  ImageModelConfig config;
   float avg_confidence;
   std::vector<float> zone_confidences;
   std::vector<float> zone_values;
 };
+#endif
 
 class ModelHandler {
  public:
@@ -56,8 +72,11 @@ class ModelHandler {
   void unload();
 
   // Low-level load model (kept for internal use or specific cases)
+  // If mrv is non-null, the interpreter is constructed with MicroResourceVariables
+  // for streaming (stateful) inference support.
   [[nodiscard]] bool load_model_with_arena(const uint8_t *model_data, size_t model_size, uint8_t *tensor_arena,
-                                           size_t tensor_arena_size, const ModelConfig &config);
+                                           size_t tensor_arena_size, const ModelConfig &config,
+                                           tflite::MicroResourceVariables *mrv = nullptr);
 
   TfLiteStatus invoke() { return this->interpreter_->Invoke(); }
 
@@ -96,6 +115,9 @@ class ModelHandler {
 
   const ModelConfig &get_config() const { return this->config_; }
 
+  const ImageModelConfig &get_image_config() const { return this->image_config_; }
+  void set_image_config(const ImageModelConfig &cfg) { this->image_config_ = cfg; }
+
   size_t get_arena_used_bytes() const { return this->interpreter_->arena_used_bytes(); }
 
   // Memory management helpers
@@ -109,7 +131,7 @@ class ModelHandler {
 
   // CRC32 verification
   static uint32_t calculate_crc32(const uint8_t *data, size_t length);
-  bool verify_model_crc(const uint8_t *model_data, size_t length);
+  bool verify_model_crc(const uint8_t *model_data, size_t length, uint32_t expected_crc = 0);
   void debug_model_architecture() const;
   bool validate_model_config() const;
 
@@ -128,8 +150,8 @@ class ModelHandler {
   void debug_qat_model_output();
 
   // Parameter Sweeping / Testing
-  std::vector<ModelConfig> generate_debug_configs() const;
-  void test_configuration(const ModelConfig &config, const std::vector<std::vector<uint8_t>> &zone_data,
+  std::vector<ImageModelConfig> generate_debug_configs() const;
+  void test_configuration(const ImageModelConfig &config, const std::vector<std::vector<uint8_t>> &zone_data,
                           std::vector<ConfigTestResult> &results);
   void debug_test_parameters(const std::vector<std::vector<uint8_t>> &zone_data);
   bool invoke_model(const uint8_t *data, size_t len);  // Helper for tests
@@ -140,16 +162,17 @@ class ModelHandler {
   void set_debug(bool debug) { this->debug_ = debug; }
 
  private:
+  /// @brief Probes the actual required tensor arena size by trial allocation.
+  /// Tries the requested size first, then 1.5x, then 2x if it fails.
+  /// On success, binary-searches down to the minimum and returns it (16-byte aligned + padding).
+  size_t probe_arena_size_(const uint8_t *model_start, size_t initial_size,
+                           const tflite::MicroMutableOpResolver<MAX_OPERATORS> &resolver);
+
   const tflite::Model *tflite_model_{nullptr};
   std::unique_ptr<tflite::MicroInterpreter> interpreter_;
   ModelConfig config_;
+  ImageModelConfig image_config_;
   int output_size_{0};
-
-  // Pre-allocated float scratch buffer for output processing (avoids runtime std::vector allocations).
-  // Size == output_size_ * 2 to accommodate the worst-case processing mode (experimental_scale
-  // which needs both scaled values and exp values simultaneously).
-  std::unique_ptr<float[]> process_scratch_;
-  size_t process_scratch_size_{0};
 
   // Memory management
   MemoryManager memory_manager_;
@@ -161,6 +184,7 @@ class ModelHandler {
   bool debug_{false};
 };
 
-}  // namespace esphome::tflite_micro_helper
+}  // namespace tflite_micro_helper
+}  // namespace esphome
 
 #endif  // USE_TFLITE_MICRO_HELPER

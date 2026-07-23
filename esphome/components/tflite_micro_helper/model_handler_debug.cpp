@@ -9,12 +9,15 @@
 #include <vector>
 #include <algorithm>
 #include <limits>
+#include <iomanip>
+#include <sstream>
 
 #ifdef ESP_PLATFORM
 #include "esp_task_wdt.h"
 #endif
 
-namespace esphome::tflite_micro_helper {
+namespace esphome {
+namespace tflite_micro_helper {
 
 static const char *const TAG = "ModelHandler";
 
@@ -183,30 +186,24 @@ void ModelHandler::debug_qat_model_output() {
   this->debug_raw_outputs(output);
 }
 
-std::vector<ModelConfig> ModelHandler::generate_debug_configs() const {
-  std::vector<ModelConfig> configs;
+std::vector<ImageModelConfig> ModelHandler::generate_debug_configs() const {
+  std::vector<ImageModelConfig> configs;
   std::vector<std::string> input_orders = {"BGR", "RGB"};
   std::vector<std::pair<int, int>> input_sizes = {{32, 20}, {20, 32}};
   std::vector<bool> normalize_options = {true, false};
   std::vector<std::string> input_types = {"float32", "uint8"};
-  std::vector<std::string> output_processings = {"softmax", "direct_class", "logits", "experimental_scale"};
 
   for (const auto &order : input_orders) {
     for (const auto &size : input_sizes) {
       for (bool norm : normalize_options) {
         for (const auto &type : input_types) {
-          for (const auto &proc : output_processings) {
-            ModelConfig config;
-            config.description = "auto_debug";
-            config.input_order = order;
-            config.input_size.assign({size.first, size.second});
-            config.normalize = norm;
-            config.input_type = type;
-            config.output_processing = proc;
-            config.scale_factor = 10.0f;
-            config.input_channels = 3;
-            configs.push_back(config);
-          }
+          ImageModelConfig cfg;
+          cfg.input_order = order;
+          cfg.input_size.assign({size.first, size.second});
+          cfg.normalize = norm;
+          cfg.input_type = type;
+          cfg.input_channels = 3;
+          configs.push_back(cfg);
         }
       }
     }
@@ -243,32 +240,22 @@ bool ModelHandler::invoke_model(const uint8_t *data, size_t len) {
   return (this->interpreter_->Invoke() == kTfLiteOk);
 }
 
-void ModelHandler::test_configuration(const ModelConfig &config, const std::vector<std::vector<uint8_t>> &zone_data,
+void ModelHandler::test_configuration(const ImageModelConfig &img_cfg,
+                                      const std::vector<std::vector<uint8_t>> &zone_data,
                                       std::vector<ConfigTestResult> &results) {
-  ESP_LOGI(TAG, "Testing Config: Order=%s Size=%dx%d Norm=%d Type=%s Proc=%s", config.input_order.c_str(),
-           config.input_size[0], config.input_size[1], config.normalize, config.input_type.c_str(),
-           config.output_processing.c_str());
+  ESP_LOGI(TAG, "Testing Config: Order=%s Size=%dx%d Norm=%d Type=%s", img_cfg.input_order.c_str(),
+           img_cfg.input_size[0], img_cfg.input_size[1], img_cfg.normalize, img_cfg.input_type.c_str());
 
   ModelConfig original = this->config_;
-  // Hack: we modify internal config to affect how output is processed
-  // But we cannot easily re-allocate the model input tensor size without Init.
-  // So 'input_size' changes here might be ignored by the actual interpreter
-  // unless we re-allocate.
-  // For now, valid tests are only those that match the CURRENT model input size.
-  // If input size differs, invoke might fail or be skipped.
 
   ConfigTestResult res;
-  res.config = config;
+  res.config = img_cfg;
 
   // Only test if input size matches model expectation
-  if (this->get_input_width() != config.input_size[0] || this->get_input_height() != config.input_size[1]) {
+  if (this->get_input_width() != img_cfg.input_size[0] || this->get_input_height() != img_cfg.input_size[1]) {
     ESP_LOGD(TAG, "Skipping config due to size mismatch with loaded model");
     return;
   }
-
-  // config_ = config; // Dangerous if not thread safe or if methods rely on it
-  // Actually, process_output relies on config_.
-  this->config_ = config;
 
   float total_conf = 0;
   int success = 0;
@@ -314,9 +301,8 @@ void ModelHandler::debug_test_parameters(const std::vector<std::vector<uint8_t>>
   ESP_LOGI(TAG, "=== TOP CONFIGURATIONS ===");
   for (size_t j = 0; j < std::min(static_cast<size_t>(10), results.size()); j++) {
     const auto &r = results[j];
-    ESP_LOGI(TAG, "#%d: Conf=%.4f [%s %dx%d %s %s]", j + 1, r.avg_confidence, r.config.input_order.c_str(),
-             r.config.input_size[0], r.config.input_size[1], r.config.input_type.c_str(),
-             r.config.output_processing.c_str());
+    ESP_LOGI(TAG, "#%d: Conf=%.4f [%s %dx%d %s]", j + 1, r.avg_confidence, r.config.input_order.c_str(),
+             r.config.input_size[0], r.config.input_size[1], r.config.input_type.c_str());
   }
 }
 
@@ -327,6 +313,7 @@ void ModelHandler::feed_watchdog() {
   ESP_LOGV(TAG, "Watchdog fed");
 }
 
-}  // namespace esphome::tflite_micro_helper
+}  // namespace tflite_micro_helper
+}  // namespace esphome
 
 #endif  // DEBUG_TFLITE_MICRO_HELPER

@@ -11,7 +11,8 @@
 
 #ifdef USE_TFLITE_MICRO_HELPER
 
-namespace esphome::tflite_micro_helper {
+namespace esphome {
+namespace tflite_micro_helper {
 
 /**
  * @struct ModelSpec
@@ -50,20 +51,34 @@ class TFLiteMicroHelper {
   TFLiteMicroHelper() = default;
   ~TFLiteMicroHelper() = default;
 
-  // -- Model Config Setters -------------------------------------------
+  // -- Common Model Config Setters -----------------------------------
   void set_model_type(const std::string &t) { this->model_type_ = t; }
   void set_tensor_arena_size(size_t size);
   void set_model(const uint8_t *model_data, size_t model_size);
-
-  void set_input_type(const std::string &t) { this->input_type_ = t; }
-  void set_input_channels(int c) { this->input_channels_ = c; }
-  void set_input_width(int w) { this->input_width_ = w; }
-  void set_input_height(int h) { this->input_height_ = h; }
   void set_output_processing(const std::string &p) { this->output_processing_ = p; }
   void set_scale_factor(float f) { this->scale_factor_ = f; }
-  void set_input_order(const std::string &o) { this->input_order_ = o; }
-  void set_normalize(bool n) { this->normalize_ = n; }
-  void set_invert(bool i) { this->invert_ = i; }
+  void set_debug(bool d) {
+    this->debug_ = d;
+    this->model_handler_.set_debug(d);
+  }
+
+  // -- Image Model Config Setters ------------------------------------
+  void set_input_type(const std::string &t);
+  void set_input_channels(int c);
+  void set_input_width(int w);
+  void set_input_height(int h);
+  void set_input_order(const std::string &o);
+  void set_normalize(bool n);
+  void set_invert(bool i);
+
+  // -- Audio Model Config Setters ------------------------------------
+  void set_probability_cutoff(float f);  // 0.0-1.0, quantized internally
+  void set_sliding_window_size(size_t n);
+  void set_features_step_size(uint8_t ms);
+  void set_feature_count(size_t n);
+
+  // -- Model Integrity ------------------------------------------------
+  void set_expected_crc32(uint32_t crc) { this->expected_crc32_ = crc; }
 
   // -- Lifecycle ------------------------------------------------------
   bool load_model();
@@ -77,18 +92,7 @@ class TFLiteMicroHelper {
   const TfLiteTensor *input_tensor() const { return this->model_handler_.input_tensor(); }
   TfLiteTensor *output_tensor() { return this->model_handler_.output_tensor(); }
 
-  /**
-   * @brief Copy a preprocessed buffer into the input tensor and invoke.
-   * @param src_data Source buffer (from image processor)
-   * @param src_size Buffer size in bytes
-   * @return true if inference succeeded
-   */
   bool run_inference_on_buffer(const uint8_t *src_data, size_t src_size);
-
-  /**
-   * @brief Convenience: run inference and get processed output.
-   * Returns ProcessedOutput.value / .confidence.
-   */
   ProcessedOutput run_inference(const uint8_t *src_data, size_t src_size);
 
   // -- Accessors -----------------------------------------------------
@@ -108,12 +112,6 @@ class TFLiteMicroHelper {
   ArenaStats get_arena_stats() const;
   void update_arena_stats_cache();
   void report_memory_status();
-
-  // -- Debug ----------------------------------------------------------
-  void set_debug(bool debug) {
-    this->debug_ = debug;
-    this->model_handler_.set_debug(debug);
-  }
 
 #ifdef DEBUG_TFLITE_MICRO_HELPER
   void debug_test_parameters(const std::vector<std::vector<uint8_t>> &zone_data) {
@@ -141,6 +139,12 @@ class TFLiteMicroHelper {
   size_t tensor_arena_size_requested_{100 * 1024};
   bool arena_bumped_{false};  // ESP32-S3: 1.5x bump applied once
 
+  // Image model config
+  ImageModelConfig image_config_;
+
+  // Audio model config
+  AudioModelConfig audio_config_;
+
   // Components
   ModelHandler model_handler_;
   MemoryManager::AllocationResult tensor_arena_allocation_;
@@ -152,12 +156,16 @@ class TFLiteMicroHelper {
   // State
   std::atomic<bool> model_loaded_{false};
 
+  // Expected CRC32 (0 = skip verification, set from __init__.py)
+  uint32_t expected_crc32_{0};
+
   // Internals
   bool allocate_tensor_arena_();
   ModelConfig build_config_();
   bool validate_input_tensor_(const uint8_t *src_data, size_t src_size) const;
 };
 
-}  // namespace esphome::tflite_micro_helper
+}  // namespace tflite_micro_helper
+}  // namespace esphome
 
 #endif  // USE_TFLITE_MICRO_HELPER

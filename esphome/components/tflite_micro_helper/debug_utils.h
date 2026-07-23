@@ -2,30 +2,31 @@
 
 #include "esphome/core/hal.h"  // For millis()
 #include "esphome/core/log.h"
-#ifdef USE_TFLITE_MICRO_HELPER
 #include "tensorflow/lite/c/common.h"  // For TfLiteType
-#endif
 
-namespace esphome::tflite_micro_helper {
+namespace esphome {
+namespace tflite_micro_helper {
 
 // RAII ScopedDuration -- replaces DURATION_START/END/LOG macros
 class ScopedDuration {
  public:
-  explicit ScopedDuration(const char *tag);
+  explicit ScopedDuration(const char *tag) : tag_(tag), start_(esphome::millis()) {}
 
   uint32_t elapsed() const { return esphome::millis() - this->start_; }
 
-  void log_duration(const char *func);
+  void log_duration(const char *func) { ESP_LOGD(this->tag_, "%s duration: %lums", func, this->elapsed()); }
 
-  void log(const char *msg, uint32_t val);
+  void log(const char *msg, uint32_t val) { ESP_LOGD(this->tag_, "%s: %lums", msg, val); }
 
  private:
   const char *tag_;
   uint32_t start_;
 };
 
-#ifdef USE_TFLITE_MICRO_HELPER
-// Helper function to convert TfLiteType to string
+}  // namespace tflite_micro_helper
+}  // namespace esphome
+
+// Helper function to convert TfLiteType to string (namespace-agnostic for compatibility)
 inline const char *tflite_type_to_string(TfLiteType type) {
   switch (type) {
     case kTfLiteFloat32:
@@ -48,6 +49,3 @@ inline const char *tflite_type_to_string(TfLiteType type) {
       return "Unknown";
   }
 }
-#endif
-
-}  // namespace esphome::tflite_micro_helper
