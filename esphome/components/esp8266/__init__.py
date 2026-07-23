@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+import platform
 import re
 import subprocess
 
@@ -20,9 +21,15 @@ from esphome.const import (
     PLATFORM_ESP8266,
     ThreadModel,
 )
-from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    CoroPriority,
+    EsphomeError,
+    Lambda,
+    coroutine_with_priority,
+)
 from esphome.core.config import BOARD_MAX_LENGTH
-from esphome.helpers import copy_file_if_changed
+from esphome.helpers import IS_MACOS, copy_file_if_changed
 from esphome.types import ConfigType
 
 from .boards import BOARDS, ESP8266_LD_SCRIPTS
@@ -235,6 +242,32 @@ CONFIG_SCHEMA = cv.All(
     ),
     set_core_data,
 )
+
+
+def check_rosetta() -> None:
+    """Fail fast when the x86_64 ESP8266 toolchain cannot run on this Mac.
+
+    There is no native arm64 build of the xtensa-lx106 toolchain; on Apple
+    Silicon it runs under Rosetta 2, which macOS updates can remove.
+    """
+    if not IS_MACOS or platform.machine() != "arm64":
+        return
+    try:
+        result = subprocess.run(
+            ["/usr/bin/arch", "-x86_64", "/usr/bin/true"],
+            capture_output=True,
+            close_fds=False,
+            check=False,
+        )
+    except OSError:
+        return  # arch(1) unavailable; let the build proceed
+    if result.returncode != 0:
+        raise EsphomeError(
+            "ESP8266 builds on Apple Silicon Macs use an Intel (x86_64) "
+            "compiler that requires Rosetta 2, which is not installed on "
+            "this system. Install it with:\n"
+            "  softwareupdate --install-rosetta --agree-to-license"
+        )
 
 
 @coroutine_with_priority(CoroPriority.PLATFORM)
