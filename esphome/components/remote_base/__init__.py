@@ -2012,7 +2012,9 @@ HaierData, HaierBinarySensor, HaierTrigger, HaierAction, HaierDumper = declare_p
 HaierAction = ns.class_("HaierAction", RemoteTransmitterActionBase)
 HAIER_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_CODE): cv.All([cv.hex_uint8_t], cv.Length(min=8, max=8)),
+        cv.Required(CONF_CODE): cv.All(
+            [cv.hex_uint8_t], cv.Any(cv.Length(min=8, max=8), cv.Length(min=13, max=13))
+        ),
     }
 )
 

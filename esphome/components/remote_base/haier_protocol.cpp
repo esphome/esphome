@@ -11,9 +11,12 @@ constexpr uint32_t HEADER_HIGH_US = 4400;
 constexpr uint32_t BIT_MARK_US = 540;
 constexpr uint32_t BIT_ONE_SPACE_US = 1650;
 constexpr uint32_t BIT_ZERO_SPACE_US = 580;
-constexpr unsigned int HAIER_IR_PACKET_BIT_SIZE = 72;  // 112;
+// 8 bytes + checksum
+constexpr unsigned int HAIER_IR_PACKET_BIT_SIZE_SHORT = 72;
+// 13 bytes + checksum
+constexpr unsigned int HAIER_IR_PACKET_BIT_SIZE_LONG = 112;
 // Max data bytes in packet (excluding checksum)
-constexpr size_t HAIER_MAX_DATA_BYTES = (HAIER_IR_PACKET_BIT_SIZE / 8);
+constexpr size_t HAIER_MAX_DATA_BYTES = 13;
 
 void HaierProtocol::encode_byte_(RemoteTransmitData *dst, uint8_t item) {
   for (uint8_t mask = 1 << 7; mask != 0; mask >>= 1) {
@@ -50,9 +53,8 @@ optional<HaierData> HaierProtocol::decode(RemoteReceiveData src) {
     return {};
   }
   size_t size = src.size() - src.get_index() - 1;
-  if (size < HAIER_IR_PACKET_BIT_SIZE * 2)
+  if ((size != HAIER_IR_PACKET_BIT_SIZE_LONG * 2) && (size != HAIER_IR_PACKET_BIT_SIZE_SHORT * 2))
     return {};
-  size = HAIER_IR_PACKET_BIT_SIZE * 2;
   uint8_t checksum = 0;
   HaierData out;
   while (size > 0) {
