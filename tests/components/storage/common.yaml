@@ -1,0 +1,6 @@
+# Shared by the platform tests that have no storage driver available (bk72xx, esp8266,
+# ln882x, nrf52, rp2040, rtl87xx). Those cannot register a device, so the registry stays
+# empty and nothing is mounted at runtime — this proves that the schema validates and
+# that the registry and the worker link on every target the component builds for.
+
+storage:
