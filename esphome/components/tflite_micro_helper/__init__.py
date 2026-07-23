@@ -8,8 +8,8 @@ import hashlib
 import json
 import os
 import re
-from urllib.parse import urljoin
 import zlib
+from urllib.parse import urljoin
 
 import esphome.codegen as cg
 from esphome.components import esp32

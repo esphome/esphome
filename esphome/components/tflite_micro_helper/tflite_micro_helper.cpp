@@ -56,7 +56,7 @@ bool TFLiteMicroHelper::validate_input_tensor_(const uint8_t *src_data, size_t s
   return true;
 }
 
-bool TFLiteMicroHelper::run_inference_on_buffer_locked_(const uint8_t *src_data, size_t src_size) {
+bool TFLiteMicroHelper::run_inference_on_buffer(const uint8_t *src_data, size_t src_size) {
   if (!this->model_loaded_.load()) {
     ESP_LOGE(TAG, "Cannot run inference -- model not loaded");
     return false;
@@ -80,19 +80,8 @@ bool TFLiteMicroHelper::run_inference_on_buffer_locked_(const uint8_t *src_data,
   return true;
 }
 
-bool TFLiteMicroHelper::run_inference_on_buffer(const uint8_t *src_data, size_t src_size) {
-  std::lock_guard<std::mutex> lock(this->model_mutex_);
-  return this->run_inference_on_buffer_locked_(src_data, src_size);
-}
-
-TfLiteStatus TFLiteMicroHelper::invoke() {
-  std::lock_guard<std::mutex> lock(this->model_mutex_);
-  return this->model_handler_.invoke();
-}
-
 ProcessedOutput TFLiteMicroHelper::run_inference(const uint8_t *src_data, size_t src_size) {
-  std::lock_guard<std::mutex> lock(this->model_mutex_);
-  if (!this->run_inference_on_buffer_locked_(src_data, src_size)) {
+  if (!this->run_inference_on_buffer(src_data, src_size)) {
     return {0.0f, 0.0f};
   }
   TfLiteTensor *output = this->model_handler_.output_tensor();
@@ -174,7 +163,6 @@ bool TFLiteMicroHelper::load_model() {
 }
 
 void TFLiteMicroHelper::unload_model() {
-  std::lock_guard<std::mutex> lock(this->model_mutex_);
   ESP_LOGI(TAG, "Unloading model and freeing arena");
   this->model_handler_.unload();
   this->model_loaded_ = false;
