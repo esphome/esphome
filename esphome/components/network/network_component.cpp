@@ -6,6 +6,16 @@
 #include "esp_err.h"
 #include "esp_netif.h"
 #include "esp_event.h"
+
+#if defined(USE_NETWORK_DEFAULT_ROUTE) && defined(USE_ESP_IDF)
+#ifdef USE_ETHERNET
+#include "esphome/components/ethernet/ethernet_component.h"
+#endif
+#ifdef USE_WIFI
+#include "esphome/components/wifi/wifi_component.h"
+#endif
+#endif
+
 namespace esphome::network {
 
 static const char *const TAG = "network";
@@ -28,6 +38,51 @@ void NetworkComponent::setup() {
     return;
   }
 }
+
+#if defined(USE_NETWORK_DEFAULT_ROUTE) && defined(USE_ESP_IDF)
+static esp_netif_t *connected_wifi_netif() {
+#ifdef USE_WIFI
+  auto *wifi = wifi::global_wifi_component;
+  if (wifi != nullptr && wifi->is_connected())
+    return wifi->get_esp_netif_sta();
+#endif
+  return nullptr;
+}
+
+static esp_netif_t *connected_ethernet_netif() {
+#ifdef USE_ETHERNET
+  auto *eth = ethernet::global_eth_component;
+  if (eth != nullptr && eth->is_connected())
+    return eth->get_esp_netif();
+#endif
+  return nullptr;
+}
+
+void NetworkComponent::loop() {
+  // The first connected interface in the user's network: priority: order carries
+  // the default route. Without this, ESP-IDF selects by fixed route_prio values
+  // (WiFi STA 100 > Ethernet 50), which inverts an ethernet-first list whenever
+  // both interfaces are up. Polling is_connected() also covers runtime
+  // enable()/disable() and link loss, which all update that state.
+  esp_netif_t *best;
+#ifdef USE_NETWORK_PRIMARY_INTERFACE_WIFI
+  best = connected_wifi_netif();
+  if (best == nullptr)
+    best = connected_ethernet_netif();
+#else
+  best = connected_ethernet_netif();
+  if (best == nullptr)
+    best = connected_wifi_netif();
+#endif
+  // Keep the last default while nothing is connected: there is no better
+  // candidate, and clearing it would only churn lwIP state.
+  if (best == nullptr || best == this->default_netif_)
+    return;
+  this->default_netif_ = best;
+  esp_netif_set_default_netif(best);
+  ESP_LOGI(TAG, "Default interface: %s", esp_netif_get_desc(best));
+}
+#endif  // USE_NETWORK_DEFAULT_ROUTE && USE_ESP_IDF
 
 }  // namespace esphome::network
 #endif

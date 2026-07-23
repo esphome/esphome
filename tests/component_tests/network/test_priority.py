@@ -199,3 +199,37 @@ def test_no_primary_interface_define_without_priority(
     assert not any(
         d.name.startswith("USE_NETWORK_PRIMARY_INTERFACE_") for d in CORE.defines
     )
+
+
+def _dns_per_default_netif_option() -> bool | None:
+    from esphome.components.esp32.const import KEY_ESP32, KEY_SDKCONFIG_OPTIONS
+
+    return CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS].get(
+        "CONFIG_ESP_NETIF_SET_DNS_PER_DEFAULT_NETIF"
+    )
+
+
+@pytest.mark.parametrize(
+    "config_file", ["priority_wifi_first.yaml", "priority_ethernet_first.yaml"]
+)
+def test_multi_interface_priority_enables_default_route_arbitration(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+) -> None:
+    """More than one interface in 'priority' enables default-route arbitration."""
+    generate_main(component_config_path(config_file))
+    assert "USE_NETWORK_DEFAULT_ROUTE" in {d.name for d in CORE.defines}
+    assert _dns_per_default_netif_option() is True
+
+
+@pytest.mark.parametrize("config_file", ["priority_single.yaml", "wifi_only.yaml"])
+def test_single_interface_has_no_default_route_arbitration(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+) -> None:
+    """A single-entry priority list (or none) must not compile in the arbitration."""
+    generate_main(component_config_path(config_file))
+    assert "USE_NETWORK_DEFAULT_ROUTE" not in {d.name for d in CORE.defines}
+    assert _dns_per_default_netif_option() is None
