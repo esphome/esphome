@@ -355,14 +355,30 @@ async def test_uart_mock_modbus_client_typed(
     a read of unserved register 0x99 resolves via on_error with the device's exception code
     (ILLEGAL_DATA_ADDRESS = 2 -> error_code); a coil read of the register-only server resolves via
     on_error with ILLEGAL_FUNCTION (= 1 -> coil_error_code), proving the bit-read request and typed error
-    delivery.
+    delivery. A multi-register write (fc 0x10) lands on registers 0x11/0x12 with the read-back of 0x12
+    chained inside its ack handler (-> multi_value = 222); a multi-coil write draws ILLEGAL_FUNCTION from
+    the register-only server (-> multi_coil_error = 1).
     """
 
     tracker = SensorTracker(
-        ["typed_value", "ack_flag", "error_code", "coil_error_code"]
+        [
+            "typed_value",
+            "ack_flag",
+            "error_code",
+            "coil_error_code",
+            "multi_value",
+            "multi_coil_error",
+        ]
     )
     futures = tracker.expect_all(
-        {"typed_value": 777, "ack_flag": 1, "error_code": 2, "coil_error_code": 1}
+        {
+            "typed_value": 777,
+            "ack_flag": 1,
+            "error_code": 2,
+            "coil_error_code": 1,
+            "multi_value": 222,
+            "multi_coil_error": 1,
+        }
     )
 
     async with (

@@ -94,3 +94,17 @@ button:
           on_error:
             then:
               - lambda: 'ESP_LOGW("modbus_client.test", "dev %u exception %d", address, (int) exception_code);'
+      - modbus_client.write_multiple_registers:
+          address: 0x01
+          start_address: 0x0200
+          values: !lambda "return {1, 2, 3};"
+          on_response:
+            then:
+              - lambda: 'ESP_LOGI("modbus_client.test", "dev %u multi write acked", address);'
+      - modbus_client.write_multiple_coils:
+          address: 0x01
+          start_address: 0x0010
+          values: [true, false, true]
+          on_error:
+            then:
+              - lambda: 'ESP_LOGW("modbus_client.test", "dev %u exception %d", address, (int) exception_code);'

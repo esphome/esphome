@@ -50,6 +50,12 @@ globals:
   - id: reg10
     type: uint16_t
     initial_value: "0"
+  - id: reg11
+    type: uint16_t
+    initial_value: "0"
+  - id: reg12
+    type: uint16_t
+    initial_value: "0"
 
 modbus_server:
   - address: 1
@@ -61,6 +67,18 @@ modbus_server:
         read_lambda: return id(reg10);
         write_lambda: |-
           id(reg10) = x;
+          return true;
+      - address: 0x11
+        value_type: U_WORD
+        read_lambda: return id(reg11);
+        write_lambda: |-
+          id(reg11) = x;
+          return true;
+      - address: 0x12
+        value_type: U_WORD
+        read_lambda: return id(reg12);
+        write_lambda: |-
+          id(reg12) = x;
           return true;
 
 sensor:
@@ -76,6 +94,12 @@ sensor:
   - platform: template
     name: "coil_error_code"
     id: coil_error_code
+  - platform: template
+    name: "multi_value"
+    id: multi_value
+  - platform: template
+    name: "multi_coil_error"
+    id: multi_coil_error
 
 # Typed actions end to end: a typed write lands on the server (ack -> ack_flag = the device address), the typed read-back
 # decodes the written value from the reply words (values[0] -> typed_value), and a read of an unserved
@@ -115,3 +139,26 @@ button:
           on_error:
             then:
               - lambda: "id(coil_error_code).publish_state((int) exception_code);"
+      # Multi-register write (fc 0x10, served) then read-back of the second written register.
+      - modbus_client.write_multiple_registers:
+          address: 1
+          start_address: 0x11
+          values: [111, 222]
+          on_response:
+            then:
+              - modbus_client.read_holding_registers:
+                  address: 1
+                  start_address: 0x12
+                  on_response:
+                    then:
+                      - lambda: |-
+                          if (!values.empty())
+                            id(multi_value).publish_state(values[0]);
+      # Multi-coil write (fc 0x0F): the register-only server answers ILLEGAL_FUNCTION.
+      - modbus_client.write_multiple_coils:
+          address: 1
+          start_address: 0x00
+          values: [true, false, true]
+          on_error:
+            then:
+              - lambda: "id(multi_coil_error).publish_state((int) exception_code);"

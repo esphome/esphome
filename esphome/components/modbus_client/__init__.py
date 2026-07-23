@@ -21,6 +21,7 @@ CONF_ON_SENT = "on_sent"
 CONF_PDU = "pdu"
 CONF_RETRY = "retry"
 CONF_START_ADDRESS = "start_address"
+CONF_VALUES = "values"
 
 modbus_client_ns = cg.esphome_ns.namespace("modbus_client")
 ModbusClientSendAction = modbus_client_ns.class_(
@@ -34,6 +35,13 @@ WriteSingleAction = modbus_client_ns.class_(
 )
 ReadBitsAction = modbus_client_ns.class_(
     "ReadBitsAction", automation.Action, modbus.ModbusClientDevice
+)
+
+WriteMultipleRegistersAction = modbus_client_ns.class_(
+    "WriteMultipleRegistersAction", automation.Action, modbus.ModbusClientDevice
+)
+WriteMultipleCoilsAction = modbus_client_ns.class_(
+    "WriteMultipleCoilsAction", automation.Action, modbus.ModbusClientDevice
 )
 
 # Packed bit view delivered to read_coils / read_discrete_inputs on_response handlers.
@@ -316,3 +324,68 @@ async def read_coils_to_code(config, action_id, template_arg, args):
 )
 async def read_discrete_inputs_to_code(config, action_id, template_arg, args):
     return await _read_bits_to_code(config, action_id, template_arg, args, False)
+
+
+_WRITE_MULTIPLE_REGISTERS_SCHEMA = _TYPED_RESPONSE_SCHEMA.extend(
+    {
+        cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
+        cv.Required(CONF_VALUES): cv.templatable(
+            cv.All(cv.ensure_list(cv.hex_uint16_t), cv.Length(min=1, max=123))
+        ),
+    }
+)
+
+_WRITE_MULTIPLE_COILS_SCHEMA = _TYPED_RESPONSE_SCHEMA.extend(
+    {
+        cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
+        cv.Required(CONF_VALUES): cv.templatable(
+            cv.All(cv.ensure_list(cv.boolean), cv.Length(min=1, max=1968))
+        ),
+    }
+)
+
+
+@automation.register_action(
+    "modbus_client.write_multiple_registers",
+    WriteMultipleRegistersAction,
+    _WRITE_MULTIPLE_REGISTERS_SCHEMA,
+    synchronous=True,
+)
+async def write_multiple_registers_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    cg.add(
+        var.set_start_address(
+            await cg.templatable(config[CONF_START_ADDRESS], args, cg.uint16)
+        )
+    )
+    cg.add(
+        var.set_values(
+            await cg.templatable(
+                config[CONF_VALUES], args, cg.std_vector.template(cg.uint16)
+            )
+        )
+    )
+    return await register_client_action(var, config, args, [(cg.uint8, "address")])
+
+
+@automation.register_action(
+    "modbus_client.write_multiple_coils",
+    WriteMultipleCoilsAction,
+    _WRITE_MULTIPLE_COILS_SCHEMA,
+    synchronous=True,
+)
+async def write_multiple_coils_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    cg.add(
+        var.set_start_address(
+            await cg.templatable(config[CONF_START_ADDRESS], args, cg.uint16)
+        )
+    )
+    cg.add(
+        var.set_values(
+            await cg.templatable(
+                config[CONF_VALUES], args, cg.std_vector.template(cg.uint8)
+            )
+        )
+    )
+    return await register_client_action(var, config, args, [(cg.uint8, "address")])

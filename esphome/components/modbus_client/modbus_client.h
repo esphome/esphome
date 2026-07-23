@@ -4,6 +4,7 @@
 #include "esphome/components/modbus/modbus_helpers.h"
 #include "esphome/core/automation.h"
 
+#include <array>
 #include <span>
 
 namespace esphome::modbus_client {
@@ -126,7 +127,7 @@ template<typename... Ts> class ReadRegistersAction : public TypedClientActionBas
 
   Trigger<uint8_t, std::span<const uint16_t>> *get_response_trigger() { return &this->response_trigger_; }
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     const uint16_t start = this->start_address_.value(x...);
     const uint16_t count = this->count_.value(x...);
     if (this->holding_) {
@@ -156,7 +157,7 @@ template<typename... Ts> class ReadBitsAction : public TypedClientActionBase<Ts.
 
   Trigger<uint8_t, modbus::PackedBits> *get_response_trigger() { return &this->response_trigger_; }
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     const uint16_t start = this->start_address_.value(x...);
     const uint16_t count = this->count_.value(x...);
     if (this->coils_) {
@@ -186,7 +187,7 @@ template<typename... Ts> class WriteSingleAction : public TypedClientActionBase<
 
   Trigger<uint8_t> *get_response_trigger() { return &this->response_trigger_; }
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     const uint16_t start = this->start_address_.value(x...);
     const uint16_t value = this->value_.value(x...);
     if (this->coil_) {
@@ -207,6 +208,62 @@ template<typename... Ts> class WriteSingleAction : public TypedClientActionBase<
  protected:
   Trigger<uint8_t> response_trigger_;
   bool coil_;
+};
+
+/// modbus_client.write_multiple_registers: on_response is the acknowledgement (device address only).
+template<typename... Ts> class WriteMultipleRegistersAction : public TypedClientActionBase<Ts...> {
+ public:
+  TEMPLATABLE_VALUE(uint16_t, start_address)
+  TEMPLATABLE_VALUE(std::vector<uint16_t>, values)
+
+  Trigger<uint8_t> *get_response_trigger() { return &this->response_trigger_; }
+
+  void play(const Ts &...x) override {
+    auto values = this->values_.value(x...);
+    if (values.empty())
+      return;
+    this->write_multiple_registers(this->start_address_.value(x...), std::span<const uint16_t>(values));
+  }
+  void on_write_multiple_registers(uint16_t start_address, std::span<const uint16_t> registers,
+                                   modbus::ResponseStatus status) override {
+    if (this->check_status_(status))
+      this->response_trigger_.trigger(this->address_);
+  }
+
+ protected:
+  Trigger<uint8_t> response_trigger_;
+};
+
+/// modbus_client.write_multiple_coils: on_response is the acknowledgement (device address only). The
+/// values arrive as bytes (std::vector<bool> cannot bind to std::span<const bool>) and are packed into
+/// the wire layout for the base's packed write_multiple_coils() overload.
+template<typename... Ts> class WriteMultipleCoilsAction : public TypedClientActionBase<Ts...> {
+ public:
+  TEMPLATABLE_VALUE(uint16_t, start_address)
+  TEMPLATABLE_VALUE(std::vector<uint8_t>, values)
+
+  Trigger<uint8_t> *get_response_trigger() { return &this->response_trigger_; }
+
+  void play(const Ts &...x) override {
+    auto values = this->values_.value(x...);
+    if (values.empty() || values.size() > modbus::MAX_NUM_OF_COILS_TO_WRITE)
+      return;
+    // Transient pack on the stack: ceil(1968 / 8) = 246 bytes for the spec-maximum write.
+    std::array<uint8_t, (modbus::MAX_NUM_OF_COILS_TO_WRITE + 7) / 8> buf{};
+    modbus::MutablePackedBits bits(std::span<uint8_t>(buf.data(), (values.size() + 7) / 8),
+                                   static_cast<uint16_t>(values.size()));
+    for (size_t i = 0; i < values.size(); i++)
+      bits.set(i, values[i] != 0);
+    this->write_multiple_coils(this->start_address_.value(x...), bits);
+  }
+  void on_write_multiple_coils(uint16_t start_address, modbus::PackedBits bits,
+                               modbus::ResponseStatus status) override {
+    if (this->check_status_(status))
+      this->response_trigger_.trigger(this->address_);
+  }
+
+ protected:
+  Trigger<uint8_t> response_trigger_;
 };
 
 }  // namespace esphome::modbus_client
