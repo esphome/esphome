@@ -73,6 +73,9 @@ sensor:
   - platform: template
     name: "error_code"
     id: error_code
+  - platform: template
+    name: "coil_error_code"
+    id: coil_error_code
 
 # Typed actions end to end: a typed write lands on the server (ack -> ack_flag = the device address), the typed read-back
 # decodes the written value from the reply words (values[0] -> typed_value), and a read of an unserved
@@ -103,3 +106,12 @@ button:
           on_error:
             then:
               - lambda: "id(error_code).publish_state((int) exception_code);"
+      # The mock server is register-only, so a coil read draws ILLEGAL_FUNCTION - proving the bit-read
+      # action's request PDU and its typed error delivery.
+      - modbus_client.read_coils:
+          address: 1
+          start_address: 0x00
+          count: 8
+          on_error:
+            then:
+              - lambda: "id(coil_error_code).publish_state((int) exception_code);"

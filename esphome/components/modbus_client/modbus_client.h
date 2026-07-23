@@ -146,6 +146,36 @@ template<typename... Ts> class ReadRegistersAction : public TypedClientActionBas
   bool holding_;
 };
 
+/// modbus_client.read_coils / read_discrete_inputs: on_response delivers the device address and the bits
+/// as a PackedBits view (bit 0 = the bit at start_address; only valid for the duration of the trigger).
+template<typename... Ts> class ReadBitsAction : public TypedClientActionBase<Ts...> {
+ public:
+  explicit ReadBitsAction(bool coils) : coils_(coils) {}
+  TEMPLATABLE_VALUE(uint16_t, start_address)
+  TEMPLATABLE_VALUE(uint16_t, count)
+
+  Trigger<uint8_t, modbus::PackedBits> *get_response_trigger() { return &this->response_trigger_; }
+
+  void play(Ts... x) override {
+    const uint16_t start = this->start_address_.value(x...);
+    const uint16_t count = this->count_.value(x...);
+    if (this->coils_) {
+      this->read_coils(start, count);
+    } else {
+      this->read_discrete_inputs(start, count);
+    }
+  }
+  void on_read_bits(modbus::EntityType entity_type, uint16_t start_address, modbus::PackedBits bits,
+                    modbus::ResponseStatus status) override {
+    if (this->check_status_(status))
+      this->response_trigger_.trigger(this->address_, bits);
+  }
+
+ protected:
+  Trigger<uint8_t, modbus::PackedBits> response_trigger_;
+  bool coils_;
+};
+
 /// modbus_client.write_single_register / write_single_coil: on_response is the acknowledgement (the ack
 /// only echoes the request, so it carries just the device address).
 template<typename... Ts> class WriteSingleAction : public TypedClientActionBase<Ts...> {

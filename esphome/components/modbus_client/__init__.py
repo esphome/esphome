@@ -32,6 +32,12 @@ ReadRegistersAction = modbus_client_ns.class_(
 WriteSingleAction = modbus_client_ns.class_(
     "WriteSingleAction", automation.Action, modbus.ModbusClientDevice
 )
+ReadBitsAction = modbus_client_ns.class_(
+    "ReadBitsAction", automation.Action, modbus.ModbusClientDevice
+)
+
+# Packed bit view delivered to read_coils / read_discrete_inputs on_response handlers.
+PackedBits = modbus.modbus_ns.class_("PackedBits")
 
 # The exception code passed to on_error handlers.
 ExceptionCode = modbus.modbus_ns.enum("ExceptionCode")
@@ -267,3 +273,46 @@ async def write_single_register_to_code(config, action_id, template_arg, args):
 )
 async def write_single_coil_to_code(config, action_id, template_arg, args):
     return await _write_single_to_code(config, action_id, template_arg, args, True)
+
+
+_READ_BITS_SCHEMA = _TYPED_RESPONSE_SCHEMA.extend(
+    {
+        cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
+        cv.Optional(CONF_COUNT, default=1): cv.templatable(
+            cv.int_range(min=1, max=2000)
+        ),
+    }
+)
+
+
+async def _read_bits_to_code(config, action_id, template_arg, args, coils):
+    var = cg.new_Pvariable(action_id, template_arg, coils)
+    cg.add(
+        var.set_start_address(
+            await cg.templatable(config[CONF_START_ADDRESS], args, cg.uint16)
+        )
+    )
+    cg.add(var.set_count(await cg.templatable(config[CONF_COUNT], args, cg.uint16)))
+    return await register_client_action(
+        var, config, args, [(cg.uint8, "address"), (PackedBits, "bits")]
+    )
+
+
+@automation.register_action(
+    "modbus_client.read_coils",
+    ReadBitsAction,
+    _READ_BITS_SCHEMA,
+    synchronous=True,
+)
+async def read_coils_to_code(config, action_id, template_arg, args):
+    return await _read_bits_to_code(config, action_id, template_arg, args, True)
+
+
+@automation.register_action(
+    "modbus_client.read_discrete_inputs",
+    ReadBitsAction,
+    _READ_BITS_SCHEMA,
+    synchronous=True,
+)
+async def read_discrete_inputs_to_code(config, action_id, template_arg, args):
+    return await _read_bits_to_code(config, action_id, template_arg, args, False)

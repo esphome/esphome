@@ -81,3 +81,16 @@ button:
           address: 0x01
           start_address: 0x01
           value: 1
+      - modbus_client.read_coils:
+          address: 0x01
+          start_address: 0x03
+          count: 16
+          on_response:
+            then:
+              - lambda: 'ESP_LOGI("modbus_client.test", "dev %u coil0=%d n=%u", address, bits[0], bits.size());'
+      - modbus_client.read_discrete_inputs:
+          address: 0x01
+          start_address: 0x00
+          on_error:
+            then:
+              - lambda: 'ESP_LOGW("modbus_client.test", "dev %u exception %d", address, (int) exception_code);'
