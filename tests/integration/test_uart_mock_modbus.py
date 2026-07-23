@@ -734,9 +734,10 @@ async def test_uart_mock_modbus_deprecated_write_buffer(
 ) -> None:
     """Test the deprecated write_lambda buffer path still works, and warns once per entity.
 
-    buf_number's write_lambda fills the old `payload` buffer (register words) instead of calling
-    item->write_*. Two writes must both land (the frozen buffer behavior), and the one-time deprecation
-    warning must fire exactly once per entity regardless of how many writes happen.
+    buf_number's write_lambda fills the old `payload` buffer with a legacy raw frame as words (device
+    address + function code + data) instead of calling item->write_*. Two writes must both land with the
+    legacy raw-frame semantics, and the one-time deprecation warning must fire exactly once per entity
+    regardless of how many writes happen.
     """
 
     warn_count = 0

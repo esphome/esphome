@@ -69,9 +69,10 @@ modbus_server:
           id(reg10) = x;
           return true;
 
-# A number whose write_lambda uses the DEPRECATED buffer parameter (fills `payload` with the register words)
-# instead of the new item->write_* API. The write must still land (frozen behavior), and the one-time
-# deprecation warning must fire only once per entity no matter how many writes happen.
+# A number whose write_lambda uses the DEPRECATED buffer parameter (fills `payload` with a legacy raw
+# frame as words: device address + function code + data) instead of the new item->write_* API. The write
+# must still land with its legacy semantics, and the one-time deprecation warning must fire only once per
+# entity no matter how many writes happen.
 number:
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
@@ -84,6 +85,9 @@ number:
     max_value: 1000
     step: 1
     write_lambda: |-
+      // Legacy raw frame as words: [addr 0x01 | fc 0x06], register 0x0010, value.
+      payload.push_back(0x0106);
+      payload.push_back(0x0010);
       payload.push_back((uint16_t) x);
       return {};
 
