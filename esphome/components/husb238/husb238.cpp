@@ -25,7 +25,7 @@ void Husb238Component::update() {
   bool is_changed{false};
   if (!this->read_all_(is_changed)) {
     is_changed = !this->status_has_error();
-    this->status_set_error("Unable to communicate with HUSB238 chip");
+    this->status_set_error(LOG_STR("Unable to communicate with HUSB238 chip"));
     std::memset(this->registers_.raw, 0, REG_NUM);
   } else {
     this->status_clear_error();
