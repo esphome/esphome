@@ -74,11 +74,11 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
             cv.Required(CONF_ADDRESS): cv.ipv4address,
             cv.Optional(CONF_NETMASK, default="255.255.255.255"): cv.ipv4address,
-            cv.Required(CONF_PRIVATE_KEY): _wireguard_key,
+            cv.Required(CONF_PRIVATE_KEY): cv.sensitive(_wireguard_key),
             cv.Required(CONF_PEER_ENDPOINT): cv.string,
             cv.Required(CONF_PEER_PUBLIC_KEY): _wireguard_key,
             cv.Optional(CONF_PEER_PORT, default=51820): cv.port,
-            cv.Optional(CONF_PEER_PRESHARED_KEY): _wireguard_key,
+            cv.Optional(CONF_PEER_PRESHARED_KEY): cv.sensitive(_wireguard_key),
             cv.Optional(CONF_PEER_ALLOWED_IPS, default=["0.0.0.0/0"]): cv.ensure_list(
                 _cidr_network
             ),
