@@ -9,7 +9,7 @@
 
 namespace esphome::xiaomi_hhccpot002 {
 
-class XiaomiHHCCPOT002 : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class XiaomiHHCCPOT002 final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; }
 
