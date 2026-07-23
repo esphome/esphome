@@ -340,17 +340,17 @@ async def test_uart_mock_modbus_client_inline(
 ) -> None:
     """Test modbus_client.send actions: each action is its own hub device.
 
-    Start Scenario fires: a read of served address 1 decoded in its inline on_response (with the `address`
-    trigger argument) -> inline_value; a read of address 2, which no server answers, resolving via
-    on_no_response -> timeout_flag (= the address). A parallel script fires the same write action twice
-    while its first frame is pending; the hub drops the duplicate write, and the second firing resolves
-    via its own on_not_sent -> skipped_flag (= the address). This exercises per-action reply routing, the
-    no-reply path, and the one-outcome guarantee under the hub's write dedup.
+    Start Scenario fires: a read of served address 1 decoded in its inline on_response -> inline_value; a
+    read of address 2, which no server answers, resolving via on_no_response -> timeout_flag. A parallel
+    script fires the same write action twice while its first frame is pending; the hub drops the duplicate
+    write, and the second firing resolves via its own on_not_sent -> skipped_flag. This exercises
+    per-action reply routing, the no-reply path, and the one-outcome guarantee under the hub's write
+    dedup.
     """
 
     tracker = SensorTracker(["inline_value", "timeout_flag", "skipped_flag"])
     futures = tracker.expect_all(
-        {"inline_value": 1234, "timeout_flag": 2, "skipped_flag": 2}
+        {"inline_value": 1234, "timeout_flag": 1, "skipped_flag": 1}
     )
 
     async with (

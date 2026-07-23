@@ -80,7 +80,7 @@ script:
           pdu: [0x06, 0x00, 0x10, 0x01, 0x02]
           on_not_sent:
             then:
-              - lambda: "id(skipped_flag).publish_state(address);"
+              - lambda: "id(skipped_flag).publish_state(1);"
 
 # Each action is its own hub device: address 1 is served by the mock server, address 2 answers nothing.
 button:
@@ -89,14 +89,13 @@ button:
     id: start_scenario_btn
     on_press:
       # Per-send inline on_response: decode this reply where the send was fired (fire-and-continue).
-      # `address` reports which device answered.
       - modbus_client.send:
           address: 1
           pdu: [0x03, 0x00, 0x10, 0x00, 0x01]
           on_response:
             then:
               - lambda: |-
-                  if (address == 1 && response.size() >= 4)
+                  if (response.size() >= 4)
                     id(inline_value).publish_state((response[2] << 8) | response[3]);
       # No server answers address 2, so this resolves via on_no_response.
       - modbus_client.send:
@@ -104,6 +103,6 @@ button:
           pdu: [0x03, 0x00, 0x10, 0x00, 0x01]
           on_no_response:
             then:
-              - lambda: "id(timeout_flag).publish_state(address);"
+              - lambda: "id(timeout_flag).publish_state(1);"
       - script.execute: dup_write
       - script.execute: dup_write

@@ -1,5 +1,6 @@
 # The modbus_client actions are self-contained hub devices: each takes the hub (auto-resolved when there
-# is a single modbus client hub) and a templatable device address; no component block is needed.
+# is a single modbus client hub) and a templatable device address; no component block is needed. The
+# address is not passed back to reply handlers - recompute the configured expression if needed.
 button:
   - platform: template
     name: "Send Read"
@@ -14,13 +15,13 @@ button:
           pdu: !lambda "return {0x03, 0x00, 0x10, 0x00, 0x01};"
           on_response:
             then:
-              - lambda: 'ESP_LOGI("modbus_client.test", "dev %u sent %d bytes", address, (int) response.size());'
+              - lambda: 'ESP_LOGI("modbus_client.test", "got %d bytes", (int) response.size());'
           on_error:
             then:
-              - lambda: 'ESP_LOGW("modbus_client.test", "dev %u exception %d", address, (int) exception_code);'
+              - lambda: 'ESP_LOGW("modbus_client.test", "exception %d", (int) exception_code);'
           on_no_response:
             then:
-              - lambda: 'ESP_LOGW("modbus_client.test", "dev %u no reply", address);'
+              - logger.log: "no reply"
           on_not_sent:
             then:
-              - lambda: 'ESP_LOGW("modbus_client.test", "dev %u not sent", address);'
+              - logger.log: "not sent"

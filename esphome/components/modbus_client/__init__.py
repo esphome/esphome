@@ -25,7 +25,7 @@ _PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
 
 # Each action is its own hub device: the modbus hub routes the reply straight back to the action that
 # sent it, so the address can even be templatable - the reply is matched by the action's identity, not
-# its address. The handlers receive the address so they know which device answered.
+# its address.
 _ACTION_BASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(modbus.CONF_MODBUS_ID): cv.use_id(modbus.ModbusClient),
@@ -62,17 +62,15 @@ async def register_client_action(var, config, args, response_args):
     if error_conf := config.get(CONF_ON_ERROR):
         await automation.build_automation(
             var.get_error_trigger(),
-            [(cg.uint8, "address"), (ModbusExceptionCode, "exception_code")],
+            [(ModbusExceptionCode, "exception_code")],
             error_conf,
         )
     if no_response_conf := config.get(CONF_ON_NO_RESPONSE):
         await automation.build_automation(
-            var.get_no_response_trigger(), [(cg.uint8, "address")], no_response_conf
+            var.get_no_response_trigger(), [], no_response_conf
         )
     if not_sent_conf := config.get(CONF_ON_NOT_SENT):
-        await automation.build_automation(
-            var.get_not_sent_trigger(), [(cg.uint8, "address")], not_sent_conf
-        )
+        await automation.build_automation(var.get_not_sent_trigger(), [], not_sent_conf)
     return var
 
 
@@ -92,5 +90,5 @@ async def modbus_client_send_to_code(config, action_id, template_arg, args):
         var,
         config,
         args,
-        [(cg.uint8, "address"), (_PDU_SPAN, "request"), (_PDU_SPAN, "response")],
+        [(_PDU_SPAN, "request"), (_PDU_SPAN, "response")],
     )
