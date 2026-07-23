@@ -44,17 +44,26 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
   ESP_LOGV(TAG, "Range: %s", range_header);
   esp_http_client_set_header(http_client, "Range", range_header);
   ESP_LOGV(TAG, "Open HTTP");
-  esp_err_t err = esp_http_client_open(http_client, 0);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "HTTP open failed: %s", esp_err_to_name(err));
-    return -1;
+  int chunk_size = -1;
+  for (uint8_t attempt = 0; attempt < this->tft_upload_http_retries_; attempt++) {
+    esp_err_t err = esp_http_client_open(http_client, 0);
+    if (err == ESP_OK) {
+      ESP_LOGV(TAG, "Fetch length");
+      chunk_size = esp_http_client_fetch_headers(http_client);
+      ESP_LOGV(TAG, "Length: %d", chunk_size);
+      if (chunk_size > 0)
+        break;
+      ESP_LOGW(TAG, "Get length failed: %d", chunk_size);
+    } else {
+      ESP_LOGW(TAG, "HTTP open failed: %s", esp_err_to_name(err));
+    }
+    // The server may have dropped the keep-alive connection while the display
+    // was busy processing a chunk; close so the next attempt reconnects.
+    esp_http_client_close(http_client);
+    App.feed_wdt();
   }
-
-  ESP_LOGV(TAG, "Fetch length");
-  const int chunk_size = esp_http_client_fetch_headers(http_client);
-  ESP_LOGV(TAG, "Length: %d", chunk_size);
   if (chunk_size <= 0) {
-    ESP_LOGE(TAG, "Get length failed: %d", chunk_size);
+    ESP_LOGE(TAG, "HTTP open failed after %u attempts", this->tft_upload_http_retries_);
     return -1;
   }
 
