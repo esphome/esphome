@@ -110,7 +110,13 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
     txt_count++;  // network
 #endif
 #ifdef USE_API_NOISE
+    const bool api_has_psk = api::global_api_server->get_noise_ctx().has_psk();
     txt_count++;  // api_encryption or api_encryption_supported
+#ifndef USE_API_NOISE_PSK_FROM_YAML
+    if (!api_has_psk) {
+      txt_count++;  // api_provisioning
+    }
+#endif
 #endif
 #ifdef ESPHOME_PROJECT_NAME
     txt_count += 2;  // project_name and project_version
@@ -166,9 +172,18 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
     MDNS_STATIC_CONST_CHAR(TXT_API_ENCRYPTION, "api_encryption");
     MDNS_STATIC_CONST_CHAR(TXT_API_ENCRYPTION_SUPPORTED, "api_encryption_supported");
     MDNS_STATIC_CONST_CHAR(NOISE_ENCRYPTION, "Noise_NNpsk0_25519_ChaChaPoly_SHA256");
-    bool has_psk = api::global_api_server->get_noise_ctx().has_psk();
-    const char *encryption_key = has_psk ? TXT_API_ENCRYPTION : TXT_API_ENCRYPTION_SUPPORTED;
+    const char *encryption_key = api_has_psk ? TXT_API_ENCRYPTION : TXT_API_ENCRYPTION_SUPPORTED;
     txt_records.push_back({MDNS_STR(encryption_key), MDNS_STR(NOISE_ENCRYPTION)});
+#ifndef USE_API_NOISE_PSK_FROM_YAML
+    if (!api_has_psk) {
+      // Unprovisioned device without a YAML key: advertise that the encryption
+      // key can be provisioned over a zero-PSK Noise connection. Gated on the
+      // YAML define so this survives the plaintext removal in 2027.2.0.
+      MDNS_STATIC_CONST_CHAR(TXT_API_PROVISIONING, "api_provisioning");
+      MDNS_STATIC_CONST_CHAR(VALUE_ZERO_PSK, "zero-psk");
+      txt_records.push_back({MDNS_STR(TXT_API_PROVISIONING), MDNS_STR(VALUE_ZERO_PSK)});
+    }
+#endif
 #endif
 
 #ifdef ESPHOME_PROJECT_NAME

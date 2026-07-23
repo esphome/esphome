@@ -53,11 +53,7 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
   switch (signal_type) {
     case EZB_ZDO_SIGNAL_SKIP_STARTUP:
       ESP_LOGD(TAG, "Zigbee stack initialized");
-      if (ezb_bdb_is_factory_new()) {
-        global_zigbee->defer([]() { global_zigbee->setup_reporting(); });
-      } else {
-        ezb_bdb_start_top_level_commissioning(EZB_BDB_MODE_INITIALIZATION);
-      }
+      ezb_bdb_start_top_level_commissioning(EZB_BDB_MODE_INITIALIZATION);
       break;
     case EZB_BDB_SIGNAL_DEVICE_FIRST_START:
     case EZB_BDB_SIGNAL_DEVICE_REBOOT: {
@@ -133,12 +129,12 @@ static void zb_action_handler(ezb_zcl_core_action_callback_id_t callback_id, voi
     case EZB_ZCL_CORE_SET_ATTR_VALUE_CB_ID:
       zb_attribute_handler((ezb_zcl_set_attr_value_message_t *) message);
       break;
-#ifdef ESPHOME_LOG_HAS_VERBOSE
     case EZB_ZCL_CORE_DEFAULT_RSP_CB_ID: {
+#ifdef ESPHOME_LOG_HAS_VERBOSE
       ezb_zcl_cmd_default_rsp_message_t *default_rsp = (ezb_zcl_cmd_default_rsp_message_t *) message;
       ESP_LOGV(TAG, "Received ZCL Default Response: 0x%02x", default_rsp->in.status_code);
-    } break;
 #endif
+    } break;
     default:
       ESP_LOGD(TAG, "Receive Zigbee action(0x%04x) callback", static_cast<unsigned>(callback_id));
       break;
@@ -206,21 +202,30 @@ void ZigbeeComponent::update_basic_cluster_(ezb_af_ep_desc_t ep_desc) {
   ezb_af_endpoint_add_cluster_desc(ep_desc, cluster_desc);
 }
 
-void ZigbeeComponent::setup_reporting() {
-  ESP_LOGD(TAG, "Setting up reporting for all attributes");
-  esp_zigbee_lock_acquire(portMAX_DELAY);
-  for (auto &[_, attribute] : this->attributes_) {
-    attribute->setup_reporting();
+bool ZigbeeComponent::register_device() {
+  if (ezb_af_device_desc_register(this->dev_desc_) != EZB_ERR_NONE) {
+    ESP_LOGE(TAG, "Could not register the endpoint list");
+    this->mark_failed();
+    return false;
   }
-  ezb_bdb_start_top_level_commissioning(EZB_BDB_MODE_INITIALIZATION);
-  esp_zigbee_lock_release();
+  return true;
 }
 
 static void ezb_task(void *pv_parameters) {
+  if (!global_zigbee->register_device()) {
+    vTaskDelete(NULL);
+    return;
+  }
   if (esp_zigbee_start(false) != ESP_OK) {
     ESP_LOGE(TAG, "Could not setup Zigbee");
+    global_zigbee->mark_failed();
     vTaskDelete(NULL);
+    return;  // vTaskDelete(NULL) never returns, but keep intent explicit
   }
+
+  // Increase priority to 5 to align with openthread or BLE
+  vTaskPrioritySet(NULL, 5);
+
   esp_zigbee_launch_mainloop();
 
   esp_zigbee_deinit();
@@ -274,12 +279,6 @@ void ZigbeeComponent::setup() {
     return;
   }
 
-  if (ezb_af_device_desc_register(this->dev_desc_) != EZB_ERR_NONE) {
-    ESP_LOGE(TAG, "Could not register the endpoint list");
-    this->mark_failed();
-    return;
-  }
-
   ezb_zcl_core_action_handler_register(zb_action_handler);
 
   if (ezb_bdb_set_primary_channel_set(EZB_PRIMARY_CHANNEL_MASK) != ESP_OK) {
@@ -298,7 +297,8 @@ void ZigbeeComponent::setup() {
   };
   ezb_af_set_node_power_desc(&desc);
 
-  xTaskCreate(ezb_task, "Zigbee_main", 4096, NULL, 24, NULL);
+  // Start the Zigbee task with priority 1 to ensure main loop can still run even if Zigbee is busy
+  xTaskCreate(ezb_task, "Zigbee_main", 4096, NULL, 1, NULL);
   this->disable_loop();  // loop is only needed for processing events, so disable until we join a network
 }
 

@@ -76,12 +76,27 @@ _BLE5_BK_SYS_CONFIG_OPTIONS = [
     "CFG_SUPPORT_BLE=0",
 ]
 
+# Board ids upstream LibreTiny renamed; configs written against the old id
+# keep validating and building against the new one (with a warning).
+# generic-ln882hki -> generic-ln882h: LibreTiny v1.13.0.
+_RENAMED_BOARDS = {
+    "generic-ln882hki": "generic-ln882h",
+}
+
 
 def _detect_variant(value):
     if KEY_LIBRETINY not in CORE.data:
         raise cv.Invalid("Family component didn't populate core data properly!")
     component: LibreTinyComponent = CORE.data[KEY_LIBRETINY][KEY_COMPONENT_DATA]
     board = value[CONF_BOARD]
+    if board not in component.boards and (renamed := _RENAMED_BOARDS.get(board)):
+        _LOGGER.warning(
+            "Board '%s' was renamed to '%s'; please update your configuration",
+            board,
+            renamed,
+        )
+        value = value.copy()
+        value[CONF_BOARD] = board = renamed
     # read board-default family if not specified
     if board not in component.boards:
         if CONF_FAMILY not in value:
@@ -565,8 +580,13 @@ async def component_to_code(config):
         cg.add_platformio_option("custom_fw_name", "esphome")
         cg.add_platformio_option("custom_fw_version", __version__)
 
-    # Apply chip-specific SDK options to save RAM/Flash
-    if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7238):
+    # Apply chip-specific SDK options to save RAM/Flash.
+    # Skipped when bk72xx_ble is configured: add_platformio_option APPENDS list
+    # values (it never replaces), so emitting the disable here as well would put
+    # both CFG_SUPPORT_BLE=0 and =1 into the generated sys_config.h and rely on
+    # last-wins emission order. Skipping keeps it a single unambiguous define.
+    ble_requested = "bk72xx_ble" in CORE.config
+    if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7238) and not ble_requested:
         cg.add_platformio_option(
             "custom_options.sys_config#h", _BLE5_BK_SYS_CONFIG_OPTIONS
         )

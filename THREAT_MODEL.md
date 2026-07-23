@@ -92,18 +92,24 @@ is choosing an open control surface, in the same way that running native OTA
 without a password leaves OTA open. The API is documented and is meant to be
 called by other devices, scripts, and pages.
 
-The device performs no CSRF token, `Origin`, or `Referer` validation and returns
-a permissive CORS policy. Cross-origin requests are handled the same as any other
-network request, including requests a browser is induced to make by a page the
-operator visits (the "confused deputy", or CSRF, pattern). The following are
-therefore **not** vulnerabilities in this repository:
+As defense-in-depth, the web server checks the `Origin` header on browser requests
+to its entity control and state endpoints: a request whose `Origin` does not match
+the address the device is served on is rejected, and the `allowed_origins` option
+widens that list. This blocks the common "confused deputy" (CSRF) case where a page
+the operator visits drives the device through their browser. It is **not** an
+authentication boundary: it only constrains browsers. Any client that omits the
+`Origin` header — `curl`, scripts, or other non-browser callers on the same
+network — reaches every endpoint exactly as before. The check also does not cover
+the web OTA `/update` endpoint. The device performs no CSRF-token or `Referer`
+validation. The following are therefore **not** vulnerabilities in this repository:
 
-- Cross-origin or CSRF requests to the control endpoints (for example, a page the
-  operator opens toggling a switch), whether or not `web_server` `auth:` is set.
-- Cross-origin reads of device state permitted by the CORS policy.
-- Cross-origin firmware upload through the web OTA endpoint (`/update`) when web
-  OTA is enabled without `web_server` `auth:`. This is the same exposure as
-  running OTA without a password.
+- Requests without an `Origin` header (for example `curl`) reaching the control
+  endpoints, whether or not `web_server` `auth:` is set.
+- Requests from an origin the operator added to `allowed_origins`.
+- Cross-origin or CSRF firmware upload through the web OTA endpoint (`/update`) when
+  web OTA is enabled without `web_server` `auth:`. The `/update` endpoint is not
+  covered by the `Origin` check; this is the same exposure as running OTA without a
+  password.
 
 The supported defenses are `web_server` `auth:`, protecting OTA (a web password or
 a native OTA password), and keeping devices on a trusted, segmented network. See
@@ -113,9 +119,7 @@ What remains in scope is bypassing `web_server` `auth:` when it *is* configured,
 and any memory-safety or protocol bug in the server reachable without credentials.
 
 This section documents the current design and scope; it is not a judgment that the
-design is optimal or that it will not change. Optional hardening (for example an
-origin allowlist or opt-in CSRF checks) is welcome as a normal enhancement PR,
-framed as defense-in-depth rather than a security fix.
+design is optimal or that it will not change.
 
 ## Explicitly out of scope
 
@@ -124,9 +128,10 @@ framed as defense-in-depth rather than a security fix.
 - Operator-supplied hostile YAML (covered above — config authoring is trusted).
 - Attacks that require an already-authenticated device peer (someone who already
   holds the API key / OTA / web credentials).
-- Cross-site (CSRF), cross-origin, or CORS behavior of the device web server and
-  its web OTA endpoint. The web server is an open HTTP API by design (see above);
-  gate it with `web_server` `auth:` and network isolation.
+- Access to the device web server or its web OTA endpoint by non-browser clients
+  (those that send no `Origin` header). The web server is an open HTTP API by
+  design (see above); browser cross-origin requests are blocked by default, but the
+  real controls are `web_server` `auth:` and network isolation.
 - Anything in the dashboard / device-builder — report that in its own repository
   (linked at the top).
 - Deployments where the operator removed protections or exposed credentials. See
