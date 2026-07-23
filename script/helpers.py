@@ -17,10 +17,10 @@ from typing import Any
 
 import colorama
 
-root_path = os.path.abspath(os.path.normpath(os.path.join(__file__, "..", "..")))
-basepath = os.path.join(root_path, "esphome")
-temp_folder = os.path.join(root_path, ".temp")
-temp_header_file = os.path.join(temp_folder, "all-include.cpp")
+root_path = str(Path(__file__).resolve().parent.parent)
+basepath = str(Path(root_path) / "esphome")
+temp_folder = str(Path(root_path) / ".temp")
+temp_header_file = str(Path(temp_folder) / "all-include.cpp")
 
 # C++ file extensions used for clang-tidy and clang-format checks
 CPP_FILE_EXTENSIONS = (".cpp", ".h", ".hpp", ".cc", ".cxx", ".c", ".tcc")
@@ -53,6 +53,7 @@ BASE_BUS_COMPONENTS = {
     "canbus",
     "remote_transmitter",
     "remote_receiver",
+    "i2s_audio",
 }
 
 # Cache version for components graph
@@ -103,9 +104,7 @@ def get_component_from_path(file_path: str) -> str | None:
     Returns:
         Component name if path is in components or tests directory, None otherwise
     """
-    if file_path.startswith(ESPHOME_COMPONENTS_PATH) or file_path.startswith(
-        ESPHOME_TESTS_COMPONENTS_PATH
-    ):
+    if file_path.startswith((ESPHOME_COMPONENTS_PATH, ESPHOME_TESTS_COMPONENTS_PATH)):
         parts = file_path.split("/")
         if len(parts) >= 3 and parts[2]:
             # Verify that parts[2] is actually a component directory, not a file
@@ -151,6 +150,31 @@ def get_component_test_files(
     return files
 
 
+def get_component_test_platforms(component: str, *, base_only: bool = True) -> set[str]:
+    """Return the set of platforms a component has compilable test files for.
+
+    Uses the same discovery as ``test_build_components.py`` (``get_component_test_files``
+    + ``parse_test_filename``) so callers agree with what the build runner would
+    actually compile. With ``base_only=True`` (the default, matching the
+    memory-impact build's ``--base-only``), only base ``test.<platform>.yaml``
+    files are considered; variant ``test-<variant>.<platform>.yaml`` files are
+    excluded. The ``"all"`` platform sentinel is excluded.
+
+    Args:
+        component: Component name (e.g. "wifi")
+        base_only: If True, only consider base test files (default).
+
+    Returns:
+        Set of platform identifiers (e.g. {"esp32-idf", "esp8266-ard"}).
+    """
+    platforms: set[str] = set()
+    for test_file in get_component_test_files(component, all_variants=not base_only):
+        platform = parse_test_filename(test_file)[1]
+        if platform != "all":
+            platforms.add(platform)
+    return platforms
+
+
 def is_validate_only_file(test_file: Path) -> bool:
     """Return True if the given path is a config-only validate file.
 
@@ -160,7 +184,7 @@ def is_validate_only_file(test_file: Path) -> bool:
     ``esphome config`` only and skipped during compile.
     """
     name = test_file.name
-    return name.startswith("validate.") or name.startswith("validate-")
+    return name.startswith(("validate.", "validate-"))
 
 
 @dataclass(frozen=True)
@@ -214,6 +238,72 @@ class _ConflictWalk:
     rejects: set[str]
 
 
+@cache
+def _get_test_config_components(component: str, platform: str) -> frozenset[str]:
+    """Return the components referenced by a component's test config for a platform.
+
+    Loads ``tests/components/<component>/test.<platform>.yaml`` and extracts the
+    top-level component keys (and list ``platform:`` values). This lets the
+    conflict splitter see components that are only pulled in via a test config
+    (e.g. nRF52 ``network`` tests that also enable ``openthread``), which a
+    purely static AUTO_LOAD/CONFLICTS_WITH parse cannot discover -- notably for
+    components like ``api`` whose ``AUTO_LOAD`` is a callable.
+
+    Failures (missing file, parse error) are treated as empty so the splitter
+    never crashes on a malformed or absent test config.
+    """
+    from esphome import yaml_util
+
+    test_file = (
+        Path(root_path) / "tests" / "components" / component / f"test.{platform}.yaml"
+    )
+    if not test_file.exists():
+        return frozenset()
+    try:
+        config = yaml_util.load_yaml(test_file)
+    except Exception:  # noqa: BLE001 - never let a bad test config crash grouping
+        # Matches analyze_component_buses, which loads these same files and
+        # silently tolerates parse failures; surfacing it only here would be
+        # inconsistent and noisy.
+        return frozenset()
+    if not isinstance(config, dict):
+        return frozenset()
+    return frozenset(_extract_components_from_yaml(config))
+
+
+@cache
+def _conflict_walk(comp: str, platform: str) -> _ConflictWalk:
+    """Build the platform-aware conflict walk for a single component.
+
+    Seeds the walk with the component itself plus any components pulled in via
+    its ``test.<platform>.yaml`` config, then folds in each seed's static
+    AUTO_LOAD closure and CONFLICTS_WITH declarations. Cached per
+    ``(component, platform)`` since the test-config seeds are platform-specific.
+    """
+    seeds = {comp} | set(_get_test_config_components(comp, platform))
+    walk = _ConflictWalk(loaded=set(seeds), rejects=set())
+    stack = list(seeds)
+    while stack:
+        metadata = parse_component_metadata(stack.pop())
+        walk.rejects |= metadata.conflicts_with
+        new = metadata.auto_load - walk.loaded
+        walk.loaded |= new
+        stack.extend(new)
+    return walk
+
+
+def components_conflict(a: str, b: str, platform: str) -> bool:
+    """Return True if components ``a`` and ``b`` cannot share a build on ``platform``.
+
+    Uses the same platform-aware conflict walk as :func:`split_conflicting_groups`
+    so callers (e.g. the no-bus redistribution in ``test_build_components.py``)
+    agree with how groups were originally split. The conflict relation is
+    symmetric even when only one side declares CONFLICTS_WITH.
+    """
+    wa, wb = _conflict_walk(a, platform), _conflict_walk(b, platform)
+    return not wa.rejects.isdisjoint(wb.loaded) or not wb.rejects.isdisjoint(wa.loaded)
+
+
 def split_conflicting_groups(
     grouped_components: dict[tuple[str, str], list[str]],
 ) -> dict[tuple[str, str], list[str]]:
@@ -226,33 +316,24 @@ def split_conflicting_groups(
     conflict relation is treated as symmetric even when only one side
     declares it (e.g. ethernet rejects wifi but wifi does not declare the
     reverse).
+
+    The walk is platform-aware: in addition to the static AUTO_LOAD closure,
+    each ``(component, platform)`` walk is seeded with the components found in
+    that component's ``test.<platform>.yaml`` config. This catches conflicts
+    that only exist on a given platform and are expressed through the test
+    config rather than static metadata -- e.g. on nRF52 the ``network``/``api``
+    test configs also enable ``openthread``, which ``zigbee`` declares a
+    conflict with, so ``api`` and ``zigbee`` end up split there. On ESP32 those
+    test configs have no ``openthread``, so the components still group together.
     """
-    batch = {c for comps in grouped_components.values() for c in comps}
-
-    walks: dict[str, _ConflictWalk] = {}
-    for comp in batch:
-        walk = _ConflictWalk(loaded={comp}, rejects=set())
-        stack = [comp]
-        while stack:
-            metadata = parse_component_metadata(stack.pop())
-            walk.rejects |= metadata.conflicts_with
-            new = metadata.auto_load - walk.loaded
-            walk.loaded |= new
-            stack.extend(new)
-        walks[comp] = walk
-
-    def conflicts(a: str, b: str) -> bool:
-        wa, wb = walks[a], walks[b]
-        return not wa.rejects.isdisjoint(wb.loaded) or not wb.rejects.isdisjoint(
-            wa.loaded
-        )
-
     result: dict[tuple[str, str], list[str]] = {}
     for (platform, signature), components in grouped_components.items():
         buckets: list[list[str]] = []
         for comp in components:
             for bucket in buckets:
-                if not any(conflicts(comp, other) for other in bucket):
+                if not any(
+                    components_conflict(comp, other, platform) for other in bucket
+                ):
                     bucket.append(comp)
                     break
             else:
@@ -339,8 +420,8 @@ def _get_github_event_data() -> dict | None:
         Parsed event data dictionary, or None if not available
     """
     github_event_path = os.environ.get("GITHUB_EVENT_PATH")
-    if github_event_path and os.path.exists(github_event_path):
-        with open(github_event_path) as f:
+    if github_event_path and Path(github_event_path).exists():
+        with Path(github_event_path).open() as f:
             return json.load(f)
     return None
 
@@ -464,7 +545,8 @@ def _get_changed_files_from_command(command: list[str]) -> list[str]:
         raise Exception(f"Command failed: {' '.join(command)}\nstderr: {proc.stderr}")
 
     changed_files = splitlines_no_ends(proc.stdout)
-    changed_files = [os.path.relpath(f, os.getcwd()) for f in changed_files if f]
+    cwd = Path.cwd()
+    changed_files = [os.path.relpath(f, cwd) for f in changed_files if f]  # noqa: PTH109
     changed_files.sort()
     return changed_files
 
@@ -499,7 +581,7 @@ def get_changed_components() -> list[str] | None:
         return None
 
     # Use list-components.py to get changed components
-    script_path = os.path.join(root_path, "script", "list-components.py")
+    script_path = str(Path(root_path) / "script" / "list-components.py")
     cmd = [script_path, "--changed"]
 
     try:
@@ -619,7 +701,7 @@ def filter_changed(files: list[str]) -> list[str]:
 def filter_grep(files: list[str], value: list[str]) -> list[str]:
     matched = []
     for file in files:
-        with open(file, encoding="utf-8") as handle:
+        with Path(file).open(encoding="utf-8") as handle:
             contents = handle.read()
         if any(v in contents for v in value):
             matched.append(file)
@@ -640,26 +722,22 @@ def load_idedata(environment: str) -> dict[str, Any]:
     start_time = time.time()
     print(f"Loading IDE data for environment '{environment}'...")
 
-    platformio_ini = Path(root_path) / "platformio.ini"
+    # Reuse the clang-tidy input hash as the cache key: it already covers every
+    # file baked into the generated idedata (platformio.ini, sdkconfig.defaults,
+    # esphome/idf_component.yml), so this can't drift from that file list. A
+    # content hash -- unlike an mtime comparison -- stays correct across git
+    # checkouts, which don't preserve mtimes.
+    from clang_tidy_hash import calculate_clang_tidy_hash
+
     temp_idedata = Path(temp_folder) / f"idedata-{environment}.json"
-    changed = False
-    if (
-        not platformio_ini.is_file()
-        or not temp_idedata.is_file()
-        or platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime
-    ):
-        changed = True
+    temp_hash = Path(temp_folder) / f"idedata-{environment}.hash"
 
-    if "idf" in environment:
-        # remove full sdkconfig when the defaults have changed so that it is regenerated
-        default_sdkconfig = Path(root_path) / "sdkconfig.defaults"
-        temp_sdkconfig = Path(temp_folder) / f"sdkconfig-{environment}"
-
-        if not temp_sdkconfig.is_file():
-            changed = True
-        elif default_sdkconfig.stat().st_mtime >= temp_sdkconfig.stat().st_mtime:
-            temp_sdkconfig.unlink()
-            changed = True
+    cache_key = calculate_clang_tidy_hash()
+    changed = (
+        not temp_idedata.is_file()
+        or not temp_hash.is_file()
+        or temp_hash.read_text().strip() != cache_key
+    )
 
     if not changed:
         data = json.loads(temp_idedata.read_text())
@@ -670,7 +748,12 @@ def load_idedata(environment: str) -> dict[str, Any]:
     # ensure temp directory exists before running pio, as it writes sdkconfig to it
     Path(temp_folder).mkdir(exist_ok=True)
 
-    if "nrf" in environment:
+    platformio_ini = Path(root_path) / "platformio.ini"
+    if "esp32" in environment:
+        from esphome.espidf.clang_tidy import load_idedata as idf_load_idedata
+
+        data = idf_load_idedata(environment, temp_folder, platformio_ini)
+    elif "nrf" in environment:
         from helpers_zephyr import load_idedata as zephyr_load_idedata
 
         data = zephyr_load_idedata(environment, temp_folder, platformio_ini)
@@ -681,6 +764,7 @@ def load_idedata(environment: str) -> dict[str, Any]:
         match = re.search(r'{\s*".*}', stdout.decode("utf-8"))
         data = json.loads(match.group())
     temp_idedata.write_text(json.dumps(data, indent=2) + "\n")
+    temp_hash.write_text(cache_key + "\n")
 
     elapsed = time.time() - start_time
     print(f"IDE data generated and cached in {elapsed:.2f} seconds")

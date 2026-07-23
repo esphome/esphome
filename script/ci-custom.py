@@ -14,7 +14,7 @@ import time
 import colorama
 from helpers import filter_changed, git_ls_files, print_error_for_file, styled
 
-sys.path.append(os.path.dirname(__file__))
+sys.path.append(str(Path(__file__).parent))
 
 
 def find_all(a_str, sub):
@@ -259,14 +259,7 @@ def lint_executable_bit(fname: Path) -> str | None:
     return None
 
 
-@lint_content_find_check(
-    "\t",
-    only_first=True,
-    exclude=[
-        "esphome/dashboard/static/ace.js",
-        "esphome/dashboard/static/ext-searchbox.js",
-    ],
-)
+@lint_content_find_check("\t", only_first=True)
 def lint_tabs(fname, line, col, content):
     return "File contains tab character. Please convert tabs to spaces."
 
@@ -276,7 +269,7 @@ def lint_newline(fname, line, col, content):
     return "File contains Windows newline. Please set your editor to Unix newline mode."
 
 
-@lint_content_check(exclude=["*.svg", ".clang-tidy.hash"])
+@lint_content_check(exclude=["*.svg"])
 def lint_end_newline(fname, content):
     if content and not content.endswith("\n"):
         return "File does not end with a newline, please add an empty line at the end of the file."
@@ -341,9 +334,9 @@ def lint_const_ordered(fname, content):
         matching = [
             (i + 1, line) for i, line in enumerate(lines) if line.startswith(start)
         ]
-        ordered = list(sorted(matching, key=lambda x: x[1].replace("_", " ")))
-        ordered = [(mi, ol) for (mi, _), (_, ol) in zip(matching, ordered)]
-        for (mi, mline), (_, ol) in zip(matching, ordered):
+        ordered = sorted(matching, key=lambda x: x[1].replace("_", " "))
+        ordered = [(mi, ol) for (mi, _), (_, ol) in zip(matching, ordered, strict=True)]
+        for (mi, mline), (_, ol) in zip(matching, ordered, strict=True):
             if mline == ol:
                 continue
             target = next(i for i, line in ordered if line == mline)
@@ -562,7 +555,7 @@ def lint_constants_usage():
 # Maximum allowed CONF_ constants in esphome/const.py.
 # This file is frozen — new constants go in esphome/components/const/__init__.py.
 # Decrease this number when constants are moved out of const.py.
-CONST_PY_MAX_CONF = 1012
+CONST_PY_MAX_CONF = 1015
 
 
 @lint_content_check(include=["esphome/const.py"])
@@ -628,6 +621,9 @@ def convert_path_to_relative(abspath, current):
         "esphome/components/web_server/__init__.py",
         # const.py has absolute import in docstring example for external components
         "esphome/components/esp8266/const.py",
+        # rp2040/__init__.py is the deprecation shim that documents the canonical
+        # rp2 module path and its own legacy import paths in docstrings/comments.
+        "esphome/components/rp2040/__init__.py",
     ],
 )
 def lint_relative_py_import(fname: Path, line, col, content):
@@ -657,13 +653,13 @@ def lint_relative_py_import(fname: Path, line, col, content):
         "esphome/components/async_tcp/async_tcp.h",
         "esphome/components/esp32/core.cpp",
         "esphome/components/esp8266/core.cpp",
-        "esphome/components/rp2040/core.cpp",
+        "esphome/components/rp2/core.cpp",
         "esphome/components/libretiny/core.cpp",
         "esphome/components/host/core.cpp",
         "esphome/components/zephyr/core.cpp",
         "esphome/components/esp32/helpers.cpp",
         "esphome/components/esp8266/helpers.cpp",
-        "esphome/components/rp2040/helpers.cpp",
+        "esphome/components/rp2/helpers.cpp",
         "esphome/components/libretiny/helpers.cpp",
         "esphome/components/host/helpers.cpp",
         "esphome/components/zephyr/helpers.cpp",
@@ -690,19 +686,6 @@ def lint_esphome_h(fname, line, col, content):
         "File contains reference to 'esphome.h' - This file is "
         "auto-generated and should only be used for *custom* "
         "components. Please replace with references to the direct files."
-    )
-
-
-@lint_content_find_check(
-    "CORE.using_esp_idf",
-    include=py_include,
-    exclude=["esphome/core/__init__.py", "script/ci-custom.py"],
-)
-def lint_using_esp_idf_deprecated(fname, line, col, content):
-    return (
-        f"{highlight('CORE.using_esp_idf')} is deprecated and will change behavior in 2026.6. "
-        "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
-        f"Please use {highlight('CORE.is_esp32')} and/or {highlight('CORE.using_arduino')} instead."
     )
 
 

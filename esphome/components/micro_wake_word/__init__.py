@@ -6,8 +6,9 @@ from urllib.parse import urljoin
 
 from esphome import automation, external_files, git
 from esphome.automation import register_action, register_condition
+from esphome.bundle import add_bundle_file
 import esphome.codegen as cg
-from esphome.components import esp32, microphone, ota
+from esphome.components import esp32, microphone, ota, psram
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FILE,
@@ -20,6 +21,7 @@ from esphome.const import (
     CONF_RAW_DATA_ID,
     CONF_REF,
     CONF_REFRESH,
+    CONF_TASK_STACK_IN_PSRAM,
     CONF_TYPE,
     CONF_URL,
     CONF_USERNAME,
@@ -27,6 +29,7 @@ from esphome.const import (
     TYPE_LOCAL,
 )
 from esphome.core import CORE, HexInt
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -235,10 +238,45 @@ HTTP_SCHEMA = cv.All(
     _process_http_source,
 )
 
-LOCAL_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_PATH): cv.All(_validate_json_filename, cv.file_),
-    }
+
+def _register_local_model_file(config: ConfigType) -> ConfigType:
+    """Register the model file that the manifest points to, so bundles include it.
+
+    The manifest names its model file relative to itself, so that path never appears
+    in the YAML and bundle discovery cannot find it on its own.
+
+    Problems with the manifest are logged and ignored here rather than raised. Loading
+    the manifest later reports them with better messages, and raising would be
+    swallowed by the shorthand validator, which then reports a confusing error about a
+    missing file in a git repository. Logging keeps the skipped registration
+    diagnosable if the manifest is only briefly unreadable, since the bundle would
+    then be built without the model file.
+    """
+    manifest_path: Path = config[CONF_PATH]
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        model = manifest[CONF_MODEL]
+    except (OSError, ValueError, KeyError, TypeError) as err:
+        _LOGGER.debug("Not registering a model file from %s: %s", manifest_path, err)
+        return config
+    if not isinstance(model, str):
+        _LOGGER.debug(
+            "Not registering a model file from %s: 'model' is %s, expected a string",
+            manifest_path,
+            type(model).__name__,
+        )
+        return config
+    add_bundle_file(manifest_path.parent / model)
+    return config
+
+
+LOCAL_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_PATH): cv.All(_validate_json_filename, cv.file_),
+        }
+    ),
+    _register_local_model_file,
 )
 
 
@@ -358,6 +396,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_VAD): _maybe_empty_vad_schema,
             cv.Optional(CONF_STOP_AFTER_DETECTION, default=True): cv.boolean,
+            cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
             cv.Optional(CONF_MODEL): cv.invalid(
                 f"The {CONF_MODEL} parameter has moved to be a list element under the {CONF_MODELS} parameter."
             ),
@@ -374,14 +413,14 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _load_model_data(manifest_path: Path):
-    with open(manifest_path, encoding="utf-8") as f:
+    with manifest_path.open(encoding="utf-8") as f:
         manifest = json.load(f)
 
     _validate_manifest_version(manifest)
 
     model_path = manifest_path.parent / manifest[CONF_MODEL]
 
-    with open(model_path, "rb") as f:
+    with model_path.open("rb") as f:
         model = f.read()
 
     if manifest.get(KEY_VERSION) == 1:
@@ -450,6 +489,10 @@ async def to_code(config):
 
     cg.add_define("USE_MICRO_WAKE_WORD")
     ota.request_ota_state_listeners()
+
+    if config.get(CONF_TASK_STACK_IN_PSRAM):
+        cg.add(var.set_task_stack_in_psram(True))
+        psram.request_external_task_stack()
 
     esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.3.3~1")
     # Pin esp-nn for stable future builds (esp-tflite-micro depends on esp-nn)

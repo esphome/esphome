@@ -236,7 +236,7 @@ async def to_code(config):
         rhs = model.new()
         var = cg.Pvariable(config[CONF_ID], rhs, model)
     else:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=True)

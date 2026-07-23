@@ -157,6 +157,8 @@ _Static_assert(offsetof(struct lwip_sock, rcvevent) == ESPHOME_LWIP_SOCK_RCVEVEN
 // Saved original event_callback pointer — written once in first hook_socket(), read from TCP/IP task.
 static netconn_callback s_original_callback = NULL;
 
+extern void esphome_wake_loop_threadsafe(void);
+
 #ifdef USE_OTA_PLATFORM_ESPHOME
 static struct netconn *s_ota_listener_conn = NULL;
 extern void esphome_wake_ota_component_any_context(void);
@@ -189,10 +191,7 @@ static void esphome_socket_event_callback(struct netconn *conn, enum netconn_evt
       esphome_wake_ota_component_any_context();
     }
 #endif
-    TaskHandle_t task = esphome_main_task_handle;
-    if (task != NULL) {
-      xTaskNotifyGive(task);
-    }
+    esphome_wake_loop_threadsafe();
   }
 }
 

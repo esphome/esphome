@@ -40,9 +40,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(Dsmr),
-            cv.Optional(CONF_DECRYPTION_KEY): lambda value: cv.bind_key(
-                value, name="Decryption key"
-            ),
+            cv.Optional(CONF_DECRYPTION_KEY): cv.bind_key(name="Decryption key"),
             cv.Optional(CONF_CRC_CHECK, default=True): cv.boolean,
             cv.Optional(CONF_GAS_MBUS_ID, default=1): cv.int_,
             cv.Optional(CONF_WATER_MBUS_ID, default=2): cv.int_,
@@ -87,7 +85,7 @@ async def to_code(config):
     cg.add_build_flag("-DDSMR_WATER_MBUS_ID=" + str(config[CONF_WATER_MBUS_ID]))
     cg.add_build_flag("-DDSMR_THERMAL_MBUS_ID=" + str(config[CONF_THERMAL_MBUS_ID]))
 
-    cg.add_library("esphome/dsmr_parser", "1.4.0")
+    cg.add_library("esphome/dsmr_parser", "1.9.0")
 
 
 def final_validate(config: ConfigType) -> ConfigType:
