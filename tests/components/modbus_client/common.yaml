@@ -1,28 +1,26 @@
-modbus_client:
-  - id: my_client
-    modbus_id: modbus_bus
-    address: 0x01
-
+# The modbus_client actions are self-contained hub devices: each takes the hub (auto-resolved when there
+# is a single modbus client hub) and a templatable device address; no component block is needed.
 button:
   - platform: template
     name: "Send Read"
     on_press:
       - modbus_client.send:
-          id: my_client
+          address: 0x01
           pdu: [0x03, 0x00, 0x10, 0x00, 0x01]
-      # Per-send inline reply handlers (fire-and-continue): they run when this send's reply arrives.
+      # Per-send inline reply handlers (fire-and-continue): they run when this send's reply arrives,
+      # with the device address that was targeted.
       - modbus_client.send:
-          id: my_client
+          address: !lambda "return 1;"
           pdu: !lambda "return {0x03, 0x00, 0x10, 0x00, 0x01};"
           on_response:
             then:
-              - lambda: 'ESP_LOGI("modbus_client.test", "got %d bytes", (int) response.size());'
+              - lambda: 'ESP_LOGI("modbus_client.test", "dev %u sent %d bytes", address, (int) response.size());'
           on_error:
             then:
-              - lambda: 'ESP_LOGW("modbus_client.test", "exception %d", (int) exception_code);'
+              - lambda: 'ESP_LOGW("modbus_client.test", "dev %u exception %d", address, (int) exception_code);'
           on_no_response:
             then:
-              - logger.log: "no reply"
+              - lambda: 'ESP_LOGW("modbus_client.test", "dev %u no reply", address);'
           on_not_sent:
             then:
-              - logger.log: "not sent"
+              - lambda: 'ESP_LOGW("modbus_client.test", "dev %u not sent", address);'

@@ -338,19 +338,19 @@ async def test_uart_mock_modbus_client_inline(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test modbus_client.send with per-send inline on_response / on_no_response handlers.
+    """Test modbus_client.send actions: each action is its own hub device.
 
-    Start Scenario fires two sends: client_ok reads register 0x10 (served, = 1234) and decodes the reply in
-    its inline on_response -> inline_value; client_gone targets address 2 which no server answers, so it
-    resolves via on_no_response -> timeout_flag. A third send duplicates the still-pending client_gone
-    request, so it is skipped and must resolve via its own on_not_sent -> skipped_flag. This exercises the
-    fire-and-continue per-send routing (matched by the exact request PDU), the no-reply path, and the
-    one-outcome guarantee for skipped sends.
+    Start Scenario fires: a read of served address 1 decoded in its inline on_response (with the `address`
+    trigger argument) -> inline_value; a read of address 2, which no server answers, resolving via
+    on_no_response -> timeout_flag (= the address). A parallel script fires the same write action twice
+    while its first frame is pending; the hub drops the duplicate write, and the second firing resolves
+    via its own on_not_sent -> skipped_flag (= the address). This exercises per-action reply routing, the
+    no-reply path, and the one-outcome guarantee under the hub's write dedup.
     """
 
     tracker = SensorTracker(["inline_value", "timeout_flag", "skipped_flag"])
     futures = tracker.expect_all(
-        {"inline_value": 1234, "timeout_flag": 1, "skipped_flag": 1}
+        {"inline_value": 1234, "timeout_flag": 2, "skipped_flag": 2}
     )
 
     async with (
