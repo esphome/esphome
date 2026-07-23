@@ -25,7 +25,9 @@ struct StepResult {
   std::string buf;
 };
 
-StepResult apply(const ExtractStep &step, const std::string &input) {
+// Not named `apply`: a std::string argument pulls namespace std into the ADL candidate set, where
+// std::apply then wins and fails to instantiate (tuple_size<std::string>).
+StepResult apply_step(const ExtractStep &step, const std::string &input) {
   std::string buf = input;
   const bool ok = apply_extract_step(step, buf);
   return {ok, buf};
@@ -64,13 +66,13 @@ TEST(ExtractTrim, YieldsEmptyForAnAllWhitespaceInput) {
 // ---------------------------------------------------------------------------
 
 TEST(ExtractLine, PicksTheRequestedLine) {
-  EXPECT_EQ(apply(line_step(1), "a\nb\nc").buf, "a");
-  EXPECT_EQ(apply(line_step(2), "a\nb\nc").buf, "b");
-  EXPECT_EQ(apply(line_step(3), "a\nb\nc").buf, "c");
+  EXPECT_EQ(apply_step(line_step(1), "a\nb\nc").buf, "a");
+  EXPECT_EQ(apply_step(line_step(2), "a\nb\nc").buf, "b");
+  EXPECT_EQ(apply_step(line_step(3), "a\nb\nc").buf, "c");
 }
 
 TEST(ExtractLine, StripsTheCarriageReturnOfACrlfFile) {
-  const StepResult r = apply(line_step(1), "a\r\nb\r\n");
+  const StepResult r = apply_step(line_step(1), "a\r\nb\r\n");
   EXPECT_TRUE(r.ok);
   EXPECT_EQ(r.buf, "a");
 }
@@ -78,19 +80,19 @@ TEST(ExtractLine, StripsTheCarriageReturnOfACrlfFile) {
 TEST(ExtractLine, CountsTheEmptyLineAfterATrailingNewline) {
   // "a\n" is two lines, the second empty -- not one line. Worth pinning down: nearly every text
   // file written by file_append ends in a newline, so an off-by-one here is the common case.
-  const StepResult r = apply(line_step(2), "a\n");
+  const StepResult r = apply_step(line_step(2), "a\n");
   EXPECT_TRUE(r.ok);
   EXPECT_EQ(r.buf, "");
 }
 
 TEST(ExtractLine, FailsPastTheEndAndLeavesTheBufferUntouched) {
-  const StepResult r = apply(line_step(4), "a\nb\nc");
+  const StepResult r = apply_step(line_step(4), "a\nb\nc");
   EXPECT_FALSE(r.ok);
   EXPECT_EQ(r.buf, "a\nb\nc");
 }
 
 TEST(ExtractLine, FailsForLineZeroBecauseCountingStartsAtOne) {
-  const StepResult r = apply(line_step(0), "a\nb\nc");
+  const StepResult r = apply_step(line_step(0), "a\nb\nc");
   EXPECT_FALSE(r.ok);
   EXPECT_EQ(r.buf, "a\nb\nc");
 }
@@ -100,17 +102,17 @@ TEST(ExtractLine, FailsForLineZeroBecauseCountingStartsAtOne) {
 // ---------------------------------------------------------------------------
 
 TEST(ExtractSplit, PicksTheRequestedElement) {
-  EXPECT_EQ(apply(split_step(",", 0), "a,b,c").buf, "a");
-  EXPECT_EQ(apply(split_step(",", 1), "a,b,c").buf, "b");
-  EXPECT_EQ(apply(split_step(",", 2), "a,b,c").buf, "c");
+  EXPECT_EQ(apply_step(split_step(",", 0), "a,b,c").buf, "a");
+  EXPECT_EQ(apply_step(split_step(",", 1), "a,b,c").buf, "b");
+  EXPECT_EQ(apply_step(split_step(",", 2), "a,b,c").buf, "c");
 }
 
 TEST(ExtractSplit, HandlesAMultiCharacterSeparator) {
-  EXPECT_EQ(apply(split_step("::", 1), "a::b::c").buf, "b");
+  EXPECT_EQ(apply_step(split_step("::", 1), "a::b::c").buf, "b");
 }
 
 TEST(ExtractSplit, YieldsAnEmptyElementBetweenAdjacentSeparators) {
-  const StepResult r = apply(split_step(",", 1), "a,,c");
+  const StepResult r = apply_step(split_step(",", 1), "a,,c");
   EXPECT_TRUE(r.ok);
   EXPECT_EQ(r.buf, "");
 }
@@ -118,17 +120,17 @@ TEST(ExtractSplit, YieldsAnEmptyElementBetweenAdjacentSeparators) {
 TEST(ExtractSplit, YieldsTheWholeBufferForIndexZeroWhenTheSeparatorIsAbsent) {
   // A file that simply has no separator is not a structural failure for element 0 -- the whole
   // content IS the first element. Only asking for a later element fails.
-  const StepResult first = apply(split_step(",", 0), "abc");
+  const StepResult first = apply_step(split_step(",", 0), "abc");
   EXPECT_TRUE(first.ok);
   EXPECT_EQ(first.buf, "abc");
 
-  const StepResult second = apply(split_step(",", 1), "abc");
+  const StepResult second = apply_step(split_step(",", 1), "abc");
   EXPECT_FALSE(second.ok);
   EXPECT_EQ(second.buf, "abc");
 }
 
 TEST(ExtractSplit, FailsPastTheLastElementAndLeavesTheBufferUntouched) {
-  const StepResult r = apply(split_step(",", 3), "a,b,c");
+  const StepResult r = apply_step(split_step(",", 3), "a,b,c");
   EXPECT_FALSE(r.ok);
   EXPECT_EQ(r.buf, "a,b,c");
 }
@@ -138,19 +140,19 @@ TEST(ExtractSplit, FailsPastTheLastElementAndLeavesTheBufferUntouched) {
 // ---------------------------------------------------------------------------
 
 TEST(ExtractKey, YieldsTheRemainderOfTheMatchingLine) {
-  const StepResult r = apply(key_step("name", "="), "x=1\nname=bob\ny=2");
+  const StepResult r = apply_step(key_step("name", "="), "x=1\nname=bob\ny=2");
   EXPECT_TRUE(r.ok);
   EXPECT_EQ(r.buf, "bob");
 }
 
 TEST(ExtractKey, TrimsTheLineBeforeMatchingAndAfterExtracting) {
-  const StepResult r = apply(key_step("name", "="), "  name=bob  ");
+  const StepResult r = apply_step(key_step("name", "="), "  name=bob  ");
   EXPECT_TRUE(r.ok);
   EXPECT_EQ(r.buf, "bob");
 }
 
 TEST(ExtractKey, TreatsCrlfLineEndingsLikeAnyOther) {
-  const StepResult r = apply(key_step("name", "="), "a=1\r\nname=bob\r\n");
+  const StepResult r = apply_step(key_step("name", "="), "a=1\r\nname=bob\r\n");
   EXPECT_TRUE(r.ok);
   EXPECT_EQ(r.buf, "bob");
 }
@@ -159,29 +161,29 @@ TEST(ExtractKey, MatchesTheSeparatorExactlyWithoutSurroundingSpace) {
   // Documented gotcha rather than a wish: the needle is key + separator, so "name = bob" needs
   // `separator: " = "`. Changing this to tolerate spaces would silently change which line an
   // existing config matches, so it is pinned here.
-  const StepResult strict = apply(key_step("name", "="), "name = bob");
+  const StepResult strict = apply_step(key_step("name", "="), "name = bob");
   EXPECT_FALSE(strict.ok);
   EXPECT_EQ(strict.buf, "name = bob");
 
-  const StepResult spaced = apply(key_step("name", " = "), "name = bob");
+  const StepResult spaced = apply_step(key_step("name", " = "), "name = bob");
   EXPECT_TRUE(spaced.ok);
   EXPECT_EQ(spaced.buf, "bob");
 }
 
 TEST(ExtractKey, DoesNotMatchALongerKeyWithTheSamePrefix) {
-  const StepResult r = apply(key_step("name", "="), "nameserver=x");
+  const StepResult r = apply_step(key_step("name", "="), "nameserver=x");
   EXPECT_FALSE(r.ok);
   EXPECT_EQ(r.buf, "nameserver=x");
 }
 
 TEST(ExtractKey, AcceptsAPresentButEmptyValue) {
-  const StepResult r = apply(key_step("name", "="), "name=");
+  const StepResult r = apply_step(key_step("name", "="), "name=");
   EXPECT_TRUE(r.ok);
   EXPECT_EQ(r.buf, "");
 }
 
 TEST(ExtractKey, FailsWhenTheKeyIsAbsentAndLeavesTheBufferUntouched) {
-  const StepResult r = apply(key_step("name", "="), "a=1\nb=2");
+  const StepResult r = apply_step(key_step("name", "="), "a=1\nb=2");
   EXPECT_FALSE(r.ok);
   EXPECT_EQ(r.buf, "a=1\nb=2");
 }
@@ -191,7 +193,7 @@ TEST(ExtractKey, FailsWhenTheKeyIsAbsentAndLeavesTheBufferUntouched) {
 // ---------------------------------------------------------------------------
 
 TEST(ExtractStepTrim, AlwaysSucceedsEvenWhenNothingIsLeft) {
-  const StepResult r = apply(trim_step(), " \t\r\n");
+  const StepResult r = apply_step(trim_step(), " \t\r\n");
   EXPECT_TRUE(r.ok);
   EXPECT_EQ(r.buf, "");
 }
@@ -226,28 +228,28 @@ TEST(ExtractPipeline, LeavesTheBufferUsableWhenAStepFails) {
 
 TEST(ExtractRegex, GroupZeroIsTheWholeMatch) {
   ExtractStep step{ExtractStepType::REGEX, "([A-Za-z0-9_]+)", "", 0};
-  const StepResult r = apply(step, "  name_1 = bob");
+  const StepResult r = apply_step(step, "  name_1 = bob");
   EXPECT_TRUE(r.ok);
   EXPECT_EQ(r.buf, "name_1");
 }
 
 TEST(ExtractRegex, YieldsTheRequestedCaptureGroup) {
   ExtractStep step{ExtractStepType::REGEX, "v=([0-9]+)", "", 1};
-  const StepResult r = apply(step, "x v=42 y");
+  const StepResult r = apply_step(step, "x v=42 y");
   EXPECT_TRUE(r.ok);
   EXPECT_EQ(r.buf, "42");
 }
 
 TEST(ExtractRegex, FailsForAGroupThatDoesNotExist) {
   ExtractStep step{ExtractStepType::REGEX, "([A-Za-z0-9_]+)", "", 2};
-  const StepResult r = apply(step, "name_1");
+  const StepResult r = apply_step(step, "name_1");
   EXPECT_FALSE(r.ok);
   EXPECT_EQ(r.buf, "name_1");
 }
 
 TEST(ExtractRegex, FailsWithoutAMatchAndLeavesTheBufferUntouched) {
   ExtractStep step{ExtractStepType::REGEX, "v=([0-9]+)", "", 1};
-  const StepResult r = apply(step, "nothing here");
+  const StepResult r = apply_step(step, "nothing here");
   EXPECT_FALSE(r.ok);
   EXPECT_EQ(r.buf, "nothing here");
 }
@@ -262,14 +264,14 @@ TEST(ExtractRegex, FailsWithoutAMatchAndLeavesTheBufferUntouched) {
 
 TEST(ExtractJson, ResolvesAPointerToAStringScalarUnquoted) {
   ExtractStep step{ExtractStepType::JSON, "a/b", "", 0};
-  const StepResult r = apply(step, R"({"a":{"b":"x"}})");
+  const StepResult r = apply_step(step, R"({"a":{"b":"x"}})");
   EXPECT_TRUE(r.ok);
   EXPECT_EQ(r.buf, "x");
 }
 
 TEST(ExtractJson, IndexesIntoAnArray) {
   ExtractStep step{ExtractStepType::JSON, "arr/1", "", 0};
-  const StepResult r = apply(step, R"({"arr":["ten","twenty"]})");
+  const StepResult r = apply_step(step, R"({"arr":["ten","twenty"]})");
   EXPECT_TRUE(r.ok);
   EXPECT_EQ(r.buf, "twenty");
 }
@@ -277,14 +279,14 @@ TEST(ExtractJson, IndexesIntoAnArray) {
 TEST(ExtractJson, FailsForAMissingPathElementAndLeavesTheBufferUntouched) {
   ExtractStep step{ExtractStepType::JSON, "a/nope", "", 0};
   const std::string doc = R"({"a":{"b":"x"}})";
-  const StepResult r = apply(step, doc);
+  const StepResult r = apply_step(step, doc);
   EXPECT_FALSE(r.ok);
   EXPECT_EQ(r.buf, doc);
 }
 
 TEST(ExtractJson, FailsForADocumentThatDoesNotParse) {
   ExtractStep step{ExtractStepType::JSON, "a", "", 0};
-  const StepResult r = apply(step, "not json at all");
+  const StepResult r = apply_step(step, "not json at all");
   EXPECT_FALSE(r.ok);
   EXPECT_EQ(r.buf, "not json at all");
 }
