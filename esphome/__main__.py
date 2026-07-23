@@ -16,14 +16,10 @@ import sys
 import time
 from typing import Protocol
 
-import argcomplete
-
 # Note: Do not import modules from esphome.components here, as this would
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
 from esphome import const
-import esphome.codegen as cg
-from esphome.config import iter_component_configs, read_config, strip_default_ids
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     ARGUMENT_HELP_DEVICE,
@@ -225,8 +221,9 @@ def _discover_mac_suffix_devices() -> list[str] | None:
 
     Returns:
         - ``None`` when discovery isn't applicable (``name_add_mac_suffix`` off,
-          mDNS disabled, or ``CORE.address`` is already an IP). Callers should
-          then fall back to whatever default OTA address they normally use.
+          mDNS disabled, or ``CORE.address`` isn't a ``.local`` mDNS address).
+          Callers should then fall back to whatever default OTA address they
+          normally use.
         - ``[]`` when discovery ran but found nothing. Callers should NOT fall
           back to the base name: with ``name_add_mac_suffix`` enabled, the base
           name by definition doesn't exist on the network.
@@ -236,7 +233,7 @@ def _discover_mac_suffix_devices() -> list[str] | None:
     ``aioesphomeapi`` via :func:`_resolve_network_devices`) reuses the IPs we
     already have without opening a second Zeroconf client.
     """
-    if not (has_name_add_mac_suffix() and has_mdns() and has_non_ip_address()):
+    if not (has_name_add_mac_suffix() and has_mdns() and has_mdns_address()):
         return None
     from esphome.zeroconf import discover_mdns_devices
 
@@ -354,7 +351,7 @@ def choose_upload_log_host(
     bootsel_permission_error = False
     if (
         purpose == Purpose.UPLOADING
-        and CORE.is_rp2040
+        and CORE.is_rp2
         and (picotool := _find_picotool()) is not None
     ):
         bootsel = detect_rp2040_bootsel(picotool)
@@ -401,7 +398,7 @@ def choose_upload_log_host(
     # Show helpful BOOTSEL instructions for RP2040 when no BOOTSEL device is found
     if (
         purpose == Purpose.UPLOADING
-        and CORE.is_rp2040
+        and CORE.is_rp2
         and not any(get_port_type(opt[1]) == PortType.BOOTSEL for opt in options)
     ):
         if bootsel_permission_error:
@@ -503,17 +500,22 @@ def has_mdns() -> bool:
 
 
 def has_non_ip_address() -> bool:
-    """Check if CORE.address is set and is not an IP address."""
+    """Check if ``CORE.address`` is set and is not an IP address."""
     return CORE.address is not None and not is_ip_address(CORE.address)
 
 
+def has_mdns_address() -> bool:
+    """Check if ``CORE.address`` is a ``.local`` mDNS hostname."""
+    return CORE.address is not None and CORE.address.endswith(".local")
+
+
 def has_ip_address() -> bool:
-    """Check if CORE.address is a valid IP address."""
+    """Check if ``CORE.address`` is a valid IP address."""
     return CORE.address is not None and is_ip_address(CORE.address)
 
 
 def has_resolvable_address() -> bool:
-    """Check if CORE.address is resolvable (via mDNS, DNS, or is an IP address)."""
+    """Check if ``CORE.address`` is resolvable (via mDNS, DNS, or is an IP address)."""
     # Any address (IP, mDNS hostname, or regular DNS hostname) is resolvable
     # The resolve_ip_address() function in helpers.py handles all types via AsyncResolver
     if CORE.address is None:
@@ -532,7 +534,7 @@ def has_resolvable_address() -> bool:
         return True
 
     # .local mDNS hostnames are only resolvable if mDNS is enabled
-    return not CORE.address.endswith(".local")
+    return not has_mdns_address()
 
 
 def has_name_add_mac_suffix() -> bool:
@@ -698,6 +700,8 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
 
 
 def _wrap_to_code(name, comp, yaml_util):
+    import esphome.codegen as cg
+
     coro = coroutine(comp.to_code)
 
     @functools.wraps(comp.to_code)
@@ -733,6 +737,7 @@ def write_cpp(config: ConfigType) -> int:
 
 def generate_cpp_contents(config: ConfigType) -> None:
     from esphome import yaml_util
+    from esphome.config import iter_component_configs
 
     _LOGGER.info("Generating C++ source...")
 
@@ -769,6 +774,13 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         from esphome.components.wifi import check_placeholder_credentials
 
         check_placeholder_credentials(config)
+
+    # Keep this here, NOT in codegen: config-hash and --only-generate must keep
+    # working on machines that cannot run the toolchain.
+    if CORE.is_esp8266:
+        from esphome.components.esp8266 import check_rosetta
+
+        check_rosetta()
 
     # NOTE: "Build path:" format is parsed by script/ci_memory_impact_extract.py
     # If you change this format, update the regex in that script as well
@@ -979,7 +991,7 @@ def upload_using_platformio(config: ConfigType, port: str) -> int:
     # RP2040 platform-raspberrypi build recipe expects firmware.bin.signed for
     # the upload target, but 'nobuild' skips the build phase that creates it.
     # Create it here so the upload doesn't fail.
-    if CORE.is_rp2040:
+    if CORE.is_rp2:
         idedata = toolchain.get_idedata(config)
         build_dir = Path(idedata.firmware_elf_path).parent
         firmware_bin = build_dir / "firmware.bin"
@@ -1167,7 +1179,7 @@ def upload_program(
         if CORE.is_esp32 or CORE.is_esp8266:
             file = getattr(args, "file", None)
             exit_code = upload_using_esptool(config, host, file, args.upload_speed)
-        elif CORE.is_rp2040 or CORE.is_libretiny:
+        elif CORE.is_rp2 or CORE.is_libretiny:
             exit_code = upload_using_platformio(config, host)
         # else: Unknown target platform, exit_code remains 1
 
@@ -1451,6 +1463,7 @@ def command_wizard(args: ArgsProtocol) -> int | None:
 
 def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome import yaml_util
+    from esphome.config import strip_default_ids
 
     if getattr(args, "no_defaults", False):
         user_config = getattr(config, "user_config", None)
@@ -1504,10 +1517,18 @@ def _redact_with_legacy_fallback(output: str) -> str:
         m = _LEGACY_REDACTION_RE.search(line)
         if m is None:
             continue
+        key = m.group("key")
         if not in_substitutions:
-            unmarked.add(m.group("key"))
+            # Public keys (e.g. wireguard's peer_public_key) are not secret;
+            # redacting them and telling maintainers to mark them cv.sensitive
+            # would be wrong on both counts. Substitution keys are user-named
+            # with no schema behind them, so anything secret-shaped there
+            # (public or not) stays conservatively redacted.
+            if "public" in key.split("_"):
+                continue
+            unmarked.add(key)
         lines[i] = (
-            f"{line[: m.start()]}{m.group('key')}: "
+            f"{line[: m.start()]}{key}: "
             f"\\033[8m{m.group('val')}\\033[28m{line[m.end() :]}"
         )
     output = "\n".join(lines)
@@ -1641,7 +1662,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     # After BOOTSEL upload, wait for a new serial port to appear
     # so it shows up in the log chooser
-    if successful_device is None and CORE.is_rp2040:
+    if successful_device is None and CORE.is_rp2:
         _wait_for_serial_port(known_ports=pre_upload_ports)
         # If exactly one new serial port appeared, use it directly
         serial_ports = get_serial_ports()
@@ -2477,7 +2498,12 @@ def parse_args(argv):
     # a deprecation warning).
     arguments = argv[1:]
 
-    argcomplete.autocomplete(parser)
+    # argcomplete only does anything when the shell-completion machinery
+    # invokes us with _ARGCOMPLETE set; skip the import otherwise.
+    if "_ARGCOMPLETE" in os.environ:
+        import argcomplete
+
+        argcomplete.autocomplete(parser)
 
     if len(arguments) > 0 and arguments[0] in SIMPLE_CONFIG_ACTIONS:
         args, unknown_args = parser.parse_known_args(arguments)
@@ -2576,6 +2602,8 @@ def run_esphome(argv):
             )
 
     if config is None:
+        from esphome.config import read_config
+
         config = read_config(
             command_line_substitutions,
             skip_external_update=skip_external,

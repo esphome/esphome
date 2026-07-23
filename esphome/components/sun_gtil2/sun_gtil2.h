@@ -15,7 +15,7 @@
 
 namespace esphome::sun_gtil2 {
 
-class SunGTIL2 : public Component, public uart::UARTDevice {
+class SunGTIL2 final : public Component, public uart::UARTDevice {
  public:
   float get_setup_priority() const override { return setup_priority::LATE; }
   void setup() override;

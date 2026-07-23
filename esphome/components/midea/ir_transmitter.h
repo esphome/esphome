@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)
 #ifdef USE_REMOTE_TRANSMITTER
 #include "esphome/components/remote_base/midea_protocol.h"
 

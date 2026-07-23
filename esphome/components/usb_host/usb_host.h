@@ -184,7 +184,7 @@ class USBClient : public Component {
   uint16_t vid_{};
   uint16_t pid_{};
 };
-class USBHost : public Component {
+class USBHost final : public Component {
  public:
   float get_setup_priority() const override { return setup_priority::BUS; }
   void loop() override;
