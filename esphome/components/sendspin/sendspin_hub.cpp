@@ -179,7 +179,12 @@ std::optional<uint32_t> SendspinHub::load_last_server_hash() {
 void SendspinHub::send_client_command(sendspin::SendspinControllerCommand command, std::optional<uint8_t> volume,
                                       std::optional<bool> mute) {
   if (this->is_ready()) {
-    this->controller_role_->send_command(command, volume, mute);
+    sendspin::ClientCommandControllerObject obj = {
+        .command = command,
+        .volume = volume,
+        .muted = mute,
+    };
+    this->controller_role_->send_command(obj);
   }
 }
 
