@@ -2145,25 +2145,20 @@ async def _reconcile_vfs_fatfs_sdkconfig(
         # enough FATFS volumes for several drivers at once (SD + USB + wear levelling —
         # every esp_vfs_fat mount consumes one). All of these are only defaults: override
         # any of them via esp32 -> framework -> advanced -> sdkconfig_options.
-        lfn_choice_keys = (
-            "CONFIG_FATFS_LFN_NONE",
-            "CONFIG_FATFS_LFN_HEAP",
-            "CONFIG_FATFS_LFN_STACK",
-        )
-        if not any(k in opts for k in lfn_choice_keys):
+        # Long filenames, unless the user turned them off. With CONFIG_FATFS_LFN_NONE set,
+        # FatFs is 8.3-only and the two options that size the LFN buffer have no dependency
+        # left to satisfy -- writing them then sets a symbol IDF has disabled. A YAML
+        # sdkconfig_options value arrives wrapped so it is written out verbatim; one set from
+        # here is a plain bool, hence reading through both shapes.
+        lfn_off = opts.get("CONFIG_FATFS_LFN_NONE")
+        lfn_off = getattr(lfn_off, "value", lfn_off)
+        if str(lfn_off).strip().lower() not in ("y", "true", "1"):
             set_opt("CONFIG_FATFS_LFN_NONE", False)
             set_opt("CONFIG_FATFS_LFN_HEAP", True)
-        if not opts.get("CONFIG_FATFS_LFN_NONE", False):
             set_opt("CONFIG_FATFS_MAX_LFN", 255)
         set_opt("CONFIG_FATFS_VOLUME_COUNT", 4)
     elif disable_fatfs:
-        lfn_choice_keys = (
-            "CONFIG_FATFS_LFN_NONE",
-            "CONFIG_FATFS_LFN_HEAP",
-            "CONFIG_FATFS_LFN_STACK",
-        )
-        if not any(k in opts for k in lfn_choice_keys):
-            set_opt("CONFIG_FATFS_LFN_NONE", True)
+        set_opt("CONFIG_FATFS_LFN_NONE", True)
         # Kconfig range is [1,10]; 0 gets clamped to the default.
         set_opt("CONFIG_FATFS_VOLUME_COUNT", 1)
 
