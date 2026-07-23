@@ -60,10 +60,11 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
     // The server may have dropped the keep-alive connection while the display
     // was busy processing a chunk; close so the next attempt reconnects.
     esp_http_client_close(http_client);
+    vTaskDelay(pdMS_TO_TICKS(2));  // NOLINT
     App.feed_wdt();
   }
   if (chunk_size <= 0) {
-    ESP_LOGE(TAG, "HTTP open failed after %u attempts", this->tft_upload_http_retries_);
+    ESP_LOGE(TAG, "HTTP request failed after %u attempts", this->tft_upload_http_retries_);
     return -1;
   }
 
