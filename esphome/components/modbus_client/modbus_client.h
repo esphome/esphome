@@ -42,13 +42,11 @@ class ModbusCallbackClient : public modbus::ModbusClientDevice, public Component
  public:
   void dump_config() override;
 
-  /// Send an ad-hoc PDU (function code + data), fire and forget. The hub prepends the configured device
-  /// address and appends the CRC; the reply is not routed anywhere.
-  void send(std::span<const uint8_t> pdu) { this->send_pdu(pdu); }
-  /// Send an ad-hoc PDU and route this specific reply (or its lack) to `handler`. If an identical request
-  /// is already pending (or all pending slots are taken) the send is skipped and resolves immediately via
-  /// handle_modbus_not_sent() - every send gets exactly one outcome.
-  void send_with_handler(std::span<const uint8_t> pdu, ModbusResponseHandler *handler);
+  /// Send an ad-hoc PDU (function code + data) and route this specific reply (or its lack) to `handler`.
+  /// If an identical request is already pending (or all pending slots are taken) the send is skipped and
+  /// resolves immediately via handle_modbus_not_sent() - every send gets exactly one outcome. For
+  /// fire-and-forget sends use the inherited send_pdu() (no pending bookkeeping).
+  void send(std::span<const uint8_t> pdu, ModbusResponseHandler *handler);
 
   // A data reply: hand the request and response PDUs (function code + data, no address/CRC) to on_response.
   // Both spans are only valid for the duration of the call.
@@ -115,9 +113,10 @@ class ModbusClientSendAction : public Action<Ts...>,
     // this is a plain fire-and-forget send with no pending bookkeeping. The reply arrives later
     // (fire-and-continue), so the triggers expose only the reply - not the outer automation's arguments.
     if (this->has_response_handlers_) {
-      this->parent_->send_with_handler(std::span<const uint8_t>(pdu), this);
+      this->parent_->send(std::span<const uint8_t>(pdu), this);
     } else {
-      this->parent_->send(std::span<const uint8_t>(pdu));
+      // Fire and forget: the inherited device send, with no pending bookkeeping.
+      this->parent_->send_pdu(std::span<const uint8_t>(pdu));
     }
   }
 

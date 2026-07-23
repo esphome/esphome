@@ -9,7 +9,7 @@ static const char *const TAG = "modbus_client";
 
 void ModbusCallbackClient::dump_config() { ESP_LOGCONFIG(TAG, "Modbus Client:\n  Address: 0x%02X", this->address_); }
 
-void ModbusCallbackClient::send_with_handler(std::span<const uint8_t> pdu, ModbusResponseHandler *handler) {
+void ModbusCallbackClient::send(std::span<const uint8_t> pdu, ModbusResponseHandler *handler) {
   // Replies come back on the shared client response path keyed only by the request PDU, so two identical
   // in-flight requests could not be told apart - skip the duplicate rather than mis-route its reply. The
   // skipped send still resolves through its own handler (directly - not via take_pending_(), which would
