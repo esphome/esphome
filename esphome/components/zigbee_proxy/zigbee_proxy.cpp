@@ -4,6 +4,7 @@
 
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/util.h"
 #include "esphome/components/api/api_server.h"
 #include "ezsp_commands.h"
 
@@ -18,6 +19,12 @@
 namespace esphome::zigbee_proxy {
 
 static const char *const TAG = "zigbee_proxy";
+
+static constexpr uint32_t BOOT_SEQUENCE_TIMEOUT_MS = 10000;    // Overall boot-harvest timeout
+static constexpr uint32_t RECOVERY_RETRY_INTERVAL_MS = 30000;  // Retry interval for a failed NCP link
+static constexpr uint32_t CLIENT_TX_RETRY_TIMEOUT_MS = 5000;   // Give up on a backpressured client frame
+static constexpr size_t NETWORK_INFO_PAYLOAD_SIZE = 19;        // ieee(8) + extended_pan(8) + pan_id(2) + channel(1)
+static constexpr size_t ZIGBEE_MAX_LOG_BYTES = 168;            // Cap verbose hex dumps (168 * 3 = 504 byte buffer)
 
 ZigbeeProxy *global_zigbee_proxy = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -45,31 +52,54 @@ void ZigbeeProxy::loop() {
     this->handle_retransmission_();
   }
 
-  // Check for boot sequence timeout
   if (this->boot_sequence_active_) {
-    uint32_t total_elapsed = millis() - this->boot_start_time_;
-    if (total_elapsed > 10000) {  // 10 second timeout for entire boot sequence
-      ESP_LOGE(TAG, "Boot sequence timeout (state: %d)", static_cast<int>(this->boot_state_));
-      this->boot_state_ = BootState::FAILED;
-      this->boot_sequence_active_ = false;
-      // Still mark as connected so proxy can work without network info
-      if (this->ash_state_ != AshState::CONNECTED) {
-        this->ash_state_ = AshState::FAILED;
-      }
-    } else if (this->boot_state_ == BootState::WAIT_RSTACK && (millis() - this->setup_time_) > ASH_RESET_TIMEOUT) {
-      // RST was sent before USB device finished enumeration — retry
-      ESP_LOGD(TAG, "No RSTACK received within %u ms, retrying RST", ASH_RESET_TIMEOUT);
-      this->setup_time_ = millis();
-      this->send_rst_frame_();
-    }
+    this->check_boot_timeouts_();
+  } else if (this->ash_state_ == AshState::CONNECTING && millis() - this->setup_time_ > ASH_RESET_TIMEOUT) {
+    // Stuck in CONNECTING state (client-triggered RST, not the boot sequence)
+    ESP_LOGE(TAG, "RSTACK timeout, NCP not responding");
+    this->ash_state_ = AshState::FAILED;
   }
 
-  // Check if we're stuck in CONNECTING state (before boot sequence starts)
-  if (this->ash_state_ == AshState::CONNECTING && !this->boot_sequence_active_) {
-    if (millis() - this->setup_time_ > ASH_RESET_TIMEOUT) {
-      ESP_LOGE(TAG, "RSTACK timeout, NCP not responding");
+  // Guard against a subscriber that disconnected without unsubscribing
+  if (this->api_connection_ != nullptr && (!this->api_connection_->is_connection_setup() || !api_is_connected())) {
+    ESP_LOGW(TAG, "Subscriber disconnected");
+    this->unsubscribe_api_connection(this->api_connection_);
+  }
+
+  // Retry any client-bound frame that hit API TX buffer backpressure
+  this->try_send_pending_client_frame_();
+
+  // Send any queued client frames if the ASH TX window opened up
+  this->drain_ncp_tx_queue_();
+
+  // Autonomous recovery: with no client subscribed, periodically retry a failed NCP link
+  // (or a failed boot harvest) so a late-powered NCP does not require a client RST
+  if (this->api_connection_ == nullptr &&
+      (this->ash_state_ == AshState::FAILED ||
+       (this->boot_state_ == BootState::FAILED && !this->boot_sequence_active_)) &&
+      millis() - this->last_recovery_attempt_ > RECOVERY_RETRY_INTERVAL_MS) {
+    ESP_LOGI(TAG, "Attempting NCP recovery");
+    this->last_recovery_attempt_ = millis();
+    this->reset_ash_protocol_();
+  }
+}
+
+void ZigbeeProxy::check_boot_timeouts_() {
+  uint32_t total_elapsed = millis() - this->boot_start_time_;
+  if (total_elapsed > BOOT_SEQUENCE_TIMEOUT_MS) {
+    ESP_LOGE(TAG, "Boot sequence timeout (state: %d)", static_cast<int>(this->boot_state_));
+    this->boot_state_ = BootState::FAILED;
+    this->boot_sequence_active_ = false;
+    // Still mark as connected so proxy can work without network info
+    if (this->ash_state_ != AshState::CONNECTED) {
       this->ash_state_ = AshState::FAILED;
     }
+  } else if ((this->boot_state_ == BootState::WAIT_RSTACK || this->boot_state_ == BootState::WAIT_FINAL_RSTACK) &&
+             (millis() - this->setup_time_) > ASH_RESET_TIMEOUT) {
+    // RST was sent before USB device finished enumeration — retry
+    ESP_LOGD(TAG, "No RSTACK received within %u ms, retrying RST", ASH_RESET_TIMEOUT);
+    this->setup_time_ = millis();
+    this->send_rst_frame_();
   }
 }
 
@@ -106,7 +136,24 @@ void ZigbeeProxy::dump_config() {
 
 float ZigbeeProxy::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 
-bool ZigbeeProxy::can_proceed() { return this->ash_state_ == AshState::CONNECTED; }
+bool ZigbeeProxy::can_proceed() {
+  // Block setup only while the boot harvest is running so network info (IEEE address,
+  // PAN ID) is ready when the API starts. check_boot_timeouts_() guarantees forward
+  // progress: a dead NCP flips the sequence to FAILED after BOOT_SEQUENCE_TIMEOUT_MS and
+  // the device boots normally (recovery then happens from loop()).
+  if (!this->boot_sequence_active_) {
+    return true;
+  }
+
+  // loop() is not called while setup is blocked, so run the boot machinery here
+  this->process_uart_();
+  if (this->tx_buffer_pending_ && this->check_ack_timeout_()) {
+    this->handle_retransmission_();
+  }
+  this->check_boot_timeouts_();
+
+  return !this->boot_sequence_active_;
+}
 
 void ZigbeeProxy::api_connection_authenticated(api::APIConnection *conn) {
   // Notify client of network info if available
@@ -118,7 +165,7 @@ void ZigbeeProxy::api_connection_authenticated(api::APIConnection *conn) {
 void ZigbeeProxy::zigbee_proxy_request(api::APIConnection *api_connection, const api::ZigbeeProxyRequest &msg) {
   switch (msg.type) {
     case api::enums::ZIGBEE_PROXY_REQUEST_TYPE_SUBSCRIBE:
-      if (this->api_connection_ != nullptr) {
+      if (this->api_connection_ != nullptr && this->api_connection_ != api_connection) {
         ESP_LOGW(TAG, "Another client is already subscribed");
         return;
       }
@@ -130,14 +177,29 @@ void ZigbeeProxy::zigbee_proxy_request(api::APIConnection *api_connection, const
     case api::enums::ZIGBEE_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
       if (this->api_connection_ == api_connection) {
         ESP_LOGD(TAG, "Client unsubscribed");
-        this->api_connection_ = nullptr;
+        this->unsubscribe_api_connection(api_connection);
       }
+      break;
+
+    case api::enums::ZIGBEE_PROXY_REQUEST_TYPE_NETWORK_INFO:
+      this->send_network_info_response_(api_connection);
       break;
 
     default:
       ESP_LOGW(TAG, "Unknown request type: %d", static_cast<int>(msg.type));
       break;
   }
+}
+
+void ZigbeeProxy::unsubscribe_api_connection(api::APIConnection *conn) {
+  if (this->api_connection_ != conn) {
+    return;
+  }
+  this->api_connection_ = nullptr;
+  // Frames belonging to the departed client's session must not linger
+  this->client_tx_pending_length_ = 0;
+  this->ncp_tx_queue_count_ = 0;
+  this->client_reset_session_();
 }
 
 void ZigbeeProxy::zigbee_proxy_frame(api::APIConnection *api_connection, const api::ZigbeeProxyFrame &msg) {
@@ -160,24 +222,38 @@ uint64_t ZigbeeProxy::get_ieee_address() const {
   return addr;
 }
 
-void ZigbeeProxy::send_frame(const uint8_t *data, size_t length) {
+bool ZigbeeProxy::send_frame(const uint8_t *data, size_t length) {
   if (this->ash_state_ != AshState::CONNECTED) {
     ESP_LOGW(TAG, "Cannot send frame, not connected");
-    return;
+    return false;
   }
 
-  if (this->tx_buffer_pending_) {
-    ESP_LOGW(TAG, "Cannot send frame, previous frame still pending");
-    return;
+  // Transmit directly when the ASH window is free and nothing is queued ahead
+  if (!this->tx_buffer_pending_ && this->ncp_tx_queue_count_ == 0) {
+    return this->send_data_frame_(data, length, false);
   }
 
-  // Validate frame size
-  if (length + 4 > MAX_ASH_FRAME_SIZE) {  // +4 for control, CRC, FLAGS
-    ESP_LOGE(TAG, "Frame too large: %u bytes (max %u)", length, MAX_ASH_FRAME_SIZE - 4);
+  // Window occupied - queue for transmission when the pending frame is ACKed
+  if (this->ncp_tx_queue_count_ >= NCP_TX_QUEUE_SIZE || length > MAX_ASH_FRAME_SIZE) {
+    return false;  // Caller NAKs the client, which retransmits
+  }
+  QueuedTxFrame &entry =
+      this->ncp_tx_queue_[(this->ncp_tx_queue_head_ + this->ncp_tx_queue_count_) % NCP_TX_QUEUE_SIZE];
+  memcpy(entry.data.data(), data, length);
+  entry.length = length;
+  this->ncp_tx_queue_count_++;
+  ESP_LOGV(TAG, "Queued frame (%u bytes, %u queued)", length, this->ncp_tx_queue_count_);
+  return true;
+}
+
+void ZigbeeProxy::drain_ncp_tx_queue_() {
+  if (this->tx_buffer_pending_ || this->ncp_tx_queue_count_ == 0 || this->ash_state_ != AshState::CONNECTED) {
     return;
   }
-
-  this->send_data_frame_(data, length, false);
+  QueuedTxFrame &entry = this->ncp_tx_queue_[this->ncp_tx_queue_head_];
+  this->ncp_tx_queue_head_ = (this->ncp_tx_queue_head_ + 1) % NCP_TX_QUEUE_SIZE;
+  this->ncp_tx_queue_count_--;
+  this->send_data_frame_(entry.data.data(), entry.length, false);
 }
 
 void ZigbeeProxy::set_timeout_config(uint32_t initial_ms, uint32_t min_ms, uint32_t max_ms) {
@@ -203,6 +279,7 @@ void ZigbeeProxy::reset_ash_protocol_() {
   this->rx_sequence_ = 0;
   this->tx_buffer_pending_ = false;
   this->tx_retry_count_ = 0;
+  this->ncp_tx_queue_count_ = 0;
   this->parsing_state_ = ParsingState::WAIT_FLAG_START;
   this->setup_time_ = millis();
   this->boot_start_time_ = this->setup_time_;
@@ -224,9 +301,12 @@ void ZigbeeProxy::send_rst_frame_() {
   static constexpr size_t MAX_RST_FRAME_SIZE = 8;
   uint8_t combined[CAN_COUNT + MAX_RST_FRAME_SIZE];
   memset(combined, ASH_CAN_BYTE, CAN_COUNT);
-  size_t rst_len = this->build_frame_(combined + CAN_COUNT, nullptr, 0, AshFrameType::RST);
+  size_t rst_len = this->build_frame_(combined + CAN_COUNT, MAX_RST_FRAME_SIZE, nullptr, 0, AshFrameType::RST);
 
-  ESP_LOGV(TAG, "RST frame bytes (%u): %s", rst_len, format_hex_pretty(combined + CAN_COUNT, rst_len).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(MAX_RST_FRAME_SIZE)];
+#endif
+  ESP_LOGV(TAG, "RST frame bytes (%u): %s", rst_len, format_hex_pretty_to(hex_buf, combined + CAN_COUNT, rst_len));
   this->write_array(combined, CAN_COUNT + rst_len);
   this->flush();
   ESP_LOGV(TAG, "Sent RST frame (with %u CAN bytes prefix)", CAN_COUNT);
@@ -336,7 +416,7 @@ void ZigbeeProxy::handle_error_frame_(const uint8_t *data, size_t length) {
 
 bool ZigbeeProxy::send_ack_frame_(uint8_t ack_num) {
   uint8_t frame[8];
-  size_t length = this->build_frame_(frame, nullptr, 0, AshFrameType::ACK, 0, ack_num);
+  size_t length = this->build_frame_(frame, sizeof(frame), nullptr, 0, AshFrameType::ACK, 0, ack_num);
   this->write_array(frame, length);
   this->last_ack_sent_ = ack_num;
   ESP_LOGV(TAG, "Sent ACK for frame %d", ack_num);
@@ -345,22 +425,19 @@ bool ZigbeeProxy::send_ack_frame_(uint8_t ack_num) {
 
 bool ZigbeeProxy::send_nak_frame_(uint8_t ack_num) {
   uint8_t frame[8];
-  size_t length = this->build_frame_(frame, nullptr, 0, AshFrameType::NAK, 0, ack_num);
+  size_t length = this->build_frame_(frame, sizeof(frame), nullptr, 0, AshFrameType::NAK, 0, ack_num);
   this->write_array(frame, length);
   ESP_LOGW(TAG, "Sent NAK for frame %d", ack_num);
   return true;
 }
 
 bool ZigbeeProxy::send_data_frame_(const uint8_t *data, size_t length, bool retransmit) {
-  // Validate frame size
-  if (length + 4 > MAX_ASH_FRAME_SIZE) {
-    ESP_LOGE(TAG, "Frame too large: %u bytes", length);
+  // Build frame (returns 0 if the stuffed frame would exceed the buffer)
+  size_t frame_length = this->build_frame_(this->tx_buffer_.data(), this->tx_buffer_.size(), data, length,
+                                           AshFrameType::DATA, this->tx_sequence_, this->rx_sequence_, retransmit);
+  if (frame_length == 0) {
     return false;
   }
-
-  // Build frame
-  size_t frame_length = this->build_frame_(this->tx_buffer_.data(), data, length, AshFrameType::DATA,
-                                           this->tx_sequence_, this->rx_sequence_, retransmit);
 
   // Store for potential retransmission
   if (!retransmit) {
@@ -369,9 +446,12 @@ bool ZigbeeProxy::send_data_frame_(const uint8_t *data, size_t length, bool retr
     this->tx_pending_frame_num_ = this->tx_sequence_;
   }
 
-  // Debug: log exact bytes being sent
+  // Debug: log exact bytes being sent (truncated to ZIGBEE_MAX_LOG_BYTES)
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(ZIGBEE_MAX_LOG_BYTES)];
+#endif
   ESP_LOGV(TAG, "TX DATA frame (%u bytes): %s", frame_length,
-           format_hex_pretty(this->tx_buffer_.data(), frame_length).c_str());
+           format_hex_pretty_to(hex_buf, this->tx_buffer_.data(), frame_length));
 
   // Send frame
   this->write_array(this->tx_buffer_.data(), frame_length);
@@ -441,21 +521,19 @@ void ZigbeeProxy::handle_retransmission_() {
 }
 
 // Boot-time NCP initialization sequence
-// Sequence: RST -> RSTACK -> version() -> networkInit() -> stackStatus -> getNetworkParameters() -> RST -> RSTACK
-
-void ZigbeeProxy::start_boot_sequence_() {
-  ESP_LOGV(TAG, "Starting boot sequence to harvest network info");
-  this->boot_state_ = BootState::WAIT_RSTACK;
-  this->boot_sequence_active_ = true;
-  this->ezsp_sequence_ = 0;
-  this->reset_ash_protocol_();
-}
+// Sequence: RST -> RSTACK -> version() -> getEui64() -> networkInit() -> stackStatus ->
+//           getNetworkParameters() -> RST -> RSTACK
 
 void ZigbeeProxy::advance_boot_state_() {
   switch (this->boot_state_) {
     case BootState::SEND_VERSION:
       this->send_ezsp_version_();
       this->boot_state_ = BootState::WAIT_VERSION;
+      break;
+
+    case BootState::SEND_GET_EUI64:
+      this->send_get_eui64_();
+      this->boot_state_ = BootState::WAIT_EUI64;
       break;
 
     case BootState::SEND_NETWORK_INIT:
@@ -486,7 +564,10 @@ void ZigbeeProxy::handle_boot_data_frame_(const uint8_t *data, size_t length) {
   //
   // Note: Some NCPs may respond in legacy format for a few frames after version negotiation
   // before fully switching to extended format. We handle this by falling back to legacy
-  // parsing if the frame is too short for extended format.
+  // parsing if the frame is too short for extended format. This heuristic (extended iff
+  // negotiated v8+ AND frame >= 5 bytes) is validated against EFR32 EmberZNet 7.x NCPs;
+  // a legacy-format response of 5+ bytes would be misparsed, but such NCPs have not been
+  // observed in practice.
 
   if (length < 3) {
     ESP_LOGW(TAG, "Boot frame too short: %u bytes", length);
@@ -525,6 +606,12 @@ void ZigbeeProxy::handle_boot_data_frame_(const uint8_t *data, size_t length) {
     case BootState::WAIT_VERSION:
       if (frame_id == EZSP_VERSION && is_response) {
         this->handle_version_response_(payload, payload_length);
+      }
+      break;
+
+    case BootState::WAIT_EUI64:
+      if (frame_id == EZSP_GET_EUI64 && is_response) {
+        this->handle_eui64_response_(payload, payload_length);
       }
       break;
 
@@ -570,6 +657,17 @@ void ZigbeeProxy::send_ezsp_version_() {
   };
 
   ESP_LOGV(TAG, "Sending EZSP version command (legacy format, requesting v%d)", EZSP_MAX_VERSION);
+  this->send_data_frame_(cmd, sizeof(cmd), false);
+}
+
+void ZigbeeProxy::send_get_eui64_() {
+  // getEui64 command - use legacy format for boot sequence compatibility
+  uint8_t cmd[] = {
+      this->ezsp_sequence_++,      // Sequence
+      EZSP_FRAME_CONTROL_COMMAND,  // Frame control
+      EZSP_GET_EUI64 & 0xFF        // Frame ID
+  };
+  ESP_LOGV(TAG, "Sending EZSP getEui64 command (legacy format)");
   this->send_data_frame_(cmd, sizeof(cmd), false);
 }
 
@@ -625,8 +723,7 @@ void ZigbeeProxy::handle_version_response_(const uint8_t *data, size_t length) {
       // NCP accepted our requested version - treat as success
       ESP_LOGV(TAG, "NCP accepted EZSP v%d", ncp_version);
       this->ezsp_version_ = ncp_version;
-      // Proceed to networkInit
-      this->boot_state_ = BootState::SEND_NETWORK_INIT;
+      this->boot_state_ = BootState::SEND_GET_EUI64;
       this->advance_boot_state_();
       return;
     }
@@ -669,7 +766,18 @@ void ZigbeeProxy::handle_version_response_(const uint8_t *data, size_t length) {
     return;
   }
 
-  // Proceed to networkInit
+  this->boot_state_ = BootState::SEND_GET_EUI64;
+  this->advance_boot_state_();
+}
+
+void ZigbeeProxy::handle_eui64_response_(const uint8_t *data, size_t length) {
+  // getEui64 response: [eui64 (8 bytes, little-endian)]
+  if (length >= ZIGBEE_IEEE_ADDR_SIZE) {
+    this->set_ieee_address_(data);
+  } else {
+    ESP_LOGW(TAG, "getEui64 response too short: %u bytes", length);
+  }
+  // Proceed to networkInit either way; the proxy works without an IEEE address
   this->boot_state_ = BootState::SEND_NETWORK_INIT;
   this->advance_boot_state_();
 }
@@ -736,6 +844,7 @@ void ZigbeeProxy::handle_network_params_response_(const uint8_t *data, size_t le
   this->network_info_.channel = data[NETWORK_PARAMS_CHANNEL_OFFSET];
 
   this->network_info_.valid = true;
+  this->send_network_info_changed_msg_();
 
   ESP_LOGD(TAG,
            "Network info:\n"
@@ -768,11 +877,31 @@ bool ZigbeeProxy::set_ieee_address_(const uint8_t *new_address) {
   return false;
 }
 
-void ZigbeeProxy::send_network_info_changed_msg_(api::APIConnection *conn) {
-  // This would send network info to the API client
-  // For now, we'll log it
-  ESP_LOGV(TAG, "Network info changed notification");
+// Packed network info payload: ieee(8) + extended_pan(8) + pan_id(2) + channel(1), little-endian
+static void pack_network_info(const NetworkInfo &info, uint8_t *out) {
+  memcpy(out, info.ieee_address.data(), ZIGBEE_IEEE_ADDR_SIZE);
+  memcpy(out + 8, info.extended_pan_id.data(), 8);
+  out[16] = info.pan_id & 0xFF;
+  out[17] = (info.pan_id >> 8) & 0xFF;
+  out[18] = info.channel;
 }
+
+void ZigbeeProxy::send_network_info_changed_msg_(api::APIConnection *conn) {
+  uint8_t payload[NETWORK_INFO_PAYLOAD_SIZE];
+  pack_network_info(this->network_info_, payload);
+  api::ZigbeeProxyRequest msg;
+  msg.type = api::enums::ZIGBEE_PROXY_REQUEST_TYPE_NETWORK_INFO;
+  msg.data = payload;
+  msg.data_len = sizeof(payload);
+  if (conn != nullptr) {
+    conn->send_message(msg);
+  } else if (api::global_api_server != nullptr) {
+    // Very infrequent and small - send to all clients rather than tracking a subscription
+    api::global_api_server->on_zigbee_proxy_request(msg);
+  }
+}
+
+void ZigbeeProxy::send_network_info_response_(api::APIConnection *conn) { this->send_network_info_changed_msg_(conn); }
 
 // WiFi/Zigbee channel conflict detection
 void ZigbeeProxy::check_wifi_zigbee_conflict_() {
@@ -830,49 +959,51 @@ void ZigbeeProxy::check_wifi_zigbee_conflict_() {
 #endif
 }
 
-// Bootloader detection
-void ZigbeeProxy::check_bootloader_mode_(const uint8_t *data, size_t length) {
-  if (length < 2) {
-    return;
-  }
-
+// Bootloader detection - fed consecutive raw byte pairs while the ASH link is not CONNECTED
+// (bootloader output only ever appears in place of the RSTACK after a reset)
+void ZigbeeProxy::check_bootloader_mode_(uint8_t prev_byte, uint8_t byte) {
   // Check for Silicon Labs bootloader menu prompt (0xC1 0x0D)
-  if (data[0] == 0xC1 && data[1] == 0x0D) {
+  if (prev_byte == 0xC1 && byte == 0x0D) {
     if (this->bootloader_state_ != BootloaderState::MENU) {
       ESP_LOGW(TAG, "NCP in bootloader menu mode detected\n"
-                    "Please flash NCP firmware or power cycle the device");
+                    "  Please flash NCP firmware or power cycle the device");
       this->bootloader_state_ = BootloaderState::MENU;
     }
     return;
   }
 
   // Check for upload begin (0x43)
-  if (data[0] == 0x43) {
+  if (byte == 0x43) {
     if (this->bootloader_state_ != BootloaderState::DETECTED) {
       ESP_LOGW(TAG, "NCP bootloader upload mode detected");
       this->bootloader_state_ = BootloaderState::DETECTED;
     }
     return;
   }
-
-  // Reset bootloader state if we see normal traffic
-  if (this->bootloader_state_ != BootloaderState::NORMAL && this->ash_state_ == AshState::CONNECTED) {
-    ESP_LOGV(TAG, "NCP returned to normal operation");
-    this->bootloader_state_ = BootloaderState::NORMAL;
-  }
 }
 
-// UART processing
-void ZigbeeProxy::process_uart_() {
-  while (this->available()) {
+// UART processing (precondition: available() > 0, see inline process_uart_ in the header)
+void ZigbeeProxy::process_uart_slow_() {
+  do {
     uint8_t byte;
-    this->read_byte(&byte);
+    if (!this->read_byte(&byte)) {
+      return;
+    }
 
     // Verbose logging for debugging (ESP_LOGV already checks log level)
     ESP_LOGV(TAG, "RX: 0x%02X", byte);
 
+    if (this->ash_state_ != AshState::CONNECTED) {
+      this->check_bootloader_mode_(this->last_rx_byte_, byte);
+      this->last_rx_byte_ = byte;
+    } else if (this->bootloader_state_ != BootloaderState::NORMAL) {
+      // Normal traffic while connected clears any stale bootloader detection
+      ESP_LOGV(TAG, "NCP returned to normal operation");
+      this->bootloader_state_ = BootloaderState::NORMAL;
+    }
+
     this->parse_byte_(byte);
-  }
+  } while (this->available());
 }
 
 // ==================== Client-side ASH session ====================
@@ -882,50 +1013,93 @@ void ZigbeeProxy::client_reset_session_() {
   this->client_rx_sequence_ = 0;
   this->client_rx_buffer_index_ = 0;
   this->client_escape_next_byte_ = false;
+  this->client_tx_pending_length_ = 0;
   this->client_ash_state_ = AshState::DISCONNECTED;
   this->client_parsing_state_ = ParsingState::WAIT_FLAG_START;
   ESP_LOGV(TAG, "Client ASH session reset");
 }
 
-void ZigbeeProxy::send_to_client_(const uint8_t *data, size_t length) {
+bool ZigbeeProxy::send_to_client_(const uint8_t *data, size_t length) {
   if (this->api_connection_ == nullptr) {
-    return;
+    return false;
   }
   this->outgoing_proto_msg_.data = data;
   this->outgoing_proto_msg_.data_len = length;
-  this->api_connection_->send_zigbee_proxy_frame(this->outgoing_proto_msg_);
+  return this->api_connection_->send_zigbee_proxy_frame(this->outgoing_proto_msg_);
 }
 
-void ZigbeeProxy::client_send_raw_frame_(const uint8_t *frame, size_t length) { this->send_to_client_(frame, length); }
+void ZigbeeProxy::client_send_raw_frame_(const uint8_t *frame, size_t length) {
+  // Failure here means API TX buffer backpressure. Losing a control frame is recoverable:
+  // an unsent ACK triggers a client retransmit, which the duplicate-frame path re-ACKs.
+  if (!this->send_to_client_(frame, length)) {
+    ESP_LOGV(TAG, "Dropped %u byte control frame to client (API TX buffer full)", length);
+  }
+}
 
 void ZigbeeProxy::client_send_ack_frame_(uint8_t ack_num) {
   uint8_t frame[8];
-  size_t length = this->build_frame_(frame, nullptr, 0, AshFrameType::ACK, 0, ack_num);
+  size_t length = this->build_frame_(frame, sizeof(frame), nullptr, 0, AshFrameType::ACK, 0, ack_num);
   this->client_send_raw_frame_(frame, length);
   ESP_LOGV(TAG, "Sent client ACK for frame %d", ack_num);
+}
+
+void ZigbeeProxy::client_send_nak_frame_(uint8_t ack_num) {
+  uint8_t frame[8];
+  size_t length = this->build_frame_(frame, sizeof(frame), nullptr, 0, AshFrameType::NAK, 0, ack_num);
+  this->client_send_raw_frame_(frame, length);
+  ESP_LOGV(TAG, "Sent client NAK for frame %d", ack_num);
 }
 
 void ZigbeeProxy::client_send_rstack_frame_(uint8_t reset_code) {
   // RSTACK payload: [version] [reset_code]
   uint8_t payload[] = {0x02, reset_code};
   uint8_t frame[16];
-  size_t length = this->build_frame_(frame, payload, sizeof(payload), AshFrameType::RSTACK);
+  size_t length = this->build_frame_(frame, sizeof(frame), payload, sizeof(payload), AshFrameType::RSTACK);
   this->client_send_raw_frame_(frame, length);
   ESP_LOGV(TAG, "Sent client RSTACK (code=0x%02X)", reset_code);
 }
 
 void ZigbeeProxy::client_send_data_frame_(const uint8_t *data, size_t length) {
-  size_t frame_length = this->build_frame_(this->client_tx_buffer_.data(), data, length, AshFrameType::DATA,
-                                           this->client_tx_sequence_, this->client_rx_sequence_);
+  size_t frame_length = this->build_frame_(this->client_tx_buffer_.data(), this->client_tx_buffer_.size(), data, length,
+                                           AshFrameType::DATA, this->client_tx_sequence_, this->client_rx_sequence_);
+  if (frame_length == 0) {
+    return;  // build_frame_ logged the error; payload cannot be represented in the buffer
+  }
   this->client_tx_sequence_ = (this->client_tx_sequence_ + 1) & ASH_MAX_SEQUENCE;
-  this->client_send_raw_frame_(this->client_tx_buffer_.data(), frame_length);
+  if (!this->send_to_client_(this->client_tx_buffer_.data(), frame_length)) {
+    // API TX buffer backpressure: keep the frame and retry from loop(). While a frame is
+    // pending, incoming NCP DATA frames are left unACKed so the NCP provides flow control.
+    ESP_LOGV(TAG, "Client DATA frame deferred (API TX buffer full)");
+    this->client_tx_pending_length_ = frame_length;
+    this->client_tx_pending_since_ = millis();
+    return;
+  }
   ESP_LOGV(TAG, "Sent client DATA frame, payload %u bytes", length);
+}
+
+void ZigbeeProxy::try_send_pending_client_frame_() {
+  if (this->client_tx_pending_length_ == 0) {
+    return;
+  }
+  if (this->send_to_client_(this->client_tx_buffer_.data(), this->client_tx_pending_length_)) {
+    ESP_LOGV(TAG, "Sent deferred client DATA frame");
+    this->client_tx_pending_length_ = 0;
+    return;
+  }
+  if (millis() - this->client_tx_pending_since_ > CLIENT_TX_RETRY_TIMEOUT_MS) {
+    // The API connection is not draining; abandon the frame and force the client to
+    // re-establish a clean ASH session (best effort - the ERROR frame may also fail)
+    ESP_LOGE(TAG, "Client TX stalled for %u ms, resetting client session", CLIENT_TX_RETRY_TIMEOUT_MS);
+    this->client_tx_pending_length_ = 0;
+    this->client_send_error_frame_(static_cast<uint8_t>(EzspError::EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT));
+    this->client_reset_session_();
+  }
 }
 
 void ZigbeeProxy::client_send_error_frame_(uint8_t error_code) {
   uint8_t payload[] = {0x02, error_code};
   uint8_t frame[16];
-  size_t length = this->build_frame_(frame, payload, sizeof(payload), AshFrameType::ERROR);
+  size_t length = this->build_frame_(frame, sizeof(frame), payload, sizeof(payload), AshFrameType::ERROR);
   this->client_send_raw_frame_(frame, length);
   ESP_LOGV(TAG, "Sent client ERROR (code=0x%02X)", error_code);
 }
@@ -935,21 +1109,26 @@ void ZigbeeProxy::forward_ncp_data_to_client_(const uint8_t *payload, size_t len
 }
 
 void ZigbeeProxy::forward_ncp_rstack_to_client_(const uint8_t *data, size_t length) {
-  // Build and send an RSTACK frame to the client with NCP's RSTACK data
+  // RSTACK payload is [version] [reset_code] per spec; cap defensively so a malformed
+  // NCP frame cannot overflow the stack buffer
+  length = std::min(length, static_cast<size_t>(2));
   uint8_t frame[16];
-  size_t frame_length = this->build_frame_(frame, data, length, AshFrameType::RSTACK);
+  size_t frame_length = this->build_frame_(frame, sizeof(frame), data, length, AshFrameType::RSTACK);
   this->client_send_raw_frame_(frame, frame_length);
 
   // Reset client-side sequence numbers since RSTACK means new session
   this->client_tx_sequence_ = 0;
   this->client_rx_sequence_ = 0;
+  this->client_tx_pending_length_ = 0;
   this->client_ash_state_ = AshState::CONNECTED;
   ESP_LOGV(TAG, "Forwarded RSTACK to client");
 }
 
 void ZigbeeProxy::forward_ncp_error_to_client_(const uint8_t *data, size_t length) {
+  // ERROR payload is [version] [error_code] per spec; cap defensively (see RSTACK above)
+  length = std::min(length, static_cast<size_t>(2));
   uint8_t frame[16];
-  size_t frame_length = this->build_frame_(frame, data, length, AshFrameType::ERROR);
+  size_t frame_length = this->build_frame_(frame, sizeof(frame), data, length, AshFrameType::ERROR);
   this->client_send_raw_frame_(frame, frame_length);
   ESP_LOGV(TAG, "Forwarded ERROR to client");
 }
@@ -1075,21 +1254,37 @@ void ZigbeeProxy::client_parse_control_byte_(uint8_t control) {
     case AshFrameType::DATA: {
       // Verify sequence number
       if (frame_num != this->client_rx_sequence_) {
-        ESP_LOGW(TAG, "Client: out of sequence DATA frame: expected %d, got %d", this->client_rx_sequence_, frame_num);
+        uint8_t retx_bit = this->client_rx_buffer_[0] & 0x08;
+        if (retx_bit != 0 && frame_num == ((this->client_rx_sequence_ - 1) & ASH_MAX_SEQUENCE)) {
+          // Retransmission of a frame we already accepted (our ACK was lost) - re-ACK and discard
+          ESP_LOGV(TAG, "Client: duplicate DATA frame %d, re-sending ACK", frame_num);
+          this->client_send_ack_frame_(this->client_rx_sequence_);
+        } else {
+          ESP_LOGW(TAG, "Client: out of sequence DATA frame: expected %d, got %d", this->client_rx_sequence_,
+                   frame_num);
+          this->client_send_nak_frame_(this->client_rx_sequence_);
+        }
         return;
       }
-
-      this->client_rx_sequence_ = (this->client_rx_sequence_ + 1) & ASH_MAX_SEQUENCE;
 
       // Extract EZSP payload (skip control byte, exclude CRC)
       size_t payload_length = this->client_rx_buffer_index_ > 3 ? this->client_rx_buffer_index_ - 3 : 0;
       const uint8_t *payload = this->client_rx_buffer_.data() + 1;
 
       if (payload_length > 0) {
-        // Forward EZSP payload to NCP via right-side ASH
+        // Forward EZSP payload to NCP via right-side ASH; NAK without consuming if the
+        // NCP link is down or the TX queue is full so the client retransmits
         ESP_LOGV(TAG, "Client DATA → NCP, EZSP payload %u bytes", payload_length);
-        this->send_frame(payload, payload_length);
+        if (!this->send_frame(payload, payload_length)) {
+          this->client_send_nak_frame_(this->client_rx_sequence_);
+          return;
+        }
       }
+
+      // Accepted: advance the sequence and ACK immediately rather than relying on the
+      // piggybacked ACK of an eventual NCP response
+      this->client_rx_sequence_ = (this->client_rx_sequence_ + 1) & ASH_MAX_SEQUENCE;
+      this->client_send_ack_frame_(this->client_rx_sequence_);
       break;
     }
 
@@ -1112,6 +1307,7 @@ void ZigbeeProxy::client_parse_control_byte_(uint8_t control) {
       this->rx_sequence_ = 0;
       this->tx_buffer_pending_ = false;
       this->tx_retry_count_ = 0;
+      this->ncp_tx_queue_count_ = 0;
       this->parsing_state_ = ParsingState::WAIT_FLAG_START;
       this->client_reset_session_();
       this->send_rst_frame_();

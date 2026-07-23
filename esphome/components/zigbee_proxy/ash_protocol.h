@@ -32,6 +32,10 @@ static constexpr uint8_t ASH_MAX_RETRIES = 5;        // Maximum retransmission a
 static constexpr uint16_t ASH_CRC_INIT = 0xFFFF;     // CRC-CCITT initial value
 static constexpr uint32_t ASH_RESET_TIMEOUT = 3000;  // RST/RSTACK timeout in milliseconds
 
+// Client -> NCP queue depth: frames accepted while the single ASH TX window is occupied.
+// Overflow beyond this is NAKed to the client, which retransmits.
+static constexpr uint8_t NCP_TX_QUEUE_SIZE = 2;
+
 // IEEE address size
 static constexpr size_t ZIGBEE_IEEE_ADDR_SIZE = 8;  // 64-bit IEEE address
 

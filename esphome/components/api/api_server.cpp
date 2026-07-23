@@ -399,6 +399,14 @@ void APIServer::on_zwave_proxy_request(const ZWaveProxyRequest &msg) {
 }
 #endif
 
+#ifdef USE_ZIGBEE_PROXY
+void APIServer::on_zigbee_proxy_request(const ZigbeeProxyRequest &msg) {
+  // Very infrequent and small - send to all clients rather than tracking a subscription
+  for (auto &c : this->active_clients())
+    c->send_message(msg);
+}
+#endif
+
 #if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
 void APIServer::send_infrared_rf_receive_event([[maybe_unused]] uint32_t device_id, uint32_t key,
                                                const std::vector<int32_t> *timings) {

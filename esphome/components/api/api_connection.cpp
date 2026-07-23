@@ -192,6 +192,11 @@ APIConnection::~APIConnection() {
     zwave_proxy::global_zwave_proxy->zwave_proxy_request(this, enums::ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE);
   }
 #endif
+#ifdef USE_ZIGBEE_PROXY
+  if (zigbee_proxy::global_zigbee_proxy != nullptr && zigbee_proxy::global_zigbee_proxy->get_api_connection() == this) {
+    zigbee_proxy::global_zigbee_proxy->unsubscribe_api_connection(this);
+  }
+#endif
 #ifdef USE_SERIAL_PROXY
   for (auto *proxy : App.get_serial_proxies()) {
     if (proxy->get_api_connection() == this) {

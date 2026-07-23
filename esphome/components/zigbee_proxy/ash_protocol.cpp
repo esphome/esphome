@@ -9,6 +9,8 @@ namespace esphome::zigbee_proxy {
 
 static const char *const TAG = "zigbee_proxy";
 
+static constexpr size_t ASH_MAX_LOG_BYTES = 168;  // Cap verbose hex dumps (168 * 3 = 504 byte buffer)
+
 // CRC-CCITT lookup table for polynomial 0x1021 (x^16 + x^12 + x^5 + 1)
 static const uint16_t CRC_TABLE[256] = {
     0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50A5, 0x60C6, 0x70E7, 0x8108, 0x9129, 0xA14A, 0xB16B, 0xC18C, 0xD1AD,
@@ -112,22 +114,34 @@ void ZigbeeProxy::parse_control_byte_(uint8_t control) {
   // Handle frame based on type
   switch (frame_type) {
     case AshFrameType::DATA: {
-      // Check sequence number
-      if (frame_num != this->rx_sequence_) {
-        ESP_LOGW(TAG, "Out of sequence DATA frame: expected %d, got %d", this->rx_sequence_, frame_num);
-        this->send_nak_frame_(this->rx_sequence_);
-        return;
-      }
-
-      // Check for ACK in DATA frame (piggybacked ACK) BEFORE processing
-      // This must happen first because the handler may send new frames
+      // Process the piggybacked ACK first: ackNum means "I expect frame N next" = "I received
+      // up to N-1", and it is valid regardless of the DATA frame's own sequence ordering
       if (this->tx_buffer_pending_ && ack_num == ((this->tx_pending_frame_num_ + 1) & ASH_MAX_SEQUENCE)) {
-        // ackNum means "I expect frame N next" = "I received up to N-1"
-        // So if ackNum == pending+1, our pending frame was received
         uint32_t rtt = millis() - this->ack_timer_start_;
         this->update_adaptive_timeout_(rtt);
         this->clear_tx_buffer_();
         ESP_LOGV(TAG, "ACK received (piggybacked in DATA), RTT: %u ms", rtt);
+        this->drain_ncp_tx_queue_();
+      }
+
+      // Check sequence number
+      if (frame_num != this->rx_sequence_) {
+        if (retx && frame_num == ((this->rx_sequence_ - 1) & ASH_MAX_SEQUENCE)) {
+          // Retransmission of a frame we already ACKed (our ACK was lost) - re-ACK and discard
+          ESP_LOGV(TAG, "Duplicate DATA frame %d, re-sending ACK", frame_num);
+          this->send_ack_frame_(this->rx_sequence_);
+        } else {
+          ESP_LOGW(TAG, "Out of sequence DATA frame: expected %d, got %d", this->rx_sequence_, frame_num);
+          this->send_nak_frame_(this->rx_sequence_);
+        }
+        return;
+      }
+
+      // Backpressure: a client-bound frame is still waiting on API TX buffer space, so we
+      // cannot forward another one. Do not ACK or consume - the NCP will retransmit.
+      if (!this->boot_sequence_active_ && this->api_connection_ != nullptr && this->client_tx_pending_length_ > 0) {
+        ESP_LOGV(TAG, "Client TX pending, deferring DATA frame %d to NCP retransmit", frame_num);
+        return;
       }
 
       // Increment RX sequence and send ACK (ack_num = next expected frame)
@@ -157,6 +171,7 @@ void ZigbeeProxy::parse_control_byte_(uint8_t control) {
         this->update_adaptive_timeout_(rtt);
         this->clear_tx_buffer_();
         ESP_LOGV(TAG, "ACK received for frame %d, RTT: %u ms", this->tx_pending_frame_num_, rtt);
+        this->drain_ncp_tx_queue_();
       }
       break;
 
@@ -168,9 +183,10 @@ void ZigbeeProxy::parse_control_byte_(uint8_t control) {
       break;
 
     case AshFrameType::RST: {
-      ESP_LOGW(TAG, "Received RST frame from NCP, sending RSTACK");
-      // Send RSTACK response
-      uint8_t rstack_data[] = {0x02, 0x01, 0x00};  // RSTACK with reset code
+      // An NCP never sends RST in normal operation; treat it as a reset indication
+      // and run the RSTACK handling to resynchronize state (nothing is transmitted here)
+      ESP_LOGW(TAG, "Received unexpected RST frame from NCP, resynchronizing");
+      uint8_t rstack_data[] = {0x02, 0x01, 0x00};  // Synthesized RSTACK payload
       this->handle_rstack_frame_(rstack_data, sizeof(rstack_data));
       break;
     }
@@ -273,10 +289,13 @@ bool ZigbeeProxy::parse_byte_(uint8_t byte) {
         if (this->validate_frame_crc_()) {
           this->parse_control_byte_(this->rx_buffer_[0]);
         } else {
-          // CRC failed - WARN logs byte count only; hex dump at VERBOSE to avoid heap allocation in production
+          // CRC failed - WARN logs byte count only; hex dump at VERBOSE (truncated to ASH_MAX_LOG_BYTES)
           ESP_LOGW(TAG, "CRC failed (%u bytes)", this->rx_buffer_index_);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+          char hex_buf[format_hex_pretty_size(ASH_MAX_LOG_BYTES)];
+#endif
           ESP_LOGV(TAG, "CRC failed frame: %s",
-                   format_hex_pretty(this->rx_buffer_.data(), this->rx_buffer_index_).c_str());
+                   format_hex_pretty_to(hex_buf, this->rx_buffer_.data(), this->rx_buffer_index_));
           this->send_nak_frame_(this->rx_sequence_);
         }
         this->parsing_state_ = ParsingState::WAIT_FLAG_START;
@@ -312,11 +331,31 @@ bool ZigbeeProxy::parse_byte_(uint8_t byte) {
   return false;
 }
 
-size_t ZigbeeProxy::build_frame_(uint8_t *output, const uint8_t *data, size_t length, AshFrameType type,
-                                 uint8_t frame_num, uint8_t ack_num, bool retx) {
+// Appends a byte with ASH stuffing (reserved: FLAG, ESCAPE, XON, XOFF, SUB, CAN);
+// returns false if it would exceed capacity
+static bool append_byte_stuffed(uint8_t *output, size_t capacity, size_t &pos, uint8_t byte) {
+  const bool reserved = byte == ASH_FLAG_BYTE || byte == ASH_ESCAPE_BYTE || byte == 0x11 || byte == 0x13 ||
+                        byte == ASH_SUBSTITUTE_BYTE || byte == 0x1A;
+  if (pos + (reserved ? 2 : 1) > capacity) {
+    return false;
+  }
+  if (reserved) {
+    output[pos++] = ASH_ESCAPE_BYTE;
+    output[pos++] = byte ^ ASH_XOR_BYTE;
+  } else {
+    output[pos++] = byte;
+  }
+  return true;
+}
+
+size_t ZigbeeProxy::build_frame_(uint8_t *output, size_t capacity, const uint8_t *data, size_t length,
+                                 AshFrameType type, uint8_t frame_num, uint8_t ack_num, bool retx) {
   size_t pos = 0;
 
   // Start with FLAG
+  if (capacity < 1) {
+    return 0;
+  }
   output[pos++] = ASH_FLAG_BYTE;
 
   // Build control byte
@@ -344,24 +383,17 @@ size_t ZigbeeProxy::build_frame_(uint8_t *output, const uint8_t *data, size_t le
       break;
   }
 
-  // Add control byte with stuffing (reserved: FLAG, ESCAPE, XON, XOFF, SUB, CAN)
-  if (control == ASH_FLAG_BYTE || control == ASH_ESCAPE_BYTE || control == 0x11 || control == 0x13 || control == 0x18 ||
-      control == 0x1A) {
-    output[pos++] = ASH_ESCAPE_BYTE;
-    output[pos++] = control ^ ASH_XOR_BYTE;
-  } else {
-    output[pos++] = control;
+  // Add control byte with stuffing
+  if (!append_byte_stuffed(output, capacity, pos, control)) {
+    ESP_LOGE(TAG, "Frame too large for buffer (%u byte payload, %u byte buffer)", length, capacity);
+    return 0;
   }
 
   // Add data payload with stuffing
   for (size_t i = 0; i < length; i++) {
-    uint8_t byte = data[i];
-    if (byte == ASH_FLAG_BYTE || byte == ASH_ESCAPE_BYTE || byte == 0x11 || byte == 0x13 || byte == 0x18 ||
-        byte == 0x1A) {
-      output[pos++] = ASH_ESCAPE_BYTE;
-      output[pos++] = byte ^ ASH_XOR_BYTE;
-    } else {
-      output[pos++] = byte;
+    if (!append_byte_stuffed(output, capacity, pos, data[i])) {
+      ESP_LOGE(TAG, "Frame too large for buffer (%u byte payload, %u byte buffer)", length, capacity);
+      return 0;
     }
   }
 
@@ -371,27 +403,12 @@ size_t ZigbeeProxy::build_frame_(uint8_t *output, const uint8_t *data, size_t le
     crc = this->calculate_crc_(data, length, crc);
   }
 
-  // Add CRC with stuffing (big-endian)
-  uint8_t crc_high = (crc >> 8) & 0xFF;
-  uint8_t crc_low = crc & 0xFF;
-
-  if (crc_high == ASH_FLAG_BYTE || crc_high == ASH_ESCAPE_BYTE || crc_high == 0x11 || crc_high == 0x13 ||
-      crc_high == 0x18 || crc_high == 0x1A) {
-    output[pos++] = ASH_ESCAPE_BYTE;
-    output[pos++] = crc_high ^ ASH_XOR_BYTE;
-  } else {
-    output[pos++] = crc_high;
+  // Add CRC with stuffing (big-endian), then the end FLAG
+  if (!append_byte_stuffed(output, capacity, pos, (crc >> 8) & 0xFF) ||
+      !append_byte_stuffed(output, capacity, pos, crc & 0xFF) || pos + 1 > capacity) {
+    ESP_LOGE(TAG, "Frame too large for buffer (%u byte payload, %u byte buffer)", length, capacity);
+    return 0;
   }
-
-  if (crc_low == ASH_FLAG_BYTE || crc_low == ASH_ESCAPE_BYTE || crc_low == 0x11 || crc_low == 0x13 || crc_low == 0x18 ||
-      crc_low == 0x1A) {
-    output[pos++] = ASH_ESCAPE_BYTE;
-    output[pos++] = crc_low ^ ASH_XOR_BYTE;
-  } else {
-    output[pos++] = crc_low;
-  }
-
-  // End with FLAG
   output[pos++] = ASH_FLAG_BYTE;
 
   return pos;

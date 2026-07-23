@@ -51,6 +51,8 @@ enum class BootState : uint8_t {
   WAIT_RSTACK,              // Sent RST, waiting for RSTACK
   SEND_VERSION,             // Send EZSP version command
   WAIT_VERSION,             // Waiting for version response
+  SEND_GET_EUI64,           // Send getEui64 command
+  WAIT_EUI64,               // Waiting for EUI64 response
   SEND_NETWORK_INIT,        // Send networkInit command
   WAIT_STACK_STATUS,        // Waiting for stackStatusHandler callback
   SEND_GET_NETWORK_PARAMS,  // Send getNetworkParameters command
@@ -76,6 +78,8 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   void zigbee_proxy_request(api::APIConnection *api_connection, const api::ZigbeeProxyRequest &msg);
   void zigbee_proxy_frame(api::APIConnection *api_connection, const api::ZigbeeProxyFrame &msg);
   api::APIConnection *get_api_connection() { return this->api_connection_; }
+  // Drop the subscription of a disconnecting client (called from APIConnection teardown)
+  void unsubscribe_api_connection(api::APIConnection *conn);
 
   // Feature flags
   uint32_t get_feature_flags() const { return ZigbeeProxyFeature::FEATURE_ZIGBEE_PROXY_ENABLED; }
@@ -84,8 +88,10 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   const NetworkInfo &get_network_info() const { return this->network_info_; }
   uint64_t get_ieee_address() const;
 
-  // Frame sending (from API client to NCP)
-  void send_frame(const uint8_t *data, size_t length);
+  // Send an EZSP payload to the NCP: transmits immediately when the ASH link is idle,
+  // otherwise queues it. Returns false if the link is down or the queue is full (caller
+  // should NAK the client so it retransmits).
+  bool send_frame(const uint8_t *data, size_t length);
 
   // Timeout configuration (callable from Python/API)
   void set_timeout_config(uint32_t initial_ms, uint32_t min_ms, uint32_t max_ms);
@@ -115,8 +121,10 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   bool parse_byte_(uint8_t byte);
   void parse_control_byte_(uint8_t control);
   bool validate_frame_crc_();
-  size_t build_frame_(uint8_t *output, const uint8_t *data, size_t length, AshFrameType type, uint8_t frame_num = 0,
-                      uint8_t ack_num = 0, bool retx = false);
+  // Builds a stuffed frame into output; returns 0 if the frame (worst case 2*length + 8
+  // bytes after byte stuffing) would exceed capacity.
+  size_t build_frame_(uint8_t *output, size_t capacity, const uint8_t *data, size_t length, AshFrameType type,
+                      uint8_t frame_num = 0, uint8_t ack_num = 0, bool retx = false);
   uint16_t calculate_crc_(const uint8_t *data, size_t length, uint16_t init = ASH_CRC_INIT);
 
   // Sequence number management
@@ -135,14 +143,19 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
     this->tx_retry_count_ = 0;
   }
 
+  // Client -> NCP pending frame queue (absorbs frames arriving while a TX is unacknowledged)
+  void drain_ncp_tx_queue_();
+
   // Boot-time NCP initialization
-  void start_boot_sequence_();
   void advance_boot_state_();
+  void check_boot_timeouts_();
   void handle_boot_data_frame_(const uint8_t *data, size_t length);
   void send_ezsp_version_();
+  void send_get_eui64_();
   void send_network_init_();
   void send_get_network_params_();
   void handle_version_response_(const uint8_t *data, size_t length);
+  void handle_eui64_response_(const uint8_t *data, size_t length);
   void handle_stack_status_(const uint8_t *data, size_t length);
   void handle_network_params_response_(const uint8_t *data, size_t length);
 
@@ -153,25 +166,42 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   // WiFi/Zigbee channel conflict detection
   void check_wifi_zigbee_conflict_();
 
-  // Bootloader detection
-  void check_bootloader_mode_(const uint8_t *data, size_t length);
+  // Bootloader detection (fed consecutive raw byte pairs while not CONNECTED)
+  void check_bootloader_mode_(uint8_t prev_byte, uint8_t byte);
 
   // UART processing
-  void process_uart_();
+  // Inline fast-path: UART::available() is cheap (ring-buffer head/tail compare on most
+  // backends), so an idle loop tick skips the out-of-line drain entirely. When bytes are
+  // pending the slow path drains with do/while so available() is checked once per byte.
+  ESPHOME_ALWAYS_INLINE void process_uart_() {
+    if (!this->available()) {
+      return;
+    }
+    this->process_uart_slow_();
+  }
+  // Precondition: caller must guarantee available() > 0 (see inline process_uart_ above)
+  void process_uart_slow_();
 
   // Client-side (left) ASH session
   void client_parse_byte_(uint8_t byte);
   void client_parse_control_byte_(uint8_t control);
   bool client_validate_frame_crc_();
   void client_send_ack_frame_(uint8_t ack_num);
+  void client_send_nak_frame_(uint8_t ack_num);
   void client_send_rstack_frame_(uint8_t reset_code);
   void client_send_data_frame_(const uint8_t *data, size_t length);
   void client_send_error_frame_(uint8_t error_code);
   void client_send_raw_frame_(const uint8_t *frame, size_t length);
   void client_reset_session_();
 
-  // Send raw bytes to API client
-  void send_to_client_(const uint8_t *data, size_t length);
+  // Retry a client-bound DATA frame that failed to send (API TX buffer backpressure)
+  void try_send_pending_client_frame_();
+
+  // Send raw bytes to API client; returns false if the API TX buffer rejected the message
+  bool send_to_client_(const uint8_t *data, size_t length);
+
+  // Network info request/push (packed: ieee[8] + extended_pan[8] + pan_id[2] + channel[1], little-endian)
+  void send_network_info_response_(api::APIConnection *conn);
 
   // Forward NCP frames to client
   void forward_ncp_data_to_client_(const uint8_t *payload, size_t length);
@@ -190,6 +220,13 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   std::array<uint8_t, MAX_ASH_FRAME_SIZE> client_rx_buffer_;
   std::array<uint8_t, MAX_ASH_FRAME_SIZE> client_tx_buffer_;
 
+  // Client -> NCP queue: EZSP payloads accepted while the ASH TX window is occupied
+  struct QueuedTxFrame {
+    uint16_t length;
+    std::array<uint8_t, MAX_ASH_FRAME_SIZE> data;
+  };
+  std::array<QueuedTxFrame, NCP_TX_QUEUE_SIZE> ncp_tx_queue_;
+
   // Network information
   NetworkInfo network_info_;
 
@@ -200,10 +237,14 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   api::APIConnection *api_connection_{nullptr};  // Current subscribed client
 
   // NCP-side (right) 32-bit values
-  uint32_t setup_time_{0};       // Time when last RST frame was sent
-  uint32_t boot_start_time_{0};  // Time when the boot sequence began (for overall timeout)
-  uint32_t ack_timer_start_{0};  // Time when ACK timer started
-  uint32_t last_rtt_ms_{0};      // Last measured round-trip time
+  uint32_t setup_time_{0};             // Time when last RST frame was sent
+  uint32_t boot_start_time_{0};        // Time when the boot sequence began (for overall timeout)
+  uint32_t ack_timer_start_{0};        // Time when ACK timer started
+  uint32_t last_rtt_ms_{0};            // Last measured round-trip time
+  uint32_t last_recovery_attempt_{0};  // Time of last automatic reset attempt from FAILED
+
+  // Client-side (left) 32-bit values
+  uint32_t client_tx_pending_since_{0};  // Time the pending client frame first failed to send
 
   // NCP-side (right) 16-bit values
   uint16_t rx_buffer_index_{0};    // Index for populating rx_buffer_
@@ -212,6 +253,7 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
 
   // Client-side (left) 16-bit values
   uint16_t client_rx_buffer_index_{0};
+  uint16_t client_tx_pending_length_{0};  // >0: client_tx_buffer_ holds an unsent DATA frame
 
   // NCP-side (right) 8-bit values
   uint8_t tx_sequence_{0};           // TX sequence number (0-7)
@@ -219,6 +261,9 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   uint8_t tx_retry_count_{0};        // Number of retransmission attempts
   uint8_t tx_pending_frame_num_{0};  // Frame number of pending TX frame
   uint8_t last_ack_sent_{0};         // Last ACK number sent
+  uint8_t ncp_tx_queue_head_{0};     // Oldest entry in ncp_tx_queue_
+  uint8_t ncp_tx_queue_count_{0};    // Number of queued entries
+  uint8_t last_rx_byte_{0};          // Previous raw RX byte (bootloader detection)
 
   // Client-side (left) 8-bit values
   uint8_t client_tx_sequence_{0};  // Client-facing TX sequence (proxy → client)
