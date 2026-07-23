@@ -278,6 +278,7 @@ class ClimateTraits {
   climate::ClimateFanModeMask supported_fan_modes_;
   climate::ClimateSwingModeMask supported_swing_modes_;
   climate::ClimatePresetMask supported_presets_;
+  TemperatureUnit temperature_unit_{TemperatureUnit::CELSIUS};
 
   /** Custom mode storage - pointers to vectors owned by the Climate base class.
    *
