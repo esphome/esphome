@@ -7,10 +7,9 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_lywsd02mmc {
+namespace esphome::xiaomi_lywsd02mmc {
 
-class XiaomiLYWSD02MMC : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class XiaomiLYWSD02MMC final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { this->address_ = address; }
   void set_bindkey(const char *bindkey);
@@ -30,7 +29,6 @@ class XiaomiLYWSD02MMC : public Component, public esp32_ble_tracker::ESPBTDevice
   sensor::Sensor *battery_level_{nullptr};
 };
 
-}  // namespace xiaomi_lywsd02mmc
-}  // namespace esphome
+}  // namespace esphome::xiaomi_lywsd02mmc
 
 #endif

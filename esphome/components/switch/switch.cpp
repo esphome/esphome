@@ -18,15 +18,15 @@ void Switch::control(bool target_state) {
   }
 }
 void Switch::turn_on() {
-  ESP_LOGD(TAG, "'%s' Turning ON.", this->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' Turning ON.", this->get_name().c_str());
   this->write_state(!this->inverted_);
 }
 void Switch::turn_off() {
-  ESP_LOGD(TAG, "'%s' Turning OFF.", this->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' Turning OFF.", this->get_name().c_str());
   this->write_state(this->inverted_);
 }
 void Switch::toggle() {
-  ESP_LOGD(TAG, "'%s' Toggling %s.", this->get_name().c_str(), this->state ? "OFF" : "ON");
+  ESP_LOGV(TAG, "'%s' Toggling %s.", this->get_name().c_str(), this->state ? "OFF" : "ON");
   this->write_state(this->inverted_ == this->state);
 }
 optional<bool> Switch::get_initial_state() {
@@ -61,7 +61,7 @@ void Switch::publish_state(bool state) {
   if (restore_mode & RESTORE_MODE_PERSISTENT_MASK)
     this->rtc_.save(&this->state);
 
-  ESP_LOGD(TAG, "'%s' >> %s", this->name_.c_str(), ONOFF(this->state));
+  ESP_LOGV(TAG, "'%s' >> %s", this->name_.c_str(), ONOFF(this->state));
   this->state_callback_.call(this->state);
 #if defined(USE_SWITCH) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_switch_update(this);
@@ -69,9 +69,6 @@ void Switch::publish_state(bool state) {
 }
 bool Switch::assumed_state() { return false; }
 
-void Switch::add_on_state_callback(std::function<void(bool)> &&callback) {
-  this->state_callback_.add(std::move(callback));
-}
 void Switch::set_inverted(bool inverted) { this->inverted_ = inverted; }
 bool Switch::is_inverted() const { return this->inverted_; }
 

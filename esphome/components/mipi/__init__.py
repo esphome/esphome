@@ -2,7 +2,11 @@
 # Various configuration constants for MIPI displays
 # Various utility functions for MIPI DBI configuration
 
+from collections.abc import Callable
+import functools
 from typing import Any, Self
+
+import voluptuous as vol
 
 from esphome.components.const import CONF_COLOR_DEPTH
 from esphome.components.display import CONF_SHOW_TEST_CARD, display_ns
@@ -18,17 +22,25 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
+    CONF_MODEL,
     CONF_OFFSET_HEIGHT,
     CONF_OFFSET_WIDTH,
     CONF_PAGES,
+    CONF_RESET_PIN,
     CONF_ROTATION,
     CONF_SWAP_XY,
     CONF_TRANSFORM,
     CONF_WIDTH,
 )
-from esphome.core import TimePeriod
+from esphome.core import CORE, TimePeriod
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
 LOGGER = cv.logging.getLogger(__name__)
+
+CONF_TRANSFORMS = "transforms"
+
+# All axis transforms a model may support, in the order they appear in the schema.
+ALL_TRANSFORMS = (CONF_MIRROR_X, CONF_MIRROR_Y, CONF_SWAP_XY)
 
 ColorOrder = display_ns.enum("ColorMode")
 
@@ -114,6 +126,7 @@ CSCON = 0xF0
 PWCTR6 = 0xF6
 ADJCTL3 = 0xF7
 PAGESEL = 0xFE
+PAGESEL1 = 0xFF
 
 MADCTL_MY = 0x80  # Bit 7 Bottom to top
 MADCTL_MX = 0x40  # Bit 6 Right to left
@@ -128,9 +141,13 @@ MADCTL_MH = 0x04  # Bit 2 LCD refresh right to left
 MADCTL_XFLIP = 0x02  # Mirror the display horizontally
 MADCTL_YFLIP = 0x01  # Mirror the display vertically
 
+MADCTL_FLIP_FLAG = 0x100  # meta-flag to indicate use of axis flips
+
 # Special constant for delays in command sequences
 DELAY_FLAG = 0xFFF  # Special flag to indicate a delay
 
+CONF_PAD_HEIGHT = "pad_height"
+CONF_PAD_WIDTH = "pad_width"
 CONF_PIXEL_MODE = "pixel_mode"
 CONF_USE_AXIS_FLIPS = "use_axis_flips"
 
@@ -194,6 +211,8 @@ def dimension_schema(rounding):
                     rounding
                 ),
                 cv.Optional(CONF_OFFSET_WIDTH, default=0): validate_dimension(rounding),
+                cv.Optional(CONF_PAD_WIDTH): validate_dimension(rounding),
+                cv.Optional(CONF_PAD_HEIGHT): validate_dimension(rounding),
             }
         ),
     )
@@ -237,11 +256,60 @@ def delay(ms):
     return DELAY_FLAG, ms
 
 
+# Generic placeholder model present in every DriverChip registry; skipped when
+# choosing a representative model for schema extraction.
+_CUSTOM_MODEL = "CUSTOM"
+
+
+def model_schema_extractor(
+    models: dict[str, Any],
+    model_schema: Callable[[dict[str, Any]], Any],
+    extra: dict[str, Any] | None = None,
+) -> Callable[[Callable[[Any], Any]], Callable[[Any], Any]]:
+    """
+    Decorate a model-driven display CONFIG_SCHEMA so the language-schema dumper
+    can extract it.
+
+    The schema is generated per ``model`` at validation time, so the static
+    dumper has nothing to walk. When the dumper passes SCHEMA_EXTRACT, resolve a
+    representative schema for a real model (the generic "CUSTOM" placeholder
+    over-constrains fields like init_sequence) plus any *extra* keys the model
+    needs, e.g. a bus mode, and hand that back; runtime validation is untouched.
+    """
+
+    def decorate(config_schema: Callable[[Any], Any]) -> Callable[[Any], Any]:
+        @schema_extractor("schema")
+        @functools.wraps(config_schema)
+        def wrapper(config: Any) -> Any:
+            if config is not SCHEMA_EXTRACT:
+                return config_schema(config)
+            names = sorted(models)
+            representative = next((n for n in names if n != _CUSTOM_MODEL), names[0])
+            schema = model_schema({CONF_MODEL: representative, **(extra or {})})
+            if isinstance(schema, vol.All):
+                schema = next(
+                    (v for v in schema.validators if isinstance(v, vol.Schema)),
+                    schema,
+                )
+            if isinstance(schema, vol.Schema):
+                # The resolved schema pins ``model`` to the representative; expose
+                # the full model list so the dumped enum offers every model.
+                schema = schema.extend(
+                    {cv.Required(CONF_MODEL): cv.one_of(*names, upper=True)}
+                )
+            return schema
+
+        return wrapper
+
+    return decorate
+
+
 class DriverChip:
     """
     A class representing a MIPI DBI driver chip model.
     The parameters supplied as defaults will be used to provide default values for the display configuration.
-    Setting swap_xy to cv.UNDEFINED will indicate that the model does not support swapping X and Y axes.
+    Pass a ``transforms`` set to restrict which axis transforms (mirror_x, mirror_y, swap_xy) the model
+    supports; by default all three are available.
     """
 
     models: dict[str, Self] = {}
@@ -255,6 +323,41 @@ class DriverChip:
         name = name.upper()
         self.name = name
         self.initsequence = initsequence
+        if CONF_NATIVE_WIDTH in defaults:
+            if CONF_WIDTH not in defaults:
+                defaults[CONF_WIDTH] = (
+                    defaults[CONF_NATIVE_WIDTH]
+                    - defaults.get(CONF_OFFSET_WIDTH, 0)
+                    - defaults.get(CONF_PAD_WIDTH, 0)
+                )
+            elif defaults[CONF_WIDTH] > defaults[CONF_NATIVE_WIDTH]:
+                defaults[CONF_NATIVE_WIDTH] = defaults[CONF_WIDTH]
+
+        else:
+            native_width = (
+                defaults.get(CONF_WIDTH, 0)
+                + defaults.get(CONF_OFFSET_WIDTH, 0)
+                + defaults.get(CONF_PAD_WIDTH, 0)
+            )
+            if native_width != 0:
+                defaults[CONF_NATIVE_WIDTH] = native_width
+        if CONF_NATIVE_HEIGHT in defaults:
+            if CONF_HEIGHT not in defaults:
+                defaults[CONF_HEIGHT] = (
+                    defaults[CONF_NATIVE_HEIGHT]
+                    - defaults.get(CONF_OFFSET_HEIGHT, 0)
+                    - defaults.get(CONF_PAD_HEIGHT, 0)
+                )
+            elif defaults[CONF_HEIGHT] > defaults[CONF_NATIVE_HEIGHT]:
+                defaults[CONF_NATIVE_HEIGHT] = defaults[CONF_HEIGHT]
+        else:
+            native_height = (
+                defaults.get(CONF_HEIGHT, 0)
+                + defaults.get(CONF_OFFSET_HEIGHT, 0)
+                + defaults.get(CONF_PAD_HEIGHT, 0)
+            )
+            if native_height != 0:
+                defaults[CONF_NATIVE_HEIGHT] = native_height
         self.defaults = defaults
         DriverChip.models[name] = self
 
@@ -280,18 +383,6 @@ class DriverChip:
         initsequence = list(kwargs.pop("initsequence", self.initsequence))
         initsequence.extend(kwargs.pop("add_init_sequence", ()))
         defaults = self.defaults.copy()
-        if (
-            CONF_WIDTH in defaults
-            and CONF_OFFSET_WIDTH in kwargs
-            and CONF_NATIVE_WIDTH not in defaults
-        ):
-            defaults[CONF_NATIVE_WIDTH] = defaults[CONF_WIDTH]
-        if (
-            CONF_HEIGHT in defaults
-            and CONF_OFFSET_HEIGHT in kwargs
-            and CONF_NATIVE_HEIGHT not in defaults
-        ):
-            defaults[CONF_NATIVE_HEIGHT] = defaults[CONF_HEIGHT]
         defaults.update(kwargs)
         return self.__class__(name, initsequence=tuple(initsequence), **defaults)
 
@@ -303,11 +394,25 @@ class DriverChip:
         """
         Return the available transforms for this model.
         """
+        if (transforms := self.get_default(CONF_TRANSFORMS, None)) is not None:
+            return transforms
         if self.get_default("no_transform", False):
             return set()
         if self.get_default(CONF_SWAP_XY) != cv.UNDEFINED:
             return {CONF_MIRROR_X, CONF_MIRROR_Y, CONF_SWAP_XY}
-        return {CONF_MIRROR_X, CONF_MIRROR_Y}
+        raise ValueError(
+            "Setting 'swap_xy' to 'cv.UNDEFINED' is no longer supported; set 'transforms' instead"
+        )
+
+    def has_hardware_transform(self, config) -> bool:
+        """
+        Check if the model supports hardware transforms for the given configuration.
+        """
+        return config.get(CONF_TRANSFORM) != CONF_DISABLED and self.transforms == {
+            CONF_MIRROR_X,
+            CONF_MIRROR_Y,
+            CONF_SWAP_XY,
+        }
 
     def option(self, name, fallback=False) -> cv.Optional:
         return cv.Optional(name, default=self.get_default(name, fallback))
@@ -329,45 +434,91 @@ class DriverChip:
             return CONF_SWAP_XY in transforms and CONF_MIRROR_X in transforms
         return CONF_SWAP_XY in transforms and CONF_MIRROR_Y in transforms
 
-    def get_dimensions(self, config) -> tuple[int, int, int, int]:
+    def get_dimensions(
+        self, config, swap: bool = True
+    ) -> tuple[int, int, int, int, int, int]:
+        """
+        Return the dimensions of the current model.
+        :param config: The current configuration
+        :param swap: If width/height should be swapped when axes are swapped.
+        :return: A tuple (width, height, offset_width, offset_height, pad_width, pad_height).
+        """
+
+        transform = self.get_transform(config)
         if CONF_DIMENSIONS in config:
             # Explicit dimensions, just use as is
             dimensions = config[CONF_DIMENSIONS]
             if isinstance(dimensions, dict):
+                native_width = self.get_default(CONF_NATIVE_WIDTH, 0)
+                native_height = self.get_default(CONF_NATIVE_HEIGHT, 0)
+                if transform.get(CONF_SWAP_XY) is True:
+                    native_width, native_height = native_height, native_width
                 width = dimensions[CONF_WIDTH]
                 height = dimensions[CONF_HEIGHT]
                 offset_width = dimensions[CONF_OFFSET_WIDTH]
                 offset_height = dimensions[CONF_OFFSET_HEIGHT]
-                return width, height, offset_width, offset_height
-            (width, height) = dimensions
-            return width, height, 0, 0
+                if CONF_PAD_WIDTH in dimensions:
+                    pad_width = dimensions[CONF_PAD_WIDTH]
+                    native_width = width + offset_width + pad_width
+                elif native_width == 0:
+                    pad_width = 0
+                    native_width = width + offset_width
+                else:
+                    pad_width = native_width - width - offset_width
+                if CONF_PAD_HEIGHT in dimensions:
+                    pad_height = dimensions[CONF_PAD_HEIGHT]
+                    native_height = height + offset_height + pad_height
+                elif native_height == 0:
+                    pad_height = 0
+                    native_height = height + offset_height
+                else:
+                    pad_height = native_height - height - offset_height
+                if (
+                    pad_width + offset_width >= native_width
+                    or pad_height + offset_height >= native_height
+                ):
+                    raise cv.Invalid("Dimensions exceed native size", [CONF_DIMENSIONS])
+                if pad_width < 0 or pad_height < 0:
+                    raise cv.Invalid("Invalid offsets", [CONF_DIMENSIONS])
+
+                return width, height, offset_width, offset_height, pad_width, pad_height
+
+            # Must be a tuple
+            width, height = dimensions
+            return width, height, 0, 0, 0, 0
 
         # Default dimensions, use model defaults
-        transform = self.get_transform(config)
 
         width = self.get_default(CONF_WIDTH)
         height = self.get_default(CONF_HEIGHT)
+        native_width = self.get_default(CONF_NATIVE_WIDTH, 0)
+        native_height = self.get_default(CONF_NATIVE_HEIGHT, 0)
         offset_width = self.get_default(CONF_OFFSET_WIDTH, 0)
         offset_height = self.get_default(CONF_OFFSET_HEIGHT, 0)
+        pad_width = self.get_default(
+            CONF_PAD_WIDTH, native_width - width - offset_width
+        )
+        pad_height = self.get_default(
+            CONF_PAD_HEIGHT, native_height - height - offset_height
+        )
+
+        if pad_width < 0 or pad_height < 0:
+            raise cv.Invalid("Offsets exceed native size", [CONF_DIMENSIONS])
 
         # if mirroring axes and there are offsets, also mirror the offsets to cater for situations where
         # the offset is asymmetric
         if transform.get(CONF_MIRROR_X):
-            native_width = self.get_default(CONF_NATIVE_WIDTH, width + offset_width * 2)
-            offset_width = native_width - width - offset_width
+            offset_width, pad_width = pad_width, offset_width
         if transform.get(CONF_MIRROR_Y):
-            native_height = self.get_default(
-                CONF_NATIVE_HEIGHT, height + offset_height * 2
-            )
-            offset_height = native_height - height - offset_height
-        # Swap default dimensions if swap_xy is set, or if rotation is 90/270 and we are not using a buffer
-        if transform.get(CONF_SWAP_XY) is True:
+            offset_height, pad_height = pad_height, offset_height
+        # Swap default dimensions if swap_xy is set, or if rotation is 90/270, and we are not using a buffer
+        if swap and transform.get(CONF_SWAP_XY) is True:
             width, height = height, width
             offset_height, offset_width = offset_width, offset_height
-        return width, height, offset_width, offset_height
+            pad_width, pad_height = pad_height, pad_width
+        return width, height, offset_width, offset_height, pad_width, pad_height
 
-    def get_transform(self, config) -> dict[str, bool]:
-        can_transform = self.rotation_as_transform(config)
+    def get_base_transform(self, config):
         transform = config.get(
             CONF_TRANSFORM,
             {
@@ -376,46 +527,58 @@ class DriverChip:
                 CONF_SWAP_XY: self.get_default(CONF_SWAP_XY),
             },
         )
-        if not isinstance(transform, dict):
-            # Presumably disabled
-            return {
-                CONF_MIRROR_X: False,
-                CONF_MIRROR_Y: False,
-                CONF_SWAP_XY: False,
-                CONF_TRANSFORM: False,
-            }
+        if isinstance(transform, dict):
+            return transform
+
+        # Transform is disabled
+        return {
+            CONF_MIRROR_X: False,
+            CONF_MIRROR_Y: False,
+            CONF_SWAP_XY: False,
+            CONF_TRANSFORM: False,
+        }
+
+    def get_transform(self, config) -> dict[str, bool]:
+        transform = self.get_base_transform(config)
         # Can we use the MADCTL register to set the rotation?
-        if can_transform and CONF_TRANSFORM not in config:
-            rotation = config[CONF_ROTATION]
-            if rotation == 180:
-                transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
-                transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
-            elif rotation == 90:
-                transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
-                transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
-            else:
-                transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
-                transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
-            transform[CONF_TRANSFORM] = True
+        transform[CONF_TRANSFORM] = self.rotation_as_transform(config)
         return transform
 
-    def swap_xy_schema(self):
-        uses_swap = self.get_default(CONF_SWAP_XY, None) != cv.UNDEFINED
+    def transform_schema(self):
+        """
+        Build the schema for the ``transform`` config option of this model.
 
-        def validator(value):
-            if value:
-                raise cv.Invalid("Axis swapping not supported by this model")
-            return cv.boolean(value)
+        Each transform the model supports is a required boolean. A transform the model does not
+        support may be omitted or set to ``false``; setting it to ``true`` reports a clear error
+        naming the unsupported transform instead of a generic "extra keys not allowed".
+        """
+        supported = self.transforms
 
-        if uses_swap:
-            return {cv.Required(CONF_SWAP_XY): cv.boolean}
-        return {cv.Optional(CONF_SWAP_XY, default=False): validator}
+        def unsupported(name):
+            def validator(value):
+                if cv.boolean(value):
+                    raise cv.Invalid(f"'{name}' is not supported by this model")
+                return False
 
-    def add_madctl(self, sequence: list, config: dict):
-        # Add the MADCTL command to the sequence based on the configuration.
-        use_flip = config.get(CONF_USE_AXIS_FLIPS)
-        madctl = 0
-        transform = self.get_transform(config)
+            return validator
+
+        schema = {}
+        for name in ALL_TRANSFORMS:
+            if name in supported:
+                schema[cv.Required(name)] = cv.boolean
+            else:
+                schema[cv.Optional(name, default=False)] = unsupported(name)
+        return cv.Any(cv.Schema(schema), cv.one_of(CONF_DISABLED, lower=True))
+
+    def get_madctl(self, transform: dict, config: dict) -> int:
+        """
+        Convert a transform to MADCTL bits
+        :param transform: The transform dict
+        :param use_flip: Whether to use axis flips
+        :return: MADCTL value
+        """
+        use_flip = config.get(CONF_USE_AXIS_FLIPS, False)
+        madctl = MADCTL_FLIP_FLAG if use_flip else 0
         if transform[CONF_MIRROR_X]:
             madctl |= MADCTL_XFLIP if use_flip else MADCTL_MX
         if transform[CONF_MIRROR_Y]:
@@ -424,8 +587,14 @@ class DriverChip:
             madctl |= MADCTL_MV
         if config[CONF_COLOR_ORDER] == MODE_BGR:
             madctl |= MADCTL_BGR
-        sequence.append((MADCTL, madctl))
         return madctl
+
+    def add_madctl(self, sequence: list, config: dict):
+        # Add the MADCTL command to the sequence based on the base configuration.
+        # Rotation is not applied here, it will be done at runtime.
+        transform = self.get_transform(config)
+        madctl = self.get_madctl(transform, config)
+        sequence.append((MADCTL, madctl & 0xFF))
 
     def skip_command(self, command: str):
         """
@@ -433,19 +602,31 @@ class DriverChip:
         """
         return self.get_default(f"no_{command.lower()}", False)
 
-    def get_sequence(self, config) -> tuple[tuple[int, ...], int]:
+    def get_sequence(self, config, add_madctl=True, add_reset=False) -> tuple[int, ...]:
         """
         Create the init sequence for the display.
         Use the default sequence from the model, if any, and append any custom sequence provided in the config.
         Append SLPOUT (if not already in the sequence) and DISPON to the end of the sequence
-        Pixel format, color order, and orientation will be set.
-        Returns a tuple of the init sequence and the computed MADCTL value.
+        MADCTL will be set if add_madctl is True
+        If add_reset is True, a reset is prepended: a software reset when no reset pin
+        is configured (and the model doesn't skip it), followed by a settling delay that
+        both a software and a hardware reset require.
+        Returns the init sequence
         """
         sequence = list(self.initsequence or ())
         custom_sequence = config.get(CONF_INIT_SEQUENCE, [])
         sequence.extend(custom_sequence)
         # Ensure each command is a tuple
         sequence = [x if isinstance(x, tuple) else (x,) for x in sequence]
+
+        if add_reset:
+            reset: list = []
+            # A software reset is only needed when there is no hardware reset pin.
+            if CONF_RESET_PIN not in config and not self.skip_command("SWRESET"):
+                reset.append((SWRESET,))
+            # Both a software and a hardware reset need a settling delay before further commands.
+            reset.append(delay(10))
+            sequence = reset + sequence
 
         # Set pixel format if not already in the custom sequence
         pixel_mode = config[CONF_PIXEL_MODE]
@@ -457,7 +638,8 @@ class DriverChip:
 
         if self.rotation_as_transform(config):
             LOGGER.info("Using hardware transform to implement rotation")
-        madctl = self.add_madctl(sequence, config)
+        if add_madctl:
+            self.add_madctl(sequence, config)
         if config[CONF_INVERT_COLORS]:
             sequence.append((INVON,))
         else:
@@ -466,12 +648,46 @@ class DriverChip:
             sequence.append((BRIGHTNESS, brightness))
         # Add a SLPOUT command if required.
         if not self.skip_command("SLPOUT"):
+            # A zero delay will delay until 120ms after reset
+            sequence.append(delay(0))
             sequence.append((SLPOUT,))
+            sequence.append(delay(10))
         sequence.append((DISPON,))
+        # Add a delay here because additional commands may be added after this at runtime.
+        sequence.append(delay(10))
 
         # Flatten the sequence into a list of bytes, with the length of each command
         # or the delay flag inserted where needed
-        return flatten_sequence(sequence), madctl
+        return flatten_sequence(sequence)
+
+    def check_requirements(self) -> None:
+        """
+        Raise a friendly error if any component this model requires is not configured.
+
+        This runs during schema validation (before ID references are resolved) so that a
+        model whose default pins live on a pin expander reports the missing expander clearly
+        instead of a cryptic "Couldn't find ID" from the unresolved pin reference.
+
+        Also logs a warning if the model is deprecated.
+        """
+        if deprecation_reason := self.get_default("deprecation_reason"):
+            LOGGER.warning(
+                "Display model %s is deprecated: %s", self.name, deprecation_reason
+            )
+        if requirements := self.get_default("requires", set()):
+            # ``raw_config`` is populated before any component schema runs during a real
+            # validation, so presence of a required component is simply a top-level key.
+            # When it is absent (e.g. a unit test that invokes the schema directly) there
+            # is no config to check against, so skip.
+            global_config = CORE.raw_config
+            if global_config is None:
+                return
+            missing = {x for x in requirements if x not in global_config}
+            if missing:
+                reqstr = ", ".join(f"'{x}'" for x in sorted(missing))
+                raise cv.Invalid(
+                    f"{self.name} requires component{'s' if len(missing) > 1 else ''} {reqstr} to be configured"
+                )
 
 
 def requires_buffer(config) -> bool:

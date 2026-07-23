@@ -115,6 +115,7 @@ CONFIG_SCHEMA = (
                 icon=ICON_COUNTER,
                 accuracy_decimals=0,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_MINIMUM_SIGNAL_QUALITY, default="MEDIUM"): cv.enum(
                 SIGNAL_QUALITIES, upper=True

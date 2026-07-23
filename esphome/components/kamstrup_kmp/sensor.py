@@ -13,6 +13,7 @@ from esphome.const import (
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLUME,
+    DEVICE_CLASS_VOLUME_FLOW_RATE,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_CELSIUS,
@@ -20,6 +21,7 @@ from esphome.const import (
     UNIT_EMPTY,
     UNIT_KELVIN,
     UNIT_KILOWATT,
+    UNIT_LITRE_PER_HOUR,
 )
 
 CODEOWNERS = ["@cfeenstra1024"]
@@ -36,7 +38,6 @@ CONF_TEMP2 = "temp2"
 CONF_TEMP_DIFF = "temp_diff"
 
 UNIT_GIGA_JOULE = "GJ"
-UNIT_LITRE_PER_HOUR = "l/h"
 
 # Note: The sensor units are set automatically based un the received data from the meter
 CONFIG_SCHEMA = (
@@ -75,7 +76,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_FLOW): sensor.sensor_schema(
                 accuracy_decimals=1,
-                device_class=DEVICE_CLASS_VOLUME,
+                device_class=DEVICE_CLASS_VOLUME_FLOW_RATE,
                 state_class=STATE_CLASS_MEASUREMENT,
                 unit_of_measurement=UNIT_LITRE_PER_HOUR,
             ),

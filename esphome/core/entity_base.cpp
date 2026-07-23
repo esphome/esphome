@@ -8,9 +8,6 @@ namespace esphome {
 
 static const char *const TAG = "entity_base";
 
-// Entity Name
-const StringRef &EntityBase::get_name() const { return this->name_; }
-
 void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_fields) {
   this->name_ = StringRef(name);
   if (this->name_.empty()) {
@@ -150,13 +147,6 @@ std::string EntityBase::get_icon() const {
 }
 #endif  // !USE_ESP8266
 
-// Entity Object ID - computed on-demand from name
-std::string EntityBase::get_object_id() const {
-  char buf[OBJECT_ID_MAX_LEN];
-  size_t len = this->write_object_id_to(buf, sizeof(buf));
-  return std::string(buf, len);
-}
-
 // Calculate Object ID Hash directly from name using snake_case + sanitize
 void EntityBase::calc_object_id_() {
   this->object_id_hash_ = fnv1_hash_object_id(this->name_.c_str(), this->name_.size());
@@ -175,8 +165,6 @@ StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) c
   size_t len = this->write_object_id_to(buf.data(), buf.size());
   return StringRef(buf.data(), len);
 }
-
-uint32_t EntityBase::get_object_id_hash() { return this->object_id_hash_; }
 
 // Migrate preference data from old_key to new_key if they differ.
 // This helper is exposed so callers with custom key computation (like TextPrefs)

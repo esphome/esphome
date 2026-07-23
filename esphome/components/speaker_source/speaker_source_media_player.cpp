@@ -457,6 +457,9 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
       if (ps.playlist_index < ps.playlist.size()) {
         this->queue_play_current_(pipeline, ps.playlist_delay_ms);
       } else if (ps.repeat_mode == REPEAT_ALL && !ps.playlist.empty()) {
+        if (!ps.shuffle_indices.empty()) {
+          this->shuffle_playlist_(pipeline);
+        }
         ps.playlist_index = 0;
         this->queue_play_current_(pipeline, ps.playlist_delay_ms);
       }
@@ -695,7 +698,7 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
     }
   }
 
-  auto media_url = call.get_media_url();
+  const auto &media_url = call.get_media_url();
   if (media_url.has_value()) {
     auto command = call.get_command();
     bool enqueue = command.has_value() && command.value() == media_player::MEDIA_PLAYER_COMMAND_ENQUEUE;
@@ -828,7 +831,7 @@ void SpeakerSourceMediaPlayer::set_volume_(float volume, bool publish) {
 
   // Turn on the mute state if the volume is effectively zero, off otherwise.
   // Pass publish=false to avoid saving twice.
-  if (volume < 0.001) {
+  if (volume < 0.001f) {
     this->set_mute_state_(true, false);
   } else {
     this->set_mute_state_(false, false);

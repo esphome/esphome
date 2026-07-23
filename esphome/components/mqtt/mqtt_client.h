@@ -99,7 +99,7 @@ enum MQTTClientState {
 
 class MQTTComponent;
 
-class MQTTClientComponent : public Component {
+class MQTTClientComponent final : public Component {
  public:
   MQTTClientComponent();
 
@@ -340,7 +340,7 @@ class MQTTClientComponent : public Component {
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-class MQTTMessageTrigger : public Trigger<std::string>, public Component {
+class MQTTMessageTrigger final : public Trigger<std::string>, public Component {
  public:
   explicit MQTTMessageTrigger(std::string topic);
 
@@ -356,7 +356,7 @@ class MQTTMessageTrigger : public Trigger<std::string>, public Component {
   optional<std::string> payload_;
 };
 
-class MQTTJsonMessageTrigger : public Trigger<JsonObjectConst> {
+class MQTTJsonMessageTrigger final : public Trigger<JsonObjectConst> {
  public:
   explicit MQTTJsonMessageTrigger(const std::string &topic, uint8_t qos) {
     global_mqtt_client->subscribe_json(
@@ -364,21 +364,21 @@ class MQTTJsonMessageTrigger : public Trigger<JsonObjectConst> {
   }
 };
 
-class MQTTConnectTrigger : public Trigger<bool> {
+class MQTTConnectTrigger final : public Trigger<bool> {
  public:
-  explicit MQTTConnectTrigger(MQTTClientComponent *&client) {
+  explicit MQTTConnectTrigger(MQTTClientComponent *client) {
     client->set_on_connect([this](bool session_present) { this->trigger(session_present); });
   }
 };
 
-class MQTTDisconnectTrigger : public Trigger<MQTTClientDisconnectReason> {
+class MQTTDisconnectTrigger final : public Trigger<MQTTClientDisconnectReason> {
  public:
-  explicit MQTTDisconnectTrigger(MQTTClientComponent *&client) {
+  explicit MQTTDisconnectTrigger(MQTTClientComponent *client) {
     client->set_on_disconnect([this](MQTTClientDisconnectReason reason) { this->trigger(reason); });
   }
 };
 
-template<typename... Ts> class MQTTPublishAction : public Action<Ts...> {
+template<typename... Ts> class MQTTPublishAction final : public Action<Ts...> {
  public:
   MQTTPublishAction(MQTTClientComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, topic)
@@ -395,7 +395,7 @@ template<typename... Ts> class MQTTPublishAction : public Action<Ts...> {
   MQTTClientComponent *parent_;
 };
 
-template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
+template<typename... Ts> class MQTTPublishJsonAction final : public Action<Ts...> {
  public:
   MQTTPublishJsonAction(MQTTClientComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, topic)
@@ -405,20 +405,19 @@ template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
   void set_payload(std::function<void(Ts..., JsonObject)> payload) { this->payload_ = payload; }
 
   void play(const Ts &...x) override {
-    auto f = std::bind(&MQTTPublishJsonAction<Ts...>::encode_, this, x..., std::placeholders::_1);
     auto topic = this->topic_.value(x...);
     auto qos = this->qos_.value(x...);
     auto retain = this->retain_.value(x...);
-    this->parent_->publish_json(topic, f, qos, retain);
+    this->parent_->publish_json(
+        topic, [this, x...](JsonObject root) { this->payload_(x..., root); }, qos, retain);
   }
 
  protected:
-  void encode_(Ts... x, JsonObject root) { this->payload_(x..., root); }
   std::function<void(Ts..., JsonObject)> payload_;
   MQTTClientComponent *parent_;
 };
 
-template<typename... Ts> class MQTTConnectedCondition : public Condition<Ts...> {
+template<typename... Ts> class MQTTConnectedCondition final : public Condition<Ts...> {
  public:
   MQTTConnectedCondition(MQTTClientComponent *parent) : parent_(parent) {}
   bool check(const Ts &...x) override { return this->parent_->is_connected(); }
@@ -427,7 +426,7 @@ template<typename... Ts> class MQTTConnectedCondition : public Condition<Ts...> 
   MQTTClientComponent *parent_;
 };
 
-template<typename... Ts> class MQTTEnableAction : public Action<Ts...> {
+template<typename... Ts> class MQTTEnableAction final : public Action<Ts...> {
  public:
   MQTTEnableAction(MQTTClientComponent *parent) : parent_(parent) {}
 
@@ -437,7 +436,7 @@ template<typename... Ts> class MQTTEnableAction : public Action<Ts...> {
   MQTTClientComponent *parent_;
 };
 
-template<typename... Ts> class MQTTDisableAction : public Action<Ts...> {
+template<typename... Ts> class MQTTDisableAction final : public Action<Ts...> {
  public:
   MQTTDisableAction(MQTTClientComponent *parent) : parent_(parent) {}
 

@@ -28,6 +28,7 @@ from esphome.core.entity_helpers import (
     get_base_entity_object_id,
     register_device_class,
     register_icon,
+    register_unit_of_measurement,
     setup_device_class,
     setup_entity,
     setup_unit_of_measurement,
@@ -173,10 +174,11 @@ def test_empty_name_fallback() -> None:
 def test_name_add_mac_suffix_behavior() -> None:
     """Test behavior related to name_add_mac_suffix.
 
-    In C++, when name_add_mac_suffix is enabled and entity has no name,
-    get_object_id() returns str_sanitize(str_snake_case(App.get_friendly_name()))
-    dynamically. Our function always returns the same result since we're
-    calculating the base for duplicate tracking.
+    In C++, an entity's object_id is computed from its name_ via
+    write_object_id_to() (sanitized snake_case). When an entity has no name,
+    configure_entity_() sets name_ from the friendly name, with the MAC suffix
+    appended when name_add_mac_suffix is enabled. Our function always returns
+    the same result since we're calculating the base for duplicate tracking.
     """
     # The function should always return the same result regardless of
     # name_add_mac_suffix setting, as we're calculating the base object_id
@@ -923,6 +925,22 @@ def test_register_device_class_max_length() -> None:
 
     # Empty string returns 0
     assert register_device_class("") == 0
+
+
+def test_register_unit_of_measurement_max_length() -> None:
+    """Test register_unit_of_measurement rejects units exceeding 63 characters."""
+    # 63 chars should succeed
+    max_uom = "a" * 63
+    idx = register_unit_of_measurement(max_uom)
+    assert idx > 0
+
+    # 64 chars should fail
+    too_long = "a" * 64
+    with pytest.raises(ValueError, match="Unit of measurement string too long"):
+        register_unit_of_measurement(too_long)
+
+    # Empty string returns 0
+    assert register_unit_of_measurement("") == 0
 
 
 @pytest.mark.asyncio

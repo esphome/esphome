@@ -2,16 +2,15 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace shtcx {
+namespace esphome::shtcx {
 
 static const char *const TAG = "shtcx";
 
-static const uint16_t SHTCX_COMMAND_SLEEP = 0xB098;
-static const uint16_t SHTCX_COMMAND_WAKEUP = 0x3517;
-static const uint16_t SHTCX_COMMAND_READ_ID_REGISTER = 0xEFC8;
-static const uint16_t SHTCX_COMMAND_SOFT_RESET = 0x805D;
-static const uint16_t SHTCX_COMMAND_POLLING_H = 0x7866;
+static constexpr uint16_t SHTCX_COMMAND_SLEEP = 0xB098;
+static constexpr uint16_t SHTCX_COMMAND_WAKEUP = 0x3517;
+static constexpr uint16_t SHTCX_COMMAND_READ_ID_REGISTER = 0xEFC8;
+static constexpr uint16_t SHTCX_COMMAND_SOFT_RESET = 0x805D;
+static constexpr uint16_t SHTCX_COMMAND_POLLING_H = 0x7866;
 
 static const LogString *shtcx_type_to_string(SHTCXType type) {
   switch (type) {
@@ -91,8 +90,6 @@ void SHTCXComponent::update() {
     } else {
       temperature = 175.0f * float(raw_data[0]) / 65536.0f - 45.0f;
       humidity = 100.0f * float(raw_data[1]) / 65536.0f;
-
-      ESP_LOGD(TAG, "Temperature=%.2f°C Humidity=%.2f%%", temperature, humidity);
     }
     if (this->temperature_sensor_ != nullptr)
       this->temperature_sensor_->publish_state(temperature);
@@ -117,5 +114,4 @@ void SHTCXComponent::wake_up() {
   delayMicroseconds(200);
 }
 
-}  // namespace shtcx
-}  // namespace esphome
+}  // namespace esphome::shtcx

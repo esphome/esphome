@@ -63,13 +63,34 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _final_validate(config):
+    # In the default mode setup() writes config commands, so tx is required;
+    # rx_only mode never writes, so tx is optional.
+    uart.final_validate_device_schema(
+        "sds011",
+        baud_rate=9600,
+        require_rx=True,
+        require_tx=not config.get(CONF_RX_ONLY, False),
+        data_bits=8,
+        parity="NONE",
+        stop_bits=1,
+    )(config)
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 async def to_code(config):
+    # Pop update_interval before register_component so it doesn't generate
+    # a set_update_interval call — sds011 handles this via set_update_interval_min
+    update_interval = config.pop(CONF_UPDATE_INTERVAL, None)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if CONF_UPDATE_INTERVAL in config:
-        cg.add(var.set_update_interval_min(config[CONF_UPDATE_INTERVAL]))
+    if update_interval is not None:
+        cg.add(var.set_update_interval_min(update_interval))
     cg.add(var.set_rx_mode_only(config[CONF_RX_ONLY]))
 
     if CONF_PM_2_5 in config:

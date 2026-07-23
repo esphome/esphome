@@ -14,6 +14,8 @@ _ESP32C3_SPI_PSRAM_PINS = {
     17: "SPIQ",
 }
 
+_ESP32C3_USB_JTAG_PINS = {18, 19}
+
 _ESP32C3_STRAPPING_PINS = {2, 8, 9}
 
 _LOGGER = logging.getLogger(__name__)
@@ -25,6 +27,12 @@ def esp32_c3_validate_gpio_pin(value: int) -> int:
     if value in _ESP32C3_SPI_PSRAM_PINS:
         raise cv.Invalid(
             f"This pin cannot be used on ESP32-C3s and is already used by the SPI/PSRAM interface (function: {_ESP32C3_SPI_PSRAM_PINS[value]})"
+        )
+    if value in _ESP32C3_USB_JTAG_PINS:
+        _LOGGER.warning(
+            "GPIO%d is used by the USB-Serial-JTAG interface."
+            " Using this pin as GPIO will conflict with USB-Serial-JTAG.",
+            value,
         )
 
     return value

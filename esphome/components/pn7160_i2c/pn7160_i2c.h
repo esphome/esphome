@@ -6,10 +6,9 @@
 
 #include <vector>
 
-namespace esphome {
-namespace pn7160_i2c {
+namespace esphome::pn7160_i2c {
 
-class PN7160I2C : public pn7160::PN7160, public i2c::I2CDevice {
+class PN7160I2C final : public pn7160::PN7160, public i2c::I2CDevice {
  public:
   void dump_config() override;
 
@@ -18,5 +17,4 @@ class PN7160I2C : public pn7160::PN7160, public i2c::I2CDevice {
   uint8_t write_nfcc(nfc::NciMessage &tx) override;
 };
 
-}  // namespace pn7160_i2c
-}  // namespace esphome
+}  // namespace esphome::pn7160_i2c

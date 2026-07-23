@@ -3,12 +3,12 @@
 
 #ifdef USE_ESP32
 
+#include <driver/gpio.h>
 #include <driver/ledc.h>
 #include <cinttypes>
+#include <esp_idf_version.h>
 #include <esp_private/periph_ctrl.h>
-#if !defined(SOC_LEDC_SUPPORT_FADE_STOP)
 #include <hal/ledc_ll.h>
-#endif
 
 #define CLOCK_FREQUENCY 80e6f
 
@@ -53,7 +53,11 @@ static_assert(
     "re-evaluate for this target");
 
 static bool ledc_duty_update_pending(ledc_mode_t speed_mode, ledc_channel_t chan_num) {
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+  auto *hw = LEDC_LL_GET_HW(0);
+#else
   auto *hw = LEDC_LL_GET_HW();
+#endif
   return hw->channel_group[speed_mode].channel[chan_num].conf1.duty_start != 0;
 }
 #endif
@@ -161,7 +165,19 @@ void LEDCOutput::write_state(float state) {
 void LEDCOutput::setup() {
   if (!ledc_peripheral_reset_done) {
     ESP_LOGV(TAG, "Resetting LEDC peripheral to clear stale state after reboot");
+    // Skip under clang-tidy: the inlined HAL MMIO writes trip clang-analyzer-core.FixedAddressDereference
+#if !defined(CLANG_TIDY)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    PERIPH_RCC_ATOMIC() { ledc_ll_reset_register(0); }
+#elif ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    PERIPH_RCC_ATOMIC() {
+      ledc_ll_enable_reset_reg(true);
+      ledc_ll_enable_reset_reg(false);
+    }
+#else
     periph_module_reset(PERIPH_LEDC_MODULE);
+#endif
+#endif
     ledc_peripheral_reset_done = true;
   }
 
@@ -183,10 +199,12 @@ void LEDCOutput::setup() {
            this->phase_angle_, hpoint);
 
   ledc_channel_config_t chan_conf{};
-  chan_conf.gpio_num = this->pin_->get_pin();
+  chan_conf.gpio_num = static_cast<gpio_num_t>(this->pin_->get_pin());
   chan_conf.speed_mode = speed_mode;
   chan_conf.channel = chan_num;
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
   chan_conf.intr_type = LEDC_INTR_DISABLE;
+#endif
   chan_conf.timer_sel = timer_num;
   chan_conf.duty = this->inverted_ == this->pin_->is_inverted() ? 0 : (1U << this->bit_depth_);
   chan_conf.hpoint = hpoint;

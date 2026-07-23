@@ -1,4 +1,5 @@
 #include "online_image.h"
+#include "esphome/components/runtime_image/image_decoder.h"
 #include "esphome/core/log.h"
 #include <algorithm>
 
@@ -28,7 +29,7 @@ bool OnlineImage::validate_url_(const std::string &url) {
     ESP_LOGE(TAG, "URL is too long");
     return false;
   }
-  if (url.compare(0, 7, "http://") != 0 && url.compare(0, 8, "https://") != 0) {
+  if (!url.starts_with("http://") && !url.starts_with("https://")) {
     ESP_LOGE(TAG, "URL must start with http:// or https://");
     return false;
   }
@@ -129,7 +130,7 @@ void OnlineImage::update() {
   }
 
   ESP_LOGI(TAG, "Downloading image (Size: %zu)", total_size);
-  this->start_time_ = ::time(nullptr);
+  this->start_time_ = millis();
   this->enable_loop();
 }
 
@@ -155,8 +156,8 @@ void OnlineImage::loop() {
     // Finalize decoding
     this->end_decode();
 
-    ESP_LOGD(TAG, "Image fully downloaded, %zu bytes in %" PRIu32 "s", this->downloader_->get_bytes_read(),
-             (uint32_t) (::time(nullptr) - this->start_time_));
+    ESP_LOGD(TAG, "Image fully downloaded, %zu bytes in %" PRIu32 " ms", this->downloader_->get_bytes_read(),
+             millis() - this->start_time_);
 
     // Save caching headers
     this->etag_ = this->downloader_->get_response_header(ETAG_HEADER_NAME);
@@ -181,7 +182,7 @@ void OnlineImage::loop() {
       auto consumed = this->feed_data(this->download_buffer_.data(), this->download_buffer_.unread());
 
       if (consumed < 0) {
-        ESP_LOGE(TAG, "Error decoding image: %d", consumed);
+        ESP_LOGE(TAG, "Error decoding image: %s", esphome::runtime_image::decode_error_to_string(consumed));
         this->end_connection_();
         this->download_error_callback_.call();
         return;
@@ -226,14 +227,6 @@ void OnlineImage::end_connection_() {
   }
   this->download_buffer_.reset();
   this->disable_loop();
-}
-
-void OnlineImage::add_on_finished_callback(std::function<void(bool)> &&callback) {
-  this->download_finished_callback_.add(std::move(callback));
-}
-
-void OnlineImage::add_on_error_callback(std::function<void()> &&callback) {
-  this->download_error_callback_.add(std::move(callback));
 }
 
 void OnlineImage::release() {

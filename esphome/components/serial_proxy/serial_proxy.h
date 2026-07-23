@@ -41,7 +41,7 @@ enum SerialProxyLineStateFlag : uint32_t {
 /// Maximum bytes to read from UART in a single loop iteration
 inline constexpr size_t SERIAL_PROXY_MAX_READ_SIZE = 256;
 
-class SerialProxy : public uart::UARTDevice, public Component {
+class SerialProxy final : public uart::UARTDevice, public Component {
  public:
   void setup() override;
   void loop() override;
@@ -92,7 +92,7 @@ class SerialProxy : public uart::UARTDevice, public Component {
   uint32_t get_modem_pins() const;
 
   /// Flush the serial port (block until all TX data is sent)
-  uart::FlushResult flush_port();
+  uart::UARTFlushResult flush_port();
 
   /// Set the RTS GPIO pin (from YAML configuration)
   void set_rts_pin(GPIOPin *pin) { this->rts_pin_ = pin; }

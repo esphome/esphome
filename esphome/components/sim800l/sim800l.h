@@ -13,8 +13,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace sim800l {
+namespace esphome::sim800l {
 
 const uint16_t SIM800L_READ_BUFFER_LENGTH = 1024;
 
@@ -47,7 +46,7 @@ enum State {
   STATE_RECEIVED_USSD
 };
 
-class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
+class Sim800LComponent final : public uart::UARTDevice, public PollingComponent {
  public:
   /// Retrieve the latest sensor values. This operation takes approximately 16ms.
   void update() override;
@@ -61,20 +60,20 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
 #ifdef USE_SENSOR
   void set_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ = rssi_sensor; }
 #endif
-  void add_on_sms_received_callback(std::function<void(std::string, std::string)> callback) {
-    this->sms_received_callback_.add(std::move(callback));
+  template<typename F> void add_on_sms_received_callback(F &&callback) {
+    this->sms_received_callback_.add(std::forward<F>(callback));
   }
-  void add_on_incoming_call_callback(std::function<void(std::string)> callback) {
-    this->incoming_call_callback_.add(std::move(callback));
+  template<typename F> void add_on_incoming_call_callback(F &&callback) {
+    this->incoming_call_callback_.add(std::forward<F>(callback));
   }
-  void add_on_call_connected_callback(std::function<void()> callback) {
-    this->call_connected_callback_.add(std::move(callback));
+  template<typename F> void add_on_call_connected_callback(F &&callback) {
+    this->call_connected_callback_.add(std::forward<F>(callback));
   }
-  void add_on_call_disconnected_callback(std::function<void()> callback) {
-    this->call_disconnected_callback_.add(std::move(callback));
+  template<typename F> void add_on_call_disconnected_callback(F &&callback) {
+    this->call_disconnected_callback_.add(std::forward<F>(callback));
   }
-  void add_on_ussd_received_callback(std::function<void(std::string)> callback) {
-    this->ussd_received_callback_.add(std::move(callback));
+  template<typename F> void add_on_ussd_received_callback(F &&callback) {
+    this->ussd_received_callback_.add(std::forward<F>(callback));
   }
   void send_sms(const std::string &recipient, const std::string &message);
   void send_ussd(const std::string &ussd_code);
@@ -121,42 +120,7 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   CallbackManager<void(std::string)> ussd_received_callback_;
 };
 
-class Sim800LReceivedMessageTrigger : public Trigger<std::string, std::string> {
- public:
-  explicit Sim800LReceivedMessageTrigger(Sim800LComponent *parent) {
-    parent->add_on_sms_received_callback(
-        [this](const std::string &message, const std::string &sender) { this->trigger(message, sender); });
-  }
-};
-
-class Sim800LIncomingCallTrigger : public Trigger<std::string> {
- public:
-  explicit Sim800LIncomingCallTrigger(Sim800LComponent *parent) {
-    parent->add_on_incoming_call_callback([this](const std::string &caller_id) { this->trigger(caller_id); });
-  }
-};
-
-class Sim800LCallConnectedTrigger : public Trigger<> {
- public:
-  explicit Sim800LCallConnectedTrigger(Sim800LComponent *parent) {
-    parent->add_on_call_connected_callback([this]() { this->trigger(); });
-  }
-};
-
-class Sim800LCallDisconnectedTrigger : public Trigger<> {
- public:
-  explicit Sim800LCallDisconnectedTrigger(Sim800LComponent *parent) {
-    parent->add_on_call_disconnected_callback([this]() { this->trigger(); });
-  }
-};
-class Sim800LReceivedUssdTrigger : public Trigger<std::string> {
- public:
-  explicit Sim800LReceivedUssdTrigger(Sim800LComponent *parent) {
-    parent->add_on_ussd_received_callback([this](const std::string &ussd) { this->trigger(ussd); });
-  }
-};
-
-template<typename... Ts> class Sim800LSendSmsAction : public Action<Ts...> {
+template<typename... Ts> class Sim800LSendSmsAction final : public Action<Ts...> {
  public:
   Sim800LSendSmsAction(Sim800LComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, recipient)
@@ -172,7 +136,7 @@ template<typename... Ts> class Sim800LSendSmsAction : public Action<Ts...> {
   Sim800LComponent *parent_;
 };
 
-template<typename... Ts> class Sim800LSendUssdAction : public Action<Ts...> {
+template<typename... Ts> class Sim800LSendUssdAction final : public Action<Ts...> {
  public:
   Sim800LSendUssdAction(Sim800LComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, ussd)
@@ -186,7 +150,7 @@ template<typename... Ts> class Sim800LSendUssdAction : public Action<Ts...> {
   Sim800LComponent *parent_;
 };
 
-template<typename... Ts> class Sim800LDialAction : public Action<Ts...> {
+template<typename... Ts> class Sim800LDialAction final : public Action<Ts...> {
  public:
   Sim800LDialAction(Sim800LComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, recipient)
@@ -199,7 +163,7 @@ template<typename... Ts> class Sim800LDialAction : public Action<Ts...> {
  protected:
   Sim800LComponent *parent_;
 };
-template<typename... Ts> class Sim800LConnectAction : public Action<Ts...> {
+template<typename... Ts> class Sim800LConnectAction final : public Action<Ts...> {
  public:
   Sim800LConnectAction(Sim800LComponent *parent) : parent_(parent) {}
 
@@ -209,7 +173,7 @@ template<typename... Ts> class Sim800LConnectAction : public Action<Ts...> {
   Sim800LComponent *parent_;
 };
 
-template<typename... Ts> class Sim800LDisconnectAction : public Action<Ts...> {
+template<typename... Ts> class Sim800LDisconnectAction final : public Action<Ts...> {
  public:
   Sim800LDisconnectAction(Sim800LComponent *parent) : parent_(parent) {}
 
@@ -219,5 +183,4 @@ template<typename... Ts> class Sim800LDisconnectAction : public Action<Ts...> {
   Sim800LComponent *parent_;
 };
 
-}  // namespace sim800l
-}  // namespace esphome
+}  // namespace esphome::sim800l

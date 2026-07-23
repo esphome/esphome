@@ -1,55 +1,13 @@
 #pragma once
+
 #include "esphome/core/automation.h"
+#include "esphome/core/string_ref.h"
+
 #include "nextion.h"
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
 
-class BufferOverflowTrigger : public Trigger<> {
- public:
-  explicit BufferOverflowTrigger(Nextion *nextion) {
-    nextion->add_buffer_overflow_event_callback([this]() { this->trigger(); });
-  }
-};
-
-class SetupTrigger : public Trigger<> {
- public:
-  explicit SetupTrigger(Nextion *nextion) {
-    nextion->add_setup_state_callback([this]() { this->trigger(); });
-  }
-};
-
-class SleepTrigger : public Trigger<> {
- public:
-  explicit SleepTrigger(Nextion *nextion) {
-    nextion->add_sleep_state_callback([this]() { this->trigger(); });
-  }
-};
-
-class WakeTrigger : public Trigger<> {
- public:
-  explicit WakeTrigger(Nextion *nextion) {
-    nextion->add_wake_state_callback([this]() { this->trigger(); });
-  }
-};
-
-class PageTrigger : public Trigger<uint8_t> {
- public:
-  explicit PageTrigger(Nextion *nextion) {
-    nextion->add_new_page_callback([this](const uint8_t page_id) { this->trigger(page_id); });
-  }
-};
-
-class TouchTrigger : public Trigger<uint8_t, uint8_t, bool> {
- public:
-  explicit TouchTrigger(Nextion *nextion) {
-    nextion->add_touch_event_callback([this](uint8_t page_id, uint8_t component_id, bool touch_event) {
-      this->trigger(page_id, component_id, touch_event);
-    });
-  }
-};
-
-template<typename... Ts> class NextionSetBrightnessAction : public Action<Ts...> {
+template<typename... Ts> class NextionSetBrightnessAction final : public Action<Ts...> {
  public:
   explicit NextionSetBrightnessAction(Nextion *component) : component_(component) {}
 
@@ -66,7 +24,7 @@ template<typename... Ts> class NextionSetBrightnessAction : public Action<Ts...>
   Nextion *component_;
 };
 
-template<typename... Ts> class NextionPublishFloatAction : public Action<Ts...> {
+template<typename... Ts> class NextionPublishFloatAction final : public Action<Ts...> {
  public:
   explicit NextionPublishFloatAction(NextionComponent *component) : component_(component) {}
 
@@ -89,7 +47,7 @@ template<typename... Ts> class NextionPublishFloatAction : public Action<Ts...> 
   NextionComponent *component_;
 };
 
-template<typename... Ts> class NextionPublishTextAction : public Action<Ts...> {
+template<typename... Ts> class NextionPublishTextAction final : public Action<Ts...> {
  public:
   explicit NextionPublishTextAction(NextionComponent *component) : component_(component) {}
 
@@ -112,7 +70,7 @@ template<typename... Ts> class NextionPublishTextAction : public Action<Ts...> {
   NextionComponent *component_;
 };
 
-template<typename... Ts> class NextionPublishBoolAction : public Action<Ts...> {
+template<typename... Ts> class NextionPublishBoolAction final : public Action<Ts...> {
  public:
   explicit NextionPublishBoolAction(NextionComponent *component) : component_(component) {}
 
@@ -135,5 +93,4 @@ template<typename... Ts> class NextionPublishBoolAction : public Action<Ts...> {
   NextionComponent *component_;
 };
 
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion

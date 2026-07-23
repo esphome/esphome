@@ -66,14 +66,17 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
   void dump_config() override;
   void setup() override;
   void loop() override;
-  void flush_pending_advertisements();
   esp32_ble_tracker::AdvertisementParserType get_advertisement_parser_type() override;
 
-  void register_connection(BluetoothConnection *connection) {
+  // maybe_unused: in a passive proxy (active: false) MAX is 0, the body below is removed, and connection is unused.
+  void register_connection([[maybe_unused]] BluetoothConnection *connection) {
+    // Guard the always-false comparison (-Wtype-limits) in a passive proxy (active: false), where MAX is 0.
+#if BLUETOOTH_PROXY_MAX_CONNECTIONS > 0
     if (this->connection_count_ < BLUETOOTH_PROXY_MAX_CONNECTIONS) {
       this->connections_[this->connection_count_++] = connection;
       connection->proxy_ = this;
     }
+#endif
   }
 
   void bluetooth_device_request(const api::BluetoothDeviceRequest &msg);
@@ -149,6 +152,18 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
 
  protected:
   void send_bluetooth_scanner_state_(esp32_ble_tracker::ScannerState state);
+
+  /// Caller must ensure api_connection_ is non-null and API server is connected.
+  void flush_pending_advertisements_() {
+    if (this->response_.advertisements_len == 0)
+      return;
+    this->api_connection_->send_message(this->response_);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    this->log_advertisement_flush_();
+#endif
+    this->response_.advertisements_len = 0;
+  }
+  void log_advertisement_flush_();
 
   BluetoothConnection *get_connection_(uint64_t address, bool reserve);
   void log_connection_request_ignored_(BluetoothConnection *connection, espbt::ClientState state);
