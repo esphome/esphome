@@ -13,14 +13,10 @@ from esphome.components.esp32 import (
     require_vfs_select,
 )
 from esphome.components.storage import (
-    FILE_SYSTEM_SCHEMA_ENTRY,
     MountableStorage,
-    file_system_to_code,
-    final_validate_file_system,
     request_fatfs_path_length,
     request_storage_device,
     request_storage_worker,
-    validate_file_system_value,
 )
 from esphome.components.usb_host import usb_host_ns
 import esphome.config_validation as cv
@@ -105,8 +101,6 @@ CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(USBStorageClient),
-            # Only exists together with esp32 enable_exfat — see storage/__init__.py.
-            FILE_SYSTEM_SCHEMA_ENTRY: validate_file_system_value,
             cv.Optional(CONF_DEVICES): cv.ensure_list(DEVICE_SCHEMA),
         }
     ),
@@ -123,7 +117,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config):
-    final_validate_file_system(config)
     return config
 
 
@@ -142,7 +135,6 @@ async def to_code(config):
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await file_system_to_code(var, config)
 
     for device in config.get(CONF_DEVICES) or ():
         await register_usb_storage_device(device, var)

@@ -41,11 +41,6 @@ template<typename... Ts> class ListFilesAction;
 // ─────────────────────────────────────────────────────────────────────────────
 class USBStorageClient : public usb_host::USBClient {
  public:
-#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-  // file_system option (only exists with esp32 enable_exfat): 0 auto, 1 fat32, 2 exfat —
-  // values from storage/__init__.py file_system_to_code().
-  void set_requested_file_system(uint8_t fs) { this->requested_file_system_ = fs; }
-#endif
   // Tear down the FAT mount + VFS registration without touching the USB level.
   // Used by USBStorageDevice::unmount_device() (safe eject): after this the mount
   // path is gone from the VFS entirely; the next physical (re)insertion runs the
@@ -102,9 +97,6 @@ class USBStorageClient : public usb_host::USBClient {
   int fatfs_drive_{-1};
   bool disk_ready_{false};
   bool mounted_{false};
-#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-  uint8_t requested_file_system_{0};  // FS_SELECT_AUTO
-#endif
   const char *mount_path_{nullptr};
 
   SemaphoreHandle_t transfer_sem_{nullptr};

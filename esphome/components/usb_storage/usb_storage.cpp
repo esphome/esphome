@@ -7,7 +7,6 @@
     defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 
 #include "usb_storage.h"
-#include "esphome/components/storage/fatfs_select.h"
 #include "usb_storage_diskio.h"
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
@@ -388,16 +387,6 @@ void USBStorageClient::on_connected() {
   char drive_path[8];
   snprintf(drive_path, sizeof(drive_path), "%d:", this->fatfs_drive_);
 
-#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-  // Before the one and only f_mount below: probe the first sectors and, if a manually
-  // requested filesystem mismatches what is on the medium, reformat first — the mount then
-  // happens on the correct filesystem from the start.
-  if (!storage::ensure_requested_filesystem(TAG, this->fatfs_drive_, drive_path, this->requested_file_system_)) {
-    this->disk_ready_ = false;
-    this->disconnect();
-    return;
-  }
-#endif
 
   FATFS *fs = nullptr;
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
