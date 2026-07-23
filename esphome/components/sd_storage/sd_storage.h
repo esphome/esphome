@@ -7,19 +7,11 @@
 #include "sd_storage_base.h"
 #include "esphome/core/gpio.h"
 #include "sdmmc_cmd.h"
-#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-// mount_manual_() takes sdmmc_slot_config_t by reference; the type is an anonymous-struct
-// typedef and cannot be forward-declared.
-#include "driver/sdmmc_host.h"
-#endif
 
 namespace esphome::sd_storage {
 
 class SdMmc : public SdStorageBase {
  public:
-#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-  void set_requested_file_system(uint8_t fs) { this->requested_file_system_ = fs; }
-#endif
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -66,15 +58,6 @@ class SdMmc : public SdStorageBase {
   uint32_t data_rate_khz_{SDMMC_FREQ_DEFAULT};
   uint32_t block_size_{512};
   sdmmc_card_t *card_{nullptr};
-#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-  // file_system option (only exists with esp32 enable_exfat): 0 auto, 1 fat32, 2 exfat.
-  uint8_t requested_file_system_{0};
-  // Manual mirror of esp_vfs_fat_sdmmc_mount: same public-API steps, but with a probe
-  // window between diskio registration and f_mount so a requested filesystem can be
-  // enforced BEFORE the one mount that happens. Wrapper-based builds are untouched.
-  esp_err_t mount_manual_(sdmmc_host_t &host, sdmmc_slot_config_t &slot_config);
-  void unmount_manual_();
-#endif
 
   SdFileHandle handle_pool_[MAX_OPEN_FILES]{};
 };

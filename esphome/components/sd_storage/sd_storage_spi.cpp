@@ -12,10 +12,6 @@ extern "C" {
 }
 #include "ff.h"
 #include "diskio_sdmmc.h"
-#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-#include "diskio_impl.h"
-#include "esphome/components/storage/fatfs_select.h"
-#endif
 #include "esphome/components/storage/storage.h"
 
 #ifndef VFS_FAT_MOUNT_DEFAULT_CONFIG
@@ -113,101 +109,6 @@ const char *SdSpi::error_code_to_str(ErrorCode code) {
   }
 }
 
-#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-esp_err_t SdSpi::mount_manual_(sdmmc_host_t &host, sdspi_device_config_t &slot_config, uint32_t max_freq_khz) {
-  // Step for step what esp_vfs_fat_sdspi_mount does (all public IDF API), with the probe
-  // window between diskio registration and f_mount. The frequency fallback wraps only the
-  // card bring-up: everything after it is bus-speed independent.
-  esp_err_t err = sdspi_host_init_device(&slot_config, &this->sdspi_handle_);
-  if (err != ESP_OK)
-    return err;
-  host.slot = this->sdspi_handle_;
-  auto *card = new sdmmc_card_t{};  // NOLINT(cppcoreguidelines-owning-memory) - freed in unmount_manual_
-  err = ESP_FAIL;
-  for (const uint32_t freq_khz : {max_freq_khz, static_cast<uint32_t>(SDMMC_FREQ_PROBING)}) {
-    host.max_freq_khz = static_cast<int>(freq_khz);
-    ESP_LOGD(TAG_SPI, "Initialising card at %" PRIu32 " kHz", freq_khz);
-    err = sdmmc_card_init(&host, card);
-    if (err == ESP_OK || freq_khz == static_cast<uint32_t>(SDMMC_FREQ_PROBING))
-      break;
-    // Same reasoning as the wrapper path: only bus-signalling failures improve at 400 kHz.
-    if (err != ESP_ERR_TIMEOUT && err != ESP_ERR_INVALID_RESPONSE && err != ESP_ERR_INVALID_CRC)
-      break;
-    ESP_LOGW(TAG_SPI, "Card init at %" PRIu32 " kHz failed (%s), retrying at %d kHz", freq_khz, esp_err_to_name(err),
-             SDMMC_FREQ_PROBING);
-  }
-  if (err != ESP_OK) {
-    sdspi_host_remove_device(this->sdspi_handle_);
-    this->sdspi_handle_ = -1;
-    delete card;  // NOLINT(cppcoreguidelines-owning-memory)
-    return err;
-  }
-
-  BYTE pdrv = FF_DRV_NOT_USED;
-  if (ff_diskio_get_drive(&pdrv) != ESP_OK || pdrv == FF_DRV_NOT_USED) {
-    sdspi_host_remove_device(this->sdspi_handle_);
-    this->sdspi_handle_ = -1;
-    delete card;  // NOLINT(cppcoreguidelines-owning-memory)
-    return ESP_ERR_NO_MEM;
-  }
-  ff_diskio_register_sdmmc(pdrv, card);
-  char drv[3] = {static_cast<char>('0' + pdrv), ':', '\0'};
-
-  if (!storage::ensure_requested_filesystem(TAG_SPI, pdrv, drv, this->requested_file_system_)) {
-    ff_diskio_register(pdrv, nullptr);
-    sdspi_host_remove_device(this->sdspi_handle_);
-    this->sdspi_handle_ = -1;
-    delete card;  // NOLINT(cppcoreguidelines-owning-memory)
-    return ESP_FAIL;
-  }
-
-  FATFS *fs = nullptr;
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
-  esp_vfs_fat_conf_t vfs_conf = {
-      .base_path = this->mount_path_,
-      .fat_drive = drv,
-      .max_files = 16,
-  };
-  err = esp_vfs_fat_register_cfg(&vfs_conf, &fs);
-#else
-  err = esp_vfs_fat_register(this->mount_path_, drv, 16, &fs);
-#endif
-  if (err != ESP_OK) {
-    ff_diskio_register(pdrv, nullptr);
-    sdspi_host_remove_device(this->sdspi_handle_);
-    this->sdspi_handle_ = -1;
-    delete card;  // NOLINT(cppcoreguidelines-owning-memory)
-    return err;
-  }
-  FRESULT res = f_mount(fs, drv, 1);
-  if (res != FR_OK) {
-    ESP_LOGE(TAG_SPI, "f_mount failed: %d", res);
-    esp_vfs_fat_unregister_path(this->mount_path_);
-    ff_diskio_register(pdrv, nullptr);
-    sdspi_host_remove_device(this->sdspi_handle_);
-    this->sdspi_handle_ = -1;
-    delete card;  // NOLINT(cppcoreguidelines-owning-memory)
-    return ESP_FAIL;
-  }
-  this->card_ = card;
-  return ESP_OK;
-}
-
-void SdSpi::unmount_manual_() {
-  BYTE pdrv = ff_diskio_get_pdrv_card(this->card_);
-  if (pdrv != FF_DRV_NOT_USED) {
-    char drv[3] = {static_cast<char>('0' + pdrv), ':', '\0'};
-    f_mount(nullptr, drv, 0);
-    ff_diskio_register(pdrv, nullptr);
-  }
-  esp_vfs_fat_unregister_path(this->mount_path_);
-  if (this->sdspi_handle_ >= 0) {
-    sdspi_host_remove_device(this->sdspi_handle_);
-    this->sdspi_handle_ = -1;
-  }
-  delete this->card_;  // NOLINT(cppcoreguidelines-owning-memory)
-}
-#endif  // USE_STORAGE_FILE_SYSTEM_SELECT
 
 StorageError SdSpi::mount() {
   ESP_LOGD(TAG_SPI, "Mounting SD card via SPI");
@@ -239,10 +140,6 @@ StorageError SdSpi::mount() {
     max_freq_khz = SDMMC_FREQ_PROBING;
 
   esp_err_t mount_error = ESP_OK;
-#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-  (void) mount_config;
-  mount_error = this->mount_manual_(host, slot_config, max_freq_khz);
-#else
   for (const uint32_t freq_khz : {max_freq_khz, static_cast<uint32_t>(SDMMC_FREQ_PROBING)}) {
     host.max_freq_khz = static_cast<int>(freq_khz);
     ESP_LOGD(TAG_SPI, "Mounting at %" PRIu32 " kHz", freq_khz);
@@ -258,7 +155,6 @@ StorageError SdSpi::mount() {
     ESP_LOGW(TAG_SPI, "Mount at %" PRIu32 " kHz failed (%s), retrying at %d kHz", freq_khz,
              esp_err_to_name(mount_error), SDMMC_FREQ_PROBING);
   }
-#endif
 
   if (mount_error != ESP_OK) {
     ESP_LOGE(TAG_SPI, "Failed to mount FAT fs: %s", esp_err_to_name(mount_error));
@@ -319,11 +215,7 @@ StorageError SdSpi::unmount() {
   this->flush_open_handles_();
   ESP_LOGD(TAG_SPI, "All data flushed");
 
-#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-  this->unmount_manual_();
-#else
   esp_vfs_fat_sdcard_unmount(this->mount_path_, this->card_);
-#endif
   this->card_ = nullptr;
   this->is_mounted_ = false;
 #ifdef USE_STORAGE_CHANGE_FEED
