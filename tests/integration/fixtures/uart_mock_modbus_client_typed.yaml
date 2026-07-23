@@ -1,0 +1,105 @@
+esphome:
+  name: uart-mock-modbus-client-typed
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  - id: virtual_uart_server
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_client
+              data: !lambda return data;
+  - id: virtual_uart_client
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_server
+              data: !lambda return data;
+
+modbus:
+  - uart_id: virtual_uart_server
+    id: virtual_modbus_server
+    role: server
+  - uart_id: virtual_uart_client
+    id: virtual_modbus_client
+    role: client
+    turnaround_time: 10ms
+
+globals:
+  - id: reg10
+    type: uint16_t
+    initial_value: "0"
+
+modbus_server:
+  - address: 1
+    modbus_id: virtual_modbus_server
+    id: modbus_server_1
+    registers:
+      - address: 0x10
+        value_type: U_WORD
+        read_lambda: return id(reg10);
+        write_lambda: |-
+          id(reg10) = x;
+          return true;
+
+sensor:
+  - platform: template
+    name: "typed_value"
+    id: typed_value
+  - platform: template
+    name: "ack_flag"
+    id: ack_flag
+  - platform: template
+    name: "error_code"
+    id: error_code
+
+# Typed actions end to end: a typed write lands on the server (ack -> ack_flag = the device address), the typed read-back
+# decodes the written value from the reply words (values[0] -> typed_value), and a read of an unserved
+# register resolves via on_error with the device's exception code (-> error_code).
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - modbus_client.write_single_register:
+          address: 1
+          start_address: 0x10
+          value: 777
+          on_response:
+            then:
+              - lambda: "id(ack_flag).publish_state(address);"
+      - modbus_client.read_holding_registers:
+          address: 1
+          start_address: 0x10
+          on_response:
+            then:
+              - lambda: |-
+                  if (address == 1 && !values.empty())
+                    id(typed_value).publish_state(values[0]);
+      - modbus_client.read_holding_registers:
+          address: 1
+          start_address: 0x99
+          on_error:
+            then:
+              - lambda: "id(error_code).publish_state((int) exception_code);"

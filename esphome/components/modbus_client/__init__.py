@@ -2,7 +2,13 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import modbus
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS, CONF_ON_ERROR, CONF_ON_RESPONSE
+from esphome.const import (
+    CONF_ADDRESS,
+    CONF_COUNT,
+    CONF_ON_ERROR,
+    CONF_ON_RESPONSE,
+    CONF_VALUE,
+)
 from esphome.core import Lambda
 from esphome.types import ConfigType, TemplateArgsType
 
@@ -14,10 +20,17 @@ CONF_ON_NOT_SENT = "on_not_sent"
 CONF_ON_SENT = "on_sent"
 CONF_PDU = "pdu"
 CONF_RETRY = "retry"
+CONF_START_ADDRESS = "start_address"
 
 modbus_client_ns = cg.esphome_ns.namespace("modbus_client")
 ModbusClientSendAction = modbus_client_ns.class_(
     "ModbusClientSendAction", automation.Action, modbus.ModbusClientDevice
+)
+ReadRegistersAction = modbus_client_ns.class_(
+    "ReadRegistersAction", automation.Action, modbus.ModbusClientDevice
+)
+WriteSingleAction = modbus_client_ns.class_(
+    "WriteSingleAction", automation.Action, modbus.ModbusClientDevice
 )
 
 # The exception code passed to on_error handlers.
@@ -162,3 +175,95 @@ async def modbus_client_send_to_code(config, action_id, template_arg, args):
         args,
         [(_PDU_SPAN, "request"), (_PDU_SPAN, "response")],
     )
+
+
+# --- Typed actions: request PDUs come from the device base's typed senders, replies from its dispatch,
+# --- so on_response delivers decoded arguments (host-order words) instead of raw PDU spans.
+
+_REGISTER_SPAN = cg.std_span.template(cg.uint16.operator("const"))
+
+_TYPED_RESPONSE_SCHEMA = _ACTION_BASE_SCHEMA.extend(
+    {
+        cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(single=True),
+    }
+)
+
+_READ_SCHEMA = _TYPED_RESPONSE_SCHEMA.extend(
+    {
+        cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
+        cv.Optional(CONF_COUNT, default=1): cv.templatable(
+            cv.int_range(min=1, max=125)
+        ),
+    }
+)
+
+_WRITE_SCHEMA = _TYPED_RESPONSE_SCHEMA.extend(
+    {
+        cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
+        cv.Required(CONF_VALUE): cv.templatable(cv.hex_uint16_t),
+    }
+)
+
+
+async def _read_registers_to_code(config, action_id, template_arg, args, holding):
+    var = cg.new_Pvariable(action_id, template_arg, holding)
+    cg.add(
+        var.set_start_address(
+            await cg.templatable(config[CONF_START_ADDRESS], args, cg.uint16)
+        )
+    )
+    cg.add(var.set_count(await cg.templatable(config[CONF_COUNT], args, cg.uint16)))
+    return await register_client_action(
+        var, config, args, [(cg.uint8, "address"), (_REGISTER_SPAN, "values")]
+    )
+
+
+@automation.register_action(
+    "modbus_client.read_holding_registers",
+    ReadRegistersAction,
+    _READ_SCHEMA,
+    synchronous=True,
+)
+async def read_holding_registers_to_code(config, action_id, template_arg, args):
+    return await _read_registers_to_code(config, action_id, template_arg, args, True)
+
+
+@automation.register_action(
+    "modbus_client.read_input_registers",
+    ReadRegistersAction,
+    _READ_SCHEMA,
+    synchronous=True,
+)
+async def read_input_registers_to_code(config, action_id, template_arg, args):
+    return await _read_registers_to_code(config, action_id, template_arg, args, False)
+
+
+async def _write_single_to_code(config, action_id, template_arg, args, coil):
+    var = cg.new_Pvariable(action_id, template_arg, coil)
+    cg.add(
+        var.set_start_address(
+            await cg.templatable(config[CONF_START_ADDRESS], args, cg.uint16)
+        )
+    )
+    cg.add(var.set_value(await cg.templatable(config[CONF_VALUE], args, cg.uint16)))
+    return await register_client_action(var, config, args, [(cg.uint8, "address")])
+
+
+@automation.register_action(
+    "modbus_client.write_single_register",
+    WriteSingleAction,
+    _WRITE_SCHEMA,
+    synchronous=True,
+)
+async def write_single_register_to_code(config, action_id, template_arg, args):
+    return await _write_single_to_code(config, action_id, template_arg, args, False)
+
+
+@automation.register_action(
+    "modbus_client.write_single_coil",
+    WriteSingleAction,
+    _WRITE_SCHEMA,
+    synchronous=True,
+)
+async def write_single_coil_to_code(config, action_id, template_arg, args):
+    return await _write_single_to_code(config, action_id, template_arg, args, True)

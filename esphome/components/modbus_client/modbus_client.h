@@ -96,4 +96,87 @@ template<typename... Ts> class ModbusClientSendAction : public ClientActionBase<
   Trigger<std::span<const uint8_t>, std::span<const uint8_t>> response_trigger_;
 };
 
+/// Typed actions: these do NOT override the raw on_response/on_error, so the base ModbusClientDevice
+/// defaults run the shared dispatch (validation gate + decode) and the typed callbacks below fire directly
+/// on the action. A reply the gate diverts (malformed) lands in on_custom_response -> on_error with code 0.
+template<typename... Ts> class TypedClientActionBase : public ClientActionBase<Ts...> {
+ public:
+  void on_custom_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
+                          modbus::ResponseStatus status) override {
+    this->error_trigger_.trigger(this->address_, static_cast<modbus::ModbusExceptionCode>(0));
+  }
+
+ protected:
+  /// True on success; fires on_error with the exception code otherwise.
+  bool check_status_(modbus::ResponseStatus status) {
+    if (!status.has_value())
+      return true;
+    this->error_trigger_.trigger(this->address_, *status);
+    return false;
+  }
+};
+
+/// modbus_client.read_holding_registers / read_input_registers: on_response delivers the device address
+/// and the registers in host byte order as `values` (only valid for the duration of the trigger).
+template<typename... Ts> class ReadRegistersAction : public TypedClientActionBase<Ts...> {
+ public:
+  explicit ReadRegistersAction(bool holding) : holding_(holding) {}
+  TEMPLATABLE_VALUE(uint16_t, start_address)
+  TEMPLATABLE_VALUE(uint16_t, count)
+
+  Trigger<uint8_t, std::span<const uint16_t>> *get_response_trigger() { return &this->response_trigger_; }
+
+  void play(Ts... x) override {
+    const uint16_t start = this->start_address_.value(x...);
+    const uint16_t count = this->count_.value(x...);
+    if (this->holding_) {
+      this->read_holding_registers(start, count);
+    } else {
+      this->read_input_registers(start, count);
+    }
+  }
+  void on_read_registers(modbus::EntityType entity_type, uint16_t start_address, std::span<const uint16_t> registers,
+                         modbus::ResponseStatus status) override {
+    if (this->check_status_(status))
+      this->response_trigger_.trigger(this->address_, registers);
+  }
+
+ protected:
+  Trigger<uint8_t, std::span<const uint16_t>> response_trigger_;
+  bool holding_;
+};
+
+/// modbus_client.write_single_register / write_single_coil: on_response is the acknowledgement (the ack
+/// only echoes the request, so it carries just the device address).
+template<typename... Ts> class WriteSingleAction : public TypedClientActionBase<Ts...> {
+ public:
+  explicit WriteSingleAction(bool coil) : coil_(coil) {}
+  TEMPLATABLE_VALUE(uint16_t, start_address)
+  TEMPLATABLE_VALUE(uint16_t, value)
+
+  Trigger<uint8_t> *get_response_trigger() { return &this->response_trigger_; }
+
+  void play(Ts... x) override {
+    const uint16_t start = this->start_address_.value(x...);
+    const uint16_t value = this->value_.value(x...);
+    if (this->coil_) {
+      this->write_single_coil(start, value != 0);
+    } else {
+      this->write_single_register(start, value);
+    }
+  }
+  void on_write_single_register(uint16_t address, uint16_t value, modbus::ResponseStatus status) override {
+    if (this->check_status_(status))
+      this->response_trigger_.trigger(this->address_);
+  }
+  void on_write_single_coil(uint16_t address, bool value, modbus::ResponseStatus status) override {
+    if (this->check_status_(status))
+      this->response_trigger_.trigger(this->address_);
+  }
+
+ protected:
+  Trigger<uint8_t> response_trigger_;
+  bool coil_;
+};
+
 }  // namespace esphome::modbus_client

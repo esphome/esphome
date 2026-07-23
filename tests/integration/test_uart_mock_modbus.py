@@ -342,6 +342,32 @@ async def test_uart_mock_modbus_server_controller_multiple(
 
 
 @pytest.mark.asyncio
+async def test_uart_mock_modbus_client_typed(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test the typed modbus_client actions end to end (each action its own hub device).
+
+    Start Scenario fires three typed actions: write_single_register puts 777 in server register 0x10 (the
+    ack fires on_response with the device address -> ack_flag = 1); read_holding_registers reads it back,
+    with the reply decoded by the shared device dispatch into host-order words (values[0] -> typed_value);
+    a read of unserved register 0x99 resolves via on_error with the device's exception code
+    (ILLEGAL_DATA_ADDRESS = 2 -> error_code).
+    """
+
+    tracker = SensorTracker(["typed_value", "ack_flag", "error_code"])
+    futures = tracker.expect_all({"typed_value": 777, "ack_flag": 1, "error_code": 2})
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures)
+
+
+@pytest.mark.asyncio
 async def test_uart_mock_modbus_client_inline(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
