@@ -11,16 +11,22 @@ void ModbusCallbackClient::dump_config() { ESP_LOGCONFIG(TAG, "Modbus Client:\n 
 
 void ModbusCallbackClient::send_with_handler(std::span<const uint8_t> pdu, ModbusResponseHandler *handler) {
   // Replies come back on the shared client response path keyed only by the request PDU, so two identical
-  // in-flight requests could not be told apart - skip the duplicate rather than mis-route its reply.
+  // in-flight requests could not be told apart - skip the duplicate rather than mis-route its reply. The
+  // skipped send still resolves through its own handler (directly - not via take_pending_(), which would
+  // wrongly consume the identical original's slot), keeping the one-outcome-per-send guarantee.
   for (size_t i = 0; i < this->pending_count_; i++) {
     const auto &pending = this->pending_[i];
     if (pending.request.size() == pdu.size() && std::equal(pdu.begin(), pdu.end(), pending.request.data())) {
       ESP_LOGW(TAG, "Identical request already pending; skipping send");
+      if (handler != nullptr)
+        handler->handle_modbus_not_sent();
       return;
     }
   }
   if (this->pending_count_ >= MAX_PENDING_RESPONSES) {
     ESP_LOGW(TAG, "Too many pending requests (%zu); skipping send", this->pending_count_);
+    if (handler != nullptr)
+      handler->handle_modbus_not_sent();
     return;
   }
   // Register the pending entry BEFORE sending: send_pdu() can resolve it synchronously (on_not_sent when the

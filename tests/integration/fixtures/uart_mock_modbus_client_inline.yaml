@@ -73,6 +73,9 @@ sensor:
   - platform: template
     name: "timeout_flag"
     id: timeout_flag
+  - platform: template
+    name: "skipped_flag"
+    id: skipped_flag
 
 button:
   - platform: template
@@ -95,3 +98,11 @@ button:
           on_no_response:
             then:
               - lambda: "id(timeout_flag).publish_state(1);"
+      # Identical to the still-pending client_gone request: skipped, and the skip resolves this send's own
+      # on_not_sent immediately (one outcome per send, even for a send that never reaches the hub).
+      - modbus_client.send:
+          id: client_gone
+          pdu: [0x03, 0x00, 0x10, 0x00, 0x01]
+          on_not_sent:
+            then:
+              - lambda: "id(skipped_flag).publish_state(1);"

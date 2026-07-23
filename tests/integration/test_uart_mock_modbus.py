@@ -342,12 +342,16 @@ async def test_uart_mock_modbus_client_inline(
 
     Start Scenario fires two sends: client_ok reads register 0x10 (served, = 1234) and decodes the reply in
     its inline on_response -> inline_value; client_gone targets address 2 which no server answers, so it
-    resolves via on_no_response -> timeout_flag. This exercises the fire-and-continue per-send routing
-    (matched by the exact request PDU) and the no-reply path.
+    resolves via on_no_response -> timeout_flag. A third send duplicates the still-pending client_gone
+    request, so it is skipped and must resolve via its own on_not_sent -> skipped_flag. This exercises the
+    fire-and-continue per-send routing (matched by the exact request PDU), the no-reply path, and the
+    one-outcome guarantee for skipped sends.
     """
 
-    tracker = SensorTracker(["inline_value", "timeout_flag"])
-    futures = tracker.expect_all({"inline_value": 1234, "timeout_flag": 1})
+    tracker = SensorTracker(["inline_value", "timeout_flag", "skipped_flag"])
+    futures = tracker.expect_all(
+        {"inline_value": 1234, "timeout_flag": 1, "skipped_flag": 1}
+    )
 
     async with (
         run_compiled(yaml_config),

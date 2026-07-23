@@ -46,7 +46,8 @@ class ModbusCallbackClient : public modbus::ModbusClientDevice, public Component
   /// address and appends the CRC; the reply is not routed anywhere.
   void send(std::span<const uint8_t> pdu) { this->send_pdu(pdu); }
   /// Send an ad-hoc PDU and route this specific reply (or its lack) to `handler`. If an identical request
-  /// is already pending the new send is skipped (the shared response path could not tell the two apart).
+  /// is already pending (or all pending slots are taken) the send is skipped and resolves immediately via
+  /// handle_modbus_not_sent() - every send gets exactly one outcome.
   void send_with_handler(std::span<const uint8_t> pdu, ModbusResponseHandler *handler);
 
   // A data reply: hand the request and response PDUs (function code + data, no address/CRC) to on_response.
