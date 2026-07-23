@@ -242,7 +242,7 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
     return;
   }
 
-  if (data[1] != HlkFm22xResult::SUCCESS) {
+  if (data[1] != HlkFm22xResult::SUCCEEDED) {
     ESP_LOGE(TAG, "Command <0x%.2X> failed. Error: 0x%.2X", data[0], data[1]);
     switch (expected) {
       case HlkFm22xCommand::ENROLL:

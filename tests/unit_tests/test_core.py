@@ -591,6 +591,36 @@ class TestEsphomeCore:
         assert target.is_esp32 is False
         assert target.is_esp8266 is True
 
+    def test_is_rp2(self, target):
+        """The canonical RP2 family gate flips on for the rp2 platform."""
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "rp2"}
+
+        assert target.is_rp2 is True
+        assert target.is_esp32 is False
+        assert target.is_esp8266 is False
+
+    def test_is_rp2040_deprecated_alias_matches_is_rp2(self, target, caplog):
+        """``is_rp2040`` is kept as a deprecation shim that returns whatever
+        ``is_rp2`` returns; both must agree across platform values. A
+        one-shot deprecation warning is emitted on first access and
+        deduped via ``CORE.data`` for the rest of the run."""
+        import logging
+
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "rp2"}
+        with caplog.at_level(logging.WARNING, logger="esphome.core"):
+            assert target.is_rp2040 is True
+            assert target.is_rp2040 == target.is_rp2
+
+            warnings = [r for r in caplog.records if "is_rp2040" in r.message]
+            assert len(warnings) == 1
+            assert "2027.7.0" in warnings[0].message
+
+        # Reset the dedupe so the False-platform branch also runs the shim.
+        target.data.pop("_core_is_rp2040_deprecated_warned", None)
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
+        assert target.is_rp2040 is False
+        assert target.is_rp2040 == target.is_rp2
+
     def test_firmware_bin__default(self, target):
         """Default platforms produce <pioenvs>/<name>/firmware.bin."""
         target.name = "test-device"
@@ -894,6 +924,13 @@ class TestEsphomeCore:
             "foo/build/.pioenvs/test-device/bootloader.bin"
         )
 
+    def test_using_toolchain_sdk_nrf(self, target):
+        """using_toolchain_sdk_nrf is True only for the SDK_NRF toolchain."""
+        target.toolchain = const.Toolchain.SDK_NRF
+        assert target.using_toolchain_sdk_nrf is True
+        target.toolchain = const.Toolchain.ESP_IDF
+        assert target.using_toolchain_sdk_nrf is False
+
     def test_add_library__extracts_short_name_from_path(self, target):
         """Test add_library extracts short name from library paths like owner/lib."""
         target.data[const.KEY_CORE] = {
@@ -908,3 +945,21 @@ class TestEsphomeCore:
             mock_enable.assert_called_once_with("Wire")
 
         assert "Wire" in target.platformio_libraries
+
+    def test_add_build_unflag__warns_on_native_idf_toolchain(
+        self, target, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Build unflags are not consumed by the native IDF build generator,
+        so adding one on that toolchain warns; PlatformIO stays silent."""
+        target.toolchain = const.Toolchain.PLATFORMIO
+        target.add_build_unflag("-fno-rtti")
+        assert "ignored" not in caplog.text
+
+        target.toolchain = const.Toolchain.ESP_IDF
+        target.add_build_unflag("-fno-exceptions")
+        assert (
+            "Build unflag -fno-exceptions is ignored when building with the "
+            "native ESP-IDF toolchain" in caplog.text
+        )
+        # The unflag is still recorded either way.
+        assert target.build_unflags == {"-fno-rtti", "-fno-exceptions"}

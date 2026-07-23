@@ -32,7 +32,7 @@ namespace esphome::esp32_improv {
 
 using namespace esp32_ble_server;
 
-class ESP32ImprovComponent : public Component, public improv_base::ImprovBase {
+class ESP32ImprovComponent final : public Component, public improv_base::ImprovBase {
  public:
   ESP32ImprovComponent();
   void dump_config() override;

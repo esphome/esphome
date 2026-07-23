@@ -6,7 +6,6 @@ from esphome.const import CONF_ARGS, CONF_FORMAT
 CONF_IF_NAN = "if_nan"
 
 
-# noqa
 f_regex = re.compile(
     r"""
     (                                   # start of capture group 1
@@ -20,7 +19,6 @@ f_regex = re.compile(
     """,
     flags=re.VERBOSE,
 )
-# noqa
 c_regex = re.compile(
     r"""
     (                                   # start of capture group 1

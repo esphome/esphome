@@ -87,6 +87,7 @@ from esphome.const import (
     DEVICE_CLASS_PRECIPITATION,
     DEVICE_CLASS_PRECIPITATION_INTENSITY,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_RADON,
     DEVICE_CLASS_REACTIVE_ENERGY,
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
@@ -166,6 +167,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_PRECIPITATION,
     DEVICE_CLASS_PRECIPITATION_INTENSITY,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_RADON,
     DEVICE_CLASS_REACTIVE_ENERGY,
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
@@ -319,13 +321,25 @@ _SENSOR_SCHEMA = (
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSensorComponent),
             cv.GenerateID(): cv.declare_id(Sensor),
-            cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
-            cv.Optional(CONF_ACCURACY_DECIMALS): validate_accuracy_decimals,
-            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
-            cv.Optional(CONF_STATE_CLASS): validate_state_class,
-            cv.Optional(CONF_ENTITY_CATEGORY): sensor_entity_category,
-            cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
-            cv.Optional(CONF_EXPIRE_AFTER): cv.All(
+            cv.Optional(
+                CONF_UNIT_OF_MEASUREMENT, visibility=cv.Visibility.ADVANCED
+            ): validate_unit_of_measurement,
+            cv.Optional(
+                CONF_ACCURACY_DECIMALS, visibility=cv.Visibility.ADVANCED
+            ): validate_accuracy_decimals,
+            cv.Optional(
+                CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): validate_device_class,
+            cv.Optional(
+                CONF_STATE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): validate_state_class,
+            cv.Optional(
+                CONF_ENTITY_CATEGORY, visibility=cv.Visibility.ADVANCED
+            ): sensor_entity_category,
+            cv.Optional(
+                CONF_FORCE_UPDATE, default=False, visibility=cv.Visibility.ADVANCED
+            ): cv.boolean,
+            cv.Optional(CONF_EXPIRE_AFTER, visibility=cv.Visibility.ADVANCED): cv.All(
                 cv.requires_component("mqtt"),
                 cv.Any(None, cv.positive_time_period_milliseconds),
             ),
@@ -1192,7 +1206,7 @@ def _std(x):
 
 def _correlation_coeff(x, y):
     m_x, m_y = _mean(x), _mean(y)
-    s_xy = sum((x_ - m_x) * (y_ - m_y) for x_, y_ in zip(x, y))
+    s_xy = sum((x_ - m_x) * (y_ - m_y) for x_, y_ in zip(x, y, strict=True))
     s_sq_x = sum((x_ - m_x) ** 2 for x_ in x)
     s_sq_y = sum((y_ - m_y) ** 2 for y_ in y)
     return s_xy / math.sqrt(s_sq_x * s_sq_y)
@@ -1228,7 +1242,7 @@ def _mat_copy(m):
 
 
 def _mat_transpose(m):
-    return _mat_copy(zip(*m))
+    return _mat_copy(zip(*m, strict=True))
 
 
 def _mat_identity(n):
@@ -1237,7 +1251,10 @@ def _mat_identity(n):
 
 def _mat_dot(a, b):
     b_t = _mat_transpose(b)
-    return [[sum(x * y for x, y in zip(row_a, col_b)) for col_b in b_t] for row_a in a]
+    return [
+        [sum(x * y for x, y in zip(row_a, col_b, strict=True)) for col_b in b_t]
+        for row_a in a
+    ]
 
 
 def _mat_inverse(m):

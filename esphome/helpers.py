@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import MutableMapping
 from contextlib import suppress
 import ipaddress
 import logging
@@ -123,14 +124,8 @@ def slugify(value: str) -> str:
 def friendly_name_slugify(value: str) -> str:
     """Convert a friendly name to a slug with dashes instead of underscores.
 
-    Used by:
-    - esphome.dashboard.web_server (legacy dashboard)
-    - device-builder (esphome/device-builder) — slugifies friendly names
-      into the YAML filename / device name during adoption + wizard flows.
-
-    Lives here rather than in ``esphome.dashboard.util.text`` so it
-    survives the legacy dashboard's eventual removal.
-    The dashboard module re-exports this name as a back-compat shim.
+    Used by device-builder (esphome/device-builder), which slugifies friendly
+    names into the YAML filename / device name during adoption + wizard flows.
     Coordinate with the device-builder team before changing the
     slugification rules — the mapping must stay stable so existing
     on-disk filenames keep matching across releases.
@@ -374,6 +369,26 @@ def is_ha_addon():
     return get_bool_env("ESPHOME_IS_HA_ADDON")
 
 
+def add_git_ceiling_directory(env: MutableMapping[str, str], directory: Path) -> None:
+    """Add ``directory`` to ``env``'s ``GIT_CEILING_DIRECTORIES`` list.
+
+    Git stops walking up the directory tree to find a repository once it reaches
+    a ceiling directory, so this caps the search at ``directory`` (the ESPHome
+    project root). Without it, an uninitialized or corrupt git repo in a parent
+    directory makes the ``git describe`` that build toolchains run for the app
+    version error out and fail the whole build.
+
+    ``GIT_CEILING_DIRECTORIES`` is an ``os.pathsep``-joined list of absolute
+    paths; any existing entries are preserved and duplicates are skipped.
+    """
+    ceiling = str(directory)
+    existing = env.get("GIT_CEILING_DIRECTORIES", "")
+    parts = existing.split(os.pathsep) if existing else []
+    if ceiling not in parts:
+        parts.append(ceiling)
+        env["GIT_CEILING_DIRECTORIES"] = os.pathsep.join(parts)
+
+
 def rmtree(path: Path | str) -> None:
     """Remove a directory tree, handling read-only files on Windows.
 
@@ -382,17 +397,13 @@ def rmtree(path: Path | str) -> None:
     read-only flag and retrying.
     """
 
-    def _onerror(func, path, exc_info):
+    def _onexc(func, path, exc):
         if os.access(path, os.W_OK):
-            raise exc_info[1].with_traceback(exc_info[2])
-        os.chmod(path, stat.S_IWUSR | stat.S_IRUSR)
+            raise exc
+        Path(path).chmod(stat.S_IWUSR | stat.S_IRUSR)
         func(path)
 
-    # ``onerror`` is deprecated in 3.12 in favour of ``onexc`` (different
-    # callable signature); keep the existing handler shape for now and
-    # silence the lint locally so this PR doesn't bundle an unrelated
-    # migration.
-    shutil.rmtree(path, onerror=_onerror)  # pylint: disable=deprecated-argument
+    shutil.rmtree(path, onexc=_onexc)
 
 
 def walk_files(path: Path):
@@ -512,7 +523,7 @@ def copy_file_if_changed(src: Path, dst: Path) -> bool:
             # -> delete file (it would be overwritten anyway), and try again
             # if that fails, use normal error handler
             with suppress(OSError):
-                os.unlink(dst)
+                Path(dst).unlink()
                 shutil.copyfile(src, dst)
                 return True
 
