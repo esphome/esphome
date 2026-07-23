@@ -125,6 +125,16 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
 }
 #pragma GCC diagnostic pop
 
+template<> const char *proto_enum_to_string<enums::DisconnectReason>(enums::DisconnectReason value) {
+  switch (value) {
+    case enums::DISCONNECT_REASON_UNSPECIFIED:
+      return ESPHOME_PSTR("DISCONNECT_REASON_UNSPECIFIED");
+    case enums::DISCONNECT_REASON_PROVISIONING_CLOSED:
+      return ESPHOME_PSTR("DISCONNECT_REASON_PROVISIONING_CLOSED");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
 template<> const char *proto_enum_to_string<enums::SerialProxyPortType>(enums::SerialProxyPortType value) {
   switch (value) {
     case enums::SERIAL_PROXY_PORT_TYPE_TTL:
@@ -297,6 +307,18 @@ template<> const char *proto_enum_to_string<enums::SupportsResponseType>(enums::
   }
 }
 #endif
+template<> const char *proto_enum_to_string<enums::TemperatureUnit>(enums::TemperatureUnit value) {
+  switch (value) {
+    case enums::TEMPERATURE_UNIT_CELSIUS:
+      return ESPHOME_PSTR("TEMPERATURE_UNIT_CELSIUS");
+    case enums::TEMPERATURE_UNIT_FAHRENHEIT:
+      return ESPHOME_PSTR("TEMPERATURE_UNIT_FAHRENHEIT");
+    case enums::TEMPERATURE_UNIT_KELVIN:
+      return ESPHOME_PSTR("TEMPERATURE_UNIT_KELVIN");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
 #ifdef USE_CLIMATE
 template<> const char *proto_enum_to_string<enums::ClimateMode>(enums::ClimateMode value) {
   switch (value) {
@@ -475,6 +497,10 @@ template<> const char *proto_enum_to_string<enums::LockState>(enums::LockState v
       return ESPHOME_PSTR("LOCK_STATE_LOCKING");
     case enums::LOCK_STATE_UNLOCKING:
       return ESPHOME_PSTR("LOCK_STATE_UNLOCKING");
+    case enums::LOCK_STATE_OPENING:
+      return ESPHOME_PSTR("LOCK_STATE_OPENING");
+    case enums::LOCK_STATE_OPEN:
+      return ESPHOME_PSTR("LOCK_STATE_OPEN");
     default:
       return ESPHOME_PSTR("UNKNOWN");
   }
@@ -848,7 +874,8 @@ const char *HelloResponse::dump_to(DumpBuffer &out) const {
   return out.c_str();
 }
 const char *DisconnectRequest::dump_to(DumpBuffer &out) const {
-  out.append_p(ESPHOME_PSTR("DisconnectRequest {}"));
+  MessageDumpHelper helper(out, ESPHOME_PSTR("DisconnectRequest"));
+  dump_field(out, ESPHOME_PSTR("reason"), static_cast<enums::DisconnectReason>(this->reason));
   return out.c_str();
 }
 const char *DisconnectResponse::dump_to(DumpBuffer &out) const {
@@ -955,6 +982,9 @@ const char *DeviceInfoResponse::dump_to(DumpBuffer &out) const {
     it.dump_to(out);
     out.append("\n");
   }
+#endif
+#ifdef USE_API_NOISE
+  dump_field(out, ESPHOME_PSTR("api_encryption_provisionable"), this->api_encryption_provisionable);
 #endif
   return out.c_str();
 }
@@ -1539,6 +1569,7 @@ const char *ListEntitiesClimateResponse::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
   dump_field(out, ESPHOME_PSTR("feature_flags"), this->feature_flags);
+  dump_field(out, ESPHOME_PSTR("temperature_unit"), static_cast<enums::TemperatureUnit>(this->temperature_unit));
   return out.c_str();
 }
 const char *ClimateStateResponse::dump_to(DumpBuffer &out) const {
@@ -1612,6 +1643,7 @@ const char *ListEntitiesWaterHeaterResponse::dump_to(DumpBuffer &out) const {
     dump_field(out, ESPHOME_PSTR("supported_modes"), static_cast<enums::WaterHeaterMode>(it), 4);
   }
   dump_field(out, ESPHOME_PSTR("supported_features"), this->supported_features);
+  dump_field(out, ESPHOME_PSTR("temperature_unit"), static_cast<enums::TemperatureUnit>(this->temperature_unit));
   return out.c_str();
 }
 const char *WaterHeaterStateResponse::dump_to(DumpBuffer &out) const {
@@ -2156,6 +2188,7 @@ const char *VoiceAssistantAudio::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("VoiceAssistantAudio"));
   dump_bytes_field(out, ESPHOME_PSTR("data"), this->data, this->data_len);
   dump_field(out, ESPHOME_PSTR("end"), this->end);
+  dump_bytes_field(out, ESPHOME_PSTR("data2"), this->data2, this->data2_len);
   return out.c_str();
 }
 const char *VoiceAssistantTimerEventResponse::dump_to(DumpBuffer &out) const {

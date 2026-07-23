@@ -12,8 +12,8 @@
 #include "esphome/components/esp32/preference_backend.h"
 #elif defined(USE_ESP8266)
 #include "esphome/components/esp8266/preference_backend.h"
-#elif defined(USE_RP2040)
-#include "esphome/components/rp2040/preference_backend.h"
+#elif defined(USE_RP2)
+#include "esphome/components/rp2/preference_backend.h"
 #elif defined(USE_LIBRETINY)
 #include "esphome/components/libretiny/preference_backend.h"
 #elif defined(USE_HOST)
@@ -24,7 +24,7 @@
 
 namespace esphome {
 
-#if !defined(USE_ESP32) && !defined(USE_ESP8266) && !defined(USE_RP2040) && !defined(USE_LIBRETINY) && \
+#if !defined(USE_ESP32) && !defined(USE_ESP8266) && !defined(USE_RP2) && !defined(USE_LIBRETINY) && \
     !defined(USE_HOST) && !(defined(USE_ZEPHYR) && defined(CONFIG_SETTINGS))
 // Stub for static analysis when no platform is defined.
 struct PreferenceBackend {
@@ -69,6 +69,10 @@ template<typename Derived> class PreferencesMixin {
   ESPPreferenceObject make_preference(uint32_t type) {
     return static_cast<Derived *>(this)->make_preference(sizeof(T), type);
   }
+
+ private:
+  PreferencesMixin() = default;
+  friend Derived;
 };
 
 // Macro for platform preferences.h headers to declare the standard aliases.

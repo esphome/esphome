@@ -12,9 +12,6 @@
 #include <esp_ota_ops.h>
 #include <esp_bootloader_desc.h>
 #endif
-#ifdef USE_LWIP_FAST_SELECT
-#include "esphome/core/lwip_fast_select.h"
-#endif  // USE_LWIP_FAST_SELECT
 #include "esphome/core/version.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
@@ -24,13 +21,13 @@
 #include "esphome/components/status_led/status_led.h"
 #endif
 
-#if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-#include "esphome/components/socket/socket.h"
-#endif
-
 namespace esphome {
 
 static const char *const TAG = "app";
+
+// Delay after setup() finishes before trimming the scheduler freelist of its post-boot peak.
+// 10 s is well past the bulk of post-setup async work (Wi-Fi/MQTT connects, first-read latency).
+static constexpr uint32_t SCHEDULER_FREELIST_TRIM_DELAY_MS = 10000;
 
 // Helper function for insertion sort of components by priority
 // Using insertion sort instead of std::stable_sort saves ~1.3KB of flash
@@ -118,6 +115,9 @@ void Application::setup() {
   this->app_state_ |= APP_STATE_SETUP_COMPLETE;
 
   ESP_LOGI(TAG, "setup() finished successfully!");
+
+  // Trim the scheduler freelist of its post-boot peak once startup churn settles.
+  this->scheduler.set_timeout(this, SCHEDULER_FREELIST_TRIM_DELAY_MS, [this]() { this->scheduler.trim_freelist(); });
 
 #ifdef USE_SETUP_PRIORITY_OVERRIDE
   // Clear setup priority overrides to free memory
@@ -366,7 +366,7 @@ void Application::teardown_components(uint32_t timeout_ms) {
 
     // Give some time for I/O operations if components are still pending
     if (pending_count > 0) {
-      this->yield_with_select_(1);
+      esphome::internal::wakeable_delay(1);
     }
 
     // Update time for next iteration

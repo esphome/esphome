@@ -3,8 +3,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ltr390 {
+namespace esphome::ltr390 {
 
 static const char *const TAG = "ltr390";
 
@@ -76,7 +75,7 @@ void LTR390Component::read_als_() {
   uint32_t als = *val;
 
   if (this->light_sensor_ != nullptr) {
-    float lux = ((0.6 * als) / (GAINVALUES[this->gain_als_] * RESOLUTIONVALUE[this->res_als_])) * this->wfac_;
+    float lux = ((0.6f * als) / (GAINVALUES[this->gain_als_] * RESOLUTIONVALUE[this->res_als_])) * this->wfac_;
     this->light_sensor_->publish_state(lux);
   }
 
@@ -203,5 +202,4 @@ void LTR390Component::update() {
   this->read_mode_((this->enabled_modes_ & ENABLED_MODE_ALS) ? LTR390_MODE_ALS : LTR390_MODE_UVS);
 }
 
-}  // namespace ltr390
-}  // namespace esphome
+}  // namespace esphome::ltr390

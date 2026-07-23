@@ -9,8 +9,7 @@
 using namespace esphome::climate;
 using namespace esphome::uart;
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
 static const char *const TAG = "haier.climate";
 constexpr size_t SIGNAL_LEVEL_UPDATE_INTERVAL_MS = 10000;
@@ -51,7 +50,7 @@ void HonClimate::set_quiet_mode_state(bool state) {
       this->quiet_mode_state_ = state ? SwitchState::PENDING_ON : SwitchState::PENDING_OFF;
       this->force_send_control_ = true;
     } else {
-      this->quiet_mode_state_ = state ? SwitchState::ON : SwitchState::OFF;
+      this->quiet_mode_state_ = state ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
     }
     this->settings_.quiet_mode_state = state;
 #ifdef USE_SWITCH
@@ -64,7 +63,7 @@ void HonClimate::set_quiet_mode_state(bool state) {
 }
 
 bool HonClimate::get_quiet_mode_state() const {
-  return (this->quiet_mode_state_ == SwitchState::ON) || (this->quiet_mode_state_ == SwitchState::PENDING_ON);
+  return (this->quiet_mode_state_ == SwitchState::SWITCH_ON) || (this->quiet_mode_state_ == SwitchState::PENDING_ON);
 }
 
 esphome::optional<hon_protocol::VerticalSwingMode> HonClimate::get_vertical_airflow() const {
@@ -85,7 +84,7 @@ void HonClimate::set_horizontal_airflow(hon_protocol::HorizontalSwingMode direct
   this->force_send_control_ = true;
 }
 
-std::string HonClimate::get_cleaning_status_text() const {
+const char *HonClimate::get_cleaning_status_text() const {
   switch (this->cleaning_status_) {
     case CleaningState::SELF_CLEAN:
       return "Self clean";
@@ -134,29 +133,22 @@ haier_protocol::HandlerError HonClimate::get_device_version_answer_handler_(haie
     }
     // All OK
     hon_protocol::DeviceVersionAnswer *answr = (hon_protocol::DeviceVersionAnswer *) data;
-    char tmp[9];
-    tmp[8] = 0;
-    strncpy(tmp, answr->protocol_version, 8);
-    this->hvac_hardware_info_ = HardwareInfo();
-    this->hvac_hardware_info_.value().protocol_version_ = std::string(tmp);
-    strncpy(tmp, answr->software_version, 8);
-    this->hvac_hardware_info_.value().software_version_ = std::string(tmp);
-    strncpy(tmp, answr->hardware_version, 8);
-    this->hvac_hardware_info_.value().hardware_version_ = std::string(tmp);
-    strncpy(tmp, answr->device_name, 8);
-    this->hvac_hardware_info_.value().device_name_ = std::string(tmp);
+    HardwareInfo info{};  // zero-init guarantees null-termination
+    strncpy(info.protocol_version_, answr->protocol_version, HARDWARE_INFO_STR_SIZE - 1);
+    strncpy(info.software_version_, answr->software_version, HARDWARE_INFO_STR_SIZE - 1);
+    strncpy(info.hardware_version_, answr->hardware_version, HARDWARE_INFO_STR_SIZE - 1);
+    strncpy(info.device_name_, answr->device_name, HARDWARE_INFO_STR_SIZE - 1);
+    info.functions_[0] = (answr->functions[1] & 0x01) != 0;  // interactive mode support
+    info.functions_[1] = (answr->functions[1] & 0x02) != 0;  // controller-device mode support
+    info.functions_[2] = (answr->functions[1] & 0x04) != 0;  // crc support
+    info.functions_[3] = (answr->functions[1] & 0x08) != 0;  // multiple AC support
+    info.functions_[4] = (answr->functions[1] & 0x20) != 0;  // roles support
+    this->use_crc_ = info.functions_[2];
 #ifdef USE_TEXT_SENSOR
-    this->update_sub_text_sensor_(SubTextSensorType::APPLIANCE_NAME, this->hvac_hardware_info_.value().device_name_);
-    this->update_sub_text_sensor_(SubTextSensorType::PROTOCOL_VERSION,
-                                  this->hvac_hardware_info_.value().protocol_version_);
+    this->update_sub_text_sensor_(SubTextSensorType::APPLIANCE_NAME, info.device_name_);
+    this->update_sub_text_sensor_(SubTextSensorType::PROTOCOL_VERSION, info.protocol_version_);
 #endif
-    this->hvac_hardware_info_.value().functions_[0] = (answr->functions[1] & 0x01) != 0;  // interactive mode support
-    this->hvac_hardware_info_.value().functions_[1] =
-        (answr->functions[1] & 0x02) != 0;  // controller-device mode support
-    this->hvac_hardware_info_.value().functions_[2] = (answr->functions[1] & 0x04) != 0;  // crc support
-    this->hvac_hardware_info_.value().functions_[3] = (answr->functions[1] & 0x08) != 0;  // multiple AC support
-    this->hvac_hardware_info_.value().functions_[4] = (answr->functions[1] & 0x20) != 0;  // roles support
-    this->use_crc_ = this->hvac_hardware_info_.value().functions_[2];
+    this->hvac_hardware_info_ = info;
     this->set_phase(ProtocolPhases::SENDING_INIT_2);
     return result;
   } else {
@@ -347,10 +339,9 @@ void HonClimate::dump_config() {
                   "  Device software version: %s\n"
                   "  Device hardware version: %s\n"
                   "  Device name: %s",
-                  this->hvac_hardware_info_.value().protocol_version_.c_str(),
-                  this->hvac_hardware_info_.value().software_version_.c_str(),
-                  this->hvac_hardware_info_.value().hardware_version_.c_str(),
-                  this->hvac_hardware_info_.value().device_name_.c_str());
+                  this->hvac_hardware_info_.value().protocol_version_,
+                  this->hvac_hardware_info_.value().software_version_,
+                  this->hvac_hardware_info_.value().hardware_version_, this->hvac_hardware_info_.value().device_name_);
     ESP_LOGCONFIG(TAG, "  Device features:%s%s%s%s%s",
                   (this->hvac_hardware_info_.value().functions_[0] ? " interactive" : ""),
                   (this->hvac_hardware_info_.value().functions_[1] ? " controller-device" : ""),
@@ -460,7 +451,7 @@ void HonClimate::process_phase(std::chrono::steady_clock::time_point now) {
       if (this->action_request_.has_value()) {
         if (this->action_request_.value().message.has_value()) {
           this->send_message_(this->action_request_.value().message.value(), this->use_crc_);
-          this->action_request_.value().message.reset();
+          this->action_request_.value().message.reset();  // NOLINT(bugprone-unchecked-optional-access)
         } else {
           // Message already sent, reseting request and return to idle
           this->action_request_.reset();
@@ -522,7 +513,7 @@ void HonClimate::initialization() {
   }
   this->current_vertical_swing_ = this->settings_.last_vertiacal_swing;
   this->current_horizontal_swing_ = this->settings_.last_horizontal_swing;
-  this->quiet_mode_state_ = this->settings_.quiet_mode_state ? SwitchState::ON : SwitchState::OFF;
+  this->quiet_mode_state_ = this->settings_.quiet_mode_state ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
 }
 
 haier_protocol::HaierMessage HonClimate::get_control_message() {
@@ -616,7 +607,7 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
     if (climate_control.target_temperature.has_value()) {
       float target_temp = climate_control.target_temperature.value();
       out_data->set_point = ((int) target_temp) - 16;  // set the temperature with offset 16
-      out_data->half_degree = (target_temp - ((int) target_temp) >= 0.49) ? 1 : 0;
+      out_data->half_degree = (target_temp - ((int) target_temp) >= 0.49f) ? 1 : 0;
     }
     if (out_data->ac_power == 0) {
       // If AC is off - no presets allowed
@@ -796,7 +787,7 @@ void HonClimate::set_sub_text_sensor(SubTextSensorType type, text_sensor::TextSe
   }
 }
 
-void HonClimate::update_sub_text_sensor_(SubTextSensorType type, const std::string &value) {
+void HonClimate::update_sub_text_sensor_(SubTextSensorType type, const char *value) {
   size_t index = (size_t) type;
   if (this->sub_text_sensors_[index] != nullptr)
     this->sub_text_sensors_[index]->publish_state(value);
@@ -834,7 +825,7 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
 #ifdef USE_SENSOR
     this->update_sub_sensor_(SubSensorType::INDOOR_COIL_TEMPERATURE, bd_packet->indoor_coil_temperature / 2.0 - 20);
     this->update_sub_sensor_(SubSensorType::OUTDOOR_COIL_TEMPERATURE, bd_packet->outdoor_coil_temperature - 64);
-    this->update_sub_sensor_(SubSensorType::OUTDOOR_DEFROST_TEMPERATURE, bd_packet->outdoor_coil_temperature - 64);
+    this->update_sub_sensor_(SubSensorType::OUTDOOR_DEFROST_TEMPERATURE, bd_packet->outdoor_defrost_temperature - 64);
     this->update_sub_sensor_(SubSensorType::OUTDOOR_IN_AIR_TEMPERATURE, bd_packet->outdoor_in_air_temperature - 64);
     this->update_sub_sensor_(SubSensorType::OUTDOOR_OUT_AIR_TEMPERATURE, bd_packet->outdoor_out_air_temperature - 64);
     this->update_sub_sensor_(SubSensorType::POWER, encode_uint16(bd_packet->power[0], bd_packet->power[1]));
@@ -948,14 +939,14 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
         // AC just turned on from remote need to turn off display
         this->force_send_control_ = true;
       } else if ((((uint8_t) this->display_status_) & 0b10) == 0) {
-        this->display_status_ = disp_status ? SwitchState::ON : SwitchState::OFF;
+        this->display_status_ = disp_status ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
       }
     }
   }
   // Health mode
   if ((((uint8_t) this->health_mode_) & 0b10) == 0) {
     bool old_health_mode = this->get_health_mode();
-    this->health_mode_ = packet.control.health_mode == 1 ? SwitchState::ON : SwitchState::OFF;
+    this->health_mode_ = packet.control.health_mode == 1 ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
     should_publish = should_publish || (old_health_mode != this->get_health_mode());
   }
   {
@@ -1017,7 +1008,7 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
       // In proper mode and not in pending state
       bool new_quiet_mode = packet.control.quiet_mode != 0;
       if (new_quiet_mode != this->get_quiet_mode_state()) {
-        this->quiet_mode_state_ = new_quiet_mode ? SwitchState::ON : SwitchState::OFF;
+        this->quiet_mode_state_ = new_quiet_mode ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
         this->settings_.quiet_mode_state = new_quiet_mode;
 #ifdef USE_SWITCH
         if (this->quiet_mode_switch_ != nullptr) {
@@ -1378,5 +1369,4 @@ bool HonClimate::should_get_big_data_() {
   return false;
 }
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier

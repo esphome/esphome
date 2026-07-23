@@ -5,10 +5,9 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/cover/cover.h"
 
-namespace esphome {
-namespace endstop {
+namespace esphome::endstop {
 
-class EndstopCover : public cover::Cover, public Component {
+class EndstopCover final : public cover::Cover, public Component {
  public:
   void setup() override;
   void loop() override;
@@ -53,5 +52,4 @@ class EndstopCover : public cover::Cover, public Component {
   cover::CoverOperation last_operation_{cover::COVER_OPERATION_OPENING};
 };
 
-}  // namespace endstop
-}  // namespace esphome
+}  // namespace esphome::endstop

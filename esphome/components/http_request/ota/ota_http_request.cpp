@@ -9,8 +9,7 @@
 #include "esphome/components/md5/md5.h"
 #include "esphome/components/watchdog/watchdog.h"
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 static const char *const TAG = "http_request.ota";
 
@@ -297,5 +296,4 @@ bool OtaHttpRequestComponent::validate_url_(const std::string &url) {
   return true;
 }
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request

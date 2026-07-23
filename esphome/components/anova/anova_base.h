@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace anova {
+namespace esphome::anova {
 
 enum CurrentQuery {
   NONE,
@@ -75,5 +74,4 @@ class AnovaCodec {
   CurrentQuery current_query_;
 };
 
-}  // namespace anova
-}  // namespace esphome
+}  // namespace esphome::anova

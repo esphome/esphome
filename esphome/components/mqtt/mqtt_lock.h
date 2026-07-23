@@ -10,7 +10,7 @@
 
 namespace esphome::mqtt {
 
-class MQTTLockComponent : public mqtt::MQTTComponent {
+class MQTTLockComponent final : public mqtt::MQTTComponent {
  public:
   explicit MQTTLockComponent(lock::Lock *a_lock);
 

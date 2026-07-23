@@ -12,7 +12,12 @@
 
 #ifdef USE_BK72XX
 extern "C" {
+// BDK 3.0.78 (required for BK7238) redeclares wifi_event_sta_disconnected_t,
+// which LibreTiny's Arduino WiFi API already defines. ESPHome doesn't use the
+// BDK version, so rename it across this include to avoid the collision.
+#define wifi_event_sta_disconnected_t bdk_wifi_event_sta_disconnected_t
 #include <wlan_ui_pub.h>
+#undef wifi_event_sta_disconnected_t
 }
 #endif
 
@@ -525,6 +530,8 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
         this->error_from_callback_ = true;
       }
 
+      // Refresh is_connected() cache; sta_state_/error_from_callback_ make it false.
+      this->update_connected_state_();
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
       this->notify_disconnect_state_listeners_();
 #endif

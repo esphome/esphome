@@ -7,7 +7,23 @@ enum DecodeError : int {
   DECODE_ERROR_INVALID_TYPE = -1,
   DECODE_ERROR_UNSUPPORTED_FORMAT = -2,
   DECODE_ERROR_OUT_OF_MEMORY = -3,
+  DECODE_ERROR_INTERNAL_DECODER_ERROR = -4,
 };
+
+constexpr const char *decode_error_to_string(int error) {
+  switch (error) {
+    case DECODE_ERROR_INVALID_TYPE:
+      return "Invalid type";
+    case DECODE_ERROR_UNSUPPORTED_FORMAT:
+      return "Unsupported format";
+    case DECODE_ERROR_OUT_OF_MEMORY:
+      return "Out of memory";
+    case DECODE_ERROR_INTERNAL_DECODER_ERROR:
+      return "Internal decoder error";
+    default:
+      return "Unknown error";
+  }
+}
 
 class RuntimeImage;
 
@@ -92,6 +108,7 @@ class ImageDecoder {
   size_t decoded_bytes_ = 0;  // Bytes processed so far
   double x_scale_ = 1.0;
   double y_scale_ = 1.0;
+  bool size_valid_ = true;  // Last set_size() result; draw() no-ops while false
 };
 
 }  // namespace esphome::runtime_image

@@ -3,9 +3,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <cmath>
+#include <numbers>
 
-namespace esphome {
-namespace qmc5883l {
+namespace esphome::qmc5883l {
 
 static const char *const TAG = "qmc5883l";
 
@@ -174,7 +174,7 @@ void QMC5883LComponent::read_sensor_() {
   const float y = int16_t(raw[1]) * mg_per_bit * 0.1f;
   const float z = int16_t(raw[2]) * mg_per_bit * 0.1f;
 
-  float heading = atan2f(0.0f - x, y) * 180.0f / M_PI;
+  float heading = atan2f(0.0f - x, y) * 180.0f / std::numbers::pi_v<float>;
 
   float temp = NAN;
   if (this->temperature_sensor_ != nullptr) {
@@ -213,5 +213,4 @@ i2c::ErrorCode QMC5883LComponent::read_bytes_16_le_(uint8_t a_register, uint16_t
   return err;
 }
 
-}  // namespace qmc5883l
-}  // namespace esphome
+}  // namespace esphome::qmc5883l
