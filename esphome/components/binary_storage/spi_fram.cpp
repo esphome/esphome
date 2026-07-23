@@ -69,7 +69,7 @@ void SPIFram::dump_config() {
 // BinaryStorage Interface
 //========================================================================
 
-storage::StorageError SPIFram::read(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
+storage::StorageError SPIFram::read_physical_(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
   if (!this->is_valid_address_(offset, len))
     return storage::StorageError::INVALID_ARGS;
   bool ok = this->read_raw(static_cast<uint32_t>(offset), buf, len);
@@ -78,7 +78,8 @@ storage::StorageError SPIFram::read(uint64_t offset, uint8_t *buf, size_t len, s
   return ok ? storage::StorageError::OK : storage::StorageError::READ_ERROR;
 }
 
-storage::StorageError SPIFram::write(uint64_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) {
+storage::StorageError SPIFram::write_physical_(uint64_t offset, const uint8_t *buf, size_t len,
+                                               size_t *bytes_transferred) {
   if (!this->is_valid_address_(offset, len))
     return storage::StorageError::INVALID_ARGS;
   bool ok = this->write_raw(static_cast<uint32_t>(offset), buf, len);
@@ -87,7 +88,12 @@ storage::StorageError SPIFram::write(uint64_t offset, const uint8_t *buf, size_t
   return ok ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
 }
 
-storage::StorageError SPIFram::erase(uint64_t offset, size_t len) { return storage::StorageError::OK; }
+storage::StorageError SPIFram::erase_physical_(uint64_t offset, size_t len) {
+  // Cells are overwritten in place — the device has no erase command to honour. Reporting OK
+  // would tell the caller the range is blank when it still holds the old data. The littlefs
+  // block-device path does not come through here (see BinaryStorage::block_erase()).
+  return storage::StorageError::NOT_SUPPORTED;
+}
 
 storage::StorageError SPIFram::format() { return this->BinaryStorage::format(); }
 

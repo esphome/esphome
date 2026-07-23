@@ -84,11 +84,19 @@ class SPIFlash : public BinaryStorage,
   const char *get_device_type() const override { return "spi_flash"; }
   uint32_t get_page_size() const override { return this->page_size_; }
   uint32_t get_erase_size() const override { return this->sector_size_; }
+  uint32_t get_erase_block_size() const override { return BLOCK_SIZE_64K; }
+  // NOR flash: bits only clear on write, so every write needs the covering unit erased first.
+  // All three granularities are standard SPI NOR opcodes and already implemented below.
+  uint8_t get_erase_caps() const override {
+    return storage::RAW_WRITE_NEEDS_ERASE | storage::RAW_ERASE_SECTOR | storage::RAW_ERASE_BLOCK |
+           storage::RAW_ERASE_CHIP;
+  }
 
   // RawStorage interface
-  storage::StorageError read(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) override;
-  storage::StorageError write(uint64_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) override;
-  storage::StorageError erase(uint64_t offset, size_t len) override;
+  storage::StorageError read_physical_(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) override;
+  storage::StorageError write_physical_(uint64_t offset, const uint8_t *buf, size_t len,
+                                        size_t *bytes_transferred) override;
+  storage::StorageError erase_physical_(uint64_t offset, size_t len) override;
   storage::StorageError format() override;
 
   // Hardware-level byte access
@@ -246,6 +254,10 @@ class SPIFlash : public BinaryStorage,
   static constexpr uint8_t CMD_WRITE_STATUS_REG = 0x01;
   static constexpr uint8_t CMD_PAGE_PROGRAM = 0x02;
   static constexpr uint8_t CMD_QUAD_PAGE_PROGRAM = 0x32;
+  // Erase unit sizes the 32K/64K block opcodes below operate on.
+  static constexpr uint32_t BLOCK_SIZE_32K = 32768;
+  static constexpr uint32_t BLOCK_SIZE_64K = 65536;
+
   static constexpr uint8_t CMD_BLOCK_ERASE_64K = 0xD8;
   static constexpr uint8_t CMD_BLOCK_ERASE_32K = 0x52;
   static constexpr uint8_t CMD_SECTOR_ERASE_4K = 0x20;

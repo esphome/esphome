@@ -99,7 +99,7 @@ void SPIFlash::auto_configure_from_jedec_id_() {
   // Codes 11-25 cover 2KB to 32MB (code 25 = 32MB for 256Mbit chips)
   if (capacity_code >= 11 && capacity_code <= 25) {
     this->capacity_ = 1UL << capacity_code;
-    ESP_LOGI(TAG, "Auto-detected capacity: %" PRIu32 " bytes (%.1f MB)", this->capacity_,
+    ESP_LOGD(TAG, "Auto-detected capacity: %" PRIu32 " bytes (%.1f MB)", this->capacity_,
              this->capacity_ / (1024.0f * 1024.0f));
   }
 
@@ -107,11 +107,11 @@ void SPIFlash::auto_configure_from_jedec_id_() {
   if (this->jedec_id_ == 0xC22019) {
     // Macronix MX25L25635F - 256Mbit (32MB) 3.3V SPI NOR Flash
     // Commonly found in PlayStation 4 consoles (SAA-001, SAB-001)
-    ESP_LOGI(TAG, "========================================");
-    ESP_LOGI(TAG, "  Detected: Macronix MX25L25635F");
-    ESP_LOGI(TAG, "  256Mbit (32MB) 3.3V SPI NOR Flash");
-    ESP_LOGI(TAG, "  4-byte addressing required");
-    ESP_LOGI(TAG, "========================================");
+    ESP_LOGD(TAG, "========================================");
+    ESP_LOGD(TAG, "  Detected: Macronix MX25L25635F");
+    ESP_LOGD(TAG, "  256Mbit (32MB) 3.3V SPI NOR Flash");
+    ESP_LOGD(TAG, "  4-byte addressing required");
+    ESP_LOGD(TAG, "========================================");
     return;
   }
 
@@ -204,7 +204,7 @@ bool SPIFlash::enable_quad_mode_() {
     return false;
   }
 
-  ESP_LOGI(TAG, "Quad mode enabled successfully");
+  ESP_LOGD(TAG, "Quad mode enabled successfully");
   return true;
 }
 
@@ -240,7 +240,7 @@ bool SPIFlash::disable_quad_mode_() {
     return false;
   }
 
-  ESP_LOGI(TAG, "Quad mode disabled successfully");
+  ESP_LOGD(TAG, "Quad mode disabled successfully");
   return true;
 }
 
@@ -328,7 +328,7 @@ bool SPIFlash::enter_4byte_mode_() {
   this->disable();
 
   if (config_reg & 0x20) {
-    ESP_LOGI(TAG, "Entered 4-byte address mode (verified, CR=0x%02X)", config_reg);
+    ESP_LOGD(TAG, "Entered 4-byte address mode (verified, CR=0x%02X)", config_reg);
   } else {
     ESP_LOGE(TAG, "4-byte address mode NOT confirmed! CR=0x%02X (bit 5 not set)", config_reg);
     ESP_LOGE(TAG, "Operations above 16MB will fail! Check chip compatibility.");
@@ -345,7 +345,7 @@ bool SPIFlash::exit_4byte_mode_() {
   this->disable();
 
   this->four_byte_mode_ = false;
-  ESP_LOGI(TAG, "Exited 4-byte address mode");
+  ESP_LOGD(TAG, "Exited 4-byte address mode");
   return true;
 }
 
@@ -376,7 +376,7 @@ bool SPIFlash::read_data_(uint32_t address, uint8_t *data, size_t length) {
   return true;
 }
 
-storage::StorageError SPIFlash::read(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
+storage::StorageError SPIFlash::read_physical_(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
   if (!this->is_valid_address_(offset, len))
     return storage::StorageError::INVALID_ARGS;
   bool ok = this->read_raw(static_cast<uint32_t>(offset), buf, len);
@@ -385,7 +385,8 @@ storage::StorageError SPIFlash::read(uint64_t offset, uint8_t *buf, size_t len, 
   return ok ? storage::StorageError::OK : storage::StorageError::READ_ERROR;
 }
 
-storage::StorageError SPIFlash::write(uint64_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) {
+storage::StorageError SPIFlash::write_physical_(uint64_t offset, const uint8_t *buf, size_t len,
+                                                size_t *bytes_transferred) {
   if (!this->is_valid_address_(offset, len))
     return storage::StorageError::INVALID_ARGS;
   bool ok = this->write_raw(static_cast<uint32_t>(offset), buf, len);
@@ -394,13 +395,51 @@ storage::StorageError SPIFlash::write(uint64_t offset, const uint8_t *buf, size_
   return ok ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
 }
 
-storage::StorageError SPIFlash::erase(uint64_t offset, size_t len) {
+storage::StorageError SPIFlash::erase_physical_(uint64_t offset, size_t len) {
+  if (len == 0)
+    return storage::StorageError::OK;
+
+  const uint32_t sector = this->sector_size_;
+  const uint64_t capacity = this->get_capacity();
+  if (offset + len > capacity) {
+    ESP_LOGE(TAG, "Erase out of bounds: 0x%08" PRIX32 " + %" PRIu32 " > capacity %" PRIu32, (uint32_t) offset,
+             (uint32_t) len, (uint32_t) capacity);
+    return storage::StorageError::INVALID_ARGS;
+  }
+  // Erasing is destructive at sector granularity: an unaligned range would take the
+  // neighbouring data sharing the first or last sector with it. Refuse rather than surprise.
+  if ((offset % sector) != 0 || (len % sector) != 0) {
+    ESP_LOGE(TAG, "Erase range 0x%08" PRIX32 " + %" PRIu32 " is not aligned to the %" PRIu32 " byte sector size",
+             (uint32_t) offset, (uint32_t) len, sector);
+    return storage::StorageError::INVALID_ARGS;
+  }
+
+  // Whole device: one chip erase instead of thousands of sector commands.
+  if (offset == 0 && len == capacity)
+    return this->erase_chip() ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+
+  // The block opcodes are only usable when the configured sector size tiles them evenly —
+  // with an exotic sector_size_ the sector opcode stays the only safe choice.
+  const bool blocks_usable = (BLOCK_SIZE_64K % sector) == 0;
+
   uint32_t addr = static_cast<uint32_t>(offset);
-  uint32_t end = addr + static_cast<uint32_t>(len);
+  const uint32_t end = addr + static_cast<uint32_t>(len);
   while (addr < end) {
-    if (!this->erase_block(addr))
+    const uint32_t remaining = end - addr;
+    bool ok;
+    // Coarsest opcode that fits: a 1 MB range costs 16 block erases instead of 256 sector ones.
+    if (blocks_usable && (addr % BLOCK_SIZE_64K) == 0 && remaining >= BLOCK_SIZE_64K) {
+      ok = this->erase_block_64k(addr);
+      addr += BLOCK_SIZE_64K;
+    } else if (blocks_usable && (addr % BLOCK_SIZE_32K) == 0 && remaining >= BLOCK_SIZE_32K) {
+      ok = this->erase_block_32k(addr);
+      addr += BLOCK_SIZE_32K;
+    } else {
+      ok = this->erase_sector(addr);
+      addr += sector;
+    }
+    if (!ok)
       return storage::StorageError::WRITE_ERROR;
-    addr += this->sector_size_;
   }
   return storage::StorageError::OK;
 }
@@ -415,22 +454,12 @@ bool SPIFlash::read_raw(uint32_t address, uint8_t *data, size_t length) {
     return false;
   }
 
-  // Read in chunks for better reliability
-  const size_t chunk_size = 256;
-
-  while (length > 0) {
-    size_t read_len = std::min(length, chunk_size);
-
-    if (!this->read_data_(address, data, read_len)) {
-      return false;
-    }
-
-    address += read_len;
-    data += read_len;
-    length -= read_len;
-  }
-
-  return true;
+  // One READ command for the whole range: the flash auto-increments its address for any
+  // length, and the ESP-IDF SPI layer already slices the transfer into MAX_TRANSFER_SIZE
+  // (4092 B) transactions transparently. The former 256 B loop re-issued a full
+  // enable/command/address/disable sequence per chunk for no benefit — this is both simpler
+  // and faster.
+  return this->read_data_(address, data, length);
 }
 
 bool SPIFlash::write_page_(uint32_t address, const uint8_t *data, size_t length) {
@@ -534,9 +563,15 @@ bool SPIFlash::erase_chip() {
   this->write_byte(CMD_CHIP_ERASE);
   this->disable();
 
-  // Chip erase can take a very long time (tens of seconds)
-  ESP_LOGI(TAG, "Chip erase in progress...");
-  bool success = this->wait_ready(60000);  // 60 second timeout
+  // Chip erase time scales with the device size — a fixed 60 s timed out on larger parts
+  // (datasheet maxima run to ~256 s for 16 MB and ~512 s for 32 MB NOR flash). Budget 20 s per
+  // MB plus a 30 s floor for command overhead and small-chip margin (the same 40 s-per-2 MB
+  // basis the Linux spi-nor driver uses). A generous timeout only matters in the error case; a
+  // healthy chip returns as soon as its status register clears.
+  const uint32_t capacity_mb = this->capacity_ / (1024UL * 1024UL);
+  const uint32_t erase_timeout_ms = 30000UL + capacity_mb * 20000UL;
+  ESP_LOGI(TAG, "Chip erase in progress... (timeout %" PRIu32 " s)", erase_timeout_ms / 1000);
+  bool success = this->wait_ready(erase_timeout_ms);
 
   if (success) {
     ESP_LOGI(TAG, "Chip erase complete");

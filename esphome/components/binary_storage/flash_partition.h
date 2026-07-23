@@ -3,6 +3,9 @@
 
 #ifdef USE_ESP_IDF
 #include "esphome/components/storage/storage.h"
+#if defined(USE_BINARY_STORAGE_PREFILL) && defined(USE_OTA_PARTITIONS)
+#include "esphome/components/ota/ota_backend.h"
+#endif
 #include "esp_partition.h"
 #include "binary_storage.h"  // shared STORAGE_MAX_PATH_LEN
 
@@ -11,7 +14,12 @@ namespace esphome::binary_storage {
 // LittleFS on an internal flash partition via ESP-IDF's esp_vfs_littlefs.
 // Simpler than LittleFSMount — IDF handles VFS registration and LittleFS internals.
 // The partition must be defined in the partition table with subtype=littlefs.
-class FlashPartition : public storage::FilesystemStorage {
+class FlashPartition : public storage::FilesystemStorage
+#if defined(USE_BINARY_STORAGE_PREFILL) && defined(USE_OTA_PARTITIONS)
+    ,
+                       public ota::OTADataPartitionListener
+#endif
+{
  public:
   FlashPartition() = default;
   ~FlashPartition();
@@ -72,6 +80,15 @@ class FlashPartition : public storage::FilesystemStorage {
 
   bool is_mounted() const { return this->mounted_; }
   bool remount();
+
+#if defined(USE_BINARY_STORAGE_PREFILL) && defined(USE_OTA_PARTITIONS)
+  // OTA data-partition listener (an in-band pre-fill OTA): the mount releases the
+  // flash before the OTA rewrites the partition and comes back on the new image afterwards
+  // — no reboot involved. In-flight worker traffic is drained first via the registry.
+  const char *ota_data_partition_label() override { return this->partition_label_; }
+  void on_ota_data_partition_before_write() override;
+  void on_ota_data_partition_after_write(bool success) override;
+#endif
 
  protected:
   const char *partition_label_{nullptr};

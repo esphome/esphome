@@ -552,6 +552,7 @@ storage::StorageError LittleFSMount::get_info(storage::StorageInfo *info) {
 
   info->id = this->storage_ != nullptr ? this->storage_->get_device_type() : "littlefs";
   info->name = this->mount_path_;
+  info->kind = "littlefs";
   info->is_mounted = this->mounted_;
   info->is_removable = false;
   info->is_read_only = false;
@@ -776,8 +777,8 @@ storage::StorageError LittleFSMount::list_dir(const char *path,
       continue;
 
     storage::FileStat fs_entry{};
-    strncpy(fs_entry.name, entry->d_name, STORAGE_MAX_PATH_LEN - 1);
-    fs_entry.name[STORAGE_MAX_PATH_LEN - 1] = '\0';
+    strncpy(fs_entry.name, entry->d_name, storage::STORAGE_NAME_MAX);
+    fs_entry.name[storage::STORAGE_NAME_MAX] = '\0';
     fs_entry.is_dir = (entry->d_type == DT_DIR);
     fs_entry.size = 0;
 
@@ -860,8 +861,12 @@ storage::StorageError LittleFSMount::rename(const char *old_path, const char *ne
   snprintf(full_old, sizeof(full_old), "%s/%s", this->mount_path_, old_path[0] == '/' ? old_path + 1 : old_path);
   snprintf(full_new, sizeof(full_new), "%s/%s", this->mount_path_, new_path[0] == '/' ? new_path + 1 : new_path);
 
+  // Report why it failed: the VFS shim above maps lfs errors onto errno (see
+  // lfs_errno_remap), so "destination exists" survives all the way to the caller instead of
+  // arriving as a generic write error.
+  errno = 0;
   if (::rename(full_old, full_new) != 0)
-    return storage::StorageError::WRITE_ERROR;
+    return storage::error_from_errno(errno, true);
 
   return storage::StorageError::OK;
 }
@@ -880,7 +885,7 @@ void LittleFSMount::list_files() const {
     return;
   }
 
-  ESP_LOGI(TAG, "Listing files in LittleFS at %s:", this->mount_path_);
+  ESP_LOGD(TAG, "Listing files in LittleFS at %s:", this->mount_path_);
 
   lfs_dir_t dir;
   int err = lfs_dir_open(lfs_cast(this->lfs_), &dir, "/");
@@ -896,9 +901,9 @@ void LittleFSMount::list_files() const {
       break;
 
     if (info.type == LFS_TYPE_REG) {
-      ESP_LOGI(TAG, "  File: %s, Size: %" PRIu32, info.name, (uint32_t) info.size);
+      ESP_LOGD(TAG, "  File: %s, Size: %" PRIu32, info.name, (uint32_t) info.size);
     } else if (info.type == LFS_TYPE_DIR) {
-      ESP_LOGI(TAG, "  Directory: %s", info.name);
+      ESP_LOGD(TAG, "  Directory: %s", info.name);
     }
   }
 
@@ -1059,7 +1064,7 @@ void LittleFSMount::register_with_vfs_() {
     ESP_LOGE(TAG, "Failed to register LittleFS with VFS: %s", esp_err_to_name(err));
   } else {
     this->vfs_registered_ = true;
-    ESP_LOGI(TAG, "LittleFS registered with VFS at %s", this->mount_path_);
+    ESP_LOGD(TAG, "LittleFS registered with VFS at %s", this->mount_path_);
   }
 }
 
@@ -1085,6 +1090,13 @@ storage::FileHandle *LittleFSMount::alloc_handle_(const char *path) {
       this->handle_pool_[i].path = this->handle_paths_[i];
       return &this->handle_pool_[i];
     }
+  }
+  // Every slot taken is a leak until proven otherwise — name the holders, so the next
+  // 'no space although plenty is free' report indicts the exact non-closing caller.
+  ESP_LOGW(TAG, "File handle pool exhausted (%d slots) while opening '%s' — handles still open:", LFS_VFS_MAX_FDS,
+           path);
+  for (int i = 0; i < LFS_VFS_MAX_FDS; i++) {
+    ESP_LOGW(TAG, "  [%d] '%s'", i, this->handle_paths_[i]);
   }
   return nullptr;
 }

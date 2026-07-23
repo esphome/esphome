@@ -50,10 +50,20 @@ void FlashPartition::setup() {
 
   this->mounted_ = true;
   ESP_LOGI(TAG, "LittleFS mounted at '%s'", this->mount_path_);
+#ifdef USE_STORAGE_CHANGE_FEED
+  if (storage::global_storage_registry != nullptr)
+    storage::global_storage_registry->note_dir_changed("");  // mount state is roots-listing state
+#endif
+
+#if defined(USE_BINARY_STORAGE_PREFILL) && defined(USE_OTA_PARTITIONS)
+  // So an incoming pre-fill image (an in-band pre-fill OTA) can have this mount step
+  // aside instead of forcing a reboot.
+  ota::register_data_partition_listener(this);
+#endif
 
   size_t total = 0, used = 0;
   if (esp_littlefs_info(this->partition_label_, &total, &used) == ESP_OK) {
-    ESP_LOGI(TAG, "Partition size: total=%" PRIu32 ", used=%" PRIu32, (uint32_t) total, (uint32_t) used);
+    ESP_LOGD(TAG, "Partition size: total=%" PRIu32 ", used=%" PRIu32, (uint32_t) total, (uint32_t) used);
   }
 
   // Permanent registration: registered-but-unmounted is this device's normal state after a
@@ -96,6 +106,7 @@ storage::StorageError FlashPartition::get_info(storage::StorageInfo *info) {
 
   info->id = this->storage_id_ != nullptr ? this->storage_id_ : this->partition_label_;
   info->name = this->storage_name_ != nullptr ? this->storage_name_ : this->mount_path_;
+  info->kind = "flash";
   info->is_mounted = this->mounted_;
   info->is_removable = false;
   info->is_read_only = false;
@@ -129,6 +140,10 @@ storage::StorageError FlashPartition::mount() {
     return storage::StorageError::READ_ERROR;
 
   this->mounted_ = true;
+#ifdef USE_STORAGE_CHANGE_FEED
+  if (storage::global_storage_registry != nullptr)
+    storage::global_storage_registry->note_dir_changed("");  // mount state is roots-listing state
+#endif
 
   return storage::StorageError::OK;
 }
@@ -313,8 +328,11 @@ storage::StorageError FlashPartition::list_dir(const char *path,
       continue;
 
     storage::FileStat fs_entry{};
-    strncpy(fs_entry.name, entry->d_name, STORAGE_MAX_PATH_LEN - 1);
-    fs_entry.name[STORAGE_MAX_PATH_LEN - 1] = '\0';
+    // Bound by the field being written, not by the path constant: FileStat::name holds a
+    // basename (storage::STORAGE_NAME_MAX + 1 bytes), while STORAGE_MAX_PATH_LEN measures a
+    // full VFS path and is the larger of the two.
+    strncpy(fs_entry.name, entry->d_name, sizeof(fs_entry.name) - 1);
+    fs_entry.name[sizeof(fs_entry.name) - 1] = '\0';
     fs_entry.is_dir = (entry->d_type == DT_DIR);
     fs_entry.size = 0;
 
@@ -403,8 +421,12 @@ storage::StorageError FlashPartition::rename(const char *old_path, const char *n
   this->build_path_(full_old, sizeof(full_old), old_path);
   this->build_path_(full_new, sizeof(full_new), new_path);
 
+  // Report why it failed — same reasoning as the other VFS-backed drivers: FatFs refuses an
+  // existing destination (FR_EXIST -> EEXIST), which a caller must be able to tell apart from
+  // an I/O error to offer overwriting.
+  errno = 0;
   if (::rename(full_old, full_new) != 0)
-    return storage::StorageError::WRITE_ERROR;
+    return storage::error_from_errno(errno, true);
 
   return storage::StorageError::OK;
 }
@@ -447,6 +469,10 @@ bool FlashPartition::unmount_lfs_() {
   }
 
   this->mounted_ = false;
+#ifdef USE_STORAGE_CHANGE_FEED
+  if (storage::global_storage_registry != nullptr)
+    storage::global_storage_registry->note_dir_changed("");  // mount state is roots-listing state
+#endif
   ESP_LOGI(TAG, "Unmounted '%s'", this->mount_path_);
   return true;
 }
@@ -470,6 +496,25 @@ bool FlashPartition::format_lfs_() {
   return true;
 }
 
+#if defined(USE_BINARY_STORAGE_PREFILL) && defined(USE_OTA_PARTITIONS)
+void FlashPartition::on_ota_data_partition_before_write() {
+  // Nothing may be mid-flight on this filesystem when the flash changes under it.
+  if (storage::global_storage_registry != nullptr)
+    storage::global_storage_registry->quiesce_storage(this);
+  this->unmount_lfs_();
+}
+
+void FlashPartition::on_ota_data_partition_after_write(bool success) {
+  // Remount whatever is there now. After a verified image that is the new content; after a
+  // failure it is a half-written region — the mount fails, auto_format heals it to an empty
+  // filesystem, and a repeated OTA delivers the content.
+  if (!success)
+    ESP_LOGW(TAG, "Data partition update failed; remounting (auto_format may reset it)");
+  if (!this->remount())
+    ESP_LOGE(TAG, "Remount after data partition update failed");
+}
+#endif
+
 storage::FileHandle *FlashPartition::alloc_handle_(const char *path) {
   for (int i = 0; i < MAX_OPEN_FILES; i++) {
     if (!this->handle_pool_[i].in_use) {
@@ -481,6 +526,12 @@ storage::FileHandle *FlashPartition::alloc_handle_(const char *path) {
       this->handle_pool_[i].path = this->handle_paths_[i];
       return &this->handle_pool_[i];
     }
+  }
+  // Every slot taken is a leak until proven otherwise — name the holders, so the next
+  // 'no space although plenty is free' report indicts the exact non-closing caller.
+  ESP_LOGW(TAG, "File handle pool exhausted (%d slots) while opening '%s' — handles still open:", MAX_OPEN_FILES, path);
+  for (int i = 0; i < MAX_OPEN_FILES; i++) {
+    ESP_LOGW(TAG, "  [%d] '%s'", i, this->handle_paths_[i]);
   }
   return nullptr;
 }
