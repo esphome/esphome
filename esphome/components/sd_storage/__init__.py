@@ -8,14 +8,20 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S31,
 )
 from esphome.components.storage import (
+    FILE_SYSTEM_SCHEMA_ENTRY,
     MountableStorage,
+    file_system_to_code,
+    final_validate_file_system,
+    request_fatfs_path_length,
     request_storage_device,
     request_storage_worker,
+    validate_file_system_value,
 )
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLK_PIN,
     CONF_CS_PIN,
+    CONF_DATA_RATE,
     CONF_ID,
     CONF_PATH,
     CONF_SPI,
@@ -65,6 +71,7 @@ CONF_ON_REMOVED = "on_removed"
 CONF_ON_INSERTED = "on_inserted"
 CONF_CD_PIN = "cd_pin"
 CONF_SPI_INTERFACE = "spi_interface"
+CONF_ASSUME_EXCLUSIVE_BUS = "assume_exclusive_bus"
 
 TYPE_SD_MMC = "sd_mmc"
 TYPE_SD_SPI = "sd_spi"
@@ -123,6 +130,8 @@ def validate_platform_variant(config):
 
 SD_MMC_SCHEMA = cv.Schema(
     {
+        # Only exists together with esp32 enable_exfat — see storage/__init__.py.
+        FILE_SYSTEM_SCHEMA_ENTRY: validate_file_system_value,
         cv.GenerateID(): cv.declare_id(SdMmc),
         cv.Required(CONF_CLK_PIN): pins.internal_gpio_output_pin_number,
         cv.Required(CONF_CMD_PIN): pins.internal_gpio_output_pin_number,
@@ -132,6 +141,11 @@ SD_MMC_SCHEMA = cv.Schema(
         cv.Optional(CONF_DATA3_PIN): pins.internal_gpio_pin_number,
         cv.Optional(CONF_MODE_1BIT, default=False): cv.boolean,
         cv.Optional(CONF_SLOT, default=0): cv.int_range(min=0, max=1),
+        # Default is platform dependent and applied in to_code(): SDMMC_FREQ_HIGHSPEED
+        # (40 MHz) on ESP32-P4, SDMMC_FREQ_DEFAULT (20 MHz) elsewhere.
+        cv.Optional(CONF_DATA_RATE): cv.All(
+            cv.frequency, cv.Range(min=400e3, max=40e6)
+        ),
         cv.Optional(CONF_PATH, default="/sdcard"): cv.string,
         cv.Optional(CONF_CD_PIN): pins.gpio_input_pullup_pin_schema,
         cv.Optional(CONF_ON_MOUNTED): automation.validate_automation(
@@ -160,6 +174,12 @@ SD_SPI_SCHEMA = (
             cv.Optional(CONF_SLOT, default=0): cv.int_range(min=0, max=1),
             cv.Optional(CONF_PATH, default="/sdcard"): cv.string,
             cv.Optional(CONF_CD_PIN): pins.gpio_input_pullup_pin_schema,
+            # Opt in to task-safe I/O when this card is the only device on its SPI bus. Enforced
+            # in FINAL_VALIDATE (Check A: alone on the bus). Off by default; esp32-only because
+            # the background worker task that would use it exists only there.
+            cv.Optional(CONF_ASSUME_EXCLUSIVE_BUS, default=False): cv.All(
+                cv.boolean, cv.only_on_esp32
+            ),
             cv.Optional(CONF_ON_MOUNTED): automation.validate_automation(
                 {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CardMountedTrigger)}
             ),
@@ -225,7 +245,69 @@ def _final_validate_spi_interface(config):
         config[CONF_SPI_INTERFACE] = spi.get_spi_interface(index)
 
 
-FINAL_VALIDATE_SCHEMA = _final_validate_spi_interface
+def _count_devices_on_spi_bus(fconf, bus_id):
+    """Count component configs across the whole config that reference the same spi bus id.
+
+    Walks every domain's component list and looks for the spi_id key. The bus is only READ
+    here — never modified. Returns (count, names) where names lists the other devices' ids for
+    a helpful error message.
+    """
+    count = 0
+    names = []
+    root = fconf.get_config_for_path([])
+    for domain_conf in root.values():
+        entries = domain_conf if isinstance(domain_conf, list) else [domain_conf]
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            ref = entry.get(spi.CONF_SPI_ID)
+            if ref is not None and str(ref) == str(bus_id):
+                count += 1
+                if (other_id := entry.get(CONF_ID)) is not None:
+                    names.append(str(other_id))
+    return count, names
+
+
+def _final_validate_assume_exclusive_bus(config):
+    """Enforce the assume_exclusive_bus promise for SD-over-SPI.
+
+    The user asserts this card is alone on its SPI bus. We do not believe it blindly — Check A:
+    no other device may reference the same bus. (SD-SPI is always a hardware bus here, enforced
+    separately by _final_validate_spi_interface, so the hardware-bus check is already covered.)
+    The bus config is only inspected, never changed.
+    """
+    if config[CONF_TYPE] != TYPE_SD_SPI:
+        return
+    if not config.get(CONF_ASSUME_EXCLUSIVE_BUS):
+        return
+
+    bus_id = config.get(spi.CONF_SPI_ID)
+    fconf = fv.full_config.get()
+
+    # --- Check A: this card must be alone on its bus ---
+    if bus_id is not None:
+        count, others = _count_devices_on_spi_bus(fconf, bus_id)
+        if count > 1:
+            shared_with = (
+                ", ".join(n for n in others if n != str(config.get(CONF_ID)))
+                or f"{count - 1} other device(s)"
+            )
+            raise cv.Invalid(
+                f"'{CONF_ASSUME_EXCLUSIVE_BUS}: true' requires this SD card to be the only "
+                f"device on bus '{bus_id}', but it is shared with: {shared_with}. A background "
+                f"task driving a shared bus would corrupt the other devices' traffic. Give the "
+                f"card its own SPI bus, or remove '{CONF_ASSUME_EXCLUSIVE_BUS}'."
+            )
+
+
+def _final_validate(config):
+    _final_validate_spi_interface(config)
+    _final_validate_assume_exclusive_bus(config)
+    final_validate_file_system(config)
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
@@ -240,6 +322,7 @@ async def to_code(config):
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+    await file_system_to_code(var, config)
 
     card_type = config[CONF_TYPE]
     if card_type == TYPE_SD_SPI:
@@ -264,6 +347,16 @@ async def to_code(config):
         mode_1bit = config.get(CONF_MODE_1BIT, False)
         cg.add(var.set_mode_1bit(mode_1bit))
 
+        # The P4 host runs the bus at high speed; every other variant stays at the
+        # SD default speed. An explicit data_rate wins over both.
+        if (data_rate := config.get(CONF_DATA_RATE)) is not None:
+            data_rate_khz = int(data_rate / 1000)
+        elif esp32.get_esp32_variant() == VARIANT_ESP32P4:
+            data_rate_khz = 40000
+        else:
+            data_rate_khz = 20000
+        cg.add(var.set_data_rate_khz(data_rate_khz))
+
         if CONF_SLOT in config:
             cg.add(var.set_slot(config[CONF_SLOT]))
 
@@ -286,10 +379,18 @@ async def to_code(config):
         cg.add(var.set_cd_pin(await cg.gpio_pin_expression(cd_pin)))
 
     request_storage_device()
-    # SdMmc has a dedicated SDIO controller and is safe to drive from the worker's background
-    # task; SdSpi shares its bus with other main-loop-driven components and is not (see
-    # SdMmc::get_capabilities() / the lack of an override on SdSpi).
-    request_storage_worker(task_safe=(card_type == TYPE_SD_MMC))
+    # Bounded by FATFS long filenames, i.e. by CONFIG_FATFS_MAX_LFN — resolved at codegen
+    # time rather than baked in, so a user who lowers it gets a matching API bound.
+    request_fatfs_path_length()
+    # SdMmc has a dedicated SDIO controller and is always safe to drive from the worker's
+    # background task. SdSpi shares a general SPI bus, so it is task-safe only when the user has
+    # opted in with assume_exclusive_bus (enforced in FINAL_VALIDATE: alone on the bus).
+    sd_spi_exclusive = card_type == TYPE_SD_SPI and config.get(
+        CONF_ASSUME_EXCLUSIVE_BUS
+    )
+    if sd_spi_exclusive:
+        cg.add(var.set_assume_exclusive_bus(True))
+    request_storage_worker(task_safe=(card_type == TYPE_SD_MMC or sd_spi_exclusive))
 
     for conf in config.get(CONF_ON_MOUNTED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

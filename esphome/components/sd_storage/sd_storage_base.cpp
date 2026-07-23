@@ -17,13 +17,11 @@ using storage::StorageInfo;
 
 static const char *const TAG_BASE = "sd_storage";
 
-namespace {
-
 // Maps a FATFS FRESULT to the closest StorageError. `for_rmdir` selects FR_DENIED's mapping:
 // f_unlink() (used for rmdir — see rmdir() below, FATFS has no dedicated f_rmdir) returns
 // FR_DENIED both for "directory not empty" and for genuine permission/read-only failures, so the
 // caller must tell us which context applies.
-StorageError fresult_to_storage_error(FRESULT res, bool for_rmdir, bool is_write) {
+static StorageError fresult_to_storage_error(FRESULT res, bool for_rmdir, bool is_write) {
   switch (res) {
     case FR_OK:
       return StorageError::OK;
@@ -44,8 +42,6 @@ StorageError fresult_to_storage_error(FRESULT res, bool for_rmdir, bool is_write
       return is_write ? StorageError::WRITE_ERROR : StorageError::READ_ERROR;
   }
 }
-
-}  // namespace
 
 bool SdStorageBase::build_full_path_(const char *rel_path, char *buf, size_t buf_size) const {
   size_t mount_len = strlen(this->mount_path_);
@@ -81,6 +77,7 @@ bool SdStorageBase::build_fatfs_path_(const char *rel_path, char *buf, size_t bu
 storage::StorageError SdStorageBase::get_info(storage::StorageInfo *info) {
   info->id = this->storage_id_ != nullptr ? this->storage_id_ : this->mount_path_;
   info->name = "SD Card";
+  info->kind = "sd";
   info->total_bytes = this->total_bytes_;
   info->free_bytes = this->get_free_bytes_impl();
   info->block_size = this->get_block_size_impl();
@@ -246,20 +243,7 @@ storage::StorageError SdStorageBase::open(const char *path, storage::FileHandle 
 
   FILE *f = fopen(h->path_buf, fmode);
   if (f == nullptr) {
-    switch (errno) {
-      case ENOENT:
-        return storage::StorageError::NOT_FOUND;
-      case ENOSPC:
-        return storage::StorageError::NO_SPACE;
-      case EACCES:
-      case EROFS:
-        return storage::StorageError::PERMISSION_DENIED;
-      case EMFILE:
-      case ENFILE:
-        return storage::StorageError::TOO_MANY_OPEN_FILES;
-      default:
-        return mode == storage::OpenMode::READ ? storage::StorageError::READ_ERROR : storage::StorageError::WRITE_ERROR;
-    }
+    return storage::error_from_errno(errno, mode != storage::OpenMode::READ);
   }
 
   h->in_use = true;
@@ -500,7 +484,12 @@ storage::StorageError SdStorageBase::rename(const char *old_path, const char *ne
   if (!this->build_full_path_(new_path, full_new, sizeof(full_new)))
     return storage::StorageError::INVALID_ARGS;
 
-  return ::rename(full_old, full_new) == 0 ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+  // Report why it failed: FatFs refuses an existing destination (FR_EXIST -> EEXIST), and a
+  // caller that cannot tell that apart from an I/O error cannot offer to overwrite.
+  errno = 0;
+  if (::rename(full_old, full_new) != 0)
+    return storage::error_from_errno(errno, true);
+  return storage::StorageError::OK;
 }
 
 void SdStorageBase::log_mount_result_(bool success) const {
@@ -513,13 +502,13 @@ void SdStorageBase::log_mount_result_(bool success) const {
 
 void SdStorageBase::log_unmount_() const { ESP_LOGI(TAG_BASE, "Card unmounted via automation"); }
 
-void SdStorageBase::log_list_dir_start_(const char *path) const { ESP_LOGI(TAG_BASE, "Listing files in: %s", path); }
+void SdStorageBase::log_list_dir_start_(const char *path) const { ESP_LOGD(TAG_BASE, "Listing files in: %s", path); }
 
 bool SdStorageBase::log_list_dir_entry(const storage::FileStat *entry, void *ctx) {
   if (entry->is_dir) {
-    ESP_LOGI(TAG_BASE, "  [DIR]  %s", entry->name);
+    ESP_LOGD(TAG_BASE, "  [DIR]  %s", entry->name);
   } else {
-    ESP_LOGI(TAG_BASE, "  [FILE] %s (%llu bytes)", entry->name, static_cast<unsigned long long>(entry->size));
+    ESP_LOGD(TAG_BASE, "  [FILE] %s (%llu bytes)", entry->name, static_cast<unsigned long long>(entry->size));
   }
   return true;  // keep enumerating — this is a "list everything" action
 }
