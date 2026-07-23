@@ -65,7 +65,7 @@ extern "C" {
 #include <freertos/semphr.h>
 #endif
 
-#if defined(USE_ESP32) && defined(USE_ESP_IDF)
+#ifdef USE_ESP32
 // Forward declaration matching esp_netif's own typedef; avoids pulling esp_netif.h
 // into this widely-included header.
 using esp_netif_t = struct esp_netif_obj;
@@ -468,7 +468,7 @@ class WiFiComponent final : public Component {
 
   bool is_connected() const { return this->connected_; }
 
-#if defined(USE_ESP32) && defined(USE_ESP_IDF)
+#ifdef USE_ESP32
   /// esp_netif handle of the station interface, used by network for default-route
   /// arbitration. nullptr until wifi_lazy_init_() has run.
   esp_netif_t *get_esp_netif_sta();
