@@ -9,7 +9,10 @@ namespace esphome::sfa40 {
 // SFA40 Datasheet: https://sensirion.com/media/documents/5B06EDD9/69F84BD8/Sensirion_Datasheet_SFA40.pdf
 
 class SFA40Component final : public PollingComponent, public sensirion_common::SensirionI2CDevice {
-  enum ProtocolVersion : uint8_t { PRODUCTION = 0, PROTOTYPE = 1, };
+  enum ProtocolVersion : uint8_t {
+    PRODUCTION = 0,
+    PROTOTYPE = 1,
+  };
   enum ErrorCode : uint8_t { PROTOCOL_DETECTION_FAILED, MEASUREMENT_INIT_FAILED, UNKNOWN };
 
  public:
