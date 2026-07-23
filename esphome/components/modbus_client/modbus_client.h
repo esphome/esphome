@@ -36,7 +36,7 @@ template<typename... Ts> class ClientActionBase : public Action<Ts...>, public m
  protected:
   /// Stamp the templated device address for this send; the hub routes the reply by device pointer, so a
   /// changed address never mis-routes earlier replies.
-  void stamp_address_(Ts... x) { this->set_address(static_cast<uint8_t>(this->target_address_.value(x...))); }
+  void stamp_address_(const Ts &...x) { this->set_address(static_cast<uint8_t>(this->target_address_.value(x...))); }
 
   Trigger<uint8_t, modbus::ModbusExceptionCode> error_trigger_;
   Trigger<uint8_t> no_response_trigger_;
@@ -54,7 +54,7 @@ template<typename... Ts> class ModbusClientSendAction : public ClientActionBase<
     return &this->response_trigger_;
   }
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto pdu = this->pdu_.value(x...);
     if (pdu.empty())
       return;
