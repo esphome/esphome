@@ -311,6 +311,11 @@ class AsyncEventSourceResponse {
   void process_close_();
   static void close_session_work(void *arg);
 
+  // Deletable only after destroy() zeroed fd_ and no queued HTTPD close work still references this object.
+  bool safe_to_delete_() const {
+    return this->fd_.load() == 0 && !this->close_work_queued_.load(std::memory_order_acquire);
+  }
+
   static void destroy(void *p);
   AsyncEventSource *server_;
   httpd_handle_t hd_{};
@@ -323,9 +328,11 @@ class AsyncEventSourceResponse {
   uint16_t consecutive_send_failures_{0};
   uint32_t send_failure_started_ms_{0};
   uint32_t next_close_attempt_ms_{0};
+  // Main-loop only; the HTTPD task never reads or writes this flag.
+  bool close_requested_{false};
   bool close_retry_warning_logged_{false};
+  // Set on the main loop before queueing close work, cleared by the HTTPD-task callback when done.
   std::atomic<bool> close_work_queued_{false};
-  std::atomic<bool> close_requested_{false};
   static constexpr uint32_t SEND_STALL_TIMEOUT_MS = 20000;
   static constexpr uint32_t CLOSE_RETRY_INTERVAL_MS = 250;
   static constexpr uint32_t CLOSE_CONFIRM_INTERVAL_MS = 1000;

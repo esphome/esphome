@@ -728,7 +728,7 @@ bool AsyncEventSource::loop() {
   for (size_t i = 0; i < this->sessions_.size();) {
     auto *ses = this->sessions_[i];
     // If the session has a dead socket (marked by destroy callback)
-    if (ses->fd_.load() == 0 && !ses->close_work_queued_.load(std::memory_order_acquire)) {
+    if (ses->safe_to_delete_()) {
       // destroy() already logged the close with the fd; don't double-log here.
       delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
       // Remove by swapping with last element (O(1) removal, order doesn't matter for sessions)
@@ -751,7 +751,7 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
   }
   for (auto *rsp : incoming) {
     // Already disconnected? Drop it; skip on_connect_/session start on a dead session.
-    if (rsp->fd_.load() == 0) {
+    if (rsp->safe_to_delete_()) {
       delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
       continue;
     }
@@ -865,14 +865,14 @@ void AsyncEventSourceResponse::deq_push_back_with_dedup_(void *source, message_g
 }
 
 void AsyncEventSourceResponse::process_deferred_queue_() {
-  if (this->close_requested_.load()) {
+  if (this->close_requested_) {
     return;
   }
   while (!deferred_queue_.empty()) {
     DeferredEvent &de = deferred_queue_.front();
     auto message = de.message_generator_(web_server_, de.source_);
     if (this->try_send_nodefer(message.c_str(), message.size(), "state")) {
-      if (this->close_requested_.load() || deferred_queue_.empty()) {
+      if (this->close_requested_ || deferred_queue_.empty()) {
         return;
       }
       // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
@@ -884,7 +884,8 @@ void AsyncEventSourceResponse::process_deferred_queue_() {
 }
 
 void AsyncEventSourceResponse::request_close_() {
-  if (!this->close_requested_.exchange(true)) {
+  if (!this->close_requested_) {
+    this->close_requested_ = true;
     this->deferred_queue_.clear();
     this->event_buffer_.clear();
     this->event_bytes_sent_ = 0;
@@ -895,7 +896,7 @@ void AsyncEventSourceResponse::request_close_() {
 }
 
 void AsyncEventSourceResponse::process_close_() {
-  if (!this->close_requested_.load() || this->close_work_queued_.load(std::memory_order_acquire)) {
+  if (!this->close_requested_ || this->close_work_queued_.load(std::memory_order_acquire)) {
     return;
   }
   const int fd = this->fd_.load();
@@ -944,7 +945,7 @@ void AsyncEventSourceResponse::close_session_work(void *arg) {
 }
 
 void AsyncEventSourceResponse::process_buffer_() {
-  if (this->close_requested_.load() || event_buffer_.empty()) {
+  if (this->close_requested_ || event_buffer_.empty()) {
     return;
   }
   if (event_bytes_sent_ == event_buffer_.size()) {
@@ -1004,15 +1005,15 @@ void AsyncEventSourceResponse::process_buffer_() {
 }
 
 void AsyncEventSourceResponse::loop() {
-  if (this->close_requested_.load()) {
+  if (this->close_requested_) {
     this->process_close_();
     return;
   }
   process_buffer_();
-  if (this->close_requested_.load())
+  if (this->close_requested_)
     return;
   process_deferred_queue_();
-  if (this->close_requested_.load())
+  if (this->close_requested_)
     return;
   if (!this->entities_iterator_.completed())
     this->entities_iterator_.advance();
@@ -1020,12 +1021,12 @@ void AsyncEventSourceResponse::loop() {
 
 bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t message_len, const char *event, uint32_t id,
                                                 uint32_t reconnect) {
-  if (this->fd_.load() == 0 || this->close_requested_.load()) {
+  if (this->fd_.load() == 0 || this->close_requested_) {
     return false;
   }
 
   process_buffer_();
-  if (this->close_requested_.load() || !event_buffer_.empty()) {
+  if (this->close_requested_ || !event_buffer_.empty()) {
     // there is still pending event data to send first
     return false;
   }
@@ -1177,7 +1178,7 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
   process_buffer_();
   process_deferred_queue_();
 
-  if (this->close_requested_.load()) {
+  if (this->close_requested_) {
     return;
   }
 
