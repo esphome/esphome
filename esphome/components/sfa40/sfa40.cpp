@@ -8,15 +8,15 @@ static const char *const TAG = "sfa40";
 // SFA40 Datasheet: https://sensirion.com/media/documents/5B06EDD9/69F84BD8/Sensirion_Datasheet_SFA40.pdf
 
 static const uint16_t SFA40_CMD_START_MEASUREMENT = 0x00AC;
-static const uint16_t SFA40_CMD_STOP_MEASUREMENT  = 0x50D2;
+static const uint16_t SFA40_CMD_STOP_MEASUREMENT = 0x50D2;
 static const uint16_t SFA40_CMD_READ_MEASURE_PROD = 0xC0EB;
-static const uint16_t SFA40_CMD_READ_MEASURE_B4   = 0xE06D;
-static const uint16_t SFA40_CMD_READ_ID_PROD      = 0x02CE;
-static const uint16_t SFA40_CMD_READ_ID_B4        = 0x0559;
+static const uint16_t SFA40_CMD_READ_MEASURE_B4 = 0xE06D;
+static const uint16_t SFA40_CMD_READ_ID_PROD = 0x02CE;
+static const uint16_t SFA40_CMD_READ_ID_B4 = 0x0559;
 
 static void raw_to_marking(const uint16_t *raw, size_t words, char *out) {
   for (size_t i = 0; i < words; i++) {
-    out[i * 2]     = static_cast<char>(raw[i] >> 8);
+    out[i * 2] = static_cast<char>(raw[i] >> 8);
     out[i * 2 + 1] = static_cast<char>(raw[i] & 0xFF);
   }
 }
@@ -88,10 +88,8 @@ void SFA40Component::update() {
     return;
   }
 
-  const uint16_t read_cmd =
-      (this->protocol_version_ == ProtocolVersion::PRODUCTION)
-          ? SFA40_CMD_READ_MEASURE_PROD
-          : SFA40_CMD_READ_MEASURE_B4;
+  const uint16_t read_cmd = (this->protocol_version_ == ProtocolVersion::PRODUCTION) ? SFA40_CMD_READ_MEASURE_PROD
+                                                                                     : SFA40_CMD_READ_MEASURE_B4;
 
   if (!this->write_command(read_cmd)) {
     ESP_LOGW(TAG, "Error reading measurement");
@@ -130,8 +128,7 @@ void SFA40Component::update() {
       this->humidity_sensor_->publish_state(125.0f * static_cast<float>(raw[1]) / 65535.0f - 6.0f);
     }
     if (this->temperature_sensor_ != nullptr) {
-      this->temperature_sensor_->publish_state(
-          175.0f * (static_cast<float>(raw[2]) / 65535.0f) - 45.0f);
+      this->temperature_sensor_->publish_state(175.0f * (static_cast<float>(raw[2]) / 65535.0f) - 45.0f);
     }
     this->status_clear_warning();
   });
