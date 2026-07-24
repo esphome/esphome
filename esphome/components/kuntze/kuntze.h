@@ -4,6 +4,8 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
 
+#include <span>
+
 namespace esphome::kuntze {
 
 class Kuntze final : public PollingComponent, public modbus::ModbusClientDevice {

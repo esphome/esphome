@@ -4,7 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
 
-#include <vector>
+#include <span>
 
 namespace esphome::havells_solar {
 

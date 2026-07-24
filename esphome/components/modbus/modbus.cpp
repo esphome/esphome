@@ -257,6 +257,14 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   return true;
 }
 
+// Bounds contract, enforced by the parser (parse_modbus_server_frame_) rather than locally:
+// - pdu is never empty: helpers::server_frame_length() returns at least MIN_FRAME_SIZE (4) on every
+//   branch, and find_custom_frame_end_() only ever lengthens that, so the PDU (frame minus address
+//   and CRC) always holds at least the function code.
+// - When the exception bit is set, pdu has at least 2 bytes: server_frame_length() checks the
+//   exception bit before anything else and pins those frames to 5 bytes, so the exception code
+//   read below is always present.
+// Keep those guarantees in mind when changing server_frame_length() or adding callers.
 void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) {
   const uint8_t function_code = pdu[0];
   if (!this->waiting_for_response_.has_value()) {

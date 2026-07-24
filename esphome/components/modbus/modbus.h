@@ -205,10 +205,29 @@ class ModbusClientDevice {
 
   /// Called when no request could be sent (e.g. queue full, transmission blocked)
   /// Do not attempt to queue a command in this callback.
-  virtual void on_not_sent() {}
+  /// (The on_modbus_* names are signature-identical renames, so the new defaults forward to the old
+  /// virtuals: external devices overriding the old names keep working through the deprecation window.
+  /// Remove the forwards together with the deprecated names.)
+  virtual void on_not_sent() {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    this->on_modbus_not_sent();
+#pragma GCC diagnostic pop
+  }
   /// Called when no matching, uninterrupted response arrived; return true to have the hub re-queue the frame for a
   /// retry. The hub does not bound retries: the device is responsible for limiting them.
-  virtual bool on_no_response() { return false; }
+  virtual bool on_no_response() {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    return this->on_modbus_no_response();
+#pragma GCC diagnostic pop
+  }
+  // Remove before 2027.2.0
+  ESPDEPRECATED("Override on_not_sent() instead. Removed in 2027.2.0", "2026.8.0")
+  virtual void on_modbus_not_sent() {}
+  // Remove before 2027.2.0
+  ESPDEPRECATED("Override on_no_response() instead. Removed in 2027.2.0", "2026.8.0")
+  virtual bool on_modbus_no_response() { return false; }
 
   /// High-level typed response callbacks, fired by the default on_response()/on_error() with arguments
   /// parsed from the request and response PDUs.
