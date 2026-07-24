@@ -12,9 +12,11 @@ from esphome.components.esp32 import (
     require_vfs_dir,
 )
 from esphome.components.storage import (
+    register_mount_path,
     request_path_length,
     request_storage_device,
     request_storage_worker,
+    validate_mount_path,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -88,21 +90,6 @@ IsReadyCondition = binary_storage_ns.class_("IsReadyCondition", automation.Condi
 CONF_PAGE_SIZE = "page_size"
 CONF_ADDRESSING_BITS = "addressing_bits"
 CONF_MOUNT_PATH = "mount_path"
-
-
-def _validate_mount_path(value):
-    # PathStorage contract: must start with '/', must not end with '/', not '' or '/'
-    value = cv.string_strict(value)
-    if (
-        not value.startswith("/")
-        or (len(value) > 1 and value.endswith("/"))
-        or value == "/"
-    ):
-        raise cv.Invalid(
-            "mount_path must be absolute (start with '/'), must not end with '/', "
-            "and must not be just '/'"
-        )
-    return value
 
 
 CONF_AUTO_FORMAT = "auto_format"
@@ -240,7 +227,7 @@ EEPROM_SCHEMA = (
             # (rebased, so raw address 0 sits right above the filesystem). Required there,
             # meaningless elsewhere: littlefs and raw each use the whole device.
             cv.Optional(CONF_FS_SIZE): validate_bytes,
-            cv.Optional(CONF_MOUNT_PATH): _validate_mount_path,
+            cv.Optional(CONF_MOUNT_PATH): validate_mount_path,
             cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
             cv.Optional(CONF_MOUNT_ID): cv.declare_id(LittleFSMount),
             cv.Optional(CONF_STORAGE_NAME): cv.string,
@@ -274,7 +261,7 @@ FRAM_SCHEMA = (
             # (rebased, so raw address 0 sits right above the filesystem). Required there,
             # meaningless elsewhere: littlefs and raw each use the whole device.
             cv.Optional(CONF_FS_SIZE): validate_bytes,
-            cv.Optional(CONF_MOUNT_PATH): _validate_mount_path,
+            cv.Optional(CONF_MOUNT_PATH): validate_mount_path,
             cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
             cv.Optional(CONF_MOUNT_ID): cv.declare_id(LittleFSMount),
             cv.Optional(CONF_STORAGE_NAME): cv.string,
@@ -311,7 +298,7 @@ SPI_FLASH_SCHEMA = (
             # (rebased, so raw address 0 sits right above the filesystem). Required there,
             # meaningless elsewhere: littlefs and raw each use the whole device.
             cv.Optional(CONF_FS_SIZE): validate_bytes,
-            cv.Optional(CONF_MOUNT_PATH): _validate_mount_path,
+            cv.Optional(CONF_MOUNT_PATH): validate_mount_path,
             cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
             cv.Optional(CONF_MOUNT_ID): cv.declare_id(LittleFSMount),
             cv.Optional(CONF_STORAGE_NAME): cv.string,
@@ -345,7 +332,7 @@ SPI_FRAM_SCHEMA = (
             # (rebased, so raw address 0 sits right above the filesystem). Required there,
             # meaningless elsewhere: littlefs and raw each use the whole device.
             cv.Optional(CONF_FS_SIZE): validate_bytes,
-            cv.Optional(CONF_MOUNT_PATH): _validate_mount_path,
+            cv.Optional(CONF_MOUNT_PATH): validate_mount_path,
             cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
             cv.Optional(CONF_MOUNT_ID): cv.declare_id(LittleFSMount),
             cv.Optional(CONF_STORAGE_NAME): cv.string,
@@ -379,7 +366,7 @@ SPI_MRAM_SCHEMA = (
             # (rebased, so raw address 0 sits right above the filesystem). Required there,
             # meaningless elsewhere: littlefs and raw each use the whole device.
             cv.Optional(CONF_FS_SIZE): validate_bytes,
-            cv.Optional(CONF_MOUNT_PATH): _validate_mount_path,
+            cv.Optional(CONF_MOUNT_PATH): validate_mount_path,
             cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
             cv.Optional(CONF_MOUNT_ID): cv.declare_id(LittleFSMount),
             cv.Optional(CONF_STORAGE_NAME): cv.string,
@@ -412,7 +399,7 @@ ONEWIRE_EEPROM_SCHEMA = cv.Schema(
         ),
         # mode: both only — see the sibling schemas above.
         cv.Optional(CONF_FS_SIZE): validate_bytes,
-        cv.Optional(CONF_MOUNT_PATH): _validate_mount_path,
+        cv.Optional(CONF_MOUNT_PATH): validate_mount_path,
         cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
         cv.Optional(CONF_MOUNT_ID): cv.declare_id(LittleFSMount),
         cv.Optional(CONF_STORAGE_NAME): cv.string,
@@ -432,7 +419,7 @@ FLASH_PARTITION_SCHEMA = cv.Schema(
         cv.Optional(CONF_PARTITION_SIZE, default="512kB"): cv.All(
             cv.validate_bytes, cv.Range(min=0x1000)
         ),
-        cv.Optional(CONF_MOUNT_PATH, default="/littlefs"): _validate_mount_path,
+        cv.Optional(CONF_MOUNT_PATH, default="/littlefs"): validate_mount_path,
         cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
         cv.Optional(CONF_STORAGE_NAME): cv.string,
         # Compile-time pre-fill: the listed files are baked into a LittleFS image during the
@@ -451,6 +438,20 @@ FLASH_PARTITION_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 # Typed schema for device selection
+def _fill_derived_mount_path(config):
+    """Write the id-derived mount point into the config when the user left it out.
+
+    Deriving it in to_code() instead would hide it from validation: the storage component
+    rejects two devices sharing a mount point by reading the mount_path keys out of the
+    validated config, and a path that only ever exists inside to_code() is invisible to that
+    check. Filling it here keeps the config the single description of what was configured,
+    which is what codegen then reads -- no state travels between the two phases.
+    """
+    if config.get(CONF_MODE) in (MODE_LITTLEFS, MODE_BOTH) and CONF_MOUNT_PATH not in config:
+        config[CONF_MOUNT_PATH] = f"/{config[CONF_ID]}"
+    return config
+
+
 CONFIG_SCHEMA = cv.typed_schema(
     {
         "EEPROM": EEPROM_SCHEMA,
@@ -470,8 +471,9 @@ CONFIG_SCHEMA = cv.typed_schema(
     key=CONF_TYPE,
     upper=True,
 )
+CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, _fill_derived_mount_path)
 
-# Mapping of device types to their source files
+# Mapping of device types to their source files, keyed by the type: value above.
 DEVICE_SOURCE_FILES = {
     "i2c_fram": ["i2c_fram.cpp"],
     "i2c_eeprom": ["i2c_eeprom.cpp"],
@@ -777,6 +779,9 @@ async def to_code(config):
 
         cg.add(var.set_partition_label(config[CONF_PARTITION_LABEL]))
         cg.add(var.set_mount_path(config[CONF_MOUNT_PATH]))
+        # Full VFS paths are longer than the relative ones request_path_length() bounds; the
+        # storage component sizes its buffers from the mount points registered here.
+        register_mount_path(config[CONF_MOUNT_PATH])
         cg.add(var.set_auto_format(config[CONF_AUTO_FORMAT]))
 
         if prefill := config.get(CONF_PRE_FILL):
@@ -888,8 +893,8 @@ async def to_code(config):
 
     # Create LittleFSMount if mode requires filesystem access
     if mode in [MODE_LITTLEFS, MODE_BOTH]:
-        mount_path = config.get(CONF_MOUNT_PATH) or f"/{config[CONF_ID]}"
-
+        # Always present: _fill_derived_mount_path() put it there during validation.
+        mount_path = config[CONF_MOUNT_PATH]
         from esphome.core import ID
 
         if (mount_id := config.get(CONF_MOUNT_ID)) is not None:
@@ -905,6 +910,9 @@ async def to_code(config):
 
         cg.add(mount_var.set_storage_device(var))
         cg.add(mount_var.set_mount_path(mount_path))
+        # Registered with the effective path, which may have been derived from the id above
+        # rather than written in the YAML.
+        register_mount_path(mount_path)
         if (auto_format := config.get(CONF_AUTO_FORMAT)) is not None:
             cg.add(mount_var.set_auto_format(auto_format))
 
