@@ -9,6 +9,7 @@
 #include <array>
 #include <cstring>
 #include <memory>
+#include <span>
 #include <vector>
 #include <deque>
 #include <optional>
@@ -59,8 +60,8 @@ class Modbus : public uart::UARTDevice, public Component {
   virtual int32_t tx_delay_remaining();
   virtual void parse_modbus_frames() = 0;
   bool parse_modbus_server_frame_();
-  virtual void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data,
-                                           uint16_t len) = 0;
+  // pdu is the whole PDU (function code + payload, no address/CRC); pdu[0] is the (standard or custom) function code.
+  virtual void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) = 0;
   void clear_rx_buffer_(const LogString *reason, bool warn = false, size_t bytes_to_clear = 0);
   bool send_frame_(const ModbusFrame &frame);
   // Scans forward from min_length to find a frame boundary by CRC match for custom function codes.
@@ -118,10 +119,9 @@ class ModbusClientHub : public Modbus {
  protected:
   int32_t tx_delay_remaining() override;
   void parse_modbus_frames() override;
-  // Parsers need to handle standard (ModbusFunctionCode) and custom (uint8_t) function codes, so we use uint8_t here.
-  void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) override;
+  void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) override;
   void send_next_frame_();
-  // Notify the waiting device of no response; re-queues the frame if on_modbus_no_response() returns true.
+  // Notify the waiting device of no response; re-queues the frame if on_no_response() returns true.
   // wfr is the caller's checked reference to waiting_for_response_.
   void notify_no_response_(ModbusDeviceCommand &wfr);
   void requeue_waiting_frame_(ModbusDeviceCommand &wfr);
@@ -154,8 +154,7 @@ class ModbusServerHub : public Modbus {
  protected:
   void parse_modbus_frames() override;
   bool parse_modbus_client_frame_();
-  // Parsers need to handle standard (ModbusFunctionCode) and custom (uint8_t) function codes, so we use uint8_t here.
-  void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) override;
+  void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) override;
   void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data);
   // Dispatches a broadcast (address 0) write to every registered device; broadcasts are never answered.
   void process_broadcast_frame_(uint8_t function_code, const uint8_t *data);
@@ -195,12 +194,35 @@ class ModbusClientDevice {
   ModbusClientDevice &operator=(ModbusClientDevice &&) = delete;
   void set_parent(ModbusClientHub *parent) { this->parent_ = parent; }
   void set_address(uint8_t address) { this->address_ = address; }
-  virtual void on_modbus_data(const std::vector<uint8_t> &data) {}
-  virtual void on_modbus_error(uint8_t function_code, uint8_t exception_code) {}
-  virtual void on_modbus_not_sent() {}
+  /// Called with the request PDU this device sent and the response PDU received (both: function code +
+  /// data, no address, no CRC). The spans are only valid for the duration of the call - copy the bytes
+  /// if they must outlive it. Slice the payload out of the response with helpers::server_pdu_payload().
+  virtual void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {}
+  /// Called with the request PDU and the modbus exception code decoded from the error response.
+  virtual void on_error(std::span<const uint8_t> request_pdu, ModbusExceptionCode exception_code) {}
+  // The on_modbus_* names are signature-identical renames, so the new defaults forward to the old
+  // virtuals: external devices overriding the old names keep working through the deprecation window.
+  // Remove the forwards together with the deprecated names.
+  virtual void on_not_sent() {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    this->on_modbus_not_sent();
+#pragma GCC diagnostic pop
+  }
   /// Called when no (valid) response arrived; return true to have the hub re-queue the frame for a retry.
   /// The hub does not bound retries: the device is responsible for limiting them (e.g. track a counter and
   /// return false when exhausted), or an unresponsive peer will starve other traffic on the bus.
+  virtual bool on_no_response() {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    return this->on_modbus_no_response();
+#pragma GCC diagnostic pop
+  }
+  // Remove before 2027.2.0
+  ESPDEPRECATED("Override on_not_sent() instead. Removed in 2027.2.0", "2026.8.0")
+  virtual void on_modbus_not_sent() {}
+  // Remove before 2027.2.0
+  ESPDEPRECATED("Override on_no_response() instead. Removed in 2027.2.0", "2026.8.0")
   virtual bool on_modbus_no_response() { return false; }
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
             const uint8_t *payload = nullptr) {

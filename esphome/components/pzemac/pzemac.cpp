@@ -9,7 +9,8 @@ static const uint8_t PZEM_CMD_READ_IN_REGISTERS = 0x04;
 static const uint8_t PZEM_CMD_RESET_ENERGY = 0x42;
 static const uint8_t PZEM_REGISTER_COUNT = 10;  // 10x 16-bit registers
 
-void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
+void PZEMAC::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
+  auto data = modbus::helpers::server_pdu_payload(response_pdu);
   if (data.size() < 20) {
     ESP_LOGW(TAG, "Invalid size for PZEM AC!");
     return;
