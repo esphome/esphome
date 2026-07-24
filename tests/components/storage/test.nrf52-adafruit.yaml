@@ -1,1 +1,2 @@
-storage:
+packages:
+  storage: !include common.yaml

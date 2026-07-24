@@ -12,7 +12,7 @@
 #include "ff.h"
 #include "diskio_sdmmc.h"
 #ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-// FF_DRV_NOT_USED, ff_diskio_get_drive(), ff_diskio_register() — the generic diskio layer
+// FF_DRV_NOT_USED, ff_diskio_get_drive(), ff_diskio_register() -- the generic diskio layer
 // the manual mount mirror drives; diskio_sdmmc.h above only covers the sdmmc binding.
 #include "diskio_impl.h"
 #endif
@@ -42,7 +42,7 @@ void SdMmc::setup() {
     this->cs_pin_->setup();
   }
 
-  // Register before attempting to mount, not only on success — get_info() reports is_mounted
+  // Register before attempting to mount, not only on success -- get_info() reports is_mounted
   // correctly either way, and this lets the device (and its mount/unmount/list_files actions)
   // show up in the registry even if the initial mount fails, instead of only existing once a
   // card happens to be present. No mark_failed() here: a failed mount is not a broken
@@ -50,14 +50,14 @@ void SdMmc::setup() {
   if (storage::global_storage_registry != nullptr)
     if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
       // Registry full = codegen/runtime device-count mismatch: the device would be invisible
-      // to resolve_path()/consumers. Fatal — do not run with a silently missing device.
+      // to resolve_path()/consumers. Fatal -- do not run with a silently missing device.
       ESP_LOGE(TAG, "Storage registration failed");
       this->mark_failed();
     }
 
   if (this->cd_pin_ != nullptr) {
     this->cd_pin_->setup();
-    // With a CD pin configured, only mount if a card is actually seen at boot — otherwise wait
+    // With a CD pin configured, only mount if a card is actually seen at boot -- otherwise wait
     // for loop()'s polling to pick up an insertion later, rather than logging a spurious "Failed
     // to mount" for a socket that's simply empty right now. No mark_failed() either way, same
     // rationale as above.
@@ -245,7 +245,7 @@ storage::StorageError SdMmc::mount() {
   this->is_mounted_ = true;
 #ifdef USE_STORAGE_CHANGE_FEED
   // Mount state is part of the roots listing: whoever flipped it (CD pin, hotplug, HTTP,
-  // automation), the browser's change poll must see it — including recovery after an error.
+  // automation), the browser's change poll must see it -- including recovery after an error.
   if (storage::global_storage_registry != nullptr)
     storage::global_storage_registry->note_dir_changed("");
 #endif
@@ -258,7 +258,7 @@ storage::StorageError SdMmc::mount() {
   if (storage::global_storage_registry != nullptr)
     if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
       // Registry full = codegen/runtime device-count mismatch: the device would be invisible
-      // to resolve_path()/consumers. Fatal — do not run with a silently missing device.
+      // to resolve_path()/consumers. Fatal -- do not run with a silently missing device.
       ESP_LOGE(TAG, "Storage registration failed");
       this->mark_failed();
     }
@@ -272,7 +272,7 @@ storage::StorageError SdMmc::unmount() {
   if (!this->is_mounted_ || this->card_ == nullptr)
     return storage::StorageError::OK;
 
-  // Quiesce before the VFS unmount below — same drain guarantee as unregister_storage()
+  // Quiesce before the VFS unmount below -- same drain guarantee as unregister_storage()
   // (no in-flight storage_worker data-plane call against this device remains, handles the
   // worker opened are closed), but the device stays registered: registered-but-unmounted
   // is its normal state, so there is nothing to re-register afterwards.
@@ -294,7 +294,7 @@ storage::StorageError SdMmc::unmount() {
   this->is_mounted_ = false;
 #ifdef USE_STORAGE_CHANGE_FEED
   // Mount state is part of the roots listing: whoever flipped it (CD pin, hotplug, HTTP,
-  // automation), the browser's change poll must see it — including recovery after an error.
+  // automation), the browser's change poll must see it -- including recovery after an error.
   if (storage::global_storage_registry != nullptr)
     storage::global_storage_registry->note_dir_changed("");
 #endif

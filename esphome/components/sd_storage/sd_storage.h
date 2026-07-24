@@ -43,7 +43,7 @@ class SdMmc : public SdStorageBase {
   storage::StorageError unmount() override;
 
   // SDMMC has a dedicated hardware controller (SDIO), not a bus shared with other
-  // main-loop-driven components (unlike SdSpi, which sits on a shared SPI bus) — safe for a
+  // main-loop-driven components (unlike SdSpi, which sits on a shared SPI bus) -- safe for a
   // future async worker to drive from a background task.
   uint8_t get_capabilities() const override { return storage::StorageCaps::STORAGE_CAP_IO_TASK_SAFE; }
 

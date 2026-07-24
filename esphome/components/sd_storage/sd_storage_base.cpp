@@ -18,7 +18,7 @@ using storage::StorageInfo;
 static const char *const TAG_BASE = "sd_storage";
 
 // Maps a FATFS FRESULT to the closest StorageError. `for_rmdir` selects FR_DENIED's mapping:
-// f_unlink() (used for rmdir — see rmdir() below, FATFS has no dedicated f_rmdir) returns
+// f_unlink() (used for rmdir -- see rmdir() below, FATFS has no dedicated f_rmdir) returns
 // FR_DENIED both for "directory not empty" and for genuine permission/read-only failures, so the
 // caller must tell us which context applies.
 static StorageError fresult_to_storage_error(FRESULT res, bool for_rmdir, bool is_write) {
@@ -106,13 +106,13 @@ void SdStorageBase::loop_cd_() {
     return;
 
   if (!this->cd_state_seeded_) {
-    // Seed with the current state — the boot-time mount decision was setup()'s.
+    // Seed with the current state -- the boot-time mount decision was setup()'s.
     this->cd_last_present_ = present;
     this->cd_state_seeded_ = true;
     return;
   }
   if (present == this->cd_last_present_)
-    return;  // level unchanged — edges only
+    return;  // level unchanged -- edges only
   this->cd_last_present_ = present;
 
   if (present) {
@@ -134,7 +134,7 @@ bool SdStorageBase::card_present_() {
 
   // Active-low: the switch pulls the pin low when a card is seated. digital_read() already
   // applies the pin's own inverted: flag, so this is the only place that convention is baked
-  // in — hardware wired the other way is handled by setting inverted: true on cd_pin, not by
+  // in -- hardware wired the other way is handled by setting inverted: true on cd_pin, not by
   // a second inversion setting here.
   bool raw_present = !this->cd_pin_->digital_read();
   uint32_t now = millis();
@@ -150,11 +150,11 @@ bool SdStorageBase::card_present_() {
   }
 
   if (raw_present != this->candidate_present_) {
-    // Raw reading changed — restart the debounce window from here.
+    // Raw reading changed -- restart the debounce window from here.
     this->candidate_present_ = raw_present;
     this->candidate_since_ms_ = now;
   } else if (raw_present != this->last_confirmed_present_ && now - this->candidate_since_ms_ >= CD_DEBOUNCE_MS) {
-    // Candidate has held steady for the full window — accept it.
+    // Candidate has held steady for the full window -- accept it.
     this->last_confirmed_present_ = raw_present;
   }
 
@@ -259,7 +259,7 @@ storage::StorageError SdStorageBase::close(storage::FileHandle *handle) {
     return storage::StorageError::INVALID_ARGS;
   storage::StorageError err = storage::StorageError::OK;
   if (handle->file != nullptr) {
-    // FATFS flushes on close (see the dst-close-error propagation in storage.cpp's copy()) —
+    // FATFS flushes on close (see the dst-close-error propagation in storage.cpp's copy()) --
     // a failed close here can mean a silently truncated/corrupt file.
     if (fclose(handle->file) != 0)
       err = storage::StorageError::WRITE_ERROR;
@@ -279,7 +279,7 @@ storage::StorageError SdStorageBase::read(storage::FileHandle *handle, uint8_t *
   if (bytes_transferred != nullptr)
     *bytes_transferred = n;
   // fread() returning less than requested means either EOF (not an error, per the
-  // partial-read contract in storage.h) or a real I/O error — ferror() disambiguates.
+  // partial-read contract in storage.h) or a real I/O error -- ferror() disambiguates.
   if (n < len && ferror(handle->file)) {
     clearerr(handle->file);
     return storage::StorageError::READ_ERROR;
@@ -300,7 +300,7 @@ storage::StorageError SdStorageBase::write(storage::FileHandle *handle, const ui
 storage::StorageError SdStorageBase::seek(storage::FileHandle *handle, int64_t offset, storage::SeekMode mode) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr)
     return storage::StorageError::INVALID_ARGS;
-  // ESP-IDF's newlib fseek() takes a 32-bit `long` offset — FATFS/POSIX on this platform can't
+  // ESP-IDF's newlib fseek() takes a 32-bit `long` offset -- FATFS/POSIX on this platform can't
   // address beyond that anyway (files >4GB aren't representable here), so reject rather than
   // silently truncating a caller-supplied 64-bit offset (the interface allows >4GB elsewhere,
   // e.g. NetworkStorage).
@@ -338,7 +338,7 @@ storage::StorageError SdStorageBase::stat(const char *path, storage::FileStat *s
   if (!this->is_mounted_)
     return storage::StorageError::NOT_READY;
 
-  // f_stat() on the drive root ("N:/") fails by FATFS design — synthesize the result instead of
+  // f_stat() on the drive root ("N:/") fails by FATFS design -- synthesize the result instead of
   // calling it. path is "" or "/" exactly when the caller asked to stat the mount point itself.
   if (path[0] == '\0' || (path[0] == '/' && path[1] == '\0')) {
     st->name[0] = '\0';
@@ -357,7 +357,7 @@ storage::StorageError SdStorageBase::stat(const char *path, storage::FileStat *s
   if (res != FR_OK)
     return fresult_to_storage_error(res, /*for_rmdir=*/false, /*is_write=*/false);
 
-  // FileStat::name is the basename only (see the contract on the struct in storage.h) —
+  // FileStat::name is the basename only (see the contract on the struct in storage.h) --
   // consistent with what list_dir() puts there, regardless of how many path segments the
   // caller passed in.
   StringRef path_ref(path);
@@ -406,7 +406,7 @@ storage::StorageError SdStorageBase::list_dir(const char *path,
     entry.size = entry.is_dir ? 0 : static_cast<uint64_t>(fno.fsize);
     entry.mtime = 0;  // FatFs FILINFO exposes fdate/ftime (DOS format), not a Unix timestamp.
 
-    // callback returns false to stop enumeration early — that is not an error, so we still
+    // callback returns false to stop enumeration early -- that is not an error, so we still
     // return OK below regardless of how the loop exits.
     if (!callback(&entry, ctx))
       break;
@@ -438,7 +438,7 @@ storage::StorageError SdStorageBase::rmdir(const char *path) {
 
   // Non-recursive per the storage:: contract: must fail with NOT_EMPTY if the directory has
   // contents. Recursive delete is the free storage::remove_recursive() helper, built on top
-  // of list_dir()/remove()/this rmdir() — no need to duplicate that tree-walk here.
+  // of list_dir()/remove()/this rmdir() -- no need to duplicate that tree-walk here.
   FF_DIR fat_dir;
   FRESULT res = f_opendir(&fat_dir, full);
   if (res != FR_OK)
@@ -457,7 +457,7 @@ storage::StorageError SdStorageBase::rmdir(const char *path) {
   if (has_entries)
     return storage::StorageError::NOT_EMPTY;
 
-  // FATFS removes empty directories via f_unlink() — there is no dedicated f_rmdir().
+  // FATFS removes empty directories via f_unlink() -- there is no dedicated f_rmdir().
   res = f_unlink(full);
   return fresult_to_storage_error(res, /*for_rmdir=*/true, /*is_write=*/true);
 }
@@ -510,7 +510,7 @@ bool SdStorageBase::log_list_dir_entry(const storage::FileStat *entry, void *ctx
   } else {
     ESP_LOGD(TAG_BASE, "  [FILE] %s (%llu bytes)", entry->name, static_cast<unsigned long long>(entry->size));
   }
-  return true;  // keep enumerating — this is a "list everything" action
+  return true;  // keep enumerating -- this is a "list everything" action
 }
 
 const char *SdStorageBase::card_type_to_string(CardType type) {

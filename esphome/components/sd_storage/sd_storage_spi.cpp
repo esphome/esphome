@@ -47,7 +47,7 @@ void SdSpi::setup() {
 
   this->spi_setup();
 
-  // Register before attempting to mount, not only on success — get_info() reports is_mounted
+  // Register before attempting to mount, not only on success -- get_info() reports is_mounted
   // correctly either way, and this lets the device (and its mount/unmount/list_files actions)
   // show up in the registry even if the initial mount fails, instead of only existing once a
   // card happens to be present. No mark_failed() here: a failed mount is not a broken
@@ -55,13 +55,13 @@ void SdSpi::setup() {
   if (storage::global_storage_registry != nullptr)
     if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
       // Registry full = codegen/runtime device-count mismatch: the device would be invisible
-      // to resolve_path()/consumers. Fatal — do not run with a silently missing device.
+      // to resolve_path()/consumers. Fatal -- do not run with a silently missing device.
       ESP_LOGE(TAG_SPI, "Storage registration failed");
       this->mark_failed();
     }
 
   if (this->cd_pin_ != nullptr) {
-    // With a CD pin configured, only mount if a card is actually seen at boot — otherwise wait
+    // With a CD pin configured, only mount if a card is actually seen at boot -- otherwise wait
     // for loop()'s polling to pick up an insertion later, rather than logging a spurious "Failed
     // to mount" for a socket that's simply empty right now. No mark_failed() either way, same
     // rationale as above.
@@ -227,7 +227,7 @@ StorageError SdSpi::mount() {
   host.slot = this->spi_interface_;
 
   // The IDF sdspi driver runs the actual transfers, not our SPIDevice delegate, so the
-  // configured bus speed has to be handed over here — otherwise 'data_rate:' is accepted by
+  // configured bus speed has to be handed over here -- otherwise 'data_rate:' is accepted by
   // the schema and silently ignored. Default comes from the SPIDevice declaration (10 MHz).
   uint32_t max_freq_khz = this->data_rate_ / 1000;
   if (max_freq_khz < SDMMC_FREQ_PROBING)
@@ -273,7 +273,7 @@ StorageError SdSpi::mount() {
   this->is_mounted_ = true;
 #ifdef USE_STORAGE_CHANGE_FEED
   // Mount state is part of the roots listing: whoever flipped it (CD pin, hotplug, HTTP,
-  // automation), the browser's change poll must see it — including recovery after an error.
+  // automation), the browser's change poll must see it -- including recovery after an error.
   if (storage::global_storage_registry != nullptr)
     storage::global_storage_registry->note_dir_changed("");
 #endif
@@ -287,7 +287,7 @@ StorageError SdSpi::mount() {
   if (storage::global_storage_registry != nullptr)
     if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
       // Registry full = codegen/runtime device-count mismatch: the device would be invisible
-      // to resolve_path()/consumers. Fatal — do not run with a silently missing device.
+      // to resolve_path()/consumers. Fatal -- do not run with a silently missing device.
       ESP_LOGE(TAG_SPI, "Storage registration failed");
       this->mark_failed();
     }
@@ -301,7 +301,7 @@ StorageError SdSpi::unmount() {
   if (!this->is_mounted_ || this->card_ == nullptr)
     return StorageError::OK;
 
-  // Quiesce before the VFS unmount below — same drain guarantee as unregister_storage()
+  // Quiesce before the VFS unmount below -- same drain guarantee as unregister_storage()
   // (no in-flight storage_worker data-plane call against this device remains, handles the
   // worker opened are closed), but the device stays registered: registered-but-unmounted
   // is its normal state, so there is nothing to re-register afterwards.
@@ -323,7 +323,7 @@ StorageError SdSpi::unmount() {
   this->is_mounted_ = false;
 #ifdef USE_STORAGE_CHANGE_FEED
   // Mount state is part of the roots listing: whoever flipped it (CD pin, hotplug, HTTP,
-  // automation), the browser's change poll must see it — including recovery after an error.
+  // automation), the browser's change poll must see it -- including recovery after an error.
   if (storage::global_storage_registry != nullptr)
     storage::global_storage_registry->note_dir_changed("");
 #endif

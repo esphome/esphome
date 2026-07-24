@@ -47,8 +47,8 @@ class SdSpi : public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARIT
   // Unlike SdMmc (dedicated SDIO controller, always task-safe), an SD card in SPI mode sits on
   // a general SPI bus that other main-loop-driven devices may share, so it is NOT task-safe by
   // default. A user who KNOWS this card is alone on its bus can opt in with assume_exclusive_bus
-  // (config key + FINAL_VALIDATE contract). Only then — and only where the background worker
-  // task actually exists — do we advertise STORAGE_CAP_IO_TASK_SAFE.
+  // (config key + FINAL_VALIDATE contract). Only then -- and only where the background worker
+  // task actually exists -- do we advertise STORAGE_CAP_IO_TASK_SAFE.
   void set_assume_exclusive_bus(bool assume) { this->assume_exclusive_bus_ = assume; }
   uint8_t get_capabilities() const override {
 #if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
@@ -74,7 +74,7 @@ class SdSpi : public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARIT
   SPIInterface spi_interface_{};
   GPIOPin *data1_pin_{nullptr};
   GPIOPin *data2_pin_{nullptr};
-  bool assume_exclusive_bus_{false};  // opt-in: card is alone on its SPI bus → task-safe I/O
+  bool assume_exclusive_bus_{false};  // opt-in: card is alone on its SPI bus -> task-safe I/O
   ErrorCode init_error_{ErrorCode::ERR_MOUNT};
 
 #ifdef USE_ESP_IDF
@@ -82,7 +82,7 @@ class SdSpi : public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARIT
 #ifdef USE_STORAGE_FILE_SYSTEM_SELECT
   uint8_t requested_file_system_{0};
   sdspi_dev_handle_t sdspi_handle_{-1};
-  // Manual mirror of esp_vfs_fat_sdspi_mount — same public-API steps, with the probe
+  // Manual mirror of esp_vfs_fat_sdspi_mount -- same public-API steps, with the probe
   // window between diskio registration and f_mount (see SdMmc::mount_manual_).
   esp_err_t mount_manual_(sdmmc_host_t &host, sdspi_device_config_t &slot_config, uint32_t max_freq_khz);
   void unmount_manual_();

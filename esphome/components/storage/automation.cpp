@@ -138,7 +138,7 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf) {
       }
       return true;
 #else
-      return false;  // step cannot be configured without the define — defensive
+      return false;  // step cannot be configured without the define -- defensive
 #endif  // USE_STORAGE_JSON_EXTRACT
     }
     case ExtractStepType::REGEX: {
@@ -166,7 +166,7 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf) {
   return false;
 }
 
-// NOTE: A `json:` extraction step (JSON-pointer based) is planned as a separate follow-up PR —
+// NOTE: A `json:` extraction step (JSON-pointer based) is planned as a separate follow-up PR --
 // it pulls in the json component as a dependency, so it stays out of this baseline set.
 
 void perform_file_write(const std::string &path, std::string content, bool append, bool newline) {
@@ -187,7 +187,7 @@ void perform_file_write(const std::string &path, std::string content, bool appen
 
   StorageError err;
   if (!append) {
-    // PathStorage-level helper — works on FILESYSTEM and NETWORK storages alike.
+    // PathStorage-level helper -- works on FILESYSTEM and NETWORK storages alike.
     err = write_file(ps, rel, reinterpret_cast<const uint8_t *>(content.data()), content.size());
   } else if (ps->get_storage_type() == StorageType::FILESYSTEM) {
     // Filesystem append: native handle-based APPEND open.
@@ -208,9 +208,9 @@ void perform_file_write(const std::string &path, std::string content, bool appen
       err = StorageError::WRITE_ERROR;
   } else {
     // Network append: the chunk API takes an explicit offset (NFS supports offset writes
-    // natively), so appending is stat-for-size + one write_chunk at EOF — O(1) RAM, no
+    // natively), so appending is stat-for-size + one write_chunk at EOF -- O(1) RAM, no
     // read-modify-write. A missing file starts at offset 0 (created by the write). The
-    // stat→write window is not atomic against other writers; acceptable for a single node
+    // stat->write window is not atomic against other writers; acceptable for a single node
     // appending its own logs/values.
     auto *ns = static_cast<NetworkStorage *>(ps);
     uint64_t offset = 0;
@@ -247,7 +247,7 @@ bool perform_file_read(const std::string &path, const std::vector<ExtractStep> &
 
   RamBuffer buf;
   size_t size = 0;
-  // PathStorage-level helper — works on FILESYSTEM and NETWORK storages alike.
+  // PathStorage-level helper -- works on FILESYSTEM and NETWORK storages alike.
   StorageError err = read_file(ps, rel, buf, &size);
   if (err != StorageError::OK) {
     // Error path leaves any configured global untouched and does not fire on_value.
@@ -265,7 +265,7 @@ bool perform_file_read(const std::string &path, const std::vector<ExtractStep> &
 
 #ifdef USE_STORAGE_RAW_ACTIONS
 
-// Every raw action asks the device what it is before touching it — capacity and geometry come
+// Every raw action asks the device what it is before touching it -- capacity and geometry come
 // from the driver (see RawGeometry), never from an assumption about the medium.
 static bool raw_preflight(RawStorage *device, const char *op, uint64_t address, uint64_t size, RawGeometry *geo) {
   device->get_raw_geometry(geo);
@@ -292,7 +292,7 @@ static bool raw_size_allowed(const char *op, uint64_t size) {
   return true;
 }
 
-// Erases the sector range covering [address, address+len) — expanding to sector bounds, which
+// Erases the sector range covering [address, address+len) -- expanding to sector bounds, which
 // is what makes this destructive to neighbours and therefore opt-in.
 static bool raw_erase_for_write(RawStorage *device, const RawGeometry &geo, uint64_t address, size_t len) {
   if (geo.erase_sector == 0) {
@@ -305,12 +305,12 @@ static bool raw_erase_for_write(RawStorage *device, const RawGeometry &geo, uint
     end += geo.erase_sector - (end % geo.erase_sector);
   // Rounding up can leave the device behind when its capacity is not a whole number of erase
   // sectors. Asking a driver to erase past its own end is not something to find out about from
-  // whatever it happens to return — say so here, the way the preferences export does when its
+  // whatever it happens to return -- say so here, the way the preferences export does when its
   // rounded erase would leave the region it was given.
   if (end > geo.capacity) {
     ESP_LOGE(TAG,
              "raw_write: erase_first would have to erase up to %" PRIu32 " to cover this write, past the device's "
-             "%" PRIu32 " bytes — this device's last sector is partial",
+             "%" PRIu32 " bytes -- this device's last sector is partial",
              (uint32_t) end, (uint32_t) geo.capacity);
     return false;
   }
@@ -347,7 +347,7 @@ bool perform_raw_read(RawStorage *device, uint64_t address, size_t size, std::ve
   if (!raw_preflight(device, "read", address, size, &geo) || !raw_size_allowed("read", size))
     return false;
   // std::vector::resize() has no way to report a failed allocation in an exceptions-free
-  // build — it aborts. Ask the nothrow allocator first, which answers with a null pointer, and
+  // build -- it aborts. Ask the nothrow allocator first, which answers with a null pointer, and
   // hand the block straight back: nothing else allocates between here and the resize below, so
   // it gets the same memory. read_file() avoids the question entirely by owning a RAMAllocator
   // buffer; this path has to end up with a std::vector because that is what the trigger takes.
@@ -606,7 +606,7 @@ StorageError perform_file_copy(const std::string &from, const std::string &to, b
     return StorageError::NOT_FOUND;
   }
   // move() internally takes the same-storage rename() fast path and only falls back to
-  // copy+delete across devices — so this action doubles as a rename action. Both helpers are
+  // copy+delete across devices -- so this action doubles as a rename action. Both helpers are
   // PathStorage-level (filesystem and network alike), take a directory as readily as a file
   // (recursively, source decides), and honor max_blocking_transfer_size per file.
   StorageError err = is_move ? move(src, src_rel, dst, dst_rel) : copy(src, src_rel, dst, dst_rel);
@@ -623,7 +623,7 @@ void perform_file_copy_async(const std::string &from, const std::string &to, boo
   const char *op = is_move ? "move" : "copy";
   ESP_LOGI(TAG, "Transfer started: %s '%s' -> '%s'", op, from.c_str(), to.c_str());
 
-  // Helper: report a synchronous (pre-submission) failure — log it and fire the trigger with
+  // Helper: report a synchronous (pre-submission) failure -- log it and fire the trigger with
   // the message so an automation can react. Reused for every early-out below.
   auto fail = [&](const std::string &msg) {
     ESP_LOGE(TAG, "file_%s: %s", op, msg.c_str());
@@ -647,7 +647,7 @@ void perform_file_copy_async(const std::string &from, const std::string &to, boo
 #ifdef USE_STORAGE_WORKER
   if (global_storage_worker != nullptr) {
     // Overwrite: the action's historical semantics were "just do it" (the blocking helpers
-    // truncate/replace), so keep that — pass overwrite = true for parity.
+    // truncate/replace), so keep that -- pass overwrite = true for parity.
     auto on_done = [on_complete, from, to, is_move](StorageError result) {
       if (result != StorageError::OK) {
         ESP_LOGE(TAG, "file_%s: '%s' -> '%s' failed (%s)", is_move ? "move" : "copy", from.c_str(), to.c_str(),
@@ -662,8 +662,8 @@ void perform_file_copy_async(const std::string &from, const std::string &to, boo
                                                                    nullptr, /*overwrite=*/true)
                                : global_storage_worker->async_copy(src, src_rel, dst, dst_rel, std::move(on_done),
                                                                    nullptr, /*overwrite=*/true);
-    // Submission itself can fail (pool full → NOT_READY, or bad args) before any callback is
-    // scheduled — report that synchronously so the trigger still fires exactly once.
+    // Submission itself can fail (pool full -> NOT_READY, or bad args) before any callback is
+    // scheduled -- report that synchronously so the trigger still fires exactly once.
     if (err != StorageError::OK) {
       fail(std::string("could not queue (") + error_to_string(err) + ")");
     }
@@ -672,7 +672,7 @@ void perform_file_copy_async(const std::string &from, const std::string &to, boo
 #endif
 
   // No worker compiled in (raw-only node, or no path driver requested it): fall back to the
-  // blocking helper. This can exceed the 30 ms loop budget for large transfers — the async
+  // blocking helper. This can exceed the 30 ms loop budget for large transfers -- the async
   // path above is the norm; this is only the degenerate no-worker build.
   StorageError err = perform_file_copy(from, to, is_move);
   if (on_complete != nullptr)
@@ -706,7 +706,7 @@ bool check_file_exists(const std::string &path) {
     return false;
   StorageError err = StorageError::OK;
   bool found = exists(ps, rel, &err);
-  // Only NOT_FOUND is a clean "no" — surface anything else (unmounted/faulted medium) so a
+  // Only NOT_FOUND is a clean "no" -- surface anything else (unmounted/faulted medium) so a
   // transient failure is visible instead of silently reading as absence.
   if (!found && err != StorageError::NOT_FOUND && err != StorageError::OK) {
     ESP_LOGE(TAG, "file_exists: checking '%s' failed (%s)", path.c_str(), error_to_string(err));
