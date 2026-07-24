@@ -2,16 +2,16 @@
 
 // defines.h MUST be seen before the guard below is evaluated: the preferences
 // action classes are define-gated, and main.cpp placement-news them into
-// sizeof()-sized static buffers — any TU seeing this header with a different
+// sizeof()-sized static buffers -- any TU seeing this header with a different
 // define state gets a different class size (ODR violation, boot crash).
 #include "esphome/core/defines.h"
 
 #include "storage.h"
 #ifdef USE_STORAGE_WORKER
-#include "storage_worker.h"  // global_storage_worker — async file/raw ops (fire-and-forget actions)
+#include "storage_worker.h"  // global_storage_worker -- async file/raw ops (fire-and-forget actions)
 #endif
 #if defined(USE_STORAGE_PREFERENCES) && defined(USE_ESP32)
-#include "preferences_backup.h"  // PrefSelection — file scope, NOT inside the namespace below
+#include "preferences_backup.h"  // PrefSelection -- file scope, NOT inside the namespace below
 #endif
 #include "esphome/core/alloc_helpers.h"
 #include "esphome/core/automation.h"
@@ -23,7 +23,7 @@
 namespace esphome::storage {
 
 // These actions are globally available on every node that loads the storage component
-// (which every storage device driver AUTO_LOADs) — no per-component preparation needed,
+// (which every storage device driver AUTO_LOADs) -- no per-component preparation needed,
 // analogous to how web_server sorting groups work for all components. Paths are full VFS
 // paths; routing to the right device happens via StorageRegistry::resolve_path().
 
@@ -32,7 +32,7 @@ namespace esphome::storage {
 // str_sprintf call; a std::string there is undefined behavior (non-POD through
 // "..." renders garbage or corrupts memory, and only warns via -Wformat).
 // Normalizing every arg through this overload set means no config ever needs a
-// manual .c_str() — and args that already have one pass through unchanged.
+// manual .c_str() -- and args that already have one pass through unchanged.
 inline const char *printf_arg(const std::string &s) { return s.c_str(); }
 template<typename T> inline T printf_arg(T v) { return v; }
 
@@ -89,14 +89,14 @@ struct ExtractStep {
 // Whitespace trim (no equivalent in core helpers).
 std::string extract_trim(const std::string &s);
 
-// Applies one step; returns false (with a warning) on structural failure — line/element out
+// Applies one step; returns false (with a warning) on structural failure -- line/element out
 // of range, key not found, regex not matching. An empty extraction result is not a failure.
 bool apply_extract_step(const ExtractStep &step, std::string &buf);
 
 // ===========================================================================
 // Blocking contract for the storage actions (READ THIS before "fixing" an action to be async).
 //
-// Storage actions come in two deliberate kinds, split by WHERE the data lives — not by
+// Storage actions come in two deliberate kinds, split by WHERE the data lives -- not by
 // whim. The rule is: content that is already a RAM value stays synchronous; content that is
 // (or becomes) a file streams through the async worker.
 //
@@ -110,9 +110,9 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf);
 //
 //   SYNCHRONOUS (small content that is ALREADY a RAM value; blocks only for that small write):
 //     - file_write / file_append       (writes a std::string from the automation)
-//     - raw_read  into on_value        (returns a std::vector — the bytes land in RAM)
+//     - raw_read  into on_value        (returns a std::vector -- the bytes land in RAM)
 //     - raw_write from inline data     (a flash/lambda byte array)
-//     - file_delete / recursive delete (removes directory entries — moves no bulk data)
+//     - file_delete / recursive delete (removes directory entries -- moves no bulk data)
 //   These are intentionally NOT routed through the worker. The payload is a small in-RAM
 //   value, so there is nothing to stream and no large buffer to avoid; a worker job would add
 //   round-trips and a pool slot for no benefit. The blocking is bounded by the payload size,
@@ -120,19 +120,19 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf);
 //   counterpart already exists as a separate action: to write a big file use file_copy or
 //   raw_write with from_file; the interface deliberately offers BOTH shapes side by side.
 //   Note: on a slow NETWORK storage even a small write can take a while (the round-trip, not
-//   the size). That is a property of the medium, not a reason to convert these to async — the
+//   the size). That is a property of the medium, not a reason to convert these to async -- the
 //   author picks the storage. If a use case genuinely needs a non-blocking small write, the
-//   right move is a dedicated RAM->file worker job, not the heavyweight stream API — but that
+//   right move is a dedicated RAM->file worker job, not the heavyweight stream API -- but that
 //   job does not exist yet and is out of scope until a real need appears.
 //   file_delete is synchronous for a second reason beyond size: it moves no bulk data (each
 //   step is a directory-entry unlink/rmdir, short even over NFS), AND synchronous is the safer
-//   semantics for a destructive op — the path is provably gone before the next action runs, so
+//   semantics for a destructive op -- the path is provably gone before the next action runs, so
 //   a "delete then recreate at the same path" sequence can't race its own delete.
 // ===========================================================================
 
-// Non-template workers for the actions below — all error logging lives in the .cpp.
+// Non-template workers for the actions below -- all error logging lives in the .cpp.
 void perform_mount(MountableStorage *target, bool mount);
-// Returns the error so the no-worker fallback in perform_file_copy_async() can report it —
+// Returns the error so the no-worker fallback in perform_file_copy_async() can report it --
 // on_complete's contract is "error text, empty = success", which a void return cannot honour.
 // The raw helpers below already work this way.
 StorageError perform_file_copy(const std::string &from, const std::string &to, bool is_move);
@@ -150,7 +150,7 @@ bool perform_file_read(const std::string &path, const std::vector<ExtractStep> &
 // storage.file_write / storage.file_append
 // ---------------------------------------------------------------------------
 
-// SYNCHRONOUS by design — see the blocking contract above. `content` is a std::string from
+// SYNCHRONOUS by design -- see the blocking contract above. `content` is a std::string from
 // the automation (a small in-RAM value), so there is nothing to stream: writing a big file is
 // file_copy's / raw_write from_file's job, not this one.
 template<typename... Ts> class FileWriteAction : public Action<Ts...> {
@@ -200,13 +200,13 @@ template<typename... Ts> class FileReadAction : public Action<Ts...> {
 };
 
 // ---------------------------------------------------------------------------
-// storage.file_copy / storage.file_move (move doubles as rename — see .cpp)
+// storage.file_copy / storage.file_move (move doubles as rename -- see .cpp)
 // ---------------------------------------------------------------------------
 
 // Fire-and-forget: play() submits the copy/move to the async worker and returns immediately,
 // so the action sequence continues without blocking the loop for the transfer's duration. The
 // on_complete trigger fires later from the worker's completion callback (main loop) with the
-// error text — empty string on success. A same-storage move still takes the rename() fast path
+// error text -- empty string on success. A same-storage move still takes the rename() fast path
 // inside the worker's pre-phase. Falls back to the synchronous helper only when the worker was
 // not compiled in (no path driver requested it); that path blocks, as before.
 template<typename... Ts> class FileCopyAction : public Action<Ts...> {
@@ -232,7 +232,7 @@ template<typename... Ts> class FileCopyAction : public Action<Ts...> {
 // storage.raw_read / storage.raw_write / storage.raw_erase
 // ---------------------------------------------------------------------------
 // Address-based access to a RawStorage device (NOR flash, FRAM, EEPROM). What a medium
-// accepts is its own business — these helpers ask get_raw_geometry() instead of assuming
+// accepts is its own business -- these helpers ask get_raw_geometry() instead of assuming
 // flash semantics, and pass erase()'s verdict (NOT_SUPPORTED on erase-less media, INVALID_ARGS
 // on an unaligned range) straight through to the log rather than papering over it.
 //
@@ -246,7 +246,7 @@ template<typename... Ts> class FileCopyAction : public Action<Ts...> {
 bool perform_raw_read(RawStorage *device, uint64_t address, size_t size, std::vector<uint8_t> &out);
 // Same, but streams into a file on a mounted storage. size == 0 means "to the end of the device".
 bool perform_raw_read_to_file(RawStorage *device, uint64_t address, uint64_t size, const std::string &path);
-// Writes `data` at `address`. erase_first erases the covering sectors beforehand — required on
+// Writes `data` at `address`. erase_first erases the covering sectors beforehand -- required on
 // media reporting RAW_WRITE_NEEDS_ERASE, and destructive to anything else sharing those sectors.
 bool perform_raw_write(RawStorage *device, uint64_t address, const uint8_t *data, size_t len, bool erase_first);
 bool perform_raw_write_from_file(RawStorage *device, uint64_t address, const std::string &path, bool erase_first);
@@ -325,7 +325,7 @@ template<typename... Ts> class RawWriteAction : public Action<Ts...> {
   void play(const Ts &...x) override {
     const uint32_t address = this->address_.value(x...);
     if (this->has_from_file_) {
-      // Streams file -> device on the worker (no whole-file RAM buffer — this used to read the
+      // Streams file -> device on the worker (no whole-file RAM buffer -- this used to read the
       // entire file into RAM first, which capped it at the transfer limit and could not do a
       // 20 MB image). on_complete fires with the error text (empty = success).
       perform_raw_write_from_file_async(this->device_, address, this->from_file_.value(x...), this->erase_first_,
@@ -407,7 +407,7 @@ template<typename... Ts> class FileExistsCondition : public Condition<Ts...> {
 };
 
 // ---------------------------------------------------------------------------
-// storage.mount / storage.unmount — target must opt in via MountableStorage
+// storage.mount / storage.unmount -- target must opt in via MountableStorage
 // (validated at YAML time through the codegen class hierarchy)
 // ---------------------------------------------------------------------------
 
@@ -423,13 +423,13 @@ template<typename... Ts> class MountAction : public Action<Ts...> {
 };
 
 #if defined(USE_STORAGE_PREFERENCES) && defined(USE_ESP32)
-// storage.export_preferences / storage.import_preferences — see
+// storage.export_preferences / storage.import_preferences -- see
 // preferences_backup.h. The selection table (name/key/type/count) is
 // codegen-baked per action instance from its optional `preferences:` list;
 // empty selection = all preferences (hex round-trip, types unknown).
 // The two preference actions take either a path on a mounted storage (rendered, kv/json) or a
 // raw device plus address (the encoded blob as stored). Codegen picks exactly one and hands the
-// raw variant its window — the room up to the next region on that device, 0 meaning "to the end
+// raw variant its window -- the room up to the next region on that device, 0 meaning "to the end
 // of the device", which only the device itself knows.
 template<typename... Ts> class ExportPreferencesAction : public Action<Ts...> {
  public:

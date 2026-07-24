@@ -17,7 +17,7 @@ namespace esphome::storage {
 // Optional PSRAM staging arena for file transfers. Consumers (web_server file_api today,
 // media/image prefetch later) borrow the whole buffer with single-owner semantics and give
 // it back when done. Purely additive: when the buffer is absent, unallocated, busy or too
-// small, every consumer falls back to its plain streaming path — no behavior depends on it.
+// small, every consumer falls back to its plain streaming path -- no behavior depends on it.
 class TransferBuffer : public Component {
  public:
   void setup() override;
@@ -29,7 +29,7 @@ class TransferBuffer : public Component {
   void set_override_limit(bool v) { this->override_limit_ = v; }
 
   // Single-owner borrow, callable from any task (atomic claim). Returns the buffer base
-  // when `need` fits and the buffer is free, nullptr otherwise — callers must treat a
+  // when `need` fits and the buffer is free, nullptr otherwise -- callers must treat a
   // nullptr as "stream instead", never as an error.
   uint8_t *try_acquire(size_t need);
   void release();
