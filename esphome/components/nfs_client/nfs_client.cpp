@@ -670,7 +670,7 @@ storage::StorageError NFSClient::read_chunk(const char *path, uint8_t *buf, uint
     return storage::StorageError::READ_ERROR;
   }
 
-  RPCAcceptStatus rpc_status;
+  RPCAcceptStatus rpc_status{};
   if (!this->rpc_.parse_reply(response, xid, rpc_status)) {
     this->cached_path_.clear();
     return storage::StorageError::READ_ERROR;
@@ -1006,7 +1006,7 @@ bool NFSClient::get_space_info(uint64_t &total_bytes, uint64_t &free_bytes) {
     return false;
   }
 
-  RPCAcceptStatus rpc_status;
+  RPCAcceptStatus rpc_status{};
   if (!this->rpc_.parse_reply(response, xid, rpc_status)) {
     return false;
   }
@@ -1398,7 +1398,7 @@ bool NFSClient::query_portmapper_(uint32_t program, uint32_t version, uint16_t &
     return false;
   }
 
-  RPCAcceptStatus accept_status;
+  RPCAcceptStatus accept_status{};
   if (!this->rpc_.parse_reply(response, xid, accept_status)) {
     if (accept_status == RPC_PROG_UNAVAIL) {
       ESP_LOGI(TAG, "Program %" PRIu32 " version %" PRIu32 " not registered with portmapper", program, version);
@@ -1443,7 +1443,7 @@ bool NFSClient::mount_export_(const std::string &export_path, NFSFileHandle &fh)
     return false;
   }
 
-  RPCAcceptStatus status;
+  RPCAcceptStatus status{};
   if (!this->rpc_.parse_reply(response, xid, status)) {
     ESP_LOGE(TAG, "Failed to parse MOUNT reply");
     return false;
@@ -1536,7 +1536,7 @@ bool NFSClient::unmount_export_(const std::string &export_path) {
     return false;
   }
 
-  RPCAcceptStatus status;
+  RPCAcceptStatus status{};
   if (!this->rpc_.parse_reply(response, xid, status)) {
     ESP_LOGW(TAG, "Failed to parse UMNT reply");
     return false;
@@ -1643,7 +1643,7 @@ bool NFSClient::nfs_lookup_(const NFSFileHandle &dir_fh, const std::string &name
     return false;
   }
 
-  RPCAcceptStatus rpc_status;
+  RPCAcceptStatus rpc_status{};
   if (!this->rpc_.parse_reply(response, xid, rpc_status)) {
     return false;
   }
@@ -1687,7 +1687,7 @@ bool NFSClient::nfs_getattr_(const NFSFileHandle &fh, NFSFileAttr &attr) {
     return false;
   }
 
-  RPCAcceptStatus rpc_status;
+  RPCAcceptStatus rpc_status{};
   if (!this->rpc_.parse_reply(response, xid, rpc_status)) {
     ESP_LOGW(TAG, "GETATTR: parse_reply failed");
     return false;
@@ -1727,7 +1727,7 @@ bool NFSClient::nfs_read_(const NFSFileHandle &fh, uint64_t offset, uint32_t cou
     return false;
   }
 
-  RPCAcceptStatus rpc_status;
+  RPCAcceptStatus rpc_status{};
   if (!this->rpc_.parse_reply(response, xid, rpc_status)) {
     return false;
   }
@@ -1775,7 +1775,7 @@ bool NFSClient::nfs_write_(const NFSFileHandle &fh, uint64_t offset, const uint8
     return false;
   }
 
-  RPCAcceptStatus rpc_status;
+  RPCAcceptStatus rpc_status{};
   if (!this->rpc_.parse_reply(response, xid, rpc_status)) {
     return false;
   }
@@ -1847,7 +1847,7 @@ bool NFSClient::nfs_create_(const NFSFileHandle &dir_fh, const std::string &name
     return false;
   }
 
-  RPCAcceptStatus rpc_status;
+  RPCAcceptStatus rpc_status{};
   if (!this->rpc_.parse_reply(response, xid, rpc_status)) {
     return false;
   }
@@ -1886,7 +1886,7 @@ bool NFSClient::nfs_remove_(const NFSFileHandle &dir_fh, const std::string &name
     return false;
   }
 
-  RPCAcceptStatus rpc_status;
+  RPCAcceptStatus rpc_status{};
   if (!this->rpc_.parse_reply(response, xid, rpc_status)) {
     return false;
   }
@@ -1925,7 +1925,7 @@ bool NFSClient::nfs_mkdir_(const NFSFileHandle &dir_fh, const std::string &name,
     return false;
   }
 
-  RPCAcceptStatus rpc_status;
+  RPCAcceptStatus rpc_status{};
   if (!this->rpc_.parse_reply(response, xid, rpc_status)) {
     return false;
   }
@@ -1965,7 +1965,7 @@ bool NFSClient::nfs_rmdir_(const NFSFileHandle &dir_fh, const std::string &name)
     return false;
   }
 
-  RPCAcceptStatus rpc_status;
+  RPCAcceptStatus rpc_status{};
   if (!this->rpc_.parse_reply(response, xid, rpc_status)) {
     return false;
   }
@@ -1996,7 +1996,7 @@ bool NFSClient::nfs_rename_(const NFSFileHandle &old_dir_fh, const std::string &
     return false;
   }
 
-  RPCAcceptStatus rpc_status;
+  RPCAcceptStatus rpc_status{};
   if (!this->rpc_.parse_reply(response, xid, rpc_status)) {
     return false;
   }
@@ -2040,7 +2040,7 @@ bool NFSClient::nfs_setattr_size_(const NFSFileHandle &fh, uint64_t size) {
     return false;
   }
 
-  RPCAcceptStatus rpc_status;
+  RPCAcceptStatus rpc_status{};
   if (!this->rpc_.parse_reply(response, xid, rpc_status)) {
     return false;
   }
@@ -2074,7 +2074,7 @@ bool NFSClient::nfs_readdir_(const NFSFileHandle &dir_fh, std::vector<NFSDirEntr
       return false;
     }
 
-    RPCAcceptStatus rpc_status;
+    RPCAcceptStatus rpc_status{};
     if (!this->rpc_.parse_reply(response, xid, rpc_status)) {
       return false;
     }
