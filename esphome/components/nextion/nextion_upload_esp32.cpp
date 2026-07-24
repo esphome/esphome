@@ -57,8 +57,9 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
         status_code = esp_http_client_get_status_code(http_client);
         // Accept the requested range (206 with exact length) or a full-body 200
         // only from offset 0; elsewhere a 200 replays the file and corrupts the display.
-        if (chunk_size > 0 && ((status_code == 206 && chunk_size == static_cast<int>(range_end - range_start + 1)) ||
-                               (status_code == 200 && range_start == 0))) {
+        if (chunk_size > 0 &&
+            ((status_code == 206 && chunk_size == static_cast<int>(range_end - range_start + 1)) ||
+             (status_code == 200 && range_start == 0 && chunk_size == static_cast<int>(this->tft_size_)))) {
           break;
         }
         if (status_code == 200) {
