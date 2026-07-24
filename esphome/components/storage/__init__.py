@@ -307,6 +307,10 @@ def register_mount_path(path: str) -> None:
     data = _get_data()
     data.mount_path_max = max(data.mount_path_max, len(path))
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 83165f802c05070f754aacd13724cd0be5c79043
 def request_storage_worker(task_safe: bool = False) -> None:
     """Called by drivers that need the async worker; path-based ones always do.
 
