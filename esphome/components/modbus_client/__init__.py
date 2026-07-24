@@ -15,6 +15,7 @@ from esphome.types import ConfigType, TemplateArgsType
 CODEOWNERS = ["@exciton"]
 DEPENDENCIES = ["modbus"]
 
+CONF_ON_CUSTOM_RESPONSE = "on_custom_response"
 CONF_ON_NO_RESPONSE = "on_no_response"
 CONF_ON_NOT_SENT = "on_not_sent"
 CONF_ON_SENT = "on_sent"
@@ -143,6 +144,12 @@ async def register_client_action(
         await automation.build_automation(
             var.get_response_trigger(), response_args, response_conf
         )
+    if custom_conf := config.get(CONF_ON_CUSTOM_RESPONSE):
+        await automation.build_automation(
+            var.get_custom_response_trigger(),
+            [(_PDU_SPAN, "request"), (_PDU_SPAN, "response")],
+            custom_conf,
+        )
     if error_conf := config.get(CONF_ON_ERROR):
         await automation.build_automation(
             var.get_error_trigger(),
@@ -199,6 +206,11 @@ _REGISTER_SPAN = cg.std_span.template(cg.uint16.operator("const"))
 _TYPED_RESPONSE_SCHEMA = _ACTION_BASE_SCHEMA.extend(
     {
         cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(single=True),
+        # A reply the dispatch gate diverts (not a standard-conformant transaction) arrives here with the
+        # raw request/response PDUs; real device exceptions still arrive via on_error.
+        cv.Optional(CONF_ON_CUSTOM_RESPONSE): automation.validate_automation(
+            single=True
+        ),
     }
 )
 

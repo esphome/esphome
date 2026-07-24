@@ -99,12 +99,19 @@ template<typename... Ts> class ModbusClientSendAction : public ClientActionBase<
 
 /// Typed actions: these do NOT override the raw on_response/on_error, so the base ModbusClientDevice
 /// defaults run the shared dispatch (validation gate + decode) and the typed callbacks below fire directly
-/// on the action. A reply the gate diverts (malformed) lands in on_custom_response -> on_error with code 0.
+/// on the action. A reply the gate diverts (not a standard-conformant transaction) fires the
+/// on_custom_response trigger with the raw request/response PDUs, so non-standard replies stay handleable;
+/// the spans are only valid for the duration of the trigger. (For a typed-built request the gate can only
+/// divert on the response, never with an exception status - real device exceptions arrive via on_error.)
 template<typename... Ts> class TypedClientActionBase : public ClientActionBase<Ts...> {
  public:
+  Trigger<std::span<const uint8_t>, std::span<const uint8_t>> *get_custom_response_trigger() {
+    return &this->custom_response_trigger_;
+  }
+
   void on_custom_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
                           modbus::ResponseStatus status) override {
-    this->error_trigger_.trigger(static_cast<modbus::ModbusExceptionCode>(0));
+    this->custom_response_trigger_.trigger(request_pdu, response_pdu);
   }
 
  protected:
@@ -115,6 +122,8 @@ template<typename... Ts> class TypedClientActionBase : public ClientActionBase<T
     this->error_trigger_.trigger(*status);
     return false;
   }
+
+  Trigger<std::span<const uint8_t>, std::span<const uint8_t>> custom_response_trigger_;
 };
 
 /// modbus_client.read_holding_registers / read_input_registers: on_response delivers the registers in

@@ -77,6 +77,11 @@ button:
       - modbus_client.read_input_registers:
           address: 0x01
           start_address: 0x20
+          on_custom_response:
+            then:
+              - lambda: |-
+                  ESP_LOGW("modbus_client.test", "non-standard reply: fc 0x%02X, %u byte request",
+                           response.empty() ? 0 : response[0], (unsigned) request.size());
       - modbus_client.write_single_coil:
           address: 0x01
           start_address: 0x01
