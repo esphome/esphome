@@ -14,7 +14,7 @@ const uint8_t FUNCTION_CODE_USER_DEFINED_SPACE_1_END = 72;   // 0x48
 const uint8_t FUNCTION_CODE_USER_DEFINED_SPACE_2_INIT = 100;  // 0x64
 const uint8_t FUNCTION_CODE_USER_DEFINED_SPACE_2_END = 110;   // 0x6E
 
-enum class ModbusFunctionCode : uint8_t {
+enum class FunctionCode : uint8_t {
   INVALID = 0x00,  // 0x00 is not a valid function code (even for custom functions).
   CUSTOM = 0x00,   // The CUSTOM alias should be removed in future.
   READ_COILS = 0x01,
@@ -37,14 +37,20 @@ enum class ModbusFunctionCode : uint8_t {
   READ_FIFO_QUEUE = 0x18,                // not implemented
 };
 
-/*Allow direct comparison operators between ModbusFunctionCode and uint8_t*/
-inline bool operator==(ModbusFunctionCode lhs, uint8_t rhs) { return static_cast<uint8_t>(lhs) == rhs; }
-inline bool operator==(uint8_t lhs, ModbusFunctionCode rhs) { return lhs == static_cast<uint8_t>(rhs); }
-inline bool operator!=(ModbusFunctionCode lhs, uint8_t rhs) { return !(static_cast<uint8_t>(lhs) == rhs); }
-inline bool operator!=(uint8_t lhs, ModbusFunctionCode rhs) { return !(lhs == static_cast<uint8_t>(rhs)); }
+// Remove before 2027.2.0
+using ModbusFunctionCode ESPDEPRECATED("Use modbus::FunctionCode instead. Removed in 2027.2.0",
+                                       "2026.8.0") = FunctionCode;
 
-// 4.3 MODBUS Data model
-enum class ModbusRegisterType : uint8_t {
+/*Allow direct comparison operators between FunctionCode and uint8_t*/
+inline bool operator==(FunctionCode lhs, uint8_t rhs) { return static_cast<uint8_t>(lhs) == rhs; }
+inline bool operator==(uint8_t lhs, FunctionCode rhs) { return lhs == static_cast<uint8_t>(rhs); }
+inline bool operator!=(FunctionCode lhs, uint8_t rhs) { return !(static_cast<uint8_t>(lhs) == rhs); }
+inline bool operator!=(uint8_t lhs, FunctionCode rhs) { return !(lhs == static_cast<uint8_t>(rhs)); }
+
+// 4.3 MODBUS Data model. "Entity" is the spec's umbrella for the four primary tables; only the
+// 16-bit tables are registers (coils and discrete inputs are bits), so the enum is not named
+// RegisterType.
+enum class EntityType : uint8_t {
   CUSTOM = 0x00,
   COIL = 0x01,
   DISCRETE_INPUT = 0x02,
@@ -52,15 +58,17 @@ enum class ModbusRegisterType : uint8_t {
   // Named INPUT_REGISTER (not INPUT) because Arduino cores define INPUT as a macro.
   INPUT_REGISTER = 0x04,
   // Remove before 2027.2.0
-  READ ESPDEPRECATED("Use ModbusRegisterType::INPUT_REGISTER instead. Removed in 2027.2.0", "2026.7.0") =
-      INPUT_REGISTER,
+  READ ESPDEPRECATED("Use EntityType::INPUT_REGISTER instead. Removed in 2027.2.0", "2026.7.0") = INPUT_REGISTER,
 };
+
+// Remove before 2027.2.0
+using ModbusRegisterType ESPDEPRECATED("Use modbus::EntityType instead. Removed in 2027.2.0", "2026.8.0") = EntityType;
 
 // 7 MODBUS Exception Responses:
 const uint8_t FUNCTION_CODE_MASK = 0x7F;
 const uint8_t FUNCTION_CODE_EXCEPTION_MASK = 0x80;
 
-enum class ModbusExceptionCode : uint8_t {
+enum class ExceptionCode : uint8_t {
   ILLEGAL_FUNCTION = 0x01,
   ILLEGAL_DATA_ADDRESS = 0x02,
   ILLEGAL_DATA_VALUE = 0x03,
@@ -71,6 +79,10 @@ enum class ModbusExceptionCode : uint8_t {
   GATEWAY_PATH_UNAVAILABLE = 0x0A,
   GATEWAY_TARGET_DEVICE_FAILED_TO_RESPOND = 0x0B,
 };
+
+// Remove before 2027.2.0
+using ModbusExceptionCode ESPDEPRECATED("Use modbus::ExceptionCode instead. Removed in 2027.2.0",
+                                        "2026.8.0") = ExceptionCode;
 
 // 6.12 16 (0x10) Write Multiple registers:
 static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_WRITE = 123;  // 0x7B
