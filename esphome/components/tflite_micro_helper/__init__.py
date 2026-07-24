@@ -6,7 +6,6 @@ with local file, github shorthand, and http URL model sources.
 
 import hashlib
 import json
-import os
 from pathlib import Path
 import re
 from urllib.parse import urljoin
@@ -31,6 +30,8 @@ from esphome.const import (
     TYPE_LOCAL,
 )
 from esphome.core import CORE, HexInt
+
+CODEOWNERS = ["@nliaudat"]
 
 DOMAIN = "tflite_micro_helper"
 

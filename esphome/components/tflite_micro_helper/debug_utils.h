@@ -12,7 +12,7 @@ namespace tflite_micro_helper {
  * @brief Debug utilities for TFLite Micro Helper
  *
  * Provides debug logging and profiling functions.
- * Function bodies are in debug_utils.cpp to avoid ESP_LOG* in headers.
+ * Function bodies are in debug_utils.cpp to avoid logging macros in headers.
  */
 namespace debug_utils {
 

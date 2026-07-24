@@ -12,7 +12,7 @@
 namespace esphome {
 namespace tflite_micro_helper {
 
-// Non-template logging helpers - defined in op_resolver.cpp to avoid ESP_LOG* in headers.
+// Non-template logging helpers - defined in op_resolver.cpp to avoid logging macros in headers.
 void log_op_registering(const char *tag, const char *op_name);
 void log_op_unavailable(const char *tag, const char *op_name);
 void log_op_unknown(const char *tag, const char *op_name);

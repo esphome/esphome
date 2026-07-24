@@ -1,13 +1,3 @@
-# ESPHome build test: tflite_micro_helper common config
-logger:
-  level: DEBUG
-
-external_components:
-  - source:
-      type: local
-      path: ../../../components
-    components: [tflite_micro_helper]
-
 tflite_micro_helper:
   id: test_tflite
   model_type: audio
@@ -16,4 +6,4 @@ tflite_micro_helper:
   sliding_window_size: 10
   features_step_size: 20
   feature_count: 40
-  debug: true
+  debug: false

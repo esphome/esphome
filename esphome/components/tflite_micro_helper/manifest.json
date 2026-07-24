@@ -1,5 +1,6 @@
 {
   "name": "tflite_micro_helper",
   "version": "2.0.0",
-  "build_system": "cmake"
+  "build_system": "cmake",
+  "codeowners": ["@nliaudat"]
 }
