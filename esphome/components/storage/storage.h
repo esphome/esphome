@@ -119,6 +119,19 @@ static constexpr size_t STORAGE_PATH_MAX = USE_STORAGE_PATH_MAX;
 static constexpr size_t STORAGE_PATH_MAX = 256;
 #endif
 
+// Longest FULL VFS path: mount point plus relative path, the form
+// StorageRegistry::build_path() writes. STORAGE_PATH_MAX above bounds the driver-RELATIVE
+// paths the interface passes around; a full path is longer by the mount point, and codegen
+// is where those lengths are known (see register_mount_path() in __init__.py). Sizing a
+// full-path buffer with STORAGE_PATH_MAX instead makes build_path() refuse to write once the
+// relative path approaches its own bound, which is quiet: callers commonly test only the
+// return value.
+#if defined(USE_STORAGE_VFS_PATH_MAX) && USE_STORAGE_VFS_PATH_MAX > 0
+static constexpr size_t STORAGE_VFS_PATH_MAX = USE_STORAGE_VFS_PATH_MAX;
+#else
+static constexpr size_t STORAGE_VFS_PATH_MAX = STORAGE_PATH_MAX + 32;
+#endif
+
 // Max directory nesting depth for the tree walks (copy(), remove_recursive()). Budgeted against
 // the stack they run on, not picked for convenience. The path buffers are allocated once by the
 // walk's entry point and extended/truncated per level rather than re-allocated (see
@@ -373,6 +386,15 @@ class NetworkStorage : public PathStorage {
                                   size_t *bytes_transferred) = 0;
   virtual StorageError write_chunk(const char *path, const uint8_t *buf, uint64_t offset, size_t len,
                                    size_t *bytes_transferred) = 0;
+  // Sets the length of `path` to `size`, creating the file if it does not exist. Growing a file
+  // this way zero-fills the added range; shrinking discards the tail.
+  //
+  // Required because write_chunk() addresses by offset and never shortens: writing a short file
+  // over a longer one at the same path leaves the old tail in place, so the result is neither
+  // the source nor a valid file. FilesystemStorage gets this from OpenMode::WRITE; a stateless
+  // protocol has no open() to carry it, so it needs its own operation. copy() calls it with 0
+  // before the first chunk of a file whose destination is a NetworkStorage.
+  virtual StorageError truncate(const char *path, uint64_t size) = 0;
 };
 
 // Runtime registry of all storage devices. Initializes before any driver
@@ -487,6 +509,13 @@ class StorageRegistry : public Component {
   // accepted without forcing heap allocation.
   template<typename F> void add_on_registered_callback(F &&cb) { this->on_registered_.add(std::forward<F>(cb)); }
   template<typename F> void add_on_unregistered_callback(F &&cb) { this->on_unregistered_.add(std::forward<F>(cb)); }
+  // Fired when a storage stops being usable, whether or not it also leaves the registry:
+  // quiesce_storage() fires this alone, unregister_storage() fires it and then the callback
+  // above. Subscribe here for "stop touching this device now" (the async worker does, to
+  // cancel and drain in-flight requests) and to the one above for "this device is gone".
+  // Keeping them apart is what lets a driver unmount removable media without every consumer
+  // seeing a departure that is never followed by a matching registration.
+  template<typename F> void add_on_quiesce_callback(F &&cb) { this->on_quiesce_.add(std::forward<F>(cb)); }
 
 #ifdef USE_STORAGE_CHANGE_FEED
   // Directory-change feed (main loop only). Whoever alters a directory's *listing* notes it
@@ -527,6 +556,7 @@ class StorageRegistry : public Component {
   // on devices where no component listens for hotplug events
   LazyCallbackManager<void(Storage *)> on_registered_;
   LazyCallbackManager<void(Storage *)> on_unregistered_;
+  LazyCallbackManager<void(Storage *)> on_quiesce_;
 
   uint64_t max_blocking_transfer_size_{0};  // 0 = unlimited
   bool move_fallback_copy_{true};
@@ -624,6 +654,12 @@ StorageError write_file(PathStorage *storage, const char *path, const uint8_t *d
 // On failure the destination is NOT rolled back: a partially written file stays where it is, and
 // a partially copied tree keeps whatever already landed. The source is never touched. A caller
 // that needs all-or-nothing has to clean the destination up itself.
+// "Created on the way" above means exactly that: each directory the walk descends into is
+// created, but the destination's OWN parents are not. Copying into /usb/a/b when /usb/a does
+// not exist fails, the same as cp does, rather than inventing a path the caller did not ask
+// for -- a typo in the destination should not leave a directory tree behind. The async worker
+// (storage_worker.h) creates the destination root and each level below it, and no more, so
+// both paths answer alike.
 StorageError copy(PathStorage *src_storage, const char *src_path, PathStorage *dst_storage, const char *dst_path);
 
 // Moves a file or a whole directory tree, within the same storage or across two different
