@@ -52,29 +52,6 @@ void SGP4xComponent::setup() {
 
   ESP_LOGD(TAG, "Version 0x%0X", featureset);
 
-  if (this->store_baseline_) {
-    // Hash with config hash, version, and serial number
-    // This ensures the baseline storage is cleared after OTA
-    // Serial numbers are unique to each sensor, so multiple sensors can be used without conflict
-    uint32_t hash = fnv1a_hash_extend(App.get_config_version_hash(), this->serial_number_);
-    this->pref_ = global_preferences->make_preference<SGP4xBaselines>(hash, true);
-
-    if (this->pref_.load(&this->voc_baselines_storage_)) {
-      this->voc_state0_ = this->voc_baselines_storage_.state0;
-      this->voc_state1_ = this->voc_baselines_storage_.state1;
-      ESP_LOGV(TAG, "Loaded VOC baseline state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
-               this->voc_baselines_storage_.state0, voc_baselines_storage_.state1);
-    }
-
-    // Initialize storage timestamp
-    this->seconds_since_last_store_ = 0;
-
-    if (this->voc_baselines_storage_.state0 > 0 && this->voc_baselines_storage_.state1 > 0) {
-      ESP_LOGV(TAG, "Setting VOC baseline from save state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
-               this->voc_baselines_storage_.state0, voc_baselines_storage_.state1);
-      voc_algorithm_.set_states(this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
-    }
-  }
   if (this->voc_sensor_ && this->voc_tuning_params_.has_value()) {
     voc_algorithm_.set_tuning_parameters(
         voc_tuning_params_.value().index_offset, voc_tuning_params_.value().learning_time_offset_hours,
@@ -87,6 +64,31 @@ void SGP4xComponent::setup() {
         nox_tuning_params_.value().index_offset, nox_tuning_params_.value().learning_time_offset_hours,
         nox_tuning_params_.value().learning_time_gain_hours, nox_tuning_params_.value().gating_max_duration_minutes,
         nox_tuning_params_.value().std_initial, nox_tuning_params_.value().gain_factor);
+  }
+
+  if (this->store_baseline_) {
+    // Initialize storage timestamp
+    this->seconds_since_last_store_ = 0;
+
+    // Hash with config hash, version, and serial number
+    // This ensures the baseline storage is cleared after OTA
+    // Serial numbers are unique to each sensor, so multiple sensors can be used without conflict
+    uint32_t hash = fnv1a_hash_extend(App.get_config_version_hash(), this->serial_number_);
+    this->pref_ = global_preferences->make_preference<SGP4xBaselines>(hash, true);
+
+    if (this->pref_.load(&this->voc_baselines_storage_)) {
+      this->voc_state0_ = this->voc_baselines_storage_.state0;
+      this->voc_state1_ = this->voc_baselines_storage_.state1;
+
+      ESP_LOGV(TAG, "Loaded VOC baseline state0: %f, state1: %f", this->voc_baselines_storage_.state0,
+               this->voc_baselines_storage_.state1);
+
+      if (std::isnormal(this->voc_baselines_storage_.state0) && std::isnormal(this->voc_baselines_storage_.state1)) {
+        ESP_LOGV(TAG, "Setting VOC baseline from save state0: %f, state1: %f", this->voc_baselines_storage_.state0,
+                 this->voc_baselines_storage_.state1);
+        voc_algorithm_.set_states(this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
+      }
+    }
   }
 
   this->self_test_();
@@ -138,15 +140,15 @@ void SGP4xComponent::update_gas_indices_() {
   // much
   if (this->store_baseline_ && this->seconds_since_last_store_ > SHORTEST_BASELINE_STORE_INTERVAL) {
     this->voc_algorithm_.get_states(this->voc_state0_, this->voc_state1_);
-    if (std::abs(this->voc_baselines_storage_.state0 - this->voc_state0_) > MAXIMUM_STORAGE_DIFF ||
-        std::abs(this->voc_baselines_storage_.state1 - this->voc_state1_) > MAXIMUM_STORAGE_DIFF) {
+    if (std::abs(this->voc_baselines_storage_.state0 - this->voc_state0_) > MAXIMUM_STORAGE_DIFF_STATE0 ||
+        std::abs(this->voc_baselines_storage_.state1 - this->voc_state1_) > MAXIMUM_STORAGE_DIFF_STATE1) {
       this->seconds_since_last_store_ = 0;
       this->voc_baselines_storage_.state0 = this->voc_state0_;
       this->voc_baselines_storage_.state1 = this->voc_state1_;
 
       if (this->pref_.save(&this->voc_baselines_storage_)) {
-        ESP_LOGV(TAG, "Stored VOC baseline state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
-                 this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
+        ESP_LOGV(TAG, "Stored VOC baseline state0: %f, state1: %f", this->voc_baselines_storage_.state0,
+                 this->voc_baselines_storage_.state1);
       } else {
         ESP_LOGW(TAG, "Storing VOC baselines failed");
       }
@@ -232,7 +234,9 @@ void SGP4xComponent::measure_raw_() {
 void SGP4xComponent::take_sample() {
   if (!this->self_test_complete_)
     return;
-  this->seconds_since_last_store_ += 1;
+  if (this->store_baseline_) {
+    this->seconds_since_last_store_ += 1;
+  }
   this->measure_raw_();
 }
 
