@@ -309,17 +309,27 @@ def register_mount_path(path: str) -> None:
 
 
 def request_storage_worker(task_safe: bool = False) -> None:
-    """Called by path-based drivers (Filesystem/NetworkStorage) that need the async worker.
+    """Called by drivers that need the async worker; path-based ones always do.
 
-    RawStorage drivers never call this, so on a raw-only node storage_worker.h/.cpp is not
-    even compiled in (see USE_STORAGE_WORKER below) -- zero RAM/flash cost for the feature.
+    A RawStorage driver normally does not, which is what keeps storage_worker.h/.cpp out of a
+    raw-only build entirely (see USE_STORAGE_WORKER below) -- zero RAM and flash for a node
+    that has nothing to run on it.
 
-    task_safe should be True only if the driver's data-plane calls are safe to run from a
-    background FreeRTOS task for every instance it registers (e.g. SdMmc, which owns its bus
-    exclusively) -- not if that safety depends on how the bus is shared (e.g. SdSpi, which
-    shares its bus with other devices). This aggregates via OR across all callers: if any
-    driver requests task-safe operation, the worker creates its background task, which then
-    also depends per-request on Storage::get_capabilities() reporting STORAGE_CAP_IO_TASK_SAFE.
+    The exception is a raw device the user has declared alone on its bus: binary_storage's
+    assume_exclusive_bus lets an SPI or I2C chip be driven from the background task, and its
+    final validation refuses the promise unless the device really is the only thing on that
+    bus and the bus is a hardware bus on esp32. Such a device calls this too, because that
+    background task has to exist for it to be used.
+
+    task_safe should be True only where the driver's data-plane calls are safe to run from a
+    background FreeRTOS task for every instance it registers. That is a property of the
+    hardware arrangement, not of the driver: SdMmc owns its controller and passes True
+    unconditionally, SdSpi shares a general SPI bus and passes False, and a binary_storage chip
+    passes True only once the exclusive-bus promise has been checked.
+
+    This aggregates via OR across all callers: if any driver requests task-safe operation, the
+    worker creates its background task, which then still decides per request from
+    Storage::get_capabilities() reporting STORAGE_CAP_IO_TASK_SAFE.
     """
     data = _get_data()
     data.worker_count += 1
