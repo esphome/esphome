@@ -4,7 +4,7 @@
 
 namespace esphome::modbus::helpers {
 
-using FC = ModbusFunctionCode;
+using FC = FunctionCode;
 
 // --- server_frame_length ---------------------------------------------------
 // Frame layout: address(1) + function(1) + ... + CRC(2). Fixtures borrowed from
@@ -227,6 +227,23 @@ TEST(ModbusHelpersTest, RegistersToNumberMatchesPayloadToNumber) {
 TEST(ModbusHelpersTest, RegistersToNumberRejectsTruncatedMultiRegisterValue) {
   const uint16_t registers[] = {0x1234};
   EXPECT_FALSE(registers_to_number(registers, 1, SensorValueType::U_DWORD).has_value());
+}
+
+// server_pdu_payload() must never classify an exception PDU as a read: [fc|0x80, code] is 2 bytes, and a
+// read-offset of 2 would return an empty span, losing the exception code. The payload of an exception PDU
+// is the exception code byte, for reads and writes alike.
+TEST(ModbusServerPduPayload, ExceptionOfReadYieldsExceptionCode) {
+  const uint8_t pdu[] = {0x83, 0x02};  // exception response to READ_HOLDING_REGISTERS
+  auto payload = server_pdu_payload(pdu);
+  ASSERT_EQ(payload.size(), 1u);
+  EXPECT_EQ(payload[0], 0x02);
+}
+
+TEST(ModbusServerPduPayload, ExceptionOfWriteYieldsExceptionCode) {
+  const uint8_t pdu[] = {0x86, 0x03};  // exception response to WRITE_SINGLE_REGISTER
+  auto payload = server_pdu_payload(pdu);
+  ASSERT_EQ(payload.size(), 1u);
+  EXPECT_EQ(payload[0], 0x03);
 }
 
 }  // namespace esphome::modbus::helpers
