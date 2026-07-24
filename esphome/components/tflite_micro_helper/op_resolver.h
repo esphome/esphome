@@ -20,8 +20,8 @@ void log_op_failed(const char *tag, const char *op_name);
 class OpResolverManager {
  public:
   template<size_t tOpCount>
-  static bool RegisterOps(tflite::MicroMutableOpResolver<tOpCount> &resolver,
-                          const std::set<tflite::BuiltinOperator> &required_ops, const char *tag) {
+  static bool register_ops(tflite::MicroMutableOpResolver<tOpCount> &resolver,
+                           const std::set<tflite::BuiltinOperator> &required_ops, const char *tag) {
     for (auto op : required_ops) {
       const char *op_name = tflite::EnumNameBuiltinOperator(op);
       log_op_registering(tag, op_name);

@@ -166,7 +166,7 @@ void TFLiteMicroHelper::unload_model() {
   this->model_handler_.unload();
   this->model_loaded_ = false;
   {
-    std::lock_guard<std::mutex> lock(this->arena_stats_mutex_);
+    std::scoped_lock<std::mutex> lock(this->arena_stats_mutex_);
     this->cached_arena_stats_ = ArenaStats{};
   }
 }
@@ -189,7 +189,7 @@ ModelSpec TFLiteMicroHelper::get_model_spec() const {
 }
 
 ArenaStats TFLiteMicroHelper::get_arena_stats() const {
-  std::lock_guard<std::mutex> lock(this->arena_stats_mutex_);
+  std::scoped_lock<std::mutex> lock(this->arena_stats_mutex_);
   return this->cached_arena_stats_;
 }
 
@@ -199,7 +199,7 @@ void TFLiteMicroHelper::update_arena_stats_cache() {
   stats.used_bytes = this->model_handler_.get_arena_used_bytes();
   stats.wasted_bytes = (stats.total_size > stats.used_bytes) ? (stats.total_size - stats.used_bytes) : 0;
   stats.efficiency = (stats.total_size > 0) ? (100.0f * stats.used_bytes / stats.total_size) : 0.0f;
-  std::lock_guard<std::mutex> lock(this->arena_stats_mutex_);
+  std::scoped_lock<std::mutex> lock(this->arena_stats_mutex_);
   this->cached_arena_stats_ = stats;
 }
 

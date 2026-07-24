@@ -21,14 +21,14 @@ size_t MemoryManager::parse_size_string(const std::string &size_str) {
   } else if (str.find("MB") != std::string::npos) {
     multiplier = 1024 * 1024;
     str = str.substr(0, str.length() - 2);
-  } else if (str.find("B") != std::string::npos) {
+  } else if (str.find('B') != std::string::npos) {
     str = str.substr(0, str.length() - 1);
   }
 
   // Manual string to integer conversion
   const char *cstr = str.c_str();
   char *end_ptr;
-  long size_value = strtol(cstr, &end_ptr, 10);
+  int32_t size_value = strtol(cstr, &end_ptr, 10);
 
   if (end_ptr != cstr && *end_ptr == '\0' && size_value > 0) {
     // Check for overflow: size_value * multiplier must fit in size_t

@@ -148,7 +148,7 @@ bool ModelHandler::load_model_with_arena(const uint8_t *model_data, size_t model
     required_ops.insert(op_code->builtin_code());
   }
 
-  if (!OpResolverManager::RegisterOps<MAX_OPERATORS>(*this->resolver_, required_ops, TAG)) {
+  if (!OpResolverManager::register_ops<MAX_OPERATORS>(*this->resolver_, required_ops, TAG)) {
     ESP_LOGE(TAG, "Failed to register operators");
     return false;
   }
@@ -582,10 +582,11 @@ uint32_t ModelHandler::calculate_crc32(const uint8_t *data, size_t length) {
   for (size_t i = 0; i < length; i++) {
     crc ^= data[i];
     for (int j = 0; j < 8; j++) {
-      if (crc & 1)
+      if (crc & 1) {
         crc = (crc >> 1) ^ 0xEDB88320;
-      else
+      } else {
         crc >>= 1;
+      }
     }
   }
   return ~crc;
@@ -661,7 +662,7 @@ void ModelHandler::report_memory_status() {
   if (effective_arena_size == 0) {
     effective_arena_size = this->tensor_arena_size_requested_;
   }
-  this->memory_manager_.report_memory_status(this->tensor_arena_size_requested_, effective_arena_size,
+  MemoryManager::report_memory_status(this->tensor_arena_size_requested_, effective_arena_size,
                                              this->get_arena_used_bytes(), this->model_length_);
 }
 
