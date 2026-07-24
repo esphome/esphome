@@ -275,8 +275,8 @@ def test_config_guition_model_applies_defaults(tmp_path: Path) -> None:
     assert result[CONF_CALIBRATION]["x_max"] == 880
     assert result[CONF_CALIBRATION]["y_min"] == 20
     assert result[CONF_CALIBRATION]["y_max"] == 1648
-    assert result[CONF_INTERRUPT_PIN] == 21
-    assert result[CONF_RESET_PIN] == 22
+    assert result[CONF_INTERRUPT_PIN]["number"] == 21
+    assert result[CONF_RESET_PIN]["number"] == 22
 
 
 def test_config_rejects_non_dict() -> None:
