@@ -1,6 +1,7 @@
 #include "storage.h"
 
 #include <cerrno>
+#include <cstring>
 #ifdef USE_ESP32
 #include <esp_heap_caps.h>
 #endif
@@ -119,8 +120,11 @@ void StorageRegistry::quiesce_storage(Storage *s) {
       return;
   }
   // Same drain as unregister_storage() (see the comment there on why this must run while
-  // the entry is still registered) -- just without the removal afterwards.
-  this->on_unregistered_.call(s);
+  // the entry is still registered), just without the removal afterwards. Only the drain
+  // channel fires: the device stays registered and usable once its medium is back, so
+  // telling on_unregistered_ subscribers it went away would be a departure they never see
+  // a matching registration for.
+  this->on_quiesce_.call(s);
 }
 
 void StorageRegistry::unregister_storage(Storage *s) {
@@ -140,12 +144,16 @@ void StorageRegistry::unregister_storage(Storage *s) {
       return;
   }
 
-  // Drain FIRST, while the entry is still registered: the worker's on_unregistered handler
+  // Drain FIRST, while the entry is still registered: the worker's drain handler
   // synchronously cancels/waits out any in-flight task work on this storage, and the task's
   // per-chunk is_registered() checks must be able to run against an intact vector until that
   // drain completes. Only then is it safe to mutate storages_ below. (The lock alone is not
-  // enough -- removing before the drain would free this storage's slot while the task may
+  // enough: removing before the drain would free this storage's slot while the task may
   // still be inside a blocking I/O call on it.)
+  //
+  // Removal implies quiescing, so both channels fire, drain first. Both run before the entry
+  // is taken out, which is the timing on_unregistered_ subscribers already had.
+  this->on_quiesce_.call(s);
   this->on_unregistered_.call(s);
 
   {
@@ -274,10 +282,8 @@ PathStorage *StorageRegistry::resolve_path(const char *vfs_path, const char **re
     } else {
       continue;
     }
-    const char *mount = ps->get_mount_path();
-    if (mount == nullptr)
-      continue;
-    StringRef mount_ref(mount);
+    // No null check: validate_mount_path() in the driver's codegen guarantees one.
+    StringRef mount_ref(ps->get_mount_path());
     size_t mount_len = mount_ref.size();
 
     // Prefix match only at a '/' boundary or an exact match -- "/sd2/x" must not match "/sd".
@@ -305,7 +311,9 @@ PathStorage *StorageRegistry::resolve_path(const char *vfs_path, const char **re
 
 bool StorageRegistry::build_path(const PathStorage *s, const char *rel, char *out, size_t len) {
   StringRef mount_ref(s->get_mount_path());
-  StringRef rel_ref(rel);
+  // A rel of "/" names the mount point itself, exactly like "", and must not leave a trailing
+  // separator behind: resolve_path() hands back "" for that case and this is its inverse.
+  StringRef rel_ref((rel[0] == '/' && rel[1] == '\0') ? "" : rel);
   bool rel_has_slash = !rel_ref.empty() && rel_ref[0] == '/';
 
   size_t total = mount_ref.size() + (rel_has_slash || rel_ref.empty() ? 0 : 1) + rel_ref.size() + 1;
@@ -437,9 +445,12 @@ StorageError read_file(FilesystemStorage *storage, const char *path, RamBuffer &
   if (err != StorageError::OK)
     return err;
   // stat.size is uint64_t (NetworkStorage can see files >4GB); reject anything that wouldn't
-  // fit in a size_t before it gets silently truncated by the allocation below.
-  if (stat.size > SIZE_MAX)
-    return StorageError::NO_SPACE;
+  // fit in a size_t before it gets silently truncated by the allocation below. Guarded so the
+  // comparison is not tautological where size_t is already 64 bit (host builds, unit tests).
+  if constexpr (sizeof(size_t) < sizeof(uint64_t)) {
+    if (stat.size > static_cast<uint64_t>(SIZE_MAX))
+      return StorageError::NO_SPACE;
+  }
   auto buf_size = static_cast<size_t>(stat.size);
 
   // Empty file: legitimate result, not an allocation failure. allocate(0) may return nullptr,
@@ -489,9 +500,12 @@ StorageError read_file(NetworkStorage *storage, const char *path, RamBuffer &out
   if (err != StorageError::OK)
     return err;
   // stat.size is uint64_t (NetworkStorage can see files >4GB); reject anything that wouldn't
-  // fit in a size_t before it gets silently truncated by the allocation below.
-  if (stat.size > SIZE_MAX)
-    return StorageError::NO_SPACE;
+  // fit in a size_t before it gets silently truncated by the allocation below. Guarded so the
+  // comparison is not tautological where size_t is already 64 bit (host builds, unit tests).
+  if constexpr (sizeof(size_t) < sizeof(uint64_t)) {
+    if (stat.size > static_cast<uint64_t>(SIZE_MAX))
+      return StorageError::NO_SPACE;
+  }
   auto buf_size = static_cast<size_t>(stat.size);
 
   // Empty file: legitimate result, not an allocation failure. allocate(0) may return nullptr,
@@ -557,6 +571,13 @@ StorageError write_file(NetworkStorage *storage, const char *path, const uint8_t
   if (size_check != StorageError::OK)
     return size_check;
 
+  // Create/truncate semantics, same as the FilesystemStorage overload's OpenMode::WRITE.
+  // write_chunk() addresses by offset and never shortens, so without this a shorter payload
+  // would leave the previous file's tail in place.
+  StorageError trunc_err = storage->truncate(path, 0);
+  if (trunc_err != StorageError::OK)
+    return trunc_err;
+
   size_t total_written = 0;
   while (total_written < size) {
     size_t bytes_transferred = 0;
@@ -607,8 +628,9 @@ static StorageError copy_one_file(PathStorage *src_storage, const char *src_path
 
   FileHandle *src_handle = nullptr;
   FileHandle *dst_handle = nullptr;
-  StorageError err;
-
+  // Initialized rather than left to the loop below: that always assigns before reading, but
+  // only by control flow, and a network-to-network copy enters neither open() branch first.
+  StorageError err = StorageError::OK;
   if (src_is_fs) {
     err = src_fs->open(src_path, src_handle, OpenMode::READ);
     if (err != StorageError::OK)
@@ -616,6 +638,15 @@ static StorageError copy_one_file(PathStorage *src_storage, const char *src_path
   }
   if (dst_is_fs) {
     err = dst_fs->open(dst_path, dst_handle, OpenMode::WRITE);
+    if (err != StorageError::OK) {
+      if (src_is_fs)
+        src_fs->close(src_handle);
+      return err;
+    }
+  } else {
+    // OpenMode::WRITE truncates for the filesystem branch above; write_chunk() does not, so a
+    // shorter source would leave the destination's old tail behind.
+    err = dst_net->truncate(dst_path, 0);
     if (err != StorageError::OK) {
       if (src_is_fs)
         src_fs->close(src_handle);
@@ -823,8 +854,8 @@ RamBuffer alloc_dma_capable(size_t want, bool on_task, size_t *actual_size) {
 
 // The chunk buffer the blocking (main-loop) copy paths borrow -- never on the worker task, so
 // on_task is false: `want` bytes in internal RAM.
-static RamBuffer alloc_copy_chunk(size_t *chunk_size_out) {
-  return alloc_dma_capable(STORAGE_COPY_CHUNK_SIZE, /*on_task=*/false, chunk_size_out);
+static RamBuffer alloc_copy_chunk(size_t want, size_t *chunk_size_out) {
+  return alloc_dma_capable(want, /*on_task=*/false, chunk_size_out);
 }
 
 StorageError copy(PathStorage *src_storage, const char *src_path, PathStorage *dst_storage, const char *dst_path) {
@@ -835,8 +866,28 @@ StorageError copy(PathStorage *src_storage, const char *src_path, PathStorage *d
   if (stat_err != StorageError::OK)
     return stat_err;
 
+  if (src_storage == dst_storage) {
+    // Copying a file onto itself would truncate the destination before the first read of the
+    // source, leaving an empty file where the data was. And copying a directory into its own
+    // subtree walks what the walk is creating: it terminates on STORAGE_MAX_RECURSION_DEPTH,
+    // but only after landing several levels of duplicates that the caller then has to undo.
+    // Both are rejected outright; neither has a sensible outcome to produce.
+    size_t src_len = strlen(src_path);
+    if (strcmp(src_path, dst_path) == 0)
+      return StorageError::INVALID_ARGS;
+    if (src_stat.is_dir && strncmp(src_path, dst_path, src_len) == 0 && dst_path[src_len] == '/')
+      return StorageError::INVALID_ARGS;
+  }
+
+  // A single file smaller than the chunk does not need the full chunk. The allocator floors at
+  // 4 kB, so ask for at least that much rather than fall through its "even 4 kB failed" path.
+  size_t want = STORAGE_COPY_CHUNK_SIZE;
+  if (!src_stat.is_dir && src_stat.size < static_cast<uint64_t>(want)) {
+    size_t needed = static_cast<size_t>(src_stat.size);
+    want = needed > 4096 ? needed : 4096;
+  }
   size_t chunk_size = 0;
-  RamBuffer chunk_buf = alloc_copy_chunk(&chunk_size);
+  RamBuffer chunk_buf = alloc_copy_chunk(want, &chunk_size);
   if (chunk_buf == nullptr)
     return StorageError::NO_SPACE;
 
