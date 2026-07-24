@@ -646,6 +646,12 @@ StorageError write_file(PathStorage *storage, const char *path, const uint8_t *d
 // On failure the destination is NOT rolled back: a partially written file stays where it is, and
 // a partially copied tree keeps whatever already landed. The source is never touched. A caller
 // that needs all-or-nothing has to clean the destination up itself.
+// "Created on the way" above means exactly that: each directory the walk descends into is
+// created, but the destination's OWN parents are not. Copying into /usb/a/b when /usb/a does
+// not exist fails, the same as cp does, rather than inventing a path the caller did not ask
+// for -- a typo in the destination should not leave a directory tree behind. The async worker
+// (storage_worker.h) creates the destination root and each level below it, and no more, so
+// both paths answer alike.
 StorageError copy(PathStorage *src_storage, const char *src_path, PathStorage *dst_storage, const char *dst_path);
 
 // Moves a file or a whole directory tree, within the same storage or across two different
