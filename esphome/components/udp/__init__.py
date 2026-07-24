@@ -12,7 +12,7 @@ from esphome.components.packet_transport import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_ID, CONF_PORT, CONF_TRIGGER_ID
-from esphome.core import ID
+from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
@@ -77,6 +77,33 @@ def _consume_udp_sockets(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_udp_address(value):
+    """Addresses are IPv4, except on Zephyr (nRF52/Thread) which is IPv6-only."""
+    if CORE.using_zephyr:
+        # Voluptuous applies validators to defaults too, so the IPv4 default
+        # "255.255.255.255" reaches this function. Accept it as a sentinel for
+        # "no addresses explicitly configured."
+        if value == "255.255.255.255":
+            return value
+        try:
+            return cv.ipv6address(value)
+        except cv.Invalid as exc:
+            raise cv.Invalid(
+                f"{value} is not a valid IPv6 address. Zephyr networks (nRF52/Thread) "
+                "are IPv6-only; set an explicit IPv6 address here."
+            ) from exc
+    return cv.ipv4address(value)
+
+
+def _validate_zephyr_listen_address(config: ConfigType) -> ConfigType:
+    """Multicast listen_address (group join) is not implemented on Zephyr yet."""
+    if CORE.using_zephyr and str(config[CONF_LISTEN_ADDRESS]) != "255.255.255.255":
+        raise cv.Invalid(
+            "listen_address (multicast group join) is not implemented on Zephyr yet"
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
         {
@@ -94,7 +121,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_LISTEN_ADDRESS, default="255.255.255.255"
             ): cv.ipv4address_multi_broadcast,
             cv.Optional(CONF_ADDRESSES, default=["255.255.255.255"]): cv.ensure_list(
-                cv.ipv4address,
+                validate_udp_address,
             ),
             cv.Optional(CONF_ON_RECEIVE): automation.validate_automation(
                 {
@@ -105,6 +132,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(RELOCATED),
+    _validate_zephyr_listen_address,
     _consume_udp_sockets,
 )
 
