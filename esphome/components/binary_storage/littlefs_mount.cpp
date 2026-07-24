@@ -454,7 +454,7 @@ static int vfs_lfs_fsync(void *ctx, int fd) {
 }
 
 //========================================================================
-// LittleFSMount — lifecycle
+// LittleFSMount -- lifecycle
 //========================================================================
 
 LittleFSMount::~LittleFSMount() {
@@ -510,12 +510,12 @@ void LittleFSMount::setup() {
   }
 
   // Permanent registration: registered-but-unmounted is this device's normal state after a
-  // manual unmount — mount()/unmount() only flip the mounted state (unmount quiesces), the
+  // manual unmount -- mount()/unmount() only flip the mounted state (unmount quiesces), the
   // registry entry stays for the device's lifetime.
   if (storage::global_storage_registry != nullptr) {
     if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
       // Registry full = codegen/runtime device-count mismatch: the device would be invisible
-      // to resolve_path()/consumers. Fatal — do not run with a silently missing device.
+      // to resolve_path()/consumers. Fatal -- do not run with a silently missing device.
       ESP_LOGE(TAG, "Storage registration failed");
       this->mark_failed();
     }
@@ -796,7 +796,7 @@ storage::StorageError LittleFSMount::list_dir(const char *path,
     }
 
     if (!callback(&fs_entry, ctx))
-      break;  // caller stopped enumeration early — not an error
+      break;  // caller stopped enumeration early -- not an error
   }
 
   closedir(dir);
@@ -827,7 +827,7 @@ storage::StorageError LittleFSMount::rmdir(const char *path) {
   char full_path[STORAGE_MAX_PATH_LEN];
   snprintf(full_path, sizeof(full_path), "%s/%s", this->mount_path_, path[0] == '/' ? path + 1 : path);
 
-  // Non-recursive by contract — a populated directory must fail with NOT_EMPTY
+  // Non-recursive by contract -- a populated directory must fail with NOT_EMPTY
   // (recursive delete is provided by the free storage::remove_recursive() helper).
   if (::rmdir(full_path) != 0)
     return errno == ENOTEMPTY ? storage::StorageError::NOT_EMPTY : storage::StorageError::WRITE_ERROR;
@@ -1057,7 +1057,7 @@ void LittleFSMount::register_with_vfs_() {
   vfs.rmdir_p = &vfs_lfs_rmdir;
 
   if (this->vfs_registered_)
-    return;  // re-mount after a manual unmount — slot is per mount cycle, never doubled
+    return;  // re-mount after a manual unmount -- slot is per mount cycle, never doubled
 
   esp_err_t err = esp_vfs_register(this->mount_path_, &vfs, this->vfs_context_);
   if (err != ESP_OK) {
@@ -1071,7 +1071,7 @@ void LittleFSMount::register_with_vfs_() {
 void LittleFSMount::unregister_from_vfs_() {
   if (!this->vfs_registered_)
     return;
-  // Free the esp_vfs slot — the slots are a small global resource (CONFIG_VFS_MAX_COUNT);
+  // Free the esp_vfs slot -- the slots are a small global resource (CONFIG_VFS_MAX_COUNT);
   // holding one while unmounted would leak a slot per mount/unmount cycle.
   esp_err_t err = esp_vfs_unregister(this->mount_path_);
   if (err != ESP_OK)
@@ -1091,9 +1091,9 @@ storage::FileHandle *LittleFSMount::alloc_handle_(const char *path) {
       return &this->handle_pool_[i];
     }
   }
-  // Every slot taken is a leak until proven otherwise — name the holders, so the next
+  // Every slot taken is a leak until proven otherwise -- name the holders, so the next
   // 'no space although plenty is free' report indicts the exact non-closing caller.
-  ESP_LOGW(TAG, "File handle pool exhausted (%d slots) while opening '%s' — handles still open:", LFS_VFS_MAX_FDS,
+  ESP_LOGW(TAG, "File handle pool exhausted (%d slots) while opening '%s' -- handles still open:", LFS_VFS_MAX_FDS,
            path);
   for (int i = 0; i < LFS_VFS_MAX_FDS; i++) {
     ESP_LOGW(TAG, "  [%d] '%s'", i, this->handle_paths_[i]);

@@ -67,12 +67,12 @@ void FlashPartition::setup() {
   }
 
   // Permanent registration: registered-but-unmounted is this device's normal state after a
-  // manual unmount — mount()/unmount() only flip the mounted state (unmount quiesces), the
+  // manual unmount -- mount()/unmount() only flip the mounted state (unmount quiesces), the
   // registry entry stays for the device's lifetime.
   if (storage::global_storage_registry != nullptr) {
     if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
       // Registry full = codegen/runtime device-count mismatch: the device would be invisible
-      // to resolve_path()/consumers. Fatal — do not run with a silently missing device.
+      // to resolve_path()/consumers. Fatal -- do not run with a silently missing device.
       ESP_LOGE(TAG, "Storage registration failed");
       this->mark_failed();
     }
@@ -170,7 +170,7 @@ storage::StorageError FlashPartition::format() {
 }
 
 storage::StorageError FlashPartition::sync() {
-  // esp_vfs_littlefs handles sync internally — no explicit flush needed
+  // esp_vfs_littlefs handles sync internally -- no explicit flush needed
   return this->mounted_ ? storage::StorageError::OK : storage::StorageError::NOT_READY;
 }
 
@@ -345,7 +345,7 @@ storage::StorageError FlashPartition::list_dir(const char *path,
         closedir(dir);
         return storage::StorageError::INVALID_ARGS;
       }
-      // Exact-length join (the guard above makes it provably fitting) — snprintf here
+      // Exact-length join (the guard above makes it provably fitting) -- snprintf here
       // draws -Wformat-truncation because GCC cannot see the runtime length check.
       memcpy(entry_path, full_path, base_len);
       entry_path[base_len] = '/';
@@ -356,7 +356,7 @@ storage::StorageError FlashPartition::list_dir(const char *path,
     }
 
     if (!callback(&fs_entry, ctx))
-      break;  // caller stopped enumeration early — not an error
+      break;  // caller stopped enumeration early -- not an error
   }
 
   closedir(dir);
@@ -387,7 +387,7 @@ storage::StorageError FlashPartition::rmdir(const char *path) {
   char full_path[STORAGE_MAX_PATH_LEN];
   this->build_path_(full_path, sizeof(full_path), path);
 
-  // Non-recursive by contract — a populated directory must fail with NOT_EMPTY
+  // Non-recursive by contract -- a populated directory must fail with NOT_EMPTY
   // (recursive delete is provided by the free storage::remove_recursive() helper).
   if (::rmdir(full_path) != 0)
     return errno == ENOTEMPTY ? storage::StorageError::NOT_EMPTY : storage::StorageError::WRITE_ERROR;
@@ -421,7 +421,7 @@ storage::StorageError FlashPartition::rename(const char *old_path, const char *n
   this->build_path_(full_old, sizeof(full_old), old_path);
   this->build_path_(full_new, sizeof(full_new), new_path);
 
-  // Report why it failed — same reasoning as the other VFS-backed drivers: FatFs refuses an
+  // Report why it failed -- same reasoning as the other VFS-backed drivers: FatFs refuses an
   // existing destination (FR_EXIST -> EEXIST), which a caller must be able to tell apart from
   // an I/O error to offer overwriting.
   errno = 0;
@@ -433,7 +433,7 @@ storage::StorageError FlashPartition::rename(const char *old_path, const char *n
 
 void FlashPartition::build_path_(char *out, size_t out_size, const char *path) const {
   // Join mount_path_ and a user-supplied path (with or without leading '/').
-  // Exact-length memcpy join instead of snprintf — GCC cannot see callers'
+  // Exact-length memcpy join instead of snprintf -- GCC cannot see callers'
   // length validation and would raise -Wformat-truncation (see list_dir()).
   const size_t base_len = strlen(this->mount_path_);
   if (base_len + 2 > out_size) {  // no room for even "<base>/" + NUL
@@ -506,7 +506,7 @@ void FlashPartition::on_ota_data_partition_before_write() {
 
 void FlashPartition::on_ota_data_partition_after_write(bool success) {
   // Remount whatever is there now. After a verified image that is the new content; after a
-  // failure it is a half-written region — the mount fails, auto_format heals it to an empty
+  // failure it is a half-written region -- the mount fails, auto_format heals it to an empty
   // filesystem, and a repeated OTA delivers the content.
   if (!success)
     ESP_LOGW(TAG, "Data partition update failed; remounting (auto_format may reset it)");
@@ -527,9 +527,9 @@ storage::FileHandle *FlashPartition::alloc_handle_(const char *path) {
       return &this->handle_pool_[i];
     }
   }
-  // Every slot taken is a leak until proven otherwise — name the holders, so the next
+  // Every slot taken is a leak until proven otherwise -- name the holders, so the next
   // 'no space although plenty is free' report indicts the exact non-closing caller.
-  ESP_LOGW(TAG, "File handle pool exhausted (%d slots) while opening '%s' — handles still open:", MAX_OPEN_FILES, path);
+  ESP_LOGW(TAG, "File handle pool exhausted (%d slots) while opening '%s' -- handles still open:", MAX_OPEN_FILES, path);
   for (int i = 0; i < MAX_OPEN_FILES; i++) {
     ESP_LOGW(TAG, "  [%d] '%s'", i, this->handle_paths_[i]);
   }

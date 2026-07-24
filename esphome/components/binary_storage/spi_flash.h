@@ -212,7 +212,7 @@ class SPIFlash : public BinaryStorage,
   bool wait_ready(uint32_t timeout_ms = 5000);
 
   /**
-   * @brief Sync — waits for any in-progress operation to complete
+   * @brief Sync -- waits for any in-progress operation to complete
    *
    * @return true if device is ready
    */

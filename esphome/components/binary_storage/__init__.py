@@ -50,7 +50,7 @@ storage_ns = cg.esphome_ns.namespace("storage")
 RawStorage = storage_ns.class_("RawStorage", cg.Component)
 FilesystemStorage = storage_ns.class_("FilesystemStorage", cg.Component)
 
-# binary_storage device classes — extend RawStorage
+# binary_storage device classes -- extend RawStorage
 BinaryStorage = binary_storage_ns.class_("BinaryStorage", RawStorage)
 I2CEeprom = binary_storage_ns.class_("I2CEeprom", BinaryStorage, i2c.I2CDevice)
 I2CFram = binary_storage_ns.class_("I2CFram", BinaryStorage, i2c.I2CDevice)
@@ -74,7 +74,7 @@ SPIMRAM = binary_storage_ns.class_(
 )
 OneWireEEPROM = binary_storage_ns.class_("OneWireEEPROM", BinaryStorage)
 
-# Filesystem storage classes — extend FilesystemStorage
+# Filesystem storage classes -- extend FilesystemStorage
 FlashPartition = binary_storage_ns.class_("FlashPartition", FilesystemStorage)
 LittleFSMount = binary_storage_ns.class_("LittleFSMount", FilesystemStorage)
 
@@ -116,7 +116,7 @@ CONF_PRE_FILL_SOURCE = "source"
 CONF_PRE_FILL_TARGET = "target"
 
 # LittleFS geometry the compile-time image is built with (see the esp_littlefs fork's
-# littlefs_create_partition_image) — used for the config-time fit estimate below.
+# littlefs_create_partition_image) -- used for the config-time fit estimate below.
 _LFS_BLOCK = 0x1000
 # Superblock pair + a little breathing room for metadata blocks; deliberately conservative
 # so a config that passes here does not surprise-fail at image build time.
@@ -150,7 +150,7 @@ def _validate_prefill_fits(config):
         targets.add(target)
         size = entry[CONF_PRE_FILL_SOURCE].stat().st_size
         blocks += max(1, -(-size // _LFS_BLOCK))
-        # every directory level costs metadata too — folded into the flat allowance above
+        # every directory level costs metadata too -- folded into the flat allowance above
     needed = blocks * _LFS_BLOCK
     if needed > config[CONF_PARTITION_SIZE]:
         raise cv.Invalid(
@@ -199,7 +199,7 @@ def _add_littlefs_sdkconfig():
 # Opt-in shared by the bus-attached raw devices (SPI + I2C). The user asserts this device is
 # alone on its bus and the bus is a real hardware bus, making its data-plane I/O safe to run
 # on the async worker task. This is NOT believed blindly: FINAL_VALIDATE enforces the promise
-# (no other device on the same bus; hardware bus on esp32) and errors otherwise — a safety net
+# (no other device on the same bus; hardware bus on esp32) and errors otherwise -- a safety net
 # for the unwary. Only the value lives here; the bus itself is never modified, only inspected.
 # See .ai/architecture/task-safe-raw-devices.md.
 _ASSUME_EXCLUSIVE_BUS_SCHEMA = cv.Schema(
@@ -223,7 +223,7 @@ EEPROM_SCHEMA = (
             cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
                 MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
             ),
-            # mode: both only — the split contract: LittleFS owns [0, fs_size), raw the rest
+            # mode: both only -- the split contract: LittleFS owns [0, fs_size), raw the rest
             # (rebased, so raw address 0 sits right above the filesystem). Required there,
             # meaningless elsewhere: littlefs and raw each use the whole device.
             cv.Optional(CONF_FS_SIZE): validate_bytes,
@@ -237,7 +237,7 @@ EEPROM_SCHEMA = (
             # What that node is called. Neither the YAML id (references in lambdas/actions) nor
             # the entity name (Home Assistant / web server): this names the node and nothing
             # else. Defaults to the device type, which is unambiguous until a second device of
-            # that type shows up — then it is required.
+            # that type shows up -- then it is required.
             cv.Optional(CONF_DEVICE_NODE_NAME): cv.string_strict,
         }
     )
@@ -257,7 +257,7 @@ FRAM_SCHEMA = (
             cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
                 MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
             ),
-            # mode: both only — the split contract: LittleFS owns [0, fs_size), raw the rest
+            # mode: both only -- the split contract: LittleFS owns [0, fs_size), raw the rest
             # (rebased, so raw address 0 sits right above the filesystem). Required there,
             # meaningless elsewhere: littlefs and raw each use the whole device.
             cv.Optional(CONF_FS_SIZE): validate_bytes,
@@ -271,7 +271,7 @@ FRAM_SCHEMA = (
             # What that node is called. Neither the YAML id (references in lambdas/actions) nor
             # the entity name (Home Assistant / web server): this names the node and nothing
             # else. Defaults to the device type, which is unambiguous until a second device of
-            # that type shows up — then it is required.
+            # that type shows up -- then it is required.
             cv.Optional(CONF_DEVICE_NODE_NAME): cv.string_strict,
         }
     )
@@ -294,7 +294,7 @@ SPI_FLASH_SCHEMA = (
             cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
                 MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
             ),
-            # mode: both only — the split contract: LittleFS owns [0, fs_size), raw the rest
+            # mode: both only -- the split contract: LittleFS owns [0, fs_size), raw the rest
             # (rebased, so raw address 0 sits right above the filesystem). Required there,
             # meaningless elsewhere: littlefs and raw each use the whole device.
             cv.Optional(CONF_FS_SIZE): validate_bytes,
@@ -308,7 +308,7 @@ SPI_FLASH_SCHEMA = (
             # What that node is called. Neither the YAML id (references in lambdas/actions) nor
             # the entity name (Home Assistant / web server): this names the node and nothing
             # else. Defaults to the device type, which is unambiguous until a second device of
-            # that type shows up — then it is required.
+            # that type shows up -- then it is required.
             cv.Optional(CONF_DEVICE_NODE_NAME): cv.string_strict,
         }
     )
@@ -328,7 +328,7 @@ SPI_FRAM_SCHEMA = (
             cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
                 MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
             ),
-            # mode: both only — the split contract: LittleFS owns [0, fs_size), raw the rest
+            # mode: both only -- the split contract: LittleFS owns [0, fs_size), raw the rest
             # (rebased, so raw address 0 sits right above the filesystem). Required there,
             # meaningless elsewhere: littlefs and raw each use the whole device.
             cv.Optional(CONF_FS_SIZE): validate_bytes,
@@ -342,7 +342,7 @@ SPI_FRAM_SCHEMA = (
             # What that node is called. Neither the YAML id (references in lambdas/actions) nor
             # the entity name (Home Assistant / web server): this names the node and nothing
             # else. Defaults to the device type, which is unambiguous until a second device of
-            # that type shows up — then it is required.
+            # that type shows up -- then it is required.
             cv.Optional(CONF_DEVICE_NODE_NAME): cv.string_strict,
         }
     )
@@ -362,7 +362,7 @@ SPI_MRAM_SCHEMA = (
             cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
                 MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
             ),
-            # mode: both only — the split contract: LittleFS owns [0, fs_size), raw the rest
+            # mode: both only -- the split contract: LittleFS owns [0, fs_size), raw the rest
             # (rebased, so raw address 0 sits right above the filesystem). Required there,
             # meaningless elsewhere: littlefs and raw each use the whole device.
             cv.Optional(CONF_FS_SIZE): validate_bytes,
@@ -376,7 +376,7 @@ SPI_MRAM_SCHEMA = (
             # What that node is called. Neither the YAML id (references in lambdas/actions) nor
             # the entity name (Home Assistant / web server): this names the node and nothing
             # else. Defaults to the device type, which is unambiguous until a second device of
-            # that type shows up — then it is required.
+            # that type shows up -- then it is required.
             cv.Optional(CONF_DEVICE_NODE_NAME): cv.string_strict,
         }
     )
@@ -397,7 +397,7 @@ ONEWIRE_EEPROM_SCHEMA = cv.Schema(
         cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
             MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
         ),
-        # mode: both only — see the sibling schemas above.
+        # mode: both only -- see the sibling schemas above.
         cv.Optional(CONF_FS_SIZE): validate_bytes,
         cv.Optional(CONF_MOUNT_PATH): validate_mount_path,
         cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
@@ -413,7 +413,7 @@ FLASH_PARTITION_SCHEMA = cv.Schema(
         cv.Required(CONF_PARTITION_LABEL): cv.string,
         # Size of the data partition that gets appended to the generated partition table.
         # Must be 4KB aligned. Ignored when the esp32 config supplies its own partitions CSV
-        # (the generated table is not used then) — in that case the CSV must contain a data
+        # (the generated table is not used then) -- in that case the CSV must contain a data
         # partition with this label itself. Unit casing follows validate_bytes /
         # SI: lowercase k ("512kB"), uppercase M/G ("16MB").
         cv.Optional(CONF_PARTITION_SIZE, default="512kB"): cv.All(
@@ -423,7 +423,7 @@ FLASH_PARTITION_SCHEMA = cv.Schema(
         cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
         cv.Optional(CONF_STORAGE_NAME): cv.string,
         # Compile-time pre-fill: the listed files are baked into a LittleFS image during the
-        # build (littlefs_create_partition_image) and flashed with the partition — in the
+        # build (littlefs_create_partition_image) and flashed with the partition -- in the
         # factory image automatically, over OTA via the image appended to firmware.ota.bin
         # (see espidf/toolchain.py). Nothing is ever embedded into the app binary.
         cv.Optional(CONF_PRE_FILL): cv.ensure_list(
@@ -525,26 +525,26 @@ def _node_name_of(device: dict) -> str | None:
     if internal not in RAW_DEVICE_TYPES:
         return None
     if device.get(CONF_MODE) == MODE_LITTLEFS:
-        return None  # no raw side — nothing a node could address
+        return None  # no raw side -- nothing a node could address
     if not device.get(CONF_DEVICE_NODE, _browser_configured()):
         return None
     return device.get(CONF_DEVICE_NODE_NAME) or internal
 
 
 def _validate_fs_split(config):
-    """mode: both splits the device by contract — fs first, rest raw — and fs_size says
+    """mode: both splits the device by contract -- fs first, rest raw -- and fs_size says
     where. Config-time checks cover what the config knows; capacity from model autodetect
     and default erase sizes are re-checked at runtime in BinaryStorage::setup()."""
     mode = config.get(CONF_MODE, MODE_RAW)
     fs_size = config.get(CONF_FS_SIZE)
     if mode == MODE_BOTH and fs_size is None:
         raise cv.Invalid(
-            f"mode: both splits the device (LittleFS first, rest raw) — '{CONF_FS_SIZE}' "
+            f"mode: both splits the device (LittleFS first, rest raw) -- '{CONF_FS_SIZE}' "
             f"is required to say where"
         )
     if fs_size is not None and mode != MODE_BOTH:
         raise cv.Invalid(
-            f"'{CONF_FS_SIZE}' only applies to mode: both — '{mode}' uses the whole device"
+            f"'{CONF_FS_SIZE}' only applies to mode: both -- '{mode}' uses the whole device"
         )
     if fs_size is None:
         return config
@@ -561,23 +561,23 @@ def _validate_fs_split(config):
 
 
 def _validate_device_node(config):
-    """The node name defaults to the device type — fine for one FRAM, ambiguous for two.
+    """The node name defaults to the device type -- fine for one FRAM, ambiguous for two.
 
     Two nodes called 'spi_flash' would be indistinguishable in the browser and would address
     each other's device, so the second one has to say who it is."""
     if config.get(CONF_DEVICE_NODE_NAME) and not _browser_configured():
         raise cv.Invalid(
-            f"'{CONF_DEVICE_NODE_NAME}' needs a web_server with 'file_browser:' — there is "
+            f"'{CONF_DEVICE_NODE_NAME}' needs a web_server with 'file_browser:' -- there is "
             f"nowhere to show the node otherwise"
         )
     if config.get(CONF_DEVICE_NODE) and not _browser_configured():
         raise cv.Invalid(
-            f"'{CONF_DEVICE_NODE}' needs a web_server with 'file_browser:' — there is nowhere "
+            f"'{CONF_DEVICE_NODE}' needs a web_server with 'file_browser:' -- there is nowhere "
             f"to show the node otherwise"
         )
     if config.get(CONF_DEVICE_NODE) and config.get(CONF_MODE) == MODE_LITTLEFS:
         raise cv.Invalid(
-            f"'{CONF_DEVICE_NODE}' contradicts mode: littlefs — that device is a filesystem "
+            f"'{CONF_DEVICE_NODE}' contradicts mode: littlefs -- that device is a filesystem "
             f"backing only and has no raw side to hang a node on (use mode: both)"
         )
 
@@ -590,7 +590,7 @@ def _validate_device_node(config):
     if duplicates:
         raise cv.Invalid(
             f"More than one device node is called {duplicates}. Give each one a "
-            f"'{CONF_DEVICE_NODE_NAME}' — it is what the file browser shows and addresses them by."
+            f"'{CONF_DEVICE_NODE_NAME}' -- it is what the file browser shows and addresses them by."
         )
     return config
 
@@ -599,7 +599,7 @@ def _count_devices_on_bus(fconf, bus_key, bus_id):
     """Count how many component configs across the whole config reference the same bus id.
 
     Walks every domain's component list and looks for the bus-id key (spi_id / i2c_id). The
-    bus is only READ here — never modified. Returns (count, names) where names lists the ids of
+    bus is only READ here -- never modified. Returns (count, names) where names lists the ids of
     the other devices for a helpful error.
     """
     count = 0
@@ -666,7 +666,7 @@ def _validate_assume_exclusive_bus(config, fconf):
         if bus_conf.get("interface") == "software" or "interface_index" not in bus_conf:
             raise cv.Invalid(
                 f"'{CONF_ASSUME_EXCLUSIVE_BUS}: true' on '{config.get(CONF_ID)}' needs a "
-                f"hardware SPI bus, but bus '{bus_id}' is software (bit-banged) — that is driven "
+                f"hardware SPI bus, but bus '{bus_id}' is software (bit-banged) -- that is driven "
                 f"from the main loop and cannot be task-safe. Use a hardware SPI interface."
             )
     # I2C on esp32 is always a hardware bus (IDFI2CBus); no software-I2C path exists, so
@@ -717,7 +717,7 @@ def FILTER_SOURCE_FILES():
 
 def _stage_prefill(label: str, prefill: list) -> None:
     """Copy the pre-fill sources into a per-partition staging tree under the build dir and
-    hand partition + tree to our own esp_littlefs component via sdkconfig — its
+    hand partition + tree to our own esp_littlefs component via sdkconfig -- its
     project_include.cmake builds the image (littlefs_create_partition_image) and
     FLASH_IN_PROJECT registers it in flasher_args.json, which the stock factory merge picks
     up as-is. No esphome core involved anywhere: component codegen, component cmake,
@@ -765,7 +765,7 @@ async def to_code(config):
 
         # Append the backing data partition to the generated partition table so the
         # label actually exists at runtime (esp_littlefs locates it by LABEL with
-        # subtype ANY). add_partition() raises on duplicate names / invalid values —
+        # subtype ANY). add_partition() raises on duplicate names / invalid values --
         # surface that as a config error instead of a traceback.
         from esphome.components.esp32 import add_partition
 
@@ -792,7 +792,7 @@ async def to_code(config):
             # binary_storage has no OTA involvement whatsoever.
             cg.add_define("USE_BINARY_STORAGE_PREFILL")
 
-        # The device's identity in the registry is its YAML id — nothing else to choose.
+        # The device's identity in the registry is its YAML id -- nothing else to choose.
         storage_id = str(config[CONF_ID])
         storage_name = config.get(CONF_STORAGE_NAME, config[CONF_PARTITION_LABEL])
         cg.add(var.set_storage_id(storage_id))
@@ -861,7 +861,7 @@ async def to_code(config):
     if (addr_bits := config.get(CONF_ADDRESSING_BITS)) is not None:
         cg.add(var.set_addressing_bits(addr_bits))
 
-    # The device's identity in the registry is its YAML id — nothing else to choose.
+    # The device's identity in the registry is its YAML id -- nothing else to choose.
     storage_id = str(config[CONF_ID])
     storage_name = config.get(CONF_STORAGE_NAME, config.get(CONF_MODEL, device_type))
     cg.add(var.set_storage_id(storage_id))
@@ -887,7 +887,7 @@ async def to_code(config):
         # The split contract: filesystem first, raw rebased above it.
         cg.add(var.set_fs_reserved(config[CONF_FS_SIZE]))
     elif mode == MODE_LITTLEFS:
-        # Filesystem backing only: never registers as raw storage — no raw API presence,
+        # Filesystem backing only: never registers as raw storage -- no raw API presence,
         # no device node, and raw automations against it answer INVALID_ARGS.
         cg.add(var.set_raw_enabled(False))
 

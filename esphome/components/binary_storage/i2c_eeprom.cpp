@@ -48,7 +48,7 @@ void I2CEeprom::dump_config() {
 }
 
 void I2CEeprom::auto_configure_from_model_() {
-  // Extract capacity from model string (e.g., "AT24C256" → 256 Kbit)
+  // Extract capacity from model string (e.g., "AT24C256" -> 256 Kbit)
   std::string upper_model = this->model_;
   for (char &c : upper_model) {
     c = std::toupper(c);
@@ -200,7 +200,7 @@ storage::StorageError I2CEeprom::write_physical_(uint64_t offset, const uint8_t 
 }
 
 storage::StorageError I2CEeprom::erase_physical_(uint64_t offset, size_t len) {
-  // Cells are overwritten in place — the device has no erase command to honour. Reporting OK
+  // Cells are overwritten in place -- the device has no erase command to honour. Reporting OK
   // would tell the caller the range is blank when it still holds the old data. The littlefs
   // block-device path does not come through here (see BinaryStorage::block_erase()).
   return storage::StorageError::NOT_SUPPORTED;

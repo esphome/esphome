@@ -12,7 +12,7 @@
 namespace esphome::binary_storage {
 
 // LittleFS on an internal flash partition via ESP-IDF's esp_vfs_littlefs.
-// Simpler than LittleFSMount — IDF handles VFS registration and LittleFS internals.
+// Simpler than LittleFSMount -- IDF handles VFS registration and LittleFS internals.
 // The partition must be defined in the partition table with subtype=littlefs.
 class FlashPartition : public storage::FilesystemStorage
 #if defined(USE_BINARY_STORAGE_PREFILL) && defined(USE_OTA_PARTITIONS)
@@ -47,7 +47,7 @@ class FlashPartition : public storage::FilesystemStorage
   storage::StorageError get_info(storage::StorageInfo *info) override;
   // Deliberately NOT MountableStorage (as_mountable() stays nullptr from the base): an
   // internal flash partition can never be removed, so user-facing mount/unmount makes no
-  // sense — the device is statically registered and mounted at boot. The mount()/unmount()
+  // sense -- the device is statically registered and mounted at boot. The mount()/unmount()
   // implementations below are interface machinery only (format() remount path, quiesce-
   // protected), never offered to consumers.
   // esp_littlefs guards every lfs operation with an internal mutex and esp_partition
@@ -84,7 +84,7 @@ class FlashPartition : public storage::FilesystemStorage
 #if defined(USE_BINARY_STORAGE_PREFILL) && defined(USE_OTA_PARTITIONS)
   // OTA data-partition listener (an in-band pre-fill OTA): the mount releases the
   // flash before the OTA rewrites the partition and comes back on the new image afterwards
-  // — no reboot involved. In-flight worker traffic is drained first via the registry.
+  // -- no reboot involved. In-flight worker traffic is drained first via the registry.
   const char *ota_data_partition_label() override { return this->partition_label_; }
   void on_ota_data_partition_before_write() override;
   void on_ota_data_partition_after_write(bool success) override;
@@ -97,7 +97,7 @@ class FlashPartition : public storage::FilesystemStorage
   bool auto_format_{true};
   bool mounted_{false};
 
-  // Pool of FileHandles for open() — no heap allocation per open call
+  // Pool of FileHandles for open() -- no heap allocation per open call
   static constexpr int MAX_OPEN_FILES = 8;
   storage::FileHandle handle_pool_[MAX_OPEN_FILES]{};
   char handle_paths_[MAX_OPEN_FILES][STORAGE_MAX_PATH_LEN]{};

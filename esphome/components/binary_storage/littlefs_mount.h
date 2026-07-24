@@ -11,11 +11,11 @@ namespace esphome::binary_storage {
 // Maximum simultaneously open files (kept low for MCU memory constraints)
 static constexpr int LFS_VFS_MAX_FDS = 8;
 
-// Forward-declared — defined in littlefs_mount.cpp alongside the VFS callbacks that use it
+// Forward-declared -- defined in littlefs_mount.cpp alongside the VFS callbacks that use it
 struct LfsVfsContext;
 
 // Mounts a BinaryStorage device as a LittleFS filesystem in the ESP-IDF VFS.
-// Extends FilesystemStorage — all file operations go through POSIX/VFS after mount.
+// Extends FilesystemStorage -- all file operations go through POSIX/VFS after mount.
 class LittleFSMount final : public storage::FilesystemStorage, public storage::MountableStorage {
  public:
   LittleFSMount() = default;
@@ -40,17 +40,17 @@ class LittleFSMount final : public storage::FilesystemStorage, public storage::M
   //========================================================================
 
   storage::StorageError get_info(storage::StorageInfo *info) override;
-  // No-RTTI downcast hook — see PathStorage::as_mountable().
+  // No-RTTI downcast hook -- see PathStorage::as_mountable().
   storage::MountableStorage *as_mountable() override { return this; }
   // External media (SPI flash / FRAM / EEPROM chips): mount/unmount are meaningful user
-  // actions — e.g. multi-chip setups with one CS per flash on a dedicated bus, where
+  // actions -- e.g. multi-chip setups with one CS per flash on a dedicated bus, where
   // individual filesystems get taken offline and brought back deliberately.
   uint8_t get_mount_caps() const override {
     return storage::MountableStorage::MOUNT_CAP_MOUNT | storage::MountableStorage::MOUNT_CAP_UNMOUNT;
   }
   // Task-safety is inherited from the backing device: lfs itself only needs the
   // per-instance serialization the caller already guarantees, but every block
-  // callback lands on the underlying BinaryStorage — safe off the main loop only
+  // callback lands on the underlying BinaryStorage -- safe off the main loop only
   // if that device's I/O is. Bus-attached devices (I2C/SPI/OneWire) report 0, so
   // today this always resolves to 0; it lifts automatically for any future
   // task-safe backing without touching this class.
@@ -99,13 +99,13 @@ class LittleFSMount final : public storage::FilesystemStorage, public storage::M
   // Guards against double registration on re-mount and slot leaks on unmount.
   bool vfs_registered_{false};
 
-  // Pool of FileHandles for open() — no heap allocation per open call
+  // Pool of FileHandles for open() -- no heap allocation per open call
   storage::FileHandle handle_pool_[LFS_VFS_MAX_FDS]{};
   // Path storage for handle_pool_ entries (mount_path_ + "/" + filename)
   char handle_paths_[LFS_VFS_MAX_FDS][STORAGE_MAX_PATH_LEN]{};
 
   //========================================================================
-  // LittleFS objects (opaque — lfs_t/lfs_config are managed component types,
+  // LittleFS objects (opaque -- lfs_t/lfs_config are managed component types,
   // only available when building for IDF with managed components downloaded)
   //========================================================================
 

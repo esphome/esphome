@@ -16,7 +16,7 @@ static constexpr size_t STORAGE_MAX_PATH_LEN = storage::STORAGE_PATH_MAX + 32;
 
 #ifdef USE_BINARY_STORAGE_LITTLEFS
 // Block device configuration for LittleFS integration.
-// LittleFS requires block-oriented operations — this provides the translation
+// LittleFS requires block-oriented operations -- this provides the translation
 // layer between byte-addressable storage and LittleFS block callbacks.
 struct BlockDeviceConfig {
   uint32_t block_size;
@@ -28,7 +28,7 @@ struct BlockDeviceConfig {
 #endif  // USE_BINARY_STORAGE_LITTLEFS
 
 // Abstract base for all binary storage devices (FRAM, EEPROM, SPI Flash, MRAM, OneWire EEPROM).
-// Extends RawStorage — provides offset-based byte access.
+// Extends RawStorage -- provides offset-based byte access.
 class BinaryStorage : public storage::RawStorage {
  public:
   BinaryStorage() = default;
@@ -50,7 +50,7 @@ class BinaryStorage : public storage::RawStorage {
   virtual uint32_t get_erase_size() const { return 0; }
   // Larger erase unit, 0 when the device has none (see RawEraseCaps::RAW_ERASE_BLOCK).
   virtual uint32_t get_erase_block_size() const { return 0; }
-  // Default: media that overwrite in place (FRAM, EEPROM) — no erase, none needed.
+  // Default: media that overwrite in place (FRAM, EEPROM) -- no erase, none needed.
   virtual uint8_t get_erase_caps() const { return 0; }
   virtual bool is_ready() { return true; }
 
@@ -61,8 +61,8 @@ class BinaryStorage : public storage::RawStorage {
   // only) and that is the safe choice.
   //
   // A user who KNOWS this device is alone on its bus can opt in with assume_exclusive_bus (see
-  // set_assume_exclusive_bus / the config key). Only then — and only on a platform that
-  // actually has the background worker task — do we advertise STORAGE_CAP_IO_TASK_SAFE. This
+  // set_assume_exclusive_bus / the config key). Only then -- and only on a platform that
+  // actually has the background worker task -- do we advertise STORAGE_CAP_IO_TASK_SAFE. This
   // is a promise about hardware the driver cannot verify; a wrong promise corrupts the bus.
   // See .ai/architecture/task-safe-raw-devices.md for the full contract.
   uint8_t get_capabilities() const override {
@@ -74,18 +74,18 @@ class BinaryStorage : public storage::RawStorage {
   }
 
   //========================================================================
-  // RawStorage interface (pure virtuals — implement in each device driver)
+  // RawStorage interface (pure virtuals -- implement in each device driver)
   //========================================================================
 
   storage::StorageError get_info(storage::StorageInfo *info) override;
-  // The raw window (mode: both contract — see set_fs_reserved()): these final wrappers
+  // The raw window (mode: both contract -- see set_fs_reserved()): these final wrappers
   // translate raw addresses into physical ones and refuse anything outside the window, then
   // delegate to the drivers' *_physical_() below. Drivers cannot bypass the contract.
   storage::StorageError read(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) final;
   storage::StorageError write(uint64_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) final;
   storage::StorageError erase(uint64_t offset, size_t len) final;
   storage::StorageError format() override;
-  // Implemented once here from the device getters above — drivers only report their numbers.
+  // Implemented once here from the device getters above -- drivers only report their numbers.
   void get_raw_geometry(storage::RawGeometry *out) const override;
 
   //========================================================================
@@ -97,7 +97,7 @@ class BinaryStorage : public storage::RawStorage {
 
 #ifdef USE_BINARY_STORAGE_LITTLEFS
   //========================================================================
-  // LittleFS block device interface (internal — used by LittleFSMount only)
+  // LittleFS block device interface (internal -- used by LittleFSMount only)
   //========================================================================
 
   virtual BlockDeviceConfig get_block_config() const;
@@ -113,11 +113,11 @@ class BinaryStorage : public storage::RawStorage {
 
   void set_storage_id(const char *id) { this->storage_id_ = id; }
   void set_storage_name(const char *name) { this->storage_name_ = name; }
-  // mode: both — the split contract: LittleFS owns [0, fs_size), raw the rest. Raw addresses
+  // mode: both -- the split contract: LittleFS owns [0, fs_size), raw the rest. Raw addresses
   // are rebased (raw 0 = fs_size physically) so the two are genuinely separate memories: the
   // raw side reports capacity - fs_size and no raw operation can reach the filesystem.
   void set_fs_reserved(uint32_t bytes) { this->fs_reserved_ = bytes; }
-  // mode: littlefs — the device is a filesystem backing only: it never registers as a raw
+  // mode: littlefs -- the device is a filesystem backing only: it never registers as a raw
   // storage, so it has no raw API presence, no device node, no automations target.
   void set_raw_enabled(bool enabled) { this->raw_enabled_ = enabled; }
   // Opt-in: the user asserts this device is alone on its bus, so its data-plane I/O may run on
@@ -139,7 +139,7 @@ class BinaryStorage : public storage::RawStorage {
 #endif
 
  protected:
-  // The physical device operations — implemented by each driver, addresses are device
+  // The physical device operations -- implemented by each driver, addresses are device
   // addresses over the full capacity. Only the window wrappers above and the LittleFS block
   // callbacks (which must reach [0, fs_reserved_)) call these.
   virtual storage::StorageError read_physical_(uint64_t offset, uint8_t *buf, size_t len,
@@ -157,8 +157,8 @@ class BinaryStorage : public storage::RawStorage {
   const char *storage_id_{nullptr};
   const char *storage_name_{nullptr};
   uint32_t fs_reserved_{0};           // bytes at the bottom owned by LittleFS (mode: both), 0 = none
-  bool raw_enabled_{true};            // false for mode: littlefs — no raw registration or window
-  bool assume_exclusive_bus_{false};  // opt-in: device is alone on its bus → task-safe I/O
+  bool raw_enabled_{true};            // false for mode: littlefs -- no raw registration or window
+  bool assume_exclusive_bus_{false};  // opt-in: device is alone on its bus -> task-safe I/O
 #ifdef USE_STORAGE_DEVICE_NODES
   // nullptr = no node for this device (device_node: false, or no browser configured at all).
   const char *device_node_name_{nullptr};

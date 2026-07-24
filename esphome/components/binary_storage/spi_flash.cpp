@@ -418,7 +418,7 @@ storage::StorageError SPIFlash::erase_physical_(uint64_t offset, size_t len) {
   if (offset == 0 && len == capacity)
     return this->erase_chip() ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
 
-  // The block opcodes are only usable when the configured sector size tiles them evenly —
+  // The block opcodes are only usable when the configured sector size tiles them evenly --
   // with an exotic sector_size_ the sector opcode stays the only safe choice.
   const bool blocks_usable = (BLOCK_SIZE_64K % sector) == 0;
 
@@ -457,7 +457,7 @@ bool SPIFlash::read_raw(uint32_t address, uint8_t *data, size_t length) {
   // One READ command for the whole range: the flash auto-increments its address for any
   // length, and the ESP-IDF SPI layer already slices the transfer into MAX_TRANSFER_SIZE
   // (4092 B) transactions transparently. The former 256 B loop re-issued a full
-  // enable/command/address/disable sequence per chunk for no benefit — this is both simpler
+  // enable/command/address/disable sequence per chunk for no benefit -- this is both simpler
   // and faster.
   return this->read_data_(address, data, length);
 }
@@ -563,7 +563,7 @@ bool SPIFlash::erase_chip() {
   this->write_byte(CMD_CHIP_ERASE);
   this->disable();
 
-  // Chip erase time scales with the device size — a fixed 60 s timed out on larger parts
+  // Chip erase time scales with the device size -- a fixed 60 s timed out on larger parts
   // (datasheet maxima run to ~256 s for 16 MB and ~512 s for 32 MB NOR flash). Budget 20 s per
   // MB plus a 30 s floor for command overhead and small-chip margin (the same 40 s-per-2 MB
   // basis the Linux spi-nor driver uses). A generous timeout only matters in the error case; a
