@@ -1,3 +1,4 @@
+#include <defines.h>
 #include <gtest/gtest.h>
 
 #include "esphome/components/storage/storage_worker.h"
@@ -11,6 +12,10 @@
 // instead of refusing would copy into the wrong place.
 
 namespace esphome::storage::testing {
+
+// The worker's pure-logic helpers live behind USE_STORAGE_WORKER (codegen sets the define when
+// a path-based driver is configured); guard the tests the same way test_extract does its steps.
+#ifdef USE_STORAGE_WORKER
 
 // ---------------------------------------------------------------------------
 // TransferJob encoding
@@ -104,5 +109,7 @@ TEST(JoinWalkPath, RefusesOneCharacterPastTheBuffer) {
   char out[4];
   EXPECT_FALSE(join_walk_path(out, sizeof(out), "/a", "", "b"));
 }
+
+#endif  // USE_STORAGE_WORKER
 
 }  // namespace esphome::storage::testing
