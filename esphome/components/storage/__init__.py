@@ -64,7 +64,7 @@ def validate_sector_multiple(value):
     """Require a multiple of 512 (the common sector size).
 
     Anything else loses the FATFS direct-sector-read path that motivated picking a
-    16kB chunk size in the first place — see STORAGE_COPY_CHUNK_SIZE's comment in storage.h.
+    16kB chunk size in the first place -- see STORAGE_COPY_CHUNK_SIZE's comment in storage.h.
     """
     if value % 512 != 0:
         raise cv.Invalid(f"copy_chunk_size must be a multiple of 512, got {value}")
@@ -115,10 +115,10 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         # FreeRTOS priority: above idle (0), below networking tasks (typically higher).
         cv.Optional(CONF_TASK_PRIORITY, default=1): cv.int_range(min=1, max=23),
-        # Fixed request pool/queue depth — sized exactly at codegen like the storage
+        # Fixed request pool/queue depth -- sized exactly at codegen like the storage
         # registry's device count, no heap allocation per request at runtime.
         cv.Optional(CONF_MAX_PENDING, default=4): cv.int_range(min=1, max=16),
-        # Fixed stream pool depth (begin_write()/begin_read() and friends, storage_worker.h) —
+        # Fixed stream pool depth (begin_write()/begin_read() and friends, storage_worker.h) --
         # streams are typically much longer-lived than a single copy/move (e.g. one HTTP
         # upload in progress), so a node doing one at a time needs very few slots.
         cv.Optional(CONF_MAX_STREAMS, default=2): cv.int_range(min=1, max=8),
@@ -128,7 +128,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_WORKER_UPDATE_INTERVAL, default="5ms"
         ): cv.positive_time_period_milliseconds,
-        # Fired for every storage device, not just file-browser-style consumers — any
+        # Fired for every storage device, not just file-browser-style consumers -- any
         # component that cares about hotplug/availability can listen here instead of
         # each reinventing its own notion of "storage changed". See
         # StorageRegistry::add_on_registered_callback()/add_on_unregistered_callback()
@@ -145,13 +145,13 @@ class StorageData:
     # Largest path length any configured driver reported via request_path_length().
     path_max: int = 0
     # Set by FATFS-backed drivers, whose bound is not a constant but whatever
-    # CONFIG_FATFS_MAX_LFN ends up being — see request_fatfs_path_length().
+    # CONFIG_FATFS_MAX_LFN ends up being -- see request_fatfs_path_length().
     fatfs_path_bound: bool = False
     worker_count: int = 0
     worker_task_safe: bool = False
     # Raw preference regions per device id: every export/import action's address, plus the
     # container size when it can be computed. Filled while the actions are built and resolved
-    # once at the end — see _resolve_raw_pref_regions().
+    # once at the end -- see _resolve_raw_pref_regions().
     raw_pref_regions: dict = field(default_factory=dict)
     raw_pref_job_queued: bool = False
     sensor_pref_job_queued: bool = False
@@ -167,7 +167,7 @@ def request_storage_device() -> None:
     """Called by each storage driver's to_code() to count configured devices.
 
     The accumulated count is passed to StorageRegistry.set_device_count() so the
-    internal FixedVector is sized exactly — no compile-time upper bound needed.
+    internal FixedVector is sized exactly -- no compile-time upper bound needed.
     """
     _get_data().device_count += 1
 
@@ -198,11 +198,11 @@ def request_storage_worker(task_safe: bool = False) -> None:
     """Called by path-based drivers (Filesystem/NetworkStorage) that need the async worker.
 
     RawStorage drivers never call this, so on a raw-only node storage_worker.h/.cpp is not
-    even compiled in (see USE_STORAGE_WORKER below) — zero RAM/flash cost for the feature.
+    even compiled in (see USE_STORAGE_WORKER below) -- zero RAM/flash cost for the feature.
 
     task_safe should be True only if the driver's data-plane calls are safe to run from a
     background FreeRTOS task for every instance it registers (e.g. SdMmc, which owns its bus
-    exclusively) — not if that safety depends on how the bus is shared (e.g. SdSpi, which
+    exclusively) -- not if that safety depends on how the bus is shared (e.g. SdSpi, which
     shares its bus with other devices). This aggregates via OR across all callers: if any
     driver requests task-safe operation, the worker creates its background task, which then
     also depends per-request on Storage::get_capabilities() reporting STORAGE_CAP_IO_TASK_SAFE.
@@ -216,7 +216,7 @@ def request_storage_worker(task_safe: bool = False) -> None:
 # Default streaming/copy chunk size. Flat 16 kB on every platform: the 20 ms loop-slice budget
 # (see the buffer-usage plan) caps a main-loop chunk near 16 kB even on the fastest S3 SD path,
 # so a larger loop chunk is unsafe. The platform distinction lives one level down, in the C++
-# allocator (alloc_dma_capable): on the worker task — which has no 20 ms budget — S3/P4 stage a
+# allocator (alloc_dma_capable): on the worker task -- which has no 20 ms budget -- S3/P4 stage a
 # 32 kB chunk in DMA-capable PSRAM, while every loop-path buffer stays 16 kB internal. An
 # explicit copy_chunk_size still overrides this default (the user's last word). Multiple of 512
 # to keep FATFS whole-sector transfers.
@@ -267,7 +267,7 @@ def _resolve_path_max(config) -> int:
         return explicit
     data = _get_data()
     # Only what drivers actually reported counts. _DEFAULT_PATH_MAX is the answer when nobody
-    # did (storage configured without a device), not a floor under the derivation — used as
+    # did (storage configured without a device), not a floor under the derivation -- used as
     # one it would swallow a lowered CONFIG_FATFS_MAX_LFN and make this whole resolution moot.
     bounds = []
     if data.path_max > 0:
@@ -293,7 +293,7 @@ def _resolve_path_max(config) -> int:
             bounds.append(int(lfn) + 1)
         except (TypeError, ValueError):
             _LOGGER.warning(
-                "storage: CONFIG_FATFS_MAX_LFN is %r, which is not a number — using %d for the "
+                "storage: CONFIG_FATFS_MAX_LFN is %r, which is not a number -- using %d for the "
                 "path bound instead",
                 lfn,
                 _DEFAULT_PATH_MAX,
@@ -303,12 +303,12 @@ def _resolve_path_max(config) -> int:
 
 
 def _default_copy_chunk_size() -> int:
-    """The loop-safe base chunk size (platform-independent — see the note above)."""
+    """The loop-safe base chunk size (platform-independent -- see the note above)."""
     return _DEFAULT_COPY_CHUNK_SIZE
 
 
 # storage is a dependency of every driver and would otherwise run BEFORE them (default
-# priority), reading device_count/worker_count as 0 — every driver's own to_code() is where
+# priority), reading device_count/worker_count as 0 -- every driver's own to_code() is where
 # request_storage_device()/request_storage_worker() actually get called. LATE (-100) runs
 # after all default-priority driver to_code()s, so those counts are final by the time this
 # reads them. Consumers awaiting the registry/worker variables (e.g. via cg.get_variable())
@@ -389,7 +389,7 @@ async def to_code(config):
 # ---------------------------------------------------------------------------
 # Globally available file-op actions: storage.file_write / file_append / file_read.
 # Like web_server sorting groups, these work everywhere once storage is loaded
-# (every storage driver AUTO_LOADs it) — no per-component preparation required.
+# (every storage driver AUTO_LOADs it) -- no per-component preparation required.
 # ---------------------------------------------------------------------------
 
 CONF_CONTENT = "content"
@@ -628,7 +628,7 @@ _FILE_COPY_SCHEMA = cv.Schema(
         cv.Required(CONF_FROM): cv.templatable(cv.string),
         cv.Required(CONF_TO): cv.templatable(cv.string),
         # Fired from the worker's completion callback (main loop). `x` is the error text,
-        # empty string on success. The copy/move runs asynchronously — the action sequence
+        # empty string on success. The copy/move runs asynchronously -- the action sequence
         # does not wait for it.
         cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(single=True),
     }
@@ -639,7 +639,7 @@ async def _build_copy_action(config, action_id, template_arg, args, is_move):
     # file_copy/move prefer the async worker (see perform_file_copy_async). We deliberately do
     # NOT request_storage_worker() here: action codegen can run after the storage to_code has
     # already snapshotted the worker count (LATE), so a late request would compile the action
-    # against a worker that was never created. Instead the C++ side degrades cleanly — if the
+    # against a worker that was never created. Instead the C++ side degrades cleanly -- if the
     # worker isn't compiled in (no path driver requested it), it runs the blocking helper. Any
     # node that can actually do file ops has a path driver, which requests the worker anyway.
     var = cg.new_Pvariable(action_id, template_arg, is_move)
@@ -729,7 +729,7 @@ async def unmount_action_to_code(config, action_id, template_arg, args):
 # storage.raw_read / storage.raw_write / storage.raw_erase
 # ---------------------------------------------------------------------------
 # Address-based access to a RawStorage device. Ranges and capabilities are the device's own
-# answer at runtime (RawGeometry/RawEraseCaps) — codegen only wires the parameters through.
+# answer at runtime (RawGeometry/RawEraseCaps) -- codegen only wires the parameters through.
 
 CONF_TO_FILE = "to_file"
 CONF_FROM_FILE = "from_file"
@@ -764,7 +764,7 @@ def _validate_raw_write(config):
 def _validate_raw_erase(config):
     if config[CONF_ALL]:
         if CONF_ADDRESS in config or CONF_SIZE in config:
-            raise cv.Invalid("'all' erases the whole device — remove 'address'/'size'")
+            raise cv.Invalid("'all' erases the whole device -- remove 'address'/'size'")
     elif CONF_SIZE not in config:
         raise cv.Invalid(
             "'size' is required unless erasing the whole device with 'all'"
@@ -796,7 +796,7 @@ _RAW_WRITE_SCHEMA = cv.All(
             cv.Optional(CONF_DATA): cv.templatable(_validate_raw_data),
             cv.Optional(CONF_FROM_FILE): cv.templatable(cv.string),
             # Media reporting RAW_WRITE_NEEDS_ERASE (NOR flash) need the covering sectors erased
-            # first — which also wipes whatever else shares them, hence opt-in.
+            # first -- which also wipes whatever else shares them, hence opt-in.
             cv.Optional(CONF_ERASE_FIRST, default=False): cv.boolean,
             # Fires (error text, empty = success) when a from_file write lands on the worker.
             cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(single=True),
@@ -891,7 +891,7 @@ async def raw_write_action_to_code(config, action_id, template_arg, args):
         templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
         cg.add(var.set_data_template(templ))
     else:
-        # Static payload stays in flash — no RAM copy (same as uart.write).
+        # Static payload stays in flash -- no RAM copy (same as uart.write).
         arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
         arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
         cg.add(var.set_data_static(arr, len(data)))
