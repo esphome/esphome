@@ -23,7 +23,7 @@ void log_arena_usage(const char *tag, size_t used, size_t total);
 void log_model_info(const char *tag, const char *model_name, size_t model_size, size_t tensor_arena_size);
 void log_inference_time(const char *tag, uint32_t time_ms);
 
-}  // namespace esphome::tflite_micro_helper::debug_utils
+}  // namespace debug_utils
 
 /// Helper function to convert TfLiteType to string (namespace-agnostic for compatibility).
 inline const char *tflite_type_to_string(TfLiteType type) {
@@ -49,6 +49,6 @@ inline const char *tflite_type_to_string(TfLiteType type) {
   }
 }
 
-}  // namespace esphome::tflite_micro_helper
+}  // namespace esphome::tflite_micro_helper::debug_utils
 
 #endif  // USE_TFLITE_MICRO_HELPER
