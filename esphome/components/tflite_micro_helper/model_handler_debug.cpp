@@ -16,8 +16,7 @@
 #include "esp_task_wdt.h"
 #endif
 
-namespace esphome {
-namespace tflite_micro_helper {
+namespace esphome::tflite_micro_helper {
 
 static const char *const TAG = "ModelHandler";
 
@@ -313,7 +312,6 @@ void ModelHandler::feed_watchdog() {
   ESP_LOGV(TAG, "Watchdog fed");
 }
 
-}  // namespace tflite_micro_helper
-}  // namespace esphome
+}  // namespace esphome::tflite_micro_helper
 
 #endif  // DEBUG_TFLITE_MICRO_HELPER

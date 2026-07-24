@@ -7,8 +7,7 @@
 #include <algorithm>
 #include <limits>
 
-namespace esphome {
-namespace tflite_micro_helper {
+namespace esphome::tflite_micro_helper {
 
 static const char *const TAG = "ModelHandler";
 
@@ -708,5 +707,4 @@ size_t ModelHandler::probe_arena_size_(const uint8_t *model_start, size_t initia
   }
   return 0;
 }
-}  // namespace tflite_micro_helper
-}  // namespace esphome
+}  // namespace esphome::tflite_micro_helper

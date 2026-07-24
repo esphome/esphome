@@ -11,8 +11,7 @@
 
 #ifdef USE_TFLITE_MICRO_HELPER
 
-namespace esphome {
-namespace tflite_micro_helper {
+namespace esphome::tflite_micro_helper {
 
 /**
  * @struct ModelSpec
@@ -165,7 +164,6 @@ class TFLiteMicroHelper {
   bool validate_input_tensor_(const uint8_t *src_data, size_t src_size) const;
 };
 
-}  // namespace tflite_micro_helper
-}  // namespace esphome
+}  // namespace esphome::tflite_micro_helper
 
 #endif  // USE_TFLITE_MICRO_HELPER

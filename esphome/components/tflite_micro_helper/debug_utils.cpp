@@ -1,7 +1,6 @@
 #include "debug_utils.h"
 
-namespace esphome {
-namespace tflite_micro_helper {
+namespace esphome::tflite_micro_helper {
 namespace debug_utils {
 
 void log_arena_usage(const char *tag, size_t used, size_t total) {
@@ -16,5 +15,4 @@ void log_model_info(const char *tag, const char *model_name, size_t model_size, 
 void log_inference_time(const char *tag, uint32_t time_ms) { ESP_LOGD(tag, "Inference time: %u ms", time_ms); }
 
 }  // namespace debug_utils
-}  // namespace tflite_micro_helper
-}  // namespace esphome
+}  // namespace esphome::tflite_micro_helper

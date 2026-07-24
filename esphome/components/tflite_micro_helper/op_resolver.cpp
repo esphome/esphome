@@ -1,7 +1,6 @@
 #include "op_resolver.h"
 
-namespace esphome {
-namespace tflite_micro_helper {
+namespace esphome::tflite_micro_helper {
 
 void log_op_registering(const char *tag, const char *op_name) { ESP_LOGD(tag, "Registering op: %s", op_name); }
 
@@ -15,5 +14,4 @@ void log_op_unknown(const char *tag, const char *op_name) {
 
 void log_op_failed(const char *tag, const char *op_name) { ESP_LOGE(tag, "Failed to add operator: %s", op_name); }
 
-}  // namespace tflite_micro_helper
-}  // namespace esphome
+}  // namespace esphome::tflite_micro_helper

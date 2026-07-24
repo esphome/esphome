@@ -359,6 +359,8 @@ def _load_http_file(config):
 
 
 async def to_code(config):
+    if CORE.target_platform != "esp32":
+        return
     model_type = config[CONF_MODEL_TYPE]
     model_path, model_data = resolve_model_source(config)
     cg.add_define("USE_TFLITE_MICRO_HELPER")

@@ -8,8 +8,7 @@
 #include <cstdint>
 #include "esp_heap_caps.h"
 
-namespace esphome {
-namespace tflite_micro_helper {
+namespace esphome::tflite_micro_helper {
 
 class MemoryManager {
  public:
@@ -48,7 +47,6 @@ class MemoryManager {
   static bool has_psram();
 };
 
-}  // namespace tflite_micro_helper
-}  // namespace esphome
+}  // namespace esphome::tflite_micro_helper
 
 #endif  // USE_TFLITE_MICRO_HELPER

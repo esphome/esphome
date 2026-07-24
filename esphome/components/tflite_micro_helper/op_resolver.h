@@ -9,8 +9,7 @@
 #include "tensorflow/lite/schema/schema_generated.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tflite_micro_helper {
+namespace esphome::tflite_micro_helper {
 
 // Non-template logging helpers - defined in op_resolver.cpp to avoid logging macros in headers.
 void log_op_registering(const char *tag, const char *op_name);
@@ -64,7 +63,6 @@ class OpResolverManager {
   }
 };
 
-}  // namespace tflite_micro_helper
-}  // namespace esphome
+}  // namespace esphome::tflite_micro_helper
 
 #endif  // USE_TFLITE_MICRO_HELPER

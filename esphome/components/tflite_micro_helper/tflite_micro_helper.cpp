@@ -1,8 +1,7 @@
 #include "tflite_micro_helper.h"
 #include <cstdlib>
 
-namespace esphome {
-namespace tflite_micro_helper {
+namespace esphome::tflite_micro_helper {
 
 static const char *const TAG = "tflite_micro_helper";
 
@@ -209,5 +208,4 @@ void TFLiteMicroHelper::report_memory_status() {
                                       this->model_handler_.get_arena_used_bytes(), this->model_length_);
 }
 
-}  // namespace tflite_micro_helper
-}  // namespace esphome
+}  // namespace esphome::tflite_micro_helper

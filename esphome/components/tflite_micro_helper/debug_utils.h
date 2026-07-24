@@ -5,8 +5,7 @@
 #include "tensorflow/lite/c/common.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tflite_micro_helper {
+namespace esphome::tflite_micro_helper {
 
 /**
  * @brief Debug utilities for TFLite Micro Helper
@@ -46,5 +45,4 @@ inline const char *tflite_type_to_string(TfLiteType type) {
   }
 }
 
-}  // namespace tflite_micro_helper
-}  // namespace esphome
+}  // namespace esphome::tflite_micro_helper
