@@ -718,7 +718,7 @@ storage::StorageError LittleFSMount::seek(storage::FileHandle *handle, int64_t o
   } else if (mode == storage::SeekMode::END) {
     whence = SEEK_END;
   }
-  if (fseek(handle->file, static_cast<long>(offset), whence) != 0)
+  if (fseek(handle->file, static_cast<long>(offset), whence) != 0)  // NOLINT(google-runtime-int)
     return storage::StorageError::INVALID_ARGS;
 
   return storage::StorageError::OK;
@@ -728,7 +728,7 @@ storage::StorageError LittleFSMount::tell(storage::FileHandle *handle, uint64_t 
   if (handle == nullptr || !handle->in_use || handle->file == nullptr || position == nullptr)
     return storage::StorageError::INVALID_ARGS;
 
-  long pos = ftell(handle->file);
+  long pos = ftell(handle->file);  // NOLINT(google-runtime-int)
   if (pos < 0)
     return storage::StorageError::READ_ERROR;
 
