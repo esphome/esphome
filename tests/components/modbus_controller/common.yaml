@@ -18,7 +18,7 @@ binary_sensor:
     modbus_controller_id: modbus_controller1
     id: modbus_binary_sensor2
     name: Test Binary Sensor with Lambda
-    register_type: read
+    register_type: input
     address: 0x3201
     lambda: |-
       return x;

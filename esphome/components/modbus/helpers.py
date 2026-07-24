@@ -30,6 +30,7 @@ MODBUS_REGISTER_TYPE = {
     **MODBUS_WRITE_REGISTER_TYPE,
     "discrete_input": EntityType.DISCRETE_INPUT,
     "read": EntityType.INPUT_REGISTER,
+    "input": EntityType.INPUT_REGISTER,
 }
 
 SensorValueType_ns = modbus_helpers_ns.namespace("SensorValueType")
