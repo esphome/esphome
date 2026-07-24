@@ -18,6 +18,7 @@ TEST(MitsubishiCN105ClimateTests, CelsiusTemperatureMappingAndTraitsMatchExpecte
   EXPECT_FLOAT_EQ(traits.get_visual_min_temperature(), 16.0f);
   EXPECT_FLOAT_EQ(traits.get_visual_max_temperature(), 31.0f);
   EXPECT_FLOAT_EQ(traits.get_visual_target_temperature_step(), 1.0f);
+  EXPECT_FLOAT_EQ(traits.get_visual_current_temperature_step(), 0.5f);
 }
 
 TEST(MitsubishiCN105ClimateTests, FahrenheitTemperatureMappingAndTraitsMatchExpectedValues) {
@@ -45,6 +46,7 @@ TEST(MitsubishiCN105ClimateTests, FahrenheitTemperatureMappingAndTraitsMatchExpe
   EXPECT_FLOAT_EQ(traits.get_visual_min_temperature(), 61.0f);
   EXPECT_FLOAT_EQ(traits.get_visual_max_temperature(), 88.0f);
   EXPECT_FLOAT_EQ(traits.get_visual_target_temperature_step(), 1.0f);
+  EXPECT_FLOAT_EQ(traits.get_visual_current_temperature_step(), 1.0f);
 }
 
 TEST(MitsubishiCN105ClimateTests, SupportedSwingModeOffLeavesTraitsEmpty) {
