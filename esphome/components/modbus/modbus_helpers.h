@@ -63,10 +63,12 @@ inline uint8_t server_frame_data_offset(const uint8_t *frame, size_t size) {
   }
 }
 
-/** Returns the payload portion of a server response PDU: the bytes after the function code, and for
- * read responses also after the byte-count byte. For an exception PDU the payload is the exception code
- * byte (the read check must not see the masked function code, or an exception-of-read would classify as
- * a read and return an empty span). Returns an empty span if the PDU is too short.
+/** Returns the payload portion of a server response PDU: the bytes after the function code, and for the
+ * standard read responses (0x01-0x04) also after the byte-count byte. Responses to 0x14/0x17 also carry a
+ * byte-count byte, but those codes are not implemented and their count byte is left in the payload. For
+ * an exception PDU the payload is the exception code byte (the read check must not see the masked
+ * function code, or an exception-of-read would classify as a read and return an empty span). Returns an
+ * empty span if the PDU is too short.
  */
 inline std::span<const uint8_t> server_pdu_payload(std::span<const uint8_t> pdu) {
   if (pdu.empty())

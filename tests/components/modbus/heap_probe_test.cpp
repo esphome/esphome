@@ -181,7 +181,14 @@ TEST(HeapProbe, ResponseHandlingIsAllocationFreeAfterWarmup) {
 
 #else  // !HEAP_PROBE_HAS_ASAN
 
+// Stub every ASan-gated test name, so the suite's test list is identical in every build configuration.
 namespace esphome::modbus::testing {
+TEST(HeapProbe, TypicalFrameConstructionIsAllocationFree) {
+  GTEST_SKIP() << "allocation counting requires an AddressSanitizer build";
+}
+TEST(HeapProbe, QueueingTypicalCommandsIsAllocationFree) {
+  GTEST_SKIP() << "allocation counting requires an AddressSanitizer build";
+}
 TEST(HeapProbe, ResponseHandlingIsAllocationFreeAfterWarmup) {
   GTEST_SKIP() << "allocation counting requires an AddressSanitizer build";
 }
