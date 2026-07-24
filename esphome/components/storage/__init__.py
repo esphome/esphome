@@ -4,8 +4,8 @@ import logging
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-import esphome.final_validate as fv
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+import esphome.final_validate as fv
 
 CODEOWNERS = ["@p1ngb4ck"]
 
@@ -207,7 +207,9 @@ def validate_mount_path(value):
     if not value.startswith("/"):
         raise cv.Invalid(f"Mount path must start with '/', got '{value}'")
     if value == "/":
-        raise cv.Invalid("Mount path must name a directory of its own; '/' is not a mount point")
+        raise cv.Invalid(
+            "Mount path must name a directory of its own; '/' is not a mount point"
+        )
     if value.endswith("/"):
         raise cv.Invalid(f"Mount path must not end with '/', got '{value}'")
     if "/" in value[1:]:
