@@ -175,4 +175,37 @@ TEST(ModbusClientHubNoResponse, MidCallbackClearCancelsRetry) {
   EXPECT_FALSE(hub.waiting());
 }
 
+namespace {
+// Overrides only the DEPRECATED on_modbus_* names: the new-name default implementations must forward, so
+// external devices written against the old names keep working through the deprecation window.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+class LegacyNameDevice : public ModbusClientDevice {
+ public:
+  LegacyNameDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_modbus_not_sent() override { this->legacy_not_sent_++; }
+  bool on_modbus_no_response() override {
+    this->legacy_no_response_++;
+    return false;
+  }
+  int legacy_not_sent_{0};
+  int legacy_no_response_{0};
+};
+#pragma GCC diagnostic pop
+}  // namespace
+
+TEST(ModbusClientHubCompat, LegacyCallbackNamesStillForward) {
+  NoResponseProbeHub hub;
+  LegacyNameDevice device(&hub, 0x02);
+
+  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
+  device.send_pdu(read);
+  hub.force_send_front();
+  hub.timeout_waiting();  // no reply -> on_no_response -> forwards to on_modbus_no_response
+  EXPECT_EQ(device.legacy_no_response_, 1);
+
+  device.send_pdu(std::span<const uint8_t>());  // empty PDU refused -> on_not_sent -> forwards
+  EXPECT_EQ(device.legacy_not_sent_, 1);
+}
+
 }  // namespace esphome::modbus::testing

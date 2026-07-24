@@ -47,6 +47,8 @@ uint16_t server_frame_length(const uint8_t *frame, size_t size);
 // If the frame is too short to determine the length, returns the minimum length
 uint16_t client_frame_length(const uint8_t *frame, size_t size);
 
+// Remove before 2027.2.0
+ESPDEPRECATED("Use server_pdu_payload() on the response PDU instead. Removed in 2027.2.0", "2026.8.0")
 inline uint8_t server_frame_data_offset(const uint8_t *frame, size_t size) {
   if (size < 2)
     return 0;
@@ -62,12 +64,14 @@ inline uint8_t server_frame_data_offset(const uint8_t *frame, size_t size) {
 }
 
 /** Returns the payload portion of a server response PDU: the bytes after the function code, and for
- * read responses also after the byte-count byte. Returns an empty span if the PDU is too short.
+ * read responses also after the byte-count byte. For an exception PDU the payload is the exception code
+ * byte (the read check must not see the masked function code, or an exception-of-read would classify as
+ * a read and return an empty span). Returns an empty span if the PDU is too short.
  */
 inline std::span<const uint8_t> server_pdu_payload(std::span<const uint8_t> pdu) {
   if (pdu.empty())
     return {};
-  const size_t offset = is_function_code_read(pdu[0]) ? 2 : 1;
+  const size_t offset = (!is_function_code_exception(pdu[0]) && is_function_code_read(pdu[0])) ? 2 : 1;
   return pdu.size() > offset ? pdu.subspan(offset) : std::span<const uint8_t>();
 }
 

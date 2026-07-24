@@ -185,11 +185,30 @@ class ModbusClientDevice {
   virtual void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {}
   /// Called with the request PDU and the modbus exception code decoded from the error response.
   virtual void on_error(std::span<const uint8_t> request_pdu, ModbusExceptionCode exception_code) {}
-  virtual void on_not_sent() {}
+  // The on_modbus_* names are signature-identical renames, so the new defaults forward to the old
+  // virtuals: external devices overriding the old names keep working through the deprecation window.
+  // Remove the forwards together with the deprecated names.
+  virtual void on_not_sent() {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    this->on_modbus_not_sent();
+#pragma GCC diagnostic pop
+  }
   /// Called when no (valid) response arrived; return true to have the hub re-queue the frame for a retry.
   /// The hub does not bound retries: the device is responsible for limiting them (e.g. track a counter and
   /// return false when exhausted), or an unresponsive peer will starve other traffic on the bus.
-  virtual bool on_no_response() { return false; }
+  virtual bool on_no_response() {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    return this->on_modbus_no_response();
+#pragma GCC diagnostic pop
+  }
+  // Remove before 2027.2.0
+  ESPDEPRECATED("Override on_not_sent() instead. Removed in 2027.2.0", "2026.8.0")
+  virtual void on_modbus_not_sent() {}
+  // Remove before 2027.2.0
+  ESPDEPRECATED("Override on_no_response() instead. Removed in 2027.2.0", "2026.8.0")
+  virtual bool on_modbus_no_response() { return false; }
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
             const uint8_t *payload = nullptr) {
     this->parent_->send_pdu(this->address_,
