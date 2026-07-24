@@ -1458,6 +1458,7 @@ bool preferences_export_to_storage(const char *path, const char *format, const P
   size_t exported = 0;
   if (as_json) {
     auto buf = json::build_json([&](JsonObject root) {
+      // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
       root["version"] = 1;
       JsonObject prefs = root["preferences"].to<JsonObject>();
       exported = collect_entries(
@@ -1489,6 +1490,7 @@ bool preferences_export_to_storage(const char *path, const char *format, const P
             }
             prefs[name] = value;
           });
+      // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
     });
     out.assign(buf.data(), buf.size());
   } else {

@@ -97,6 +97,7 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf) {
       // '/'-separated pointer: object keys and array indices ("a/b/0").
       // Scalars yield their string form; objects/arrays yield serialized
       // JSON so further steps (or nested json steps) can keep working on it.
+      // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
       JsonDocument doc = json::parse_json(reinterpret_cast<const uint8_t *>(buf.data()), buf.size());
       JsonVariantConst node = doc.as<JsonVariantConst>();
       if (node.isNull()) {
@@ -136,6 +137,7 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf) {
         serializeJson(node, serialized);
         buf = std::move(serialized);
       }
+      // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
       return true;
 #else
       return false;  // step cannot be configured without the define -- defensive
