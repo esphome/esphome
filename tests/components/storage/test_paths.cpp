@@ -74,6 +74,8 @@ TEST_F(RegistryTest, ResolvePathMatchesOnlyAtASeparator) {
 }
 
 TEST_F(RegistryTest, ResolvePathPrefersTheLongestMountPoint) {
+  // validate_mount_path() rejects nested mount points, so this cannot come from YAML any
+  // more. The longest-prefix rule stays as defence and is kept covered here.
   const char *rel = nullptr;
   EXPECT_EQ(this->registry_.resolve_path("/sd/nested/file.txt", &rel), &this->sd_nested_);
   EXPECT_STREQ(rel, "/file.txt");
@@ -106,6 +108,15 @@ TEST(BuildPath, YieldsTheMountPointForAnEmptyRelative) {
   DummyPathStorage sd{"/sd"};
   char out[64];
   ASSERT_TRUE(StorageRegistry::build_path(&sd, "", out, sizeof(out)));
+  EXPECT_STREQ(out, "/sd");
+}
+
+TEST(BuildPath, TreatsASoleSlashAsTheMountPointItself) {
+  // resolve_path() reports "" for a path that IS the mount point; "/" means the same thing and
+  // must not leave a trailing separator behind.
+  DummyPathStorage sd{"/sd"};
+  char out[64];
+  ASSERT_TRUE(StorageRegistry::build_path(&sd, "/", out, sizeof(out)));
   EXPECT_STREQ(out, "/sd");
 }
 
