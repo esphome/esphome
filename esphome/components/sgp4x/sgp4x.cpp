@@ -284,7 +284,8 @@ void SGP4xComponent::dump_config() {
                   "  Type: %s\n"
                   "  Serial number: %" PRIu64 "\n"
                   "  Minimum Samples: %f",
-                  this->sgp_type_ == SGP41 ? "SGP41" : "SGP40", this->serial_number_, GasIndexAlgorithm_INITIAL_BLACKOUT);
+                  this->sgp_type_ == SGP41 ? "SGP41" : "SGP40", this->serial_number_,
+                  GasIndexAlgorithm_INITIAL_BLACKOUT);
   }
   LOG_UPDATE_INTERVAL(this);
 
