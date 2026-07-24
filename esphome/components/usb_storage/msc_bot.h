@@ -24,7 +24,7 @@ struct __attribute__((packed)) MscCbw {
   uint32_t signature{MSC_BOT_CBW_SIGNATURE};
   uint32_t tag{0};
   uint32_t data_transfer_length{0};
-  uint8_t flags{0};  // 0x80 = IN (device→host), 0x00 = OUT (host→device)
+  uint8_t flags{0};  // 0x80 = IN (device->host), 0x00 = OUT (host->device)
   uint8_t lun{0};
   uint8_t cb_length{0};
   uint8_t cb[16]{};

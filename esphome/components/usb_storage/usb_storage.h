@@ -34,15 +34,15 @@ template<typename... Ts> class ListFilesAction;
 // Single USBClient subclass that owns the full MSC Bulk-Only Transport stack.
 //
 // Lifecycle:
-//   setup()           — register FATFS DISKIO driver, create transfer semaphore
-//   on_connected()    — parse bulk endpoints, run SCSI INQUIRY + READ CAPACITY,
+//   setup()           -- register FATFS DISKIO driver, create transfer semaphore
+//   on_connected()    -- parse bulk endpoints, run SCSI INQUIRY + READ CAPACITY,
 //                       mount FAT filesystem, notify USBStorageDevice instances
-//   on_disconnected() — unmount filesystem, reset drive slot
+//   on_disconnected() -- unmount filesystem, reset drive slot
 // ─────────────────────────────────────────────────────────────────────────────
 class USBStorageClient : public usb_host::USBClient {
  public:
 #ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-  // file_system option (only exists with esp32 enable_exfat): 0 auto, 1 fat32, 2 exfat —
+  // file_system option (only exists with esp32 enable_exfat): 0 auto, 1 fat32, 2 exfat --
   // values from storage/__init__.py file_system_to_code().
   void set_requested_file_system(uint8_t fs) { this->requested_file_system_ = fs; }
 #endif
@@ -59,7 +59,7 @@ class USBStorageClient : public usb_host::USBClient {
 
   void add_device(USBStorageDevice *device) { this->devices_.push_back(device); }
 
-  // Called from DISKIO driver (FATFS context) — blocking SCSI transfers
+  // Called from DISKIO driver (FATFS context) -- blocking SCSI transfers
   bool scsi_read(uint32_t lba, uint8_t *buf, uint32_t count);
   bool scsi_write(uint32_t lba, const uint8_t *buf, uint32_t count);
   uint32_t get_sector_count() const { return this->sector_count_; }
@@ -113,7 +113,7 @@ class USBStorageClient : public usb_host::USBClient {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// USBFileHandle — extends storage::FileHandle with no extra fields needed;
+// USBFileHandle -- extends storage::FileHandle with no extra fields needed;
 // the base FILE *file is sufficient since FAT is VFS-backed.
 // ─────────────────────────────────────────────────────────────────────────────
 struct USBFileHandle : public esphome::storage::FileHandle {
@@ -159,9 +159,9 @@ class USBStorageDevice : public esphome::storage::FilesystemStorage, public esph
   storage::StorageError mount() override;
   storage::StorageError unmount() override;
 
-  // No-RTTI downcast hook — see PathStorage::as_mountable().
+  // No-RTTI downcast hook -- see PathStorage::as_mountable().
   storage::MountableStorage *as_mountable() override { return this; }
-  // The FAT mount lifecycle is owned by the USB hotplug client — insertion auto-mounts, so
+  // The FAT mount lifecycle is owned by the USB hotplug client -- insertion auto-mounts, so
   // only the safe-eject direction may be invoked externally (mount() below is a status no-op).
   uint8_t get_mount_caps() const override { return storage::MountableStorage::MOUNT_CAP_UNMOUNT; }
   storage::StorageError format() override;
@@ -182,7 +182,7 @@ class USBStorageDevice : public esphome::storage::FilesystemStorage, public esph
   storage::StorageError rename(const char *old_path, const char *new_path) override;
 
   // USB stack transfers are self-contained (own endpoint transfers via a FreeRTOS semaphore,
-  // no shared bus with other main-loop-driven components) — safe for the async worker to drive
+  // no shared bus with other main-loop-driven components) -- safe for the async worker to drive
   // from a background task, same as SdMmc's dedicated SDIO controller.
   uint8_t get_capabilities() const override { return storage::StorageCaps::STORAGE_CAP_IO_TASK_SAFE; }
 
@@ -194,7 +194,7 @@ class USBStorageDevice : public esphome::storage::FilesystemStorage, public esph
   void build_path_(char *out, size_t out_size, const char *path) const;
 
   // Builds a FATFS-native path ("N:/dir/file") from a path relative to this device's mount
-  // point, using fatfs_drive_ (captured from the client at connect time — see
+  // point, using fatfs_drive_ (captured from the client at connect time -- see
   // on_device_connected()). Returns false if the result would exceed out_size.
   bool build_fatfs_path_(const char *rel_path, char *out, size_t out_size) const;
 
@@ -212,12 +212,12 @@ class USBStorageDevice : public esphome::storage::FilesystemStorage, public esph
   // touches this device. is_mounted() stays true until then, so an interval-based remount
   // check does not race the pending unmount.
   bool unmount_pending_{false};
-  // True while a worker job that references this device is in flight — the worker cannot be
+  // True while a worker job that references this device is in flight -- the worker cannot be
   // queried for "jobs touching storage X" cheaply, so the device tracks it via open handles
   // (every transfer holds a handle open for its duration) plus this guard for the brief
   // windows around open/close. Open-handle count is derived from handle_pool_.
   bool has_open_handles_() const;
-  char fatfs_drive_[3]{};  // "N:" — captured from client_->get_fatfs_drive() on connect
+  char fatfs_drive_[3]{};  // "N:" -- captured from client_->get_fatfs_drive() on connect
 
   USBFileHandle handle_pool_[MAX_OPEN_FILES]{};
   LazyCallbackManager<void(const char *)> on_mounted_;

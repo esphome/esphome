@@ -17,7 +17,7 @@ static USBStorageClient **get_clients() {
   return clients;
 }
 
-// DISKIO callbacks — called from FATFS context (may be main loop or a dedicated task).
+// DISKIO callbacks -- called from FATFS context (may be main loop or a dedicated task).
 // All calls that do actual I/O block on a semaphore until the USB transfer callback fires.
 
 static DSTATUS diskio_initialize(BYTE drive) {
@@ -32,7 +32,7 @@ static DSTATUS diskio_status(BYTE drive) {
   return get_clients()[drive]->is_disk_ready() ? 0 : STA_NOINIT;
 }
 
-// Sector parameters are uint32_t by ESP-IDF's ff_diskio_impl_t contract — the glue layer is
+// Sector parameters are uint32_t by ESP-IDF's ff_diskio_impl_t contract -- the glue layer is
 // 32-bit regardless of FF_FS_EXFAT/FF_LBA64 in our patched FatFs copy (without it, LBA_t is
 // the same 32-bit type, so this compiles identically in both builds). Practical ceiling:
 // 2 TiB at 512-byte sectors, far beyond any MSC medium this drives.
@@ -63,7 +63,7 @@ static DRESULT diskio_ioctl(BYTE drive, BYTE cmd, void *buf) {
       *reinterpret_cast<WORD *>(buf) = static_cast<WORD>(client->get_sector_size());
       return RES_OK;
     case GET_BLOCK_SIZE:
-      *reinterpret_cast<DWORD *>(buf) = 1;  // erase block size in sectors — 1 = unknown
+      *reinterpret_cast<DWORD *>(buf) = 1;  // erase block size in sectors -- 1 = unknown
       return RES_OK;
     default:
       return RES_PARERR;
