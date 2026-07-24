@@ -2103,7 +2103,7 @@ template<class T> class RAMAllocator {
     size_t size = n * manual_size;
     T *ptr = nullptr;
 #ifdef USE_ESP32
-    const auto caps = this->get_caps_();
+    const auto caps = this->get_caps();
     ptr = static_cast<T *>(heap_caps_malloc_prefer(size, 2, caps[0], caps[1]));
 #else
     // Ignore ALLOC_EXTERNAL/ALLOC_INTERNAL flags if external allocation is not supported
@@ -2118,7 +2118,7 @@ template<class T> class RAMAllocator {
     size_t size = n * manual_size;
     T *ptr = nullptr;
 #ifdef USE_ESP32
-    const auto caps = this->get_caps_();
+    const auto caps = this->get_caps();
     ptr = static_cast<T *>(heap_caps_realloc_prefer(p, size, 2, caps[0], caps[1]));
 #else
     // Ignore ALLOC_EXTERNAL/ALLOC_INTERNAL flags if external allocation is not supported
@@ -2176,7 +2176,7 @@ template<class T> class RAMAllocator {
   /// the primary is internal and the fallback is external. Otherwise the primary is whichever region
   /// is enabled (external preferred when both are enabled), and the fallback is the other region (or
   /// the same region when only one is enabled, making the second attempt a no-op).
-  std::array<uint32_t, 2> get_caps_() const {
+  std::array<uint32_t, 2> get_caps() const {
     constexpr uint32_t external_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
     constexpr uint32_t internal_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
     if (this->flags_ & PREFER_INTERNAL) {
