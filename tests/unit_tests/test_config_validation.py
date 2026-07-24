@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import string
 
@@ -2912,3 +2913,79 @@ def test_rename_key_present() -> None:
 
 def test_rename_key_absent() -> None:
     assert cv.rename_key("old", "new")({"other": 5}) == {"other": 5}
+
+
+def test_file__existing_relative_path(setup_core: Path) -> None:
+    (setup_core / "partitions.csv").write_text("csv\n")
+
+    assert cv.file_("partitions.csv") == setup_core / "partitions.csv"
+
+
+def test_file__missing_raises(setup_core: Path) -> None:
+    with pytest.raises(Invalid, match="Could not find file"):
+        cv.file_("partitions.csv")
+
+
+def test_file__remaps_bundle_absolute_path(setup_core: Path) -> None:
+    """A stale absolute path in an extracted bundle resolves to the bundled copy."""
+    manifest = {
+        "manifest_version": 1,
+        "config_filename": "test.yaml",
+        "config_dir": "/original/config",
+    }
+    (setup_core / "manifest.json").write_text(json.dumps(manifest))
+    (setup_core / "partitions.csv").write_text("csv\n")
+
+    assert cv.file_("/original/config/partitions.csv") == setup_core / "partitions.csv"
+
+
+def test_file__missing_absolute_path_without_bundle(setup_core: Path) -> None:
+    with pytest.raises(Invalid, match="Could not find file"):
+        cv.file_("/original/config/partitions.csv")
+
+
+def test_file__remaps_windows_bundle_absolute_path(setup_core: Path) -> None:
+    """A bundle created on Windows resolves on a host with another layout."""
+    manifest = {
+        "manifest_version": 1,
+        "config_filename": "test.yaml",
+        "config_dir": "C:\\Users\\nick\\esphome",
+    }
+    (setup_core / "manifest.json").write_text(json.dumps(manifest))
+    (setup_core / "partitions.csv").write_text("csv\n")
+
+    result = cv.file_("C:\\Users\\nick\\esphome\\partitions.csv")
+
+    assert result == setup_core / "partitions.csv"
+
+
+def test_directory_remaps_bundle_absolute_path(setup_core: Path) -> None:
+    """A stale absolute directory in an extracted bundle resolves to the bundled copy."""
+    manifest = {
+        "manifest_version": 1,
+        "config_filename": "test.yaml",
+        "config_dir": "/original/config",
+    }
+    (setup_core / "manifest.json").write_text(json.dumps(manifest))
+    (setup_core / "headers").mkdir()
+
+    assert cv.directory("/original/config/headers") == setup_core / "headers"
+
+
+def test_directory_missing_raises(setup_core: Path) -> None:
+    with pytest.raises(Invalid, match="Could not find directory"):
+        cv.directory("/original/config/headers")
+
+
+def test_file__remapped_path_is_directory_raises(setup_core: Path) -> None:
+    """A remapped path that is a directory still fails file validation."""
+    manifest = {
+        "manifest_version": 1,
+        "config_filename": "test.yaml",
+        "config_dir": "/original/config",
+    }
+    (setup_core / "manifest.json").write_text(json.dumps(manifest))
+    (setup_core / "headers").mkdir()
+
+    with pytest.raises(Invalid, match="is not a file"):
+        cv.file_("/original/config/headers")
