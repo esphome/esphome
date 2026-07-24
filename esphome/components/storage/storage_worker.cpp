@@ -19,7 +19,9 @@ void StorageWorker::setup() {
   // Only the hotplug subscription happens here: it must be in place before any storage could
   // possibly be unregistered, and it is a single lambda capture, not an allocation of note.
   if (global_storage_registry != nullptr) {
-    global_storage_registry->add_on_unregistered_callback([this](Storage *s) { this->on_storage_unregistered_(s); });
+    // Drain channel, not the unregister channel: a safe-eject quiesces without unregistering,
+    // and the worker has to let go of the device in that case too.
+    global_storage_registry->add_on_quiesce_callback([this](Storage *s) { this->on_storage_unregistered_(s); });
   }
   // PollingComponent::call_setup() auto-starts the poller before setup(); stop it here so an
   // idle worker schedules nothing. The first submit funnel (start_poller()) arms it when work
@@ -662,7 +664,10 @@ void StorageWorker::deliver_completions_() {
       // still intact. Whatever the result: a partially landed tree is still a change.
       // (Streaming requests are not fed: reads change nothing, and the write stream's
       // consumers note their own completion -- they know the path, this loop does not.)
-      char feed_path[STORAGE_WORKER_MAX_PATH];
+      // build_path() writes mount point + relative path, which is longer than the relative
+      // paths the request slots carry. STORAGE_WORKER_MAX_PATH would make it refuse near the
+      // limit and drop the notification without a trace.
+      char feed_path[STORAGE_VFS_PATH_MAX];
       if (global_storage_registry != nullptr && req.op == RequestOp::RAW_READ_TO_FILE && req.dst_storage != nullptr) {
         // A raw read landed (or failed to land -- partially is still a change) a file: the
         // feed learns about its parent directory exactly like any other transfer's.
@@ -1237,6 +1242,17 @@ void StorageWorker::run_raw_chunk_(TransferRequest &req, bool on_task) {
         return;
       }
       (to_file ? req.dst_handle : req.src_handle) = h;
+    } else if (to_file) {
+      // A raw read landing in a file on a NetworkStorage: no open() to truncate for it, and
+      // write_chunk() only overwrites the range it is given, so a shorter image than the file
+      // it replaces would leave the old tail behind.
+      StorageError terr = static_cast<NetworkStorage *>(file_storage)->truncate(file_path, 0);
+      if (this->wait_for_network_ready_(req, terr, file_storage))
+        return;
+      if (terr != StorageError::OK) {
+        finish_request(req, terr);
+        return;
+      }
     }
     req.handles_open = true;
   }
@@ -1691,6 +1707,17 @@ void StorageWorker::run_chunk_(TransferRequest &req, bool on_task) {
         finish_request(req, err);
         return;
       }
+    } else {
+      // OpenMode::WRITE truncates for the filesystem branch above; write_chunk() addresses by
+      // offset and never shortens, so a shorter source would leave the old tail behind.
+      StorageError err = static_cast<NetworkStorage *>(req.dst_storage)->truncate(req.dst_path, 0);
+      if (this->wait_for_network_ready_(req, err, req.dst_storage))
+        return;
+      if (err != StorageError::OK) {
+        req.handles_open = true;
+        finish_request(req, err);
+        return;
+      }
     }
     req.handles_open = true;
   }
@@ -1824,6 +1851,11 @@ static void run_stream_step(StreamRequest &req) {
       if (req.is_fs) {
         OpenMode mode = req.op == StreamOp::WRITE ? OpenMode::WRITE : OpenMode::READ;
         err = static_cast<FilesystemStorage *>(req.storage)->open(req.path, req.handle, mode);
+      } else if (req.op == StreamOp::WRITE) {
+        // Same reason as the copy path: a write stream to a NetworkStorage has no open() to
+        // truncate for it, so an upload shorter than the file it replaces would leave the old
+        // tail in place. A read stream changes nothing and needs none of this.
+        err = static_cast<NetworkStorage *>(req.storage)->truncate(req.path, 0);
       }
       // NetworkStorage has no open() -- write_chunk()/read_chunk() below address by offset
       // directly, so OPENING is a no-op for it beyond the state transition itself.
