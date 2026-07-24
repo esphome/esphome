@@ -17,7 +17,7 @@ static USBStorageClient **get_clients() {
   return clients;
 }
 
-// DISKIO callbacks — called from FATFS context (may be main loop or a dedicated task).
+// DISKIO callbacks -- called from FATFS context (may be main loop or a dedicated task).
 // All calls that do actual I/O block on a semaphore until the USB transfer callback fires.
 
 static DSTATUS diskio_initialize(BYTE drive) {
@@ -64,7 +64,7 @@ static DRESULT diskio_ioctl(BYTE drive, BYTE cmd, void *buf) {
       *reinterpret_cast<WORD *>(buf) = static_cast<WORD>(client->get_sector_size());
       return RES_OK;
     case GET_BLOCK_SIZE:
-      *reinterpret_cast<DWORD *>(buf) = 1;  // erase block size in sectors — 1 = unknown
+      *reinterpret_cast<DWORD *>(buf) = 1;  // erase block size in sectors -- 1 = unknown
       return RES_OK;
     default:
       return RES_PARERR;

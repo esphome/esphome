@@ -67,11 +67,11 @@ async def register_usb_storage_device(device_config, storage_client):
     cg.add(storage_client.add_device(var))
 
     request_storage_device()
-    # Bounded by FATFS long filenames, i.e. by CONFIG_FATFS_MAX_LFN — resolved at codegen
+    # Bounded by FATFS long filenames, i.e. by CONFIG_FATFS_MAX_LFN -- resolved at codegen
     # time rather than baked in, so a user who lowers it gets a matching API bound.
     request_fatfs_path_length()
     # USB MSC transfers are self-contained (own endpoint transfers via a FreeRTOS semaphore, no
-    # shared bus with other main-loop-driven components) — task-safe, unlike e.g. SdSpi.
+    # shared bus with other main-loop-driven components) -- task-safe, unlike e.g. SdSpi.
     request_storage_worker(task_safe=True)
 
     for conf in device_config.get(CONF_ON_MOUNTED, []):
@@ -127,7 +127,7 @@ async def to_code(config):
     require_vfs_dir()
     require_vfs_select()
     # LFN mode/length and volume count are set as user-overridable defaults by the esp32
-    # platform once any component calls require_fatfs() — see
+    # platform once any component calls require_fatfs() -- see
     # _reconcile_vfs_fatfs_sdkconfig(). Override via esp32 framework sdkconfig_options.
     require_fatfs()
     include_builtin_idf_component("fatfs")
