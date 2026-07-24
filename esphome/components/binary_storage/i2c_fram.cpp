@@ -159,7 +159,7 @@ storage::StorageError I2CFram::read_physical(uint64_t offset, uint8_t *buf, size
 }
 
 storage::StorageError I2CFram::write_physical(uint64_t offset, const uint8_t *buf, size_t len,
-                                               size_t *bytes_transferred) {
+                                              size_t *bytes_transferred) {
   if (!this->is_valid_address_(offset, len))
     return storage::StorageError::INVALID_ARGS;
   bool ok = this->write_raw(static_cast<uint32_t>(offset), buf, len);
