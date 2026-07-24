@@ -10,6 +10,9 @@
 #ifdef USE_STORAGE_WORKER
 #include "storage_worker.h"  // global_storage_worker -- async file/raw ops (fire-and-forget actions)
 #endif
+#if defined(USE_STORAGE_PREFERENCES) && defined(USE_ESP32)
+#include "preferences_backup.h"  // PrefSelection -- file scope, NOT inside the namespace below
+#endif
 #include "esphome/core/alloc_helpers.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
@@ -418,5 +421,112 @@ template<typename... Ts> class MountAction : public Action<Ts...> {
   MountableStorage *target_;
   bool mount_;
 };
+
+#if defined(USE_STORAGE_PREFERENCES) && defined(USE_ESP32)
+// storage.export_preferences / storage.import_preferences -- see
+// preferences_backup.h. The selection table (name/key/type/count) is
+// codegen-baked per action instance from its optional `preferences:` list;
+// empty selection = all preferences (hex round-trip, types unknown).
+// The two preference actions take either a path on a mounted storage (rendered, kv/json) or a
+// raw device plus address (the encoded blob as stored). Codegen picks exactly one and hands the
+// raw variant its window -- the room up to the next region on that device, 0 meaning "to the end
+// of the device", which only the device itself knows.
+template<typename... Ts> class ExportPreferencesAction : public Action<Ts...> {
+ public:
+  TEMPLATABLE_VALUE(std::string, path)
+  void set_format(const char *format) { this->format_ = format; }
+  void set_raw_target(RawStorage *device, uint32_t address, uint32_t window) {
+    this->device_ = device;
+    this->address_ = address;
+    this->window_ = window;
+  }
+  void set_selection(const PrefSelection *selection, size_t count, bool restrict_to_selection) {
+    this->selection_ = selection;
+    this->count_ = count;
+    this->restrict_ = restrict_to_selection;
+  }
+  void add_selected_entity(esphome::EntityBase *entity) { this->selected_entities_.push_back(entity); }
+
+  void play(const Ts &...x) override {
+    if (this->device_ != nullptr) {
+      preferences_export_to_raw(this->device_, this->address_, this->resolved_window_(), this->selection_, this->count_,
+                                this->restrict_, this->selected_entities_.data(), this->selected_entities_.size());
+      return;
+    }
+    const std::string path = this->path_.value(x...);
+    preferences_export_to_storage(path.c_str(), this->format_, this->selection_, this->count_, this->restrict_,
+                                  this->selected_entities_.data(), this->selected_entities_.size());
+  }
+
+ protected:
+  // window 0 = the last region on this device: everything from here to the end of it.
+  uint64_t resolved_window_() {
+    if (this->window_ != 0)
+      return this->window_;
+    RawGeometry geo;
+    this->device_->get_raw_geometry(&geo);
+    return geo.capacity > this->address_ ? geo.capacity - this->address_ : 0;
+  }
+
+  RawStorage *device_{nullptr};
+  uint32_t address_{0};
+  uint32_t window_{0};
+  const char *format_{"kv"};
+  const PrefSelection *selection_{nullptr};
+  size_t count_{0};
+  bool restrict_{false};
+  std::vector<esphome::EntityBase *> selected_entities_;
+};
+
+template<typename... Ts> class ImportPreferencesAction : public Action<Ts...> {
+ public:
+  TEMPLATABLE_VALUE(std::string, path)
+  void set_raw_target(RawStorage *device, uint32_t address, uint32_t window) {
+    this->device_ = device;
+    this->address_ = address;
+    this->window_ = window;
+  }
+  void set_format(const char *format) { this->format_ = format; }
+  void set_reboot(bool reboot) { this->reboot_ = reboot; }
+  void set_selection(const PrefSelection *selection, size_t count, bool restrict_to_selection) {
+    this->selection_ = selection;
+    this->count_ = count;
+    this->restrict_ = restrict_to_selection;
+  }
+  void add_selected_entity(esphome::EntityBase *entity) { this->selected_entities_.push_back(entity); }
+
+  void play(const Ts &...x) override {
+    if (this->device_ != nullptr) {
+      preferences_import_from_raw(this->device_, this->address_, this->resolved_window_(), this->reboot_,
+                                  this->selection_, this->count_, this->restrict_, this->selected_entities_.data(),
+                                  this->selected_entities_.size());
+      return;
+    }
+    const std::string path = this->path_.value(x...);
+    preferences_import_from_storage(path.c_str(), this->format_, this->reboot_, this->selection_, this->count_,
+                                    this->restrict_, this->selected_entities_.data(), this->selected_entities_.size());
+  }
+
+ protected:
+  // window 0 = the last region on this device: everything from here to the end of it.
+  uint64_t resolved_window_() {
+    if (this->window_ != 0)
+      return this->window_;
+    RawGeometry geo;
+    this->device_->get_raw_geometry(&geo);
+    return geo.capacity > this->address_ ? geo.capacity - this->address_ : 0;
+  }
+
+  RawStorage *device_{nullptr};
+  uint32_t address_{0};
+  uint32_t window_{0};
+  const char *format_{"kv"};
+  bool reboot_{false};
+  const PrefSelection *selection_{nullptr};
+  size_t count_{0};
+  bool restrict_{false};
+  std::vector<esphome::EntityBase *> selected_entities_;
+};
+#endif  // USE_STORAGE_PREFERENCES && USE_ESP32
 
 }  // namespace esphome::storage

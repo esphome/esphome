@@ -993,4 +993,28 @@ StorageError remove_recursive(PathStorage *storage, const char *path) {
   return remove_recursive_at_depth(storage, buf, static_cast<size_t>(len), 0);
 }
 
+#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
+// Log sinks for fatfs_select.h, which is header-only (it includes FatFs headers that only
+// exist in the driver's build) and therefore cannot hold the log macros itself.
+void fatfs_log_probe_read_failed(const char *tag) { ESP_LOGW(tag, "file_system probe: cannot read sector 0"); }
+
+void fatfs_log_reformat_no_filesystem(const char *tag, bool want_exfat) {
+  ESP_LOGW(tag, "file_system: no recognizable filesystem on the medium - formatting as %s",
+           want_exfat ? "exFAT" : "FAT32");
+}
+
+void fatfs_log_reformat_mismatch(const char *tag, bool found_exfat, bool want_exfat) {
+  ESP_LOGW(tag, "file_system: found %s but %s is configured - REFORMATTING, all data on the medium is erased",
+           found_exfat ? "exFAT" : "FAT", want_exfat ? "exFAT" : "FAT32");
+}
+
+void fatfs_log_format_failed(const char *tag, bool want_exfat, int result) {
+  ESP_LOGE(tag, "file_system: formatting as %s failed (FatFs error %d)", want_exfat ? "exFAT" : "FAT32", result);
+}
+
+void fatfs_log_format_done(const char *tag, bool want_exfat) {
+  ESP_LOGI(tag, "file_system: medium formatted as %s", want_exfat ? "exFAT" : "FAT32");
+}
+#endif  // USE_STORAGE_FILE_SYSTEM_SELECT
+
 }  // namespace esphome::storage

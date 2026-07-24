@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+import hashlib
 import logging
 import re
 
@@ -11,6 +12,7 @@ from esphome.const import (
     CONF_ALL,
     CONF_ARGS,
     CONF_DATA,
+    CONF_DEVICE,
     CONF_FORMAT,
     CONF_FROM,
     CONF_GROUP,
@@ -57,6 +59,7 @@ AUTO_LOAD = ["json"]
 
 storage_ns = cg.esphome_ns.namespace("storage")
 Storage = storage_ns.class_("Storage", cg.Component)
+TransferBuffer = storage_ns.class_("TransferBuffer", cg.Component)
 StoragePtr = Storage.operator("ptr")
 PathStorage = storage_ns.class_("PathStorage", Storage)
 RawStorage = storage_ns.class_("RawStorage", Storage)
@@ -87,6 +90,11 @@ def validate_sector_multiple(value):
 # unused, same as any other config key with no effect in a given configuration.
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.Optional("enable_psram_transfer_buffer"): cv.boolean,
+        cv.Optional("psram_transfer_buffer_size"): cv.All(
+            cv.validate_bytes, cv.Range(min=64 * 1024)
+        ),
+        cv.Optional("psram_transfer_buffer_override_limit", default=False): cv.boolean,
         cv.GenerateID(): cv.declare_id(StorageRegistry),
         # No static default: an absent value means "use the per-platform default"
         # (see _default_copy_chunk_size() / to_code). An explicit value overrides it and
@@ -319,6 +327,36 @@ def request_storage_worker(task_safe: bool = False) -> None:
         data.worker_task_safe = True
 
 
+def _transfer_buffer_final_validate(config):
+    has_psram = "psram" in fv.full_config.get()
+    if "enable_psram_transfer_buffer" in config and not has_psram:
+        raise cv.Invalid(
+            "'enable_psram_transfer_buffer' is only available with the psram component"
+        )
+    enabled = config.get("enable_psram_transfer_buffer", has_psram)
+    if "psram_transfer_buffer_size" in config:
+        if not has_psram:
+            raise cv.Invalid(
+                "'psram_transfer_buffer_size' is only available with the psram component"
+            )
+        if not enabled:
+            raise cv.Invalid(
+                "'psram_transfer_buffer_size' requires 'enable_psram_transfer_buffer' to be true"
+            )
+    if config.get("psram_transfer_buffer_override_limit") and (
+        not has_psram or not enabled
+    ):
+        raise cv.Invalid(
+            "'psram_transfer_buffer_override_limit' requires an enabled psram transfer buffer"
+        )
+    # The 25% default and the 80% ceiling are enforced in setup(): the actual PSRAM
+    # size is detected at boot and unknowable at config time.
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _transfer_buffer_final_validate
+
+
 # Default streaming/copy chunk size. Flat 16 kB on every platform: the 20 ms loop-slice budget
 # (see the buffer-usage plan) caps a main-loop chunk near 16 kB even on the fastest S3 SD path,
 # so a larger loop chunk is unsafe. The platform distinction lives one level down, in the C++
@@ -421,6 +459,16 @@ def _default_copy_chunk_size() -> int:
 # are unaffected either way, since that call already suspends until the variable exists.
 @coroutine_with_priority(CoroPriority.LATE)
 async def to_code(config):
+    tb_enabled = config.get("enable_psram_transfer_buffer", "psram" in CORE.config)
+    if tb_enabled:
+        cg.add_define("USE_STORAGE_TRANSFER_BUFFER")
+        tb_id = ID("storage_transfer_buffer", is_declaration=True, type=TransferBuffer)
+        CORE.component_ids.add(str(tb_id))
+        tb = cg.new_Pvariable(tb_id)
+        await cg.register_component(tb, {})
+        # 0 = auto: setup() sizes the arena to 25% of the detected PSRAM
+        cg.add(tb.set_size(config.get("psram_transfer_buffer_size", 0)))
+        cg.add(tb.set_override_limit(config["psram_transfer_buffer_override_limit"]))
     var = cg.new_Pvariable(config[cv.GenerateID()])
     await cg.register_component(var, config)
 
@@ -837,6 +885,7 @@ async def unmount_action_to_code(config, action_id, template_arg, args):
     return await _build_mount_action(config, action_id, template_arg, args, False)
 
 
+# ==================== PREFERENCES BACKUP/RESTORE ====================
 # ---------------------------------------------------------------------------
 # storage.raw_read / storage.raw_write / storage.raw_erase
 # ---------------------------------------------------------------------------
@@ -1032,3 +1081,460 @@ async def raw_erase_action_to_code(config, action_id, template_arg, args):
             var.get_complete_trigger(), [(cg.std_string, "x")], config[CONF_ON_COMPLETE]
         )
     return var
+
+
+# storage.export_preferences / storage.import_preferences: back up ESPHome
+# preferences (the "esphome" NVS namespace) to a storage target and restore
+# them. Provided by storage itself, guard-protected: the C++ only compiles
+# in when one of these actions is used, and only on esp32 (preferences are
+# always NVS-backed there -- no extra YAML needed to "enable" them).
+#
+# Selection is an option on the action: `preferences:` lists global IDs --
+# with it, only those entries round-trip and export under their YAML id;
+# without it, the whole namespace round-trips under numeric NVS keys.
+
+CONF_PREFERENCES = "preferences"
+CONF_REBOOT = "reboot"
+
+# Keep in sync with globals_component.h ("1944399030U ^ this->name_hash_")
+# and the md5-based name hash in globals/__init__.py.
+_GLOBALS_KEY_XOR = 1944399030
+
+# YAML `type:` -> (PrefType tag, element size irrelevant here). Blob layouts:
+# scalars/arrays are raw T bytes; std::string is length-prefixed char[SZ]
+# with SZ = max_restore_data_length (default 63) + 1 -- keep in sync with
+# globals/__init__.py.
+_PREF_SCALAR_TYPES = {
+    "bool": "BOOL",
+    "int8_t": "I8",
+    "char": "I8",
+    "uint8_t": "U8",
+    "unsigned char": "U8",
+    "int16_t": "I16",
+    "short": "I16",
+    "uint16_t": "U16",
+    "unsigned short": "U16",
+    "int": "I32",
+    "int32_t": "I32",
+    "long": "I32",
+    "uint32_t": "U32",
+    "unsigned int": "U32",
+    "unsigned long": "U32",
+    "size_t": "U32",
+    "float": "F32",
+    "double": "F64",
+}
+_ARRAY_TYPE_RE = re.compile(r"^\s*(.+?)\s*\[\s*(\d+)\s*\]\s*$")
+
+_RESTORING_RE = re.compile(r"RestoringGlobalsComponent<\s*(.+?)\s*>\s*$")
+_RESTORING_STRING_RE = re.compile(
+    r"RestoringGlobalStringComponent<\s*.+?,\s*(\d+)\s*>\s*$"
+)
+
+
+# Sensor platforms whose restore type codegen can name but the runtime sweep cannot: they all
+# arrive as sensor::Sensor in App's list, four bytes wide, and a build without RTTI cannot tell
+# them apart. The platform is right there in the YAML, so map the registered class to the kind
+# and let register_entity_pref() carry it over. A platform that is not listed here keeps the
+# sweep's RAW entry -- named, hex value -- which is the safe fallback: a wrong kind would render
+# a wrong number AND write wrong bytes back on import.
+_SENSOR_PREF_KINDS = {
+    "total_daily_energy::TotalDailyEnergy": "FLOAT",
+    "integration::IntegrationSensor": "FLOAT",
+    "duty_time_sensor::DutyTimeSensor": "U32",
+    "rotary_encoder::RotaryEncoderSensor": "I32",
+}
+
+
+# Preferences owned by a component rather than an entity: (component, C++ symbol, exported
+# name, kind). Emitted only when that component is configured, and by SYMBOL -- the value stays
+# in the owning component's header, so a rename breaks the build instead of silently exporting a
+# number that has moved on. Without this they show up as a bare key, since the sweep only walks
+# entities.
+_COMPONENT_PREF_KEYS = (("safe_mode", "safe_mode::RTC_KEY", "safe_mode", "U32"),)
+
+
+async def _register_component_prefs():
+    """Names the component-owned preferences whose owners are part of this build."""
+    for component, symbol, name, kind in _COMPONENT_PREF_KEYS:
+        if component not in CORE.config:
+            continue
+        cg.add(
+            cg.RawExpression(
+                f'{storage_ns}::register_key_pref({symbol}, "{name}", '
+                f"{storage_ns}::EntityKind::{kind})"
+            )
+        )
+
+
+async def _register_typed_sensors():
+    """Emits one register_entity_pref() per sensor whose restore type is known.
+
+    FINAL priority: every sensor platform's own to_code() must have registered its variable
+    before CORE.variables can be walked for them.
+    """
+    for reg_id in CORE.variables:
+        # Registered types carry no esphome:: prefix; tolerate one anyway.
+        type_str = str(reg_id.type).removeprefix("esphome::")
+        kind = _SENSOR_PREF_KINDS.get(type_str)
+        if kind is None:
+            continue
+        var = await cg.get_variable(reg_id)
+        cg.add(
+            cg.RawExpression(
+                f"{storage_ns}::register_entity_pref({var}, "
+                f"{storage_ns}::EntityKind::{kind})"
+            )
+        )
+
+
+def _pref_type_from_class(type_str: str) -> tuple[str, int] | None:
+    """(PrefType tag, count) from a declared global's C++ class string --
+    codegen-world data only (ID.type of the registered variable). None when
+    the class is not a restoring global at all."""
+    if m := _RESTORING_STRING_RE.search(type_str):
+        return "STRING", int(m.group(1))  # SZ straight from the template arg
+    if m := _RESTORING_RE.search(type_str):
+        inner = m.group(1)
+        if inner in _PREF_SCALAR_TYPES:
+            return _PREF_SCALAR_TYPES[inner], 1
+        if am := _ARRAY_TYPE_RE.match(inner):
+            base, count = am.group(1), int(am.group(2))
+            if base in _PREF_SCALAR_TYPES:
+                return _PREF_SCALAR_TYPES[base], count
+        return "HEX", 0  # restoring, but a type we cannot render -- hex round-trip
+    return None
+
+
+ExportPreferencesAction = storage_ns.class_(
+    "ExportPreferencesAction", automation.Action
+)
+ImportPreferencesAction = storage_ns.class_(
+    "ImportPreferencesAction", automation.Action
+)
+
+
+def _global_nvs_key(global_id: str) -> int:
+    name_hash = int(hashlib.md5(global_id.encode()).hexdigest()[:8], 16)
+    return (_GLOBALS_KEY_XOR ^ name_hash) & 0xFFFFFFFF
+
+
+_PREFERENCES_ACTION_BASE = {
+    cv.Optional(CONF_PATH): cv.templatable(cv.string_strict),
+    # No default: the presence of the key is what distinguishes a file target from a raw one
+    # (a default would fill it in and make that check meaningless).
+    cv.Optional(CONF_FORMAT): cv.one_of("kv", "json", lower=True),
+    cv.Optional(CONF_DEVICE): cv.use_id(RawStorage),
+    # Not templatable on purpose: codegen computes each region's room from these addresses,
+    # which a runtime lambda would hide.
+    cv.Optional(CONF_ADDRESS): cv.hex_uint32_t,
+    # Globals with restore_value. cv.use_id(cg.Component) because the globals
+    # component declares several unrelated classes (GlobalsComponent,
+    # RestoringGlobalsComponent, RestoringGlobalStringComponent) -- only the
+    # id string is consumed here (baked into the name<->key table), the
+    # variable itself is never awaited.
+    cv.Optional(CONF_PREFERENCES): cv.ensure_list(cv.use_id(cg.Component)),
+}
+
+
+def _validate_preferences_target(config):
+    has_path = CONF_PATH in config
+    has_device = CONF_DEVICE in config
+    if has_path == has_device:
+        raise cv.Invalid("Exactly one of 'path' or 'device' is required")
+    if has_device:
+        if CONF_FORMAT in config:
+            raise cv.Invalid(
+                "'format' does not apply to a raw device: the blob is written as stored, "
+                "there is nothing to render"
+            )
+        if CONF_ADDRESS not in config:
+            raise cv.Invalid("'address' is required when the target is a raw device")
+    elif CONF_ADDRESS in config:
+        raise cv.Invalid("'address' only applies to a raw device target ('device:')")
+    return config
+
+
+_EXPORT_PREFERENCES_SCHEMA = cv.All(
+    cv.only_on(["esp32"]),
+    cv.Schema(_PREFERENCES_ACTION_BASE),
+    _validate_preferences_target,
+)
+
+_IMPORT_PREFERENCES_SCHEMA = cv.All(
+    cv.only_on(["esp32"]),
+    cv.Schema(
+        {
+            **_PREFERENCES_ACTION_BASE,
+            # Preferences are read at boot -- imported values only take effect
+            # after a restart. Opt-in convenience.
+            cv.Optional(CONF_REBOOT, default=False): cv.boolean,
+        }
+    ),
+    _validate_preferences_target,
+)
+
+
+# Per-type version constants of EntityBase::make_entity_preference_() callers.
+# Keep in sync: fan/fan.cpp, climate/climate.cpp; every other core entity uses
+# the default version 0. template text is special-cased (trait-salted key).
+# (module, class, version, EntityKind) -- kinds map to real-struct codecs in
+# preferences_backup.cpp; anything not matched below registers as RAW (named,
+# hex value). datetime template platforms carry their own versions.
+# Container arithmetic, used to catch overlapping regions at config time. Layout is fixed by
+# preferences_backup.cpp: a 16-byte header plus {key u32, len u16, blob} per entry.
+_RAW_PREF_HEADER = 16
+_RAW_PREF_ENTRY_OVERHEAD = 6
+_PREF_TYPE_SIZES = {
+    "BOOL": 1,
+    "I8": 1,
+    "U8": 1,
+    "I16": 2,
+    "U16": 2,
+    "I32": 4,
+    "U32": 4,
+    "F32": 4,
+    "F64": 8,
+}
+
+
+def _raw_pref_size(entries: list[tuple[str, int]]) -> int:
+    """Exact container size for an explicit selection: (PrefType tag, count) per entry."""
+    total = _RAW_PREF_HEADER
+    for tag, count in entries:
+        # STRING blobs are length-prefixed char[SZ], with SZ already carried in count.
+        elem = 1 if tag == "STRING" else _PREF_TYPE_SIZES[tag]
+        total += _RAW_PREF_ENTRY_OVERHEAD + elem * count
+    return total
+
+
+async def _resolve_raw_pref_regions():
+    """Hands every raw preferences action the room it actually has, and rejects regions that
+    would run into each other.
+
+    Codegen knows every action's address, so nobody has to repeat "and it may use N bytes":
+    a region reaches up to the next address on the same device, and the last one to the end of
+    the device -- which only the device knows, hence window 0 for it. An export and its import
+    share one address by design (that is the pair), so actions are grouped by address, not
+    counted individually.
+
+    Where a selection is explicit the container size is exact and a collision is a config
+    error. An unrestricted selection grows with the app, so that case cannot be sized here and
+    is caught at runtime by the window instead -- the export refuses rather than writing into
+    the neighbouring region."""
+    for device, actions in _get_data().raw_pref_regions.items():
+        by_address: dict[int, dict] = {}
+        for action in actions:
+            region = by_address.setdefault(
+                action["address"], {"size": None, "actions": []}
+            )
+            region["actions"].append(action)
+            if action["size"] is not None:
+                region["size"] = max(region["size"] or 0, action["size"])
+
+        addresses = sorted(by_address)
+        for i, address in enumerate(addresses):
+            region = by_address[address]
+            if i + 1 < len(addresses):
+                window = addresses[i + 1] - address
+                size = region["size"]
+                if size is not None and size > window:
+                    raise cv.Invalid(
+                        f"The preferences region at 0x{address:X} on '{device}' needs {size} "
+                        f"bytes and would run into the region at 0x{addresses[i + 1]:X} "
+                        f"({window} bytes apart)"
+                    )
+            else:
+                window = 0  # to the end of the device
+            for action in region["actions"]:
+                cg.add(action["var"].set_raw_target(action["device"], address, window))
+
+
+def _register_raw_pref_region(device_id, device_var, address, size, var):
+    data = _get_data()
+    data.raw_pref_regions.setdefault(str(device_id), []).append(
+        {"address": address, "size": size, "var": var, "device": device_var}
+    )
+    if not data.raw_pref_job_queued:
+        data.raw_pref_job_queued = True
+        # FINAL: every action must be built before the regions can be laid out.
+        CORE.add_job(
+            coroutine_with_priority(CoroPriority.FINAL)(_resolve_raw_pref_regions)
+        )
+
+
+async def _build_preferences_action(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    cg.add_define("USE_STORAGE_PREFERENCES")
+    # Once per build, not per action: naming is a property of the node, not of the action.
+    data = _get_data()
+    if not data.sensor_pref_job_queued:
+        data.sensor_pref_job_queued = True
+        CORE.add_job(
+            coroutine_with_priority(CoroPriority.FINAL)(_register_typed_sensors)
+        )
+        CORE.add_job(
+            coroutine_with_priority(CoroPriority.FINAL)(_register_component_prefs)
+        )
+    if CONF_PATH in config:
+        template_ = await cg.templatable(config[CONF_PATH], args, cg.std_string)
+        cg.add(var.set_path(template_))
+        cg.add(var.set_format(config.get(CONF_FORMAT, "kv")))
+
+    def _bake(entries, restrict):
+        # entity-only selections produce zero table entries: emitting
+        # "static const T x[] = {}" would be a zero-size array (GNU
+        # extension, not ISO C++) -- pass a null table instead
+        if not entries:
+            cg.add(var.set_selection(cg.nullptr, 0, restrict))
+            return
+
+        arr = f"{action_id}_psel"
+        cg.add_global(
+            cg.RawExpression(
+                f"static const esphome::storage::PrefSelection {arr}[] = {{"
+                + ", ".join(entries)
+                + "}"
+            )
+        )
+        cg.add(var.set_selection(cg.RawExpression(arr), len(entries), restrict))
+
+    def _entry(name, tag, count):
+        key = _global_nvs_key(name)
+        return f'{{"{name}", {key}UL, esphome::storage::PrefType::{tag}, {count}}}'
+
+    if selection := config.get(CONF_PREFERENCES):
+        # get_variable_with_full_id is a coroutine: it suspends until the
+        # global's own to_code has registered the variable -- the declaration
+        # ID it returns carries the real C++ class (codegen-world data, no
+        # validation-step leftovers).
+        entries = []
+        sizes = []
+        has_entities = False
+        for gid in selection:
+            full_id, obj = await cg.get_variable_with_full_id(gid)
+            parsed = _pref_type_from_class(str(full_id.type))
+            if parsed is not None:
+                entries.append(_entry(gid.id, *parsed))
+                sizes.append(parsed)
+                continue
+            # anything else is treated as an entity: the runtime sweep
+            # resolves name/kind/key from the live object; unresolvable
+            # selections log a loud skip at play time
+            cg.add(var.add_selected_entity(obj))
+            has_entities = True
+        if entries or has_entities:
+            _bake(entries, True)
+        # Entity selections carry no codegen-known blob size (their layout is a component
+        # private, resolved by the runtime sweep) -- the size stays unknown then, and only the
+        # window guards that case.
+        raw_size = None if has_entities else _raw_pref_size(sizes)
+    else:
+        # All mode: enumerate the codegen variable registry once every
+        # pending to_code has run. Scheduled as its own coroutine job -- it is
+        # enqueued behind all already-queued component jobs, so the globals
+        # are registered by the time it executes.
+        # globals' own to_code runs at CoroPriority.LATE (-100) -- an
+        # unprioritized job would enumerate CORE.variables BEFORE any global
+        # is registered (verified empirically: 14 vars, zero globals).
+        # FINAL (-1000) queues the bake after every component job.
+        @coroutine_with_priority(CoroPriority.FINAL)
+        async def _bake_all():
+            # globals only -- entity naming is entirely the runtime sweep's job
+            entries = []
+            for reg_id in CORE.variables:
+                parsed = _pref_type_from_class(str(reg_id.type))
+                if parsed is not None:
+                    entries.append(_entry(reg_id.id, *parsed))
+            if entries:
+                _bake(entries, False)
+
+        CORE.add_job(_bake_all)
+        raw_size = (
+            None  # the namespace grows with the app -- only the window can guard this
+        )
+
+    if CONF_DEVICE in config:
+        device_var = await cg.get_variable(config[CONF_DEVICE])
+        _register_raw_pref_region(
+            config[CONF_DEVICE], device_var, config[CONF_ADDRESS], raw_size, var
+        )
+    return var
+
+
+@automation.register_action(
+    "storage.export_preferences",
+    ExportPreferencesAction,
+    _EXPORT_PREFERENCES_SCHEMA,
+    synchronous=True,
+)
+async def export_preferences_to_code(config, action_id, template_arg, args):
+    return await _build_preferences_action(config, action_id, template_arg, args)
+
+
+@automation.register_action(
+    "storage.import_preferences",
+    ImportPreferencesAction,
+    _IMPORT_PREFERENCES_SCHEMA,
+    synchronous=True,
+)
+async def import_preferences_to_code(config, action_id, template_arg, args):
+    var = await _build_preferences_action(config, action_id, template_arg, args)
+    cg.add(var.set_reboot(config[CONF_REBOOT]))
+    return var
+
+
+# ---- file_system option (sd_storage / usb_storage) --------------------------------------
+# The option does not exist without esp32 enable_exfat: without exFAT the filesystem is
+# always FAT32, there is nothing to choose and nothing to probe -- the mount path stays
+# exactly as it is today. With exFAT enabled the option appears with default "auto"
+# (FatFs' own boot-sector detection inside f_mount); an explicit fat32/exfat probes the
+# medium BEFORE the mount and reformats first on mismatch, so the one mount that happens
+# is already on the requested filesystem.
+CONF_FILE_SYSTEM = "file_system"
+FILE_SYSTEM_AUTO = "auto"
+FILE_SYSTEM_FAT32 = "fat32"
+FILE_SYSTEM_EXFAT = "exfat"
+
+FILE_SYSTEM_SCHEMA_ENTRY = cv.Optional(CONF_FILE_SYSTEM)
+validate_file_system_value = cv.one_of(
+    FILE_SYSTEM_AUTO, FILE_SYSTEM_FAT32, FILE_SYSTEM_EXFAT, lower=True
+)
+
+
+def _esp32_exfat_enabled(fconf) -> bool:
+    from esphome.components.esp32 import CONF_ENABLE_EXFAT
+    from esphome.components.esp32.const import KEY_ESP32
+    from esphome.const import CONF_ADVANCED, CONF_FRAMEWORK
+
+    esp32 = fconf.get(KEY_ESP32)
+    if not esp32:
+        return False
+    return bool(
+        esp32.get(CONF_FRAMEWORK, {})
+        .get(CONF_ADVANCED, {})
+        .get(CONF_ENABLE_EXFAT, False)
+    )
+
+
+def final_validate_file_system(config) -> None:
+    """Reject the option outright when exFAT is not compiled in."""
+    if CONF_FILE_SYSTEM not in config:
+        return
+    if not _esp32_exfat_enabled(fv.full_config.get()):
+        raise cv.Invalid(
+            f"'{CONF_FILE_SYSTEM}' is not available without 'enable_exfat: true' in the "
+            f"esp32 framework advanced options -- without exFAT the filesystem is always "
+            f"FAT32 and there is nothing to choose"
+        )
+
+
+async def file_system_to_code(var, config) -> None:
+    """Emit the selection define + setter -- only when the option may exist at all."""
+    if not _esp32_exfat_enabled(CORE.config):
+        return  # not even the auto path is compiled in
+
+    cg.add_define("USE_STORAGE_FILE_SYSTEM_SELECT")
+    fs = config.get(CONF_FILE_SYSTEM, FILE_SYSTEM_AUTO)
+    value = {FILE_SYSTEM_AUTO: 0, FILE_SYSTEM_FAT32: 1, FILE_SYSTEM_EXFAT: 2}[fs]
+    cg.add(var.set_requested_file_system(value))
