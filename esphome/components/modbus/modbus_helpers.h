@@ -67,6 +67,22 @@ bool is_server_pdu_standard(const uint8_t *pdu, size_t size);
 // Returns true if pdu is internally consistent, in range, standard 2-byte registers
 bool is_client_pdu_standard(const uint8_t *pdu, size_t size);
 
+// Remove before 2027.2.0
+ESPDEPRECATED("Use server_pdu_payload() on the response PDU instead. Removed in 2027.2.0", "2026.8.0")
+inline uint8_t server_frame_data_offset(const uint8_t *frame, size_t size) {
+  if (size < 2)
+    return 0;
+  switch (static_cast<ModbusFunctionCode>(frame[1])) {
+    case ModbusFunctionCode::READ_COILS:
+    case ModbusFunctionCode::READ_DISCRETE_INPUTS:
+    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
+    case ModbusFunctionCode::READ_INPUT_REGISTERS:
+      return 3;  // address(1) + function(1) + byte count(1) + data + CRC(2)
+    default:
+      return 2;
+  }
+}
+
 /** Returns the payload portion of a server response PDU: the bytes after the function code, and for the
  * standard read responses (0x01-0x04) also after the byte-count byte. Responses to 0x14/0x17 also carry a
  * byte-count byte, but those codes are not implemented and their count byte is left in the payload. For
