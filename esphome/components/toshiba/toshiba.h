@@ -81,9 +81,10 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
   climate::ClimateSwingModeMask toshiba_swing_modes_() {
     if (this->model_ == MODEL_GENERIC)
       return climate::ClimateSwingModeMask();
-    if (this->model_ == MODEL_SEIYA)
+    if (this->model_ == MODEL_SEIYA) {
       return climate::ClimateSwingModeMask{climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
                                            climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH};
+    }
     return climate::ClimateSwingModeMask{climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL};
   }
   void encode_(remote_base::RemoteTransmitData *data, const uint8_t *message, uint8_t nbytes, uint8_t repeat);

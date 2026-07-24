@@ -1135,7 +1135,7 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
   // Seiya uses different IR timings from the generic Toshiba protocol, so it has its
   // own receive path and must not flow through the ToshibaAcProtocol / generic decoders.
   if (this->model_ == MODEL_SEIYA) {
-    return this->on_receive_seiya_(std::move(data));
+    return this->on_receive_seiya_(data);
   }
 
   // Try modern ToshibaAcProtocol decoder first (handles RAS-2819T and potentially others)
@@ -1674,14 +1674,10 @@ void ToshibaClimate::seiya_decode_state_(const uint8_t *message, uint8_t nbytes)
       this->fan_mode = climate::CLIMATE_FAN_LOW;
       break;
     case SEIYA_FAN_2:
-      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-      break;
     case SEIYA_FAN_3:
       this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
       break;
     case SEIYA_FAN_4:
-      this->fan_mode = climate::CLIMATE_FAN_HIGH;
-      break;
     case SEIYA_FAN_5:
       this->fan_mode = climate::CLIMATE_FAN_HIGH;
       break;
