@@ -61,12 +61,17 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
                                (status_code == 200 && range_start == 0))) {
           break;
         }
-        ESP_LOGW(TAG, "Bad response: status %d, length %d", status_code, chunk_size);
+        if (status_code == 200) {
+          // A server that ignored the range once will ignore it again
+          ESP_LOGE(TAG, "Server does not support range requests (got 200 at offset %" PRIu32 ")", range_start);
+          chunk_size = -1;
+          break;
+        }
+        ESP_LOGW(TAG, "Bad response: status %d, length %d (expected %" PRIu32 ")", status_code, chunk_size,
+                 range_end - range_start + 1);
         chunk_size = -1;
-        // A server that ignored the range once will ignore it again; a 4xx
-        // (except timeout/rate-limit) won't improve on retry either.
-        if (status_code == 200 ||
-            (status_code >= 400 && status_code < 500 && status_code != 408 && status_code != 429)) {
+        // A 4xx (except timeout/rate-limit) won't improve on retry
+        if (status_code >= 400 && status_code < 500 && status_code != 408 && status_code != 429) {
           break;
         }
       } else {
@@ -193,6 +198,9 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
         } else {
           range_start = range_end + 1;
         }
+        // The response body may be only partially read; close so the next
+        // range request starts on a clean connection.
+        esp_http_client_close(http_client);
         // Deallocate buffer
         allocator.deallocate(buffer, 4096);
         buffer = nullptr;
