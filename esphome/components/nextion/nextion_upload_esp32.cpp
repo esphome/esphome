@@ -45,6 +45,7 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
   esp_http_client_set_header(http_client, "Range", range_header);
   ESP_LOGV(TAG, "Open HTTP");
   int chunk_size = -1;
+  int status_code = -1;
   for (uint8_t attempt = 0; attempt < this->tft_upload_http_retries_; attempt++) {
     esp_err_t err = esp_http_client_open(http_client, 0);
     if (err == ESP_OK) {
@@ -52,13 +53,17 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
       chunk_size = esp_http_client_fetch_headers(http_client);
       ESP_LOGV(TAG, "Length: %d", chunk_size);
       if (chunk_size > 0) {
-        const int status_code = esp_http_client_get_status_code(http_client);
-        if (status_code == 206)
+        status_code = esp_http_client_get_status_code(http_client);
+        // A full-body 200 from a server without range support is usable only
+        // from offset 0; at any other offset it would replay the file from
+        // the start and corrupt the display.
+        if (status_code == 206 || (status_code == 200 && range_start == 0))
           break;
-        // Anything but 206 means the server ignored or rejected the range;
-        // its body must not reach the display as TFT data.
         ESP_LOGW(TAG, "Unexpected HTTP status: %d", status_code);
         chunk_size = -1;
+        // 4xx responses (except timeout/rate-limit) won't improve on retry
+        if (status_code >= 400 && status_code < 500 && status_code != 408 && status_code != 429)
+          break;
       } else {
         ESP_LOGW(TAG, "Get length failed: %d", chunk_size);
       }
@@ -72,7 +77,7 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
     App.feed_wdt();
   }
   if (chunk_size <= 0) {
-    ESP_LOGE(TAG, "HTTP request failed after %u attempts", this->tft_upload_http_retries_);
+    ESP_LOGE(TAG, "HTTP request failed, last status: %d", status_code);
     return -1;
   }
 
