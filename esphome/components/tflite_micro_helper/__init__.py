@@ -395,7 +395,9 @@ async def to_code(config):
         esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.3.7")
         esp32.add_idf_component(name="espressif/esp-nn", ref="1.2.3")
         if model_type == "audio":
-            esp32.add_idf_component(name="esphome/esp-micro-speech-features", ref="1.2.3")
+            esp32.add_idf_component(
+                name="esphome/esp-micro-speech-features", ref="1.2.3"
+            )
 
 
 async def _configure_image_model(entry, var, model_path, model_data):
