@@ -304,7 +304,7 @@ class NFSClient final : public storage::NetworkStorage, public storage::Mountabl
   void set_server(const char *server) { this->server_ = server; }
   void set_port(uint16_t port) { this->port_ = port; }
   void set_export(const char *export_path) { this->export_path_ = export_path; }
-  // Feeds the inherited PathStorage mount path — resolve_path()/consumers read it from there.
+  // Feeds the inherited PathStorage mount path -- resolve_path()/consumers read it from there.
   // (A private shadow member here previously left PathStorage's copy null, making this device
   // invisible to path routing despite registering fine.)
   void set_mount_path(const char *mount_path) { this->set_mount_path_(mount_path); }
@@ -319,7 +319,7 @@ class NFSClient final : public storage::NetworkStorage, public storage::Mountabl
   // MountableStorage interface
   //========================================================================
 
-  // No-RTTI downcast hook — see PathStorage::as_mountable().
+  // No-RTTI downcast hook -- see PathStorage::as_mountable().
   storage::MountableStorage *as_mountable() override { return this; }
 
   // mount() requests one asynchronous mount attempt; loop() carries it out step by step
@@ -334,7 +334,7 @@ class NFSClient final : public storage::NetworkStorage, public storage::Mountabl
   //========================================================================
 
   storage::StorageError get_info(storage::StorageInfo *info) override;
-  // connect()/disconnect() are the NetworkStorage names for the same two operations —
+  // connect()/disconnect() are the NetworkStorage names for the same two operations --
   // they delegate to mount()/unmount() above (one implementation, two interface names).
   storage::StorageError connect() override;
   storage::StorageError disconnect() override;
@@ -382,7 +382,7 @@ class NFSClient final : public storage::NetworkStorage, public storage::Mountabl
   bool connected_{false};
   bool mounted_{false};
   // Flip mounted_ through here so a real state change (false<->true) feeds the file browser's
-  // change poll exactly once — the mount state is part of the roots listing. A no-op change
+  // change poll exactly once -- the mount state is part of the roots listing. A no-op change
   // (same value) notifies nobody. See note_dir_changed("").
   void set_mounted_(bool mounted);
   NFSFileHandle root_fh_;
@@ -406,11 +406,11 @@ class NFSClient final : public storage::NetworkStorage, public storage::Mountabl
   uint32_t last_inline_mount_ms_{0};
   // Runs the request-edge and one state-machine step (extracted from loop(), which still
   // drives it every pass); ensure_mounted_() drives it to completion inline so every
-  // data-plane action is self-contained — see the definition for the reasoning.
+  // data-plane action is self-contained -- see the definition for the reasoning.
   void drive_mount_state_();
   bool ensure_mounted_();
   // Set by mount()/connect() or the auto-connect edge below; consumed by loop() to start one
-  // mount attempt. No periodic retry exists anymore — FAILED is terminal until the next
+  // mount attempt. No periodic retry exists anymore -- FAILED is terminal until the next
   // request (users schedule retries themselves via interval:/automations + storage.mount).
   bool mount_requested_{false};
   // Fire one mount attempt on each rising edge of network connectivity (default on). The
@@ -434,10 +434,10 @@ class NFSClient final : public storage::NetworkStorage, public storage::Mountabl
 
   RPCClient rpc_;
   // Fixed RPC response buffer: must hold the largest single RPC reply, which is a READ (its
-  // NFS maxcount is 32 kB) plus RPC/NFS header overhead — 64 kB covers it with margin. Sized as
+  // NFS maxcount is 32 kB) plus RPC/NFS header overhead -- 64 kB covers it with margin. Sized as
   // one block (not a halving streaming chunk): a short buffer would truncate replies, so this is
   // deliberately not routed through alloc_dma_capable. Filled by TCP recv(), never DMA, so no
-  // DMA caps are needed — PSRAM placement (below) is only to spare internal RAM.
+  // DMA caps are needed -- PSRAM placement (below) is only to spare internal RAM.
   static constexpr size_t RPC_RESPONSE_BUFFER_SIZE = 65536;
   std::unique_ptr<uint8_t[]> rpc_response_buffer_;
 

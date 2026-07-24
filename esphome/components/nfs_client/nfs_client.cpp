@@ -193,7 +193,7 @@ bool NFSFileAttr::decode(XDRBuffer &xdr) {
     ESP_LOGV(TAG, "NFSFileAttr::decode failed at used");
     return false;
   }
-  // Skip rdev/specinfo (8 bytes) — only meaningful for device files
+  // Skip rdev/specinfo (8 bytes) -- only meaningful for device files
   uint64_t rdev;
   if (!xdr.decode_uint64(rdev)) {
     ESP_LOGV(TAG, "NFSFileAttr::decode failed at rdev");
@@ -379,14 +379,14 @@ void NFSClient::setup() {
 
   this->mount_state_ = MountState::IDLE;
 
-  // Register before any mount attempt, not only on success — get_info() reports is_mounted
+  // Register before any mount attempt, not only on success -- get_info() reports is_mounted
   // correctly either way, and this lets the device (and storage.mount/unmount actions, the
   // web file browser, path routing) see the share even while it is unmounted. Same pattern
   // as sd_storage: registered-but-unmounted is the normal state for a mountable device.
   if (storage::global_storage_registry != nullptr) {
     if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
       // Registry full = codegen/runtime device-count mismatch: the device would be invisible
-      // to resolve_path()/consumers. Fatal — do not run with a silently missing device.
+      // to resolve_path()/consumers. Fatal -- do not run with a silently missing device.
       ESP_LOGE(TAG, "Storage registration failed");
       this->mark_failed();
     }
@@ -398,14 +398,14 @@ bool NFSClient::ensure_mounted_() {
     return true;
   // Every file-api and browser action is self-contained: none may assume that some earlier
   // action (a listing, a poll) has already brought the share up. So the action itself
-  // mounts, inline and synchronously — the state machine's steps are all synchronous RPCs,
+  // mounts, inline and synchronously -- the state machine's steps are all synchronous RPCs,
   // loop() merely spreads them out; here they run back to back. Rate-limited so a dead
   // server does not turn every knock into a fresh stack of RPC timeouts.
   uint32_t now = millis();
   if (now - this->last_inline_mount_ms_ < 3000)
     return false;
   this->last_inline_mount_ms_ = now;
-  ESP_LOGD(TAG, "Action against unmounted share — mounting inline");
+  ESP_LOGD(TAG, "Action against unmounted share -- mounting inline");
   this->mount_requested_ = true;
   const uint32_t deadline = now + 8000;  // hard cap; each RPC has its own shorter timeout
   while (!this->mounted_ && millis() < deadline) {
@@ -418,7 +418,7 @@ bool NFSClient::ensure_mounted_() {
     App.feed_wdt();
   }
   if (!this->mounted_)
-    ESP_LOGW(TAG, "Inline mount failed — action answers NOT_READY");
+    ESP_LOGW(TAG, "Inline mount failed -- action answers NOT_READY");
   return this->mounted_;
 }
 
@@ -431,7 +431,7 @@ void NFSClient::loop() {
   // network drop re-arms the edge so a reconnect remounts an unmounted share automatically.
   const bool net_connected = network::is_connected();
   if (this->auto_connect_ && net_connected && !this->network_was_connected_ && !this->mounted_) {
-    ESP_LOGD(TAG, "Network up — auto-connect requests NFS mount");
+    ESP_LOGD(TAG, "Network up -- auto-connect requests NFS mount");
     this->mount_requested_ = true;
   }
   this->network_was_connected_ = net_connected;
@@ -441,7 +441,7 @@ void NFSClient::loop() {
 
 void NFSClient::drive_mount_state_() {
   // A pending request only starts a new attempt from a resting state; FAILED is terminal
-  // otherwise (no periodic retry — retries are the user's decision via interval:/automations
+  // otherwise (no periodic retry -- retries are the user's decision via interval:/automations
   // calling storage.mount, the next network-up edge above, or an action mounting inline
   // through ensure_mounted_()).
   if (this->mount_requested_ && (this->mount_state_ == MountState::IDLE || this->mount_state_ == MountState::FAILED)) {
@@ -525,7 +525,7 @@ void NFSClient::drive_mount_state_() {
       break;
 
     case MountState::MOUNTED:
-      // A request that arrived mid-attempt has reached its target state — drop it so it
+      // A request that arrived mid-attempt has reached its target state -- drop it so it
       // cannot restart the pipeline after a later manual unmount.
       this->mount_requested_ = false;
       break;
@@ -553,7 +553,7 @@ storage::StorageError NFSClient::get_info(storage::StorageInfo *info) {
     return storage::StorageError::INVALID_ARGS;
   }
   // Storage contract: get_info() must succeed even when registered-but-unmounted and
-  // report that via is_mounted — never via a non-OK error, and never with a server
+  // report that via is_mounted -- never via a non-OK error, and never with a server
   // round-trip while unmounted.
   info->id = (this->mount_path_ != nullptr) ? this->mount_path_ : "nfs";
   info->name = "NFS";
@@ -587,7 +587,7 @@ storage::StorageError NFSClient::mount() {
 storage::StorageError NFSClient::unmount() {
   if (!this->mounted_)
     return storage::StorageError::OK;
-  // Quiesce first — same drain guarantee as unregister_storage() (no in-flight
+  // Quiesce first -- same drain guarantee as unregister_storage() (no in-flight
   // storage_worker data-plane call against this device remains), but the device stays
   // registered: registered-but-unmounted is its normal state (see setup()), so there is
   // nothing to re-register afterwards and consumers never see it vanish.
@@ -605,12 +605,12 @@ storage::StorageError NFSClient::unmount() {
 }
 
 storage::StorageError NFSClient::connect() {
-  // NetworkStorage name for the same operation — see the header.
+  // NetworkStorage name for the same operation -- see the header.
   return this->mount();
 }
 
 storage::StorageError NFSClient::disconnect() {
-  // NetworkStorage name for the same operation — see the header.
+  // NetworkStorage name for the same operation -- see the header.
   return this->unmount();
 }
 
@@ -648,7 +648,7 @@ storage::StorageError NFSClient::read_chunk(const char *path, uint8_t *buf, uint
     return storage::StorageError::INVALID_ARGS;
   }
   if (offset >= attr.size) {
-    // EOF — not an error, just 0 bytes transferred
+    // EOF -- not an error, just 0 bytes transferred
     return storage::StorageError::OK;
   }
 
@@ -721,7 +721,7 @@ storage::StorageError NFSClient::write_chunk(const char *path, const uint8_t *bu
   NFSFileAttr attr;
 
   if (!this->resolve_path_(path_str, fh, attr)) {
-    // File does not exist — create it
+    // File does not exist -- create it
     NFSFileHandle parent_fh;
     std::string filename;
     if (!this->resolve_parent_path_(path_str, parent_fh, filename)) {
@@ -788,7 +788,7 @@ storage::StorageError NFSClient::stat(const char *path, storage::FileStat *stat)
     return storage::StorageError::NOT_FOUND;
   }
 
-  // Fill FileStat — extract filename component from path
+  // Fill FileStat -- extract filename component from path
   const char *name_start = strrchr(path, '/');
   name_start = (name_start != nullptr) ? name_start + 1 : path;
   strncpy(stat->name, name_start, storage::STORAGE_NAME_MAX);
@@ -860,7 +860,7 @@ storage::StorageError NFSClient::mkdir(const char *path) {
     return storage::StorageError::OK;
   }
   // Distinguish 'already there' (fine for mkdir-p style callers, e.g. the
-  // store_yaml export tree recreation) from real write failures — same
+  // store_yaml export tree recreation) from real write failures -- same
   // mapping the local-filesystem drivers use for EEXIST.
   return nfs_status == NFS3ERR_EXIST ? storage::StorageError::ALREADY_EXISTS : storage::StorageError::WRITE_ERROR;
 }
@@ -877,7 +877,7 @@ storage::StorageError NFSClient::rmdir(const char *path) {
 
   // Non-recursive per the storage:: contract: must fail with NOT_EMPTY if the directory has
   // contents. Recursive delete is the free storage::remove_recursive() helper, built on top
-  // of list_dir()/remove()/this rmdir() — no need to duplicate that tree-walk here.
+  // of list_dir()/remove()/this rmdir() -- no need to duplicate that tree-walk here.
   NFSFileHandle fh;
   NFSFileAttr attr;
   if (!this->resolve_path_(path_str, fh, attr)) {
@@ -968,7 +968,7 @@ storage::StorageError NFSClient::rename(const char *old_path, const char *new_pa
     case NFS3ERR_INVAL:
       return storage::StorageError::INVALID_ARGS;
     case NFS3ERR_XDEV:
-      // RENAME is confined to one file system on the server, and an export can span several —
+      // RENAME is confined to one file system on the server, and an export can span several --
       // so a rename inside a single mount can still be refused. Same meaning the local drivers
       // give EXDEV: not this way, copy instead.
       return storage::StorageError::NOT_SUPPORTED;
@@ -990,7 +990,7 @@ bool NFSClient::get_file_attributes(const std::string &path, NFSFileAttr &attr) 
 
 bool NFSClient::get_space_info(uint64_t &total_bytes, uint64_t &free_bytes) {
   // Deliberately passive (no ensure_mounted_): this feeds the roots listing, which the
-  // browser rebuilds on polls — display metadata must never fire inline mount attempts
+  // browser rebuilds on polls -- display metadata must never fire inline mount attempts
   // against a dead server every few seconds. Actions mount; listings show what is.
   if (!this->mounted_ || !this->root_fh_.is_valid()) {
     return false;
@@ -1141,7 +1141,7 @@ bool NFSClient::connect_tcp_() {
     return false;
   }
 
-  // Bind to privileged port (<1024) — many NFS servers require this
+  // Bind to privileged port (<1024) -- many NFS servers require this
   struct sockaddr_in bind_addr;
   memset(&bind_addr, 0, sizeof(bind_addr));
   bind_addr.sin_family = AF_INET;
@@ -1224,7 +1224,7 @@ void NFSClient::close_connection_() {
 
 void NFSClient::set_mounted_(bool mounted) {
   if (this->mounted_ == mounted)
-    return;  // no real change — notify nobody
+    return;  // no real change -- notify nobody
   this->mounted_ = mounted;
 #ifdef USE_STORAGE_CHANGE_FEED
   // Mount state is part of the roots listing: whoever flipped it (mount action, auto-connect,
@@ -1512,7 +1512,7 @@ bool NFSClient::unmount_export_(const std::string &export_path) {
   // is advisory server-side bookkeeping (RFC 1813), so a failure here must not block
   // the local unmount.
   if (!this->mount_port_discovered_) {
-    ESP_LOGD(TAG, "MOUNT port unknown — skipping advisory UMNT");
+    ESP_LOGD(TAG, "MOUNT port unknown -- skipping advisory UMNT");
     return false;
   }
   this->close_connection_();
@@ -1521,7 +1521,7 @@ bool NFSClient::unmount_export_(const std::string &export_path) {
   bool connected = this->connect_tcp_();
   this->mount_state_ = prev_state;
   if (!connected) {
-    ESP_LOGD(TAG, "Could not reach MOUNT service for advisory UMNT — skipping");
+    ESP_LOGD(TAG, "Could not reach MOUNT service for advisory UMNT -- skipping");
     return false;
   }
 
@@ -1652,7 +1652,7 @@ bool NFSClient::nfs_lookup_(const NFSFileHandle &dir_fh, const std::string &name
   if (!response.decode_uint32(nfs_status) || nfs_status != NFS3_OK) {
     // NOENT is the expected, common case: LOOKUP is how a not-yet-existing path is probed
     // (e.g. the existence check before a write). NFS is stateless, so this is normal traffic,
-    // not a fault — keep it at verbose. Any other status is a real problem and stays a warning.
+    // not a fault -- keep it at verbose. Any other status is a real problem and stays a warning.
     if (nfs_status == NFS3ERR_NOENT) {
       ESP_LOGV(TAG, "LOOKUP: not found (status=%" PRIu32 ")", nfs_status);
     } else {
@@ -1699,7 +1699,7 @@ bool NFSClient::nfs_getattr_(const NFSFileHandle &fh, NFSFileAttr &attr) {
     return false;
   }
   if (nfs_status != NFS3_OK) {
-    // NOENT is expected here too — GETATTR is used to stat a path that may not exist. Verbose
+    // NOENT is expected here too -- GETATTR is used to stat a path that may not exist. Verbose
     // for the normal not-found case; a warning only for genuine failures.
     if (nfs_status == NFS3ERR_NOENT) {
       ESP_LOGV(TAG, "GETATTR: not found (status=%" PRIu32 ")", nfs_status);
@@ -1935,7 +1935,7 @@ bool NFSClient::nfs_mkdir_(const NFSFileHandle &dir_fh, const std::string &name,
   if (nfs_status_out != nullptr)
     *nfs_status_out = decoded ? nfs_status : 0;
   if (!decoded || nfs_status != NFS3_OK) {
-    // NFS3ERR_EXIST is an expected answer for idempotent mkdir-p callers —
+    // NFS3ERR_EXIST is an expected answer for idempotent mkdir-p callers --
     // the StorageError mapping below reports it, no warning spam here.
     if (nfs_status != NFS3ERR_EXIST) {
       ESP_LOGW(TAG, "MKDIR failed: status=%" PRIu32, nfs_status);

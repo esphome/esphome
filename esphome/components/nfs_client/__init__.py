@@ -48,7 +48,7 @@ NFS_SHARE_SCHEMA = cv.Schema(
         cv.Optional(CONF_UID, default=DEFAULT_UID): cv.int_range(min=0, max=65535),
         cv.Optional(CONF_GID, default=DEFAULT_GID): cv.int_range(min=0, max=65535),
         # Fire one mount attempt on each rising edge of network connectivity (wifi,
-        # ethernet, modem or openthread — whichever the config uses). No periodic retry:
+        # ethernet, modem or openthread -- whichever the config uses). No periodic retry:
         # schedule retries yourself via interval:/automations calling storage.mount.
         cv.Optional(CONF_AUTO_CONNECT, default=True): cv.boolean,
     }
