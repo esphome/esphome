@@ -8,8 +8,7 @@
 
 #include "esphome/components/logger/logger.h"
 
-namespace esphome {
-namespace improv_serial {
+namespace esphome::improv_serial {
 
 static const char *const TAG = "improv_serial";
 
@@ -23,7 +22,9 @@ void ImprovSerialComponent::setup() {
 
   if (wifi::global_wifi_component->has_sta()) {
     this->state_ = improv::STATE_PROVISIONED;
-  } else {
+  } else if (!wifi::global_wifi_component->is_disabled()) {
+    // Respect Wi-Fi's disabled state; forcing a scan while disabled throws
+    // the wifi component into an invalid state from which it cannot recover.
     wifi::global_wifi_component->start_scanning();
   }
 }
@@ -69,11 +70,9 @@ optional<uint8_t> ImprovSerialComponent::read_byte_() {
   switch (logger::global_logger->get_uart()) {
     case logger::UART_SELECTION_UART0:
     case logger::UART_SELECTION_UART1:
-#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32)
     case logger::UART_SELECTION_UART2:
-#endif  // !USE_ESP32_VARIANT_ESP32C3 && !USE_ESP32_VARIANT_ESP32C6 && !USE_ESP32_VARIANT_ESP32C61 &&
-        // !USE_ESP32_VARIANT_ESP32S2 && !USE_ESP32_VARIANT_ESP32S3
+#endif
       if (this->uart_num_ >= 0) {
         size_t available;
         uart_get_buffered_data_len(this->uart_num_, &available);
@@ -137,8 +136,7 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
   switch (logger::global_logger->get_uart()) {
     case logger::UART_SELECTION_UART0:
     case logger::UART_SELECTION_UART1:
-#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32)
     case logger::UART_SELECTION_UART2:
 #endif
       uart_write_bytes(this->uart_num_, this->tx_header_, header_tx_len);
@@ -234,6 +232,13 @@ bool ImprovSerialComponent::parse_improv_serial_byte_(uint8_t byte) {
 bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command) {
   switch (command.command) {
     case improv::WIFI_SETTINGS: {
+      if (wifi::global_wifi_component->is_disabled()) {
+        // Wi-Fi is disabled, so we can't provision. Respond immediately
+        // instead of letting the client wait out its provisioning timeout.
+        ESP_LOGW(TAG, "Wi-Fi is disabled; cannot provision");
+        this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
+        return true;
+      }
       wifi::WiFiAP sta{};
       sta.set_ssid(command.ssid.c_str());
       sta.set_password(command.password.c_str());
@@ -249,6 +254,14 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       return true;
     }
     case improv::GET_CURRENT_STATE:
+      if (wifi::global_wifi_component->is_disabled()) {
+        // Wi-Fi is disabled; report the Improv "stopped" state so a client can tell
+        // the user that provisioning is unavailable. Reported transiently without
+        // disturbing our internal provisioning state machine, so a later `wifi.enable`
+        // still reports the correct state.
+        this->send_current_state_(improv::STATE_STOPPED);
+        return true;
+      }
       this->set_state_(this->state_);
       if (this->state_ == improv::STATE_PROVISIONED) {
         std::vector<uint8_t> url = this->build_rpc_settings_response_(improv::GET_CURRENT_STATE);
@@ -303,6 +316,10 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
 
 void ImprovSerialComponent::set_state_(improv::State state) {
   this->state_ = state;
+  this->send_current_state_(state);
+}
+
+void ImprovSerialComponent::send_current_state_(improv::State state) {
   this->tx_header_[TX_TYPE_IDX] = TYPE_CURRENT_STATE;
   this->tx_header_[TX_DATA_IDX] = state;
   this->write_data_();
@@ -329,6 +346,6 @@ void ImprovSerialComponent::on_wifi_connect_timeout_() {
 ImprovSerialComponent *global_improv_serial_component =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
     nullptr;                                             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace improv_serial
-}  // namespace esphome
+}  // namespace esphome::improv_serial
+
 #endif

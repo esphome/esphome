@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/uart/uart.h"
@@ -11,11 +12,11 @@ struct TemperatureMapping {
   float to_mitsubishi(float value) const;
   float from_mitsubishi(float value) const;
 
-  bool get_fahrenheit() const { return this->fahrenheit_; }
-  void set_fahrenheit(bool value) { this->fahrenheit_ = value; }
+  bool get_use_fahrenheit() const { return this->use_fahrenheit_; }
+  void set_use_fahrenheit(bool value) { this->use_fahrenheit_ = value; }
 
  protected:
-  bool fahrenheit_{false};
+  bool use_fahrenheit_{false};
 };
 
 class MitsubishiCN105Climate : public climate::Climate, public Component, public uart::UARTDevice {
@@ -29,15 +30,37 @@ class MitsubishiCN105Climate : public climate::Climate, public Component, public
   climate::ClimateTraits traits() override;
   void control(const climate::ClimateCall &call) override;
 
-  void set_update_interval(uint32_t ms) { hp_.set_update_interval(ms); }
-  void set_current_temperature_min_interval(uint32_t ms) { hp_.set_room_temperature_min_interval(ms); }
-  void set_fahrenheit(bool value) { this->temperature_mapping_.set_fahrenheit(value); }
+  void set_update_interval(uint32_t ms) { this->hp_.set_update_interval(ms); }
+  void set_current_temperature_min_interval(uint32_t ms) { this->hp_.set_room_temperature_min_interval(ms); }
+
+  void set_remote_temperature(float temperature) { this->hp_.set_remote_temperature(temperature); }
+  void clear_remote_temperature() { this->hp_.clear_remote_temperature(); }
+
+  void set_supported_swing_mode(climate::ClimateSwingMode mode);
+  void set_use_fahrenheit(bool value) { this->temperature_mapping_.set_use_fahrenheit(value); }
 
  protected:
   void apply_values_();
 
   MitsubishiCN105 hp_;
   TemperatureMapping temperature_mapping_;
+  climate::ClimateSwingModeMask supported_swing_modes_{};
+  MitsubishiCN105::VaneMode last_non_swing_vane_mode_{MitsubishiCN105::VaneMode::AUTO};
+  MitsubishiCN105::WideVaneMode last_non_swing_wide_vane_mode_{MitsubishiCN105::WideVaneMode::CENTER};
+};
+
+template<typename... Ts>
+class SetRemoteTemperatureAction : public Action<Ts...>, public Parented<MitsubishiCN105Climate> {
+ public:
+  TEMPLATABLE_VALUE(float, temperature)
+
+  void play(const Ts &...x) override { this->parent_->set_remote_temperature(this->temperature_.value(x...)); }
+};
+
+template<typename... Ts>
+class ClearRemoteTemperatureAction : public Action<Ts...>, public Parented<MitsubishiCN105Climate> {
+ public:
+  void play(const Ts &...x) override { this->parent_->clear_remote_temperature(); }
 };
 
 }  // namespace esphome::mitsubishi_cn105

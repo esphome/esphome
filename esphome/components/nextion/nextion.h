@@ -23,7 +23,9 @@
 #elif defined(USE_ESP8266)
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
-#endif  // USE_ESP32 vs USE_ESP8266
+#elif defined(USE_LIBRETINY)
+#include <HTTPClient.h>
+#endif  // USE_ESP32 vs USE_ESP8266 vs USE_LIBRETINY
 #endif  // USE_NEXTION_TFT_UPLOAD
 
 namespace esphome::nextion {
@@ -55,15 +57,20 @@ class NextionCommandPacer {
   uint8_t get_spacing() const { return spacing_ms_; }
 
   /**
-   * @brief Check if enough time has passed to send next command
-   * @return true if enough time has passed since last command
+   * @brief Check if enough time has passed to send the next command.
+   * @param now Current timestamp in milliseconds (use App.get_loop_component_start_time()
+   *            for consistency with the rest of the queue timing).
+   * @return true if the spacing interval has elapsed since the last command was sent.
    */
-  bool can_send() const { return (millis() - last_command_time_) >= spacing_ms_; }
+  bool can_send(uint32_t now) const { return (now - last_command_time_) >= spacing_ms_; }
 
   /**
-   * @brief Mark a command as sent, updating the timing
+   * @brief Record the transmit timestamp for the most recently sent command.
+   * @param now Current timestamp in milliseconds, as returned by
+   *            App.get_loop_component_start_time(). Must use the same clock
+   *            source as can_send() to avoid unsigned underflow.
    */
-  void mark_sent() { last_command_time_ = millis(); }
+  void mark_sent(uint32_t now) { last_command_time_ = now; }
 
  private:
   uint8_t spacing_ms_;
@@ -71,7 +78,7 @@ class NextionCommandPacer {
 };
 #endif  // USE_NEXTION_COMMAND_SPACING
 
-class Nextion : public NextionBase, public PollingComponent, public uart::UARTDevice {
+class Nextion final : public NextionBase, public PollingComponent, public uart::UARTDevice {
  public:
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
   /**
@@ -1481,6 +1488,10 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   void process_nextion_commands_();
   void process_serial_();
+  /// Drop queue entries older than max_q_age_ms_. Called from loop() so it also runs when the
+  /// display sends no data at all (disconnected or asleep), which would otherwise grow the queue
+  /// without bound.
+  void purge_stale_queue_entries_();
   uint16_t touch_sleep_timeout_ = 0;
   uint8_t wake_up_page_ = 255;
 #ifdef USE_NEXTION_CONF_START_UP_PAGE
@@ -1555,7 +1566,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return position of last byte transferred, -1 for failure.
    */
   int upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &range_start);
-#elif defined(USE_ARDUINO)
+#elif defined(USE_ESP8266) || defined(USE_LIBRETINY)
   /**
    * will request chunk_size chunks from the web server
    * and send each to the nextion
@@ -1564,7 +1575,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return position of last byte transferred, -1 for failure.
    */
   int upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start);
-#endif  // USE_ESP32 vs USE_ARDUINO
+#endif  // USE_ESP32 vs USE_ESP8266/USE_LIBRETINY
 
   /**
    * Ends the upload process, restart Nextion and, if successful,
@@ -1605,12 +1616,15 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   nextion_writer_t writer_;
   optional<float> brightness_;
 
-#ifdef USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
-  std::string device_model_;
-  std::string firmware_version_;
-  std::string serial_number_;
-  std::string flash_size_;
-#endif  // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
+  // Device info populated from comok response (fixed-size, no heap allocation).
+  // Sizes derived from Nextion Upload Protocol documentation and observed hardware.
+  static constexpr size_t NEXTION_MODEL_MAX = 24;   ///< Max observed ~18 chars from product numbering rules
+  static constexpr size_t NEXTION_FW_MAX = 7;       ///< 'S' prefix + integer (e.g. 'S99' or `123`)
+  static constexpr size_t NEXTION_SERIAL_MAX = 20;  ///< Consistently 16 hex chars across all documented examples
+  char device_model_[NEXTION_MODEL_MAX + 1]{};
+  char firmware_version_[NEXTION_FW_MAX + 1]{};
+  char serial_number_[NEXTION_SERIAL_MAX + 1]{};
+  uint32_t flash_size_ = 0;  ///< Flash size in bytes — plain integer, no string needed
 
   void remove_front_no_sensors_();
 

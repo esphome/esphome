@@ -4,10 +4,9 @@
 #include "esphome/components/button/button.h"
 #include "esphome/components/output/binary_output.h"
 
-namespace esphome {
-namespace output {
+namespace esphome::output {
 
-class OutputButton : public button::Button, public Component {
+class OutputButton final : public button::Button, public Component {
  public:
   void dump_config() override;
 
@@ -21,5 +20,4 @@ class OutputButton : public button::Button, public Component {
   uint32_t duration_;
 };
 
-}  // namespace output
-}  // namespace esphome
+}  // namespace esphome::output

@@ -11,6 +11,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/alloc_helpers.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -310,7 +311,7 @@ inline HttpReadResult http_read_fully(HttpContainer *container, uint8_t *buffer,
   return {HttpReadStatus::OK, 0};
 }
 
-class HttpRequestResponseTrigger : public Trigger<std::shared_ptr<HttpContainer>, std::string &> {
+class HttpRequestResponseTrigger final : public Trigger<std::shared_ptr<HttpContainer>, std::string &> {
  public:
   void process(const std::shared_ptr<HttpContainer> &container, std::string &response_body) {
     this->trigger(container, response_body);
@@ -400,7 +401,7 @@ class HttpRequestComponent : public Component {
     std::vector<std::string> lower;
     lower.reserve(collect_headers.size());
     for (const auto &h : collect_headers) {
-      lower.push_back(str_lower_case(h));
+      lower.push_back(str_lower_case(h));  // NOLINT
     }
     return this->perform(url, method, body, request_headers, lower);
   }
@@ -415,7 +416,7 @@ class HttpRequestComponent : public Component {
     std::vector<std::string> lower;
     lower.reserve(collect_headers.size());
     for (const auto &h : collect_headers) {
-      lower.push_back(str_lower_case(h));
+      lower.push_back(str_lower_case(h));  // NOLINT
     }
     return this->perform(url, method, body, std::vector<Header>(request_headers.begin(), request_headers.end()), lower);
   }
@@ -446,7 +447,7 @@ class HttpRequestComponent : public Component {
   uint32_t watchdog_timeout_{0};
 };
 
-template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
+template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...> {
  public:
   HttpRequestSendAction(HttpRequestComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, url)
@@ -461,7 +462,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
     this->request_headers_.push_back({key, value});
   }
 
-  void add_collect_header(const char *value) { this->lower_case_collect_headers_.push_back(value); }
+  void add_collect_header(const char *value) { this->lower_case_collect_headers_.emplace_back(value); }
 
   void init_json(size_t count) { this->json_.init(count); }
   void add_json(const char *key, TemplatableValue<std::string, Ts...> value) { this->json_.push_back({key, value}); }
@@ -487,10 +488,10 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       body = this->body_.value(x...);
     }
     if (!this->json_.empty()) {
-      body = json::build_json([this, x...](JsonObject root) { this->encode_json_(x..., root); });
+      body = json::build_json([this, x...](JsonObject root) mutable { this->encode_json_(x..., root); });
     }
     if (this->json_func_ != nullptr) {
-      body = json::build_json([this, x...](JsonObject root) { this->json_func_(x..., root); });
+      body = json::build_json([this, x...](JsonObject root) mutable { this->json_func_(x..., root); });
     }
     std::vector<Header> request_headers;
     request_headers.reserve(this->request_headers_.size());
@@ -509,9 +510,9 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       return;
     }
 
-    size_t max_length = this->max_response_buffer_size_;
 #ifdef USE_HTTP_REQUEST_RESPONSE
     if (this->capture_response_.value(x...)) {
+      size_t max_length = this->max_response_buffer_size_;
       std::string response_body;
       RAMAllocator<uint8_t> allocator;
       uint8_t *buf = allocator.allocate(max_length);

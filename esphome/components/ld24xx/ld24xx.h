@@ -11,28 +11,20 @@
 
 #define SUB_SENSOR_WITH_DEDUP(name, dedup_type) \
  protected: \
-  ld24xx::SensorWithDedup<dedup_type> *name##_sensor_{nullptr}; \
+  ld24xx::SensorWithDedup<dedup_type> name##_sensor_{}; \
 \
  public: \
-  void set_##name##_sensor(sensor::Sensor *sensor) { \
-    this->name##_sensor_ = new ld24xx::SensorWithDedup<dedup_type>(sensor); \
-  }
+  void set_##name##_sensor(sensor::Sensor *sensor) { this->name##_sensor_.set_sensor(sensor); }
 #endif
 
 #define LOG_SENSOR_WITH_DEDUP_SAFE(tag, name, sensor) \
-  if ((sensor) != nullptr) { \
-    LOG_SENSOR(tag, name, (sensor)->sens); \
+  if ((sensor).has_sensor()) { \
+    LOG_SENSOR(tag, name, (sensor).get_sensor()); \
   }
 
-#define SAFE_PUBLISH_SENSOR(sensor, value) \
-  if ((sensor) != nullptr) { \
-    (sensor)->publish_state_if_not_dup(value); \
-  }
+#define SAFE_PUBLISH_SENSOR(sensor, value) (sensor).publish_state_if_not_dup(value)
 
-#define SAFE_PUBLISH_SENSOR_UNKNOWN(sensor) \
-  if ((sensor) != nullptr) { \
-    (sensor)->publish_state_unknown(); \
-  }
+#define SAFE_PUBLISH_SENSOR_UNKNOWN(sensor) (sensor).publish_state_unknown()
 
 #define highbyte(val) (uint8_t)((val) >> 8)
 #define lowbyte(val) (uint8_t)((val) &0xff)
@@ -70,25 +62,33 @@ inline void format_version_str(const uint8_t *version, std::span<char, 20> buffe
 }
 
 #ifdef USE_SENSOR
-// Helper class to store a sensor with a deduplicator & publish state only when the value changes
+/// Sensor with deduplication — sensor may be null, null check is internal.
+/// Stored inline, no heap allocation. Does nothing when no sensor is set.
 template<typename T> class SensorWithDedup {
  public:
-  SensorWithDedup(sensor::Sensor *sens) : sens(sens) {}
+  void set_sensor(sensor::Sensor *sens) {
+    this->sens_ = sens;
+    this->dedup_ = {};
+  }
 
   void publish_state_if_not_dup(T state) {
-    if (this->publish_dedup.next(state)) {
-      this->sens->publish_state(static_cast<float>(state));
+    if (this->sens_ != nullptr && this->dedup_.next(state)) {
+      this->sens_->publish_state(static_cast<float>(state));
     }
   }
 
   void publish_state_unknown() {
-    if (this->publish_dedup.next_unknown()) {
-      this->sens->publish_state(NAN);
+    if (this->sens_ != nullptr && this->dedup_.next_unknown()) {
+      this->sens_->publish_state(NAN);
     }
   }
 
-  sensor::Sensor *sens;
-  Deduplicator<T> publish_dedup;
+  bool has_sensor() const { return this->sens_ != nullptr; }
+  sensor::Sensor *get_sensor() const { return this->sens_; }
+
+ protected:
+  sensor::Sensor *sens_{nullptr};
+  Deduplicator<T> dedup_;
 };
 #endif
 }  // namespace esphome::ld24xx

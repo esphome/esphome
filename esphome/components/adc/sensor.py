@@ -2,7 +2,11 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
-from esphome.components.esp32 import get_esp32_variant, include_builtin_idf_component
+from esphome.components.esp32 import (
+    get_esp32_variant,
+    include_builtin_idf_component,
+    require_adc_oneshot_iram,
+)
 from esphome.components.nrf52.const import AIN_TO_GPIO, EXTRA_ADC
 from esphome.components.zephyr import (
     zephyr_add_overlay,
@@ -24,6 +28,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 from . import (
     ATTENUATION_MODES,
@@ -65,6 +70,13 @@ def validate_config(config):
     return config
 
 
+def _require_adc_iram(config: ConfigType) -> ConfigType:
+    """Register ADC oneshot IRAM requirement during config validation."""
+    if CORE.is_esp32:
+        require_adc_oneshot_iram()
+    return config
+
+
 ADCSensor = adc_ns.class_(
     "ADCSensor", sensor.Sensor, cg.PollingComponent, voltage_sampler.VoltageSampler
 )
@@ -95,6 +107,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.polling_component_schema("60s")),
     validate_config,
+    _require_adc_iram,
 )
 
 CONF_ADC_CHANNEL_ID = "adc_channel_id"
@@ -188,7 +201,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_IDF,
         },
         "adc_sensor_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
-        "adc_sensor_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "adc_sensor_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
         "adc_sensor_libretiny.cpp": {
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,

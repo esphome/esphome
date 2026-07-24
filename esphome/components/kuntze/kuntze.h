@@ -4,10 +4,9 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
 
-namespace esphome {
-namespace kuntze {
+namespace esphome::kuntze {
 
-class Kuntze : public PollingComponent, public modbus::ModbusDevice {
+class Kuntze final : public PollingComponent, public modbus::ModbusClientDevice {
  public:
   void set_ph_sensor(sensor::Sensor *ph_sensor) { ph_sensor_ = ph_sensor; }
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
@@ -38,5 +37,4 @@ class Kuntze : public PollingComponent, public modbus::ModbusDevice {
   sensor::Sensor *oci_sensor_{nullptr};
 };
 
-}  // namespace kuntze
-}  // namespace esphome
+}  // namespace esphome::kuntze

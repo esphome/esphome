@@ -11,14 +11,15 @@
 #endif
 #include "api_pb2.h"
 #include "api_pb2_service.h"
-#include "api_server.h"
+#include "list_entities.h"
+#include "subscribe_state.h"
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #ifdef USE_ESP32_CRASH_HANDLER
 #include "esphome/components/esp32/crash_handler.h"
 #endif
-#ifdef USE_RP2040_CRASH_HANDLER
-#include "esphome/components/rp2040/crash_handler.h"
+#ifdef USE_RP2_CRASH_HANDLER
+#include "esphome/components/rp2/crash_handler.h"
 #endif
 #ifdef USE_ESP8266_CRASH_HANDLER
 #include "esphome/components/esp8266/crash_handler.h"
@@ -36,13 +37,13 @@ class ComponentIterator;
 
 namespace esphome::api {
 
+// Forward-declared to break the api_server.h cycle; full-type inlines are in api_connection_buffer.h.
+class APIServer;
+
 // Keepalive timeout in milliseconds
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
 // Maximum number of entities to process in a single batch during initial state/info sending
-// API 1.14+ clients compute object_id client-side, so messages are smaller and we can fit more per batch
-// TODO: Remove MAX_INITIAL_PER_BATCH_LEGACY before 2026.7.0 - all clients should support API 1.14 by then
-static constexpr size_t MAX_INITIAL_PER_BATCH_LEGACY = 24;  // For clients < API 1.14 (includes object_id)
-static constexpr size_t MAX_INITIAL_PER_BATCH = 34;         // For clients >= API 1.14 (no object_id)
+static constexpr size_t MAX_INITIAL_PER_BATCH = 34;
 // Verify MAX_MESSAGES_PER_BATCH (defined in api_frame_helper.h) can hold the initial batch
 static_assert(MAX_MESSAGES_PER_BATCH >= MAX_INITIAL_PER_BATCH,
               "MAX_MESSAGES_PER_BATCH must be >= MAX_INITIAL_PER_BATCH");
@@ -165,10 +166,14 @@ class APIConnection final : public APIServerConnectionBase {
 #endif
   bool try_send_log_message(int level, const char *tag, const char *line, size_t message_len);
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-  void send_homeassistant_action(const HomeassistantActionRequest &call) {
+  // Returns whether this client has subscribed to Home Assistant actions; the message
+  // is only handed to the send path when subscribed. A true return does not guarantee
+  // delivery - it lets the caller warn when no connected client has the subscription.
+  bool send_homeassistant_action(const HomeassistantActionRequest &call) {
     if (!this->flags_.service_call_subscription)
-      return;
+      return false;
     this->send_message(call);
+    return true;
   }
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   void on_homeassistant_action_response(const HomeassistantActionResponse &msg);
@@ -223,7 +228,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_water_heater_command_request(const WaterHeaterCommandRequest &msg);
 #endif
 
-#ifdef USE_IR_RF
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
   void on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg);
   void send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg);
 #endif
@@ -258,7 +263,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_get_time_response(const GetTimeResponse &value);
 #endif
   void on_hello_request(const HelloRequest &msg);
-  void on_disconnect_request();
+  void on_disconnect_request(const DisconnectRequest &msg);
   void on_ping_request();
   void on_device_info_request();
   void on_list_entities_request() { this->begin_iterator_(ActiveIterator::LIST_ENTITIES); }
@@ -278,8 +283,8 @@ class APIConnection final : public APIServerConnectionBase {
     esp32::crash_handler_log();
     esp32::crash_handler_clear();
 #endif
-#ifdef USE_RP2040_CRASH_HANDLER
-    rp2040::crash_handler_log();
+#ifdef USE_RP2_CRASH_HANDLER
+    rp2::crash_handler_log();
 #endif
 #ifdef USE_ESP8266_CRASH_HANDLER
     esp8266::crash_handler_log();
@@ -411,44 +416,10 @@ class APIConnection final : public APIServerConnectionBase {
   // Non-template buffer management for send_message
   bool send_message_(uint32_t payload_size, uint8_t message_type, MessageEncodeFn encode_fn, const void *msg);
 
-  // Core batch encoding logic. Computes header size, checks fit, resizes buffer, encodes.
-  // ALWAYS_INLINE so the compiler can devirtualize encode_fn at hot call sites.
-  static inline uint16_t ESPHOME_ALWAYS_INLINE encode_to_buffer(uint32_t calculated_size, MessageEncodeFn encode_fn,
-                                                                const void *msg, APIConnection *conn,
-                                                                uint32_t remaining_size) {
-#ifdef HAS_PROTO_MESSAGE_DUMP
-    if (conn->flags_.log_only_mode) {
-      auto *proto_msg = static_cast<const ProtoMessage *>(msg);
-      DumpBuffer dump_buf;
-      conn->log_send_message_(proto_msg->message_name(), proto_msg->dump_to(dump_buf));
-      return 1;
-    }
-#endif
-    const uint8_t footer_size = conn->helper_->frame_footer_size();
-
-    // First message uses max padding (already in buffer), subsequent use exact header size
-    size_t to_add;
-    if (conn->flags_.batch_first_message) {
-      conn->flags_.batch_first_message = false;
-      conn->batch_header_size_ = conn->helper_->frame_header_padding();
-      to_add = calculated_size;
-    } else {
-      conn->batch_header_size_ = conn->helper_->frame_header_size(calculated_size, conn->batch_message_type_);
-      to_add = calculated_size + conn->batch_header_size_ + footer_size;
-    }
-
-    // Check if it fits (using actual header size, not max padding)
-    uint16_t total_calculated_size = calculated_size + conn->batch_header_size_ + footer_size;
-    if (total_calculated_size > remaining_size)
-      return 0;
-
-    auto &shared_buf = conn->parent_->get_shared_buffer_ref();
-    shared_buf.resize(shared_buf.size() + to_add);
-    ProtoWriteBuffer buffer{&shared_buf, shared_buf.size() - calculated_size};
-    encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
-
-    return total_calculated_size;
-  }
+  // Core batch encoding logic. ALWAYS_INLINE so encode_fn devirtualizes at hot call sites.
+  // Defined in api_connection_buffer.h (needs APIServer complete).
+  static uint16_t ESPHOME_ALWAYS_INLINE encode_to_buffer(uint32_t calculated_size, MessageEncodeFn encode_fn,
+                                                         const void *msg, APIConnection *conn, uint32_t remaining_size);
 
   // Noinline version of encode_to_buffer for cold paths (entity info, zero-payload messages).
   // All cold callers share this single copy instead of each getting an ALWAYS_INLINE expansion.
@@ -510,13 +481,6 @@ class APIConnection final : public APIServerConnectionBase {
   // Helper to check voice assistant validity and connection ownership
   inline bool check_voice_assistant_api_connection_() const;
 #endif
-
-  // Get the max batch size based on client API version
-  // API 1.14+ clients don't receive object_id, so messages are smaller and more fit per batch
-  // TODO: Remove this method before 2026.7.0 and use MAX_INITIAL_PER_BATCH directly
-  size_t get_max_batch_size_() const {
-    return this->client_supports_api_version(1, 14) ? MAX_INITIAL_PER_BATCH : MAX_INITIAL_PER_BATCH_LEGACY;
-  }
 
   // Send keepalive ping or disconnect unresponsive client.
   // Cold path — extracted from loop() to reduce instruction cache pressure.
@@ -612,6 +576,9 @@ class APIConnection final : public APIServerConnectionBase {
 #ifdef USE_INFRARED
   static uint16_t try_send_infrared_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
+#ifdef USE_RADIO_FREQUENCY
+  static uint16_t try_send_radio_frequency_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+#endif
 #ifdef USE_EVENT
   static uint16_t try_send_event_response(event::Event *event, StringRef event_type, APIConnection *conn,
                                           uint32_t remaining_size);
@@ -663,6 +630,11 @@ class APIConnection final : public APIServerConnectionBase {
   void destroy_active_iterator_();
   void begin_iterator_(ActiveIterator type);
   void finalize_iterator_sync_();
+#if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
+  // Swap the plaintext helper for a Noise helper after the client opened
+  // with a Noise hello on an unprovisioned device (zero-PSK provisioning).
+  void upgrade_helper_to_noise_();
+#endif
 #ifdef USE_CAMERA
   std::unique_ptr<camera::CameraImageReader> image_reader_;
 #endif
@@ -789,7 +761,8 @@ class APIConnection final : public APIServerConnectionBase {
   // Read by process_batch_multi_ to pass into MessageInfo.
   uint8_t batch_header_size_{0};
 
-  uint32_t get_batch_delay_ms_() const { return this->parent_->get_batch_delay(); }
+  // Defined in api_connection_buffer.h (needs APIServer complete).
+  uint32_t get_batch_delay_ms_() const;
   // Message will use 8 more bytes than the minimum size, and typical
   // MTU is 1500. Sometimes users will see as low as 1460 MTU.
   // If its IPv6 the header is 40 bytes, and if its IPv4

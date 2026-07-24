@@ -113,7 +113,8 @@ def _generate_source_table_code(
     entries = ", ".join(var_names)
     lines.append(f"static const char *const {table_var}[] PROGMEM = {{{entries}}};")
     lines.append(f"const LogString *{lookup_fn}(uint8_t index) {{")
-    lines.append(f'  if (index == 0 || index > {count}) return LOG_STR("<unknown>");')
+    cond = "index == 0" if count >= 255 else f"index == 0 || index > {count}"
+    lines.append(f'  if ({cond}) return LOG_STR("<unknown>");')
     lines.append("  return reinterpret_cast<const LogString *>(")
     lines.append(f"    progmem_read_ptr(&{table_var}[index - 1]));")
     lines.append("}")
@@ -150,6 +151,17 @@ async def gpio_pin_expression(conf):
     return await coroutine(pins.PIN_SCHEMA_REGISTRY[CORE.target_platform][0])(conf)
 
 
+def set_setup_priority(var, priority: float) -> None:
+    """Emit a setup-priority override for the given component.
+
+    Pairs the ``set_setup_priority()`` call with the ``USE_SETUP_PRIORITY_OVERRIDE``
+    define that compiles in the core override support, so callers cannot emit one
+    without the other.
+    """
+    add_define("USE_SETUP_PRIORITY_OVERRIDE")
+    add(var.set_setup_priority(priority))
+
+
 async def register_component(var, config):
     """Register the given obj as a component.
 
@@ -167,8 +179,7 @@ async def register_component(var, config):
         )
     CORE.component_ids.remove(id_)
     if CONF_SETUP_PRIORITY in config:
-        add_define("USE_SETUP_PRIORITY_OVERRIDE")
-        add(var.set_setup_priority(config[CONF_SETUP_PRIORITY]))
+        set_setup_priority(var, config[CONF_SETUP_PRIORITY])
     if CONF_UPDATE_INTERVAL in config:
         add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
 
@@ -196,9 +207,9 @@ async def register_component(var, config):
         )
     if name is not None:
         idx = register_component_source(name)
-        add(var.set_component_source_(idx))
-
-    add(App.register_component_(var))
+        add(App.register_component_(var, idx))
+    else:
+        add(App.register_component_(var))
 
     # Collect C++ type for compile-time looping component count
     comp_entries = CORE.data.setdefault("looping_component_entries", [])
