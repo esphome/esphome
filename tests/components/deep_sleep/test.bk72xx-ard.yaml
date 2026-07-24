@@ -1,6 +1,10 @@
 deep_sleep:
   run_duration: 30s
   sleep_duration: 12h
+  on_wake:
+    - logger.log:
+        format: "Woke up, cause %d"
+        args: ["static_cast<int>(cause)"]
   wakeup_pin:
     - pin:
         number: P6
