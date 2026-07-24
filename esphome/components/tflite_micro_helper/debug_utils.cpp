@@ -1,14 +1,20 @@
 #include "debug_utils.h"
-#include "esphome/core/log.h"
 
-namespace esphome::tflite_micro_helper {
+namespace esphome {
+namespace tflite_micro_helper {
+namespace debug_utils {
 
-ScopedDuration::ScopedDuration(const char *tag) : tag_(tag), start_(esphome::millis()) {}
-
-void ScopedDuration::log_duration(const char *func) {
-  ESP_LOGD(this->tag_, "%s duration: %ums", func, this->elapsed());
+void log_arena_usage(const char *tag, size_t used, size_t total) {
+  ESP_LOGI(tag, "Tensor Arena: %u / %u bytes used (%.1f%%)", used, total,
+           total > 0 ? (float) used / total * 100.0f : 0.0f);
 }
 
-void ScopedDuration::log(const char *msg, uint32_t val) { ESP_LOGD(this->tag_, "%s: %ums", msg, val); }
+void log_model_info(const char *tag, const char *model_name, size_t model_size, size_t tensor_arena_size) {
+  ESP_LOGI(tag, "Model: %s, size: %u bytes, tensor_arena: %u bytes", model_name, model_size, tensor_arena_size);
+}
 
-}  // namespace esphome::tflite_micro_helper
+void log_inference_time(const char *tag, uint32_t time_ms) { ESP_LOGD(tag, "Inference time: %u ms", time_ms); }
+
+}  // namespace debug_utils
+}  // namespace tflite_micro_helper
+}  // namespace esphome

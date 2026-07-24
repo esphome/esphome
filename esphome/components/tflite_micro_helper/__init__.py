@@ -8,17 +8,21 @@ import hashlib
 import json
 import os
 import re
-from urllib.parse import urljoin
 import zlib
+from pathlib import Path
+from urllib.parse import urljoin
 
 import esphome.codegen as cg
 from esphome.components import esp32
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DEBUG,
     CONF_FILE,
     CONF_ID,
+    CONF_INVERT,
     CONF_MODEL,
     CONF_PATH,
+    CONF_RAW_DATA_ID,
     CONF_REF,
     CONF_REFRESH,
     CONF_TYPE,
@@ -34,9 +38,7 @@ tflite_micro_helper_ns = cg.esphome_ns.namespace("tflite_micro_helper")
 TFLiteMicroHelper = tflite_micro_helper_ns.class_("TFLiteMicroHelper")
 
 CONF_MODEL_TYPE = "model_type"
-CONF_RAW_DATA_ID = "raw_data_id"
 CONF_TENSOR_ARENA_SIZE = "tensor_arena_size"
-CONF_DEBUG = "debug"
 
 CONF_INPUT_TYPE = "input_type"
 CONF_INPUT_CHANNELS = "input_channels"
@@ -46,7 +48,6 @@ CONF_OUTPUT_PROCESSING = "output_processing"
 CONF_SCALE_FACTOR = "scale_factor"
 CONF_INPUT_ORDER = "input_order"
 CONF_NORMALIZE = "normalize"
-CONF_INVERT = "invert"
 
 CONF_PROBABILITY_CUTOFF = "probability_cutoff"
 CONF_SLIDING_WINDOW_SIZE = "sliding_window_size"
@@ -81,10 +82,10 @@ def _compute_local_file_path(url):
 
 
 def parse_model_txt_file(model_path):
-    txt_path = os.path.splitext(model_path)[0] + ".txt"
-    if not os.path.exists(txt_path):
+    txt_path = str(Path(model_path).with_suffix(".txt"))
+    if not Path(txt_path).exists():
         return None
-    with open(txt_path) as f:
+    with Path(txt_path).open(encoding="utf-8") as f:
         content = f.read()
     config = {}
     input_match = re.search(
@@ -112,14 +113,14 @@ def parse_model_txt_file(model_path):
     if ops_match:
         config["max_operators"] = int(ops_match.group(1)) + 5
     if re.search(r"Found \d+ DELEGATE operation", content):
-        print(f"  Note: Model '{os.path.basename(txt_path)}' contains DELEGATE ops.")
+        print(f"  Note: Model '{Path(txt_path).name}' contains DELEGATE ops.")
     has_softmax = bool(re.search(r"^\s+SOFTMAX:\s+\d+", content, re.MULTILINE))
     config["output_processing"] = "direct_class" if has_softmax else "softmax"
     input_dtype = config.get("input_type", "")
     has_float32_io = input_dtype == "float32"
     has_int8_weights = bool(re.search(r"<class 'numpy\.(int8|uint8)'>", content))
     if has_float32_io and has_int8_weights:
-        model_name = os.path.basename(txt_path).replace(".txt", ".tflite")
+        model_name = Path(txt_path).stem + ".tflite"
         raise cv.Invalid(
             f"Model '{model_name}' uses hybrid quantization (float32 I/O + int8 weights).\n"
             f"  TFLite Micro on ESP32 does NOT support hybrid execution.\n"
@@ -130,7 +131,7 @@ def parse_model_txt_file(model_path):
 
 def infer_model_config_from_filename(model_filename):
     config = {}
-    name = os.path.splitext(model_filename)[0]
+    name = Path(model_filename).stem
     if "_GRAY" in name or "_GRAYSCALE" in name:
         config["input_channels"] = 1
         config["input_order"] = "GRAY"
@@ -155,7 +156,7 @@ def infer_model_config_from_filename(model_filename):
 def _validate_source_shorthand(value):
     if not isinstance(value, str):
         raise cv.Invalid("Model source must be a string or dict")
-    if os.path.exists(value):
+    if Path(value).exists():
         return MODEL_SOURCE_SCHEMA({CONF_TYPE: TYPE_LOCAL, CONF_PATH: value})
     if value.endswith(".tflite"):
         return MODEL_SOURCE_SCHEMA({CONF_TYPE: TYPE_LOCAL, CONF_PATH: value})
@@ -225,7 +226,7 @@ def _process_http_source(config):
     model_file = manifest_data.get("model", "")
     if model_file:
         model_url = urljoin(url, model_file)
-        model_path = path / os.path.basename(model_file)
+        model_path = path / Path(model_file).name
         external_files.download_content(str(model_url), model_path)
     return config
 
@@ -313,9 +314,9 @@ def resolve_model_source(entry_config):
 
 def _load_local_file(path):
     model_path = CORE.relative_config_path(path)
-    if not os.path.exists(model_path):
+    if not Path(model_path).exists():
         raise cv.Invalid(f"Model file not found: {model_path}")
-    with open(model_path, "rb") as f:
+    with Path(model_path).open("rb") as f:
         model_data = f.read()
     return model_path, model_data
 
@@ -332,7 +333,7 @@ def _load_git_file(config):
     model_path = repo_dir / config[CONF_FILE]
     if not model_path.exists():
         raise cv.Invalid(f"Model file not found in repository: {model_path}")
-    with open(model_path, "rb") as f:
+    with model_path.open("rb") as f:
         model_data = f.read()
     return model_path, model_data
 
@@ -349,9 +350,9 @@ def _load_http_file(config):
     if not model_file:
         raise cv.Invalid(f"Manifest at {url} does not specify a model file")
     model_url = urljoin(url, model_file)
-    model_path = path / os.path.basename(model_file)
+    model_path = path / Path(model_file).name
     external_files.download_content(str(model_url), model_path)
-    with open(model_path, "rb") as f:
+    with Path(model_path).open("rb") as f:
         model_data = f.read()
     return model_path, model_data
 
@@ -364,7 +365,7 @@ async def to_code(config):
     rhs = [HexInt(x) for x in model_data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
     cg.add(var.set_model(prog_arr, len(model_data)))
-    # Per-instance CRC32 — MULTI_CONF safe, each TFLiteMicroHelper carries its own expected checksum
+    # Per-instance CRC32 - MULTI_CONF safe, each TFLiteMicroHelper carries its own expected checksum
     crc32_val = zlib.crc32(model_data) & 0xFFFFFFFF
     cg.add(var.set_expected_crc32(crc32_val))
     cg.add(var.set_model_type(model_type))
@@ -379,9 +380,9 @@ async def to_code(config):
         await _configure_image_model(config, var, model_path, model_data)
     elif model_type == "audio":
         await _configure_audio_model(config, var, model_path, model_data)
-    txt_path = os.path.splitext(model_path)[0] + ".txt"
-    if os.path.exists(txt_path):
-        with open(txt_path) as f:
+    txt_path = str(Path(model_path).with_suffix(".txt"))
+    if Path(txt_path).exists():
+        with Path(txt_path).open(encoding="utf-8") as f:
             txt_content = f.read()
         ops_match = re.search(r"Total operations:\s+(\d+)", txt_content)
         if ops_match:
@@ -396,7 +397,7 @@ async def to_code(config):
 
 
 async def _configure_image_model(entry, var, model_path, model_data):
-    model_filename = os.path.basename(str(model_path).replace("\\", "/"))
+    model_filename = Path(str(model_path).replace("\\", "/")).name
     auto_config = parse_model_txt_file(model_path)
     if auto_config:
         print(f"  Auto-detected image config from '{model_filename}.txt':")
@@ -468,10 +469,10 @@ async def _configure_audio_model(entry, var, model_path, model_data):
 
 
 def _parse_audio_config(model_path):
-    txt_path = os.path.splitext(model_path)[0] + ".txt"
-    if not os.path.exists(txt_path):
+    txt_path = str(Path(model_path).with_suffix(".txt"))
+    if not Path(txt_path).exists():
         return None
-    with open(txt_path) as f:
+    with Path(txt_path).open(encoding="utf-8") as f:
         content = f.read()
     config = {}
     input_match = re.search(

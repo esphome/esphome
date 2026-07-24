@@ -12,6 +12,12 @@
 namespace esphome {
 namespace tflite_micro_helper {
 
+// Non-template logging helpers - defined in op_resolver.cpp to avoid ESP_LOG* in headers.
+void log_op_registering(const char *tag, const char *op_name);
+void log_op_unavailable(const char *tag, const char *op_name);
+void log_op_unknown(const char *tag, const char *op_name);
+void log_op_failed(const char *tag, const char *op_name);
+
 class OpResolverManager {
  public:
   template<size_t tOpCount>
@@ -19,7 +25,7 @@ class OpResolverManager {
                           const std::set<tflite::BuiltinOperator> &required_ops, const char *tag) {
     for (auto op : required_ops) {
       const char *op_name = tflite::EnumNameBuiltinOperator(op);
-      ESP_LOGD(tag, "Registering op: %s", op_name);
+      log_op_registering(tag, op_name);
 
       TfLiteStatus add_status = kTfLiteError;
 
@@ -34,7 +40,7 @@ class OpResolverManager {
 
 #define TFLM_OP_UNAVAILABLE(op_name) \
   case tflite::BuiltinOperator_##op_name: \
-    ESP_LOGW(tag, "Operator %s is not available in TFLite Micro", #op_name); \
+    log_op_unavailable(tag, #op_name); \
     return false; \
     break;
 
@@ -45,12 +51,12 @@ class OpResolverManager {
 #undef TFLM_OP_UNAVAILABLE
 
         default:
-          ESP_LOGE(tag, "Unknown or unsupported operator: %s", op_name);
+          log_op_unknown(tag, op_name);
           return false;
       }
 
       if (add_status != kTfLiteOk) {
-        ESP_LOGE(tag, "Failed to add operator: %s", op_name);
+        log_op_failed(tag, op_name);
         return false;
       }
     }

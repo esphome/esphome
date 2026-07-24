@@ -1,32 +1,28 @@
 #pragma once
 
-#include "esphome/core/hal.h"  // For millis()
+#include <cstdint>
+#include <cstddef>
+#include "tensorflow/lite/c/common.h"
 #include "esphome/core/log.h"
-#include "tensorflow/lite/c/common.h"  // For TfLiteType
 
 namespace esphome {
 namespace tflite_micro_helper {
 
-// RAII ScopedDuration -- replaces DURATION_START/END/LOG macros
-class ScopedDuration {
- public:
-  explicit ScopedDuration(const char *tag) : tag_(tag), start_(esphome::millis()) {}
+/**
+ * @brief Debug utilities for TFLite Micro Helper
+ *
+ * Provides debug logging and profiling functions.
+ * Function bodies are in debug_utils.cpp to avoid ESP_LOG* in headers.
+ */
+namespace debug_utils {
 
-  uint32_t elapsed() const { return esphome::millis() - this->start_; }
+void log_arena_usage(const char *tag, size_t used, size_t total);
+void log_model_info(const char *tag, const char *model_name, size_t model_size, size_t tensor_arena_size);
+void log_inference_time(const char *tag, uint32_t time_ms);
 
-  void log_duration(const char *func) { ESP_LOGD(this->tag_, "%s duration: %lums", func, this->elapsed()); }
+}  // namespace debug_utils
 
-  void log(const char *msg, uint32_t val) { ESP_LOGD(this->tag_, "%s: %lums", msg, val); }
-
- private:
-  const char *tag_;
-  uint32_t start_;
-};
-
-}  // namespace tflite_micro_helper
-}  // namespace esphome
-
-// Helper function to convert TfLiteType to string (namespace-agnostic for compatibility)
+/// Helper function to convert TfLiteType to string (namespace-agnostic for compatibility).
 inline const char *tflite_type_to_string(TfLiteType type) {
   switch (type) {
     case kTfLiteFloat32:
@@ -49,3 +45,6 @@ inline const char *tflite_type_to_string(TfLiteType type) {
       return "Unknown";
   }
 }
+
+}  // namespace tflite_micro_helper
+}  // namespace esphome
