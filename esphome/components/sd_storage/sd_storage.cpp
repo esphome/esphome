@@ -82,7 +82,6 @@ void SdMmc::dump_config() {
   }
 }
 
-
 storage::StorageError SdMmc::mount() {
   sdmmc_host_t host = SDMMC_HOST_DEFAULT();
   host.max_freq_khz = static_cast<int>(this->data_rate_khz_);

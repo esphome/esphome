@@ -104,7 +104,6 @@ const char *SdSpi::error_code_to_str(ErrorCode code) {
   }
 }
 
-
 StorageError SdSpi::mount() {
   ESP_LOGD(TAG_SPI, "Mounting SD card via SPI");
 
