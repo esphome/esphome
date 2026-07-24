@@ -4,6 +4,7 @@
 #include "esphome/core/application.h"
 #include "esphome/components/network/util.h"
 
+#include <cerrno>
 #include <cstring>
 #include <algorithm>
 
@@ -163,81 +164,81 @@ bool NFSFileHandle::decode(XDRBuffer &xdr) {
 bool NFSFileAttr::decode(XDRBuffer &xdr) {
   uint32_t type_val;
   if (!xdr.decode_uint32(type_val)) {
-    ESP_LOGW(TAG, "NFSFileAttr::decode failed at type");
+    ESP_LOGV(TAG, "NFSFileAttr::decode failed at type");
     return false;
   }
   this->type = static_cast<NFSFileType>(type_val);
 
   if (!xdr.decode_uint32(this->mode)) {
-    ESP_LOGW(TAG, "NFSFileAttr::decode failed at mode");
+    ESP_LOGV(TAG, "NFSFileAttr::decode failed at mode");
     return false;
   }
   if (!xdr.decode_uint32(this->nlink)) {
-    ESP_LOGW(TAG, "NFSFileAttr::decode failed at nlink");
+    ESP_LOGV(TAG, "NFSFileAttr::decode failed at nlink");
     return false;
   }
   if (!xdr.decode_uint32(this->uid)) {
-    ESP_LOGW(TAG, "NFSFileAttr::decode failed at uid");
+    ESP_LOGV(TAG, "NFSFileAttr::decode failed at uid");
     return false;
   }
   if (!xdr.decode_uint32(this->gid)) {
-    ESP_LOGW(TAG, "NFSFileAttr::decode failed at gid");
+    ESP_LOGV(TAG, "NFSFileAttr::decode failed at gid");
     return false;
   }
   if (!xdr.decode_uint64(this->size)) {
-    ESP_LOGW(TAG, "NFSFileAttr::decode failed at size");
+    ESP_LOGV(TAG, "NFSFileAttr::decode failed at size");
     return false;
   }
   if (!xdr.decode_uint64(this->used)) {
-    ESP_LOGW(TAG, "NFSFileAttr::decode failed at used");
+    ESP_LOGV(TAG, "NFSFileAttr::decode failed at used");
     return false;
   }
   // Skip rdev/specinfo (8 bytes) — only meaningful for device files
   uint64_t rdev;
   if (!xdr.decode_uint64(rdev)) {
-    ESP_LOGW(TAG, "NFSFileAttr::decode failed at rdev");
+    ESP_LOGV(TAG, "NFSFileAttr::decode failed at rdev");
     return false;
   }
   if (!xdr.decode_uint64(this->fsid)) {
-    ESP_LOGW(TAG, "NFSFileAttr::decode failed at fsid, position=%" PRIu32 ", size=%" PRIu32, (uint32_t) xdr.position(),
+    ESP_LOGV(TAG, "NFSFileAttr::decode failed at fsid, position=%" PRIu32 ", size=%" PRIu32, (uint32_t) xdr.position(),
              (uint32_t) xdr.size());
     return false;
   }
   if (!xdr.decode_uint64(this->fileid)) {
-    ESP_LOGW(TAG, "NFSFileAttr::decode failed at fileid");
+    ESP_LOGV(TAG, "NFSFileAttr::decode failed at fileid");
     return false;
   }
   // nfstime3: seconds and nseconds are both uint32 (RFC 1813 section 2.2)
   uint32_t atime_sec_32, mtime_sec_32, ctime_sec_32;
 
   if (!xdr.decode_uint32(atime_sec_32)) {
-    ESP_LOGW(TAG, "NFSFileAttr::decode failed at atime_sec");
+    ESP_LOGV(TAG, "NFSFileAttr::decode failed at atime_sec");
     return false;
   }
   this->atime_sec = atime_sec_32;
 
   if (!xdr.decode_uint32(this->atime_nsec)) {
-    ESP_LOGW(TAG, "NFSFileAttr::decode failed at atime_nsec");
+    ESP_LOGV(TAG, "NFSFileAttr::decode failed at atime_nsec");
     return false;
   }
   if (!xdr.decode_uint32(mtime_sec_32)) {
-    ESP_LOGW(TAG, "NFSFileAttr::decode failed at mtime_sec");
+    ESP_LOGV(TAG, "NFSFileAttr::decode failed at mtime_sec");
     return false;
   }
   this->mtime_sec = mtime_sec_32;
 
   if (!xdr.decode_uint32(this->mtime_nsec)) {
-    ESP_LOGW(TAG, "NFSFileAttr::decode failed at mtime_nsec");
+    ESP_LOGV(TAG, "NFSFileAttr::decode failed at mtime_nsec");
     return false;
   }
   if (!xdr.decode_uint32(ctime_sec_32)) {
-    ESP_LOGW(TAG, "NFSFileAttr::decode failed at ctime_sec");
+    ESP_LOGV(TAG, "NFSFileAttr::decode failed at ctime_sec");
     return false;
   }
   this->ctime_sec = ctime_sec_32;
 
   if (!xdr.decode_uint32(this->ctime_nsec)) {
-    ESP_LOGW(TAG, "NFSFileAttr::decode failed at ctime_nsec, position=%" PRIu32 ", size=%" PRIu32,
+    ESP_LOGV(TAG, "NFSFileAttr::decode failed at ctime_nsec, position=%" PRIu32 ", size=%" PRIu32,
              (uint32_t) xdr.position(), (uint32_t) xdr.size());
     return false;
   }
@@ -351,24 +352,23 @@ void NFSClient::setup() {
   ESP_LOGCONFIG(TAG, "  Server: %s:%u", this->server_.c_str(), this->port_);
   ESP_LOGCONFIG(TAG, "  Export: %s", this->export_path_.c_str());
   ESP_LOGCONFIG(TAG, "  UID: %" PRIu32 ", GID: %" PRIu32, this->uid_, this->gid_);
-  if (this->mount_path_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  Mount path: %s", this->mount_path_);
-  }
+  ESP_LOGCONFIG(TAG, "  Mount path: %s", this->mount_path_);
 
 #if defined(USE_PSRAM) && defined(USE_ESP_IDF)
   {
-    auto *psram_buf = static_cast<uint8_t *>(heap_caps_malloc(65536, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    auto *psram_buf =
+        static_cast<uint8_t *>(heap_caps_malloc(RPC_RESPONSE_BUFFER_SIZE, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     if (psram_buf != nullptr) {
       this->rpc_response_buffer_.reset(psram_buf);
-      ESP_LOGI(TAG, "Allocated 65KB RPC buffer from PSRAM");
+      ESP_LOGI(TAG, "Allocated %uKB RPC buffer from PSRAM", (unsigned) (RPC_RESPONSE_BUFFER_SIZE / 1024));
     } else {
       ESP_LOGW(TAG, "PSRAM allocation failed, using heap for RPC buffer");
-      this->rpc_response_buffer_ = std::make_unique<uint8_t[]>(65536);
+      this->rpc_response_buffer_ = std::make_unique<uint8_t[]>(RPC_RESPONSE_BUFFER_SIZE);
     }
   }
 #else
-  this->rpc_response_buffer_ = std::make_unique<uint8_t[]>(65536);
-  ESP_LOGI(TAG, "Allocated 65KB RPC buffer from heap");
+  this->rpc_response_buffer_ = std::make_unique<uint8_t[]>(RPC_RESPONSE_BUFFER_SIZE);
+  ESP_LOGI(TAG, "Allocated %uKB RPC buffer from heap", (unsigned) (RPC_RESPONSE_BUFFER_SIZE / 1024));
 #endif
 
   if (this->rpc_response_buffer_ == nullptr) {
@@ -393,6 +393,35 @@ void NFSClient::setup() {
   }
 }
 
+bool NFSClient::ensure_mounted_() {
+  if (this->mounted_)
+    return true;
+  // Every file-api and browser action is self-contained: none may assume that some earlier
+  // action (a listing, a poll) has already brought the share up. So the action itself
+  // mounts, inline and synchronously — the state machine's steps are all synchronous RPCs,
+  // loop() merely spreads them out; here they run back to back. Rate-limited so a dead
+  // server does not turn every knock into a fresh stack of RPC timeouts.
+  uint32_t now = millis();
+  if (now - this->last_inline_mount_ms_ < 3000)
+    return false;
+  this->last_inline_mount_ms_ = now;
+  ESP_LOGD(TAG, "Action against unmounted share — mounting inline");
+  this->mount_requested_ = true;
+  const uint32_t deadline = now + 8000;  // hard cap; each RPC has its own shorter timeout
+  while (!this->mounted_ && millis() < deadline) {
+    MountState before = this->mount_state_;
+    this->drive_mount_state_();
+    if (this->mount_state_ == MountState::FAILED)
+      break;
+    if (this->mount_state_ == before && (before == MountState::IDLE || before == MountState::MOUNTED))
+      break;  // nothing left to drive
+    App.feed_wdt();
+  }
+  if (!this->mounted_)
+    ESP_LOGW(TAG, "Inline mount failed — action answers NOT_READY");
+  return this->mounted_;
+}
+
 void NFSClient::loop() {
   // Auto-connect: fire ONE mount attempt on each rising edge of network connectivity.
   // network::is_connected() covers wifi, ethernet, modem and openthread alike, so no
@@ -407,9 +436,14 @@ void NFSClient::loop() {
   }
   this->network_was_connected_ = net_connected;
 
+  this->drive_mount_state_();
+}
+
+void NFSClient::drive_mount_state_() {
   // A pending request only starts a new attempt from a resting state; FAILED is terminal
   // otherwise (no periodic retry — retries are the user's decision via interval:/automations
-  // calling storage.mount, or the next network-up edge above).
+  // calling storage.mount, the next network-up edge above, or an action mounting inline
+  // through ensure_mounted_()).
   if (this->mount_requested_ && (this->mount_state_ == MountState::IDLE || this->mount_state_ == MountState::FAILED)) {
     this->mount_requested_ = false;
     ESP_LOGD(TAG, "Starting NFS mount attempt for %s:%s", this->server_.c_str(), this->export_path_.c_str());
@@ -471,7 +505,7 @@ void NFSClient::loop() {
           ESP_LOGW(TAG, "Failed to connect to portmapper for NFS query, using configured port %u", this->port_);
           this->nfs_port_ = this->port_;
           this->nfs_port_discovered_ = false;
-          this->mounted_ = true;
+          this->set_mounted_(true);
           this->mount_state_ = MountState::MOUNTED;
           break;
         }
@@ -486,7 +520,7 @@ void NFSClient::loop() {
         this->nfs_port_discovered_ = false;
       }
       this->close_connection_();
-      this->mounted_ = true;
+      this->set_mounted_(true);
       this->mount_state_ = MountState::MOUNTED;
       break;
 
@@ -507,9 +541,7 @@ void NFSClient::dump_config() {
   ESP_LOGCONFIG(TAG, "  Export: %s", this->export_path_.c_str());
   ESP_LOGCONFIG(TAG, "  Status: %s", this->mounted_ ? "Mounted" : "Not mounted");
   ESP_LOGCONFIG(TAG, "  Auto connect on network up: %s", YESNO(this->auto_connect_));
-  if (this->mount_path_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  Mount path: %s", this->mount_path_);
-  }
+  ESP_LOGCONFIG(TAG, "  Mount path: %s", this->mount_path_);
 }
 
 //========================================================================
@@ -525,6 +557,7 @@ storage::StorageError NFSClient::get_info(storage::StorageInfo *info) {
   // round-trip while unmounted.
   info->id = (this->mount_path_ != nullptr) ? this->mount_path_ : "nfs";
   info->name = "NFS";
+  info->kind = "nfs";
   info->block_size = 4096;
   info->is_removable = false;
   info->is_read_only = false;
@@ -564,7 +597,7 @@ storage::StorageError NFSClient::unmount() {
   this->unmount_export_(this->export_path_);
   this->close_connection_();
   this->root_fh_.data.clear();
-  this->mounted_ = false;
+  this->set_mounted_(false);
   this->mount_state_ = MountState::IDLE;
   ESP_LOGI(TAG, "NFS unmounted");
 
@@ -586,7 +619,7 @@ storage::StorageError NFSClient::read_chunk(const char *path, uint8_t *buf, uint
   if (path == nullptr || buf == nullptr || bytes_transferred == nullptr) {
     return storage::StorageError::INVALID_ARGS;
   }
-  if (!this->mounted_) {
+  if (!this->ensure_mounted_()) {
     return storage::StorageError::NOT_READY;
   }
 
@@ -677,7 +710,7 @@ storage::StorageError NFSClient::write_chunk(const char *path, const uint8_t *bu
   if (path == nullptr || buf == nullptr || bytes_transferred == nullptr) {
     return storage::StorageError::INVALID_ARGS;
   }
-  if (!this->mounted_) {
+  if (!this->ensure_mounted_()) {
     return storage::StorageError::NOT_READY;
   }
 
@@ -707,11 +740,46 @@ storage::StorageError NFSClient::write_chunk(const char *path, const uint8_t *bu
   return storage::StorageError::OK;
 }
 
+storage::StorageError NFSClient::truncate(const char *path, uint64_t size) {
+  if (path == nullptr) {
+    return storage::StorageError::INVALID_ARGS;
+  }
+  if (!this->mounted_) {
+    return storage::StorageError::NOT_READY;
+  }
+
+  const std::string path_str(path);
+  NFSFileHandle fh;
+  NFSFileAttr attr;
+
+  if (!this->resolve_path_(path_str, fh, attr)) {
+    // Contract: truncate() creates the file when it is absent, so a caller preparing a
+    // destination does not have to probe for it first. A fresh file is already the requested
+    // length when that length is 0, which is what every caller in the interface asks for.
+    NFSFileHandle parent_fh;
+    std::string filename;
+    if (!this->resolve_parent_path_(path_str, parent_fh, filename)) {
+      return storage::StorageError::NOT_FOUND;
+    }
+    if (!this->nfs_create_(parent_fh, filename, 0644, fh)) {
+      return storage::StorageError::WRITE_ERROR;
+    }
+    if (size == 0) {
+      return storage::StorageError::OK;
+    }
+  }
+
+  if (!this->nfs_setattr_size_(fh, size)) {
+    return storage::StorageError::WRITE_ERROR;
+  }
+  return storage::StorageError::OK;
+}
+
 storage::StorageError NFSClient::stat(const char *path, storage::FileStat *stat) {
   if (path == nullptr || stat == nullptr) {
     return storage::StorageError::INVALID_ARGS;
   }
-  if (!this->mounted_) {
+  if (!this->ensure_mounted_()) {
     return storage::StorageError::NOT_READY;
   }
 
@@ -737,7 +805,7 @@ storage::StorageError NFSClient::list_dir(const char *path, bool (*callback)(con
   if (path == nullptr || callback == nullptr) {
     return storage::StorageError::INVALID_ARGS;
   }
-  if (!this->mounted_) {
+  if (!this->ensure_mounted_()) {
     return storage::StorageError::NOT_READY;
   }
 
@@ -775,7 +843,7 @@ storage::StorageError NFSClient::mkdir(const char *path) {
   if (path == nullptr) {
     return storage::StorageError::INVALID_ARGS;
   }
-  if (!this->mounted_) {
+  if (!this->ensure_mounted_()) {
     return storage::StorageError::NOT_READY;
   }
 
@@ -801,7 +869,7 @@ storage::StorageError NFSClient::rmdir(const char *path) {
   if (path == nullptr) {
     return storage::StorageError::INVALID_ARGS;
   }
-  if (!this->mounted_) {
+  if (!this->ensure_mounted_()) {
     return storage::StorageError::NOT_READY;
   }
 
@@ -840,7 +908,7 @@ storage::StorageError NFSClient::remove(const char *path) {
   if (path == nullptr) {
     return storage::StorageError::INVALID_ARGS;
   }
-  if (!this->mounted_) {
+  if (!this->ensure_mounted_()) {
     return storage::StorageError::NOT_READY;
   }
 
@@ -858,7 +926,7 @@ storage::StorageError NFSClient::rename(const char *old_path, const char *new_pa
   if (old_path == nullptr || new_path == nullptr) {
     return storage::StorageError::INVALID_ARGS;
   }
-  if (!this->mounted_) {
+  if (!this->ensure_mounted_()) {
     return storage::StorageError::NOT_READY;
   }
 
@@ -877,8 +945,38 @@ storage::StorageError NFSClient::rename(const char *old_path, const char *new_pa
     return storage::StorageError::NOT_FOUND;
   }
 
-  return this->nfs_rename_(old_parent_fh, old_name, new_parent_fh, new_name) ? storage::StorageError::OK
-                                                                             : storage::StorageError::WRITE_ERROR;
+  // Same reasoning as mkdir above and as the VFS-backed drivers: an occupied destination is a
+  // different answer than a failed write, and only the server can tell us which it was.
+  uint32_t nfs_status = 0;
+  if (this->nfs_rename_(old_parent_fh, old_name, new_parent_fh, new_name, &nfs_status))
+    return storage::StorageError::OK;
+  switch (nfs_status) {
+    case NFS3ERR_EXIST:
+      return storage::StorageError::ALREADY_EXISTS;
+    case NFS3ERR_NOENT:
+      return storage::StorageError::NOT_FOUND;
+    case NFS3ERR_NOTEMPTY:
+      return storage::StorageError::NOT_EMPTY;
+    case NFS3ERR_ACCES:
+    case NFS3ERR_PERM:
+    case NFS3ERR_ROFS:
+      return storage::StorageError::PERMISSION_DENIED;
+    case NFS3ERR_NOSPC:
+      return storage::StorageError::NO_SPACE;
+    case NFS3ERR_ISDIR:
+    case NFS3ERR_NOTDIR:
+    case NFS3ERR_INVAL:
+      return storage::StorageError::INVALID_ARGS;
+    case NFS3ERR_XDEV:
+      // RENAME is confined to one file system on the server, and an export can span several —
+      // so a rename inside a single mount can still be refused. Same meaning the local drivers
+      // give EXDEV: not this way, copy instead.
+      return storage::StorageError::NOT_SUPPORTED;
+    case NFS3ERR_NAMETOOLONG:
+      return storage::StorageError::INVALID_ARGS;
+    default:
+      return storage::StorageError::WRITE_ERROR;
+  }
 }
 
 //========================================================================
@@ -891,6 +989,9 @@ bool NFSClient::get_file_attributes(const std::string &path, NFSFileAttr &attr) 
 }
 
 bool NFSClient::get_space_info(uint64_t &total_bytes, uint64_t &free_bytes) {
+  // Deliberately passive (no ensure_mounted_): this feeds the roots listing, which the
+  // browser rebuilds on polls — display metadata must never fire inline mount attempts
+  // against a dead server every few seconds. Actions mount; listings show what is.
   if (!this->mounted_ || !this->root_fh_.is_valid()) {
     return false;
   }
@@ -940,7 +1041,7 @@ bool NFSClient::get_space_info(uint64_t &total_bytes, uint64_t &free_bytes) {
 
   total_bytes = tbytes;
   free_bytes = fbytes;
-  ESP_LOGD(TAG, "FSSTAT: total=%llu, free=%llu, avail=%llu", tbytes, fbytes, abytes);
+  ESP_LOGV(TAG, "FSSTAT: total=%llu, free=%llu, avail=%llu", tbytes, fbytes, abytes);
   return true;
 }
 
@@ -1121,11 +1222,23 @@ void NFSClient::close_connection_() {
   this->connected_ = false;
 }
 
+void NFSClient::set_mounted_(bool mounted) {
+  if (this->mounted_ == mounted)
+    return;  // no real change — notify nobody
+  this->mounted_ = mounted;
+#ifdef USE_STORAGE_CHANGE_FEED
+  // Mount state is part of the roots listing: whoever flipped it (mount action, auto-connect,
+  // network loss, unmount), the browser's change poll must see it.
+  if (storage::global_storage_registry != nullptr)
+    storage::global_storage_registry->note_dir_changed("");
+#endif
+}
+
 void NFSClient::unmount_() {
   if (this->mounted_) {
     this->unmount_export_(this->export_path_);
     this->root_fh_.data.clear();
-    this->mounted_ = false;
+    this->set_mounted_(false);
   }
   this->close_connection_();
 }
@@ -1145,7 +1258,7 @@ bool NFSClient::send_rpc_(const XDRBuffer &request, XDRBuffer &response) {
   length_buf[3] = length & 0xFF;
 
   if (send(this->socket_, length_buf, 4, 0) != 4) {
-    ESP_LOGE(TAG, "Failed to send RPC length");
+    ESP_LOGVV(TAG, "Failed to send RPC length");
     close(this->socket_);
     this->socket_ = -1;
     this->connected_ = false;
@@ -1153,7 +1266,7 @@ bool NFSClient::send_rpc_(const XDRBuffer &request, XDRBuffer &response) {
   }
 
   if (send(this->socket_, request.data().data(), request.size(), 0) != static_cast<int>(request.size())) {
-    ESP_LOGE(TAG, "Failed to send RPC data");
+    ESP_LOGVV(TAG, "Failed to send RPC data");
     close(this->socket_);
     this->socket_ = -1;
     this->connected_ = false;
@@ -1162,7 +1275,7 @@ bool NFSClient::send_rpc_(const XDRBuffer &request, XDRBuffer &response) {
 
   uint8_t response_length_buf[4];
   if (recv(this->socket_, response_length_buf, 4, MSG_WAITALL) != 4) {
-    ESP_LOGE(TAG, "Failed to receive RPC response length");
+    ESP_LOGVV(TAG, "Failed to receive RPC response length");
     close(this->socket_);
     this->socket_ = -1;
     this->connected_ = false;
@@ -1174,8 +1287,8 @@ bool NFSClient::send_rpc_(const XDRBuffer &request, XDRBuffer &response) {
       (static_cast<uint32_t>(response_length_buf[2]) << 8) | static_cast<uint32_t>(response_length_buf[3]);
   response_length &= 0x7FFFFFFF;
 
-  if (response_length > 65536) {
-    ESP_LOGE(TAG, "Response too large: %" PRIu32 " bytes", response_length);
+  if (response_length > RPC_RESPONSE_BUFFER_SIZE) {
+    ESP_LOGVV(TAG, "Response too large: %" PRIu32 " bytes", response_length);
     close(this->socket_);
     this->socket_ = -1;
     this->connected_ = false;
@@ -1187,10 +1300,10 @@ bool NFSClient::send_rpc_(const XDRBuffer &request, XDRBuffer &response) {
   while (total_received < response_length) {
     int received = recv(this->socket_, response_data.data() + total_received, response_length - total_received, 0);
     if (received <= 0) {
-      ESP_LOGE(TAG,
-               "Failed to receive RPC response data: received=%d, expected=%" PRIu32 ", total_received=%" PRIu32
-               ", errno=%d",
-               received, response_length, (uint32_t) total_received, errno);
+      ESP_LOGVV(TAG,
+                "Failed to receive RPC response data: received=%d, expected=%" PRIu32 ", total_received=%" PRIu32
+                ", errno=%d",
+                received, response_length, (uint32_t) total_received, errno);
       close(this->socket_);
       this->socket_ = -1;
       this->connected_ = false;
@@ -1216,7 +1329,7 @@ bool NFSClient::send_rpc_(const XDRBuffer &request, XDRBuffer &response) {
     delay(10);
   }
   if (this->client_->available() < 4) {
-    ESP_LOGE(TAG, "Timeout waiting for response");
+    ESP_LOGVV(TAG, "Timeout waiting for response");
     return false;
   }
 
@@ -1228,8 +1341,8 @@ bool NFSClient::send_rpc_(const XDRBuffer &request, XDRBuffer &response) {
       (static_cast<uint32_t>(response_length_buf[2]) << 8) | static_cast<uint32_t>(response_length_buf[3]);
   response_length &= 0x7FFFFFFF;
 
-  if (response_length > 65536) {
-    ESP_LOGE(TAG, "Response too large: %" PRIu32 " bytes", response_length);
+  if (response_length > RPC_RESPONSE_BUFFER_SIZE) {
+    ESP_LOGVV(TAG, "Response too large: %" PRIu32 " bytes", response_length);
     return false;
   }
 
@@ -1245,7 +1358,7 @@ bool NFSClient::send_rpc_(const XDRBuffer &request, XDRBuffer &response) {
       if (bytes_read > 0) {
         total_read += bytes_read;
       } else if (bytes_read < 0) {
-        ESP_LOGE(TAG, "Failed to read response data");
+        ESP_LOGVV(TAG, "Failed to read response data");
         return false;
       }
     } else {
@@ -1254,8 +1367,8 @@ bool NFSClient::send_rpc_(const XDRBuffer &request, XDRBuffer &response) {
   }
 
   if (total_read < response_length) {
-    ESP_LOGE(TAG, "Timeout waiting for full response: got %" PRIu32 " / %" PRIu32 " bytes", (uint32_t) total_read,
-             response_length);
+    ESP_LOGVV(TAG, "Timeout waiting for full response: got %" PRIu32 " / %" PRIu32 " bytes", (uint32_t) total_read,
+              response_length);
     return false;
   }
 
@@ -1459,7 +1572,7 @@ std::vector<std::string> NFSClient::split_path_(const std::string &path) {
 }
 
 bool NFSClient::resolve_path_(const std::string &path, NFSFileHandle &fh, NFSFileAttr &attr) {
-  if (!this->mounted_) {
+  if (!this->ensure_mounted_()) {
     ESP_LOGW(TAG, "resolve_path_: not mounted");
     return false;
   }
@@ -1467,7 +1580,7 @@ bool NFSClient::resolve_path_(const std::string &path, NFSFileHandle &fh, NFSFil
   fh = this->root_fh_;
 
   if (path.empty() || path == "/") {
-    ESP_LOGD(TAG, "resolve_path_: getting root attributes");
+    ESP_LOGV(TAG, "resolve_path_: getting root attributes");
     return this->nfs_getattr_(fh, attr);
   }
 
@@ -1537,7 +1650,14 @@ bool NFSClient::nfs_lookup_(const NFSFileHandle &dir_fh, const std::string &name
 
   uint32_t nfs_status{0};
   if (!response.decode_uint32(nfs_status) || nfs_status != NFS3_OK) {
-    ESP_LOGW(TAG, "LOOKUP failed: status=%" PRIu32, nfs_status);
+    // NOENT is the expected, common case: LOOKUP is how a not-yet-existing path is probed
+    // (e.g. the existence check before a write). NFS is stateless, so this is normal traffic,
+    // not a fault — keep it at verbose. Any other status is a real problem and stays a warning.
+    if (nfs_status == NFS3ERR_NOENT) {
+      ESP_LOGV(TAG, "LOOKUP: not found (status=%" PRIu32 ")", nfs_status);
+    } else {
+      ESP_LOGW(TAG, "LOOKUP failed: status=%" PRIu32, nfs_status);
+    }
     return false;
   }
 
@@ -1579,7 +1699,13 @@ bool NFSClient::nfs_getattr_(const NFSFileHandle &fh, NFSFileAttr &attr) {
     return false;
   }
   if (nfs_status != NFS3_OK) {
-    ESP_LOGW(TAG, "GETATTR failed: NFS status=%" PRIu32, nfs_status);
+    // NOENT is expected here too — GETATTR is used to stat a path that may not exist. Verbose
+    // for the normal not-found case; a warning only for genuine failures.
+    if (nfs_status == NFS3ERR_NOENT) {
+      ESP_LOGV(TAG, "GETATTR: not found (status=%" PRIu32 ")", nfs_status);
+    } else {
+      ESP_LOGW(TAG, "GETATTR failed: NFS status=%" PRIu32, nfs_status);
+    }
     return false;
   }
 
@@ -1663,7 +1789,7 @@ bool NFSClient::nfs_write_(const NFSFileHandle &fh, uint64_t offset, const uint8
   // Skip wcc_data (pre_op_attr + post_op_attr)
   bool has_pre_op;
   if (!response.decode_bool(has_pre_op)) {
-    ESP_LOGW(TAG, "WRITE: failed to decode has_pre_op");
+    ESP_LOGV(TAG, "WRITE: failed to decode has_pre_op");
     return false;
   }
   if (has_pre_op) {
@@ -1678,7 +1804,7 @@ bool NFSClient::nfs_write_(const NFSFileHandle &fh, uint64_t offset, const uint8
 
   bool has_post_op;
   if (!response.decode_bool(has_post_op)) {
-    ESP_LOGW(TAG, "WRITE: failed to decode has_post_op");
+    ESP_LOGV(TAG, "WRITE: failed to decode has_post_op");
     return false;
   }
   if (has_post_op) {
@@ -1688,7 +1814,7 @@ bool NFSClient::nfs_write_(const NFSFileHandle &fh, uint64_t offset, const uint8
 
   uint32_t bytes_written;
   if (!response.decode_uint32(bytes_written)) {
-    ESP_LOGW(TAG, "WRITE: failed to decode bytes_written");
+    ESP_LOGV(TAG, "WRITE: failed to decode bytes_written");
     return false;
   }
 
@@ -1728,7 +1854,13 @@ bool NFSClient::nfs_create_(const NFSFileHandle &dir_fh, const std::string &name
 
   uint32_t nfs_status{0};
   if (!response.decode_uint32(nfs_status) || nfs_status != NFS3_OK) {
-    ESP_LOGW(TAG, "CREATE failed: status=%" PRIu32, nfs_status);
+    // EXIST is the expected case when the caller is checking/handling overwrite (surfaced as
+    // ALREADY_EXISTS upstream), so it is verbose; other statuses are real failures.
+    if (nfs_status == NFS3ERR_EXIST) {
+      ESP_LOGV(TAG, "CREATE: already exists (status=%" PRIu32 ")", nfs_status);
+    } else {
+      ESP_LOGW(TAG, "CREATE failed: status=%" PRIu32, nfs_status);
+    }
     return false;
   }
 
@@ -1848,7 +1980,7 @@ bool NFSClient::nfs_rmdir_(const NFSFileHandle &dir_fh, const std::string &name)
 }
 
 bool NFSClient::nfs_rename_(const NFSFileHandle &old_dir_fh, const std::string &old_name,
-                            const NFSFileHandle &new_dir_fh, const std::string &new_name) {
+                            const NFSFileHandle &new_dir_fh, const std::string &new_name, uint32_t *nfs_status_out) {
   ESP_LOGD(TAG, "NFS RENAME: %s -> %s", old_name.c_str(), new_name.c_str());
 
   uint32_t xid = RPCClient::generate_xid();
@@ -1870,7 +2002,10 @@ bool NFSClient::nfs_rename_(const NFSFileHandle &old_dir_fh, const std::string &
   }
 
   uint32_t nfs_status{0};
-  if (!response.decode_uint32(nfs_status) || nfs_status != NFS3_OK) {
+  bool decoded = response.decode_uint32(nfs_status);
+  if (nfs_status_out != nullptr)
+    *nfs_status_out = decoded ? nfs_status : 0;
+  if (!decoded || nfs_status != NFS3_OK) {
     ESP_LOGW(TAG, "RENAME failed: status=%" PRIu32, nfs_status);
     return false;
   }
@@ -1878,8 +2013,48 @@ bool NFSClient::nfs_rename_(const NFSFileHandle &old_dir_fh, const std::string &
   return true;
 }
 
+bool NFSClient::nfs_setattr_size_(const NFSFileHandle &fh, uint64_t size) {
+  ESP_LOGD(TAG, "NFS SETATTR: size=%" PRIu64, size);
+
+  uint32_t xid = RPCClient::generate_xid();
+  XDRBuffer request;
+  this->rpc_.build_call(request, xid, NFS_PROGRAM, NFS_VERSION_3, NFSPROC3_SETATTR, this->uid_, this->gid_);
+  fh.encode(request);
+
+  // sattr3: only the size is set. Mode, uid and gid stay as they are -- this is a truncate,
+  // not a chown, and a caller shortening a file must not silently reset its permissions.
+  request.encode_bool(false);  // mode: don't set
+  request.encode_bool(false);  // uid: don't set
+  request.encode_bool(false);  // gid: don't set
+  request.encode_bool(true);   // size: set
+  request.encode_uint64(size);
+  request.encode_uint32(0);  // atime: DONT_CHANGE
+  request.encode_uint32(0);  // mtime: DONT_CHANGE
+
+  // sattr_guard3: unguarded. A guard only protects against a concurrent change between a
+  // GETATTR and this call, and nothing here reads attributes first.
+  request.encode_bool(false);
+
+  XDRBuffer response;
+  if (!this->send_rpc_(request, response)) {
+    return false;
+  }
+
+  RPCAcceptStatus rpc_status;
+  if (!this->rpc_.parse_reply(response, xid, rpc_status)) {
+    return false;
+  }
+
+  uint32_t nfs_status{0};
+  if (!response.decode_uint32(nfs_status) || nfs_status != NFS3_OK) {
+    ESP_LOGW(TAG, "SETATTR failed: status=%" PRIu32, nfs_status);
+    return false;
+  }
+  return true;
+}
+
 bool NFSClient::nfs_readdir_(const NFSFileHandle &dir_fh, std::vector<NFSDirEntry> &entries) {
-  ESP_LOGI(TAG, "NFS READDIRPLUS starting");
+  ESP_LOGV(TAG, "NFS READDIRPLUS starting");
   entries.clear();
   uint64_t cookie = 0;
   uint8_t cookieverf[8] = {0};
@@ -1912,19 +2087,19 @@ bool NFSClient::nfs_readdir_(const NFSFileHandle &dir_fh, std::vector<NFSDirEntr
 
     bool has_dir_attr;
     if (!response.decode_bool(has_dir_attr)) {
-      ESP_LOGW(TAG, "READDIRPLUS: Failed to decode has_dir_attr");
+      ESP_LOGV(TAG, "READDIRPLUS: Failed to decode has_dir_attr");
       return false;
     }
     if (has_dir_attr) {
       NFSFileAttr dir_attr;
       if (!dir_attr.decode(response)) {
-        ESP_LOGW(TAG, "READDIRPLUS: Failed to decode dir_attributes");
+        ESP_LOGV(TAG, "READDIRPLUS: Failed to decode dir_attributes");
         return false;
       }
     }
 
     if (!response.decode_bytes(cookieverf, 8)) {
-      ESP_LOGW(TAG, "READDIRPLUS: Failed to decode cookieverf");
+      ESP_LOGV(TAG, "READDIRPLUS: Failed to decode cookieverf");
       return false;
     }
 
@@ -1933,18 +2108,18 @@ bool NFSClient::nfs_readdir_(const NFSFileHandle &dir_fh, std::vector<NFSDirEntr
       NFSDirEntry entry;
       if (!response.decode_uint64(entry.fileid) || !response.decode_string(entry.name) ||
           !response.decode_uint64(entry.cookie)) {
-        ESP_LOGW(TAG, "READDIRPLUS: Failed to decode entry base");
+        ESP_LOGV(TAG, "READDIRPLUS: Failed to decode entry base");
         return false;
       }
 
       bool has_name_attr;
       if (!response.decode_bool(has_name_attr)) {
-        ESP_LOGW(TAG, "READDIRPLUS: Failed to decode has_name_attr for %s", entry.name.c_str());
+        ESP_LOGV(TAG, "READDIRPLUS: Failed to decode has_name_attr for %s", entry.name.c_str());
         return false;
       }
       if (has_name_attr) {
         if (!entry.attr.decode(response)) {
-          ESP_LOGW(TAG, "READDIRPLUS: Failed to decode name_attributes for %s", entry.name.c_str());
+          ESP_LOGV(TAG, "READDIRPLUS: Failed to decode name_attributes for %s", entry.name.c_str());
           return false;
         }
         entry.has_attr = true;
@@ -1952,13 +2127,13 @@ bool NFSClient::nfs_readdir_(const NFSFileHandle &dir_fh, std::vector<NFSDirEntr
 
       bool has_name_handle;
       if (!response.decode_bool(has_name_handle)) {
-        ESP_LOGW(TAG, "READDIRPLUS: Failed to decode has_name_handle for %s", entry.name.c_str());
+        ESP_LOGV(TAG, "READDIRPLUS: Failed to decode has_name_handle for %s", entry.name.c_str());
         return false;
       }
       if (has_name_handle) {
         std::string fh_data;
         if (!response.decode_string(fh_data)) {
-          ESP_LOGW(TAG, "READDIRPLUS: Failed to skip name_handle for %s", entry.name.c_str());
+          ESP_LOGV(TAG, "READDIRPLUS: Failed to skip name_handle for %s", entry.name.c_str());
           return false;
         }
       }
@@ -1971,12 +2146,12 @@ bool NFSClient::nfs_readdir_(const NFSFileHandle &dir_fh, std::vector<NFSDirEntr
 
     bool eof;
     if (!response.decode_bool(eof)) {
-      ESP_LOGW(TAG, "READDIRPLUS: Failed to decode EOF");
+      ESP_LOGV(TAG, "READDIRPLUS: Failed to decode EOF");
       return false;
     }
 
     if (eof) {
-      ESP_LOGI(TAG, "READDIRPLUS: Got %" PRIu32 " entries", (uint32_t) entries.size());
+      ESP_LOGV(TAG, "READDIRPLUS: Got %" PRIu32 " entries", (uint32_t) entries.size());
       break;
     }
 

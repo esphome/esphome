@@ -1,8 +1,11 @@
 import esphome.codegen as cg
 from esphome.components.storage import (
     MountableStorage,
+    register_mount_path,
+    request_path_length,
     request_storage_device,
     request_storage_worker,
+    validate_mount_path,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -41,7 +44,7 @@ NFS_SHARE_SCHEMA = cv.Schema(
         cv.Required(CONF_SERVER): cv.string,
         cv.Required(CONF_EXPORT): cv.string,
         cv.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
-        cv.Optional(CONF_MOUNT_PATH): cv.string,
+        cv.Required(CONF_MOUNT_PATH): validate_mount_path,
         cv.Optional(CONF_UID, default=DEFAULT_UID): cv.int_range(min=0, max=65535),
         cv.Optional(CONF_GID, default=DEFAULT_GID): cv.int_range(min=0, max=65535),
         # Fire one mount attempt on each rising edge of network connectivity (wifi,
@@ -52,22 +55,8 @@ NFS_SHARE_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def validate_mount_paths(configs):
-    mount_paths = []
-    for config in configs:
-        if CONF_MOUNT_PATH in config:
-            path = config[CONF_MOUNT_PATH]
-            if path in mount_paths:
-                raise cv.Invalid(
-                    f"Duplicate mount path '{path}'. Each NFS share must have a unique mount path."
-                )
-            mount_paths.append(path)
-    return configs
-
-
 CONFIG_SCHEMA = cv.All(
     cv.ensure_list(NFS_SHARE_SCHEMA),
-    validate_mount_paths,
     cv.only_on(
         [
             PLATFORM_BK72XX,
@@ -92,8 +81,12 @@ async def to_code(config):
         cg.add(var.set_gid(share_config[CONF_GID]))
         cg.add(var.set_auto_connect(share_config[CONF_AUTO_CONNECT]))
 
-        if (mount_path := share_config.get(CONF_MOUNT_PATH)) is not None:
-            cg.add(var.set_mount_path(mount_path))
+        cg.add(var.set_mount_path(share_config[CONF_MOUNT_PATH]))
+        # Full VFS paths carry the mount point; the storage component sizes its buffers from
+        # the paths registered here.
+        register_mount_path(share_config[CONF_MOUNT_PATH])
 
         request_storage_device()
+        # NFSv3 NFS_MAXNAMLEN is 255; plus the terminator.
+        request_path_length(256)
         request_storage_worker(task_safe=True)
