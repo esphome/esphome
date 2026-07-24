@@ -111,6 +111,15 @@ TEST(BuildPath, YieldsTheMountPointForAnEmptyRelative) {
   EXPECT_STREQ(out, "/sd");
 }
 
+TEST(BuildPath, TreatsASoleSlashAsTheMountPointItself) {
+  // resolve_path() reports "" for a path that IS the mount point; "/" means the same thing and
+  // must not leave a trailing separator behind.
+  DummyPathStorage sd{"/sd"};
+  char out[64];
+  ASSERT_TRUE(StorageRegistry::build_path(&sd, "/", out, sizeof(out)));
+  EXPECT_STREQ(out, "/sd");
+}
+
 TEST(BuildPath, RefusesWhatWouldNotFit) {
   DummyPathStorage sd{"/sd"};
   char out[8];
