@@ -1,5 +1,6 @@
 import logging
 import math
+from typing import Any
 
 from esphome import automation, preferences
 from esphome.automation import Condition
@@ -13,6 +14,8 @@ from esphome.components.esp32 import (
     request_wifi,
 )
 from esphome.components.network import (
+    add_use_address,
+    get_network_priority,
     has_high_performance_networking,
     ip_address_literal,
 )
@@ -142,8 +145,8 @@ def has_native_wifi(
     """
     if platform == Platform.ESP32:
         return variant_has_wifi(variant) if variant else True
-    if platform == Platform.RP2040:
-        from esphome.components.rp2040 import board_id_has_wifi
+    if platform == Platform.RP2:
+        from esphome.components.rp2 import board_id_has_wifi
 
         return board_id_has_wifi(board) if board else True
     return platform in _WIFI_FIRST_PLATFORMS
@@ -300,7 +303,7 @@ def wifi_network_ap(value):
     if value is None:
         value = {}
     config = WIFI_NETWORK_AP(value)
-    if CONF_MANUAL_IP in config and CORE.is_rp2040:
+    if CONF_MANUAL_IP in config and CORE.is_rp2:
         raise cv.Invalid(
             "Manual AP IP configuration is not supported on RP2040. "
             "The AP uses the default IP 192.168.4.1"
@@ -323,8 +326,8 @@ def validate_variant(_):
         variant = get_esp32_variant()
         if variant in NO_WIFI_VARIANTS and "esp32_hosted" not in fv.full_config.get():
             raise cv.Invalid(f"WiFi requires component esp32_hosted on {variant}")
-    if CORE.is_rp2040:
-        from esphome.components.rp2040 import board_has_wifi, get_board
+    if CORE.is_rp2:
+        from esphome.components.rp2 import board_has_wifi, get_board
 
         if not board_has_wifi():
             raise cv.Invalid(
@@ -368,7 +371,7 @@ def _consume_wifi_sockets(config: ConfigType) -> ConfigType:
     DHCP/DNS). On ESP32, CONFIG_LWIP_MAX_SOCKETS only controls the POSIX socket
     layer — DHCP/DNS use raw udp_new() which bypasses it entirely.
     """
-    if not (CORE.is_bk72xx or CORE.is_rtl87xx or CORE.is_ln882x or CORE.is_rp2040):
+    if not (CORE.is_bk72xx or CORE.is_rtl87xx or CORE.is_ln882x or CORE.is_rp2):
         return config
     from esphome.components import socket
 
@@ -434,6 +437,21 @@ def _validate(config):
     return config
 
 
+def _report_provisioning_credentials(config):
+    """Report baked-in STA credentials to the provisioning component (if used).
+
+    `_validate` has already folded any ``ssid``/``password`` into ``networks``, so a
+    non-empty list means credentials are set in the config. `provisioning:` warns
+    about this, since a device that uses a provisioning window should get its
+    credentials on first connection instead.
+    """
+    if config.get(CONF_NETWORKS):
+        from esphome.components import provisioning
+
+        provisioning.report_hardcoded_credentials("wifi")
+    return config
+
+
 CONF_PASSIVE_SCAN = "passive_scan"
 
 FAST_CONNECT_SCHEMA = cv.Schema(
@@ -444,9 +462,10 @@ FAST_CONNECT_SCHEMA = cv.Schema(
 )
 
 
-def _fast_connect_schema(value):
-    """Accept the historic plain boolean or a dict with enabled/storage keys."""
-    if isinstance(value, bool):
+def _fast_connect_schema(value: Any) -> ConfigType:
+    """Accept the historic plain boolean (including boolean-like strings from
+    substitutions) or a dict with enabled/storage keys."""
+    if not isinstance(value, dict):
         value = {CONF_ENABLED: value}
     return FAST_CONNECT_SCHEMA(value)
 
@@ -471,7 +490,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_POWER_SAVE_MODE,
                 esp8266="none",
                 esp32="light",
-                rp2040="light",
+                rp2="light",
                 bk72xx="none",
                 rtl87xx="none",
                 ln882x="light",
@@ -514,6 +533,7 @@ CONFIG_SCHEMA = cv.All(
     ),
     _apply_min_auth_mode_default,
     _validate,
+    _report_provisioning_credentials,
 )
 
 
@@ -583,7 +603,11 @@ def wifi_network(config, ap, static_ip):
 @coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
+
+    prio = get_network_priority("wifi")
+    if prio is not None:
+        cg.set_setup_priority(var, prio)
+    add_use_address(var, config[CONF_USE_ADDRESS])
 
     # Track if any network uses Enterprise authentication
     has_eap = False
@@ -674,7 +698,7 @@ async def to_code(config):
         if CONF_PHY_MODE in config:
             cg.add_define("USE_WIFI_PHY_MODE")
             cg.add(var.set_phy_mode(config[CONF_PHY_MODE]))
-    elif CORE.is_rp2040:
+    elif CORE.is_rp2:
         cg.add_library("WiFi", None)
 
     if CORE.is_esp32:
@@ -942,7 +966,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
-        "wifi_component_pico_w.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "wifi_component_pico_w.cpp": {PlatformFramework.RP2_ARDUINO},
     }
 )
 

@@ -16,7 +16,7 @@ struct ZephyrGPIOInterrupt {
   void *arg{nullptr};
 };
 
-class ZephyrGPIOPin : public InternalGPIOPin {
+class ZephyrGPIOPin final : public InternalGPIOPin {
  public:
   ZephyrGPIOPin(const device *gpio, int gpio_size, const char *pin_name_prefix) {
     this->gpio_ = gpio;
