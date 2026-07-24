@@ -46,29 +46,35 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
   ESP_LOGV(TAG, "Open HTTP");
   int chunk_size = -1;
   int status_code = -1;
+  esp_err_t last_err = ESP_OK;
   for (uint8_t attempt = 0; attempt < this->tft_upload_http_retries_; attempt++) {
-    esp_err_t err = esp_http_client_open(http_client, 0);
-    if (err == ESP_OK) {
+    last_err = esp_http_client_open(http_client, 0);
+    if (last_err == ESP_OK) {
       ESP_LOGV(TAG, "Fetch length");
       chunk_size = esp_http_client_fetch_headers(http_client);
       ESP_LOGV(TAG, "Length: %d", chunk_size);
-      if (chunk_size > 0) {
+      if (chunk_size >= 0) {
         status_code = esp_http_client_get_status_code(http_client);
-        // A full-body 200 from a server without range support is usable only
-        // from offset 0; at any other offset it would replay the file from
-        // the start and corrupt the display.
-        if (status_code == 206 || (status_code == 200 && range_start == 0))
+        // Accept the requested range (206 with exact length) or a full-body 200
+        // only from offset 0; elsewhere a 200 replays the file and corrupts the display.
+        if (chunk_size > 0 && ((status_code == 206 && chunk_size == static_cast<int>(range_end - range_start + 1)) ||
+                               (status_code == 200 && range_start == 0))) {
           break;
-        ESP_LOGW(TAG, "Unexpected HTTP status: %d", status_code);
+        }
+        ESP_LOGW(TAG, "Bad response: status %d, length %d", status_code, chunk_size);
         chunk_size = -1;
-        // 4xx responses (except timeout/rate-limit) won't improve on retry
-        if (status_code >= 400 && status_code < 500 && status_code != 408 && status_code != 429)
+        // A server that ignored the range once will ignore it again; a 4xx
+        // (except timeout/rate-limit) won't improve on retry either.
+        if (status_code == 200 ||
+            (status_code >= 400 && status_code < 500 && status_code != 408 && status_code != 429)) {
           break;
+        }
       } else {
         ESP_LOGW(TAG, "Get length failed: %d", chunk_size);
+        last_err = ESP_FAIL;
       }
     } else {
-      ESP_LOGW(TAG, "HTTP open failed: %s", esp_err_to_name(err));
+      ESP_LOGW(TAG, "HTTP open failed: %s", esp_err_to_name(last_err));
     }
     // The server may have dropped the keep-alive connection while the display
     // was busy processing a chunk; close so the next attempt reconnects.
@@ -77,7 +83,7 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
     App.feed_wdt();
   }
   if (chunk_size <= 0) {
-    ESP_LOGE(TAG, "HTTP request failed, last status: %d", status_code);
+    ESP_LOGE(TAG, "HTTP request failed, last status: %d, last error: %s", status_code, esp_err_to_name(last_err));
     return -1;
   }
 
