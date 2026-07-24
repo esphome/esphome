@@ -1,7 +1,7 @@
 storage:
   # Validates the flattened worker knobs (config-only here): USE_STORAGE_WORKER itself is only
   # ever compiled in when a path-based driver calls request_storage_worker() in its own
-  # to_code() (e.g. sd_storage) — see that driver's own test suite for actual worker C++
+  # to_code() (e.g. sd_storage) -- see that driver's own test suite for actual worker C++
   # coverage.
   task_stack_size: 8192
   task_priority: 1
