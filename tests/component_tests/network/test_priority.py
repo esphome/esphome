@@ -210,7 +210,12 @@ def _dns_per_default_netif_option() -> bool | None:
 
 
 @pytest.mark.parametrize(
-    "config_file", ["priority_wifi_first.yaml", "priority_ethernet_first.yaml"]
+    "config_file",
+    [
+        "priority_wifi_first.yaml",
+        "priority_ethernet_first.yaml",
+        "priority_arduino.yaml",
+    ],
 )
 def test_multi_interface_priority_enables_default_route_arbitration(
     generate_main: Callable[[str | Path], str],

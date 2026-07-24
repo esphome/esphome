@@ -342,12 +342,10 @@ async def to_code(config):
             cg.add_define("USE_NETWORK_PRIMARY_INTERFACE_WIFI")
 
         # With more than one interface, NetworkComponent::loop() arbitrates the
-        # default route: the first connected interface in priority order wins.
-        # ESP-IDF's own selection compares fixed route_prio values (WiFi STA 100 >
-        # Ethernet 50), which would invert an ethernet-first list. ESP-IDF only:
-        # the arbitration needs the esp_netif handles, which the Arduino WiFi
-        # stack does not expose.
-        if len(priority_list) > 1 and CORE.is_esp32 and not CORE.using_arduino:
+        # default route (ESP-IDF's fixed route_prio values would always favor
+        # WiFi). ESP32 only: the arbitration needs esp_netif, which both
+        # frameworks build from source.
+        if len(priority_list) > 1 and CORE.is_esp32:
             cg.add_define("USE_NETWORK_DEFAULT_ROUTE")
             # Have lwIP switch to the DNS servers of the netif that owns the
             # default route whenever the arbitration changes it.

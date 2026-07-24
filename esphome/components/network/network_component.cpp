@@ -7,7 +7,7 @@
 #include "esp_netif.h"
 #include "esp_event.h"
 
-#if defined(USE_NETWORK_DEFAULT_ROUTE) && defined(USE_ESP_IDF)
+#ifdef USE_NETWORK_DEFAULT_ROUTE
 #ifdef USE_ETHERNET
 #include "esphome/components/ethernet/ethernet_component.h"
 #endif
@@ -39,7 +39,7 @@ void NetworkComponent::setup() {
   }
 }
 
-#if defined(USE_NETWORK_DEFAULT_ROUTE) && defined(USE_ESP_IDF)
+#ifdef USE_NETWORK_DEFAULT_ROUTE
 static esp_netif_t *connected_wifi_netif() {
 #ifdef USE_WIFI
   auto *wifi = wifi::global_wifi_component;
@@ -59,11 +59,8 @@ static esp_netif_t *connected_ethernet_netif() {
 }
 
 void NetworkComponent::loop() {
-  // The first connected interface in the user's network: priority: order carries
-  // the default route. Without this, ESP-IDF selects by fixed route_prio values
-  // (WiFi STA 100 > Ethernet 50), which inverts an ethernet-first list whenever
-  // both interfaces are up. Polling is_connected() also covers runtime
-  // enable()/disable() and link loss, which all update that state.
+  // Pin the default route to the first connected interface in the user's priority
+  // order; ESP-IDF's own route_prio selection would always favor WiFi.
   esp_netif_t *best;
 #ifdef USE_NETWORK_PRIMARY_INTERFACE_WIFI
   best = connected_wifi_netif();
@@ -74,15 +71,20 @@ void NetworkComponent::loop() {
   if (best == nullptr)
     best = connected_wifi_netif();
 #endif
-  // Keep the last default while nothing is connected: there is no better
-  // candidate, and clearing it would only churn lwIP state.
-  if (best == nullptr || best == this->default_netif_)
+  if (best == nullptr) {
+    // Forget the last winner: stopping its netif cleared lwIP's default route and
+    // IDF's manual override suppresses re-election, so reconnect must re-assert it.
+    this->default_netif_ = nullptr;
     return;
+  }
+  if (best == this->default_netif_)
+    return;
+  if (esp_netif_set_default_netif(best) != ESP_OK)
+    return;  // cache unchanged so the next iteration retries
   this->default_netif_ = best;
-  esp_netif_set_default_netif(best);
   ESP_LOGI(TAG, "Default interface: %s", esp_netif_get_desc(best));
 }
-#endif  // USE_NETWORK_DEFAULT_ROUTE && USE_ESP_IDF
+#endif  // USE_NETWORK_DEFAULT_ROUTE
 
 }  // namespace esphome::network
 #endif

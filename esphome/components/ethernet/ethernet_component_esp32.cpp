@@ -764,16 +764,17 @@ void EthernetComponent::start_connect_() {
 
 #ifdef USE_ETHERNET_MANUAL_IP
   if (this->manual_ip_.has_value()) {
-    LwIPLock lock;
+    // Set DNS through esp_netif so the servers are stored in the netif's own
+    // dns[] array; raw dns_setserver() would be lost when the default-route
+    // arbitration re-applies the default netif's DNS.
+    esp_netif_dns_info_t dns;
     if (this->manual_ip_->dns1.is_set()) {
-      ip_addr_t d;
-      d = this->manual_ip_->dns1;
-      dns_setserver(0, &d);
+      dns.ip = this->manual_ip_->dns1;
+      esp_netif_set_dns_info(this->eth_netif_, ESP_NETIF_DNS_MAIN, &dns);
     }
     if (this->manual_ip_->dns2.is_set()) {
-      ip_addr_t d;
-      d = this->manual_ip_->dns2;
-      dns_setserver(1, &d);
+      dns.ip = this->manual_ip_->dns2;
+      esp_netif_set_dns_info(this->eth_netif_, ESP_NETIF_DNS_BACKUP, &dns);
     }
   } else
 #endif

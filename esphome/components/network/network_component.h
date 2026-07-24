@@ -3,7 +3,7 @@
 #if defined(USE_NETWORK) && defined(USE_ESP32)
 #include "esphome/core/component.h"
 
-#if defined(USE_NETWORK_DEFAULT_ROUTE) && defined(USE_ESP_IDF)
+#ifdef USE_NETWORK_DEFAULT_ROUTE
 // Forward declaration matching esp_netif's own typedef; avoids pulling esp_netif.h
 // into this header.
 using esp_netif_t = struct esp_netif_obj;
@@ -16,7 +16,7 @@ class NetworkComponent final : public Component {
   // AFTER_BLUETOOTH: BLE controller must initialize before esp_netif_init per IDF guidance.
   float get_setup_priority() const override { return setup_priority::AFTER_BLUETOOTH; }
 
-#if defined(USE_NETWORK_DEFAULT_ROUTE) && defined(USE_ESP_IDF)
+#ifdef USE_NETWORK_DEFAULT_ROUTE
   void loop() override;
 
  protected:
