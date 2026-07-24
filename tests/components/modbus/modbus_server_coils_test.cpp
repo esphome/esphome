@@ -222,6 +222,9 @@ TEST(ModbusServerCoils, PackedBitsViewContractsEnforced) {
   PackedBits view(buf, 10);  // 10 bits -> 2 bytes, over an 8-byte buffer
   EXPECT_EQ(view.bytes().size(), 2u);
 
+  PackedBits short_view(std::span<const uint8_t>(buf, 1), 10);  // contract-violating: 10 bits over 1 byte
+  EXPECT_EQ(short_view.bytes().size(), 1u);  // clamped to the real span, not a fabricated 2-byte span
+
   MutablePackedBits bits(std::span<uint8_t>(buf, 2), 10);
   bits.set(9, true);    // in range: lands in byte 1
   bits.set(10, true);   // out of range: dropped

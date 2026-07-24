@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <span>
 
@@ -108,7 +109,10 @@ class PackedBits {
   uint16_t size() const { return this->count_; }
   /// The underlying packed bytes: exactly ceil(size() / 8) bytes, even when the view was constructed
   /// over a larger buffer - forwarding this span onto the wire can never leak trailing buffer content.
-  std::span<const uint8_t> bytes() const { return this->data_.first((this->count_ + 7) / 8); }
+  /// Clamped to the actual span so a view over a too-short buffer stays detectable instead of UB.
+  std::span<const uint8_t> bytes() const {
+    return this->data_.first(std::min<size_t>((this->count_ + 7) / 8, this->data_.size()));
+  }
 
  private:
   std::span<const uint8_t> data_;  // must cover ceil(count_ / 8) bytes
