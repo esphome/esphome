@@ -1661,6 +1661,7 @@ bool preferences_import_from_storage(const char *path, const char *format, bool 
   size_t imported = 0, skipped = 0;
   bool ok = true;
   if (as_json) {
+    // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     ok = json::parse_json(buf.get(), size, [&](JsonObject root) -> bool {
       JsonObject prefs = root["preferences"];
       if (prefs.isNull()) {
@@ -1680,6 +1681,7 @@ bool preferences_import_from_storage(const char *path, const char *format, bool 
       }
       return true;
     });
+    // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
   } else {
     const char *data = reinterpret_cast<const char *>(buf.get());
     size_t pos = 0;
