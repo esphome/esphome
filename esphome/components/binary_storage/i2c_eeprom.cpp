@@ -180,7 +180,7 @@ bool I2CEeprom::read_block_(uint32_t address, uint8_t *data, size_t length) {
   return true;
 }
 
-storage::StorageError I2CEeprom::read_physical_(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
+storage::StorageError I2CEeprom::read_physical(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
   if (!this->is_valid_address_(offset, len))
     return storage::StorageError::INVALID_ARGS;
   bool ok = this->read_raw(static_cast<uint32_t>(offset), buf, len);
@@ -189,7 +189,7 @@ storage::StorageError I2CEeprom::read_physical_(uint64_t offset, uint8_t *buf, s
   return ok ? storage::StorageError::OK : storage::StorageError::READ_ERROR;
 }
 
-storage::StorageError I2CEeprom::write_physical_(uint64_t offset, const uint8_t *buf, size_t len,
+storage::StorageError I2CEeprom::write_physical(uint64_t offset, const uint8_t *buf, size_t len,
                                                  size_t *bytes_transferred) {
   if (!this->is_valid_address_(offset, len))
     return storage::StorageError::INVALID_ARGS;
@@ -199,7 +199,7 @@ storage::StorageError I2CEeprom::write_physical_(uint64_t offset, const uint8_t 
   return ok ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
 }
 
-storage::StorageError I2CEeprom::erase_physical_(uint64_t offset, size_t len) {
+storage::StorageError I2CEeprom::erase_physical(uint64_t offset, size_t len) {
   // Cells are overwritten in place -- the device has no erase command to honour. Reporting OK
   // would tell the caller the range is blank when it still holds the old data. The littlefs
   // block-device path does not come through here (see BinaryStorage::block_erase()).

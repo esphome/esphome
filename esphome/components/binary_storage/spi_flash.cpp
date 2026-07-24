@@ -376,7 +376,7 @@ bool SPIFlash::read_data_(uint32_t address, uint8_t *data, size_t length) {
   return true;
 }
 
-storage::StorageError SPIFlash::read_physical_(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
+storage::StorageError SPIFlash::read_physical(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
   if (!this->is_valid_address_(offset, len))
     return storage::StorageError::INVALID_ARGS;
   bool ok = this->read_raw(static_cast<uint32_t>(offset), buf, len);
@@ -385,7 +385,7 @@ storage::StorageError SPIFlash::read_physical_(uint64_t offset, uint8_t *buf, si
   return ok ? storage::StorageError::OK : storage::StorageError::READ_ERROR;
 }
 
-storage::StorageError SPIFlash::write_physical_(uint64_t offset, const uint8_t *buf, size_t len,
+storage::StorageError SPIFlash::write_physical(uint64_t offset, const uint8_t *buf, size_t len,
                                                 size_t *bytes_transferred) {
   if (!this->is_valid_address_(offset, len))
     return storage::StorageError::INVALID_ARGS;
@@ -395,7 +395,7 @@ storage::StorageError SPIFlash::write_physical_(uint64_t offset, const uint8_t *
   return ok ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
 }
 
-storage::StorageError SPIFlash::erase_physical_(uint64_t offset, size_t len) {
+storage::StorageError SPIFlash::erase_physical(uint64_t offset, size_t len) {
   if (len == 0)
     return storage::StorageError::OK;
 

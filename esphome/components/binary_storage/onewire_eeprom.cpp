@@ -100,7 +100,7 @@ void OneWireEEPROM::dump_config() {
 // BinaryStorage Interface
 //========================================================================
 
-storage::StorageError OneWireEEPROM::read_physical_(uint64_t offset, uint8_t *buf, size_t len,
+storage::StorageError OneWireEEPROM::read_physical(uint64_t offset, uint8_t *buf, size_t len,
                                                     size_t *bytes_transferred) {
   if (!this->is_valid_address_(offset, len))
     return storage::StorageError::INVALID_ARGS;
@@ -110,7 +110,7 @@ storage::StorageError OneWireEEPROM::read_physical_(uint64_t offset, uint8_t *bu
   return ok ? storage::StorageError::OK : storage::StorageError::READ_ERROR;
 }
 
-storage::StorageError OneWireEEPROM::write_physical_(uint64_t offset, const uint8_t *buf, size_t len,
+storage::StorageError OneWireEEPROM::write_physical(uint64_t offset, const uint8_t *buf, size_t len,
                                                      size_t *bytes_transferred) {
   if (!this->is_valid_address_(offset, len))
     return storage::StorageError::INVALID_ARGS;
@@ -120,7 +120,7 @@ storage::StorageError OneWireEEPROM::write_physical_(uint64_t offset, const uint
   return ok ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
 }
 
-storage::StorageError OneWireEEPROM::erase_physical_(uint64_t offset, size_t len) {
+storage::StorageError OneWireEEPROM::erase_physical(uint64_t offset, size_t len) {
   // Cells are overwritten in place -- the device has no erase command to honour. Reporting OK
   // would tell the caller the range is blank when it still holds the old data. The littlefs
   // block-device path does not come through here (see BinaryStorage::block_erase()).
