@@ -384,7 +384,7 @@ This document provides essential context for AI models interacting with this pro
          .extend(i2c.i2c_device_schema(0x48))
          .extend(spi.spi_device_schema(cs_pin_required=True))
         ```
-    *   **Constants:** `esphome/const.py` is frozen — do not add new `CONF_` constants there. Define a component-local constant in the component's own `.py` (as with `CONF_PARAM` above); for a constant shared by multiple components, add it to `esphome/components/const/__init__.py`. CI (`lint_constants_usage`) fails if the same constant is defined in three or more component files.
+    *   **Constants:** `esphome/const.py` is frozen — do not add new `CONF_` constants there. Define a component-local constant in the component's own `.py` (as with `CONF_PARAM` above); for a constant shared by multiple components, add it to `esphome/components/const/__init__.py`. CI (`lint_constants_usage`) fails if the same constant is defined in three or more component files. Constants used in core files (i.e. those not under `esphome/components`) may be added to `esphome/const.py` but will require adjustment to the CI validation check.
 
 ## 5. Key Files & Entrypoints
 
