@@ -663,7 +663,7 @@ void ModelHandler::report_memory_status() {
     effective_arena_size = this->tensor_arena_size_requested_;
   }
   MemoryManager::report_memory_status(this->tensor_arena_size_requested_, effective_arena_size,
-                                             this->get_arena_used_bytes(), this->model_length_);
+                                      this->get_arena_used_bytes(), this->model_length_);
 }
 
 size_t ModelHandler::probe_arena_size_(const uint8_t *model_start, size_t initial_size,
