@@ -3,7 +3,7 @@ packages:
 
 # Validates the flattened worker knobs (config-only here): USE_STORAGE_WORKER itself is only
 # ever compiled in when a path-based driver calls request_storage_worker() in its own
-# to_code() (e.g. sd_storage) — see that driver's own test suite for actual worker C++
+# to_code() (e.g. sd_storage) -- see that driver's own test suite for actual worker C++
 # coverage.
 storage:
   task_stack_size: 8192
@@ -11,7 +11,7 @@ storage:
   max_pending: 4
 
 # On top of common.yaml's platform-neutral script: the action shapes that only matter where a
-# real driver can exist — lambda paths, the async copy/move pair, the multi-step and key=value
+# real driver can exist -- lambda paths, the async copy/move pair, the multi-step and key=value
 # extractions, on_value, and a recursive delete.
 globals:
   - id: g_setpoint

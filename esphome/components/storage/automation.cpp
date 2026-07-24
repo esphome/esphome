@@ -210,7 +210,7 @@ void perform_file_write(const std::string &path, std::string content, bool appen
     // Network append: the chunk API takes an explicit offset (NFS supports offset writes
     // natively), so appending is stat-for-size + one write_chunk at EOF -- O(1) RAM, no
     // read-modify-write. A missing file starts at offset 0 (created by the write). The
-    // stat→write window is not atomic against other writers; acceptable for a single node
+    // stat->write window is not atomic against other writers; acceptable for a single node
     // appending its own logs/values.
     auto *ns = static_cast<NetworkStorage *>(ps);
     uint64_t offset = 0;
@@ -662,7 +662,7 @@ void perform_file_copy_async(const std::string &from, const std::string &to, boo
                                                                    nullptr, /*overwrite=*/true)
                                : global_storage_worker->async_copy(src, src_rel, dst, dst_rel, std::move(on_done),
                                                                    nullptr, /*overwrite=*/true);
-    // Submission itself can fail (pool full → NOT_READY, or bad args) before any callback is
+    // Submission itself can fail (pool full -> NOT_READY, or bad args) before any callback is
     // scheduled -- report that synchronously so the trigger still fires exactly once.
     if (err != StorageError::OK) {
       fail(std::string("could not queue (") + error_to_string(err) + ")");
