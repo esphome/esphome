@@ -18,9 +18,9 @@
 
 namespace esphome::tflite_micro_helper {
 
-static const char *const TAG = "ModelHandler";
+using debug_utils::tflite_type_to_string;
 
-// tflite_type_to_string is defined in debug_utils.h as inline
+static const char *const TAG = "ModelHandler";
 
 void ModelHandler::debug_input_quantization_analysis(const uint8_t *input_data, size_t input_size,
                                                      const std::string &stage) {
