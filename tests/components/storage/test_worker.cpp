@@ -1,4 +1,3 @@
-#include <defines.h>
 #include <gtest/gtest.h>
 
 #include "esphome/components/storage/storage_worker.h"
