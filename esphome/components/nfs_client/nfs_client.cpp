@@ -555,7 +555,7 @@ storage::StorageError NFSClient::get_info(storage::StorageInfo *info) {
   // Storage contract: get_info() must succeed even when registered-but-unmounted and
   // report that via is_mounted -- never via a non-OK error, and never with a server
   // round-trip while unmounted.
-  info->id = (this->mount_path_ != nullptr) ? this->mount_path_ : "nfs";
+  info->id = this->mount_path_;
   info->name = "NFS";
   info->kind = "nfs";
   info->block_size = 4096;
