@@ -564,6 +564,13 @@ StorageError write_file(NetworkStorage *storage, const char *path, const uint8_t
   if (size_check != StorageError::OK)
     return size_check;
 
+  // Create/truncate semantics, same as the FilesystemStorage overload's OpenMode::WRITE.
+  // write_chunk() addresses by offset and never shortens, so without this a shorter payload
+  // would leave the previous file's tail in place.
+  StorageError trunc_err = storage->truncate(path, 0);
+  if (trunc_err != StorageError::OK)
+    return trunc_err;
+
   size_t total_written = 0;
   while (total_written < size) {
     size_t bytes_transferred = 0;
@@ -624,6 +631,15 @@ static StorageError copy_one_file(PathStorage *src_storage, const char *src_path
   }
   if (dst_is_fs) {
     err = dst_fs->open(dst_path, dst_handle, OpenMode::WRITE);
+    if (err != StorageError::OK) {
+      if (src_is_fs)
+        src_fs->close(src_handle);
+      return err;
+    }
+  } else {
+    // OpenMode::WRITE truncates for the filesystem branch above; write_chunk() does not, so a
+    // shorter source would leave the destination's old tail behind.
+    err = dst_net->truncate(dst_path, 0);
     if (err != StorageError::OK) {
       if (src_is_fs)
         src_fs->close(src_handle);

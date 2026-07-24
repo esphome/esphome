@@ -386,6 +386,15 @@ class NetworkStorage : public PathStorage {
                                   size_t *bytes_transferred) = 0;
   virtual StorageError write_chunk(const char *path, const uint8_t *buf, uint64_t offset, size_t len,
                                    size_t *bytes_transferred) = 0;
+  // Sets the length of `path` to `size`, creating the file if it does not exist. Growing a file
+  // this way zero-fills the added range; shrinking discards the tail.
+  //
+  // Required because write_chunk() addresses by offset and never shortens: writing a short file
+  // over a longer one at the same path leaves the old tail in place, so the result is neither
+  // the source nor a valid file. FilesystemStorage gets this from OpenMode::WRITE; a stateless
+  // protocol has no open() to carry it, so it needs its own operation. copy() calls it with 0
+  // before the first chunk of a file whose destination is a NetworkStorage.
+  virtual StorageError truncate(const char *path, uint64_t size) = 0;
 };
 
 // Runtime registry of all storage devices. Initializes before any driver
