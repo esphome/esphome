@@ -19,6 +19,7 @@ binary_storage:
     address: 0x52
     model: MB85RC256
     mode: both
+    fs_size: 16KB
     mount_path: /fram
     storage_name: "FRAM both-mode"
 
