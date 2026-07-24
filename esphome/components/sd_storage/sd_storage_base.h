@@ -41,7 +41,7 @@ class SdStorageBase : public storage::FilesystemStorage, public storage::Mountab
   void set_id(const char *id) { this->storage_id_ = id; }
   void set_cd_pin(GPIOPin *pin) { this->cd_pin_ = pin; }
   bool is_mounted() const { return this->is_mounted_; }
-  // No-RTTI downcast hook — see PathStorage::as_mountable().
+  // No-RTTI downcast hook -- see PathStorage::as_mountable().
   storage::MountableStorage *as_mountable() override { return this; }
 
   // Both FilesystemStorage and MountableStorage declare mount()/unmount(); redeclaring them
@@ -58,7 +58,7 @@ class SdStorageBase : public storage::FilesystemStorage, public storage::Mountab
   // Storage base interface
   storage::StorageError get_info(storage::StorageInfo *info) override;
 
-  // FilesystemStorage virtuals — common POSIX implementations (subclasses provide mount/unmount)
+  // FilesystemStorage virtuals -- common POSIX implementations (subclasses provide mount/unmount)
   storage::StorageError format() override;
   storage::StorageError sync() override;
   storage::StorageError open(const char *path, storage::FileHandle *&handle, storage::OpenMode mode) override;
@@ -107,22 +107,22 @@ class SdStorageBase : public storage::FilesystemStorage, public storage::Mountab
   // matching the behavior of a card that's simply always present as far as this feature is
   // concerned. Active-low by convention (a CD switch pulls the pin low when a card is seated);
   // cd_pin_'s own GPIOPin-level inverted: flag (from the pin schema) overrides this for
-  // hardware wired the other way — no separate inversion setting exists on top of that.
+  // hardware wired the other way -- no separate inversion setting exists on top of that.
   //
-  // Must be called every loop() iteration (not just at the ~100ms poll interval — see CD3):
+  // Must be called every loop() iteration (not just at the ~100ms poll interval -- see CD3):
   // it tracks the raw reading continuously so a debounce window measured from the first
   // observed change is accurate regardless of when the caller last polled.
   bool card_present_();
 
   // Card-detect handling shared by SdMmc::loop()/SdSpi::loop(). Strictly EDGE-triggered:
   // (re)mount only when the debounced CD state CHANGES to present, unmount only when it
-  // changes to absent — never on levels. A manual unmount with the card still seated
+  // changes to absent -- never on levels. A manual unmount with the card still seated
   // therefore stays unmounted until the card is physically re-inserted (or mounted
   // manually). Without a configured CD pin this is a no-op: mount happens once at boot
   // (setup()), afterwards strictly manually via the mount/unmount actions.
   void loop_cd_();
 
-  // True at most once every CD_POLL_MS — gates how often a driver's loop() acts on
+  // True at most once every CD_POLL_MS -- gates how often a driver's loop() acts on
   // card_present_()'s result (auto-mount/unmount), independent of how often loop() itself
   // runs. card_present_() itself must still be called every iteration regardless (see above).
   bool should_poll_cd_();
@@ -146,7 +146,7 @@ class SdStorageBase : public storage::FilesystemStorage, public storage::Mountab
   uint64_t used_bytes_{0};
   const char *storage_id_{nullptr};
   GPIOPin *cd_pin_{nullptr};
-  char fatfs_drive_[5]{};  // "N:" — set via set_fatfs_drive_() after a successful mount
+  char fatfs_drive_[5]{};  // "N:" -- set via set_fatfs_drive_() after a successful mount
 
   LazyCallbackManager<void(const char *)> on_mounted_;
   LazyCallbackManager<void()> on_removed_;
@@ -159,7 +159,7 @@ class SdStorageBase : public storage::FilesystemStorage, public storage::Mountab
   // counted in loop() iterations (whose frequency varies with the rest of the node's config).
   bool cd_debounce_started_{false};
   // Edge detection for loop_cd_(): last debounced state that was acted upon, and whether
-  // it has been seeded yet (the first sample after boot must not count as an edge —
+  // it has been seeded yet (the first sample after boot must not count as an edge --
   // setup() already handled the boot-time mount decision).
   bool cd_last_present_{false};
   bool cd_state_seeded_{false};
@@ -168,7 +168,7 @@ class SdStorageBase : public storage::FilesystemStorage, public storage::Mountab
   uint32_t candidate_since_ms_{0};
   static constexpr uint32_t CD_DEBOUNCE_MS = 50;
 
-  // Poll-interval gate for should_poll_cd_() — separate from the debounce window above, since
+  // Poll-interval gate for should_poll_cd_() -- separate from the debounce window above, since
   // the debounce tracking itself must run every loop() call regardless of this interval.
   bool cd_poll_started_{false};
   uint32_t last_cd_poll_ms_{0};

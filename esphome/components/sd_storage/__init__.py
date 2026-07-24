@@ -243,7 +243,7 @@ def _count_devices_on_spi_bus(fconf, bus_id):
     """Count component configs across the whole config that reference the same spi bus id.
 
     Walks every domain's component list and looks for the spi_id key. The bus is only READ
-    here — never modified. Returns (count, names) where names lists the other devices' ids for
+    here -- never modified. Returns (count, names) where names lists the other devices' ids for
     a helpful error message.
     """
     count = 0
@@ -265,7 +265,7 @@ def _count_devices_on_spi_bus(fconf, bus_id):
 def _final_validate_assume_exclusive_bus(config):
     """Enforce the assume_exclusive_bus promise for SD-over-SPI.
 
-    The user asserts this card is alone on its SPI bus. We do not believe it blindly — Check A:
+    The user asserts this card is alone on its SPI bus. We do not believe it blindly -- Check A:
     no other device may reference the same bus. (SD-SPI is always a hardware bus here, enforced
     separately by _final_validate_spi_interface, so the hardware-bus check is already covered.)
     The bus config is only inspected, never changed.
@@ -307,7 +307,7 @@ async def to_code(config):
     esp32.require_vfs_dir()
     esp32.require_vfs_select()
     # LFN mode/length and volume count are set as user-overridable defaults by the esp32
-    # platform once any component calls require_fatfs() — see
+    # platform once any component calls require_fatfs() -- see
     # _reconcile_vfs_fatfs_sdkconfig(). Override via esp32 framework sdkconfig_options.
     esp32.require_fatfs()
     esp32.include_builtin_idf_component("fatfs")
@@ -371,7 +371,7 @@ async def to_code(config):
         cg.add(var.set_cd_pin(await cg.gpio_pin_expression(cd_pin)))
 
     request_storage_device()
-    # Bounded by FATFS long filenames, i.e. by CONFIG_FATFS_MAX_LFN — resolved at codegen
+    # Bounded by FATFS long filenames, i.e. by CONFIG_FATFS_MAX_LFN -- resolved at codegen
     # time rather than baked in, so a user who lowers it gets a matching API bound.
     request_fatfs_path_length()
     # SdMmc has a dedicated SDIO controller and is always safe to drive from the worker's
