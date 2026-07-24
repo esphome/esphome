@@ -20,12 +20,7 @@ extern "C" {
 
 #ifndef VFS_FAT_MOUNT_DEFAULT_CONFIG
 #define VFS_FAT_MOUNT_DEFAULT_CONFIG() \
-  { \
-      .format_if_mount_failed = false, \
-      .max_files = 5, \
-      .allocation_unit_size = 0, \
-      .disk_status_check_enable = false, \
-  }
+  { .format_if_mount_failed = false, .max_files = 5, .allocation_unit_size = 0, .disk_status_check_enable = false, }
 #endif
 
 namespace esphome::sd_storage {
