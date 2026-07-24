@@ -204,7 +204,7 @@ def _add_littlefs_sdkconfig():
 # See .ai/architecture/task-safe-raw-devices.md.
 _ASSUME_EXCLUSIVE_BUS_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_ASSUME_EXCLUSIVE_BUS, default=False): cv.All(
+        cv.Optional(CONF_ASSUME_EXCLUSIVE_BUS): cv.All(
             cv.boolean, cv.only_on_esp32
         ),
     }
