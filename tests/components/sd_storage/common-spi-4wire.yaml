@@ -5,7 +5,7 @@ sd_storage:
   data3_pin: GPIO12
   data1_pin: GPIO21
   data2_pin: GPIO14
-  path: /sdcard
+  mount_path: /sdcard
   on_mounted:
     - logger.log:
         format: "SD card mounted at %s"

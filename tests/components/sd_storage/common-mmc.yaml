@@ -5,7 +5,7 @@ sd_storage:
   cmd_pin: GPIO40
   data0_pin: GPIO41
   cd_pin: GPIO4
-  path: /sdcard
+  mount_path: /sdcard
   mode_1bit: true
   on_mounted:
     - logger.log:

@@ -4,7 +4,7 @@ sd_storage:
   spi_id: spi_bus
   cs_pin: GPIO13
   cd_pin: GPIO4
-  path: /sdcard
+  mount_path: /sdcard
   on_mounted:
     - logger.log:
         format: "SD card mounted at %s"
