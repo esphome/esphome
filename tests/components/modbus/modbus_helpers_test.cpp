@@ -349,6 +349,20 @@ TEST(ModbusHelpersTest, MutablePackedBitsRoundTripAndConversion) {
     EXPECT_EQ(view[i], original[i]) << "bit " << i;
 }
 
+TEST(ModbusHelpersTest, PackedBitsViewContractsEnforced) {
+  uint8_t buf[8] = {};
+  PackedBits view(buf, 10);  // 10 bits -> 2 bytes, over an 8-byte buffer
+  EXPECT_EQ(view.bytes().size(), 2u);
+
+  MutablePackedBits bits(std::span<uint8_t>(buf, 2), 10);
+  bits.set(9, true);    // in range: lands in byte 1
+  bits.set(10, true);   // out of range: dropped
+  bits.set(300, true);  // far out of range: dropped, no write past the span
+  EXPECT_EQ(buf[1], 0x02);
+  for (size_t i = 2; i < sizeof(buf); i++)
+    EXPECT_EQ(buf[i], 0) << "byte " << i;
+}
+
 // server_pdu_payload() must never classify an exception PDU as a read: [fc|0x80, code] is 2 bytes, and a
 // read-offset of 2 would return an empty span, losing the exception code. The payload of an exception PDU
 // is the exception code byte, for reads and writes alike.
