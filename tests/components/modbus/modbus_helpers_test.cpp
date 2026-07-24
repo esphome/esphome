@@ -364,9 +364,14 @@ TEST(ModbusHelpersTest, RegistersToNumberDecodesWord) {
   EXPECT_EQ(registers_to_number(registers, 1, SensorValueType::U_WORD), 0x1234);
 }
 
-TEST(ModbusHelpersTest, RegistersToNumberDecodesSwappedWord) {
+TEST(ModbusHelpersTest, RegistersToNumberDecodesSwappedUnsignedWord) {
   const uint16_t registers[] = {0x3412};
   EXPECT_EQ(registers_to_number(registers, 1, SensorValueType::U_WORD_S), 0x1234);
+}
+
+TEST(ModbusHelpersTest, RegistersToNumberDecodesSwappedSignedWord) {
+  const uint16_t registers[] = {0xFEFF};
+  EXPECT_EQ(registers_to_number(registers, 1, SensorValueType::S_WORD_S), -2);
 }
 
 TEST(ModbusHelpersTest, RegistersToNumberDecodesDwordHighWordFirst) {
