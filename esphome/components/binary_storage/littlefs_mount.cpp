@@ -1,3 +1,5 @@
+#include "esphome/core/defines.h"
+
 #ifdef USE_BINARY_STORAGE_LITTLEFS
 
 #include "littlefs_mount.h"
