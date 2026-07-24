@@ -1,6 +1,6 @@
 # Shared by the platform tests that have no storage driver available (bk72xx, esp8266,
 # ln882x, nrf52, rp2040, rtl87xx). Those cannot register a device, so the registry stays
-# empty and nothing is mounted at runtime — but the action layer is platform-neutral and
+# empty and nothing is mounted at runtime -- but the action layer is platform-neutral and
 # has to compile everywhere the component does. With `storage:` alone it did not: no
 # action means automation.h/.cpp are never instantiated, so these tests only proved that
 # the schema validates and the registry links.
