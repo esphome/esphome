@@ -40,7 +40,7 @@ def validate_sector_multiple(value):
     """Require a multiple of 512 (the common sector size).
 
     Anything else loses the FATFS direct-sector-read path that motivated picking a
-    16kB chunk size in the first place — see STORAGE_COPY_CHUNK_SIZE's comment in storage.h.
+    16kB chunk size in the first place -- see STORAGE_COPY_CHUNK_SIZE's comment in storage.h.
     """
     if value % 512 != 0:
         raise cv.Invalid(f"copy_chunk_size must be a multiple of 512, got {value}")
@@ -79,7 +79,7 @@ CONFIG_SCHEMA = cv.Schema(
         # On, such a refusal is redone as copy + remove so the move still happens; off, it is
         # reported instead of quietly turning a directory-entry update into a full copy.
         cv.Optional(CONF_MOVE_FALLBACK_COPY, default=True): cv.boolean,
-        # Fired for every storage device, not just file-browser-style consumers — any
+        # Fired for every storage device, not just file-browser-style consumers -- any
         # component that cares about hotplug/availability can listen here instead of
         # each reinventing its own notion of "storage changed". See
         # StorageRegistry::add_on_registered_callback()/add_on_unregistered_callback()
@@ -147,7 +147,7 @@ class StorageData:
     # Largest path length any configured driver reported via request_path_length().
     path_max: int = 0
     # Set by FATFS-backed drivers, whose bound is not a constant but whatever
-    # CONFIG_FATFS_MAX_LFN ends up being — see request_fatfs_path_length().
+    # CONFIG_FATFS_MAX_LFN ends up being -- see request_fatfs_path_length().
     fatfs_path_bound: bool = False
 
 
@@ -161,7 +161,7 @@ def request_storage_device() -> None:
     """Called by each storage driver's to_code() to count configured devices.
 
     The accumulated count is passed to StorageRegistry.set_device_count() so the
-    internal FixedVector is sized exactly — no compile-time upper bound needed.
+    internal FixedVector is sized exactly -- no compile-time upper bound needed.
     """
     _get_data().device_count += 1
 
@@ -241,7 +241,7 @@ def register_mount_path(path: str) -> None:
 # Default streaming/copy chunk size. Flat 16 kB on every platform: the 20 ms loop-slice budget
 # (see the buffer-usage plan) caps a main-loop chunk near 16 kB even on the fastest S3 SD path,
 # so a larger loop chunk is unsafe. The platform distinction lives one level down, in the C++
-# allocator (alloc_dma_capable): on the worker task — which has no 20 ms budget — S3/P4 stage a
+# allocator (alloc_dma_capable): on the worker task -- which has no 20 ms budget -- S3/P4 stage a
 # 32 kB chunk in DMA-capable PSRAM, while every loop-path buffer stays 16 kB internal. An
 # explicit copy_chunk_size still overrides this default (the user's last word). Multiple of 512
 # to keep FATFS whole-sector transfers.
@@ -292,7 +292,7 @@ def _resolve_path_max(config) -> int:
         return explicit
     data = _get_data()
     # Only what drivers actually reported counts. _DEFAULT_PATH_MAX is the answer when nobody
-    # did (storage configured without a device), not a floor under the derivation — used as
+    # did (storage configured without a device), not a floor under the derivation -- used as
     # one it would swallow a lowered CONFIG_FATFS_MAX_LFN and make this whole resolution moot.
     bounds = []
     if data.path_max > 0:
@@ -318,7 +318,7 @@ def _resolve_path_max(config) -> int:
             bounds.append(int(lfn) + 1)
         except (TypeError, ValueError):
             _LOGGER.warning(
-                "storage: CONFIG_FATFS_MAX_LFN is %r, which is not a number — using %d for the "
+                "storage: CONFIG_FATFS_MAX_LFN is %r, which is not a number -- using %d for the "
                 "path bound instead",
                 lfn,
                 _DEFAULT_PATH_MAX,
@@ -328,12 +328,12 @@ def _resolve_path_max(config) -> int:
 
 
 def _default_copy_chunk_size() -> int:
-    """The loop-safe base chunk size (platform-independent — see the note above)."""
+    """The loop-safe base chunk size (platform-independent -- see the note above)."""
     return _DEFAULT_COPY_CHUNK_SIZE
 
 
 # storage is a dependency of every driver and would otherwise run BEFORE them (default
-# priority), reading device_count as 0 — every driver's own to_code() is where
+# priority), reading device_count as 0 -- every driver's own to_code() is where
 # request_storage_device() actually gets called. LATE (-100) runs
 # after all default-priority driver to_code()s, so those counts are final by the time this
 # reads them. Consumers awaiting the registry variable (e.g. via cg.get_variable())
