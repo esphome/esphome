@@ -21,10 +21,10 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 
-// Codecs compile against the REAL component restore structs — field access by
+// Codecs compile against the REAL component restore structs -- field access by
 // name, layouts stay the compiler's problem, sizeof gates every decode.
 #ifdef USE_SENSOR
-// Only for App.get_sensors() — nothing is decoded from a sensor, see the sweep.
+// Only for App.get_sensors() -- nothing is decoded from a sensor, see the sweep.
 #include "esphome/components/sensor/sensor.h"
 #endif
 #ifdef USE_FAN
@@ -99,7 +99,7 @@ static std::vector<RuntimeEntry> &runtime_registry() {
 static void register_text_pref_impl(esphome::EntityBase *entity, const char *name, uint32_t min_len, uint32_t max_len,
                                     const char *pattern) {
   // template_text does NOT use make_entity_preference: its key adds trait
-  // salts on top of the base hash — replicated 1:1 from
+  // salts on top of the base hash -- replicated 1:1 from
   // template/text/template_text.cpp (traits come from the live object via
   // codegen, so the salt inputs are always the real ones).
   uint32_t key = entity_pref_key(entity, 0);
@@ -109,7 +109,7 @@ static void register_text_pref_impl(esphome::EntityBase *entity, const char *nam
   for (const auto &r : runtime_registry()) {
     if (r.key == key) {
       if (r.entity != entity) {
-        ESP_LOGW(TAG, "Preference key collision: '%s' and '%s' share key %" PRIu32 " — only the first is exported",
+        ESP_LOGW(TAG, "Preference key collision: '%s' and '%s' share key %" PRIu32 " -- only the first is exported",
                  r.name.c_str(), name, key);
       }
       return;
@@ -123,7 +123,7 @@ static void register_text_pref_impl(esphome::EntityBase *entity, const char *nam
 // declaration parents of each entity class, which are not reliable across
 // esphome versions (media_player_ns.class_("MediaPlayer") has none at all in
 // some trees). This sweep walks the App entity lists ONCE, lazily, and
-// registers anything the baked calls missed — naming then only depends on
+// registers anything the baked calls missed -- naming then only depends on
 // the running firmware itself.
 static void register_if_missing(esphome::EntityBase *e, uint32_t version, EntityKind kind, uint16_t aux = 0) {
   const uint32_t key = entity_pref_key(e, version);
@@ -132,7 +132,7 @@ static void register_if_missing(esphome::EntityBase *e, uint32_t version, Entity
       if (r.entity != e) {
         char nbuf[OBJECT_ID_MAX_LEN];
         const StringRef nid = e->get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN>(nbuf));
-        ESP_LOGW(TAG, "Preference key collision: '%s' and '%s' share key %" PRIu32 " — only the first is exported",
+        ESP_LOGW(TAG, "Preference key collision: '%s' and '%s' share key %" PRIu32 " -- only the first is exported",
                  r.name.c_str(), nid.c_str(), key);
       }
       return;
@@ -226,7 +226,7 @@ static void sweep_app_entities() {
 #endif
 #ifdef USE_TEXT
   for (auto *e : App.get_texts()) {
-    // trait-salted key — same recipe as the baked text registration; the
+    // trait-salted key -- same recipe as the baked text registration; the
     // impl copies the name into its owned entry
     char buf[OBJECT_ID_MAX_LEN];
     const StringRef oid = e->get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN>(buf));
@@ -448,7 +448,7 @@ static void encode_value(std::string &out, const PrefSelection &s, const uint8_t
     if (len >= 1 && len <= MAX_BLOB_LEN && blob[0] < len) {
       const char *str = reinterpret_cast<const char *>(blob + 1);
       const size_t slen = blob[0];
-      // newlines would break the line-based kv format — hex-fall back
+      // newlines would break the line-based kv format -- hex-fall back
       if (memchr(str, '\n', slen) == nullptr && memchr(str, '\r', slen) == nullptr) {
         out.append(str, slen);
         return;
@@ -586,7 +586,7 @@ struct FieldReader {
 };
 
 // Renders a runtime entry's blob readable; returns false to hex-fall back
-// (unknown kind, or blob size does not match the compiled struct — stale).
+// (unknown kind, or blob size does not match the compiled struct -- stale).
 static bool encode_entity_value(std::string &out, const RuntimeEntry &re, const uint8_t *blob, size_t len) {
   switch (re.kind) {
     case EntityKind::BOOL:
@@ -717,7 +717,7 @@ static bool encode_entity_value(std::string &out, const RuntimeEntry &re, const 
       kv_field_b(out, "uses_custom_preset", st.uses_custom_preset, first);
       kv_field_i(out, "preset", st.uses_custom_preset ? st.custom_preset : static_cast<int32_t>(st.preset), first);
       kv_field_i(out, "swing_mode", static_cast<int32_t>(st.swing_mode), first);
-      // two-point control shares the union — export both words, they alias
+      // two-point control shares the union -- export both words, they alias
       kv_field_f(out, "target_temperature_low", st.target_temperature_low, first);
       kv_field_f(out, "target_temperature_high", st.target_temperature_high, first);
       kv_field_f(out, "target_humidity", st.target_humidity, first);
@@ -737,7 +737,7 @@ static bool encode_entity_value(std::string &out, const RuntimeEntry &re, const 
       return true;
     }
     case EntityKind::MEDIA_VOLUME: {
-      // {float volume; bool is_muted} — defined identically (and trivially)
+      // {float volume; bool is_muted} -- defined identically (and trivially)
       // in speaker/media_player/speaker_media_player.h and
       // speaker_source/speaker_source_media_player.h; both are platform
       // headers we cannot include generically, so this mirrors the layout
@@ -921,7 +921,7 @@ static bool decode_entity_value(const char *s, size_t len, const RuntimeEntry &r
 #ifdef USE_COVER
     case EntityKind::COVER: {
       cover::CoverRestoreState st{};
-      // packed struct: fields cannot bind to float& — go through locals
+      // packed struct: fields cannot bind to float& -- go through locals
       float pos, tilt;
       if (!r.f("position", pos) || !r.f("tilt", tilt))
         return false;
@@ -935,7 +935,7 @@ static bool decode_entity_value(const char *s, size_t len, const RuntimeEntry &r
 #ifdef USE_VALVE
     case EntityKind::VALVE: {
       valve::ValveRestoreState st{};
-      float pos;  // packed struct — see cover above
+      float pos;  // packed struct -- see cover above
       if (!r.f("position", pos))
         return false;
       st.position = pos;
@@ -1102,7 +1102,7 @@ static size_t collect_entries(nvs_handle_t handle, const PrefSelection *sel, siz
         emit(e, &sel[i]);
         n++;
       } else {
-        ESP_LOGW(TAG, "Preference '%s' has no stored value yet — skipped", sel[i].name);
+        ESP_LOGW(TAG, "Preference '%s' has no stored value yet -- skipped", sel[i].name);
       }
     }
     // Selected ENTITY preferences: resolve by object pointer via the sweep.
@@ -1115,14 +1115,14 @@ static size_t collect_entries(nvs_handle_t handle, const PrefSelection *sel, siz
         }
       }
       if (re == nullptr) {
-        ESP_LOGW(TAG, "Selected entity #%zu stores no known preference — skipped", i);
+        ESP_LOGW(TAG, "Selected entity #%zu stores no known preference -- skipped", i);
         continue;
       }
       if (nvs_read_entry(handle, re->key, e)) {
         emit(e, nullptr);  // emit resolves the name via runtime_by_key
         n++;
       } else {
-        ESP_LOGW(TAG, "Entity preference '%s' has no stored value yet — skipped", re->name.c_str());
+        ESP_LOGW(TAG, "Entity preference '%s' has no stored value yet -- skipped", re->name.c_str());
       }
     }
     return n;
@@ -1136,7 +1136,7 @@ static size_t collect_entries(nvs_handle_t handle, const PrefSelection *sel, siz
     uint32_t key = static_cast<uint32_t>(strtoul(info.key, &end, 10));
     if (end != nullptr && *end == '\0' && nvs_read_entry(handle, static_cast<uint32_t>(key), e)) {
       // Unrestricted mode still knows names/types for everything codegen
-      // could see (all restore_value globals) — render those readable.
+      // could see (all restore_value globals) -- render those readable.
       emit(e, find_by_key(static_cast<uint32_t>(key), sel, count));
       n++;
     }
@@ -1165,7 +1165,7 @@ static PathStorage *resolve_file_target(const char *path, const char **rel) {
 // Raw-device container
 // ---------------------------------------------------------------------------
 // Layout: header + entries, each entry {key u32, len u16, blob}. The blobs go in exactly as
-// NVS holds them — component-private structs, no decoding, no rendering. The header is what
+// NVS holds them -- component-private structs, no decoding, no rendering. The header is what
 // lets import distinguish "an export starts here" from "whatever was here before".
 
 constexpr uint32_t RAW_MAGIC = 0x57525045;  // 'EPRW'
@@ -1191,7 +1191,7 @@ static void append_u32(std::string &out, uint32_t v) {
     out.push_back(static_cast<char>((v >> (8 * i)) & 0xFF));
 }
 
-// Blocking chunked helpers — the RawStorage contract is "caller chunks and yields".
+// Blocking chunked helpers -- the RawStorage contract is "caller chunks and yields".
 static bool raw_read_exact(RawStorage *device, uint64_t address, uint8_t *buf, size_t len) {
   size_t done = 0;
   while (done < len) {
@@ -1240,7 +1240,7 @@ bool preferences_export_to_raw(RawStorage *device, uint64_t address, uint64_t wi
   }
 
   // Budget checked while the payload grows, not after: the "nothing written" promise below is
-  // about the medium, but the RAM is spent by then — and std::string has no way to report a
+  // about the medium, but the RAM is spent by then -- and std::string has no way to report a
   // failed growth in an exceptions-free build, it aborts. Stop at the first entry that would
   // not fit and report it instead.
   const uint64_t budget = window > sizeof(RawHeader) ? window - sizeof(RawHeader) : 0;
@@ -1260,7 +1260,7 @@ bool preferences_export_to_raw(RawStorage *device, uint64_t address, uint64_t wi
                                     });
   nvs_close(handle);
   if (over_budget) {
-    ESP_LOGE(TAG, "Export does not fit the %" PRIu32 " bytes reserved at 0x%08" PRIX32 " — nothing written",
+    ESP_LOGE(TAG, "Export does not fit the %" PRIu32 " bytes reserved at 0x%08" PRIX32 " -- nothing written",
              (uint32_t) window, (uint32_t) address);
     return false;
   }
@@ -1276,7 +1276,7 @@ bool preferences_export_to_raw(RawStorage *device, uint64_t address, uint64_t wi
 
   // Media that only clear bits on write need the covering sectors erased first. Rounding the
   // erase outward would take the region in front of us with it, so demand alignment instead of
-  // guessing — and never erase past the window into the neighbouring region.
+  // guessing -- and never erase past the window into the neighbouring region.
   if ((geo.caps & RAW_WRITE_NEEDS_ERASE) != 0) {
     if (geo.erase_sector == 0 || (address % geo.erase_sector) != 0) {
       ESP_LOGE(TAG, "Export address 0x%08" PRIX32 " must be aligned to this device's %" PRIu32 " byte sector size",
@@ -1287,7 +1287,7 @@ bool preferences_export_to_raw(RawStorage *device, uint64_t address, uint64_t wi
     if ((erase_len % geo.erase_sector) != 0)
       erase_len += geo.erase_sector - (erase_len % geo.erase_sector);
     if (erase_len > window) {
-      ESP_LOGE(TAG, "Erasing %" PRIu32 " bytes would reach past the %" PRIu32 " reserved here — nothing written",
+      ESP_LOGE(TAG, "Erasing %" PRIu32 " bytes would reach past the %" PRIu32 " reserved here -- nothing written",
                (uint32_t) erase_len, (uint32_t) window);
       return false;
     }
@@ -1336,7 +1336,7 @@ bool preferences_import_from_raw(RawStorage *device, uint64_t address, uint64_t 
     return false;
   }
   if (sizeof(RawHeader) + static_cast<uint64_t>(hdr.payload_len) > window) {
-    ESP_LOGE(TAG, "Export claims %" PRIu32 " bytes, more than the %" PRIu32 " reserved here — refusing",
+    ESP_LOGE(TAG, "Export claims %" PRIu32 " bytes, more than the %" PRIu32 " reserved here -- refusing",
              hdr.payload_len, (uint32_t) window);
     return false;
   }
@@ -1414,7 +1414,7 @@ bool preferences_import_from_raw(RawStorage *device, uint64_t address, uint64_t 
   if (!ok)
     return false;
 
-  ESP_LOGI(TAG, "Imported %zu preference(s), skipped %zu — values take effect after reboot", imported, skipped);
+  ESP_LOGI(TAG, "Imported %zu preference(s), skipped %zu -- values take effect after reboot", imported, skipped);
   if (reboot) {
     ESP_LOGI(TAG, "Rebooting to apply imported preferences");
     App.safe_reboot();
@@ -1480,7 +1480,7 @@ bool preferences_export_to_storage(const char *path, const char *format, const P
             }
             const char *name = s != nullptr ? s->name : (re != nullptr ? re->name.c_str() : key_str);
             // The document is ArduinoJson's, so there is no size to read
-            // back mid-build — track what this entry will render as
+            // back mid-build -- track what this entry will render as
             // instead: "name":"value", quotes, colon and separator.
             json_bytes += strlen(name) + value.size() + 6;
             if (budget != 0 && json_bytes > budget) {
@@ -1529,7 +1529,7 @@ bool preferences_export_to_storage(const char *path, const char *format, const P
   nvs_close(handle);
   if (over_budget) {
     ESP_LOGE(TAG,
-             "Export exceeds max_blocking_transfer_size (%" PRIu32 " bytes) — nothing written. Narrow it with the "
+             "Export exceeds max_blocking_transfer_size (%" PRIu32 " bytes) -- nothing written. Narrow it with the "
              "action's 'preferences:' filter, or raise the limit.",
              (uint32_t) budget);
     return false;
@@ -1713,7 +1713,7 @@ bool preferences_import_from_storage(const char *path, const char *format, bool 
 
   if (!ok)
     return false;
-  ESP_LOGI(TAG, "Imported %zu preference(s), skipped %zu — values take effect after reboot", imported, skipped);
+  ESP_LOGI(TAG, "Imported %zu preference(s), skipped %zu -- values take effect after reboot", imported, skipped);
   if (reboot) {
     ESP_LOGI(TAG, "Rebooting to apply imported preferences");
     App.safe_reboot();

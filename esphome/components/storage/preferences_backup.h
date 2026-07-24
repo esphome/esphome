@@ -10,18 +10,18 @@
 #include <cstdint>
 
 namespace esphome {
-class EntityBase;  // fwd — full definition pulled in by the .cpp only
+class EntityBase;  // fwd -- full definition pulled in by the .cpp only
 }  // namespace esphome
 
 namespace esphome::storage {
 
-class RawStorage;  // fwd — only ever used through the pointers below
+class RawStorage;  // fwd -- only ever used through the pointers below
 
 // Value type of a selected preference, baked by codegen from the global's
 // YAML `type:`. Blobs are the raw bytes of T (strings: length-prefixed
-// char[SZ], see globals_component.h) — the tag is what makes them readable.
+// char[SZ], see globals_component.h) -- the tag is what makes them readable.
 enum class PrefType : uint8_t {
-  HEX = 0,  // unknown/unsupported type — hex round-trip fallback
+  HEX = 0,  // unknown/unsupported type -- hex round-trip fallback
   BOOL,
   I8,
   U8,
@@ -46,7 +46,7 @@ struct PrefSelection {
 // the action's `preferences:` list when given (restrict == true: only those
 // entries round-trip), otherwise from every restore_value global in the
 // config (restrict == false: the whole namespace round-trips, table entries
-// render readable, unknown keys — entity states etc. — fall back to hex).
+// render readable, unknown keys -- entity states etc. -- fall back to hex).
 bool preferences_export_to_storage(const char *path, const char *format, const PrefSelection *selection, size_t count,
                                    bool restrict_to_selection, esphome::EntityBase *const *selected_entities,
                                    size_t selected_entity_count);
@@ -58,13 +58,13 @@ bool preferences_import_from_storage(const char *path, const char *format, bool 
 // whole namespace), but the payload is the encoded blob exactly as NVS stores it: a raw medium
 // is not read by a human, so there is nothing to render and no format to choose.
 //
-// Only the address is configured — keeping regions apart is the user's business — so the blob
+// Only the address is configured -- keeping regions apart is the user's business -- so the blob
 // carries a header (magic, version, length, CRC32) and import refuses anything that does not
 // check out instead of feeding leftovers into the preferences.
 //
 // `window` is the space codegen reserved for this action: from its address up to the next
 // action's address on the same device, or the end of the device. An export that would not fit
-// aborts without writing a single byte rather than trampling the neighbouring region — the one
+// aborts without writing a single byte rather than trampling the neighbouring region -- the one
 // case config-time size validation cannot catch, because an unrestricted selection grows with
 // the app.
 bool preferences_export_to_raw(RawStorage *device, uint64_t address, uint64_t window, const PrefSelection *selection,
@@ -80,7 +80,7 @@ bool preferences_import_from_raw(RawStorage *device, uint64_t address, uint64_t 
 // object itself at runtime (get_preference_hash() ^ per-type version), so no
 // hash recipe is replicated at codegen time. Values stay hex (component-
 // private restore structs); this registry provides the NAMES.
-// What the entity's restore blob IS — codegen picks this from the declared
+// What the entity's restore blob IS -- codegen picks this from the declared
 // class; the codecs in preferences_backup.cpp are compiled against the REAL
 // component structs (sizeof-gated, hex fallback on mismatch), so no layout
 // knowledge is duplicated here.
