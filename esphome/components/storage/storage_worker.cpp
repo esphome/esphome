@@ -323,7 +323,7 @@ StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *
   if (++slot->generation == 0)
     slot->generation = 1;
   if (job_out != nullptr) {
-    *job_out = (slot->generation << 8) | static_cast<uint32_t>(slot - this->pool_.begin());
+    *job_out = make_transfer_job(slot->generation, slot - this->pool_.begin());
   }
 
 #if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
@@ -442,7 +442,7 @@ StorageError StorageWorker::submit_raw_(RequestOp op, RawStorage *device, uint64
   if (++slot->generation == 0)
     slot->generation = 1;
   if (job_out != nullptr)
-    *job_out = (slot->generation << 8) | static_cast<uint32_t>(slot - this->pool_.begin());
+    *job_out = make_transfer_job(slot->generation, slot - this->pool_.begin());
 
 #if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
   // A raw device that declared itself alone on a hardware bus (assume_exclusive_bus) reports
@@ -490,8 +490,8 @@ StorageError StorageWorker::async_move_tree(PathStorage *src, const char *src_pa
 bool StorageWorker::get_transfer_status(TransferJob job, TransferStatus *out) const {
   if (job == INVALID_TRANSFER_JOB || out == nullptr)
     return false;
-  size_t slot_index = job & 0xFF;
-  uint32_t generation = job >> 8;
+  size_t slot_index = transfer_job_slot(job);
+  uint32_t generation = transfer_job_generation(job);
   // Lazy init: before the first submission the pool is empty and no job can exist.
   if (slot_index >= this->pool_.size())
     return false;
@@ -890,18 +890,6 @@ static bool walk_entry_cb(const FileStat *entry, void *ctx_raw) {
   }
   ctx->seen++;
   return true;
-}
-
-// Bounded "<root>[/<sub>][/<name>]" join; false on truncation.
-static bool join_walk_path(char *out, size_t out_size, const char *root, const char *sub, const char *name) {
-  int n;
-  if (name != nullptr) {
-    n = (sub[0] != '\0') ? snprintf(out, out_size, "%s/%s/%s", root, sub, name)
-                         : snprintf(out, out_size, "%s/%s", root, name);
-  } else {
-    n = (sub[0] != '\0') ? snprintf(out, out_size, "%s/%s", root, sub) : snprintf(out, out_size, "%s", root);
-  }
-  return n > 0 && static_cast<size_t>(n) < out_size;
 }
 
 // Finishes a request: closes any open handles (best-effort -- a close failure only overrides
