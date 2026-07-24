@@ -120,8 +120,11 @@ void StorageRegistry::quiesce_storage(Storage *s) {
       return;
   }
   // Same drain as unregister_storage() (see the comment there on why this must run while
-  // the entry is still registered) — just without the removal afterwards.
-  this->on_unregistered_.call(s);
+  // the entry is still registered), just without the removal afterwards. Only the drain
+  // channel fires: the device stays registered and usable once its medium is back, so
+  // telling on_unregistered_ subscribers it went away would be a departure they never see
+  // a matching registration for.
+  this->on_quiesce_.call(s);
 }
 
 void StorageRegistry::unregister_storage(Storage *s) {
@@ -141,12 +144,16 @@ void StorageRegistry::unregister_storage(Storage *s) {
       return;
   }
 
-  // Drain FIRST, while the entry is still registered: the worker's on_unregistered handler
+  // Drain FIRST, while the entry is still registered: the worker's drain handler
   // synchronously cancels/waits out any in-flight task work on this storage, and the task's
   // per-chunk is_registered() checks must be able to run against an intact vector until that
   // drain completes. Only then is it safe to mutate storages_ below. (The lock alone is not
-  // enough — removing before the drain would free this storage's slot while the task may
+  // enough: removing before the drain would free this storage's slot while the task may
   // still be inside a blocking I/O call on it.)
+  //
+  // Removal implies quiescing, so both channels fire, drain first. Both run before the entry
+  // is taken out, which is the timing on_unregistered_ subscribers already had.
+  this->on_quiesce_.call(s);
   this->on_unregistered_.call(s);
 
   {

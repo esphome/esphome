@@ -509,6 +509,13 @@ class StorageRegistry : public Component {
   // accepted without forcing heap allocation.
   template<typename F> void add_on_registered_callback(F &&cb) { this->on_registered_.add(std::forward<F>(cb)); }
   template<typename F> void add_on_unregistered_callback(F &&cb) { this->on_unregistered_.add(std::forward<F>(cb)); }
+  // Fired when a storage stops being usable, whether or not it also leaves the registry:
+  // quiesce_storage() fires this alone, unregister_storage() fires it and then the callback
+  // above. Subscribe here for "stop touching this device now" (the async worker does, to
+  // cancel and drain in-flight requests) and to the one above for "this device is gone".
+  // Keeping them apart is what lets a driver unmount removable media without every consumer
+  // seeing a departure that is never followed by a matching registration.
+  template<typename F> void add_on_quiesce_callback(F &&cb) { this->on_quiesce_.add(std::forward<F>(cb)); }
 
 #ifdef USE_STORAGE_CHANGE_FEED
   // Directory-change feed (main loop only). Whoever alters a directory's *listing* notes it
@@ -549,6 +556,7 @@ class StorageRegistry : public Component {
   // on devices where no component listens for hotplug events
   LazyCallbackManager<void(Storage *)> on_registered_;
   LazyCallbackManager<void(Storage *)> on_unregistered_;
+  LazyCallbackManager<void(Storage *)> on_quiesce_;
 
   uint64_t max_blocking_transfer_size_{0};  // 0 = unlimited
   bool move_fallback_copy_{true};
