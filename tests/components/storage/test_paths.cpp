@@ -74,6 +74,8 @@ TEST_F(RegistryTest, ResolvePathMatchesOnlyAtASeparator) {
 }
 
 TEST_F(RegistryTest, ResolvePathPrefersTheLongestMountPoint) {
+  // validate_mount_path() rejects nested mount points, so this cannot come from YAML any
+  // more. The longest-prefix rule stays as defence and is kept covered here.
   const char *rel = nullptr;
   EXPECT_EQ(this->registry_.resolve_path("/sd/nested/file.txt", &rel), &this->sd_nested_);
   EXPECT_STREQ(rel, "/file.txt");

@@ -4,6 +4,7 @@ import logging
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 
 CODEOWNERS = ["@p1ngb4ck"]
@@ -16,6 +17,9 @@ CONF_COPY_CHUNK_SIZE = "copy_chunk_size"
 CONF_PATH_MAX = "path_max"
 CONF_MAX_BLOCKING_TRANSFER_SIZE = "max_blocking_transfer_size"
 CONF_MOVE_FALLBACK_COPY = "move_fallback_copy"
+# The key every storage driver uses for its mount point, so that _final_validate()
+# below finds them all without each driver having to cooperate.
+CONF_MOUNT_PATH = "mount_path"
 CONF_ON_COMPLETE = "on_complete"
 
 # Not yet in esphome/const.py
@@ -86,9 +90,60 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
+def _collect_mount_paths(fragment, where, out):
+    """Walk a validated config fragment, collecting every (mount point, location) it declares."""
+    if isinstance(fragment, dict):
+        for key, value in fragment.items():
+            if key == CONF_MOUNT_PATH and isinstance(value, str):
+                out.append((value, where))
+            else:
+                _collect_mount_paths(value, where, out)
+    elif isinstance(fragment, list):
+        for item in fragment:
+            _collect_mount_paths(item, where, out)
+
+
+def _final_validate(config):
+    """Reject two storage devices claiming the same mount point.
+
+    This lives here and not in the drivers because no driver can see the others' configuration.
+    A mount point is a name in one shared namespace, the one resolve_path() searches, and only
+    the component owning that namespace can tell whether a name was taken twice. A driver
+    checking just its own instances catches the easy half and misses an SD card and an NFS
+    share both sitting on /sdcard.
+
+    Reads the validated config and writes nothing. The codegen-side bookkeeping is
+    register_mount_path(), which drivers call from their to_code().
+    """
+    seen: dict[str, str] = {}
+    for domain, fragment in fv.full_config.get().items():
+        found: list[tuple[str, str]] = []
+        _collect_mount_paths(fragment, domain, found)
+        for path, where in found:
+            other = seen.get(path)
+            if other is None:
+                seen[path] = where
+                continue
+            if other == where:
+                raise cv.Invalid(
+                    f"Mount path '{path}' is claimed twice within '{where}'. "
+                    f"Each storage device needs its own mount point."
+                )
+            raise cv.Invalid(
+                f"Mount path '{path}' is claimed by both '{other}' and '{where}'. "
+                f"Each storage device needs its own mount point."
+            )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 @dataclass
 class StorageData:
     device_count: int = 0
+    # Longest mount point any driver registered, see register_mount_path().
+    mount_path_max: int = 0
     # Largest path length any configured driver reported via request_path_length().
     path_max: int = 0
     # Set by FATFS-backed drivers, whose bound is not a constant but whatever
@@ -131,6 +186,54 @@ def request_fatfs_path_length() -> None:
     API bound that matches, and one who has no FATFS driver at all is unaffected.
     """
     _get_data().fatfs_path_bound = True
+
+
+def validate_mount_path(value):
+    """Validate a storage device's mount point. Drivers use this in place of cv.string.
+
+    The interface treats the mount path as an invariant: set once at construction time and
+    never changed, so resolve_path() and build_path() in storage.cpp assume its shape instead
+    of re-checking it per call (see get_mount_path() in storage.h). That assumption is only
+    worth anything if it is enforced here.
+
+    Mount points live at the root level: exactly one segment, e.g. "/sd". A nested mount point
+    ("/sd/nested") would resolve correctly, since resolve_path() prefers the longest match, but
+    nothing else in the stack knows that mount points exist. list_dir() and the tree walks in
+    copy()/remove_recursive() operate inside a single storage, so a directory of the same name
+    on the outer device would be shadowed for path lookups while the walks kept seeing it,
+    which is two different answers to the same path.
+    """
+    value = cv.string_strict(value)
+    if not value.startswith("/"):
+        raise cv.Invalid(f"Mount path must start with '/', got '{value}'")
+    if value == "/":
+        raise cv.Invalid("Mount path must name a directory of its own; '/' is not a mount point")
+    if value.endswith("/"):
+        raise cv.Invalid(f"Mount path must not end with '/', got '{value}'")
+    if "/" in value[1:]:
+        raise cv.Invalid(
+            f"Mount path must be a single root-level segment such as '/sd', got '{value}'. "
+            f"Nested mount points are not supported."
+        )
+    return value
+
+
+def register_mount_path(path: str) -> None:
+    """Called by each storage driver's to_code() with the mount point it configured.
+
+    A full VFS path is the mount point plus a relative path (StorageRegistry::build_path() in
+    storage.cpp), so it is longer than the relative paths request_path_length() bounds, and
+    codegen is the only place that knows by how much, because mount points are configuration.
+    The collected maximum sizes USE_STORAGE_VFS_PATH_MAX so a buffer holding a full path is not
+    one mount point too small. Getting that wrong is quiet rather than loud: build_path()
+    refuses to write instead of overflowing, and its callers mostly test the return value
+    without an else branch.
+
+    Uniqueness is not this function's business. Two devices on one mount point is a
+    configuration error, rejected during validation; see FINAL_VALIDATE_SCHEMA above.
+    """
+    data = _get_data()
+    data.mount_path_max = max(data.mount_path_max, len(path))
 
 
 # Default streaming/copy chunk size. Flat 16 kB on every platform: the 20 ms loop-slice budget
@@ -254,6 +357,11 @@ async def to_code(config):
     async def _emit_path_max():
         path_max = _resolve_path_max(config)
         cg.add_define("USE_STORAGE_PATH_MAX", path_max)
+        # A full VFS path carries the mount point too: mount + '/' + relative + NUL, with
+        # path_max already covering the relative part's terminator.
+        cg.add_define(
+            "USE_STORAGE_VFS_PATH_MAX", path_max + _get_data().mount_path_max + 1
+        )
 
     CORE.add_job(_emit_path_max)
     # Absent copy_chunk_size -> per-platform default; explicit value overrides.

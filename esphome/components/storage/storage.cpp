@@ -274,10 +274,8 @@ PathStorage *StorageRegistry::resolve_path(const char *vfs_path, const char **re
     } else {
       continue;
     }
-    const char *mount = ps->get_mount_path();
-    if (mount == nullptr)
-      continue;
-    StringRef mount_ref(mount);
+    // No null check: validate_mount_path() in the driver's codegen guarantees one.
+    StringRef mount_ref(ps->get_mount_path());
     size_t mount_len = mount_ref.size();
 
     // Prefix match only at a '/' boundary or an exact match — "/sd2/x" must not match "/sd".

@@ -119,6 +119,19 @@ static constexpr size_t STORAGE_PATH_MAX = USE_STORAGE_PATH_MAX;
 static constexpr size_t STORAGE_PATH_MAX = 256;
 #endif
 
+// Longest FULL VFS path: mount point plus relative path, the form
+// StorageRegistry::build_path() writes. STORAGE_PATH_MAX above bounds the driver-RELATIVE
+// paths the interface passes around; a full path is longer by the mount point, and codegen
+// is where those lengths are known (see register_mount_path() in __init__.py). Sizing a
+// full-path buffer with STORAGE_PATH_MAX instead makes build_path() refuse to write once the
+// relative path approaches its own bound, which is quiet: callers commonly test only the
+// return value.
+#if defined(USE_STORAGE_VFS_PATH_MAX) && USE_STORAGE_VFS_PATH_MAX > 0
+static constexpr size_t STORAGE_VFS_PATH_MAX = USE_STORAGE_VFS_PATH_MAX;
+#else
+static constexpr size_t STORAGE_VFS_PATH_MAX = STORAGE_PATH_MAX + 32;
+#endif
+
 // Max directory nesting depth for the tree walks (copy(), remove_recursive()). Budgeted against
 // the stack they run on, not picked for convenience. The path buffers are allocated once by the
 // walk's entry point and extended/truncated per level rather than re-allocated (see
