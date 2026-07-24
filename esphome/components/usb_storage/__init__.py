@@ -13,14 +13,17 @@ from esphome.components.esp32 import (
     require_vfs_select,
 )
 from esphome.components.storage import (
+    CONF_MOUNT_PATH,
     FILE_SYSTEM_SCHEMA_ENTRY,
     MountableStorage,
     file_system_to_code,
     final_validate_file_system,
+    register_mount_path,
     request_fatfs_path_length,
     request_storage_device,
     request_storage_worker,
     validate_file_system_value,
+    validate_mount_path,
 )
 from esphome.components.usb_host import usb_host_ns
 import esphome.config_validation as cv
@@ -30,7 +33,6 @@ CODEOWNERS = ["@p1ngb4ck"]
 DEPENDENCIES = ["usb_host", "esp32"]
 AUTO_LOAD = ["storage"]
 
-CONF_MOUNT_PATH = "mount_path"
 CONF_VID = "vid"
 CONF_PID = "pid"
 CONF_ON_MOUNTED = "on_mounted"
@@ -65,6 +67,9 @@ async def register_usb_storage_device(device_config, storage_client):
     await cg.register_component(var, device_config)
     cg.add(var.set_client(storage_client))
     cg.add(var.set_mount_path(device_config[CONF_MOUNT_PATH]))
+    # Full VFS paths carry the mount point; the storage component sizes its buffers from the
+    # paths registered here.
+    register_mount_path(device_config[CONF_MOUNT_PATH])
     cg.add(var.set_storage_id(str(device_config[CONF_ID])))
     cg.add(var.set_vid(device_config[CONF_VID]))
     cg.add(var.set_pid(device_config[CONF_PID]))
@@ -90,7 +95,7 @@ async def register_usb_storage_device(device_config, storage_client):
 DEVICE_SCHEMA = cv.COMPONENT_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(USBStorageDevice),
-        cv.Required(CONF_MOUNT_PATH): cv.string,
+        cv.Required(CONF_MOUNT_PATH): validate_mount_path,
         cv.Optional(CONF_VID, default=0x0000): cv.hex_uint16_t,
         cv.Optional(CONF_PID, default=0x0000): cv.hex_uint16_t,
         cv.Optional(CONF_ON_MOUNTED): automation.validate_automation(
