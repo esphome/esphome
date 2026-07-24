@@ -8,10 +8,13 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S31,
 )
 from esphome.components.storage import (
+    CONF_MOUNT_PATH,
     MountableStorage,
+    register_mount_path,
     request_fatfs_path_length,
     request_storage_device,
     request_storage_worker,
+    validate_mount_path,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -19,7 +22,6 @@ from esphome.const import (
     CONF_CS_PIN,
     CONF_DATA_RATE,
     CONF_ID,
-    CONF_PATH,
     CONF_SPI,
     CONF_TRIGGER_ID,
     CONF_TYPE,
@@ -140,7 +142,7 @@ SD_MMC_SCHEMA = cv.Schema(
         cv.Optional(CONF_DATA_RATE): cv.All(
             cv.frequency, cv.Range(min=400e3, max=40e6)
         ),
-        cv.Optional(CONF_PATH, default="/sdcard"): cv.string,
+        cv.Optional(CONF_MOUNT_PATH, default="/sdcard"): validate_mount_path,
         cv.Optional(CONF_CD_PIN): pins.gpio_input_pullup_pin_schema,
         cv.Optional(CONF_ON_MOUNTED): automation.validate_automation(
             {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CardMountedTrigger)}
@@ -166,7 +168,7 @@ SD_SPI_SCHEMA = (
             cv.Optional(CONF_DATA2_PIN): pins.gpio_input_pullup_pin_schema,
             cv.Optional(CONF_MODE_1BIT, default=True): cv.boolean,
             cv.Optional(CONF_SLOT, default=0): cv.int_range(min=0, max=1),
-            cv.Optional(CONF_PATH, default="/sdcard"): cv.string,
+            cv.Optional(CONF_MOUNT_PATH, default="/sdcard"): validate_mount_path,
             cv.Optional(CONF_CD_PIN): pins.gpio_input_pullup_pin_schema,
             # Opt in to task-safe I/O when this card is the only device on its SPI bus. Enforced
             # in FINAL_VALIDATE (Check A: alone on the bus). Off by default; esp32-only because
@@ -364,7 +366,10 @@ async def to_code(config):
             if CONF_DATA3_PIN in config:
                 cg.add(var.set_data3_pin(config[CONF_DATA3_PIN]))
 
-    cg.add(var.set_mount_path(config[CONF_PATH]))
+    cg.add(var.set_mount_path(config[CONF_MOUNT_PATH]))
+    # Full VFS paths carry the mount point; the storage component sizes its buffers from the
+    # paths registered here. Shared by both card types: SdMmc and SdSpi differ in pins only.
+    register_mount_path(config[CONF_MOUNT_PATH])
     cg.add(var.set_id(str(config[CONF_ID])))
 
     if cd_pin := config.get(CONF_CD_PIN):
