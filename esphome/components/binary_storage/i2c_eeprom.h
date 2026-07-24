@@ -78,7 +78,7 @@ class I2CEeprom : public BinaryStorage, public i2c::I2CDevice {
   // RawStorage interface
   storage::StorageError read_physical(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) override;
   storage::StorageError write_physical(uint64_t offset, const uint8_t *buf, size_t len,
-                                        size_t *bytes_transferred) override;
+                                       size_t *bytes_transferred) override;
   storage::StorageError erase_physical(uint64_t offset, size_t len) override;
   storage::StorageError format() override;
 

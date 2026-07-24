@@ -437,6 +437,7 @@ FLASH_PARTITION_SCHEMA = cv.Schema(
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
+
 # Typed schema for device selection
 def _fill_derived_mount_path(config):
     """Write the id-derived mount point into the config when the user left it out.
@@ -447,7 +448,10 @@ def _fill_derived_mount_path(config):
     check. Filling it here keeps the config the single description of what was configured,
     which is what codegen then reads -- no state travels between the two phases.
     """
-    if config.get(CONF_MODE) in (MODE_LITTLEFS, MODE_BOTH) and CONF_MOUNT_PATH not in config:
+    if (
+        config.get(CONF_MODE) in (MODE_LITTLEFS, MODE_BOTH)
+        and CONF_MOUNT_PATH not in config
+    ):
         config[CONF_MOUNT_PATH] = f"/{config[CONF_ID]}"
     return config
 

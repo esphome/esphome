@@ -142,10 +142,9 @@ class BinaryStorage : public storage::RawStorage {
   // The physical device operations -- implemented by each driver, addresses are device
   // addresses over the full capacity. Only the window wrappers above and the LittleFS block
   // callbacks (which must reach [0, fs_reserved_)) call these.
-  virtual storage::StorageError read_physical(uint64_t offset, uint8_t *buf, size_t len,
-                                               size_t *bytes_transferred) = 0;
+  virtual storage::StorageError read_physical(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) = 0;
   virtual storage::StorageError write_physical(uint64_t offset, const uint8_t *buf, size_t len,
-                                                size_t *bytes_transferred) = 0;
+                                               size_t *bytes_transferred) = 0;
   virtual storage::StorageError erase_physical(uint64_t offset, size_t len) = 0;
 
   // Overflow-proof: valid iff [address, address+length) fits within capacity.
