@@ -114,8 +114,8 @@ class ModbusClientHub : public Modbus {
   void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
             uint8_t payload_len = 0, const uint8_t *payload = nullptr, ModbusClientDevice *device = nullptr) {
     this->send_pdu(address,
-                   helpers::create_client_pdu((ModbusFunctionCode) function_code, start_address, number_of_entities,
-                                              payload, payload_len),
+                   helpers::create_client_pdu((FunctionCode) function_code, start_address, number_of_entities, payload,
+                                              payload_len),
                    device);
   };
   void send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr);
@@ -161,7 +161,7 @@ class ModbusServerHub : public Modbus {
   bool check_register_range_(uint8_t address, uint8_t function_code, uint16_t start_address,
                              uint16_t number_of_registers);
   void send_raw_(const uint8_t *payload, uint16_t len);
-  void send_exception_(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code);
+  void send_exception_(uint8_t address, uint8_t function_code, ExceptionCode exception_code);
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
   uint8_t expecting_peer_response_{0};
   std::vector<ModbusServerDevice *> devices_;
@@ -173,7 +173,7 @@ class ModbusServerHub : public Modbus {
 };
 
 // Transaction status: std::nullopt on success, otherwise a Modbus exception code
-using ResponseStatus = std::optional<ModbusExceptionCode>;
+using ResponseStatus = std::optional<ExceptionCode>;
 
 class ModbusClientDevice {
  public:
@@ -199,7 +199,7 @@ class ModbusClientDevice {
   /// Low-level error hook: called with the request PDU and the modbus exception code from the error response.
   /// The default implementation dispatches to the same typed callbacks with the exception code as status.
   /// Devices implementing the High-level typed callbacks see success and failure through one interface.
-  virtual void on_error(std::span<const uint8_t> request_pdu, ModbusExceptionCode exception_code) {
+  virtual void on_error(std::span<const uint8_t> request_pdu, ExceptionCode exception_code) {
     this->dispatch_response_(request_pdu, {}, exception_code);
   }
 
@@ -275,10 +275,10 @@ class ModbusClientDevice {
   ESPDEPRECATED("Use the typed read_*/write_* helpers or send_pdu() instead. Removed in 2027.2.0", "2026.8.0")
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
             const uint8_t *payload = nullptr) {
-    this->parent_->send_pdu(this->address_,
-                            helpers::create_client_pdu((ModbusFunctionCode) function, start_address, number_of_entities,
-                                                       payload, payload_len),
-                            this);
+    this->parent_->send_pdu(
+        this->address_,
+        helpers::create_client_pdu((FunctionCode) function, start_address, number_of_entities, payload, payload_len),
+        this);
   }
   void send_pdu(std::span<const uint8_t> pdu) { this->parent_->send_pdu(this->address_, pdu, this); }
   ESPDEPRECATED("Use send_pdu() instead (the device address is prepended for you). Removed in 2027.2.0", "2026.8.0")
@@ -290,18 +290,16 @@ class ModbusClientDevice {
   // Dispatches to the matching read_* method; defined in modbus.cpp because it logs on an invalid type.
   void read_entities(EntityType entity_type, uint16_t start_address, uint16_t number_of_entities);
   void read_input_registers(uint16_t start_address, uint16_t number_of_registers) {
-    this->send_pdu(
-        helpers::create_read_pdu(ModbusFunctionCode::READ_INPUT_REGISTERS, start_address, number_of_registers));
+    this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_INPUT_REGISTERS, start_address, number_of_registers));
   }
   void read_holding_registers(uint16_t start_address, uint16_t number_of_registers) {
-    this->send_pdu(
-        helpers::create_read_pdu(ModbusFunctionCode::READ_HOLDING_REGISTERS, start_address, number_of_registers));
+    this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_HOLDING_REGISTERS, start_address, number_of_registers));
   }
   void read_coils(uint16_t start_address, uint16_t number_of_coils) {
-    this->send_pdu(helpers::create_read_pdu(ModbusFunctionCode::READ_COILS, start_address, number_of_coils));
+    this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_COILS, start_address, number_of_coils));
   }
   void read_discrete_inputs(uint16_t start_address, uint16_t number_of_inputs) {
-    this->send_pdu(helpers::create_read_pdu(ModbusFunctionCode::READ_DISCRETE_INPUTS, start_address, number_of_inputs));
+    this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_DISCRETE_INPUTS, start_address, number_of_inputs));
   }
   void write_single_register(uint16_t start_address, uint16_t value) {
     this->send_pdu(helpers::create_write_single_register_pdu(start_address, value));
@@ -364,7 +362,7 @@ class ModbusServerDevice {
   uint8_t get_address() const { return this->address_; }
   virtual ResponseStatus on_read_registers(uint16_t start_address, uint16_t number_of_registers,
                                            RegisterValues &registers) {
-    return ModbusExceptionCode::ILLEGAL_FUNCTION;
+    return ExceptionCode::ILLEGAL_FUNCTION;
   };
   virtual ResponseStatus on_read_input_registers(uint16_t start_address, uint16_t number_of_registers,
                                                  RegisterValues &registers) {
@@ -375,7 +373,7 @@ class ModbusServerDevice {
     return this->on_read_registers(start_address, number_of_registers, registers);
   };
   virtual ResponseStatus on_write_registers(uint16_t start_address, const RegisterValues &registers) {
-    return ModbusExceptionCode::ILLEGAL_FUNCTION;
+    return ExceptionCode::ILLEGAL_FUNCTION;
   };
 
  protected:

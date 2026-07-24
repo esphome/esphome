@@ -210,26 +210,26 @@ TEST(ModbusClientDeviceFanOut, WriteErrorReportsRequestArgumentsAndStatus) {
   RecordingDevice device;
   const uint8_t request[] = {0x06, 0x00, 0x01, 0x00, 0x03};
   const uint8_t exception[] = {0x86, 0x02};  // ILLEGAL_DATA_ADDRESS
-  device.on_error(request, static_cast<ModbusExceptionCode>(exception[1]));
+  device.on_error(request, static_cast<ExceptionCode>(exception[1]));
 
   ASSERT_EQ(device.write_single_register_calls.size(), 1u);
   const auto &call = device.write_single_register_calls.front();
   EXPECT_EQ(call.address, 1);
   EXPECT_EQ(call.value, 3);
-  EXPECT_EQ(call.status, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+  EXPECT_EQ(call.status, ExceptionCode::ILLEGAL_DATA_ADDRESS);
 }
 
 TEST(ModbusClientDeviceFanOut, ReadErrorReportsEmptyDataAndStatus) {
   RecordingDevice device;
   const uint8_t request[] = {0x03, 0x01, 0x00, 0x00, 0x02};
   const uint8_t exception[] = {0x83, 0x02};
-  device.on_error(request, static_cast<ModbusExceptionCode>(exception[1]));
+  device.on_error(request, static_cast<ExceptionCode>(exception[1]));
 
   ASSERT_EQ(device.holding_calls.size(), 1u);
   const auto &call = device.holding_calls.front();
   EXPECT_EQ(call.start_address, 0x100);
   EXPECT_TRUE(call.registers.empty());
-  EXPECT_EQ(call.status, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+  EXPECT_EQ(call.status, ExceptionCode::ILLEGAL_DATA_ADDRESS);
 }
 
 TEST(ModbusClientDeviceFanOut, CustomFunctionCodeGoesToCatchAll) {
@@ -246,9 +246,9 @@ TEST(ModbusClientDeviceFanOut, CustomFunctionCodeGoesToCatchAll) {
 
   // On failure the catch-all receives an empty response and the status (the exception code).
   const uint8_t exception[] = {0xC7, 0x02};
-  device.on_error(request, static_cast<ModbusExceptionCode>(exception[1]));
+  device.on_error(request, static_cast<ExceptionCode>(exception[1]));
   ASSERT_EQ(device.custom_statuses.size(), 2u);
-  EXPECT_EQ(device.custom_statuses.back(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+  EXPECT_EQ(device.custom_statuses.back(), ExceptionCode::ILLEGAL_DATA_ADDRESS);
   EXPECT_TRUE(device.custom_responses.back().empty());
 }
 
@@ -306,11 +306,11 @@ TEST(ModbusClientDeviceFanOut, WriteMultipleInconsistentByteCountDispatchesAsCus
 TEST(ModbusClientDeviceFanOut, ReadErrorWithEmptyResponseStillDispatchesTyped) {
   RecordingDevice device;
   const uint8_t read_request[] = {0x03, 0x01, 0x00, 0x00, 0x02};
-  device.on_error(read_request, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+  device.on_error(read_request, ExceptionCode::ILLEGAL_DATA_ADDRESS);
 
   ASSERT_EQ(device.holding_calls.size(), 1u);
   EXPECT_TRUE(device.holding_calls.front().registers.empty());
-  EXPECT_EQ(device.holding_calls.front().status, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+  EXPECT_EQ(device.holding_calls.front().status, ExceptionCode::ILLEGAL_DATA_ADDRESS);
   EXPECT_TRUE(device.custom_requests.empty());
 }
 
@@ -319,7 +319,7 @@ TEST(ModbusClientDeviceFanOut, ReadErrorWithEmptyResponseStillDispatchesTyped) {
 TEST(ModbusClientDeviceFanOut, ReadCoilsErrorDeliversZeroCountBits) {
   RecordingDevice device;
   const uint8_t read_request[] = {0x01, 0x01, 0x00, 0x00, 0x0A};
-  device.on_error(read_request, ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
+  device.on_error(read_request, ExceptionCode::SERVICE_DEVICE_FAILURE);
 
   ASSERT_EQ(device.coil_calls.size(), 1u);
   EXPECT_EQ(device.coil_calls.front().count, 0);

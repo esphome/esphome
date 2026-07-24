@@ -17,22 +17,30 @@ namespace esphome::modbus_controller {
 
 class ModbusController;
 
-using modbus::ModbusFunctionCode;
+using modbus::FunctionCode;
 using modbus::EntityType;
-using modbus::ModbusExceptionCode;
+using modbus::ExceptionCode;
 using modbus::helpers::SensorValueType;
+
+// Remove before 2027.2.0 - deprecated names re-exported so external components keep their warning window
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+using modbus::ModbusExceptionCode;
+using modbus::ModbusFunctionCode;
+using modbus::ModbusRegisterType;
+#pragma GCC diagnostic pop
 
 // Remove before 2026.10.0 — these helpers have moved to modbus::helpers
 ESPDEPRECATED("Use modbus::helpers::value_type_is_float() instead. Removed in 2026.10.0", "2026.4.0")
 inline bool value_type_is_float(SensorValueType v) { return modbus::helpers::value_type_is_float(v); }
 
 ESPDEPRECATED("Use modbus::helpers::modbus_register_read_function() instead. Removed in 2026.10.0", "2026.4.0")
-inline ModbusFunctionCode modbus_register_read_function(EntityType reg_type) {
+inline FunctionCode modbus_register_read_function(EntityType reg_type) {
   return modbus::helpers::modbus_register_read_function(reg_type);
 }
 
 ESPDEPRECATED("Use modbus::helpers::modbus_register_write_function() instead. Removed in 2026.10.0", "2026.4.0")
-inline ModbusFunctionCode modbus_register_write_function(EntityType reg_type) {
+inline FunctionCode modbus_register_write_function(EntityType reg_type) {
   return modbus::helpers::modbus_register_write_function(reg_type);
 }
 
@@ -172,7 +180,7 @@ class ModbusCommandItem {
   ModbusController *modbusdevice{nullptr};
   uint16_t register_address{0};
   uint16_t register_count{0};
-  ModbusFunctionCode function_code{ModbusFunctionCode::CUSTOM};
+  FunctionCode function_code{FunctionCode::CUSTOM};
   EntityType register_type{EntityType::CUSTOM};
   std::function<void(EntityType register_type, uint16_t start_address, const std::vector<uint8_t> &data)> on_data_func;
   std::vector<uint8_t> payload = {};
@@ -306,7 +314,7 @@ class ModbusController final : public PollingComponent, public modbus::ModbusCli
   /// called when a modbus response was parsed without errors
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
   /// called when a modbus error response was received
-  void on_error(std::span<const uint8_t> request_pdu, modbus::ModbusExceptionCode exception_code) override;
+  void on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) override;
   /// default delegate called by process_modbus_data when a response has retrieved from the incoming queue
   void on_register_data(EntityType register_type, uint16_t start_address, const std::vector<uint8_t> &data);
   /// default delegate called by process_modbus_data when a response for a write response has retrieved from the

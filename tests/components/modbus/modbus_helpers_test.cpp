@@ -4,7 +4,7 @@
 
 namespace esphome::modbus::helpers {
 
-using FC = ModbusFunctionCode;
+using FC = FunctionCode;
 
 // --- server_frame_length ---------------------------------------------------
 // Frame layout: address(1) + function(1) + ... + CRC(2). Fixtures borrowed from
