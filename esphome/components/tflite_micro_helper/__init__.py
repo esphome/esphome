@@ -7,10 +7,10 @@ with local file, github shorthand, and http URL model sources.
 import hashlib
 import json
 import os
-import re
-import zlib
 from pathlib import Path
+import re
 from urllib.parse import urljoin
+import zlib
 
 import esphome.codegen as cg
 from esphome.components import esp32
