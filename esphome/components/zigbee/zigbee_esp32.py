@@ -274,7 +274,7 @@ async def attributes_to_code(
 async def esp32_to_code(config: ConfigType) -> "MockObj":
     add_idf_component(
         name="espressif/esp-zigbee-lib",
-        ref="2.0.2",
+        ref="2.0.3",
     )
 
     # add sdkconfigs later so they can overwrite esp32 defaults
