@@ -29,7 +29,9 @@ from esphome.const import (
     CONF_MODE,
     CONF_MODEL,
     CONF_PIN,
+    CONF_SOURCE,
     CONF_SPI_ID,
+    CONF_TARGET,
     CONF_TYPE,
     CONF_VALUE,
 )
@@ -112,8 +114,6 @@ MODE_LITTLEFS = "littlefs"
 MODE_BOTH = "both"
 CONF_FS_SIZE = "fs_size"
 CONF_PRE_FILL = "pre_fill"
-CONF_PRE_FILL_SOURCE = "source"
-CONF_PRE_FILL_TARGET = "target"
 
 # LittleFS geometry the compile-time image is built with (see the esp_littlefs fork's
 # littlefs_create_partition_image) -- used for the config-time fit estimate below.
@@ -144,11 +144,11 @@ def _validate_prefill_fits(config):
     targets = set()
     blocks = _LFS_OVERHEAD_BLOCKS
     for entry in prefill:
-        target = entry[CONF_PRE_FILL_TARGET]
+        target = entry[CONF_TARGET]
         if target in targets:
             raise cv.Invalid(f"duplicate pre_fill target: {target}")
         targets.add(target)
-        size = entry[CONF_PRE_FILL_SOURCE].stat().st_size
+        size = entry[CONF_SOURCE].stat().st_size
         blocks += max(1, -(-size // _LFS_BLOCK))
         # every directory level costs metadata too -- folded into the flat allowance above
     needed = blocks * _LFS_BLOCK
@@ -429,8 +429,8 @@ FLASH_PARTITION_SCHEMA = cv.Schema(
         cv.Optional(CONF_PRE_FILL): cv.ensure_list(
             cv.Schema(
                 {
-                    cv.Required(CONF_PRE_FILL_SOURCE): cv.file_,
-                    cv.Required(CONF_PRE_FILL_TARGET): _validate_prefill_target,
+                    cv.Required(CONF_SOURCE): cv.file_,
+                    cv.Required(CONF_TARGET): _validate_prefill_target,
                 }
             )
         ),
@@ -730,9 +730,9 @@ def _stage_prefill(label: str, prefill: list) -> None:
     if staging.exists():
         shutil.rmtree(staging)
     for entry in prefill:
-        dest = staging / entry[CONF_PRE_FILL_TARGET].lstrip("/")
+        dest = staging / entry[CONF_TARGET].lstrip("/")
         dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(entry[CONF_PRE_FILL_SOURCE], dest)
+        shutil.copy(entry[CONF_SOURCE], dest)
     add_idf_sdkconfig_option("CONFIG_ESPHOME_LITTLEFS_PREFILL_PARTITION", label)
     add_idf_sdkconfig_option("CONFIG_ESPHOME_LITTLEFS_PREFILL_DIR", staging.as_posix())
 
