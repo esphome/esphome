@@ -106,8 +106,9 @@ class PackedBits {
   bool operator[](size_t bit) const { return (this->data_[bit / 8] & (1 << (bit % 8))) != 0; }
   /// Number of bits in the view.
   uint16_t size() const { return this->count_; }
-  /// The underlying packed bytes: ceil(size() / 8) bytes.
-  std::span<const uint8_t> bytes() const { return this->data_; }
+  /// The underlying packed bytes: exactly ceil(size() / 8) bytes, even when the view was constructed
+  /// over a larger buffer - forwarding this span onto the wire can never leak trailing buffer content.
+  std::span<const uint8_t> bytes() const { return this->data_.first((this->count_ + 7) / 8); }
 
  private:
   std::span<const uint8_t> data_;  // must cover ceil(count_ / 8) bytes
@@ -121,8 +122,11 @@ class MutablePackedBits {
  public:
   MutablePackedBits(std::span<uint8_t> data, uint16_t count) : data_(data), count_(count) {}
   bool operator[](size_t bit) const { return (this->data_[bit / 8] & (1 << (bit % 8))) != 0; }
-  /// Set or clear the given bit; bit must be < size().
+  /// Set or clear the given bit. Out-of-range bits are dropped: on the server read path the span wraps a
+  /// stack response buffer, so a handler looping past size() must not be able to smash the frame.
   void set(size_t bit, bool value) {
+    if (bit >= this->count_)
+      return;
     if (value) {
       this->data_[bit / 8] |= (1 << (bit % 8));
     } else {

@@ -54,6 +54,27 @@ class NoBitsDevice : public ModbusServerDevice {
   explicit NoBitsDevice(uint8_t address) { this->set_address(address); }
 };
 
+// Distinguishes the two bit-read entry points: each fills a different pattern and counts its calls, so a
+// test can prove FC 0x01 vs 0x02 dispatch routes to the right handler (and not merely that bits came back).
+class DualReadDevice : public ModbusServerDevice {
+ public:
+  explicit DualReadDevice(uint8_t address) { this->set_address(address); }
+
+  ResponseStatus on_read_coils(uint16_t start_address, MutablePackedBits bits) override {
+    this->coil_reads++;
+    bits.set(0, true);  // pattern 0x01
+    return std::nullopt;
+  }
+  ResponseStatus on_read_discrete_inputs(uint16_t start_address, MutablePackedBits bits) override {
+    this->discrete_reads++;
+    bits.set(1, true);  // pattern 0x02
+    return std::nullopt;
+  }
+
+  int coil_reads{0};
+  int discrete_reads{0};
+};
+
 using testing::RecordingUART;
 
 // Exposes the client-frame parser so a fully CRC-framed request can be pushed through the hub.
@@ -190,6 +211,112 @@ TEST(ModbusServerCoils, UnhandledCoilReadIsIllegalFunction) {
   ASSERT_EQ(uart.written.size(), 5u);
   EXPECT_EQ(uart.written[1], static_cast<uint8_t>(ModbusFunctionCode::READ_COILS) | 0x80);
   EXPECT_EQ(uart.written[2], static_cast<uint8_t>(ModbusExceptionCode::ILLEGAL_FUNCTION));
+}
+
+// The view contracts are enforced, not merely documented: bytes() returns exactly ceil(size()/8) bytes
+// even over a larger buffer (forwarding it can never leak trailing buffer content), and set() drops
+// out-of-range bits instead of writing past the span (on the server read path that span wraps a stack
+// response buffer).
+TEST(ModbusServerCoils, PackedBitsViewContractsEnforced) {
+  uint8_t buf[8] = {};
+  PackedBits view(buf, 10);  // 10 bits -> 2 bytes, over an 8-byte buffer
+  EXPECT_EQ(view.bytes().size(), 2u);
+
+  MutablePackedBits bits(std::span<uint8_t>(buf, 2), 10);
+  bits.set(9, true);    // in range: lands in byte 1
+  bits.set(10, true);   // out of range: dropped
+  bits.set(300, true);  // far out of range: dropped, no write past the span
+  EXPECT_EQ(buf[1], 0x02);
+  for (size_t i = 2; i < sizeof(buf); i++)
+    EXPECT_EQ(buf[i], 0) << "byte " << i;
+}
+
+// FC 0x02 must dispatch to on_read_discrete_inputs, not on_read_coils: the two handlers fill different
+// patterns, so a swapped dispatch would fail on both the counters and the wire bytes.
+TEST(ModbusServerCoils, ReadDiscreteInputsDispatchesToItsOwnHandler) {
+  ensure_test_app_constructed();
+  TestServerHub hub;
+  RecordingUART uart;
+  hub.set_uart_parent(&uart);
+  hub.prime_send_timestamps_for_test();
+  DualReadDevice device(0x02);
+  hub.register_device(&device);
+
+  const uint8_t pdu_data[] = {0x00, 0x00, 0x00, 0x08};
+  ASSERT_TRUE(hub.process_full_client_frame_for_test(
+      0x02, static_cast<uint8_t>(ModbusFunctionCode::READ_DISCRETE_INPUTS), pdu_data, sizeof(pdu_data)));
+
+  EXPECT_EQ(device.discrete_reads, 1);
+  EXPECT_EQ(device.coil_reads, 0);
+  ASSERT_GE(uart.written.size(), 4u);
+  EXPECT_EQ(uart.written[1], static_cast<uint8_t>(ModbusFunctionCode::READ_DISCRETE_INPUTS));
+  EXPECT_EQ(uart.written[3], 0x02);  // the discrete handler's pattern, not the coil handler's
+
+  uart.written.clear();
+  ASSERT_TRUE(hub.process_full_client_frame_for_test(0x02, static_cast<uint8_t>(ModbusFunctionCode::READ_COILS),
+                                                     pdu_data, sizeof(pdu_data)));
+  EXPECT_EQ(device.coil_reads, 1);
+  EXPECT_EQ(device.discrete_reads, 1);
+  ASSERT_GE(uart.written.size(), 4u);
+  EXPECT_EQ(uart.written[3], 0x01);
+}
+
+// The write-side ILLEGAL_FUNCTION defaults: a device without bit handlers rejects coil writes too
+// (single and multiple), mirroring the read-side default already covered above.
+TEST(ModbusServerCoils, UnhandledCoilWriteIsIllegalFunction) {
+  ensure_test_app_constructed();
+  TestServerHub hub;
+  RecordingUART uart;
+  hub.set_uart_parent(&uart);
+  hub.prime_send_timestamps_for_test();
+  NoBitsDevice device(0x02);
+  hub.register_device(&device);
+
+  const uint8_t single[] = {0x00, 0x03, 0xFF, 0x00};
+  ASSERT_TRUE(hub.process_full_client_frame_for_test(0x02, static_cast<uint8_t>(ModbusFunctionCode::WRITE_SINGLE_COIL),
+                                                     single, sizeof(single)));
+  ASSERT_EQ(uart.written.size(), 5u);
+  EXPECT_EQ(uart.written[1], static_cast<uint8_t>(ModbusFunctionCode::WRITE_SINGLE_COIL) | 0x80);
+  EXPECT_EQ(uart.written[2], static_cast<uint8_t>(ModbusExceptionCode::ILLEGAL_FUNCTION));
+
+  uart.written.clear();
+  const uint8_t multiple[] = {0x00, 0x00, 0x00, 0x08, 0x01, 0xAA};
+  ASSERT_TRUE(hub.process_full_client_frame_for_test(
+      0x02, static_cast<uint8_t>(ModbusFunctionCode::WRITE_MULTIPLE_COILS), multiple, sizeof(multiple)));
+  ASSERT_EQ(uart.written.size(), 5u);
+  EXPECT_EQ(uart.written[1], static_cast<uint8_t>(ModbusFunctionCode::WRITE_MULTIPLE_COILS) | 0x80);
+  EXPECT_EQ(uart.written[2], static_cast<uint8_t>(ModbusExceptionCode::ILLEGAL_FUNCTION));
+}
+
+// FC 0x0F with a byte count that does not match ceil(quantity / 8) is ILLEGAL_DATA_VALUE and never
+// reaches the handler.
+TEST(ModbusServerCoils, WriteCoilsByteCountMismatchRejected) {
+  CoilFixture f;
+
+  // quantity 10 needs 2 bytes; claim 1
+  const uint8_t pdu_data[] = {0x00, 0x00, 0x00, 0x0A, 0x01, 0xFF};
+  ASSERT_TRUE(f.hub.process_full_client_frame_for_test(
+      0x02, static_cast<uint8_t>(ModbusFunctionCode::WRITE_MULTIPLE_COILS), pdu_data, sizeof(pdu_data)));
+
+  ASSERT_EQ(f.uart.written.size(), 5u);
+  EXPECT_EQ(f.uart.written[1], static_cast<uint8_t>(ModbusFunctionCode::WRITE_MULTIPLE_COILS) | 0x80);
+  EXPECT_EQ(f.uart.written[2], static_cast<uint8_t>(ModbusExceptionCode::ILLEGAL_DATA_VALUE));
+  EXPECT_EQ(f.device.write_count, 0);
+}
+
+// A coil range that runs past address 0xFFFF is ILLEGAL_DATA_ADDRESS and never reaches the handler.
+TEST(ModbusServerCoils, CoilAddressRangeOverflowRejected) {
+  CoilFixture f;
+
+  // start 0xFFF8, quantity 16 -> 0x10008 > 0x10000
+  const uint8_t pdu_data[] = {0xFF, 0xF8, 0x00, 0x10};
+  ASSERT_TRUE(f.hub.process_full_client_frame_for_test(0x02, static_cast<uint8_t>(ModbusFunctionCode::READ_COILS),
+                                                       pdu_data, sizeof(pdu_data)));
+
+  ASSERT_EQ(f.uart.written.size(), 5u);
+  EXPECT_EQ(f.uart.written[1], static_cast<uint8_t>(ModbusFunctionCode::READ_COILS) | 0x80);
+  EXPECT_EQ(f.uart.written[2], static_cast<uint8_t>(ModbusExceptionCode::ILLEGAL_DATA_ADDRESS));
+  EXPECT_EQ(f.device.read_count, 0);
 }
 
 }  // namespace esphome::modbus
