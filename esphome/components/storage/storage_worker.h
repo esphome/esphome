@@ -99,6 +99,28 @@ enum class TransferPhase : uint8_t {
 using TransferJob = uint32_t;
 static constexpr TransferJob INVALID_TRANSFER_JOB = 0;
 
+// The encoding lives here rather than being spelled out at each call site, so that a handle
+// built by a submit funnel and one taken apart by get_transfer_status() cannot drift apart.
+inline TransferJob make_transfer_job(uint32_t generation, size_t slot) {
+  return (generation << 8) | static_cast<uint32_t>(slot & 0xFF);
+}
+inline uint32_t transfer_job_generation(TransferJob job) { return job >> 8; }
+inline size_t transfer_job_slot(TransferJob job) { return job & 0xFF; }
+
+// Bounded "<root>[/<sub>][/<name>]" join for the tree walk; false on truncation. In the
+// header because it is pure string work with an edge case worth testing on its own: a walk
+// that silently truncated a path would copy into the wrong place rather than fail.
+inline bool join_walk_path(char *out, size_t out_size, const char *root, const char *sub, const char *name) {
+  int n;
+  if (name != nullptr) {
+    n = (sub[0] != '\0') ? snprintf(out, out_size, "%s/%s/%s", root, sub, name)
+                         : snprintf(out, out_size, "%s/%s", root, name);
+  } else {
+    n = (sub[0] != '\0') ? snprintf(out, out_size, "%s/%s", root, sub) : snprintf(out, out_size, "%s", root);
+  }
+  return n > 0 && static_cast<size_t>(n) < out_size;
+}
+
 // 64-bit progress counter for TransferRequest, atomic only when it has to be. With the
 // background worker task the counters are written from the task while the main loop reads
 // them concurrently -- that build uses std::atomic<uint64_t>. Every other build runs the
