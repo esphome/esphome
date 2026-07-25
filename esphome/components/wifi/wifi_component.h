@@ -515,37 +515,6 @@ class WiFiComponent final : public Component {
   void set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
   const wifi_scan_vector_t<WiFiScanResult> &get_scan_result() const { return scan_result_; }
-#ifdef WIFI_SCAN_RESULTS_LOCK_ENABLED
-  /// Replace out with a copy of the current scan results, taken under the scan
-  /// results lock. For readers that run outside the main loop (e.g. web server
-  /// handlers); main loop code can use get_scan_result() directly. Only entries
-  /// accepted by the filter are copied, so callers keep the transient copy small.
-  /// The filter runs under the lock and must be a cheap predicate.
-  template<typename Filter> void copy_scan_results(wifi_scan_vector_t<WiFiScanResult> &out, Filter &&filter) {
-    // Held across the sizing pass and the copy. The copy allocates under the
-    // lock, which is fine: contention only exists while the captive portal is
-    // active and the device is otherwise idle.
-    LockGuard guard{this->scan_result_lock_};
-    // Two passes: size the output exactly (FixedVector cannot grow), then copy
-    size_t count = 0;
-    for (const auto &res : this->scan_result_) {
-      if (filter(res)) {
-        count++;
-      }
-    }
-#ifdef WIFI_SCAN_VECTOR_IS_STD_VECTOR
-    out.clear();
-    out.reserve(count);
-#else
-    out.init(count);  // Frees any previous contents and leaves out empty
-#endif
-    for (const auto &res : this->scan_result_) {
-      if (filter(res)) {
-        out.push_back(res);
-      }
-    }
-  }
-#endif
 
   network::IPAddress wifi_soft_ap_ip();
 
@@ -1048,17 +1017,17 @@ class WiFiComponent final : public Component {
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-/// RAII lock that guards WiFiComponent::scan_result_. Every mutation of the
-/// container must hold it, because consumers such as the captive portal read the
-/// results from the web server task (via WiFiComponent::copy_scan_results()).
-/// To keep hold times minimal, writers should build results into a scratch vector
-/// without the lock and std::swap it in while holding it. Brief in-place
-/// mutations on the main loop (e.g. the match and sort pass) may hold it
-/// directly; that only ever blocks the web server task, never the main loop.
-/// Compiles to nothing unless a cross-task consumer is in the build and the
-/// platform runs multiple threads (WIFI_SCAN_RESULTS_LOCK_ENABLED); sites that
-/// are always compiled out (single-threaded platforms) may hold at function
-/// scope for simplicity.
+/// RAII lock that guards WiFiComponent::scan_result_: every mutation of the
+/// container and every read from outside the main loop must hold it. The captive
+/// portal holds it across serializing get_scan_result() into its response buffer.
+/// Holders may only do bounded in-memory work: no network I/O and no unbounded
+/// waits under the lock. To keep hold times minimal, writers should build results
+/// into a scratch vector without the lock and std::swap it in while holding it;
+/// brief in-place mutations on the main loop (e.g. the match and sort pass) may
+/// hold it directly. Compiles to nothing unless a cross-task consumer is in the
+/// build and the platform runs multiple threads (WIFI_SCAN_RESULTS_LOCK_ENABLED);
+/// sites that are always compiled out (single-threaded platforms) may hold at
+/// function scope for simplicity.
 class ScanResultsLock {
  public:
 #ifdef WIFI_SCAN_RESULTS_LOCK_ENABLED
