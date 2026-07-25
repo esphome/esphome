@@ -105,8 +105,8 @@ class ModbusClientHub : public Modbus {
   void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
             uint8_t payload_len = 0, const uint8_t *payload = nullptr, ModbusClientDevice *device = nullptr) {
     this->send_pdu(address,
-                   helpers::create_client_pdu((ModbusFunctionCode) function_code, start_address, number_of_entities,
-                                              payload, payload_len),
+                   helpers::create_client_pdu((FunctionCode) function_code, start_address, number_of_entities, payload,
+                                              payload_len),
                    device);
   };
   void send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr) {
@@ -154,7 +154,7 @@ class ModbusServerHub : public Modbus {
   bool check_register_range_(uint8_t address, uint8_t function_code, uint16_t start_address,
                              uint16_t number_of_registers);
   void send_raw_(const uint8_t *payload, uint16_t len);
-  void send_exception_(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code);
+  void send_exception_(uint8_t address, uint8_t function_code, ExceptionCode exception_code);
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
   uint8_t expecting_peer_response_{0};
   std::vector<ModbusServerDevice *> devices_;
@@ -184,7 +184,7 @@ class ModbusClientDevice {
   /// if they must outlive it. Slice the payload out of the response with helpers::server_pdu_payload().
   virtual void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {}
   /// Called with the request PDU and the modbus exception code decoded from the error response.
-  virtual void on_error(std::span<const uint8_t> request_pdu, ModbusExceptionCode exception_code) {}
+  virtual void on_error(std::span<const uint8_t> request_pdu, ExceptionCode exception_code) {}
   // The on_modbus_* names are signature-identical renames, so the new defaults forward to the old
   // virtuals: external devices overriding the old names keep working through the deprecation window.
   // Remove the forwards together with the deprecated names.
@@ -211,10 +211,10 @@ class ModbusClientDevice {
   virtual bool on_modbus_no_response() { return false; }
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
             const uint8_t *payload = nullptr) {
-    this->parent_->send_pdu(this->address_,
-                            helpers::create_client_pdu((ModbusFunctionCode) function, start_address, number_of_entities,
-                                                       payload, payload_len),
-                            this);
+    this->parent_->send_pdu(
+        this->address_,
+        helpers::create_client_pdu((FunctionCode) function, start_address, number_of_entities, payload, payload_len),
+        this);
   }
   void send_pdu(std::span<const uint8_t> pdu) { this->parent_->send_pdu(this->address_, pdu, this); }
   void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload, this); }
@@ -240,7 +240,7 @@ using ModbusDevice ESPDEPRECATED("Use ModbusClientDevice instead. Removed in 202
 
 // Transaction status: std::nullopt on success, otherwise the Modbus exception code. Server handlers return it;
 // (future) client response callbacks receive it. Named without a side prefix so both directions share it.
-using ResponseStatus = std::optional<ModbusExceptionCode>;
+using ResponseStatus = std::optional<ExceptionCode>;
 // Register values exchanged with server handlers, in host byte order. Sized at the larger of the two protocol
 // maxima (read = 125 / 0x7D, write = 123 / 0x7B); the per-direction count limit is enforced by the hub, not by
 // the capacity of this type.
@@ -259,7 +259,7 @@ class ModbusServerDevice {
   uint8_t get_address() const { return this->address_; }
   virtual ResponseStatus on_read_registers(uint16_t start_address, uint16_t number_of_registers,
                                            RegisterValues &registers) {
-    return ModbusExceptionCode::ILLEGAL_FUNCTION;
+    return ExceptionCode::ILLEGAL_FUNCTION;
   };
   virtual ResponseStatus on_read_input_registers(uint16_t start_address, uint16_t number_of_registers,
                                                  RegisterValues &registers) {
@@ -270,7 +270,7 @@ class ModbusServerDevice {
     return this->on_read_registers(start_address, number_of_registers, registers);
   };
   virtual ResponseStatus on_write_registers(uint16_t start_address, const RegisterValues &registers) {
-    return ModbusExceptionCode::ILLEGAL_FUNCTION;
+    return ExceptionCode::ILLEGAL_FUNCTION;
   };
 
  protected:

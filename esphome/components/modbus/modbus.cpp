@@ -312,7 +312,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
                  "Error function code: 0x%X exception: %" PRIu8 ", address: %" PRIu8 ", %" PRIu32 "ms after last send",
                  function_code, exception, address, this->last_modbus_byte_ - this->last_send_);
         if (device)
-          device->on_error(request_pdu, static_cast<ModbusExceptionCode>(exception));
+          device->on_error(request_pdu, static_cast<ExceptionCode>(exception));
 
       } else if (device) {  // Not an error response
         device->on_response(request_pdu, pdu);
@@ -354,7 +354,7 @@ bool ModbusServerHub::check_register_range_(uint8_t address, uint8_t function_co
   if ((uint32_t) start_address + number_of_registers > 0x10000u) {
     ESP_LOGW(TAG, "Register address out of range - start: %" PRIu16 " num: %" PRIu16, start_address,
              number_of_registers);
-    this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+    this->send_exception_(address, function_code, ExceptionCode::ILLEGAL_DATA_ADDRESS);
     return false;
   }
   return true;
@@ -373,22 +373,22 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
   const uint8_t *response_data = response_buffer;
   uint16_t response_len = 0;
 
-  switch (static_cast<ModbusFunctionCode>(function_code)) {
-    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
-    case ModbusFunctionCode::READ_INPUT_REGISTERS: {
+  switch (static_cast<FunctionCode>(function_code)) {
+    case FunctionCode::READ_HOLDING_REGISTERS:
+    case FunctionCode::READ_INPUT_REGISTERS: {
       // PDU data: start address(2) + quantity(2).
       uint16_t start_address = helpers::get_data<uint16_t>(data, 0);
       uint16_t number_of_registers = helpers::get_data<uint16_t>(data, 2);
       if (number_of_registers == 0 || number_of_registers > MAX_NUM_OF_REGISTERS_TO_READ) {
         ESP_LOGW(TAG, "Invalid number of registers %" PRIu16, number_of_registers);
-        this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
+        this->send_exception_(address, function_code, ExceptionCode::ILLEGAL_DATA_VALUE);
         return;
       }
       if (!this->check_register_range_(address, function_code, start_address, number_of_registers)) {
         return;
       }
       RegisterValues registers;
-      if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_HOLDING_REGISTERS) {
+      if (static_cast<FunctionCode>(function_code) == FunctionCode::READ_HOLDING_REGISTERS) {
         status = device->on_read_holding_registers(start_address, number_of_registers, registers);
       } else {
         status = device->on_read_input_registers(start_address, number_of_registers, registers);
@@ -403,7 +403,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
 
       if (registers.size() != number_of_registers) {
         ESP_LOGE(TAG, "Incorrect response %" PRIu16 " requested, %zu returned", number_of_registers, registers.size());
-        this->send_exception_(address, function_code, ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
+        this->send_exception_(address, function_code, ExceptionCode::SERVICE_DEVICE_FAILURE);
         return;
       }
 
@@ -415,8 +415,8 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       }
       break;
     }
-    case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
-    case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS: {
+    case FunctionCode::WRITE_SINGLE_REGISTER:
+    case FunctionCode::WRITE_MULTIPLE_REGISTERS: {
       // PDU data: start address(2) [+ quantity(2) + byte count(1)] + register values.
       // A single-register write always targets one register; for a multiple-register write the
       // quantity is in the frame and its byte count must equal quantity * 2. The register values are
@@ -424,7 +424,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       uint16_t start_address = helpers::get_data<uint16_t>(data, 0);
       uint16_t number_of_registers = 1;
       uint16_t values_offset = 2;  // single write: values follow the 2-byte start address
-      if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
+      if (static_cast<FunctionCode>(function_code) == FunctionCode::WRITE_MULTIPLE_REGISTERS) {
         number_of_registers = helpers::get_data<uint16_t>(data, 2);
         uint8_t number_of_bytes = helpers::get_data<uint8_t>(data, 4);
         values_offset = 5;  // multiple write: values follow start address(2) + quantity(2) + byte count(1)
@@ -432,7 +432,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
             number_of_registers * 2 != number_of_bytes) {
           ESP_LOGW(TAG, "Invalid number of registers %" PRIu16 " or bytes %" PRIu8, number_of_registers,
                    number_of_bytes);
-          this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
+          this->send_exception_(address, function_code, ExceptionCode::ILLEGAL_DATA_VALUE);
           return;
         }
         if (!this->check_register_range_(address, function_code, start_address, number_of_registers)) {
@@ -451,7 +451,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
     }
     default:
       ESP_LOGW(TAG, "Unsupported function code %" PRIu8, function_code);
-      this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
+      this->send_exception_(address, function_code, ExceptionCode::ILLEGAL_FUNCTION);
       return;
   }
   if (status.has_value()) {
@@ -563,7 +563,7 @@ void ModbusServerHub::send_response_(uint8_t address, uint8_t function_code, con
   this->send_raw_(raw_frame, payload_len + 2);
 }
 
-void ModbusServerHub::send_exception_(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code) {
+void ModbusServerHub::send_exception_(uint8_t address, uint8_t function_code, ExceptionCode exception_code) {
   uint8_t raw_frame[3];
   raw_frame[0] = address;
   raw_frame[1] = function_code | FUNCTION_CODE_EXCEPTION_MASK;

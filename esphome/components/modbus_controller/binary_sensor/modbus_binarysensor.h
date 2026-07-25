@@ -10,7 +10,7 @@ namespace esphome::modbus_controller {
 
 class ModbusBinarySensor final : public Component, public binary_sensor::BinarySensor, public SensorItem {
  public:
-  ModbusBinarySensor(ModbusRegisterType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
+  ModbusBinarySensor(modbus::EntityType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
                      uint16_t skip_updates, bool force_new_range) {
     this->register_type = register_type;
     this->start_address = start_address;
@@ -20,7 +20,7 @@ class ModbusBinarySensor final : public Component, public binary_sensor::BinaryS
     this->skip_updates = skip_updates;
     this->force_new_range = force_new_range;
 
-    if (register_type == ModbusRegisterType::COIL || register_type == ModbusRegisterType::DISCRETE_INPUT) {
+    if (register_type == modbus::EntityType::COIL || register_type == modbus::EntityType::DISCRETE_INPUT) {
       this->register_count = offset + 1;
     } else {
       this->register_count = 1;
