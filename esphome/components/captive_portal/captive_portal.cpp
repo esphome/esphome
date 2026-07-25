@@ -24,11 +24,27 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   stream->printf(R"({"mac":"%s","name":"%s","aps":[{})", mac_str, App.get_name().c_str());
 #endif
 
-  for (auto &scan : wifi::global_wifi_component->get_scan_result()) {
+  const auto &results = wifi::global_wifi_component->get_scan_result();
+  for (size_t i = 0; i < results.size(); i++) {
+    const auto &scan = results[i];
     if (scan.get_is_hidden())
       continue;
+    // Multi-AP networks broadcast one SSID from several BSSIDs. Show each SSID
+    // once, keeping the strongest signal. Results are sorted by connection
+    // preference, not strictly RSSI, so compare RSSI explicitly.
+    bool is_strongest = true;
+    for (size_t j = 0; j < results.size(); j++) {
+      if (j == i || results[j].get_is_hidden() || results[j].get_ssid() != scan.get_ssid())
+        continue;
+      if (results[j].get_rssi() > scan.get_rssi() || (results[j].get_rssi() == scan.get_rssi() && j < i)) {
+        is_strongest = false;
+        break;
+      }
+    }
+    if (!is_strongest)
+      continue;
 
-      // Assumes no " in ssid, possible unicode isses?
+    // Assumes no " in ssid, possible unicode isses?
 #ifdef USE_ESP8266
     stream->print(ESPHOME_F(",{\"ssid\":\""));
     stream->print(scan.get_ssid().c_str());
