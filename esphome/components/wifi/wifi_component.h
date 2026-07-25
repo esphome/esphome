@@ -1018,7 +1018,8 @@ extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-
 
 /// Guards WiFiComponent::scan_result_. Invariant: every mutation and every read
 /// from outside the main loop holds this lock, and holders only do bounded work
-/// (never unbounded waits or network sends). Compiles to nothing unless a
+/// (never unbounded waits or network sends). Every writer runs on the main loop,
+/// so main-loop reads never race and take no lock. Compiles to nothing unless a
 /// cross-task reader is in the build and the platform is multi-threaded
 /// (WIFI_SCAN_RESULTS_LOCK_ENABLED).
 class ScanResultsLock {
