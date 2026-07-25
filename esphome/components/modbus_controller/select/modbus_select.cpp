@@ -77,7 +77,7 @@ void ModbusSelect::control(size_t index) {
   // register_count larger than the value type). Anything else would put a byte count on the wire
   // that disagrees with the quantity field, which conformant devices reject.
   if (data.size() != this->register_count) {
-    ESP_LOGV(TAG, "Adjusting payload from %zu to %u registers", data.size(), this->register_count);
+    ESP_LOGW(TAG, "Payload has %zu registers but register_count is %u; adjusting", data.size(), this->register_count);
     data.resize(this->register_count, 0);
   }
 

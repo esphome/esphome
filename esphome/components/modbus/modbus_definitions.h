@@ -149,7 +149,7 @@ class MutablePackedBits {
   /// Set or clear the given bit. Out-of-range bits are dropped: on the server read path the span wraps a
   /// stack response buffer, so a handler looping past size() must not be able to smash the frame.
   void set(size_t bit, bool value) {
-    if (bit >= this->count_)
+    if (bit >= this->count_ || bit / 8 >= this->data_.size())
       return;
     if (value) {
       this->data_[bit / 8] |= (1 << (bit % 8));

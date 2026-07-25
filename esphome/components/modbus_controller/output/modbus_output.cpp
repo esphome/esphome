@@ -39,6 +39,13 @@ void ModbusFloatOutput::write_state(float value) {
   ESP_LOGD(TAG, "Updating register: start address=0x%X register count=%d new value=%.02f (val=%.02f)",
            this->start_address, this->register_count, value, original_value);
 
+  // The command declares register_count registers, so the payload must be exactly that many words;
+  // anything else would put a byte count on the wire that disagrees with the quantity field.
+  if (data.size() != this->register_count) {
+    ESP_LOGW(TAG, "Payload has %zu registers but register_count is %u; adjusting", data.size(), this->register_count);
+    data.resize(this->register_count, 0);
+  }
+
   // Create and send the write command
   ModbusCommandItem write_cmd;
   if (this->register_count == 1 && !this->use_write_multiple_) {

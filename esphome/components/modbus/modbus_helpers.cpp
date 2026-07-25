@@ -292,10 +292,14 @@ static void append_pdu_header(StaticVector<uint8_t, CAP> &pdu, FunctionCode func
   pdu.push_back(second >> 0);
 }
 
-StaticVector<uint8_t, READ_PDU_SIZE> create_read_pdu(FunctionCode function_code, uint16_t start_address,
-                                                     uint16_t number_of_entities) {
+ReadPdu create_read_pdu(FunctionCode function_code, uint16_t start_address, uint16_t number_of_entities) {
   if (number_of_entities == 0) {
     ESP_LOGE(TAG, "Number of entities is zero for function code %02X", static_cast<uint8_t>(function_code));
+    return {};
+  }
+  if (uint32_t(start_address) + number_of_entities > 0x10000u) {
+    ESP_LOGE(TAG, "Read of %u entities at %u runs past the 16-bit address space, dropping request", number_of_entities,
+             start_address);
     return {};
   }
 
@@ -327,14 +331,13 @@ StaticVector<uint8_t, READ_PDU_SIZE> create_read_pdu(FunctionCode function_code,
       return {};
   }
 
-  StaticVector<uint8_t, READ_PDU_SIZE> pdu;
+  ReadPdu pdu;
   append_pdu_header(pdu, function_code, start_address, number_of_entities);
   return pdu;
 }
 
-StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(FunctionCode function_code, uint16_t start_address,
-                                                      uint16_t number_of_entities, const uint8_t *values,
-                                                      size_t values_len) {
+Pdu create_client_pdu(FunctionCode function_code, uint16_t start_address, uint16_t number_of_entities,
+                      const uint8_t *values, size_t values_len) {
   // Generic entry point; prefer the direction- and type-specific builders (create_read_pdu(),
   // create_write_registers_pdu(), etc.) which bound their inputs per spec.
   if (is_function_code_read(static_cast<uint8_t>(function_code))) {
@@ -343,7 +346,7 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(FunctionCode function_code
                static_cast<uint8_t>(function_code));
     }
     auto read_pdu = create_read_pdu(function_code, start_address, number_of_entities);
-    StaticVector<uint8_t, MAX_PDU_SIZE> pdu;
+    Pdu pdu;
     pdu.assign(read_pdu.begin(), read_pdu.end());
     return pdu;
   }
@@ -373,8 +376,13 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(FunctionCode function_code
              static_cast<uint8_t>(function_code));
     return {};
   }
+  if (!is_single && uint32_t(start_address) + number_of_entities > 0x10000u) {
+    ESP_LOGE(TAG, "Write of %u entities at %u runs past the 16-bit address space, dropping request", number_of_entities,
+             start_address);
+    return {};
+  }
 
-  StaticVector<uint8_t, MAX_PDU_SIZE> pdu;
+  Pdu pdu;
   if (is_single) {
     // Write single register or coil: the two value bytes are the header's second field.
     if (values_len < 2) {
@@ -403,8 +411,7 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(FunctionCode function_code
   return pdu;
 }
 
-StaticVector<uint8_t, MAX_PDU_SIZE> create_write_registers_pdu(uint16_t start_address,
-                                                               std::span<const uint16_t> values) {
+Pdu create_write_registers_pdu(uint16_t start_address, std::span<const uint16_t> values) {
   if (values.empty()) {
     ESP_LOGE(TAG, "No values provided for write multiple registers, dropping request");
     return {};
@@ -415,7 +422,12 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_write_registers_pdu(uint16_t start_ad
              MAX_NUM_OF_REGISTERS_TO_WRITE);
     return {};
   }
-  StaticVector<uint8_t, MAX_PDU_SIZE> pdu;
+  if (uint32_t(start_address) + values.size() > 0x10000u) {
+    ESP_LOGE(TAG, "Write of %zu registers at %u runs past the 16-bit address space, dropping request", values.size(),
+             start_address);
+    return {};
+  }
+  Pdu pdu;
   append_pdu_header(pdu, FunctionCode::WRITE_MULTIPLE_REGISTERS, start_address, values.size());
   pdu.push_back(static_cast<uint8_t>(values.size() * 2));  // byte count
   for (auto v : values) {
@@ -426,19 +438,19 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_write_registers_pdu(uint16_t start_ad
   return pdu;
 }
 
-StaticVector<uint8_t, WRITE_SINGLE_PDU_SIZE> create_write_single_register_pdu(uint16_t start_address, uint16_t value) {
-  StaticVector<uint8_t, WRITE_SINGLE_PDU_SIZE> pdu;
+WriteSinglePdu create_write_single_register_pdu(uint16_t start_address, uint16_t value) {
+  WriteSinglePdu pdu;
   append_pdu_header(pdu, FunctionCode::WRITE_SINGLE_REGISTER, start_address, value);
   return pdu;
 }
 
-StaticVector<uint8_t, WRITE_SINGLE_PDU_SIZE> create_write_single_coil_pdu(uint16_t address, bool value) {
-  StaticVector<uint8_t, WRITE_SINGLE_PDU_SIZE> pdu;
+WriteSinglePdu create_write_single_coil_pdu(uint16_t address, bool value) {
+  WriteSinglePdu pdu;
   append_pdu_header(pdu, FunctionCode::WRITE_SINGLE_COIL, address, value ? 0xFF00 : 0x0000);
   return pdu;
 }
 
-StaticVector<uint8_t, MAX_PDU_SIZE> create_write_coils_pdu(uint16_t start_address, PackedBits bits) {
+Pdu create_write_coils_pdu(uint16_t start_address, PackedBits bits) {
   const uint16_t count = bits.size();
   const std::span<const uint8_t> packed_bits = bits.bytes();
   if (count == 0) {
@@ -449,13 +461,17 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_write_coils_pdu(uint16_t start_addres
     ESP_LOGE(TAG, "count %u exceeds maximum coils to write %u, dropping request", count, MAX_NUM_OF_COILS_TO_WRITE);
     return {};
   }
+  if (uint32_t(start_address) + count > 0x10000u) {
+    ESP_LOGE(TAG, "Write of %u coils at %u runs past the 16-bit address space, dropping request", count, start_address);
+    return {};
+  }
   const size_t byte_count = (count + 7) / 8;
   if (packed_bits.size() < byte_count) {
     ESP_LOGE(TAG, "packed_bits (%zu bytes) does not cover %u coils (%zu bytes), dropping request", packed_bits.size(),
              count, byte_count);
     return {};
   }
-  StaticVector<uint8_t, MAX_PDU_SIZE> pdu;
+  Pdu pdu;
   append_pdu_header(pdu, FunctionCode::WRITE_MULTIPLE_COILS, start_address, count);
   pdu.push_back(static_cast<uint8_t>(byte_count));
   for (size_t i = 0; i != byte_count; i++) {
@@ -468,7 +484,7 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_write_coils_pdu(uint16_t start_addres
   return pdu;
 }
 
-StaticVector<uint8_t, MAX_PDU_SIZE> create_write_coils_pdu(uint16_t start_address, std::span<const bool> values) {
+Pdu create_write_coils_pdu(uint16_t start_address, std::span<const bool> values) {
   // Bound before packing so the transient buffer below cannot overflow; the packed overload validates the rest.
   if (values.size() > MAX_NUM_OF_COILS_TO_WRITE) {
     ESP_LOGE(TAG, "values.size() %zu exceeds maximum coils to write %u, dropping request", values.size(),
