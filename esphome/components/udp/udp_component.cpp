@@ -173,7 +173,7 @@ void UDPComponent::loop() {
   if (this->should_listen_) {
     std::array<uint8_t, MAX_PACKET_SIZE> buf;
     for (;;) {
-      ssize_t len;
+      ssize_t len = 0;
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
       len = this->listen_socket_->read(buf.data(), buf.size());
 #endif
