@@ -517,18 +517,37 @@ class WiFiComponent final : public Component {
 #ifdef WIFI_SCAN_RESULTS_LOCK_ENABLED
   /// Copy the current scan results under the scan results lock. For readers that
   /// run outside the main loop (e.g. web server handlers); main loop code can use
-  /// get_scan_result() directly.
-  void copy_scan_results(wifi_scan_vector_t<WiFiScanResult> &out) {
+  /// get_scan_result() directly. Only entries accepted by the filter are copied,
+  /// at most max_results of them, so callers keep the transient copy small. The
+  /// filter runs under the lock and must be a cheap predicate.
+  template<typename Filter>
+  void copy_scan_results(wifi_scan_vector_t<WiFiScanResult> &out, size_t max_results, Filter &&filter) {
     LockGuard guard{this->scan_result_lock_};
-#if defined(USE_RP2) || defined(USE_ESP32)
-    out = this->scan_result_;
-#else
-    // FixedVector has no copy assignment; exact-size init then element copies
-    out.init(this->scan_result_.size());
+    // Two passes: size the output exactly (FixedVector cannot grow), then copy
+    size_t count = 0;
     for (const auto &res : this->scan_result_) {
-      out.push_back(res);
+      if (filter(res)) {
+        count++;
+      }
     }
+    if (count > max_results) {
+      count = max_results;
+    }
+#if defined(USE_RP2) || defined(USE_ESP32)
+    out.reserve(count);
+#else
+    out.init(count);
 #endif
+    size_t stored = 0;
+    for (const auto &res : this->scan_result_) {
+      if (stored == count) {
+        break;
+      }
+      if (filter(res)) {
+        out.push_back(res);
+        stored++;
+      }
+    }
   }
 #endif
 
