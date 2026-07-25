@@ -24,7 +24,7 @@ namespace esphome::lvgl {
 inline int32_t lv_chart_floor_to_unit(int32_t v, int32_t unit) {
   int32_t r = v % unit;
   if (r != 0 && v < 0)
-    r -= unit;
+    r += unit;
   return v - r;
 }
 inline int32_t lv_chart_ceil_to_unit(int32_t v, int32_t unit) {
