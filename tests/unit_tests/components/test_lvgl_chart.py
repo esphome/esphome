@@ -2,8 +2,23 @@
 
 from unittest.mock import patch
 
+import pytest
+
 from esphome import config, yaml_util
-from esphome.core import CORE
+from esphome.components.lvgl.defines import (
+    CONF_ITEMS,
+    CONF_PERSIST,
+    CONF_POINT_COUNT,
+    CONF_SERIES,
+)
+from esphome.components.lvgl.widgets.chart import (
+    TYPE_SCATTER,
+    lv_chart_t,
+    validate_chart,
+)
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_TYPE
+from esphome.core import CORE, ID
 
 BASE_CONFIG = """
 esphome:
@@ -159,3 +174,119 @@ lvgl:
     assert result is None
     captured = capsys.readouterr()
     assert "length of value must be at most 255" in captured.out
+
+
+def test_chart_scatter_series_with_sensor_fails(tmp_path, capsys):
+    """A scatter series has no fixed X value, so it can't be fed by a sensor."""
+    yaml_content = BASE_CONFIG.format(
+        chart_config="        type: SCATTER\n        series:\n          - sensor: my_sensor\n"
+    )
+
+    result = _read_config(tmp_path, yaml_content)
+
+    assert result is None
+    captured = capsys.readouterr()
+    assert "cannot be fed by a sensor" in captured.out
+
+
+def test_chart_non_scatter_series_without_sensor_fails(tmp_path, capsys):
+    """Every series on a non-scatter chart must have a sensor."""
+    yaml_content = BASE_CONFIG.format(
+        chart_config="        series:\n          - color: 0xFF0000\n"
+    )
+
+    result = _read_config(tmp_path, yaml_content)
+
+    assert result is None
+    captured = capsys.readouterr()
+    assert "'sensor' is required for every series" in captured.out
+
+
+def test_chart_scatter_with_update_interval_fails(tmp_path, capsys):
+    """update_interval has no effect on a scatter chart; points come from lvgl.chart.add_point."""
+    yaml_content = BASE_CONFIG.format(
+        chart_config="        type: SCATTER\n        update_interval: 5s\n"
+        "        series:\n          - color: 0xFF0000\n"
+    )
+
+    result = _read_config(tmp_path, yaml_content)
+
+    assert result is None
+    captured = capsys.readouterr()
+    assert "'update_interval' has no effect on a scatter chart" in captured.out
+
+
+def test_chart_point_radius_on_unsupported_type_fails(tmp_path, capsys):
+    """point_radius only applies to LINE and SCATTER charts."""
+    yaml_content = BASE_CONFIG.format(
+        chart_config="        type: BAR\n        point_radius: 3px\n"
+        "        series:\n          - sensor: my_sensor\n"
+    )
+
+    result = _read_config(tmp_path, yaml_content)
+
+    assert result is None
+    captured = capsys.readouterr()
+    assert "'point_radius' has no effect on a 'LV_CHART_TYPE_BAR' chart" in captured.out
+
+
+def test_chart_stacked_negative_min_value_fails(tmp_path, capsys):
+    """A stacked chart only supports positive values."""
+    yaml_content = BASE_CONFIG.format(
+        chart_config="        type: STACKED\n        min_value: -5\n        max_value: 100\n"
+        "        series:\n          - sensor: my_sensor\n"
+    )
+
+    result = _read_config(tmp_path, yaml_content)
+
+    assert result is None
+    captured = capsys.readouterr()
+    assert "A stacked chart only supports positive values" in captured.out
+
+
+def test_chart_scatter_valid_config_defaults_line_width_to_zero(tmp_path):
+    """A scatter chart with no explicit `items:` gets line_width: 0 (a point cloud, not connected
+    lines), since LVGL always draws a connecting line between scatter points otherwise."""
+    yaml_content = BASE_CONFIG.format(
+        chart_config="        type: SCATTER\n"
+        "        series:\n          - color: 0xFF0000\n          - color: 0x0000FF\n"
+    )
+
+    result = _read_config(tmp_path, yaml_content)
+
+    assert result is not None
+    chart_config = result["lvgl"][0]["widgets"][0]["chart"]
+    assert chart_config[CONF_ITEMS] == {"line_width": 0}
+
+
+def _base_validate_chart_config(**overrides) -> dict:
+    """A minimal, already-schema-shaped config dict for calling validate_chart() directly.
+
+    Used for branches that are awkward to reach through a full YAML config (e.g. persist's
+    ESP32-only check would fire before validate_chart's own scatter+persist check, since it runs
+    off a separate schema key's validator) -- calling validate_chart() directly isolates the exact
+    branch under test from unrelated schema-level checks.
+    """
+    config = {
+        CONF_ID: ID("my_chart", is_declaration=True, type=lv_chart_t),
+        CONF_TYPE: "LV_CHART_TYPE_LINE",
+        CONF_POINT_COUNT: 10,
+        CONF_PERSIST: False,
+        CONF_SERIES: [{"color": 0, "sensor": ID("my_sensor")}],
+    }
+    config.update(overrides)
+    return config
+
+
+def test_validate_chart_scatter_with_persist_fails():
+    """Persist isn't supported on a scatter chart: its stored history has no room for X values."""
+    config = _base_validate_chart_config(
+        **{
+            CONF_TYPE: TYPE_SCATTER,
+            CONF_PERSIST: True,
+            CONF_SERIES: [{"color": 0}],
+        }
+    )
+
+    with pytest.raises(cv.Invalid, match="not supported on a scatter chart"):
+        validate_chart(config)
