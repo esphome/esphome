@@ -41,6 +41,12 @@ void ModbusFloatOutput::write_state(float value) {
 
   // The command declares register_count registers, so the payload must be exactly that many words;
   // anything else would put a byte count on the wire that disagrees with the quantity field.
+  // number_to_payload() appends nothing for RAW, so an empty payload must be caught before data[0].
+  if (data.empty()) {
+    ESP_LOGW(TAG, "No payload was created for updating output");
+    return;
+  }
+
   // register_count declares the READ range width - it may pull neighboring registers into one poll -
   // so a write covers exactly the registers the value occupies: the quantity comes from the payload,
   // never from register_count (padding to it would zero registers the user only declared for reading).
