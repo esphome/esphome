@@ -10,7 +10,12 @@ from unittest.mock import patch
 
 import pytest
 
-from esphome.const import CONF_FRAMEWORK, CONF_SOURCE
+from esphome.const import (
+    CONF_COMPILE_PROCESS_LIMIT,
+    CONF_ESPHOME,
+    CONF_FRAMEWORK,
+    CONF_SOURCE,
+)
 from esphome.core import CORE, EsphomeError
 from esphome.espidf import toolchain
 
@@ -307,6 +312,38 @@ def test_get_cmake_output_missing_build_does_not_resolve_idf_env(
 
     mock_env.assert_not_called()
     mock_run.assert_not_called()
+
+
+def test_run_compile_passes_compile_process_limit(setup_core: Path) -> None:
+    """compile_process_limit is forwarded to idf.py as IDF_PY_BUILD_JOBS."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {CONF_COMPILE_PROCESS_LIMIT: 1}}
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=False),
+        patch.object(toolchain, "run_idf_py", return_value=0) as mock_run,
+        patch.object(toolchain, "print_summary"),
+    ):
+        assert toolchain.run_compile(config, verbose=False) == 0
+
+    mock_run.assert_called_once_with(
+        "build", "size", extra_env={"IDF_PY_BUILD_JOBS": "1"}
+    )
+
+
+def test_run_compile_without_compile_process_limit(setup_core: Path) -> None:
+    """When no compile_process_limit is set, no job limit is passed to idf.py."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {}}
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=False),
+        patch.object(toolchain, "run_idf_py", return_value=0) as mock_run,
+        patch.object(toolchain, "print_summary"),
+    ):
+        assert toolchain.run_compile(config, verbose=False) == 0
+
+    mock_run.assert_called_once_with("build", "size", extra_env=None)
 
 
 def test_get_core_framework_version_from_core_data():
