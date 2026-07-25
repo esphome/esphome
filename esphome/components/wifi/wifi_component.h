@@ -522,17 +522,15 @@ class WiFiComponent final : public Component {
   /// accepted by the filter are copied, so callers keep the transient copy small.
   /// The filter runs under the lock and must be a cheap predicate.
   template<typename Filter> void copy_scan_results(wifi_scan_vector_t<WiFiScanResult> &out, Filter &&filter) {
-    // Count under the lock, allocate with the lock released so malloc stays out
-    // of the critical section, then copy under the lock again. A scan landing
-    // between the two holds just yields a fresher snapshot, bounded below by the
-    // allocated capacity.
+    // Held across the sizing pass and the copy. The copy allocates under the
+    // lock, which is fine: contention only exists while the captive portal is
+    // active and the device is otherwise idle.
+    LockGuard guard{this->scan_result_lock_};
+    // Two passes: size the output exactly (FixedVector cannot grow), then copy
     size_t count = 0;
-    {
-      LockGuard guard{this->scan_result_lock_};
-      for (const auto &res : this->scan_result_) {
-        if (filter(res)) {
-          count++;
-        }
+    for (const auto &res : this->scan_result_) {
+      if (filter(res)) {
+        count++;
       }
     }
 #ifdef WIFI_SCAN_VECTOR_IS_STD_VECTOR
@@ -541,15 +539,9 @@ class WiFiComponent final : public Component {
 #else
     out.init(count);  // Frees any previous contents and leaves out empty
 #endif
-    LockGuard guard{this->scan_result_lock_};
-    size_t stored = 0;
     for (const auto &res : this->scan_result_) {
-      if (stored == count) {
-        break;
-      }
       if (filter(res)) {
         out.push_back(res);
-        stored++;
       }
     }
   }
