@@ -9,12 +9,6 @@ namespace esphome::captive_portal {
 
 static const char *const TAG = "captive_portal";
 
-#ifndef ESPHOME_THREAD_SINGLE
-// Upper bound on the scan result copy made per /config.json request; results are
-// sorted best first, so this keeps the strongest networks
-static constexpr size_t MAX_SCAN_RESULTS_TO_SEND = 32;
-#endif
-
 void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream(ESPHOME_F("application/json"));
   stream->addHeader(ESPHOME_F("cache-control"), ESPHOME_F("public, max-age=0, must-revalidate"));
@@ -38,11 +32,9 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   // This handler runs on the web server task while the main loop rebuilds, sorts
   // or frees the scan results. Copy them under the lock, then serialize without
   // holding it so the main loop is only ever blocked for the duration of the copy.
-  // Hidden networks are never serialized and the results are sorted best first,
-  // so copying only visible entries up to a cap keeps the copy small even in
-  // dense environments.
+  // Hidden networks are never serialized, so skipping them keeps the copy small.
   wifi::wifi_scan_vector_t<wifi::WiFiScanResult> results;
-  wifi::global_wifi_component->copy_scan_results(results, MAX_SCAN_RESULTS_TO_SEND,
+  wifi::global_wifi_component->copy_scan_results(results,
                                                  [](const wifi::WiFiScanResult &res) { return !res.get_is_hidden(); });
 #endif
   for (const auto &scan : results) {
