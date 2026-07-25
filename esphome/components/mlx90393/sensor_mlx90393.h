@@ -1,5 +1,7 @@
 #pragma once
 
+#ifndef USE_BK72XX
+
 #include <MLX90393.h>
 #include <MLX90393Hal.h>
 #include "esphome/components/i2c/i2c.h"
@@ -20,7 +22,7 @@ enum MLX90393Setting {
   MLX90393_LAST,
 };
 
-class MLX90393Cls : public PollingComponent, public i2c::I2CDevice, public MLX90393Hal {
+class MLX90393Cls final : public PollingComponent, public i2c::I2CDevice, public MLX90393Hal {
  public:
   void setup() override;
   void dump_config() override;
@@ -76,3 +78,5 @@ class MLX90393Cls : public PollingComponent, public i2c::I2CDevice, public MLX90
 };
 
 }  // namespace esphome::mlx90393
+
+#endif  // USE_BK72XX
