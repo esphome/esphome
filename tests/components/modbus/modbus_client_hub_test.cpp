@@ -27,8 +27,8 @@ class NoResponseProbeHub : public ModbusClientHub {
     this->tx_buffer_.pop_front();
   }
   // Drives the real unexpected-frame branch in process_modbus_server_frame().
-  void receive_frame_for_test(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) {
-    this->process_modbus_server_frame(address, function_code, data, len);
+  void receive_frame_for_test(uint8_t address, std::span<const uint8_t> pdu) {
+    this->process_modbus_server_frame(address, pdu);
   }
   void timeout_waiting() {
     if (this->waiting_for_response_.has_value())
@@ -37,11 +37,11 @@ class NoResponseProbeHub : public ModbusClientHub {
   }
 };
 
-// A device with a scripted answer to on_modbus_no_response().
+// A device with a scripted answer to on_no_response().
 class RetryingDevice : public ModbusClientDevice {
  public:
   RetryingDevice(ModbusClientHub *hub, uint8_t address, bool retry) : ModbusClientDevice(hub, address), retry_(retry) {}
-  bool on_modbus_no_response() override {
+  bool on_no_response() override {
     this->no_response_count_++;
     return this->retry_;
   }
@@ -55,7 +55,7 @@ class RetryingDevice : public ModbusClientDevice {
 class ClearingRetryDevice : public ModbusClientDevice {
  public:
   ClearingRetryDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
-  bool on_modbus_no_response() override {
+  bool on_no_response() override {
     this->no_response_count_++;
     this->clear_tx_queue_for_device();  // detaches this device from the waiting slot mid-callback
     return true;                        // and still requests a retry
@@ -143,8 +143,8 @@ TEST(ModbusClientHubNoResponse, RetryBehindInterruptedShell) {
   hub.force_send_front();
 
   // A frame from the wrong address (0x07, expected 0x02) hits the unexpected-frame branch.
-  const uint8_t stray_payload[] = {0x04, 0x00, 0x2A, 0x01, 0x00};
-  hub.receive_frame_for_test(0x07, 0x03, stray_payload, sizeof(stray_payload));
+  const uint8_t stray_pdu[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
+  hub.receive_frame_for_test(0x07, stray_pdu);
 
   EXPECT_EQ(device.no_response_count_, 1);
   ASSERT_EQ(hub.queued_frames(), 1u);  // exactly one requeue...
@@ -173,6 +173,39 @@ TEST(ModbusClientHubNoResponse, MidCallbackClearCancelsRetry) {
   EXPECT_EQ(device.no_response_count_, 1);
   EXPECT_EQ(hub.queued_frames(), 0u);  // the retry was not re-queued for a detached device
   EXPECT_FALSE(hub.waiting());
+}
+
+namespace {
+// Overrides only the DEPRECATED on_modbus_* names: the new-name default implementations must forward, so
+// external devices written against the old names keep working through the deprecation window.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+class LegacyNameDevice : public ModbusClientDevice {
+ public:
+  LegacyNameDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_modbus_not_sent() override { this->legacy_not_sent_++; }
+  bool on_modbus_no_response() override {
+    this->legacy_no_response_++;
+    return false;
+  }
+  int legacy_not_sent_{0};
+  int legacy_no_response_{0};
+};
+#pragma GCC diagnostic pop
+}  // namespace
+
+TEST(ModbusClientHubCompat, LegacyCallbackNamesStillForward) {
+  NoResponseProbeHub hub;
+  LegacyNameDevice device(&hub, 0x02);
+
+  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
+  device.send_pdu(read);
+  hub.force_send_front();
+  hub.timeout_waiting();  // no reply -> on_no_response -> forwards to on_modbus_no_response
+  EXPECT_EQ(device.legacy_no_response_, 1);
+
+  device.send_pdu(std::span<const uint8_t>());  // empty PDU refused -> on_not_sent -> forwards
+  EXPECT_EQ(device.legacy_not_sent_, 1);
 }
 
 }  // namespace esphome::modbus::testing
