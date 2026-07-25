@@ -172,7 +172,6 @@ def run_idf_py(
 
     env = _get_idf_env()
     if jobs is not None:
-        # idf.py translates IDF_PY_BUILD_JOBS into ninja -j N
         env = {**env, "IDF_PY_BUILD_JOBS": str(jobs)}
     python_executable = _get_idf_tool("python")
     idf_py = idf_path / "tools" / "idf.py"
