@@ -442,6 +442,46 @@ def test_redact_with_legacy_fallback__does_not_match_fragment_as_suffix(
     assert not any("legacy substring" in rec.message for rec in caplog.records)
 
 
+@pytest.mark.parametrize("field", ["public_key", "peer_public_key"])
+def test_redact_with_legacy_fallback__skips_public_key_fields(
+    field: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Public keys are not secret; fields with a ``public`` name segment
+    must pass through unredacted and without the migration warning
+    (see issue #17718)."""
+    text = f"{field}: c29tZXB1YmxpY2tleQ==\n"
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback(text)
+    assert out == text
+    assert not any("legacy substring" in rec.message for rec in caplog.records)
+
+
+def test_redact_with_legacy_fallback__public_substitution_still_redacted(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Substitution keys are user-named with no schema behind them, so the
+    public-key exemption does not apply there; a ``public``-named substitution
+    keeps the conservative silent redaction."""
+    text = "substitutions:\n  public_key: something\nesphome:\n  name: x\n"
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback(text)
+    assert "public_key: \\033[8msomething\\033[28m" in out
+    assert not any("legacy substring" in rec.message for rec in caplog.records)
+
+
+def test_redact_with_legacy_fallback__public_must_be_a_whole_segment(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The exemption matches ``public`` as an underscore-separated segment,
+    not a substring; an unrelated name like ``republic_key`` keeps the
+    conservative redaction."""
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback("republic_key: abc\n")
+    assert "republic_key: \\033[8mabc\\033[28m" in out
+    assert any("'republic_key'" in rec.message for rec in caplog.records)
+
+
 def test_redact_with_legacy_fallback__substitutions_redacted_without_warning(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -578,7 +618,7 @@ def test_command_config__no_defaults_skips_strip_default_ids(
     validated.user_config = {"sensor": [{"name": "x"}]}
 
     with patch(
-        "esphome.__main__.strip_default_ids", side_effect=AssertionError
+        "esphome.config.strip_default_ids", side_effect=AssertionError
     ) as mock_strip:
         result = command_config(args, validated)
 
@@ -5410,6 +5450,43 @@ def _setup_build_info_test(
     return build_info_path, firmware_path
 
 
+def test_compile_program_esp8266_runs_rosetta_check(tmp_path: Path) -> None:
+    """Test that compile_program runs the Rosetta preflight for ESP8266 targets."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test_device")
+
+    config: dict[str, Any] = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    args = MockArgs()
+
+    with (
+        patch(
+            "esphome.components.esp8266.check_rosetta",
+            side_effect=EsphomeError("Rosetta 2 is not installed"),
+        ) as mock_check,
+        pytest.raises(EsphomeError, match="Rosetta 2 is not installed"),
+    ):
+        compile_program(args, config)
+
+    mock_check.assert_called_once()
+
+
+def test_compile_program_skips_rosetta_check_on_other_platforms(
+    tmp_path: Path,
+    mock_compile_build_info_run_compile: Mock,
+    mock_compile_build_info_get_idedata: Mock,
+) -> None:
+    """Test that the Rosetta preflight does not run for non-ESP8266 targets."""
+    _setup_build_info_test(tmp_path, firmware_first=True)
+
+    config: dict[str, Any] = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    args = MockArgs()
+
+    with patch("esphome.components.esp8266.check_rosetta") as mock_check:
+        result = compile_program(args, config)
+
+    assert result == 0
+    mock_check.assert_not_called()
+
+
 def test_compile_program_emits_build_info_when_firmware_rebuilt(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
@@ -6124,7 +6201,7 @@ def test_run_esphome_bundle_detection(tmp_path: Path) -> None:
             "esphome.bundle.prepare_bundle_for_compile",
             return_value=extracted_yaml,
         ) as mock_prepare,
-        patch("esphome.__main__.read_config", return_value=None),
+        patch("esphome.config.read_config", return_value=None),
     ):
         result = run_esphome(["esphome", "compile", str(bundle_path)])
 
@@ -6142,7 +6219,7 @@ def test_run_esphome_non_bundle_skips_extraction(tmp_path: Path) -> None:
     with (
         patch("esphome.bundle.is_bundle_path", return_value=False) as mock_is_bundle,
         patch("esphome.bundle.prepare_bundle_for_compile") as mock_prepare,
-        patch("esphome.__main__.read_config", return_value=None),
+        patch("esphome.config.read_config", return_value=None),
     ):
         result = run_esphome(["esphome", "compile", str(yaml_file)])
 
@@ -6170,7 +6247,7 @@ def test_run_esphome_skip_external_update_per_command(
     yaml_file = tmp_path / "device.yaml"
     yaml_file.write_text("esphome:\n  name: test\n")
 
-    with patch("esphome.__main__.read_config", return_value=None) as mock_read:
+    with patch("esphome.config.read_config", return_value=None) as mock_read:
         run_esphome(["esphome", command, str(yaml_file)])
 
     mock_read.assert_called_once()
@@ -6326,6 +6403,23 @@ def test_parse_args_logs_states() -> None:
     """Test that --states is parsed for the logs command."""
     args = parse_args(["esphome", "logs", "--states", "device.yaml"])
     assert args.states is True
+
+
+def test_parse_args_argcomplete_only_runs_when_completing() -> None:
+    """Only import and invoke argcomplete when _ARGCOMPLETE is set.
+
+    The shell-completion machinery sets _ARGCOMPLETE when it invokes the
+    CLI; a normal invocation must skip the import entirely so every
+    esphome subprocess (e.g. parallel dashboard uploads) avoids paying
+    for it.
+    """
+    fake_argcomplete = MagicMock()
+    with (
+        patch.dict(os.environ, {"_ARGCOMPLETE": "1"}),
+        patch.dict(sys.modules, {"argcomplete": fake_argcomplete}),
+    ):
+        parse_args(["esphome", "version"])
+    fake_argcomplete.autocomplete.assert_called_once()
 
 
 def test_should_subscribe_states_default() -> None:
