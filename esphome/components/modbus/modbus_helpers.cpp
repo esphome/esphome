@@ -29,7 +29,7 @@ uint16_t server_pdu_length(const uint8_t *frame, size_t size) {
     case FunctionCode::READ_FILE_RECORD:
     case FunctionCode::WRITE_FILE_RECORD:
       // function(1) + byte count(1) + data
-      return 2 + (size > 1 ? std::min(frame[1], uint8_t(MAX_PDU_SIZE - 5)) : 0);
+      return 2 + (size > 1 ? std::min(frame[1], uint8_t(MAX_PDU_SIZE - 2)) : 0);
     case FunctionCode::MASK_WRITE_REGISTER:
       return 7;  // function(1) + reference address(2) + AND mask(2) + OR mask(2)
     case FunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
@@ -63,7 +63,7 @@ uint16_t client_pdu_length(const uint8_t *frame, size_t size) {
     case FunctionCode::READ_FILE_RECORD:
     case FunctionCode::WRITE_FILE_RECORD:
       // function(1) + byte count(1) + data
-      return 2 + (size > 1 ? std::min(frame[1], uint8_t(MAX_PDU_SIZE - 5)) : 0);
+      return 2 + (size > 1 ? std::min(frame[1], uint8_t(MAX_PDU_SIZE - 2)) : 0);
     case FunctionCode::MASK_WRITE_REGISTER:
       return 7;  // function(1) + reference address(2) + AND mask(2) + OR mask(2)
     case FunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
@@ -85,14 +85,29 @@ bool is_server_pdu_standard(const uint8_t *pdu, size_t size) {
   switch (static_cast<FunctionCode>(pdu[0])) {
     case FunctionCode::READ_COILS:
     case FunctionCode::READ_DISCRETE_INPUTS:
+      // A conformant bit-read response carries at least one packed byte (up to 2000 bits = 250 bytes).
+      return pdu[1] != 0 && pdu[1] <= uint8_t((MAX_NUM_OF_COILS_TO_READ + 7) / 8);
     case FunctionCode::READ_HOLDING_REGISTERS:
     case FunctionCode::READ_INPUT_REGISTERS:
-      return pdu[1] <= uint8_t(MAX_NUM_OF_REGISTERS_TO_READ * 2);
+      // Registers are 2 bytes each: the byte count must be a non-zero even count within the read maximum.
+      return pdu[1] != 0 && pdu[1] % 2 == 0 && pdu[1] <= uint8_t(MAX_NUM_OF_REGISTERS_TO_READ * 2);
     case FunctionCode::READ_FILE_RECORD:
     case FunctionCode::WRITE_FILE_RECORD:
-      return pdu[1] <= uint8_t(MAX_PDU_SIZE - 5);
+      return pdu[1] <= uint8_t(MAX_PDU_SIZE - 2);
     case FunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
-      return pdu[1] <= uint8_t(MAX_NUM_OF_REGISTERS_TO_READ * 2);
+      return pdu[1] != 0 && pdu[1] % 2 == 0 && pdu[1] <= uint8_t(MAX_NUM_OF_REGISTERS_TO_READ * 2);
+    case FunctionCode::WRITE_MULTIPLE_COILS:
+    case FunctionCode::WRITE_MULTIPLE_REGISTERS: {
+      // The response echoes start address and quantity: bound them like the request side does.
+      const bool bits = static_cast<FunctionCode>(pdu[0]) == FunctionCode::WRITE_MULTIPLE_COILS;
+      const uint16_t start_address = get_data<uint16_t>(pdu, 1);
+      const uint16_t quantity = get_data<uint16_t>(pdu, 3);
+      const uint16_t max_quantity = bits ? MAX_NUM_OF_COILS_TO_WRITE : MAX_NUM_OF_REGISTERS_TO_WRITE;
+      return quantity != 0 && quantity <= max_quantity && (uint32_t) start_address + quantity <= 0x10000u;
+    }
+    case FunctionCode::WRITE_SINGLE_COIL:
+      // The response echoes the request, so the same ON/OFF constraint applies.
+      return (pdu[3] == 0xFF || pdu[3] == 0x00) && pdu[4] == 0x00;
     default:
       return true;  // All other function codes validated by length alone
   }
@@ -127,7 +142,7 @@ bool is_client_pdu_standard(const uint8_t *pdu, size_t size) {
     }
     case FunctionCode::READ_FILE_RECORD:
     case FunctionCode::WRITE_FILE_RECORD:
-      return pdu[1] <= MAX_PDU_SIZE - 5;
+      return pdu[1] <= MAX_PDU_SIZE - 2;
     case FunctionCode::READ_WRITE_MULTIPLE_REGISTERS: {
       const uint16_t start_address_read = get_data<uint16_t>(pdu, 1);
       const uint16_t quantity_read = get_data<uint16_t>(pdu, 3);
@@ -138,6 +153,9 @@ bool is_client_pdu_standard(const uint8_t *pdu, size_t size) {
              (uint32_t) start_address_read + quantity_read <= 0x10000u &&
              (uint32_t) start_address_write + quantity_write <= 0x10000u && pdu[9] == quantity_write * 2;
     }
+    case FunctionCode::WRITE_SINGLE_COIL:
+      // The one variable field in an otherwise fixed-shape PDU: the spec allows exactly ON/OFF.
+      return (pdu[3] == 0xFF || pdu[3] == 0x00) && pdu[4] == 0x00;
     default:
       return true;  // All other function codes validated by length alone
   }

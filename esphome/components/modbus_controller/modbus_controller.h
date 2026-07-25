@@ -305,8 +305,10 @@ class ModbusController final : public PollingComponent, public modbus::ModbusCli
   /// Deliberately shadows the deprecated ModbusClientDevice::send_raw() with identical semantics:
   /// controller-level raw sends stay supported until the command machinery is replaced.
   void send_raw(const std::vector<uint8_t> &payload) {
-    if (payload.empty())
+    if (payload.empty()) {
+      this->on_not_sent();  // match the hub-level send_raw(): a refused send is always signalled
       return;
+    }
     this->parent_->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
   }
   /// Registers a sensor with the controller. Called by esphomes code generator

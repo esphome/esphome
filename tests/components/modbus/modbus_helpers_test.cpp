@@ -83,6 +83,13 @@ TEST(ModbusClientFrameLength, WriteMultipleByteCountCapped) {
   EXPECT_EQ(client_frame_length(frame, sizeof(frame)), 9 + MAX_NUM_OF_REGISTERS_TO_WRITE * 2);
 }
 
+TEST(ModbusClientFrameLength, ReadWriteMultipleByteCountCappedAtSpecLimit) {
+  // FC 0x17's write byte count caps at the spec 6.17 limit of 121 registers (242 bytes), deliberately
+  // tighter than FC 0x10's 123, so a corrupt byte count cannot make the parser wait past the real frame.
+  const uint8_t pdu[] = {0x17, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0xFF};  // claims 255 bytes
+  EXPECT_EQ(client_pdu_length(pdu, sizeof(pdu)), 10 + MAX_NUM_OF_REGISTERS_TO_WRITE_RW * 2);
+}
+
 TEST(ModbusClientFrameLength, WriteMultipleMissingByteCount) {
   const uint8_t frame[] = {0x01, 0x10, 0x00, 0x00, 0x00, 0x02};
   EXPECT_EQ(client_frame_length(frame, sizeof(frame)), 9);
@@ -95,6 +102,34 @@ TEST(ModbusClientFrameLength, MiscFixedAndUnknown) {
   EXPECT_EQ(client_frame_length(mask, sizeof(mask)), 10);
   EXPECT_EQ(client_frame_length(fifo, sizeof(fifo)), 6);
   EXPECT_EQ(client_frame_length(unknown, sizeof(unknown)), MIN_FRAME_SIZE);
+}
+
+// --- file-record length cap --------------------------------------------------
+// FC 0x14/0x15 are parsed only to keep the frame parser in sync; the byte count caps at 251
+// (MAX_PDU_SIZE - 2), reproducing the released frame-relative bound of MAX_FRAME_SIZE - 5.
+
+TEST(ModbusFileRecordCap, PduLengthCapsByteCountAt251) {
+  const uint8_t pdu[] = {static_cast<uint8_t>(FC::READ_FILE_RECORD), 0xFF};  // claims 255 bytes
+  EXPECT_EQ(server_pdu_length(pdu, sizeof(pdu)), 2 + (MAX_PDU_SIZE - 2));
+  EXPECT_EQ(client_pdu_length(pdu, sizeof(pdu)), 2 + (MAX_PDU_SIZE - 2));
+  // Frame wrappers: address(1) + PDU + CRC(2) stays within the RTU 256-byte frame limit.
+  const uint8_t frame[] = {0x01, static_cast<uint8_t>(FC::WRITE_FILE_RECORD), 0xFF};
+  EXPECT_EQ(server_frame_length(frame, sizeof(frame)), MAX_FRAME_SIZE);
+  EXPECT_EQ(client_frame_length(frame, sizeof(frame)), MAX_FRAME_SIZE);
+}
+
+TEST(ModbusFileRecordCap, StandardChecksAcceptUpTo251) {
+  // A full-length PDU at the cap: function(1) + byte count(1) + 251 data bytes = MAX_PDU_SIZE.
+  std::vector<uint8_t> at_cap(MAX_PDU_SIZE, 0x00);
+  at_cap[0] = static_cast<uint8_t>(FC::READ_FILE_RECORD);
+  at_cap[1] = MAX_PDU_SIZE - 2;
+  EXPECT_TRUE(is_server_pdu_standard(at_cap.data(), at_cap.size()));
+  EXPECT_TRUE(is_client_pdu_standard(at_cap.data(), at_cap.size()));
+  // Byte count 252 in the same 253-byte buffer: the parsed length still matches (capped), so this
+  // exercises the byte-count bound itself rather than the length identity.
+  at_cap[1] = MAX_PDU_SIZE - 1;
+  EXPECT_FALSE(is_server_pdu_standard(at_cap.data(), at_cap.size()));
+  EXPECT_FALSE(is_client_pdu_standard(at_cap.data(), at_cap.size()));
 }
 
 // --- is_client_pdu_standard / is_server_pdu_standard -------------------------
@@ -140,6 +175,51 @@ TEST(ModbusPduStandard, ServerReadResponses) {
   EXPECT_FALSE(is_server_pdu_standard(lying, sizeof(lying)));
   // An empty PDU (the on_error path) is not a standard response.
   EXPECT_FALSE(is_server_pdu_standard(ok, 0));
+}
+
+TEST(ModbusPduStandard, ServerResponsesRejectDegenerateShapes) {
+  // A read response always carries data: byte count zero is non-conformant.
+  const uint8_t zero_bc[] = {0x03, 0x00};
+  EXPECT_FALSE(is_server_pdu_standard(zero_bc, sizeof(zero_bc)));
+  // Registers are 2 bytes each: an odd byte count would silently truncate a register.
+  const uint8_t odd_bc[] = {0x03, 0x03, 0x00, 0x01, 0x02};
+  EXPECT_FALSE(is_server_pdu_standard(odd_bc, sizeof(odd_bc)));
+  // Bit reads have no parity requirement: one packed byte is a fine coil response.
+  const uint8_t coil_one_byte[] = {0x01, 0x01, 0x05};
+  EXPECT_TRUE(is_server_pdu_standard(coil_one_byte, sizeof(coil_one_byte)));
+  // A write-multiple echo claiming 65535 registers written is bounded like the request side.
+  const uint8_t wild_echo[] = {0x10, 0x00, 0x00, 0xFF, 0xFF};
+  EXPECT_FALSE(is_server_pdu_standard(wild_echo, sizeof(wild_echo)));
+  const uint8_t ok_echo[] = {0x10, 0x00, 0x00, 0x00, 0x02};
+  EXPECT_TRUE(is_server_pdu_standard(ok_echo, sizeof(ok_echo)));
+}
+
+TEST(ModbusPduStandard, SingleCoilValueMustBeCanonical) {
+  // FC 0x05's value field allows exactly 0xFF00 (ON) and 0x0000 (OFF); anything else is non-standard.
+  const uint8_t on[] = {0x05, 0x00, 0x10, 0xFF, 0x00};
+  const uint8_t off[] = {0x05, 0x00, 0x10, 0x00, 0x00};
+  const uint8_t junk[] = {0x05, 0x00, 0x10, 0x12, 0x34};
+  EXPECT_TRUE(is_client_pdu_standard(on, sizeof(on)));
+  EXPECT_TRUE(is_client_pdu_standard(off, sizeof(off)));
+  EXPECT_FALSE(is_client_pdu_standard(junk, sizeof(junk)));
+  EXPECT_TRUE(is_server_pdu_standard(on, sizeof(on)));  // the response echoes the request
+  EXPECT_FALSE(is_server_pdu_standard(junk, sizeof(junk)));
+}
+
+TEST(ModbusPduStandard, NonStandardFunctionCodesAcceptedOnLengthAlone) {
+  // Custom, unimplemented, and exception function codes have no standard shape to check: they are
+  // accepted whenever the parsed length matches, so a dispatcher can still route them by function
+  // code instead of having them rejected outright. This is the documented contract - see the header.
+  const uint8_t custom[] = {0x42};  // user-defined space; 1 byte matches the MIN_PDU_SIZE fallback
+  EXPECT_TRUE(is_client_pdu_standard(custom, sizeof(custom)));
+  EXPECT_TRUE(is_server_pdu_standard(custom, sizeof(custom)));
+  const uint8_t unimplemented[] = {0x07};  // READ_EXCEPTION_STATUS
+  EXPECT_TRUE(is_server_pdu_standard(unimplemented, sizeof(unimplemented)));
+  const uint8_t exception[] = {0x83, 0x02};  // exception response; length pinned to 2 bytes
+  EXPECT_TRUE(is_server_pdu_standard(exception, sizeof(exception)));
+  // The length identity still gates: extra bytes beyond the parsed fallback are non-conformant.
+  const uint8_t custom_long[] = {0x42, 0x01};
+  EXPECT_FALSE(is_client_pdu_standard(custom_long, sizeof(custom_long)));
 }
 
 // --- create_client_pdu -----------------------------------------------------
