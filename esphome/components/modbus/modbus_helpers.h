@@ -39,13 +39,39 @@ inline bool is_function_code_custom(uint8_t function_code) {
           masked_function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_2_END);
 }
 
-// Returns the expected length of a server response frame based on the function code
-// If the frame is too short to determine the length, returns the minimum length
-uint16_t server_frame_length(const uint8_t *frame, size_t size);
+// Returns the expected length of a server response PDU based on the function code.
+// If too few bytes have arrived to determine the length, returns the minimum length. `size` is the
+// number of bytes available so far, which may exceed the eventual PDU (e.g. include the frame's CRC
+// bytes): only fixed header positions are interpreted, so surplus bytes are never misread.
+uint16_t server_pdu_length(const uint8_t *frame, size_t size);
+// Frame counterpart: address(1) + PDU + CRC(2). Passes every received byte after the address through,
+// so header fields (e.g. a byte count) are interpreted as soon as they arrive.
+inline uint16_t server_frame_length(const uint8_t *frame, size_t size) {
+  if (size < 2)
+    return MIN_FRAME_SIZE;  // function code not received yet
+  return server_pdu_length(frame + 1, size - 1) + 3;
+}
 
-// Returns the expected length of a client request frame based on the function code
-// If the frame is too short to determine the length, returns the minimum length
-uint16_t client_frame_length(const uint8_t *frame, size_t size);
+// Returns the expected length of a client request PDU based on the function code.
+// Same contract as server_pdu_length(): `size` is bytes available so far, may exceed the PDU.
+uint16_t client_pdu_length(const uint8_t *frame, size_t size);
+inline uint16_t client_frame_length(const uint8_t *frame, size_t size) {
+  if (size < 2)
+    return MIN_FRAME_SIZE;  // function code not received yet
+  return client_pdu_length(frame + 1, size - 1) + 3;
+}
+
+// Returns true if pdu is a complete transaction whose shape is consistent with its function code.
+// Unlike *_pdu_length(), `size` here is the exact PDU length: a size mismatch is non-conformant.
+// Function codes with nothing variable to cross-check are validated by their fixed length alone: the
+// single writes (except 0x05's value field, which must be 0x0000 or 0xFF00), mask-write and FIFO, and
+// - deliberately - custom/unknown codes and exception responses, so a dispatcher can still route
+// them by function code rather than reject them outright. Tests pin this contract.
+bool is_server_pdu_standard(const uint8_t *pdu, size_t size);
+
+// Client counterpart: additionally checks quantity bounds and address-range arithmetic per function code.
+// The same acceptance rule applies to custom/unknown function codes.
+bool is_client_pdu_standard(const uint8_t *pdu, size_t size);
 
 // Remove before 2027.2.0
 ESPDEPRECATED("Use server_pdu_payload() on the response PDU instead. Removed in 2027.2.0", "2026.8.0")
