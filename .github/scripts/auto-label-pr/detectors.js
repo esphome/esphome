@@ -1,4 +1,4 @@
-const { DOCS_PR_PATTERNS } = require('./constants');
+const { DOCS_PR_PATTERNS, DEVELOPER_DOCS_PR_PATTERNS, DEV_DOCS_EXEMPT_FILES } = require('./constants');
 const {
   COMPONENT_REGEX,
   detectComponents,
@@ -245,6 +245,7 @@ async function detectPRTemplateCheckboxes(context) {
   const checkboxPatterns = [
     { pattern: /- \[x\] Bugfix \(non-breaking change which fixes an issue\)/i, label: 'bugfix' },
     { pattern: /- \[x\] New feature \(non-breaking change which adds functionality\)/i, label: 'new-feature' },
+    { pattern: /- \[x\] New developer-facing feature \(adds functionality for component developers; no end-user configuration change\)/i, label: 'new-feature-developer' },
     { pattern: /- \[x\] Breaking change \(fix or feature that would cause existing functionality to not work as expected\)/i, label: 'breaking-change' },
     { pattern: /- \[x\] Developer breaking change \(an API change that could break external components\)/i, label: 'developer-breaking-change' },
     { pattern: /- \[x\] Undocumented C\+\+ API change \(removal or change of undocumented public methods that lambda users may depend on\)/i, label: 'undocumented-api-change' },
@@ -355,12 +356,14 @@ async function detectRequirements(allLabels, prFiles, context, hasYamlLoadable) 
   const labels = new Set();
 
   // Check for missing tests
-  if ((allLabels.has('new-component') || allLabels.has('new-platform') || allLabels.has('new-feature')) && !allLabels.has('has-tests')) {
+  if ((allLabels.has('new-component') || allLabels.has('new-platform') || allLabels.has('new-feature') || allLabels.has('new-feature-developer')) && !allLabels.has('has-tests')) {
     labels.add('needs-tests');
   }
 
   // Check for missing docs.
-  // `new-feature` (PR-body checkbox) always counts. `new-component` / `new-platform`
+  // `new-feature` (PR-body checkbox) always counts. `new-feature-developer` is
+  // deliberately excluded here: its docs live on developers.esphome.io and are
+  // checked separately below. `new-component` / `new-platform`
   // only count when at least one newly added file defines a top-level CONFIG_SCHEMA,
   // i.e. the new component/platform is actually loadable from YAML.
   const docsEligible =
@@ -373,6 +376,22 @@ async function detectRequirements(allLabels, prFiles, context, hasYamlLoadable) 
 
     if (!hasDocsLink) {
       labels.add('needs-docs');
+    }
+  }
+
+  // Check for missing developer docs. `new-feature-developer` requires a
+  // developers.esphome.io PR link, unless every changed file outside tests/ is
+  // in DEV_DOCS_EXEMPT_FILES (core validators documented via docstrings only).
+  if (allLabels.has('new-feature-developer')) {
+    const prBody = context.payload.pull_request.body || '';
+    const nonTestFiles = prFiles
+      .map(file => file.filename)
+      .filter(file => !file.startsWith('tests/'));
+    const onlyExemptFiles = nonTestFiles.every(file => DEV_DOCS_EXEMPT_FILES.includes(file));
+    const hasDevDocsLink = DEVELOPER_DOCS_PR_PATTERNS.some(pattern => pattern.test(prBody));
+
+    if (!onlyExemptFiles && !hasDevDocsLink) {
+      labels.add('needs-developer-docs');
     }
   }
 

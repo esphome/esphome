@@ -2993,3 +2993,53 @@ def test_main_force_all_off_uses_detection(
     assert output["component_test_count"] == 0
     mock_determine_integration_tests.assert_called_once()
     mock_should_run_clang_tidy.assert_called_once()
+
+
+# Every platform the memory impact analysis can select must produce an ELF that
+# find_elf_path knows how to locate. The analysis fails the job when it cannot
+# find one, so a platform with an unknown layout would turn a clean build red.
+_MEMORY_IMPACT_ELF_LAYOUTS = {
+    # Native ESP-IDF toolchain (the esp32 default): <build>/build/firmware.elf
+    "esp32-c6-idf": "build/firmware.elf",
+    "esp32-idf": "build/firmware.elf",
+    "esp32-c3-idf": "build/firmware.elf",
+    "esp32-s2-idf": "build/firmware.elf",
+    "esp32-s3-idf": "build/firmware.elf",
+    # PlatformIO: <build>/.pioenvs/<name>/firmware.elf
+    "esp8266-ard": ".pioenvs/{name}/firmware.elf",
+    "rp2040-ard": ".pioenvs/{name}/firmware.elf",
+    "rp2350-ard": ".pioenvs/{name}/firmware.elf",
+    # LibreTiny: <build>/.pioenvs/<name>/raw_firmware.elf
+    "bk72xx-ard": ".pioenvs/{name}/raw_firmware.elf",
+    "rtl87xx-ard": ".pioenvs/{name}/raw_firmware.elf",
+    "ln882x-ard": ".pioenvs/{name}/raw_firmware.elf",
+    # Zephyr: <build>/.pioenvs/<name>/zephyr/[zephyr/]zephyr.elf
+    "nrf52-adafruit": ".pioenvs/{name}/zephyr/zephyr/zephyr.elf",
+}
+
+
+def test_memory_impact_platforms_have_known_elf_layout() -> None:
+    """Every selectable memory impact platform has a documented ELF layout.
+
+    Adding a platform to the preference list without teaching find_elf_path
+    where its ELF lands would fail the memory impact job on a clean build.
+    """
+    selectable = {
+        platform.value for platform in determine_jobs.MEMORY_IMPACT_PLATFORM_PREFERENCE
+    }
+    selectable.add(determine_jobs.MEMORY_IMPACT_FALLBACK_PLATFORM.value)
+
+    assert selectable == set(_MEMORY_IMPACT_ELF_LAYOUTS)
+
+
+def test_memory_impact_elf_layouts_are_found(tmp_path: Path) -> None:
+    """find_elf_path locates the ELF each memory impact platform produces."""
+    from esphome.analyze_memory.toolchain import find_elf_path
+
+    for platform, layout in _MEMORY_IMPACT_ELF_LAYOUTS.items():
+        build_path = tmp_path / platform / ".esphome" / "build" / "mydevice"
+        elf = build_path / layout.format(name=build_path.name)
+        elf.parent.mkdir(parents=True)
+        elf.write_text("")
+
+        assert find_elf_path(build_path) == elf, f"{platform} ELF not found"
