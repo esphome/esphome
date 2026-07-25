@@ -259,7 +259,7 @@ class ModbusClientDevice {
 // exists only on this deprecated path) and on_modbus_error() the function code and exception code.
 // Remove before 2027.2.0 (window restarted when the plain alias became a behavior shim in 2026.8.0)
 class ESPDEPRECATED("Subclass ModbusClientDevice and override on_response()/on_error() instead. Removed in 2027.2.0",
-                    "2026.6.0") ModbusDevice : public ModbusClientDevice {
+                    "2026.8.0") ModbusDevice : public ModbusClientDevice {
  public:
   using ModbusClientDevice::ModbusClientDevice;
   virtual void on_modbus_data(const std::vector<uint8_t> &data) {}

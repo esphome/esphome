@@ -255,7 +255,15 @@ TEST(ModbusDeviceShim, LegacyCallbacksReceiveTheOldShapes) {
   const std::vector<uint8_t> expected{0x00, 0x2A, 0x01, 0x00};
   EXPECT_EQ(device.last_data_, expected);
 
-  // Exception response: on_modbus_error() received the unmasked function code and the exception code.
+  // Write echo: no byte-count byte, so the payload is everything after the function code.
+  const uint8_t write_req[] = {0x06, 0x00, 0x10, 0x00, 0x2A};
+  device.send_pdu(write_req);
+  hub.force_send_front();
+  hub.receive_frame_for_test(0x02, write_req);  // single-write responses echo the request
+  const std::vector<uint8_t> expected_echo{0x00, 0x10, 0x00, 0x2A};
+  EXPECT_EQ(device.last_data_, expected_echo);
+
+  // Exception response: on_modbus_error() received the masked function code and the exception code.
   device.send_pdu(read_req);
   hub.force_send_front();
   const uint8_t error[] = {0x83, 0x02};
