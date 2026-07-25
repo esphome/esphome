@@ -94,8 +94,9 @@ TEST(ModbusClientHubNoResponse, RetryRequeuesWaitingFrame) {
   EXPECT_EQ(requeued.device, &device);
   // address + PDU + CRC
   ASSERT_EQ(requeued.frame.size(), sizeof(READ_PDU) + 3);
-  EXPECT_EQ(requeued.frame.data.data()[0], 0x02);
-  EXPECT_EQ(0, memcmp(requeued.frame.data.data() + 1, READ_PDU, sizeof(READ_PDU)));
+  EXPECT_EQ(requeued.frame.address(), 0x02);
+  ASSERT_EQ(requeued.frame.pdu().size(), sizeof(READ_PDU));
+  EXPECT_EQ(0, memcmp(requeued.frame.pdu().data(), READ_PDU, sizeof(READ_PDU)));
 }
 
 // A device that declines the retry has the frame dropped.
@@ -206,6 +207,17 @@ TEST(ModbusClientHubCompat, LegacyCallbackNamesStillForward) {
 
   device.send_pdu(std::span<const uint8_t>());  // empty PDU refused -> on_not_sent -> forwards
   EXPECT_EQ(device.legacy_not_sent_, 1);
+}
+
+// The send_pdu() capacity bound: a PDU larger than MAX_PDU_SIZE would build a frame past the RTU
+// 256-byte limit, so it is refused up front and signalled like any other failed send.
+TEST(ModbusClientHub, OversizedPduIsRefusedWithNotSent) {
+  NoResponseProbeHub hub;
+  LegacyNameDevice device(&hub, 0x02);
+  std::vector<uint8_t> big(MAX_PDU_SIZE + 1, 0x41);
+  device.send_pdu(big);
+  EXPECT_EQ(device.legacy_not_sent_, 1);  // on_not_sent, observed via the legacy forward
+  EXPECT_TRUE(hub.tx_buffer_empty());
 }
 
 }  // namespace esphome::modbus::testing

@@ -53,7 +53,7 @@ void ModbusClientHub::loop() {
   //  If we're past the send_wait_time timeout and response buffer doesn't have the start of the expected response
   if (this->waiting_for_response_.has_value()) {
     ModbusDeviceCommand &wfr = this->waiting_for_response_.value();
-    uint8_t expected_address = wfr.frame.data.data()[0];
+    uint8_t expected_address = wfr.frame.address();
     if (this->last_receive_check_ - this->last_send_ > this->last_send_tx_offset_ + this->send_wait_time_ &&
         (this->rx_buffer_.empty() || this->rx_buffer_[0] != expected_address)) {
       ESP_LOGW(TAG, "Stop waiting for response from %" PRIu8 " %" PRIu32 "ms after last send", expected_address,
@@ -260,13 +260,13 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
 }
 
 // Bounds contract, enforced by the parser (parse_modbus_server_frame_) rather than locally:
-// - pdu is never empty: helpers::server_frame_length() returns at least MIN_FRAME_SIZE (4) on every
-//   branch, and find_custom_frame_end_() only ever lengthens that, so the PDU (frame minus address
-//   and CRC) always holds at least the function code.
-// - When the exception bit is set, pdu has at least 2 bytes: server_frame_length() checks the
-//   exception bit before anything else and pins those frames to 5 bytes, so the exception code
+// - pdu is never empty: helpers::server_pdu_length() returns at least MIN_PDU_SIZE (1) on every
+//   branch, and find_custom_frame_end_() only ever lengthens the frame, so the PDU always holds
+//   at least the function code.
+// - When the exception bit is set, pdu has at least 2 bytes: server_pdu_length() checks the
+//   exception bit before anything else and pins those PDUs to 2 bytes, so the exception code
 //   read below is always present.
-// Keep those guarantees in mind when changing server_frame_length() or adding callers.
+// Keep those guarantees in mind when changing server_pdu_length() or adding callers.
 void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) {
   const uint8_t function_code = pdu[0];
   if (!this->waiting_for_response_.has_value()) {
@@ -278,8 +278,8 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
     // Check if the response matches the expected address and function code
 
     ModbusDeviceCommand &wfr = this->waiting_for_response_.value();
-    uint8_t expected_address = wfr.frame.data.data()[0];
-    uint8_t expected_function_code = wfr.frame.data.data()[1];
+    uint8_t expected_address = wfr.frame.address();
+    uint8_t expected_function_code = wfr.frame.pdu()[0];
     if (expected_address != address || expected_function_code != (function_code & FUNCTION_CODE_MASK)) {
       ESP_LOGW(TAG,
                "Received incorrect frame address %" PRIu8 " <> %" PRIu8 " or function code 0x%X <> 0x%X, %" PRIu32
@@ -306,7 +306,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
       this->waiting_for_response_.reset();
       ModbusClientDevice *device = command.device;
       // The request PDU is the sent frame without the leading address and the trailing CRC.
-      std::span<const uint8_t> request_pdu(command.frame.data.data() + 1, command.frame.size() - 3);
+      std::span<const uint8_t> request_pdu = command.frame.pdu();
       // Is it an error response?
       if (helpers::is_function_code_exception(function_code)) {
         uint8_t exception = pdu[1];  // exception frames are fixed-length, so the code is always present
@@ -314,7 +314,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
                  "Error function code: 0x%X exception: %" PRIu8 ", address: %" PRIu8 ", %" PRIu32 "ms after last send",
                  function_code, exception, address, this->last_modbus_byte_ - this->last_send_);
         if (device)
-          device->on_error(request_pdu, static_cast<ModbusExceptionCode>(exception));
+          device->on_error(request_pdu, static_cast<ExceptionCode>(exception));
 
       } else if (device) {  // Not an error response
         device->on_response(request_pdu, pdu);
@@ -355,7 +355,7 @@ ResponseStatus ModbusServerHub::check_register_range_(uint16_t start_address, ui
   if ((uint32_t) start_address + number_of_registers > 0x10000u) {
     ESP_LOGW(TAG, "Register address out of range - start: %" PRIu16 " num: %" PRIu16, start_address,
              number_of_registers);
-    return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
+    return ExceptionCode::ILLEGAL_DATA_ADDRESS;
   }
   return std::nullopt;
 }
@@ -369,14 +369,14 @@ ResponseStatus ModbusServerHub::parse_write_registers_(uint8_t function_code, co
   start_address = helpers::get_data<uint16_t>(data, 0);
   uint16_t number_of_registers = 1;
   uint16_t values_offset = 2;  // single write: values follow the 2-byte start address
-  if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
+  if (static_cast<FunctionCode>(function_code) == FunctionCode::WRITE_MULTIPLE_REGISTERS) {
     number_of_registers = helpers::get_data<uint16_t>(data, 2);
     uint8_t number_of_bytes = helpers::get_data<uint8_t>(data, 4);
     values_offset = 5;  // multiple write: values follow start address(2) + quantity(2) + byte count(1)
     if (number_of_registers == 0 || number_of_registers > MAX_NUM_OF_REGISTERS_TO_WRITE ||
         number_of_registers * 2 != number_of_bytes) {
       ESP_LOGW(TAG, "Invalid number of registers %" PRIu16 " or bytes %" PRIu8, number_of_registers, number_of_bytes);
-      return ModbusExceptionCode::ILLEGAL_DATA_VALUE;
+      return ExceptionCode::ILLEGAL_DATA_VALUE;
     }
     if (ResponseStatus range_status = this->check_register_range_(start_address, number_of_registers);
         range_status.has_value()) {
@@ -392,9 +392,9 @@ ResponseStatus ModbusServerHub::parse_write_registers_(uint8_t function_code, co
 void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, const uint8_t *data) {
   // Broadcasts are only meaningful for register writes and are never answered (Modbus 4.1 / 6.12).
   // Coil writes (FC 0x05/0x0F) are also broadcastable by spec, but server coil handlers are not implemented yet.
-  switch (static_cast<ModbusFunctionCode>(function_code)) {
-    case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
-    case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
+  switch (static_cast<FunctionCode>(function_code)) {
+    case FunctionCode::WRITE_SINGLE_REGISTER:
+    case FunctionCode::WRITE_MULTIPLE_REGISTERS:
       break;
     default:
       // Reads and read/write require a reply, so they are not valid as broadcasts.
@@ -431,15 +431,15 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
   const uint8_t *response_data = response_buffer;
   uint16_t response_len = 0;
 
-  switch (static_cast<ModbusFunctionCode>(function_code)) {
-    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
-    case ModbusFunctionCode::READ_INPUT_REGISTERS: {
+  switch (static_cast<FunctionCode>(function_code)) {
+    case FunctionCode::READ_HOLDING_REGISTERS:
+    case FunctionCode::READ_INPUT_REGISTERS: {
       // PDU data: start address(2) + quantity(2).
       uint16_t start_address = helpers::get_data<uint16_t>(data, 0);
       uint16_t number_of_registers = helpers::get_data<uint16_t>(data, 2);
       if (number_of_registers == 0 || number_of_registers > MAX_NUM_OF_REGISTERS_TO_READ) {
         ESP_LOGW(TAG, "Invalid number of registers %" PRIu16, number_of_registers);
-        this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
+        this->send_exception_(address, function_code, ExceptionCode::ILLEGAL_DATA_VALUE);
         return;
       }
       status = this->check_register_range_(start_address, number_of_registers);
@@ -448,7 +448,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
         return;
       }
       RegisterValues registers;
-      if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_HOLDING_REGISTERS) {
+      if (static_cast<FunctionCode>(function_code) == FunctionCode::READ_HOLDING_REGISTERS) {
         status = device->on_read_holding_registers(start_address, number_of_registers, registers);
       } else {
         status = device->on_read_input_registers(start_address, number_of_registers, registers);
@@ -463,7 +463,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
 
       if (registers.size() != number_of_registers) {
         ESP_LOGE(TAG, "Incorrect response %" PRIu16 " requested, %zu returned", number_of_registers, registers.size());
-        this->send_exception_(address, function_code, ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
+        this->send_exception_(address, function_code, ExceptionCode::SERVICE_DEVICE_FAILURE);
         return;
       }
 
@@ -475,8 +475,8 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       }
       break;
     }
-    case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
-    case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS: {
+    case FunctionCode::WRITE_SINGLE_REGISTER:
+    case FunctionCode::WRITE_MULTIPLE_REGISTERS: {
       // Parse and validate the write PDU into host-order register values; reply with an exception on failure.
       uint16_t start_address;
       RegisterValues registers;
@@ -492,7 +492,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
     }
     default:
       ESP_LOGW(TAG, "Unsupported function code %" PRIu8, function_code);
-      this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
+      this->send_exception_(address, function_code, ExceptionCode::ILLEGAL_FUNCTION);
       return;
   }
   if (status.has_value()) {
@@ -604,7 +604,7 @@ void ModbusServerHub::send_response_(uint8_t address, uint8_t function_code, con
   this->send_raw_(raw_frame, payload_len + 2);
 }
 
-void ModbusServerHub::send_exception_(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code) {
+void ModbusServerHub::send_exception_(uint8_t address, uint8_t function_code, ExceptionCode exception_code) {
   uint8_t raw_frame[3];
   raw_frame[0] = address;
   raw_frame[1] = function_code | FUNCTION_CODE_EXCEPTION_MASK;
@@ -627,18 +627,26 @@ void ModbusClientHub::notify_no_response_(ModbusDeviceCommand &wfr) {
 void ModbusClientHub::requeue_waiting_frame_(ModbusDeviceCommand &wfr) {
   const ModbusFrame &frame = wfr.frame;
   if (this->tx_buffer_.size() >= MODBUS_TX_BUFFER_SIZE) {
-    ESP_LOGE(TAG, "Write buffer full, dropped retry for address %" PRIu8, frame.data.data()[0]);
+    ESP_LOGE(TAG, "Write buffer full, dropped retry for address %" PRIu8, frame.address());
     if (wfr.device != nullptr)
       wfr.device->on_not_sent();
     return;
   }
   // Re-queue a copy (not a move): the waiting entry may have to survive as an interrupted shell.
-  this->tx_buffer_.emplace_back(wfr.device, frame.data.data()[0], frame.data.data() + 1, frame.size() - 3);
+  this->tx_buffer_.emplace_back(wfr.device, frame.address(), frame.pdu());
 }
 
 // Raw send for client: pushes to tx queue. Everything except the CRC must be contained in payload.
-void ModbusClientHub::queue_raw_(uint8_t address, const uint8_t *pdu, uint16_t pdu_len, ModbusClientDevice *device) {
-  if (pdu_len == 0) {
+void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device) {
+  if (pdu.empty()) {
+    if (device)
+      device->on_not_sent();
+    return;
+  }
+
+  // Bound the PDU so the wire frame (address + pdu + CRC) stays within the Modbus RTU 256-byte limit.
+  if (pdu.size() > MAX_PDU_SIZE) {
+    ESP_LOGE(TAG, "Frame too large, dropped: %" PRIu8 ":%zu bytes", address, pdu.size());
     if (device)
       device->on_not_sent();
     return;
@@ -648,13 +656,15 @@ void ModbusClientHub::queue_raw_(uint8_t address, const uint8_t *pdu, uint16_t p
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
 #endif
-    ESP_LOGV(TAG, "Adding frame to tx queue: %" PRIu8 ":%s", address, format_hex_pretty_to(hex_buf, pdu, pdu_len));
-    this->tx_buffer_.emplace_back(device, address, pdu, pdu_len);
+    ESP_LOGV(TAG, "Adding frame to tx queue: %" PRIu8 ":%s", address,
+             format_hex_pretty_to(hex_buf, pdu.data(), pdu.size()));
+    this->tx_buffer_.emplace_back(device, address, pdu);
   } else {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
     char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
 #endif
-    ESP_LOGE(TAG, "Write buffer full, dropped: %" PRIu8 ":%s", address, format_hex_pretty_to(hex_buf, pdu, pdu_len));
+    ESP_LOGE(TAG, "Write buffer full, dropped: %" PRIu8 ":%s", address,
+             format_hex_pretty_to(hex_buf, pdu.data(), pdu.size()));
     if (device)
       device->on_not_sent();
   }
@@ -663,13 +673,12 @@ void ModbusClientHub::queue_raw_(uint8_t address, const uint8_t *pdu, uint16_t p
 void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sent) {
   // Remove any pending commands for this address from the tx buffer
   auto &tx_buffer = this->tx_buffer_;
-  tx_buffer.erase(
-      std::remove_if(tx_buffer.begin(), tx_buffer.end(),
-                     [address](const ModbusDeviceCommand &cmd) { return cmd.frame.data.data()[0] == address; }),
-      tx_buffer.end());
+  tx_buffer.erase(std::remove_if(tx_buffer.begin(), tx_buffer.end(),
+                                 [address](const ModbusDeviceCommand &cmd) { return cmd.frame.address() == address; }),
+                  tx_buffer.end());
 
   if (clear_sent && this->waiting_for_response_.has_value() && this->waiting_for_response_.value().device) {
-    if (this->waiting_for_response_.value().frame.data.data()[0] == address) {
+    if (this->waiting_for_response_.value().frame.address() == address) {
       ESP_LOGV(TAG, "Clearing waiting for response for address %" PRIu8, address);
       // Invalidate the waiting device so it won't process a response.
       this->waiting_for_response_.value().device = nullptr;
@@ -698,7 +707,7 @@ void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClient
       device->on_not_sent();
     return;
   }
-  this->queue_raw_(payload[0], payload.data() + 1, static_cast<uint16_t>(payload.size() - 1), device);
+  this->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), device);
 }
 
 // Send raw command for server replies immediately. Except CRC everything must be contained in payload
