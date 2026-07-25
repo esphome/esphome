@@ -43,7 +43,12 @@ void ModbusFloatOutput::write_state(float value) {
   // anything else would put a byte count on the wire that disagrees with the quantity field.
   if (data.size() != this->register_count) {
     ESP_LOGW(TAG, "Payload has %zu registers but register_count is %u; adjusting", data.size(), this->register_count);
-    data.resize(this->register_count, 0);
+    // Adjusted with push_back/pop_back rather than resize(): either resize form would instantiate
+    // std::vector fill/append machinery (~350 bytes of flash) that nothing else uses.
+    while (data.size() < this->register_count)
+      data.push_back(0);
+    while (data.size() > this->register_count)
+      data.pop_back();
   }
 
   // Create and send the write command
