@@ -1,17 +1,17 @@
-packages:
-  storage: !include common.yaml
-
 # The two storage options that cost real flash, kept out of the base test so the memory-impact
 # job measures what the component costs rather than what its most expensive corners cost.
 #
 #   regex:        pulls in <regex>, which is ~50-100 kB of libstdc++ on this target (see the
 #                 comment above the include in automation.cpp)
-#   json:         pulls in ArduinoJson
+#   format: json  pulls in ArduinoJson
 #
 # Both are opt-in: codegen only sets USE_STORAGE_REGEX_EXTRACT / the json path when a config
 # actually asks for them, so a node that copies files and reads a key=value file pays neither.
 # This variant exists so both still get compiled on every run -- ``test-*`` files are part of
 # the normal test set and only skipped by ``--base-only`` builds, which the memory job uses.
+
+storage:
+
 globals:
   - id: g_label
     type: std::string
@@ -28,10 +28,10 @@ script:
             - regex: "([A-Za-z0-9_]+)"
           to_global: g_label
 
-  - id: exercise_json_extract
-    then:
-      - storage.file_read:
-          path: /sdcard/config/device.json
-          extract:
-            - json: name
-          to_global: g_label
+button:
+  - platform: template
+    name: "Backup as json"
+    on_press:
+      - storage.export_preferences:
+          path: /sdcard/prefs.json
+          format: json

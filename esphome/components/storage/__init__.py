@@ -1212,7 +1212,10 @@ def _pref_type_from_class(type_str: str) -> tuple[str, int] | None:
             base, count = am.group(1), int(am.group(2))
             if base in _PREF_SCALAR_TYPES:
                 return _PREF_SCALAR_TYPES[base], count
-        return "HEX", 0  # restoring, but a type we cannot render -- hex round-trip
+        return (
+            "HEX_FALLBACK",
+            0,
+        )  # restoring, but a type we cannot render -- hex round-trip
     return None
 
 
