@@ -530,6 +530,8 @@ inline int32_t lv_chart_ceil_to_unit(int32_t v, int32_t unit) {
 // from LvChartType's own template arguments -- see there for why this is per-instance-sized rather
 // than a single shared shape.
 template<uint8_t N_SERIES, uint16_t N_POINTS> struct ChartStore {
+  // Guards the blob *contents* on load, independent of chart.py's CHART_PERSIST_VERSION (which
+  // guards the preference *key* instead) -- see that constant's comment. Bump both together.
   uint8_t version{1};
   int64_t last_ts{0};
   int32_t y[N_SERIES][N_POINTS]{};
@@ -557,7 +559,7 @@ template<uint8_t N_SERIES, uint16_t N_POINTS> class LvChartType : public LvCompo
     this->auto_range_ = false;
     auto min_scaled = static_cast<int32_t>(min_v * this->scale_);
     auto max_scaled = static_cast<int32_t>(max_v * this->scale_);
-    lv_chart_set_range(this->obj, LV_CHART_AXIS_PRIMARY_Y, min_scaled, max_scaled);
+    lv_chart_set_axis_range(this->obj, LV_CHART_AXIS_PRIMARY_Y, min_scaled, max_scaled);
     this->update_axis_labels_(min_scaled, max_scaled);
   }
   // n is the number of series; point_count must already be set (set_point_count runs first in
@@ -597,6 +599,10 @@ template<uint8_t N_SERIES, uint16_t N_POINTS> class LvChartType : public LvCompo
     sensor::Sensor *sensor;
     lv_obj_t *label;     // nullptr if this series has no legend format
     const char *format;  // points at a flash string literal (schema-supplied), never freed
+    // Backs label via lv_label_set_text_static(): a persistent buffer instead of a stack temporary
+    // means the label just re-points at this same address on every update, so LVGL never has to
+    // free+malloc its text storage on the heap (see y_min_buf_/y_max_buf_ below for the same reasoning).
+    char label_buf[32]{};
   };
 
   FixedVector<ChartSeries> series_{};
@@ -611,6 +617,9 @@ template<uint8_t N_SERIES, uint16_t N_POINTS> class LvChartType : public LvCompo
   lv_obj_t *y_min_label_{nullptr};
   lv_obj_t *y_max_label_{nullptr};
   const char *y_axis_format_{nullptr};  // flash string literal (schema-supplied), never freed
+  // Backs y_min_label_/y_max_label_ via lv_label_set_text_static() -- see ChartSeries::label_buf.
+  char y_min_buf_[32]{};
+  char y_max_buf_[32]{};
 #ifdef USE_TIME
   time::RealTimeClock *time_{nullptr};
   bool gap_computed_{false};
@@ -664,9 +673,8 @@ template<uint8_t N_SERIES, uint16_t N_POINTS> void LvChartType<N_SERIES, N_POINT
   lv_chart_set_next_value(this->obj, s.series, scaled);
 
   if (s.label != nullptr && !std::isnan(value)) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), s.format, static_cast<double>(value));
-    lv_label_set_text(s.label, buf);
+    snprintf(s.label_buf, sizeof(s.label_buf), s.format, static_cast<double>(value));
+    lv_label_set_text_static(s.label, s.label_buf);
   }
 
   if (this->point_count_ > 0) {
@@ -716,7 +724,7 @@ template<uint8_t N_SERIES, uint16_t N_POINTS> void LvChartType<N_SERIES, N_POINT
   if (min_v == max_v)
     max_v += unit;
 
-  lv_chart_set_range(this->obj, LV_CHART_AXIS_PRIMARY_Y, min_v, max_v);
+  lv_chart_set_axis_range(this->obj, LV_CHART_AXIS_PRIMARY_Y, min_v, max_v);
   this->update_axis_labels_(min_v, max_v);
 }
 
@@ -730,11 +738,12 @@ template<uint8_t N_SERIES, uint16_t N_POINTS>
 void LvChartType<N_SERIES, N_POINTS>::update_axis_labels_(int32_t min_scaled, int32_t max_scaled) {
   if (this->y_axis_format_ == nullptr)
     return;
-  char buf[32];
-  snprintf(buf, sizeof(buf), this->y_axis_format_, static_cast<double>(max_scaled) / this->scale_);
-  lv_label_set_text(this->y_max_label_, buf);
-  snprintf(buf, sizeof(buf), this->y_axis_format_, static_cast<double>(min_scaled) / this->scale_);
-  lv_label_set_text(this->y_min_label_, buf);
+  snprintf(this->y_max_buf_, sizeof(this->y_max_buf_), this->y_axis_format_,
+           static_cast<double>(max_scaled) / this->scale_);
+  lv_label_set_text_static(this->y_max_label_, this->y_max_buf_);
+  snprintf(this->y_min_buf_, sizeof(this->y_min_buf_), this->y_axis_format_,
+           static_cast<double>(min_scaled) / this->scale_);
+  lv_label_set_text_static(this->y_min_label_, this->y_min_buf_);
 
   // lv_chart insets its own plot/grid drawing by the chart's `pad_left` style; sizing that to fit
   // whichever label is currently widest reserves just enough margin for the text, automatically,

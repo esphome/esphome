@@ -39,7 +39,8 @@ from . import Widget, WidgetType
 CONF_CHART = "chart"
 
 # Bump when the ChartStore blob layout changes so stale NVS blobs are
-# ignored instead of read back into an incompatible struct.
+# ignored instead of read back into an incompatible struct. This should match
+# the runtime constant in lvgl_esphome.h/ChartStore
 CHART_PERSIST_VERSION = 1
 
 lv_chart_t = LvType("LvChartType", parents=(LvCompound,))
@@ -58,7 +59,7 @@ def validate_persist(value):
     if value:
         # Preference blobs big enough for chart history only fit ESP32's NVS; ESP8266's
         # flash-preference region is a few hundred bytes total, shared by every component.
-        cv.only_on_esp32(value)
+        return cv.only_on_esp32(value)
     return value
 
 
@@ -97,7 +98,8 @@ CHART_SCHEMA = cv.Schema(
         cv.Optional(CONF_HEIGHT, default="100%"): size,
         cv.Optional(CONF_WIDTH, default="100%"): size,
         cv.Optional(CONF_TYPE, default="LINE"): LV_CHART_TYPE.one_of,
-        cv.Optional(CONF_POINT_COUNT, default=100): cv.positive_int,
+        # Upper bound matches LvChartType's uint16_t N_POINTS template parameter
+        cv.Optional(CONF_POINT_COUNT, default=100): cv.int_range(min=1, max=65535),
         cv.Optional(CONF_DECIMALS, default=1): cv.int_range(min=0, max=4),
         cv.Optional(CONF_MIN_VALUE): lv_float,
         cv.Optional(CONF_MAX_VALUE): lv_float,
@@ -110,7 +112,10 @@ CHART_SCHEMA = cv.Schema(
         # When set, shows the current auto-rounded (or explicit) Y-range bounds as two labels,
         # formatted with this format string (e.g. "%.0f°").
         cv.Optional(CONF_Y_AXIS): cv.Schema({cv.Required(CONF_FORMAT): cv.string}),
-        cv.Required(CONF_SERIES): cv.ensure_list(SERIES_SCHEMA),
+        # max=255 matches LvChartType's uint8_t N_SERIES template parameter
+        cv.Required(CONF_SERIES): cv.All(
+            cv.ensure_list(SERIES_SCHEMA), cv.Length(min=1, max=255)
+        ),
     }
 ).add_extra(validate_chart)
 
