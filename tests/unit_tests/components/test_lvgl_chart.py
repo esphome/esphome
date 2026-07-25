@@ -58,6 +58,14 @@ def _read_config(tmp_path, yaml_content: str):
     with (
         patch.object(yaml_util, "load_yaml", return_value=parsed_yaml),
         patch.object(CORE, "config_path", test_file),
+        # sdl's own config validation shells out to the real `sdl2-config` binary to get
+        # compiler flags -- fine on a dev machine, but not installed on every CI runner. These
+        # tests only need the display platform to validate as a placeholder for lvgl's required
+        # `displays:` key; the actual SDL flags are never used since nothing here compiles.
+        patch(
+            "esphome.components.sdl.display.subprocess.check_output",
+            return_value=b"",
+        ),
     ):
         return config.read_config({})
 
