@@ -415,6 +415,30 @@ TEST(ModbusTypedBuilders, WriteRegistersPduWireBytes) {
   EXPECT_TRUE(create_write_registers_pdu(0xFFFF, values).empty());
 }
 
+TEST(ModbusTypedBuilders, WriteRegistersPduRejectsOverLimit) {
+  std::vector<uint16_t> values(MAX_NUM_OF_REGISTERS_TO_WRITE + 1, 0xAAAA);
+  EXPECT_TRUE(create_write_registers_pdu(0x0000, values).empty());
+  values.pop_back();
+  EXPECT_FALSE(create_write_registers_pdu(0x0000, values).empty());
+}
+
+TEST(ModbusTypedBuilders, FloatToPayloadAppendsToExistingContent) {
+  // The container overload appends - the semantic every migrated caller relies on when a lambda
+  // has already put words into the buffer.
+  std::vector<uint16_t> data{0x1234};
+  float_to_payload(data, 1.0f, SensorValueType::U_WORD);
+  ASSERT_EQ(data.size(), 2u);
+  EXPECT_EQ(data[0], 0x1234);
+  EXPECT_EQ(data[1], 0x0001);
+}
+
+TEST(ModbusCreateClientPdu, SingleCoilValueValidated) {
+  const uint8_t on[] = {0xFF, 0x00};
+  const uint8_t junk[] = {0x01, 0x00};
+  EXPECT_FALSE(create_client_pdu(FC::WRITE_SINGLE_COIL, 0x0003, 1, on, 2).empty());
+  EXPECT_TRUE(create_client_pdu(FC::WRITE_SINGLE_COIL, 0x0003, 1, junk, 2).empty());
+}
+
 // --- create_write_coils_pdu (packed) ---------------------------------------
 
 TEST(ModbusWriteCoilsPacked, MatchesBoolBuilder) {

@@ -388,6 +388,14 @@ Pdu create_client_pdu(FunctionCode function_code, uint16_t start_address, uint16
       ESP_LOGE(TAG, "values_len %zu too small for write-single command (need 2), dropping request", values_len);
       return pdu;
     }
+    // The spec allows exactly ON (0xFF00) and OFF (0x0000) for a single-coil write - the same rule
+    // is_client_pdu_standard() enforces, so a built frame cannot be misclassified on reply.
+    if (function_code == FunctionCode::WRITE_SINGLE_COIL &&
+        ((values[0] != 0xFF && values[0] != 0x00) || values[1] != 0x00)) {
+      ESP_LOGE(TAG, "Invalid single-coil value %02X%02X (must be FF00 or 0000), dropping request", values[0],
+               values[1]);
+      return pdu;
+    }
     append_pdu_header(pdu, function_code, start_address, uint16_t((values[0] << 8) | values[1]));
     return pdu;
   }
