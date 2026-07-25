@@ -182,7 +182,6 @@ static constexpr size_t WIFI_SCAN_RESULT_FILTERED_RESERVE = 8;
 // Use std::vector for RP2040 (callback-based) and ESP32 (destructive scan API)
 // Use FixedVector for ESP8266 and LibreTiny where two-pass exact allocation is possible
 #if defined(USE_RP2) || defined(USE_ESP32)
-#define WIFI_SCAN_VECTOR_IS_STD_VECTOR
 template<typename T> using wifi_scan_vector_t = std::vector<T>;
 #else
 template<typename T> using wifi_scan_vector_t = FixedVector<T>;
@@ -1018,8 +1017,8 @@ class WiFiComponent final : public Component {
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 /// Guards WiFiComponent::scan_result_. Invariant: every mutation and every read
-/// from outside the main loop holds this lock, and holders only do bounded
-/// in-memory work (no I/O, no unbounded waits). Compiles to nothing unless a
+/// from outside the main loop holds this lock, and holders only do bounded work
+/// (never unbounded waits or network sends). Compiles to nothing unless a
 /// cross-task reader is in the build and the platform is multi-threaded
 /// (WIFI_SCAN_RESULTS_LOCK_ENABLED).
 class ScanResultsLock {
