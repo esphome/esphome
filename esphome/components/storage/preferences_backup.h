@@ -21,7 +21,7 @@ class RawStorage;  // fwd -- only ever used through the pointers below
 // YAML `type:`. Blobs are the raw bytes of T (strings: length-prefixed
 // char[SZ], see globals_component.h) -- the tag is what makes them readable.
 enum class PrefType : uint8_t {
-  HEX = 0,  // unknown/unsupported type -- hex round-trip fallback
+  HEX_FALLBACK = 0,  // unknown/unsupported type -- hex round-trip fallback
   BOOL,
   I8,
   U8,
