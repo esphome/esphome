@@ -89,7 +89,7 @@ void ModbusBinaryOutput::write_state(bool state) {
              format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
     cmd = ModbusCommandItem::create_custom_command(
         this->parent_, data,
-        [this, cmd](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
+        [this, cmd](modbus::EntityType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
           this->parent_->on_write_register_response(cmd.register_type, this->start_address, data);
         });
   } else {

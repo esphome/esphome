@@ -151,6 +151,17 @@ async def gpio_pin_expression(conf):
     return await coroutine(pins.PIN_SCHEMA_REGISTRY[CORE.target_platform][0])(conf)
 
 
+def set_setup_priority(var, priority: float) -> None:
+    """Emit a setup-priority override for the given component.
+
+    Pairs the ``set_setup_priority()`` call with the ``USE_SETUP_PRIORITY_OVERRIDE``
+    define that compiles in the core override support, so callers cannot emit one
+    without the other.
+    """
+    add_define("USE_SETUP_PRIORITY_OVERRIDE")
+    add(var.set_setup_priority(priority))
+
+
 async def register_component(var, config):
     """Register the given obj as a component.
 
@@ -168,8 +179,7 @@ async def register_component(var, config):
         )
     CORE.component_ids.remove(id_)
     if CONF_SETUP_PRIORITY in config:
-        add_define("USE_SETUP_PRIORITY_OVERRIDE")
-        add(var.set_setup_priority(config[CONF_SETUP_PRIORITY]))
+        set_setup_priority(var, config[CONF_SETUP_PRIORITY])
     if CONF_UPDATE_INTERVAL in config:
         add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
 
