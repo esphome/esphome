@@ -492,7 +492,6 @@ class LvLineType : public LvCompound {
   FixedVector<lv_point_precise_t> points_{};
 };
 #endif
-
 #if defined(USE_LVGL_DROPDOWN) || defined(LV_USE_ROLLER)
 class LvSelectable : public LvCompound {
  public:
