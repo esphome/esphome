@@ -220,4 +220,48 @@ TEST(ModbusClientHub, OversizedPduIsRefusedWithNotSent) {
   EXPECT_TRUE(hub.tx_buffer_empty());
 }
 
+// --- ModbusDevice compatibility shim ------------------------------------------------------------
+// External components written against the pre-2026.8 API subclass ModbusDevice and override the
+// old callbacks; the shim adapts the span-based hooks back to those signatures.
+namespace {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+class LegacyApiDevice : public ModbusDevice {
+ public:
+  LegacyApiDevice(ModbusClientHub *hub, uint8_t address) : ModbusDevice(hub, address) {}
+  void on_modbus_data(const std::vector<uint8_t> &data) override { this->last_data_ = data; }
+  void on_modbus_error(uint8_t function_code, uint8_t exception_code) override {
+    this->last_error_fc_ = function_code;
+    this->last_error_code_ = exception_code;
+  }
+  std::vector<uint8_t> last_data_;
+  int last_error_fc_{-1};
+  int last_error_code_{-1};
+};
+#pragma GCC diagnostic pop
+}  // namespace
+
+TEST(ModbusDeviceShim, LegacyCallbacksReceiveTheOldShapes) {
+  NoResponseProbeHub hub;
+  LegacyApiDevice device(&hub, 0x02);
+
+  // Read response: on_modbus_data() historically received the payload after the function code and
+  // the byte-count byte, as an owning vector.
+  const uint8_t read_req[] = {0x03, 0x00, 0x10, 0x00, 0x02};
+  device.send_pdu(read_req);
+  hub.force_send_front();
+  const uint8_t response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
+  hub.receive_frame_for_test(0x02, response);
+  const std::vector<uint8_t> expected{0x00, 0x2A, 0x01, 0x00};
+  EXPECT_EQ(device.last_data_, expected);
+
+  // Exception response: on_modbus_error() received the unmasked function code and the exception code.
+  device.send_pdu(read_req);
+  hub.force_send_front();
+  const uint8_t error[] = {0x83, 0x02};
+  hub.receive_frame_for_test(0x02, error);
+  EXPECT_EQ(device.last_error_fc_, 0x03);
+  EXPECT_EQ(device.last_error_code_, 0x02);
+}
+
 }  // namespace esphome::modbus::testing
