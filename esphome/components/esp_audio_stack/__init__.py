@@ -875,9 +875,7 @@ async def to_code(config):
             automation.CallbackAutomation(
                 CONF_ON_MIC_START, "add_on_mic_start_callback"
             ),
-            automation.CallbackAutomation(
-                CONF_ON_MIC_IDLE, "add_on_mic_idle_callback"
-            ),
+            automation.CallbackAutomation(CONF_ON_MIC_IDLE, "add_on_mic_idle_callback"),
             automation.CallbackAutomation(
                 CONF_ON_SPEAKER_START, "add_on_speaker_start_callback"
             ),
