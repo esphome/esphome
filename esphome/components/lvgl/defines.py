@@ -665,6 +665,7 @@ LV_CHART_TYPES = (
     "NONE",
     "LINE",
     "BAR",
+    "STACKED",
     "SCATTER",
 )
 LV_CHART_AXES = (

@@ -41,6 +41,19 @@
 #include "esphome/components/key_provider/key_provider.h"
 #endif  // USE_LVGL_BUTTONMATRIX
 
+#ifdef USE_LVGL_CHART
+#include <algorithm>
+#include <cmath>
+#include <cstring>
+#include <limits>
+#include <type_traits>
+#include "esphome/components/sensor/sensor.h"
+#include "esphome/core/preferences.h"
+#ifdef USE_TIME
+#include "esphome/components/time/real_time_clock.h"
+#endif  // USE_TIME
+#endif  // USE_LVGL_CHART
+
 namespace esphome::lvgl {
 
 #if LV_COLOR_DEPTH == 16

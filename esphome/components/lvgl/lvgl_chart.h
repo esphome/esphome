@@ -66,7 +66,7 @@ template<uint8_t N_SERIES, uint16_t N_POINTS> class LvChartType : public LvCompo
   // every series on the chart at once -- there is no per-series point size in LVGL 9.x.
   void set_point_radius(int32_t radius) { lv_obj_set_style_size(this->obj, radius * 2, radius * 2, LV_PART_INDICATOR); }
   void set_y_range(float min_v, float max_v) {
-    this->auto_range_ = false;
+    this->auto_range_y_ = false;
     auto min_scaled = static_cast<int32_t>(min_v * this->scale_);
     auto max_scaled = static_cast<int32_t>(max_v * this->scale_);
     lv_chart_set_axis_range(this->obj, LV_CHART_AXIS_PRIMARY_Y, min_scaled, max_scaled);
@@ -75,18 +75,29 @@ template<uint8_t N_SERIES, uint16_t N_POINTS> class LvChartType : public LvCompo
   // n is the number of series; point_count must already be set (set_point_count runs first in
   // generated code). Allocates the RAM-only sliding-window buffer used for auto-range and, when
   // persistence is enabled, as the source copied into the flash blob. Filled with
-  // LV_CHART_POINT_NONE so recompute_range_() correctly ignores not-yet-written slots.
+  // LV_CHART_POINT_NONE so recompute_range_() correctly ignores not-yet-written slots. The X history
+  // is only needed (and only allocated) for LV_CHART_TYPE_SCATTER, where points carry a real X value.
   void init_series(size_t n) {
     this->series_.init(n);
     size_t total = n * this->point_count_;
     this->history_.init(total);
     for (size_t i = 0; i < total; i++)
       this->history_.push_back(LV_CHART_POINT_NONE);
+    if (lv_chart_get_type(this->obj) == LV_CHART_TYPE_SCATTER) {
+      this->x_history_.init(total);
+      for (size_t i = 0; i < total; i++)
+        this->x_history_.push_back(LV_CHART_POINT_NONE);
+    }
   }
   void add_series(sensor::Sensor *sens, lv_color_t color, const char *format);
   void set_update_interval(uint32_t ms) { this->update_interval_ = ms; }
   void start_updates();
-  void on_value(size_t idx, float value);
+  // Sensor-driven entry point: pushes a Y-only value (no X). Also the callback target for
+  // reactive series and the polling timer.
+  void on_value(size_t idx, float value) { this->push_(idx, value, 0.0f, false); }
+  // lvgl.chart.add_point's entry point: pushes an (x, y) pair. Only meaningful for
+  // LV_CHART_TYPE_SCATTER; validated in chart.py so this never runs on other chart types.
+  void add_point(size_t idx, float x, float y) { this->push_(idx, y, x, true); }
 #ifdef USE_TIME
   void set_time(time::RealTimeClock *t) { this->time_ = t; }
 #endif
@@ -96,6 +107,7 @@ template<uint8_t N_SERIES, uint16_t N_POINTS> class LvChartType : public LvCompo
   void enable_y_axis(const char *format);
 
  protected:
+  void push_(size_t idx, float y, float x, bool has_x);
   void recompute_range_();
   void restore_();
   void save_();
@@ -103,12 +115,13 @@ template<uint8_t N_SERIES, uint16_t N_POINTS> class LvChartType : public LvCompo
   // Oldest-to-newest window for series `idx`; a plain RAM shift-array, entirely independent of
   // lv_chart's own (opaque, private-API-only in LVGL 9.x) internal series storage.
   int32_t *history_row_(size_t idx) { return &this->history_[idx * this->point_count_]; }
+  int32_t *x_history_row_(size_t idx) { return &this->x_history_[idx * this->point_count_]; }
 
   struct ChartSeries {
     lv_chart_series_t *series;
-    sensor::Sensor *sensor;
-    lv_obj_t *label;     // nullptr if this series has no legend format
-    const char *format;  // points at a flash string literal (schema-supplied), never freed
+    sensor::Sensor *sensor;  // nullptr for a series fed only by lvgl.chart.add_point
+    lv_obj_t *label;         // nullptr if this series has no legend format
+    const char *format;      // points at a flash string literal (schema-supplied), never freed
     // Backs label via lv_label_set_text_static(): a persistent buffer instead of a stack temporary
     // means the label just re-points at this same address on every update, so LVGL never has to
     // free+malloc its text storage on the heap (see y_min_buf_/y_max_buf_ below for the same reasoning).
@@ -116,11 +129,13 @@ template<uint8_t N_SERIES, uint16_t N_POINTS> class LvChartType : public LvCompo
   };
 
   FixedVector<ChartSeries> series_{};
-  FixedVector<int32_t> history_{};  // [n_series][point_count], see history_row_()
+  FixedVector<int32_t> history_{};    // [n_series][point_count], see history_row_()
+  FixedVector<int32_t> x_history_{};  // [n_series][point_count], scatter only; see x_history_row_()
   float scale_{10.0f};
   uint16_t point_count_{0};
   uint32_t update_interval_{0};  // 0 => reactive (sensor callbacks) instead of a timer
-  bool auto_range_{true};
+  bool auto_range_y_{true};
+  bool auto_range_x_{true};
   bool persist_{false};
   ESPPreferenceObject pref_{};
   ChartStore<N_SERIES, N_POINTS> store_{};  // scratch buffer for save/load only; history_ is the live copy
@@ -152,48 +167,78 @@ template<uint8_t N_SERIES, uint16_t N_POINTS> void LvChartType<N_SERIES, N_POINT
   if (this->persist_)
     this->restore_();
 
+  // Series without a sensor (scatter series fed only by lvgl.chart.add_point) neither get a
+  // callback nor need the timer running on their behalf.
+  bool any_sensor = false;
+  for (size_t idx = 0; idx < this->series_.size(); idx++) {
+    if (this->series_[idx].sensor != nullptr)
+      any_sensor = true;
+  }
+  if (!any_sensor)
+    return;
+
   if (this->update_interval_ == 0) {
     // Reactive: push a new point whenever the sensor publishes a state.
     for (size_t idx = 0; idx < this->series_.size(); idx++) {
+      if (this->series_[idx].sensor == nullptr)
+        continue;
       this->series_[idx].sensor->add_on_state_callback([this, idx](float value) { this->on_value(idx, value); });
     }
   } else {
-    // Interval sampling: a single native LVGL timer reads every series' current state.
+    // Interval sampling: a single native LVGL timer reads every sensor-backed series' current state.
     lv_timer_create(
         [](lv_timer_t *timer) {
           auto *self = static_cast<LvChartType *>(lv_timer_get_user_data(timer));
-          for (size_t idx = 0; idx < self->series_.size(); idx++)
-            self->on_value(idx, self->series_[idx].sensor->get_state());
+          for (size_t idx = 0; idx < self->series_.size(); idx++) {
+            if (self->series_[idx].sensor != nullptr)
+              self->on_value(idx, self->series_[idx].sensor->get_state());
+          }
         },
         this->update_interval_, this);
   }
 }
 
-template<uint8_t N_SERIES, uint16_t N_POINTS> void LvChartType<N_SERIES, N_POINTS>::on_value(size_t idx, float value) {
+template<uint8_t N_SERIES, uint16_t N_POINTS>
+void LvChartType<N_SERIES, N_POINTS>::push_(size_t idx, float y, float x, bool has_x) {
   if (idx >= this->series_.size())
     return;
   auto &s = this->series_[idx];
 
-  int32_t scaled;
-  if (std::isnan(value)) {
-    scaled = LV_CHART_POINT_NONE;
+  int32_t scaled_y;
+  if (std::isnan(y)) {
+    scaled_y = LV_CHART_POINT_NONE;
   } else {
-    scaled = static_cast<int32_t>(lroundf(value * this->scale_));
+    scaled_y = static_cast<int32_t>(lroundf(y * this->scale_));
   }
-  lv_chart_set_next_value(this->obj, s.series, scaled);
 
-  if (s.label != nullptr && !std::isnan(value)) {
-    snprintf(s.label_buf, sizeof(s.label_buf), s.format, static_cast<double>(value));
+  int32_t scaled_x = LV_CHART_POINT_NONE;
+  bool use_x = has_x && lv_chart_get_type(this->obj) == LV_CHART_TYPE_SCATTER;
+  if (use_x && !std::isnan(x))
+    scaled_x = static_cast<int32_t>(lroundf(x * this->scale_));
+
+  if (use_x) {
+    lv_chart_set_next_value2(this->obj, s.series, scaled_x, scaled_y);
+  } else {
+    lv_chart_set_next_value(this->obj, s.series, scaled_y);
+  }
+
+  if (s.label != nullptr && !std::isnan(y)) {
+    snprintf(s.label_buf, sizeof(s.label_buf), s.format, static_cast<double>(y));
     lv_label_set_text_static(s.label, s.label_buf);
   }
 
   if (this->point_count_ > 0) {
     int32_t *row = this->history_row_(idx);
     memmove(row, row + 1, (this->point_count_ - 1) * sizeof(int32_t));
-    row[this->point_count_ - 1] = scaled;
+    row[this->point_count_ - 1] = scaled_y;
+    if (use_x) {
+      int32_t *x_row = this->x_history_row_(idx);
+      memmove(x_row, x_row + 1, (this->point_count_ - 1) * sizeof(int32_t));
+      x_row[this->point_count_ - 1] = scaled_x;
+    }
   }
 
-  if (this->auto_range_)
+  if (this->auto_range_y_ || (use_x && this->auto_range_x_))
     this->recompute_range_();
 
   if (this->persist_) {
@@ -209,33 +254,106 @@ template<uint8_t N_SERIES, uint16_t N_POINTS> void LvChartType<N_SERIES, N_POINT
 }
 
 template<uint8_t N_SERIES, uint16_t N_POINTS> void LvChartType<N_SERIES, N_POINTS>::recompute_range_() {
-  int32_t min_v = std::numeric_limits<int32_t>::max();
-  int32_t max_v = std::numeric_limits<int32_t>::min();
-  bool any = false;
-  for (size_t idx = 0; idx < this->series_.size(); idx++) {
-    const int32_t *row = this->history_row_(idx);
-    for (uint16_t k = 0; k < this->point_count_; k++) {
-      int32_t v = row[k];
-      if (v == LV_CHART_POINT_NONE)
-        continue;
-      any = true;
-      min_v = std::min(min_v, v);
-      max_v = std::max(max_v, v);
-    }
-  }
-  if (!any)
-    return;
-
   // Snap the range outward to whole units (real-world integers) instead of hugging the raw data
   // extremes, e.g. 12.7-21.3 -> 12-22.
   int32_t unit = std::max(static_cast<int32_t>(this->scale_), static_cast<int32_t>(1));
-  min_v = lv_chart_floor_to_unit(min_v, unit);
-  max_v = lv_chart_ceil_to_unit(max_v, unit);
-  if (min_v == max_v)
-    max_v += unit;
 
-  lv_chart_set_axis_range(this->obj, LV_CHART_AXIS_PRIMARY_Y, min_v, max_v);
-  this->update_axis_labels_(min_v, max_v);
+  if (this->auto_range_y_) {
+    int32_t min_v = std::numeric_limits<int32_t>::max();
+    int32_t max_v = std::numeric_limits<int32_t>::min();
+    bool any = false;
+    if (lv_chart_get_type(this->obj) == LV_CHART_TYPE_STACKED) {
+      // A stacked bar's drawn height is the sum of every series at that point (see LVGL's own
+      // draw_series_stacked()), not each series' value independently -- so the Y-max must be
+      // computed from that per-point sum. Mirror LVGL's own filtering exactly: skip
+      // LV_CHART_POINT_NONE and non-positive values, since those are excluded from the sum (and
+      // from being drawn at all) there too.
+      //
+      // The Y-min must NOT come from that same per-point sum, though: LVGL maps a bar's total
+      // height with lv_map(sum, ymin, ymax, 0, h), so the one point whose sum equals ymin gets
+      // mapped to a height of exactly 0 -- and LVGL skips drawing a bar entirely once its height
+      // is <= 0. That point's bar would vanish outright instead of just looking short. The first
+      // series is always drawn as the bottom-most segment of the stack, so anchoring Y-min to its
+      // own minimum instead guarantees every point's sum stays above ymin (its own value alone is
+      // already part of the sum), so every bar keeps at least that segment visible.
+      bool have_min = false;
+      const int32_t *first_row = this->history_row_(0);
+      for (uint16_t k = 0; k < this->point_count_; k++) {
+        int32_t v = first_row[k];
+        if (v == LV_CHART_POINT_NONE || v <= 0)
+          continue;
+        have_min = true;
+        min_v = std::min(min_v, v);
+      }
+
+      for (uint16_t k = 0; k < this->point_count_; k++) {
+        int32_t sum = 0;
+        bool point_any = false;
+        for (size_t idx = 0; idx < this->series_.size(); idx++) {
+          int32_t v = this->history_row_(idx)[k];
+          if (v == LV_CHART_POINT_NONE || v <= 0)
+            continue;
+          sum += v;
+          point_any = true;
+        }
+        if (!point_any)
+          continue;
+        any = true;
+        max_v = std::max(max_v, sum);
+      }
+      // The first series had no valid point of its own (e.g. every point that had any data at
+      // all came from a later series) -- 0 is the only sane floor left, matching STACKED's own
+      // positive-values-only assumption.
+      if (!have_min)
+        min_v = 0;
+    } else {
+      for (size_t idx = 0; idx < this->series_.size(); idx++) {
+        const int32_t *row = this->history_row_(idx);
+        for (uint16_t k = 0; k < this->point_count_; k++) {
+          int32_t v = row[k];
+          if (v == LV_CHART_POINT_NONE)
+            continue;
+          any = true;
+          min_v = std::min(min_v, v);
+          max_v = std::max(max_v, v);
+        }
+      }
+    }
+    if (any) {
+      min_v = lv_chart_floor_to_unit(min_v, unit);
+      max_v = lv_chart_ceil_to_unit(max_v, unit);
+      if (min_v == max_v)
+        max_v += unit;
+
+      lv_chart_set_axis_range(this->obj, LV_CHART_AXIS_PRIMARY_Y, min_v, max_v);
+      this->update_axis_labels_(min_v, max_v);
+    }
+  }
+
+  if (this->auto_range_x_ && !this->x_history_.empty()) {
+    int32_t min_v = std::numeric_limits<int32_t>::max();
+    int32_t max_v = std::numeric_limits<int32_t>::min();
+    bool any = false;
+    for (size_t idx = 0; idx < this->series_.size(); idx++) {
+      const int32_t *row = this->x_history_row_(idx);
+      for (uint16_t k = 0; k < this->point_count_; k++) {
+        int32_t v = row[k];
+        if (v == LV_CHART_POINT_NONE)
+          continue;
+        any = true;
+        min_v = std::min(min_v, v);
+        max_v = std::max(max_v, v);
+      }
+    }
+    if (any) {
+      min_v = lv_chart_floor_to_unit(min_v, unit);
+      max_v = lv_chart_ceil_to_unit(max_v, unit);
+      if (min_v == max_v)
+        max_v += unit;
+
+      lv_chart_set_axis_range(this->obj, LV_CHART_AXIS_PRIMARY_X, min_v, max_v);
+    }
+  }
 }
 
 template<uint8_t N_SERIES, uint16_t N_POINTS> void LvChartType<N_SERIES, N_POINTS>::enable_y_axis(const char *format) {
@@ -305,7 +423,7 @@ template<uint8_t N_SERIES, uint16_t N_POINTS> void LvChartType<N_SERIES, N_POINT
     for (uint16_t k = 0; k < this->point_count_; k++)
       lv_chart_set_next_value(this->obj, this->series_[idx].series, row[k]);
   }
-  if (this->auto_range_)
+  if (this->auto_range_y_)
     this->recompute_range_();
 
 #ifdef USE_TIME
