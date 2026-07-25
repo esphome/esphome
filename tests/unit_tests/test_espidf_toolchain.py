@@ -314,8 +314,30 @@ def test_get_cmake_output_missing_build_does_not_resolve_idf_env(
     mock_run.assert_not_called()
 
 
+def test_run_idf_py_jobs_sets_build_jobs_env(setup_core: Path) -> None:
+    """The jobs argument is exported to idf.py as IDF_PY_BUILD_JOBS."""
+    _setup_build(setup_core)
+
+    with (
+        patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
+        patch.object(toolchain, "_get_idf_env", return_value={"PATH": "/bin"}),
+        patch.object(toolchain, "_get_idf_tool", return_value="python"),
+        patch.object(toolchain.subprocess, "run") as mock_run,
+    ):
+        mock_run.return_value.returncode = 0
+
+        toolchain.run_idf_py("build", jobs=2)
+        env = mock_run.call_args.kwargs["env"]
+        assert env["IDF_PY_BUILD_JOBS"] == "2"
+        assert env["PATH"] == "/bin"
+
+        toolchain.run_idf_py("build")
+        env = mock_run.call_args.kwargs["env"]
+        assert "IDF_PY_BUILD_JOBS" not in env
+
+
 def test_run_compile_passes_compile_process_limit(setup_core: Path) -> None:
-    """compile_process_limit is forwarded to idf.py as IDF_PY_BUILD_JOBS."""
+    """compile_process_limit is forwarded to run_idf_py as the job limit."""
     _setup_build(setup_core)
     config = {CONF_ESPHOME: {CONF_COMPILE_PROCESS_LIMIT: 1}}
 
@@ -326,9 +348,7 @@ def test_run_compile_passes_compile_process_limit(setup_core: Path) -> None:
     ):
         assert toolchain.run_compile(config, verbose=False) == 0
 
-    mock_run.assert_called_once_with(
-        "build", "size", extra_env={"IDF_PY_BUILD_JOBS": "1"}
-    )
+    mock_run.assert_called_once_with("build", "size", jobs=1)
 
 
 def test_run_compile_without_compile_process_limit(setup_core: Path) -> None:
@@ -343,7 +363,7 @@ def test_run_compile_without_compile_process_limit(setup_core: Path) -> None:
     ):
         assert toolchain.run_compile(config, verbose=False) == 0
 
-    mock_run.assert_called_once_with("build", "size", extra_env=None)
+    mock_run.assert_called_once_with("build", "size", jobs=None)
 
 
 def test_get_core_framework_version_from_core_data():

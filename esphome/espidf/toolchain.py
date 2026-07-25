@@ -163,7 +163,7 @@ def run_idf_py(
     *args,
     cwd: Path | None = None,
     capture_output: bool = False,
-    extra_env: dict[str, str] | None = None,
+    jobs: int | None = None,
 ) -> int | str:
     """Run idf.py with the given arguments."""
     idf_path = _get_idf_path()
@@ -171,8 +171,9 @@ def run_idf_py(
         raise EsphomeError("ESP-IDF not found")
 
     env = _get_idf_env()
-    if extra_env:
-        env = {**env, **extra_env}
+    if jobs is not None:
+        # idf.py translates IDF_PY_BUILD_JOBS into ninja -j N
+        env = {**env, "IDF_PY_BUILD_JOBS": str(jobs)}
     python_executable = _get_idf_tool("python")
     idf_py = idf_path / "tools" / "idf.py"
     # Dispatch idf.py through esphome.espidf.runner, which wraps
@@ -402,12 +403,7 @@ def run_compile(config, verbose: bool) -> int:
     args.append("build")
     args.append("size")
 
-    extra_env: dict[str, str] | None = None
-    if (limit := config[CONF_ESPHOME].get(CONF_COMPILE_PROCESS_LIMIT)) is not None:
-        # idf.py translates IDF_PY_BUILD_JOBS into ninja -j N
-        extra_env = {"IDF_PY_BUILD_JOBS": str(limit)}
-
-    rc = run_idf_py(*args, extra_env=extra_env)
+    rc = run_idf_py(*args, jobs=config[CONF_ESPHOME].get(CONF_COMPILE_PROCESS_LIMIT))
     if rc == 0:
         size_json = CORE.relative_build_path("build", "esp_idf_size.json")
         partitions = CORE.relative_build_path("partitions.csv")
