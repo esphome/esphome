@@ -177,6 +177,23 @@ TEST(ModbusPduStandard, ServerReadResponses) {
   EXPECT_FALSE(is_server_pdu_standard(ok, 0));
 }
 
+TEST(ModbusPduStandard, ServerResponsesRejectDegenerateShapes) {
+  // A read response always carries data: byte count zero is non-conformant.
+  const uint8_t zero_bc[] = {0x03, 0x00};
+  EXPECT_FALSE(is_server_pdu_standard(zero_bc, sizeof(zero_bc)));
+  // Registers are 2 bytes each: an odd byte count would silently truncate a register.
+  const uint8_t odd_bc[] = {0x03, 0x03, 0x00, 0x01, 0x02};
+  EXPECT_FALSE(is_server_pdu_standard(odd_bc, sizeof(odd_bc)));
+  // Bit reads have no parity requirement: one packed byte is a fine coil response.
+  const uint8_t coil_one_byte[] = {0x01, 0x01, 0x05};
+  EXPECT_TRUE(is_server_pdu_standard(coil_one_byte, sizeof(coil_one_byte)));
+  // A write-multiple echo claiming 65535 registers written is bounded like the request side.
+  const uint8_t wild_echo[] = {0x10, 0x00, 0x00, 0xFF, 0xFF};
+  EXPECT_FALSE(is_server_pdu_standard(wild_echo, sizeof(wild_echo)));
+  const uint8_t ok_echo[] = {0x10, 0x00, 0x00, 0x00, 0x02};
+  EXPECT_TRUE(is_server_pdu_standard(ok_echo, sizeof(ok_echo)));
+}
+
 TEST(ModbusPduStandard, SingleCoilValueMustBeCanonical) {
   // FC 0x05's value field allows exactly 0xFF00 (ON) and 0x0000 (OFF); anything else is non-standard.
   const uint8_t on[] = {0x05, 0x00, 0x10, 0xFF, 0x00};
