@@ -32,7 +32,7 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   // This handler runs on the web server task while the main loop rebuilds, sorts
   // or frees the scan results. Copy them under the lock, then serialize without
   // holding it so the main loop is only ever blocked for the duration of the copy.
-  std::vector<wifi::WiFiScanResult> results;
+  wifi::wifi_scan_vector_t<wifi::WiFiScanResult> results;
   wifi::global_wifi_component->copy_scan_results(results);
 #endif
   for (const auto &scan : results) {

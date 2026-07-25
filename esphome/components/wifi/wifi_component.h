@@ -518,9 +518,17 @@ class WiFiComponent final : public Component {
   /// Copy the current scan results under the scan results lock. For readers that
   /// run outside the main loop (e.g. web server handlers); main loop code can use
   /// get_scan_result() directly.
-  void copy_scan_results(std::vector<WiFiScanResult> &out) {
+  void copy_scan_results(wifi_scan_vector_t<WiFiScanResult> &out) {
     LockGuard guard{this->scan_result_lock_};
+#if defined(USE_RP2) || defined(USE_ESP32)
     out = this->scan_result_;
+#else
+    // FixedVector has no copy assignment; exact-size init then element copies
+    out.init(this->scan_result_.size());
+    for (const auto &res : this->scan_result_) {
+      out.push_back(res);
+    }
+#endif
   }
 #endif
 
