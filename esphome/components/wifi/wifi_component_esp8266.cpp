@@ -733,7 +733,7 @@ void WiFiComponent::s_wifi_scan_done_callback(void *arg, STATUS status) {
 }
 
 void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
-  // No-op on this single-threaded platform, kept for uniformity with threaded platforms
+  // Compiles to nothing here; kept so every scan_result_ mutation holds the lock
   ScanResultsLock lock(this);
   this->scan_result_.clear();
 

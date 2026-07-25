@@ -659,14 +659,13 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
 void WiFiComponent::wifi_scan_done_callback_() {
   int16_t num = WiFi.scanComplete();
   bool needs_full = this->needs_full_scan_results_();
-  {
-    ScanResultsLock lock(this);
-    this->scan_result_.clear();
-    this->scan_done_ = true;
+  this->scan_done_ = true;
 
-    if (num < 0)
-      return;
-
+  // Build results into a scratch vector, then swap it in under the lock (see
+  // ScanResultsLock). FixedVector::init() always reallocates, so building fresh
+  // costs the same as before.
+  wifi_scan_vector_t<WiFiScanResult> results;
+  if (num >= 0) {
     // Access scan results directly via WiFi.scan struct to avoid Arduino String allocations
     // WiFi.scan is public in LibreTiny for WiFiEvents & WiFiScan static handlers
     auto *scan = WiFi.scan;
@@ -680,23 +679,32 @@ void WiFiComponent::wifi_scan_done_callback_() {
       }
     }
 
-    this->scan_result_.init(count);  // Exact allocation
+    results.init(count);  // Exact allocation
 
     // Second pass: store matching networks
     for (int i = 0; i < num; i++) {
       const char *ssid_cstr = scan->ap[i].ssid;
-      if (needs_full || this->matches_configured_network_(ssid_cstr, scan->ap[i].bssid.addr)) {
-        auto &ap = scan->ap[i];
-        this->scan_result_.emplace_back(bssid_t{ap.bssid.addr[0], ap.bssid.addr[1], ap.bssid.addr[2], ap.bssid.addr[3],
-                                                ap.bssid.addr[4], ap.bssid.addr[5]},
-                                        ssid_cstr, strlen(ssid_cstr), ap.channel, ap.rssi, ap.auth != WIFI_AUTH_OPEN,
-                                        ssid_cstr[0] == '\0');
+      auto &ap = scan->ap[i];
+      if (needs_full || this->matches_configured_network_(ssid_cstr, ap.bssid.addr)) {
+        results.emplace_back(bssid_t{ap.bssid.addr[0], ap.bssid.addr[1], ap.bssid.addr[2], ap.bssid.addr[3],
+                                     ap.bssid.addr[4], ap.bssid.addr[5]},
+                             ssid_cstr, strlen(ssid_cstr), ap.channel, ap.rssi, ap.auth != WIFI_AUTH_OPEN,
+                             ssid_cstr[0] == '\0');
       } else {
-        auto &ap = scan->ap[i];
         this->log_discarded_scan_result_(ssid_cstr, ap.bssid.addr, ap.rssi, ap.channel);
       }
     }
   }
+
+  {
+    ScanResultsLock lock(this);
+    std::swap(this->scan_result_, results);
+  }
+  // Previous scan results are freed here, outside the lock
+
+  if (num < 0)
+    return;
+
   ESP_LOGV(TAG, "Scan complete: %d found, %zu stored%s", num, this->scan_result_.size(),
            needs_full ? "" : " (filtered)");
   WiFi.scanDelete();

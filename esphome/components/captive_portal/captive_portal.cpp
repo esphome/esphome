@@ -24,29 +24,34 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   stream->printf(R"({"mac":"%s","name":"%s","aps":[{})", mac_str, App.get_name().c_str());
 #endif
 
-  {
-    // Hold the scan results lock while iterating: this handler runs on the web
-    // server task while the main loop rebuilds, sorts or frees the container.
-    // Serialization only appends to an in-memory buffer, so the lock is held briefly.
-    LockGuard lock{wifi::global_wifi_component->get_scan_result_lock()};
-    for (auto &scan : wifi::global_wifi_component->get_scan_result()) {
-      if (scan.get_is_hidden())
-        continue;
-
-        // Assumes no " in ssid, possible unicode isses?
-#ifdef USE_ESP8266
-      stream->print(ESPHOME_F(",{\"ssid\":\""));
-      stream->print(scan.get_ssid().c_str());
-      stream->print(ESPHOME_F("\",\"rssi\":"));
-      stream->print(scan.get_rssi());
-      stream->print(ESPHOME_F(",\"lock\":"));
-      stream->print(scan.get_with_auth());
-      stream->print(ESPHOME_F("}"));
+#ifdef ESPHOME_THREAD_SINGLE
+  // Single-threaded platform: the main loop cannot run while this handler does,
+  // so the scan results can be read directly with no copy.
+  const auto &results = wifi::global_wifi_component->get_scan_result();
 #else
-      stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", scan.get_ssid().c_str(), scan.get_rssi(),
-                     scan.get_with_auth());
+  // This handler runs on the web server task while the main loop rebuilds, sorts
+  // or frees the scan results. Copy them under the lock, then serialize without
+  // holding it so the main loop is only ever blocked for the duration of the copy.
+  std::vector<wifi::WiFiScanResult> results;
+  wifi::global_wifi_component->copy_scan_results(results);
 #endif
-    }
+  for (const auto &scan : results) {
+    if (scan.get_is_hidden())
+      continue;
+
+      // Assumes no " in ssid, possible unicode isses?
+#ifdef USE_ESP8266
+    stream->print(ESPHOME_F(",{\"ssid\":\""));
+    stream->print(scan.get_ssid().c_str());
+    stream->print(ESPHOME_F("\",\"rssi\":"));
+    stream->print(scan.get_rssi());
+    stream->print(ESPHOME_F(",\"lock\":"));
+    stream->print(scan.get_with_auth());
+    stream->print(ESPHOME_F("}"));
+#else
+    stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", scan.get_ssid().c_str(), scan.get_rssi(),
+                   scan.get_with_auth());
+#endif
   }
   stream->print(ESPHOME_F("]}"));
   request->send(stream);

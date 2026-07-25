@@ -101,6 +101,9 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], paren)
     await cg.register_component(var, config)
     cg.add_define("USE_CAPTIVE_PORTAL")
+    # The portal reads wifi scan results from the web server task; this makes the
+    # wifi component guard them with a lock on multi-threaded platforms.
+    cg.add_define("USE_WIFI_SCAN_RESULTS_LOCK")
 
     if config[CONF_COMPRESSION] == "gzip":
         cg.add_define("USE_CAPTIVE_PORTAL_GZIP")

@@ -187,6 +187,13 @@ template<typename T> using wifi_scan_vector_t = std::vector<T>;
 template<typename T> using wifi_scan_vector_t = FixedVector<T>;
 #endif
 
+// A consumer component (e.g. the captive portal) reads scan results from another
+// task; guard them with a real lock only on platforms that actually run multiple
+// threads. See ScanResultsLock below the WiFiComponent class.
+#if defined(USE_WIFI_SCAN_RESULTS_LOCK) && !defined(ESPHOME_THREAD_SINGLE)
+#define WIFI_SCAN_RESULTS_LOCK_ENABLED
+#endif
+
 /// 20-byte string: 18 chars inline + null, heap for longer. Always null-terminated.
 /// Used internally for WiFi SSID/password storage to reduce heap fragmentation.
 class CompactString {
@@ -507,12 +514,14 @@ class WiFiComponent final : public Component {
   void set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
   const wifi_scan_vector_t<WiFiScanResult> &get_scan_result() const { return scan_result_; }
-#ifdef USE_CAPTIVE_PORTAL
-  /// Guards scan_result_ against the captive portal reading it from the web server
-  /// task while the main loop rebuilds, sorts or frees it. Hold this lock while
-  /// iterating get_scan_result() from outside the main loop. No-op on
-  /// single-threaded platforms.
-  Mutex &get_scan_result_lock() { return this->scan_result_lock_; }
+#ifdef WIFI_SCAN_RESULTS_LOCK_ENABLED
+  /// Copy the current scan results under the scan results lock. For readers that
+  /// run outside the main loop (e.g. web server handlers); main loop code can use
+  /// get_scan_result() directly.
+  void copy_scan_results(std::vector<WiFiScanResult> &out) {
+    LockGuard guard{this->scan_result_lock_};
+    out = this->scan_result_;
+  }
 #endif
 
   network::IPAddress wifi_soft_ap_ip();
@@ -824,6 +833,8 @@ class WiFiComponent final : public Component {
   friend void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 #endif
 
+  friend class ScanResultsLock;
+
 #ifdef USE_RP2
   static int s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
   void wifi_scan_result_(void *env, const cyw43_ev_scan_result_t *result);
@@ -838,10 +849,9 @@ class WiFiComponent final : public Component {
   // Large/pointer-aligned members first
   FixedVector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
-  // All mutations must hold ScanResultsLock: the captive portal iterates this
-  // container from the web server task via get_scan_result().
+  // All mutations must hold ScanResultsLock (see its comment below this class)
   wifi_scan_vector_t<WiFiScanResult> scan_result_;
-#ifdef USE_CAPTIVE_PORTAL
+#ifdef WIFI_SCAN_RESULTS_LOCK_ENABLED
   Mutex scan_result_lock_;
 #endif
 #ifdef USE_WIFI_AP
@@ -1015,12 +1025,17 @@ class WiFiComponent final : public Component {
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-/// RAII lock held while mutating scan_result_. Compiles to nothing unless the
-/// captive portal (the only reader outside the main loop) is part of the build.
+/// RAII lock that guards WiFiComponent::scan_result_. Every mutation of the
+/// container must hold it, because consumers such as the captive portal read the
+/// results from the web server task (via WiFiComponent::copy_scan_results()).
+/// To keep hold times minimal, writers should build results into a scratch vector
+/// without the lock and std::swap it in while holding it. Compiles to nothing
+/// unless a cross-task consumer is in the build and the platform runs multiple
+/// threads (WIFI_SCAN_RESULTS_LOCK_ENABLED).
 class ScanResultsLock {
  public:
-#ifdef USE_CAPTIVE_PORTAL
-  ScanResultsLock(WiFiComponent *parent) : guard_(parent->get_scan_result_lock()) {}
+#ifdef WIFI_SCAN_RESULTS_LOCK_ENABLED
+  ScanResultsLock(WiFiComponent *parent) : guard_(parent->scan_result_lock_) {}
 
  private:
   LockGuard guard_;
