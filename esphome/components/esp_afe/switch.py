@@ -3,7 +3,6 @@ from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG
 
-from ..const import CONF_VAD
 from . import CONF_ESP_AFE_ID, EspAfe, esp_afe_ns
 
 DEPENDENCIES = ["esp_afe"]
@@ -11,6 +10,7 @@ DEPENDENCIES = ["esp_afe"]
 CONF_AEC = "aec"
 CONF_NS = "ns"
 CONF_AGC = "agc"
+CONF_VAD = "vad"
 
 AfeAecSwitch = esp_afe_ns.class_(
     "AfeAecSwitch", switch.Switch, cg.Component, cg.Parented.template(EspAfe)

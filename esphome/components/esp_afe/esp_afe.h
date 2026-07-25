@@ -1,7 +1,7 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/component.h"
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
@@ -43,15 +43,15 @@ static constexpr int AFE_TYPE_SR = 0;
 static constexpr int AFE_TYPE_VC = 1;
 static constexpr int VAD_MODE_3 = 3;
 #else
+#include <esp_afe_config.h>
 #include <esp_afe_sr_iface.h>
 #include <esp_afe_sr_models.h>
-#include <esp_afe_config.h>
 #ifdef USE_ESP_AFE_GMF_PATH
 #include <esp_gmf_afe.h>
-#include <esp_gmf_element.h>
 #include <esp_gmf_afe_manager.h>
-#include <esp_gmf_pipeline.h>
+#include <esp_gmf_element.h>
 #include <esp_gmf_payload.h>
+#include <esp_gmf_pipeline.h>
 #include <esp_gmf_port.h>
 #include <esp_gmf_task.h>
 #endif
@@ -103,26 +103,14 @@ using esp_audio_stack::ProcessorTelemetry;
 ///      normal operation on the next frame.
 ///
 /// This avoids blocking the consumer's audio task on any global mutex.
-class EspAfe : public Component, public AudioProcessor {
+class EspAfe final : public Component, public AudioProcessor {
  public:
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
 
   // AudioProcessor interface
-  bool is_initialized() const override {
-#ifdef USE_ESP_AFE_DIRECT_PATH
-    if (this->direct_data_ != nullptr && this->direct_feed_signal_ != nullptr) {
-      return this->feed_buf_ != nullptr;
-    }
-#endif
-#ifdef USE_ESP_AFE_GMF_PATH
-    if (this->afe_manager_ != nullptr && this->feed_input_ring_ != nullptr) {
-      return true;
-    }
-#endif
-    return false;
-  }
+  bool is_initialized() const override { return this->instance_ready_.load(std::memory_order_acquire); }
   FrameSpec frame_spec() const override;
   bool process(const int16_t *in_mic, const int16_t *in_ref, int16_t *out, uint8_t mic_channels_in) override;
   uint32_t frame_spec_revision() const override { return this->frame_spec_revision_.load(std::memory_order_acquire); }
@@ -196,7 +184,8 @@ class EspAfe : public Component, public AudioProcessor {
   // to publish the actual live mode after a set_action so optimistic selects
   // don't drift from reality.
   std::string get_mode_name() const {
-    // afe_type_: 0 = SR, 1 = VC, 3 = FD (esp-sr 2.4+); afe_mode_: 0 = LOW_COST, 1 = HIGH_PERF.
+    // afe_type_: 0 = SR, 1 = VC, 3 = FD (esp-sr 2.4+); afe_mode_: 0 = LOW_COST,
+    // 1 = HIGH_PERF.
     const bool high = (this->afe_mode_ == 1);
     switch (this->afe_type_) {
       case 0:
@@ -292,7 +281,8 @@ class EspAfe : public Component, public AudioProcessor {
   bool afe_pipeline_running_{false};
   bool afe_pipeline_paused_{false};
 #ifdef USE_ESP_AFE_DIRECT_PATH
-  bool direct_fetch_running_{false};
+  std::atomic<bool> direct_fetch_running_{false};
+  std::atomic<bool> direct_fetch_quiesced_{true};
 #endif
 
   // Feed buffer: interleaved [mic, ref, ...], [mic1, mic2, ref, ...] or
@@ -327,7 +317,11 @@ class EspAfe : public Component, public AudioProcessor {
   TaskHandle_t direct_fetch_task_handle_{nullptr};
   StaticTask_t direct_fetch_task_tcb_{};
   StackType_t *direct_fetch_task_stack_{nullptr};
-  static constexpr uint32_t kDirectFetchTaskStackWords = 4096 / sizeof(StackType_t);
+  // ESP-IDF's pinned-task APIs take the stack depth in bytes, while the
+  // caller-provided static buffer is an array of StackType_t elements.
+  static constexpr uint32_t kDirectFetchTaskStackBytes = 4096;
+  static constexpr size_t kDirectFetchTaskStackWords =
+      (kDirectFetchTaskStackBytes + sizeof(StackType_t) - 1) / sizeof(StackType_t);
 #endif
 
 #ifdef USE_ESP_AFE_GMF_PATH
@@ -344,8 +338,10 @@ class EspAfe : public Component, public AudioProcessor {
 #ifdef USE_ESP_AFE_DIRECT_PATH
   static void direct_fetch_task_trampoline_(void *arg);
   void direct_fetch_task_loop_();
+  bool prepare_direct_fetch_task_();
   bool start_direct_fetch_task_();
-  void stop_direct_fetch_task_();
+  bool stop_direct_fetch_task_();
+  void destroy_direct_fetch_task_();
 #endif
 #ifdef USE_ESP_AFE_GMF_PATH
   static void gmf_event_cb_(esp_gmf_element_handle_t el, esp_gmf_afe_evt_t *event, void *user_data);
@@ -399,9 +395,12 @@ class EspAfe : public Component, public AudioProcessor {
   int fetch_task_priority_{5};
   int fetch_task_stack_size_{3072};
   char input_format_override_[5]{};
-  bool feed_buf_in_psram_{false};    // Direct/split-frame scratch placement; 1:1 GMF feeds use ring slots.
-  bool feed_ring_in_psram_{false};   // ~12 KB staging ring (default internal, ~20 us/frame faster on Core 0)
-  bool fetch_ring_in_psram_{false};  // ~4 KB output ring (default internal, ~6.8 us/frame faster on Core 0)
+  bool feed_buf_in_psram_{false};    // Direct/split-frame scratch placement; 1:1
+                                     // GMF feeds use ring slots.
+  bool feed_ring_in_psram_{false};   // ~12 KB staging ring (default internal, ~20
+                                     // us/frame faster on Core 0)
+  bool fetch_ring_in_psram_{false};  // ~4 KB output ring (default internal, ~6.8
+                                     // us/frame faster on Core 0)
 
   // config_mutex_ serialises config-change paths (recreate_instance_,
   // set_aec_enabled_runtime_, destructor). It is NOT taken by process() on
@@ -415,6 +414,9 @@ class EspAfe : public Component, public AudioProcessor {
   std::atomic<bool> drain_request_{false};
   std::atomic<bool> process_busy_{false};
   std::atomic<TaskHandle_t> process_drain_waiter_{nullptr};
+  // Published only after a complete install and cleared before detach. This
+  // lets lifecycle callers query readiness without racing raw backend pointers.
+  std::atomic<bool> instance_ready_{false};
 
   struct ReconfigureRequest {
     char mode[32]{};
@@ -443,12 +445,14 @@ class EspAfe : public Component, public AudioProcessor {
   uint8_t rms_sensor_divider_{0};
   int warmup_remaining_{3};
   // Feed/fetch diagnostics.
-  std::atomic<uint32_t> input_ring_drop_{0};   // process() could not enqueue (NOSPLIT full)
-  std::atomic<uint32_t> feed_ok_{0};           // GMF input port accepted a frame
-  std::atomic<uint32_t> feed_rejected_{0};     // GMF input port timed out or saw a bad frame
-  std::atomic<uint32_t> fetch_ok_{0};          // GMF output port drained a frame
-  std::atomic<uint32_t> fetch_timeout_{0};     // GMF fetch returned no usable frame
-  std::atomic<uint32_t> output_ring_drop_{0};  // fetch_output_ring_ full
+  std::atomic<uint32_t> input_ring_drop_{0};      // process() could not enqueue (NOSPLIT full)
+  std::atomic<uint32_t> process_frame_count_{0};  // process() calls while the AFE is active
+  std::atomic<uint32_t> process_output_miss_{0};  // process() found no complete processed output frame
+  std::atomic<uint32_t> feed_ok_{0};              // GMF input port accepted a frame
+  std::atomic<uint32_t> feed_rejected_{0};        // GMF input port timed out or saw a bad frame
+  std::atomic<uint32_t> fetch_ok_{0};             // GMF output port drained a frame
+  std::atomic<uint32_t> fetch_timeout_{0};        // GMF fetch returned no usable frame
+  std::atomic<uint32_t> output_ring_drop_{0};     // fetch_output_ring_ full
   std::atomic<uint32_t> feed_queue_frames_{0};
   std::atomic<uint32_t> feed_queue_peak_{0};
   std::atomic<uint32_t> fetch_queue_frames_{0};
@@ -467,9 +471,9 @@ class EspAfe : public Component, public AudioProcessor {
   // single-mic config has torn the pipeline down, the flag is preserved
   // so a later feature-enable rebuild can resume immediately.
   std::atomic<bool> processing_active_{false};
-  int last_spec_mic_ch_{1};  // last published mic_channels for revision tracking (1 = default mono)
-  int last_spec_process_size_{0};
-  int last_spec_fetch_size_{0};
+  std::atomic<int> last_spec_mic_ch_{1};  // last published mic_channels (1 = default mono)
+  std::atomic<int> last_spec_process_size_{0};
+  std::atomic<int> last_spec_fetch_size_{0};
 };
 
 #ifdef USE_SWITCH
@@ -506,7 +510,7 @@ class AfeSwitchBase : public switch_::Switch, public Component, public Parented<
 };
 
 // Switch platform classes
-class AfeAecSwitch : public AfeSwitchBase {
+class AfeAecSwitch final : public AfeSwitchBase {
  public:
   void write_state(bool state) override {
     if (this->parent_ == nullptr)
@@ -523,7 +527,7 @@ class AfeAecSwitch : public AfeSwitchBase {
   void apply_initial_state(bool state) override { this->parent_->set_aec_enabled(state); }
 };
 
-class AfeNsSwitch : public AfeSwitchBase {
+class AfeNsSwitch final : public AfeSwitchBase {
  public:
   void write_state(bool state) override {
     if (this->parent_ == nullptr)
@@ -540,7 +544,7 @@ class AfeNsSwitch : public AfeSwitchBase {
   void apply_initial_state(bool state) override { this->parent_->set_ns_enabled(state); }
 };
 
-class AfeVadSwitch : public AfeSwitchBase {
+class AfeVadSwitch final : public AfeSwitchBase {
  public:
   void write_state(bool state) override {
     if (this->parent_ == nullptr)
@@ -557,7 +561,7 @@ class AfeVadSwitch : public AfeSwitchBase {
   void apply_initial_state(bool state) override { this->parent_->set_vad_enabled(state); }
 };
 
-class AfeAgcSwitch : public AfeSwitchBase {
+class AfeAgcSwitch final : public AfeSwitchBase {
  public:
   void write_state(bool state) override {
     if (this->parent_ == nullptr)
@@ -576,7 +580,7 @@ class AfeAgcSwitch : public AfeSwitchBase {
 #endif  // USE_SWITCH
 
 #ifdef USE_BINARY_SENSOR
-class AfeVadBinarySensor : public binary_sensor::BinarySensor, public PollingComponent, public Parented<EspAfe> {
+class AfeVadBinarySensor final : public binary_sensor::BinarySensor, public PollingComponent, public Parented<EspAfe> {
  public:
   float get_setup_priority() const override { return setup_priority::DATA; }
 
@@ -595,7 +599,7 @@ class AfeVadBinarySensor : public binary_sensor::BinarySensor, public PollingCom
 #endif  // USE_BINARY_SENSOR
 
 #ifdef USE_SENSOR
-class AfeInputVolumeSensor : public sensor::Sensor, public PollingComponent, public Parented<EspAfe> {
+class AfeInputVolumeSensor final : public sensor::Sensor, public PollingComponent, public Parented<EspAfe> {
  public:
   float get_setup_priority() const override { return setup_priority::DATA; }
 
@@ -606,7 +610,7 @@ class AfeInputVolumeSensor : public sensor::Sensor, public PollingComponent, pub
   }
 };
 
-class AfeOutputRmsSensor : public sensor::Sensor, public PollingComponent, public Parented<EspAfe> {
+class AfeOutputRmsSensor final : public sensor::Sensor, public PollingComponent, public Parented<EspAfe> {
  public:
   float get_setup_priority() const override { return setup_priority::DATA; }
 

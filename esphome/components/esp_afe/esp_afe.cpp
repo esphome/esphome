@@ -24,7 +24,8 @@ namespace esphome::esp_afe {
 static const char *const TAG = "esp_afe";
 static const TickType_t CONFIG_MUTEX_TIMEOUT = pdMS_TO_TICKS(250);
 // Max wait for process() to finish its current frame when a config change
-// needs to rebuild the AFE instance. ~1.5 frame periods at 16 kHz / 512 samples.
+// needs to rebuild the AFE instance. ~1.5 frame periods at 16 kHz / 512
+// samples.
 static const TickType_t DRAIN_WAIT_TIMEOUT = pdMS_TO_TICKS(50);
 static constexpr uint32_t REINIT_STAGE_WARN_US = 50000;
 
@@ -116,8 +117,10 @@ static inline void decrement_if_nonzero(std::atomic<uint32_t> &counter) {
 }
 
 void EspAfe::log_memory_snapshot_(const char *label) const {
-  ESP_LOGI(TAG, "Memory[%s]: internal_free=%u largest_internal=%u dma_free=%u largest_dma=%u psram_free=%u", label,
-           (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+  ESP_LOGI(TAG,
+           "Memory[%s]: internal_free=%u largest_internal=%u dma_free=%u "
+           "largest_dma=%u psram_free=%u",
+           label, (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
            (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
            (unsigned) heap_caps_get_free_size(MALLOC_CAP_DMA),
            (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_DMA),
@@ -512,8 +515,8 @@ bool EspAfe::build_instance_(AfeInstance *instance) {
   if (process_chunksize <= 0) {
     process_chunksize = (feed_chunksize > 0) ? feed_chunksize : 0;
   }
-  // Use official API for feed channel count instead of config struct (more robust
-  // if esp-sr changes internal channel mapping in future versions).
+  // Use official API for feed channel count instead of config struct (more
+  // robust if esp-sr changes internal channel mapping in future versions).
   int total_channels = static_cast<int>(total_channels_u8);
   const bool needs_feed_staging = process_chunksize != feed_chunksize;
   int16_t *feed_buf = nullptr;
@@ -523,7 +526,9 @@ bool EspAfe::build_instance_(AfeInstance *instance) {
         this->feed_buf_in_psram_ ? (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     feed_buf = static_cast<int16_t *>(heap_caps_aligned_alloc(16, feed_bytes, feed_buf_caps));
     if (feed_buf == nullptr && this->feed_buf_in_psram_) {
-      ESP_LOGW(TAG, "staged feed_buf (%u bytes) fell back to internal RAM (PSRAM full/unavailable)",
+      ESP_LOGW(TAG,
+               "staged feed_buf (%u bytes) fell back to internal RAM (PSRAM "
+               "full/unavailable)",
                static_cast<unsigned>(feed_bytes));
       feed_buf = static_cast<int16_t *>(heap_caps_aligned_alloc(16, feed_bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
     }
@@ -561,7 +566,10 @@ void EspAfe::destroy_instance_(AfeInstance *instance) {
     return;
   }
 #ifdef USE_ESP_AFE_DIRECT_PATH
-  this->stop_direct_fetch_task_();
+  if (!this->stop_direct_fetch_task_()) {
+    ESP_LOGE(TAG, "Refusing to destroy AFE while its fetch task is still running");
+    return;
+  }
   if (instance->direct_data != nullptr && instance->direct_iface != nullptr) {
     instance->direct_iface->destroy(instance->direct_data);
     instance->direct_data = nullptr;
@@ -691,6 +699,9 @@ bool EspAfe::install_instance_(AfeInstance *instance) {
         return cleanup_failed_install();
       }
     }
+    if (!this->prepare_direct_fetch_task_()) {
+      return cleanup_failed_install();
+    }
 
     if (this->afe_config_ != nullptr && this->afe_config_->vad_init &&
         !this->vad_enabled_.load(std::memory_order_relaxed)) {
@@ -784,6 +795,7 @@ EspAfe::AfeInstance EspAfe::detach_instance_() {
   }
 #endif
   this->stop_pipeline_();
+  this->instance_ready_.store(false, std::memory_order_release);
 
   AfeInstance instance;
 #ifdef USE_ESP_AFE_DIRECT_PATH
@@ -868,20 +880,46 @@ bool EspAfe::recreate_instance_(bool require_same_frame_sizes) {
   // That prevents the store-buffer false/false outcome that release/acquire
   // would still allow on different atomic objects.
   this->drain_request_.store(true, std::memory_order_seq_cst);
+  bool drained = true;
   if (this->process_busy_.load(std::memory_order_seq_cst)) {
     TaskHandle_t waiter = xTaskGetCurrentTaskHandle();
     ulTaskNotifyTake(pdTRUE, 0);
     this->process_drain_waiter_.store(waiter, std::memory_order_release);
-    if (this->process_busy_.load(std::memory_order_seq_cst) && ulTaskNotifyTake(pdTRUE, DRAIN_WAIT_TIMEOUT) == 0) {
-      ESP_LOGW(TAG, "Drain timeout waiting for process() to quiesce, proceeding");
+    if (this->process_busy_.load(std::memory_order_seq_cst)) {
+      ulTaskNotifyTake(pdTRUE, DRAIN_WAIT_TIMEOUT);
+    }
+    // Task notifications are shared by the FreeRTOS task. Only the guarded
+    // state proves that process() actually left the instance.
+    if (this->process_busy_.load(std::memory_order_seq_cst)) {
+      ESP_LOGE(TAG, "Drain timeout waiting for process() to quiesce; keeping "
+                    "the live AFE instance");
+      drained = false;
     }
     this->process_drain_waiter_.store(nullptr, std::memory_order_release);
+  }
+  if (!drained) {
+    // process() may still hold pointers into the current ESP-SR/GMF instance.
+    // Never detach or destroy it on a timeout: aborting this reconfigure is the
+    // only fail-safe outcome that cannot become a cross-core use-after-free.
+    this->drain_request_.store(false, std::memory_order_seq_cst);
+    return false;
   }
   log_stage("drain");
 
   // From here on the ScopedLock auto-releases on every return path; only the
   // drain flag has to be reset before each return.
   auto release_drain = [this]() { this->drain_request_.store(false, std::memory_order_seq_cst); };
+
+#ifdef USE_ESP_AFE_DIRECT_PATH
+  // The direct ESP-SR fetch worker dereferences direct_data_ independently of
+  // process(). Quiesce it before detach as well; a timeout must leave the
+  // current instance attached and alive.
+  if (this->direct_data_ != nullptr && !this->stop_direct_fetch_task_()) {
+    ESP_LOGE(TAG, "AFE rebuild aborted because the direct fetch task did not stop");
+    release_drain();
+    return false;
+  }
+#endif
 
   // esp-sr FFT resources are global: only one AFE instance can exist.
   // Must destroy the previous instance before creating the next one.
@@ -905,7 +943,8 @@ bool EspAfe::recreate_instance_(bool require_same_frame_sizes) {
   // via frame_spec(). On the very first call (setup() before any successful
   // install) last_spec_* are zero; build the instance normally so downstream
   // learns the frame shape, then subsequent toggles can tear down cleanly.
-  if (this->all_features_disabled_() && this->last_spec_process_size_ > 0 && this->last_spec_fetch_size_ > 0) {
+  if (this->all_features_disabled_() && this->last_spec_process_size_.load(std::memory_order_acquire) > 0 &&
+      this->last_spec_fetch_size_.load(std::memory_order_acquire) > 0) {
     bool was_running = !this->afe_stopped_.load(std::memory_order_acquire);
     this->afe_stopped_.store(true, std::memory_order_release);
     release_drain();
@@ -919,7 +958,8 @@ bool EspAfe::recreate_instance_(bool require_same_frame_sizes) {
   begin_stage("build");
   if (!this->build_instance_(&next)) {
     log_stage("build_failed");
-    ESP_LOGE(TAG, "Failed to build new AFE instance. AFE is DOWN until successful rebuild.");
+    ESP_LOGE(TAG, "Failed to build new AFE instance. AFE is DOWN until "
+                  "successful rebuild.");
     release_drain();
     return false;
   }
@@ -941,9 +981,11 @@ bool EspAfe::recreate_instance_(bool require_same_frame_sizes) {
   // esp_audio_stack try to restart its audio task concurrently with our
   // fetch task recreation and race inside FreeRTOS.
   int new_mic_ch = this->afe_mic_channels_();
+  const int old_mic_ch = this->last_spec_mic_ch_.load(std::memory_order_acquire);
+  const int old_process_spec = this->last_spec_process_size_.load(std::memory_order_acquire);
+  const int old_fetch_spec = this->last_spec_fetch_size_.load(std::memory_order_acquire);
   bool spec_changed =
-      (new_mic_ch != this->last_spec_mic_ch_ || next.process_chunksize != this->last_spec_process_size_ ||
-       next.fetch_chunksize != this->last_spec_fetch_size_);
+      new_mic_ch != old_mic_ch || next.process_chunksize != old_process_spec || next.fetch_chunksize != old_fetch_spec;
   (void) old_process;
   (void) old_fetch;
 
@@ -958,16 +1000,17 @@ bool EspAfe::recreate_instance_(bool require_same_frame_sizes) {
   }
   log_stage("install");
 
-  this->last_spec_process_size_ = this->process_chunksize_;
-  this->last_spec_fetch_size_ = this->fetch_chunksize_;
+  this->last_spec_process_size_.store(this->process_chunksize_, std::memory_order_release);
+  this->last_spec_fetch_size_.store(this->fetch_chunksize_, std::memory_order_release);
+  this->last_spec_mic_ch_.store(new_mic_ch, std::memory_order_release);
 
   if (spec_changed) {
-    int old_mic_ch = this->last_spec_mic_ch_;
-    this->last_spec_mic_ch_ = new_mic_ch;
     // Release barrier ensures new frame_spec stores happen-before consumers
     // observe the bumped revision via acquire load.
     uint32_t new_rev = this->frame_spec_revision_.fetch_add(1, std::memory_order_release) + 1;
-    ESP_LOGI(TAG, "Frame spec changed: mic_ch=%d->%d, process=%d, fetch=%d (revision %u, audio task will restart)",
+    ESP_LOGI(TAG,
+             "Frame spec changed: mic_ch=%d->%d, process=%d, fetch=%d "
+             "(revision %u, audio task will restart)",
              old_mic_ch, new_mic_ch, this->process_chunksize_, this->fetch_chunksize_, (unsigned) new_rev);
   }
 
@@ -1005,6 +1048,9 @@ bool EspAfe::recreate_instance_(bool require_same_frame_sizes) {
   this->voice_present_.store(false, std::memory_order_relaxed);
   this->input_volume_dbfs_.store(-120.0f, std::memory_order_relaxed);
   this->output_rms_dbfs_.store(-120.0f, std::memory_order_relaxed);
+  // Backend pointers, runtime rings and the published frame shape are now a
+  // coherent instance. Readers may query readiness without touching pointers.
+  this->instance_ready_.store(true, std::memory_order_release);
   // Clear the stopped flag: a live instance is running. Paired with the
   // acquire load in process() so the hot path sees the transition cleanly.
   bool was_stopped = this->afe_stopped_.exchange(false, std::memory_order_release);
@@ -1043,13 +1089,10 @@ bool EspAfe::set_aec_enabled_runtime_(bool enabled) {
     return this->recreate_instance_(false);
   }
 
-  if (!this->is_initialized()) {
-    ESP_LOGW(TAG, "AEC toggle requested before initialization");
-    return false;
-  }
-
 #ifdef USE_ESP_AFE_DIRECT_PATH
-  if (this->direct_iface_ != nullptr && this->direct_data_ != nullptr) {
+  // The configured microphone topology is immutable after code generation;
+  // use it instead of racing raw pointers while another rebuild is underway.
+  if (this->mic_num_ <= 1) {
     bool old_value = this->aec_enabled_.load(std::memory_order_relaxed);
     this->aec_enabled_.store(enabled, std::memory_order_relaxed);
     ESP_LOGI(TAG, "Applying aec_enabled=%s (single-mic AFE rebuild)", enabled ? "true" : "false");
@@ -1074,6 +1117,10 @@ bool EspAfe::set_aec_enabled_runtime_(bool enabled) {
     esp_audio_stack::ScopedLock lock(this->config_mutex_, CONFIG_MUTEX_TIMEOUT);
     if (!lock) {
       ESP_LOGW(TAG, "Timed out waiting to toggle AEC");
+      return false;
+    }
+    if (!this->is_initialized()) {
+      ESP_LOGW(TAG, "AEC toggle requested without a ready AFE instance");
       return false;
     }
 
@@ -1137,16 +1184,15 @@ bool EspAfe::set_vad_enabled_runtime_(bool enabled) {
     return this->recreate_instance_(false);
   }
 
-  if (!this->is_initialized()) {
-    ESP_LOGW(TAG, "VAD toggle requested before initialization");
-    return false;
-  }
-
   bool needs_rebuild = false;
   {
     esp_audio_stack::ScopedLock lock(this->config_mutex_, CONFIG_MUTEX_TIMEOUT);
     if (!lock) {
       ESP_LOGW(TAG, "Timed out waiting to toggle VAD");
+      return false;
+    }
+    if (!this->is_initialized()) {
+      ESP_LOGW(TAG, "VAD toggle requested without a ready AFE instance");
       return false;
     }
 
@@ -1208,35 +1254,8 @@ bool EspAfe::set_reinit_flag_(std::atomic<bool> &flag, bool enabled, const char 
     }
     return this->recreate_instance_(false);
   }
-  if (!this->is_initialized() || this->config_mutex_ == nullptr || this->feed_chunksize_ == 0 ||
-      this->fetch_chunksize_ == 0) {
-    // Pre-activation after setup should already be prepared. If this branch is
-    // reached, the instance exists but runtime preparation failed or was torn
-    // down; rebuild so frame_spec() and the concrete instance stay in the same
-    // MR/MMR shape.
-    bool has_instance = false;
-#ifdef USE_ESP_AFE_DIRECT_PATH
-    has_instance = has_instance || this->direct_data_ != nullptr;
-#endif
-#ifdef USE_ESP_AFE_GMF_PATH
-    has_instance = has_instance || this->afe_manager_ != nullptr;
-#endif
-    if (has_instance && this->config_mutex_ != nullptr && this->feed_chunksize_ > 0 && this->fetch_chunksize_ > 0) {
-      bool old_value = flag.load(std::memory_order_relaxed);
-      flag.store(enabled, std::memory_order_relaxed);
-      ESP_LOGI(TAG, "Applying %s=%s (pre-activation rebuild, frame_size_change=%s)", name, enabled ? "true" : "false",
-               allow_frame_change ? "allowed" : "locked");
-      if (this->recreate_instance_(!allow_frame_change)) {
-        return true;
-      }
-      ESP_LOGW(TAG, "Failed to apply %s=%s before activation, rolling back", name, enabled ? "true" : "false");
-      flag.store(old_value, std::memory_order_relaxed);
-      if (!this->recreate_instance_(!allow_frame_change)) {
-        ESP_LOGE(TAG, "Rollback also failed for %s, AFE is down", name);
-      }
-      return false;
-    }
-    // Before setup: commit immediately, build_instance_ will use it at setup.
+  if (this->config_mutex_ == nullptr) {
+    // Before setup: commit immediately; the first build will use the value.
     flag.store(enabled, std::memory_order_relaxed);
     ESP_LOGD(TAG, "Deferring %s=%s until AFE is initialized", name, enabled ? "true" : "false");
     return true;
@@ -1267,7 +1286,8 @@ void EspAfe::setup() {
     this->mark_failed();
     return;
   }
-  ESP_LOGI(TAG, "AFE setup complete, runtime prepared and idle (waiting for mic consumer)");
+  ESP_LOGI(TAG, "AFE setup complete, runtime prepared and idle (waiting for "
+                "mic consumer)");
 }
 
 void EspAfe::dump_config() {
@@ -1297,15 +1317,20 @@ void EspAfe::dump_config() {
   ESP_LOGCONFIG(TAG, "  Input format override: %s",
                 this->input_format_override_[0] ? this->input_format_override_ : "auto");
   if (this->mic_num_ >= 2) {
-    ESP_LOGCONFIG(TAG, "  AEC-off dual-mic fallback: unavailable on official GMF element path");
+    ESP_LOGCONFIG(TAG, "  AEC-off dual-mic fallback: unavailable on official "
+                       "GMF element path");
   }
   ESP_LOGCONFIG(TAG, "  Alloc: %s, linear_gain=%.2f", this->memory_alloc_mode_to_str_(), this->afe_linear_gain_);
   ESP_LOGCONFIG(TAG, "  SE Task: core=%d, priority=%d, ringbuf=%d", this->task_core_, this->task_priority_,
                 this->ringbuf_size_);
-  ESP_LOGCONFIG(TAG, "  GMF Manager: feed core=%d prio=%d stack=%d, fetch core=%d prio=%d stack=%d",
+  ESP_LOGCONFIG(TAG,
+                "  GMF Manager: feed core=%d prio=%d stack=%d, fetch core=%d "
+                "prio=%d stack=%d",
                 this->feed_task_core_, this->feed_task_priority_, this->feed_task_stack_size_, this->fetch_task_core_,
                 this->fetch_task_priority_, this->fetch_task_stack_size_);
-  ESP_LOGCONFIG(TAG, "  Process: %d samples, Feed: %d samples, Fetch: %d samples, Channels: %d",
+  ESP_LOGCONFIG(TAG,
+                "  Process: %d samples, Feed: %d samples, Fetch: %d samples, "
+                "Channels: %d",
                 this->process_chunksize_, this->feed_chunksize_, this->fetch_chunksize_, this->total_channels_);
   ESP_LOGCONFIG(TAG, "  Initialized: %s", this->is_initialized() ? "YES" : "NO");
 }
@@ -1313,15 +1338,12 @@ void EspAfe::dump_config() {
 FrameSpec EspAfe::frame_spec() const {
   FrameSpec spec;
   spec.sample_rate = 16000;
-  spec.mic_channels = this->afe_mic_channels_();
+  spec.mic_channels = this->last_spec_mic_ch_.load(std::memory_order_acquire);
   spec.ref_channels = 1;
-  // While running, use the live instance sizes. While torn down (all-off) the
-  // live values are zero; fall back to the last successfully-installed spec
-  // so consumers keep a stable frame shape while output is silenced.
-  int live_in = this->process_chunksize_ > 0 ? this->process_chunksize_ : this->fetch_chunksize_;
-  int live_out = this->fetch_chunksize_;
-  spec.input_samples = live_in > 0 ? live_in : this->last_spec_process_size_;
-  spec.output_samples = live_out > 0 ? live_out : this->last_spec_fetch_size_;
+  // The live instance fields are detached on the reconfigure task. Publish a
+  // stable snapshot instead so frame_spec() remains race-free during rebuilds.
+  spec.input_samples = this->last_spec_process_size_.load(std::memory_order_acquire);
+  spec.output_samples = this->last_spec_fetch_size_.load(std::memory_order_acquire);
   return spec;
 }
 
@@ -1360,6 +1382,8 @@ bool EspAfe::set_feature(AudioFeature feature, bool enabled) {
 
 ProcessorTelemetry EspAfe::telemetry() const {
   ProcessorTelemetry t;
+  t.frame_count = this->process_frame_count_.load(std::memory_order_relaxed);
+  t.glitch_count = this->process_output_miss_.load(std::memory_order_relaxed);
   t.voice_present = this->voice_present_.load(std::memory_order_relaxed);
   t.input_volume_dbfs = this->input_volume_dbfs_.load(std::memory_order_relaxed);
   t.output_rms_dbfs = this->output_rms_dbfs_.load(std::memory_order_relaxed);
@@ -1394,10 +1418,12 @@ bool EspAfe::reconfigure(int type, int mode) {
              this->afe_mode_ == AFE_MODE_LOW_COST ? "LOW_COST" : "HIGH_PERF");
     return true;
   }
-  // Rollback on failure: restore the previous config and rebuild to avoid leaving
-  // the DSP permanently non-functional.
-  ESP_LOGW(TAG, "reconfigure: new type=%d mode=%d build failed, rolling back to type=%d mode=%d", type, mode, old_type,
-           old_mode);
+  // Rollback on failure: restore the previous config and rebuild to avoid
+  // leaving the DSP permanently non-functional.
+  ESP_LOGW(TAG,
+           "reconfigure: new type=%d mode=%d build failed, rolling back to "
+           "type=%d mode=%d",
+           type, mode, old_type, old_mode);
   this->afe_type_ = old_type;
   this->afe_mode_ = old_mode;
   if (!this->recreate_instance_(false)) {
@@ -1408,29 +1434,45 @@ bool EspAfe::reconfigure(int type, int mode) {
 
 bool EspAfe::process(const int16_t *in_mic, const int16_t *in_ref, int16_t *out, uint8_t mic_channels_in) {
   const int transport_mic_channels = std::max<int>(1, mic_channels_in);
-  int qs = this->process_chunksize_ > 0 ? this->process_chunksize_ : this->fetch_chunksize_;
-  int os = this->fetch_chunksize_;
   if (out == nullptr) {
     return false;
   }
+
+  // Publish the busy guard before reading any field owned by the live AFE
+  // instance. With the matching seq_cst drain protocol, teardown either waits
+  // for this frame or this frame observes drain_request_ and touches no live
+  // pointer or size.
+  this->process_busy_.store(true, std::memory_order_seq_cst);
+  if (this->drain_request_.load(std::memory_order_seq_cst)) {
+    const int published_output = this->last_spec_fetch_size_.load(std::memory_order_acquire);
+    this->clear_process_busy_();
+    silence_frame(out, published_output);
+    return false;
+  }
+
+  int qs = this->process_chunksize_ > 0 ? this->process_chunksize_ : this->fetch_chunksize_;
+  int os = this->fetch_chunksize_;
   if (in_mic == nullptr) {
-    if (os > 0) {
-      memset(out, 0, static_cast<size_t>(os) * sizeof(int16_t));
-    }
+    this->clear_process_busy_();
+    silence_frame(out, os);
     return false;
   }
   // Fast path when user has disabled every AFE feature: the instance is torn
   // down, but the caller still expects a frame-shaped output. Emit silence
   // rather than leaking raw pre-AFE mic audio to MWW, VA or call components.
   if (this->afe_stopped_.load(std::memory_order_acquire)) {
-    int pos = this->last_spec_fetch_size_ > 0 ? this->last_spec_fetch_size_ : os;
-    silence_frame(out, pos);
+    const int published_output = this->last_spec_fetch_size_.load(std::memory_order_acquire);
+    this->clear_process_busy_();
+    silence_frame(out, published_output > 0 ? published_output : os);
     return false;
   }
   if (!this->is_initialized()) {
+    this->clear_process_busy_();
     silence_frame(out, os);
     return false;
   }
+
+  diag_add(this->process_frame_count_);
 
   const int64_t process_start_us = ESP_AFE_TIMING_TELEMETRY ? esp_timer_get_time() : 0;
   auto finish_process_timing = [this, process_start_us]() {
@@ -1441,19 +1483,7 @@ bool EspAfe::process(const int16_t *in_mic, const int16_t *in_ref, int16_t *out,
     }
   };
 
-  // Seq_cst matches recreate_instance_ so either the writer sees busy=true, or
-  // this frame sees drain_request_=true and emits silence before touching AFE.
-  this->process_busy_.store(true, std::memory_order_seq_cst);
-  if (this->drain_request_.load(std::memory_order_seq_cst)) {
-    this->clear_process_busy_();
-    silence_frame(out, os);
-    finish_process_timing();
-    return false;
-  }
-
   const int afe_mic_channels = this->afe_mic_channels_();
-  qs = this->process_chunksize_ > 0 ? this->process_chunksize_ : this->fetch_chunksize_;
-  os = this->fetch_chunksize_;
   int fs = this->feed_chunksize_;
   bool direct_path = false;
 #ifdef USE_ESP_AFE_DIRECT_PATH
@@ -1554,7 +1584,8 @@ bool EspAfe::process(const int16_t *in_mic, const int16_t *in_ref, int16_t *out,
     {
       // Enqueue the full frame into the NOSPLIT ring. WS3-style GMF input uses
       // a direct ring slot, so the I2S task avoids staging and xRingbufferSend
-      // copying. Fallback keeps partial-frame topologies on the old staging path.
+      // copying. Fallback keeps partial-frame topologies on the old staging
+      // path.
       if (gmf_slot != nullptr) {
         if (!this->commit_gmf_feed_slot_(gmf_slot)) {
           diag_add(this->input_ring_drop_);
@@ -1580,8 +1611,8 @@ bool EspAfe::process(const int16_t *in_mic, const int16_t *in_ref, int16_t *out,
 
   // Step 2: try to pull a processed frame that the fetch task has pushed into
   // our side of the bridge. Non-blocking: if nothing is ready we emit silence,
-  // never raw pre-AFE mic. MWW, VA and call components must only see processed AFE
-  // output while this component is active.
+  // never raw pre-AFE mic. MWW, VA and call components must only see processed
+  // AFE output while this component is active.
   size_t output_bytes = static_cast<size_t>(os) * sizeof(int16_t);
   bool processed = false;
   if (this->fetch_output_ring_) {
@@ -1593,6 +1624,7 @@ bool EspAfe::process(const int16_t *in_mic, const int16_t *in_ref, int16_t *out,
     }
   }
   if (!processed) {
+    diag_add(this->process_output_miss_);
     silence_frame(out, os);
   }
 
@@ -1601,7 +1633,8 @@ bool EspAfe::process(const int16_t *in_mic, const int16_t *in_ref, int16_t *out,
   this->clear_process_busy_();
 
   // Output-side RMS depends on the samples handed to the caller. Input volume
-  // is computed before feeding GMF, and VAD state comes from esp_gmf_afe events.
+  // is computed before feeding GMF, and VAD state comes from esp_gmf_afe
+  // events.
   if (processed && sample_rms && this->output_rms_sensor_enabled_) {
     this->output_rms_dbfs_.store(esp_audio_stack::compute_rms_dbfs_i16(out, os), std::memory_order_relaxed);
   }
@@ -1861,85 +1894,160 @@ void EspAfe::handle_manager_result_(afe_fetch_result_t *result) {
 void EspAfe::direct_fetch_task_trampoline_(void *arg) {
   auto *self = static_cast<EspAfe *>(arg);
   self->direct_fetch_task_loop_();
-  TaskHandle_t waiter = self->direct_fetch_stop_waiter_.load(std::memory_order_acquire);
-  if (waiter != nullptr) {
-    xTaskNotifyGive(waiter);
-  }
+  // The worker is intentionally persistent; direct_fetch_task_loop_ never
+  // returns during the process lifetime.
   vTaskDelete(nullptr);
 }
 
 void EspAfe::direct_fetch_task_loop_() {
-  const int feed_ms = (this->feed_chunksize_ > 0) ? (this->feed_chunksize_ / 16) : 32;
-  const TickType_t fetch_timeout = pdMS_TO_TICKS(feed_ms + 10);
-  while (this->direct_fetch_running_) {
-    if (this->direct_feed_signal_ == nullptr || xSemaphoreTake(this->direct_feed_signal_, fetch_timeout) != pdTRUE) {
-      continue;
+  while (true) {
+    // Park without consuming CPU between activations. A direct notification is
+    // event-driven and does not add a scheduler tick to the audio cadence.
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    const int feed_ms = (this->feed_chunksize_ > 0) ? (this->feed_chunksize_ / 16) : 32;
+    const TickType_t fetch_timeout = pdMS_TO_TICKS(feed_ms + 10);
+    while (this->direct_fetch_running_.load(std::memory_order_acquire)) {
+      // A feed completion owns the cadence of this worker. Do not wake on a
+      // timer merely to discover that no frame arrived: stop() gives the same
+      // semaphore explicitly, so both data and lifecycle changes are events.
+      if (this->direct_feed_signal_ == nullptr || xSemaphoreTake(this->direct_feed_signal_, portMAX_DELAY) != pdTRUE) {
+        break;
+      }
+      if (!this->direct_fetch_running_.load(std::memory_order_acquire) || this->direct_iface_ == nullptr ||
+          this->direct_data_ == nullptr) {
+        break;
+      }
+      afe_fetch_result_t *result = this->direct_iface_->fetch_with_delay(this->direct_data_, fetch_timeout);
+      if (!this->direct_fetch_running_.load(std::memory_order_acquire)) {
+        break;
+      }
+      if (result == nullptr || result->ret_value != ESP_OK) {
+        diag_add(this->fetch_timeout_);
+        continue;
+      }
+      this->handle_manager_result_(result);
     }
-    if (!this->direct_fetch_running_ || this->direct_iface_ == nullptr || this->direct_data_ == nullptr) {
-      break;
+
+    this->direct_fetch_quiesced_.store(true, std::memory_order_release);
+    TaskHandle_t waiter = this->direct_fetch_stop_waiter_.load(std::memory_order_acquire);
+    if (waiter != nullptr) {
+      xTaskNotifyGive(waiter);
     }
-    afe_fetch_result_t *result = this->direct_iface_->fetch_with_delay(this->direct_data_, fetch_timeout);
-    if (!this->direct_fetch_running_) {
-      break;
-    }
-    if (result == nullptr || result->ret_value != ESP_OK) {
-      diag_add(this->fetch_timeout_);
-      continue;
-    }
-    this->handle_manager_result_(result);
   }
 }
 
-bool EspAfe::start_direct_fetch_task_() {
-  if (this->direct_fetch_task_handle_ != nullptr) {
-    return true;
-  }
-  this->direct_fetch_stop_waiter_.store(nullptr, std::memory_order_release);
-  if (this->direct_fetch_task_stack_ == nullptr) {
-    this->direct_fetch_task_stack_ = static_cast<StackType_t *>(
-        heap_caps_malloc(kDirectFetchTaskStackWords * sizeof(StackType_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+bool EspAfe::prepare_direct_fetch_task_() {
+  if (this->direct_fetch_task_handle_ == nullptr) {
     if (this->direct_fetch_task_stack_ == nullptr) {
-      ESP_LOGE(TAG, "Failed to allocate single-mic AFE fetch task stack");
+      this->direct_fetch_task_stack_ = static_cast<StackType_t *>(
+          heap_caps_malloc(kDirectFetchTaskStackWords * sizeof(StackType_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+      if (this->direct_fetch_task_stack_ == nullptr) {
+        ESP_LOGE(TAG, "Failed to allocate single-mic AFE fetch task stack");
+        return false;
+      }
+    }
+    memset(&this->direct_fetch_task_tcb_, 0, sizeof(this->direct_fetch_task_tcb_));
+    const int core = this->fetch_task_core_;
+    const int prio = this->fetch_task_priority_;
+    this->direct_fetch_task_handle_ =
+        xTaskCreateStaticPinnedToCore(&EspAfe::direct_fetch_task_trampoline_, "afe_fetch", kDirectFetchTaskStackBytes,
+                                      this, prio, this->direct_fetch_task_stack_, &this->direct_fetch_task_tcb_, core);
+    if (this->direct_fetch_task_handle_ == nullptr) {
+      ESP_LOGE(TAG, "Failed to create single-mic AFE fetch task");
+      heap_caps_free(this->direct_fetch_task_stack_);
+      this->direct_fetch_task_stack_ = nullptr;
       return false;
     }
+    ESP_LOGI(TAG, "Single-mic AFE fetch task created (core=%d, priority=%d)", core, prio);
   }
-  this->direct_fetch_running_ = true;
-  memset(&this->direct_fetch_task_tcb_, 0, sizeof(this->direct_fetch_task_tcb_));
-  const int core = (this->task_core_ <= 0) ? 1 : (this->task_core_ >= 0 ? this->task_core_ : tskNO_AFFINITY);
-  const int prio = this->task_priority_ > 1 ? this->task_priority_ - 1 : 1;
-  this->direct_fetch_task_handle_ =
-      xTaskCreateStaticPinnedToCore(&EspAfe::direct_fetch_task_trampoline_, "afe_fetch", kDirectFetchTaskStackWords,
-                                    this, prio, this->direct_fetch_task_stack_, &this->direct_fetch_task_tcb_, core);
-  if (this->direct_fetch_task_handle_ == nullptr) {
-    this->direct_fetch_running_ = false;
-    ESP_LOGE(TAG, "Failed to create single-mic AFE fetch task");
-    return false;
-  }
-  ESP_LOGI(TAG, "Single-mic AFE fetch task started (core=%d, priority=%d)", core, prio);
   return true;
 }
 
-void EspAfe::stop_direct_fetch_task_() {
+bool EspAfe::start_direct_fetch_task_() {
+  if (!this->prepare_direct_fetch_task_()) {
+    return false;
+  }
+  if (this->direct_fetch_running_.load(std::memory_order_acquire)) {
+    return true;
+  }
+  if (!this->direct_fetch_quiesced_.load(std::memory_order_acquire)) {
+    ESP_LOGE(TAG, "Cannot restart single-mic AFE fetch task before it quiesces");
+    return false;
+  }
+  this->direct_fetch_stop_waiter_.store(nullptr, std::memory_order_release);
+  this->direct_fetch_quiesced_.store(false, std::memory_order_release);
+  this->direct_fetch_running_.store(true, std::memory_order_release);
+  xTaskNotifyGive(this->direct_fetch_task_handle_);
+  return true;
+}
+
+bool EspAfe::stop_direct_fetch_task_() {
   if (this->direct_fetch_task_handle_ == nullptr) {
-    this->direct_fetch_running_ = false;
-    return;
+    this->direct_fetch_running_.store(false, std::memory_order_release);
+    this->direct_fetch_quiesced_.store(true, std::memory_order_release);
+    if (this->direct_feed_signal_ != nullptr) {
+      while (xSemaphoreTake(this->direct_feed_signal_, 0) == pdTRUE) {
+      }
+    }
+    return true;
+  }
+  if (this->direct_fetch_quiesced_.load(std::memory_order_acquire)) {
+    this->direct_fetch_running_.store(false, std::memory_order_release);
+    if (this->direct_feed_signal_ != nullptr) {
+      while (xSemaphoreTake(this->direct_feed_signal_, 0) == pdTRUE) {
+      }
+    }
+    return true;
   }
   TaskHandle_t waiter = xTaskGetCurrentTaskHandle();
   ulTaskNotifyTake(pdTRUE, 0);
   this->direct_fetch_stop_waiter_.store(waiter, std::memory_order_release);
-  this->direct_fetch_running_ = false;
+  this->direct_fetch_running_.store(false, std::memory_order_release);
   if (this->direct_feed_signal_ != nullptr) {
     xSemaphoreGive(this->direct_feed_signal_);
   }
-  if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(250)) == 0) {
-    ESP_LOGW(TAG, "Timed out waiting for single-mic AFE fetch task to exit");
+  if (!this->direct_fetch_quiesced_.load(std::memory_order_acquire)) {
+    ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(250));
   }
-  // The fetch task notifies just before vTaskDelete(nullptr). Give the idle
-  // task a short window to finish the deletion before this static TCB/stack is
-  // reused by a rebuild requested from the main/API task.
-  vTaskDelay(pdMS_TO_TICKS(10));
+  // An unrelated notification must not be mistaken for fetch quiescence.
+  if (!this->direct_fetch_quiesced_.load(std::memory_order_acquire)) {
+    ESP_LOGE(TAG, "Timed out waiting for single-mic AFE fetch task to exit; "
+                  "retaining its instance");
+    this->direct_fetch_stop_waiter_.store(nullptr, std::memory_order_release);
+    return false;
+  }
   this->direct_fetch_stop_waiter_.store(nullptr, std::memory_order_release);
+  // A stop wake-up or a short feed burst can leave counting-semaphore tokens
+  // behind after the worker has quiesced. They describe the old activation and
+  // must not trigger fetches before a new microphone frame is fed on restart.
+  if (this->direct_feed_signal_ != nullptr) {
+    while (xSemaphoreTake(this->direct_feed_signal_, 0) == pdTRUE) {
+    }
+  }
+  return true;
+}
+
+void EspAfe::destroy_direct_fetch_task_() {
+  if (this->direct_fetch_task_handle_ == nullptr) {
+    if (this->direct_fetch_task_stack_ != nullptr) {
+      heap_caps_free(this->direct_fetch_task_stack_);
+      this->direct_fetch_task_stack_ = nullptr;
+    }
+    return;
+  }
+  if (!this->stop_direct_fetch_task_()) {
+    ESP_LOGE(TAG, "Retaining the live single-mic AFE fetch task during teardown");
+    return;
+  }
+  // The worker has left fetch_with_delay() and is either returning to or
+  // blocked in ulTaskNotifyTake(). Deleting this known-quiescent task cannot
+  // strand an ESP-SR lock, unlike forcing deletion from its fetch loop.
+  vTaskDelete(this->direct_fetch_task_handle_);
   this->direct_fetch_task_handle_ = nullptr;
+  if (this->direct_fetch_task_stack_ != nullptr) {
+    heap_caps_free(this->direct_fetch_task_stack_);
+    this->direct_fetch_task_stack_ = nullptr;
+  }
 }
 #endif
 
@@ -2064,7 +2172,9 @@ bool EspAfe::start_pipeline_() {
 bool EspAfe::pause_pipeline_() {
 #ifdef USE_ESP_AFE_DIRECT_PATH
   if (this->direct_iface_ != nullptr && this->direct_data_ != nullptr) {
-    this->stop_direct_fetch_task_();
+    if (!this->stop_direct_fetch_task_()) {
+      return false;
+    }
     this->afe_pipeline_running_ = false;
     this->afe_pipeline_paused_ = true;
     return true;
@@ -2111,7 +2221,10 @@ bool EspAfe::pause_pipeline_() {
 void EspAfe::stop_pipeline_() {
 #ifdef USE_ESP_AFE_DIRECT_PATH
   if (this->direct_iface_ != nullptr && this->direct_data_ != nullptr) {
-    this->stop_direct_fetch_task_();
+    if (!this->stop_direct_fetch_task_()) {
+      ESP_LOGE(TAG, "Direct AFE pipeline stop aborted while fetch task is live");
+      return;
+    }
     this->afe_pipeline_running_ = false;
     this->afe_pipeline_paused_ = false;
     if (this->fetch_output_ring_) {
@@ -2198,14 +2311,17 @@ bool EspAfe::prepare_feed_input_ring_() {
   if (this->feed_input_ring_ == nullptr) {
     // NOSPLIT ring: xRingbufferSend is atomic per-item; Receive returns a
     // complete frame. BRIDGE_RING_FRAMES capacity absorbs BSS jitter without
-    // memory bloat. Each NOSPLIT item adds an 8-byte header, included in sizing.
+    // memory bloat. Each NOSPLIT item adds an 8-byte header, included in
+    // sizing.
     const size_t frame_bytes = static_cast<size_t>(this->feed_chunksize_) * this->total_channels_ * sizeof(int16_t);
     const size_t ring_size = (frame_bytes + RINGBUFFER_ITEM_HEADER_BYTES) * BRIDGE_RING_FRAMES;
     const uint32_t feed_ring_caps =
         this->feed_ring_in_psram_ ? (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     this->feed_input_ring_storage_ = static_cast<uint8_t *>(heap_caps_malloc(ring_size, feed_ring_caps));
     if (this->feed_input_ring_storage_ == nullptr && this->feed_ring_in_psram_) {
-      ESP_LOGW(TAG, "feed_input_ring (%u bytes) fell back to internal RAM (PSRAM full/unavailable)",
+      ESP_LOGW(TAG,
+               "feed_input_ring (%u bytes) fell back to internal RAM (PSRAM "
+               "full/unavailable)",
                (unsigned) ring_size);
       this->feed_input_ring_storage_ =
           static_cast<uint8_t *>(heap_caps_malloc(ring_size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
@@ -2240,12 +2356,33 @@ bool EspAfe::prepare_feed_input_ring_() {
 #endif
 
 void EspAfe::set_processing_active(bool active) {
+  if (this->processing_active_.exchange(active, std::memory_order_acq_rel) == active) {
+    return;
+  }
+  if (this->config_mutex_ == nullptr) {
+    // setup()/install_instance_ will apply the desired state.
+    return;
+  }
+
+  // Pipeline pointers belong to the reconfiguration critical section. This
+  // runs only on consumer attach/detach, never per audio frame.
+  esp_audio_stack::ScopedLock lock(this->config_mutex_, CONFIG_MUTEX_TIMEOUT);
+  if (!lock) {
+    // Keep the desired atomic state: an in-flight rebuild reads it before
+    // publishing the replacement instance.
+    ESP_LOGW(TAG, "AFE %s requested during reconfigure; state will be applied by the rebuild",
+             active ? "active" : "idle");
+    return;
+  }
+
   if (active) {
-    bool was = this->processing_active_.exchange(true, std::memory_order_acq_rel);
-    if (was)
-      return;
     if (this->afe_stopped_.load(std::memory_order_acquire)) {
-      ESP_LOGI(TAG, "AFE active requested while stopped; pipeline will rebuild when a feature is enabled");
+      ESP_LOGI(TAG, "AFE active requested while stopped; pipeline will rebuild "
+                    "when a feature is enabled");
+      return;
+    }
+    if (!this->is_initialized()) {
+      ESP_LOGI(TAG, "AFE active requested before an instance is ready");
       return;
     }
     if (!this->start_pipeline_()) {
@@ -2255,9 +2392,7 @@ void EspAfe::set_processing_active(bool active) {
     }
     ESP_LOGI(TAG, "AFE active: processing pipeline running");
   } else {
-    if (!this->processing_active_.exchange(false, std::memory_order_acq_rel))
-      return;
-    if (!this->afe_stopped_.load(std::memory_order_acquire)) {
+    if (!this->afe_stopped_.load(std::memory_order_acquire) && this->is_initialized()) {
       if (this->pause_pipeline_()) {
 #ifdef USE_ESP_AFE_GMF_PATH
         this->drain_feed_input_ring_();
@@ -2318,8 +2453,9 @@ bool EspAfe::prepare_fetch_output_ring_() {
 
   if (!this->fetch_output_ring_) {
     // NOSPLIT keeps each processed AFE frame atomic. process() either receives
-    // a whole frame or emits silence; it never consumes a short byte-buffer read
-    // that would shift the microphone surface seen by MWW/VA/call components.
+    // a whole frame or emits silence; it never consumes a short byte-buffer
+    // read that would shift the microphone surface seen by MWW/VA/call
+    // components.
     const size_t frame_bytes = static_cast<size_t>(this->fetch_chunksize_) * sizeof(int16_t);
     const size_t ring_bytes = (frame_bytes + RINGBUFFER_ITEM_HEADER_BYTES) * BRIDGE_RING_FRAMES;
     this->fetch_output_ring_ =
@@ -2368,8 +2504,10 @@ bool EspAfe::prepare_runtime_() {
 
 void EspAfe::release_runtime_buffers_() {
 #ifdef USE_ESP_AFE_DIRECT_PATH
-  this->stop_direct_fetch_task_();
-  this->direct_feed_signal_ = nullptr;
+  if (!this->stop_direct_fetch_task_()) {
+    ESP_LOGE(TAG, "Retaining direct AFE runtime buffers while fetch task is live");
+    return;
+  }
 #endif
   this->fetch_output_ring_.reset();
 #ifdef USE_ESP_AFE_GMF_PATH
@@ -2401,6 +2539,9 @@ EspAfe::~EspAfe() {
     this->destroy_instance_(&instance);
     this->release_runtime_buffers_();
   }
+#ifdef USE_ESP_AFE_DIRECT_PATH
+  this->destroy_direct_fetch_task_();
+#endif
 }
 
 }  // namespace esphome::esp_afe

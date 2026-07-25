@@ -3,10 +3,11 @@ from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_SOUND, ENTITY_CATEGORY_DIAGNOSTIC
 
-from ..const import CONF_VAD
 from . import CONF_ESP_AFE_ID, EspAfe, esp_afe_ns
 
 DEPENDENCIES = ["esp_afe"]
+
+CONF_VAD = "vad"
 
 AfeVadBinarySensor = esp_afe_ns.class_(
     "AfeVadBinarySensor",
