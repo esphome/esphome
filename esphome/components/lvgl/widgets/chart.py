@@ -29,6 +29,8 @@ from ..defines import (
     CONF_ITEMS,
     CONF_LINE_WIDTH,
     CONF_MAIN,
+    CONF_PAD_COLUMN,
+    CONF_PAD_ROW,
     CONF_PERSIST,
     CONF_POINT_COUNT,
     CONF_POINT_RADIUS,
@@ -38,7 +40,7 @@ from ..defines import (
     add_lv_use,
     literal,
 )
-from ..lv_validation import lv_color, lv_float, lv_int, pixels, size
+from ..lv_validation import lv_color, lv_float, lv_int, padding, pixels, size
 from ..lvcode import lv, lv_add
 from ..types import LvCompound, LvType, ObjUpdateAction
 from . import Widget, WidgetType, get_widgets
@@ -172,6 +174,13 @@ CHART_SCHEMA = cv.Schema(
         # LVGL draws point markers the same size for every series on a chart (LV_PART_INDICATOR is
         # a single chart-wide style, not settable per series) -- so this applies to all of them.
         cv.Optional(CONF_POINT_RADIUS): pixels,
+        # BAR/STACKED give each point a column with a pad_column-wide gap; with enough points this
+        # can exceed the chart's width and leave no room to draw any bars. lv_chart reads these
+        # straight from its own LV_PART_MAIN style, same as a flex/grid container -- but chart isn't
+        # a layout container, so these are declared here rather than in the generic style schema
+        # shared by every widget.
+        cv.Optional(CONF_PAD_ROW): padding,
+        cv.Optional(CONF_PAD_COLUMN): padding,
         cv.Optional(CONF_PERSIST, default=False): validate_persist,
         cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
         # When set, shows the current auto-rounded (or explicit) Y-range bounds as two labels,
