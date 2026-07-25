@@ -89,8 +89,6 @@ static constexpr uint16_t MAX_NUM_OF_COILS_TO_WRITE = 1968;  // 0x7B0
 
 // 6.12 16 (0x10) Write Multiple registers:
 static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_WRITE = 123;  // 0x7B
-// 6.17 23 (0x17) Read/Write Multiple registers: max write quantity per the Modbus spec.
-static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_WRITE_RW = 121;  // 0x79
 
 // 6.17 23 (0x17) Read/Write Multiple Registers:
 static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_WRITE_RW = 121;  // 0x79

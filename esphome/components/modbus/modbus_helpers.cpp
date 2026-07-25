@@ -67,9 +67,9 @@ uint16_t client_pdu_length(const uint8_t *frame, size_t size) {
     case FunctionCode::MASK_WRITE_REGISTER:
       return 7;  // function(1) + reference address(2) + AND mask(2) + OR mask(2)
     case FunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
-      // address(1) + function(1) + read start address(2) + read quantity(2) + write start address(2) +
-      // write quantity(2) + byte count(1) + data + CRC(2)
-      return 13 + (size > 10 ? std::min(frame[10], uint8_t(MAX_NUM_OF_REGISTERS_TO_WRITE_RW * 2)) : 0);
+      // function(1) + read start address(2) + read quantity(2) + write start address(2) +
+      // write quantity(2) + byte count(1) + data
+      return 10 + (size > 9 ? std::min(frame[9], uint8_t(MAX_NUM_OF_REGISTERS_TO_WRITE_RW * 2)) : 0);
     case FunctionCode::READ_FIFO_QUEUE:
       // function(1) + fifo address(2)
       return 3;

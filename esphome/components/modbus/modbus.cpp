@@ -449,7 +449,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       response_len = 4;
       break;
     }
-    case ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS: {
+    case FunctionCode::READ_WRITE_MULTIPLE_REGISTERS: {
       // PDU data: read start address(2) + read quantity(2) + write start address(2) + write quantity(2) +
       // write byte count(1) + write register values. Per Modbus 6.17 the write is performed before the read.
       uint16_t read_start_address = helpers::get_data<uint16_t>(data, 0);
@@ -462,7 +462,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
           number_of_write_registers * 2 != number_of_bytes) {
         ESP_LOGW(TAG, "Invalid number of registers (read %" PRIu16 ", write %" PRIu16 ") or bytes %" PRIu8,
                  number_of_registers, number_of_write_registers, number_of_bytes);
-        this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
+        this->send_exception_(address, function_code, ExceptionCode::ILLEGAL_DATA_VALUE);
         return;
       }
       if (!this->check_register_range_(address, function_code, read_start_address, number_of_registers) ||
@@ -494,7 +494,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
 
       if (registers.size() != number_of_registers) {
         ESP_LOGE(TAG, "Incorrect response %" PRIu16 " requested, %zu returned", number_of_registers, registers.size());
-        this->send_exception_(address, function_code, ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
+        this->send_exception_(address, function_code, ExceptionCode::SERVICE_DEVICE_FAILURE);
         return;
       }
 
