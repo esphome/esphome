@@ -43,7 +43,7 @@ enum class RingBufferPolicy {
 /// destructor is not virtual, so deleting a derived buffer through
 /// std::unique_ptr<RingBuffer> would be undefined behaviour even though the
 /// derived object has no additional fields.
-class CapsRingBuffer : public ring_buffer::RingBuffer {
+class CapsRingBuffer final : public ring_buffer::RingBuffer {
  public:
   ~CapsRingBuffer();
 

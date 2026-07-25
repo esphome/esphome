@@ -2,6 +2,7 @@
 
 #ifdef USE_ESP32
 
+#include <cinttypes>
 #include <cstring>
 
 #include "esphome/core/log.h"
@@ -45,7 +46,7 @@ void ESPAudioStackMicrophone::setup() {
 
 void ESPAudioStackMicrophone::dump_config() {
   ESP_LOGCONFIG(TAG, "ESP Audio Stack Microphone:");
-  ESP_LOGCONFIG(TAG, "  Sample Rate: %u Hz", this->parent_->get_output_sample_rate());
+  ESP_LOGCONFIG(TAG, "  Sample Rate: %" PRIu32 " Hz", this->parent_->get_output_sample_rate());
   ESP_LOGCONFIG(TAG, "  Bits Per Sample: 16");
   ESP_LOGCONFIG(TAG, "  Channels: 1 (mono)");
 }

@@ -10,7 +10,8 @@ static const char *const TAG = "selec_meter";
 static const uint8_t MODBUS_CMD_READ_IN_REGISTERS = 0x04;
 static const uint8_t MODBUS_REGISTER_COUNT = 34;  // 34 x 16-bit registers
 
-void SelecMeter::on_modbus_data(const std::vector<uint8_t> &data) {
+void SelecMeter::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
+  auto data = modbus::helpers::server_pdu_payload(response_pdu);
   if (data.size() < MODBUS_REGISTER_COUNT * 2) {
     ESP_LOGW(TAG, "Invalid size for SelecMeter!");
     return;

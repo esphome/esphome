@@ -14,7 +14,7 @@
 
 namespace esphome::esp_audio_stack {
 
-class ESPAudioStackSpeaker : public speaker::Speaker, public Component, public Parented<ESPAudioStack> {
+class ESPAudioStackSpeaker final : public speaker::Speaker, public Component, public Parented<ESPAudioStack> {
  public:
   void setup() override;
   void loop() override;

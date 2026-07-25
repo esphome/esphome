@@ -131,7 +131,9 @@ _COVER_SCHEMA = (
             cv.Optional(CONF_MQTT_JSON_STATE_PAYLOAD): cv.All(
                 cv.requires_component("mqtt"), cv.boolean
             ),
-            cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
+            cv.Optional(
+                CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): cv.one_of(*DEVICE_CLASSES, lower=True),
             cv.Optional(CONF_POSITION_COMMAND_TOPIC): cv.All(
                 cv.requires_component("mqtt"), cv.subscribe_topic
             ),
