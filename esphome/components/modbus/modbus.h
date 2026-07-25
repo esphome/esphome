@@ -231,8 +231,10 @@ class ModbusClientDevice {
   void send_pdu(std::span<const uint8_t> pdu) { this->parent_->send_pdu(this->address_, pdu, this); }
   ESPDEPRECATED("Use send_pdu() instead (the device address is prepended for you). Removed in 2027.2.0", "2026.8.0")
   void send_raw(const std::vector<uint8_t> &payload) {
-    if (payload.empty())
+    if (payload.empty()) {
+      this->on_not_sent();  // match the hub-level send_raw(): a refused send is always signalled
       return;
+    }
     this->parent_->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
   }
   inline void clear_tx_queue_for_address(bool clear_sent = true) {

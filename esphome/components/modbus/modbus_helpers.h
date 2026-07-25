@@ -63,9 +63,10 @@ inline uint16_t client_frame_length(const uint8_t *frame, size_t size) {
 
 // Returns true if pdu is a complete transaction whose shape is consistent with its function code.
 // Unlike *_pdu_length(), `size` here is the exact PDU length: a size mismatch is non-conformant.
-// Function codes without a standard shape to check (custom/unknown codes, exception responses) are
-// accepted on the length identity alone - deliberately, so a dispatcher can still route them by
-// function code rather than reject them outright. Tests pin this contract.
+// Function codes with nothing variable to cross-check are validated by their fixed length alone: the
+// single writes (except 0x05's value field, which must be 0x0000 or 0xFF00), mask-write and FIFO, and
+// - deliberately - custom/unknown codes and exception responses, so a dispatcher can still route
+// them by function code rather than reject them outright. Tests pin this contract.
 bool is_server_pdu_standard(const uint8_t *pdu, size_t size);
 
 // Client counterpart: additionally checks quantity bounds and address-range arithmetic per function code.
