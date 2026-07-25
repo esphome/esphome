@@ -228,7 +228,6 @@ esp_audio_stack_ns = cg.esphome_ns.namespace("esp_audio_stack")
 ESPAudioStack = esp_audio_stack_ns.class_("ESPAudioStack", cg.Component)
 StartAction = esp_audio_stack_ns.class_("StartAction", automation.Action)
 StopAction = esp_audio_stack_ns.class_("StopAction", automation.Action)
-StopAndWaitAction = esp_audio_stack_ns.class_("StopAndWaitAction", automation.Action)
 IsIdleCondition = esp_audio_stack_ns.class_("IsIdleCondition", automation.Condition)
 
 # AudioProcessor abstract interface (internal esp_audio_stack internal audio core headers)
@@ -514,28 +513,20 @@ CONFIG_SCHEMA = cv.All(
             # Lifecycle hooks for board-level power policy. Use the speaker hooks
             # for amp power gating; the generic audio-stack hooks also fire on mic-only
             # activity such as wake-word listeners.
-            cv.Optional(CONF_ON_START): automation.validate_automation(single=True),
-            cv.Optional(CONF_ON_IDLE): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_START): automation.validate_automation(),
+            cv.Optional(CONF_ON_IDLE): automation.validate_automation(),
             # Minimal runtime state machine. `state` is one of:
             # idle, mic, speaker, duplex.
-            cv.Optional(CONF_ON_STATE): automation.validate_automation(single=True),
-            cv.Optional(CONF_ON_MIC_START): automation.validate_automation(single=True),
-            cv.Optional(CONF_ON_MIC_IDLE): automation.validate_automation(single=True),
-            cv.Optional(CONF_ON_SPEAKER_START): automation.validate_automation(
-                single=True
-            ),
-            cv.Optional(CONF_ON_SPEAKER_IDLE): automation.validate_automation(
-                single=True
-            ),
+            cv.Optional(CONF_ON_STATE): automation.validate_automation(),
+            cv.Optional(CONF_ON_MIC_START): automation.validate_automation(),
+            cv.Optional(CONF_ON_MIC_IDLE): automation.validate_automation(),
+            cv.Optional(CONF_ON_SPEAKER_START): automation.validate_automation(),
+            cv.Optional(CONF_ON_SPEAKER_IDLE): automation.validate_automation(),
             # Semantic aliases for board amplifier/power-enable control. They fire
             # on the same edges as speaker playback, but keep YAML intent separate
             # from the ESPHome speaker abstraction.
-            cv.Optional(CONF_ON_AMPLIFIER_REQUIRED): automation.validate_automation(
-                single=True
-            ),
-            cv.Optional(CONF_ON_AMPLIFIER_IDLE): automation.validate_automation(
-                single=True
-            ),
+            cv.Optional(CONF_ON_AMPLIFIER_REQUIRED): automation.validate_automation(),
+            cv.Optional(CONF_ON_AMPLIFIER_IDLE): automation.validate_automation(),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate_sample_rates,
@@ -870,19 +861,37 @@ async def to_code(config):
             )
         )
 
-    for key, trigger_getter, args in (
-        (CONF_ON_START, var.get_start_trigger, []),
-        (CONF_ON_IDLE, var.get_idle_trigger, []),
-        (CONF_ON_STATE, var.get_state_trigger, [(cg.std_string, "state")]),
-        (CONF_ON_MIC_START, var.get_mic_start_trigger, []),
-        (CONF_ON_MIC_IDLE, var.get_mic_idle_trigger, []),
-        (CONF_ON_SPEAKER_START, var.get_speaker_start_trigger, []),
-        (CONF_ON_SPEAKER_IDLE, var.get_speaker_idle_trigger, []),
-        (CONF_ON_AMPLIFIER_REQUIRED, var.get_speaker_start_trigger, []),
-        (CONF_ON_AMPLIFIER_IDLE, var.get_speaker_idle_trigger, []),
-    ):
-        if key in config:
-            await automation.build_automation(trigger_getter(), args, config[key])
+    await automation.build_callback_automations(
+        var,
+        config,
+        (
+            automation.CallbackAutomation(CONF_ON_START, "add_on_start_callback"),
+            automation.CallbackAutomation(CONF_ON_IDLE, "add_on_idle_callback"),
+            automation.CallbackAutomation(
+                CONF_ON_STATE,
+                "add_on_state_callback",
+                [(cg.std_string, "state")],
+            ),
+            automation.CallbackAutomation(
+                CONF_ON_MIC_START, "add_on_mic_start_callback"
+            ),
+            automation.CallbackAutomation(
+                CONF_ON_MIC_IDLE, "add_on_mic_idle_callback"
+            ),
+            automation.CallbackAutomation(
+                CONF_ON_SPEAKER_START, "add_on_speaker_start_callback"
+            ),
+            automation.CallbackAutomation(
+                CONF_ON_SPEAKER_IDLE, "add_on_speaker_idle_callback"
+            ),
+            automation.CallbackAutomation(
+                CONF_ON_AMPLIFIER_REQUIRED, "add_on_speaker_start_callback"
+            ),
+            automation.CallbackAutomation(
+                CONF_ON_AMPLIFIER_IDLE, "add_on_speaker_idle_callback"
+            ),
+        ),
+    )
 
     # Link audio processor if configured
     if CONF_PROCESSOR_ID in config:
@@ -905,12 +914,6 @@ ESP_AUDIO_STACK_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 @automation.register_action(
     "esp_audio_stack.stop", StopAction, ESP_AUDIO_STACK_ACTION_SCHEMA, synchronous=True
-)
-@automation.register_action(
-    "esp_audio_stack.stop_and_wait",
-    StopAndWaitAction,
-    ESP_AUDIO_STACK_ACTION_SCHEMA,
-    synchronous=True,
 )
 async def esp_audio_stack_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

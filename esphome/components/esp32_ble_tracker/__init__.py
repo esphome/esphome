@@ -5,7 +5,7 @@ import logging
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import esp32_ble, ota
+from esphome.components import ble_device_base, esp32_ble, ota
 from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     request_bluetooth,
@@ -39,7 +39,7 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.enum import StrEnum
 from esphome.types import ConfigType
 
-AUTO_LOAD = ["esp32_ble"]
+AUTO_LOAD = ["ble_device_base", "esp32_ble"]
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@bdraco"]
 
@@ -93,6 +93,7 @@ def register_ble_features(features: set[BLEFeatures]) -> None:
 esp32_ble_tracker_ns = cg.esphome_ns.namespace("esp32_ble_tracker")
 ESP32BLETracker = esp32_ble_tracker_ns.class_(
     "ESP32BLETracker",
+    ble_device_base.BLEHub,
     cg.Component,
     cg.Parented.template(esp32_ble.ESP32BLE),
 )
@@ -153,26 +154,11 @@ def validate_max_connections_deprecated(config: ConfigType) -> ConfigType:
     return config
 
 
-def as_hex(value):
-    return cg.RawExpression(f"0x{value}ULL")
-
-
-def as_hex_array(value):
-    value = value.replace("-", "")
-    cpp_array = [
-        f"0x{part}" for part in [value[i : i + 2] for i in range(0, len(value), 2)]
-    ]
-    return cg.RawExpression(f"(uint8_t*)(const uint8_t[16]){{{','.join(cpp_array)}}}")
-
-
-def as_reversed_hex_array(value):
-    value = value.replace("-", "")
-    cpp_array = [
-        f"0x{part}" for part in [value[i : i + 2] for i in range(0, len(value), 2)]
-    ]
-    return cg.RawExpression(
-        f"(uint8_t*)(const uint8_t[16]){{{','.join(reversed(cpp_array))}}}"
-    )
+# Codegen helpers are owned by ble_device_base; kept under the historical names
+# here for the components that import them from this module.
+as_hex = ble_device_base.as_hex
+as_hex_array = ble_device_base.as_hex_array
+as_reversed_hex_array = ble_device_base.as_reversed_hex_array
 
 
 CONFIG_SCHEMA = cv.All(
@@ -253,6 +239,10 @@ ESP_BLE_DEVICE_SCHEMA = cv.Schema(
 async def to_code(config):
     # Register the loggers this component needs
     esp32_ble.register_bt_logger(BTLoggers.BLE_SCAN)
+
+    # Behavior parity with the pre-split tracker: IRK resolution is always
+    # available on esp32 (sensors with irk: worked without opting in).
+    ble_device_base.request_irk_support()
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -346,6 +336,14 @@ async def to_code(config):
 async def _add_ble_features():
     # Add feature-specific defines based on what's needed
     required_features = _get_required_features()
+    # Sensors registered through the neutral ble_device_base path (BLEHub) need
+    # the parsed-device pipeline compiled in, exactly like esp32-path listeners.
+    neutral_listener_count = ble_device_base.get_listener_count()
+    if neutral_listener_count > 0:
+        required_features.add(BLEFeatures.ESP_BT_DEVICE)
+        # StaticVector sizing for the neutral (BLEHub) listener list — same
+        # pattern as the esp32-path registration counts below.
+        cg.add_define("ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT", neutral_listener_count)
     if BLEFeatures.ESP_BT_DEVICE in required_features:
         cg.add_define("USE_ESP32_BLE_DEVICE")
         cg.add_define("USE_ESP32_BLE_UUID")

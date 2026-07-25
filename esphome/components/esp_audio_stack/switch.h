@@ -9,7 +9,7 @@
 
 namespace esphome::esp_audio_stack {
 
-class AECSwitch : public switch_::Switch, public Component {
+class AECSwitch final : public switch_::Switch, public Component {
  public:
   void set_parent(ESPAudioStack *parent) { this->parent_ = parent; }
 

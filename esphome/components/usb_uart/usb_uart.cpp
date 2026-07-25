@@ -160,7 +160,7 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
     }
     uint16_t chunk_len = std::min(len, UsbOutputChunk::MAX_CHUNK_SIZE);
     memcpy(chunk->data, data, chunk_len);
-    chunk->length = static_cast<uint8_t>(chunk_len);
+    chunk->length = chunk_len;
     // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
     // allocate() returned non-null, the queue cannot be full.
     this->output_queue_.push(chunk);

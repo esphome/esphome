@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <climits>
 #include <cmath>
+#include <cinttypes>
 #include <cstring>
 
 #include "esphome/core/defines.h"
@@ -190,7 +191,9 @@ void ESPAudioStack::update_hot_output_volume_() {
   }
 #endif
   if (previous != combined_q31) {
-    ESP_LOGD(TAG, "Master volume: output_q31=%d master_q31=%d hot_q31=%d linear=%.3f hw_master=%s previous_q31=%d",
+    ESP_LOGD(TAG,
+             "Master volume: output_q31=%" PRId32 " master_q31=%" PRId32 " hot_q31=%" PRId32
+             " linear=%.3f hw_master=%s previous_q31=%" PRId32,
              output_q31, master_q31, combined_q31, linear, hardware_master ? "yes" : "no", previous);
   }
 }
@@ -229,7 +232,7 @@ void ESPAudioStack::update_runtime_state_() {
     return;
   const char *state = runtime_state_to_string(next);
   ESP_LOGD(TAG, "Runtime state: %s", state);
-  this->state_trigger_.trigger(std::string(state));
+  this->state_callback_.call(std::string(state));
 }
 
 const char *ESPAudioStack::i2s_hardware_state_to_string(I2SHardwareState state) {
@@ -967,7 +970,6 @@ bool ESPAudioStack::prepare_i2s_channels_() {
 
   this->set_i2s_hardware_state_(I2SHardwareState::READY);
   this->tx_completion_dma_frames_ = need_tx ? dma_frame_num : 0;
-  this->tx_completion_bytes_per_frame_ = need_tx ? tx_bytes_per_frame : 0;
   this->tx_completion_dma_buffer_bytes_ =
       need_tx ? static_cast<size_t>(dma_frame_num) * static_cast<size_t>(tx_bytes_per_frame) : 0;
   this->tx_completion_queue_size_ = need_tx ? static_cast<size_t>(dma_desc_num) * 2U : 0;
@@ -1180,7 +1182,24 @@ bool IRAM_ATTR ESPAudioStack::tx_on_sent_callback(i2s_chan_handle_t handle, i2s_
   if (xQueueIsQueueFullFromISR(self->tx_completion_event_queue_)) {
     int64_t dummy = 0;
     xQueueReceiveFromISR(self->tx_completion_event_queue_, &dummy, &need_yield1);
-    self->tx_completion_desync_ = true;
+    // A full-duplex codec keeps the TX DMA ring clocking even when the audio
+    // task has not submitted another buffer. IDF consequently emits on_sent
+    // callbacks for recycled silence descriptors with no matching application
+    // write record. A short task stall (Wi-Fi association is a common one) can
+    // fill this timestamp queue while the speaker is idle. Dropping one of
+    // those clock-only timestamps is harmless: drain_tx_completion_events_()
+    // already ignores unmatched events while no real speaker record is
+    // pending. It must not turn the independent RX/microphone path into an I2S
+    // error.
+    //
+    // Once real speaker data is pending, losing a timestamp may lose its
+    // completion boundary. Preserve the fail-closed behaviour in that case so
+    // output callbacks (notably AEC reference tracking) cannot silently drift.
+    if (self->tx_completion_pending_real_records_.load(std::memory_order_relaxed) > 0) {
+      self->tx_completion_desync_ = true;
+    } else {
+      self->tx_completion_idle_event_drops_.fetch_add(1, std::memory_order_relaxed);
+    }
   }
   xQueueSendToBackFromISR(self->tx_completion_event_queue_, &now, &need_yield2);
   (void) handle;
@@ -1230,6 +1249,7 @@ bool ESPAudioStack::prepare_tx_completion_tracking_() {
   }
   this->tx_completion_desync_ = false;
   this->tx_completion_pending_real_records_.store(0, std::memory_order_release);
+  this->tx_completion_idle_event_drops_.store(0, std::memory_order_release);
   return true;
 }
 
@@ -1261,6 +1281,7 @@ bool ESPAudioStack::prime_tx_completion_records_(bool preload_dma) {
 void ESPAudioStack::reset_tx_completion_tracking_() {
   this->tx_completion_desync_ = false;
   this->tx_completion_pending_real_records_.store(0, std::memory_order_release);
+  this->tx_completion_idle_event_drops_.store(0, std::memory_order_release);
   if (this->tx_completion_event_queue_ != nullptr) {
     xQueueReset(this->tx_completion_event_queue_);
   }
@@ -1287,6 +1308,10 @@ void ESPAudioStack::drain_tx_completion_events_() {
     this->has_i2s_error_.store(true, std::memory_order_relaxed);
     this->audio_stack_running_.store(false, std::memory_order_relaxed);
     return;
+  }
+  const uint32_t idle_drops = this->tx_completion_idle_event_drops_.exchange(0, std::memory_order_acq_rel);
+  if (idle_drops > 0) {
+    ESP_LOGW(TAG, "Discarded %u idle TX completion events while the audio task was delayed", (unsigned) idle_drops);
   }
   int64_t timestamp = 0;
   while (xQueueReceive(this->tx_completion_event_queue_, &timestamp, 0) == pdTRUE) {
@@ -1414,12 +1439,11 @@ void ESPAudioStack::start() {
     ESP_LOGD(TAG, "TDM hardware reference - slot %u is echo ref", this->tdm_ref_slot_);
   }
   if (this->processor_ != nullptr && this->has_mic_consumers_.load(std::memory_order_relaxed)) {
-    this->wait_audio_task_active_(50);
     this->processor_->set_processing_active(true);
   }
 #endif
 
-  this->start_trigger_.trigger();
+  this->start_callback_.call();
   ESP_LOGI(TAG, "Audio stack started");
 }
 
@@ -1433,7 +1457,7 @@ void ESPAudioStack::stop() {
   // Consumers stay registered across stop()/start() so the mic path is
   // reconnected automatically after an internal restart (frame_spec change).
   if (this->speaker_running_.exchange(false, std::memory_order_relaxed)) {
-    this->speaker_idle_trigger_.trigger();
+    this->speaker_idle_callback_.call();
     this->update_runtime_state_();
   }
 #ifdef USE_AUDIO_PROCESSOR
@@ -1442,28 +1466,12 @@ void ESPAudioStack::stop() {
   }
 #endif
   this->audio_stack_running_.store(false, std::memory_order_relaxed);
-  this->idle_trigger_.trigger();
+  this->idle_callback_.call();
 
   // Defer I2S deletion to loop(): polling audio_task_idle_ here would block
   // the main task for up to 600 ms (often >60 ms), starving network/UI/LVGL.
   // loop() picks this up on the next tick once the audio task has parked.
   this->teardown_pending_.store(true, std::memory_order_relaxed);
-}
-
-bool ESPAudioStack::stop_and_wait(uint32_t timeout_ms) {
-  this->stop();
-
-  if (!this->wait_audio_task_idle_(timeout_ms)) {
-    ESP_LOGW(TAG, "Timed out waiting for audio task to stop before maintenance");
-    return false;
-  }
-
-  if (this->teardown_pending_.load(std::memory_order_relaxed)) {
-    this->deinit_i2s_();
-    this->teardown_pending_.store(false, std::memory_order_relaxed);
-    ESP_LOGI(TAG, "Audio stack stopped synchronously");
-  }
-  return true;
 }
 
 bool ESPAudioStack::register_mic_consumer(void *token) {
@@ -1496,7 +1504,7 @@ bool ESPAudioStack::register_mic_consumer(void *token) {
   }
   if (first_consumer) {
     ESP_LOGI(TAG, "Mic consumer registered (token=%p), mic path active (consumers=%zu)", token, count_after);
-    this->mic_start_trigger_.trigger();
+    this->mic_start_callback_.call();
     // If the stack is already running, wake the processor immediately. If this
     // consumer is also starting the stack, start() will wake the audio task
     // first and then enable the processor so AFE has input frames available.
@@ -1544,7 +1552,7 @@ void ESPAudioStack::unregister_mic_consumer(void *token) {
   }
   if (last_consumer_gone) {
     ESP_LOGI(TAG, "Last mic consumer removed (token=%p), mic path idle", token);
-    this->mic_idle_trigger_.trigger();
+    this->mic_idle_callback_.call();
     // Tell the audio processor it can suspend background work until a new
     // consumer arrives. Without this hint esp_afe's GMF pipeline/task (and
     // the esp-sr internal worker on Core 1) keep cycling on every frame
@@ -1584,14 +1592,14 @@ void ESPAudioStack::start_speaker() {
 #endif
   }
   if (!this->speaker_running_.exchange(true, std::memory_order_relaxed)) {
-    this->speaker_start_trigger_.trigger();
+    this->speaker_start_callback_.call();
     this->update_runtime_state_();
   }
 }
 
 void ESPAudioStack::stop_speaker() {
   if (this->speaker_running_.exchange(false, std::memory_order_relaxed)) {
-    this->speaker_idle_trigger_.trigger();
+    this->speaker_idle_callback_.call();
     this->update_runtime_state_();
   }
   // Request audio task to reset ring buffers (avoids concurrent access).
@@ -1628,9 +1636,6 @@ size_t ESPAudioStack::play(const uint8_t *data, size_t len, TickType_t ticks_to_
   }
   size_t written = this->speaker_buffer_->write_without_replacement((void *) data, aligned_len, ticks_to_wait, false);
 
-  if (written > 0) {
-    this->last_speaker_audio_ms_.store(millis(), std::memory_order_relaxed);
-  }
   return written;
 }
 
