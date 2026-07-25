@@ -57,7 +57,7 @@ void ModbusNumber::control(float value) {
              format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
     write_cmd = ModbusCommandItem::create_custom_command(
         this->parent_, data,
-        [this, write_cmd](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
+        [this, write_cmd](modbus::EntityType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
           this->parent_->on_write_register_response(write_cmd.register_type, this->start_address, data);
         });
   } else {
@@ -77,7 +77,7 @@ void ModbusNumber::control(float value) {
           this->parent_, this->start_address + this->offset / 2, this->register_count, data);
     }
     // publish new value
-    write_cmd.on_data_func = [this, write_cmd, value](ModbusRegisterType register_type, uint16_t start_address,
+    write_cmd.on_data_func = [this, write_cmd, value](modbus::EntityType register_type, uint16_t start_address,
                                                       const std::vector<uint8_t> &data) {
       // gets called when the write command is ack'd from the device
       this->parent_->on_write_register_response(write_cmd.register_type, start_address, data);
