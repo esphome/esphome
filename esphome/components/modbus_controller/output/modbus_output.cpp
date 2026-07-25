@@ -41,21 +41,14 @@ void ModbusFloatOutput::write_state(float value) {
 
   // The command declares register_count registers, so the payload must be exactly that many words;
   // anything else would put a byte count on the wire that disagrees with the quantity field.
-  // A payload wider than the declared register_count means the config and the lambda disagree, and a
-  // truncated write would land a wrong partial value on the device - drop it instead (the old malformed
-  // frame was rejected by the device, so nothing was ever written).
+  // register_count declares the READ range width - it may pull neighboring registers into one poll -
+  // so a write covers exactly the registers the value occupies: the quantity comes from the payload,
+  // never from register_count (padding to it would zero registers the user only declared for reading).
+  // A payload wider than the declared range means the config and the lambda disagree - drop it.
   if (data.size() > this->register_count) {
     ESP_LOGE(TAG, "Payload has %zu registers but register_count is %u; dropping write", data.size(),
              this->register_count);
     return;
-  }
-  if (data.size() < this->register_count) {
-    ESP_LOGW(TAG, "Payload has %zu registers but register_count is %u; zero-padding", data.size(),
-             this->register_count);
-    // push_back rather than resize(): either resize form would instantiate std::vector fill/append
-    // machinery (~350 bytes of flash) that nothing else uses.
-    while (data.size() < this->register_count)
-      data.push_back(0);
   }
 
   // Create and send the write command
@@ -65,7 +58,7 @@ void ModbusFloatOutput::write_state(float value) {
         ModbusCommandItem::create_write_single_command(this->parent_, this->start_address + this->offset, data[0]);
   } else {
     write_cmd = ModbusCommandItem::create_write_multiple_command(this->parent_, this->start_address + this->offset,
-                                                                 this->register_count, data);
+                                                                 data.size(), data);
   }
   this->parent_->queue_command(write_cmd);
 }
