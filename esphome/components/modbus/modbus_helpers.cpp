@@ -280,6 +280,18 @@ std::optional<int64_t> registers_to_number(const uint16_t *registers, size_t cou
   return payload_to_number(bytes, required_size, sensor_value_type, 0, 0xFFFFFFFF);
 }
 
+// Every request PDU opens with the same 5-byte layout: function code, then two big-endian 16-bit
+// fields (start address + quantity for reads and multi-writes, address + value for single writes).
+template<size_t CAP>
+static void append_pdu_header(StaticVector<uint8_t, CAP> &pdu, FunctionCode function_code, uint16_t first,
+                              uint16_t second) {
+  pdu.push_back(static_cast<uint8_t>(function_code));
+  pdu.push_back(first >> 8);
+  pdu.push_back(first >> 0);
+  pdu.push_back(second >> 8);
+  pdu.push_back(second >> 0);
+}
+
 StaticVector<uint8_t, READ_PDU_SIZE> create_read_pdu(FunctionCode function_code, uint16_t start_address,
                                                      uint16_t number_of_entities) {
   if (number_of_entities == 0) {
@@ -316,11 +328,7 @@ StaticVector<uint8_t, READ_PDU_SIZE> create_read_pdu(FunctionCode function_code,
   }
 
   StaticVector<uint8_t, READ_PDU_SIZE> pdu;
-  pdu.push_back(static_cast<uint8_t>(function_code));
-  pdu.push_back(start_address >> 8);
-  pdu.push_back(start_address >> 0);
-  pdu.push_back(number_of_entities >> 8);
-  pdu.push_back(number_of_entities >> 0);
+  append_pdu_header(pdu, function_code, start_address, number_of_entities);
   return pdu;
 }
 
@@ -367,36 +375,31 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(FunctionCode function_code
   }
 
   StaticVector<uint8_t, MAX_PDU_SIZE> pdu;
-  pdu.push_back(static_cast<uint8_t>(function_code));
-  pdu.push_back(start_address >> 8);
-  pdu.push_back(start_address >> 0);
-  if (!is_single) {
-    pdu.push_back(number_of_entities >> 8);
-    pdu.push_back(number_of_entities >> 0);
-    // The quantity is spec-bounded above, so the data length just has to agree with it exactly
-    // (registers are 2 bytes each, coils pack 8 per byte). This is the same consistency the response
-    // dispatch enforces via is_client_pdu_standard(), so a frame built here can never be classified
-    // non-standard on reply, and the spec bound keeps the PDU within capacity by construction.
-    const bool bits = function_code == FunctionCode::WRITE_MULTIPLE_COILS;
-    const size_t expected_len =
-        bits ? (static_cast<size_t>(number_of_entities) + 7) / 8 : static_cast<size_t>(number_of_entities) * 2;
-    if (values_len != expected_len) {
-      ESP_LOGE(TAG, "values_len %zu does not match %u entities (expected %zu) for function code %02X, dropping request",
-               values_len, number_of_entities, expected_len, static_cast<uint8_t>(function_code));
-      return {};
-    }
-    pdu.push_back(values_len);  // Byte count is required for write multiple
-    for (size_t i = 0; i < values_len; i++)
-      pdu.push_back(values[i]);
-  } else {
-    // Write single register or coil (2 bytes)
+  if (is_single) {
+    // Write single register or coil: the two value bytes are the header's second field.
     if (values_len < 2) {
       ESP_LOGE(TAG, "values_len %zu too small for write-single command (need 2), dropping request", values_len);
       return {};
     }
-    pdu.push_back(values[0]);
-    pdu.push_back(values[1]);
+    append_pdu_header(pdu, function_code, start_address, uint16_t((values[0] << 8) | values[1]));
+    return pdu;
   }
+  append_pdu_header(pdu, function_code, start_address, number_of_entities);
+  // The quantity is spec-bounded above, so the data length just has to agree with it exactly
+  // (registers are 2 bytes each, coils pack 8 per byte). This is the same consistency the response
+  // dispatch enforces via is_client_pdu_standard(), so a frame built here can never be classified
+  // non-standard on reply, and the spec bound keeps the PDU within capacity by construction.
+  const bool bits = function_code == FunctionCode::WRITE_MULTIPLE_COILS;
+  const size_t expected_len =
+      bits ? (static_cast<size_t>(number_of_entities) + 7) / 8 : static_cast<size_t>(number_of_entities) * 2;
+  if (values_len != expected_len) {
+    ESP_LOGE(TAG, "values_len %zu does not match %u entities (expected %zu) for function code %02X, dropping request",
+             values_len, number_of_entities, expected_len, static_cast<uint8_t>(function_code));
+    return {};
+  }
+  pdu.push_back(values_len);  // Byte count is required for write multiple
+  for (size_t i = 0; i < values_len; i++)
+    pdu.push_back(values[i]);
   return pdu;
 }
 
@@ -413,11 +416,7 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_write_registers_pdu(uint16_t start_ad
     return {};
   }
   StaticVector<uint8_t, MAX_PDU_SIZE> pdu;
-  pdu.push_back(static_cast<uint8_t>(FunctionCode::WRITE_MULTIPLE_REGISTERS));
-  pdu.push_back(start_address >> 8);
-  pdu.push_back(start_address >> 0);
-  pdu.push_back(values.size() >> 8);
-  pdu.push_back(values.size() >> 0);
+  append_pdu_header(pdu, FunctionCode::WRITE_MULTIPLE_REGISTERS, start_address, values.size());
   pdu.push_back(static_cast<uint8_t>(values.size() * 2));  // byte count
   for (auto v : values) {
     auto decoded_value = decode_value(v);
@@ -428,23 +427,14 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_write_registers_pdu(uint16_t start_ad
 }
 
 StaticVector<uint8_t, WRITE_SINGLE_PDU_SIZE> create_write_single_register_pdu(uint16_t start_address, uint16_t value) {
-  auto decoded_value = decode_value(value);
   StaticVector<uint8_t, WRITE_SINGLE_PDU_SIZE> pdu;
-  pdu.push_back(static_cast<uint8_t>(FunctionCode::WRITE_SINGLE_REGISTER));
-  pdu.push_back(start_address >> 8);
-  pdu.push_back(start_address >> 0);
-  pdu.push_back(decoded_value[0]);
-  pdu.push_back(decoded_value[1]);
+  append_pdu_header(pdu, FunctionCode::WRITE_SINGLE_REGISTER, start_address, value);
   return pdu;
 }
 
 StaticVector<uint8_t, WRITE_SINGLE_PDU_SIZE> create_write_single_coil_pdu(uint16_t address, bool value) {
   StaticVector<uint8_t, WRITE_SINGLE_PDU_SIZE> pdu;
-  pdu.push_back(static_cast<uint8_t>(FunctionCode::WRITE_SINGLE_COIL));
-  pdu.push_back(address >> 8);
-  pdu.push_back(address >> 0);
-  pdu.push_back(value ? 0xFF : 0x00);
-  pdu.push_back(0x00);
+  append_pdu_header(pdu, FunctionCode::WRITE_SINGLE_COIL, address, value ? 0xFF00 : 0x0000);
   return pdu;
 }
 
@@ -466,11 +456,7 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_write_coils_pdu(uint16_t start_addres
     return {};
   }
   StaticVector<uint8_t, MAX_PDU_SIZE> pdu;
-  pdu.push_back(static_cast<uint8_t>(FunctionCode::WRITE_MULTIPLE_COILS));
-  pdu.push_back(start_address >> 8);
-  pdu.push_back(start_address >> 0);
-  pdu.push_back(count >> 8);
-  pdu.push_back(count >> 0);
+  append_pdu_header(pdu, FunctionCode::WRITE_MULTIPLE_COILS, start_address, count);
   pdu.push_back(static_cast<uint8_t>(byte_count));
   for (size_t i = 0; i != byte_count; i++) {
     pdu.push_back(packed_bits[i]);
