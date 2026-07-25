@@ -72,6 +72,15 @@ void ModbusSelect::control(size_t index) {
     return;
   }
 
+  // The command declares register_count registers, so the payload must be exactly that many words:
+  // a value type narrower than the declared width is zero-padded (the config deliberately allows
+  // register_count larger than the value type). Anything else would put a byte count on the wire
+  // that disagrees with the quantity field, which conformant devices reject.
+  if (data.size() != this->register_count) {
+    ESP_LOGV(TAG, "Adjusting payload from %zu to %u registers", data.size(), this->register_count);
+    data.resize(this->register_count, 0);
+  }
+
   const uint16_t write_address = this->start_address + this->offset / 2;
   ModbusCommandItem write_cmd;
   if ((this->register_count == 1) && (!this->use_write_multiple_)) {

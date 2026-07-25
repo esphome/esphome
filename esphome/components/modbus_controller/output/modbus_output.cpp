@@ -33,7 +33,7 @@ void ModbusFloatOutput::write_state(float value) {
   }
   // lambda didn't set payload
   if (data.empty()) {
-    data = modbus::helpers::float_to_payload(value, this->sensor_value_type);
+    modbus::helpers::float_to_payload(data, value, this->sensor_value_type);
   }
 
   ESP_LOGD(TAG, "Updating register: start address=0x%X register count=%d new value=%.02f (val=%.02f)",
