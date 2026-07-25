@@ -31,6 +31,7 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["modbus"]
+CODEOWNERS = ["@nuttytree"]
 
 pzem6l24_ns = cg.esphome_ns.namespace("pzem6l24")
 PZEM6L24 = pzem6l24_ns.class_(
