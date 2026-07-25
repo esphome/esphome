@@ -17,8 +17,8 @@ namespace esphome::modbus_controller {
 
 class ModbusController;
 
-using modbus::ExceptionCode;
 using modbus::FunctionCode;
+using modbus::ExceptionCode;
 using modbus::helpers::SensorValueType;
 
 // Remove before 2027.2.0 - deprecated names re-exported so external components keep their warning window
@@ -298,6 +298,15 @@ class ModbusController final : public PollingComponent, public modbus::ModbusCli
 
   /// queues a modbus command in the send queue
   void queue_command(const ModbusCommandItem &command);
+  /// Sends a raw payload (address byte + PDU, no CRC) with responses routed back to this controller.
+  /// The payload carries its own address byte, which may differ from this controller's address.
+  /// Deliberately shadows the deprecated ModbusClientDevice::send_raw() with identical semantics:
+  /// controller-level raw sends stay supported until the command machinery is replaced.
+  void send_raw(const std::vector<uint8_t> &payload) {
+    if (payload.empty())
+      return;
+    this->parent_->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
+  }
   /// Registers a sensor with the controller. Called by esphomes code generator
   void add_sensor_item(SensorItem *item) { sensorset_.insert(item); }
   /// called when a modbus response was parsed without errors

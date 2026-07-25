@@ -40,6 +40,11 @@ struct ModbusFrame {
   }
 
   uint16_t size() const { return static_cast<uint16_t>(this->data.size()); }
+
+  // A frame is [address][PDU...][CRC lo][CRC hi]. These are the only places that need to know that layout
+  uint8_t address() const { return this->data.data()[0]; }
+  /// The PDU: function code + data, without address or CRC. Only valid while the frame is alive
+  std::span<const uint8_t> pdu() const { return std::span<const uint8_t>(this->data.data() + 1, this->size() - 3u); }
 };
 
 class Modbus : public uart::UARTDevice, public Component {
@@ -90,6 +95,10 @@ struct ModbusDeviceCommand {
 
   ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, const uint8_t *src, uint16_t len)
       : device(device), frame(address, src, len) {}
+  /// Build a command from a PDU span: a caller-supplied PDU, or an existing frame's own pdu() when re-queueing
+  /// Callers must bound the PDU to MAX_PDU_SIZE
+  ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, std::span<const uint8_t> pdu)
+      : device(device), frame(address, pdu.data(), static_cast<uint16_t>(pdu.size())) {}
 };
 
 class ModbusClientHub : public Modbus {
@@ -109,9 +118,8 @@ class ModbusClientHub : public Modbus {
                                               payload_len),
                    device);
   };
-  void send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr) {
-    this->queue_raw_(address, pdu.data(), pdu.size(), device);
-  }
+  void send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr);
+  ESPDEPRECATED("Use send_pdu(payload[0], <pdu bytes>, device) instead. Removed in 2027.2.0", "2026.8.0")
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr);
   void clear_tx_queue_for_address(uint8_t address, bool clear_sent = true);
   void clear_tx_queue_for_device(ModbusClientDevice *device);
@@ -125,7 +133,6 @@ class ModbusClientHub : public Modbus {
   // wfr is the caller's checked reference to waiting_for_response_.
   void notify_no_response_(ModbusDeviceCommand &wfr);
   void requeue_waiting_frame_(ModbusDeviceCommand &wfr);
-  void queue_raw_(uint8_t address, const uint8_t *pdu, uint16_t pdu_len, ModbusClientDevice *device = nullptr);
 
   uint16_t send_wait_time_{2000};
   uint16_t turnaround_delay_ms_{0};
@@ -164,6 +171,9 @@ class ModbusServerHub : public Modbus {
   std::array<uint8_t, MAX_RAW_SIZE> deferred_payload_;
   uint16_t deferred_payload_len_{0};
 };
+
+// Transaction status: std::nullopt on success, otherwise a Modbus exception code
+using ResponseStatus = std::optional<ExceptionCode>;
 
 class ModbusClientDevice {
  public:
@@ -217,7 +227,12 @@ class ModbusClientDevice {
         this);
   }
   void send_pdu(std::span<const uint8_t> pdu) { this->parent_->send_pdu(this->address_, pdu, this); }
-  void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload, this); }
+  ESPDEPRECATED("Use send_pdu() instead (the device address is prepended for you). Removed in 2027.2.0", "2026.8.0")
+  void send_raw(const std::vector<uint8_t> &payload) {
+    if (payload.empty())
+      return;
+    this->parent_->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
+  }
   inline void clear_tx_queue_for_address(bool clear_sent = true) {
     this->parent_->clear_tx_queue_for_address(this->address_, clear_sent);
   }
@@ -238,9 +253,6 @@ class ModbusClientDevice {
 using ModbusDevice ESPDEPRECATED("Use ModbusClientDevice instead. Removed in 2026.12.0",
                                  "2026.6.0") = ModbusClientDevice;
 
-// Transaction status: std::nullopt on success, otherwise the Modbus exception code. Server handlers return it;
-// (future) client response callbacks receive it. Named without a side prefix so both directions share it.
-using ResponseStatus = std::optional<ExceptionCode>;
 // Register values exchanged with server handlers, in host byte order. Sized at the larger of the two protocol
 // maxima (read = 125 / 0x7D, write = 123 / 0x7B); the per-direction count limit is enforced by the hub, not by
 // the capacity of this type.

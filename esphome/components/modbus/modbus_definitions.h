@@ -84,8 +84,14 @@ enum class ExceptionCode : uint8_t {
 using ModbusExceptionCode ESPDEPRECATED("Use modbus::ExceptionCode instead. Removed in 2027.2.0",
                                         "2026.8.0") = ExceptionCode;
 
+// 6.11 15 (0x0F) Write Multiple Coils
+static constexpr uint16_t MAX_NUM_OF_COILS_TO_WRITE = 1968;  // 0x7B0
+
 // 6.12 16 (0x10) Write Multiple registers:
 static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_WRITE = 123;  // 0x7B
+
+// 6.17 23 (0x17) Read/Write Multiple Registers:
+static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_WRITE_RW = 121;  // 0x79
 
 // 6.1 01 (0x01) Read Coils
 // 6.2 02 (0x02) Read Discrete Inputs
@@ -98,6 +104,7 @@ static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_READ = 125;  // 0x7D
 
 // Smallest possible frame is 4 bytes (custom function with no data): address(1) + function(1) + CRC(2)
 static constexpr uint16_t MIN_FRAME_SIZE = 4;
+static constexpr uint16_t MIN_PDU_SIZE = 1;
 static constexpr uint16_t MAX_PDU_SIZE = 253;  // Max PDU size is 256 - address(1) - CRC(2) = 253
 static constexpr uint16_t MAX_RAW_SIZE = 254;  // Max RAW size is 256 - CRC(2) = 254
 static constexpr uint16_t MAX_FRAME_SIZE = 256;

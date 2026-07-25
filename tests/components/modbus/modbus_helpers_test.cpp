@@ -97,6 +97,79 @@ TEST(ModbusClientFrameLength, MiscFixedAndUnknown) {
   EXPECT_EQ(client_frame_length(unknown, sizeof(unknown)), MIN_FRAME_SIZE);
 }
 
+// --- file-record length cap --------------------------------------------------
+// FC 0x14/0x15 are parsed only to keep the frame parser in sync; the byte count caps at 251
+// (MAX_PDU_SIZE - 2), reproducing the released frame-relative bound of MAX_FRAME_SIZE - 5.
+
+TEST(ModbusFileRecordCap, PduLengthCapsByteCountAt251) {
+  const uint8_t pdu[] = {static_cast<uint8_t>(FC::READ_FILE_RECORD), 0xFF};  // claims 255 bytes
+  EXPECT_EQ(server_pdu_length(pdu, sizeof(pdu)), 2 + (MAX_PDU_SIZE - 2));
+  EXPECT_EQ(client_pdu_length(pdu, sizeof(pdu)), 2 + (MAX_PDU_SIZE - 2));
+  // Frame wrappers: address(1) + PDU + CRC(2) stays within the RTU 256-byte frame limit.
+  const uint8_t frame[] = {0x01, static_cast<uint8_t>(FC::WRITE_FILE_RECORD), 0xFF};
+  EXPECT_EQ(server_frame_length(frame, sizeof(frame)), MAX_FRAME_SIZE);
+  EXPECT_EQ(client_frame_length(frame, sizeof(frame)), MAX_FRAME_SIZE);
+}
+
+TEST(ModbusFileRecordCap, StandardChecksAcceptUpTo251) {
+  // A full-length PDU at the cap: function(1) + byte count(1) + 251 data bytes = MAX_PDU_SIZE.
+  std::vector<uint8_t> at_cap(MAX_PDU_SIZE, 0x00);
+  at_cap[0] = static_cast<uint8_t>(FC::READ_FILE_RECORD);
+  at_cap[1] = MAX_PDU_SIZE - 2;
+  EXPECT_TRUE(is_server_pdu_standard(at_cap.data(), at_cap.size()));
+  EXPECT_TRUE(is_client_pdu_standard(at_cap.data(), at_cap.size()));
+  // Byte count 252 in the same 253-byte buffer: the parsed length still matches (capped), so this
+  // exercises the byte-count bound itself rather than the length identity.
+  at_cap[1] = MAX_PDU_SIZE - 1;
+  EXPECT_FALSE(is_server_pdu_standard(at_cap.data(), at_cap.size()));
+  EXPECT_FALSE(is_client_pdu_standard(at_cap.data(), at_cap.size()));
+}
+
+// --- is_client_pdu_standard / is_server_pdu_standard -------------------------
+// The gatekeepers for the typed client dispatch: a PDU must be exactly its function code's standard
+// shape, with byte count, quantity, and address range all consistent.
+
+TEST(ModbusPduStandard, ClientReadAndWriteConformant) {
+  const uint8_t read_regs[] = {0x03, 0x01, 0x00, 0x00, 0x02};
+  EXPECT_TRUE(is_client_pdu_standard(read_regs, sizeof(read_regs)));
+  const uint8_t write_regs[] = {0x10, 0x00, 0x20, 0x00, 0x02, 0x04, 0x00, 0x01, 0x00, 0x02};
+  EXPECT_TRUE(is_client_pdu_standard(write_regs, sizeof(write_regs)));
+  // 10 coils pack into 2 data bytes - the coil formula, not the register one.
+  const uint8_t write_coils[] = {0x0F, 0x00, 0x30, 0x00, 0x0A, 0x02, 0xFF, 0x03};
+  EXPECT_TRUE(is_client_pdu_standard(write_coils, sizeof(write_coils)));
+}
+
+TEST(ModbusPduStandard, ClientRejectsNonConformant) {
+  // Truncated: header claims 4 data bytes, only 2 present.
+  const uint8_t truncated[] = {0x10, 0x00, 0x20, 0x00, 0x02, 0x04, 0x00, 0x01};
+  EXPECT_FALSE(is_client_pdu_standard(truncated, sizeof(truncated)));
+  // Byte count disagrees with quantity (2 registers need 4 bytes, header says 2).
+  const uint8_t inconsistent[] = {0x10, 0x00, 0x20, 0x00, 0x02, 0x02, 0x00, 0x01};
+  EXPECT_FALSE(is_client_pdu_standard(inconsistent, sizeof(inconsistent)));
+  // Coil write using the register byte-count formula (10 coils with 20 data bytes).
+  const uint8_t coil_as_regs[] = {0x0F, 0x00, 0x30, 0x00, 0x0A, 0x14, 0, 0, 0, 0, 0, 0, 0,
+                                  0,    0,    0,    0,    0,    0,    0, 0, 0, 0, 0, 0, 0};
+  EXPECT_FALSE(is_client_pdu_standard(coil_as_regs, sizeof(coil_as_regs)));
+  // Quantity zero and quantity beyond the per-function-code maximum.
+  const uint8_t zero_qty[] = {0x03, 0x01, 0x00, 0x00, 0x00};
+  EXPECT_FALSE(is_client_pdu_standard(zero_qty, sizeof(zero_qty)));
+  const uint8_t too_many[] = {0x03, 0x01, 0x00, 0x00, 0x7E};  // 126 > 125
+  EXPECT_FALSE(is_client_pdu_standard(too_many, sizeof(too_many)));
+  // Address range overflow: 0xFFFF + 2 registers exceeds the 16-bit register space.
+  const uint8_t wraps[] = {0x03, 0xFF, 0xFF, 0x00, 0x02};
+  EXPECT_FALSE(is_client_pdu_standard(wraps, sizeof(wraps)));
+}
+
+TEST(ModbusPduStandard, ServerReadResponses) {
+  const uint8_t ok[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
+  EXPECT_TRUE(is_server_pdu_standard(ok, sizeof(ok)));
+  // Byte-count header disagrees with the actual length.
+  const uint8_t lying[] = {0x03, 0x06, 0x00, 0x2A, 0x01, 0x00};
+  EXPECT_FALSE(is_server_pdu_standard(lying, sizeof(lying)));
+  // An empty PDU (the on_error path) is not a standard response.
+  EXPECT_FALSE(is_server_pdu_standard(ok, 0));
+}
+
 // --- create_client_pdu -----------------------------------------------------
 // PDU = function code + data (no address, no CRC).
 
