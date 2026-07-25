@@ -18,12 +18,21 @@ static const char *const TAG = "zwave_proxy";
 static constexpr size_t ZWAVE_MAX_LOG_BYTES = 168;
 
 static constexpr uint8_t ZWAVE_COMMAND_GET_NETWORK_IDS = 0x20;
-// GET_NETWORK_IDS response: [SOF][LENGTH][TYPE][CMD][HOME_ID(4)][NODE_ID][...]
+// GET_NETWORK_IDS response: [SOF][LENGTH][TYPE][CMD][HOME_ID(4)][NODE_ID(1 or 2)][...]
+// We only read the home ID, so the node ID (1 byte in 8-bit mode, 2 bytes in 16-bit mode) and
+// anything after it are not required to be present
 static constexpr uint8_t ZWAVE_COMMAND_TYPE_RESPONSE = 0x01;    // Response type field value
-static constexpr uint8_t ZWAVE_MIN_GET_NETWORK_IDS_LENGTH = 9;  // TYPE + CMD + HOME_ID(4) + NODE_ID + checksum
+static constexpr uint8_t ZWAVE_MIN_GET_NETWORK_IDS_LENGTH = 7;  // TYPE + CMD + HOME_ID(4) + checksum
+static constexpr uint8_t ZWAVE_MIN_FRAME_LENGTH = 3;            // TYPE + CMD + checksum (zero-payload frame)
+static constexpr uint32_t ZWAVE_FRAME_TIMEOUT_MS = 1500;        // Abandon a frame this long after its start (SOF) byte
 static constexpr uint32_t HOME_ID_TIMEOUT_MS = 100;             // Timeout for waiting for home ID during setup
 static constexpr uint32_t RECONNECT_DELAY_MS = 500;             // Delay between home ID query attempts after reconnect
 static constexpr uint8_t MAX_QUERY_RETRIES = 5;                 // Max attempts to query home ID after reconnect
+
+static constexpr bool is_bootloader_menu_byte(uint8_t byte) {
+  // Bootloader menu output is printable ASCII plus CR/LF, ending with a NUL terminator
+  return byte == 0 || byte == '\r' || byte == '\n' || (byte >= 0x20 && byte <= 0x7E);
+}
 
 static uint8_t calculate_frame_checksum(const uint8_t *data, uint8_t length) {
   // Calculate Z-Wave frame checksum
@@ -74,6 +83,11 @@ bool ZWaveProxy::can_proceed() {
   const uint32_t now = App.get_loop_component_start_time();
   if (now - this->setup_time_ > HOME_ID_TIMEOUT_MS) {
     ESP_LOGW(TAG, "Timeout reading Home ID during setup");
+    // The modem may simply still be booting; keep querying from loop() using the same retry
+    // machinery as a reconnect. This adds no setup delay — clients are notified of the home ID
+    // via the HOME_ID_CHANGE message whenever it finally arrives.
+    this->reconnect_time_ = now;
+    this->query_retries_ = 0;
     return true;  // Proceed anyway after timeout
   }
 
@@ -98,7 +112,18 @@ void ZWaveProxy::loop() {
   }
 
   this->process_uart_();
-  this->status_clear_warning();
+
+  // Abandon a stalled frame reception. The Z-Wave API specification requires a receiver to abort
+  // a data frame reception lasting more than 1500 ms after the SOF byte, without sending a NAK.
+  // Without this, the stale bytes would silently corrupt the next frame. Any SEND_* state was
+  // already resolved by response_handler_() above, so a state other than WAIT_START here always
+  // means we are mid-frame.
+  if (this->parsing_state_ != ZWAVE_PARSING_STATE_WAIT_START &&
+      App.get_loop_component_start_time() - this->frame_start_time_ > ZWAVE_FRAME_TIMEOUT_MS) {
+    ESP_LOGW(TAG, "Timeout waiting for frame data; resetting parser");
+    this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_START;
+    this->buffer_index_ = 0;
+  }
 }
 
 void ZWaveProxy::process_uart_slow_() {
@@ -112,19 +137,24 @@ void ZWaveProxy::process_uart_slow_() {
     }
     if (this->parse_byte_(byte)) {
       // Check if this is a GET_NETWORK_IDS response frame
-      // Frame format: [SOF][LENGTH][TYPE][CMD][HOME_ID(4)][NODE_ID][...]
+      // Frame format: [SOF][LENGTH][TYPE][CMD][HOME_ID(4)][NODE_ID(1 or 2)][...]
+      // Bootloader output is excluded up front: a completed bootloader "frame" is menu text, so
+      // buffer_[1..3] would be meaningless (and possibly never written). Outside bootloader mode,
+      // the parser guarantees a completed frame starts with SOF, so buffer_[0] needs no check.
       // We verify:
-      // - buffer_[0]: Start of frame marker (0x01)
-      // - buffer_[1]: Length field must be >= 9 to contain all required data
+      // - buffer_[1]: Length field must be >= 7 so the frame contains the full home ID
       // - buffer_[2]: Command type (0x01 for response)
       // - buffer_[3]: Command ID (0x20 for GET_NETWORK_IDS)
-      if (this->buffer_[3] == ZWAVE_COMMAND_GET_NETWORK_IDS && this->buffer_[2] == ZWAVE_COMMAND_TYPE_RESPONSE &&
-          this->buffer_[1] >= ZWAVE_MIN_GET_NETWORK_IDS_LENGTH && this->buffer_[0] == ZWAVE_FRAME_TYPE_START) {
+      if (!this->in_bootloader_ && this->buffer_[1] >= ZWAVE_MIN_GET_NETWORK_IDS_LENGTH &&
+          this->buffer_[2] == ZWAVE_COMMAND_TYPE_RESPONSE && this->buffer_[3] == ZWAVE_COMMAND_GET_NETWORK_IDS) {
         // Store the 4-byte Home ID, which starts at offset 4, and notify connected clients if it changed
         // The frame parser has already validated the checksum and ensured all bytes are present
         if (this->set_home_id_(&this->buffer_[4])) {
+          char hex_buf[format_hex_pretty_size(ZWAVE_HOME_ID_SIZE)];
+          ESP_LOGI(TAG, "Home ID: %s", format_hex_pretty_to(hex_buf, this->home_id_.data(), this->home_id_.size()));
           this->send_homeid_changed_msg_();
         }
+        this->home_id_ready_ = true;
       }
       ESP_LOGV(TAG, "Sending to client: %s", YESNO(this->api_connection_ != nullptr));
       if (this->api_connection_ != nullptr) {
@@ -140,14 +170,19 @@ void ZWaveProxy::process_uart_slow_() {
       }
     }
   } while (this->available());
+  // Reaching here means every read succeeded, so clear any earlier read-failure warning.
+  // (An early return on read failure skips this, leaving the warning visible until the
+  // next successful drain.)
+  this->status_clear_warning();
 }
 
 void ZWaveProxy::dump_config() {
   char hex_buf[format_hex_pretty_size(ZWAVE_HOME_ID_SIZE)];
-  ESP_LOGCONFIG(TAG,
-                "Z-Wave Proxy:\n"
-                "  Home ID: %s",
-                format_hex_pretty_to(hex_buf, this->home_id_.data(), this->home_id_.size()));
+  ESP_LOGCONFIG(
+      TAG,
+      "Z-Wave Proxy:\n"
+      "  Home ID: %s",
+      this->home_id_ready_ ? format_hex_pretty_to(hex_buf, this->home_id_.data(), this->home_id_.size()) : "unknown");
 }
 
 void ZWaveProxy::api_connection_authenticated(api::APIConnection *conn) {
@@ -160,9 +195,19 @@ void ZWaveProxy::api_connection_authenticated(api::APIConnection *conn) {
 void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::enums::ZWaveProxyRequestType type) {
   switch (type) {
     case api::enums::ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE:
-      if (this->api_connection_ != nullptr) {
-        ESP_LOGE(TAG, "Only one API subscription is allowed at a time");
+      if (this->api_connection_ == api_connection) {
+        ESP_LOGV(TAG, "API connection is already subscribed");
         return;
+      }
+      if (this->api_connection_ != nullptr) {
+        // A living subscriber keeps exclusive access. Its connection may be dead without
+        // loop() having noticed yet (e.g. the client crashed and reconnected quickly);
+        // in that case let the new client take over instead of locking it out.
+        if (this->api_connection_->is_connection_setup()) {
+          ESP_LOGE(TAG, "Only one API subscription is allowed at a time");
+          return;
+        }
+        ESP_LOGW(TAG, "Previous subscriber disconnected; taking over subscription");
       }
       this->api_connection_ = api_connection;
       ESP_LOGV(TAG, "API connection is now subscribed");
@@ -222,6 +267,7 @@ void ZWaveProxy::retry_home_id_query_() {
 void ZWaveProxy::clear_home_id_() {
   static constexpr uint8_t ZERO_HOME_ID[ZWAVE_HOME_ID_SIZE] = {};
   if (this->set_home_id_(ZERO_HOME_ID)) {
+    ESP_LOGV(TAG, "Home ID cleared");
     this->send_homeid_changed_msg_();
   }
   this->home_id_ready_ = false;
@@ -237,13 +283,20 @@ bool ZWaveProxy::set_home_id_(const uint8_t *new_home_id) {
     return false;  // No change
   }
   std::memcpy(this->home_id_.data(), new_home_id, this->home_id_.size());
-  char hex_buf[format_hex_pretty_size(ZWAVE_HOME_ID_SIZE)];
-  ESP_LOGI(TAG, "Home ID: %s", format_hex_pretty_to(hex_buf, this->home_id_.data(), this->home_id_.size()));
-  this->home_id_ready_ = true;
   return true;  // Home ID was changed
 }
 
-void ZWaveProxy::send_frame(const uint8_t *data, size_t length) {
+void ZWaveProxy::send_frame(api::APIConnection *api_connection, const uint8_t *data, size_t length) {
+  // Only the subscribed client may talk to the Z-Wave module; a frame from any other
+  // (authenticated but unsubscribed) client would interleave with the subscriber's traffic
+  if (api_connection != this->api_connection_) {
+    ESP_LOGW(TAG, "Ignoring frame from unsubscribed client");
+    return;
+  }
+  this->send_frame_(data, length);
+}
+
+void ZWaveProxy::send_frame_(const uint8_t *data, size_t length) {
   // Safety: validate pointer before any access
   if (data == nullptr) {
     ESP_LOGE(TAG, "Null data pointer");
@@ -289,7 +342,7 @@ void ZWaveProxy::send_simple_command_(const uint8_t command_id) {
   // Where LENGTH=0x03 (3 bytes: TYPE + CMD + CHECKSUM)
   uint8_t cmd[] = {0x01, 0x03, 0x00, command_id, 0x00};
   cmd[4] = calculate_frame_checksum(cmd, sizeof(cmd));
-  this->send_frame(cmd, sizeof(cmd));
+  this->send_frame_(cmd, sizeof(cmd));
 }
 
 bool ZWaveProxy::parse_byte_(uint8_t byte) {
@@ -300,9 +353,12 @@ bool ZWaveProxy::parse_byte_(uint8_t byte) {
       this->parse_start_(byte);
       break;
     case ZWAVE_PARSING_STATE_WAIT_LENGTH:
-      if (!byte) {
+      if (byte < ZWAVE_MIN_FRAME_LENGTH) {
         ESP_LOGW(TAG, "Invalid LENGTH: %u", byte);
         this->parsing_state_ = ZWAVE_PARSING_STATE_SEND_NAK;
+        // Send the NAK now; otherwise any bytes already buffered behind this one would be
+        // silently discarded by the SEND_NAK case below until the next loop() iteration
+        this->response_handler_();
         return false;
       }
       ESP_LOGVV(TAG, "Received LENGTH: %u", byte);
@@ -319,7 +375,9 @@ bool ZWaveProxy::parse_byte_(uint8_t byte) {
     case ZWAVE_PARSING_STATE_WAIT_COMMAND_ID:
       this->buffer_[this->buffer_index_++] = byte;
       ESP_LOGVV(TAG, "Received COMMAND ID: 0x%02X", byte);
-      this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_PAYLOAD;
+      // A zero-payload frame (LENGTH == 3) has its checksum immediately after the command ID
+      this->parsing_state_ = this->buffer_index_ >= this->end_frame_after_ ? ZWAVE_PARSING_STATE_WAIT_CHECKSUM
+                                                                           : ZWAVE_PARSING_STATE_WAIT_PAYLOAD;
       break;
     case ZWAVE_PARSING_STATE_WAIT_PAYLOAD:
       this->buffer_[this->buffer_index_++] = byte;
@@ -347,12 +405,24 @@ bool ZWaveProxy::parse_byte_(uint8_t byte) {
       break;
     }
     case ZWAVE_PARSING_STATE_READ_BL_MENU:
-      if (this->buffer_index_ >= this->buffer_.size()) {
+      // This state is tentative (see parse_start_): bootloader mode is committed only when a
+      // plausible menu — printable text ending in a NUL terminator — completes. A byte that
+      // cannot be menu text means the 0x0D that started this state was not a menu after all,
+      // so re-parse that byte as a frame start; it may be the SOF/ACK/NAK of real traffic.
+      if (this->buffer_index_ >= this->buffer_.size() || !is_bootloader_menu_byte(byte)) {
         this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_START;
+        this->parse_start_(byte);
         break;
       }
       this->buffer_[this->buffer_index_++] = byte;
       if (!byte) {
+        if (!this->in_bootloader_) {
+          ESP_LOGD(TAG, "Entered bootloader mode");
+          this->in_bootloader_ = true;
+          // Reset response deduplication: in bootloader mode, single-byte client writes (XMODEM
+          // ACK/NAK/CAN) are raw data and must never be suppressed as duplicate responses
+          this->last_response_ = 0;
+        }
         this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_START;
         frame_completed = true;
       }
@@ -378,15 +448,16 @@ void ZWaveProxy::parse_start_(uint8_t byte) {
         ESP_LOGD(TAG, "Exited bootloader mode");
         this->in_bootloader_ = false;
       }
+      this->frame_start_time_ = App.get_loop_component_start_time();
       this->buffer_[this->buffer_index_++] = byte;
       this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_LENGTH;
       return;
     case ZWAVE_FRAME_TYPE_BL_MENU:
       ESP_LOGV(TAG, "Received BL_MENU");
-      if (!this->in_bootloader_) {
-        ESP_LOGD(TAG, "Entered bootloader mode");
-        this->in_bootloader_ = true;
-      }
+      // Read the menu tentatively: a stray 0x0D can equally appear in garbled data after the
+      // parser loses frame alignment, so bootloader mode is only committed once a plausible
+      // menu completes (see READ_BL_MENU handling in parse_byte_)
+      this->frame_start_time_ = App.get_loop_component_start_time();
       this->buffer_[this->buffer_index_++] = byte;
       this->parsing_state_ = ZWAVE_PARSING_STATE_READ_BL_MENU;
       return;
@@ -403,7 +474,7 @@ void ZWaveProxy::parse_start_(uint8_t byte) {
       ESP_LOGV(TAG, "Received CAN");
       break;
     default:
-      ESP_LOGW(TAG, "Unrecognized START: 0x%02X", byte);
+      ESP_LOGV(TAG, "Unrecognized START: 0x%02X", byte);
       return;
   }
   // Forward response (ACK/NAK/CAN) back to client for processing
