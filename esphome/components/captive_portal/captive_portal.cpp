@@ -24,9 +24,10 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   stream->printf(R"({"mac":"%s","name":"%s","aps":[{})", mac_str, App.get_name().c_str());
 #endif
 
-#ifdef ESPHOME_THREAD_SINGLE
-  // Single-threaded platform: the main loop cannot run while this handler does,
-  // so the scan results can be read directly with no copy.
+#ifndef WIFI_SCAN_RESULTS_LOCK_ENABLED
+  // No cross-task lock in this build (single-threaded platform): the main loop
+  // cannot run while this handler does, so the scan results can be read directly
+  // with no copy.
   const auto &results = wifi::global_wifi_component->get_scan_result();
 #else
   // This handler runs on the web server task while the main loop rebuilds, sorts
@@ -38,6 +39,7 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
                                                  [](const wifi::WiFiScanResult &res) { return !res.get_is_hidden(); });
 #endif
   for (const auto &scan : results) {
+    // Redundant for the filtered copy above, needed for the direct-read branch
     if (scan.get_is_hidden())
       continue;
 

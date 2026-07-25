@@ -2410,6 +2410,7 @@ void WiFiComponent::clear_roaming_state_() {
 void WiFiComponent::release_scan_results_() {
   if (this->keep_scan_results_)
     return;
+#ifdef WIFI_SCAN_RESULTS_LOCK_ENABLED
   // Swap into a local so the buffer is freed outside the lock. For std::vector this
   // is the swap trick (shrink_to_fit is non-binding); for FixedVector the local's
   // destructor frees all memory.
@@ -2418,6 +2419,13 @@ void WiFiComponent::release_scan_results_() {
     ScanResultsLock lock(this);
     std::swap(this->scan_result_, released);
   }
+#elif defined(WIFI_SCAN_VECTOR_IS_STD_VECTOR)
+  // std::vector - use swap trick since shrink_to_fit is non-binding
+  decltype(this->scan_result_)().swap(this->scan_result_);
+#else
+  // FixedVector::release() frees all memory
+  this->scan_result_.release();
+#endif
 }
 
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
