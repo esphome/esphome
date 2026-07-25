@@ -450,27 +450,28 @@ WriteSinglePdu create_write_single_coil_pdu(uint16_t address, bool value) {
   return pdu;
 }
 
-Pdu create_write_coils_pdu(uint16_t start_address, PackedBits bits) {
-  Pdu pdu;  // declared before every return so NRVO fires (all paths return the same object)
+// Shared core for the two coil-write overloads: validates, then builds into the caller's named
+// pdu (left empty on failure). Each overload's returns all name one local, so NRVO fires.
+static void build_write_coils_pdu_(Pdu &pdu, uint16_t start_address, PackedBits bits) {
   const uint16_t count = bits.size();
   const std::span<const uint8_t> packed_bits = bits.bytes();
   if (count == 0) {
     ESP_LOGE(TAG, "No coils requested for write multiple coils, dropping request");
-    return pdu;
+    return;
   }
   if (count > MAX_NUM_OF_COILS_TO_WRITE) {
     ESP_LOGE(TAG, "count %u exceeds maximum coils to write %u, dropping request", count, MAX_NUM_OF_COILS_TO_WRITE);
-    return pdu;
+    return;
   }
   if (uint32_t(start_address) + count > 0x10000u) {
     ESP_LOGE(TAG, "Write of %u coils at %u runs past the 16-bit address space, dropping request", count, start_address);
-    return pdu;
+    return;
   }
   const size_t byte_count = (count + 7) / 8;
   if (packed_bits.size() < byte_count) {
     ESP_LOGE(TAG, "packed_bits (%zu bytes) does not cover %u coils (%zu bytes), dropping request", packed_bits.size(),
              count, byte_count);
-    return pdu;
+    return;
   }
   append_pdu_header(pdu, FunctionCode::WRITE_MULTIPLE_COILS, start_address, count);
   pdu.push_back(static_cast<uint8_t>(byte_count));
@@ -481,15 +482,21 @@ Pdu create_write_coils_pdu(uint16_t start_address, PackedBits bits) {
   if (count % 8 != 0) {
     pdu[pdu.size() - 1] &= static_cast<uint8_t>((1 << (count % 8)) - 1);
   }
+}
+
+Pdu create_write_coils_pdu(uint16_t start_address, PackedBits bits) {
+  Pdu pdu;
+  build_write_coils_pdu_(pdu, start_address, bits);
   return pdu;
 }
 
 Pdu create_write_coils_pdu(uint16_t start_address, std::span<const bool> values) {
-  // Bound before packing so the transient buffer below cannot overflow; the packed overload validates the rest.
+  Pdu pdu;  // declared before every return so NRVO fires (all paths return the same object)
+  // Bound before packing so the transient buffer below cannot overflow; the shared core validates the rest.
   if (values.size() > MAX_NUM_OF_COILS_TO_WRITE) {
     ESP_LOGE(TAG, "values.size() %zu exceeds maximum coils to write %u, dropping request", values.size(),
              MAX_NUM_OF_COILS_TO_WRITE);
-    return {};
+    return pdu;
   }
   StaticVector<uint8_t, (MAX_NUM_OF_COILS_TO_WRITE + 7) / 8> packed;
   for (size_t i = 0; i != values.size(); i++) {
@@ -498,7 +505,8 @@ Pdu create_write_coils_pdu(uint16_t start_address, std::span<const bool> values)
     if (values[i])
       packed[i / 8] |= (1 << (i % 8));
   }
-  return create_write_coils_pdu(start_address,
-                                PackedBits(std::span<const uint8_t>(packed.data(), packed.size()), values.size()));
+  build_write_coils_pdu_(pdu, start_address,
+                         PackedBits(std::span<const uint8_t>(packed.data(), packed.size()), values.size()));
+  return pdu;
 }
 }  // namespace esphome::modbus::helpers
