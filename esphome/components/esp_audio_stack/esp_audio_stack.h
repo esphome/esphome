@@ -6,6 +6,7 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "audio_core_audio_utils.h"
 #include "audio_core_ring_buffer_caps.h"
 #include "audio_core_scoped_lock.h"
@@ -168,7 +169,7 @@ class MultiChannelAudioEffectsRateConverter {
 /// converts sample rate with AudioEffectsRateConverter, invokes the processor, and distributes
 /// the result to registered MicDataCallback listeners. Speaker frames
 /// come in via SpeakerOutputCallback and are written to I2S TX.
-class ESPAudioStack : public Component {
+class ESPAudioStack final : public Component {
  public:
   void setup() override;
   void loop() override;
@@ -365,7 +366,6 @@ class ESPAudioStack : public Component {
   // Audio stack lifecycle control
   void start();  // Start both mic and speaker
   void stop();   // Stop both
-  bool stop_and_wait(uint32_t timeout_ms = 2000);
 
   bool is_running() const { return this->audio_stack_running_.load(std::memory_order_relaxed); }
   bool is_idle() const {
@@ -374,13 +374,25 @@ class ESPAudioStack : public Component {
            !this->teardown_pending_.load(std::memory_order_relaxed);
   }
   bool has_i2s_error() const { return this->has_i2s_error_.load(std::memory_order_relaxed); }
-  Trigger<> *get_start_trigger() { return &this->start_trigger_; }
-  Trigger<> *get_idle_trigger() { return &this->idle_trigger_; }
-  Trigger<std::string> *get_state_trigger() { return &this->state_trigger_; }
-  Trigger<> *get_mic_start_trigger() { return &this->mic_start_trigger_; }
-  Trigger<> *get_mic_idle_trigger() { return &this->mic_idle_trigger_; }
-  Trigger<> *get_speaker_start_trigger() { return &this->speaker_start_trigger_; }
-  Trigger<> *get_speaker_idle_trigger() { return &this->speaker_idle_trigger_; }
+  template<typename F> void add_on_start_callback(F &&callback) {
+    this->start_callback_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_on_idle_callback(F &&callback) { this->idle_callback_.add(std::forward<F>(callback)); }
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_on_mic_start_callback(F &&callback) {
+    this->mic_start_callback_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_on_mic_idle_callback(F &&callback) {
+    this->mic_idle_callback_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_on_speaker_start_callback(F &&callback) {
+    this->speaker_start_callback_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_on_speaker_idle_callback(F &&callback) {
+    this->speaker_idle_callback_.add(std::forward<F>(callback));
+  }
 
   // Speaker output callback registration (for mixer pending_playback_frames tracking)
   bool add_speaker_output_callback(SpeakerOutputCallback callback, void *ctx) {
@@ -549,6 +561,11 @@ class ESPAudioStack : public Component {
 #endif
     size_t speaker_got{0};  // bytes actually read from speaker ring buffer
     bool mic_running{false};
+#ifdef USE_ESP_AUDIO_STACK_RING_REF
+    // Audio-task-owned edge state. Ring reference data is meaningful only
+    // within one continuous microphone-consumer session.
+    bool aec_ref_mic_active{false};
+#endif
     uint32_t now_ms{0};
   };
 
@@ -586,7 +603,6 @@ class ESPAudioStack : public Component {
 #endif
   bool wait_audio_task_state_(bool idle, uint32_t timeout_ms);
   bool wait_audio_task_idle_(uint32_t timeout_ms) { return this->wait_audio_task_state_(true, timeout_ms); }
-  bool wait_audio_task_active_(uint32_t timeout_ms) { return this->wait_audio_task_state_(false, timeout_ms); }
 
   struct TxCompletionRecord {
     uint32_t real_frames{0};
@@ -691,13 +707,13 @@ class ESPAudioStack : public Component {
   std::atomic<bool> speaker_paused_{false};
   std::atomic<uint8_t> runtime_state_{static_cast<uint8_t>(AudioStackRuntimeState::IDLE)};
   std::atomic<uint8_t> i2s_hardware_state_{static_cast<uint8_t>(I2SHardwareState::UNPREPARED)};
-  Trigger<> start_trigger_;
-  Trigger<> idle_trigger_;
-  Trigger<std::string> state_trigger_;
-  Trigger<> mic_start_trigger_;
-  Trigger<> mic_idle_trigger_;
-  Trigger<> speaker_start_trigger_;
-  Trigger<> speaker_idle_trigger_;
+  LazyCallbackManager<void()> start_callback_;
+  LazyCallbackManager<void()> idle_callback_;
+  LazyCallbackManager<void(const std::string &)> state_callback_;
+  LazyCallbackManager<void()> mic_start_callback_;
+  LazyCallbackManager<void()> mic_idle_callback_;
+  LazyCallbackManager<void()> speaker_start_callback_;
+  LazyCallbackManager<void()> speaker_idle_callback_;
   // audio_task_idle_: true while the task is parked in its outer wait loop
   //                   (not owning I2S). Waiters use audio_state_waiter_ instead
   //                   of polling when maintenance needs a specific task state.
@@ -746,9 +762,9 @@ class ESPAudioStack : public Component {
   size_t tx_completion_queue_size_{0};
   size_t tx_completion_dma_buffer_bytes_{0};
   uint32_t tx_completion_dma_frames_{0};
-  uint32_t tx_completion_bytes_per_frame_{0};
   volatile bool tx_completion_desync_{false};
   std::atomic<uint32_t> tx_completion_pending_real_records_{0};
+  std::atomic<uint32_t> tx_completion_idle_event_drops_{0};
 
   // Speaker ring buffer: stores data at bus rate (sample_rate_)
   RingBufferPtr speaker_buffer_;
@@ -801,10 +817,6 @@ class ESPAudioStack : public Component {
   std::atomic<bool> any_tdm_slot_level_sensor_enabled_{false};
   std::atomic<float> tdm_slot_level_dbfs_[8] = {};
   uint8_t tdm_slot_level_divider_{0};
-
-  // AEC gating: only run echo canceller while speaker has recent real audio.
-  std::atomic<uint32_t> last_speaker_audio_ms_{0};
-  static constexpr uint32_t AEC_ACTIVE_TIMEOUT_MS{250};
 
   // Task configuration (defaults match ESP-IDF audio best practices)
   uint8_t task_priority_{19};  // Above lwIP(18), below WiFi(23)
@@ -879,22 +891,17 @@ class ESPAudioStack : public Component {
 };
 
 // Native actions for YAML automations
-template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<ESPAudioStack> {
+template<typename... Ts> class StartAction final : public Action<Ts...>, public Parented<ESPAudioStack> {
  public:
   void play(const Ts &...x) override { this->parent_->start(); }
 };
 
-template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<ESPAudioStack> {
+template<typename... Ts> class StopAction final : public Action<Ts...>, public Parented<ESPAudioStack> {
  public:
   void play(const Ts &...x) override { this->parent_->stop(); }
 };
 
-template<typename... Ts> class StopAndWaitAction : public Action<Ts...>, public Parented<ESPAudioStack> {
- public:
-  void play(const Ts &...x) override { this->parent_->stop_and_wait(); }
-};
-
-template<typename... Ts> class IsIdleCondition : public Condition<Ts...>, public Parented<ESPAudioStack> {
+template<typename... Ts> class IsIdleCondition final : public Condition<Ts...>, public Parented<ESPAudioStack> {
  public:
   bool check(const Ts &...x) override { return this->parent_->is_idle(); }
 };

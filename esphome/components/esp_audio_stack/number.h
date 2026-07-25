@@ -12,7 +12,7 @@
 
 namespace esphome::esp_audio_stack {
 
-class MicGainNumber : public number::Number, public Component {
+class MicGainNumber final : public number::Number, public Component {
  public:
   void set_parent(ESPAudioStack *parent) { this->parent_ = parent; }
   void set_min_db(float min_db) { this->min_db_ = min_db; }
@@ -68,7 +68,7 @@ class MicGainNumber : public number::Number, public Component {
   float max_db_{30.0f};
 };
 
-class MasterVolumeNumber : public number::Number, public Component {
+class MasterVolumeNumber final : public number::Number, public Component {
  public:
   void set_parent(ESPAudioStack *parent) { this->parent_ = parent; }
   void set_speaker(speaker::Speaker *speaker) { this->speaker_ = speaker; }

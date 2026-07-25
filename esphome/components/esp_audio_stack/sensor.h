@@ -9,7 +9,7 @@
 
 namespace esphome::esp_audio_stack {
 
-class TdmSlotLevelSensor : public sensor::Sensor, public PollingComponent, public Parented<ESPAudioStack> {
+class TdmSlotLevelSensor final : public sensor::Sensor, public PollingComponent, public Parented<ESPAudioStack> {
  public:
   void set_slot(uint8_t slot) { this->slot_ = slot; }
 

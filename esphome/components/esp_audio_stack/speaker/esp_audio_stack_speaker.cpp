@@ -2,10 +2,11 @@
 
 #ifdef USE_ESP32
 
+#include <cinttypes>
+#include <cmath>
+
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-
-#include <cmath>
 
 namespace esphome::esp_audio_stack {
 
@@ -34,7 +35,7 @@ void ESPAudioStackSpeaker::setup() {
 
 void ESPAudioStackSpeaker::dump_config() {
   ESP_LOGCONFIG(TAG, "ESP Audio Stack Speaker:");
-  ESP_LOGCONFIG(TAG, "  Sample Rate: %u Hz", this->parent_->get_sample_rate());
+  ESP_LOGCONFIG(TAG, "  Sample Rate: %" PRIu32 " Hz", this->parent_->get_sample_rate());
   ESP_LOGCONFIG(TAG, "  Bits Per Sample: 16");
   ESP_LOGCONFIG(TAG, "  Channels: %u", (unsigned) this->parent_->get_speaker_channels());
   ESP_LOGCONFIG(TAG, "  Buffer Size: %u bytes", (unsigned) this->parent_->get_speaker_buffer_size());
