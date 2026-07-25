@@ -119,6 +119,9 @@ static constexpr uint16_t MAX_FRAME_SIZE = 256;
 /** Read-only view of Modbus-packed bits: bit 0 of byte 0 is the first bit (LSB first), the layout
  * coil/discrete-input values use on the wire. Bundles the bit count with the packed bytes so the
  * two cannot desynchronize. The view does not own the bytes - it is only valid while they are.
+ * Reads (operator[]) are unchecked by design - the caller owns the bit < size() precondition, as
+ * with any subscript. Writes and forwarding are defensive: set() drops out-of-range bits and
+ * bytes() clamps to the real span, because those paths touch buffers and the wire directly.
  */
 class PackedBits {
  public:
@@ -149,7 +152,7 @@ class MutablePackedBits {
   /// Set or clear the given bit. Out-of-range bits are dropped: on the server read path the span wraps a
   /// stack response buffer, so a handler looping past size() must not be able to smash the frame.
   void set(size_t bit, bool value) {
-    if (bit >= this->count_)
+    if (bit >= this->count_ || bit / 8 >= this->data_.size())
       return;
     if (value) {
       this->data_[bit / 8] |= (1 << (bit % 8));
