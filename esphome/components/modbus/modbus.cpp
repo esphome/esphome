@@ -360,9 +360,9 @@ bool ModbusServerHub::check_register_range_(uint8_t address, uint8_t function_co
   return true;
 }
 
-bool ModbusServerHub::build_read_response_(uint8_t address, uint8_t function_code, ResponseStatus status,
-                                           uint16_t number_of_registers, const RegisterValues &registers,
-                                           uint8_t *response_buffer, uint16_t &response_len) {
+bool ModbusServerHub::build_or_reject_read_response_(uint8_t address, uint8_t function_code, ResponseStatus status,
+                                                     uint16_t number_of_registers, const RegisterValues &registers,
+                                                     std::span<uint8_t> response_buffer, uint16_t &response_len) {
   // A handler that returns an exception leaves registers partially filled, so check the exception
   // first and forward it before validating the register count on the success path.
   if (status.has_value()) {
@@ -372,6 +372,16 @@ bool ModbusServerHub::build_read_response_(uint8_t address, uint8_t function_cod
 
   if (registers.size() != number_of_registers) {
     ESP_LOGE(TAG, "Incorrect response %" PRIu16 " requested, %zu returned", number_of_registers, registers.size());
+    this->send_exception_(address, function_code, ExceptionCode::SERVICE_DEVICE_FAILURE);
+    return false;
+  }
+
+  // Byte count(1) + two bytes per register. Checked here rather than at the call sites so the bound travels with
+  // the write itself: a future caller starting at a non-zero response_len, or passing a smaller buffer, is
+  // rejected instead of overrunning it before send_response_'s size guard can fire.
+  const size_t required = static_cast<size_t>(response_len) + 1 + static_cast<size_t>(number_of_registers) * 2;
+  if (required > response_buffer.size()) {
+    ESP_LOGE(TAG, "Read response needs %zu bytes but only %zu are available", required, response_buffer.size());
     this->send_exception_(address, function_code, ExceptionCode::SERVICE_DEVICE_FAILURE);
     return false;
   }
@@ -419,8 +429,8 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
         status = device->on_read_input_registers(start_address, number_of_registers, registers);
       }
 
-      if (!this->build_read_response_(address, function_code, status, number_of_registers, registers, response_buffer,
-                                      response_len)) {
+      if (!this->build_or_reject_read_response_(address, function_code, status, number_of_registers, registers,
+                                                response_buffer, response_len)) {
         return;
       }
       break;
@@ -499,8 +509,8 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       RegisterValues registers;
       status = device->on_read_holding_registers(read_start_address, number_of_registers, registers);
 
-      if (!this->build_read_response_(address, function_code, status, number_of_registers, registers, response_buffer,
-                                      response_len)) {
+      if (!this->build_or_reject_read_response_(address, function_code, status, number_of_registers, registers,
+                                                response_buffer, response_len)) {
         return;
       }
       break;

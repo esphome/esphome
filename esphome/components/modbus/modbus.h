@@ -169,13 +169,15 @@ class ModbusServerHub : public Modbus {
   // Returns true if [start_address, start_address + number_of_registers) fits in the 16-bit address space.
   // On failure, logs and sends an ILLEGAL_DATA_ADDRESS exception to the client.
   bool check_register_range_(uint8_t address, uint8_t function_code, uint16_t start_address,
-                             uint16_t number_of_registers);  // Builds the body of a register read response (byte count
-                                                             // followed by the big-endian register values) into
+                             uint16_t number_of_registers);
+
+  // Builds the body of a register read response (byte count followed by the big-endian register values) into
   // response_buffer. Shared by every function code that answers with register values, so the read reply stays
-  // identical across them. Returns false once an exception has been sent, either the one the handler reported
-  // via status or SERVICE_DEVICE_FAILURE when it returned the wrong number of registers.
-  bool build_read_response_(uint8_t address, uint8_t function_code, ResponseStatus status, uint16_t number_of_registers,
-                            const RegisterValues &registers, uint8_t *response_buffer, uint16_t &response_len);
+  // identical across them. Returns false once an exception has been sent: the one the handler reported via
+  // status, or SERVICE_DEVICE_FAILURE if it returned the wrong number of registers or the body does not fit.
+  bool build_or_reject_read_response_(uint8_t address, uint8_t function_code, ResponseStatus status,
+                                      uint16_t number_of_registers, const RegisterValues &registers,
+                                      std::span<uint8_t> response_buffer, uint16_t &response_len);
   void send_raw_(const uint8_t *payload, uint16_t len);
   void send_exception_(uint8_t address, uint8_t function_code, ExceptionCode exception_code);
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
