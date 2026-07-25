@@ -397,9 +397,7 @@ class DataCountingDevice : public ModbusClientDevice {
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {
     this->data_count_++;
   }
-  void on_error(std::span<const uint8_t> request_pdu, ModbusExceptionCode exception_code) override {
-    this->error_count_++;
-  }
+  void on_error(std::span<const uint8_t> request_pdu, ExceptionCode exception_code) override { this->error_count_++; }
   bool on_no_response(std::span<const uint8_t> request_pdu) override {
     this->no_response_count_++;
     if (this->retries_ == 0)
@@ -679,6 +677,50 @@ TEST(ModbusClientHubPriority, ClearDuringDataDoesNotCancelContinuousRequeue) {
   hub.receive_frame_for_test(0x02, ok_response);
 
   EXPECT_EQ(hub.queued_frames(), 1u);  // re-queued despite the mid-callback clear (documented limitation)
+}
+
+namespace {
+// Overrides only the DEPRECATED on_modbus_* names: the new-name default implementations must forward, so
+// external devices written against the old names keep working through the deprecation window.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+class LegacyNameDevice : public ModbusClientDevice {
+ public:
+  LegacyNameDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_modbus_not_sent() override { this->legacy_not_sent_++; }
+  bool on_modbus_no_response() override {
+    this->legacy_no_response_++;
+    return false;
+  }
+  int legacy_not_sent_{0};
+  int legacy_no_response_{0};
+};
+#pragma GCC diagnostic pop
+}  // namespace
+
+TEST(ModbusClientHubCompat, LegacyCallbackNamesStillForward) {
+  NoResponseProbeHub hub;
+  LegacyNameDevice device(&hub, 0x02);
+
+  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
+  device.send_pdu(read);
+  hub.force_send_front();
+  hub.timeout_waiting();  // no reply -> on_no_response -> forwards to on_modbus_no_response
+  EXPECT_EQ(device.legacy_no_response_, 1);
+
+  device.send_pdu(std::span<const uint8_t>());  // empty PDU refused -> on_not_sent -> forwards
+  EXPECT_EQ(device.legacy_not_sent_, 1);
+}
+
+// The send_pdu() capacity bound: a PDU larger than MAX_PDU_SIZE would build a frame past the RTU
+// 256-byte limit, so it is refused up front and signalled like any other failed send.
+TEST(ModbusClientHub, OversizedPduIsRefusedWithNotSent) {
+  NoResponseProbeHub hub;
+  LegacyNameDevice device(&hub, 0x02);
+  std::vector<uint8_t> big(MAX_PDU_SIZE + 1, 0x41);
+  device.send_pdu(big);
+  EXPECT_EQ(device.legacy_not_sent_, 1);  // on_not_sent, observed via the legacy forward
+  EXPECT_TRUE(hub.tx_buffer_empty());
 }
 
 }  // namespace esphome::modbus::testing

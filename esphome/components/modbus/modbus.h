@@ -46,7 +46,9 @@ struct ModbusFrame {
 
   // A frame is [address][PDU...][CRC lo][CRC hi]. These are the only places that need to know that layout
   uint8_t address() const { return this->data.data()[0]; }
-  /// The PDU: function code + data, without address or CRC. Only valid while the frame is alive
+  /// The PDU: function code + data, without address or CRC. Only valid while the frame is alive.
+  /// Requires a complete frame (size() >= MIN_FRAME_SIZE, guaranteed by the constructors) - the
+  /// subtraction would wrap on anything shorter.
   std::span<const uint8_t> pdu() const { return std::span<const uint8_t>(this->data.data() + 1, this->size() - 3u); }
 };
 
@@ -141,8 +143,8 @@ class ModbusClientHub : public Modbus {
   void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
             uint8_t payload_len = 0, const uint8_t *payload = nullptr, ModbusClientDevice *device = nullptr) {
     this->send_pdu(address,
-                   helpers::create_client_pdu((ModbusFunctionCode) function_code, start_address, number_of_entities,
-                                              payload, payload_len),
+                   helpers::create_client_pdu((FunctionCode) function_code, start_address, number_of_entities, payload,
+                                              payload_len),
                    device);
   };
   void send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr,
@@ -198,7 +200,7 @@ class ModbusServerHub : public Modbus {
   bool check_register_range_(uint8_t address, uint8_t function_code, uint16_t start_address,
                              uint16_t number_of_registers);
   void send_raw_(const uint8_t *payload, uint16_t len);
-  void send_exception_(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code);
+  void send_exception_(uint8_t address, uint8_t function_code, ExceptionCode exception_code);
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
   uint8_t expecting_peer_response_{0};
   std::vector<ModbusServerDevice *> devices_;
@@ -210,7 +212,7 @@ class ModbusServerHub : public Modbus {
 };
 
 // Transaction status: std::nullopt on success, otherwise a Modbus exception code
-using ResponseStatus = std::optional<ModbusExceptionCode>;
+using ResponseStatus = std::optional<ExceptionCode>;
 
 class ModbusClientDevice {
  public:
@@ -250,17 +252,37 @@ class ModbusClientDevice {
   /// Low-level error hook: called with the request PDU and the modbus exception code from the error response.
   /// The default implementation dispatches to the same typed callbacks with the exception code as status.
   /// Devices implementing the High-level typed callbacks see success and failure through one interface.
-  virtual void on_error(std::span<const uint8_t> request_pdu, ModbusExceptionCode exception_code) {
+  virtual void on_error(std::span<const uint8_t> request_pdu, ExceptionCode exception_code) {
     this->dispatch_response_(request_pdu, {}, exception_code);
   }
   /// Called when no request could be sent (e.g. queue full, transmission blocked)
   /// Do not attempt to queue a command in this callback.
-  virtual void on_not_sent(std::span<const uint8_t> request_pdu) {}
+  /// Called when no request could be sent (e.g. queue full, transmission blocked).
+  /// Do not attempt to queue a command in this callback.
+  /// (The on_modbus_* names below are deprecated pre-rename spellings; the defaults forward so
+  /// external devices overriding them keep working through the deprecation window.)
+  virtual void on_not_sent(std::span<const uint8_t> request_pdu) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    this->on_modbus_not_sent();
+#pragma GCC diagnostic pop
+  }
   /// Called when this device's frame is actually written to the wire
   virtual void on_sent(std::span<const uint8_t> request_pdu) {}
   /// Called when no matching, uninterrupted response arrived; return true to have the hub re-queue the frame for a
   /// retry. The hub does not bound retries: the device is responsible for limiting them.
-  virtual bool on_no_response(std::span<const uint8_t> request_pdu) { return false; }
+  virtual bool on_no_response(std::span<const uint8_t> request_pdu) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    return this->on_modbus_no_response();
+#pragma GCC diagnostic pop
+  }
+  // Remove before 2027.2.0
+  ESPDEPRECATED("Override on_not_sent() instead. Removed in 2027.2.0", "2026.8.0")
+  virtual void on_modbus_not_sent() {}
+  // Remove before 2027.2.0
+  ESPDEPRECATED("Override on_no_response() instead. Removed in 2027.2.0", "2026.8.0")
+  virtual bool on_modbus_no_response() { return false; }
 
   /// High-level typed response callbacks, fired by the default on_response()/on_error() with arguments
   /// parsed from the request and response PDUs.
@@ -308,38 +330,38 @@ class ModbusClientDevice {
   ESPDEPRECATED("Use the typed read_*/write_* helpers or send_pdu() instead. Removed in 2027.2.0", "2026.8.0")
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
             const uint8_t *payload = nullptr) {
-    this->parent_->send_pdu(this->address_,
-                            helpers::create_client_pdu((ModbusFunctionCode) function, start_address, number_of_entities,
-                                                       payload, payload_len),
-                            this);
+    this->parent_->send_pdu(
+        this->address_,
+        helpers::create_client_pdu((FunctionCode) function, start_address, number_of_entities, payload, payload_len),
+        this);
   }
   void send_pdu(std::span<const uint8_t> pdu, CommandOptions options = {}) {
     this->parent_->send_pdu(this->address_, pdu, this, options);
   }
   ESPDEPRECATED("Use send_pdu() instead (the device address is prepended for you). Removed in 2027.2.0", "2026.8.0")
   void send_raw(const std::vector<uint8_t> &payload) {
-    if (payload.empty())
+    if (payload.empty()) {
+      this->on_not_sent({});  // match the hub-level send_raw(): a refused send is always signalled
       return;
+    }
     this->parent_->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
   }
   // Dispatches to the matching read_* method; defined in modbus.cpp because it logs on an invalid type.
   void read_entities(EntityType entity_type, uint16_t start_address, uint16_t number_of_entities,
                      CommandOptions options = {});
   void read_input_registers(uint16_t start_address, uint16_t number_of_registers, CommandOptions options = {}) {
-    this->send_pdu(
-        helpers::create_read_pdu(ModbusFunctionCode::READ_INPUT_REGISTERS, start_address, number_of_registers),
-        options);
+    this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_INPUT_REGISTERS, start_address, number_of_registers),
+                   options);
   }
   void read_holding_registers(uint16_t start_address, uint16_t number_of_registers, CommandOptions options = {}) {
-    this->send_pdu(
-        helpers::create_read_pdu(ModbusFunctionCode::READ_HOLDING_REGISTERS, start_address, number_of_registers),
-        options);
+    this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_HOLDING_REGISTERS, start_address, number_of_registers),
+                   options);
   }
   void read_coils(uint16_t start_address, uint16_t number_of_coils, CommandOptions options = {}) {
-    this->send_pdu(helpers::create_read_pdu(ModbusFunctionCode::READ_COILS, start_address, number_of_coils), options);
+    this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_COILS, start_address, number_of_coils), options);
   }
   void read_discrete_inputs(uint16_t start_address, uint16_t number_of_inputs, CommandOptions options = {}) {
-    this->send_pdu(helpers::create_read_pdu(ModbusFunctionCode::READ_DISCRETE_INPUTS, start_address, number_of_inputs),
+    this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_DISCRETE_INPUTS, start_address, number_of_inputs),
                    options);
   }
   void write_single_register(uint16_t start_address, uint16_t value) {
@@ -403,7 +425,7 @@ class ModbusServerDevice {
   uint8_t get_address() const { return this->address_; }
   virtual ResponseStatus on_read_registers(uint16_t start_address, uint16_t number_of_registers,
                                            RegisterValues &registers) {
-    return ModbusExceptionCode::ILLEGAL_FUNCTION;
+    return ExceptionCode::ILLEGAL_FUNCTION;
   };
   virtual ResponseStatus on_read_input_registers(uint16_t start_address, uint16_t number_of_registers,
                                                  RegisterValues &registers) {
@@ -414,7 +436,7 @@ class ModbusServerDevice {
     return this->on_read_registers(start_address, number_of_registers, registers);
   };
   virtual ResponseStatus on_write_registers(uint16_t start_address, const RegisterValues &registers) {
-    return ModbusExceptionCode::ILLEGAL_FUNCTION;
+    return ExceptionCode::ILLEGAL_FUNCTION;
   };
 
  protected:

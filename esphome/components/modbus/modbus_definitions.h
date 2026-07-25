@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <span>
 
@@ -17,7 +18,7 @@ const uint8_t FUNCTION_CODE_USER_DEFINED_SPACE_1_END = 72;   // 0x48
 const uint8_t FUNCTION_CODE_USER_DEFINED_SPACE_2_INIT = 100;  // 0x64
 const uint8_t FUNCTION_CODE_USER_DEFINED_SPACE_2_END = 110;   // 0x6E
 
-enum class ModbusFunctionCode : uint8_t {
+enum class FunctionCode : uint8_t {
   INVALID = 0x00,  // 0x00 is not a valid function code (even for custom functions).
   CUSTOM = 0x00,   // The CUSTOM alias should be removed in future.
   READ_COILS = 0x01,
@@ -40,11 +41,15 @@ enum class ModbusFunctionCode : uint8_t {
   READ_FIFO_QUEUE = 0x18,                // not implemented
 };
 
-/*Allow direct comparison operators between ModbusFunctionCode and uint8_t*/
-inline bool operator==(ModbusFunctionCode lhs, uint8_t rhs) { return static_cast<uint8_t>(lhs) == rhs; }
-inline bool operator==(uint8_t lhs, ModbusFunctionCode rhs) { return lhs == static_cast<uint8_t>(rhs); }
-inline bool operator!=(ModbusFunctionCode lhs, uint8_t rhs) { return !(static_cast<uint8_t>(lhs) == rhs); }
-inline bool operator!=(uint8_t lhs, ModbusFunctionCode rhs) { return !(lhs == static_cast<uint8_t>(rhs)); }
+// Remove before 2027.2.0
+using ModbusFunctionCode ESPDEPRECATED("Use modbus::FunctionCode instead. Removed in 2027.2.0",
+                                       "2026.8.0") = FunctionCode;
+
+/*Allow direct comparison operators between FunctionCode and uint8_t*/
+inline bool operator==(FunctionCode lhs, uint8_t rhs) { return static_cast<uint8_t>(lhs) == rhs; }
+inline bool operator==(uint8_t lhs, FunctionCode rhs) { return lhs == static_cast<uint8_t>(rhs); }
+inline bool operator!=(FunctionCode lhs, uint8_t rhs) { return !(static_cast<uint8_t>(lhs) == rhs); }
+inline bool operator!=(uint8_t lhs, FunctionCode rhs) { return !(lhs == static_cast<uint8_t>(rhs)); }
 
 // 4.3 MODBUS Data model. "Entity" is the spec's umbrella for the four primary tables; only the
 // 16-bit tables are registers (coils and discrete inputs are bits), so the enum is not named
@@ -57,8 +62,7 @@ enum class EntityType : uint8_t {
   // Named INPUT_REGISTER (not INPUT) because Arduino cores define INPUT as a macro.
   INPUT_REGISTER = 0x04,
   // Remove before 2027.2.0
-  READ ESPDEPRECATED("Use ModbusRegisterType::INPUT_REGISTER instead. Removed in 2027.2.0", "2026.7.0") =
-      INPUT_REGISTER,
+  READ ESPDEPRECATED("Use EntityType::INPUT_REGISTER instead. Removed in 2027.2.0", "2026.7.0") = INPUT_REGISTER,
 };
 
 // Remove before 2027.2.0
@@ -68,7 +72,7 @@ using ModbusRegisterType ESPDEPRECATED("Use modbus::EntityType instead. Removed 
 const uint8_t FUNCTION_CODE_MASK = 0x7F;
 const uint8_t FUNCTION_CODE_EXCEPTION_MASK = 0x80;
 
-enum class ModbusExceptionCode : uint8_t {
+enum class ExceptionCode : uint8_t {
   ILLEGAL_FUNCTION = 0x01,
   ILLEGAL_DATA_ADDRESS = 0x02,
   ILLEGAL_DATA_VALUE = 0x03,
@@ -79,6 +83,10 @@ enum class ModbusExceptionCode : uint8_t {
   GATEWAY_PATH_UNAVAILABLE = 0x0A,
   GATEWAY_TARGET_DEVICE_FAILED_TO_RESPOND = 0x0B,
 };
+
+// Remove before 2027.2.0
+using ModbusExceptionCode ESPDEPRECATED("Use modbus::ExceptionCode instead. Removed in 2027.2.0",
+                                        "2026.8.0") = ExceptionCode;
 
 // 6.11 15 (0x0F) Write Multiple Coils
 static constexpr uint16_t MAX_NUM_OF_COILS_TO_WRITE = 1968;  // 0x7B0
@@ -119,8 +127,12 @@ class PackedBits {
   bool operator[](size_t bit) const { return (this->data_[bit / 8] & (1 << (bit % 8))) != 0; }
   /// Number of bits in the view.
   uint16_t size() const { return this->count_; }
-  /// The underlying packed bytes: ceil(size() / 8) bytes.
-  std::span<const uint8_t> bytes() const { return this->data_; }
+  /// The underlying packed bytes: exactly ceil(size() / 8) bytes, even when the view was constructed
+  /// over a larger buffer - forwarding this span onto the wire can never leak trailing buffer content.
+  /// Clamped to the actual span so a view over a too-short buffer stays detectable instead of UB.
+  std::span<const uint8_t> bytes() const {
+    return this->data_.first(std::min<size_t>((this->count_ + 7) / 8, this->data_.size()));
+  }
 
  private:
   std::span<const uint8_t> data_;  // must cover ceil(count_ / 8) bytes
@@ -134,8 +146,11 @@ class MutablePackedBits {
  public:
   MutablePackedBits(std::span<uint8_t> data, uint16_t count) : data_(data), count_(count) {}
   bool operator[](size_t bit) const { return (this->data_[bit / 8] & (1 << (bit % 8))) != 0; }
-  /// Set or clear the given bit; bit must be < size().
+  /// Set or clear the given bit. Out-of-range bits are dropped: on the server read path the span wraps a
+  /// stack response buffer, so a handler looping past size() must not be able to smash the frame.
   void set(size_t bit, bool value) {
+    if (bit >= this->count_)
+      return;
     if (value) {
       this->data_[bit / 8] |= (1 << (bit % 8));
     } else {
