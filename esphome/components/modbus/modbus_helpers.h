@@ -12,19 +12,19 @@
 namespace esphome::modbus::helpers {
 
 inline bool is_function_code_read(uint8_t function_code) {
-  ModbusFunctionCode masked_function_code = static_cast<ModbusFunctionCode>(function_code & FUNCTION_CODE_MASK);
-  return masked_function_code == ModbusFunctionCode::READ_COILS ||
-         masked_function_code == ModbusFunctionCode::READ_DISCRETE_INPUTS ||
-         masked_function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
-         masked_function_code == ModbusFunctionCode::READ_INPUT_REGISTERS;
+  FunctionCode masked_function_code = static_cast<FunctionCode>(function_code & FUNCTION_CODE_MASK);
+  return masked_function_code == FunctionCode::READ_COILS ||
+         masked_function_code == FunctionCode::READ_DISCRETE_INPUTS ||
+         masked_function_code == FunctionCode::READ_HOLDING_REGISTERS ||
+         masked_function_code == FunctionCode::READ_INPUT_REGISTERS;
 }
 
 inline bool is_function_code_write(uint8_t function_code) {
-  ModbusFunctionCode masked_function_code = static_cast<ModbusFunctionCode>(function_code & FUNCTION_CODE_MASK);
-  return masked_function_code == ModbusFunctionCode::WRITE_SINGLE_COIL ||
-         masked_function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
-         masked_function_code == ModbusFunctionCode::WRITE_MULTIPLE_COILS ||
-         masked_function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS;
+  FunctionCode masked_function_code = static_cast<FunctionCode>(function_code & FUNCTION_CODE_MASK);
+  return masked_function_code == FunctionCode::WRITE_SINGLE_COIL ||
+         masked_function_code == FunctionCode::WRITE_SINGLE_REGISTER ||
+         masked_function_code == FunctionCode::WRITE_MULTIPLE_COILS ||
+         masked_function_code == FunctionCode::WRITE_MULTIPLE_REGISTERS;
 }
 
 inline bool is_function_code_exception(uint8_t function_code) {
@@ -47,18 +47,34 @@ uint16_t server_frame_length(const uint8_t *frame, size_t size);
 // If the frame is too short to determine the length, returns the minimum length
 uint16_t client_frame_length(const uint8_t *frame, size_t size);
 
+// Remove before 2027.2.0
+ESPDEPRECATED("Use server_pdu_payload() on the response PDU instead. Removed in 2027.2.0", "2026.8.0")
 inline uint8_t server_frame_data_offset(const uint8_t *frame, size_t size) {
   if (size < 2)
     return 0;
-  switch (static_cast<ModbusFunctionCode>(frame[1])) {
-    case ModbusFunctionCode::READ_COILS:
-    case ModbusFunctionCode::READ_DISCRETE_INPUTS:
-    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
-    case ModbusFunctionCode::READ_INPUT_REGISTERS:
+  switch (static_cast<FunctionCode>(frame[1])) {
+    case FunctionCode::READ_COILS:
+    case FunctionCode::READ_DISCRETE_INPUTS:
+    case FunctionCode::READ_HOLDING_REGISTERS:
+    case FunctionCode::READ_INPUT_REGISTERS:
       return 3;  // address(1) + function(1) + byte count(1) + data + CRC(2)
     default:
       return 2;
   }
+}
+
+/** Returns the payload portion of a server response PDU: the bytes after the function code, and for the
+ * standard read responses (0x01-0x04) also after the byte-count byte. Responses to 0x14/0x17 also carry a
+ * byte-count byte, but those codes are not implemented and their count byte is left in the payload. For
+ * an exception PDU the payload is the exception code byte (the read check must not see the masked
+ * function code, or an exception-of-read would classify as a read and return an empty span). Returns an
+ * empty span if the PDU is too short.
+ */
+inline std::span<const uint8_t> server_pdu_payload(std::span<const uint8_t> pdu) {
+  if (pdu.empty())
+    return {};
+  const size_t offset = (!is_function_code_exception(pdu[0]) && is_function_code_read(pdu[0])) ? 2 : 1;
+  return pdu.size() > offset ? pdu.subspan(offset) : std::span<const uint8_t>();
 }
 
 inline uint8_t client_frame_data_offset(const uint8_t *, size_t) { return 2; }
@@ -84,32 +100,32 @@ inline bool value_type_is_float(SensorValueType v) {
   return v == SensorValueType::FP32 || v == SensorValueType::FP32_R;
 }
 
-inline ModbusFunctionCode modbus_register_read_function(ModbusRegisterType reg_type) {
+inline FunctionCode modbus_register_read_function(EntityType reg_type) {
   switch (reg_type) {
-    case ModbusRegisterType::COIL:
-      return ModbusFunctionCode::READ_COILS;
-    case ModbusRegisterType::DISCRETE_INPUT:
-      return ModbusFunctionCode::READ_DISCRETE_INPUTS;
-    case ModbusRegisterType::HOLDING:
-      return ModbusFunctionCode::READ_HOLDING_REGISTERS;
-    case ModbusRegisterType::INPUT_REGISTER:
-      return ModbusFunctionCode::READ_INPUT_REGISTERS;
+    case EntityType::COIL:
+      return FunctionCode::READ_COILS;
+    case EntityType::DISCRETE_INPUT:
+      return FunctionCode::READ_DISCRETE_INPUTS;
+    case EntityType::HOLDING:
+      return FunctionCode::READ_HOLDING_REGISTERS;
+    case EntityType::INPUT_REGISTER:
+      return FunctionCode::READ_INPUT_REGISTERS;
     default:
-      return ModbusFunctionCode::INVALID;
+      return FunctionCode::INVALID;
   }
 }
 
-inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_type, bool multiple = false) {
+inline FunctionCode modbus_register_write_function(EntityType reg_type, bool multiple = false) {
   switch (reg_type) {
-    case ModbusRegisterType::COIL:
-      return multiple ? ModbusFunctionCode::WRITE_MULTIPLE_COILS : ModbusFunctionCode::WRITE_SINGLE_COIL;
-    case ModbusRegisterType::HOLDING:
-      return multiple ? ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS : ModbusFunctionCode::WRITE_SINGLE_REGISTER;
+    case EntityType::COIL:
+      return multiple ? FunctionCode::WRITE_MULTIPLE_COILS : FunctionCode::WRITE_SINGLE_COIL;
+    case EntityType::HOLDING:
+      return multiple ? FunctionCode::WRITE_MULTIPLE_REGISTERS : FunctionCode::WRITE_SINGLE_REGISTER;
     // These register types can't be written (per spec)
-    case ModbusRegisterType::INPUT_REGISTER:
-    case ModbusRegisterType::DISCRETE_INPUT:
+    case EntityType::INPUT_REGISTER:
+    case EntityType::DISCRETE_INPUT:
     default:
-      return ModbusFunctionCode::INVALID;
+      return FunctionCode::INVALID;
   }
 }
 
@@ -324,7 +340,7 @@ std::optional<int64_t> registers_to_number(const uint16_t *registers, size_t cou
  * @param values_len length of values array
  * @return PDU (function code + data, no address, no CRC)
  */
-StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(ModbusFunctionCode function_code, uint16_t start_address,
+StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(FunctionCode function_code, uint16_t start_address,
                                                       uint16_t number_of_entities, const uint8_t *values = nullptr,
                                                       size_t values_len = 0);
 
