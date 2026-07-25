@@ -908,7 +908,7 @@ async def final_step():
         cg.add_define("USE_WIFI_RUNTIME_POWER_SAVE")
     if CORE.data.get(RUNTIME_ROAMING_SUPPRESSION_KEY, False):
         cg.add_define("USE_WIFI_RUNTIME_ROAMING_SUPPRESSION")
-    if CORE.data.get(SCAN_RESULTS_LOCK_KEY, False):
+    if CORE.data.get(SCAN_RESULTS_LOCK_KEY):
         cg.add_define("USE_WIFI_SCAN_RESULTS_LOCK")
 
     # Generate listener defines - each listener type has its own #ifdef
