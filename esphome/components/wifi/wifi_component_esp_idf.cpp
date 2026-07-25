@@ -920,11 +920,14 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     // Use stack buffer (3904 bytes / ~80 bytes per record = ~48 records) with heap fallback
     static constexpr size_t SCAN_RECORD_STACK_COUNT = 3904 / sizeof(wifi_ap_record_t);
     SmallBufferWithHeapFallback<SCAN_RECORD_STACK_COUNT, wifi_ap_record_t> records(number);
+    bool fetch_failed = false;
     err = esp_wifi_scan_get_ap_records(&number, records.get());
     if (err != ESP_OK) {
       esp_wifi_clear_ap_list();
       ESP_LOGW(TAG, "esp_wifi_scan_get_ap_records failed: %s", esp_err_to_name(err));
-      number = 0;  // Publish empty results and skip the completion log/listeners below
+      // Publish empty results and skip the completion log/listeners below
+      fetch_failed = true;
+      number = 0;
     }
     for (uint16_t i = 0; i < number; i++) {
       wifi_ap_record_t &record = records.get()[i];
@@ -960,8 +963,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     }
 
 #ifdef USE_ESP32_HOSTED
-    if (number == 0) {
-      // Record fetch failed above
+    if (fetch_failed) {
       return;
     }
 #endif

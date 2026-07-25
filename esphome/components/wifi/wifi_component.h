@@ -182,6 +182,7 @@ static constexpr size_t WIFI_SCAN_RESULT_FILTERED_RESERVE = 8;
 // Use std::vector for RP2040 (callback-based) and ESP32 (destructive scan API)
 // Use FixedVector for ESP8266 and LibreTiny where two-pass exact allocation is possible
 #if defined(USE_RP2) || defined(USE_ESP32)
+#define WIFI_SCAN_VECTOR_IS_STD_VECTOR
 template<typename T> using wifi_scan_vector_t = std::vector<T>;
 #else
 template<typename T> using wifi_scan_vector_t = FixedVector<T>;
@@ -515,28 +516,40 @@ class WiFiComponent final : public Component {
 
   const wifi_scan_vector_t<WiFiScanResult> &get_scan_result() const { return scan_result_; }
 #ifdef WIFI_SCAN_RESULTS_LOCK_ENABLED
-  /// Copy the current scan results under the scan results lock. For readers that
-  /// run outside the main loop (e.g. web server handlers); main loop code can use
-  /// get_scan_result() directly. Only entries accepted by the filter are copied,
-  /// so callers keep the transient copy small. The filter runs under the lock and
-  /// must be a cheap, deterministic predicate; it is called once per pass.
+  /// Replace out with a copy of the current scan results, taken under the scan
+  /// results lock. For readers that run outside the main loop (e.g. web server
+  /// handlers); main loop code can use get_scan_result() directly. Only entries
+  /// accepted by the filter are copied, so callers keep the transient copy small.
+  /// The filter runs under the lock and must be a cheap predicate.
   template<typename Filter> void copy_scan_results(wifi_scan_vector_t<WiFiScanResult> &out, Filter &&filter) {
-    LockGuard guard{this->scan_result_lock_};
-    // Two passes: size the output exactly (FixedVector cannot grow), then copy
+    // Count under the lock, allocate with the lock released so malloc stays out
+    // of the critical section, then copy under the lock again. A scan landing
+    // between the two holds just yields a fresher snapshot, bounded below by the
+    // allocated capacity.
     size_t count = 0;
-    for (const auto &res : this->scan_result_) {
-      if (filter(res)) {
-        count++;
+    {
+      LockGuard guard{this->scan_result_lock_};
+      for (const auto &res : this->scan_result_) {
+        if (filter(res)) {
+          count++;
+        }
       }
     }
-#if defined(USE_RP2) || defined(USE_ESP32)
+#ifdef WIFI_SCAN_VECTOR_IS_STD_VECTOR
+    out.clear();
     out.reserve(count);
 #else
-    out.init(count);
+    out.init(count);  // Frees any previous contents and leaves out empty
 #endif
+    LockGuard guard{this->scan_result_lock_};
+    size_t stored = 0;
     for (const auto &res : this->scan_result_) {
+      if (stored == count) {
+        break;
+      }
       if (filter(res)) {
         out.push_back(res);
+        stored++;
       }
     }
   }
@@ -1047,9 +1060,11 @@ extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-
 /// container must hold it, because consumers such as the captive portal read the
 /// results from the web server task (via WiFiComponent::copy_scan_results()).
 /// To keep hold times minimal, writers should build results into a scratch vector
-/// without the lock and std::swap it in while holding it. Compiles to nothing
-/// unless a cross-task consumer is in the build and the platform runs multiple
-/// threads (WIFI_SCAN_RESULTS_LOCK_ENABLED).
+/// without the lock and std::swap it in while holding it. Brief in-place
+/// mutations on the main loop (e.g. the match and sort pass) may hold it
+/// directly; that only ever blocks the web server task, never the main loop.
+/// Compiles to nothing unless a cross-task consumer is in the build and the
+/// platform runs multiple threads (WIFI_SCAN_RESULTS_LOCK_ENABLED).
 class ScanResultsLock {
  public:
 #ifdef WIFI_SCAN_RESULTS_LOCK_ENABLED
