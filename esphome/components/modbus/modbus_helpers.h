@@ -352,7 +352,7 @@ std::optional<int64_t> registers_to_number(const uint16_t *registers, size_t cou
 
 // Named PDU buffer types: the builders' storage strategy (currently stack-allocated StaticVector,
 // right-sized per shape) can be swapped in one place without touching every signature.
-using Pdu = StaticVector<uint8_t, MAX_PDU_SIZE>;
+using PduBuffer = StaticVector<uint8_t, MAX_PDU_SIZE>;
 using ReadPdu = StaticVector<uint8_t, READ_PDU_SIZE>;
 using WriteSinglePdu = StaticVector<uint8_t, WRITE_SINGLE_PDU_SIZE>;
 
@@ -383,8 +383,8 @@ ReadPdu create_read_pdu(FunctionCode function_code, uint16_t start_address, uint
  * @param values_len length of values array
  * @return PDU (function code + data, no address, no CRC)
  */
-Pdu create_client_pdu(FunctionCode function_code, uint16_t start_address, uint16_t number_of_entities,
-                      const uint8_t *values = nullptr, size_t values_len = 0);
+PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, uint16_t number_of_entities,
+                            const uint8_t *values = nullptr, size_t values_len = 0);
 
 /** Create modbus write multiple registers command
  *  Function 0x10 Write Multiple Registers
@@ -394,7 +394,7 @@ Pdu create_client_pdu(FunctionCode function_code, uint16_t start_address, uint16
  *               Any contiguous uint16_t container converts (std::vector, std::array).
  * @return PDU (function code + data, no address, no CRC)
  */
-Pdu create_write_registers_pdu(uint16_t start_address, std::span<const uint16_t> values);
+PduBuffer create_write_registers_pdu(uint16_t start_address, std::span<const uint16_t> values);
 
 /** Create modbus write single register command
  *  Function 0x06 Write Single Register
@@ -420,7 +420,7 @@ WriteSinglePdu create_write_single_coil_pdu(uint16_t address, bool value);
  *               does not convert to a span; pass a std::array<bool, N> or other contiguous bool container.
  * @return PDU (function code + data, no address, no CRC)
  */
-Pdu create_write_coils_pdu(uint16_t start_address, std::span<const bool> values);
+PduBuffer create_write_coils_pdu(uint16_t start_address, std::span<const bool> values);
 
 /** Create modbus write multiple coils command (function 0x0F) from bits packed as on the wire.
  * @param start_address modbus address of the first coil to write
@@ -428,7 +428,7 @@ Pdu create_write_coils_pdu(uint16_t start_address, std::span<const bool> values)
  *             input returns an empty PDU
  * @return PDU (function code + data, no address, no CRC)
  */
-Pdu create_write_coils_pdu(uint16_t start_address, PackedBits bits);
+PduBuffer create_write_coils_pdu(uint16_t start_address, PackedBits bits);
 
 /** Append a float converted to register words to any push_back container (heap-free with StaticVector).
  * @param data container the register words are appended to

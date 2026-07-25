@@ -336,9 +336,9 @@ ReadPdu create_read_pdu(FunctionCode function_code, uint16_t start_address, uint
   return pdu;
 }
 
-Pdu create_client_pdu(FunctionCode function_code, uint16_t start_address, uint16_t number_of_entities,
-                      const uint8_t *values, size_t values_len) {
-  Pdu pdu;  // declared before every return so NRVO fires (all paths return the same object)
+PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, uint16_t number_of_entities,
+                            const uint8_t *values, size_t values_len) {
+  PduBuffer pdu;  // declared before every return so NRVO fires (all paths return the same object)
   // Generic entry point; prefer the direction- and type-specific builders (create_read_pdu(),
   // create_write_registers_pdu(), etc.) which bound their inputs per spec.
   if (is_function_code_read(static_cast<uint8_t>(function_code))) {
@@ -419,8 +419,8 @@ Pdu create_client_pdu(FunctionCode function_code, uint16_t start_address, uint16
   return pdu;
 }
 
-Pdu create_write_registers_pdu(uint16_t start_address, std::span<const uint16_t> values) {
-  Pdu pdu;  // declared before every return so NRVO fires (all paths return the same object)
+PduBuffer create_write_registers_pdu(uint16_t start_address, std::span<const uint16_t> values) {
+  PduBuffer pdu;  // declared before every return so NRVO fires (all paths return the same object)
   if (values.empty()) {
     ESP_LOGE(TAG, "No values provided for write multiple registers, dropping request");
     return pdu;
@@ -460,7 +460,7 @@ WriteSinglePdu create_write_single_coil_pdu(uint16_t address, bool value) {
 
 // Shared core for the two coil-write overloads: validates, then builds into the caller's named
 // pdu (left empty on failure). Each overload's returns all name one local, so NRVO fires.
-static void build_write_coils_pdu_(Pdu &pdu, uint16_t start_address, PackedBits bits) {
+static void build_write_coils_pdu_(PduBuffer &pdu, uint16_t start_address, PackedBits bits) {
   const uint16_t count = bits.size();
   const std::span<const uint8_t> packed_bits = bits.bytes();
   if (count == 0) {
@@ -492,14 +492,14 @@ static void build_write_coils_pdu_(Pdu &pdu, uint16_t start_address, PackedBits 
   }
 }
 
-Pdu create_write_coils_pdu(uint16_t start_address, PackedBits bits) {
-  Pdu pdu;
+PduBuffer create_write_coils_pdu(uint16_t start_address, PackedBits bits) {
+  PduBuffer pdu;
   build_write_coils_pdu_(pdu, start_address, bits);
   return pdu;
 }
 
-Pdu create_write_coils_pdu(uint16_t start_address, std::span<const bool> values) {
-  Pdu pdu;  // declared before every return so NRVO fires (all paths return the same object)
+PduBuffer create_write_coils_pdu(uint16_t start_address, std::span<const bool> values) {
+  PduBuffer pdu;  // declared before every return so NRVO fires (all paths return the same object)
   // Bound before packing so the transient buffer below cannot overflow; the shared core validates the rest.
   if (values.size() > MAX_NUM_OF_COILS_TO_WRITE) {
     ESP_LOGE(TAG, "values.size() %zu exceeds maximum coils to write %u, dropping request", values.size(),
