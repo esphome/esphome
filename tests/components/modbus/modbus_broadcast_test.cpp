@@ -1,25 +1,15 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
-#include <new>
 #include <optional>
 #include <vector>
 
 #include "esphome/components/modbus/modbus.h"
-#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 
 namespace esphome::modbus {
 
 namespace {
-
-void ensure_test_app_constructed() {
-  static bool app_constructed = false;
-  if (!app_constructed) {
-    new (&App) Application();
-    app_constructed = true;
-  }
-}
 
 // Modbus broadcast address: a request every device processes and never answers (Modbus 4.1).
 constexpr uint8_t BROADCAST_ADDRESS = 0x00;
@@ -93,7 +83,6 @@ class TestServerHub : public ModbusServerHub {
 
 // A broadcast (address 0) single-register write reaches every registered device and is not answered.
 TEST(ModbusBroadcast, SingleRegisterWriteReachesAllDevicesWithoutReply) {
-  ensure_test_app_constructed();
   TestServerHub hub;
   RecordingUART uart;
   hub.set_uart_parent(&uart);
@@ -105,7 +94,7 @@ TEST(ModbusBroadcast, SingleRegisterWriteReachesAllDevicesWithoutReply) {
 
   // FC 0x06 payload: start address 0x9D31, value 0x00A5 (big-endian, no address/CRC).
   const uint8_t pdu_data[] = {0x9D, 0x31, 0x00, 0xA5};
-  hub.process_modbus_client_frame_(BROADCAST_ADDRESS, static_cast<uint8_t>(ModbusFunctionCode::WRITE_SINGLE_REGISTER),
+  hub.process_modbus_client_frame_(BROADCAST_ADDRESS, static_cast<uint8_t>(FunctionCode::WRITE_SINGLE_REGISTER),
                                    pdu_data);
 
   for (RecordingDevice *device : {&device_a, &device_b}) {
@@ -119,7 +108,6 @@ TEST(ModbusBroadcast, SingleRegisterWriteReachesAllDevicesWithoutReply) {
 
 // A broadcast multi-register write is decoded and delivered to every device, still without a reply.
 TEST(ModbusBroadcast, MultipleRegisterWriteReachesAllDevicesWithoutReply) {
-  ensure_test_app_constructed();
   TestServerHub hub;
   RecordingUART uart;
   hub.set_uart_parent(&uart);
@@ -131,8 +119,8 @@ TEST(ModbusBroadcast, MultipleRegisterWriteReachesAllDevicesWithoutReply) {
 
   // FC 0x10 payload: start 0x9D31, quantity 2, byte count 4, values 0x0102 and 0x0304.
   const uint8_t pdu_data[] = {0x9D, 0x31, 0x00, 0x02, 0x04, 0x01, 0x02, 0x03, 0x04};
-  hub.process_modbus_client_frame_(BROADCAST_ADDRESS,
-                                   static_cast<uint8_t>(ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS), pdu_data);
+  hub.process_modbus_client_frame_(BROADCAST_ADDRESS, static_cast<uint8_t>(FunctionCode::WRITE_MULTIPLE_REGISTERS),
+                                   pdu_data);
 
   for (RecordingDevice *device : {&device_a, &device_b}) {
     EXPECT_EQ(device->write_count, 1);
@@ -146,7 +134,6 @@ TEST(ModbusBroadcast, MultipleRegisterWriteReachesAllDevicesWithoutReply) {
 
 // A read broadcast is meaningless (it would need a reply), so nothing is dispatched and nothing is sent.
 TEST(ModbusBroadcast, ReadFunctionCodeIsIgnoredAndProducesNoReply) {
-  ensure_test_app_constructed();
   TestServerHub hub;
   RecordingUART uart;
   hub.set_uart_parent(&uart);
@@ -156,7 +143,7 @@ TEST(ModbusBroadcast, ReadFunctionCodeIsIgnoredAndProducesNoReply) {
 
   // FC 0x03 payload: start 0x0000, quantity 2. Reads cannot be broadcast.
   const uint8_t pdu_data[] = {0x00, 0x00, 0x00, 0x02};
-  hub.process_modbus_client_frame_(BROADCAST_ADDRESS, static_cast<uint8_t>(ModbusFunctionCode::READ_HOLDING_REGISTERS),
+  hub.process_modbus_client_frame_(BROADCAST_ADDRESS, static_cast<uint8_t>(FunctionCode::READ_HOLDING_REGISTERS),
                                    pdu_data);
 
   EXPECT_EQ(device.write_count, 0);   // no device was written
@@ -165,7 +152,6 @@ TEST(ModbusBroadcast, ReadFunctionCodeIsIgnoredAndProducesNoReply) {
 
 // An invalid broadcast write is silently dropped: no writes dispatched and no exception reply sent.
 TEST(ModbusBroadcast, InvalidMultipleWriteBroadcastProducesNoWriteAndNoReply) {
-  ensure_test_app_constructed();
   TestServerHub hub;
   RecordingUART uart;
   hub.set_uart_parent(&uart);
@@ -177,8 +163,8 @@ TEST(ModbusBroadcast, InvalidMultipleWriteBroadcastProducesNoWriteAndNoReply) {
 
   // FC 0x10 payload: quantity 2 but byte count 2 (should be 4), so parsing fails.
   const uint8_t pdu_data[] = {0x9D, 0x31, 0x00, 0x02, 0x02, 0x01, 0x02};
-  hub.process_modbus_client_frame_(BROADCAST_ADDRESS,
-                                   static_cast<uint8_t>(ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS), pdu_data);
+  hub.process_modbus_client_frame_(BROADCAST_ADDRESS, static_cast<uint8_t>(FunctionCode::WRITE_MULTIPLE_REGISTERS),
+                                   pdu_data);
 
   EXPECT_EQ(device_a.write_count, 0);
   EXPECT_EQ(device_b.write_count, 0);
@@ -187,7 +173,6 @@ TEST(ModbusBroadcast, InvalidMultipleWriteBroadcastProducesNoWriteAndNoReply) {
 
 // A unicast out-of-range write sends exactly one exception frame on the wire.
 TEST(ModbusBroadcast, UnicastOutOfRangeWriteSendsSingleExceptionFrame) {
-  ensure_test_app_constructed();
   TestServerHub hub;
   RecordingUART uart;
   hub.set_uart_parent(&uart);
@@ -198,14 +183,14 @@ TEST(ModbusBroadcast, UnicastOutOfRangeWriteSendsSingleExceptionFrame) {
 
   // FC 0x10 payload: start 0xFFFF, quantity 2, byte count 4, values valid but address range overflows.
   const uint8_t pdu_data[] = {0xFF, 0xFF, 0x00, 0x02, 0x04, 0x01, 0x02, 0x03, 0x04};
-  ASSERT_TRUE(hub.process_full_client_frame_for_test(
-      0x02, static_cast<uint8_t>(ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS), pdu_data, sizeof(pdu_data)));
+  ASSERT_TRUE(hub.process_full_client_frame_for_test(0x02, static_cast<uint8_t>(FunctionCode::WRITE_MULTIPLE_REGISTERS),
+                                                     pdu_data, sizeof(pdu_data)));
 
   EXPECT_EQ(device.write_count, 0);
   ASSERT_EQ(uart.written.size(), 5u);
   EXPECT_EQ(uart.written[0], 0x02);  // server address
-  EXPECT_EQ(uart.written[1], static_cast<uint8_t>(ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) | 0x80);
-  EXPECT_EQ(uart.written[2], static_cast<uint8_t>(ModbusExceptionCode::ILLEGAL_DATA_ADDRESS));
+  EXPECT_EQ(uart.written[1], static_cast<uint8_t>(FunctionCode::WRITE_MULTIPLE_REGISTERS) | 0x80);
+  EXPECT_EQ(uart.written[2], static_cast<uint8_t>(ExceptionCode::ILLEGAL_DATA_ADDRESS));
 }
 
 }  // namespace esphome::modbus
