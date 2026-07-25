@@ -819,7 +819,7 @@ class WiFiComponent final : public Component {
 
 #ifdef USE_RP2
   static int s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
-  void wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
+  void wifi_scan_result_(void *env, const cyw43_ev_scan_result_t *result);
 #endif
 
 #ifdef USE_LIBRETINY

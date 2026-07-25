@@ -42,4 +42,5 @@ sensor:
     auto_cleaning_interval: 604800s
     acceleration_mode: low
     store_baseline: true
+    model: sen55
     address: 0x69
