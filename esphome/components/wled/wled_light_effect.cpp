@@ -13,7 +13,7 @@
 #include <WiFiUdp.h>
 #endif
 
-#ifdef USE_BK72XX
+#ifdef USE_LIBRETINY
 #include <WiFiUdp.h>
 #endif
 
