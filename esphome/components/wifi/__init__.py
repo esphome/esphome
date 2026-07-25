@@ -841,8 +841,10 @@ def request_wifi_scan_results_lock() -> None:
 
     Components that read WiFi scan results from a task other than the main loop
     (for example a web server handler) must call this function during their code
-    generation. On multi-threaded platforms this compiles in a lock that scan
-    result writers hold; on single-threaded platforms it compiles to nothing.
+    generation, and their C++ code must hold a wifi::ScanResultsLock while
+    iterating get_scan_result(). On multi-threaded platforms this compiles in a
+    lock that scan result writers hold; on single-threaded platforms it compiles
+    to nothing.
     """
     CORE.data[SCAN_RESULTS_LOCK_KEY] = True
 
