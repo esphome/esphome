@@ -13,29 +13,29 @@ uint16_t server_frame_length(const uint8_t *frame, size_t size) {
   if (is_function_code_exception(frame[1])) {
     return 5;  // address(1) + function(1) + exception(1) + CRC(2)
   }
-  switch (static_cast<ModbusFunctionCode>(frame[1])) {
-    case ModbusFunctionCode::READ_COILS:
-    case ModbusFunctionCode::READ_DISCRETE_INPUTS:
-    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
-    case ModbusFunctionCode::READ_INPUT_REGISTERS:
+  switch (static_cast<FunctionCode>(frame[1])) {
+    case FunctionCode::READ_COILS:
+    case FunctionCode::READ_DISCRETE_INPUTS:
+    case FunctionCode::READ_HOLDING_REGISTERS:
+    case FunctionCode::READ_INPUT_REGISTERS:
       // address(1) + function(1) + byte count(1) + data + CRC(2)
       return 5 + (size > 2 ? std::min(frame[2], uint8_t(MAX_NUM_OF_REGISTERS_TO_READ * 2)) : 0);
-    case ModbusFunctionCode::WRITE_SINGLE_COIL:
-    case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
-    case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
-    case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
+    case FunctionCode::WRITE_SINGLE_COIL:
+    case FunctionCode::WRITE_SINGLE_REGISTER:
+    case FunctionCode::WRITE_MULTIPLE_COILS:
+    case FunctionCode::WRITE_MULTIPLE_REGISTERS:
       return 8;  // address(1) + function(1) + output/register address(2) + value(2) + CRC(2)
     // Unsupported function codes. Included here to prevent parser failures. Excluding Serial Line specific functions.
-    case ModbusFunctionCode::READ_FILE_RECORD:
-    case ModbusFunctionCode::WRITE_FILE_RECORD:
+    case FunctionCode::READ_FILE_RECORD:
+    case FunctionCode::WRITE_FILE_RECORD:
       // address(1) + function(1) + byte count(1) + data + CRC(2)
       return 5 + (size > 2 ? std::min(frame[2], uint8_t(MAX_FRAME_SIZE - 5)) : 0);
-    case ModbusFunctionCode::MASK_WRITE_REGISTER:
+    case FunctionCode::MASK_WRITE_REGISTER:
       return 10;  // address(1) + function(1) + reference address(2) + AND mask(2) + OR mask(2) + CRC(2)
-    case ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
+    case FunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
       // address(1) + function(1) + byte count(1) + data + CRC(2)
       return 5 + (size > 2 ? std::min(frame[2], uint8_t(MAX_NUM_OF_REGISTERS_TO_READ * 2)) : 0);
-    case ModbusFunctionCode::READ_FIFO_QUEUE:
+    case FunctionCode::READ_FIFO_QUEUE:
       // address(1) + function(1) + fifo address(2) CRC(2)
       return 6;
     default:
@@ -46,31 +46,31 @@ uint16_t server_frame_length(const uint8_t *frame, size_t size) {
 uint16_t client_frame_length(const uint8_t *frame, size_t size) {
   if (size < 2)
     return MIN_FRAME_SIZE;
-  switch (static_cast<ModbusFunctionCode>(frame[1])) {
-    case ModbusFunctionCode::READ_COILS:
-    case ModbusFunctionCode::READ_DISCRETE_INPUTS:
-    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
-    case ModbusFunctionCode::READ_INPUT_REGISTERS:
+  switch (static_cast<FunctionCode>(frame[1])) {
+    case FunctionCode::READ_COILS:
+    case FunctionCode::READ_DISCRETE_INPUTS:
+    case FunctionCode::READ_HOLDING_REGISTERS:
+    case FunctionCode::READ_INPUT_REGISTERS:
       // address(1) + function(1) + start address(2) + quantity(2) + CRC(2)
-    case ModbusFunctionCode::WRITE_SINGLE_COIL:
-    case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
+    case FunctionCode::WRITE_SINGLE_COIL:
+    case FunctionCode::WRITE_SINGLE_REGISTER:
       return 8;  // address(1) + function(1) + output/register address(2) + value(2) + CRC(2)
-    case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
-    case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
+    case FunctionCode::WRITE_MULTIPLE_COILS:
+    case FunctionCode::WRITE_MULTIPLE_REGISTERS:
       // address(1) + function(1) + start address(2) + quantity(2) + byte count(1) + data + CRC(2)
       return 9 + (size > 6 ? std::min(frame[6], uint8_t(MAX_NUM_OF_REGISTERS_TO_WRITE * 2)) : 0);
     // Unsupported function codes. Included here to prevent parser failures. Excluding Serial Line specific functions.
-    case ModbusFunctionCode::READ_FILE_RECORD:
-    case ModbusFunctionCode::WRITE_FILE_RECORD:
+    case FunctionCode::READ_FILE_RECORD:
+    case FunctionCode::WRITE_FILE_RECORD:
       // address(1) + function(1) + byte count(1) + data + CRC(2)
       return 5 + (size > 2 ? std::min(frame[2], uint8_t(MAX_FRAME_SIZE - 5)) : 0);
-    case ModbusFunctionCode::MASK_WRITE_REGISTER:
+    case FunctionCode::MASK_WRITE_REGISTER:
       return 10;  // address(1) + function(1) + reference address(2) + AND mask(2) + OR mask(2) + CRC(2)
-    case ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
+    case FunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
       // address(1) + function(1) + read start address(2) + read quantity(2) + write start address(2) +
       // write quantity(2) + byte count(1) + data + CRC(2)
       return 13 + (size > 10 ? std::min(frame[10], uint8_t(MAX_NUM_OF_REGISTERS_TO_WRITE * 2)) : 0);
-    case ModbusFunctionCode::READ_FIFO_QUEUE:
+    case FunctionCode::READ_FIFO_QUEUE:
       // address(1) + function(1) + fifo address(2) CRC(2)
       return 6;
     default:
@@ -197,7 +197,7 @@ std::optional<int64_t> registers_to_number(const uint16_t *registers, size_t cou
   return payload_to_number(bytes, required_size, sensor_value_type, 0, 0xFFFFFFFF);
 }
 
-StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(ModbusFunctionCode function_code, uint16_t start_address,
+StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(FunctionCode function_code, uint16_t start_address,
                                                       uint16_t number_of_entities, const uint8_t *values,
                                                       size_t values_len) {
   if (is_function_code_read(static_cast<uint8_t>(function_code))) {
@@ -221,33 +221,33 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(ModbusFunctionCode functio
   }
 
   switch (function_code) {
-    case ModbusFunctionCode::READ_COILS:
+    case FunctionCode::READ_COILS:
       if (number_of_entities > MAX_NUM_OF_COILS_TO_READ) {
         ESP_LOGE(TAG, "number_of_entities %u exceeds maximum coils to read %u for function code %02X",
                  number_of_entities, MAX_NUM_OF_COILS_TO_READ, static_cast<uint8_t>(function_code));
         return {};
       }
       break;
-    case ModbusFunctionCode::READ_DISCRETE_INPUTS:
+    case FunctionCode::READ_DISCRETE_INPUTS:
       if (number_of_entities > MAX_NUM_OF_DISCRETE_INPUTS_TO_READ) {
         ESP_LOGE(TAG, "number_of_entities %u exceeds maximum discrete inputs to read %u for function code %02X",
                  number_of_entities, MAX_NUM_OF_DISCRETE_INPUTS_TO_READ, static_cast<uint8_t>(function_code));
         return {};
       }
       break;
-    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
-    case ModbusFunctionCode::READ_INPUT_REGISTERS:
+    case FunctionCode::READ_HOLDING_REGISTERS:
+    case FunctionCode::READ_INPUT_REGISTERS:
       if (number_of_entities > MAX_NUM_OF_REGISTERS_TO_READ) {
         ESP_LOGE(TAG, "number_of_entities %u exceeds maximum registers to read %u for function code %02X",
                  number_of_entities, MAX_NUM_OF_REGISTERS_TO_READ, static_cast<uint8_t>(function_code));
         return {};
       }
       break;
-    case ModbusFunctionCode::WRITE_SINGLE_COIL:
-    case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
+    case FunctionCode::WRITE_SINGLE_COIL:
+    case FunctionCode::WRITE_SINGLE_REGISTER:
       break;  // number_of_entities is ignored for single write, so no need to validate
-    case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
-    case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
+    case FunctionCode::WRITE_MULTIPLE_COILS:
+    case FunctionCode::WRITE_MULTIPLE_REGISTERS:
       if (number_of_entities > MAX_NUM_OF_REGISTERS_TO_WRITE) {
         ESP_LOGE(TAG, "number_of_entities %u exceeds maximum registers to write %u for function code %02X",
                  number_of_entities, MAX_NUM_OF_REGISTERS_TO_WRITE, static_cast<uint8_t>(function_code));
@@ -263,15 +263,14 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(ModbusFunctionCode functio
   pdu.push_back(static_cast<uint8_t>(function_code));
   pdu.push_back(start_address >> 8);
   pdu.push_back(start_address >> 0);
-  if (function_code != ModbusFunctionCode::WRITE_SINGLE_COIL &&
-      function_code != ModbusFunctionCode::WRITE_SINGLE_REGISTER) {
+  if (function_code != FunctionCode::WRITE_SINGLE_COIL && function_code != FunctionCode::WRITE_SINGLE_REGISTER) {
     pdu.push_back(number_of_entities >> 8);
     pdu.push_back(number_of_entities >> 0);
   }
 
   if (is_function_code_write(static_cast<uint8_t>(function_code))) {
-    if (function_code == ModbusFunctionCode::WRITE_MULTIPLE_COILS ||
-        function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
+    if (function_code == FunctionCode::WRITE_MULTIPLE_COILS ||
+        function_code == FunctionCode::WRITE_MULTIPLE_REGISTERS) {
       // 6 bytes of overhead (fc + start_addr×2 + qty×2 + byte_count) leave MAX_PDU_SIZE-6 bytes for values
       static constexpr size_t MAX_WRITE_MULTIPLE_VALUES_LEN = MAX_PDU_SIZE - 6;
       if (values_len > MAX_WRITE_MULTIPLE_VALUES_LEN) {
