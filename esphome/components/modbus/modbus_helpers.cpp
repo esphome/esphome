@@ -460,7 +460,7 @@ WriteSinglePdu create_write_single_coil_pdu(uint16_t address, bool value) {
 
 // Shared core for the two coil-write overloads: validates, then builds into the caller's named
 // pdu (left empty on failure). Each overload's returns all name one local, so NRVO fires.
-static void build_write_coils_pdu_(PduBuffer &pdu, uint16_t start_address, PackedBits bits) {
+static void build_write_coils_pdu(PduBuffer &pdu, uint16_t start_address, PackedBits bits) {
   const uint16_t count = bits.size();
   const std::span<const uint8_t> packed_bits = bits.bytes();
   if (count == 0) {
@@ -494,7 +494,7 @@ static void build_write_coils_pdu_(PduBuffer &pdu, uint16_t start_address, Packe
 
 PduBuffer create_write_coils_pdu(uint16_t start_address, PackedBits bits) {
   PduBuffer pdu;
-  build_write_coils_pdu_(pdu, start_address, bits);
+  build_write_coils_pdu(pdu, start_address, bits);
   return pdu;
 }
 
@@ -513,8 +513,8 @@ PduBuffer create_write_coils_pdu(uint16_t start_address, std::span<const bool> v
     if (values[i])
       packed[i / 8] |= (1 << (i % 8));
   }
-  build_write_coils_pdu_(pdu, start_address,
-                         PackedBits(std::span<const uint8_t>(packed.data(), packed.size()), values.size()));
+  build_write_coils_pdu(pdu, start_address,
+                        PackedBits(std::span<const uint8_t>(packed.data(), packed.size()), values.size()));
   return pdu;
 }
 }  // namespace esphome::modbus::helpers
