@@ -1056,7 +1056,9 @@ extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-
 /// mutations on the main loop (e.g. the match and sort pass) may hold it
 /// directly; that only ever blocks the web server task, never the main loop.
 /// Compiles to nothing unless a cross-task consumer is in the build and the
-/// platform runs multiple threads (WIFI_SCAN_RESULTS_LOCK_ENABLED).
+/// platform runs multiple threads (WIFI_SCAN_RESULTS_LOCK_ENABLED); sites that
+/// are always compiled out (single-threaded platforms) may hold at function
+/// scope for simplicity.
 class ScanResultsLock {
  public:
 #ifdef WIFI_SCAN_RESULTS_LOCK_ENABLED

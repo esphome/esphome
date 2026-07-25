@@ -896,6 +896,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
     // Take the results buffer out under the lock, rebuild it without holding the
     // lock so its capacity is reused, then swap it back in (see ScanResultsLock).
+    // Readers see an empty list during the rebuild, matching the previous
+    // clear()-at-the-top behavior.
     wifi_scan_vector_t<WiFiScanResult> results;
     {
       ScanResultsLock lock(this);

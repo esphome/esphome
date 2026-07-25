@@ -1,7 +1,7 @@
 import logging
 
 import esphome.codegen as cg
-from esphome.components import web_server_base
+from esphome.components import web_server_base, wifi
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -103,7 +103,7 @@ async def to_code(config):
     cg.add_define("USE_CAPTIVE_PORTAL")
     # The portal reads wifi scan results from the web server task; this makes the
     # wifi component guard them with a lock on multi-threaded platforms.
-    cg.add_define("USE_WIFI_SCAN_RESULTS_LOCK")
+    wifi.request_wifi_scan_results_lock()
 
     if config[CONF_COMPRESSION] == "gzip":
         cg.add_define("USE_CAPTIVE_PORTAL_GZIP")
