@@ -25,11 +25,8 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
 #endif
 
   {
-    // Hold the scan results lock across building the whole response. The portal
-    // only runs while the device is unprovisioned, so briefly blocking the main
-    // loop is fine and avoiding a heap copy of the results matters more. The
-    // stream only appends to an in-memory buffer (the network send happens later
-    // in request->send()), so the hold is bounded; never add blocking I/O here.
+    // Invariant: only bounded in-memory work under the lock; the network send
+    // happens later in request->send()
     wifi::ScanResultsLock lock(wifi::global_wifi_component);
     for (const auto &scan : wifi::global_wifi_component->get_scan_result()) {
       if (scan.get_is_hidden())

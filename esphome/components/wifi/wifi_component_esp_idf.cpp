@@ -894,10 +894,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     uint16_t number = it.number;
     this->scan_done_ = true;
 
-    // Take the results buffer out under the lock, rebuild it without holding the
-    // lock so its capacity is reused, then swap it back in (see ScanResultsLock).
-    // Readers see an empty list during the rebuild, matching the previous
-    // clear()-at-the-top behavior.
+    // Rebuild outside the lock reusing capacity, publish by swap; readers see an
+    // empty list during the rebuild
     wifi_scan_vector_t<WiFiScanResult> results;
     {
       ScanResultsLock lock(this);

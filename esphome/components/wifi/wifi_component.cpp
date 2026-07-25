@@ -2411,9 +2411,7 @@ void WiFiComponent::release_scan_results_() {
   if (this->keep_scan_results_)
     return;
 #ifdef WIFI_SCAN_RESULTS_LOCK_ENABLED
-  // Swap into a local so the buffer is freed outside the lock. For std::vector this
-  // is the swap trick (shrink_to_fit is non-binding); for FixedVector the local's
-  // destructor frees all memory.
+  // Swap into a local so the buffer is freed outside the lock
   decltype(this->scan_result_) released;
   {
     ScanResultsLock lock(this);

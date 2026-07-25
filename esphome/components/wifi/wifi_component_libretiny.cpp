@@ -661,10 +661,8 @@ void WiFiComponent::wifi_scan_done_callback_() {
   bool needs_full = this->needs_full_scan_results_();
   this->scan_done_ = true;
 
-  // Build results into a scratch vector, then swap it in under the lock (see
-  // ScanResultsLock). FixedVector::init() always reallocates anyway; old and new
-  // buffers briefly coexist, and readers keep seeing the previous results until
-  // the swap.
+  // Build into a scratch vector, publish by swap; readers keep the previous
+  // results until then
   wifi_scan_vector_t<WiFiScanResult> results;
   if (num >= 0) {
     // Access scan results directly via WiFi.scan struct to avoid Arduino String allocations

@@ -841,7 +841,7 @@ class WiFiComponent final : public Component {
   // Large/pointer-aligned members first
   FixedVector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
-  // All mutations must hold ScanResultsLock (see its comment below this class)
+  // Guarded by ScanResultsLock (see below this class)
   wifi_scan_vector_t<WiFiScanResult> scan_result_;
 #ifdef WIFI_SCAN_RESULTS_LOCK_ENABLED
   Mutex scan_result_lock_;
@@ -1017,17 +1017,11 @@ class WiFiComponent final : public Component {
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-/// RAII lock that guards WiFiComponent::scan_result_: every mutation of the
-/// container and every read from outside the main loop must hold it. The captive
-/// portal holds it across serializing get_scan_result() into its response buffer.
-/// Holders may only do bounded in-memory work: no network I/O and no unbounded
-/// waits under the lock. To keep hold times minimal, writers should build results
-/// into a scratch vector without the lock and std::swap it in while holding it;
-/// brief in-place mutations on the main loop (e.g. the match and sort pass) may
-/// hold it directly. Compiles to nothing unless a cross-task consumer is in the
-/// build and the platform runs multiple threads (WIFI_SCAN_RESULTS_LOCK_ENABLED);
-/// sites that are always compiled out (single-threaded platforms) may hold at
-/// function scope for simplicity.
+/// Guards WiFiComponent::scan_result_. Invariant: every mutation and every read
+/// from outside the main loop holds this lock, and holders only do bounded
+/// in-memory work (no I/O, no unbounded waits). Compiles to nothing unless a
+/// cross-task reader is in the build and the platform is multi-threaded
+/// (WIFI_SCAN_RESULTS_LOCK_ENABLED).
 class ScanResultsLock {
  public:
 #ifdef WIFI_SCAN_RESULTS_LOCK_ENABLED
