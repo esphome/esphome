@@ -93,6 +93,9 @@ bool is_server_pdu_standard(const uint8_t *pdu, size_t size) {
       return pdu[1] <= uint8_t(MAX_PDU_SIZE - 2);
     case FunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
       return pdu[1] <= uint8_t(MAX_NUM_OF_REGISTERS_TO_READ * 2);
+    case FunctionCode::WRITE_SINGLE_COIL:
+      // The response echoes the request, so the same ON/OFF constraint applies.
+      return (pdu[3] == 0xFF || pdu[3] == 0x00) && pdu[4] == 0x00;
     default:
       return true;  // All other function codes validated by length alone
   }
@@ -138,6 +141,9 @@ bool is_client_pdu_standard(const uint8_t *pdu, size_t size) {
              (uint32_t) start_address_read + quantity_read <= 0x10000u &&
              (uint32_t) start_address_write + quantity_write <= 0x10000u && pdu[9] == quantity_write * 2;
     }
+    case FunctionCode::WRITE_SINGLE_COIL:
+      // The one variable field in an otherwise fixed-shape PDU: the spec allows exactly ON/OFF.
+      return (pdu[3] == 0xFF || pdu[3] == 0x00) && pdu[4] == 0x00;
     default:
       return true;  // All other function codes validated by length alone
   }

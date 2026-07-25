@@ -209,4 +209,15 @@ TEST(ModbusClientHubCompat, LegacyCallbackNamesStillForward) {
   EXPECT_EQ(device.legacy_not_sent_, 1);
 }
 
+// The send_pdu() capacity bound: a PDU larger than MAX_PDU_SIZE would build a frame past the RTU
+// 256-byte limit, so it is refused up front and signalled like any other failed send.
+TEST(ModbusClientHub, OversizedPduIsRefusedWithNotSent) {
+  NoResponseProbeHub hub;
+  LegacyNameDevice device(&hub, 0x02);
+  std::vector<uint8_t> big(MAX_PDU_SIZE + 1, 0x41);
+  device.send_pdu(big);
+  EXPECT_EQ(device.legacy_not_sent_, 1);  // on_not_sent, observed via the legacy forward
+  EXPECT_TRUE(hub.tx_buffer_empty());
+}
+
 }  // namespace esphome::modbus::testing

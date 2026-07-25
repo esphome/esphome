@@ -177,6 +177,18 @@ TEST(ModbusPduStandard, ServerReadResponses) {
   EXPECT_FALSE(is_server_pdu_standard(ok, 0));
 }
 
+TEST(ModbusPduStandard, SingleCoilValueMustBeCanonical) {
+  // FC 0x05's value field allows exactly 0xFF00 (ON) and 0x0000 (OFF); anything else is non-standard.
+  const uint8_t on[] = {0x05, 0x00, 0x10, 0xFF, 0x00};
+  const uint8_t off[] = {0x05, 0x00, 0x10, 0x00, 0x00};
+  const uint8_t junk[] = {0x05, 0x00, 0x10, 0x12, 0x34};
+  EXPECT_TRUE(is_client_pdu_standard(on, sizeof(on)));
+  EXPECT_TRUE(is_client_pdu_standard(off, sizeof(off)));
+  EXPECT_FALSE(is_client_pdu_standard(junk, sizeof(junk)));
+  EXPECT_TRUE(is_server_pdu_standard(on, sizeof(on)));  // the response echoes the request
+  EXPECT_FALSE(is_server_pdu_standard(junk, sizeof(junk)));
+}
+
 TEST(ModbusPduStandard, NonStandardFunctionCodesAcceptedOnLengthAlone) {
   // Custom, unimplemented, and exception function codes have no standard shape to check: they are
   // accepted whenever the parsed length matches, so a dispatcher can still route them by function
