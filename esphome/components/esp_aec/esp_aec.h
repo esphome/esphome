@@ -27,7 +27,7 @@ using esp_audio_stack::ProcessorTelemetry;
 ///
 /// Consumers see AEC as just another
 /// AudioProcessor; picking EspAec vs EspAfe is a YAML choice.
-class EspAec : public Component, public AudioProcessor {
+class EspAec final : public Component, public AudioProcessor {
  public:
   void setup() override;
   void dump_config() override;
