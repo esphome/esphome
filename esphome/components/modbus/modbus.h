@@ -252,10 +252,27 @@ class ModbusClientDevice {
   uint8_t address_{0};
 };
 
-// This is for compatibility with external components using the former class name
-// Remove before 2026.12.0
-using ModbusDevice ESPDEPRECATED("Use ModbusClientDevice instead. Removed in 2026.12.0",
-                                 "2026.6.0") = ModbusClientDevice;
+// Compatibility shim for external components written against the pre-2026.8 API, which subclassed
+// ModbusDevice and overrode on_modbus_data()/on_modbus_error(). The name is free (nothing in-tree
+// uses it), so instead of a plain alias it adapts the new span-based hooks back to the old
+// signatures: on_modbus_data() receives the response payload as an owning vector (the heap copy
+// exists only on this deprecated path) and on_modbus_error() the function code and exception code.
+// Remove before 2027.2.0 (window restarted when the plain alias became a behavior shim in 2026.8.0)
+class ESPDEPRECATED("Subclass ModbusClientDevice and override on_response()/on_error() instead. Removed in 2027.2.0",
+                    "2026.8.0") ModbusDevice : public ModbusClientDevice {
+ public:
+  using ModbusClientDevice::ModbusClientDevice;
+  virtual void on_modbus_data(const std::vector<uint8_t> &data) {}
+  virtual void on_modbus_error(uint8_t function_code, uint8_t exception_code) {}
+
+  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {
+    auto payload = helpers::server_pdu_payload(response_pdu);
+    this->on_modbus_data(std::vector<uint8_t>(payload.begin(), payload.end()));
+  }
+  void on_error(std::span<const uint8_t> request_pdu, ExceptionCode exception_code) override {
+    this->on_modbus_error(request_pdu.empty() ? 0 : request_pdu[0], static_cast<uint8_t>(exception_code));
+  }
+};
 
 // Register values exchanged with server handlers, in host byte order. Sized at the larger of the two protocol
 // maxima (read = 125 / 0x7D, write = 123 / 0x7B); the per-direction count limit is enforced by the hub, not by
