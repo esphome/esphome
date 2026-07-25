@@ -507,6 +507,13 @@ class WiFiComponent final : public Component {
   void set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
   const wifi_scan_vector_t<WiFiScanResult> &get_scan_result() const { return scan_result_; }
+#ifdef USE_CAPTIVE_PORTAL
+  /// Guards scan_result_ against the captive portal reading it from the web server
+  /// task while the main loop rebuilds, sorts or frees it. Hold this lock while
+  /// iterating get_scan_result() from outside the main loop. No-op on
+  /// single-threaded platforms.
+  Mutex &get_scan_result_lock() { return this->scan_result_lock_; }
+#endif
 
   network::IPAddress wifi_soft_ap_ip();
 
@@ -831,7 +838,12 @@ class WiFiComponent final : public Component {
   // Large/pointer-aligned members first
   FixedVector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
+  // All mutations must hold ScanResultsLock: the captive portal iterates this
+  // container from the web server task via get_scan_result().
   wifi_scan_vector_t<WiFiScanResult> scan_result_;
+#ifdef USE_CAPTIVE_PORTAL
+  Mutex scan_result_lock_;
+#endif
 #ifdef USE_WIFI_AP
   WiFiAP ap_;
 #endif
@@ -1002,6 +1014,20 @@ class WiFiComponent final : public Component {
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+/// RAII lock held while mutating scan_result_. Compiles to nothing unless the
+/// captive portal (the only reader outside the main loop) is part of the build.
+class ScanResultsLock {
+ public:
+#ifdef USE_CAPTIVE_PORTAL
+  ScanResultsLock(WiFiComponent *parent) : guard_(parent->get_scan_result_lock()) {}
+
+ private:
+  LockGuard guard_;
+#else
+  ScanResultsLock(WiFiComponent *) {}
+#endif
+};
 
 }  // namespace esphome::wifi
 #endif

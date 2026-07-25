@@ -190,13 +190,19 @@ void WiFiComponent::wifi_scan_result_(void *env, const cyw43_ev_scan_result_t *r
   std::copy(result->bssid, result->bssid + 6, bssid.begin());
   WiFiScanResult res(bssid, ssid_buf, len, result->channel, result->rssi, result->auth_mode != CYW43_AUTH_OPEN,
                      len == 0);
+  // No-op on this single-threaded platform, kept for uniformity with threaded platforms
+  ScanResultsLock lock(this);
   if (std::find(this->scan_result_.begin(), this->scan_result_.end(), res) == this->scan_result_.end()) {
     this->scan_result_.push_back(res);
   }
 }
 
 bool WiFiComponent::wifi_scan_start_(bool passive) {
-  this->scan_result_.clear();
+  {
+    // No-op on this single-threaded platform, kept for uniformity with threaded platforms
+    ScanResultsLock lock(this);
+    this->scan_result_.clear();
+  }
   this->scan_done_ = false;
   s_scan_result_count = 0;
   cyw43_wifi_scan_options_t scan_options = {0};
