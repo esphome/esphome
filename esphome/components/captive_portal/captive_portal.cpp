@@ -44,7 +44,7 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
     if (!is_strongest)
       continue;
 
-    // Assumes no " in ssid, possible unicode isses?
+      // Assumes no " in ssid, possible unicode isses?
 #ifdef USE_ESP8266
     stream->print(ESPHOME_F(",{\"ssid\":\""));
     stream->print(scan.get_ssid().c_str());
