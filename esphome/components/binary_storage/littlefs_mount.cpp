@@ -785,12 +785,10 @@ storage::StorageError LittleFSMount::list_dir(const char *path,
     fs_entry.size = 0;
 
     if (!fs_entry.is_dir) {
-      char entry_path[STORAGE_MAX_PATH_LEN];
-      if (strlen(full_path) + 1 + strlen(entry->d_name) + 1 > STORAGE_MAX_PATH_LEN) {
-        ESP_LOGE(TAG, "Path too long: %s/%s", full_path, entry->d_name);
-        closedir(dir);
-        return storage::StorageError::INVALID_ARGS;
-      }
+      // Child path for the local stat(): the directory path plus '/' plus the raw entry name.
+      // Sized for the worst case (full_path is STORAGE_MAX_PATH_LEN, d_name up to STORAGE_NAME_MAX)
+      // so a deep entry is stat'd rather than truncated or the whole listing rejected.
+      char entry_path[STORAGE_MAX_PATH_LEN + storage::STORAGE_NAME_MAX + 2];
       snprintf(entry_path, sizeof(entry_path), "%s/%s", full_path, entry->d_name);
       struct stat st;
       if (::stat(entry_path, &st) == 0)
