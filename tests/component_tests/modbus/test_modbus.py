@@ -3,7 +3,9 @@
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.modbus import _validate_server_address
+from esphome.components import modbus
+from esphome.components.modbus import CONF_MODBUS_ID, _validate_server_address
+from esphome.const import CONF_ADDRESS
 
 
 def test_server_address_accepts_valid_unit_address() -> None:
@@ -21,3 +23,16 @@ def test_server_address_zero_rejected() -> None:
     # Address 0 is the Modbus broadcast address and cannot identify a server device.
     with pytest.raises(cv.Invalid, match="broadcast address"):
         _validate_server_address(0)
+
+
+def test_server_schema_rejects_address_zero() -> None:
+    # The server-role schema wires in _validate_server_address, so address 0 is rejected there too.
+    schema = modbus.modbus_device_schema(0x01, role="server")
+    with pytest.raises(cv.Invalid, match="broadcast address"):
+        schema({CONF_MODBUS_ID: "hub", CONF_ADDRESS: 0})
+
+
+def test_client_schema_still_accepts_address_zero() -> None:
+    # The default client-role schema keeps hex_uint8_t, so address 0 remains valid for clients.
+    schema = modbus.modbus_device_schema(0x01)
+    assert schema({CONF_MODBUS_ID: "hub", CONF_ADDRESS: 0})[CONF_ADDRESS] == 0

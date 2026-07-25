@@ -360,6 +360,11 @@ ResponseStatus ModbusServerHub::check_register_range_(uint16_t start_address, ui
   return std::nullopt;
 }
 
+// Bounds contract, enforced by the callers rather than locally: data must point at the whole write PDU
+// payload (the bytes after the function code). Both callers hand it parse_modbus_client_frame_'s
+// zero-initialised 256-byte data buffer, and client_pdu_length()'s min(byte_count,
+// MAX_NUM_OF_REGISTERS_TO_WRITE * 2) clamp together with the number_of_registers * 2 == number_of_bytes
+// guard below keep every read (values_offset + i * 2) inside that buffer.
 ResponseStatus ModbusServerHub::parse_write_registers_(uint8_t function_code, const uint8_t *data,
                                                        uint16_t &start_address, RegisterValues &registers) {
   // PDU data: start address(2) [+ quantity(2) + byte count(1)] + register values.

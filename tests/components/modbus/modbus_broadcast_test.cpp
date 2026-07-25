@@ -82,6 +82,8 @@ class TestServerHub : public ModbusServerHub {
 }  // namespace
 
 // A broadcast (address 0) single-register write reaches every registered device and is not answered.
+// Driven through the full frame parser (process_full_client_frame_for_test) so the address-0 routing
+// layer -- frame length, CRC, and client-vs-broadcast dispatch -- is exercised, not just the handler below it.
 TEST(ModbusBroadcast, SingleRegisterWriteReachesAllDevicesWithoutReply) {
   TestServerHub hub;
   RecordingUART uart;
@@ -94,8 +96,8 @@ TEST(ModbusBroadcast, SingleRegisterWriteReachesAllDevicesWithoutReply) {
 
   // FC 0x06 payload: start address 0x9D31, value 0x00A5 (big-endian, no address/CRC).
   const uint8_t pdu_data[] = {0x9D, 0x31, 0x00, 0xA5};
-  hub.process_modbus_client_frame_(BROADCAST_ADDRESS, static_cast<uint8_t>(FunctionCode::WRITE_SINGLE_REGISTER),
-                                   pdu_data);
+  ASSERT_TRUE(hub.process_full_client_frame_for_test(
+      BROADCAST_ADDRESS, static_cast<uint8_t>(FunctionCode::WRITE_SINGLE_REGISTER), pdu_data, sizeof(pdu_data)));
 
   for (RecordingDevice *device : {&device_a, &device_b}) {
     EXPECT_EQ(device->write_count, 1);
