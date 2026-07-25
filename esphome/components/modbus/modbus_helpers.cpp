@@ -280,27 +280,28 @@ std::optional<int64_t> registers_to_number(const uint16_t *registers, size_t cou
   return payload_to_number(bytes, required_size, sensor_value_type, 0, 0xFFFFFFFF);
 }
 
-StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(FunctionCode function_code, uint16_t start_address,
-                                                      uint16_t number_of_entities, const uint8_t *values,
-                                                      size_t values_len) {
-  if (is_function_code_read(static_cast<uint8_t>(function_code))) {
-    if (values != nullptr || values_len > 0) {
-      ESP_LOGW(TAG, "Values provided for read function code %02X, but will be ignored",
-               static_cast<uint8_t>(function_code));
-    }
-  } else if (is_function_code_write(static_cast<uint8_t>(function_code))) {
-    if (values == nullptr || values_len == 0) {
-      ESP_LOGE(TAG, "No values provided for write function code %02X", static_cast<uint8_t>(function_code));
-      return {};
-    }
-  } else {
-    ESP_LOGE(TAG, "Unsupported function code %02X for client PDU creation", static_cast<uint8_t>(function_code));
-    return {};
-  }
+// Every request PDU opens with the same 5-byte layout: function code, then two big-endian 16-bit
+// fields (start address + quantity for reads and multi-writes, address + value for single writes).
+template<size_t CAP>
+static void append_pdu_header(StaticVector<uint8_t, CAP> &pdu, FunctionCode function_code, uint16_t first,
+                              uint16_t second) {
+  pdu.push_back(static_cast<uint8_t>(function_code));
+  pdu.push_back(first >> 8);
+  pdu.push_back(first >> 0);
+  pdu.push_back(second >> 8);
+  pdu.push_back(second >> 0);
+}
 
+ReadPdu create_read_pdu(FunctionCode function_code, uint16_t start_address, uint16_t number_of_entities) {
+  ReadPdu pdu;  // declared before every return so NRVO fires (all paths return the same object)
   if (number_of_entities == 0) {
     ESP_LOGE(TAG, "Number of entities is zero for function code %02X", static_cast<uint8_t>(function_code));
-    return {};
+    return pdu;
+  }
+  if (uint32_t(start_address) + number_of_entities > 0x10000u) {
+    ESP_LOGE(TAG, "Read of %u entities at %u runs past the 16-bit address space, dropping request", number_of_entities,
+             start_address);
+    return pdu;
   }
 
   switch (function_code) {
@@ -308,14 +309,14 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(FunctionCode function_code
       if (number_of_entities > MAX_NUM_OF_COILS_TO_READ) {
         ESP_LOGE(TAG, "number_of_entities %u exceeds maximum coils to read %u for function code %02X",
                  number_of_entities, MAX_NUM_OF_COILS_TO_READ, static_cast<uint8_t>(function_code));
-        return {};
+        return pdu;
       }
       break;
     case FunctionCode::READ_DISCRETE_INPUTS:
       if (number_of_entities > MAX_NUM_OF_DISCRETE_INPUTS_TO_READ) {
         ESP_LOGE(TAG, "number_of_entities %u exceeds maximum discrete inputs to read %u for function code %02X",
                  number_of_entities, MAX_NUM_OF_DISCRETE_INPUTS_TO_READ, static_cast<uint8_t>(function_code));
-        return {};
+        return pdu;
       }
       break;
     case FunctionCode::READ_HOLDING_REGISTERS:
@@ -323,57 +324,201 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(FunctionCode function_code
       if (number_of_entities > MAX_NUM_OF_REGISTERS_TO_READ) {
         ESP_LOGE(TAG, "number_of_entities %u exceeds maximum registers to read %u for function code %02X",
                  number_of_entities, MAX_NUM_OF_REGISTERS_TO_READ, static_cast<uint8_t>(function_code));
-        return {};
-      }
-      break;
-    case FunctionCode::WRITE_SINGLE_COIL:
-    case FunctionCode::WRITE_SINGLE_REGISTER:
-      break;  // number_of_entities is ignored for single write, so no need to validate
-    case FunctionCode::WRITE_MULTIPLE_COILS:
-    case FunctionCode::WRITE_MULTIPLE_REGISTERS:
-      if (number_of_entities > MAX_NUM_OF_REGISTERS_TO_WRITE) {
-        ESP_LOGE(TAG, "number_of_entities %u exceeds maximum registers to write %u for function code %02X",
-                 number_of_entities, MAX_NUM_OF_REGISTERS_TO_WRITE, static_cast<uint8_t>(function_code));
-        return {};
+        return pdu;
       }
       break;
     default:
-      ESP_LOGE(TAG, "Unsupported function code %u for client PDU creation", static_cast<unsigned int>(function_code));
-      return {};
+      ESP_LOGE(TAG, "Unsupported function code %02X for read PDU creation", static_cast<uint8_t>(function_code));
+      return pdu;
   }
 
-  StaticVector<uint8_t, MAX_PDU_SIZE> pdu;
-  pdu.push_back(static_cast<uint8_t>(function_code));
-  pdu.push_back(start_address >> 8);
-  pdu.push_back(start_address >> 0);
-  if (function_code != FunctionCode::WRITE_SINGLE_COIL && function_code != FunctionCode::WRITE_SINGLE_REGISTER) {
-    pdu.push_back(number_of_entities >> 8);
-    pdu.push_back(number_of_entities >> 0);
-  }
+  append_pdu_header(pdu, function_code, start_address, number_of_entities);
+  return pdu;
+}
 
-  if (is_function_code_write(static_cast<uint8_t>(function_code))) {
-    if (function_code == FunctionCode::WRITE_MULTIPLE_COILS ||
-        function_code == FunctionCode::WRITE_MULTIPLE_REGISTERS) {
-      // 6 bytes of overhead (fc + start_addr×2 + qty×2 + byte_count) leave MAX_PDU_SIZE-6 bytes for values
-      static constexpr size_t MAX_WRITE_MULTIPLE_VALUES_LEN = MAX_PDU_SIZE - 6;
-      if (values_len > MAX_WRITE_MULTIPLE_VALUES_LEN) {
-        ESP_LOGE(TAG, "values_len %zu exceeds PDU capacity %zu, dropping request", values_len,
-                 MAX_WRITE_MULTIPLE_VALUES_LEN);
-        return {};
-      }
-      pdu.push_back(values_len);  // Byte count is required for write multiple
-      for (size_t i = 0; i < values_len; i++)
-        pdu.push_back(values[i]);
-    } else {
-      // Write single register or coil (2 bytes)
-      if (values_len < 2) {
-        ESP_LOGE(TAG, "values_len %zu too small for write-single command (need 2), dropping request", values_len);
-        return {};
-      }
-      pdu.push_back(values[0]);
-      pdu.push_back(values[1]);
+PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, uint16_t number_of_entities,
+                            const uint8_t *values, size_t values_len) {
+  PduBuffer pdu;  // declared before every return so NRVO fires (all paths return the same object)
+  // Generic entry point; prefer the direction- and type-specific builders (create_read_pdu(),
+  // create_write_registers_pdu(), etc.) which bound their inputs per spec.
+  if (is_function_code_read(static_cast<uint8_t>(function_code))) {
+    if (values != nullptr || values_len > 0) {
+      ESP_LOGW(TAG, "Values provided for read function code %02X, but will be ignored",
+               static_cast<uint8_t>(function_code));
     }
+    auto read_pdu = create_read_pdu(function_code, start_address, number_of_entities);
+    pdu.assign(read_pdu.begin(), read_pdu.end());
+    return pdu;
   }
+  // Exact codes only: is_function_code_write() masks the exception bit, which would let the
+  // exception-flagged forms (0x85/0x86/0x8F/0x90) build a request announcing itself as an exception.
+  const bool is_single =
+      function_code == FunctionCode::WRITE_SINGLE_COIL || function_code == FunctionCode::WRITE_SINGLE_REGISTER;
+  const bool is_multi =
+      function_code == FunctionCode::WRITE_MULTIPLE_COILS || function_code == FunctionCode::WRITE_MULTIPLE_REGISTERS;
+  if (!is_single && !is_multi) {
+    ESP_LOGE(TAG, "Unsupported function code %02X for client PDU creation", static_cast<uint8_t>(function_code));
+    return pdu;
+  }
+
+  // Generic write builder: raw caller-supplied bytes, so we can only guard against the PDU byte capacity here.
+  if (values == nullptr || values_len == 0) {
+    ESP_LOGE(TAG, "No values provided for write function code %02X", static_cast<uint8_t>(function_code));
+    return pdu;
+  }
+  if (number_of_entities == 0) {
+    ESP_LOGE(TAG, "Number of entities is zero for function code %02X", static_cast<uint8_t>(function_code));
+    return pdu;
+  }
+  // number_of_entities is ignored for single write, so only validate it for the multiple variants.
+  // The bound is per function code (coils pack 8 per byte, so their quantity limit is far higher) -
+  // the same limits is_client_pdu_standard() accepts, so builder and validator agree.
+  const uint16_t max_entities =
+      function_code == FunctionCode::WRITE_MULTIPLE_COILS ? MAX_NUM_OF_COILS_TO_WRITE : MAX_NUM_OF_REGISTERS_TO_WRITE;
+  if (!is_single && number_of_entities > max_entities) {
+    ESP_LOGE(TAG, "number_of_entities %u exceeds maximum %u for function code %02X", number_of_entities, max_entities,
+             static_cast<uint8_t>(function_code));
+    return pdu;
+  }
+  if (!is_single && uint32_t(start_address) + number_of_entities > 0x10000u) {
+    ESP_LOGE(TAG, "Write of %u entities at %u runs past the 16-bit address space, dropping request", number_of_entities,
+             start_address);
+    return pdu;
+  }
+
+  if (is_single) {
+    // Write single register or coil: the two value bytes are the header's second field.
+    if (values_len < 2) {
+      ESP_LOGE(TAG, "values_len %zu too small for write-single command (need 2), dropping request", values_len);
+      return pdu;
+    }
+    // The spec allows exactly ON (0xFF00) and OFF (0x0000) for a single-coil write - the same rule
+    // is_client_pdu_standard() enforces, so a built frame cannot be misclassified on reply.
+    if (function_code == FunctionCode::WRITE_SINGLE_COIL &&
+        ((values[0] != 0xFF && values[0] != 0x00) || values[1] != 0x00)) {
+      ESP_LOGE(TAG, "Invalid single-coil value %02X%02X (must be FF00 or 0000), dropping request", values[0],
+               values[1]);
+      return pdu;
+    }
+    append_pdu_header(pdu, function_code, start_address, uint16_t((values[0] << 8) | values[1]));
+    return pdu;
+  }
+  // The quantity is spec-bounded above, so the data length just has to agree with it exactly
+  // (registers are 2 bytes each, coils pack 8 per byte). This is the same consistency the response
+  // dispatch enforces via is_client_pdu_standard(), so a frame built here can never be classified
+  // non-standard on reply, and the spec bound keeps the PDU within capacity by construction.
+  // Checked before the header append: a failed check must return an empty PDU, not a 5-byte partial one.
+  const bool bits = function_code == FunctionCode::WRITE_MULTIPLE_COILS;
+  const size_t expected_len =
+      bits ? (static_cast<size_t>(number_of_entities) + 7) / 8 : static_cast<size_t>(number_of_entities) * 2;
+  if (values_len != expected_len) {
+    ESP_LOGE(TAG, "values_len %zu does not match %u entities (expected %zu) for function code %02X, dropping request",
+             values_len, number_of_entities, expected_len, static_cast<uint8_t>(function_code));
+    return pdu;
+  }
+  append_pdu_header(pdu, function_code, start_address, number_of_entities);
+  pdu.push_back(values_len);  // Byte count is required for write multiple
+  for (size_t i = 0; i < values_len; i++)
+    pdu.push_back(values[i]);
+  return pdu;
+}
+
+PduBuffer create_write_registers_pdu(uint16_t start_address, std::span<const uint16_t> values) {
+  PduBuffer pdu;  // declared before every return so NRVO fires (all paths return the same object)
+  if (values.empty()) {
+    ESP_LOGE(TAG, "No values provided for write multiple registers, dropping request");
+    return pdu;
+  }
+  // Byte count is registers × 2 (per spec); bounding the register count keeps the PDU within MAX_PDU_SIZE.
+  if (values.size() > MAX_NUM_OF_REGISTERS_TO_WRITE) {
+    ESP_LOGE(TAG, "values.size() %zu exceeds maximum registers to write %u, dropping request", values.size(),
+             MAX_NUM_OF_REGISTERS_TO_WRITE);
+    return pdu;
+  }
+  if (uint32_t(start_address) + values.size() > 0x10000u) {
+    ESP_LOGE(TAG, "Write of %zu registers at %u runs past the 16-bit address space, dropping request", values.size(),
+             start_address);
+    return pdu;
+  }
+  append_pdu_header(pdu, FunctionCode::WRITE_MULTIPLE_REGISTERS, start_address, values.size());
+  pdu.push_back(static_cast<uint8_t>(values.size() * 2));  // byte count
+  for (auto v : values) {
+    auto decoded_value = decode_value(v);
+    pdu.push_back(decoded_value[0]);
+    pdu.push_back(decoded_value[1]);
+  }
+  return pdu;
+}
+
+WriteSinglePdu create_write_single_register_pdu(uint16_t start_address, uint16_t value) {
+  WriteSinglePdu pdu;
+  append_pdu_header(pdu, FunctionCode::WRITE_SINGLE_REGISTER, start_address, value);
+  return pdu;
+}
+
+WriteSinglePdu create_write_single_coil_pdu(uint16_t address, bool value) {
+  WriteSinglePdu pdu;
+  append_pdu_header(pdu, FunctionCode::WRITE_SINGLE_COIL, address, value ? 0xFF00 : 0x0000);
+  return pdu;
+}
+
+// Shared core for the two coil-write overloads: validates, then builds into the caller's named
+// pdu (left empty on failure). Each overload's returns all name one local, so NRVO fires.
+static void build_write_coils_pdu(PduBuffer &pdu, uint16_t start_address, PackedBits bits) {
+  const uint16_t count = bits.size();
+  const std::span<const uint8_t> packed_bits = bits.bytes();
+  if (count == 0) {
+    ESP_LOGE(TAG, "No coils requested for write multiple coils, dropping request");
+    return;
+  }
+  if (count > MAX_NUM_OF_COILS_TO_WRITE) {
+    ESP_LOGE(TAG, "count %u exceeds maximum coils to write %u, dropping request", count, MAX_NUM_OF_COILS_TO_WRITE);
+    return;
+  }
+  if (uint32_t(start_address) + count > 0x10000u) {
+    ESP_LOGE(TAG, "Write of %u coils at %u runs past the 16-bit address space, dropping request", count, start_address);
+    return;
+  }
+  const size_t byte_count = (count + 7) / 8;
+  if (packed_bits.size() < byte_count) {
+    ESP_LOGE(TAG, "packed_bits (%zu bytes) does not cover %u coils (%zu bytes), dropping request", packed_bits.size(),
+             count, byte_count);
+    return;
+  }
+  append_pdu_header(pdu, FunctionCode::WRITE_MULTIPLE_COILS, start_address, count);
+  pdu.push_back(static_cast<uint8_t>(byte_count));
+  for (size_t i = 0; i != byte_count; i++) {
+    pdu.push_back(packed_bits[i]);
+  }
+  // Zero the unused bits of the final byte, as the spec requires
+  if (count % 8 != 0) {
+    pdu[pdu.size() - 1] &= static_cast<uint8_t>((1 << (count % 8)) - 1);
+  }
+}
+
+PduBuffer create_write_coils_pdu(uint16_t start_address, PackedBits bits) {
+  PduBuffer pdu;
+  build_write_coils_pdu(pdu, start_address, bits);
+  return pdu;
+}
+
+PduBuffer create_write_coils_pdu(uint16_t start_address, std::span<const bool> values) {
+  PduBuffer pdu;  // declared before every return so NRVO fires (all paths return the same object)
+  // Bound before packing so the transient buffer below cannot overflow; the shared core validates the rest.
+  if (values.size() > MAX_NUM_OF_COILS_TO_WRITE) {
+    ESP_LOGE(TAG, "values.size() %zu exceeds maximum coils to write %u, dropping request", values.size(),
+             MAX_NUM_OF_COILS_TO_WRITE);
+    return pdu;
+  }
+  StaticVector<uint8_t, (MAX_NUM_OF_COILS_TO_WRITE + 7) / 8> packed;
+  for (size_t i = 0; i != values.size(); i++) {
+    if (i % 8 == 0)
+      packed.push_back(0);
+    if (values[i])
+      packed[i / 8] |= (1 << (i % 8));
+  }
+  build_write_coils_pdu(pdu, start_address,
+                        PackedBits(std::span<const uint8_t>(packed.data(), packed.size()), values.size()));
   return pdu;
 }
 }  // namespace esphome::modbus::helpers
