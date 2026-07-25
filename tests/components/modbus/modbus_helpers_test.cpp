@@ -83,6 +83,13 @@ TEST(ModbusClientFrameLength, WriteMultipleByteCountCapped) {
   EXPECT_EQ(client_frame_length(frame, sizeof(frame)), 9 + MAX_NUM_OF_REGISTERS_TO_WRITE * 2);
 }
 
+TEST(ModbusClientFrameLength, ReadWriteMultipleByteCountCappedAtSpecLimit) {
+  // FC 0x17's write byte count caps at the spec 6.17 limit of 121 registers (242 bytes), deliberately
+  // tighter than FC 0x10's 123, so a corrupt byte count cannot make the parser wait past the real frame.
+  const uint8_t pdu[] = {0x17, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0xFF};  // claims 255 bytes
+  EXPECT_EQ(client_pdu_length(pdu, sizeof(pdu)), 10 + MAX_NUM_OF_REGISTERS_TO_WRITE_RW * 2);
+}
+
 TEST(ModbusClientFrameLength, WriteMultipleMissingByteCount) {
   const uint8_t frame[] = {0x01, 0x10, 0x00, 0x00, 0x00, 0x02};
   EXPECT_EQ(client_frame_length(frame, sizeof(frame)), 9);
@@ -168,6 +175,22 @@ TEST(ModbusPduStandard, ServerReadResponses) {
   EXPECT_FALSE(is_server_pdu_standard(lying, sizeof(lying)));
   // An empty PDU (the on_error path) is not a standard response.
   EXPECT_FALSE(is_server_pdu_standard(ok, 0));
+}
+
+TEST(ModbusPduStandard, NonStandardFunctionCodesAcceptedOnLengthAlone) {
+  // Custom, unimplemented, and exception function codes have no standard shape to check: they are
+  // accepted whenever the parsed length matches, so a dispatcher can still route them by function
+  // code instead of having them rejected outright. This is the documented contract - see the header.
+  const uint8_t custom[] = {0x42};  // user-defined space; 1 byte matches the MIN_PDU_SIZE fallback
+  EXPECT_TRUE(is_client_pdu_standard(custom, sizeof(custom)));
+  EXPECT_TRUE(is_server_pdu_standard(custom, sizeof(custom)));
+  const uint8_t unimplemented[] = {0x07};  // READ_EXCEPTION_STATUS
+  EXPECT_TRUE(is_server_pdu_standard(unimplemented, sizeof(unimplemented)));
+  const uint8_t exception[] = {0x83, 0x02};  // exception response; length pinned to 2 bytes
+  EXPECT_TRUE(is_server_pdu_standard(exception, sizeof(exception)));
+  // The length identity still gates: extra bytes beyond the parsed fallback are non-conformant.
+  const uint8_t custom_long[] = {0x42, 0x01};
+  EXPECT_FALSE(is_client_pdu_standard(custom_long, sizeof(custom_long)));
 }
 
 // --- create_client_pdu -----------------------------------------------------

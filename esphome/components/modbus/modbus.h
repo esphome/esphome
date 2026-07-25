@@ -43,7 +43,9 @@ struct ModbusFrame {
 
   // A frame is [address][PDU...][CRC lo][CRC hi]. These are the only places that need to know that layout
   uint8_t address() const { return this->data.data()[0]; }
-  /// The PDU: function code + data, without address or CRC. Only valid while the frame is alive
+  /// The PDU: function code + data, without address or CRC. Only valid while the frame is alive.
+  /// Requires a complete frame (size() >= MIN_FRAME_SIZE, guaranteed by the constructors) - the
+  /// subtraction would wrap on anything shorter.
   std::span<const uint8_t> pdu() const { return std::span<const uint8_t>(this->data.data() + 1, this->size() - 3u); }
 };
 

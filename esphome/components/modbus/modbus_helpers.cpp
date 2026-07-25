@@ -358,5 +358,4 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(FunctionCode function_code
   }
   return pdu;
 }
-
 }  // namespace esphome::modbus::helpers
