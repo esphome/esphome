@@ -350,7 +350,13 @@ PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, 
     pdu.assign(read_pdu.begin(), read_pdu.end());
     return pdu;
   }
-  if (!is_function_code_write(static_cast<uint8_t>(function_code))) {
+  // Exact codes only: is_function_code_write() masks the exception bit, which would let the
+  // exception-flagged forms (0x85/0x86/0x8F/0x90) build a request announcing itself as an exception.
+  const bool is_single =
+      function_code == FunctionCode::WRITE_SINGLE_COIL || function_code == FunctionCode::WRITE_SINGLE_REGISTER;
+  const bool is_multi =
+      function_code == FunctionCode::WRITE_MULTIPLE_COILS || function_code == FunctionCode::WRITE_MULTIPLE_REGISTERS;
+  if (!is_single && !is_multi) {
     ESP_LOGE(TAG, "Unsupported function code %02X for client PDU creation", static_cast<uint8_t>(function_code));
     return pdu;
   }
@@ -364,8 +370,6 @@ PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, 
     ESP_LOGE(TAG, "Number of entities is zero for function code %02X", static_cast<uint8_t>(function_code));
     return pdu;
   }
-  const bool is_single =
-      function_code == FunctionCode::WRITE_SINGLE_COIL || function_code == FunctionCode::WRITE_SINGLE_REGISTER;
   // number_of_entities is ignored for single write, so only validate it for the multiple variants.
   // The bound is per function code (coils pack 8 per byte, so their quantity limit is far higher) -
   // the same limits is_client_pdu_standard() accepts, so builder and validator agree.

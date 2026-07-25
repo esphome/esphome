@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <memory>
+
 #include "esphome/components/modbus/modbus_helpers.h"
 
 namespace esphome::modbus::helpers {
@@ -430,6 +432,20 @@ TEST(ModbusTypedBuilders, FloatToPayloadAppendsToExistingContent) {
   ASSERT_EQ(data.size(), 2u);
   EXPECT_EQ(data[0], 0x1234);
   EXPECT_EQ(data[1], 0x0001);
+}
+
+TEST(ModbusCreateClientPdu, ExceptionFlaggedWriteCodesRejected) {
+  // is_function_code_write() masks the exception bit; the builder must not.
+  const uint8_t values[] = {0x00, 0x0B, 0x00, 0x16};
+  EXPECT_TRUE(create_client_pdu(FunctionCode(0x90), 0x0000, 2, values, 4).empty());
+  EXPECT_TRUE(create_client_pdu(FunctionCode(0x85), 0x0000, 1, values, 2).empty());
+}
+
+TEST(ModbusTypedBuilders, BoolSpanCoilBuilderRejectsOverLimit) {
+  // This early guard is what keeps the 246-byte packing buffer from overflowing - the shared core's
+  // identical check runs after packing, so it cannot protect it.
+  auto big = std::make_unique<bool[]>(MAX_NUM_OF_COILS_TO_WRITE + 1);
+  EXPECT_TRUE(create_write_coils_pdu(0, std::span<const bool>(big.get(), MAX_NUM_OF_COILS_TO_WRITE + 1)).empty());
 }
 
 TEST(ModbusCreateClientPdu, SingleCoilValueValidated) {

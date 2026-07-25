@@ -76,14 +76,21 @@ void ModbusSelect::control(size_t index) {
   // a value type narrower than the declared width is zero-padded (the config deliberately allows
   // register_count larger than the value type). Anything else would put a byte count on the wire
   // that disagrees with the quantity field, which conformant devices reject.
-  if (data.size() != this->register_count) {
-    ESP_LOGW(TAG, "Payload has %zu registers but register_count is %u; adjusting", data.size(), this->register_count);
-    // Adjusted with push_back/pop_back rather than resize(): either resize form would instantiate
-    // std::vector fill/append machinery (~350 bytes of flash) that nothing else uses.
+  // A payload wider than the declared register_count means the config and the lambda disagree, and a
+  // truncated write would land a wrong partial value on the device - drop it instead (the old malformed
+  // frame was rejected by the device, so nothing was ever written).
+  if (data.size() > this->register_count) {
+    ESP_LOGE(TAG, "Payload has %zu registers but register_count is %u; dropping write", data.size(),
+             this->register_count);
+    return;
+  }
+  if (data.size() < this->register_count) {
+    ESP_LOGW(TAG, "Payload has %zu registers but register_count is %u; zero-padding", data.size(),
+             this->register_count);
+    // push_back rather than resize(): either resize form would instantiate std::vector fill/append
+    // machinery (~350 bytes of flash) that nothing else uses.
     while (data.size() < this->register_count)
       data.push_back(0);
-    while (data.size() > this->register_count)
-      data.pop_back();
   }
 
   const uint16_t write_address = this->start_address + this->offset / 2;
