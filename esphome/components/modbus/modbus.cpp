@@ -360,6 +360,31 @@ bool ModbusServerHub::check_register_range_(uint8_t address, uint8_t function_co
   return true;
 }
 
+bool ModbusServerHub::build_read_response_(uint8_t address, uint8_t function_code, ResponseStatus status,
+                                           uint16_t number_of_registers, const RegisterValues &registers,
+                                           uint8_t *response_buffer, uint16_t &response_len) {
+  // A handler that returns an exception leaves registers partially filled, so check the exception
+  // first and forward it before validating the register count on the success path.
+  if (status.has_value()) {
+    this->send_exception_(address, function_code, status.value());
+    return false;
+  }
+
+  if (registers.size() != number_of_registers) {
+    ESP_LOGE(TAG, "Incorrect response %" PRIu16 " requested, %zu returned", number_of_registers, registers.size());
+    this->send_exception_(address, function_code, ExceptionCode::SERVICE_DEVICE_FAILURE);
+    return false;
+  }
+
+  response_buffer[response_len++] = static_cast<uint8_t>(number_of_registers * 2);  // actual byte count
+  for (auto r : registers) {
+    auto register_bytes = decode_value(r);
+    response_buffer[response_len++] = register_bytes[0];
+    response_buffer[response_len++] = register_bytes[1];
+  }
+  return true;
+}
+
 void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data) {
   ModbusServerDevice *device = this->find_device_(address);
   if (device == nullptr) {
@@ -394,24 +419,9 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
         status = device->on_read_input_registers(start_address, number_of_registers, registers);
       }
 
-      // A handler that returns an exception leaves registers partially filled, so check the exception
-      // first and forward it before validating the register count on the success path.
-      if (status.has_value()) {
-        this->send_exception_(address, function_code, status.value());
+      if (!this->build_read_response_(address, function_code, status, number_of_registers, registers, response_buffer,
+                                      response_len)) {
         return;
-      }
-
-      if (registers.size() != number_of_registers) {
-        ESP_LOGE(TAG, "Incorrect response %" PRIu16 " requested, %zu returned", number_of_registers, registers.size());
-        this->send_exception_(address, function_code, ExceptionCode::SERVICE_DEVICE_FAILURE);
-        return;
-      }
-
-      response_buffer[response_len++] = static_cast<uint8_t>(number_of_registers * 2);  // actual byte count
-      for (auto r : registers) {
-        auto register_bytes = decode_value(r);
-        response_buffer[response_len++] = register_bytes[0];
-        response_buffer[response_len++] = register_bytes[1];
       }
       break;
     }
@@ -469,15 +479,19 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
           !this->check_register_range_(address, function_code, write_start_address, number_of_write_registers)) {
         return;
       }
-      // Assemble the written register values (host byte order); they follow the 9-byte request header.
-      RegisterValues write_registers;
-      for (uint16_t i = 0; i < number_of_write_registers; i++) {
-        write_registers.push_back(helpers::get_data<uint16_t>(data, 9 + i * 2));
+      // Perform the write first (Modbus 6.17). Scoped so the write values are off the stack before the read
+      // values are allocated, keeping only one RegisterValues buffer live at a time.
+      {
+        // Assemble the written register values (host byte order); they follow the 9-byte request header.
+        RegisterValues write_registers;
+        for (uint16_t i = 0; i < number_of_write_registers; i++) {
+          write_registers.push_back(helpers::get_data<uint16_t>(data, 9 + i * 2));
+        }
+        // Dispatch to the standalone write and read handlers so any device implementing those supports 0x17
+        // without a dedicated handler; a device that maps registers by address reconstructs the read response
+        // from the values it just stored.
+        status = device->on_write_registers(write_start_address, write_registers);
       }
-      // Dispatch to the standalone write and read handlers so any device implementing those supports 0x17
-      // without a dedicated handler; a device that maps registers by address reconstructs the read response
-      // from the values it just stored.
-      status = device->on_write_registers(write_start_address, write_registers);
       if (status.has_value()) {
         this->send_exception_(address, function_code, status.value());
         return;
@@ -485,24 +499,9 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       RegisterValues registers;
       status = device->on_read_holding_registers(read_start_address, number_of_registers, registers);
 
-      // A handler that returns an exception leaves registers partially filled, so check the exception
-      // first and forward it before validating the register count on the success path.
-      if (status.has_value()) {
-        this->send_exception_(address, function_code, status.value());
+      if (!this->build_read_response_(address, function_code, status, number_of_registers, registers, response_buffer,
+                                      response_len)) {
         return;
-      }
-
-      if (registers.size() != number_of_registers) {
-        ESP_LOGE(TAG, "Incorrect response %" PRIu16 " requested, %zu returned", number_of_registers, registers.size());
-        this->send_exception_(address, function_code, ExceptionCode::SERVICE_DEVICE_FAILURE);
-        return;
-      }
-
-      response_buffer[response_len++] = static_cast<uint8_t>(number_of_registers * 2);  // actual byte count
-      for (auto r : registers) {
-        auto register_bytes = decode_value(r);
-        response_buffer[response_len++] = register_bytes[0];
-        response_buffer[response_len++] = register_bytes[1];
       }
       break;
     }
