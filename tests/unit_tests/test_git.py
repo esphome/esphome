@@ -257,7 +257,12 @@ def test_run_git_command_with_cwd_runs_in_dir_without_isolation(
     )
 
     with patch.dict(
-        os.environ, {"GIT_DIR": "/ambient/.git", "GIT_WORK_TREE": "/ambient"}
+        os.environ,
+        {
+            "GIT_DIR": "/ambient/.git",
+            "GIT_WORK_TREE": "/ambient",
+            "GIT_INDEX_FILE": "/ambient/.git/index",
+        },
     ):
         result = git.run_git_command(["git", "submodule", "update"], cwd=repo_dir)
 
@@ -265,6 +270,7 @@ def test_run_git_command_with_cwd_runs_in_dir_without_isolation(
     env = call_args[1]["env"]
     assert "GIT_DIR" not in env
     assert "GIT_WORK_TREE" not in env
+    assert "GIT_INDEX_FILE" not in env
     assert env["GIT_CEILING_DIRECTORIES"] == str(repo_dir.parent)
     assert call_args[1]["cwd"] == str(repo_dir)
     assert result == "test output"

@@ -416,16 +416,24 @@ def _clone_idf_with_submodules(
     # Sanity-check the resulting tree. run_git_command only raises when
     # stderr is non-empty, so a clone that silently produces no working
     # tree would otherwise be marked extracted and stuck until
-    # ``esphome clean``. A real ESP-IDF checkout always declares submodules;
-    # a missing .gitmodules means the clone is truncated and update_submodules
-    # above skipped the vendored components (mbedtls, openthread, ...), which
-    # would otherwise surface much later as an opaque CMake error.
-    if (
-        not (framework_path / "tools" / "idf_tools.py").is_file()
-        or not (framework_path / ".gitmodules").is_file()
-    ):
+    # ``esphome clean``.
+    if not (framework_path / "tools" / "idf_tools.py").is_file():
         raise RuntimeError(
             f"Clone of {key} produced no usable ESP-IDF tree at {framework_path}"
+        )
+    # Separately verify the vendored components actually materialized; the
+    # mbedtls submodule is present in every ESP-IDF release. This catches a
+    # truncated clone as well as a submodule init that silently did nothing,
+    # both of which would otherwise surface much later as an opaque CMake
+    # error. A fork that vendors the components in-tree instead of as
+    # submodules passes this check like a regular checkout.
+    if not (
+        framework_path / "components" / "mbedtls" / "mbedtls" / "CMakeLists.txt"
+    ).is_file():
+        raise RuntimeError(
+            f"Clone of {key} at {framework_path} is missing its vendored "
+            "components; the submodule checkout did not complete. Delete the "
+            "directory and retry."
         )
 
 

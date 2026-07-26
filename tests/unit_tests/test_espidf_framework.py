@@ -144,6 +144,10 @@ def _make_idf_tree(framework_path: Path) -> None:
     # A real ESP-IDF checkout always declares submodules; update_submodules
     # skips the git call when this file is missing.
     (framework_path / ".gitmodules").write_text("# stub\n")
+    # Vendored submodule content the sanity check verifies.
+    mbedtls = framework_path / "components" / "mbedtls" / "mbedtls"
+    mbedtls.mkdir(parents=True)
+    (mbedtls / "CMakeLists.txt").write_text("# stub\n")
 
 
 def test_clone_idf_with_submodules_without_ref(tmp_path: Path) -> None:
@@ -217,34 +221,53 @@ def test_clone_idf_with_submodules_raises_when_tree_missing(
         )
 
 
-def test_clone_idf_with_submodules_raises_when_gitmodules_missing(
+def test_clone_idf_accepts_flattened_fork_without_gitmodules(
     tmp_path: Path,
 ) -> None:
-    """A truncated clone without .gitmodules must fail loudly.
+    """A fork that vendors components in-tree instead of as submodules is valid.
 
-    update_submodules silently skips when .gitmodules is absent, so without
-    the sanity check the missing vendored components would only surface much
-    later as an opaque CMake error.
+    No .gitmodules means the submodule step is skipped, and the sanity check
+    verifies the vendored content directly rather than requiring .gitmodules.
     """
     framework_path = tmp_path / "idf"
     framework_path.mkdir()
-    (framework_path / "tools").mkdir()
-    (framework_path / "tools" / "idf_tools.py").write_text("# stub\n")
-    # Deliberately no .gitmodules.
+    _make_idf_tree(framework_path)
+    (framework_path / ".gitmodules").unlink()
+
+    with patch("esphome.git.run_git_command", return_value="") as run_git_command_mock:
+        _clone_idf_with_submodules(
+            framework_path,
+            "https://github.com/example/flattened-esp-idf.git",
+            None,
+        )
+
+    calls = [c.args[0] for c in run_git_command_mock.call_args_list]
+    assert not any(c[1] == "submodule" for c in calls)
+
+
+def test_clone_idf_raises_when_vendored_components_missing(
+    tmp_path: Path,
+) -> None:
+    """A checkout without the vendored submodule content must fail loudly.
+
+    Covers both a truncated clone and a submodule init that silently did
+    nothing; either would otherwise surface much later as an opaque CMake
+    error, and the tree would stay broken until esphome clean.
+    """
+    framework_path = tmp_path / "idf"
+    framework_path.mkdir()
+    _make_idf_tree(framework_path)
+    (framework_path / "components" / "mbedtls" / "mbedtls" / "CMakeLists.txt").unlink()
 
     with (
-        patch("esphome.git.run_git_command", return_value="") as run_git_command_mock,
-        pytest.raises(RuntimeError, match="no usable ESP-IDF tree"),
+        patch("esphome.git.run_git_command", return_value=""),
+        pytest.raises(RuntimeError, match="missing its vendored components"),
     ):
         _clone_idf_with_submodules(
             framework_path,
             "https://github.com/espressif/esp-idf.git",
-            None,
+            "v5.5.4",
         )
-
-    # The submodule step was skipped rather than run against the broken tree.
-    calls = [c.args[0] for c in run_git_command_mock.call_args_list]
-    assert not any(c[1] == "submodule" for c in calls)
 
 
 # ---------------------------------------------------------------------------

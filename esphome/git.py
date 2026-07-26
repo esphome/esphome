@@ -26,6 +26,22 @@ NEVER_REFRESH = TimePeriodSeconds(seconds=-1)
 # it does not pollute the worktree.
 _CLONE_COMPLETE_MARKER = "esphome_clone_complete"
 
+# Environment variables that scope git to a specific repository. Git hooks and
+# some CI wrappers export these; if they leak into the git commands run here,
+# git binds to the caller's repository instead of the one being managed. The
+# effects range from loud (`git clone` producing a bare-style directory with
+# no working tree) to silent (an ambient GIT_INDEX_FILE makes
+# `git submodule update --init` exit 0 without initializing anything).
+_GIT_REPO_SCOPING_ENV = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_NAMESPACE",
+)
+
 
 class GitException(cv.Invalid):
     """Base exception for git-related errors."""
@@ -64,38 +80,36 @@ def run_git_command(
             "Running git command: %s%s", " ".join(cmd), f" (cwd={cwd})" if cwd else ""
         )
 
-    # Set up environment for repository isolation if git_dir is provided
-    # Force git to only operate on this specific repository by setting
-    # GIT_DIR and GIT_WORK_TREE. This prevents git from walking up the
-    # directory tree to find parent repositories when the target repo's
-    # .git directory is corrupt. Without this, commands like 'git stash'
-    # could accidentally operate on parent repositories (e.g., the main
-    # ESPHome repo) instead of failing, causing data loss.
+    # Every invocation starts from an environment with the repository-scoping
+    # variables stripped (see _GIT_REPO_SCOPING_ENV) so a git hook or CI
+    # wrapper invoking ESPHome can never redirect these commands to its own
+    # repository or index.
+    #
+    # ``git_dir`` then re-adds GIT_DIR and GIT_WORK_TREE pointing at the
+    # managed repository. This prevents git from walking up the directory
+    # tree to find parent repositories when the target repo's .git directory
+    # is corrupt. Without this, commands like 'git stash' could accidentally
+    # operate on parent repositories (e.g., the main ESPHome repo) instead of
+    # failing, causing data loss.
     #
     # ``cwd`` (without ``git_dir``) runs the command in that directory
     # without GIT_DIR/GIT_WORK_TREE. The ``git submodule`` porcelain needs
     # this: on some installations (e.g. Windows setups where a shim hands
     # git untranslated paths) it refuses to run when GIT_DIR/GIT_WORK_TREE
-    # are set, failing with "cannot be used without a working tree". Ambient
-    # GIT_DIR/GIT_WORK_TREE from the caller's environment (a git hook, a CI
-    # wrapper) are stripped for the same reason, and GIT_CEILING_DIRECTORIES
-    # keeps the parent-repo-walk protection: if the repo's .git is missing
-    # or corrupt, git fails instead of discovering an enclosing repository.
-    env: dict[str, str] | None = None
+    # are set, failing with "cannot be used without a working tree".
+    # GIT_CEILING_DIRECTORIES (which git only honors as an absolute path)
+    # keeps the parent-repo-walk protection instead: if the repo's .git is
+    # missing or corrupt, git fails rather than discovering an enclosing
+    # repository.
+    env = {
+        k: v for k, v in subprocess.os.environ.items() if k not in _GIT_REPO_SCOPING_ENV
+    }
     if git_dir is not None:
-        env = {
-            **subprocess.os.environ,
-            "GIT_DIR": str(Path(git_dir) / ".git"),
-            "GIT_WORK_TREE": str(git_dir),
-        }
+        env["GIT_DIR"] = str(Path(git_dir) / ".git")
+        env["GIT_WORK_TREE"] = str(git_dir)
         cwd = git_dir
     elif cwd is not None:
-        env = {
-            k: v
-            for k, v in subprocess.os.environ.items()
-            if k not in ("GIT_DIR", "GIT_WORK_TREE")
-        }
-        env["GIT_CEILING_DIRECTORIES"] = str(Path(cwd).parent)
+        env["GIT_CEILING_DIRECTORIES"] = str(Path(cwd).absolute().parent)
 
     try:
         ret = subprocess.run(
