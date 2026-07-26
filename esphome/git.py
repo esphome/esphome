@@ -169,7 +169,7 @@ def update_submodules(repo_dir: Path, submodules: list[str] | None, key: str) ->
     if not submodules and not (repo_dir / ".gitmodules").is_file():
         return
     _LOGGER.info(
-        "Initializing submodules (%s) for %s",
+        "Updating submodules (%s) for %s",
         ", ".join(submodules) if submodules else "all",
         key,
     )
