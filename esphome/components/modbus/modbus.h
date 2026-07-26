@@ -206,9 +206,8 @@ class ModbusClientDevice {
     this->on_modbus_not_sent();
 #pragma GCC diagnostic pop
   }
-  /// Called when no (valid) response arrived; return true to have the hub re-queue the frame for a retry.
-  /// The hub does not bound retries: the device is responsible for limiting them (e.g. track a counter and
-  /// return false when exhausted), or an unresponsive peer will starve other traffic on the bus.
+  /// Called when no matching, uninterrupted response arrived; return true to have the hub re-queue the frame for a
+  /// retry. The hub does not bound retries: the device is responsible for limiting them.
   virtual bool on_no_response() {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
@@ -221,6 +220,7 @@ class ModbusClientDevice {
   // Remove before 2027.2.0
   ESPDEPRECATED("Override on_no_response() instead. Removed in 2027.2.0", "2026.8.0")
   virtual bool on_modbus_no_response() { return false; }
+  ESPDEPRECATED("Use the typed read_*/write_* helpers or send_pdu() instead. Removed in 2027.2.0", "2026.8.0")
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
             const uint8_t *payload = nullptr) {
     this->parent_->send_pdu(
@@ -236,6 +236,39 @@ class ModbusClientDevice {
       return;
     }
     this->parent_->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
+  }
+  // Dispatches to the matching read_* method; defined in modbus.cpp because it logs on an invalid type.
+  void read_entities(EntityType entity_type, uint16_t start_address, uint16_t number_of_entities);
+  void read_input_registers(uint16_t start_address, uint16_t number_of_registers) {
+    this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_INPUT_REGISTERS, start_address, number_of_registers));
+  }
+  void read_holding_registers(uint16_t start_address, uint16_t number_of_registers) {
+    this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_HOLDING_REGISTERS, start_address, number_of_registers));
+  }
+  void read_coils(uint16_t start_address, uint16_t number_of_coils) {
+    this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_COILS, start_address, number_of_coils));
+  }
+  void read_discrete_inputs(uint16_t start_address, uint16_t number_of_inputs) {
+    this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_DISCRETE_INPUTS, start_address, number_of_inputs));
+  }
+  void write_single_register(uint16_t start_address, uint16_t value) {
+    this->send_pdu(helpers::create_write_single_register_pdu(start_address, value));
+  }
+  void write_single_coil(uint16_t address, bool value) {
+    this->send_pdu(helpers::create_write_single_coil_pdu(address, value));
+  }
+  void write_multiple_registers(uint16_t start_address, std::span<const uint16_t> values) {
+    this->send_pdu(helpers::create_write_registers_pdu(start_address, values));
+  }
+  /// Note: std::vector<bool> cannot bind to std::span<const bool>; use a contiguous bool container or the packed
+  /// overload.
+  void write_multiple_coils(uint16_t start_address, std::span<const bool> values) {
+    this->send_pdu(helpers::create_write_coils_pdu(start_address, values));
+  }
+  /// Packed variant: a PackedBits view (the same layout on_read_coils() delivers), so
+  /// read-modify-write needs no unpack/repack.
+  void write_multiple_coils(uint16_t start_address, PackedBits bits) {
+    this->send_pdu(helpers::create_write_coils_pdu(start_address, bits));
   }
   inline void clear_tx_queue_for_address(bool clear_sent = true) {
     this->parent_->clear_tx_queue_for_address(this->address_, clear_sent);
