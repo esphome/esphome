@@ -141,6 +141,9 @@ def _make_idf_tree(framework_path: Path) -> None:
     """Create the minimum tree _clone_idf_with_submodules sanity-checks for."""
     (framework_path / "tools").mkdir(parents=True)
     (framework_path / "tools" / "idf_tools.py").write_text("# stub\n")
+    # A real ESP-IDF checkout always declares submodules; update_submodules
+    # skips the git call when this file is missing.
+    (framework_path / ".gitmodules").write_text("# stub\n")
 
 
 def test_clone_idf_with_submodules_without_ref(tmp_path: Path) -> None:

@@ -71,17 +71,38 @@ def _simulate_cloned_repo(repo_dir: Path) -> None:
     (repo_dir / ".git").mkdir(exist_ok=True)
 
 
-def _make_clone_side_effect(repo_dir: Path) -> Callable[..., str]:
-    """Return a run_git_command side effect whose clone creates the repo dir."""
+def _make_clone_side_effect(
+    repo_dir: Path, gitmodules: bool = False
+) -> Callable[..., str]:
+    """Return a run_git_command side effect whose clone creates the repo dir.
+
+    With ``gitmodules`` the cloned repo also declares submodules.
+    """
 
     def git_command_side_effect(
         cmd: list[str], cwd: str | None = None, **kwargs: Any
     ) -> str:
         if _get_git_command_type(cmd) == "clone":
             _simulate_cloned_repo(repo_dir)
+            if gitmodules:
+                (repo_dir / ".gitmodules").write_text("test")
         return ""
 
     return git_command_side_effect
+
+
+def _submodule_calls(mock: Mock) -> list[Any]:
+    """Return the mock's `git submodule` calls."""
+    return [
+        c for c in mock.call_args_list if _get_git_command_type(c[0][0]) == "submodule"
+    ]
+
+
+def _assert_submodule_runs_without_isolation(call: Any, repo_dir: Path) -> None:
+    """Assert a git submodule call ran with plain cwd, not GIT_DIR/GIT_WORK_TREE
+    isolation, which breaks the submodule porcelain on some installations."""
+    assert call.kwargs.get("git_dir") is None
+    assert call.kwargs.get("cwd") == repo_dir
 
 
 def test_run_git_command_success(tmp_path: Path) -> None:
@@ -1166,15 +1187,7 @@ def test_clone_with_submodules_uses_shallow_submodule_update(
     domain = "test"
     repo_dir = _compute_repo_dir(url, None, domain)
 
-    def git_command_side_effect(
-        cmd: list[str], cwd: str | None = None, **kwargs: Any
-    ) -> str:
-        if _get_git_command_type(cmd) == "clone":
-            repo_dir.mkdir(parents=True, exist_ok=True)
-            (repo_dir / ".git").mkdir(exist_ok=True)
-        return ""
-
-    mock_run_git_command.side_effect = git_command_side_effect
+    mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
 
     git.clone_or_update(
         url=url,
@@ -1184,9 +1197,7 @@ def test_clone_with_submodules_uses_shallow_submodule_update(
         submodules=["components/foo"],
     )
 
-    submodule_calls = [
-        c for c in mock_run_git_command.call_args_list if "submodule" in c[0][0]
-    ]
+    submodule_calls = _submodule_calls(mock_run_git_command)
     assert len(submodule_calls) == 1
     cmd = submodule_calls[0][0][0]
     assert "--depth=1" in cmd
@@ -1194,10 +1205,7 @@ def test_clone_with_submodules_uses_shallow_submodule_update(
     # The `--` terminator must precede the submodule paths so a path
     # beginning with `-` cannot be parsed as an option.
     assert cmd.index("--") < cmd.index("components/foo")
-    # git submodule must run with plain cwd, not GIT_DIR/GIT_WORK_TREE
-    # isolation, which breaks the submodule porcelain on some installations.
-    assert submodule_calls[0].kwargs.get("git_dir") is None
-    assert submodule_calls[0].kwargs.get("cwd") == repo_dir
+    _assert_submodule_runs_without_isolation(submodule_calls[0], repo_dir)
 
 
 def test_refresh_fetch_is_shallow(tmp_path: Path, mock_run_git_command: Mock) -> None:
@@ -1245,20 +1253,20 @@ def test_refresh_submodule_update_is_shallow(
         submodules=["components/foo"],
     )
 
-    submodule_calls = [
-        c for c in mock_run_git_command.call_args_list if "submodule" in c[0][0]
-    ]
+    submodule_calls = _submodule_calls(mock_run_git_command)
     assert len(submodule_calls) == 1
     cmd = submodule_calls[0][0][0]
     assert "--depth=1" in cmd
     assert "components/foo" in cmd
     assert cmd.index("--") < cmd.index("components/foo")
-    assert submodule_calls[0].kwargs.get("git_dir") is None
-    assert submodule_calls[0].kwargs.get("cwd") == repo_dir
+    _assert_submodule_runs_without_isolation(submodule_calls[0], repo_dir)
 
 
-def test_clone_all_submodules_skipped_without_gitmodules(
-    tmp_path: Path, mock_run_git_command: Mock
+@pytest.mark.parametrize(
+    "refresh", [None, TimePeriodSeconds(days=1)], ids=["clone", "refresh"]
+)
+def test_all_submodules_skipped_without_gitmodules(
+    tmp_path: Path, mock_run_git_command: Mock, refresh: TimePeriodSeconds | None
 ) -> None:
     """An empty submodule list ("all") is a no-op for repos with no .gitmodules.
 
@@ -1274,21 +1282,28 @@ def test_clone_all_submodules_skipped_without_gitmodules(
     domain = "test"
     repo_dir = _compute_repo_dir(url, None, domain)
 
-    mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
+    if refresh is None:
+        mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
+    else:
+        _setup_old_repo(repo_dir)
+        mock_run_git_command.return_value = "abc123"
 
     git.clone_or_update(
         url=url,
         ref=None,
-        refresh=None,
+        refresh=refresh,
         domain=domain,
         submodules=[],
     )
 
-    assert not any("submodule" in c[0][0] for c in mock_run_git_command.call_args_list)
+    assert not _submodule_calls(mock_run_git_command)
 
 
-def test_clone_all_submodules_updated_with_gitmodules(
-    tmp_path: Path, mock_run_git_command: Mock
+@pytest.mark.parametrize(
+    "refresh", [None, TimePeriodSeconds(days=1)], ids=["clone", "refresh"]
+)
+def test_all_submodules_updated_with_gitmodules(
+    tmp_path: Path, mock_run_git_command: Mock, refresh: TimePeriodSeconds | None
 ) -> None:
     """An empty submodule list initializes all submodules when .gitmodules exists."""
     CORE.config_path = tmp_path / "test.yaml"
@@ -1297,91 +1312,31 @@ def test_clone_all_submodules_updated_with_gitmodules(
     domain = "test"
     repo_dir = _compute_repo_dir(url, None, domain)
 
-    def git_command_side_effect(
-        cmd: list[str], cwd: str | None = None, **kwargs: Any
-    ) -> str:
-        if _get_git_command_type(cmd) == "clone":
-            _simulate_cloned_repo(repo_dir)
-            (repo_dir / ".gitmodules").write_text("test")
-        return ""
-
-    mock_run_git_command.side_effect = git_command_side_effect
+    if refresh is None:
+        mock_run_git_command.side_effect = _make_clone_side_effect(
+            repo_dir, gitmodules=True
+        )
+    else:
+        _setup_old_repo(repo_dir)
+        (repo_dir / ".gitmodules").write_text("test")
+        mock_run_git_command.return_value = "abc123"
 
     git.clone_or_update(
         url=url,
         ref=None,
-        refresh=None,
+        refresh=refresh,
         domain=domain,
         submodules=[],
     )
 
-    submodule_calls = [
-        c for c in mock_run_git_command.call_args_list if "submodule" in c[0][0]
-    ]
+    submodule_calls = _submodule_calls(mock_run_git_command)
     assert len(submodule_calls) == 1
     cmd = submodule_calls[0][0][0]
     assert "--depth=1" in cmd
     # "All submodules" mirrors PlatformIO's recursive library clones.
     assert "--recursive" in cmd
     assert cmd[-1] == "--"
-    assert submodule_calls[0].kwargs.get("git_dir") is None
-    assert submodule_calls[0].kwargs.get("cwd") == repo_dir
-
-
-def test_refresh_all_submodules_skipped_without_gitmodules(
-    tmp_path: Path, mock_run_git_command: Mock
-) -> None:
-    """The refresh path also skips the "all submodules" no-op."""
-    CORE.config_path = tmp_path / "test.yaml"
-
-    url = "https://github.com/test/repo"
-    domain = "test"
-    repo_dir = _compute_repo_dir(url, None, domain)
-
-    _setup_old_repo(repo_dir)
-    mock_run_git_command.return_value = "abc123"
-
-    git.clone_or_update(
-        url=url,
-        ref=None,
-        refresh=TimePeriodSeconds(days=1),
-        domain=domain,
-        submodules=[],
-    )
-
-    assert not any("submodule" in c[0][0] for c in mock_run_git_command.call_args_list)
-
-
-def test_refresh_all_submodules_updated_with_gitmodules(
-    tmp_path: Path, mock_run_git_command: Mock
-) -> None:
-    """The refresh path updates all submodules when .gitmodules exists."""
-    CORE.config_path = tmp_path / "test.yaml"
-
-    url = "https://github.com/test/repo"
-    domain = "test"
-    repo_dir = _compute_repo_dir(url, None, domain)
-
-    _setup_old_repo(repo_dir)
-    (repo_dir / ".gitmodules").write_text("test")
-    mock_run_git_command.return_value = "abc123"
-
-    git.clone_or_update(
-        url=url,
-        ref=None,
-        refresh=TimePeriodSeconds(days=1),
-        domain=domain,
-        submodules=[],
-    )
-
-    submodule_calls = [
-        c for c in mock_run_git_command.call_args_list if "submodule" in c[0][0]
-    ]
-    assert len(submodule_calls) == 1
-    cmd = submodule_calls[0][0][0]
-    assert "--recursive" in cmd
-    assert submodule_calls[0].kwargs.get("git_dir") is None
-    assert submodule_calls[0].kwargs.get("cwd") == repo_dir
+    _assert_submodule_runs_without_isolation(submodule_calls[0], repo_dir)
 
 
 def test_refresh_picks_up_new_remote_commits(

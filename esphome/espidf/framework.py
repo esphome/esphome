@@ -397,7 +397,7 @@ def _clone_idf_with_submodules(
     handles branches, tags, and SHAs uniformly (mirrors the approach in
     ``esphome.git.clone_or_update``).
     """
-    from esphome.git import run_git_command
+    from esphome.git import run_git_command, update_submodules
 
     _LOGGER.info("Cloning ESP-IDF from %s%s", git_url, f"@{ref}" if ref else "")
     run_git_command(["git", "clone", "--depth=1", "--", git_url, str(framework_path)])
@@ -410,19 +410,7 @@ def _clone_idf_with_submodules(
             ["git", "reset", "--hard", "FETCH_HEAD"],
             git_dir=framework_path,
         )
-    # cwd instead of git_dir: the git submodule porcelain fails on some git
-    # installations when GIT_DIR/GIT_WORK_TREE are set (see run_git_command).
-    run_git_command(
-        [
-            "git",
-            "submodule",
-            "update",
-            "--init",
-            "--recursive",
-            "--depth=1",
-        ],
-        cwd=framework_path,
-    )
+    update_submodules(framework_path, [], git_url)
 
     # Sanity-check the resulting tree. run_git_command only raises when
     # stderr is non-empty, so a clone that silently produces no working
