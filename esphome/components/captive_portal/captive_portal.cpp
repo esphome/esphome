@@ -4,6 +4,7 @@
 #include "esphome/core/application.h"
 #include "esphome/components/wifi/wifi_component.h"
 #include "captive_index.h"
+#include "json_escape.h"
 
 namespace esphome::captive_portal {
 
@@ -28,17 +29,18 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
     if (scan.get_is_hidden())
       continue;
 
-      // Assumes no " in ssid, possible unicode isses?
+    // An SSID can contain a " or \ that would break the JSON, so escape it.
+    std::string escaped_ssid = json_escape(scan.get_ssid());
 #ifdef USE_ESP8266
     stream->print(ESPHOME_F(",{\"ssid\":\""));
-    stream->print(scan.get_ssid().c_str());
+    stream->print(escaped_ssid.c_str());
     stream->print(ESPHOME_F("\",\"rssi\":"));
     stream->print(scan.get_rssi());
     stream->print(ESPHOME_F(",\"lock\":"));
     stream->print(scan.get_with_auth());
     stream->print(ESPHOME_F("}"));
 #else
-    stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", scan.get_ssid().c_str(), scan.get_rssi(),
+    stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", escaped_ssid.c_str(), scan.get_rssi(),
                    scan.get_with_auth());
 #endif
   }
