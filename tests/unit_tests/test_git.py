@@ -1466,6 +1466,44 @@ def test_uninitialized_named_submodule_raises(
     assert not repo_dir.is_dir()
 
 
+def test_refresh_uninitialized_named_submodule_recovers_then_raises(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A refresh-path verification failure routes through the recovery re-clone.
+
+    The broken repo is removed and re-cloned; when verification fails again on
+    the fresh clone the cache entry is removed and the error propagates,
+    instead of leaving behind a repo the refresh window would silently accept
+    on the next run.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    _setup_old_repo(repo_dir)
+    mock_run_git_command.side_effect = _make_uninitialized_submodule_side_effect(
+        repo_dir, gitmodules_config=""
+    )
+
+    with pytest.raises(git.GitRepositoryError, match="vendor/sub"):
+        git.clone_or_update(
+            url=url,
+            ref=None,
+            refresh=TimePeriodSeconds(days=1),
+            domain=domain,
+            submodules=["vendor/sub"],
+        )
+
+    assert not repo_dir.is_dir()
+    # Recovery removed the repo and re-cloned before failing again.
+    assert any(
+        _get_git_command_type(c[0][0]) == "clone"
+        for c in mock_run_git_command.call_args_list
+    )
+
+
 def test_named_submodule_with_update_none_not_reported(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
@@ -1618,14 +1656,14 @@ def test_clone_or_update_real_git_initializes_submodules(tmp_path: Path) -> None
 def test_clone_or_update_real_git_honors_update_none_submodule(
     tmp_path: Path,
 ) -> None:
-    """End-to-end with real git: submodules declared `update = none` are not
-    reported as failed initializations, at any nesting level.
+    """End-to-end with real git: submodules declared `update = none` stay skipped.
 
-    Git deliberately skips such submodules during `git submodule update
-    --init` and leaves them uninitialized; the status verification must not
-    turn that into an error while still checking out the regular submodules.
-    The nested case matters because the skipped submodule's declaration lives
-    in the intermediate submodule's .gitmodules, not the superproject's.
+    The all-submodules clone shows git itself skipping the declared paths at
+    both nesting levels while the regular submodules check out. The follow-up
+    call naming the skipped path exercises ESPHome's carve-out: the status
+    verification sees the path uninitialized and `_update_none_paths` (parsing
+    real `git config -f .gitmodules --list` output) excuses it instead of
+    raising.
     """
     CORE.config_path = tmp_path / "test.yaml"
 
@@ -1652,12 +1690,25 @@ def test_clone_or_update_real_git_honors_update_none_submodule(
             submodules=[],
         )
 
-    assert (repo_dir / "vendor" / "sub" / "sub_file.txt").is_file()
+        assert (repo_dir / "vendor" / "sub" / "sub_file.txt").is_file()
+        assert not (repo_dir / "vendor" / "skipped" / "sub_file.txt").exists()
+        assert (repo_dir / "vendor" / "mid" / "mid_file.txt").is_file()
+        assert not (
+            repo_dir / "vendor" / "mid" / "vendor" / "leaf" / "sub_file.txt"
+        ).exists()
+
+        # Naming the skipped path must not raise: the verification sees it
+        # uninitialized and the real .gitmodules parse excuses it.
+        repo_dir_again, _ = git.clone_or_update(
+            url=str(upstream),
+            ref=None,
+            refresh=None,
+            domain="test_e2e",
+            submodules=["vendor/skipped"],
+        )
+
+    assert repo_dir_again == repo_dir
     assert not (repo_dir / "vendor" / "skipped" / "sub_file.txt").exists()
-    assert (repo_dir / "vendor" / "mid" / "mid_file.txt").is_file()
-    assert not (
-        repo_dir / "vendor" / "mid" / "vendor" / "leaf" / "sub_file.txt"
-    ).exists()
 
 
 def test_refresh_picks_up_new_remote_commits(

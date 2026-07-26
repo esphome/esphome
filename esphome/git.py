@@ -460,6 +460,12 @@ def clone_or_update(
                     ["git", "reset", "--hard", "FETCH_HEAD"],
                     git_dir=repo_dir,
                 )
+
+                # Inside the try so a submodule failure (including the
+                # named-path verification) routes through the recovery
+                # re-clone below instead of leaving a repo that the refresh
+                # window would silently accept on the next run.
+                update_submodules(repo_dir, submodules, key)
             except GitException as err:
                 # Repository is in a broken state or update failed
                 # Only attempt recovery once to prevent infinite recursion
@@ -494,8 +500,6 @@ def clone_or_update(
                 )
                 _LOGGER.info("Repository %s successfully recovered", key)
                 return result
-
-            update_submodules(repo_dir, submodules, key)
 
             def revert():
                 _LOGGER.info("Reverting changes to %s -> %s", key, old_sha)
