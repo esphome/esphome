@@ -162,12 +162,16 @@ def _remove_repo_dir(repo_dir: Path) -> None:
         rmtree(repo_dir)
 
 
-def _update_none_paths(repo_dir: Path) -> set[str]:
-    """Return the paths of submodules the repo declares with ``update = none``.
+def _update_none_paths(repo_dir: Path, prefix: str = "") -> set[str]:
+    """Return the paths of submodules ``repo_dir`` declares with ``update = none``.
 
     Git skips these on purpose during ``git submodule update --init`` (and
     exits 0), so they must not be reported as failed initializations.
+    ``prefix`` is prepended to each returned path so declarations read from a
+    nested submodule's ``.gitmodules`` come back relative to the superproject.
     """
+    if not (repo_dir / ".gitmodules").is_file():
+        return set()
     # --get-regexp exits 1 with empty stderr when nothing matches, which
     # run_git_command treats as success with empty output.
     config = run_git_command(
@@ -184,7 +188,7 @@ def _update_none_paths(repo_dir: Path) -> set[str]:
         elif prop == "update":
             updates[name] = value
     return {
-        paths[name]
+        f"{prefix}{paths[name]}"
         for name, mode in updates.items()
         if mode == "none" and name in paths
     }
@@ -231,7 +235,15 @@ def update_submodules(repo_dir: Path, submodules: list[str] | None, key: str) ->
     if missing := [
         line.split()[1] for line in status.splitlines() if line.startswith("-")
     ]:
-        missing = [path for path in missing if path not in _update_none_paths(repo_dir)]
+        # `update = none` declarations can live at any level: in the
+        # superproject's .gitmodules or in that of any initialized nested
+        # submodule. Collect them all before deciding anything failed.
+        skipped = _update_none_paths(repo_dir)
+        for line in status.splitlines():
+            if line and not line.startswith("-"):
+                path = line.split()[1]
+                skipped |= _update_none_paths(repo_dir / path, prefix=f"{path}/")
+        missing = [path for path in missing if path not in skipped]
     if missing:
         raise GitRepositoryError(
             f"Submodules ({', '.join(missing)}) for {key} were left uninitialized"

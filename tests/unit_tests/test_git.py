@@ -1507,22 +1507,40 @@ def test_clone_or_update_real_git_initializes_submodules(tmp_path: Path) -> None
 def test_clone_or_update_real_git_honors_update_none_submodule(
     tmp_path: Path,
 ) -> None:
-    """End-to-end with real git: a submodule declared `update = none` is not
-    reported as a failed initialization.
+    """End-to-end with real git: submodules declared `update = none` are not
+    reported as failed initializations, at any nesting level.
 
     Git deliberately skips such submodules during `git submodule update
     --init` and leaves them uninitialized; the status verification must not
     turn that into an error while still checking out the regular submodules.
+    The nested case matters because the skipped submodule's declaration lives
+    in the intermediate submodule's .gitmodules, not the superproject's.
     """
     CORE.config_path = tmp_path / "test.yaml"
 
     sub_repo = tmp_path / "sub"
     _make_real_repo(sub_repo, "sub_file.txt")
 
+    # Intermediate submodule that itself declares a skipped nested submodule.
+    mid_repo = tmp_path / "mid"
+    _make_real_repo(mid_repo, "mid_file.txt")
+    _real_git("submodule", "add", str(sub_repo), "vendor/leaf", cwd=mid_repo)
+    _real_git(
+        "config",
+        "-f",
+        ".gitmodules",
+        "submodule.vendor/leaf.update",
+        "none",
+        cwd=mid_repo,
+    )
+    _real_git("add", ".gitmodules", cwd=mid_repo)
+    _real_git("commit", "-q", "-m", "add nested submodule", cwd=mid_repo)
+
     upstream = tmp_path / "upstream"
     _make_real_repo(upstream, "README.md")
     _real_git("submodule", "add", str(sub_repo), "vendor/sub", cwd=upstream)
     _real_git("submodule", "add", str(sub_repo), "vendor/skipped", cwd=upstream)
+    _real_git("submodule", "add", str(mid_repo), "vendor/mid", cwd=upstream)
     _real_git(
         "config",
         "-f",
@@ -1552,6 +1570,10 @@ def test_clone_or_update_real_git_honors_update_none_submodule(
 
     assert (repo_dir / "vendor" / "sub" / "sub_file.txt").is_file()
     assert not (repo_dir / "vendor" / "skipped" / "sub_file.txt").exists()
+    assert (repo_dir / "vendor" / "mid" / "mid_file.txt").is_file()
+    assert not (
+        repo_dir / "vendor" / "mid" / "vendor" / "leaf" / "sub_file.txt"
+    ).exists()
 
 
 def test_refresh_picks_up_new_remote_commits(
