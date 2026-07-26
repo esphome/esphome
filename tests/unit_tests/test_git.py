@@ -237,6 +237,30 @@ def test_run_git_command_without_git_dir(mock_subprocess_run: Mock) -> None:
     assert result == "Cloning into 'test_repo'..."
 
 
+def test_run_git_command_with_cwd_runs_in_dir_without_isolation(
+    tmp_path: Path, mock_subprocess_run: Mock
+) -> None:
+    """The cwd parameter sets the working directory without GIT_DIR/GIT_WORK_TREE."""
+    repo_dir = tmp_path / "test_repo"
+    repo_dir.mkdir()
+
+    mock_subprocess_run.return_value = Mock(
+        returncode=0,
+        stdout=b"test output",
+        stderr=b"",
+    )
+
+    result = git.run_git_command(["git", "submodule", "update"], cwd=repo_dir)
+
+    call_args = mock_subprocess_run.call_args
+    env = call_args[1].get("env")
+    if env is not None:
+        assert "GIT_DIR" not in env
+        assert "GIT_WORK_TREE" not in env
+    assert call_args[1]["cwd"] == str(repo_dir)
+    assert result == "test output"
+
+
 def test_run_git_command_without_git_dir_raises_error(
     mock_subprocess_run: Mock,
 ) -> None:
