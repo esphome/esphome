@@ -112,7 +112,7 @@ void MQTTBackendESP32::disable() {
   // Release any queued elements that were not processed.
   struct QueueElement *elem;
   while ((elem = this->mqtt_queue_.pop()) != nullptr) {
-    this->mqtt_event_pool_.release(elem);
+    this->mqtt_outbound_pool_.release(elem);
   }
 
   this->last_dropped_log_time_ = 0;
@@ -122,10 +122,6 @@ void MQTTBackendESP32::disable() {
   esp_mqtt_client_handle_t client = this->handler_.get();
   if (client != nullptr) {
     esp_mqtt_client_unregister_event(client, MQTT_EVENT_ANY, mqtt_event_handler);
-  }
-
-  while (!this->mqtt_events_.empty()) {
-    this->mqtt_events_.pop();
   }
 
   // We must extend the watchdog before resetting the handler,
@@ -288,7 +284,7 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
     struct QueueElement *elem;
     while ((elem = this_mqtt->mqtt_queue_.pop()) != nullptr) {
       if (this_mqtt->task_shutdown_requested_.load(std::memory_order_acquire)) {
-        this_mqtt->mqtt_event_pool_.release(elem);
+        this_mqtt->mqtt_outbound_pool_.release(elem);
         break;
       }
 
