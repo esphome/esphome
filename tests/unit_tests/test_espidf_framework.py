@@ -1148,6 +1148,33 @@ def test_demote_unused_tools_drops_xtensa_from_riscv_targets(tmp_path: Path) -> 
     assert xtensa["supported_targets"] == ["esp32", "esp32s2", "esp32s3"]
 
 
+def test_demote_unused_tools_bad_supported_targets_type_still_demotes(
+    tmp_path: Path,
+) -> None:
+    """A non-list supported_targets on riscv32-esp-elf must not abort the
+    other demotions; the targets patch is best-effort."""
+    tools_json = _write_tools_json(
+        tmp_path,
+        {
+            "tools": [
+                {
+                    "name": "riscv32-esp-elf",
+                    "install": "always",
+                    "supported_targets": None,
+                },
+                {"name": "openocd-esp32", "install": "always"},
+            ]
+        },
+    )
+    _patch_tools_json_demote_unused_tools(tmp_path)
+
+    data = json.loads(tools_json.read_text(encoding="utf-8"))
+    openocd = next(t for t in data["tools"] if t["name"] == "openocd-esp32")
+    riscv = next(t for t in data["tools"] if t["name"] == "riscv32-esp-elf")
+    assert openocd["install"] == "on_request"
+    assert riscv["supported_targets"] is None
+
+
 def test_patch_tools_json_unexpected_structure_warns_and_skips(
     tmp_path: Path,
 ) -> None:

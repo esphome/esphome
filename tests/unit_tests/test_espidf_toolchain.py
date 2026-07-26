@@ -70,15 +70,24 @@ def test_get_esphome_esp_idf_paths_no_override():
     mock_install.assert_called_once_with("5.5.4", targets=None, source_url=None)
 
 
-def test_get_configured_targets_from_variant():
+def test_get_configured_targets_from_variant(monkeypatch: pytest.MonkeyPatch):
     """The configured variant restricts the toolchain install to its target."""
+    monkeypatch.delenv("CI", raising=False)
     CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32S3"}
     assert toolchain._get_configured_targets() == ["esp32s3"]
 
 
-def test_get_configured_targets_without_variant():
+def test_get_configured_targets_without_variant(monkeypatch: pytest.MonkeyPatch):
     """No stored variant (e.g. tooling outside a build) keeps the default."""
+    monkeypatch.delenv("CI", raising=False)
     CORE.data.pop(KEY_ESP32, None)
+    assert toolchain._get_configured_targets() is None
+
+
+def test_get_configured_targets_ci_installs_all(monkeypatch: pytest.MonkeyPatch):
+    """CI installs every target so the shared cache covers all variants."""
+    monkeypatch.setenv("CI", "true")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32S3"}
     assert toolchain._get_configured_targets() is None
 
 

@@ -9,7 +9,7 @@ from pathlib import Path
 import platform
 import re
 import shutil
-from typing import NoReturn
+from typing import Any, NoReturn
 
 import platformdirs
 
@@ -219,7 +219,7 @@ def _read_stamp(file: PathType) -> dict | None:
     return data if isinstance(data, dict) else None
 
 
-def _check_stamp(file: PathType, data: dict[str, str]) -> bool:
+def _check_stamp(file: PathType, data: dict[str, Any]) -> bool:
     """
     Check if a stamp file contains the expected data.
 
@@ -254,7 +254,7 @@ def _stamp_covers(stored: dict | None, requested: dict) -> bool:
     return "all" in stored_targets or set(requested["targets"]) <= set(stored_targets)
 
 
-def _write_stamp(file: PathType, data: dict[str, str]):
+def _write_stamp(file: PathType, data: dict[str, Any]):
     """
     Write data to a stamp file in JSON format.
 
@@ -642,7 +642,11 @@ def _patch_tools_json_demote_unused_tools(framework_path: Path) -> None:
                 tool["install"] = "on_request"
                 changed = True
             if tool.get("name") == "riscv32-esp-elf":
-                targets = tool.get("supported_targets", [])
+                targets = tool.get("supported_targets")
+                # Guard the type so unexpected JSON here cannot abort the
+                # other demotions; this patch is best-effort.
+                if not isinstance(targets, list):
+                    continue
                 if any(t in targets for t in _XTENSA_TARGETS):
                     tool["supported_targets"] = [
                         t for t in targets if t not in _XTENSA_TARGETS
