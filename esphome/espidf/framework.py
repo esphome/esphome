@@ -241,10 +241,10 @@ def _stamps_match_except_targets(stored: dict, requested: dict) -> bool:
     of being silently ignored.
     """
 
-    def strip(stamp: dict) -> dict:
+    def _strip(stamp: dict) -> dict:
         return {k: v for k, v in stamp.items() if k != "targets"}
 
-    return strip(stored) == strip(requested)
+    return _strip(stored) == _strip(requested)
 
 
 def _stamp_covers(stored: dict | None, requested: dict) -> bool:
