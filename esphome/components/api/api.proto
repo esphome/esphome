@@ -2764,6 +2764,10 @@ message BluetoothSetConnectionParamsResponse {
 // Embed the user's YAML in firmware and stream it back over the API so a lost
 // config can be recovered from a running device. The device only stores the
 // compressed bytes; decompression happens client-side.
+//
+// A GetYamlRequest received while a transfer is already streaming on the same
+// connection is ignored; the in-flight transfer continues undisturbed. To
+// restart a transfer, reconnect.
 message GetYamlRequest {
   option (id) = 149;
   option (source) = SOURCE_CLIENT;

@@ -9,8 +9,11 @@ import pytest
 
 from esphome import yaml_util
 from esphome.components.store_yaml import (
+    CONF_ALLOW_UNENCRYPTED,
     SECRETS_SKELETON_HEADER,
     UNCAPTURED_NOTE_PATH,
+    _final_validate,
+    _find_remote_packages,
     _gather_files,
     _generate_redacted_files,
     _pack_envelope,
@@ -18,7 +21,9 @@ from esphome.components.store_yaml import (
     _uncaptured_note,
     unpack_envelope,
 )
+import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError
+import esphome.final_validate as fv
 from esphome.yaml_util import DiscoveredYamlFiles, SensitiveStr
 
 
@@ -213,18 +218,15 @@ def test_redacted_quoted_inline_value(project: Path, quote: str) -> None:
 
 def test_redacted_swap_is_whole_scalar_and_value_keyed(project: Path) -> None:
     """Every whole scalar equal to the sensitive value is swapped (value-keyed,
-    like `!secret` itself); substrings inside other scalars are never touched.
-    The recovered config stays semantically identical once the secret is filled."""
-    (project / "wifi.yaml").write_text(
-        "platform: esp32\nnote: esp32 is great\npassword: esp32\n"
-    )
+    like `!secret` itself). The recovered config stays semantically identical
+    once the secret is filled."""
+    (project / "wifi.yaml").write_text("platform: esp32\npassword: esp32\n")
     CORE.config = {"wifi": [{"password": SensitiveStr("esp32")}]}
     discovered = _sources(project, "wifi.yaml")
     files = _gather_redacted(discovered)
     text = files["wifi.yaml"].decode()
     assert "password: !secret 'wifi_password'" in text
     assert "platform: !secret 'wifi_password'" in text
-    assert "note: esp32 is great" in text
 
 
 def test_redacted_include_reference_round_trips(project: Path) -> None:
@@ -277,11 +279,51 @@ def test_redacted_accepts_secret_only_values(project: Path) -> None:
 def test_uncaptured_note_lists_missing_includes() -> None:
     """Substitution-pathed includes that can't be captured are recorded in a
     dedicated envelope entry (both modes), not just a compile-time log line."""
-    rel, content = _uncaptured_note(["${board}.yaml"])
+    rel, content = _uncaptured_note(["${board}.yaml"], [])
     assert rel == UNCAPTURED_NOTE_PATH
     text = content.decode()
     assert text.startswith("# store_yaml:")
     assert "#   ${board}.yaml" in text
+
+
+def test_uncaptured_note_lists_remote_packages() -> None:
+    """Remote packages that can't be captured are recorded with their source
+    so the user knows to re-fetch them."""
+    rel, content = _uncaptured_note(
+        [], ["base: https://github.com/org/repo@main", "github://org/repo/file.yaml"]
+    )
+    assert rel == UNCAPTURED_NOTE_PATH
+    text = content.decode()
+    assert "#   base: https://github.com/org/repo@main" in text
+    assert "#   github://org/repo/file.yaml" in text
+
+
+def test_find_remote_packages_detects_url_and_shorthand(project: Path) -> None:
+    """`packages:` entries with a url (dict or shorthand string) are reported;
+    local `!include` packages are not."""
+    (project / "entry.yaml").write_text(
+        "packages:\n"
+        "  base:\n"
+        "    url: https://github.com/org/repo\n"
+        "    ref: main\n"
+        "    files: [common.yaml]\n"
+        "  shorthand: github://org/repo/file.yaml@main\n"
+        "  local: !include wifi.yaml\n"
+        "esphome:\n  name: test\n"
+    )
+    discovered = _sources(project, "entry.yaml", "wifi.yaml")
+    entries, _ = _gather_files(discovered)
+    remote = _find_remote_packages(entries)
+    assert remote == [
+        "base: https://github.com/org/repo@main",
+        "shorthand: github://org/repo/file.yaml@main",
+    ]
+
+
+def test_find_remote_packages_ignores_local_only(project: Path) -> None:
+    discovered = _sources(project, "entry.yaml", "wifi.yaml")
+    entries, _ = _gather_files(discovered)
+    assert _find_remote_packages(entries) == []
 
 
 def test_redacted_skips_empty_sensitive_values(project: Path) -> None:
@@ -362,3 +404,87 @@ def test_unpack_envelope_rejects_trailing_bytes() -> None:
     blob = _pack_envelope([("entry.yaml", b"esphome:\n")])
     with pytest.raises(EsphomeError, match="trailing"):
         unpack_envelope(blob + b"\x00")
+
+
+def test_pack_envelope_rejects_duplicate_paths() -> None:
+    """A duplicate path would silently clobber the earlier entry on unpack."""
+    with pytest.raises(EsphomeError, match="duplicate"):
+        _pack_envelope([("entry.yaml", b"a: 1\n"), ("entry.yaml", b"b: 2\n")])
+
+
+@pytest.mark.parametrize("path", ["/etc/passwd", "\\evil.yaml", "C:/evil.yaml"])
+def test_unpack_envelope_rejects_non_relative_paths(path: str) -> None:
+    """The packer never emits absolute or drive-qualified paths, so their
+    presence means a malformed or hostile envelope."""
+    blob = _pack_envelope([(path, b"boom\n")])
+    with pytest.raises(EsphomeError, match="non-relative"):
+        unpack_envelope(blob)
+
+
+# ---------------------------------------------------------------------------
+# embedded-value leak scan and collision warning
+# ---------------------------------------------------------------------------
+
+
+def test_redacted_embedded_sensitive_value_fails_build(project: Path) -> None:
+    """A sensitive value inside a larger scalar (URL, lambda body) is not
+    swapped by the whole-scalar redaction; the substring scan fails closed."""
+    (project / "wifi.yaml").write_text(
+        "password: my_password\nurl: http://user:my_password@host\n"
+    )
+    CORE.config = {"wifi": [{"password": SensitiveStr("my_password")}]}
+    discovered = _sources(project, "wifi.yaml")
+    with pytest.raises(EsphomeError, match="embedded"):
+        _gather_redacted(discovered)
+
+
+def test_redacted_warns_on_value_collision(
+    project: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unrelated scalar equal to a sensitive value gets rewritten by the
+    value-keyed swap; a warning documents the trap."""
+    (project / "wifi.yaml").write_text("password: esp32\nplatform: esp32\n")
+    CORE.config = {
+        "wifi": [{"password": SensitiveStr("esp32")}],
+        "sensor": [{"platform": "esp32"}],
+    }
+    discovered = _sources(project, "wifi.yaml")
+    files = _gather_redacted(discovered)
+    assert files["wifi.yaml"] == (
+        b"password: !secret 'wifi_password'\nplatform: !secret 'wifi_password'\n"
+    )
+    assert "also matches the scalar at sensor.platform" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# _final_validate encryption gate
+# ---------------------------------------------------------------------------
+
+
+def _run_final_validate(full_config: dict, config: dict) -> dict:
+    token = fv.full_config.set(full_config)
+    try:
+        return _final_validate(config)
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_final_validate_accepts_encrypted_api() -> None:
+    config = {CONF_ALLOW_UNENCRYPTED: False}
+    full = {
+        "api": {"encryption": {"key": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}}
+    }
+    assert _run_final_validate(full, config) is config
+
+
+def test_final_validate_rejects_unencrypted_api() -> None:
+    with pytest.raises(cv.Invalid, match="requires API encryption"):
+        _run_final_validate({"api": {}}, {CONF_ALLOW_UNENCRYPTED: False})
+
+
+def test_final_validate_allows_unencrypted_with_escape_hatch(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    config = {CONF_ALLOW_UNENCRYPTED: True}
+    assert _run_final_validate({"api": {}}, config) is config
+    assert "without API encryption" in caplog.text

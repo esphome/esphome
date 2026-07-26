@@ -29,6 +29,7 @@
 
 #include <functional>
 #include <limits>
+#include <memory>
 #include <vector>
 
 namespace esphome {
@@ -406,6 +407,12 @@ class APIConnection final : public APIServerConnectionBase {
   void try_send_store_yaml_();
   // Streaming offset into the PROGMEM blob; max() means "not streaming".
   size_t store_yaml_pos_{std::numeric_limits<size_t>::max()};
+#ifdef USE_ESP8266
+  // Bounce buffer for progmem_memcpy, alive only while a transfer is in
+  // flight; retrieval is rare, so the RAM is not held for the firmware's
+  // lifetime. Freed on the terminal frame or with the connection.
+  std::unique_ptr<uint8_t[]> store_yaml_chunk_buf_;
+#endif
 #endif
 
 #ifdef USE_API_HOMEASSISTANT_STATES

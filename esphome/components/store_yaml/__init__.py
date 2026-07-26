@@ -171,6 +171,40 @@ class _SensitiveValue:
     config_path: str  # dotted path, for warnings (never log the value itself)
 
 
+def _iter_scalars(
+    node: object, path: tuple[str, ...] = ()
+) -> Generator[tuple[tuple[str, ...], object]]:
+    """Yield (config_path, value) for every scalar in a config tree."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            yield from _iter_scalars(value, (*path, str(key)))
+    elif isinstance(node, (list, tuple)):
+        for item in node:
+            yield from _iter_scalars(item, path)
+    elif isinstance(node, (str, int, float)) and not isinstance(node, bool):
+        yield path, node
+
+
+def _warn_sensitive_collisions(sensitive: dict[str, _SensitiveValue]) -> None:
+    """Redaction is value-keyed: any scalar equal to a sensitive value is
+    rewritten to its `!secret` reference, including unrelated ones (e.g.
+    `platform: esp32` when a password is literally "esp32"). Filling in a
+    different value during recovery would then silently rewrite those
+    unrelated scalars too — warn so the trap is documented, not silent."""
+    for path, value in _iter_scalars(CORE.config):
+        if isinstance(value, yaml_util.SensitiveStr):
+            continue
+        info = sensitive.get(str(value))
+        if info is not None:
+            _LOGGER.warning(
+                "store_yaml: the sensitive value at %s also matches the scalar "
+                "at %s; the recovered config will reference !secret %s there too",
+                info.config_path,
+                ".".join(path),
+                info.secret_name,
+            )
+
+
 def _collect_sensitive_values() -> dict[str, _SensitiveValue]:
     """Map each cv.sensitive value in the validated config to the `!secret`
     name it should be recovered as.
@@ -197,20 +231,68 @@ def _collect_sensitive_values() -> dict[str, _SensitiveValue]:
     return result
 
 
-# Envelope path of the note recording includes that could not be captured.
+# Envelope path of the note recording content that could not be captured.
 UNCAPTURED_NOTE_PATH = "store_yaml_uncaptured.yaml"
 
 
-def _uncaptured_note(unresolved: list[str]) -> tuple[str, bytes]:
-    """Comment-only YAML entry listing includes that could not be captured, so
+def _uncaptured_note(
+    unresolved: list[str], remote_packages: list[str]
+) -> tuple[str, bytes]:
+    """Comment-only YAML entry listing content that could not be captured, so
     a recovered config never silently appears complete. Emitted for both the
     redacted and verbatim paths; user files are never modified to carry it."""
-    text = (
-        "# store_yaml: the following !include paths use substitutions and\n"
-        "# could not be captured; restore these files manually:\n"
-        + "".join(f"#   {inc}\n" for inc in unresolved)
-    )
-    return (UNCAPTURED_NOTE_PATH, text.encode("utf-8"))
+    parts = ["# store_yaml: the following content could not be captured.\n"]
+    if unresolved:
+        parts.append(
+            "# These !include paths use substitutions; restore the files manually:\n"
+            + "".join(f"#   {inc}\n" for inc in unresolved)
+        )
+    if remote_packages:
+        parts.append(
+            "# These packages come from remote sources; re-fetch them to\n"
+            "# complete this config:\n"
+            + "".join(f"#   {pkg}\n" for pkg in remote_packages)
+        )
+    return (UNCAPTURED_NOTE_PATH, "".join(parts).encode("utf-8"))
+
+
+def _find_remote_packages(entries: list[tuple[str, Path]]) -> list[str]:
+    """Describe every `packages:` entry that pulls content from a remote source.
+
+    Remote packages are downloaded during validation, which the fresh parse
+    used for discovery never reaches, so their files cannot be embedded. The
+    entry file still records the source, so the config is re-fetchable; this
+    only makes the gap visible instead of silent.
+    """
+    remote: list[str] = []
+    for _, path in entries:
+        try:
+            tree = yaml_util.load_yaml(path, clear_secrets=False)
+        except EsphomeError:
+            # Discovery already loaded this file once; a failure here would
+            # have been reported as a load_error and failed the build.
+            continue
+        if not isinstance(tree, dict):
+            continue
+        packages = tree.get("packages")
+        if isinstance(packages, dict):
+            candidates = packages.items()
+        elif isinstance(packages, list):
+            candidates = ((None, item) for item in packages)
+        else:
+            continue
+        for name, value in candidates:
+            desc = None
+            if isinstance(value, dict) and "url" in value:
+                url = value.get("url")
+                ref = value.get("ref")
+                desc = f"{url}@{ref}" if ref else str(url)
+            elif isinstance(value, str) and "//" in value:
+                # Shorthand form, e.g. `github://org/repo/file.yaml@main`
+                desc = value
+            if desc is not None:
+                remote.append(f"{name}: {desc}" if name is not None else desc)
+    return remote
 
 
 def _build_secrets_skeleton(keys: set[str]) -> bytes:
@@ -233,6 +315,7 @@ def _generate_redacted_files(
     comments and formatting of the originals are not preserved.
     """
     sensitive = _collect_sensitive_values()
+    _warn_sensitive_collisions(sensitive)
 
     texts: dict[str, str] = {}
     registered = {value: info.secret_name for value, info in sensitive.items()}
@@ -264,6 +347,28 @@ def _generate_redacted_files(
             "embed secrets deliberately."
         )
 
+    # The swap replaces whole scalars only. A sensitive value embedded inside
+    # a larger scalar — a lambda body, a URL like http://user:pw@host — is not
+    # swapped there, so scan the generated output for every sensitive value as
+    # a substring and fail the build on any hit. This can false-positive on
+    # short values that legitimately appear as substrings (an SSID of "esp32"
+    # inside "esp32dev"); shipping a promised-redacted secret is the worse
+    # failure, so fail closed.
+    embedded = [
+        f"{info.config_path} (inside {rel})"
+        for value, info in sensitive.items()
+        for rel, text in texts.items()
+        if value in text
+    ]
+    if embedded:
+        raise EsphomeError(
+            "store_yaml: sensitive value(s) appear embedded inside larger "
+            f"values: {', '.join(embedded)}. Redaction only replaces whole "
+            "scalars, so these would ship unredacted. Move the value into a "
+            "`!secret` referenced on its own, or set `include_secrets: true` "
+            "to embed secrets deliberately."
+        )
+
     skeleton = _build_secrets_skeleton(skeleton_keys)
     result = [
         (rel, skeleton if rel in secret_rels else texts[rel].encode("utf-8"))
@@ -284,7 +389,13 @@ def _pack_envelope(files: list[tuple[str, bytes]]) -> bytes:
     All integers are little-endian.
     """
     parts: list[bytes] = [ENVELOPE_MAGIC, struct.pack("<I", len(files))]
+    seen: set[str] = set()
     for path, content in files:
+        if path in seen:
+            # unpack_envelope builds a dict, so a duplicate would silently
+            # replace the earlier entry — fail the build instead.
+            raise EsphomeError(f"store_yaml: duplicate envelope path: {path}")
+        seen.add(path)
         path_bytes = path.encode("utf-8")
         if len(path_bytes) > 0xFFFF:
             raise EsphomeError(
@@ -299,7 +410,13 @@ def _pack_envelope(files: list[tuple[str, bytes]]) -> bytes:
 
 def unpack_envelope(blob: bytes) -> dict[str, bytes]:
     """Inverse of `_pack_envelope`: the reference decoder for the EHY1 envelope,
-    used by tests and client-side recovery tooling."""
+    used by tests and client-side recovery tooling.
+
+    Absolute and drive-qualified paths are rejected: the packer never emits
+    them, so their presence means a malformed or hostile envelope. Relative
+    paths with ``..`` components are legitimate (the packer emits them for
+    files outside the config root), so callers that write files to disk must
+    still confine the resulting paths to their target directory."""
     if blob[:4] != ENVELOPE_MAGIC:
         raise EsphomeError("envelope must start with EHY1 magic")
     pos = 4
@@ -313,6 +430,8 @@ def unpack_envelope(blob: bytes) -> dict[str, bytes]:
             if pos + path_len > len(blob):
                 raise EsphomeError("truncated envelope")
             path = blob[pos : pos + path_len].decode("utf-8")
+            if path.startswith(("/", "\\")) or (len(path) >= 2 and path[1] == ":"):
+                raise EsphomeError(f"envelope contains non-relative path: {path}")
             pos += path_len
             (content_len,) = struct.unpack_from("<I", blob, pos)
             pos += 4
@@ -341,8 +460,17 @@ async def to_code(config: ConfigType) -> None:
         files = _read_files_verbatim(entries)
     else:
         files = _generate_redacted_files(entries, secret_rels)
-    if discovered.unresolved:
-        files.append(_uncaptured_note(discovered.unresolved))
+    remote_packages = _find_remote_packages(entries)
+    if remote_packages:
+        _LOGGER.warning(
+            "store_yaml: %d package(s) come from remote sources and cannot be "
+            "captured (%s); the embedded recovery data records the source so "
+            "they can be re-fetched",
+            len(remote_packages),
+            ", ".join(remote_packages),
+        )
+    if discovered.unresolved or remote_packages:
+        files.append(_uncaptured_note(discovered.unresolved, remote_packages))
     envelope = _pack_envelope(files)
     compressed = zstd.compress(envelope, level=ZSTD_LEVEL)
 

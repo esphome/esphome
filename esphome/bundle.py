@@ -107,7 +107,13 @@ def _find_used_secret_keys(yaml_files: list[Path]) -> set[str]:
     for fpath in yaml_files:
         try:
             text = fpath.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+        except (OSError, UnicodeDecodeError) as err:
+            _LOGGER.warning(
+                "Could not scan %s for !secret references (%s); the bundled "
+                "secret set may be incomplete",
+                fpath,
+                err,
+            )
             continue
         keys |= yaml_util.find_secret_references(text)
     return keys
@@ -383,6 +389,18 @@ class ConfigBundleCreator:
         must ship every candidate so the remote build can pick any one.
         """
         discovered = yaml_util.discover_user_yaml_files(self._config_path)
+        if discovered.load_errors:
+            _LOGGER.warning(
+                "Bundle may be incomplete; could not load all configuration files: %s",
+                "; ".join(discovered.load_errors),
+            )
+        if discovered.unresolved:
+            _LOGGER.warning(
+                "Bundle may be incomplete; %d !include path(s) use "
+                "substitutions and cannot be captured: %s",
+                len(discovered.unresolved),
+                ", ".join(discovered.unresolved),
+            )
         self._secrets_paths.update(discovered.secrets)
         config_resolved = self._config_path.resolve()
         for fpath in discovered.files:
