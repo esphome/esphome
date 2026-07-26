@@ -31,6 +31,7 @@ from esphome.const import (
     CONF_AVAILABILITY,
     CONF_COMMAND_RETAIN,
     CONF_COMMAND_TOPIC,
+    CONF_CURRENT_TEMPERATURE,
     CONF_DAY,
     CONF_DEVICE_ID,
     CONF_DISABLED_BY_DEFAULT,
@@ -40,6 +41,8 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
+    CONF_MAX_TEMPERATURE,
+    CONF_MIN_TEMPERATURE,
     CONF_MINUTE,
     CONF_MONTH,
     CONF_NAME,
@@ -54,13 +57,18 @@ from esphome.const import (
     CONF_SETUP_PRIORITY,
     CONF_STATE_TOPIC,
     CONF_SUBSCRIBE_QOS,
+    CONF_TARGET_TEMPERATURE,
+    CONF_TARGET_TEMPERATURE_STEP,
+    CONF_TEMPERATURE_STEP,
     CONF_TOPIC,
     CONF_TYPE,
     CONF_TYPE_ID,
+    CONF_UNIT_OF_MEASUREMENT,
     CONF_UPDATE_INTERVAL,
     CONF_URL,
     CONF_USERNAME,
     CONF_VALUE,
+    CONF_VISUAL,
     CONF_YEAR,
     ENTITY_CATEGORY_CONFIG,
     ENTITY_CATEGORY_DIAGNOSTIC,
@@ -75,6 +83,9 @@ from esphome.const import (
     SCHEDULER_DONT_RUN,
     TYPE_GIT,
     TYPE_LOCAL,
+    UNIT_CELSIUS,
+    UNIT_FAHRENHEIT,
+    UNIT_KELVIN,
     Framework,
     __version__ as ESPHOME_VERSION,
 )
@@ -1396,54 +1407,179 @@ voltage = float_with_unit("voltage", "(v|V|volt|Volts)?")
 distance = float_with_unit("distance", "(m)")
 framerate = float_with_unit("framerate", "(FPS|fps|Fps|FpS|Hz)")
 angle = float_with_unit("angle", "(°|deg)", optional_unit=True)
-_temperature_c = float_with_unit("temperature", "(°C|° C|C|°)?")
-_temperature_k = float_with_unit("temperature", "(°K|° K|K)?")
-_temperature_f = float_with_unit("temperature", "(°F|° F|F)?")
+_celsius_suffix = "°C|° C|C"
+_temperature_c = float_with_unit("temperature", f"({_celsius_suffix}|°)?")
+_temperature_c_strict = float_with_unit("temperature", f"({_celsius_suffix})")
+_kelvin_suffix = "°K|° K|K"
+_temperature_k = float_with_unit("temperature", f"({_kelvin_suffix})?")
+_temperature_k_strict = float_with_unit("temperature", f"({_kelvin_suffix})")
+_fahrenheit_suffix = "°F|° F|F"
+_temperature_f = float_with_unit("temperature", f"({_fahrenheit_suffix})?")
+_temperature_f_strict = float_with_unit("temperature", f"({_fahrenheit_suffix})")
 decibel = float_with_unit("decibel", "(dB|dBm|db|dbm)", optional_unit=True)
 pressure = float_with_unit("pressure", "(bar|Bar)", optional_unit=True)
 
 
-def temperature(value):
-    err = None
-    try:
-        return _temperature_c(value)
-    except Invalid as orig_err:
-        err = orig_err
+def temperature_unit(value):
+    return one_of(UNIT_CELSIUS, UNIT_FAHRENHEIT, UNIT_KELVIN)(value)
 
+
+def temperature(value):
     try:
-        kelvin = _temperature_k(value)
+        kelvin = _temperature_k_strict(value)
         return kelvin - 273.15
     except Invalid:
         pass
 
     try:
-        fahrenheit = _temperature_f(value)
+        fahrenheit = _temperature_f_strict(value)
         return (fahrenheit - 32) * (5 / 9)
     except Invalid:
         pass
 
-    raise err
+    # Non-strict parsing for C, so we default to Celsius if no unit is given.
+    return _temperature_c(value)
 
 
 def temperature_delta(value):
-    err = None
     try:
-        return _temperature_c(value)
-    except Invalid as orig_err:
-        err = orig_err
-
-    try:
-        return _temperature_k(value)
+        return _temperature_k_strict(value)
     except Invalid:
         pass
 
     try:
-        fahrenheit = _temperature_f(value)
+        fahrenheit = _temperature_f_strict(value)
         return fahrenheit * (5 / 9)
     except Invalid:
         pass
 
-    raise err
+    # Non-strict parsing for C, so we default to Celsius if no unit is given.
+    return _temperature_c(value)
+
+
+def temperature_with_unit(value):
+    """Parse a temperature value and return (raw_float, detected_unit_or_None).
+
+    The raw_float is in the detected unit, NOT converted to Celsius.
+    Returns (float, unit_string) where unit_string is one of UNIT_CELSIUS,
+    UNIT_FAHRENHEIT, UNIT_KELVIN, or None if no explicit unit was given.
+    """
+    try:
+        return (_temperature_k_strict(value), UNIT_KELVIN)
+    except (Invalid, ValueError):
+        pass
+    try:
+        return (_temperature_f_strict(value), UNIT_FAHRENHEIT)
+    except (Invalid, ValueError):
+        pass
+    try:
+        return (_temperature_c_strict(value), UNIT_CELSIUS)
+    except (Invalid, ValueError):
+        pass
+    try:
+        # This handles the ° case, providing no unit.
+        return (_temperature_c(value), None)
+    except (Invalid, ValueError) as e:
+        raise Invalid(f"Expected a temperature value, got {value!r}") from e
+
+
+VISUAL_TEMPERATURE_STEP_SCHEMA = Schema(
+    {
+        Required(CONF_TARGET_TEMPERATURE): temperature_with_unit,
+        Required(CONF_CURRENT_TEMPERATURE): temperature_with_unit,
+    }
+)
+
+
+def visual_temperature_step(value):
+    # Allow defining target/current temperature steps separately
+    if isinstance(value, dict):
+        return VISUAL_TEMPERATURE_STEP_SCHEMA(value)
+
+    # Otherwise, parse once and use the same value for both properties
+    parsed = temperature_with_unit(value)
+    return {CONF_TARGET_TEMPERATURE: parsed, CONF_CURRENT_TEMPERATURE: parsed}
+
+
+def _temperature_to_celsius(value, unit, relative=False):
+    """Convert a temperature value to Celsius from the given unit."""
+    if unit == UNIT_FAHRENHEIT:
+        return (value - (0 if relative else 32)) * (5.0 / 9.0)
+    if unit == UNIT_KELVIN:
+        return value if relative else value - 273.15
+    return value
+
+
+def _celsius_to_unit(value, unit, relative=False):
+    """Convert a Celsius value to the given unit."""
+    if unit == UNIT_FAHRENHEIT:
+        return value * (9.0 / 5.0) + (0 if relative else 32)
+    if unit == UNIT_KELVIN:
+        return value + (0 if relative else 273.15)
+    return value
+
+
+def validate_temperature_config(config):
+    """Cross-field validator for temperature units.
+
+    Legacy path (no ``unit_of_measurement``): each temperature field is individually
+    converted to Celsius. Mixed units across fields are allowed. ``unit_of_measurement``
+    is set to Celsius.
+
+    New path (``unit_of_measurement`` set): each temperature field with an explicit
+    unit is converted to the specified unit. Fields without an explicit unit are
+    assumed to already be in the specified unit. ``unit_of_measurement`` is set to
+    the configured value.
+    """
+    explicit_uom = config.get(CONF_UNIT_OF_MEASUREMENT)
+    visual = config[CONF_VISUAL]
+    temp_fields = {}
+    VISUAL_FIELDS = (
+        CONF_MIN_TEMPERATURE,
+        CONF_MAX_TEMPERATURE,
+        CONF_TEMPERATURE_STEP,
+        CONF_TARGET_TEMPERATURE_STEP,
+    )
+    NESTED_STEP_FIELDS = (CONF_TARGET_TEMPERATURE, CONF_CURRENT_TEMPERATURE)
+    for key in VISUAL_FIELDS:
+        if key in visual:
+            if key == CONF_TEMPERATURE_STEP and isinstance(visual[key], dict):
+                for sub_key in NESTED_STEP_FIELDS:
+                    if sub_key in visual[key]:
+                        temp_fields[sub_key] = visual[key][sub_key]
+            else:
+                temp_fields[key] = visual[key]
+
+    def store(key, value):
+        if key in NESTED_STEP_FIELDS:
+            visual[CONF_TEMPERATURE_STEP][key] = value
+        else:
+            visual[key] = value
+
+    def key_is_relative(key):
+        return key in NESTED_STEP_FIELDS or key in [
+            CONF_TEMPERATURE_STEP,
+            CONF_TARGET_TEMPERATURE_STEP,
+        ]
+
+    if explicit_uom:
+        # New path: convert each field to the explicit UOM.
+        for key, (raw_value, unit) in temp_fields.items():
+            relative = key_is_relative(key)
+            if unit is not None and unit != explicit_uom:
+                celsius = _temperature_to_celsius(raw_value, unit, relative=relative)
+                store(key, _celsius_to_unit(celsius, explicit_uom, relative=relative))
+            else:
+                store(key, raw_value)
+        config[CONF_UNIT_OF_MEASUREMENT] = explicit_uom
+    else:
+        # No unit_of_measurement: convert non-Celsius fields to Celsius individually.
+        for key, (raw_value, unit) in temp_fields.items():
+            relative = key_is_relative(key)
+            store(key, _temperature_to_celsius(raw_value, unit, relative=relative))
+        config[CONF_UNIT_OF_MEASUREMENT] = UNIT_CELSIUS
+
+    return config
 
 
 _color_temperature_mireds = float_with_unit("Color Temperature", r"(mireds|Mireds)")

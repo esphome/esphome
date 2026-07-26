@@ -221,6 +221,9 @@ class WaterHeater : public EntityBase {
   void set_visual_max_temperature_override(float max_temperature_override);
   void set_visual_target_temperature_step_override(float visual_target_temperature_step_override);
 #endif
+#ifdef USE_WATER_HEATER_TEMPERATURE_UNIT
+  void set_temperature_unit_override(TemperatureUnit unit);
+#endif
   virtual void control(const WaterHeaterCall &call) = 0;
 
  protected:
@@ -266,6 +269,9 @@ class WaterHeater : public EntityBase {
   float visual_min_temperature_override_{NAN};
   float visual_max_temperature_override_{NAN};
   float visual_target_temperature_step_override_{NAN};
+#endif
+#ifdef USE_WATER_HEATER_TEMPERATURE_UNIT
+  TemperatureUnit temperature_unit_override_{TemperatureUnit::CELSIUS};
 #endif
 
   ESPPreferenceObject pref_;

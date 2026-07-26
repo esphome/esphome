@@ -6,7 +6,13 @@ from esphome.const import (
     CONF_ID,
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
+    CONF_TARGET_TEMPERATURE_STEP,
+    CONF_TEMPERATURE_STEP,
+    CONF_UNIT_OF_MEASUREMENT,
     CONF_VISUAL,
+    UNIT_CELSIUS,
+    UNIT_FAHRENHEIT,
+    UNIT_KELVIN,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
@@ -26,7 +32,13 @@ WaterHeater = water_heater_ns.class_("WaterHeater", cg.EntityBase)
 WaterHeaterCall = water_heater_ns.class_("WaterHeaterCall")
 WaterHeaterTraits = water_heater_ns.class_("WaterHeaterTraits")
 
-CONF_TARGET_TEMPERATURE_STEP = "target_temperature_step"
+
+TemperatureUnit = cg.esphome_ns.enum("TemperatureUnit", is_class=True)
+TEMPERATURE_UNIT_MAP = {
+    UNIT_CELSIUS: TemperatureUnit.CELSIUS,
+    UNIT_FAHRENHEIT: TemperatureUnit.FAHRENHEIT,
+    UNIT_KELVIN: TemperatureUnit.KELVIN,
+}
 
 WaterHeaterMode = water_heater_ns.enum("WaterHeaterMode")
 WATER_HEATER_MODES = {
@@ -42,17 +54,19 @@ validate_water_heater_mode = cv.enum(WATER_HEATER_MODES, upper=True)
 
 _WATER_HEATER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
     {
+        cv.Optional(CONF_UNIT_OF_MEASUREMENT): cv.temperature_unit,
         cv.Optional(CONF_VISUAL, default={}): cv.Schema(
             {
-                cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature,
-                cv.Optional(CONF_MAX_TEMPERATURE): cv.temperature,
-                cv.Optional(CONF_TARGET_TEMPERATURE_STEP): cv.float_,
+                cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature_with_unit,
+                cv.Optional(CONF_MAX_TEMPERATURE): cv.temperature_with_unit,
+                cv.Optional(CONF_TARGET_TEMPERATURE_STEP): cv.temperature_with_unit,
             }
         ),
     }
 )
 
 _WATER_HEATER_SCHEMA.add_extra(entity_duplicate_validator("water_heater"))
+_WATER_HEATER_SCHEMA.add_extra(cv.validate_temperature_config)
 
 
 def water_heater_schema(
@@ -83,9 +97,12 @@ async def setup_water_heater_core_(var: cg.Pvariable, config: ConfigType) -> Non
     if (max_temp := visual.get(CONF_MAX_TEMPERATURE)) is not None:
         cg.add_define("USE_WATER_HEATER_VISUAL_OVERRIDES")
         cg.add(var.set_visual_max_temperature_override(max_temp))
-    if (temp_step := visual.get(CONF_TARGET_TEMPERATURE_STEP)) is not None:
+    if (temp_step := visual.get(CONF_TEMPERATURE_STEP)) is not None:
         cg.add_define("USE_WATER_HEATER_VISUAL_OVERRIDES")
-        cg.add(var.set_visual_target_temperature_step_override(temp_step))
+        cg.add(var.set_visual_temperature_step_override(temp_step))
+    if (uom := config.get(CONF_UNIT_OF_MEASUREMENT)) is not None:
+        cg.add_define("USE_WATER_HEATER_TEMPERATURE_UNIT")
+        cg.add(var.set_temperature_unit_override(TEMPERATURE_UNIT_MAP[uom]))
 
 
 async def register_water_heater(var: cg.Pvariable, config: ConfigType) -> cg.Pvariable:

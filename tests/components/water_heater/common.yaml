@@ -1,16 +1,30 @@
 water_heater:
+  # Default (Celsius, no unit_of_measurement)
   - platform: template
     id: my_boiler
     name: "Test Boiler"
-    min_temperature: 10
-    max_temperature: 85
-    target_temperature_step: 0.5
-    current_temperature_step: 0.1
     optimistic: true
-    current_temperature: 45.0
-    mode: !lambda "return water_heater::WATER_HEATER_MODE_ECO;"
     visual:
       min_temperature: 10
       max_temperature: 85
-      target_temperature_step: 0.5
-      current_temperature_step: 0.1
+      temperature_step: 0.5
+
+  # Explicit Fahrenheit via unit_of_measurement
+  - platform: template
+    id: my_boiler_fahrenheit
+    name: "Test Boiler Fahrenheit"
+    unit_of_measurement: °F
+    optimistic: true
+    visual:
+      min_temperature: 100°F
+      max_temperature: 145°F
+      temperature_step: 1°F
+
+  # Implicit Fahrenheit inferred from temperature field suffixes
+  - platform: template
+    id: my_boiler_implicit_fahrenheit
+    name: "Test Boiler Implicit Fahrenheit"
+    optimistic: true
+    visual:
+      min_temperature: 100°F
+      max_temperature: 145°F
