@@ -62,7 +62,7 @@ optional<HaierData> HaierProtocol::decode(RemoteReceiveData src) {
   }
   uint8_t checksum = 0;
   HaierData out;
-  out.data.reserve(size / 8 - 1);
+  out.data.reserve(size / 16 - 1);
   while (size > 0) {
     uint8_t data = 0;
     for (uint8_t mask = 0x80; mask != 0; mask >>= 1) {
