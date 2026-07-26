@@ -187,17 +187,18 @@ void EthernetComponent::loop() {
 }
 
 void EthernetComponent::dump_config() {
-  const char *type_str = "Unknown";
 #if defined(USE_ETHERNET_W5500)
-  type_str = "W5500";
+  const char *type_str = "W5500";
 #elif defined(USE_ETHERNET_W5100)
-  type_str = "W5100";
+  const char *type_str = "W5100";
 #elif defined(USE_ETHERNET_W6100)
-  type_str = "W6100";
+  const char *type_str = "W6100";
 #elif defined(USE_ETHERNET_W6300)
-  type_str = "W6300";
+  const char *type_str = "W6300";
 #elif defined(USE_ETHERNET_ENC28J60)
-  type_str = "ENC28J60";
+  const char *type_str = "ENC28J60";
+#else
+  const char *type_str = "Unknown";
 #endif
 #if defined(USE_ETHERNET_W6300)
   // W6300 uses PIO QSPI with hardcoded pins — SPI pin fields are not used

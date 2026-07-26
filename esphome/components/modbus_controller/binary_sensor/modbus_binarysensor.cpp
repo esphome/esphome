@@ -11,8 +11,8 @@ void ModbusBinarySensor::parse_and_publish(const std::vector<uint8_t> &data) {
   bool value;
 
   switch (this->register_type) {
-    case ModbusRegisterType::DISCRETE_INPUT:
-    case ModbusRegisterType::COIL:
+    case modbus::EntityType::DISCRETE_INPUT:
+    case modbus::EntityType::COIL:
       // offset for coil is the actual number of the coil not the byte offset
       value = modbus::helpers::bit_from_packed(this->offset, data);
       break;
