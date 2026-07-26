@@ -38,15 +38,16 @@ void ImprovSerialComponent::loop() {
     ESP_LOGV(TAG, "Timeout");
   }
 
-  auto byte = this->read_byte_();
-  while (byte.has_value()) {
+  while (true) {
+    auto byte = this->read_byte_();
+    if (!byte.has_value())
+      break;
     if (this->parse_improv_serial_byte_(byte.value())) {
       this->last_read_byte_ = now;
     } else {
       this->last_read_byte_ = 0;
       this->rx_buffer_.clear();
     }
-    byte = this->read_byte_();
   }
 
   if (this->state_ == improv::STATE_PROVISIONING) {
