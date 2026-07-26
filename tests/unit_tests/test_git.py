@@ -3,6 +3,7 @@
 from collections.abc import Callable
 import os
 from pathlib import Path
+import subprocess
 import time
 from typing import Any
 from unittest.mock import Mock, patch
@@ -1369,6 +1370,98 @@ def test_all_submodules_updated_with_gitmodules(
     assert "--recursive" in cmd
     assert cmd[-1] == "--"
     _assert_submodule_runs_without_isolation(submodule_calls[0], repo_dir)
+
+
+def _real_git(*args: str, cwd: Path) -> None:
+    """Run real git to build a test fixture repository."""
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.email=test@test.invalid",
+            "-c",
+            "user.name=test",
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "protocol.file.allow=always",
+            *args,
+        ],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+    )
+
+
+def _make_real_repo(path: Path, filename: str) -> None:
+    """Create a real git repository containing one committed file."""
+    path.mkdir()
+    _real_git("init", "-q", cwd=path)
+    (path / filename).write_text("content")
+    _real_git("add", filename, cwd=path)
+    _real_git("commit", "-q", "-m", "init", cwd=path)
+
+
+def test_clone_or_update_real_git_without_submodules(tmp_path: Path) -> None:
+    """End-to-end with real git: a repo with no .gitmodules clones cleanly.
+
+    This is the issue #17860 scenario: requesting "all submodules" on a
+    submodule-less repository must not invoke the git submodule porcelain
+    and must produce a usable checkout.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    upstream = tmp_path / "upstream"
+    _make_real_repo(upstream, "README.md")
+
+    repo_dir, _ = git.clone_or_update(
+        url=str(upstream),
+        ref=None,
+        refresh=None,
+        domain="test_e2e",
+        submodules=[],
+    )
+
+    assert (repo_dir / "README.md").is_file()
+
+
+def test_clone_or_update_real_git_initializes_submodules(tmp_path: Path) -> None:
+    """End-to-end with real git: submodules are actually checked out.
+
+    Exercises the real `git submodule update` invocation, including the
+    env handling in run_git_command that the mocked tests cannot cover.
+    The fixture uses local path repositories; git blocks file-protocol
+    submodules by default (CVE-2022-39253), so the test allows them via
+    GIT_CONFIG_* environment variables, which reach the child git processes
+    through run_git_command's filtered environment.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    sub_repo = tmp_path / "sub"
+    _make_real_repo(sub_repo, "sub_file.txt")
+
+    upstream = tmp_path / "upstream"
+    _make_real_repo(upstream, "README.md")
+    _real_git("submodule", "add", str(sub_repo), "vendor/sub", cwd=upstream)
+    _real_git("commit", "-q", "-m", "add submodule", cwd=upstream)
+
+    with patch.dict(
+        os.environ,
+        {
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "protocol.file.allow",
+            "GIT_CONFIG_VALUE_0": "always",
+        },
+    ):
+        repo_dir, _ = git.clone_or_update(
+            url=str(upstream),
+            ref=None,
+            refresh=None,
+            domain="test_e2e",
+            submodules=[],
+        )
+
+    assert (repo_dir / "vendor" / "sub" / "sub_file.txt").is_file()
 
 
 def test_refresh_picks_up_new_remote_commits(
