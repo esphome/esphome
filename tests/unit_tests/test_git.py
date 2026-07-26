@@ -272,7 +272,7 @@ def test_run_git_command_with_cwd_runs_in_dir_without_isolation(
     assert "GIT_WORK_TREE" not in env
     assert "GIT_INDEX_FILE" not in env
     assert env["GIT_CEILING_DIRECTORIES"] == str(repo_dir.parent)
-    assert call_args[1]["cwd"] == str(repo_dir)
+    assert call_args[1]["cwd"] == repo_dir
     assert result == "test output"
 
 
@@ -1216,35 +1216,44 @@ def test_clone_with_ref_uses_shallow_fetch(
     assert ref in fetch_calls[0][0][0]
 
 
-def test_clone_with_submodules_uses_shallow_submodule_update(
-    tmp_path: Path, mock_run_git_command: Mock
+@pytest.mark.parametrize(
+    "refresh", [None, TimePeriodSeconds(days=1)], ids=["clone", "refresh"]
+)
+def test_explicit_submodule_update_is_shallow(
+    tmp_path: Path, mock_run_git_command: Mock, refresh: TimePeriodSeconds | None
 ) -> None:
-    """Submodule init on a fresh clone should use --depth=1."""
+    """An explicit submodule list is updated shallowly and then verified."""
     CORE.config_path = tmp_path / "test.yaml"
 
     url = "https://github.com/test/repo"
     domain = "test"
     repo_dir = _compute_repo_dir(url, None, domain)
 
-    mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
+    if refresh is None:
+        mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
+    else:
+        _setup_old_repo(repo_dir)
+        mock_run_git_command.return_value = "abc123"
 
     git.clone_or_update(
         url=url,
         ref=None,
-        refresh=None,
+        refresh=refresh,
         domain=domain,
         submodules=["components/foo"],
     )
 
-    submodule_calls = _submodule_calls(mock_run_git_command)
-    assert len(submodule_calls) == 1
-    cmd = submodule_calls[0][0][0]
-    assert "--depth=1" in cmd
-    assert "components/foo" in cmd
+    update_cmd, status_cmd = (c[0][0] for c in _submodule_calls(mock_run_git_command))
+    assert update_cmd[2] == "update"
+    assert "--depth=1" in update_cmd
+    assert "components/foo" in update_cmd
     # The `--` terminator must precede the submodule paths so a path
     # beginning with `-` cannot be parsed as an option.
-    assert cmd.index("--") < cmd.index("components/foo")
-    _assert_submodule_runs_without_isolation(submodule_calls[0], repo_dir)
+    assert update_cmd.index("--") < update_cmd.index("components/foo")
+    assert status_cmd[2] == "status"
+    assert "components/foo" in status_cmd
+    for call in _submodule_calls(mock_run_git_command):
+        _assert_submodule_runs_without_isolation(call, repo_dir)
 
 
 def test_refresh_fetch_is_shallow(tmp_path: Path, mock_run_git_command: Mock) -> None:
@@ -1269,36 +1278,6 @@ def test_refresh_fetch_is_shallow(tmp_path: Path, mock_run_git_command: Mock) ->
     assert "--depth=1" in cmd
     # Ref must still be in the refresh fetch so the right tip is updated.
     assert cmd[-1] == ref
-
-
-def test_refresh_submodule_update_is_shallow(
-    tmp_path: Path, mock_run_git_command: Mock
-) -> None:
-    """The refresh-path submodule update should use --depth=1."""
-    CORE.config_path = tmp_path / "test.yaml"
-
-    url = "https://github.com/test/repo"
-    domain = "test"
-    repo_dir = _compute_repo_dir(url, None, domain)
-
-    _setup_old_repo(repo_dir)
-    mock_run_git_command.return_value = "abc123"
-
-    git.clone_or_update(
-        url=url,
-        ref=None,
-        refresh=TimePeriodSeconds(days=1),
-        domain=domain,
-        submodules=["components/foo"],
-    )
-
-    submodule_calls = _submodule_calls(mock_run_git_command)
-    assert len(submodule_calls) == 1
-    cmd = submodule_calls[0][0][0]
-    assert "--depth=1" in cmd
-    assert "components/foo" in cmd
-    assert cmd.index("--") < cmd.index("components/foo")
-    _assert_submodule_runs_without_isolation(submodule_calls[0], repo_dir)
 
 
 @pytest.mark.parametrize(
@@ -1368,14 +1347,56 @@ def test_all_submodules_updated_with_gitmodules(
         submodules=[],
     )
 
-    submodule_calls = _submodule_calls(mock_run_git_command)
-    assert len(submodule_calls) == 1
-    cmd = submodule_calls[0][0][0]
-    assert "--depth=1" in cmd
+    update_cmd, status_cmd = (c[0][0] for c in _submodule_calls(mock_run_git_command))
+    assert update_cmd[2] == "update"
+    assert "--depth=1" in update_cmd
     # "All submodules" mirrors PlatformIO's recursive library clones.
-    assert "--recursive" in cmd
-    assert cmd[-1] == "--"
-    _assert_submodule_runs_without_isolation(submodule_calls[0], repo_dir)
+    assert "--recursive" in update_cmd
+    assert update_cmd[-1] == "--"
+    assert status_cmd[2] == "status"
+    assert "--recursive" in status_cmd
+    for call in _submodule_calls(mock_run_git_command):
+        _assert_submodule_runs_without_isolation(call, repo_dir)
+
+
+def test_uninitialized_submodule_after_update_raises(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A submodule update that silently did nothing must fail loudly.
+
+    `git submodule update --init` can exit 0 without initializing anything;
+    the status verification catches that, and the clone-path cleanup removes
+    the broken cache entry so the next run re-clones.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "clone":
+            _simulate_cloned_repo(repo_dir)
+            (repo_dir / ".gitmodules").write_text("test")
+        if _get_git_command_type(cmd) == "submodule" and "status" in cmd:
+            return "-abc123 vendor/sub"
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    with pytest.raises(git.GitRepositoryError, match="vendor/sub"):
+        git.clone_or_update(
+            url=url,
+            ref=None,
+            refresh=None,
+            domain=domain,
+            submodules=[],
+        )
+
+    # The broken clone must not be left behind as a valid cache entry.
+    assert not repo_dir.is_dir()
 
 
 def _real_git(*args: str, cwd: Path) -> None:

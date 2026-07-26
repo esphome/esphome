@@ -2,6 +2,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 import hashlib
 import logging
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -11,7 +12,7 @@ import urllib.parse
 
 import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError, TimePeriodSeconds
-from esphome.helpers import rmtree, write_file
+from esphome.helpers import add_git_ceiling_directory, rmtree, write_file
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,14 +33,16 @@ _CLONE_COMPLETE_MARKER = "esphome_clone_complete"
 # effects range from loud (`git clone` producing a bare-style directory with
 # no working tree) to silent (an ambient GIT_INDEX_FILE makes
 # `git submodule update --init` exit 0 without initializing anything).
-_GIT_REPO_SCOPING_ENV = (
-    "GIT_DIR",
-    "GIT_WORK_TREE",
-    "GIT_INDEX_FILE",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    "GIT_COMMON_DIR",
-    "GIT_NAMESPACE",
+_GIT_REPO_SCOPING_ENV = frozenset(
+    {
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_COMMON_DIR",
+        "GIT_NAMESPACE",
+    }
 )
 
 
@@ -64,22 +67,12 @@ def run_git_command(
 ) -> str:
     """Run a git command and return its stdout.
 
-    ``git_dir`` runs the command in that repository with GIT_DIR/GIT_WORK_TREE
-    isolation; ``cwd`` runs it in that directory with those variables stripped
-    from the environment instead. The two are mutually exclusive and
-    ``git_dir`` wins when both are given.
+    The repository-scoping environment variables in ``_GIT_REPO_SCOPING_ENV``
+    are always stripped. ``git_dir`` additionally pins GIT_DIR/GIT_WORK_TREE
+    to that repository and runs the command there; ``cwd`` alone runs the
+    command in that directory with GIT_CEILING_DIRECTORIES capping repository
+    discovery at its parent.
     """
-    if git_dir is not None:
-        _LOGGER.debug(
-            "Running git command with repository isolation: %s (git_dir=%s)",
-            " ".join(cmd),
-            git_dir,
-        )
-    else:
-        _LOGGER.debug(
-            "Running git command: %s%s", " ".join(cmd), f" (cwd={cwd})" if cwd else ""
-        )
-
     # Every invocation starts from an environment with the repository-scoping
     # variables stripped (see _GIT_REPO_SCOPING_ENV) so a git hook or CI
     # wrapper invoking ESPHome can never redirect these commands to its own
@@ -101,20 +94,25 @@ def run_git_command(
     # keeps the parent-repo-walk protection instead: if the repo's .git is
     # missing or corrupt, git fails rather than discovering an enclosing
     # repository.
-    env = {
-        k: v for k, v in subprocess.os.environ.items() if k not in _GIT_REPO_SCOPING_ENV
-    }
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_REPO_SCOPING_ENV}
     if git_dir is not None:
         env["GIT_DIR"] = str(Path(git_dir) / ".git")
         env["GIT_WORK_TREE"] = str(git_dir)
         cwd = git_dir
     elif cwd is not None:
-        env["GIT_CEILING_DIRECTORIES"] = str(Path(cwd).absolute().parent)
+        add_git_ceiling_directory(env, Path(cwd).absolute().parent)
+
+    _LOGGER.debug(
+        "Running git command: %s (cwd=%s, isolated=%s)",
+        " ".join(cmd),
+        cwd,
+        git_dir is not None,
+    )
 
     try:
         ret = subprocess.run(
             cmd,
-            cwd=str(cwd) if cwd is not None else None,
+            cwd=cwd,
             capture_output=True,
             check=False,
             close_fds=False,
@@ -193,6 +191,21 @@ def update_submodules(repo_dir: Path, submodules: list[str] | None, key: str) ->
         + submodules,
         cwd=repo_dir,
     )
+    # Verify the update actually initialized what it was asked to; a status
+    # line starting with "-" is a declared but uninitialized submodule. The
+    # porcelain can exit 0 without doing anything, and the resulting empty
+    # directories would otherwise only surface much later as opaque build
+    # errors.
+    status = run_git_command(
+        ["git", "submodule", "status", *recursive, "--"] + submodules,
+        cwd=repo_dir,
+    )
+    if missing := [
+        line.split()[1] for line in status.splitlines() if line.startswith("-")
+    ]:
+        raise GitRepositoryError(
+            f"Submodules ({', '.join(missing)}) for {key} failed to initialize"
+        )
 
 
 def resolve_symlink_stub(repo_dir: Path, file_path: Path) -> Path | None:
