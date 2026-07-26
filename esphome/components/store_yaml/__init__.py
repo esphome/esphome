@@ -10,9 +10,10 @@ from esphome import yaml_util
 import esphome.codegen as cg
 from esphome.components import packages
 from esphome.components.api import CONF_ENCRYPTION
+from esphome.config_helpers import Extend, Remove
 import esphome.config_validation as cv
-from esphome.const import CONF_API, CONF_ID, CONF_RAW_DATA_ID
-from esphome.core import CORE, EsphomeError, HexInt
+from esphome.const import CONF_API, CONF_ID, CONF_KEY, CONF_RAW_DATA_ID
+from esphome.core import CORE, EsphomeError, HexInt, Lambda
 import esphome.final_validate as fv
 from esphome.helpers import ensure_unique_string
 from esphome.types import ConfigType
@@ -63,7 +64,11 @@ def _final_validate(config: ConfigType) -> ConfigType:
     isolated lab setups where the user has accepted the trade-off."""
     full = fv.full_config.get()
     api_conf = full.get(CONF_API, {})
-    if api_conf.get(CONF_ENCRYPTION):
+    # Explicitly require a configured key: a keyless provisionable
+    # `api: encryption:` accepts the well-known all-zeros PSK until
+    # provisioned, so anyone could provision it and pull the YAML.
+    encryption = api_conf.get(CONF_ENCRYPTION) or {}
+    if CONF_KEY in encryption:
         return config
     if config.get(CONF_ALLOW_UNENCRYPTED):
         _LOGGER.warning(
@@ -155,7 +160,12 @@ def _iter_nodes(
     node: object, path: tuple[str, ...] = ()
 ) -> Generator[tuple[tuple[str, ...], object, bool]]:
     """Yield (config_path, value, is_key) for every mapping key and scalar in
-    a config tree. Keys are yielded at the path of their mapping."""
+    a config tree. Keys are yielded at the path of their mapping.
+
+    Wrapper types the dumper renders as text are unwrapped so their payloads
+    are scanned too: `!lambda` bodies, `!extend`/`!remove` ids, and `!include`
+    file paths plus `vars:` values.
+    """
     if isinstance(node, dict):
         for key, value in node.items():
             yield path, str(key), True
@@ -163,6 +173,12 @@ def _iter_nodes(
     elif isinstance(node, (list, tuple)):
         for item in node:
             yield from _iter_nodes(item, path)
+    elif isinstance(node, (Lambda, Extend, Remove)):
+        yield path, node.value, False
+    elif isinstance(node, yaml_util.IncludeFile):
+        yield path, str(node.file), False
+        if node.vars:
+            yield from _iter_nodes(node.vars, path)
     elif isinstance(node, (str, int, float)) and not isinstance(node, bool):
         yield path, node, False
 
@@ -185,12 +201,13 @@ def _check_sensitive_usage(
     - As a mapping key: fail the build. The dumper's value-keyed swap would
       rewrite the key and corrupt the recovered structure.
     - Strictly inside a larger scalar (a lambda body, a URL like
-      http://user:pw@host): fail the build. The whole-scalar swap cannot
-      redact it, so it would ship verbatim. Scanning tree scalars (not
-      serialized text) means key names, tags, and generated `!secret`
-      references can never false-positive; a short value inside an unrelated
-      longer scalar (an SSID of "esp32" inside "esp32dev") still can, but
-      shipping a promised-redacted secret is the worse failure, so fail closed.
+      http://user:pw@host): the whole-scalar swap cannot redact it, so it
+      would ship verbatim. Inline sensitive values fail the build (the
+      move-into-!secret remedy applies); values already sourced from a real
+      `!secret` only warn, since overlaps like an SSID inside an entity name
+      are common and the value stays in the user's secrets.yaml either way.
+      Scanning tree scalars (not serialized text) means key names, tags, and
+      generated `!secret` references can never false-positive.
     - As a whole scalar at an unrelated location: warn only. The swap rewrites
       it to the `!secret` reference, which stays semantically identical until
       the user fills in a different value during recovery. Occurrences under
@@ -227,11 +244,27 @@ def _check_sensitive_usage(
                     info.secret_name,
                 )
                 continue
-            embedded.extend(
-                f"{other.config_path} (inside {'.'.join(path)} in {rel})"
-                for value, other in sensitive.items()
-                if value in text
-            )
+            for value, other in sensitive.items():
+                if value not in text:
+                    continue
+                if yaml_util.is_secret(value) is not None:
+                    # The value lives in a real secrets.yaml, so the
+                    # move-into-!secret remedy does not apply; overlaps like
+                    # an SSID inside an entity name are common and benign.
+                    # Warn naming the location, never the value.
+                    _LOGGER.warning(
+                        "store_yaml: the value of !secret %s (sensitive at %s) "
+                        "appears inside the value at %s in %s; substring "
+                        "occurrences are not redacted",
+                        other.secret_name,
+                        other.config_path,
+                        ".".join(path),
+                        rel,
+                    )
+                else:
+                    embedded.append(
+                        f"{other.config_path} (inside {'.'.join(path)} in {rel})"
+                    )
     if key_hits:
         raise EsphomeError(
             "store_yaml: sensitive value(s) are also used as mapping keys: "
@@ -373,10 +406,12 @@ def _generate_redacted_files(
         (rel, skeleton if rel in secret_rels else texts[rel].encode("utf-8"))
         for rel, _ in entries
     ]
-    if skeleton_keys and not secret_rels:
-        # The generated files reference `!secret` keys but the project has no
-        # secrets file (all secrets were inline) — ship a synthetic one so the
-        # recovered config is complete.
+    if skeleton_keys and yaml_util.SECRET_YAML not in secret_rels:
+        # The generated files reference `!secret` keys but no captured secrets
+        # file lands at the config root (none exists, or it resolves outside
+        # the root, e.g. a symlink target). `!secret` resolution looks for
+        # secrets.yaml beside the config, so ship a synthetic root skeleton to
+        # keep the recovered config loadable.
         result.append((yaml_util.SECRET_YAML, skeleton))
     return result
 

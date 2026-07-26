@@ -546,3 +546,72 @@ def test_final_validate_allows_unencrypted_with_escape_hatch(
     config = {CONF_ALLOW_UNENCRYPTED: True}
     assert _run_final_validate({"api": {}}, config) is config
     assert "without API encryption" in caplog.text
+
+
+def test_redacted_lambda_body_leak_fails_build(project: Path) -> None:
+    """A sensitive value inside a !lambda body would be emitted verbatim by
+    the dumper; the scan must catch it."""
+    (project / "wifi.yaml").write_text(
+        "password: my_password\nx: !lambda 'return \"my_password\";'\n"
+    )
+    CORE.config = {"wifi": [{"password": SensitiveStr("my_password")}]}
+    discovered = _sources(project, "wifi.yaml")
+    with pytest.raises(EsphomeError, match="embedded"):
+        _gather_redacted(discovered)
+
+
+def test_redacted_include_vars_leak_fails_build(project: Path) -> None:
+    """A sensitive value inside an !include vars: mapping is emitted by the
+    dumper; the scan must catch it."""
+    (project / "entry.yaml").write_text(
+        "password: my_password\n"
+        "pkg: !include {file: wifi.yaml, vars: {url: 'http://user:my_password@host'}}\n"
+    )
+    CORE.config = {"wifi": [{"password": SensitiveStr("my_password")}]}
+    discovered = _sources(project, "entry.yaml", "wifi.yaml")
+    with pytest.raises(EsphomeError, match="embedded"):
+        _gather_redacted(discovered)
+
+
+def test_redacted_secret_sourced_overlap_warns_not_fails(
+    project: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A value from a real !secret appearing inside another scalar (SSID in an
+    entity name) warns instead of failing; the remedy text of the hard error
+    does not apply to it."""
+    yaml_util._SECRET_VALUES["Kitchen"] = "wifi_ssid"
+    (project / "wifi.yaml").write_text("ssid: Kitchen\nname: Kitchen Temperature\n")
+    CORE.config = {"wifi": [{"ssid": SensitiveStr("Kitchen")}]}
+    discovered = _sources(project, "wifi.yaml")
+    files = _gather_redacted(discovered)
+    assert b"!secret 'wifi_ssid'" in files["wifi.yaml"]
+    assert "appears inside the value at name in wifi.yaml" in caplog.text
+
+
+def test_final_validate_rejects_keyless_encryption() -> None:
+    """A keyless provisionable `api: encryption:` accepts the all-zeros PSK
+    until provisioned, so it must not satisfy the gate."""
+    with pytest.raises(cv.Invalid, match="requires API encryption"):
+        _run_final_validate(
+            {"api": {"encryption": {}}}, {CONF_ALLOW_UNENCRYPTED: False}
+        )
+
+
+def test_redacted_outside_root_secrets_gets_root_skeleton(
+    project: Path, tmp_path: Path
+) -> None:
+    """A secrets file resolving outside the config root still yields a root
+    secrets.yaml skeleton, so the recovered config can resolve !secret."""
+    target = tmp_path / "actual_creds.yaml"
+    target.write_text("api_key: SUPER_SECRET\n")
+    link = project / "secrets.yaml"
+    link.unlink()
+    link.symlink_to(target)
+    resolved = link.resolve()
+    CORE.config_path = project / "entry.yaml"
+    files = _gather_redacted(
+        DiscoveredYamlFiles([project / "entry.yaml", resolved], {resolved})
+    )
+    assert "secrets.yaml" in files
+    assert 'api_key: ""' in files["secrets.yaml"].decode()
+    assert b"SUPER_SECRET" not in b"".join(files.values())

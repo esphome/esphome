@@ -1936,8 +1936,10 @@ bool APIConnection::send_device_info_response_() {
   resp.has_deep_sleep = deep_sleep::global_has_deep_sleep;
 #endif
 #ifdef USE_STORE_YAML
-  // Codegen always embeds a non-empty blob, so presence of the component implies data.
-  resp.has_store_yaml = store_yaml::global_store_yaml != nullptr;
+  // Compile-time knowledge: codegen always embeds a non-empty blob when the
+  // component is compiled in. Deriving this from the runtime pointer could
+  // report false to a client connecting before store_yaml's setup() ran.
+  resp.has_store_yaml = true;
 #endif
 #ifdef ESPHOME_PROJECT_NAME
 #ifdef USE_ESP8266
