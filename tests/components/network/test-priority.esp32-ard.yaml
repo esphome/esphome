@@ -1,7 +1,8 @@
 # Arduino dual-stack test: default-route arbitration must also compile under
 # the Arduino framework, which builds the same esp_netif/ESP-IDF from source.
-# Ethernet is listed first so this build exercises the ethernet-primary branch
-# (the IDF variant of this test covers the wifi-primary branch).
+# Ethernet is listed first so this build exercises the ethernet-first side of
+# the arbitration pivot in NetworkComponent::loop() (the IDF variant of this
+# test covers the wifi-first side).
 wifi:
   ssid: MySSID
   password: password1
