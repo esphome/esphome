@@ -420,6 +420,11 @@ PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, 
   pdu.push_back(values_len);  // Byte count is required for write multiple
   for (size_t i = 0; i < values_len; i++)
     pdu.push_back(values[i]);
+  // Zero the unused bits of the final byte as the spec requires, matching the typed coil builder
+  // so both produce identical wire bytes for the same write.
+  if (bits && number_of_entities % 8 != 0) {
+    pdu[pdu.size() - 1] &= static_cast<uint8_t>((1 << (number_of_entities % 8)) - 1);
+  }
   return pdu;
 }
 

@@ -17,8 +17,8 @@ namespace esphome::modbus_controller {
 
 class ModbusController;
 
-using modbus::FunctionCode;
 using modbus::ExceptionCode;
+using modbus::FunctionCode;
 using modbus::helpers::SensorValueType;
 
 // Remove before 2027.2.0 - deprecated names re-exported so external components keep their warning window
