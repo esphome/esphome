@@ -1218,14 +1218,9 @@ void APIConnection::on_get_yaml_request() {
   if (this->store_yaml_pos_ != std::numeric_limits<size_t>::max())
     return;
 #ifdef USE_ESP8266
-  // Exceptions are disabled, so allocation failure must be checked here. On
-  // failure the request is dropped without a reply; the client times out and
-  // a retry may succeed once the heap recovers.
-  this->store_yaml_chunk_buf_.reset(new (std::nothrow) uint8_t[STORE_YAML_CHUNK_SIZE]);
-  if (!this->store_yaml_chunk_buf_) {
-    ESP_LOGW(TAG, "GetYaml: buffer allocation failed");
-    return;
-  }
+  // OOM aborts by design (NEW_OOM_ABORT): a heap that cannot supply this
+  // buffer is already failing, and the post-reset retry gets a clean heap.
+  this->store_yaml_chunk_buf_ = std::make_unique<uint8_t[]>(STORE_YAML_CHUNK_SIZE);
 #endif
   // All responses go through the loop-driven retry below, so a full TX
   // buffer at request time can't strand the client without a terminal frame.

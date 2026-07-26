@@ -47,6 +47,10 @@ _LOGGER = logging.getLogger(__name__)
 SECRET_YAML = "secrets.yaml"
 _SECRET_CACHE = {}
 _SECRET_VALUES = {}
+# Stack of collectors (one per active secret_values_registered context); the
+# dumper records every emitted `!secret` name into the innermost one. YAML
+# processing is single-threaded.
+_EMITTED_SECRET_NAMES: list[set[str]] = []
 # Not thread-safe — config processing is single-threaded today.
 _load_listeners: list[Callable[[Path], None]] = []
 
@@ -879,18 +883,25 @@ def registered_secret_names() -> set[str]:
 
 
 @contextmanager
-def secret_values_registered(values: dict[str, str]) -> Generator[None]:
+def secret_values_registered(values: dict[str, str]) -> Generator[set[str]]:
     """Temporarily register value→name mappings so :func:`dump` renders those
     scalars as ``!secret <name>``.
 
     Mappings already present in ``_SECRET_VALUES`` (values loaded through a
     real ``!secret``) win over the supplied ones and are left untouched.
+
+    Yields a set that collects the name of every ``!secret`` reference the
+    dumper emits while the context is active, so callers can tell exactly
+    which registered values were actually swapped.
     """
     added = {v: n for v, n in values.items() if v not in _SECRET_VALUES}
     _SECRET_VALUES.update(added)
+    emitted: set[str] = set()
+    _EMITTED_SECRET_NAMES.append(emitted)
     try:
-        yield
+        yield emitted
     finally:
+        _EMITTED_SECRET_NAMES.remove(emitted)
         for value in added:
             _SECRET_VALUES.pop(value, None)
 
@@ -1097,7 +1108,10 @@ class ESPHomeDumper(yaml.SafeDumper):
         return node
 
     def represent_secret(self, value):
-        return self.represent_scalar(tag="!secret", value=_SECRET_VALUES[str(value)])
+        name = _SECRET_VALUES[str(value)]
+        if _EMITTED_SECRET_NAMES:
+            _EMITTED_SECRET_NAMES[-1].add(name)
+        return self.represent_scalar(tag="!secret", value=name)
 
     def represent_stringify(self, value):
         if is_secret(value):

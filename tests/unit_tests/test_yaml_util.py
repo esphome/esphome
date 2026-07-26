@@ -1484,6 +1484,21 @@ def test_secret_values_registered_swaps_scalars_in_dump() -> None:
     assert yaml_util.is_secret("hunter2") is None
 
 
+def test_secret_values_registered_collects_emitted_names() -> None:
+    """The context yields a set recording exactly the `!secret` names the
+    dumper emitted, including real secrets, and not names never swapped."""
+    yaml_util._SECRET_VALUES["real_value"] = "real_name"
+    with yaml_util.secret_values_registered({"hunter2": "wifi_password"}) as emitted:
+        yaml_util.dump(
+            {
+                "password": make_data_base("hunter2"),
+                "key": make_data_base("real_value"),
+                "plain": make_data_base("nothing"),
+            }
+        )
+    assert emitted == {"wifi_password", "real_name"}
+
+
 def test_secret_values_registered_does_not_clobber_real_secrets() -> None:
     """A value already mapped by a real `!secret` keeps its original name."""
     yaml_util._SECRET_VALUES["hunter2"] = "original_name"
