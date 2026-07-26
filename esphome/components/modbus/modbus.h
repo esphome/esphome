@@ -40,6 +40,13 @@ struct ModbusFrame {
   }
 
   uint16_t size() const { return static_cast<uint16_t>(this->data.size()); }
+
+  // A frame is [address][PDU...][CRC lo][CRC hi]. These are the only places that need to know that layout
+  uint8_t address() const { return this->data.data()[0]; }
+  /// The PDU: function code + data, without address or CRC. Only valid while the frame is alive.
+  /// Requires a complete frame (size() >= MIN_FRAME_SIZE, guaranteed by the constructors) - the
+  /// subtraction would wrap on anything shorter.
+  std::span<const uint8_t> pdu() const { return std::span<const uint8_t>(this->data.data() + 1, this->size() - 3u); }
 };
 
 class Modbus : public uart::UARTDevice, public Component {
@@ -90,6 +97,10 @@ struct ModbusDeviceCommand {
 
   ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, const uint8_t *src, uint16_t len)
       : device(device), frame(address, src, len) {}
+  /// Build a command from a PDU span: a caller-supplied PDU, or an existing frame's own pdu() when re-queueing
+  /// Callers must bound the PDU to MAX_PDU_SIZE
+  ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, std::span<const uint8_t> pdu)
+      : device(device), frame(address, pdu.data(), static_cast<uint16_t>(pdu.size())) {}
 };
 
 class ModbusClientHub : public Modbus {
@@ -109,9 +120,8 @@ class ModbusClientHub : public Modbus {
                                               payload_len),
                    device);
   };
-  void send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr) {
-    this->queue_raw_(address, pdu.data(), pdu.size(), device);
-  }
+  void send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr);
+  ESPDEPRECATED("Use send_pdu(payload[0], <pdu bytes>, device) instead. Removed in 2027.2.0", "2026.8.0")
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr);
   void clear_tx_queue_for_address(uint8_t address, bool clear_sent = true);
   void clear_tx_queue_for_device(ModbusClientDevice *device);
@@ -125,7 +135,6 @@ class ModbusClientHub : public Modbus {
   // wfr is the caller's checked reference to waiting_for_response_.
   void notify_no_response_(ModbusDeviceCommand &wfr);
   void requeue_waiting_frame_(ModbusDeviceCommand &wfr);
-  void queue_raw_(uint8_t address, const uint8_t *pdu, uint16_t pdu_len, ModbusClientDevice *device = nullptr);
 
   uint16_t send_wait_time_{2000};
   uint16_t turnaround_delay_ms_{0};
@@ -165,6 +174,9 @@ class ModbusServerHub : public Modbus {
   uint16_t deferred_payload_len_{0};
 };
 
+// Transaction status: std::nullopt on success, otherwise a Modbus exception code
+using ResponseStatus = std::optional<ExceptionCode>;
+
 class ModbusClientDevice {
  public:
   ModbusClientDevice() = default;
@@ -194,9 +206,8 @@ class ModbusClientDevice {
     this->on_modbus_not_sent();
 #pragma GCC diagnostic pop
   }
-  /// Called when no (valid) response arrived; return true to have the hub re-queue the frame for a retry.
-  /// The hub does not bound retries: the device is responsible for limiting them (e.g. track a counter and
-  /// return false when exhausted), or an unresponsive peer will starve other traffic on the bus.
+  /// Called when no matching, uninterrupted response arrived; return true to have the hub re-queue the frame for a
+  /// retry. The hub does not bound retries: the device is responsible for limiting them.
   virtual bool on_no_response() {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
@@ -209,6 +220,7 @@ class ModbusClientDevice {
   // Remove before 2027.2.0
   ESPDEPRECATED("Override on_no_response() instead. Removed in 2027.2.0", "2026.8.0")
   virtual bool on_modbus_no_response() { return false; }
+  ESPDEPRECATED("Use the typed read_*/write_* helpers or send_pdu() instead. Removed in 2027.2.0", "2026.8.0")
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
             const uint8_t *payload = nullptr) {
     this->parent_->send_pdu(
@@ -217,7 +229,47 @@ class ModbusClientDevice {
         this);
   }
   void send_pdu(std::span<const uint8_t> pdu) { this->parent_->send_pdu(this->address_, pdu, this); }
-  void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload, this); }
+  ESPDEPRECATED("Use send_pdu() instead (the device address is prepended for you). Removed in 2027.2.0", "2026.8.0")
+  void send_raw(const std::vector<uint8_t> &payload) {
+    if (payload.empty()) {
+      this->on_not_sent();  // match the hub-level send_raw(): a refused send is always signalled
+      return;
+    }
+    this->parent_->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
+  }
+  // Dispatches to the matching read_* method; defined in modbus.cpp because it logs on an invalid type.
+  void read_entities(EntityType entity_type, uint16_t start_address, uint16_t number_of_entities);
+  void read_input_registers(uint16_t start_address, uint16_t number_of_registers) {
+    this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_INPUT_REGISTERS, start_address, number_of_registers));
+  }
+  void read_holding_registers(uint16_t start_address, uint16_t number_of_registers) {
+    this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_HOLDING_REGISTERS, start_address, number_of_registers));
+  }
+  void read_coils(uint16_t start_address, uint16_t number_of_coils) {
+    this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_COILS, start_address, number_of_coils));
+  }
+  void read_discrete_inputs(uint16_t start_address, uint16_t number_of_inputs) {
+    this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_DISCRETE_INPUTS, start_address, number_of_inputs));
+  }
+  void write_single_register(uint16_t start_address, uint16_t value) {
+    this->send_pdu(helpers::create_write_single_register_pdu(start_address, value));
+  }
+  void write_single_coil(uint16_t address, bool value) {
+    this->send_pdu(helpers::create_write_single_coil_pdu(address, value));
+  }
+  void write_multiple_registers(uint16_t start_address, std::span<const uint16_t> values) {
+    this->send_pdu(helpers::create_write_registers_pdu(start_address, values));
+  }
+  /// Note: std::vector<bool> cannot bind to std::span<const bool>; use a contiguous bool container or the packed
+  /// overload.
+  void write_multiple_coils(uint16_t start_address, std::span<const bool> values) {
+    this->send_pdu(helpers::create_write_coils_pdu(start_address, values));
+  }
+  /// Packed variant: a PackedBits view (the same layout on_read_coils() delivers), so
+  /// read-modify-write needs no unpack/repack.
+  void write_multiple_coils(uint16_t start_address, PackedBits bits) {
+    this->send_pdu(helpers::create_write_coils_pdu(start_address, bits));
+  }
   inline void clear_tx_queue_for_address(bool clear_sent = true) {
     this->parent_->clear_tx_queue_for_address(this->address_, clear_sent);
   }
@@ -233,14 +285,28 @@ class ModbusClientDevice {
   uint8_t address_{0};
 };
 
-// This is for compatibility with external components using the former class name
-// Remove before 2026.12.0
-using ModbusDevice ESPDEPRECATED("Use ModbusClientDevice instead. Removed in 2026.12.0",
-                                 "2026.6.0") = ModbusClientDevice;
+// Compatibility shim for external components written against the pre-2026.8 API, which subclassed
+// ModbusDevice and overrode on_modbus_data()/on_modbus_error(). The name is free (nothing in-tree
+// uses it), so instead of a plain alias it adapts the new span-based hooks back to the old
+// signatures: on_modbus_data() receives the response payload as an owning vector (the heap copy
+// exists only on this deprecated path) and on_modbus_error() the function code and exception code.
+// Remove before 2027.2.0 (window restarted when the plain alias became a behavior shim in 2026.8.0)
+class ESPDEPRECATED("Subclass ModbusClientDevice and override on_response()/on_error() instead. Removed in 2027.2.0",
+                    "2026.8.0") ModbusDevice : public ModbusClientDevice {
+ public:
+  using ModbusClientDevice::ModbusClientDevice;
+  virtual void on_modbus_data(const std::vector<uint8_t> &data) {}
+  virtual void on_modbus_error(uint8_t function_code, uint8_t exception_code) {}
 
-// Transaction status: std::nullopt on success, otherwise the Modbus exception code. Server handlers return it;
-// (future) client response callbacks receive it. Named without a side prefix so both directions share it.
-using ResponseStatus = std::optional<ExceptionCode>;
+  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {
+    auto payload = helpers::server_pdu_payload(response_pdu);
+    this->on_modbus_data(std::vector<uint8_t>(payload.begin(), payload.end()));
+  }
+  void on_error(std::span<const uint8_t> request_pdu, ExceptionCode exception_code) override {
+    this->on_modbus_error(request_pdu.empty() ? 0 : request_pdu[0], static_cast<uint8_t>(exception_code));
+  }
+};
+
 // Register values exchanged with server handlers, in host byte order. Sized at the larger of the two protocol
 // maxima (read = 125 / 0x7D, write = 123 / 0x7B); the per-direction count limit is enforced by the hub, not by
 // the capacity of this type.

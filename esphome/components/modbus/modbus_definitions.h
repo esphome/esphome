@@ -88,11 +88,14 @@ enum class ExceptionCode : uint8_t {
 using ModbusExceptionCode ESPDEPRECATED("Use modbus::ExceptionCode instead. Removed in 2027.2.0",
                                         "2026.8.0") = ExceptionCode;
 
+// 6.11 15 (0x0F) Write Multiple Coils
+static constexpr uint16_t MAX_NUM_OF_COILS_TO_WRITE = 1968;  // 0x7B0
+
 // 6.12 16 (0x10) Write Multiple registers:
 static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_WRITE = 123;  // 0x7B
 
-// 6.11 15 (0x0F) Write Multiple Coils:
-static constexpr uint16_t MAX_NUM_OF_COILS_TO_WRITE = 1968;  // 0x7B0
+// 6.17 23 (0x17) Read/Write Multiple Registers:
+static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_WRITE_RW = 121;  // 0x79
 
 // 6.1 01 (0x01) Read Coils
 // 6.2 02 (0x02) Read Discrete Inputs
@@ -105,12 +108,20 @@ static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_READ = 125;  // 0x7D
 
 // Smallest possible frame is 4 bytes (custom function with no data): address(1) + function(1) + CRC(2)
 static constexpr uint16_t MIN_FRAME_SIZE = 4;
+static constexpr uint16_t MIN_PDU_SIZE = 1;
 static constexpr uint16_t MAX_PDU_SIZE = 253;  // Max PDU size is 256 - address(1) - CRC(2) = 253
 static constexpr uint16_t MAX_RAW_SIZE = 254;  // Max RAW size is 256 - CRC(2) = 254
+// A read request PDU is always function code(1) + start address(2) + quantity(2)
+static constexpr uint16_t READ_PDU_SIZE = 5;
+// A single-write PDU is always function code(1) + address(2) + value(2)
+static constexpr uint16_t WRITE_SINGLE_PDU_SIZE = 5;
 static constexpr uint16_t MAX_FRAME_SIZE = 256;
 /** Read-only view of Modbus-packed bits: bit 0 of byte 0 is the first bit (LSB first), the layout
  * coil/discrete-input values use on the wire. Bundles the bit count with the packed bytes so the
  * two cannot desynchronize. The view does not own the bytes - it is only valid while they are.
+ * Reads (operator[]) are unchecked by design - the caller owns the bit < size() precondition, as
+ * with any subscript. Writes and forwarding are defensive: set() drops out-of-range bits and
+ * bytes() clamps to the real span, because those paths touch buffers and the wire directly.
  */
 class PackedBits {
  public:
@@ -141,7 +152,7 @@ class MutablePackedBits {
   /// Set or clear the given bit. Out-of-range bits are dropped: on the server read path the span wraps a
   /// stack response buffer, so a handler looping past size() must not be able to smash the frame.
   void set(size_t bit, bool value) {
-    if (bit >= this->count_)
+    if (bit >= this->count_ || bit / 8 >= this->data_.size())
       return;
     if (value) {
       this->data_[bit / 8] |= (1 << (bit % 8));
