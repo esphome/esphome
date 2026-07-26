@@ -238,17 +238,28 @@ def test_run_git_command_without_git_dir(mock_subprocess_run: Mock) -> None:
     assert result == "Cloning into 'test_repo'..."
 
 
+@pytest.mark.parametrize("relative", [False, True], ids=["absolute", "relative"])
 def test_run_git_command_with_cwd_runs_in_dir_without_isolation(
-    tmp_path: Path, mock_subprocess_run: Mock
+    tmp_path: Path,
+    mock_subprocess_run: Mock,
+    monkeypatch: pytest.MonkeyPatch,
+    relative: bool,
 ) -> None:
     """The cwd parameter sets the working directory without GIT_DIR/GIT_WORK_TREE.
 
     Ambient GIT_DIR/GIT_WORK_TREE (e.g. from a git hook or CI wrapper) must be
     stripped too, and GIT_CEILING_DIRECTORIES must stop git from walking up to
     an enclosing repository if the target repo's .git is missing or corrupt.
+    Git silently ignores a relative ceiling entry, so the variable must come
+    out absolute even when the given cwd is relative.
     """
     repo_dir = tmp_path / "test_repo"
     repo_dir.mkdir()
+    if relative:
+        monkeypatch.chdir(tmp_path)
+        cwd_arg = Path("test_repo")
+    else:
+        cwd_arg = repo_dir
 
     mock_subprocess_run.return_value = Mock(
         returncode=0,
@@ -264,15 +275,17 @@ def test_run_git_command_with_cwd_runs_in_dir_without_isolation(
             "GIT_INDEX_FILE": "/ambient/.git/index",
         },
     ):
-        result = git.run_git_command(["git", "submodule", "update"], cwd=repo_dir)
+        result = git.run_git_command(["git", "submodule", "update"], cwd=cwd_arg)
 
     call_args = mock_subprocess_run.call_args
     env = call_args[1]["env"]
     assert "GIT_DIR" not in env
     assert "GIT_WORK_TREE" not in env
     assert "GIT_INDEX_FILE" not in env
-    assert env["GIT_CEILING_DIRECTORIES"] == str(repo_dir.parent)
-    assert call_args[1]["cwd"] == repo_dir
+    ceiling = Path(env["GIT_CEILING_DIRECTORIES"])
+    assert ceiling.is_absolute()
+    assert ceiling.samefile(tmp_path)
+    assert call_args[1]["cwd"] == cwd_arg
     assert result == "test output"
 
 
@@ -1489,6 +1502,56 @@ def test_clone_or_update_real_git_initializes_submodules(tmp_path: Path) -> None
         )
 
     assert (repo_dir / "vendor" / "sub" / "sub_file.txt").is_file()
+
+
+def test_clone_or_update_real_git_honors_update_none_submodule(
+    tmp_path: Path,
+) -> None:
+    """End-to-end with real git: a submodule declared `update = none` is not
+    reported as a failed initialization.
+
+    Git deliberately skips such submodules during `git submodule update
+    --init` and leaves them uninitialized; the status verification must not
+    turn that into an error while still checking out the regular submodules.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    sub_repo = tmp_path / "sub"
+    _make_real_repo(sub_repo, "sub_file.txt")
+
+    upstream = tmp_path / "upstream"
+    _make_real_repo(upstream, "README.md")
+    _real_git("submodule", "add", str(sub_repo), "vendor/sub", cwd=upstream)
+    _real_git("submodule", "add", str(sub_repo), "vendor/skipped", cwd=upstream)
+    _real_git(
+        "config",
+        "-f",
+        ".gitmodules",
+        "submodule.vendor/skipped.update",
+        "none",
+        cwd=upstream,
+    )
+    _real_git("add", ".gitmodules", cwd=upstream)
+    _real_git("commit", "-q", "-m", "add submodules", cwd=upstream)
+
+    with patch.dict(
+        os.environ,
+        {
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "protocol.file.allow",
+            "GIT_CONFIG_VALUE_0": "always",
+        },
+    ):
+        repo_dir, _ = git.clone_or_update(
+            url=str(upstream),
+            ref=None,
+            refresh=None,
+            domain="test_e2e",
+            submodules=[],
+        )
+
+    assert (repo_dir / "vendor" / "sub" / "sub_file.txt").is_file()
+    assert not (repo_dir / "vendor" / "skipped" / "sub_file.txt").exists()
 
 
 def test_refresh_picks_up_new_remote_commits(
