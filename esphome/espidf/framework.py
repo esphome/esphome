@@ -240,9 +240,11 @@ def _stamps_match_except_targets(stored: dict, requested: dict) -> bool:
     stamp field added later participates in invalidation by default instead
     of being silently ignored.
     """
-    return {k: v for k, v in stored.items() if k != "targets"} == {
-        k: v for k, v in requested.items() if k != "targets"
-    }
+
+    def strip(stamp: dict) -> dict:
+        return {k: v for k, v in stamp.items() if k != "targets"}
+
+    return strip(stored) == strip(requested)
 
 
 def _stamp_covers(stored: dict | None, requested: dict) -> bool:
