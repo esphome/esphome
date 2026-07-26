@@ -943,14 +943,21 @@ void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu
       }
       break;
     }
-    // Write arguments are parsed from the request (identical to the success echo, and the only copy
-    // available when the response is an exception).
+    // Single-write acks echo the value: on success that echo is device-confirmed state - the one
+    // write whose acknowledgement carries a real read-back - so it is preferred over the request
+    // copy. On an exception the response has no value and the request copy is the only one.
     case FunctionCode::WRITE_SINGLE_REGISTER:
-      this->on_write_single_register(start_address, count_or_value, status);
+    case FunctionCode::WRITE_SINGLE_COIL: {
+      const uint16_t value = (!status.has_value() && response_pdu.size() >= WRITE_SINGLE_PDU_SIZE)
+                                 ? helpers::get_data<uint16_t>(response_pdu.data(), 3)
+                                 : count_or_value;
+      if (function_code == FunctionCode::WRITE_SINGLE_REGISTER) {
+        this->on_write_single_register(start_address, value, status);
+      } else {
+        this->on_write_single_coil(start_address, value == 0xFF00, status);
+      }
       break;
-    case FunctionCode::WRITE_SINGLE_COIL:
-      this->on_write_single_coil(start_address, count_or_value == 0xFF00, status);
-      break;
+    }
     case FunctionCode::WRITE_MULTIPLE_REGISTERS: {
       // Request layout: [0] function code, [1..2] start address, [3..4] register count, [5] byte count,
       // [6..] register data. The gate guarantees the request carries exactly count_or_value registers
@@ -985,8 +992,15 @@ void ModbusClientDevice::on_custom_response(std::span<const uint8_t> request_pdu
                                             ResponseStatus status) {
   // The dispatcher never calls this with an empty request, but this is a public virtual - stay safe.
   const uint8_t function_code = request_pdu.empty() ? 0 : request_pdu[0];
-  ESP_LOGW(TAG, "Non-standard request or response for function code 0x%X. No on_custom_response handler declared",
-           function_code);
+  // Warn once per device, then drop to VERBOSE: a mildly non-conformant peer answers every poll,
+  // and an unhandled-response warning per transaction would flood the log permanently.
+  if (!this->custom_response_warned_) {
+    this->custom_response_warned_ = true;
+    ESP_LOGW(TAG, "Non-standard request or response for function code 0x%X. No on_custom_response handler declared",
+             function_code);
+  } else {
+    ESP_LOGV(TAG, "Non-standard request or response for function code 0x%X (unhandled)", function_code);
+  }
 }
 
 }  // namespace esphome::modbus

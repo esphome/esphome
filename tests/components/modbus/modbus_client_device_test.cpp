@@ -326,4 +326,19 @@ TEST(ModbusClientDeviceFanOut, ReadCoilsErrorDeliversZeroCountBits) {
   EXPECT_TRUE(device.coil_calls.front().packed.empty());
 }
 
+// Single-write acks: on success the delivered value is the device's echo (real read-back);
+// on an exception it falls back to the request copy.
+TEST(ModbusTypedDispatch, SingleWriteAckPrefersTheResponseEcho) {
+  RecordingDevice device;
+  const uint8_t request[] = {0x06, 0x00, 0x10, 0x00, 0x2A};
+  const uint8_t echo_clamped[] = {0x06, 0x00, 0x10, 0x00, 0x28};  // device clamped 42 -> 40
+  device.on_response(request, echo_clamped);
+  ASSERT_EQ(device.write_single_register_calls.size(), 1u);
+  EXPECT_EQ(device.write_single_register_calls.front().value, 0x0028);  // the echo, not the request
+
+  device.on_error(request, ExceptionCode::ILLEGAL_DATA_VALUE);
+  ASSERT_EQ(device.write_single_register_calls.size(), 2u);
+  EXPECT_EQ(device.write_single_register_calls.back().value, 0x002A);  // exception: request copy
+}
+
 }  // namespace esphome::modbus::testing

@@ -302,7 +302,7 @@ class ModbusClientDevice {
 
   /// High-level typed response callbacks, fired by the default on_response()/on_error() with arguments
   /// parsed from the request and response PDUs.
-  /// Status is std::nullopt on success; holds the excpetion code on failure.
+  /// Status is std::nullopt on success; holds the exception code on failure.
   /// Register values are in host byte order; spans are only valid for the duration of the call.
   virtual void on_read_registers(EntityType entity_type, uint16_t start_address, std::span<const uint16_t> registers,
                                  ResponseStatus status) {}
@@ -327,11 +327,12 @@ class ModbusClientDevice {
   /// Write acknowledgements. These deliberately mirror the read callbacks' shapes, so a write ack can be fed
   /// through the same handler as a read (registers.size() / bits.size() gives the count)
   ///
-  /// IMPORTANT - these are the values that were REQUESTED, not device-confirmed state. A write ack only echoes
-  /// the start address and count, so the values are decoded from the request PDU, and they are delivered even
-  /// when status holds an exception code. Always check status, and treat publishing them as an optimistic
-  /// update rather than a read-back: a device that clamps, rounds, or silently rejects a value reports none of
-  /// that here, so the only way to learn its real state is to read it back.
+  /// IMPORTANT - for the multi-writes these are the values that were REQUESTED, not device-confirmed
+  /// state: a multi-write ack only echoes the start address and count, so the values are decoded from
+  /// the request PDU, and they are delivered even when status holds an exception code. Always check
+  /// status, and treat publishing them as an optimistic update rather than a read-back. The single
+  /// writes are the exception: their successful ack echoes the value, so on success the delivered
+  /// value is the device's echo (on an exception it falls back to the request copy).
   virtual void on_write_single_register(uint16_t address, uint16_t value, ResponseStatus status) {}
   virtual void on_write_single_coil(uint16_t address, bool value, ResponseStatus status) {}
   virtual void on_write_multiple_registers(uint16_t start_address, std::span<const uint16_t> registers,
@@ -421,6 +422,7 @@ class ModbusClientDevice {
 
   ModbusClientHub *parent_{nullptr};
   uint8_t address_{0};
+  bool custom_response_warned_{false};  // first unhandled custom response warns; repeats log at VERBOSE
 };
 
 // Compatibility shim for external components written against the pre-2026.8 API, which subclassed
