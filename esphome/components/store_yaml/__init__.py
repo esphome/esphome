@@ -506,6 +506,10 @@ async def to_code(config: ConfigType) -> None:
     # listener installed across validation) avoids capturing framework YAML
     # that components load internally (e.g. LVGL's `hello_world.yaml`), and
     # costs nothing on validate-only runs or configs without this component.
+    # This re-parse (and the per-file loads in _generate_redacted_files) also
+    # repopulates yaml_util's secret registry, which save_compiled_config
+    # wiped earlier in write_cpp via dump(show_secrets=True); the redaction
+    # swap and is_secret() checks below rely on that registration.
     discovered = yaml_util.discover_user_yaml_files(CORE.config_path)
     entries, secret_rels = _gather_files(discovered)
     if config[CONF_INCLUDE_SECRETS]:

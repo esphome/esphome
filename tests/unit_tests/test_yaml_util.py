@@ -1575,3 +1575,14 @@ def test_wrapper_representers_consult_is_secret() -> None:
     assert out.count("!secret 'the_secret'") == 2
     assert "hunter2" not in out
     assert "!extend 'plain_id'" in out
+
+
+def test_scalar_include_path_equal_to_secret_is_swapped() -> None:
+    """A scalar !include whose path equals a registered secret is swapped,
+    matching the other wrapper representers."""
+    include = yaml_util.IncludeFile(
+        Path("/fake/main.yaml"), "hunter2", None, lambda _: {}
+    )
+    with yaml_util.secret_values_registered({"hunter2": "the_secret"}):
+        out = yaml_util.dump({"key": include})
+    assert out == "key: !secret 'the_secret'\n"
