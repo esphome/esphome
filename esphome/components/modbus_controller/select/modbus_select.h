@@ -13,7 +13,7 @@ class ModbusSelect final : public Component, public select::Select, public Senso
  public:
   ModbusSelect(SensorValueType sensor_value_type, uint16_t start_address, uint8_t register_count, uint16_t skip_updates,
                bool force_new_range, std::vector<int64_t> mapping) {
-    this->register_type = ModbusRegisterType::HOLDING;  // not configurable
+    this->register_type = modbus::EntityType::HOLDING;  // not configurable
     this->sensor_value_type = sensor_value_type;
     this->start_address = start_address;
     this->offset = 0;            // not configurable
