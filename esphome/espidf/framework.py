@@ -204,19 +204,31 @@ def _get_python_env_path(version: str) -> Path:
 
 
 def _read_stamp(file: PathType) -> dict | None:
-    """Return a stamp file's dict contents, or None if missing or invalid."""
+    """Return a stamp file's dict contents, or None if missing or invalid.
+
+    A missing stamp is the normal first-install case and stays silent; the
+    other branches indicate a real fault that forces a full reinstall on
+    every build, so they warn.
+    """
     try:
         with Path(file).open(encoding="utf-8") as f:
             data = json.load(f)
     except FileNotFoundError:
         return None
     except json.JSONDecodeError as e:
-        _LOGGER.debug("Ignoring corrupt stamp file %s: %s", file, e)
+        _LOGGER.warning("Ignoring corrupt stamp file %s: %s", file, e)
         return None
     except OSError as e:
-        _LOGGER.debug("Could not read stamp file %s: %s", file, e)
+        _LOGGER.warning("Could not read stamp file %s: %s", file, e)
         return None
-    return data if isinstance(data, dict) else None
+    if not isinstance(data, dict):
+        _LOGGER.warning(
+            "Ignoring stamp file %s with unexpected type %s",
+            file,
+            type(data).__name__,
+        )
+        return None
+    return data
 
 
 def _check_stamp(file: PathType, data: dict[str, Any]) -> bool:

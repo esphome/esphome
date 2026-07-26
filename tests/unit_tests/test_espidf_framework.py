@@ -657,6 +657,19 @@ def test_check_esp_idf_install_uses_requested_targets(
     assert "--targets=esp32" in install_cmd
 
 
+def test_framework_install_all_request_collapses_merged_stamp_to_all() -> None:
+    """Requesting "all" over a per-variant stamp merges and collapses to
+    ["all"], not ["all", "esp32"], so the stamp shape stays canonical."""
+    framework_path = _extracted_framework_with_stamp(_requested_stamp(["esp32"]))
+
+    with _framework_install_patches() as run_ok:
+        _check_esphome_idf_framework_install(_IDF_VERSION, ["all"], ["required"])
+
+    run_ok.assert_called_once()
+    stamp = json.loads((framework_path / ESPHOME_STAMP_FILE).read_text())
+    assert stamp["targets"] == ["all"]
+
+
 def test_framework_install_tools_change_resets_stamp_targets() -> None:
     """A reinstall triggered by a tools change must not carry the old stamp's
     targets forward: the installer only ran for this build's targets, so a
@@ -1443,31 +1456,43 @@ def test_check_stamp_corrupt_file(tmp_path: Path) -> None:
     assert _check_stamp(f, {"a": "1"}) is False
 
 
-def test_read_stamp_corrupt_file_logs_debug(
+def test_read_stamp_corrupt_file_warns(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    # A corrupt stamp must leave a debug trace so repeated reinstalls caused
-    # by a bad file are diagnosable, unlike the silent missing-file case.
+    # A corrupt stamp forces a full reinstall on every build, so it warns
+    # where the normal missing-file case stays silent.
     f = tmp_path / "s.json"
     f.write_text("{ not json", encoding="utf-8")
-    with caplog.at_level(logging.DEBUG, logger="esphome.espidf.framework"):
+    with caplog.at_level(logging.WARNING, logger="esphome.espidf.framework"):
         assert _read_stamp(f) is None
     assert "Ignoring corrupt stamp file" in caplog.text
 
 
-def test_read_stamp_unreadable_file_logs_debug(
+def test_read_stamp_unreadable_file_warns(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     # An I/O fault (permissions, disk error) is distinguished from a simply
-    # missing stamp with a debug line before falling back to reinstall.
+    # missing stamp with a warning before falling back to reinstall.
     f = tmp_path / "s.json"
     f.write_text(json.dumps({"a": "1"}), encoding="utf-8")
     with (
         patch.object(Path, "open", side_effect=PermissionError("denied")),
-        caplog.at_level(logging.DEBUG, logger="esphome.espidf.framework"),
+        caplog.at_level(logging.WARNING, logger="esphome.espidf.framework"),
     ):
         assert _read_stamp(f) is None
     assert "Could not read stamp file" in caplog.text
+
+
+def test_read_stamp_non_dict_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Well-formed JSON that is not an object is a fault, not a first install;
+    # it must leave a trace before forcing reinstalls.
+    f = tmp_path / "s.json"
+    f.write_text("null", encoding="utf-8")
+    with caplog.at_level(logging.WARNING, logger="esphome.espidf.framework"):
+        assert _read_stamp(f) is None
+    assert "unexpected type NoneType" in caplog.text
 
 
 def test_read_stamp_missing_file_is_silent(
