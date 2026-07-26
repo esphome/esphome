@@ -240,7 +240,12 @@ def test_run_git_command_without_git_dir(mock_subprocess_run: Mock) -> None:
 def test_run_git_command_with_cwd_runs_in_dir_without_isolation(
     tmp_path: Path, mock_subprocess_run: Mock
 ) -> None:
-    """The cwd parameter sets the working directory without GIT_DIR/GIT_WORK_TREE."""
+    """The cwd parameter sets the working directory without GIT_DIR/GIT_WORK_TREE.
+
+    Ambient GIT_DIR/GIT_WORK_TREE (e.g. from a git hook or CI wrapper) must be
+    stripped too, and GIT_CEILING_DIRECTORIES must stop git from walking up to
+    an enclosing repository if the target repo's .git is missing or corrupt.
+    """
     repo_dir = tmp_path / "test_repo"
     repo_dir.mkdir()
 
@@ -250,13 +255,16 @@ def test_run_git_command_with_cwd_runs_in_dir_without_isolation(
         stderr=b"",
     )
 
-    result = git.run_git_command(["git", "submodule", "update"], cwd=repo_dir)
+    with patch.dict(
+        os.environ, {"GIT_DIR": "/ambient/.git", "GIT_WORK_TREE": "/ambient"}
+    ):
+        result = git.run_git_command(["git", "submodule", "update"], cwd=repo_dir)
 
     call_args = mock_subprocess_run.call_args
-    env = call_args[1].get("env")
-    if env is not None:
-        assert "GIT_DIR" not in env
-        assert "GIT_WORK_TREE" not in env
+    env = call_args[1]["env"]
+    assert "GIT_DIR" not in env
+    assert "GIT_WORK_TREE" not in env
+    assert env["GIT_CEILING_DIRECTORIES"] == str(repo_dir.parent)
     assert call_args[1]["cwd"] == str(repo_dir)
     assert result == "test output"
 

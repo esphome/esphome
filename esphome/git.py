@@ -49,8 +49,9 @@ def run_git_command(
     """Run a git command and return its stdout.
 
     ``git_dir`` runs the command in that repository with GIT_DIR/GIT_WORK_TREE
-    isolation; ``cwd`` runs it in that directory without isolation. The two
-    are mutually exclusive and ``git_dir`` wins when both are given.
+    isolation; ``cwd`` runs it in that directory with those variables stripped
+    from the environment instead. The two are mutually exclusive and
+    ``git_dir`` wins when both are given.
     """
     if git_dir is not None:
         _LOGGER.debug(
@@ -71,11 +72,15 @@ def run_git_command(
     # could accidentally operate on parent repositories (e.g., the main
     # ESPHome repo) instead of failing, causing data loss.
     #
-    # ``cwd`` (without ``git_dir``) runs the command in that directory with
-    # no environment override. The ``git submodule`` porcelain needs this:
-    # on some installations (e.g. Windows setups where a shim hands git
-    # untranslated paths) it refuses to run when GIT_DIR/GIT_WORK_TREE are
-    # set, failing with "cannot be used without a working tree".
+    # ``cwd`` (without ``git_dir``) runs the command in that directory
+    # without GIT_DIR/GIT_WORK_TREE. The ``git submodule`` porcelain needs
+    # this: on some installations (e.g. Windows setups where a shim hands
+    # git untranslated paths) it refuses to run when GIT_DIR/GIT_WORK_TREE
+    # are set, failing with "cannot be used without a working tree". Ambient
+    # GIT_DIR/GIT_WORK_TREE from the caller's environment (a git hook, a CI
+    # wrapper) are stripped for the same reason, and GIT_CEILING_DIRECTORIES
+    # keeps the parent-repo-walk protection: if the repo's .git is missing
+    # or corrupt, git fails instead of discovering an enclosing repository.
     env: dict[str, str] | None = None
     if git_dir is not None:
         env = {
@@ -84,6 +89,13 @@ def run_git_command(
             "GIT_WORK_TREE": str(git_dir),
         }
         cwd = git_dir
+    elif cwd is not None:
+        env = {
+            k: v
+            for k, v in subprocess.os.environ.items()
+            if k not in ("GIT_DIR", "GIT_WORK_TREE")
+        }
+        env["GIT_CEILING_DIRECTORIES"] = str(Path(cwd).parent)
 
     try:
         ret = subprocess.run(

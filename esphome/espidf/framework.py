@@ -415,8 +415,14 @@ def _clone_idf_with_submodules(
     # Sanity-check the resulting tree. run_git_command only raises when
     # stderr is non-empty, so a clone that silently produces no working
     # tree would otherwise be marked extracted and stuck until
-    # ``esphome clean``.
-    if not (framework_path / "tools" / "idf_tools.py").is_file():
+    # ``esphome clean``. A real ESP-IDF checkout always declares submodules;
+    # a missing .gitmodules means the clone is truncated and update_submodules
+    # above skipped the vendored components (mbedtls, openthread, ...), which
+    # would otherwise surface much later as an opaque CMake error.
+    if (
+        not (framework_path / "tools" / "idf_tools.py").is_file()
+        or not (framework_path / ".gitmodules").is_file()
+    ):
         raise RuntimeError(
             f"Clone of {git_url} produced no usable ESP-IDF tree at {framework_path}"
         )

@@ -217,6 +217,36 @@ def test_clone_idf_with_submodules_raises_when_tree_missing(
         )
 
 
+def test_clone_idf_with_submodules_raises_when_gitmodules_missing(
+    tmp_path: Path,
+) -> None:
+    """A truncated clone without .gitmodules must fail loudly.
+
+    update_submodules silently skips when .gitmodules is absent, so without
+    the sanity check the missing vendored components would only surface much
+    later as an opaque CMake error.
+    """
+    framework_path = tmp_path / "idf"
+    framework_path.mkdir()
+    (framework_path / "tools").mkdir()
+    (framework_path / "tools" / "idf_tools.py").write_text("# stub\n")
+    # Deliberately no .gitmodules.
+
+    with (
+        patch("esphome.git.run_git_command", return_value="") as run_git_command_mock,
+        pytest.raises(RuntimeError, match="no usable ESP-IDF tree"),
+    ):
+        _clone_idf_with_submodules(
+            framework_path,
+            "https://github.com/espressif/esp-idf.git",
+            None,
+        )
+
+    # The submodule step was skipped rather than run against the broken tree.
+    calls = [c.args[0] for c in run_git_command_mock.call_args_list]
+    assert not any(c[1] == "submodule" for c in calls)
+
+
 # ---------------------------------------------------------------------------
 # Helpers for _tar_extract_all hard-link prefix-stripping tests
 # ---------------------------------------------------------------------------
