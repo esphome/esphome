@@ -77,6 +77,23 @@ class TestServerHub : public ModbusServerHub {
     this->rx_buffer_.push_back(crc >> 8);
     return this->parse_modbus_client_frame_();
   }
+
+  // Builds a complete client frame (address + FC + pdu + CRC) and runs the full receive-side parser
+  // (parse_modbus_frames), so the expecting-peer-response routing is exercised, not just the frame parser
+  // below it. Returns true once the buffer has fully drained.
+  bool run_receive_parser_for_test(uint8_t address, uint8_t function_code, const uint8_t *pdu_data,
+                                   size_t pdu_data_len) {
+    this->rx_buffer_.clear();
+    this->rx_buffer_.reserve(pdu_data_len + 4);
+    this->rx_buffer_.push_back(address);
+    this->rx_buffer_.push_back(function_code);
+    this->rx_buffer_.insert(this->rx_buffer_.end(), pdu_data, pdu_data + pdu_data_len);
+    uint16_t crc = crc16(this->rx_buffer_.data(), this->rx_buffer_.size());
+    this->rx_buffer_.push_back(crc & 0xFF);
+    this->rx_buffer_.push_back(crc >> 8);
+    this->parse_modbus_frames();
+    return this->rx_buffer_.empty();
+  }
 };
 
 }  // namespace
@@ -97,6 +114,40 @@ TEST(ModbusBroadcast, SingleRegisterWriteReachesAllDevicesWithoutReply) {
   // FC 0x06 payload: start address 0x9D31, value 0x00A5 (big-endian, no address/CRC).
   const uint8_t pdu_data[] = {0x9D, 0x31, 0x00, 0xA5};
   ASSERT_TRUE(hub.process_full_client_frame_for_test(
+      BROADCAST_ADDRESS, static_cast<uint8_t>(FunctionCode::WRITE_SINGLE_REGISTER), pdu_data, sizeof(pdu_data)));
+
+  for (RecordingDevice *device : {&device_a, &device_b}) {
+    EXPECT_EQ(device->write_count, 1);
+    EXPECT_EQ(device->last_start_address, 0x9D31);
+    ASSERT_EQ(device->last_values.size(), 1u);
+    EXPECT_EQ(device->last_values[0], 0x00A5);
+  }
+  EXPECT_TRUE(uart.written.empty());  // broadcasts are never answered
+}
+
+// A single-register broadcast (FC 0x06) must still reach every device when the hub is mid-way through
+// waiting for a peer's response. Its frame length matches a response frame, so without the address-0 guard
+// in parse_modbus_frames() it would be swallowed by the response parser instead of being dispatched.
+TEST(ModbusBroadcast, SingleRegisterBroadcastDispatchedWhileExpectingPeerResponse) {
+  TestServerHub hub;
+  RecordingUART uart;
+  hub.set_uart_parent(&uart);
+
+  RecordingDevice device_a(0x02);
+  RecordingDevice device_b(0x03);
+  hub.register_device(&device_a);
+  hub.register_device(&device_b);
+
+  // A unicast write addressed to an unregistered peer (0x09) leaves the hub expecting that peer's response.
+  const uint8_t peer_pdu[] = {0x00, 0x10, 0x00, 0x2A};
+  ASSERT_TRUE(hub.run_receive_parser_for_test(0x09, static_cast<uint8_t>(FunctionCode::WRITE_SINGLE_REGISTER), peer_pdu,
+                                              sizeof(peer_pdu)));
+  ASSERT_EQ(device_a.write_count, 0);  // the peer request is not for our devices
+  ASSERT_EQ(device_b.write_count, 0);
+
+  // The broadcast that follows must still be delivered to every device, and still without a reply.
+  const uint8_t pdu_data[] = {0x9D, 0x31, 0x00, 0xA5};
+  ASSERT_TRUE(hub.run_receive_parser_for_test(
       BROADCAST_ADDRESS, static_cast<uint8_t>(FunctionCode::WRITE_SINGLE_REGISTER), pdu_data, sizeof(pdu_data)));
 
   for (RecordingDevice *device : {&device_a, &device_b}) {

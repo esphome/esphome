@@ -156,7 +156,14 @@ void ModbusServerHub::parse_modbus_frames() {
     size_t size = this->rx_buffer_.size();
     ESP_LOGVV(TAG, "Parsing frames buffer size = %" PRIu32, size);
     bool retry_as_client = false;
-    if (this->expecting_peer_response_ != 0) {
+    // A broadcast (address 0) is always an unsolicited request from the master, never a peer response, so it
+    // must go to the request parser even while we are waiting for a peer reply. Otherwise a single-register
+    // broadcast (FC 0x06) -- whose frame length matches its response -- would be consumed below as that response
+    // and never dispatched to our devices. (Multi-register broadcasts already fall through via a frame-length
+    // mismatch.) The peer-response expectation is left intact so a real reply, if it still arrives, is handled
+    // on the next pass.
+    const bool is_broadcast = this->rx_buffer_[0] == MODBUS_BROADCAST_ADDRESS;
+    if (this->expecting_peer_response_ != 0 && !is_broadcast) {
       if (!this->parse_modbus_server_frame_()) {
         ESP_LOGV(TAG, "Stop expecting peer response from %" PRIu8 " due to parse failure, and retry parse",
                  this->expecting_peer_response_);
