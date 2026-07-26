@@ -166,30 +166,58 @@ def _iter_sensitive_values(node: object) -> Generator[tuple[tuple[str, ...], str
             yield path, str(value)
 
 
+def _iter_keys(
+    node: object, path: tuple[str, ...] = ()
+) -> Generator[tuple[tuple[str, ...], str]]:
+    """Yield (config_path, key) for every mapping key in a config tree."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            yield path, str(key)
+            yield from _iter_keys(value, (*path, str(key)))
+    elif isinstance(node, (list, tuple)):
+        for item in node:
+            yield from _iter_keys(item, path)
+
+
 @dataclass
 class _SensitiveValue:
     secret_name: str
     config_path: str  # dotted path, for warnings (never log the value itself)
+    # Last path segments the value is sensitive at (e.g. {"password"}), used to
+    # tell the value's own occurrences apart from unrelated collisions.
+    sensitive_keys: set[str]
 
 
-def _warn_sensitive_collisions(sensitive: dict[str, _SensitiveValue]) -> None:
+def _warn_sensitive_collisions(
+    sensitive: dict[str, _SensitiveValue], trees: dict[str, object]
+) -> None:
     """Redaction is value-keyed: any scalar equal to a sensitive value is
     rewritten to its `!secret` reference, including unrelated ones (e.g.
     `platform: esp32` when a password is literally "esp32"). Filling in a
     different value during recovery would then silently rewrite those
-    unrelated scalars too — warn so the trap is documented, not silent."""
+    unrelated scalars too — warn so the trap is documented, not silent.
+
+    Walks the parse trees that are actually dumped, not CORE.config, so the
+    warning matches what lands in the blob. A scalar under the key the value
+    is sensitive at is its own occurrence, not a collision; a swapped
+    `substitutions:` definition keeps `${...}` references working, so those
+    are expected as well.
+    """
     if not sensitive:
         return
-    for path, value in _iter_scalars(CORE.config):
-        if isinstance(value, yaml_util.SensitiveStr):
-            continue
-        info = sensitive.get(str(value))
-        if info is not None:
+    for rel, tree in trees.items():
+        for path, value in _iter_scalars(tree):
+            if (info := sensitive.get(str(value))) is None:
+                continue
+            if path and (path[0] == "substitutions" or path[-1] in info.sensitive_keys):
+                continue
             _LOGGER.warning(
                 "store_yaml: the sensitive value at %s also matches the scalar "
-                "at %s; the recovered config will reference !secret %s there too",
+                "at %s in %s; the recovered config will reference !secret %s "
+                "there too",
                 info.config_path,
                 ".".join(path),
+                rel,
                 info.secret_name,
             )
 
@@ -205,7 +233,11 @@ def _collect_sensitive_values() -> dict[str, _SensitiveValue]:
     used = yaml_util.registered_secret_names()
     result: dict[str, _SensitiveValue] = {}
     for path, value in _iter_sensitive_values(CORE.config):
-        if not value or value in result:
+        if not value:
+            continue
+        if (existing := result.get(value)) is not None:
+            if path:
+                existing.sensitive_keys.add(path[-1])
             continue
         name = yaml_util.is_secret(value)
         if name is None:
@@ -216,7 +248,9 @@ def _collect_sensitive_values() -> dict[str, _SensitiveValue]:
                 name = f"{base}_{counter}"
                 counter += 1
         used.add(name)
-        result[value] = _SensitiveValue(name, ".".join(path))
+        result[value] = _SensitiveValue(
+            name, ".".join(path), {path[-1]} if path else set()
+        )
     return result
 
 
@@ -280,16 +314,35 @@ def _generate_redacted_files(
     comments and formatting of the originals are not preserved.
     """
     sensitive = _collect_sensitive_values()
-    _warn_sensitive_collisions(sensitive)
 
-    texts: dict[str, str] = {}
+    trees = {
+        rel: yaml_util.load_yaml(path, clear_secrets=False)
+        for rel, path in entries
+        if rel not in secret_rels
+    }
+
+    _warn_sensitive_collisions(sensitive, trees)
+
+    # The dumper routes mapping keys through the same value-keyed swap, so a
+    # sensitive value equal to a key would be rewritten in key position and
+    # silently corrupt the recovered structure — fail the build instead.
+    key_hits = [
+        f"{info.config_path} (as the mapping key at {'.'.join((*path, key))} in {rel})"
+        for rel, tree in trees.items()
+        for path, key in _iter_keys(tree)
+        if (info := sensitive.get(key)) is not None
+    ]
+    if key_hits:
+        raise EsphomeError(
+            "store_yaml: sensitive value(s) are also used as mapping keys: "
+            f"{', '.join(key_hits)}. The redaction swap would rewrite the key "
+            "and corrupt the recovered config. Change the value, or set "
+            "`include_secrets: true` to embed secrets deliberately."
+        )
+
     registered = {value: info.secret_name for value, info in sensitive.items()}
     with yaml_util.secret_values_registered(registered):
-        for rel, path in entries:
-            if rel in secret_rels:
-                continue
-            tree = yaml_util.load_yaml(path, clear_secrets=False)
-            texts[rel] = yaml_util.dump(tree)
+        texts = {rel: yaml_util.dump(tree) for rel, tree in trees.items()}
 
     skeleton_keys: set[str] = set()
     for text in texts.values():
@@ -305,26 +358,34 @@ def _generate_redacted_files(
         if yaml_util.is_secret(value) is None and info.secret_name not in skeleton_keys
     ]
     if leaked:
+        remote = _remote_package_descriptions()
         raise EsphomeError(
             "store_yaml: could not redact the sensitive value(s) of "
-            f"{', '.join(leaked)} (built via substitutions?). Reference them "
-            "with `!secret` in the YAML, or set `include_secrets: true` to "
-            "embed secrets deliberately."
+            f"{', '.join(leaked)}. The value was not found in any captured "
+            "file; it may be composed via substitutions, set on the command "
+            "line with -s, or defined inside a remote package"
+            + (f" ({', '.join(remote)})" if remote else "")
+            + ". Reference it with `!secret` in the YAML, or set "
+            "`include_secrets: true` to embed secrets deliberately."
         )
 
     # The swap replaces whole scalars only. A sensitive value embedded inside
     # a larger scalar — a lambda body, a URL like http://user:pw@host — is not
-    # swapped there, so scan the generated output for every sensitive value as
-    # a substring and fail the build on any hit. This can false-positive on
-    # short values that legitimately appear as substrings (an SSID of "esp32"
-    # inside "esp32dev"); shipping a promised-redacted secret is the worse
-    # failure, so fail closed.
-    embedded = [
-        f"{info.config_path} (inside {rel})"
-        for value, info in sensitive.items()
-        for rel, text in texts.items()
-        if value in text
-    ]
+    # swapped there, so scan every scalar for a strict substring match and
+    # fail the build on any hit. Scanning tree scalars (not serialized text)
+    # means key names, tags, and generated `!secret` references can never
+    # false-positive; a short value inside an unrelated longer scalar (an
+    # SSID of "esp32" inside "esp32dev") still can, but shipping a
+    # promised-redacted secret is the worse failure, so fail closed.
+    embedded = []
+    for rel, tree in trees.items():
+        for path, scalar in _iter_scalars(tree):
+            text = str(scalar)
+            embedded.extend(
+                f"{info.config_path} (inside {'.'.join(path)} in {rel})"
+                for value, info in sensitive.items()
+                if value in text and value != text
+            )
     if embedded:
         raise EsphomeError(
             "store_yaml: sensitive value(s) appear embedded inside larger "
@@ -398,9 +459,14 @@ def unpack_envelope(blob: bytes) -> dict[str, bytes]:
     (count,) = struct.unpack("<I", take(4))
     for _ in range(count):
         (path_len,) = struct.unpack("<H", take(2))
-        path = take(path_len).decode("utf-8")
+        try:
+            path = take(path_len).decode("utf-8")
+        except UnicodeDecodeError as err:
+            raise EsphomeError(f"envelope path is not valid UTF-8: {err}") from err
         if path.startswith(("/", "\\")) or (len(path) >= 2 and path[1] == ":"):
             raise EsphomeError(f"envelope contains non-relative path: {path}")
+        if path in files:
+            raise EsphomeError(f"envelope contains duplicate path: {path}")
         (content_len,) = struct.unpack("<I", take(4))
         files[path] = take(content_len)
     if pos != len(blob):

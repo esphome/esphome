@@ -1218,7 +1218,14 @@ void APIConnection::on_get_yaml_request() {
   if (this->store_yaml_pos_ != std::numeric_limits<size_t>::max())
     return;
 #ifdef USE_ESP8266
-  this->store_yaml_chunk_buf_ = std::make_unique<uint8_t[]>(STORE_YAML_CHUNK_SIZE);
+  // Exceptions are disabled, so allocation failure must be checked here. On
+  // failure the request is dropped without a reply; the client times out and
+  // a retry may succeed once the heap recovers.
+  this->store_yaml_chunk_buf_.reset(new (std::nothrow) uint8_t[STORE_YAML_CHUNK_SIZE]);
+  if (!this->store_yaml_chunk_buf_) {
+    ESP_LOGW(TAG, "GetYaml: buffer allocation failed");
+    return;
+  }
 #endif
   // All responses go through the loop-driven retry below, so a full TX
   // buffer at request time can't strand the client without a terminal frame.
@@ -1228,10 +1235,14 @@ void APIConnection::on_get_yaml_request() {
 
 // Caller guarantees: store_yaml_pos_ != SIZE_MAX (a request is in flight).
 void APIConnection::try_send_store_yaml_() {
-  // Every component's setup() completes before the app loop services API
-  // messages, and codegen always embeds a non-empty blob, so the component
-  // is present and total > 0 whenever a request is serviced.
+  // A client connecting while later components are still setting up (the app
+  // loop runs for already-initialized components during setup) can request
+  // YAML before store_yaml's setup() registered the component. Leave the
+  // request pending; this is retried from loop() until the component appears.
   auto *comp = store_yaml::global_store_yaml;
+  if (comp == nullptr)
+    return;
+  // Codegen always embeds a non-empty blob, so total > 0 here.
   const size_t total = comp->get_size();
 
 #ifdef USE_ESP8266

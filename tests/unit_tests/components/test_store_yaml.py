@@ -403,6 +403,31 @@ def test_unpack_envelope_rejects_trailing_bytes() -> None:
         unpack_envelope(blob + b"\x00")
 
 
+def test_unpack_envelope_rejects_invalid_utf8_path() -> None:
+    """A corrupted envelope raises EsphomeError, never a bare UnicodeDecodeError."""
+    import struct
+
+    blob = (
+        b"EHY1"
+        + struct.pack("<I", 1)
+        + struct.pack("<H", 2)
+        + b"\xff\xfe"
+        + struct.pack("<I", 0)
+    )
+    with pytest.raises(EsphomeError, match="UTF-8"):
+        unpack_envelope(blob)
+
+
+def test_unpack_envelope_rejects_duplicate_paths() -> None:
+    """A tampered envelope with duplicate paths must not silently drop data."""
+    import struct
+
+    entry = struct.pack("<H", 6) + b"a.yaml" + struct.pack("<I", 1) + b"x"
+    blob = b"EHY1" + struct.pack("<I", 2) + entry + entry
+    with pytest.raises(EsphomeError, match="duplicate"):
+        unpack_envelope(blob)
+
+
 def test_pack_envelope_rejects_duplicate_paths() -> None:
     """A duplicate path would silently clobber the earlier entry on unpack."""
     with pytest.raises(EsphomeError, match="duplicate"):
@@ -439,18 +464,54 @@ def test_redacted_warns_on_value_collision(
     project: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """An unrelated scalar equal to a sensitive value gets rewritten by the
-    value-keyed swap; a warning documents the trap."""
+    value-keyed swap; a warning documents the trap. The value's own
+    occurrence (under its sensitive key) does not warn."""
     (project / "wifi.yaml").write_text("password: esp32\nplatform: esp32\n")
-    CORE.config = {
-        "wifi": [{"password": SensitiveStr("esp32")}],
-        "sensor": [{"platform": "esp32"}],
-    }
+    CORE.config = {"wifi": [{"password": SensitiveStr("esp32")}]}
     discovered = _sources(project, "wifi.yaml")
     files = _gather_redacted(discovered)
     assert files["wifi.yaml"] == (
         b"password: !secret 'wifi_password'\nplatform: !secret 'wifi_password'\n"
     )
-    assert "also matches the scalar at sensor.platform" in caplog.text
+    assert "also matches the scalar at platform in wifi.yaml" in caplog.text
+    assert "at password in wifi.yaml" not in caplog.text
+
+
+def test_redacted_no_warning_for_substitution_definition(
+    project: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A swapped `substitutions:` definition keeps `${...}` working in the
+    recovered config, so it is expected and does not warn."""
+    (project / "wifi.yaml").write_text(
+        "substitutions:\n  wifi_password: hunter2\nwifi:\n  password: ${wifi_password}\n"
+    )
+    CORE.config = {"wifi": [{"password": SensitiveStr("hunter2")}]}
+    discovered = _sources(project, "wifi.yaml")
+    _gather_redacted(discovered)
+    assert "also matches" not in caplog.text
+
+
+def test_redacted_sensitive_value_as_mapping_key_fails_build(project: Path) -> None:
+    """A sensitive value equal to a mapping key would be swapped in key
+    position and corrupt the recovered structure; the build fails instead."""
+    (project / "wifi.yaml").write_text("password: password\n")
+    CORE.config = {"ota": [{"password": SensitiveStr("password")}]}
+    discovered = _sources(project, "wifi.yaml")
+    with pytest.raises(EsphomeError, match="mapping key"):
+        _gather_redacted(discovered)
+
+
+def test_redacted_key_names_do_not_false_positive_embedded_scan(
+    project: Path,
+) -> None:
+    """The embedded scan runs on tree scalars, not serialized text, so a
+    sensitive value that is a substring of a key name (or of the generated
+    `!secret` reference text) does not fail the build."""
+    (project / "wifi.yaml").write_text("password: word\n")
+    CORE.config = {"wifi": [{"password": SensitiveStr("word")}]}
+    discovered = _sources(project, "wifi.yaml")
+    files = _gather_redacted(discovered)
+    assert files["wifi.yaml"] == b"password: !secret 'wifi_password'\n"
 
 
 # ---------------------------------------------------------------------------
