@@ -124,16 +124,16 @@ def test_run_git_command_success(tmp_path: Path) -> None:
 
 
 def test_run_git_command_debug_log_redacts_credentials(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
+    tmp_path: Path, mock_subprocess_run: Mock, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Embedded URL credentials never reach the debug log; -v output is
-    routinely pasted into public issues."""
-    repo_dir = tmp_path / "repo"
-    repo_dir.mkdir()
+    routinely pasted into public issues. subprocess is mocked so no real
+    git ever sees the URL (the path is not creatable on Windows)."""
+    mock_subprocess_run.return_value = Mock(returncode=0, stdout=b"", stderr=b"")
     with caplog.at_level(logging.DEBUG, logger="esphome.git"):
         git.run_git_command(
-            ["git", "init", "https://user:hunter2@github.com/test/repo"],
-            str(repo_dir),
+            ["git", "clone", "https://user:hunter2@github.com/test/repo"],
+            cwd=tmp_path,
         )
     assert "hunter2" not in caplog.text
     assert "://***@github.com/test/repo" in caplog.text
@@ -155,10 +155,17 @@ def test_run_git_command_with_git_dir_isolation(
         stderr=b"",
     )
 
-    result = git.run_git_command(
-        ["git", "rev-parse", "HEAD"],
-        git_dir=repo_dir,
-    )
+    # Ambient repo-scoping vars simulate a git hook invoking ESPHome; an
+    # ambient GIT_INDEX_FILE surviving into a git_dir invocation fails
+    # silently (git operates on the caller's index and exits 0).
+    with patch.dict(
+        os.environ,
+        {"GIT_INDEX_FILE": "/caller/index", "GIT_OBJECT_DIRECTORY": "/caller/objects"},
+    ):
+        result = git.run_git_command(
+            ["git", "rev-parse", "HEAD"],
+            git_dir=repo_dir,
+        )
 
     # Verify subprocess.run was called
     assert mock_subprocess_run.called
@@ -170,6 +177,9 @@ def test_run_git_command_with_git_dir_isolation(
     assert "GIT_WORK_TREE" in env
     assert env["GIT_DIR"] == str(repo_dir / ".git")
     assert env["GIT_WORK_TREE"] == str(repo_dir)
+    # The ambient scoping vars must be stripped, not passed through.
+    assert "GIT_INDEX_FILE" not in env
+    assert "GIT_OBJECT_DIRECTORY" not in env
 
     assert result == "test output"
 
@@ -1379,6 +1389,58 @@ def test_all_submodules_updated_with_gitmodules(
     # Recursive, mirroring PlatformIO's recursive library clones.
     assert "--recursive" in cmd
     _assert_submodule_runs_without_isolation(submodule_calls[0], repo_dir)
+
+
+def test_recovery_reclone_keeps_credentials_and_cache_key(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """The recovery re-clone must not re-apply credentials to the already
+    rewritten URL (no doubled userinfo) and must land in the same cache
+    directory, or a credentialed private repo re-clones on every run."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    _setup_old_repo(repo_dir)
+    (repo_dir / ".gitmodules").write_text("test")
+
+    calls = {"submodule": 0}
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "clone":
+            _simulate_cloned_repo(repo_dir)
+        if _get_git_command_type(cmd) == "submodule":
+            calls["submodule"] += 1
+            if calls["submodule"] == 1:
+                raise git.GitCommandError("git submodule update exited with code 1")
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    recovered_dir, _ = git.clone_or_update(
+        url=url,
+        ref=None,
+        refresh=TimePeriodSeconds(days=1),
+        domain=domain,
+        username="user",
+        password="hunter2",
+        init_submodules=True,
+    )
+
+    assert recovered_dir == repo_dir
+    clone_cmds = [
+        c[0][0]
+        for c in mock_run_git_command.call_args_list
+        if _get_git_command_type(c[0][0]) == "clone"
+    ]
+    assert clone_cmds
+    clone_url = clone_cmds[0][-2]
+    assert clone_url == "https://user:hunter2@github.com/test/repo"
+    assert clone_url.count("@") == 1
 
 
 def test_refresh_submodule_failure_recovers_then_raises(

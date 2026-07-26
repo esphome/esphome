@@ -62,6 +62,15 @@ class GitRepositoryError(GitException):
     """Exception raised when a git repository is in an invalid state."""
 
 
+def _redact_url_credentials(text: str) -> str:
+    """Mask userinfo in any URLs embedded in ``text``.
+
+    Users can put credentials directly in a git URL, and log output is
+    routinely pasted into public issues.
+    """
+    return re.sub(r"://[^/@\s]+@", "://***@", text)
+
+
 def run_git_command(
     cmd: list[str], git_dir: Path | None = None, *, cwd: Path | None = None
 ) -> str:
@@ -104,9 +113,7 @@ def run_git_command(
 
     _LOGGER.debug(
         "Running git command: %s (cwd=%s, isolated=%s)",
-        # Redact userinfo: clone URLs may embed credentials, and -v output is
-        # routinely pasted into public issues.
-        re.sub(r"://[^/@\s]+@", "://***@", " ".join(cmd)),
+        _redact_url_credentials(" ".join(cmd)),
         cwd,
         git_dir is not None,
     )
@@ -180,7 +187,7 @@ def update_submodules(repo_dir: Path, key: str) -> None:
     """
     if not (repo_dir / ".gitmodules").is_file():
         return
-    _LOGGER.info("Updating submodules for %s", key)
+    _LOGGER.info("Updating submodules for %s", _redact_url_credentials(key))
     run_git_command(
         ["git", "submodule", "update", "--init", "--recursive", "--depth=1"],
         cwd=repo_dir,
@@ -286,7 +293,14 @@ def clone_or_update(
     _recover_broken: bool = True,
 ) -> tuple[Path, Callable[[], None] | None]:
     key = f"{url}@{ref}"
+    # The user may have embedded credentials in the URL itself; log this
+    # instead of key.
+    safe_key = _redact_url_credentials(key)
 
+    # Keep the caller's URL for the recovery re-clone below: rewriting the
+    # rewritten URL would double the userinfo, and the recursive call must
+    # compute the same cache key as this one.
+    original_url = url
     if username is not None and password is not None:
         url = url.replace(
             "://", f"://{urllib.parse.quote(username)}:{urllib.parse.quote(password)}@"
@@ -302,12 +316,12 @@ def clone_or_update(
         # predates the marker; either way it cannot be trusted, especially
         # with NEVER_REFRESH where it would otherwise be reused forever.
         _LOGGER.warning(
-            "Removing incomplete clone of %s at %s, will re-clone", key, repo_dir
+            "Removing incomplete clone of %s at %s, will re-clone", safe_key, repo_dir
         )
         _remove_repo_dir(repo_dir)
 
     if not repo_dir.is_dir():
-        _LOGGER.info("Cloning %s", key)
+        _LOGGER.info("Cloning %s", safe_key)
         _LOGGER.debug("Location: %s", repo_dir)
         try:
             cmd = ["git", "clone", "--depth=1"]
@@ -352,7 +366,7 @@ def clone_or_update(
 
     else:
         if refresh == NEVER_REFRESH or CORE.skip_external_update:
-            _LOGGER.debug("Skipping update for %s (refresh disabled)", key)
+            _LOGGER.debug("Skipping update for %s (refresh disabled)", safe_key)
             return repo_dir, None
 
         file_timestamp = Path(repo_dir / ".git" / "FETCH_HEAD")
@@ -376,7 +390,7 @@ def clone_or_update(
                     ["git", "rev-parse", "HEAD"], git_dir=repo_dir
                 )
 
-                _LOGGER.info("Updating %s", key)
+                _LOGGER.info("Updating %s", safe_key)
                 _LOGGER.debug("Location: %s", repo_dir)
 
                 # Stash local changes (if any)
@@ -414,13 +428,13 @@ def clone_or_update(
                 if not _recover_broken:
                     _LOGGER.error(
                         "Repository %s recovery failed, cannot retry (already attempted once)",
-                        key,
+                        safe_key,
                     )
                     raise
 
                 _LOGGER.warning(
                     "Repository %s has issues (%s), attempting recovery",
-                    key,
+                    safe_key,
                     err,
                 )
                 _LOGGER.info("Removing broken repository at %s", repo_dir)
@@ -430,7 +444,7 @@ def clone_or_update(
                 # Recursively call clone_or_update to re-clone
                 # Set _recover_broken=False to prevent infinite recursion
                 result = clone_or_update(
-                    url=url,
+                    url=original_url,
                     ref=ref,
                     refresh=refresh,
                     domain=domain,
@@ -440,11 +454,11 @@ def clone_or_update(
                     subpath=subpath,
                     _recover_broken=False,
                 )
-                _LOGGER.info("Repository %s successfully recovered", key)
+                _LOGGER.info("Repository %s successfully recovered", safe_key)
                 return result
 
             def revert():
-                _LOGGER.info("Reverting changes to %s -> %s", key, old_sha)
+                _LOGGER.info("Reverting changes to %s -> %s", safe_key, old_sha)
                 run_git_command(["git", "reset", "--hard", old_sha], git_dir=repo_dir)
 
             return repo_dir, revert
