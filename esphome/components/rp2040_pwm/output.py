@@ -5,7 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_PIN
 
 CODEOWNERS = ["@jesserockz"]
-DEPENDENCIES = ["rp2040"]
+DEPENDENCIES = ["rp2"]
 
 
 rp2040_pwm_ns = cg.esphome_ns.namespace("rp2040_pwm")
@@ -42,10 +42,11 @@ async def to_code(config):
             cv.Required(CONF_FREQUENCY): cv.templatable(validate_frequency),
         }
     ),
+    synchronous=True,
 )
 async def rp2040_set_frequency_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_FREQUENCY], args, float)
+    template_ = await cg.templatable(config[CONF_FREQUENCY], args, cg.float_)
     cg.add(var.set_frequency(template_))
     return var

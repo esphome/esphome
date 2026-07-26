@@ -3,34 +3,45 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import logging
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+from PIL import Image as PILImage
 import pytest
 
 from esphome import config_validation as cv
+from esphome.components.const import CONF_BYTE_ORDER
+from esphome.components.file import image as file_image
+from esphome.components.file.image import validate_image_final, write_image
 from esphome.components.image import (
+    CONF_ALPHA_CHANNEL,
     CONF_INVERT_ALPHA,
     CONF_OPAQUE,
     CONF_TRANSPARENCY,
-    CONFIG_SCHEMA,
+    PLATFORM_FILE,
+    _flatten_legacy_image_config,
+    _is_legacy_image_format,
+    _is_new_image_format,
+    _migrate_legacy_image_config,
     get_all_image_metadata,
     get_image_metadata,
-    write_image,
 )
-from esphome.const import CONF_DITHER, CONF_FILE, CONF_ID, CONF_RAW_DATA_ID, CONF_TYPE
+from esphome.const import (
+    CONF_DITHER,
+    CONF_FILE,
+    CONF_ID,
+    CONF_PLATFORM,
+    CONF_RAW_DATA_ID,
+    CONF_TYPE,
+)
 from esphome.core import CORE
 
 
 @pytest.mark.parametrize(
     ("config", "error_match"),
     [
-        pytest.param(
-            "a string",
-            "Badly formed image configuration, expected a list or a dictionary",
-            id="invalid_string_config",
-        ),
         pytest.param(
             {"id": "image_id", "type": "rgb565"},
             r"required key not provided @ data\['file'\]",
@@ -40,6 +51,11 @@ from esphome.core import CORE
             {"file": "image.png", "type": "rgb565"},
             r"required key not provided @ data\['id'\]",
             id="missing_id",
+        ),
+        pytest.param(
+            {"id": "image_id", "file": "image.png"},
+            r"required key not provided @ data\['type'\]",
+            id="missing_type",
         ),
         pytest.param(
             {"id": "mdi_id", "file": "mdi:weather-##", "type": "rgb565"},
@@ -82,155 +98,301 @@ from esphome.core import CORE
             "File can't be opened as image",
             id="invalid_image_file",
         ),
-        pytest.param(
-            {"defaults": {}, "images": [{"id": "image_id", "file": "image.png"}]},
-            "Type is required either in the image config or in the defaults",
-            id="missing_type_in_defaults",
-        ),
     ],
 )
-def test_image_configuration_errors(
+def test_file_platform_configuration_errors(
     config: Any,
     error_match: str,
 ) -> None:
-    """Test detection of invalid configuration."""
+    """Invalid single-entry ``platform: file`` configs are rejected."""
     with pytest.raises(cv.Invalid, match=error_match):
-        CONFIG_SCHEMA(config)
+        file_image.CONFIG_SCHEMA(config)
+
+
+def test_file_platform_configuration_success() -> None:
+    """A fully-specified ``platform: file`` entry validates and keeps its keys."""
+    result = file_image.CONFIG_SCHEMA(
+        {
+            "id": "image_id",
+            "file": "image.png",
+            "type": "rgb565",
+            "transparency": "chroma_key",
+            "byte_order": "little_endian",
+            "dither": "FloydSteinberg",
+            "resize": "100x100",
+            "invert_alpha": False,
+        }
+    )
+    for key in (CONF_TYPE, CONF_ID, CONF_TRANSPARENCY, CONF_RAW_DATA_ID):
+        assert key in result, f"Missing key {key} in validated image configuration"
+
+
+# ---------------------------------------------------------------------------
+# Legacy `image:` config migration -- REMOVE these tests after 2027.1.0 together
+# with the migration shim in esphome/components/image/__init__.py.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        pytest.param(
+            [{CONF_PLATFORM: "file", "id": "a"}], True, id="new_platform_list"
+        ),
+        pytest.param([], True, id="empty_list"),
+        pytest.param([{"id": "a", "file": "x.png"}], False, id="legacy_bare_list"),
+        pytest.param([{CONF_PLATFORM: "file"}, {"id": "a"}], False, id="mixed_list"),
+        pytest.param(
+            [{CONF_PLATFORM: "file"}, "not-a-dict"], False, id="non_dict_entry"
+        ),
+        pytest.param({"defaults": {}}, False, id="legacy_dict"),
+    ],
+)
+def test_is_new_image_format(config: object, expected: bool) -> None:
+    assert _is_new_image_format(config) is expected
+
+
+def test_flatten_bare_list_filters_non_dicts() -> None:
+    out = _flatten_legacy_image_config(
+        [{"id": "a", "file": "x.png", "type": "binary"}, "not-a-dict"]
+    )
+    assert out == [{"id": "a", "file": "x.png", "type": "binary"}]
+
+
+def test_flatten_non_dict_non_list_yields_nothing() -> None:
+    assert _flatten_legacy_image_config("a string") == []
+
+
+def test_flatten_single_dict_with_id() -> None:
+    config = {"id": "a", "file": "x.png", "type": "binary"}
+    assert _flatten_legacy_image_config(config) == [config]
+
+
+def test_flatten_single_dict_with_file_only() -> None:
+    config = {"file": "x.png", "type": "binary"}
+    assert _flatten_legacy_image_config(config) == [config]
+
+
+def test_flatten_defaults_images_list() -> None:
+    out = _flatten_legacy_image_config(
+        {
+            "defaults": {"type": "rgb565", "byte_order": "little_endian"},
+            "images": [{"id": "a", "file": "x.png"}],
+        }
+    )
+    assert out == [
+        {
+            "id": "a",
+            "file": "x.png",
+            "type": "rgb565",
+            "byte_order": "little_endian",
+        }
+    ]
+
+
+def test_flatten_defaults_images_single_dict() -> None:
+    out = _flatten_legacy_image_config(
+        {
+            "defaults": {"type": "rgb565"},
+            "images": {"id": "a", "file": "x.png"},
+        }
+    )
+    assert out == [{"id": "a", "file": "x.png", "type": "rgb565"}]
+
+
+def test_flatten_type_grouped_list() -> None:
+    out = _flatten_legacy_image_config({"binary": [{"id": "a", "file": "x.png"}]})
+    assert out == [{"id": "a", "file": "x.png", "type": "binary"}]
+
+
+def test_flatten_type_grouped_transparency_list() -> None:
+    out = _flatten_legacy_image_config(
+        {"rgb565": {"alpha_channel": [{"id": "a", "file": "x.png"}]}}
+    )
+    assert out == [
+        {
+            "id": "a",
+            "file": "x.png",
+            "type": "rgb565",
+            "transparency": "alpha_channel",
+        }
+    ]
+
+
+def test_flatten_type_grouped_transparency_single_dict() -> None:
+    out = _flatten_legacy_image_config(
+        {"rgb565": {"alpha_channel": {"id": "a", "file": "x.png"}}}
+    )
+    assert out == [
+        {
+            "id": "a",
+            "file": "x.png",
+            "type": "rgb565",
+            "transparency": "alpha_channel",
+        }
+    ]
+
+
+def test_flatten_type_grouped_dict_without_transparency() -> None:
+    out = _flatten_legacy_image_config({"binary": {"id": "a", "file": "x.png"}})
+    assert out == [{"id": "a", "file": "x.png", "type": "binary"}]
+
+
+def test_flatten_drops_byte_order_for_non_endian_type() -> None:
+    out = _flatten_legacy_image_config(
+        {
+            "defaults": {"byte_order": "little_endian"},
+            "binary": [{"id": "a", "file": "x.png"}],
+        }
+    )
+    assert out == [{"id": "a", "file": "x.png", "type": "binary"}]
+    assert CONF_BYTE_ORDER not in out[0]
+
+
+def test_flatten_keeps_byte_order_for_endian_type() -> None:
+    out = _flatten_legacy_image_config(
+        {
+            "defaults": {"byte_order": "little_endian"},
+            "rgb565": [{"id": "a", "file": "x.png"}],
+        }
+    )
+    assert out[0][CONF_BYTE_ORDER] == "little_endian"
+
+
+def test_flatten_skips_meta_and_unknown_keys() -> None:
+    out = _flatten_legacy_image_config(
+        {
+            "defaults": {"type": "binary"},
+            "images": [],
+            "not_a_type": [{"id": "a", "file": "x.png"}],
+        }
+    )
+    assert out == []
+
+
+def test_flatten_images_list_skips_non_dict_entries() -> None:
+    out = _flatten_legacy_image_config(
+        {
+            "defaults": {"type": "binary"},
+            "images": [{"id": "a", "file": "x.png"}, "not-a-dict"],
+        }
+    )
+    assert out == [{"id": "a", "file": "x.png", "type": "binary"}]
+
+
+def test_flatten_type_grouped_list_skips_non_dict_entries() -> None:
+    out = _flatten_legacy_image_config(
+        {"binary": [{"id": "a", "file": "x.png"}, "not-a-dict"]}
+    )
+    assert out == [{"id": "a", "file": "x.png", "type": "binary"}]
+
+
+def test_flatten_type_grouped_scalar_value_is_ignored() -> None:
+    # A known type key whose value is neither a list nor a dict yields nothing.
+    assert _flatten_legacy_image_config({"binary": "not-a-list-or-dict"}) == []
+
+
+def test_flatten_type_grouped_transparency_skips_non_dict_entries() -> None:
+    out = _flatten_legacy_image_config(
+        {"rgb565": {"alpha_channel": [{"id": "a", "file": "x.png"}, "not-a-dict"]}}
+    )
+    assert out == [
+        {
+            "id": "a",
+            "file": "x.png",
+            "type": "rgb565",
+            "transparency": "alpha_channel",
+        }
+    ]
+
+
+def test_migrate_returns_none_for_new_format() -> None:
+    assert _migrate_legacy_image_config([{CONF_PLATFORM: "file", "id": "a"}]) is None
+
+
+def test_migrate_legacy_warns_and_prepends_platform(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        out = _migrate_legacy_image_config(
+            [{"id": "a", "file": "x.png", "type": "binary"}]
+        )
+    assert out == [
+        {CONF_PLATFORM: PLATFORM_FILE, "id": "a", "file": "x.png", "type": "binary"}
+    ]
+    assert "deprecated" in caplog.text
+    assert f"platform: {PLATFORM_FILE}" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        # Recognised legacy shapes -> migrate.
+        pytest.param([{"id": "a", "file": "x.png"}], True, id="bare_list_of_dicts"),
+        pytest.param({"id": "a", "file": "x.png"}, True, id="single_image_dict"),
+        pytest.param({"file": "x.png"}, True, id="single_dict_file_only"),
+        pytest.param({"defaults": {}, "images": []}, True, id="defaults_images"),
+        pytest.param({"rgb565": [{"id": "a"}]}, True, id="type_grouped"),
+        # Shapes the legacy schema never accepted -> not migrated.
+        pytest.param([], False, id="empty_list"),
+        pytest.param(["bad"], False, id="list_with_non_dict"),
+        pytest.param([{"id": "a"}, "bad"], False, id="list_mixed_dict_and_non_dict"),
+        pytest.param(
+            [{CONF_PLATFORM: "file", "id": "a"}], False, id="already_platform_tagged"
+        ),
+        pytest.param({"foo": 1}, False, id="dict_unknown_keys"),
+        pytest.param("a string", False, id="scalar"),
+    ],
+)
+def test_is_legacy_image_format(config: object, expected: bool) -> None:
+    assert _is_legacy_image_format(config) is expected
 
 
 @pytest.mark.parametrize(
     "config",
     [
-        pytest.param(
-            {
-                "id": "image_id",
-                "file": "image.png",
-                "type": "rgb565",
-                "transparency": "chroma_key",
-                "byte_order": "little_endian",
-                "dither": "FloydSteinberg",
-                "resize": "100x100",
-                "invert_alpha": False,
-            },
-            id="single_image_all_options",
-        ),
-        pytest.param(
-            [
-                {
-                    "id": "image_id",
-                    "file": "image.png",
-                    "type": "binary",
-                }
-            ],
-            id="list_of_images",
-        ),
-        pytest.param(
-            {
-                "defaults": {
-                    "type": "rgb565",
-                    "transparency": "chroma_key",
-                    "byte_order": "little_endian",
-                    "dither": "FloydSteinberg",
-                    "resize": "100x100",
-                    "invert_alpha": False,
-                },
-                "images": [
-                    {
-                        "id": "image_id",
-                        "file": "image.png",
-                    }
-                ],
-            },
-            id="images_with_defaults",
-        ),
-        pytest.param(
-            {
-                "rgb565": {
-                    "alpha_channel": [
-                        {
-                            "id": "image_id",
-                            "file": "image.png",
-                            "transparency": "alpha_channel",
-                            "byte_order": "little_endian",
-                            "dither": "FloydSteinberg",
-                            "resize": "100x100",
-                            "invert_alpha": False,
-                        }
-                    ]
-                },
-                "binary": [
-                    {
-                        "id": "image_id",
-                        "file": "image.png",
-                        "transparency": "opaque",
-                        "dither": "FloydSteinberg",
-                        "resize": "100x100",
-                        "invert_alpha": False,
-                    }
-                ],
-            },
-            id="type_based_organization",
-        ),
-        pytest.param(
-            {
-                "defaults": {
-                    "type": "binary",
-                    "transparency": "chroma_key",
-                    "byte_order": "little_endian",
-                    "dither": "FloydSteinberg",
-                    "resize": "100x100",
-                    "invert_alpha": False,
-                },
-                "rgb565": {
-                    "alpha_channel": [
-                        {
-                            "id": "image_id",
-                            "file": "image.png",
-                            "transparency": "alpha_channel",
-                            "dither": "none",
-                        }
-                    ]
-                },
-                "binary": [
-                    {
-                        "id": "image_id",
-                        "file": "image.png",
-                        "transparency": "opaque",
-                    }
-                ],
-            },
-            id="type_based_with_defaults",
-        ),
-        pytest.param(
-            {
-                "defaults": {
-                    "type": "rgb565",
-                    "transparency": "alpha_channel",
-                },
-                "binary": {
-                    "opaque": [
-                        {
-                            "id": "image_id",
-                            "file": "image.png",
-                        }
-                    ],
-                },
-            },
-            id="binary_with_defaults",
-        ),
+        pytest.param(["bad"], id="list_with_non_dict"),
+        pytest.param([{"id": "a"}, "bad"], id="list_mixed"),
+        pytest.param({"foo": 1}, id="dict_unknown_keys"),
     ],
 )
-def test_image_configuration_success(
-    config: dict[str, Any] | list[dict[str, Any]],
+def test_migrate_returns_none_for_invalid_legacy_shapes(
+    config: object, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Test successful configuration validation."""
-    result = CONFIG_SCHEMA(config)
-    # All valid configurations should return a list of images
-    assert isinstance(result, list)
-    for key in (CONF_TYPE, CONF_ID, CONF_TRANSPARENCY, CONF_RAW_DATA_ID):
-        assert all(key in x for x in result), (
-            f"Missing key {key} in image configuration"
+    """Unrecognised shapes are not migrated (and emit no warning) so normal
+    platform validation surfaces a proper error instead of silently dropping
+    the offending input."""
+    with caplog.at_level(logging.WARNING):
+        assert _migrate_legacy_image_config(config) is None
+    assert "deprecated" not in caplog.text
+
+
+# --------------------------- end legacy migration --------------------------
+
+
+def test_validate_image_final_defaults_to_little_endian() -> None:
+    out = validate_image_final({CONF_FILE: "x.png"})
+    assert out[CONF_BYTE_ORDER] == "LITTLE_ENDIAN"
+
+
+def test_validate_image_final_keeps_little_endian(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        out = validate_image_final(
+            {CONF_FILE: "x.png", CONF_BYTE_ORDER: "LITTLE_ENDIAN"}
         )
+    assert out[CONF_BYTE_ORDER] == "LITTLE_ENDIAN"
+    assert "big-endian" not in caplog.text
+
+
+def test_validate_image_final_warns_on_big_endian(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        out = validate_image_final({CONF_FILE: "x.png", CONF_BYTE_ORDER: "BIG_ENDIAN"})
+    assert out[CONF_BYTE_ORDER] == "BIG_ENDIAN"
+    assert "big-endian" in caplog.text
 
 
 def test_image_generation(
@@ -242,7 +404,15 @@ def test_image_generation(
     main_cpp = generate_main(component_config_path("image_test.yaml"))
     assert "uint8_t_id[] PROGMEM = {0x24, 0x21, 0x24, 0x21" in main_cpp
     assert (
-        "cat_img = new image::Image(uint8_t_id, 32, 24, image::IMAGE_TYPE_RGB565, image::TRANSPARENCY_OPAQUE);"
+        "alignas(image::Image) static unsigned char image__cat_img__pstorage[sizeof(image::Image)];"
+        in main_cpp
+    )
+    assert (
+        "static image::Image *const cat_img = reinterpret_cast<image::Image *>(image__cat_img__pstorage);"
+        in main_cpp
+    )
+    assert (
+        "new(cat_img) image::Image(uint8_t_id, 32, 24, image::IMAGE_TYPE_RGB565, image::TRANSPARENCY_OPAQUE);"
         in main_cpp
     )
 
@@ -359,7 +529,7 @@ def test_get_all_image_metadata_empty() -> None:
 @pytest.fixture
 def mock_progmem_array():
     """Mock progmem_array to avoid needing a proper ID object in tests."""
-    with patch("esphome.components.image.cg.progmem_array") as mock_progmem:
+    with patch("esphome.components.file.image.cg.progmem_array") as mock_progmem:
         mock_progmem.return_value = MagicMock()
         yield mock_progmem
 
@@ -402,4 +572,71 @@ async def test_svg_with_mm_dimensions_succeeds(
     )
     assert 30 < height < 50, (
         f"Height should be around 39 pixels for 10mm at 100dpi, got {height}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_rgb565_alpha_animation_layout_per_frame(
+    tmp_path: Path,
+    mock_progmem_array: MagicMock,
+) -> None:
+    """RGB565+alpha animations must store each frame as a self-contained
+    [RGB plane | alpha plane] block. Animation::update_data_start_ steps frames
+    with a single per-frame stride, so any cross-frame layout (all RGB then all
+    alpha) makes the C++ alpha read land in the next frame's RGB bytes — that
+    was the regression behind issue #15999.
+    """
+    # Build a 2-frame APNG where each frame is a solid color with a known
+    # alpha. APNG preserves full RGBA per pixel (GIF only has 1-bit alpha so
+    # round-tripping mid-range alpha values does not work). Frame 0 is fully
+    # opaque red, frame 1 is fully transparent blue.
+    width = 4
+    height = 3
+    frame0 = PILImage.new("RGBA", (width, height), (255, 0, 0, 0xFF))
+    frame1 = PILImage.new("RGBA", (width, height), (0, 0, 255, 0x00))
+    apng_path = tmp_path / "anim.png"
+    frame0.save(
+        apng_path,
+        format="PNG",
+        save_all=True,
+        append_images=[frame1],
+        duration=100,
+        loop=0,
+    )
+
+    config = {
+        CONF_FILE: str(apng_path),
+        CONF_TYPE: "RGB565",
+        CONF_TRANSPARENCY: CONF_ALPHA_CHANNEL,
+        CONF_DITHER: "NONE",
+        CONF_INVERT_ALPHA: False,
+        CONF_RAW_DATA_ID: "test_raw_data_id",
+    }
+
+    _, _, _, _, _, frame_count = await write_image(config, all_frames=True)
+    assert frame_count == 2
+
+    # Recover the bytes handed to progmem_array. Signature is (id_, rhs).
+    _, raw_data = mock_progmem_array.call_args.args
+    data = [int(x) for x in raw_data]
+
+    rgb_size = width * height * 2
+    alpha_size = width * height
+    frame_size = rgb_size + alpha_size
+    assert len(data) == frame_size * frame_count, (
+        "RGB565+alpha animation buffer must be (RGB + alpha) per frame, not "
+        "all RGB followed by all alpha"
+    )
+
+    # Frame 0: RGB plane is red, alpha plane is 0xFF. Frame 1: alpha plane is
+    # 0x00. If the layout regresses to [all RGB | all alpha], the alpha bytes
+    # would all land at the tail of the buffer and the per-frame slices below
+    # would point at RGB565 noise instead.
+    frame0_alpha = data[rgb_size : rgb_size + alpha_size]
+    frame1_alpha = data[frame_size + rgb_size : frame_size + rgb_size + alpha_size]
+    assert all(a == 0xFF for a in frame0_alpha), (
+        f"Frame 0 alpha plane should be opaque, got {frame0_alpha}"
+    )
+    assert all(a == 0x00 for a in frame1_alpha), (
+        f"Frame 1 alpha plane should be transparent, got {frame1_alpha}"
     )

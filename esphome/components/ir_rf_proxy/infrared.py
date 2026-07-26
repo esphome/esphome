@@ -4,6 +4,7 @@ from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import infrared, remote_receiver, remote_transmitter
+from esphome.components.const import CONF_RECEIVER_FREQUENCY
 import esphome.config_validation as cv
 from esphome.const import CONF_CARRIER_DUTY_PERCENT, CONF_FREQUENCY
 import esphome.final_validate as fv
@@ -19,6 +20,7 @@ CONFIG_SCHEMA = cv.All(
     infrared.infrared_schema(IrRfProxy).extend(
         {
             cv.Optional(CONF_FREQUENCY, default=0): cv.frequency,
+            cv.Optional(CONF_RECEIVER_FREQUENCY): cv.frequency,
             cv.Optional(CONF_REMOTE_RECEIVER_ID): cv.use_id(
                 remote_receiver.RemoteReceiverComponent
             ),
@@ -33,7 +35,14 @@ CONFIG_SCHEMA = cv.All(
 
 def _final_validate(config: dict[str, Any]) -> None:
     """Validate that transmitters have a proper carrier duty cycle."""
-    # Only validate if this is an infrared (not RF) configuration with a transmitter
+    # receiver_frequency is only meaningful for receiver configurations
+    if CONF_RECEIVER_FREQUENCY in config and CONF_REMOTE_RECEIVER_ID not in config:
+        raise cv.Invalid(
+            f"'{CONF_RECEIVER_FREQUENCY}' can only be used with '{CONF_REMOTE_RECEIVER_ID}', "
+            "not with a transmitter"
+        )
+
+    # Only validate duty cycle if this is an infrared (not RF) configuration with a transmitter
     if config.get(CONF_FREQUENCY, 0) != 0 or CONF_REMOTE_TRANSMITTER_ID not in config:
         return
 
@@ -75,3 +84,7 @@ async def to_code(config: dict[str, Any]) -> None:
     if CONF_REMOTE_RECEIVER_ID in config:
         receiver = await cg.get_variable(config[CONF_REMOTE_RECEIVER_ID])
         cg.add(var.set_receiver(receiver))
+
+    # Set receiver demodulation frequency if specified (metadata only, no hardware effect)
+    if CONF_RECEIVER_FREQUENCY in config:
+        cg.add(var.set_receiver_frequency(config[CONF_RECEIVER_FREQUENCY]))

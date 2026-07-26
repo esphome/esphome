@@ -51,6 +51,8 @@
 #define SO_REUSEADDR 0x0004 /* Allow local address reuse */
 #define SO_KEEPALIVE 0x0008 /* keep connections alive */
 #define SO_BROADCAST 0x0020 /* permit to send and to receive broadcast messages (see IP_SOF_BROADCAST option) */
+#define SO_RCVTIMEO 0x1006  /* receive timeout */
+#define SO_SNDTIMEO 0x1005  /* send timeout */
 
 #define SOL_SOCKET 0xfff /* options for socket level */
 
@@ -102,7 +104,7 @@ struct iovec {
   size_t iov_len;
 };
 
-#if defined(USE_ESP8266) || defined(USE_RP2040)
+#if defined(USE_ESP8266) || defined(USE_RP2)
 // arduino-esp8266 declares a global vars called INADDR_NONE/ANY which are invalid with the define
 #ifdef INADDR_ANY
 #undef INADDR_ANY
@@ -156,7 +158,9 @@ using socklen_t = uint32_t;
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#ifndef USE_ZEPHYR
 #include <sys/uio.h>
+#endif
 #include <unistd.h>
 
 #ifdef USE_HOST
@@ -165,6 +169,10 @@ using socklen_t = uint32_t;
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
 #endif  // USE_HOST
+#ifdef USE_ZEPHYR
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#endif  // USE_ZEPHYR
 
 #ifdef USE_ARDUINO
 // arduino-esp32 declares a global var called INADDR_NONE which is replaced
@@ -183,3 +191,20 @@ using socklen_t = uint32_t;
 #endif
 
 #endif  // USE_SOCKET_IMPL_BSD_SOCKETS
+
+#if defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
+
+namespace esphome::socket {
+
+// Maximum length for formatted socket address string (IP address without port)
+// IPv4: "255.255.255.255" = 15 chars + null = 16
+// IPv6: full address = 45 chars + null = 46
+#if USE_NETWORK_IPV6
+static constexpr size_t SOCKADDR_STR_LEN = 46;  // INET6_ADDRSTRLEN
+#else
+static constexpr size_t SOCKADDR_STR_LEN = 16;  // INET_ADDRSTRLEN
+#endif
+
+}  // namespace esphome::socket
+
+#endif

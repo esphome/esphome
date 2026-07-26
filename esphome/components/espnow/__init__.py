@@ -1,6 +1,6 @@
 from esphome import automation, core
 import esphome.codegen as cg
-from esphome.components import socket, wifi
+from esphome.components import wifi
 from esphome.components.udp import CONF_ON_RECEIVE
 import esphome.config_validation as cv
 from esphome.const import (
@@ -17,7 +17,7 @@ from esphome.core import HexInt
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
-AUTO_LOAD = ["socket"]
+AUTO_LOAD = ["network"]
 
 byte_vector = cg.std_vector.template(cg.uint8)
 peer_address_t = cg.std_ns.class_("array").template(cg.uint8, 6)
@@ -26,9 +26,9 @@ espnow_ns = cg.esphome_ns.namespace("espnow")
 ESPNowComponent = espnow_ns.class_("ESPNowComponent", cg.Component)
 
 # Handler interfaces that other components can use to register callbacks
-ESPNowReceivedPacketHandler = espnow_ns.class_("ESPNowReceivedPacketHandler")
+ESPNowReceivePacketHandler = espnow_ns.class_("ESPNowReceivePacketHandler")
 ESPNowUnknownPeerHandler = espnow_ns.class_("ESPNowUnknownPeerHandler")
-ESPNowBroadcastedHandler = espnow_ns.class_("ESPNowBroadcastedHandler")
+ESPNowBroadcastHandler = espnow_ns.class_("ESPNowBroadcastHandler")
 
 ESPNowRecvInfo = espnow_ns.class_("ESPNowRecvInfo")
 ESPNowRecvInfoConstRef = ESPNowRecvInfo.operator("const").operator("ref")
@@ -41,21 +41,35 @@ DeletePeerAction = espnow_ns.class_("DeletePeerAction", automation.Action)
 ESPNowHandlerTrigger = automation.Trigger.template(
     ESPNowRecvInfoConstRef,
     cg.uint8.operator("const").operator("ptr"),
-    cg.uint8,
+    cg.uint16,
 )
 
 OnUnknownPeerTrigger = espnow_ns.class_(
     "OnUnknownPeerTrigger", ESPNowHandlerTrigger, ESPNowUnknownPeerHandler
 )
 OnReceiveTrigger = espnow_ns.class_(
-    "OnReceiveTrigger", ESPNowHandlerTrigger, ESPNowReceivedPacketHandler
+    "OnReceiveTrigger", ESPNowHandlerTrigger, ESPNowReceivePacketHandler
 )
-OnBroadcastedTrigger = espnow_ns.class_(
-    "OnBroadcastedTrigger", ESPNowHandlerTrigger, ESPNowBroadcastedHandler
+OnBroadcastTrigger = espnow_ns.class_(
+    "OnBroadcastTrigger", ESPNowHandlerTrigger, ESPNowBroadcastHandler
 )
 
 
 CONF_AUTO_ADD_PEER = "auto_add_peer"
+CONF_MAX_PAYLOAD_SIZE = "max_payload_size"
+
+# Payload limits of ESP-NOW v1 and v2 frames. The radio negotiates the
+# protocol version per peer on its own; the option only sizes this device's
+# packet buffers, whose static RAM cost is proportional to it (~8 KB at 250
+# bytes, ~44 KB at 1470).
+ESPNOW_PAYLOAD_V1 = 250
+ESPNOW_PAYLOAD_V2 = 1470
+
+# Config-time cap for action payloads. The per-device limit is the
+# ``max_payload_size`` option, which the action schema cannot see; send()
+# enforces it at runtime.
+MAX_ESPNOW_PACKET_SIZE = ESPNOW_PAYLOAD_V2
+
 CONF_PEERS = "peers"
 CONF_ON_SENT = "on_sent"
 CONF_ON_UNKNOWN_PEER = "on_unknown_peer"
@@ -63,7 +77,15 @@ CONF_ON_BROADCAST = "on_broadcast"
 CONF_CONTINUE_ON_ERROR = "continue_on_error"
 CONF_WAIT_FOR_SENT = "wait_for_sent"
 
-MAX_ESPNOW_PACKET_SIZE = 250  # Maximum size of the payload in bytes
+
+def _validate_max_payload_size(value: int) -> int:
+    if value > ESPNOW_PAYLOAD_V1:
+        return cv.require_framework_version(
+            esp_idf=cv.Version(5, 4, 0),
+            esp32_arduino=cv.Version(3, 2, 0),
+            extra_message="ESP-NOW v2 frames need an ESP-NOW v2 capable framework",
+        )(value)
+    return value
 
 
 def validate_channel(value):
@@ -78,6 +100,9 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(ESPNowComponent),
             cv.OnlyWithout(CONF_CHANNEL, CONF_WIFI): validate_channel,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
+            cv.Optional(CONF_MAX_PAYLOAD_SIZE, default=ESPNOW_PAYLOAD_V1): cv.All(
+                cv.int_range(min=1, max=ESPNOW_PAYLOAD_V2), _validate_max_payload_size
+            ),
             cv.Optional(CONF_AUTO_ADD_PEER, default=False): cv.boolean,
             cv.Optional(CONF_PEERS): cv.ensure_list(cv.mac_address),
             cv.Optional(CONF_ON_UNKNOWN_PEER): automation.validate_automation(
@@ -94,7 +119,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ON_BROADCAST): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnBroadcastedTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnBroadcastTrigger),
                     cv.Optional(CONF_ADDRESS): cv.mac_address,
                 }
             ),
@@ -113,7 +138,7 @@ async def _trigger_to_code(config):
         [
             (ESPNowRecvInfoConstRef, "info"),
             (cg.uint8.operator("const").operator("ptr"), "data"),
-            (cg.uint8, "size"),
+            (cg.uint16, "size"),
         ],
         config,
     )
@@ -124,14 +149,12 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    # ESP-NOW uses wake_loop_threadsafe() to wake the main loop from ESP-NOW callbacks
-    # This enables low-latency event processing instead of waiting for select() timeout
-    socket.require_wake_loop_threadsafe()
-
     cg.add_define("USE_ESPNOW")
+    cg.add_define("USE_ESPNOW_MAX_PAYLOAD_SIZE", config[CONF_MAX_PAYLOAD_SIZE])
     if wifi_channel := config.get(CONF_CHANNEL):
         cg.add(var.set_wifi_channel(wifi_channel))
 
+    cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
     cg.add(var.set_auto_add_peer(config[CONF_AUTO_ADD_PEER]))
 
     for peer in config.get(CONF_PEERS, []):
@@ -143,11 +166,11 @@ async def to_code(config):
 
     for on_receive in config.get(CONF_ON_RECEIVE, []):
         trigger = await _trigger_to_code(on_receive)
-        cg.add(var.register_received_handler(trigger))
+        cg.add(var.register_receive_handler(trigger))
 
     for on_receive in config.get(CONF_ON_BROADCAST, []):
         trigger = await _trigger_to_code(on_receive)
-        cg.add(var.register_broadcasted_handler(trigger))
+        cg.add(var.register_broadcast_handler(trigger))
 
 
 # ========================================== A C T I O N S ================================================
@@ -161,15 +184,15 @@ def validate_peer(value):
 
 def _validate_raw_data(value):
     if isinstance(value, str):
-        if len(value) >= MAX_ESPNOW_PACKET_SIZE:
+        if len(value) > MAX_ESPNOW_PACKET_SIZE:
             raise cv.Invalid(
-                f"'{CONF_DATA}' must be less than {MAX_ESPNOW_PACKET_SIZE} characters long, got {len(value)}"
+                f"'{CONF_DATA}' must be at most {MAX_ESPNOW_PACKET_SIZE} characters long, got {len(value)}"
             )
         return value
     if isinstance(value, list):
         if len(value) > MAX_ESPNOW_PACKET_SIZE:
             raise cv.Invalid(
-                f"'{CONF_DATA}' must be less than {MAX_ESPNOW_PACKET_SIZE} bytes long, got {len(value)}"
+                f"'{CONF_DATA}' must be at most {MAX_ESPNOW_PACKET_SIZE} bytes long, got {len(value)}"
             )
         return cv.Schema([cv.hex_uint8_t])(value)
     raise cv.Invalid(
@@ -220,6 +243,7 @@ SEND_SCHEMA.add_extra(_validate_send_action)
     "espnow.send",
     SendAction,
     SEND_SCHEMA,
+    synchronous=False,
 )
 @automation.register_action(
     "espnow.broadcast",
@@ -232,6 +256,7 @@ SEND_SCHEMA.add_extra(_validate_send_action)
         ),
         key=CONF_DATA,
     ),
+    synchronous=False,
 )
 async def send_action(
     config: ConfigType,
@@ -246,7 +271,7 @@ async def send_action(
 
     data = config.get(CONF_DATA, [])
     if isinstance(data, str):
-        data = [cg.RawExpression(f"'{c}'") for c in data]
+        data = list(data.encode())
     templ = await cg.templatable(data, args, byte_vector, byte_vector)
     cg.add(var.set_data(templ))
 
@@ -271,6 +296,7 @@ async def send_action(
         PEER_SCHEMA,
         key=CONF_ADDRESS,
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "espnow.peer.delete",
@@ -279,6 +305,7 @@ async def send_action(
         PEER_SCHEMA,
         key=CONF_ADDRESS,
     ),
+    synchronous=True,
 )
 async def peer_action(
     config: ConfigType,
@@ -303,6 +330,7 @@ async def peer_action(
         },
         key=CONF_CHANNEL,
     ),
+    synchronous=True,
 )
 async def channel_action(
     config: ConfigType,

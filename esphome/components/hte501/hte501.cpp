@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace hte501 {
+namespace esphome::hte501 {
 
 static const char *const TAG = "hte501";
 
@@ -49,7 +48,7 @@ void HTE501Component::update() {
   this->set_timeout(50, [this]() {
     uint8_t i2c_response[6];
     this->read(i2c_response, 6);
-    if (i2c_response[2] != crc8(i2c_response, 2, 0xFF, 0x31, true) &&
+    if (i2c_response[2] != crc8(i2c_response, 2, 0xFF, 0x31, true) ||
         i2c_response[5] != crc8(i2c_response + 3, 2, 0xFF, 0x31, true)) {
       this->error_code_ = CRC_CHECK_FAILED;
       this->status_set_warning();
@@ -71,5 +70,4 @@ void HTE501Component::update() {
     this->status_clear_warning();
   });
 }
-}  // namespace hte501
-}  // namespace esphome
+}  // namespace esphome::hte501

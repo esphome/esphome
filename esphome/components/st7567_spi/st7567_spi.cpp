@@ -1,8 +1,7 @@
 #include "st7567_spi.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace st7567_spi {
+namespace esphome::st7567_spi {
 
 static const char *const TAG = "st7567_spi";
 
@@ -63,5 +62,4 @@ void HOT SPIST7567::write_display_data() {
   }
 }
 
-}  // namespace st7567_spi
-}  // namespace esphome
+}  // namespace esphome::st7567_spi

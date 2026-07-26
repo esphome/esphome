@@ -98,8 +98,6 @@ class MQTTComponent : public Component {
   /// Override setup_ so that we can call send_discovery() when needed.
   void call_setup() override;
 
-  void call_dump_config() override;
-
   /// Send discovery info the Home Assistant, override this.
   virtual void send_discovery(JsonObject root, SendDiscoveryConfig &config) = 0;
 
@@ -148,6 +146,9 @@ class MQTTComponent : public Component {
 
   /// Internal method for the MQTT client base to schedule a resend of the state on reconnect.
   void schedule_resend_state();
+
+  /// Check if a resend is pending (called by MQTTClientComponent to rate-limit work)
+  bool is_resend_pending() const { return this->resend_state_; }
 
   /// Process pending resend if needed (called by MQTTClientComponent)
   void process_resend();
@@ -300,8 +301,8 @@ class MQTTComponent : public Component {
   /// Get the friendly name of this MQTT component.
   const StringRef &friendly_name_() const;
 
-  /// Get the icon field of this component as StringRef
-  StringRef get_icon_ref_() const;
+  /// Get the icon field of this component into a stack buffer
+  const char *get_icon_to_(std::span<char, MAX_ICON_LENGTH> buf) const { return this->get_entity()->get_icon_to(buf); }
 
   /// Get whether the underlying Entity is disabled by default
   bool is_disabled_by_default_() const;

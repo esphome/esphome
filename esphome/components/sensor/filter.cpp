@@ -1,18 +1,17 @@
+#include "esphome/core/defines.h"
+#ifdef USE_SENSOR_FILTER
+
 #include "filter.h"
 #include <cmath>
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "sensor.h"
 
 namespace esphome::sensor {
 
 static const char *const TAG = "sensor.filter";
-
-// Filter scheduler IDs.
-// Each filter is its own Component instance, so the scheduler scopes
-// IDs by component pointer — no risk of collisions between instances.
-constexpr uint32_t FILTER_ID = 0;
 
 // Filter
 void Filter::input(float value) {
@@ -37,26 +36,14 @@ void Filter::initialize(Sensor *parent, Filter *next) {
 }
 
 // SlidingWindowFilter
-SlidingWindowFilter::SlidingWindowFilter(size_t window_size, size_t send_every, size_t send_first_at)
-    : window_size_(window_size), send_every_(send_every), send_at_(send_every - send_first_at) {
-  // Allocate ring buffer once at initialization
+SlidingWindowFilter::SlidingWindowFilter(uint16_t window_size, uint16_t send_every, uint16_t send_first_at)
+    : send_every_(send_every), send_at_(send_every - send_first_at) {
   this->window_.init(window_size);
 }
 
 optional<float> SlidingWindowFilter::new_value(float value) {
-  // Add value to ring buffer
-  if (this->window_count_ < this->window_size_) {
-    // Buffer not yet full - just append
-    this->window_.push_back(value);
-    this->window_count_++;
-  } else {
-    // Buffer full - overwrite oldest value (ring buffer)
-    this->window_[this->window_head_] = value;
-    this->window_head_++;
-    if (this->window_head_ >= this->window_size_) {
-      this->window_head_ = 0;
-    }
-  }
+  // Add value to ring buffer (overwrites oldest when full)
+  this->window_.push_overwrite(value);
 
   // Check if we should send a result
   if (++this->send_at_ >= this->send_every_) {
@@ -73,9 +60,8 @@ FixedVector<float> SortedWindowFilter::get_window_values_() {
   // Copy window without NaN values using FixedVector (no heap allocation)
   // Returns unsorted values - caller will use std::nth_element for partial sorting as needed
   FixedVector<float> values;
-  values.init(this->window_count_);
-  for (size_t i = 0; i < this->window_count_; i++) {
-    float v = this->window_[i];
+  values.init(this->window_.size());
+  for (float v : this->window_) {
     if (!std::isnan(v)) {
       values.push_back(v);
     }
@@ -146,8 +132,7 @@ float MaxFilter::compute_result() { return this->find_extremum_<std::greater<flo
 float SlidingWindowMovingAverageFilter::compute_result() {
   float sum = 0;
   size_t valid_count = 0;
-  for (size_t i = 0; i < this->window_count_; i++) {
-    float v = this->window_[i];
+  for (float v : this->window_) {
     if (!std::isnan(v)) {
       sum += v;
       valid_count++;
@@ -157,7 +142,7 @@ float SlidingWindowMovingAverageFilter::compute_result() {
 }
 
 // ExponentialMovingAverageFilter
-ExponentialMovingAverageFilter::ExponentialMovingAverageFilter(float alpha, size_t send_every, size_t send_first_at)
+ExponentialMovingAverageFilter::ExponentialMovingAverageFilter(float alpha, uint16_t send_every, uint16_t send_first_at)
     : alpha_(alpha), send_every_(send_every), send_at_(send_every - send_first_at) {}
 optional<float> ExponentialMovingAverageFilter::new_value(float value) {
   if (!std::isnan(value)) {
@@ -179,7 +164,7 @@ optional<float> ExponentialMovingAverageFilter::new_value(float value) {
   }
   return {};
 }
-void ExponentialMovingAverageFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
+void ExponentialMovingAverageFilter::set_send_every(uint16_t send_every) { this->send_every_ = send_every; }
 void ExponentialMovingAverageFilter::set_alpha(float alpha) { this->alpha_ = alpha; }
 
 // ThrottleAverageFilter
@@ -195,8 +180,9 @@ optional<float> ThrottleAverageFilter::new_value(float value) {
   }
   return {};
 }
-void ThrottleAverageFilter::setup() {
-  this->set_interval(FILTER_ID, this->time_period_, [this]() {
+void ThrottleAverageFilter::initialize(Sensor *parent, Filter *next) {
+  Filter::initialize(parent, next);
+  App.scheduler.set_interval(this, this->time_period_, [this]() {
     ESP_LOGVV(TAG, "ThrottleAverageFilter(%p)::interval(sum=%f, n=%i)", this, this->sum_, this->n_);
     if (this->n_ == 0) {
       if (this->have_nan_)
@@ -209,7 +195,6 @@ void ThrottleAverageFilter::setup() {
     this->have_nan_ = false;
   });
 }
-float ThrottleAverageFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 // LambdaFilter
 LambdaFilter::LambdaFilter(lambda_filter_t lambda_filter) : lambda_filter_(std::move(lambda_filter)) {}
@@ -223,25 +208,23 @@ optional<float> LambdaFilter::new_value(float value) {
 }
 
 // OffsetFilter
-OffsetFilter::OffsetFilter(TemplatableValue<float> offset) : offset_(std::move(offset)) {}
+OffsetFilter::OffsetFilter(TemplatableFn<float> offset) : offset_(offset) {}
 
 optional<float> OffsetFilter::new_value(float value) { return value + this->offset_.value(); }
 
 // MultiplyFilter
-MultiplyFilter::MultiplyFilter(TemplatableValue<float> multiplier) : multiplier_(std::move(multiplier)) {}
+MultiplyFilter::MultiplyFilter(TemplatableFn<float> multiplier) : multiplier_(multiplier) {}
 
 optional<float> MultiplyFilter::new_value(float value) { return value * this->multiplier_.value(); }
 
-// ValueListFilter (base class)
-ValueListFilter::ValueListFilter(std::initializer_list<TemplatableValue<float>> values) : values_(values) {}
-
-bool ValueListFilter::value_matches_any_(float sensor_value) {
-  int8_t accuracy = this->parent_->get_accuracy_decimals();
-  float accuracy_mult = powf(10.0f, accuracy);
+// ValueListFilter helper (non-template, shared by all ValueListFilter<N> instantiations)
+bool value_list_matches_any(Sensor *parent, float sensor_value, const TemplatableFn<float> *values, size_t count) {
+  int8_t accuracy = parent->get_accuracy_decimals();
+  float accuracy_mult = pow10_int(accuracy);
   float rounded_sensor = roundf(accuracy_mult * sensor_value);
 
-  for (auto &filter_value : this->values_) {
-    float fv = filter_value.value();
+  for (size_t i = 0; i < count; i++) {
+    float fv = values[i].value();
 
     // Handle NaN comparison
     if (std::isnan(fv)) {
@@ -258,16 +241,6 @@ bool ValueListFilter::value_matches_any_(float sensor_value) {
   return false;
 }
 
-// FilterOutValueFilter
-FilterOutValueFilter::FilterOutValueFilter(std::initializer_list<TemplatableValue<float>> values_to_filter_out)
-    : ValueListFilter(values_to_filter_out) {}
-
-optional<float> FilterOutValueFilter::new_value(float value) {
-  if (this->value_matches_any_(value))
-    return {};   // Filter out
-  return value;  // Pass through
-}
-
 // ThrottleFilter
 ThrottleFilter::ThrottleFilter(uint32_t min_time_between_inputs) : min_time_between_inputs_(min_time_between_inputs) {}
 optional<float> ThrottleFilter::new_value(float value) {
@@ -279,16 +252,24 @@ optional<float> ThrottleFilter::new_value(float value) {
   return {};
 }
 
-// ThrottleWithPriorityFilter
-ThrottleWithPriorityFilter::ThrottleWithPriorityFilter(
-    uint32_t min_time_between_inputs, std::initializer_list<TemplatableValue<float>> prioritized_values)
-    : ValueListFilter(prioritized_values), min_time_between_inputs_(min_time_between_inputs) {}
-
-optional<float> ThrottleWithPriorityFilter::new_value(float value) {
+// ThrottleWithPriorityFilter helper (non-template, keeps App access in .cpp)
+optional<float> throttle_with_priority_new_value(Sensor *parent, float value, const TemplatableFn<float> *values,
+                                                 size_t count, uint32_t &last_input, uint32_t min_time_between_inputs) {
   const uint32_t now = App.get_loop_component_start_time();
-  // Allow value through if: no previous input, time expired, or is prioritized
-  if (this->last_input_ == 0 || now - this->last_input_ >= min_time_between_inputs_ ||
-      this->value_matches_any_(value)) {
+  if (last_input == 0 || now - last_input >= min_time_between_inputs ||
+      value_list_matches_any(parent, value, values, count)) {
+    last_input = now;
+    return value;
+  }
+  return {};
+}
+
+// ThrottleWithPriorityNanFilter
+ThrottleWithPriorityNanFilter::ThrottleWithPriorityNanFilter(uint32_t min_time_between_inputs)
+    : min_time_between_inputs_(min_time_between_inputs) {}
+optional<float> ThrottleWithPriorityNanFilter::new_value(float value) {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->last_input_ == 0 || now - this->last_input_ >= this->min_time_between_inputs_ || std::isnan(value)) {
     this->last_input_ = now;
     return value;
   }
@@ -321,31 +302,19 @@ optional<float> DeltaFilter::new_value(float value) {
   return {};
 }
 
-// OrFilter
-OrFilter::OrFilter(std::initializer_list<Filter *> filters) : filters_(filters), phi_(this) {}
-OrFilter::PhiNode::PhiNode(OrFilter *or_parent) : or_parent_(or_parent) {}
-
-optional<float> OrFilter::PhiNode::new_value(float value) {
-  if (!this->or_parent_->has_value_) {
-    this->or_parent_->output(value);
-    this->or_parent_->has_value_ = true;
+// OrFilter helpers
+void or_filter_initialize(Filter **filters, size_t count, Sensor *parent, Filter *phi) {
+  for (size_t i = 0; i < count; i++) {
+    filters[i]->initialize(parent, phi);
   }
-
-  return {};
+  phi->initialize(parent, nullptr);
 }
-optional<float> OrFilter::new_value(float value) {
-  this->has_value_ = false;
-  for (auto *filter : this->filters_)
-    filter->input(value);
 
+optional<float> or_filter_new_value(Filter **filters, size_t count, float value, bool &has_value) {
+  has_value = false;
+  for (size_t i = 0; i < count; i++)
+    filters[i]->input(value);
   return {};
-}
-void OrFilter::initialize(Sensor *parent, Filter *next) {
-  Filter::initialize(parent, next);
-  for (auto *filter : this->filters_) {
-    filter->initialize(parent, &this->phi_);
-  }
-  this->phi_.initialize(parent, nullptr);
 }
 
 // TimeoutFilterBase - shared loop logic
@@ -388,13 +357,12 @@ optional<float> TimeoutFilterConfigured::new_value(float value) {
 
 // DebounceFilter
 optional<float> DebounceFilter::new_value(float value) {
-  this->set_timeout(FILTER_ID, this->time_period_, [this, value]() { this->output(value); });
+  App.scheduler.set_timeout(this, this->time_period_, [this, value]() { this->output(value); });
 
   return {};
 }
 
 DebounceFilter::DebounceFilter(uint32_t time_period) : time_period_(time_period) {}
-float DebounceFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 // HeartbeatFilter
 HeartbeatFilter::HeartbeatFilter(uint32_t time_period) : time_period_(time_period), last_input_(NAN) {}
@@ -410,8 +378,9 @@ optional<float> HeartbeatFilter::new_value(float value) {
   return {};
 }
 
-void HeartbeatFilter::setup() {
-  this->set_interval(FILTER_ID, this->time_period_, [this]() {
+void HeartbeatFilter::initialize(Sensor *parent, Filter *next) {
+  Filter::initialize(parent, next);
+  App.scheduler.set_interval(this, this->time_period_, [this]() {
     ESP_LOGVV(TAG, "HeartbeatFilter(%p)::interval(has_value=%s, last_input=%f)", this, YESNO(this->has_value_),
               this->last_input_);
     if (!this->has_value_)
@@ -421,27 +390,19 @@ void HeartbeatFilter::setup() {
   });
 }
 
-float HeartbeatFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
-
-CalibrateLinearFilter::CalibrateLinearFilter(std::initializer_list<std::array<float, 3>> linear_functions)
-    : linear_functions_(linear_functions) {}
-
-optional<float> CalibrateLinearFilter::new_value(float value) {
-  for (const auto &f : this->linear_functions_) {
-    if (!std::isfinite(f[2]) || value < f[2])
-      return (value * f[0]) + f[1];
+optional<float> calibrate_linear_compute(const std::array<float, 3> *functions, size_t count, float value) {
+  for (size_t i = 0; i < count; i++) {
+    if (!std::isfinite(functions[i][2]) || value < functions[i][2])
+      return (value * functions[i][0]) + functions[i][1];
   }
   return NAN;
 }
 
-CalibratePolynomialFilter::CalibratePolynomialFilter(std::initializer_list<float> coefficients)
-    : coefficients_(coefficients) {}
-
-optional<float> CalibratePolynomialFilter::new_value(float value) {
+optional<float> calibrate_polynomial_compute(const float *coefficients, size_t count, float value) {
   float res = 0.0f;
   float x = 1.0f;
-  for (const auto &coefficient : this->coefficients_) {
-    res += x * coefficient;
+  for (size_t i = 0; i < count; i++) {
+    res += x * coefficients[i];
     x *= value;
   }
   return res;
@@ -469,7 +430,7 @@ optional<float> ClampFilter::new_value(float value) {
 RoundFilter::RoundFilter(uint8_t precision) : precision_(precision) {}
 optional<float> RoundFilter::new_value(float value) {
   if (std::isfinite(value)) {
-    float accuracy_mult = powf(10.0f, this->precision_);
+    float accuracy_mult = pow10_int(this->precision_);
     return roundf(accuracy_mult * value) / accuracy_mult;
   }
   return value;
@@ -507,7 +468,7 @@ optional<float> ToNTCTemperatureFilter::new_value(float value) {
 }
 
 // StreamingFilter (base class)
-StreamingFilter::StreamingFilter(size_t window_size, size_t send_first_at)
+StreamingFilter::StreamingFilter(uint16_t window_size, uint16_t send_first_at)
     : window_size_(window_size), send_first_at_(send_first_at) {}
 
 optional<float> StreamingFilter::new_value(float value) {
@@ -580,3 +541,5 @@ void StreamingMovingAverageFilter::reset_batch() {
 }
 
 }  // namespace esphome::sensor
+
+#endif  // USE_SENSOR_FILTER

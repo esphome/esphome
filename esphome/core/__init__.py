@@ -5,9 +5,10 @@ import math
 import os
 from pathlib import Path
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from esphome.const import (
+    CONF_BUILD_PATH,
     CONF_COMMENT,
     CONF_ESPHOME,
     CONF_ETHERNET,
@@ -17,7 +18,6 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     KEY_CORE,
-    KEY_NATIVE_IDF,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_BK72XX,
@@ -26,8 +26,9 @@ from esphome.const import (
     PLATFORM_HOST,
     PLATFORM_LN882X,
     PLATFORM_NRF52,
-    PLATFORM_RP2040,
+    PLATFORM_RP2,
     PLATFORM_RTL87XX,
+    Toolchain,
 )
 
 # pylint: disable=unused-import
@@ -51,6 +52,11 @@ _LOGGER = logging.getLogger(__name__)
 
 # Key for tracking controller count in CORE.data for ControllerRegistry StaticVector sizing
 KEY_CONTROLLER_REGISTRY_COUNT = "controller_registry_count"
+
+# CORE.data key for the "is_rp2040 deprecation warning already fired this
+# run" flag. Mirrors the ``cv.only_on_rp2040`` dedupe pattern; cleared
+# between runs so each fresh invocation warns once.
+_IS_RP2040_DEPRECATED_KEY = "_core_is_rp2040_deprecated_warned"
 
 
 class EsphomeError(Exception):
@@ -569,6 +575,15 @@ class EsphomeCore:
         self.build_path: Path | None = None
         # The validated configuration, this is None until the config has been validated
         self.config: ConfigType | None = None
+        # The raw configuration as read from YAML (after packages/substitutions),
+        # available during validation before the config is fully validated
+        self.raw_config: ConfigType | None = None
+        # YAML frontmatter loaded from user YAML files. Frontmatter is a leading
+        # YAML document separated by `---` from the actual configuration. It is
+        # ignored by config validation and code generation, but kept here so it
+        # can be inspected by callers (tooling, future features). Keyed by the
+        # resolved Path of the source file.
+        self.frontmatter: dict[Path, Any] = {}
         # The pending tasks in the task queue (mostly for C++ generation)
         # This is a priority queue (with heapq)
         # Each item is a tuple of form: (-priority, unique number, task)
@@ -585,8 +600,13 @@ class EsphomeCore:
         self.platformio_libraries: dict[str, Library] = {}
         # A set of build flags to set in the platformio project
         self.build_flags: set[str] = set()
+        # A set of build flags that apply to C++ compiles only (CXXFLAGS /
+        # CXX_COMPILE_OPTIONS), for flags GCC rejects or warns about on C
+        self.cxx_build_flags: set[str] = set()
         # A set of build unflags to set in the platformio project
         self.build_unflags: set[str] = set()
+        # The C++ language standard for the build (e.g. "gnu++20"), set via cg.set_cpp_standard()
+        self.cpp_standard: str | None = None
         # A set of defines to set for the compile process in esphome/core/defines.h
         self.defines: set[Define] = set()
         # A map of all platformio options to apply
@@ -615,6 +635,13 @@ class EsphomeCore:
         self.address_cache: AddressCache | None = None
         # Cached config hash (computed lazily)
         self._config_hash: int | None = None
+        # When True, skip network freshness checks for cached external files
+        # (e.g. for `esphome logs`, where remote downloads aren't needed)
+        self.skip_external_update: bool = False
+        # Toolchain used for building the configuration. None until resolved
+        # by CLI (--toolchain) or by `esphome.toolchain:` in YAML during
+        # preload_core_config; defaults to PLATFORMIO if neither sets it.
+        self.toolchain: Toolchain | None = None
 
     def reset(self):
         from esphome.pins import PIN_SCHEMA_REGISTRY
@@ -627,6 +654,8 @@ class EsphomeCore:
         self.config_path = None
         self.build_path = None
         self.config = None
+        self.raw_config = None
+        self.frontmatter = {}
         self.event_loop = _FakeEventLoop()
         self.task_counter = 0
         self.variables = {}
@@ -634,7 +663,9 @@ class EsphomeCore:
         self.global_statements = []
         self.platformio_libraries = {}
         self.build_flags = set()
+        self.cxx_build_flags = set()
         self.build_unflags = set()
+        self.cpp_standard = None
         self.defines = set()
         self.platformio_options = {}
         self.loaded_integrations = set()
@@ -644,6 +675,8 @@ class EsphomeCore:
         self.current_component = None
         self.address_cache = None
         self._config_hash = None
+        self.skip_external_update = False
+        self.toolchain = None
         PIN_SCHEMA_REGISTRY.reset()
 
     @contextmanager
@@ -699,12 +732,28 @@ class EsphomeCore:
 
         The hash is computed lazily and cached for performance.
         Uses sort_keys=True to ensure deterministic ordering.
+
+        The hash must be reproducible across machines so the device builder
+        can compare a locally computed hash against the one a device
+        advertises. Machine-local data is kept out of the input: build_path
+        (which embeds ESPHOME_BUILD_PATH and OS path separators) is excluded,
+        and Path values are dumped relative to the config directory.
         """
         if self._config_hash is None:
             from esphome import yaml_util
             from esphome.helpers import fnv1a_32bit_hash
 
-            config_str = yaml_util.dump(self.config, show_secrets=True, sort_keys=True)
+            config = dict(self.config)
+            if (esphome_conf := config.get(CONF_ESPHOME)) is not None:
+                esphome_conf = dict(esphome_conf)
+                esphome_conf.pop(CONF_BUILD_PATH, None)
+                config[CONF_ESPHOME] = esphome_conf
+            config_str = yaml_util.dump(
+                config,
+                show_secrets=True,
+                sort_keys=True,
+                relative_to=self.config_dir if self.config_path is not None else None,
+            )
             self._config_hash = fnv1a_32bit_hash(config_str)
         return self._config_hash
 
@@ -768,12 +817,32 @@ class EsphomeCore:
 
     @property
     def firmware_bin(self) -> Path:
-        # Check if using native ESP-IDF build (--native-idf)
-        if self.data.get(KEY_NATIVE_IDF, False):
+        # Check if using ESP-IDF toolchain
+        if self.using_toolchain_esp_idf:
             return self.relative_build_path("build", f"{self.name}.bin")
         if self.is_libretiny:
             return self.relative_pioenvs_path(self.name, "firmware.uf2")
+        if self.is_host:
+            # Host builds produce a native ELF/Mach-O named `program`.
+            return self.relative_pioenvs_path(self.name, "program")
         return self.relative_pioenvs_path(self.name, "firmware.bin")
+
+    @property
+    def partition_table_bin(self) -> Path:
+        # Native ESP-IDF (--toolchain esp-idf): the partition table image is emitted under
+        # build/partition_table/partition-table.bin alongside firmware.bin. PlatformIO writes the
+        # equivalent file as partitions.bin in the env-specific .pioenvs directory.
+        if self.using_toolchain_esp_idf:
+            return self.relative_build_path(
+                "build", "partition_table", "partition-table.bin"
+            )
+        return self.relative_pioenvs_path(self.name, "partitions.bin")
+
+    @property
+    def bootloader_bin(self) -> Path:
+        if self.using_toolchain_esp_idf:
+            return self.relative_build_path("build", "bootloader", "bootloader.bin")
+        return self.relative_pioenvs_path(self.name, "bootloader.bin")
 
     @property
     def target_platform(self):
@@ -788,8 +857,37 @@ class EsphomeCore:
         return self.target_platform == PLATFORM_ESP32
 
     @property
+    def is_rp2(self):
+        """Return True if the target platform is the RP2 chip family.
+
+        Canonical umbrella check covering RP2040, RP2350, and any future
+        RP2-series chip. Mirrors :attr:`is_esp32` for the ESP32 family.
+        For variant-specific gating (RP2040 vs RP2350), use
+        ``rp2.get_rp2040_variant()`` or ``rp2.only_on_variant(...)`` from
+        the rp2 component — variant detection doesn't belong on ``CORE``.
+        """
+        return self.target_platform == PLATFORM_RP2
+
+    @property
     def is_rp2040(self):
-        return self.target_platform == PLATFORM_RP2040
+        """Deprecated: use :attr:`is_rp2` for the family check, or
+        ``rp2.get_rp2040_variant() == rp2.VARIANT_RP2040`` for the
+        variant-specific check. Kept as an alias since pre-RP2350
+        callers used it as a family check, identical to ``is_rp2``.
+
+        Scheduled for removal in 2027.7.0. Logs a one-shot deprecation
+        warning per run (deduped via ``self.data`` so repeated reads in
+        the same invocation don't spam) to match the parallel
+        ``cv.only_on_rp2040`` shim.
+        """
+        if not self.data.get(_IS_RP2040_DEPRECATED_KEY):
+            _LOGGER.warning(
+                "CORE.is_rp2040 is deprecated; use CORE.is_rp2 for the family "
+                "gate, or rp2.get_rp2040_variant() == rp2.VARIANT_RP2040 for "
+                "the variant-specific check. Removed in 2027.7.0."
+            )
+            self.data[_IS_RP2040_DEPRECATED_KEY] = True
+        return self.is_rp2
 
     @property
     def is_bk72xx(self):
@@ -824,13 +922,16 @@ class EsphomeCore:
         return self.target_framework == "arduino"
 
     @property
-    def using_esp_idf(self):
-        _LOGGER.warning(
-            "CORE.using_esp_idf was deprecated in 2026.1, will change behavior in 2026.6. "
-            "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
-            "Use CORE.is_esp32 and/or CORE.using_arduino instead."
-        )
-        return self.target_framework == "esp-idf"
+    def using_toolchain_esp_idf(self):
+        return self.toolchain == Toolchain.ESP_IDF
+
+    @property
+    def using_toolchain_platformio(self):
+        return self.toolchain == Toolchain.PLATFORMIO
+
+    @property
+    def using_toolchain_sdk_nrf(self):
+        return self.toolchain == Toolchain.SDK_NRF
 
     @property
     def using_zephyr(self):
@@ -915,7 +1016,19 @@ class EsphomeCore:
         _LOGGER.debug("Adding build flag: %s", build_flag)
         return build_flag
 
+    def add_cxx_build_flag(self, build_flag: str) -> str:
+        self.cxx_build_flags.add(build_flag)
+        _LOGGER.debug("Adding C++ build flag: %s", build_flag)
+        return build_flag
+
     def add_build_unflag(self, build_unflag: str) -> None:
+        if self.using_toolchain_esp_idf:
+            # The native ESP-IDF build generator does not consume build_unflags
+            _LOGGER.warning(
+                "Build unflag %s is ignored when building with the native "
+                "ESP-IDF toolchain",
+                build_unflag,
+            )
         self.build_unflags.add(build_unflag)
         _LOGGER.debug("Adding build unflag: %s", build_unflag)
 
@@ -987,6 +1100,15 @@ class EsphomeCore:
         """
         self.platform_counts[platform_name] += 1
 
+    def testing_ensure_platform_registered(self, platform_name: str) -> None:
+        """Ensure a platform has at least one entity registered for testing.
+
+        Used during C++ test builds to guarantee USE_* defines are emitted
+        without needing a real component variable.
+        """
+        if not self.platform_counts[platform_name]:
+            self.platform_counts[platform_name] = 1
+
     def register_controller(self) -> None:
         """Track registration of a Controller for ControllerRegistry StaticVector sizing."""
         controller_count = self.data.setdefault(KEY_CONTROLLER_REGISTRY_COUNT, 0)
@@ -1028,7 +1150,7 @@ class EnumValue:
 
     @enum_value.setter
     def enum_value(self, value):
-        setattr(self, "_enum_value", value)
+        self._enum_value = value
 
 
 CORE = EsphomeCore()

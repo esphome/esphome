@@ -16,8 +16,7 @@
 #include <freertos/task.h>
 #include <esp_gap_ble_api.h>
 
-namespace esphome {
-namespace esp32_ble_server {
+namespace esphome::esp32_ble_server {
 
 static const char *const TAG = "esp32_ble_server";
 
@@ -38,21 +37,17 @@ void BLEServer::loop() {
     case RUNNING: {
       // Start all services that are pending to start
       if (!this->services_to_start_.empty()) {
-        uint16_t index_to_remove = 0;
-        // Iterate over the services to start
-        for (unsigned i = 0; i < this->services_to_start_.size(); i++) {
-          BLEService *service = this->services_to_start_[i];
+        size_t write_idx = 0;
+        for (auto *service : this->services_to_start_) {
           if (service->is_created()) {
             service->start();  // Needs to be called once per characteristic in the service
-          } else {
-            index_to_remove = i + 1;
+          }
+          // Remove services that have started or are starting
+          if (!service->is_starting() && !service->is_running()) {
+            this->services_to_start_[write_idx++] = service;
           }
         }
-        // Remove the services that have been started
-        if (index_to_remove > 0) {
-          this->services_to_start_.erase(this->services_to_start_.begin(),
-                                         this->services_to_start_.begin() + index_to_remove - 1);
-        }
+        this->services_to_start_.erase(this->services_to_start_.begin() + write_idx, this->services_to_start_.end());
       }
       break;
     }
@@ -94,8 +89,6 @@ void BLEServer::loop() {
     }
   }
 }
-
-bool BLEServer::is_running() { return this->parent_->is_active() && this->state_ == RUNNING; }
 
 bool BLEServer::can_proceed() { return this->is_running() || !this->parent_->is_active(); }
 
@@ -175,6 +168,10 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
     case ESP_GATTS_CONNECT_EVT: {
       ESP_LOGD(TAG, "BLE Client connected");
       this->add_client_(param->connect.conn_id);
+      // Resume advertising so additional clients can discover and connect
+      if (this->client_count_ < this->max_clients_) {
+        this->parent_->advertising_start();
+      }
       this->dispatch_callbacks_(CallbackType::ON_CONNECT, param->connect.conn_id);
       break;
     }
@@ -241,11 +238,15 @@ void BLEServer::ble_before_disabled_event_handler() {
 
 float BLEServer::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH + 10; }
 
-void BLEServer::dump_config() { ESP_LOGCONFIG(TAG, "ESP32 BLE Server:"); }
+void BLEServer::dump_config() {
+  ESP_LOGCONFIG(TAG,
+                "ESP32 BLE Server:\n"
+                "  Max clients: %u",
+                this->max_clients_);
+}
 
 BLEServer *global_ble_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace esp32_ble_server
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_server
 
 #endif

@@ -1,6 +1,7 @@
 #include "api_server.h"
 #ifdef USE_API
 #include <cerrno>
+#include <cinttypes>
 #include "api_connection.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
@@ -30,6 +31,12 @@ APIServer *global_api_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-c
 
 APIServer::APIServer() { global_api_server = this; }
 
+void APIServer::socket_failed_(const LogString *msg) {
+  ESP_LOGW(TAG, "Socket %s: errno %d", LOG_STR_ARG(msg), errno);
+  this->destroy_socket_();
+  this->mark_failed();
+}
+
 void APIServer::setup() {
   ControllerRegistry::register_controller(this);
 
@@ -40,30 +47,26 @@ void APIServer::setup() {
 
 #ifndef USE_API_NOISE_PSK_FROM_YAML
   // Only load saved PSK if not set from YAML
-  SavedNoisePsk noise_pref_saved{};
-  if (this->noise_pref_.load(&noise_pref_saved)) {
+  if (this->load_and_apply_noise_psk_()) {
     ESP_LOGD(TAG, "Loaded saved Noise PSK");
-    this->set_noise_psk(noise_pref_saved.psk);
   }
 #endif
 #endif
 
-  this->socket_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0);  // monitored for incoming connections
+  this->socket_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0).release();  // monitored for incoming connections
   if (this->socket_ == nullptr) {
-    ESP_LOGW(TAG, "Could not create socket");
-    this->mark_failed();
+    this->socket_failed_(LOG_STR("creation"));
     return;
   }
   int enable = 1;
   int err = this->socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
   if (err != 0) {
-    ESP_LOGW(TAG, "Socket unable to set reuseaddr: errno %d", err);
+    ESP_LOGW(TAG, "Socket reuseaddr: errno %d", errno);
     // we can still continue
   }
   err = this->socket_->setblocking(false);
   if (err != 0) {
-    ESP_LOGW(TAG, "Socket unable to set nonblocking mode: errno %d", err);
-    this->mark_failed();
+    this->socket_failed_(LOG_STR("nonblocking"));
     return;
   }
 
@@ -71,28 +74,28 @@ void APIServer::setup() {
 
   socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->port_);
   if (sl == 0) {
-    ESP_LOGW(TAG, "Socket unable to set sockaddr: errno %d", errno);
-    this->mark_failed();
+    this->socket_failed_(LOG_STR("set sockaddr"));
     return;
   }
 
   err = this->socket_->bind((struct sockaddr *) &server, sl);
   if (err != 0) {
-    ESP_LOGW(TAG, "Socket unable to bind: errno %d", errno);
-    this->mark_failed();
+    this->socket_failed_(LOG_STR("bind"));
     return;
   }
 
   err = this->socket_->listen(this->listen_backlog_);
   if (err != 0) {
-    ESP_LOGW(TAG, "Socket unable to listen: errno %d", errno);
-    this->mark_failed();
+    this->socket_failed_(LOG_STR("listen"));
     return;
   }
 
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr) {
-    logger::global_logger->add_log_listener(this);
+    logger::global_logger->add_log_callback(
+        this, [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
+          static_cast<APIServer *>(self)->on_log(level, tag, message, message_len);
+        });
   }
 #endif
 
@@ -104,9 +107,31 @@ void APIServer::setup() {
 
   // Initialize last_connected_ for reboot timeout tracking
   this->last_connected_ = App.get_loop_component_start_time();
-  // Set warning status if reboot timeout is enabled
-  if (this->reboot_timeout_ != 0) {
-    this->status_set_warning();
+#if defined(USE_PROVISIONING) && defined(USE_API_NOISE)
+  // Register with the provisioning manager (provisioning:) as a source and
+  // report our current state (provisioned == an encryption key is set). When the
+  // window closes, disconnect any client still attempting to provision so it learns
+  // the reason. The manager owns the timeout, window state and on_timeout automation.
+  if (provisioning::global_provisioning_manager != nullptr) {
+    this->provisioning_source_ = provisioning::global_provisioning_manager->register_source();
+    provisioning::global_provisioning_manager->set_source_provisioned(this->provisioning_source_,
+                                                                      this->noise_ctx_.has_psk());
+    provisioning::global_provisioning_manager->add_on_closed_callback([this]() {
+      for (auto &c : this->active_clients()) {
+        DisconnectRequest req;
+        req.reason = enums::DISCONNECT_REASON_PROVISIONING_CLOSED;
+        // Best-effort: if the send buffer is full the reason is dropped, but the
+        // client still learns the window is closed when it reconnects (rejected at
+        // hello) or via the socket close.
+        c->send_message(req);
+      }
+    });
+  }
+#endif
+  // Set warning status if reboot timeout is enabled (suppressed while provisioning
+  // is pending so the device waits to be onboarded instead of rebooting).
+  if (this->reboot_timeout_ != 0 && !this->provisioning_pending_()) {
+    this->status_set_warning(LOG_STR("waiting for client connection"));
   }
 }
 
@@ -116,10 +141,12 @@ void APIServer::loop() {
     this->accept_new_connections_();
   }
 
-  if (this->clients_.empty()) {
+  if (this->api_connection_count_ == 0) {
     // Check reboot timeout - done in loop to avoid scheduler heap churn
-    // (cancelled scheduler items sit in heap memory until their scheduled time)
-    if (this->reboot_timeout_ != 0) {
+    // (cancelled scheduler items sit in heap memory until their scheduled time).
+    // Suppressed while a provisioning window is pending so the device waits to be
+    // onboarded / reset instead of rebooting itself; resumes once provisioned.
+    if (this->reboot_timeout_ != 0 && !this->provisioning_pending_()) {
       const uint32_t now = App.get_loop_component_start_time();
       if (now - this->last_connected_ > this->reboot_timeout_) {
         ESP_LOGE(TAG, "No clients; rebooting");
@@ -133,15 +160,15 @@ void APIServer::loop() {
   // Check network connectivity once for all clients
   if (!network::is_connected()) {
     // Network is down - disconnect all clients
-    for (auto &client : this->clients_) {
+    for (auto &client : this->active_clients()) {
       client->on_fatal_error();
       client->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("Network down; disconnect"));
     }
     // Continue to process and clean up the clients below
   }
 
-  size_t client_index = 0;
-  while (client_index < this->clients_.size()) {
+  uint8_t client_index = 0;
+  while (client_index < this->api_connection_count_) {
     auto &client = this->clients_[client_index];
 
     // Common case: process active client
@@ -159,7 +186,7 @@ void APIServer::loop() {
   }
 }
 
-void APIServer::remove_client_(size_t client_index) {
+void APIServer::remove_client_(uint8_t client_index) {
   auto &client = this->clients_[client_index];
 
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
@@ -177,15 +204,23 @@ void APIServer::remove_client_(size_t client_index) {
   // Close socket now (was deferred from on_fatal_error to allow getpeername)
   client->helper_->close();
 
-  // Swap with the last element and pop (avoids expensive vector shifts)
-  if (client_index < this->clients_.size() - 1) {
-    std::swap(this->clients_[client_index], this->clients_.back());
+  // Swap-and-reset: move the removed client to the trailing slot and null it out so slots
+  // [api_connection_count_, N) remain nullptr.
+  const uint8_t last_index = this->api_connection_count_ - 1;
+  if (client_index < last_index) {
+    std::swap(this->clients_[client_index], this->clients_[last_index]);
   }
-  this->clients_.pop_back();
+  // Drop the count before resetting the slot. reset() runs ~APIConnection(), which can reenter the
+  // server (e.g. voice_assistant unsubscribes in its disconnect trigger, publishing entity state ->
+  // on_*_update iterating active_clients()). Excluding the dying slot from the active range first
+  // keeps that reentrant iteration from dereferencing the now-null slot.
+  this->api_connection_count_--;
+  this->clients_[last_index].reset();
 
   // Last client disconnected - set warning and start tracking for reboot timeout
-  if (this->clients_.empty() && this->reboot_timeout_ != 0) {
-    this->status_set_warning();
+  // (suppressed while provisioning is pending - see loop()).
+  if (this->api_connection_count_ == 0 && this->reboot_timeout_ != 0 && !this->provisioning_pending_()) {
+    this->status_set_warning(LOG_STR("waiting for client connection"));
     this->last_connected_ = App.get_loop_component_start_time();
   }
 
@@ -208,8 +243,8 @@ void __attribute__((flatten)) APIServer::accept_new_connections_() {
     sock->getpeername_to(peername);
 
     // Check if we're at the connection limit
-    if (this->clients_.size() >= this->max_connections_) {
-      ESP_LOGW(TAG, "Max connections (%d), rejecting %s", this->max_connections_, peername);
+    if (this->api_connection_count_ >= MAX_API_CONNECTIONS) {
+      ESP_LOGW(TAG, "Max connections (%d), rejecting %s", MAX_API_CONNECTIONS, peername);
       // Immediately close - socket destructor will handle cleanup
       sock.reset();
       continue;
@@ -218,11 +253,11 @@ void __attribute__((flatten)) APIServer::accept_new_connections_() {
     ESP_LOGD(TAG, "Accept %s", peername);
 
     auto *conn = new APIConnection(std::move(sock), this);
-    this->clients_.emplace_back(conn);
+    this->clients_[this->api_connection_count_++].reset(conn);
     conn->start();
 
     // First client connected - clear warning and update timestamp
-    if (this->clients_.size() == 1 && this->reboot_timeout_ != 0) {
+    if (this->api_connection_count_ == 1 && this->reboot_timeout_ != 0 && !this->provisioning_pending_()) {
       this->status_clear_warning();
       this->last_connected_ = App.get_loop_component_start_time();
     }
@@ -230,12 +265,13 @@ void __attribute__((flatten)) APIServer::accept_new_connections_() {
 }
 
 void APIServer::dump_config() {
+  char addr_buf[network::USE_ADDRESS_BUFFER_SIZE];
   ESP_LOGCONFIG(TAG,
                 "Server:\n"
                 "  Address: %s:%u\n"
                 "  Listen backlog: %u\n"
                 "  Max connections: %u",
-                network::get_use_address(), this->port_, this->listen_backlog_, this->max_connections_);
+                network::get_use_address_to(addr_buf), this->port_, this->listen_backlog_, MAX_API_CONNECTIONS);
 #ifdef USE_API_NOISE
   ESP_LOGCONFIG(TAG, "  Noise encryption: %s", YESNO(this->noise_ctx_.has_psk()));
   if (!this->noise_ctx_.has_psk()) {
@@ -253,7 +289,7 @@ void APIServer::handle_disconnect(APIConnection *conn) {}
   void APIServer::on_##entity_name##_update(entity_type *obj) { /* NOLINT(bugprone-macro-parentheses) */ \
     if (obj->is_internal()) \
       return; \
-    for (auto &c : this->clients_) { \
+    for (auto &c : this->active_clients()) { \
       if (c->flags_.state_subscription) \
         c->send_##entity_name##_state(obj); \
     } \
@@ -335,7 +371,7 @@ API_DISPATCH_UPDATE(water_heater::WaterHeater, water_heater)
 void APIServer::on_event(event::Event *obj) {
   if (obj->is_internal())
     return;
-  for (auto &c : this->clients_) {
+  for (auto &c : this->active_clients()) {
     if (c->flags_.state_subscription)
       c->send_event(obj);
   }
@@ -347,7 +383,7 @@ void APIServer::on_event(event::Event *obj) {
 void APIServer::on_update(update::UpdateEntity *obj) {
   if (obj->is_internal())
     return;
-  for (auto &c : this->clients_) {
+  for (auto &c : this->active_clients()) {
     if (c->flags_.state_subscription)
       c->send_update_state(obj);
   }
@@ -355,15 +391,15 @@ void APIServer::on_update(update::UpdateEntity *obj) {
 #endif
 
 #ifdef USE_ZWAVE_PROXY
-void APIServer::on_zwave_proxy_request(const esphome::api::ProtoMessage &msg) {
+void APIServer::on_zwave_proxy_request(const ZWaveProxyRequest &msg) {
   // We could add code to manage a second subscription type, but, since this message type is
   //  very infrequent and small, we simply send it to all clients
-  for (auto &c : this->clients_)
-    c->send_message(msg, api::ZWaveProxyRequest::MESSAGE_TYPE);
+  for (auto &c : this->active_clients())
+    c->send_message(msg);
 }
 #endif
 
-#ifdef USE_IR_RF
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
 void APIServer::send_infrared_rf_receive_event([[maybe_unused]] uint32_t device_id, uint32_t key,
                                                const std::vector<int32_t> *timings) {
   InfraredRFReceiveEvent resp{};
@@ -373,7 +409,7 @@ void APIServer::send_infrared_rf_receive_event([[maybe_unused]] uint32_t device_
   resp.key = key;
   resp.timings = timings;
 
-  for (auto &c : this->clients_)
+  for (auto &c : this->active_clients())
     c->send_infrared_rf_receive_event(resp);
 }
 #endif
@@ -390,8 +426,16 @@ void APIServer::set_batch_delay(uint16_t batch_delay) { this->batch_delay_ = bat
 
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 void APIServer::send_homeassistant_action(const HomeassistantActionRequest &call) {
-  for (auto &client : this->clients_) {
-    client->send_homeassistant_action(call);
+  bool has_subscriber = false;
+  for (auto &client : this->active_clients()) {
+    has_subscriber |= client->send_homeassistant_action(call);
+  }
+  if (!has_subscriber) {
+    // Home Assistant subscribes to actions shortly *after* authenticating, so actions
+    // fired right at connection time (on_client_connected, on_time_sync, ...) can
+    // arrive before the subscription and are lost - warn instead of failing silently.
+    ESP_LOGW(TAG, "Home Assistant %s '%s' dropped; %s", call.is_event ? "event" : "action", call.service.c_str(),
+             this->is_connected() ? "client has not subscribed to actions (yet)" : "no client connected");
   }
 }
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
@@ -429,8 +473,8 @@ void APIServer::handle_action_response(uint32_t call_id, bool success, StringRef
 
 #ifdef USE_API_HOMEASSISTANT_STATES
 // Helper to add subscription (reduces duplication)
-void APIServer::add_state_subscription_(const char *entity_id, const char *attribute, std::function<void(StringRef)> f,
-                                        bool once) {
+void APIServer::add_state_subscription_(const char *entity_id, const char *attribute,
+                                        std::function<void(StringRef)> &&f, bool once) {
   this->state_subs_.push_back(HomeAssistantStateSubscription{
       .entity_id = entity_id, .attribute = attribute, .callback = std::move(f), .once = once,
       // entity_id_dynamic_storage and attribute_dynamic_storage remain nullptr (no heap allocation)
@@ -439,7 +483,7 @@ void APIServer::add_state_subscription_(const char *entity_id, const char *attri
 
 // Helper to add subscription with heap-allocated strings (reduces duplication)
 void APIServer::add_state_subscription_(std::string entity_id, optional<std::string> attribute,
-                                        std::function<void(StringRef)> f, bool once) {
+                                        std::function<void(StringRef)> &&f, bool once) {
   HomeAssistantStateSubscription sub;
   // Allocate heap storage for the strings
   sub.entity_id_dynamic_storage = std::make_unique<std::string>(std::move(entity_id));
@@ -459,29 +503,29 @@ void APIServer::add_state_subscription_(std::string entity_id, optional<std::str
 
 // New const char* overload (for internal components - zero allocation)
 void APIServer::subscribe_home_assistant_state(const char *entity_id, const char *attribute,
-                                               std::function<void(StringRef)> f) {
+                                               std::function<void(StringRef)> &&f) {
   this->add_state_subscription_(entity_id, attribute, std::move(f), false);
 }
 
 void APIServer::get_home_assistant_state(const char *entity_id, const char *attribute,
-                                         std::function<void(StringRef)> f) {
+                                         std::function<void(StringRef)> &&f) {
   this->add_state_subscription_(entity_id, attribute, std::move(f), true);
 }
 
 // std::string overload with StringRef callback (zero-allocation callback)
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                               std::function<void(StringRef)> f) {
+                                               std::function<void(StringRef)> &&f) {
   this->add_state_subscription_(std::move(entity_id), std::move(attribute), std::move(f), false);
 }
 
 void APIServer::get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                         std::function<void(StringRef)> f) {
+                                         std::function<void(StringRef)> &&f) {
   this->add_state_subscription_(std::move(entity_id), std::move(attribute), std::move(f), true);
 }
 
 // Legacy helper: wraps std::string callback and delegates to StringRef version
 void APIServer::add_state_subscription_(std::string entity_id, optional<std::string> attribute,
-                                        std::function<void(const std::string &)> f, bool once) {
+                                        std::function<void(const std::string &)> &&f, bool once) {
   // Wrap callback to convert StringRef -> std::string, then delegate
   this->add_state_subscription_(std::move(entity_id), std::move(attribute),
                                 std::function<void(StringRef)>([f = std::move(f)](StringRef state) { f(state.str()); }),
@@ -490,12 +534,12 @@ void APIServer::add_state_subscription_(std::string entity_id, optional<std::str
 
 // Legacy std::string overload (for custom_api_device.h - converts StringRef to std::string)
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                               std::function<void(const std::string &)> f) {
+                                               std::function<void(const std::string &)> &&f) {
   this->add_state_subscription_(std::move(entity_id), std::move(attribute), std::move(f), false);
 }
 
 void APIServer::get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                         std::function<void(const std::string &)> f) {
+                                         std::function<void(const std::string &)> &&f) {
   this->add_state_subscription_(std::move(entity_id), std::move(attribute), std::move(f), true);
 }
 
@@ -510,7 +554,7 @@ void APIServer::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeo
 
 #ifdef USE_API_NOISE
 bool APIServer::update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg,
-                                  const LogString *fail_log_msg, const psk_t &active_psk, bool make_active) {
+                                  const LogString *fail_log_msg, bool make_active) {
   if (!this->noise_pref_.save(&new_psk)) {
     ESP_LOGW(TAG, "%s", LOG_STR_ARG(fail_log_msg));
     return false;
@@ -522,15 +566,28 @@ bool APIServer::update_noise_psk_(const SavedNoisePsk &new_psk, const LogString 
   }
   ESP_LOGD(TAG, "%s", LOG_STR_ARG(save_log_msg));
   if (make_active) {
-    this->set_timeout(100, [this, active_psk]() {
+    this->set_timeout(100, [this]() {
+      // Re-read the PSK from preferences rather than capturing the 32-byte array
+      // in the lambda (which would exceed std::function SBO and heap-allocate).
+      if (!this->load_and_apply_noise_psk_()) {
+        ESP_LOGW(TAG, "Failed to load saved PSK for activation");
+        return;
+      }
       ESP_LOGW(TAG, "Disconnecting all clients to reset PSK");
-      this->set_noise_psk(active_psk);
-      for (auto &c : this->clients_) {
+      for (auto &c : this->active_clients()) {
         DisconnectRequest req;
-        c->send_message(req, DisconnectRequest::MESSAGE_TYPE);
+        c->send_message(req);
       }
     });
   }
+  return true;
+}
+
+bool APIServer::load_and_apply_noise_psk_() {
+  SavedNoisePsk saved{};
+  if (!this->noise_pref_.load(&saved))
+    return false;
+  this->set_noise_psk(saved.psk);
   return true;
 }
 
@@ -548,8 +605,16 @@ bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
   }
 
   SavedNoisePsk new_saved_psk{psk};
-  return this->update_noise_psk_(new_saved_psk, LOG_STR("Noise PSK saved"), LOG_STR("Failed to save Noise PSK"), psk,
-                                 make_active);
+  bool result = this->update_noise_psk_(new_saved_psk, LOG_STR("Noise PSK saved"), LOG_STR("Failed to save Noise PSK"),
+                                        make_active);
+#ifdef USE_PROVISIONING
+  // The device now has a key; report provisioned so the provisioning window is
+  // satisfied and the reboot timeout resumes normal operation.
+  if (result && provisioning::global_provisioning_manager != nullptr) {
+    provisioning::global_provisioning_manager->set_source_provisioned(this->provisioning_source_, true);
+  }
+#endif
+  return result;
 #endif
 }
 bool APIServer::clear_noise_psk(bool make_active) {
@@ -560,16 +625,23 @@ bool APIServer::clear_noise_psk(bool make_active) {
   return false;
 #else
   SavedNoisePsk empty_psk{};
-  psk_t empty{};
-  return this->update_noise_psk_(empty_psk, LOG_STR("Noise PSK cleared"), LOG_STR("Failed to clear Noise PSK"), empty,
-                                 make_active);
+  bool result = this->update_noise_psk_(empty_psk, LOG_STR("Noise PSK cleared"), LOG_STR("Failed to clear Noise PSK"),
+                                        make_active);
+#ifdef USE_PROVISIONING
+  // The key was cleared; report unprovisioned so a subsequent reboot reopens the
+  // provisioning window.
+  if (result && provisioning::global_provisioning_manager != nullptr) {
+    provisioning::global_provisioning_manager->set_source_provisioned(this->provisioning_source_, false);
+  }
+#endif
+  return result;
 #endif
 }
 #endif
 
 #ifdef USE_HOMEASSISTANT_TIME
 void APIServer::request_time() {
-  for (auto &client : this->clients_) {
+  for (auto &client : this->active_clients()) {
     if (!client->flags_.remove && client->is_authenticated()) {
       client->send_time_request();
       return;  // Only request from one client to avoid clock conflicts
@@ -578,13 +650,9 @@ void APIServer::request_time() {
 }
 #endif
 
-bool APIServer::is_connected(bool state_subscription_only) const {
-  if (!state_subscription_only) {
-    return !this->clients_.empty();
-  }
-
-  for (const auto &client : this->clients_) {
-    if (client->flags_.state_subscription) {
+bool APIServer::is_connected_with_state_subscription() const {
+  for (uint8_t i = 0; i < this->api_connection_count_; i++) {
+    if (this->clients_[i]->flags_.state_subscription) {
       return true;
     }
   }
@@ -599,7 +667,7 @@ void APIServer::on_log(uint8_t level, const char *tag, const char *message, size
     // we would be filling a buffer we are trying to clear
     return;
   }
-  for (auto &c : this->clients_) {
+  for (auto &c : this->active_clients()) {
     if (!c->flags_.remove && c->get_log_subscription_level() >= level)
       c->try_send_log_message(level, tag, message, message_len);
   }
@@ -608,7 +676,7 @@ void APIServer::on_log(uint8_t level, const char *tag, const char *message, size
 
 #ifdef USE_CAMERA
 void APIServer::on_camera_image(const std::shared_ptr<camera::CameraImage> &image) {
-  for (auto &c : this->clients_) {
+  for (auto &c : this->active_clients()) {
     if (!c->flags_.remove)
       c->set_camera_state(image);
   }
@@ -619,18 +687,15 @@ void APIServer::on_shutdown() {
   this->shutting_down_ = true;
 
   // Close the listening socket to prevent new connections
-  if (this->socket_) {
-    this->socket_->close();
-    this->socket_ = nullptr;
-  }
+  this->destroy_socket_();
 
   // Change batch delay to 5ms for quick flushing during shutdown
   this->batch_delay_ = 5;
 
   // Send disconnect requests to all connected clients
-  for (auto &c : this->clients_) {
+  for (auto &c : this->active_clients()) {
     DisconnectRequest req;
-    if (!c->send_message(req, DisconnectRequest::MESSAGE_TYPE)) {
+    if (!c->send_message(req)) {
       // If we can't send the disconnect request directly (tx_buffer full),
       // schedule it at the front of the batch so it will be sent with priority
       c->schedule_message_front_(nullptr, DisconnectRequest::MESSAGE_TYPE, DisconnectRequest::ESTIMATED_SIZE);
@@ -646,7 +711,7 @@ bool APIServer::teardown() {
   this->loop();
 
   // Return true only when all clients have been torn down
-  return this->clients_.empty();
+  return this->api_connection_count_ == 0;
 }
 
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
@@ -667,7 +732,7 @@ uint32_t APIServer::register_active_action_call(uint32_t client_call_id, APIConn
   // Schedule automatic cleanup after timeout (client will have given up by then)
   // Uses numeric ID overload to avoid heap allocation from str_sprintf
   this->set_timeout(action_call_id, USE_API_ACTION_CALL_TIMEOUT_MS, [this, action_call_id]() {
-    ESP_LOGD(TAG, "Action call %u timed out", action_call_id);
+    ESP_LOGD(TAG, "Action call %" PRIu32 " timed out", action_call_id);
     this->unregister_active_action_call(action_call_id);
   });
 
@@ -711,7 +776,7 @@ void APIServer::send_action_response(uint32_t action_call_id, bool success, Stri
       return;
     }
   }
-  ESP_LOGW(TAG, "Cannot send response: no active call found for action_call_id %u", action_call_id);
+  ESP_LOGW(TAG, "Cannot send response: no active call found for action_call_id %" PRIu32, action_call_id);
 }
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 void APIServer::send_action_response(uint32_t action_call_id, bool success, StringRef error_message,
@@ -723,7 +788,7 @@ void APIServer::send_action_response(uint32_t action_call_id, bool success, Stri
       return;
     }
   }
-  ESP_LOGW(TAG, "Cannot send response: no active call found for action_call_id %u", action_call_id);
+  ESP_LOGW(TAG, "Cannot send response: no active call found for action_call_id %" PRIu32, action_call_id);
 }
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES

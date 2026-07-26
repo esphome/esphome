@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 
 def write_github_output(outputs: dict[str, str | int]) -> None:
@@ -16,7 +17,7 @@ def write_github_output(outputs: dict[str, str | int]) -> None:
     """
     github_output = os.environ.get("GITHUB_OUTPUT")
     if github_output:
-        with open(github_output, "a", encoding="utf-8") as f:
+        with Path(github_output).open("a", encoding="utf-8") as f:
             f.writelines(f"{key}={value}\n" for key, value in outputs.items())
     else:
         for key, value in outputs.items():

@@ -1,0 +1,11 @@
+esphome:
+  name: test
+
+esp32:
+  variant: esp32p4
+  framework:
+    type: esp-idf
+    advanced:
+      execute_from_psram: true
+
+psram:

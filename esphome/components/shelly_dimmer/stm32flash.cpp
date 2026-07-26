@@ -112,8 +112,7 @@ constexpr char TAG[] = "stm32flash";
 
 }  // Anonymous namespace
 
-namespace esphome {
-namespace shelly_dimmer {
+namespace esphome::shelly_dimmer {
 
 namespace {
 
@@ -149,7 +148,7 @@ stm32_err_t stm32_get_ack_timeout(const stm32_unique_ptr &stm, uint32_t timeout)
   do {
     yield();
     if (!stream->available()) {
-      if (millis() < start_time + timeout)
+      if (millis() - start_time < timeout)
         continue;
       ESP_LOGD(TAG, "Failed to read ACK timeout=%i", timeout);
       return STM32_ERR_UNKNOWN;
@@ -212,7 +211,7 @@ stm32_err_t stm32_resync(const stm32_unique_ptr &stm) {
   static_assert(sizeof(buf) == BUFFER_SIZE, "Buf expected to be 2 bytes");
 
   uint8_t ack;
-  while (t1 < t0 + STM32_RESYNC_TIMEOUT) {
+  while (t1 - t0 < STM32_RESYNC_TIMEOUT) {
     stream->write_array(buf, BUFFER_SIZE);
     stream->flush();
     if (!stream->read_array(&ack, 1)) {
@@ -486,12 +485,6 @@ template<typename T> stm32_unique_ptr make_stm32_with_deletor(T ptr) {
 }
 
 }  // Anonymous namespace
-
-}  // namespace shelly_dimmer
-}  // namespace esphome
-
-namespace esphome {
-namespace shelly_dimmer {
 
 /* find newer command by higher code */
 #define newer(prev, a) (((prev) == STM32_CMD_ERR) ? (a) : (((prev) > (a)) ? (prev) : (a)))
@@ -1059,7 +1052,6 @@ stm32_err_t stm32_crc_wrapper(const stm32_unique_ptr &stm, uint32_t address, uin
   return STM32_ERR_OK;
 }
 
-}  // namespace shelly_dimmer
-}  // namespace esphome
+}  // namespace esphome::shelly_dimmer
 
 #endif  // USE_SHD_FIRMWARE_DATA
