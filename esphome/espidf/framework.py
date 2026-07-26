@@ -413,11 +413,9 @@ def _clone_idf_with_submodules(
         )
     update_submodules(framework_path, [], key)
 
-    # Sanity-check the resulting tree. run_git_command only raises when
-    # stderr is non-empty, so a clone that silently produces no working
-    # tree would otherwise be marked extracted and stuck until
-    # ``esphome clean``. Submodule initialization is verified by
-    # update_submodules itself.
+    # Sanity-check the resulting tree: a clone can exit 0 yet produce no
+    # usable ESP-IDF checkout, which would otherwise be marked extracted and
+    # stuck until ``esphome clean``.
     if not (framework_path / "tools" / "idf_tools.py").is_file():
         raise RuntimeError(
             f"Clone of {key} produced no usable ESP-IDF tree at {framework_path}"

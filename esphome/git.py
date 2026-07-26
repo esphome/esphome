@@ -125,12 +125,14 @@ def run_git_command(
             "for installation instructions."
         ) from err
 
-    if ret.returncode != 0 and ret.stderr:
-        err_str = ret.stderr.decode("utf-8")
-        lines = [x.strip() for x in err_str.splitlines()]
-        if lines[-1].startswith("fatal:"):
-            raise GitCommandError(lines[-1][len("fatal: ") :])
-        raise GitCommandError(err_str)
+    if ret.returncode != 0:
+        if ret.stderr:
+            err_str = ret.stderr.decode("utf-8")
+            lines = [x.strip() for x in err_str.splitlines()]
+            if lines[-1].startswith("fatal:"):
+                raise GitCommandError(lines[-1][len("fatal: ") :])
+            raise GitCommandError(err_str)
+        raise GitCommandError(f"git exited with code {ret.returncode}: {' '.join(cmd)}")
 
     return ret.stdout.decode("utf-8").strip()
 
@@ -162,36 +164,28 @@ def _remove_repo_dir(repo_dir: Path) -> None:
         rmtree(repo_dir)
 
 
-def _update_none_paths(repo_dir: Path, prefix: str = "") -> set[str]:
+def _update_none_paths(repo_dir: Path) -> set[str]:
     """Return the paths of submodules ``repo_dir`` declares with ``update = none``.
 
     Git skips these on purpose during ``git submodule update --init`` (and
     exits 0), so they must not be reported as failed initializations.
-    ``prefix`` is prepended to each returned path so declarations read from a
-    nested submodule's ``.gitmodules`` come back relative to the superproject.
     """
     if not (repo_dir / ".gitmodules").is_file():
         return set()
-    # --get-regexp exits 1 with empty stderr when nothing matches, which
-    # run_git_command treats as success with empty output.
     config = run_git_command(
-        ["git", "config", "-f", ".gitmodules", "--get-regexp", r"^submodule\."],
+        ["git", "config", "-f", ".gitmodules", "--list"],
         cwd=repo_dir,
     )
     paths: dict[str, str] = {}
-    updates: dict[str, str] = {}
+    skipped_names: set[str] = set()
     for line in config.splitlines():
-        config_key, _, value = line.partition(" ")
+        config_key, _, value = line.partition("=")
         name, _, prop = config_key.removeprefix("submodule.").rpartition(".")
         if prop == "path":
             paths[name] = value
-        elif prop == "update":
-            updates[name] = value
-    return {
-        f"{prefix}{paths[name]}"
-        for name, mode in updates.items()
-        if mode == "none" and name in paths
-    }
+        elif prop == "update" and value == "none":
+            skipped_names.add(name)
+    return {paths[name] for name in skipped_names & paths.keys()}
 
 
 def update_submodules(repo_dir: Path, submodules: list[str] | None, key: str) -> None:
@@ -203,7 +197,13 @@ def update_submodules(repo_dir: Path, submodules: list[str] | None, key: str) ->
     Most repositories declare no submodules, so the "every submodule" case
     does nothing when there is no ``.gitmodules`` file. An explicit list is
     always passed through so a path that does not exist in the repository
-    surfaces as a git error instead of being silently ignored.
+    surfaces as a git error instead of being silently ignored, and each named
+    path is verified afterwards: a path left uninitialized (other than by an
+    ``update = none`` declaration, which git honors even for named paths)
+    raises ``GitRepositoryError``. Which submodules the "every submodule"
+    case populates is git's own policy (``update = none``,
+    ``submodule.active``, sparse checkouts); git's exit code is the error
+    signal there.
 
     Runs with plain ``cwd`` rather than ``git_dir`` isolation, which the
     ``git submodule`` porcelain does not tolerate (see ``run_git_command``).
@@ -223,27 +223,23 @@ def update_submodules(repo_dir: Path, submodules: list[str] | None, key: str) ->
         + submodules,
         cwd=repo_dir,
     )
-    # Verify the update actually initialized what it was asked to; a status
-    # line starting with "-" is a declared but uninitialized submodule. The
-    # porcelain can exit 0 without doing anything, and the resulting empty
-    # directories would otherwise only surface much later as opaque build
-    # errors.
+    if not submodules:
+        return
+    # The caller named these paths; verify each was actually initialized. A
+    # status line starting with "-" is a declared but uninitialized
+    # submodule. Uninitialized lines carry no describe suffix, so everything
+    # after the SHA is the path (which may contain spaces).
     status = run_git_command(
-        ["git", "submodule", "status", *recursive, "--"] + submodules,
+        ["git", "submodule", "status", "--"] + submodules,
         cwd=repo_dir,
     )
-    if missing := [
-        line.split()[1] for line in status.splitlines() if line.startswith("-")
-    ]:
-        # `update = none` declarations can live at any level: in the
-        # superproject's .gitmodules or in that of any initialized nested
-        # submodule. Collect them all before deciding anything failed.
-        skipped = _update_none_paths(repo_dir)
-        for line in status.splitlines():
-            if line and not line.startswith("-"):
-                path = line.split()[1]
-                skipped |= _update_none_paths(repo_dir / path, prefix=f"{path}/")
-        missing = [path for path in missing if path not in skipped]
+    missing = [
+        line[1:].split(" ", 1)[1]
+        for line in status.splitlines()
+        if line.startswith("-")
+    ]
+    if missing:
+        missing = [path for path in missing if path not in _update_none_paths(repo_dir)]
     if missing:
         raise GitRepositoryError(
             f"Submodules ({', '.join(missing)}) for {key} were left uninitialized"

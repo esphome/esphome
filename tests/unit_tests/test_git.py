@@ -1360,32 +1360,27 @@ def test_all_submodules_updated_with_gitmodules(
         submodules=[],
     )
 
-    update_cmd, status_cmd = (c[0][0] for c in _submodule_calls(mock_run_git_command))
-    assert update_cmd[2] == "update"
-    assert "--depth=1" in update_cmd
+    submodule_calls = _submodule_calls(mock_run_git_command)
+    # Which submodules the "all" mode populates is git's own policy, so no
+    # status verification follows the update in this mode.
+    assert len(submodule_calls) == 1
+    cmd = submodule_calls[0][0][0]
+    assert cmd[2] == "update"
+    assert "--depth=1" in cmd
     # "All submodules" mirrors PlatformIO's recursive library clones.
-    assert "--recursive" in update_cmd
-    assert update_cmd[-1] == "--"
-    assert status_cmd[2] == "status"
-    assert "--recursive" in status_cmd
-    for call in _submodule_calls(mock_run_git_command):
-        _assert_submodule_runs_without_isolation(call, repo_dir)
+    assert "--recursive" in cmd
+    assert cmd[-1] == "--"
+    _assert_submodule_runs_without_isolation(submodule_calls[0], repo_dir)
 
 
-def test_uninitialized_submodule_after_update_raises(
-    tmp_path: Path, mock_run_git_command: Mock
-) -> None:
-    """A submodule update that silently did nothing must fail loudly.
+def _make_uninitialized_submodule_side_effect(
+    repo_dir: Path, gitmodules_config: str
+) -> Callable[..., str]:
+    """Side effect where submodule update exits 0 but leaves a path empty.
 
-    `git submodule update --init` can exit 0 without initializing anything;
-    the status verification catches that, and the clone-path cleanup removes
-    the broken cache entry so the next run re-clones.
+    ``gitmodules_config`` is what ``git config -f .gitmodules --list``
+    returns for the cloned repo.
     """
-    CORE.config_path = tmp_path / "test.yaml"
-
-    url = "https://github.com/test/repo"
-    domain = "test"
-    repo_dir = _compute_repo_dir(url, None, domain)
 
     def git_command_side_effect(
         cmd: list[str], cwd: str | None = None, **kwargs: Any
@@ -1395,9 +1390,31 @@ def test_uninitialized_submodule_after_update_raises(
             (repo_dir / ".gitmodules").write_text("test")
         if _get_git_command_type(cmd) == "submodule" and "status" in cmd:
             return "-abc123 vendor/sub"
+        if _get_git_command_type(cmd) == "config":
+            return gitmodules_config
         return ""
 
-    mock_run_git_command.side_effect = git_command_side_effect
+    return git_command_side_effect
+
+
+def test_uninitialized_named_submodule_raises(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """An explicitly named submodule left uninitialized must fail loudly.
+
+    `git submodule update --init` can exit 0 without initializing anything;
+    the status verification catches that for named paths, and the clone-path
+    cleanup removes the broken cache entry so the next run re-clones.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    mock_run_git_command.side_effect = _make_uninitialized_submodule_side_effect(
+        repo_dir, gitmodules_config=""
+    )
 
     with pytest.raises(git.GitRepositoryError, match="vendor/sub"):
         git.clone_or_update(
@@ -1405,11 +1422,43 @@ def test_uninitialized_submodule_after_update_raises(
             ref=None,
             refresh=None,
             domain=domain,
-            submodules=[],
+            submodules=["vendor/sub"],
         )
 
     # The broken clone must not be left behind as a valid cache entry.
     assert not repo_dir.is_dir()
+
+
+def test_named_submodule_with_update_none_not_reported(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A named path the repo declares `update = none` is not a failure.
+
+    Git honors the declaration even for explicitly named paths and leaves
+    them uninitialized on purpose.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    mock_run_git_command.side_effect = _make_uninitialized_submodule_side_effect(
+        repo_dir,
+        gitmodules_config=(
+            "submodule.vendor/sub.path=vendor/sub\nsubmodule.vendor/sub.update=none"
+        ),
+    )
+
+    git.clone_or_update(
+        url=url,
+        ref=None,
+        refresh=None,
+        domain=domain,
+        submodules=["vendor/sub"],
+    )
+
+    assert repo_dir.is_dir()
 
 
 def _real_git(*args: str, cwd: Path) -> None:
@@ -1433,6 +1482,16 @@ def _real_git(*args: str, cwd: Path) -> None:
     )
 
 
+# Git blocks file-protocol submodules by default (CVE-2022-39253); the e2e
+# tests allow them via GIT_CONFIG_* environment variables, which reach the
+# child git processes through run_git_command's filtered environment.
+_ALLOW_FILE_PROTOCOL_ENV = {
+    "GIT_CONFIG_COUNT": "1",
+    "GIT_CONFIG_KEY_0": "protocol.file.allow",
+    "GIT_CONFIG_VALUE_0": "always",
+}
+
+
 def _make_real_repo(path: Path, filename: str) -> None:
     """Create a real git repository containing one committed file."""
     path.mkdir()
@@ -1440,6 +1499,19 @@ def _make_real_repo(path: Path, filename: str) -> None:
     (path / filename).write_text("content")
     _real_git("add", filename, cwd=path)
     _real_git("commit", "-q", "-m", "init", cwd=path)
+
+
+def _add_submodule(
+    repo: Path, url: Path, path: str, *, update_none: bool = False
+) -> None:
+    """Add ``url`` as a submodule of ``repo`` at ``path`` and commit it."""
+    _real_git("submodule", "add", str(url), path, cwd=repo)
+    if update_none:
+        _real_git(
+            "config", "-f", ".gitmodules", f"submodule.{path}.update", "none", cwd=repo
+        )
+        _real_git("add", ".gitmodules", cwd=repo)
+    _real_git("commit", "-q", "-m", f"add submodule {path}", cwd=repo)
 
 
 def test_clone_or_update_real_git_without_submodules(tmp_path: Path) -> None:
@@ -1470,10 +1542,8 @@ def test_clone_or_update_real_git_initializes_submodules(tmp_path: Path) -> None
 
     Exercises the real `git submodule update` invocation, including the
     env handling in run_git_command that the mocked tests cannot cover.
-    The fixture uses local path repositories; git blocks file-protocol
-    submodules by default (CVE-2022-39253), so the test allows them via
-    GIT_CONFIG_* environment variables, which reach the child git processes
-    through run_git_command's filtered environment.
+    The explicit-list call afterwards exercises the real `git submodule
+    status` verification on the refresh path.
     """
     CORE.config_path = tmp_path / "test.yaml"
 
@@ -1482,17 +1552,9 @@ def test_clone_or_update_real_git_initializes_submodules(tmp_path: Path) -> None
 
     upstream = tmp_path / "upstream"
     _make_real_repo(upstream, "README.md")
-    _real_git("submodule", "add", str(sub_repo), "vendor/sub", cwd=upstream)
-    _real_git("commit", "-q", "-m", "add submodule", cwd=upstream)
+    _add_submodule(upstream, sub_repo, "vendor/sub")
 
-    with patch.dict(
-        os.environ,
-        {
-            "GIT_CONFIG_COUNT": "1",
-            "GIT_CONFIG_KEY_0": "protocol.file.allow",
-            "GIT_CONFIG_VALUE_0": "always",
-        },
-    ):
+    with patch.dict(os.environ, _ALLOW_FILE_PROTOCOL_ENV):
         repo_dir, _ = git.clone_or_update(
             url=str(upstream),
             ref=None,
@@ -1500,7 +1562,17 @@ def test_clone_or_update_real_git_initializes_submodules(tmp_path: Path) -> None
             domain="test_e2e",
             submodules=[],
         )
+        assert (repo_dir / "vendor" / "sub" / "sub_file.txt").is_file()
 
+        repo_dir_again, _ = git.clone_or_update(
+            url=str(upstream),
+            ref=None,
+            refresh=None,
+            domain="test_e2e",
+            submodules=["vendor/sub"],
+        )
+
+    assert repo_dir_again == repo_dir
     assert (repo_dir / "vendor" / "sub" / "sub_file.txt").is_file()
 
 
@@ -1524,42 +1596,15 @@ def test_clone_or_update_real_git_honors_update_none_submodule(
     # Intermediate submodule that itself declares a skipped nested submodule.
     mid_repo = tmp_path / "mid"
     _make_real_repo(mid_repo, "mid_file.txt")
-    _real_git("submodule", "add", str(sub_repo), "vendor/leaf", cwd=mid_repo)
-    _real_git(
-        "config",
-        "-f",
-        ".gitmodules",
-        "submodule.vendor/leaf.update",
-        "none",
-        cwd=mid_repo,
-    )
-    _real_git("add", ".gitmodules", cwd=mid_repo)
-    _real_git("commit", "-q", "-m", "add nested submodule", cwd=mid_repo)
+    _add_submodule(mid_repo, sub_repo, "vendor/leaf", update_none=True)
 
     upstream = tmp_path / "upstream"
     _make_real_repo(upstream, "README.md")
-    _real_git("submodule", "add", str(sub_repo), "vendor/sub", cwd=upstream)
-    _real_git("submodule", "add", str(sub_repo), "vendor/skipped", cwd=upstream)
-    _real_git("submodule", "add", str(mid_repo), "vendor/mid", cwd=upstream)
-    _real_git(
-        "config",
-        "-f",
-        ".gitmodules",
-        "submodule.vendor/skipped.update",
-        "none",
-        cwd=upstream,
-    )
-    _real_git("add", ".gitmodules", cwd=upstream)
-    _real_git("commit", "-q", "-m", "add submodules", cwd=upstream)
+    _add_submodule(upstream, sub_repo, "vendor/sub")
+    _add_submodule(upstream, sub_repo, "vendor/skipped", update_none=True)
+    _add_submodule(upstream, mid_repo, "vendor/mid")
 
-    with patch.dict(
-        os.environ,
-        {
-            "GIT_CONFIG_COUNT": "1",
-            "GIT_CONFIG_KEY_0": "protocol.file.allow",
-            "GIT_CONFIG_VALUE_0": "always",
-        },
-    ):
+    with patch.dict(os.environ, _ALLOW_FILE_PROTOCOL_ENV):
         repo_dir, _ = git.clone_or_update(
             url=str(upstream),
             ref=None,

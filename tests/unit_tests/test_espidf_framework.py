@@ -160,7 +160,7 @@ def test_clone_idf_with_submodules_without_ref(tmp_path: Path) -> None:
             framework_path, "https://github.com/espressif/esp-idf.git", None
         )
 
-    # No ref -> just clone + submodule update/status, no fetch/reset.
+    # No ref -> just clone + submodule update, no fetch/reset.
     calls = [c.args[0] for c in run_git_command_mock.call_args_list]
     assert calls[0] == [
         "git",
@@ -170,8 +170,7 @@ def test_clone_idf_with_submodules_without_ref(tmp_path: Path) -> None:
         "https://github.com/espressif/esp-idf.git",
         str(framework_path),
     ]
-    assert calls[-2][:5] == ["git", "submodule", "update", "--init", "--recursive"]
-    assert calls[-1][:3] == ["git", "submodule", "status"]
+    assert calls[-1][:5] == ["git", "submodule", "update", "--init", "--recursive"]
     assert not any(c[1] == "fetch" for c in calls)
     assert not any(c[1] == "reset" for c in calls)
 
@@ -189,7 +188,7 @@ def test_clone_idf_with_submodules_with_ref(tmp_path: Path) -> None:
         )
 
     calls = [c.args[0] for c in run_git_command_mock.call_args_list]
-    # clone, fetch ref, reset hard, submodule update, submodule status
+    # clone, fetch ref, reset hard, submodule update
     assert calls[0][:2] == ["git", "clone"]
     assert calls[1] == [
         "git",
@@ -201,7 +200,6 @@ def test_clone_idf_with_submodules_with_ref(tmp_path: Path) -> None:
     ]
     assert calls[2] == ["git", "reset", "--hard", "FETCH_HEAD"]
     assert calls[3][:5] == ["git", "submodule", "update", "--init", "--recursive"]
-    assert calls[4][:3] == ["git", "submodule", "status"]
 
 
 def test_clone_idf_with_submodules_raises_when_tree_missing(
