@@ -1,0 +1,7 @@
+esphome:
+  name: docker-test-rtl87xx-arduino
+
+rtl87xx:
+  board: generic-rtl8710bn-2mb-788k
+
+logger:

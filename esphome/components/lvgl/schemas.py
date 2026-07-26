@@ -3,6 +3,7 @@ from typing import Any
 
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
+from esphome.components.mapping import mapping_class
 from esphome.components.time import RealTimeClock
 from esphome.config_validation import prepend_path
 from esphome.const import (
@@ -17,16 +18,22 @@ from esphome.const import (
     CONF_TEXT,
     CONF_TIME,
     CONF_TRIGGER_ID,
+    CONF_VALUE,
     CONF_X,
     CONF_Y,
 )
 from esphome.core import TimePeriod
 from esphome.core.config import StartupTrigger
-from esphome.schema_extractors import EnableSchemaExtraction
+from esphome.schema_extractors import (
+    SCHEMA_EXTRACT,
+    EnableSchemaExtraction,
+    schema_extractor,
+)
 
 from . import defines as df, lv_validation as lvalid
 from .defines import (
     CONF_EXT_CLICK_AREA,
+    CONF_MAPPING,
     CONF_SCROLL_DIR,
     CONF_SCROLL_SNAP_X,
     CONF_SCROLL_SNAP_Y,
@@ -48,6 +55,7 @@ from .layout import (
     GRID_CELL_SCHEMA,
     append_layout_schema,
     grid_alignments,
+    layout_validator,
 )
 from .lv_validation import lv_color, lv_font, lv_gradient, lv_image, opacity
 from .lvcode import UPDATE_EVENT, LvglComponent, lv_event_t_ptr
@@ -85,6 +93,20 @@ PRINTF_TEXT_SCHEMA = cv.All(
     validate_printf,
 )
 
+MAPPING_TEXT_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_MAPPING): cv.use_id(mapping_class),
+        cv.Required(CONF_VALUE): cv.templatable(cv.string),
+    }
+)
+
+MAPPING_IMAGE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_MAPPING): cv.use_id(mapping_class),
+        cv.Required(CONF_VALUE): cv.templatable(cv.string),
+    }
+)
+
 
 def _validate_text(value):
     """
@@ -96,6 +118,8 @@ def _validate_text(value):
     if isinstance(value, dict):
         if CONF_TIME_FORMAT in value:
             return TIME_TEXT_SCHEMA(value)
+        if CONF_MAPPING in value:
+            return MAPPING_TEXT_SCHEMA(value)
         return PRINTF_TEXT_SCHEMA(value)
 
     return cv.templatable(cv.string)(value)
@@ -500,6 +524,7 @@ def base_update_schema(widget_type: WidgetType | LvType, parts):
                 )
             ),
             cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
+            cv.Optional(df.CONF_LAYOUT): layout_validator,
         }
     )
 
@@ -627,6 +652,25 @@ _CONTAINER_SCHEMA_CACHE: dict[
 ] = {}
 
 
+def container_schema_value(widget_type: WidgetType, extras: Any = None) -> cv.Schema:
+    """
+    Build the static schema that :func:`container_schema` validates against, i.e.
+    everything except the value-dependent ``append_layout_schema`` applied at
+    validation time.
+
+    Factored out and exposed so the language-schema dumper can extract a
+    representative schema for a widget — and for the top-level ``lvgl:`` block,
+    whose ``CONFIG_SCHEMA`` is a callable that otherwise hides this behind the
+    :func:`container_schema` validator closure.
+    """
+    schema = obj_schema(widget_type).extend(
+        {cv.GenerateID(): cv.declare_id(widget_type.w_type)}
+    )
+    if extras:
+        schema = schema.extend(extras)
+    return schema.extend(widget_type.schema)
+
+
 def container_schema(
     widget_type: WidgetType, extras: Any = None
 ) -> Callable[[Any], Any]:
@@ -649,12 +693,7 @@ def container_schema(
     def get_schema() -> cv.Schema:
         nonlocal cached_schema
         if cached_schema is None:
-            schema = obj_schema(widget_type).extend(
-                {cv.GenerateID(): cv.declare_id(widget_type.w_type)}
-            )
-            if extras:
-                schema = schema.extend(extras)
-            cached_schema = schema.extend(widget_type.schema)
+            cached_schema = container_schema_value(widget_type, extras)
         return cached_schema
 
     def validator(value: Any) -> Any:
@@ -678,7 +717,23 @@ def any_widget_schema(extras=None):
     :return: A validator for the Widgets key
     """
 
+    @schema_extractor("schema")
     def validator(value):
+        if value is SCHEMA_EXTRACT:
+            # The widgets: list is built per-value at validation time, so the
+            # language-schema dumper sees nothing. Enumerate every registered
+            # widget type as an optional key (a widget item is really a
+            # single-key mapping; over-listing them lets editors complete any
+            # widget — `esphome config` enforces exactly one). extras carries the
+            # layout child options where applicable.
+            return cv.ensure_list(
+                cv.Schema(
+                    {
+                        cv.Optional(name): container_schema_value(widget_type, extras)
+                        for name, widget_type in WIDGET_TYPES.items()
+                    }
+                )
+            )
         if isinstance(value, dict):
             # Convert to list
             is_dict = True

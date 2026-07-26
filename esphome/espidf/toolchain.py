@@ -10,10 +10,16 @@ import shutil
 import subprocess
 
 from esphome.components.esp32.const import KEY_ESP32, KEY_FLASH_SIZE, KEY_IDF_VERSION
-from esphome.const import CONF_FRAMEWORK, CONF_SOURCE
+from esphome.const import (
+    CONF_COMPILE_PROCESS_LIMIT,
+    CONF_ESPHOME,
+    CONF_FRAMEWORK,
+    CONF_SOURCE,
+)
 from esphome.core import CORE, EsphomeError
 from esphome.espidf.framework import check_esp_idf_install, get_framework_env
 from esphome.espidf.size_summary import print_summary
+from esphome.helpers import add_git_ceiling_directory
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -82,12 +88,25 @@ def _get_idf_env(version: str | None = None) -> dict[str, str]:
             env_cache[version] |= get_framework_env(
                 *_get_esphome_esp_idf_paths(version)
             )
+
+        # Cap git's repo search at the config directory so ESP-IDF's
+        # `git describe` for the app version can't error out on an
+        # uninitialized or corrupt git repo in a parent directory.
+        add_git_ceiling_directory(env_cache[version], CORE.config_dir)
     return env_cache[version]
 
 
 def _get_cmake_output(build_dir) -> str:
     cmake_output_cache = _cache().cmake_output
     if build_dir not in cmake_output_cache:
+        # Check the build before resolving the env: _get_idf_env() runs
+        # check_esp_idf_install(), which can download and install the whole
+        # framework. Never start that for a build that isn't there. Callers
+        # such as the log stack-trace decoder run against devices that were
+        # never compiled on this machine.
+        if not (Path(build_dir) / "CMakeCache.txt").is_file():
+            raise EsphomeError(f"No ESP-IDF build found in {build_dir}")
+
         cmd = ["cmake", "-LA", "-N", "."]
 
         env = _get_idf_env()
@@ -141,7 +160,10 @@ def _get_idf_tool(name: str) -> str:
 
 
 def run_idf_py(
-    *args, cwd: Path | None = None, capture_output: bool = False
+    *args,
+    cwd: Path | None = None,
+    capture_output: bool = False,
+    jobs: int | None = None,
 ) -> int | str:
     """Run idf.py with the given arguments."""
     idf_path = _get_idf_path()
@@ -149,6 +171,8 @@ def run_idf_py(
         raise EsphomeError("ESP-IDF not found")
 
     env = _get_idf_env()
+    if jobs is not None:
+        env = {**env, "IDF_PY_BUILD_JOBS": str(jobs)}
     python_executable = _get_idf_tool("python")
     idf_py = idf_path / "tools" / "idf.py"
     # Dispatch idf.py through esphome.espidf.runner, which wraps
@@ -378,7 +402,7 @@ def run_compile(config, verbose: bool) -> int:
     args.append("build")
     args.append("size")
 
-    rc = run_idf_py(*args)
+    rc = run_idf_py(*args, jobs=config[CONF_ESPHOME].get(CONF_COMPILE_PROCESS_LIMIT))
     if rc == 0:
         size_json = CORE.relative_build_path("build", "esp_idf_size.json")
         partitions = CORE.relative_build_path("partitions.csv")
@@ -461,11 +485,19 @@ def get_idedata() -> dict | None:
     cache = CORE.relative_internal_path("idedata", f"{CORE.name}.json")
     if cache.is_file() and cache.stat().st_mtime >= compile_commands.stat().st_mtime:
         try:
-            return json.loads(cache.read_text(encoding="utf-8"))
+            cached = json.loads(cache.read_text(encoding="utf-8"))
         except ValueError:
             pass
+        else:
+            # Caches written before cc_path was emitted stay newer than
+            # compile_commands.json forever, so rebuild them on the field rather
+            # than on the timestamp. Check the type too: a corrupted cache can
+            # still be valid JSON, and "in" would match a substring of a string.
+            if isinstance(cached, dict) and "cc_path" in cached:
+                return cached
 
     data = idedata_from_build(compile_commands)
+    data["prog_path"] = str(get_elf_path())
     cache.parent.mkdir(parents=True, exist_ok=True)
     cache.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     return data
