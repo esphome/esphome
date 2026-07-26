@@ -141,7 +141,10 @@ def run_git_command(
             if lines[-1].startswith("fatal:"):
                 raise GitCommandError(lines[-1][len("fatal: ") :])
             raise GitCommandError(err_str)
-        raise GitCommandError(f"git exited with code {ret.returncode}: {' '.join(cmd)}")
+        raise GitCommandError(
+            f"git exited with code {ret.returncode}: "
+            f"{_redact_url_credentials(' '.join(cmd))}"
+        )
 
     return ret.stdout.decode("utf-8").strip()
 
@@ -361,7 +364,7 @@ def clone_or_update(
             )
         except EsphomeError as err:
             _LOGGER.warning(
-                "Could not write clone completion marker for %s: %s", key, err
+                "Could not write clone completion marker for %s: %s", safe_key, err
             )
 
     else:
