@@ -12,7 +12,7 @@ from enum import StrEnum
 import io
 import json
 import logging
-from pathlib import Path
+from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 import re
 import shutil
 import tarfile
@@ -51,6 +51,7 @@ class ManifestKey(StrEnum):
     MANIFEST_VERSION = "manifest_version"
     ESPHOME_VERSION = "esphome_version"
     CONFIG_FILENAME = "config_filename"
+    CONFIG_DIR = "config_dir"
     FILES = "files"
     HAS_SECRETS = "has_secrets"
 
@@ -127,6 +128,12 @@ class BundleData:
     """Files components asked to include, keyed under DOMAIN in CORE.data."""
 
     extra_files: list[Path] = field(default_factory=list)
+    # Original config dir parsed from an extracted bundle's manifest.json,
+    # kept in the path flavor of the machine the bundle was created on.
+    # The checked flag makes the manifest lookup happen at most once per run;
+    # CORE.data is cleared between runs.
+    original_config_dir: PurePath | None = None
+    original_config_dir_checked: bool = False
 
 
 def _get_data() -> BundleData:
@@ -146,6 +153,94 @@ def add_bundle_file(path: Path) -> None:
     config directory are skipped when the bundle is built.
     """
     _get_data().extra_files.append(CORE.relative_config_path(path))
+
+
+# Windows paths start with a drive letter or contain backslashes; POSIX
+# paths do neither in practice, so this is how the flavor of a recorded
+# path string is recognized on any host.
+_WINDOWS_DRIVE_RE = re.compile(r"^[A-Za-z]:")
+
+
+def _path_flavor(value: str) -> type[PurePath]:
+    """Pick the pure path class matching the flavor ``value`` was written in."""
+    if "\\" in value or _WINDOWS_DRIVE_RE.match(value):
+        return PureWindowsPath
+    return PurePosixPath
+
+
+def _load_original_config_dir() -> PurePath | None:
+    """Read the original config dir from an extracted bundle's manifest.
+
+    Returns None when the current config dir is not an extracted bundle or
+    the manifest does not record the original config dir.
+    """
+    manifest_path = CORE.config_dir / MANIFEST_FILENAME
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        # The common case: this config dir is not an extracted bundle.
+        return None
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as err:
+        # A manifest.json is present but unreadable or malformed. Say so
+        # instead of letting it look identical to "not a bundle".
+        _LOGGER.warning("Bundle: ignoring unreadable %s: %s", manifest_path, err)
+        return None
+    if not isinstance(manifest, dict):
+        return None
+    # A manifest.json in the config dir does not have to be ours. Only trust
+    # one that looks like a bundle manifest for exactly this config file.
+    version = manifest.get(ManifestKey.MANIFEST_VERSION)
+    if not isinstance(version, int) or version < 1:
+        return None
+    if manifest.get(ManifestKey.CONFIG_FILENAME) != CORE.config_path.name:
+        return None
+    config_dir = manifest.get(ManifestKey.CONFIG_DIR)
+    if not isinstance(config_dir, str) or not config_dir:
+        return None
+    return _path_flavor(config_dir)(config_dir)
+
+
+def remap_bundle_path(value: str) -> Path | None:
+    """Remap an absolute path from the machine a bundle was created on.
+
+    A bundled config may reference files by absolute path. The referenced
+    files ship inside the bundle at their config-relative locations, but the
+    YAML text is copied verbatim, so after extraction on another machine the
+    absolute reference points at a path that only existed on the creating
+    machine. The bundle manifest records that machine's config dir; when
+    ``value`` names a path that lived under it, return the corresponding
+    file next to the extracted config.
+
+    ``value`` is the raw path string from the config. It is parsed with the
+    original machine's path flavor, so a bundle created on Windows remaps on
+    a POSIX build server and vice versa.
+
+    Returns None when not compiling an extracted bundle, when ``value`` was
+    not under the original config dir, or when the bundle does not contain
+    the file.
+    """
+    data = _get_data()
+    if not data.original_config_dir_checked:
+        data.original_config_dir_checked = True
+        data.original_config_dir = _load_original_config_dir()
+    original_dir = data.original_config_dir
+    if original_dir is None:
+        return None
+    path = type(original_dir)(value)
+    if not path.is_absolute():
+        return None
+    try:
+        rel = path.relative_to(original_dir)
+    except ValueError:
+        return None
+    # relative_to is lexical, so ".." segments survive it. Refuse them: the
+    # remapped file must land strictly inside the extracted config tree.
+    if ".." in rel.parts:
+        return None
+    remapped = CORE.relative_config_path(Path(*rel.parts))
+    if not remapped.exists():
+        return None
+    return remapped
 
 
 @dataclass
@@ -174,6 +269,7 @@ class BundleManifest:
     config_filename: str
     files: list[str]
     has_secrets: bool
+    config_dir: str | None = None
 
 
 class ConfigBundleCreator:
@@ -438,6 +534,7 @@ class ConfigBundleCreator:
             ManifestKey.MANIFEST_VERSION: CURRENT_MANIFEST_VERSION,
             ManifestKey.ESPHOME_VERSION: const.__version__,
             ManifestKey.CONFIG_FILENAME: self._config_path.name,
+            ManifestKey.CONFIG_DIR: str(self._config_dir),
             ManifestKey.FILES: [f.path for f in files],
             ManifestKey.HAS_SECRETS: has_secrets,
         }
@@ -522,12 +619,14 @@ def read_bundle_manifest(bundle_path: Path) -> BundleManifest:
     except tarfile.TarError as err:
         raise EsphomeError(f"Failed to read bundle: {err}") from err
 
+    config_dir = manifest.get(ManifestKey.CONFIG_DIR)
     return BundleManifest(
         manifest_version=manifest[ManifestKey.MANIFEST_VERSION],
         esphome_version=manifest.get(ManifestKey.ESPHOME_VERSION, "unknown"),
         config_filename=manifest[ManifestKey.CONFIG_FILENAME],
         files=manifest.get(ManifestKey.FILES, []),
         has_secrets=manifest.get(ManifestKey.HAS_SECRETS, False),
+        config_dir=config_dir if isinstance(config_dir, str) else None,
     )
 
 

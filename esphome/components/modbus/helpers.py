@@ -3,33 +3,34 @@ import esphome.codegen as cg
 modbus_ns = cg.esphome_ns.namespace("modbus")
 modbus_helpers_ns = modbus_ns.namespace("helpers")
 
-ModbusFunctionCode_ns = modbus_ns.namespace("ModbusFunctionCode")
-ModbusFunctionCode = ModbusFunctionCode_ns.enum("ModbusFunctionCode")
+FunctionCode_ns = modbus_ns.namespace("FunctionCode")
+FunctionCode = FunctionCode_ns.enum("FunctionCode")
 
 MODBUS_FUNCTION_CODE = {
-    "read_coils": ModbusFunctionCode.READ_COILS,
-    "read_discrete_inputs": ModbusFunctionCode.READ_DISCRETE_INPUTS,
-    "read_holding_registers": ModbusFunctionCode.READ_HOLDING_REGISTERS,
-    "read_input_registers": ModbusFunctionCode.READ_INPUT_REGISTERS,
-    "write_single_coil": ModbusFunctionCode.WRITE_SINGLE_COIL,
-    "write_single_register": ModbusFunctionCode.WRITE_SINGLE_REGISTER,
-    "write_multiple_coils": ModbusFunctionCode.WRITE_MULTIPLE_COILS,
-    "write_multiple_registers": ModbusFunctionCode.WRITE_MULTIPLE_REGISTERS,
+    "read_coils": FunctionCode.READ_COILS,
+    "read_discrete_inputs": FunctionCode.READ_DISCRETE_INPUTS,
+    "read_holding_registers": FunctionCode.READ_HOLDING_REGISTERS,
+    "read_input_registers": FunctionCode.READ_INPUT_REGISTERS,
+    "write_single_coil": FunctionCode.WRITE_SINGLE_COIL,
+    "write_single_register": FunctionCode.WRITE_SINGLE_REGISTER,
+    "write_multiple_coils": FunctionCode.WRITE_MULTIPLE_COILS,
+    "write_multiple_registers": FunctionCode.WRITE_MULTIPLE_REGISTERS,
 }
 
-ModbusRegisterType_ns = modbus_ns.namespace("ModbusRegisterType")
-ModbusRegisterType = ModbusRegisterType_ns.enum("ModbusRegisterType")
+EntityType_ns = modbus_ns.namespace("EntityType")
+EntityType = EntityType_ns.enum("EntityType")
 
 MODBUS_WRITE_REGISTER_TYPE = {
-    "custom": ModbusRegisterType.CUSTOM,
-    "coil": ModbusRegisterType.COIL,
-    "holding": ModbusRegisterType.HOLDING,
+    "custom": EntityType.CUSTOM,
+    "coil": EntityType.COIL,
+    "holding": EntityType.HOLDING,
 }
 
 MODBUS_REGISTER_TYPE = {
     **MODBUS_WRITE_REGISTER_TYPE,
-    "discrete_input": ModbusRegisterType.DISCRETE_INPUT,
-    "read": ModbusRegisterType.INPUT_REGISTER,
+    "discrete_input": EntityType.DISCRETE_INPUT,
+    "read": EntityType.INPUT_REGISTER,
+    "input": EntityType.INPUT_REGISTER,
 }
 
 SensorValueType_ns = modbus_helpers_ns.namespace("SensorValueType")
