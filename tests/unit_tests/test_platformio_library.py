@@ -133,18 +133,8 @@ def test_resolve_registry_version_raises_without_pkg_file(monkeypatch):
         _resolve_registry_version("owner", "pkg", set())
 
 
-def _patch_download_with_manifests(monkeypatch, tmp_path, manifests, *, properties=()):
-    """Fake ConvertedLibrary.download to materialize canned manifests on disk."""
-
-    def fake_download(self, force=False, salt="", namespace=""):
-        self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
-        self.path.mkdir(parents=True, exist_ok=True)
-        if self.name in properties:
-            (self.path / "library.properties").write_text(manifests[self.name])
-        else:
-            (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
-
-    monkeypatch.setattr(ConvertedLibrary, "download", fake_download)
+def _patch_registry_resolve(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stub the registry lookup so tests never touch the network."""
     monkeypatch.setattr(
         lib,
         "_resolve_registry_version",
@@ -155,6 +145,21 @@ def _patch_download_with_manifests(monkeypatch, tmp_path, manifests, *, properti
             f"http://x/{pkgname}.tar.gz",
         ),
     )
+
+
+def _patch_download_with_manifests(monkeypatch, tmp_path, manifests, *, properties=()):
+    """Fake ConvertedLibrary.download to materialize canned manifests on disk."""
+
+    def fake_download(self, force=False, salt="", namespace=""):
+        self.path = tmp_path / self.get_require_name()
+        self.path.mkdir(parents=True, exist_ok=True)
+        if self.name in properties:
+            (self.path / "library.properties").write_text(manifests[self.name])
+        else:
+            (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
+
+    monkeypatch.setattr(ConvertedLibrary, "download", fake_download)
+    _patch_registry_resolve(monkeypatch)
 
 
 def test_convert_libraries_parses_library_properties(tmp_path, monkeypatch):
@@ -210,6 +215,106 @@ def test_convert_libraries_handles_unparsable_dependency_version(tmp_path, monke
     top = convert_libraries([Library("esphome/A", "1.0.0", None)], _backend())
 
     assert [d.name for d in top[0].dependencies] == ["C"]
+
+
+def _patch_download_without_manifest(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, manifest_on_force: bool
+) -> list[bool]:
+    """Fake ConvertedLibrary.download that leaves the manifest missing.
+
+    When ``manifest_on_force`` is set, a forced re-download writes a valid
+    library.json, simulating a broken cache entry that heals on retry.
+    Returns the list of ``force`` values download was called with.
+    """
+    calls: list[bool] = []
+
+    def fake_download(
+        self: ConvertedLibrary, force: bool = False, salt: str = "", namespace: str = ""
+    ) -> None:
+        calls.append(force)
+        self.path = tmp_path / self.get_require_name()
+        self.path.mkdir(parents=True, exist_ok=True)
+        if force and manifest_on_force:
+            (self.path / "library.json").write_text(json.dumps({"name": "A"}))
+
+    monkeypatch.setattr(ConvertedLibrary, "download", fake_download)
+    _patch_registry_resolve(monkeypatch)
+    return calls
+
+
+def test_convert_libraries_redownloads_when_manifest_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A cached copy without any manifest (e.g. an interrupted clone or
+    # extraction) triggers exactly one forced re-download and then succeeds.
+    calls = _patch_download_without_manifest(
+        monkeypatch, tmp_path, manifest_on_force=True
+    )
+
+    top = convert_libraries([Library("esphome/A", "1.0.0", None)], _backend())
+
+    assert calls == [False, True]
+    assert top[0].data["name"] == "A"
+
+
+def test_convert_libraries_raises_when_manifest_missing_after_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # If the forced re-download still yields no manifest, the error is raised
+    # after exactly one retry (no retry loop). The error must name the cache
+    # directory so users can find the broken entry instead of guessing where
+    # the library was unpacked.
+    calls = _patch_download_without_manifest(
+        monkeypatch, tmp_path, manifest_on_force=False
+    )
+
+    with pytest.raises(RuntimeError, match="Invalid PIO library") as excinfo:
+        convert_libraries([Library("esphome/A", "1.0.0", None)], _backend())
+
+    assert calls == [False, True]
+    assert str(tmp_path / "esphome__A") in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (None, None),
+        ("", None),
+        ("http://[::1", None),  # malformed IPv6 makes urlsplit raise ValueError
+        ("foo/bar", None),
+        ("file:///no/host", None),
+        ("https://github.com/x/y", "https://github.com/x/y"),
+    ],
+)
+def test_url_or_none(value: str | None, expected: str | None) -> None:
+    assert lib._url_or_none(value) == expected
+
+
+def test_convert_libraries_url_in_name_resolves_as_git(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # add_library("https://github.com/x/y", None) puts a git URL in the name
+    # position; it must resolve as a git source and never hit the registry.
+    _patch_download_with_manifests(
+        monkeypatch, tmp_path, {"pstolarz/OneWireNg": {"name": "OneWireNg"}}
+    )
+
+    def fail_registry(owner: str, pkgname: str, requirements: set[str]) -> None:
+        raise AssertionError(f"registry consulted for {owner}/{pkgname}")
+
+    # After the helper so this stub wins over the helper's benign one
+    monkeypatch.setattr(lib, "_resolve_registry_version", fail_registry)
+
+    top = convert_libraries(
+        [Library("https://github.com/pstolarz/OneWireNg", None, None)], _backend()
+    )
+
+    assert [c.name for c in top] == ["pstolarz/OneWireNg"]
+    assert top[0].data["name"] == "OneWireNg"
+    source = top[0].source
+    assert isinstance(source, GitSource)
+    assert source.url == "https://github.com/pstolarz/OneWireNg"
+    assert source.ref is None
 
 
 def test_convert_libraries_skips_incompatible_dependency(tmp_path, monkeypatch):
