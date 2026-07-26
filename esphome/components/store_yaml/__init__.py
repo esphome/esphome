@@ -71,10 +71,18 @@ def _final_validate(config: ConfigType) -> ConfigType:
     if CONF_KEY in encryption:
         return config
     if config.get(CONF_ALLOW_UNENCRYPTED):
-        _LOGGER.warning(
-            "store_yaml is enabled without API encryption; any client that can "
-            "reach the device on the network can pull the embedded YAML."
-        )
+        if config.get(CONF_INCLUDE_SECRETS):
+            _LOGGER.warning(
+                "store_yaml is enabled without API encryption and with "
+                "include_secrets; any client that can reach the device on the "
+                "network can pull the embedded YAML including the verbatim "
+                "contents of secrets.yaml."
+            )
+        else:
+            _LOGGER.warning(
+                "store_yaml is enabled without API encryption; any client that "
+                "can reach the device on the network can pull the embedded YAML."
+            )
         return config
     raise cv.Invalid(
         "store_yaml requires API encryption (configure `api.encryption.key`). "
@@ -132,7 +140,15 @@ def _gather_files(
         # in $HOME) keep their ".." components so the include graph is preserved
         # and files from different directories with the same basename don't
         # collide.
-        rel_str = path.relative_to(root, walk_up=True).as_posix()
+        try:
+            rel_str = path.relative_to(root, walk_up=True).as_posix()
+        except ValueError as err:
+            # Different anchors (a Windows file on another drive) cannot be
+            # expressed relative to the config root.
+            raise EsphomeError(
+                f"store_yaml: cannot place {path} in the recovery envelope; "
+                f"it does not share a root with {root}: {err}"
+            ) from err
 
         if path in discovered.secrets:
             secret_rels.add(rel_str)

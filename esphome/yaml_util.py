@@ -901,7 +901,10 @@ def secret_values_registered(values: dict[str, str]) -> Generator[set[str]]:
     try:
         yield emitted
     finally:
-        _EMITTED_SECRET_NAMES.remove(emitted)
+        # Contexts unwind LIFO, so the innermost collector is always last;
+        # pop() removes by position where remove() would match the first
+        # *equal* set and could strip an outer context's collector.
+        _EMITTED_SECRET_NAMES.pop()
         for value in added:
             _SECRET_VALUES.pop(value, None)
 
@@ -1186,17 +1189,27 @@ class ESPHomeDumper(yaml.SafeDumper):
         return self.represent_scalar(tag="!lambda", value=value.value, style="|")
 
     def represent_extend(self, value):
+        # Consult is_secret like the other scalar representers so a payload
+        # equal to a registered secret is never written out in cleartext.
+        if is_secret(value.value):
+            return self.represent_secret(value.value)
         return self.represent_scalar(tag="!extend", value=value.value)
 
     def represent_remove(self, value):
+        if is_secret(value.value):
+            return self.represent_secret(value.value)
         return self.represent_scalar(tag="!remove", value=value.value)
 
     def represent_include_file(self, value):
         if value.vars:
+            # The mapping values route through the regular representers,
+            # which already consult is_secret.
             mapping = {"file": value.file.as_posix(), "vars": value.vars}
             return self.represent_mapping(
                 tag="!include", mapping=mapping, flow_style=False
             )
+        if is_secret(value.file.as_posix()):
+            return self.represent_secret(value.file.as_posix())
         return self.represent_scalar(tag="!include", value=value.file.as_posix())
 
     def represent_id(self, value):

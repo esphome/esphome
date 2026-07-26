@@ -615,3 +615,28 @@ def test_redacted_outside_root_secrets_gets_root_skeleton(
     assert "secrets.yaml" in files
     assert 'api_key: ""' in files["secrets.yaml"].decode()
     assert b"SUPER_SECRET" not in b"".join(files.values())
+
+
+def test_gather_raises_esphome_error_on_cross_anchor_path(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A file that cannot be made relative to the config root (a Windows
+    cross-drive path) surfaces as EsphomeError, not a raw ValueError."""
+
+    def fake_relative_to(self: Path, other: Path, walk_up: bool = False) -> Path:
+        raise ValueError("paths have different anchors")
+
+    monkeypatch.setattr(Path, "relative_to", fake_relative_to)
+    discovered = _sources(project, "entry.yaml")
+    with pytest.raises(EsphomeError, match="does not share a root"):
+        _gather_files(discovered)
+
+
+def test_final_validate_unencrypted_with_secrets_names_secrets_yaml(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """allow_unencrypted combined with include_secrets warns about the
+    verbatim secrets.yaml specifically."""
+    config = {CONF_ALLOW_UNENCRYPTED: True, "include_secrets": True}
+    assert _run_final_validate({"api": {}}, config) is config
+    assert "verbatim contents of secrets.yaml" in caplog.text

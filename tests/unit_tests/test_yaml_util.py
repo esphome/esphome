@@ -1557,3 +1557,21 @@ def test_merge_include_no_overlap_records_nothing(tmp_path: Path) -> None:
     assert result["api"] == {"reboot_timeout": "5min"}
     assert result["logger"] == {"level": "DEBUG"}
     assert yaml_util.take_dropped_merge_keys() == []
+
+
+def test_wrapper_representers_consult_is_secret() -> None:
+    """!extend / !remove payloads and scalar !include paths equal to a
+    registered secret are swapped, never written in cleartext."""
+    from esphome.config_helpers import Extend, Remove
+
+    with yaml_util.secret_values_registered({"hunter2": "the_secret"}):
+        out = yaml_util.dump(
+            {
+                "a": Extend("hunter2"),
+                "b": Remove("hunter2"),
+                "c": Extend("plain_id"),
+            }
+        )
+    assert out.count("!secret 'the_secret'") == 2
+    assert "hunter2" not in out
+    assert "!extend 'plain_id'" in out
