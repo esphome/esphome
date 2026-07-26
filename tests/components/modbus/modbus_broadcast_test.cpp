@@ -11,9 +11,6 @@ namespace esphome::modbus {
 
 namespace {
 
-// Modbus broadcast address: a request every device processes and never answers (Modbus 4.1).
-constexpr uint8_t BROADCAST_ADDRESS = 0x00;
-
 // A server device that records the writes the hub routes to it.
 class RecordingDevice : public ModbusServerDevice {
  public:
@@ -172,8 +169,8 @@ TEST(ModbusBroadcast, MultipleRegisterWriteReachesAllDevicesWithoutReply) {
 
   // FC 0x10 payload: start 0x9D31, quantity 2, byte count 4, values 0x0102 and 0x0304.
   const uint8_t pdu_data[] = {0x9D, 0x31, 0x00, 0x02, 0x04, 0x01, 0x02, 0x03, 0x04};
-  hub.process_modbus_client_frame_(BROADCAST_ADDRESS, static_cast<uint8_t>(FunctionCode::WRITE_MULTIPLE_REGISTERS),
-                                   pdu_data);
+  ASSERT_TRUE(hub.run_receive_parser_for_test(
+      BROADCAST_ADDRESS, static_cast<uint8_t>(FunctionCode::WRITE_MULTIPLE_REGISTERS), pdu_data, sizeof(pdu_data)));
 
   for (RecordingDevice *device : {&device_a, &device_b}) {
     EXPECT_EQ(device->write_count, 1);
@@ -196,8 +193,8 @@ TEST(ModbusBroadcast, ReadFunctionCodeIsIgnoredAndProducesNoReply) {
 
   // FC 0x03 payload: start 0x0000, quantity 2. Reads cannot be broadcast.
   const uint8_t pdu_data[] = {0x00, 0x00, 0x00, 0x02};
-  hub.process_modbus_client_frame_(BROADCAST_ADDRESS, static_cast<uint8_t>(FunctionCode::READ_HOLDING_REGISTERS),
-                                   pdu_data);
+  ASSERT_TRUE(hub.run_receive_parser_for_test(
+      BROADCAST_ADDRESS, static_cast<uint8_t>(FunctionCode::READ_HOLDING_REGISTERS), pdu_data, sizeof(pdu_data)));
 
   EXPECT_EQ(device.write_count, 0);   // no device was written
   EXPECT_TRUE(uart.written.empty());  // and the broadcast address is never answered
@@ -216,8 +213,8 @@ TEST(ModbusBroadcast, InvalidMultipleWriteBroadcastProducesNoWriteAndNoReply) {
 
   // FC 0x10 payload: quantity 2 but byte count 2 (should be 4), so parsing fails.
   const uint8_t pdu_data[] = {0x9D, 0x31, 0x00, 0x02, 0x02, 0x01, 0x02};
-  hub.process_modbus_client_frame_(BROADCAST_ADDRESS, static_cast<uint8_t>(FunctionCode::WRITE_MULTIPLE_REGISTERS),
-                                   pdu_data);
+  ASSERT_TRUE(hub.run_receive_parser_for_test(
+      BROADCAST_ADDRESS, static_cast<uint8_t>(FunctionCode::WRITE_MULTIPLE_REGISTERS), pdu_data, sizeof(pdu_data)));
 
   EXPECT_EQ(device_a.write_count, 0);
   EXPECT_EQ(device_b.write_count, 0);

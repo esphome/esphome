@@ -92,7 +92,7 @@ def _validate_server_address(value: Any) -> int:
     if address == 0:
         raise cv.Invalid(
             "Address 0 is the Modbus broadcast address and cannot be used as a "
-            "server device address. Assign a unique unit address (1-247 per the Modbus spec) instead."
+            "server device address. Assign a unique unit address instead."
         )
     return address
 

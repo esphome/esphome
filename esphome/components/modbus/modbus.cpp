@@ -14,8 +14,6 @@ static constexpr size_t MODBUS_MAX_LOG_BYTES = 64;
 static constexpr uint32_t MODBUS_BITS_PER_CHAR = 11;
 // Milliseconds per second
 static constexpr uint32_t MS_PER_SEC = 1000;
-// Modbus broadcast address: the request is processed by every device and no reply is sent (Modbus 4.1).
-static constexpr uint8_t MODBUS_BROADCAST_ADDRESS = 0;
 
 void Modbus::setup() {
   if (this->flow_control_pin_ != nullptr) {
@@ -162,7 +160,7 @@ void ModbusServerHub::parse_modbus_frames() {
     // and never dispatched to our devices. (Multi-register broadcasts already fall through via a frame-length
     // mismatch.) The peer-response expectation is left intact so a real reply, if it still arrives, is handled
     // on the next pass.
-    const bool is_broadcast = this->rx_buffer_[0] == MODBUS_BROADCAST_ADDRESS;
+    const bool is_broadcast = this->rx_buffer_[0] == BROADCAST_ADDRESS;
     if (this->expecting_peer_response_ != 0 && !is_broadcast) {
       if (!this->parse_modbus_server_frame_()) {
         ESP_LOGV(TAG, "Stop expecting peer response from %" PRIu8 " due to parse failure, and retry parse",
@@ -420,12 +418,17 @@ void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, const uint
     return;
   }
   for (auto *device : this->devices_) {
-    device->on_write_registers(start_address, registers);
+    // A broadcast is never answered, so a rejecting device has no other feedback channel; log it so a
+    // misconfigured register map is diagnosable instead of looking identical to a successful write.
+    if (ResponseStatus status = device->on_write_registers(start_address, registers); status.has_value()) {
+      ESP_LOGV(TAG, "Device %" PRIu8 " rejected broadcast write with exception %" PRIu8, device->get_address(),
+               static_cast<uint8_t>(status.value()));
+    }
   }
 }
 
 void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data) {
-  if (address == MODBUS_BROADCAST_ADDRESS) {
+  if (address == BROADCAST_ADDRESS) {
     // A broadcast is delivered to every registered device and is never answered (Modbus 4.1 / 6.12).
     this->process_broadcast_frame_(function_code, data);
     return;

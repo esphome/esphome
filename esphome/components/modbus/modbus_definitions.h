@@ -108,5 +108,8 @@ static constexpr uint16_t MIN_PDU_SIZE = 1;
 static constexpr uint16_t MAX_PDU_SIZE = 253;  // Max PDU size is 256 - address(1) - CRC(2) = 253
 static constexpr uint16_t MAX_RAW_SIZE = 254;  // Max RAW size is 256 - CRC(2) = 254
 static constexpr uint16_t MAX_FRAME_SIZE = 256;
+
+// 4.1 Address 0 is the broadcast address: the request is processed by every device and never answered.
+static constexpr uint8_t BROADCAST_ADDRESS = 0;
 /// End of Modbus definitions
 }  // namespace esphome::modbus
