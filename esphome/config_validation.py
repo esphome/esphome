@@ -422,12 +422,14 @@ class Version:
 
     @classmethod
     def parse(cls, value: str) -> Version:
-        match = re.match(r"^(\d+).(\d+).(\d+)[-.]?(\w*)$", value)
+        # The patch component is optional and defaults to 0, so "6.0" and
+        # "6.0-rc1" parse as 6.0.0 and 6.0.0-rc1.
+        match = re.match(r"^(\d+)\.(\d+)(?:\.(\d+))?[-.]?(\w*)$", value)
         if match is None:
             raise ValueError(f"Not a valid version number {value}")
         major = int(match[1])
         minor = int(match[2])
-        patch = int(match[3])
+        patch = int(match[3] or 0)
         extra = match[4] or ""
         return Version(major=major, minor=minor, patch=patch, extra=extra)
 
@@ -1936,14 +1938,29 @@ def dimensions(value):
     return dimensions([match.group(1), match.group(2)])
 
 
+def _remap_bundle_path(value: str) -> Path | None:
+    """Resolve a path from the machine an extracted bundle was created on.
+
+    An absolute path in a config compiled from an extracted bundle may point
+    at the machine the bundle was created on; the bundle ships the file at
+    its config-relative location instead.
+    """
+    from esphome.bundle import remap_bundle_path
+
+    return remap_bundle_path(value)
+
+
 def directory(value: object) -> Path:
     value = string(value)
     path = CORE.relative_config_path(value)
 
     if not path.exists():
-        raise Invalid(
-            f"Could not find directory '{path}'. Please make sure it exists (full path: {path.resolve()})."
-        )
+        remapped = _remap_bundle_path(value)
+        if remapped is None:
+            raise Invalid(
+                f"Could not find directory '{path}'. Please make sure it exists (full path: {path.resolve()})."
+            )
+        path = remapped
     if not path.is_dir():
         raise Invalid(
             f"Path '{path}' is not a directory (full path: {path.resolve()})."
@@ -1956,9 +1973,12 @@ def file_(value: object) -> Path:
     path = CORE.relative_config_path(value)
 
     if not path.exists():
-        raise Invalid(
-            f"Could not find file '{path}'. Please make sure it exists (full path: {path.resolve()})."
-        )
+        remapped = _remap_bundle_path(value)
+        if remapped is None:
+            raise Invalid(
+                f"Could not find file '{path}'. Please make sure it exists (full path: {path.resolve()})."
+            )
+        path = remapped
     if not path.is_file():
         raise Invalid(f"Path '{path}' is not a file (full path: {path.resolve()}).")
     return path
