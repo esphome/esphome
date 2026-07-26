@@ -734,6 +734,7 @@ void ModbusClientDevice::read_entities(EntityType entity_type, uint16_t start_ad
       return;
     default:
       ESP_LOGW(TAG, "Invalid entity type for read_entities: %d", (int) entity_type);
+      this->on_not_sent();  // every rejected send is signalled, like send_pdu()'s own refusals
       return;
   }
 }

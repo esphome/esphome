@@ -331,4 +331,22 @@ TEST(ModbusTypedSendHelpers, ReadEntitiesDispatchesByTypeAndRejectsInvalid) {
   EXPECT_EQ(hub.queued_frames(), 0u);
 }
 
+// A rejected read_entities() signals on_not_sent() like every other refused send.
+namespace {
+class NotSentCountingDevice : public ModbusClientDevice {
+ public:
+  NotSentCountingDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_not_sent() override { this->not_sent_++; }
+  int not_sent_{0};
+};
+}  // namespace
+
+TEST(ModbusTypedSendHelpers, InvalidReadEntitiesSignalsNotSent) {
+  NoResponseProbeHub hub;
+  NotSentCountingDevice device(&hub, 0x02);
+  device.read_entities(EntityType::CUSTOM, 0x0001, 1);
+  EXPECT_EQ(device.not_sent_, 1);
+  EXPECT_EQ(hub.queued_frames(), 0u);
+}
+
 }  // namespace esphome::modbus::testing
