@@ -233,10 +233,22 @@ def _check_stamp(file: PathType, data: dict[str, Any]) -> bool:
     return _read_stamp(file) == data
 
 
+def _stamps_match_except_targets(stored: dict, requested: dict) -> bool:
+    """Whether two stamps agree on every field other than ``targets``.
+
+    Compares whole dicts (minus ``targets``) rather than named keys so any
+    stamp field added later participates in invalidation by default instead
+    of being silently ignored.
+    """
+    return {k: v for k, v in stored.items() if k != "targets"} == {
+        k: v for k, v in requested.items() if k != "targets"
+    }
+
+
 def _stamp_covers(stored: dict | None, requested: dict) -> bool:
     """Return True if a stored framework stamp already covers this request.
 
-    ``schema_version`` and ``tools`` must match exactly. ``targets`` may be a
+    Every field except ``targets`` must match exactly. ``targets`` may be a
     superset of the requested ones: ``idf_tools.py install`` accumulates
     targets in idf-env.json across runs, so a framework installed for more
     targets than this build needs is still valid. A stored ``all`` covers
@@ -244,9 +256,7 @@ def _stamp_covers(stored: dict | None, requested: dict) -> bool:
     """
     if stored is None:
         return False
-    if stored.get("schema_version") != requested["schema_version"]:
-        return False
-    if stored.get("tools") != requested["tools"]:
+    if not _stamps_match_except_targets(stored, requested):
         return False
     stored_targets = stored.get("targets")
     if not isinstance(stored_targets, list):
@@ -605,10 +615,13 @@ _UNUSED_IDF_TOOLS: tuple[str, ...] = (
 # because the S2/S3 ULP coprocessor is a RISC-V core, so installing for an
 # S2/S3 target pulls in the whole riscv compiler (~290MB download, 2GB disk)
 # just for ULP programs — which ESPHome never builds (the IDF ``ulp``
-# component is excluded from every build). Removing the xtensa chips from its
-# supported targets keeps it out of xtensa-only installs; building a RISC-V
-# variant still installs it. Xtensa is a closed set (every newer chip is
-# RISC-V), so this list cannot go stale.
+# component is excluded by default; a user who re-enables it via
+# ``include_builtin_idf_components: [ulp]`` on an S2/S3 and hits a missing
+# riscv compiler can set ESPHOME_IDF_DEFAULT_TARGETS=all to install it).
+# Removing the xtensa chips from its supported targets keeps it out of
+# xtensa-only installs; building a RISC-V variant still installs it. Add any
+# future Xtensa chip here; a missing entry only costs the download, while a
+# wrongly listed RISC-V chip would strip its own compiler.
 _XTENSA_TARGETS: tuple[str, ...] = ("esp32", "esp32s2", "esp32s3")
 
 
@@ -644,8 +657,15 @@ def _patch_tools_json_demote_unused_tools(framework_path: Path) -> None:
             if tool.get("name") == "riscv32-esp-elf":
                 targets = tool.get("supported_targets")
                 # Guard the type so unexpected JSON here cannot abort the
-                # other demotions; this patch is best-effort.
+                # other demotions; this patch is best-effort. Log it so a
+                # silently resumed riscv download is diagnosable.
                 if not isinstance(targets, list):
+                    _LOGGER.warning(
+                        "Unexpected supported_targets for riscv32-esp-elf "
+                        "in tools.json (%s); not excluding it from xtensa "
+                        "installs",
+                        type(targets).__name__,
+                    )
                     continue
                 if any(t in targets for t in _XTENSA_TARGETS):
                     tool["supported_targets"] = [
@@ -921,7 +941,15 @@ def _check_esphome_idf_framework_install(
         # ``required`` metapackage installs tools for all of them, so the
         # union is what is actually on disk — and it keeps two variants
         # alternating between builds from re-running the installer each time.
-        if stored_stamp and isinstance(stored_stamp.get("targets"), list):
+        # Merge only when everything except targets matches: a reinstall
+        # triggered by a schema or tools change ran the installer for this
+        # build's targets alone, so carrying the old targets forward would
+        # let later builds of those variants skip the reinstall they need.
+        if (
+            stored_stamp
+            and isinstance(stored_stamp.get("targets"), list)
+            and _stamps_match_except_targets(stored_stamp, stamp_info)
+        ):
             merged = set(stamp_info["targets"]) | set(stored_stamp["targets"])
             stamp_info["targets"] = ["all"] if "all" in merged else sorted(merged)
         _write_stamp(env_stamp_file, stamp_info)

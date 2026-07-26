@@ -568,6 +568,8 @@ def _requested_stamp(targets: list[str], tools: list[str] | None = None) -> dict
         # tools and schema_version must match exactly
         (_requested_stamp(["all"], tools=["cmake", "required"]), ["esp32"], False),
         (_requested_stamp(["all"]) | {"schema_version": "no"}, ["esp32"], False),
+        # an unknown extra field participates in invalidation by default
+        (_requested_stamp(["all"]) | {"module_version": 1}, ["esp32"], False),
         # missing/corrupt stamps never cover
         (None, ["esp32"], False),
         (
@@ -655,9 +657,10 @@ def test_check_esp_idf_install_uses_requested_targets(
     assert "--targets=esp32" in install_cmd
 
 
-def test_framework_install_merge_with_all_stays_all() -> None:
-    """Merging into a stamp that already holds "all" collapses back to "all"
-    (here the tools list changed, so the installer re-runs despite "all")."""
+def test_framework_install_tools_change_resets_stamp_targets() -> None:
+    """A reinstall triggered by a tools change must not carry the old stamp's
+    targets forward: the installer only ran for this build's targets, so a
+    merged stamp would let other variants skip the reinstall they need."""
     framework_path = _extracted_framework_with_stamp(
         _requested_stamp(["all"], tools=["cmake", "required"])
     )
@@ -667,7 +670,8 @@ def test_framework_install_merge_with_all_stays_all() -> None:
 
     run_ok.assert_called_once()
     stamp = json.loads((framework_path / ESPHOME_STAMP_FILE).read_text())
-    assert stamp["targets"] == ["all"]
+    assert stamp["targets"] == ["esp32"]
+    assert stamp["tools"] == ["required"]
 
 
 @pytest.mark.parametrize(
@@ -1149,10 +1153,11 @@ def test_demote_unused_tools_drops_xtensa_from_riscv_targets(tmp_path: Path) -> 
 
 
 def test_demote_unused_tools_bad_supported_targets_type_still_demotes(
-    tmp_path: Path,
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A non-list supported_targets on riscv32-esp-elf must not abort the
-    other demotions; the targets patch is best-effort."""
+    other demotions; the targets patch is best-effort and logs the skip so a
+    silently resumed riscv download is diagnosable."""
     tools_json = _write_tools_json(
         tmp_path,
         {
@@ -1166,13 +1171,15 @@ def test_demote_unused_tools_bad_supported_targets_type_still_demotes(
             ]
         },
     )
-    _patch_tools_json_demote_unused_tools(tmp_path)
+    with caplog.at_level(logging.WARNING, logger="esphome.espidf.framework"):
+        _patch_tools_json_demote_unused_tools(tmp_path)
 
     data = json.loads(tools_json.read_text(encoding="utf-8"))
     openocd = next(t for t in data["tools"] if t["name"] == "openocd-esp32")
     riscv = next(t for t in data["tools"] if t["name"] == "riscv32-esp-elf")
     assert openocd["install"] == "on_request"
     assert riscv["supported_targets"] is None
+    assert "Unexpected supported_targets" in caplog.text
 
 
 def test_patch_tools_json_unexpected_structure_warns_and_skips(
