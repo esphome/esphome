@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <memory>
+
 #include "esphome/components/modbus/modbus_helpers.h"
 
 namespace esphome::modbus::helpers {
@@ -304,6 +306,31 @@ TEST(ModbusCreateClientPdu, WriteMultipleOverEntityLimitReturnsEmpty) {
   EXPECT_TRUE(pdu.empty());
 }
 
+// The generic write path requires the data length to agree exactly with the entity count
+// (registers: 2 bytes each; coils: 8 packed per byte) - the same rule the response dispatch
+// enforces via is_client_pdu_standard(), so a frame built here always passes that gate.
+TEST(ModbusCreateClientPdu, WriteMultipleRejectsMismatchedDataLength) {
+  const uint8_t values[] = {0x00, 0x0B, 0x00, 0x16};
+  // 2 registers need exactly 4 data bytes.
+  EXPECT_TRUE(create_client_pdu(FC::WRITE_MULTIPLE_REGISTERS, 0x0000, 2, values, 3).empty());
+  EXPECT_FALSE(create_client_pdu(FC::WRITE_MULTIPLE_REGISTERS, 0x0000, 2, values, 4).empty());
+  // 10 coils pack into exactly 2 data bytes - the coil formula, not the register one.
+  EXPECT_FALSE(create_client_pdu(FC::WRITE_MULTIPLE_COILS, 0x0000, 10, values, 2).empty());
+  EXPECT_TRUE(create_client_pdu(FC::WRITE_MULTIPLE_COILS, 0x0000, 10, values, 4).empty());
+}
+
+TEST(ModbusCreateClientPdu, WriteCoilsUseTheCoilLimitNotTheRegisterLimit) {
+  // 200 coils: above the 123-register write limit but well within the 1968-coil limit; 25 data bytes.
+  std::vector<uint8_t> values(25, 0xAA);
+  auto pdu = create_client_pdu(FC::WRITE_MULTIPLE_COILS, 0x0000, 200, values.data(), values.size());
+  ASSERT_FALSE(pdu.empty());
+  EXPECT_EQ(pdu[5], 25);                                        // byte count uses the coil formula
+  EXPECT_TRUE(is_client_pdu_standard(pdu.data(), pdu.size()));  // builder output passes the validator
+  // Builder and validator agree at the top of the range too: 1969 coils rejected.
+  std::vector<uint8_t> big((1969 + 7) / 8, 0x00);
+  EXPECT_TRUE(create_client_pdu(FC::WRITE_MULTIPLE_COILS, 0x0000, 1969, big.data(), big.size()).empty());
+}
+
 TEST(ModbusHelpersTest, PayloadToNumberRejectsOffsetAtEndOfBuffer) {
   const std::vector<uint8_t> data{0x12, 0x34};
   EXPECT_FALSE(payload_to_number(std::span<const uint8_t>(data), SensorValueType::U_WORD, 2, 0xFFFFFFFF).has_value());
@@ -352,6 +379,159 @@ TEST(ModbusHelpersTest, RegistersToNumberMatchesPayloadToNumber) {
 TEST(ModbusHelpersTest, RegistersToNumberRejectsTruncatedMultiRegisterValue) {
   const uint16_t registers[] = {0x1234};
   EXPECT_FALSE(registers_to_number(registers, 1, SensorValueType::U_DWORD).has_value());
+}
+
+// --- typed builders ----------------------------------------------------------
+
+TEST(ModbusTypedBuilders, ReadPduWireBytes) {
+  auto pdu = create_read_pdu(FC::READ_HOLDING_REGISTERS, 0x0102, 3);
+  const std::vector<uint8_t> expected{0x03, 0x01, 0x02, 0x00, 0x03};
+  EXPECT_EQ(std::vector<uint8_t>(pdu.begin(), pdu.end()), expected);
+  EXPECT_TRUE(is_client_pdu_standard(pdu.data(), pdu.size()));
+  // Reads that run past the 16-bit address space are refused.
+  EXPECT_TRUE(create_read_pdu(FC::READ_HOLDING_REGISTERS, 0xFFFF, 2).empty());
+}
+
+TEST(ModbusTypedBuilders, WriteSinglePduWireBytes) {
+  auto reg = create_write_single_register_pdu(0x0010, 0xABCD);
+  const std::vector<uint8_t> expected_reg{0x06, 0x00, 0x10, 0xAB, 0xCD};
+  EXPECT_EQ(std::vector<uint8_t>(reg.begin(), reg.end()), expected_reg);
+  EXPECT_TRUE(is_client_pdu_standard(reg.data(), reg.size()));
+  auto coil_on = create_write_single_coil_pdu(0x0011, true);
+  auto coil_off = create_write_single_coil_pdu(0x0011, false);
+  const std::vector<uint8_t> expected_on{0x05, 0x00, 0x11, 0xFF, 0x00};
+  const std::vector<uint8_t> expected_off{0x05, 0x00, 0x11, 0x00, 0x00};
+  EXPECT_EQ(std::vector<uint8_t>(coil_on.begin(), coil_on.end()), expected_on);
+  EXPECT_EQ(std::vector<uint8_t>(coil_off.begin(), coil_off.end()), expected_off);
+  EXPECT_TRUE(is_client_pdu_standard(coil_on.data(), coil_on.size()));
+  EXPECT_TRUE(is_client_pdu_standard(coil_off.data(), coil_off.size()));
+}
+
+TEST(ModbusTypedBuilders, WriteRegistersPduWireBytes) {
+  const uint16_t values[] = {0x000B, 0x0016};
+  auto pdu = create_write_registers_pdu(0x0000, values);
+  const std::vector<uint8_t> expected{0x10, 0x00, 0x00, 0x00, 0x02, 0x04, 0x00, 0x0B, 0x00, 0x16};
+  EXPECT_EQ(std::vector<uint8_t>(pdu.begin(), pdu.end()), expected);
+  EXPECT_TRUE(is_client_pdu_standard(pdu.data(), pdu.size()));
+  // Writes that run past the 16-bit address space are refused.
+  EXPECT_TRUE(create_write_registers_pdu(0xFFFF, values).empty());
+}
+
+TEST(ModbusTypedBuilders, WriteRegistersPduRejectsOverLimit) {
+  std::vector<uint16_t> values(MAX_NUM_OF_REGISTERS_TO_WRITE + 1, 0xAAAA);
+  EXPECT_TRUE(create_write_registers_pdu(0x0000, values).empty());
+  values.pop_back();
+  EXPECT_FALSE(create_write_registers_pdu(0x0000, values).empty());
+}
+
+TEST(ModbusTypedBuilders, FloatToPayloadAppendsToExistingContent) {
+  // The container overload appends - the semantic every migrated caller relies on when a lambda
+  // has already put words into the buffer.
+  std::vector<uint16_t> data{0x1234};
+  float_to_payload(data, 1.0f, SensorValueType::U_WORD);
+  ASSERT_EQ(data.size(), 2u);
+  EXPECT_EQ(data[0], 0x1234);
+  EXPECT_EQ(data[1], 0x0001);
+}
+
+TEST(ModbusCreateClientPdu, ExceptionFlaggedWriteCodesRejected) {
+  // is_function_code_write() masks the exception bit; the builder must not.
+  const uint8_t values[] = {0x00, 0x0B, 0x00, 0x16};
+  EXPECT_TRUE(create_client_pdu(FunctionCode(0x90), 0x0000, 2, values, 4).empty());
+  EXPECT_TRUE(create_client_pdu(FunctionCode(0x85), 0x0000, 1, values, 2).empty());
+}
+
+TEST(ModbusTypedBuilders, BoolSpanCoilBuilderRejectsOverLimit) {
+  // This early guard is what keeps the 246-byte packing buffer from overflowing - the shared core's
+  // identical check runs after packing, so it cannot protect it.
+  auto big = std::make_unique<bool[]>(MAX_NUM_OF_COILS_TO_WRITE + 1);
+  EXPECT_TRUE(create_write_coils_pdu(0, std::span<const bool>(big.get(), MAX_NUM_OF_COILS_TO_WRITE + 1)).empty());
+}
+
+TEST(ModbusCreateClientPdu, SingleCoilValueValidated) {
+  const uint8_t on[] = {0xFF, 0x00};
+  const uint8_t junk[] = {0x01, 0x00};
+  EXPECT_FALSE(create_client_pdu(FC::WRITE_SINGLE_COIL, 0x0003, 1, on, 2).empty());
+  EXPECT_TRUE(create_client_pdu(FC::WRITE_SINGLE_COIL, 0x0003, 1, junk, 2).empty());
+}
+
+// --- create_write_coils_pdu (packed) ---------------------------------------
+
+TEST(ModbusWriteCoilsPacked, MatchesBoolBuilder) {
+  const bool coils[] = {true, false, true, true, false, false, true, false, true, true};
+  uint8_t packed[] = {0b01001101, 0b00000011};
+  auto from_bools = create_write_coils_pdu(0x13, coils);
+  auto from_packed = create_write_coils_pdu(0x13, PackedBits(packed, 10));
+  ASSERT_EQ(from_packed.size(), from_bools.size());
+  EXPECT_EQ(0, memcmp(from_packed.data(), from_bools.data(), from_bools.size()));
+}
+
+TEST(ModbusWriteCoilsPacked, MasksUnusedTrailingBits) {
+  uint8_t packed[] = {0xFF};
+  auto pdu = create_write_coils_pdu(0, PackedBits(packed, 3));
+  ASSERT_EQ(pdu.size(), 7u);
+  EXPECT_EQ(pdu[6], 0x07);
+}
+
+TEST(ModbusWriteCoilsPacked, RejectsShortBufferAndZeroCount) {
+  uint8_t packed[] = {0xFF};
+  EXPECT_TRUE(create_write_coils_pdu(0, PackedBits(packed, 9)).empty());  // needs 2 bytes
+  EXPECT_TRUE(create_write_coils_pdu(0, PackedBits(packed, 0)).empty());
+}
+
+TEST(ModbusHelpersTest, PackedBitsReadsLsbFirst) {
+  const uint8_t packed[] = {0x0D, 0x03};  // bits 0,2,3 and 8,9
+  PackedBits bits(packed, 11);
+  EXPECT_EQ(bits.size(), 11u);
+  EXPECT_TRUE(bits[0]);
+  EXPECT_FALSE(bits[1]);
+  EXPECT_TRUE(bits[2]);
+  EXPECT_TRUE(bits[3]);
+  EXPECT_FALSE(bits[7]);
+  EXPECT_TRUE(bits[8]);
+  EXPECT_TRUE(bits[9]);
+  EXPECT_FALSE(bits[10]);
+  EXPECT_EQ(bits.bytes().size(), 2u);
+}
+
+TEST(ModbusHelpersTest, MutablePackedBitsSetsAndClears) {
+  uint8_t packed[2] = {0x00, 0xFF};
+  MutablePackedBits bits(packed, 16);
+  bits.set(0, true);
+  bits.set(3, true);
+  bits.set(9, false);
+  EXPECT_EQ(packed[0], 0x09);  // bits 0 and 3
+  EXPECT_EQ(packed[1], 0xFD);  // bit 9 (bit 1 of byte 1) cleared
+}
+
+TEST(ModbusHelpersTest, MutablePackedBitsRoundTripAndConversion) {
+  const bool original[] = {true, true, false, true, false, false, false, false, true, false, true};
+  constexpr uint16_t count = sizeof(original);
+  uint8_t packed[(count + 7) / 8] = {};
+  MutablePackedBits out(packed, count);
+  for (uint16_t i = 0; i != count; i++)
+    out.set(i, original[i]);
+  PackedBits view = out;  // implicit conversion to the read-only view
+  ASSERT_EQ(view.size(), count);
+  for (uint16_t i = 0; i != count; i++)
+    EXPECT_EQ(view[i], original[i]) << "bit " << i;
+}
+
+TEST(ModbusHelpersTest, PackedBitsViewContractsEnforced) {
+  uint8_t buf[8] = {};
+  PackedBits view(buf, 10);  // 10 bits -> 2 bytes, over an 8-byte buffer
+  EXPECT_EQ(view.bytes().size(), 2u);
+
+  MutablePackedBits bits(std::span<uint8_t>(buf, 2), 10);
+  bits.set(9, true);    // in range: lands in byte 1
+  bits.set(10, true);   // out of range: dropped
+  bits.set(300, true);  // far out of range: dropped, no write past the span
+
+  MutablePackedBits short_bits(std::span<uint8_t>(buf, 1), 10);  // contract-violating: 10 bits over 1 byte
+  short_bits.set(9, false);  // within count_ but past the span: dropped (would clear bit 9 set above)
+  EXPECT_EQ(buf[1], 0x02);
+  for (size_t i = 2; i < sizeof(buf); i++)
+    EXPECT_EQ(buf[i], 0) << "byte " << i;
 }
 
 // server_pdu_payload() must never classify an exception PDU as a read: [fc|0x80, code] is 2 bytes, and a
