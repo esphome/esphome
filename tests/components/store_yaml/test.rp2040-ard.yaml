@@ -2,4 +2,5 @@ wifi:
   ssid: MySSID
   password: password1
 
-<<: !include common.yaml
+packages:
+  store_yaml: !include common.yaml

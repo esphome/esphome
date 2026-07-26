@@ -1220,19 +1220,19 @@ void APIConnection::on_get_yaml_request() {
 #ifdef USE_ESP8266
   this->store_yaml_chunk_buf_ = std::make_unique<uint8_t[]>(STORE_YAML_CHUNK_SIZE);
 #endif
-  // All responses — including the single data-less done=true frame for a
-  // missing/empty blob — go through the loop-driven retry below, so a full
-  // TX buffer at request time can't strand the client without a terminal frame.
+  // All responses go through the loop-driven retry below, so a full TX
+  // buffer at request time can't strand the client without a terminal frame.
   this->store_yaml_pos_ = 0;
   this->try_send_store_yaml_();
 }
 
 // Caller guarantees: store_yaml_pos_ != SIZE_MAX (a request is in flight).
 void APIConnection::try_send_store_yaml_() {
+  // Every component's setup() completes before the app loop services API
+  // messages, and codegen always embeds a non-empty blob, so the component
+  // is present and total > 0 whenever a request is serviced.
   auto *comp = store_yaml::global_store_yaml;
-  // comp is only null if the request arrived before the component's setup();
-  // treat that like an empty blob and send just the terminal frame.
-  const size_t total = comp == nullptr ? 0 : comp->get_size();
+  const size_t total = comp->get_size();
 
 #ifdef USE_ESP8266
   const size_t chunk_size = STORE_YAML_CHUNK_SIZE;
@@ -1250,19 +1250,13 @@ void APIConnection::try_send_store_yaml_() {
     const size_t to_send = std::min(remaining, chunk_size);
 
     GetYamlResponse resp;
-    if (to_send != 0) {
 #ifdef USE_ESP8266
-      progmem_memcpy(this->store_yaml_chunk_buf_.get(), comp->get_data() + this->store_yaml_pos_, to_send);
-      resp.set_data(this->store_yaml_chunk_buf_.get(), to_send);
+    progmem_memcpy(this->store_yaml_chunk_buf_.get(), comp->get_data() + this->store_yaml_pos_, to_send);
+    resp.set_data(this->store_yaml_chunk_buf_.get(), to_send);
 #else
-      resp.set_data(comp->get_data() + this->store_yaml_pos_, to_send);
+    resp.set_data(comp->get_data() + this->store_yaml_pos_, to_send);
 #endif
-    } else {
-      // Terminal frame for an empty blob: a valid empty pointer keeps the
-      // forced `data` field's memcpy well-defined.
-      resp.set_data(reinterpret_cast<const uint8_t *>(""), 0);
-    }
-    if (this->store_yaml_pos_ == 0 && total != 0) {
+    if (this->store_yaml_pos_ == 0) {
       resp.total_size = static_cast<uint32_t>(total);
       resp.encoding = StringRef(store_yaml::ENCODING);
     }

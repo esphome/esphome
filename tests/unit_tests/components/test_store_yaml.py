@@ -8,16 +8,17 @@ from pathlib import Path
 import pytest
 
 from esphome import yaml_util
+from esphome.components import packages
 from esphome.components.store_yaml import (
     CONF_ALLOW_UNENCRYPTED,
     SECRETS_SKELETON_HEADER,
     UNCAPTURED_NOTE_PATH,
     _final_validate,
-    _find_remote_packages,
     _gather_files,
     _generate_redacted_files,
     _pack_envelope,
     _read_files_verbatim,
+    _remote_package_descriptions,
     _uncaptured_note,
     unpack_envelope,
 )
@@ -290,40 +291,36 @@ def test_uncaptured_note_lists_remote_packages() -> None:
     """Remote packages that can't be captured are recorded with their source
     so the user knows to re-fetch them."""
     rel, content = _uncaptured_note(
-        [], ["base: https://github.com/org/repo@main", "github://org/repo/file.yaml"]
+        [], ["https://github.com/org/repo@main", "https://github.com/org/other"]
     )
     assert rel == UNCAPTURED_NOTE_PATH
     text = content.decode()
-    assert "#   base: https://github.com/org/repo@main" in text
-    assert "#   github://org/repo/file.yaml" in text
+    assert "#   https://github.com/org/repo@main" in text
+    assert "#   https://github.com/org/other" in text
 
 
-def test_find_remote_packages_detects_url_and_shorthand(project: Path) -> None:
-    """`packages:` entries with a url (dict or shorthand string) are reported;
-    local `!include` packages are not."""
-    (project / "entry.yaml").write_text(
-        "packages:\n"
-        "  base:\n"
-        "    url: https://github.com/org/repo\n"
-        "    ref: main\n"
-        "    files: [common.yaml]\n"
-        "  shorthand: github://org/repo/file.yaml@main\n"
-        "  local: !include wifi.yaml\n"
-        "esphome:\n  name: test\n"
+def test_remote_package_descriptions_read_packages_record(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Remote sources recorded by the packages component during config
+    processing are formatted as url@ref (url alone when ref is absent)."""
+    monkeypatch.delitem(CORE.data, packages.DOMAIN, raising=False)
+    data = packages._get_data()
+    data.remote_sources.append(
+        packages.RemotePackageSource("https://github.com/org/repo", "main")
     )
-    discovered = _sources(project, "entry.yaml", "wifi.yaml")
-    entries, _ = _gather_files(discovered)
-    remote = _find_remote_packages(entries)
-    assert remote == [
-        "base: https://github.com/org/repo@main",
-        "shorthand: github://org/repo/file.yaml@main",
+    data.remote_sources.append(
+        packages.RemotePackageSource("https://github.com/org/other", None)
+    )
+    assert _remote_package_descriptions() == [
+        "https://github.com/org/repo@main",
+        "https://github.com/org/other",
     ]
 
 
-def test_find_remote_packages_ignores_local_only(project: Path) -> None:
-    discovered = _sources(project, "entry.yaml", "wifi.yaml")
-    entries, _ = _gather_files(discovered)
-    assert _find_remote_packages(entries) == []
+def test_remote_package_descriptions_empty_without_packages() -> None:
+    CORE.data.pop(packages.DOMAIN, None)
+    assert _remote_package_descriptions() == []
 
 
 def test_redacted_skips_empty_sensitive_values(project: Path) -> None:

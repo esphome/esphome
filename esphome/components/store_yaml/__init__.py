@@ -3,12 +3,12 @@ from __future__ import annotations
 from collections.abc import Generator
 from dataclasses import dataclass
 import logging
-import os
 from pathlib import Path
 import struct
 
 from esphome import yaml_util
 import esphome.codegen as cg
+from esphome.components import packages
 from esphome.components.api import CONF_ENCRYPTION
 import esphome.config_validation as cv
 from esphome.const import CONF_API, CONF_ID, CONF_RAW_DATA_ID
@@ -27,9 +27,6 @@ CODEOWNERS = ["@bdraco"]
 DEPENDENCIES = ["api"]
 
 CONF_INCLUDE_SECRETS = "include_secrets"
-# Avoid an `_api:` substring in the key name so the integration-test harness
-# (which naively str-replaces `api:` to inject a port directive) doesn't
-# clobber configs that opt into this escape hatch.
 CONF_ALLOW_UNENCRYPTED = "allow_unencrypted"
 
 store_yaml_ns = cg.esphome_ns.namespace("store_yaml")
@@ -120,14 +117,11 @@ def _gather_files(
     entries: list[tuple[str, Path]] = []
     secret_rels: set[str] = set()
     for path in discovered.files:
-        try:
-            rel_str = path.relative_to(root).as_posix()
-        except ValueError:
-            # Outside the project root (e.g. ../common.yaml or a secrets file in
-            # $HOME). Use a relative path with ".." components instead of just
-            # the basename so the include graph is preserved and files from
-            # different directories with the same basename don't collide.
-            rel_str = os.path.relpath(path, root).replace(os.sep, "/")
+        # Files outside the project root (e.g. ../common.yaml or a secrets file
+        # in $HOME) keep their ".." components so the include graph is preserved
+        # and files from different directories with the same basename don't
+        # collide.
+        rel_str = path.relative_to(root, walk_up=True).as_posix()
 
         if path in discovered.secrets:
             secret_rels.add(rel_str)
@@ -151,26 +145,6 @@ def _read_files_verbatim(entries: list[tuple[str, Path]]) -> list[tuple[str, byt
     return files
 
 
-def _iter_sensitive_values(
-    node: object, path: tuple[str, ...] = ()
-) -> Generator[tuple[tuple[str, ...], str]]:
-    """Yield (config_path, value) for every cv.sensitive value in a config tree."""
-    if isinstance(node, yaml_util.SensitiveStr):
-        yield path, str(node)
-    elif isinstance(node, dict):
-        for key, value in node.items():
-            yield from _iter_sensitive_values(value, (*path, str(key)))
-    elif isinstance(node, (list, tuple)):
-        for item in node:
-            yield from _iter_sensitive_values(item, path)
-
-
-@dataclass
-class _SensitiveValue:
-    secret_name: str
-    config_path: str  # dotted path, for warnings (never log the value itself)
-
-
 def _iter_scalars(
     node: object, path: tuple[str, ...] = ()
 ) -> Generator[tuple[tuple[str, ...], object]]:
@@ -185,12 +159,27 @@ def _iter_scalars(
         yield path, node
 
 
+def _iter_sensitive_values(node: object) -> Generator[tuple[tuple[str, ...], str]]:
+    """Yield (config_path, value) for every cv.sensitive value in a config tree."""
+    for path, value in _iter_scalars(node):
+        if isinstance(value, yaml_util.SensitiveStr):
+            yield path, str(value)
+
+
+@dataclass
+class _SensitiveValue:
+    secret_name: str
+    config_path: str  # dotted path, for warnings (never log the value itself)
+
+
 def _warn_sensitive_collisions(sensitive: dict[str, _SensitiveValue]) -> None:
     """Redaction is value-keyed: any scalar equal to a sensitive value is
     rewritten to its `!secret` reference, including unrelated ones (e.g.
     `platform: esp32` when a password is literally "esp32"). Filling in a
     different value during recovery would then silently rewrite those
     unrelated scalars too — warn so the trap is documented, not silent."""
+    if not sensitive:
+        return
     for path, value in _iter_scalars(CORE.config):
         if isinstance(value, yaml_util.SensitiveStr):
             continue
@@ -256,43 +245,19 @@ def _uncaptured_note(
     return (UNCAPTURED_NOTE_PATH, "".join(parts).encode("utf-8"))
 
 
-def _find_remote_packages(entries: list[tuple[str, Path]]) -> list[str]:
-    """Describe every `packages:` entry that pulls content from a remote source.
+def _remote_package_descriptions() -> list[str]:
+    """Describe every remote source packages were fetched from.
 
-    Remote packages are downloaded during validation, which the fresh parse
-    used for discovery never reaches, so their files cannot be embedded. The
-    entry file still records the source, so the config is re-fetchable; this
-    only makes the gap visible instead of silent.
+    Remote packages are downloaded while the config is processed; the packages
+    component records each source, and this formats that record. Their files
+    cannot be embedded, but the entry file still records the package config, so
+    the config is re-fetchable; this only makes the gap visible instead of
+    silent.
     """
-    remote: list[str] = []
-    for _, path in entries:
-        try:
-            tree = yaml_util.load_yaml(path, clear_secrets=False)
-        except EsphomeError:
-            # Discovery already loaded this file once; a failure here would
-            # have been reported as a load_error and failed the build.
-            continue
-        if not isinstance(tree, dict):
-            continue
-        packages = tree.get("packages")
-        if isinstance(packages, dict):
-            candidates = packages.items()
-        elif isinstance(packages, list):
-            candidates = ((None, item) for item in packages)
-        else:
-            continue
-        for name, value in candidates:
-            desc = None
-            if isinstance(value, dict) and "url" in value:
-                url = value.get("url")
-                ref = value.get("ref")
-                desc = f"{url}@{ref}" if ref else str(url)
-            elif isinstance(value, str) and "//" in value:
-                # Shorthand form, e.g. `github://org/repo/file.yaml@main`
-                desc = value
-            if desc is not None:
-                remote.append(f"{name}: {desc}" if name is not None else desc)
-    return remote
+    return [
+        f"{source.url}@{source.ref}" if source.ref else source.url
+        for source in packages.get_remote_package_sources()
+    ]
 
 
 def _build_secrets_skeleton(keys: set[str]) -> bytes:
@@ -421,26 +386,23 @@ def unpack_envelope(blob: bytes) -> dict[str, bytes]:
         raise EsphomeError("envelope must start with EHY1 magic")
     pos = 4
     files: dict[str, bytes] = {}
-    try:
-        (count,) = struct.unpack_from("<I", blob, pos)
-        pos += 4
-        for _ in range(count):
-            (path_len,) = struct.unpack_from("<H", blob, pos)
-            pos += 2
-            if pos + path_len > len(blob):
-                raise EsphomeError("truncated envelope")
-            path = blob[pos : pos + path_len].decode("utf-8")
-            if path.startswith(("/", "\\")) or (len(path) >= 2 and path[1] == ":"):
-                raise EsphomeError(f"envelope contains non-relative path: {path}")
-            pos += path_len
-            (content_len,) = struct.unpack_from("<I", blob, pos)
-            pos += 4
-            if pos + content_len > len(blob):
-                raise EsphomeError("truncated envelope")
-            files[path] = blob[pos : pos + content_len]
-            pos += content_len
-    except struct.error as err:
-        raise EsphomeError(f"truncated envelope: {err}") from err
+
+    def take(n: int) -> bytes:
+        nonlocal pos
+        if pos + n > len(blob):
+            raise EsphomeError("truncated envelope")
+        chunk = blob[pos : pos + n]
+        pos += n
+        return chunk
+
+    (count,) = struct.unpack("<I", take(4))
+    for _ in range(count):
+        (path_len,) = struct.unpack("<H", take(2))
+        path = take(path_len).decode("utf-8")
+        if path.startswith(("/", "\\")) or (len(path) >= 2 and path[1] == ":"):
+            raise EsphomeError(f"envelope contains non-relative path: {path}")
+        (content_len,) = struct.unpack("<I", take(4))
+        files[path] = take(content_len)
     if pos != len(blob):
         raise EsphomeError("envelope has trailing bytes")
     return files
@@ -460,7 +422,7 @@ async def to_code(config: ConfigType) -> None:
         files = _read_files_verbatim(entries)
     else:
         files = _generate_redacted_files(entries, secret_rels)
-    remote_packages = _find_remote_packages(entries)
+    remote_packages = _remote_package_descriptions()
     if remote_packages:
         _LOGGER.warning(
             "store_yaml: %d package(s) come from remote sources and cannot be "
