@@ -114,7 +114,7 @@ struct ModbusDeviceCommand {
   bool interrupted{false};
   /// Marked by clear_tx_queue_for_address() before it starts notifying, so frames re-queued by an
   /// on_not_sent() callback (which are unmarked) are never swept by the clear that triggered them.
-  bool sweeping{false};
+  bool marked_for_deletion{false};
 
   ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, const uint8_t *src, uint16_t len,
                       CommandPriority priority = CommandPriority::READ_ONCE)

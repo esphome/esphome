@@ -693,7 +693,7 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   // entry's future on_response(); a request that cannot promote further (already READ_AGAIN,
   // or a duplicate write) is dropped and reports on_not_sent().
   for (auto &item : this->tx_buffer_) {
-    if (item.sweeping)
+    if (item.marked_for_deletion)
       continue;  // marked for drop by an in-progress clear: a new identical send queues fresh instead
     if (item.device == device && item.same_frame(address, pdu)) {
       if (!is_write && item.priority < CommandPriority::READ_AGAIN) {
@@ -763,11 +763,11 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sen
   // consistent queue; termination is guaranteed because only the initially-marked frames are ever swept.
   for (auto &cmd : this->tx_buffer_) {
     if (cmd.frame.address() == address)
-      cmd.sweeping = true;
+      cmd.marked_for_deletion = true;
   }
   for (;;) {
     auto it = std::find_if(this->tx_buffer_.begin(), this->tx_buffer_.end(),
-                           [](const ModbusDeviceCommand &cmd) { return cmd.sweeping; });
+                           [](const ModbusDeviceCommand &cmd) { return cmd.marked_for_deletion; });
     if (it == this->tx_buffer_.end())
       break;
     ModbusDeviceCommand dropped = std::move(*it);
