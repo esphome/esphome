@@ -824,27 +824,6 @@ void Modbus::clear_rx_buffer_(const LogString *reason, bool warn, size_t bytes_t
   }
 }
 
-void ModbusClientDevice::read_entities(EntityType entity_type, uint16_t start_address, uint16_t number_of_entities,
-                                       CommandOptions options) {
-  switch (entity_type) {
-    case EntityType::HOLDING:
-      this->read_holding_registers(start_address, number_of_entities, options);
-      return;
-    case EntityType::INPUT_REGISTER:
-      this->read_input_registers(start_address, number_of_entities, options);
-      return;
-    case EntityType::COIL:
-      this->read_coils(start_address, number_of_entities, options);
-      return;
-    case EntityType::DISCRETE_INPUT:
-      this->read_discrete_inputs(start_address, number_of_entities, options);
-      return;
-    default:
-      ESP_LOGW(TAG, "Invalid entity type for read_entities: %d", (int) entity_type);
-      return;
-  }
-}
-
 void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
                                             ResponseStatus status) {
   if (request_pdu.empty())

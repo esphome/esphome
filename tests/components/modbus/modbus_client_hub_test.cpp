@@ -775,4 +775,81 @@ TEST(ModbusDeviceShim, LegacyCallbacksReceiveTheOldShapes) {
   EXPECT_EQ(device.last_error_code_, 0x02);
 }
 
+// --- typed send helpers --------------------------------------------------------------------------
+// Each helper is a one-line forward onto a merged builder; these pin the function code and wire
+// bytes each one queues, so a swapped code or transposed field cannot survive review silently.
+TEST(ModbusTypedSendHelpers, HelpersQueueExpectedPdus) {
+  NoResponseProbeHub hub;
+  ModbusClientDevice device(&hub, 0x02);
+  auto check = [&](const std::vector<uint8_t> &expected) {
+    ASSERT_EQ(hub.queued_frames(), 1u);
+    auto pdu = hub.front().frame.pdu();
+    EXPECT_EQ(std::vector<uint8_t>(pdu.begin(), pdu.end()), expected);
+    hub.force_send_front();
+    hub.timeout_waiting();  // default on_no_response() declines the retry, dropping the frame
+  };
+
+  device.read_holding_registers(0x0102, 3);
+  check({0x03, 0x01, 0x02, 0x00, 0x03});
+  device.read_input_registers(0x0010, 2);
+  check({0x04, 0x00, 0x10, 0x00, 0x02});
+  device.read_coils(0x0020, 10);
+  check({0x01, 0x00, 0x20, 0x00, 0x0A});
+  device.read_discrete_inputs(0x0030, 1);
+  check({0x02, 0x00, 0x30, 0x00, 0x01});
+  device.write_single_register(0x0040, 0xABCD);
+  check({0x06, 0x00, 0x40, 0xAB, 0xCD});
+  device.write_single_coil(0x0041, true);
+  check({0x05, 0x00, 0x41, 0xFF, 0x00});
+  device.write_single_coil(0x0041, false);
+  check({0x05, 0x00, 0x41, 0x00, 0x00});
+  const uint16_t regs[] = {0x000B, 0x0016};
+  device.write_multiple_registers(0x0050, regs);
+  check({0x10, 0x00, 0x50, 0x00, 0x02, 0x04, 0x00, 0x0B, 0x00, 0x16});
+  const bool coils[] = {true, false, true};
+  device.write_multiple_coils(0x0060, coils);
+  check({0x0F, 0x00, 0x60, 0x00, 0x03, 0x01, 0x05});
+  const uint8_t packed[] = {0x05};
+  device.write_multiple_coils(0x0060, PackedBits(packed, 3));  // packed overload, same wire bytes
+  check({0x0F, 0x00, 0x60, 0x00, 0x03, 0x01, 0x05});
+}
+
+TEST(ModbusTypedSendHelpers, ReadEntitiesDispatchesByTypeAndRejectsInvalid) {
+  NoResponseProbeHub hub;
+  ModbusClientDevice device(&hub, 0x02);
+
+  device.read_entities(EntityType::HOLDING, 0x0001, 1);
+  ASSERT_EQ(hub.queued_frames(), 1u);
+  EXPECT_EQ(hub.front().frame.pdu()[0], 0x03);
+  hub.force_send_front();
+  hub.timeout_waiting();
+
+  device.read_entities(EntityType::DISCRETE_INPUT, 0x0001, 1);
+  ASSERT_EQ(hub.queued_frames(), 1u);
+  EXPECT_EQ(hub.front().frame.pdu()[0], 0x02);
+  hub.force_send_front();
+  hub.timeout_waiting();
+
+  device.read_entities(EntityType::CUSTOM, 0x0001, 1);  // no read function: logged and not queued
+  EXPECT_EQ(hub.queued_frames(), 0u);
+}
+
+// A rejected read_entities() signals on_not_sent() like every other refused send.
+namespace {
+class NotSentCountingDevice : public ModbusClientDevice {
+ public:
+  NotSentCountingDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_not_sent(std::span<const uint8_t> request_pdu) override { this->not_sent_++; }
+  int not_sent_{0};
+};
+}  // namespace
+
+TEST(ModbusTypedSendHelpers, InvalidReadEntitiesSignalsNotSent) {
+  NoResponseProbeHub hub;
+  NotSentCountingDevice device(&hub, 0x02);
+  device.read_entities(EntityType::CUSTOM, 0x0001, 1);
+  EXPECT_EQ(device.not_sent_, 1);
+  EXPECT_EQ(hub.queued_frames(), 0u);
+}
+
 }  // namespace esphome::modbus::testing

@@ -346,9 +346,14 @@ class ModbusClientDevice {
     }
     this->parent_->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
   }
-  // Dispatches to the matching read_* method; defined in modbus.cpp because it logs on an invalid type.
+  // Reads via the table-appropriate function code; an unreadable entity type maps to INVALID, which
+  // create_read_pdu() rejects into an empty PDU and send_pdu() signals via on_not_sent().
   void read_entities(EntityType entity_type, uint16_t start_address, uint16_t number_of_entities,
-                     CommandOptions options = {});
+                     CommandOptions options = {}) {
+    this->send_pdu(helpers::create_read_pdu(helpers::modbus_register_read_function(entity_type), start_address,
+                                            number_of_entities),
+                   options);
+  }
   void read_input_registers(uint16_t start_address, uint16_t number_of_registers, CommandOptions options = {}) {
     this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_INPUT_REGISTERS, start_address, number_of_registers),
                    options);
