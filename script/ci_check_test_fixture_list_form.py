@@ -54,9 +54,9 @@ def main() -> int:
         except EsphomeError as err:
             parse_errors.append(f"{fixture.relative_to(ROOT_DIR)}: {err}")
             continue
+        fixtures_scanned += 1
         if not isinstance(data, dict):
             continue
-        fixtures_scanned += 1
         for key, value in data.items():
             if isinstance(value, dict) and "platform" in value:
                 offenders.append(f"{fixture.relative_to(ROOT_DIR)}: '{key}:'")
