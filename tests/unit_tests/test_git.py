@@ -289,6 +289,43 @@ def test_run_git_command_with_cwd_runs_in_dir_without_isolation(
     assert result == "test output"
 
 
+def test_run_git_command_raises_on_nonfatal_stderr(
+    tmp_path: Path, mock_subprocess_run: Mock
+) -> None:
+    """Nonzero exit with stderr lacking a fatal: prefix raises with full stderr."""
+    mock_subprocess_run.return_value = Mock(
+        returncode=1,
+        stdout=b"",
+        stderr=b"error: pathspec 'nope' did not match any file(s)\n",
+    )
+
+    with pytest.raises(GitCommandError, match="did not match"):
+        git.run_git_command(["git", "checkout", "nope"], git_dir=tmp_path)
+
+
+def test_run_git_command_raises_on_nonzero_exit_without_stderr(
+    tmp_path: Path, mock_subprocess_run: Mock
+) -> None:
+    """A nonzero exit must raise even when git printed nothing to stderr.
+
+    Silent nonzero exits were previously treated as success, which is how
+    broken checkouts could be cached as complete.
+    """
+    mock_subprocess_run.return_value = Mock(
+        returncode=1,
+        stdout=b"",
+        stderr=b"",
+    )
+
+    with pytest.raises(GitCommandError, match="exited with code 1"):
+        git.run_git_command(["git", "submodule", "update"], cwd=tmp_path)
+
+
+def test_update_none_paths_without_gitmodules(tmp_path: Path) -> None:
+    """A repo without .gitmodules declares nothing, so nothing is skipped."""
+    assert git._update_none_paths(tmp_path) == set()
+
+
 def test_run_git_command_without_git_dir_raises_error(
     mock_subprocess_run: Mock,
 ) -> None:
@@ -1446,7 +1483,9 @@ def test_named_submodule_with_update_none_not_reported(
     mock_run_git_command.side_effect = _make_uninitialized_submodule_side_effect(
         repo_dir,
         gitmodules_config=(
-            "submodule.vendor/sub.path=vendor/sub\nsubmodule.vendor/sub.update=none"
+            "submodule.vendor/sub.path=vendor/sub\n"
+            "submodule.vendor/sub.update=none\n"
+            "submodule.vendor/sub.branch=main"
         ),
     )
 
