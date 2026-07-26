@@ -104,7 +104,9 @@ def run_git_command(
 
     _LOGGER.debug(
         "Running git command: %s (cwd=%s, isolated=%s)",
-        " ".join(cmd),
+        # Redact userinfo: clone URLs may embed credentials, and -v output is
+        # routinely pasted into public issues.
+        re.sub(r"://[^/@\s]+@", "://***@", " ".join(cmd)),
         cwd,
         git_dir is not None,
     )
@@ -164,86 +166,25 @@ def _remove_repo_dir(repo_dir: Path) -> None:
         rmtree(repo_dir)
 
 
-def _update_none_paths(repo_dir: Path) -> set[str]:
-    """Return the paths of submodules ``repo_dir`` declares with ``update = none``.
+def update_submodules(repo_dir: Path, key: str) -> None:
+    """Initialize/update every submodule the repository declares, recursively,
+    matching how PlatformIO clones libraries.
 
-    Git skips these on purpose during ``git submodule update --init`` (and
-    exits 0), so they must not be reported as failed initializations.
-    """
-    if not (repo_dir / ".gitmodules").is_file():
-        return set()
-    config = run_git_command(
-        ["git", "config", "-f", ".gitmodules", "--list"],
-        cwd=repo_dir,
-    )
-    paths: dict[str, str] = {}
-    skipped_names: set[str] = set()
-    for line in config.splitlines():
-        config_key, _, value = line.partition("=")
-        name, _, prop = config_key.removeprefix("submodule.").rpartition(".")
-        if prop == "path":
-            paths[name] = value
-        elif prop == "update" and value == "none":
-            skipped_names.add(name)
-    return {paths[name] for name in skipped_names & paths.keys()}
-
-
-def update_submodules(repo_dir: Path, submodules: list[str] | None, key: str) -> None:
-    """Initialize/update submodules of a freshly cloned or updated repo.
-
-    ``submodules`` is ``None`` to skip submodule handling entirely, an empty
-    list for every submodule the repository declares (recursively, matching
-    how PlatformIO clones libraries), or a list of specific submodule paths.
-    Most repositories declare no submodules, so the "every submodule" case
-    does nothing when there is no ``.gitmodules`` file. An explicit list is
-    always passed through so a path that does not exist in the repository
-    surfaces as a git error instead of being silently ignored, and each named
-    path is verified afterwards: a path left uninitialized (other than by an
-    ``update = none`` declaration, which git honors even for named paths)
-    raises ``GitRepositoryError``. Which submodules the "every submodule"
-    case populates is git's own policy (``update = none``,
-    ``submodule.active``, sparse checkouts); git's exit code is the error
-    signal there.
+    Most repositories declare no submodules, so this does nothing when there
+    is no ``.gitmodules`` file. Which submodules get populated is git's own
+    policy (``update = none``, ``submodule.active``, sparse checkouts);
+    git's exit code is the error signal.
 
     Runs with plain ``cwd`` rather than ``git_dir`` isolation, which the
     ``git submodule`` porcelain does not tolerate (see ``run_git_command``).
     """
-    if submodules is None:
+    if not (repo_dir / ".gitmodules").is_file():
         return
-    if not submodules and not (repo_dir / ".gitmodules").is_file():
-        return
-    _LOGGER.info(
-        "Updating submodules (%s) for %s",
-        ", ".join(submodules) if submodules else "all",
-        key,
-    )
-    recursive = [] if submodules else ["--recursive"]
+    _LOGGER.info("Updating submodules for %s", key)
     run_git_command(
-        ["git", "submodule", "update", "--init", *recursive, "--depth=1", "--"]
-        + submodules,
+        ["git", "submodule", "update", "--init", "--recursive", "--depth=1"],
         cwd=repo_dir,
     )
-    if not submodules:
-        return
-    # The caller named these paths; verify each was actually initialized. A
-    # status line starting with "-" is a declared but uninitialized
-    # submodule. Uninitialized lines carry no describe suffix, so everything
-    # after the SHA is the path (which may contain spaces).
-    status = run_git_command(
-        ["git", "submodule", "status", "--"] + submodules,
-        cwd=repo_dir,
-    )
-    missing = [
-        line[1:].split(" ", 1)[1]
-        for line in status.splitlines()
-        if line.startswith("-")
-    ]
-    if missing:
-        missing = [path for path in missing if path not in _update_none_paths(repo_dir)]
-    if missing:
-        raise GitRepositoryError(
-            f"Submodules ({', '.join(missing)}) for {key} were left uninitialized"
-        )
 
 
 def resolve_symlink_stub(repo_dir: Path, file_path: Path) -> Path | None:
@@ -340,7 +281,7 @@ def clone_or_update(
     domain: str,
     username: str = None,
     password: str = None,
-    submodules: list[str] | None = None,
+    init_submodules: bool = False,
     subpath: Path | None = None,
     _recover_broken: bool = True,
 ) -> tuple[Path, Callable[[], None] | None]:
@@ -385,7 +326,8 @@ def clone_or_update(
                     ["git", "reset", "--hard", "FETCH_HEAD"], git_dir=repo_dir
                 )
 
-            update_submodules(repo_dir, submodules, key)
+            if init_submodules:
+                update_submodules(repo_dir, key)
 
         except GitException:
             # Remove incomplete clone to prevent stale state. Without this,
@@ -461,11 +403,11 @@ def clone_or_update(
                     git_dir=repo_dir,
                 )
 
-                # Inside the try so a submodule failure (including the
-                # named-path verification) routes through the recovery
-                # re-clone below instead of leaving a repo that the refresh
-                # window would silently accept on the next run.
-                update_submodules(repo_dir, submodules, key)
+                # Inside the try so a submodule failure routes through the
+                # recovery re-clone below instead of leaving a repo that the
+                # refresh window would silently accept on the next run.
+                if init_submodules:
+                    update_submodules(repo_dir, key)
             except GitException as err:
                 # Repository is in a broken state or update failed
                 # Only attempt recovery once to prevent infinite recursion
@@ -494,7 +436,7 @@ def clone_or_update(
                     domain=domain,
                     username=username,
                     password=password,
-                    submodules=submodules,
+                    init_submodules=init_submodules,
                     subpath=subpath,
                     _recover_broken=False,
                 )

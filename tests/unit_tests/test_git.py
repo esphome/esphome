@@ -1,6 +1,7 @@
 """Tests for git.py module."""
 
 from collections.abc import Callable
+import logging
 import os
 from pathlib import Path
 import subprocess
@@ -120,6 +121,22 @@ def test_run_git_command_success(tmp_path: Path) -> None:
     result = git.run_git_command(["git", "status", "--porcelain"], str(repo_dir))
     # Empty repo should have empty status
     assert isinstance(result, str)
+
+
+def test_run_git_command_debug_log_redacts_credentials(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Embedded URL credentials never reach the debug log; -v output is
+    routinely pasted into public issues."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    with caplog.at_level(logging.DEBUG, logger="esphome.git"):
+        git.run_git_command(
+            ["git", "init", "https://user:hunter2@github.com/test/repo"],
+            str(repo_dir),
+        )
+    assert "hunter2" not in caplog.text
+    assert "://***@github.com/test/repo" in caplog.text
 
 
 def test_run_git_command_with_git_dir_isolation(
@@ -319,11 +336,6 @@ def test_run_git_command_raises_on_nonzero_exit_without_stderr(
 
     with pytest.raises(GitCommandError, match="exited with code 1"):
         git.run_git_command(["git", "submodule", "update"], cwd=tmp_path)
-
-
-def test_update_none_paths_without_gitmodules(tmp_path: Path) -> None:
-    """A repo without .gitmodules declares nothing, so nothing is skipped."""
-    assert git._update_none_paths(tmp_path) == set()
 
 
 def test_run_git_command_without_git_dir_raises_error(
@@ -1266,46 +1278,6 @@ def test_clone_with_ref_uses_shallow_fetch(
     assert ref in fetch_calls[0][0][0]
 
 
-@pytest.mark.parametrize(
-    "refresh", [None, TimePeriodSeconds(days=1)], ids=["clone", "refresh"]
-)
-def test_explicit_submodule_update_is_shallow(
-    tmp_path: Path, mock_run_git_command: Mock, refresh: TimePeriodSeconds | None
-) -> None:
-    """An explicit submodule list is updated shallowly and then verified."""
-    CORE.config_path = tmp_path / "test.yaml"
-
-    url = "https://github.com/test/repo"
-    domain = "test"
-    repo_dir = _compute_repo_dir(url, None, domain)
-
-    if refresh is None:
-        mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
-    else:
-        _setup_old_repo(repo_dir)
-        mock_run_git_command.return_value = "abc123"
-
-    git.clone_or_update(
-        url=url,
-        ref=None,
-        refresh=refresh,
-        domain=domain,
-        submodules=["components/foo"],
-    )
-
-    update_cmd, status_cmd = (c[0][0] for c in _submodule_calls(mock_run_git_command))
-    assert update_cmd[2] == "update"
-    assert "--depth=1" in update_cmd
-    assert "components/foo" in update_cmd
-    # The `--` terminator must precede the submodule paths so a path
-    # beginning with `-` cannot be parsed as an option.
-    assert update_cmd.index("--") < update_cmd.index("components/foo")
-    assert status_cmd[2] == "status"
-    assert "components/foo" in status_cmd
-    for call in _submodule_calls(mock_run_git_command):
-        _assert_submodule_runs_without_isolation(call, repo_dir)
-
-
 def test_refresh_fetch_is_shallow(tmp_path: Path, mock_run_git_command: Mock) -> None:
     """The refresh-path fetch should use --depth=1."""
     CORE.config_path = tmp_path / "test.yaml"
@@ -1336,7 +1308,7 @@ def test_refresh_fetch_is_shallow(tmp_path: Path, mock_run_git_command: Mock) ->
 def test_all_submodules_skipped_without_gitmodules(
     tmp_path: Path, mock_run_git_command: Mock, refresh: TimePeriodSeconds | None
 ) -> None:
-    """An empty submodule list ("all") is a no-op for repos with no .gitmodules.
+    """init_submodules is a no-op for repos with no .gitmodules.
 
     This is the esp-idf toolchain library scenario from issue #17860: the
     PlatformIO library converter requests "all submodules" for every git
@@ -1361,7 +1333,7 @@ def test_all_submodules_skipped_without_gitmodules(
         ref=None,
         refresh=refresh,
         domain=domain,
-        submodules=[],
+        init_submodules=True,
     )
 
     assert not _submodule_calls(mock_run_git_command)
@@ -1373,7 +1345,7 @@ def test_all_submodules_skipped_without_gitmodules(
 def test_all_submodules_updated_with_gitmodules(
     tmp_path: Path, mock_run_git_command: Mock, refresh: TimePeriodSeconds | None
 ) -> None:
-    """An empty submodule list initializes all submodules when .gitmodules exists."""
+    """init_submodules initializes all submodules when .gitmodules exists."""
     CORE.config_path = tmp_path / "test.yaml"
 
     url = "https://github.com/test/repo"
@@ -1394,87 +1366,30 @@ def test_all_submodules_updated_with_gitmodules(
         ref=None,
         refresh=refresh,
         domain=domain,
-        submodules=[],
+        init_submodules=True,
     )
 
     submodule_calls = _submodule_calls(mock_run_git_command)
-    # Which submodules the "all" mode populates is git's own policy, so no
-    # status verification follows the update in this mode.
+    # Which submodules get populated is git's own policy, so no status
+    # verification follows the update.
     assert len(submodule_calls) == 1
     cmd = submodule_calls[0][0][0]
     assert cmd[2] == "update"
     assert "--depth=1" in cmd
-    # "All submodules" mirrors PlatformIO's recursive library clones.
+    # Recursive, mirroring PlatformIO's recursive library clones.
     assert "--recursive" in cmd
-    assert cmd[-1] == "--"
     _assert_submodule_runs_without_isolation(submodule_calls[0], repo_dir)
 
 
-def _make_uninitialized_submodule_side_effect(
-    repo_dir: Path, gitmodules_config: str
-) -> Callable[..., str]:
-    """Side effect where submodule update exits 0 but leaves a path empty.
-
-    ``gitmodules_config`` is what ``git config -f .gitmodules --list``
-    returns for the cloned repo.
-    """
-
-    def git_command_side_effect(
-        cmd: list[str], cwd: str | None = None, **kwargs: Any
-    ) -> str:
-        if _get_git_command_type(cmd) == "clone":
-            _simulate_cloned_repo(repo_dir)
-            (repo_dir / ".gitmodules").write_text("test")
-        if _get_git_command_type(cmd) == "submodule" and "status" in cmd:
-            return "-abc123 vendor/sub"
-        if _get_git_command_type(cmd) == "config":
-            return gitmodules_config
-        return ""
-
-    return git_command_side_effect
-
-
-def test_uninitialized_named_submodule_raises(
+def test_refresh_submodule_failure_recovers_then_raises(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
-    """An explicitly named submodule left uninitialized must fail loudly.
+    """A refresh-path submodule failure routes through the recovery re-clone.
 
-    `git submodule update --init` can exit 0 without initializing anything;
-    the status verification catches that for named paths, and the clone-path
-    cleanup removes the broken cache entry so the next run re-clones.
-    """
-    CORE.config_path = tmp_path / "test.yaml"
-
-    url = "https://github.com/test/repo"
-    domain = "test"
-    repo_dir = _compute_repo_dir(url, None, domain)
-
-    mock_run_git_command.side_effect = _make_uninitialized_submodule_side_effect(
-        repo_dir, gitmodules_config=""
-    )
-
-    with pytest.raises(git.GitRepositoryError, match="vendor/sub"):
-        git.clone_or_update(
-            url=url,
-            ref=None,
-            refresh=None,
-            domain=domain,
-            submodules=["vendor/sub"],
-        )
-
-    # The broken clone must not be left behind as a valid cache entry.
-    assert not repo_dir.is_dir()
-
-
-def test_refresh_uninitialized_named_submodule_recovers_then_raises(
-    tmp_path: Path, mock_run_git_command: Mock
-) -> None:
-    """A refresh-path verification failure routes through the recovery re-clone.
-
-    The broken repo is removed and re-cloned; when verification fails again on
-    the fresh clone the cache entry is removed and the error propagates,
-    instead of leaving behind a repo the refresh window would silently accept
-    on the next run.
+    The broken repo is removed and re-cloned; when the submodule update fails
+    again on the fresh clone the cache entry is removed and the error
+    propagates, instead of leaving behind a repo the refresh window would
+    silently accept on the next run.
     """
     CORE.config_path = tmp_path / "test.yaml"
 
@@ -1483,17 +1398,27 @@ def test_refresh_uninitialized_named_submodule_recovers_then_raises(
     repo_dir = _compute_repo_dir(url, None, domain)
 
     _setup_old_repo(repo_dir)
-    mock_run_git_command.side_effect = _make_uninitialized_submodule_side_effect(
-        repo_dir, gitmodules_config=""
-    )
+    (repo_dir / ".gitmodules").write_text("test")
 
-    with pytest.raises(git.GitRepositoryError, match="vendor/sub"):
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "clone":
+            _simulate_cloned_repo(repo_dir)
+            (repo_dir / ".gitmodules").write_text("test")
+        if _get_git_command_type(cmd) == "submodule":
+            raise git.GitCommandError("git submodule update exited with code 1")
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    with pytest.raises(git.GitCommandError, match="exited with code 1"):
         git.clone_or_update(
             url=url,
             ref=None,
             refresh=TimePeriodSeconds(days=1),
             domain=domain,
-            submodules=["vendor/sub"],
+            init_submodules=True,
         )
 
     assert not repo_dir.is_dir()
@@ -1502,40 +1427,6 @@ def test_refresh_uninitialized_named_submodule_recovers_then_raises(
         _get_git_command_type(c[0][0]) == "clone"
         for c in mock_run_git_command.call_args_list
     )
-
-
-def test_named_submodule_with_update_none_not_reported(
-    tmp_path: Path, mock_run_git_command: Mock
-) -> None:
-    """A named path the repo declares `update = none` is not a failure.
-
-    Git honors the declaration even for explicitly named paths and leaves
-    them uninitialized on purpose.
-    """
-    CORE.config_path = tmp_path / "test.yaml"
-
-    url = "https://github.com/test/repo"
-    domain = "test"
-    repo_dir = _compute_repo_dir(url, None, domain)
-
-    mock_run_git_command.side_effect = _make_uninitialized_submodule_side_effect(
-        repo_dir,
-        gitmodules_config=(
-            "submodule.vendor/sub.path=vendor/sub\n"
-            "submodule.vendor/sub.update=none\n"
-            "submodule.vendor/sub.branch=main"
-        ),
-    )
-
-    git.clone_or_update(
-        url=url,
-        ref=None,
-        refresh=None,
-        domain=domain,
-        submodules=["vendor/sub"],
-    )
-
-    assert repo_dir.is_dir()
 
 
 def _real_git(*args: str, cwd: Path) -> None:
@@ -1608,7 +1499,7 @@ def test_clone_or_update_real_git_without_submodules(tmp_path: Path) -> None:
         ref=None,
         refresh=None,
         domain="test_e2e",
-        submodules=[],
+        init_submodules=True,
     )
 
     assert (repo_dir / "README.md").is_file()
@@ -1619,8 +1510,6 @@ def test_clone_or_update_real_git_initializes_submodules(tmp_path: Path) -> None
 
     Exercises the real `git submodule update` invocation, including the
     env handling in run_git_command that the mocked tests cannot cover.
-    The explicit-list call afterwards exercises the real `git submodule
-    status` verification on the refresh path.
     """
     CORE.config_path = tmp_path / "test.yaml"
 
@@ -1637,19 +1526,9 @@ def test_clone_or_update_real_git_initializes_submodules(tmp_path: Path) -> None
             ref=None,
             refresh=None,
             domain="test_e2e",
-            submodules=[],
-        )
-        assert (repo_dir / "vendor" / "sub" / "sub_file.txt").is_file()
-
-        repo_dir_again, _ = git.clone_or_update(
-            url=str(upstream),
-            ref=None,
-            refresh=None,
-            domain="test_e2e",
-            submodules=["vendor/sub"],
+            init_submodules=True,
         )
 
-    assert repo_dir_again == repo_dir
     assert (repo_dir / "vendor" / "sub" / "sub_file.txt").is_file()
 
 
@@ -1658,12 +1537,8 @@ def test_clone_or_update_real_git_honors_update_none_submodule(
 ) -> None:
     """End-to-end with real git: submodules declared `update = none` stay skipped.
 
-    The all-submodules clone shows git itself skipping the declared paths at
-    both nesting levels while the regular submodules check out. The follow-up
-    call naming the skipped path exercises ESPHome's carve-out: the status
-    verification sees the path uninitialized and `_update_none_paths` (parsing
-    real `git config -f .gitmodules --list` output) excuses it instead of
-    raising.
+    Shows git itself skipping the declared paths at both nesting levels
+    (and exiting 0) while the regular submodules check out.
     """
     CORE.config_path = tmp_path / "test.yaml"
 
@@ -1687,28 +1562,15 @@ def test_clone_or_update_real_git_honors_update_none_submodule(
             ref=None,
             refresh=None,
             domain="test_e2e",
-            submodules=[],
+            init_submodules=True,
         )
 
-        assert (repo_dir / "vendor" / "sub" / "sub_file.txt").is_file()
-        assert not (repo_dir / "vendor" / "skipped" / "sub_file.txt").exists()
-        assert (repo_dir / "vendor" / "mid" / "mid_file.txt").is_file()
-        assert not (
-            repo_dir / "vendor" / "mid" / "vendor" / "leaf" / "sub_file.txt"
-        ).exists()
-
-        # Naming the skipped path must not raise: the verification sees it
-        # uninitialized and the real .gitmodules parse excuses it.
-        repo_dir_again, _ = git.clone_or_update(
-            url=str(upstream),
-            ref=None,
-            refresh=None,
-            domain="test_e2e",
-            submodules=["vendor/skipped"],
-        )
-
-    assert repo_dir_again == repo_dir
+    assert (repo_dir / "vendor" / "sub" / "sub_file.txt").is_file()
     assert not (repo_dir / "vendor" / "skipped" / "sub_file.txt").exists()
+    assert (repo_dir / "vendor" / "mid" / "mid_file.txt").is_file()
+    assert not (
+        repo_dir / "vendor" / "mid" / "vendor" / "leaf" / "sub_file.txt"
+    ).exists()
 
 
 def test_refresh_picks_up_new_remote_commits(

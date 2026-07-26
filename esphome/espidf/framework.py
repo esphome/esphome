@@ -411,7 +411,7 @@ def _clone_idf_with_submodules(
             ["git", "reset", "--hard", "FETCH_HEAD"],
             git_dir=framework_path,
         )
-    update_submodules(framework_path, [], key)
+    update_submodules(framework_path, key)
 
     # Sanity-check the resulting tree: a clone can exit 0 yet produce no
     # usable ESP-IDF checkout, which would otherwise be marked extracted and
