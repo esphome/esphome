@@ -98,7 +98,9 @@ inline int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueTy
 
 ESPDEPRECATED("Use modbus::helpers::float_to_payload() instead. Removed in 2026.10.0", "2026.4.0")
 inline std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type) {
-  return modbus::helpers::float_to_payload(value, value_type);
+  std::vector<uint16_t> data;
+  modbus::helpers::float_to_payload(data, value, value_type);
+  return data;
 }
 
 class ModbusController;
