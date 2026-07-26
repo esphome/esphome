@@ -1194,6 +1194,10 @@ def test_clone_with_submodules_uses_shallow_submodule_update(
     # The `--` terminator must precede the submodule paths so a path
     # beginning with `-` cannot be parsed as an option.
     assert cmd.index("--") < cmd.index("components/foo")
+    # git submodule must run with plain cwd, not GIT_DIR/GIT_WORK_TREE
+    # isolation, which breaks the submodule porcelain on some installations.
+    assert submodule_calls[0].kwargs.get("git_dir") is None
+    assert submodule_calls[0].kwargs.get("cwd") == repo_dir
 
 
 def test_refresh_fetch_is_shallow(tmp_path: Path, mock_run_git_command: Mock) -> None:
@@ -1249,6 +1253,135 @@ def test_refresh_submodule_update_is_shallow(
     assert "--depth=1" in cmd
     assert "components/foo" in cmd
     assert cmd.index("--") < cmd.index("components/foo")
+    assert submodule_calls[0].kwargs.get("git_dir") is None
+    assert submodule_calls[0].kwargs.get("cwd") == repo_dir
+
+
+def test_clone_all_submodules_skipped_without_gitmodules(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """An empty submodule list ("all") is a no-op for repos with no .gitmodules.
+
+    This is the esp-idf toolchain library scenario from issue #17860: the
+    PlatformIO library converter requests "all submodules" for every git
+    library, and most libraries declare none. The git submodule porcelain
+    must not run at all in that case — it fails outright on some git
+    installations.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
+
+    git.clone_or_update(
+        url=url,
+        ref=None,
+        refresh=None,
+        domain=domain,
+        submodules=[],
+    )
+
+    assert not any("submodule" in c[0][0] for c in mock_run_git_command.call_args_list)
+
+
+def test_clone_all_submodules_updated_with_gitmodules(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """An empty submodule list initializes all submodules when .gitmodules exists."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "clone":
+            _simulate_cloned_repo(repo_dir)
+            (repo_dir / ".gitmodules").write_text("test")
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    git.clone_or_update(
+        url=url,
+        ref=None,
+        refresh=None,
+        domain=domain,
+        submodules=[],
+    )
+
+    submodule_calls = [
+        c for c in mock_run_git_command.call_args_list if "submodule" in c[0][0]
+    ]
+    assert len(submodule_calls) == 1
+    cmd = submodule_calls[0][0][0]
+    assert "--depth=1" in cmd
+    # "All submodules" mirrors PlatformIO's recursive library clones.
+    assert "--recursive" in cmd
+    assert cmd[-1] == "--"
+    assert submodule_calls[0].kwargs.get("git_dir") is None
+    assert submodule_calls[0].kwargs.get("cwd") == repo_dir
+
+
+def test_refresh_all_submodules_skipped_without_gitmodules(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """The refresh path also skips the "all submodules" no-op."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    _setup_old_repo(repo_dir)
+    mock_run_git_command.return_value = "abc123"
+
+    git.clone_or_update(
+        url=url,
+        ref=None,
+        refresh=TimePeriodSeconds(days=1),
+        domain=domain,
+        submodules=[],
+    )
+
+    assert not any("submodule" in c[0][0] for c in mock_run_git_command.call_args_list)
+
+
+def test_refresh_all_submodules_updated_with_gitmodules(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """The refresh path updates all submodules when .gitmodules exists."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    _setup_old_repo(repo_dir)
+    (repo_dir / ".gitmodules").write_text("test")
+    mock_run_git_command.return_value = "abc123"
+
+    git.clone_or_update(
+        url=url,
+        ref=None,
+        refresh=TimePeriodSeconds(days=1),
+        domain=domain,
+        submodules=[],
+    )
+
+    submodule_calls = [
+        c for c in mock_run_git_command.call_args_list if "submodule" in c[0][0]
+    ]
+    assert len(submodule_calls) == 1
+    cmd = submodule_calls[0][0][0]
+    assert "--recursive" in cmd
+    assert submodule_calls[0].kwargs.get("git_dir") is None
+    assert submodule_calls[0].kwargs.get("cwd") == repo_dir
 
 
 def test_refresh_picks_up_new_remote_commits(

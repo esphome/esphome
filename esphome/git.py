@@ -43,13 +43,17 @@ class GitRepositoryError(GitException):
     """Exception raised when a git repository is in an invalid state."""
 
 
-def run_git_command(cmd: list[str], git_dir: Path | None = None) -> str:
+def run_git_command(
+    cmd: list[str], git_dir: Path | None = None, *, cwd: Path | None = None
+) -> str:
     if git_dir is not None:
         _LOGGER.debug(
             "Running git command with repository isolation: %s (git_dir=%s)",
             " ".join(cmd),
             git_dir,
         )
+    elif cwd is not None:
+        _LOGGER.debug("Running git command: %s (cwd=%s)", " ".join(cmd), cwd)
     else:
         _LOGGER.debug("Running git command: %s", " ".join(cmd))
 
@@ -60,20 +64,28 @@ def run_git_command(cmd: list[str], git_dir: Path | None = None) -> str:
     # .git directory is corrupt. Without this, commands like 'git stash'
     # could accidentally operate on parent repositories (e.g., the main
     # ESPHome repo) instead of failing, causing data loss.
+    #
+    # ``cwd`` (without ``git_dir``) runs the command in that directory with
+    # no environment override. The ``git submodule`` porcelain needs this:
+    # on some installations (e.g. Windows setups where a shim hands git
+    # untranslated paths) it refuses to run when GIT_DIR/GIT_WORK_TREE are
+    # set, failing with "cannot be used without a working tree".
     env: dict[str, str] | None = None
-    cwd: str | None = None
+    run_cwd: str | None = None
     if git_dir is not None:
         env = {
             **subprocess.os.environ,
             "GIT_DIR": str(Path(git_dir) / ".git"),
             "GIT_WORK_TREE": str(git_dir),
         }
-        cwd = str(git_dir)
+        run_cwd = str(git_dir)
+    elif cwd is not None:
+        run_cwd = str(cwd)
 
     try:
         ret = subprocess.run(
             cmd,
-            cwd=cwd,
+            cwd=run_cwd,
             capture_output=True,
             check=False,
             close_fds=False,
@@ -121,6 +133,35 @@ def _remove_repo_dir(repo_dir: Path) -> None:
         _LOGGER.debug("Could not delete clone completion marker first: %s", err)
     if repo_dir.is_dir():
         rmtree(repo_dir)
+
+
+def _update_submodules(repo_dir: Path, submodules: list[str], key: str) -> None:
+    """Initialize/update submodules of a freshly cloned or updated repo.
+
+    An empty ``submodules`` list means "every submodule the repository
+    declares". Most repositories declare none, so in that case skip the git
+    call entirely when there is no ``.gitmodules`` file — running it would do
+    nothing, and the ``git submodule`` porcelain fails outright on some git
+    installations (see ``run_git_command``'s ``cwd`` note).
+
+    An explicit submodule list is always passed through so a path that does
+    not exist in the repository surfaces as a git error instead of being
+    silently ignored.
+    """
+    if not submodules and not (repo_dir / ".gitmodules").is_file():
+        return
+    _LOGGER.info(
+        "Initializing submodules (%s) for %s",
+        ", ".join(submodules) if submodules else "all",
+        key,
+    )
+    cmd = ["git", "submodule", "update", "--init", "--depth=1"]
+    if not submodules:
+        # "All submodules" requests come from PlatformIO library conversion;
+        # PlatformIO clones libraries with --recursive, so nested submodules
+        # are part of what such a library may rely on.
+        cmd.append("--recursive")
+    run_git_command(cmd + ["--"] + submodules, cwd=repo_dir)
 
 
 def resolve_symlink_stub(repo_dir: Path, file_path: Path) -> Path | None:
@@ -263,14 +304,7 @@ def clone_or_update(
                 )
 
             if submodules is not None:
-                _LOGGER.info(
-                    "Initializing submodules (%s) for %s", ", ".join(submodules), key
-                )
-                run_git_command(
-                    ["git", "submodule", "update", "--init", "--depth=1", "--"]
-                    + submodules,
-                    git_dir=repo_dir,
-                )
+                _update_submodules(repo_dir, submodules, key)
 
         except GitException:
             # Remove incomplete clone to prevent stale state. Without this,
@@ -381,14 +415,7 @@ def clone_or_update(
                 return result
 
             if submodules is not None:
-                _LOGGER.info(
-                    "Updating submodules (%s) for %s", ", ".join(submodules), key
-                )
-                run_git_command(
-                    ["git", "submodule", "update", "--init", "--depth=1", "--"]
-                    + submodules,
-                    git_dir=repo_dir,
-                )
+                _update_submodules(repo_dir, submodules, key)
 
             def revert():
                 _LOGGER.info("Reverting changes to %s -> %s", key, old_sha)

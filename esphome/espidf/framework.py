@@ -410,6 +410,8 @@ def _clone_idf_with_submodules(
             ["git", "reset", "--hard", "FETCH_HEAD"],
             git_dir=framework_path,
         )
+    # cwd instead of git_dir: the git submodule porcelain fails on some git
+    # installations when GIT_DIR/GIT_WORK_TREE are set (see run_git_command).
     run_git_command(
         [
             "git",
@@ -419,7 +421,7 @@ def _clone_idf_with_submodules(
             "--recursive",
             "--depth=1",
         ],
-        git_dir=framework_path,
+        cwd=framework_path,
     )
 
     # Sanity-check the resulting tree. run_git_command only raises when
