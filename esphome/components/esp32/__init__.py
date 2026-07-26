@@ -814,14 +814,15 @@ def _is_framework_url(source: str) -> bool:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 3, 9),
-    "latest": cv.Version(3, 3, 9),
-    "dev": cv.Version(3, 3, 9),
+    "recommended": cv.Version(3, 3, 10),
+    "latest": cv.Version(3, 3, 10),
+    "dev": cv.Version(3, 3, 10),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         4, 0, 0, "alpha1"
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    cv.Version(3, 3, 10): cv.Version(55, 3, 39),
     cv.Version(3, 3, 9): cv.Version(55, 3, 39),
     cv.Version(3, 3, 8): cv.Version(55, 3, 38, "1"),
     cv.Version(3, 3, 7): cv.Version(55, 3, 37),
@@ -844,6 +845,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
     cv.Version(4, 0, 0, "alpha1"): cv.Version(6, 0, 1),
+    cv.Version(3, 3, 10): cv.Version(5, 5, 5),
     cv.Version(3, 3, 9): cv.Version(5, 5, 4),
     cv.Version(3, 3, 8): cv.Version(5, 5, 4),
     cv.Version(3, 3, 7): cv.Version(5, 5, 3, "1"),
@@ -865,9 +867,9 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 5, 4),
-    "latest": cv.Version(5, 5, 4),
-    "dev": cv.Version(5, 5, 4),
+    "recommended": cv.Version(5, 5, 5),
+    "latest": cv.Version(5, 5, 5),
+    "dev": cv.Version(5, 5, 5),
 }
 
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
@@ -877,6 +879,7 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         6, 0, 0
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    cv.Version(5, 5, 5): cv.Version(55, 3, 39),
     cv.Version(5, 5, 4): cv.Version(55, 3, 39),
     cv.Version(5, 5, 3, "1"): cv.Version(55, 3, 37),
     cv.Version(5, 5, 3): cv.Version(55, 3, 37),
@@ -3058,19 +3061,23 @@ def copy_files():
 
 
 def _decode_pc(config, addr):
-    # _decode_pc runs from the api log processor's asyncio callback, which
-    # only catches EsphomeError. Any other exception escaping here tears down
-    # the protocol and triggers an infinite reconnect/replay loop. Convert
-    # toolchain-resolution errors (e.g. missing build dir / cmake cache) into
-    # EsphomeError so the caller can disable decoding cleanly.
+    # Convert toolchain-resolution errors (e.g. missing build dir / cmake
+    # cache) into EsphomeError. The api log processor stops decoding on any
+    # exception, so this is about the message it reports rather than about
+    # catching it at all: EsphomeError carries an explanation worth showing
+    # the user, where a raw OSError repr does not.
     if CORE.using_toolchain_esp_idf:
         from esphome.espidf import toolchain as idf_toolchain
 
         try:
             addr2line_path = idf_toolchain.get_addr2line_path()
             firmware_elf_path = idf_toolchain.get_elf_path()
-        except RuntimeError as err:
+        except (RuntimeError, OSError) as err:
+            # OSError covers a missing build directory or a cmake that isn't
+            # on PATH; both surface from the subprocess call, not as RuntimeError.
             raise EsphomeError(f"ESP-IDF toolchain not available: {err}") from err
+        if not firmware_elf_path.is_file():
+            raise EsphomeError(f"Firmware ELF not found: {firmware_elf_path}")
     else:
         from esphome.platformio import toolchain
 
@@ -3101,9 +3108,10 @@ def _parse_register(config, regex, line):
 
 
 STACKTRACE_ESP32_PC_RE = re.compile(r".*PC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7}).*")
-STACKTRACE_ESP32_EXCVADDR_RE = re.compile(r"EXCVADDR\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP32_EXCVADDR_RE = re.compile(r".*EXCVADDR\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
 STACKTRACE_ESP32_C3_PC_RE = re.compile(r"MEPC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
 STACKTRACE_ESP32_C3_RA_RE = re.compile(r"RA\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP32_C3_MTVAL_RE = re.compile(r".*MTVAL\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
 STACKTRACE_BAD_ALLOC_RE = re.compile(
     r"^last failed alloc call: (4[0-9a-fA-F]{7})\((\d+)\)$"
 )
@@ -3121,9 +3129,10 @@ def process_stacktrace(config, line, backtrace_state):
     # ESP32 PC/EXCVADDR
     _parse_register(config, STACKTRACE_ESP32_PC_RE, line)
     _parse_register(config, STACKTRACE_ESP32_EXCVADDR_RE, line)
-    # ESP32-C3 PC/RA
+    # ESP32-C3 PC/RA/MTVAL
     _parse_register(config, STACKTRACE_ESP32_C3_PC_RE, line)
     _parse_register(config, STACKTRACE_ESP32_C3_RA_RE, line)
+    _parse_register(config, STACKTRACE_ESP32_C3_MTVAL_RE, line)
 
     # bad alloc
     match = re.match(STACKTRACE_BAD_ALLOC_RE, line)
