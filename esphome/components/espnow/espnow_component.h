@@ -62,7 +62,7 @@ class ESPNowUnknownPeerHandler {
   /// @param data Pointer to the received data payload
   /// @param size Size of the received data in bytes
   /// @return true if the packet was handled, false otherwise
-  virtual bool on_unknown_peer(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) = 0;
+  virtual bool on_unknown_peer(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) = 0;
 };
 
 /// Handler interface for receiving ESPNow packets
@@ -74,7 +74,7 @@ class ESPNowReceivedPacketHandler {
   /// @param data Pointer to the received data payload
   /// @param size Size of the received data in bytes
   /// @return true if the packet was handled, false otherwise
-  virtual bool on_receive(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) = 0;
+  virtual bool on_receive(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) = 0;
 };
 /// Handler interface for receiving ESPNow broadcast packets
 /// Components should inherit from this class to handle incoming ESPNow data
@@ -85,7 +85,7 @@ class ESPNowBroadcastHandler {
   /// @param data Pointer to the received data payload
   /// @param size Size of the received data in bytes
   /// @return true if the packet was handled, false otherwise
-  virtual bool on_broadcast(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) = 0;
+  virtual bool on_broadcast(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) = 0;
 };
 
 class ESPNowComponent final : public Component {

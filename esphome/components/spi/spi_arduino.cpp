@@ -11,7 +11,7 @@ class SPIDelegateHw : public SPIDelegate {
       : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel) {}
 
   void begin_transaction() override {
-#ifdef USE_RP2040
+#ifdef USE_RP2
     SPISettings const settings(this->data_rate_, static_cast<BitOrder>(this->bit_order_), this->mode_);
 #elif defined(ESP8266)
     // Arduino ESP8266 library has mangled values for SPI modes :-(
@@ -41,7 +41,7 @@ class SPIDelegateHw : public SPIDelegate {
       this->channel_->transfer(*ptr);
       return;
     }
-#ifdef USE_RP2040
+#ifdef USE_RP2
     this->channel_->transfer(ptr, nullptr, length);
 #elif defined(USE_ESP8266)
     // ESP8266 SPI library requires the pointer to be word aligned, but the data may not be
@@ -75,7 +75,7 @@ class SPIBusHw : public SPIBus {
 #ifdef USE_ESP32
     channel->begin(Utility::get_pin_no(clk), Utility::get_pin_no(sdi), Utility::get_pin_no(sdo), -1);
 #endif
-#ifdef USE_RP2040
+#ifdef USE_RP2
     if (Utility::get_pin_no(sdi) != -1)
       channel->setRX(Utility::get_pin_no(sdi));
     if (Utility::get_pin_no(sdo) != -1)

@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
 
 #include "esphome/core/color.h"
 #include "esphome/core/component.h"
@@ -95,7 +95,7 @@ class RP2040PIOLEDStripLightOutput final : public light::AddressableLight {
 
   size_t get_buffer_size_() const { return this->num_leds_ * (3 + this->is_rgbw_); }
 
-  static void dma_write_complete_handler_();
+  static void dma_write_complete_handler();
 
   uint8_t *buf_{nullptr};
   uint8_t *effect_data_{nullptr};
@@ -119,13 +119,13 @@ class RP2040PIOLEDStripLightOutput final : public light::AddressableLight {
   init_fn init_;
 
  private:
-  inline static int num_instance_[2];
-  inline static std::map<Chipset, bool> conf_count_;
-  inline static std::map<Chipset, int> chipset_offsets_;
-  inline static bool dma_chan_active_[12];
-  inline static struct semaphore dma_write_complete_sem_[12];
+  inline static int num_instance[2];
+  inline static std::map<Chipset, bool> conf_count;
+  inline static std::map<Chipset, int> chipset_offsets;
+  inline static bool dma_chan_active[12];
+  inline static struct semaphore dma_write_complete_sem[12];
 };
 
 }  // namespace esphome::rp2040_pio_led_strip
 
-#endif  // USE_RP2040
+#endif  // USE_RP2

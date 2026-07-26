@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_INDEX_OFFSET,
     CONF_LEARNING_TIME_GAIN_HOURS,
     CONF_LEARNING_TIME_OFFSET_HOURS,
+    CONF_MODEL,
     CONF_NORMALIZED_OFFSET_SLOPE,
     CONF_NOX,
     CONF_OFFSET,
@@ -39,6 +40,7 @@ from esphome.const import (
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@martgras"]
 DEPENDENCIES = ["i2c"]
@@ -49,6 +51,7 @@ SEN5XComponent = sen5x_ns.class_(
     "SEN5XComponent", cg.PollingComponent, sensirion_common.SensirionI2CDevice
 )
 RhtAccelerationMode = sen5x_ns.enum("RhtAccelerationMode")
+Sen5xType = sen5x_ns.enum("Sen5xType", is_class=True)
 
 CONF_ACCELERATION_MODE = "acceleration_mode"
 CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
@@ -61,6 +64,12 @@ ACCELERATION_MODES = {
     "low": RhtAccelerationMode.LOW_ACCELERATION,
     "medium": RhtAccelerationMode.MEDIUM_ACCELERATION,
     "high": RhtAccelerationMode.HIGH_ACCELERATION,
+}
+
+MODELS = {
+    "SEN50": Sen5xType.SEN50,
+    "SEN54": Sen5xType.SEN54,
+    "SEN55": Sen5xType.SEN55,
 }
 
 
@@ -186,6 +195,7 @@ CONFIG_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_ACCELERATION_MODE): cv.enum(ACCELERATION_MODES),
+            cv.Optional(CONF_MODEL): cv.enum(MODELS, upper=True),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -210,7 +220,7 @@ SETTING_MAP = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -218,6 +228,9 @@ async def to_code(config):
     for key, funcName in SETTING_MAP.items():
         if cfg := config.get(key):
             cg.add(getattr(var, funcName)(cfg))
+
+    if (model := config.get(CONF_MODEL)) is not None:
+        cg.add(var.set_model(model))
 
     for key, funcName in SENSOR_MAP.items():
         if cfg := config.get(key):
