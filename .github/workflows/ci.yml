@@ -117,6 +117,7 @@ jobs:
           script/generate-esp32-boards.py --check
           script/generate-rp2-boards.py --check
           script/ci_check_duplicate_test_ids.py
+          script/ci_check_test_fixture_list_form.py
 
   import-time:
     name: Check import esphome.__main__ time
