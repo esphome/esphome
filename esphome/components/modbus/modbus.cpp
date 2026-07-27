@@ -313,8 +313,10 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
                  function_code, exception, address, this->last_modbus_byte_ - this->last_send_);
         if (device)
           device->on_error(request_pdu, static_cast<ExceptionCode>(exception));
+        this->maybe_requeue_completed_(command);
       } else if (device) {  // Not an error response
         device->on_response(request_pdu, pdu);
+        this->maybe_requeue_completed_(command);
       } else {  // Not an error response, but no device to respond to
         ESP_LOGV(TAG, "Ignoring response from %" PRIu8 " - no callback device set, %" PRIu32 "ms after last send",
                  address, this->last_modbus_byte_ - this->last_send_);
@@ -508,8 +510,8 @@ void ModbusClientHub::send_next_frame_() {
 
   // Move the command out and pop BEFORE attempting the send: no callback may run while the frame still
   // sits in the queue (the same principle as the clear sweep). A failure callback that sends would
-  // otherwise queue a new frame and pop_front() could discard the wrong one - and the deque
-  // reference / PDU span could be invalidated mid-callback.
+  // otherwise insert_by_priority_() a new write at the front and pop_front() would discard it - and the
+  // deque reference / PDU span could be invalidated mid-callback.
   ModbusDeviceCommand command = std::move(this->tx_buffer_.front());
   this->tx_buffer_.pop_front();
   ModbusClientDevice *device = command.device;
@@ -584,16 +586,21 @@ void ModbusServerHub::send_exception_(uint8_t address, uint8_t function_code, Ex
 void ModbusClientHub::notify_no_response_(ModbusDeviceCommand &wfr) {
   if (wfr.device == nullptr)
     return;
-  const bool retry = wfr.device->on_no_response(wfr.frame.pdu());
+  // A device-requested retry (on_no_response() returns true) is not a resolution - the same request
+  // is re-attempted. READ_AGAIN (an extra request the dedup absorbed) also forces one more run even if the
+  // device declines. Track the two reasons separately so requeue_waiting_frame_ can keep a READ_AGAIN's
+  // extra request pending across a device retry, and demote it only on the READ_AGAIN-forced run.
+  const bool device_retry = wfr.device->on_no_response(wfr.frame.pdu());
+  const bool retry = device_retry || wfr.priority == CommandPriority::READ_AGAIN;
   // The callback may have detached the device (e.g. clear_tx_queue_for_device()); honor the detach
   // over the retry request rather than re-queueing a frame that can no longer be routed.
   if (retry && wfr.device != nullptr)
-    this->requeue_waiting_frame_(wfr);
+    this->requeue_waiting_frame_(wfr, device_retry);
   // The old transaction is over either way; never deliver anything else to the device through it.
   wfr.device = nullptr;
 }
 
-void ModbusClientHub::requeue_waiting_frame_(ModbusDeviceCommand &wfr) {
+void ModbusClientHub::requeue_waiting_frame_(ModbusDeviceCommand &wfr, bool device_retry) {
   const ModbusFrame &frame = wfr.frame;
   if (this->tx_buffer_.size() >= MODBUS_TX_BUFFER_SIZE) {
     ESP_LOGE(TAG, "Write buffer full, dropped retry for address %" PRIu8, frame.address());
@@ -601,8 +608,43 @@ void ModbusClientHub::requeue_waiting_frame_(ModbusDeviceCommand &wfr) {
       wfr.device->trigger_not_sent(frame.pdu());
     return;
   }
-  // Re-queue a copy (not a move): the waiting entry may have to survive as an interrupted shell.
-  this->tx_buffer_.emplace_back(wfr.device, frame.address(), frame.pdu());
+  // Re-queue a copy (not a move): the waiting entry may have to survive as an interrupted shell. Preserve the
+  // frame's priority on retry: a write keeps WRITE (stays ahead of reads and never drops to a priority a
+  // duplicate could promote). A READ_AGAIN entry carries an extra request the dedup absorbed: keep it
+  // when the device asked to retry (nothing was resolved, both requests still pending), and demote to
+  // READ_ONCE only when the retry is READ_AGAIN-forced (the device gave up, resolving one request, so
+  // the frame runs once more for the other and then stops).
+  CommandPriority priority = wfr.priority;
+  if (wfr.priority == CommandPriority::READ_AGAIN && !device_retry)
+    priority = CommandPriority::READ_ONCE;
+  this->insert_by_priority_(ModbusDeviceCommand(wfr.device, frame.address(), frame.pdu(), priority));
+}
+
+void ModbusClientHub::insert_by_priority_(ModbusDeviceCommand &&command) {
+  auto it = std::find_if(this->tx_buffer_.begin(), this->tx_buffer_.end(),
+                         [&command](const ModbusDeviceCommand &cmd) { return cmd.priority < command.priority; });
+  // emplace_back for the common append case: deque::insert at begin() takes the push-front path,
+  // which allocates a front block even when the back block has room (caught by the heap probe).
+  if (it == this->tx_buffer_.end()) {
+    this->tx_buffer_.emplace_back(std::move(command));
+  } else {
+    this->tx_buffer_.insert(it, std::move(command));
+  }
+}
+
+void ModbusClientHub::maybe_requeue_completed_(ModbusDeviceCommand &command) {
+  if (command.device == nullptr || command.priority != CommandPriority::READ_AGAIN)
+    return;
+  // Explicitly re-requested; runs once more (demoted to READ_ONCE) whether this attempt succeeded or not.
+  if (this->tx_buffer_.size() >= MODBUS_TX_BUFFER_SIZE) {
+    ESP_LOGE(TAG, "Write buffer full, dropped re-queue for address %" PRIu8, command.frame.address());
+    // The re-queue is refused, so the chain ends here.
+    command.device->trigger_not_sent(command.frame.pdu());
+    return;
+  }
+  const ModbusFrame &frame = command.frame;
+  this->insert_by_priority_(
+      ModbusDeviceCommand(command.device, frame.address(), frame.pdu(), CommandPriority::READ_ONCE));
 }
 
 // Raw send for client: pushes to tx queue. Everything except the CRC must be contained in payload.
@@ -621,13 +663,52 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
     return;
   }
 
+  // Writes outrank reads on the wire; the priority is derived from the frame, never chosen by callers.
+  const CommandPriority priority =
+      helpers::is_function_code_write(pdu[0]) ? CommandPriority::WRITE : CommandPriority::READ_ONCE;
+  // Only the standard reads are silently re-queueable: re-sending a write is not idempotent in general
+  // (it can double a command/increment register), and a custom or diagnostic function code's idempotency
+  // is unknown, so both take the safe drop path on a duplicate.
+  const bool is_requeueable = helpers::is_function_code_read(pdu[0]);
+
+  // A frame identical to one already queued or in flight is not queued twice; the duplicate is resolved
+  // against the existing entry. Only a READ_ONCE entry is ever promoted (to READ_AGAIN, which re-queues
+  // it once more after it completes).
+  // Every request resolves in exactly one callback: a promotion resolves in the entry's future
+  // on_response(); a request that cannot be absorbed (already READ_AGAIN, a duplicate write, or a
+  // non-requeueable function code) is dropped and reports on_not_sent().
+  const auto resolve_duplicate = [&](ModbusDeviceCommand &item, const char *state) {
+    if (is_requeueable && item.priority == CommandPriority::READ_ONCE) {
+      item.priority = CommandPriority::READ_AGAIN;
+      ESP_LOGV(TAG, "Frame already %s for %" PRIu8 ", promoted for re-queue", state, address);
+    } else {
+      if (device != nullptr)
+        device->trigger_not_sent(pdu);
+    }
+  };
+  for (auto &item : this->tx_buffer_) {
+    if (item.marked_for_deletion)
+      continue;  // marked for drop by an in-progress clear: a new identical send queues fresh instead
+    if (item.device == device && item.same_frame(address, pdu)) {
+      resolve_duplicate(item, "queued");
+      return;
+    }
+  }
+  if (this->waiting_for_response_.has_value()) {
+    ModbusDeviceCommand &wfr = this->waiting_for_response_.value();
+    if (wfr.device == device && wfr.device != nullptr && wfr.same_frame(address, pdu)) {
+      resolve_duplicate(wfr, "in flight");
+      return;
+    }
+  }
+
   if (this->tx_buffer_.size() < MODBUS_TX_BUFFER_SIZE) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
 #endif
     ESP_LOGV(TAG, "Adding frame to tx queue: %" PRIu8 ":%s", address,
              format_hex_pretty_to(hex_buf, pdu.data(), pdu.size()));
-    this->tx_buffer_.emplace_back(device, address, pdu);
+    this->insert_by_priority_(ModbusDeviceCommand(device, address, pdu, priority));
   } else {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
     char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
@@ -643,10 +724,10 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sen
   // Drop the queued frames for this address, delivering on_not_sent() to each frame's owner: other
   // devices talking to the same physical device (e.g. a modbus_client action alongside a controller that
   // just went offline) must observe the drop, or their command never resolves. Mark first, then sweep
-  // only marked frames: anything a callback re-queues is unmarked, so it
-  // is never swept - or re-notified - by the clear that triggered it. Each marked frame is moved out and erased BEFORE
-  // its callback runs, so handlers see a consistent queue; termination is guaranteed because only the initially-marked
-  // frames are ever swept.
+  // only marked frames: anything a callback re-queues is unmarked (regardless of where
+  // insert_by_priority_() places it), so it is never swept - or re-notified - by the clear that
+  // triggered it. Each marked frame is moved out and erased BEFORE its callback runs, so handlers see a
+  // consistent queue; termination is guaranteed because only the initially-marked frames are ever swept.
   for (auto &cmd : this->tx_buffer_) {
     if (cmd.frame.address() == address)
       cmd.marked_for_deletion = true;

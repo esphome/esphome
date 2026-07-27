@@ -16,7 +16,10 @@
 
 namespace esphome::modbus {
 
-static constexpr uint16_t MODBUS_TX_BUFFER_SIZE = 15;
+// Tx queue backstop. Duplicate frames dedup into one entry, so reads can never approach this in a
+// sane config - it exists to stop a runaway generator of distinct frames (e.g. a loop writing a
+// changing value) from growing the heap unboundedly. The deque grows on demand; this reserves nothing.
+static constexpr uint16_t MODBUS_TX_BUFFER_SIZE = 128;
 static constexpr uint16_t MODBUS_TX_MAX_DELAY_MS = 5;
 
 // Typical frames -- reads and single-register/coil writes -- are exactly 8 bytes
@@ -90,20 +93,34 @@ class Modbus : public uart::UARTDevice, public Component {
 class ModbusClientDevice;
 class ModbusServerDevice;
 
+// Transmit priority, highest value sends first. Internal - derived from the frame, never chosen by
+// callers: writes outrank everything, and a re-requested queued frame (READ_AGAIN) outranks fresh reads.
+enum class CommandPriority : uint8_t { READ_ONCE = 0, READ_AGAIN, WRITE };
+
 struct ModbusDeviceCommand {
   ModbusClientDevice *device;
   ModbusFrame frame;
+  CommandPriority priority{CommandPriority::READ_ONCE};
   bool interrupted{false};
   /// Marked by clear_tx_queue_for_address() before it starts notifying, so frames re-queued by an
   /// on_not_sent() callback (which are unmarked) are never swept by the clear that triggered them.
   bool marked_for_deletion{false};
 
-  ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, const uint8_t *src, uint16_t len)
-      : device(device), frame(address, src, len) {}
+  ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, const uint8_t *src, uint16_t len,
+                      CommandPriority priority = CommandPriority::READ_ONCE)
+      : device(device), frame(address, src, len), priority(priority) {}
   /// Build a command from a PDU span: a caller-supplied PDU, or an existing frame's own pdu() when re-queueing
   /// Callers must bound the PDU to MAX_PDU_SIZE
-  ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, std::span<const uint8_t> pdu)
-      : device(device), frame(address, pdu.data(), static_cast<uint16_t>(pdu.size())) {}
+  ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, std::span<const uint8_t> pdu,
+                      CommandPriority priority = CommandPriority::READ_ONCE)
+      : device(device), frame(address, pdu.data(), static_cast<uint16_t>(pdu.size())), priority(priority) {}
+
+  /// True if this command carries the same wire frame (address + PDU) as the given one.
+  bool same_frame(uint8_t address, std::span<const uint8_t> pdu) const {
+    const auto own_pdu = this->frame.pdu();
+    return own_pdu.size() == pdu.size() && this->frame.address() == address &&
+           memcmp(own_pdu.data(), pdu.data(), pdu.size()) == 0;
+  }
 };
 
 class ModbusClientHub : public Modbus {
@@ -141,7 +158,13 @@ class ModbusClientHub : public Modbus {
   // Notify the waiting device of no response; re-queues the frame if on_no_response() returns true.
   // wfr is the caller's checked reference to waiting_for_response_.
   void notify_no_response_(ModbusDeviceCommand &wfr);
-  void requeue_waiting_frame_(ModbusDeviceCommand &wfr);
+  // device_retry is what on_no_response() returned (true = the device asked to retry, so this attempt
+  // is not a resolution); it decides whether a READ_AGAIN entry keeps its extra pending request or is demoted.
+  void requeue_waiting_frame_(ModbusDeviceCommand &wfr, bool device_retry);
+  // Inserts before the first lower-priority entry (FIFO within a priority class).
+  void insert_by_priority_(ModbusDeviceCommand &&command);
+  // Re-queues a READ_AGAIN command once more (demoted to READ_ONCE) after it completes.
+  void maybe_requeue_completed_(ModbusDeviceCommand &command);
 
   uint16_t send_wait_time_{2000};
   uint16_t turnaround_delay_ms_{0};
@@ -185,9 +208,10 @@ class ModbusServerHub : public Modbus {
 using ResponseStatus = std::optional<ExceptionCode>;
 
 /// Command lifecycle: each accepted command (a send_pdu()/typed-helper call, or a hub re-queue from
-/// a retry) ends in exactly ONE terminal callback: on_response() (valid response), on_error()
-/// (exception response), on_no_response() (timeout or interrupted transaction), or on_not_sent()
-/// (never transmitted: send failure or full queue). on_sent() is additional, not
+/// a retry or READ_AGAIN promotion) ends in exactly ONE terminal callback:
+/// on_response() (valid response), on_error() (exception response), on_no_response()
+/// (timeout or interrupted transaction), or on_not_sent() (never transmitted: send failure,
+/// full queue, or refused as an unabsorbable duplicate). on_sent() is additional, not
 /// terminal: it fires once per wire transmission, before whichever of data/error/no_response follows,
 /// and never for a command that ends in on_not_sent().
 /// The exceptions to "exactly one terminal":
@@ -195,6 +219,9 @@ using ResponseStatus = std::optional<ExceptionCode>;
 ///    semantics), and both clear variants detach the in-flight frame silently.
 ///    clear_tx_queue_for_address() DOES resolve every queued frame it drops via the owner's
 ///    on_not_sent() (delivered one at a time, after that frame leaves the queue).
+///  - a duplicate absorbed into a queued entry (a READ_AGAIN promotion) shares that entry's fate: if
+///    the entry is later swept or dropped, its single on_not_sent() stands for the absorbed request
+///    as well.
 ///  - while a device's own on_not_sent() is on the stack, further on_not_sent() deliveries to THAT
 ///    device are dropped (see trigger_not_sent()). In particular, a clear issued from inside your own
 ///    on_not_sent() resolves your remaining frames silently - treat it like
