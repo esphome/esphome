@@ -397,9 +397,10 @@ def _clone_idf_with_submodules(
     handles branches, tags, and SHAs uniformly (mirrors the approach in
     ``esphome.git.clone_or_update``).
     """
-    from esphome.git import run_git_command
+    from esphome.git import run_git_command, update_submodules
 
-    _LOGGER.info("Cloning ESP-IDF from %s%s", git_url, f"@{ref}" if ref else "")
+    key = f"{git_url}@{ref}" if ref else git_url
+    _LOGGER.info("Cloning ESP-IDF from %s", key)
     run_git_command(["git", "clone", "--depth=1", "--", git_url, str(framework_path)])
     if ref:
         run_git_command(
@@ -410,25 +411,14 @@ def _clone_idf_with_submodules(
             ["git", "reset", "--hard", "FETCH_HEAD"],
             git_dir=framework_path,
         )
-    run_git_command(
-        [
-            "git",
-            "submodule",
-            "update",
-            "--init",
-            "--recursive",
-            "--depth=1",
-        ],
-        git_dir=framework_path,
-    )
+    update_submodules(framework_path, key)
 
-    # Sanity-check the resulting tree. run_git_command only raises when
-    # stderr is non-empty, so a clone that silently produces no working
-    # tree would otherwise be marked extracted and stuck until
-    # ``esphome clean``.
+    # Sanity-check the resulting tree: a clone can exit 0 yet produce no
+    # usable ESP-IDF checkout, which would otherwise be marked extracted and
+    # stuck until ``esphome clean``.
     if not (framework_path / "tools" / "idf_tools.py").is_file():
         raise RuntimeError(
-            f"Clone of {git_url} produced no usable ESP-IDF tree at {framework_path}"
+            f"Clone of {key} produced no usable ESP-IDF tree at {framework_path}"
         )
 
 
@@ -551,30 +541,46 @@ def _patch_tools_json_for_linux_arm64(framework_path: Path) -> None:
     )
 
 
-def _patch_tools_json_demote_openocd(framework_path: Path) -> None:
-    """Demote openocd-esp32 from ``install: always`` to ``install: on_request``.
+# Tools marked ``install: always`` in tools.json that no ESPHome build ever
+# runs. openocd-esp32 is a JTAG debug server (its post-install check also
+# fails outright on systems without libusb-1.0, #17685). The gdb bundles are
+# debuggers used only by ``idf.py gdb``/``idf.py monitor`` flows ESPHome never
+# invokes; stack decoding uses addr2line from the compiler toolchains instead.
+# esp32ulp-elf is the ULP coprocessor toolchain, and ESPHome excludes the IDF
+# ``ulp`` component from every build. esp-rom-elfs stays required: the cmake
+# gdbinit generation reads ESP_ROM_ELF_DIR during every configure and warns
+# when it is missing.
+_UNUSED_IDF_TOOLS: tuple[str, ...] = (
+    "esp32ulp-elf",
+    "openocd-esp32",
+    "riscv32-esp-elf-gdb",
+    "xtensa-esp-elf-gdb",
+)
 
-    ``idf_tools.py install required`` installs every tool marked ``always`` in
-    tools.json and validates each one after extraction by running its version
-    command. openocd links against libusb-1.0, which minimal systems (bare LXC
-    containers, slim images) often lack, so that one validation aborted the
-    whole framework install and left it permanently retrying (#17685) — even
-    though ESPHome never runs openocd (it is a JTAG debugging tool). Demoting
-    it drops it from the ``required`` set: it is no longer downloaded or
-    validated, and the tool-path export treats a missing ``on_request`` tool
-    as fine. A user who wants it can still name ``openocd-esp32`` explicitly
-    in ESPHOME_IDF_DEFAULT_TOOLS; explicit names bypass install-type
-    filtering.
 
-    Because this runs on every install check, an install stuck in the
-    failing state (which never wrote its stamp file) heals on the next
-    build without a clean.
+def _patch_tools_json_demote_unused_tools(framework_path: Path) -> None:
+    """Demote tools ESPHome never runs from ``install: always`` to ``on_request``.
+
+    ``idf_tools.py install required`` downloads every tool marked ``always``
+    in tools.json and validates each one after extraction by running its
+    version command. Demoting the tools in ``_UNUSED_IDF_TOOLS`` drops them
+    from the ``required`` set: they are no longer downloaded or validated,
+    and the tool-path export treats a missing ``on_request`` tool as fine.
+    Besides the download and disk savings, this makes the openocd libusb
+    validation failure (#17685) impossible; because this runs on every
+    install check, an install stuck in that failing state (which never wrote
+    its stamp file) heals on the next build without a clean. A user who
+    wants one of these tools can still name it explicitly in
+    ESPHOME_IDF_DEFAULT_TOOLS; explicit names bypass install-type filtering.
     """
 
     def apply_patch(data: dict) -> bool:
         changed = False
         for tool in data.get("tools", []):
-            if tool.get("name") == "openocd-esp32" and tool.get("install") == "always":
+            if (
+                tool.get("name") in _UNUSED_IDF_TOOLS
+                and tool.get("install") == "always"
+            ):
                 tool["install"] = "on_request"
                 changed = True
         return changed
@@ -582,9 +588,8 @@ def _patch_tools_json_demote_openocd(framework_path: Path) -> None:
     _patch_tools_json(
         framework_path,
         apply_patch,
-        "Patched %s to make openocd-esp32 optional (not needed for "
-        "building, and its install check fails on systems without "
-        "libusb-1.0).",
+        "Patched %s to skip installing tools ESPHome does not use "
+        "(openocd, gdb, ULP toolchain).",
     )
 
 
@@ -779,10 +784,10 @@ def _check_esphome_idf_framework_install(
     # a pre-patch tools.json get fixed up without forcing a clean.
     _patch_tools_json_for_linux_arm64(framework_path)
 
-    # Drop openocd-esp32 from the required tool set on every invocation so
-    # an install that previously failed on its libusb check recovers on the
-    # next build.
-    _patch_tools_json_demote_openocd(framework_path)
+    # Drop tools ESPHome never runs from the required tool set on every
+    # invocation, so an install that previously failed on the openocd libusb
+    # check recovers on the next build.
+    _patch_tools_json_demote_unused_tools(framework_path)
 
     # 3. Check if the framework tools are the same and correctly installed
     if not install:
