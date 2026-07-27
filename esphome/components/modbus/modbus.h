@@ -191,15 +191,25 @@ class ModbusClientDevice {
   ModbusClientDevice &operator=(ModbusClientDevice &&) = delete;
   void set_parent(ModbusClientHub *parent) { this->parent_ = parent; }
   void set_address(uint8_t address) { this->address_ = address; }
-  /// Called with the request PDU this device sent and the response PDU received (both: function code +
-  /// data, no address, no CRC). The spans are only valid for the duration of the call - copy the bytes
-  /// if they must outlive it. Slice the payload out of the response with helpers::server_pdu_payload().
-  virtual void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {}
-  /// Called with the request PDU and the modbus exception code decoded from the error response.
-  virtual void on_error(std::span<const uint8_t> request_pdu, ExceptionCode exception_code) {}
-  // The on_modbus_* names are signature-identical renames, so the new defaults forward to the old
-  // virtuals: external devices overriding the old names keep working through the deprecation window.
-  // Remove the forwards together with the deprecated names.
+  /// Low-level response hook: called with the request PDU this device sent and the response PDU received
+  /// The spans are only valid for the duration of the call - copy the bytes if they must outlive it.
+  /// The default implementation decodes standard responses and dispatches to on_read_* / on_write_* callbacks below.
+  /// Override it to handle raw PDUs directly.
+  virtual void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
+    this->dispatch_response_(request_pdu, response_pdu, std::nullopt);
+  }
+  /// Low-level error hook: called with the request PDU and the modbus exception code from the error response.
+  /// The default implementation dispatches to the same typed callbacks with the exception code as status.
+  /// Devices implementing the High-level typed callbacks see success and failure through one interface.
+  virtual void on_error(std::span<const uint8_t> request_pdu, ExceptionCode exception_code) {
+    this->dispatch_response_(request_pdu, {}, exception_code);
+  }
+
+  /// Called when no request could be sent (e.g. queue full, transmission blocked)
+  /// Do not attempt to queue a command in this callback.
+  /// (The on_modbus_* names are signature-identical renames, so the new defaults forward to the old
+  /// virtuals: external devices overriding the old names keep working through the deprecation window.
+  /// Remove the forwards together with the deprecated names.)
   virtual void on_not_sent() {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
@@ -220,6 +230,51 @@ class ModbusClientDevice {
   // Remove before 2027.2.0
   ESPDEPRECATED("Override on_no_response() instead. Removed in 2027.2.0", "2026.8.0")
   virtual bool on_modbus_no_response() { return false; }
+
+  /// High-level typed response callbacks, fired by the default on_response()/on_error() with arguments
+  /// parsed from the request and response PDUs.
+  /// Status is std::nullopt on success; holds the exception code on failure.
+  /// Register values are in host byte order; spans are only valid for the duration of the call.
+  virtual void on_read_registers(EntityType entity_type, uint16_t start_address, std::span<const uint16_t> registers,
+                                 ResponseStatus status) {}
+  virtual void on_read_holding_registers(uint16_t start_address, std::span<const uint16_t> registers,
+                                         ResponseStatus status) {
+    this->on_read_registers(EntityType::HOLDING, start_address, registers, status);
+  }
+  virtual void on_read_input_registers(uint16_t start_address, std::span<const uint16_t> registers,
+                                       ResponseStatus status) {
+    this->on_read_registers(EntityType::INPUT_REGISTER, start_address, registers, status);
+  }
+  /// Coil/discrete-input reads are delivered as a PackedBits view (bit 0 = the bit at start_address,
+  /// bits.size() = the count requested). The view points into the hub's receive buffer and is only
+  /// valid during the call.
+  virtual void on_read_bits(EntityType entity_type, uint16_t start_address, PackedBits bits, ResponseStatus status) {}
+  virtual void on_read_coils(uint16_t start_address, PackedBits bits, ResponseStatus status) {
+    this->on_read_bits(EntityType::COIL, start_address, bits, status);
+  }
+  virtual void on_read_discrete_inputs(uint16_t start_address, PackedBits bits, ResponseStatus status) {
+    this->on_read_bits(EntityType::DISCRETE_INPUT, start_address, bits, status);
+  }
+  /// Write acknowledgements. These deliberately mirror the read callbacks' shapes, so a write ack can be fed
+  /// through the same handler as a read (registers.size() / bits.size() gives the count)
+  ///
+  /// IMPORTANT - for the multi-writes these are the values that were REQUESTED, not device-confirmed
+  /// state: a multi-write ack only echoes the start address and count, so the values are decoded from
+  /// the request PDU, and they are delivered even when status holds an exception code. Always check
+  /// status, and treat publishing them as an optimistic update rather than a read-back. The single
+  /// writes are the exception: their successful ack echoes the value, so on success the delivered
+  /// value is the device's echo (on an exception it falls back to the request copy).
+  virtual void on_write_single_register(uint16_t address, uint16_t value, ResponseStatus status) {}
+  virtual void on_write_single_coil(uint16_t address, bool value, ResponseStatus status) {}
+  virtual void on_write_multiple_registers(uint16_t start_address, std::span<const uint16_t> registers,
+                                           ResponseStatus status) {}
+  virtual void on_write_multiple_coils(uint16_t start_address, PackedBits bits, ResponseStatus status) {}
+  /// Catch-all for custom function codes and anything that is not a standard-conformant transaction
+  /// (see dispatch_response_()); on failure the response is empty and the exception code is in status.
+  /// The default implementation only logs a warning that the response is going unhandled - override it
+  /// to handle custom traffic (which also silences the warning).
+  virtual void on_custom_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
+                                  ResponseStatus status);
   ESPDEPRECATED("Use the typed read_*/write_* helpers or send_pdu() instead. Removed in 2027.2.0", "2026.8.0")
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
             const uint8_t *payload = nullptr) {
@@ -237,8 +292,12 @@ class ModbusClientDevice {
     }
     this->parent_->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
   }
-  // Dispatches to the matching read_* method; defined in modbus.cpp because it logs on an invalid type.
-  void read_entities(EntityType entity_type, uint16_t start_address, uint16_t number_of_entities);
+  // Reads via the table-appropriate function code; an unreadable entity type maps to INVALID, which
+  // create_read_pdu() rejects into an empty PDU and send_pdu() signals via on_not_sent().
+  void read_entities(EntityType entity_type, uint16_t start_address, uint16_t number_of_entities) {
+    this->send_pdu(helpers::create_read_pdu(helpers::modbus_register_read_function(entity_type), start_address,
+                                            number_of_entities));
+  }
   void read_input_registers(uint16_t start_address, uint16_t number_of_registers) {
     this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_INPUT_REGISTERS, start_address, number_of_registers));
   }
@@ -281,8 +340,13 @@ class ModbusClientDevice {
   bool ready_for_immediate_send() { return this->parent_->tx_buffer_empty() && !this->parent_->tx_blocked(); }
 
  protected:
+  /// Parses the request/response PDU pair and dispatches to the matching high-level typed callback
+  void dispatch_response_(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
+                          ResponseStatus status);
+
   ModbusClientHub *parent_{nullptr};
   uint8_t address_{0};
+  bool custom_response_warned_{false};  // first unhandled custom response warns; repeats log at VERBOSE
 };
 
 // Compatibility shim for external components written against the pre-2026.8 API, which subclassed
