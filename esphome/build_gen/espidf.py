@@ -210,15 +210,27 @@ def get_component_cmakelists() -> str:
 if(CMAKE_SCRIPT_MODE_FILE)
     file(GLOB_RECURSE app_sources
         "${{CMAKE_CURRENT_SOURCE_DIR}}/*.cpp"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/*.cc"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/*.cxx"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/*.c++"
         "${{CMAKE_CURRENT_SOURCE_DIR}}/*.c"
         "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.cpp"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.cc"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.cxx"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.c++"
         "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.c"
     )
 else()
     file(GLOB_RECURSE app_sources CONFIGURE_DEPENDS
         "${{CMAKE_CURRENT_SOURCE_DIR}}/*.cpp"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/*.cc"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/*.cxx"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/*.c++"
         "${{CMAKE_CURRENT_SOURCE_DIR}}/*.c"
         "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.cpp"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.cc"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.cxx"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.c++"
         "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.c"
     )
 endif()
