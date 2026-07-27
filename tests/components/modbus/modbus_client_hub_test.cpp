@@ -596,6 +596,34 @@ TEST(ModbusClientHubCallbackCount, FullQueueRetryRefusalDeliversNotSentWithPdu) 
   EXPECT_EQ(hub.queued_frames(), MODBUS_TX_BUFFER_SIZE);
 }
 
+// When the device REQUESTS the retry, on_no_response() resolved nothing - so a refused re-queue of
+// a READ_AGAIN entry must deliver both pending requests' terminals, not one.
+TEST(ModbusClientHubCallbackCount, FullQueueDeviceRetryRefusalResolvesBothReadAgainRequests) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  DataCountingDevice device(&hub, 0x02);
+  device.retries_ = 1;  // on_no_response() requests a retry
+  SentCountingDevice filler(&hub, 0x05);
+
+  device.send_pdu(read_pdu());
+  hub.force_send_front();
+  device.send_pdu(read_pdu());  // in-flight duplicate: promotes the waiting entry to READ_AGAIN
+  // Fill the queue with distinct frames (distinct start addresses keep the dedup from absorbing them).
+  for (uint16_t i = 0; i < MODBUS_TX_BUFFER_SIZE; i++) {
+    const uint8_t fill[] = {0x03, static_cast<uint8_t>(i >> 8), static_cast<uint8_t>(i & 0xFF), 0x00, 0x01};
+    filler.send_pdu(fill);
+  }
+  ASSERT_EQ(hub.queued_frames(), MODBUS_TX_BUFFER_SIZE);
+
+  hub.timeout_waiting();  // retry requested (resolves nothing), re-queue refused: both terminals due
+
+  EXPECT_EQ(device.no_response_count_, 1);
+  EXPECT_EQ(device.not_sent_count_, 2);  // one per pending request
+  EXPECT_EQ(hub.queued_frames(), MODBUS_TX_BUFFER_SIZE);
+}
+
 // The completed-re-queue path's full-buffer refusal: a READ_AGAIN entry whose post-completion
 // re-run cannot queue delivers the absorbed request's on_not_sent() with the request PDU.
 TEST(ModbusClientHubCallbackCount, FullQueueCompletedRequeueRefusalDeliversNotSent) {

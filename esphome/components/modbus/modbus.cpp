@@ -609,8 +609,15 @@ void ModbusClientHub::requeue_waiting_frame_(ModbusDeviceCommand &wfr, bool devi
   const ModbusFrame &frame = wfr.frame;
   if (this->tx_buffer_.size() >= MODBUS_TX_BUFFER_SIZE) {
     ESP_LOGE(TAG, "Write buffer full, dropped retry for address %" PRIu8, frame.address());
-    if (wfr.device != nullptr)
+    if (wfr.device != nullptr) {
       wfr.device->trigger_not_sent(frame.pdu());
+      // With device_retry the preceding on_no_response() resolved NOTHING (a requested retry is not
+      // a resolution), so a READ_AGAIN entry still stands for two pending requests and the refusal
+      // must deliver both terminals. Without device_retry the on_no_response() was request A's
+      // terminal, so the single delivery above already resolves the absorbed request B.
+      if (device_retry && wfr.priority == CommandPriority::READ_AGAIN)
+        wfr.device->trigger_not_sent(frame.pdu());
+    }
     return;
   }
   // Re-queue a copy (not a move): the waiting entry may have to survive as an interrupted shell. Preserve the
@@ -690,8 +697,17 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   // lifecycle to absorb into, and no owner to route a READ_AGAIN re-run to.
   const auto resolve_duplicate = [&](ModbusDeviceCommand &item, const char *state) {
     if (device == nullptr) {
-      ESP_LOGD(TAG, "Anonymous duplicate of frame already %s for %" PRIu8 " (function 0x%X), dropped", state, address,
-               pdu[0]);
+      // Reads are idempotent, so their drop is routine (DEBUG); a dropped write/custom is a
+      // wire-behavior difference the caller cannot observe without a device, so it warns.
+      if (is_requeueable) {
+        ESP_LOGD(TAG, "Anonymous duplicate of frame already %s for %" PRIu8 " (function 0x%X), dropped", state, address,
+                 pdu[0]);
+      } else {
+        ESP_LOGW(TAG,
+                 "Anonymous duplicate of frame already %s for %" PRIu8 " (function 0x%X), dropped - register a "
+                 "device for delivery accounting",
+                 state, address, pdu[0]);
+      }
     } else if (is_requeueable && item.priority == CommandPriority::READ_ONCE) {
       item.priority = CommandPriority::READ_AGAIN;
       ESP_LOGV(TAG, "Frame already %s for %" PRIu8 ", promoted for re-queue", state, address);
