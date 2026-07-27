@@ -195,9 +195,9 @@ TEST(ModbusClientHubPriority, WritesSendBeforeQueuedReads) {
   device.send_pdu(write_pdu);
 
   ASSERT_EQ(hub.queued_frames(), 3u);
-  EXPECT_EQ(hub.queued(0).frame.data.data()[1], 0x06);  // the write moved to the front
-  EXPECT_EQ(hub.queued(1).frame.data.data()[2], 0x01);  // reads stay FIFO behind it
-  EXPECT_EQ(hub.queued(2).frame.data.data()[2], 0x02);
+  EXPECT_EQ(hub.queued(0).frame.pdu()[0], 0x06);  // the write moved to the front
+  EXPECT_EQ(hub.queued(1).frame.pdu()[1], 0x01);  // reads stay FIFO behind it
+  EXPECT_EQ(hub.queued(2).frame.pdu()[1], 0x02);
 }
 
 // Re-requesting a queued frame promotes the existing entry instead of queueing a duplicate.
@@ -581,7 +581,7 @@ TEST(ModbusClientHubCallbackCount, FullQueueRetryRefusalDeliversNotSentWithPdu) 
 
   device.send_pdu(read_pdu());
   hub.force_send_front();  // in flight
-  // Fill the queue with distinct frames.
+  // Fill the queue with distinct frames (distinct start addresses keep the dedup from absorbing them).
   for (uint16_t i = 0; i < MODBUS_TX_BUFFER_SIZE; i++) {
     const uint8_t fill[] = {0x03, static_cast<uint8_t>(i >> 8), static_cast<uint8_t>(i & 0xFF), 0x00, 0x01};
     filler.send_pdu(fill);
@@ -606,7 +606,7 @@ TEST(ModbusClientHubCallbackCount, FullQueueCompletedRequeueRefusalDeliversNotSe
   device.send_pdu(read_pdu());
   hub.force_send_front();
   device.send_pdu(read_pdu());  // in-flight duplicate: promotes to READ_AGAIN
-  // Fill the queue with distinct frames.
+  // Fill the queue with distinct frames (distinct start addresses keep the dedup from absorbing them).
   for (uint16_t i = 0; i < MODBUS_TX_BUFFER_SIZE; i++) {
     const uint8_t fill[] = {0x03, static_cast<uint8_t>(i >> 8), static_cast<uint8_t>(i & 0xFF), 0x00, 0x01};
     filler.send_pdu(fill);
@@ -805,7 +805,7 @@ TEST(ModbusClientHubQueue, FullQueueRetryFromNotSentDoesNotRecurse) {
   SentCountingDevice filler(&hub, 0x05);
   AlwaysRetryDevice retrier(&hub, 0x02);
 
-  // Fill the queue with distinct frames.
+  // Fill the queue with distinct frames (distinct start addresses keep the dedup from absorbing them).
   for (uint16_t i = 0; i < MODBUS_TX_BUFFER_SIZE; i++) {
     const uint8_t fill[] = {0x03, static_cast<uint8_t>(i >> 8), static_cast<uint8_t>(i & 0xFF), 0x00, 0x01};
     filler.send_pdu(fill);
@@ -846,7 +846,7 @@ TEST(ModbusClientHubQueue, RefusalForOtherDeviceDeliversDuringNotification) {
   SentCountingDevice second(&hub, 0x03);
   first.other_ = &second;
 
-  // Fill the queue with distinct frames.
+  // Fill the queue with distinct frames (distinct start addresses keep the dedup from absorbing them).
   for (uint16_t i = 0; i < MODBUS_TX_BUFFER_SIZE; i++) {
     const uint8_t fill[] = {0x03, static_cast<uint8_t>(i >> 8), static_cast<uint8_t>(i & 0xFF), 0x00, 0x01};
     filler.send_pdu(fill);
@@ -871,7 +871,7 @@ TEST(ModbusClientHubQueue, TwoDeviceRefusalCycleTerminates) {
   first.other_ = &second;
   second.other_ = &first;
 
-  // Fill the queue with distinct frames.
+  // Fill the queue with distinct frames (distinct start addresses keep the dedup from absorbing them).
   for (uint16_t i = 0; i < MODBUS_TX_BUFFER_SIZE; i++) {
     const uint8_t fill[] = {0x03, static_cast<uint8_t>(i >> 8), static_cast<uint8_t>(i & 0xFF), 0x00, 0x01};
     filler.send_pdu(fill);
