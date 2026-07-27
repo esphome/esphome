@@ -122,7 +122,7 @@ static uint8_t IRAM_ATTR capture_riscv_backtrace(RvExcFrame *frame, uint32_t *ou
 // Magic is second to validate the data. Remaining fields can change between versions.
 // Version is uint32_t because it would be padded to 4 bytes anyway before the next
 // uint32_t field, so we use the full width rather than wasting 3 bytes of padding.
-static constexpr uint32_t CRASH_DATA_VERSION = 2;
+static constexpr uint32_t CRASH_DATA_VERSION = 3;
 struct RawCrashData {
   uint32_t version;
   uint32_t magic;
@@ -132,7 +132,8 @@ struct RawCrashData {
   uint8_t exception;        // panic_exception_t enum (FAULT/ABORT/IWDT/TWDT/DEBUG)
   uint8_t pseudo_excause;   // Whether cause is a pseudo exception (Xtensa SoC-level panic)
   uint32_t backtrace[MAX_BACKTRACE];
-  uint32_t cause;  // Architecture-specific: exccause (Xtensa) or mcause (RISC-V)
+  uint32_t cause;       // Architecture-specific: exccause (Xtensa) or mcause (RISC-V)
+  uint32_t fault_addr;  // Faulting memory address: excvaddr (Xtensa) or mtval (RISC-V)
   uint8_t crashed_core;
 #if SOC_CPU_CORES_NUM > 1
   static_assert(SOC_CPU_CORES_NUM == 2, "Dual-core logic assumes exactly 2 cores");
@@ -240,6 +241,16 @@ static const char *get_exception_reason() {
       nullptr,
       "LoadProhibited",
       "StoreProhibited",
+      nullptr,
+      nullptr,
+      "Cp0Dis",
+      "Cp1Dis",
+      "Cp2Dis",
+      "Cp3Dis",
+      "Cp4Dis",
+      "Cp5Dis",
+      "Cp6Dis",
+      "Cp7Dis",
   };
   uint32_t cause = s_raw_crash_data.cause;
   if (cause < sizeof(REASON) / sizeof(REASON[0]) && REASON[cause] != nullptr)
@@ -332,12 +343,24 @@ void crash_handler_log() {
   ESP_LOGE(TAG, "*** CRASH DETECTED ON PREVIOUS BOOT ***");
   const char *reason = get_exception_reason();
   if (reason != nullptr) {
-    ESP_LOGE(TAG, "  Reason: %s - %s", get_exception_type(), reason);
+    ESP_LOGE(TAG, "  Reason: %s - %s (cause %" PRIu32 ")", get_exception_type(), reason, s_raw_crash_data.cause);
   } else {
     ESP_LOGE(TAG, "  Reason: %s", get_exception_type());
   }
   ESP_LOGE(TAG, "  Crashed core: %d", s_raw_crash_data.crashed_core);
   ESP_LOGE(TAG, "  PC:  0x%08" PRIX32 "  (fault location)", s_raw_crash_data.pc);
+  // Faulting memory address — only meaningful for real CPU faults, not
+  // aborts/watchdogs or SoC-level pseudo exceptions. Uses the same register
+  // name as ESP-IDF's live register dump for the architecture (EXCVADDR on
+  // Xtensa, MTVAL on RISC-V) so the CLI decodes it when it happens to be a
+  // code address.
+  if (s_raw_crash_data.exception == PANIC_EXCEPTION_FAULT && !s_raw_crash_data.pseudo_excause) {
+#if CONFIG_IDF_TARGET_ARCH_XTENSA
+    ESP_LOGE(TAG, "  EXCVADDR: 0x%08" PRIX32 "  (faulting address)", s_raw_crash_data.fault_addr);
+#elif CONFIG_IDF_TARGET_ARCH_RISCV
+    ESP_LOGE(TAG, "  MTVAL: 0x%08" PRIX32 "  (faulting address)", s_raw_crash_data.fault_addr);
+#endif
+  }
   log_backtrace(s_raw_crash_data.backtrace, s_raw_crash_data.backtrace_count, s_raw_crash_data.reg_frame_count);
 
 #if SOC_CPU_CORES_NUM > 1
@@ -382,6 +405,9 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
   s_raw_crash_data.exception = (uint8_t) info->exception;
   s_raw_crash_data.pseudo_excause = info->pseudo_excause ? 1 : 0;
   s_raw_crash_data.crashed_core = (uint8_t) info->core;
+  // Zero unconditionally so a null frame doesn't leave stale .noinit data from a previous boot
+  s_raw_crash_data.cause = 0;
+  s_raw_crash_data.fault_addr = 0;
 #if SOC_CPU_CORES_NUM > 1
   s_raw_crash_data.other_backtrace_count = 0;
   s_raw_crash_data.other_reg_frame_count = 0;
@@ -392,6 +418,7 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
   if (info->frame != nullptr) {
     auto *xt_frame = (XtExcFrame *) info->frame;
     s_raw_crash_data.cause = xt_frame->exccause;
+    s_raw_crash_data.fault_addr = xt_frame->excvaddr;
     s_raw_crash_data.backtrace_count = walk_xtensa_backtrace(xt_frame, s_raw_crash_data.backtrace, MAX_BACKTRACE);
   }
 
@@ -414,6 +441,7 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
   if (info->frame != nullptr) {
     auto *rv_frame = (RvExcFrame *) info->frame;
     s_raw_crash_data.cause = rv_frame->mcause;
+    s_raw_crash_data.fault_addr = rv_frame->mtval;
     s_raw_crash_data.backtrace_count =
         capture_riscv_backtrace(rv_frame, s_raw_crash_data.backtrace, MAX_BACKTRACE, &s_raw_crash_data.reg_frame_count);
   }

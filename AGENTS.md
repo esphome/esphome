@@ -9,12 +9,12 @@ This document provides essential context for AI models interacting with this pro
 
 ## 2. Core Technologies & Stack
 
-*   **Languages:** Python (>=3.11), C++ (gnu++20)
+*   **Languages:** Python (>=3.12), C++ (gnu++20)
 *   **Frameworks & Runtimes:** PlatformIO, Arduino, ESP-IDF.
 *   **Build Systems:** PlatformIO is the primary build system. CMake is used as an alternative.
 *   **Configuration:** YAML.
 *   **Key Libraries/Dependencies:**
-    *   **Python:** `voluptuous` (for configuration validation), `PyYAML` (for parsing configuration files), `paho-mqtt` (for MQTT communication), `tornado` (for the web server), `aioesphomeapi` (for the native API).
+    *   **Python:** `voluptuous` (for configuration validation), `PyYAML` (for parsing configuration files), `paho-mqtt` (for MQTT communication), `aioesphomeapi` (for the native API).
     *   **C++:** `ArduinoJson` (for JSON serialization/deserialization), `AsyncMqttClient-esphome` (for MQTT), `ESPAsyncWebServer` (for the web server).
 *   **Package Manager(s):** `pip` (for Python dependencies), `platformio` (for C++/PlatformIO dependencies).
 *   **Communication Protocols:** Protobuf (for native API), MQTT, HTTP.
@@ -35,7 +35,6 @@ This document provides essential context for AI models interacting with this pro
     2.  **Code Generation** (`esphome/codegen.py`, `esphome/cpp_generator.py`): Manages Python to C++ code generation, template processing, and build flag management.
     3.  **Component System** (`esphome/components/`): Contains modular hardware and software components with platform-specific implementations and dependency management.
     4.  **Core Framework** (`esphome/core/`): Manages the application lifecycle, hardware abstraction, and component registration.
-    5.  **Dashboard** (`esphome/dashboard/`): A web-based interface for device configuration, management, and OTA updates.
 
 *   **Platform Support:**
     1.  **ESP32** (`components/esp32/`): Espressif ESP32 family. Supports multiple variants (Original, C2, C3, C5, C6, H2, P4, S2, S3) with ESP-IDF framework. Arduino framework supports only a subset of the variants (Original, C3, S2, S3).
@@ -58,6 +57,19 @@ This document provides essential context for AI models interacting with this pro
         - Function-local constants: `lower_snake_case`
         - Protected/private fields: `lower_snake_case_with_trailing_underscore_`
         - Favor descriptive names over abbreviations
+
+*   **Python Idioms:**
+    *   **Assignment expressions (PEP 572):** Prefer the walrus operator (`:=`) wherever it removes a redundant lookup or a throwaway temporary. The most common case in component code is presence-checking a config key and then indexing it separately — fetch once with `.get()` and bind in the condition instead:
+        ```python
+        # Bad - looks up CONF_BLAH twice
+        if CONF_BLAH in config:
+            cg.add(var.set_blah(config[CONF_BLAH]))
+
+        # Good - single lookup, value bound inline
+        if (blah := config.get(CONF_BLAH)) is not None:
+            cg.add(var.set_blah(blah))
+        ```
+        The same applies to `while` loops and comprehensions where it avoids recomputing a value. Don't contort code to use it — reach for `:=` only when it genuinely cuts repetition or an extra assignment line.
 
 *   **C++ Field Visibility:**
     *   **Prefer `protected`:** Use `protected` for most class fields to enable extensibility and testing. Fields should be `lower_snake_case_with_trailing_underscore_`.
@@ -179,11 +191,14 @@ This document provides essential context for AI models interacting with this pro
         my_component_ns = cg.esphome_ns.namespace("my_component")
         MyComponent = my_component_ns.class_("MyComponent", cg.Component)
 
-        CONFIG_SCHEMA = cv.Schema({
-            cv.GenerateID(): cv.declare_id(MyComponent),
-            cv.Required(CONF_KEY): cv.string,
-            cv.Optional(CONF_PARAM, default=42): cv.int_,
-        }).extend(cv.COMPONENT_SCHEMA)
+        CONFIG_SCHEMA = cv.Schema(
+            {
+                cv.GenerateID(): cv.declare_id(MyComponent),
+                cv.Required(CONF_KEY): cv.string,
+                cv.Optional(CONF_PARAM, default=42): cv.int_,
+            }
+        ).extend(cv.COMPONENT_SCHEMA)
+
 
         async def to_code(config):
             var = cg.new_Pvariable(config[CONF_ID])
@@ -217,7 +232,12 @@ This document provides essential context for AI models interacting with this pro
         - **Sensor:**
           ```python
           from esphome.components import sensor
-          CONFIG_SCHEMA = sensor.sensor_schema(MySensor).extend(cv.polling_component_schema("60s"))
+
+          CONFIG_SCHEMA = sensor.sensor_schema(MySensor).extend(
+              cv.polling_component_schema("60s")
+          )
+
+
           async def to_code(config):
               var = await sensor.new_sensor(config)
               await cg.register_component(var, config)
@@ -226,7 +246,10 @@ This document provides essential context for AI models interacting with this pro
         - **Binary Sensor:**
           ```python
           from esphome.components import binary_sensor
-          CONFIG_SCHEMA = binary_sensor.binary_sensor_schema().extend({ ... })
+
+          CONFIG_SCHEMA = binary_sensor.binary_sensor_schema().extend({...})
+
+
           async def to_code(config):
               var = await binary_sensor.new_binary_sensor(config)
           ```
@@ -234,7 +257,10 @@ This document provides essential context for AI models interacting with this pro
         - **Switch:**
           ```python
           from esphome.components import switch
-          CONFIG_SCHEMA = switch.switch_schema().extend({ ... })
+
+          CONFIG_SCHEMA = switch.switch_schema().extend({...})
+
+
           async def to_code(config):
               var = await switch.new_switch(config)
           ```
@@ -251,10 +277,13 @@ This document provides essential context for AI models interacting with this pro
         ```python
         from esphome import automation
 
-        CONFIG_SCHEMA = cv.Schema({
-            cv.GenerateID(): cv.declare_id(MyComponent),
-            cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
-        }).extend(cv.COMPONENT_SCHEMA)
+        CONFIG_SCHEMA = cv.Schema(
+            {
+                cv.GenerateID(): cv.declare_id(MyComponent),
+                cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
+            }
+        ).extend(cv.COMPONENT_SCHEMA)
+
 
         async def to_code(config):
             var = cg.new_Pvariable(config[CONF_ID])
@@ -304,11 +333,14 @@ This document provides essential context for AI models interacting with this pro
         ```python
         TurnOnTrigger = my_ns.class_("TurnOnTrigger", automation.Trigger.template())
 
-        CONFIG_SCHEMA = cv.Schema({
-            cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
-                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TurnOnTrigger)}
-            ),
-        })
+        CONFIG_SCHEMA = cv.Schema(
+            {
+                cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
+                    {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TurnOnTrigger)}
+                ),
+            }
+        )
+
 
         async def to_code(config):
             for conf in config.get(CONF_ON_TURN_ON, []):
@@ -415,13 +447,14 @@ This document provides essential context for AI models interacting with this pro
 
         When a PR's only edits to a component are `validate.*.yaml` files (no source changes, no `test.*.yaml` changes, and the component isn't pulled in as a dependency of another changed component), CI skips the compile stage for that component entirely and only runs config validation. This is decided in `script/determine-jobs.py` via `_component_change_is_validate_only` and surfaced as the `validate_only_components` output that the `test-build-components-split` job consumes.
 
-    *   **Test Grouping with Packages:** Components that use shared bus packages can be grouped together in CI to reduce build count. **Never define buses (uart, i2c, spi, modbus) directly in test YAML files** — always use packages from `test_build_components/common/`:
+    *   **Test Grouping with Packages:** Components that use shared bus packages can be grouped together in CI to reduce build count. **Never define buses (uart, i2c, spi, modbus) directly in test YAML files** — always use packages from `test_build_components/common/`.
+
+        All includes in test files must go through dict-style `packages:` so that batch grouping works correctly — the grouping scripts only understand dict-style packages. Never use list-style packages (`packages: [- !include ...]`) or top-level merge keys (`<<: !include common.yaml`). Bus packages are keyed by the bus name; the component's `common.yaml` is keyed by the component name (e.g. `cst328: !include common.yaml`):
         ```yaml
-        # test.esp32-idf.yaml — use packages for buses
+        # test.esp32-idf.yaml — everything included via named packages
         packages:
           uart: !include ../../test_build_components/common/uart_115200/esp32-idf.yaml
-
-        <<: !include common.yaml
+          my_component: !include common.yaml
         ```
         ```yaml
         # common.yaml — component config only, NO bus definitions
@@ -443,7 +476,6 @@ This document provides essential context for AI models interacting with this pro
     *   **Debug Tools:**
         - `esphome config <file>.yaml` to validate configuration.
         - `esphome compile <file>.yaml` to compile without uploading.
-        - Check the Dashboard for real-time logs.
         - Use component-specific debug logging.
     *   **Common Issues:**
         - **Import Errors**: Check component dependencies and `PYTHONPATH`.
@@ -605,6 +637,7 @@ This document provides essential context for AI models interacting with this pro
         _component_state = []
         _use_feature = None
 
+
         def enable_feature():
             global _use_feature
             _use_feature = True
@@ -624,19 +657,23 @@ This document provides essential context for AI models interacting with this pro
 
         DOMAIN = "my_component"
 
+
         @dataclass
         class MyComponentData:
             feature_enabled: bool = False
             item_count: int = 0
             items: list[str] = field(default_factory=list)
 
+
         def _get_data() -> MyComponentData:
             if DOMAIN not in CORE.data:
                 CORE.data[DOMAIN] = MyComponentData()
             return CORE.data[DOMAIN]
 
+
         def request_feature() -> None:
             _get_data().feature_enabled = True
+
 
         def add_item(item: str) -> None:
             _get_data().items.append(item)
@@ -645,7 +682,7 @@ This document provides essential context for AI models interacting with this pro
         If you need a real-world example, search for components that use `@dataclass` with `CORE.data` in the codebase. Note: Some components may use `TypedDict` for dictionary-based storage; both patterns are acceptable depending on your needs.
 
         **Why this matters:**
-        - Module-level globals persist between compilation runs if the dashboard doesn't fork/exec
+        - Module-level globals persist between compilation runs if the host process (e.g. device-builder) doesn't fork/exec
         - `CORE.data` automatically clears between runs
         - Namespacing under `DOMAIN` prevents key collisions between components
         - `@dataclass` provides type safety and cleaner attribute access
@@ -695,6 +732,14 @@ This document provides essential context for AI models interacting with this pro
     ```python
     # Remove before 2026.6.0
     if CONF_OLD_KEY in config:
-        _LOGGER.warning(f"'{CONF_OLD_KEY}' deprecated, use '{CONF_NEW_KEY}'. Removed in 2026.6.0")
+        _LOGGER.warning(
+            f"'{CONF_OLD_KEY}' deprecated, use '{CONF_NEW_KEY}'. Removed in 2026.6.0"
+        )
         config[CONF_NEW_KEY] = config.pop(CONF_OLD_KEY)  # Auto-migrate
     ```
+## 9. English Language
+
+The project uses English for non-code content. When drafting documentation, code comments, commit messages,
+PR descriptions, and similar text, avoid technical jargon. Instead, express concepts in plain English,
+using standard technical terms only when required. Ensure the text is readily comprehensible to a wide
+audience, including non-native English speakers.

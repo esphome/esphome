@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
 """Extract memory usage statistics from ESPHome build output.
 
-This script parses the PlatformIO build output to extract RAM and flash
-usage statistics for a compiled component. It's used by the CI workflow to
+This script parses the build output to extract RAM and flash usage
+statistics for a compiled component. It's used by the CI workflow to
 compare memory usage between branches.
 
 The script reads compile output from stdin and looks for the standard
 PlatformIO output format:
     RAM:   [====      ]  36.1% (used 29548 bytes from 81920 bytes)
     Flash: [===       ]  34.0% (used 348511 bytes from 1023984 bytes)
+
+or the linker memory usage table printed by Zephyr native builds
+(e.g. nRF52 with the sdk-nrf toolchain):
+    Memory region         Used Size  Region Size  %age Used
+               FLASH:       90624 B       796 KB     11.12%
+                 RAM:       22432 B       256 KB      8.56%
+            IDT_LIST:          0 GB        32 KB      0.00%
 
 Optionally performs detailed memory analysis if a build directory is provided.
 """
@@ -26,6 +33,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # pylint: disable=wrong-import-position
 from esphome.analyze_memory import MemoryAnalyzer
+from esphome.analyze_memory.toolchain import (
+    find_elf_path,
+    find_idedata_path,
+    idedata_candidates,
+)
 from esphome.platformio.toolchain import IDEData
 from script.ci_helpers import write_github_output
 
@@ -34,19 +46,42 @@ _RAM_PATTERN = re.compile(r"RAM:\s+\[.*?\]\s+\d+\.\d+%\s+\(used\s+(\d+)\s+bytes"
 _FLASH_PATTERN = re.compile(r"Flash:\s+\[.*?\]\s+\d+\.\d+%\s+\(used\s+(\d+)\s+bytes")
 _BUILD_PATH_PATTERN = re.compile(r"Build path: (.+)")
 
+# Zephyr native builds print the GNU ld --print-memory-usage table instead of
+# the PlatformIO summary. Only the FLASH and RAM regions are real memory
+# (IDT_LIST is a build-time pseudo-region discarded from the final image).
+# Each cell is humanized to the largest unit that divides evenly, so used
+# sizes are not always plain bytes (zero prints as "0 GB").
+_ZEPHYR_RAM_PATTERN = re.compile(
+    r"^\s*RAM:\s+(\d+)\s*([KMG]?B)\s+\d+\s*[KMG]?B\s+\d+\.\d+%", re.MULTILINE
+)
+_ZEPHYR_FLASH_PATTERN = re.compile(
+    r"^\s*FLASH:\s+(\d+)\s*([KMG]?B)\s+\d+\s*[KMG]?B\s+\d+\.\d+%", re.MULTILINE
+)
+_ZEPHYR_UNIT_MULTIPLIERS = {"B": 1, "KB": 1024, "MB": 1024**2, "GB": 1024**3}
+
+
+def _zephyr_bytes(matches: list[tuple[str, str]]) -> int:
+    """Sum humanized (value, unit) pairs from the Zephyr memory table."""
+    return sum(int(value) * _ZEPHYR_UNIT_MULTIPLIERS[unit] for value, unit in matches)
+
 
 def extract_from_compile_output(
     output_text: str,
 ) -> tuple[int | None, int | None, str | None]:
-    """Extract memory usage and build directory from PlatformIO compile output.
+    """Extract memory usage and build directory from compile output.
 
     Supports multiple builds (for component groups or isolated components).
     When test_build_components.py creates multiple builds, this sums the
     memory usage across all builds.
 
-    Looks for lines like:
+    Looks for PlatformIO lines like:
         RAM:   [====      ]  36.1% (used 29548 bytes from 81920 bytes)
         Flash: [===       ]  34.0% (used 348511 bytes from 1023984 bytes)
+
+    and Zephyr (native west build) linker table rows like:
+        Memory region         Used Size  Region Size  %age Used
+                   FLASH:       90624 B       796 KB     11.12%
+                     RAM:       22432 B       256 KB      8.56%
 
     Also extracts build directory from lines like:
         INFO Compiling app... Build path: /path/to/build
@@ -61,12 +96,20 @@ def extract_from_compile_output(
     ram_matches = _RAM_PATTERN.findall(output_text)
     flash_matches = _FLASH_PATTERN.findall(output_text)
 
-    if not ram_matches or not flash_matches:
+    # Zephyr native builds print the linker memory table instead
+    zephyr_ram_matches = _ZEPHYR_RAM_PATTERN.findall(output_text)
+    zephyr_flash_matches = _ZEPHYR_FLASH_PATTERN.findall(output_text)
+
+    if not (ram_matches or zephyr_ram_matches) or not (
+        flash_matches or zephyr_flash_matches
+    ):
         return None, None, None
 
     # Sum all builds (handles multiple component groups)
     total_ram = sum(int(match) for match in ram_matches)
     total_flash = sum(int(match) for match in flash_matches)
+    total_ram += _zephyr_bytes(zephyr_ram_matches)
+    total_flash += _zephyr_bytes(zephyr_flash_matches)
 
     # Extract build directory from ESPHome's explicit build path output
     # Look for: INFO Compiling app... Build path: /path/to/build
@@ -92,53 +135,31 @@ def run_detailed_analysis(build_dir: str) -> dict | None:
         print(f"Build directory not found: {build_dir}", file=sys.stderr)
         return None
 
-    # Find firmware.elf (or raw_firmware.elf for LibreTiny)
-    elf_path = None
-    for elf_candidate in [
-        build_path / "firmware.elf",
-        build_path / ".pioenvs" / build_path.name / "firmware.elf",
-        # LibreTiny uses raw_firmware.elf
-        build_path / "raw_firmware.elf",
-        build_path / ".pioenvs" / build_path.name / "raw_firmware.elf",
-    ]:
-        if elf_candidate.exists():
-            elf_path = str(elf_candidate)
-            break
-
+    elf_path = find_elf_path(build_path)
     if not elf_path:
-        print(
-            f"firmware.elf/raw_firmware.elf not found in {build_dir}", file=sys.stderr
-        )
+        print(f"No firmware ELF found in {build_dir}", file=sys.stderr)
         return None
 
-    # Find idedata.json - check multiple locations
-    device_name = build_path.name
-    idedata_candidates = [
-        # In .pioenvs for test builds
-        build_path / ".pioenvs" / device_name / "idedata.json",
-        # In .esphome/idedata for regular builds
-        Path.home() / ".esphome" / "idedata" / f"{device_name}.json",
-        # Check parent directories for .esphome/idedata (for test_build_components)
-        build_path.parent.parent.parent / "idedata" / f"{device_name}.json",
-    ]
-
     idedata = None
-    for idedata_path in idedata_candidates:
-        if not idedata_path.exists():
-            continue
+    if idedata_path := find_idedata_path(build_path):
         try:
             with idedata_path.open(encoding="utf-8") as f:
                 raw_data = json.load(f)
             idedata = IDEData(raw_data)
             print(f"Loaded idedata from: {idedata_path}", file=sys.stderr)
-            break
         except (json.JSONDecodeError, OSError) as e:
             print(
                 f"Warning: Failed to load idedata from {idedata_path}: {e}",
                 file=sys.stderr,
             )
+    else:
+        # Without idedata the analyzer falls back to whatever binutils are on
+        # PATH, which are the wrong architecture for a cross build, so say where
+        # we looked rather than let the results quietly get worse.
+        searched = "\n  ".join(str(p) for p in idedata_candidates(build_path))
+        print(f"Warning: idedata not found, searched:\n  {searched}", file=sys.stderr)
 
-    analyzer = MemoryAnalyzer(elf_path, idedata=idedata)
+    analyzer = MemoryAnalyzer(str(elf_path), idedata=idedata)
     components = analyzer.analyze()
 
     # Convert to JSON-serializable format
@@ -202,20 +223,23 @@ def main() -> int:
     )
 
     if ram_bytes is None or flash_bytes is None:
-        print("Failed to extract memory usage from compile output", file=sys.stderr)
-        print("Expected lines like:", file=sys.stderr)
         print(
-            "  RAM:   [====      ]  36.1% (used 29548 bytes from 81920 bytes)",
-            file=sys.stderr,
-        )
-        print(
-            "  Flash: [===       ]  34.0% (used 348511 bytes from 1023984 bytes)",
+            "Failed to extract memory usage from compile output\n"
+            "Expected lines like:\n"
+            "  RAM:   [====      ]  36.1% (used 29548 bytes from 81920 bytes)\n"
+            "  Flash: [===       ]  34.0% (used 348511 bytes from 1023984 bytes)\n"
+            "or a Zephyr linker memory usage table like:\n"
+            "  Memory region         Used Size  Region Size  %age Used\n"
+            "             FLASH:       90624 B       796 KB     11.12%\n"
+            "               RAM:       22432 B       256 KB      8.56%",
             file=sys.stderr,
         )
         return 1
 
     # Count how many builds were found
-    num_builds = len(_RAM_PATTERN.findall(compile_output))
+    num_builds = len(_RAM_PATTERN.findall(compile_output)) + len(
+        _ZEPHYR_RAM_PATTERN.findall(compile_output)
+    )
 
     if num_builds > 1:
         print(
@@ -278,6 +302,19 @@ def main() -> int:
         )
     else:
         print(f"{ram_bytes},{flash_bytes}")
+
+    # The build produced usable totals, so a missing detailed analysis means the
+    # build layout moved out from under this script rather than a broken build.
+    # Fail loudly: the comment would otherwise silently drop the component
+    # breakdown and the symbol tables, which is easy to miss for a long time.
+    if detailed_analysis is None:
+        print(
+            "::error::Detailed memory analysis unavailable even though the build "
+            f"succeeded (build directory: {build_dir or 'not detected'}). The PR "
+            "comment would be missing its component breakdown and symbol changes.",
+            file=sys.stderr,
+        )
+        return 1
 
     return 0
 

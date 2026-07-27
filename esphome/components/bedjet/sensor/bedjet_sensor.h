@@ -7,7 +7,7 @@
 
 namespace esphome::bedjet {
 
-class BedjetSensor : public BedJetClient, public Component {
+class BedjetSensor final : public BedJetClient, public Component {
  public:
   void dump_config() override;
 

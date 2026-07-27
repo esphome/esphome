@@ -16,6 +16,7 @@ KEY_SUBMODULES = "submodules"
 KEY_EXTRA_BUILD_FILES = "extra_build_files"
 KEY_FULL_CERT_BUNDLE = "full_cert_bundle"
 KEY_IDF_VERSION = "idf_version"
+KEY_NETWORK_SDKCONFIG = "network_sdkconfig"
 
 VARIANT_ESP32 = "ESP32"
 VARIANT_ESP32C2 = "ESP32C2"
@@ -61,5 +62,11 @@ VARIANT_FRIENDLY = {
     VARIANT_ESP32S3: "ESP32-S3",
     VARIANT_ESP32S31: "ESP32-S31",
 }
+
+
+def variant_to_idf_target(variant: str) -> str:
+    """Map an esp32 variant name (e.g. "ESP32S3") to its ESP-IDF target name."""
+    return variant.lower().replace("-", "")
+
 
 esp32_ns = cg.esphome_ns.namespace("esp32")

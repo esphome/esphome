@@ -1,6 +1,7 @@
 """Tests for mpi_dsi configuration validation."""
 
 from collections.abc import Callable
+import logging
 from pathlib import Path
 
 import pytest
@@ -71,6 +72,18 @@ def test_configuration_errors(set_core_config: SetCoreConfigCallable) -> None:
             }
         )
 
+    # DSI displays cannot swap axes; enabling swap_xy reports a clear error.
+    with pytest.raises(cv.Invalid, match="'swap_xy' is not supported by this model"):
+        CONFIG_SCHEMA(
+            {
+                "model": "custom",
+                "init_sequence": [[0xA0, 0x01]],
+                "lane_bit_rate": "1.5Gbps",
+                "dimensions": {"width": 320, "height": 240},
+                "transform": {"mirror_x": True, "mirror_y": True, "swap_xy": True},
+            }
+        )
+
 
 def test_configuration_success(set_core_config: SetCoreConfigCallable) -> None:
     """Test successful configuration validation."""
@@ -114,6 +127,59 @@ def test_configuration_success(set_core_config: SetCoreConfigCallable) -> None:
         if not model.get_default("lane_bit_rate"):
             config["lane_bit_rate"] = "1.5Gbps"
         CONFIG_SCHEMA(config)
+
+
+def test_deprecated_model_warning(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The deprecated M5Stack-Tab5-v2 alias warns and points at the replacement models."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32-p4-evboard", KEY_VARIANT: VARIANT_ESP32P4},
+    )
+
+    from esphome.components.mipi_dsi.display import CONFIG_SCHEMA
+
+    with caplog.at_level(logging.WARNING):
+        CONFIG_SCHEMA({"id": "deprecated_display", "model": "M5Stack-Tab5-v2"})
+    assert "M5STACK-TAB5-V2 is deprecated" in caplog.text
+    # The warning names the replacement models so users know what to switch to.
+    assert "M5STACK-TAB5-ST7123" in caplog.text
+
+    # The replacement models validate without emitting a deprecation warning.
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        CONFIG_SCHEMA({"id": "st7123_display", "model": "M5Stack-Tab5-ST7123"})
+        CONFIG_SCHEMA({"id": "st7121_display", "model": "M5Stack-Tab5-ST7121"})
+    assert "deprecated" not in caplog.text
+
+
+def test_metadata_records_rotation(set_core_config: SetCoreConfigCallable) -> None:
+    """A configured display rotation is recorded in the metadata.
+
+    LVGL relies on this to flag a rotation set in the display config (see the
+    mipi_spi tests for the end-to-end LVGL rejection).
+    """
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32-p4-evboard", KEY_VARIANT: VARIANT_ESP32P4},
+    )
+
+    from esphome.components.display import get_display_metadata
+    from esphome.components.mipi_dsi.display import CONFIG_SCHEMA
+
+    base = {
+        "model": "custom",
+        "init_sequence": [[0xA0, 0x01]],
+        "lane_bit_rate": "1.5Gbps",
+        "dimensions": {"width": 320, "height": 240},
+    }
+    config = CONFIG_SCHEMA({**base, "id": "rotated", "rotation": 90})
+    assert get_display_metadata(config["id"]).rotation == 90
+
+    config = CONFIG_SCHEMA({**base, "id": "unrotated"})
+    assert get_display_metadata(config["id"]).rotation == 0
 
 
 def test_code_generation(

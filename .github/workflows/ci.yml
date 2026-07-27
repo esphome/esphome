@@ -12,8 +12,8 @@ permissions:
   contents: read  # actions/checkout for all jobs; individual jobs add their own scopes when they need to write
 
 env:
-  DEFAULT_PYTHON: "3.11"
-  PYUPGRADE_TARGET: "--py311-plus"
+  DEFAULT_PYTHON: "3.12"
+  PYUPGRADE_TARGET: "--py312-plus"
 
 concurrency:
   # yamllint disable-line rule:line-length
@@ -28,18 +28,18 @@ jobs:
       cache-key: ${{ steps.cache-key.outputs.key }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Generate cache-key
         id: cache-key
         run: echo key="${{ hashFiles('requirements.txt', 'requirements_dev.txt', 'requirements_test.txt', '.pre-commit-config.yaml') }}" >> $GITHUB_OUTPUT
       - name: Set up Python ${{ env.DEFAULT_PYTHON }}
         id: python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: Restore Python virtual environment
         id: cache-venv
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: venv
           # yamllint disable-line rule:line-length
@@ -49,9 +49,12 @@ jobs:
         # detects the activated venv via ``VIRTUAL_ENV`` so downstream jobs
         # that ``. venv/bin/activate`` see an identical layout.
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           enable-cache: true
+          # Pull request saves land in per-PR scopes nothing else can
+          # reuse; dev pushes seed the shared copy instead.
+          save-cache: ${{ github.event_name != 'pull_request' }}
           # Pin uv version so the action does not have to fetch the
           # manifest from raw.githubusercontent.com on every cache
           # miss; that fetch flakes on Windows runners.
@@ -74,7 +77,7 @@ jobs:
     if: needs.determine-jobs.outputs.python-linters == 'true'
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -97,7 +100,7 @@ jobs:
     if: needs.determine-jobs.outputs.core-ci == 'true'
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -112,8 +115,9 @@ jobs:
           script/build_codeowners.py --check
           script/build_language_schema.py --check
           script/generate-esp32-boards.py --check
-          script/generate-rp2040-boards.py --check
+          script/generate-rp2-boards.py --check
           script/ci_check_duplicate_test_ids.py
+          script/ci_check_test_fixture_list_form.py
 
   import-time:
     name: Check import esphome.__main__ time
@@ -124,7 +128,7 @@ jobs:
     if: needs.determine-jobs.outputs.import-time == 'true'
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -152,17 +156,17 @@ jobs:
     if: needs.determine-jobs.outputs.device-builder == 'true'
     steps:
       - name: Check out esphome (this PR)
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: esphome
       - name: Check out esphome/device-builder
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: esphome/device-builder
           ref: main
           path: device-builder
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
       - name: Set up uv
@@ -171,9 +175,12 @@ jobs:
         # install step (order-of-magnitude faster on cold boots,
         # with its own wheel cache). actions/setup-python still
         # provides the interpreter.
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           enable-cache: true
+          # Pull request saves land in per-PR scopes nothing else can
+          # reuse; dev pushes seed the shared copy instead.
+          save-cache: ${{ github.event_name != 'pull_request' }}
           # Pin uv version so the action does not have to fetch the
           # manifest from raw.githubusercontent.com on every cache
           # miss; that fetch flakes on Windows runners.
@@ -203,7 +210,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version:
-          - "3.11"
+          - "3.12"
           - "3.13"
           - "3.14"
         os:
@@ -225,7 +232,7 @@ jobs:
     if: needs.determine-jobs.outputs.core-ci == 'true'
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Restore Python
         id: restore-python
         uses: ./.github/actions/restore-python
@@ -245,12 +252,12 @@ jobs:
           . venv/bin/activate
           pytest -vv --cov-report=xml --tb=native --durations=30 -n auto tests --ignore=tests/integration/
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
       - name: Save Python virtual environment cache
         if: github.ref == 'refs/heads/dev'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: venv
           key: ${{ runner.os }}-${{ steps.restore-python.outputs.python-version }}-venv-${{ needs.common.outputs.cache-key }}
@@ -270,8 +277,8 @@ jobs:
       python-linters: ${{ steps.determine.outputs.python-linters }}
       import-time: ${{ steps.determine.outputs.import-time }}
       device-builder: ${{ steps.determine.outputs.device-builder }}
-      native-idf: ${{ steps.determine.outputs.native-idf }}
-      native-idf-components: ${{ steps.determine.outputs.native-idf-components }}
+      esp32-platformio: ${{ steps.determine.outputs.esp32-platformio }}
+      esp32-platformio-components: ${{ steps.determine.outputs.esp32-platformio-components }}
       changed-components: ${{ steps.determine.outputs.changed-components }}
       changed-components-with-tests: ${{ steps.determine.outputs.changed-components-with-tests }}
       directly-changed-components-with-tests: ${{ steps.determine.outputs.directly-changed-components-with-tests }}
@@ -285,7 +292,7 @@ jobs:
       benchmarks: ${{ steps.determine.outputs.benchmarks }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Fetch enough history to find the merge base
           fetch-depth: 2
@@ -295,7 +302,7 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Restore components graph cache
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .temp/components_graph.json
           key: components-graph-${{ hashFiles('esphome/components/**/*.py') }}
@@ -324,8 +331,8 @@ jobs:
           echo "python-linters=$(echo "$output" | jq -r '.python_linters')" >> $GITHUB_OUTPUT
           echo "import-time=$(echo "$output" | jq -r '.import_time')" >> $GITHUB_OUTPUT
           echo "device-builder=$(echo "$output" | jq -r '.device_builder')" >> $GITHUB_OUTPUT
-          echo "native-idf=$(echo "$output" | jq -r '.native_idf')" >> $GITHUB_OUTPUT
-          echo "native-idf-components=$(echo "$output" | jq -r '.native_idf_components')" >> $GITHUB_OUTPUT
+          echo "esp32-platformio=$(echo "$output" | jq -r '.esp32_platformio')" >> $GITHUB_OUTPUT
+          echo "esp32-platformio-components=$(echo "$output" | jq -r '.esp32_platformio_components')" >> $GITHUB_OUTPUT
           echo "changed-components=$(echo "$output" | jq -c '.changed_components')" >> $GITHUB_OUTPUT
           echo "changed-components-with-tests=$(echo "$output" | jq -c '.changed_components_with_tests')" >> $GITHUB_OUTPUT
           echo "directly-changed-components-with-tests=$(echo "$output" | jq -c '.directly_changed_components_with_tests')" >> $GITHUB_OUTPUT
@@ -339,7 +346,7 @@ jobs:
           echo "benchmarks=$(echo "$output" | jq -r '.benchmarks')" >> $GITHUB_OUTPUT
       - name: Save components graph cache
         if: github.ref == 'refs/heads/dev'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .temp/components_graph.json
           key: components-graph-${{ hashFiles('esphome/components/**/*.py') }}
@@ -357,24 +364,27 @@ jobs:
         bucket: ${{ fromJson(needs.determine-jobs.outputs.integration-test-buckets) }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python 3.13
         id: python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
       - name: Restore Python virtual environment
         id: cache-venv
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: venv
           key: ${{ runner.os }}-${{ steps.python.outputs.python-version }}-venv-${{ needs.common.outputs.cache-key }}
       - name: Set up uv
         # Only needed on cache miss to populate the venv.
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           enable-cache: true
+          # Pull request saves land in per-PR scopes nothing else can
+          # reuse; dev pushes seed the shared copy instead.
+          save-cache: ${{ github.event_name != 'pull_request' }}
           # Pin uv version so the action does not have to fetch the
           # manifest from raw.githubusercontent.com on every cache
           # miss; that fetch flakes on Windows runners.
@@ -409,7 +419,7 @@ jobs:
     if: github.event_name == 'pull_request' && (needs.determine-jobs.outputs.cpp-unit-tests-run-all == 'true' || needs.determine-jobs.outputs.cpp-unit-tests-components != '[]')
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Restore Python
         uses: ./.github/actions/restore-python
@@ -438,7 +448,7 @@ jobs:
       (github.event_name == 'pull_request' && needs.determine-jobs.outputs.benchmarks == 'true')
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Restore Python
         uses: ./.github/actions/restore-python
@@ -456,7 +466,7 @@ jobs:
           echo "binary=$BINARY" >> $GITHUB_OUTPUT
 
       - name: Run CodSpeed benchmarks
-        uses: CodSpeedHQ/action@9d332c4d90b43981c3e55ae8e38e68709996240f # v4.17.0
+        uses: CodSpeedHQ/action@f22792bfac16f3e14eb9fbea76f4a48e9cc22b93 # v4.19.1
         with:
           run: |
             . venv/bin/activate
@@ -475,6 +485,8 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       # esp32-arduino-tidy installs ESP-IDF natively; share the native IDF cache.
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
+      # nrf52-tidy installs sdk-nrf natively; pin it to a cacheable path.
+      ESPHOME_SDK_NRF_PREFIX: ~/.esphome-sdk-nrf
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -491,12 +503,21 @@ jobs:
           - id: clang-tidy
             name: Run script/clang-tidy for ZEPHYR
             options: --environment nrf52-tidy --grep USE_ZEPHYR --grep USE_NRF52
-            pio_cache_key: tidy-zephyr
+            cache_sdk_nrf: true
             ignore_errors: false
+          - id: clang-tidy
+            name: Run script/clang-tidy for RP2
+            options: --environment rp2-tidy --grep USE_RP2
+            pio_cache_key: tidyrp2
+          - id: clang-tidy
+            name: Run script/clang-tidy for LibreTiny
+            environments: bk72xx-tidy ln882h-tidy rtl87xxb-tidy rtl87xxc-tidy
+            options: --grep USE_LIBRETINY --grep USE_BK72XX --grep USE_RTL87XX --grep USE_LN882X
+            pio_cache_key: tidylibretiny
 
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Need history for HEAD~1 to work for checking changed files
           fetch-depth: 2
@@ -509,24 +530,27 @@ jobs:
 
       - name: Cache platformio
         if: github.ref == 'refs/heads/dev' && matrix.pio_cache_key
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.platformio
           key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
 
       - name: Cache platformio
         if: github.ref != 'refs/heads/dev' && matrix.pio_cache_key
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.platformio
           key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
 
       - name: Cache ESP-IDF install
-        # Shared with the IDF tidy + native-IDF build jobs (same install).
         if: matrix.cache_idf
         uses: ./.github/actions/cache-esp-idf
         with:
           framework: arduino
+
+      - name: Cache nRF Connect SDK install
+        if: matrix.cache_sdk_nrf
+        uses: ./.github/actions/cache-sdk-nrf
 
       - name: Register problem matchers
         run: |
@@ -537,15 +561,12 @@ jobs:
         id: check_full_scan
         run: |
           . venv/bin/activate
-          # determine-jobs.clang-tidy-full-scan is true when core C++ changed
-          # OR the ci-run-all label forced --force-all. Independent of the
-          # hash check, both must produce a full scan in the job itself.
+          # determine-jobs.clang-tidy-full-scan is true when core C++ or a
+          # clang-tidy-relevant config file changed, or the ci-run-all label
+          # forced --force-all.
           if [ "${{ needs.determine-jobs.outputs.clang-tidy-full-scan }}" = "true" ]; then
             echo "full_scan=true" >> $GITHUB_OUTPUT
             echo "reason=determine_jobs" >> $GITHUB_OUTPUT
-          elif python script/clang_tidy_hash.py --check; then
-            echo "full_scan=true" >> $GITHUB_OUTPUT
-            echo "reason=hash_changed" >> $GITHUB_OUTPUT
           else
             echo "full_scan=false" >> $GITHUB_OUTPUT
             echo "reason=normal" >> $GITHUB_OUTPUT
@@ -556,10 +577,21 @@ jobs:
           . venv/bin/activate
           if [ "${{ steps.check_full_scan.outputs.full_scan }}" = "true" ]; then
             echo "Running FULL clang-tidy scan (reason: ${{ steps.check_full_scan.outputs.reason }})"
-            script/clang-tidy --all-headers --fix ${{ matrix.options }} ${{ matrix.ignore_errors && '|| true' || '' }}
+            changed=""
           else
             echo "Running clang-tidy on changed files only"
-            script/clang-tidy --all-headers --fix --changed ${{ matrix.options }} ${{ matrix.ignore_errors && '|| true' || '' }}
+            changed="--changed"
+          fi
+          if [ -n "${{ matrix.environments }}" ]; then
+            rc=0
+            for env in ${{ matrix.environments }}; do
+              echo "::group::clang-tidy $env"
+              script/clang-tidy --all-headers --fix $changed --environment "$env" ${{ matrix.options }} ${{ matrix.ignore_errors && '|| true' || '' }} || rc=1
+              echo "::endgroup::"
+            done
+            exit $rc
+          else
+            script/clang-tidy --all-headers --fix $changed ${{ matrix.options }} ${{ matrix.ignore_errors && '|| true' || '' }}
           fi
         env:
           # Also cache libdeps, store them in a ~/.platformio subfolder
@@ -583,7 +615,7 @@ jobs:
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Need history for HEAD~1 to work for checking changed files
           fetch-depth: 2
@@ -595,7 +627,6 @@ jobs:
           cache-key: ${{ needs.common.outputs.cache-key }}
 
       - name: Cache ESP-IDF install
-        # Shared with the Arduino tidy + native-IDF build jobs (same install).
         uses: ./.github/actions/cache-esp-idf
 
       - name: Register problem matchers
@@ -607,15 +638,12 @@ jobs:
         id: check_full_scan
         run: |
           . venv/bin/activate
-          # determine-jobs.clang-tidy-full-scan is true when core C++ changed
-          # OR the ci-run-all label forced --force-all. Independent of the
-          # hash check, both must produce a full scan in the job itself.
+          # determine-jobs.clang-tidy-full-scan is true when core C++ or a
+          # clang-tidy-relevant config file changed, or the ci-run-all label
+          # forced --force-all.
           if [ "${{ needs.determine-jobs.outputs.clang-tidy-full-scan }}" = "true" ]; then
             echo "full_scan=true" >> $GITHUB_OUTPUT
             echo "reason=determine_jobs" >> $GITHUB_OUTPUT
-          elif python script/clang_tidy_hash.py --check; then
-            echo "full_scan=true" >> $GITHUB_OUTPUT
-            echo "reason=hash_changed" >> $GITHUB_OUTPUT
           else
             echo "full_scan=false" >> $GITHUB_OUTPUT
             echo "reason=normal" >> $GITHUB_OUTPUT
@@ -667,7 +695,7 @@ jobs:
 
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Need history for HEAD~1 to work for checking changed files
           fetch-depth: 2
@@ -679,7 +707,6 @@ jobs:
           cache-key: ${{ needs.common.outputs.cache-key }}
 
       - name: Cache ESP-IDF install
-        # Shared with the Arduino tidy + native-IDF build jobs (same install).
         uses: ./.github/actions/cache-esp-idf
 
       - name: Register problem matchers
@@ -691,15 +718,12 @@ jobs:
         id: check_full_scan
         run: |
           . venv/bin/activate
-          # determine-jobs.clang-tidy-full-scan is true when core C++ changed
-          # OR the ci-run-all label forced --force-all. Independent of the
-          # hash check, both must produce a full scan in the job itself.
+          # determine-jobs.clang-tidy-full-scan is true when core C++ or a
+          # clang-tidy-relevant config file changed, or the ci-run-all label
+          # forced --force-all.
           if [ "${{ needs.determine-jobs.outputs.clang-tidy-full-scan }}" = "true" ]; then
             echo "full_scan=true" >> $GITHUB_OUTPUT
             echo "reason=determine_jobs" >> $GITHUB_OUTPUT
-          elif python script/clang_tidy_hash.py --check; then
-            echo "full_scan=true" >> $GITHUB_OUTPUT
-            echo "reason=hash_changed" >> $GITHUB_OUTPUT
           else
             echo "full_scan=false" >> $GITHUB_OUTPUT
             echo "reason=normal" >> $GITHUB_OUTPUT
@@ -741,7 +765,8 @@ jobs:
         include:
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 S3
-            options: --environment esp32s3-idf-tidy --grep USE_ESP32_VARIANT_ESP32S3
+            # yamllint disable-line rule:line-length
+            options: --environment esp32s3-idf-tidy --grep SOC_TEMP_SENSOR_SUPPORTED --grep USE_ESP32_VARIANT_ESP32S3 --grep USE_LOGGER_USB_CDC
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 P4
             # P4 has no native Wi-Fi/BLE; those run over the hosted co-processor,
@@ -751,11 +776,11 @@ jobs:
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 C6
             # yamllint disable-line rule:line-length
-            options: --environment esp32c6-idf-tidy --grep USE_ESP32_VARIANT_ESP32C6 --grep USE_OPENTHREAD --grep USE_ZIGBEE
+            options: --environment esp32c6-idf-tidy --grep SOC_LP_I2C_SUPPORTED --grep USE_ESP32_VARIANT_ESP32C6 --grep USE_OPENTHREAD --grep USE_ZIGBEE
 
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Need history for HEAD~1 to work for checking changed files
           fetch-depth: 2
@@ -767,7 +792,6 @@ jobs:
           cache-key: ${{ needs.common.outputs.cache-key }}
 
       - name: Cache ESP-IDF install
-        # Shared with the IDF/Arduino clang-tidy jobs + native-IDF build (same install).
         uses: ./.github/actions/cache-esp-idf
 
       - name: Register problem matchers
@@ -779,15 +803,12 @@ jobs:
         id: check_full_scan
         run: |
           . venv/bin/activate
-          # determine-jobs.clang-tidy-full-scan is true when core C++ changed
-          # OR the ci-run-all label forced --force-all. Independent of the
-          # hash check, both must produce a full scan in the job itself.
+          # determine-jobs.clang-tidy-full-scan is true when core C++ or a
+          # clang-tidy-relevant config file changed, or the ci-run-all label
+          # forced --force-all.
           if [ "${{ needs.determine-jobs.outputs.clang-tidy-full-scan }}" = "true" ]; then
             echo "full_scan=true" >> $GITHUB_OUTPUT
             echo "reason=determine_jobs" >> $GITHUB_OUTPUT
-          elif python script/clang_tidy_hash.py --check; then
-            echo "full_scan=true" >> $GITHUB_OUTPUT
-            echo "reason=hash_changed" >> $GITHUB_OUTPUT
           else
             echo "full_scan=false" >> $GITHUB_OUTPUT
             echo "reason=normal" >> $GITHUB_OUTPUT
@@ -811,17 +832,24 @@ jobs:
         if: always()
 
   test-build-components-split:
-    name: Test components batch (${{ matrix.components }})
+    name: Test components batch (${{ matrix.batch.components }})
     runs-on: ubuntu-24.04
     needs:
       - common
       - determine-jobs
     if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.component-test-count) > 0
+    env:
+      # esp32 component builds use the native ESP-IDF toolchain (default), so
+      # share the tidy jobs' install location -- the restore below lands here.
+      ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
+      # nrf52 component builds install sdk-nrf natively; pin it to the shared
+      # cacheable path so the restore below lands where the build looks.
+      ESPHOME_SDK_NRF_PREFIX: ~/.esphome-sdk-nrf
     strategy:
       fail-fast: false
       max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 8 || 4 }}
       matrix:
-        components: ${{ fromJson(needs.determine-jobs.outputs.component-test-batches) }}
+        batch: ${{ fromJson(needs.determine-jobs.outputs.component-test-batches) }}
     steps:
       - name: Show disk space
         run: |
@@ -829,21 +857,38 @@ jobs:
           df -h
 
       - name: List components
-        run: echo ${{ matrix.components }}
+        run: echo ${{ matrix.batch.components }}
 
-      - name: Cache apt packages
-        uses: awalsh128/cache-apt-pkgs-action@acb598e5ddbc6f68a970c5da0688d2f3a9f04d05 # v1.5.3
-        with:
-          packages: libsdl2-dev
-          version: 1.0
+      - name: Install apt packages
+        # Not cached: this job is pull-request-only, so a cache save could
+        # never be shared and would only consume quota.
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libsdl2-dev ccache
 
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Cache ESP-IDF install (restore-only)
+        # Only batches whose test platforms include esp32 need the native
+        # ESP-IDF install; never save -- just reuse the shared install the
+        # dev tidy jobs already cached when present.
+        if: matrix.batch.needs_idf
+        uses: ./.github/actions/cache-esp-idf
+        with:
+          restore-only: true
+      - name: Cache nRF Connect SDK install (restore-only)
+        # Only batches whose test platforms include nrf52 need the native
+        # sdk-nrf install; never save -- just reuse the shared install the
+        # dev nrf52 tidy job cached when present.
+        if: matrix.batch.needs_nrf
+        uses: ./.github/actions/cache-sdk-nrf
+        with:
+          restore-only: true
       - name: Validate and compile components with intelligent grouping
         run: |
           . venv/bin/activate
@@ -874,7 +919,7 @@ jobs:
           fi
 
           # Convert space-separated components to comma-separated for Python script
-          components_csv=$(echo "${{ matrix.components }}" | tr ' ' ',')
+          components_csv=$(echo "${{ matrix.batch.components }}" | tr ' ' ',')
 
           # Only isolate directly changed components when targeting dev branch
           # For beta/release branches, group everything for faster CI
@@ -947,23 +992,27 @@ jobs:
             echo "All components in this batch are validate-only -- skipping compile stage."
           fi
 
-  test-native-idf:
-    name: Test components with native ESP-IDF
+      - name: Print ccache statistics
+        # esphome stores the cache under the IDF tools path; expand the leading
+        # ~ in ESPHOME_ESP_IDF_PREFIX so ccache reads the dir the build used.
+        run: CCACHE_DIR="${ESPHOME_ESP_IDF_PREFIX/#\~/$HOME}/ccache" ccache -s
+
+  test-esp32-platformio:
+    name: Test esp32 components with PlatformIO
     runs-on: ubuntu-24.04
     needs:
       - common
       - determine-jobs
-    if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.native-idf == 'true'
+    if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.esp32-platformio == 'true'
     env:
-      ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
-      # Comma-joined subset of the native-IDF representative component list,
-      # computed by script/determine-jobs.py (native_idf_components_to_test).
+      # Comma-joined subset of the esp32 PlatformIO representative component list,
+      # computed by script/determine-jobs.py (esp32_platformio_components_to_test).
       # Single source of truth -- the full list lives in
-      # script/determine-jobs.py::NATIVE_IDF_TEST_COMPONENTS.
-      TEST_COMPONENTS: ${{ needs.determine-jobs.outputs.native-idf-components }}
+      # script/determine-jobs.py::ESP32_PLATFORMIO_TEST_COMPONENTS.
+      TEST_COMPONENTS: ${{ needs.determine-jobs.outputs.esp32-platformio-components }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Restore Python
         uses: ./.github/actions/restore-python
@@ -971,66 +1020,53 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
 
-      - name: Prepare build storage on /mnt
-        # Bind-mount the larger /mnt disk over the IDF install + build dirs BEFORE
-        # restoring the cache, so the ~4.5GB restore lands on the roomier volume
-        # instead of being shadowed by a mount set up later in the run step.
-        run: |
-          root_avail=$(df -k / | awk 'NR==2 {print $4}')
-          mnt_avail=$(df -k /mnt 2>/dev/null | awk 'NR==2 {print $4}')
-          echo "Available space: / has ${root_avail}KB, /mnt has ${mnt_avail}KB"
-          if [ -n "$mnt_avail" ] && [ "$mnt_avail" -gt "$root_avail" ]; then
-            echo "Using /mnt for build files (more space available)"
-            sudo mkdir -p /mnt/esphome-idf
-            sudo chown $USER:$USER /mnt/esphome-idf
-            mkdir -p ~/.esphome-idf
-            sudo mount --bind /mnt/esphome-idf ~/.esphome-idf
-            sudo mkdir -p /mnt/test_build_components_build
-            sudo chown $USER:$USER /mnt/test_build_components_build
-            mkdir -p tests/test_build_components/build
-            sudo mount --bind /mnt/test_build_components_build tests/test_build_components/build
-          else
-            echo "Using / for build files (more space available than /mnt or /mnt unavailable)"
-          fi
-
-      - name: Cache ESP-IDF install
-        # Shared with the IDF/Arduino clang-tidy jobs (same install); restores
-        # into the /mnt bind-mount prepared above when present.
-        uses: ./.github/actions/cache-esp-idf
-
-      - name: Run native ESP-IDF compile test
+      - name: Run PlatformIO compile test
         run: |
           . venv/bin/activate
 
           echo "Testing components: $TEST_COMPONENTS"
           echo ""
 
-          # Show disk space before validation
-          echo "Disk space before config validation:"
-          df -h
-          echo ""
-
-          # Run config validation (auto-grouped by test_build_components.py)
-          python3 script/test_build_components.py -e config -t esp32-idf -c "$TEST_COMPONENTS" -f --toolchain esp-idf
+          # compile validates config first, so a separate config pass is
+          # redundant for this smoke test. ESP-IDF framework via PlatformIO:
+          python3 script/test_build_components.py -e compile -t esp32-idf -c "$TEST_COMPONENTS" -f --toolchain platformio
 
           echo ""
-          echo "Config validation passed! Starting compilation..."
+          echo "ESP-IDF-via-PlatformIO build passed! Starting Arduino smoke test..."
           echo ""
 
-          # Show disk space before compilation
-          echo "Disk space before compilation:"
-          df -h
-          echo ""
+          # Arduino framework via PlatformIO (only components with an esp32-ard test are built):
+          python3 script/test_build_components.py -e compile -t esp32-ard -c "$TEST_COMPONENTS" -f --toolchain platformio
 
-          # Run compilation (auto-grouped by test_build_components.py)
-          python3 script/test_build_components.py -e compile -t esp32-idf -c "$TEST_COMPONENTS" -f --toolchain esp-idf
-
-      - name: Save ESPHome cache
-        if: github.ref == 'refs/heads/dev'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+  pre-commit-seed-cache:
+    name: Seed pre-commit cache
+    runs-on: ubuntu-latest
+    needs:
+      - common
+    # Saves a dev-scoped pre-commit cache that pull request runs can
+    # restore, since pre-commit.ci lite itself never runs on dev pushes.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
         with:
-          path: ~/.esphome-idf
-          key: ${{ runner.os }}-esphome-${{ needs.common.outputs.cache-key }}
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Cache pre-commit environments
+        id: cache-pre-commit
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          # Must match the restore key in pre-commit-ci-lite
+          # yamllint disable-line rule:line-length
+          key: pre-commit-3|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
+      - name: Install pre-commit hook environments
+        if: steps.cache-pre-commit.outputs.cache-hit != 'true'
+        run: |
+          python -m pip install pre-commit
+          pre-commit install-hooks
 
   pre-commit-ci-lite:
     name: pre-commit.ci lite
@@ -1041,15 +1077,28 @@ jobs:
     if: github.event_name == 'pull_request' && !startsWith(github.base_ref, 'beta') && !startsWith(github.base_ref, 'release') && needs.determine-jobs.outputs.core-ci == 'true'
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
-      - uses: esphome/pre-commit-action@43cd1109c09c544d97196f7730ee5b2e0cc6d81e # v3.0.1 fork with pinned actions/cache
+      # Inlined from esphome/pre-commit-action with a restore-only cache
+      # step: the pre-commit-seed-cache job owns saving this cache, so
+      # pull request runs never write per-PR copies.
+      - name: Restore pre-commit cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          # Must match the key pre-commit-seed-cache saves
+          # yamllint disable-line rule:line-length
+          key: pre-commit-3|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
+      - name: Run pre-commit
         env:
-          SKIP: pylint,clang-tidy-hash,ci-custom
+          SKIP: pylint,ci-custom
+        run: |
+          python -m pip install pre-commit
+          pre-commit run --show-diff-on-failure --color=always --all-files
       - uses: pre-commit-ci/lite-action@5d6cc0eb514c891a40562a58a8e71576c5c7fb43 # v1.1.0
         if: always()
 
@@ -1067,7 +1116,7 @@ jobs:
       skip: ${{ steps.check-script.outputs.skip || steps.check-tests.outputs.skip }}
     steps:
       - name: Check out target branch
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.base_ref }}
 
@@ -1143,7 +1192,7 @@ jobs:
       - name: Restore cached memory analysis
         id: cache-memory-analysis
         if: steps.check-script.outputs.skip != 'true' && steps.check-tests.outputs.skip != 'true'
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: memory-analysis-target.json
           key: ${{ steps.cache-key.outputs.cache-key }}
@@ -1167,7 +1216,7 @@ jobs:
 
       - name: Cache platformio
         if: steps.check-script.outputs.skip != 'true' && steps.check-tests.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.platformio
           key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
@@ -1209,7 +1258,7 @@ jobs:
 
       - name: Save memory analysis to cache
         if: steps.check-script.outputs.skip != 'true' && steps.check-tests.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true' && steps.build.outcome == 'success'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: memory-analysis-target.json
           key: ${{ steps.cache-key.outputs.cache-key }}
@@ -1249,14 +1298,14 @@ jobs:
       flash_usage: ${{ steps.extract.outputs.flash_usage }}
     steps:
       - name: Check out PR branch
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Cache platformio
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.platformio
           key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
@@ -1318,7 +1367,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Check out code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -1365,7 +1414,7 @@ jobs:
       - determine-jobs
       - device-builder
       - test-build-components-split
-      - test-native-idf
+      - test-esp32-platformio
       - pre-commit-ci-lite
       - memory-impact-target-branch
       - memory-impact-pr-branch
@@ -1381,4 +1430,7 @@ jobs:
           # 1. The target branch has a build issue independent of this PR
           # 2. This PR fixes a build issue on the target branch
           # In either case, we only care that the PR branch builds successfully.
-          echo "$NEEDS_JSON" | jq -e 'del(.["memory-impact-target-branch"]) | all(.result != "failure")'
+          # Every other job must have succeeded or been skipped; a "cancelled" or
+          # "failure" result fails this check so CI is not reported green when the
+          # workflow was cancelled.
+          echo "$NEEDS_JSON" | jq -e 'del(.["memory-impact-target-branch"]) | all(.result == "success" or .result == "skipped")'
