@@ -15,19 +15,21 @@ from esphome.const import (
 )
 
 from .. import (
+    RANGE_REUSE,
     ModbusItemBaseSchema,
     ModbusWriteRegisters,
     SensorItem,
     add_modbus_base_properties,
     modbus_calc_properties,
     modbus_controller_ns,
+    validate_range_reuse_migration,
 )
 from ..const import (
     CONF_BITMASK,
     CONF_CUSTOM_PDU,
-    CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
     CONF_REGISTER_TYPE,
+    CONF_REUSE_PREVIOUS_RANGE,
     CONF_SKIP_UPDATES,
     CONF_USE_WRITE_MULTIPLE,
     CONF_VALUE_TYPE,
@@ -82,11 +84,12 @@ CONFIG_SCHEMA = cv.All(
     ),
     validate_min_max,
     validate_modbus_number,
+    validate_range_reuse_migration,
 )
 
 
 async def to_code(config):
-    byte_offset, reg_count = modbus_calc_properties(config)
+    byte_offset = modbus_calc_properties(config)
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_REGISTER_TYPE],
@@ -94,9 +97,8 @@ async def to_code(config):
         byte_offset,
         config[CONF_BITMASK],
         config[CONF_VALUE_TYPE],
-        reg_count,
         config[CONF_SKIP_UPDATES],
-        config[CONF_FORCE_NEW_RANGE],
+        RANGE_REUSE[config[CONF_REUSE_PREVIOUS_RANGE]],
     )
 
     await cg.register_component(var, config)

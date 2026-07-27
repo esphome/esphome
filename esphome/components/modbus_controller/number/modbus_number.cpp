@@ -76,9 +76,9 @@ void ModbusNumber::control(float value) {
 
   ESP_LOGD(TAG,
            "Updating register: connected Sensor=%s start address=0x%X register count=%d new value=%.02f (val=%.02f)",
-           this->get_name().c_str(), this->start_address, this->register_count, value, write_value);
+           this->get_name().c_str(), this->start_address, this->register_width(), value, write_value);
 
-  if (this->register_count == 1 && !this->use_write_multiple_) {
+  if (this->register_width() == 1 && !this->use_write_multiple_) {
     // since offset is in bytes and a register is 16 bits we get the start by adding offset/2
     this->write_single_register(this->write_address(), data[0]);
   } else {

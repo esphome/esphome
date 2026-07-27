@@ -11,28 +11,34 @@ namespace esphome::modbus_controller {
 class ModbusSwitch final : public Component, public switch_::Switch, public SensorItem, public ModbusControllerDevice {
  public:
   ModbusSwitch(modbus::EntityType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
-               uint16_t skip_updates, bool force_new_range) {
+               uint16_t skip_updates, RangeReuse reuse_previous_range) {
     this->register_type = register_type;
     this->SensorItem::set_address(start_address);
     this->set_offset_from_start_address(offset);
     this->bitmask = bitmask;
     this->sensor_value_type = SensorValueType::BIT;
     this->skip_updates = skip_updates;
-    this->register_count = 1;
     // Apply the configured byte offset byte-accurately (the same meaning as on sensor/number). For holding
     // registers a byte offset is folded into the address as a whole-register shift plus a residual byte, so
     // both the write (write_address()) and the state read-back target the right register; an odd residual
-    // straddles into the next register, so read one more. For coils the offset is a coil count.
+    // straddles into the next register (see register_width()). For coils the offset is a coil count.
     if (register_type == modbus::EntityType::HOLDING) {
       this->SensorItem::set_address(start_address + offset / 2);
       this->set_offset_from_start_address(offset % 2);
-      this->register_count += this->offset;
     } else if (register_type == modbus::EntityType::COIL) {
       this->SensorItem::set_address(start_address + offset);
       this->set_offset_from_start_address(0);
     }
-    this->force_new_range = force_new_range;
+    this->reuse_previous_range = reuse_previous_range;
   };
+
+  /// An odd residual byte offset on a holding register straddles into the next register, so read one more.
+  uint16_t register_width() const override {
+    if (this->register_type == modbus::EntityType::HOLDING) {
+      return 1 + this->offset_from_start_address;
+    }
+    return 1;
+  }
   void setup() override;
   void write_state(bool state) override;
   void dump_config() override;
