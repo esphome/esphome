@@ -397,9 +397,10 @@ def _clone_idf_with_submodules(
     handles branches, tags, and SHAs uniformly (mirrors the approach in
     ``esphome.git.clone_or_update``).
     """
-    from esphome.git import run_git_command
+    from esphome.git import run_git_command, update_submodules
 
-    _LOGGER.info("Cloning ESP-IDF from %s%s", git_url, f"@{ref}" if ref else "")
+    key = f"{git_url}@{ref}" if ref else git_url
+    _LOGGER.info("Cloning ESP-IDF from %s", key)
     run_git_command(["git", "clone", "--depth=1", "--", git_url, str(framework_path)])
     if ref:
         run_git_command(
@@ -410,25 +411,14 @@ def _clone_idf_with_submodules(
             ["git", "reset", "--hard", "FETCH_HEAD"],
             git_dir=framework_path,
         )
-    run_git_command(
-        [
-            "git",
-            "submodule",
-            "update",
-            "--init",
-            "--recursive",
-            "--depth=1",
-        ],
-        git_dir=framework_path,
-    )
+    update_submodules(framework_path, key)
 
-    # Sanity-check the resulting tree. run_git_command only raises when
-    # stderr is non-empty, so a clone that silently produces no working
-    # tree would otherwise be marked extracted and stuck until
-    # ``esphome clean``.
+    # Sanity-check the resulting tree: a clone can exit 0 yet produce no
+    # usable ESP-IDF checkout, which would otherwise be marked extracted and
+    # stuck until ``esphome clean``.
     if not (framework_path / "tools" / "idf_tools.py").is_file():
         raise RuntimeError(
-            f"Clone of {git_url} produced no usable ESP-IDF tree at {framework_path}"
+            f"Clone of {key} produced no usable ESP-IDF tree at {framework_path}"
         )
 
 
