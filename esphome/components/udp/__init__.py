@@ -80,11 +80,10 @@ def _consume_udp_sockets(config: ConfigType) -> ConfigType:
 def validate_udp_address(value):
     """Addresses are IPv4, except on Zephyr (nRF52/Thread) which is IPv6-only."""
     if CORE.using_zephyr:
-        # Voluptuous applies validators to defaults too, so the IPv4 default
-        # "255.255.255.255" reaches this function. Accept it as a sentinel for
-        # "no addresses explicitly configured."
+        # Voluptuous applies validators to defaults too; map the IPv4 broadcast default
+        # to an IPv6 equivalent. ff02::1 is link-local all-nodes multicast.
         if value == "255.255.255.255":
-            return value
+            value = "ff02::1"
         try:
             return cv.ipv6address(value)
         except cv.Invalid as exc:
