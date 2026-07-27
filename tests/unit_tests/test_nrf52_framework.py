@@ -543,10 +543,14 @@ class TestPruneGitHistory:
             git_dir = framework / project / ".git"
             assert not (git_dir / "marker").exists()
             assert (git_dir / "index").exists()
-            # HEAD must resolve for the Zephyr build metadata step
+            # HEAD must resolve for the Zephyr build metadata step, and the
+            # fixed dates/identity make the stub commit hash a machine-
+            # independent constant so version banners are reproducible
             result = subprocess.run(
                 ["git", "-C", str(framework / project), "rev-parse", "HEAD"],
                 capture_output=True,
+                text=True,
                 check=False,
             )
             assert result.returncode == 0
+            assert result.stdout.strip() == "931d4b86b7bcffa0adf7dafc245511f79a0c7686"

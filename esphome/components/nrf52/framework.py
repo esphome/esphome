@@ -264,6 +264,14 @@ def _prune_git_history(framework_path: Path) -> None:
     instead. The workspace manifest is resolved to a single file beforehand,
     so no repository needs to keep real history for west's import resolution.
     """
+    # Fixed dates make every stub commit hash to the same well-known id
+    # (931d4b86b7bc), so the commit the version banners report is
+    # recognizably synthetic and identical across installs and machines.
+    stub_env = {
+        **os.environ,
+        "GIT_AUTHOR_DATE": "1970-01-01T00:00:00Z",
+        "GIT_COMMITTER_DATE": "1970-01-01T00:00:00Z",
+    }
     for git_dir in [p for p in framework_path.rglob(".git") if p.is_dir()]:
         project = git_dir.parent
         rmdir(git_dir)
@@ -285,7 +293,7 @@ def _prune_git_history(framework_path: Path) -> None:
             ],
         )
         for cmd in stub_cmds:
-            if not run_command_ok(["git", "-C", str(project), *cmd]):
+            if not run_command_ok(["git", "-C", str(project), *cmd], env=stub_env):
                 raise EsphomeError(f"Can't create stub git repository in {project}")
 
 
