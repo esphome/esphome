@@ -190,13 +190,8 @@ class ModbusClientHub : public Modbus {
   // requests will be queued. Each modbus component may queue multiple requests, and the sequence of scheduling
   // may change at run time.
   std::deque<ModbusDeviceCommand> tx_buffer_;
-  /// Deliver on_not_sent() for a REFUSED send. While a device's refusal notification is on the stack a
-  /// further refusal for THAT device delivers nothing - a handler retrying from on_not_sent() that is
-  /// refused again would otherwise recurse without bound. Other devices' refusals still deliver.
-  /// (Sweep deliveries bypass this guard on purpose.)
+  /// Null-safe shorthand for device->trigger_not_sent(pdu); the recursion guard lives on the device.
   void notify_not_sent_(ModbusClientDevice *device, std::span<const uint8_t> pdu);
-  /// The device whose refusal notification is being delivered, if any (see notify_not_sent_()).
-  ModbusClientDevice *notifying_not_sent_device_{nullptr};
 };
 
 class ModbusServerHub : public Modbus {
@@ -245,9 +240,13 @@ using ResponseStatus = std::optional<ExceptionCode>;
 ///  - a duplicate absorbed into a queued entry (a READ_AGAIN promotion or a continuous request
 ///    matching a queued frame) shares that entry's fate: if the entry is later swept or dropped, its
 ///    single on_not_sent() stands for every absorbed request as well.
+///  - while a device's own on_not_sent() is on the stack, further on_not_sent() deliveries to THAT
+///    device are dropped (see trigger_not_sent()). In particular, a clear issued from inside your own
+///    on_not_sent() resolves your remaining frames silently - treat it like
+///    clear_tx_queue_for_device(): you cleared them, you know. Other owners are still notified.
 /// Sending from inside on_not_sent() is hazardous: the notification may itself mean the queue is full
 /// or refusing, and this device's retry that is refused again is dropped WITHOUT a callback (the
-/// recursion guard that breaks what would otherwise be unbounded re-entry) - prefer re-sending from a
+/// guard above, which bounds what would otherwise be unbounded re-entry) - prefer re-sending from a
 /// later trigger or the component's update()/loop().
 class ModbusClientDevice {
  public:
@@ -285,6 +284,19 @@ class ModbusClientDevice {
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     this->on_modbus_not_sent();
 #pragma GCC diagnostic pop
+  }
+  /// Non-virtual entry point the hub uses for EVERY on_not_sent() delivery (refusals and clear-queue
+  /// sweeps alike). While this device's on_not_sent() is on the stack, further deliveries to it are
+  /// dropped: this bounds every send->refuse and clear->sweep recursion, including cycles through
+  /// multiple devices (each device can appear on the stack at most once). The documented cost: a clear
+  /// issued from inside your own on_not_sent() resolves your remaining frames SILENTLY, while other
+  /// owners are still notified (their guards are not set) - see the lifecycle contract above.
+  void trigger_not_sent(std::span<const uint8_t> request_pdu) {
+    if (this->notifying_not_sent_)
+      return;
+    this->notifying_not_sent_ = true;
+    this->on_not_sent(request_pdu);
+    this->notifying_not_sent_ = false;
   }
   /// Called when this device's frame is actually written to the wire
   virtual void on_sent(std::span<const uint8_t> request_pdu) {}
@@ -424,6 +436,8 @@ class ModbusClientDevice {
                           ResponseStatus status);
 
   ModbusClientHub *parent_{nullptr};
+  /// True while this device's on_not_sent() is on the stack (see trigger_not_sent()).
+  bool notifying_not_sent_{false};
   uint8_t address_{0};
   bool custom_response_warned_{false};  // first unhandled custom response warns; repeats log at VERBOSE
 };

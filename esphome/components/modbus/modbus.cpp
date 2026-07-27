@@ -747,27 +747,14 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   }
 }
 
-// Deliver the terminal callback for a refused send. The guard breaks the recursion a retry-from-
-// on_not_sent() would otherwise cause (send -> refuse -> notify -> send, unbounded against a full
-// queue): while a device's refusal notification is on the stack, a further refusal FOR THAT DEVICE
-// delivers nothing. The guard is per-device, not hub-global: a refusal belonging to a different
-// device (e.g. one whose send was triggered from inside the first device's handler) is still
-// delivered - it did not cause the recursion and must not lose its terminal callback. Cross-device
-// chains stay bounded because each device on the stack is guarded while its notification runs.
-// Sending from on_not_sent() is documented as hazardous for exactly this reason. The clear-queue
-// sweep deliberately does NOT go through this guard (its deliveries must never be suppressed, e.g.
-// for a nested clear from inside a handler); it calls on_not_sent() directly.
+// Deliver the terminal callback for a refused send. The recursion guard lives on the device
+// (trigger_not_sent()): while a device's on_not_sent() is on the stack, further deliveries to that
+// device are dropped, which bounds every send->refuse and clear->sweep recursion - including cycles
+// through multiple devices, since each device can appear on the stack at most once. Sending from
+// on_not_sent() is documented as hazardous for exactly this reason.
 void ModbusClientHub::notify_not_sent_(ModbusClientDevice *device, std::span<const uint8_t> pdu) {
-  if (device == nullptr)
-    return;
-  if (this->notifying_not_sent_device_ == device) {
-    ESP_LOGE(TAG, "Send refused during this device's not-sent notification; dropped without callback");
-    return;
-  }
-  ModbusClientDevice *previous = this->notifying_not_sent_device_;
-  this->notifying_not_sent_device_ = device;
-  device->on_not_sent(pdu);
-  this->notifying_not_sent_device_ = previous;
+  if (device != nullptr)
+    device->trigger_not_sent(pdu);
 }
 
 void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sent) {
@@ -789,8 +776,10 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sen
       break;
     ModbusDeviceCommand dropped = std::move(*it);
     this->tx_buffer_.erase(it);
-    if (dropped.device != nullptr)
-      dropped.device->on_not_sent(dropped.frame.pdu());
+    // The sweep delivers through the same per-device guard as refusals: a device clearing from inside
+    // its own on_not_sent() gets its remaining frames resolved silently (documented in the lifecycle
+    // contract), other owners are notified normally, and every nested clear stays bounded.
+    this->notify_not_sent_(dropped.device, dropped.frame.pdu());
   }
 
   if (clear_sent && this->waiting_for_response_.has_value() && this->waiting_for_response_.value().device) {

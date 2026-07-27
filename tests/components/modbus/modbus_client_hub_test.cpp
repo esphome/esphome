@@ -790,8 +790,8 @@ class AlwaysRetryDevice : public ModbusClientDevice {
   int not_sent_count_{0};
 };
 
-// From inside on_not_sent, clears ANOTHER address - those victims must still be notified (the recursion
-// guard suppresses nested REFUSALS only, never sweep deliveries).
+// From inside on_not_sent, clears ANOTHER address - those victims must still be notified (the per-device
+// guard suppresses deliveries only to a device already inside its own on_not_sent()).
 class ClearOtherOnNotSentDevice : public ModbusClientDevice {
  public:
   ClearOtherOnNotSentDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
@@ -863,6 +863,68 @@ TEST(ModbusClientHubQueue, RefusalForOtherDeviceDeliversDuringNotification) {
 
   EXPECT_EQ(first.not_sent_count_, 1);
   EXPECT_EQ(second.not_sent_count_, 1);
+}
+
+// Two devices whose handlers each trigger the other's send cannot recurse without bound: each device
+// can be on the notification stack at most once, so the cycle dies as soon as it returns to a device
+// whose own on_not_sent() is still running.
+TEST(ModbusClientHubQueue, TwoDeviceRefusalCycleTerminates) {
+  NoResponseProbeHub hub;
+  SentCountingDevice filler(&hub, 0x05);
+  SendOtherOnNotSentDevice first(&hub, 0x02);
+  SendOtherOnNotSentDevice second(&hub, 0x03);
+  first.other_ = &second;
+  second.other_ = &first;
+
+  // Fill the queue with distinct frames (distinct start addresses defeat dedup).
+  for (uint16_t i = 0; i < MODBUS_TX_BUFFER_SIZE; i++) {
+    const uint8_t fill[] = {0x03, static_cast<uint8_t>(i >> 8), static_cast<uint8_t>(i & 0xFF), 0x00, 0x01};
+    filler.send_pdu(fill);
+  }
+  ASSERT_EQ(hub.queued_frames(), MODBUS_TX_BUFFER_SIZE);
+
+  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
+  first.send_pdu(read);  // refuse -> first -> second refused -> second -> first suppressed -> unwind
+
+  EXPECT_EQ(first.not_sent_count_, 1);
+  EXPECT_EQ(second.not_sent_count_, 1);
+}
+
+namespace {
+// From inside on_not_sent, clears its OWN address - its remaining queued frames resolve silently
+// (the guard suppresses self-deliveries), while other owners on the address are still notified.
+class ClearOwnAddressOnNotSentDevice : public ModbusClientDevice {
+ public:
+  ClearOwnAddressOnNotSentDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_not_sent(std::span<const uint8_t> request_pdu) override {
+    this->not_sent_count_++;
+    this->clear_tx_queue_for_address(/*clear_sent=*/false);
+  }
+  int not_sent_count_{0};
+};
+}  // namespace
+
+// The documented cost of the per-device guard: a clear issued from inside your own on_not_sent()
+// resolves your remaining frames silently (like clear_tx_queue_for_device() - you cleared them, you
+// know), while other owners sharing the address are still notified.
+TEST(ModbusClientHubQueue, SelfClearFromNotSentSilentForClearerNotifiesOthers) {
+  NoResponseProbeHub hub;
+  ClearOwnAddressOnNotSentDevice clearer(&hub, 0x02);
+  SentCountingDevice bystander(&hub, 0x02);
+
+  const uint8_t read_a[] = {0x03, 0x00, 0x10, 0x00, 0x01};
+  const uint8_t read_b[] = {0x03, 0x00, 0x20, 0x00, 0x01};
+  const uint8_t read_c[] = {0x03, 0x00, 0x30, 0x00, 0x01};
+  clearer.send_pdu(read_a);
+  clearer.send_pdu(read_b);
+  bystander.send_pdu(read_c);
+  ASSERT_EQ(hub.queued_frames(), 3u);
+
+  clearer.send_pdu(std::span<const uint8_t>{});  // refused (empty) -> the handler clears the shared address
+
+  EXPECT_EQ(clearer.not_sent_count_, 1);    // only the refusal; the two swept frames resolve silently
+  EXPECT_EQ(bystander.not_sent_count_, 1);  // the bystander's swept frame is still notified
+  EXPECT_EQ(hub.queued_frames(), 0u);
 }
 
 // The guard must not over-suppress: a sweep started from inside on_not_sent() still delivers its
