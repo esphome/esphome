@@ -19,6 +19,9 @@ namespace esphome::modbus {
 // Tx queue backstop. Duplicate frames dedup into one entry, so reads can never approach this in a
 // sane config - it exists to stop a runaway generator of distinct frames (e.g. a loop writing a
 // changing value) from growing the heap unboundedly. The deque grows on demand; this reserves nothing.
+// Worst case the cap permits: 128 distinct max-size frames = ~26 kB of transient heap (typical
+// 8-byte frames stay inline; large PDUs spill to one allocation each) - pathological configs only,
+// but the number matters when tuning this for ESP8266.
 static constexpr uint16_t MODBUS_TX_BUFFER_SIZE = 128;
 static constexpr uint16_t MODBUS_TX_MAX_DELAY_MS = 5;
 
@@ -172,7 +175,9 @@ class ModbusClientHub : public Modbus {
   // device_retry is what on_no_response() returned (true = the device asked to retry, so this attempt
   // is not a resolution); it decides whether a READ_AGAIN entry keeps its extra pending request or is demoted.
   void requeue_waiting_frame_(ModbusDeviceCommand &wfr, bool device_retry);
-  // Inserts before the first lower-priority entry (FIFO within a priority class).
+  // Inserts before the first lower-priority entry. Only the INSERT paths honor priority order: an
+  // in-place promotion (READ_ONCE -> READ_AGAIN) keeps the entry's queue position, so the deque is
+  // not strictly sorted and FIFO-within-a-class holds only for entries that entered via insertion.
   void insert_by_priority_(ModbusDeviceCommand &&command);
   // Re-queues a completed command if its priority asks for it (READ_AGAIN always, demoted to
   // READ_ONCE; READ_CONTINUOUS only after a successful response).

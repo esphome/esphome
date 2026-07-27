@@ -1133,6 +1133,24 @@ TEST(ModbusClientHubQueue, TransmitFailurePopsBeforeNotify) {
   EXPECT_EQ(hub.front().frame.pdu()[0], 0x06);  // ...and it is the write, not the failed read
 }
 
+// A failed transmit of a READ_AGAIN frame resolves BOTH accepted requests: the promotion absorbed a
+// second request into the entry, and the failure path keeps the same books as the clear sweep.
+TEST(ModbusClientHubQueue, TransmitFailureReadAgainDeliversBothNotSent) {
+  FlakyBlockHub hub;
+  SentCountingDevice device(&hub, 0x02);
+
+  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
+  device.send_pdu(read);
+  device.send_pdu(read);  // promotes the queued entry to READ_AGAIN
+  ASSERT_EQ(hub.queued_frames(), 1u);
+  ASSERT_EQ(hub.front().priority, CommandPriority::READ_AGAIN);
+
+  hub.send_next_for_test();  // tx_blocked gate passes, send_frame_ refuses -> failure path
+
+  EXPECT_EQ(device.not_sent_count_, 2);  // one terminal per accepted request
+  EXPECT_EQ(hub.queued_frames(), 0u);
+}
+
 // A send during a sweep that matches a still-marked (doomed) frame must queue fresh, not promote the
 // marked entry - promotion would absorb the new request into a frame the sweep then drops.
 TEST(ModbusClientHubQueue, SweepDedupSkipsMarkedFrames) {
