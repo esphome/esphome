@@ -718,6 +718,25 @@ TEST(ModbusClientHubQueue, ClearAddressQueueNotifiesEveryOwner) {
   EXPECT_EQ(bystander_same.last_not_sent_pdu_, std::vector<uint8_t>(std::begin(read_b), std::end(read_b)));
 }
 
+// A swept READ_AGAIN frame stands for exactly two accepted requests (the original and the one
+// absorbed by promotion; a third duplicate is refused rather than absorbed), so the sweep resolves
+// it with two on_not_sent() deliveries - the books balance for owners counting outstanding requests.
+TEST(ModbusClientHubQueue, ClearAddressSweptReadAgainDeliversBothNotSent) {
+  NoResponseProbeHub hub;
+  SentCountingDevice device(&hub, 0x02);
+
+  const uint8_t read[] = {0x03, 0x01, 0x00, 0x00, 0x02};
+  device.send_pdu(read);
+  device.send_pdu(read);  // duplicate: promotes the queued entry to READ_AGAIN
+  ASSERT_EQ(hub.queued_frames(), 1u);
+  ASSERT_EQ(hub.front().priority, CommandPriority::READ_AGAIN);
+
+  hub.clear_tx_queue_for_address(0x02, false);
+
+  EXPECT_EQ(hub.queued_frames(), 0u);
+  EXPECT_EQ(device.not_sent_count_, 2);  // one terminal per accepted request
+}
+
 namespace {
 // Re-sends its frame once from inside on_not_sent - the re-queued frame must survive the sweep.
 class ResendOnNotSentDevice : public ModbusClientDevice {
