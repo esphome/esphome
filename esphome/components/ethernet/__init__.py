@@ -478,7 +478,7 @@ SPI_SCHEMA = _spi_schema()
 
 # The ENC28J60's SCK maximum is 20 MHz, so the shared 26.67 MHz default is out
 # of spec for it and makes the driver's CS hold time helper compute no hold
-ENC28J60_SPI_SCHEMA = _spi_schema(default_clock="20MHz", max_clock=int(20e6))
+SPI_SCHEMA_ENC28J60 = _spi_schema(default_clock="20MHz", max_clock=int(20e6))
 
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
@@ -494,7 +494,7 @@ CONFIG_SCHEMA = cv.All(
             "W5500": SPI_SCHEMA,
             "OPENETH": cv.All(BASE_SCHEMA, cv.only_on([Platform.ESP32])),
             "DM9051": SPI_SCHEMA,
-            "ENC28J60": ENC28J60_SPI_SCHEMA,
+            "ENC28J60": SPI_SCHEMA_ENC28J60,
             "W6100": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2])),
             "W6300": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2])),
             "LAN8670": RMII_SCHEMA,
