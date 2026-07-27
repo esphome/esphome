@@ -93,18 +93,24 @@ class LvColorPickerType : public LvCompound {
     lv_style_set_height(&this->slider_vert_, lv_pct(90));
     lv_style_set_pad_all(&this->slider_vert_, 0);
     lv_style_set_radius(&this->slider_vert_, 0);
-    lv_style_set_width(&this->slider_vert_, lv_pct(33));
+    lv_style_set_width(&this->slider_vert_, lv_pct(50));
     lv_style_init(&this->slider_vert_knob_);
     lv_style_set_bg_color(&this->slider_vert_knob_, lv_color_hex(0xFFFFFF));
     lv_style_set_border_width(&this->slider_vert_knob_, 1);
     lv_style_set_outline_color(&this->slider_vert_knob_, lv_color_hex(0x00));
-    lv_style_set_pad_bottom(&this->slider_vert_knob_, -4);
-    lv_style_set_pad_top(&this->slider_vert_knob_, -4);
+    lv_style_set_pad_bottom(&this->slider_vert_knob_, -KNOB_TRIM);
+    lv_style_set_pad_top(&this->slider_vert_knob_, -KNOB_TRIM);
+    lv_style_set_pad_left(&this->slider_vert_knob_, KNOB_OVERHANG);
+    lv_style_set_pad_right(&this->slider_vert_knob_, KNOB_OVERHANG);
     lv_style_set_radius(&this->slider_vert_knob_, 0);
     lv_style_init(&this->slider_horz_);
     lv_style_set_align(&this->slider_horz_, LV_ALIGN_CENTER);
     lv_style_set_bg_opa(&this->slider_horz_, LV_OPA_COVER);
-    lv_style_set_height(&this->slider_horz_, lv_pct(33));
+    // LVGL sizes a slider's knob from the thickness of its bar, so the horizontal bars are
+    // given the same thickness as the vertical ones to keep every knob the same size. The
+    // vertical bars are half the width of a container that is 15% of the widget, and this
+    // container is 18% of its height, hence the proportion here.
+    lv_style_set_height(&this->slider_horz_, lv_pct(45));
     lv_style_set_pad_all(&this->slider_horz_, 0);
     lv_style_set_radius(&this->slider_horz_, 0);
     lv_style_set_width(&this->slider_horz_, lv_pct(90));
@@ -112,45 +118,41 @@ class LvColorPickerType : public LvCompound {
     lv_style_set_bg_color(&this->slider_horz_knob_, lv_color_hex(0xFFFFFF));
     lv_style_set_border_width(&this->slider_horz_knob_, 1);
     lv_style_set_outline_color(&this->slider_horz_knob_, lv_color_hex(0x00));
-    lv_style_set_pad_left(&this->slider_horz_knob_, -4);
-    lv_style_set_pad_right(&this->slider_horz_knob_, -4);
+    lv_style_set_pad_left(&this->slider_horz_knob_, -KNOB_TRIM);
+    lv_style_set_pad_right(&this->slider_horz_knob_, -KNOB_TRIM);
+    lv_style_set_pad_top(&this->slider_horz_knob_, KNOB_OVERHANG);
+    lv_style_set_pad_bottom(&this->slider_horz_knob_, KNOB_OVERHANG);
     lv_style_set_radius(&this->slider_horz_knob_, 0);
 
-    lv_obj_set_layout(outer, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(outer, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(outer, LV_FLEX_ALIGN_SPACE_AROUND, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
-    lv_obj_set_style_pad_all(outer, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_column(outer, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_row(outer, 0, LV_PART_MAIN);
-    lv_obj_set_style_width(outer, 400, LV_PART_MAIN);
+    // The outer object deliberately has no layout: every child is sized as a percentage of
+    // it, and LVGL only ignores such children when working out a LV_SIZE_CONTENT parent's
+    // size if that parent is not laid out. Combined with the LV_EVENT_GET_SELF_SIZE handler
+    // below, that lets the widget report its own preferred size like any other widget does.
+    lv_obj_add_event_cb(outer, self_size_cb, LV_EVENT_GET_SELF_SIZE, nullptr);
+    // Inset the contents so that a slider knob at the end of its travel does not sit hard
+    // against the widget border.
+    lv_obj_set_style_pad_all(outer, KNOB_OVERHANG, LV_PART_MAIN);
 
     auto *hue_container = lv_obj_create(outer);
-    lv_obj_set_style_border_width(hue_container, 0, LV_PART_MAIN);
+    this->init_slider_container_(hue_container, "H", true);
+    lv_obj_set_style_align(hue_container, LV_ALIGN_LEFT_MID, LV_PART_MAIN);
     lv_obj_set_style_height(hue_container, lv_pct(100), LV_PART_MAIN);
-    lv_obj_set_style_pad_all(hue_container, 0, LV_PART_MAIN);
     lv_obj_set_style_width(hue_container, lv_pct(15), LV_PART_MAIN);
-
-    auto *hue_name = lv_label_create(hue_container);
-    lv_obj_set_style_align(hue_name, LV_ALIGN_TOP_MID, LV_PART_MAIN);
-    lv_label_set_text(hue_name, "H");
 
     this->hue_slider_ = lv_slider_create(hue_container);
     lv_obj_add_style(this->hue_slider_, &this->slider_vert_, LV_PART_MAIN);
-    lv_obj_set_style_align(this->hue_slider_, LV_ALIGN_CENTER, LV_PART_MAIN);
     lv_obj_set_style_bg_grad(this->hue_slider_, &this->color_bar_, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(this->hue_slider_, LV_OPA_TRANSP, LV_PART_INDICATOR);
     lv_obj_add_style(this->hue_slider_, &this->slider_vert_knob_, LV_PART_KNOB);
+    lv_obj_set_flex_grow(this->hue_slider_, 1);
     lv_slider_set_range(this->hue_slider_, 0, 360);
     lv_slider_set_mode(this->hue_slider_, LV_SLIDER_MODE_NORMAL);
 
-    lv_obj_add_flag(this->hue_slider_, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
-    this->hue_value_ = lv_label_create(this->hue_slider_);
-    lv_obj_set_style_align(this->hue_value_, LV_ALIGN_CENTER, LV_PART_MAIN);
-    lv_obj_set_style_text_color(this->hue_value_, lv_color_black(), LV_PART_MAIN);
     auto *middle = lv_obj_create(outer);
+    lv_obj_set_style_align(middle, LV_ALIGN_RIGHT_MID, LV_PART_MAIN);
     lv_obj_set_layout(middle, LV_LAYOUT_FLEX);
     lv_obj_set_flex_flow(middle, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(middle, LV_FLEX_ALIGN_SPACE_AROUND, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
+    lv_obj_set_flex_align(middle, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
     lv_obj_set_style_border_width(middle, 0, LV_PART_MAIN);
     lv_obj_set_style_height(middle, lv_pct(100), LV_PART_MAIN);
     lv_obj_set_style_pad_all(middle, 0, LV_PART_MAIN);
@@ -159,16 +161,9 @@ class LvColorPickerType : public LvCompound {
     lv_obj_set_style_width(middle, lv_pct(85), LV_PART_MAIN);
 
     auto *brightness_container = lv_obj_create(middle);
-    lv_obj_set_style_border_width(brightness_container, 0, LV_PART_MAIN);
-    lv_obj_set_style_height(brightness_container, lv_pct(15), LV_PART_MAIN);
-    lv_obj_set_style_pad_all(brightness_container, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_column(brightness_container, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_row(brightness_container, 0, LV_PART_MAIN);
+    this->init_slider_container_(brightness_container, "V", false);
+    lv_obj_set_style_height(brightness_container, lv_pct(18), LV_PART_MAIN);
     lv_obj_set_style_width(brightness_container, lv_pct(100), LV_PART_MAIN);
-
-    auto *brightness_name = lv_label_create(brightness_container);
-    lv_obj_set_style_align(brightness_name, LV_ALIGN_TOP_MID, LV_PART_MAIN);
-    lv_label_set_text(brightness_name, "V");
 
     this->brightness_slider_ = lv_slider_create(brightness_container);
     lv_obj_add_style(this->brightness_slider_, &this->slider_horz_, LV_PART_MAIN);
@@ -188,7 +183,7 @@ class LvColorPickerType : public LvCompound {
     lv_obj_set_flex_flow(inner, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(inner, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
     lv_obj_set_style_border_width(inner, 0, LV_PART_MAIN);
-    lv_obj_set_style_height(inner, lv_pct(70), LV_PART_MAIN);
+    lv_obj_set_style_height(inner, lv_pct(58), LV_PART_MAIN);
     lv_obj_set_style_pad_all(inner, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_column(inner, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_row(inner, 0, LV_PART_MAIN);
@@ -218,7 +213,7 @@ class LvColorPickerType : public LvCompound {
     auto *rgb_container = lv_obj_create(inner);
     lv_obj_set_layout(rgb_container, LV_LAYOUT_FLEX);
     lv_obj_set_flex_flow(rgb_container, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(rgb_container, LV_FLEX_ALIGN_SPACE_AROUND, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
+    lv_obj_set_flex_align(rgb_container, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
     lv_obj_set_style_border_width(rgb_container, 0, LV_PART_MAIN);
     lv_obj_set_style_height(rgb_container, lv_pct(100), LV_PART_MAIN);
     lv_obj_set_style_pad_all(rgb_container, 0, LV_PART_MAIN);
@@ -227,20 +222,16 @@ class LvColorPickerType : public LvCompound {
     lv_obj_set_style_width(rgb_container, lv_pct(57), LV_PART_MAIN);
 
     auto *red_container = lv_obj_create(rgb_container);
-    lv_obj_set_style_border_width(red_container, 0, LV_PART_MAIN);
+    this->init_slider_container_(red_container, "R", true);
     lv_obj_set_style_height(red_container, lv_pct(100), LV_PART_MAIN);
-    lv_obj_set_style_pad_all(red_container, 0, LV_PART_MAIN);
     lv_obj_set_style_width(red_container, lv_pct(33), LV_PART_MAIN);
-
-    auto *red_name = lv_label_create(red_container);
-    lv_obj_set_style_align(red_name, LV_ALIGN_TOP_MID, LV_PART_MAIN);
-    lv_label_set_text(red_name, "R");
 
     this->red_slider_ = lv_slider_create(red_container);
     lv_obj_add_style(this->red_slider_, &this->slider_vert_, LV_PART_MAIN);
     lv_obj_set_style_bg_grad(this->red_slider_, &this->red_bar_, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(this->red_slider_, LV_OPA_TRANSP, LV_PART_INDICATOR);
     lv_obj_add_style(this->red_slider_, &this->slider_vert_knob_, LV_PART_KNOB);
+    lv_obj_set_flex_grow(this->red_slider_, 1);
     lv_slider_set_range(this->red_slider_, 0, 255);
     lv_slider_set_mode(this->red_slider_, LV_SLIDER_MODE_NORMAL);
 
@@ -250,20 +241,16 @@ class LvColorPickerType : public LvCompound {
     lv_obj_set_style_text_color(this->red_value_, lv_color_black(), LV_PART_MAIN);
 
     auto *green_container = lv_obj_create(rgb_container);
-    lv_obj_set_style_border_width(green_container, 0, LV_PART_MAIN);
+    this->init_slider_container_(green_container, "G", true);
     lv_obj_set_style_height(green_container, lv_pct(100), LV_PART_MAIN);
-    lv_obj_set_style_pad_all(green_container, 0, LV_PART_MAIN);
     lv_obj_set_style_width(green_container, lv_pct(33), LV_PART_MAIN);
-
-    auto *green_name = lv_label_create(green_container);
-    lv_obj_set_style_align(green_name, LV_ALIGN_TOP_MID, LV_PART_MAIN);
-    lv_label_set_text(green_name, "G");
 
     this->green_slider_ = lv_slider_create(green_container);
     lv_obj_add_style(this->green_slider_, &this->slider_vert_, LV_PART_MAIN);
     lv_obj_set_style_bg_grad(this->green_slider_, &this->green_bar_, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(this->green_slider_, LV_OPA_TRANSP, LV_PART_INDICATOR);
     lv_obj_add_style(this->green_slider_, &this->slider_vert_knob_, LV_PART_KNOB);
+    lv_obj_set_flex_grow(this->green_slider_, 1);
     lv_slider_set_range(this->green_slider_, 0, 255);
     lv_slider_set_mode(this->green_slider_, LV_SLIDER_MODE_NORMAL);
 
@@ -273,20 +260,16 @@ class LvColorPickerType : public LvCompound {
     lv_obj_set_style_text_color(this->green_value_, lv_color_black(), LV_PART_MAIN);
 
     auto *blue_container = lv_obj_create(rgb_container);
-    lv_obj_set_style_border_width(blue_container, 0, LV_PART_MAIN);
+    this->init_slider_container_(blue_container, "B", true);
     lv_obj_set_style_height(blue_container, lv_pct(100), LV_PART_MAIN);
-    lv_obj_set_style_pad_all(blue_container, 0, LV_PART_MAIN);
     lv_obj_set_style_width(blue_container, lv_pct(33), LV_PART_MAIN);
-
-    auto *blue_name = lv_label_create(blue_container);
-    lv_obj_set_style_align(blue_name, LV_ALIGN_TOP_MID, LV_PART_MAIN);
-    lv_label_set_text(blue_name, "B");
 
     this->blue_slider_ = lv_slider_create(blue_container);
     lv_obj_add_style(this->blue_slider_, &this->slider_vert_, LV_PART_MAIN);
     lv_obj_set_style_bg_grad(this->blue_slider_, &this->blue_bar_, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(this->blue_slider_, LV_OPA_TRANSP, LV_PART_INDICATOR);
     lv_obj_add_style(this->blue_slider_, &this->slider_vert_knob_, LV_PART_KNOB);
+    lv_obj_set_flex_grow(this->blue_slider_, 1);
     lv_slider_set_range(this->blue_slider_, 0, 255);
     lv_slider_set_mode(this->blue_slider_, LV_SLIDER_MODE_NORMAL);
 
@@ -296,14 +279,9 @@ class LvColorPickerType : public LvCompound {
     lv_obj_set_style_text_color(this->blue_value_, lv_color_black(), LV_PART_MAIN);
 
     auto *saturation_container = lv_obj_create(middle);
-    lv_obj_set_style_border_width(saturation_container, 0, LV_PART_MAIN);
-    lv_obj_set_style_height(saturation_container, lv_pct(15), LV_PART_MAIN);
-    lv_obj_set_style_pad_all(saturation_container, 0, LV_PART_MAIN);
+    this->init_slider_container_(saturation_container, "S", false);
+    lv_obj_set_style_height(saturation_container, lv_pct(18), LV_PART_MAIN);
     lv_obj_set_style_width(saturation_container, lv_pct(100), LV_PART_MAIN);
-
-    auto *saturation_name = lv_label_create(saturation_container);
-    lv_obj_set_style_align(saturation_name, LV_ALIGN_TOP_MID, LV_PART_MAIN);
-    lv_label_set_text(saturation_name, "S");
 
     this->saturation_slider_ = lv_slider_create(saturation_container);
     lv_obj_add_style(this->saturation_slider_, &this->slider_horz_, LV_PART_MAIN);
@@ -337,11 +315,75 @@ class LvColorPickerType : public LvCompound {
   }
 
  protected:
+  // The widget needs room for a gradient bar, its knob and a label either side of it, so its
+  // preferred size scales with how tall a line of the current text font is. It is square, so
+  // the same figure serves for both width and height.
+  static constexpr int SELF_SIZE_FONT_MULTIPLE = 16;
+
+  // A slider knob is centred on the current value and is as thick as the bar is wide, so at
+  // either end of its travel half of it lies outside the bar. KNOB_TRIM pulls it back a
+  // little along that direction, and KNOB_OVERHANG makes it stand out across the bar so it
+  // is easy to see. Both axes are set explicitly, otherwise the theme supplies whatever the
+  // style leaves out and the knob ends up a size the containers have not reserved room for.
+  static constexpr int KNOB_TRIM = 4;
+  static constexpr int KNOB_OVERHANG = 4;
+
+  // Prepares a container holding a name label above a slider. A column layout is used so
+  // that the label always keeps its own row and the slider fills whatever is left, rather
+  // than the two overlapping when the text font is large relative to the widget.
+  void init_slider_container_(lv_obj_t *container, const char *name, bool vertical) {
+    lv_obj_set_layout(container, LV_LAYOUT_FLEX);
+    lv_obj_set_flex_flow(container, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(container, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_border_width(container, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(container, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_column(container, 0, LV_PART_MAIN);
+    if (vertical) {
+      // The knob travels the length of the bar, so how far it reaches past either end
+      // depends on the bar's width, which is only known once the widget has been laid out.
+      update_knob_clearance_(container);
+      lv_obj_add_event_cb(container, knob_clearance_cb, LV_EVENT_STYLE_CHANGED, nullptr);
+    } else {
+      // The knob spans the bar's height and stands out by a fixed amount above and below it.
+      lv_obj_set_style_pad_bottom(container, KNOB_OVERHANG, LV_PART_MAIN);
+      lv_obj_set_style_pad_row(container, KNOB_OVERHANG, LV_PART_MAIN);
+    }
+
+    auto *label = lv_label_create(container);
+    lv_label_set_text(label, name);
+  }
+
+  // Reserves room above and below a vertical slider for the half of the knob that hangs off
+  // the end of the bar. Half a line of text covers that at the proportions this widget uses,
+  // and re-deriving it on a style change keeps it right when the font is changed later.
+  static void update_knob_clearance_(lv_obj_t *container) {
+    const auto *font = lv_obj_get_style_text_font(container, LV_PART_MAIN);
+    auto clearance = static_cast<int32_t>(lv_font_get_line_height(font)) / 2;
+    if (clearance == lv_obj_get_style_pad_bottom(container, LV_PART_MAIN))
+      return;
+    lv_obj_set_style_pad_bottom(container, clearance, LV_PART_MAIN);
+    lv_obj_set_style_pad_row(container, clearance, LV_PART_MAIN);
+  }
+
+  static void knob_clearance_cb(lv_event_t *event) { update_knob_clearance_(lv_event_get_current_target_obj(event)); }
+
+  // Answers LV_SIZE_CONTENT on behalf of the widget. LVGL asks again whenever the font
+  // changes, since the text font is flagged as affecting layout.
+  static void self_size_cb(lv_event_t *event) {
+    auto *obj = lv_event_get_current_target_obj(event);
+    const auto *font = lv_obj_get_style_text_font(obj, LV_PART_MAIN);
+    auto self_size = static_cast<int32_t>(lv_font_get_line_height(font)) * SELF_SIZE_FONT_MULTIPLE;
+    auto *point = static_cast<lv_point_t *>(lv_event_get_param(event));
+    point->x = self_size;
+    point->y = self_size;
+  }
+
   void update_text_() const {
     // max 8 bytes: "#" + 3x "%02X" (2 hex digits each) + null
     char buf[8];
-    snprintf(buf, sizeof(buf), "#%02X%02X%02X", lv_slider_get_value(this->red_slider_),
-             lv_slider_get_value(this->green_slider_), lv_slider_get_value(this->blue_slider_));
+    snprintf(buf, sizeof(buf), "#%02X%02X%02X", static_cast<unsigned>(lv_slider_get_value(this->red_slider_)),
+             static_cast<unsigned>(lv_slider_get_value(this->green_slider_)),
+             static_cast<unsigned>(lv_slider_get_value(this->blue_slider_)));
     lv_label_set_text(this->color_text_, buf);
   }
 
@@ -351,10 +393,8 @@ class LvColorPickerType : public LvCompound {
   }
 
   void update_values_() const {
-    // max 4 bytes: up to 3 digits (0..360) + null
+    // max 4 bytes: up to 3 digits (0..255) + null
     char buf[4];
-    snprintf(buf, sizeof(buf), "%d", lv_slider_get_value(this->hue_slider_));
-    lv_label_set_text(this->hue_value_, buf);
     snprintf(buf, sizeof(buf), "%d", lv_slider_get_value(this->saturation_slider_));
     lv_label_set_text(this->saturation_value_, buf);
     snprintf(buf, sizeof(buf), "%d", lv_slider_get_value(this->brightness_slider_));
@@ -365,6 +405,26 @@ class LvColorPickerType : public LvCompound {
     lv_label_set_text(this->green_value_, buf);
     snprintf(buf, sizeof(buf), "%d", lv_slider_get_value(this->blue_slider_));
     lv_label_set_text(this->blue_value_, buf);
+  }
+
+  // Tints each knob with the colour its own bar shows at the current value, so a knob reads
+  // as a sample of the gradient it sits on rather than a plain white block. The red, green
+  // and blue bars each run from white up to their full primary, so their knob fades that one
+  // channel in while the other two drop away.
+  void update_knobs_() const {
+    auto hue = static_cast<uint16_t>(lv_slider_get_value(this->hue_slider_));
+    auto saturation = static_cast<uint8_t>(lv_slider_get_value(this->saturation_slider_));
+    auto brightness = static_cast<uint8_t>(lv_slider_get_value(this->brightness_slider_));
+    auto red = static_cast<uint8_t>(lv_slider_get_value(this->red_slider_));
+    auto green = static_cast<uint8_t>(lv_slider_get_value(this->green_slider_));
+    auto blue = static_cast<uint8_t>(lv_slider_get_value(this->blue_slider_));
+    auto grey = static_cast<uint8_t>(brightness * 255 / 100);
+    lv_obj_set_style_bg_color(this->hue_slider_, lv_color_hsv_to_rgb(hue, 100, 100), LV_PART_KNOB);
+    lv_obj_set_style_bg_color(this->saturation_slider_, lv_color_hsv_to_rgb(hue, saturation, 100), LV_PART_KNOB);
+    lv_obj_set_style_bg_color(this->brightness_slider_, lv_color_make(grey, grey, grey), LV_PART_KNOB);
+    lv_obj_set_style_bg_color(this->red_slider_, lv_color_make(255, 255 - red, 255 - red), LV_PART_KNOB);
+    lv_obj_set_style_bg_color(this->green_slider_, lv_color_make(255 - green, 255, 255 - green), LV_PART_KNOB);
+    lv_obj_set_style_bg_color(this->blue_slider_, lv_color_make(255 - blue, 255 - blue, 255), LV_PART_KNOB);
   }
 
   void update_hsl_() {
@@ -381,6 +441,7 @@ class LvColorPickerType : public LvCompound {
     this->update_saturation_bar_(hue);
     this->update_text_();
     this->update_values_();
+    this->update_knobs_();
   }
 
   void update_rgb_() {
@@ -396,6 +457,7 @@ class LvColorPickerType : public LvCompound {
     this->update_saturation_bar_(hsv.h);
     this->update_text_();
     this->update_values_();
+    this->update_knobs_();
   }
 
   void update_color_() {
@@ -424,7 +486,6 @@ class LvColorPickerType : public LvCompound {
   lv_obj_t *red_slider_{};
   lv_obj_t *blue_slider_{};
   lv_obj_t *green_slider_{};
-  lv_obj_t *hue_value_{};
   lv_obj_t *brightness_value_{};
   lv_obj_t *saturation_value_{};
   lv_obj_t *red_value_{};

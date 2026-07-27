@@ -52,6 +52,8 @@ class ColorPickerType(WidgetType):
     async def to_code(self, w, config: dict):
         if color := config.get(CONF_COLOR):
             lv_add(w.var.set_color(await lv_color.process(color)))
+        # The widget is square, so the height simply follows the configured width.
+        # SIZE_CONTENT works too: the widget reports a size based on its text font.
         w.set_style(CONF_HEIGHT, await size.process(config[CONF_WIDTH]), 0)
 
     def get_uses(self):
