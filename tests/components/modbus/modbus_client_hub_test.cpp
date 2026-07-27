@@ -1000,9 +1000,12 @@ TEST(ModbusClientHubQueue, TransmitFailurePopsBeforeNotify) {
   EXPECT_EQ(hub.front().frame.pdu()[0], 0x06);  // ...and it is the write, not the failed read
 }
 
-// A failed transmit of a READ_AGAIN frame resolves BOTH accepted requests: the promotion absorbed a
-// second request into the entry, and the failure path keeps the same books as the clear sweep.
-TEST(ModbusClientHubQueue, TransmitFailureReadAgainDeliversBothNotSent) {
+// A failed transmit of a READ_AGAIN frame resolves ONE request (the failed attempt's on_not_sent)
+// and re-queues the frame demoted to READ_ONCE for the absorbed request - the same books as the
+// timeout path, because a transmit failure is transient, unlike the clear sweep's cancellation.
+// (If the re-queue found the buffer full it would refuse with the second request's on_not_sent,
+// the requeue_waiting_frame_ branch FullQueueRetryRefusalDeliversNotSentWithPdu already covers.)
+TEST(ModbusClientHubQueue, TransmitFailureReadAgainResolvesOneAndRequeuesDemoted) {
   FlakyBlockHub hub;
   SentCountingDevice device(&hub, 0x02);
 
@@ -1014,8 +1017,10 @@ TEST(ModbusClientHubQueue, TransmitFailureReadAgainDeliversBothNotSent) {
 
   hub.send_next_for_test();  // tx_blocked gate passes, send_frame_ refuses -> failure path
 
-  EXPECT_EQ(device.not_sent_count_, 2);  // one terminal per accepted request
-  EXPECT_EQ(hub.queued_frames(), 0u);
+  EXPECT_EQ(device.not_sent_count_, 1);                         // the failed attempt's terminal
+  ASSERT_EQ(hub.queued_frames(), 1u);                           // the absorbed request still owes a run...
+  EXPECT_EQ(hub.front().priority, CommandPriority::READ_ONCE);  // ...demoted
+  EXPECT_TRUE(std::equal(hub.front().frame.pdu().begin(), hub.front().frame.pdu().end(), read));
 }
 
 // A send during a sweep that matches a still-marked (doomed) frame must queue fresh, not promote the

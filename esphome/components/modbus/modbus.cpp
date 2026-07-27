@@ -525,11 +525,13 @@ void ModbusClientHub::send_next_frame_() {
       device->on_sent(wfr.frame.pdu());
   } else {
     if (device != nullptr) {
-      device->trigger_not_sent(command.frame.pdu());
-      // A READ_AGAIN command stands for exactly two accepted requests (the original and the one
-      // absorbed by promotion); a failed transmit resolves both, mirroring the clear sweep.
+      device->trigger_not_sent(command.frame.pdu());  // the failed attempt resolves one request
+      // A READ_AGAIN command stands for two accepted requests, and the absorbed one still owes a
+      // run: re-queue demoted to READ_ONCE, the same books as the timeout path (a transmit failure
+      // is transient, unlike the clear sweep's cancellation). requeue_waiting_frame_() also covers
+      // the full-queue refusal, which delivers the second request's on_not_sent().
       if (command.priority == CommandPriority::READ_AGAIN)
-        device->trigger_not_sent(command.frame.pdu());
+        this->requeue_waiting_frame_(command, /*device_retry=*/false);
     }
   }
 
