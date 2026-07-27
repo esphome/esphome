@@ -204,6 +204,8 @@ def test_no_primary_interface_define_without_priority(
 def _dns_per_default_netif_option() -> bool | None:
     from esphome.components.esp32.const import KEY_ESP32, KEY_SDKCONFIG_OPTIONS
 
+    if KEY_ESP32 not in CORE.data:  # non-ESP32 configs have no sdkconfig at all
+        return None
     return CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS].get(
         "CONFIG_ESP_NETIF_SET_DNS_PER_DEFAULT_NETIF"
     )
@@ -228,13 +230,24 @@ def test_multi_interface_priority_enables_default_route_arbitration(
     assert _dns_per_default_netif_option() is True
 
 
-@pytest.mark.parametrize("config_file", ["priority_single.yaml", "wifi_only.yaml"])
+@pytest.mark.parametrize(
+    "config_file",
+    [
+        # Single-entry priority list / no list at all.
+        "priority_single.yaml",
+        "wifi_only.yaml",
+        # Dual-interface on rp2040: validates, but the arbitration is ESP32-only
+        # (NetworkComponent::loop() is compiled under USE_ESP32) — emitting the
+        # define here would be a hard build break.
+        "priority_rp2040.yaml",
+    ],
+)
 def test_single_interface_has_no_default_route_arbitration(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
     config_file: str,
 ) -> None:
-    """A single-entry priority list (or none) must not compile in the arbitration."""
+    """Single-interface and non-ESP32 configs must not compile in the arbitration."""
     generate_main(component_config_path(config_file))
     assert "USE_NETWORK_DEFAULT_ROUTE" not in {d.name for d in CORE.defines}
     assert _dns_per_default_netif_option() is None

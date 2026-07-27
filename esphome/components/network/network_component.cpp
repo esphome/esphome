@@ -8,6 +8,8 @@
 #include "esp_event.h"
 
 #ifdef USE_NETWORK_DEFAULT_ROUTE
+#include "esphome/core/helpers.h"
+#include "lwip/netif.h"
 #ifdef USE_ETHERNET
 #include "esphome/components/ethernet/ethernet_component.h"
 #endif
@@ -61,6 +63,9 @@ static esp_netif_t *connected_ethernet_netif() {
 void NetworkComponent::loop() {
   // Pin the default route to the first connected interface in the user's priority
   // order; ESP-IDF's own route_prio selection would always favor WiFi.
+  // USE_NETWORK_PRIMARY_INTERFACE_WIFI is emitted for a wifi-first priority list;
+  // it selects the reported address in util.cpp and doubles as the route-order
+  // pivot here — the two uses must stay in sync.
   esp_netif_t *best;
 #ifdef USE_NETWORK_PRIMARY_INTERFACE_WIFI
   best = connected_wifi_netif();
@@ -77,8 +82,21 @@ void NetworkComponent::loop() {
     this->default_netif_ = nullptr;
     return;
   }
-  if (best == this->default_netif_)
-    return;
+  if (best == this->default_netif_) {
+    // Same winner as the last assert. Still re-assert if lwIP lost its default
+    // route: a winner whose netif bounced down and up between two polls would
+    // otherwise stay routeless (stopping a netif nulls lwIP's netif_default, and
+    // IDF's manual-override mode never re-elects while the override target stays
+    // registered). esp_netif_get_default_netif() cannot detect this — it returns
+    // IDF's own bookkeeping, which still points at the winner.
+    bool lwip_has_default;
+    {
+      LwIPLock lock;
+      lwip_has_default = netif_default != nullptr;
+    }
+    if (lwip_has_default)
+      return;
+  }
   if (esp_netif_set_default_netif(best) != ESP_OK)
     return;  // cache unchanged so the next iteration retries
   this->default_netif_ = best;

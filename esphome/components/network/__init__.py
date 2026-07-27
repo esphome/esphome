@@ -346,6 +346,18 @@ async def to_code(config):
         # WiFi). ESP32 only: the arbitration needs esp_netif, which both
         # frameworks build from source.
         if len(priority_list) > 1 and CORE.is_esp32:
+            # Tripwire for future interface types (openthread, modem): the C++
+            # arbitration pivots on USE_NETWORK_PRIMARY_INTERFACE_WIFI and only
+            # knows ethernet and wifi. Extend NetworkComponent::loop() before
+            # allowing another type here.
+            if unsupported := {e["interface"] for e in priority_list} - {
+                "ethernet",
+                "wifi",
+            }:
+                raise cv.Invalid(
+                    "Default-route arbitration does not support: "
+                    f"{', '.join(sorted(unsupported))}"
+                )
             cg.add_define("USE_NETWORK_DEFAULT_ROUTE")
             # Have lwIP switch to the DNS servers of the netif that owns the
             # default route whenever the arbitration changes it.

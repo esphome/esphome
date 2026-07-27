@@ -1,0 +1,26 @@
+esphome:
+  name: test
+
+rp2040:
+  board: rpipicow
+  framework:
+    platform_version: https://github.com/maxgerhardt/platform-raspberrypi.git
+
+wifi:
+  ssid: "test_ssid"
+  password: "test_password"
+
+ethernet:
+  type: W5500
+  clk_pin: 18
+  mosi_pin: 19
+  miso_pin: 16
+  cs_pin: 17
+  interrupt_pin: 21
+  reset_pin: 20
+  mac_address: "02:AA:BB:CC:DD:01"
+
+network:
+  priority:
+    - ethernet
+    - wifi
