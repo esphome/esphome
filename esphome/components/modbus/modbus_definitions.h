@@ -116,6 +116,9 @@ static constexpr uint16_t READ_PDU_SIZE = 5;
 // A single-write PDU is always function code(1) + address(2) + value(2)
 static constexpr uint16_t WRITE_SINGLE_PDU_SIZE = 5;
 static constexpr uint16_t MAX_FRAME_SIZE = 256;
+/// Bits pack 8 per data byte, rounded up to whole bytes.
+constexpr size_t packed_bit_bytes(size_t bits) { return (bits + 7) / 8; }
+
 /** Read-only view of Modbus-packed bits: bit 0 of byte 0 is the first bit (LSB first), the layout
  * coil/discrete-input values use on the wire. Bundles the bit count with the packed bytes so the
  * two cannot desynchronize. The view does not own the bytes - it is only valid while they are.
@@ -123,9 +126,6 @@ static constexpr uint16_t MAX_FRAME_SIZE = 256;
  * with any subscript. Writes and forwarding are defensive: set() drops out-of-range bits and
  * bytes() clamps to the real span, because those paths touch buffers and the wire directly.
  */
-/// Bits pack 8 per data byte, rounded up to whole bytes.
-constexpr size_t packed_bit_bytes(size_t bits) { return (bits + 7) / 8; }
-
 class PackedBits {
  public:
   PackedBits(std::span<const uint8_t> data, uint16_t count) : data_(data), count_(count) {}
