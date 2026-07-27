@@ -2,26 +2,16 @@
 
 #include <cstdint>
 #include <cstring>
-#include <new>
 #include <span>
 #include <vector>
 
 #include "common.h"
 #include "esphome/components/modbus/modbus.h"
-#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 
 namespace esphome::modbus::testing {
 
 namespace {
-
-void ensure_test_app_constructed() {
-  static bool app_constructed = false;
-  if (!app_constructed) {
-    new (&App) Application();
-    app_constructed = true;
-  }
-}
 
 // Exposes the protected tx queue and waiting-for-response slot so tests can drive the
 // no-response path without a UART: force_send_front() mimics send_next_frame_() moving the
@@ -433,7 +423,6 @@ TEST(ModbusClientHubPriority, RetriedWriteKeepsWritePriorityAndStaysNonRequeueab
 
 // on_sent() fires when the frame goes onto the wire, not when it is queued.
 TEST(ModbusClientHubSent, FiresOnWireNotOnQueue) {
-  ensure_test_app_constructed();
   NullUART uart;
   NoResponseProbeHub hub;
   hub.set_uart_parent(&uart);
@@ -462,6 +451,7 @@ class DataCountingDevice : public ModbusClientDevice {
   void on_error(std::span<const uint8_t> request_pdu, ExceptionCode exception_code) override { this->error_count_++; }
   bool on_no_response(std::span<const uint8_t> request_pdu) override {
     this->no_response_count_++;
+    this->last_no_response_pdu_.assign(request_pdu.begin(), request_pdu.end());
     if (this->retries_ == 0)
       return false;
     this->retries_--;
@@ -482,6 +472,7 @@ class DataCountingDevice : public ModbusClientDevice {
   int sent_count_{0};
   int retries_{0};
   std::vector<uint8_t> last_not_sent_pdu_;
+  std::vector<uint8_t> last_no_response_pdu_;
 };
 
 // Runs full send/respond cycles until the queue drains; returns the number of cycles executed.
@@ -566,7 +557,6 @@ TEST(ModbusClientHubCallbackCount, DuplicateWriteDroppedWithNotSent) {
 // An exception response is a terminal on its own: exactly one on_error(), no others,
 // preceded by exactly one on_sent().
 TEST(ModbusClientHubCallbackCount, ErrorResponseIsSoleTerminal) {
-  ensure_test_app_constructed();
   NullUART uart;
   NoResponseProbeHub hub;
   hub.set_uart_parent(&uart);
@@ -586,7 +576,6 @@ TEST(ModbusClientHubCallbackCount, ErrorResponseIsSoleTerminal) {
 // A timeout is a terminal on its own: exactly one on_no_response(), preceded by one
 // on_sent(); a refused duplicate ends in on_not_sent() with NO on_sent().
 TEST(ModbusClientHubCallbackCount, NoResponseIsSoleTerminalAndNotSentHasNoSent) {
-  ensure_test_app_constructed();
   NullUART uart;
   NoResponseProbeHub hub;
   hub.set_uart_parent(&uart);
@@ -618,7 +607,6 @@ TEST(ModbusClientHubCallbackCount, NoResponseIsSoleTerminalAndNotSentHasNoSent) 
 
 // A device-requested retry starts a new lifecycle: each transmission gets its own sent + terminal.
 TEST(ModbusClientHubCallbackCount, RetryLifecyclesEachGetSentAndTerminal) {
-  ensure_test_app_constructed();
   NullUART uart;
   NoResponseProbeHub hub;
   hub.set_uart_parent(&uart);
@@ -637,6 +625,63 @@ TEST(ModbusClientHubCallbackCount, RetryLifecyclesEachGetSentAndTerminal) {
   EXPECT_EQ(device.terminals(), 2);
   EXPECT_EQ(device.sent_count_, 2);
   EXPECT_EQ(hub.queued_frames(), 0u);
+  // The retried lifecycle's timeout carries the SAME request PDU as the first attempt.
+  EXPECT_EQ(device.last_no_response_pdu_, std::vector<uint8_t>(READ_PDU, READ_PDU + sizeof(READ_PDU)));
+}
+
+// A retry re-queue that finds the buffer full is refused like any other send: the device gets
+// on_not_sent() carrying the request PDU (the previously uncovered requeue_waiting_frame_ branch).
+TEST(ModbusClientHubCallbackCount, FullQueueRetryRefusalDeliversNotSentWithPdu) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  DataCountingDevice device(&hub, 0x02);
+  device.retries_ = 1;
+  SentCountingDevice filler(&hub, 0x05);
+
+  device.send_pdu(read_pdu());
+  hub.force_send_front();  // in flight
+  // Fill the queue with distinct frames.
+  for (uint16_t i = 0; i < MODBUS_TX_BUFFER_SIZE; i++) {
+    const uint8_t fill[] = {0x03, static_cast<uint8_t>(i >> 8), static_cast<uint8_t>(i & 0xFF), 0x00, 0x01};
+    filler.send_pdu(fill);
+  }
+  ASSERT_EQ(hub.queued_frames(), MODBUS_TX_BUFFER_SIZE);
+
+  hub.timeout_waiting();  // retry requested, but the re-queue is refused: not_sent terminal instead
+
+  EXPECT_EQ(device.no_response_count_, 1);
+  EXPECT_EQ(device.not_sent_count_, 1);
+  EXPECT_EQ(device.last_not_sent_pdu_, std::vector<uint8_t>(READ_PDU, READ_PDU + sizeof(READ_PDU)));
+  EXPECT_EQ(hub.queued_frames(), MODBUS_TX_BUFFER_SIZE);
+}
+
+// The deprecated device-side send_raw() refusal delivers through the same guard as every other
+// path: a handler that reacts to its own refusal with another empty send_raw() stays bounded.
+namespace {
+class SendRawOnNotSentDevice : public ModbusClientDevice {
+ public:
+  SendRawOnNotSentDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_not_sent(std::span<const uint8_t> request_pdu) override {
+    this->not_sent_count_++;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    this->send_raw({});  // refused again; the guard must suppress the nested delivery
+#pragma GCC diagnostic pop
+  }
+  int not_sent_count_{0};
+};
+}  // namespace
+
+TEST(ModbusClientHubQueue, SendRawRefusalIsGuardedAgainstRecursion) {
+  NoResponseProbeHub hub;
+  SendRawOnNotSentDevice device(&hub, 0x02);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  device.send_raw({});  // empty payload refused -> on_not_sent -> nested send_raw({}) suppressed
+#pragma GCC diagnostic pop
+  EXPECT_EQ(device.not_sent_count_, 1);
 }
 
 // A continuous read: every wire transmission pairs one sent with one terminal, ending on the error.
@@ -829,7 +874,7 @@ TEST(ModbusClientHubQueue, FullQueueRetryFromNotSentDoesNotRecurse) {
   SentCountingDevice filler(&hub, 0x05);
   AlwaysRetryDevice retrier(&hub, 0x02);
 
-  // Fill the queue with distinct frames (distinct start addresses defeat dedup).
+  // Fill the queue with distinct frames.
   for (uint16_t i = 0; i < MODBUS_TX_BUFFER_SIZE; i++) {
     const uint8_t fill[] = {0x03, static_cast<uint8_t>(i >> 8), static_cast<uint8_t>(i & 0xFF), 0x00, 0x01};
     filler.send_pdu(fill);
@@ -870,7 +915,7 @@ TEST(ModbusClientHubQueue, RefusalForOtherDeviceDeliversDuringNotification) {
   SentCountingDevice second(&hub, 0x03);
   first.other_ = &second;
 
-  // Fill the queue with distinct frames (distinct start addresses defeat dedup).
+  // Fill the queue with distinct frames.
   for (uint16_t i = 0; i < MODBUS_TX_BUFFER_SIZE; i++) {
     const uint8_t fill[] = {0x03, static_cast<uint8_t>(i >> 8), static_cast<uint8_t>(i & 0xFF), 0x00, 0x01};
     filler.send_pdu(fill);
@@ -895,7 +940,7 @@ TEST(ModbusClientHubQueue, TwoDeviceRefusalCycleTerminates) {
   first.other_ = &second;
   second.other_ = &first;
 
-  // Fill the queue with distinct frames (distinct start addresses defeat dedup).
+  // Fill the queue with distinct frames.
   for (uint16_t i = 0; i < MODBUS_TX_BUFFER_SIZE; i++) {
     const uint8_t fill[] = {0x03, static_cast<uint8_t>(i >> 8), static_cast<uint8_t>(i & 0xFF), 0x00, 0x01};
     filler.send_pdu(fill);
@@ -1066,7 +1111,6 @@ TEST(ModbusClientHubQueue, ClearDeviceQueueDropsSilently) {
 // A send_pdu() from inside on_sent() enqueues behind the in-flight frame rather than sending
 // immediately or corrupting the in-flight transaction.
 TEST(ModbusClientHubSent, ReentrantSendFromOnSentQueues) {
-  ensure_test_app_constructed();
   NullUART uart;
   NoResponseProbeHub hub;
   hub.set_uart_parent(&uart);
@@ -1076,9 +1120,9 @@ TEST(ModbusClientHubSent, ReentrantSendFromOnSentQueues) {
   device.send_pdu(read_pdu());
   hub.send_next_for_test();  // first frame goes on the wire -> on_sent chains a follow-up
 
-  EXPECT_TRUE(hub.waiting());                           // first frame is in flight
-  ASSERT_EQ(hub.queued_frames(), 1u);                   // the follow-up queued behind it, not sent
-  EXPECT_EQ(hub.queued(0).frame.data.data()[3], 0x09);  // it is the chained read (start address 0x0009)
+  EXPECT_TRUE(hub.waiting());                     // first frame is in flight
+  ASSERT_EQ(hub.queued_frames(), 1u);             // the follow-up queued behind it, not sent
+  EXPECT_EQ(hub.queued(0).frame.pdu()[2], 0x09);  // it is the chained read (start address 0x0009)
 }
 
 // KNOWN LIMITATION (documented on ModbusClientDevice): clearing a device's own queue from inside
