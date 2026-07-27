@@ -137,16 +137,6 @@ def set_widgets_completed(value: bool) -> None:
     _get_data(KEY_WIDGETS_COMPLETED, [False])[0] = value
 
 
-def get_color_picker_used() -> bool:
-    # ``[value]`` rather than the bare value so that we can mutate the
-    # entry in place; ``CORE.data`` is reset for us between runs.
-    return _get_data(KEY_COLOR_PICKER, [False])[0]
-
-
-def set_color_picker_used(value: bool) -> None:
-    _get_data(KEY_COLOR_PICKER, [False])[0] = value
-
-
 def is_widget_completed(name: ID) -> bool:
     return name in get_widget_map()
 
