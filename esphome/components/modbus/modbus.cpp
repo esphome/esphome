@@ -877,7 +877,7 @@ void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu
       const bool bits =
           function_code == FunctionCode::READ_COILS || function_code == FunctionCode::READ_DISCRETE_INPUTS;
       const size_t expected_data_size =
-          bits ? (static_cast<size_t>(count_or_value) + 7) / 8 : static_cast<size_t>(count_or_value) * 2;
+          bits ? packed_bit_bytes(count_or_value) : static_cast<size_t>(count_or_value) * 2;
       if (response_pdu.size() != expected_data_size + 2) {
         ESP_LOGD(TAG, "Response length %zu does not match request (expected %zu) for function code 0x%X",
                  response_pdu.size(), expected_data_size + 2, static_cast<uint8_t>(function_code));
