@@ -398,15 +398,15 @@ class LvColorPickerType : public LvCompound {
   void update_values_() const {
     // max 4 bytes: up to 3 digits (0..255) + null
     char buf[4];
-    snprintf(buf, sizeof(buf), "%d", lv_slider_get_value(this->saturation_slider_));
+    snprintf(buf, sizeof(buf), "%d", (int) lv_slider_get_value(this->saturation_slider_));
     lv_label_set_text(this->saturation_value_, buf);
-    snprintf(buf, sizeof(buf), "%d", lv_slider_get_value(this->brightness_slider_));
+    snprintf(buf, sizeof(buf), "%d", (int) lv_slider_get_value(this->brightness_slider_));
     lv_label_set_text(this->brightness_value_, buf);
-    snprintf(buf, sizeof(buf), "%d", lv_slider_get_value(this->red_slider_));
+    snprintf(buf, sizeof(buf), "%d", (int) lv_slider_get_value(this->red_slider_));
     lv_label_set_text(this->red_value_, buf);
-    snprintf(buf, sizeof(buf), "%d", lv_slider_get_value(this->green_slider_));
+    snprintf(buf, sizeof(buf), "%d", (int) lv_slider_get_value(this->green_slider_));
     lv_label_set_text(this->green_value_, buf);
-    snprintf(buf, sizeof(buf), "%d", lv_slider_get_value(this->blue_slider_));
+    snprintf(buf, sizeof(buf), "%d", (int) lv_slider_get_value(this->blue_slider_));
     lv_label_set_text(this->blue_value_, buf);
   }
 
