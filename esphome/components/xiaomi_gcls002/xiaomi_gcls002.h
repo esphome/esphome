@@ -9,7 +9,7 @@
 
 namespace esphome::xiaomi_gcls002 {
 
-class XiaomiGCLS002 : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class XiaomiGCLS002 final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; }
 

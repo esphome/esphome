@@ -150,7 +150,7 @@ void IRAM_ATTR PulseMeterSensor::edge_intr(PulseMeterSensor *sensor) {
     edge_state.last_sent_edge_us_ = now;
     state.last_detected_edge_us_ = now;
     state.last_rising_edge_us_ = now;
-    state.count_++;  // NOLINT(clang-diagnostic-deprecated-volatile)
+    state.count_ += 1;
   }
 
   // This ISR is bound to rising edges, so the pin is high
@@ -173,7 +173,7 @@ void IRAM_ATTR PulseMeterSensor::pulse_intr(PulseMeterSensor *sensor) {
   } else if (length && !pulse_state.latched_ && sensor->last_pin_val_) {  // Long enough high edge
     pulse_state.latched_ = true;
     state.last_detected_edge_us_ = pulse_state.last_intr_;
-    state.count_++;  // NOLINT(clang-diagnostic-deprecated-volatile)
+    state.count_ += 1;
   }
 
   // Due to order of operations this includes

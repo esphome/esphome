@@ -18,7 +18,7 @@ with warnings.catch_warnings():
 import contextlib
 
 from esphome.const import CONF_KEY, CONF_PORT, __version__
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE
 from esphome.util import safe_print
 
 from . import CONF_ENCRYPTION
@@ -36,15 +36,17 @@ class _LogLineProcessor:
     """Feeds incoming log lines to the stack-trace decoder.
 
     Two responsibilities beyond just calling the decoder:
-    1. Catch EsphomeError. on_log runs inside an asyncio protocol
-       callback; if an exception escapes, the loop tears the transport
-       down with "Fatal error: protocol.data_received() call failed."
-       and ReconnectLogic immediately reconnects, the device replays
-       the same crash trace, and we loop forever.
-    2. Disable decoding after the first failure. _decode_pc shells out
-       to PlatformIO via _run_idedata, which is expensive; a single
-       crash dump can contain many PC/BT lines and we don't want to
-       retry the failing subprocess for each one.
+    1. Catch everything the decoder can raise. aioesphomeapi isolates
+       exceptions raised by log handlers, so an escaping one no longer
+       kills the session, but it does log a full traceback per line. A
+       crash dump carries a PC line plus one per backtrace frame, so the
+       tracebacks bury the dump the user is trying to read. Decoding is a
+       diagnostic nicety; nothing it raises is worth that noise.
+    2. Disable decoding after the first failure. _decode_pc shells out to
+       the toolchain to resolve addr2line, which is expensive; a single
+       crash dump can contain many PC/BT lines and we don't want to retry
+       the failing subprocess for each one. This only works if every
+       failure is caught, which is why 1 is not narrowed to EsphomeError.
     """
 
     def __init__(self, config: dict[str, Any], platform_handler: Any | None) -> None:
@@ -61,12 +63,13 @@ class _LogLineProcessor:
                 self.backtrace_state = self._platform_handler(
                     self._config, raw_line, self.backtrace_state
                 )
-        except EsphomeError as exc:
+        except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-except
             self._decode_enabled = False
             self.backtrace_state = False
             # _run_idedata raises EsphomeError with no message; fall back
             # to a generic explanation when str(exc) is empty.
             detail = str(exc) or "build artifacts not found locally"
+            _LOGGER.debug("Stack-trace decoding failed", exc_info=True)
             _LOGGER.warning(
                 "Crash trace decoding unavailable: %s. "
                 "Run 'esphome compile' for this device to enable PC decoding.",
@@ -101,13 +104,14 @@ async def async_run_logs(
         client_info=f"ESPHome Logs {__version__}",
         noise_psk=noise_psk,
         addresses=addresses,  # Pass all addresses for automatic retry
+        provide_time=False,
     )
 
     # Try platform-specific stacktrace handler first, fall back to generic
     platform_process_stacktrace = None
     try:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
-        platform_process_stacktrace = getattr(module, "process_stacktrace")
+        platform_process_stacktrace = module.process_stacktrace
     except (AttributeError, ImportError):
         _LOGGER.info(
             'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
@@ -118,7 +122,7 @@ async def async_run_logs(
 
     def on_log(msg: SubscribeLogsResponse) -> None:
         """Handle a new log message."""
-        time_ = datetime.now()
+        time_ = datetime.now().astimezone()
         message: bytes = msg.message
         text = message.decode("utf8", "backslashreplace")
         nanoseconds = time_.microsecond // 1000
@@ -151,6 +155,9 @@ async def async_run_logs(
         name=name,
         subscribe_states=subscribe_states,
         allow_plaintext_fallback=True,
+        # A top-level ``deep_sleep:`` block means the device is only awake
+        # briefly; cap the reconnect backoff so a wake window is not missed.
+        deep_sleep="deep_sleep" in config,
     )
     try:
         await asyncio.Event().wait()

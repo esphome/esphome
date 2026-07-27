@@ -1,6 +1,11 @@
 #pragma once
 
+#include <algorithm>
+#include <cstdint>
+#include <span>
+
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::modbus {
 
@@ -13,8 +18,9 @@ const uint8_t FUNCTION_CODE_USER_DEFINED_SPACE_1_END = 72;   // 0x48
 const uint8_t FUNCTION_CODE_USER_DEFINED_SPACE_2_INIT = 100;  // 0x64
 const uint8_t FUNCTION_CODE_USER_DEFINED_SPACE_2_END = 110;   // 0x6E
 
-enum class ModbusFunctionCode : uint8_t {
-  CUSTOM = 0x00,
+enum class FunctionCode : uint8_t {
+  INVALID = 0x00,  // 0x00 is not a valid function code (even for custom functions).
+  CUSTOM = 0x00,   // The CUSTOM alias should be removed in future.
   READ_COILS = 0x01,
   READ_DISCRETE_INPUTS = 0x02,
   READ_HOLDING_REGISTERS = 0x03,
@@ -35,34 +41,38 @@ enum class ModbusFunctionCode : uint8_t {
   READ_FIFO_QUEUE = 0x18,                // not implemented
 };
 
-/*Allow  comparison operators between ModbusFunctionCode and uint8_t*/
-inline bool operator==(ModbusFunctionCode lhs, uint8_t rhs) { return static_cast<uint8_t>(lhs) == rhs; }
-inline bool operator==(uint8_t lhs, ModbusFunctionCode rhs) { return lhs == static_cast<uint8_t>(rhs); }
-inline bool operator!=(ModbusFunctionCode lhs, uint8_t rhs) { return !(static_cast<uint8_t>(lhs) == rhs); }
-inline bool operator!=(uint8_t lhs, ModbusFunctionCode rhs) { return !(lhs == static_cast<uint8_t>(rhs)); }
-inline bool operator<(ModbusFunctionCode lhs, uint8_t rhs) { return static_cast<uint8_t>(lhs) < rhs; }
-inline bool operator<(uint8_t lhs, ModbusFunctionCode rhs) { return lhs < static_cast<uint8_t>(rhs); }
-inline bool operator<=(ModbusFunctionCode lhs, uint8_t rhs) { return static_cast<uint8_t>(lhs) <= rhs; }
-inline bool operator<=(uint8_t lhs, ModbusFunctionCode rhs) { return lhs <= static_cast<uint8_t>(rhs); }
-inline bool operator>(ModbusFunctionCode lhs, uint8_t rhs) { return static_cast<uint8_t>(lhs) > rhs; }
-inline bool operator>(uint8_t lhs, ModbusFunctionCode rhs) { return lhs > static_cast<uint8_t>(rhs); }
-inline bool operator>=(ModbusFunctionCode lhs, uint8_t rhs) { return static_cast<uint8_t>(lhs) >= rhs; }
-inline bool operator>=(uint8_t lhs, ModbusFunctionCode rhs) { return lhs >= static_cast<uint8_t>(rhs); }
+// Remove before 2027.2.0
+using ModbusFunctionCode ESPDEPRECATED("Use modbus::FunctionCode instead. Removed in 2027.2.0",
+                                       "2026.8.0") = FunctionCode;
 
-// 4.3 MODBUS Data model
-enum class ModbusRegisterType : uint8_t {
+/*Allow direct comparison operators between FunctionCode and uint8_t*/
+inline bool operator==(FunctionCode lhs, uint8_t rhs) { return static_cast<uint8_t>(lhs) == rhs; }
+inline bool operator==(uint8_t lhs, FunctionCode rhs) { return lhs == static_cast<uint8_t>(rhs); }
+inline bool operator!=(FunctionCode lhs, uint8_t rhs) { return !(static_cast<uint8_t>(lhs) == rhs); }
+inline bool operator!=(uint8_t lhs, FunctionCode rhs) { return !(lhs == static_cast<uint8_t>(rhs)); }
+
+// 4.3 MODBUS Data model. "Entity" is the spec's umbrella for the four primary tables; only the
+// 16-bit tables are registers (coils and discrete inputs are bits), so the enum is not named
+// RegisterType.
+enum class EntityType : uint8_t {
   CUSTOM = 0x00,
   COIL = 0x01,
   DISCRETE_INPUT = 0x02,
   HOLDING = 0x03,
-  READ = 0x04,
+  // Named INPUT_REGISTER (not INPUT) because Arduino cores define INPUT as a macro.
+  INPUT_REGISTER = 0x04,
+  // Remove before 2027.2.0
+  READ ESPDEPRECATED("Use EntityType::INPUT_REGISTER instead. Removed in 2027.2.0", "2026.7.0") = INPUT_REGISTER,
 };
+
+// Remove before 2027.2.0
+using ModbusRegisterType ESPDEPRECATED("Use modbus::EntityType instead. Removed in 2027.2.0", "2026.8.0") = EntityType;
 
 // 7 MODBUS Exception Responses:
 const uint8_t FUNCTION_CODE_MASK = 0x7F;
 const uint8_t FUNCTION_CODE_EXCEPTION_MASK = 0x80;
 
-enum class ModbusExceptionCode : uint8_t {
+enum class ExceptionCode : uint8_t {
   ILLEGAL_FUNCTION = 0x01,
   ILLEGAL_DATA_ADDRESS = 0x02,
   ILLEGAL_DATA_VALUE = 0x03,
@@ -74,13 +84,89 @@ enum class ModbusExceptionCode : uint8_t {
   GATEWAY_TARGET_DEVICE_FAILED_TO_RESPOND = 0x0B,
 };
 
+// Remove before 2027.2.0
+using ModbusExceptionCode ESPDEPRECATED("Use modbus::ExceptionCode instead. Removed in 2027.2.0",
+                                        "2026.8.0") = ExceptionCode;
+
+// 6.11 15 (0x0F) Write Multiple Coils
+static constexpr uint16_t MAX_NUM_OF_COILS_TO_WRITE = 1968;  // 0x7B0
+
 // 6.12 16 (0x10) Write Multiple registers:
-const uint8_t MAX_NUM_OF_REGISTERS_TO_WRITE = 123;  // 0x7B
+static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_WRITE = 123;  // 0x7B
+
+// 6.17 23 (0x17) Read/Write Multiple Registers:
+static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_WRITE_RW = 121;  // 0x79
+
+// 6.1 01 (0x01) Read Coils
+// 6.2 02 (0x02) Read Discrete Inputs
+static constexpr uint16_t MAX_NUM_OF_COILS_TO_READ = 2000;            // 0x7D0
+static constexpr uint16_t MAX_NUM_OF_DISCRETE_INPUTS_TO_READ = 2000;  // 0x7D0
 
 // 6.3 03 (0x03) Read Holding Registers
 // 6.4 04 (0x04) Read Input Registers
-const uint8_t MAX_NUM_OF_REGISTERS_TO_READ = 125;  // 0x7D
+static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_READ = 125;  // 0x7D
 
+// Smallest possible frame is 4 bytes (custom function with no data): address(1) + function(1) + CRC(2)
+static constexpr uint16_t MIN_FRAME_SIZE = 4;
+static constexpr uint16_t MIN_PDU_SIZE = 1;
+static constexpr uint16_t MAX_PDU_SIZE = 253;  // Max PDU size is 256 - address(1) - CRC(2) = 253
+static constexpr uint16_t MAX_RAW_SIZE = 254;  // Max RAW size is 256 - CRC(2) = 254
+// A read request PDU is always function code(1) + start address(2) + quantity(2)
+static constexpr uint16_t READ_PDU_SIZE = 5;
+// A single-write PDU is always function code(1) + address(2) + value(2)
+static constexpr uint16_t WRITE_SINGLE_PDU_SIZE = 5;
 static constexpr uint16_t MAX_FRAME_SIZE = 256;
+/** Read-only view of Modbus-packed bits: bit 0 of byte 0 is the first bit (LSB first), the layout
+ * coil/discrete-input values use on the wire. Bundles the bit count with the packed bytes so the
+ * two cannot desynchronize. The view does not own the bytes - it is only valid while they are.
+ * Reads (operator[]) are unchecked by design - the caller owns the bit < size() precondition, as
+ * with any subscript. Writes and forwarding are defensive: set() drops out-of-range bits and
+ * bytes() clamps to the real span, because those paths touch buffers and the wire directly.
+ */
+class PackedBits {
+ public:
+  PackedBits(std::span<const uint8_t> data, uint16_t count) : data_(data), count_(count) {}
+  /// Value of the given bit; bit must be < size().
+  bool operator[](size_t bit) const { return (this->data_[bit / 8] & (1 << (bit % 8))) != 0; }
+  /// Number of bits in the view.
+  uint16_t size() const { return this->count_; }
+  /// The underlying packed bytes: exactly ceil(size() / 8) bytes, even when the view was constructed
+  /// over a larger buffer - forwarding this span onto the wire can never leak trailing buffer content.
+  /// Clamped to the actual span so a view over a too-short buffer stays detectable instead of UB.
+  std::span<const uint8_t> bytes() const {
+    return this->data_.first(std::min<size_t>((this->count_ + 7) / 8, this->data_.size()));
+  }
+
+ private:
+  std::span<const uint8_t> data_;  // must cover ceil(count_ / 8) bytes
+  uint16_t count_;
+};
+
+/** Mutable counterpart of PackedBits: set() writes bits in place (deliberately no proxy operator[]=).
+ * Converts implicitly to PackedBits for read access.
+ */
+class MutablePackedBits {
+ public:
+  MutablePackedBits(std::span<uint8_t> data, uint16_t count) : data_(data), count_(count) {}
+  bool operator[](size_t bit) const { return (this->data_[bit / 8] & (1 << (bit % 8))) != 0; }
+  /// Set or clear the given bit. Out-of-range bits are dropped: on the server read path the span wraps a
+  /// stack response buffer, so a handler looping past size() must not be able to smash the frame.
+  void set(size_t bit, bool value) {
+    if (bit >= this->count_ || bit / 8 >= this->data_.size())
+      return;
+    if (value) {
+      this->data_[bit / 8] |= (1 << (bit % 8));
+    } else {
+      this->data_[bit / 8] &= ~(1 << (bit % 8));
+    }
+  }
+  uint16_t size() const { return this->count_; }
+  operator PackedBits() const { return PackedBits(this->data_, this->count_); }
+
+ private:
+  std::span<uint8_t> data_;  // must cover ceil(count_ / 8) bytes
+  uint16_t count_;
+};
+
 /// End of Modbus definitions
 }  // namespace esphome::modbus

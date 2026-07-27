@@ -210,7 +210,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
       ESP_LOGE(TAG, "Cannot resolve running app partition at address 0x%" PRIX32, running_app_offset);
       return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
     }
-    ESP_LOGD(TAG, "Copying running app from 0x%X to 0x%X (size: 0x%X)", running_app_part->address,
+    ESP_LOGD(TAG, "Copying running app from 0x%" PRIX32 " to 0x%" PRIX32 " (size: 0x%zX)", running_app_part->address,
              plan.copy_dest_part->address, running_app_size);
     err = esp_partition_copy(plan.copy_dest_part, 0, running_app_part, 0, running_app_size);
     if (err != ESP_OK) {
@@ -261,7 +261,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     ESP_LOGE(TAG, "Selected app partition not found after partition table update");
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
-  ESP_LOGD(TAG, "Setting next boot partition to 0x%X", new_boot_partition->address);
+  ESP_LOGD(TAG, "Setting next boot partition to 0x%" PRIX32, new_boot_partition->address);
   err = esp_ota_set_boot_partition(new_boot_partition);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ota_set_boot_partition failed (err=0x%X)", err);

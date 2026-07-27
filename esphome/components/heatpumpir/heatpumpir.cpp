@@ -2,6 +2,7 @@
 
 #if defined(USE_ARDUINO) || defined(USE_ESP32)
 
+#include <cmath>
 #include <map>
 #include <IRSender.h>
 #include <HeatpumpIRFactory.h>
@@ -115,7 +116,7 @@ void HeatpumpIRClimate::setup() {
       this->current_temperature = state;
 
       IRSenderESPHome esp_sender(this->transmitter_);
-      this->heatpump_ir_->send(esp_sender, uint8_t(lround(this->current_temperature)));
+      this->heatpump_ir_->send(esp_sender, uint8_t(std::lround(this->current_temperature)));
       if (esp_sender.has_data()) {
         esp_sender.perform();
       }

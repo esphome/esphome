@@ -8,7 +8,7 @@
 
 namespace esphome::ble_rssi {
 
-class BLERSSISensor : public sensor::Sensor, public esp32_ble_tracker::ESPBTDeviceListener, public Component {
+class BLERSSISensor final : public sensor::Sensor, public esp32_ble_tracker::ESPBTDeviceListener, public Component {
  public:
   void set_address(uint64_t address) {
     this->match_by_ = MATCH_BY_MAC_ADDRESS;

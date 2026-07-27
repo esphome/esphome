@@ -271,7 +271,7 @@ def run_external_command(
         raise
     except SystemExit as err:
         return err.args[0]
-    except Exception as err:  # pylint: disable=broad-except
+    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
         _LOGGER.error("Running command failed: %s", err)
         _LOGGER.error("Please try running %s locally.", full_cmd)
         return 1
@@ -314,11 +314,12 @@ def run_external_process(*cmd: str, **kwargs: Any) -> int | str:
             encoding="utf-8",
             check=False,
             close_fds=False,
+            env=kwargs.get("env"),
         )
         return proc.stdout if capture_stdout else proc.returncode
     except KeyboardInterrupt:  # pylint: disable=try-except-raise
         raise
-    except Exception as err:  # pylint: disable=broad-except
+    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
         _LOGGER.error("Running command failed: %s", err)
         _LOGGER.error("Please try running %s locally.", full_cmd)
         return 1
