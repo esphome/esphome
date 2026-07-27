@@ -948,6 +948,20 @@ template<typename T> constexpr T convert_little_endian(T val) {
 /// @name Strings
 ///@{
 
+/// Largest number of output bytes a single input byte can expand to when JSON escaped (a \u00XX sequence).
+inline constexpr size_t JSON_ESCAPE_MAX_EXPANSION = 6;
+
+/// Copy value into buf, escaping the characters that cannot appear raw inside a JSON string literal.
+///
+/// Escapes " and \ along with the control characters below 0x20, using the short forms where JSON defines one and
+/// \u00XX otherwise. Bytes >= 0x20 are copied verbatim, so text containing valid UTF-8 survives intact. The result is
+/// always null terminated; anything that would not fit is dropped rather than written partially. Returns buf so the
+/// call can be used directly as an argument.
+///
+/// To size buf so that no input is ever dropped, allow JSON_ESCAPE_MAX_EXPANSION bytes per input byte plus one for
+/// the null terminator.
+const char *json_escape_into_buffer(std::span<char> buf, StringRef value);
+
 /// Compare strings for equality in case-insensitive manner.
 bool str_equals_case_insensitive(const std::string &a, const std::string &b);
 /// Compare StringRefs for equality in case-insensitive manner.

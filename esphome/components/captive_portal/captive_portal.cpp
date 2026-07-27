@@ -4,7 +4,6 @@
 #include "esphome/core/application.h"
 #include "esphome/components/wifi/wifi_component.h"
 #include "captive_index.h"
-#include "json_escape.h"
 
 namespace esphome::captive_portal {
 
