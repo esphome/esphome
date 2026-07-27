@@ -365,6 +365,12 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install ccache
+        # Speeds up the host compiles: tests in a bucket compile overlapping
+        # component sets, so later tests reuse earlier tests' objects.
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ccache
       - name: Set up Python 3.13
         id: python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -409,6 +415,10 @@ jobs:
           mapfile -t test_files < <(echo "$BUCKET_TESTS" | jq -r '.[]')
           echo "Bucket ${{ matrix.bucket.name }}: running ${#test_files[@]} integration tests"
           pytest -vv --no-cov --tb=native --durations=30 -n auto "${test_files[@]}"
+      - name: Print ccache statistics
+        # esphome stores the PlatformIO ccache under the machine-global cache
+        # dir (see _ccache_env() in esphome/platformio/toolchain.py).
+        run: CCACHE_DIR="$HOME/.cache/esphome/platformio-ccache" ccache -s
 
   cpp-unit-tests:
     name: Run C++ unit tests
