@@ -304,6 +304,53 @@ TEST(ModbusClientHubPriority, RetriedContinuousReadStaysContinuous) {
   EXPECT_EQ(hub.queued(0).priority, CommandPriority::READ_CONTINUOUS);  // retry stays continuous
 }
 
+// A duplicate send never promotes a continuous entry: promotion to READ_AGAIN would destroy the
+// continuous flag and polling would silently stop after two more runs. The duplicate request is
+// served by the poll's next response instead.
+TEST(ModbusClientHubPriority, DuplicateSendKeepsContinuous) {
+  NoResponseProbeHub hub;
+  RetryingDevice device(&hub, 0x02, /*retry=*/false);
+
+  device.read_holding_registers(0x100, 2, {.continuous = true});
+  ASSERT_EQ(hub.queued_frames(), 1u);
+  device.read_holding_registers(0x100, 2);  // queued duplicate: absorbed, not promoted
+  ASSERT_EQ(hub.queued_frames(), 1u);
+  EXPECT_EQ(hub.queued(0).priority, CommandPriority::READ_CONTINUOUS);
+
+  hub.force_send_front();
+  device.read_holding_registers(0x100, 2);  // in-flight duplicate: absorbed, not promoted
+  EXPECT_EQ(hub.queued_frames(), 0u);
+  EXPECT_EQ(hub.waiting_command().priority, CommandPriority::READ_CONTINUOUS);
+
+  // The poll survives the duplicates: a successful response still re-queues it as continuous.
+  const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
+  hub.receive_frame_for_test(0x02, ok_response);
+  ASSERT_EQ(hub.queued_frames(), 1u);
+  EXPECT_EQ(hub.queued(0).priority, CommandPriority::READ_CONTINUOUS);
+}
+
+// Requesting continuous polling for a frame that is already queued as a one-shot turns that entry
+// into the continuous poll instead of leaving a promotion that never polls.
+TEST(ModbusClientHubPriority, ContinuousRequestUpgradesQueuedDuplicate) {
+  NoResponseProbeHub hub;
+  RetryingDevice device(&hub, 0x02, /*retry=*/false);
+
+  device.read_holding_registers(0x100, 2);
+  ASSERT_EQ(hub.queued_frames(), 1u);
+  ASSERT_EQ(hub.queued(0).priority, CommandPriority::READ_ONCE);
+
+  device.read_holding_registers(0x100, 2, {.continuous = true});
+  ASSERT_EQ(hub.queued_frames(), 1u);
+  EXPECT_EQ(hub.queued(0).priority, CommandPriority::READ_CONTINUOUS);
+
+  // And it behaves as a poll from here: success re-queues it.
+  hub.force_send_front();
+  const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
+  hub.receive_frame_for_test(0x02, ok_response);
+  ASSERT_EQ(hub.queued_frames(), 1u);
+  EXPECT_EQ(hub.queued(0).priority, CommandPriority::READ_CONTINUOUS);
+}
+
 // continuous is ignored for writes: the frame still sends at WRITE priority, once.
 TEST(ModbusClientHubPriority, ContinuousIgnoredForWrites) {
   NoResponseProbeHub hub;
@@ -348,6 +395,21 @@ TEST(ModbusClientHubPriority, DuplicateQueuedWriteDroppedNotPromoted) {
   ASSERT_EQ(hub.queued_frames(), 1u);
   EXPECT_EQ(hub.queued(0).priority, CommandPriority::WRITE);  // not promoted to READ_AGAIN
   EXPECT_EQ(device.not_sent_count_, 1);                       // the duplicate was dropped
+}
+
+// Requeueability is an allow-list of the standard reads: a custom function code's idempotency is
+// unknown, so its duplicate takes the same safe drop path as a write instead of a silent re-send.
+TEST(ModbusClientHubPriority, DuplicateCustomFunctionCodeDroppedNotPromoted) {
+  NoResponseProbeHub hub;
+  SentCountingDevice device(&hub, 0x02);
+
+  const uint8_t custom_pdu[] = {0x41, 0x01, 0x02};  // user-defined function code
+  device.send_pdu(custom_pdu);
+  device.send_pdu(custom_pdu);  // duplicate custom command
+
+  ASSERT_EQ(hub.queued_frames(), 1u);
+  EXPECT_EQ(hub.queued(0).priority, CommandPriority::READ_ONCE);  // not promoted
+  EXPECT_EQ(device.not_sent_count_, 1);                           // the duplicate was dropped
 }
 
 // A write that is retried after a no-response keeps WRITE priority (not demoted to READ_ONCE), so it
@@ -762,6 +824,47 @@ TEST(ModbusClientHubQueue, FullQueueRetryFromNotSentDoesNotRecurse) {
   EXPECT_EQ(hub.queued_frames(), MODBUS_TX_BUFFER_SIZE);
 }
 
+namespace {
+// From inside on_not_sent, triggers ANOTHER device's send (which will be refused too).
+class SendOtherOnNotSentDevice : public ModbusClientDevice {
+ public:
+  SendOtherOnNotSentDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_not_sent(std::span<const uint8_t> request_pdu) override {
+    this->not_sent_count_++;
+    if (this->other_ != nullptr) {
+      const uint8_t read[] = {0x03, 0x00, 0x60, 0x00, 0x01};
+      this->other_->send_pdu(read);
+    }
+  }
+  ModbusClientDevice *other_{nullptr};
+  int not_sent_count_{0};
+};
+}  // namespace
+
+// The refusal recursion guard is per-device: a refusal that lands on a DIFFERENT device while one
+// device's notification is on the stack must still deliver - that device did not cause the recursion
+// and would otherwise silently lose its terminal callback.
+TEST(ModbusClientHubQueue, RefusalForOtherDeviceDeliversDuringNotification) {
+  NoResponseProbeHub hub;
+  SentCountingDevice filler(&hub, 0x05);
+  SendOtherOnNotSentDevice first(&hub, 0x02);
+  SentCountingDevice second(&hub, 0x03);
+  first.other_ = &second;
+
+  // Fill the queue with distinct frames (distinct start addresses defeat dedup).
+  for (uint16_t i = 0; i < MODBUS_TX_BUFFER_SIZE; i++) {
+    const uint8_t fill[] = {0x03, static_cast<uint8_t>(i >> 8), static_cast<uint8_t>(i & 0xFF), 0x00, 0x01};
+    filler.send_pdu(fill);
+  }
+  ASSERT_EQ(hub.queued_frames(), MODBUS_TX_BUFFER_SIZE);
+
+  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
+  first.send_pdu(read);  // refused -> first.on_not_sent -> second's send refused -> second notified
+
+  EXPECT_EQ(first.not_sent_count_, 1);
+  EXPECT_EQ(second.not_sent_count_, 1);
+}
+
 // The guard must not over-suppress: a sweep started from inside on_not_sent() still delivers its
 // victims' notifications (only nested refusals are silenced).
 TEST(ModbusClientHubQueue, NestedClearFromNotSentStillNotifiesVictims) {
@@ -900,7 +1003,7 @@ TEST(ModbusClientHubSent, ReentrantSendFromOnSentQueues) {
 // KNOWN LIMITATION (documented on ModbusClientDevice): clearing a device's own queue from inside
 // on_response() does NOT cancel that command's pending continuous re-queue, because the command was
 // moved out of the waiting slot before the callback ran. Pin the current behavior so any change is deliberate.
-TEST(ModbusClientHubPriority, ClearDuringDataDoesNotCancelContinuousRequeue) {
+TEST(ModbusClientHubPriority, ClearDeviceDuringDataCancelsContinuousRequeue) {
   NoResponseProbeHub hub;
   ClearOnDataDevice device(&hub, 0x02);
 
@@ -909,7 +1012,33 @@ TEST(ModbusClientHubPriority, ClearDuringDataDoesNotCancelContinuousRequeue) {
   const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x02, ok_response);
 
-  EXPECT_EQ(hub.queued_frames(), 1u);  // re-queued despite the mid-callback clear (documented limitation)
+  // "Stop polling now" from inside on_response() works: the completing command is detached, so the
+  // continuous re-queue is cancelled.
+  EXPECT_EQ(hub.queued_frames(), 0u);
+}
+
+namespace {
+// A device that stops polling for its address (clear by address) from inside on_response().
+class ClearAddressOnDataDevice : public ModbusClientDevice {
+ public:
+  ClearAddressOnDataDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {
+    this->clear_tx_queue_for_address(/*clear_sent=*/false);
+  }
+};
+}  // namespace
+
+// The address-scoped clear cancels the mid-completion re-queue the same way the device-scoped one does.
+TEST(ModbusClientHubPriority, ClearAddressDuringDataCancelsContinuousRequeue) {
+  NoResponseProbeHub hub;
+  ClearAddressOnDataDevice device(&hub, 0x02);
+
+  device.read_holding_registers(0x100, 2, {.continuous = true});
+  hub.force_send_front();
+  const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
+  hub.receive_frame_for_test(0x02, ok_response);
+
+  EXPECT_EQ(hub.queued_frames(), 0u);
 }
 
 namespace {

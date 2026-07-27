@@ -300,8 +300,12 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
     } else {  // We have a valid device waiting for this response
 
       // Move the command out of the waiting slot so the request PDU stays alive for the callback.
+      // Expose it via completing_ for the duration of the callbacks so clear_tx_queue_for_device()/
+      // clear_tx_queue_for_address() can detach it, cancelling a pending continuous/READ_AGAIN
+      // re-queue - "stop polling now" from inside on_response()/on_error() must actually stop it.
       ModbusDeviceCommand command = std::move(this->waiting_for_response_.value());
       this->waiting_for_response_.reset();
+      this->completing_ = &command;
       ModbusClientDevice *device = command.device;
       // The request PDU is the sent frame without the leading address and the trailing CRC.
       std::span<const uint8_t> request_pdu = command.frame.pdu();
@@ -321,6 +325,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
         ESP_LOGV(TAG, "Ignoring response from %" PRIu8 " - no callback device set, %" PRIu32 "ms after last send",
                  address, this->last_modbus_byte_ - this->last_send_);
       }
+      this->completing_ = nullptr;
     }
   }
 }
@@ -632,9 +637,9 @@ void ModbusClientHub::insert_by_priority_(ModbusDeviceCommand &&command) {
 }
 
 void ModbusClientHub::maybe_requeue_completed_(ModbusDeviceCommand &command, bool success) {
-  // Known limitation: command was moved out of the waiting slot before the response callback ran, so a
-  // device that cleared its own queue from inside on_response()/on_error() is not detected here
-  // and its continuous/READ_AGAIN re-queue still happens (see the lifecycle note on ModbusClientDevice).
+  // A null device means the command was detached mid-callback: the clear variants null it through the
+  // completing_ slot, so clearing the queue from inside on_response()/on_error() cancels the pending
+  // continuous/READ_AGAIN re-queue here.
   if (command.device == nullptr)
     return;
   CommandPriority priority = CommandPriority::READ_ONCE;
@@ -680,40 +685,47 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   } else if (options.continuous) {
     priority = CommandPriority::READ_CONTINUOUS;
   }
-  // A write is never requeueable: re-sending a write is not idempotent in general (it can double a
-  // command/increment register), so a duplicate of a write is always dropped, never promoted to
-  // READ_AGAIN. Only reads (and custom read PDUs) can be re-queued. Checked explicitly rather than
-  // relying on WRITE sorting above READ_AGAIN, so a retried write (re-queued at a lower priority) can
-  // never be promoted either.
-  const bool is_write = priority == CommandPriority::WRITE;
+  // Only the standard reads are silently re-queueable: re-sending a write is not idempotent in general
+  // (it can double a command/increment register), and a custom or diagnostic function code's idempotency
+  // is unknown, so both take the safe drop path on a duplicate. An EXPLICIT continuous request is honored
+  // for any non-write function code - by asking for continuous the caller asserts re-sending is safe.
+  const bool is_requeueable = helpers::is_function_code_read(pdu[0]);
 
-  // A frame identical to one already queued or in flight is not queued twice: the existing entry is
-  // promoted to READ_AGAIN, which re-queues it once more after it completes.
-  // Every request resolves in exactly one callback: a promotion is absorbed into the promoted
-  // entry's future on_response(); a request that cannot promote further (already READ_AGAIN,
-  // or a duplicate write) is dropped and reports on_not_sent().
+  // A frame identical to one already queued or in flight is not queued twice; the duplicate is resolved
+  // against the existing entry. Only a READ_ONCE entry is ever promoted (to READ_AGAIN, which re-queues
+  // it once more after it completes) - in particular a READ_CONTINUOUS entry must never be promoted, or
+  // the continuous flag would be destroyed and polling would silently stop after two more runs. An
+  // incoming continuous request instead turns the existing entry INTO the continuous poll.
+  // Every request resolves in exactly one callback: a promotion or continuous absorption resolves in the
+  // entry's future on_response(); a request that cannot be absorbed (already READ_AGAIN, a duplicate
+  // write, or a non-requeueable function code) is dropped and reports on_not_sent().
+  const auto resolve_duplicate = [&](ModbusDeviceCommand &item, const char *state) {
+    if (priority == CommandPriority::READ_CONTINUOUS) {
+      // The caller asked for continuous polling: the existing identical entry becomes the poll.
+      item.priority = CommandPriority::READ_CONTINUOUS;
+      ESP_LOGV(TAG, "Frame already %s for %" PRIu8 ", now polled continuously", state, address);
+    } else if (item.priority == CommandPriority::READ_CONTINUOUS) {
+      // The continuous poll re-runs after every success, so its next response serves this request too.
+      ESP_LOGV(TAG, "Frame already %s for %" PRIu8 " as a continuous poll", state, address);
+    } else if (is_requeueable && item.priority == CommandPriority::READ_ONCE) {
+      item.priority = CommandPriority::READ_AGAIN;
+      ESP_LOGV(TAG, "Frame already %s for %" PRIu8 ", promoted for re-queue", state, address);
+    } else {
+      this->notify_not_sent_(device, pdu);
+    }
+  };
   for (auto &item : this->tx_buffer_) {
     if (item.marked_for_deletion)
       continue;  // marked for drop by an in-progress clear: a new identical send queues fresh instead
     if (item.device == device && item.same_frame(address, pdu)) {
-      if (!is_write && item.priority < CommandPriority::READ_AGAIN) {
-        item.priority = CommandPriority::READ_AGAIN;
-        ESP_LOGV(TAG, "Frame already queued for %" PRIu8 ", promoted for re-queue", address);
-      } else {
-        this->notify_not_sent_(device, pdu);
-      }
+      resolve_duplicate(item, "queued");
       return;
     }
   }
   if (this->waiting_for_response_.has_value()) {
     ModbusDeviceCommand &wfr = this->waiting_for_response_.value();
     if (wfr.device == device && wfr.device != nullptr && wfr.same_frame(address, pdu)) {
-      if (!is_write && wfr.priority < CommandPriority::READ_AGAIN) {
-        wfr.priority = CommandPriority::READ_AGAIN;
-        ESP_LOGV(TAG, "Frame already in flight for %" PRIu8 ", promoted for re-queue", address);
-      } else {
-        this->notify_not_sent_(device, pdu);
-      }
+      resolve_duplicate(wfr, "in flight");
       return;
     }
   }
@@ -735,22 +747,27 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   }
 }
 
-// Deliver the terminal callback for a refused send. The flag breaks the recursion a retry-from-
+// Deliver the terminal callback for a refused send. The guard breaks the recursion a retry-from-
 // on_not_sent() would otherwise cause (send -> refuse -> notify -> send, unbounded against a full
-// queue): while one refusal notification is on the stack, a further refusal delivers nothing.
+// queue): while a device's refusal notification is on the stack, a further refusal FOR THAT DEVICE
+// delivers nothing. The guard is per-device, not hub-global: a refusal belonging to a different
+// device (e.g. one whose send was triggered from inside the first device's handler) is still
+// delivered - it did not cause the recursion and must not lose its terminal callback. Cross-device
+// chains stay bounded because each device on the stack is guarded while its notification runs.
 // Sending from on_not_sent() is documented as hazardous for exactly this reason. The clear-queue
 // sweep deliberately does NOT go through this guard (its deliveries must never be suppressed, e.g.
 // for a nested clear from inside a handler); it calls on_not_sent() directly.
 void ModbusClientHub::notify_not_sent_(ModbusClientDevice *device, std::span<const uint8_t> pdu) {
   if (device == nullptr)
     return;
-  if (this->notifying_not_sent_) {
-    ESP_LOGE(TAG, "Send refused during a not-sent notification; dropped without callback");
+  if (this->notifying_not_sent_device_ == device) {
+    ESP_LOGE(TAG, "Send refused during this device's not-sent notification; dropped without callback");
     return;
   }
-  this->notifying_not_sent_ = true;
+  ModbusClientDevice *previous = this->notifying_not_sent_device_;
+  this->notifying_not_sent_device_ = device;
   device->on_not_sent(pdu);
-  this->notifying_not_sent_ = false;
+  this->notifying_not_sent_device_ = previous;
 }
 
 void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sent) {
@@ -783,6 +800,10 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sen
       this->waiting_for_response_.value().device = nullptr;
     }
   }
+  // Detach a command that is mid-completion (this clear was called from inside its own
+  // on_response()/on_error()), cancelling its pending continuous/READ_AGAIN re-queue.
+  if (this->completing_ != nullptr && this->completing_->frame.address() == address)
+    this->completing_->device = nullptr;
 }
 void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
   // Remove any pending commands for this address from the tx buffer
@@ -798,6 +819,10 @@ void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
       this->waiting_for_response_.value().device = nullptr;
     }
   }
+  // Detach a command that is mid-completion (this clear was called from inside its own
+  // on_response()/on_error()), cancelling its pending continuous/READ_AGAIN re-queue.
+  if (this->completing_ != nullptr && this->completing_->device == device)
+    this->completing_->device = nullptr;
 }
 
 void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device) {

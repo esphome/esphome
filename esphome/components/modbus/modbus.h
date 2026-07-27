@@ -181,17 +181,22 @@ class ModbusClientHub : public Modbus {
   uint16_t send_wait_time_{2000};
   uint16_t turnaround_delay_ms_{0};
   std::optional<ModbusDeviceCommand> waiting_for_response_;
+  /// The command whose response/error callbacks are currently running (it has already left
+  /// waiting_for_response_). The clear variants detach it here so a device can cancel its own
+  /// continuous/READ_AGAIN re-queue from inside on_response()/on_error().
+  ModbusDeviceCommand *completing_{nullptr};
 
   // std::deque is appropriate here since we need a FIFO buffer, and we can't know ahead of time how many
   // requests will be queued. Each modbus component may queue multiple requests, and the sequence of scheduling
   // may change at run time.
   std::deque<ModbusDeviceCommand> tx_buffer_;
-  /// Deliver on_not_sent() for a REFUSED send. While one refusal notification is on the stack a further
-  /// refusal delivers nothing - a handler retrying from on_not_sent() that is refused again would
-  /// otherwise recurse without bound. (Sweep deliveries bypass this guard on purpose.)
+  /// Deliver on_not_sent() for a REFUSED send. While a device's refusal notification is on the stack a
+  /// further refusal for THAT device delivers nothing - a handler retrying from on_not_sent() that is
+  /// refused again would otherwise recurse without bound. Other devices' refusals still deliver.
+  /// (Sweep deliveries bypass this guard on purpose.)
   void notify_not_sent_(ModbusClientDevice *device, std::span<const uint8_t> pdu);
-  /// True while a refusal notification is being delivered (see notify_not_sent_()).
-  bool notifying_not_sent_{false};
+  /// The device whose refusal notification is being delivered, if any (see notify_not_sent_()).
+  ModbusClientDevice *notifying_not_sent_device_{nullptr};
 };
 
 class ModbusServerHub : public Modbus {
@@ -225,6 +230,25 @@ class ModbusServerHub : public Modbus {
 // Transaction status: std::nullopt on success, otherwise a Modbus exception code
 using ResponseStatus = std::optional<ExceptionCode>;
 
+/// Command lifecycle: each accepted command (a send_pdu()/typed-helper call, a hub re-queue from a
+/// retry or READ_AGAIN promotion, or a continuous re-queue) ends in exactly ONE terminal callback:
+/// on_response() (valid response), on_error() (exception response), on_no_response()
+/// (timeout or interrupted transaction), or on_not_sent() (never transmitted: send failure,
+/// full queue, or refused as an unabsorbable duplicate). on_sent() is additional, not
+/// terminal: it fires once per wire transmission, before whichever of data/error/no_response follows,
+/// and never for a command that ends in on_not_sent().
+/// The exceptions to "exactly one terminal":
+///  - clear_tx_queue_for_device() drops the caller's OWN queued commands SILENTLY (supersede/teardown
+///    semantics), and both clear variants detach the in-flight frame silently.
+///    clear_tx_queue_for_address() DOES resolve every queued frame it drops via the owner's
+///    on_not_sent() (delivered one at a time, after that frame leaves the queue).
+///  - a duplicate absorbed into a queued entry (a READ_AGAIN promotion or a continuous request
+///    matching a queued frame) shares that entry's fate: if the entry is later swept or dropped, its
+///    single on_not_sent() stands for every absorbed request as well.
+/// Sending from inside on_not_sent() is hazardous: the notification may itself mean the queue is full
+/// or refusing, and this device's retry that is refused again is dropped WITHOUT a callback (the
+/// recursion guard that breaks what would otherwise be unbounded re-entry) - prefer re-sending from a
+/// later trigger or the component's update()/loop().
 class ModbusClientDevice {
  public:
   ModbusClientDevice() = default;
@@ -239,25 +263,6 @@ class ModbusClientDevice {
   ModbusClientDevice &operator=(ModbusClientDevice &&) = delete;
   void set_parent(ModbusClientHub *parent) { this->parent_ = parent; }
   void set_address(uint8_t address) { this->address_ = address; }
-  /// Command lifecycle: each accepted command (a send_pdu()/typed-helper call, a hub re-queue from a
-  /// retry or READ_AGAIN promotion, or a continuous re-queue) ends in exactly ONE terminal callback:
-  /// on_response() (valid response), on_error() (exception response), on_no_response()
-  /// (timeout or interrupted transaction), or on_not_sent() (never transmitted: send failure,
-  /// full queue, or refused as an unpromotable duplicate). on_sent() is additional, not
-  /// terminal: it fires once per wire transmission, before whichever of data/error/no_response follows,
-  /// and never for a command that ends in on_not_sent().
-  /// The exceptions to "exactly one terminal": clear_tx_queue_for_device() drops the caller's OWN
-  /// queued commands SILENTLY (supersede/teardown semantics), and both clear variants detach the
-  /// in-flight frame silently. clear_tx_queue_for_address() DOES resolve every queued frame it drops via
-  /// the owner's on_not_sent() (delivered one at a time, after that frame leaves the queue).
-  /// Sending from inside on_not_sent() is hazardous: the notification may itself mean the queue is full
-  /// or refusing, and a retry that is refused again is dropped WITHOUT a callback (the recursion guard
-  /// that breaks what would otherwise be unbounded re-entry) - prefer re-sending from a later trigger or
-  /// the component's update()/loop(). Related limitation:
-  /// clearing a device's own queue from inside on_response()/on_error() does not cancel that command's pending
-  /// continuous/READ_AGAIN re-queue (unlike on_no_response(), which honors a mid-callback detach); stop a continuous
-  /// poll from on_no_response() or by not re-requesting it.
-  ///
   /// Low-level response hook: called with the request PDU this device sent and the response PDU received
   /// The spans are only valid for the duration of the call - copy the bytes if they must outlive it.
   /// The default implementation decodes standard responses and dispatches to on_read_* / on_write_* callbacks below.
@@ -271,8 +276,6 @@ class ModbusClientDevice {
   virtual void on_error(std::span<const uint8_t> request_pdu, ExceptionCode exception_code) {
     this->dispatch_response_(request_pdu, {}, exception_code);
   }
-  /// Called when no request could be sent (e.g. queue full, transmission blocked)
-  /// Do not attempt to queue a command in this callback.
   /// Called when no request could be sent (e.g. queue full, transmission blocked).
   /// Do not attempt to queue a command in this callback.
   /// (The on_modbus_* names below are deprecated pre-rename spellings; the defaults forward so
