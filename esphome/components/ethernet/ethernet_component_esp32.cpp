@@ -235,7 +235,7 @@ void EthernetComponent::ethernet_lazy_init_() {
   enc28j60_config.int_gpio_num = this->interrupt_pin_;
   // CS must stay asserted for the chip's CS hold time (t10, 210 ns) after the
   // last clock or MAC/MII register reads fail ("wrong chip ID" at driver init)
-  devcfg.cs_ena_posttrans = enc28j60_cal_spi_cs_hold_time(this->clock_speed_ / 1000000);
+  enc28j60_config.spi_devcfg->cs_ena_posttrans = enc28j60_cal_spi_cs_hold_time(this->clock_speed_ / 1000000);
   // ENC28J60 does not support poll_period_ms
 #endif
 
