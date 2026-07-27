@@ -524,8 +524,13 @@ void ModbusClientHub::send_next_frame_() {
     if (device != nullptr)
       device->on_sent(wfr.frame.pdu());
   } else {
-    if (device != nullptr)
+    if (device != nullptr) {
       device->trigger_not_sent(command.frame.pdu());
+      // A READ_AGAIN command stands for exactly two accepted requests (the original and the one
+      // absorbed by promotion); a failed transmit resolves both, mirroring the clear sweep.
+      if (command.priority == CommandPriority::READ_AGAIN)
+        device->trigger_not_sent(command.frame.pdu());
+    }
   }
 
   if (!this->tx_buffer_.empty()) {
