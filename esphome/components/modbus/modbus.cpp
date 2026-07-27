@@ -694,15 +694,20 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   const bool is_requeueable = helpers::is_function_code_read(pdu[0]);
 
   // A frame identical to one already queued or in flight is not queued twice; the duplicate is resolved
-  // against the existing entry. Only a READ_ONCE entry is ever promoted (to READ_AGAIN, which re-queues
-  // it once more after it completes) - in particular a READ_CONTINUOUS entry must never be promoted, or
-  // the continuous flag would be destroyed and polling would silently stop after two more runs. An
-  // incoming continuous request instead turns the existing entry INTO the continuous poll.
-  // Every request resolves in exactly one callback: a promotion or continuous absorption resolves in the
-  // entry's future on_response(); a request that cannot be absorbed (already READ_AGAIN, a duplicate
-  // write, or a non-requeueable function code) is dropped and reports on_not_sent().
+  // against the existing entry. Only a READ_ONCE entry with an owner is ever promoted (to READ_AGAIN,
+  // which re-queues it once more after it completes) - in particular a READ_CONTINUOUS entry must never
+  // be promoted, or the continuous flag would be destroyed and polling would silently stop after two
+  // more runs. An incoming continuous request instead turns the existing entry INTO the continuous poll.
+  // Every OWNED request resolves in exactly one callback: a promotion or continuous absorption resolves
+  // in the entry's future on_response(); a request that cannot be absorbed (already READ_AGAIN, a
+  // duplicate write, or a non-requeueable function code) is dropped and reports on_not_sent(). An
+  // ANONYMOUS duplicate (device == nullptr - the YAML-lambda path) is always dropped: with no callback
+  // there is no lifecycle to absorb into, and no owner to route a re-run to.
   const auto resolve_duplicate = [&](ModbusDeviceCommand &item, const char *state) {
-    if (priority == CommandPriority::READ_CONTINUOUS) {
+    if (device == nullptr) {
+      ESP_LOGD(TAG, "Anonymous duplicate of frame already %s for %" PRIu8 " (function 0x%X), dropped", state, address,
+               pdu[0]);
+    } else if (priority == CommandPriority::READ_CONTINUOUS) {
       // The caller asked for continuous polling: the existing identical entry becomes the poll.
       item.priority = CommandPriority::READ_CONTINUOUS;
       ESP_LOGV(TAG, "Frame already %s for %" PRIu8 ", now polled continuously", state, address);
@@ -713,8 +718,9 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
       item.priority = CommandPriority::READ_AGAIN;
       ESP_LOGV(TAG, "Frame already %s for %" PRIu8 ", promoted for re-queue", state, address);
     } else {
-      if (device != nullptr)
-        device->trigger_not_sent(pdu);
+      ESP_LOGD(TAG, "Duplicate of frame already %s for %" PRIu8 " (function 0x%X), dropped with on_not_sent", state,
+               address, pdu[0]);
+      device->trigger_not_sent(pdu);
     }
   };
   for (auto &item : this->tx_buffer_) {
@@ -727,6 +733,9 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   }
   if (this->waiting_for_response_.has_value()) {
     ModbusDeviceCommand &wfr = this->waiting_for_response_.value();
+    // A null device in the WAITING slot means a detached shell (its transaction was cleared or
+    // interrupted), not an anonymous send - an anonymous frame matching a shell must queue fresh,
+    // so nullptr is excluded here even though the queue scan above dedups anonymous sends.
     if (wfr.device == device && wfr.device != nullptr && wfr.same_frame(address, pdu)) {
       resolve_duplicate(wfr, "in flight");
       return;

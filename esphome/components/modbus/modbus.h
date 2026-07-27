@@ -274,7 +274,7 @@ class ModbusClientDevice {
     this->dispatch_response_(request_pdu, {}, exception_code);
   }
   /// Called when no request could be sent (e.g. queue full, transmission blocked).
-  /// Do not attempt to queue a command in this callback.
+  /// Sending from inside this callback is bounded but hazardous; see the lifecycle contract above.
   /// (The on_modbus_* names below are deprecated pre-rename spellings; the defaults forward so
   /// external devices overriding them keep working through the deprecation window.)
   virtual void on_not_sent(std::span<const uint8_t> request_pdu) {
