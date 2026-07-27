@@ -1,8 +1,10 @@
 """Tests for git.py module."""
 
 from collections.abc import Callable
+import logging
 import os
 from pathlib import Path
+import subprocess
 import time
 from typing import Any
 from unittest.mock import Mock, patch
@@ -71,17 +73,38 @@ def _simulate_cloned_repo(repo_dir: Path) -> None:
     (repo_dir / ".git").mkdir(exist_ok=True)
 
 
-def _make_clone_side_effect(repo_dir: Path) -> Callable[..., str]:
-    """Return a run_git_command side effect whose clone creates the repo dir."""
+def _make_clone_side_effect(
+    repo_dir: Path, gitmodules: bool = False
+) -> Callable[..., str]:
+    """Return a run_git_command side effect whose clone creates the repo dir.
+
+    With ``gitmodules`` the cloned repo also declares submodules.
+    """
 
     def git_command_side_effect(
         cmd: list[str], cwd: str | None = None, **kwargs: Any
     ) -> str:
         if _get_git_command_type(cmd) == "clone":
             _simulate_cloned_repo(repo_dir)
+            if gitmodules:
+                (repo_dir / ".gitmodules").write_text("test")
         return ""
 
     return git_command_side_effect
+
+
+def _submodule_calls(mock: Mock) -> list[Any]:
+    """Return the mock's `git submodule` calls."""
+    return [
+        c for c in mock.call_args_list if _get_git_command_type(c[0][0]) == "submodule"
+    ]
+
+
+def _assert_submodule_runs_without_isolation(call: Any, repo_dir: Path) -> None:
+    """Assert a git submodule call ran with plain cwd, not GIT_DIR/GIT_WORK_TREE
+    isolation, which breaks the submodule porcelain on some installations."""
+    assert call.kwargs.get("git_dir") is None
+    assert call.kwargs.get("cwd") == repo_dir
 
 
 def test_run_git_command_success(tmp_path: Path) -> None:
@@ -100,6 +123,22 @@ def test_run_git_command_success(tmp_path: Path) -> None:
     assert isinstance(result, str)
 
 
+def test_run_git_command_debug_log_redacts_credentials(
+    tmp_path: Path, mock_subprocess_run: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Embedded URL credentials never reach the debug log; -v output is
+    routinely pasted into public issues. subprocess is mocked so no real
+    git ever sees the URL (the path is not creatable on Windows)."""
+    mock_subprocess_run.return_value = Mock(returncode=0, stdout=b"", stderr=b"")
+    with caplog.at_level(logging.DEBUG, logger="esphome.git"):
+        git.run_git_command(
+            ["git", "clone", "https://user:hunter2@github.com/test/repo"],
+            cwd=tmp_path,
+        )
+    assert "hunter2" not in caplog.text
+    assert "://***@github.com/test/repo" in caplog.text
+
+
 def test_run_git_command_with_git_dir_isolation(
     tmp_path: Path, mock_subprocess_run: Mock
 ) -> None:
@@ -116,10 +155,17 @@ def test_run_git_command_with_git_dir_isolation(
         stderr=b"",
     )
 
-    result = git.run_git_command(
-        ["git", "rev-parse", "HEAD"],
-        git_dir=repo_dir,
-    )
+    # Ambient repo-scoping vars simulate a git hook invoking ESPHome; an
+    # ambient GIT_INDEX_FILE surviving into a git_dir invocation fails
+    # silently (git operates on the caller's index and exits 0).
+    with patch.dict(
+        os.environ,
+        {"GIT_INDEX_FILE": "/caller/index", "GIT_OBJECT_DIRECTORY": "/caller/objects"},
+    ):
+        result = git.run_git_command(
+            ["git", "rev-parse", "HEAD"],
+            git_dir=repo_dir,
+        )
 
     # Verify subprocess.run was called
     assert mock_subprocess_run.called
@@ -131,6 +177,9 @@ def test_run_git_command_with_git_dir_isolation(
     assert "GIT_WORK_TREE" in env
     assert env["GIT_DIR"] == str(repo_dir / ".git")
     assert env["GIT_WORK_TREE"] == str(repo_dir)
+    # The ambient scoping vars must be stripped, not passed through.
+    assert "GIT_INDEX_FILE" not in env
+    assert "GIT_OBJECT_DIRECTORY" not in env
 
     assert result == "test output"
 
@@ -214,6 +263,89 @@ def test_run_git_command_without_git_dir(mock_subprocess_run: Mock) -> None:
     assert call_args[1].get("cwd") is None
 
     assert result == "Cloning into 'test_repo'..."
+
+
+@pytest.mark.parametrize("relative", [False, True], ids=["absolute", "relative"])
+def test_run_git_command_with_cwd_runs_in_dir_without_isolation(
+    tmp_path: Path,
+    mock_subprocess_run: Mock,
+    monkeypatch: pytest.MonkeyPatch,
+    relative: bool,
+) -> None:
+    """The cwd parameter sets the working directory without GIT_DIR/GIT_WORK_TREE.
+
+    Ambient GIT_DIR/GIT_WORK_TREE (e.g. from a git hook or CI wrapper) must be
+    stripped too, and GIT_CEILING_DIRECTORIES must stop git from walking up to
+    an enclosing repository if the target repo's .git is missing or corrupt.
+    Git silently ignores a relative ceiling entry, so the variable must come
+    out absolute even when the given cwd is relative.
+    """
+    repo_dir = tmp_path / "test_repo"
+    repo_dir.mkdir()
+    if relative:
+        monkeypatch.chdir(tmp_path)
+        cwd_arg = Path("test_repo")
+    else:
+        cwd_arg = repo_dir
+
+    mock_subprocess_run.return_value = Mock(
+        returncode=0,
+        stdout=b"test output",
+        stderr=b"",
+    )
+
+    with patch.dict(
+        os.environ,
+        {
+            "GIT_DIR": "/ambient/.git",
+            "GIT_WORK_TREE": "/ambient",
+            "GIT_INDEX_FILE": "/ambient/.git/index",
+        },
+    ):
+        result = git.run_git_command(["git", "submodule", "update"], cwd=cwd_arg)
+
+    call_args = mock_subprocess_run.call_args
+    env = call_args[1]["env"]
+    assert "GIT_DIR" not in env
+    assert "GIT_WORK_TREE" not in env
+    assert "GIT_INDEX_FILE" not in env
+    ceiling = Path(env["GIT_CEILING_DIRECTORIES"])
+    assert ceiling.is_absolute()
+    assert ceiling.samefile(tmp_path)
+    assert call_args[1]["cwd"] == cwd_arg
+    assert result == "test output"
+
+
+def test_run_git_command_raises_on_nonfatal_stderr(
+    tmp_path: Path, mock_subprocess_run: Mock
+) -> None:
+    """Nonzero exit with stderr lacking a fatal: prefix raises with full stderr."""
+    mock_subprocess_run.return_value = Mock(
+        returncode=1,
+        stdout=b"",
+        stderr=b"error: pathspec 'nope' did not match any file(s)\n",
+    )
+
+    with pytest.raises(GitCommandError, match="did not match"):
+        git.run_git_command(["git", "checkout", "nope"], git_dir=tmp_path)
+
+
+def test_run_git_command_raises_on_nonzero_exit_without_stderr(
+    tmp_path: Path, mock_subprocess_run: Mock
+) -> None:
+    """A nonzero exit must raise even when git printed nothing to stderr.
+
+    Silent nonzero exits were previously treated as success, which is how
+    broken checkouts could be cached as complete.
+    """
+    mock_subprocess_run.return_value = Mock(
+        returncode=1,
+        stdout=b"",
+        stderr=b"",
+    )
+
+    with pytest.raises(GitCommandError, match="exited with code 1"):
+        git.run_git_command(["git", "submodule", "update"], cwd=tmp_path)
 
 
 def test_run_git_command_without_git_dir_raises_error(
@@ -1156,46 +1288,6 @@ def test_clone_with_ref_uses_shallow_fetch(
     assert ref in fetch_calls[0][0][0]
 
 
-def test_clone_with_submodules_uses_shallow_submodule_update(
-    tmp_path: Path, mock_run_git_command: Mock
-) -> None:
-    """Submodule init on a fresh clone should use --depth=1."""
-    CORE.config_path = tmp_path / "test.yaml"
-
-    url = "https://github.com/test/repo"
-    domain = "test"
-    repo_dir = _compute_repo_dir(url, None, domain)
-
-    def git_command_side_effect(
-        cmd: list[str], cwd: str | None = None, **kwargs: Any
-    ) -> str:
-        if _get_git_command_type(cmd) == "clone":
-            repo_dir.mkdir(parents=True, exist_ok=True)
-            (repo_dir / ".git").mkdir(exist_ok=True)
-        return ""
-
-    mock_run_git_command.side_effect = git_command_side_effect
-
-    git.clone_or_update(
-        url=url,
-        ref=None,
-        refresh=None,
-        domain=domain,
-        submodules=["components/foo"],
-    )
-
-    submodule_calls = [
-        c for c in mock_run_git_command.call_args_list if "submodule" in c[0][0]
-    ]
-    assert len(submodule_calls) == 1
-    cmd = submodule_calls[0][0][0]
-    assert "--depth=1" in cmd
-    assert "components/foo" in cmd
-    # The `--` terminator must precede the submodule paths so a path
-    # beginning with `-` cannot be parsed as an option.
-    assert cmd.index("--") < cmd.index("components/foo")
-
-
 def test_refresh_fetch_is_shallow(tmp_path: Path, mock_run_git_command: Mock) -> None:
     """The refresh-path fetch should use --depth=1."""
     CORE.config_path = tmp_path / "test.yaml"
@@ -1220,10 +1312,91 @@ def test_refresh_fetch_is_shallow(tmp_path: Path, mock_run_git_command: Mock) ->
     assert cmd[-1] == ref
 
 
-def test_refresh_submodule_update_is_shallow(
+@pytest.mark.parametrize(
+    "refresh", [None, TimePeriodSeconds(days=1)], ids=["clone", "refresh"]
+)
+def test_all_submodules_skipped_without_gitmodules(
+    tmp_path: Path, mock_run_git_command: Mock, refresh: TimePeriodSeconds | None
+) -> None:
+    """init_submodules is a no-op for repos with no .gitmodules.
+
+    This is the esp-idf toolchain library scenario from issue #17860: the
+    PlatformIO library converter requests "all submodules" for every git
+    library, and most libraries declare none. The git submodule porcelain
+    must not run at all in that case — it fails outright on some git
+    installations.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    if refresh is None:
+        mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
+    else:
+        _setup_old_repo(repo_dir)
+        mock_run_git_command.return_value = "abc123"
+
+    git.clone_or_update(
+        url=url,
+        ref=None,
+        refresh=refresh,
+        domain=domain,
+        init_submodules=True,
+    )
+
+    assert not _submodule_calls(mock_run_git_command)
+
+
+@pytest.mark.parametrize(
+    "refresh", [None, TimePeriodSeconds(days=1)], ids=["clone", "refresh"]
+)
+def test_all_submodules_updated_with_gitmodules(
+    tmp_path: Path, mock_run_git_command: Mock, refresh: TimePeriodSeconds | None
+) -> None:
+    """init_submodules initializes all submodules when .gitmodules exists."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    if refresh is None:
+        mock_run_git_command.side_effect = _make_clone_side_effect(
+            repo_dir, gitmodules=True
+        )
+    else:
+        _setup_old_repo(repo_dir)
+        (repo_dir / ".gitmodules").write_text("test")
+        mock_run_git_command.return_value = "abc123"
+
+    git.clone_or_update(
+        url=url,
+        ref=None,
+        refresh=refresh,
+        domain=domain,
+        init_submodules=True,
+    )
+
+    submodule_calls = _submodule_calls(mock_run_git_command)
+    # Which submodules get populated is git's own policy, so no status
+    # verification follows the update.
+    assert len(submodule_calls) == 1
+    cmd = submodule_calls[0][0][0]
+    assert cmd[2] == "update"
+    assert "--depth=1" in cmd
+    # Recursive, mirroring PlatformIO's recursive library clones.
+    assert "--recursive" in cmd
+    _assert_submodule_runs_without_isolation(submodule_calls[0], repo_dir)
+
+
+def test_recovery_reclone_keeps_credentials_and_cache_key(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
-    """The refresh-path submodule update should use --depth=1."""
+    """The recovery re-clone must not re-apply credentials to the already
+    rewritten URL (no doubled userinfo) and must land in the same cache
+    directory, or a credentialed private repo re-clones on every run."""
     CORE.config_path = tmp_path / "test.yaml"
 
     url = "https://github.com/test/repo"
@@ -1231,24 +1404,235 @@ def test_refresh_submodule_update_is_shallow(
     repo_dir = _compute_repo_dir(url, None, domain)
 
     _setup_old_repo(repo_dir)
-    mock_run_git_command.return_value = "abc123"
+    (repo_dir / ".gitmodules").write_text("test")
 
-    git.clone_or_update(
+    calls = {"submodule": 0}
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "clone":
+            _simulate_cloned_repo(repo_dir)
+        if _get_git_command_type(cmd) == "submodule":
+            calls["submodule"] += 1
+            if calls["submodule"] == 1:
+                raise git.GitCommandError("git submodule update exited with code 1")
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    recovered_dir, _ = git.clone_or_update(
         url=url,
         ref=None,
         refresh=TimePeriodSeconds(days=1),
         domain=domain,
-        submodules=["components/foo"],
+        username="user",
+        password="hunter2",
+        init_submodules=True,
     )
 
-    submodule_calls = [
-        c for c in mock_run_git_command.call_args_list if "submodule" in c[0][0]
+    assert recovered_dir == repo_dir
+    clone_cmds = [
+        c[0][0]
+        for c in mock_run_git_command.call_args_list
+        if _get_git_command_type(c[0][0]) == "clone"
     ]
-    assert len(submodule_calls) == 1
-    cmd = submodule_calls[0][0][0]
-    assert "--depth=1" in cmd
-    assert "components/foo" in cmd
-    assert cmd.index("--") < cmd.index("components/foo")
+    assert clone_cmds
+    clone_url = clone_cmds[0][-2]
+    assert clone_url == "https://user:hunter2@github.com/test/repo"
+    assert clone_url.count("@") == 1
+
+
+def test_refresh_submodule_failure_recovers_then_raises(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A refresh-path submodule failure routes through the recovery re-clone.
+
+    The broken repo is removed and re-cloned; when the submodule update fails
+    again on the fresh clone the cache entry is removed and the error
+    propagates, instead of leaving behind a repo the refresh window would
+    silently accept on the next run.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    _setup_old_repo(repo_dir)
+    (repo_dir / ".gitmodules").write_text("test")
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "clone":
+            _simulate_cloned_repo(repo_dir)
+            (repo_dir / ".gitmodules").write_text("test")
+        if _get_git_command_type(cmd) == "submodule":
+            raise git.GitCommandError("git submodule update exited with code 1")
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    with pytest.raises(git.GitCommandError, match="exited with code 1"):
+        git.clone_or_update(
+            url=url,
+            ref=None,
+            refresh=TimePeriodSeconds(days=1),
+            domain=domain,
+            init_submodules=True,
+        )
+
+    assert not repo_dir.is_dir()
+    # Recovery removed the repo and re-cloned before failing again.
+    assert any(
+        _get_git_command_type(c[0][0]) == "clone"
+        for c in mock_run_git_command.call_args_list
+    )
+
+
+def _real_git(*args: str, cwd: Path) -> None:
+    """Run real git to build a test fixture repository."""
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.email=test@test.invalid",
+            "-c",
+            "user.name=test",
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "protocol.file.allow=always",
+            *args,
+        ],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+    )
+
+
+# Git blocks file-protocol submodules by default (CVE-2022-39253); the e2e
+# tests allow them via GIT_CONFIG_* environment variables, which reach the
+# child git processes through run_git_command's filtered environment.
+_ALLOW_FILE_PROTOCOL_ENV = {
+    "GIT_CONFIG_COUNT": "1",
+    "GIT_CONFIG_KEY_0": "protocol.file.allow",
+    "GIT_CONFIG_VALUE_0": "always",
+}
+
+
+def _make_real_repo(path: Path, filename: str) -> None:
+    """Create a real git repository containing one committed file."""
+    path.mkdir()
+    _real_git("init", "-q", cwd=path)
+    (path / filename).write_text("content")
+    _real_git("add", filename, cwd=path)
+    _real_git("commit", "-q", "-m", "init", cwd=path)
+
+
+def _add_submodule(
+    repo: Path, url: Path, path: str, *, update_none: bool = False
+) -> None:
+    """Add ``url`` as a submodule of ``repo`` at ``path`` and commit it."""
+    _real_git("submodule", "add", str(url), path, cwd=repo)
+    if update_none:
+        _real_git(
+            "config", "-f", ".gitmodules", f"submodule.{path}.update", "none", cwd=repo
+        )
+        _real_git("add", ".gitmodules", cwd=repo)
+    _real_git("commit", "-q", "-m", f"add submodule {path}", cwd=repo)
+
+
+def test_clone_or_update_real_git_without_submodules(tmp_path: Path) -> None:
+    """End-to-end with real git: a repo with no .gitmodules clones cleanly.
+
+    This is the issue #17860 scenario: requesting "all submodules" on a
+    submodule-less repository must not invoke the git submodule porcelain
+    and must produce a usable checkout.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    upstream = tmp_path / "upstream"
+    _make_real_repo(upstream, "README.md")
+
+    repo_dir, _ = git.clone_or_update(
+        url=str(upstream),
+        ref=None,
+        refresh=None,
+        domain="test_e2e",
+        init_submodules=True,
+    )
+
+    assert (repo_dir / "README.md").is_file()
+
+
+def test_clone_or_update_real_git_initializes_submodules(tmp_path: Path) -> None:
+    """End-to-end with real git: submodules are actually checked out.
+
+    Exercises the real `git submodule update` invocation, including the
+    env handling in run_git_command that the mocked tests cannot cover.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    sub_repo = tmp_path / "sub"
+    _make_real_repo(sub_repo, "sub_file.txt")
+
+    upstream = tmp_path / "upstream"
+    _make_real_repo(upstream, "README.md")
+    _add_submodule(upstream, sub_repo, "vendor/sub")
+
+    with patch.dict(os.environ, _ALLOW_FILE_PROTOCOL_ENV):
+        repo_dir, _ = git.clone_or_update(
+            url=str(upstream),
+            ref=None,
+            refresh=None,
+            domain="test_e2e",
+            init_submodules=True,
+        )
+
+    assert (repo_dir / "vendor" / "sub" / "sub_file.txt").is_file()
+
+
+def test_clone_or_update_real_git_honors_update_none_submodule(
+    tmp_path: Path,
+) -> None:
+    """End-to-end with real git: submodules declared `update = none` stay skipped.
+
+    Shows git itself skipping the declared paths at both nesting levels
+    (and exiting 0) while the regular submodules check out.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    sub_repo = tmp_path / "sub"
+    _make_real_repo(sub_repo, "sub_file.txt")
+
+    # Intermediate submodule that itself declares a skipped nested submodule.
+    mid_repo = tmp_path / "mid"
+    _make_real_repo(mid_repo, "mid_file.txt")
+    _add_submodule(mid_repo, sub_repo, "vendor/leaf", update_none=True)
+
+    upstream = tmp_path / "upstream"
+    _make_real_repo(upstream, "README.md")
+    _add_submodule(upstream, sub_repo, "vendor/sub")
+    _add_submodule(upstream, sub_repo, "vendor/skipped", update_none=True)
+    _add_submodule(upstream, mid_repo, "vendor/mid")
+
+    with patch.dict(os.environ, _ALLOW_FILE_PROTOCOL_ENV):
+        repo_dir, _ = git.clone_or_update(
+            url=str(upstream),
+            ref=None,
+            refresh=None,
+            domain="test_e2e",
+            init_submodules=True,
+        )
+
+    assert (repo_dir / "vendor" / "sub" / "sub_file.txt").is_file()
+    assert not (repo_dir / "vendor" / "skipped" / "sub_file.txt").exists()
+    assert (repo_dir / "vendor" / "mid" / "mid_file.txt").is_file()
+    assert not (
+        repo_dir / "vendor" / "mid" / "vendor" / "leaf" / "sub_file.txt"
+    ).exists()
 
 
 def test_refresh_picks_up_new_remote_commits(
