@@ -16,9 +16,7 @@ static const char *const TAG = "udp";
 
 void UDPComponent::setup() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-#ifdef USE_ZEPHYR
-  // Zephyr's network stack is IPv6-only: there is no broadcast concept, and multicast
-  // listen_address (group join) isn't implemented yet (rejected in config validation).
+  // Build destination address list.  sockaddr_storage is large enough for both IPv4 and IPv6.
   for (const auto &address : this->addresses_) {
     struct sockaddr_storage saddr {};
     socklen_t addrlen =
@@ -31,8 +29,9 @@ void UDPComponent::setup() {
     }
     this->sockaddrs_.push_back(saddr);
   }
+  // Broadcast (send) socket
   if (this->should_broadcast_) {
-    this->broadcast_socket_ = socket::socket(AF_INET6, SOCK_DGRAM, IPPROTO_IP);
+    this->broadcast_socket_ = socket::socket_ip(SOCK_DGRAM, IPPROTO_IP);
     if (this->broadcast_socket_ == nullptr) {
       this->status_set_error(LOG_STR("Could not create socket"));
       this->mark_failed();
@@ -44,9 +43,17 @@ void UDPComponent::setup() {
       this->status_set_warning(LOG_STR("Socket unable to set reuseaddr"));
       // we can still continue
     }
+#ifndef USE_ZEPHYR
+    // IPv6 has no broadcast concept — SO_BROADCAST is IPv4-only
+    err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_BROADCAST, &enable, sizeof(int));
+    if (err != 0) {
+      this->status_set_warning(LOG_STR("Socket unable to set broadcast"));
+    }
+#endif
   }
+  // Listen socket
   if (this->should_listen_) {
-    this->listen_socket_ = socket::socket(AF_INET6, SOCK_DGRAM, IPPROTO_IP);
+    this->listen_socket_ = socket::socket_ip(SOCK_DGRAM, IPPROTO_IP);
     if (this->listen_socket_ == nullptr) {
       this->status_set_error(LOG_STR("Could not create socket"));
       this->mark_failed();
@@ -74,7 +81,6 @@ void UDPComponent::setup() {
       this->mark_failed();
       return;
     }
-
     err = this->listen_socket_->bind(reinterpret_cast<sockaddr *>(&server), server_len);
     if (err != 0) {
       ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
@@ -82,68 +88,14 @@ void UDPComponent::setup() {
       this->mark_failed();
       return;
     }
-  }
-#else
-  for (const auto &address : this->addresses_) {
-    struct sockaddr saddr {};
-    socket::set_sockaddr(&saddr, sizeof(saddr), address, this->broadcast_port_);
-    this->sockaddrs_.push_back(saddr);
-  }
-  // set up broadcast socket
-  if (this->should_broadcast_) {
-    this->broadcast_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
-    if (this->broadcast_socket_ == nullptr) {
-      this->status_set_error(LOG_STR("Could not create socket"));
-      this->mark_failed();
-      return;
-    }
-    int enable = 1;
-    auto err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
-    if (err != 0) {
-      this->status_set_warning(LOG_STR("Socket unable to set reuseaddr"));
-      // we can still continue
-    }
-    err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_BROADCAST, &enable, sizeof(int));
-    if (err != 0) {
-      this->status_set_warning(LOG_STR("Socket unable to set broadcast"));
-    }
-  }
-  // create listening socket if we either want to subscribe to providers, or need to listen
-  // for ping key broadcasts.
-  if (this->should_listen_) {
-    this->listen_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
-    if (this->listen_socket_ == nullptr) {
-      this->status_set_error(LOG_STR("Could not create socket"));
-      this->mark_failed();
-      return;
-    }
-    auto err = this->listen_socket_->setblocking(false);
-    if (err < 0) {
-      ESP_LOGE(TAG, "Unable to set nonblocking: errno %d", errno);
-      this->status_set_error(LOG_STR("Unable to set nonblocking"));
-      this->mark_failed();
-      return;
-    }
-    int enable = 1;
-    err = this->listen_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
-    if (err != 0) {
-      this->status_set_warning(LOG_STR("Socket unable to set reuseaddr"));
-      // we can still continue
-    }
-    struct sockaddr_in server {};
-
-    server.sin_family = AF_INET;
-    server.sin_addr.s_addr = ESPHOME_INADDR_ANY;
-    server.sin_port = htons(this->listen_port_);
-
+#ifndef USE_ZEPHYR
+    // IPv4 multicast group join (not yet implemented on Zephyr)
     if (this->listen_address_.has_value()) {
-      // Only 16 bytes needed for IPv4, but use standard size for consistency
       char addr_buf[network::IP_ADDRESS_BUFFER_SIZE];
       this->listen_address_.value().str_to(addr_buf);
       struct ip_mreq imreq = {};
       imreq.imr_interface.s_addr = ESPHOME_INADDR_ANY;
       inet_aton(addr_buf, &imreq.imr_multiaddr);
-      server.sin_addr.s_addr = imreq.imr_multiaddr.s_addr;
       ESP_LOGD(TAG, "Join multicast %s", addr_buf);
       err = this->listen_socket_->setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, &imreq, sizeof(imreq));
       if (err < 0) {
@@ -153,16 +105,8 @@ void UDPComponent::setup() {
         return;
       }
     }
-
-    err = this->listen_socket_->bind((struct sockaddr *) &server, sizeof(server));
-    if (err != 0) {
-      ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
-      this->status_set_error(LOG_STR("Unable to bind socket"));
-      this->mark_failed();
-      return;
-    }
-  }
 #endif
+  }
 #endif
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
   // 8266 and RP2040 `Duino
@@ -281,7 +225,8 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
   }
 #else
   for (const auto &saddr : this->sockaddrs_) {
-    auto result = this->broadcast_socket_->sendto(data, size, 0, &saddr, sizeof(saddr));
+    auto result =
+        this->broadcast_socket_->sendto(data, size, 0, reinterpret_cast<const sockaddr *>(&saddr), sizeof(saddr));
     if (result < 0)
       ESP_LOGW(TAG, "sendto() error %d", errno);
   }

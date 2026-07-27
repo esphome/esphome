@@ -94,13 +94,13 @@ def validate_udp_address(value):
     return cv.ipv4address(value)
 
 
-def _validate_zephyr_listen_address(config: ConfigType) -> ConfigType:
-    """Multicast listen_address (group join) is not implemented on Zephyr yet."""
-    if CORE.using_zephyr and str(config[CONF_LISTEN_ADDRESS]) != "255.255.255.255":
+def validate_listen_address(value):
+    """Validate listen_address, rejecting multicast on Zephyr before the IPv4 check."""
+    if CORE.using_zephyr and str(value) != "255.255.255.255":
         raise cv.Invalid(
             "listen_address (multicast group join) is not implemented on Zephyr yet"
         )
-    return config
+    return cv.ipv4address_multi_broadcast(value)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -118,7 +118,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(
                 CONF_LISTEN_ADDRESS, default="255.255.255.255"
-            ): cv.ipv4address_multi_broadcast,
+            ): validate_listen_address,
             cv.Optional(CONF_ADDRESSES, default=["255.255.255.255"]): cv.ensure_list(
                 validate_udp_address,
             ),
@@ -131,7 +131,6 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(RELOCATED),
-    _validate_zephyr_listen_address,
     _consume_udp_sockets,
 )
 

@@ -46,14 +46,12 @@ class UDPComponent final : public Component {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   std::unique_ptr<socket::Socket> broadcast_socket_ = nullptr;
   std::unique_ptr<socket::Socket> listen_socket_ = nullptr;
-#ifdef USE_ZEPHYR
-  // Zephyr's network stack is IPv6-only; a sockaddr_in6 doesn't fit in a generic sockaddr.
+  // sockaddr_storage is large enough for both IPv4 (sockaddr_in) and IPv6 (sockaddr_in6).
   std::vector<struct sockaddr_storage> sockaddrs_{};
+#ifdef USE_ZEPHYR
   // Whether the send socket has been bound to a concrete (OMR) source address yet. Binding
   // is lazy: the routable source only exists once the device has attached to the network.
   bool broadcast_socket_bound_{false};
-#else
-  std::vector<struct sockaddr> sockaddrs_{};
 #endif
 #endif
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
