@@ -28,37 +28,39 @@ inline const char *json_escape_into_buffer(std::span<char> buf, StringRef value)
   size_t pos = 0;
   for (char ch : value) {
     auto c = static_cast<unsigned char>(ch);
-    const char *escape = nullptr;
+    // Every short form is a backslash followed by a single character, so only that character is needed here. Keeping
+    // it a char rather than a string avoids putting the sequences in read only data, which is RAM on the ESP8266.
+    char escape = '\0';
     switch (c) {
       case '"':
-        escape = "\\\"";
+        escape = '"';
         break;
       case '\\':
-        escape = "\\\\";
+        escape = '\\';
         break;
       case '\n':
-        escape = "\\n";
+        escape = 'n';
         break;
       case '\r':
-        escape = "\\r";
+        escape = 'r';
         break;
       case '\t':
-        escape = "\\t";
+        escape = 't';
         break;
       case '\b':
-        escape = "\\b";
+        escape = 'b';
         break;
       case '\f':
-        escape = "\\f";
+        escape = 'f';
         break;
       default:
         break;
     }
-    if (escape != nullptr) {
+    if (escape != '\0') {
       if (pos + 2 > limit)
         break;
-      buf[pos++] = escape[0];
-      buf[pos++] = escape[1];
+      buf[pos++] = '\\';
+      buf[pos++] = escape;
     } else if (c < 0x20) {
       // Remaining control characters have no short form and must be written as \u00XX. The value is below 0x20, so
       // the two high hex digits are always zero.
