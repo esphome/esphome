@@ -190,8 +190,6 @@ class ModbusClientHub : public Modbus {
   // requests will be queued. Each modbus component may queue multiple requests, and the sequence of scheduling
   // may change at run time.
   std::deque<ModbusDeviceCommand> tx_buffer_;
-  /// Null-safe shorthand for device->trigger_not_sent(pdu); the recursion guard lives on the device.
-  void notify_not_sent_(ModbusClientDevice *device, std::span<const uint8_t> pdu);
 };
 
 class ModbusServerHub : public Modbus {

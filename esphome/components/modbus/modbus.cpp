@@ -531,7 +531,8 @@ void ModbusClientHub::send_next_frame_() {
       device->on_sent(frame.pdu());
     }
   } else {
-    this->notify_not_sent_(device, command.frame.pdu());
+    if (device != nullptr)
+      device->trigger_not_sent(command.frame.pdu());
   }
 
   if (!this->tx_buffer_.empty()) {
@@ -608,7 +609,8 @@ void ModbusClientHub::requeue_waiting_frame_(ModbusDeviceCommand &wfr, bool devi
   const ModbusFrame &frame = wfr.frame;
   if (this->tx_buffer_.size() >= MODBUS_TX_BUFFER_SIZE) {
     ESP_LOGE(TAG, "Write buffer full, dropped retry for address %" PRIu8, frame.address());
-    this->notify_not_sent_(wfr.device, frame.pdu());
+    if (wfr.device != nullptr)
+      wfr.device->trigger_not_sent(frame.pdu());
     return;
   }
   // Re-queue a copy (not a move): the waiting entry may have to survive as an interrupted shell. Preserve the
@@ -653,7 +655,7 @@ void ModbusClientHub::maybe_requeue_completed_(ModbusDeviceCommand &command, boo
   if (this->tx_buffer_.size() >= MODBUS_TX_BUFFER_SIZE) {
     ESP_LOGE(TAG, "Write buffer full, dropped re-queue for address %" PRIu8, command.frame.address());
     // The re-queue is refused, so the chain ends here; a continuous poller learns its polling stopped.
-    this->notify_not_sent_(command.device, command.frame.pdu());
+    command.device->trigger_not_sent(command.frame.pdu());
     return;
   }
   const ModbusFrame &frame = command.frame;
@@ -664,14 +666,16 @@ void ModbusClientHub::maybe_requeue_completed_(ModbusDeviceCommand &command, boo
 void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device,
                                CommandOptions options) {
   if (pdu.empty()) {
-    this->notify_not_sent_(device, pdu);
+    if (device != nullptr)
+      device->trigger_not_sent(pdu);
     return;
   }
 
   // Bound the PDU so the wire frame (address + pdu + CRC) stays within the Modbus RTU 256-byte limit.
   if (pdu.size() > MAX_PDU_SIZE) {
     ESP_LOGE(TAG, "Frame too large, dropped: %" PRIu8 ":%zu bytes", address, pdu.size());
-    this->notify_not_sent_(device, pdu);
+    if (device != nullptr)
+      device->trigger_not_sent(pdu);
     return;
   }
 
@@ -711,7 +715,8 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
       item.priority = CommandPriority::READ_AGAIN;
       ESP_LOGV(TAG, "Frame already %s for %" PRIu8 ", promoted for re-queue", state, address);
     } else {
-      this->notify_not_sent_(device, pdu);
+      if (device != nullptr)
+        device->trigger_not_sent(pdu);
     }
   };
   for (auto &item : this->tx_buffer_) {
@@ -743,18 +748,9 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
 #endif
     ESP_LOGE(TAG, "Write buffer full, dropped: %" PRIu8 ":%s", address,
              format_hex_pretty_to(hex_buf, pdu.data(), pdu.size()));
-    this->notify_not_sent_(device, pdu);
+    if (device != nullptr)
+      device->trigger_not_sent(pdu);
   }
-}
-
-// Deliver the terminal callback for a refused send. The recursion guard lives on the device
-// (trigger_not_sent()): while a device's on_not_sent() is on the stack, further deliveries to that
-// device are dropped, which bounds every send->refuse and clear->sweep recursion - including cycles
-// through multiple devices, since each device can appear on the stack at most once. Sending from
-// on_not_sent() is documented as hazardous for exactly this reason.
-void ModbusClientHub::notify_not_sent_(ModbusClientDevice *device, std::span<const uint8_t> pdu) {
-  if (device != nullptr)
-    device->trigger_not_sent(pdu);
 }
 
 void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sent) {
@@ -779,7 +775,8 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sen
     // The sweep delivers through the same per-device guard as refusals: a device clearing from inside
     // its own on_not_sent() gets its remaining frames resolved silently (documented in the lifecycle
     // contract), other owners are notified normally, and every nested clear stays bounded.
-    this->notify_not_sent_(dropped.device, dropped.frame.pdu());
+    if (dropped.device != nullptr)
+      dropped.device->trigger_not_sent(dropped.frame.pdu());
   }
 
   if (clear_sent && this->waiting_for_response_.has_value() && this->waiting_for_response_.value().device) {
@@ -816,7 +813,8 @@ void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
 
 void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device) {
   if (payload.size() < 2) {
-    this->notify_not_sent_(device, {});  // too short to contain a PDU
+    if (device != nullptr)
+      device->trigger_not_sent({});  // too short to contain a PDU
     return;
   }
   this->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), device);
