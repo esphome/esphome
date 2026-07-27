@@ -351,7 +351,8 @@ class ModbusClientDevice {
   ESPDEPRECATED("Use send_pdu() instead (the device address is prepended for you). Removed in 2027.2.0", "2026.8.0")
   void send_raw(const std::vector<uint8_t> &payload) {
     if (payload.empty()) {
-      this->on_not_sent({});  // match the hub-level send_raw(): a refused send is always signalled
+      // Through the guard like every other delivery, so a handler calling send_raw({}) cannot recurse.
+      this->trigger_not_sent({});
       return;
     }
     this->parent_->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
