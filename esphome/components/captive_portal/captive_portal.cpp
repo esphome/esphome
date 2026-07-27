@@ -24,23 +24,28 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   stream->printf(R"({"mac":"%s","name":"%s","aps":[{})", mac_str, App.get_name().c_str());
 #endif
 
-  for (auto &scan : wifi::global_wifi_component->get_scan_result()) {
-    if (scan.get_is_hidden())
-      continue;
+  {
+    // Invariant: only bounded in-memory work under the lock; the network send
+    // happens later in request->send()
+    wifi::ScanResultsLock lock(wifi::global_wifi_component);
+    for (const auto &scan : wifi::global_wifi_component->get_scan_result()) {
+      if (scan.get_is_hidden())
+        continue;
 
-      // Assumes no " in ssid, possible unicode isses?
+        // Assumes no " in ssid, possible unicode issues?
 #ifdef USE_ESP8266
-    stream->print(ESPHOME_F(",{\"ssid\":\""));
-    stream->print(scan.get_ssid().c_str());
-    stream->print(ESPHOME_F("\",\"rssi\":"));
-    stream->print(scan.get_rssi());
-    stream->print(ESPHOME_F(",\"lock\":"));
-    stream->print(scan.get_with_auth());
-    stream->print(ESPHOME_F("}"));
+      stream->print(ESPHOME_F(",{\"ssid\":\""));
+      stream->print(scan.get_ssid().c_str());
+      stream->print(ESPHOME_F("\",\"rssi\":"));
+      stream->print(scan.get_rssi());
+      stream->print(ESPHOME_F(",\"lock\":"));
+      stream->print(scan.get_with_auth());
+      stream->print(ESPHOME_F("}"));
 #else
-    stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", scan.get_ssid().c_str(), scan.get_rssi(),
-                   scan.get_with_auth());
+      stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", scan.get_ssid().c_str(), scan.get_rssi(),
+                     scan.get_with_auth());
 #endif
+    }
   }
   stream->print(ESPHOME_F("]}"));
   request->send(stream);
