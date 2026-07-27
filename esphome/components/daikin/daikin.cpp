@@ -6,10 +6,11 @@ namespace esphome::daikin {
 static const char *const TAG = "daikin.climate";
 
 void DaikinClimate::transmit_state() {
-  uint8_t remote_state[35] = {0x11, 0xDA, 0x27, 0x00, 0xC5, 0x00, 0x00, 0xD7, 0x11, 0xDA, 0x27, 0x00,
+  uint8_t remote_state[35] = {0x11, 0xDA, 0x27, 0x00, 0xC5, 0x00, 0x00, 0x00, 0x11, 0xDA, 0x27, 0x00,
                               0x42, 0x49, 0x05, 0xA2, 0x11, 0xDA, 0x27, 0x00, 0x00, 0x00, 0x00, 0x00,
                               0x00, 0x00, 0x00, 0x06, 0x60, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00};
 
+  remote_state[6] |= this->preset == climate::CLIMATE_PRESET_COMFORT ? DAIKIN_PRESET_COMFORT_ON : 0;
   remote_state[21] = this->operation_mode_();
   remote_state[22] = this->temperature_();
   uint16_t fan_speed = this->fan_speed_();
@@ -18,7 +19,10 @@ void DaikinClimate::transmit_state() {
   remote_state[29] = this->powerful_quiet_preset_();
   remote_state[32] = this->eco_preset_();
 
-  // Calculate checksum
+  // Calculate checksums
+  for (int i = 0; i < 7; i++) {
+    remote_state[7] += remote_state[i];
+  }
   for (int i = 16; i < 34; i++) {
     remote_state[34] += remote_state[i];
   }
@@ -258,7 +262,6 @@ bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
       break;
   }
 
-  this->preset = climate::CLIMATE_PRESET_NONE;
   uint8_t powerful_quiet_preset = frame[13];
   uint8_t eco_preset = frame[16];
 
@@ -271,9 +274,6 @@ bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
       break;
   }
   switch (eco_preset) {
-    case DAIKIN_PRESET_COMFORT_ON:
-      this->preset = climate::CLIMATE_PRESET_COMFORT;
-      break;
     case DAIKIN_PRESET_ECONO_ON:
       this->preset = climate::CLIMATE_PRESET_ECO;
       break;
@@ -286,12 +286,32 @@ bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
   return true;
 }
 
+bool DaikinClimate::parse_comfort_frame_(const uint8_t frame[]) {
+  uint8_t checksum = 0;
+  for (int i = 0; i < (DAIKIN_COMFORT_FRAME_SIZE - 1); i++) {
+    checksum += frame[i];
+  }
+  if (frame[DAIKIN_COMFORT_FRAME_SIZE - 1] != checksum)
+    return false;
+
+  uint8_t comfort_preset = frame[6];
+
+  this->preset = climate::CLIMATE_PRESET_NONE;
+  if (comfort_preset & DAIKIN_PRESET_COMFORT_ON) {
+    this->preset = climate::CLIMATE_PRESET_COMFORT;
+  }
+
+  return true;
+}
+
 bool DaikinClimate::on_receive(remote_base::RemoteReceiveData data) {
-  uint8_t state_frame[DAIKIN_STATE_FRAME_SIZE] = {};
+  uint8_t frame[DAIKIN_STATE_FRAME_SIZE] = {};
   if (!data.expect_item(DAIKIN_HEADER_MARK, DAIKIN_HEADER_SPACE)) {
     return false;
   }
-  for (uint8_t pos = 0; pos < DAIKIN_STATE_FRAME_SIZE; pos++) {
+
+  uint8_t frame_size = DAIKIN_STATE_FRAME_SIZE;
+  for (uint8_t pos = 0; pos < frame_size; pos++) {
     uint8_t byte = 0;
     for (int8_t bit = 0; bit < 8; bit++) {
       if (data.expect_item(DAIKIN_BIT_MARK, DAIKIN_ONE_SPACE)) {
@@ -300,7 +320,7 @@ bool DaikinClimate::on_receive(remote_base::RemoteReceiveData data) {
         return false;
       }
     }
-    state_frame[pos] = byte;
+    frame[pos] = byte;
     if (pos == 0) {
       // frame header
       if (byte != 0x11)
@@ -319,11 +339,22 @@ bool DaikinClimate::on_receive(remote_base::RemoteReceiveData data) {
         return false;
     } else if (pos == 4) {
       // frame type
-      if (byte != 0x00)
+      if (byte == 0xC5)
+        frame_size = DAIKIN_COMFORT_FRAME_SIZE;
+      else if (byte != 0x00)
         return false;
     }
   }
-  return this->parse_state_frame_(state_frame);
+
+  switch (frame[4]) {
+    case 0:
+      return this->parse_state_frame_(frame);
+    case 0xC5:
+      return this->parse_comfort_frame_(frame);
+    default:
+      return false;
+  }
+  return false;
 }
 
 }  // namespace esphome::daikin

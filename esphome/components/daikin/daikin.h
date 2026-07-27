@@ -31,11 +31,11 @@ const uint8_t DAIKIN_FAN_5 = 0x70;
 
 // Presets
 const uint8_t DAIKIN_PRESET_OFF = 0x00;
+const uint8_t DAIKIN_PRESET_COMFORT_ON = 0x10;
 const uint8_t DAIKIN_PRESET_POWERFUL_ON = 0x01;
 const uint8_t DAIKIN_PRESET_QUIET_ON = 0x20;
-const uint8_t DAIKIN_PRESET_COMFORT_ON = 0x02;
 const uint8_t DAIKIN_PRESET_ECONO_ON = 0x04;
-const uint8_t DAIKIN_PRESET_SENSOR_ON = 0x08;
+const uint8_t DAIKIN_PRESET_SENSOR_ON = 0x02;
 
 // IR Transmission
 const uint32_t DAIKIN_IR_FREQUENCY = 38000;
@@ -48,6 +48,7 @@ const uint32_t DAIKIN_MESSAGE_SPACE = 32300;
 
 // State Frame size
 const uint8_t DAIKIN_STATE_FRAME_SIZE = 19;
+const uint8_t DAIKIN_COMFORT_FRAME_SIZE = 8;
 
 class DaikinClimate final : public climate_ir::ClimateIR {
  public:
@@ -74,6 +75,7 @@ class DaikinClimate final : public climate_ir::ClimateIR {
   // Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
   bool parse_state_frame_(const uint8_t frame[]);
+  bool parse_comfort_frame_(const uint8_t frame[]);
 };
 
 }  // namespace esphome::daikin
