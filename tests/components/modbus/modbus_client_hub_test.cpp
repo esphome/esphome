@@ -686,7 +686,6 @@ TEST(ModbusClientHubQueue, SendRawRefusalIsGuardedAgainstRecursion) {
 
 // A continuous read: every wire transmission pairs one sent with one terminal, ending on the error.
 TEST(ModbusClientHubCallbackCount, ContinuousLifecyclesBalance) {
-  ensure_test_app_constructed();
   NullUART uart;
   NoResponseProbeHub hub;
   hub.set_uart_parent(&uart);
