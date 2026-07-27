@@ -2,6 +2,7 @@ from esphome.components.display_menu_base import CONF_LABEL
 import esphome.config_validation as cv
 from esphome.const import CONF_COLOR, CONF_HEIGHT, CONF_WIDTH
 
+from .. import add_lv_use
 from ..defines import CONF_MAIN
 from ..lv_validation import lv_color, size
 from ..lvcode import lv_add
@@ -43,6 +44,10 @@ class ColorPickerType(WidgetType):
             modify_schema=COLOR_PICKER_MODIFY_SCHEMA,
             lv_name="obj",
         )
+
+    def validate(self, value):
+        add_lv_use(CONF_COLOR_PICKER)
+        return super().validate(value)
 
     async def to_code(self, w, config: dict):
         if color := config.get(CONF_COLOR):
