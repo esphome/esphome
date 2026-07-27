@@ -8,7 +8,9 @@
 #include "esp_event.h"
 
 #ifdef USE_NETWORK_DEFAULT_ROUTE
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esp_netif_net_stack.h"
 #include "lwip/netif.h"
 #ifdef USE_ETHERNET
 #include "esphome/components/ethernet/ethernet_component.h"
@@ -83,18 +85,23 @@ void NetworkComponent::loop() {
     return;
   }
   if (best == this->default_netif_) {
-    // Same winner as the last assert. Still re-assert if lwIP lost its default
-    // route: a winner whose netif bounced down and up between two polls would
-    // otherwise stay routeless (stopping a netif nulls lwIP's netif_default, and
-    // IDF's manual-override mode never re-elects while the override target stays
-    // registered). esp_netif_get_default_netif() cannot detect this — it returns
-    // IDF's own bookkeeping, which still points at the winner.
-    bool lwip_has_default;
+    // Same winner as the last assert. Still re-assert if lwIP's default route is
+    // not the winner's netif: a winner whose netif bounced down and up between two
+    // polls would otherwise stay routeless (stopping a netif nulls lwIP's
+    // netif_default). Checking lwIP directly keeps this independent of IDF's
+    // re-election bookkeeping (esp_netif_get_default_netif() cannot detect it).
+    // Throttled: LwIPLock is the global lwIP core mutex, and this branch runs on
+    // every pass once the route has settled.
+    const uint32_t now = App.get_loop_component_start_time();
+    if (now - this->last_route_check_ < ROUTE_CHECK_INTERVAL_MS)
+      return;
+    this->last_route_check_ = now;
+    bool route_is_ours;
     {
       LwIPLock lock;
-      lwip_has_default = netif_default != nullptr;
+      route_is_ours = static_cast<void *>(netif_default) == esp_netif_get_netif_impl(best);
     }
-    if (lwip_has_default)
+    if (route_is_ours)
       return;
   }
   if (esp_netif_set_default_netif(best) != ESP_OK)

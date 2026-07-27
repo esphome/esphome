@@ -20,8 +20,12 @@ class NetworkComponent final : public Component {
   void loop() override;
 
  protected:
+  // Verify-lwIP-route interval for the settled state; keeps the global lwIP core
+  // mutex off the hot loop path.
+  static constexpr uint32_t ROUTE_CHECK_INTERVAL_MS = 1000;
   // Last netif this component made the default; avoids redundant esp_netif calls.
   esp_netif_t *default_netif_{nullptr};
+  uint32_t last_route_check_{0};
 #endif
 };
 }  // namespace esphome::network

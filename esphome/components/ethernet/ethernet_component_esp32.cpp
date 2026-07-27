@@ -767,16 +767,22 @@ void EthernetComponent::start_connect_() {
     // Set DNS through esp_netif so the servers are stored in the netif's own
     // dns[] array; raw dns_setserver() would be lost when the default-route
     // arbitration re-applies the default netif's DNS.
+    // Log-only on failure: the link still has a working IP/gateway, so degraded
+    // name resolution does not justify marking the whole component failed.
     esp_netif_dns_info_t dns{};
     if (this->manual_ip_->dns1.is_set()) {
       dns.ip = this->manual_ip_->dns1;
       err = esp_netif_set_dns_info(this->eth_netif_, ESP_NETIF_DNS_MAIN, &dns);
-      ESPHL_ERROR_CHECK(err, "Set main DNS error");
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Set main DNS failed: %s", esp_err_to_name(err));
+      }
     }
     if (this->manual_ip_->dns2.is_set()) {
       dns.ip = this->manual_ip_->dns2;
       err = esp_netif_set_dns_info(this->eth_netif_, ESP_NETIF_DNS_BACKUP, &dns);
-      ESPHL_ERROR_CHECK(err, "Set backup DNS error");
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Set backup DNS failed: %s", esp_err_to_name(err));
+      }
     }
   } else
 #endif
