@@ -134,7 +134,7 @@ class GitSource(Source):
             ref=self.ref,
             refresh=git.NEVER_REFRESH if not force else None,
             domain=domain,
-            submodules=[],
+            init_submodules=True,
             subpath=Path(dir_suffix),
         )
         return path
