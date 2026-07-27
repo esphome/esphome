@@ -244,9 +244,11 @@ def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
     tmp.replace(uf2conv)
 
 
-# Projects whose manifest entries use "import:"; west resolves those imports
-# with "git show", which needs the real repository.
-_GIT_IMPORT_PROJECTS = ("zephyr", "tools/bsim")
+# Written into the manifest repository by "west manifest --resolve" and set
+# as manifest.file so west never has to resolve manifest imports again.
+# Imports are resolved with "git show" against each imported project's
+# repository, which would otherwise have to keep its full git history.
+_RESOLVED_MANIFEST = "west-resolved.yml"
 
 
 def _prune_git_history(framework_path: Path) -> None:
@@ -257,12 +259,11 @@ def _prune_git_history(framework_path: Path) -> None:
     files. West still requires every project to look like a git repository
     (an "uncloned" project is silently dropped from the Zephyr build), and
     the sdk-nrf version stamping reads .git/index, so each repository is
-    replaced with an empty stub instead of being deleted.
+    replaced with an empty stub instead of being deleted. The workspace
+    manifest is resolved to a single file beforehand, so no repository needs
+    to keep real history for west's import resolution.
     """
-    keep = {framework_path / p / ".git" for p in _GIT_IMPORT_PROJECTS}
     for git_dir in [p for p in framework_path.rglob(".git") if p.is_dir()]:
-        if git_dir in keep:
-            continue
         project = git_dir.parent
         rmdir(git_dir)
         stub_cmds = (
@@ -349,6 +350,35 @@ def check_and_install() -> None:
         ]
         if not run_command_ok(cmd, cwd=framework_path):
             raise EsphomeError(f"Can't update nRF Connect SDK {version}")
+        # Flatten manifest imports into a single file inside the manifest
+        # repository ("nrf" is sdk-nrf's self path) and point west at it, so
+        # import resolution never runs again and _prune_git_history() can
+        # stub every project repository.
+        cmd = [
+            str(env_python_path),
+            "-m",
+            "west",
+            "manifest",
+            "--resolve",
+            "-o",
+            str(framework_path / "nrf" / _RESOLVED_MANIFEST),
+        ]
+        if not run_command_ok(cmd, cwd=framework_path):
+            raise EsphomeError(
+                f"Can't resolve west manifest for nRF Connect SDK {version}"
+            )
+        cmd = [
+            str(env_python_path),
+            "-m",
+            "west",
+            "config",
+            "manifest.file",
+            _RESOLVED_MANIFEST,
+        ]
+        if not run_command_ok(cmd, cwd=framework_path):
+            raise EsphomeError(
+                f"Can't switch west to the resolved manifest for nRF Connect SDK {version}"
+            )
         framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
         if framework_ver < cv.Version(2, 9, 2):
             _patch_uf2conv_escape_sequences(framework_path)

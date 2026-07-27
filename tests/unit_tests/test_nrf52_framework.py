@@ -159,8 +159,9 @@ class TestCheckAndInstall:
         check_and_install()
 
         mock_nrf52_ops.create_venv.assert_called_once()
-        # pip install requirements, west init, west update, pip install zephyr reqs
-        assert mock_nrf52_ops.run_command_ok.call_count == 4
+        # pip install requirements, west init, west update, west manifest --resolve,
+        # west config manifest.file, pip install zephyr reqs
+        assert mock_nrf52_ops.run_command_ok.call_count == 6
         # minimal SDK + per-arch toolchain
         assert mock_nrf52_ops.download_from_mirrors.call_count == 2
         assert mock_nrf52_ops.archive_extract_all.call_count == 2
@@ -180,8 +181,9 @@ class TestCheckAndInstall:
         check_and_install()
 
         mock_nrf52_ops.create_venv.assert_not_called()
-        # west init, west update, pip install zephyr reqs
-        assert mock_nrf52_ops.run_command_ok.call_count == 3
+        # west init, west update, west manifest --resolve, west config
+        # manifest.file, pip install zephyr reqs
+        assert mock_nrf52_ops.run_command_ok.call_count == 5
         # minimal SDK + per-arch toolchain
         assert mock_nrf52_ops.download_from_mirrors.call_count == 2
 
@@ -523,7 +525,7 @@ def testget_tools_path_default_is_global_cache(
 
 
 class TestPruneGitHistory:
-    def test_prunes_all_but_import_projects(self, tmp_path: Path) -> None:
+    def test_prunes_all_projects(self, tmp_path: Path) -> None:
         framework = tmp_path / "framework"
         projects = ("zephyr", "tools/bsim", "nrf", "modules/hal/nordic")
         for project in projects:
@@ -534,11 +536,10 @@ class TestPruneGitHistory:
 
         _prune_git_history(framework)
 
-        # Projects resolved through manifest imports keep their repository
-        for project in ("zephyr", "tools/bsim"):
-            assert (framework / project / ".git" / "marker").exists()
-        # Everything else is replaced with a stub that still looks cloned
-        for project in ("nrf", "modules/hal/nordic"):
+        # With the manifest resolved to a single file at install time, west
+        # never resolves imports again, so every repository becomes a stub
+        # that still looks cloned
+        for project in projects:
             git_dir = framework / project / ".git"
             assert not (git_dir / "marker").exists()
             assert (git_dir / "index").exists()
