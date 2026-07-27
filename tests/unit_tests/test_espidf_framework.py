@@ -29,7 +29,7 @@ from esphome.espidf.framework import (
     _get_python_env_path,
     _get_python_version,
     _parse_git_source,
-    _patch_tools_json_demote_openocd,
+    _patch_tools_json_demote_unused_tools,
     _patch_tools_json_for_linux_arm64,
     _prefetch_idf_tool_archives,
     _windows_long_paths_enabled,
@@ -137,10 +137,17 @@ def test_parse_git_source_rejected(source: str) -> None:
     assert _parse_git_source(source) is None
 
 
-def _make_idf_tree(framework_path: Path) -> None:
-    """Create the minimum tree _clone_idf_with_submodules sanity-checks for."""
+def _make_idf_tree(framework_path: Path, *, gitmodules: bool = True) -> None:
+    """Create the minimum tree _clone_idf_with_submodules sanity-checks for.
+
+    ``gitmodules=False`` simulates a fork that vendors components in-tree
+    instead of declaring submodules; update_submodules skips the git call
+    when that file is missing.
+    """
     (framework_path / "tools").mkdir(parents=True)
     (framework_path / "tools" / "idf_tools.py").write_text("# stub\n")
+    if gitmodules:
+        (framework_path / ".gitmodules").write_text("# stub\n")
 
 
 def test_clone_idf_with_submodules_without_ref(tmp_path: Path) -> None:
@@ -212,6 +219,28 @@ def test_clone_idf_with_submodules_raises_when_tree_missing(
             "https://github.com/espressif/esp-idf.git",
             None,
         )
+
+
+def test_clone_idf_accepts_flattened_fork_without_gitmodules(
+    tmp_path: Path,
+) -> None:
+    """A fork that vendors components in-tree instead of as submodules is valid.
+
+    No .gitmodules means the submodule step is skipped entirely.
+    """
+    framework_path = tmp_path / "idf"
+    framework_path.mkdir()
+    _make_idf_tree(framework_path, gitmodules=False)
+
+    with patch("esphome.git.run_git_command", return_value="") as run_git_command_mock:
+        _clone_idf_with_submodules(
+            framework_path,
+            "https://github.com/example/flattened-esp-idf.git",
+            None,
+        )
+
+    calls = [c.args[0] for c in run_git_command_mock.call_args_list]
+    assert not any(c[1] == "submodule" for c in calls)
 
 
 # ---------------------------------------------------------------------------
@@ -352,7 +381,7 @@ def espidf_mocks(setup_core: Path):
         patch("esphome.espidf.framework._clone_idf_with_submodules") as clone,
         patch("esphome.espidf.framework._write_idf_version_txt"),
         patch("esphome.espidf.framework._patch_tools_json_for_linux_arm64"),
-        patch("esphome.espidf.framework._patch_tools_json_demote_openocd"),
+        patch("esphome.espidf.framework._patch_tools_json_demote_unused_tools"),
         patch("esphome.espidf.framework._prefetch_idf_tool_archives"),
         patch("esphome.espidf.framework._write_stamp"),
         patch("esphome.espidf.framework._check_stamp", return_value=True),
@@ -952,28 +981,37 @@ def test_get_tool_downloads_inprocess_explicit_tool_specs(
 
 
 # ---------------------------------------------------------------------------
-# _patch_tools_json_demote_openocd (openocd-esp32 made optional)
+# _patch_tools_json_demote_unused_tools (openocd, gdb, ULP toolchain optional)
 # ---------------------------------------------------------------------------
 
 
-def test_demote_openocd_patches_install_type(tmp_path: Path) -> None:
+def test_demote_unused_tools_patches_install_type(tmp_path: Path) -> None:
     tools_json = _write_tools_json(
         tmp_path,
         {
             "tools": [
                 {"name": "openocd-esp32", "install": "always"},
-                {"name": "cmake", "install": "always"},
+                {"name": "xtensa-esp-elf-gdb", "install": "always"},
+                {"name": "riscv32-esp-elf-gdb", "install": "always"},
+                {"name": "esp32ulp-elf", "install": "always"},
+                {"name": "xtensa-esp-elf", "install": "always"},
+                {"name": "esp-rom-elfs", "install": "always"},
             ]
         },
     )
-    _patch_tools_json_demote_openocd(tmp_path)
+    _patch_tools_json_demote_unused_tools(tmp_path)
 
     data = json.loads(tools_json.read_text(encoding="utf-8"))
-    openocd = next(t for t in data["tools"] if t["name"] == "openocd-esp32")
-    cmake = next(t for t in data["tools"] if t["name"] == "cmake")
-    assert openocd["install"] == "on_request"
-    # other tools are left untouched
-    assert cmake["install"] == "always"
+    install_types = {t["name"]: t["install"] for t in data["tools"]}
+    assert install_types == {
+        "openocd-esp32": "on_request",
+        "xtensa-esp-elf-gdb": "on_request",
+        "riscv32-esp-elf-gdb": "on_request",
+        "esp32ulp-elf": "on_request",
+        # the compiler toolchain and ROM ELFs stay required
+        "xtensa-esp-elf": "always",
+        "esp-rom-elfs": "always",
+    }
 
 
 def test_patch_tools_json_unexpected_structure_warns_and_skips(
@@ -985,16 +1023,24 @@ def test_patch_tools_json_unexpected_structure_warns_and_skips(
     tools_json = tools_dir / "tools.json"
     tools_json.write_text('["not", "a", "dict"]', encoding="utf-8")
     before = tools_json.read_text(encoding="utf-8")
-    _patch_tools_json_demote_openocd(tmp_path)  # AttributeError -> skip
+    _patch_tools_json_demote_unused_tools(tmp_path)  # AttributeError -> skip
     assert tools_json.read_text(encoding="utf-8") == before
 
 
-def test_demote_openocd_already_patched_is_noop(tmp_path: Path) -> None:
+def test_demote_unused_tools_already_patched_is_noop(tmp_path: Path) -> None:
     tools_json = _write_tools_json(
-        tmp_path, {"tools": [{"name": "openocd-esp32", "install": "on_request"}]}
+        tmp_path,
+        {
+            "tools": [
+                {"name": "openocd-esp32", "install": "on_request"},
+                {"name": "xtensa-esp-elf-gdb", "install": "on_request"},
+                {"name": "riscv32-esp-elf-gdb", "install": "on_request"},
+                {"name": "esp32ulp-elf", "install": "on_request"},
+            ]
+        },
     )
     before = tools_json.read_text(encoding="utf-8")
-    _patch_tools_json_demote_openocd(tmp_path)
+    _patch_tools_json_demote_unused_tools(tmp_path)
     assert tools_json.read_text(encoding="utf-8") == before
 
 
