@@ -11,16 +11,17 @@ class LvColorPickerType : public LvCompound {
   constexpr static const char *const TAG = "lvgl.color_picker";
 
  public:
+  // The colour currently shown, kept up to date as the sliders move. Converts to lv_color_t
+  // on its own, so it can be handed straight to LVGL calls as well as read component-wise.
+  Color state{0x80, 0x80, 0x80};
+
   void set_color(lv_color_t color) {
-    this->color_ = color;
+    lv_color32_t c32 = lv_color_to_32(color, LV_OPA_COVER);
+    this->state = Color(c32.red, c32.green, c32.blue);
     if (this->obj != nullptr)
       this->update_color_();
   }
-  Color get_color() {
-    return {static_cast<uint8_t>(lv_slider_get_value(this->red_slider_)),
-            static_cast<uint8_t>(lv_slider_get_value(this->green_slider_)),
-            static_cast<uint8_t>(lv_slider_get_value(this->blue_slider_))};
-  }
+  Color get_color() const { return this->state; }
   void set_obj(lv_obj_t *outer) override {
     LvCompound::set_obj(outer);
     this->color_bar_.dir = LV_GRAD_DIR_VER;
@@ -300,6 +301,7 @@ class LvColorPickerType : public LvCompound {
     auto rgb_lambda = [](lv_event_t *event) {
       auto *self = static_cast<LvColorPickerType *>(lv_event_get_user_data(event));
       self->update_rgb_();
+      self->send_value_changed_();
     };
     lv_obj_add_event_cb(this->red_slider_, rgb_lambda, LV_EVENT_VALUE_CHANGED, this);
     lv_obj_add_event_cb(this->green_slider_, rgb_lambda, LV_EVENT_VALUE_CHANGED, this);
@@ -308,6 +310,7 @@ class LvColorPickerType : public LvCompound {
     auto hsl_lambda = [](lv_event_t *event) {
       auto *self = static_cast<LvColorPickerType *>(lv_event_get_user_data(event));
       self->update_hsl_();
+      self->send_value_changed_();
     };
     lv_obj_add_event_cb(this->hue_slider_, hsl_lambda, LV_EVENT_VALUE_CHANGED, this);
     lv_obj_add_event_cb(this->saturation_slider_, hsl_lambda, LV_EVENT_VALUE_CHANGED, this);
@@ -427,14 +430,17 @@ class LvColorPickerType : public LvCompound {
     lv_obj_set_style_bg_color(this->blue_slider_, lv_color_make(255 - blue, 255 - blue, 255), LV_PART_KNOB);
   }
 
+  // The sliders are internal to the widget, so their own events are not visible to anything
+  // outside it. Repeat the change on the widget itself, which is what `on_value` listens to.
+  void send_value_changed_() { lv_obj_send_event(this->obj, LV_EVENT_VALUE_CHANGED, nullptr); }
+
   void update_hsl_() {
     auto hue = lv_slider_get_value(this->hue_slider_);
     auto brightness = lv_slider_get_value(this->brightness_slider_);
     auto saturation = lv_slider_get_value(this->saturation_slider_);
-    this->color_ = lv_color_hsv_to_rgb(hue, saturation, brightness);
-    lv_obj_set_style_bg_color(this->color_indicator_, this->color_, LV_PART_MAIN);
-    lv_color32_t c32;
-    c32 = lv_color_to_32(this->color_, LV_OPA_COVER);
+    lv_color32_t c32 = lv_color_to_32(lv_color_hsv_to_rgb(hue, saturation, brightness), LV_OPA_COVER);
+    this->state = Color(c32.red, c32.green, c32.blue);
+    lv_obj_set_style_bg_color(this->color_indicator_, this->state, LV_PART_MAIN);
     lv_slider_set_value(this->red_slider_, c32.red, LV_ANIM_OFF);
     lv_slider_set_value(this->green_slider_, c32.green, LV_ANIM_OFF);
     lv_slider_set_value(this->blue_slider_, c32.blue, LV_ANIM_OFF);
@@ -448,8 +454,8 @@ class LvColorPickerType : public LvCompound {
     auto red = lv_slider_get_value(this->red_slider_);
     auto green = lv_slider_get_value(this->green_slider_);
     auto blue = lv_slider_get_value(this->blue_slider_);
-    this->color_ = lv_color_make(red, green, blue);
-    lv_obj_set_style_bg_color(this->color_indicator_, this->color_, LV_PART_MAIN);
+    this->state = Color(static_cast<uint8_t>(red), static_cast<uint8_t>(green), static_cast<uint8_t>(blue));
+    lv_obj_set_style_bg_color(this->color_indicator_, this->state, LV_PART_MAIN);
     auto hsv = lv_color_rgb_to_hsv(red, green, blue);
     lv_slider_set_value(this->hue_slider_, hsv.h, LV_ANIM_OFF);
     lv_slider_set_value(this->saturation_slider_, hsv.s, LV_ANIM_OFF);
@@ -461,11 +467,9 @@ class LvColorPickerType : public LvCompound {
   }
 
   void update_color_() {
-    lv_color32_t c32;
-    c32 = lv_color_to_32(this->color_, LV_OPA_COVER);
-    lv_slider_set_value(this->red_slider_, c32.red, LV_ANIM_OFF);
-    lv_slider_set_value(this->green_slider_, c32.green, LV_ANIM_OFF);
-    lv_slider_set_value(this->blue_slider_, c32.blue, LV_ANIM_OFF);
+    lv_slider_set_value(this->red_slider_, this->state.r, LV_ANIM_OFF);
+    lv_slider_set_value(this->green_slider_, this->state.g, LV_ANIM_OFF);
+    lv_slider_set_value(this->blue_slider_, this->state.b, LV_ANIM_OFF);
     this->update_rgb_();
     lv_obj_invalidate(this->obj);
   }
@@ -493,7 +497,6 @@ class LvColorPickerType : public LvCompound {
   lv_obj_t *green_value_{};
   lv_obj_t *color_indicator_{};
   lv_obj_t *color_text_{};
-  lv_color_t color_{lv_color_hex(0x808080)};
 };
 
 }  // namespace esphome::lvgl
