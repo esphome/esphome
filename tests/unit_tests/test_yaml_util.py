@@ -1365,6 +1365,33 @@ def test_discover_user_yaml_files_candidate_cycle_terminates(tmp_path: Path) -> 
     assert names == {"entry.yaml", "a.yaml", "b.yaml"}
 
 
+def test_discover_user_yaml_files_many_candidates_keep_nested_includes(
+    tmp_path: Path,
+) -> None:
+    """Every candidate's nested includes are discovered.
+
+    Regression test: the id()-based cycle guard is only safe while every
+    traversed tree stays alive. Candidate trees used to be freed between
+    loop iterations, so CPython recycled their addresses and later
+    candidates' fresh trees were skipped as already seen, silently dropping
+    their nested includes. Needs several candidates to manifest; two were
+    not enough to trigger the reuse."""
+    count = 12
+    for i in range(count):
+        _write(
+            tmp_path, f"keys/k{i}.yaml", f"sensor{i}: !include ../nested/n{i}.yaml\n"
+        )
+        _write(tmp_path, f"nested/n{i}.yaml", f"api{i}: true\n")
+    discovered = discover_user_yaml_files(
+        _write_entry_including(tmp_path, "keys/${x}.yaml")
+    )
+    names = {p.name for p in discovered.files}
+    expected = {f"n{i}.yaml" for i in range(count)}
+    expected |= {f"k{i}.yaml" for i in range(count)}
+    expected.add("entry.yaml")
+    assert names == expected
+
+
 def test_discover_user_yaml_files_bad_candidate_still_tracked(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

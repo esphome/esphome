@@ -32,7 +32,9 @@ ErrList = list[tuple[UndefinedError, DocumentPath, Any]]
 
 # Candidate-pattern shaping for include_candidate_patterns.
 _ADJACENT_WILDCARDS_RE = re.compile(r"\*+")
-_WILDCARDS_ONLY_RE = re.compile(r"[*/\\]+")
+# Dots are included so a variant like `../*` counts as fully dynamic too;
+# it would otherwise glob everything in the parent directory.
+_WILDCARDS_ONLY_RE = re.compile(r"[*./\\]+")
 _GLOB_META_RE = re.compile(r"[?\[]")
 _STRING_LITERAL_RE = re.compile(r"'([^']*)'|\"([^\"]*)\"")
 
@@ -391,8 +393,9 @@ def include_candidate_patterns(value: str) -> list[str]:
     candidate — deliberately over-inclusive. Emitted wildcard patterns are
     glob-safe: adjacent wildcards collapse (no recursive ``**``), ``[`` /
     ``?`` from the filename text are escaped, and variants reduced to
-    nothing but wildcards and separators are dropped so a fully dynamic
-    filename never expands to "everything in the directory".
+    nothing but wildcards, dots and separators are dropped so a fully
+    dynamic filename never expands to "everything in the directory",
+    including via a ``../*`` parent traversal.
     """
     # Replacing $var / ${var} first also keeps JINJA_PROG's first-} span
     # matching correct for references nested inside string literals, the

@@ -336,6 +336,7 @@ def _load_include_candidates(
     warn_on_unresolved: bool,
     seen: set[int],
     expanded_paths: set[Path],
+    keepalive: list[Any],
 ) -> None:
     """Load every filesystem candidate for an unresolved ``IncludeFile``."""
     log = _LOGGER.warning if warn_on_unresolved else _LOGGER.debug
@@ -372,11 +373,15 @@ def _load_include_candidates(
                 err,
             )
             continue
+        # The throwaway IncludeFile is this tree's only owner; keep the tree
+        # alive so ids recorded in ``seen`` stay unique for the traversal.
+        keepalive.append(loaded)
         force_load_include_files(
             loaded,
             warn_on_unresolved=warn_on_unresolved,
             _seen=seen,
             _expanded_paths=expanded_paths,
+            _keepalive=keepalive,
         )
 
 
@@ -386,6 +391,7 @@ def force_load_include_files(
     warn_on_unresolved: bool = True,
     _seen: set[int] | None = None,
     _expanded_paths: set[Path] | None = None,
+    _keepalive: list[Any] | None = None,
 ) -> None:
     """Recursively resolve any deferred ``IncludeFile`` instances in a YAML tree.
 
@@ -407,6 +413,13 @@ def force_load_include_files(
         _seen = set()
     if _expanded_paths is None:
         _expanded_paths = set()
+    if _keepalive is None:
+        # ``_seen`` tracks ids, which is only safe while every traversed
+        # object stays alive; candidate trees are otherwise freed between
+        # loop iterations and CPython recycles their addresses, making a
+        # fresh tree look already seen. Discovery is a one-shot operation,
+        # so holding the parsed trees costs nothing.
+        _keepalive = []
 
     if isinstance(obj, IncludeFile):
         if id(obj) in _seen:
@@ -418,6 +431,7 @@ def force_load_include_files(
                 warn_on_unresolved=warn_on_unresolved,
                 seen=_seen,
                 expanded_paths=_expanded_paths,
+                keepalive=_keepalive,
             )
             return
         try:
@@ -435,6 +449,7 @@ def force_load_include_files(
             warn_on_unresolved=warn_on_unresolved,
             _seen=_seen,
             _expanded_paths=_expanded_paths,
+            _keepalive=_keepalive,
         )
     elif isinstance(obj, dict):
         if id(obj) in _seen:
@@ -446,6 +461,7 @@ def force_load_include_files(
                 warn_on_unresolved=warn_on_unresolved,
                 _seen=_seen,
                 _expanded_paths=_expanded_paths,
+                _keepalive=_keepalive,
             )
     elif isinstance(obj, (list, tuple)):
         if id(obj) in _seen:
@@ -457,6 +473,7 @@ def force_load_include_files(
                 warn_on_unresolved=warn_on_unresolved,
                 _seen=_seen,
                 _expanded_paths=_expanded_paths,
+                _keepalive=_keepalive,
             )
 
 

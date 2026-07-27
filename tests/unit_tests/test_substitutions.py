@@ -1034,6 +1034,7 @@ def test_remote_package_scalar_yaml_raises_helpful_error(
             "../${x}/config.yaml", ["../*/config.yaml"], id="ascending_directory"
         ),
         pytest.param("${file}", [], id="bare_variable_dropped"),
+        pytest.param("../${file}", [], id="ascending_bare_variable_dropped"),
         pytest.param(
             '${ name ~ ".yaml" }', [".yaml"], id="dynamic_concat_extracts_literal"
         ),
