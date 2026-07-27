@@ -17,6 +17,12 @@ void EPaper4bpp::fill(Color color) {
 
   // We store 2 pixels per byte
   this->buffer_.fill(pixel_color + (pixel_color << 4));
+
+  // Whole buffer just changed; mark the entire canvas dirty.
+  this->x_low_ = 0;
+  this->y_low_ = 0;
+  this->x_high_ = this->width_;
+  this->y_high_ = this->height_;
 }
 
 void EPaper4bpp::clear() {
