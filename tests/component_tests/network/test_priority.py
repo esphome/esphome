@@ -16,9 +16,10 @@ from esphome.components.network import (
     _validate_priority_list,
     get_network_priority,
 )
-from esphome.const import CONF_PRIORITY
+from esphome.const import CONF_PRIORITY, PlatformFramework
 from esphome.core import CORE
 import esphome.final_validate as fv
+from tests.component_tests.types import SetCoreConfigCallable
 
 
 @pytest.fixture(autouse=True)
@@ -136,6 +137,22 @@ def test_final_validate_noop_without_priority_list() -> None:
     """A network config without a 'priority' list imposes no component requirements."""
     fv.full_config.set({})
     _final_validate({})  # must not raise
+
+
+def test_final_validate_rejects_unsupported_arbitration_interface(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """The ethernet/wifi-only arbitration tripwire fails as a clean config error.
+
+    Unreachable through the public schema today (VALID_NETWORK_TYPES gates the
+    list), so the config is hand-built to simulate a future interface type that
+    was added to the schema without extending NetworkComponent::loop().
+    """
+    set_core_config(PlatformFramework.ESP32_IDF)
+    fv.full_config.set({"openthread": {}, "wifi": {}})
+    config = {CONF_PRIORITY: [{"interface": "openthread"}, {"interface": "wifi"}]}
+    with pytest.raises(Invalid, match="arbitration does not support: openthread"):
+        _final_validate(config)
 
 
 def _cpp_setup_priority(name: str) -> float:

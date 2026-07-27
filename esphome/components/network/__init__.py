@@ -310,7 +310,8 @@ CONFIG_SCHEMA = cv.All(
 def _final_validate(config: ConfigType) -> None:
     """Check that every interface named in 'priority' has a corresponding component block."""
     full = fv.full_config.get()
-    for entry in config.get(CONF_PRIORITY, []):
+    priority_list = config.get(CONF_PRIORITY, [])
+    for entry in priority_list:
         iface = entry["interface"]
         if iface not in full:
             raise cv.Invalid(
@@ -318,6 +319,24 @@ def _final_validate(config: ConfigType) -> None:
                 f"component is configured",
                 [CONF_PRIORITY],
             )
+
+    # Tripwire for future interface types (openthread, modem): the C++ default-route
+    # arbitration pivots on USE_NETWORK_PRIMARY_INTERFACE_WIFI and only knows
+    # ethernet and wifi. Extend NetworkComponent::loop() before allowing another
+    # type here. Unreachable until VALID_NETWORK_TYPES grows.
+    if (
+        len(priority_list) > 1
+        and (
+            unsupported := {e["interface"] for e in priority_list}
+            - {"ethernet", "wifi"}
+        )
+        and CORE.is_esp32
+    ):
+        raise cv.Invalid(
+            "Default-route arbitration does not support: "
+            f"{', '.join(sorted(unsupported))}",
+            [CONF_PRIORITY],
+        )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -345,19 +364,9 @@ async def to_code(config):
         # default route (ESP-IDF's fixed route_prio values would always favor
         # WiFi). ESP32 only: the arbitration needs esp_netif, which both
         # frameworks build from source.
+        # The ethernet/wifi-only assumption behind the arbitration is enforced in
+        # _final_validate() so a future unsupported type fails as a config error.
         if len(priority_list) > 1 and CORE.is_esp32:
-            # Tripwire for future interface types (openthread, modem): the C++
-            # arbitration pivots on USE_NETWORK_PRIMARY_INTERFACE_WIFI and only
-            # knows ethernet and wifi. Extend NetworkComponent::loop() before
-            # allowing another type here.
-            if unsupported := {e["interface"] for e in priority_list} - {
-                "ethernet",
-                "wifi",
-            }:
-                raise cv.Invalid(
-                    "Default-route arbitration does not support: "
-                    f"{', '.join(sorted(unsupported))}"
-                )
             cg.add_define("USE_NETWORK_DEFAULT_ROUTE")
             # Have lwIP switch to the DNS servers of the netif that owns the
             # default route whenever the arbitration changes it.
