@@ -718,24 +718,149 @@ void Modbus::clear_rx_buffer_(const LogString *reason, bool warn, size_t bytes_t
   }
 }
 
-void ModbusClientDevice::read_entities(EntityType entity_type, uint16_t start_address, uint16_t number_of_entities) {
-  switch (entity_type) {
-    case EntityType::HOLDING:
-      this->read_holding_registers(start_address, number_of_entities);
-      return;
-    case EntityType::INPUT_REGISTER:
-      this->read_input_registers(start_address, number_of_entities);
-      return;
-    case EntityType::COIL:
-      this->read_coils(start_address, number_of_entities);
-      return;
-    case EntityType::DISCRETE_INPUT:
-      this->read_discrete_inputs(start_address, number_of_entities);
-      return;
+void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
+                                            ResponseStatus status) {
+  if (request_pdu.empty())
+    return;
+  auto function_code = static_cast<FunctionCode>(request_pdu[0]);
+  // All standard requests handled below are function code + start address + count/value (5 bytes);
+  // anything shorter cannot be parsed and is handed to the catch-all.
+  if (request_pdu.size() < READ_PDU_SIZE) {
+    this->on_custom_response(request_pdu, response_pdu, status);
+    return;
+  }
+  const uint16_t start_address = helpers::get_data<uint16_t>(request_pdu.data(), 1);
+  // count for reads/multi-writes, value for single writes
+  const uint16_t count_or_value = helpers::get_data<uint16_t>(request_pdu.data(), 3);
+
+  // Gatekeeper for the typed dispatch below: anything that is not a standard-conformant transaction is
+  // handed to on_custom_response() with the raw PDUs, so the decode cases can trust every length, byte
+  // count, and quantity field without re-clamping.
+  //  - The REQUEST must be standard: nothing upstream validates a caller-built request PDU, so its
+  //    internal byte count, quantity, and address range are checked here (is_client_pdu_standard()).
+  //  - On success, the RESPONSE must be standard (self-consistent; the frame parser already guarantees
+  //    most of this, but the check keeps the safety proof local), and a read response's length must also
+  //    match the REQUESTED count - the per-PDU checks cannot see that relationship, and a short but
+  //    self-consistent response must be diverted, never silently clamped and delivered as complete.
+  //  - On failure (status engaged) the response is empty by design (see on_error()), so only the request
+  //    is validated.
+  bool custom = !helpers::is_client_pdu_standard(request_pdu.data(), request_pdu.size());
+  if (!custom && !status.has_value()) {
+    custom = !helpers::is_server_pdu_standard(response_pdu.data(), response_pdu.size());
+    if (!custom && helpers::is_function_code_read(static_cast<uint8_t>(function_code))) {
+      const bool bits =
+          function_code == FunctionCode::READ_COILS || function_code == FunctionCode::READ_DISCRETE_INPUTS;
+      const size_t expected_data_size =
+          bits ? (static_cast<size_t>(count_or_value) + 7) / 8 : static_cast<size_t>(count_or_value) * 2;
+      if (response_pdu.size() != expected_data_size + 2) {
+        ESP_LOGD(TAG, "Response length %zu does not match request (expected %zu) for function code 0x%X",
+                 response_pdu.size(), expected_data_size + 2, static_cast<uint8_t>(function_code));
+        custom = true;
+      }
+    }
+  }
+  if (custom) {
+    this->on_custom_response(request_pdu, response_pdu, status);
+    return;
+  }
+
+  switch (function_code) {
+    case FunctionCode::READ_HOLDING_REGISTERS:
+    case FunctionCode::READ_INPUT_REGISTERS: {
+      // Decode the big-endian register words into host byte order. The gate guarantees a success response
+      // carries exactly count_or_value registers (and count_or_value <= MAX_NUM_OF_REGISTERS_TO_READ, the
+      // capacity of RegisterValues); a mismatch was diverted to on_custom_response(), never clamped. On
+      // failure the registers span is empty.
+      RegisterValues registers;
+      if (!status.has_value()) {
+        for (size_t i = 0; i != count_or_value; i++) {
+          registers.push_back(helpers::get_data<uint16_t>(response_pdu.data(), 2 + 2 * i));
+        }
+      }
+      std::span<const uint16_t> register_span(registers.data(), registers.size());
+      if (function_code == FunctionCode::READ_HOLDING_REGISTERS) {
+        this->on_read_holding_registers(start_address, register_span, status);
+      } else {
+        this->on_read_input_registers(start_address, register_span, status);
+      }
+      break;
+    }
+    case FunctionCode::READ_COILS:
+    case FunctionCode::READ_DISCRETE_INPUTS: {
+      // Deliver the bits packed as on the wire; the gate guarantees a success response carries exactly
+      // (count_or_value + 7) / 8 data bytes. On failure the view is empty AND the count is zero -
+      // PackedBits::operator[] is unchecked, so size() must never promise bits with no bytes behind them.
+      std::span<const uint8_t> packed_bytes;
+      uint16_t count = 0;
+      if (!status.has_value()) {
+        packed_bytes = response_pdu.subspan(2);
+        count = count_or_value;
+      }
+      PackedBits bits(packed_bytes, count);
+      if (function_code == FunctionCode::READ_COILS) {
+        this->on_read_coils(start_address, bits, status);
+      } else {
+        this->on_read_discrete_inputs(start_address, bits, status);
+      }
+      break;
+    }
+    // Single-write acks echo the value: on success that echo is device-confirmed state - the one
+    // write whose acknowledgement carries a real read-back - so it is preferred over the request
+    // copy. On an exception the response has no value and the request copy is the only one.
+    case FunctionCode::WRITE_SINGLE_REGISTER:
+    case FunctionCode::WRITE_SINGLE_COIL: {
+      const uint16_t value = (!status.has_value() && response_pdu.size() >= WRITE_SINGLE_PDU_SIZE)
+                                 ? helpers::get_data<uint16_t>(response_pdu.data(), 3)
+                                 : count_or_value;
+      if (function_code == FunctionCode::WRITE_SINGLE_REGISTER) {
+        this->on_write_single_register(start_address, value, status);
+      } else {
+        this->on_write_single_coil(start_address, value == 0xFF00, status);
+      }
+      break;
+    }
+    case FunctionCode::WRITE_MULTIPLE_REGISTERS: {
+      // Request layout: [0] function code, [1..2] start address, [3..4] register count, [5] byte count,
+      // [6..] register data. The gate guarantees the request carries exactly count_or_value registers
+      // (<= MAX_NUM_OF_REGISTERS_TO_WRITE, within RegisterValues capacity). Decoded from the request and
+      // delivered regardless of status - see the write-acknowledgement note in modbus.h.
+      RegisterValues registers;
+      for (size_t i = 0; i != count_or_value; i++) {
+        registers.push_back(helpers::get_data<uint16_t>(request_pdu.data(), 6 + 2 * i));
+      }
+      std::span<const uint16_t> register_span(registers.data(), registers.size());
+      this->on_write_multiple_registers(start_address, register_span, status);
+      break;
+    }
+    case FunctionCode::WRITE_MULTIPLE_COILS: {
+      // Request layout: [0] function code, [1..2] start address, [3..4] coil count, [5] byte count,
+      // [6..] packed bits. The gate guarantees the request carries exactly (count_or_value + 7) / 8 packed
+      // bytes. Decoded from the request and delivered regardless of status - see the write-acknowledgement
+      // note in modbus.h.
+      std::span<const uint8_t> packed_bytes = request_pdu.subspan(6);
+      PackedBits bits(packed_bytes, count_or_value);
+      this->on_write_multiple_coils(start_address, bits, status);
+      break;
+    }
     default:
-      ESP_LOGW(TAG, "Invalid entity type for read_entities: %d", (int) entity_type);
-      this->on_not_sent();  // every rejected send is signalled, like send_pdu()'s own refusals
-      return;
+      this->on_custom_response(request_pdu, response_pdu, status);
+      break;
+  }
+}
+
+// Default on_custom_response handler to warn when responses unexpectedly trigger on_custom_response
+void ModbusClientDevice::on_custom_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
+                                            ResponseStatus status) {
+  // The dispatcher never calls this with an empty request, but this is a public virtual - stay safe.
+  const uint8_t function_code = request_pdu.empty() ? 0 : request_pdu[0];
+  // Warn once per device, then drop to VERBOSE: a mildly non-conformant peer answers every poll,
+  // and an unhandled-response warning per transaction would flood the log permanently.
+  if (!this->custom_response_warned_) {
+    this->custom_response_warned_ = true;
+    ESP_LOGW(TAG, "Non-standard request or response for function code 0x%X. No on_custom_response handler declared",
+             function_code);
+  } else {
+    ESP_LOGV(TAG, "Non-standard request or response for function code 0x%X (unhandled)", function_code);
   }
 }
 
