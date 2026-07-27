@@ -1,0 +1,13 @@
+# Common I2C configuration for platform: zephyr, variant: esp32_h2 tests
+# Pins match the board's i2c0_default pinctrl node (esp32h2_devkitm-pinctrl.dtsi);
+# the board DTS fixes the actual pins, sda/scl here are for logging/display only.
+
+substitutions:
+  scl_pin: "1"
+  sda_pin: "0"
+
+i2c:
+  - id: i2c_bus
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+    scan: true

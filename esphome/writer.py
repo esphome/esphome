@@ -500,10 +500,15 @@ def clean_cmake_cache():
     # Drop the CMake cache so a component-set change forces a reconfigure.
     # PlatformIO keeps it under .pioenvs/<name>/; the native ESP-IDF toolchain
     # keeps it under build/ (where espidf's has_outdated_files() treats a
-    # missing CMakeCache.txt as stale). Only one exists for a given build.
+    # missing CMakeCache.txt as stale); the native west/CMake toolchain (Zephyr
+    # native_sim/esp32_h2) keeps the sysbuild superproject's cache under .west_build/ --
+    # deleting it makes west's own --pristine=auto reconfigure from scratch, which
+    # regenerates the nested per-image caches too. Only one of these three exists
+    # for a given build.
     cmake_cache_paths = (
         CORE.relative_pioenvs_path(CORE.name, "CMakeCache.txt"),
         CORE.relative_build_path("build", "CMakeCache.txt"),
+        CORE.relative_build_path(".west_build", "CMakeCache.txt"),
     )
     for cmake_cache_path in cmake_cache_paths:
         if cmake_cache_path.is_file():

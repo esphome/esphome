@@ -1640,6 +1640,19 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
         _LOGGER.info("Running program from path '%s'", program_path)
         return run_external_process(program_path)
 
+    if CORE.is_zephyr and not args.device:
+        from esphome.components.zephyr import ZEPHYR_VARIANT_NATIVE_SIM, zephyr_variant
+
+        if zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM:
+            program_path = str(
+                CORE.relative_build_path(".west_build")
+                / "zephyr"
+                / "zephyr"
+                / "zephyr.exe"
+            )
+            _LOGGER.info("Running program from path '%s'", program_path)
+            return run_external_process(program_path)
+
     # Get devices, resolving special identifiers like OTA
     devices = choose_upload_log_host(
         default=args.device,

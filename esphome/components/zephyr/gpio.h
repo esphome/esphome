@@ -6,10 +6,8 @@
 #include <zephyr/drivers/gpio.h>
 namespace esphome::zephyr {
 
-// Bundles the Zephyr gpio_callback together with the ESPHome ISR function and
-// argument. Keeping them in one POD struct lets the static handler recover the
-// owning data straight from the callback pointer via CONTAINER_OF, so no global
-// pin->instance lookup table is needed.
+// One POD struct so the static handler can recover the owning data from the
+// callback pointer via CONTAINER_OF, avoiding a global pin->instance lookup table.
 struct ZephyrGPIOInterrupt {
   struct gpio_callback callback;
   void (*func)(void *){nullptr};
@@ -18,7 +16,9 @@ struct ZephyrGPIOInterrupt {
 
 class ZephyrGPIOPin final : public InternalGPIOPin {
  public:
-  ZephyrGPIOPin(const device *gpio, int gpio_size, const char *pin_name_prefix) {
+  // pin_name_prefix: secondary display label for chips with real GPIO port banks
+  // (e.g. Nordic's "P0."/"P1."). Null/empty = flat numbering only.
+  ZephyrGPIOPin(const device *gpio, int gpio_size, const char *pin_name_prefix = nullptr) {
     this->gpio_ = gpio;
     this->gpio_size_ = gpio_size;
     this->pin_name_prefix_ = pin_name_prefix;

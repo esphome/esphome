@@ -30,6 +30,7 @@ from esphome.const import (
     CONF_TX_PIN,
     CONF_UART_ID,
     PLATFORM_HOST,
+    PLATFORM_ZEPHYR,
     PlatformFramework,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
@@ -54,6 +55,12 @@ LibreTinyUARTComponent = uart_ns.class_(
     "LibreTinyUARTComponent", UARTComponent, cg.Component
 )
 HostUartComponent = uart_ns.class_("HostUartComponent", UARTComponent, cg.Component)
+ZephyrUartComponent = uart_ns.class_("ZephyrUartComponent", UARTComponent, cg.Component)
+ZephyrUartPort = uart_ns.enum("ZephyrUartPort")
+ZEPHYR_UART_PORTS = {
+    "uart0": ZephyrUartPort.ZEPHYR_UART_PORT_0,
+    "uart1": ZephyrUartPort.ZEPHYR_UART_PORT_1,
+}
 
 
 NATIVE_UART_CLASSES = (
@@ -137,6 +144,32 @@ def validate_host_config(config):
     return config
 
 
+def validate_zephyr_config(config):
+    if CORE.is_zephyr and (CONF_TX_PIN in config or CONF_RX_PIN in config):
+        from esphome.components.zephyr import zephyr_variant  # noqa: PLC0415
+        from esphome.components.zephyr.variants import VARIANTS  # noqa: PLC0415
+
+        # esp32-family UART TX/RX are GPIO-matrix-routed (like I2C SDA/SCL), so a custom
+        # pinctrl overlay can point them at any pin. Other variants have no equivalent
+        # mechanism wired up yet, so their uart_valid_pins is empty.
+        variant = zephyr_variant()
+        variant_info = VARIANTS.get(variant)
+        valid_pins = variant_info.uart_valid_pins if variant_info is not None else {}
+        if not valid_pins:
+            raise cv.Invalid(
+                "TX and RX pins are not supported for UART on this Zephyr variant."
+            )
+        for conf_key, signal in ((CONF_TX_PIN, "tx"), (CONF_RX_PIN, "rx")):
+            if conf_key in config:
+                pin_num = config[conf_key][CONF_NUMBER]
+                if pin_num not in valid_pins[signal]:
+                    raise cv.Invalid(
+                        f"GPIO{pin_num} does not support UART {signal.upper()} on {variant}",
+                        path=[conf_key],
+                    )
+    return config
+
+
 def validate_rx_buffer_size(config):
     if CORE.is_esp32:
         # ESP32 UART hardware FIFO is 128 bytes (LP UART is 16 bytes, but we use 128 as safe minimum)
@@ -161,6 +194,8 @@ def _uart_declare_type(value):
         return cv.declare_id(RP2UartComponent)(value)
     if CORE.is_libretiny:
         return cv.declare_id(LibreTinyUARTComponent)(value)
+    if CORE.is_zephyr:
+        return cv.declare_id(ZephyrUartComponent)(value)
     if CORE.is_host:
         return cv.declare_id(HostUartComponent)(value)
     raise NotImplementedError
@@ -208,9 +243,18 @@ def maybe_empty_debug(value):
 
 
 def validate_port(value):
+    if CORE.is_zephyr:
+        return cv.one_of(*ZEPHYR_UART_PORTS, lower=True)(value)
     if not re.match(r"^/(?:[^/]+/)[^/]+$", value):
         raise cv.Invalid("Port must be a valid device path")
     return value
+
+
+def _fill_zephyr_uart_defaults(config):
+    if CORE.is_zephyr and CONF_PORT not in config:
+        config = dict(config)
+        config[CONF_PORT] = "uart0"
+    return config
 
 
 DEBUG_SCHEMA = cv.Schema(
@@ -240,6 +284,7 @@ DEBUG_SCHEMA = cv.Schema(
 )
 
 CONFIG_SCHEMA = cv.All(
+    _fill_zephyr_uart_defaults,
     cv.Schema(
         {
             cv.GenerateID(): _uart_declare_type,
@@ -249,7 +294,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FLOW_CONTROL_PIN): cv.All(
                 cv.only_on_esp32, pins.internal_gpio_output_pin_schema
             ),
-            cv.Optional(CONF_PORT): cv.All(validate_port, cv.only_on(PLATFORM_HOST)),
+            cv.Optional(CONF_PORT): cv.All(
+                validate_port, cv.only_on([PLATFORM_HOST, PLATFORM_ZEPHYR])
+            ),
             cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
             cv.Optional(CONF_RX_FULL_THRESHOLD): cv.All(
                 cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=1, max=120)
@@ -270,6 +317,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN, CONF_PORT),
     validate_host_config,
+    validate_zephyr_config,
     validate_rx_buffer_size,
 )
 
@@ -312,17 +360,63 @@ async def to_code(config):
 
     cg.add(var.set_baud_rate(config[CONF_BAUD_RATE]))
 
-    if CONF_TX_PIN in config:
+    if CONF_TX_PIN in config and not CORE.is_zephyr:
         tx_pin = await cg.gpio_pin_expression(config[CONF_TX_PIN])
         cg.add(var.set_tx_pin(tx_pin))
-    if CONF_RX_PIN in config:
+    if CONF_RX_PIN in config and not CORE.is_zephyr:
         rx_pin = await cg.gpio_pin_expression(config[CONF_RX_PIN])
         cg.add(var.set_rx_pin(rx_pin))
     if CONF_FLOW_CONTROL_PIN in config:
         flow_control_pin = await cg.gpio_pin_expression(config[CONF_FLOW_CONTROL_PIN])
         cg.add(var.set_flow_control_pin(flow_control_pin))
     if CONF_PORT in config:
-        cg.add(var.set_name(config[CONF_PORT]))
+        if CORE.is_zephyr:
+            from esphome.components.zephyr import (
+                zephyr_add_overlay,
+                zephyr_add_prj_conf,
+            )
+
+            zephyr_add_prj_conf("SERIAL", True)
+            zephyr_add_prj_conf("RING_BUFFER", True)
+            cg.add(var.set_port(ZEPHYR_UART_PORTS[config[CONF_PORT]]))
+            port_label = config[CONF_PORT]
+            if CONF_TX_PIN in config or CONF_RX_PIN in config:
+                # esp32-family only. Ports other than uart0 have no default pinctrl on
+                # stock devkit boards, so `port: uart1` fails at devicetree-generation
+                # time unless we supply one ourselves. Also usable to override uart0's.
+                prefix = port_label.upper()
+                pinmux_entries = []
+                if CONF_TX_PIN in config:
+                    pinmux_entries.append(
+                        f"<{prefix}_TX_GPIO{config[CONF_TX_PIN][CONF_NUMBER]}>"
+                    )
+                if CONF_RX_PIN in config:
+                    pinmux_entries.append(
+                        f"<{prefix}_RX_GPIO{config[CONF_RX_PIN][CONF_NUMBER]}>"
+                    )
+                pinmux = ",\n                                 ".join(pinmux_entries)
+                zephyr_add_overlay(
+                    f"""
+                        &pinctrl {{
+                            {port_label}_default: {port_label}_default {{
+                                group1 {{
+                                    pinmux = {pinmux};
+                                }};
+                            }};
+                        }};
+                    """
+                )
+                # current-speed must exist in DT for the driver's init macro regardless
+                # of value; the real baud rate is set at runtime by uart_configure().
+                zephyr_add_overlay(
+                    f'&{port_label} {{ status = "okay"; '
+                    f"current-speed = <{config[CONF_BAUD_RATE]}>; "
+                    f'pinctrl-0 = <&{port_label}_default>; pinctrl-names = "default"; }};'
+                )
+            else:
+                zephyr_add_overlay(f'&{port_label} {{ status = "okay"; }};')
+        else:
+            cg.add(var.set_name(config[CONF_PORT]))
     cg.add(var.set_rx_buffer_size(config[CONF_RX_BUFFER_SIZE]))
     if CORE.is_esp32:
         if CONF_RX_FULL_THRESHOLD not in config:
@@ -535,5 +629,6 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
+        "uart_component_zephyr.cpp": {PlatformFramework.ZEPHYR_ZEPHYR},
     }
 )

@@ -417,6 +417,10 @@ async def to_code(config: ConfigType) -> None:
     # watchdog
     zephyr_add_prj_conf("WATCHDOG", True)
     zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
+    # zboss (zigbee) uses a lot of CPU cycles during startup, so it needs a longer
+    # watchdog window than the default.
+    watchdog_timeout_ms = 10000 if "zigbee" in CORE.loaded_integrations else 2000
+    cg.add_define("USE_ZEPHYR_WATCHDOG_TIMEOUT_MS", watchdog_timeout_ms)
     # disable console
     zephyr_add_prj_conf("UART_CONSOLE", False)
     zephyr_add_prj_conf("CONSOLE", False, False)

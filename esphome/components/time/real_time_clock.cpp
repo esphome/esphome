@@ -1,16 +1,18 @@
 #include "real_time_clock.h"
 #include "esphome/core/log.h"
-#ifdef USE_HOST
+#if defined(USE_HOST) || defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
 #include <sys/time.h>
-#elif defined(USE_ZEPHYR)
+#elif defined(USE_NRF52)
 #include <zephyr/posix/time.h>
-#else
+#elif !defined(USE_ZEPHYR)
 #include "lwip/opt.h"
 #endif
+// esp32_h2 (platform:zephyr, POSIX_API): clock_settime/struct timespec come from
+// <ctime> via esphome/core/time.h -- no extra include needed here.
 #ifdef USE_ESP8266
 #include "sys/time.h"
 #endif
-#if defined(USE_RP2) || defined(USE_ZEPHYR)
+#if defined(USE_RP2) || defined(USE_NRF52)
 #include <sys/time.h>
 #endif
 #include <cerrno>
@@ -121,8 +123,8 @@ void RealTimeClock::apply_timezone_(const char *tz) {
     return;
   }
 
-#ifdef USE_HOST
-  // On host platform, also set TZ environment variable for libc compatibility
+#if defined(USE_HOST) || defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
+  // On host/native_sim, also set TZ environment variable for libc compatibility
   setenv("TZ", tz, 1);
   tzset();
 #endif

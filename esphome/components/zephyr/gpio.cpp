@@ -130,7 +130,12 @@ void ZephyrGPIOPin::pin_mode(gpio::Flags flags) {
 }
 
 size_t ZephyrGPIOPin::dump_summary(char *buffer, size_t len) const {
-  return snprintf(buffer, len, "GPIO%u, %s%u", this->pin_, this->pin_name_prefix_, this->pin_ % this->gpio_size_);
+  // Secondary "P0.n"-style label only for families with real GPIO port banks;
+  // esp32-family/native_sim leave pin_name_prefix_ null for flat "GPIOn" naming.
+  if (this->pin_name_prefix_ != nullptr && this->pin_name_prefix_[0] != '\0') {
+    return snprintf(buffer, len, "GPIO%u, %s%u", this->pin_, this->pin_name_prefix_, this->pin_ % this->gpio_size_);
+  }
+  return snprintf(buffer, len, "GPIO%u", this->pin_);
 }
 
 bool ZephyrGPIOPin::digital_read() {

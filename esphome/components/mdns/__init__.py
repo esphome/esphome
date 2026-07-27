@@ -213,6 +213,33 @@ async def to_code(config):
 
     cg.add_define("USE_MDNS")
 
+    if CORE.is_zephyr:
+        from esphome.components.zephyr import (
+            ZEPHYR_VARIANT_NATIVE_SIM,
+            zephyr_add_prj_conf,
+            zephyr_variant,
+        )
+
+        # OpenThread's SRP client is the discovery path when present (matches mdns_esp32.cpp's
+        # register_esp32()); native_sim uses the host's own mdns backend instead of this Kconfig.
+        if (
+            zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM
+            and "wifi" in CORE.config
+            and "openthread" not in CORE.config
+        ):
+            cg.add_define("USE_MDNS_RESPONDER")
+            zephyr_add_prj_conf("DNS_SD", True)
+            zephyr_add_prj_conf("MDNS_RESPONDER", True)
+            zephyr_add_prj_conf("MDNS_RESPONDER_PROBE", True)
+            zephyr_add_prj_conf("MDNS_WORKQ_STACK_SIZE", 4096)
+            # send_sd_response() stack-allocates DNS-SD label buffers on the socket-service
+            # dispatcher thread; the 1400-byte default overflows under real query load
+            zephyr_add_prj_conf("NET_SOCKETS_SERVICE_STACK_SIZE", 4096)
+
+            # Zephyr's own mdns_responder.c joins the 224.0.0.251 multicast group
+            # internally (net_ipv4_igmp_join()) on interface-up -- no ESPHome-side
+            # join code is needed here.
+
     # Calculate compile-time service count
     service_count = sum(
         1 for key in COMPONENTS_WITH_MDNS_SERVICES if key in CORE.config
@@ -280,6 +307,9 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
-        "mdns_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
+        "mdns_zephyr.cpp": {
+            PlatformFramework.NRF52_ZEPHYR,
+            PlatformFramework.ZEPHYR_ZEPHYR,
+        },
     }
 )

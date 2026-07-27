@@ -45,6 +45,12 @@ CONFIG_ADC=y
 # posix (time sets POSIX_CLOCK, socket sets POSIX_API); without it the
 # Zephyr POSIX headers clash with the libc ones under analysis
 CONFIG_POSIX_API=y
+CONFIG_WATCHDOG=y
+CONFIG_REBOOT=y
+# i2c's `emulation:` option is available on any platform: zephyr variant, not
+# just native_sim, so the tidy superset needs these too
+CONFIG_EMUL=y
+CONFIG_I2C_EMUL=y
 #mcumgr begin
 CONFIG_NET_BUF=y
 CONFIG_ZCBOR=y

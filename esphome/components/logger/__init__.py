@@ -29,9 +29,12 @@ from esphome.components.libretiny.const import (
     COMPONENT_RTL87XX,
 )
 from esphome.components.zephyr import (
+    ZEPHYR_VARIANT_ESP32_C6,
+    ZEPHYR_VARIANT_ESP32_H2,
     zephyr_add_cdc_acm,
     zephyr_add_overlay,
     zephyr_add_prj_conf,
+    zephyr_variant,
 )
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -56,6 +59,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
+    PLATFORM_ZEPHYR,
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
@@ -136,6 +140,11 @@ UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
 
 UART_SELECTION_NRF52 = [USB_CDC, UART0]
 
+UART_SELECTION_HOST_ZEPHYR = [UART0, UART1]
+# esp32_h2 and esp32_c6 both expose a native USB-Serial/JTAG peripheral as a Zephyr UART
+# device (see the USB_SERIAL_JTAG codegen branch below) -- shared list for both.
+UART_SELECTION_ZEPHYR_ESP32_JTAG = [UART0, UART1, USB_SERIAL_JTAG]
+
 HARDWARE_UART_TO_UART_SELECTION = {
     UART0: logger_ns.UART_SELECTION_UART0,
     UART0_SWAP: logger_ns.UART_SELECTION_UART0_SWAP,
@@ -184,6 +193,10 @@ def uart_selection(value):
         raise cv.Invalid("Uart selection not valid for host platform")
     if CORE.is_nrf52:
         return cv.one_of(*UART_SELECTION_NRF52, upper=True)(value)
+    if CORE.is_zephyr:
+        if zephyr_variant() in (ZEPHYR_VARIANT_ESP32_H2, ZEPHYR_VARIANT_ESP32_C6):
+            return cv.one_of(*UART_SELECTION_ZEPHYR_ESP32_JTAG, upper=True)(value)
+        return cv.one_of(*UART_SELECTION_HOST_ZEPHYR, upper=True)(value)
     raise NotImplementedError
 
 
@@ -223,6 +236,23 @@ def validate_wait_for_cdc(config):
     return config
 
 
+def _only_with_usb_cdc_uart(value):
+    if value:
+        try:
+            uart_selection(USB_CDC)
+        except cv.Invalid:
+            raise cv.Invalid(
+                "This option requires a platform that supports USB_CDC hardware_uart"
+            ) from None
+    return value
+
+
+def _only_with_zephyr(value):
+    if CORE.using_zephyr:
+        return value
+    raise cv.Invalid("This option is only available on Zephyr-based platforms")
+
+
 Logger = logger_ns.class_("Logger", cg.Component)
 LoggerMessageTrigger = logger_ns.class_(
     "LoggerMessageTrigger",
@@ -247,6 +277,7 @@ CONFIG_SCHEMA = cv.All(
                 ln882x=768,
                 rtl87xx=768,
                 nrf52=768,
+                zephyr=768,
             ): cv.All(
                 cv.only_on(
                     [
@@ -255,6 +286,7 @@ CONFIG_SCHEMA = cv.All(
                         PLATFORM_LN882X,
                         PLATFORM_RTL87XX,
                         PLATFORM_NRF52,
+                        PLATFORM_ZEPHYR,
                     ]
                 ),
                 cv.validate_bytes,
@@ -287,6 +319,9 @@ CONFIG_SCHEMA = cv.All(
                 ln882x=DEFAULT,
                 rtl87xx=DEFAULT,
                 nrf52=USB_CDC,
+                zephyr=UART0,
+                zephyr_esp32h2=USB_SERIAL_JTAG,
+                zephyr_esp32c6=USB_SERIAL_JTAG,
             ): cv.All(
                 cv.only_on(
                     [
@@ -297,6 +332,7 @@ CONFIG_SCHEMA = cv.All(
                         PLATFORM_LN882X,
                         PLATFORM_RTL87XX,
                         PLATFORM_NRF52,
+                        PLATFORM_ZEPHYR,
                     ]
                 ),
                 uart_selection,
@@ -318,12 +354,12 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(
                 CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH, esp8266=True
             ): cv.All(cv.only_on_esp8266, cv.boolean),
-            cv.SplitDefault(CONF_WAIT_FOR_CDC, nrf52=False): cv.All(
-                cv.only_on(PLATFORM_NRF52),
+            cv.SplitDefault(CONF_WAIT_FOR_CDC, nrf52=False, zephyr=False): cv.All(
+                _only_with_usb_cdc_uart,
                 cv.boolean,
             ),
-            cv.SplitDefault(CONF_EARLY_MESSAGE, nrf52=False): cv.All(
-                cv.only_on(PLATFORM_NRF52), cv.boolean
+            cv.SplitDefault(CONF_EARLY_MESSAGE, nrf52=False, zephyr=False): cv.All(
+                _only_with_zephyr, cv.boolean
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -343,7 +379,7 @@ async def to_code(config: ConfigType) -> None:
     # Determine task log buffer size. The buffer is a direct member of Logger
     # (no separate heap allocation).
     task_log_buffer_size = 0
-    if CORE.is_esp32 or CORE.is_libretiny or CORE.is_nrf52:
+    if CORE.is_esp32 or CORE.is_libretiny or CORE.using_zephyr:
         task_log_buffer_size = config[CONF_TASK_LOG_BUFFER_SIZE]
     elif CORE.is_host:
         task_log_buffer_size = 64  # Fixed 64 slots for host
@@ -478,7 +514,8 @@ async def _late_logger_init(config: ConfigType) -> None:
         cg.add_define("USE_LOGGER_EARLY_MESSAGE")
 
     if CORE.is_nrf52:
-        # esphome implement own fatal error handler which save PC/LR before reset
+        # Nordic NCS-only Kconfig, absent from mainline Zephyr -- a hard error there,
+        # not a no-op, so this must stay nrf52-only.
         zephyr_add_prj_conf("RESET_ON_FATAL_ERROR", False)
         zephyr_add_prj_conf("THREAD_LOCAL_STORAGE", True)
         if has_serial_logging:
@@ -490,6 +527,45 @@ async def _late_logger_init(config: ConfigType) -> None:
                 cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
                 zephyr_add_prj_conf("UART_LINE_CTRL", True)
                 zephyr_add_cdc_acm(config, 0)
+    if CORE.is_zephyr and has_serial_logging:
+        zephyr_add_prj_conf("SERIAL", True)
+        hw_uart = config.get(CONF_HARDWARE_UART, UART0)
+        # Board defaults set zephyr,console = &uart0 regardless of hardware_uart; Zephyr's
+        # native LOG subsystem always attaches there, so leaving it at the default would
+        # silently lose native log output whenever the user picks a different UART.
+        if hw_uart == UART0:
+            zephyr_add_overlay("""&uart0 { status = "okay";};""")
+            zephyr_add_overlay(
+                """/ { chosen { zephyr,console = &uart0; zephyr,shell-uart = &uart0; }; };"""
+            )
+        elif hw_uart == UART1:
+            zephyr_add_overlay("""&uart1 { status = "okay";};""")
+            zephyr_add_overlay(
+                """/ { chosen { zephyr,console = &uart1; zephyr,shell-uart = &uart1; }; };"""
+            )
+        elif hw_uart == USB_SERIAL_JTAG:
+            # A standard Zephyr UART device, not a USB CDC-ACM stack like nrf52's
+            # USB_CDC option -- CONFIG_SERIAL_ESP32_USB auto-selects once the DTS
+            # node is enabled, no extra prj.conf needed.
+            zephyr_add_overlay("""&usb_serial { status = "okay";};""")
+            zephyr_add_overlay(
+                """/ { chosen { zephyr,console = &usb_serial; zephyr,shell-uart = &usb_serial; }; };"""
+            )
+
+        # Zephyr's native logging defaults to its own LOG_BACKEND_UART, a second writer
+        # that would contend with Logger's own write_msg_() for the same UART. Disable
+        # it -- logger_zephyr_log_backend.cpp forwards native logs through Logger instead.
+        zephyr_add_prj_conf("LOG_BACKEND_UART", False, required=False)
+
+        # LOG_PRINTK redirects printk() through the LOG subsystem, which write_msg_()'s own
+        # printk() call (for RTT/pyocd) would then re-enter -- an infinite feedback loop.
+        zephyr_add_prj_conf("LOG_PRINTK", False, required=False)
+
+        # logger_zephyr_log_backend.cpp reassembles a log line across chunks using a
+        # single shared buffer -- unsafe if calls from different threads/ISRs interleave.
+        # This Kconfig serializes calls into backend process() under LOG_MODE_IMMEDIATE
+        # (native_sim's default); a no-op on variants using LOG_MODE_DEFERRED (h2, c6).
+        zephyr_add_prj_conf("LOG_IMMEDIATE_CLEAN_OUTPUT", True, required=False)
 
     # Register at end for safe mode
     await cg.register_component(log, config)
@@ -607,7 +683,11 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
-        "logger_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
+        # Remove NRF52_ZEPHYR when platform: nrf52 deprecation is complete.
+        "logger_zephyr.cpp": {
+            PlatformFramework.NRF52_ZEPHYR,
+            PlatformFramework.ZEPHYR_ZEPHYR,
+        },
         "task_log_buffer_esp32.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
@@ -618,7 +698,11 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
-        "task_log_buffer_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
+        # Remove NRF52_ZEPHYR when platform: nrf52 deprecation is complete.
+        "task_log_buffer_zephyr.cpp": {
+            PlatformFramework.NRF52_ZEPHYR,
+            PlatformFramework.ZEPHYR_ZEPHYR,
+        },
     }
 )
 

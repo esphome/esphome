@@ -1,5 +1,4 @@
 #ifdef USE_ZEPHYR
-#ifdef CONFIG_SETTINGS
 
 #include <zephyr/kernel.h>
 #include "preferences.h"
@@ -23,7 +22,11 @@ bool ZephyrPreferenceBackend::load(uint8_t *data, size_t len) {
   if (len != this->data.size()) {
     char key_buf[KEY_BUFFER_SIZE];
     this->format_key(key_buf, sizeof(key_buf));
-    ESP_LOGE(TAG, "size of setting key %s changed, from: %zu, to: %zu", key_buf, this->data.size(), len);
+    if (this->data.empty()) {
+      ESP_LOGD(TAG, "setting key %s not found (first boot or no persistence)", key_buf);
+    } else {
+      ESP_LOGE(TAG, "size of setting key %s changed, from: %zu, to: %zu", key_buf, this->data.size(), len);
+    }
     return false;
   }
   std::memcpy(data, this->data.data(), len);
@@ -73,13 +76,18 @@ ESPPreferenceObject ZephyrPreferences::make_preference(size_t length, uint32_t t
 }
 
 bool ZephyrPreferences::sync() {
-  ESP_LOGD(TAG, "Save settings");
+  ESP_LOGV(TAG, "Save settings");
+#ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
+  // SETTINGS_RUNTIME has no persistent backend; settings live in RAM only.
+  return true;
+#else
   int err = settings_save();
   if (err) {
     ESP_LOGE(TAG, "Cannot save settings, err: %d", err);
     return false;
   }
   return true;
+#endif
 }
 
 bool ZephyrPreferences::reset() {
@@ -116,7 +124,7 @@ int ZephyrPreferences::export_settings(int (*cb)(const char *name, const void *v
     char name[KEY_BUFFER_SIZE];
     backend->format_key(name, sizeof(name));
     int err = cb(name, backend->data.data(), backend->data.size());
-    ESP_LOGD(TAG, "save in flash, name %s, len %zu, err %d", name, backend->data.size(), err);
+    ESP_LOGV(TAG, "save in flash, name %s, len %zu, err %d", name, backend->data.size(), err);
   }
   return 0;
 }
@@ -136,5 +144,4 @@ namespace esphome {
 ESPPreferences *global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 }  // namespace esphome
 
-#endif
-#endif
+#endif  // USE_ZEPHYR

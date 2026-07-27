@@ -42,6 +42,7 @@ from esphome.const import (
     CONF_IDENTITY,
     CONF_KEY,
     CONF_MANUAL_IP,
+    CONF_MIN_RSSI,
     CONF_NETWORKS,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
@@ -334,6 +335,16 @@ def validate_variant(_):
                 f"Board '{get_board()}' does not have WiFi support (no CYW43 wireless chip). "
                 f"Use a WiFi-capable board like 'rpipicow' or 'rpipico2w'."
             )
+    if CORE.is_zephyr:
+        from esphome.components.zephyr import zephyr_variant
+        from esphome.components.zephyr.variants import VARIANTS
+
+        variant_name = zephyr_variant()
+        variant = VARIANTS.get(variant_name)
+        if variant is None or "wifi" not in variant.transports:
+            raise cv.Invalid(
+                f"wifi is not supported on Zephyr variant '{variant_name}'"
+            )
 
 
 def _apply_min_auth_mode_default(config):
@@ -470,6 +481,15 @@ def _fast_connect_schema(value: Any) -> ConfigType:
     return FAST_CONNECT_SCHEMA(value)
 
 
+def _not_on_zephyr(value):
+    # Zephyr's net_mgmt WiFi API has no TX power control request at all (checked the full
+    # NET_REQUEST_WIFI_CMD_* enum in wifi_mgmt.h) -- reject at config time instead of
+    # silently accepting and ignoring the setting.
+    if CORE.is_zephyr:
+        raise cv.Invalid("output_power is not supported on Zephyr")
+    return value
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -494,6 +514,7 @@ CONFIG_SCHEMA = cv.All(
                 bk72xx="none",
                 rtl87xx="none",
                 ln882x="light",
+                zephyr="light",
             ): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
             cv.Optional(CONF_FAST_CONNECT, default=False): _fast_connect_schema,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
@@ -502,7 +523,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.only_on([Platform.ESP32, Platform.ESP8266]),
             ),
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
-                cv.decibel, cv.float_range(min=8.5, max=20.5)
+                cv.decibel, cv.float_range(min=8.5, max=20.5), _not_on_zephyr
             ),
             cv.SplitDefault(CONF_ENABLE_BTM, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
@@ -528,6 +549,11 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_USE_PSRAM): cv.All(
                 cv.only_on_esp32, cv.requires_component("psram"), cv.boolean
+            ),
+            cv.Optional(CONF_MIN_RSSI): cv.All(
+                cv.decibel,
+                cv.int_range(min=-100, max=-20),
+                cv.only_on(Platform.ZEPHYR),
             ),
         }
     ),
@@ -700,6 +726,34 @@ async def to_code(config):
             cg.add(var.set_phy_mode(config[CONF_PHY_MODE]))
     elif CORE.is_rp2:
         cg.add_library("WiFi", None)
+    elif CORE.is_zephyr:
+        from esphome.components.zephyr import (
+            zephyr_add_overlay,
+            zephyr_add_prj_conf,
+            zephyr_variant,
+        )
+        from esphome.components.zephyr.variants import VARIANTS
+
+        zephyr_add_prj_conf("WIFI", True)
+        zephyr_add_prj_conf("NET_HOSTNAME_DYNAMIC", True)
+        # Pin single-threaded net_mgmt dispatch -- the event queue in
+        # wifi_component_zephyr.cpp is single-producer only.
+        zephyr_add_prj_conf("NET_MGMT_EVENT_THREAD", True)
+        transport_driver = VARIANTS[zephyr_variant()].transport_drivers.get("wifi")
+        if transport_driver is None:
+            raise EsphomeError(
+                f"Zephyr variant '{zephyr_variant()}' declares wifi support but has "
+                f"no transport_drivers entry for it"
+            )
+        kconfig, dt_label = transport_driver
+        zephyr_add_prj_conf(kconfig, True)
+        zephyr_add_overlay(f'&{dt_label} {{ status = "okay"; }};')
+        zephyr_add_prj_conf("NET_DHCPV4", True)
+        if CONF_AP in config:
+            # AP-mode code (wifi_component_zephyr.cpp) needs this for DHCP to work.
+            zephyr_add_prj_conf("NET_DHCPV4_SERVER", True)
+        if (min_rssi := config.get(CONF_MIN_RSSI)) is not None:
+            cg.add(var.set_min_scan_rssi(min_rssi))
 
     if CORE.is_esp32:
         if config[CONF_ENABLE_BTM] or config[CONF_ENABLE_RRM]:
@@ -983,6 +1037,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.LN882X_ARDUINO,
         },
         "wifi_component_pico_w.cpp": {PlatformFramework.RP2_ARDUINO},
+        "wifi_component_zephyr.cpp": {PlatformFramework.ZEPHYR_ZEPHYR},
     }
 )
 

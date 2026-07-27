@@ -28,6 +28,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
+    PLATFORM_ZEPHYR,
     Toolchain,
 )
 
@@ -822,6 +823,24 @@ class EsphomeCore:
             return self.relative_build_path("build", f"{self.name}.bin")
         if self.is_libretiny:
             return self.relative_pioenvs_path(self.name, "firmware.uf2")
+        if self.using_toolchain_sdk_zephyr:
+            from esphome.components.zephyr import (  # noqa: PLC0415
+                ZEPHYR_VARIANT_NATIVE_SIM,
+                zephyr_variant,
+            )
+
+            if zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM:
+                # --sysbuild nests the app image under an extra "zephyr" domain directory
+                # on top of Zephyr's own standard build-output subdirectory.
+                return self.relative_build_path(
+                    ".west_build", "zephyr", "zephyr", "zephyr.exe"
+                )
+            # Real hardware: OTA writes this file's bytes straight into MCUboot's secondary
+            # slot, so it must be the MCUboot-signed app image, not the merged flash image
+            # used for initial serial flashing.
+            return self.relative_build_path(
+                ".west_build", "zephyr", "zephyr", "zephyr.signed.bin"
+            )
         if self.is_host:
             # Host builds produce a native ELF/Mach-O named `program`.
             return self.relative_pioenvs_path(self.name, "program")
@@ -910,6 +929,10 @@ class EsphomeCore:
         return self.target_platform == PLATFORM_NRF52
 
     @property
+    def is_zephyr(self):
+        return self.target_platform == PLATFORM_ZEPHYR
+
+    @property
     def is_host(self):
         return self.target_platform == PLATFORM_HOST
 
@@ -932,6 +955,10 @@ class EsphomeCore:
     @property
     def using_toolchain_sdk_nrf(self):
         return self.toolchain == Toolchain.SDK_NRF
+
+    @property
+    def using_toolchain_sdk_zephyr(self):
+        return self.toolchain == Toolchain.SDK_ZEPHYR
 
     @property
     def using_zephyr(self):

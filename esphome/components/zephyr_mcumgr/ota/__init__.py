@@ -4,21 +4,12 @@ from esphome.components.zephyr import (
     zephyr_add_cdc_acm,
     zephyr_add_overlay,
     zephyr_add_prj_conf,
+    zephyr_add_sysbuild_conf,
     zephyr_data,
 )
-from esphome.components.zephyr.const import (
-    BOOTLOADER_MCUBOOT,
-    KEY_BOOTLOADER,
-    KEY_SYSBUILD,
-)
+from esphome.components.zephyr.const import BOOTLOADER_MCUBOOT, KEY_BOOTLOADER
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_HARDWARE_UART,
-    CONF_ID,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
-    Framework,
-)
+from esphome.const import CONF_HARDWARE_UART, CONF_ID
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 from esphome.types import ConfigType
@@ -68,7 +59,9 @@ CONFIG_SCHEMA = cv.All(
     .extend(BASE_OTA_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
     _validate_transport,
-    cv.only_with_framework(Framework.ZEPHYR),
+    # Only nrf52 -- this MCUboot image-manager path was only ever built/tested for
+    # nrf52; platform: zephyr has its own hardened OTA path (ota_backend_zephyr.cpp).
+    cv.only_on_nrf52,
 )
 
 
@@ -118,6 +111,7 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("IMG_ERASE_PROGRESSIVELY", True)
 
     zephyr_add_prj_conf("BOOTLOADER_MCUBOOT", True)
+    zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
 
     zephyr_add_prj_conf("MCUMGR_MGMT_NOTIFICATION_HOOKS", True)
     zephyr_add_prj_conf("MCUMGR_GRP_IMG_STATUS_HOOKS", True)
@@ -149,6 +143,3 @@ async def to_code(config: ConfigType) -> None:
                 }};
                 """
         )
-    framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if framework_ver >= cv.Version(2, 9, 2):
-        zephyr_data()[KEY_SYSBUILD] = True

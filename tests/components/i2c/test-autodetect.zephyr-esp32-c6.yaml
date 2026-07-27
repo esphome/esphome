@@ -1,0 +1,8 @@
+# No explicit sda/scl -- exercises DTS-derived pin defaults (get_i2c_pinctrl_esp32
+# in esphome/components/zephyr/dts_lookup.py) instead of the packaged bus config
+# used by test.zephyr-esp32-c6.yaml.
+i2c:
+  - id: i2c_bus
+    scan: true
+
+<<: !include common.yaml

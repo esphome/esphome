@@ -5,7 +5,12 @@ from typing import Any
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
-from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.components.zephyr import (
+    ZEPHYR_VARIANT_NATIVE_SIM,
+    zephyr_add_prj_conf,
+    zephyr_configure_net_contexts,
+    zephyr_variant,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENABLE_IPV6,
@@ -17,8 +22,21 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
+from .const import CONF_ENABLE_IPV4
+
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["mdns"]
+
+# Lists will be updated in future PRs as IPV4 requirement removed from denied components
+_DISABLE_IPV4_DENY_LIST = [
+    "esp32_improv",
+    "ethernet",
+    "modem",
+    "mqtt",
+    "udp",
+    "wifi",
+    "wireguard",
+]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -191,6 +209,13 @@ def validate_ipv6(value: bool) -> bool:
     return value
 
 
+def validate_ipv4(value: bool) -> bool:
+    if CORE.is_nrf52 and value:
+        raise cv.Invalid("On nRF52, enable_ipv4 must be false")
+
+    return value
+
+
 def get_network_priority(iface: str) -> float | None:
     """Get the setup priority for the given network interface type.
 
@@ -280,6 +305,8 @@ CONFIG_SCHEMA = cv.All(
                 host=False,
                 rp2=False,
                 nrf52=True,
+                zephyr=False,
+                zephyr_esp32h2=True,
             ): cv.All(
                 cv.boolean,
                 cv.Any(
@@ -291,6 +318,7 @@ CONFIG_SCHEMA = cv.All(
                         host=cv.Version(0, 0, 0),
                         rp2_arduino=cv.Version(0, 0, 0),
                         nrf52_zephyr=cv.Version(0, 0, 0),
+                        zephyr_zephyr=cv.Version(0, 0, 0),
                     ),
                     cv.boolean_false,
                 ),
@@ -300,6 +328,16 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_HIGH_PERFORMANCE): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
+            cv.SplitDefault(
+                CONF_ENABLE_IPV4,
+                bk72xx=True,
+                esp32=True,
+                esp8266=True,
+                host=True,
+                rp2=True,
+                nrf52=False,
+                zephyr=True,
+            ): cv.All(cv.boolean, validate_ipv4),
             cv.Optional(CONF_PRIORITY): _validate_priority_list,
         }
     ),
@@ -308,11 +346,20 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config: ConfigType) -> None:
-    """Check that every interface named in 'priority' has a corresponding component block."""
-    full = fv.full_config.get()
+    full_config = fv.full_config.get()
+    enable_ipv4 = config.get(CONF_ENABLE_IPV4, True)
+    if not enable_ipv4:
+        if not (CORE.is_esp32 or CORE.is_nrf52 or CORE.is_zephyr):
+            raise cv.Invalid("Disabling IPv4 is only supported on ESP32 or Zephyr")
+        for comp in _DISABLE_IPV4_DENY_LIST:
+            if comp in full_config:
+                raise cv.Invalid(
+                    f"Disabling IPv4 is not currently compatible with component {comp}"
+                )
+
     for entry in config.get(CONF_PRIORITY, []):
         iface = entry["interface"]
-        if iface not in full:
+        if iface not in full_config:
             raise cv.Invalid(
                 f"'{iface}' is listed in 'network: priority:' but no '{iface}:' "
                 f"component is configured",
@@ -327,6 +374,8 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config):
     cg.add_define("USE_NETWORK")
     # ESP32 with Arduino uses ESP-IDF network APIs directly, no Arduino Network library needed
+    enable_ipv4 = config.get(CONF_ENABLE_IPV4, True)
+    enable_ipv6 = config.get(CONF_ENABLE_IPV6, None)
 
     # Store the user-declared network priority list in CORE.data so that ethernet,
     # wifi and other network components can query it via get_network_priority()
@@ -409,34 +458,52 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 64)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", 64)
 
-    if CORE.is_nrf52:
+    if CORE.is_nrf52 or (
+        CORE.is_zephyr and zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM
+    ):
         zephyr_add_prj_conf("NETWORKING", True)
-        zephyr_add_prj_conf("NET_IPV6", True)
+        zephyr_add_prj_conf("NET_IPV4", enable_ipv4)
+        zephyr_add_prj_conf("NET_IPV6", enable_ipv6)
+        if CORE.is_nrf52:
+            # NCS replaces mbedTLS with PSA/Oberon crypto and has no legacy mbedtls_md5()
+            # symbol that Zephyr's RFC 6528 TCP ISN generator links against. Disable it so
+            # TCP links; Zephyr falls back to sys_rand32_get() for the ISN instead.
+            zephyr_add_prj_conf("NET_TCP_ISN_RFC6528", False)
+        else:
+            # Needed for inet_ntop()/inet_pton() (ip_address.h's str_to()) -- setting
+            # POSIX_NETWORKING directly doesn't work, its menu is hidden until POSIX_API
+            # selects POSIX_SYSTEM_INTERFACES.
+            zephyr_add_prj_conf("POSIX_API", True)
         zephyr_add_prj_conf("NET_TCP", True)
         zephyr_add_prj_conf("NET_UDP", True)
-        # The nRF Connect SDK replaces mbedTLS with PSA/Oberon crypto and does not provide the
-        # legacy mbedtls_md5() symbol that Zephyr's RFC 6528 TCP ISN generator links against
-        # (selecting MBEDTLS_MAC_MD5_ENABLED does not bring in the legacy C API here). Disable it so
-        # TCP links; Zephyr falls back to sys_rand32_get() for the ISN (randomized, but not the
-        # RFC 6528 keyed hash).
-        zephyr_add_prj_conf("NET_TCP_ISN_RFC6528", False)
-        # Enlarge the Zephyr network buffer pool and TCP windows for the Thread path.
-        # Zephyr's defaults are tiny: NET_BUF_TX_COUNT=16 * NET_BUF_DATA_SIZE=128 is only
-        # ~2 KB of TX data -- barely one 1280-byte IPv6 packet once 6LoWPAN fragments it.
-        # The ESPHome API entity-sync burst overruns that instantly, so socket writes fail
-        # with ENOBUFS ("Buffer full") and the connection is dropped. ESP32 sidesteps this
-        # by enlarging the lwIP TCP window (CONFIG_LWIP_TCP_* above); give Zephyr the
-        # equivalent headroom, sized to RAM and the Thread 1280-byte MTU (not ESP32's 64 KB).
-        # The bounded send window also provides flow control so TCP stops queueing past
-        # what the buffer pool can hold instead of erroring.
-        zephyr_add_prj_conf("NET_PKT_RX_COUNT", 24)
-        zephyr_add_prj_conf("NET_PKT_TX_COUNT", 24)
-        zephyr_add_prj_conf("NET_BUF_RX_COUNT", 48)
-        zephyr_add_prj_conf("NET_BUF_TX_COUNT", 48)
-        zephyr_add_prj_conf("NET_TCP_MAX_RECV_WINDOW_SIZE", 2280)
-        zephyr_add_prj_conf("NET_TCP_MAX_SEND_WINDOW_SIZE", 2280)
+        # TODO: revisit these sizes for `enable_high_performance:`, which currently has
+        # no effect on Zephyr/nrf52.
+        #
+        # Zephyr's defaults are tiny (~2 KB TX, barely one fragmented IPv6 packet) -- the
+        # ESPHome API entity-sync burst overruns that instantly (ENOBUFS, dropped
+        # connection). Give Zephyr TCP window headroom equivalent to ESP32's lwIP config.
+        # WiFi gets a larger window matching ESP-IDF's stock lwIP default (real MTU
+        # doesn't need Thread's 1280-byte-constrained sizing).
+        if "wifi" in CORE.config:
+            zephyr_add_prj_conf("NET_PKT_RX_COUNT", 64)
+            zephyr_add_prj_conf("NET_PKT_TX_COUNT", 64)
+            zephyr_add_prj_conf("NET_BUF_RX_COUNT", 128)
+            zephyr_add_prj_conf("NET_BUF_TX_COUNT", 128)
+            zephyr_add_prj_conf("NET_TCP_MAX_RECV_WINDOW_SIZE", 5760)
+            zephyr_add_prj_conf("NET_TCP_MAX_SEND_WINDOW_SIZE", 5760)
+        else:
+            zephyr_add_prj_conf("NET_PKT_RX_COUNT", 24)
+            zephyr_add_prj_conf("NET_PKT_TX_COUNT", 24)
+            zephyr_add_prj_conf("NET_BUF_RX_COUNT", 48)
+            zephyr_add_prj_conf("NET_BUF_TX_COUNT", 48)
+            zephyr_add_prj_conf("NET_TCP_MAX_RECV_WINDOW_SIZE", 2280)
+            zephyr_add_prj_conf("NET_TCP_MAX_SEND_WINDOW_SIZE", 2280)
+        zephyr_configure_net_contexts()
+        # 16+16+16: IDF's LWIP_MAX_ACTIVE_TCP+LISTENING_TCP+UDP_PCBS, three separate
+        # pools summed since Zephyr merges them into one shared NET_MAX_CONN.
+        zephyr_add_prj_conf("NET_MAX_CONN", 48)
 
-    if (enable_ipv6 := config.get(CONF_ENABLE_IPV6, None)) is not None:
+    if enable_ipv6 is not None:
         cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
         if enable_ipv6:
             cg.add_define(
@@ -458,12 +525,25 @@ async def to_code(config):
                 cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
             if CORE.is_rp2:
                 cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
+        if enable_ipv6 and (
+            CORE.is_nrf52
+            or (CORE.is_zephyr and zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM)
+        ):
+            ipv6_addr_floor = 6 if "openthread" in CORE.config else 2
+            zephyr_add_prj_conf(
+                "NET_IF_UNICAST_IPV6_ADDR_COUNT",
+                max(config[CONF_MIN_IPV6_ADDR_COUNT], ipv6_addr_floor),
+            )
     # Pvariable creation lives in a separate coroutine at NETWORK_SERVICES so it
     # emits after wifi/ethernet at COMMUNICATION. This keeps compile-time config
     # (above) separate from C++ object lifecycle and allows wiring in interface
     # pointers via get_variable().
     if CORE.is_esp32:
         CORE.add_job(network_component_to_code, config)
+
+    cg.add_define("USE_NETWORK_IPV4", enable_ipv4)
+    if CORE.is_esp32:
+        add_idf_sdkconfig_option("CONFIG_LWIP_IPV4", enable_ipv4)
 
 
 @coroutine_with_priority(CoroPriority.NETWORK_SERVICES)

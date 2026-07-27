@@ -150,6 +150,7 @@ CONFIG_SCHEMA = cv.Schema(
             rtl87xx=IMPLEMENTATION_LWIP_SOCKETS,
             host=IMPLEMENTATION_BSD_SOCKETS,
             nrf52=IMPLEMENTATION_BSD_SOCKETS,
+            zephyr=IMPLEMENTATION_BSD_SOCKETS,
         ): cv.one_of(
             IMPLEMENTATION_LWIP_TCP,
             IMPLEMENTATION_LWIP_SOCKETS,
@@ -170,10 +171,15 @@ async def to_code(config):
     elif impl == IMPLEMENTATION_BSD_SOCKETS:
         cg.add_define("USE_SOCKET_IMPL_BSD_SOCKETS")
         if CORE.using_zephyr:
-            from esphome.components.zephyr import zephyr_add_prj_conf
+            from esphome.components.zephyr import (  # noqa: PLC0415
+                ZEPHYR_VARIANT_NATIVE_SIM,
+                zephyr_add_prj_conf,
+                zephyr_variant,
+            )
 
-            zephyr_add_prj_conf("NET_SOCKETS", True)
-            zephyr_add_prj_conf("POSIX_API", True)
+            if zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
+                zephyr_add_prj_conf("NET_SOCKETS", True)
+                zephyr_add_prj_conf("POSIX_API", True)
     # ESP32 and LibreTiny both have LwIP >= 2.1.3 with lwip_socket_dbg_get_socket()
     # and FreeRTOS task notifications — enable fast select to bypass lwip_select().
     # Only when not using lwip_tcp, which does not provide select() support.

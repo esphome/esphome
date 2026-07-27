@@ -2115,6 +2115,11 @@ class SplitDefault(Optional):
                 keys += _get_default_key(variant, framework)
                 keys += _get_default_key(variant)
             keys += _get_default_key(framework)
+        elif CORE.is_zephyr:
+            from esphome.components.zephyr import zephyr_variant
+
+            if zephyr_var := zephyr_variant():
+                keys += [f"zephyr_{zephyr_var.lower()}"]
         keys += _get_default_key()
         for key in keys:
             if self._defaults.get(key) is not None:

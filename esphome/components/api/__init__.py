@@ -323,6 +323,7 @@ CONFIG_SCHEMA = cv.All(
                 host=4,  # Abundant resources
                 ln882x=4,  # Moderate RAM
                 nrf52=4,  # ~256KB RAM, BSD sockets
+                zephyr=4,  # Zephyr platform variants
             ): cv.int_range(min=1, max=10),
             cv.SplitDefault(
                 CONF_MAX_CONNECTIONS,
@@ -334,6 +335,10 @@ CONFIG_SCHEMA = cv.All(
                 host=8,  # Abundant resources
                 ln882x=5,  # Moderate RAM
                 nrf52=4,  # ~256KB RAM, BSD sockets, Thread (single HA controller)
+                zephyr_esp32=5,  # 520KB RAM available, same silicon as esp32
+                zephyr_esp32h2=4,  # ~320KB RAM, embedded target
+                zephyr_esp32c6=4,  # ~512KB RAM, embedded target
+                zephyr_nativesim=8,  # Abundant resources
             ): cv.int_range(min=1, max=20),
             # Maximum queued send buffers per connection before dropping connection
             # Each buffer uses ~8-12 bytes overhead plus actual message size
@@ -349,6 +354,10 @@ CONFIG_SCHEMA = cv.All(
                 rtl87xx=8,  # Moderate RAM
                 host=16,  # Abundant resources
                 ln882x=8,  # Moderate RAM
+                zephyr_esp32=8,  # More RAM, can buffer more
+                zephyr_esp32h2=8,  # Moderate RAM
+                zephyr_esp32c6=8,  # Moderate RAM
+                zephyr_nativesim=16,  # Abundant resources
             ): cv.int_range(min=1, max=64),
         }
     ).extend(cv.COMPONENT_SCHEMA),

@@ -23,8 +23,11 @@
 #include <algorithm>
 #include <new>
 #include <utility>
+#ifndef USE_ZEPHYR
+// Zephyr doesn't ship lwIP.
 #include "lwip/dns.h"
 #include "lwip/err.h"
+#endif
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -1581,6 +1584,11 @@ void WiFiComponent::dump_config() {
 #ifdef USE_WIFI_PHY_MODE
   ESP_LOGCONFIG(TAG, "  PHY Mode: %s", LOG_STR_ARG(phy_mode_to_log_string(this->phy_mode_)));
 #endif
+#ifdef USE_ZEPHYR
+  if (this->min_scan_rssi_ != -128) {
+    ESP_LOGCONFIG(TAG, "  Min Scan RSSI: %d dBm", this->min_scan_rssi_);
+  }
+#endif
   if (this->is_connected()) {
     this->print_connect_params_();
   }
@@ -2410,7 +2418,7 @@ void WiFiComponent::clear_roaming_state_() {
 void WiFiComponent::release_scan_results_() {
   if (!this->keep_scan_results_) {
     ScanResultsLock lock(this);
-#if defined(USE_RP2) || defined(USE_ESP32)
+#if defined(USE_RP2) || defined(USE_ESP32) || defined(USE_ZEPHYR)
     // std::vector - use swap trick since shrink_to_fit is non-binding
     decltype(this->scan_result_)().swap(this->scan_result_);
 #else

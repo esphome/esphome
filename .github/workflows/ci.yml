@@ -501,8 +501,16 @@ jobs:
             options: --environment esp32-arduino-tidy --grep USE_ARDUINO
             cache_idf: true
           - id: clang-tidy
-            name: Run script/clang-tidy for ZEPHYR
-            options: --environment nrf52-tidy --grep USE_ZEPHYR --grep USE_NRF52
+            # nrf52-tidy is the only PlatformIO environment in the Zephyr
+            # family (framework = zephyr, nRF Connect SDK). ESP32-family
+            # Zephyr variants have no PlatformIO environment at all -- they
+            # build via `west build` directly (build_zephyr.py) -- so
+            # linting USE_ZEPHYR-guarded ESP32 code against nrf52-tidy's
+            # NCS headers produces false positives (mainline Zephyr's net
+            # API differs from NCS's). Scope this job to USE_NRF52 only
+            # until ESP32 Zephyr variants have their own compile database.
+            name: Run script/clang-tidy for NRF52
+            options: --environment nrf52-tidy --grep USE_NRF52
             cache_sdk_nrf: true
             ignore_errors: false
           - id: clang-tidy

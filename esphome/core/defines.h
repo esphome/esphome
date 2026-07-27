@@ -19,13 +19,15 @@
 
 // Threading model for static analysis. Match what the real codegen picks per
 // platform (see esphome/components/<platform>/__init__.py ThreadModel.*):
-//   USE_ESP8266 / USE_RP2 / USE_NRF52 → SINGLE
+//   USE_ESP8266 / USE_RP2 / USE_NRF52 / USE_ZEPHYR_VARIANT_FAMILY_ESP32 → SINGLE
 //   USE_BK72XX (ARMv5TE, no LDREX/STREX) → MULTI_NO_ATOMICS
-//   everything else (ESP32, host, RTL87XX, LN882X) → MULTI_ATOMICS
+//   everything else (ESP32, host, RTL87XX, LN882X, USE_ZEPHYR_VARIANT_NATIVE_SIM) →
+//   MULTI_ATOMICS -- native_sim simulates interrupts via host-level mechanisms, not
+//   single-core hardware preemption, so it needs real atomics (see wake_zephyr.cpp).
 // Without this the clang-tidy envs end up with USE_<single-threaded platform>
 // + MULTI_ATOMICS simultaneously, a combination that can never occur in a
 // real build.
-#if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_NRF52)
+#if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_NRF52) || defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32)
 #define ESPHOME_THREAD_SINGLE
 #elif defined(USE_BK72XX)
 #define ESPHOME_THREAD_MULTI_NO_ATOMICS
@@ -41,6 +43,22 @@
 
 // Feature flags
 #define USE_ALARM_CONTROL_PANEL
+#define USE_API
+#define USE_API_CLIENT_CONNECTED_TRIGGER
+#define USE_API_CLIENT_DISCONNECTED_TRIGGER
+#define USE_API_HOMEASSISTANT_ACTION_RESPONSES
+#define USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+#define USE_API_HOMEASSISTANT_SERVICES
+#define USE_API_HOMEASSISTANT_STATES
+#define USE_API_NOISE
+#define USE_API_VARINT64
+#define USE_API_PLAINTEXT
+#define USE_API_USER_DEFINED_ACTIONS
+#define USE_API_CUSTOM_SERVICES
+#define USE_API_USER_DEFINED_ACTION_RESPONSES
+#define USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+#define API_MAX_SEND_QUEUE 8
+#define MAX_API_CONNECTIONS 6
 #define USE_AREAS
 #define USE_BINARY_SENSOR
 #define USE_BINARY_SENSOR_FILTER
@@ -126,6 +144,7 @@
 #define USE_LVGL_TEXTAREA
 #define USE_LVGL_TILEVIEW
 #define USE_LVGL_TOUCHSCREEN
+#define USE_MD5
 #define USE_MDNS
 #define USE_MDNS_STORE_SERVICES
 #define MDNS_SERVICE_COUNT 3
@@ -137,7 +156,11 @@
 #define SNTP_SERVER_COUNT 3
 #define USE_MEDIA_PLAYER
 #define USE_MEDIA_SOURCE
+#define USE_MQTT
+#define USE_MQTT_COVER_JSON
 #define USE_NETWORK
+#define USE_NETWORK_IPV4 true
+#define USE_NETWORK_IPV6 false
 #define USE_NETWORK_PRIMARY_INTERFACE_WIFI
 #define USE_NEXTION_COMMAND_SPACING
 #define USE_NEXTION_CONF_START_UP_PAGE
@@ -152,7 +175,10 @@
 #define USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
 #define USE_NEXTION_WAVEFORM
 #define USE_NUMBER
+#define USE_OTA
+#define USE_OTA_PASSWORD
 #define USE_OTA_STATE_LISTENER
+#define USE_OTA_VERSION 2
 #define USE_OUTPUT
 #define USE_OUTPUT_FLOAT_POWER_SCALING
 #define USE_POWER_SUPPLY
@@ -166,6 +192,7 @@
 #define USE_SENSOR_FILTER
 #define USE_SERIAL_PROXY
 #define USE_SETUP_PRIORITY_OVERRIDE
+#define USE_SHA256
 #define USE_STATUS_LED
 #define USE_STATUS_SENSOR
 #define USE_SWITCH
@@ -173,6 +200,7 @@
 #define USE_TEXT_SENSOR
 #define USE_TEXT_SENSOR_FILTER
 #define USE_TIME
+#define USE_TIME_TIMEZONE
 #define USE_TOUCHSCREEN
 #define USE_UART_DEBUGGER
 #define USE_UART_WAKE_LOOP_ON_RX
@@ -180,6 +208,9 @@
 #define USE_VALVE
 #define USE_WATER_HEATER
 #define USE_WATER_HEATER_VISUAL_OVERRIDES
+#define USE_WIFI
+#define USE_WIFI_AP
+#define USE_WIFI_MANUAL_IP
 #define USE_ZWAVE_PROXY
 
 // Feature flags which do not work for zephyr
@@ -190,41 +221,11 @@
 #define USE_AUDIO_MP3_SUPPORT
 #define USE_AUDIO_OPUS_SUPPORT
 #define USE_AUDIO_WAV_SUPPORT
-#define USE_API
-#define USE_API_CLIENT_CONNECTED_TRIGGER
-#define USE_API_CLIENT_DISCONNECTED_TRIGGER
-#define USE_API_HOMEASSISTANT_ACTION_RESPONSES
-#define USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-#define USE_API_HOMEASSISTANT_SERVICES
-#define USE_API_HOMEASSISTANT_STATES
-#define USE_API_NOISE
-#define USE_API_VARINT64
-#define USE_API_PLAINTEXT
-#define USE_API_USER_DEFINED_ACTIONS
-#define USE_API_CUSTOM_SERVICES
-#define USE_API_USER_DEFINED_ACTION_RESPONSES
-#define USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-#define API_MAX_SEND_QUEUE 8
-#define MAX_API_CONNECTIONS 6
-#define USE_MD5
-#define USE_SHA256
-#ifndef USE_RP2  // no MQTT backend or esp_wireguard library on RP2
-#define USE_MQTT
-#define USE_MQTT_COVER_JSON
-#define USE_WIREGUARD
-#endif
 #define USE_RTTTL_FINISHED_PLAYBACK_CALLBACK
 #define USE_RUNTIME_IMAGE_BMP
 #define USE_RUNTIME_IMAGE_PNG
 #define USE_RUNTIME_IMAGE_JPEG
 #define USE_RUNTIME_STATS
-#define USE_OTA
-#define USE_OTA_PASSWORD
-#define USE_OTA_VERSION 2
-#define USE_TIME_TIMEZONE
-#define USE_WIFI
-#define USE_WIFI_AP
-#define USE_WIFI_MANUAL_IP
 #endif
 
 // Arduino-specific feature flags
@@ -468,19 +469,41 @@
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 64
 #endif
 
-#ifdef USE_NRF52
+#ifdef USE_ZEPHYR
 #define ESPHOME_BLE_NUS_TX_RING_BUFFER_SIZE 512
 #define ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE 512
 #define USE_ESPHOME_TASK_LOG_BUFFER
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 768
 #define USE_LOGGER_EARLY_MESSAGE
+#define USE_OTA_ROLLBACK
+// Emitted by adc/sensor.py when any ADC sensor uses `emulation:` -- backs the
+// channel with Zephyr's generic zephyr,adc-emul devicetree node instead of
+// real silicon, letting adc_sensor_zephyr.cpp inject scripted mV values.
+#define USE_ZEPHYR_ADC_EMULATION
+#endif
+
+// Emitted for every platform: zephyr/nrf52 target with real watchdog hardware
+// (not native_sim). esp32-family gets a user-configurable value, nrf52 a
+// hardcoded one (longer when zigbee is loaded -- see nrf52/__init__.py).
+#if defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || defined(USE_NRF52)
+#define USE_ZEPHYR_WATCHDOG_TIMEOUT_MS 5000
+#endif
+
+// Emitted by logger/__init__.py when hardware_uart: USB_SERIAL_JTAG is selected --
+// ESP32-H2's controller is a standard Zephyr UART device, not USB CDC-ACM.
+// esp32_c6 doesn't implement this yet.
+#ifdef USE_ZEPHYR_VARIANT_ESP32_H2
+#define USE_LOGGER_USB_SERIAL_JTAG
+#define USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG
+#endif
+
+#ifdef USE_NRF52
 #define USE_LOGGER_UART_SELECTION_USB_CDC
 #define USE_LOGGER_USB_CDC
 #define USE_LOGGER_WAIT_FOR_CDC
 #define USE_NRF52_DFU
 #define USE_NRF52_REG0_VOUT 5
 #define USE_NRF52_UICR_ERASE
-#define USE_OTA_ROLLBACK
 #define USE_SOFTDEVICE_ID 7
 #define USE_SOFTDEVICE_VERSION 1
 #define USE_ZIGBEE

@@ -1,0 +1,15 @@
+# native_sim uses the Zephyr I2C emulator subsystem -- no physical pins, sda/scl
+# are not read for this variant. This also exercises `emulation:`/`registers:`
+# (scalar, flat cycling list, and nested multi-byte cycling list forms).
+i2c:
+  - id: i2c_bus
+    scan: true
+    emulation:
+      - id: emu_dev
+        address: 0x10
+        registers:
+          0x00: 0xAB
+          0x01: [0x01, 0x02, 0x03]
+          0x02: [[0x10, 0x20], [0x30, 0x40]]
+
+<<: !include common.yaml

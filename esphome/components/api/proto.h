@@ -636,7 +636,7 @@ class ProtoMessage {
   virtual const LogString *message_name() const { return LOG_STR("unknown"); }
 #endif
 
-#ifndef USE_HOST
+#if !defined(USE_HOST) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
  protected:
 #endif
   // Non-virtual destructor is protected to prevent polymorphic deletion.

@@ -27,6 +27,7 @@ from esphome.const import (
     CONF_OUTPUT_POWER,
     CONF_USE_ADDRESS,
     PLATFORM_ESP32,
+    PLATFORM_ZEPHYR,
     PlatformFramework,
 )
 from esphome.core import (
@@ -61,7 +62,7 @@ AUTO_LOAD = ["network"]
 # TODO: Doesn't conflict with wifi if you're using another ESP as an RCP (radio coprocessor), but this isn't implemented yet
 CONFLICTS_WITH = ["wifi"]
 
-IDF_TO_OT_LOG_LEVEL = {
+FRAMEWORK_LOG_LEVEL_TO_OT = {
     "NONE": "NONE",
     "ERROR": "CRIT",
     "WARN": "WARN",
@@ -257,7 +258,7 @@ def _final_validate(_):
         and (log_level := fw_config.get(CONF_LOG_LEVEL)) is not None
     ):
         add_idf_sdkconfig_option("CONFIG_OPENTHREAD_LOG_LEVEL_DYNAMIC", False)
-        ot_log_level = IDF_TO_OT_LOG_LEVEL.get(log_level, log_level)
+        ot_log_level = FRAMEWORK_LOG_LEVEL_TO_OT.get(log_level, log_level)
         add_idf_sdkconfig_option(f"CONFIG_OPENTHREAD_LOG_LEVEL_{ot_log_level}", True)
 
 
@@ -268,7 +269,10 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "openthread_esp.cpp": {
             PlatformFramework.ESP32_IDF,
         },
-        "openthread_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
+        "openthread_zephyr.cpp": {
+            PlatformFramework.NRF52_ZEPHYR,
+            PlatformFramework.ZEPHYR_ZEPHYR,
+        },
     }
 )
 
@@ -305,12 +309,48 @@ async def to_code(config):
     if CORE.is_esp32:
         set_sdkconfig_options(config)
     elif CORE.using_zephyr:
+        device_type = config.get(CONF_DEVICE_TYPE)
         zephyr_add_prj_conf("NET_L2_OPENTHREAD", True)
-        zephyr_add_prj_conf(
-            f"OPENTHREAD_NORDIC_LIBRARY_{config.get(CONF_DEVICE_TYPE)}", True
-        )
-        zephyr_add_prj_conf(f"OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
+        if CORE.is_nrf52:
+            # nRF Connect SDK uses pre-built Nordic OpenThread libraries.
+            zephyr_add_prj_conf(f"OPENTHREAD_NORDIC_LIBRARY_{device_type}", True)
+            # PlatformIO's bundled nrf52 Zephyr fork only goes up to Thread 1.3.1 -- the
+            # mainline-only 1.4 option would abort the Kconfig parse here.
+            zephyr_add_prj_conf("OPENTHREAD_THREAD_VERSION_1_3_1", True)
+        else:
+            # Mainline Zephyr builds OpenThread from source.
+            zephyr_add_prj_conf("OPENTHREAD_SOURCES", True)
+            zephyr_add_prj_conf("OPENTHREAD_SRP_CLIENT", True)
+            # SRP client's ECDSA key export uses the same mbedTLS/PSA machinery as a DTLS
+            # handshake, and hits PSA_ERROR_INSUFFICIENT_MEMORY at the 1024-byte default.
+            zephyr_add_prj_conf("MBEDTLS_HEAP_SIZE", 10240)
+            # DNS client with NAT64 support (OPENTHREAD_CONFIG_DNS_CLIENT_NAT64_ENABLE
+            # defaults to 1 in OpenThread's config header — enabled automatically with
+            # OT_DNS_CLIENT). Equivalent to ESP-IDF's CONFIG_OPENTHREAD_DNS64_CLIENT.
+            zephyr_add_prj_conf("OPENTHREAD_DNS_CLIENT", True)
+            # Explicit Thread version instead of relying on mainline Zephyr's own
+            # Kconfig default (1.1).
+            zephyr_add_prj_conf("OPENTHREAD_THREAD_VERSION_1_4", True)
+        zephyr_add_prj_conf(f"OPENTHREAD_{device_type}", True)
+        # Without SLAAC the device never forms an OMR (Off-Mesh-Routable) address, so
+        # SRP's auto-registered host resolves by name but every address lookup times out.
+        zephyr_add_prj_conf("OPENTHREAD_SLAAC", True)
         zephyr_add_prj_conf("MAIN_STACK_SIZE", 4096)
+
+        if not CORE.is_nrf52:
+            # Mirror `zephyr: log_level:` into OpenThread's own log verbosity -- a separate
+            # Kconfig from Zephyr's native CONFIG_LOG_DEFAULT_LEVEL. nrf52 has no top-level
+            # `zephyr:` config block to read a log_level from, so it's excluded here.
+            zephyr_log_level = CORE.config.get(PLATFORM_ZEPHYR, {}).get(
+                CONF_LOG_LEVEL, "ERROR"
+            )
+            if zephyr_log_level != "NONE":
+                zephyr_add_prj_conf("OPENTHREAD_DEBUG", True)
+                zephyr_add_prj_conf("OPENTHREAD_LOG_LEVEL_DYNAMIC", False)
+                ot_log_level = FRAMEWORK_LOG_LEVEL_TO_OT.get(
+                    zephyr_log_level, zephyr_log_level
+                )
+                zephyr_add_prj_conf(f"OPENTHREAD_LOG_LEVEL_{ot_log_level}", True)
 
 
 # Actions

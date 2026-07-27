@@ -13,6 +13,8 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S3,
     get_esp32_variant,
 )
+from esphome.components.zephyr import zephyr_variant
+from esphome.components.zephyr.variants import VARIANTS
 import esphome.config_validation as cv
 from esphome.const import CONF_ANALOG, CONF_INPUT, CONF_NUMBER, PLATFORM_ESP8266
 from esphome.core import CORE
@@ -53,6 +55,9 @@ adc_channel_t = cg.global_ns.enum("adc_channel_t", is_class=True)
 
 # pin to adc1 channel mapping
 # https://github.com/espressif/esp-idf/blob/v4.4.8/components/driver/include/driver/adc.h
+# The esp32-family Zephyr variants encode the same pin->channel silicon facts via each
+# variant's own adc1_channel_map (zephyr/variants/*.py) -- keep both in sync when
+# adding/correcting a chip.
 ESP32_VARIANT_ADC1_PIN_TO_CHANNEL = {
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32/include/soc/adc_channel.h
     VARIANT_ESP32: {
@@ -277,5 +282,17 @@ def validate_adc_pin(value):
         return pins.gpio_pin_schema(
             {CONF_ANALOG: True, CONF_INPUT: True}, internal=True
         )(value)
+
+    if CORE.using_zephyr:
+        # The ADC channel is claimed by its own devicetree channel node, not a
+        # GPIO "analog mode" flag -- zephyr/gpio.py has no analog mode at all
+        # (unlike nrf52/gpio.py's own pin schema above).
+        conf = pins.internal_gpio_input_pin_schema(value)
+        variant = zephyr_variant()
+        variant_info = VARIANTS.get(variant)
+        channel_map = variant_info.adc1_channel_map if variant_info is not None else {}
+        if channel_map and conf[CONF_NUMBER] not in channel_map:
+            raise cv.Invalid(f"{variant} doesn't support ADC on this pin")
+        return conf
 
     raise NotImplementedError

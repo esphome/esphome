@@ -455,8 +455,13 @@ async def register_time(time_var, config):
 
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
-    if CORE.using_zephyr:
+    if CORE.is_nrf52:
         zephyr_add_prj_conf("POSIX_CLOCK", True)
+    elif CORE.is_zephyr:
+        # platform:zephyr variants (native_sim/esp32_h2 >= 4.4.0) are above the
+        # Zephyr 4.x threshold where POSIX_CLOCK was removed; POSIX_API covers
+        # clock_gettime() instead.
+        zephyr_add_prj_conf("POSIX_API", True)
     cg.add_define("USE_TIME")
     cg.add_global(time_ns.using)
 

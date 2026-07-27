@@ -3,8 +3,18 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 
+#include <cstdio>
 #include <zephyr/drivers/watchdog.h>
 #include <zephyr/sys/reboot.h>
+#ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
+#include <unistd.h>
+namespace esphome::zephyr {
+const char *get_reexec_path();
+}
+#endif
+#ifdef USE_LOGGER
+#include "esphome/components/logger/logger.h"
+#endif
 
 // Empty zephyr namespace block to satisfy ci-custom's lint_namespace check.
 // HAL functions live in namespace esphome (root) — they are not part of the
@@ -16,6 +26,36 @@ namespace esphome {
 #ifdef CONFIG_WATCHDOG
 static int wdt_channel_id = -1;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
+
+#if defined(USE_ZEPHYR_WATCHDOG_TIMEOUT_MS) && defined(USE_LOGGER)
+#ifdef USE_ZEPHYR_ARCH_STACKWALK
+static bool wdt_log_stack_frame(void *cookie, unsigned long addr) {
+  char msg[48];
+  int len = snprintf(msg, sizeof(msg), "  at 0x%lx", addr);
+  if (len > 0)
+    logger::global_logger->write_watchdog_warning(msg, static_cast<uint16_t>(len));
+  return true;  // keep walking until arch_stack_walk runs out of frames
+}
+#endif
+
+// Watchdog stage0 callback, mirroring ESP-IDF's task-watchdog dump. Whether this
+// reliably has time to run before the stage1 reset fires is an open question on
+// this driver -- this is meant to gather evidence for the Zephyr issue.
+static void wdt_warning_cb(const device *dev, int channel_id) {
+  if (logger::global_logger == nullptr)
+    return;
+  k_tid_t current = k_current_get();
+  const char *name = k_thread_name_get(current);
+  char msg[80];
+  int len =
+      snprintf(msg, sizeof(msg), "Watchdog about to reset -- current thread: %s", name != nullptr ? name : "unknown");
+  if (len > 0)
+    logger::global_logger->write_watchdog_warning(msg, static_cast<uint16_t>(len));
+#ifdef USE_ZEPHYR_ARCH_STACKWALK
+  arch_stack_walk(wdt_log_stack_frame, nullptr, current, nullptr);
+#endif
+}
+#endif  // USE_ZEPHYR_WATCHDOG_TIMEOUT_MS && USE_LOGGER
 #endif
 
 // yield(), delay(), micros(), millis(), millis_64(), delayMicroseconds(),
@@ -27,9 +67,13 @@ void arch_init() {
   if (device_is_ready(WDT)) {
     static wdt_timeout_cfg wdt_config{};
     wdt_config.flags = WDT_FLAG_RESET_SOC;
-#ifdef USE_ZIGBEE
-    // zboss thread uses a lot of CPU cycles during startup
-    wdt_config.window.max = 10000;
+    // Timeout value is a codegen decision (see each variant's to_code()), not
+    // a platform #ifdef here -- nrf52/__init__.py sets a longer one for zigbee.
+#ifdef USE_ZEPHYR_WATCHDOG_TIMEOUT_MS
+    wdt_config.window.max = USE_ZEPHYR_WATCHDOG_TIMEOUT_MS;
+#ifdef USE_LOGGER
+    wdt_config.callback = wdt_warning_cb;
+#endif
 #else
     wdt_config.window.max = 2000;
 #endif
@@ -58,7 +102,19 @@ void arch_feed_wdt() {
 #endif
 }
 
-void arch_restart() { sys_reboot(SYS_REBOOT_COLD); }
+void arch_restart() {
+#ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
+  const char *reexec = zephyr::get_reexec_path();
+  if (reexec != nullptr) {
+    int max_fd = static_cast<int>(getdtablesize());
+    for (int fd = 3; fd < max_fd; fd++)
+      ::close(fd);
+    const char *argv[] = {reexec, nullptr};
+    ::execv(reexec, const_cast<char *const *>(argv));
+  }
+#endif
+  sys_reboot(SYS_REBOOT_COLD);
+}
 
 }  // namespace esphome
 

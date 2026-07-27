@@ -13,7 +13,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S31,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MODEL, CONF_NAME
+from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MODEL, CONF_NAME, PLATFORM_NRF52
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
@@ -146,7 +146,9 @@ CONFIG_SCHEMA = cv.All(
                 ]
             ),
         ),
-        cv.only_with_framework("zephyr"),
+        # nrf52 only: ncs-zigbee (ZBOSS) is Nordic-only. platform: zephyr variants have
+        # no ZBOSS port, so cv.only_with_framework("zephyr") would be too permissive.
+        cv.only_on(PLATFORM_NRF52),
     ),
 )
 

@@ -180,7 +180,7 @@ class StorageJSON:
 
             hardware = esp32.get_esp32_variant(esph)
             framework_version = str(esp32.idf_version())
-        elif esph.is_nrf52:
+        elif esph.using_zephyr:
             framework_version = str(esph.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
         return StorageJSON(
             storage_version=1,
@@ -337,7 +337,7 @@ class StorageJSON:
                         f"Please clean the build files and recompile."
                     ) from err
             CORE.data[KEY_ESP32] = esp32_data
-        elif target_platform == const.PLATFORM_NRF52 and self.framework_version:
+        elif CORE.using_zephyr and self.framework_version:
             import esphome.config_validation as cv
 
             try:

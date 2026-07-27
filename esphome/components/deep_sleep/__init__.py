@@ -14,7 +14,11 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S3,
     get_esp32_variant,
 )
-from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.components.zephyr import (
+    ZEPHYR_VARIANT_NATIVE_SIM,
+    zephyr_add_prj_conf,
+    zephyr_variant,
+)
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -36,6 +40,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_NRF52,
+    PLATFORM_ZEPHYR,
     PlatformFramework,
 )
 from esphome.core import CORE
@@ -153,6 +158,14 @@ def validate_wakeup_pin(
 
 
 def validate_config(config: ConfigType) -> ConfigType:
+    # No poweroff hardware to simulate: native_sim's Zephyr port never selects
+    # HAS_POWEROFF, so sys_poweroff() (deep_sleep_zephyr.cpp's only non-sleep_duration,
+    # non-Zigbee wake path) doesn't even get compiled in and fails to link.
+    if CORE.is_zephyr and zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM:
+        raise cv.Invalid(
+            f"deep_sleep is not supported on the Zephyr {ZEPHYR_VARIANT_NATIVE_SIM} variant"
+        )
+
     # right now only BK72XX supports the list format for wakeup pins
     if CORE.is_bk72xx:
         if CONF_WAKEUP_PIN_MODE in config:
@@ -340,7 +353,15 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX, PLATFORM_NRF52]),
+    cv.only_on(
+        [
+            PLATFORM_ESP32,
+            PLATFORM_ESP8266,
+            PLATFORM_BK72XX,
+            PLATFORM_NRF52,
+            PLATFORM_ZEPHYR,
+        ]
+    ),
     validate_config,
 )
 

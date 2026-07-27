@@ -28,7 +28,13 @@ static const bt_data SD[] = {
 #endif
 };
 
+// BT_LE_ADV_CONN was renamed to BT_LE_ADV_CONN_FAST_2 upstream; nrf52's pinned NCS SDK
+// still has only the old name, esp32_h2's mainline Zephyr only the new one.
+#ifdef BT_LE_ADV_CONN
 const bt_le_adv_param *const ADV_PARAM = BT_LE_ADV_CONN;
+#else
+const bt_le_adv_param *const ADV_PARAM = BT_LE_ADV_CONN_FAST_2;
+#endif
 
 static void advertise(k_work *work) {
   int rc = bt_le_adv_stop();

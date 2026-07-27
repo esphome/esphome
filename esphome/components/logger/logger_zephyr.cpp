@@ -8,6 +8,19 @@
 #include <zephyr/drivers/uart.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/usb/usb_device.h>
+#if __has_include(<zephyr/version.h>)
+#include <zephyr/version.h>
+#elif __has_include(<version.h>)
+#include <version.h>
+#endif
+#if ZEPHYR_VERSION_CODE >= ZEPHYR_VERSION(3, 6, 0)
+#define ESPHOME_ARCH_ESF_T arch_esf
+#else
+#define ESPHOME_ARCH_ESF_T z_arch_esf_t
+#endif
+#ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
+#include <unistd.h>
+#endif
 #ifdef USE_LOGGER_EARLY_MESSAGE
 #include <esphome/components/zephyr/reset_reason.h>
 #endif
@@ -57,12 +70,14 @@ void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
     static const struct device *uart_dev = nullptr;
     switch (this->uart_) {
+#ifdef CONFIG_SERIAL
       case UART_SELECTION_UART0:  // NOLINT(bugprone-branch-clone)
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart0));
         break;
       case UART_SELECTION_UART1:
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart1));
         break;
+#endif
 #ifdef USE_LOGGER_USB_CDC
       case UART_SELECTION_USB_CDC:
 #ifdef CONFIG_USB_DEVICE_STACK
@@ -71,6 +86,13 @@ void Logger::pre_setup() {
           usb_enable(nullptr);
         }
 #endif
+        break;
+#endif
+#ifdef USE_LOGGER_USB_SERIAL_JTAG
+      case UART_SELECTION_USB_SERIAL_JTAG:
+        // ESP32-H2's USB Serial/JTAG Controller behaves like a normal UART here --
+        // no USB device stack/enable step needed, unlike USB_CDC's cdc_acm_uart0 above.
+        uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(usb_serial));
         break;
 #endif
     }
@@ -99,10 +121,18 @@ void Logger::pre_setup() {
 }
 
 void HOT Logger::write_msg_(const char *msg, uint16_t len) {
+#ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
+  // Atomic write() (up to PIPE_BUF) instead of the byte-by-byte uart_poll_out loop below --
+  // that loop is preemptible by Zephyr ticks, letting another thread's log line land
+  // mid-sequence and split a multi-byte UTF-8 character (e.g. the ° in °C).
+  write(STDOUT_FILENO, msg, len);
+#else
   // Single write with newline already in buffer (added by caller)
-#ifdef CONFIG_PRINTK
-  // Requires the debug component and an active SWD connection.
-  // It is used for pyocd rtt -t nrf52840
+#ifdef CONFIG_RTT_CONSOLE
+  // Requires the debug component and an active SWD connection (pyocd rtt -t nrf52840).
+  // Gated on CONFIG_RTT_CONSOLE, not the broader CONFIG_PRINTK -- the latter is also on
+  // whenever CONFIG_LOG is, which would duplicate every line onto the same console UART
+  // the uart_poll_out() loop below already writes to.
   printk("%.*s", static_cast<int>(len), msg);
 #endif
   if (this->uart_dev_ == nullptr) {
@@ -111,6 +141,7 @@ void HOT Logger::write_msg_(const char *msg, uint16_t len) {
   for (uint16_t i = 0; i < len; ++i) {
     uart_poll_out(this->uart_dev_, msg[i]);
   }
+#endif  // USE_ZEPHYR_VARIANT_NATIVE_SIM
 }
 
 const LogString *Logger::get_uart_selection_() {
@@ -122,6 +153,10 @@ const LogString *Logger::get_uart_selection_() {
 #ifdef USE_LOGGER_USB_CDC
     case UART_SELECTION_USB_CDC:
       return LOG_STR("USB_CDC");
+#endif
+#ifdef USE_LOGGER_USB_SERIAL_JTAG
+    case UART_SELECTION_USB_SERIAL_JTAG:
+      return LOG_STR("USB_SERIAL_JTAG");
 #endif
     default:
       return LOG_STR("UNKNOWN");
@@ -166,13 +201,23 @@ void Logger::dump_crash_() {
   }
 }
 
-void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
+void k_sys_fatal_error_handler(unsigned int reason, const ESPHOME_ARCH_ESF_T *esf) {
   crash_buf.magic = App.get_config_hash();
   crash_buf.reason = reason;
+#ifndef USE_ZEPHYR_VARIANT_NATIVE_SIM
   if (esf) {
+#ifdef CONFIG_RISCV
+    crash_buf.pc = esf->mepc;
+    crash_buf.lr = esf->ra;
+#elif defined(CONFIG_XTENSA)
+    // Xtensa's arch_esf is opaque (variable-length register-window frame, no fixed
+    // pc/lr fields) -- leave crash_buf.pc/lr unset rather than reading garbage.
+#else
     crash_buf.pc = esf->basic.pc;
     crash_buf.lr = esf->basic.lr;
+#endif
   }
+#endif  // USE_ZEPHYR_VARIANT_NATIVE_SIM
 #if defined(CONFIG_THREAD_NAME)
   auto thread = k_current_get();
   const char *name = k_thread_name_get(thread);
@@ -190,7 +235,7 @@ void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
 
 extern "C" {
 
-void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
+void k_sys_fatal_error_handler(unsigned int reason, const ESPHOME_ARCH_ESF_T *esf) {
   esphome::logger::k_sys_fatal_error_handler(reason, esf);
 }
 }

@@ -898,6 +898,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
         "wake/wake_zephyr.cpp": {
             PlatformFramework.NRF52_ZEPHYR,
+            PlatformFramework.ZEPHYR_ZEPHYR,
         },
         # Note: lock_free_queue.h and event_pool.h are header files and don't need to be filtered
         # as they are only included when needed by the preprocessor

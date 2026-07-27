@@ -1,6 +1,5 @@
 #pragma once
 #ifdef USE_ZEPHYR
-#ifdef CONFIG_SETTINGS
 
 #include "esphome/core/preference_backend.h"
 #include <zephyr/settings/settings.h>
@@ -32,5 +31,4 @@ void setup_preferences();
 
 DECLARE_PREFERENCE_ALIASES(esphome::zephyr::ZephyrPreferences)
 
-#endif  // CONFIG_SETTINGS
 #endif  // USE_ZEPHYR

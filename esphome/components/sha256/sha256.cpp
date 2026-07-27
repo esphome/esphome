@@ -1,7 +1,8 @@
 #include "sha256.h"
 
 // Only compile SHA256 implementation on platforms that support it
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_LIBRETINY) || defined(USE_HOST)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_LIBRETINY) || defined(USE_HOST) || \
+    (defined(USE_ZEPHYR) && !defined(USE_NRF52))
 
 #include "esphome/core/helpers.h"
 #include <cstring>
@@ -10,13 +11,13 @@ namespace esphome::sha256 {
 
 #if defined(USE_SHA256_PSA)
 
-// ESP-IDF 6.0 ships mbedtls 4.0 which removed the legacy mbedtls_sha256_* API.
-// Use the PSA Crypto API instead. PSA crypto is auto-initialized by ESP-IDF
-// at startup, so no psa_crypto_init() call is needed.
+// mbedTLS 4.0+ removed the legacy mbedtls_sha256_* API; use PSA Crypto API instead.
+// Applies to ESP-IDF 6.0+ and Zephyr 4.x. psa_crypto_init() is idempotent.
 
 SHA256::~SHA256() { psa_hash_abort(&this->op_); }
 
 void SHA256::init() {
+  psa_crypto_init();
   psa_hash_abort(&this->op_);
   this->op_ = PSA_HASH_OPERATION_INIT;
   psa_hash_setup(&this->op_, PSA_ALG_SHA_256);
