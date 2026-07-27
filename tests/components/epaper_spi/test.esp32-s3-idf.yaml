@@ -228,6 +228,7 @@ display:
     busy_pin:
       allow_other_uses: true
       number: GPIO4
+      inverted: true
     lambda: |-
       it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
       it.circle(it.get_width() / 2, it.get_height() / 2, 30, Color::BLACK);
