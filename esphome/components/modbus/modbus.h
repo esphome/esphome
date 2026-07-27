@@ -94,6 +94,9 @@ struct ModbusDeviceCommand {
   ModbusClientDevice *device;
   ModbusFrame frame;
   bool interrupted{false};
+  /// Marked by clear_tx_queue_for_address() before it starts notifying, so frames re-queued by an
+  /// on_not_sent() callback (which are unmarked) are never swept by the clear that triggered them.
+  bool marked_for_deletion{false};
 
   ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, const uint8_t *src, uint16_t len)
       : device(device), frame(address, src, len) {}
@@ -123,6 +126,10 @@ class ModbusClientHub : public Modbus {
   void send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr);
   ESPDEPRECATED("Use send_pdu(payload[0], <pdu bytes>, device) instead. Removed in 2027.2.0", "2026.8.0")
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr);
+  // Drop the queued commands for an address; every dropped frame resolves via its owner's on_not_sent(),
+  // so other devices sharing the address observe the drop. The in-flight frame is only detached (silently)
+  // when clear_sent is set. clear_tx_queue_for_device() SILENTLY discards the caller's own frames
+  // (supersede/teardown semantics); see the lifecycle note on ModbusClientDevice.
   void clear_tx_queue_for_address(uint8_t address, bool clear_sent = true);
   void clear_tx_queue_for_device(ModbusClientDevice *device);
 
@@ -177,6 +184,25 @@ class ModbusServerHub : public Modbus {
 // Transaction status: std::nullopt on success, otherwise a Modbus exception code
 using ResponseStatus = std::optional<ExceptionCode>;
 
+/// Command lifecycle: each accepted command (a send_pdu()/typed-helper call, or a hub re-queue from
+/// a retry) ends in exactly ONE terminal callback: on_response() (valid response), on_error()
+/// (exception response), on_no_response() (timeout or interrupted transaction), or on_not_sent()
+/// (never transmitted: send failure or full queue). on_sent() is additional, not
+/// terminal: it fires once per wire transmission, before whichever of data/error/no_response follows,
+/// and never for a command that ends in on_not_sent().
+/// The exceptions to "exactly one terminal":
+///  - clear_tx_queue_for_device() drops the caller's OWN queued commands SILENTLY (supersede/teardown
+///    semantics), and both clear variants detach the in-flight frame silently.
+///    clear_tx_queue_for_address() DOES resolve every queued frame it drops via the owner's
+///    on_not_sent() (delivered one at a time, after that frame leaves the queue).
+///  - while a device's own on_not_sent() is on the stack, further on_not_sent() deliveries to THAT
+///    device are dropped (see trigger_not_sent()). In particular, a clear issued from inside your own
+///    on_not_sent() resolves your remaining frames silently - treat it like
+///    clear_tx_queue_for_device(): you cleared them, you know. Other owners are still notified.
+/// Sending from inside on_not_sent() is hazardous: the notification may itself mean the queue is full
+/// or refusing, and this device's retry that is refused again is dropped WITHOUT a callback (the
+/// guard above, which bounds what would otherwise be unbounded re-entry) - prefer re-sending from a
+/// later trigger or the component's update()/loop().
 class ModbusClientDevice {
  public:
   ModbusClientDevice() = default;
@@ -204,21 +230,34 @@ class ModbusClientDevice {
   virtual void on_error(std::span<const uint8_t> request_pdu, ExceptionCode exception_code) {
     this->dispatch_response_(request_pdu, {}, exception_code);
   }
-
-  /// Called when no request could be sent (e.g. queue full, transmission blocked)
+  /// Called when no request could be sent (e.g. queue full, transmission blocked).
   /// Do not attempt to queue a command in this callback.
-  /// (The on_modbus_* names are signature-identical renames, so the new defaults forward to the old
-  /// virtuals: external devices overriding the old names keep working through the deprecation window.
-  /// Remove the forwards together with the deprecated names.)
-  virtual void on_not_sent() {
+  /// (The on_modbus_* names below are deprecated pre-rename spellings; the defaults forward so
+  /// external devices overriding them keep working through the deprecation window.)
+  virtual void on_not_sent(std::span<const uint8_t> request_pdu) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     this->on_modbus_not_sent();
 #pragma GCC diagnostic pop
   }
+  /// Non-virtual entry point the hub uses for EVERY on_not_sent() delivery (refusals and clear-queue
+  /// sweeps alike). While this device's on_not_sent() is on the stack, further deliveries to it are
+  /// dropped: this bounds every send->refuse and clear->sweep recursion, including cycles through
+  /// multiple devices (each device can appear on the stack at most once). The documented cost: a clear
+  /// issued from inside your own on_not_sent() resolves your remaining frames SILENTLY, while other
+  /// owners are still notified (their guards are not set) - see the lifecycle contract above.
+  void trigger_not_sent(std::span<const uint8_t> request_pdu) {
+    if (this->notifying_not_sent_)
+      return;
+    this->notifying_not_sent_ = true;
+    this->on_not_sent(request_pdu);
+    this->notifying_not_sent_ = false;
+  }
+  /// Called when this device's frame is actually written to the wire
+  virtual void on_sent(std::span<const uint8_t> request_pdu) {}
   /// Called when no matching, uninterrupted response arrived; return true to have the hub re-queue the frame for a
   /// retry. The hub does not bound retries: the device is responsible for limiting them.
-  virtual bool on_no_response() {
+  virtual bool on_no_response(std::span<const uint8_t> request_pdu) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     return this->on_modbus_no_response();
@@ -287,7 +326,7 @@ class ModbusClientDevice {
   ESPDEPRECATED("Use send_pdu() instead (the device address is prepended for you). Removed in 2027.2.0", "2026.8.0")
   void send_raw(const std::vector<uint8_t> &payload) {
     if (payload.empty()) {
-      this->on_not_sent();  // match the hub-level send_raw(): a refused send is always signalled
+      this->on_not_sent({});  // match the hub-level send_raw(): a refused send is always signalled
       return;
     }
     this->parent_->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
@@ -345,6 +384,8 @@ class ModbusClientDevice {
                           ResponseStatus status);
 
   ModbusClientHub *parent_{nullptr};
+  /// True while this device's on_not_sent() is on the stack (see trigger_not_sent()).
+  bool notifying_not_sent_{false};
   uint8_t address_{0};
   bool custom_response_warned_{false};  // first unhandled custom response warns; repeats log at VERBOSE
 };
