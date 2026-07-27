@@ -306,7 +306,8 @@ class ModbusController final : public PollingComponent, public modbus::ModbusCli
   /// controller-level raw sends stay supported until the command machinery is replaced.
   void send_raw(const std::vector<uint8_t> &payload) {
     if (payload.empty()) {
-      this->on_not_sent({});  // match the hub-level send_raw(): a refused send is always signalled
+      // Through the guard like every other delivery, so a handler calling send_raw({}) cannot recurse.
+      this->trigger_not_sent({});
       return;
     }
     this->parent_->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);

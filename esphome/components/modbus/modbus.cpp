@@ -516,13 +516,11 @@ void ModbusClientHub::send_next_frame_() {
   const bool sent = this->send_frame_(command.frame);
 
   if (sent) {
-    this->waiting_for_response_ = std::move(command);
     // The frame now lives in the waiting slot; its PDU is the frame without the leading address and
     // trailing CRC.
-    if (device != nullptr && this->waiting_for_response_.has_value()) {
-      const ModbusFrame &frame = this->waiting_for_response_.value().frame;
-      device->on_sent(frame.pdu());
-    }
+    ModbusDeviceCommand &wfr = this->waiting_for_response_.emplace(std::move(command));
+    if (device != nullptr)
+      device->on_sent(wfr.frame.pdu());
   } else {
     if (device != nullptr)
       device->trigger_not_sent(command.frame.pdu());
