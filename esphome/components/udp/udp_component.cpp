@@ -21,7 +21,14 @@ void UDPComponent::setup() {
   // listen_address (group join) isn't implemented yet (rejected in config validation).
   for (const auto &address : this->addresses_) {
     struct sockaddr_storage saddr {};
-    socket::set_sockaddr(reinterpret_cast<sockaddr *>(&saddr), sizeof(saddr), address, this->broadcast_port_);
+    socklen_t addrlen =
+        socket::set_sockaddr(reinterpret_cast<sockaddr *>(&saddr), sizeof(saddr), address, this->broadcast_port_);
+    if (addrlen == 0) {
+      ESP_LOGE(TAG, "Invalid address '%s': errno %d", address, errno);
+      this->status_set_error(LOG_STR("Invalid address"));
+      this->mark_failed();
+      return;
+    }
     this->sockaddrs_.push_back(saddr);
   }
   if (this->should_broadcast_) {
@@ -229,6 +236,17 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
     return;
 #ifdef USE_OPENTHREAD
   if (send_socket == this->broadcast_socket_.get() && !this->broadcast_socket_bound_) {
+    // The socket may have been closed by a previous ENOENT recovery; recreate it.
+    if (this->broadcast_socket_ == nullptr) {
+      this->broadcast_socket_ = socket::socket(AF_INET6, SOCK_DGRAM, IPPROTO_IP);
+      if (this->broadcast_socket_ == nullptr) {
+        ESP_LOGW(TAG, "Could not recreate send socket");
+        return;
+      }
+      int enable = 1;
+      this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+      send_socket = this->broadcast_socket_.get();
+    }
     if (openthread::global_openthread_component == nullptr)
       return;
     auto omr = openthread::global_openthread_component->get_omr_address();
@@ -251,10 +269,14 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
         send_socket->sendto(data, size, 0, reinterpret_cast<const sockaddr *>(&saddr), sizeof(struct sockaddr_in6));
     if (result < 0) {
       ESP_LOGW(TAG, "sendto() error %d", errno);
-      // ENOENT means no route/source found (the OMR bind is probably stale).
-      // Reset so the next send re-fetches a current routable address.
-      if (errno == ENOENT)
+      // A bound socket cannot be re-bound: just resetting the flag would make the
+      // next send try bind() again, which fails with EINVAL. Close the socket so
+      // the next send rebuilds it with a fresh OMR bind.
+      if (errno == ENOENT) {
+        this->broadcast_socket_.reset();
         this->broadcast_socket_bound_ = false;
+        break;  // socket is closed; remaining addresses won't succeed either
+      }
     }
   }
 #else
