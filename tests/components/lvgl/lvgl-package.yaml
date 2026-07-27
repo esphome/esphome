@@ -1516,6 +1516,29 @@ lvgl:
               - label:
                   text: "2,2"
 
+        # Sized from its text font, with a colour given as an id
+        - color_picker:
+            id: lv_color_picker_1
+            width: SIZE_CONTENT
+            text_font: space16
+            color: light_blue
+            on_value:
+              - logger.log:
+                  format: "color picker is now %d,%d,%d"
+                  args: [x.r, x.g, x.b]
+            on_release:
+              - lvgl.color_picker.update:
+                  id: lv_color_picker_2
+                  color: !lambda return x;
+
+        # Fixed size, with a colour given as a hex literal
+        - color_picker:
+            id: lv_color_picker_2
+            width: 200
+            color: 0x3366CC
+            on_update:
+              - logger.log: color picker updated
+
 font:
   - file: "gfonts://Roboto"
     id: space16

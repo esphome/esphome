@@ -1,0 +1,61 @@
+esphome:
+  name: test-color-picker
+
+esp32:
+  board: lolin_c3_mini
+
+logger:
+
+spi:
+  mosi_pin:
+    number: GPIO2
+    ignore_strapping_warning: true
+  clk_pin: GPIO1
+
+display:
+  - platform: mipi_spi
+    data_rate: 20MHz
+    model: st7735
+    cs_pin:
+      number: GPIO8
+      ignore_strapping_warning: true
+    dc_pin:
+      number: GPIO3
+
+color:
+  - id: picker_colour
+    hex: "3366CC"
+
+lvgl:
+  widgets:
+    # Sized from the text font
+    - color_picker:
+        id: picker_content
+        width: SIZE_CONTENT
+
+    # Fixed width, colour given as a hex literal
+    - color_picker:
+        id: picker_fixed
+        width: 120
+        color: 0xFF8800
+
+    # Colour given as the id of a colour defined above
+    - color_picker:
+        id: picker_colour_id
+        width: 50%
+        color: picker_colour
+        on_value:
+          - logger.log:
+              format: "picked %d,%d,%d"
+              args: [x.r, x.g, x.b]
+        on_release:
+          - logger.log: released
+        on_update:
+          - logger.log: updated
+
+script:
+  - id: update_picker
+    then:
+      - lvgl.color_picker.update:
+          id: picker_fixed
+          color: 0x00FF00
