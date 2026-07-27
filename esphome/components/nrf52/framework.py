@@ -256,12 +256,13 @@ def _prune_git_history(framework_path: Path) -> None:
 
     The install is immutable once its sentinel exists (a version bump creates
     a new directory), so the git object stores only duplicate the checked-out
-    files. West still requires every project to look like a git repository
-    (an "uncloned" project is silently dropped from the Zephyr build), and
-    the sdk-nrf version stamping reads .git/index, so each repository is
-    replaced with an empty stub instead of being deleted. The workspace
-    manifest is resolved to a single file beforehand, so no repository needs
-    to keep real history for west's import resolution.
+    files. The repositories cannot be deleted outright: the Zephyr build
+    declares zephyr/.git as a ninja input when generating zephyr_commit.h
+    (deleting it is a hard build error), west silently drops "uncloned"
+    projects from the build, and the sdk-nrf version stamping reads
+    .git/index. Each repository is therefore replaced with an empty stub
+    instead. The workspace manifest is resolved to a single file beforehand,
+    so no repository needs to keep real history for west's import resolution.
     """
     for git_dir in [p for p in framework_path.rglob(".git") if p.is_dir()]:
         project = git_dir.parent
