@@ -25,23 +25,24 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   stream->printf(R"({"mac":"%s","name":"%s","aps":[{})", mac_str, App.get_name().c_str());
 #endif
 
+  // An SSID can contain a " or \ that would break the JSON, so escape it before writing it out. An SSID is at most
+  // 32 bytes (IEEE 802.11), so this is large enough that nothing is ever dropped. Reused for every scan result.
+  char escaped_ssid[32 * JSON_ESCAPE_MAX_EXPANSION + 1];
   for (auto &scan : wifi::global_wifi_component->get_scan_result()) {
     if (scan.get_is_hidden())
       continue;
 
-    // An SSID can contain a " or \ that would break the JSON, so escape it.
-    std::string escaped_ssid = json_escape(scan.get_ssid());
+    json_escape_into_buffer(escaped_ssid, scan.get_ssid());
 #ifdef USE_ESP8266
     stream->print(ESPHOME_F(",{\"ssid\":\""));
-    stream->print(escaped_ssid.c_str());
+    stream->print(escaped_ssid);
     stream->print(ESPHOME_F("\",\"rssi\":"));
     stream->print(scan.get_rssi());
     stream->print(ESPHOME_F(",\"lock\":"));
     stream->print(scan.get_with_auth());
     stream->print(ESPHOME_F("}"));
 #else
-    stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", escaped_ssid.c_str(), scan.get_rssi(),
-                   scan.get_with_auth());
+    stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", escaped_ssid, scan.get_rssi(), scan.get_with_auth());
 #endif
   }
   stream->print(ESPHOME_F("]}"));

@@ -1,50 +1,82 @@
 #pragma once
-#include <cstdio>
-#include <string>
+#include <cstddef>
+#include <span>
+
+#include "esphome/core/string_ref.h"
 
 namespace esphome::captive_portal {
 
-// Escape a string so it can be safely embedded inside a JSON string literal. A WiFi SSID can contain any bytes,
-// including a " or \ (or a control character) that would otherwise produce invalid JSON. Bytes >= 0x20 are passed
-// through verbatim so valid UTF-8 SSIDs survive intact.
-inline std::string json_escape(const std::string &value) {
-  std::string out;
-  out.reserve(value.size() + 8);
-  for (char ch : value) {
-    auto c = static_cast<unsigned char>(ch);
+/// Largest number of output bytes a single input byte can expand to (a \u00XX sequence).
+static constexpr size_t JSON_ESCAPE_MAX_EXPANSION = 6;
+
+/// Copy value into buf, escaping the characters that cannot appear raw inside a JSON string literal.
+///
+/// Escapes " and \ along with the control characters below 0x20, using the short forms where JSON defines one and
+/// \u00XX otherwise. Bytes >= 0x20 are copied verbatim, so text containing valid UTF-8 survives intact. The result is
+/// always null terminated; anything that would not fit is dropped rather than written partially. Returns buf so the
+/// call can be used directly as an argument.
+///
+/// To size buf so that no input is ever dropped, allow JSON_ESCAPE_MAX_EXPANSION bytes per input byte plus one for
+/// the null terminator.
+inline const char *json_escape_into_buffer(std::span<char> buf, StringRef value) {
+  static const char HEX_DIGITS[] = "0123456789abcdef";
+  if (buf.empty())
+    return "";
+  // Reserve one byte for the null terminator.
+  const size_t limit = buf.size() - 1;
+  size_t pos = 0;
+  for (size_t i = 0; i < value.size(); i++) {
+    auto c = static_cast<unsigned char>(value[i]);
+    const char *escape = nullptr;
     switch (c) {
       case '"':
-        out += "\\\"";
+        escape = "\\\"";
         break;
       case '\\':
-        out += "\\\\";
+        escape = "\\\\";
         break;
       case '\n':
-        out += "\\n";
+        escape = "\\n";
         break;
       case '\r':
-        out += "\\r";
+        escape = "\\r";
         break;
       case '\t':
-        out += "\\t";
+        escape = "\\t";
         break;
       case '\b':
-        out += "\\b";
+        escape = "\\b";
         break;
       case '\f':
-        out += "\\f";
+        escape = "\\f";
         break;
       default:
-        if (c < 0x20) {
-          char buf[7];
-          snprintf(buf, sizeof(buf), "\\u%04x", c);
-          out += buf;
-        } else {
-          out += ch;
-        }
+        break;
+    }
+    if (escape != nullptr) {
+      if (pos + 2 > limit)
+        break;
+      buf[pos++] = escape[0];
+      buf[pos++] = escape[1];
+    } else if (c < 0x20) {
+      // Remaining control characters have no short form and must be written as \u00XX. The value is below 0x20, so
+      // the two high hex digits are always zero.
+      if (pos + JSON_ESCAPE_MAX_EXPANSION > limit)
+        break;
+      buf[pos++] = '\\';
+      buf[pos++] = 'u';
+      buf[pos++] = '0';
+      buf[pos++] = '0';
+      buf[pos++] = HEX_DIGITS[c >> 4];
+      buf[pos++] = HEX_DIGITS[c & 0x0F];
+    } else {
+      if (pos + 1 > limit)
+        break;
+      buf[pos++] = static_cast<char>(c);
     }
   }
-  return out;
+  buf[pos] = '\0';
+  return buf.data();
 }
 
 }  // namespace esphome::captive_portal
