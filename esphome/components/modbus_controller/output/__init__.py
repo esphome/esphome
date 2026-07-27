@@ -83,7 +83,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    byte_offset, reg_count = modbus_calc_properties(config)
+    byte_offset = modbus_calc_properties(config)
     # Binary Output
     write_template = None
     if config[CONF_REGISTER_TYPE] == "coil":
@@ -109,7 +109,6 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_ADDRESS],
             byte_offset,
             config[CONF_VALUE_TYPE],
-            reg_count,
         )
         cg.add(var.set_write_multiply(config[CONF_MULTIPLY]))
         if CONF_WRITE_LAMBDA in config:

@@ -47,28 +47,24 @@ void ModbusFloatOutput::write_state(float value) {
   }
 
   ESP_LOGD(TAG, "Updating register: start address=0x%X register count=%d new value=%.02f (val=%.02f)",
-           this->start_address, this->register_count, value, original_value);
+           this->start_address, this->register_width(), value, original_value);
 
-  // The command declares register_count registers, so the payload must be exactly that many words;
-  // anything else would put a byte count on the wire that disagrees with the quantity field.
-  // number_to_payload() appends nothing for RAW, so an empty payload must be caught before data[0].
+  // float_to_payload() appends nothing for RAW, so an empty payload must be caught before data[0].
   if (data.empty()) {
     ESP_LOGW(TAG, "No payload was created for updating output");
     return;
   }
 
-  // register_count declares the READ range width - it may pull neighboring registers into one poll -
-  // so a write covers exactly the registers the value occupies: the quantity comes from the payload,
-  // never from register_count (padding to it would zero registers the user only declared for reading).
-  // A payload wider than the declared range means the config and the lambda disagree - drop it.
-  if (data.size() > this->register_count) {
-    ESP_LOGE(TAG, "Payload has %zu registers but register_count is %u; dropping write", data.size(),
-             this->register_count);
+  // A write covers exactly the registers the value occupies: the quantity comes from the payload. A
+  // payload wider than the value type's register width means the config and the lambda disagree - drop it.
+  if (data.size() > this->register_width()) {
+    ESP_LOGE(TAG, "Payload has %zu registers but the value type only spans %u; dropping write", data.size(),
+             this->register_width());
     return;
   }
 
   bool queued;
-  if (this->register_count == 1 && !this->use_write_multiple_) {
+  if (this->register_width() == 1 && !this->use_write_multiple_) {
     queued = this->write_single_register(this->write_address(), data[0]);
   } else {
     queued = this->write_multiple_registers(this->write_address(), data);
@@ -85,7 +81,7 @@ void ModbusFloatOutput::dump_config() {
                 "  Device start address: 0x%X\n"
                 "  Register count: %d\n"
                 "  Value type: %d",
-                this->start_address, this->register_count, static_cast<int>(this->sensor_value_type));
+                this->start_address, this->register_width(), static_cast<int>(this->sensor_value_type));
 }
 
 // ModbusBinaryOutput
@@ -145,7 +141,7 @@ void ModbusBinaryOutput::dump_config() {
                 "  Device start address: 0x%X\n"
                 "  Register count: %d\n"
                 "  Value type: %d",
-                this->start_address, this->register_count, static_cast<int>(this->sensor_value_type));
+                this->start_address, this->register_width(), static_cast<int>(this->sensor_value_type));
 }
 
 }  // namespace esphome::modbus_controller
