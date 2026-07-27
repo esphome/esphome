@@ -51,7 +51,7 @@ Trigger<uint16_t> *BLETriggers::create_server_on_disconnect_trigger(BLEServer *s
 #ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_REQUEST
 Trigger<std::string> *BLETriggers::create_server_on_passkey_request_trigger(BLEServer *server) {
   Trigger<std::string> *trigger = new Trigger<std::string>();  // NOLINT(cppcoreguidelines-owning-memory)
-  server->on_passkey_request([trigger](std::string address) { trigger->trigger(address); });
+  server->on_passkey_request([trigger](const std::string address) { trigger->trigger(address); });
   return trigger;
 }
 #endif
@@ -61,7 +61,7 @@ Trigger<std::string, uint32_t> *BLETriggers::create_server_on_passkey_notificati
   Trigger<std::string, uint32_t> *trigger =
       new Trigger<std::string, uint32_t>();  // NOLINT(cppcoreguidelines-owning-memory)
   server->on_passkey_notification(
-      [trigger](std::string address, uint32_t passkey) { trigger->trigger(address, passkey); });
+      [trigger](const std::string address, uint32_t passkey) { trigger->trigger(address, passkey); });
   return trigger;
 }
 #endif
@@ -71,7 +71,7 @@ Trigger<std::string, uint32_t> *BLETriggers::create_server_on_numeric_comparison
   Trigger<std::string, uint32_t> *trigger =
       new Trigger<std::string, uint32_t>();  // NOLINT(cppcoreguidelines-owning-memory)
   server->on_numeric_comparison_request(
-      [trigger](std::string address, uint32_t passkey) { trigger->trigger(address, passkey); });
+      [trigger](const std::string address, uint32_t passkey) { trigger->trigger(address, passkey); });
   return trigger;
 }
 #endif
