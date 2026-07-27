@@ -121,7 +121,9 @@ void SGP4xComponent::self_test_() {
     uint16_t reply = 0;
     // SGP40: MSB is 0xD4 on success, LSB is undefined; SGP41: MSB is undefined, LSB bits 0/1 flag VOC/NOx pixel
     // failures
-    bool passed = this->read_data(reply) && (this->sgp_type_ == SGP41 ? (reply & 0x0003) == 0 : (reply >> 8) == 0xD4);
+    bool passed =
+        this->read_data(reply) &&
+        (this->sgp_type_ == SGP41 ? (reply & 0x0003) == 0 : (reply >> 8) == 0xD4);
     if (!passed) {
       this->error_code_ = SELF_TEST_FAILED;
       ESP_LOGW(TAG, "Self-test failed (0x%X)", reply);
