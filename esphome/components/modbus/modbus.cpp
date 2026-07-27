@@ -525,13 +525,16 @@ void ModbusClientHub::send_next_frame_() {
       device->on_sent(wfr.frame.pdu());
   } else {
     if (device != nullptr) {
-      device->trigger_not_sent(command.frame.pdu());  // the failed attempt resolves one request
       // A READ_AGAIN command stands for two accepted requests, and the absorbed one still owes a
       // run: re-queue demoted to READ_ONCE, the same books as the timeout path (a transmit failure
       // is transient, unlike the clear sweep's cancellation). requeue_waiting_frame_() also covers
-      // the full-queue refusal, which delivers the second request's on_not_sent().
+      // the full-queue refusal, which delivers the second request's on_not_sent(). The re-queue
+      // happens BEFORE the failed attempt's notification: the popped command is a local, so a
+      // clear issued inside the handler could never detach it - queued first, the frame is swept
+      // (and resolved) by that clear like any other queued frame.
       if (command.priority == CommandPriority::READ_AGAIN)
         this->requeue_waiting_frame_(command, /*device_retry=*/false);
+      device->trigger_not_sent(command.frame.pdu());  // the failed attempt resolves one request
     }
   }
 
@@ -679,22 +682,27 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
     return;
   }
 
-  // Writes outrank reads on the wire; the priority is derived from the frame, never chosen by callers.
-  const CommandPriority priority =
-      helpers::is_function_code_write(pdu[0]) ? CommandPriority::WRITE : CommandPriority::READ_ONCE;
+  // Writes outrank reads on the wire; the priority is derived from the frame, never chosen by
+  // callers. The read-modify-write function codes (0x16/0x17) mutate registers, so they rank as
+  // writes for ordering - is_function_code_read() already keeps them non-requeueable.
+  const auto request_code = static_cast<FunctionCode>(pdu[0]);
+  const bool mutates = helpers::is_function_code_write(pdu[0]) || request_code == FunctionCode::MASK_WRITE_REGISTER ||
+                       request_code == FunctionCode::READ_WRITE_MULTIPLE_REGISTERS;
+  const CommandPriority priority = mutates ? CommandPriority::WRITE : CommandPriority::READ_ONCE;
   // Only the standard reads are silently re-queueable: re-sending a write is not idempotent in general
   // (it can double a command/increment register), and a custom or diagnostic function code's idempotency
   // is unknown, so both take the safe drop path on a duplicate.
   const bool is_requeueable = helpers::is_function_code_read(pdu[0]);
 
-  // A frame identical to one already queued or in flight is not queued twice; the duplicate is resolved
-  // against the existing entry. Only a READ_ONCE entry with an owner is ever promoted (to READ_AGAIN,
-  // which re-queues it once more after it completes).
-  // Every OWNED request resolves in exactly one callback: a promotion resolves in the entry's future
-  // on_response(); a request that cannot be absorbed (already READ_AGAIN, a duplicate write, or a
-  // non-requeueable function code) is dropped and reports on_not_sent(). An ANONYMOUS duplicate
-  // (device == nullptr - the YAML-lambda path) is always dropped: with no callback there is no
-  // lifecycle to absorb into, and no owner to route a READ_AGAIN re-run to.
+  // A frame arriving THROUGH send_pdu() that is identical to one already queued or in flight is not
+  // queued twice; the duplicate is resolved against the existing entry. (The internal re-queue paths
+  // insert directly and can momentarily coexist with an identical handler re-send - each entry keeps
+  // its own request accounting, so this affects wire order only, never callback counts.) Only a READ_ONCE entry with an
+  // owner is ever promoted (to READ_AGAIN, which re-queues it once more after it completes). Every OWNED request
+  // resolves in exactly one callback: a promotion resolves in the entry's future on_response(); a request that cannot
+  // be absorbed (already READ_AGAIN, a duplicate write, or a non-requeueable function code) is dropped and reports
+  // on_not_sent(). An ANONYMOUS duplicate (device == nullptr - the YAML-lambda path) is always dropped: with no
+  // callback there is no lifecycle to absorb into, and no owner to route a READ_AGAIN re-run to.
   const auto resolve_duplicate = [&](ModbusDeviceCommand &item, const char *state) {
     if (device == nullptr) {
       // Reads are idempotent, so their drop is routine (DEBUG); a dropped write/custom is a
