@@ -301,7 +301,6 @@ class LvColorPickerType : public LvCompound {
     auto rgb_lambda = [](lv_event_t *event) {
       auto *self = static_cast<LvColorPickerType *>(lv_event_get_user_data(event));
       self->update_rgb_();
-      self->send_value_changed_();
     };
     lv_obj_add_event_cb(this->red_slider_, rgb_lambda, LV_EVENT_VALUE_CHANGED, this);
     lv_obj_add_event_cb(this->green_slider_, rgb_lambda, LV_EVENT_VALUE_CHANGED, this);
@@ -310,11 +309,12 @@ class LvColorPickerType : public LvCompound {
     auto hsl_lambda = [](lv_event_t *event) {
       auto *self = static_cast<LvColorPickerType *>(lv_event_get_user_data(event));
       self->update_hsl_();
-      self->send_value_changed_();
     };
     lv_obj_add_event_cb(this->hue_slider_, hsl_lambda, LV_EVENT_VALUE_CHANGED, this);
     lv_obj_add_event_cb(this->saturation_slider_, hsl_lambda, LV_EVENT_VALUE_CHANGED, this);
     lv_obj_add_event_cb(this->brightness_slider_, hsl_lambda, LV_EVENT_VALUE_CHANGED, this);
+
+    bubble_events_(outer);
   }
 
  protected:
@@ -430,9 +430,19 @@ class LvColorPickerType : public LvCompound {
     lv_obj_set_style_bg_color(this->blue_slider_, lv_color_make(255 - blue, 255 - blue, 255), LV_PART_KNOB);
   }
 
-  // The sliders are internal to the widget, so their own events are not visible to anything
-  // outside it. Repeat the change on the widget itself, which is what `on_value` listens to.
-  void send_value_changed_() { lv_obj_send_event(this->obj, LV_EVENT_VALUE_CHANGED, nullptr); }
+  // The sliders are internal to the widget, so touching one is an event on the slider rather
+  // than on the widget, and nothing outside would see it. Passing events up the tree makes
+  // them arrive at the widget, where `on_value`, `on_release` and the rest are listening.
+  // LVGL only passes an event on if every object between the two carries the flag, so it
+  // goes on all of them. The widget itself is left without it, so events stop there instead
+  // of carrying on to whatever contains it.
+  static void bubble_events_(lv_obj_t *obj) {
+    for (uint32_t i = 0; i < lv_obj_get_child_count(obj); i++) {
+      auto *child = lv_obj_get_child(obj, i);
+      lv_obj_add_flag(child, LV_OBJ_FLAG_EVENT_BUBBLE);
+      bubble_events_(child);
+    }
+  }
 
   void update_hsl_() {
     auto hue = lv_slider_get_value(this->hue_slider_);
