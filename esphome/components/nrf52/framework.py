@@ -289,6 +289,12 @@ def check_and_install() -> None:
             "init",
             "-m",
             "https://github.com/nrfconnect/sdk-nrf",
+            # west passes -o straight to "git clone". The manifest repository
+            # is only ever read at the pinned tag (a version bump installs into
+            # a new directory), so its history is dead weight: a full clone of
+            # sdk-nrf writes 231 MB of git objects, a depth-1 clone 37 MB.
+            # "west update" already fetches every other project with --depth=1.
+            "-o=--depth=1",
             "--mr",
             version,
             str(framework_path),
