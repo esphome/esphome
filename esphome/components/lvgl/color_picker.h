@@ -135,7 +135,7 @@ class LvColorPickerType : public LvCompound {
     lv_obj_set_style_pad_all(outer, KNOB_OVERHANG, LV_PART_MAIN);
 
     auto *hue_container = lv_obj_create(outer);
-    this->init_slider_container_(hue_container, "H", true);
+    this->init_slider_container_(hue_container, "Hue", true);
     lv_obj_set_style_align(hue_container, LV_ALIGN_LEFT_MID, LV_PART_MAIN);
     lv_obj_set_style_height(hue_container, lv_pct(100), LV_PART_MAIN);
     lv_obj_set_style_width(hue_container, lv_pct(15), LV_PART_MAIN);
@@ -162,7 +162,7 @@ class LvColorPickerType : public LvCompound {
     lv_obj_set_style_width(middle, lv_pct(85), LV_PART_MAIN);
 
     auto *brightness_container = lv_obj_create(middle);
-    this->init_slider_container_(brightness_container, "V", false);
+    this->init_slider_container_(brightness_container, "Brightness", false);
     lv_obj_set_style_height(brightness_container, lv_pct(18), LV_PART_MAIN);
     lv_obj_set_style_width(brightness_container, lv_pct(100), LV_PART_MAIN);
 
@@ -280,7 +280,7 @@ class LvColorPickerType : public LvCompound {
     lv_obj_set_style_text_color(this->blue_value_, lv_color_black(), LV_PART_MAIN);
 
     auto *saturation_container = lv_obj_create(middle);
-    this->init_slider_container_(saturation_container, "S", false);
+    this->init_slider_container_(saturation_container, "Saturation", false);
     lv_obj_set_style_height(saturation_container, lv_pct(18), LV_PART_MAIN);
     lv_obj_set_style_width(saturation_container, lv_pct(100), LV_PART_MAIN);
 
