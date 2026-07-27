@@ -23,9 +23,14 @@ bool is_disabled() {
 }
 
 const char *get_use_address_to(std::span<char, USE_ADDRESS_BUFFER_SIZE> buf) {
-  // Global component pointers are guaranteed to be set by component constructors when USE_* is defined
+  // Global component pointers are guaranteed to be set by component constructors when USE_* is defined.
+  // A wifi-first network: priority: list sets USE_NETWORK_PRIMARY_INTERFACE_WIFI to lift
+  // wifi ahead of the fixed ethernet-first order below; an ethernet-first list already
+  // matches that order, so no define exists for it.
   const char *addr = nullptr;
-#if defined(USE_ETHERNET)
+#if defined(USE_NETWORK_PRIMARY_INTERFACE_WIFI) && defined(USE_WIFI)
+  addr = wifi::global_wifi_component->get_use_address();
+#elif defined(USE_ETHERNET)
   addr = ethernet::global_eth_component->get_use_address();
 #elif defined(USE_MODEM)
   addr = modem::global_modem_component->get_use_address();
@@ -44,6 +49,19 @@ const char *get_use_address_to(std::span<char, USE_ADDRESS_BUFFER_SIZE> buf) {
 }
 
 network::IPAddresses get_ip_addresses() {
+  // With a wifi-first network: priority: list, prefer wifi while it has a valid IP;
+  // otherwise fall through to the fixed ethernet-first order below. Selection based
+  // on the runtime-active interface is a planned follow-up.
+#if defined(USE_NETWORK_PRIMARY_INTERFACE_WIFI) && defined(USE_WIFI)
+  if (wifi::global_wifi_component != nullptr) {
+    auto ips = wifi::global_wifi_component->get_ip_addresses();
+    for (const auto &ip : ips) {
+      if (ip.is_set())
+        return ips;
+    }
+  }
+#endif
+
 #ifdef USE_ETHERNET
   if (ethernet::global_eth_component != nullptr)
     return ethernet::global_eth_component->get_ip_addresses();

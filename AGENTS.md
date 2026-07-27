@@ -191,11 +191,14 @@ This document provides essential context for AI models interacting with this pro
         my_component_ns = cg.esphome_ns.namespace("my_component")
         MyComponent = my_component_ns.class_("MyComponent", cg.Component)
 
-        CONFIG_SCHEMA = cv.Schema({
-            cv.GenerateID(): cv.declare_id(MyComponent),
-            cv.Required(CONF_KEY): cv.string,
-            cv.Optional(CONF_PARAM, default=42): cv.int_,
-        }).extend(cv.COMPONENT_SCHEMA)
+        CONFIG_SCHEMA = cv.Schema(
+            {
+                cv.GenerateID(): cv.declare_id(MyComponent),
+                cv.Required(CONF_KEY): cv.string,
+                cv.Optional(CONF_PARAM, default=42): cv.int_,
+            }
+        ).extend(cv.COMPONENT_SCHEMA)
+
 
         async def to_code(config):
             var = cg.new_Pvariable(config[CONF_ID])
@@ -229,7 +232,12 @@ This document provides essential context for AI models interacting with this pro
         - **Sensor:**
           ```python
           from esphome.components import sensor
-          CONFIG_SCHEMA = sensor.sensor_schema(MySensor).extend(cv.polling_component_schema("60s"))
+
+          CONFIG_SCHEMA = sensor.sensor_schema(MySensor).extend(
+              cv.polling_component_schema("60s")
+          )
+
+
           async def to_code(config):
               var = await sensor.new_sensor(config)
               await cg.register_component(var, config)
@@ -238,7 +246,10 @@ This document provides essential context for AI models interacting with this pro
         - **Binary Sensor:**
           ```python
           from esphome.components import binary_sensor
-          CONFIG_SCHEMA = binary_sensor.binary_sensor_schema().extend({ ... })
+
+          CONFIG_SCHEMA = binary_sensor.binary_sensor_schema().extend({...})
+
+
           async def to_code(config):
               var = await binary_sensor.new_binary_sensor(config)
           ```
@@ -246,7 +257,10 @@ This document provides essential context for AI models interacting with this pro
         - **Switch:**
           ```python
           from esphome.components import switch
-          CONFIG_SCHEMA = switch.switch_schema().extend({ ... })
+
+          CONFIG_SCHEMA = switch.switch_schema().extend({...})
+
+
           async def to_code(config):
               var = await switch.new_switch(config)
           ```
@@ -263,10 +277,13 @@ This document provides essential context for AI models interacting with this pro
         ```python
         from esphome import automation
 
-        CONFIG_SCHEMA = cv.Schema({
-            cv.GenerateID(): cv.declare_id(MyComponent),
-            cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
-        }).extend(cv.COMPONENT_SCHEMA)
+        CONFIG_SCHEMA = cv.Schema(
+            {
+                cv.GenerateID(): cv.declare_id(MyComponent),
+                cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
+            }
+        ).extend(cv.COMPONENT_SCHEMA)
+
 
         async def to_code(config):
             var = cg.new_Pvariable(config[CONF_ID])
@@ -316,11 +333,14 @@ This document provides essential context for AI models interacting with this pro
         ```python
         TurnOnTrigger = my_ns.class_("TurnOnTrigger", automation.Trigger.template())
 
-        CONFIG_SCHEMA = cv.Schema({
-            cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
-                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TurnOnTrigger)}
-            ),
-        })
+        CONFIG_SCHEMA = cv.Schema(
+            {
+                cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
+                    {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TurnOnTrigger)}
+                ),
+            }
+        )
+
 
         async def to_code(config):
             for conf in config.get(CONF_ON_TURN_ON, []):
@@ -617,6 +637,7 @@ This document provides essential context for AI models interacting with this pro
         _component_state = []
         _use_feature = None
 
+
         def enable_feature():
             global _use_feature
             _use_feature = True
@@ -636,19 +657,23 @@ This document provides essential context for AI models interacting with this pro
 
         DOMAIN = "my_component"
 
+
         @dataclass
         class MyComponentData:
             feature_enabled: bool = False
             item_count: int = 0
             items: list[str] = field(default_factory=list)
 
+
         def _get_data() -> MyComponentData:
             if DOMAIN not in CORE.data:
                 CORE.data[DOMAIN] = MyComponentData()
             return CORE.data[DOMAIN]
 
+
         def request_feature() -> None:
             _get_data().feature_enabled = True
+
 
         def add_item(item: str) -> None:
             _get_data().items.append(item)
@@ -707,7 +732,9 @@ This document provides essential context for AI models interacting with this pro
     ```python
     # Remove before 2026.6.0
     if CONF_OLD_KEY in config:
-        _LOGGER.warning(f"'{CONF_OLD_KEY}' deprecated, use '{CONF_NEW_KEY}'. Removed in 2026.6.0")
+        _LOGGER.warning(
+            f"'{CONF_OLD_KEY}' deprecated, use '{CONF_NEW_KEY}'. Removed in 2026.6.0"
+        )
         config[CONF_NEW_KEY] = config.pop(CONF_OLD_KEY)  # Auto-migrate
     ```
 ## 9. English Language
