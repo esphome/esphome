@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 from pathlib import Path
+import re
 from urllib.parse import urljoin
 
 from esphome import automation, external_files, git
@@ -9,6 +10,7 @@ from esphome.automation import register_action, register_condition
 from esphome.bundle import add_bundle_file
 import esphome.codegen as cg
 from esphome.components import esp32, microphone, ota, psram
+from esphome.components.http_request import validate_url
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FILE,
@@ -209,33 +211,13 @@ def _validate_manifest_version(manifest_data):
         raise cv.Invalid("Invalid manifest file, missing 'version' key")
 
 
-def _process_http_source(config):
-    url = config[CONF_URL]
-    path = _compute_local_file_path(config)
-
-    json_path = path / "manifest.json"
-
-    json_contents = external_files.download_content(url, json_path)
-
-    manifest_data = json.loads(json_contents)
-    if not isinstance(manifest_data, dict):
-        raise cv.Invalid("Manifest file must contain a JSON object")
-
-    model = manifest_data[CONF_MODEL]
-    model_url = urljoin(url, model)
-
-    model_path = path / model
-
-    external_files.download_content(str(model_url), model_path)
-
-    return config
-
-
-HTTP_SCHEMA = cv.All(
+HTTP_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_URL): cv.url,
-    },
-    _process_http_source,
+        # validate_url only accepts http(s); the shorthand validator relies
+        # on this branch rejecting git shorthands ("github://...") so they
+        # fall through to the git branch.
+        cv.Required(CONF_URL): validate_url,
+    }
 )
 
 
@@ -280,12 +262,22 @@ LOCAL_SCHEMA = cv.All(
 )
 
 
+# Bare model names in the official model repository ("okay_nabu"). Must not
+# overlap with local paths, http(s) urls, or git shorthands
+# ("github://user/repo/file.json@ref"), which the shorthand validator tries
+# next; anything containing "/", ":" or "@" is not a model name.
+_MODEL_NAME_RE = re.compile(r"[A-Za-z0-9_.-]+")
+
+
 def _validate_source_model_name(value):
     if not isinstance(value, str):
         raise cv.Invalid("Model name must be a string")
 
     if value.endswith(".json"):
         raise cv.Invalid("Model name must not end with .json")
+
+    if not _MODEL_NAME_RE.fullmatch(value):
+        raise cv.Invalid("Model name may only contain letters, numbers, . _ -")
 
     return MODEL_SOURCE_SCHEMA(
         {
@@ -376,6 +368,58 @@ def _maybe_empty_vad_schema(value):
     return VAD_MODEL_SCHEMA(value)
 
 
+def _download_http_models(config: ConfigType) -> ConfigType:
+    """Download every http-sourced manifest and model file in two concurrent
+    batches (all manifests, then all model files).
+
+    The model file's URL only becomes known once its manifest has been
+    fetched and parsed, so the two stages cannot be merged into one batch.
+    """
+    model_parameters = [*config[CONF_MODELS]]
+    if vad := config.get(CONF_VAD):
+        model_parameters.append(vad)
+    # Keyed by cache path so a URL referenced twice is fetched and parsed once
+    http_models: dict[Path, str] = {
+        _compute_local_file_path(model_config): model_config[CONF_URL]
+        for parameters in model_parameters
+        if (model_config := parameters.get(CONF_MODEL)) is not None
+        and model_config.get(CONF_TYPE) == TYPE_HTTP
+    }
+    if not http_models:
+        return config
+
+    external_files.download_content_many(
+        ((url, path / "manifest.json") for path, url in http_models.items()),
+        description="wake word manifest(s)",
+    )
+
+    model_files: list[tuple[str, Path]] = []
+    errors: list[cv.Invalid] = []
+    for path, url in http_models.items():
+        try:
+            manifest_data = json.loads((path / "manifest.json").read_bytes())
+        except (OSError, ValueError) as e:
+            errors.append(cv.Invalid(f"Invalid manifest file at {url}: {e}"))
+            continue
+        if not isinstance(manifest_data, dict):
+            errors.append(
+                cv.Invalid(f"Manifest file at {url} must contain a JSON object")
+            )
+            continue
+        model = manifest_data.get(CONF_MODEL)
+        if not isinstance(model, str):
+            errors.append(
+                cv.Invalid(f"Manifest file at {url} is missing the 'model' key")
+            )
+            continue
+        model_files.append((urljoin(url, model), path / model))
+    if errors:
+        raise cv.MultipleInvalid(errors)
+
+    external_files.download_content_many(model_files, description="wake word model(s)")
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -409,6 +453,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on_esp32,
+    _download_http_models,
 )
 
 

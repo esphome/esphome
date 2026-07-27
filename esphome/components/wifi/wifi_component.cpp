@@ -1483,23 +1483,26 @@ void WiFiComponent::check_scanning_finished() {
   }
 
   ESP_LOGD(TAG, "Found networks:");
-  for (auto &res : this->scan_result_) {
-    for (auto &ap : this->sta_) {
-      if (res.matches(ap)) {
-        res.set_matches(true);
-        // Cache priority lookup - do single search instead of 2 separate searches
-        const bssid_t &bssid = res.get_bssid();
-        if (!this->has_sta_priority(bssid)) {
-          this->set_sta_priority(bssid, ap.get_priority());
+  {
+    ScanResultsLock lock(this);
+    for (auto &res : this->scan_result_) {
+      for (auto &ap : this->sta_) {
+        if (res.matches(ap)) {
+          res.set_matches(true);
+          // Cache priority lookup - do single search instead of 2 separate searches
+          const bssid_t &bssid = res.get_bssid();
+          if (!this->has_sta_priority(bssid)) {
+            this->set_sta_priority(bssid, ap.get_priority());
+          }
+          res.set_priority(this->get_sta_priority(bssid));
+          break;
         }
-        res.set_priority(this->get_sta_priority(bssid));
-        break;
       }
     }
-  }
 
-  // Sort scan results using insertion sort for better memory efficiency
-  insertion_sort_scan_results(this->scan_result_);
+    // Sort scan results using insertion sort for better memory efficiency
+    insertion_sort_scan_results(this->scan_result_);
+  }
 
   // Log matching networks (non-matching already logged at VERBOSE in scan callback)
   for (auto &res : this->scan_result_) {
@@ -1885,11 +1888,13 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
   // Phase-specific setup
   switch (new_phase) {
 #ifdef USE_WIFI_FAST_CONNECT
-    case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
+    case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS: {
       // Move to next configured AP - clear old scan data so new AP is tried with config only
       this->selected_sta_index_++;
+      ScanResultsLock lock(this);
       this->scan_result_.clear();
       break;
+    }
 #endif
 
     case WiFiRetryPhase::EXPLICIT_HIDDEN:
@@ -2404,6 +2409,7 @@ void WiFiComponent::clear_roaming_state_() {
 
 void WiFiComponent::release_scan_results_() {
   if (!this->keep_scan_results_) {
+    ScanResultsLock lock(this);
 #if defined(USE_RP2) || defined(USE_ESP32)
     // std::vector - use swap trick since shrink_to_fit is non-binding
     decltype(this->scan_result_)().swap(this->scan_result_);

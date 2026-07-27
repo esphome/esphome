@@ -314,6 +314,7 @@ def run_external_process(*cmd: str, **kwargs: Any) -> int | str:
             encoding="utf-8",
             check=False,
             close_fds=False,
+            env=kwargs.get("env"),
         )
         return proc.stdout if capture_stdout else proc.returncode
     except KeyboardInterrupt:  # pylint: disable=try-except-raise

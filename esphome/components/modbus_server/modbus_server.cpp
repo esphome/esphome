@@ -3,7 +3,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome::modbus_server {
-using modbus::ModbusExceptionCode;
+using modbus::ExceptionCode;
 using modbus::helpers::registers_to_number;
 
 static const char *const TAG = "modbus_server";
@@ -50,13 +50,13 @@ modbus::ResponseStatus ModbusServer::on_read_registers(uint16_t start_address, u
       }
       ESP_LOGW(TAG, "No register at 0x%04X and courtesy default not allowed. Sending exception response.",
                static_cast<uint16_t>(current_address));
-      return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
+      return ExceptionCode::ILLEGAL_DATA_ADDRESS;
     }
 
     if (!server_register->read_lambda) {
       // Registered but not readable (write-only); don't mask it with the courtesy default.
       ESP_LOGW(TAG, "Register at 0x%04X is not readable. Sending exception response.", server_register->address);
-      return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
+      return ExceptionCode::ILLEGAL_DATA_ADDRESS;
     }
 
     // A multi-register value is normally atomic: the request must start at its first register and cover all of
@@ -72,7 +72,7 @@ modbus::ResponseStatus ModbusServer::on_read_registers(uint16_t start_address, u
                "Read clips the multi-register value at 0x%04X, which does not allow partial reads. "
                "Sending exception response.",
                server_register->address);
-      return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
+      return ExceptionCode::ILLEGAL_DATA_ADDRESS;
     }
 
     int64_t value = server_register->read_lambda();
@@ -89,7 +89,7 @@ modbus::ResponseStatus ModbusServer::on_read_registers(uint16_t start_address, u
       // The value encoded to fewer words than its register span (e.g. a RAW register); treat as a device fault.
       ESP_LOGE(TAG, "Register at 0x%04X did not encode to %u registers", server_register->address,
                server_register->register_count);
-      return ModbusExceptionCode::SERVICE_DEVICE_FAILURE;
+      return ExceptionCode::SERVICE_DEVICE_FAILURE;
     }
     for (uint16_t i = 0; i < take; i++) {
       registers.push_back(value_words[value_offset + i]);
@@ -132,7 +132,7 @@ modbus::ResponseStatus ModbusServer::on_write_registers(uint16_t start_address,
   // so we never apply a partial write before discovering a problem. The commit pass below re-runs
   // registers_to_number rather than caching the decoded values: using the same function for the check and
   // the write keeps a single source of truth for the decode bound, independent of how register_count was set.
-  ModbusExceptionCode precheck = ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;  // unmatched or unwritable register
+  ExceptionCode precheck = ExceptionCode::ILLEGAL_DATA_ADDRESS;  // unmatched or unwritable register
   if (!for_each_register([&precheck, &registers](ServerRegister *server_register, uint16_t register_offset) -> bool {
         if (server_register->write_lambda == nullptr) {
           return false;  // unwritable -> ILLEGAL_DATA_ADDRESS
@@ -140,7 +140,7 @@ modbus::ResponseStatus ModbusServer::on_write_registers(uint16_t start_address,
         if (!registers_to_number(registers.data() + register_offset, registers.size() - register_offset,
                                  server_register->value_type)
                  .has_value()) {
-          precheck = ModbusExceptionCode::ILLEGAL_DATA_VALUE;  // request doesn't supply the full value
+          precheck = ExceptionCode::ILLEGAL_DATA_VALUE;  // request doesn't supply the full value
           return false;
         }
         return true;
@@ -158,7 +158,7 @@ modbus::ResponseStatus ModbusServer::on_write_registers(uint16_t start_address,
         return server_register->write_lambda(number);
       })) {
     ESP_LOGW(TAG, "A register write callback failed mid-sequence; earlier writes were already applied.");
-    return ModbusExceptionCode::SERVICE_DEVICE_FAILURE;
+    return ExceptionCode::SERVICE_DEVICE_FAILURE;
   }
 
   // Success: the caller builds the write response (an echo of the request header).
