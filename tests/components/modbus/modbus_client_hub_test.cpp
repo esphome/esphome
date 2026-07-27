@@ -303,6 +303,44 @@ TEST(ModbusClientHubPriority, DuplicateCustomFunctionCodeDroppedNotPromoted) {
   EXPECT_EQ(device.not_sent_count_, 1);                           // the duplicate was dropped
 }
 
+// An anonymous duplicate (no device - the YAML-lambda path) is always dropped, never promoted:
+// with no callback there is no lifecycle to absorb into and no owner for a READ_AGAIN re-run.
+TEST(ModbusClientHubPriority, AnonymousDuplicateDroppedNotPromoted) {
+  NoResponseProbeHub hub;
+
+  const uint8_t read[] = {0x03, 0x01, 0x00, 0x00, 0x02};
+  hub.send_pdu(0x02, read);
+  hub.send_pdu(0x02, read);  // anonymous duplicate: dropped
+
+  ASSERT_EQ(hub.queued_frames(), 1u);
+  EXPECT_EQ(hub.queued(0).priority, CommandPriority::READ_ONCE);  // never promoted for a null owner
+}
+
+// A re-queued READ_AGAIN entry outranks fresh READ_ONCE reads already in the queue: a device-
+// requested retry keeps the priority (both absorbed requests still pending), so the re-queue
+// inserts ahead of reads that arrived while it was in flight.
+TEST(ModbusClientHubPriority, ReadAgainOutranksFreshReads) {
+  NoResponseProbeHub hub;
+  RetryingDevice device(&hub, 0x02, /*retry=*/true);
+
+  device.send_pdu(read_pdu());
+  hub.force_send_front();       // the frame that will come back as READ_AGAIN
+  device.send_pdu(read_pdu());  // in-flight duplicate: promotes the waiting entry
+  const uint8_t fresh_a[] = {0x03, 0x00, 0x10, 0x00, 0x01};
+  const uint8_t fresh_b[] = {0x03, 0x00, 0x20, 0x00, 0x01};
+  device.send_pdu(fresh_a);
+  device.send_pdu(fresh_b);
+  ASSERT_EQ(hub.queued_frames(), 2u);
+
+  hub.timeout_waiting();  // device retries; READ_AGAIN is preserved and must outrank the fresh reads
+
+  ASSERT_EQ(hub.queued_frames(), 3u);
+  EXPECT_EQ(hub.queued(0).priority, CommandPriority::READ_AGAIN);
+  EXPECT_TRUE(std::equal(hub.queued(0).frame.pdu().begin(), hub.queued(0).frame.pdu().end(), READ_PDU));
+  EXPECT_EQ(hub.queued(1).frame.pdu()[2], 0x10);  // fresh reads keep FIFO order behind it
+  EXPECT_EQ(hub.queued(2).frame.pdu()[2], 0x20);
+}
+
 // A write that is retried after a no-response keeps WRITE priority (not demoted to READ_ONCE), so it
 // stays ahead of reads and a later duplicate still dedupes immediately instead of promoting it.
 TEST(ModbusClientHubPriority, RetriedWriteKeepsWritePriorityAndStaysNonRequeueable) {
@@ -554,6 +592,33 @@ TEST(ModbusClientHubCallbackCount, FullQueueRetryRefusalDeliversNotSentWithPdu) 
 
   EXPECT_EQ(device.no_response_count_, 1);
   EXPECT_EQ(device.not_sent_count_, 1);
+  EXPECT_EQ(device.last_not_sent_pdu_, std::vector<uint8_t>(READ_PDU, READ_PDU + sizeof(READ_PDU)));
+  EXPECT_EQ(hub.queued_frames(), MODBUS_TX_BUFFER_SIZE);
+}
+
+// The completed-re-queue path's full-buffer refusal: a READ_AGAIN entry whose post-completion
+// re-run cannot queue delivers the absorbed request's on_not_sent() with the request PDU.
+TEST(ModbusClientHubCallbackCount, FullQueueCompletedRequeueRefusalDeliversNotSent) {
+  NoResponseProbeHub hub;
+  DataCountingDevice device(&hub, 0x02);
+  SentCountingDevice filler(&hub, 0x05);
+
+  device.send_pdu(read_pdu());
+  hub.force_send_front();
+  device.send_pdu(read_pdu());  // in-flight duplicate: promotes to READ_AGAIN
+  // Fill the queue with distinct frames.
+  for (uint16_t i = 0; i < MODBUS_TX_BUFFER_SIZE; i++) {
+    const uint8_t fill[] = {0x03, static_cast<uint8_t>(i >> 8), static_cast<uint8_t>(i & 0xFF), 0x00, 0x01};
+    filler.send_pdu(fill);
+  }
+  ASSERT_EQ(hub.queued_frames(), MODBUS_TX_BUFFER_SIZE);
+
+  const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
+  hub.receive_frame_for_test(0x02, ok_response);  // completes request 1; the re-run is refused
+
+  EXPECT_EQ(device.data_count_, 1);      // first absorbed request resolved by the response
+  EXPECT_EQ(device.not_sent_count_, 1);  // second absorbed request resolved by the refusal
+  EXPECT_EQ(device.terminals(), 2);
   EXPECT_EQ(device.last_not_sent_pdu_, std::vector<uint8_t>(READ_PDU, READ_PDU + sizeof(READ_PDU)));
   EXPECT_EQ(hub.queued_frames(), MODBUS_TX_BUFFER_SIZE);
 }
