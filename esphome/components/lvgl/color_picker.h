@@ -314,7 +314,7 @@ class LvColorPickerType : public LvCompound {
     lv_obj_add_event_cb(this->saturation_slider_, hsl_lambda, LV_EVENT_VALUE_CHANGED, this);
     lv_obj_add_event_cb(this->brightness_slider_, hsl_lambda, LV_EVENT_VALUE_CHANGED, this);
 
-    bubble_events_(outer);
+    bubble_events(outer);
   }
 
  protected:
@@ -344,7 +344,7 @@ class LvColorPickerType : public LvCompound {
     if (vertical) {
       // The knob travels the length of the bar, so how far it reaches past either end
       // depends on the bar's width, which is only known once the widget has been laid out.
-      update_knob_clearance_(container);
+      update_knob_clearance(container);
       lv_obj_add_event_cb(container, knob_clearance_cb, LV_EVENT_STYLE_CHANGED, nullptr);
     } else {
       // The knob spans the bar's height and stands out by a fixed amount above and below it.
@@ -359,7 +359,7 @@ class LvColorPickerType : public LvCompound {
   // Reserves room above and below a vertical slider for the half of the knob that hangs off
   // the end of the bar. Half a line of text covers that at the proportions this widget uses,
   // and re-deriving it on a style change keeps it right when the font is changed later.
-  static void update_knob_clearance_(lv_obj_t *container) {
+  static void update_knob_clearance(lv_obj_t *container) {
     const auto *font = lv_obj_get_style_text_font(container, LV_PART_MAIN);
     auto clearance = static_cast<int32_t>(lv_font_get_line_height(font)) / 2;
     if (clearance == lv_obj_get_style_pad_bottom(container, LV_PART_MAIN))
@@ -368,7 +368,7 @@ class LvColorPickerType : public LvCompound {
     lv_obj_set_style_pad_row(container, clearance, LV_PART_MAIN);
   }
 
-  static void knob_clearance_cb(lv_event_t *event) { update_knob_clearance_(lv_event_get_current_target_obj(event)); }
+  static void knob_clearance_cb(lv_event_t *event) { update_knob_clearance(lv_event_get_current_target_obj(event)); }
 
   // Answers LV_SIZE_CONTENT on behalf of the widget. LVGL asks again whenever the font
   // changes, since the text font is flagged as affecting layout.
@@ -436,11 +436,11 @@ class LvColorPickerType : public LvCompound {
   // LVGL only passes an event on if every object between the two carries the flag, so it
   // goes on all of them. The widget itself is left without it, so events stop there instead
   // of carrying on to whatever contains it.
-  static void bubble_events_(lv_obj_t *obj) {
+  static void bubble_events(lv_obj_t *obj) {
     for (uint32_t i = 0; i < lv_obj_get_child_count(obj); i++) {
       auto *child = lv_obj_get_child(obj, i);
       lv_obj_add_flag(child, LV_OBJ_FLAG_EVENT_BUBBLE);
-      bubble_events_(child);
+      bubble_events(child);
     }
   }
 
