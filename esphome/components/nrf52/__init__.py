@@ -69,7 +69,12 @@ from .const import (
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
 )
-from .framework import check_and_install, get_build_env, get_build_paths
+from .framework import (
+    check_and_install,
+    get_build_env,
+    get_build_paths,
+    setup_platformio_python_env,
+)
 
 # force import gpio to register pin schema
 from .gpio import nrf52_pin_to_code  # noqa: F401
@@ -78,6 +83,11 @@ CODEOWNERS = ["@tomaszduda23"]
 AUTO_LOAD = ["zephyr", "preferences"]
 IS_TARGET_PLATFORM = True
 _LOGGER = logging.getLogger(__name__)
+
+# Default framework versions per toolchain. The sdk-nrf one also keys the CI
+# sdk-nrf install cache and pins the clang-tidy project's SDK.
+RECOMMENDED_PLATFORMIO_VERSION = "2.6.1-b"
+RECOMMENDED_SDK_NRF_VERSION = "2.9.2"
 
 FAKE_BOARD_MANIFEST = """
 {
@@ -123,7 +133,11 @@ def _resolve_toolchain(config: ConfigType) -> ConfigType:
 
 def set_framework(config: ConfigType) -> ConfigType:
     if CONF_VERSION not in config[CONF_FRAMEWORK]:
-        default_version = "2.6.1-b" if CORE.using_toolchain_platformio else "2.9.2"
+        default_version = (
+            RECOMMENDED_PLATFORMIO_VERSION
+            if CORE.using_toolchain_platformio
+            else RECOMMENDED_SDK_NRF_VERSION
+        )
         config = {
             **config,
             CONF_FRAMEWORK: {**config[CONF_FRAMEWORK], CONF_VERSION: default_version},
@@ -191,6 +205,7 @@ DeviceFirmwareUpdate = nrf52_ns.class_("DeviceFirmwareUpdate", cg.Component)
 
 CONF_DFU = "dfu"
 CONF_DCDC = "dcdc"
+CONF_LIBC_NANO = "libc_nano"
 CONF_REG0 = "reg0"
 CONF_UICR_ERASE = "uicr_erase"
 
@@ -223,7 +238,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(KEY_BOOTLOADER): cv.one_of(*BOOTLOADERS, lower=True),
             cv.Optional(CONF_DFU): _dfu_schema,
-            cv.Optional(CONF_DCDC, default=True): cv.boolean,
+            cv.Optional(CONF_DCDC): cv.boolean,
             cv.Optional(CONF_REG0): cv.Schema(
                 {
                     cv.Required(CONF_VOLTAGE): cv.All(
@@ -239,7 +254,10 @@ CONFIG_SCHEMA = cv.All(
             ): cv.Schema(
                 {
                     cv.Optional(CONF_VERSION): cv.string_strict,
-                    cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
+                    cv.Optional(CONF_LIBC_NANO, default=True): cv.boolean,
+                    cv.Optional(
+                        CONF_ADVANCED, default={}, visibility=cv.Visibility.YAML_ONLY
+                    ): cv.Schema(
                         {
                             cv.Optional(
                                 CONF_ENABLE_OTA_ROLLBACK, default=True
@@ -264,6 +282,14 @@ def _validate_mcumgr(config):
 
 
 def _final_validate(config):
+
+    # Remove before 2027.2.0
+    if CORE.using_toolchain_platformio:
+        _LOGGER.warning(
+            "The 'platformio' toolchain for nRF52 is deprecated and will be removed in ESPHome 2027.2.0. "
+            "Please use 'toolchain: sdk-nrf' instead."
+        )
+
     if CONF_DFU in config:
         _validate_mcumgr(config)
     if config[KEY_BOOTLOADER] == BOOTLOADER_ADAFRUIT:
@@ -273,6 +299,13 @@ def _final_validate(config):
     full_config = fv.full_config.get()
     conf = config[CONF_FRAMEWORK]
     advanced = conf[CONF_ADVANCED]
+
+    if conf[CONF_LIBC_NANO] and "logger" in CORE.loaded_integrations:
+        _LOGGER.warning(
+            "Logger is enabled with newlib-nano (libc_nano: true). Some format specifiers "
+            "such as %%zu are not supported and will print incorrectly. "
+            "Set 'libc_nano: false' under 'framework:' to use the full newlib."
+        )
 
     if advanced[CONF_ENABLE_OTA_ROLLBACK]:
         # "disabled: false" means safe mode *is* enabled.
@@ -348,16 +381,17 @@ async def to_code(config: ConfigType) -> None:
     if dfu_config := config.get(CONF_DFU):
         CORE.add_job(_dfu_to_code, dfu_config)
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if framework_ver < cv.Version(2, 9, 2):
-        zephyr_add_prj_conf("BOARD_ENABLE_DCDC", config[CONF_DCDC])
-    else:
-        zephyr_add_overlay(
-            f"""
-                &reg1 {{
-                    regulator-initial-mode = <{"NRF5X_REG_MODE_DCDC" if config[CONF_DCDC] else "NRF5X_REG_MODE_LDO"}>;
-                }};
-            """
-        )
+    if CONF_DCDC in config:
+        if framework_ver < cv.Version(2, 9, 2):
+            zephyr_add_prj_conf("BOARD_ENABLE_DCDC", config[CONF_DCDC])
+        else:
+            zephyr_add_overlay(
+                f"""
+                    &reg1 {{
+                        regulator-initial-mode = <{"NRF5X_REG_MODE_DCDC" if config[CONF_DCDC] else "NRF5X_REG_MODE_LDO"}>;
+                    }};
+                """
+            )
 
     if reg0_config := config.get(CONF_REG0):
         value = VOLTAGE_LEVELS.index(reg0_config[CONF_VOLTAGE])
@@ -370,6 +404,9 @@ async def to_code(config: ConfigType) -> None:
     # Enable OTA rollback support
     if advanced[CONF_ENABLE_OTA_ROLLBACK]:
         cg.add_define("USE_OTA_ROLLBACK")
+    zephyr_add_prj_conf("NEWLIB_LIBC", True)
+    zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
+    zephyr_add_prj_conf("NEWLIB_LIBC_NANO", conf[CONF_LIBC_NANO])
     # c++ support
     if framework_ver < cv.Version(2, 9, 2):
         zephyr_add_prj_conf("CPLUSPLUS", True)
@@ -489,6 +526,7 @@ def _upload_using_platformio(
 ) -> int | str:
     from esphome.platformio import toolchain
 
+    setup_platformio_python_env()
     if port is not None:
         upload_args += ["--upload-port", port]
     return toolchain.run_platformio_cli_run(config, CORE.verbose, *upload_args)
@@ -784,6 +822,10 @@ def _copy_if_exists(src: Path, dst: Path) -> None:
 
 def run_compile(args, config: ConfigType) -> bool:
     if CORE.using_toolchain_platformio:
+        # The actual build is done by PlatformIO (the caller falls through to
+        # it when this returns False); prepare the Python environment its
+        # Zephyr build script expects first.
+        setup_platformio_python_env()
         return False
     if not CORE.using_toolchain_sdk_nrf:
         raise EsphomeError(
