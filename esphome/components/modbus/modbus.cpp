@@ -742,8 +742,13 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sen
     // The sweep delivers through the same per-device guard as refusals: a device clearing from inside
     // its own on_not_sent() gets its remaining frames resolved silently (documented in the lifecycle
     // contract), other owners are notified normally, and every nested clear stays bounded.
-    if (dropped.device != nullptr)
+    // A READ_AGAIN entry stands for exactly TWO pending requests (a third duplicate is refused rather
+    // than absorbed), so it resolves with two deliveries - one per absorbed lifecycle.
+    if (dropped.device != nullptr) {
       dropped.device->trigger_not_sent(dropped.frame.pdu());
+      if (dropped.priority == CommandPriority::READ_AGAIN)
+        dropped.device->trigger_not_sent(dropped.frame.pdu());
+    }
   }
 
   if (clear_sent && this->waiting_for_response_.has_value() && this->waiting_for_response_.value().device) {
