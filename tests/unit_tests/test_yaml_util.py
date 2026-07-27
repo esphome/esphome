@@ -1368,8 +1368,9 @@ def test_discover_user_yaml_files_candidate_cycle_terminates(tmp_path: Path) -> 
 def test_discover_user_yaml_files_bad_candidate_still_tracked(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A candidate that fails to parse logs at DEBUG, stays tracked (the load
-    listener fires before parsing), and doesn't block other candidates."""
+    """A matched candidate that fails to parse warns even during discovery,
+    stays tracked (the load listener fires before parsing), and doesn't block
+    other candidates."""
     _write(tmp_path, "keys/good.yaml", "api:\n")
     _write(tmp_path, "keys/bad.yaml", "esphome: [unterminated\n")
     with caplog.at_level("DEBUG", logger="esphome.yaml_util"):
@@ -1379,7 +1380,10 @@ def test_discover_user_yaml_files_bad_candidate_still_tracked(
     resolved = set(discovered.files)
     assert (tmp_path / "keys/good.yaml").resolve() in resolved
     assert (tmp_path / "keys/bad.yaml").resolve() in resolved
-    assert any("Failed to load candidate" in r.message for r in caplog.records)
+    matching = [
+        r.levelname for r in caplog.records if "Failed to load candidate" in r.message
+    ]
+    assert matching == ["WARNING"]
 
 
 def test_discover_user_yaml_files_tolerates_templated_top_level_include(

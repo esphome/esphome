@@ -360,7 +360,12 @@ def _load_include_candidates(
         try:
             loaded = include.with_file(candidate).load()
         except (EsphomeError, Invalid) as err:
-            log(
+            # Unlike an unresolved pattern (expected during the discovery
+            # re-parse), a matched on-disk candidate that fails to load is a
+            # genuine user error; warn in every mode. The file itself is
+            # still tracked (the load listener fires before parsing), only
+            # its nested includes go undiscovered.
+            _LOGGER.warning(
                 "Failed to load candidate %s for !include %s: %s",
                 candidate,
                 include.file,
