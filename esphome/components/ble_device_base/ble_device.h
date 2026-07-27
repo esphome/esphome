@@ -181,6 +181,9 @@ class ESPBTDevice {
 #else
   uint8_t get_address_type() const { return this->address_type_; }
 #endif
+  /// Human-readable address type ("PUBLIC", "RANDOM", "RPA_PUBLIC", "RPA_RANDOM" or
+  /// "UNKNOWN"), backed by the shared BLE_ADDR_TYPE_* constants above.
+  const char *address_type_str() const;
 
   int get_rssi() const { return rssi_; }
   const std::string &get_name() const { return name_; }
@@ -222,6 +225,24 @@ class ESPBTDevice {
   std::vector<int8_t> tx_powers_{};
   optional<uint16_t> appearance_{};
   optional<uint8_t> ad_flag_{};
+};
+
+// ---------------------------------------------------------------------------
+// DiscoveredDeviceLog — shared per-scan-period "Found device" DEBUG logger
+// ---------------------------------------------------------------------------
+
+/// Per-scan-period "Found device" DEBUG logger, deduplicated by MAC address.
+/// Shared by all tracker backends so the output format and dedup behaviour stay
+/// identical by construction (single implementation instead of per-chip copies).
+class DiscoveredDeviceLog {
+ public:
+  /// Log the device at DEBUG the first time its MAC is seen this scan period.
+  void log_device(const char *tag, const ESPBTDevice &device);
+  /// Reset the per-period dedup list (call when a scan period ends).
+  void clear() { this->already_discovered_.clear(); }
+
+ protected:
+  std::vector<uint64_t> already_discovered_;
 };
 
 // ---------------------------------------------------------------------------

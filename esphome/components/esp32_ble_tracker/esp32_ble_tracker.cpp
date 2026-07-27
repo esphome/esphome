@@ -258,7 +258,7 @@ void ESP32BLETracker::start_scan_(bool first) {
 #endif
   }
 #ifdef USE_ESP32_BLE_DEVICE
-  this->already_discovered_.clear();
+  this->discovered_log_.clear();
 #endif
   this->scan_params_.scan_type = this->scan_active_ ? BLE_SCAN_TYPE_ACTIVE : BLE_SCAN_TYPE_PASSIVE;
   this->scan_params_.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
@@ -471,42 +471,9 @@ void ESP32BLETracker::dump_config() {
 
 #ifdef USE_ESP32_BLE_DEVICE
 void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
-  const uint64_t address = device.address_uint64();
-  for (auto &disc : this->already_discovered_) {
-    if (disc == address)
-      return;
-  }
-  this->already_discovered_.push_back(address);
-
-  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  ESP_LOGD(TAG, "Found device %s RSSI=%d", device.address_str_to(addr_buf), device.get_rssi());
-
-  const char *address_type_s;
-  switch (device.get_address_type()) {
-    case BLE_ADDR_TYPE_PUBLIC:
-      address_type_s = "PUBLIC";
-      break;
-    case BLE_ADDR_TYPE_RANDOM:
-      address_type_s = "RANDOM";
-      break;
-    case BLE_ADDR_TYPE_RPA_PUBLIC:
-      address_type_s = "RPA_PUBLIC";
-      break;
-    case BLE_ADDR_TYPE_RPA_RANDOM:
-      address_type_s = "RPA_RANDOM";
-      break;
-    default:
-      address_type_s = "UNKNOWN";
-      break;
-  }
-
-  ESP_LOGD(TAG, "  Address Type: %s", address_type_s);
-  if (!device.get_name().empty()) {
-    ESP_LOGD(TAG, "  Name: '%s'", device.get_name().c_str());
-  }
-  for (auto &tx_power : device.get_tx_powers()) {
-    ESP_LOGD(TAG, "  TX Power: %d", tx_power);
-  }
+  // Shared implementation in ble_device_base — identical output and per-period
+  // MAC dedup on every tracker backend.
+  this->discovered_log_.log_device(TAG, device);
 }
 
 // resolve_irk() is provided by ble_device_base (portable software AES).
@@ -566,7 +533,7 @@ void ESP32BLETracker::process_scan_result_(const BLEScanResult &scan_result) {
 void ESP32BLETracker::cleanup_scan_state_(bool is_stop_complete) {
   ESP_LOGV(TAG, "Scan %scomplete, set scanner state to IDLE.", is_stop_complete ? "stop " : "");
 #ifdef USE_ESP32_BLE_DEVICE
-  this->already_discovered_.clear();
+  this->discovered_log_.clear();
 #endif
   // Reset timeout state machine instead of cancelling scheduler timeout
   this->scan_timeout_state_ = ScanTimeoutState::INACTIVE;
