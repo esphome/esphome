@@ -164,7 +164,7 @@ class LightColorValues {
   }
 
   /// Convert these light color values to a binary representation and write them to binary.
-  void as_binary(bool *binary) const { *binary = this->state_ == 1.0f && this->get_brightness() != 0.0f; }
+  void as_binary(bool *binary) const { *binary = this->state_ == 1.0f; }
 
   /// Convert these light color values to a brightness-only representation and write them to brightness.
   void as_brightness(float *brightness) const { *brightness = this->state_ * this->brightness_; }
