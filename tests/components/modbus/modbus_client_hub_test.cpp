@@ -39,9 +39,9 @@ class NoResponseProbeHub : public ModbusClientHub {
   }
   size_t entries() const { return this->tx_buffer_.size(); }
   const ModbusDeviceCommand *next_ready() { return this->select_next_ready_(); }
-  bool waiting() const { return this->has_in_flight_; }
+  bool waiting() const { return this->waiting_for_response_; }
   const ModbusDeviceCommand &waiting_command() {
-    ModbusDeviceCommand *cmd = this->find_in_flight_();
+    ModbusDeviceCommand *cmd = this->find_waiting_();
     EXPECT_NE(cmd, nullptr);
     return *cmd;
   }
@@ -55,8 +55,8 @@ class NoResponseProbeHub : public ModbusClientHub {
     ModbusDeviceCommand *cmd = this->select_next_ready_();
     ASSERT_NE(cmd, nullptr) << "no READY entry to send";
     cmd->state = FrameState::WAITING;
-    this->has_in_flight_ = true;
-    this->in_flight_address_ = cmd->frame.address();
+    this->waiting_for_response_ = true;
+    this->waiting_address_ = cmd->frame.address();
   }
   // Drives the real response/interruption branches, followed by the loop's sweep.
   void receive_frame_for_test(uint8_t address, std::span<const uint8_t> pdu) {
@@ -65,7 +65,7 @@ class NoResponseProbeHub : public ModbusClientHub {
   }
   void timeout_waiting() {
     this->sweep_();  // deliver anything already owed (e.g. an interruption's on_no_response)
-    this->expire_in_flight_();
+    this->expire_waiting_();
     this->sweep_();
   }
 };
@@ -247,7 +247,7 @@ TEST(ModbusClientHubPriority, DuplicateQueuedFrameAbsorbedNotDuplicated) {
   EXPECT_EQ(hub.queued(0).pending, 2u);  // one entry standing for two accepted requests
 }
 
-// Re-requesting the frame currently in flight is absorbed into the waiting entry; after a
+// Re-requesting the frame currently waiting is absorbed into the waiting entry; after a
 // no-response timeout the absorbed request still gets its run even though the device declines a
 // retry, and a second timeout does not run it again.
 TEST(ModbusClientHubPriority, InFlightDuplicateRunsOnceMore) {
@@ -256,7 +256,7 @@ TEST(ModbusClientHubPriority, InFlightDuplicateRunsOnceMore) {
 
   device.send_pdu(read_pdu());
   hub.force_send_front();
-  device.send_pdu(read_pdu());  // duplicate of the in-flight frame
+  device.send_pdu(read_pdu());  // duplicate of the waiting frame
 
   EXPECT_EQ(hub.queued_frames(), 0u);  // not queued twice
   EXPECT_EQ(hub.waiting_command().pending, 2u);
@@ -279,7 +279,7 @@ TEST(ModbusClientHubPriority, AbsorbedRequestSurvivesDeviceRetry) {
 
   device.send_pdu(read_pdu());
   hub.force_send_front();
-  device.send_pdu(read_pdu());  // duplicate of the in-flight frame -> absorbed
+  device.send_pdu(read_pdu());  // duplicate of the waiting frame -> absorbed
   ASSERT_EQ(hub.waiting_command().pending, 2u);
 
   hub.timeout_waiting();  // no response; the device requests a retry
@@ -296,14 +296,14 @@ TEST(ModbusClientHubPriority, ContinuousReadRequeuesOnSuccessOnly) {
 
   device.read_holding_registers(0x100, 2, {.continuous = true});
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_TRUE(hub.queued(0).resident);
+  EXPECT_TRUE(hub.queued(0).continuous);
   hub.force_send_front();
 
-  // A matching successful response cycles the resident entry back to READY.
+  // A matching successful response cycles the continuous entry back to READY.
   const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x02, ok_response);
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_TRUE(hub.queued(0).resident);
+  EXPECT_TRUE(hub.queued(0).continuous);
 
   // An exception response ends the poll.
   hub.force_send_front();
@@ -313,23 +313,23 @@ TEST(ModbusClientHubPriority, ContinuousReadRequeuesOnSuccessOnly) {
 }
 
 // A continuous read that gets no response and is retried stays continuous: an explicit retry of a
-// continuous poll is assumed to still want continuous polling (the entry stays resident).
+// continuous poll is assumed to still want continuous polling (the entry stays continuous).
 TEST(ModbusClientHubPriority, RetriedContinuousReadStaysContinuous) {
   NoResponseProbeHub hub;
   RetryingDevice device(&hub, 0x02, /*retry=*/true);
 
   device.read_holding_registers(0x100, 2, {.continuous = true});
   ASSERT_EQ(hub.queued_frames(), 1u);
-  ASSERT_TRUE(hub.queued(0).resident);
+  ASSERT_TRUE(hub.queued(0).continuous);
   hub.force_send_front();
 
   hub.timeout_waiting();  // no response -> device requests retry
 
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_TRUE(hub.queued(0).resident);  // the retried poll stays resident
+  EXPECT_TRUE(hub.queued(0).continuous);  // the retried poll stays continuous
 }
 
-// A duplicate send never converts a resident entry back to a one-shot: polling would silently
+// A duplicate send never converts a continuous entry back to a one-shot: polling would silently
 // stop. The duplicate request is served, uncounted, by the poll's next response instead.
 TEST(ModbusClientHubPriority, DuplicateSendKeepsContinuous) {
   NoResponseProbeHub hub;
@@ -339,20 +339,20 @@ TEST(ModbusClientHubPriority, DuplicateSendKeepsContinuous) {
   ASSERT_EQ(hub.queued_frames(), 1u);
   device.read_holding_registers(0x100, 2);  // queued duplicate: absorbed uncounted
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_TRUE(hub.queued(0).resident);
+  EXPECT_TRUE(hub.queued(0).continuous);
   EXPECT_EQ(hub.queued(0).pending, 1u);
 
   hub.force_send_front();
-  device.read_holding_registers(0x100, 2);  // in-flight duplicate: absorbed uncounted
+  device.read_holding_registers(0x100, 2);  // waiting duplicate: absorbed uncounted
   EXPECT_EQ(hub.queued_frames(), 0u);
-  EXPECT_TRUE(hub.waiting_command().resident);
+  EXPECT_TRUE(hub.waiting_command().continuous);
   EXPECT_EQ(hub.waiting_command().pending, 1u);
 
   // The poll survives the duplicates: a successful response still cycles it back to READY.
   const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x02, ok_response);
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_TRUE(hub.queued(0).resident);
+  EXPECT_TRUE(hub.queued(0).continuous);
 }
 
 // Requesting continuous polling for a frame that is already queued as a one-shot turns that entry
@@ -363,18 +363,18 @@ TEST(ModbusClientHubPriority, ContinuousRequestUpgradesQueuedDuplicate) {
 
   device.read_holding_registers(0x100, 2);
   ASSERT_EQ(hub.queued_frames(), 1u);
-  ASSERT_FALSE(hub.queued(0).resident);
+  ASSERT_FALSE(hub.queued(0).continuous);
 
   device.read_holding_registers(0x100, 2, {.continuous = true});
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_TRUE(hub.queued(0).resident);
+  EXPECT_TRUE(hub.queued(0).continuous);
 
   // And it behaves as a poll from here: success cycles it back to READY.
   hub.force_send_front();
   const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x02, ok_response);
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_TRUE(hub.queued(0).resident);
+  EXPECT_TRUE(hub.queued(0).continuous);
 }
 
 // continuous is ignored for writes: the frame still sends at WRITE priority, once.
@@ -386,7 +386,7 @@ TEST(ModbusClientHubPriority, ContinuousIgnoredForWrites) {
   device.send_pdu(write_pdu, {.continuous = true});
   ASSERT_EQ(hub.queued_frames(), 1u);
   EXPECT_EQ(hub.queued(0).priority, CommandPriority::WRITE);
-  EXPECT_FALSE(hub.queued(0).resident);
+  EXPECT_FALSE(hub.queued(0).continuous);
 }
 
 // A device whose sent/not-sent callbacks are counted.
@@ -455,7 +455,7 @@ TEST(ModbusClientHubPriority, AnonymousDuplicateDroppedNotPromoted) {
   EXPECT_EQ(hub.queued(0).pending, 1u);  // never absorbed for a null owner
 }
 
-// A retried entry is re-stamped to the queue tail: reads that arrived while it was in flight get
+// A retried entry is re-stamped to the queue tail: reads that arrived while it was waiting get
 // their turn before the retry, so a frame that keeps timing out cannot starve the rest of the bus.
 TEST(ModbusClientHubPriority, RetriedReadGoesBehindFreshReads) {
   NoResponseProbeHub hub;
@@ -463,7 +463,7 @@ TEST(ModbusClientHubPriority, RetriedReadGoesBehindFreshReads) {
 
   device.send_pdu(read_pdu());
   hub.force_send_front();       // the frame that will time out and retry
-  device.send_pdu(read_pdu());  // in-flight duplicate: absorbed into the waiting entry
+  device.send_pdu(read_pdu());  // waiting duplicate: absorbed into the waiting entry
   const uint8_t fresh_a[] = {0x03, 0x00, 0x10, 0x00, 0x01};
   const uint8_t fresh_b[] = {0x03, 0x00, 0x20, 0x00, 0x01};
   device.send_pdu(fresh_a);
@@ -487,7 +487,7 @@ TEST(ModbusClientHubPriority, RetriedReadGoesBehindFreshReads) {
 }
 
 // An absorbed duplicate does not move the entry back in line: seq belongs to the entry, and only
-// re-entering the line (retry, resolved request, resident cycle) re-stamps it.
+// re-entering the line (retry, resolved request, continuous cycle) re-stamps it.
 TEST(ModbusClientHubPriority, AbsorbedDuplicateKeepsPlaceInLine) {
   NoResponseProbeHub hub;
   RetryingDevice device(&hub, 0x02, /*retry=*/false);
@@ -739,7 +739,7 @@ TEST(ModbusClientHubCallbackCount, RetryLifecyclesEachGetSentAndTerminal) {
 
 // Under the state machine a retry can NEVER be refused by a full queue: the entry already lives
 // in the container and a retry is a state flip, not a new insertion. Fill the queue, time out the
-// in-flight frame with a retry - the frame survives as READY and both absorbed requests persist.
+// waiting frame with a retry - the frame survives as READY and both absorbed requests persist.
 // (The old requeue_waiting_frame_/maybe_requeue_completed_ full-buffer refusal branches, and their
 // three tests, are gone with the branches themselves.)
 TEST(ModbusClientHubCallbackCount, RetryIsNeverRefusedByFullQueue) {
@@ -752,7 +752,7 @@ TEST(ModbusClientHubCallbackCount, RetryIsNeverRefusedByFullQueue) {
   SentCountingDevice filler(&hub, 0x05);
 
   device.send_pdu(read_pdu());
-  hub.force_send_front();       // in flight
+  hub.force_send_front();       // waiting
   device.send_pdu(read_pdu());  // absorbed: two requests pending
   // Fill the remaining live capacity with distinct frames.
   for (uint16_t i = 0; hub.entries() < MODBUS_TX_BUFFER_SIZE; i++) {
@@ -1258,8 +1258,8 @@ TEST(ModbusClientHubQueue, ClearDeviceQueueDropsSilently) {
   EXPECT_EQ(device.not_sent_count_, 0);  // silent drop: no terminal callback
 }
 
-// A send_pdu() from inside on_sent() enqueues behind the in-flight frame rather than sending
-// immediately or corrupting the in-flight transaction.
+// A send_pdu() from inside on_sent() enqueues behind the waiting frame rather than sending
+// immediately or corrupting the waiting transaction.
 TEST(ModbusClientHubSent, ReentrantSendFromOnSentQueues) {
   NullUART uart;
   NoResponseProbeHub hub;
@@ -1270,7 +1270,7 @@ TEST(ModbusClientHubSent, ReentrantSendFromOnSentQueues) {
   device.send_pdu(read_pdu());
   hub.send_next_for_test();  // first frame goes on the wire -> on_sent chains a follow-up
 
-  EXPECT_TRUE(hub.waiting());                     // first frame is in flight
+  EXPECT_TRUE(hub.waiting());                     // first frame is waiting
   ASSERT_EQ(hub.queued_frames(), 1u);             // the follow-up queued behind it, not sent
   EXPECT_EQ(hub.queued(0).frame.pdu()[2], 0x09);  // it is the chained read (start address 0x0009)
 }
@@ -1511,8 +1511,8 @@ TEST(ModbusClientHubPriority, ResendFromOnResponseAbsorbsIntoCompletingCommand) 
   const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x02, ok_response);  // handler re-sends the identical frame mid-completion
 
-  ASSERT_EQ(hub.queued_frames(), 1u);  // absorbed: the cycled resident entry is the only one
-  EXPECT_TRUE(hub.queued(0).resident);
+  ASSERT_EQ(hub.queued_frames(), 1u);  // absorbed: the cycled continuous entry is the only one
+  EXPECT_TRUE(hub.queued(0).continuous);
 }
 
 // An exception-flagged function code is never silently re-sendable, even though the read check
@@ -1542,22 +1542,22 @@ TEST(ModbusClientHubPriority, ExceptionFlaggedDuplicateDroppedNotPromoted) {
 }
 
 namespace {
-// From inside the sweep's on_not_sent, re-sends the frame that is currently IN FLIGHT.
+// From inside the sweep's on_not_sent, re-sends the frame that is currently WAITING.
 class ResendInFlightOnNotSentDevice : public ModbusClientDevice {
  public:
   ResendInFlightOnNotSentDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
   void on_not_sent(std::span<const uint8_t> request_pdu) override {
     this->not_sent_count_++;
     if (this->not_sent_count_ == 1) {
-      const uint8_t in_flight[] = {0x03, 0x01, 0x00, 0x00, 0x02};  // == READ_PDU
-      this->send_pdu(in_flight);
+      const uint8_t same_as_waiting[] = {0x03, 0x01, 0x00, 0x00, 0x02};  // == READ_PDU
+      this->send_pdu(same_as_waiting);
     }
   }
   int not_sent_count_{0};
 };
 }  // namespace
 
-// A clear with clear_sent turns the in-flight entry into a detached WAITING_DELETED shell, so a
+// A clear with clear_sent turns the waiting entry into a detached WAITING_DELETED shell, so a
 // sweep handler re-sending that frame queues fresh instead of being absorbed into the dead shell -
 // which would have left the request callback-less.
 TEST(ModbusClientHubQueue, SweepResendOfInFlightFrameQueuesFreshWhenClearSentDetaches) {
@@ -1565,7 +1565,7 @@ TEST(ModbusClientHubQueue, SweepResendOfInFlightFrameQueuesFreshWhenClearSentDet
   ResendInFlightOnNotSentDevice device(&hub, 0x02);
 
   device.send_pdu(read_pdu());
-  hub.force_send_front();  // READ_PDU now in flight
+  hub.force_send_front();  // READ_PDU now waiting
   const uint8_t queued_read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
   device.send_pdu(queued_read);  // a queued frame for the sweep to notify
   ASSERT_EQ(hub.queued_frames(), 1u);
@@ -1592,7 +1592,7 @@ TEST(ModbusClientHubCallbackCount, AbsorbedRequestRunsAfterErrorResponse) {
 
   device.send_pdu(read_pdu());
   hub.force_send_front();
-  device.send_pdu(read_pdu());  // in-flight duplicate: absorbed
+  device.send_pdu(read_pdu());  // waiting duplicate: absorbed
   const uint8_t exception_response[] = {0x83, 0x02};
   hub.receive_frame_for_test(0x02, exception_response);  // error terminal for request 1
 

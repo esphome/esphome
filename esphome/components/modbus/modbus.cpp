@@ -48,14 +48,14 @@ void ModbusClientHub::loop() {
   // Call base class to receive bytes and parse frames
   this->Modbus::loop();
 
-  // Send-wait watchdog: past the timeout with no start-of-response in sight, the in-flight
+  // Send-wait watchdog: past the timeout with no start-of-response in sight, the waiting
   // transaction ends. WAITING becomes TIMED_OUT (the sweep delivers on_no_response()); a
   // WAITING_DELETED shell retires silently; an INTERRUPTED shell releases here, applying the
   // retry decision the sweep recorded when it delivered the interruption's on_no_response().
-  if (this->has_in_flight_ &&
+  if (this->waiting_for_response_ &&
       this->last_receive_check_ - this->last_send_ > this->last_send_tx_offset_ + this->send_wait_time_ &&
-      (this->rx_buffer_.empty() || this->rx_buffer_[0] != this->in_flight_address_)) {
-    this->expire_in_flight_();
+      (this->rx_buffer_.empty() || this->rx_buffer_[0] != this->waiting_address_)) {
+    this->expire_waiting_();
   }
 
   this->sweep_();  // deliver owed callbacks with the hub quiescent
@@ -63,20 +63,20 @@ void ModbusClientHub::loop() {
   this->send_next_frame_();
 }
 
-void ModbusClientHub::expire_in_flight_() {
-  ModbusDeviceCommand *cmd = this->find_in_flight_();
+void ModbusClientHub::expire_waiting_() {
+  ModbusDeviceCommand *cmd = this->find_waiting_();
   if (cmd == nullptr) {
-    this->has_in_flight_ = false;
+    this->waiting_for_response_ = false;
   } else if (cmd->state == FrameState::WAITING) {
-    ESP_LOGW(TAG, "Stop waiting for response from %" PRIu8 " %" PRIu32 "ms after last send", this->in_flight_address_,
+    ESP_LOGW(TAG, "Stop waiting for response from %" PRIu8 " %" PRIu32 "ms after last send", this->waiting_address_,
              this->last_receive_check_ - this->last_send_);
     cmd->state = FrameState::TIMED_OUT;
     this->sweep_needed_ = true;
-    this->has_in_flight_ = false;
+    this->waiting_for_response_ = false;
   } else if (cmd->state == FrameState::WAITING_DELETED) {
     retire_(*cmd);
     this->sweep_needed_ = true;
-    this->has_in_flight_ = false;
+    this->waiting_for_response_ = false;
   } else if (cmd->state == FrameState::INTERRUPTED_NOTIFIED) {  // retry decision recorded
     if (cmd->retry_after_interrupt || --cmd->pending != 0) {
       // Wire-equivalent to the old requeue-behind-the-shell: the retry (or an absorbed request's
@@ -88,7 +88,7 @@ void ModbusClientHub::expire_in_flight_() {
       retire_(*cmd);
       this->sweep_needed_ = true;
     }
-    this->has_in_flight_ = false;
+    this->waiting_for_response_ = false;
   }
   // else: INTERRUPTED but the sweep hasn't delivered on_no_response() yet; release next loop.
 }
@@ -138,9 +138,9 @@ bool Modbus::tx_blocked() {
 
 bool ModbusClientHub::tx_blocked() {
   // We block transmission in any of these case:
-  // 1. There is an in-flight transaction (a WAITING/INTERRUPTED/WAITING_DELETED entry)
+  // 1. We're waiting for a response (a WAITING/INTERRUPTED/WAITING_DELETED entry)
   // 2. Any of the base class tx_blocked conditions
-  return this->has_in_flight_ || this->Modbus::tx_blocked();
+  return this->waiting_for_response_ || this->Modbus::tx_blocked();
 }
 
 bool ModbusClientHub::tx_buffer_empty() {
@@ -303,7 +303,7 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
 // Keep those guarantees in mind when changing server_pdu_length() or adding callers.
 void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) {
   const uint8_t function_code = pdu[0];
-  ModbusDeviceCommand *cmd = this->has_in_flight_ ? this->find_in_flight_() : nullptr;
+  ModbusDeviceCommand *cmd = this->waiting_for_response_ ? this->find_waiting_() : nullptr;
   if (cmd == nullptr) {
     ESP_LOGW(TAG,
              "Received unexpected frame from address %" PRIu8 ", function code 0x%X, %" PRIu32 "ms after last send",
@@ -334,7 +334,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
   if (cmd->state == FrameState::WAITING_DELETED) {
     // The cleared frame's response arrived: the shell is spent, unblock silently.
     retire_(*cmd);
-    this->has_in_flight_ = false;
+    this->waiting_for_response_ = false;
     this->sweep_needed_ = true;
     return;
   }
@@ -351,7 +351,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
   // afterwards. The RECEIVED_* state is set BEFORE the callbacks run: a clear_tx_queue_*() call
   // from inside them flips the entry to DELETED, which cancels the re-run/continuous bookkeeping -
   // "stop polling now" from inside on_response()/on_error() must actually stop it.
-  this->has_in_flight_ = false;
+  this->waiting_for_response_ = false;
   this->sweep_needed_ = true;
   ModbusClientDevice *device = cmd->device;
   // The request PDU is the sent frame without the leading address and the trailing CRC.
@@ -558,8 +558,8 @@ void ModbusClientHub::send_next_frame_() {
 
   if (this->send_frame_(cmd->frame)) {
     cmd->state = FrameState::WAITING;
-    this->has_in_flight_ = true;
-    this->in_flight_address_ = cmd->frame.address();
+    this->waiting_for_response_ = true;
+    this->waiting_address_ = cmd->frame.address();
     if (cmd->device != nullptr)
       cmd->device->on_sent(cmd->frame.pdu());
   } else {
@@ -618,7 +618,7 @@ void ModbusServerHub::send_exception_(uint8_t address, uint8_t function_code, Ex
   this->send_raw_(raw_frame, 3);
 }
 
-ModbusDeviceCommand *ModbusClientHub::find_in_flight_() {
+ModbusDeviceCommand *ModbusClientHub::find_waiting_() {
   for (auto &cmd : this->tx_buffer_) {
     switch (cmd.state) {
       case FrameState::WAITING:
@@ -635,7 +635,7 @@ ModbusDeviceCommand *ModbusClientHub::find_in_flight_() {
 
 ModbusDeviceCommand *ModbusClientHub::select_next_ready_() {
   // Ordering is a property of selection, not storage: WRITE class outranks reads, one-shot reads
-  // outrank resident polls, and within a group the oldest seq goes first - round-robin fair, with
+  // outrank continuous polls, and within a group the oldest seq goes first - round-robin fair, with
   // absorbed duplicates keeping their entry's place (see the seq field doc).
   const auto older = [](const ModbusDeviceCommand &a, const ModbusDeviceCommand &b) {
     return static_cast<int16_t>(a.seq - b.seq) < 0;  // wrap-safe
@@ -645,7 +645,8 @@ ModbusDeviceCommand *ModbusClientHub::select_next_ready_() {
     if (cmd.state != FrameState::READY)
       continue;
     if (best == nullptr || cmd.priority > best->priority ||
-        (cmd.priority == best->priority && (best->resident != cmd.resident ? !cmd.resident : older(cmd, *best)))) {
+        (cmd.priority == best->priority &&
+         (best->continuous != cmd.continuous ? !cmd.continuous : older(cmd, *best)))) {
       best = &cmd;
     }
   }
@@ -696,10 +697,10 @@ void ModbusClientHub::refuse_(ModbusClientDevice *device, uint8_t address, std::
 
 uint8_t ModbusClientHub::servable_cap_(const ModbusDeviceCommand &cmd) {
   // A requeueable one-shot read absorbs one extra request (this run + one re-run); everything
-  // else - writes, custom codes, resident polls - serves exactly one.
+  // else - writes, custom codes, continuous polls - serves exactly one.
   const uint8_t fc = cmd.frame.pdu()[0];
   const bool requeueable = !helpers::is_function_code_exception(fc) && helpers::is_function_code_read(fc);
-  return (requeueable && !cmd.resident) ? 2 : 1;
+  return (requeueable && !cmd.continuous) ? 2 : 1;
 }
 
 void ModbusClientHub::sweep_() {
@@ -720,7 +721,7 @@ void ModbusClientHub::sweep_() {
       switch (cmd.state) {
         case FrameState::RECEIVED_RESPONSE: {
           // Callbacks fired at parse time; this is pure lifecycle bookkeeping.
-          if (cmd.resident) {
+          if (cmd.continuous) {
             cmd.state = FrameState::READY;  // the subscription's next cycle
             cmd.seq = this->next_seq_++;
           } else if (--cmd.pending == 0) {
@@ -733,8 +734,8 @@ void ModbusClientHub::sweep_() {
           break;
         }
         case FrameState::RECEIVED_EXCEPTION: {
-          // An exception ends a resident poll; one-shot consumption matches the response path.
-          if (cmd.resident || --cmd.pending == 0) {
+          // An exception ends a continuous poll; one-shot consumption matches the response path.
+          if (cmd.continuous || --cmd.pending == 0) {
             retire_(cmd);
           } else {
             cmd.state = FrameState::READY;
@@ -753,7 +754,7 @@ void ModbusClientHub::sweep_() {
             // A granted retry is resolve-then-re-request: the new attempt queues at the tail.
             cmd.state = FrameState::READY;
             cmd.seq = this->next_seq_++;
-          } else if (!cmd.resident && --cmd.pending != 0) {
+          } else if (!cmd.continuous && --cmd.pending != 0) {
             cmd.state = FrameState::READY;  // one request resolved; the survivor re-stamps
             cmd.seq = this->next_seq_++;
           } else {
@@ -778,7 +779,7 @@ void ModbusClientHub::sweep_() {
           if (cmd.device != nullptr)
             cmd.device->trigger_not_sent(cmd.frame.pdu());
           if (cmd.state == FrameState::REFUSED) {  // a clear from inside the handler wins otherwise
-            if (!cmd.resident && --cmd.pending != 0) {
+            if (!cmd.continuous && --cmd.pending != 0) {
               // A transmit failure's refusal resolved one request; the absorbed one gets its run.
               cmd.state = FrameState::READY;
               cmd.seq = this->next_seq_++;
@@ -864,12 +865,12 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
                        (helpers::is_function_code_write(pdu[0]) || request_code == FunctionCode::MASK_WRITE_REGISTER ||
                         request_code == FunctionCode::READ_WRITE_MULTIPLE_REGISTERS);
   const CommandPriority priority = mutates ? CommandPriority::WRITE : CommandPriority::READ;
-  bool resident = false;
+  bool continuous = false;
   if (options.continuous) {
     if (mutates) {
       ESP_LOGV(TAG, "continuous is ignored for a mutating function (0x%X, address %" PRIu8 ")", pdu[0], address);
     } else {
-      resident = true;
+      continuous = true;
     }
   }
 
@@ -877,10 +878,10 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   // not queued twice; the duplicate resolves against that entry (see the lifecycle contract):
   //   - anonymous (device == nullptr): dropped - with no callbacks there is no lifecycle to absorb
   //     into, and no owner to route a re-run to
-  //   - the incoming request is continuous: the entry BECOMES the resident poll; the conversion
+  //   - the incoming request is continuous: the entry BECOMES the continuous poll; the conversion
   //     supersedes any requests the entry had absorbed (the caller opted into streaming semantics,
   //     and the poll's responses are the accounting from then on)
-  //   - the entry is a resident poll: absorbed uncounted - the poll's next response serves it
+  //   - the entry is a continuous poll: absorbed uncounted - the poll's next response serves it
   //   - both one-shots: pending increments (without bound); the sweep bleeds anything over the
   //     servable cap (2 for requeueable reads, 1 for writes/custom) as on_not_sent() deliveries
   // REFUSED and *_DELETED entries are dead for dedup purposes: a new identical send queues fresh.
@@ -907,11 +908,11 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
                  "device for delivery accounting",
                  address, pdu[0]);
       }
-    } else if (resident) {
-      item.resident = true;
+    } else if (continuous) {
+      item.continuous = true;
       item.pending = 1;
       ESP_LOGV(TAG, "Frame already active for %" PRIu8 ", now polled continuously", address);
-    } else if (item.resident) {
+    } else if (item.continuous) {
       ESP_LOGV(TAG, "Frame already active for %" PRIu8 " as a continuous poll", address);
     } else {
       // An absorbed duplicate leaves seq alone: the entry's place in line belongs to its oldest
@@ -940,7 +941,7 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   ESP_LOGV(TAG, "Adding frame to tx queue: %" PRIu8 ":%s", address,
            format_hex_pretty_to(hex_buf, pdu.data(), pdu.size()));
   auto &cmd = this->tx_buffer_.emplace_back(device, address, pdu, priority);
-  cmd.resident = resident;
+  cmd.continuous = continuous;
   cmd.seq = this->next_seq_++;
 }
 
@@ -1035,7 +1036,7 @@ void ModbusServerHub::send_raw_(const uint8_t *payload, uint16_t len) {
   // This should only happen at low baud rates with long frame delays.
   if (this->tx_blocked()) {
     // Stash the raw payload in a single member buffer so the deferred callback can rebuild the frame
-    // without a heap allocation. Only one server reply is ever in flight, and the named timeout ensures
+    // without a heap allocation. Only one server reply is ever waiting, and the named timeout ensures
     // only one deferred send is pending, so a single buffer is sufficient.
     std::memcpy(this->deferred_payload_.data(), payload, len);
     this->deferred_payload_len_ = len;
