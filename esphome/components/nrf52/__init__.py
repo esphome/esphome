@@ -877,6 +877,21 @@ def run_compile(args, config: ConfigType) -> bool:
 
     zephyr_dir = build_dir / "zephyr"
     framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    bootloader = zephyr_data()[KEY_BOOTLOADER]
+
+    # (dev_type, sd_req) per bootloader — values from Nordic SoftDevice release notes
+    _GENPKG_PARAMS = {
+        BOOTLOADER_ADAFRUIT_NRF52_SD132: ("0x0051", "0x009D"),
+        BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: ("0x0052", "0x00B6"),
+        BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: ("0x0052", "0x00CA"),
+    }
+    # UF2 family IDs — nRF52832 vs nRF52840 per SoftDevice variant
+    _UF2_FAMILY_IDS = {
+        BOOTLOADER_ADAFRUIT_NRF52_SD132: "0x7EAED30A",
+        BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: "0xADA52840",
+        BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: "0xADA52840",
+    }
+
     # SDK < 2.9.2 places artifacts directly in build_dir/zephyr/.
     # SDK >= 2.9.2 nests them one level deeper (build_dir/zephyr/zephyr/);
     # copy files to match get_download_types layout.
@@ -888,20 +903,43 @@ def run_compile(args, config: ConfigType) -> bool:
         _copy_if_exists(west_out / "zephyr.signed.bin", zephyr_dir / "app_update.bin")
         _copy_if_exists(build_dir / "merged.hex", zephyr_dir / "merged.hex")
 
-    # (dev_type, sd_req) per bootloader — values from Nordic SoftDevice release notes
-    _GENPKG_PARAMS = {
-        BOOTLOADER_ADAFRUIT_NRF52_SD132: ("0x0051", "0x009D"),
-        BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: ("0x0052", "0x00B6"),
-        BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: ("0x0052", "0x00CA"),
-    }
-    bootloader = zephyr_data()[KEY_BOOTLOADER]
+    # For Adafruit bootloader builds, regenerate the UF2 from merged.hex,
+    # whose records carry the correct flash addresses. The build's own
+    # zephyr.uf2 uses the board's default offset, which is wrong in some cases.
+    merged_hex = zephyr_dir / "merged.hex"
+    if bootloader in _UF2_FAMILY_IDS and merged_hex.is_file():
+        # Drop the build's own wrong-offset UF2 so it isn't shipped alongside.
+        app_uf2 = west_out / "zephyr.uf2"
+        if app_uf2.is_file():
+            app_uf2.unlink()
+        uf2conv = (
+            paths["framework_path"] / "zephyr" / "scripts" / "build" / "uf2conv.py"
+        )
+        if not run_command_ok(
+            [
+                str(paths["python_executable"]),
+                str(uf2conv),
+                "-f",
+                _UF2_FAMILY_IDS[bootloader],
+                "-c",
+                "-o",
+                str(zephyr_dir / "zephyr.uf2"),
+                str(merged_hex),
+            ],
+            env=env,
+            stream_output=True,
+        ):
+            raise EsphomeError("Failed to generate UF2 from merged hex")
+
     if bootloader in (
         BOOTLOADER_ADAFRUIT,
         BOOTLOADER_ADAFRUIT_NRF52_SD132,
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     ):
-        hex_file = west_out / "zephyr.hex"
+        # no fallback is needed for adafruit case. merged merged.hex is always generated.
+        # get_download_types needs fallback for mcuboot (non adafruit)
+        hex_file = zephyr_dir / "merged.hex"
         dfu_package = build_dir / "firmware.zip"
         genpkg_cmd = [
             str(paths["python_executable"]),

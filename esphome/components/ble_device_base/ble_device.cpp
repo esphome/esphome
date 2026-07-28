@@ -264,6 +264,21 @@ optional<ESPBLEiBeacon> ESPBLEiBeacon::from_manufacturer_data(const ServiceData 
 // ESPBTDevice
 // ---------------------------------------------------------------------------
 
+const char *ESPBTDevice::address_type_str() const {
+  switch (this->address_type_) {
+    case BLE_ADDR_TYPE_PUBLIC:
+      return "PUBLIC";
+    case BLE_ADDR_TYPE_RANDOM:
+      return "RANDOM";
+    case BLE_ADDR_TYPE_RPA_PUBLIC:
+      return "RPA_PUBLIC";
+    case BLE_ADDR_TYPE_RPA_RANDOM:
+      return "RPA_RANDOM";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 void ESPBTDevice::from_scan_result(const uint8_t *mac, int rssi, uint8_t addr_type, const uint8_t *data,
                                    uint16_t data_len) {
   // Ingest is BLE controller order (LSB-first); store in printable (MSB-first)
@@ -282,29 +297,13 @@ void ESPBTDevice::from_scan_result(const uint8_t *mac, int rssi, uint8_t addr_ty
   this->parse_adv_(data, data_len);
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-  ESP_LOGVV(TAG, "Parse Result:");
-  const char *address_type;
-  switch (this->address_type_) {
-    case BLE_ADDR_TYPE_PUBLIC:
-      address_type = "PUBLIC";
-      break;
-    case BLE_ADDR_TYPE_RANDOM:
-      address_type = "RANDOM";
-      break;
-    case BLE_ADDR_TYPE_RPA_PUBLIC:
-      address_type = "RPA_PUBLIC";
-      break;
-    case BLE_ADDR_TYPE_RPA_RANDOM:
-      address_type = "RPA_RANDOM";
-      break;
-    default:
-      address_type = "UNKNOWN";
-      break;
-  }
   char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  ESP_LOGVV(TAG, "  Address: %s (%s)", this->address_str_to(addr_buf), address_type);
-  ESP_LOGVV(TAG, "  RSSI: %d", this->rssi_);
-  ESP_LOGVV(TAG, "  Name: '%s'", this->name_.c_str());
+  ESP_LOGVV(TAG,
+            "Parse Result:\n"
+            "  Address: %s (%s)\n"
+            "  RSSI: %d\n"
+            "  Name: '%s'",
+            this->address_str_to(addr_buf), this->address_type_str(), this->rssi_, this->name_.c_str());
   for (auto &it : this->tx_powers_) {
     ESP_LOGVV(TAG, "  TX Power: %d", it);
   }
@@ -322,20 +321,26 @@ void ESPBTDevice::from_scan_result(const uint8_t *mac, int rssi, uint8_t addr_ty
   for (auto &mfg_data : this->manufacturer_datas_) {
     auto ibeacon = ESPBLEiBeacon::from_manufacturer_data(mfg_data);
     if (ibeacon.has_value()) {
-      ESP_LOGVV(TAG, "  Manufacturer iBeacon:");
-      ESP_LOGVV(TAG, "    UUID: %s", ibeacon.value().get_uuid().to_str(uuid_buf));
-      ESP_LOGVV(TAG, "    Major: %u", ibeacon.value().get_major());
-      ESP_LOGVV(TAG, "    Minor: %u", ibeacon.value().get_minor());
-      ESP_LOGVV(TAG, "    TXPower: %d", ibeacon.value().get_signal_power());
+      ESP_LOGVV(TAG,
+                "  Manufacturer iBeacon:\n"
+                "    UUID: %s\n"
+                "    Major: %u\n"
+                "    Minor: %u\n"
+                "    TXPower: %d",
+                ibeacon.value().get_uuid().to_str(uuid_buf), ibeacon.value().get_major(), ibeacon.value().get_minor(),
+                ibeacon.value().get_signal_power());
     } else {
       ESP_LOGVV(TAG, "  Manufacturer ID: %s, data: %s", mfg_data.uuid.to_str(uuid_buf),
                 format_hex_pretty_to(hex_buf, mfg_data.data.data(), mfg_data.data.size()));
     }
   }
   for (auto &svc_data : this->service_datas_) {
-    ESP_LOGVV(TAG, "  Service data:");
-    ESP_LOGVV(TAG, "    UUID: %s", svc_data.uuid.to_str(uuid_buf));
-    ESP_LOGVV(TAG, "    Data: %s", format_hex_pretty_to(hex_buf, svc_data.data.data(), svc_data.data.size()));
+    ESP_LOGVV(TAG,
+              "  Service data:\n"
+              "    UUID: %s\n"
+              "    Data: %s",
+              svc_data.uuid.to_str(uuid_buf),
+              format_hex_pretty_to(hex_buf, svc_data.data.data(), svc_data.data.size()));
   }
   ESP_LOGVV(TAG, "  Adv data: %s", format_hex_pretty_to(hex_buf, data, data_len));
 #endif  // ESPHOME_LOG_HAS_VERY_VERBOSE
@@ -491,6 +496,35 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint16_t len) {
         break;
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// DiscoveredDeviceLog
+// ---------------------------------------------------------------------------
+
+void DiscoveredDeviceLog::log_device(const char *tag, const ESPBTDevice &device) {
+#ifdef ESPHOME_LOG_HAS_DEBUG
+  // Everything here feeds ESP_LOGD: below DEBUG the whole body (including the
+  // dedup vector growth) would be pure overhead, so compile it out entirely.
+  const uint64_t address = device.address_uint64();
+  for (auto &disc : this->already_discovered_) {
+    if (disc == address)
+      return;
+  }
+  this->already_discovered_.push_back(address);
+
+  char addr_buf[ESPBTDevice::MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  ESP_LOGD(tag,
+           "Found device %s RSSI=%d\n"
+           "  Address Type: %s",
+           device.address_str_to(addr_buf), device.get_rssi(), device.address_type_str());
+  if (!device.get_name().empty()) {
+    ESP_LOGD(tag, "  Name: '%s'", device.get_name().c_str());
+  }
+  for (auto &tx_power : device.get_tx_powers()) {
+    ESP_LOGD(tag, "  TX Power: %d", tx_power);
+  }
+#endif  // ESPHOME_LOG_HAS_DEBUG
 }
 
 }  // namespace esphome::ble_device_base
