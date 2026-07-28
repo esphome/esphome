@@ -66,11 +66,13 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
           // A server that ignored the range once will ignore it again
           ESP_LOGE(TAG, "Server does not support range requests (got 200 at offset %" PRIu32 ")", range_start);
           chunk_size = -1;
+          last_err = ESP_FAIL;
           break;
         }
         ESP_LOGW(TAG, "Bad response: status %d, length %d (expected %" PRIu32 ")", status_code, chunk_size,
                  range_end - range_start + 1);
         chunk_size = -1;
+        last_err = ESP_FAIL;
         // A 4xx (except timeout/rate-limit) won't improve on retry
         if (status_code >= 400 && status_code < 500 && status_code != 408 && status_code != 429) {
           break;
