@@ -33,7 +33,6 @@
 #include "esphome/core/helpers.h"
 
 #include <cstdint>
-#include <utility>
 
 #ifdef USE_OTA_STATE_LISTENER
 #include "esphome/components/ota/ota_backend.h"
@@ -84,8 +83,8 @@ class BK72xxBLETracker : public Component,
     this->listeners_.push_back(listener);
 #endif
   }
-  void set_raw_advertisement_callback(ble_device_base::RawAdvertisementCallback cb) override {
-    this->raw_advertisement_callback_ = std::move(cb);
+  void set_raw_advertisement_callback(ble_device_base::RawAdvertisementCallback callback) override {
+    this->raw_advertisement_callback_ = callback;
   }
   ble_device_base::HubCapabilities get_capabilities() const override {
     // The Beken BDK exposes no active-scan path (passive scanning only), so the
@@ -131,7 +130,7 @@ class BK72xxBLETracker : public Component,
   uint32_t scan_period_start_{0};        // millis() at start of current scan period; used to rate-limit on_scan_end()
   bool scan_started_once_{false};        // true after first successful scan start; gates the period timer
 
-  ble_device_base::RawAdvertisementCallback raw_advertisement_callback_{nullptr};
+  ble_device_base::RawAdvertisementCallback raw_advertisement_callback_{};
 #ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
   // Parsed-advertisement consumers registered through ble_device_base.
   // Codegen-sized: no heap allocation, no std::vector template instantiations.

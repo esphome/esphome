@@ -2,9 +2,10 @@
 #ifdef USE_CAPTIVE_PORTAL
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/components/wifi/wifi_component.h"
 #include "captive_index.h"
-#include "json_escape.h"
 
 namespace esphome::captive_portal {
 
