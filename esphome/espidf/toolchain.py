@@ -10,7 +10,12 @@ import shutil
 import subprocess
 
 from esphome.components.esp32.const import KEY_ESP32, KEY_FLASH_SIZE, KEY_IDF_VERSION
-from esphome.const import CONF_FRAMEWORK, CONF_SOURCE
+from esphome.const import (
+    CONF_COMPILE_PROCESS_LIMIT,
+    CONF_ESPHOME,
+    CONF_FRAMEWORK,
+    CONF_SOURCE,
+)
 from esphome.core import CORE, EsphomeError
 from esphome.espidf.framework import check_esp_idf_install, get_framework_env
 from esphome.espidf.size_summary import print_summary
@@ -147,7 +152,10 @@ def _get_idf_tool(name: str) -> str:
 
 
 def run_idf_py(
-    *args, cwd: Path | None = None, capture_output: bool = False
+    *args,
+    cwd: Path | None = None,
+    capture_output: bool = False,
+    jobs: int | None = None,
 ) -> int | str:
     """Run idf.py with the given arguments."""
     idf_path = _get_idf_path()
@@ -155,6 +163,8 @@ def run_idf_py(
         raise EsphomeError("ESP-IDF not found")
 
     env = _get_idf_env()
+    if jobs is not None:
+        env = {**env, "IDF_PY_BUILD_JOBS": str(jobs)}
     python_executable = _get_idf_tool("python")
     idf_py = idf_path / "tools" / "idf.py"
     # Dispatch idf.py through esphome.espidf.runner, which wraps
@@ -384,7 +394,7 @@ def run_compile(config, verbose: bool) -> int:
     args.append("build")
     args.append("size")
 
-    rc = run_idf_py(*args)
+    rc = run_idf_py(*args, jobs=config[CONF_ESPHOME].get(CONF_COMPILE_PROCESS_LIMIT))
     if rc == 0:
         size_json = CORE.relative_build_path("build", "esp_idf_size.json")
         partitions = CORE.relative_build_path("partitions.csv")

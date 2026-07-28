@@ -137,10 +137,17 @@ def test_parse_git_source_rejected(source: str) -> None:
     assert _parse_git_source(source) is None
 
 
-def _make_idf_tree(framework_path: Path) -> None:
-    """Create the minimum tree _clone_idf_with_submodules sanity-checks for."""
+def _make_idf_tree(framework_path: Path, *, gitmodules: bool = True) -> None:
+    """Create the minimum tree _clone_idf_with_submodules sanity-checks for.
+
+    ``gitmodules=False`` simulates a fork that vendors components in-tree
+    instead of declaring submodules; update_submodules skips the git call
+    when that file is missing.
+    """
     (framework_path / "tools").mkdir(parents=True)
     (framework_path / "tools" / "idf_tools.py").write_text("# stub\n")
+    if gitmodules:
+        (framework_path / ".gitmodules").write_text("# stub\n")
 
 
 def test_clone_idf_with_submodules_without_ref(tmp_path: Path) -> None:
@@ -212,6 +219,28 @@ def test_clone_idf_with_submodules_raises_when_tree_missing(
             "https://github.com/espressif/esp-idf.git",
             None,
         )
+
+
+def test_clone_idf_accepts_flattened_fork_without_gitmodules(
+    tmp_path: Path,
+) -> None:
+    """A fork that vendors components in-tree instead of as submodules is valid.
+
+    No .gitmodules means the submodule step is skipped entirely.
+    """
+    framework_path = tmp_path / "idf"
+    framework_path.mkdir()
+    _make_idf_tree(framework_path, gitmodules=False)
+
+    with patch("esphome.git.run_git_command", return_value="") as run_git_command_mock:
+        _clone_idf_with_submodules(
+            framework_path,
+            "https://github.com/example/flattened-esp-idf.git",
+            None,
+        )
+
+    calls = [c.args[0] for c in run_git_command_mock.call_args_list]
+    assert not any(c[1] == "submodule" for c in calls)
 
 
 # ---------------------------------------------------------------------------
