@@ -1433,8 +1433,10 @@ def test_importing_framework_helpers_does_not_import_requests() -> None:
         [
             sys.executable,
             "-c",
-            "import sys\nimport esphome.framework_helpers\n"
-            "print('\\n'.join(sys.modules))",
+            (
+                "import sys\nimport esphome.framework_helpers\n"
+                "print('\\n'.join(sys.modules))"
+            ),
         ],
         capture_output=True,
         text=True,
