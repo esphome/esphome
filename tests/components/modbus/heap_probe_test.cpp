@@ -117,9 +117,10 @@ TEST(HeapProbe, TypicalFrameConstructionIsAllocationFree) {
   EXPECT_EQ(large.count, 1u);
 }
 
-// Queueing typical commands is fully allocation-free: the frame fits the inline buffer and the tx
-// deque's first block is already allocated when the hub is constructed. (A queue deeper than one
-// deque block - roughly a dozen commands - would allocate further blocks.)
+// Queueing typical commands is allocation-free within the deque's first block: the frame fits the
+// inline buffer, every entry is a plain append (ordering lives in selection, not storage), and the
+// first block is already allocated when the hub is constructed. A queue deeper than one block
+// (around eight commands at the current entry size) allocates further 512-byte blocks.
 TEST(HeapProbe, QueueingTypicalCommandsIsAllocationFree) {
   ModbusClientHub hub;
   ModbusClientDevice device(&hub, 0x02);
@@ -128,7 +129,7 @@ TEST(HeapProbe, QueueingTypicalCommandsIsAllocationFree) {
   const uint8_t read_pdu[] = {0x03, 0x01, 0x00, 0x00, 0x02};
   req.assign(read_pdu, read_pdu + sizeof(read_pdu));
 
-  constexpr int n = 12;
+  constexpr int n = 8;
   size_t total = 0;
   for (int i = 0; i != n; i++) {
     req[2] = static_cast<uint8_t>(i);  // distinct start addresses: identical frames would dedup, not enqueue
@@ -138,10 +139,9 @@ TEST(HeapProbe, QueueingTypicalCommandsIsAllocationFree) {
   EXPECT_EQ(total, 0u);
 }
 
-// The insert_by_priority_() non-append branch: a WRITE jumping queued reads takes deque::insert at
-// begin(), which may allocate a 512-byte front block. Measured (not forbidden) so the cost the
-// append special-case avoids is on record next to the probe that guards the common path.
-TEST(HeapProbe, WriteJumpingQueuedReadsMeasuresFrontInsert) {
+// A WRITE arriving behind queued reads is a plain append too - the old priority front-insert (and
+// its possible front-block allocation) is gone; the write wins transmit SELECTION instead.
+TEST(HeapProbe, WriteBehindQueuedReadsAppendsAllocationFree) {
   ModbusClientHub hub;
   ModbusClientDevice device(&hub, 0x02);
 
@@ -154,9 +154,9 @@ TEST(HeapProbe, WriteJumpingQueuedReadsMeasuresFrontInsert) {
   }
 
   const uint8_t write_pdu[] = {0x06, 0x00, 0x10, 0xBE, 0xEF};
-  Sample front_insert = sample([&] { device.send_pdu(write_pdu); });
-  printf("HEAPPROBE write_front_insert count=%zu bytes=%zu\n", front_insert.count, front_insert.bytes);
-  EXPECT_LE(front_insert.count, 1u);  // at most the deque's front-block allocation
+  Sample append = sample([&] { device.send_pdu(write_pdu); });
+  printf("HEAPPROBE write_append count=%zu bytes=%zu\n", append.count, append.bytes);
+  EXPECT_EQ(append.count, 0u);
 }
 
 // End to end: bytes injected at the UART travel through receive, frame parsing, response matching and
@@ -209,6 +209,9 @@ TEST(HeapProbe, TypicalFrameConstructionIsAllocationFree) {
   GTEST_SKIP() << "allocation counting requires an AddressSanitizer build";
 }
 TEST(HeapProbe, QueueingTypicalCommandsIsAllocationFree) {
+  GTEST_SKIP() << "allocation counting requires an AddressSanitizer build";
+}
+TEST(HeapProbe, WriteBehindQueuedReadsAppendsAllocationFree) {
   GTEST_SKIP() << "allocation counting requires an AddressSanitizer build";
 }
 TEST(HeapProbe, ResponseHandlingIsAllocationFreeAfterWarmup) {

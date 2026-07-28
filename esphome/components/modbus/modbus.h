@@ -96,36 +96,97 @@ class Modbus : public uart::UARTDevice, public Component {
 class ModbusClientDevice;
 class ModbusServerDevice;
 
-// Transmit priority, highest value sends first. Internal - derived from the frame, never chosen by
-// callers: writes outrank everything, a re-requested queued frame (READ_AGAIN) outranks fresh reads,
-// and continuous polls fill whatever bus time is left.
-enum class CommandPriority : uint8_t { READ_CONTINUOUS = 0, READ_ONCE, READ_AGAIN, WRITE };
+// Transmit ordering class, highest sends first. Internal - derived from the frame, never chosen by
+// callers: mutating function codes outrank reads. Ordering is a property of SELECTION (the transmit
+// path picks the best READY entry), not of storage - the container is plain append-order.
+enum class CommandPriority : uint8_t { READ = 0, WRITE };
+
+/// Lifecycle state of a frame entry. The lifecycle contract on ModbusClientDevice is this
+/// transition table:
+///   READY -> WAITING            on transmit (send_next_frame_ is the only writer of this transition)
+///   WAITING -> RECEIVED         on a matching response; on_response()/on_error() fire AT PARSE TIME
+///                               (zero-copy spans into the rx buffer), the sweep then does the
+///                               lifecycle bookkeeping (pending consumption, resident reset, removal)
+///   WAITING -> TIMED_OUT        on the send-wait timeout; the sweep delivers on_no_response() and
+///                               the return value picks retry (-> READY) or resolution
+///   WAITING -> INTERRUPTED      on an unexpected-frame interruption; keeps tx blocked until the
+///                               send-wait timeout (the old "interrupted shell", now explicit); the
+///                               sweep delivers on_no_response() and stores the retry decision,
+///                               applied when the timeout releases the shell
+///   anything -> DELETED         on clear_tx_queue_* (a clear is a state flip; the sweep resolves
+///                               owed terminals - or removes silently for device-scoped clears)
+///   WAITING -> WAITING_DELETED  on a clear with clear_sent: the frame is on the wire, so it
+///                               persists as a response-ignoring shell, -> DELETED on response or
+///                               timeout and swept silently
+///   new -> REFUSED              full-queue refusals (a fresh entry in the reserve) and transmit
+///                               failures (a state flip): the entry owes exactly one on_not_sent(),
+///                               delivered by the sweep; a transmit failure with remaining pending
+///                               then returns to READY for the absorbed request's run. (Empty and
+///                               oversize PDUs never enter the machine; their on_not_sent() is
+///                               delivered inline at send_pdu().)
+/// THE SWEEP (end of loop(), gated by a service counter) walks entries needing service and delivers
+/// their callbacks from a QUIESCENT hub - terminal-state entries ARE the pending deliveries, so no
+/// separate notification queue exists and no callback ever runs mid-mutation.
+enum class FrameState : uint8_t {
+  READY = 0,
+  WAITING,
+  RECEIVED,
+  TIMED_OUT,
+  INTERRUPTED,
+  REFUSED,
+  WAITING_DELETED,
+  DELETED,
+};
 
 /// Per-command options for the send helpers. Extended append-only; prefer designated initializers
 /// at call sites ({.continuous = true}) so added fields never disturb existing callers.
 struct CommandOptions {
-  /// Re-queue this read at the lowest priority each time it completes successfully, filling idle
-  /// bus time with polling. Failures are not re-queued (the caller's normal update path recovers).
-  /// Ignored for writes.
+  /// Register this read as a RESIDENT poll: it lives in the queue until cancelled, cycling
+  /// READY -> WAITING -> RECEIVED -> READY, selected least-recently-served whenever no one-shot
+  /// wants the bus. A failure (timeout without retry, transmit failure) ends the poll; the
+  /// caller's normal update path recovers. Ignored for mutating function codes.
   bool continuous{false};
 };
 
 struct ModbusDeviceCommand {
   ModbusClientDevice *device;
   ModbusFrame frame;
-  CommandPriority priority{CommandPriority::READ_ONCE};
-  bool interrupted{false};
-  /// Marked by clear_tx_queue_for_address() before it starts notifying, so frames re-queued by an
-  /// on_not_sent() callback (which are unmarked) are never swept by the clear that triggered them.
-  bool marked_for_deletion{false};
+  FrameState state{FrameState::READY};
+  CommandPriority priority{CommandPriority::READ};
+  /// RESIDENT entries (continuous polls) are subscriptions: never consumed by completion, pending
+  /// fixed at 1 ("the subscription"), removed only by cancellation or failure.
+  bool resident{false};
+  /// Retry decision recorded by the sweep for INTERRUPTED shells, applied when the send-wait
+  /// timeout releases the shell (the wire timing matches the old immediate-requeue-behind-shell).
+  bool retry_after_interrupt{false};
+  /// Whether the sweep has delivered the INTERRUPTED shell's on_no_response() yet.
+  bool interrupt_notified{false};
+  /// RECEIVED bookkeeping: true for a data response, false for an exception response (a resident
+  /// poll continues only after success; one-shot consumption is identical either way).
+  bool response_ok{false};
+  /// DELETED entries from device-scoped clears (and spent shells) retire without callbacks.
+  bool silent_delete{false};
+  /// Per-sweep marker: this entry's device already received a refusal/bleed on_not_sent() during
+  /// the current sweep. Further refusals for the device are suppressed and further bleed is
+  /// deferred, so a handler that re-sends from inside on_not_sent() cannot livelock the sweep.
+  /// Reset at the end of every sweep.
+  bool served_not_sent{false};
+  /// Accepted requests this entry stands for. Duplicates increment it without bound; the sweep
+  /// bleeds any excess over the servable cap (2 for requeueable reads: this run + one re-run;
+  /// 1 for everything else) as on_not_sent() deliveries. An entry leaving the world drains to
+  /// zero, one terminal per remaining count.
+  uint8_t pending{1};
+  /// Monotonic age stamp: FIFO tiebreak within an ordering class. A retry or absorbed re-run keeps
+  /// its original stamp (the request was here first); residents are re-stamped on each completed
+  /// cycle, making least-recently-served selection a plain minimum.
+  uint16_t seq{0};
 
   ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, const uint8_t *src, uint16_t len,
-                      CommandPriority priority = CommandPriority::READ_ONCE)
+                      CommandPriority priority = CommandPriority::READ)
       : device(device), frame(address, src, len), priority(priority) {}
-  /// Build a command from a PDU span: a caller-supplied PDU, or an existing frame's own pdu() when re-queueing
-  /// Callers must bound the PDU to MAX_PDU_SIZE
+  /// Build a command from a PDU span. Callers must bound the PDU to MAX_PDU_SIZE.
   ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, std::span<const uint8_t> pdu,
-                      CommandPriority priority = CommandPriority::READ_ONCE)
+                      CommandPriority priority = CommandPriority::READ)
       : device(device), frame(address, pdu.data(), static_cast<uint16_t>(pdu.size())), priority(priority) {}
 
   /// True if this command carries the same wire frame (address + PDU) as the given one.
@@ -134,7 +195,14 @@ struct ModbusDeviceCommand {
     return own_pdu.size() == pdu.size() && this->frame.address() == address &&
            memcmp(own_pdu.data(), pdu.data(), pdu.size()) == 0;
   }
+  /// Live entries occupy transmit-queue capacity; REFUSED entries use the reserved spots instead.
+  bool is_live() const { return this->state != FrameState::REFUSED; }
 };
+
+/// Container spots reserved exclusively for REFUSED entries, so a full transmit queue can still
+/// record its refusals for uniform sweep delivery. Beyond the reserve: drop with an error log -
+/// the one honest backstop, and it is loud.
+static constexpr uint8_t MODBUS_REFUSED_RESERVE = 4;
 
 class ModbusClientHub : public Modbus {
  public:
@@ -157,10 +225,10 @@ class ModbusClientHub : public Modbus {
                 CommandOptions options = {});
   ESPDEPRECATED("Use send_pdu(payload[0], <pdu bytes>, device) instead. Removed in 2027.2.0", "2026.8.0")
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr);
-  // Drop the queued commands for an address; every dropped frame resolves via its owner's on_not_sent(),
-  // so other devices sharing the address observe the drop. The in-flight frame is only detached (silently)
-  // when clear_sent is set. clear_tx_queue_for_device() SILENTLY discards the caller's own frames
-  // (supersede/teardown semantics); see the lifecycle note on ModbusClientDevice.
+  // Drop the queued commands for an address; every dropped frame resolves via its owner's on_not_sent()
+  // at the next sweep, so other devices sharing the address observe the drop. The in-flight frame is
+  // only detached (silently) when clear_sent is set. clear_tx_queue_for_device() SILENTLY discards the
+  // caller's own frames (supersede/teardown semantics); see the lifecycle note on ModbusClientDevice.
   void clear_tx_queue_for_address(uint8_t address, bool clear_sent = true);
   void clear_tx_queue_for_device(ModbusClientDevice *device);
 
@@ -169,31 +237,46 @@ class ModbusClientHub : public Modbus {
   void parse_modbus_frames() override;
   void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) override;
   void send_next_frame_();
-  // Notify the waiting device of no response; re-queues the frame if on_no_response() returns true.
-  // wfr is the caller's checked reference to waiting_for_response_.
-  void notify_no_response_(ModbusDeviceCommand &wfr);
-  // device_retry is what on_no_response() returned (true = the device asked to retry, so this attempt
-  // is not a resolution); it decides whether a READ_AGAIN entry keeps its extra pending request or is demoted.
-  void requeue_waiting_frame_(ModbusDeviceCommand &wfr, bool device_retry);
-  // Inserts before the first lower-priority entry. Only the INSERT paths honor priority order: an
-  // in-place promotion (READ_ONCE -> READ_AGAIN) keeps the entry's queue position, so the deque is
-  // not strictly sorted and FIFO-within-a-class holds only for entries that entered via insertion.
-  void insert_by_priority_(ModbusDeviceCommand &&command);
-  // Re-queues a completed command if its priority asks for it (READ_AGAIN always, demoted to
-  // READ_ONCE; READ_CONTINUOUS only after a successful response).
-  void maybe_requeue_completed_(ModbusDeviceCommand &command, bool success);
+  // Deliver owed callbacks from a quiescent hub and apply lifecycle bookkeeping; see FrameState.
+  void sweep_();
+  // The selection function: best READY entry (WRITE class first, then one-shot reads, then the
+  // least-recently-served resident; FIFO by seq within each group), or nullptr.
+  ModbusDeviceCommand *select_next_ready_();
+  // Locate the single WAITING/INTERRUPTED/WAITING_DELETED entry (the in-flight transaction).
+  ModbusDeviceCommand *find_in_flight_();
+  // End the in-flight transaction on send-wait timeout (the loop() watchdog body); see FrameState.
+  void expire_in_flight_();
+  // Retire an entry: no callbacks owed from here on; the sweep's erase pass removes it.
+  static void retire_(ModbusDeviceCommand &cmd) {
+    cmd.state = FrameState::DELETED;
+    cmd.pending = 0;
+    cmd.silent_delete = true;
+  }
+  // Count of live (non-REFUSED) entries, for the transmit-queue cap.
+  size_t live_count_() const;
+  // Append a REFUSED entry owing one on_not_sent() (uses the reserve; drops loudly beyond it).
+  void refuse_(ModbusClientDevice *device, uint8_t address, std::span<const uint8_t> pdu);
+  // Servable cap for the pending bleed: 2 for requeueable reads, 1 otherwise.
+  static uint8_t servable_cap_(const ModbusDeviceCommand &cmd);
 
   uint16_t send_wait_time_{2000};
   uint16_t turnaround_delay_ms_{0};
-  std::optional<ModbusDeviceCommand> waiting_for_response_;
-  /// The command whose response/error callbacks are currently running (it has already left
-  /// waiting_for_response_). The clear variants detach it here so a device can cancel its own
-  /// continuous/READ_AGAIN re-queue from inside on_response()/on_error().
-  ModbusDeviceCommand *completing_{nullptr};
 
-  // std::deque is appropriate here since we need a FIFO buffer, and we can't know ahead of time how many
-  // requests will be queued. Each modbus component may queue multiple requests, and the sequence of scheduling
-  // may change at run time.
+  /// In-flight tracking: cache VALUES, derive ENTRIES. The two cached values below serve the
+  /// loop-rate timeout watchdog; the entry itself is found by scan at event rate. Uniqueness is
+  /// enforced at the transmit gate: has_in_flight_ is written at exactly two kinds of sites (set
+  /// on transmit, cleared on the transaction-ending transition) and send_next_frame_ refuses to
+  /// select while it is set.
+  bool has_in_flight_{false};
+  uint8_t in_flight_address_{0};
+
+  /// Set whenever a transition leaves sweep work behind (terminal deliveries, pending bleed);
+  /// quiet loop() passes skip the walk when clear.
+  bool sweep_needed_{false};
+  /// Monotonic stamp source for ModbusDeviceCommand::seq.
+  uint16_t next_seq_{0};
+
+  // Plain append-order container; ordering lives in select_next_ready_(), lifecycle in FrameState.
   std::deque<ModbusDeviceCommand> tx_buffer_;
 };
 
@@ -228,26 +311,27 @@ class ModbusServerHub : public Modbus {
 // Transaction status: std::nullopt on success, otherwise a Modbus exception code
 using ResponseStatus = std::optional<ExceptionCode>;
 
-/// Command lifecycle: each accepted command (a send_pdu()/typed-helper call, a hub re-queue from a
-/// retry or READ_AGAIN promotion, or a continuous re-queue) ends in exactly ONE terminal callback:
+/// Command lifecycle: each accepted request (a send_pdu()/typed-helper call, a retry granted by
+/// on_no_response(), or a resident poll's cycle) ends in exactly ONE terminal callback:
 /// on_response() (valid response), on_error() (exception response), on_no_response()
 /// (timeout or interrupted transaction), or on_not_sent() (never transmitted: send failure,
-/// full queue, or refused as an unabsorbable duplicate). on_sent() is additional, not
-/// terminal: it fires once per wire transmission, before whichever of data/error/no_response follows,
-/// and never for a command that ends in on_not_sent().
+/// full queue, or bled off as an over-cap duplicate). on_sent() is additional, not terminal:
+/// it fires once per wire transmission, before whichever of data/error/no_response follows,
+/// and never for a request that ends in on_not_sent().
+/// Delivery timing: on_response()/on_error() fire at parse time (zero-copy spans); every other
+/// callback is delivered by the sweep at the end of the hub's loop(), from a quiescent hub -
+/// see the FrameState transition table for the full machine.
 /// The exceptions to "exactly one terminal":
-///  - clear_tx_queue_for_device() drops the caller's OWN queued commands SILENTLY (supersede/teardown
+///  - clear_tx_queue_for_device() drops the caller's OWN commands SILENTLY (supersede/teardown
 ///    semantics), and both clear variants detach the in-flight frame - and a command mid-completion
-///    (inside its own response callbacks) - silently; a detach inside on_no_response() also
-///    swallows a READ_AGAIN's absorbed second request.
+///    (inside its own response callbacks) - silently, cancelling any pending re-run or poll cycle.
 ///    clear_tx_queue_for_address() DOES resolve every queued frame it drops via the owner's
-///    on_not_sent() (delivered one at a time, after that frame leaves the queue); a swept READ_AGAIN
-///    frame stands for exactly two pending requests and resolves with two deliveries.
-///  - a duplicate absorbed into a CONTINUOUS entry is served by the poll's next response; if the poll
-///    is swept before that response, its single on_not_sent() stands for those requests as well.
-///    Likewise, converting an entry to continuous ({.continuous = true} matching a queued frame)
-///    SUPERSEDES any request that entry had absorbed: the caller opted into streaming semantics,
-///    and the poll's responses are the accounting from then on.
+///    on_not_sent(), one delivery per accepted request the entry stood for.
+///  - a duplicate absorbed into a RESIDENT (continuous) entry is served uncounted by the poll's
+///    next response; if the poll dies before that response, its single terminal stands for those
+///    requests as well. Likewise, converting an entry to continuous ({.continuous = true} matching
+///    a queued frame) SUPERSEDES any request that entry had absorbed: the caller opted into
+///    streaming semantics, and the poll's responses are the accounting from then on.
 ///  - while a device's own on_not_sent() is on the stack, further on_not_sent() deliveries to THAT
 ///    device are dropped (see trigger_not_sent()). In particular, a clear issued from inside your own
 ///    on_not_sent() resolves your remaining frames silently - treat it like
