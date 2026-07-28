@@ -13,7 +13,7 @@ from esphome.cpp_generator import MockObjClass
 
 _LOGGER = logging.getLogger(__name__)
 
-DEPENDENCIES = ["remote_transmitter"]
+DEPENDENCIES = ["climate", "remote_transmitter"]
 AUTO_LOAD = ["sensor", "remote_base"]
 CODEOWNERS = ["@glmnet"]
 

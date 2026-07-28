@@ -23,3 +23,21 @@ climate:
     min_temperature: 18
     max_temperature: 30
     transmitter_id: xmitr
+  - platform: heatpumpir
+    protocol: greeyap
+    horizontal_default: auto
+    vertical_default: up
+    name: HeatpumpIR Climate Gree YAP (Light Off)
+    min_temperature: 16
+    max_temperature: 30
+    light: false
+    transmitter_id: xmitr
+  - platform: heatpumpir
+    protocol: vaillantvai8
+    horizontal_default: auto
+    vertical_default: up
+    name: HeatpumpIR Climate Vaillant (Light Off)
+    min_temperature: 16
+    max_temperature: 30
+    light: false
+    transmitter_id: xmitr
