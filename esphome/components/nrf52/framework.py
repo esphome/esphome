@@ -342,6 +342,7 @@ def check_and_install() -> None:
             "init",
             "-m",
             "https://github.com/nrfconnect/sdk-nrf",
+            "-o=--depth=1",
             "--mr",
             version,
             str(framework_path),
