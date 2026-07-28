@@ -185,7 +185,7 @@ TEST(ModbusClientHubNoResponse, RetryBehindInterruptedShell) {
   EXPECT_EQ(device.no_response_count_, 1);
   EXPECT_EQ(hub.queued_frames(), 0u);  // no separate requeue: the entry IS the shell
   ASSERT_TRUE(hub.waiting());          // and it keeps blocking the bus
-  EXPECT_EQ(hub.waiting_command().state, FrameState::INTERRUPTED);
+  EXPECT_EQ(hub.waiting_command().state, FrameState::INTERRUPTED_NOTIFIED);
   EXPECT_TRUE(hub.waiting_command().retry_after_interrupt);  // the retry decision is recorded...
   EXPECT_EQ(hub.waiting_command().device, &device);
 

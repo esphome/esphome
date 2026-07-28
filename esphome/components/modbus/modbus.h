@@ -110,9 +110,12 @@ enum class CommandPriority : uint8_t { READ = 0, WRITE };
 ///   WAITING -> TIMED_OUT        on the send-wait timeout; the sweep delivers on_no_response() and
 ///                               the return value picks retry (-> READY) or resolution
 ///   WAITING -> INTERRUPTED      on an unexpected-frame interruption; keeps tx blocked until the
-///                               send-wait timeout (the old "interrupted shell", now explicit); the
-///                               sweep delivers on_no_response() and stores the retry decision,
-///                               applied when the timeout releases the shell
+///                               send-wait timeout (the old "interrupted shell", now explicit)
+///   INTERRUPTED -> INTERRUPTED_NOTIFIED
+///                               when the sweep delivers the shell's on_no_response() and records
+///                               the retry decision in retry_after_interrupt
+///   INTERRUPTED_NOTIFIED -> READY (retry granted or an absorbed request remains) or removal,
+///                               applied when the send-wait timeout releases the shell
 ///   anything -> DELETED         on clear_tx_queue_* (a clear is a state flip; the sweep resolves
 ///                               owed terminals - or removes silently for device-scoped clears)
 ///   WAITING -> WAITING_DELETED  on a clear with clear_sent: the frame is on the wire, so it
@@ -133,6 +136,7 @@ enum class FrameState : uint8_t {
   RECEIVED,
   TIMED_OUT,
   INTERRUPTED,
+  INTERRUPTED_NOTIFIED,
   REFUSED,
   WAITING_DELETED,
   DELETED,
@@ -156,11 +160,9 @@ struct ModbusDeviceCommand {
   /// RESIDENT entries (continuous polls) are subscriptions: never consumed by completion, pending
   /// fixed at 1 ("the subscription"), removed only by cancellation or failure.
   bool resident{false};
-  /// Retry decision recorded by the sweep for INTERRUPTED shells, applied when the send-wait
+  /// Retry decision recorded at INTERRUPTED -> INTERRUPTED_NOTIFIED, applied when the send-wait
   /// timeout releases the shell (the wire timing matches the old immediate-requeue-behind-shell).
   bool retry_after_interrupt{false};
-  /// Whether the sweep has delivered the INTERRUPTED shell's on_no_response() yet.
-  bool interrupt_notified{false};
   /// RECEIVED bookkeeping: true for a data response, false for an exception response (a resident
   /// poll continues only after success; one-shot consumption is identical either way).
   bool response_ok{false};
@@ -242,7 +244,7 @@ class ModbusClientHub : public Modbus {
   // The selection function: best READY entry (WRITE class first, then one-shot reads, then the
   // least-recently-served resident; FIFO by seq within each group), or nullptr.
   ModbusDeviceCommand *select_next_ready_();
-  // Locate the single WAITING/INTERRUPTED/WAITING_DELETED entry (the in-flight transaction).
+  // Locate the single WAITING/INTERRUPTED[_NOTIFIED]/WAITING_DELETED entry (the in-flight transaction).
   ModbusDeviceCommand *find_in_flight_();
   // End the in-flight transaction on send-wait timeout (the loop() watchdog body); see FrameState.
   void expire_in_flight_();

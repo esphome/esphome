@@ -77,12 +77,11 @@ void ModbusClientHub::expire_in_flight_() {
     retire_(*cmd);
     this->sweep_needed_ = true;
     this->has_in_flight_ = false;
-  } else if (cmd->interrupt_notified) {  // INTERRUPTED shell with its retry decision recorded
+  } else if (cmd->state == FrameState::INTERRUPTED_NOTIFIED) {  // retry decision recorded
     if (cmd->retry_after_interrupt || --cmd->pending != 0) {
       // Wire-equivalent to the old requeue-behind-the-shell: the retry (or an absorbed request's
       // run) becomes sendable exactly when the shell stops blocking; it keeps its original seq.
       cmd->state = FrameState::READY;
-      cmd->interrupt_notified = false;
       cmd->retry_after_interrupt = false;
     } else {
       retire_(*cmd);
@@ -322,8 +321,8 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
              this->last_modbus_byte_ - this->last_send_);
     // The transaction is interrupted: the entry becomes an INTERRUPTED shell that keeps tx blocked
     // until the send-wait timeout. The sweep delivers on_no_response() and records the retry
-    // decision; the timeout applies it. A shell that is already INTERRUPTED (or a cleared
-    // WAITING_DELETED one) just keeps waiting out the clock.
+    // decision (-> INTERRUPTED_NOTIFIED); the timeout applies it. A shell already past WAITING
+    // (interrupted or cleared) just keeps waiting out the clock.
     if (cmd->state == FrameState::WAITING) {
       cmd->state = FrameState::INTERRUPTED;
       this->sweep_needed_ = true;
@@ -624,6 +623,7 @@ ModbusDeviceCommand *ModbusClientHub::find_in_flight_() {
     switch (cmd.state) {
       case FrameState::WAITING:
       case FrameState::INTERRUPTED:
+      case FrameState::INTERRUPTED_NOTIFIED:
       case FrameState::WAITING_DELETED:
         return &cmd;
       default:
@@ -748,15 +748,13 @@ void ModbusClientHub::sweep_() {
           break;
         }
         case FrameState::INTERRUPTED: {
-          if (cmd.interrupt_notified)
-            break;  // decision recorded; the shell is just waiting out the send-wait clock
-          cmd.interrupt_notified = true;
+          // Advance BEFORE the callback, so a clear from inside it (-> WAITING_DELETED) wins and
+          // is never overwritten; the decision recorded below is then moot.
+          cmd.state = FrameState::INTERRUPTED_NOTIFIED;
           bool retry = false;
           if (cmd.device != nullptr)
             retry = cmd.device->on_no_response(cmd.frame.pdu());
-          // Applied when the timeout releases the shell. If the handler cleared the entry the
-          // state is WAITING_DELETED now and the decision is moot.
-          cmd.retry_after_interrupt = retry;
+          cmd.retry_after_interrupt = retry;  // applied when the timeout releases the shell
           progressed = true;
           break;
         }
@@ -949,6 +947,7 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sen
         break;
       case FrameState::WAITING:
       case FrameState::INTERRUPTED:
+      case FrameState::INTERRUPTED_NOTIFIED:
         // On the wire: only detached when clear_sent is set. The shell keeps blocking until the
         // send-wait timeout (or the response arrives) and is swept silently.
         if (clear_sent) {
@@ -975,6 +974,7 @@ void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
     switch (cmd.state) {
       case FrameState::WAITING:
       case FrameState::INTERRUPTED:
+      case FrameState::INTERRUPTED_NOTIFIED:
         // On the wire: keeps blocking until the send-wait timeout, then swept silently.
         cmd.state = FrameState::WAITING_DELETED;
         cmd.silent_delete = true;
