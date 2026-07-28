@@ -118,7 +118,7 @@ CONFIG_SCHEMA = cv.All(
                 {
                     cv.Required(CONF_I2S_DIN_PIN): pins.internal_gpio_input_pin_number,
                     cv.Optional(CONF_PDM, default=False): cv.boolean,
-                    cv.Optional(CONF_PDM_DSR, default=8): cv.enum(I2S_PDM_DSR),
+                    cv.Optional(CONF_PDM_DSR, default=8): cv.enum(I2S_PDM_DSR, int=True),
                 }
             ),
         },
