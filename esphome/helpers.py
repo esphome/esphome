@@ -369,6 +369,28 @@ def is_ha_addon():
     return get_bool_env("ESPHOME_IS_HA_ADDON")
 
 
+# Environment variables that scope git to a specific repository. Git hooks and
+# some CI wrappers export these; if they leak into git commands run by esphome,
+# git binds to the caller's repository instead of the one being managed. The
+# effects range from loud (`git clone` producing a bare-style directory with
+# no working tree) to silent (an ambient GIT_INDEX_FILE makes
+# `git submodule update --init` exit 0 without initializing anything).
+# GIT_TEMPLATE_DIR is included because `git init` copies the template's hooks
+# into the new repository, where a later commit would run them.
+GIT_REPO_SCOPING_ENV = frozenset(
+    {
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_COMMON_DIR",
+        "GIT_NAMESPACE",
+        "GIT_TEMPLATE_DIR",
+    }
+)
+
+
 def add_git_ceiling_directory(env: MutableMapping[str, str], directory: Path) -> None:
     """Add ``directory`` to ``env``'s ``GIT_CEILING_DIRECTORIES`` list.
 

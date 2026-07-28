@@ -18,11 +18,11 @@ from esphome.framework_helpers import (
     download_from_mirrors,
     get_python_env_executable_path,
     rmdir,
+    run_command,
     run_command_ok,
     str_to_lst_of_str,
 )
-from esphome.git import _GIT_REPO_SCOPING_ENV
-from esphome.helpers import get_str_env
+from esphome.helpers import GIT_REPO_SCOPING_ENV, get_str_env
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -264,9 +264,14 @@ def _prune_git_history(framework_path: Path) -> None:
     .git/index. Each repository is therefore replaced with an empty stub
     instead. The workspace manifest is resolved to a single file beforehand,
     so no repository needs to keep real history for west's import resolution.
+
+    Submodule working trees inside a project carry a ``.git`` gitlink file
+    whose target ``.git/modules`` store is deleted with the parent's
+    repository; the gitlink is removed too, so git commands in a submodule
+    directory resolve to the parent's stub instead of a dangling reference.
     """
     # The stub commands must be hermetic. Repository-scoping variables (see
-    # _GIT_REPO_SCOPING_ENV) would redirect them at the caller's repository;
+    # GIT_REPO_SCOPING_ENV) would redirect them at the caller's repository;
     # ambient author/committer variables would change the stub commit hash;
     # and global/system config could change the object format, force commit
     # signing, or run hooks. With everything pinned, every stub commit hashes
@@ -276,7 +281,7 @@ def _prune_git_history(framework_path: Path) -> None:
     stub_env = {
         k: v
         for k, v in os.environ.items()
-        if k not in _GIT_REPO_SCOPING_ENV
+        if k not in GIT_REPO_SCOPING_ENV
         and not k.startswith(("GIT_AUTHOR_", "GIT_COMMITTER_", "GIT_CONFIG"))
     }
     stub_env.update(
@@ -290,12 +295,19 @@ def _prune_git_history(framework_path: Path) -> None:
         GIT_CONFIG_SYSTEM=os.devnull,
     )
     # Collect .git directories without descending into them: they are the
-    # multi-hundred-MB object stores this function is about to delete.
+    # multi-hundred-MB object stores this function is about to delete. A .git
+    # that is a file is a submodule gitlink; its target dies with the parent's
+    # .git/modules store, so drop the gitlink rather than leave it dangling.
     git_dirs: list[Path] = []
-    for dirpath, dirnames, _ in os.walk(framework_path):
+    gitlinks: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(framework_path):
         if ".git" in dirnames:
             git_dirs.append(Path(dirpath) / ".git")
             dirnames.remove(".git")
+        elif ".git" in filenames:
+            gitlinks.append(Path(dirpath) / ".git")
+    for gitlink in gitlinks:
+        gitlink.unlink()
     for git_dir in git_dirs:
         project = git_dir.parent
         rmdir(git_dir)
@@ -375,9 +387,20 @@ def check_and_install() -> None:
         if not run_command_ok(cmd, cwd=framework_path):
             raise EsphomeError(f"Can't update nRF Connect SDK {version}")
         # Flatten manifest imports into a single file inside the manifest
-        # repository ("nrf" is sdk-nrf's self path) and point west at it, so
-        # import resolution never runs again and _prune_git_history() can
-        # stub every project repository.
+        # repository and point west at it, so import resolution never runs
+        # again and _prune_git_history() can stub every project repository.
+        # west looks manifest.file up relative to manifest.path, so the
+        # resolved file must be written there ("nrf" today, but owned by the
+        # sdk-nrf manifest rather than hardcoded here).
+        ok, manifest_path_out, _ = run_command(
+            [str(env_python_path), "-m", "west", "config", "manifest.path"],
+            cwd=framework_path,
+        )
+        manifest_path = (manifest_path_out or "").strip()
+        if not ok or not manifest_path:
+            raise EsphomeError(
+                f"Can't determine the west manifest path for nRF Connect SDK {version}"
+            )
         cmd = [
             str(env_python_path),
             "-m",
@@ -385,7 +408,7 @@ def check_and_install() -> None:
             "manifest",
             "--resolve",
             "-o",
-            str(framework_path / "nrf" / _RESOLVED_MANIFEST),
+            str(framework_path / manifest_path / _RESOLVED_MANIFEST),
         ]
         if not run_command_ok(cmd, cwd=framework_path):
             raise EsphomeError(

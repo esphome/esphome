@@ -107,6 +107,10 @@ def mock_nrf52_ops():
             "esphome.components.nrf52.framework.run_command_ok", return_value=True
         ) as mock_run_cmd,
         patch(
+            "esphome.components.nrf52.framework.run_command",
+            return_value=(True, "nrf\n", ""),
+        ) as mock_run_cmd_out,
+        patch(
             "esphome.components.nrf52.framework.download_from_mirrors",
             return_value="https://example.com/tc.tar.xz",
         ) as mock_download,
@@ -116,6 +120,7 @@ def mock_nrf52_ops():
             rmdir=mock_rmdir,
             create_venv=mock_create_venv,
             run_command_ok=mock_run_cmd,
+            run_command=mock_run_cmd_out,
             download_from_mirrors=mock_download,
             archive_extract_all=mock_extract,
         )
@@ -232,9 +237,13 @@ class TestCheckAndInstall:
         """The resolved manifest lands in the manifest repository and west is
         pointed at it, so import resolution never needs project git history."""
         _mark_venv_ready(nrf52_dirs.python_env)
+        mock_nrf52_ops.run_command.return_value = (True, "my-manifest-repo\n", "")
 
         check_and_install()
 
+        # The output directory comes from west, not from a hardcoded path
+        manifest_path_cmd = mock_nrf52_ops.run_command.call_args.args[0]
+        assert manifest_path_cmd[-2:] == ["config", "manifest.path"]
         resolve_cmd, config_cmd = (
             call.args[0] for call in mock_nrf52_ops.run_command_ok.call_args_list[2:4]
         )
@@ -242,7 +251,7 @@ class TestCheckAndInstall:
         assert "--resolve" in resolve_cmd
         assert resolve_cmd[-2:] == [
             "-o",
-            str(nrf52_dirs.framework / "nrf" / "west-resolved.yml"),
+            str(nrf52_dirs.framework / "my-manifest-repo" / "west-resolved.yml"),
         ]
         assert config_cmd[-3:] == ["config", "manifest.file", "west-resolved.yml"]
 
@@ -582,6 +591,12 @@ class TestPruneGitHistory:
         # repository-scoping variables point at it (git hooks and some CI
         # wrappers export these). Ambient author/committer identity and
         # config overrides must not change the stub commit hash either.
+        # A submodule working tree: its .git is a gitlink file whose target
+        # .git/modules store dies with the parent repository
+        submodule = framework / "modules" / "lib" / "matter" / "third_party" / "dep"
+        submodule.mkdir(parents=True)
+        (submodule / ".git").write_text("gitdir: ../../.git/modules/dep\n")
+
         caller = tmp_path / "caller"
         caller.mkdir()
         subprocess.run(["git", "-C", str(caller), "init", "--quiet"], check=True)
@@ -593,6 +608,9 @@ class TestPruneGitHistory:
             hostile.setenv("GIT_AUTHOR_EMAIL", "someone@example.com")
             hostile.setenv("GIT_COMMITTER_DATE", "2020-05-05T05:05:05Z")
             _prune_git_history(framework)
+
+        # The submodule gitlink is removed instead of left dangling
+        assert not (submodule / ".git").exists()
 
         # The caller's repository gained no commits
         caller_head = subprocess.run(

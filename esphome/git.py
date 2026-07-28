@@ -12,7 +12,12 @@ import urllib.parse
 
 import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError, TimePeriodSeconds
-from esphome.helpers import add_git_ceiling_directory, rmtree, write_file
+from esphome.helpers import (
+    GIT_REPO_SCOPING_ENV,
+    add_git_ceiling_directory,
+    rmtree,
+    write_file,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -26,24 +31,6 @@ NEVER_REFRESH = TimePeriodSeconds(seconds=-1)
 # NEVER_REFRESH. Lives in .git so stash/reset/checkout can never touch it and
 # it does not pollute the worktree.
 _CLONE_COMPLETE_MARKER = "esphome_clone_complete"
-
-# Environment variables that scope git to a specific repository. Git hooks and
-# some CI wrappers export these; if they leak into the git commands run here,
-# git binds to the caller's repository instead of the one being managed. The
-# effects range from loud (`git clone` producing a bare-style directory with
-# no working tree) to silent (an ambient GIT_INDEX_FILE makes
-# `git submodule update --init` exit 0 without initializing anything).
-_GIT_REPO_SCOPING_ENV = frozenset(
-    {
-        "GIT_DIR",
-        "GIT_WORK_TREE",
-        "GIT_INDEX_FILE",
-        "GIT_OBJECT_DIRECTORY",
-        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-        "GIT_COMMON_DIR",
-        "GIT_NAMESPACE",
-    }
-)
 
 
 class GitException(cv.Invalid):
@@ -76,14 +63,14 @@ def run_git_command(
 ) -> str:
     """Run a git command and return its stdout.
 
-    The repository-scoping environment variables in ``_GIT_REPO_SCOPING_ENV``
+    The repository-scoping environment variables in ``GIT_REPO_SCOPING_ENV``
     are always stripped. ``git_dir`` additionally pins GIT_DIR/GIT_WORK_TREE
     to that repository and runs the command there; ``cwd`` alone runs the
     command in that directory with GIT_CEILING_DIRECTORIES capping repository
     discovery at its parent.
     """
     # Every invocation starts from an environment with the repository-scoping
-    # variables stripped (see _GIT_REPO_SCOPING_ENV) so a git hook or CI
+    # variables stripped (see GIT_REPO_SCOPING_ENV) so a git hook or CI
     # wrapper invoking ESPHome can never redirect these commands to its own
     # repository or index.
     #
@@ -103,7 +90,7 @@ def run_git_command(
     # keeps the parent-repo-walk protection instead: if the repo's .git is
     # missing or corrupt, git fails rather than discovering an enclosing
     # repository.
-    env = {k: v for k, v in os.environ.items() if k not in _GIT_REPO_SCOPING_ENV}
+    env = {k: v for k, v in os.environ.items() if k not in GIT_REPO_SCOPING_ENV}
     if git_dir is not None:
         env["GIT_DIR"] = str(Path(git_dir) / ".git")
         env["GIT_WORK_TREE"] = str(git_dir)
