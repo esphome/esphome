@@ -72,6 +72,31 @@ def _effective_requirements(overrides: dict[str, str | None]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _refresh_manifest_repo(zephyr_dir: Path, ref: str | None, label: str) -> None:
+    """Re-fetch and reset the manifest repository (the Zephyr checkout itself) to the
+    latest commit on `ref`.
+
+    `west update` only clones/fetches/checks out the *projects* listed in the manifest
+    to match the revisions recorded in the manifest repository's currently checked-out
+    manifest file -- per west's own documentation it "does not alter the manifest
+    repository's contents". For a `sdk_source: type: git` pointing at a moving ref
+    (e.g. a branch), that leaves the manifest repository (`framework/zephyr`, which is
+    where files like Kconfig.esp32 live) pinned forever to whatever commit `west init`
+    happened to check out, no matter how often `west update` subsequently runs on the
+    stated `refresh:` interval.
+    """
+    _LOGGER.info("Refreshing Zephyr manifest repository (%s) ...", label)
+    cmd = ["git", "fetch", "--depth=1", "--", "origin"]
+    if ref:
+        cmd.append(ref)
+    if not run_command_ok(cmd, cwd=str(zephyr_dir)):
+        raise EsphomeError(f"Can't fetch Zephyr manifest repository ({label})")
+    if not run_command_ok(
+        ["git", "reset", "--hard", "FETCH_HEAD"], cwd=str(zephyr_dir)
+    ):
+        raise EsphomeError(f"Can't update Zephyr manifest repository ({label})")
+
+
 def check_and_install(
     sdk: ZephyrSDK,
     version: str,
@@ -213,6 +238,12 @@ def check_and_install(
             cmd.append(str(framework))
             if not run_command_ok(cmd):
                 raise EsphomeError(f"Can't initialize Zephyr SDK {ver_tag} ({label})")
+
+    if needs_refresh and not needs_init and not is_local:
+        # Git source with a moving ref: bring the manifest repository itself up to date
+        # before `west update` -- see _refresh_manifest_repo for why that step is
+        # otherwise silently skipped.
+        _refresh_manifest_repo(zephyr_dir, manifest_rev, label)
 
     if needs_init or needs_refresh:
         _LOGGER.info(
