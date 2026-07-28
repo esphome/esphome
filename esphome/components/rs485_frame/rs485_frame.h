@@ -173,10 +173,11 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   // frame_type) from YAML alone without forking the component.
   void enable_sniffer_stats(size_t max_entries, uint32_t interval_ms, uint8_t payload_dump_top,
                             size_t max_unique_payloads, size_t payload_capture_bytes,
-                            const std::vector<uint8_t> &reference_frame_type, bool strip_high_bit) {
+                            const std::vector<uint8_t> &reference_frame_type, bool strip_high_bit,
+                            bool reference_mode_send) {
     this->sniffer_stats_ = std::make_unique<SnifferStats>();
     this->sniffer_stats_->init(max_entries, interval_ms, payload_dump_top, max_unique_payloads, payload_capture_bytes,
-                               reference_frame_type, strip_high_bit);
+                               reference_frame_type, strip_high_bit, reference_mode_send);
   }
 #endif
 
@@ -241,7 +242,14 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   void update_last_frame_type_();
   size_t queue_size_() const { return this->tx_queue_count_; }
   void queue_pop_front_();
-  void write_frame_(const std::vector<uint8_t> &frame);
+  void write_frame_(const std::vector<uint8_t> &frame, uint32_t now);
+#ifdef USE_RS485_FRAME_SNIFFER_STATS
+  // Recovers the payload-relative view (frame_type at [0..N-1], no CRC) from a frame this hub
+  // just built, for sniffer_stats' record_tx(). Mirrors validate_frame_'s unescape loop but
+  // skips CRC verification — build_frame_ only ever emits well-formed frames, so trusting the
+  // shape is safe here in a way it would not be for untrusted RX bytes.
+  void extract_tx_payload_(const std::vector<uint8_t> &frame, std::vector<uint8_t> &out) const;
+#endif
   // Record a transmission: advances last_tx_time_ and the bus-activity timestamp, and
   // latches has_tx_ever_ so the fixed_delay gate has an unambiguous "has transmitted" flag.
   void mark_transmitted_(uint32_t now) {
@@ -330,6 +338,12 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   // Holds frame_type + payload concatenated for the two-argument queue_raw_frame(); reserved
   // to max_frame_length_ in setup() so the send_frame action / raw button never allocate.
   std::vector<uint8_t> send_assembly_buf_;
+
+#ifdef USE_RS485_FRAME_SNIFFER_STATS
+  // Scratch buffer for extract_tx_payload_()'s output, reserved to max_frame_length_ in
+  // setup() so recording a TX event never allocates on the hot path.
+  std::vector<uint8_t> tx_stats_payload_buf_;
+#endif
 
   // Setup-time allocated hex-text buffer for dump_frames logging. Sized to fit the
   // worst-case TX frame (max_frame_length_ * 2 + FRAME_OVERHEAD_BYTES bytes fully

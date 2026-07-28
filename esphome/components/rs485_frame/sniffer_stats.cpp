@@ -74,13 +74,14 @@ void SnifferEntry::reset_period_stats() {
 
 void SnifferStats::init(size_t max_entries, uint32_t interval_ms, uint8_t payload_dump_top, size_t max_unique_payloads,
                         size_t payload_capture_bytes, const std::vector<uint8_t> &reference_frame_type,
-                        bool strip_high_bit) {
+                        bool strip_high_bit, bool reference_mode_send) {
   size_t capped = max_entries > SNIFFER_MAX_FRAME_TYPES_UPPER ? SNIFFER_MAX_FRAME_TYPES_UPPER : max_entries;
   this->entries_.init(capped);
   this->reference_frame_type_.assign(reference_frame_type.begin(), reference_frame_type.end());
   this->interval_ms_ = interval_ms;
   this->payload_dump_top_ = payload_dump_top;
   this->strip_high_bit_ = strip_high_bit;
+  this->reference_mode_send_ = reference_mode_send;
   this->max_unique_payloads_ = max_unique_payloads;
   this->payload_capture_bytes_ = payload_capture_bytes;
   // Pre-allocate the hex/ASCII scratch buffers used by dump_payloads_ so dumps don't
@@ -96,18 +97,22 @@ bool SnifferStats::matches_reference_(const std::vector<uint8_t> &payload) const
   return std::equal(this->reference_frame_type_.begin(), this->reference_frame_type_.end(), payload.begin());
 }
 
-SnifferEntry *SnifferStats::find_or_create_(const uint8_t *frame_type) {
+SnifferEntry *SnifferStats::find_or_create_(const uint8_t *frame_type, bool is_tx) {
+  // Match on (frame_type, is_tx) together: a frame_type number reused by the protocol for
+  // both a request the hub sends and an independently-arriving reply must not merge into one
+  // row's count/d_same/payload table (see SnifferEntry::is_tx).
   for (auto &entry : this->entries_) {
-    if (entry.frame_type[0] == frame_type[0] && entry.frame_type[1] == frame_type[1])
+    if (entry.frame_type[0] == frame_type[0] && entry.frame_type[1] == frame_type[1] && entry.is_tx == is_tx)
       return &entry;
   }
   if (this->entries_.size() < this->entries_.capacity()) {
     SnifferEntry &e = this->entries_.emplace_back();
     e.frame_type[0] = frame_type[0];
     e.frame_type[1] = frame_type[1];
+    e.is_tx = is_tx;
     // Lazy allocation: per-entry payload buffers are sized using the current SnifferStats
-    // configuration. This only runs once per distinct frame_type, then never again — the
-    // hot record() path after this allocation is pure memcpy/compare.
+    // configuration. This only runs once per distinct (frame_type, is_tx) pair, then never
+    // again — the hot record() path after this allocation is pure memcpy/compare.
     e.init(this->max_unique_payloads_, this->payload_capture_bytes_);
     return &e;
   }
@@ -141,17 +146,32 @@ void SnifferStats::update_unique_payload_(SnifferEntry &e, const std::vector<uin
 void SnifferStats::record(const std::vector<uint8_t> &payload, uint32_t now) {
   if (!this->initialized_ || payload.size() < 2)
     return;
+  // reference_mode: receive (default) — is_ref is "this RX frame matches
+  // reference_frame_type_"; in reference_mode: send, RX frames never advance the reference
+  // clock (only TX events do, in record_tx() below), so is_ref is always false here.
+  bool is_ref = !this->reference_mode_send_ && this->matches_reference_(payload);
+  this->record_common_(payload, now, is_ref, /*is_tx=*/false);
+}
 
+void SnifferStats::record_tx(const std::vector<uint8_t> &payload, uint32_t now) {
+  if (!this->initialized_ || payload.size() < 2)
+    return;
+  // reference_mode: send — every TX event advances the reference clock, so it is always its
+  // own is_ref. reference_mode: receive leaves the reference clock to RX frames only.
+  bool is_ref = this->reference_mode_send_;
+  this->record_common_(payload, now, is_ref, /*is_tx=*/true);
+}
+
+void SnifferStats::record_common_(const std::vector<uint8_t> &payload, uint32_t now, bool is_ref, bool is_tx) {
   // Update the reference-frame timestamp *before* computing since-ref for this frame so
   // that the reference frame itself shows up with no since-ref sample (its own d-ref row
   // is always "-"), and the next non-reference frame measures from this one.
-  bool is_ref = this->matches_reference_(payload);
   if (is_ref) {
     this->last_ref_time_ = now;
     this->ref_seen_in_period_ = true;
   }
 
-  SnifferEntry *e = this->find_or_create_(payload.data());
+  SnifferEntry *e = this->find_or_create_(payload.data(), is_tx);
   if (e == nullptr) {
     if (this->dropped_frame_types_ < UINT32_MAX)
       this->dropped_frame_types_++;
@@ -164,7 +184,7 @@ void SnifferStats::record(const std::vector<uint8_t> &payload, uint32_t now) {
     e->d_same.add(now - e->last_seen_ms);
   }
 
-  // since-ref: skip when this frame is the reference itself (the d-ref column would be
+  // since-ref: skip when this event is the reference itself (the d-ref column would be
   // always zero and is uninformative for the reference row).
   if (this->ref_seen_in_period_ && !is_ref) {
     e->d_ref.add(now - this->last_ref_time_);
@@ -222,6 +242,11 @@ void SnifferStats::dump_(uint32_t now) {
 
   for (size_t i = 0; i < n; i++) {
     SnifferEntry &e = this->entries_[order[i]];
+    // A frame type seen in an earlier dump period but not this one still has a stale entry
+    // (reset_period_stats() zeroes count but the entry itself persists). Skip it rather than
+    // print an all-dashes row that adds no information about the current period.
+    if (e.count == 0)
+      continue;
 
     if (e.d_ref.recent_count == 0) {
       std::snprintf(d_ref_buf, sizeof(d_ref_buf), "%5s %5s %5s", "-", "-", "-");
@@ -241,8 +266,11 @@ void SnifferStats::dump_(uint32_t now) {
       std::snprintf(unique_buf, sizeof(unique_buf), "%u unique", e.unique_count);
     }
 
-    ESP_LOGI(TAG, "  %02X%02X %5" PRIu32 "    %s    %s   %s", e.frame_type[0], e.frame_type[1], e.count, d_ref_buf,
-             d_same_buf, unique_buf);
+    // '>' marks a TX row (we sent this frame_type) so the table reads directionally without
+    // a separate column; unmarked rows are RX as before. See AGENT_MEMORY.md — TX and RX
+    // frame_types never collide, so an entry is unambiguously one or the other.
+    ESP_LOGI(TAG, " %c%02X%02X %5" PRIu32 "    %s    %s   %s", e.is_tx ? '>' : ' ', e.frame_type[0], e.frame_type[1],
+             e.count, d_ref_buf, d_same_buf, unique_buf);
   }
 
   if (this->payload_dump_top_ > 0 && n > 0) {

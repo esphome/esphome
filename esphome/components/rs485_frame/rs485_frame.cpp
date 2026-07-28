@@ -93,6 +93,9 @@ void RS485FrameHub::setup() {
   // send_assembly_buf_ holds an assembled frame_type+payload before framing; it can never
   // legitimately exceed max_frame_length_ (queue_raw_frame rejects anything larger).
   this->send_assembly_buf_.reserve(this->max_frame_length_);
+#ifdef USE_RS485_FRAME_SNIFFER_STATS
+  this->tx_stats_payload_buf_.reserve(this->max_frame_length_);
+#endif
   // tx_escaped_buf_ worst case: every payload byte is DLE and requires an escape byte.
   this->tx_escaped_buf_.reserve(this->max_frame_length_ * 2);
   this->tx_frame_buf_.reserve(tx_slot_capacity);
@@ -145,7 +148,7 @@ void RS485FrameHub::loop() {
   // Unsigned subtraction wraps correctly so this comparison handles the 49-day millis rollover.
   if (this->tx_start_pending_ && now - this->tx_start_at_ < 0x80000000UL) {
     this->tx_start_pending_ = false;
-    this->write_frame_(this->pending_tx_frame_);
+    this->write_frame_(this->pending_tx_frame_, now);
     this->mark_transmitted_(now);
     if (!this->pending_is_idle_)
       this->commands_sent_++;
@@ -588,15 +591,18 @@ void RS485FrameHub::queue_pop_front_() {
   this->tx_queue_count_--;
 }
 
-void RS485FrameHub::write_frame_(const std::vector<uint8_t> &frame) {
+void RS485FrameHub::write_frame_(const std::vector<uint8_t> &frame, uint32_t now) {
   this->write_array(frame);
-#ifdef USE_ARDUINO
-  // On Arduino paths the uart component does not drive flow_control_pin, so users must
-  // run on auto-DE transceivers (DE follows the TX line state). flush() prevents the
-  // function from returning before bytes are physically on the wire so the transceiver
-  // does not flip back to RX mid-frame. On ESP-IDF the hardware RS485 half-duplex mode
-  // drives DE/RE from the shift-register-done signal; flush() there is pure busy-wait
-  // and is omitted to keep loop() responsive.
+#if defined(USE_ESP8266) || defined(USE_RP2)
+  // ESP8266 and RP2040 are Arduino-framework only (no ESP-IDF variant), and their uart
+  // component does not drive flow_control_pin, so users must run auto-DE transceivers (DE
+  // follows the TX line state). flush() prevents the function from returning before bytes are
+  // physically on the wire so the transceiver does not flip back to RX mid-frame. ESP32 is
+  // excluded here even under the Arduino framework: since ESPHome b8cee477fe removed
+  // uart_component_esp32_arduino.*, every ESP32 build (Arduino or ESP-IDF) uses
+  // IDFUARTComponent, whose hardware RS485 half-duplex mode drives DE/RE from the
+  // shift-register-done signal — flush() there would be pure busy-wait and is omitted to keep
+  // loop() responsive.
   this->flush();
 #endif
   if (this->dump_frames_) {
@@ -604,7 +610,45 @@ void RS485FrameHub::write_frame_(const std::vector<uint8_t> &frame) {
     format_hex_to(this->hex_log_buf_.get(), this->hex_log_buf_size_, frame.data(), frame.size());
     ESP_LOGD(TAG, "TX %s", this->hex_log_buf_.get());
   }
+#ifdef USE_RS485_FRAME_SNIFFER_STATS
+  if (this->sniffer_stats_ != nullptr) {
+    this->extract_tx_payload_(frame, this->tx_stats_payload_buf_);
+    this->sniffer_stats_->record_tx(this->tx_stats_payload_buf_, now);
+  }
+#endif
 }
+
+#ifdef USE_RS485_FRAME_SNIFFER_STATS
+void RS485FrameHub::extract_tx_payload_(const std::vector<uint8_t> &frame, std::vector<uint8_t> &out) const {
+  out.clear();
+  if (frame.size() < 4)
+    return;
+  // Same shape as validate_frame_'s unescape loop over raw_frame_: frame[0..1] is DLE+STX,
+  // frame[size-2..size-1] is DLE+ETX, everything between is escaped payload+CRC.
+  for (size_t i = 2; i + 2 < frame.size(); i++) {
+    uint8_t b = frame[i];
+    if (b == this->dle_) {
+      if (i + 1 < frame.size() - 2 && frame[i + 1] == this->escape_marker_) {
+        out.push_back(this->dle_);
+        i++;
+        continue;
+      }
+      // A DLE not followed by escape_marker_ inside a frame we built ourselves means
+      // build_frame_/escape_dle_ disagree with this unescape — should never happen; bail
+      // rather than key the entry on a malformed frame_type.
+      out.clear();
+      return;
+    }
+    out.push_back(b);
+  }
+  size_t crc_len = this->crc_length_();
+  if (out.size() < crc_len) {
+    out.clear();
+    return;
+  }
+  out.resize(out.size() - crc_len);
+}
+#endif
 
 void RS485FrameHub::send_next_(uint32_t now) {
   if (this->sniffer_only_ || this->tx_start_pending_)
@@ -625,7 +669,7 @@ void RS485FrameHub::send_next_(uint32_t now) {
     return;
   }
 
-  this->write_frame_(this->tx_queue_[this->tx_queue_head_]);
+  this->write_frame_(this->tx_queue_[this->tx_queue_head_], now);
   this->queue_pop_front_();
   this->mark_transmitted_(now);
   this->commands_sent_++;
@@ -641,7 +685,7 @@ void RS485FrameHub::send_next_idle_(uint32_t now) {
     this->pending_is_idle_ = true;
     return;
   }
-  this->write_frame_(this->tx_frame_buf_);
+  this->write_frame_(this->tx_frame_buf_, now);
   this->mark_transmitted_(now);
   // Idle keepalives are not counted in commands_sent_ — that counter tracks only real HA commands.
 }

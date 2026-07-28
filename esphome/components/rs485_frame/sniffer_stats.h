@@ -75,6 +75,14 @@ struct SnifferEntry {
   uint8_t frame_type[2]{};
   uint32_t count{0};
   uint32_t last_seen_ms{0};
+  // Set at creation and never changed: find_or_create_() keys entries on (frame_type, is_tx)
+  // together, not frame_type alone, so this is a fixed property of the entry, not a sticky
+  // guess. Needed because AGENT_MEMORY.md's "we never hear our own transmissions" fact only
+  // rules out echo-caused collisions (RS485 half-duplex suppresses local echo) — it says
+  // nothing about a protocol that genuinely reuses a frame_type numerically for both a
+  // request the hub sends and an unrelated reply it receives. Keying on direction too means
+  // that case gets two separate rows instead of one row silently mixing both event streams.
+  bool is_tx{false};
   DelayStats d_ref;
   DelayStats d_same;
   // Heap-allocated array of PayloadCapture slots, sized to SnifferStats::max_unique_payloads_
@@ -111,13 +119,23 @@ class SnifferStats {
   // max_unique_payloads + payload_capture_bytes are also user-configurable and decide how
   // much payload material the sniffer can distinguish per frame type. reference_frame_type
   // may be empty, in which case the d-ref column is always "-" (useful for protocols with
-  // no obvious reference frame).
+  // no obvious reference frame). reference_mode_send selects what "the reference" means: false
+  // (default, reference_mode: receive) keeps the original behavior — d-ref measures since the
+  // last RX frame matching reference_frame_type; true (reference_mode: send) measures d-ref
+  // since the last TX event instead, ignoring reference_frame_type.
   void init(size_t max_entries, uint32_t interval_ms, uint8_t payload_dump_top, size_t max_unique_payloads,
-            size_t payload_capture_bytes, const std::vector<uint8_t> &reference_frame_type, bool strip_high_bit);
+            size_t payload_capture_bytes, const std::vector<uint8_t> &reference_frame_type, bool strip_high_bit,
+            bool reference_mode_send);
 
   // Hot path. Called once per validated RX frame with the payload-relative bytes (frame
   // type at payload[0..N-1], data after). Returns immediately if init() was never called.
   void record(const std::vector<uint8_t> &payload, uint32_t now);
+
+  // Called once per transmitted frame from write_frame_(), with the same payload-relative
+  // view record() uses (frame_type at payload[0..N-1]) extracted from the built frame before
+  // framing/CRC. TX events share the same per-frame-type table as RX; dump_() tags their row
+  // with a '>' prefix on the frame-type hex. Returns immediately if init() was never called.
+  void record_tx(const std::vector<uint8_t> &payload, uint32_t now);
 
   // Called from the hub's loop(). Emits the table if interval_ms has elapsed since the
   // last dump, then resets per-period counters.
@@ -125,11 +143,17 @@ class SnifferStats {
 
  protected:
   // Linear scan; entries_ has at most SNIFFER_MAX_FRAME_TYPES_UPPER (64) entries by
-  // construction. Returns nullptr if the table is full and the frame type has not been
-  // seen before — the caller bumps dropped_frame_types_ instead. Lazily allocates the
-  // per-entry payload buffers on first sighting of a frame type.
-  SnifferEntry *find_or_create_(const uint8_t *frame_type);
+  // construction. Keyed on (frame_type, is_tx) together — see SnifferEntry::is_tx — so a
+  // frame_type used both ways gets two independent entries rather than one merged row.
+  // Returns nullptr if the table is full and this (frame_type, is_tx) pair has not been seen
+  // before — the caller bumps dropped_frame_types_ instead. Lazily allocates the per-entry
+  // payload buffers on first sighting.
+  SnifferEntry *find_or_create_(const uint8_t *frame_type, bool is_tx);
   bool matches_reference_(const std::vector<uint8_t> &payload) const;
+  // Shared bookkeeping between record() and record_tx(): advances the reference clock when
+  // is_ref, buckets the frame into its entry, updates d_ref/d_same/unique-payload state.
+  // is_ref's meaning depends on reference_mode_send_ — see record()/record_tx() below.
+  void record_common_(const std::vector<uint8_t> &payload, uint32_t now, bool is_ref, bool is_tx);
   // Compares the (possibly truncated) payload against the entry's existing unique
   // payloads. Non-static because it needs max_unique_payloads_ and payload_capture_bytes_
   // for bounds and truncation; both are runtime-configurable.
@@ -141,6 +165,10 @@ class SnifferStats {
   StaticVector<uint8_t, SNIFFER_REFERENCE_MAX_LEN> reference_frame_type_;
   uint32_t last_ref_time_{0};
   bool ref_seen_in_period_{false};
+  // false (default) = reference_mode: receive — is_ref is "this RX frame matches
+  // reference_frame_type_". true = reference_mode: send — is_ref is "this is a TX event",
+  // so d-ref on every other row measures time since our last transmission.
+  bool reference_mode_send_{false};
   uint32_t interval_ms_{0};
   uint32_t last_dump_time_{0};
   uint32_t dropped_frame_types_{0};

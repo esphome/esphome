@@ -18,6 +18,16 @@ CODEOWNERS = ["@b3nj1"]
 DEPENDENCIES = ["uart"]
 MULTI_CONF = True
 
+# rs485_frame is not merged upstream, so these esphome.io URLs 404 until the docs PR lands too.
+# Deliberate: a personal fork URL baked into a user-facing validation error is friction at merge
+# review time and would need fixing then anyway, while the canonical URL is already correct for
+# the PR's target state and needs no follow-up edit. The 404 window is short-lived and each
+# message already states the fix inline without needing the link. `#framing-escape` and
+# `#command-format` are stable anchors (`<span id="...">`) in the mdx source, not line numbers,
+# so they do not drift as the doc is edited.
+DOC_FRAMING_ESCAPE_URL = "https://esphome.io/components/rs485_frame/#framing-escape"
+DOC_COMMAND_FORMAT_URL = "https://esphome.io/components/rs485_frame/#command-format"
+
 rs485_frame_ns = cg.esphome_ns.namespace("rs485_frame")
 RS485FrameHub = rs485_frame_ns.class_("RS485FrameHub", cg.Component, uart.UARTDevice)
 RS485FrameTrigger = rs485_frame_ns.class_(
@@ -66,6 +76,7 @@ CONF_POSTAMBLE = "postamble"
 CONF_PREAMBLE = "preamble"
 CONF_QUEUE_POLICY = "queue_policy"
 CONF_REFERENCE_FRAME_TYPE = "reference_frame_type"
+CONF_REFERENCE_MODE = "reference_mode"
 CONF_RX_ACCEPT = "rx_accept"
 CONF_SNIFFER_ONLY = "sniffer_only"
 CONF_SNIFFER_STATS = "sniffer_stats"
@@ -308,6 +319,13 @@ TX_SCHEMA = cv.Schema(
     }
 )
 
+# reference_mode: receive (default) keeps d-ref measuring since the last RX frame matching
+# reference_frame_type, unchanged from before this field existed. send measures d-ref since
+# the last TX event instead — "how long after our own send did frame X arrive" — and ignores
+# reference_frame_type. Passed to C++ as a bool (reference_mode_send), matching the existing
+# ascii_strip_high_bit pattern rather than adding enum codegen plumbing for a two-value field.
+SNIFFER_REFERENCE_MODES = ["receive", "send"]
+
 # Schema for sniffer_stats: — an optional diagnostic that buckets RX frames by frame_type
 # and logs cadence + unique-payload histograms on a periodic interval. Compiled out unless
 # the YAML block is present (see USE_RS485_FRAME_SNIFFER_STATS in sniffer_stats.h).
@@ -337,6 +355,11 @@ SNIFFER_STATS_SCHEMA = cv.Schema(
         # bus keep-alive) when omitted; supplied here when you want d-ref measured against
         # something other than the gate.
         cv.Optional(CONF_REFERENCE_FRAME_TYPE): validate_frame_type,
+        # See SNIFFER_REFERENCE_MODES above. No behavior change for existing configs — receive
+        # reproduces the pre-existing reference_frame_type-only behavior exactly.
+        cv.Optional(CONF_REFERENCE_MODE, default="receive"): cv.one_of(
+            *SNIFFER_REFERENCE_MODES, lower=True
+        ),
         # Off by default so the preview shows raw byte values on binary buses where the high
         # bit carries data. Enable for display-frame buses that pack an attribute flag (e.g.
         # blink/inverse) into bit 7, so the underlying character renders instead of '.'.
@@ -422,8 +445,9 @@ def validate_hub(config):
     # Non-discovery hubs must declare the framing escape scheme and a crc: block.
     if CONF_ESCAPE not in framing:
         raise cv.Invalid(
-            "framing.escape is required (set framing.escape.mode to escape_byte or double); "
-            "it has no default. Omit it only on a discovery: hub"
+            "framing.escape is required but missing (set framing.escape.mode to escape_byte "
+            f"or double); it has no default. See {DOC_FRAMING_ESCAPE_URL} for the two escape "
+            "schemes. Omit it only on a discovery: hub"
         )
     if CONF_CRC not in config:
         raise cv.Invalid(
@@ -460,8 +484,8 @@ def validate_hub(config):
     # encoding (mirrors the button platform's `value:` rule).
     if CONF_IDLE_COMMAND in config[CONF_TX] and CONF_COMMAND_FORMAT not in config:
         raise cv.Invalid(
-            "tx.idle_command requires a command_format: on the hub so the value has a "
-            "defined on-wire encoding"
+            "tx.idle_command requires a command_format: block on the hub (missing) so the "
+            f"value has a defined on-wire encoding. See {DOC_COMMAND_FORMAT_URL}"
         )
 
     return config
@@ -582,6 +606,7 @@ async def to_code(config):
                 stats[CONF_PAYLOAD_CAPTURE_BYTES],
                 ref,
                 stats[CONF_ASCII_STRIP_HIGH_BIT],
+                stats[CONF_REFERENCE_MODE] == "send",
             )
         )
 

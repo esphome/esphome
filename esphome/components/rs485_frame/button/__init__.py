@@ -13,6 +13,7 @@ from .. import (
     CONF_PREAMBLE,
     CONF_RS485_FRAME_ID,
     CONF_VALUE_ELEMENT_BYTES,
+    DOC_COMMAND_FORMAT_URL,
     MAX_COMMAND_VALUES,
     MAX_FRAME_LENGTH_UPPER,
     RS485FrameHub,
@@ -111,8 +112,9 @@ def _final_validate(config):
         # preamble/endian/postamble, so the hub must have a command_format.
         raise cv.Invalid(
             "rs485_frame button 'value' requires the referenced hub to have a "
-            "'command_format:' block. Add one to the hub, add 'command_format:' directly "
-            "to this button, or use the raw 'frame_type' + 'payload' form instead."
+            "'command_format:' block (missing on the hub). Add one to the hub, add "
+            "'command_format:' directly to this button, or use the raw 'frame_type' + "
+            f"'payload' form instead. See {DOC_COMMAND_FORMAT_URL}"
         )
     return config
 
