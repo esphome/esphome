@@ -421,7 +421,10 @@ def _get_github_event_data() -> dict | None:
     """
     github_event_path = os.environ.get("GITHUB_EVENT_PATH")
     if github_event_path and Path(github_event_path).exists():
-        with Path(github_event_path).open() as f:
+        # The event payload is UTF-8 JSON; without an explicit encoding
+        # Windows decodes it as cp1252 and any non ASCII byte (an ellipsis in
+        # a commit title is enough) raises UnicodeDecodeError.
+        with Path(github_event_path).open(encoding="utf-8") as f:
             return json.load(f)
     return None
 

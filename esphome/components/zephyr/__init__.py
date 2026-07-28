@@ -69,7 +69,26 @@ CODEOWNERS = ["@tomaszduda23"]
 IS_TARGET_PLATFORM = True
 AUTO_LOAD = ["preferences"]
 
-PrjConfValueType = bool | str | int
+
+class HexValue:
+    """Wrap an integer so it is written as 0x... in prj.conf (required for hex Kconfig types)."""
+
+    def __init__(self, value: int) -> None:
+        self.value = value
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, HexValue):
+            return self.value == other.value
+        return NotImplemented
+
+    def __repr__(self) -> str:
+        return f"HexValue(0x{self.value:X})"
+
+    def __str__(self) -> str:
+        return f"0x{self.value:X}"
+
+
+PrjConfValueType = bool | str | int | HexValue
 
 # Mirrors esp32's LOG_LEVELS_IDF -- Zephyr's own native logging is a separate
 # concern from ESPHome's `logger:` component.
@@ -556,6 +575,8 @@ def zephyr_setup_preferences():
 def _format_prj_conf_val(value: PrjConfValueType) -> str:
     if isinstance(value, bool):
         return "y" if value else "n"
+    if isinstance(value, HexValue):
+        return hex(value.value)
     if isinstance(value, int):
         return str(value)
     if isinstance(value, str):
