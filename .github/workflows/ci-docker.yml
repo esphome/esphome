@@ -71,11 +71,13 @@ jobs:
 
       - name: Determine tag and whether to push
         id: tag
+        env:
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}
         run: |
           # Sanitize the branch name into a valid docker tag: replace invalid
           # characters, ensure the first character is valid (tags must start
           # with [A-Za-z0-9_]), and cap the length at 128 characters.
-          branch="${{ github.head_ref || github.ref_name }}"
+          branch="$HEAD_REF"
           tag="${branch//[^a-zA-Z0-9_.-]/-}"
           case "$tag" in
             [a-zA-Z0-9_]*) ;;
