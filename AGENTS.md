@@ -9,7 +9,7 @@ This document provides essential context for AI models interacting with this pro
 
 ## 2. Core Technologies & Stack
 
-*   **Languages:** Python (>=3.11), C++ (gnu++20)
+*   **Languages:** Python (>=3.12), C++ (gnu++20)
 *   **Frameworks & Runtimes:** PlatformIO, Arduino, ESP-IDF.
 *   **Build Systems:** PlatformIO is the primary build system. CMake is used as an alternative.
 *   **Configuration:** YAML.
@@ -191,11 +191,14 @@ This document provides essential context for AI models interacting with this pro
         my_component_ns = cg.esphome_ns.namespace("my_component")
         MyComponent = my_component_ns.class_("MyComponent", cg.Component)
 
-        CONFIG_SCHEMA = cv.Schema({
-            cv.GenerateID(): cv.declare_id(MyComponent),
-            cv.Required(CONF_KEY): cv.string,
-            cv.Optional(CONF_PARAM, default=42): cv.int_,
-        }).extend(cv.COMPONENT_SCHEMA)
+        CONFIG_SCHEMA = cv.Schema(
+            {
+                cv.GenerateID(): cv.declare_id(MyComponent),
+                cv.Required(CONF_KEY): cv.string,
+                cv.Optional(CONF_PARAM, default=42): cv.int_,
+            }
+        ).extend(cv.COMPONENT_SCHEMA)
+
 
         async def to_code(config):
             var = cg.new_Pvariable(config[CONF_ID])
@@ -229,7 +232,12 @@ This document provides essential context for AI models interacting with this pro
         - **Sensor:**
           ```python
           from esphome.components import sensor
-          CONFIG_SCHEMA = sensor.sensor_schema(MySensor).extend(cv.polling_component_schema("60s"))
+
+          CONFIG_SCHEMA = sensor.sensor_schema(MySensor).extend(
+              cv.polling_component_schema("60s")
+          )
+
+
           async def to_code(config):
               var = await sensor.new_sensor(config)
               await cg.register_component(var, config)
@@ -238,7 +246,10 @@ This document provides essential context for AI models interacting with this pro
         - **Binary Sensor:**
           ```python
           from esphome.components import binary_sensor
-          CONFIG_SCHEMA = binary_sensor.binary_sensor_schema().extend({ ... })
+
+          CONFIG_SCHEMA = binary_sensor.binary_sensor_schema().extend({...})
+
+
           async def to_code(config):
               var = await binary_sensor.new_binary_sensor(config)
           ```
@@ -246,7 +257,10 @@ This document provides essential context for AI models interacting with this pro
         - **Switch:**
           ```python
           from esphome.components import switch
-          CONFIG_SCHEMA = switch.switch_schema().extend({ ... })
+
+          CONFIG_SCHEMA = switch.switch_schema().extend({...})
+
+
           async def to_code(config):
               var = await switch.new_switch(config)
           ```
@@ -263,10 +277,13 @@ This document provides essential context for AI models interacting with this pro
         ```python
         from esphome import automation
 
-        CONFIG_SCHEMA = cv.Schema({
-            cv.GenerateID(): cv.declare_id(MyComponent),
-            cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
-        }).extend(cv.COMPONENT_SCHEMA)
+        CONFIG_SCHEMA = cv.Schema(
+            {
+                cv.GenerateID(): cv.declare_id(MyComponent),
+                cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
+            }
+        ).extend(cv.COMPONENT_SCHEMA)
+
 
         async def to_code(config):
             var = cg.new_Pvariable(config[CONF_ID])
@@ -316,11 +333,14 @@ This document provides essential context for AI models interacting with this pro
         ```python
         TurnOnTrigger = my_ns.class_("TurnOnTrigger", automation.Trigger.template())
 
-        CONFIG_SCHEMA = cv.Schema({
-            cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
-                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TurnOnTrigger)}
-            ),
-        })
+        CONFIG_SCHEMA = cv.Schema(
+            {
+                cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
+                    {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TurnOnTrigger)}
+                ),
+            }
+        )
+
 
         async def to_code(config):
             for conf in config.get(CONF_ON_TURN_ON, []):
@@ -427,13 +447,14 @@ This document provides essential context for AI models interacting with this pro
 
         When a PR's only edits to a component are `validate.*.yaml` files (no source changes, no `test.*.yaml` changes, and the component isn't pulled in as a dependency of another changed component), CI skips the compile stage for that component entirely and only runs config validation. This is decided in `script/determine-jobs.py` via `_component_change_is_validate_only` and surfaced as the `validate_only_components` output that the `test-build-components-split` job consumes.
 
-    *   **Test Grouping with Packages:** Components that use shared bus packages can be grouped together in CI to reduce build count. **Never define buses (uart, i2c, spi, modbus) directly in test YAML files** — always use packages from `test_build_components/common/`:
+    *   **Test Grouping with Packages:** Components that use shared bus packages can be grouped together in CI to reduce build count. **Never define buses (uart, i2c, spi, modbus) directly in test YAML files** — always use packages from `test_build_components/common/`.
+
+        All includes in test files must go through dict-style `packages:` so that batch grouping works correctly — the grouping scripts only understand dict-style packages. Never use list-style packages (`packages: [- !include ...]`) or top-level merge keys (`<<: !include common.yaml`). Bus packages are keyed by the bus name; the component's `common.yaml` is keyed by the component name (e.g. `cst328: !include common.yaml`):
         ```yaml
-        # test.esp32-idf.yaml — use packages for buses
+        # test.esp32-idf.yaml — everything included via named packages
         packages:
           uart: !include ../../test_build_components/common/uart_115200/esp32-idf.yaml
-
-        <<: !include common.yaml
+          my_component: !include common.yaml
         ```
         ```yaml
         # common.yaml — component config only, NO bus definitions
@@ -616,6 +637,7 @@ This document provides essential context for AI models interacting with this pro
         _component_state = []
         _use_feature = None
 
+
         def enable_feature():
             global _use_feature
             _use_feature = True
@@ -635,19 +657,23 @@ This document provides essential context for AI models interacting with this pro
 
         DOMAIN = "my_component"
 
+
         @dataclass
         class MyComponentData:
             feature_enabled: bool = False
             item_count: int = 0
             items: list[str] = field(default_factory=list)
 
+
         def _get_data() -> MyComponentData:
             if DOMAIN not in CORE.data:
                 CORE.data[DOMAIN] = MyComponentData()
             return CORE.data[DOMAIN]
 
+
         def request_feature() -> None:
             _get_data().feature_enabled = True
+
 
         def add_item(item: str) -> None:
             _get_data().items.append(item)
@@ -706,6 +732,14 @@ This document provides essential context for AI models interacting with this pro
     ```python
     # Remove before 2026.6.0
     if CONF_OLD_KEY in config:
-        _LOGGER.warning(f"'{CONF_OLD_KEY}' deprecated, use '{CONF_NEW_KEY}'. Removed in 2026.6.0")
+        _LOGGER.warning(
+            f"'{CONF_OLD_KEY}' deprecated, use '{CONF_NEW_KEY}'. Removed in 2026.6.0"
+        )
         config[CONF_NEW_KEY] = config.pop(CONF_OLD_KEY)  # Auto-migrate
     ```
+## 9. English Language
+
+The project uses English for non-code content. When drafting documentation, code comments, commit messages,
+PR descriptions, and similar text, avoid technical jargon. Instead, express concepts in plain English,
+using standard technical terms only when required. Ensure the text is readily comprehensible to a wide
+audience, including non-native English speakers.

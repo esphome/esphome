@@ -274,7 +274,7 @@ def climate_schema(
 
 @setup_entity("climate")
 async def setup_climate_core_(var, config):
-    visual = config[CONF_VISUAL]
+    visual = config.get(CONF_VISUAL, {})
     if (min_temp := visual.get(CONF_MIN_TEMPERATURE)) is not None:
         cg.add_define("USE_CLIMATE_VISUAL_OVERRIDES")
         cg.add(var.set_visual_min_temperature_override(min_temp))

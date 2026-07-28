@@ -19,7 +19,6 @@ from aioesphomeapi import (
 
 _LOGGER = logging.getLogger(__name__)
 
-T = TypeVar("T", bound=EntityInfo)
 S = TypeVar("S", bound=EntityState)
 
 
@@ -58,7 +57,7 @@ async def wait_for_state(
     return await asyncio.wait_for(future, timeout=timeout)
 
 
-def find_entity(
+def find_entity[T: EntityInfo](
     entities: list[EntityInfo],
     object_id_substring: str,
     entity_type: type[T] | None = None,
@@ -86,7 +85,7 @@ def find_entity(
     return None
 
 
-def require_entity(
+def require_entity[T: EntityInfo](
     entities: list[EntityInfo],
     object_id_substring: str,
     entity_type: type[T] | None = None,

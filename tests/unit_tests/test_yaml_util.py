@@ -1349,6 +1349,57 @@ def test_sensitive_str__is_a_str_subclass() -> None:
     assert value == "hunter2"
 
 
+def test_dump_path_without_relative_to_is_unchanged() -> None:
+    """Test that Path values dump as str(path) when relative_to is not given."""
+    path = Path("some") / "dir" / "file.ttf"
+    output = yaml_util.dump({"file": path})
+    assert output.strip() == f"file: {path}"
+
+
+def test_dump_path_relative_to_anchor_dir() -> None:
+    """Test that Path values under relative_to dump as relative POSIX paths."""
+    anchor = Path("/config/esphome").absolute()
+    data = {"file": anchor / "fonts" / "arial.ttf"}
+    output = yaml_util.dump(data, relative_to=anchor)
+    assert output.strip() == "file: fonts/arial.ttf"
+
+
+def test_dump_path_outside_anchor_dir_walks_up() -> None:
+    """Test that Path values outside relative_to walk up with ".." segments."""
+    anchor = Path("/config/esphome").absolute()
+    outside = Path("/config/fonts/file.ttf").absolute()
+    output = yaml_util.dump({"file": outside}, relative_to=anchor)
+    assert output.strip() == "file: ../fonts/file.ttf"
+
+
+def test_dump_path_with_dotdot_segments_is_normalized() -> None:
+    """Test that ".." segments do not defeat relativization.
+
+    A path like /config/other/../esphome/fonts/x.ttf is under the anchor
+    once normalized, so it must dump as a plain relative path.
+    """
+    anchor = Path("/config/esphome").absolute()
+    path = Path("/config/other/../esphome/fonts/x.ttf").absolute()
+    output = yaml_util.dump({"file": path}, relative_to=anchor)
+    assert output.strip() == "file: fonts/x.ttf"
+
+
+def test_dump_path_dotdot_reference_outside_anchor() -> None:
+    """Test the relative_config_path("../...") shape stays relative."""
+    anchor = Path("/config/esphome").absolute()
+    path = anchor / ".." / "shared" / "font.ttf"
+    output = yaml_util.dump({"file": path}, relative_to=anchor)
+    assert output.strip() == "file: ../shared/font.ttf"
+
+
+def test_dump_relative_to_does_not_leak_between_calls() -> None:
+    """Test that the relative_to flag is scoped to a single dump call."""
+    anchor = Path("/config/esphome").absolute()
+    path = anchor / "fonts" / "arial.ttf"
+    assert "fonts/arial.ttf" in yaml_util.dump({"file": path}, relative_to=anchor)
+    assert yaml_util.dump({"file": path}).strip() == f"file: {path}"
+
+
 def test_dump__redacts_sensitive_str_by_default() -> None:
     out = yaml_util.dump({"password": SensitiveStr("hunter2")})
     assert "\\033[8mhunter2\\033[28m" in out
@@ -1395,3 +1446,48 @@ def test_dump__redaction_flag_does_not_leak_between_calls() -> None:
     assert "\\033[8m" in redacted
     assert "\\033[8m" not in raw
     assert "\\033[8m" in redacted_again
+
+
+@pytest.fixture(autouse=True)
+def clear_dropped_merge_keys() -> None:
+    """Reset the dropped-merge-key queue between tests."""
+    core.CORE.data.pop(yaml_util._MERGE_WARNINGS_KEY, None)
+    yield
+    core.CORE.data.pop(yaml_util._MERGE_WARNINGS_KEY, None)
+
+
+def test_merge_include_records_dropped_keys(tmp_path: Path) -> None:
+    """A `<<` merge that overlaps an existing key records it (shallow first-wins)."""
+    (tmp_path / "a.yaml").write_text("api:\n  reboot_timeout: 5min\n")
+    (tmp_path / "b.yaml").write_text("api:\n  password: secret\n")
+    test_yaml = tmp_path / "test.yaml"
+    test_yaml.write_text("<<: !include a.yaml\n<<: !include b.yaml\n")
+
+    with patch.object(core.CORE, "config_path", test_yaml):
+        result = yaml_util.load_yaml(test_yaml)
+
+    # First definition wins; the second `api` block is dropped entirely.
+    assert result["api"] == {"reboot_timeout": "5min"}
+
+    dropped = yaml_util.take_dropped_merge_keys()
+    assert len(dropped) == 1
+    key, location = dropped[0]
+    assert key == "api"
+    assert "b.yaml" in location
+    # Queue is drained after being taken.
+    assert yaml_util.take_dropped_merge_keys() == []
+
+
+def test_merge_include_no_overlap_records_nothing(tmp_path: Path) -> None:
+    """A `<<` merge with distinct top-level keys drops nothing."""
+    (tmp_path / "a.yaml").write_text("api:\n  reboot_timeout: 5min\n")
+    (tmp_path / "b.yaml").write_text("logger:\n  level: DEBUG\n")
+    test_yaml = tmp_path / "test.yaml"
+    test_yaml.write_text("<<: !include a.yaml\n<<: !include b.yaml\n")
+
+    with patch.object(core.CORE, "config_path", test_yaml):
+        result = yaml_util.load_yaml(test_yaml)
+
+    assert result["api"] == {"reboot_timeout": "5min"}
+    assert result["logger"] == {"level": "DEBUG"}
+    assert yaml_util.take_dropped_merge_keys() == []
