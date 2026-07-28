@@ -96,8 +96,8 @@ jobs:
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           commit-message: "Synchronise Device Classes from Home Assistant"
-          committer: esphomebot <esphome@openhomefoundation.org>
-          author: esphomebot <esphome@openhomefoundation.org>
+          committer: esphome[bot] <115708604+esphome[bot]@users.noreply.github.com>
+          author: esphome[bot] <115708604+esphome[bot]@users.noreply.github.com>
           branch: sync/device-classes
           delete-branch: true
           title: "Synchronise Device Classes from Home Assistant"
