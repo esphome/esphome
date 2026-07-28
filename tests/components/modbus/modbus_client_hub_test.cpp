@@ -1366,6 +1366,15 @@ TEST(ModbusClientHubPriority, ExceptionFlaggedDuplicateDroppedNotPromoted) {
   ASSERT_EQ(hub.queued_frames(), 1u);
   EXPECT_EQ(hub.queued(0).priority, CommandPriority::READ_ONCE);  // not promoted
   EXPECT_EQ(device.not_sent_count_, 1);                           // duplicate dropped with a terminal
+
+  // The write-shaped twin (0x86 masks to WRITE_SINGLE_REGISTER) must not take WRITE priority
+  // either: exception-flagged codes are excluded from the mutates classification, so it queues
+  // behind the earlier entry instead of jumping it.
+  const uint8_t weird_write[] = {0x86, 0x00, 0x10, 0xBE, 0xEF};
+  device.send_pdu(weird_write);
+  ASSERT_EQ(hub.queued_frames(), 2u);
+  EXPECT_EQ(hub.queued(1).priority, CommandPriority::READ_ONCE);  // not WRITE
+  EXPECT_EQ(hub.queued(1).frame.pdu()[0], 0x86);                  // and it did not front-insert
 }
 
 }  // namespace esphome::modbus::testing
