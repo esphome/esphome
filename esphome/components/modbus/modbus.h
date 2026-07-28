@@ -130,9 +130,10 @@ enum class CommandPriority : uint8_t { READ = 0, WRITE };
 ///                               then returns to READY for the absorbed request's run. (Empty and
 ///                               oversize PDUs never enter the machine; their on_not_sent() is
 ///                               delivered inline at send_pdu().)
-/// THE SWEEP (end of loop(), gated by a service counter) walks entries needing service and delivers
-/// their callbacks from a QUIESCENT hub - terminal-state entries ARE the pending deliveries, so no
-/// separate notification queue exists and no callback ever runs mid-mutation.
+/// THE SWEEP (run each loop() between the watchdog and transmit, armed by sweep_needed_) walks
+/// entries needing service and delivers their callbacks from a QUIESCENT hub - terminal-state
+/// entries ARE the pending deliveries, so no separate notification queue exists and no callback
+/// ever runs mid-mutation.
 enum class FrameState : uint8_t {
   READY = 0,
   WAITING,
@@ -160,15 +161,12 @@ struct ModbusDeviceCommand {
   ModbusClientDevice *device;
   ModbusFrame frame;
   FrameState state{FrameState::READY};
-  CommandPriority priority{CommandPriority::READ};
   /// CONTINUOUS entries are subscriptions: never consumed by completion, pending
   /// fixed at 1 ("the subscription"), removed only by cancellation or failure.
   bool continuous{false};
   /// Retry decision recorded at INTERRUPTED -> INTERRUPTED_NOTIFIED, applied when the send-wait
   /// timeout releases the shell (the wire timing matches the old immediate-requeue-behind-shell).
   bool retry_after_interrupt{false};
-  /// DELETED entries from device-scoped clears (and spent shells) retire without callbacks.
-  bool silent_delete{false};
   /// Per-sweep marker: this entry's device already received a refusal/bleed on_not_sent() during
   /// the current sweep. Further refusals for the device are suppressed and further bleed is
   /// deferred, so a handler that re-sends from inside on_not_sent() cannot livelock the sweep.
@@ -187,13 +185,26 @@ struct ModbusDeviceCommand {
   /// frame can starve the rest of the bus.
   uint16_t seq{0};
 
-  ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, const uint8_t *src, uint16_t len,
-                      CommandPriority priority = CommandPriority::READ)
-      : device(device), frame(address, src, len), priority(priority) {}
+  ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, const uint8_t *src, uint16_t len)
+      : device(device), frame(address, src, len) {}
   /// Build a command from a PDU span. Callers must bound the PDU to MAX_PDU_SIZE.
-  ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, std::span<const uint8_t> pdu,
-                      CommandPriority priority = CommandPriority::READ)
-      : device(device), frame(address, pdu.data(), static_cast<uint16_t>(pdu.size())), priority(priority) {}
+  ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, std::span<const uint8_t> pdu)
+      : device(device), frame(address, pdu.data(), static_cast<uint16_t>(pdu.size())) {}
+
+  /// Transmit ordering class, derived from the frame - never stored, so it can never disagree
+  /// with the bytes on the wire. Mutating function codes rank WRITE; exception-flagged codes
+  /// never do (is_function_code_write() masks the exception bit, so they are excluded up front).
+  CommandPriority priority() const { return classify(this->frame.pdu()[0]); }
+  static CommandPriority classify(uint8_t function_code) {
+    if (helpers::is_function_code_exception(function_code))
+      return CommandPriority::READ;
+    const auto code = static_cast<FunctionCode>(function_code);
+    if (helpers::is_function_code_write(function_code) || code == FunctionCode::MASK_WRITE_REGISTER ||
+        code == FunctionCode::READ_WRITE_MULTIPLE_REGISTERS) {
+      return CommandPriority::WRITE;
+    }
+    return CommandPriority::READ;
+  }
 
   /// True if this command carries the same wire frame (address + PDU) as the given one.
   bool same_frame(uint8_t address, std::span<const uint8_t> pdu) const {
@@ -201,8 +212,6 @@ struct ModbusDeviceCommand {
     return own_pdu.size() == pdu.size() && this->frame.address() == address &&
            memcmp(own_pdu.data(), pdu.data(), pdu.size()) == 0;
   }
-  /// Live entries occupy transmit-queue capacity; REFUSED entries use the reserved spots instead.
-  bool is_live() const { return this->state != FrameState::REFUSED; }
 };
 
 /// Container spots reserved exclusively for REFUSED entries, so a full transmit queue can still
@@ -252,13 +261,14 @@ class ModbusClientHub : public Modbus {
   ModbusDeviceCommand *find_waiting_();
   // End the wait for a response on send-wait timeout (the loop() watchdog body); see FrameState.
   void expire_waiting_();
-  // Retire an entry: no callbacks owed from here on; the sweep's erase pass removes it.
+  // Retire an entry: no callbacks owed from here on (DELETED with pending 0 is the silent,
+  // erasable terminal); the sweep's erase pass removes it.
   static void retire_(ModbusDeviceCommand &cmd) {
     cmd.state = FrameState::DELETED;
     cmd.pending = 0;
-    cmd.silent_delete = true;
   }
-  // Count of live (non-REFUSED) entries, for the transmit-queue cap.
+  // Entries counted against the transmit-queue cap: excludes REFUSED (they occupy the reserve)
+  // and the *_DELETED states (already resolved, awaiting the erase pass).
   size_t live_count_() const;
   // Append a REFUSED entry owing one on_not_sent() (uses the reserve; drops loudly beyond it).
   void refuse_(ModbusClientDevice *device, uint8_t address, std::span<const uint8_t> pdu);
@@ -324,7 +334,7 @@ using ResponseStatus = std::optional<ExceptionCode>;
 /// it fires once per wire transmission, before whichever of data/error/no_response follows,
 /// and never for a request that ends in on_not_sent().
 /// Delivery timing: on_response()/on_error() fire at parse time (zero-copy spans); every other
-/// callback is delivered by the sweep at the end of the hub's loop(), from a quiescent hub -
+/// callback is delivered by the sweep during the hub's loop(), from a quiescent hub -
 /// see the FrameState transition table for the full machine.
 /// The exceptions to "exactly one terminal":
 ///  - clear_tx_queue_for_device() drops the caller's OWN commands SILENTLY (supersede/teardown

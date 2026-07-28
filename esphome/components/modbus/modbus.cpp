@@ -646,8 +646,8 @@ ModbusDeviceCommand *ModbusClientHub::select_next_ready_() {
   for (auto &cmd : this->tx_buffer_) {
     if (cmd.state != FrameState::READY)
       continue;
-    if (best == nullptr || cmd.priority > best->priority ||
-        (cmd.priority == best->priority &&
+    if (best == nullptr || cmd.priority() > best->priority() ||
+        (cmd.priority() == best->priority() &&
          (best->continuous != cmd.continuous ? !cmd.continuous : older(cmd, *best)))) {
       best = &cmd;
     }
@@ -856,17 +856,10 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
     return;
   }
 
-  // Writes outrank reads on the wire; the priority is derived from the frame, never chosen by
-  // callers. The read-modify-write function codes (0x16/0x17) mutate registers, so they rank as
-  // writes for ordering - is_function_code_read() already keeps them non-requeueable. continuous is
-  // ignored for every mutating code (re-writing a value forever is never intended).
-  // is_function_code_write() masks the exception bit, so exception-flagged codes are excluded
-  // explicitly: a nonsense 0x8x frame built in a lambda must not take WRITE-class ordering.
-  const auto request_code = static_cast<FunctionCode>(pdu[0]);
-  const bool mutates = !helpers::is_function_code_exception(pdu[0]) &&
-                       (helpers::is_function_code_write(pdu[0]) || request_code == FunctionCode::MASK_WRITE_REGISTER ||
-                        request_code == FunctionCode::READ_WRITE_MULTIPLE_REGISTERS);
-  const CommandPriority priority = mutates ? CommandPriority::WRITE : CommandPriority::READ;
+  // The ordering class is derived from the frame (ModbusDeviceCommand::classify()), never chosen
+  // by callers. continuous is ignored for every mutating code (re-writing a value forever is
+  // never intended).
+  const bool mutates = ModbusDeviceCommand::classify(pdu[0]) == CommandPriority::WRITE;
   bool continuous = false;
   if (options.continuous) {
     if (mutates) {
@@ -942,7 +935,7 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
 #endif
   ESP_LOGV(TAG, "Adding frame to tx queue: %" PRIu8 ":%s", address,
            format_hex_pretty_to(hex_buf, pdu.data(), pdu.size()));
-  auto &cmd = this->tx_buffer_.emplace_back(device, address, pdu, priority);
+  auto &cmd = this->tx_buffer_.emplace_back(device, address, pdu);
   cmd.continuous = continuous;
   cmd.seq = this->next_seq_++;
 }
@@ -977,7 +970,6 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sen
         if (clear_sent) {
           ESP_LOGV(TAG, "Clearing waiting for response for address %" PRIu8, address);
           cmd.state = FrameState::WAITING_DELETED;
-          cmd.silent_delete = true;
           cmd.pending = 0;
           cmd.device = nullptr;  // never deliver through a detached shell
           this->sweep_needed_ = true;
@@ -1001,7 +993,6 @@ void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
       case FrameState::INTERRUPTED_NOTIFIED:
         // On the wire: keeps blocking until the send-wait timeout, then swept silently.
         cmd.state = FrameState::WAITING_DELETED;
-        cmd.silent_delete = true;
         cmd.pending = 0;
         break;
       case FrameState::WAITING_DELETED:

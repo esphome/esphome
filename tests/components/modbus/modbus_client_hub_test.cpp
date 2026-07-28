@@ -13,7 +13,7 @@ namespace esphome::modbus::testing {
 
 namespace {
 
-// Exposes the frame state machine so tests can drive it without a UART: force_send_front()
+// Exposes the frame state machine so tests can drive it without a UART: force_send_next()
 // mimics send_next_frame_() transmitting the SELECTED (not storage-front) READY frame,
 // timeout_waiting() mimics the loop() send-wait watchdog plus the sweeps around it, and
 // sweep_for_test() runs the delivery sweep alone (the real one runs at the end of every loop()).
@@ -51,7 +51,7 @@ class NoResponseProbeHub : public ModbusClientHub {
     this->send_next_frame_();
     this->sweep_();  // a transmit failure's on_not_sent() is delivered by the loop's sweep
   }
-  void force_send_front() {
+  void force_send_next() {
     ModbusDeviceCommand *cmd = this->select_next_ready_();
     ASSERT_NE(cmd, nullptr) << "no READY entry to send";
     cmd->state = FrameState::WAITING;
@@ -113,7 +113,7 @@ TEST(ModbusClientHubNoResponse, RetryRequeuesWaitingFrame) {
 
   device.send_pdu(read_pdu());
   ASSERT_EQ(hub.queued_frames(), 1u);
-  hub.force_send_front();
+  hub.force_send_next();
   ASSERT_EQ(hub.queued_frames(), 0u);
   ASSERT_TRUE(hub.waiting());
 
@@ -137,7 +137,7 @@ TEST(ModbusClientHubNoResponse, NoRetryDropsWaitingFrame) {
   RetryingDevice device(&hub, 0x02, /*retry=*/false);
 
   device.send_pdu(read_pdu());
-  hub.force_send_front();
+  hub.force_send_next();
 
   hub.timeout_waiting();
 
@@ -153,7 +153,7 @@ TEST(ModbusClientHubNoResponse, DetachedDeviceIsNotNotified) {
   {
     RetryingDevice device(&hub, 0x02, /*retry=*/true);
     device.send_pdu(read_pdu());
-    hub.force_send_front();
+    hub.force_send_next();
     // device destructor clears its queue entries, including the waiting frame's device pointer
   }
   ASSERT_TRUE(hub.waiting());
@@ -173,7 +173,7 @@ TEST(ModbusClientHubNoResponse, RetryBehindInterruptedShell) {
   RetryingDevice device(&hub, 0x02, /*retry=*/true);
 
   device.send_pdu(read_pdu());
-  hub.force_send_front();
+  hub.force_send_next();
 
   // A frame from the wrong address (0x07, expected 0x02) hits the unexpected-frame branch.
   const uint8_t stray_pdu[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
@@ -203,7 +203,7 @@ TEST(ModbusClientHubNoResponse, MidCallbackClearCancelsRetry) {
   ClearingRetryDevice device(&hub, 0x02);
 
   device.send_pdu(read_pdu());
-  hub.force_send_front();
+  hub.force_send_next();
   hub.timeout_waiting();
 
   EXPECT_EQ(device.no_response_count_, 1);
@@ -224,13 +224,13 @@ TEST(ModbusClientHubPriority, WritesSendBeforeQueuedReads) {
   device.send_pdu(write_pdu);
 
   ASSERT_EQ(hub.queued_frames(), 3u);
-  hub.force_send_front();
+  hub.force_send_next();
   EXPECT_EQ(hub.waiting_command().frame.pdu()[0], 0x06);  // the write transmits first
   hub.timeout_waiting();
-  hub.force_send_front();
+  hub.force_send_next();
   EXPECT_EQ(hub.waiting_command().frame.pdu()[1], 0x01);  // reads follow in FIFO order
   hub.timeout_waiting();
-  hub.force_send_front();
+  hub.force_send_next();
   EXPECT_EQ(hub.waiting_command().frame.pdu()[1], 0x02);
 }
 
@@ -254,7 +254,7 @@ TEST(ModbusClientHubPriority, InFlightDuplicateRunsOnceMore) {
   RetryingDevice device(&hub, 0x02, /*retry=*/false);
 
   device.send_pdu(read_pdu());
-  hub.force_send_front();
+  hub.force_send_next();
   device.send_pdu(read_pdu());  // duplicate of the waiting frame
 
   EXPECT_EQ(hub.queued_frames(), 0u);  // not queued twice
@@ -264,7 +264,7 @@ TEST(ModbusClientHubPriority, InFlightDuplicateRunsOnceMore) {
   ASSERT_EQ(hub.queued_frames(), 1u);  // the timeout resolved one request; the absorbed one runs
   EXPECT_EQ(hub.queued(0).pending, 1u);
 
-  hub.force_send_front();
+  hub.force_send_next();
   hub.timeout_waiting();
   EXPECT_EQ(hub.queued_frames(), 0u);  // the last request resolved; nothing left to run
 }
@@ -277,7 +277,7 @@ TEST(ModbusClientHubPriority, AbsorbedRequestSurvivesDeviceRetry) {
   RetryingDevice device(&hub, 0x02, /*retry=*/true);
 
   device.send_pdu(read_pdu());
-  hub.force_send_front();
+  hub.force_send_next();
   device.send_pdu(read_pdu());  // duplicate of the waiting frame -> absorbed
   ASSERT_EQ(hub.waiting_command().pending, 2u);
 
@@ -296,7 +296,7 @@ TEST(ModbusClientHubPriority, ContinuousReadRequeuesOnSuccessOnly) {
   device.read_holding_registers(0x100, 2, {.continuous = true});
   ASSERT_EQ(hub.queued_frames(), 1u);
   EXPECT_TRUE(hub.queued(0).continuous);
-  hub.force_send_front();
+  hub.force_send_next();
 
   // A matching successful response cycles the continuous entry back to READY.
   const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
@@ -305,7 +305,7 @@ TEST(ModbusClientHubPriority, ContinuousReadRequeuesOnSuccessOnly) {
   EXPECT_TRUE(hub.queued(0).continuous);
 
   // An exception response ends the poll.
-  hub.force_send_front();
+  hub.force_send_next();
   const uint8_t exception_response[] = {0x83, 0x02};
   hub.receive_frame_for_test(0x02, exception_response);
   EXPECT_EQ(hub.queued_frames(), 0u);
@@ -320,7 +320,7 @@ TEST(ModbusClientHubPriority, RetriedContinuousReadStaysContinuous) {
   device.read_holding_registers(0x100, 2, {.continuous = true});
   ASSERT_EQ(hub.queued_frames(), 1u);
   ASSERT_TRUE(hub.queued(0).continuous);
-  hub.force_send_front();
+  hub.force_send_next();
 
   hub.timeout_waiting();  // no response -> device requests retry
 
@@ -341,7 +341,7 @@ TEST(ModbusClientHubPriority, DuplicateSendKeepsContinuous) {
   EXPECT_TRUE(hub.queued(0).continuous);
   EXPECT_EQ(hub.queued(0).pending, 1u);
 
-  hub.force_send_front();
+  hub.force_send_next();
   device.read_holding_registers(0x100, 2);  // waiting duplicate: absorbed uncounted
   EXPECT_EQ(hub.queued_frames(), 0u);
   EXPECT_TRUE(hub.waiting_command().continuous);
@@ -369,7 +369,7 @@ TEST(ModbusClientHubPriority, ContinuousRequestUpgradesQueuedDuplicate) {
   EXPECT_TRUE(hub.queued(0).continuous);
 
   // And it behaves as a poll from here: success cycles it back to READY.
-  hub.force_send_front();
+  hub.force_send_next();
   const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x02, ok_response);
   ASSERT_EQ(hub.queued_frames(), 1u);
@@ -384,7 +384,7 @@ TEST(ModbusClientHubPriority, ContinuousIgnoredForWrites) {
   const uint8_t write_pdu[] = {0x06, 0x00, 0x10, 0xBE, 0xEF};
   device.send_pdu(write_pdu, {.continuous = true});
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_EQ(hub.queued(0).priority, CommandPriority::WRITE);
+  EXPECT_EQ(hub.queued(0).priority(), CommandPriority::WRITE);
   EXPECT_FALSE(hub.queued(0).continuous);
 }
 
@@ -420,7 +420,7 @@ TEST(ModbusClientHubPriority, DuplicateQueuedWriteDroppedNotPromoted) {
   hub.sweep_for_test();        // the loop's sweep bleeds the over-cap request
 
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_EQ(hub.queued(0).priority, CommandPriority::WRITE);
+  EXPECT_EQ(hub.queued(0).priority(), CommandPriority::WRITE);
   EXPECT_EQ(hub.queued(0).pending, 1u);  // bled back to a write's cap of one
   EXPECT_EQ(device.not_sent_count_, 1);  // the duplicate was dropped
 }
@@ -461,7 +461,7 @@ TEST(ModbusClientHubPriority, RetriedReadGoesBehindFreshReads) {
   RetryingDevice device(&hub, 0x02, /*retry=*/true);
 
   device.send_pdu(read_pdu());
-  hub.force_send_front();       // the frame that will time out and retry
+  hub.force_send_next();        // the frame that will time out and retry
   device.send_pdu(read_pdu());  // waiting duplicate: absorbed into the waiting entry
   const uint8_t fresh_a[] = {0x03, 0x00, 0x10, 0x00, 0x01};
   const uint8_t fresh_b[] = {0x03, 0x00, 0x20, 0x00, 0x01};
@@ -475,12 +475,12 @@ TEST(ModbusClientHubPriority, RetriedReadGoesBehindFreshReads) {
   const ModbusDeviceCommand *next = hub.next_ready();
   ASSERT_NE(next, nullptr);
   EXPECT_EQ(next->frame.pdu()[2], 0x10);  // fresh reads keep FIFO order ahead of the retry
-  hub.force_send_front();
+  hub.force_send_next();
   hub.timeout_waiting();
-  hub.force_send_front();
+  hub.force_send_next();
   EXPECT_EQ(hub.waiting_command().frame.pdu()[2], 0x20);
   hub.timeout_waiting();
-  hub.force_send_front();  // the retry gets its turn last, both requests still on the entry
+  hub.force_send_next();  // the retry gets its turn last, both requests still on the entry
   EXPECT_TRUE(std::equal(hub.waiting_command().frame.pdu().begin(), hub.waiting_command().frame.pdu().end(), READ_PDU));
   EXPECT_EQ(hub.waiting_command().pending, 2u);
 }
@@ -512,15 +512,15 @@ TEST(ModbusClientHubPriority, RetriedWriteKeepsWritePriorityAndStaysNonRequeueab
 
   const uint8_t write_pdu[] = {0x06, 0x00, 0x10, 0xBE, 0xEF};
   device.send_pdu(write_pdu);
-  hub.force_send_front();
+  hub.force_send_next();
   hub.timeout_waiting();  // no response -> device requests retry -> back to READY
 
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_EQ(hub.queued(0).priority, CommandPriority::WRITE);  // retry preserves the WRITE class
+  EXPECT_EQ(hub.queued(0).priority(), CommandPriority::WRITE);  // retry preserves the WRITE class
 
   device.send_pdu(write_pdu);          // duplicate of the retried write
   ASSERT_EQ(hub.queued_frames(), 1u);  // still not queued twice...
-  EXPECT_EQ(hub.queued(0).priority, CommandPriority::WRITE);
+  EXPECT_EQ(hub.queued(0).priority(), CommandPriority::WRITE);
   hub.sweep_for_test();
   EXPECT_EQ(hub.queued(0).pending, 1u);  // ...and the duplicate bled off at the sweep
 }
@@ -583,7 +583,7 @@ class DataCountingDevice : public ModbusClientDevice {
 int drain_with_responses(NoResponseProbeHub &hub, std::span<const uint8_t> response_pdu, int max_cycles = 10) {
   int cycles = 0;
   while (hub.queued_frames() != 0 && cycles < max_cycles) {
-    hub.force_send_front();
+    hub.force_send_next();
     hub.receive_frame_for_test(0x02, response_pdu);
     cycles++;
   }
@@ -657,7 +657,7 @@ TEST(ModbusClientHubCallbackCount, DuplicateWriteDroppedWithNotSent) {
 
   EXPECT_EQ(device.not_sent_count_, 1);
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_EQ(hub.queued(0).priority, CommandPriority::WRITE);
+  EXPECT_EQ(hub.queued(0).priority(), CommandPriority::WRITE);
 }
 
 // An exception response is a terminal on its own: exactly one on_error(), no others,
@@ -751,7 +751,7 @@ TEST(ModbusClientHubCallbackCount, RetryIsNeverRefusedByFullQueue) {
   SentCountingDevice filler(&hub, 0x05);
 
   device.send_pdu(read_pdu());
-  hub.force_send_front();       // waiting
+  hub.force_send_next();        // waiting
   device.send_pdu(read_pdu());  // absorbed: two requests pending
   // Fill the remaining live capacity with distinct frames.
   for (uint16_t i = 0; hub.entries() < MODBUS_TX_BUFFER_SIZE; i++) {
@@ -1281,7 +1281,7 @@ TEST(ModbusClientHubPriority, ClearDeviceDuringDataCancelsContinuousRequeue) {
   ClearOnDataDevice device(&hub, 0x02);
 
   device.read_holding_registers(0x100, 2, {.continuous = true});
-  hub.force_send_front();
+  hub.force_send_next();
   const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x02, ok_response);
 
@@ -1307,7 +1307,7 @@ TEST(ModbusClientHubPriority, ClearAddressDuringDataCancelsContinuousRequeue) {
   ClearAddressOnDataDevice device(&hub, 0x02);
 
   device.read_holding_registers(0x100, 2, {.continuous = true});
-  hub.force_send_front();
+  hub.force_send_next();
   const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x02, ok_response);
 
@@ -1339,7 +1339,7 @@ TEST(ModbusClientHubCompat, LegacyCallbackNamesStillForward) {
 
   const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
   device.send_pdu(read);
-  hub.force_send_front();
+  hub.force_send_next();
   hub.timeout_waiting();  // no reply -> on_no_response -> forwards to on_modbus_no_response
   EXPECT_EQ(device.legacy_no_response_, 1);
 
@@ -1387,7 +1387,7 @@ TEST(ModbusDeviceShim, LegacyCallbacksReceiveTheOldShapes) {
   // the byte-count byte, as an owning vector.
   const uint8_t read_req[] = {0x03, 0x00, 0x10, 0x00, 0x02};
   device.send_pdu(read_req);
-  hub.force_send_front();
+  hub.force_send_next();
   const uint8_t response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x02, response);
   const std::vector<uint8_t> expected{0x00, 0x2A, 0x01, 0x00};
@@ -1396,14 +1396,14 @@ TEST(ModbusDeviceShim, LegacyCallbacksReceiveTheOldShapes) {
   // Write echo: no byte-count byte, so the payload is everything after the function code.
   const uint8_t write_req[] = {0x06, 0x00, 0x10, 0x00, 0x2A};
   device.send_pdu(write_req);
-  hub.force_send_front();
+  hub.force_send_next();
   hub.receive_frame_for_test(0x02, write_req);  // single-write responses echo the request
   const std::vector<uint8_t> expected_echo{0x00, 0x10, 0x00, 0x2A};
   EXPECT_EQ(device.last_data_, expected_echo);
 
   // Exception response: on_modbus_error() received the masked function code and the exception code.
   device.send_pdu(read_req);
-  hub.force_send_front();
+  hub.force_send_next();
   const uint8_t error[] = {0x83, 0x02};
   hub.receive_frame_for_test(0x02, error);
   EXPECT_EQ(device.last_error_fc_, 0x03);
@@ -1420,7 +1420,7 @@ TEST(ModbusTypedSendHelpers, HelpersQueueExpectedPdus) {
     ASSERT_EQ(hub.queued_frames(), 1u);
     auto pdu = hub.queued(0).frame.pdu();
     EXPECT_EQ(std::vector<uint8_t>(pdu.begin(), pdu.end()), expected);
-    hub.force_send_front();
+    hub.force_send_next();
     hub.timeout_waiting();  // default on_no_response() declines the retry, dropping the frame
   };
 
@@ -1456,13 +1456,13 @@ TEST(ModbusTypedSendHelpers, ReadEntitiesDispatchesByTypeAndRejectsInvalid) {
   device.read_entities(EntityType::HOLDING, 0x0001, 1);
   ASSERT_EQ(hub.queued_frames(), 1u);
   EXPECT_EQ(hub.queued(0).frame.pdu()[0], 0x03);
-  hub.force_send_front();
+  hub.force_send_next();
   hub.timeout_waiting();
 
   device.read_entities(EntityType::DISCRETE_INPUT, 0x0001, 1);
   ASSERT_EQ(hub.queued_frames(), 1u);
   EXPECT_EQ(hub.queued(0).frame.pdu()[0], 0x02);
-  hub.force_send_front();
+  hub.force_send_next();
   hub.timeout_waiting();
 
   device.read_entities(EntityType::CUSTOM, 0x0001, 1);  // no read function: logged and not queued
@@ -1506,7 +1506,7 @@ TEST(ModbusClientHubPriority, ResendFromOnResponseAbsorbsIntoCompletingCommand) 
   ResendOnDataDevice device(&hub, 0x02);
 
   device.read_holding_registers(0x100, 2, {.continuous = true});
-  hub.force_send_front();
+  hub.force_send_next();
   const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x02, ok_response);  // handler re-sends the identical frame mid-completion
 
@@ -1534,7 +1534,7 @@ TEST(ModbusClientHubPriority, ExceptionFlaggedDuplicateDroppedNotPromoted) {
   const uint8_t weird_write[] = {0x86, 0x00, 0x10, 0xBE, 0xEF};
   device.send_pdu(weird_write);
   ASSERT_EQ(hub.queued_frames(), 2u);
-  EXPECT_EQ(hub.queued(1).priority, CommandPriority::READ);  // not WRITE
+  EXPECT_EQ(hub.queued(1).priority(), CommandPriority::READ);  // not WRITE
   const ModbusDeviceCommand *next = hub.next_ready();
   ASSERT_NE(next, nullptr);
   EXPECT_EQ(next->frame.pdu()[0], 0x83);  // FIFO by age: it did not jump the older entry
@@ -1564,7 +1564,7 @@ TEST(ModbusClientHubQueue, SweepResendOfInFlightFrameQueuesFreshWhenClearSentDet
   ResendInFlightOnNotSentDevice device(&hub, 0x02);
 
   device.send_pdu(read_pdu());
-  hub.force_send_front();  // READ_PDU now waiting
+  hub.force_send_next();  // READ_PDU now waiting
   const uint8_t queued_read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
   device.send_pdu(queued_read);  // a queued frame for the sweep to notify
   ASSERT_EQ(hub.queued_frames(), 1u);
@@ -1590,7 +1590,7 @@ TEST(ModbusClientHubCallbackCount, AbsorbedRequestRunsAfterErrorResponse) {
   DataCountingDevice device(&hub, 0x02);
 
   device.send_pdu(read_pdu());
-  hub.force_send_front();
+  hub.force_send_next();
   device.send_pdu(read_pdu());  // waiting duplicate: absorbed
   const uint8_t exception_response[] = {0x83, 0x02};
   hub.receive_frame_for_test(0x02, exception_response);  // error terminal for request 1
@@ -1613,7 +1613,7 @@ TEST(ModbusClientHubPriority, ReadModifyWritesRankAsWrites) {
   ASSERT_EQ(hub.queued_frames(), 2u);
   const ModbusDeviceCommand *next = hub.next_ready();
   ASSERT_NE(next, nullptr);
-  EXPECT_EQ(next->priority, CommandPriority::WRITE);  // 0x16 wins selection over the queued read
+  EXPECT_EQ(next->priority(), CommandPriority::WRITE);  // 0x16 wins selection over the queued read
   EXPECT_EQ(next->frame.pdu()[0], 0x16);
 }
 }  // namespace esphome::modbus::testing
