@@ -104,9 +104,12 @@ enum class CommandPriority : uint8_t { READ = 0, WRITE };
 /// Lifecycle state of a frame entry. The lifecycle contract on ModbusClientDevice is this
 /// transition table:
 ///   READY -> WAITING            on transmit (send_next_frame_ is the only writer of this transition)
-///   WAITING -> RECEIVED         on a matching response; on_response()/on_error() fire AT PARSE TIME
-///                               (zero-copy spans into the rx buffer), the sweep then does the
-///                               lifecycle bookkeeping (pending consumption, resident reset, removal)
+///   WAITING -> RECEIVED_RESPONSE / RECEIVED_EXCEPTION
+///                               on a matching data/exception response; on_response()/on_error()
+///                               fire AT PARSE TIME (zero-copy spans into the rx buffer), the sweep
+///                               then does the lifecycle bookkeeping (pending consumption, resident
+///                               reset - a resident poll continues only after RECEIVED_RESPONSE -
+///                               and removal)
 ///   WAITING -> TIMED_OUT        on the send-wait timeout; the sweep delivers on_no_response() and
 ///                               the return value picks retry (-> READY) or resolution
 ///   WAITING -> INTERRUPTED      on an unexpected-frame interruption; keeps tx blocked until the
@@ -133,7 +136,8 @@ enum class CommandPriority : uint8_t { READ = 0, WRITE };
 enum class FrameState : uint8_t {
   READY = 0,
   WAITING,
-  RECEIVED,
+  RECEIVED_RESPONSE,
+  RECEIVED_EXCEPTION,
   TIMED_OUT,
   INTERRUPTED,
   INTERRUPTED_NOTIFIED,
@@ -146,7 +150,7 @@ enum class FrameState : uint8_t {
 /// at call sites ({.continuous = true}) so added fields never disturb existing callers.
 struct CommandOptions {
   /// Register this read as a RESIDENT poll: it lives in the queue until cancelled, cycling
-  /// READY -> WAITING -> RECEIVED -> READY, selected least-recently-served whenever no one-shot
+  /// READY -> WAITING -> RECEIVED_RESPONSE -> READY, selected least-recently-served whenever no one-shot
   /// wants the bus. A failure (timeout without retry, transmit failure) ends the poll; the
   /// caller's normal update path recovers. Ignored for mutating function codes.
   bool continuous{false};
@@ -163,9 +167,6 @@ struct ModbusDeviceCommand {
   /// Retry decision recorded at INTERRUPTED -> INTERRUPTED_NOTIFIED, applied when the send-wait
   /// timeout releases the shell (the wire timing matches the old immediate-requeue-behind-shell).
   bool retry_after_interrupt{false};
-  /// RECEIVED bookkeeping: true for a data response, false for an exception response (a resident
-  /// poll continues only after success; one-shot consumption is identical either way).
-  bool response_ok{false};
   /// DELETED entries from device-scoped clears (and spent shells) retire without callbacks.
   bool silent_delete{false};
   /// Per-sweep marker: this entry's device already received a refusal/bleed on_not_sent() during

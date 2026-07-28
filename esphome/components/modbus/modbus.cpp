@@ -347,10 +347,9 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
 
   // A valid response for the WAITING entry. The callbacks fire AT PARSE TIME so the response span
   // can point straight into the rx buffer (zero copy); the sweep does the lifecycle bookkeeping
-  // afterwards. RECEIVED is set BEFORE the callbacks run: a clear_tx_queue_*() call from inside
-  // them flips the entry to DELETED, which cancels the re-run/continuous bookkeeping - "stop
-  // polling now" from inside on_response()/on_error() must actually stop it.
-  cmd->state = FrameState::RECEIVED;
+  // afterwards. The RECEIVED_* state is set BEFORE the callbacks run: a clear_tx_queue_*() call
+  // from inside them flips the entry to DELETED, which cancels the re-run/continuous bookkeeping -
+  // "stop polling now" from inside on_response()/on_error() must actually stop it.
   this->has_in_flight_ = false;
   this->sweep_needed_ = true;
   ModbusClientDevice *device = cmd->device;
@@ -360,11 +359,11 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
     uint8_t exception = pdu[1];  // exception frames are fixed-length, so the code is always present
     ESP_LOGW(TAG, "Error function code: 0x%X exception: %" PRIu8 ", address: %" PRIu8 ", %" PRIu32 "ms after last send",
              function_code, exception, address, this->last_modbus_byte_ - this->last_send_);
-    cmd->response_ok = false;
+    cmd->state = FrameState::RECEIVED_EXCEPTION;
     if (device != nullptr)
       device->on_error(request_pdu, static_cast<ExceptionCode>(exception));
   } else {
-    cmd->response_ok = true;
+    cmd->state = FrameState::RECEIVED_RESPONSE;
     if (device != nullptr) {
       device->on_response(request_pdu, pdu);
     } else {
@@ -718,15 +717,25 @@ void ModbusClientHub::sweep_() {
     for (size_t i = 0; i != this->tx_buffer_.size() && !progressed; i++) {
       ModbusDeviceCommand &cmd = this->tx_buffer_[i];
       switch (cmd.state) {
-        case FrameState::RECEIVED: {
+        case FrameState::RECEIVED_RESPONSE: {
           // Callbacks fired at parse time; this is pure lifecycle bookkeeping.
-          if (cmd.resident && cmd.response_ok) {
+          if (cmd.resident) {
             cmd.state = FrameState::READY;  // the subscription's next cycle
             cmd.seq = this->next_seq_++;
-          } else if (cmd.resident || --cmd.pending == 0) {
-            retire_(cmd);  // an exception ends a resident poll; a one-shot consumed its last request
+          } else if (--cmd.pending == 0) {
+            retire_(cmd);  // the one-shot consumed its last request
           } else {
             cmd.state = FrameState::READY;  // an absorbed duplicate still owes a run (original seq)
+          }
+          progressed = true;
+          break;
+        }
+        case FrameState::RECEIVED_EXCEPTION: {
+          // An exception ends a resident poll; one-shot consumption matches the response path.
+          if (cmd.resident || --cmd.pending == 0) {
+            retire_(cmd);
+          } else {
+            cmd.state = FrameState::READY;
           }
           progressed = true;
           break;
@@ -938,7 +947,8 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sen
         cmd.state = FrameState::DELETED;
         this->sweep_needed_ = true;
         break;
-      case FrameState::RECEIVED:
+      case FrameState::RECEIVED_RESPONSE:
+      case FrameState::RECEIVED_EXCEPTION:
         // Cleared from inside its own on_response()/on_error(): that callback was the resolution,
         // so the pending re-run/continuous cycle is cancelled silently (stop-polling-now).
         retire_(cmd);
