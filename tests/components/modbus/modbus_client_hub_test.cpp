@@ -695,6 +695,34 @@ TEST(ModbusClientHubCallbackCount, FullQueueRetryRefusalDeliversNotSentWithPdu) 
   EXPECT_EQ(hub.queued_frames(), MODBUS_TX_BUFFER_SIZE);
 }
 
+// When the device REQUESTS the retry, on_no_response() resolved nothing - so a refused re-queue of
+// a READ_AGAIN entry must deliver both pending requests' terminals, not one.
+TEST(ModbusClientHubCallbackCount, FullQueueDeviceRetryRefusalResolvesBothReadAgainRequests) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  DataCountingDevice device(&hub, 0x02);
+  device.retries_ = 1;  // on_no_response() requests a retry
+  SentCountingDevice filler(&hub, 0x05);
+
+  device.send_pdu(read_pdu());
+  hub.force_send_front();
+  device.send_pdu(read_pdu());  // in-flight duplicate: promotes the waiting entry to READ_AGAIN
+  // Fill the queue with distinct frames (distinct start addresses keep the dedup from absorbing them).
+  for (uint16_t i = 0; i < MODBUS_TX_BUFFER_SIZE; i++) {
+    const uint8_t fill[] = {0x03, static_cast<uint8_t>(i >> 8), static_cast<uint8_t>(i & 0xFF), 0x00, 0x01};
+    filler.send_pdu(fill);
+  }
+  ASSERT_EQ(hub.queued_frames(), MODBUS_TX_BUFFER_SIZE);
+
+  hub.timeout_waiting();  // retry requested (resolves nothing), re-queue refused: both terminals due
+
+  EXPECT_EQ(device.no_response_count_, 1);
+  EXPECT_EQ(device.not_sent_count_, 2);  // one per pending request
+  EXPECT_EQ(hub.queued_frames(), MODBUS_TX_BUFFER_SIZE);
+}
+
 // The completed-re-queue path's full-buffer refusal: a READ_AGAIN entry whose post-completion
 // re-run cannot queue delivers the absorbed request's on_not_sent() with the request PDU.
 TEST(ModbusClientHubCallbackCount, FullQueueCompletedRequeueRefusalDeliversNotSent) {
@@ -1133,9 +1161,12 @@ TEST(ModbusClientHubQueue, TransmitFailurePopsBeforeNotify) {
   EXPECT_EQ(hub.front().frame.pdu()[0], 0x06);  // ...and it is the write, not the failed read
 }
 
-// A failed transmit of a READ_AGAIN frame resolves BOTH accepted requests: the promotion absorbed a
-// second request into the entry, and the failure path keeps the same books as the clear sweep.
-TEST(ModbusClientHubQueue, TransmitFailureReadAgainDeliversBothNotSent) {
+// A failed transmit of a READ_AGAIN frame resolves ONE request (the failed attempt's on_not_sent)
+// and re-queues the frame demoted to READ_ONCE for the absorbed request - the same books as the
+// timeout path, because a transmit failure is transient, unlike the clear sweep's cancellation.
+// (If the re-queue found the buffer full it would refuse with the second request's on_not_sent,
+// the requeue_waiting_frame_ branch FullQueueRetryRefusalDeliversNotSentWithPdu already covers.)
+TEST(ModbusClientHubQueue, TransmitFailureReadAgainResolvesOneAndRequeuesDemoted) {
   FlakyBlockHub hub;
   SentCountingDevice device(&hub, 0x02);
 
@@ -1147,8 +1178,10 @@ TEST(ModbusClientHubQueue, TransmitFailureReadAgainDeliversBothNotSent) {
 
   hub.send_next_for_test();  // tx_blocked gate passes, send_frame_ refuses -> failure path
 
-  EXPECT_EQ(device.not_sent_count_, 2);  // one terminal per accepted request
-  EXPECT_EQ(hub.queued_frames(), 0u);
+  EXPECT_EQ(device.not_sent_count_, 1);                         // the failed attempt's terminal
+  ASSERT_EQ(hub.queued_frames(), 1u);                           // the absorbed request still owes a run...
+  EXPECT_EQ(hub.front().priority, CommandPriority::READ_ONCE);  // ...demoted
+  EXPECT_TRUE(std::equal(hub.front().frame.pdu().begin(), hub.front().frame.pdu().end(), read));
 }
 
 // A send during a sweep that matches a still-marked (doomed) frame must queue fresh, not promote the

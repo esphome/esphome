@@ -530,11 +530,16 @@ void ModbusClientHub::send_next_frame_() {
       device->on_sent(wfr.frame.pdu());
   } else {
     if (device != nullptr) {
-      device->trigger_not_sent(command.frame.pdu());
-      // A READ_AGAIN command stands for exactly two accepted requests (the original and the one
-      // absorbed by promotion); a failed transmit resolves both, mirroring the clear sweep.
+      // A READ_AGAIN command stands for two accepted requests, and the absorbed one still owes a
+      // run: re-queue demoted to READ_ONCE, the same books as the timeout path (a transmit failure
+      // is transient, unlike the clear sweep's cancellation). requeue_waiting_frame_() also covers
+      // the full-queue refusal, which delivers the second request's on_not_sent(). The re-queue
+      // happens BEFORE the failed attempt's notification: the popped command is a local, so a
+      // clear issued inside the handler could never detach it - queued first, the frame is swept
+      // (and resolved) by that clear like any other queued frame.
       if (command.priority == CommandPriority::READ_AGAIN)
-        device->trigger_not_sent(command.frame.pdu());
+        this->requeue_waiting_frame_(command, /*device_retry=*/false);
+      device->trigger_not_sent(command.frame.pdu());  // the failed attempt resolves one request
     }
   }
 
@@ -612,8 +617,15 @@ void ModbusClientHub::requeue_waiting_frame_(ModbusDeviceCommand &wfr, bool devi
   const ModbusFrame &frame = wfr.frame;
   if (this->tx_buffer_.size() >= MODBUS_TX_BUFFER_SIZE) {
     ESP_LOGE(TAG, "Write buffer full, dropped retry for address %" PRIu8, frame.address());
-    if (wfr.device != nullptr)
+    if (wfr.device != nullptr) {
       wfr.device->trigger_not_sent(frame.pdu());
+      // With device_retry the preceding on_no_response() resolved NOTHING (a requested retry is not
+      // a resolution), so a READ_AGAIN entry still stands for two pending requests and the refusal
+      // must deliver both terminals. Without device_retry the on_no_response() was request A's
+      // terminal, so the single delivery above already resolves the absorbed request B.
+      if (device_retry && wfr.priority == CommandPriority::READ_AGAIN)
+        wfr.device->trigger_not_sent(frame.pdu());
+    }
     return;
   }
   // Re-queue a copy (not a move): the waiting entry may have to survive as an interrupted shell. Preserve the
@@ -683,12 +695,17 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   }
 
   // Writes outrank reads on the wire; the priority is derived from the frame, never chosen by
-  // callers. continuous is ignored for writes (re-writing a value forever is never intended).
+  // callers. The read-modify-write function codes (0x16/0x17) mutate registers, so they rank as
+  // writes for ordering - is_function_code_read() already keeps them non-requeueable. continuous is
+  // ignored for every mutating code (re-writing a value forever is never intended).
+  const auto request_code = static_cast<FunctionCode>(pdu[0]);
+  const bool mutates = helpers::is_function_code_write(pdu[0]) || request_code == FunctionCode::MASK_WRITE_REGISTER ||
+                       request_code == FunctionCode::READ_WRITE_MULTIPLE_REGISTERS;
   CommandPriority priority = CommandPriority::READ_ONCE;
-  if (helpers::is_function_code_write(pdu[0])) {
+  if (mutates) {
     priority = CommandPriority::WRITE;
     if (options.continuous)
-      ESP_LOGV(TAG, "continuous is ignored for a write (function 0x%X, address %" PRIu8 ")", pdu[0], address);
+      ESP_LOGV(TAG, "continuous is ignored for a mutating function (0x%X, address %" PRIu8 ")", pdu[0], address);
   } else if (options.continuous) {
     priority = CommandPriority::READ_CONTINUOUS;
   }
@@ -698,22 +715,37 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   // for any non-write function code - by asking for continuous the caller asserts re-sending is safe.
   const bool is_requeueable = helpers::is_function_code_read(pdu[0]);
 
-  // A frame identical to one already queued or in flight is not queued twice; the duplicate is resolved
-  // against the existing entry. Only a READ_ONCE entry with an owner is ever promoted (to READ_AGAIN,
-  // which re-queues it once more after it completes) - in particular a READ_CONTINUOUS entry must never
-  // be promoted, or the continuous flag would be destroyed and polling would silently stop after two
-  // more runs. An incoming continuous request instead turns the existing entry INTO the continuous poll.
-  // Every OWNED request resolves in exactly one callback: a promotion or continuous absorption resolves
-  // in the entry's future on_response(); a request that cannot be absorbed (already READ_AGAIN, a
-  // duplicate write, or a non-requeueable function code) is dropped and reports on_not_sent(). An
-  // ANONYMOUS duplicate (device == nullptr - the YAML-lambda path) is always dropped: with no callback
-  // there is no lifecycle to absorb into, and no owner to route a re-run to.
+  // A frame arriving THROUGH send_pdu() that is identical to one already queued or in flight is not
+  // queued twice; the duplicate is resolved against the existing entry. (The internal re-queue paths
+  // insert directly and can momentarily coexist with an identical handler re-send - each entry keeps
+  // its own request accounting, so this affects wire order only, never callback counts.) Only a
+  // READ_ONCE entry with an owner is ever promoted (to READ_AGAIN, which re-queues it once more after
+  // it completes) - in particular a READ_CONTINUOUS entry must never be promoted, or the continuous
+  // flag would be destroyed and polling would silently stop after two more runs. An incoming
+  // continuous request instead turns the existing entry INTO the continuous poll; that conversion
+  // SUPERSEDES any request the entry had absorbed (see the lifecycle contract) - the caller opted
+  // into streaming semantics, and the poll's responses are the accounting from then on.
+  // Every OWNED request resolves in exactly one callback: a promotion or continuous absorption
+  // resolves in the entry's future on_response(); a request that cannot be absorbed (already
+  // READ_AGAIN, a duplicate write, or a non-requeueable function code) is dropped and reports
+  // on_not_sent(). An ANONYMOUS duplicate (device == nullptr - the YAML-lambda path) is always
+  // dropped: with no callback there is no lifecycle to absorb into, and no owner to route a re-run to.
   const auto resolve_duplicate = [&](ModbusDeviceCommand &item, const char *state) {
     if (device == nullptr) {
-      ESP_LOGD(TAG, "Anonymous duplicate of frame already %s for %" PRIu8 " (function 0x%X), dropped", state, address,
-               pdu[0]);
+      // Reads are idempotent, so their drop is routine (DEBUG); a dropped write/custom is a
+      // wire-behavior difference the caller cannot observe without a device, so it warns.
+      if (is_requeueable) {
+        ESP_LOGD(TAG, "Anonymous duplicate of frame already %s for %" PRIu8 " (function 0x%X), dropped", state, address,
+                 pdu[0]);
+      } else {
+        ESP_LOGW(TAG,
+                 "Anonymous duplicate of frame already %s for %" PRIu8 " (function 0x%X), dropped - register a "
+                 "device for delivery accounting",
+                 state, address, pdu[0]);
+      }
     } else if (priority == CommandPriority::READ_CONTINUOUS) {
-      // The caller asked for continuous polling: the existing identical entry becomes the poll.
+      // The caller asked for continuous polling: the existing identical entry becomes the poll,
+      // superseding a READ_AGAIN's absorbed extra request (documented in the lifecycle contract).
       item.priority = CommandPriority::READ_CONTINUOUS;
       ESP_LOGV(TAG, "Frame already %s for %" PRIu8 ", now polled continuously", state, address);
     } else if (item.priority == CommandPriority::READ_CONTINUOUS) {
