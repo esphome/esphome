@@ -732,33 +732,33 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   // READ_AGAIN, a duplicate write, or a non-requeueable function code) is dropped and reports
   // on_not_sent(). An ANONYMOUS duplicate (device == nullptr - the YAML-lambda path) is always
   // dropped: with no callback there is no lifecycle to absorb into, and no owner to route a re-run to.
-  const auto resolve_duplicate = [&](ModbusDeviceCommand &item, const char *state) {
+  const auto resolve_duplicate = [&](ModbusDeviceCommand &item, const LogString *state) {
     if (device == nullptr) {
       // Reads are idempotent, so their drop is routine (DEBUG); a dropped write/custom is a
       // wire-behavior difference the caller cannot observe without a device, so it warns.
       if (is_requeueable) {
-        ESP_LOGD(TAG, "Anonymous duplicate of frame already %s for %" PRIu8 " (function 0x%X), dropped", state, address,
-                 pdu[0]);
+        ESP_LOGD(TAG, "Anonymous duplicate of frame already %s for %" PRIu8 " (function 0x%X), dropped",
+                 LOG_STR_ARG(state), address, pdu[0]);
       } else {
         ESP_LOGW(TAG,
                  "Anonymous duplicate of frame already %s for %" PRIu8 " (function 0x%X), dropped - register a "
                  "device for delivery accounting",
-                 state, address, pdu[0]);
+                 LOG_STR_ARG(state), address, pdu[0]);
       }
     } else if (priority == CommandPriority::READ_CONTINUOUS) {
       // The caller asked for continuous polling: the existing identical entry becomes the poll,
       // superseding a READ_AGAIN's absorbed extra request (documented in the lifecycle contract).
       item.priority = CommandPriority::READ_CONTINUOUS;
-      ESP_LOGV(TAG, "Frame already %s for %" PRIu8 ", now polled continuously", state, address);
+      ESP_LOGV(TAG, "Frame already %s for %" PRIu8 ", now polled continuously", LOG_STR_ARG(state), address);
     } else if (item.priority == CommandPriority::READ_CONTINUOUS) {
       // The continuous poll re-runs after every success, so its next response serves this request too.
-      ESP_LOGV(TAG, "Frame already %s for %" PRIu8 " as a continuous poll", state, address);
+      ESP_LOGV(TAG, "Frame already %s for %" PRIu8 " as a continuous poll", LOG_STR_ARG(state), address);
     } else if (is_requeueable && item.priority == CommandPriority::READ_ONCE) {
       item.priority = CommandPriority::READ_AGAIN;
-      ESP_LOGV(TAG, "Frame already %s for %" PRIu8 ", promoted for re-queue", state, address);
+      ESP_LOGV(TAG, "Frame already %s for %" PRIu8 ", promoted for re-queue", LOG_STR_ARG(state), address);
     } else {
-      ESP_LOGD(TAG, "Duplicate of frame already %s for %" PRIu8 " (function 0x%X), dropped with on_not_sent", state,
-               address, pdu[0]);
+      ESP_LOGD(TAG, "Duplicate of frame already %s for %" PRIu8 " (function 0x%X), dropped with on_not_sent",
+               LOG_STR_ARG(state), address, pdu[0]);
       device->trigger_not_sent(pdu);
     }
   };
@@ -766,7 +766,7 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
     if (item.marked_for_deletion)
       continue;  // marked for drop by an in-progress clear: a new identical send queues fresh instead
     if (item.device == device && item.same_frame(address, pdu)) {
-      resolve_duplicate(item, "queued");
+      resolve_duplicate(item, LOG_STR("queued"));
       return;
     }
   }
@@ -776,7 +776,7 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
     // interrupted), not an anonymous send - an anonymous frame matching a shell must queue fresh,
     // so nullptr is excluded here even though the queue scan above dedups anonymous sends.
     if (wfr.device == device && wfr.device != nullptr && wfr.same_frame(address, pdu)) {
-      resolve_duplicate(wfr, "in flight");
+      resolve_duplicate(wfr, LOG_STR("in flight"));
       return;
     }
   }
@@ -785,7 +785,7 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   // callback re-runs it once (or keeps polling) instead of coexisting with a fresh twin.
   if (this->completing_ != nullptr && this->completing_->device == device && device != nullptr &&
       this->completing_->same_frame(address, pdu)) {
-    resolve_duplicate(*this->completing_, "completing");
+    resolve_duplicate(*this->completing_, LOG_STR("completing"));
     return;
   }
 
@@ -819,6 +819,21 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sen
     if (cmd.frame.address() == address)
       cmd.marked_for_deletion = true;
   }
+  // Detach the in-flight frame BEFORE the sweep runs any callbacks: a sweep handler re-sending the
+  // in-flight frame would otherwise be absorbed into a slot this same clear is about to detach
+  // silently - detached first, the dedup's nullptr exclusion makes that re-send queue fresh instead.
+  if (clear_sent && this->waiting_for_response_.has_value() && this->waiting_for_response_.value().device) {
+    if (this->waiting_for_response_.value().frame.address() == address) {
+      ESP_LOGV(TAG, "Clearing waiting for response for address %" PRIu8, address);
+      // Invalidate the waiting device so it won't process a response.
+      this->waiting_for_response_.value().device = nullptr;
+    }
+  }
+  // Detach a command that is mid-completion (this clear was called from inside its own
+  // on_response()/on_error()) for the same reason, cancelling its pending continuous/READ_AGAIN
+  // re-queue - a sweep handler's re-send must not absorb into a command this clear detaches.
+  if (this->completing_ != nullptr && this->completing_->frame.address() == address)
+    this->completing_->device = nullptr;
   for (;;) {
     auto it = std::find_if(this->tx_buffer_.begin(), this->tx_buffer_.end(),
                            [](const ModbusDeviceCommand &cmd) { return cmd.marked_for_deletion; });
@@ -837,18 +852,6 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sen
         dropped.device->trigger_not_sent(dropped.frame.pdu());
     }
   }
-
-  if (clear_sent && this->waiting_for_response_.has_value() && this->waiting_for_response_.value().device) {
-    if (this->waiting_for_response_.value().frame.address() == address) {
-      ESP_LOGV(TAG, "Clearing waiting for response for address %" PRIu8, address);
-      // Invalidate the waiting device so it won't process a response.
-      this->waiting_for_response_.value().device = nullptr;
-    }
-  }
-  // Detach a command that is mid-completion (this clear was called from inside its own
-  // on_response()/on_error()), cancelling its pending continuous/READ_AGAIN re-queue.
-  if (this->completing_ != nullptr && this->completing_->frame.address() == address)
-    this->completing_->device = nullptr;
 }
 void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
   // Remove any pending commands for this address from the tx buffer
