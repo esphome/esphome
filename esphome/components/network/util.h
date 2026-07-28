@@ -57,7 +57,8 @@ bool is_disabled();
 /// Buffer size for get_use_address_to(): 63-char DNS label + ".local" + null terminator
 static constexpr size_t USE_ADDRESS_BUFFER_SIZE = 70;
 /// Get the active network address for logging. Returns the explicitly configured
-/// use_address when one was set, otherwise formats "<name>.local" from the runtime
+/// use_address when one was set (from the highest-priority interface when
+/// network: priority: is configured), otherwise formats "<name>.local" from the runtime
 /// device name into buf (so it includes the MAC suffix from name_add_mac_suffix).
 const char *get_use_address_to(std::span<char, USE_ADDRESS_BUFFER_SIZE> buf);
 IPAddresses get_ip_addresses();
