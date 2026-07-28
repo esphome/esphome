@@ -19,7 +19,10 @@ from unittest.mock import patch
 import pytest
 
 from esphome.espidf.framework import (
+    ESPHOME_STAMP_FILE,
+    STAMP_SCHEMA_VERSION,
     _ccache_env,
+    _check_esphome_idf_framework_install,
     _check_stamp,
     _check_windows_path_length,
     _clone_idf_with_submodules,
@@ -29,9 +32,11 @@ from esphome.espidf.framework import (
     _get_python_env_path,
     _get_python_version,
     _parse_git_source,
-    _patch_tools_json_demote_openocd,
+    _patch_tools_json_demote_unused_tools,
     _patch_tools_json_for_linux_arm64,
     _prefetch_idf_tool_archives,
+    _read_stamp,
+    _stamp_covers,
     _windows_long_paths_enabled,
     _write_idf_version_txt,
     _write_stamp,
@@ -137,10 +142,17 @@ def test_parse_git_source_rejected(source: str) -> None:
     assert _parse_git_source(source) is None
 
 
-def _make_idf_tree(framework_path: Path) -> None:
-    """Create the minimum tree _clone_idf_with_submodules sanity-checks for."""
+def _make_idf_tree(framework_path: Path, *, gitmodules: bool = True) -> None:
+    """Create the minimum tree _clone_idf_with_submodules sanity-checks for.
+
+    ``gitmodules=False`` simulates a fork that vendors components in-tree
+    instead of declaring submodules; update_submodules skips the git call
+    when that file is missing.
+    """
     (framework_path / "tools").mkdir(parents=True)
     (framework_path / "tools" / "idf_tools.py").write_text("# stub\n")
+    if gitmodules:
+        (framework_path / ".gitmodules").write_text("# stub\n")
 
 
 def test_clone_idf_with_submodules_without_ref(tmp_path: Path) -> None:
@@ -212,6 +224,28 @@ def test_clone_idf_with_submodules_raises_when_tree_missing(
             "https://github.com/espressif/esp-idf.git",
             None,
         )
+
+
+def test_clone_idf_accepts_flattened_fork_without_gitmodules(
+    tmp_path: Path,
+) -> None:
+    """A fork that vendors components in-tree instead of as submodules is valid.
+
+    No .gitmodules means the submodule step is skipped entirely.
+    """
+    framework_path = tmp_path / "idf"
+    framework_path.mkdir()
+    _make_idf_tree(framework_path, gitmodules=False)
+
+    with patch("esphome.git.run_git_command", return_value="") as run_git_command_mock:
+        _clone_idf_with_submodules(
+            framework_path,
+            "https://github.com/example/flattened-esp-idf.git",
+            None,
+        )
+
+    calls = [c.args[0] for c in run_git_command_mock.call_args_list]
+    assert not any(c[1] == "submodule" for c in calls)
 
 
 # ---------------------------------------------------------------------------
@@ -352,10 +386,11 @@ def espidf_mocks(setup_core: Path):
         patch("esphome.espidf.framework._clone_idf_with_submodules") as clone,
         patch("esphome.espidf.framework._write_idf_version_txt"),
         patch("esphome.espidf.framework._patch_tools_json_for_linux_arm64"),
-        patch("esphome.espidf.framework._patch_tools_json_demote_openocd"),
+        patch("esphome.espidf.framework._patch_tools_json_demote_unused_tools"),
         patch("esphome.espidf.framework._prefetch_idf_tool_archives"),
         patch("esphome.espidf.framework._write_stamp"),
         patch("esphome.espidf.framework._check_stamp", return_value=True),
+        patch("esphome.espidf.framework._stamp_covers", return_value=True),
         patch("esphome.espidf.framework._get_idf_version", return_value=_IDF_VERSION),
         patch("esphome.espidf.framework._get_python_version", return_value="3.11.0"),
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
@@ -485,13 +520,17 @@ def _mark_installed() -> None:
 def test_check_esp_idf_install_stamp_mismatch_reinstalls(
     espidf_mocks: SimpleNamespace,
 ) -> None:
-    """A stamp mismatch reinstalls tools (marker present, so no re-extract)."""
+    """A stamp mismatch reinstalls tools (marker present, so no re-extract).
+
+    The python env is left alone: it depends on the framework version and
+    features, not on which toolchains are installed.
+    """
     _mark_installed()
-    with patch("esphome.espidf.framework._check_stamp", return_value=False):
+    with patch("esphome.espidf.framework._stamp_covers", return_value=False):
         check_esp_idf_install(_IDF_VERSION)
 
     espidf_mocks.extract.assert_not_called()  # marker present -> no re-extract
-    espidf_mocks.venv.assert_called_once()  # tools reinstall -> venv rebuilt
+    espidf_mocks.venv.assert_not_called()  # tools-only install -> venv kept
 
 
 def test_check_esp_idf_install_check_command_failure_reinstalls(
@@ -504,7 +543,7 @@ def test_check_esp_idf_install_check_command_failure_reinstalls(
     check_esp_idf_install(_IDF_VERSION, features=["fb"])
 
     espidf_mocks.extract.assert_not_called()
-    espidf_mocks.venv.assert_called_once()
+    espidf_mocks.venv.assert_not_called()  # tools-only install -> venv kept
 
 
 def test_check_esp_idf_install_unknown_python_version_reinstalls(
@@ -524,8 +563,8 @@ def test_check_esp_idf_install_python_stamp_mismatch_rebuilds_venv(
 ) -> None:
     """Framework stamp matches but the python-env stamp does not -> venv rebuilt."""
 
-    # _check_stamp passes for the framework (no python_version key) and fails
-    # for the python env (carries python_version), so only the venv rebuilds.
+    # _check_stamp only guards the python env now (the framework uses
+    # _stamp_covers, patched True by the fixture); failing it rebuilds the venv.
     def stamp_ok(_stamp_file, info: dict) -> bool:
         return "python_version" not in info
 
@@ -535,6 +574,146 @@ def test_check_esp_idf_install_python_stamp_mismatch_rebuilds_venv(
 
     espidf_mocks.extract.assert_not_called()
     espidf_mocks.venv.assert_called_once()
+
+
+def _requested_stamp(targets: list[str], tools: list[str] | None = None) -> dict:
+    return {
+        "schema_version": STAMP_SCHEMA_VERSION,
+        "targets": targets,
+        "tools": tools or ["required"],
+    }
+
+
+@pytest.mark.parametrize(
+    ("stored", "targets", "expected"),
+    [
+        # a stored "all" covers any target
+        (_requested_stamp(["all"]), ["esp32"], True),
+        # exact match and superset both cover
+        (_requested_stamp(["esp32"]), ["esp32"], True),
+        (_requested_stamp(["esp32", "esp32c3"]), ["esp32"], True),
+        # a new target is not covered
+        (_requested_stamp(["esp32"]), ["esp32c3"], False),
+        # tools and schema_version must match exactly
+        (_requested_stamp(["all"], tools=["cmake", "required"]), ["esp32"], False),
+        (_requested_stamp(["all"]) | {"schema_version": "no"}, ["esp32"], False),
+        # an unknown extra field participates in invalidation by default
+        (_requested_stamp(["all"]) | {"module_version": 1}, ["esp32"], False),
+        # missing/corrupt stamps never cover
+        (None, ["esp32"], False),
+        (
+            {"schema_version": STAMP_SCHEMA_VERSION, "tools": ["required"]},
+            ["esp32"],
+            False,
+        ),
+    ],
+)
+def test_stamp_covers(stored: dict | None, targets: list[str], expected: bool) -> None:
+    assert _stamp_covers(stored, _requested_stamp(targets)) is expected
+
+
+@contextmanager
+def _framework_install_patches():
+    """Patches for calling _check_esphome_idf_framework_install directly with
+    real stamp files (unlike espidf_mocks, which stubs the stamp layer)."""
+    with (
+        patch("esphome.espidf.framework.run_command_ok", return_value=True) as run_ok,
+        patch("esphome.espidf.framework._get_idf_tool_paths", return_value=([], {})),
+        patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
+        patch("esphome.espidf.framework.rmdir"),
+    ):
+        yield run_ok
+
+
+def _extracted_framework_with_stamp(stamp: dict) -> Path:
+    framework_path = _get_framework_path(_IDF_VERSION)
+    framework_path.mkdir(parents=True, exist_ok=True)
+    (framework_path / ".esphome_extracted").touch()
+    _write_stamp(framework_path / ESPHOME_STAMP_FILE, stamp)
+    return framework_path
+
+
+def test_framework_install_target_subset_skips_install() -> None:
+    """A stamp holding a superset of the requested targets skips the installer."""
+    framework_path = _extracted_framework_with_stamp(_requested_stamp(["all"]))
+
+    with _framework_install_patches() as run_ok:
+        _, fresh_extract = _check_esphome_idf_framework_install(
+            _IDF_VERSION, ["esp32"], ["required"]
+        )
+
+    run_ok.assert_not_called()
+    assert fresh_extract is False
+    # the stamp is untouched
+    stamp = json.loads((framework_path / ESPHOME_STAMP_FILE).read_text())
+    assert stamp["targets"] == ["all"]
+
+
+def test_framework_install_new_target_installs_and_merges_stamp() -> None:
+    """A new target runs the installer for just that target and the stamp
+    records the union of everything installed so far."""
+    framework_path = _extracted_framework_with_stamp(_requested_stamp(["esp32"]))
+
+    with _framework_install_patches() as run_ok:
+        _, fresh_extract = _check_esphome_idf_framework_install(
+            _IDF_VERSION, ["esp32c3"], ["required"]
+        )
+
+    assert fresh_extract is False
+    assert "--targets=esp32c3" in run_ok.call_args[0][0]
+    stamp = json.loads((framework_path / ESPHOME_STAMP_FILE).read_text())
+    assert stamp["targets"] == ["esp32", "esp32c3"]
+
+
+def test_check_esp_idf_install_env_targets_override_wins(
+    espidf_mocks: SimpleNamespace,
+) -> None:
+    """An explicitly set ESPHOME_IDF_DEFAULT_TARGETS overrides per-variant targets."""
+    with patch("esphome.espidf.framework._IDF_DEFAULT_TARGETS_EXPLICIT", True):
+        check_esp_idf_install(_IDF_VERSION, force=True, targets=["esp32"])
+
+    install_cmd = espidf_mocks.run_ok.call_args_list[0][0][0]
+    assert "--targets=all" in install_cmd
+
+
+def test_check_esp_idf_install_uses_requested_targets(
+    espidf_mocks: SimpleNamespace,
+) -> None:
+    """Without the env override, the caller's per-variant targets are installed."""
+    check_esp_idf_install(_IDF_VERSION, force=True, targets=["esp32"])
+
+    install_cmd = espidf_mocks.run_ok.call_args_list[0][0][0]
+    assert "--targets=esp32" in install_cmd
+
+
+def test_framework_install_all_request_collapses_merged_stamp_to_all() -> None:
+    """Requesting "all" over a per-variant stamp merges and collapses to
+    ["all"], not ["all", "esp32"], so the stamp shape stays canonical."""
+    framework_path = _extracted_framework_with_stamp(_requested_stamp(["esp32"]))
+
+    with _framework_install_patches() as run_ok:
+        _check_esphome_idf_framework_install(_IDF_VERSION, ["all"], ["required"])
+
+    run_ok.assert_called_once()
+    stamp = json.loads((framework_path / ESPHOME_STAMP_FILE).read_text())
+    assert stamp["targets"] == ["all"]
+
+
+def test_framework_install_tools_change_resets_stamp_targets() -> None:
+    """A reinstall triggered by a tools change must not carry the old stamp's
+    targets forward: the installer only ran for this build's targets, so a
+    merged stamp would let other variants skip the reinstall they need."""
+    framework_path = _extracted_framework_with_stamp(
+        _requested_stamp(["all"], tools=["cmake", "required"])
+    )
+
+    with _framework_install_patches() as run_ok:
+        _check_esphome_idf_framework_install(_IDF_VERSION, ["esp32"], ["required"])
+
+    run_ok.assert_called_once()
+    stamp = json.loads((framework_path / ESPHOME_STAMP_FILE).read_text())
+    assert stamp["targets"] == ["esp32"]
+    assert stamp["tools"] == ["required"]
 
 
 @pytest.mark.parametrize(
@@ -952,28 +1131,97 @@ def test_get_tool_downloads_inprocess_explicit_tool_specs(
 
 
 # ---------------------------------------------------------------------------
-# _patch_tools_json_demote_openocd (openocd-esp32 made optional)
+# _patch_tools_json_demote_unused_tools (openocd, gdb, ULP toolchain optional)
 # ---------------------------------------------------------------------------
 
 
-def test_demote_openocd_patches_install_type(tmp_path: Path) -> None:
+def test_demote_unused_tools_patches_install_type(tmp_path: Path) -> None:
     tools_json = _write_tools_json(
         tmp_path,
         {
             "tools": [
                 {"name": "openocd-esp32", "install": "always"},
-                {"name": "cmake", "install": "always"},
+                {"name": "xtensa-esp-elf-gdb", "install": "always"},
+                {"name": "riscv32-esp-elf-gdb", "install": "always"},
+                {"name": "esp32ulp-elf", "install": "always"},
+                {"name": "xtensa-esp-elf", "install": "always"},
+                {"name": "esp-rom-elfs", "install": "always"},
             ]
         },
     )
-    _patch_tools_json_demote_openocd(tmp_path)
+    _patch_tools_json_demote_unused_tools(tmp_path)
+
+    data = json.loads(tools_json.read_text(encoding="utf-8"))
+    install_types = {t["name"]: t["install"] for t in data["tools"]}
+    assert install_types == {
+        "openocd-esp32": "on_request",
+        "xtensa-esp-elf-gdb": "on_request",
+        "riscv32-esp-elf-gdb": "on_request",
+        "esp32ulp-elf": "on_request",
+        # the compiler toolchain and ROM ELFs stay required
+        "xtensa-esp-elf": "always",
+        "esp-rom-elfs": "always",
+    }
+
+
+def test_demote_unused_tools_drops_xtensa_from_riscv_targets(tmp_path: Path) -> None:
+    """riscv32-esp-elf loses the xtensa chips (ULP-RISC-V only, which ESPHome
+    never builds) but keeps its RISC-V targets; other tools are untouched."""
+    tools_json = _write_tools_json(
+        tmp_path,
+        {
+            "tools": [
+                {
+                    "name": "riscv32-esp-elf",
+                    "install": "always",
+                    "supported_targets": ["esp32s2", "esp32s3", "esp32c3", "esp32p4"],
+                },
+                {
+                    "name": "xtensa-esp-elf",
+                    "install": "always",
+                    "supported_targets": ["esp32", "esp32s2", "esp32s3"],
+                },
+            ]
+        },
+    )
+    _patch_tools_json_demote_unused_tools(tmp_path)
+
+    data = json.loads(tools_json.read_text(encoding="utf-8"))
+    riscv = next(t for t in data["tools"] if t["name"] == "riscv32-esp-elf")
+    xtensa = next(t for t in data["tools"] if t["name"] == "xtensa-esp-elf")
+    assert riscv["supported_targets"] == ["esp32c3", "esp32p4"]
+    assert riscv["install"] == "always"
+    assert xtensa["supported_targets"] == ["esp32", "esp32s2", "esp32s3"]
+
+
+def test_demote_unused_tools_bad_supported_targets_type_still_demotes(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A non-list supported_targets on riscv32-esp-elf must not abort the
+    other demotions; the targets patch is best-effort and logs the skip so a
+    silently resumed riscv download is diagnosable."""
+    tools_json = _write_tools_json(
+        tmp_path,
+        {
+            "tools": [
+                {
+                    "name": "riscv32-esp-elf",
+                    "install": "always",
+                    "supported_targets": None,
+                },
+                {"name": "openocd-esp32", "install": "always"},
+            ]
+        },
+    )
+    with caplog.at_level(logging.WARNING, logger="esphome.espidf.framework"):
+        _patch_tools_json_demote_unused_tools(tmp_path)
 
     data = json.loads(tools_json.read_text(encoding="utf-8"))
     openocd = next(t for t in data["tools"] if t["name"] == "openocd-esp32")
-    cmake = next(t for t in data["tools"] if t["name"] == "cmake")
+    riscv = next(t for t in data["tools"] if t["name"] == "riscv32-esp-elf")
     assert openocd["install"] == "on_request"
-    # other tools are left untouched
-    assert cmake["install"] == "always"
+    assert riscv["supported_targets"] is None
+    assert "Unexpected supported_targets" in caplog.text
 
 
 def test_patch_tools_json_unexpected_structure_warns_and_skips(
@@ -985,16 +1233,29 @@ def test_patch_tools_json_unexpected_structure_warns_and_skips(
     tools_json = tools_dir / "tools.json"
     tools_json.write_text('["not", "a", "dict"]', encoding="utf-8")
     before = tools_json.read_text(encoding="utf-8")
-    _patch_tools_json_demote_openocd(tmp_path)  # AttributeError -> skip
+    _patch_tools_json_demote_unused_tools(tmp_path)  # AttributeError -> skip
     assert tools_json.read_text(encoding="utf-8") == before
 
 
-def test_demote_openocd_already_patched_is_noop(tmp_path: Path) -> None:
+def test_demote_unused_tools_already_patched_is_noop(tmp_path: Path) -> None:
     tools_json = _write_tools_json(
-        tmp_path, {"tools": [{"name": "openocd-esp32", "install": "on_request"}]}
+        tmp_path,
+        {
+            "tools": [
+                {"name": "openocd-esp32", "install": "on_request"},
+                {"name": "xtensa-esp-elf-gdb", "install": "on_request"},
+                {"name": "riscv32-esp-elf-gdb", "install": "on_request"},
+                {"name": "esp32ulp-elf", "install": "on_request"},
+                {
+                    "name": "riscv32-esp-elf",
+                    "install": "always",
+                    "supported_targets": ["esp32c3", "esp32p4"],
+                },
+            ]
+        },
     )
     before = tools_json.read_text(encoding="utf-8")
-    _patch_tools_json_demote_openocd(tmp_path)
+    _patch_tools_json_demote_unused_tools(tmp_path)
     assert tools_json.read_text(encoding="utf-8") == before
 
 
@@ -1222,6 +1483,54 @@ def test_check_stamp_corrupt_file(tmp_path: Path) -> None:
     f = tmp_path / "s.json"
     f.write_text("{ not json", encoding="utf-8")
     assert _check_stamp(f, {"a": "1"}) is False
+
+
+def test_read_stamp_corrupt_file_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # A corrupt stamp forces a full reinstall on every build, so it warns
+    # where the normal missing-file case stays silent.
+    f = tmp_path / "s.json"
+    f.write_text("{ not json", encoding="utf-8")
+    with caplog.at_level(logging.WARNING, logger="esphome.espidf.framework"):
+        assert _read_stamp(f) is None
+    assert "Ignoring corrupt stamp file" in caplog.text
+
+
+def test_read_stamp_unreadable_file_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # An I/O fault (permissions, disk error) is distinguished from a simply
+    # missing stamp with a warning before falling back to reinstall.
+    f = tmp_path / "s.json"
+    f.write_text(json.dumps({"a": "1"}), encoding="utf-8")
+    with (
+        patch.object(Path, "open", side_effect=PermissionError("denied")),
+        caplog.at_level(logging.WARNING, logger="esphome.espidf.framework"),
+    ):
+        assert _read_stamp(f) is None
+    assert "Could not read stamp file" in caplog.text
+
+
+def test_read_stamp_non_dict_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Well-formed JSON that is not an object is a fault, not a first install;
+    # it must leave a trace before forcing reinstalls.
+    f = tmp_path / "s.json"
+    f.write_text("null", encoding="utf-8")
+    with caplog.at_level(logging.WARNING, logger="esphome.espidf.framework"):
+        assert _read_stamp(f) is None
+    assert "unexpected type NoneType" in caplog.text
+
+
+def test_read_stamp_missing_file_is_silent(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Missing stamps are the normal first-install case and must not log.
+    with caplog.at_level(logging.DEBUG, logger="esphome.espidf.framework"):
+        assert _read_stamp(tmp_path / "nope.json") is None
+    assert "stamp file" not in caplog.text
 
 
 def test_write_idf_version_txt_writes_when_missing(tmp_path: Path) -> None:

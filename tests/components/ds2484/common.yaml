@@ -1,6 +1,7 @@
 one_wire:
-  platform: ds2484
-  i2c_id: i2c_bus
-  address: 0x18
-  active_pullup: true
-  strong_pullup: false
+  - platform: ds2484
+    id: ow_ds2484
+    i2c_id: i2c_bus
+    address: 0x18
+    active_pullup: true
+    strong_pullup: false

@@ -10,7 +10,7 @@ namespace esphome::modbus_controller {
 
 class ModbusSwitch final : public Component, public switch_::Switch, public SensorItem {
  public:
-  ModbusSwitch(ModbusRegisterType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
+  ModbusSwitch(modbus::EntityType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
                uint16_t skip_updates, bool force_new_range) {
     this->register_type = register_type;
     this->start_address = start_address;
@@ -19,7 +19,7 @@ class ModbusSwitch final : public Component, public switch_::Switch, public Sens
     this->sensor_value_type = SensorValueType::BIT;
     this->skip_updates = skip_updates;
     this->register_count = 1;
-    if (register_type == ModbusRegisterType::HOLDING || register_type == ModbusRegisterType::COIL) {
+    if (register_type == modbus::EntityType::HOLDING || register_type == modbus::EntityType::COIL) {
       this->start_address += offset;
       this->offset = 0;
     }
