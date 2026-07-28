@@ -179,9 +179,10 @@ struct ModbusDeviceCommand {
   /// 1 for everything else) as on_not_sent() deliveries. An entry leaving the world drains to
   /// zero, one terminal per remaining count.
   uint8_t pending{1};
-  /// Monotonic age stamp: FIFO tiebreak within an ordering class. A retry or absorbed re-run keeps
-  /// its original stamp (the request was here first); residents are re-stamped on each completed
-  /// cycle, making least-recently-served selection a plain minimum.
+  /// Monotonic stamp of the most recent request or re-queue: set on append, on every duplicate
+  /// absorbed into the entry, and on every return to READY (retry, absorbed re-run, resident
+  /// cycle). Selection takes the minimum, so the queue is round-robin fair - a retry goes behind
+  /// requests that arrived while it was in flight, and no single frame can starve the rest.
   uint16_t seq{0};
 
   ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, const uint8_t *src, uint16_t len,

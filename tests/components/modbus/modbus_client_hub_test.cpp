@@ -455,9 +455,9 @@ TEST(ModbusClientHubPriority, AnonymousDuplicateDroppedNotPromoted) {
   EXPECT_EQ(hub.queued(0).pending, 1u);  // never absorbed for a null owner
 }
 
-// A retried entry keeps its original queue age: it was accepted before the fresh reads that
-// arrived while it was in flight, so it transmits ahead of them (FIFO by seq, not storage order).
-TEST(ModbusClientHubPriority, RetriedReadKeepsItsQueueAge) {
+// A retried entry is re-stamped to the queue tail: reads that arrived while it was in flight get
+// their turn before the retry, so a frame that keeps timing out cannot starve the rest of the bus.
+TEST(ModbusClientHubPriority, RetriedReadGoesBehindFreshReads) {
   NoResponseProbeHub hub;
   RetryingDevice device(&hub, 0x02, /*retry=*/true);
 
@@ -470,18 +470,20 @@ TEST(ModbusClientHubPriority, RetriedReadKeepsItsQueueAge) {
   device.send_pdu(fresh_b);
   ASSERT_EQ(hub.queued_frames(), 2u);
 
-  hub.timeout_waiting();  // device retries; the entry returns to READY with its original age
+  hub.timeout_waiting();  // device retries; the entry returns to READY behind the fresh reads
 
   ASSERT_EQ(hub.queued_frames(), 3u);
   const ModbusDeviceCommand *next = hub.next_ready();
   ASSERT_NE(next, nullptr);
-  EXPECT_TRUE(std::equal(next->frame.pdu().begin(), next->frame.pdu().end(), READ_PDU));
-  EXPECT_EQ(next->pending, 2u);  // both absorbed requests still pending
+  EXPECT_EQ(next->frame.pdu()[2], 0x10);  // fresh reads keep FIFO order ahead of the retry
   hub.force_send_front();
-  hub.timeout_waiting();  // resolves one request, the absorbed one keeps its age and goes again
+  hub.timeout_waiting();
   hub.force_send_front();
-  EXPECT_TRUE(std::equal(hub.waiting_command().frame.pdu().begin(), hub.waiting_command().frame.pdu().end(),
-                         READ_PDU));  // still older than the fresh reads
+  EXPECT_EQ(hub.waiting_command().frame.pdu()[2], 0x20);
+  hub.timeout_waiting();
+  hub.force_send_front();  // the retry gets its turn last, both requests still on the entry
+  EXPECT_TRUE(std::equal(hub.waiting_command().frame.pdu().begin(), hub.waiting_command().frame.pdu().end(), READ_PDU));
+  EXPECT_EQ(hub.waiting_command().pending, 2u);
 }
 
 // A write that is retried after a no-response keeps the WRITE class, so it stays ahead of reads,
@@ -746,8 +748,17 @@ TEST(ModbusClientHubCallbackCount, RetryIsNeverRefusedByFullQueue) {
   ASSERT_EQ(hub.queued_frames(), MODBUS_TX_BUFFER_SIZE);
   const ModbusDeviceCommand *next = hub.next_ready();
   ASSERT_NE(next, nullptr);
-  EXPECT_EQ(next->device, &device);  // oldest entry: the retried frame transmits next
-  EXPECT_EQ(next->pending, 2u);
+  EXPECT_EQ(next->device, &filler);  // round-robin: the retry re-stamped behind the fillers
+  // The retried entry survives as READY with both absorbed requests intact.
+  bool found = false;
+  for (size_t i = 0; i < hub.queued_frames(); i++) {
+    const ModbusDeviceCommand &cmd = hub.queued(i);
+    if (cmd.device == &device) {
+      EXPECT_EQ(cmd.pending, 2u);
+      found = true;
+    }
+  }
+  EXPECT_TRUE(found);
 }
 
 // The deprecated device-side send_raw() refusal delivers through the same guard as every other
