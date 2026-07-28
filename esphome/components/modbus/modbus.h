@@ -332,14 +332,16 @@ using ResponseStatus = std::optional<ExceptionCode>;
 ///    requests as well. Likewise, converting an entry to continuous ({.continuous = true} matching
 ///    a queued frame) SUPERSEDES any request that entry had absorbed: the caller opted into
 ///    streaming semantics, and the poll's responses are the accounting from then on.
-///  - while a device's own on_not_sent() is on the stack, further on_not_sent() deliveries to THAT
-///    device are dropped (see trigger_not_sent()). In particular, a clear issued from inside your own
-///    on_not_sent() resolves your remaining frames silently - treat it like
-///    clear_tx_queue_for_device(): you cleared them, you know. Other owners are still notified.
+///  - a device receives at most ONE refusal/bleed on_not_sent() per sweep; a repeat refusal caused
+///    from inside that delivery (a doomed re-send, directly or through a device cycle) is dropped
+///    without a callback, bounding what would otherwise be unbounded re-entry. (Inline validation
+///    refusals - empty/oversize PDU - are guarded by trigger_not_sent() the same way.)
 /// Sending from inside on_not_sent() is hazardous: the notification may itself mean the queue is full
 /// or refusing, and this device's retry that is refused again is dropped WITHOUT a callback (the
-/// guard above, which bounds what would otherwise be unbounded re-entry) - prefer re-sending from a
-/// later trigger or the component's update()/loop().
+/// bound above) - prefer re-sending from a later trigger or the component's update()/loop().
+/// An address-scoped clear issued from inside on_not_sent() resolves EVERY dropped request with its
+/// own terminal at the sweep, the clearer's included; use clear_tx_queue_for_device() when you want
+/// your own frames torn down silently.
 class ModbusClientDevice {
  public:
   ModbusClientDevice() = default;
