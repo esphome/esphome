@@ -185,7 +185,7 @@ TEST(ModbusClientHubNoResponse, RetryBehindInterruptedShell) {
   EXPECT_EQ(hub.queued_frames(), 0u);  // no separate requeue: the entry IS the shell
   ASSERT_TRUE(hub.waiting());          // and it keeps blocking the bus
   EXPECT_EQ(hub.waiting_command().state, FrameState::INTERRUPTED_NOTIFIED);
-  EXPECT_TRUE(hub.waiting_command().retry_after_interrupt);  // the retry decision is recorded...
+  EXPECT_EQ(hub.waiting_command().pending, 1u);  // the granted retry resolved nothing...
   EXPECT_EQ(hub.waiting_command().device, &device);
 
   // ...and applied when the send-wait timeout releases the shell: one READY retry, no second callback.
@@ -194,6 +194,32 @@ TEST(ModbusClientHubNoResponse, RetryBehindInterruptedShell) {
   EXPECT_EQ(device.no_response_count_, 1);
   ASSERT_EQ(hub.queued_frames(), 1u);
   EXPECT_EQ(hub.queued(0).device, &device);
+}
+
+// The declined-retry shell: the sweep's on_no_response() resolves the request on the spot
+// (pending drains to zero), the shell keeps blocking until the send-wait timeout, and the release
+// finds nothing left to send - no callbacks, no queue entry.
+TEST(ModbusClientHubNoResponse, InterruptedShellDeclinedRetryRetiresOnRelease) {
+  NoResponseProbeHub hub;
+  RetryingDevice device(&hub, 0x02, /*retry=*/false);
+
+  device.send_pdu(read_pdu());
+  hub.force_send_next();
+
+  const uint8_t stray_pdu[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
+  hub.receive_frame_for_test(0x07, stray_pdu);  // wrong address: interrupts the transaction
+  hub.sweep_for_test();
+
+  EXPECT_EQ(device.no_response_count_, 1);
+  ASSERT_TRUE(hub.waiting());  // the shell still blocks the wire...
+  EXPECT_EQ(hub.waiting_command().state, FrameState::INTERRUPTED_NOTIFIED);
+  EXPECT_EQ(hub.waiting_command().pending, 0u);  // ...but the request already resolved
+
+  hub.timeout_waiting();  // release: nothing pending, the shell retires
+
+  EXPECT_FALSE(hub.waiting());
+  EXPECT_EQ(hub.queued_frames(), 0u);
+  EXPECT_EQ(device.no_response_count_, 1);  // no second callback
 }
 
 // A callback that detaches the device (clear_tx_queue_for_device()) wins over its own retry request:

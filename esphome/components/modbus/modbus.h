@@ -115,10 +115,11 @@ enum class CommandPriority : uint8_t { READ = 0, WRITE };
 ///   WAITING -> INTERRUPTED      on an unexpected-frame interruption; keeps tx blocked until the
 ///                               send-wait timeout (the old "interrupted shell", now explicit)
 ///   INTERRUPTED -> INTERRUPTED_NOTIFIED
-///                               when the sweep delivers the shell's on_no_response() and records
-///                               the retry decision in retry_after_interrupt
-///   INTERRUPTED_NOTIFIED -> READY (retry granted or an absorbed request remains) or removal,
-///                               applied when the send-wait timeout releases the shell
+///                               when the sweep delivers the shell's on_no_response(); a declined
+///                               retry resolves one request on the spot (pending--), a granted
+///                               retry resolves nothing
+///   INTERRUPTED_NOTIFIED -> READY (requests still pending) or removal (none), when the
+///                               send-wait timeout releases the shell
 ///   anything -> DELETED         on clear_tx_queue_* (a clear is a state flip; the sweep resolves
 ///                               owed terminals - or removes silently for device-scoped clears)
 ///   WAITING -> WAITING_DELETED  on a clear with clear_sent: the frame is on the wire, so it
@@ -164,9 +165,6 @@ struct ModbusDeviceCommand {
   /// CONTINUOUS entries are subscriptions: never consumed by completion, pending
   /// fixed at 1 ("the subscription"), removed only by cancellation or failure.
   bool continuous{false};
-  /// Retry decision recorded at INTERRUPTED -> INTERRUPTED_NOTIFIED, applied when the send-wait
-  /// timeout releases the shell (the wire timing matches the old immediate-requeue-behind-shell).
-  bool retry_after_interrupt{false};
   /// Per-sweep marker: this entry's device already received a refusal/bleed on_not_sent() during
   /// the current sweep. Further refusals for the device are suppressed and further bleed is
   /// deferred, so a handler that re-sends from inside on_not_sent() cannot livelock the sweep.

@@ -80,13 +80,13 @@ void ModbusClientHub::expire_waiting_() {
     retire_(*cmd);
     this->sweep_needed_ = true;
     this->waiting_for_response_ = false;
-  } else if (cmd->state == FrameState::INTERRUPTED_NOTIFIED) {  // retry decision recorded
-    if (cmd->retry_after_interrupt || --cmd->pending != 0) {
-      // Wire-equivalent to the old requeue-behind-the-shell: the retry (or an absorbed request's
-      // run) becomes sendable exactly when the shell stops blocking, re-stamped to the tail.
+  } else if (cmd->state == FrameState::INTERRUPTED_NOTIFIED) {
+    // The sweep already settled the books (a declined retry decremented pending); releasing the
+    // shell is uniform: anything still pending becomes sendable exactly when the wire unblocks -
+    // wire-equivalent to the old requeue-behind-the-shell - and an empty entry retires.
+    if (cmd->pending != 0) {
       cmd->state = FrameState::READY;
       cmd->seq = this->next_seq_++;
-      cmd->retry_after_interrupt = false;
     } else {
       retire_(*cmd);
       this->sweep_needed_ = true;
@@ -767,12 +767,15 @@ void ModbusClientHub::sweep_() {
         }
         case FrameState::INTERRUPTED: {
           // Advance BEFORE the callback, so a clear from inside it (-> WAITING_DELETED) wins and
-          // is never overwritten; the decision recorded below is then moot.
+          // is never overwritten (the bookkeeping below is then moot).
           cmd.state = FrameState::INTERRUPTED_NOTIFIED;
           bool retry = false;
           if (cmd.device != nullptr)
             retry = cmd.device->on_no_response(cmd.frame.pdu());
-          cmd.retry_after_interrupt = retry;  // applied when the timeout releases the shell
+          // A declined retry resolves one request here, at delivery, like every other terminal;
+          // whatever is still pending goes back on the wire when the timeout releases the shell.
+          if (!retry && cmd.state == FrameState::INTERRUPTED_NOTIFIED && cmd.pending != 0)
+            cmd.pending--;
           progressed = true;
           break;
         }
