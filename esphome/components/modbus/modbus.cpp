@@ -80,7 +80,7 @@ void ModbusClientHub::expire_in_flight_() {
   } else if (cmd->state == FrameState::INTERRUPTED_NOTIFIED) {  // retry decision recorded
     if (cmd->retry_after_interrupt || --cmd->pending != 0) {
       // Wire-equivalent to the old requeue-behind-the-shell: the retry (or an absorbed request's
-      // run) becomes sendable exactly when the shell stops blocking, re-stamped to the queue tail.
+      // run) becomes sendable exactly when the shell stops blocking, re-stamped to the tail.
       cmd->state = FrameState::READY;
       cmd->seq = this->next_seq_++;
       cmd->retry_after_interrupt = false;
@@ -635,8 +635,8 @@ ModbusDeviceCommand *ModbusClientHub::find_in_flight_() {
 
 ModbusDeviceCommand *ModbusClientHub::select_next_ready_() {
   // Ordering is a property of selection, not storage: WRITE class outranks reads, one-shot reads
-  // outrank resident polls, and within a group the oldest seq goes first. Every send and every
-  // return to READY re-stamps seq, so the rotation is round-robin fair in both groups.
+  // outrank resident polls, and within a group the oldest seq goes first - round-robin fair, with
+  // absorbed duplicates keeping their entry's place (see the seq field doc).
   const auto older = [](const ModbusDeviceCommand &a, const ModbusDeviceCommand &b) {
     return static_cast<int16_t>(a.seq - b.seq) < 0;  // wrap-safe
   };
@@ -750,10 +750,11 @@ void ModbusClientHub::sweep_() {
           if (cmd.state != FrameState::TIMED_OUT) {
             // A clear from inside the handler took over; its state wins (and cancels the retry).
           } else if (retry) {
-            cmd.state = FrameState::READY;  // the same request re-attempts, behind newer arrivals
+            // A granted retry is resolve-then-re-request: the new attempt queues at the tail.
+            cmd.state = FrameState::READY;
             cmd.seq = this->next_seq_++;
           } else if (!cmd.resident && --cmd.pending != 0) {
-            cmd.state = FrameState::READY;  // the timeout resolved one request; an absorbed one runs
+            cmd.state = FrameState::READY;  // one request resolved; the survivor re-stamps
             cmd.seq = this->next_seq_++;
           } else {
             retire_(cmd);
@@ -808,8 +809,10 @@ void ModbusClientHub::sweep_() {
           cmd.served_not_sent = true;
           if (cmd.device != nullptr)
             cmd.device->trigger_not_sent(cmd.frame.pdu());
-          if (cmd.pending != 0)  // a clear inside the handler may have drained it
+          if (cmd.pending != 0) {  // a clear inside the handler may have drained it
             cmd.pending--;
+            cmd.seq = this->next_seq_++;  // a request resolved; the place in line moves up
+          }
           progressed = true;
           break;
         }
@@ -907,14 +910,13 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
     } else if (resident) {
       item.resident = true;
       item.pending = 1;
-      item.seq = this->next_seq_++;
       ESP_LOGV(TAG, "Frame already active for %" PRIu8 ", now polled continuously", address);
     } else if (item.resident) {
-      item.seq = this->next_seq_++;
       ESP_LOGV(TAG, "Frame already active for %" PRIu8 " as a continuous poll", address);
     } else {
+      // An absorbed duplicate leaves seq alone: the entry's place in line belongs to its oldest
+      // outstanding request, and that one is still unresolved.
       item.pending++;
-      item.seq = this->next_seq_++;  // a repeat request re-stamps: the entry queues as if just sent
       if (item.pending > servable_cap_(item))
         this->sweep_needed_ = true;  // the excess resolves as on_not_sent() at the next sweep
       ESP_LOGV(TAG, "Frame already active for %" PRIu8 ", request absorbed (pending %" PRIu8 ")", address,

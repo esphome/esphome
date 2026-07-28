@@ -179,10 +179,12 @@ struct ModbusDeviceCommand {
   /// 1 for everything else) as on_not_sent() deliveries. An entry leaving the world drains to
   /// zero, one terminal per remaining count.
   uint8_t pending{1};
-  /// Monotonic stamp of the most recent request or re-queue: set on append, on every duplicate
-  /// absorbed into the entry, and on every return to READY (retry, absorbed re-run, resident
-  /// cycle). Selection takes the minimum, so the queue is round-robin fair - a retry goes behind
-  /// requests that arrived while it was in flight, and no single frame can starve the rest.
+  /// Place-in-line stamp: set when the entry is first queued, left alone when a duplicate is
+  /// absorbed (pending++), and re-stamped whenever the entry re-enters the line - a request
+  /// resolving (pending--), a granted retry (resolve-then-re-request), or a resident completing
+  /// its cycle. Selection takes the minimum, so within a class the queue is round-robin fair: a
+  /// re-attempt goes behind requests that arrived while the frame was in flight, and no single
+  /// frame can starve the rest of the bus.
   uint16_t seq{0};
 
   ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, const uint8_t *src, uint16_t len,

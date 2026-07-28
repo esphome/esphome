@@ -486,6 +486,25 @@ TEST(ModbusClientHubPriority, RetriedReadGoesBehindFreshReads) {
   EXPECT_EQ(hub.waiting_command().pending, 2u);
 }
 
+// An absorbed duplicate does not move the entry back in line: seq belongs to the entry, and only
+// re-entering the line (retry, resolved request, resident cycle) re-stamps it.
+TEST(ModbusClientHubPriority, AbsorbedDuplicateKeepsPlaceInLine) {
+  NoResponseProbeHub hub;
+  RetryingDevice device(&hub, 0x02, /*retry=*/false);
+
+  const uint8_t read_a[] = {0x03, 0x00, 0x10, 0x00, 0x01};
+  const uint8_t read_b[] = {0x03, 0x00, 0x20, 0x00, 0x01};
+  device.send_pdu(read_a);
+  device.send_pdu(read_b);
+  device.send_pdu(read_a);  // duplicate of the older entry: absorbed, place unchanged
+  ASSERT_EQ(hub.queued_frames(), 2u);
+
+  const ModbusDeviceCommand *next = hub.next_ready();
+  ASSERT_NE(next, nullptr);
+  EXPECT_EQ(next->frame.pdu()[2], 0x10);  // read_a still transmits first
+  EXPECT_EQ(next->pending, 2u);
+}
+
 // A write that is retried after a no-response keeps the WRITE class, so it stays ahead of reads,
 // and a later duplicate still resolves against it instead of queueing twice.
 TEST(ModbusClientHubPriority, RetriedWriteKeepsWritePriorityAndStaysNonRequeueable) {
