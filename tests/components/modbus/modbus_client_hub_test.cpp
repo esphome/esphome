@@ -1353,4 +1353,19 @@ TEST(ModbusClientHubPriority, ReadModifyWritesRankAsWrites) {
   EXPECT_EQ(hub.front().frame.pdu()[0], 0x16);
 }
 
+// An exception-flagged function code is never silently re-sendable, even though the read check
+// masks the exception bit: its duplicate takes the drop path like any other non-read.
+TEST(ModbusClientHubPriority, ExceptionFlaggedDuplicateDroppedNotPromoted) {
+  NoResponseProbeHub hub;
+  SentCountingDevice device(&hub, 0x02);
+
+  const uint8_t weird[] = {0x83, 0x01, 0x00, 0x00, 0x02};  // read-shaped but exception-flagged
+  device.send_pdu(weird);
+  device.send_pdu(weird);
+
+  ASSERT_EQ(hub.queued_frames(), 1u);
+  EXPECT_EQ(hub.queued(0).priority, CommandPriority::READ_ONCE);  // not promoted
+  EXPECT_EQ(device.not_sent_count_, 1);                           // duplicate dropped with a terminal
+}
+
 }  // namespace esphome::modbus::testing

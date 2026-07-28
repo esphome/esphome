@@ -692,7 +692,9 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   // Only the standard reads are silently re-queueable: re-sending a write is not idempotent in general
   // (it can double a command/increment register), and a custom or diagnostic function code's idempotency
   // is unknown, so both take the safe drop path on a duplicate.
-  const bool is_requeueable = helpers::is_function_code_read(pdu[0]);
+  // is_function_code_read() masks the exception bit, so exclude exception-flagged codes explicitly:
+  // a nonsense request built with 0x8x in a lambda must take the drop path, never silent re-sending.
+  const bool is_requeueable = !helpers::is_function_code_exception(pdu[0]) && helpers::is_function_code_read(pdu[0]);
 
   // A frame arriving THROUGH send_pdu() that is identical to one already queued or in flight is not
   // queued twice; the duplicate is resolved against the existing entry. (The internal re-queue paths
