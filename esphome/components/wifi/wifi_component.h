@@ -187,6 +187,13 @@ template<typename T> using wifi_scan_vector_t = std::vector<T>;
 template<typename T> using wifi_scan_vector_t = FixedVector<T>;
 #endif
 
+// A consumer component (e.g. the captive portal) reads scan results from another
+// task; guard them with a real lock only on platforms that actually run multiple
+// threads. See ScanResultsLock below the WiFiComponent class.
+#if defined(USE_WIFI_SCAN_RESULTS_LOCK) && !defined(ESPHOME_THREAD_SINGLE)
+#define WIFI_SCAN_RESULTS_LOCK_ENABLED
+#endif
+
 /// 20-byte string: 18 chars inline + null, heap for longer. Always null-terminated.
 /// Used internally for WiFi SSID/password storage to reduce heap fragmentation.
 class CompactString {
@@ -506,6 +513,9 @@ class WiFiComponent final : public Component {
   const char *get_use_address() const { return this->use_address_; }
   void set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
+  /// Main-loop callers may read this directly. Callers on any other task must
+  /// hold a ScanResultsLock for the whole iteration and must call
+  /// wifi.request_wifi_scan_results_lock() from their code generation.
   const wifi_scan_vector_t<WiFiScanResult> &get_scan_result() const { return scan_result_; }
 
   network::IPAddress wifi_soft_ap_ip();
@@ -817,6 +827,8 @@ class WiFiComponent final : public Component {
   friend void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 #endif
 
+  friend class ScanResultsLock;
+
 #ifdef USE_RP2
   static int s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
   void wifi_scan_result_(void *env, const cyw43_ev_scan_result_t *result);
@@ -831,7 +843,11 @@ class WiFiComponent final : public Component {
   // Large/pointer-aligned members first
   FixedVector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
+  // Guarded by ScanResultsLock (see below this class)
   wifi_scan_vector_t<WiFiScanResult> scan_result_;
+#ifdef WIFI_SCAN_RESULTS_LOCK_ENABLED
+  Mutex scan_result_lock_;
+#endif
 #ifdef USE_WIFI_AP
   WiFiAP ap_;
 #endif
@@ -1002,6 +1018,26 @@ class WiFiComponent final : public Component {
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+/// Guards WiFiComponent::scan_result_. Invariant: every mutation and every read
+/// from outside the main loop holds this lock, and holders only do bounded work
+/// (never unbounded waits or network sends). On every platform where the lock is
+/// enabled (ESP32, LibreTiny) scan-done events are drained from the event queue
+/// on the main loop, so all writers are main-loop there and main-loop reads take
+/// no lock. Single-threaded platforms write from driver context and the lock is
+/// a no-op. Compiles to nothing unless a cross-task reader is in the build and
+/// the platform is multi-threaded (WIFI_SCAN_RESULTS_LOCK_ENABLED).
+class ScanResultsLock {
+ public:
+#ifdef WIFI_SCAN_RESULTS_LOCK_ENABLED
+  ScanResultsLock(WiFiComponent *parent) : guard_(parent->scan_result_lock_) {}
+
+ private:
+  LockGuard guard_;
+#else
+  ScanResultsLock(WiFiComponent *) {}
+#endif
+};
 
 }  // namespace esphome::wifi
 #endif
