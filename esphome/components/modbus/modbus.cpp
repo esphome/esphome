@@ -48,13 +48,14 @@ void ModbusClientHub::loop() {
   // Call base class to receive bytes and parse frames
   this->Modbus::loop();
 
-  // Send-wait watchdog: past the timeout with no start-of-response in sight, the waiting
-  // transaction ends. WAITING becomes TIMED_OUT (the sweep delivers on_no_response()); a
-  // WAITING_DELETED shell retires silently; an INTERRUPTED shell releases here, applying the
-  // retry decision the sweep recorded when it delivered the interruption's on_no_response().
+  // Send-wait watchdog: past the timeout with no start-of-response in sight, the wait ends.
+  // WAITING becomes TIMED_OUT (the sweep delivers on_no_response()); a WAITING_DELETED shell
+  // retires silently; an INTERRUPTED shell releases here, applying the retry decision the sweep
+  // recorded when it delivered the interruption's on_no_response(). Only the cheap time check
+  // runs at loop rate; expire_waiting_() looks the entry up and holds off if the response has
+  // started arriving.
   if (this->waiting_for_response_ &&
-      this->last_receive_check_ - this->last_send_ > this->last_send_tx_offset_ + this->send_wait_time_ &&
-      (this->rx_buffer_.empty() || this->rx_buffer_[0] != this->waiting_address_)) {
+      this->last_receive_check_ - this->last_send_ > this->last_send_tx_offset_ + this->send_wait_time_) {
     this->expire_waiting_();
   }
 
@@ -67,8 +68,10 @@ void ModbusClientHub::expire_waiting_() {
   ModbusDeviceCommand *cmd = this->find_waiting_();
   if (cmd == nullptr) {
     this->waiting_for_response_ = false;
+  } else if (!this->rx_buffer_.empty() && this->rx_buffer_[0] == cmd->frame.address()) {
+    // The start of the response is in the buffer: let the frame finish arriving.
   } else if (cmd->state == FrameState::WAITING) {
-    ESP_LOGW(TAG, "Stop waiting for response from %" PRIu8 " %" PRIu32 "ms after last send", this->waiting_address_,
+    ESP_LOGW(TAG, "Stop waiting for response from %" PRIu8 " %" PRIu32 "ms after last send", cmd->frame.address(),
              this->last_receive_check_ - this->last_send_);
     cmd->state = FrameState::TIMED_OUT;
     this->sweep_needed_ = true;
@@ -559,7 +562,6 @@ void ModbusClientHub::send_next_frame_() {
   if (this->send_frame_(cmd->frame)) {
     cmd->state = FrameState::WAITING;
     this->waiting_for_response_ = true;
-    this->waiting_address_ = cmd->frame.address();
     if (cmd->device != nullptr)
       cmd->device->on_sent(cmd->frame.pdu());
   } else {

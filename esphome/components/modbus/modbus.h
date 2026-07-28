@@ -268,13 +268,12 @@ class ModbusClientHub : public Modbus {
   uint16_t send_wait_time_{2000};
   uint16_t turnaround_delay_ms_{0};
 
-  /// Tracking the frame on the wire: cache VALUES, derive ENTRIES. The two cached values below
-  /// serve the loop-rate timeout watchdog; the entry itself is found by scan at event rate.
-  /// Uniqueness is enforced at the transmit gate: waiting_for_response_ is written at exactly two
-  /// kinds of sites (set on transmit, cleared on the transaction-ending transition) and
-  /// send_next_frame_ refuses to select while it is set.
+  /// Tracking the frame on the wire: cache the one VALUE the loop rate needs, derive everything
+  /// else by scan at event rate (the watchdog only looks the entry up once the send-wait timer
+  /// has already expired). Uniqueness is enforced at the transmit gate: waiting_for_response_ is
+  /// written at exactly two kinds of sites (set on transmit, cleared on the transaction-ending
+  /// transition) and send_next_frame_ refuses to select while it is set.
   bool waiting_for_response_{false};
-  uint8_t waiting_address_{0};
 
   /// Set whenever a transition leaves sweep work behind (terminal deliveries, pending bleed);
   /// quiet loop() passes skip the walk when clear.

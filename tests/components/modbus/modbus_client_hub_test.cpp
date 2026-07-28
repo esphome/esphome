@@ -56,7 +56,6 @@ class NoResponseProbeHub : public ModbusClientHub {
     ASSERT_NE(cmd, nullptr) << "no READY entry to send";
     cmd->state = FrameState::WAITING;
     this->waiting_for_response_ = true;
-    this->waiting_address_ = cmd->frame.address();
   }
   // Drives the real response/interruption branches, followed by the loop's sweep.
   void receive_frame_for_test(uint8_t address, std::span<const uint8_t> pdu) {
