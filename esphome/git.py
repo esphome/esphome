@@ -2,6 +2,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 import hashlib
 import logging
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -11,7 +12,7 @@ import urllib.parse
 
 import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError, TimePeriodSeconds
-from esphome.helpers import rmtree, write_file
+from esphome.helpers import add_git_ceiling_directory, rmtree, write_file
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,6 +26,24 @@ NEVER_REFRESH = TimePeriodSeconds(seconds=-1)
 # NEVER_REFRESH. Lives in .git so stash/reset/checkout can never touch it and
 # it does not pollute the worktree.
 _CLONE_COMPLETE_MARKER = "esphome_clone_complete"
+
+# Environment variables that scope git to a specific repository. Git hooks and
+# some CI wrappers export these; if they leak into the git commands run here,
+# git binds to the caller's repository instead of the one being managed. The
+# effects range from loud (`git clone` producing a bare-style directory with
+# no working tree) to silent (an ambient GIT_INDEX_FILE makes
+# `git submodule update --init` exit 0 without initializing anything).
+_GIT_REPO_SCOPING_ENV = frozenset(
+    {
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_COMMON_DIR",
+        "GIT_NAMESPACE",
+    }
+)
 
 
 class GitException(cv.Invalid):
@@ -43,32 +62,61 @@ class GitRepositoryError(GitException):
     """Exception raised when a git repository is in an invalid state."""
 
 
-def run_git_command(cmd: list[str], git_dir: Path | None = None) -> str:
-    if git_dir is not None:
-        _LOGGER.debug(
-            "Running git command with repository isolation: %s (git_dir=%s)",
-            " ".join(cmd),
-            git_dir,
-        )
-    else:
-        _LOGGER.debug("Running git command: %s", " ".join(cmd))
+def _redact_url_credentials(text: str) -> str:
+    """Mask userinfo in any URLs embedded in ``text``.
 
-    # Set up environment for repository isolation if git_dir is provided
-    # Force git to only operate on this specific repository by setting
-    # GIT_DIR and GIT_WORK_TREE. This prevents git from walking up the
-    # directory tree to find parent repositories when the target repo's
-    # .git directory is corrupt. Without this, commands like 'git stash'
-    # could accidentally operate on parent repositories (e.g., the main
-    # ESPHome repo) instead of failing, causing data loss.
-    env: dict[str, str] | None = None
-    cwd: str | None = None
+    Users can put credentials directly in a git URL, and log output is
+    routinely pasted into public issues.
+    """
+    return re.sub(r"://[^/@\s]+@", "://***@", text)
+
+
+def run_git_command(
+    cmd: list[str], git_dir: Path | None = None, *, cwd: Path | None = None
+) -> str:
+    """Run a git command and return its stdout.
+
+    The repository-scoping environment variables in ``_GIT_REPO_SCOPING_ENV``
+    are always stripped. ``git_dir`` additionally pins GIT_DIR/GIT_WORK_TREE
+    to that repository and runs the command there; ``cwd`` alone runs the
+    command in that directory with GIT_CEILING_DIRECTORIES capping repository
+    discovery at its parent.
+    """
+    # Every invocation starts from an environment with the repository-scoping
+    # variables stripped (see _GIT_REPO_SCOPING_ENV) so a git hook or CI
+    # wrapper invoking ESPHome can never redirect these commands to its own
+    # repository or index.
+    #
+    # ``git_dir`` then re-adds GIT_DIR and GIT_WORK_TREE pointing at the
+    # managed repository. This prevents git from walking up the directory
+    # tree to find parent repositories when the target repo's .git directory
+    # is corrupt. Without this, commands like 'git stash' could accidentally
+    # operate on parent repositories (e.g., the main ESPHome repo) instead of
+    # failing, causing data loss.
+    #
+    # ``cwd`` (without ``git_dir``) runs the command in that directory
+    # without GIT_DIR/GIT_WORK_TREE. The ``git submodule`` porcelain needs
+    # this: on some installations (e.g. Windows setups where a shim hands
+    # git untranslated paths) it refuses to run when GIT_DIR/GIT_WORK_TREE
+    # are set, failing with "cannot be used without a working tree".
+    # GIT_CEILING_DIRECTORIES (which git only honors as an absolute path)
+    # keeps the parent-repo-walk protection instead: if the repo's .git is
+    # missing or corrupt, git fails rather than discovering an enclosing
+    # repository.
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_REPO_SCOPING_ENV}
     if git_dir is not None:
-        env = {
-            **subprocess.os.environ,
-            "GIT_DIR": str(Path(git_dir) / ".git"),
-            "GIT_WORK_TREE": str(git_dir),
-        }
-        cwd = str(git_dir)
+        env["GIT_DIR"] = str(Path(git_dir) / ".git")
+        env["GIT_WORK_TREE"] = str(git_dir)
+        cwd = git_dir
+    elif cwd is not None:
+        add_git_ceiling_directory(env, Path(cwd).absolute().parent)
+
+    _LOGGER.debug(
+        "Running git command: %s (cwd=%s, isolated=%s)",
+        _redact_url_credentials(" ".join(cmd)),
+        cwd,
+        git_dir is not None,
+    )
 
     try:
         ret = subprocess.run(
@@ -86,12 +134,17 @@ def run_git_command(cmd: list[str], git_dir: Path | None = None) -> str:
             "for installation instructions."
         ) from err
 
-    if ret.returncode != 0 and ret.stderr:
-        err_str = ret.stderr.decode("utf-8")
-        lines = [x.strip() for x in err_str.splitlines()]
-        if lines[-1].startswith("fatal:"):
-            raise GitCommandError(lines[-1][len("fatal: ") :])
-        raise GitCommandError(err_str)
+    if ret.returncode != 0:
+        if ret.stderr:
+            err_str = ret.stderr.decode("utf-8")
+            lines = [x.strip() for x in err_str.splitlines()]
+            if lines[-1].startswith("fatal:"):
+                raise GitCommandError(lines[-1][len("fatal: ") :])
+            raise GitCommandError(err_str)
+        raise GitCommandError(
+            f"git exited with code {ret.returncode}: "
+            f"{_redact_url_credentials(' '.join(cmd))}"
+        )
 
     return ret.stdout.decode("utf-8").strip()
 
@@ -121,6 +174,27 @@ def _remove_repo_dir(repo_dir: Path) -> None:
         _LOGGER.debug("Could not delete clone completion marker first: %s", err)
     if repo_dir.is_dir():
         rmtree(repo_dir)
+
+
+def update_submodules(repo_dir: Path, key: str) -> None:
+    """Initialize/update every submodule the repository declares, recursively,
+    matching how PlatformIO clones libraries.
+
+    Most repositories declare no submodules, so this does nothing when there
+    is no ``.gitmodules`` file. Which submodules get populated is git's own
+    policy (``update = none``, ``submodule.active``, sparse checkouts);
+    git's exit code is the error signal.
+
+    Runs with plain ``cwd`` rather than ``git_dir`` isolation, which the
+    ``git submodule`` porcelain does not tolerate (see ``run_git_command``).
+    """
+    if not (repo_dir / ".gitmodules").is_file():
+        return
+    _LOGGER.info("Updating submodules for %s", _redact_url_credentials(key))
+    run_git_command(
+        ["git", "submodule", "update", "--init", "--recursive", "--depth=1"],
+        cwd=repo_dir,
+    )
 
 
 def resolve_symlink_stub(repo_dir: Path, file_path: Path) -> Path | None:
@@ -217,12 +291,19 @@ def clone_or_update(
     domain: str,
     username: str = None,
     password: str = None,
-    submodules: list[str] | None = None,
+    init_submodules: bool = False,
     subpath: Path | None = None,
     _recover_broken: bool = True,
 ) -> tuple[Path, Callable[[], None] | None]:
     key = f"{url}@{ref}"
+    # The user may have embedded credentials in the URL itself; log this
+    # instead of key.
+    safe_key = _redact_url_credentials(key)
 
+    # Keep the caller's URL for the recovery re-clone below: rewriting the
+    # rewritten URL would double the userinfo, and the recursive call must
+    # compute the same cache key as this one.
+    original_url = url
     if username is not None and password is not None:
         url = url.replace(
             "://", f"://{urllib.parse.quote(username)}:{urllib.parse.quote(password)}@"
@@ -238,12 +319,12 @@ def clone_or_update(
         # predates the marker; either way it cannot be trusted, especially
         # with NEVER_REFRESH where it would otherwise be reused forever.
         _LOGGER.warning(
-            "Removing incomplete clone of %s at %s, will re-clone", key, repo_dir
+            "Removing incomplete clone of %s at %s, will re-clone", safe_key, repo_dir
         )
         _remove_repo_dir(repo_dir)
 
     if not repo_dir.is_dir():
-        _LOGGER.info("Cloning %s", key)
+        _LOGGER.info("Cloning %s", safe_key)
         _LOGGER.debug("Location: %s", repo_dir)
         try:
             cmd = ["git", "clone", "--depth=1"]
@@ -262,15 +343,8 @@ def clone_or_update(
                     ["git", "reset", "--hard", "FETCH_HEAD"], git_dir=repo_dir
                 )
 
-            if submodules is not None:
-                _LOGGER.info(
-                    "Initializing submodules (%s) for %s", ", ".join(submodules), key
-                )
-                run_git_command(
-                    ["git", "submodule", "update", "--init", "--depth=1", "--"]
-                    + submodules,
-                    git_dir=repo_dir,
-                )
+            if init_submodules:
+                update_submodules(repo_dir, key)
 
         except GitException:
             # Remove incomplete clone to prevent stale state. Without this,
@@ -290,12 +364,12 @@ def clone_or_update(
             )
         except EsphomeError as err:
             _LOGGER.warning(
-                "Could not write clone completion marker for %s: %s", key, err
+                "Could not write clone completion marker for %s: %s", safe_key, err
             )
 
     else:
         if refresh == NEVER_REFRESH or CORE.skip_external_update:
-            _LOGGER.debug("Skipping update for %s (refresh disabled)", key)
+            _LOGGER.debug("Skipping update for %s (refresh disabled)", safe_key)
             return repo_dir, None
 
         file_timestamp = Path(repo_dir / ".git" / "FETCH_HEAD")
@@ -319,7 +393,7 @@ def clone_or_update(
                     ["git", "rev-parse", "HEAD"], git_dir=repo_dir
                 )
 
-                _LOGGER.info("Updating %s", key)
+                _LOGGER.info("Updating %s", safe_key)
                 _LOGGER.debug("Location: %s", repo_dir)
 
                 # Stash local changes (if any)
@@ -345,19 +419,25 @@ def clone_or_update(
                     ["git", "reset", "--hard", "FETCH_HEAD"],
                     git_dir=repo_dir,
                 )
+
+                # Inside the try so a submodule failure routes through the
+                # recovery re-clone below instead of leaving a repo that the
+                # refresh window would silently accept on the next run.
+                if init_submodules:
+                    update_submodules(repo_dir, key)
             except GitException as err:
                 # Repository is in a broken state or update failed
                 # Only attempt recovery once to prevent infinite recursion
                 if not _recover_broken:
                     _LOGGER.error(
                         "Repository %s recovery failed, cannot retry (already attempted once)",
-                        key,
+                        safe_key,
                     )
                     raise
 
                 _LOGGER.warning(
                     "Repository %s has issues (%s), attempting recovery",
-                    key,
+                    safe_key,
                     err,
                 )
                 _LOGGER.info("Removing broken repository at %s", repo_dir)
@@ -367,31 +447,21 @@ def clone_or_update(
                 # Recursively call clone_or_update to re-clone
                 # Set _recover_broken=False to prevent infinite recursion
                 result = clone_or_update(
-                    url=url,
+                    url=original_url,
                     ref=ref,
                     refresh=refresh,
                     domain=domain,
                     username=username,
                     password=password,
-                    submodules=submodules,
+                    init_submodules=init_submodules,
                     subpath=subpath,
                     _recover_broken=False,
                 )
-                _LOGGER.info("Repository %s successfully recovered", key)
+                _LOGGER.info("Repository %s successfully recovered", safe_key)
                 return result
 
-            if submodules is not None:
-                _LOGGER.info(
-                    "Updating submodules (%s) for %s", ", ".join(submodules), key
-                )
-                run_git_command(
-                    ["git", "submodule", "update", "--init", "--depth=1", "--"]
-                    + submodules,
-                    git_dir=repo_dir,
-                )
-
             def revert():
-                _LOGGER.info("Reverting changes to %s -> %s", key, old_sha)
+                _LOGGER.info("Reverting changes to %s -> %s", safe_key, old_sha)
                 run_git_command(["git", "reset", "--hard", old_sha], git_dir=repo_dir)
 
             return repo_dir, revert

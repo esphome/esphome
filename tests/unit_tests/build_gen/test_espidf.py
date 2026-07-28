@@ -184,6 +184,18 @@ def test_get_component_cmakelists_compile_flags_excluded_from_link_opts() -> Non
     assert "-Wl,--gc-sections" in content
 
 
+def test_get_component_cmakelists_globs_alternate_cpp_extensions() -> None:
+    """Both app_sources glob variants include .cc/.cxx/.c++ so vendored sources
+    are compiled, matching the extensions PlatformIO's builder globs by default."""
+    CORE.build_flags = set()
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    for ext in ("cc", "cxx", "c++"):
+        assert content.count(f'"${{CMAKE_CURRENT_SOURCE_DIR}}/*.{ext}"') == 2
+        assert content.count(f'"${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.{ext}"') == 2
+
+
 def test_get_project_cmakelists_emits_managed_components_property(
     tmp_path: Path,
 ) -> None:
