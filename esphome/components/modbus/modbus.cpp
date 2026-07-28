@@ -774,6 +774,16 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sen
     if (cmd.frame.address() == address)
       cmd.marked_for_deletion = true;
   }
+  // Detach the in-flight frame BEFORE the sweep runs any callbacks: a sweep handler re-sending the
+  // in-flight frame would otherwise be absorbed into a slot this same clear is about to detach
+  // silently - detached first, the dedup's nullptr exclusion makes that re-send queue fresh instead.
+  if (clear_sent && this->waiting_for_response_.has_value() && this->waiting_for_response_.value().device) {
+    if (this->waiting_for_response_.value().frame.address() == address) {
+      ESP_LOGV(TAG, "Clearing waiting for response for address %" PRIu8, address);
+      // Invalidate the waiting device so it won't process a response.
+      this->waiting_for_response_.value().device = nullptr;
+    }
+  }
   for (;;) {
     auto it = std::find_if(this->tx_buffer_.begin(), this->tx_buffer_.end(),
                            [](const ModbusDeviceCommand &cmd) { return cmd.marked_for_deletion; });
@@ -790,14 +800,6 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sen
       dropped.device->trigger_not_sent(dropped.frame.pdu());
       if (dropped.priority == CommandPriority::READ_AGAIN)
         dropped.device->trigger_not_sent(dropped.frame.pdu());
-    }
-  }
-
-  if (clear_sent && this->waiting_for_response_.has_value() && this->waiting_for_response_.value().device) {
-    if (this->waiting_for_response_.value().frame.address() == address) {
-      ESP_LOGV(TAG, "Clearing waiting for response for address %" PRIu8, address);
-      // Invalidate the waiting device so it won't process a response.
-      this->waiting_for_response_.value().device = nullptr;
     }
   }
 }

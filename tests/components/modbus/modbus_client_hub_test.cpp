@@ -1280,4 +1280,77 @@ TEST(ModbusTypedSendHelpers, InvalidReadEntitiesSignalsNotSent) {
   EXPECT_EQ(hub.queued_frames(), 0u);
 }
 
+namespace {
+// From inside the sweep's on_not_sent, re-sends the frame that is currently IN FLIGHT.
+class ResendInFlightOnNotSentDevice : public ModbusClientDevice {
+ public:
+  ResendInFlightOnNotSentDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_not_sent(std::span<const uint8_t> request_pdu) override {
+    this->not_sent_count_++;
+    if (this->not_sent_count_ == 1) {
+      const uint8_t in_flight[] = {0x03, 0x01, 0x00, 0x00, 0x02};  // == READ_PDU
+      this->send_pdu(in_flight);
+    }
+  }
+  int not_sent_count_{0};
+};
+}  // namespace
+
+// A clear with clear_sent detaches the in-flight frame BEFORE the sweep notifies, so a sweep
+// handler re-sending that frame queues fresh (and survives, unmarked) instead of being absorbed
+// into a slot the same clear silently detaches - which would have left the request callback-less.
+TEST(ModbusClientHubQueue, SweepResendOfInFlightFrameQueuesFreshWhenClearSentDetaches) {
+  NoResponseProbeHub hub;
+  ResendInFlightOnNotSentDevice device(&hub, 0x02);
+
+  device.send_pdu(read_pdu());
+  hub.force_send_front();  // READ_PDU now in flight
+  const uint8_t queued_read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
+  device.send_pdu(queued_read);  // a queued frame for the sweep to notify
+  ASSERT_EQ(hub.queued_frames(), 1u);
+
+  hub.clear_tx_queue_for_address(0x02, /*clear_sent=*/true);
+
+  EXPECT_EQ(device.not_sent_count_, 1);                         // the swept queued frame
+  ASSERT_EQ(hub.queued_frames(), 1u);                           // the handler's re-send queued fresh...
+  EXPECT_EQ(hub.front().priority, CommandPriority::READ_ONCE);  // ...not absorbed into the dead slot
+  EXPECT_TRUE(std::equal(hub.front().frame.pdu().begin(), hub.front().frame.pdu().end(), READ_PDU));
+  EXPECT_EQ(hub.waiting_command().device, nullptr);  // the slot was detached before the sweep
+}
+
+// maybe_requeue_completed_() also re-runs a READ_AGAIN after an error response - the re-request was
+// explicit, so it runs once more whether this attempt succeeded or not.
+TEST(ModbusClientHubCallbackCount, ReadAgainRequeuesAfterErrorResponse) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  DataCountingDevice device(&hub, 0x02);
+
+  device.send_pdu(read_pdu());
+  hub.force_send_front();
+  device.send_pdu(read_pdu());  // in-flight duplicate: promotes to READ_AGAIN
+  const uint8_t exception_response[] = {0x83, 0x02};
+  hub.receive_frame_for_test(0x02, exception_response);  // error terminal for request 1
+
+  EXPECT_EQ(device.error_count_, 1);
+  ASSERT_EQ(hub.queued_frames(), 1u);  // request 2's run still queued (demoted)
+  EXPECT_EQ(hub.front().priority, CommandPriority::READ_ONCE);
+}
+
+// Read-modify-write function codes mutate registers, so they rank as WRITE for transmit ordering.
+TEST(ModbusClientHubPriority, ReadModifyWritesRankAsWrites) {
+  NoResponseProbeHub hub;
+  SentCountingDevice device(&hub, 0x02);
+
+  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
+  const uint8_t mask_write[] = {0x16, 0x00, 0x10, 0x00, 0xFF, 0x00, 0x01};
+  device.send_pdu(read);
+  device.send_pdu(mask_write);
+
+  ASSERT_EQ(hub.queued_frames(), 2u);
+  EXPECT_EQ(hub.front().priority, CommandPriority::WRITE);  // 0x16 jumped the queued read
+  EXPECT_EQ(hub.front().frame.pdu()[0], 0x16);
+}
+
 }  // namespace esphome::modbus::testing
