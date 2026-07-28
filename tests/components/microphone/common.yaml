@@ -27,3 +27,4 @@ microphone:
     i2s_din_pin: ${i2s_din_pin2}
     adc_type: external
     pdm: true
+    pdm_dsr: 16

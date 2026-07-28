@@ -118,7 +118,7 @@ CONFIG_SCHEMA = cv.All(
                 {
                     cv.Required(CONF_I2S_DIN_PIN): pins.internal_gpio_input_pin_number,
                     cv.Optional(CONF_PDM, default=False): cv.boolean,
-                    cv.Optional(CONF_PDM_DSR, default=8): cv.one_of(*I2S_PDM_DSR),
+                    cv.Optional(CONF_PDM_DSR, default=8): cv.enum(I2S_PDM_DSR),
                 }
             ),
         },
@@ -150,6 +150,7 @@ async def to_code(config):
 
     cg.add(var.set_din_pin(config[CONF_I2S_DIN_PIN]))
     cg.add(var.set_pdm(config[CONF_PDM]))
-    cg.add(var.set_pdm_dsr(I2S_PDM_DSR[config[CONF_PDM_DSR]]))
+    if esp32.get_esp32_variant() in PDM_VARIANTS:
+        cg.add(var.set_pdm_dsr(config[CONF_PDM_DSR]))
 
     cg.add(var.set_correct_dc_offset(config[CONF_CORRECT_DC_OFFSET]))
