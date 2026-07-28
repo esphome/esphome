@@ -239,8 +239,8 @@ class ESP32BLETracker final : public Component,
 
   // ---- ble_device_base::BLEHub (the platform-neutral tracker contract) ----
   void register_listener(ble_device_base::ESPBTDeviceListener *listener) override;
-  void set_raw_advertisement_callback(ble_device_base::RawAdvertisementCallback cb) override {
-    this->raw_advertisement_callback_ = std::move(cb);
+  void set_raw_advertisement_callback(ble_device_base::RawAdvertisementCallback callback) override {
+    this->raw_advertisement_callback_ = callback;
   }
   ble_device_base::HubCapabilities get_capabilities() const override {
     return {/* active_scan = */ true, /* merges_scan_response = */ true, /* gatt = */ true};
@@ -341,7 +341,7 @@ class ESP32BLETracker final : public Component,
 #ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
   StaticVector<ble_device_base::ESPBTDeviceListener *, ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT> neutral_listeners_;
 #endif
-  ble_device_base::RawAdvertisementCallback raw_advertisement_callback_{nullptr};
+  ble_device_base::RawAdvertisementCallback raw_advertisement_callback_{};
 #ifdef USE_ESP32_BLE_DEVICE
   /// Per-period "Found device" DEBUG log with MAC dedup (shared ble_device_base impl)
   ble_device_base::DiscoveredDeviceLog discovered_log_;
