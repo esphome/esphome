@@ -841,9 +841,12 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   // callers. The read-modify-write function codes (0x16/0x17) mutate registers, so they rank as
   // writes for ordering - is_function_code_read() already keeps them non-requeueable. continuous is
   // ignored for every mutating code (re-writing a value forever is never intended).
+  // is_function_code_write() masks the exception bit, so exception-flagged codes are excluded
+  // explicitly: a nonsense 0x8x frame built in a lambda must not take WRITE-class ordering.
   const auto request_code = static_cast<FunctionCode>(pdu[0]);
-  const bool mutates = helpers::is_function_code_write(pdu[0]) || request_code == FunctionCode::MASK_WRITE_REGISTER ||
-                       request_code == FunctionCode::READ_WRITE_MULTIPLE_REGISTERS;
+  const bool mutates = !helpers::is_function_code_exception(pdu[0]) &&
+                       (helpers::is_function_code_write(pdu[0]) || request_code == FunctionCode::MASK_WRITE_REGISTER ||
+                        request_code == FunctionCode::READ_WRITE_MULTIPLE_REGISTERS);
   const CommandPriority priority = mutates ? CommandPriority::WRITE : CommandPriority::READ;
   bool resident = false;
   if (options.continuous) {

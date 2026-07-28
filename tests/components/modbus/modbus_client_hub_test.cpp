@@ -1499,6 +1499,16 @@ TEST(ModbusClientHubPriority, ExceptionFlaggedDuplicateDroppedNotPromoted) {
   ASSERT_EQ(hub.queued_frames(), 1u);
   EXPECT_EQ(hub.queued(0).pending, 1u);
   EXPECT_EQ(device.not_sent_count_, 1);  // duplicate dropped with a terminal
+
+  // The write-shaped twin (0x86 masks to WRITE_SINGLE_REGISTER) must not take WRITE-class
+  // ordering either: exception-flagged codes are excluded from the mutates classification.
+  const uint8_t weird_write[] = {0x86, 0x00, 0x10, 0xBE, 0xEF};
+  device.send_pdu(weird_write);
+  ASSERT_EQ(hub.queued_frames(), 2u);
+  EXPECT_EQ(hub.queued(1).priority, CommandPriority::READ);  // not WRITE
+  const ModbusDeviceCommand *next = hub.next_ready();
+  ASSERT_NE(next, nullptr);
+  EXPECT_EQ(next->frame.pdu()[0], 0x83);  // FIFO by age: it did not jump the older entry
 }
 
 namespace {
