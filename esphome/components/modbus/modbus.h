@@ -237,12 +237,16 @@ using ResponseStatus = std::optional<ExceptionCode>;
 /// and never for a command that ends in on_not_sent().
 /// The exceptions to "exactly one terminal":
 ///  - clear_tx_queue_for_device() drops the caller's OWN queued commands SILENTLY (supersede/teardown
-///    semantics), and both clear variants detach the in-flight frame silently.
+///    semantics), and both clear variants detach the in-flight frame - and a command mid-completion
+///    (inside its own response callbacks) - silently.
 ///    clear_tx_queue_for_address() DOES resolve every queued frame it drops via the owner's
 ///    on_not_sent() (delivered one at a time, after that frame leaves the queue); a swept READ_AGAIN
 ///    frame stands for exactly two pending requests and resolves with two deliveries.
 ///  - a duplicate absorbed into a CONTINUOUS entry is served by the poll's next response; if the poll
 ///    is swept before that response, its single on_not_sent() stands for those requests as well.
+///    Likewise, converting an entry to continuous ({.continuous = true} matching a queued frame)
+///    SUPERSEDES any request that entry had absorbed: the caller opted into streaming semantics,
+///    and the poll's responses are the accounting from then on.
 ///  - while a device's own on_not_sent() is on the stack, further on_not_sent() deliveries to THAT
 ///    device are dropped (see trigger_not_sent()). In particular, a clear issued from inside your own
 ///    on_not_sent() resolves your remaining frames silently - treat it like

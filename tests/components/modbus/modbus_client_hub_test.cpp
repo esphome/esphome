@@ -1240,9 +1240,8 @@ TEST(ModbusClientHubSent, ReentrantSendFromOnSentQueues) {
   EXPECT_EQ(hub.queued(0).frame.pdu()[2], 0x09);  // it is the chained read (start address 0x0009)
 }
 
-// KNOWN LIMITATION (documented on ModbusClientDevice): clearing a device's own queue from inside
-// on_response() does NOT cancel that command's pending continuous re-queue, because the command was
-// moved out of the waiting slot before the callback ran. Pin the current behavior so any change is deliberate.
+// "Stop polling now" from inside on_response() works: the completing command is exposed to the
+// clear routines, which detach it, cancelling the pending continuous re-queue.
 TEST(ModbusClientHubPriority, ClearDeviceDuringDataCancelsContinuousRequeue) {
   NoResponseProbeHub hub;
   ClearOnDataDevice device(&hub, 0x02);
@@ -1452,6 +1451,48 @@ TEST(ModbusTypedSendHelpers, InvalidReadEntitiesSignalsNotSent) {
   device.read_entities(EntityType::CUSTOM, 0x0001, 1);
   EXPECT_EQ(device.not_sent_, 1);
   EXPECT_EQ(hub.queued_frames(), 0u);
+}
+
+namespace {
+// Re-sends its own frame from inside on_response() - matching the command mid-completion.
+class ResendOnDataDevice : public ModbusClientDevice {
+ public:
+  ResendOnDataDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {
+    this->send_pdu(std::vector<uint8_t>(request_pdu.begin(), request_pdu.end()));
+  }
+  void send_pdu(const std::vector<uint8_t> &pdu) { ModbusClientDevice::send_pdu(pdu); }
+};
+}  // namespace
+
+// A send from inside on_response() that matches the completing command is absorbed into it, so the
+// post-callback re-queue serves it - one entry on the queue afterwards, never a fresh twin.
+TEST(ModbusClientHubPriority, ResendFromOnResponseAbsorbsIntoCompletingCommand) {
+  NoResponseProbeHub hub;
+  ResendOnDataDevice device(&hub, 0x02);
+
+  device.read_holding_registers(0x100, 2, {.continuous = true});
+  hub.force_send_front();
+  const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
+  hub.receive_frame_for_test(0x02, ok_response);  // handler re-sends the identical frame mid-completion
+
+  ASSERT_EQ(hub.queued_frames(), 1u);  // absorbed: the continuous re-queue is the only entry
+  EXPECT_EQ(hub.queued(0).priority, CommandPriority::READ_CONTINUOUS);
+}
+
+// An exception-flagged function code is never silently re-sendable, even though the read check
+// masks the exception bit: its duplicate takes the drop path like any other non-read.
+TEST(ModbusClientHubPriority, ExceptionFlaggedDuplicateDroppedNotPromoted) {
+  NoResponseProbeHub hub;
+  SentCountingDevice device(&hub, 0x02);
+
+  const uint8_t weird[] = {0x83, 0x01, 0x00, 0x00, 0x02};  // read-shaped but exception-flagged
+  device.send_pdu(weird);
+  device.send_pdu(weird);
+
+  ASSERT_EQ(hub.queued_frames(), 1u);
+  EXPECT_EQ(hub.queued(0).priority, CommandPriority::READ_ONCE);  // not promoted
+  EXPECT_EQ(device.not_sent_count_, 1);                           // duplicate dropped with a terminal
 }
 
 }  // namespace esphome::modbus::testing

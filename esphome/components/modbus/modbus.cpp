@@ -713,7 +713,9 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   // (it can double a command/increment register), and a custom or diagnostic function code's idempotency
   // is unknown, so both take the safe drop path on a duplicate. An EXPLICIT continuous request is honored
   // for any non-write function code - by asking for continuous the caller asserts re-sending is safe.
-  const bool is_requeueable = helpers::is_function_code_read(pdu[0]);
+  // is_function_code_read() masks the exception bit, so exclude exception-flagged codes explicitly:
+  // a nonsense request built with 0x8x in a lambda must take the drop path, never silent re-sending.
+  const bool is_requeueable = !helpers::is_function_code_exception(pdu[0]) && helpers::is_function_code_read(pdu[0]);
 
   // A frame arriving THROUGH send_pdu() that is identical to one already queued or in flight is not
   // queued twice; the duplicate is resolved against the existing entry. (The internal re-queue paths
@@ -777,6 +779,14 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
       resolve_duplicate(wfr, "in flight");
       return;
     }
+  }
+  // A send from inside on_response()/on_error() can match the command whose callbacks are running:
+  // resolve against it like any other duplicate, so the maybe_requeue_completed_() that follows the
+  // callback re-runs it once (or keeps polling) instead of coexisting with a fresh twin.
+  if (this->completing_ != nullptr && this->completing_->device == device && device != nullptr &&
+      this->completing_->same_frame(address, pdu)) {
+    resolve_duplicate(*this->completing_, "completing");
+    return;
   }
 
   if (this->tx_buffer_.size() < MODBUS_TX_BUFFER_SIZE) {
