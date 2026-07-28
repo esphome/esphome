@@ -371,7 +371,7 @@ This document provides essential context for AI models interacting with this pro
 *   **Type Hints:** Type-hint all function signatures, including test functions and config validators (e.g. `def validate_x(config: ConfigType) -> ConfigType:`, `def test_x() -> None:`). Import `ConfigType` from `esphome.types`.
 
 *   **Configuration Validation:**
-    *   **Reuse existing validators:** Before writing a custom validator, check for an existing one in `config_validation.py` and compose it in `cv.All(...)` rather than duplicating logic across components. For example, rename a config key with `cv.rename_key(CONF_OLD, CONF_NEW)`, and reject mutually-exclusive keys with `cv.has_at_most_one_key(...)` / `cv.has_exactly_one_key(...)`. See how `api` composes `cv.has_exactly_one_key` + `cv.rename_key`.
+    *   **Reuse existing validators:** Before writing a custom validator, check for an existing one in `config_validation.py` and compose it in `cv.All(...)` rather than duplicating logic across components. For example, rename a config key with `cv.rename_key(CONF_OLD, CONF_NEW, removed_in="2026.6.0")`, and reject mutually-exclusive keys with `cv.has_at_most_one_key(...)` / `cv.has_exactly_one_key(...)`. See how `api` composes `cv.has_exactly_one_key` + `cv.rename_key`.
     *   **Common Validators:** `cv.int_`, `cv.float_`, `cv.string`, `cv.boolean`, `cv.int_range(min=0, max=100)`, `cv.positive_int`, `cv.percentage`.
     *   **Complex Validation:** `cv.All(cv.string, cv.Length(min=1, max=50))`, `cv.Any(cv.int_, cv.string)`.
     *   **Platform-Specific:** `cv.only_on(["esp32", "esp8266"])`, `esp32.only_on_variant(...)`, `cv.only_on_esp32`, `cv.only_on_esp8266`, `cv.only_on_rp2040`.
@@ -708,6 +708,16 @@ This document provides essential context for AI models interacting with this pro
     ```
 
 *   **Deprecation Pattern (Python):**
+    For a renamed config key, use the shared `cv.rename_key` validator with `removed_in` (and `component` for context) — it warns and auto-migrates:
+    ```python
+    CONFIG_SCHEMA = cv.All(
+        cv.rename_key(
+            CONF_OLD_KEY, CONF_NEW_KEY, removed_in="2026.6.0", component="my_component"
+        ),
+        cv.Schema({ ... }),
+    )
+    ```
+    For other deprecations, warn manually during validation:
     ```python
     # Remove before 2026.6.0
     if CONF_OLD_KEY in config:
