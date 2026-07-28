@@ -1546,6 +1546,20 @@ lvgl:
             on_update:
               - logger.log: color picker updated
 
+        # Only the red, green and blue sliders
+        - color_picker:
+            id: lv_color_picker_3
+            width: 150
+            sliders: rgb
+
+        # A hue and saturation pair, as used where brightness is set elsewhere
+        - color_picker:
+            id: lv_color_picker_4
+            width: 150
+            sliders: [hue, saturation]
+            knob:
+              bg_color: 0xFFFFFF
+
 font:
   - file: "gfonts://Roboto"
     id: space16

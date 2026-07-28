@@ -68,6 +68,66 @@ class TestColorPickerValidation:
         assert schema({"width": 100, part: {"radius": 4}}) is not None
 
 
+class TestColorPickerSliderChoice:
+    """Test choosing which of the six sliders the widget is built from."""
+
+    @pytest.fixture()
+    def schema(self):
+        return container_schema(color_picker_spec)
+
+    def test_all_sliders_by_default(self, schema):
+        assert schema({"width": 100})["sliders"] == [
+            "hue",
+            "saturation",
+            "brightness",
+            "red",
+            "green",
+            "blue",
+        ]
+
+    @pytest.mark.parametrize(
+        ("configured", "expected"),
+        [
+            ("rgb", ["red", "green", "blue"]),
+            ("hsv", ["hue", "saturation", "brightness"]),
+            # Both spellings of the third HSV component are accepted.
+            ("hsb", ["hue", "saturation", "brightness"]),
+            (["hue", "saturation"], ["hue", "saturation"]),
+            (["hue"], ["hue"]),
+            # A group can be mixed with single sliders.
+            (["rgb", "hue"], ["hue", "red", "green", "blue"]),
+        ],
+    )
+    def test_groups_are_expanded(self, schema, configured, expected):
+        assert schema({"width": 100, "sliders": configured})["sliders"] == expected
+
+    def test_order_follows_the_widget_not_the_config(self, schema):
+        """The layout is fixed, so the order they are listed in makes no difference."""
+        assert schema({"width": 100, "sliders": ["blue", "red"]})["sliders"] == [
+            "red",
+            "blue",
+        ]
+
+    def test_repeats_are_dropped(self, schema):
+        assert schema({"width": 100, "sliders": ["red", "rgb"]})["sliders"] == [
+            "red",
+            "green",
+            "blue",
+        ]
+
+    def test_empty_list_is_rejected(self, schema):
+        with pytest.raises(Invalid, match="At least one slider is required"):
+            schema({"width": 100, "sliders": []})
+
+    def test_unknown_slider_is_rejected(self, schema):
+        with pytest.raises(Invalid, match="Unknown value 'cyan'"):
+            schema({"width": 100, "sliders": ["cyan"]})
+
+    def test_sliders_cannot_be_updated(self):
+        """The layout is built from them, so they cannot change after creation."""
+        assert "sliders" not in str(color_picker_spec.modify_schema.schema)
+
+
 # ---------------------------------------------------------------------------
 # Code generation
 # ---------------------------------------------------------------------------
@@ -120,20 +180,21 @@ class TestColorPickerCodeGeneration:
 
 
 # The widget's own object is a plain container, so styles for the parts a slider has are
-# applied to each of the six sliders instead.
+# applied to each of its sliders instead.
 _SLIDER_STYLE_RE = re.compile(
-    r"lv_obj_set_style_(\w+)\((\w+)->get_slider\((\d)\), (.+?), (\w+)\);"
+    r"lv_obj_set_style_(\w+)\((\w+)->get_slider\(LvColorPickerType::SLIDER_(\w+)\), "
+    r"(.+?), (\w+)\);"
 )
 
-SLIDER_COUNT = 6
+ALL_SLIDERS = {"HUE", "SATURATION", "BRIGHTNESS", "RED", "GREEN", "BLUE"}
 
 
-def _slider_styles(main_cpp: str, var: str) -> dict[tuple[str, str], set[int]]:
+def _slider_styles(main_cpp: str, var: str) -> dict[tuple[str, str], set[str]]:
     """Return {(property, selector): sliders it was applied to} for one widget."""
-    found: dict[tuple[str, str], set[int]] = {}
+    found: dict[tuple[str, str], set[str]] = {}
     for m in _SLIDER_STYLE_RE.finditer(main_cpp):
         if m.group(2) == var:
-            found.setdefault((m.group(1), m.group(5)), set()).add(int(m.group(3)))
+            found.setdefault((m.group(1), m.group(5)), set()).add(m.group(3))
     return found
 
 
@@ -156,7 +217,16 @@ class TestColorPickerSliderStyles:
         ],
     )
     def test_style_reaches_every_slider(self, styles, prop, selector):
-        assert styles[prop, selector] == set(range(SLIDER_COUNT))
+        assert styles[prop, selector] == ALL_SLIDERS
+
+    def test_style_skips_sliders_the_widget_lacks(
+        self, generate_main, component_config_path
+    ):
+        """A style must not be applied to a slider that was never created."""
+        main_cpp = generate_main(component_config_path("color_picker.yaml"))
+        styles = _slider_styles(main_cpp, "picker_hsv")
+
+        assert styles["radius", "LV_PART_KNOB"] == {"HUE", "SATURATION", "BRIGHTNESS"}
 
     def test_no_styles_are_left_on_the_widget_itself(
         self, generate_main, component_config_path
@@ -184,3 +254,30 @@ class TestColorPickerSliderStyles:
         main_cpp = generate_main(component_config_path("color_picker.yaml"))
 
         assert f"{var}->set_tint_knobs(" not in main_cpp
+
+
+class TestColorPickerSliderConstruction:
+    """The chosen sliders are passed to the constructor, before the layout is built."""
+
+    @pytest.fixture()
+    def main_cpp(self, generate_main, component_config_path) -> str:
+        return generate_main(component_config_path("color_picker.yaml"))
+
+    @pytest.mark.parametrize(
+        ("var", "expected"),
+        [
+            ("picker_rgb", ["RED", "GREEN", "BLUE"]),
+            ("picker_hsv", ["HUE", "SATURATION", "BRIGHTNESS"]),
+            ("picker_hue", ["HUE"]),
+            (
+                "picker_fixed",
+                ["HUE", "SATURATION", "BRIGHTNESS", "RED", "GREEN", "BLUE"],
+            ),
+        ],
+    )
+    def test_constructor_names_the_chosen_sliders(self, main_cpp, var, expected):
+        flags = " | ".join(
+            f"LvColorPickerType::SLIDER_FLAG_{name}" for name in expected
+        )
+
+        assert f"new({var}) LvColorPickerType({flags});" in main_cpp

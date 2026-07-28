@@ -181,7 +181,7 @@ class WidgetType:
         wid = config[CONF_ID]
         add_line_marks(wid)
         if self.is_compound():
-            var = cg.new_Pvariable(wid)
+            var = cg.new_Pvariable(wid, *await self.get_ctor_args(config))
             lv_add(var.set_obj(creator))
             await self.on_create(var.obj, config)
         else:
@@ -222,6 +222,15 @@ class WidgetType:
         :param var: The variable representing the widget
         :param config: Its configuration
         """
+
+    async def get_ctor_args(self, config: dict) -> list:
+        """
+        Get extra arguments for a compound widget's constructor. Anything the widget needs
+        before it builds its parts belongs here, since a setter would be called too late.
+        :param config: Its configuration
+        :return:
+        """
+        return []
 
     def part_targets(self, w: "Widget", part: str) -> list[tuple["Widget", str]]:
         """

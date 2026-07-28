@@ -51,6 +51,26 @@ lvgl:
           bg_color: 0x112233
           radius: 4
 
+    # Only the red, green and blue sliders
+    - color_picker:
+        id: picker_rgb
+        width: 100
+        sliders: rgb
+
+    # Only the hue, saturation and brightness sliders, styled
+    - color_picker:
+        id: picker_hsv
+        width: 100
+        sliders: [hsv]
+        knob:
+          radius: 2
+
+    # A single slider, for picking a hue with the brightness controlled elsewhere
+    - color_picker:
+        id: picker_hue
+        width: 100
+        sliders: hue
+
     # Colour given as the id of a colour defined above
     - color_picker:
         id: picker_colour_id
