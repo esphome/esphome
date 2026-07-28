@@ -128,6 +128,7 @@ def run_command(
     env: dict[str, str] | None = None,
     stream_output: bool = False,
     cwd: PathType | None = None,
+    replace_env: bool = False,
 ) -> tuple[bool, str | None, str | None]:
     """
     Execute a command and return results.
@@ -140,6 +141,10 @@ def run_command(
             directly to the terminal (useful for commands that produce their
             own progress output). stdout/stderr are not captured in this mode.
         cwd: Optional working directory for the subprocess.
+        replace_env: If True, ``env`` is the subprocess's complete environment
+            instead of being merged over ``os.environ``. Merging can only add
+            or override variables; a caller that needs a variable *absent*
+            (e.g. stripping git's repository-scoping variables) must replace.
 
     Returns:
         tuple of (success: bool, stdout: str or None, stderr: str or None).
@@ -149,9 +154,12 @@ def run_command(
     try:
         _LOGGER.debug("%s - running ...", cmd_str)
 
-        run_env = os.environ.copy()
-        if env:
-            run_env.update(env)
+        if replace_env:
+            run_env = dict(env) if env else {}
+        else:
+            run_env = os.environ.copy()
+            if env:
+                run_env.update(env)
 
         if stream_output:
             result = subprocess.run(cmd, check=False, env=run_env, cwd=cwd)

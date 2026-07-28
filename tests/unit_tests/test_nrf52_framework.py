@@ -3,6 +3,7 @@
 import hashlib
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -222,6 +223,28 @@ class TestCheckAndInstall:
         assert "-o=--depth=1" in init_cmd
         assert "update" in update_cmd
         assert "--fetch-opt=--depth=1" in update_cmd
+
+    def test_manifest_resolved_into_manifest_repo_and_pinned(
+        self,
+        nrf52_dirs: SimpleNamespace,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """The resolved manifest lands in the manifest repository and west is
+        pointed at it, so import resolution never needs project git history."""
+        _mark_venv_ready(nrf52_dirs.python_env)
+
+        check_and_install()
+
+        resolve_cmd, config_cmd = (
+            call.args[0] for call in mock_nrf52_ops.run_command_ok.call_args_list[2:4]
+        )
+        assert "manifest" in resolve_cmd
+        assert "--resolve" in resolve_cmd
+        assert resolve_cmd[-2:] == [
+            "-o",
+            str(nrf52_dirs.framework / "nrf" / "west-resolved.yml"),
+        ]
+        assert config_cmd[-3:] == ["config", "manifest.file", "west-resolved.yml"]
 
     def test_requirements_install_failure_raises(
         self,
@@ -542,8 +565,11 @@ def testget_tools_path_default_is_global_cache(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
 class TestPruneGitHistory:
-    def test_prunes_all_projects(self, tmp_path: Path) -> None:
+    def test_prunes_all_projects(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         framework = tmp_path / "framework"
         projects = ("zephyr", "tools/bsim", "nrf", "modules/hal/nordic")
         for project in projects:
@@ -552,7 +578,29 @@ class TestPruneGitHistory:
             subprocess.run(["git", "-C", str(path), "init", "--quiet"], check=True)
             (path / ".git" / "marker").write_text("history")
 
-        _prune_git_history(framework)
+        # A repository the stub commands must never touch, even when
+        # repository-scoping variables point at it (git hooks and some CI
+        # wrappers export these). Ambient author/committer identity and
+        # config overrides must not change the stub commit hash either.
+        caller = tmp_path / "caller"
+        caller.mkdir()
+        subprocess.run(["git", "-C", str(caller), "init", "--quiet"], check=True)
+        with monkeypatch.context() as hostile:
+            hostile.setenv("GIT_DIR", str(caller / ".git"))
+            hostile.setenv("GIT_WORK_TREE", str(caller))
+            hostile.setenv("GIT_INDEX_FILE", str(caller / ".git" / "index"))
+            hostile.setenv("GIT_AUTHOR_NAME", "Someone Else")
+            hostile.setenv("GIT_AUTHOR_EMAIL", "someone@example.com")
+            hostile.setenv("GIT_COMMITTER_DATE", "2020-05-05T05:05:05Z")
+            _prune_git_history(framework)
+
+        # The caller's repository gained no commits
+        caller_head = subprocess.run(
+            ["git", "-C", str(caller), "rev-parse", "HEAD"],
+            capture_output=True,
+            check=False,
+        )
+        assert caller_head.returncode != 0
 
         # With the manifest resolved to a single file at install time, west
         # never resolves imports again, so every repository becomes a stub

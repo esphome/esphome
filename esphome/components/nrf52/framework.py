@@ -21,6 +21,7 @@ from esphome.framework_helpers import (
     run_command_ok,
     str_to_lst_of_str,
 )
+from esphome.git import _GIT_REPO_SCOPING_ENV
 from esphome.helpers import get_str_env
 
 _LOGGER = logging.getLogger(__name__)
@@ -264,36 +265,49 @@ def _prune_git_history(framework_path: Path) -> None:
     instead. The workspace manifest is resolved to a single file beforehand,
     so no repository needs to keep real history for west's import resolution.
     """
-    # Fixed dates make every stub commit hash to the same well-known id
-    # (931d4b86b7bc), so the commit the version banners report is
-    # recognizably synthetic and identical across installs and machines.
+    # The stub commands must be hermetic. Repository-scoping variables (see
+    # _GIT_REPO_SCOPING_ENV) would redirect them at the caller's repository;
+    # ambient author/committer variables would change the stub commit hash;
+    # and global/system config could change the object format, force commit
+    # signing, or run hooks. With everything pinned, every stub commit hashes
+    # to the same well-known id (931d4b86b7bc), so the commit the version
+    # banners report is recognizably synthetic and identical across installs
+    # and machines.
     stub_env = {
-        **os.environ,
-        "GIT_AUTHOR_DATE": "1970-01-01T00:00:00Z",
-        "GIT_COMMITTER_DATE": "1970-01-01T00:00:00Z",
+        k: v
+        for k, v in os.environ.items()
+        if k not in _GIT_REPO_SCOPING_ENV
+        and not k.startswith(("GIT_AUTHOR_", "GIT_COMMITTER_", "GIT_CONFIG"))
     }
-    for git_dir in [p for p in framework_path.rglob(".git") if p.is_dir()]:
+    stub_env.update(
+        GIT_AUTHOR_NAME="esphome",
+        GIT_AUTHOR_EMAIL="esphome@localhost",
+        GIT_AUTHOR_DATE="1970-01-01T00:00:00Z",
+        GIT_COMMITTER_NAME="esphome",
+        GIT_COMMITTER_EMAIL="esphome@localhost",
+        GIT_COMMITTER_DATE="1970-01-01T00:00:00Z",
+        GIT_CONFIG_GLOBAL=os.devnull,
+        GIT_CONFIG_SYSTEM=os.devnull,
+    )
+    # Collect .git directories without descending into them: they are the
+    # multi-hundred-MB object stores this function is about to delete.
+    git_dirs: list[Path] = []
+    for dirpath, dirnames, _ in os.walk(framework_path):
+        if ".git" in dirnames:
+            git_dirs.append(Path(dirpath) / ".git")
+            dirnames.remove(".git")
+    for git_dir in git_dirs:
         project = git_dir.parent
         rmdir(git_dir)
         stub_cmds = (
             ["init", "--quiet"],
             ["read-tree", "--empty"],
-            [
-                "-c",
-                "user.name=esphome",
-                "-c",
-                "user.email=esphome@localhost",
-                "-c",
-                "commit.gpgsign=false",
-                "commit",
-                "--quiet",
-                "--allow-empty",
-                "-m",
-                "esphome stub",
-            ],
+            ["commit", "--quiet", "--allow-empty", "-m", "esphome stub"],
         )
         for cmd in stub_cmds:
-            if not run_command_ok(["git", "-C", str(project), *cmd], env=stub_env):
+            if not run_command_ok(
+                ["git", "-C", str(project), *cmd], env=stub_env, replace_env=True
+            ):
                 raise EsphomeError(f"Can't create stub git repository in {project}")
 
 

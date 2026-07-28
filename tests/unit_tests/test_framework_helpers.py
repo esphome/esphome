@@ -167,6 +167,29 @@ def test_run_command_stream_output_failure(mock_subprocess_run: Mock) -> None:
     assert stdout is None
 
 
+def test_run_command_env_merges_over_environ(
+    mock_subprocess_run: Mock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("AMBIENT_VAR", "ambient")
+    mock_subprocess_run.return_value = Mock(returncode=0, stdout="", stderr="")
+    run_command(["cmd"], env={"EXTRA_VAR": "extra"})
+    run_env = mock_subprocess_run.call_args.kwargs["env"]
+    assert run_env["AMBIENT_VAR"] == "ambient"
+    assert run_env["EXTRA_VAR"] == "extra"
+
+
+def test_run_command_replace_env_is_complete_environment(
+    mock_subprocess_run: Mock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """replace_env=True must exclude ambient variables — merging can only add
+    or override, so callers that need a variable absent depend on this."""
+    monkeypatch.setenv("AMBIENT_VAR", "ambient")
+    mock_subprocess_run.return_value = Mock(returncode=0, stdout="", stderr="")
+    run_command(["cmd"], env={"ONLY_VAR": "x"}, replace_env=True)
+    run_env = mock_subprocess_run.call_args.kwargs["env"]
+    assert run_env == {"ONLY_VAR": "x"}
+
+
 def test_run_command_subprocess_error_returns_false(mock_subprocess_run: Mock) -> None:
     mock_subprocess_run.side_effect = subprocess.SubprocessError("exploded")
     ok, stdout, stderr = run_command(["cmd"])
