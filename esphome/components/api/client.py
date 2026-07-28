@@ -155,6 +155,9 @@ async def async_run_logs(
         name=name,
         subscribe_states=subscribe_states,
         allow_plaintext_fallback=True,
+        # A top-level ``deep_sleep:`` block means the device is only awake
+        # briefly; cap the reconnect backoff so a wake window is not missed.
+        deep_sleep="deep_sleep" in config,
     )
     try:
         await asyncio.Event().wait()
