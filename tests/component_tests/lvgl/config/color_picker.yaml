@@ -39,6 +39,18 @@ lvgl:
         width: 120
         color: 0xFF8800
 
+    # Styling the sliders the widget is built from
+    - color_picker:
+        id: picker_styled
+        width: 100
+        items:
+          bg_opa: 80%
+          pressed:
+            border_width: 2
+        knob:
+          bg_color: 0x112233
+          radius: 4
+
     # Colour given as the id of a colour defined above
     - color_picker:
         id: picker_colour_id

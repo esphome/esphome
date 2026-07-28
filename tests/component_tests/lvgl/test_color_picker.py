@@ -59,6 +59,14 @@ class TestColorPickerValidation:
         """Width belongs to creation only; the update action must not require it."""
         assert "width" not in str(color_picker_spec.modify_schema.schema)
 
+    def test_slider_parts_are_declared(self):
+        """`items` and `knob` stand for the sliders the widget is built from."""
+        assert color_picker_spec.parts == ("main", "items", "knob")
+
+    @pytest.mark.parametrize("part", ["items", "knob"])
+    def test_slider_parts_are_accepted(self, schema, part):
+        assert schema({"width": 100, part: {"radius": 4}}) is not None
+
 
 # ---------------------------------------------------------------------------
 # Code generation
@@ -109,3 +117,70 @@ class TestColorPickerCodeGeneration:
     def test_update_action_generates_set_color(self, main_cpp):
         """`lvgl.color_picker.update` used to fail outright on the missing width."""
         assert main_cpp.count("picker_fixed->set_color(") == 2
+
+
+# The widget's own object is a plain container, so styles for the parts a slider has are
+# applied to each of the six sliders instead.
+_SLIDER_STYLE_RE = re.compile(
+    r"lv_obj_set_style_(\w+)\((\w+)->get_slider\((\d)\), (.+?), (\w+)\);"
+)
+
+SLIDER_COUNT = 6
+
+
+def _slider_styles(main_cpp: str, var: str) -> dict[tuple[str, str], set[int]]:
+    """Return {(property, selector): sliders it was applied to} for one widget."""
+    found: dict[tuple[str, str], set[int]] = {}
+    for m in _SLIDER_STYLE_RE.finditer(main_cpp):
+        if m.group(2) == var:
+            found.setdefault((m.group(1), m.group(5)), set()).add(int(m.group(3)))
+    return found
+
+
+class TestColorPickerSliderStyles:
+    @pytest.fixture()
+    def styles(self, generate_main, component_config_path):
+        main_cpp = generate_main(component_config_path("color_picker.yaml"))
+        return _slider_styles(main_cpp, "picker_styled")
+
+    @pytest.mark.parametrize(
+        ("prop", "selector"),
+        [
+            # `knob` keeps its name on the slider...
+            ("bg_color", "LV_PART_KNOB"),
+            ("radius", "LV_PART_KNOB"),
+            # ...while `items` becomes the slider's own body.
+            ("bg_opa", "LV_PART_MAIN"),
+            # A state without a part names only the state, as both are zero.
+            ("border_width", "LV_STATE_PRESSED"),
+        ],
+    )
+    def test_style_reaches_every_slider(self, styles, prop, selector):
+        assert styles[prop, selector] == set(range(SLIDER_COUNT))
+
+    def test_no_styles_are_left_on_the_widget_itself(
+        self, generate_main, component_config_path
+    ):
+        """Setting these on the container would have no visible effect."""
+        main_cpp = generate_main(component_config_path("color_picker.yaml"))
+        own = _styles_for(main_cpp, "picker_styled")
+
+        assert set(own) == {"width", "height"}
+
+    def test_knob_tinting_is_disabled_by_a_knob_background(
+        self, generate_main, component_config_path
+    ):
+        """The tint is a local style, so it would overwrite the configured colour."""
+        main_cpp = generate_main(component_config_path("color_picker.yaml"))
+
+        assert "picker_styled->set_tint_knobs(false)" in main_cpp
+
+    @pytest.mark.parametrize(
+        "var", ["picker_content", "picker_fixed", "picker_colour_id"]
+    )
+    def test_knob_tinting_is_left_on_otherwise(
+        self, generate_main, component_config_path, var
+    ):
+        main_cpp = generate_main(component_config_path("color_picker.yaml"))
+
+        assert f"{var}->set_tint_knobs(" not in main_cpp

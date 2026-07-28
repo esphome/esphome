@@ -1,16 +1,16 @@
 import esphome.codegen as cg
 from esphome.components.display_menu_base import CONF_LABEL
 import esphome.config_validation as cv
-from esphome.const import CONF_COLOR, CONF_HEIGHT, CONF_WIDTH
+from esphome.const import CONF_COLOR, CONF_HEIGHT, CONF_ITEMS, CONF_WIDTH
 
 from .. import add_lv_use
-from ..defines import CONF_MAIN
+from ..defines import CONF_KNOB, CONF_MAIN
 from ..lv_validation import lv_color, size
 from ..lvcode import lv_add
 from ..types import LvCompound, LvType
-from . import WidgetType
+from . import Widget, WidgetType
 from .lv_bar import CONF_BAR
-from .slider import CONF_SLIDER
+from .slider import CONF_SLIDER, slider_spec
 
 # esphome::Color, not lv_color_t: it carries the same value but exposes the components as
 # `x.r`/`x.g`/`x.b`, and converts to lv_color_t on its own where LVGL needs one.
@@ -29,6 +29,11 @@ lv_color_picker_t = LvType(
 lv_color_picker_t.value_property = CONF_COLOR
 
 CONF_COLOR_PICKER = "color_picker"
+
+# Must match LvColorPickerType::SLIDER_COUNT.
+SLIDER_COUNT = 6
+
+CONF_BG_COLOR = "bg_color"
 
 COLOR_PICKER_MODIFY_SCHEMA = cv.Schema(
     {
@@ -49,7 +54,7 @@ class ColorPickerType(WidgetType):
         super().__init__(
             CONF_COLOR_PICKER,
             lv_color_picker_t,
-            parts=(CONF_MAIN,),
+            parts=(CONF_MAIN, CONF_ITEMS, CONF_KNOB),
             schema=COLOR_PICKER_SCHEMA,
             modify_schema=COLOR_PICKER_MODIFY_SCHEMA,
             lv_name="obj",
@@ -59,9 +64,24 @@ class ColorPickerType(WidgetType):
         add_lv_use(CONF_COLOR_PICKER)
         return super().validate(value)
 
+    def part_targets(self, w, part):
+        # The widget is made of sliders, so `items` and `knob` are the main and knob parts of
+        # each of those. Its own object is a plain container with neither.
+        if part == CONF_MAIN:
+            return [(w, part)]
+        target_part = CONF_MAIN if part == CONF_ITEMS else part
+        return [
+            (Widget(w.var.get_slider(index), slider_spec), target_part)
+            for index in range(SLIDER_COUNT)
+        ]
+
     async def to_code(self, w, config: dict):
         if color := config.get(CONF_COLOR):
             lv_add(w.var.set_color(await lv_color.process(color)))
+        # Each knob is normally tinted with the colour its own slider shows, which would
+        # overwrite a background colour configured for it, so that turns the tinting off.
+        if CONF_BG_COLOR in config.get(CONF_KNOB, {}):
+            lv_add(w.var.set_tint_knobs(False))
         # The widget is square, so the height simply follows the configured width.
         # SIZE_CONTENT works too: the widget reports a size based on its text font.
         # Width is required when creating the widget but absent when updating one.

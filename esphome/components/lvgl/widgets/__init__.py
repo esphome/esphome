@@ -192,16 +192,9 @@ class WidgetType:
         w = Widget.create(wid, var, self, config)
         if theme := get_theme_widget_map().get(self.name):
             for part, states in theme.items():
-                part = "LV_PART_" + part.upper()
-                for state, style in states.items():
-                    state = "LV_STATE_" + state.upper()
-                    if state == "LV_STATE_DEFAULT":
-                        lv_state = literal(part)
-                    elif part == "LV_PART_MAIN":
-                        lv_state = literal(state)
-                    else:
-                        lv_state = join_enums((state, part))
-                    w.add_style(style, lv_state)
+                for target, target_part in self.part_targets(w, part):
+                    for state, style in states.items():
+                        target.add_style(style, style_selector(target_part, state))
         await set_obj_properties(w, config)
         await add_widgets(w, config)
         await self.to_code(w, config)
@@ -229,6 +222,17 @@ class WidgetType:
         :param var: The variable representing the widget
         :param config: Its configuration
         """
+
+    def part_targets(self, w: "Widget", part: str) -> list[tuple["Widget", str]]:
+        """
+        Get the widgets a part's styles should be applied to, each paired with the part to
+        use on it. A widget built out of other widgets can point a part at those, so that
+        styling it works the same as it does for a plain widget.
+        :param w: The widget being styled
+        :param part: The configured part name
+        :return:
+        """
+        return [(w, part)]
 
     def get_uses(self):
         """
@@ -521,6 +525,24 @@ def collect_states(config):
     return states
 
 
+def style_selector(part: str, state: str):
+    """
+    Combine a part and a state into the selector a style is applied with. LVGL takes the two
+    or-ed together, but the default state and the main part are both zero, so naming either
+    of them adds nothing.
+    :param part: The part name, e.g. "knob"
+    :param state: The state name, e.g. "pressed"
+    :return:
+    """
+    part = "LV_PART_" + part.upper()
+    state = "LV_STATE_" + state.upper()
+    if state == "LV_STATE_DEFAULT":
+        return literal(part)
+    if part == "LV_PART_MAIN":
+        return literal(state)
+    return join_enums((state, part))
+
+
 def collect_parts(config):
     """
     Collect properties and states for all widget parts
@@ -612,24 +634,18 @@ async def set_obj_properties(w: Widget, config):
         _set_layout_options(w, layout, base_name)
     parts = collect_parts(config)
     for part, states in parts.items():
-        part = "LV_PART_" + part.upper()
-        for state, props in states.items():
-            state = "LV_STATE_" + state.upper()
-            if state == "LV_STATE_DEFAULT":
-                lv_state = literal(part)
-            elif part == "LV_PART_MAIN":
-                lv_state = literal(state)
-            else:
-                lv_state = join_enums((state, part))
-            for style_id in props.get(CONF_STYLES, ()):
-                w.add_style(style_id, lv_state)
-            for prop, value in {
-                k: v for k, v in props.items() if k in ALL_STYLES
-            }.items():
-                if isinstance(ALL_STYLES[prop], LValidator):
-                    value = await ALL_STYLES[prop].process(value)
-                prop_r = remap_property(prop)
-                w.set_style(prop_r, value, lv_state)
+        for target, target_part in w.type.part_targets(w, part):
+            for state, props in states.items():
+                lv_state = style_selector(target_part, state)
+                for style_id in props.get(CONF_STYLES, ()):
+                    target.add_style(style_id, lv_state)
+                for prop, value in {
+                    k: v for k, v in props.items() if k in ALL_STYLES
+                }.items():
+                    if isinstance(ALL_STYLES[prop], LValidator):
+                        value = await ALL_STYLES[prop].process(value)
+                    prop_r = remap_property(prop)
+                    target.set_style(prop_r, value, lv_state)
     if group := config.get(CONF_GROUP):
         group = await cg.get_variable(group)
         lv.group_add_obj(group, w.obj)

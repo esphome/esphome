@@ -1536,6 +1536,13 @@ lvgl:
             id: lv_color_picker_2
             width: 200
             color: 0x3366CC
+            # Styles for the sliders the widget is built from
+            items:
+              border_color: 0x808080
+              pressed:
+                border_width: 2
+            knob:
+              radius: 4
             on_update:
               - logger.log: color picker updated
 

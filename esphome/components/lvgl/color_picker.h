@@ -3,6 +3,8 @@
 #include "lvgl_esphome.h"
 #include "esphome/core/color.h"
 
+#include <array>
+
 #ifdef USE_LVGL_COLOR_PICKER
 
 namespace esphome::lvgl {
@@ -11,9 +13,29 @@ class LvColorPickerType : public LvCompound {
   constexpr static const char *const TAG = "lvgl.color_picker";
 
  public:
+  // The sliders the widget is built from, in the order they appear in `sliders_`.
+  enum SliderIndex : size_t {
+    SLIDER_HUE,
+    SLIDER_SATURATION,
+    SLIDER_BRIGHTNESS,
+    SLIDER_RED,
+    SLIDER_GREEN,
+    SLIDER_BLUE,
+    SLIDER_COUNT,
+  };
+
   // The colour currently shown, kept up to date as the sliders move. Converts to lv_color_t
   // on its own, so it can be handed straight to LVGL calls as well as read component-wise.
   Color state{0x80, 0x80, 0x80};
+
+  // The widget has no knob or bar of its own, so styles configured for its `items` and
+  // `knob` parts are applied to each slider in turn instead. Index must be less than
+  // SLIDER_COUNT.
+  lv_obj_t *get_slider(size_t index) const { return this->sliders_[index]; }
+
+  // Stops the knobs being tinted with the colour their slider currently shows, for when a
+  // background colour has been configured for them instead.
+  void set_tint_knobs(bool tint_knobs) { this->tint_knobs_ = tint_knobs; }
 
   void set_color(lv_color_t color) {
     lv_color32_t c32 = lv_color_to_32(color, LV_OPA_COVER);
@@ -140,14 +162,14 @@ class LvColorPickerType : public LvCompound {
     lv_obj_set_style_height(hue_container, lv_pct(100), LV_PART_MAIN);
     lv_obj_set_style_width(hue_container, lv_pct(15), LV_PART_MAIN);
 
-    this->hue_slider_ = lv_slider_create(hue_container);
-    lv_obj_add_style(this->hue_slider_, &this->slider_vert_, LV_PART_MAIN);
-    lv_obj_set_style_bg_grad(this->hue_slider_, &this->color_bar_, LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(this->hue_slider_, LV_OPA_TRANSP, LV_PART_INDICATOR);
-    lv_obj_add_style(this->hue_slider_, &this->slider_vert_knob_, LV_PART_KNOB);
-    lv_obj_set_flex_grow(this->hue_slider_, 1);
-    lv_slider_set_range(this->hue_slider_, 0, 360);
-    lv_slider_set_mode(this->hue_slider_, LV_SLIDER_MODE_NORMAL);
+    this->sliders_[SLIDER_HUE] = lv_slider_create(hue_container);
+    lv_obj_add_style(this->sliders_[SLIDER_HUE], &this->slider_vert_, LV_PART_MAIN);
+    lv_obj_set_style_bg_grad(this->sliders_[SLIDER_HUE], &this->color_bar_, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(this->sliders_[SLIDER_HUE], LV_OPA_TRANSP, LV_PART_INDICATOR);
+    lv_obj_add_style(this->sliders_[SLIDER_HUE], &this->slider_vert_knob_, LV_PART_KNOB);
+    lv_obj_set_flex_grow(this->sliders_[SLIDER_HUE], 1);
+    lv_slider_set_range(this->sliders_[SLIDER_HUE], 0, 360);
+    lv_slider_set_mode(this->sliders_[SLIDER_HUE], LV_SLIDER_MODE_NORMAL);
 
     auto *middle = lv_obj_create(outer);
     lv_obj_set_style_align(middle, LV_ALIGN_RIGHT_MID, LV_PART_MAIN);
@@ -166,16 +188,16 @@ class LvColorPickerType : public LvCompound {
     lv_obj_set_style_height(brightness_container, lv_pct(18), LV_PART_MAIN);
     lv_obj_set_style_width(brightness_container, lv_pct(100), LV_PART_MAIN);
 
-    this->brightness_slider_ = lv_slider_create(brightness_container);
-    lv_obj_add_style(this->brightness_slider_, &this->slider_horz_, LV_PART_MAIN);
-    lv_obj_set_style_bg_grad(this->brightness_slider_, &this->brightness_bar_, LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(this->brightness_slider_, LV_OPA_TRANSP, LV_PART_INDICATOR);
-    lv_obj_add_style(this->brightness_slider_, &this->slider_horz_knob_, LV_PART_KNOB);
-    lv_slider_set_range(this->brightness_slider_, 0, 100);
-    lv_slider_set_mode(this->brightness_slider_, LV_SLIDER_MODE_NORMAL);
+    this->sliders_[SLIDER_BRIGHTNESS] = lv_slider_create(brightness_container);
+    lv_obj_add_style(this->sliders_[SLIDER_BRIGHTNESS], &this->slider_horz_, LV_PART_MAIN);
+    lv_obj_set_style_bg_grad(this->sliders_[SLIDER_BRIGHTNESS], &this->brightness_bar_, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(this->sliders_[SLIDER_BRIGHTNESS], LV_OPA_TRANSP, LV_PART_INDICATOR);
+    lv_obj_add_style(this->sliders_[SLIDER_BRIGHTNESS], &this->slider_horz_knob_, LV_PART_KNOB);
+    lv_slider_set_range(this->sliders_[SLIDER_BRIGHTNESS], 0, 100);
+    lv_slider_set_mode(this->sliders_[SLIDER_BRIGHTNESS], LV_SLIDER_MODE_NORMAL);
 
-    lv_obj_add_flag(this->brightness_slider_, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
-    this->brightness_value_ = lv_label_create(this->brightness_slider_);
+    lv_obj_add_flag(this->sliders_[SLIDER_BRIGHTNESS], LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+    this->brightness_value_ = lv_label_create(this->sliders_[SLIDER_BRIGHTNESS]);
     lv_obj_set_style_align(this->brightness_value_, LV_ALIGN_CENTER, LV_PART_MAIN);
     lv_obj_set_style_text_color(this->brightness_value_, lv_color_white(), LV_PART_MAIN);
 
@@ -227,17 +249,17 @@ class LvColorPickerType : public LvCompound {
     lv_obj_set_style_height(red_container, lv_pct(100), LV_PART_MAIN);
     lv_obj_set_style_width(red_container, lv_pct(33), LV_PART_MAIN);
 
-    this->red_slider_ = lv_slider_create(red_container);
-    lv_obj_add_style(this->red_slider_, &this->slider_vert_, LV_PART_MAIN);
-    lv_obj_set_style_bg_grad(this->red_slider_, &this->red_bar_, LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(this->red_slider_, LV_OPA_TRANSP, LV_PART_INDICATOR);
-    lv_obj_add_style(this->red_slider_, &this->slider_vert_knob_, LV_PART_KNOB);
-    lv_obj_set_flex_grow(this->red_slider_, 1);
-    lv_slider_set_range(this->red_slider_, 0, 255);
-    lv_slider_set_mode(this->red_slider_, LV_SLIDER_MODE_NORMAL);
+    this->sliders_[SLIDER_RED] = lv_slider_create(red_container);
+    lv_obj_add_style(this->sliders_[SLIDER_RED], &this->slider_vert_, LV_PART_MAIN);
+    lv_obj_set_style_bg_grad(this->sliders_[SLIDER_RED], &this->red_bar_, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(this->sliders_[SLIDER_RED], LV_OPA_TRANSP, LV_PART_INDICATOR);
+    lv_obj_add_style(this->sliders_[SLIDER_RED], &this->slider_vert_knob_, LV_PART_KNOB);
+    lv_obj_set_flex_grow(this->sliders_[SLIDER_RED], 1);
+    lv_slider_set_range(this->sliders_[SLIDER_RED], 0, 255);
+    lv_slider_set_mode(this->sliders_[SLIDER_RED], LV_SLIDER_MODE_NORMAL);
 
-    lv_obj_add_flag(this->red_slider_, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
-    this->red_value_ = lv_label_create(this->red_slider_);
+    lv_obj_add_flag(this->sliders_[SLIDER_RED], LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+    this->red_value_ = lv_label_create(this->sliders_[SLIDER_RED]);
     lv_obj_set_style_align(this->red_value_, LV_ALIGN_CENTER, LV_PART_MAIN);
     lv_obj_set_style_text_color(this->red_value_, lv_color_black(), LV_PART_MAIN);
 
@@ -246,17 +268,17 @@ class LvColorPickerType : public LvCompound {
     lv_obj_set_style_height(green_container, lv_pct(100), LV_PART_MAIN);
     lv_obj_set_style_width(green_container, lv_pct(33), LV_PART_MAIN);
 
-    this->green_slider_ = lv_slider_create(green_container);
-    lv_obj_add_style(this->green_slider_, &this->slider_vert_, LV_PART_MAIN);
-    lv_obj_set_style_bg_grad(this->green_slider_, &this->green_bar_, LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(this->green_slider_, LV_OPA_TRANSP, LV_PART_INDICATOR);
-    lv_obj_add_style(this->green_slider_, &this->slider_vert_knob_, LV_PART_KNOB);
-    lv_obj_set_flex_grow(this->green_slider_, 1);
-    lv_slider_set_range(this->green_slider_, 0, 255);
-    lv_slider_set_mode(this->green_slider_, LV_SLIDER_MODE_NORMAL);
+    this->sliders_[SLIDER_GREEN] = lv_slider_create(green_container);
+    lv_obj_add_style(this->sliders_[SLIDER_GREEN], &this->slider_vert_, LV_PART_MAIN);
+    lv_obj_set_style_bg_grad(this->sliders_[SLIDER_GREEN], &this->green_bar_, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(this->sliders_[SLIDER_GREEN], LV_OPA_TRANSP, LV_PART_INDICATOR);
+    lv_obj_add_style(this->sliders_[SLIDER_GREEN], &this->slider_vert_knob_, LV_PART_KNOB);
+    lv_obj_set_flex_grow(this->sliders_[SLIDER_GREEN], 1);
+    lv_slider_set_range(this->sliders_[SLIDER_GREEN], 0, 255);
+    lv_slider_set_mode(this->sliders_[SLIDER_GREEN], LV_SLIDER_MODE_NORMAL);
 
-    lv_obj_add_flag(this->green_slider_, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
-    this->green_value_ = lv_label_create(this->green_slider_);
+    lv_obj_add_flag(this->sliders_[SLIDER_GREEN], LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+    this->green_value_ = lv_label_create(this->sliders_[SLIDER_GREEN]);
     lv_obj_set_style_align(this->green_value_, LV_ALIGN_CENTER, LV_PART_MAIN);
     lv_obj_set_style_text_color(this->green_value_, lv_color_black(), LV_PART_MAIN);
 
@@ -265,17 +287,17 @@ class LvColorPickerType : public LvCompound {
     lv_obj_set_style_height(blue_container, lv_pct(100), LV_PART_MAIN);
     lv_obj_set_style_width(blue_container, lv_pct(33), LV_PART_MAIN);
 
-    this->blue_slider_ = lv_slider_create(blue_container);
-    lv_obj_add_style(this->blue_slider_, &this->slider_vert_, LV_PART_MAIN);
-    lv_obj_set_style_bg_grad(this->blue_slider_, &this->blue_bar_, LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(this->blue_slider_, LV_OPA_TRANSP, LV_PART_INDICATOR);
-    lv_obj_add_style(this->blue_slider_, &this->slider_vert_knob_, LV_PART_KNOB);
-    lv_obj_set_flex_grow(this->blue_slider_, 1);
-    lv_slider_set_range(this->blue_slider_, 0, 255);
-    lv_slider_set_mode(this->blue_slider_, LV_SLIDER_MODE_NORMAL);
+    this->sliders_[SLIDER_BLUE] = lv_slider_create(blue_container);
+    lv_obj_add_style(this->sliders_[SLIDER_BLUE], &this->slider_vert_, LV_PART_MAIN);
+    lv_obj_set_style_bg_grad(this->sliders_[SLIDER_BLUE], &this->blue_bar_, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(this->sliders_[SLIDER_BLUE], LV_OPA_TRANSP, LV_PART_INDICATOR);
+    lv_obj_add_style(this->sliders_[SLIDER_BLUE], &this->slider_vert_knob_, LV_PART_KNOB);
+    lv_obj_set_flex_grow(this->sliders_[SLIDER_BLUE], 1);
+    lv_slider_set_range(this->sliders_[SLIDER_BLUE], 0, 255);
+    lv_slider_set_mode(this->sliders_[SLIDER_BLUE], LV_SLIDER_MODE_NORMAL);
 
-    lv_obj_add_flag(this->blue_slider_, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
-    this->blue_value_ = lv_label_create(this->blue_slider_);
+    lv_obj_add_flag(this->sliders_[SLIDER_BLUE], LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+    this->blue_value_ = lv_label_create(this->sliders_[SLIDER_BLUE]);
     lv_obj_set_style_align(this->blue_value_, LV_ALIGN_CENTER, LV_PART_MAIN);
     lv_obj_set_style_text_color(this->blue_value_, lv_color_black(), LV_PART_MAIN);
 
@@ -284,16 +306,16 @@ class LvColorPickerType : public LvCompound {
     lv_obj_set_style_height(saturation_container, lv_pct(18), LV_PART_MAIN);
     lv_obj_set_style_width(saturation_container, lv_pct(100), LV_PART_MAIN);
 
-    this->saturation_slider_ = lv_slider_create(saturation_container);
-    lv_obj_add_style(this->saturation_slider_, &this->slider_horz_, LV_PART_MAIN);
-    lv_obj_set_style_bg_grad(this->saturation_slider_, &this->saturation_bar_, LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(this->saturation_slider_, LV_OPA_TRANSP, LV_PART_INDICATOR);
-    lv_obj_add_style(this->saturation_slider_, &this->slider_horz_knob_, LV_PART_KNOB);
-    lv_slider_set_range(this->saturation_slider_, 0, 100);
-    lv_slider_set_mode(this->saturation_slider_, LV_SLIDER_MODE_NORMAL);
+    this->sliders_[SLIDER_SATURATION] = lv_slider_create(saturation_container);
+    lv_obj_add_style(this->sliders_[SLIDER_SATURATION], &this->slider_horz_, LV_PART_MAIN);
+    lv_obj_set_style_bg_grad(this->sliders_[SLIDER_SATURATION], &this->saturation_bar_, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(this->sliders_[SLIDER_SATURATION], LV_OPA_TRANSP, LV_PART_INDICATOR);
+    lv_obj_add_style(this->sliders_[SLIDER_SATURATION], &this->slider_horz_knob_, LV_PART_KNOB);
+    lv_slider_set_range(this->sliders_[SLIDER_SATURATION], 0, 100);
+    lv_slider_set_mode(this->sliders_[SLIDER_SATURATION], LV_SLIDER_MODE_NORMAL);
 
-    lv_obj_add_flag(this->saturation_slider_, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
-    this->saturation_value_ = lv_label_create(this->saturation_slider_);
+    lv_obj_add_flag(this->sliders_[SLIDER_SATURATION], LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+    this->saturation_value_ = lv_label_create(this->sliders_[SLIDER_SATURATION]);
     lv_obj_set_style_align(this->saturation_value_, LV_ALIGN_CENTER, LV_PART_MAIN);
     lv_obj_set_style_text_color(this->saturation_value_, lv_color_black(), LV_PART_MAIN);
     this->update_color_();
@@ -302,17 +324,17 @@ class LvColorPickerType : public LvCompound {
       auto *self = static_cast<LvColorPickerType *>(lv_event_get_user_data(event));
       self->update_rgb_();
     };
-    lv_obj_add_event_cb(this->red_slider_, rgb_lambda, LV_EVENT_VALUE_CHANGED, this);
-    lv_obj_add_event_cb(this->green_slider_, rgb_lambda, LV_EVENT_VALUE_CHANGED, this);
-    lv_obj_add_event_cb(this->blue_slider_, rgb_lambda, LV_EVENT_VALUE_CHANGED, this);
+    lv_obj_add_event_cb(this->sliders_[SLIDER_RED], rgb_lambda, LV_EVENT_VALUE_CHANGED, this);
+    lv_obj_add_event_cb(this->sliders_[SLIDER_GREEN], rgb_lambda, LV_EVENT_VALUE_CHANGED, this);
+    lv_obj_add_event_cb(this->sliders_[SLIDER_BLUE], rgb_lambda, LV_EVENT_VALUE_CHANGED, this);
 
     auto hsl_lambda = [](lv_event_t *event) {
       auto *self = static_cast<LvColorPickerType *>(lv_event_get_user_data(event));
       self->update_hsl_();
     };
-    lv_obj_add_event_cb(this->hue_slider_, hsl_lambda, LV_EVENT_VALUE_CHANGED, this);
-    lv_obj_add_event_cb(this->saturation_slider_, hsl_lambda, LV_EVENT_VALUE_CHANGED, this);
-    lv_obj_add_event_cb(this->brightness_slider_, hsl_lambda, LV_EVENT_VALUE_CHANGED, this);
+    lv_obj_add_event_cb(this->sliders_[SLIDER_HUE], hsl_lambda, LV_EVENT_VALUE_CHANGED, this);
+    lv_obj_add_event_cb(this->sliders_[SLIDER_SATURATION], hsl_lambda, LV_EVENT_VALUE_CHANGED, this);
+    lv_obj_add_event_cb(this->sliders_[SLIDER_BRIGHTNESS], hsl_lambda, LV_EVENT_VALUE_CHANGED, this);
 
     bubble_events(outer);
   }
@@ -384,29 +406,29 @@ class LvColorPickerType : public LvCompound {
   void update_text_() const {
     // max 8 bytes: "#" + 3x "%02X" (2 hex digits each) + null
     char buf[8];
-    snprintf(buf, sizeof(buf), "#%02X%02X%02X", static_cast<unsigned>(lv_slider_get_value(this->red_slider_)),
-             static_cast<unsigned>(lv_slider_get_value(this->green_slider_)),
-             static_cast<unsigned>(lv_slider_get_value(this->blue_slider_)));
+    snprintf(buf, sizeof(buf), "#%02X%02X%02X", static_cast<unsigned>(lv_slider_get_value(this->sliders_[SLIDER_RED])),
+             static_cast<unsigned>(lv_slider_get_value(this->sliders_[SLIDER_GREEN])),
+             static_cast<unsigned>(lv_slider_get_value(this->sliders_[SLIDER_BLUE])));
     lv_label_set_text(this->color_text_, buf);
   }
 
   void update_saturation_bar_(uint16_t hue) {
     this->saturation_bar_.stops[1].color = lv_color_hsv_to_rgb(hue, 100, 100);
-    lv_obj_invalidate(this->saturation_slider_);
+    lv_obj_invalidate(this->sliders_[SLIDER_SATURATION]);
   }
 
   void update_values_() const {
     // max 4 bytes: up to 3 digits (0..255) + null
     char buf[4];
-    snprintf(buf, sizeof(buf), "%d", (int) lv_slider_get_value(this->saturation_slider_));
+    snprintf(buf, sizeof(buf), "%d", (int) lv_slider_get_value(this->sliders_[SLIDER_SATURATION]));
     lv_label_set_text(this->saturation_value_, buf);
-    snprintf(buf, sizeof(buf), "%d", (int) lv_slider_get_value(this->brightness_slider_));
+    snprintf(buf, sizeof(buf), "%d", (int) lv_slider_get_value(this->sliders_[SLIDER_BRIGHTNESS]));
     lv_label_set_text(this->brightness_value_, buf);
-    snprintf(buf, sizeof(buf), "%d", (int) lv_slider_get_value(this->red_slider_));
+    snprintf(buf, sizeof(buf), "%d", (int) lv_slider_get_value(this->sliders_[SLIDER_RED]));
     lv_label_set_text(this->red_value_, buf);
-    snprintf(buf, sizeof(buf), "%d", (int) lv_slider_get_value(this->green_slider_));
+    snprintf(buf, sizeof(buf), "%d", (int) lv_slider_get_value(this->sliders_[SLIDER_GREEN]));
     lv_label_set_text(this->green_value_, buf);
-    snprintf(buf, sizeof(buf), "%d", (int) lv_slider_get_value(this->blue_slider_));
+    snprintf(buf, sizeof(buf), "%d", (int) lv_slider_get_value(this->sliders_[SLIDER_BLUE]));
     lv_label_set_text(this->blue_value_, buf);
   }
 
@@ -415,19 +437,22 @@ class LvColorPickerType : public LvCompound {
   // and blue bars each run from white up to their full primary, so their knob fades that one
   // channel in while the other two drop away.
   void update_knobs_() const {
-    auto hue = static_cast<uint16_t>(lv_slider_get_value(this->hue_slider_));
-    auto saturation = static_cast<uint8_t>(lv_slider_get_value(this->saturation_slider_));
-    auto brightness = static_cast<uint8_t>(lv_slider_get_value(this->brightness_slider_));
-    auto red = static_cast<uint8_t>(lv_slider_get_value(this->red_slider_));
-    auto green = static_cast<uint8_t>(lv_slider_get_value(this->green_slider_));
-    auto blue = static_cast<uint8_t>(lv_slider_get_value(this->blue_slider_));
+    if (!this->tint_knobs_)
+      return;
+    auto hue = static_cast<uint16_t>(lv_slider_get_value(this->sliders_[SLIDER_HUE]));
+    auto saturation = static_cast<uint8_t>(lv_slider_get_value(this->sliders_[SLIDER_SATURATION]));
+    auto brightness = static_cast<uint8_t>(lv_slider_get_value(this->sliders_[SLIDER_BRIGHTNESS]));
+    auto red = static_cast<uint8_t>(lv_slider_get_value(this->sliders_[SLIDER_RED]));
+    auto green = static_cast<uint8_t>(lv_slider_get_value(this->sliders_[SLIDER_GREEN]));
+    auto blue = static_cast<uint8_t>(lv_slider_get_value(this->sliders_[SLIDER_BLUE]));
     auto grey = static_cast<uint8_t>(brightness * 255 / 100);
-    lv_obj_set_style_bg_color(this->hue_slider_, lv_color_hsv_to_rgb(hue, 100, 100), LV_PART_KNOB);
-    lv_obj_set_style_bg_color(this->saturation_slider_, lv_color_hsv_to_rgb(hue, saturation, 100), LV_PART_KNOB);
-    lv_obj_set_style_bg_color(this->brightness_slider_, lv_color_make(grey, grey, grey), LV_PART_KNOB);
-    lv_obj_set_style_bg_color(this->red_slider_, lv_color_make(255, 255 - red, 255 - red), LV_PART_KNOB);
-    lv_obj_set_style_bg_color(this->green_slider_, lv_color_make(255 - green, 255, 255 - green), LV_PART_KNOB);
-    lv_obj_set_style_bg_color(this->blue_slider_, lv_color_make(255 - blue, 255 - blue, 255), LV_PART_KNOB);
+    lv_obj_set_style_bg_color(this->sliders_[SLIDER_HUE], lv_color_hsv_to_rgb(hue, 100, 100), LV_PART_KNOB);
+    lv_obj_set_style_bg_color(this->sliders_[SLIDER_SATURATION], lv_color_hsv_to_rgb(hue, saturation, 100),
+                              LV_PART_KNOB);
+    lv_obj_set_style_bg_color(this->sliders_[SLIDER_BRIGHTNESS], lv_color_make(grey, grey, grey), LV_PART_KNOB);
+    lv_obj_set_style_bg_color(this->sliders_[SLIDER_RED], lv_color_make(255, 255 - red, 255 - red), LV_PART_KNOB);
+    lv_obj_set_style_bg_color(this->sliders_[SLIDER_GREEN], lv_color_make(255 - green, 255, 255 - green), LV_PART_KNOB);
+    lv_obj_set_style_bg_color(this->sliders_[SLIDER_BLUE], lv_color_make(255 - blue, 255 - blue, 255), LV_PART_KNOB);
   }
 
   // The sliders are internal to the widget, so touching one is an event on the slider rather
@@ -445,15 +470,15 @@ class LvColorPickerType : public LvCompound {
   }
 
   void update_hsl_() {
-    auto hue = lv_slider_get_value(this->hue_slider_);
-    auto brightness = lv_slider_get_value(this->brightness_slider_);
-    auto saturation = lv_slider_get_value(this->saturation_slider_);
+    auto hue = lv_slider_get_value(this->sliders_[SLIDER_HUE]);
+    auto brightness = lv_slider_get_value(this->sliders_[SLIDER_BRIGHTNESS]);
+    auto saturation = lv_slider_get_value(this->sliders_[SLIDER_SATURATION]);
     lv_color32_t c32 = lv_color_to_32(lv_color_hsv_to_rgb(hue, saturation, brightness), LV_OPA_COVER);
     this->state = Color(c32.red, c32.green, c32.blue);
     lv_obj_set_style_bg_color(this->color_indicator_, this->state, LV_PART_MAIN);
-    lv_slider_set_value(this->red_slider_, c32.red, LV_ANIM_OFF);
-    lv_slider_set_value(this->green_slider_, c32.green, LV_ANIM_OFF);
-    lv_slider_set_value(this->blue_slider_, c32.blue, LV_ANIM_OFF);
+    lv_slider_set_value(this->sliders_[SLIDER_RED], c32.red, LV_ANIM_OFF);
+    lv_slider_set_value(this->sliders_[SLIDER_GREEN], c32.green, LV_ANIM_OFF);
+    lv_slider_set_value(this->sliders_[SLIDER_BLUE], c32.blue, LV_ANIM_OFF);
     this->update_saturation_bar_(hue);
     this->update_text_();
     this->update_values_();
@@ -461,15 +486,15 @@ class LvColorPickerType : public LvCompound {
   }
 
   void update_rgb_() {
-    auto red = lv_slider_get_value(this->red_slider_);
-    auto green = lv_slider_get_value(this->green_slider_);
-    auto blue = lv_slider_get_value(this->blue_slider_);
+    auto red = lv_slider_get_value(this->sliders_[SLIDER_RED]);
+    auto green = lv_slider_get_value(this->sliders_[SLIDER_GREEN]);
+    auto blue = lv_slider_get_value(this->sliders_[SLIDER_BLUE]);
     this->state = Color(static_cast<uint8_t>(red), static_cast<uint8_t>(green), static_cast<uint8_t>(blue));
     lv_obj_set_style_bg_color(this->color_indicator_, this->state, LV_PART_MAIN);
     auto hsv = lv_color_rgb_to_hsv(red, green, blue);
-    lv_slider_set_value(this->hue_slider_, hsv.h, LV_ANIM_OFF);
-    lv_slider_set_value(this->saturation_slider_, hsv.s, LV_ANIM_OFF);
-    lv_slider_set_value(this->brightness_slider_, hsv.v, LV_ANIM_OFF);
+    lv_slider_set_value(this->sliders_[SLIDER_HUE], hsv.h, LV_ANIM_OFF);
+    lv_slider_set_value(this->sliders_[SLIDER_SATURATION], hsv.s, LV_ANIM_OFF);
+    lv_slider_set_value(this->sliders_[SLIDER_BRIGHTNESS], hsv.v, LV_ANIM_OFF);
     this->update_saturation_bar_(hsv.h);
     this->update_text_();
     this->update_values_();
@@ -477,9 +502,9 @@ class LvColorPickerType : public LvCompound {
   }
 
   void update_color_() {
-    lv_slider_set_value(this->red_slider_, this->state.r, LV_ANIM_OFF);
-    lv_slider_set_value(this->green_slider_, this->state.g, LV_ANIM_OFF);
-    lv_slider_set_value(this->blue_slider_, this->state.b, LV_ANIM_OFF);
+    lv_slider_set_value(this->sliders_[SLIDER_RED], this->state.r, LV_ANIM_OFF);
+    lv_slider_set_value(this->sliders_[SLIDER_GREEN], this->state.g, LV_ANIM_OFF);
+    lv_slider_set_value(this->sliders_[SLIDER_BLUE], this->state.b, LV_ANIM_OFF);
     this->update_rgb_();
     lv_obj_invalidate(this->obj);
   }
@@ -494,12 +519,7 @@ class LvColorPickerType : public LvCompound {
   lv_style_t slider_vert_knob_{};
   lv_style_t slider_horz_{};
   lv_style_t slider_horz_knob_{};
-  lv_obj_t *hue_slider_{};
-  lv_obj_t *brightness_slider_{};
-  lv_obj_t *saturation_slider_{};
-  lv_obj_t *red_slider_{};
-  lv_obj_t *blue_slider_{};
-  lv_obj_t *green_slider_{};
+  std::array<lv_obj_t *, SLIDER_COUNT> sliders_{};
   lv_obj_t *brightness_value_{};
   lv_obj_t *saturation_value_{};
   lv_obj_t *red_value_{};
@@ -507,6 +527,7 @@ class LvColorPickerType : public LvCompound {
   lv_obj_t *green_value_{};
   lv_obj_t *color_indicator_{};
   lv_obj_t *color_text_{};
+  bool tint_knobs_{true};
 };
 
 }  // namespace esphome::lvgl
