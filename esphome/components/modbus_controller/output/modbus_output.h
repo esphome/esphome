@@ -11,7 +11,7 @@ namespace esphome::modbus_controller {
 class ModbusFloatOutput final : public output::FloatOutput, public Component, public SensorItem {
  public:
   ModbusFloatOutput(uint16_t start_address, uint8_t offset, SensorValueType value_type, int register_count) {
-    this->register_type = ModbusRegisterType::HOLDING;
+    this->register_type = modbus::EntityType::HOLDING;
     this->start_address = start_address;
     this->offset = offset;
     this->bitmask = 0xFFFFFFFF;
@@ -44,7 +44,7 @@ class ModbusFloatOutput final : public output::FloatOutput, public Component, pu
 class ModbusBinaryOutput final : public output::BinaryOutput, public Component, public SensorItem {
  public:
   ModbusBinaryOutput(uint16_t start_address, uint8_t offset) {
-    this->register_type = ModbusRegisterType::COIL;
+    this->register_type = modbus::EntityType::COIL;
     this->start_address = start_address;
     this->bitmask = 0xFFFFFFFF;
     this->sensor_value_type = SensorValueType::BIT;

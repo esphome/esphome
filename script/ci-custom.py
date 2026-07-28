@@ -345,9 +345,11 @@ def lint_const_ordered(fname, content):
                 (
                     mi,
                     1,
-                    f"Constant {highlight(mline)} is not ordered, please make sure all "
-                    f"constants are ordered. See line {mi} (should go to line {target}, "
-                    f"{target_text})",
+                    (
+                        f"Constant {highlight(mline)} is not ordered, please make sure all "
+                        f"constants are ordered. See line {mi} (should go to line {target}, "
+                        f"{target_text})"
+                    ),
                 )
             )
     return errs
@@ -990,12 +992,14 @@ def lint_log_multiline_continuation(fname, content):
                 (
                     lineno,
                     col,
-                    "Multi-line log message has a continuation line that does "
-                    "not start with a space. The log viewer uses leading "
-                    "whitespace to detect continuation lines and re-add the "
-                    f"log tag prefix (e.g. {highlight('[C][component:042]:')}).\n"
-                    "Either start the continuation with a space/indent, or "
-                    "split into separate ESP_LOG* calls.",
+                    (
+                        "Multi-line log message has a continuation line that does "
+                        "not start with a space. The log viewer uses leading "
+                        "whitespace to detect continuation lines and re-add the "
+                        f"log tag prefix (e.g. {highlight('[C][component:042]:')}).\n"
+                        "Either start the continuation with a space/indent, or "
+                        "split into separate ESP_LOG* calls."
+                    ),
                 )
             )
     return errs
@@ -1073,10 +1077,12 @@ def lint_test_package_key_matches_bus(fname, content):
                 (
                     lineno,
                     1,
-                    f"Package key {highlight(pkg_key)} does not match bus directory "
-                    f"{highlight(bus_dir)}. The package key must match the directory "
-                    f"name under tests/test_build_components/common/. "
-                    f"Change {highlight(pkg_key)} to {highlight(bus_dir)}.",
+                    (
+                        f"Package key {highlight(pkg_key)} does not match bus directory "
+                        f"{highlight(bus_dir)}. The package key must match the directory "
+                        f"name under tests/test_build_components/common/. "
+                        f"Change {highlight(pkg_key)} to {highlight(bus_dir)}."
+                    ),
                 )
             )
     return errs
