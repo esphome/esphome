@@ -1,5 +1,3 @@
-import logging
-
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
 from esphome.components.const import CONF_NOX_INDEX, CONF_VOC_INDEX
@@ -34,9 +32,6 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
-from esphome.types import ConfigType
-
-_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@martgras", "@mebner86", "@tuct"]
 DEPENDENCIES = ["i2c"]
@@ -48,25 +43,9 @@ SEN6XComponent = sen6x_ns.class_(
 )
 
 
-def _deprecate_gas_index_keys(config: ConfigType) -> ConfigType:
-    config = config.copy()
-    for old_key, new_key in ((CONF_VOC, CONF_VOC_INDEX), (CONF_NOX, CONF_NOX_INDEX)):
-        if old_key in config:
-            if new_key in config:
-                raise cv.Invalid(
-                    f"Cannot specify both '{old_key}' and '{new_key}'; use only '{new_key}'"
-                )
-            _LOGGER.warning(
-                "'%s' is deprecated, use '%s'. Will be removed in 2027.2.0",
-                old_key,
-                new_key,
-            )
-            config[new_key] = config.pop(old_key)
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
-    _deprecate_gas_index_keys,
+    cv.rename_key(CONF_VOC, CONF_VOC_INDEX, removed_in="2027.2.0", component="sen6x"),
+    cv.rename_key(CONF_NOX, CONF_NOX_INDEX, removed_in="2027.2.0", component="sen6x"),
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SEN6XComponent),
