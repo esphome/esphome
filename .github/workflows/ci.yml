@@ -117,6 +117,7 @@ jobs:
           script/generate-esp32-boards.py --check
           script/generate-rp2-boards.py --check
           script/ci_check_duplicate_test_ids.py
+          script/ci_check_test_fixture_list_form.py
 
   import-time:
     name: Check import esphome.__main__ time
@@ -364,6 +365,24 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install ccache
+        # Speeds up the host compiles: tests in a bucket compile overlapping
+        # component sets, so later tests reuse earlier tests' objects.
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ccache
+      - name: Restore ccache (restore-only)
+        # esphome stores the PlatformIO ccache under the machine-global cache
+        # dir (see _ccache_env() in esphome/platformio/toolchain.py). The
+        # bucket-name prefix prefers a same-bucket seed; the bare prefix falls
+        # back to any seed when the bucket layout differs from dev.
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/esphome/platformio-ccache
+          key: integration-ccache-${{ matrix.bucket.name }}-${{ github.sha }}
+          restore-keys: |
+            integration-ccache-${{ matrix.bucket.name }}-
+            integration-ccache-
       - name: Set up Python 3.13
         id: python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -408,6 +427,18 @@ jobs:
           mapfile -t test_files < <(echo "$BUCKET_TESTS" | jq -r '.[]')
           echo "Bucket ${{ matrix.bucket.name }}: running ${#test_files[@]} integration tests"
           pytest -vv --no-cov --tb=native --durations=30 -n auto "${test_files[@]}"
+      - name: Print ccache statistics
+        # esphome stores the PlatformIO ccache under the machine-global cache
+        # dir (see _ccache_env() in esphome/platformio/toolchain.py).
+        run: CCACHE_DIR="$HOME/.cache/esphome/platformio-ccache" ccache -s
+      - name: Save ccache
+        # Pull request saves land in per-PR scopes nothing else can reuse;
+        # dev pushes seed the shared copy instead.
+        if: github.event_name != 'pull_request'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/esphome/platformio-ccache
+          key: integration-ccache-${{ matrix.bucket.name }}-${{ github.sha }}
 
   cpp-unit-tests:
     name: Run C++ unit tests
@@ -465,7 +496,7 @@ jobs:
           echo "binary=$BINARY" >> $GITHUB_OUTPUT
 
       - name: Run CodSpeed benchmarks
-        uses: CodSpeedHQ/action@f99becdce5e5d51fd556489ebef684f4ecfd6286 # v4.18.5
+        uses: CodSpeedHQ/action@f22792bfac16f3e14eb9fbea76f4a48e9cc22b93 # v4.19.1
         with:
           run: |
             . venv/bin/activate

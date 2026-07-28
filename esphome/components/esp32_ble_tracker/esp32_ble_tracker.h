@@ -343,8 +343,8 @@ class ESP32BLETracker final : public Component,
 #endif
   ble_device_base::RawAdvertisementCallback raw_advertisement_callback_{nullptr};
 #ifdef USE_ESP32_BLE_DEVICE
-  /// Vector of addresses that have already been printed in print_bt_device_info
-  std::vector<uint64_t> already_discovered_;
+  /// Per-period "Found device" DEBUG log with MAC dedup (shared ble_device_base impl)
+  ble_device_base::DiscoveredDeviceLog discovered_log_;
 #endif
 
   // Group 2: Structs (aligned to 4 bytes)

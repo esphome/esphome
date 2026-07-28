@@ -127,6 +127,9 @@ static constexpr uint8_t BROADCAST_ADDRESS = 0;
  * with any subscript. Writes and forwarding are defensive: set() drops out-of-range bits and
  * bytes() clamps to the real span, because those paths touch buffers and the wire directly.
  */
+/// Bits pack 8 per data byte, rounded up to whole bytes.
+constexpr size_t packed_bit_bytes(size_t bits) { return (bits + 7) / 8; }
+
 class PackedBits {
  public:
   PackedBits(std::span<const uint8_t> data, uint16_t count) : data_(data), count_(count) {}
@@ -138,7 +141,7 @@ class PackedBits {
   /// over a larger buffer - forwarding this span onto the wire can never leak trailing buffer content.
   /// Clamped to the actual span so a view over a too-short buffer stays detectable instead of UB.
   std::span<const uint8_t> bytes() const {
-    return this->data_.first(std::min<size_t>((this->count_ + 7) / 8, this->data_.size()));
+    return this->data_.first(std::min<size_t>(packed_bit_bytes(this->count_), this->data_.size()));
   }
 
  private:
