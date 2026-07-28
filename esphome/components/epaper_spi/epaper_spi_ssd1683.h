@@ -13,7 +13,7 @@ class EPaperSSD1683 : public EPaperMono {
       : EPaperMono(name, width, height, init_sequence, init_sequence_length) {}
 
  protected:
-  void refresh_screen(bool partial) override;
+  void refresh_screen() override;
   void deep_sleep() override;
   void set_window() override;
   bool transfer_data() override;

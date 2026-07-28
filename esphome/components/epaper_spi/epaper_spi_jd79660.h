@@ -62,7 +62,7 @@ class EPaperJD79660 final : public EPaperBase {
    * @pre Must be idle.
    * @post Should return to idle later after processing.
    */
-  void refresh_screen([[maybe_unused]] bool partial) override;
+  void refresh_screen() override;
 
   /** Power off
    * @pre Must be idle.

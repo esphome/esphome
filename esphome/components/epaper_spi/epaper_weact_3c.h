@@ -27,7 +27,7 @@ class EPaperWeAct3C : public EPaperBase {
 
  protected:
   void set_window_();
-  void refresh_screen(bool partial) override;
+  void refresh_screen() override;
   void power_on() override;
   void power_off() override;
   void deep_sleep() override;

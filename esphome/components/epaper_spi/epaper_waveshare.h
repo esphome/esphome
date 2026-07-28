@@ -20,7 +20,7 @@ class EpaperWaveshare final : public EPaperMono {
  protected:
   bool initialise(bool partial) override;
   void set_window() override;
-  void refresh_screen(bool partial) override;
+  void refresh_screen() override;
   void deep_sleep() override;
   const uint8_t *lut_;
   size_t lut_length_;

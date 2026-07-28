@@ -23,6 +23,14 @@ enum class EPaperState : uint8_t {
   DEEP_SLEEP,      // deep sleep the display
 };
 
+enum class EPaperRefreshType : uint8_t {
+  FULL,     // The default refresh type, performs a safe, slow full screen update
+  PARTIAL,  // Quickly update a part of the display. Often leaves ghosting artifacts and can lead to burn-in if used too
+            // often, read manufacturer specs
+  FULL_FAST,  // A variant of the full update that flashes black/white less and draws faster. Can cause ghosting if used
+              // at cold temperatures, and could lead to burn-in when used long-term (years)
+};
+
 static constexpr uint8_t NONE = 0;
 static constexpr uint8_t MIRROR_X = 1;
 static constexpr uint8_t MIRROR_Y = 2;
@@ -72,6 +80,7 @@ class EPaperBase : public Display,
   }
 
   void update() override;
+  bool update_control(EPaperRefreshType refresh);
   void loop() override;
 
   void setup() override;
@@ -122,6 +131,7 @@ class EPaperBase : public Display,
   void process_state_();
 
   const char *epaper_state_to_string_();
+  const char *epaper_refresh_type_to_string_();
   bool is_idle_() const;
   void setup_pins_() const;
   virtual bool reset();
@@ -143,7 +153,7 @@ class EPaperBase : public Display,
   /**
    * Refresh the screen after data transfer
    */
-  virtual void refresh_screen(bool partial) = 0;
+  virtual void refresh_screen() = 0;
 
   /**
    * Power the display on
@@ -199,6 +209,7 @@ class EPaperBase : public Display,
 
   // properties with specific initialisers go last
   EPaperState state_{EPaperState::IDLE};
+  EPaperRefreshType refresh_type_{EPaperRefreshType::FULL};
   uint32_t reset_duration_{10};
   uint8_t full_update_every_{1};
 };
