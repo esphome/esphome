@@ -1567,5 +1567,4 @@ TEST(ModbusClientHubPriority, ReadModifyWritesRankAsWrites) {
   EXPECT_EQ(hub.front().priority, CommandPriority::WRITE);  // 0x16 jumped the queued read
   EXPECT_EQ(hub.front().frame.pdu()[0], 0x16);
 }
-
 }  // namespace esphome::modbus::testing

@@ -138,6 +138,27 @@ TEST(HeapProbe, QueueingTypicalCommandsIsAllocationFree) {
   EXPECT_EQ(total, 0u);
 }
 
+// The insert_by_priority_() non-append branch: a WRITE jumping queued reads takes deque::insert at
+// begin(), which may allocate a 512-byte front block. Measured (not forbidden) so the cost the
+// append special-case avoids is on record next to the probe that guards the common path.
+TEST(HeapProbe, WriteJumpingQueuedReadsMeasuresFrontInsert) {
+  ModbusClientHub hub;
+  ModbusClientDevice device(&hub, 0x02);
+
+  StaticVector<uint8_t, MAX_PDU_SIZE> req;
+  const uint8_t read_pdu[] = {0x03, 0x01, 0x00, 0x00, 0x02};
+  req.assign(read_pdu, read_pdu + sizeof(read_pdu));
+  for (int i = 0; i != 3; i++) {
+    req[2] = static_cast<uint8_t>(i);  // distinct start addresses: identical frames would dedup, not enqueue
+    device.send_pdu(req);
+  }
+
+  const uint8_t write_pdu[] = {0x06, 0x00, 0x10, 0xBE, 0xEF};
+  Sample front_insert = sample([&] { device.send_pdu(write_pdu); });
+  printf("HEAPPROBE write_front_insert count=%zu bytes=%zu\n", front_insert.count, front_insert.bytes);
+  EXPECT_LE(front_insert.count, 1u);  // at most the deque's front-block allocation
+}
+
 // End to end: bytes injected at the UART travel through receive, frame parsing, response matching and
 // device dispatch. The first response may grow the hub's rx buffer once; after that warm-up, handling a
 // response performs zero heap allocations all the way to the device callback.

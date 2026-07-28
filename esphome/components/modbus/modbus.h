@@ -19,9 +19,9 @@ namespace esphome::modbus {
 // Tx queue backstop. Duplicate frames dedup into one entry, so reads can never approach this in a
 // sane config - it exists to stop a runaway generator of distinct frames (e.g. a loop writing a
 // changing value) from growing the heap unboundedly. The deque grows on demand; this reserves nothing.
-// Worst case the cap permits: 128 distinct max-size frames = ~26 kB of transient heap (typical
-// 8-byte frames stay inline; large PDUs spill to one allocation each) - pathological configs only,
-// but the number matters when tuning this for ESP8266.
+// Worst case the cap permits: 128 distinct max-size frames = ~32 kB of spilled frame data plus
+// ~3 kB of deque node storage (typical 8-byte frames stay inline; large PDUs spill to one
+// allocation each) - pathological configs only, but the numbers matter when tuning for ESP8266.
 static constexpr uint16_t MODBUS_TX_BUFFER_SIZE = 128;
 static constexpr uint16_t MODBUS_TX_MAX_DELAY_MS = 5;
 
@@ -238,7 +238,8 @@ using ResponseStatus = std::optional<ExceptionCode>;
 /// The exceptions to "exactly one terminal":
 ///  - clear_tx_queue_for_device() drops the caller's OWN queued commands SILENTLY (supersede/teardown
 ///    semantics), and both clear variants detach the in-flight frame - and a command mid-completion
-///    (inside its own response callbacks) - silently.
+///    (inside its own response callbacks) - silently; a detach inside on_no_response() also
+///    swallows a READ_AGAIN's absorbed second request.
 ///    clear_tx_queue_for_address() DOES resolve every queued frame it drops via the owner's
 ///    on_not_sent() (delivered one at a time, after that frame leaves the queue); a swept READ_AGAIN
 ///    frame stands for exactly two pending requests and resolves with two deliveries.
@@ -283,7 +284,8 @@ class ModbusClientDevice {
     this->dispatch_response_(request_pdu, {}, exception_code);
   }
   /// Called when no request could be sent (e.g. queue full, transmission blocked).
-  /// Sending from inside this callback is bounded but hazardous; see the lifecycle contract above.
+  /// Sending from inside this callback is bounded but hazardous: if the re-send is refused too, the
+  /// per-device guard suppresses ITS on_not_sent() (see trigger_not_sent() and the contract above).
   /// (The on_modbus_* names below are deprecated pre-rename spellings; the defaults forward so
   /// external devices overriding them keep working through the deprecation window.)
   virtual void on_not_sent(std::span<const uint8_t> request_pdu) {
