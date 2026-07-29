@@ -147,11 +147,14 @@ void LD6002BComponent::parse_byte_(uint8_t byte) {
   switch (this->parse_state_) {
     case ParseState::DISCARD:
       // Only entered from HCK, with a verified and non-zero number of bytes to skip. The zero
-      // check is still part of the condition because discard_remaining_ is unsigned: should a
-      // later change ever reach this state with nothing left to skip, decrementing first would
-      // wrap to 4294967295 and silently swallow the next four gigabytes of stream instead of
+      // guard stays because discard_remaining_ is unsigned: should a later change ever reach
+      // this state with nothing left to skip, an unconditional decrement would wrap to
+      // 4294967295 and silently swallow the next four gigabytes of stream instead of
       // resynchronising on the following frame.
-      if (this->discard_remaining_ == 0 || --this->discard_remaining_ == 0) {
+      if (this->discard_remaining_ > 0) {
+        this->discard_remaining_--;
+      }
+      if (this->discard_remaining_ == 0) {
         this->reset_parser_();
       }
       return;
@@ -236,7 +239,7 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
   // its reply past the retry period, and treating such a reply as a leftover duplicate would starve
   // the command through every attempt and report a timeout for a write the module did perform.
   if (len == 0 && this->stale_ack_count_ > 0 && this->stale_ack_type_ == type &&
-      !(this->command_active_ && type == this->active_command_.type)) {
+      (!this->command_active_ || type != this->active_command_.type)) {
     this->stale_ack_count_--;
     ESP_LOGV(TAG, "Ignoring ACK for command 0x%04X from an earlier attempt (module frame 0x%04X)", type,
              this->frame_id_);
