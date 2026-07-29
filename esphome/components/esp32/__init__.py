@@ -3108,9 +3108,10 @@ def _parse_register(config, regex, line):
 
 
 STACKTRACE_ESP32_PC_RE = re.compile(r".*PC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7}).*")
-STACKTRACE_ESP32_EXCVADDR_RE = re.compile(r"EXCVADDR\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP32_EXCVADDR_RE = re.compile(r".*EXCVADDR\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
 STACKTRACE_ESP32_C3_PC_RE = re.compile(r"MEPC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
 STACKTRACE_ESP32_C3_RA_RE = re.compile(r"RA\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP32_C3_MTVAL_RE = re.compile(r".*MTVAL\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
 STACKTRACE_BAD_ALLOC_RE = re.compile(
     r"^last failed alloc call: (4[0-9a-fA-F]{7})\((\d+)\)$"
 )
@@ -3128,9 +3129,10 @@ def process_stacktrace(config, line, backtrace_state):
     # ESP32 PC/EXCVADDR
     _parse_register(config, STACKTRACE_ESP32_PC_RE, line)
     _parse_register(config, STACKTRACE_ESP32_EXCVADDR_RE, line)
-    # ESP32-C3 PC/RA
+    # ESP32-C3 PC/RA/MTVAL
     _parse_register(config, STACKTRACE_ESP32_C3_PC_RE, line)
     _parse_register(config, STACKTRACE_ESP32_C3_RA_RE, line)
+    _parse_register(config, STACKTRACE_ESP32_C3_MTVAL_RE, line)
 
     # bad alloc
     match = re.match(STACKTRACE_BAD_ALLOC_RE, line)
