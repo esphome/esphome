@@ -639,9 +639,12 @@ ModbusDeviceCommand *ModbusClientHub::select_next_ready_() {
   // Ordering is a property of selection, not storage: WRITE class outranks reads, one-shot reads
   // outrank continuous polls, and within a group the oldest seq goes first - round-robin fair, with
   // absorbed duplicates keeping their entry's place (see the seq field doc).
-  const auto older = [](const ModbusDeviceCommand &a, const ModbusDeviceCommand &b) {
-    return static_cast<int16_t>(a.seq - b.seq) < 0;  // wrap-safe
-  };
+  // seq is a free-running counter: compare each entry's AGE against it rather than comparing two
+  // stamps, so the arithmetic stays correct until an entry's age reaches the counter's full range
+  // (a pairwise comparison only spans half of it).
+  const uint16_t now = this->next_seq_;
+  const auto age = [now](const ModbusDeviceCommand &cmd) -> uint16_t { return now - cmd.seq; };
+  const auto older = [&age](const ModbusDeviceCommand &a, const ModbusDeviceCommand &b) { return age(a) > age(b); };
   ModbusDeviceCommand *best = nullptr;
   for (auto &cmd : this->tx_buffer_) {
     if (cmd.state != FrameState::READY)

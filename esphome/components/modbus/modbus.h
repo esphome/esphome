@@ -171,12 +171,14 @@ struct ModbusDeviceCommand {
   /// plus one re-run - and 1 for everything else), and refused at the door otherwise. An entry
   /// leaving the world drains to zero, one terminal per remaining count.
   uint8_t pending{1};
-  /// Place-in-line stamp: set when the entry is first queued, left alone when a duplicate is
-  /// absorbed (pending++), and re-stamped whenever the entry re-enters the line - a request
-  /// resolving (pending--), a granted retry (resolve-then-re-request), or a continuous completing
-  /// its cycle. Selection takes the minimum, so within a class the queue is round-robin fair: a
-  /// re-attempt goes behind requests that arrived while the frame was waiting, and no single
-  /// frame can starve the rest of the bus.
+  /// Place-in-line stamp from the hub's free-running counter: set when the entry is first queued,
+  /// left alone when a duplicate is absorbed (pending++), and re-stamped whenever the entry
+  /// re-enters the line - a request resolving (pending--), a granted retry (resolve-then-
+  /// re-request), or a continuous poll completing its cycle. Selection compares AGE against the
+  /// current counter (see select_next_ready_) and takes the oldest, so within a class the queue is
+  /// round-robin fair: a re-attempt goes behind requests that arrived while the frame was waiting.
+  /// The counter is meant to wrap; ordering only degrades if one entry waits through 65536 counter
+  /// advances, which needs higher-class traffic starving it for that long.
   uint16_t seq{0};
 
   ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, const uint8_t *src, uint16_t len)
