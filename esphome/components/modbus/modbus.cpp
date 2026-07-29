@@ -636,9 +636,9 @@ ModbusDeviceCommand *ModbusClientHub::find_waiting_() {
 }
 
 ModbusDeviceCommand *ModbusClientHub::select_next_ready_() {
-  // Ordering is a property of selection, not storage: WRITE class outranks reads, one-shot reads
-  // outrank continuous polls, and within a group the oldest seq goes first - round-robin fair, with
-  // absorbed duplicates keeping their entry's place (see the seq field doc).
+  // Ordering is a property of selection, not storage: the entry's class decides first (WRITE, then
+  // one-shot READ, then CONTINUOUS), and within a class the oldest goes first - round-robin fair,
+  // with absorbed duplicates keeping their entry's place (see the seq field doc).
   // seq is a free-running counter: compare each entry's AGE against it rather than comparing two
   // stamps, so the arithmetic stays correct until an entry's age reaches the counter's full range
   // (a pairwise comparison only spans half of it).
@@ -650,8 +650,7 @@ ModbusDeviceCommand *ModbusClientHub::select_next_ready_() {
     if (cmd.state != FrameState::READY)
       continue;
     if (best == nullptr || cmd.priority() > best->priority() ||
-        (cmd.priority() == best->priority() &&
-         (best->continuous != cmd.continuous ? !cmd.continuous : older(cmd, *best)))) {
+        (cmd.priority() == best->priority() && older(cmd, *best))) {
       best = &cmd;
     }
   }

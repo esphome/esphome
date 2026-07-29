@@ -402,6 +402,34 @@ TEST(ModbusClientHubPriority, ContinuousRequestUpgradesQueuedDuplicate) {
   EXPECT_TRUE(hub.queued(0).continuous);
 }
 
+// The transmit order is one key with three levels: writes, then one-shot reads, then continuous
+// polls - a poll only gets the bus when nothing else wants it.
+TEST(ModbusClientHubPriority, WritesThenOneShotReadsThenContinuousPolls) {
+  NoResponseProbeHub hub;
+  RetryingDevice device(&hub, 0x02, /*retry=*/false);
+
+  // Queued oldest-first in the opposite order to the one they must transmit in, so age cannot be
+  // what produces the expected sequence.
+  device.read_holding_registers(0x100, 2, {.continuous = true});
+  const uint8_t one_shot[] = {0x03, 0x02, 0x00, 0x00, 0x01};
+  const uint8_t write_pdu[] = {0x06, 0x00, 0x10, 0xBE, 0xEF};
+  device.send_pdu(one_shot);
+  device.send_pdu(write_pdu);
+  ASSERT_EQ(hub.queued_frames(), 3u);
+  EXPECT_EQ(hub.queued(0).priority(), CommandPriority::CONTINUOUS);
+  EXPECT_EQ(hub.queued(1).priority(), CommandPriority::READ);
+  EXPECT_EQ(hub.queued(2).priority(), CommandPriority::WRITE);
+
+  hub.force_send_next();
+  EXPECT_EQ(hub.waiting_command().frame.pdu()[0], 0x06);  // the write goes first
+  hub.timeout_waiting();
+  hub.force_send_next();
+  EXPECT_EQ(hub.waiting_command().frame.pdu()[1], 0x02);  // then the one-shot read
+  hub.timeout_waiting();
+  hub.force_send_next();
+  EXPECT_TRUE(hub.waiting_command().continuous);  // and the poll takes what is left
+}
+
 // continuous is ignored for writes: the frame still sends at WRITE priority, once.
 TEST(ModbusClientHubPriority, ContinuousIgnoredForWrites) {
   NoResponseProbeHub hub;

@@ -96,10 +96,12 @@ class Modbus : public uart::UARTDevice, public Component {
 class ModbusClientDevice;
 class ModbusServerDevice;
 
-// Transmit ordering class, highest sends first. Internal - derived from the frame, never chosen by
-// callers: mutating function codes outrank reads. Ordering is a property of SELECTION (the transmit
-// path picks the best READY entry), not of storage - the container is plain append-order.
-enum class CommandPriority : uint8_t { READ = 0, WRITE };
+// Transmit ordering class, highest sends first. Internal - derived from the frame and whether the
+// entry is a continuous poll, never chosen by callers: mutating function codes outrank one-shot
+// reads, which outrank continuous polls (a poll takes whatever bus time is left). Ordering is a
+// property of SELECTION (the transmit path picks the best READY entry), not of storage - the
+// container is plain append-order.
+enum class CommandPriority : uint8_t { CONTINUOUS = 0, READ, WRITE };
 
 /// Lifecycle state of a frame entry. The lifecycle contract on ModbusClientDevice is this
 /// transition table:
@@ -187,10 +189,14 @@ struct ModbusDeviceCommand {
   ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, std::span<const uint8_t> pdu)
       : device(device), frame(address, pdu.data(), static_cast<uint16_t>(pdu.size())) {}
 
-  /// Transmit ordering class, derived from the frame - never stored, so it can never disagree
-  /// with the bytes on the wire. Mutating function codes rank WRITE; exception-flagged codes
-  /// never do (is_function_code_write() masks the exception bit, so they are excluded up front).
-  CommandPriority priority() const { return classify(this->frame.pdu()[0]); }
+  /// Transmit ordering class, derived - never stored, so it can never disagree with the entry it
+  /// describes. A continuous poll ranks below every one-shot; otherwise the class comes from the
+  /// function code alone.
+  CommandPriority priority() const {
+    return this->continuous ? CommandPriority::CONTINUOUS : classify(this->frame.pdu()[0]);
+  }
+  /// The wire-derived half: mutating function codes rank WRITE; exception-flagged codes never do
+  /// (is_function_code_write() masks the exception bit, so they are excluded up front).
   static CommandPriority classify(uint8_t function_code) {
     if (helpers::is_function_code_exception(function_code))
       return CommandPriority::READ;
