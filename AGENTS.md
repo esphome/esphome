@@ -388,7 +388,10 @@ This document provides essential context for AI models interacting with this pro
         ```
         Register with `@automation.register_condition("my_component.is_active", MyCondition, schema)`.
 
+*   **Type Hints:** Type-hint all function signatures, including test functions and config validators (e.g. `def validate_x(config: ConfigType) -> ConfigType:`, `def test_x() -> None:`). Import `ConfigType` from `esphome.types`.
+
 *   **Configuration Validation:**
+    *   **Reuse existing validators:** Before writing a custom validator, check for an existing one in `config_validation.py` and compose it in `cv.All(...)` rather than duplicating logic across components. For example, rename a config key with `cv.rename_key(CONF_OLD, CONF_NEW, removed_in="2026.6.0")`, and reject mutually-exclusive keys with `cv.has_at_most_one_key(...)` / `cv.has_exactly_one_key(...)`. See how `api` composes `cv.has_exactly_one_key` + `cv.rename_key`.
     *   **Common Validators:** `cv.int_`, `cv.float_`, `cv.string`, `cv.boolean`, `cv.int_range(min=0, max=100)`, `cv.positive_int`, `cv.percentage`.
     *   **Complex Validation:** `cv.All(cv.string, cv.Length(min=1, max=50))`, `cv.Any(cv.int_, cv.string)`.
     *   **Platform-Specific:** `cv.only_on(["esp32", "esp8266"])`, `esp32.only_on_variant(...)`, `cv.only_on_esp32`, `cv.only_on_esp8266`, `cv.only_on_rp2040`.
@@ -401,6 +404,7 @@ This document provides essential context for AI models interacting with this pro
          .extend(i2c.i2c_device_schema(0x48))
          .extend(spi.spi_device_schema(cs_pin_required=True))
         ```
+    *   **Constants:** `esphome/const.py` is frozen — do not add new `CONF_` constants there. Define a component-local constant in the component's own `.py` (as with `CONF_PARAM` above); for a constant shared by multiple components, add it to `esphome/components/const/__init__.py`. CI (`lint_constants_usage`) fails if the same constant is defined in three or more component files. Constants used in core files (i.e. those not under `esphome/components`) may be added to `esphome/const.py` but will require adjustment to the CI validation check.
 
 ## 5. Key Files & Entrypoints
 
@@ -491,7 +495,7 @@ This document provides essential context for AI models interacting with this pro
     3.  **Test:** Create component tests for all supported platforms and run the full test suite locally.
     4.  **Lint:** Run `pre-commit` to ensure code is compliant.
     5.  **Commit:** Commit your changes. There is no strict format for commit messages.
-    6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title should have a prefix of the component being worked on (e.g., `[display] Fix bug`, `[abc123] Add new component`). Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made using the `.github/PULL_REQUEST_TEMPLATE.md` template - fill out all sections completely without removing any parts of the template.
+    6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title must start with a `[tag]` prefix. For component work, use the component name (e.g., `[display] Fix bug`, `[abc123] Add new component`); for changes to shared/core code that isn't tied to a single component, use `[core]` (e.g., `[core] Add validator`). Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made using the `.github/PULL_REQUEST_TEMPLATE.md` template - fill out all sections completely without removing any parts of the template.
 
 *   **Documentation Contributions:**
     *   Documentation is hosted in the separate `esphome/esphome.io` repository.
@@ -729,6 +733,16 @@ This document provides essential context for AI models interacting with this pro
     ```
 
 *   **Deprecation Pattern (Python):**
+    For a renamed config key, use the shared `cv.rename_key` validator with `removed_in` (and `component` for context) — it warns and auto-migrates:
+    ```python
+    CONFIG_SCHEMA = cv.All(
+        cv.rename_key(
+            CONF_OLD_KEY, CONF_NEW_KEY, removed_in="2026.6.0", component="my_component"
+        ),
+        cv.Schema({ ... }),
+    )
+    ```
+    For other deprecations, warn manually during validation:
     ```python
     # Remove before 2026.6.0
     if CONF_OLD_KEY in config:
