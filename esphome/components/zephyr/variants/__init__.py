@@ -99,7 +99,14 @@ class ZephyrVariant:
     swap_methods: frozenset[str] = frozenset()
     # GPIO -> ADC1 channel index, from the vendor SoC header (not discoverable from any
     # board's DTS -- ADC pins are fixed-function silicon). Empty = no ADC1 support wired up.
+    # Espressif-shaped: their devicetree channel@N address IS the real silicon channel.
     adc1_channel_map: dict[int, int] = field(default_factory=dict)
+    # GPIO -> SAADC analog-input name (e.g. "AIN5"), fixed-function silicon per the
+    # vendor datasheet. Nordic-shaped: unlike Espressif, the devicetree channel@N
+    # address is just an arbitrary config slot -- the real pin connection is this
+    # AIN name, via a separate `zephyr,input-positive` property. Empty = no SAADC
+    # support wired up.
+    adc_ain_map: dict[int, str] = field(default_factory=dict)
     # GPIOs the ESP32 GPIO matrix can route to a UART TX/RX signal, from Zephyr's
     # dt-bindings pinctrl header -- a fixed per-chip pinmux fact, not always identical
     # between tx/rx (e.g. original ESP32's GPIO34-39 are RX-only). Empty = no
@@ -244,6 +251,7 @@ _VARIANT_MODULES = [
     "esp32_h2",
     "esp32_c6",
     "native_sim",
+    "nrf52",
 ]
 
 

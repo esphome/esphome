@@ -1,0 +1,26 @@
+sensor:
+  - id: adc_my_sensor
+    platform: adc
+    pin: 3
+    name: ADC Test sensor
+    update_interval: "1:01"
+    unit_of_measurement: "°C"
+    icon: "mdi:water-percent"
+    accuracy_decimals: 5
+    setup_priority: -100
+    force_update: true
+  - platform: adc
+    pin: 2
+    name: ADC Second sensor
+    update_interval: 5sec
+  # Declared out of ascending pin/AIN order on purpose (pin 3 above maps to
+  # AIN1, this one to AIN2) and mixed with an emulated sensor -- same
+  # position-vs-silicon-channel regression coverage as the esp32-h2 test,
+  # applied to nRF52's SAADC (AIN-name based, not channel-index based).
+  - platform: adc
+    id: adc_mixed_emulated_sensor
+    pin: 4
+    name: ADC Mixed Emulated sensor
+    update_interval: 5sec
+    emulation:
+      - 900mV

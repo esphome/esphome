@@ -19,7 +19,8 @@
 
 // Threading model for static analysis. Match what the real codegen picks per
 // platform (see esphome/components/<platform>/__init__.py ThreadModel.*):
-//   USE_ESP8266 / USE_RP2 / USE_NRF52 / USE_ZEPHYR_VARIANT_FAMILY_ESP32 → SINGLE
+//   USE_ESP8266 / USE_RP2 / USE_NRF52 / USE_ZEPHYR_VARIANT_FAMILY_ESP32 /
+//   USE_ZEPHYR_VARIANT_FAMILY_NORDIC → SINGLE
 //   USE_BK72XX (ARMv5TE, no LDREX/STREX) → MULTI_NO_ATOMICS
 //   everything else (ESP32, host, RTL87XX, LN882X, USE_ZEPHYR_VARIANT_NATIVE_SIM) →
 //   MULTI_ATOMICS -- native_sim simulates interrupts via host-level mechanisms, not
@@ -27,7 +28,8 @@
 // Without this the clang-tidy envs end up with USE_<single-threaded platform>
 // + MULTI_ATOMICS simultaneously, a combination that can never occur in a
 // real build.
-#if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_NRF52) || defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32)
+#if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_NRF52) || defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || \
+    defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC)
 #define ESPHOME_THREAD_SINGLE
 #elif defined(USE_BK72XX)
 #define ESPHOME_THREAD_MULTI_NO_ATOMICS
@@ -484,9 +486,10 @@
 #endif
 
 // Emitted for every platform: zephyr/nrf52 target with real watchdog hardware
-// (not native_sim). esp32-family gets a user-configurable value, nrf52 a
-// hardcoded one (longer when zigbee is loaded -- see nrf52/__init__.py).
-#if defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || defined(USE_NRF52)
+// (not native_sim). esp32-family and platform: zephyr's nordic-family variant
+// get a user-configurable value (zephyr: watchdog_timeout:); platform: nrf52
+// gets a hardcoded one (longer when zigbee is loaded -- see nrf52/__init__.py).
+#if defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC) || defined(USE_NRF52)
 #define USE_ZEPHYR_WATCHDOG_TIMEOUT_MS 5000
 #endif
 
@@ -496,6 +499,16 @@
 #ifdef USE_ZEPHYR_VARIANT_ESP32_H2
 #define USE_LOGGER_USB_SERIAL_JTAG
 #define USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG
+#endif
+
+// Emitted by logger/__init__.py when hardware_uart: USB_CDC is selected -- nRF52840's
+// native USB, same generic zephyr_add_cdc_acm() helper MCUboot's own serial recovery
+// uses on this hardware (not a standard Zephyr UART device like esp32_h2's
+// USB_SERIAL_JTAG above).
+#ifdef USE_ZEPHYR_VARIANT_FAMILY_NORDIC
+#define USE_LOGGER_USB_CDC
+#define USE_LOGGER_UART_SELECTION_USB_CDC
+#define USE_LOGGER_WAIT_FOR_CDC
 #endif
 
 #ifdef USE_NRF52

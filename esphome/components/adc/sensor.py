@@ -193,6 +193,7 @@ DOMAIN = "adc"
 @dataclass
 class ADCData:
     nrf52_channel_id: int = 0
+    zephyr_nordic_channel_id: int = 0
     zephyr_emul_channel_id: int = 0
     zephyr_io_channel_index: int = 0
 
@@ -408,6 +409,49 @@ async def to_code(config):
                         zephyr,reference = "ADC_REF_INTERNAL";
                         zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
                         zephyr,resolution = <12>;
+                    }};
+                }};
+            """
+        )
+    elif CORE.using_zephyr and zephyr_variant_family() == "nordic":
+        # Devicetree shape matches platform: nrf52's own CORE.is_nrf52 branch above
+        # (same physical SAADC peripheral): channel@N is an arbitrary config slot, the
+        # real pin connection is the separate zephyr,input-positive AIN name. Fixed gain
+        # (no attenuation/auto-range support yet) and no VDD/VDDHDIV5 pseudo-pins yet --
+        # real GPIO-backed AIN0-AIN7 channels only, for now.
+        data = _get_data()
+        channel_id = data.zephyr_nordic_channel_id
+        data.zephyr_nordic_channel_id += 1
+        zephyr_add_prj_conf("ADC", True)
+        variant = zephyr_variant()
+        pin_num = config[CONF_PIN][CONF_NUMBER]
+        ain_map = VARIANTS[variant].adc_ain_map
+        if pin_num not in ain_map:
+            raise EsphomeError(f"Pin {pin_num} is not a valid ADC pin on {variant}")
+        ain_name = ain_map[pin_num]
+        adc_id = ID(
+            f"{config[CONF_ID]}_adc_channel", is_declaration=True, type=adc_dt_spec
+        )
+        rhs = cg.RawExpression(
+            f"ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), {channel_id})"
+        )
+        adc = cg.new_Pvariable(adc_id, rhs)
+        cg.add(var.set_adc_channel(adc))
+        zephyr_add_user("io-channels", f"<&adc {channel_id}>")
+        zephyr_add_overlay(
+            f"""
+                &adc {{
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+
+                    channel@{channel_id} {{
+                        reg = <{channel_id}>;
+                        zephyr,gain = "ADC_GAIN_1_6";
+                        zephyr,reference = "ADC_REF_INTERNAL";
+                        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+                        zephyr,input-positive = <NRF_SAADC_{ain_name}>;
+                        zephyr,resolution = <14>;
+                        zephyr,oversampling = <8>;
                     }};
                 }};
             """

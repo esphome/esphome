@@ -307,6 +307,7 @@ CONFIG_SCHEMA = cv.All(
                 nrf52=True,
                 zephyr=False,
                 zephyr_esp32h2=True,
+                zephyr_nrf52=True,
             ): cv.All(
                 cv.boolean,
                 cv.Any(
