@@ -26,7 +26,26 @@ from .const import (
 
 CODEOWNERS = ["@tomaszduda23"]
 
-PrjConfValueType = bool | str | int
+
+class HexValue:
+    """Wrap an integer so it is written as 0x... in prj.conf (required for hex Kconfig types)."""
+
+    def __init__(self, value: int) -> None:
+        self.value = value
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, HexValue):
+            return self.value == other.value
+        return NotImplemented
+
+    def __repr__(self) -> str:
+        return f"HexValue(0x{self.value:X})"
+
+    def __str__(self) -> str:
+        return f"0x{self.value:X}"
+
+
+PrjConfValueType = bool | str | int | HexValue
 
 
 class Section:
@@ -164,6 +183,8 @@ def zephyr_setup_preferences():
 def _format_prj_conf_val(value: PrjConfValueType) -> str:
     if isinstance(value, bool):
         return "y" if value else "n"
+    if isinstance(value, HexValue):
+        return hex(value.value)
     if isinstance(value, int):
         return str(value)
     if isinstance(value, str):
@@ -249,7 +270,7 @@ def copy_files() -> None:
         )
 
         if image:
-            path = CORE.relative_build_path(f"sysbuild/{image}.conf")
+            path = CORE.relative_build_path(f"zephyr/sysbuild/{image}.conf")
         else:
             path = CORE.relative_build_path("zephyr/prj.conf")
 
@@ -257,7 +278,7 @@ def copy_files() -> None:
 
     for image, content in zephyr_data()[KEY_OVERLAY].items():
         if image:
-            path = CORE.relative_build_path(f"sysbuild/{image}.overlay")
+            path = CORE.relative_build_path(f"zephyr/sysbuild/{image}.overlay")
         else:
             path = CORE.relative_build_path("zephyr/app.overlay")
         changed |= write_file_if_changed(path, content)

@@ -129,12 +129,12 @@ def _request_high_performance_networking(config: ConfigType) -> ConfigType:
     """
     network.require_high_performance_networking()
     # Socket consumption varies by mode:
-    # - Server mode: 1 listening socket + 2 client connections (for handoff)
+    # - Server mode: 1 listening socket + 4 client connections (established connection, unproven connections, and a spare)
     # - Client mode: 1 outbound connection
     socket.consume_sockets(
         1, "sendspin_websocket_server", socket.SocketType.TCP_LISTEN
     )(config)
-    socket.consume_sockets(2, "sendspin_websocket_server")(config)
+    socket.consume_sockets(4, "sendspin_websocket_server")(config)
     socket.consume_sockets(1, "sendspin_websocket_client")(config)
 
     wifi.enable_runtime_power_save_control()
@@ -198,7 +198,7 @@ async def to_code(config: ConfigType) -> None:
         psram.request_external_task_stack()
 
     # sendspin-cpp library
-    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.6.1")
+    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.7.0")
 
     cg.add_define("USE_SENDSPIN", True)  # for MDNS
 
@@ -255,9 +255,6 @@ async def to_code(config: ConfigType) -> None:
         if psram_stack:
             psram.request_external_task_stack()
 
-        # Library defaults: priority 18 (one above httpd_priority 17 so the decoder is not
-        # starved by the HTTP server during the initial encoded-audio burst at stream start),
-        # decode buffer location PREFER_EXTERNAL.
         player_struct_fields = [
             ("audio_formats", audio_format_structs),
             ("audio_buffer_capacity", player_cfg[CONF_BUFFER_SIZE]),
