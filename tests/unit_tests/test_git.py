@@ -1560,22 +1560,37 @@ def test_clone_or_update_serializes_concurrent_clones(
 def test_clone_or_update_creates_lock_file_next_to_hash_dir(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
-    """The lock file lives beside the hash dir, never inside it."""
+    """The lock file lives beside the hash dir, never inside it.
+
+    Checked while the clone runs (the lock is held): filelock's Windows
+    backend deletes the lock file on release, so probing after the call
+    would only work on Unix.
+    """
     CORE.config_path = tmp_path / "test.yaml"
 
     url = "https://github.com/test/repo"
     domain = "test"
     repo_dir = _compute_repo_dir(url, None, domain)
-    mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
+    lock_path = _lock_path(url, None, domain)
+    lock_held_during_clone: list[bool] = []
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "clone":
+            lock_held_during_clone.append(lock_path.is_file())
+            _simulate_cloned_repo(repo_dir)
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
 
     result_dir, _ = git.clone_or_update(
         url=url, ref=None, refresh=git.NEVER_REFRESH, domain=domain
     )
 
     assert result_dir == repo_dir
-    lock_path = _lock_path(url, None, domain)
     assert lock_path.parent == repo_dir.parent
-    assert lock_path.is_file()
+    assert lock_held_during_clone == [True]
 
 
 def test_clone_or_update_subpath_locks_at_hash_dir_level(
@@ -1588,7 +1603,18 @@ def test_clone_or_update_subpath_locks_at_hash_dir_level(
     domain = "test"
     hash_dir = _compute_repo_dir(url, None, domain)
     repo_dir = hash_dir / "lib"
-    mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
+    lock_path = _lock_path(url, None, domain)
+    lock_held_during_clone: list[bool] = []
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "clone":
+            lock_held_during_clone.append(lock_path.is_file())
+            _simulate_cloned_repo(repo_dir)
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
 
     result_dir, _ = git.clone_or_update(
         url=url,
@@ -1599,9 +1625,8 @@ def test_clone_or_update_subpath_locks_at_hash_dir_level(
     )
 
     assert result_dir == repo_dir
-    lock_path = _lock_path(url, None, domain)
     assert lock_path == hash_dir.parent / f"{hash_dir.name}.lock"
-    assert lock_path.is_file()
+    assert lock_held_during_clone == [True]
 
 
 def test_clone_or_update_recovery_holds_lock_without_deadlock(
@@ -1611,13 +1636,18 @@ def test_clone_or_update_recovery_holds_lock_without_deadlock(
 
     A naive re-acquisition would deadlock here, since OS file locks taken on
     separate descriptors conflict even within one process. The lock file
-    itself must survive the recovery rmtree of the broken repo dir.
+    itself must survive the recovery rmtree of the broken repo dir: the
+    re-clone runs after the rmtree, so probing the lock file there proves
+    it. Probing after the call would only work on Unix, since filelock's
+    Windows backend deletes the lock file on release.
     """
     CORE.config_path = tmp_path / "test.yaml"
 
     url = "https://github.com/test/repo"
     domain = "test"
     repo_dir = _compute_repo_dir(url, None, domain)
+    lock_path = _lock_path(url, None, domain)
+    lock_held_during_reclone: list[bool] = []
 
     _setup_old_repo(repo_dir)
 
@@ -1627,6 +1657,7 @@ def test_clone_or_update_recovery_holds_lock_without_deadlock(
         if _get_git_command_type(cmd) == "stash":
             raise git.GitCommandError("broken repository")
         if _get_git_command_type(cmd) == "clone":
+            lock_held_during_reclone.append(lock_path.is_file())
             _simulate_cloned_repo(repo_dir)
         return ""
 
@@ -1637,7 +1668,7 @@ def test_clone_or_update_recovery_holds_lock_without_deadlock(
     )
 
     assert recovered_dir == repo_dir
-    assert _lock_path(url, None, domain).is_file()
+    assert lock_held_during_reclone == [True]
 
 
 def _real_git(*args: str, cwd: Path) -> None:
