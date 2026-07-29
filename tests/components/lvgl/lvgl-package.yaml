@@ -304,6 +304,13 @@ lvgl:
               - lvgl.theme.update:
                   label:
                     text_color: red
+              # `button` is never mentioned under `theme:`, and only a non-default state is
+              # targeted here -- exercises that no spurious, empty main/default style is
+              # created (and attached to every button) alongside the requested one.
+              - lvgl.theme.update:
+                  button:
+                    pressed:
+                      bg_color: red
               - lvgl.image.update:
                   id: lv_image
                   src:

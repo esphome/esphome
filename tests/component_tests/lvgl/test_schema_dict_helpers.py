@@ -249,6 +249,20 @@ def test_theme_update_schema_rejects_styles_key() -> None:
     assert exc_info.value.path == ["label", "styles"]
 
 
+def test_theme_update_schema_does_not_request_untargeted_main_default() -> None:
+    # collect_parts() unconditionally seeds a main/default entry even when
+    # only a specific state (here "pressed") was targeted -- registering a
+    # request for that spurious entry would make theme_to_code create an
+    # unused, empty style and attach it to every widget of this type.
+    theme_update_schema({"label": {"pressed": {"text_color": 0x010203}}})
+    assert df.get_theme_update_requests()["label"] == {("main", "pressed"): None}
+
+
+def test_theme_update_schema_requests_explicit_main_default() -> None:
+    theme_update_schema({"label": {"text_color": 0x010203}})
+    assert df.get_theme_update_requests()["label"] == {("main", "default"): None}
+
+
 @pytest.mark.parametrize(
     "schema",
     [STATE_SCHEMA, FLAG_SCHEMA, STYLE_SCHEMA, FULL_STYLE_SCHEMA],

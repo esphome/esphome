@@ -152,6 +152,11 @@ async def theme_update_to_code(config, action_id, template_arg, args):
         for w_name, style in config.items()
         for part, states in collect_parts(style).items()
         for state, props in states.items()
+        # collect_parts() unconditionally seeds an (empty) main/default entry
+        # even when this action didn't target it -- skip it, both because
+        # there's nothing to update and because theme_update_schema no longer
+        # pre-creates a placeholder style for combos with no properties.
+        if props
     ]
     async with LambdaContext(parameters=args, where=action_id) as context:
         for style_var, props in to_update:
