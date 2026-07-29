@@ -6,6 +6,7 @@
 
 // Expose Nextion's test-required members as public.
 #define GTEST_TESTING
+#define USE_NEXTION_COMMAND_SPACING
 #include "esphome/components/nextion/nextion.h"
 #include "esphome/components/nextion/nextion_component.h"
 
