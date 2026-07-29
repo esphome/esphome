@@ -260,7 +260,9 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
 
     def on_connect(client, userdata, flags, return_code):
         logs_topic = f"esphome/logs/{config[CONF_ESPHOME][CONF_NAME]}"
-        _LOGGER.info("Logs client connected, informing device via topic: %s", logs_topic)
+        _LOGGER.info(
+            "Logs client connected, informing device via topic: %s", logs_topic
+        )
         client.publish(logs_topic, None, retain=False)
 
     return initialize(
