@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum, auto
+import errno
 import hashlib
 import logging
 import os
@@ -186,14 +187,35 @@ class _LockStatus(Enum):
     ACQUIRED = auto()
     # A bounded wait expired while another process held the lock.
     TIMEOUT = auto()
-    # The filesystem cannot take file locks (e.g. NFS without a lock
-    # daemon, some FUSE mounts); callers proceed unlocked, matching the
-    # behavior before the lock existed.
+    # The lock could not be taken at all; callers proceed unlocked,
+    # matching the behavior before the lock existed.
     UNAVAILABLE = auto()
 
 
-def _acquire_repo_lock(lock: "FileLock", safe_key: str, timeout: float) -> _LockStatus:
-    """Acquire ``lock``, logging when a wait actually begins.
+# Errnos that mean the filesystem genuinely cannot take file locks (NFS
+# without a lock daemon, some FUSE mounts). Any other OSError (permissions,
+# read-only volume, full disk) is a cache directory problem, which the git
+# commands themselves report clearly when it actually matters.
+_NO_LOCK_SUPPORT_ERRNOS = frozenset(
+    code
+    for code in (
+        errno.ENOLCK,
+        errno.ENOSYS,
+        errno.EOPNOTSUPP,
+        getattr(errno, "ENOTSUP", None),
+        errno.EPERM,
+    )
+    if code is not None
+)
+
+
+def _acquire_repo_lock(
+    lock: "FileLock",
+    safe_key: str,
+    timeout: float,
+    wait_message: str = "Waiting for another process to finish updating %s",
+) -> _LockStatus:
+    """Acquire ``lock``, logging ``wait_message`` when a wait actually begins.
 
     ``timeout`` of -1 waits forever; a positive value bounds the wait and
     can yield ``TIMEOUT``.
@@ -206,16 +228,29 @@ def _acquire_repo_lock(lock: "FileLock", safe_key: str, timeout: float) -> _Lock
         except Timeout:
             # Waiting on another process's clone or update can take
             # minutes; say so instead of appearing hung.
-            _LOGGER.info("Waiting for another process to finish updating %s", safe_key)
+            _LOGGER.info(wait_message, safe_key)
             lock.acquire(timeout=timeout)
     except Timeout:
         return _LockStatus.TIMEOUT
     except OSError as err:
-        _LOGGER.warning(
-            "Cannot lock the cache entry for %s (%s), continuing without a lock",
-            safe_key,
-            err,
-        )
+        if err.errno in _NO_LOCK_SUPPORT_ERRNOS:
+            _LOGGER.warning(
+                "The filesystem does not support locking the cache entry for "
+                "%s (%s), continuing without a lock",
+                safe_key,
+                err,
+            )
+        else:
+            # Not a locking problem (permissions, read-only volume, full
+            # disk). Still continue unlocked: a pre-seeded read-only cache
+            # with refresh disabled only reads and must keep working, and
+            # in every other case the git commands fail with the real error.
+            _LOGGER.warning(
+                "Could not take the cache entry lock for %s (%s), "
+                "continuing without a lock",
+                safe_key,
+                err,
+            )
         return _LockStatus.UNAVAILABLE
     return _LockStatus.ACQUIRED
 
@@ -399,14 +434,21 @@ def clone_or_update(
             # (initial clone, recovery re-clone); with one on disk, reading
             # it beats hanging behind a stalled holder.
             _LOGGER.warning(
-                "Another process is still updating %s, using the existing clone "
-                "without refreshing it",
+                "Timed out waiting for another process updating %s, proceeding "
+                "with the existing clone, which that process may still be "
+                "changing",
                 safe_key,
             )
             return repo_dir, None
         # Nothing to fall back to; the holder is producing the clone this
         # caller needs.
-        status = _acquire_repo_lock(lock, safe_key, timeout=-1)
+        status = _acquire_repo_lock(
+            lock,
+            safe_key,
+            timeout=-1,
+            wait_message="Still waiting for the clone of %s, "
+            "there is no existing clone to fall back on",
+        )
     if status is not _LockStatus.ACQUIRED:
         lock = None
     try:

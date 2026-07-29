@@ -1782,22 +1782,36 @@ def test_revert_skips_on_contended_lock(
     assert any("skipping revert" in r.getMessage() for r in caplog.records)
 
 
-def _raise_oserror_on_acquire(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make every FileLock acquire fail like a filesystem without locks."""
+def _raise_oserror_on_acquire(
+    monkeypatch: pytest.MonkeyPatch, code: int = errno.ENOLCK
+) -> None:
+    """Make every FileLock acquire fail with the given errno."""
 
     def broken_acquire(self: FileLock, *args: Any, **kwargs: Any) -> None:
-        raise OSError(errno.ENOLCK, "No locks available")
+        raise OSError(code, os.strerror(code))
 
     monkeypatch.setattr(FileLock, "acquire", broken_acquire)
 
 
+@pytest.mark.parametrize(
+    ("code", "expected_fragment"),
+    [
+        # Genuinely missing lock support is reported as such.
+        (errno.ENOLCK, "does not support locking"),
+        # A cache directory problem is not blamed on lock support; git
+        # reports the real error when it actually matters.
+        (errno.EROFS, "Could not take the cache entry lock"),
+    ],
+)
 def test_clone_or_update_continues_unlocked_when_filesystem_cannot_lock(
     tmp_path: Path,
     mock_run_git_command: Mock,
     caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
+    code: int,
+    expected_fragment: str,
 ) -> None:
-    """A filesystem without working file locks (e.g. NFS without a lock
+    """A filesystem where taking the lock fails (e.g. NFS without a lock
     daemon) degrades to the old unlocked behavior instead of failing."""
     CORE.config_path = tmp_path / "test.yaml"
 
@@ -1805,7 +1819,7 @@ def test_clone_or_update_continues_unlocked_when_filesystem_cannot_lock(
     domain = "test"
     repo_dir = _compute_repo_dir(url, None, domain)
     mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
-    _raise_oserror_on_acquire(monkeypatch)
+    _raise_oserror_on_acquire(monkeypatch, code)
 
     with caplog.at_level(logging.WARNING):
         result_dir, _ = git.clone_or_update(
@@ -1814,7 +1828,13 @@ def test_clone_or_update_continues_unlocked_when_filesystem_cannot_lock(
 
     assert result_dir == repo_dir
     assert _marker_path(repo_dir).is_file()
-    assert any("continuing without a lock" in r.getMessage() for r in caplog.records)
+    warnings = [
+        r.getMessage()
+        for r in caplog.records
+        if "continuing without a lock" in r.getMessage()
+    ]
+    assert warnings
+    assert expected_fragment in warnings[0]
 
 
 def test_revert_continues_unlocked_when_filesystem_cannot_lock(
@@ -1866,7 +1886,7 @@ def _script_acquire_statuses(
     timeouts: list[float] = []
 
     def fake_acquire(
-        lock: FileLock, safe_key: str, timeout: float
+        lock: FileLock, safe_key: str, timeout: float, **kwargs: Any
     ) -> "git._LockStatus":
         timeouts.append(timeout)
         return statuses[len(timeouts) - 1]
@@ -1911,7 +1931,9 @@ def test_clone_or_update_uses_complete_entry_when_lock_wait_times_out(
     # Nothing was cloned or refreshed; the existing entry was used as-is.
     assert mock_run_git_command.call_args_list == []
     assert timeouts == [git._COMPLETE_ENTRY_LOCK_TIMEOUT_SECONDS]
-    assert any("using the existing clone" in r.getMessage() for r in caplog.records)
+    assert any(
+        "proceeding with the existing clone" in r.getMessage() for r in caplog.records
+    )
 
 
 def test_clone_or_update_waits_unbounded_without_complete_entry(
