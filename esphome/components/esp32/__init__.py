@@ -1237,6 +1237,13 @@ def final_validate(config):
 
     from .gpio import final_validate_pins
 
+    # Remove before 2027.2.0
+    if CORE.using_toolchain_platformio:
+        _LOGGER.warning(
+            "The 'platformio' toolchain for ESP32 is deprecated and will be removed "
+            "in ESPHome 2027.2.0. Please use 'toolchain: esp-idf' instead."
+        )
+
     errs = []
     conf_fw = config[CONF_FRAMEWORK]
     advanced = conf_fw[CONF_ADVANCED]
