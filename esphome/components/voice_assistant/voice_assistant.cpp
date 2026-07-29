@@ -1474,7 +1474,7 @@ void VoiceAssistant::model_load_task(void *params) {
     }
 
     // 3. Resolve a relative "model" filename against the manifest URL; absolute URLs are used as-is.
-    if (model_url.compare(0, 7, "http://") != 0 && model_url.compare(0, 8, "https://") != 0) {
+    if (!model_url.starts_with("http://") && !model_url.starts_with("https://")) {
       size_t slash_pos = cached_ww.url.find_last_of('/');
       if (slash_pos != std::string::npos) {
         model_url = cached_ww.url.substr(0, slash_pos + 1) + model_url;
