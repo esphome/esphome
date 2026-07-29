@@ -1436,13 +1436,6 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   inline uint16_t get_startup_override_ms() const { return this->startup_override_ms_; }
 
  protected:
-#ifdef GTEST_TESTING
-  FRIEND_TEST(DeliverQueueResponse, SkipNoResult_SecondSensorGetsValue);
-  FRIEND_TEST(DeliverQueueResponse, SkipNoResult_TextSensorGetsString);
-  FRIEND_TEST(DeliverQueueResponse, SkipUnsentEntry_UnderCommandSpacing);
-  FRIEND_TEST(DeliverQueueResponse, RemoveMismatchedEntry);
-#endif
-
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
   uint16_t max_commands_per_loop_{1000};
 #endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
@@ -1466,7 +1459,16 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   void process_pending_in_queue_();
 #endif  // USE_NEXTION_COMMAND_SPACING
 
+#ifdef GTEST_TESTING
+ public:
   std::list<NextionQueue *> nextion_queue_;
+  void set_numeric_return_(int value);
+  void set_string_return_(const std::string &value);
+
+ protected:
+#else
+  std::list<NextionQueue *> nextion_queue_;
+#endif
 #ifdef USE_NEXTION_WAVEFORM
   /// Fixed-size ring buffer for waveform queue. Nextion supports at most 4 waveform
   /// channels (IDs 0-3), so 4 entries is both the correct maximum and a safe default.

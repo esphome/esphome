@@ -4,7 +4,7 @@
 #include <memory>
 #include <string>
 
-// Allow FRIEND_TEST access to Nextion's protected members.
+// Expose Nextion's test-required members as public.
 #define GTEST_TESTING
 #include "esphome/components/nextion/nextion.h"
 #include "esphome/components/nextion/nextion_component.h"
@@ -124,7 +124,7 @@ class DeliverQueueResponse : public ::testing::Test {
 // Test 1: [NO_RESULT, SENSOR] — numeric response should skip the NO_RESULT
 //         and deliver to the SENSOR.
 // ==========================================================================
-TEST_F(DeliverQueueResponse, SkipNoResult_SecondSensorGetsValue) {
+TEST_F(DeliverQueueResponse, SkipNoResultSecondSensorGetsValue) {
   add_no_result_();
   add_sensor_("temp");
 
@@ -145,7 +145,7 @@ TEST_F(DeliverQueueResponse, SkipNoResult_SecondSensorGetsValue) {
 // Test 2: [NO_RESULT, TEXT_SENSOR] — string response (0x70) should skip
 //         the NO_RESULT and deliver to the TEXT_SENSOR.
 // ==========================================================================
-TEST_F(DeliverQueueResponse, SkipNoResult_TextSensorGetsString) {
+TEST_F(DeliverQueueResponse, SkipNoResultTextSensorGetsString) {
   add_no_result_();
   add_text_sensor_("status");
 
@@ -167,7 +167,7 @@ TEST_F(DeliverQueueResponse, SkipNoResult_TextSensorGetsString) {
 // Test 3: [NO_RESULT, SENSOR (unsent)] — under command spacing, the scanner
 //         should skip the unsent entry and keep scanning.  No delivery.
 // ==========================================================================
-TEST_F(DeliverQueueResponse, SkipUnsentEntry_UnderCommandSpacing) {
+TEST_F(DeliverQueueResponse, SkipUnsentEntryUnderCommandSpacing) {
   add_no_result_();
   add_sensor_("temp", true);  // pending_command = "get temp"
 
