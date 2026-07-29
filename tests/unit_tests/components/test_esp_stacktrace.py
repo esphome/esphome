@@ -137,3 +137,45 @@ def test_process_stacktrace_esp32_crash_handler(
     state = process_stacktrace(config, line_bt1, False)
     mock_esp32_decode_pc.assert_called_once_with(config, "42005ABC")
     assert state is False
+
+    mock_esp32_decode_pc.reset_mock()
+
+    # Reason line carries no address, must not trigger a decode
+    line_reason = "[E][esp32.crash:079]:   Reason: Fault - LoadProhibited (cause 28)"
+    state = process_stacktrace(config, line_reason, False)
+    mock_esp32_decode_pc.assert_not_called()
+    assert state is False
+
+    mock_esp32_decode_pc.reset_mock()
+
+    # EXCVADDR pointing at code (e.g. jumping through a corrupted pointer) decodes
+    line_excvaddr = "[E][esp32.crash:081]:   EXCVADDR: 0x400D9ABC  (faulting address)"
+    state = process_stacktrace(config, line_excvaddr, False)
+    mock_esp32_decode_pc.assert_called_once_with(config, "400D9ABC")
+    assert state is False
+
+    mock_esp32_decode_pc.reset_mock()
+
+    # EXCVADDR pointing at data (heap/null) is not a code address, must be ignored
+    line_excvaddr_data = (
+        "[E][esp32.crash:081]:   EXCVADDR: 0x0000001C  (faulting address)"
+    )
+    state = process_stacktrace(config, line_excvaddr_data, False)
+    mock_esp32_decode_pc.assert_not_called()
+    assert state is False
+
+    mock_esp32_decode_pc.reset_mock()
+
+    # RISC-V MTVAL pointing at code decodes
+    line_mtval = "[E][esp32.crash:081]:   MTVAL: 0x42001234  (faulting address)"
+    state = process_stacktrace(config, line_mtval, False)
+    mock_esp32_decode_pc.assert_called_once_with(config, "42001234")
+    assert state is False
+
+    mock_esp32_decode_pc.reset_mock()
+
+    # RISC-V MTVAL pointing at data must be ignored
+    line_mtval_data = "[E][esp32.crash:081]:   MTVAL: 0x3FC80123  (faulting address)"
+    state = process_stacktrace(config, line_mtval_data, False)
+    mock_esp32_decode_pc.assert_not_called()
+    assert state is False

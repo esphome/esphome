@@ -618,7 +618,7 @@ def test_command_config__no_defaults_skips_strip_default_ids(
     validated.user_config = {"sensor": [{"name": "x"}]}
 
     with patch(
-        "esphome.__main__.strip_default_ids", side_effect=AssertionError
+        "esphome.config.strip_default_ids", side_effect=AssertionError
     ) as mock_strip:
         result = command_config(args, validated)
 
@@ -6201,7 +6201,7 @@ def test_run_esphome_bundle_detection(tmp_path: Path) -> None:
             "esphome.bundle.prepare_bundle_for_compile",
             return_value=extracted_yaml,
         ) as mock_prepare,
-        patch("esphome.__main__.read_config", return_value=None),
+        patch("esphome.config.read_config", return_value=None),
     ):
         result = run_esphome(["esphome", "compile", str(bundle_path)])
 
@@ -6219,7 +6219,7 @@ def test_run_esphome_non_bundle_skips_extraction(tmp_path: Path) -> None:
     with (
         patch("esphome.bundle.is_bundle_path", return_value=False) as mock_is_bundle,
         patch("esphome.bundle.prepare_bundle_for_compile") as mock_prepare,
-        patch("esphome.__main__.read_config", return_value=None),
+        patch("esphome.config.read_config", return_value=None),
     ):
         result = run_esphome(["esphome", "compile", str(yaml_file)])
 
@@ -6247,7 +6247,7 @@ def test_run_esphome_skip_external_update_per_command(
     yaml_file = tmp_path / "device.yaml"
     yaml_file.write_text("esphome:\n  name: test\n")
 
-    with patch("esphome.__main__.read_config", return_value=None) as mock_read:
+    with patch("esphome.config.read_config", return_value=None) as mock_read:
         run_esphome(["esphome", command, str(yaml_file)])
 
     mock_read.assert_called_once()
@@ -6403,6 +6403,23 @@ def test_parse_args_logs_states() -> None:
     """Test that --states is parsed for the logs command."""
     args = parse_args(["esphome", "logs", "--states", "device.yaml"])
     assert args.states is True
+
+
+def test_parse_args_argcomplete_only_runs_when_completing() -> None:
+    """Only import and invoke argcomplete when _ARGCOMPLETE is set.
+
+    The shell-completion machinery sets _ARGCOMPLETE when it invokes the
+    CLI; a normal invocation must skip the import entirely so every
+    esphome subprocess (e.g. parallel dashboard uploads) avoids paying
+    for it.
+    """
+    fake_argcomplete = MagicMock()
+    with (
+        patch.dict(os.environ, {"_ARGCOMPLETE": "1"}),
+        patch.dict(sys.modules, {"argcomplete": fake_argcomplete}),
+    ):
+        parse_args(["esphome", "version"])
+    fake_argcomplete.autocomplete.assert_called_once()
 
 
 def test_should_subscribe_states_default() -> None:
