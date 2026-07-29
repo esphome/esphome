@@ -13,6 +13,14 @@ static const char *const TAG = "sendspin.image";
 // THREAD CONTEXT: Main loop. Children set up after the hub, so the artwork role already exists.
 void SendspinImageSlot::setup() {
   const size_t frame_size = this->decode_sink_.get_buffer_size(this->width_, this->height_);
+  if (frame_size == 0) {
+    // The sink would refuse a buffer of these dimensions, so every decode would fall back to
+    // allocating one of its own. Fail here instead, where the dimensions are already known.
+    ESP_LOGE(TAG, "Cannot decode artwork at %dx%d", this->width_, this->height_);
+    this->mark_failed();
+    return;
+  }
+
   RAMAllocator<uint8_t> allocator;
   for (uint8_t *&buffer : this->buffers_) {
     buffer = allocator.allocate(frame_size);
@@ -63,7 +71,13 @@ void SendspinImageSlot::on_decode_(const uint8_t *data, size_t length) {
     target = this->buffers_[this->current_index_ ^ 1];
   }
 
-  this->decode_sink_.set_external_buffer(target, this->width_, this->height_);
+  if (!this->decode_sink_.set_external_buffer(target, this->width_, this->height_)) {
+    // setup() rules this out, but decoding without the handover would allocate a frame-sized
+    // buffer on this thread, which is exactly what the permanent buffers exist to avoid.
+    this->report_error_();
+    return;
+  }
+
   const bool decoded = this->decode_frame_(data, length, target);
   // Drops any half-finished decoder. An external buffer is let go of rather than freed, so this is
   // safe on every path.
