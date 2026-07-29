@@ -123,8 +123,14 @@ void BK72xxBLETracker::dump_config() {
 
 void BK72xxBLETracker::on_scan_report(const bk72xx_ble::BLEScanReport &report) {
   // Raw callback (the raw-advertisement path).
-  if (this->raw_advertisement_callback_)
-    this->raw_advertisement_callback_(report.mac, report.rssi, report.addr_type, report.data, report.data_len);
+  if (this->raw_advertisement_callback_.is_set()) {
+    const ble_device_base::RawAdvertisement adv{.mac = report.mac,
+                                                .data = report.data,
+                                                .data_len = report.data_len,
+                                                .rssi = report.rssi,
+                                                .addr_type = report.addr_type};
+    this->raw_advertisement_callback_.invoke(adv);
+  }
 
 #ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
   ble_device_base::ESPBTDevice device;
