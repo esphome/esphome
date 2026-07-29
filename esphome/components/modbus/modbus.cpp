@@ -657,23 +657,6 @@ ModbusDeviceCommand *ModbusClientHub::select_next_ready_() {
   return best;
 }
 
-size_t ModbusClientHub::live_count_() const {
-  // Entries counted against the transmit-queue cap: REFUSED entries live in the reserve, and
-  // *_DELETED entries are already resolved (awaiting the sweep's erase pass).
-  size_t count = 0;
-  for (const auto &cmd : this->tx_buffer_) {
-    switch (cmd.state) {
-      case FrameState::REFUSED:
-      case FrameState::DELETED:
-      case FrameState::WAITING_DELETED:
-        break;
-      default:
-        count++;
-    }
-  }
-  return count;
-}
-
 void ModbusClientHub::sweep_() {
   if (!this->sweep_needed_)
     return;
@@ -888,7 +871,10 @@ bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
     return true;
   }
 
-  if (this->live_count_() >= MODBUS_TX_BUFFER_SIZE) {
+  // Every entry occupies queue storage whatever its state, so the backstop counts them all. Dead
+  // entries awaiting the erase pass are gone by the end of the sweep, so they can only ever cost a
+  // refusal at the very cap, for one loop.
+  if (this->tx_buffer_.size() >= MODBUS_TX_BUFFER_SIZE) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
     char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
 #endif

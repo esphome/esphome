@@ -278,9 +278,6 @@ class ModbusClientHub : public Modbus {
   ModbusDeviceCommand *find_waiting_();
   // End the wait for a response on send-wait timeout (the loop() watchdog body); see FrameState.
   void expire_waiting_();
-  // Entries counted against the transmit-queue cap: excludes REFUSED (they occupy the reserve)
-  // and the *_DELETED states (already resolved, awaiting the erase pass).
-  size_t live_count_() const;
 
   uint16_t send_wait_time_{2000};
   uint16_t turnaround_delay_ms_{0};
