@@ -393,12 +393,12 @@ class ModbusClientDevice {
     this->on_modbus_not_sent();
 #pragma GCC diagnostic pop
   }
-  /// Non-virtual entry point the hub uses for EVERY on_not_sent() delivery (refusals and clear-queue
-  /// sweeps alike). While this device's on_not_sent() is on the stack, further deliveries to it are
-  /// dropped: this bounds every send->refuse and clear->sweep recursion, including cycles through
-  /// multiple devices (each device can appear on the stack at most once). The documented cost: a clear
-  /// issued from inside your own on_not_sent() resolves your remaining frames SILENTLY, while other
-  /// owners are still notified (their guards are not set) - see the lifecycle contract above.
+  /// Non-virtual entry point the hub uses for every on_not_sent() delivery. While this device's
+  /// on_not_sent() is on the stack, further deliveries to it are dropped. Sweep deliveries are
+  /// serialized and bounded by served_not_sent, so for them this guard is inert; its real duty is
+  /// the INLINE validation refusals (empty/oversize PDU, invalid read_entities()), which deliver
+  /// synchronously with no queue entry - there a handler repeating the same invalid send would
+  /// otherwise recurse on the stack until it overflows.
   void trigger_not_sent(std::span<const uint8_t> request_pdu) {
     if (this->notifying_not_sent_)
       return;
