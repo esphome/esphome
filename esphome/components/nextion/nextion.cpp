@@ -451,13 +451,11 @@ void Nextion::deliver_queue_response_(const char *response_name, const NextionQu
     NextionComponentBase *component = nb->component;
     NextionQueueType qtype = component->get_queue_type();
 
-#ifdef USE_NEXTION_COMMAND_SPACING
     if (!nb->pending_command.empty()) {
       ESP_LOGV(TAG, "%s: skipping unsent '%s'", response_name, component->get_variable_name().c_str());
       ++it;
       continue;
     }
-#endif
 
     if (qtype == NextionQueueType::NO_RESULT) {
       // Leave in queue -- its 0x01 ACK will remove it via remove_from_q_().
