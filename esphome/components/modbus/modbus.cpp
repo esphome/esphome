@@ -802,19 +802,8 @@ void ModbusClientHub::sweep_() {
           progressed = true;
           break;
         }
-        default: {  // READY / WAITING: only serviced to bleed pending down to the servable cap
-          if (cmd.pending <= servable_cap_(cmd) || this->device_served_(cmd.device))
-            break;  // one delivery per device per sweep bounds handler re-send loops
-          cmd.served_not_sent = true;
-          if (cmd.device != nullptr)
-            cmd.device->on_not_sent(cmd.frame.pdu());
-          if (cmd.pending != 0) {  // a clear inside the handler may have drained it
-            cmd.pending--;
-            cmd.seq = this->next_seq_++;  // a request resolved; the place in line moves up
-          }
-          progressed = true;
+        default:  // READY / WAITING: mid-lifecycle, nothing owed
           break;
-        }
       }
     }
   }
@@ -825,11 +814,10 @@ void ModbusClientHub::sweep_() {
                                           return cmd.state == FrameState::DELETED && cmd.pending == 0;
                                         }),
                          this->tx_buffer_.end());
-  // Reset the per-sweep delivery markers; anything a marker deferred re-arms the next sweep.
+  // Reset the per-sweep delivery markers; any terminal a marker deferred re-arms the next sweep.
   for (auto &cmd : this->tx_buffer_) {
     cmd.served_not_sent = false;
-    if (cmd.state == FrameState::DELETED || cmd.state == FrameState::REFUSED ? cmd.pending != 0
-                                                                             : cmd.pending > servable_cap_(cmd))
+    if ((cmd.state == FrameState::DELETED || cmd.state == FrameState::REFUSED) && cmd.pending != 0)
       this->sweep_needed_ = true;
   }
 }
@@ -870,8 +858,8 @@ bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   //     supersedes any requests the entry had absorbed (the caller opted into streaming semantics,
   //     and the poll's responses are the accounting from then on)
   //   - the entry is a continuous poll: absorbed uncounted - the poll's next response serves it
-  //   - both one-shots: pending increments (without bound); the sweep bleeds anything over the
-  //     servable cap (2 for requeueable reads, 1 for writes/custom) as on_not_sent() deliveries
+  //   - both one-shots: pending increments while the entry is below its servable cap (2 for
+  //     requeueable reads, 1 for writes/custom); at the cap the duplicate is refused with false
   // REFUSED and *_DELETED entries are dead for dedup purposes: a new identical send queues fresh.
   for (auto &item : this->tx_buffer_) {
     switch (item.state) {
@@ -903,12 +891,17 @@ bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
       ESP_LOGV(TAG, "Frame already active for %" PRIu8 ", now polled continuously", address);
     } else if (item.continuous) {
       ESP_LOGV(TAG, "Frame already active for %" PRIu8 " as a continuous poll", address);
+    } else if (item.pending >= servable_cap_(item)) {
+      // The entry already stands for as many requests as it can ever serve (a read runs twice, a
+      // write or custom code once), so this one is refused at the door like any other request the
+      // machine cannot take.
+      ESP_LOGD(TAG, "Frame already active for %" PRIu8 " with %" PRIu8 " requests pending, refused", address,
+               item.pending);
+      return false;
     } else {
       // An absorbed duplicate leaves seq alone: the entry's place in line belongs to its oldest
       // outstanding request, and that one is still unresolved.
       item.pending++;
-      if (item.pending > servable_cap_(item))
-        this->sweep_needed_ = true;  // the excess resolves as on_not_sent() at the next sweep
       ESP_LOGV(TAG, "Frame already active for %" PRIu8 ", request absorbed (pending %" PRIu8 ")", address,
                item.pending);
     }

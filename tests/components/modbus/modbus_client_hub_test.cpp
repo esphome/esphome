@@ -434,37 +434,37 @@ class SentCountingDevice : public ModbusClientDevice {
 };
 }  // namespace
 
-// A write is never requeueable: a duplicate of a queued write is bled off with on_not_sent() at
-// the next sweep rather than earning the write an extra transmission.
-TEST(ModbusClientHubPriority, DuplicateQueuedWriteDroppedNotPromoted) {
+// A write is never requeueable, so its entry can serve exactly one request: a duplicate of a
+// queued write is refused at the door rather than earning the write an extra transmission.
+TEST(ModbusClientHubPriority, DuplicateQueuedWriteRefused) {
   NoResponseProbeHub hub;
   SentCountingDevice device(&hub, 0x02);
 
   const uint8_t write_pdu[] = {0x06, 0x00, 0x10, 0xBE, 0xEF};
-  device.send_pdu(write_pdu);
-  device.send_pdu(write_pdu);  // duplicate write
-  hub.sweep_for_test();        // the loop's sweep bleeds the over-cap request
+  EXPECT_TRUE(device.send_pdu(write_pdu));
+  EXPECT_FALSE(device.send_pdu(write_pdu));  // duplicate write: refused
+  hub.sweep_for_test();
 
   ASSERT_EQ(hub.queued_frames(), 1u);
   EXPECT_EQ(hub.queued(0).priority(), CommandPriority::WRITE);
-  EXPECT_EQ(hub.queued(0).pending, 1u);  // bled back to a write's cap of one
-  EXPECT_EQ(device.not_sent_count_, 1);  // the duplicate was dropped
+  EXPECT_EQ(hub.queued(0).pending, 1u);  // a write's cap
+  EXPECT_EQ(device.not_sent_count_, 0);  // refusals are returned, never delivered
 }
 
 // Requeueability is an allow-list of the standard reads: a custom function code's idempotency is
-// unknown, so its duplicate takes the same safe drop path as a write instead of a silent re-send.
-TEST(ModbusClientHubPriority, DuplicateCustomFunctionCodeDroppedNotPromoted) {
+// unknown, so its duplicate is refused like a write's instead of earning a silent re-send.
+TEST(ModbusClientHubPriority, DuplicateCustomFunctionCodeRefused) {
   NoResponseProbeHub hub;
   SentCountingDevice device(&hub, 0x02);
 
   const uint8_t custom_pdu[] = {0x41, 0x01, 0x02};  // user-defined function code
-  device.send_pdu(custom_pdu);
-  device.send_pdu(custom_pdu);  // duplicate custom command
+  EXPECT_TRUE(device.send_pdu(custom_pdu));
+  EXPECT_FALSE(device.send_pdu(custom_pdu));  // duplicate custom command: refused
   hub.sweep_for_test();
 
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_EQ(hub.queued(0).pending, 1u);  // bled to the non-requeueable cap of one run
-  EXPECT_EQ(device.not_sent_count_, 1);  // the duplicate was dropped
+  EXPECT_EQ(hub.queued(0).pending, 1u);  // the non-requeueable cap of one run
+  EXPECT_EQ(device.not_sent_count_, 0);
 }
 
 // An anonymous duplicate (no device - the YAML-lambda path) is always dropped, never promoted:
@@ -649,39 +649,37 @@ TEST(ModbusClientHubCallbackCount, DuplicateReadExactlyTwoCallbacks) {
   EXPECT_EQ(hub.queued_frames(), 0u);
 }
 
-// Every request resolves in exactly one callback: three identical requests yield two reads
-// (the promoted entry runs once more) plus one on_not_sent() for the dropped third.
-TEST(ModbusClientHubCallbackCount, TripleReadStillTwoCallbacks) {
+// A read entry serves two requests (this run plus one re-run), so the third identical request is
+// refused at the door: two data callbacks, and no terminal for the request that was never taken.
+TEST(ModbusClientHubCallbackCount, TripleReadRefusesTheThird) {
   NoResponseProbeHub hub;
   DataCountingDevice device(&hub, 0x02);
 
-  device.send_pdu(read_pdu());
-  device.send_pdu(read_pdu());
-  device.send_pdu(read_pdu());
-  hub.sweep_for_test();                  // the sweep bleeds the over-cap third request
-  EXPECT_EQ(device.not_sent_count_, 1);  // one refusal terminal for it
-  EXPECT_EQ(device.last_not_sent_pdu_,   // and the terminal identifies which request was refused
-            (std::vector<uint8_t>(READ_PDU, READ_PDU + sizeof(READ_PDU))));
+  EXPECT_TRUE(device.send_pdu(read_pdu()));
+  EXPECT_TRUE(device.send_pdu(read_pdu()));
+  EXPECT_FALSE(device.send_pdu(read_pdu()));  // the entry is already at its cap
+  hub.sweep_for_test();
+  EXPECT_EQ(device.not_sent_count_, 0);  // refused synchronously, nothing owed
   int cycles = drain_with_responses(hub, OK_RESPONSE);
 
   EXPECT_EQ(cycles, 2);
   EXPECT_EQ(device.data_count_, 2);
-  EXPECT_EQ(device.not_sent_count_, 1);
+  EXPECT_EQ(device.terminals(), 2);  // exactly one per accepted request
   EXPECT_EQ(hub.queued_frames(), 0u);
 }
 
-// A duplicate write cannot be promoted (that would demote its priority); it is dropped
-// with on_not_sent() and the original write sends once.
-TEST(ModbusClientHubCallbackCount, DuplicateWriteDroppedWithNotSent) {
+// A duplicate write is refused at the door and the original write sends once - the caller learns
+// immediately, and no lifecycle is created for the request that was never taken.
+TEST(ModbusClientHubCallbackCount, DuplicateWriteRefusedWithoutLifecycle) {
   NoResponseProbeHub hub;
   DataCountingDevice device(&hub, 0x02);
 
   const uint8_t write_pdu[] = {0x06, 0x00, 0x10, 0xBE, 0xEF};
-  device.send_pdu(write_pdu);
-  device.send_pdu(write_pdu);
+  EXPECT_TRUE(device.send_pdu(write_pdu));
+  EXPECT_FALSE(device.send_pdu(write_pdu));
   hub.sweep_for_test();
 
-  EXPECT_EQ(device.not_sent_count_, 1);
+  EXPECT_EQ(device.terminals(), 0);  // the accepted write has not resolved; the other never existed
   ASSERT_EQ(hub.queued_frames(), 1u);
   EXPECT_EQ(hub.queued(0).priority(), CommandPriority::WRITE);
 }
@@ -721,21 +719,22 @@ TEST(ModbusClientHubCallbackCount, NoResponseIsSoleTerminalAndNotSentHasNoSent) 
   EXPECT_EQ(device.terminals(), 1);
   EXPECT_EQ(device.sent_count_, 1);
 
-  // Unabsorbable duplicate: two identical writes -> the second is a not_sent terminal, never sent.
+  // Unabsorbable duplicate: the second identical write is refused at the door - no lifecycle, no
+  // terminal, nothing sent.
   const uint8_t write_pdu[] = {0x06, 0x00, 0x10, 0xBE, 0xEF};
-  device.send_pdu(write_pdu);
-  device.send_pdu(write_pdu);
+  EXPECT_TRUE(device.send_pdu(write_pdu));
+  EXPECT_FALSE(device.send_pdu(write_pdu));
   hub.sweep_for_test();
-  EXPECT_EQ(device.not_sent_count_, 1);
-  EXPECT_EQ(device.terminals(), 2);  // the accepted write is still queued - no terminal for it yet
-  EXPECT_EQ(device.sent_count_, 1);  // and it has not transmitted yet
+  EXPECT_EQ(device.not_sent_count_, 0);
+  EXPECT_EQ(device.terminals(), 1);  // still just the read's timeout
+  EXPECT_EQ(device.sent_count_, 1);
 
-  // Drain it: the write echo response is its data terminal, and the books balance.
+  // Drain the accepted write: its echo response is the data terminal, and the books balance.
   hub.send_next_for_test();
   hub.receive_frame_for_test(0x02, write_pdu);
   EXPECT_EQ(device.data_count_, 1);
-  EXPECT_EQ(device.terminals(), 3);  // 3 accepted lifecycles, 3 terminals
-  EXPECT_EQ(device.sent_count_, 2);  // 2 transmissions (read + write); the refused duplicate never sent
+  EXPECT_EQ(device.terminals(), 2);  // 2 accepted lifecycles, 2 terminals
+  EXPECT_EQ(device.sent_count_, 2);  // 2 transmissions; the refused duplicate never sent
 }
 
 // A device-requested retry starts a new lifecycle: each transmission gets its own sent + terminal.
@@ -1016,28 +1015,24 @@ class ClearOtherOnNotSentDevice : public ModbusClientDevice {
 };
 }  // namespace
 
-// The serve/absorb treadmill: a handler that re-sends its own frame from on_not_sent() puts the
-// surplus straight back onto the entry. The per-sweep bleed marker breaks the cycle - one delivery
-// this sweep, the re-absorbed surplus waits for the next one.
-TEST(ModbusClientHubQueue, ResendFromNotSentDoesNotLivelockTheSweep) {
+// pending can never exceed what the entry can serve, so the old serve/absorb treadmill is
+// impossible by construction: the surplus request is refused at the door instead of being absorbed
+// and resolved later, and a handler that re-sends gets false rather than another lifecycle.
+TEST(ModbusClientHubQueue, PendingNeverExceedsTheServableCap) {
   NoResponseProbeHub hub;
   AlwaysResendDevice device(&hub, 0x02);
 
   const uint8_t read[] = {0x03, 0x00, 0x50, 0x00, 0x01};
-  device.send_pdu(read);
-  device.send_pdu(read);
-  device.send_pdu(read);  // pending 3, one over a read's servable cap of 2
+  EXPECT_TRUE(device.send_pdu(read));
+  EXPECT_TRUE(device.send_pdu(read));
+  EXPECT_FALSE(device.send_pdu(read));  // at the cap: refused
   ASSERT_EQ(hub.queued_frames(), 1u);
-  ASSERT_EQ(hub.queued(0).pending, 3u);
+  EXPECT_EQ(hub.queued(0).pending, 2u);
 
-  hub.sweep_for_test();  // bleeds one, the handler re-absorbs it, and the sweep still terminates
+  hub.sweep_for_test();  // nothing is owed, so the handler never runs
 
-  EXPECT_EQ(device.not_sent_count_, 1);  // exactly one delivery this sweep
-  ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_EQ(hub.queued(0).pending, 3u);  // 3 - 1 bled + 1 re-absorbed
-
-  hub.sweep_for_test();  // the next sweep serves once more, and so on
-  EXPECT_EQ(device.not_sent_count_, 2);
+  EXPECT_EQ(device.not_sent_count_, 0);
+  EXPECT_EQ(hub.queued(0).pending, 2u);
 }
 
 // A full queue refuses at the door: false at the call site, no entry, no callback - so the
@@ -1554,13 +1549,13 @@ TEST(ModbusClientHubPriority, ExceptionFlaggedDuplicateDroppedNotPromoted) {
   SentCountingDevice device(&hub, 0x02);
 
   const uint8_t weird[] = {0x83, 0x01, 0x00, 0x00, 0x02};  // read-shaped but exception-flagged
-  device.send_pdu(weird);
-  device.send_pdu(weird);
-  hub.sweep_for_test();  // the non-requeueable cap of one bleeds the duplicate off
+  EXPECT_TRUE(device.send_pdu(weird));
+  EXPECT_FALSE(device.send_pdu(weird));  // non-requeueable: cap of one, so the duplicate is refused
+  hub.sweep_for_test();
 
   ASSERT_EQ(hub.queued_frames(), 1u);
   EXPECT_EQ(hub.queued(0).pending, 1u);
-  EXPECT_EQ(device.not_sent_count_, 1);  // duplicate dropped with a terminal
+  EXPECT_EQ(device.not_sent_count_, 0);
 
   // The write-shaped twin (0x86 masks to WRITE_SINGLE_REGISTER) must not take WRITE-class
   // ordering either: exception-flagged codes are excluded from the mutates classification.

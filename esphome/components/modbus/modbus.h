@@ -165,16 +165,16 @@ struct ModbusDeviceCommand {
   /// fixed at 1 ("the subscription"), removed only by cancellation or failure.
   bool continuous{false};
   /// Per-sweep marker: this entry delivered an on_not_sent() during the current sweep. The sweep
-  /// reads it per DEVICE (see device_served_()): one such delivery per device per sweep, so a
-  /// handler that reacts by re-sending - or by re-sending and clearing, which manufactures fresh
-  /// entries the marker would otherwise miss - gets one callback per loop instead of spinning the
-  /// sweep. Entries are only erased at the end of a sweep, so a marker stays visible for the whole
-  /// service loop. Reset at the end of every sweep.
+  /// reads it per DEVICE (see device_served_()): one such delivery per device per sweep. The case
+  /// it exists for is a handler that re-sends AND clears from inside on_not_sent() - each cycle
+  /// manufactures a fresh entry (whose own marker is clear) and a fresh terminal debt, which would
+  /// otherwise spin one sweep indefinitely. Entries are erased only at the end of a sweep, so a
+  /// mark stays visible for the whole service loop. Reset at the end of every sweep.
   bool served_not_sent{false};
-  /// Accepted requests this entry stands for. Duplicates increment it without bound; the sweep
-  /// bleeds any excess over the servable cap (2 for requeueable reads: this run + one re-run;
-  /// 1 for everything else) as on_not_sent() deliveries. An entry leaving the world drains to
-  /// zero, one terminal per remaining count.
+  /// Accepted requests this entry stands for, never more than it can serve: a duplicate is
+  /// absorbed only while pending is below the servable cap (2 for requeueable reads - this run
+  /// plus one re-run - and 1 for everything else), and refused at the door otherwise. An entry
+  /// leaving the world drains to zero, one terminal per remaining count.
   uint8_t pending{1};
   /// Place-in-line stamp: set when the entry is first queued, left alone when a duplicate is
   /// absorbed (pending++), and re-stamped whenever the entry re-enters the line - a request
@@ -232,8 +232,9 @@ class ModbusClientHub : public Modbus {
   };
   /// Queue a request. Returns true when the request is now represented by a live entry (queued
   /// fresh, or absorbed into an identical one) and will resolve in exactly one terminal callback.
-  /// Returns false when it never entered the machine - empty or oversize PDU, full queue, or an
-  /// anonymous duplicate - in which case NO callback follows: the refusal is the return value.
+  /// Returns false when it never entered the machine - empty or oversize PDU, full queue, an
+  /// anonymous duplicate, or a duplicate of an entry already holding as many requests as it can
+  /// serve - in which case NO callback follows: the refusal is the return value.
   bool send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr,
                 CommandOptions options = {});
   ESPDEPRECATED("Use send_pdu(payload[0], <pdu bytes>, device) instead. Removed in 2027.2.0", "2026.8.0")
@@ -268,7 +269,8 @@ class ModbusClientHub : public Modbus {
   // Entries counted against the transmit-queue cap: excludes REFUSED (they occupy the reserve)
   // and the *_DELETED states (already resolved, awaiting the erase pass).
   size_t live_count_() const;
-  // Servable cap for the pending bleed: 2 for requeueable reads, 1 otherwise.
+  // How many requests one entry can ever serve: 2 for requeueable reads, 1 otherwise. Duplicates
+  // are absorbed below this and refused at it.
   static uint8_t servable_cap_(const ModbusDeviceCommand &cmd);
   // True if this device already received an on_not_sent() during the current sweep.
   bool device_served_(const ModbusClientDevice *device) const;
@@ -283,8 +285,8 @@ class ModbusClientHub : public Modbus {
   /// transition) and send_next_frame_ refuses to select while it is set.
   bool waiting_for_response_{false};
 
-  /// Set whenever a transition leaves sweep work behind (terminal deliveries, pending bleed);
-  /// quiet loop() passes skip the walk when clear.
+  /// Set whenever a transition leaves owed callbacks behind; quiet loop() passes skip the walk
+  /// when clear.
   bool sweep_needed_{false};
   /// Monotonic stamp source for ModbusDeviceCommand::seq.
   uint16_t next_seq_{0};
@@ -328,7 +330,7 @@ using ResponseStatus = std::optional<ExceptionCode>;
 /// on_no_response(), or a continuous poll's cycle) ends in exactly ONE terminal callback:
 /// on_response() (valid response), on_error() (exception response), on_no_response()
 /// (timeout or interrupted transaction), or on_not_sent() (accepted but never transmitted: a
-/// transmit failure, an address-clear drop, or an over-cap duplicate bled off by the sweep).
+/// transmit failure or a drop by clear_tx_queue_for_address()).
 /// Requests that never enter the machine get NO callback - send_pdu() returns false at the call
 /// site instead. on_sent() is additional, not terminal: it fires once per wire transmission,
 /// before whichever of data/error/no_response follows, and never for a request that ends in
@@ -347,14 +349,13 @@ using ResponseStatus = std::optional<ExceptionCode>;
 ///    requests as well. Likewise, converting an entry to continuous ({.continuous = true} matching
 ///    a queued frame) SUPERSEDES any request that entry had absorbed: the caller opted into
 ///    streaming semantics, and the poll's responses are the accounting from then on.
-///  - an entry bleeds at most ONE surplus request per sweep: a handler that re-sends its own
-///    frame from inside on_not_sent() re-absorbs into the entry, and the repeat bleed waits for
-///    the next sweep - bounded, one callback per loop, never a livelock.
-/// Sending from inside on_not_sent() is safe but check the return value: the notification may
-/// itself mean the queue is full, and a refused re-send simply returns false (no callback, no
-/// recursion). An address-scoped clear issued from inside on_not_sent() resolves EVERY dropped
-/// request with its own terminal at the sweep, the clearer's included; use
-/// clear_tx_queue_for_device() when you want your own frames torn down silently.
+///  - a device receives at most ONE on_not_sent() per sweep, so an entry owing several terminals
+///    (a cleared entry standing for two requests) resolves them across consecutive loops. This
+///    bounds handlers that send or clear from inside the callback.
+/// Sending from inside on_not_sent() is safe but check the return value. An address-scoped clear
+/// issued from inside on_not_sent() resolves EVERY dropped request with its own terminal at the
+/// sweep, the clearer's included; use clear_tx_queue_for_device() when you want your own frames
+/// torn down silently.
 class ModbusClientDevice {
  public:
   ModbusClientDevice() = default;
@@ -382,10 +383,10 @@ class ModbusClientDevice {
   virtual void on_error(std::span<const uint8_t> request_pdu, ExceptionCode exception_code) {
     this->dispatch_response_(request_pdu, {}, exception_code);
   }
-  /// Called when an ACCEPTED request could not be transmitted (transmit failure, an address-clear
-  /// drop, or a surplus duplicate bled off). A send that is refused outright never gets this
-  /// callback - send_pdu() returns false instead. Re-sending from inside this callback is safe:
-  /// a refused re-send returns false, an absorbed one waits a sweep (see the contract above).
+  /// Called when an ACCEPTED request could not be transmitted (a transmit failure, or a drop by
+  /// clear_tx_queue_for_address()). A send that is refused outright never gets this callback -
+  /// send_pdu() returns false instead. Re-sending from inside this callback is safe: check the
+  /// return value (see the contract above).
   /// (The on_modbus_* names below are deprecated pre-rename spellings; the defaults forward so
   /// external devices overriding them keep working through the deprecation window.)
   virtual void on_not_sent(std::span<const uint8_t> request_pdu) {
