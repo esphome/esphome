@@ -136,9 +136,11 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
     memcpy(&event.data.ap_stadisconnected, event_data, sizeof(wifi_event_ap_stadisconnected_t));
 #ifdef USE_WIFI_DPP
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_DPP_URI_READY) {
-    memcpy(&event.data.dpp_uri_ready, event_data, sizeof(wifi_event_dpp_uri_ready_t) + ((wifi_event_dpp_uri_ready_t*)event_data)->uri_data_len);
+    memcpy(&event.data.dpp_uri_ready, event_data,
+           sizeof(wifi_event_dpp_uri_ready_t) + ((wifi_event_dpp_uri_ready_t *) event_data)->uri_data_len);
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_DPP_CFG_RECVD) {
-    memcpy(&event.data.dpp_config_received, event_data, sizeof(wifi_event_dpp_config_received_t));  // configs[] gets dropped (unused)
+    memcpy(&event.data.dpp_config_received, event_data,
+           sizeof(wifi_event_dpp_config_received_t));  // configs[] gets dropped (unused)
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_DPP_FAILED) {
     memcpy(&event.data.dpp_failed, event_data, sizeof(wifi_event_dpp_failed_t));
 #endif
@@ -270,7 +272,9 @@ void WiFiComponent::wifi_lazy_init_() {
   if (err != ERR_OK) {
     ESP_LOGW(TAG, "esp_supp_dpp_init failed: %s", esp_err_to_name(err));
   } else {
-    err = esp_supp_dpp_bootstrap_gen(this->dpp_channels_.c_str(), this->dpp_mode_, !this->dpp_key_.empty()?this->dpp_key_.c_str():NULL, !this->dpp_device_info_.empty()?this->dpp_device_info_.c_str():NULL);
+    err = esp_supp_dpp_bootstrap_gen(this->dpp_channels_.c_str(), this->dpp_mode_,
+                                     !this->dpp_key_.empty() ? this->dpp_key_.c_str() : NULL,
+                                     !this->dpp_device_info_.empty() ? this->dpp_device_info_.c_str() : NULL);
     if (err != ERR_OK) {
       ESP_LOGW(TAG, "esp_supp_dpp_bootstrap_gen failed: %s", esp_err_to_name(err));
     }

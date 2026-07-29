@@ -297,7 +297,9 @@ DPP_SCHEMA = cv.Schema(
         cv.Optional(CONF_PRIVATE_KEY): cv.string_strict,
         cv.Optional(CONF_DEVICE_INFO): cv.string_strict,
         cv.Optional(CONF_CHANNELS, default="6"): cv.string_strict,
-        cv.Optional(CONF_TIMEOUT, default=DEFAULT_AP_TIMEOUT): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_TIMEOUT, default=DEFAULT_AP_TIMEOUT
+        ): cv.positive_time_period_milliseconds,
     }
 )
 

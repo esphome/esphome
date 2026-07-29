@@ -461,10 +461,14 @@ class WiFiComponent final : public Component {
   void set_dpp_key(const std::string &dpp_key) { dpp_key_ = dpp_key; }
   void set_dpp_device_info(const std::string &dpp_device_info);
   void set_dpp_device_info(const char *dpp_device_info);
-  void set_dpp_device_info(StringRef dpp_device_info) { dpp_device_info_ = CompactString(dpp_device_info.c_str(), dpp_device_info.size()); }
+  void set_dpp_device_info(StringRef dpp_device_info) {
+    dpp_device_info_ = CompactString(dpp_device_info.c_str(), dpp_device_info.size());
+  }
   void set_dpp_channels(const std::string &dpp_channels);
   void set_dpp_channels(const char *dpp_channels);
-  void set_dpp_channels(StringRef dpp_channels) { dpp_channels_ = CompactString(dpp_channels.c_str(), dpp_channels.size()); }
+  void set_dpp_channels(StringRef dpp_channels) {
+    dpp_channels_ = CompactString(dpp_channels.c_str(), dpp_channels.size());
+  }
   void set_dpp_timeout(uint32_t dpp_timeout) { dpp_timeout_ = dpp_timeout; }
 #endif
 

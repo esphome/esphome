@@ -804,7 +804,8 @@ void WiFiComponent::loop() {
           break;
         }
         // Use longer cooldown when DPP/captive portal/improv is active to avoid disrupting user config
-        bool portal_active = this->is_dpp_active_() || this->is_captive_portal_active_() || this->is_esp32_improv_active_();
+        bool portal_active =
+            this->is_dpp_active_() || this->is_captive_portal_active_() || this->is_esp32_improv_active_();
         uint32_t cooldown_duration = portal_active ? WIFI_COOLDOWN_WITH_AP_ACTIVE_MS : WIFI_COOLDOWN_DURATION_MS;
         if (now - this->action_started_ > cooldown_duration) {
           // After cooldown we either restarted the adapter because of
@@ -2227,10 +2228,18 @@ void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) {
 void WiFiComponent::set_passive_scan(bool passive) { this->passive_scan_ = passive; }
 
 #ifdef USE_WIFI_DPP
-void WiFiComponent::set_dpp_device_info(const std::string &dpp_device_info) { this->dpp_device_info_ = CompactString(dpp_device_info.c_str(), dpp_device_info.size()); }
-void WiFiComponent::set_dpp_device_info(const char *dpp_device_info) { this->dpp_device_info_ = CompactString(dpp_device_info, strlen(dpp_device_info)); }
-void WiFiComponent::set_dpp_channels(const std::string &dpp_channels) { this->dpp_channels_ = CompactString(dpp_channels.c_str(), dpp_channels.size()); }
-void WiFiComponent::set_dpp_channels(const char *dpp_channels) { this->dpp_channels_ = CompactString(dpp_channels, strlen(dpp_channels)); }
+void WiFiComponent::set_dpp_device_info(const std::string &dpp_device_info) {
+  this->dpp_device_info_ = CompactString(dpp_device_info.c_str(), dpp_device_info.size());
+}
+void WiFiComponent::set_dpp_device_info(const char *dpp_device_info) {
+  this->dpp_device_info_ = CompactString(dpp_device_info, strlen(dpp_device_info));
+}
+void WiFiComponent::set_dpp_channels(const std::string &dpp_channels) {
+  this->dpp_channels_ = CompactString(dpp_channels.c_str(), dpp_channels.size());
+}
+void WiFiComponent::set_dpp_channels(const char *dpp_channels) {
+  this->dpp_channels_ = CompactString(dpp_channels, strlen(dpp_channels));
+}
 #endif
 
 bool WiFiComponent::is_dpp_active_() {
