@@ -672,10 +672,13 @@ void ModbusClientHub::sweep_() {
   // never grow - however a handler sends, clears, or both. Indices stay valid because entries are
   // only ever erased below, after the service loop.
   const size_t work_set = this->tx_buffer_.size();
-  bool progressed = true;
-  while (progressed) {
-    progressed = false;
-    for (size_t i = 0; i != work_set && !progressed; i++) {
+  // Restart the walk after every callback: a handler may have moved any entry to any state, so no
+  // position in the scan survives one. Bookkeeping that runs no callback changes only its own
+  // entry, and the walk carries on.
+  bool callback_ran = true;
+  while (callback_ran) {
+    callback_ran = false;
+    for (size_t i = 0; i != work_set && !callback_ran; i++) {
       ModbusDeviceCommand &cmd = this->tx_buffer_[i];
       switch (cmd.state) {
         case FrameState::RECEIVED_RESPONSE: {
@@ -689,7 +692,6 @@ void ModbusClientHub::sweep_() {
             cmd.state = FrameState::READY;  // an absorbed duplicate still owes a run
             cmd.seq = this->next_seq_++;
           }
-          progressed = true;
           break;
         }
         case FrameState::RECEIVED_EXCEPTION: {
@@ -700,13 +702,14 @@ void ModbusClientHub::sweep_() {
             cmd.state = FrameState::READY;
             cmd.seq = this->next_seq_++;
           }
-          progressed = true;
           break;
         }
         case FrameState::TIMED_OUT: {
           bool retry = false;
-          if (cmd.device != nullptr)
+          if (cmd.device != nullptr) {
             retry = cmd.device->on_no_response(cmd.frame.pdu());
+            callback_ran = true;
+          }
           if (cmd.state != FrameState::TIMED_OUT) {
             // A clear from inside the handler took over: its state wins, and the retry is
             // cancelled. The accounting still has to happen here - unless a retry was asked for
@@ -724,7 +727,6 @@ void ModbusClientHub::sweep_() {
           } else {
             cmd.retire();
           }
-          progressed = true;
           break;
         }
         case FrameState::INTERRUPTED: {
@@ -732,18 +734,21 @@ void ModbusClientHub::sweep_() {
           // is never overwritten (the bookkeeping below is then moot).
           cmd.state = FrameState::INTERRUPTED_NOTIFIED;
           bool retry = false;
-          if (cmd.device != nullptr)
+          if (cmd.device != nullptr) {
             retry = cmd.device->on_no_response(cmd.frame.pdu());
+            callback_ran = true;
+          }
           // A declined retry resolves one request here, at delivery, like every other terminal;
           // whatever is still pending goes back on the wire when the timeout releases the shell.
           if (!retry && cmd.state == FrameState::INTERRUPTED_NOTIFIED && cmd.pending != 0)
             cmd.pending--;
-          progressed = true;
           break;
         }
         case FrameState::REFUSED: {
-          if (cmd.device != nullptr)
+          if (cmd.device != nullptr) {
             cmd.device->on_not_sent(cmd.frame.pdu());
+            callback_ran = true;
+          }
           if (cmd.state == FrameState::REFUSED) {  // a clear from inside the handler wins otherwise
             if (!cmd.continuous && --cmd.pending != 0) {
               // A transmit failure's refusal resolved one request; the absorbed one gets its run.
@@ -753,22 +758,20 @@ void ModbusClientHub::sweep_() {
               cmd.retire();
             }
           }
-          progressed = true;
           break;
         }
         case FrameState::DELETED: {
           if (cmd.pending == 0)
             break;  // silent retiree; the erase pass removes it
           if (cmd.device == nullptr) {
-            cmd.pending = 0;
-            progressed = true;
+            cmd.pending = 0;  // an anonymous frame has no owner to tell; drop the debt
             break;
           }
           // An address-scoped clear owes one on_not_sent() per accepted request.
           cmd.device->on_not_sent(cmd.frame.pdu());
+          callback_ran = true;
           // A device-scoped clear from inside the handler silences the rest.
           cmd.pending = (cmd.device == nullptr || cmd.pending == 0) ? 0 : cmd.pending - 1;
-          progressed = true;
           break;
         }
         default:  // READY / WAITING: mid-lifecycle, nothing owed
