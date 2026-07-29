@@ -48,7 +48,6 @@ enum VoiceAssistantFeature : uint32_t {
   FEATURE_ANNOUNCE = 1 << 4,
   FEATURE_START_CONVERSATION = 1 << 5,
   FEATURE_MULTI_CHANNEL_AUDIO = 1 << 6,
-  FEATURE_EXTERNAL_WAKE_WORDS = 1 << 7,
 };
 
 enum class State {
@@ -198,11 +197,6 @@ class VoiceAssistant final : public Component {
       flags |= VoiceAssistantFeature::FEATURE_ANNOUNCE;
       flags |= VoiceAssistantFeature::FEATURE_START_CONVERSATION;
     }
-#endif
-
-#if defined(USE_MICRO_WAKE_WORD) && defined(USE_VOICE_ASSISTANT_RUNTIME_MODEL)
-    // Indicate support for external wake word models that can be downloaded at runtime
-    flags |= VoiceAssistantFeature::FEATURE_EXTERNAL_WAKE_WORDS;
 #endif
 
     return flags;
