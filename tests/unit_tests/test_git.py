@@ -5,6 +5,7 @@ import logging
 import os
 from pathlib import Path
 import subprocess
+import threading
 import time
 from typing import Any
 from unittest.mock import Mock, patch
@@ -1489,6 +1490,154 @@ def test_refresh_submodule_failure_recovers_then_raises(
         _get_git_command_type(c[0][0]) == "clone"
         for c in mock_run_git_command.call_args_list
     )
+
+
+def _lock_path(url: str, ref: str | None, domain: str) -> Path:
+    """The lock file the implementation uses for one cache entry."""
+    return git._repo_lock_path(f"{url}@{ref}", domain)
+
+
+def test_clone_or_update_serializes_concurrent_clones(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Two concurrent callers for the same uncached repo must not both clone.
+
+    Without the per-entry lock both callers pass the is_dir() check before
+    either clone finishes, so the second one either clones on top of the
+    first or reads a half populated worktree (device-builder issue 2425).
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    start_together = threading.Barrier(2)
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "clone":
+            # Long enough that the other caller reaches the lock while the
+            # clone is still in flight.
+            time.sleep(0.2)
+            _simulate_cloned_repo(repo_dir)
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    results: list[Path] = []
+    errors: list[BaseException] = []
+
+    def call() -> None:
+        try:
+            start_together.wait()
+            result_dir, _ = git.clone_or_update(
+                url=url, ref=None, refresh=git.NEVER_REFRESH, domain=domain
+            )
+            results.append(result_dir)
+        except BaseException as err:  # noqa: BLE001 - re-raised via errors below
+            errors.append(err)
+
+    threads = [threading.Thread(target=call) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert not errors
+    assert results == [repo_dir, repo_dir]
+    clone_calls = [
+        c
+        for c in mock_run_git_command.call_args_list
+        if _get_git_command_type(c[0][0]) == "clone"
+    ]
+    # The second caller waited for the lock, then saw the completed clone.
+    assert len(clone_calls) == 1
+    assert _marker_path(repo_dir).is_file()
+
+
+def test_clone_or_update_creates_lock_file_next_to_hash_dir(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """The lock file lives beside the hash dir, never inside it."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+    mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
+
+    result_dir, _ = git.clone_or_update(
+        url=url, ref=None, refresh=git.NEVER_REFRESH, domain=domain
+    )
+
+    assert result_dir == repo_dir
+    lock_path = _lock_path(url, None, domain)
+    assert lock_path.parent == repo_dir.parent
+    assert lock_path.is_file()
+
+
+def test_clone_or_update_subpath_locks_at_hash_dir_level(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """With a subpath the lock still guards the whole hash dir cache entry."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    hash_dir = _compute_repo_dir(url, None, domain)
+    repo_dir = hash_dir / "lib"
+    mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
+
+    result_dir, _ = git.clone_or_update(
+        url=url,
+        ref=None,
+        refresh=git.NEVER_REFRESH,
+        domain=domain,
+        subpath=Path("lib"),
+    )
+
+    assert result_dir == repo_dir
+    lock_path = _lock_path(url, None, domain)
+    assert lock_path == hash_dir.parent / f"{hash_dir.name}.lock"
+    assert lock_path.is_file()
+
+
+def test_clone_or_update_recovery_holds_lock_without_deadlock(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Recovery re-clones while holding the lock and must not re-acquire it.
+
+    A naive re-acquisition would deadlock here, since OS file locks taken on
+    separate descriptors conflict even within one process. The lock file
+    itself must survive the recovery rmtree of the broken repo dir.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    _setup_old_repo(repo_dir)
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "stash":
+            raise git.GitCommandError("broken repository")
+        if _get_git_command_type(cmd) == "clone":
+            _simulate_cloned_repo(repo_dir)
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    recovered_dir, _ = git.clone_or_update(
+        url=url, ref=None, refresh=TimePeriodSeconds(days=1), domain=domain
+    )
+
+    assert recovered_dir == repo_dir
+    assert _lock_path(url, None, domain).is_file()
 
 
 def _real_git(*args: str, cwd: Path) -> None:

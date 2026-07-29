@@ -8,11 +8,15 @@ import re
 import subprocess
 import sys
 import time
+from typing import TYPE_CHECKING
 import urllib.parse
 
 import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError, TimePeriodSeconds
 from esphome.helpers import add_git_ceiling_directory, rmtree, write_file
+
+if TYPE_CHECKING:
+    from filelock import FileLock
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -156,6 +160,16 @@ def _compute_destination_path(key: str, domain: str) -> Path:
     return base_dir / h.hexdigest()[:8]
 
 
+def _repo_lock_path(key: str, domain: str) -> Path:
+    """Path of the lock file serializing all work on one cache entry.
+
+    Lives next to the hash directory, never inside it, so the removal of a
+    broken or incomplete clone can never delete a lock another process holds.
+    """
+    repo_dir = _compute_destination_path(key, domain)
+    return repo_dir.parent / f"{repo_dir.name}.lock"
+
+
 def _clone_complete_marker_path(repo_dir: Path) -> Path:
     return repo_dir / ".git" / _CLONE_COMPLETE_MARKER
 
@@ -293,8 +307,60 @@ def clone_or_update(
     password: str = None,
     init_submodules: bool = False,
     subpath: Path | None = None,
+) -> tuple[Path, Callable[[], None] | None]:
+    """Clone a repository into the cache, or refresh an existing clone.
+
+    All work runs under a per-cache-entry inter-process file lock, so
+    concurrent resolutions of the same repository (two esphome processes, or
+    a subprocess plus an in-process load) serialize instead of interleaving.
+    Without the lock, ``repo_dir.is_dir()`` is true from the instant
+    ``git clone`` creates the directory: a second caller could read a half
+    populated worktree, or see the missing completion marker and delete the
+    clone in progress out from under the first caller.
+    """
+    # Lazy import: keeps filelock off the CLI startup import path.
+    from filelock import FileLock
+
+    lock_path = _repo_lock_path(f"{url}@{ref}", domain)
+    # git clone normally creates the domain directory; the lock file needs
+    # it before the first clone starts.
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock = FileLock(str(lock_path))
+    with lock:
+        return _clone_or_update_locked(
+            url=url,
+            ref=ref,
+            refresh=refresh,
+            domain=domain,
+            username=username,
+            password=password,
+            init_submodules=init_submodules,
+            subpath=subpath,
+            lock=lock,
+        )
+
+
+def _clone_or_update_locked(
+    *,
+    url: str,
+    ref: str = None,
+    refresh: TimePeriodSeconds | None,
+    domain: str,
+    username: str = None,
+    password: str = None,
+    init_submodules: bool = False,
+    subpath: Path | None = None,
+    lock: "FileLock",
     _recover_broken: bool = True,
 ) -> tuple[Path, Callable[[], None] | None]:
+    """Body of ``clone_or_update``; the caller holds ``lock``.
+
+    Split out because the broken-repository recovery below re-enters this
+    function: re-acquiring the already-held lock would deadlock, since OS
+    file locks taken on separate file descriptors conflict even within one
+    process. ``lock`` is only re-acquired by the returned ``revert``
+    callback, which runs after the outer ``with`` has released it.
+    """
     key = f"{url}@{ref}"
     # The user may have embedded credentials in the URL itself; log this
     # instead of key.
@@ -444,9 +510,10 @@ def clone_or_update(
                 _remove_repo_dir(repo_dir)
                 _LOGGER.info("Successfully removed broken repository, re-cloning...")
 
-                # Recursively call clone_or_update to re-clone
-                # Set _recover_broken=False to prevent infinite recursion
-                result = clone_or_update(
+                # Re-clone while still holding the lock; going through the
+                # public wrapper would try to re-acquire it and deadlock.
+                # Set _recover_broken=False to prevent infinite recursion.
+                result = _clone_or_update_locked(
                     url=original_url,
                     ref=ref,
                     refresh=refresh,
@@ -455,6 +522,7 @@ def clone_or_update(
                     password=password,
                     init_submodules=init_submodules,
                     subpath=subpath,
+                    lock=lock,
                     _recover_broken=False,
                 )
                 _LOGGER.info("Repository %s successfully recovered", safe_key)
@@ -462,7 +530,10 @@ def clone_or_update(
 
             def revert():
                 _LOGGER.info("Reverting changes to %s -> %s", safe_key, old_sha)
-                run_git_command(["git", "reset", "--hard", old_sha], git_dir=repo_dir)
+                with lock:
+                    run_git_command(
+                        ["git", "reset", "--hard", old_sha], git_dir=repo_dir
+                    )
 
             return repo_dir, revert
 
