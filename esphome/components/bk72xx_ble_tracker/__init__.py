@@ -21,13 +21,12 @@ Scan modes:
 
 import esphome.codegen as cg
 from esphome.components import bk72xx_ble, ble_device_base, ota
+from esphome.components.const import CONF_SCAN_PARAMETERS, CONF_WINDOW
 import esphome.config_validation as cv
 from esphome.const import CONF_CONTINUOUS, CONF_DURATION, CONF_ID, CONF_INTERVAL
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
-CONF_WINDOW = "window"
-CONF_SCAN_PARAMETERS = "scan_parameters"
 CONF_BK72XX_BLE_ID = "bk72xx_ble_id"
 
 DEPENDENCIES = ["bk72xx"]

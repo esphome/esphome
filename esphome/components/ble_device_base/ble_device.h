@@ -144,6 +144,20 @@ class ESPBLEiBeacon {
   } beacon_data_;
 };
 
+/// Pack a controller-order (LSB-first) MAC into the uint64 the API speaks.
+///
+/// The result is the printable-order value esp32 has always sent
+/// (esp32_ble::ble_addr_to_uint64), so both proxy paths agree on the wire.
+/// This takes the raw controller order delivered by BLEHub's raw-advertisement
+/// callback; ESPBTDevice::address_uint64() is the equivalent for an already
+/// parsed device, whose address is stored MSB-first.
+inline uint64_t mac_lsb_first_to_uint64(const uint8_t *mac) {
+  uint64_t addr = 0;
+  for (int i = 0; i < 6; i++)
+    addr |= static_cast<uint64_t>(mac[i]) << (i * 8);
+  return addr;
+}
+
 // ---------------------------------------------------------------------------
 // ESPBTDevice — parsed BLE advertisement
 // ---------------------------------------------------------------------------
