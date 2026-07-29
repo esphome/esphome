@@ -1760,13 +1760,14 @@ def test_revert_skips_on_contended_lock(
 
     holder, release = _hold_lock_in_thread(_lock_path(url, None, domain))
     calls_before = len(mock_run_git_command.call_args_list)
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.INFO):
         revert()
     release.set()
     holder.join()
 
-    # No git reset was issued; the skip was logged.
+    # No git reset was issued; the wait and the skip were both logged.
     assert len(mock_run_git_command.call_args_list) == calls_before
+    assert any("Waiting for another process" in r.getMessage() for r in caplog.records)
     assert any("skipping revert" in r.getMessage() for r in caplog.records)
 
 

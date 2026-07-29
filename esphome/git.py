@@ -555,16 +555,23 @@ def _clone_or_update_locked(
 
                 _LOGGER.info("Reverting changes to %s -> %s", safe_key, old_sha)
                 try:
-                    lock.acquire(timeout=_REVERT_LOCK_TIMEOUT_SECONDS)
+                    lock.acquire(blocking=False)
                 except Timeout:
-                    # revert() only runs on an already-failing path; skip
-                    # rather than hang so the original error can surface.
-                    _LOGGER.warning(
-                        "Could not lock %s to revert to %s, skipping revert",
+                    _LOGGER.info(
+                        "Waiting for another process to finish updating %s",
                         safe_key,
-                        old_sha,
                     )
-                    return
+                    try:
+                        lock.acquire(timeout=_REVERT_LOCK_TIMEOUT_SECONDS)
+                    except Timeout:
+                        # revert() only runs on an already-failing path; skip
+                        # rather than hang so the original error can surface.
+                        _LOGGER.warning(
+                            "Could not lock %s to revert to %s, skipping revert",
+                            safe_key,
+                            old_sha,
+                        )
+                        return
                 try:
                     run_git_command(
                         ["git", "reset", "--hard", old_sha], git_dir=repo_dir
