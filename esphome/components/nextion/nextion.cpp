@@ -278,7 +278,8 @@ bool Nextion::send_command(const char *command) {
   if ((!this->is_setup() && !this->connection_state_.ignore_is_setup_) || this->is_sleeping())
     return false;
 
-  this->add_no_result_to_queue_with_command_(command, command);
+  const std::string cmd{command};
+  this->add_no_result_to_queue_with_command_(cmd, cmd);
   return true;
 }
 
