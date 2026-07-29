@@ -103,6 +103,11 @@ enum class CommandPriority : uint8_t { READ = 0, WRITE };
 
 /// Lifecycle state of a frame entry. The lifecycle contract on ModbusClientDevice is this
 /// transition table:
+///   new -> HELD                 for an entry created while the sweep is running: the sweep's work
+///                               set is frozen at sweep start, so a newborn entry is invisible to
+///                               it - not serviced, and not touched by a clear issued from a
+///                               callback (matching "a re-send survives the clear that prompted it")
+///   HELD -> READY               when the sweep ends and the entry joins the queue proper
 ///   READY -> WAITING            on transmit (send_next_frame_ is the only writer of this transition)
 ///   WAITING -> RECEIVED_RESPONSE / RECEIVED_EXCEPTION
 ///                               on a matching data/exception response; on_response()/on_error()
@@ -135,7 +140,8 @@ enum class CommandPriority : uint8_t { READ = 0, WRITE };
 /// entries ARE the pending deliveries, so no separate notification queue exists and no callback
 /// ever runs mid-mutation.
 enum class FrameState : uint8_t {
-  READY = 0,
+  HELD = 0,
+  READY,
   WAITING,
   RECEIVED_RESPONSE,
   RECEIVED_EXCEPTION,
@@ -160,17 +166,10 @@ struct CommandOptions {
 struct ModbusDeviceCommand {
   ModbusClientDevice *device;
   ModbusFrame frame;
-  FrameState state{FrameState::READY};
+  FrameState state{FrameState::READY};  // send_pdu() overrides to HELD when created mid-sweep
   /// CONTINUOUS entries are subscriptions: never consumed by completion, pending
   /// fixed at 1 ("the subscription"), removed only by cancellation or failure.
   bool continuous{false};
-  /// Per-sweep marker: this entry delivered an on_not_sent() during the current sweep. The sweep
-  /// reads it per DEVICE (see device_served_()): one such delivery per device per sweep. The case
-  /// it exists for is a handler that re-sends AND clears from inside on_not_sent() - each cycle
-  /// manufactures a fresh entry (whose own marker is clear) and a fresh terminal debt, which would
-  /// otherwise spin one sweep indefinitely. Entries are erased only at the end of a sweep, so a
-  /// mark stays visible for the whole service loop. Reset at the end of every sweep.
-  bool served_not_sent{false};
   /// Accepted requests this entry stands for, never more than it can serve: a duplicate is
   /// absorbed only while pending is below the servable cap (2 for requeueable reads - this run
   /// plus one re-run - and 1 for everything else), and refused at the door otherwise. An entry
@@ -272,8 +271,6 @@ class ModbusClientHub : public Modbus {
   // How many requests one entry can ever serve: 2 for requeueable reads, 1 otherwise. Duplicates
   // are absorbed below this and refused at it.
   static uint8_t servable_cap_(const ModbusDeviceCommand &cmd);
-  // True if this device already received an on_not_sent() during the current sweep.
-  bool device_served_(const ModbusClientDevice *device) const;
 
   uint16_t send_wait_time_{2000};
   uint16_t turnaround_delay_ms_{0};
@@ -288,6 +285,10 @@ class ModbusClientHub : public Modbus {
   /// Set whenever a transition leaves owed callbacks behind; quiet loop() passes skip the walk
   /// when clear.
   bool sweep_needed_{false};
+  /// True while sweep_() is delivering callbacks. Entries created during that window are HELD:
+  /// the sweep's work set stays exactly the entries that existed when it began, which is what
+  /// makes it terminate no matter what a handler does.
+  bool sweeping_{false};
   /// Monotonic stamp source for ModbusDeviceCommand::seq.
   uint16_t next_seq_{0};
 
@@ -349,13 +350,11 @@ using ResponseStatus = std::optional<ExceptionCode>;
 ///    requests as well. Likewise, converting an entry to continuous ({.continuous = true} matching
 ///    a queued frame) SUPERSEDES any request that entry had absorbed: the caller opted into
 ///    streaming semantics, and the poll's responses are the accounting from then on.
-///  - a device receives at most ONE on_not_sent() per sweep, so an entry owing several terminals
-///    (a cleared entry standing for two requests) resolves them across consecutive loops. This
-///    bounds handlers that send or clear from inside the callback.
-/// Sending from inside on_not_sent() is safe but check the return value. An address-scoped clear
-/// issued from inside on_not_sent() resolves EVERY dropped request with its own terminal at the
-/// sweep, the clearer's included; use clear_tx_queue_for_device() when you want your own frames
-/// torn down silently.
+/// Sending from inside a callback is safe but check the return value: the frame is HELD until the
+/// sweep ends, so it neither receives callbacks during that sweep nor is dropped by a clear issued
+/// from another one. An address-scoped clear resolves EVERY dropped request with its own terminal
+/// at the sweep, the clearer's included; use clear_tx_queue_for_device() when you want your own
+/// frames torn down silently.
 class ModbusClientDevice {
  public:
   ModbusClientDevice() = default;

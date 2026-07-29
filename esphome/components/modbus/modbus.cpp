@@ -672,18 +672,6 @@ size_t ModbusClientHub::live_count_() const {
   return count;
 }
 
-bool ModbusClientHub::device_served_(const ModbusClientDevice *device) const {
-  // One on_not_sent() per device per sweep. Scanning entries (rather than flagging the device)
-  // keeps the marker's lifetime tied to the container: entries are erased only at the end of a
-  // sweep, so a mark set during the service loop stays visible for the rest of it, and the reset
-  // pass cannot miss a device whose entries have gone away.
-  for (const auto &cmd : this->tx_buffer_) {
-    if (cmd.served_not_sent && cmd.device == device)
-      return true;
-  }
-  return false;
-}
-
 uint8_t ModbusClientHub::servable_cap_(const ModbusDeviceCommand &cmd) {
   // A requeueable one-shot read absorbs one extra request (this run + one re-run); everything
   // else - writes, custom codes, continuous polls - serves exactly one.
@@ -696,6 +684,9 @@ void ModbusClientHub::sweep_() {
   if (!this->sweep_needed_)
     return;
   this->sweep_needed_ = false;
+  // Entries created by the callbacks below are HELD and invisible to this sweep, so its work set
+  // stays exactly what it was on entry - the whole termination argument in one line.
+  this->sweeping_ = true;
   // Service loop: handle ONE entry per pass, then rescan - a handler may flip any entry's state
   // (send, clear), so no iterator survives a callback. Indices and references DO survive: entries
   // only ever leave the container in the erase pass below, and deque appends invalidate neither.
@@ -767,9 +758,6 @@ void ModbusClientHub::sweep_() {
           break;
         }
         case FrameState::REFUSED: {
-          if (this->device_served_(cmd.device))
-            break;  // this device already had its delivery this sweep
-          cmd.served_not_sent = true;
           if (cmd.device != nullptr)
             cmd.device->on_not_sent(cmd.frame.pdu());
           if (cmd.state == FrameState::REFUSED) {  // a clear from inside the handler wins otherwise
@@ -792,17 +780,14 @@ void ModbusClientHub::sweep_() {
             progressed = true;
             break;
           }
-          if (this->device_served_(cmd.device))
-            break;  // this device already had its delivery this sweep; the rest waits
           // An address-scoped clear owes one on_not_sent() per accepted request.
-          cmd.served_not_sent = true;
           cmd.device->on_not_sent(cmd.frame.pdu());
           // A device-scoped clear from inside the handler silences the rest.
           cmd.pending = (cmd.device == nullptr || cmd.pending == 0) ? 0 : cmd.pending - 1;
           progressed = true;
           break;
         }
-        default:  // READY / WAITING: mid-lifecycle, nothing owed
+        default:  // HELD / READY / WAITING: newborn or mid-lifecycle, nothing owed
           break;
       }
     }
@@ -814,12 +799,12 @@ void ModbusClientHub::sweep_() {
                                           return cmd.state == FrameState::DELETED && cmd.pending == 0;
                                         }),
                          this->tx_buffer_.end());
-  // Reset the per-sweep delivery markers; any terminal a marker deferred re-arms the next sweep.
+  // Admit the entries the callbacks created: they sat out this sweep and join the queue now.
   for (auto &cmd : this->tx_buffer_) {
-    cmd.served_not_sent = false;
-    if ((cmd.state == FrameState::DELETED || cmd.state == FrameState::REFUSED) && cmd.pending != 0)
-      this->sweep_needed_ = true;
+    if (cmd.state == FrameState::HELD)
+      cmd.state = FrameState::READY;
   }
+  this->sweeping_ = false;
 }
 
 // Raw send for client: pushes to tx queue. Everything except the CRC must be contained in payload.
@@ -924,6 +909,8 @@ bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   auto &cmd = this->tx_buffer_.emplace_back(device, address, pdu);
   cmd.continuous = continuous;
   cmd.seq = this->next_seq_++;
+  if (this->sweeping_)
+    cmd.state = FrameState::HELD;  // joins the queue when the sweep ends; see FrameState
   return true;
 }
 
@@ -933,8 +920,8 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sen
   // alongside a controller that just went offline) must observe the drop, so DELETED entries keep
   // their pending count and resolve one terminal per accepted request.
   for (auto &cmd : this->tx_buffer_) {
-    if (cmd.frame.address() != address)
-      continue;
+    if (cmd.frame.address() != address || cmd.state == FrameState::HELD)
+      continue;  // a frame created during this sweep is not yet in the queue this clear applies to
     switch (cmd.state) {
       case FrameState::READY:
       case FrameState::TIMED_OUT:
@@ -972,8 +959,8 @@ void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
   // Silent teardown (supersede semantics): the caller's own frames vanish without callbacks; see
   // the lifecycle note on ModbusClientDevice.
   for (auto &cmd : this->tx_buffer_) {
-    if (cmd.device != device)
-      continue;
+    if (cmd.device != device || cmd.state == FrameState::HELD)
+      continue;  // a frame created during this sweep is not yet in the queue this clear applies to
     switch (cmd.state) {
       case FrameState::WAITING:
       case FrameState::INTERRUPTED:
