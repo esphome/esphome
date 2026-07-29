@@ -1,0 +1,20 @@
+esphome:
+  on_boot:
+    then:
+      - uart.write:
+          id: uart_id
+          data: 'Hello World'
+      - uart.write:
+          id: uart_id
+          data: [0x00, 0x20, 0x42]
+
+uart:
+  # Only uart0 is enabled in this board's devicetree; nRF52 also has no
+  # equivalent to esp32-h2's GPIO-matrix tx_pin/rx_pin override -- each port's
+  # pins come entirely from the board's own devicetree pinctrl.
+  - id: uart_id
+    port: uart0
+    baud_rate: 115200
+    data_bits: 8
+    parity: NONE
+    stop_bits: 1

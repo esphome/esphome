@@ -35,6 +35,7 @@ from esphome.components.zephyr import (
     zephyr_add_overlay,
     zephyr_add_prj_conf,
     zephyr_variant,
+    zephyr_variant_family,
 )
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -144,6 +145,9 @@ UART_SELECTION_HOST_ZEPHYR = [UART0, UART1]
 # esp32_h2 and esp32_c6 both expose a native USB-Serial/JTAG peripheral as a Zephyr UART
 # device (see the USB_SERIAL_JTAG codegen branch below) -- shared list for both.
 UART_SELECTION_ZEPHYR_ESP32_JTAG = [UART0, UART1, USB_SERIAL_JTAG]
+# nRF52840 has native USB (same &usbd/zephyr_udc0 peripheral MCUboot's own serial
+# recovery uses) -- see the USB_CDC codegen branch below.
+UART_SELECTION_ZEPHYR_NORDIC = [UART0, UART1, USB_CDC]
 
 HARDWARE_UART_TO_UART_SELECTION = {
     UART0: logger_ns.UART_SELECTION_UART0,
@@ -196,6 +200,8 @@ def uart_selection(value):
     if CORE.is_zephyr:
         if zephyr_variant() in (ZEPHYR_VARIANT_ESP32_H2, ZEPHYR_VARIANT_ESP32_C6):
             return cv.one_of(*UART_SELECTION_ZEPHYR_ESP32_JTAG, upper=True)(value)
+        if zephyr_variant_family() == "nordic":
+            return cv.one_of(*UART_SELECTION_ZEPHYR_NORDIC, upper=True)(value)
         return cv.one_of(*UART_SELECTION_HOST_ZEPHYR, upper=True)(value)
     raise NotImplementedError
 
@@ -322,6 +328,7 @@ CONFIG_SCHEMA = cv.All(
                 zephyr=UART0,
                 zephyr_esp32h2=USB_SERIAL_JTAG,
                 zephyr_esp32c6=USB_SERIAL_JTAG,
+                zephyr_nrf52=USB_CDC,
             ): cv.All(
                 cv.only_on(
                     [
@@ -550,6 +557,23 @@ async def _late_logger_init(config: ConfigType) -> None:
             zephyr_add_overlay("""&usb_serial { status = "okay";};""")
             zephyr_add_overlay(
                 """/ { chosen { zephyr,console = &usb_serial; zephyr,shell-uart = &usb_serial; }; };"""
+            )
+        elif hw_uart == USB_CDC:
+            # Same generic CDC-ACM helper MCUboot's own serial recovery uses on this
+            # hardware -- nRF52840's native USB, not a standard Zephyr UART device
+            # like esp32_h2/c6's USB_SERIAL_JTAG above.
+            cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
+            zephyr_add_prj_conf("UART_LINE_CTRL", True)
+            cdc_label = zephyr_add_cdc_acm(config, 0)
+            # logger_zephyr.cpp's DEVICE_DT_GET_OR_NULL(DT_NODELABEL(...)) needs the
+            # actual node label as a bare token at compile time -- it can't be reused
+            # from the `chosen` overlay below, since that's a devicetree property, not
+            # something the C++ side reads. RawExpression avoids add_define() quoting
+            # this into a string literal, which DT_NODELABEL() can't accept.
+            cg.add_define("LOGGER_CDC_ACM_UART_LABEL", cg.RawExpression(cdc_label))
+            zephyr_add_overlay(
+                f"""/ {{ chosen {{ zephyr,console = &{cdc_label}; """
+                f"""zephyr,shell-uart = &{cdc_label}; }}; }};"""
             )
 
         # Zephyr's native logging defaults to its own LOG_BACKEND_UART, a second writer

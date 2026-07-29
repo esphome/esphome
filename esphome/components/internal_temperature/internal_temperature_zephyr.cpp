@@ -10,7 +10,7 @@ namespace esphome::internal_temperature {
 
 static const char *const TAG = "internal_temperature.zephyr";
 
-#ifdef USE_NRF52
+#if defined(USE_NRF52) || defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC)
 // nRF52 boards don't define the standard "die-temp0" alias other Zephyr
 // vendors use, so it's looked up by compatible string instead.
 static const struct device *const DIE_TEMPERATURE_SENSOR = DEVICE_DT_GET_ONE(nordic_nrf_temp);

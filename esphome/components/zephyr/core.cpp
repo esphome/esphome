@@ -6,7 +6,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/defines.h"
 
-#ifdef USE_ZEPHYR_VARIANT_FAMILY_ESP32
+#if defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC)
 #include <zephyr/drivers/hwinfo.h>
 #endif
 
@@ -58,9 +58,10 @@ void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
   static const uint8_t addr[6] = USE_ESPHOME_HOST_MAC_ADDRESS;
   memcpy(mac, addr, sizeof(addr));
 }
-#elif defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32)
+#elif defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC)
 void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
-  // hwinfo_esp32.c is generic, so this covers every esp32-family chip.
+  // hwinfo_get_device_id() is a generic Zephyr API; covers every esp32-family and
+  // nRF5x chip.
   if (hwinfo_get_device_id(mac, 6) != 6) {
     memset(mac, 0, 6);
   }

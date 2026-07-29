@@ -14,6 +14,7 @@ from .const import (
     ZEPHYR_VARIANT_ESP32_C6,
     ZEPHYR_VARIANT_ESP32_H2,
     ZEPHYR_VARIANT_NATIVE_SIM,
+    ZEPHYR_VARIANT_NRF52,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -26,6 +27,7 @@ _VARIANT_TOOLCHAIN: dict[str, str] = {
     # Original ESP32 is Xtensa (dual-core PRO_CPU/APP_CPU), unlike H2/C6's RISC-V --
     # a completely separate Zephyr SDK toolchain.
     ZEPHYR_VARIANT_ESP32: "xtensa-espressif_esp32_zephyr-elf",
+    ZEPHYR_VARIANT_NRF52: "arm-zephyr-eabi",
 }
 
 

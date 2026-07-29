@@ -154,9 +154,9 @@ CONFIG_SCHEMA = cv.All(
                 zephyr=4232,
             ): cv.port,
             cv.Optional(CONF_ALLOW_PARTITION_ACCESS, default=False): cv.boolean,
-            cv.SplitDefault(CONF_SWAP_METHOD, zephyr="scratch"): cv.one_of(
-                "scratch", "move", "offset", lower=True
-            ),
+            cv.SplitDefault(
+                CONF_SWAP_METHOD, zephyr="scratch", zephyr_nrf52="offset"
+            ): cv.one_of("scratch", "move", "offset", lower=True),
             cv.Optional(CONF_PASSWORD): cv.sensitive(),
             cv.Optional(CONF_NUM_ATTEMPTS): cv.invalid(
                 f"'{CONF_SAFE_MODE}' (and its related configuration variables) has moved from 'ota' to its own component. See https://esphome.io/components/safe_mode"

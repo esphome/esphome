@@ -161,6 +161,27 @@ def _lookup_bus_labels(board: str, label_pattern: str) -> list[str] | None:
     return result
 
 
+def get_existing_cdc_acm_uart_label(board: str) -> str | None:
+    """Return the label of an already-enabled `zephyr,cdc-acm-uart` node on the
+    board, or None if the board doesn't declare one.
+
+    Unlike _lookup_bus_labels() (which matches by label name pattern, e.g.
+    r"uart\\d+"), this matches by `compatible` string -- board-provided CDC-ACM
+    nodes aren't guaranteed to follow any particular label naming convention
+    (e.g. the generic zephyr/boards/common/usb/cdc_acm_serial.dtsi snippet
+    labels its node `board_cdc_acm_uart`, not `cdc_acm_uart0`).
+    """
+    edt = _get_edt(board)
+    if edt is None:
+        return None
+
+    for node in _iter_nodes(edt):
+        if node.status == "okay" and "zephyr,cdc-acm-uart" in node.compats:
+            if node.labels:
+                return node.labels[0]
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Shared DTS helpers
 # ---------------------------------------------------------------------------

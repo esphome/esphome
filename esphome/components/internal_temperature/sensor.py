@@ -55,7 +55,10 @@ async def to_code(config):
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
-    if CORE.is_nrf52:
+    if CORE.is_nrf52 or (CORE.using_zephyr and zephyr_variant_family() == "nordic"):
+        # Same physical TEMP peripheral (nrf52840.dtsi's `temp` node is status = "okay"
+        # by default -- no overlay needed) whether this is platform: nrf52 or
+        # platform: zephyr's nordic-family variant.
         zephyr_add_prj_conf("SENSOR", True)
         zephyr_add_prj_conf("TEMP_NRF5", True)
     elif (

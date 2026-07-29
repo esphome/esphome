@@ -1,0 +1,15 @@
+# Common I2C configuration for platform: zephyr, variant: nrf52 tests
+# nRF52's TWIM has fully flexible pin muxing (no board-fixed I2C pins the way
+# esp32-h2's board DTS has) -- these match the board's own i2c0_default
+# pinctrl node (adafruit_feather_nrf52840-pinctrl.dtsi: TWIM_SDA P0.12,
+# TWIM_SCL P0.11), which is what a custom pinctrl overlay gets generated for.
+
+substitutions:
+  scl_pin: "11"
+  sda_pin: "12"
+
+i2c:
+  - id: i2c_bus
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+    scan: true

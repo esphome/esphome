@@ -9,6 +9,7 @@ from esphome import git
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADVANCED,
     CONF_BOARD,
     CONF_LOG_LEVEL,
     CONF_MAC_ADDRESS,
@@ -58,6 +59,7 @@ from .const import (
     ZEPHYR_VARIANT_ESP32_C6,
     ZEPHYR_VARIANT_ESP32_H2,
     ZEPHYR_VARIANT_NATIVE_SIM,
+    ZEPHYR_VARIANT_NRF52,
     zephyr_ns,
 )
 from .gpio import zephyr_pin_to_code as _zephyr_pin_to_code  # noqa: F401
@@ -281,9 +283,11 @@ def zephyr_setup_i2c_pinctrl(
     if variant_name == ZEPHYR_VARIANT_NATIVE_SIM:
         # No pinctrl node -- the emulated controller has no physical pins.
         zephyr_add_overlay(f'&{bus_label} {{ status = "okay"; }};')
-    elif CORE.is_nrf52:
+    elif CORE.is_nrf52 or zephyr_variant_family() == "nordic":
         # nRF52's TWIM has fully flexible pin muxing and no fixed I2C pins in the board
         # DTS, so a custom pinctrl overlay must be generated for whatever pins the user picked.
+        # Same devicetree shape whether this is platform: nrf52 or platform: zephyr's
+        # nordic-family variant -- identical physical TWIM peripheral either way.
         zephyr_add_overlay(
             f"""
                 &pinctrl {{
@@ -473,6 +477,13 @@ def zephyr_to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
         # Consumed by C++ code shared across every esp32-family variant (core.cpp, etc.).
         cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_ESP32")
+    elif zephyr_variant_family() == "nordic":
+        # Same reasoning as esp32-family above: mainline Zephyr's MINIMAL_LIBCPP has no
+        # STL, which ESPHome's C++ core requires regardless of chip vendor.
+        zephyr_add_prj_conf("CPP", True)
+        zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
+        # Consumed by C++ code shared across every nordic-family variant (core.cpp, etc.).
+        cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_NORDIC")
     else:
         # No zephyr variant: platform: nrf52 calling this shared helper directly, uses newlib.
         zephyr_add_prj_conf("NEWLIB_LIBC", True)
@@ -533,6 +544,12 @@ def zephyr_to_code(config: ConfigType) -> None:
             ZEPHYR_VARIANT_ESP32,
             ZEPHYR_VARIANT_NATIVE_SIM,
         ):
+            if zephyr_variant_family() == "nordic":
+                # ARM Cortex-M's ARCH_HAS_STACKWALK only defaults on when this is
+                # also set (arch/arm/core/Kconfig selects the dependency it needs);
+                # RISC-V (esp32_h2/c6) enables ARCH_HAS_STACKWALK unconditionally,
+                # so it doesn't need this and setting it there would just warn.
+                zephyr_add_prj_conf("EXTRA_EXCEPTION_INFO", True)
             zephyr_add_prj_conf("EXCEPTION_STACK_TRACE", True)
 
     CORE.add_job(_kconfig_options_to_code, config)
@@ -584,7 +601,18 @@ def _format_prj_conf_val(value: PrjConfValueType) -> str:
     raise ValueError
 
 
-def zephyr_add_cdc_acm(config: ConfigType, id: int) -> None:
+def zephyr_add_cdc_acm(config: ConfigType, id: int) -> str:
+    """Ensure a CDC-ACM UART is available and return the devicetree label to
+    reference it by (e.g. for `zephyr,console`/`zephyr,shell-uart`).
+
+    Reuses the board's own `zephyr,cdc-acm-uart` node if one is already
+    declared -- e.g. boards/common/usb/cdc_acm_serial.dtsi, labeled
+    `board_cdc_acm_uart` -- instead of unconditionally declaring a second,
+    separate USB interface with its own `cdc_acm_uart{id}` node. Two CDC-ACM
+    interfaces on the same device is needless USB complexity, and means
+    "which port do I talk to" changes depending on whether MCUboot (which
+    only ever sees the board's own node) or the app is currently running.
+    """
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     if CORE.is_nrf52 and framework_ver >= cv.Version(3, 2, 0):
         zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
@@ -595,15 +623,24 @@ def zephyr_add_cdc_acm(config: ConfigType, id: int) -> None:
     zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
     # prevent logging when buffer is full
     zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
+
+    from .dts_lookup import get_existing_cdc_acm_uart_label
+
+    existing_label = get_existing_cdc_acm_uart_label(zephyr_data()[KEY_BOARD])
+    if existing_label is not None:
+        return existing_label
+
+    label = f"cdc_acm_uart{id}"
     zephyr_add_overlay(
         f"""
             &zephyr_udc0 {{
-                cdc_acm_uart{id}: cdc_acm_uart{id} {{
+                {label}: {label} {{
                     compatible = "zephyr,cdc-acm-uart";
                 }};
             }};
         """
     )
+    return label
 
 
 def zephyr_add_kconfig(kconfig: str) -> None:
@@ -784,6 +821,9 @@ _ZEPHYR_SCHEMA = cv.Schema(
         cv.Optional(CONF_LOG_LEVEL, default="ERROR"): cv.one_of(
             *LOG_LEVELS_ZEPHYR, upper=True
         ),
+        # Loose passthrough here -- shape differs per variant (currently only nrf52's
+        # mcuboot_serial_recovery), strictly validated by the variant's own config_schema.
+        cv.Optional(CONF_ADVANCED, default={}): dict,
         # Raw Kconfig passthrough -- Zephyr's equivalent of esp32's sdkconfig_options. A
         # dict value (e.g. `mcuboot:`) targets that sysbuild child image's own prj.conf.
         cv.Optional(CONF_KCONFIG_OPTIONS, default={}): {
@@ -906,6 +946,10 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         from .variants.native_sim import config_schema as _native_sim_config_schema
 
         config = _native_sim_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_NRF52:
+        from .variants.nrf52 import config_schema as _nrf52_config_schema
+
+        config = _nrf52_config_schema(config)
     else:
         raise cv.Invalid(f"Variant {variant!r} has no config schema registered yet")
     zephyr_data()[KEY_BOARD_ROOT] = board_root
@@ -963,6 +1007,11 @@ async def to_code(config: ConfigType) -> None:
         from .variants.native_sim import to_code as _native_sim_to_code
 
         await _native_sim_to_code(config)
+        return
+    if variant == ZEPHYR_VARIANT_NRF52:
+        from .variants.nrf52 import to_code as _nrf52_to_code
+
+        await _nrf52_to_code(config)
         return
     raise NotImplementedError(f"Zephyr variant {variant!r} has no to_code registered")
 

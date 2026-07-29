@@ -290,8 +290,12 @@ def validate_adc_pin(value):
         conf = pins.internal_gpio_input_pin_schema(value)
         variant = zephyr_variant()
         variant_info = VARIANTS.get(variant)
-        channel_map = variant_info.adc1_channel_map if variant_info is not None else {}
-        if channel_map and conf[CONF_NUMBER] not in channel_map:
+        # Espressif-shaped (real silicon channel) or Nordic-shaped (SAADC AIN name) --
+        # whichever this variant actually defines. See ZephyrVariant's field comments.
+        pin_map = {}
+        if variant_info is not None:
+            pin_map = variant_info.adc1_channel_map or variant_info.adc_ain_map
+        if pin_map and conf[CONF_NUMBER] not in pin_map:
             raise cv.Invalid(f"{variant} doesn't support ADC on this pin")
         return conf
 
