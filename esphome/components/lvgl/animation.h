@@ -17,7 +17,6 @@ class LvAnimationTiming {
  public:
   // Map progress in the range [0, 1]
   virtual float map_progress(float value) = 0;
-  virtual ~LvAnimationTiming() = default;
 };
 
 class LvAnimationTimingRoundTrip : public LvAnimationTiming {
