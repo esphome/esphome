@@ -365,12 +365,13 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install ccache
-        # Speeds up the host compiles: tests in a bucket compile overlapping
+      - name: Install ccache and SDL
+        # ccache speeds up the host compiles: tests in a bucket compile overlapping
         # component sets, so later tests reuse earlier tests' objects.
+        # SDL is needed by the headless display tests, which capture screenshots.
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends ccache
+          sudo apt-get install -y --no-install-recommends ccache libsdl2-dev
       - name: Restore ccache (restore-only)
         # esphome stores the PlatformIO ccache under the machine-global cache
         # dir (see _ccache_env() in esphome/platformio/toolchain.py). The

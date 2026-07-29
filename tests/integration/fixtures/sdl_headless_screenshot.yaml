@@ -1,0 +1,25 @@
+esphome:
+  name: sdl-headless-screenshot-test
+host:
+
+api:
+  actions:
+    - action: take_screenshot
+      then:
+        - sdl.screenshot:
+            id: sdl_display
+            filename: capture.bmp
+
+logger:
+  level: DEBUG
+
+display:
+  - platform: sdl
+    id: sdl_display
+    headless: true
+    show_test_card: true
+    update_interval: 100ms
+    # An odd width exercises the row padding in the BMP writer
+    dimensions:
+      width: 101
+      height: 64

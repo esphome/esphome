@@ -1,6 +1,7 @@
 #pragma once
 
 #ifdef USE_HOST
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -8,6 +9,13 @@
 #define SDL_MAIN_HANDLED
 #include "SDL.h"
 #include <map>
+#include <string>
+
+// Directory screenshots are written to. Normally set by codegen to a folder under .esphome; the
+// fallback keeps the component compiling for static analysis, where no defines.h is generated.
+#ifndef ESPHOME_SDL_SCREENSHOT_DIR
+#define ESPHOME_SDL_SCREENSHOT_DIR "."
+#endif
 
 namespace esphome::sdl {
 
@@ -32,6 +40,14 @@ class Sdl final : public display::Display {
     this->pos_x_ = pos_x;
     this->pos_y_ = pos_y;
   }
+  void set_headless(bool headless) { this->headless_ = headless; }
+  void set_screenshot_key(int32_t keycode) { this->screenshot_key_ = keycode; }
+  void set_screenshot_prefix(const char *prefix) { this->screenshot_prefix_ = prefix; }
+
+  /// Write the current screen contents to a BMP file. Pass nullptr to generate a timestamped name.
+  /// An existing file is never overwritten. Returns true if the file was written.
+  bool save_screenshot(const char *filename);
+
   int get_width() override;
   int get_height() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
@@ -51,20 +67,44 @@ class Sdl final : public display::Display {
   int get_width_internal() override { return this->width_; }
   int get_height_internal() override { return this->height_; }
   void redraw_(SDL_Rect &rect);
+  bool setup_renderer_();
+  bool write_bmp_(SDL_Surface *surface, const std::string &name, bool exact);
   int width_{};
   int height_{};
   uint32_t window_options_{0};
   int32_t pos_x_{SDL_WINDOWPOS_UNDEFINED};
   int32_t pos_y_{SDL_WINDOWPOS_UNDEFINED};
+  bool headless_{false};
+  int32_t screenshot_key_{0};
+  const char *screenshot_prefix_{"screenshot"};
   SDL_Renderer *renderer_{};
   SDL_Window *window_{};
   SDL_Texture *texture_{};
+  // Offscreen render target used when headless. The renderer draws into it for the process
+  // lifetime, so it must outlive setup().
+  SDL_Surface *surface_{};
+  // Capture target, created on first screenshot.
+  SDL_Texture *shot_target_{};
   uint16_t x_low_{0};
   uint16_t y_low_{0};
   uint16_t x_high_{0};
   uint16_t y_high_{0};
   std::map<int32_t, CallbackManager<void(bool)>> key_callbacks_{};
 };
+
+template<typename... Ts> class SdlScreenshotAction final : public Action<Ts...>, public Parented<Sdl> {
+ public:
+  TEMPLATABLE_VALUE(std::string, filename)
+
+  void play(const Ts &...x) override {
+    if (this->filename_.has_value()) {
+      this->parent_->save_screenshot(this->filename_.value(x...).c_str());
+    } else {
+      this->parent_->save_screenshot(nullptr);
+    }
+  }
+};
+
 }  // namespace esphome::sdl
 
 #endif
