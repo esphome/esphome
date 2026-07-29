@@ -682,14 +682,13 @@ void ModbusClientHub::sweep_() {
       ModbusDeviceCommand &cmd = this->tx_buffer_[i];
       switch (cmd.state) {
         case FrameState::RECEIVED_RESPONSE: {
-          // Callbacks fired at parse time; this is pure lifecycle bookkeeping.
-          if (cmd.continuous) {
-            cmd.state = FrameState::READY;  // the subscription's next cycle
-            cmd.seq = this->next_seq_++;
-          } else if (--cmd.pending == 0) {
-            cmd.retire();  // the one-shot consumed its last request
+          // Callbacks fired at parse time; this is pure lifecycle bookkeeping. A continuous poll
+          // is never consumed by its own response (the short-circuit leaves the count alone); a
+          // one-shot consumes one request and retires when that was its last.
+          if (!cmd.continuous && --cmd.pending == 0) {
+            cmd.retire();
           } else {
-            cmd.state = FrameState::READY;  // an absorbed duplicate still owes a run
+            cmd.state = FrameState::READY;  // the poll's next cycle, or an absorbed request's run
             cmd.seq = this->next_seq_++;
           }
           break;
@@ -717,12 +716,13 @@ void ModbusClientHub::sweep_() {
             // terminal, so the clear must not resolve it a second time.
             if (!retry && cmd.pending != 0)
               cmd.pending--;
-          } else if (retry) {
-            // A granted retry is resolve-then-re-request: the new attempt queues at the tail.
+            break;
+          }
+          // A granted retry is resolve-then-re-request, so it re-queues with nothing consumed (the
+          // short-circuit leaves the count alone); otherwise this timeout resolved one request and
+          // any survivor takes its turn. Either way the entry goes to the tail of its class.
+          if (retry || (!cmd.continuous && --cmd.pending != 0)) {
             cmd.state = FrameState::READY;
-            cmd.seq = this->next_seq_++;
-          } else if (!cmd.continuous && --cmd.pending != 0) {
-            cmd.state = FrameState::READY;  // one request resolved; the survivor re-stamps
             cmd.seq = this->next_seq_++;
           } else {
             cmd.retire();
