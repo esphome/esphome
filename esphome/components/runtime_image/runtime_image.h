@@ -135,11 +135,21 @@ class RuntimeImage : public image::Image {
    * buffer alive for as long as anything can draw the image, and calls release() (or hands over
    * another buffer) before reusing it.
    *
-   * @param buffer Memory for a picture of the given size, at least get_buffer_size_() bytes.
+   * A null buffer or dimensions the image cannot decode at are refused, leaving the image with
+   * no buffer at all.
+   *
+   * @param buffer Memory for a picture of the given size, at least get_buffer_size() bytes.
    * @param width Width of the buffer in pixels.
    * @param height Height of the buffer in pixels.
    */
   void set_external_buffer(uint8_t *buffer, int width, int height);
+
+  /**
+   * @brief Get the buffer size in bytes needed for a picture of the given dimensions.
+   *
+   * Returns 0 for dimensions the image cannot decode at.
+   */
+  size_t get_buffer_size(int width, int height) const;
 
   /**
    * @brief Set whether to allow progressive display during decode.
@@ -165,11 +175,6 @@ class RuntimeImage : public image::Image {
    * This is safe to call from within the decoder (e.g., during resize).
    */
   void release_buffer_();
-
-  /**
-   * @brief Get the buffer size in bytes for given dimensions.
-   */
-  size_t get_buffer_size_(int width, int height) const;
 
   /**
    * @brief Get the position in the buffer for a pixel.
