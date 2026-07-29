@@ -274,8 +274,13 @@ def _repo_cache_lock(
 
     safe_key = _redact_url_credentials(key)
     # acquire() creates the lock file's directory itself; git clone later
-    # creates the hash directory next to it.
-    lock: FileLock | None = FileLock(str(_repo_lock_path(key, domain)))
+    # creates the hash directory next to it. fallback_to_soft would silently
+    # downgrade ENOSYS to a SoftFileLock, whose stale existence marker from
+    # another host on a shared cache could hang the unbounded wait forever;
+    # routing it through the OSError handler runs unlocked instead.
+    lock: FileLock | None = FileLock(
+        str(_repo_lock_path(key, domain)), fallback_to_soft=False
+    )
     status = _acquire_repo_lock(lock, safe_key, _COMPLETE_ENTRY_LOCK_TIMEOUT_SECONDS)
     if status is _LockStatus.TIMEOUT:
         repo_dir = _compute_destination_path(key, domain)
