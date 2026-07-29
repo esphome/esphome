@@ -93,6 +93,10 @@ async def style_update_to_code(config, action_id, template_arg, args):
     style = await cg.get_variable(config[CONF_ID])
     async with LambdaContext(parameters=args, where=action_id) as context:
         await style_set(style, config)
+        # Refresh and redraw every widget using this style -- otherwise the
+        # updated properties would sit unused until something else happens to
+        # invalidate the affected widgets.
+        lv.obj_report_style_change(style)
 
     return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
 
@@ -152,5 +156,9 @@ async def theme_update_to_code(config, action_id, template_arg, args):
     async with LambdaContext(parameters=args, where=action_id) as context:
         for style_var, props in to_update:
             await style_set(style_var, props)
+            # Refresh and redraw every widget using this style -- otherwise the
+            # updated properties would sit unused until something else happens
+            # to invalidate the affected widgets.
+            lv.obj_report_style_change(style_var)
 
     return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
