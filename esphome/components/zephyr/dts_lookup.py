@@ -739,8 +739,10 @@ def log_board_capabilities(
     )
     lines = [
         f"[zephyr] Board '{board}' ({source}), Zephyr {framework_ver}",
-        "[zephyr] hardware, as defined by the board itself "
-        "(independent of what ESPHome currently uses):",
+        (
+            "[zephyr] hardware, as defined by the board itself "
+            "(independent of what ESPHome currently uses):"
+        ),
     ]
 
     yaml_supported = get_board_yaml_supported(board)
