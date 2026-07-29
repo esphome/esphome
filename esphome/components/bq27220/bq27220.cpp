@@ -106,7 +106,7 @@ void BQ27220Component::update() {
 
   if (this->state_of_health_sensor_ != nullptr) {
     if (this->read_word_(BQ27220_REG_STATE_OF_HEALTH, raw)) {
-      this->state_of_health_sensor_->publish_state(raw & 0xFF);  // lower byte = %
+      this->state_of_health_sensor_->publish_state(raw);  // 0–100%
     } else {
       this->state_of_health_sensor_->publish_state(NAN);
       success = false;
