@@ -191,11 +191,7 @@ bool PMSX003Component::check_payload_length_(uint16_t payload_length) {
     case Type::PMS5003ST:           // Data 16 not set/reserved
       return payload_length == 36;  // 2*17+2
     case Type::PMS9003M:
-    case Type::LD10:
-    case Type::LD11:
-    case Type::LD13:
-    case Type::LD15:
-    case Type::LD16:
+    case Type::LUFTMY:
       return payload_length == 28;  // 2*13+2
   }
   return false;
@@ -238,13 +234,12 @@ void PMSX003Component::parse_data_() {
   if (this->pm_10_0_std_sensor_ != nullptr)
     this->pm_10_0_std_sensor_->publish_state(pm_10_0_std_concentration);
 
-  // Luftmy LD series (LD10/LD11/LD13/LD15/LD16) have no atmospheric PM; their particle counts start at byte 10.
-  // All PMS types have atmospheric PM at bytes 10-15; particle counts start at byte 16.
-  const bool is_ld = (this->type_ == Type::LD10 || this->type_ == Type::LD11 || this->type_ == Type::LD13 ||
-                      this->type_ == Type::LD15 || this->type_ == Type::LD16);
-  const uint8_t pc_offset = is_ld ? 10 : 16;
+  // The Luftmy LD10, LD11, LD13, LD15 and LD16 report no atmospheric PM, so their particle counts start at byte 10.
+  // All PMS types have atmospheric PM at bytes 10-15, so their particle counts start at byte 16.
+  const bool is_luftmy = this->type_ == Type::LUFTMY;
+  const uint8_t pc_offset = is_luftmy ? 10 : 16;
 
-  if (!is_ld) {
+  if (!is_luftmy) {
     const uint16_t pm_1_0_concentration = this->get_16_bit_uint_(10);
     const uint16_t pm_2_5_concentration = this->get_16_bit_uint_(12);
     const uint16_t pm_10_0_concentration = this->get_16_bit_uint_(14);

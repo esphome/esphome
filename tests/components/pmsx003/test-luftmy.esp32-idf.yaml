@@ -5,4 +5,4 @@ substitutions:
 packages:
   uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
 
-<<: !include common-ld.yaml
+<<: !include common-luftmy.yaml

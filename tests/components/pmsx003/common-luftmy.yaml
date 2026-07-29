@@ -1,6 +1,6 @@
 sensor:
   - platform: pmsx003
-    type: LD15
+    type: LUFTMY
     pm_1_0_std:
       name: PM 1.0 Standard Atmospheric Concentration
     pm_2_5_std:
