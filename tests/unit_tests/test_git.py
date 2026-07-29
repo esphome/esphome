@@ -2048,21 +2048,3 @@ def test_resolve_symlink_stub_returns_none_when_read_bytes_raises(
         result = git.resolve_symlink_stub(repo_dir, stub)
 
     assert result is None
-
-
-@pytest.mark.parametrize(
-    ("seconds", "expected"),
-    [
-        (0, "0s"),
-        (42, "42s"),
-        (60, "1min"),
-        (3661, "1h 1min"),
-        (86400, "1d"),
-        (90000, "1d 1h"),
-        (86700, "1d 5min"),
-        (-5, "0s"),
-    ],
-)
-def test_format_duration(seconds: float, expected: str) -> None:
-    """Test that durations are rendered as short human-readable strings."""
-    assert git._format_duration(seconds) == expected

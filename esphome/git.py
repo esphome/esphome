@@ -12,7 +12,12 @@ import urllib.parse
 
 import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError, TimePeriodSeconds
-from esphome.helpers import add_git_ceiling_directory, rmtree, write_file
+from esphome.helpers import (
+    add_git_ceiling_directory,
+    format_duration,
+    rmtree,
+    write_file,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -288,17 +293,6 @@ def resolve_symlink_stub(repo_dir: Path, file_path: Path) -> Path | None:
     return target_path
 
 
-def _format_duration(seconds: float) -> str:
-    """Format a duration in seconds as a short string like "1d 2h" or "42s"."""
-    remainder = max(0, int(seconds))
-    parts = []
-    for suffix, length in (("d", 86400), ("h", 3600), ("min", 60), ("s", 1)):
-        value, remainder = divmod(remainder, length)
-        if value:
-            parts.append(f"{value}{suffix}")
-    return " ".join(parts[:2]) if parts else "0s"
-
-
 def clone_or_update(
     *,
     url: str,
@@ -489,8 +483,8 @@ def clone_or_update(
                 "Skipping update for %s, next refresh in %s (refresh: %s); "
                 "use refresh: 0s to update now",
                 safe_key,
-                _format_duration(refresh.total_seconds - age_seconds),
-                _format_duration(refresh.total_seconds),
+                format_duration(refresh.total_seconds - age_seconds),
+                format_duration(refresh.total_seconds),
             )
 
     return repo_dir, None
