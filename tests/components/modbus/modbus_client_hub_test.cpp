@@ -51,9 +51,6 @@ class NoResponseProbeHub : public ModbusClientHub {
     this->send_next_frame_();
     this->sweep_();  // a transmit failure's on_not_sent() is delivered by the loop's sweep
   }
-  // Transmit without the sweep that follows it in loop(), to observe the window in which a failed
-  // transmit sits REFUSED - other components' loop() run there and can send.
-  void transmit_only_for_test() { this->send_next_frame_(); }
   void force_send_next() {
     ModbusDeviceCommand *cmd = this->select_next_ready_();
     ASSERT_NE(cmd, nullptr) << "no READY entry to send";
@@ -580,6 +577,31 @@ TEST(ModbusClientHubPriority, RetriedWriteKeepsWritePriorityAndStaysNonRequeueab
   EXPECT_EQ(hub.queued(0).priority(), CommandPriority::WRITE);
   hub.sweep_for_test();
   EXPECT_EQ(hub.queued(0).pending, 1u);  // ...and the duplicate bled off at the sweep
+}
+
+namespace {
+// A hub that is never free to transmit.
+class AlwaysBlockedHub : public NoResponseProbeHub {
+ public:
+  bool tx_blocked() override { return true; }
+};
+}  // namespace
+
+// Transmitting cannot fail, so a hub that is busy simply does not transmit: the frame keeps its
+// place in the queue and goes out on a later loop, with no callback and no lifecycle change. (The
+// caller owns the tx_blocked() check; send_frame_() has no gate of its own to refuse at.)
+TEST(ModbusClientHubSent, BlockedHubDefersInsteadOfFailing) {
+  AlwaysBlockedHub hub;
+  SentCountingDevice device(&hub, 0x02);
+
+  EXPECT_TRUE(device.send_pdu(read_pdu()));
+  hub.send_next_for_test();
+
+  EXPECT_EQ(device.sent_count_, 0);
+  EXPECT_EQ(device.not_sent_count_, 0);  // nothing failed - it has not been attempted
+  ASSERT_EQ(hub.queued_frames(), 1u);    // still queued, still owed exactly one terminal
+  EXPECT_EQ(hub.queued(0).pending, 1u);
+  EXPECT_FALSE(hub.waiting());
 }
 
 // on_sent() fires when the frame goes onto the wire, not when it is queued.
@@ -1149,29 +1171,6 @@ TEST(ModbusClientHubQueue, NestedClearFromNotSentStillNotifiesVictims) {
 }
 
 namespace {
-// tx_blocked() flips to blocked after the first check, so send_next_frame_() passes its own gate but
-// send_frame_() refuses - a deterministic transmit failure.
-class FlakyBlockHub : public NoResponseProbeHub {
- public:
-  bool tx_blocked() override {
-    this->tx_blocked_calls_++;
-    return this->tx_blocked_calls_ > 1;
-  }
-  int tx_blocked_calls_{0};
-};
-
-// Reacts to a transmit failure by sending a WRITE (which then wins transmit selection).
-class WriteOnNotSentDevice : public ModbusClientDevice {
- public:
-  WriteOnNotSentDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
-  void on_not_sent(std::span<const uint8_t> request_pdu) override {
-    this->not_sent_count_++;
-    const uint8_t write[] = {0x06, 0x00, 0x40, 0x01, 0x02};
-    this->send_pdu(write);
-  }
-  int not_sent_count_{0};
-};
-
 // From on_not_sent (delivered by the sweep), re-sends a frame identical to ANOTHER doomed queued
 // frame; the dedup must not absorb into the doomed entry.
 class ResendSecondFrameDevice : public ModbusClientDevice {
@@ -1188,87 +1187,6 @@ class ResendSecondFrameDevice : public ModbusClientDevice {
 };
 }  // namespace
 
-// A transmit failure resolves through the sweep with the failed entry already REFUSED: a handler
-// that reacts by sending a write gets a fresh entry that survives, and the failed read is gone.
-TEST(ModbusClientHubQueue, TransmitFailureHandlerResendSurvives) {
-  FlakyBlockHub hub;
-  WriteOnNotSentDevice device(&hub, 0x02);
-
-  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
-  device.send_pdu(read);
-  ASSERT_EQ(hub.queued_frames(), 1u);
-
-  hub.send_next_for_test();  // tx_blocked gate passes, send_frame_ refuses -> failure + sweep
-
-  EXPECT_EQ(device.not_sent_count_, 1);
-  ASSERT_EQ(hub.queued_frames(), 1u);             // the handler's write survives...
-  EXPECT_EQ(hub.queued(0).frame.pdu()[0], 0x06);  // ...and it is the write, not the failed read
-}
-
-// A failed transmit leaves the entry REFUSED until the next sweep, and other components run in
-// that window. An identical send from one of them absorbs into that entry rather than queueing a
-// second copy of the same frame: the sweep delivers the failed attempt's terminal and hands the
-// entry back to READY to serve the newcomer.
-TEST(ModbusClientHubQueue, RefusedEntryAbsorbsADuplicateBeforeTheSweep) {
-  FlakyBlockHub hub;
-  SentCountingDevice device(&hub, 0x02);
-
-  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
-  EXPECT_TRUE(device.send_pdu(read));
-  hub.transmit_only_for_test();  // tx_blocked gate passes, send_frame_ refuses -> REFUSED
-  ASSERT_EQ(hub.entries(), 1u);
-
-  EXPECT_TRUE(device.send_pdu(read));  // the window: absorbed, not queued twice
-  EXPECT_EQ(hub.entries(), 1u);
-
-  hub.sweep_for_test();
-
-  EXPECT_EQ(device.not_sent_count_, 1);  // the failed attempt's terminal, and only that
-  ASSERT_EQ(hub.queued_frames(), 1u);    // the entry is back in line for the absorbed request
-  EXPECT_EQ(hub.queued(0).pending, 1u);
-}
-
-// A continuous request is the exception: the sweep ends a poll whose transmit failed, so
-// re-subscribing must start a new entry instead of converting the doomed one.
-TEST(ModbusClientHubQueue, RefusedEntryDoesNotBecomeAContinuousPoll) {
-  FlakyBlockHub hub;
-  SentCountingDevice device(&hub, 0x02);
-
-  device.read_holding_registers(0x0010, 1);
-  hub.transmit_only_for_test();  // REFUSED
-  ASSERT_EQ(hub.entries(), 1u);
-
-  device.read_holding_registers(0x0010, 1, {.continuous = true});  // queues fresh
-  EXPECT_EQ(hub.entries(), 2u);
-
-  hub.sweep_for_test();
-
-  EXPECT_EQ(device.not_sent_count_, 1);  // the failed attempt resolved
-  ASSERT_EQ(hub.queued_frames(), 1u);    // and the poll survives as its own entry
-  EXPECT_TRUE(hub.queued(0).continuous);
-}
-
-// A failed transmit of an entry with an absorbed extra request resolves ONE request (the failed
-// attempt's on_not_sent) and returns the entry to READY for the absorbed request - the same books
-// as the timeout path, because a transmit failure is transient, unlike a clear's cancellation.
-TEST(ModbusClientHubQueue, TransmitFailureResolvesOneAndKeepsAbsorbedRequest) {
-  FlakyBlockHub hub;
-  SentCountingDevice device(&hub, 0x02);
-
-  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
-  device.send_pdu(read);
-  device.send_pdu(read);  // absorbed into the queued entry
-  ASSERT_EQ(hub.queued_frames(), 1u);
-  ASSERT_EQ(hub.queued(0).pending, 2u);
-
-  hub.send_next_for_test();  // tx_blocked gate passes, send_frame_ refuses -> failure + sweep
-
-  EXPECT_EQ(device.not_sent_count_, 1);  // the failed attempt's terminal
-  ASSERT_EQ(hub.queued_frames(), 1u);    // the absorbed request still owes a run
-  EXPECT_EQ(hub.queued(0).pending, 1u);
-  EXPECT_TRUE(std::equal(hub.queued(0).frame.pdu().begin(), hub.queued(0).frame.pdu().end(), read));
-}
-
 // A send during a sweep that matches a DELETED (doomed) frame must queue fresh, not absorb into
 // the doomed entry - absorption would tie the new request to a frame the sweep is draining.
 TEST(ModbusClientHubQueue, SweepDedupSkipsDeletedFrames) {
@@ -1284,7 +1202,7 @@ TEST(ModbusClientHubQueue, SweepDedupSkipsDeletedFrames) {
   hub.clear_tx_queue_for_address(0x02, false);
   hub.sweep_for_test();  // r1 and r2 both resolve; r1's handler re-sends a frame identical to r2
   // Without the dedup's dead-state skip the re-send would be absorbed into r2 and drained with it;
-  // with the skip it queues fresh (HELD, then admitted at the end of the sweep) and survives.
+  // with the skip it queues fresh and survives.
 
   EXPECT_EQ(device.not_sent_count_, 2);  // r1 and r2 both resolved
   ASSERT_EQ(hub.queued_frames(), 1u);    // the re-send survives
@@ -1698,17 +1616,6 @@ class ClearAddressOnNoResponseDevice : public ModbusClientDevice {
   int not_sent_count_{0};
 };
 
-// Reacts to a transmit failure the same way: clears its address from inside on_not_sent().
-class ClearAddressOnNotSentDevice : public ModbusClientDevice {
- public:
-  ClearAddressOnNotSentDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
-  void on_not_sent(std::span<const uint8_t> request_pdu) override {
-    this->not_sent_count_++;
-    if (this->not_sent_count_ == 1)
-      this->clear_tx_queue_for_address(/*clear_sent=*/false);
-  }
-  int not_sent_count_{0};
-};
 }  // namespace
 
 // A clear issued from inside on_no_response() must not cause the request to be resolved twice:
@@ -1739,20 +1646,6 @@ TEST(ModbusClientHubNoResponse, SelfClearFromNoResponseResolvesTheAbsorbedReques
 
   EXPECT_EQ(device.no_response_count_, 1);
   EXPECT_EQ(device.terminals(), 2);  // one per accepted request, no more
-  EXPECT_EQ(hub.entries(), 0u);
-}
-
-// The transmit-failure twin: a clear from inside the refusal's on_not_sent() must not make the
-// sweep redeliver a terminal the refusal already gave.
-TEST(ModbusClientHubQueue, SelfClearFromTransmitFailureDoesNotDoubleResolve) {
-  FlakyBlockHub hub;
-  ClearAddressOnNotSentDevice device(&hub, 0x02);
-
-  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
-  device.send_pdu(read);
-  hub.send_next_for_test();  // transmit fails -> REFUSED -> on_not_sent -> handler clears
-
-  EXPECT_EQ(device.not_sent_count_, 1);  // one terminal for the one accepted request
   EXPECT_EQ(hub.entries(), 0u);
 }
 

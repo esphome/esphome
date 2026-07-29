@@ -76,7 +76,9 @@ class Modbus : public uart::UARTDevice, public Component {
   // pdu is the whole PDU (function code + payload, no address/CRC); pdu[0] is the (standard or custom) function code.
   virtual void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) = 0;
   void clear_rx_buffer_(const LogString *reason, bool warn = false, size_t bytes_to_clear = 0);
-  bool send_frame_(const ModbusFrame &frame);
+  // Transmits unconditionally: callers check tx_blocked() first and the framed size is bounded
+  // by construction, so there is no failure to report.
+  void send_frame_(const ModbusFrame &frame);
   // Scans forward from min_length to find a frame boundary by CRC match for custom function codes.
   // Returns the matched frame length, or 0 if no valid CRC was found within MAX_FRAME_SIZE.
   uint16_t find_custom_frame_end_(uint16_t min_length) const;
@@ -127,11 +129,10 @@ enum class CommandPriority : uint8_t { CONTINUOUS = 0, READ, WRITE };
 ///   WAITING -> WAITING_DELETED  on a clear with clear_sent: the frame is on the wire, so it
 ///                               persists as a response-ignoring shell, -> DELETED on response or
 ///                               timeout and swept silently
-///   READY -> REFUSED            on a transmit failure: the entry owes exactly one on_not_sent(),
-///                               delivered by the sweep; remaining pending then returns the entry
-///                               to READY for the absorbed request's run. (Requests that never
-///                               enter the machine - empty/oversize PDU, full queue, anonymous
-///                               duplicate - get NO callback: send_pdu() returns false instead.)
+///   (there is no transmit-failure state: transmitting cannot fail. The caller checks tx_blocked()
+///   and the framed size is bounded by construction, so a frame that is selected is a frame that
+///   goes out. Requests that never enter the machine - empty/oversize PDU, full queue, anonymous
+///   duplicate - get NO callback: send_pdu() returns false instead.)
 /// THE SWEEP (run each loop() between the watchdog and transmit, armed by sweep_needed_) walks
 /// entries needing service and delivers their callbacks from a QUIESCENT hub - terminal-state
 /// entries ARE the pending deliveries, so no separate notification queue exists and no callback
@@ -146,7 +147,6 @@ enum class FrameState : uint8_t {
   TIMED_OUT,
   INTERRUPTED,
   INTERRUPTED_NOTIFIED,
-  REFUSED,
   WAITING_DELETED,
   DELETED,
 };
@@ -342,8 +342,8 @@ using ResponseStatus = std::optional<ExceptionCode>;
 /// Command lifecycle: each accepted request (a send_pdu()/typed-helper call, a retry granted by
 /// on_no_response(), or a continuous poll's cycle) ends in exactly ONE terminal callback:
 /// on_response() (valid response), on_error() (exception response), on_no_response()
-/// (timeout or interrupted transaction), or on_not_sent() (accepted but never transmitted: a
-/// transmit failure or a drop by clear_tx_queue_for_address()).
+/// (timeout or interrupted transaction), or on_not_sent() (accepted but never
+/// transmitted, which now means exactly one thing: dropped by clear_tx_queue_for_address()).
 /// Requests that never enter the machine get NO callback - send_pdu() returns false at the call
 /// site instead. on_sent() is additional, not terminal: it fires once per wire transmission,
 /// before whichever of data/error/no_response follows, and never for a request that ends in
@@ -393,8 +393,8 @@ class ModbusClientDevice {
   virtual void on_error(std::span<const uint8_t> request_pdu, ExceptionCode exception_code) {
     this->dispatch_response_(request_pdu, {}, exception_code);
   }
-  /// Called when an ACCEPTED request could not be transmitted (a transmit failure, or a drop by
-  /// clear_tx_queue_for_address()). A send that is refused outright never gets this callback -
+  /// Called when an ACCEPTED request was dropped before transmission by
+  /// clear_tx_queue_for_address(). A send that is refused outright never gets this callback -
   /// send_pdu() returns false instead. Re-sending from inside this callback is safe: check the
   /// return value (see the contract above).
   /// (The on_modbus_* names below are deprecated pre-rename spellings; the defaults forward so

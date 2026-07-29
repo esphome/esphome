@@ -514,16 +514,11 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
   }
 }
 
-bool Modbus::send_frame_(const ModbusFrame &frame) {
-  if (this->tx_blocked()) {
-    ESP_LOGE(TAG, "Attempted to send while transmission blocked");
-    return false;
-  }
-  if (frame.size() > MAX_FRAME_SIZE) {
-    ESP_LOGE(TAG, "Attempted to send frame larger than max frame size of %" PRIu16 " bytes", MAX_FRAME_SIZE);
-    return false;
-  }
-
+// Callers own the decision to transmit: each one checks tx_blocked() before calling, and the framed
+// size is bounded by construction (see the static_asserts in modbus_definitions.h). Re-checking here
+// bought nothing anyway - the wait below can hold the bus for several milliseconds after the check,
+// so a byte arriving in that window was never detected by it.
+void Modbus::send_frame_(const ModbusFrame &frame) {
   const int32_t tx_delay_remaining = this->tx_delay_remaining();
   if (tx_delay_remaining > 0) {
     delay(tx_delay_remaining);
@@ -548,7 +543,6 @@ bool Modbus::send_frame_(const ModbusFrame &frame) {
            format_hex_pretty_to(hex_buf, frame.data.data(), frame.size()), now - this->last_send_,
            now - this->last_modbus_byte_);
   this->last_send_ = now;
-  return true;
 }
 
 void ModbusClientHub::send_next_frame_() {
@@ -559,17 +553,11 @@ void ModbusClientHub::send_next_frame_() {
   if (cmd == nullptr)
     return;
 
-  if (this->send_frame_(cmd->frame)) {
-    cmd->state = FrameState::WAITING;
-    this->waiting_for_response_ = true;
-    if (cmd->device != nullptr)
-      cmd->device->on_sent(cmd->frame.pdu());
-  } else {
-    // Transmit failure: the failed attempt owes exactly one on_not_sent(), delivered by the sweep;
-    // remaining pending (an absorbed duplicate) then returns the entry to READY for its own run.
-    cmd->state = FrameState::REFUSED;
-    this->sweep_needed_ = true;
-  }
+  this->send_frame_(cmd->frame);
+  cmd->state = FrameState::WAITING;
+  this->waiting_for_response_ = true;
+  if (cmd->device != nullptr)
+    cmd->device->on_sent(cmd->frame.pdu());
 }
 
 void ModbusClientHub::dump_config() {
@@ -744,22 +732,6 @@ void ModbusClientHub::sweep_() {
             cmd.pending--;
           break;
         }
-        case FrameState::REFUSED: {
-          if (cmd.device != nullptr) {
-            cmd.device->on_not_sent(cmd.frame.pdu());
-            callback_ran = true;
-          }
-          if (cmd.state == FrameState::REFUSED) {  // a clear from inside the handler wins otherwise
-            if (!cmd.continuous && --cmd.pending != 0) {
-              // A transmit failure's refusal resolved one request; the absorbed one gets its run.
-              cmd.state = FrameState::READY;
-              cmd.seq = this->next_seq_++;
-            } else {
-              cmd.retire();
-            }
-          }
-          break;
-        }
         case FrameState::DELETED: {
           if (cmd.pending == 0)
             break;  // silent retiree; the erase pass removes it
@@ -834,21 +806,8 @@ bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   //   - both one-shots: pending increments while the entry is below its servable cap (2 for
   //     requeueable reads, 1 for writes/custom); at the cap the duplicate is refused with false
   for (auto &item : this->tx_buffer_) {
-    switch (item.state) {
-      case FrameState::DELETED:
-      case FrameState::WAITING_DELETED:
-        continue;  // on their way out of the queue: a new identical send queues fresh
-      case FrameState::REFUSED:
-        // A failed transmit is transient - the entry owes one terminal and then returns to READY
-        // if a request remains - so it absorbs like any other live entry. The exception is a
-        // continuous request: the sweep ends a poll that failed to transmit, so converting this
-        // entry would kill the subscription at birth. Re-subscribing starts a fresh entry.
-        if (continuous)
-          continue;
-        break;
-      default:
-        break;
-    }
+    if (item.state == FrameState::DELETED || item.state == FrameState::WAITING_DELETED)
+      continue;  // on their way out of the queue: a new identical send queues fresh
     if (item.device != device || !item.same_frame(address, pdu))
       continue;
     if (device == nullptr) {
@@ -941,7 +900,7 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sen
           this->sweep_needed_ = true;
         }
         break;
-      default:  // REFUSED already owes exactly its terminal; *_DELETED is already resolved
+      default:  // *_DELETED entries are already resolved
         break;
     }
   }
@@ -962,7 +921,7 @@ void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
         break;
       case FrameState::WAITING_DELETED:
         break;  // already a detached shell
-      default:  // queued and terminal entries (including REFUSED) retire silently
+      default:  // queued and terminal entries retire silently
         cmd.retire();
         break;
     }
@@ -997,6 +956,10 @@ void ModbusServerHub::send_raw_(const uint8_t *payload, uint16_t len) {
     std::memcpy(this->deferred_payload_.data(), payload, len);
     this->deferred_payload_len_ = len;
     this->set_timeout("deferred_send", this->tx_delay_remaining(), [this]() {
+      if (this->tx_blocked()) {
+        ESP_LOGE(TAG, "Deferred server reply dropped: transmission still blocked");
+        return;
+      }
       ModbusFrame frame(this->deferred_payload_[0], this->deferred_payload_.data() + 1,
                         this->deferred_payload_len_ - 1);
       this->send_frame_(frame);
