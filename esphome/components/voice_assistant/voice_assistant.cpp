@@ -1481,7 +1481,8 @@ void VoiceAssistant::model_load_task(void *params) {
     if (!model_url.starts_with("http://") && !model_url.starts_with("https://")) {
       size_t slash_pos = cached_ww.url.find_last_of('/');
       if (slash_pos != std::string::npos) {
-        model_url = cached_ww.url.substr(0, slash_pos + 1) + model_url;
+        // Prepend in place: building the prefix separately would allocate two temporary strings.
+        model_url.insert(0, cached_ww.url, 0, slash_pos + 1);
       }
     }
     ESP_LOGD(TAG, "Resolved model URL for %s: %s", id.c_str(), model_url.c_str());
