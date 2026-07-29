@@ -781,12 +781,18 @@ void ModbusClientHub::sweep_() {
     }
   }
   // Erase pass: the ONLY place entries leave the container (the index/reference stability above
-  // and in the parse path relies on this).
-  this->tx_buffer_.erase(std::remove_if(this->tx_buffer_.begin(), this->tx_buffer_.end(),
-                                        [](const ModbusDeviceCommand &cmd) {
-                                          return cmd.state == FrameState::DELETED && cmd.pending == 0;
-                                        }),
-                         this->tx_buffer_.end());
+  // and in the parse path relies on this). Storage order carries no meaning - ordering is a
+  // property of selection - so a finished entry is replaced by the last one and the tail dropped,
+  // which needs only a move and a pop instead of the deque's range-erase machinery. Walking
+  // backwards means the entry moved down has already been examined.
+  for (size_t i = this->tx_buffer_.size(); i-- > 0;) {
+    const ModbusDeviceCommand &cmd = this->tx_buffer_[i];
+    if (cmd.state != FrameState::DELETED || cmd.pending != 0)
+      continue;
+    if (i + 1 != this->tx_buffer_.size())
+      this->tx_buffer_[i] = std::move(this->tx_buffer_.back());
+    this->tx_buffer_.pop_back();
+  }
 }
 
 // Raw send for client: pushes to tx queue. Everything except the CRC must be contained in payload.
