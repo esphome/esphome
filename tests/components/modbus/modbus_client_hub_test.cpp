@@ -1234,9 +1234,9 @@ class ResendAndClearOnNotSentDevice : public ModbusClientDevice {
 }  // namespace
 
 // The worst case for sweep termination: a handler that re-sends AND clears from every
-// on_not_sent(), so each delivery would manufacture both a fresh entry and a fresh terminal debt.
-// The frame it creates is HELD - invisible to this sweep and untouched by the clear it issues - so
-// the sweep's work set cannot grow, and the new frame simply joins the queue when the sweep ends.
+// on_not_sent(), so each delivery manufactures both a fresh entry and a fresh terminal debt. The
+// sweep serves only the entries it started with, so the manufactured debt lands beyond that bound
+// and waits for the next sweep: one callback per loop, and the container never grows.
 TEST(ModbusClientHubQueue, ResendAndClearFromNotSentCannotExtendTheSweep) {
   NoResponseProbeHub hub;
   ResendAndClearOnNotSentDevice device(&hub, 0x02);
@@ -1247,12 +1247,15 @@ TEST(ModbusClientHubQueue, ResendAndClearFromNotSentCannotExtendTheSweep) {
 
   hub.sweep_for_test();
   EXPECT_EQ(device.not_sent_count_, 1);  // exactly the one terminal that was owed on entry
-  ASSERT_EQ(hub.queued_frames(), 1u);    // the handler's re-send survived as a normal queued frame
-  EXPECT_EQ(hub.entries(), 1u);          // and nothing else lingers
+  EXPECT_EQ(hub.entries(), 1u);          // the frame the handler queued (and then cleared itself)
 
-  hub.sweep_for_test();  // nothing is owed now, so the handler never runs again
-  EXPECT_EQ(device.not_sent_count_, 1);
-  EXPECT_EQ(hub.queued_frames(), 1u);
+  hub.sweep_for_test();
+  EXPECT_EQ(device.not_sent_count_, 2);  // its terminal comes on the next loop, not this sweep
+  EXPECT_EQ(hub.entries(), 1u);          // and the container is still not growing
+
+  hub.sweep_for_test();
+  EXPECT_EQ(device.not_sent_count_, 3);
+  EXPECT_EQ(hub.entries(), 1u);
 }
 
 // clear_tx_queue_for_device() drops queued frames SILENTLY - no terminal callback (the documented

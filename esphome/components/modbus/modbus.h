@@ -103,11 +103,6 @@ enum class CommandPriority : uint8_t { READ = 0, WRITE };
 
 /// Lifecycle state of a frame entry. The lifecycle contract on ModbusClientDevice is this
 /// transition table:
-///   new -> HELD                 for an entry created while the sweep is running: the sweep's work
-///                               set is frozen at sweep start, so a newborn entry is invisible to
-///                               it - not serviced, and not touched by a clear issued from a
-///                               callback (matching "a re-send survives the clear that prompted it")
-///   HELD -> READY               when the sweep ends and the entry joins the queue proper
 ///   READY -> WAITING            on transmit (send_next_frame_ is the only writer of this transition)
 ///   WAITING -> RECEIVED_RESPONSE / RECEIVED_EXCEPTION
 ///                               on a matching data/exception response; on_response()/on_error()
@@ -138,10 +133,11 @@ enum class CommandPriority : uint8_t { READ = 0, WRITE };
 /// THE SWEEP (run each loop() between the watchdog and transmit, armed by sweep_needed_) walks
 /// entries needing service and delivers their callbacks from a QUIESCENT hub - terminal-state
 /// entries ARE the pending deliveries, so no separate notification queue exists and no callback
-/// ever runs mid-mutation.
+/// ever runs mid-mutation. It serves only the entries that existed when it began, so a callback
+/// that queues a frame - or queues one and then clears it - cannot add to the work being served;
+/// anything new is picked up by the next sweep. That bound is the whole termination argument.
 enum class FrameState : uint8_t {
-  HELD = 0,
-  READY,
+  READY = 0,
   WAITING,
   RECEIVED_RESPONSE,
   RECEIVED_EXCEPTION,
@@ -166,7 +162,7 @@ struct CommandOptions {
 struct ModbusDeviceCommand {
   ModbusClientDevice *device;
   ModbusFrame frame;
-  FrameState state{FrameState::READY};  // send_pdu() overrides to HELD when created mid-sweep
+  FrameState state{FrameState::READY};
   /// CONTINUOUS entries are subscriptions: never consumed by completion, pending
   /// fixed at 1 ("the subscription"), removed only by cancellation or failure.
   bool continuous{false};
@@ -285,10 +281,6 @@ class ModbusClientHub : public Modbus {
   /// Set whenever a transition leaves owed callbacks behind; quiet loop() passes skip the walk
   /// when clear.
   bool sweep_needed_{false};
-  /// True while sweep_() is delivering callbacks. Entries created during that window are HELD:
-  /// the sweep's work set stays exactly the entries that existed when it began, which is what
-  /// makes it terminate no matter what a handler does.
-  bool sweeping_{false};
   /// Monotonic stamp source for ModbusDeviceCommand::seq.
   uint16_t next_seq_{0};
 
@@ -350,11 +342,10 @@ using ResponseStatus = std::optional<ExceptionCode>;
 ///    requests as well. Likewise, converting an entry to continuous ({.continuous = true} matching
 ///    a queued frame) SUPERSEDES any request that entry had absorbed: the caller opted into
 ///    streaming semantics, and the poll's responses are the accounting from then on.
-/// Sending from inside a callback is safe but check the return value: the frame is HELD until the
-/// sweep ends, so it neither receives callbacks during that sweep nor is dropped by a clear issued
-/// from another one. An address-scoped clear resolves EVERY dropped request with its own terminal
-/// at the sweep, the clearer's included; use clear_tx_queue_for_device() when you want your own
-/// frames torn down silently.
+/// Sending from inside a callback is safe but check the return value; the new frame takes no part
+/// in the sweep that is running and is picked up by the next one. An address-scoped clear resolves
+/// EVERY dropped request with its own terminal at the sweep, the clearer's included; use
+/// clear_tx_queue_for_device() when you want your own frames torn down silently.
 class ModbusClientDevice {
  public:
   ModbusClientDevice() = default;

@@ -684,19 +684,21 @@ void ModbusClientHub::sweep_() {
   if (!this->sweep_needed_)
     return;
   this->sweep_needed_ = false;
-  // Entries created by the callbacks below are HELD and invisible to this sweep, so its work set
-  // stays exactly what it was on entry - the whole termination argument in one line.
-  this->sweeping_ = true;
   // Service loop: handle ONE entry per pass, then rescan - a handler may flip any entry's state
   // (send, clear), so no iterator survives a callback. Indices and references DO survive: entries
   // only ever leave the container in the erase pass below, and deque appends invalidate neither.
   // Termination: every service either decrements a pending count or moves the entry along the
   // transition table toward READY/removal; nothing a handler can do re-creates swept work except
   // an explicit new send, which starts with pending within its cap.
+  // The work set: exactly the entries present on entry. Callbacks may append (a re-send), but the
+  // additions sit beyond this bound and take no part in this sweep, so the set being served can
+  // never grow - however a handler sends, clears, or both. Indices stay valid because entries are
+  // only ever erased below, after the service loop.
+  const size_t work_set = this->tx_buffer_.size();
   bool progressed = true;
   while (progressed) {
     progressed = false;
-    for (size_t i = 0; i != this->tx_buffer_.size() && !progressed; i++) {
+    for (size_t i = 0; i != work_set && !progressed; i++) {
       ModbusDeviceCommand &cmd = this->tx_buffer_[i];
       switch (cmd.state) {
         case FrameState::RECEIVED_RESPONSE: {
@@ -787,7 +789,7 @@ void ModbusClientHub::sweep_() {
           progressed = true;
           break;
         }
-        default:  // HELD / READY / WAITING: newborn or mid-lifecycle, nothing owed
+        default:  // READY / WAITING: mid-lifecycle, nothing owed
           break;
       }
     }
@@ -799,12 +801,6 @@ void ModbusClientHub::sweep_() {
                                           return cmd.state == FrameState::DELETED && cmd.pending == 0;
                                         }),
                          this->tx_buffer_.end());
-  // Admit the entries the callbacks created: they sat out this sweep and join the queue now.
-  for (auto &cmd : this->tx_buffer_) {
-    if (cmd.state == FrameState::HELD)
-      cmd.state = FrameState::READY;
-  }
-  this->sweeping_ = false;
 }
 
 // Raw send for client: pushes to tx queue. Everything except the CRC must be contained in payload.
@@ -909,8 +905,6 @@ bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   auto &cmd = this->tx_buffer_.emplace_back(device, address, pdu);
   cmd.continuous = continuous;
   cmd.seq = this->next_seq_++;
-  if (this->sweeping_)
-    cmd.state = FrameState::HELD;  // joins the queue when the sweep ends; see FrameState
   return true;
 }
 
@@ -920,8 +914,8 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sen
   // alongside a controller that just went offline) must observe the drop, so DELETED entries keep
   // their pending count and resolve one terminal per accepted request.
   for (auto &cmd : this->tx_buffer_) {
-    if (cmd.frame.address() != address || cmd.state == FrameState::HELD)
-      continue;  // a frame created during this sweep is not yet in the queue this clear applies to
+    if (cmd.frame.address() != address)
+      continue;
     switch (cmd.state) {
       case FrameState::READY:
       case FrameState::TIMED_OUT:
@@ -959,8 +953,8 @@ void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
   // Silent teardown (supersede semantics): the caller's own frames vanish without callbacks; see
   // the lifecycle note on ModbusClientDevice.
   for (auto &cmd : this->tx_buffer_) {
-    if (cmd.device != device || cmd.state == FrameState::HELD)
-      continue;  // a frame created during this sweep is not yet in the queue this clear applies to
+    if (cmd.device != device)
+      continue;
     switch (cmd.state) {
       case FrameState::WAITING:
       case FrameState::INTERRUPTED:
