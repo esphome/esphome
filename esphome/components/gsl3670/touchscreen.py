@@ -68,6 +68,21 @@ MODELS = {
             CONF_SHA256: "2e50501ad83656fb6fa3d92591f9f31add4d442c8e8a79f29f5c4d335bd127a4",
         },
     },
+    "GUITION-JC8012P4A1": {
+        CONF_SWAP_XY: True,
+        CONF_MIRROR_X: True,
+        CONF_MIRROR_Y: False,
+        CONF_X_MIN: 20,
+        CONF_Y_MIN: 20,
+        CONF_X_MAX: 880,
+        CONF_Y_MAX: 1648,
+        CONF_RESET_PIN: 22,
+        CONF_INTERRUPT_PIN: 21,
+        CONF_FIRMWARE: {
+            CONF_URL: f"{FIRMWARE_BASE_URL}/seeed-d1001-fw.bin",
+            CONF_SHA256: "2e50501ad83656fb6fa3d92591f9f31add4d442c8e8a79f29f5c4d335bd127a4",
+        },
+    },
     "CUSTOM": {},
 }
 
