@@ -269,6 +269,36 @@ WakeWordModel::WakeWordModel(const std::string &id, const uint8_t *model_start, 
   }
 };
 
+WakeWordModel::WakeWordModel(const std::string &id, std::shared_ptr<ModelData> model_data,
+                             uint8_t default_probability_cutoff, size_t sliding_window_average_size,
+                             const std::string &wake_word, std::vector<std::string> trained_languages,
+                             size_t tensor_arena_size) {
+  // Precondition: model_data->is_valid() is true, so get_model_pointer() returns the stable buffer.
+  this->id_ = id;
+  this->model_data_ = std::move(model_data);
+  this->model_start_ = this->model_data_->get_model_pointer();
+  this->default_probability_cutoff_ = default_probability_cutoff;
+  this->probability_cutoff_ = default_probability_cutoff;
+  this->sliding_window_size_ = sliding_window_average_size;
+  this->recent_streaming_probabilities_.resize(sliding_window_average_size, 0);
+  this->wake_word_ = wake_word;
+  this->trained_languages_ = std::move(trained_languages);
+  this->tensor_arena_size_ = tensor_arena_size;
+  this->register_streaming_ops_(this->streaming_op_resolver_);
+  this->current_stride_step_ = 0;
+  this->internal_only_ = false;  // Runtime models are always exposed to Home Assistant
+
+  this->pref_ = global_preferences->make_preference<bool>(fnv1_hash(id));
+  bool enabled;
+  if (this->pref_.load(&enabled)) {
+    // Use the enabled state loaded from flash
+    this->enabled_ = enabled;
+  } else {
+    // No saved state: stay disabled. The activation flow calls enable() explicitly after adding.
+    this->enabled_ = false;
+  }
+};
+
 void WakeWordModel::enable() {
   this->enabled_ = true;
   if (!this->internal_only_) {

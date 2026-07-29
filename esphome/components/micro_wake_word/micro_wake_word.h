@@ -66,6 +66,27 @@ class MicroWakeWord final : public Component
 
   void add_wake_word_model(WakeWordModel *model);
 
+  /// @brief Adds a runtime-downloaded wake word model. Must be called from the main loop.
+  /// If the inference task is running it is paused at a safe point before the model lists are mutated,
+  /// so the task never observes a half-updated vector.
+  /// @return True if the model was added, false on a duplicate id or if the task could not be paused
+  bool add_runtime_model(std::unique_ptr<WakeWordModel> model);
+
+  /// @brief Removes a runtime-downloaded wake word model and frees its interpreter, arenas, and model buffer.
+  /// Must be called from the main loop. If the inference task is running it is paused at a safe point first,
+  /// and any queued detection events are dropped (they hold pointers into the model being destroyed).
+  /// @return True if the model was removed, false if the id is not a runtime model or the task could not be paused
+  bool remove_runtime_model(const std::string &model_id);
+
+  /// @brief Returns the wake word model with the given id, or nullptr if none matches (compiled or runtime)
+  WakeWordModel *get_model_by_id(const std::string &model_id);
+
+  /// @brief Returns the ids of all runtime-downloaded models. Must be called from the main loop.
+  std::vector<std::string> get_runtime_model_ids();
+
+  /// @brief Returns the feature step size (ms) the frontend is configured for. Runtime models must match it.
+  uint8_t get_features_step_size() const { return this->features_step_size_; }
+
 #ifdef USE_MICRO_WAKE_WORD_VAD
   void add_vad_model(const uint8_t *model_start, uint8_t probability_cutoff, size_t sliding_window_size,
                      size_t tensor_arena_size);
@@ -85,6 +106,7 @@ class MicroWakeWord final : public Component
 
   std::weak_ptr<ring_buffer::RingBuffer> ring_buffer_;
   std::vector<WakeWordModel *> wake_word_models_;
+  std::vector<std::unique_ptr<WakeWordModel>> runtime_models_;
 
 #ifdef USE_MICRO_WAKE_WORD_VAD
   std::unique_ptr<VADModel> vad_model_;
@@ -118,6 +140,13 @@ class MicroWakeWord final : public Component
   void suspend_task_();
   /// @brief Resumes the inference task
   void resume_task_();
+
+  /// @brief Parks the inference task at a safe point (or verifies it isn't running) so the model lists may be
+  /// mutated from the main loop. Every successful call must be paired with unlock_models_().
+  /// @return True if the lists may be mutated, false if the running task never acknowledged the pause request
+  bool try_lock_models_();
+  /// @brief Releases the inference task parked by a successful try_lock_models_() call
+  void unlock_models_();
 
   void set_state_(State state);
 
