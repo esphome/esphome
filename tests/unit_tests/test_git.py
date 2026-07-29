@@ -505,9 +505,16 @@ def test_clone_or_update_with_refresh_skips_fresh_repo(
     # Set modification time to 1 hour ago
     os.utime(fetch_head, (recent_time, recent_time))
 
+    # Freeze the clock at 1 hour (plus a margin larger than any filesystem
+    # mtime rounding) after the mtime so the logged countdown is deterministic
+    frozen_now = fetch_head.stat().st_mtime + 3600.5
+
     # Call with refresh=1d (1 day)
     refresh = TimePeriodSeconds(days=1)
-    with caplog.at_level(logging.INFO, logger="esphome.git"):
+    with (
+        patch("esphome.git.time.time", return_value=frozen_now),
+        caplog.at_level(logging.INFO, logger="esphome.git"),
+    ):
         result_dir, revert = git.clone_or_update(
             url=url,
             ref=ref,
