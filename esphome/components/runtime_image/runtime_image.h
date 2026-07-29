@@ -121,8 +121,25 @@ class RuntimeImage : public image::Image {
 
   /**
    * @brief Release the image buffer and free memory.
+   *
+   * An external buffer is let go of rather than freed.
    */
   void release();
+
+  /**
+   * @brief Decode into a buffer the caller owns, instead of one allocated here.
+   *
+   * The image never frees an external buffer and never resizes it: a decode that needs other
+   * dimensions fails as if the allocation had failed, and the buffer is let go of so a decoder
+   * that ignores that failure cannot publish a picture it did not paint. The caller keeps the
+   * buffer alive for as long as anything can draw the image, and calls release() (or hands over
+   * another buffer) before reusing it.
+   *
+   * @param buffer Memory for a picture of the given size, at least get_buffer_size_() bytes.
+   * @param width Width of the buffer in pixels.
+   * @param height Height of the buffer in pixels.
+   */
+  void set_external_buffer(uint8_t *buffer, int width, int height);
 
   /**
    * @brief Set whether to allow progressive display during decode.
@@ -166,6 +183,8 @@ class RuntimeImage : public image::Image {
 
   // Memory management
   uint8_t *buffer_{nullptr};
+  /** Whether buffer_ belongs to the caller, so it must not be freed or resized here. */
+  bool external_buffer_{false};
 
   // Decoder management
   std::unique_ptr<ImageDecoder> decoder_{nullptr};
