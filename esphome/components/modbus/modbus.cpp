@@ -731,7 +731,12 @@ void ModbusClientHub::sweep_() {
           if (cmd.device != nullptr)
             retry = cmd.device->on_no_response(cmd.frame.pdu());
           if (cmd.state != FrameState::TIMED_OUT) {
-            // A clear from inside the handler took over; its state wins (and cancels the retry).
+            // A clear from inside the handler took over: its state wins, and the retry is
+            // cancelled. The accounting still has to happen here - unless a retry was asked for
+            // (which resolves nothing), the on_no_response() just delivered was this request's
+            // terminal, so the clear must not resolve it a second time.
+            if (!retry && cmd.pending != 0)
+              cmd.pending--;
           } else if (retry) {
             // A granted retry is resolve-then-re-request: the new attempt queues at the tail.
             cmd.state = FrameState::READY;

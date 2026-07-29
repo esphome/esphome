@@ -1607,6 +1607,81 @@ TEST(ModbusClientHubQueue, SweepResendOfInFlightFrameQueuesFreshWhenClearSentDet
   EXPECT_EQ(hub.waiting_command().device, nullptr);  // the shell was detached by the clear
 }
 
+namespace {
+// Gives up after a timeout by clearing its address from inside on_no_response() - the natural
+// "device is dead, drop my traffic" pattern, and the reentrant case the address clear must handle.
+class ClearAddressOnNoResponseDevice : public ModbusClientDevice {
+ public:
+  ClearAddressOnNoResponseDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  bool on_no_response(std::span<const uint8_t> request_pdu) override {
+    this->no_response_count_++;
+    this->clear_tx_queue_for_address(/*clear_sent=*/false);
+    return false;  // gave up
+  }
+  void on_not_sent(std::span<const uint8_t> request_pdu) override { this->not_sent_count_++; }
+  int terminals() const { return this->no_response_count_ + this->not_sent_count_; }
+  int no_response_count_{0};
+  int not_sent_count_{0};
+};
+
+// Reacts to a transmit failure the same way: clears its address from inside on_not_sent().
+class ClearAddressOnNotSentDevice : public ModbusClientDevice {
+ public:
+  ClearAddressOnNotSentDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_not_sent(std::span<const uint8_t> request_pdu) override {
+    this->not_sent_count_++;
+    if (this->not_sent_count_ == 1)
+      this->clear_tx_queue_for_address(/*clear_sent=*/false);
+  }
+  int not_sent_count_{0};
+};
+}  // namespace
+
+// A clear issued from inside on_no_response() must not cause the request to be resolved twice:
+// that callback already was its terminal, so the entry it hijacks owes nothing more.
+TEST(ModbusClientHubNoResponse, SelfClearFromNoResponseDoesNotDoubleResolve) {
+  NoResponseProbeHub hub;
+  ClearAddressOnNoResponseDevice device(&hub, 0x02);
+
+  device.send_pdu(read_pdu());
+  hub.force_send_next();
+  hub.timeout_waiting();
+
+  EXPECT_EQ(device.no_response_count_, 1);
+  EXPECT_EQ(device.terminals(), 1);  // exactly one terminal for the one accepted request
+  EXPECT_EQ(hub.entries(), 0u);
+}
+
+// The same entry standing for two accepted requests: the timeout resolves one, and the clear that
+// cancels the re-run must resolve exactly the other.
+TEST(ModbusClientHubNoResponse, SelfClearFromNoResponseResolvesTheAbsorbedRequestOnce) {
+  NoResponseProbeHub hub;
+  ClearAddressOnNoResponseDevice device(&hub, 0x02);
+
+  EXPECT_TRUE(device.send_pdu(read_pdu()));
+  EXPECT_TRUE(device.send_pdu(read_pdu()));  // absorbed: one entry, two requests
+  hub.force_send_next();
+  hub.timeout_waiting();
+
+  EXPECT_EQ(device.no_response_count_, 1);
+  EXPECT_EQ(device.terminals(), 2);  // one per accepted request, no more
+  EXPECT_EQ(hub.entries(), 0u);
+}
+
+// The transmit-failure twin: a clear from inside the refusal's on_not_sent() must not make the
+// sweep redeliver a terminal the refusal already gave.
+TEST(ModbusClientHubQueue, SelfClearFromTransmitFailureDoesNotDoubleResolve) {
+  FlakyBlockHub hub;
+  ClearAddressOnNotSentDevice device(&hub, 0x02);
+
+  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
+  device.send_pdu(read);
+  hub.send_next_for_test();  // transmit fails -> REFUSED -> on_not_sent -> handler clears
+
+  EXPECT_EQ(device.not_sent_count_, 1);  // one terminal for the one accepted request
+  EXPECT_EQ(hub.entries(), 0u);
+}
+
 // A cleared shell must release the bus by BOTH exits, silently and without callbacks: the late
 // response arriving, and the send-wait timeout. If either failed to clear the waiting flag the hub
 // would never transmit again, so both are pinned.
