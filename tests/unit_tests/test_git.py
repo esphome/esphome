@@ -479,7 +479,7 @@ def test_clone_or_update_with_refresh_updates_old_repo(
 
 
 def test_clone_or_update_with_refresh_skips_fresh_repo(
-    tmp_path: Path, mock_run_git_command: Mock
+    tmp_path: Path, mock_run_git_command: Mock, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Test that refresh doesn't update fresh repos."""
     # Set up CORE.config_path so data_dir uses tmp_path
@@ -506,17 +506,23 @@ def test_clone_or_update_with_refresh_skips_fresh_repo(
 
     # Call with refresh=1d (1 day)
     refresh = TimePeriodSeconds(days=1)
-    result_dir, revert = git.clone_or_update(
-        url=url,
-        ref=ref,
-        refresh=refresh,
-        domain=domain,
-    )
+    with caplog.at_level(logging.INFO, logger="esphome.git"):
+        result_dir, revert = git.clone_or_update(
+            url=url,
+            ref=ref,
+            refresh=refresh,
+            domain=domain,
+        )
 
     # Should NOT call git fetch since repo is fresh
     mock_run_git_command.assert_not_called()
     assert result_dir == repo_dir
     assert revert is None
+
+    # Should tell the user the update was skipped and when the next refresh is
+    assert f"Skipping update for {url}@{ref}" in caplog.text
+    assert "next refresh in 22h 59min" in caplog.text
+    assert "(refresh: 1d)" in caplog.text
 
 
 def test_clone_or_update_clones_missing_repo(
@@ -1993,3 +1999,21 @@ def test_resolve_symlink_stub_returns_none_when_read_bytes_raises(
         result = git.resolve_symlink_stub(repo_dir, stub)
 
     assert result is None
+
+
+@pytest.mark.parametrize(
+    ("seconds", "expected"),
+    [
+        (0, "0s"),
+        (42, "42s"),
+        (60, "1min"),
+        (3661, "1h 1min"),
+        (86400, "1d"),
+        (90000, "1d 1h"),
+        (86700, "1d 5min"),
+        (-5, "0s"),
+    ],
+)
+def test_format_duration(seconds: float, expected: str) -> None:
+    """Test that durations are rendered as short human-readable strings."""
+    assert git._format_duration(seconds) == expected

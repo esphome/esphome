@@ -19,6 +19,11 @@ _LOGGER = logging.getLogger(__name__)
 # Special value to indicate never refresh
 NEVER_REFRESH = TimePeriodSeconds(seconds=-1)
 
+# `refresh: never` validates to 365250 days (cv.source_refresh); treat any
+# interval at least that long as refresh disabled instead of logging a
+# countdown of hundreds of years
+_REFRESH_DISABLED_SECONDS = TimePeriodSeconds(days=365250).total_seconds
+
 # Written inside .git only after every clone step (clone, ref fetch, reset,
 # submodule init) has completed. A directory without it is an interrupted
 # clone (e.g. the process was killed mid-clone) and must be re-cloned; without
@@ -283,6 +288,17 @@ def resolve_symlink_stub(repo_dir: Path, file_path: Path) -> Path | None:
     return target_path
 
 
+def _format_duration(seconds: float) -> str:
+    """Format a duration in seconds as a short string like "1d 2h" or "42s"."""
+    remainder = max(0, int(seconds))
+    parts = []
+    for suffix, length in (("d", 86400), ("h", 3600), ("min", 60), ("s", 1)):
+        value, remainder = divmod(remainder, length)
+        if value:
+            parts.append(f"{value}{suffix}")
+    return " ".join(parts[:2]) if parts else "0s"
+
+
 def clone_or_update(
     *,
     url: str,
@@ -465,6 +481,17 @@ def clone_or_update(
                 run_git_command(["git", "reset", "--hard", old_sha], git_dir=repo_dir)
 
             return repo_dir, revert
+        if refresh.total_seconds >= _REFRESH_DISABLED_SECONDS:
+            # refresh: never
+            _LOGGER.debug("Skipping update for %s (refresh disabled)", safe_key)
+        else:
+            _LOGGER.info(
+                "Skipping update for %s, next refresh in %s (refresh: %s); "
+                "use refresh: 0s to update now",
+                safe_key,
+                _format_duration(refresh.total_seconds - age_seconds),
+                _format_duration(refresh.total_seconds),
+            )
 
     return repo_dir, None
 
