@@ -2,8 +2,6 @@
 #include "esphome/core/log.h"
 #include <algorithm>
 #include <cinttypes>
-#include <cmath>
-#include <cstdio>
 #include <cstring>
 
 namespace esphome::ld6002b {
@@ -60,20 +58,6 @@ uint32_t LD6002BComponent::read_u32_le(const uint8_t *data) {
          (static_cast<uint32_t>(data[2]) << 16) | (static_cast<uint32_t>(data[3]) << 24);
 }
 
-int32_t LD6002BComponent::read_int32_le(const uint8_t *data) {
-  uint32_t raw = read_u32_le(data);
-  int32_t value;
-  std::memcpy(&value, &raw, sizeof(value));
-  return value;
-}
-
-float LD6002BComponent::read_f32_le(const uint8_t *data) {
-  uint32_t raw = read_u32_le(data);
-  float value;
-  std::memcpy(&value, &raw, sizeof(value));
-  return value;
-}
-
 void LD6002BComponent::write_u32_le(uint8_t *data, uint32_t value) {
   data[0] = value & 0xFF;
   data[1] = (value >> 8) & 0xFF;
@@ -81,21 +65,20 @@ void LD6002BComponent::write_u32_le(uint8_t *data, uint32_t value) {
   data[3] = (value >> 24) & 0xFF;
 }
 
-void LD6002BComponent::set_max_data_len(size_t max_data_len) {
-  this->max_data_len_overridden_ = true;
-  this->max_data_len_ = max_data_len;
-  this->data_buf_ = std::make_unique<uint8_t[]>(std::max<size_t>(max_data_len, 6));
-}
-
 void LD6002BComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up HLK-LD6002B...");
   size_t desired_data_len = this->max_data_len_;
   if (!this->max_data_len_overridden_) {
-    bool point_cloud_configured = false;
-    desired_data_len = point_cloud_configured ? DEFAULT_MAX_DATA_LEN_POINT_CLOUD : DEFAULT_MAX_DATA_LEN;
+    desired_data_len = DEFAULT_MAX_DATA_LEN;
   }
   this->max_data_len_ = desired_data_len;
-  this->data_buf_ = std::make_unique<uint8_t[]>(std::max<size_t>(desired_data_len, 6));
+  // One allocation for the component lifetime: the parser reuses this buffer
+  // for the six byte header and for every payload up to max_data_len_.
+  RAMAllocator<uint8_t> allocator;
+  this->data_buf_ = allocator.allocate(std::max<size_t>(desired_data_len, 6));
+  if (this->data_buf_ == nullptr) {
+    this->mark_failed(LOG_STR("Failed to allocate frame buffer"));
+    return;
+  }
   if (this->wakeup_pin_ != nullptr) {
     this->wakeup_pin_->setup();
     this->wakeup_pin_->digital_write(true);
@@ -118,16 +101,26 @@ void LD6002BComponent::setup() {
       this->send_control_command_(CMD_TARGET_DISPLAY_ON);
     }
 
-    bool want_point_cloud_stream = false;
-    this->send_control_command_(want_point_cloud_stream ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
+    // Point-cloud streaming is introduced in a later part; make sure it is off.
+    this->send_control_command_(CMD_POINT_CLOUD_OFF);
   });
 }
 
 void LD6002BComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "HLK-LD6002B:");
-  ESP_LOGCONFIG(TAG, "  Auto wake: %s", this->auto_wake_ ? "true" : "false");
+  ESP_LOGCONFIG(TAG,
+                "HLK-LD6002B:\n"
+                "  Auto wake: %s\n"
+                "  Max data length: %u",
+                this->auto_wake_ ? "true" : "false", static_cast<unsigned>(this->max_data_len_));
+  if (this->wakeup_pin_ != nullptr) {
+    LOG_PIN("  Wake-up Pin: ", this->wakeup_pin_);
+    ESP_LOGCONFIG(TAG, "  Wake Pulse: %ums", this->wakeup_pulse_ms_);
+  }
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Presence", this->presence_binary_sensor_);
+  for (uint8_t i = 0; i < MAX_TARGETS; i++) {
+    LOG_BINARY_SENSOR("  ", "Target Presence", this->target_presence_[i]);
+  }
 #endif
 }
 
@@ -147,17 +140,18 @@ void LD6002BComponent::reset_parser_() {
   this->data_pos_ = 0;
   this->data_xor_ = 0;
   this->discard_remaining_ = 0;
+  this->frame_oversize_ = false;
 }
 
 void LD6002BComponent::parse_byte_(uint8_t byte) {
   switch (this->parse_state_) {
     case ParseState::DISCARD:
-      if (this->discard_remaining_ > 0) {
-        this->discard_remaining_--;
-        if (this->discard_remaining_ == 0) {
-          this->reset_parser_();
-        }
-      } else {
+      // Only entered from HCK, with a verified and non-zero number of bytes to skip. The zero
+      // check is still part of the condition because discard_remaining_ is unsigned: should a
+      // later change ever reach this state with nothing left to skip, decrementing first would
+      // wrap to 4294967295 and silently swallow the next four gigabytes of stream instead of
+      // resynchronising on the following frame.
+      if (this->discard_remaining_ == 0 || --this->discard_remaining_ == 0) {
         this->reset_parser_();
       }
       return;
@@ -175,16 +169,12 @@ void LD6002BComponent::parse_byte_(uint8_t byte) {
         this->header_xor_ ^= byte;
         this->header_pos_++;
         if (this->header_pos_ == 6) {
-          this->frame_id_ = read_u16_be(this->data_buf_.get());
-          this->data_len_ = read_u16_be(this->data_buf_.get() + 2);
-          this->frame_type_ = read_u16_be(this->data_buf_.get() + 4);
-          if (this->data_len_ > this->max_data_len_) {
-            ESP_LOGW(TAG, "Frame too large: %u", this->data_len_);
-            // Discard the remaining bytes in this frame: header checksum + payload + data checksum (if any)
-            this->discard_remaining_ = 1 + this->data_len_ + (this->data_len_ > 0 ? 1 : 0);
-            this->parse_state_ = ParseState::DISCARD;
-            return;
-          }
+          this->frame_id_ = read_u16_be(this->data_buf_);
+          this->data_len_ = read_u16_be(this->data_buf_ + 2);
+          this->frame_type_ = read_u16_be(this->data_buf_ + 4);
+          // The length is only trustworthy once the header checksum has been verified, so just
+          // remember that the frame is oversized and let the HCK state act on it.
+          this->frame_oversize_ = this->data_len_ > this->max_data_len_;
           this->parse_state_ = ParseState::HCK;
         }
       }
@@ -194,6 +184,13 @@ void LD6002BComponent::parse_byte_(uint8_t byte) {
       if (byte != expected) {
         ESP_LOGV(TAG, "Header checksum mismatch");
         this->reset_parser_();
+        return;
+      }
+      if (this->frame_oversize_) {
+        ESP_LOGW(TAG, "Frame too large: %u", this->data_len_);
+        // The header is verified, so the length can be trusted: skip the payload and its checksum.
+        this->discard_remaining_ = static_cast<uint32_t>(this->data_len_) + 1;
+        this->parse_state_ = ParseState::DISCARD;
         return;
       }
       if (this->data_len_ == 0) {
@@ -216,7 +213,7 @@ void LD6002BComponent::parse_byte_(uint8_t byte) {
     case ParseState::DCK: {
       uint8_t expected = static_cast<uint8_t>(~this->data_xor_);
       if (byte == expected) {
-        this->handle_frame_(this->frame_type_, this->data_buf_.get(), this->data_len_);
+        this->handle_frame_(this->frame_type_, this->data_buf_, this->data_len_);
       } else {
         ESP_LOGV(TAG, "Data checksum mismatch");
       }
@@ -227,46 +224,37 @@ void LD6002BComponent::parse_byte_(uint8_t byte) {
 }
 
 void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_t len) {
-  const bool matching_ack_type = len == 0 && this->command_active_ && type == this->active_command_.type;
-  const bool matching_ack_frame_id =
-      ((this->frame_id_ & 0x7FFF) == (this->active_frame_id_ & 0x7FFF)) || this->active_command_.type == TYPE_CONTROL;
-  const bool matching_ack = matching_ack_type && matching_ack_frame_id;
-  if (matching_ack) {
-#ifdef ESPHOME_LOG_HAS_VERBOSE
-    const uint32_t active_control_command =
-        this->active_command_.type == TYPE_CONTROL
-            ? read_control_command_value(this->active_command_.data.data(), this->active_command_.len)
-            : 0;
-    if (active_control_command != 0 && ((this->frame_id_ & 0x7FFF) != (this->active_frame_id_ & 0x7FFF))) {
-      ESP_LOGV(TAG, "Accepting %s (0x%02" PRIX32 ") ACK with device frame 0x%04X while active frame is 0x%04X",
-               control_command_name(active_control_command), active_control_command, this->frame_id_,
-               this->active_frame_id_);
-    }
-    if (active_control_command != 0) {
-      ESP_LOGV(TAG, "ACK for %s (0x%02" PRIX32 ") matched frame 0x%04X", control_command_name(active_control_command),
-               active_control_command, this->frame_id_);
-    }
-#endif
+  // The module acknowledges a command with an empty frame of the same type. It does not echo our
+  // frame id: that field is a per-peer send counter (MSB 1 for us, 0 for the module) which the
+  // protocol only reuses in a reply for message types supporting a bidirectional exchange, and
+  // every type sent here is documented as unidirectional. ACKs of one type can therefore only be
+  // told apart by transmission order, so the duplicates a retried command leaves behind are
+  // swallowed instead of completing whatever command runs next.
+  //
+  // That swallowing only applies while no matching command is waiting. An ACK that arrives for the
+  // command still on the wire always completes it, however late: waking a sleeping module pushes
+  // its reply past the retry period, and treating such a reply as a leftover duplicate would starve
+  // the command through every attempt and report a timeout for a write the module did perform.
+  if (len == 0 && this->stale_ack_count_ > 0 && this->stale_ack_type_ == type &&
+      !(this->command_active_ && type == this->active_command_.type)) {
+    this->stale_ack_count_--;
+    ESP_LOGV(TAG, "Ignoring ACK for command 0x%04X from an earlier attempt (module frame 0x%04X)", type,
+             this->frame_id_);
+    return;
+  }
+  if (len == 0 && this->command_active_ && type == this->active_command_.type) {
+    ESP_LOGV(TAG, "ACK for command 0x%04X (module frame 0x%04X)", type, this->frame_id_);
+    // Every frame transmitted for this command is answered, and this ACK settles exactly one of
+    // them, so the remaining attempts are still owed replies. Those become the guard debt for the
+    // window after this command finishes.
+    this->stale_ack_type_ = type;
+    this->stale_ack_count_ = this->attempts_sent_ > 0 ? static_cast<uint8_t>(this->attempts_sent_ - 1) : 0;
     this->command_active_ = false;
     this->command_sent_ = false;
-    this->active_frame_id_ = 0;
     this->last_send_ms_ = 0;
     this->process_command_queue_();
     return;
   }
-
-#ifdef ESPHOME_LOG_HAS_VERBOSE
-  const uint32_t active_control_command =
-      this->command_active_ && this->active_command_.type == TYPE_CONTROL
-          ? read_control_command_value(this->active_command_.data.data(), this->active_command_.len)
-          : 0;
-  if (len == 0 && this->command_active_ && type == this->active_command_.type &&
-      this->frame_id_ != this->active_frame_id_ && this->active_command_.type != TYPE_CONTROL) {
-    ESP_LOGV(TAG, "Ignoring ACK for %s (0x%02" PRIX32 "): frame 0x%04X did not match active 0x%04X",
-             control_command_name(active_control_command), active_control_command, this->frame_id_,
-             this->active_frame_id_);
-  }
-#endif
 
   switch (type) {
     case TYPE_REPORT_TARGET:
@@ -286,9 +274,12 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
 
   uint32_t target_num = read_u32_le(data);
   uint16_t available = (len - 4) / TARGET_DATA_LEN;
-  uint8_t count = static_cast<uint8_t>(std::min<uint32_t>(target_num, available));
+  // Keep the un-narrowed value for the presence test: a report of e.g. 256
+  // targets must not truncate to 0 and read as "absent".
+  const uint32_t reported = std::min<uint32_t>(target_num, available);
+  uint8_t count = static_cast<uint8_t>(std::min<uint32_t>(reported, MAX_TARGETS));
 
-  this->target_presence_any_ = (count > 0);
+  this->target_presence_any_ = (reported > 0);
   bool presence = this->target_presence_any_ || this->area_presence_any_;
 #ifdef USE_BINARY_SENSOR
   if (this->presence_binary_sensor_ != nullptr) {
@@ -300,10 +291,8 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
     bool has_target = i < count;
 #ifdef USE_BINARY_SENSOR
     if (this->target_presence_[i] != nullptr) {
-      if (!this->target_presence_initialized_[i] || has_target != this->last_target_presence_[i]) {
-        this->target_presence_[i]->publish_state(has_target);
-        this->target_presence_initialized_[i] = true;
-      }
+      // publish_state() already skips unchanged states, no manual de-dup needed.
+      this->target_presence_[i]->publish_state(has_target);
     }
 #endif
     this->last_target_presence_[i] = has_target;
@@ -319,11 +308,6 @@ void LD6002BComponent::handle_area_presence_(const uint8_t *data, uint16_t len) 
     uint32_t state = read_u32_le(data + (i * 4));
     bool present = state != 0;
     this->area_presence_any_ = this->area_presence_any_ || present;
-#ifdef USE_BINARY_SENSOR
-    if (this->area_presence_[i] != nullptr) {
-      this->area_presence_[i]->publish_state(present);
-    }
-#endif
   }
 
   bool presence = this->target_presence_any_ || this->area_presence_any_;
@@ -359,7 +343,12 @@ void LD6002BComponent::queue_command_(uint16_t type, const uint8_t *data, uint8_
 void LD6002BComponent::process_command_queue_() {
   uint32_t now = millis();
   if (this->command_active_) {
-    if (this->command_sent_ && now - this->last_send_ms_ >= CMD_ACK_TIMEOUT_MS) {
+    // The opening attempt may be the frame that wakes a sleeping module, which consumes it rather
+    // than answering it; the retry that follows is acked 100-175ms later. The wider budget for that
+    // first attempt keeps the wake from cascading into further retries, while later attempts keep
+    // the normal period.
+    const uint32_t ack_timeout = this->attempts_sent_ <= 1 ? CMD_FIRST_ACK_TIMEOUT_MS : CMD_ACK_TIMEOUT_MS;
+    if (this->command_sent_ && now - this->last_send_ms_ >= ack_timeout) {
       const uint32_t active_control_command =
           this->active_command_.type == TYPE_CONTROL
               ? read_control_command_value(this->active_command_.data.data(), this->active_command_.len)
@@ -369,6 +358,11 @@ void LD6002BComponent::process_command_queue_() {
         if (active_control_command != 0) {
           ESP_LOGV(TAG, "Retrying %s (0x%02" PRIX32 "), %u attempt(s) remaining",
                    control_command_name(active_control_command), active_control_command, this->retries_left_);
+        } else {
+          // Writes such as the hold delay and z-range carry no control subcommand, so without this
+          // branch their retries were invisible and only the eventual timeout showed up.
+          ESP_LOGV(TAG, "Retrying command 0x%04X, %u attempt(s) remaining", this->active_command_.type,
+                   this->retries_left_);
         }
 #endif
         this->command_sent_ = false;
@@ -382,9 +376,10 @@ void LD6002BComponent::process_command_queue_() {
         } else {
           ESP_LOGW(TAG, "Command 0x%04X timed out", this->active_command_.type);
         }
+        // No attempt was answered, so the module owes no ACK for this command any more.
+        this->stale_ack_count_ = 0;
         this->command_active_ = false;
         this->command_sent_ = false;
-        this->active_frame_id_ = 0;
         this->last_send_ms_ = 0;
       }
     }
@@ -401,8 +396,11 @@ void LD6002BComponent::process_command_queue_() {
   this->retries_left_ = CMD_MAX_RETRIES;
   this->command_active_ = true;
   this->command_sent_ = false;
-  this->active_frame_id_ = 0;
   this->last_send_ms_ = 0;
+  this->attempts_sent_ = 0;
+  if (this->stale_ack_type_ != this->active_command_.type) {
+    this->stale_ack_count_ = 0;
+  }
   this->send_command_(this->active_command_.type, this->active_command_.data.data(), this->active_command_.len);
 }
 
@@ -410,25 +408,31 @@ void LD6002BComponent::send_command_(uint16_t type, const uint8_t *data, uint8_t
   this->send_command_internal_(type, data, len, true);
 }
 
-void LD6002BComponent::send_command_untracked_(uint16_t type, const uint8_t *data, uint8_t len) {
-  this->send_command_internal_(type, data, len, false);
-}
-
 void LD6002BComponent::send_command_internal_(uint16_t type, const uint8_t *data, uint8_t len, bool track) {
-  if (this->auto_wake_ && this->wakeup_pin_ != nullptr) {
-    if (len > CMD_MAX_DATA_LEN) {
-      ESP_LOGW(TAG, "Command data too large: %u", len);
-      return;
+  if (len > CMD_MAX_DATA_LEN) {
+    ESP_LOGW(TAG, "Command data too large: %u", len);
+    if (track) {
+      // Release the slot: this command is never written, so it would neither be
+      // acked nor time out and the queue would stall behind it.
+      this->command_active_ = false;
+      this->command_sent_ = false;
+      this->last_send_ms_ = 0;
     }
-    std::array<uint8_t, CMD_MAX_DATA_LEN> data_copy{};
-    if (len > 0 && data != nullptr) {
-      std::memcpy(data_copy.data(), data, len);
+    return;
+  }
+
+  if (this->auto_wake_ && this->wakeup_pin_ != nullptr) {
+    // Capture no payload: tracked commands are always sent from
+    // active_command_.data, which stays valid until the ack or the timeout,
+    // and untracked ones are staged in wake_scratch_ instead.
+    if (!track && len > 0 && data != nullptr) {
+      std::memcpy(this->wake_scratch_.data(), data, len);
     }
     this->wakeup_pin_->digital_write(false);
-    this->set_timeout(this->wakeup_pulse_ms_, [this, type, len, data_copy, track]() {
+    this->set_timeout(this->wakeup_pulse_ms_, [this, type, len, track]() {
       this->wakeup_pin_->digital_write(true);
-      const uint8_t *payload = (len > 0) ? data_copy.data() : nullptr;
-      this->write_frame_(type, payload, len, track);
+      const uint8_t *payload = track ? this->active_command_.data.data() : this->wake_scratch_.data();
+      this->write_frame_(type, (len > 0) ? payload : nullptr, len, track);
     });
     return;
   }
@@ -465,9 +469,9 @@ void LD6002BComponent::write_frame_(uint16_t type, const uint8_t *data, uint8_t 
     this->write_byte(static_cast<uint8_t>(~data_xor));
   }
   if (track) {
-    this->active_frame_id_ = frame_id;
     this->last_send_ms_ = millis();
     this->command_sent_ = true;
+    this->attempts_sent_++;
   }
 }
 
