@@ -805,31 +805,26 @@ TEST(ModbusClientHubCallbackCount, RetryIsNeverRefusedByFullQueue) {
   EXPECT_TRUE(found);
 }
 
-// The deprecated device-side send_raw() refusal delivers through the same guard as every other
-// path: a handler that reacts to its own refusal with another empty send_raw() stays bounded.
+// The deprecated device-side send_raw() reports an unusable payload the same way every other
+// refused send does: false at the call site, with no queue entry and no callback.
 namespace {
-class SendRawOnNotSentDevice : public ModbusClientDevice {
+class NotSentCountingRawDevice : public ModbusClientDevice {
  public:
-  SendRawOnNotSentDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
-  void on_not_sent(std::span<const uint8_t> request_pdu) override {
-    this->not_sent_count_++;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-    this->send_raw({});  // refused again; the guard must suppress the nested delivery
-#pragma GCC diagnostic pop
-  }
+  NotSentCountingRawDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_not_sent(std::span<const uint8_t> request_pdu) override { this->not_sent_count_++; }
   int not_sent_count_{0};
 };
 }  // namespace
 
-TEST(ModbusClientHubQueue, SendRawRefusalIsGuardedAgainstRecursion) {
+TEST(ModbusClientHubQueue, SendRawTooShortIsRefusedAtTheDoor) {
   NoResponseProbeHub hub;
-  SendRawOnNotSentDevice device(&hub, 0x02);
+  NotSentCountingRawDevice device(&hub, 0x02);
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  device.send_raw({});  // empty payload refused -> on_not_sent -> nested send_raw({}) suppressed
+  EXPECT_FALSE(device.send_raw({}));  // too short to contain a PDU
 #pragma GCC diagnostic pop
-  EXPECT_EQ(device.not_sent_count_, 1);
+  EXPECT_EQ(device.not_sent_count_, 0);  // refusals are returned, never delivered
+  EXPECT_TRUE(hub.tx_buffer_empty());
 }
 
 // A continuous read: every wire transmission pairs one sent with one terminal, ending on the error.
@@ -991,10 +986,11 @@ TEST(ModbusClientHubQueue, ClearAddressReentrantResendNotSwept) {
 }
 
 namespace {
-// Retries from EVERY on_not_sent - against a full queue this recursed without bound before the guard.
-class AlwaysRetryDevice : public ModbusClientDevice {
+// Re-sends its own frame from EVERY on_not_sent: the re-send is absorbed back into the same entry,
+// which without the per-sweep bleed marker would put the sweep in an endless serve/absorb cycle.
+class AlwaysResendDevice : public ModbusClientDevice {
  public:
-  AlwaysRetryDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  AlwaysResendDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
   void on_not_sent(std::span<const uint8_t> request_pdu) override {
     this->not_sent_count_++;
     const uint8_t again[] = {0x03, 0x00, 0x50, 0x00, 0x01};
@@ -1016,12 +1012,36 @@ class ClearOtherOnNotSentDevice : public ModbusClientDevice {
 };
 }  // namespace
 
-// A handler that retries from every on_not_sent() against a FULL queue must not livelock the
-// sweep: one refusal delivery per device per sweep - the repeat is dropped without a callback.
-TEST(ModbusClientHubQueue, FullQueueRetryFromNotSentDoesNotRecurse) {
+// The serve/absorb treadmill: a handler that re-sends its own frame from on_not_sent() puts the
+// surplus straight back onto the entry. The per-sweep bleed marker breaks the cycle - one delivery
+// this sweep, the re-absorbed surplus waits for the next one.
+TEST(ModbusClientHubQueue, ResendFromNotSentDoesNotLivelockTheSweep) {
+  NoResponseProbeHub hub;
+  AlwaysResendDevice device(&hub, 0x02);
+
+  const uint8_t read[] = {0x03, 0x00, 0x50, 0x00, 0x01};
+  device.send_pdu(read);
+  device.send_pdu(read);
+  device.send_pdu(read);  // pending 3, one over a read's servable cap of 2
+  ASSERT_EQ(hub.queued_frames(), 1u);
+  ASSERT_EQ(hub.queued(0).pending, 3u);
+
+  hub.sweep_for_test();  // bleeds one, the handler re-absorbs it, and the sweep still terminates
+
+  EXPECT_EQ(device.not_sent_count_, 1);  // exactly one delivery this sweep
+  ASSERT_EQ(hub.queued_frames(), 1u);
+  EXPECT_EQ(hub.queued(0).pending, 3u);  // 3 - 1 bled + 1 re-absorbed
+
+  hub.sweep_for_test();  // the next sweep serves once more, and so on
+  EXPECT_EQ(device.not_sent_count_, 2);
+}
+
+// A full queue refuses at the door: false at the call site, no entry, no callback - so the
+// refusal cannot re-enter the hub at all and needs no recursion bound of its own.
+TEST(ModbusClientHubQueue, FullQueueRefusesWithoutCallbacks) {
   NoResponseProbeHub hub;
   SentCountingDevice filler(&hub, 0x05);
-  AlwaysRetryDevice retrier(&hub, 0x02);
+  SentCountingDevice device(&hub, 0x02);
 
   // Fill the queue with distinct frames (distinct start addresses keep the dedup from absorbing them).
   for (uint16_t i = 0; i < MODBUS_TX_BUFFER_SIZE; i++) {
@@ -1031,79 +1051,12 @@ TEST(ModbusClientHubQueue, FullQueueRetryFromNotSentDoesNotRecurse) {
   ASSERT_EQ(hub.queued_frames(), MODBUS_TX_BUFFER_SIZE);
 
   const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
-  retrier.send_pdu(read);  // refused (full); the terminal is owed to the sweep
-  hub.sweep_for_test();    // delivers it; the handler's retry-refusal is suppressed for this sweep
+  EXPECT_FALSE(device.send_pdu(read));  // refused synchronously
+  hub.sweep_for_test();
 
-  EXPECT_EQ(retrier.not_sent_count_, 1);
+  EXPECT_EQ(device.not_sent_count_, 0);  // nothing was accepted, so nothing is owed
   EXPECT_EQ(hub.queued_frames(), MODBUS_TX_BUFFER_SIZE);
-}
-
-namespace {
-// From inside on_not_sent, triggers ANOTHER device's send (which will be refused too).
-class SendOtherOnNotSentDevice : public ModbusClientDevice {
- public:
-  SendOtherOnNotSentDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
-  void on_not_sent(std::span<const uint8_t> request_pdu) override {
-    this->not_sent_count_++;
-    if (this->other_ != nullptr) {
-      const uint8_t read[] = {0x03, 0x00, 0x60, 0x00, 0x01};
-      this->other_->send_pdu(read);
-    }
-  }
-  ModbusClientDevice *other_{nullptr};
-  int not_sent_count_{0};
-};
-}  // namespace
-
-// The refusal suppression is per-device: a refusal that lands on a DIFFERENT device during the
-// same sweep must still deliver - that device did not cause the loop and would otherwise silently
-// lose its terminal callback.
-TEST(ModbusClientHubQueue, RefusalForOtherDeviceDeliversDuringNotification) {
-  NoResponseProbeHub hub;
-  SentCountingDevice filler(&hub, 0x05);
-  SendOtherOnNotSentDevice first(&hub, 0x02);
-  SentCountingDevice second(&hub, 0x03);
-  first.other_ = &second;
-
-  // Fill the queue with distinct frames (distinct start addresses keep the dedup from absorbing them).
-  for (uint16_t i = 0; i < MODBUS_TX_BUFFER_SIZE; i++) {
-    const uint8_t fill[] = {0x03, static_cast<uint8_t>(i >> 8), static_cast<uint8_t>(i & 0xFF), 0x00, 0x01};
-    filler.send_pdu(fill);
-  }
-  ASSERT_EQ(hub.queued_frames(), MODBUS_TX_BUFFER_SIZE);
-
-  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
-  first.send_pdu(read);  // refused; the sweep notifies first, whose handler gets second refused too
-  hub.sweep_for_test();
-
-  EXPECT_EQ(first.not_sent_count_, 1);
-  EXPECT_EQ(second.not_sent_count_, 1);
-}
-
-// Two devices whose handlers each trigger the other's send cannot loop the sweep without bound:
-// each device receives at most one refusal delivery per sweep, so the cycle dies on its second
-// visit to either device.
-TEST(ModbusClientHubQueue, TwoDeviceRefusalCycleTerminates) {
-  NoResponseProbeHub hub;
-  SentCountingDevice filler(&hub, 0x05);
-  SendOtherOnNotSentDevice first(&hub, 0x02);
-  SendOtherOnNotSentDevice second(&hub, 0x03);
-  first.other_ = &second;
-  second.other_ = &first;
-
-  // Fill the queue with distinct frames (distinct start addresses keep the dedup from absorbing them).
-  for (uint16_t i = 0; i < MODBUS_TX_BUFFER_SIZE; i++) {
-    const uint8_t fill[] = {0x03, static_cast<uint8_t>(i >> 8), static_cast<uint8_t>(i & 0xFF), 0x00, 0x01};
-    filler.send_pdu(fill);
-  }
-  ASSERT_EQ(hub.queued_frames(), MODBUS_TX_BUFFER_SIZE);
-
-  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
-  first.send_pdu(read);  // refuse -> first -> second refused -> second -> first suppressed -> done
-  hub.sweep_for_test();
-
-  EXPECT_EQ(first.not_sent_count_, 1);
-  EXPECT_EQ(second.not_sent_count_, 1);
+  EXPECT_EQ(hub.entries(), MODBUS_TX_BUFFER_SIZE);  // and no refusal bookkeeping was stored
 }
 
 namespace {
@@ -1136,10 +1089,11 @@ TEST(ModbusClientHubQueue, SelfClearFromNotSentResolvesEveryRequest) {
   bystander.send_pdu(read_c);
   ASSERT_EQ(hub.queued_frames(), 3u);
 
-  clearer.send_pdu(std::span<const uint8_t>{});  // refused inline (empty) -> the handler clears the address
+  EXPECT_FALSE(clearer.send_pdu(std::span<const uint8_t>{}));  // empty: refused, no callback
+  clearer.clear_tx_queue_for_address(/*clear_sent=*/false);    // the clear the handler used to make
   hub.sweep_for_test();
 
-  EXPECT_EQ(clearer.not_sent_count_, 3);    // the refusal plus both cleared requests
+  EXPECT_EQ(clearer.not_sent_count_, 2);    // one per cleared request of its own
   EXPECT_EQ(bystander.not_sent_count_, 1);  // the bystander's cleared frame is notified too
   EXPECT_EQ(hub.queued_frames(), 0u);
 }
@@ -1369,19 +1323,27 @@ TEST(ModbusClientHubCompat, LegacyCallbackNamesStillForward) {
   hub.timeout_waiting();  // no reply -> on_no_response -> forwards to on_modbus_no_response
   EXPECT_EQ(device.legacy_no_response_, 1);
 
-  device.send_pdu(std::span<const uint8_t>());  // empty PDU refused -> on_not_sent -> forwards
+  // A refused send returns false with no callback, so exercise the forward through an accepted
+  // request instead: a cleared queue entry delivers on_not_sent(), which forwards to the old name.
+  EXPECT_FALSE(device.send_pdu(std::span<const uint8_t>()));  // empty PDU: refused at the door
+  EXPECT_EQ(device.legacy_not_sent_, 0);
+  const uint8_t queued[] = {0x03, 0x00, 0x11, 0x00, 0x01};
+  EXPECT_TRUE(device.send_pdu(queued));
+  hub.clear_tx_queue_for_address(0x02, false);
+  hub.sweep_for_test();
   EXPECT_EQ(device.legacy_not_sent_, 1);
 }
 
 // The send_pdu() capacity bound: a PDU larger than MAX_PDU_SIZE would build a frame past the RTU
-// 256-byte limit, so it is refused up front and signalled like any other failed send.
-TEST(ModbusClientHub, OversizedPduIsRefusedWithNotSent) {
+// 256-byte limit, so it is refused up front - false at the call site, no entry, no callback.
+TEST(ModbusClientHub, OversizedPduIsRefusedAtTheDoor) {
   NoResponseProbeHub hub;
   LegacyNameDevice device(&hub, 0x02);
   std::vector<uint8_t> big(MAX_PDU_SIZE + 1, 0x41);
-  device.send_pdu(big);
-  EXPECT_EQ(device.legacy_not_sent_, 1);  // on_not_sent, observed via the legacy forward
+  EXPECT_FALSE(device.send_pdu(big));
+  EXPECT_EQ(device.legacy_not_sent_, 0);  // refusals are returned, never delivered
   EXPECT_TRUE(hub.tx_buffer_empty());
+  EXPECT_EQ(hub.entries(), 0u);
 }
 
 // --- ModbusDevice compatibility shim ------------------------------------------------------------
@@ -1495,7 +1457,7 @@ TEST(ModbusTypedSendHelpers, ReadEntitiesDispatchesByTypeAndRejectsInvalid) {
   EXPECT_EQ(hub.queued_frames(), 0u);
 }
 
-// A rejected read_entities() signals on_not_sent() like every other refused send.
+// A rejected read_entities() returns false like every other refused send.
 namespace {
 class NotSentCountingDevice : public ModbusClientDevice {
  public:
@@ -1505,11 +1467,11 @@ class NotSentCountingDevice : public ModbusClientDevice {
 };
 }  // namespace
 
-TEST(ModbusTypedSendHelpers, InvalidReadEntitiesSignalsNotSent) {
+TEST(ModbusTypedSendHelpers, InvalidReadEntitiesIsRefusedAtTheDoor) {
   NoResponseProbeHub hub;
   NotSentCountingDevice device(&hub, 0x02);
-  device.read_entities(EntityType::CUSTOM, 0x0001, 1);
-  EXPECT_EQ(device.not_sent_, 1);
+  EXPECT_FALSE(device.read_entities(EntityType::CUSTOM, 0x0001, 1));
+  EXPECT_EQ(device.not_sent_, 0);  // refused sends report through the return value
   EXPECT_EQ(hub.queued_frames(), 0u);
 }
 

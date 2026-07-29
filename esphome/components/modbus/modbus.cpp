@@ -672,31 +672,6 @@ size_t ModbusClientHub::live_count_() const {
   return count;
 }
 
-void ModbusClientHub::refuse_(ModbusClientDevice *device, uint8_t address, std::span<const uint8_t> pdu) {
-  if (device == nullptr)
-    return;  // no owner to notify; the caller already logged the drop
-  // One refusal delivery per device per sweep: a handler that reacts to its own on_not_sent() with
-  // another doomed send (directly or through a device cycle) must not livelock the sweep.
-  for (const auto &cmd : this->tx_buffer_) {
-    if (cmd.served_not_sent && cmd.device == device) {
-      ESP_LOGV(TAG, "Suppressing repeated refusal for address %" PRIu8 " within one sweep", address);
-      return;
-    }
-  }
-  size_t refused = 0;
-  for (const auto &cmd : this->tx_buffer_) {
-    if (cmd.state == FrameState::REFUSED)
-      refused++;
-  }
-  if (refused >= MODBUS_REFUSED_RESERVE) {
-    ESP_LOGE(TAG, "Refusal reserve full, dropping on_not_sent for address %" PRIu8, address);
-    return;
-  }
-  auto &cmd = this->tx_buffer_.emplace_back(device, address, pdu);
-  cmd.state = FrameState::REFUSED;
-  this->sweep_needed_ = true;
-}
-
 uint8_t ModbusClientHub::servable_cap_(const ModbusDeviceCommand &cmd) {
   // A requeueable one-shot read absorbs one extra request (this run + one re-run); everything
   // else - writes, custom codes, continuous polls - serves exactly one.
@@ -780,9 +755,8 @@ void ModbusClientHub::sweep_() {
           break;
         }
         case FrameState::REFUSED: {
-          cmd.served_not_sent = true;
           if (cmd.device != nullptr)
-            cmd.device->trigger_not_sent(cmd.frame.pdu());
+            cmd.device->on_not_sent(cmd.frame.pdu());
           if (cmd.state == FrameState::REFUSED) {  // a clear from inside the handler wins otherwise
             if (!cmd.continuous && --cmd.pending != 0) {
               // A transmit failure's refusal resolved one request; the absorbed one gets its run.
@@ -802,7 +776,7 @@ void ModbusClientHub::sweep_() {
           if (cmd.device == nullptr) {
             cmd.pending = 0;
           } else {
-            cmd.device->trigger_not_sent(cmd.frame.pdu());
+            cmd.device->on_not_sent(cmd.frame.pdu());
             // A device-scoped clear from inside the handler silences the rest.
             cmd.pending = (cmd.device == nullptr || cmd.pending == 0) ? 0 : cmd.pending - 1;
           }
@@ -814,7 +788,7 @@ void ModbusClientHub::sweep_() {
             break;  // served entries wait for the next sweep, bounding handler re-send loops
           cmd.served_not_sent = true;
           if (cmd.device != nullptr)
-            cmd.device->trigger_not_sent(cmd.frame.pdu());
+            cmd.device->on_not_sent(cmd.frame.pdu());
           if (cmd.pending != 0) {  // a clear inside the handler may have drained it
             cmd.pending--;
             cmd.seq = this->next_seq_++;  // a request resolved; the place in line moves up
@@ -841,22 +815,18 @@ void ModbusClientHub::sweep_() {
 }
 
 // Raw send for client: pushes to tx queue. Everything except the CRC must be contained in payload.
-void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device,
+bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device,
                                CommandOptions options) {
-  // Validation failures never enter the state machine - nothing was accepted, and an oversize PDU
-  // cannot even be stored in a frame entry - so their terminal is delivered inline. These are the
-  // only on_not_sent() deliveries that don't come from the sweep.
+  // Requests refused at the door never enter the state machine and get no callback - the false
+  // return IS the refusal, delivered synchronously at the call site.
   if (pdu.empty()) {
-    if (device != nullptr)
-      device->trigger_not_sent(pdu);
-    return;
+    ESP_LOGW(TAG, "Empty PDU refused for address %" PRIu8, address);
+    return false;
   }
   // Bound the PDU so the wire frame (address + pdu + CRC) stays within the Modbus RTU 256-byte limit.
   if (pdu.size() > MAX_PDU_SIZE) {
-    ESP_LOGE(TAG, "Frame too large, dropped: %" PRIu8 ":%zu bytes", address, pdu.size());
-    if (device != nullptr)
-      device->trigger_not_sent(pdu);
-    return;
+    ESP_LOGE(TAG, "Frame too large, refused: %" PRIu8 ":%zu bytes", address, pdu.size());
+    return false;
   }
 
   // The ordering class is derived from the frame (ModbusDeviceCommand::classify()), never chosen
@@ -906,6 +876,7 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
                  "device for delivery accounting",
                  address, pdu[0]);
       }
+      return false;  // dropped: no entry, no callbacks - the refusal is the return value
     } else if (continuous) {
       item.continuous = true;
       item.pending = 1;
@@ -921,17 +892,16 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
       ESP_LOGV(TAG, "Frame already active for %" PRIu8 ", request absorbed (pending %" PRIu8 ")", address,
                item.pending);
     }
-    return;
+    return true;
   }
 
   if (this->live_count_() >= MODBUS_TX_BUFFER_SIZE) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
     char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
 #endif
-    ESP_LOGE(TAG, "Write buffer full, dropped: %" PRIu8 ":%s", address,
+    ESP_LOGE(TAG, "Write buffer full, refused: %" PRIu8 ":%s", address,
              format_hex_pretty_to(hex_buf, pdu.data(), pdu.size()));
-    this->refuse_(device, address, pdu);
-    return;
+    return false;
   }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
@@ -941,6 +911,7 @@ void ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   auto &cmd = this->tx_buffer_.emplace_back(device, address, pdu);
   cmd.continuous = continuous;
   cmd.seq = this->next_seq_++;
+  return true;
 }
 
 void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sent) {
@@ -1011,8 +982,7 @@ void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
 
 void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device) {
   if (payload.size() < 2) {
-    if (device != nullptr)
-      device->trigger_not_sent({});  // too short to contain a PDU
+    ESP_LOGW(TAG, "send_raw() payload too short to contain a PDU, refused");
     return;
   }
   this->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), device);

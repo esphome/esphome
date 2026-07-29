@@ -125,12 +125,11 @@ enum class CommandPriority : uint8_t { READ = 0, WRITE };
 ///   WAITING -> WAITING_DELETED  on a clear with clear_sent: the frame is on the wire, so it
 ///                               persists as a response-ignoring shell, -> DELETED on response or
 ///                               timeout and swept silently
-///   new -> REFUSED              full-queue refusals (a fresh entry in the reserve) and transmit
-///                               failures (a state flip): the entry owes exactly one on_not_sent(),
-///                               delivered by the sweep; a transmit failure with remaining pending
-///                               then returns to READY for the absorbed request's run. (Empty and
-///                               oversize PDUs never enter the machine; their on_not_sent() is
-///                               delivered inline at send_pdu().)
+///   READY -> REFUSED            on a transmit failure: the entry owes exactly one on_not_sent(),
+///                               delivered by the sweep; remaining pending then returns the entry
+///                               to READY for the absorbed request's run. (Requests that never
+///                               enter the machine - empty/oversize PDU, full queue, anonymous
+///                               duplicate - get NO callback: send_pdu() returns false instead.)
 /// THE SWEEP (run each loop() between the watchdog and transmit, armed by sweep_needed_) walks
 /// entries needing service and delivers their callbacks from a QUIESCENT hub - terminal-state
 /// entries ARE the pending deliveries, so no separate notification queue exists and no callback
@@ -165,10 +164,10 @@ struct ModbusDeviceCommand {
   /// CONTINUOUS entries are subscriptions: never consumed by completion, pending
   /// fixed at 1 ("the subscription"), removed only by cancellation or failure.
   bool continuous{false};
-  /// Per-sweep marker: this entry's device already received a refusal/bleed on_not_sent() during
-  /// the current sweep. Further refusals for the device are suppressed and further bleed is
-  /// deferred, so a handler that re-sends from inside on_not_sent() cannot livelock the sweep.
-  /// Reset at the end of every sweep.
+  /// Per-sweep marker: this entry already had one surplus request bled off (on_not_sent())
+  /// during the current sweep; further bleed is deferred to the next sweep, so a handler that
+  /// re-sends its own frame from inside on_not_sent() cannot livelock the sweep. Reset at the
+  /// end of every sweep.
   bool served_not_sent{false};
   /// Accepted requests this entry stands for. Duplicates increment it without bound; the sweep
   /// bleeds any excess over the servable cap (2 for requeueable reads: this run + one re-run;
@@ -212,11 +211,6 @@ struct ModbusDeviceCommand {
   }
 };
 
-/// Container spots reserved exclusively for REFUSED entries, so a full transmit queue can still
-/// record its refusals for uniform sweep delivery. Beyond the reserve: drop with an error log -
-/// the one honest backstop, and it is loud.
-static constexpr uint8_t MODBUS_REFUSED_RESERVE = 4;
-
 class ModbusClientHub : public Modbus {
  public:
   ModbusClientHub() = default;
@@ -234,7 +228,11 @@ class ModbusClientHub : public Modbus {
                                               payload_len),
                    device);
   };
-  void send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr,
+  /// Queue a request. Returns true when the request is now represented by a live entry (queued
+  /// fresh, or absorbed into an identical one) and will resolve in exactly one terminal callback.
+  /// Returns false when it never entered the machine - empty or oversize PDU, full queue, or an
+  /// anonymous duplicate - in which case NO callback follows: the refusal is the return value.
+  bool send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr,
                 CommandOptions options = {});
   ESPDEPRECATED("Use send_pdu(payload[0], <pdu bytes>, device) instead. Removed in 2027.2.0", "2026.8.0")
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr);
@@ -268,8 +266,6 @@ class ModbusClientHub : public Modbus {
   // Entries counted against the transmit-queue cap: excludes REFUSED (they occupy the reserve)
   // and the *_DELETED states (already resolved, awaiting the erase pass).
   size_t live_count_() const;
-  // Append a REFUSED entry owing one on_not_sent() (uses the reserve; drops loudly beyond it).
-  void refuse_(ModbusClientDevice *device, uint8_t address, std::span<const uint8_t> pdu);
   // Servable cap for the pending bleed: 2 for requeueable reads, 1 otherwise.
   static uint8_t servable_cap_(const ModbusDeviceCommand &cmd);
 
@@ -327,10 +323,12 @@ using ResponseStatus = std::optional<ExceptionCode>;
 /// Command lifecycle: each accepted request (a send_pdu()/typed-helper call, a retry granted by
 /// on_no_response(), or a continuous poll's cycle) ends in exactly ONE terminal callback:
 /// on_response() (valid response), on_error() (exception response), on_no_response()
-/// (timeout or interrupted transaction), or on_not_sent() (never transmitted: send failure,
-/// full queue, or bled off as an over-cap duplicate). on_sent() is additional, not terminal:
-/// it fires once per wire transmission, before whichever of data/error/no_response follows,
-/// and never for a request that ends in on_not_sent().
+/// (timeout or interrupted transaction), or on_not_sent() (accepted but never transmitted: a
+/// transmit failure, an address-clear drop, or an over-cap duplicate bled off by the sweep).
+/// Requests that never enter the machine get NO callback - send_pdu() returns false at the call
+/// site instead. on_sent() is additional, not terminal: it fires once per wire transmission,
+/// before whichever of data/error/no_response follows, and never for a request that ends in
+/// on_not_sent().
 /// Delivery timing: on_response()/on_error() fire at parse time (zero-copy spans); every other
 /// callback is delivered by the sweep during the hub's loop(), from a quiescent hub -
 /// see the FrameState transition table for the full machine.
@@ -345,16 +343,14 @@ using ResponseStatus = std::optional<ExceptionCode>;
 ///    requests as well. Likewise, converting an entry to continuous ({.continuous = true} matching
 ///    a queued frame) SUPERSEDES any request that entry had absorbed: the caller opted into
 ///    streaming semantics, and the poll's responses are the accounting from then on.
-///  - a device receives at most ONE refusal/bleed on_not_sent() per sweep; a repeat refusal caused
-///    from inside that delivery (a doomed re-send, directly or through a device cycle) is dropped
-///    without a callback, bounding what would otherwise be unbounded re-entry. (Inline validation
-///    refusals - empty/oversize PDU - are guarded by trigger_not_sent() the same way.)
-/// Sending from inside on_not_sent() is hazardous: the notification may itself mean the queue is full
-/// or refusing, and this device's retry that is refused again is dropped WITHOUT a callback (the
-/// bound above) - prefer re-sending from a later trigger or the component's update()/loop().
-/// An address-scoped clear issued from inside on_not_sent() resolves EVERY dropped request with its
-/// own terminal at the sweep, the clearer's included; use clear_tx_queue_for_device() when you want
-/// your own frames torn down silently.
+///  - an entry bleeds at most ONE surplus request per sweep: a handler that re-sends its own
+///    frame from inside on_not_sent() re-absorbs into the entry, and the repeat bleed waits for
+///    the next sweep - bounded, one callback per loop, never a livelock.
+/// Sending from inside on_not_sent() is safe but check the return value: the notification may
+/// itself mean the queue is full, and a refused re-send simply returns false (no callback, no
+/// recursion). An address-scoped clear issued from inside on_not_sent() resolves EVERY dropped
+/// request with its own terminal at the sweep, the clearer's included; use
+/// clear_tx_queue_for_device() when you want your own frames torn down silently.
 class ModbusClientDevice {
  public:
   ModbusClientDevice() = default;
@@ -382,9 +378,10 @@ class ModbusClientDevice {
   virtual void on_error(std::span<const uint8_t> request_pdu, ExceptionCode exception_code) {
     this->dispatch_response_(request_pdu, {}, exception_code);
   }
-  /// Called when no request could be sent (e.g. queue full, transmission blocked).
-  /// Sending from inside this callback is bounded but hazardous: if the re-send is refused too, the
-  /// per-device guard suppresses ITS on_not_sent() (see trigger_not_sent() and the contract above).
+  /// Called when an ACCEPTED request could not be transmitted (transmit failure, an address-clear
+  /// drop, or a surplus duplicate bled off). A send that is refused outright never gets this
+  /// callback - send_pdu() returns false instead. Re-sending from inside this callback is safe:
+  /// a refused re-send returns false, an absorbed one waits a sweep (see the contract above).
   /// (The on_modbus_* names below are deprecated pre-rename spellings; the defaults forward so
   /// external devices overriding them keep working through the deprecation window.)
   virtual void on_not_sent(std::span<const uint8_t> request_pdu) {
@@ -392,19 +389,6 @@ class ModbusClientDevice {
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     this->on_modbus_not_sent();
 #pragma GCC diagnostic pop
-  }
-  /// Non-virtual entry point the hub uses for every on_not_sent() delivery. While this device's
-  /// on_not_sent() is on the stack, further deliveries to it are dropped. Sweep deliveries are
-  /// serialized and bounded by served_not_sent, so for them this guard is inert; its real duty is
-  /// the INLINE validation refusals (empty/oversize PDU, invalid read_entities()), which deliver
-  /// synchronously with no queue entry - there a handler repeating the same invalid send would
-  /// otherwise recurse on the stack until it overflows.
-  void trigger_not_sent(std::span<const uint8_t> request_pdu) {
-    if (this->notifying_not_sent_)
-      return;
-    this->notifying_not_sent_ = true;
-    this->on_not_sent(request_pdu);
-    this->notifying_not_sent_ = false;
   }
   /// Called when this device's frame is actually written to the wire
   virtual void on_sent(std::span<const uint8_t> request_pdu) {}
@@ -475,59 +459,58 @@ class ModbusClientDevice {
         helpers::create_client_pdu((FunctionCode) function, start_address, number_of_entities, payload, payload_len),
         this);
   }
-  void send_pdu(std::span<const uint8_t> pdu, CommandOptions options = {}) {
-    this->parent_->send_pdu(this->address_, pdu, this, options);
+  /// See ModbusClientHub::send_pdu(): true = accepted (a terminal callback will follow),
+  /// false = refused at the door (no callback).
+  bool send_pdu(std::span<const uint8_t> pdu, CommandOptions options = {}) {
+    return this->parent_->send_pdu(this->address_, pdu, this, options);
   }
   ESPDEPRECATED("Use send_pdu() instead (the device address is prepended for you). Removed in 2027.2.0", "2026.8.0")
-  void send_raw(const std::vector<uint8_t> &payload) {
-    if (payload.empty()) {
-      // Through the guard like every other delivery, so a handler calling send_raw({}) cannot recurse.
-      this->trigger_not_sent({});
-      return;
-    }
-    this->parent_->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
+  bool send_raw(const std::vector<uint8_t> &payload) {
+    if (payload.empty())
+      return false;  // too short to contain a PDU; refused at the door like any invalid send
+    return this->parent_->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
   }
   // Reads via the table-appropriate function code; an unreadable entity type maps to INVALID, which
-  // create_read_pdu() rejects into an empty PDU and send_pdu() signals via on_not_sent().
-  void read_entities(EntityType entity_type, uint16_t start_address, uint16_t number_of_entities,
+  // create_read_pdu() rejects into an empty PDU and send_pdu() refuses with a false return.
+  bool read_entities(EntityType entity_type, uint16_t start_address, uint16_t number_of_entities,
                      CommandOptions options = {}) {
-    this->send_pdu(helpers::create_read_pdu(helpers::modbus_register_read_function(entity_type), start_address,
-                                            number_of_entities),
-                   options);
+    return this->send_pdu(helpers::create_read_pdu(helpers::modbus_register_read_function(entity_type), start_address,
+                                                   number_of_entities),
+                          options);
   }
-  void read_input_registers(uint16_t start_address, uint16_t number_of_registers, CommandOptions options = {}) {
-    this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_INPUT_REGISTERS, start_address, number_of_registers),
-                   options);
+  bool read_input_registers(uint16_t start_address, uint16_t number_of_registers, CommandOptions options = {}) {
+    return this->send_pdu(
+        helpers::create_read_pdu(FunctionCode::READ_INPUT_REGISTERS, start_address, number_of_registers), options);
   }
-  void read_holding_registers(uint16_t start_address, uint16_t number_of_registers, CommandOptions options = {}) {
-    this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_HOLDING_REGISTERS, start_address, number_of_registers),
-                   options);
+  bool read_holding_registers(uint16_t start_address, uint16_t number_of_registers, CommandOptions options = {}) {
+    return this->send_pdu(
+        helpers::create_read_pdu(FunctionCode::READ_HOLDING_REGISTERS, start_address, number_of_registers), options);
   }
-  void read_coils(uint16_t start_address, uint16_t number_of_coils, CommandOptions options = {}) {
-    this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_COILS, start_address, number_of_coils), options);
+  bool read_coils(uint16_t start_address, uint16_t number_of_coils, CommandOptions options = {}) {
+    return this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_COILS, start_address, number_of_coils), options);
   }
-  void read_discrete_inputs(uint16_t start_address, uint16_t number_of_inputs, CommandOptions options = {}) {
-    this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_DISCRETE_INPUTS, start_address, number_of_inputs),
-                   options);
+  bool read_discrete_inputs(uint16_t start_address, uint16_t number_of_inputs, CommandOptions options = {}) {
+    return this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_DISCRETE_INPUTS, start_address, number_of_inputs),
+                          options);
   }
-  void write_single_register(uint16_t start_address, uint16_t value) {
-    this->send_pdu(helpers::create_write_single_register_pdu(start_address, value));
+  bool write_single_register(uint16_t start_address, uint16_t value) {
+    return this->send_pdu(helpers::create_write_single_register_pdu(start_address, value));
   }
-  void write_single_coil(uint16_t address, bool value) {
-    this->send_pdu(helpers::create_write_single_coil_pdu(address, value));
+  bool write_single_coil(uint16_t address, bool value) {
+    return this->send_pdu(helpers::create_write_single_coil_pdu(address, value));
   }
-  void write_multiple_registers(uint16_t start_address, std::span<const uint16_t> values) {
-    this->send_pdu(helpers::create_write_registers_pdu(start_address, values));
+  bool write_multiple_registers(uint16_t start_address, std::span<const uint16_t> values) {
+    return this->send_pdu(helpers::create_write_registers_pdu(start_address, values));
   }
   /// Note: std::vector<bool> cannot bind to std::span<const bool>; use a contiguous bool container or the packed
   /// overload.
-  void write_multiple_coils(uint16_t start_address, std::span<const bool> values) {
-    this->send_pdu(helpers::create_write_coils_pdu(start_address, values));
+  bool write_multiple_coils(uint16_t start_address, std::span<const bool> values) {
+    return this->send_pdu(helpers::create_write_coils_pdu(start_address, values));
   }
   /// Packed variant: a PackedBits view (the same layout on_read_coils() delivers), so
   /// read-modify-write needs no unpack/repack.
-  void write_multiple_coils(uint16_t start_address, PackedBits bits) {
-    this->send_pdu(helpers::create_write_coils_pdu(start_address, bits));
+  bool write_multiple_coils(uint16_t start_address, PackedBits bits) {
+    return this->send_pdu(helpers::create_write_coils_pdu(start_address, bits));
   }
   inline void clear_tx_queue_for_address(bool clear_sent = true) {
     this->parent_->clear_tx_queue_for_address(this->address_, clear_sent);
@@ -545,8 +528,6 @@ class ModbusClientDevice {
                           ResponseStatus status);
 
   ModbusClientHub *parent_{nullptr};
-  /// True while this device's on_not_sent() is on the stack (see trigger_not_sent()).
-  bool notifying_not_sent_{false};
   uint8_t address_{0};
   bool custom_response_warned_{false};  // first unhandled custom response warns; repeats log at VERBOSE
 };
