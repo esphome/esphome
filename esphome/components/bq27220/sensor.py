@@ -35,6 +35,11 @@ CONF_STATE_OF_HEALTH = "state_of_health"
 
 UNIT_MILLIAMPERE_HOUR = "mAh"
 
+# Other SLUUBD4A standard commands are intentionally not exposed to keep the
+# component focused; they can be added later if there is demand: TimeToFull
+# (0x18), CycleCount (0x2A), BatteryStatus (0x0A), AveragePower (0x24),
+# DesignCapacity (0x3C).
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {

@@ -15,22 +15,21 @@ bool BQ27220Component::read_word_(uint8_t reg, uint16_t &value) {
 }
 
 void BQ27220Component::setup() {
-  // Verify the device by reading DEVICE_TYPE: write the subcommand to Control(),
-  // then read the result from the MAC data buffer after a short delay. Reading
-  // Control() directly returns CONTROL_STATUS, not the device number.
-  uint8_t ctrl_cmd[2] = {0x01, 0x00};  // DEVICE_TYPE subcommand (0x0001, little-endian)
+  // Verify the device: issue the DEVICE_NUMBER subcommand via Control(), then read
+  // the result from the MAC data buffer and confirm it matches the BQ27220.
+  uint8_t ctrl_cmd[2] = {0x01, 0x00};  // DEVICE_NUMBER subcommand (0x0001, little-endian)
   if (this->write_register(BQ27220_REG_CONTROL, ctrl_cmd, 2) != i2c::ERROR_OK) {
     this->mark_failed(LOG_STR("Failed to communicate with BQ27220"));
     return;
   }
-  delay(2);
-  uint16_t device_type = 0;
-  if (!this->read_word_(BQ27220_REG_MAC_DATA, device_type)) {
-    this->mark_failed(LOG_STR("Failed to read device type from BQ27220"));
+  delay(2);  // SLUUBD4A §5.3: allow the subcommand result to update before reading
+  uint16_t device_number = 0;
+  if (!this->read_word_(BQ27220_REG_MAC_DATA, device_number)) {
+    this->mark_failed(LOG_STR("Failed to read device number from BQ27220"));
     return;
   }
-  if (device_type != BQ27220_DEVICE_TYPE) {
-    ESP_LOGE(TAG, "Unexpected device type 0x%04X (expected 0x%04X)", device_type, BQ27220_DEVICE_TYPE);
+  if (device_number != BQ27220_DEVICE_NUMBER) {
+    ESP_LOGE(TAG, "Unexpected device number 0x%04X (expected 0x%04X)", device_number, BQ27220_DEVICE_NUMBER);
     this->mark_failed();
     return;
   }
@@ -51,7 +50,7 @@ void BQ27220Component::update() {
 
   if (this->current_sensor_ != nullptr) {
     if (this->read_word_(BQ27220_REG_CURRENT, raw)) {
-      this->current_sensor_->publish_state(static_cast<int16_t>(raw) / 1000.0f);  // mA → A (signed)
+      this->current_sensor_->publish_state(static_cast<int16_t>(raw) / 1000.0f);  // signed mA → A (SLUUBD4A §2.8)
     } else {
       this->current_sensor_->publish_state(NAN);
       success = false;

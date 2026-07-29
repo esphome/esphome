@@ -21,10 +21,10 @@ static const uint8_t BQ27220_REG_TIME_TO_EMPTY = 0x16;         // min (0xFFFF = 
 static const uint8_t BQ27220_REG_STATE_OF_CHARGE = 0x2C;       // %
 static const uint8_t BQ27220_REG_STATE_OF_HEALTH = 0x2E;       // %
 
-// DEVICE_TYPE subcommand result is returned via the MAC data buffer (0x40), not
-// by reading Control() directly (which returns CONTROL_STATUS).
+// DEVICE_NUMBER subcommand (0x0001, SLUUBD4A §2.2.2); its result is read from the
+// MAC data buffer.
 static const uint8_t BQ27220_REG_MAC_DATA = 0x40;
-static const uint16_t BQ27220_DEVICE_TYPE = 0x0220;
+static const uint16_t BQ27220_DEVICE_NUMBER = 0x0220;
 
 class BQ27220Component final : public PollingComponent, public i2c::I2CDevice {
  public:
