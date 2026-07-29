@@ -1329,7 +1329,8 @@ void APIConnection::on_voice_assistant_announce_request(const VoiceAssistantAnno
   }
 }
 
-bool APIConnection::send_voice_assistant_get_configuration_response_(const VoiceAssistantConfigurationRequest &msg) {
+bool APIConnection::send_voice_assistant_get_configuration_response_(
+    const VoiceAssistantConfigurationRequest & /*msg*/) {
   VoiceAssistantConfigurationResponse resp;
   if (!this->check_voice_assistant_api_connection_()) {
     // send_message encodes synchronously, so this stack local outlives the encode
