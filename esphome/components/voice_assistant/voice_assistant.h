@@ -378,6 +378,9 @@ class VoiceAssistant final : public Component {
 #ifdef USE_MICRO_WAKE_WORD
   micro_wake_word::MicroWakeWord *micro_wake_word_{nullptr};
 #ifdef USE_VOICE_ASSISTANT_RUNTIME_MODEL
+  // Used from the background download task, not just the main loop, so that a download never blocks the loop.
+  http_request::HttpRequestComponent *http_request_{nullptr};
+
   /* Runtime model management. Every member and method below is touched only on the main loop; the
      background download task communicates results back via defer() with everything captured by value. */
 
@@ -405,8 +408,6 @@ class VoiceAssistant final : public Component {
   // FreeRTOS task body: downloads and validates queued models, handing each off to the main loop via defer().
   static void model_load_task(void *params);
   TaskHandle_t model_load_task_handle_{nullptr};
-
-  http_request::HttpRequestComponent *http_request_{nullptr};
 #endif
 #endif
 };

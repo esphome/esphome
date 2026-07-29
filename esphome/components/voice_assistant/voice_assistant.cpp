@@ -1398,13 +1398,17 @@ void VoiceAssistant::model_load_task(void *params) {
       fail();
       continue;
     }
-    size_t manifest_size = manifest_container->content_length;
-    if (manifest_size == 0 || manifest_size > MAX_MANIFEST_SIZE) {
-      ESP_LOGW(TAG, "Manifest for %s has an invalid content length %zu", id.c_str(), manifest_size);
+    // A chunked response carries no usable content length: ESP-IDF reports 0 and Arduino reports SIZE_MAX.
+    // Read up to the cap in that case and rely on get_bytes_read() below for the size that actually arrived.
+    const size_t manifest_length = manifest_container->content_length;
+    const bool manifest_length_known = manifest_length != 0 && manifest_length != SIZE_MAX;
+    if (manifest_length_known && manifest_length > MAX_MANIFEST_SIZE) {
+      ESP_LOGW(TAG, "Manifest for %s is larger than %zu bytes", id.c_str(), MAX_MANIFEST_SIZE);
       manifest_container->end();
       fail();
       continue;
     }
+    const size_t manifest_size = manifest_length_known ? manifest_length : MAX_MANIFEST_SIZE;
     std::string manifest_str;
     manifest_str.resize(manifest_size);
     auto manifest_read =
@@ -1412,7 +1416,7 @@ void VoiceAssistant::model_load_task(void *params) {
                                       manifest_size, MODEL_DOWNLOAD_CHUNK_SIZE, this_va->http_request_->get_timeout());
     size_t manifest_bytes = manifest_container->get_bytes_read();
     manifest_container->end();
-    if (manifest_read.status != http_request::HttpReadStatus::OK) {
+    if (manifest_read.status != http_request::HttpReadStatus::OK || manifest_bytes == 0) {
       ESP_LOGW(TAG, "Failed to read manifest for %s", id.c_str());
       fail();
       continue;
@@ -1492,16 +1496,23 @@ void VoiceAssistant::model_load_task(void *params) {
       fail();
       continue;
     }
-    size_t model_size = container->content_length;
+    // Bound the read by the size Home Assistant advertised. A chunked response carries no usable content
+    // length (0 on ESP-IDF, SIZE_MAX on Arduino), so it cannot size the buffer on its own.
+    const size_t content_length = container->content_length;
+    const bool content_length_known = content_length != 0 && content_length != SIZE_MAX;
+    size_t model_size = cached_ww.model_size;
     if (model_size == 0) {
-      ESP_LOGW(TAG, "Model %s reported a zero-length body", id.c_str());
+      // Home Assistant advertised no size, so the content length is all we have to go on.
+      model_size = content_length_known ? content_length : 0;
+    } else if (content_length_known && content_length != model_size) {
+      ESP_LOGW(TAG, "Model %s content length %zu disagrees with the advertised %" PRIu32 " (SHA256 is authoritative)",
+               id.c_str(), content_length, cached_ww.model_size);
+    }
+    if (model_size == 0) {
+      ESP_LOGW(TAG, "Model %s has no known size", id.c_str());
       container->end();
       fail();
       continue;
-    }
-    if (cached_ww.model_size != 0 && cached_ww.model_size != model_size) {
-      ESP_LOGW(TAG, "Model %s size %zu disagrees with the advertised %" PRIu32 " (SHA256 is authoritative)", id.c_str(),
-               model_size, cached_ww.model_size);
     }
     auto model_data = std::make_shared<micro_wake_word::ModelData>();
     if (!model_data->allocate(model_size)) {
