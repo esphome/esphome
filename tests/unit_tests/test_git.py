@@ -1840,13 +1840,17 @@ def test_clone_or_update_continues_unlocked_when_filesystem_cannot_lock(
     assert expected_fragment in warnings[0]
 
 
+@pytest.mark.parametrize("broken_from_start", [True, False])
 def test_revert_continues_unlocked_when_filesystem_cannot_lock(
     tmp_path: Path,
     mock_run_git_command: Mock,
     caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
+    broken_from_start: bool,
 ) -> None:
-    """A revert on a filesystem that stops locking mid-run still resets."""
+    """A revert still resets when locking is unavailable, whether the wrapper
+    already fell back to unlocked (revert sees no lock at all) or the
+    filesystem stops locking between the update and the revert."""
     CORE.config_path = tmp_path / "test.yaml"
 
     url = "https://github.com/test/repo"
@@ -1858,13 +1862,16 @@ def test_revert_continues_unlocked_when_filesystem_cannot_lock(
     # outputs are unused.
     mock_run_git_command.return_value = "old_sha"
 
-    _, revert = git.clone_or_update(
-        url=url, ref=None, refresh=TimePeriodSeconds(days=1), domain=domain
-    )
-    assert revert is not None
+    if broken_from_start:
+        _raise_oserror_on_acquire(monkeypatch)
 
-    _raise_oserror_on_acquire(monkeypatch)
     with caplog.at_level(logging.WARNING):
+        _, revert = git.clone_or_update(
+            url=url, ref=None, refresh=TimePeriodSeconds(days=1), domain=domain
+        )
+        assert revert is not None
+        if not broken_from_start:
+            _raise_oserror_on_acquire(monkeypatch)
         revert()
 
     assert mock_run_git_command.call_args_list[-1][0][0] == [
