@@ -767,11 +767,12 @@ void ModbusClientHub::sweep_() {
             cmd.pending = 0;  // an anonymous frame has no owner to tell; drop the debt
             break;
           }
-          // An address-scoped clear owes one on_not_sent() per accepted request.
+          // An address-scoped clear owes one on_not_sent() per accepted request. Consume it before
+          // delivering: the count is guaranteed non-zero by the check above, and a device-scoped
+          // clear from inside the handler retires the entry, which silences whatever is left.
+          cmd.pending--;
           cmd.device->on_not_sent(cmd.frame.pdu());
           callback_ran = true;
-          // A device-scoped clear from inside the handler silences the rest.
-          cmd.pending = (cmd.device == nullptr || cmd.pending == 0) ? 0 : cmd.pending - 1;
           break;
         }
         default:  // READY / WAITING: mid-lifecycle, nothing owed
