@@ -269,28 +269,27 @@ void RuntimeImage::release_buffer_() {
   }
 }
 
-void RuntimeImage::set_external_buffer(uint8_t *buffer, int width, int height) {
+bool RuntimeImage::set_external_buffer(uint8_t *buffer, int width, int height) {
   this->release_buffer_();
   if (buffer == nullptr || this->get_buffer_size(width, height) == 0) {
     // Keep the released state rather than remembering a buffer that cannot be decoded into: an
     // external buffer that is never handed back would otherwise block every later allocation.
     ESP_LOGE(TAG, "Refusing an invalid external buffer for %dx%d", width, height);
-    return;
+    return false;
   }
   this->buffer_ = buffer;
   this->external_buffer_ = true;
   this->buffer_width_ = width;
   this->buffer_height_ = height;
+  return true;
 }
 
 size_t RuntimeImage::resize_buffer_(int width, int height) {
   size_t new_size = this->get_buffer_size(width, height);
 
-  if (new_size == 0) {
-    ESP_LOGE(TAG, "Refusing to allocate buffer for invalid image dimensions %dx%d", width, height);
-    return 0;
-  }
-
+  // A buffer only ever exists with dimensions the image can decode at, so a match here means
+  // new_size is non-zero. Checking it before the invalid dimension case below lets the external
+  // buffer be let go of for every decode it cannot serve, not just for valid other dimensions.
   if (this->buffer_ && this->buffer_width_ == width && this->buffer_height_ == height) {
     // Buffer already allocated with correct size
     return new_size;
@@ -302,6 +301,11 @@ size_t RuntimeImage::resize_buffer_(int width, int height) {
     // Let the buffer go rather than free memory that belongs to the caller. Dropping it also stops
     // a decoder that ignores this failure from publishing a picture it never painted.
     this->release_buffer_();
+    return 0;
+  }
+
+  if (new_size == 0) {
+    ESP_LOGE(TAG, "Refusing to allocate buffer for invalid image dimensions %dx%d", width, height);
     return 0;
   }
 

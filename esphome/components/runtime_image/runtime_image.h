@@ -135,14 +135,26 @@ class RuntimeImage : public image::Image {
    * buffer alive for as long as anything can draw the image, and calls release() (or hands over
    * another buffer) before reusing it.
    *
+   * Hand a buffer over before every decode. The image lets go of one whenever a decode fails and
+   * whenever release() is called, and it does not remember that it ever had one: a decode that
+   * starts without a buffer allocates its own, which is the runtime allocation this method exists
+   * to avoid.
+   *
+   * The buffer is decoded into as it is handed over, so the caller owns its initial contents.
+   * Zero it first if anything can draw the image before a decode has painted every pixel.
+   *
+   * Do not hand a buffer over while is_decoding() is true. A running decoder keeps scaling values
+   * for the buffer it started with.
+   *
    * A null buffer or dimensions the image cannot decode at are refused, leaving the image with
    * no buffer at all.
    *
    * @param buffer Memory for a picture of the given size, at least get_buffer_size() bytes.
    * @param width Width of the buffer in pixels.
    * @param height Height of the buffer in pixels.
+   * @return true if the image took the buffer, false if it was refused.
    */
-  void set_external_buffer(uint8_t *buffer, int width, int height);
+  bool set_external_buffer(uint8_t *buffer, int width, int height);
 
   /**
    * @brief Get the buffer size in bytes needed for a picture of the given dimensions.
