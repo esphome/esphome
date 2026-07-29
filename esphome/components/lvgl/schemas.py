@@ -670,8 +670,8 @@ def theme_update_schema(value: dict) -> dict:
     for w_name, style in validated.items():
         for part, states in collect_parts(style).items():
             for state in states:
-                df.get_theme_update_requests().setdefault(w_name, set()).add(
-                    (part, state)
+                df.get_theme_update_requests().setdefault(w_name, {})[(part, state)] = (
+                    None
                 )
     return validated
 

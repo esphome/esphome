@@ -100,23 +100,38 @@ async def style_update_to_code(config, action_id, template_arg, args):
 async def theme_to_code(config):
     theme = config.get(CONF_THEME) or {}
     requests = get_theme_update_requests()
-    widget_names = {k for k in theme if k in WIDGET_TYPES} | set(requests)
+    # Iterate in WIDGET_TYPES' (deterministic, registration-order) sequence rather
+    # than a set -- a set of strings/tuples iterates in an order that depends on
+    # per-process hash randomization, which would otherwise churn the order hidden
+    # style variables are declared in main.cpp between builds of the same config.
+    widget_names = [
+        w_name for w_name in WIDGET_TYPES if w_name in theme or w_name in requests
+    ]
     if not widget_names:
         return
     add_lv_use(CONF_THEME)
     theme_map = get_theme_widget_map()
     for w_name in widget_names:
-        parts = collect_parts(theme.get(w_name, {}))
-        for part, state in requests.get(w_name, ()):
+        declared_parts = collect_parts(theme[w_name]) if w_name in theme else {}
+        parts = {part: dict(states) for part, states in declared_parts.items()}
+        for part, state in requests.get(w_name, {}):
             parts.setdefault(part, {}).setdefault(state, {})
         widget_styles = theme_map.setdefault(w_name, {})
         for part, states in parts.items():
             part_styles = widget_styles.setdefault(part, {})
+            declared_states = declared_parts.get(part, {})
             for state, props in states.items():
                 if state not in part_styles:
                     part_styles[state] = await create_style(
                         "_lv_theme_style_" + w_name + "_" + part + "_" + state, props
                     )
+                elif state in declared_states:
+                    # A `theme.update` request for this combo (possibly from
+                    # another LVGL instance) already created the style as an
+                    # empty placeholder before this instance's real `theme:`
+                    # declaration was reached -- apply the real values now
+                    # instead of silently leaving it empty.
+                    await style_set(part_styles[state], props)
 
 
 @automation.register_action(

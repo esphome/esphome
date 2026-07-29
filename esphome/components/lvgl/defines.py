@@ -119,7 +119,11 @@ def get_theme_widget_map() -> dict[str, Any]:
     return _get_data(KEY_THEME_WIDGET_MAP, {})
 
 
-def get_theme_update_requests() -> dict[str, set[tuple[str, str]]]:
+def get_theme_update_requests() -> dict[str, dict[tuple[str, str], None]]:
+    # Values are dicts used as ordered sets (insertion order is deterministic,
+    # unlike a plain `set` of strings/tuples, whose iteration order depends on
+    # per-process string hash randomization) so codegen output doesn't churn
+    # between builds of the same config.
     return _get_data(KEY_THEME_UPDATE_REQUESTS, {})
 
 
