@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <type_traits>
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/preferences.h"
@@ -17,20 +18,45 @@
 
 namespace esphome::lvgl {
 
+// Every chart value is clamped to +/- this before it enters lv_chart's int32 coordinate space.
+// 2^31 - 128 is the largest float strictly below INT32_MAX, so converting a clamped float back to
+// int32 can never overflow, and a saturated reading can never come out equal to
+// LV_CHART_POINT_NONE (which is INT32_MAX) and be mistaken for "no data here".
+constexpr int32_t LV_CHART_VALUE_LIMIT = 2147483520;
+
+// Scale a real-world value into lv_chart's int32 coordinate space. The clamp matters because the
+// scale factor is 10^decimals: with `decimals: 4` a reading above ~214000 already exceeds int32,
+// which would otherwise wrap to an unrelated number instead of just pinning to the top of the
+// chart. NaN is filtered by the caller (it maps to LV_CHART_POINT_NONE instead).
+// `inline`: this header can be included by multiple translation units.
+inline int32_t lv_chart_scale_value(float value, float scale) {
+  constexpr float limit = static_cast<float>(LV_CHART_VALUE_LIMIT);
+  return static_cast<int32_t>(lroundf(std::clamp(value * scale, -limit, limit)));
+}
+
 // Floor/ceil `v` to the nearest multiple of `unit`, rounding outward (away from zero handled
 // correctly for negatives -- plain integer division truncates toward zero, which would round the
-// wrong way for negative bounds). `inline`: this header can be included by multiple translation
-// units.
+// wrong way for negative bounds). Rounding outward from a value already at the far end of the
+// int32 range would itself overflow, so both leave such a value alone rather than wrapping.
 inline int32_t lv_chart_floor_to_unit(int32_t v, int32_t unit) {
   int32_t r = v % unit;
-  if (r != 0 && v < 0)
-    r += unit;
+  if (r == 0)
+    return v;
+  if (v < 0) {
+    // r is negative here, so `unit + r` is the distance down to the next multiple.
+    int32_t step = unit + r;
+    return v < std::numeric_limits<int32_t>::min() + step ? v : v - step;
+  }
   return v - r;
 }
 inline int32_t lv_chart_ceil_to_unit(int32_t v, int32_t unit) {
   int32_t r = v % unit;
-  if (r != 0 && v > 0)
-    r -= unit;
+  if (r == 0)
+    return v;
+  if (v > 0) {
+    int32_t step = unit - r;
+    return v > std::numeric_limits<int32_t>::max() - step ? v : v + step;
+  }
   return v - r;
 }
 
@@ -107,9 +133,16 @@ template<uint8_t N_SERIES, uint16_t N_POINTS> class LvChartType : public LvCompo
   void enable_y_axis(const char *format);
 
  protected:
-  void push_(size_t idx, float y, float x, bool has_x);
+  // `defer_updates` skips the per-point range recompute and save; the caller is then responsible
+  // for doing both once after a whole batch of points (see the gap fill in restore_()).
+  void push_(size_t idx, float y, float x, bool has_x, bool defer_updates = false);
   void recompute_range_();
   void restore_();
+  // Copies history_ into store_ and hands it to the preference layer. Called for every pushed
+  // point when persistence is on, which is deliberate and cheap rather than a flash-wear problem:
+  // the preference backends only stage the blob in RAM here, replacing any earlier pending copy
+  // under the same key, and defer the actual flash write to sync(). Many saves between two syncs
+  // therefore collapse into a single write. Do not "optimise" this into an immediate commit.
   void save_();
   void update_axis_labels_(int32_t min_scaled, int32_t max_scaled);
   // Oldest-to-newest window for series `idx`; a plain RAM shift-array, entirely independent of
@@ -138,7 +171,11 @@ template<uint8_t N_SERIES, uint16_t N_POINTS> class LvChartType : public LvCompo
   bool auto_range_x_{true};
   bool persist_{false};
   ESPPreferenceObject pref_{};
-  ChartStore<N_SERIES, N_POINTS> store_{};  // scratch buffer for save/load only; history_ is the live copy
+  // Scratch buffer for save/load only; history_ is the live copy. Allocated by
+  // enable_persistence() and left null otherwise, because the blob is several KB (N_SERIES *
+  // N_POINTS int32s) and a chart with `persist: false` never touches it -- as a value member it
+  // would double the chart's RAM cost for nothing.
+  std::unique_ptr<ChartStore<N_SERIES, N_POINTS>> store_{};
   lv_obj_t *y_min_label_{nullptr};
   lv_obj_t *y_max_label_{nullptr};
   const char *y_axis_format_{nullptr};  // flash string literal (schema-supplied), never freed
@@ -158,7 +195,11 @@ void LvChartType<N_SERIES, N_POINTS>::add_series(sensor::Sensor *sens, lv_color_
   if (format != nullptr && format[0] != '\0') {
     label = lv_label_create(this->obj);
     lv_obj_set_style_text_color(label, color, LV_PART_MAIN);
-    lv_obj_align(label, LV_ALIGN_TOP_LEFT, 0, static_cast<lv_coord_t>(this->series_.size() * 14));
+    // Stack the legend labels one line apart, measured from the font actually in effect rather
+    // than a fixed pixel step, so they stay clear of each other under a non-default font.
+    int32_t line_step = lv_font_get_line_height(lv_obj_get_style_text_font(label, LV_PART_MAIN)) +
+                        lv_obj_get_style_text_line_space(label, LV_PART_MAIN);
+    lv_obj_align(label, LV_ALIGN_TOP_LEFT, 0, static_cast<lv_coord_t>(this->series_.size() * line_step));
   }
   this->series_.push_back(ChartSeries{series, sens, label, format});
 }
@@ -199,7 +240,7 @@ template<uint8_t N_SERIES, uint16_t N_POINTS> void LvChartType<N_SERIES, N_POINT
 }
 
 template<uint8_t N_SERIES, uint16_t N_POINTS>
-void LvChartType<N_SERIES, N_POINTS>::push_(size_t idx, float y, float x, bool has_x) {
+void LvChartType<N_SERIES, N_POINTS>::push_(size_t idx, float y, float x, bool has_x, bool defer_updates) {
   if (idx >= this->series_.size())
     return;
   auto &s = this->series_[idx];
@@ -208,13 +249,13 @@ void LvChartType<N_SERIES, N_POINTS>::push_(size_t idx, float y, float x, bool h
   if (std::isnan(y)) {
     scaled_y = LV_CHART_POINT_NONE;
   } else {
-    scaled_y = static_cast<int32_t>(lroundf(y * this->scale_));
+    scaled_y = lv_chart_scale_value(y, this->scale_);
   }
 
   int32_t scaled_x = LV_CHART_POINT_NONE;
   bool use_x = has_x && lv_chart_get_type(this->obj) == LV_CHART_TYPE_SCATTER;
   if (use_x && !std::isnan(x))
-    scaled_x = static_cast<int32_t>(lroundf(x * this->scale_));
+    scaled_x = lv_chart_scale_value(x, this->scale_);
 
   if (use_x) {
     lv_chart_set_next_value2(this->obj, s.series, scaled_x, scaled_y);
@@ -238,19 +279,14 @@ void LvChartType<N_SERIES, N_POINTS>::push_(size_t idx, float y, float x, bool h
     }
   }
 
+  if (defer_updates)
+    return;
+
   if (this->auto_range_y_ || (use_x && this->auto_range_x_))
     this->recompute_range_();
 
-  if (this->persist_) {
-#ifdef USE_TIME
-    if (this->time_ != nullptr) {
-      auto t = this->time_->now();
-      if (t.is_valid())
-        this->store_.last_ts = t.timestamp;
-    }
-#endif
+  if (this->persist_)
     this->save_();
-  }
 }
 
 template<uint8_t N_SERIES, uint16_t N_POINTS> void LvChartType<N_SERIES, N_POINTS>::recompute_range_() {
@@ -287,7 +323,9 @@ template<uint8_t N_SERIES, uint16_t N_POINTS> void LvChartType<N_SERIES, N_POINT
       }
 
       for (uint16_t k = 0; k < this->point_count_; k++) {
-        int32_t sum = 0;
+        // Summed as int64 and clamped back down: individual values are already capped at
+        // LV_CHART_VALUE_LIMIT, but adding several of them together can still leave int32 range.
+        int64_t sum = 0;
         bool point_any = false;
         for (size_t idx = 0; idx < this->series_.size(); idx++) {
           int32_t v = this->history_row_(idx)[k];
@@ -299,7 +337,7 @@ template<uint8_t N_SERIES, uint16_t N_POINTS> void LvChartType<N_SERIES, N_POINT
         if (!point_any)
           continue;
         any = true;
-        max_v = std::max(max_v, sum);
+        max_v = std::max(max_v, static_cast<int32_t>(std::min<int64_t>(sum, LV_CHART_VALUE_LIMIT)));
       }
       // The first series had no valid point of its own (e.g. every point that had any data at
       // all came from a later series) -- 0 is the only sane floor left, matching STACKED's own
@@ -392,34 +430,44 @@ void LvChartType<N_SERIES, N_POINTS>::update_axis_labels_(int32_t min_scaled, in
 }
 
 template<uint8_t N_SERIES, uint16_t N_POINTS> void LvChartType<N_SERIES, N_POINTS>::enable_persistence(uint32_t hash) {
+  // The multi-KB scratch blob only exists for charts that actually persist, so it is allocated
+  // here rather than being a value member. This runs once during setup, before start_updates().
+  this->store_ = std::make_unique<ChartStore<N_SERIES, N_POINTS>>();
   this->persist_ = true;
   this->pref_ = global_preferences->make_preference<ChartStore<N_SERIES, N_POINTS>>(hash, true);
 }
 
 template<uint8_t N_SERIES, uint16_t N_POINTS> void LvChartType<N_SERIES, N_POINTS>::save_() {
+#ifdef USE_TIME
+  if (this->time_ != nullptr) {
+    auto t = this->time_->now();
+    if (t.is_valid())
+      this->store_->last_ts = t.timestamp;
+  }
+#endif
   for (size_t idx = 0; idx < this->series_.size(); idx++) {
     const int32_t *row = this->history_row_(idx);
-    memcpy(this->store_.y[idx], row, this->point_count_ * sizeof(int32_t));
+    memcpy(this->store_->y[idx], row, this->point_count_ * sizeof(int32_t));
   }
-  this->pref_.save(&this->store_);
+  this->pref_.save(this->store_.get());
 }
 
 template<uint8_t N_SERIES, uint16_t N_POINTS> void LvChartType<N_SERIES, N_POINTS>::restore_() {
-  // Load straight into the store_ scratch member rather than a local ChartStore: that struct can be
-  // several KB (N_SERIES * N_POINTS int32s), and a second copy on the stack risks overflowing the
+  // Load into the heap-allocated store_ scratch buffer rather than a local ChartStore: that struct
+  // can be several KB (N_SERIES * N_POINTS int32s), and a copy on the stack risks overflowing the
   // task stack, especially in this deep a call chain (setup() -> start_updates() -> restore_() ->
   // NVS driver internals).
-  uint8_t expected_version = this->store_.version;
-  if (!this->pref_.load(&this->store_))
+  uint8_t expected_version = this->store_->version;
+  if (!this->pref_.load(this->store_.get()))
     return;  // first boot, or a schema/version change invalidated the old blob
-  if (this->store_.version != expected_version) {
-    this->store_ = {};  // discard the incompatible load; a later save_() must not persist its version
+  if (this->store_->version != expected_version) {
+    *this->store_ = {};  // discard the incompatible load; a later save_() must not persist its version
     return;
   }
 
   for (size_t idx = 0; idx < this->series_.size(); idx++) {
     int32_t *row = this->history_row_(idx);
-    memcpy(row, this->store_.y[idx], this->point_count_ * sizeof(int32_t));
+    memcpy(row, this->store_->y[idx], this->point_count_ * sizeof(int32_t));
     for (uint16_t k = 0; k < this->point_count_; k++)
       lv_chart_set_next_value(this->obj, this->series_[idx].series, row[k]);
   }
@@ -435,15 +483,20 @@ template<uint8_t N_SERIES, uint16_t N_POINTS> void LvChartType<N_SERIES, N_POINT
       if (!t.is_valid())
         return;
       this->gap_computed_ = true;
-      int64_t elapsed_s = t.timestamp - this->store_.last_ts;
+      int64_t elapsed_s = t.timestamp - this->store_->last_ts;
       int64_t missing = elapsed_s * 1000 / static_cast<int64_t>(this->update_interval_);
       if (missing <= 0)
         return;
       uint16_t to_push = static_cast<uint16_t>(std::min<int64_t>(missing, this->point_count_));
+      // Push the whole gap with per-point updates deferred, then recompute the range and save
+      // once. Letting each synthetic point do its own work would repeat a full-window range scan
+      // and a full-blob copy up to (series * point_count) times, all in the setup path.
       for (size_t idx = 0; idx < this->series_.size(); idx++) {
         for (uint16_t k = 0; k < to_push; k++)
-          this->on_value(idx, NAN);
+          this->push_(idx, NAN, 0.0f, false, true);
       }
+      this->recompute_range_();
+      this->save_();
     };
     if (this->time_->now().is_valid()) {
       compute_gap();
