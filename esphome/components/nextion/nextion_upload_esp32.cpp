@@ -63,8 +63,13 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
           break;
         }
         if (status_code == 200) {
-          // A server that ignored the range once will ignore it again
-          ESP_LOGE(TAG, "Server does not support range requests (got 200 at offset %" PRIu32 ")", range_start);
+          if (range_start == 0) {
+            ESP_LOGE(TAG, "Unexpected length for 200 response: %d (expected %d)", chunk_size,
+                     static_cast<int>(this->tft_size_));
+          } else {
+            // A server that ignored the range once will ignore it again
+            ESP_LOGE(TAG, "Server does not support range requests (got 200 at offset %" PRIu32 ")", range_start);
+          }
           chunk_size = -1;
           last_err = ESP_FAIL;
           break;
