@@ -65,7 +65,7 @@ class DeliverQueueResponse : public ::testing::Test {
 
   // --- helpers to build the queue ---
 
-  void add_no_result() {
+  void add_no_result_() {
     auto *nb = new NextionQueue();  // NOLINT(cppcoreguidelines-owning-memory)
     auto *comp = new MockSensorComponent("no_result", NextionQueueType::NO_RESULT);
     nb->component = comp;
@@ -74,7 +74,7 @@ class DeliverQueueResponse : public ::testing::Test {
     components_.push_back(std::unique_ptr<MockSensorComponent>(comp));
   }
 
-  void add_sensor(const std::string &name, bool mark_pending = false) {
+  void add_sensor_(const std::string &name, bool mark_pending = false) {
     auto *nb = new NextionQueue();  // NOLINT(cppcoreguidelines-owning-memory)
     auto *comp = new MockSensorComponent(name, NextionQueueType::SENSOR);
     nb->component = comp;
@@ -86,7 +86,7 @@ class DeliverQueueResponse : public ::testing::Test {
     components_.push_back(std::unique_ptr<MockSensorComponent>(comp));
   }
 
-  void add_text_sensor(const std::string &name, bool mark_pending = false) {
+  void add_text_sensor_(const std::string &name, bool mark_pending = false) {
     auto *nb = new NextionQueue();  // NOLINT(cppcoreguidelines-owning-memory)
     auto *comp = new MockSensorComponent(name, NextionQueueType::TEXT_SENSOR);
     nb->component = comp;
@@ -98,24 +98,22 @@ class DeliverQueueResponse : public ::testing::Test {
     components_.push_back(std::unique_ptr<MockSensorComponent>(comp));
   }
 
-  void add_binary_sensor(const std::string &name) {
+  void add_binary_sensor_(const std::string &name) {
     auto *nb = new NextionQueue();  // NOLINT(cppcoreguidelines-owning-memory)
     auto *comp = new MockSensorComponent(name, NextionQueueType::BINARY_SENSOR);
     nb->component = comp;
     nb->queue_time = 0;
     nextion_->nextion_queue_.push_back(nb);
     components_.push_back(std::unique_ptr<MockSensorComponent>(comp));
-    owned_entries_.push_back(nb);
   }
 
-  void add_switch(const std::string &name) {
+  void add_switch_(const std::string &name) {
     auto *nb = new NextionQueue();  // NOLINT(cppcoreguidelines-owning-memory)
     auto *comp = new MockSensorComponent(name, NextionQueueType::SWITCH);
     nb->component = comp;
     nb->queue_time = 0;
     nextion_->nextion_queue_.push_back(nb);
     components_.push_back(std::unique_ptr<MockSensorComponent>(comp));
-    owned_entries_.push_back(nb);
   }
 
   std::unique_ptr<Nextion> nextion_;
@@ -127,8 +125,8 @@ class DeliverQueueResponse : public ::testing::Test {
 //         and deliver to the SENSOR.
 // ==========================================================================
 TEST_F(DeliverQueueResponse, SkipNoResult_SecondSensorGetsValue) {
-  add_no_result();
-  add_sensor("temp");
+  add_no_result_();
+  add_sensor_("temp");
 
   nextion_->set_numeric_return_(42);
 
@@ -148,8 +146,8 @@ TEST_F(DeliverQueueResponse, SkipNoResult_SecondSensorGetsValue) {
 //         the NO_RESULT and deliver to the TEXT_SENSOR.
 // ==========================================================================
 TEST_F(DeliverQueueResponse, SkipNoResult_TextSensorGetsString) {
-  add_no_result();
-  add_text_sensor("status");
+  add_no_result_();
+  add_text_sensor_("status");
 
   const std::string expected = "online";
   nextion_->set_string_return_(expected);
@@ -170,8 +168,8 @@ TEST_F(DeliverQueueResponse, SkipNoResult_TextSensorGetsString) {
 //         should skip the unsent entry and keep scanning.  No delivery.
 // ==========================================================================
 TEST_F(DeliverQueueResponse, SkipUnsentEntry_UnderCommandSpacing) {
-  add_no_result();
-  add_sensor("temp", true);  // pending_command = "get temp"
+  add_no_result_();
+  add_sensor_("temp", true);  // pending_command = "get temp"
 
   nextion_->set_numeric_return_(99);
 
@@ -195,7 +193,7 @@ TEST_F(DeliverQueueResponse, SkipUnsentEntry_UnderCommandSpacing) {
 //         type causes the entry to be removed and a no-match log emitted.
 // ==========================================================================
 TEST_F(DeliverQueueResponse, RemoveMismatchedEntry) {
-  add_text_sensor("status");
+  add_text_sensor_("status");
 
   // Send a numeric response (0x71) — TEXT_SENSOR doesn't match numeric types
   nextion_->set_numeric_return_(100);
