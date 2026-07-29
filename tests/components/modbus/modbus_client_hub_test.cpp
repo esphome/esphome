@@ -1607,6 +1607,42 @@ TEST(ModbusClientHubQueue, SweepResendOfInFlightFrameQueuesFreshWhenClearSentDet
   EXPECT_EQ(hub.waiting_command().device, nullptr);  // the shell was detached by the clear
 }
 
+// A cleared shell must release the bus by BOTH exits, silently and without callbacks: the late
+// response arriving, and the send-wait timeout. If either failed to clear the waiting flag the hub
+// would never transmit again, so both are pinned.
+TEST(ModbusClientHubQueue, ClearedShellReleasesTheBusOnLateResponse) {
+  NoResponseProbeHub hub;
+  SentCountingDevice device(&hub, 0x02);
+
+  device.send_pdu(read_pdu());
+  hub.force_send_next();
+  hub.clear_tx_queue_for_address(0x02, /*clear_sent=*/true);
+  ASSERT_EQ(hub.waiting_command().state, FrameState::WAITING_DELETED);
+
+  const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
+  hub.receive_frame_for_test(0x02, ok_response);  // the late reply for the cleared frame
+
+  EXPECT_FALSE(hub.waiting());           // the bus is free again
+  EXPECT_EQ(hub.entries(), 0u);          // the shell is gone
+  EXPECT_EQ(device.not_sent_count_, 0);  // detached: no callbacks from a cleared shell
+}
+
+TEST(ModbusClientHubQueue, ClearedShellReleasesTheBusOnTimeout) {
+  NoResponseProbeHub hub;
+  SentCountingDevice device(&hub, 0x02);
+
+  device.send_pdu(read_pdu());
+  hub.force_send_next();
+  hub.clear_tx_queue_for_address(0x02, /*clear_sent=*/true);
+  ASSERT_EQ(hub.waiting_command().state, FrameState::WAITING_DELETED);
+
+  hub.timeout_waiting();  // no reply ever arrives; the watchdog releases the shell
+
+  EXPECT_FALSE(hub.waiting());
+  EXPECT_EQ(hub.entries(), 0u);
+  EXPECT_EQ(device.not_sent_count_, 0);  // still silent
+}
+
 // An absorbed extra request also gets its run after an error response - the re-request was
 // explicit, so it runs once more whether this attempt succeeded or not.
 TEST(ModbusClientHubCallbackCount, AbsorbedRequestRunsAfterErrorResponse) {
