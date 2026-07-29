@@ -183,8 +183,6 @@ class RuntimeImage : public image::Image {
 
   // Memory management
   uint8_t *buffer_{nullptr};
-  /** Whether buffer_ belongs to the caller, so it must not be freed or resized here. */
-  bool external_buffer_{false};
 
   // Decoder management
   std::unique_ptr<ImageDecoder> decoder_{nullptr};
@@ -227,6 +225,8 @@ class RuntimeImage : public image::Image {
    * This is used to determine how to store 16 bit colors in the buffer.
    */
   bool is_big_endian_{false};
+  /** Whether buffer_ belongs to the caller, so it must not be freed or resized here. */
+  bool external_buffer_{false};
 };
 
 }  // namespace esphome::runtime_image
