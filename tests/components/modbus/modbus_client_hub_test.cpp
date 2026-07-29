@@ -51,6 +51,9 @@ class NoResponseProbeHub : public ModbusClientHub {
     this->send_next_frame_();
     this->sweep_();  // a transmit failure's on_not_sent() is delivered by the loop's sweep
   }
+  // Transmit without the sweep that follows it in loop(), to observe the window in which a failed
+  // transmit sits REFUSED - other components' loop() run there and can send.
+  void transmit_only_for_test() { this->send_next_frame_(); }
   void force_send_next() {
     ModbusDeviceCommand *cmd = this->select_next_ready_();
     ASSERT_NE(cmd, nullptr) << "no READY entry to send";
@@ -1200,6 +1203,49 @@ TEST(ModbusClientHubQueue, TransmitFailureHandlerResendSurvives) {
   EXPECT_EQ(device.not_sent_count_, 1);
   ASSERT_EQ(hub.queued_frames(), 1u);             // the handler's write survives...
   EXPECT_EQ(hub.queued(0).frame.pdu()[0], 0x06);  // ...and it is the write, not the failed read
+}
+
+// A failed transmit leaves the entry REFUSED until the next sweep, and other components run in
+// that window. An identical send from one of them absorbs into that entry rather than queueing a
+// second copy of the same frame: the sweep delivers the failed attempt's terminal and hands the
+// entry back to READY to serve the newcomer.
+TEST(ModbusClientHubQueue, RefusedEntryAbsorbsADuplicateBeforeTheSweep) {
+  FlakyBlockHub hub;
+  SentCountingDevice device(&hub, 0x02);
+
+  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
+  EXPECT_TRUE(device.send_pdu(read));
+  hub.transmit_only_for_test();  // tx_blocked gate passes, send_frame_ refuses -> REFUSED
+  ASSERT_EQ(hub.entries(), 1u);
+
+  EXPECT_TRUE(device.send_pdu(read));  // the window: absorbed, not queued twice
+  EXPECT_EQ(hub.entries(), 1u);
+
+  hub.sweep_for_test();
+
+  EXPECT_EQ(device.not_sent_count_, 1);  // the failed attempt's terminal, and only that
+  ASSERT_EQ(hub.queued_frames(), 1u);    // the entry is back in line for the absorbed request
+  EXPECT_EQ(hub.queued(0).pending, 1u);
+}
+
+// A continuous request is the exception: the sweep ends a poll whose transmit failed, so
+// re-subscribing must start a new entry instead of converting the doomed one.
+TEST(ModbusClientHubQueue, RefusedEntryDoesNotBecomeAContinuousPoll) {
+  FlakyBlockHub hub;
+  SentCountingDevice device(&hub, 0x02);
+
+  device.read_holding_registers(0x0010, 1);
+  hub.transmit_only_for_test();  // REFUSED
+  ASSERT_EQ(hub.entries(), 1u);
+
+  device.read_holding_registers(0x0010, 1, {.continuous = true});  // queues fresh
+  EXPECT_EQ(hub.entries(), 2u);
+
+  hub.sweep_for_test();
+
+  EXPECT_EQ(device.not_sent_count_, 1);  // the failed attempt resolved
+  ASSERT_EQ(hub.queued_frames(), 1u);    // and the poll survives as its own entry
+  EXPECT_TRUE(hub.queued(0).continuous);
 }
 
 // A failed transmit of an entry with an absorbed extra request resolves ONE request (the failed

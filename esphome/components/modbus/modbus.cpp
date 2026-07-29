@@ -827,13 +827,19 @@ bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   //   - the entry is a continuous poll: absorbed uncounted - the poll's next response serves it
   //   - both one-shots: pending increments while the entry is below its servable cap (2 for
   //     requeueable reads, 1 for writes/custom); at the cap the duplicate is refused with false
-  // REFUSED and *_DELETED entries are dead for dedup purposes: a new identical send queues fresh.
   for (auto &item : this->tx_buffer_) {
     switch (item.state) {
-      case FrameState::REFUSED:
       case FrameState::DELETED:
       case FrameState::WAITING_DELETED:
-        continue;
+        continue;  // on their way out of the queue: a new identical send queues fresh
+      case FrameState::REFUSED:
+        // A failed transmit is transient - the entry owes one terminal and then returns to READY
+        // if a request remains - so it absorbs like any other live entry. The exception is a
+        // continuous request: the sweep ends a poll that failed to transmit, so converting this
+        // entry would kill the subscription at birth. Re-subscribing starts a fresh entry.
+        if (continuous)
+          continue;
+        break;
       default:
         break;
     }
