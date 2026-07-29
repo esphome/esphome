@@ -16,22 +16,18 @@ namespace esphome::nextion::testing {
 // ---------------------------------------------------------------------------
 class MockSensorComponent : public NextionComponentBase {
  public:
-  explicit MockSensorComponent(const std::string &name, NextionQueueType type)
-      : name_(name), queue_type_(type) {
+  explicit MockSensorComponent(const std::string &name, NextionQueueType type) : name_(name), queue_type_(type) {
     this->set_variable_name(name);
   }
 
   NextionQueueType get_queue_type() const override { return queue_type_; }
-  const char *get_queue_type_string() const override {
-    return NEXTION_QUEUE_TYPE_STRINGS[this->get_queue_type()];
-  }
+  const char *get_queue_type_string() const override { return NEXTION_QUEUE_TYPE_STRINGS[this->get_queue_type()]; }
 
   void set_state_from_int(int state_value, bool publish, bool send_to_nextion) override {
     state_set_ = true;
     int_value_ = state_value;
   }
-  void set_state_from_string(const std::string &state_value, bool publish,
-                             bool send_to_nextion) override {
+  void set_state_from_string(const std::string &state_value, bool publish, bool send_to_nextion) override {
     state_set_ = true;
     str_value_ = state_value;
   }
@@ -142,8 +138,7 @@ TEST_F(DeliverQueueResponseTest, SkipNoResult_SecondSensorGetsValue) {
 
   // NO_RESULT should still be in the queue (its 0x01 ACK hasn't arrived)
   ASSERT_EQ(nextion_->nextion_queue_.size(), 1);
-  EXPECT_EQ(nextion_->nextion_queue_.front()->component->get_queue_type(),
-            NextionQueueType::NO_RESULT);
+  EXPECT_EQ(nextion_->nextion_queue_.front()->component->get_queue_type(), NextionQueueType::NO_RESULT);
 
   // The sensor should have received the value
   auto *sensor = dynamic_cast<MockSensorComponent *>(components_[1].get());
@@ -165,8 +160,7 @@ TEST_F(DeliverQueueResponseTest, SkipNoResult_TextSensorGetsString) {
 
   // NO_RESULT should still be in the queue
   ASSERT_EQ(nextion_->nextion_queue_.size(), 1);
-  EXPECT_EQ(nextion_->nextion_queue_.front()->component->get_queue_type(),
-            NextionQueueType::NO_RESULT);
+  EXPECT_EQ(nextion_->nextion_queue_.front()->component->get_queue_type(), NextionQueueType::NO_RESULT);
 
   // The text sensor should have received the value
   auto *ts = dynamic_cast<MockSensorComponent *>(components_[1].get());
