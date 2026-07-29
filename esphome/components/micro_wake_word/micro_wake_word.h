@@ -78,7 +78,8 @@ class MicroWakeWord final : public Component
   /// @return True if the model was removed, false if the id is not a runtime model or the task could not be paused
   bool remove_runtime_model(const std::string &model_id);
 
-  /// @brief Returns the wake word model with the given id, or nullptr if none matches (compiled or runtime)
+  /// @brief Returns the wake word model with the given id, or nullptr if none matches (compiled or runtime).
+  /// Must be called from the main loop, as the returned pointer is invalidated by remove_runtime_model().
   WakeWordModel *get_model_by_id(const std::string &model_id);
 
   /// @brief Returns the ids of all runtime-downloaded models. Must be called from the main loop.
