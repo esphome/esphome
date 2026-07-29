@@ -1148,7 +1148,7 @@ void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
 
   this->nextion_queue_.push_back(nextion_queue);
 
-  ESP_LOGN(TAG, "Queue NORESULT: %s: %s", nextion_queue->component->get_variable_name().c_str(), command.c_str());
+  ESP_LOGN(TAG, "Queue NORESULT: %s", nextion_queue->component->get_variable_name().c_str());
 }
 
 /**
@@ -1168,6 +1168,8 @@ void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
 void Nextion::add_no_result_to_queue_with_command_(const std::string &variable_name, const std::string &command) {
   if ((!this->is_setup() && !this->connection_state_.ignore_is_setup_) || command.empty())
     return;
+
+  ESP_LOGV(TAG, "Queue NORESULT '%s': %s", variable_name.c_str(), command.c_str());
 
   if (this->send_command_(command)) {
     this->add_no_result_to_queue_(variable_name);

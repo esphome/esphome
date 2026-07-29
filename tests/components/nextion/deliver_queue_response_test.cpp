@@ -43,7 +43,7 @@ class MockSensorComponent : public NextionComponentBase {
 // Test fixture: owns a Nextion instance and a list of mock components / queue
 // entries so the owned pointers survive until the test ends.
 // ---------------------------------------------------------------------------
-class DeliverQueueResponseTest : public ::testing::Test {
+class DeliverQueueResponse : public ::testing::Test {
  protected:
   void SetUp() override {
     // Nextion is final, but we only need to access (protected) queue methods
@@ -72,7 +72,6 @@ class DeliverQueueResponseTest : public ::testing::Test {
     nb->queue_time = 0;
     nextion_->nextion_queue_.push_back(nb);
     components_.push_back(std::unique_ptr<MockSensorComponent>(comp));
-    owned_entries_.push_back(nb);
   }
 
   void add_sensor(const std::string &name, bool mark_pending = false) {
@@ -85,7 +84,6 @@ class DeliverQueueResponseTest : public ::testing::Test {
     }
     nextion_->nextion_queue_.push_back(nb);
     components_.push_back(std::unique_ptr<MockSensorComponent>(comp));
-    owned_entries_.push_back(nb);
   }
 
   void add_text_sensor(const std::string &name, bool mark_pending = false) {
@@ -98,7 +96,6 @@ class DeliverQueueResponseTest : public ::testing::Test {
     }
     nextion_->nextion_queue_.push_back(nb);
     components_.push_back(std::unique_ptr<MockSensorComponent>(comp));
-    owned_entries_.push_back(nb);
   }
 
   void add_binary_sensor(const std::string &name) {
@@ -123,14 +120,13 @@ class DeliverQueueResponseTest : public ::testing::Test {
 
   std::unique_ptr<Nextion> nextion_;
   std::vector<std::unique_ptr<MockSensorComponent>> components_;
-  std::vector<NextionQueue *> owned_entries_;
 };
 
 // ==========================================================================
 // Test 1: [NO_RESULT, SENSOR] — numeric response should skip the NO_RESULT
 //         and deliver to the SENSOR.
 // ==========================================================================
-TEST_F(DeliverQueueResponseTest, SkipNoResult_SecondSensorGetsValue) {
+TEST_F(DeliverQueueResponse, SkipNoResult_SecondSensorGetsValue) {
   add_no_result();
   add_sensor("temp");
 
@@ -151,7 +147,7 @@ TEST_F(DeliverQueueResponseTest, SkipNoResult_SecondSensorGetsValue) {
 // Test 2: [NO_RESULT, TEXT_SENSOR] — string response (0x70) should skip
 //         the NO_RESULT and deliver to the TEXT_SENSOR.
 // ==========================================================================
-TEST_F(DeliverQueueResponseTest, SkipNoResult_TextSensorGetsString) {
+TEST_F(DeliverQueueResponse, SkipNoResult_TextSensorGetsString) {
   add_no_result();
   add_text_sensor("status");
 
@@ -173,7 +169,7 @@ TEST_F(DeliverQueueResponseTest, SkipNoResult_TextSensorGetsString) {
 // Test 3: [NO_RESULT, SENSOR (unsent)] — under command spacing, the scanner
 //         should skip the unsent entry and keep scanning.  No delivery.
 // ==========================================================================
-TEST_F(DeliverQueueResponseTest, SkipUnsentEntry_UnderCommandSpacing) {
+TEST_F(DeliverQueueResponse, SkipUnsentEntry_UnderCommandSpacing) {
   add_no_result();
   add_sensor("temp", true);  // pending_command = "get temp"
 
@@ -198,7 +194,7 @@ TEST_F(DeliverQueueResponseTest, SkipUnsentEntry_UnderCommandSpacing) {
 // Test 4: [SENSOR] numeric response but only TEXT_SENSOR queued — mismatched
 //         type causes the entry to be removed and a no-match log emitted.
 // ==========================================================================
-TEST_F(DeliverQueueResponseTest, RemoveMismatchedEntry) {
+TEST_F(DeliverQueueResponse, RemoveMismatchedEntry) {
   add_text_sensor("status");
 
   // Send a numeric response (0x71) — TEXT_SENSOR doesn't match numeric types
