@@ -529,7 +529,7 @@ def test_clone_or_update_with_refresh_skips_fresh_repo(
 
     # Should tell the user the update was skipped and when the next refresh is
     assert f"Skipping update for {url}@{ref}" in caplog.text
-    assert "next refresh in 22h 59min" in caplog.text
+    assert "will refresh on the next run after 22h 59min" in caplog.text
     assert "(refresh: 1d)" in caplog.text
 
 
@@ -571,7 +571,7 @@ def test_clone_or_update_with_refresh_never_logs_refresh_disabled(
 
     # Should log refresh disabled at debug level, not a countdown
     assert f"Skipping update for {url}@{ref} (refresh disabled)" in caplog.text
-    assert "next refresh in" not in caplog.text
+    assert "will refresh on the next run" not in caplog.text
 
 
 def test_clone_or_update_clones_missing_repo(

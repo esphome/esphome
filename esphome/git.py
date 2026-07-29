@@ -24,10 +24,10 @@ _LOGGER = logging.getLogger(__name__)
 # Special value to indicate never refresh
 NEVER_REFRESH = TimePeriodSeconds(seconds=-1)
 
-# `refresh: never` validates to 365250 days (cv.source_refresh); treat any
-# interval at least that long as refresh disabled instead of logging a
-# countdown of hundreds of years
-_REFRESH_DISABLED_SECONDS = TimePeriodSeconds(days=365250).total_seconds
+# `refresh: never` validates to a huge interval rather than the NEVER_REFRESH
+# sentinel; treat any interval at least that long as refresh disabled instead
+# of logging a countdown of hundreds of years
+_REFRESH_DISABLED_SECONDS = cv.source_refresh(cv.SOURCE_REFRESH_NEVER).total_seconds
 
 # Written inside .git only after every clone step (clone, ref fetch, reset,
 # submodule init) has completed. A directory without it is an interrupted
@@ -480,8 +480,8 @@ def clone_or_update(
             _LOGGER.debug("Skipping update for %s (refresh disabled)", safe_key)
         else:
             _LOGGER.info(
-                "Skipping update for %s, next refresh in %s (refresh: %s); "
-                "use refresh: 0s to update now",
+                "Skipping update for %s, will refresh on the next run after %s "
+                "(refresh: %s); use refresh: always to update now",
                 safe_key,
                 format_duration(refresh.total_seconds - age_seconds),
                 format_duration(refresh.total_seconds),
