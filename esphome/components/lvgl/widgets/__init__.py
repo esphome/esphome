@@ -333,8 +333,11 @@ class Widget:
         return lv_obj.remove_flag(self.obj, literal(flag))
 
     def add_style(self, style_id, state=LV_STATE.DEFAULT):
+        # The selector may arrive as a generated expression rather than a plain name, so it
+        # is rendered first: testing an expression for the "|" directly always succeeds.
+        state = str(state)
         if "|" in state:
-            state = f"(lv_state_t)({state})"
+            state = f"(lv_style_selector_t)({state})"
         lv_obj.add_style(self.obj, MockObj(style_id), literal(state))
 
     async def set_property(

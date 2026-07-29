@@ -1543,6 +1543,10 @@ lvgl:
                 border_width: 2
             knob:
               radius: 4
+              # A named style, added for both a part on its own and a part with a state
+              styles: [style_test]
+              pressed:
+                styles: [style_test]
             on_update:
               - logger.log: color picker updated
 

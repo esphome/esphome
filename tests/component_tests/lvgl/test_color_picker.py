@@ -228,6 +228,29 @@ class TestColorPickerSliderStyles:
 
         assert styles["radius", "LV_PART_KNOB"] == {"HUE", "SATURATION", "BRIGHTNESS"}
 
+    @pytest.mark.parametrize(
+        "selector",
+        [
+            # A part on its own needs no cast...
+            "LV_PART_KNOB",
+            # ...while a part combined with a state is cast to the type LVGL takes, which is
+            # wide enough for both. A state alone would not be.
+            "(lv_style_selector_t)((int)LV_PART_KNOB|(int)LV_STATE_PRESSED)",
+        ],
+    )
+    def test_named_style_reaches_every_slider(
+        self, generate_main, component_config_path, selector
+    ):
+        """A style listed under `styles:` is added to each slider, not to the container."""
+        main_cpp = generate_main(component_config_path("color_picker.yaml"))
+        added = re.findall(
+            r"lv_obj_add_style\(picker_styled->get_slider\("
+            r"LvColorPickerType::SLIDER_(\w+)\), picker_style, (.+?)\);",
+            main_cpp,
+        )
+
+        assert {name for name, sel in added if sel == selector} == ALL_SLIDERS
+
     def test_no_styles_are_left_on_the_widget_itself(
         self, generate_main, component_config_path
     ):

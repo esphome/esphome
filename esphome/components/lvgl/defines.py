@@ -22,7 +22,6 @@ from esphome.types import Expression, SafeExpType
 LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "lvgl"
-KEY_COLOR_PICKER = "color_picker"
 KEY_COLOR_FORMATS = "color_formats"
 KEY_ESPHOME_FONTS_USED = "esphome_fonts_used"
 KEY_FOCUSED_WIDGETS = "focused_widgets"
@@ -703,6 +702,7 @@ CONF_CHANGE_RATE = "change_rate"
 CONF_CLOSE_BUTTON = "close_button"
 CONF_COLOR_DEPTH = "color_depth"
 CONF_COLOR_END = "color_end"
+CONF_COLOR_PICKER = "color_picker"
 CONF_COLOR_START = "color_start"
 CONF_CONTAINER = "container"
 CONF_CONTROL = "control"

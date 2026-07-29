@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_COLOR, CONF_HEIGHT, CONF_ITEMS, CONF_WIDTH
 
 from .. import add_lv_use
-from ..defines import CONF_KNOB, CONF_MAIN, literal
+from ..defines import CONF_COLOR_PICKER, CONF_KNOB, CONF_MAIN, literal
 from ..lv_validation import lv_color, size
 from ..lvcode import lv_add
 from ..types import LvCompound, LvType
@@ -28,7 +28,6 @@ lv_color_picker_t = LvType(
 # as setting the value of any other widget does.
 lv_color_picker_t.value_property = CONF_COLOR
 
-CONF_COLOR_PICKER = "color_picker"
 CONF_SLIDERS = "sliders"
 
 CONF_BG_COLOR = "bg_color"

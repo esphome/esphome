@@ -13,6 +13,7 @@ from esphome.core import ID
 from esphome.cpp_generator import MockObj
 
 from .defines import (
+    CONF_COLOR_PICKER,
     CONF_GRADIENTS,
     CONF_OPA,
     LV_DITHER,
@@ -24,7 +25,6 @@ from .defines import (
 from .lv_validation import lv_color, lv_percentage, opacity
 from .lvcode import lv
 from .types import lv_color_t, lv_gradient_t, lv_opa_t
-from .widgets.color_picker import CONF_COLOR_PICKER
 
 CONF_STOPS = "stops"
 

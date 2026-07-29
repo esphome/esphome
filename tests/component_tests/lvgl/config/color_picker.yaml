@@ -27,6 +27,10 @@ color:
     hex: "3366CC"
 
 lvgl:
+  style_definitions:
+    - id: picker_style
+      bg_opa: cover
+
   widgets:
     # Sized from the text font
     - color_picker:
@@ -50,6 +54,9 @@ lvgl:
         knob:
           bg_color: 0x112233
           radius: 4
+          styles: [picker_style]
+          pressed:
+            styles: [picker_style]
 
     # Only the red, green and blue sliders
     - color_picker:
