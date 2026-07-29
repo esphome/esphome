@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/components/improv_base/improv_base.h"
+#include "esphome/components/logger/logger.h"
 #include "esphome/components/wifi/wifi_component.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
@@ -11,8 +12,7 @@
 
 #ifdef USE_ESP32
 #include <driver/uart.h>
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32C61) || \
-    defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#ifdef USE_LOGGER_USB_SERIAL_JTAG
 #include <driver/usb_serial_jtag.h>
 #include <hal/usb_serial_jtag_ll.h>
 #endif
@@ -45,7 +45,7 @@ enum ImprovSerialType : uint8_t {
 static const uint16_t IMPROV_SERIAL_TIMEOUT = 100;
 static const uint8_t IMPROV_SERIAL_VERSION = 1;
 
-class ImprovSerialComponent : public Component, public improv_base::ImprovBase {
+class ImprovSerialComponent final : public Component, public improv_base::ImprovBase {
  public:
   void setup() override;
   void loop() override;
@@ -58,6 +58,7 @@ class ImprovSerialComponent : public Component, public improv_base::ImprovBase {
   bool parse_improv_payload_(improv::ImprovCommand &command);
 
   void set_state_(improv::State state);
+  void send_current_state_(improv::State state);
   void set_error_(improv::Error error);
   void send_response_(std::vector<uint8_t> &response);
   void on_wifi_connect_timeout_();
@@ -65,7 +66,52 @@ class ImprovSerialComponent : public Component, public improv_base::ImprovBase {
   std::vector<uint8_t> build_rpc_settings_response_(improv::Command command);
   std::vector<uint8_t> build_version_info_();
 
-  optional<uint8_t> read_byte_();
+  ESPHOME_ALWAYS_INLINE optional<uint8_t> read_byte_() {
+    optional<uint8_t> byte;
+    uint8_t data = 0;
+#ifdef USE_ESP32
+    switch (this->uart_selection_) {
+      case logger::UART_SELECTION_UART0:
+      case logger::UART_SELECTION_UART1:
+#if defined(USE_ESP32_VARIANT_ESP32)
+      case logger::UART_SELECTION_UART2:
+#endif
+        if (this->uart_num_ >= 0) {
+          size_t available;
+          uart_get_buffered_data_len(this->uart_num_, &available);
+          if (available) {
+            uart_read_bytes(this->uart_num_, &data, 1, 0);
+            byte = data;
+          }
+        }
+        break;
+#if defined(USE_LOGGER_USB_CDC) && defined(CONFIG_ESP_CONSOLE_USB_CDC)
+      case logger::UART_SELECTION_USB_CDC:
+        if (esp_usb_console_available_for_read()) {
+          esp_usb_console_read_buf((char *) &data, 1);
+          byte = data;
+        }
+        break;
+#endif
+#ifdef USE_LOGGER_USB_SERIAL_JTAG
+      case logger::UART_SELECTION_USB_SERIAL_JTAG: {
+        if (usb_serial_jtag_read_bytes((char *) &data, 1, 0)) {
+          byte = data;
+        }
+        break;
+      }
+#endif
+      default:
+        break;
+    }
+#elif defined(USE_ARDUINO)
+    if (this->hw_serial_->available()) {
+      this->hw_serial_->readBytes(&data, 1);
+      byte = data;
+    }
+#endif
+    return byte;
+  }
   void write_data_(const uint8_t *data = nullptr, size_t size = 0);
 
   uint8_t tx_header_[TX_BUFFER_SIZE] = {
@@ -85,6 +131,7 @@ class ImprovSerialComponent : public Component, public improv_base::ImprovBase {
 
 #ifdef USE_ESP32
   uart_port_t uart_num_;
+  logger::UARTSelection uart_selection_{logger::UART_SELECTION_UART0};
 #elif defined(USE_ARDUINO)
   Stream *hw_serial_{nullptr};
 #endif

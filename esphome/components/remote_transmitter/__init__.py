@@ -185,7 +185,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
-            PlatformFramework.RP2040_ARDUINO,
+            PlatformFramework.RP2_ARDUINO,
         },
     }
 )

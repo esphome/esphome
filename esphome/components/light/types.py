@@ -4,6 +4,7 @@ import esphome.codegen as cg
 # Base
 light_ns = cg.esphome_ns.namespace("light")
 LightState = light_ns.class_("LightState", cg.EntityBase, cg.Component)
+LightStateRef = LightState.operator("ref")
 AddressableLightState = light_ns.class_("AddressableLightState", LightState)
 LightOutput = light_ns.class_("LightOutput")
 AddressableLight = light_ns.class_("AddressableLight", LightOutput, cg.Component)
@@ -39,6 +40,7 @@ LIMIT_MODES = {
 # Actions
 ToggleAction = light_ns.class_("ToggleAction", automation.Action)
 LightControlAction = light_ns.class_("LightControlAction", automation.Action)
+LightEffectCycleAction = light_ns.class_("LightEffectCycleAction", automation.Action)
 DimRelativeAction = light_ns.class_("DimRelativeAction", automation.Action)
 AddressableSet = light_ns.class_("AddressableSet", automation.Action)
 LightIsOnCondition = light_ns.class_("LightIsOnCondition", automation.Condition)

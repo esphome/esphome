@@ -36,7 +36,7 @@ class CircularCommandQueue {
   std::unique_ptr<Command> commands_[COMMAND_QUEUE_SIZE];
 };
 
-class DfrobotSen0395Component : public uart::UARTDevice, public Component {
+class DfrobotSen0395Component final : public uart::UARTDevice, public Component {
 #ifdef USE_SWITCH
   SUB_SWITCH(sensor_active)
   SUB_SWITCH(turn_on_led)

@@ -250,6 +250,10 @@ class RingBufferAudioSource : public AudioReadableBuffer {
   /// exposure stays in place and fill() returns 0 until it is fully consumed.
   size_t fill(TickType_t ticks_to_wait, bool pre_shift) override;
 
+  /// @brief Discards all buffered audio: releases any held ring buffer item, clears the source's in-flight
+  /// state, and resets the underlying ring buffer. Must be invoked from the ring buffer's consumer thread.
+  void clear_buffered_data();
+
   /// @brief Returns a mutable pointer to the currently exposed audio data.
   /// The pointer may reference the ring buffer's internal storage or, when exposing a stitched frame
   /// across a wrap boundary, an internal splice buffer. In either case mutations are safe but data
