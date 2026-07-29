@@ -1,0 +1,49 @@
+substitutions:
+  i2s_din_pin: GPIO34
+  i2s_dout_pin: GPIO32
+
+packages:
+  i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-idf.yaml
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:
+
+# Runtime wake word model downloading pulls in sha256 + json via AUTO_LOAD and defines
+# USE_VOICE_ASSISTANT_RUNTIME_MODEL, compiling the whole download/validation code path.
+http_request:
+  id: model_http_request
+  verify_ssl: false
+
+micro_wake_word:
+  id: mww_id
+  microphone: va_mic_id_external
+  # Empty models list: exercises the optional-models path. Wake words arrive at runtime from Home Assistant.
+  models: []
+
+microphone:
+  - platform: i2s_audio
+    id: va_mic_id_external
+    i2s_audio_id: i2s_audio_bus
+    i2s_din_pin: ${i2s_din_pin}
+    adc_type: external
+    pdm: false
+
+speaker:
+  - platform: i2s_audio
+    id: va_speaker_id
+    i2s_audio_id: i2s_audio_bus
+    dac_type: external
+    i2s_dout_pin: ${i2s_dout_pin}
+
+voice_assistant:
+  microphone:
+    microphone: va_mic_id_external
+    gain_factor: 4
+    channels: 0
+  speaker: va_speaker_id
+  micro_wake_word: mww_id
+  http_request_id: model_http_request
+  conversation_timeout: 60s

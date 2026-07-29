@@ -1329,8 +1329,7 @@ void APIConnection::on_voice_assistant_announce_request(const VoiceAssistantAnno
   }
 }
 
-bool APIConnection::send_voice_assistant_get_configuration_response_(
-    const VoiceAssistantConfigurationRequest & /*msg*/) {
+bool APIConnection::send_voice_assistant_get_configuration_response_(const VoiceAssistantConfigurationRequest &msg) {
   VoiceAssistantConfigurationResponse resp;
   if (!this->check_voice_assistant_api_connection_()) {
     // send_message encodes synchronously, so this stack local outlives the encode
@@ -1339,7 +1338,9 @@ bool APIConnection::send_voice_assistant_get_configuration_response_(
     return this->send_message(resp);
   }
 
-  auto &config = voice_assistant::global_voice_assistant->get_configuration();
+  // VoiceAssistant::get_configuration merges compiled models with cached external wake words (deduped by id),
+  // so the response is built entirely from config.available_wake_words.
+  auto &config = voice_assistant::global_voice_assistant->get_configuration(msg.external_wake_words);
   for (auto &wake_word : config.available_wake_words) {
     resp.available_wake_words.emplace_back();
     auto &resp_wake_word = resp.available_wake_words.back();
