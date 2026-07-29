@@ -23,6 +23,10 @@ _LOGGER = logging.getLogger(__name__)
 # Special value to indicate never refresh
 NEVER_REFRESH = TimePeriodSeconds(seconds=-1)
 
+# revert() runs on an already-failing path; bound its wait for the cache
+# entry lock so that recovery cannot hang forever behind another process.
+_REVERT_LOCK_TIMEOUT_SECONDS = 60
+
 # Written inside .git only after every clone step (clone, ref fetch, reset,
 # submodule init) has completed. A directory without it is an interrupted
 # clone (e.g. the process was killed mid-clone) and must be re-cloned; without
@@ -300,11 +304,11 @@ def resolve_symlink_stub(repo_dir: Path, file_path: Path) -> Path | None:
 def clone_or_update(
     *,
     url: str,
-    ref: str = None,
+    ref: str | None = None,
     refresh: TimePeriodSeconds | None,
     domain: str,
-    username: str = None,
-    password: str = None,
+    username: str | None = None,
+    password: str | None = None,
     init_submodules: bool = False,
     subpath: Path | None = None,
 ) -> tuple[Path, Callable[[], None] | None]:
@@ -317,16 +321,32 @@ def clone_or_update(
     ``git clone`` creates the directory: a second caller could read a half
     populated worktree, or see the missing completion marker and delete the
     clone in progress out from under the first caller.
+
+    The lock guards mutation of the cache entry only; it is released when
+    this function returns, so a caller still reading the worktree can
+    overlap a later refresh by another process. That residual window is
+    narrow (the refresh interval is re-checked under the lock) and predates
+    the lock.
     """
     # Lazy import: keeps filelock off the CLI startup import path.
-    from filelock import FileLock
+    from filelock import FileLock, Timeout
 
     lock_path = _repo_lock_path(f"{url}@{ref}", domain)
     # git clone normally creates the domain directory; the lock file needs
     # it before the first clone starts.
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     lock = FileLock(str(lock_path))
-    with lock:
+    try:
+        lock.acquire(blocking=False)
+    except Timeout:
+        # Waiting on another process's clone or update can take minutes;
+        # say so instead of appearing hung.
+        _LOGGER.info(
+            "Waiting for another process to finish updating %s",
+            _redact_url_credentials(f"{url}@{ref}"),
+        )
+        lock.acquire()
+    try:
         return _clone_or_update_locked(
             url=url,
             ref=ref,
@@ -338,16 +358,18 @@ def clone_or_update(
             subpath=subpath,
             lock=lock,
         )
+    finally:
+        lock.release()
 
 
 def _clone_or_update_locked(
     *,
     url: str,
-    ref: str = None,
+    ref: str | None = None,
     refresh: TimePeriodSeconds | None,
     domain: str,
-    username: str = None,
-    password: str = None,
+    username: str | None = None,
+    password: str | None = None,
     init_submodules: bool = False,
     subpath: Path | None = None,
     lock: "FileLock",
@@ -529,11 +551,26 @@ def _clone_or_update_locked(
                 return result
 
             def revert():
+                from filelock import Timeout
+
                 _LOGGER.info("Reverting changes to %s -> %s", safe_key, old_sha)
-                with lock:
+                try:
+                    lock.acquire(timeout=_REVERT_LOCK_TIMEOUT_SECONDS)
+                except Timeout:
+                    # revert() only runs on an already-failing path; skip
+                    # rather than hang so the original error can surface.
+                    _LOGGER.warning(
+                        "Could not lock %s to revert to %s, skipping revert",
+                        safe_key,
+                        old_sha,
+                    )
+                    return
+                try:
                     run_git_command(
                         ["git", "reset", "--hard", old_sha], git_dir=repo_dir
                     )
+                finally:
+                    lock.release()
 
             return repo_dir, revert
 

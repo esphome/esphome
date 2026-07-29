@@ -1671,6 +1671,106 @@ def test_clone_or_update_recovery_holds_lock_without_deadlock(
     assert lock_held_during_reclone == [True]
 
 
+def _hold_lock_in_thread(lock_path: Path) -> tuple[threading.Thread, threading.Event]:
+    """Hold the lock from another thread; returns the thread and its release event.
+
+    OS file locks taken on separate descriptors conflict even within one
+    process, so a second FileLock instance in a thread contends the same
+    way another process would.
+    """
+    from filelock import FileLock
+
+    held = threading.Event()
+    release = threading.Event()
+
+    def hold() -> None:
+        with FileLock(str(lock_path)):
+            held.set()
+            release.wait(timeout=30)
+
+    holder = threading.Thread(target=hold)
+    holder.start()
+    assert held.wait(timeout=30)
+    return holder, release
+
+
+def test_clone_or_update_logs_wait_on_contended_lock(
+    tmp_path: Path, mock_run_git_command: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A contended acquire logs a redacted waiting message instead of
+    silently blocking."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://user:hunter2@github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+    mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
+
+    lock_path = _lock_path(url, None, domain)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    holder, release = _hold_lock_in_thread(lock_path)
+    # Free the lock shortly after the caller has started blocking on it.
+    threading.Timer(0.3, release.set).start()
+
+    with caplog.at_level(logging.INFO):
+        result_dir, _ = git.clone_or_update(
+            url=url, ref=None, refresh=git.NEVER_REFRESH, domain=domain
+        )
+    holder.join()
+
+    assert result_dir == repo_dir
+    waiting = [
+        r.getMessage()
+        for r in caplog.records
+        if "Waiting for another process" in r.getMessage()
+    ]
+    assert len(waiting) == 1
+    assert "hunter2" not in waiting[0]
+    assert "://***@" in waiting[0]
+
+
+def test_revert_skips_on_contended_lock(
+    tmp_path: Path,
+    mock_run_git_command: Mock,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """revert() only runs on an already-failing path; when it cannot get the
+    lock within the bounded timeout it warns and skips instead of hanging."""
+    CORE.config_path = tmp_path / "test.yaml"
+    monkeypatch.setattr(git, "_REVERT_LOCK_TIMEOUT_SECONDS", 0.05)
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+    _setup_old_repo(repo_dir)
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "rev-parse":
+            return "old_sha"
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    _, revert = git.clone_or_update(
+        url=url, ref=None, refresh=TimePeriodSeconds(days=1), domain=domain
+    )
+    assert revert is not None
+
+    holder, release = _hold_lock_in_thread(_lock_path(url, None, domain))
+    calls_before = len(mock_run_git_command.call_args_list)
+    with caplog.at_level(logging.WARNING):
+        revert()
+    release.set()
+    holder.join()
+
+    # No git reset was issued; the skip was logged.
+    assert len(mock_run_git_command.call_args_list) == calls_before
+    assert any("skipping revert" in r.getMessage() for r in caplog.records)
+
+
 def _real_git(*args: str, cwd: Path) -> None:
     """Run real git to build a test fixture repository."""
     subprocess.run(
