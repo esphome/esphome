@@ -2956,6 +2956,22 @@ def test_rename_key_removed_in_with_component_prefixes_warning(
     )
 
 
+def test_rename_key_both_keys_rejected() -> None:
+    with pytest.raises(Invalid, match="Cannot specify more than one of"):
+        cv.rename_key("old", "new")({"old": 5, "new": 6})
+
+
+def test_rename_key_both_keys_rejected_with_removed_in(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with (
+        caplog.at_level(logging.WARNING, logger="esphome.config_validation"),
+        pytest.raises(Invalid, match="Cannot specify more than one of"),
+    ):
+        cv.rename_key("old", "new", removed_in="2026.8.0")({"old": 5, "new": 6})
+    assert not caplog.records
+
+
 def test_file__existing_relative_path(setup_core: Path) -> None:
     (setup_core / "partitions.csv").write_text("csv\n")
 

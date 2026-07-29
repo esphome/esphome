@@ -4,7 +4,9 @@
 
 namespace esphome::epaper_spi {
 
-class EPaperSpectraE6 final : public EPaper4bpp {
+// Soldered Inkplate 6COLOR: 600x448 7-color (black/white/green/blue/red/yellow/orange) e-paper,
+// UC8159-family controller.
+class EPaperInkplate6Color final : public EPaper4bpp {
  public:
   using EPaper4bpp::EPaper4bpp;
 
