@@ -4,19 +4,16 @@
 
 namespace esphome::esp32 {
 
-/// Read and validate crash data from NOINIT memory.
-/// Does not clear the magic marker — call crash_handler_clear() after
-/// the data has been delivered to an API client so it survives OTA rollback reboots.
-void crash_handler_read_and_clear();
-
-/// Log crash data if a crash was detected on previous boot.
+/// Log crash data if a crash was detected on the previous boot.
+/// Retained data is read and validated on the first call per boot.
 void crash_handler_log();
 
-/// Clear the magic marker and mark crash data as consumed.
-/// Call after the data has been delivered to an API client.
+/// Clear the retained magic marker after the data has been delivered to an API client.
+/// The validated in-memory data remains available for other clients during this boot.
 void crash_handler_clear();
 
-/// Returns true if crash data was found this boot.
+/// Return whether crash data was found and validated this boot.
+/// Retained data is read and validated on the first call per boot.
 bool crash_handler_has_data();
 
 }  // namespace esphome::esp32

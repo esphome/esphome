@@ -55,8 +55,6 @@ namespace esphome::rp2 {
 
 static const char *const TAG = "rp2.crash";
 
-// Placed in .noinit so BSS zero-init cannot race with crash_handler_read_and_clear().
-// The valid field is explicitly cleared in crash_handler_read_and_clear() instead.
 static struct CrashData {
   bool valid;
   uint32_t pc;
@@ -64,11 +62,14 @@ static struct CrashData {
   uint32_t sp;
   uint32_t backtrace[MAX_BACKTRACE];
   uint8_t backtrace_count;
-} s_crash_data __attribute__((section(".noinit")));  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+} s_crash_data;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-bool crash_handler_has_data() { return s_crash_data.valid; }
+static bool s_crash_data_read = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void crash_handler_read_and_clear() {
+  if (s_crash_data_read)
+    return;
+  s_crash_data_read = true;
   s_crash_data.valid = false;
   uint32_t magic = watchdog_hw->scratch[0];
   if ((magic & 0xFFFF0000) == CRASH_MAGIC_SENTINEL && (magic & 0xFFFF) == CRASH_DATA_VERSION) {
@@ -91,13 +92,18 @@ void crash_handler_read_and_clear() {
   }
 }
 
+bool crash_handler_has_data() {
+  crash_handler_read_and_clear();
+  return s_crash_data.valid;
+}
+
 // Intentionally uses separate ESP_LOGE calls per line instead of combining into
 // one multi-line log message. This ensures each address appears as its own line
 // on the serial console (miniterm), making it possible to see partial output if
 // the device crashes again during boot, and allowing the CLI's process_stacktrace
 // to match and decode each address individually.
 void crash_handler_log() {
-  if (!s_crash_data.valid)
+  if (!crash_handler_has_data())
     return;
 
   ESP_LOGE(TAG, "*** CRASH DETECTED ON PREVIOUS BOOT ***");
