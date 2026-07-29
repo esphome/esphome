@@ -278,8 +278,7 @@ bool Nextion::send_command(const char *command) {
   if ((!this->is_setup() && !this->connection_state_.ignore_is_setup_) || this->is_sleeping())
     return false;
 
-  const std::string cmd{command};
-  this->add_no_result_to_queue_with_command_(cmd, cmd);
+  this->add_no_result_to_queue_with_command_("command", command);
   return true;
 }
 
@@ -297,8 +296,7 @@ bool Nextion::send_command_printf(const char *format, ...) {
     return false;
   }
 
-  const std::string cmd{buffer};
-  this->add_no_result_to_queue_with_command_(cmd, cmd);
+  this->add_no_result_to_queue_with_command_("command", buffer);
   return true;
 }
 
@@ -452,6 +450,14 @@ void Nextion::deliver_queue_response_(const char *response_name, const NextionQu
     }
     NextionComponentBase *component = nb->component;
     NextionQueueType qtype = component->get_queue_type();
+
+#ifdef USE_NEXTION_COMMAND_SPACING
+    if (!nb->pending_command.empty()) {
+      ESP_LOGV(TAG, "%s: skipping unsent '%s'", response_name, component->get_variable_name().c_str());
+      ++it;
+      continue;
+    }
+#endif
 
     if (qtype == NextionQueueType::NO_RESULT) {
       // Leave in queue -- its 0x01 ACK will remove it via remove_from_q_().
@@ -1142,7 +1148,7 @@ void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
 
   this->nextion_queue_.push_back(nextion_queue);
 
-  ESP_LOGN(TAG, "Queue NORESULT: %s", nextion_queue->component->get_variable_name().c_str());
+  ESP_LOGN(TAG, "Queue NORESULT: %s: %s", nextion_queue->component->get_variable_name().c_str(), command.c_str());
 }
 
 /**

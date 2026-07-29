@@ -1436,6 +1436,13 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   inline uint16_t get_startup_override_ms() const { return this->startup_override_ms_; }
 
  protected:
+#ifdef GTEST_TESTING
+  FRIEND_TEST(DeliverQueueResponse, SkipNoResult_SecondSensorGetsValue);
+  FRIEND_TEST(DeliverQueueResponse, SkipNoResult_TextSensorGetsString);
+  FRIEND_TEST(DeliverQueueResponse, SkipUnsentEntry_UnderCommandSpacing);
+  FRIEND_TEST(DeliverQueueResponse, RemoveMismatchedEntry);
+#endif
+
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
   uint16_t max_commands_per_loop_{1000};
 #endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
