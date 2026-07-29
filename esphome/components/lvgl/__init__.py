@@ -223,7 +223,8 @@ def multi_conf_validate(configs: list[dict]):
     )
     if themed_configs > 1:
         raise cv.Invalid(
-            "'theme' may only be set on one LVGL instance when using multiple LVGL instances"
+            "'theme' may only be set on one LVGL instance when using multiple LVGL "
+            "instances -- combine both themes into a single instance's 'theme:' block"
         )
     base_config = configs[0]
     for config in configs[1:]:

@@ -147,17 +147,31 @@ async def theme_to_code(config):
 async def theme_update_to_code(config, action_id, template_arg, args):
     await wait_for_widgets()
     theme_map = get_theme_widget_map()
-    to_update = [
-        (theme_map[w_name][part][state], props)
-        for w_name, style in config.items()
-        for part, states in collect_parts(style).items()
-        for state, props in states.items()
-        # collect_parts() unconditionally seeds an (empty) main/default entry
-        # even when this action didn't target it -- skip it, both because
-        # there's nothing to update and because theme_update_schema no longer
-        # pre-creates a placeholder style for combos with no properties.
-        if props
-    ]
+    # Invariant this relies on: theme_update_schema() records every (widget
+    # type, part, state) combo this action targets as a request during config
+    # validation (which completes for the whole config tree before any
+    # to_code runs), and theme_to_code() -- which runs for every LVGL
+    # instance before any action's own to_code -- materialises a style for
+    # each recorded request. If that handshake is ever broken by a future
+    # change, fail with a diagnosable message rather than a bare KeyError.
+    to_update = []
+    for w_name, style in config.items():
+        for part, states in collect_parts(style).items():
+            for state, props in states.items():
+                # collect_parts() unconditionally seeds an (empty) main/default
+                # entry even when this action didn't target it -- skip it, both
+                # because there's nothing to update and because
+                # theme_update_schema no longer pre-creates a placeholder style
+                # for combos with no properties.
+                if not props:
+                    continue
+                style_var = theme_map.get(w_name, {}).get(part, {}).get(state)
+                if style_var is None:
+                    raise cv.Invalid(
+                        f"No theme style exists for '{w_name}' {part}/{state}. "
+                        "This is an internal error -- please report it."
+                    )
+                to_update.append((style_var, props))
     async with LambdaContext(parameters=args, where=action_id) as context:
         for style_var, props in to_update:
             await style_set(style_var, props)
