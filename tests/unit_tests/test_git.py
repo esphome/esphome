@@ -77,17 +77,23 @@ def _simulate_cloned_repo(repo_dir: Path) -> None:
 
 
 def _make_clone_side_effect(
-    repo_dir: Path, gitmodules: bool = False
+    repo_dir: Path,
+    gitmodules: bool = False,
+    on_clone: Callable[[], None] | None = None,
 ) -> Callable[..., str]:
     """Return a run_git_command side effect whose clone creates the repo dir.
 
-    With ``gitmodules`` the cloned repo also declares submodules.
+    With ``gitmodules`` the cloned repo also declares submodules. ``on_clone``
+    runs at clone time before the repo dir appears, so a test can probe or
+    block mid-clone.
     """
 
     def git_command_side_effect(
         cmd: list[str], cwd: str | None = None, **kwargs: Any
     ) -> str:
         if _get_git_command_type(cmd) == "clone":
+            if on_clone is not None:
+                on_clone()
             _simulate_cloned_repo(repo_dir)
             if gitmodules:
                 (repo_dir / ".gitmodules").write_text("test")
@@ -1496,11 +1502,25 @@ def test_refresh_submodule_failure_recovers_then_raises(
 
 def _lock_path(url: str, ref: str | None, domain: str) -> Path:
     """The lock file the implementation uses for one cache entry."""
-    return git._repo_lock_path(f"{url}@{ref}", domain)
+    return git._repo_lock_path(git._cache_key(url, ref), domain)
+
+
+class _SetEventOnWaitLog(logging.Handler):
+    """Set an event when the 'Waiting for another process' record is emitted,
+    so tests can react to a caller observably blocking on the lock instead of
+    racing a wall-clock timer."""
+
+    def __init__(self, event: threading.Event) -> None:
+        super().__init__()
+        self._event = event
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if "Waiting for another process" in record.getMessage():
+            self._event.set()
 
 
 def test_clone_or_update_serializes_concurrent_clones(
-    tmp_path: Path, mock_run_git_command: Mock
+    tmp_path: Path, mock_run_git_command: Mock, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Two concurrent callers for the same uncached repo must not both clone.
 
@@ -1515,18 +1535,16 @@ def test_clone_or_update_serializes_concurrent_clones(
     repo_dir = _compute_repo_dir(url, None, domain)
 
     start_together = threading.Barrier(2)
+    other_caller_waiting = threading.Event()
 
-    def git_command_side_effect(
-        cmd: list[str], cwd: str | None = None, **kwargs: Any
-    ) -> str:
-        if _get_git_command_type(cmd) == "clone":
-            # Long enough that the other caller reaches the lock while the
-            # clone is still in flight.
-            time.sleep(0.2)
-            _simulate_cloned_repo(repo_dir)
-        return ""
+    def on_clone() -> None:
+        # Hold the lock until the other caller is observably blocked on it,
+        # so the interleaving is guaranteed rather than raced on a timer.
+        assert other_caller_waiting.wait(timeout=30)
 
-    mock_run_git_command.side_effect = git_command_side_effect
+    mock_run_git_command.side_effect = _make_clone_side_effect(
+        repo_dir, on_clone=on_clone
+    )
 
     results: list[Path] = []
     errors: list[BaseException] = []
@@ -1541,11 +1559,18 @@ def test_clone_or_update_serializes_concurrent_clones(
         except BaseException as err:  # noqa: BLE001 - re-raised via errors below
             errors.append(err)
 
-    threads = [threading.Thread(target=call) for _ in range(2)]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
+    handler = _SetEventOnWaitLog(other_caller_waiting)
+    git_logger = logging.getLogger("esphome.git")
+    git_logger.addHandler(handler)
+    try:
+        with caplog.at_level(logging.INFO):
+            threads = [threading.Thread(target=call) for _ in range(2)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+    finally:
+        git_logger.removeHandler(handler)
 
     assert not errors
     assert results == [repo_dir, repo_dir]
@@ -1576,15 +1601,9 @@ def test_clone_or_update_creates_lock_file_next_to_hash_dir(
     lock_path = _lock_path(url, None, domain)
     lock_held_during_clone: list[bool] = []
 
-    def git_command_side_effect(
-        cmd: list[str], cwd: str | None = None, **kwargs: Any
-    ) -> str:
-        if _get_git_command_type(cmd) == "clone":
-            lock_held_during_clone.append(lock_path.is_file())
-            _simulate_cloned_repo(repo_dir)
-        return ""
-
-    mock_run_git_command.side_effect = git_command_side_effect
+    mock_run_git_command.side_effect = _make_clone_side_effect(
+        repo_dir, on_clone=lambda: lock_held_during_clone.append(lock_path.is_file())
+    )
 
     result_dir, _ = git.clone_or_update(
         url=url, ref=None, refresh=git.NEVER_REFRESH, domain=domain
@@ -1608,15 +1627,9 @@ def test_clone_or_update_subpath_locks_at_hash_dir_level(
     lock_path = _lock_path(url, None, domain)
     lock_held_during_clone: list[bool] = []
 
-    def git_command_side_effect(
-        cmd: list[str], cwd: str | None = None, **kwargs: Any
-    ) -> str:
-        if _get_git_command_type(cmd) == "clone":
-            lock_held_during_clone.append(lock_path.is_file())
-            _simulate_cloned_repo(repo_dir)
-        return ""
-
-    mock_run_git_command.side_effect = git_command_side_effect
+    mock_run_git_command.side_effect = _make_clone_side_effect(
+        repo_dir, on_clone=lambda: lock_held_during_clone.append(lock_path.is_file())
+    )
 
     result_dir, _ = git.clone_or_update(
         url=url,
@@ -1710,12 +1723,7 @@ def test_clone_or_update_logs_wait_on_contended_lock(
 
     # Free the lock only once the waiting message has been emitted, so the
     # release is caused by the thing being asserted instead of racing it.
-    class ReleaseOnWaitLog(logging.Handler):
-        def emit(self, record: logging.LogRecord) -> None:
-            if "Waiting for another process" in record.getMessage():
-                release.set()
-
-    handler = ReleaseOnWaitLog()
+    handler = _SetEventOnWaitLog(release)
     git_logger = logging.getLogger("esphome.git")
     git_logger.addHandler(handler)
     try:
@@ -1755,14 +1763,9 @@ def test_revert_skips_on_contended_lock(
     repo_dir = _compute_repo_dir(url, None, domain)
     _setup_old_repo(repo_dir)
 
-    def git_command_side_effect(
-        cmd: list[str], cwd: str | None = None, **kwargs: Any
-    ) -> str:
-        if _get_git_command_type(cmd) == "rev-parse":
-            return "old_sha"
-        return ""
-
-    mock_run_git_command.side_effect = git_command_side_effect
+    # A bare return value satisfies the rev-parse; the other commands'
+    # outputs are unused.
+    mock_run_git_command.return_value = "old_sha"
 
     _, revert = git.clone_or_update(
         url=url, ref=None, refresh=TimePeriodSeconds(days=1), domain=domain
@@ -1851,14 +1854,9 @@ def test_revert_continues_unlocked_when_filesystem_cannot_lock(
     repo_dir = _compute_repo_dir(url, None, domain)
     _setup_old_repo(repo_dir)
 
-    def git_command_side_effect(
-        cmd: list[str], cwd: str | None = None, **kwargs: Any
-    ) -> str:
-        if _get_git_command_type(cmd) == "rev-parse":
-            return "old_sha"
-        return ""
-
-    mock_run_git_command.side_effect = git_command_side_effect
+    # A bare return value satisfies the rev-parse; the other commands'
+    # outputs are unused.
+    mock_run_git_command.return_value = "old_sha"
 
     _, revert = git.clone_or_update(
         url=url, ref=None, refresh=TimePeriodSeconds(days=1), domain=domain
@@ -1884,12 +1882,13 @@ def _script_acquire_statuses(
     """Replace _acquire_repo_lock with a scripted sequence; returns the
     timeouts it was called with."""
     timeouts: list[float] = []
+    status_iter = iter(statuses)
 
     def fake_acquire(
         lock: FileLock, safe_key: str, timeout: float, **kwargs: Any
     ) -> "git._LockStatus":
         timeouts.append(timeout)
-        return statuses[len(timeouts) - 1]
+        return next(status_iter)
 
     monkeypatch.setattr(git, "_acquire_repo_lock", fake_acquire)
     return timeouts

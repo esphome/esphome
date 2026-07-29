@@ -167,11 +167,28 @@ def run_git_command(
     return ret.stdout.decode("utf-8").strip()
 
 
+def _cache_key(url: str, ref: str | None) -> str:
+    """Cache key identifying one repository checkout.
+
+    The lock path and the entry directory both hash this, so the format
+    lives in exactly one place.
+    """
+    return f"{url}@{ref}"
+
+
 def _compute_destination_path(key: str, domain: str) -> Path:
     base_dir = Path(CORE.data_dir) / domain
     h = hashlib.new("sha256")
     h.update(key.encode())
     return base_dir / h.hexdigest()[:8]
+
+
+def _repo_entry_dir(key: str, domain: str, subpath: Path | None) -> Path:
+    """Worktree directory of one cache entry: the hash dir plus optional subpath."""
+    repo_dir = _compute_destination_path(key, domain)
+    if subpath:
+        repo_dir = repo_dir / subpath
+    return repo_dir
 
 
 def _repo_lock_path(key: str, domain: str) -> Path:
@@ -196,17 +213,10 @@ class _LockStatus(Enum):
 # Errnos that mean the filesystem genuinely cannot take file locks (NFS
 # without a lock daemon, some FUSE mounts). Any other OSError (permissions,
 # read-only volume, full disk) is a cache directory problem, which the git
-# commands themselves report clearly when it actually matters.
+# commands themselves report clearly when it actually matters. On Linux
+# ENOTSUP and EOPNOTSUPP are the same value; the set folds them.
 _NO_LOCK_SUPPORT_ERRNOS = frozenset(
-    code
-    for code in (
-        errno.ENOLCK,
-        errno.ENOSYS,
-        errno.EOPNOTSUPP,
-        getattr(errno, "ENOTSUP", None),
-        errno.EPERM,
-    )
-    if code is not None
+    {errno.ENOLCK, errno.ENOSYS, errno.EOPNOTSUPP, errno.ENOTSUP, errno.EPERM}
 )
 
 
@@ -258,16 +268,16 @@ def _acquire_repo_lock(
 
 @contextmanager
 def _repo_cache_lock(
-    key: str, domain: str, subpath: Path | None
-) -> Iterator[tuple[Path | None, "FileLock | None"]]:
+    key: str, domain: str, repo_dir: Path
+) -> Iterator[tuple[bool, "FileLock | None"]]:
     """Hold the cache entry lock for ``key`` over the with block.
 
-    Yields ``(existing_dir, lock)``. When ``existing_dir`` is set, the lock
-    could not be acquired within the bounded wait but a complete cache entry
-    exists; the caller should use it as-is and do nothing else. Otherwise
-    ``lock`` is the held lock, released when the block exits, or ``None``
-    when the lock could not be taken at all and the caller proceeds
-    unlocked.
+    Yields ``(use_existing, lock)``. ``use_existing`` is True when the lock
+    could not be acquired within the bounded wait but ``repo_dir`` is a
+    complete cache entry; the caller should use it as-is and do nothing
+    else. Otherwise ``lock`` is the held lock, released when the block
+    exits, or ``None`` when the lock could not be taken at all and the
+    caller proceeds unlocked.
     """
     # Lazy import: keeps filelock off the CLI startup import path.
     from filelock import FileLock
@@ -283,9 +293,6 @@ def _repo_cache_lock(
     )
     status = _acquire_repo_lock(lock, safe_key, _COMPLETE_ENTRY_LOCK_TIMEOUT_SECONDS)
     if status is _LockStatus.TIMEOUT:
-        repo_dir = _compute_destination_path(key, domain)
-        if subpath:
-            repo_dir = repo_dir / subpath
         if _clone_complete_marker_path(repo_dir).is_file():
             # Mutual exclusion matters most while no complete entry exists
             # (initial clone, recovery re-clone); with one on disk, reading
@@ -296,7 +303,7 @@ def _repo_cache_lock(
                 "changing",
                 safe_key,
             )
-            yield repo_dir, None
+            yield True, None
             return
         # Nothing to fall back to; the holder is producing the clone this
         # caller needs.
@@ -310,7 +317,7 @@ def _repo_cache_lock(
     if status is not _LockStatus.ACQUIRED:
         lock = None
     try:
-        yield None, lock
+        yield False, lock
     finally:
         if lock is not None:
             lock.release()
@@ -477,9 +484,11 @@ def clone_or_update(
     network), the existing clone is used without refreshing it, so a stuck
     process cannot hang every peer that already has a good entry.
     """
-    with _repo_cache_lock(f"{url}@{ref}", domain, subpath) as (existing_dir, lock):
-        if existing_dir is not None:
-            return existing_dir, None
+    key = _cache_key(url, ref)
+    repo_dir = _repo_entry_dir(key, domain, subpath)
+    with _repo_cache_lock(key, domain, repo_dir) as (use_existing, lock):
+        if use_existing:
+            return repo_dir, None
         return _clone_or_update_locked(
             url=url,
             ref=ref,
@@ -496,13 +505,13 @@ def clone_or_update(
 def _clone_or_update_locked(
     *,
     url: str,
-    ref: str | None = None,
+    ref: str | None,
     refresh: TimePeriodSeconds | None,
     domain: str,
-    username: str | None = None,
-    password: str | None = None,
-    init_submodules: bool = False,
-    subpath: Path | None = None,
+    username: str | None,
+    password: str | None,
+    init_submodules: bool,
+    subpath: Path | None,
     lock: "FileLock | None",
     _recover_broken: bool = True,
 ) -> tuple[Path, Callable[[], None] | None]:
@@ -516,7 +525,7 @@ def _clone_or_update_locked(
     ``lock`` is ``None`` when the filesystem cannot take file locks and the
     wrapper fell back to running unlocked.
     """
-    key = f"{url}@{ref}"
+    key = _cache_key(url, ref)
     # The user may have embedded credentials in the URL itself; log this
     # instead of key.
     safe_key = _redact_url_credentials(key)
@@ -530,10 +539,8 @@ def _clone_or_update_locked(
             "://", f"://{urllib.parse.quote(username)}:{urllib.parse.quote(password)}@"
         )
 
-    repo_dir = _compute_destination_path(key, domain)
-    hash_dir_name = repo_dir.name
-    if subpath:
-        repo_dir = repo_dir / subpath
+    hash_dir_name = _compute_destination_path(key, domain).name
+    repo_dir = _repo_entry_dir(key, domain, subpath)
 
     if repo_dir.is_dir() and not _clone_complete_marker_path(repo_dir).is_file():
         # The last clone never finished (killed process, container stop) or
@@ -685,13 +692,14 @@ def _clone_or_update_locked(
 
             def revert():
                 _LOGGER.info("Reverting changes to %s -> %s", safe_key, old_sha)
-                status = (
-                    _acquire_repo_lock(lock, safe_key, _REVERT_LOCK_TIMEOUT_SECONDS)
-                    if lock is not None
+                if lock is None:
                     # The wrapper already warned about the unlockable
                     # filesystem; revert unlocked like everything else.
-                    else _LockStatus.UNAVAILABLE
-                )
+                    status = _LockStatus.UNAVAILABLE
+                else:
+                    status = _acquire_repo_lock(
+                        lock, safe_key, _REVERT_LOCK_TIMEOUT_SECONDS
+                    )
                 if status is _LockStatus.TIMEOUT:
                     # revert() only runs on an already-failing path; skip
                     # rather than hang so the original error can surface.
