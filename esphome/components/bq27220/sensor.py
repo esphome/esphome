@@ -56,7 +56,6 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_BATTERY,
                 state_class=STATE_CLASS_MEASUREMENT,
-                icon=ICON_BATTERY,
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,

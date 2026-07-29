@@ -15,21 +15,25 @@ bool BQ27220Component::read_word_(uint8_t reg, uint16_t &value) {
 }
 
 void BQ27220Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up BQ27220...");
-  uint16_t device_type = 0;
-  // Write DEVICE_TYPE subcommand to Control register
-  uint8_t ctrl_cmd[2] = {0x01, 0x00};
+  // Verify the device by reading DEVICE_TYPE: write the subcommand to Control(),
+  // then read the result from the MAC data buffer after a short delay. Reading
+  // Control() directly returns CONTROL_STATUS, not the device number.
+  uint8_t ctrl_cmd[2] = {0x01, 0x00};  // DEVICE_TYPE subcommand (0x0001, little-endian)
   if (this->write_register(BQ27220_REG_CONTROL, ctrl_cmd, 2) != i2c::ERROR_OK) {
-    this->status_set_error(LOG_STR("Failed to communicate with BQ27220"));
+    this->mark_failed(LOG_STR("Failed to communicate with BQ27220"));
+    return;
+  }
+  delay(2);
+  uint16_t device_type = 0;
+  if (!this->read_word_(BQ27220_REG_MAC_DATA, device_type)) {
+    this->mark_failed(LOG_STR("Failed to read device type from BQ27220"));
+    return;
+  }
+  if (device_type != BQ27220_DEVICE_TYPE) {
+    ESP_LOGE(TAG, "Unexpected device type 0x%04X (expected 0x%04X)", device_type, BQ27220_DEVICE_TYPE);
     this->mark_failed();
     return;
   }
-  if (!this->read_word_(BQ27220_REG_CONTROL, device_type)) {
-    this->status_set_error(LOG_STR("Failed to read device type from BQ27220"));
-    this->mark_failed();
-    return;
-  }
-  ESP_LOGD(TAG, "BQ27220 device type: 0x%04X", device_type);
 }
 
 void BQ27220Component::update() {
