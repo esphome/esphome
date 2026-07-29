@@ -1459,7 +1459,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   void process_pending_in_queue_();
 #endif  // USE_NEXTION_COMMAND_SPACING
 
-public:
+ public:
   std::list<NextionQueue *> nextion_queue_;
   inline void set_numeric_return(int value) { this->set_numeric_return_(value); }
   inline void set_string_return(const std::string &value) { this->set_string_return_(value); }
