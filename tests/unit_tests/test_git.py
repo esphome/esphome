@@ -10,6 +10,7 @@ import time
 from typing import Any
 from unittest.mock import Mock, patch
 
+from filelock import FileLock
 import pytest
 
 from esphome import git
@@ -1678,8 +1679,6 @@ def _hold_lock_in_thread(lock_path: Path) -> tuple[threading.Thread, threading.E
     process, so a second FileLock instance in a thread contends the same
     way another process would.
     """
-    from filelock import FileLock
-
     held = threading.Event()
     release = threading.Event()
 
