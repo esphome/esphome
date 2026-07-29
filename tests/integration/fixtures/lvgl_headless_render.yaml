@@ -1,0 +1,48 @@
+esphome:
+  name: lvgl-headless-render-test
+host:
+
+api:
+  actions:
+    - action: take_screenshot
+      then:
+        - sdl.screenshot:
+            id: lvgl_display
+            filename: hello_world.bmp
+
+logger:
+  level: DEBUG
+
+display:
+  - platform: sdl
+    id: lvgl_display
+    headless: true
+    auto_clear_enabled: false
+    dimensions:
+      width: 300
+      height: 300
+
+# The widgets are spelled out here rather than left to the built in "Hello World" screen, which
+# LVGL builds when nothing is configured: that screen contains a spinner, and an animation cannot
+# produce the same picture twice.
+#
+# Everything that affects the rendered pixels is set explicitly, so the expected hash in the test
+# depends only on the drawing code and the built in font. In particular the background comes from a
+# full screen object rather than from the theme, so adjusting a theme default does not break this.
+lvgl:
+  displays: lvgl_display
+  default_font: montserrat_14
+  widgets:
+    - obj:
+        width: 100%
+        height: 100%
+        bg_color: 0x000080
+        bg_opa: cover
+        border_width: 0
+        radius: 0
+        pad_all: 0
+        widgets:
+          - label:
+              align: center
+              text: "Hello World!"
+              text_color: 0xFFFFFF
