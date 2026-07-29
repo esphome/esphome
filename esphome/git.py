@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass
+from enum import Enum, auto
 import hashlib
 import logging
 import os
@@ -174,6 +175,44 @@ def _repo_lock_path(key: str, domain: str) -> Path:
     return repo_dir.parent / f"{repo_dir.name}.lock"
 
 
+class _LockStatus(Enum):
+    ACQUIRED = auto()
+    # A bounded wait expired while another process held the lock.
+    TIMEOUT = auto()
+    # The filesystem cannot take file locks (e.g. NFS without a lock
+    # daemon, some FUSE mounts); callers proceed unlocked, matching the
+    # behavior before the lock existed.
+    UNAVAILABLE = auto()
+
+
+def _acquire_repo_lock(lock: "FileLock", safe_key: str, timeout: float) -> _LockStatus:
+    """Acquire ``lock``, logging when a wait actually begins.
+
+    ``timeout`` of -1 waits forever; a positive value bounds the wait and
+    can yield ``TIMEOUT``.
+    """
+    from filelock import Timeout
+
+    try:
+        try:
+            lock.acquire(blocking=False)
+        except Timeout:
+            # Waiting on another process's clone or update can take
+            # minutes; say so instead of appearing hung.
+            _LOGGER.info("Waiting for another process to finish updating %s", safe_key)
+            lock.acquire(timeout=timeout)
+    except Timeout:
+        return _LockStatus.TIMEOUT
+    except OSError as err:
+        _LOGGER.warning(
+            "Cannot lock the cache entry for %s (%s), continuing without a lock",
+            safe_key,
+            err,
+        )
+        return _LockStatus.UNAVAILABLE
+    return _LockStatus.ACQUIRED
+
+
 def _clone_complete_marker_path(repo_dir: Path) -> Path:
     return repo_dir / ".git" / _CLONE_COMPLETE_MARKER
 
@@ -327,25 +366,23 @@ def clone_or_update(
     overlap a later refresh by another process. That residual window is
     narrow (the refresh interval is re-checked under the lock) and predates
     the lock.
+
+    Locking is best effort: on a filesystem that cannot take file locks a
+    warning is logged and the work proceeds unlocked, matching the behavior
+    before the lock existed.
     """
     # Lazy import: keeps filelock off the CLI startup import path.
-    from filelock import FileLock, Timeout
+    from filelock import FileLock
 
-    lock_path = _repo_lock_path(f"{url}@{ref}", domain)
-    # git clone normally creates the domain directory; the lock file needs
-    # it before the first clone starts.
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    lock = FileLock(str(lock_path))
-    try:
-        lock.acquire(blocking=False)
-    except Timeout:
-        # Waiting on another process's clone or update can take minutes;
-        # say so instead of appearing hung.
-        _LOGGER.info(
-            "Waiting for another process to finish updating %s",
-            _redact_url_credentials(f"{url}@{ref}"),
-        )
-        lock.acquire()
+    key = f"{url}@{ref}"
+    # acquire() creates the lock file's directory itself; git clone later
+    # creates the hash directory next to it.
+    lock: FileLock | None = FileLock(str(_repo_lock_path(key, domain)))
+    if (
+        _acquire_repo_lock(lock, _redact_url_credentials(key), timeout=-1)
+        is not _LockStatus.ACQUIRED
+    ):
+        lock = None
     try:
         return _clone_or_update_locked(
             url=url,
@@ -359,7 +396,8 @@ def clone_or_update(
             lock=lock,
         )
     finally:
-        lock.release()
+        if lock is not None:
+            lock.release()
 
 
 def _clone_or_update_locked(
@@ -372,7 +410,7 @@ def _clone_or_update_locked(
     password: str | None = None,
     init_submodules: bool = False,
     subpath: Path | None = None,
-    lock: "FileLock",
+    lock: "FileLock | None",
     _recover_broken: bool = True,
 ) -> tuple[Path, Callable[[], None] | None]:
     """Body of ``clone_or_update``; the caller holds ``lock``.
@@ -381,7 +419,9 @@ def _clone_or_update_locked(
     function: re-acquiring the already-held lock would deadlock, since OS
     file locks taken on separate file descriptors conflict even within one
     process. ``lock`` is only re-acquired by the returned ``revert``
-    callback, which runs after the outer ``with`` has released it.
+    callback, which runs after the wrapper's ``finally`` has released it.
+    ``lock`` is ``None`` when the filesystem cannot take file locks and the
+    wrapper fell back to running unlocked.
     """
     key = f"{url}@{ref}"
     # The user may have embedded credentials in the URL itself; log this
@@ -551,33 +591,30 @@ def _clone_or_update_locked(
                 return result
 
             def revert():
-                from filelock import Timeout
-
                 _LOGGER.info("Reverting changes to %s -> %s", safe_key, old_sha)
-                try:
-                    lock.acquire(blocking=False)
-                except Timeout:
-                    _LOGGER.info(
-                        "Waiting for another process to finish updating %s",
+                status = (
+                    _acquire_repo_lock(lock, safe_key, _REVERT_LOCK_TIMEOUT_SECONDS)
+                    if lock is not None
+                    # The wrapper already warned about the unlockable
+                    # filesystem; revert unlocked like everything else.
+                    else _LockStatus.UNAVAILABLE
+                )
+                if status is _LockStatus.TIMEOUT:
+                    # revert() only runs on an already-failing path; skip
+                    # rather than hang so the original error can surface.
+                    _LOGGER.warning(
+                        "Could not lock %s to revert to %s, skipping revert",
                         safe_key,
+                        old_sha,
                     )
-                    try:
-                        lock.acquire(timeout=_REVERT_LOCK_TIMEOUT_SECONDS)
-                    except Timeout:
-                        # revert() only runs on an already-failing path; skip
-                        # rather than hang so the original error can surface.
-                        _LOGGER.warning(
-                            "Could not lock %s to revert to %s, skipping revert",
-                            safe_key,
-                            old_sha,
-                        )
-                        return
+                    return
                 try:
                     run_git_command(
                         ["git", "reset", "--hard", old_sha], git_dir=repo_dir
                     )
                 finally:
-                    lock.release()
+                    if status is _LockStatus.ACQUIRED:
+                        lock.release()
 
             return repo_dir, revert
 

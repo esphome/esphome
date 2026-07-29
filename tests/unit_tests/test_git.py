@@ -1,6 +1,7 @@
 """Tests for git.py module."""
 
 from collections.abc import Callable
+import errno
 import logging
 import os
 from pathlib import Path
@@ -1705,16 +1706,26 @@ def test_clone_or_update_logs_wait_on_contended_lock(
     repo_dir = _compute_repo_dir(url, None, domain)
     mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
 
-    lock_path = _lock_path(url, None, domain)
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    holder, release = _hold_lock_in_thread(lock_path)
-    # Free the lock shortly after the caller has started blocking on it.
-    threading.Timer(0.3, release.set).start()
+    holder, release = _hold_lock_in_thread(_lock_path(url, None, domain))
 
-    with caplog.at_level(logging.INFO):
-        result_dir, _ = git.clone_or_update(
-            url=url, ref=None, refresh=git.NEVER_REFRESH, domain=domain
-        )
+    # Free the lock only once the waiting message has been emitted, so the
+    # release is caused by the thing being asserted instead of racing it.
+    class ReleaseOnWaitLog(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            if "Waiting for another process" in record.getMessage():
+                release.set()
+
+    handler = ReleaseOnWaitLog()
+    git_logger = logging.getLogger("esphome.git")
+    git_logger.addHandler(handler)
+    try:
+        with caplog.at_level(logging.INFO):
+            result_dir, _ = git.clone_or_update(
+                url=url, ref=None, refresh=git.NEVER_REFRESH, domain=domain
+            )
+    finally:
+        git_logger.removeHandler(handler)
+        release.set()
     holder.join()
 
     assert result_dir == repo_dir
@@ -1769,6 +1780,82 @@ def test_revert_skips_on_contended_lock(
     assert len(mock_run_git_command.call_args_list) == calls_before
     assert any("Waiting for another process" in r.getMessage() for r in caplog.records)
     assert any("skipping revert" in r.getMessage() for r in caplog.records)
+
+
+def _raise_oserror_on_acquire(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make every FileLock acquire fail like a filesystem without locks."""
+
+    def broken_acquire(self: FileLock, *args: Any, **kwargs: Any) -> None:
+        raise OSError(errno.ENOLCK, "No locks available")
+
+    monkeypatch.setattr(FileLock, "acquire", broken_acquire)
+
+
+def test_clone_or_update_continues_unlocked_when_filesystem_cannot_lock(
+    tmp_path: Path,
+    mock_run_git_command: Mock,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A filesystem without working file locks (e.g. NFS without a lock
+    daemon) degrades to the old unlocked behavior instead of failing."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+    mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
+    _raise_oserror_on_acquire(monkeypatch)
+
+    with caplog.at_level(logging.WARNING):
+        result_dir, _ = git.clone_or_update(
+            url=url, ref=None, refresh=git.NEVER_REFRESH, domain=domain
+        )
+
+    assert result_dir == repo_dir
+    assert _marker_path(repo_dir).is_file()
+    assert any("continuing without a lock" in r.getMessage() for r in caplog.records)
+
+
+def test_revert_continues_unlocked_when_filesystem_cannot_lock(
+    tmp_path: Path,
+    mock_run_git_command: Mock,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A revert on a filesystem that stops locking mid-run still resets."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+    _setup_old_repo(repo_dir)
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "rev-parse":
+            return "old_sha"
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    _, revert = git.clone_or_update(
+        url=url, ref=None, refresh=TimePeriodSeconds(days=1), domain=domain
+    )
+    assert revert is not None
+
+    _raise_oserror_on_acquire(monkeypatch)
+    with caplog.at_level(logging.WARNING):
+        revert()
+
+    assert mock_run_git_command.call_args_list[-1][0][0] == [
+        "git",
+        "reset",
+        "--hard",
+        "old_sha",
+    ]
+    assert any("continuing without a lock" in r.getMessage() for r in caplog.records)
 
 
 def _real_git(*args: str, cwd: Path) -> None:
