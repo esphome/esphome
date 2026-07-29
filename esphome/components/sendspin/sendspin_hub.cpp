@@ -37,6 +37,11 @@ void SendspinHub::setup() {
   this->client_->set_network_provider(this);
   this->client_->set_persistence_provider(this);
 
+#ifdef USE_SENDSPIN_ARTWORK
+  this->artwork_role_ = &this->client_->add_artwork(this->artwork_config_);
+  this->artwork_role_->set_listener(this);
+#endif
+
 #ifdef USE_SENDSPIN_CONTROLLER
   this->controller_role_ = &this->client_->add_controller();
   this->controller_role_->set_listener(this);
@@ -173,6 +178,30 @@ std::optional<uint32_t> SendspinHub::load_last_server_hash() {
 }
 
 // --- Sendspin role specific methods/overrides ---
+
+#ifdef USE_SENDSPIN_ARTWORK
+// THREAD CONTEXT: Dedicated artwork decode thread; downstream callbacks run here too
+void SendspinHub::on_image_decode(uint8_t slot, const uint8_t *data, size_t length,
+                                  sendspin::SendspinImageFormat format) {
+  this->artwork_image_decode_callbacks_.call(slot, data, length, format);
+}
+
+// THREAD CONTEXT: Main loop (fired from client_->loop() once the slot's offset-shifted display
+// deadline is reached; lateness_ms reports how far past the deadline the display slipped)
+void SendspinHub::on_image_display(uint8_t slot, uint32_t lateness_ms) {
+  this->artwork_image_display_callbacks_.call(slot, lateness_ms);
+}
+
+// THREAD CONTEXT: Main loop (fired from client_->loop())
+void SendspinHub::on_image_clear(uint8_t slot) { this->artwork_image_clear_callbacks_.call(slot); }
+
+// THREAD CONTEXT: Main loop (invoked from SendspinImageSlot once a delivery is fully presented)
+void SendspinHub::artwork_frame_done(uint8_t slot) {
+  if (this->artwork_role_ != nullptr) {
+    this->artwork_role_->frame_done(slot);
+  }
+}
+#endif
 
 #ifdef USE_SENDSPIN_CONTROLLER
 // THREAD CONTEXT: Main loop (invoked from ESPHome actions / other components)
