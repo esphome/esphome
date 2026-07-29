@@ -15,7 +15,7 @@ from esphome.const import (
     CONF_NAME,
     CONF_REPEAT,
     CONF_TYPE,
-    DEVICE_CLASS_DISTANCE,
+    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ILLUMINANCE,
     ICON_BRIGHTNESS_5,
     ICON_BRIGHTNESS_6,
@@ -159,7 +159,7 @@ CONFIG_SCHEMA = cv.All(
                     unit_of_measurement=UNIT_COUNTS,
                     icon=ICON_BRIGHTNESS_5,
                     accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_ILLUMINANCE,
+                    device_class=DEVICE_CLASS_EMPTY,
                     state_class=STATE_CLASS_MEASUREMENT,
                 ),
                 key=CONF_NAME,
@@ -169,7 +169,7 @@ CONFIG_SCHEMA = cv.All(
                     unit_of_measurement=UNIT_COUNTS,
                     icon=ICON_BRIGHTNESS_7,
                     accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_ILLUMINANCE,
+                    device_class=DEVICE_CLASS_EMPTY,
                     state_class=STATE_CLASS_MEASUREMENT,
                 ),
                 key=CONF_NAME,
@@ -179,7 +179,7 @@ CONFIG_SCHEMA = cv.All(
                     unit_of_measurement=UNIT_COUNTS,
                     icon=ICON_PROXIMITY,
                     accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_DISTANCE,
+                    device_class=DEVICE_CLASS_EMPTY,
                     state_class=STATE_CLASS_MEASUREMENT,
                 ),
                 key=CONF_NAME,
@@ -188,7 +188,7 @@ CONFIG_SCHEMA = cv.All(
                 sensor.sensor_schema(
                     icon=ICON_GAIN,
                     accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_ILLUMINANCE,
+                    device_class=DEVICE_CLASS_EMPTY,
                     state_class=STATE_CLASS_MEASUREMENT,
                 ),
                 key=CONF_NAME,
@@ -208,6 +208,16 @@ CONFIG_SCHEMA = cv.All(
     .extend(i2c.i2c_device_schema(0x23)),
     validate_time_and_repeat_rate,
     validate_als_gain_and_integration_time,
+)
+
+
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_PS_HIGH_THRESHOLD, "add_on_ps_high_trigger_callback"
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_PS_LOW_THRESHOLD, "add_on_ps_low_trigger_callback"
+    ),
 )
 
 
@@ -240,14 +250,7 @@ async def to_code(config):
         sens = await sensor.new_sensor(prox_cnt_config)
         cg.add(var.set_proximity_counts_sensor(sens))
 
-    for conf in config.get(CONF_ON_PS_HIGH_THRESHOLD, []):
-        await automation.build_callback_automation(
-            var, "add_on_ps_high_trigger_callback", [], conf
-        )
-    for conf in config.get(CONF_ON_PS_LOW_THRESHOLD, []):
-        await automation.build_callback_automation(
-            var, "add_on_ps_low_trigger_callback", [], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     cg.add(var.set_ltr_type(config[CONF_TYPE]))
 

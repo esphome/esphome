@@ -49,6 +49,13 @@ def CONFIG_SCHEMA(conf):
         )
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_FINISHED_WRITE, "add_on_finished_write_callback"
+    ),
+)
+
+
 async def setup_pn532(var, config):
     await cg.register_component(var, config)
 
@@ -66,10 +73,7 @@ async def setup_pn532(var, config):
             trigger, [(cg.std_string, "x"), (nfc.NfcTag, "tag")], conf
         )
 
-    for conf in config.get(CONF_ON_FINISHED_WRITE, []):
-        await automation.build_callback_automation(
-            var, "add_on_finished_write_callback", [], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 @automation.register_condition(

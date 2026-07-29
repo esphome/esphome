@@ -12,10 +12,9 @@
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 
-namespace esphome {
-namespace i2s_audio {
+namespace esphome::i2s_audio {
 
-class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, public Component {
+class I2SAudioMicrophone final : public I2SAudioIn, public microphone::Microphone, public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -43,7 +42,7 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
   /// @param data
   void fix_dc_offset_(std::vector<uint8_t> &data);
 
-  size_t read_(uint8_t *buf, size_t len, TickType_t ticks_to_wait);
+  size_t read_(uint8_t *buf, size_t len, uint32_t timeout_ms);
 
   /// @brief Sets the Microphone ``audio_stream_info_`` member variable to the configured I2S settings.
   void configure_stream_settings_();
@@ -65,7 +64,6 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
   int32_t dc_offset_prev_output_{0};
 };
 
-}  // namespace i2s_audio
-}  // namespace esphome
+}  // namespace esphome::i2s_audio
 
 #endif  // USE_ESP32

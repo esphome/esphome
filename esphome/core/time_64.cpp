@@ -20,6 +20,12 @@ namespace esphome {
 static const char *const TAG = "time_64";
 #endif
 
+#ifdef ESPHOME_THREAD_SINGLE
+// Storage for Millis64Impl inline compute() — defined here so all TUs share one copy.
+uint32_t Millis64Impl::last_millis{0};
+uint16_t Millis64Impl::millis_major{0};
+#else
+
 uint64_t Millis64Impl::compute(uint32_t now) {
   // Half the 32-bit range - used to detect rollovers vs normal time progression
   static constexpr uint32_t HALF_MAX_UINT32 = std::numeric_limits<uint32_t>::max() / 2;
@@ -44,58 +50,32 @@ uint64_t Millis64Impl::compute(uint32_t now) {
    * to last_millis is provided by its release store and the corresponding acquire loads.
    */
   static std::atomic<uint16_t> millis_major{0};
-#elif !defined(ESPHOME_THREAD_SINGLE) /* ESPHOME_THREAD_MULTI_NO_ATOMICS */
+#else /* ESPHOME_THREAD_MULTI_NO_ATOMICS */
   static Mutex lock;
-  static uint32_t last_millis{0};
-  static uint16_t millis_major{0};
-#else                                 /* ESPHOME_THREAD_SINGLE */
   static uint32_t last_millis{0};
   static uint16_t millis_major{0};
 #endif
 
   // THREAD SAFETY NOTE:
-  // This function has three implementations, based on the precompiler flags
-  // - ESPHOME_THREAD_SINGLE - Runs on single-threaded platforms (ESP8266, etc.)
+  // This function has two out-of-line implementations, based on the preprocessor flags:
   // - ESPHOME_THREAD_MULTI_NO_ATOMICS - Runs on multi-threaded platforms without atomics (LibreTiny BK72xx)
   // - ESPHOME_THREAD_MULTI_ATOMICS - Runs on multi-threaded platforms with atomics (LibreTiny RTL87xx/LN882x, etc.)
   //
+  // The ESPHOME_THREAD_SINGLE path is inlined in time_64.h.
   // Make sure all changes are synchronized if you edit this function.
   //
   // IMPORTANT: Always pass fresh millis() values to this function. The implementation
   // handles out-of-order timestamps between threads, but minimizing time differences
   // helps maintain accuracy.
 
-#ifdef ESPHOME_THREAD_SINGLE
-  // Single-core platforms have no concurrency, so this is a simple implementation
-  // that just tracks 32-bit rollover (every 49.7 days) without any locking or atomics.
-
-  uint16_t major = millis_major;
-  uint32_t last = last_millis;
-
-  // Check for rollover
-  if (now < last && (last - now) > HALF_MAX_UINT32) {
-    millis_major++;
-    major++;
-    last_millis = now;
-#ifdef ESPHOME_DEBUG_SCHEDULER
-    ESP_LOGD(TAG, "Detected true 32-bit rollover at %" PRIu32 "ms (was %" PRIu32 ")", now, last);
-#endif /* ESPHOME_DEBUG_SCHEDULER */
-  } else if (now > last) {
-    // Only update if time moved forward
-    last_millis = now;
-  }
-
-  // Combine major (high 32 bits) and now (low 32 bits) into 64-bit time
-  return now + (static_cast<uint64_t>(major) << 32);
-
-#elif defined(ESPHOME_THREAD_MULTI_NO_ATOMICS)
+#if defined(ESPHOME_THREAD_MULTI_NO_ATOMICS)
   // Without atomics, this implementation uses locks more aggressively:
   // 1. Always locks when near the rollover boundary (within 10 seconds)
   // 2. Always locks when detecting a large backwards jump
   // 3. Updates without lock in normal forward progression (accepting minor races)
   // This is less efficient but necessary without atomic operations.
-  uint16_t major = millis_major;
-  uint32_t last = last_millis;
+  uint16_t major = __atomic_load_n(&millis_major, __ATOMIC_RELAXED);
+  uint32_t last = __atomic_load_n(&last_millis, __ATOMIC_RELAXED);
 
   // Define a safe window around the rollover point (10 seconds)
   // This covers any reasonable scheduler delays or thread preemption
@@ -107,19 +87,26 @@ uint64_t Millis64Impl::compute(uint32_t now) {
   if (near_rollover || (now < last && (last - now) > HALF_MAX_UINT32)) {
     // Near rollover or detected a rollover - need lock for safety
     LockGuard guard{lock};
-    // Re-read with lock held
-    last = last_millis;
+    // Re-read both values with lock held. last_millis can be updated
+    // unlocked from the forward-progression branch below, so use an atomic
+    // load. millis_major can only be updated under this lock, but another
+    // thread may have completed a rollover between our unlocked loads above
+    // and the lock acquisition — reload or we'd return a stale high word.
+    last = __atomic_load_n(&last_millis, __ATOMIC_RELAXED);
+    major = __atomic_load_n(&millis_major, __ATOMIC_RELAXED);
 
     if (now < last && (last - now) > HALF_MAX_UINT32) {
-      // True rollover detected (happens every ~49.7 days)
-      millis_major++;
+      // True rollover detected (happens every ~49.7 days).
+      // Use the already-loaded `major` local; avoids a second read of the
+      // global (equivalent under the held lock).
       major++;
+      __atomic_store_n(&millis_major, major, __ATOMIC_RELAXED);
 #ifdef ESPHOME_DEBUG_SCHEDULER
       ESP_LOGD(TAG, "Detected true 32-bit rollover at %" PRIu32 "ms (was %" PRIu32 ")", now, last);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
     }
     // Update last_millis while holding lock
-    last_millis = now;
+    __atomic_store_n(&last_millis, now, __ATOMIC_RELAXED);
   } else if (now > last) {
     // Normal case: Not near rollover and time moved forward
     // Update without lock. While this may cause minor races (microseconds of
@@ -127,7 +114,7 @@ uint64_t Millis64Impl::compute(uint32_t now) {
     // 1. The scheduler operates at millisecond resolution, not microsecond
     // 2. We've already prevented the critical rollover race condition
     // 3. Any backwards movement is orders of magnitude smaller than scheduler delays
-    last_millis = now;
+    __atomic_store_n(&last_millis, now, __ATOMIC_RELAXED);
   }
   // If now <= last and we're not near rollover, don't update
   // This minimizes backwards time movement
@@ -201,6 +188,8 @@ uint64_t Millis64Impl::compute(uint32_t now) {
     "No platform threading model defined. One of ESPHOME_THREAD_SINGLE, ESPHOME_THREAD_MULTI_NO_ATOMICS, or ESPHOME_THREAD_MULTI_ATOMICS must be defined."
 #endif
 }
+
+#endif  // !ESPHOME_THREAD_SINGLE
 
 }  // namespace esphome
 

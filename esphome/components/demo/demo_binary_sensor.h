@@ -3,10 +3,9 @@
 #include "esphome/core/component.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
-class DemoBinarySensor : public binary_sensor::BinarySensor, public PollingComponent {
+class DemoBinarySensor final : public binary_sensor::BinarySensor, public PollingComponent {
  public:
   void setup() override { this->publish_initial_state(false); }
   void update() override {
@@ -18,5 +17,4 @@ class DemoBinarySensor : public binary_sensor::BinarySensor, public PollingCompo
   bool last_state_ = false;
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo

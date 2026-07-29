@@ -1,6 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
-#ifdef USE_NETWORK
+#if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
 #include <utility>
 #include <vector>
 
@@ -59,7 +59,15 @@ class AuthMiddlewareHandler : public MiddlewareHandler {
   bool check_auth(AsyncWebServerRequest *request) {
     bool success = request->authenticate(credentials_->username.c_str(), credentials_->password.c_str());
     if (!success) {
+      // The scheme is chosen at build time (USE_WEBSERVER_AUTH_DIGEST); the unused path is
+      // compiled out. On ESP32 our own server picks the scheme internally.
+#if USE_ESP32
       request->requestAuthentication();
+#elif defined(USE_WEBSERVER_AUTH_DIGEST)
+      request->requestAuthentication(nullptr, true);
+#else
+      request->requestAuthentication(nullptr, false);
+#endif
     }
     return success;
   }
@@ -88,7 +96,7 @@ class AuthMiddlewareHandler : public MiddlewareHandler {
 
 }  // namespace internal
 
-class WebServerBase {
+class WebServerBase final {
  public:
   void init() {
     if (this->initialized_) {
@@ -135,7 +143,7 @@ class WebServerBase {
   uint16_t get_port() const { return port_; }
 
  protected:
-  int initialized_{0};
+  uint8_t initialized_{0};
   uint16_t port_{80};
   AsyncWebServer *server_{nullptr};
   std::vector<AsyncWebHandler *> handlers_;
@@ -145,4 +153,4 @@ class WebServerBase {
 };
 
 }  // namespace esphome::web_server_base
-#endif
+#endif  // USE_NETWORK && !USE_ZEPHYR

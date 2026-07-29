@@ -15,8 +15,7 @@ extern uint32_t core_version;
 extern const char *core_release;
 }
 
-namespace esphome {
-namespace debug {
+namespace esphome::debug {
 
 static const char *const TAG = "debug";
 
@@ -170,6 +169,5 @@ void DebugComponent::update_platform_() {
 #endif
 }
 
-}  // namespace debug
-}  // namespace esphome
+}  // namespace esphome::debug
 #endif

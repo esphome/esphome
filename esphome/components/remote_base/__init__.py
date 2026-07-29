@@ -470,7 +470,7 @@ CANALSATLD_SCHEMA = cv.Schema(
 )
 
 
-@register_binary_sensor("canalsatld", CanalSatLDBinarySensor, CANALSAT_SCHEMA)
+@register_binary_sensor("canalsatld", CanalSatLDBinarySensor, CANALSATLD_SCHEMA)
 def canalsatld_binary_sensor(var, config):
     cg.add(
         var.set_data(
@@ -868,7 +868,7 @@ async def keeloq_action(var, config, args):
     cg.add(var.set_encrypted(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
     cg.add(var.set_command(template_))
-    template_ = await cg.templatable(config[CONF_LEVEL], args, bool)
+    template_ = await cg.templatable(config[CONF_LEVEL], args, cg.bool_)
     cg.add(var.set_vlow(template_))
 
 
@@ -1130,7 +1130,7 @@ def sony_dumper(var, config):
 async def sony_action(var, config, args):
     template_ = await cg.templatable(config[CONF_DATA], args, cg.uint32)
     cg.add(var.set_data(template_))
-    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint32)
+    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint8)
     cg.add(var.set_nbits(template_))
 
 
@@ -1174,7 +1174,7 @@ def symphony_dumper(var, config):
 async def symphony_action(var, config, args):
     template_ = await cg.templatable(config[CONF_DATA], args, cg.uint32)
     cg.add(var.set_data(template_))
-    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint32)
+    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint8)
     cg.add(var.set_nbits(template_))
     template_ = await cg.templatable(config[CONF_COMMAND_REPEATS], args, cg.uint8)
     cg.add(var.set_repeats(template_))
@@ -1188,7 +1188,7 @@ def validate_raw_alternating(value):
         this_negative = val < 0
         if i != 0 and this_negative == last_negative:
             raise cv.Invalid(
-                f"Values must alternate between being positive and negative, please see index {i} and {i + 1}",
+                f"Values must alternate between being positive and negative, please see index {i - 1} and {i}",
                 [i],
             )
         last_negative = this_negative
@@ -1580,7 +1580,7 @@ async def rc_switch_type_a_action(var, config, args):
     cg.add(
         var.set_device(await cg.templatable(config[CONF_DEVICE], args, cg.std_string))
     )
-    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, bool)))
+    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, cg.bool_)))
 
 
 @register_binary_sensor(
@@ -1605,7 +1605,7 @@ async def rc_switch_type_b_action(var, config, args):
     cg.add(var.set_protocol(proto))
     cg.add(var.set_address(await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)))
     cg.add(var.set_channel(await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)))
-    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, bool)))
+    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, cg.bool_)))
 
 
 @register_binary_sensor(
@@ -1638,7 +1638,7 @@ async def rc_switch_type_c_action(var, config, args):
     )
     cg.add(var.set_group(await cg.templatable(config[CONF_GROUP], args, cg.uint8)))
     cg.add(var.set_device(await cg.templatable(config[CONF_DEVICE], args, cg.uint8)))
-    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, bool)))
+    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, cg.bool_)))
 
 
 @register_binary_sensor(
@@ -1663,7 +1663,7 @@ async def rc_switch_type_d_action(var, config, args):
     cg.add(var.set_protocol(proto))
     cg.add(var.set_group(await cg.templatable(config[CONF_GROUP], args, cg.std_string)))
     cg.add(var.set_device(await cg.templatable(config[CONF_DEVICE], args, cg.uint8)))
-    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, bool)))
+    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, cg.bool_)))
 
 
 @register_trigger("rc_switch", RCSwitchTrigger, RCSwitchData)
@@ -2012,7 +2012,14 @@ HaierData, HaierBinarySensor, HaierTrigger, HaierAction, HaierDumper = declare_p
 HaierAction = ns.class_("HaierAction", RemoteTransmitterActionBase)
 HAIER_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_CODE): cv.All([cv.hex_uint8_t], cv.Length(min=13, max=13)),
+        cv.Required(CONF_CODE): cv.All(
+            [cv.hex_uint8_t],
+            cv.Any(
+                cv.Length(min=8, max=8),
+                cv.Length(min=13, max=13),
+                msg="must be a list of length 8 or 13",
+            ),
+        ),
     }
 )
 
@@ -2105,12 +2112,12 @@ async def abbwelcome_action(var, config, args):
     )
     cg.add(
         var.set_source_address(
-            await cg.templatable(config[CONF_SOURCE_ADDRESS], args, cg.uint16)
+            await cg.templatable(config[CONF_SOURCE_ADDRESS], args, cg.uint32)
         )
     )
     cg.add(
         var.set_destination_address(
-            await cg.templatable(config[CONF_DESTINATION_ADDRESS], args, cg.uint16)
+            await cg.templatable(config[CONF_DESTINATION_ADDRESS], args, cg.uint32)
         )
     )
     cg.add(
@@ -2123,7 +2130,8 @@ async def abbwelcome_action(var, config, args):
             await cg.templatable(config[CONF_MESSAGE_TYPE], args, cg.uint8)
         )
     )
-    cg.add(var.set_auto_message_id(CONF_MESSAGE_ID not in config))
+    template_ = await cg.templatable(CONF_MESSAGE_ID not in config, args, cg.bool_)
+    cg.add(var.set_auto_message_id(template_))
     if CONF_MESSAGE_ID in config:
         cg.add(
             var.set_message_id(
@@ -2231,3 +2239,9 @@ async def Toto_action(var, config, args):
     cg.add(var.set_rc_code_2(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
     cg.add(var.set_command(template_))
+    # Set toto-specific defaults (only if user didn't configure repeat)
+    if CONF_REPEAT not in config:
+        template_ = await cg.templatable(3, args, cg.uint32)
+        cg.add(var.set_send_times(template_))
+        template_ = await cg.templatable(36000, args, cg.uint32)
+        cg.add(var.set_send_wait(template_))

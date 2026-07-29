@@ -10,6 +10,7 @@ from esphome.const import (
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ILLUMINANCE,
     ICON_BRIGHTNESS_5,
+    STATE_CLASS_MEASUREMENT,
     UNIT_LUX,
 )
 
@@ -57,24 +58,28 @@ CONFIG_SCHEMA = cv.All(
                 icon=ICON_BRIGHTNESS_5,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_ILLUMINANCE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AMBIENT_LIGHT): sensor.sensor_schema(
                 unit_of_measurement=UNIT_COUNTS,
                 icon=ICON_BRIGHTNESS_5,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_UV_INDEX): sensor.sensor_schema(
                 unit_of_measurement=UNIT_UVI,
                 icon=ICON_BRIGHTNESS_5,
                 accuracy_decimals=5,
                 device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_UV): sensor.sensor_schema(
                 unit_of_measurement=UNIT_COUNTS,
                 icon=ICON_BRIGHTNESS_5,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_GAIN, default="X18"): cv.Any(
                 cv.enum(GAIN_OPTIONS),

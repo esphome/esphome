@@ -3,7 +3,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
+#include <limits>
 
 #ifdef USE_RUNTIME_IMAGE_BMP
 #include "bmp_decoder.h"
@@ -18,6 +20,13 @@
 namespace esphome::runtime_image {
 
 static const char *const TAG = "runtime_image";
+
+// Widest supported format is 4 bytes/pixel, so 32767 * 32767 * 4 still fits a 32-bit size_t
+static constexpr int MAX_IMAGE_DIMENSION = 32767;
+static constexpr int MAX_IMAGE_BPP = 32;
+static_assert((static_cast<uint64_t>(MAX_IMAGE_BPP) * MAX_IMAGE_DIMENSION + 7) / 8 * MAX_IMAGE_DIMENSION <=
+                  std::numeric_limits<size_t>::max(),
+              "MAX_IMAGE_DIMENSION must keep the worst-case buffer size within size_t");
 
 inline bool is_color_on(const Color &color) {
   // This produces the most accurate monochrome conversion, but is slightly slower.
@@ -127,9 +136,9 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       uint32_t pos = this->get_position_(x, y);
       Color mapped_color = color;
       this->map_chroma_key(mapped_color);
-      this->buffer_[pos + 0] = mapped_color.r;
+      this->buffer_[pos + 0] = mapped_color.b;
       this->buffer_[pos + 1] = mapped_color.g;
-      this->buffer_[pos + 2] = mapped_color.b;
+      this->buffer_[pos + 2] = mapped_color.r;
       if (this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
         this->buffer_[pos + 3] = color.w;
       }
@@ -248,11 +257,19 @@ void RuntimeImage::release_buffer_() {
     this->height_ = 0;
     this->buffer_width_ = 0;
     this->buffer_height_ = 0;
+#ifdef USE_LVGL
+    memset(&this->dsc_, 0, sizeof(this->dsc_));
+#endif
   }
 }
 
 size_t RuntimeImage::resize_buffer_(int width, int height) {
   size_t new_size = this->get_buffer_size_(width, height);
+
+  if (new_size == 0) {
+    ESP_LOGE(TAG, "Refusing to allocate buffer for invalid image dimensions %dx%d", width, height);
+    return 0;
+  }
 
   if (this->buffer_ && this->buffer_width_ == width && this->buffer_height_ == height) {
     // Buffer already allocated with correct size
@@ -284,11 +301,15 @@ size_t RuntimeImage::resize_buffer_(int width, int height) {
 }
 
 size_t RuntimeImage::get_buffer_size_(int width, int height) const {
+  // Dimensions come from a remote image header; reject absurd values so the size math cannot overflow
+  if (width <= 0 || height <= 0 || width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+    return 0;
+  }
   if (this->get_type() == image::IMAGE_TYPE_RGB565 && this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
     // Add extra alpha channel for RGB565 with alpha
-    return width * height * 3;
+    return static_cast<size_t>(width) * height * 3;
   }
-  return (this->get_bpp() * width + 7u) / 8u * height;
+  return (static_cast<size_t>(this->get_bpp()) * width + 7u) / 8u * height;
 }
 
 int RuntimeImage::get_position_(int x, int y) const { return (x + y * this->buffer_width_) * this->get_bpp() / 8; }

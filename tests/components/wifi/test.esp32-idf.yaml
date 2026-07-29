@@ -1,15 +1,19 @@
 psram:
 
-# Tests the high performance request and release; requires the USE_WIFI_RUNTIME_POWER_SAVE define
+# Tests the high performance and roaming suppression request/release APIs;
+# requires the USE_WIFI_RUNTIME_POWER_SAVE and USE_WIFI_RUNTIME_ROAMING_SUPPRESSION defines
 esphome:
   platformio_options:
     build_flags:
       - "-DUSE_WIFI_RUNTIME_POWER_SAVE"
+      - "-DUSE_WIFI_RUNTIME_ROAMING_SUPPRESSION"
   on_boot:
     - then:
         - lambda: |-
             esphome::wifi::global_wifi_component->request_high_performance();
             esphome::wifi::global_wifi_component->release_high_performance();
+            esphome::wifi::global_wifi_component->request_roaming_suppression();
+            esphome::wifi::global_wifi_component->release_roaming_suppression();
 
 wifi:
   use_psram: true

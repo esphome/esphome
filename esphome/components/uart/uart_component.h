@@ -85,6 +85,10 @@ class UARTComponent {
   // @return UARTFlushResult indicating whether the flush was confirmed, timed out, failed, or assumed successful.
   virtual UARTFlushResult flush() = 0;
 
+  // Returns true if the underlying transport is connected and operational.
+  // Hardware UARTs always return true. USB-backed UARTs override to reflect actual connection state.
+  virtual bool is_connected() { return true; }
+
   // Sets the maximum time to wait for TX to drain during flush().
   // Only meaningful on ESP32 (IDF). Other platforms ignore this value.
   // @param flush_timeout_ms Timeout in milliseconds; 0 means wait indefinitely.
@@ -174,7 +178,7 @@ class UARTComponent {
    *
    * This will load the current UART interface with the latest settings (baud_rate, parity, etc).
    */
-  virtual void load_settings(bool dump_config){};
+  virtual void load_settings(bool dump_config) = 0;
 
   /**
    * Load the UART settings.
@@ -186,7 +190,7 @@ class UARTComponent {
    *
    * This will load the current UART interface with the latest settings (baud_rate, parity, etc).
    */
-  virtual void load_settings(){};
+  void load_settings() { this->load_settings(true); }
 #endif  // USE_ESP8266 || USE_ESP32
 
 #ifdef USE_UART_DEBUGGER

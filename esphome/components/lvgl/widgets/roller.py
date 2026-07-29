@@ -11,7 +11,6 @@ from ..defines import (
     ROLLER_MODES,
     literal,
 )
-from ..helpers import lvgl_components_required
 from ..lv_validation import animated, lv_int, lv_text, option_string
 from ..lvcode import lv_add
 from ..types import LvSelect
@@ -55,7 +54,6 @@ class RollerType(WidgetType):
         )
 
     async def to_code(self, w, config):
-        lvgl_components_required.add(CONF_ROLLER)
         if mode := config.get(CONF_MODE):
             mode = await ROLLER_MODES.process(mode)
             lv_add(w.var.set_mode(mode))

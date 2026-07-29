@@ -9,8 +9,7 @@
 #include <esp_attr.h>
 #include <esp_clk_tree.h>
 
-namespace esphome {
-namespace esp32_rmt_led_strip {
+namespace esphome::esp32_rmt_led_strip {
 
 static const char *const TAG = "esp32_rmt_led_strip";
 
@@ -305,7 +304,6 @@ void ESP32RMTLEDStripLightOutput::dump_config() {
 
 float ESP32RMTLEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-}  // namespace esp32_rmt_led_strip
-}  // namespace esphome
+}  // namespace esphome::esp32_rmt_led_strip
 
 #endif  // USE_ESP32
