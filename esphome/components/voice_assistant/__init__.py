@@ -240,8 +240,6 @@ async def to_code(config):
     if (http_request_id := config.get(CONF_HTTP_REQUEST_ID)) is not None:
         http_req = await cg.get_variable(http_request_id)
         cg.add(var.set_http_request(http_req))
-        # sha256's and json's own to_code emit USE_SHA256/USE_JSON and their build flags; they are
-        # pulled in via AUTO_LOAD above.
         cg.add_define("USE_VOICE_ASSISTANT_RUNTIME_MODEL")
 
     if CONF_MEDIA_PLAYER in config:

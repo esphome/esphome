@@ -11,8 +11,6 @@ wifi:
 
 api:
 
-# Runtime wake word model downloading pulls in sha256 + json via AUTO_LOAD and defines
-# USE_VOICE_ASSISTANT_RUNTIME_MODEL, compiling the whole download/validation code path.
 http_request:
   id: model_http_request
   verify_ssl: false

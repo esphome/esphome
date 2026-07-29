@@ -19,7 +19,6 @@
 #ifdef USE_MICRO_WAKE_WORD
 #include "esphome/components/micro_wake_word/micro_wake_word.h"
 #ifdef USE_VOICE_ASSISTANT_RUNTIME_MODEL
-// micro_wake_word is ESP32-only, so USE_VOICE_ASSISTANT_RUNTIME_MODEL always implies ESP32/FreeRTOS.
 #include "esphome/components/http_request/http_request.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>

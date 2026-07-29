@@ -1102,15 +1102,13 @@ void VoiceAssistant::on_set_configuration(const std::vector<std::string> &active
     }
 
 #ifdef USE_VOICE_ASSISTANT_RUNTIME_MODEL
-    // Reset the optimistic pending list -- it tracks the most recent request only.
+    // Reset the optimistic pending list, so it tracks the most recent request only.
     this->pending_active_wake_words_.clear();
 
     // Evict runtime (downloaded) models that are no longer active, freeing their PSRAM buffer immediately
-    // rather than leaving it resident behind a merely-disabled model. Without this, trialing many advertised
-    // wake words accumulates one PSRAM buffer per model tried (HA keeps advertising them, so the stale-model
-    // cleanup never fires), which can exhaust PSRAM and make unrelated allocations (audio playback, TLS, etc.)
-    // fail. Compiled-in models are only disabled (above); switching back to an evicted model re-downloads it.
-    // get_runtime_model_ids() returns a copy, so removing while iterating is safe.
+    // rather than leaving it resident behind a merely-disabled model. Compiled-in models are only disabled
+    // (above); switching back to an evicted model re-downloads it. get_runtime_model_ids() returns a copy,
+    // so removing while iterating is safe.
     for (const auto &id : this->micro_wake_word_->get_runtime_model_ids()) {
       if (std::find(active_wake_words.begin(), active_wake_words.end(), id) == active_wake_words.end()) {
         this->micro_wake_word_->remove_runtime_model(id);
@@ -1120,7 +1118,7 @@ void VoiceAssistant::on_set_configuration(const std::vector<std::string> &active
 
     // Enable the requested wake words.
     for (const auto &ww_id : active_wake_words) {
-      // Already loaded (compiled or previously downloaded)? enable() persists the state.
+      // Already loaded (compiled or previously downloaded) enable() persists the state.
       if (auto *model = this->micro_wake_word_->get_model_by_id(ww_id)) {
         model->enable();
         ESP_LOGD(TAG, "Enabled wake word: %s (id=%s)", model->get_wake_word().c_str(), model->get_id().c_str());
@@ -1128,7 +1126,7 @@ void VoiceAssistant::on_set_configuration(const std::vector<std::string> &active
       }
 
 #ifdef USE_VOICE_ASSISTANT_RUNTIME_MODEL
-      // Not loaded -- must be an external model we can download.
+      // Not loaded, so it must be an external model we can download.
       CachedExternalWakeWord *cached = this->find_cached_wake_word_(ww_id);
       if (cached == nullptr) {
         ESP_LOGE(TAG, "Unknown wake word ID: %s", ww_id.c_str());
@@ -1136,7 +1134,7 @@ void VoiceAssistant::on_set_configuration(const std::vector<std::string> &active
       }
       if (!this->is_wake_word_pending_(ww_id)) {
         ESP_LOGD(TAG, "Queuing download for wake word %s", ww_id.c_str());
-        this->model_download_queue_.push_back(*cached);     // copy -- the task holds its own entries
+        this->model_download_queue_.push_back(*cached);     // copy: the task holds its own entries
         this->pending_active_wake_words_.push_back(ww_id);  // report active until the load resolves
       }
 #else
@@ -1164,10 +1162,8 @@ const Configuration &VoiceAssistant::get_configuration(
     // Rebuild the external wake word cache from this request (drops entries HA no longer advertises).
     this->cache_external_wake_words_(external_wake_words);
 
-    // Unload runtime models whose wake word is no longer advertised, before the loops below would list them.
     this->remove_stale_runtime_models_();
 
-    // Re-download any models the user had enabled before a reboot; they become active asynchronously.
     this->restore_runtime_models_();
 #endif
 
@@ -1224,8 +1220,7 @@ const Configuration &VoiceAssistant::get_configuration(
 #if defined(USE_MICRO_WAKE_WORD) && defined(USE_VOICE_ASSISTANT_RUNTIME_MODEL)
 namespace {
 
-// Background download task stack. TLS handshakes are stack-hungry; measure with uxTaskGetStackHighWaterMark
-// against an HTTPS manifest during hardware testing and raise to 12288 if it runs close.
+// Background download task stack. TLS handshakes require a large stack.
 constexpr uint32_t MODEL_LOAD_TASK_STACK_SIZE = 8192;
 // Manifests are small JSON documents; reject anything implausibly large before allocating for it.
 constexpr size_t MAX_MANIFEST_SIZE = 8192;
@@ -1340,7 +1335,7 @@ void VoiceAssistant::mark_model_load_failed_(const std::string &id) {
 
 void VoiceAssistant::try_start_model_load_task_() {
   if (this->http_request_ == nullptr || this->micro_wake_word_ == nullptr) {
-    return;  // Required components not configured
+    return;
   }
   // One task at a time; nothing to do if it is already running or there is no queued work.
   if (this->model_load_task_handle_ != nullptr || this->model_download_queue_.empty()) {
@@ -1525,7 +1520,7 @@ void VoiceAssistant::model_load_task(void *params) {
       continue;
     }
 
-    // 5. Verify the SHA256 (static helper -- never touches VA state, keeps the hasher in one stack frame).
+    // 5. Verify the SHA256 (static helper: never touches VA state, keeps the hasher in one stack frame).
     if (!verify_model_sha256(model_data->get_write_pointer(), model_size, cached_ww.model_hash)) {
       ESP_LOGW(TAG, "SHA256 validation failed for model %s", id.c_str());
       fail();
