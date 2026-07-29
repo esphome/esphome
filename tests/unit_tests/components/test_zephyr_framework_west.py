@@ -13,6 +13,7 @@ from esphome.components.zephyr.framework_west import (
 )
 from esphome.components.zephyr.variants import ZephyrSDK
 from esphome.core import TimePeriodSeconds
+from esphome.framework_helpers import get_python_env_executable_path
 
 _FAKE_SDK = ZephyrSDK(manifest_url="https://example.invalid/zephyr")
 _CACHE_KEY = "v4.4.1-my-branch-00000000"
@@ -29,7 +30,7 @@ def _prepare_ready_workspace(tmp_path: Path, *, manifest_sentinel_age: float) ->
     workspace's `.ready` sentinel aged by `manifest_sentinel_age` seconds, so only
     the refresh path (never venv install / west init) is exercised."""
     python_env = tmp_path / "sdk-zephyr" / "penvs" / "v4.4.1"
-    python_bin = python_env / "bin" / "python"
+    python_bin = get_python_env_executable_path(python_env, "python")
     python_bin.parent.mkdir(parents=True)
     python_bin.touch()
     (python_env / ".ready").write_text(_effective_requirements({}))
