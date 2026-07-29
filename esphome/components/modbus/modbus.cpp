@@ -672,6 +672,18 @@ size_t ModbusClientHub::live_count_() const {
   return count;
 }
 
+bool ModbusClientHub::device_served_(const ModbusClientDevice *device) const {
+  // One on_not_sent() per device per sweep. Scanning entries (rather than flagging the device)
+  // keeps the marker's lifetime tied to the container: entries are erased only at the end of a
+  // sweep, so a mark set during the service loop stays visible for the rest of it, and the reset
+  // pass cannot miss a device whose entries have gone away.
+  for (const auto &cmd : this->tx_buffer_) {
+    if (cmd.served_not_sent && cmd.device == device)
+      return true;
+  }
+  return false;
+}
+
 uint8_t ModbusClientHub::servable_cap_(const ModbusDeviceCommand &cmd) {
   // A requeueable one-shot read absorbs one extra request (this run + one re-run); everything
   // else - writes, custom codes, continuous polls - serves exactly one.
@@ -755,6 +767,9 @@ void ModbusClientHub::sweep_() {
           break;
         }
         case FrameState::REFUSED: {
+          if (this->device_served_(cmd.device))
+            break;  // this device already had its delivery this sweep
+          cmd.served_not_sent = true;
           if (cmd.device != nullptr)
             cmd.device->on_not_sent(cmd.frame.pdu());
           if (cmd.state == FrameState::REFUSED) {  // a clear from inside the handler wins otherwise
@@ -772,20 +787,24 @@ void ModbusClientHub::sweep_() {
         case FrameState::DELETED: {
           if (cmd.pending == 0)
             break;  // silent retiree; the erase pass removes it
-          // An address-scoped clear owes one on_not_sent() per accepted request.
           if (cmd.device == nullptr) {
             cmd.pending = 0;
-          } else {
-            cmd.device->on_not_sent(cmd.frame.pdu());
-            // A device-scoped clear from inside the handler silences the rest.
-            cmd.pending = (cmd.device == nullptr || cmd.pending == 0) ? 0 : cmd.pending - 1;
+            progressed = true;
+            break;
           }
+          if (this->device_served_(cmd.device))
+            break;  // this device already had its delivery this sweep; the rest waits
+          // An address-scoped clear owes one on_not_sent() per accepted request.
+          cmd.served_not_sent = true;
+          cmd.device->on_not_sent(cmd.frame.pdu());
+          // A device-scoped clear from inside the handler silences the rest.
+          cmd.pending = (cmd.device == nullptr || cmd.pending == 0) ? 0 : cmd.pending - 1;
           progressed = true;
           break;
         }
         default: {  // READY / WAITING: only serviced to bleed pending down to the servable cap
-          if (cmd.pending <= servable_cap_(cmd) || cmd.served_not_sent)
-            break;  // served entries wait for the next sweep, bounding handler re-send loops
+          if (cmd.pending <= servable_cap_(cmd) || this->device_served_(cmd.device))
+            break;  // one delivery per device per sweep bounds handler re-send loops
           cmd.served_not_sent = true;
           if (cmd.device != nullptr)
             cmd.device->on_not_sent(cmd.frame.pdu());
@@ -809,7 +828,8 @@ void ModbusClientHub::sweep_() {
   // Reset the per-sweep delivery markers; anything a marker deferred re-arms the next sweep.
   for (auto &cmd : this->tx_buffer_) {
     cmd.served_not_sent = false;
-    if (cmd.state != FrameState::DELETED && cmd.pending > servable_cap_(cmd))
+    if (cmd.state == FrameState::DELETED || cmd.state == FrameState::REFUSED ? cmd.pending != 0
+                                                                             : cmd.pending > servable_cap_(cmd))
       this->sweep_needed_ = true;
   }
 }

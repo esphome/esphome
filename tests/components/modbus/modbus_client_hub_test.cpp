@@ -907,7 +907,8 @@ TEST(ModbusClientHubQueue, ClearAddressQueueNotifiesEveryOwner) {
 }
 
 // A cleared entry resolves with one on_not_sent() per accepted request it stood for, so the
-// books balance for owners counting outstanding requests.
+// books balance for owners counting outstanding requests. The deliveries are rate-limited to one
+// per entry per sweep, so an entry standing for two requests resolves across two loops.
 TEST(ModbusClientHubQueue, ClearAddressDeliversOneTerminalPerAcceptedRequest) {
   NoResponseProbeHub hub;
   SentCountingDevice device(&hub, 0x02);
@@ -920,9 +921,12 @@ TEST(ModbusClientHubQueue, ClearAddressDeliversOneTerminalPerAcceptedRequest) {
 
   hub.clear_tx_queue_for_address(0x02, false);
   hub.sweep_for_test();
+  EXPECT_EQ(device.not_sent_count_, 1);  // one this sweep...
 
+  hub.sweep_for_test();
+  EXPECT_EQ(device.not_sent_count_, 2);  // ...the second on the next loop
   EXPECT_EQ(hub.queued_frames(), 0u);
-  EXPECT_EQ(device.not_sent_count_, 2);  // one terminal per accepted request
+  EXPECT_EQ(hub.entries(), 0u);  // fully drained and erased
 }
 
 namespace {
@@ -1091,11 +1095,15 @@ TEST(ModbusClientHubQueue, SelfClearFromNotSentResolvesEveryRequest) {
 
   EXPECT_FALSE(clearer.send_pdu(std::span<const uint8_t>{}));  // empty: refused, no callback
   clearer.clear_tx_queue_for_address(/*clear_sent=*/false);    // the clear the handler used to make
-  hub.sweep_for_test();
 
-  EXPECT_EQ(clearer.not_sent_count_, 2);    // one per cleared request of its own
-  EXPECT_EQ(bystander.not_sent_count_, 1);  // the bystander's cleared frame is notified too
+  hub.sweep_for_test();
+  EXPECT_EQ(clearer.not_sent_count_, 1);    // one delivery per device per sweep...
+  EXPECT_EQ(bystander.not_sent_count_, 1);  // ...and the bystander is a different device
+  hub.sweep_for_test();
+  EXPECT_EQ(clearer.not_sent_count_, 2);  // the clearer's second frame resolves on the next loop
+
   EXPECT_EQ(hub.queued_frames(), 0u);
+  EXPECT_EQ(hub.entries(), 0u);
 }
 
 // The suppression must not over-reach: a clear issued from inside on_not_sent() still delivers
@@ -1210,13 +1218,50 @@ TEST(ModbusClientHubQueue, SweepDedupSkipsDeletedFrames) {
   ASSERT_EQ(hub.queued_frames(), 2u);
 
   hub.clear_tx_queue_for_address(0x02, false);
-  hub.sweep_for_test();
-  // r1's notification re-sent a frame identical to the DELETED r2. Without the dedup's dead-state
-  // skip it would be absorbed into r2 and drained with it; with the skip it queues fresh and survives.
+  hub.sweep_for_test();  // r1 resolves; its handler re-sends a frame identical to the DELETED r2
+  hub.sweep_for_test();  // r2 resolves on the next loop (one delivery per device per sweep)
+  // Without the dedup's dead-state skip the re-send would be absorbed into r2 and drained with it;
+  // with the skip it queues fresh and survives.
 
   EXPECT_EQ(device.not_sent_count_, 2);  // r1 and r2 both resolved
   ASSERT_EQ(hub.queued_frames(), 1u);    // the re-send survives
   EXPECT_EQ(hub.queued(0).frame.pdu()[2], 0x22);
+}
+
+namespace {
+// The worst-case handler: from every on_not_sent() it both re-sends and clears its own address, so
+// each delivery manufactures a fresh entry AND a fresh terminal debt.
+class ResendAndClearOnNotSentDevice : public ModbusClientDevice {
+ public:
+  ResendAndClearOnNotSentDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_not_sent(std::span<const uint8_t> request_pdu) override {
+    this->not_sent_count_++;
+    const uint8_t again[] = {0x03, 0x00, 0x70, 0x00, 0x01};
+    this->send_pdu(again);
+    this->clear_tx_queue_for_address(/*clear_sent=*/false);
+  }
+  int not_sent_count_{0};
+};
+}  // namespace
+
+// Each entry delivers at most one on_not_sent() per sweep, so even a handler that re-sends AND
+// clears cannot make a single sweep run long: it gets one delivery per loop, and the entry it
+// manufactured resolves on the next one.
+TEST(ModbusClientHubQueue, ResendAndClearFromNotSentStaysBoundedPerSweep) {
+  NoResponseProbeHub hub;
+  ResendAndClearOnNotSentDevice device(&hub, 0x02);
+
+  const uint8_t read[] = {0x03, 0x00, 0x70, 0x00, 0x01};
+  device.send_pdu(read);
+  hub.clear_tx_queue_for_address(0x02, false);
+
+  hub.sweep_for_test();
+  EXPECT_EQ(device.not_sent_count_, 1);  // one delivery, then the sweep returns
+  EXPECT_LE(hub.entries(), 2u);          // and the container did not fill up
+
+  hub.sweep_for_test();
+  EXPECT_EQ(device.not_sent_count_, 2);  // the manufactured entry resolves next loop
+  EXPECT_LE(hub.entries(), 2u);
 }
 
 // clear_tx_queue_for_device() drops queued frames SILENTLY - no terminal callback (the documented

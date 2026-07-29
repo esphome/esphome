@@ -164,10 +164,12 @@ struct ModbusDeviceCommand {
   /// CONTINUOUS entries are subscriptions: never consumed by completion, pending
   /// fixed at 1 ("the subscription"), removed only by cancellation or failure.
   bool continuous{false};
-  /// Per-sweep marker: this entry already had one surplus request bled off (on_not_sent())
-  /// during the current sweep; further bleed is deferred to the next sweep, so a handler that
-  /// re-sends its own frame from inside on_not_sent() cannot livelock the sweep. Reset at the
-  /// end of every sweep.
+  /// Per-sweep marker: this entry delivered an on_not_sent() during the current sweep. The sweep
+  /// reads it per DEVICE (see device_served_()): one such delivery per device per sweep, so a
+  /// handler that reacts by re-sending - or by re-sending and clearing, which manufactures fresh
+  /// entries the marker would otherwise miss - gets one callback per loop instead of spinning the
+  /// sweep. Entries are only erased at the end of a sweep, so a marker stays visible for the whole
+  /// service loop. Reset at the end of every sweep.
   bool served_not_sent{false};
   /// Accepted requests this entry stands for. Duplicates increment it without bound; the sweep
   /// bleeds any excess over the servable cap (2 for requeueable reads: this run + one re-run;
@@ -268,6 +270,8 @@ class ModbusClientHub : public Modbus {
   size_t live_count_() const;
   // Servable cap for the pending bleed: 2 for requeueable reads, 1 otherwise.
   static uint8_t servable_cap_(const ModbusDeviceCommand &cmd);
+  // True if this device already received an on_not_sent() during the current sweep.
+  bool device_served_(const ModbusClientDevice *device) const;
 
   uint16_t send_wait_time_{2000};
   uint16_t turnaround_delay_ms_{0};
