@@ -28,6 +28,13 @@ NEVER_REFRESH = TimePeriodSeconds(seconds=-1)
 # entry lock so that recovery cannot hang forever behind another process.
 _REVERT_LOCK_TIMEOUT_SECONDS = 60
 
+# When a complete cache entry already exists, a caller does not wait forever
+# behind another process's stalled clone or update (git sets no network
+# timeouts): after this bound it uses the existing clone without refreshing
+# it. With no complete entry there is nothing to fall back to, so the wait
+# is unbounded.
+_COMPLETE_ENTRY_LOCK_TIMEOUT_SECONDS = 60
+
 # Written inside .git only after every clone step (clone, ref fetch, reset,
 # submodule init) has completed. A directory without it is an interrupted
 # clone (e.g. the process was killed mid-clone) and must be re-cloned; without
@@ -369,19 +376,38 @@ def clone_or_update(
 
     Locking is best effort: on a filesystem that cannot take file locks a
     warning is logged and the work proceeds unlocked, matching the behavior
-    before the lock existed.
+    before the lock existed. A complete cache entry also caps the wait: if
+    the holder is still busy after a bounded time (e.g. stalled on the
+    network), the existing clone is used without refreshing it, so a stuck
+    process cannot hang every peer that already has a good entry.
     """
     # Lazy import: keeps filelock off the CLI startup import path.
     from filelock import FileLock
 
     key = f"{url}@{ref}"
+    safe_key = _redact_url_credentials(key)
     # acquire() creates the lock file's directory itself; git clone later
     # creates the hash directory next to it.
     lock: FileLock | None = FileLock(str(_repo_lock_path(key, domain)))
-    if (
-        _acquire_repo_lock(lock, _redact_url_credentials(key), timeout=-1)
-        is not _LockStatus.ACQUIRED
-    ):
+    status = _acquire_repo_lock(lock, safe_key, _COMPLETE_ENTRY_LOCK_TIMEOUT_SECONDS)
+    if status is _LockStatus.TIMEOUT:
+        repo_dir = _compute_destination_path(key, domain)
+        if subpath:
+            repo_dir = repo_dir / subpath
+        if _clone_complete_marker_path(repo_dir).is_file():
+            # Mutual exclusion matters most while no complete entry exists
+            # (initial clone, recovery re-clone); with one on disk, reading
+            # it beats hanging behind a stalled holder.
+            _LOGGER.warning(
+                "Another process is still updating %s, using the existing clone "
+                "without refreshing it",
+                safe_key,
+            )
+            return repo_dir, None
+        # Nothing to fall back to; the holder is producing the clone this
+        # caller needs.
+        status = _acquire_repo_lock(lock, safe_key, timeout=-1)
+    if status is not _LockStatus.ACQUIRED:
         lock = None
     try:
         return _clone_or_update_locked(

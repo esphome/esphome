@@ -1858,6 +1858,90 @@ def test_revert_continues_unlocked_when_filesystem_cannot_lock(
     assert any("continuing without a lock" in r.getMessage() for r in caplog.records)
 
 
+def _script_acquire_statuses(
+    monkeypatch: pytest.MonkeyPatch, statuses: list["git._LockStatus"]
+) -> list[float]:
+    """Replace _acquire_repo_lock with a scripted sequence; returns the
+    timeouts it was called with."""
+    timeouts: list[float] = []
+
+    def fake_acquire(
+        lock: FileLock, safe_key: str, timeout: float
+    ) -> "git._LockStatus":
+        timeouts.append(timeout)
+        return statuses[len(timeouts) - 1]
+
+    monkeypatch.setattr(git, "_acquire_repo_lock", fake_acquire)
+    return timeouts
+
+
+@pytest.mark.parametrize("subpath", [None, Path("lib")])
+def test_clone_or_update_uses_complete_entry_when_lock_wait_times_out(
+    tmp_path: Path,
+    mock_run_git_command: Mock,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    subpath: Path | None,
+) -> None:
+    """A bounded wait behind a stalled holder falls back to an existing
+    complete cache entry instead of hanging every peer."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+    if subpath is not None:
+        repo_dir = repo_dir / subpath
+    _simulate_cloned_repo(repo_dir)
+    _mark_clone_complete(repo_dir)
+
+    timeouts = _script_acquire_statuses(monkeypatch, [git._LockStatus.TIMEOUT])
+
+    with caplog.at_level(logging.WARNING):
+        result_dir, revert = git.clone_or_update(
+            url=url,
+            ref=None,
+            refresh=TimePeriodSeconds(days=1),
+            domain=domain,
+            subpath=subpath,
+        )
+
+    assert result_dir == repo_dir
+    assert revert is None
+    # Nothing was cloned or refreshed; the existing entry was used as-is.
+    assert mock_run_git_command.call_args_list == []
+    assert timeouts == [git._COMPLETE_ENTRY_LOCK_TIMEOUT_SECONDS]
+    assert any("using the existing clone" in r.getMessage() for r in caplog.records)
+
+
+def test_clone_or_update_waits_unbounded_without_complete_entry(
+    tmp_path: Path,
+    mock_run_git_command: Mock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no complete entry there is nothing to fall back to, so after the
+    bounded wait expires the caller keeps waiting for the holder's clone."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+    mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
+
+    timeouts = _script_acquire_statuses(
+        monkeypatch, [git._LockStatus.TIMEOUT, git._LockStatus.ACQUIRED]
+    )
+
+    result_dir, _ = git.clone_or_update(
+        url=url, ref=None, refresh=git.NEVER_REFRESH, domain=domain
+    )
+
+    assert result_dir == repo_dir
+    assert timeouts == [git._COMPLETE_ENTRY_LOCK_TIMEOUT_SECONDS, -1]
+    # The clone proceeded normally once the lock was finally acquired.
+    assert _marker_path(repo_dir).is_file()
+
+
 def _real_git(*args: str, cwd: Path) -> None:
     """Run real git to build a test fixture repository."""
     subprocess.run(
