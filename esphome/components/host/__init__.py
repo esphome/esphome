@@ -10,6 +10,7 @@ from esphome.const import (
     ThreadModel,
 )
 from esphome.core import CORE
+from esphome.platformio.toolchain import copy_ccache_script
 
 from .const import KEY_HOST
 
@@ -49,3 +50,9 @@ async def to_code(config):
     cg.add_platformio_option("platform", "platformio/native")
     cg.add_platformio_option("lib_ldf_mode", "off")
     cg.add_platformio_option("lib_compat_mode", "strict")
+    cg.add_platformio_option("extra_scripts", ["pre:ccache.py"])
+
+
+# Called by writer.py
+def copy_files() -> None:
+    copy_ccache_script()

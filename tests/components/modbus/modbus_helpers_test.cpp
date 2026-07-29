@@ -448,6 +448,15 @@ TEST(ModbusTypedBuilders, BoolSpanCoilBuilderRejectsOverLimit) {
   EXPECT_TRUE(create_write_coils_pdu(0, std::span<const bool>(big.get(), MAX_NUM_OF_COILS_TO_WRITE + 1)).empty());
 }
 
+TEST(ModbusCreateClientPdu, GenericCoilWriteMasksTrailingPadBits) {
+  // 10 coils with junk in the pad bits of the last data byte: the generic path masks them like the
+  // typed builder, so both produce identical wire bytes.
+  const uint8_t values[] = {0xFF, 0xFF};
+  auto pdu = create_client_pdu(FC::WRITE_MULTIPLE_COILS, 0x0000, 10, values, 2);
+  ASSERT_FALSE(pdu.empty());
+  EXPECT_EQ(pdu[pdu.size() - 1], 0x03);  // bits 8-9 kept, pad bits 10-15 zeroed
+}
+
 TEST(ModbusCreateClientPdu, SingleCoilValueValidated) {
   const uint8_t on[] = {0xFF, 0x00};
   const uint8_t junk[] = {0x01, 0x00};

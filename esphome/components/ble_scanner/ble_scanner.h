@@ -5,6 +5,8 @@
 #include <ctime>
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 
@@ -18,22 +20,10 @@ class BLEScanner final : public text_sensor::TextSensor,
  public:
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override {
     char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-    // Escape special characters in the device name for valid JSON
-    const char *name = device.get_name().c_str();
+    // Escape special characters in the device name for valid JSON. Control characters stay in the \u00XX form this
+    // sensor has always published.
     char escaped_name[128];
-    size_t pos = 0;
-    for (; *name != '\0' && pos < sizeof(escaped_name) - 7; name++) {
-      uint8_t c = static_cast<uint8_t>(*name);
-      if (c == '"' || c == '\\') {
-        escaped_name[pos++] = '\\';
-        escaped_name[pos++] = c;
-      } else if (c < 0x20) {
-        pos += snprintf(escaped_name + pos, sizeof(escaped_name) - pos, "\\u%04x", c);
-      } else {
-        escaped_name[pos++] = c;
-      }
-    }
-    escaped_name[pos] = '\0';
+    json_escape_into_buffer(escaped_name, StringRef(device.get_name()), /*short_control_escapes=*/false);
 
     char buf[256];
     snprintf(buf, sizeof(buf), "{\"timestamp\":%" PRId64 ",\"address\":\"%s\",\"rssi\":%d,\"name\":\"%s\"}",
