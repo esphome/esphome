@@ -1462,8 +1462,8 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
 #ifdef GTEST_TESTING
  public:
   std::list<NextionQueue *> nextion_queue_;
-  void set_numeric_return_(int value);
-  void set_string_return_(const std::string &value);
+  void set_numeric_return(int value);
+  void set_string_return(const std::string &value);
 
  protected:
 #else

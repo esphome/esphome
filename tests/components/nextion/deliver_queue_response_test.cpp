@@ -128,7 +128,7 @@ TEST_F(DeliverQueueResponse, SkipNoResultSecondSensorGetsValue) {
   add_no_result_();
   add_sensor_("temp");
 
-  nextion_->set_numeric_return_(42);
+  nextion_->set_numeric_return(42);
 
   // NO_RESULT should still be in the queue (its 0x01 ACK hasn't arrived)
   ASSERT_EQ(nextion_->nextion_queue_.size(), 1);
@@ -150,7 +150,7 @@ TEST_F(DeliverQueueResponse, SkipNoResultTextSensorGetsString) {
   add_text_sensor_("status");
 
   const std::string expected = "online";
-  nextion_->set_string_return_(expected);
+  nextion_->set_string_return(expected);
 
   // NO_RESULT should still be in the queue
   ASSERT_EQ(nextion_->nextion_queue_.size(), 1);
@@ -171,7 +171,7 @@ TEST_F(DeliverQueueResponse, SkipUnsentEntryUnderCommandSpacing) {
   add_no_result_();
   add_sensor_("temp", true);  // pending_command = "get temp"
 
-  nextion_->set_numeric_return_(99);
+  nextion_->set_numeric_return(99);
 
   // Both entries should remain in the queue (unsent entry was skipped,
   // no matching entry was consumed)
@@ -196,7 +196,7 @@ TEST_F(DeliverQueueResponse, RemoveMismatchedEntry) {
   add_text_sensor_("status");
 
   // Send a numeric response (0x71) — TEXT_SENSOR doesn't match numeric types
-  nextion_->set_numeric_return_(100);
+  nextion_->set_numeric_return(100);
 
   // The text sensor entry should have been removed (mismatched type)
   EXPECT_TRUE(nextion_->nextion_queue_.empty());

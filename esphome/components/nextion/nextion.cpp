@@ -508,6 +508,11 @@ void Nextion::set_string_return_(const std::string &value) {
   this->deliver_queue_response_("String return", resp);
 }
 
+#ifdef GTEST_TESTING
+void Nextion::set_numeric_return(int value) { this->set_numeric_return_(value); }
+void Nextion::set_string_return(const std::string &value) { this->set_string_return_(value); }
+#endif
+
 void Nextion::process_serial_() {
   // Read all available bytes in batches to reduce UART call overhead.
   size_t avail = this->available();
