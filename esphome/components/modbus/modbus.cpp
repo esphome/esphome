@@ -912,7 +912,6 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sen
         // Cleared from inside its own on_response()/on_error(): that callback was the resolution,
         // so the pending re-run/continuous cycle is cancelled silently (stop-polling-now).
         cmd.retire();
-        cmd.device = nullptr;
         this->sweep_needed_ = true;
         break;
       case FrameState::WAITING:
@@ -922,9 +921,7 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sen
         // send-wait timeout (or the response arrives) and is swept silently.
         if (clear_sent) {
           ESP_LOGV(TAG, "Clearing waiting for response for address %" PRIu8, address);
-          cmd.state = FrameState::WAITING_DELETED;
-          cmd.pending = 0;
-          cmd.device = nullptr;  // never deliver through a detached shell
+          cmd.retire_waiting();
           this->sweep_needed_ = true;
         }
         break;
@@ -945,16 +942,14 @@ void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
       case FrameState::INTERRUPTED:
       case FrameState::INTERRUPTED_NOTIFIED:
         // On the wire: keeps blocking until the send-wait timeout, then swept silently.
-        cmd.state = FrameState::WAITING_DELETED;
-        cmd.pending = 0;
+        cmd.retire_waiting();
         break;
       case FrameState::WAITING_DELETED:
-        break;
+        break;  // already a detached shell
       default:  // queued and terminal entries (including REFUSED) retire silently
         cmd.retire();
         break;
     }
-    cmd.device = nullptr;  // the device is going away (or superseding); never deliver through it
     this->sweep_needed_ = true;
   }
 }

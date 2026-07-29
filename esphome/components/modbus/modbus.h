@@ -216,11 +216,20 @@ struct ModbusDeviceCommand {
     const bool requeueable = !helpers::is_function_code_exception(fc) && helpers::is_function_code_read(fc);
     return (requeueable && !this->continuous) ? 2 : 1;
   }
-  /// Retire this entry: no callbacks owed from here on. DELETED with pending 0 is the silent,
-  /// erasable terminal; the sweep's erase pass removes it.
+  /// Retire this entry: detached, owing nothing. DELETED with pending 0 is the silent, erasable
+  /// terminal; the sweep's erase pass removes it.
   void retire() {
     this->state = FrameState::DELETED;
     this->pending = 0;
+    this->device = nullptr;
+  }
+  /// Retire an entry whose frame is already on the wire. It cannot simply vanish - the response
+  /// may still arrive, and the bus stays blocked until the transaction ends - so it persists as a
+  /// detached shell that ignores the reply and retires when the response or the timeout arrives.
+  void retire_waiting() {
+    this->state = FrameState::WAITING_DELETED;
+    this->pending = 0;
+    this->device = nullptr;
   }
 
   /// True if this command carries the same wire frame (address + PDU) as the given one.
