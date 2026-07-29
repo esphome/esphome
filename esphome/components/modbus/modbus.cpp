@@ -77,7 +77,7 @@ void ModbusClientHub::expire_waiting_() {
     this->sweep_needed_ = true;
     this->waiting_for_response_ = false;
   } else if (cmd->state == FrameState::WAITING_DELETED) {
-    retire_(*cmd);
+    cmd->retire();
     this->sweep_needed_ = true;
     this->waiting_for_response_ = false;
   } else if (cmd->state == FrameState::INTERRUPTED_NOTIFIED) {
@@ -88,7 +88,7 @@ void ModbusClientHub::expire_waiting_() {
       cmd->state = FrameState::READY;
       cmd->seq = this->next_seq_++;
     } else {
-      retire_(*cmd);
+      cmd->retire();
       this->sweep_needed_ = true;
     }
     this->waiting_for_response_ = false;
@@ -336,7 +336,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
 
   if (cmd->state == FrameState::WAITING_DELETED) {
     // The cleared frame's response arrived: the shell is spent, unblock silently.
-    retire_(*cmd);
+    cmd->retire();
     this->waiting_for_response_ = false;
     this->sweep_needed_ = true;
     return;
@@ -674,14 +674,6 @@ size_t ModbusClientHub::live_count_() const {
   return count;
 }
 
-uint8_t ModbusClientHub::servable_cap_(const ModbusDeviceCommand &cmd) {
-  // A requeueable one-shot read absorbs one extra request (this run + one re-run); everything
-  // else - writes, custom codes, continuous polls - serves exactly one.
-  const uint8_t fc = cmd.frame.pdu()[0];
-  const bool requeueable = !helpers::is_function_code_exception(fc) && helpers::is_function_code_read(fc);
-  return (requeueable && !cmd.continuous) ? 2 : 1;
-}
-
 void ModbusClientHub::sweep_() {
   if (!this->sweep_needed_)
     return;
@@ -709,7 +701,7 @@ void ModbusClientHub::sweep_() {
             cmd.state = FrameState::READY;  // the subscription's next cycle
             cmd.seq = this->next_seq_++;
           } else if (--cmd.pending == 0) {
-            retire_(cmd);  // the one-shot consumed its last request
+            cmd.retire();  // the one-shot consumed its last request
           } else {
             cmd.state = FrameState::READY;  // an absorbed duplicate still owes a run
             cmd.seq = this->next_seq_++;
@@ -720,7 +712,7 @@ void ModbusClientHub::sweep_() {
         case FrameState::RECEIVED_EXCEPTION: {
           // An exception ends a continuous poll; one-shot consumption matches the response path.
           if (cmd.continuous || --cmd.pending == 0) {
-            retire_(cmd);
+            cmd.retire();
           } else {
             cmd.state = FrameState::READY;
             cmd.seq = this->next_seq_++;
@@ -747,7 +739,7 @@ void ModbusClientHub::sweep_() {
             cmd.state = FrameState::READY;  // one request resolved; the survivor re-stamps
             cmd.seq = this->next_seq_++;
           } else {
-            retire_(cmd);
+            cmd.retire();
           }
           progressed = true;
           break;
@@ -775,7 +767,7 @@ void ModbusClientHub::sweep_() {
               cmd.state = FrameState::READY;
               cmd.seq = this->next_seq_++;
             } else {
-              retire_(cmd);
+              cmd.retire();
             }
           }
           progressed = true;
@@ -879,7 +871,7 @@ bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
       ESP_LOGV(TAG, "Frame already active for %" PRIu8 ", now polled continuously", address);
     } else if (item.continuous) {
       ESP_LOGV(TAG, "Frame already active for %" PRIu8 " as a continuous poll", address);
-    } else if (item.pending >= servable_cap_(item)) {
+    } else if (item.pending >= item.servable_cap()) {
       // The entry already stands for as many requests as it can ever serve (a read runs twice, a
       // write or custom code once), so this one is refused at the door like any other request the
       // machine cannot take.
@@ -933,7 +925,7 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sen
       case FrameState::RECEIVED_EXCEPTION:
         // Cleared from inside its own on_response()/on_error(): that callback was the resolution,
         // so the pending re-run/continuous cycle is cancelled silently (stop-polling-now).
-        retire_(cmd);
+        cmd.retire();
         cmd.device = nullptr;
         this->sweep_needed_ = true;
         break;
@@ -973,7 +965,7 @@ void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
       case FrameState::WAITING_DELETED:
         break;
       default:  // queued and terminal entries (including REFUSED) retire silently
-        retire_(cmd);
+        cmd.retire();
         break;
     }
     cmd.device = nullptr;  // the device is going away (or superseding); never deliver through it

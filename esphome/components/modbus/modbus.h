@@ -208,6 +208,21 @@ struct ModbusDeviceCommand {
     return CommandPriority::READ;
   }
 
+  /// How many requests this entry can ever serve: a standard read runs twice (this run plus one
+  /// re-run), everything else once - a write is not idempotent, and a custom or diagnostic code's
+  /// idempotency is unknown. Duplicates are absorbed below this and refused at it.
+  uint8_t servable_cap() const {
+    const uint8_t fc = this->frame.pdu()[0];
+    const bool requeueable = !helpers::is_function_code_exception(fc) && helpers::is_function_code_read(fc);
+    return (requeueable && !this->continuous) ? 2 : 1;
+  }
+  /// Retire this entry: no callbacks owed from here on. DELETED with pending 0 is the silent,
+  /// erasable terminal; the sweep's erase pass removes it.
+  void retire() {
+    this->state = FrameState::DELETED;
+    this->pending = 0;
+  }
+
   /// True if this command carries the same wire frame (address + PDU) as the given one.
   bool same_frame(uint8_t address, std::span<const uint8_t> pdu) const {
     const auto own_pdu = this->frame.pdu();
@@ -263,18 +278,9 @@ class ModbusClientHub : public Modbus {
   ModbusDeviceCommand *find_waiting_();
   // End the wait for a response on send-wait timeout (the loop() watchdog body); see FrameState.
   void expire_waiting_();
-  // Retire an entry: no callbacks owed from here on (DELETED with pending 0 is the silent,
-  // erasable terminal); the sweep's erase pass removes it.
-  static void retire_(ModbusDeviceCommand &cmd) {
-    cmd.state = FrameState::DELETED;
-    cmd.pending = 0;
-  }
   // Entries counted against the transmit-queue cap: excludes REFUSED (they occupy the reserve)
   // and the *_DELETED states (already resolved, awaiting the erase pass).
   size_t live_count_() const;
-  // How many requests one entry can ever serve: 2 for requeueable reads, 1 otherwise. Duplicates
-  // are absorbed below this and refused at it.
-  static uint8_t servable_cap_(const ModbusDeviceCommand &cmd);
 
   uint16_t send_wait_time_{2000};
   uint16_t turnaround_delay_ms_{0};
