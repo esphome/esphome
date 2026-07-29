@@ -1,4 +1,5 @@
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum, auto
 import errno
@@ -255,6 +256,61 @@ def _acquire_repo_lock(
     return _LockStatus.ACQUIRED
 
 
+@contextmanager
+def _repo_cache_lock(
+    key: str, domain: str, subpath: Path | None
+) -> Iterator[tuple[Path | None, "FileLock | None"]]:
+    """Hold the cache entry lock for ``key`` over the with block.
+
+    Yields ``(existing_dir, lock)``. When ``existing_dir`` is set, the lock
+    could not be acquired within the bounded wait but a complete cache entry
+    exists; the caller should use it as-is and do nothing else. Otherwise
+    ``lock`` is the held lock, released when the block exits, or ``None``
+    when the lock could not be taken at all and the caller proceeds
+    unlocked.
+    """
+    # Lazy import: keeps filelock off the CLI startup import path.
+    from filelock import FileLock
+
+    safe_key = _redact_url_credentials(key)
+    # acquire() creates the lock file's directory itself; git clone later
+    # creates the hash directory next to it.
+    lock: FileLock | None = FileLock(str(_repo_lock_path(key, domain)))
+    status = _acquire_repo_lock(lock, safe_key, _COMPLETE_ENTRY_LOCK_TIMEOUT_SECONDS)
+    if status is _LockStatus.TIMEOUT:
+        repo_dir = _compute_destination_path(key, domain)
+        if subpath:
+            repo_dir = repo_dir / subpath
+        if _clone_complete_marker_path(repo_dir).is_file():
+            # Mutual exclusion matters most while no complete entry exists
+            # (initial clone, recovery re-clone); with one on disk, reading
+            # it beats hanging behind a stalled holder.
+            _LOGGER.warning(
+                "Timed out waiting for another process updating %s, proceeding "
+                "with the existing clone, which that process may still be "
+                "changing",
+                safe_key,
+            )
+            yield repo_dir, None
+            return
+        # Nothing to fall back to; the holder is producing the clone this
+        # caller needs.
+        status = _acquire_repo_lock(
+            lock,
+            safe_key,
+            timeout=-1,
+            wait_message="Still waiting for the clone of %s, "
+            "there is no existing clone to fall back on",
+        )
+    if status is not _LockStatus.ACQUIRED:
+        lock = None
+    try:
+        yield None, lock
+    finally:
+        if lock is not None:
+            lock.release()
+
+
 def _clone_complete_marker_path(repo_dir: Path) -> Path:
     return repo_dir / ".git" / _CLONE_COMPLETE_MARKER
 
@@ -416,42 +472,9 @@ def clone_or_update(
     network), the existing clone is used without refreshing it, so a stuck
     process cannot hang every peer that already has a good entry.
     """
-    # Lazy import: keeps filelock off the CLI startup import path.
-    from filelock import FileLock
-
-    key = f"{url}@{ref}"
-    safe_key = _redact_url_credentials(key)
-    # acquire() creates the lock file's directory itself; git clone later
-    # creates the hash directory next to it.
-    lock: FileLock | None = FileLock(str(_repo_lock_path(key, domain)))
-    status = _acquire_repo_lock(lock, safe_key, _COMPLETE_ENTRY_LOCK_TIMEOUT_SECONDS)
-    if status is _LockStatus.TIMEOUT:
-        repo_dir = _compute_destination_path(key, domain)
-        if subpath:
-            repo_dir = repo_dir / subpath
-        if _clone_complete_marker_path(repo_dir).is_file():
-            # Mutual exclusion matters most while no complete entry exists
-            # (initial clone, recovery re-clone); with one on disk, reading
-            # it beats hanging behind a stalled holder.
-            _LOGGER.warning(
-                "Timed out waiting for another process updating %s, proceeding "
-                "with the existing clone, which that process may still be "
-                "changing",
-                safe_key,
-            )
-            return repo_dir, None
-        # Nothing to fall back to; the holder is producing the clone this
-        # caller needs.
-        status = _acquire_repo_lock(
-            lock,
-            safe_key,
-            timeout=-1,
-            wait_message="Still waiting for the clone of %s, "
-            "there is no existing clone to fall back on",
-        )
-    if status is not _LockStatus.ACQUIRED:
-        lock = None
-    try:
+    with _repo_cache_lock(f"{url}@{ref}", domain, subpath) as (existing_dir, lock):
+        if existing_dir is not None:
+            return existing_dir, None
         return _clone_or_update_locked(
             url=url,
             ref=ref,
@@ -463,9 +486,6 @@ def clone_or_update(
             subpath=subpath,
             lock=lock,
         )
-    finally:
-        if lock is not None:
-            lock.release()
 
 
 def _clone_or_update_locked(
