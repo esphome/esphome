@@ -57,7 +57,9 @@ const LogString *Logger::get_uart_selection_() {
 // writes at a low baud rate (for example 4800 for a power monitoring chip) can
 // starve the soft watchdog. All linked callers (newlib stdout, lwIP
 // diagnostics, postmortem dumps) are redirected here by -Wl,--wrap=ets_putc.
-extern "C" void __wrap_ets_putc(char) {}
+// IRAM_ATTR because the ROM original is callable with the flash cache
+// disabled (for example from newlib's _write_r, which is placed in IRAM).
+extern "C" void IRAM_ATTR __wrap_ets_putc(char) {}
 #endif
 
 #endif
