@@ -10,6 +10,7 @@ import pytest
 from esphome.components.mqtt import _topics_conflict
 from esphome.config_validation import Invalid
 from esphome.const import (
+    CONF_COMMAND_TOPIC,
     CONF_DEVICE_CLASS,
     CONF_DEVICE_ID,
     CONF_DISABLED_BY_DEFAULT,
@@ -740,6 +741,59 @@ def test_object_id_conflicts_filter() -> None:
     # Without the filter the same conflicts are fatal
     with pytest.raises(Invalid, match=r"mqtt builds default topics"):
         validate_no_object_id_conflicts(reason)({})
+
+
+def test_object_id_conflicts_command_topic() -> None:
+    """Test that commandable platforms conflict through their default command topic.
+
+    Custom state topics with discovery off are not enough for platforms that also
+    subscribe to an object_id-derived command topic.
+    """
+    validator = entity_duplicate_validator("switch")
+    validator(
+        {
+            CONF_NAME: "Датчик открытия",
+            CONF_STATE_TOPIC: "custom/topic/a",
+            CONF_DISCOVERY: False,
+        }
+    )
+    validator(
+        {
+            CONF_NAME: "Датчик закрытия",
+            CONF_STATE_TOPIC: "custom/topic/b",
+            CONF_DISCOVERY: False,
+        }
+    )
+
+    reason = "mqtt builds default topics from the entity object_id"
+    component_validator = validate_no_object_id_conflicts(
+        reason, conflict_filter=_topics_conflict
+    )
+    mqtt_config: dict = {CONF_DISCOVERY: True, CONF_TOPIC_PREFIX: "test-device"}
+    # Both switches share the default command topic: rejected
+    with pytest.raises(Invalid, match=r"mqtt builds default topics"):
+        component_validator(mqtt_config)
+
+    # With custom command topics as well, nothing derives from the object_id
+    CORE.reset()
+    validator = entity_duplicate_validator("switch")
+    validator(
+        {
+            CONF_NAME: "Датчик открытия",
+            CONF_STATE_TOPIC: "custom/topic/a",
+            CONF_COMMAND_TOPIC: "custom/cmd/a",
+            CONF_DISCOVERY: False,
+        }
+    )
+    validator(
+        {
+            CONF_NAME: "Датчик закрытия",
+            CONF_STATE_TOPIC: "custom/topic/b",
+            CONF_COMMAND_TOPIC: "custom/cmd/b",
+            CONF_DISCOVERY: False,
+        }
+    )
+    assert component_validator(mqtt_config) is mqtt_config
 
 
 def test_object_id_conflicts_empty_topic_prefix() -> None:

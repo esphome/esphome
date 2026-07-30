@@ -333,18 +333,44 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+# Platforms whose MQTT components subscribe to an object_id-derived command topic.
+# Keep in sync with the platforms extending cv.MQTT_COMMAND_COMPONENT_SCHEMA, plus
+# text, whose MQTT component subscribes a command topic that cannot be overridden.
+_COMMAND_TOPIC_PLATFORMS = frozenset(
+    {
+        "alarm_control_panel",
+        "button",
+        "climate",
+        "cover",
+        "datetime",
+        "fan",
+        "light",
+        "lock",
+        "number",
+        "select",
+        "switch",
+        "text",
+        "update",
+        "valve",
+    }
+)
+
+
 def _topics_conflict(entities: list[ObjectIdEntity], config: ConfigType) -> bool:
     """Check whether more than one entity actually uses an object_id-derived topic.
 
-    An empty topic_prefix disables default topics entirely, a custom state_topic
-    avoids the default state topic, and disabling discovery (globally or per
-    entity) avoids the discovery config topic.
+    An empty topic_prefix disables default topics entirely, custom state and
+    command topics avoid the default topics, and disabling discovery (globally
+    or per entity) avoids the discovery config topic.
     """
     if config[CONF_TOPIC_PREFIX]:
-        default_state_topics = sum(
-            CONF_STATE_TOPIC not in entity.config for entity in entities
+        has_command_topic = entities[0].platform in _COMMAND_TOPIC_PLATFORMS
+        default_topics = sum(
+            CONF_STATE_TOPIC not in entity.config
+            or (has_command_topic and CONF_COMMAND_TOPIC not in entity.config)
+            for entity in entities
         )
-        if default_state_topics > 1:
+        if default_topics > 1:
             return True
     if not config[CONF_DISCOVERY]:
         return False

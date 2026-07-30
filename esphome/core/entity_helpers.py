@@ -40,6 +40,7 @@ class ObjectIdEntity:
     """An entity tracked by the sanitized object_id its name resolves to."""
 
     name: str
+    platform: str
     config: ConfigType
 
 
@@ -642,13 +643,15 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
         # Components that still address entities by the sanitized object_id reject
         # colliding names in final validation via validate_no_object_id_conflicts(),
         # so track every entity by the object_id its name resolves to. Scoped per
-        # device to match the strictness configs had before entity keys moved to
-        # raw names; same-named entities on different sub-devices were already
-        # accepted then, and their object_id overlap predates this check.
+        # device and platform to match the strictness configs had before entity keys
+        # moved to raw names: same-named entities on different sub-devices were
+        # already accepted then, internal entities were already skipped (above), and
+        # overlaps between platforms that share an MQTT component type (sensor and
+        # text_sensor both publish under "sensor") were already possible.
         object_id = sanitize(snake_case(base_name))
         _get_object_id_registry().setdefault(
             (device_id, platform, object_id), []
-        ).append(ObjectIdEntity(base_name, config))
+        ).append(ObjectIdEntity(base_name, platform, config))
 
         # Store metadata about this entity
         entity_metadata: EntityMetadata = {
