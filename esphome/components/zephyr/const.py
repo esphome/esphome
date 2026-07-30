@@ -25,6 +25,8 @@ CONF_SDK_SOURCE = "sdk_source"
 CONF_KCONFIG_OPTIONS = "kconfig_options"
 CONF_WEST_VERSION = "west_version"
 CONF_NINJA_VERSION = "ninja_version"
+CONF_SNIPPETS = "snippets"
+KEY_SNIPPETS: Final = "snippets"
 
 # zephyr: version: "recommended" -- explicit alias for the variant's default_version,
 # same as omitting `version:` entirely.

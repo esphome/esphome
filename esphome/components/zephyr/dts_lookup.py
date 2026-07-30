@@ -176,9 +176,12 @@ def get_existing_cdc_acm_uart_label(board: str) -> str | None:
         return None
 
     for node in _iter_nodes(edt):
-        if node.status == "okay" and "zephyr,cdc-acm-uart" in node.compats:
-            if node.labels:
-                return node.labels[0]
+        if (
+            node.status == "okay"
+            and "zephyr,cdc-acm-uart" in node.compats
+            and node.labels
+        ):
+            return node.labels[0]
     return None
 
 
