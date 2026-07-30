@@ -25,6 +25,7 @@ VARIANT = ZephyrVariant(
     sdk=MAINLINE,
     family="esp32",
     valid_toolchains=(Toolchain.SDK_ZEPHYR,),
+    toolchain="riscv64-zephyr-elf",
     # See esp32_h2.py's blobs= comment. Sentinel shared with esp32_h2 (same SDK).
     blobs=("hal_espressif", ".*", ".blobs_hal_espressif_ready"),
     pinctrl_extractors={"i2c": get_i2c_pinctrl_esp32},

@@ -59,6 +59,7 @@ VARIANT = ZephyrVariant(
     family="nordic",
     boards=_VALID_BOARDS,
     valid_toolchains=(Toolchain.SDK_ZEPHYR,),
+    toolchain="arm-zephyr-eabi",
     # BLE deliberately excluded for now (not yet wired up). OpenThread included:
     # issue #11's tracked entanglement is specifically about the NCS-based
     # platform: nrf52's OpenThread/Zigbee stack coupling -- this variant sidesteps
@@ -126,9 +127,7 @@ async def to_code(config: ConfigType) -> None:
         # connection for 5s after every boot instead.
         zephyr_add_prj_conf("BOOT_SERIAL_ENTRANCE_GPIO", False, image="mcuboot")
         zephyr_add_prj_conf("BOOT_SERIAL_WAIT_FOR_DFU", True, image="mcuboot")
-        zephyr_add_prj_conf(
-            "BOOT_SERIAL_WAIT_FOR_DFU_TIMEOUT", 5000, image="mcuboot"
-        )
+        zephyr_add_prj_conf("BOOT_SERIAL_WAIT_FOR_DFU_TIMEOUT", 5000, image="mcuboot")
         # CDC-ACM and the UART console can't share the same UART device.
         zephyr_add_prj_conf("UART_CONSOLE", False, image="mcuboot")
         zephyr_add_prj_conf("CONSOLE", False, image="mcuboot")
