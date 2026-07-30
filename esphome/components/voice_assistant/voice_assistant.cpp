@@ -1562,6 +1562,16 @@ void VoiceAssistant::model_load_task(void *params) {
         this_va->erase_pending_wake_word_(id);
         return;
       }
+      if (this_va->micro_wake_word_->get_model_by_id(id) != nullptr) {
+        // A duplicate download slipped through (an earlier pass already added the model, e.g. a config
+        // change re-queued it while it was in flight). Benign: leave the existing model enabled. Check
+        // before building the model, because a WakeWordModel claims a preference backend that is never
+        // freed, so a model built only to be rejected costs internal RAM permanently.
+        ESP_LOGD(TAG, "Discarding downloaded model %s: already loaded", id.c_str());
+        this_va->erase_pending_wake_word_(id);
+        return;
+      }
+
       // A set_configuration while the download was in flight may have withdrawn the activation request.
       const bool still_wanted = this_va->is_wake_word_pending_(id);
 
@@ -1569,14 +1579,9 @@ void VoiceAssistant::model_load_task(void *params) {
                                                                trained_languages, arena);
       auto *raw = model.get();
       if (!this_va->micro_wake_word_->add_runtime_model(std::move(model))) {
-        if (this_va->micro_wake_word_->get_model_by_id(id) != nullptr) {
-          // A duplicate download slipped through (an earlier pass already added the model, e.g. a config
-          // change re-queued it while it was in flight). Benign: leave the existing model enabled.
-          this_va->erase_pending_wake_word_(id);
-        } else {
-          // Genuine failure (e.g. the pause handshake timed out). Don't retry it on every boot.
-          this_va->mark_model_load_failed_(id);
-        }
+        // The id was free a moment ago and this is the main loop, so a duplicate is no longer possible:
+        // this is a genuine failure (e.g. the pause handshake timed out). Don't retry it on every boot.
+        this_va->mark_model_load_failed_(id);
         return;
       }
       if (still_wanted) {
