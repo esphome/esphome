@@ -1062,12 +1062,7 @@ def run_compile(args, config: ConfigType) -> bool:
     if not CORE.using_toolchain_sdk_zephyr:
         return False
 
-    from .build_zephyr import (
-        _VARIANT_TOOLCHAIN,
-        generate_cmake_lists,
-        run_west_blobs_fetch,
-        run_west_build,
-    )
+    from .build_zephyr import generate_cmake_lists, run_west_blobs_fetch, run_west_build
     from .framework_west import check_and_install as west_install
     from .sdk_setup_west import check_and_install as sdk_install
 
@@ -1081,7 +1076,7 @@ def run_compile(args, config: ConfigType) -> bool:
         zephyr_data()["sdk_source"],
         config[CORE.target_platform][CONF_REFRESH],
     )
-    cross_toolchain = _VARIANT_TOOLCHAIN.get(variant)
+    cross_toolchain = variant_data.toolchain
     sdk_dir = sdk_install(framework_path, toolchain=cross_toolchain)
     if blob_spec := variant_data.blobs:
         module, allow_regex, sentinel_name = blob_spec

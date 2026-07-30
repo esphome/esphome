@@ -25,6 +25,9 @@ VARIANT = ZephyrVariant(
     sdk=MAINLINE,
     family="esp32",
     valid_toolchains=(Toolchain.SDK_ZEPHYR,),
+    # Original ESP32 is Xtensa (dual-core PRO_CPU/APP_CPU), unlike H2/C6's RISC-V --
+    # a completely separate Zephyr SDK toolchain.
+    toolchain="xtensa-espressif_esp32_zephyr-elf",
     # See esp32_h2.py's blobs= comment. Sentinel shared with esp32_h2/esp32_c6 (same SDK).
     blobs=("hal_espressif", ".*", ".blobs_hal_espressif_ready"),
     pinctrl_extractors={"i2c": get_i2c_pinctrl_esp32},

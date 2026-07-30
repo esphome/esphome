@@ -63,6 +63,9 @@ class ZephyrVariant:
     )
     # Toolchain identifiers supported by this variant (StrEnum values from esphome.const.Toolchain).
     valid_toolchains: tuple[str, ...] = ("platformio",)
+    # Zephyr SDK cross-compiler name (arg to setup.sh -t / ZEPHYR_TOOLCHAIN_VARIANT).
+    # None = install host tools only and use the host GCC.
+    toolchain: str | None = None
     # Binary blobs required by this variant: (west_module, allow_regex, sentinel_name).
     # allow_regex filters the module's blob list to the chip-specific subset, though
     # some HALs (e.g. hal_espressif with BLE) need ".*" since Zephyr's CMake verifies
