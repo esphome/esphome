@@ -34,18 +34,28 @@ COMPONENTS_DIR = Path(__file__).parents[4] / "esphome" / "components"
 REASON = "mqtt builds default topics from the entity object_id"
 
 
-def test_command_topic_platforms_in_sync() -> None:
-    """Verify _COMMAND_TOPIC_PLATFORMS matches the platforms with command topics.
+# MQTT infrastructure sources, not entity components
+_NON_ENTITY_MQTT_SOURCES = {"mqtt_client", "mqtt_component"}
+# The date, time and datetime MQTT components all belong to the datetime platform
+_DATETIME_STEMS = {"date", "time", "datetime"}
 
-    Drift silently reintroduces shared subscribe topics, so this locks the set to
-    the platforms extending cv.MQTT_COMMAND_COMPONENT_SCHEMA plus text, whose MQTT
-    component subscribes a command topic that cannot be overridden.
+
+def test_command_topic_platforms_in_sync() -> None:
+    """Verify _COMMAND_TOPIC_PLATFORMS matches the MQTT components that subscribe.
+
+    Drift silently reintroduces shared subscribe topics, so this derives the set
+    from the C++ components that actually call subscribe(); that also catches
+    platforms like text that subscribe a command topic without exposing a
+    command_topic key in their schema.
     """
-    expected = {
-        path.parent.name
-        for path in COMPONENTS_DIR.glob("*/__init__.py")
-        if "cv.MQTT_COMMAND_COMPONENT_SCHEMA)" in path.read_text(encoding="utf-8")
-    } | {"text"}
+    expected: set[str] = set()
+    for path in (COMPONENTS_DIR / "mqtt").glob("mqtt_*.cpp"):
+        if path.stem in _NON_ENTITY_MQTT_SOURCES:
+            continue
+        if "this->subscribe" not in path.read_text(encoding="utf-8"):
+            continue
+        stem = path.stem.removeprefix("mqtt_")
+        expected.add("datetime" if stem in _DATETIME_STEMS else stem)
     assert expected == _COMMAND_TOPIC_PLATFORMS
 
 

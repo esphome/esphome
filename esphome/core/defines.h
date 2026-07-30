@@ -157,6 +157,8 @@
 #define USE_OUTPUT_FLOAT_POWER_SCALING
 #define USE_POWER_SUPPLY
 #define USE_PREFERENCES_SYNC_EVERY_LOOP
+// Only defined by key-lookup preference backends (esp32, libretiny, host, zephyr);
+// slot-based platforms (esp8266, rp2040) never set it in generated builds
 #define USE_PREFERENCE_KEY_LOOKUP
 #define USE_PROVISIONING
 #define USE_QR_CODE

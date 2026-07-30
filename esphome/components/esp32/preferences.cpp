@@ -181,6 +181,7 @@ ESPPreferenceObject ESP32Preferences::make_preference(size_t length, uint32_t ty
 }
 
 ESP32PreferenceBackend ESP32Preferences::make_backend_(uint32_t type) const {
+  // in_flash keeps its default of true, selecting the NVS path
   ESP32PreferenceBackend backend;
   backend.nvs_handle = this->nvs_handle;
   backend.key = type;
