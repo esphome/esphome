@@ -6,9 +6,8 @@ on:
     - cron: "30 0 * * *"
   workflow_dispatch:
 
-permissions:
-  issues: write         # actions/stale labels, comments on, and closes stale issues
-  pull-requests: write  # actions/stale labels, comments on, and closes stale pull requests
+# Deny by default; the stale job opts in to exactly what the reusable workflow needs.
+permissions: {}
 
 concurrency:
   group: lock
@@ -16,51 +15,33 @@ concurrency:
 jobs:
   stale:
     if: github.repository_owner == 'esphome'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Stale
-        uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
-        with:
-          debug-only: ${{ github.ref != 'refs/heads/dev' }} # Dry-run when not run on dev branch
-          remove-stale-when-updated: true
-          operations-per-run: 400
+    permissions:
+      contents: read        # head-commit dates for the PR activity check
+      issues: write         # label, comment on and close stale issues
+      pull-requests: write  # label, comment on and close stale pull requests
+    uses: esphome/workflows/.github/workflows/stale.yml@c87be24a6fd0320ecd32e40b27fe98d25c3af851  # 2026.7.0
+    with:
+      dry-run: true
+      ignored-users: esphbot,codecov-commenter
+      stale-pr-message: >
+        There hasn't been any activity on this pull request recently. This
+        pull request has been automatically marked as stale because of that
+        and will be closed if no further activity occurs within 7 days.
 
-          # The 90 day stale policy for PRs
-          # - PRs
-          # - No PRs marked as "not-stale"
-          # - No Issues (see below)
-          days-before-pr-stale: 90
-          days-before-pr-close: 7
-          stale-pr-label: "stale"
-          exempt-pr-labels: "not-stale"
-          stale-pr-message: >
-            There hasn't been any activity on this pull request recently. This
-            pull request has been automatically marked as stale because of that
-            and will be closed if no further activity occurs within 7 days.
+        If you are the author of this PR, please leave a comment if you want
+        to keep it open. Also, please rebase your PR onto the latest dev
+        branch to ensure that it's up to date with the latest changes.
 
-            If you are the author of this PR, please leave a comment if you want
-            to keep it open. Also, please rebase your PR onto the latest dev
-            branch to ensure that it's up to date with the latest changes.
+        Thank you for your contribution!
+      stale-issue-message: >
+        There hasn't been any activity on this issue recently. Due to the
+        high number of incoming GitHub notifications, we have to clean some
+        of the old issues, as many of them have already been resolved with
+        the latest updates.
 
-            Thank you for your contribution!
+        Please make sure to update to the latest ESPHome version and
+        check if that solves the issue. Let us know if that works for you by
+        adding a comment 👍
 
-          # The 90 day stale policy for Issues
-          # - Issues
-          # - No Issues marked as "not-stale"
-          # - No PRs (see above)
-          days-before-issue-stale: 90
-          days-before-issue-close: 7
-          stale-issue-label: "stale"
-          exempt-issue-labels: "not-stale"
-          stale-issue-message: >
-            There hasn't been any activity on this issue recently. Due to the
-            high number of incoming GitHub notifications, we have to clean some
-            of the old issues, as many of them have already been resolved with
-            the latest updates.
-
-            Please make sure to update to the latest ESPHome version and
-            check if that solves the issue. Let us know if that works for you by
-            adding a comment 👍
-
-            This issue has now been marked as stale and will be closed if no
-            further activity occurs. Thank you for your contributions.
+        This issue has now been marked as stale and will be closed if no
+        further activity occurs. Thank you for your contributions.
