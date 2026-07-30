@@ -528,8 +528,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       }
       if (this->services_released_) {
         // The lookup below walks the freed GATT cache, and Bluedroid asserts on it rather than erroring.
-        ESP_LOGW(TAG, "[%d] [%s] REG_FOR_NOTIFY after services released, notifications not enabled",
-                 this->connection_index_, this->address_str_);
+        this->log_warning_("REG_FOR_NOTIFY after services released, notifications not enabled");
         break;
       }
       esp_gattc_descr_elem_t desc_result;
