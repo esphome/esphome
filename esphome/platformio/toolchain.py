@@ -1,15 +1,43 @@
+from collections.abc import Iterable
 import json
 import logging
 import os
 from pathlib import Path
 import re
+import shutil
 import sys
+from typing import TYPE_CHECKING
+
+import platformdirs
 
 from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
 from esphome.core import CORE, EsphomeError
+from esphome.helpers import (
+    add_git_ceiling_directory,
+    copy_file_if_changed,
+    get_bool_env,
+    rmtree,
+    write_file,
+)
 from esphome.util import FlashImage, run_external_process
 
+if TYPE_CHECKING:
+    from platformio.project.config import ProjectConfig
+
 _LOGGER = logging.getLogger(__name__)
+
+# PlatformIO cache subdirs resolved via ProjectConfig. A full ``clean-all`` wipes
+# these plus the whole ``core_dir``; a Python-version heal wipes these plus the
+# penv while keeping ``core_dir`` (so the sibling stamp/lock survive).
+_PIO_CACHE_DIRS = ("cache_dir", "packages_dir", "platforms_dir")
+
+# Marker recording the Python major.minor the PlatformIO cache was provisioned
+# under, plus the lock guarding the check/wipe. Both live in the dir resolved
+# by ``_pio_stamp_dir`` (NOT wiped by the heal), so they survive the wipe and
+# are rewritten after it.
+_PIO_PYTHON_STAMP_FILE = ".esphome.pio.stamp.json"
+_PIO_PYTHON_STAMP_LOCK = ".esphome.pio.stamp.lock"
+_PIO_PYTHON_STAMP_SCHEMA = "0"
 
 
 def _strip_win_long_path_prefix(path: str) -> str:
@@ -43,7 +71,245 @@ def _strip_win_long_path_prefix(path: str) -> str:
     return path
 
 
+def get_platformio_config() -> "ProjectConfig | None":
+    """Return PlatformIO's ``ProjectConfig``, or None when PlatformIO is absent."""
+    try:
+        from platformio.project.config import ProjectConfig
+    except ImportError:
+        return None
+    return ProjectConfig.get_instance()
+
+
+def _pio_stamp_dir(config: "ProjectConfig") -> Path:
+    """Return the persistent home for the python-version stamp and lock.
+
+    The parent of ``platforms_dir``, not ``core_dir``: the container/add-on
+    images relocate the platform/package caches to a persistent volume while
+    ``core_dir`` stays at the ephemeral default (its ``appstate.json`` must not
+    move), so a stamp under ``core_dir`` would be wiped on every image update
+    while the stale cache it guards survives. Everywhere else ``platforms_dir``
+    sits inside ``core_dir`` and this resolves to ``core_dir``.
+    """
+    return Path(config.get("platformio", "platforms_dir")).parent
+
+
+def _delete_platformio_dirs(config: "ProjectConfig", pio_dirs: Iterable[str]) -> None:
+    """Delete each named PlatformIO dir resolved from *config*."""
+    for pio_dir in pio_dirs:
+        path = Path(config.get("platformio", pio_dir))
+        if path.is_dir():
+            _LOGGER.info("Deleting PlatformIO %s %s", pio_dir, path)
+            rmtree(path)
+
+
+def clean_platformio_cache() -> None:
+    """Wipe the whole PlatformIO cache (cache/packages/platforms/core).
+
+    The full set ``clean-all`` (Reset Build Environment) clears. No-op when
+    PlatformIO is unavailable.
+    """
+    config = get_platformio_config()
+    if config is None:
+        return
+    _delete_platformio_dirs(config, [*_PIO_CACHE_DIRS, "core_dir"])
+
+
+def _clean_platformio_python_env(config: "ProjectConfig", core_dir: Path) -> None:
+    """Wipe the cache subdirs + penv for a Python-version change.
+
+    Keeps ``core_dir`` itself (and the stamp/lock siblings under it); otherwise
+    the same cache set ``clean-all`` clears.
+    """
+    _delete_platformio_dirs(config, _PIO_CACHE_DIRS)
+    penv = core_dir / "penv"
+    if penv.is_dir():
+        _LOGGER.info("Deleting PlatformIO penv %s", penv)
+        rmtree(penv)
+
+
+def _current_python_minor() -> str:
+    """Return the running interpreter's ``major.minor`` (e.g. ``3.13``)."""
+    return f"{sys.version_info.major}.{sys.version_info.minor}"
+
+
+def _read_pio_stamp_python(stamp_file: Path) -> str | None:
+    """Return the ``python_version`` recorded in *stamp_file*, or None."""
+    try:
+        with stamp_file.open(encoding="utf-8") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return None
+    except (json.JSONDecodeError, OSError) as err:
+        # A present-but-unreadable stamp is a distinct signal from an absent
+        # one, and it drives a cache clean; surface why at normal verbosity.
+        _LOGGER.warning("Could not read %s: %s", stamp_file, err)
+        return None
+    if not isinstance(data, dict):
+        return None
+    version = data.get("python_version")
+    return version if isinstance(version, str) else None
+
+
+def _write_pio_stamp_python(stamp_file: Path, python_version: str) -> None:
+    """Atomically write the PlatformIO python-version stamp."""
+    write_file(
+        stamp_file,
+        json.dumps(
+            {
+                "schema_version": _PIO_PYTHON_STAMP_SCHEMA,
+                "python_version": python_version,
+            }
+        ),
+    )
+
+
+def heal_platformio_python_env() -> None:
+    """Wipe the PlatformIO cache unless it is stamped for the running Python.
+
+    A PlatformIO platform/tool package pins the Python versions it accepts when
+    it is provisioned, and ESPHome pins platforms to exact, immutable versions,
+    so a later interpreter bump (a container upgrading its base Python) leaves
+    the cached platform rejecting the new interpreter ("Python version must be
+    between ...") until the cache is wiped. A stamp records the ``major.minor``
+    the cache was provisioned for; when it doesn't match the running
+    interpreter (or has never been written for an existing cache), the same
+    PlatformIO dirs ``clean-all`` wipes are cleaned so PlatformIO
+    re-provisions, matching Reset Build Environment automatically. The native
+    ESP-IDF toolchain already self-heals through its own stamp; this covers the
+    PlatformIO path. No-op when PlatformIO is unavailable.
+    """
+    config = get_platformio_config()
+    if config is None:
+        return
+    try:
+        _check_platformio_python_stamp(config)
+    except (EsphomeError, OSError) as err:
+        # The check is a best-effort repair; a full or read-only cache volume
+        # must not abort a build that might otherwise work. The stamp write
+        # surfaces as EsphomeError (write_file wraps OSError).
+        _LOGGER.warning("PlatformIO build environment check failed: %s", err)
+
+
+def _check_platformio_python_stamp(config: "ProjectConfig") -> None:
+    """Compare the stamp to the running interpreter; wipe and restamp on mismatch."""
+    current = _current_python_minor()
+    stamp_dir = _pio_stamp_dir(config)
+    # Host the stamp/lock even before PlatformIO's first run creates the dir.
+    stamp_dir.mkdir(parents=True, exist_ok=True)
+    stamp_file = stamp_dir / _PIO_PYTHON_STAMP_FILE
+
+    from filelock import FileLock
+
+    with FileLock(str(stamp_dir / _PIO_PYTHON_STAMP_LOCK)):
+        provisioned = _read_pio_stamp_python(stamp_file)
+        if provisioned == current:
+            return
+        core_dir = Path(config.get("platformio", "core_dir"))
+        has_cache = (
+            any(
+                Path(config.get("platformio", pio_dir)).is_dir()
+                for pio_dir in _PIO_CACHE_DIRS
+            )
+            or (core_dir / "penv").is_dir()
+        )
+        if has_cache:
+            if provisioned is None:
+                # An existing cache with no stamp predates the stamp: its
+                # provisioning interpreter is unknown, so clean once rather
+                # than leave a possibly-stale cache failing every build.
+                _LOGGER.info(
+                    "Cleaning the PlatformIO build environment once so it "
+                    "re-provisions for Python %s",
+                    current,
+                )
+            else:
+                _LOGGER.info(
+                    "Python version changed (%s -> %s); cleaning PlatformIO "
+                    "build environment so it re-provisions for the new "
+                    "interpreter",
+                    provisioned,
+                    current,
+                )
+            _clean_platformio_python_env(config, core_dir)
+        _write_pio_stamp_python(stamp_file, current)
+
+
+def _ccache_env() -> dict[str, str]:
+    """Return ccache settings for PlatformIO builds.
+
+    Enabled by default whenever the ``ccache`` binary is on PATH; set
+    ``ESPHOME_CCACHE_ENABLE=0`` in the environment to opt out (or ``1`` to
+    force it on). The decision is normalized into ``ESPHOME_CCACHE_ENABLE``
+    so platform build scripts (e.g. the esp8266 ``ccache.py`` extra script,
+    which wraps compiler invocations inside SCons) only have to check for
+    ``"1"`` instead of re-implementing the policy.
+
+    The returned values are merged into the environment of the PlatformIO
+    subprocess only, never into ``os.environ``: a long-running process
+    (e.g. the dashboard) also runs ESP-IDF builds, whose own ccache setup
+    skips defaults for ``CCACHE_*`` keys it finds already set, so leaking
+    these values would hand it the wrong cache dir and a stale basedir.
+
+    This mirrors ``_ccache_env()`` in ``esphome/espidf/framework.py``. The
+    cache lives under the machine-global ESPHome cache dir, so it is shared
+    across all projects and removed by ``esphome clean-all``. Unlike the
+    ESP-IDF path, ``CCACHE_DEPEND`` is not set: SCons compiles don't emit
+    the depfiles depend mode needs, so ccache's default preprocessor mode
+    is used.
+
+    ``CCACHE_BASEDIR`` rewrites the per-device absolute paths (the generated
+    sources under src/, the .pioenvs build dir) so different devices with
+    identical source share cache entries; it is always set to the current
+    build dir. The other ``CCACHE_*`` values the user already set in the
+    environment are respected.
+    """
+    if "ESPHOME_CCACHE_ENABLE" in os.environ:
+        enabled = get_bool_env("ESPHOME_CCACHE_ENABLE")
+    else:
+        enabled = shutil.which("ccache") is not None
+    env = {"ESPHOME_CCACHE_ENABLE": "1" if enabled else "0"}
+    if not enabled:
+        return env
+    # build_path is set during preload for every config-loading command, so it
+    # being unset means a caller built the environment too early; fail loudly
+    # rather than with an opaque TypeError from Path(None).
+    if CORE.build_path is None:
+        raise ValueError(
+            "CORE.build_path must be set before constructing the PlatformIO "
+            "build environment"
+        )
+    env["CCACHE_BASEDIR"] = str(Path(CORE.build_path).resolve())
+    defaults = {
+        "CCACHE_DIR": str(
+            Path(platformdirs.user_cache_dir("esphome", appauthor=False))
+            / "platformio-ccache"
+        ),
+        "CCACHE_NOHASHDIR": "true",
+    }
+    env.update({k: v for k, v in defaults.items() if k not in os.environ})
+    return env
+
+
+def copy_ccache_script() -> None:
+    """Copy the shared ccache SCons pre-script into the build dir.
+
+    Platform components call this from their ``copy_files()`` and add
+    ``pre:ccache.py`` to their ``extra_scripts``. The script wraps compiler
+    invocations inside SCons with ccache; it is platform-agnostic, so it
+    lives here next to ``_ccache_env()`` rather than being duplicated per
+    component.
+    """
+    copy_file_if_changed(
+        Path(__file__).parent / "ccache.py.script",
+        CORE.relative_build_path("ccache.py"),
+    )
+
+
 def run_platformio_cli(*args, **kwargs) -> str | int:
+    # Re-provision the PlatformIO cache if the interpreter's major.minor changed
+    # since it was last built; a stale platform otherwise rejects the new Python
+    # with "Python version must be between ..." until Reset Build Environment.
+    heal_platformio_python_env()
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = str(CORE.relative_pioenvs_path().absolute())
     os.environ.setdefault(
@@ -53,6 +319,10 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ.setdefault("PYTHONWARNINGS", "ignore::SyntaxWarning")
     # Increase uv retry count to handle transient network errors (default is 3)
     os.environ.setdefault("UV_HTTP_RETRIES", "10")
+    # Cap git's repo search at the config directory so the framework's build
+    # scripts running `git describe` for the app version can't error out on an
+    # uninitialized or corrupt git repo in a parent directory.
+    add_git_ceiling_directory(os.environ, CORE.config_dir)
     # Strip the Windows extended-length path prefix from sys.executable so it
     # doesn't propagate into PlatformIO's $PYTHONEXE and break SCons-emitted
     # command lines run through cmd.exe.
@@ -66,7 +336,14 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
         os.environ["PYTHONEXEPATH"] = python_exe
     cmd = [python_exe, "-m", "esphome.platformio.runner"] + list(args)
 
-    return run_external_process(*cmd, **kwargs)
+    # ccache settings go into the subprocess environment only (see
+    # _ccache_env() for why they must not leak into os.environ). A caller
+    # supplied env is used as the base when present.
+    base_env = kwargs.pop("env", None)
+    env = dict(os.environ if base_env is None else base_env)
+    env.update(_ccache_env())
+
+    return run_external_process(*cmd, env=env, **kwargs)
 
 
 def run_platformio_cli_run(config, verbose, *args, **kwargs) -> str | int:

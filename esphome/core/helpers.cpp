@@ -335,6 +335,72 @@ char *format_hex_to(char *buffer, size_t buffer_size, const uint8_t *data, size_
   return format_hex_internal(buffer, buffer_size, data, length, 0, 'a');
 }
 
+const char *json_escape_into_buffer(std::span<char> buf, StringRef value, bool short_control_escapes) {
+  if (buf.empty())
+    return "";
+  // Reserve one byte for the null terminator.
+  const size_t limit = buf.size() - 1;
+  size_t pos = 0;
+  for (char ch : value) {
+    auto c = static_cast<unsigned char>(ch);
+    // Every short form is a backslash followed by a single character, so only that character is needed here. Keeping
+    // it a char rather than a string avoids putting the sequences in read only data, which is RAM on the ESP8266.
+    char escape = '\0';
+    switch (c) {
+      case '"':
+        escape = '"';
+        break;
+      case '\\':
+        escape = '\\';
+        break;
+      case '\n':
+        escape = 'n';
+        break;
+      case '\r':
+        escape = 'r';
+        break;
+      case '\t':
+        escape = 't';
+        break;
+      case '\b':
+        escape = 'b';
+        break;
+      case '\f':
+        escape = 'f';
+        break;
+      default:
+        break;
+    }
+    // " and \ are always written as two characters, but the control characters fall through to \u00XX when the
+    // caller did not ask for the short forms.
+    if (!short_control_escapes && c < 0x20)
+      escape = '\0';
+    if (escape != '\0') {
+      if (pos + 2 > limit)
+        break;
+      buf[pos++] = '\\';
+      buf[pos++] = escape;
+    } else if (c < 0x20) {
+      // Remaining control characters have no short form and must be written as \u00XX. The value is below 0x20, so
+      // the two high hex digits are always zero.
+      if (pos + JSON_ESCAPE_MAX_EXPANSION > limit)
+        break;
+      buf[pos++] = '\\';
+      buf[pos++] = 'u';
+      buf[pos++] = '0';
+      buf[pos++] = '0';
+      buf[pos++] = format_hex_char(static_cast<uint8_t>(c >> 4));
+      buf[pos++] = format_hex_char(static_cast<uint8_t>(c & 0x0F));
+    } else {
+      if (pos + 1 > limit)
+        break;
+      buf[pos++] = static_cast<char>(c);
+    }
+  }
+  buf[pos] = '\0';
+  return buf.data();
+}
+
 // format_hex (std::string returning overloads) moved to alloc_helpers.cpp
 
 char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length, char separator) {
@@ -669,11 +735,11 @@ void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation,
   if (delta == 0) {
     hue = 0;
   } else if (max_color_value == red) {
-    hue = int(fmod(((60 * ((green - blue) / delta)) + 360), 360));
+    hue = int(fmodf((60.0f * ((green - blue) / delta)) + 360.0f, 360.0f));
   } else if (max_color_value == green) {
-    hue = int(fmod(((60 * ((blue - red) / delta)) + 120), 360));
+    hue = int(fmodf((60.0f * ((blue - red) / delta)) + 120.0f, 360.0f));
   } else if (max_color_value == blue) {
-    hue = int(fmod(((60 * ((red - green) / delta)) + 240), 360));
+    hue = int(fmodf((60.0f * ((red - green) / delta)) + 240.0f, 360.0f));
   }
 
   if (max_color_value == 0) {
@@ -686,8 +752,8 @@ void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation,
 }
 void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green, float &blue) {
   float chroma = value * saturation;
-  float hue_prime = fmod(hue / 60.0, 6);
-  float intermediate = chroma * (1 - fabs(fmod(hue_prime, 2) - 1));
+  float hue_prime = fmodf(hue / 60.0f, 6.0f);
+  float intermediate = chroma * (1.0f - fabsf(fmodf(hue_prime, 2.0f) - 1.0f));
   float delta = value - chroma;
 
   if (0 <= hue_prime && hue_prime < 1) {
