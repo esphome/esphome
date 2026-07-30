@@ -628,7 +628,7 @@ def add_class_to_obj(value, cls):
         raise
 
 
-def snake_case(value):
+def snake_case(value: str) -> str:
     """Same behaviour as `helpers.cpp` method `str_snake_case`."""
     return value.replace(" ", "_").lower()
 
@@ -636,7 +636,7 @@ def snake_case(value):
 _DISALLOWED_CHARS = re.compile(r"[^a-zA-Z0-9-_]")
 
 
-def sanitize(value):
+def sanitize(value: str) -> str:
     """Same behaviour as `helpers.cpp` method `str_sanitize`."""
     return _DISALLOWED_CHARS.sub("_", value)
 
