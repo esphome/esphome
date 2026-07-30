@@ -52,6 +52,38 @@ sensor:
     name: "BLE Sensor without Lambda"
     service_uuid: "abcd1234-abcd-1234-abcd-abcd12345678"
     characteristic_uuid: "abcd1237-abcd-1234-abcd-abcd12345678"
+  - platform: ble_client
+    ble_client_id: test_blec
+    type: characteristic
+    id: test_sensor_descriptor
+    name: "BLE Sensor reading a descriptor"
+    service_uuid: "abcd1234-abcd-1234-abcd-abcd12345678"
+    characteristic_uuid: "abcd1238-abcd-1234-abcd-abcd12345678"
+    descriptor_uuid: "abcd1239-abcd-1234-abcd-abcd12345678"
+  - platform: ble_client
+    ble_client_id: test_blec
+    type: characteristic
+    id: test_sensor_notify
+    name: "BLE Sensor with notifications"
+    service_uuid: "abcd1234-abcd-1234-abcd-abcd12345678"
+    characteristic_uuid: "abcd123a-abcd-1234-abcd-abcd12345678"
+    notify: true
+
+text_sensor:
+  - platform: ble_client
+    ble_client_id: test_blec
+    id: test_text_sensor_descriptor
+    name: "BLE Text Sensor reading a descriptor"
+    service_uuid: "abcd1234-abcd-1234-abcd-abcd12345678"
+    characteristic_uuid: "abcd123b-abcd-1234-abcd-abcd12345678"
+    descriptor_uuid: "abcd123c-abcd-1234-abcd-abcd12345678"
+  - platform: ble_client
+    ble_client_id: test_blec
+    id: test_text_sensor_notify
+    name: "BLE Text Sensor with notifications"
+    service_uuid: "abcd1234-abcd-1234-abcd-abcd12345678"
+    characteristic_uuid: "abcd123d-abcd-1234-abcd-abcd12345678"
+    notify: true
 
 number:
   - platform: template
