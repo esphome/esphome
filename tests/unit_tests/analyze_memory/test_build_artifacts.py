@@ -22,7 +22,7 @@ def _make_build_dir(tmp_path: Path, name: str = "mydevice") -> Path:
 
 def _touch(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("")
+    path.write_text("", encoding="utf-8")
     return path
 
 
