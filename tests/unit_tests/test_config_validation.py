@@ -1,4 +1,5 @@
 import json
+import logging
 from pathlib import Path
 import string
 
@@ -2913,6 +2914,62 @@ def test_rename_key_present() -> None:
 
 def test_rename_key_absent() -> None:
     assert cv.rename_key("old", "new")({"other": 5}) == {"other": 5}
+
+
+def test_rename_key_no_removed_in_is_silent(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="esphome.config_validation"):
+        assert cv.rename_key("old", "new")({"old": 5}) == {"new": 5}
+    assert not caplog.records
+
+
+def test_rename_key_removed_in_renames_and_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="esphome.config_validation"):
+        result = cv.rename_key("old", "new", removed_in="2026.8.0")({"old": 5})
+    assert result == {"new": 5}
+    assert "'old' is deprecated, use 'new'. Will be removed in 2026.8.0" in caplog.text
+
+
+def test_rename_key_removed_in_absent_key_no_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="esphome.config_validation"):
+        result = cv.rename_key("old", "new", removed_in="2026.8.0")({"other": 5})
+    assert result == {"other": 5}
+    assert not caplog.records
+
+
+def test_rename_key_removed_in_with_component_prefixes_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="esphome.config_validation"):
+        result = cv.rename_key(
+            "old", "new", removed_in="2026.8.0", component="my_component"
+        )({"old": 5})
+    assert result == {"new": 5}
+    assert (
+        "[my_component] 'old' is deprecated, use 'new'. Will be removed in 2026.8.0"
+        in caplog.text
+    )
+
+
+def test_rename_key_both_keys_rejected() -> None:
+    with pytest.raises(Invalid, match="Cannot specify more than one of"):
+        cv.rename_key("old", "new")({"old": 5, "new": 6})
+
+
+def test_rename_key_both_keys_rejected_with_removed_in(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with (
+        caplog.at_level(logging.WARNING, logger="esphome.config_validation"),
+        pytest.raises(Invalid, match="Cannot specify more than one of"),
+    ):
+        cv.rename_key("old", "new", removed_in="2026.8.0")({"old": 5, "new": 6})
+    assert not caplog.records
 
 
 def test_file__existing_relative_path(setup_core: Path) -> None:

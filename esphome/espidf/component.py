@@ -53,9 +53,10 @@ def _apply_extra_script(component: IDFComponent) -> None:
     if not script_path.is_relative_to(library_root) or not script_path.is_file():
         return
     from esphome.components.esp32 import get_esp32_variant
+    from esphome.components.esp32.const import variant_to_idf_target
     from esphome.espidf.extra_script import captured_as_build_flags, run_extra_script
 
-    idf_target = get_esp32_variant().lower().replace("-", "")
+    idf_target = variant_to_idf_target(get_esp32_variant())
     result = run_extra_script(
         script_path, library_dir=component.path, idf_target=idf_target
     )

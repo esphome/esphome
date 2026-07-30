@@ -2718,10 +2718,32 @@ SOURCE_SCHEMA = Any(
 )
 
 
-def rename_key(old_key, new_key):
+def rename_key(
+    old_key, new_key, *, removed_in: str | None = None, component: str | None = None
+):
+    """Rename a config key from ``old_key`` to ``new_key``.
+
+    Specifying both keys is an error; otherwise only one of the two would
+    survive the rename and the other would be dropped silently.
+
+    When ``removed_in`` is set, a deprecation warning is logged if the old key is
+    present. Pass ``component`` (the platform/component name) alongside
+    ``removed_in`` so the warning identifies where it originates.
+    """
+
     def validator(config: dict) -> dict:
         config = config.copy()
         if old_key in config:
+            has_at_most_one_key(old_key, new_key)(config)
+            if removed_in is not None:
+                prefix = f"[{component}] " if component else ""
+                _LOGGER.warning(
+                    "%s'%s' is deprecated, use '%s'. Will be removed in %s",
+                    prefix,
+                    old_key,
+                    new_key,
+                    removed_in,
+                )
             config[new_key] = config.pop(old_key)
         return config
 
