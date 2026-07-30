@@ -245,13 +245,20 @@ esp_err_t ensure_setup() {
 // Send one request envelope. With wait=true (default) block until the matching
 // response (or timeout); with wait=false return as soon as the frame is handed
 // to the transport (fire-and-forget, used by esp_now_send).
+//
+// `tail` is an optional second chunk written straight after `payload`. Callers
+// with a fixed header plus a bulk body (esp_now_send) pass the two separately
+// so they never need a build buffer of their own: both chunks are laid into the
+// request buffer here, under g_req_mutex, which keeps concurrent callers from
+// racing and saves a full copy of the body on every transmit.
 esp_err_t request(uint8_t opcode, const void *payload, uint16_t plen, void *ret, uint16_t ret_cap, uint16_t *ret_len,
-                  bool wait = true) {
+                  bool wait = true, const void *tail = nullptr, uint16_t tail_len = 0) {
   esp_err_t err = ensure_setup();
   if (err != ESP_OK)
     return err;
-  if (plen > ESP_NOW_HOSTED_MAX_PAYLOAD)
+  if (plen > ESP_NOW_HOSTED_MAX_PAYLOAD || tail_len > ESP_NOW_HOSTED_MAX_PAYLOAD - plen)
     return ESP_ERR_INVALID_SIZE;
+  const uint16_t total_len = static_cast<uint16_t>(plen + tail_len);
 
   if (xSemaphoreTake(g_req_mutex, portMAX_DELAY) != pdTRUE)
     return ESP_FAIL;
@@ -260,13 +267,15 @@ esp_err_t request(uint8_t opcode, const void *payload, uint16_t plen, void *ret,
   auto *req = reinterpret_cast<esp_now_hosted_req_t *>(buf);
   req->opcode = opcode;
   req->seq = ++g_seq;
-  req->payload_len = plen;
+  req->payload_len = total_len;
   if (plen != 0)
     memcpy(req->payload, payload, plen);
+  if (tail_len != 0)
+    memcpy(req->payload + plen, tail, tail_len);
   g_expect_seq = req->seq;
 
   xSemaphoreTake(g_resp_sem, 0);  // drain any stale signal before sending
-  err = esp_hosted_send_custom_data(ESP_NOW_HOSTED_MSG_REQ, buf, sizeof(esp_now_hosted_req_t) + plen);
+  err = esp_hosted_send_custom_data(ESP_NOW_HOSTED_MSG_REQ, buf, sizeof(esp_now_hosted_req_t) + total_len);
   if (err != ESP_OK) {
     xSemaphoreGive(g_req_mutex);
     return err;
@@ -404,26 +413,28 @@ esp_err_t esp_now_send(const uint8_t *peer_addr, const uint8_t *data, size_t len
     return ESP_ERR_ESPNOW_ARG;
   if (data == nullptr && len != 0)  // native esp_now_send treats this as an arg error
     return ESP_ERR_ESPNOW_ARG;
-  static uint8_t buf[sizeof(esp_now_hosted_send_req_t) + ESP_NOW_HOSTED_MAX_FRAME];  // guarded below
-  // esp_now_send is only called from the main loop, so a plain static build
-  // buffer is safe; request() then serializes the actual transmit.
-  auto *s = reinterpret_cast<esp_now_hosted_send_req_t *>(buf);
+  // Only the small fixed header is built here; the caller's frame goes over as
+  // the request tail, so request() lays both into its own buffer under
+  // g_req_mutex. esp_now_send is a public C symbol and may be called from any
+  // task, and a shared build buffer here would let two callers corrupt each
+  // other's frame. Passing the body through also drops a full-frame copy per
+  // transmit, on the path this shim exists to keep quick.
+  uint8_t hdr[sizeof(esp_now_hosted_send_req_t)];
+  auto *s = reinterpret_cast<esp_now_hosted_send_req_t *>(hdr);
   s->has_addr = peer_addr != nullptr ? 1 : 0;
   if (peer_addr != nullptr)
     memcpy(s->peer_addr, peer_addr, 6);
   else
     memset(s->peer_addr, 0, 6);
   s->data_len = static_cast<uint16_t>(len);
-  if (len != 0)
-    memcpy(s->data, data, len);
   // Fire-and-forget (wait=false): native esp_now_send returns once the frame is
   // queued, with the real TX result delivered later through the send callback.
   // The co-processor mirrors that — it acks enqueue immediately and reports the
   // outcome via the async SEND event (on_send -> on_send_report). Waiting for
   // the RPC RESP here would block the main loop for the full round-trip on
   // every transmit.
-  return request(ESP_NOW_HOSTED_OP_SEND, buf, static_cast<uint16_t>(sizeof(esp_now_hosted_send_req_t) + len), nullptr,
-                 0, nullptr, /*wait=*/false);
+  return request(ESP_NOW_HOSTED_OP_SEND, hdr, sizeof(hdr), nullptr, 0, nullptr, /*wait=*/false, data,
+                 static_cast<uint16_t>(len));
 }
 
 esp_err_t esp_now_set_pmk(const uint8_t *pmk) {
