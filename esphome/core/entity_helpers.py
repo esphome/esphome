@@ -9,13 +9,11 @@ from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_DEVICE_ID,
     CONF_DISABLED_BY_DEFAULT,
-    CONF_DISCOVERY,
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
     CONF_NAME,
-    CONF_STATE_TOPIC,
     CONF_UNIT_OF_MEASUREMENT,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
@@ -38,43 +36,21 @@ _OBJECT_ID_DOMAIN = "entity_object_ids"
 
 
 @dataclass
-class ObjectIdEntityInfo:
-    """How an entity is addressed by components that still use the object_id."""
+class ObjectIdEntity:
+    """An entity tracked by the sanitized object_id its name resolves to."""
 
     name: str
-    # True when the entity has no custom state_topic, so MQTT derives it from object_id
-    uses_default_state_topic: bool
-    # Per-entity MQTT discovery setting (discovery topics are derived from object_id)
-    discovery: bool
+    config: ConfigType
 
 
-@dataclass
-class ObjectIdConflict:
-    """Two entities on the same platform whose names sanitize to the same object_id."""
-
-    platform: str
-    object_id: str
-    first: ObjectIdEntityInfo
-    second: ObjectIdEntityInfo
-
-
-@dataclass
-class _ObjectIdData:
-    # (platform, sanitized object_id) -> first entity seen
-    keys: dict[tuple[str, str], ObjectIdEntityInfo] = field(default_factory=dict)
-    conflicts: list[ObjectIdConflict] = field(default_factory=list)
-
-
-def _get_object_id_data() -> _ObjectIdData:
-    if _OBJECT_ID_DOMAIN not in CORE.data:
-        CORE.data[_OBJECT_ID_DOMAIN] = _ObjectIdData()
-    return CORE.data[_OBJECT_ID_DOMAIN]
+def _get_object_id_registry() -> dict[tuple[str, str], list[ObjectIdEntity]]:
+    """(platform, sanitized object_id) -> entities whose names resolve to it."""
+    return CORE.data.setdefault(_OBJECT_ID_DOMAIN, {})
 
 
 def validate_no_object_id_conflicts(
-    component: str,
-    usage: str,
-    conflict_filter: Callable[[ObjectIdConflict, ConfigType], bool] | None = None,
+    reason: str,
+    conflict_filter: Callable[[list[ObjectIdEntity], ConfigType], bool] | None = None,
 ) -> Callable[[ConfigType], ConfigType]:
     """Create a final-validate step that rejects entities with colliding object_ids.
 
@@ -84,10 +60,10 @@ def validate_no_object_id_conflicts(
     reject those configs until they are migrated to raw names.
 
     Args:
-        component: The component name for the error message (e.g. "mqtt")
-        usage: What the component builds from the object_id (e.g. "default topics")
-        conflict_filter: Optional predicate receiving each conflict and the component
-            config; return False for conflicts the component is not affected by
+        reason: One sentence stating what the component builds from the object_id,
+            e.g. "mqtt builds default topics from the entity object_id"
+        conflict_filter: Optional predicate receiving the colliding entities and the
+            component config; return False when the component is not affected
 
     Returns:
         A validator function for use as (or within) FINAL_VALIDATE_SCHEMA
@@ -97,21 +73,20 @@ def validate_no_object_id_conflicts(
         # Skip in testing_mode, which is used for grouped component testing
         if CORE.testing_mode:
             return config
-        conflicts = _get_object_id_data().conflicts
-        if conflict_filter is not None:
-            conflicts = [c for c in conflicts if conflict_filter(c, config)]
+        conflicts = {
+            key: entities
+            for key, entities in _get_object_id_registry().items()
+            if len(entities) > 1
+            and (conflict_filter is None or conflict_filter(entities, config))
+        }
         if not conflicts:
             return config
-        lines = [
-            (
-                f"{component} builds {usage} from the entity object_id, which is the "
-                "name converted to ASCII, so these entities would conflict:"
-            )
-        ]
+        lines = [f"{reason}, so these entities would conflict:"]
         lines.extend(
-            f"  - {c.platform} entities '{c.first.name}' and '{c.second.name}' "
-            f"both convert to '{c.object_id}'"
-            for c in conflicts
+            f"  - {platform} entities "
+            + ", ".join(f"'{e.name}'" for e in entities)
+            + f" share the object_id '{object_id}'"
+            for (platform, object_id), entities in conflicts.items()
         )
         lines.append(
             "To fix: Add unique ASCII characters (e.g., '1', '2', or 'A', 'B') "
@@ -658,26 +633,15 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
                     f"{collision_msg}"
                 )
 
-        # MQTT default topics and prometheus labels are still built from the sanitized
-        # object_id, so names that only differ in characters lost during sanitizing
-        # collide there even though their entity keys differ. Track those conflicts;
-        # components that address entities by object_id reject them in final validation
-        # via validate_no_object_id_conflicts(). No device scoping here: MQTT topics
-        # do not include the device, so sub-device entities can conflict too.
+        # Components that still address entities by the sanitized object_id reject
+        # colliding names in final validation via validate_no_object_id_conflicts(),
+        # so track every entity by the object_id its name resolves to. No device
+        # scoping here: object_id consumers do not namespace by device, so
+        # sub-device entities can conflict too.
         object_id = sanitize(snake_case(base_name))
-        object_id_data = _get_object_id_data()
-        object_id_key = (platform, object_id)
-        entity_info = ObjectIdEntityInfo(
-            name=base_name,
-            uses_default_state_topic=CONF_STATE_TOPIC not in config,
-            discovery=config.get(CONF_DISCOVERY, True),
+        _get_object_id_registry().setdefault((platform, object_id), []).append(
+            ObjectIdEntity(base_name, config)
         )
-        if (first := object_id_data.keys.get(object_id_key)) is None:
-            object_id_data.keys[object_id_key] = entity_info
-        else:
-            object_id_data.conflicts.append(
-                ObjectIdConflict(platform, object_id, first, entity_info)
-            )
 
         # Store metadata about this entity
         entity_metadata: EntityMetadata = {

@@ -73,8 +73,8 @@ from esphome.helpers import (
         # =====================================================================
         # Edge cases
         # =====================================================================
-        # Empty name (hashes to FNV1_OFFSET_BASIS since no chars processed)
-        ("", FNV1_OFFSET_BASIS),
+        # Empty name (hashes to the FNV-1 offset basis since no chars processed)
+        ("", 0x811C9DC5),
         # Single character
         ("a", 0x050C5D7E),
         ("A", 0x050C5D7E),  # Same after lowercase
@@ -163,29 +163,15 @@ CLIMATE_RESTORE_STATE_VERSION = 0x848EA6AD  # From climate/climate.cpp
 @pytest.mark.parametrize(
     ("entity_name", "version", "device_id", "expected_key"),
     [
-        # =====================================================================
-        # Main device (device_id=0) - backward compatibility
-        # =====================================================================
-        # Fan restore state: object_id_hash ^ FAN_RESTORE_STATE_VERSION
-        ("Ceiling Fan", FAN_RESTORE_STATE_VERSION, 0, 0x640DEF00 ^ 0x71700ABA),
-        ("Living Room Fan", FAN_RESTORE_STATE_VERSION, 0, 0x2E2480E2 ^ 0x71700ABA),
-        # Climate restore state
-        ("HVAC", CLIMATE_RESTORE_STATE_VERSION, 0, 0xDD68438B ^ 0x848EA6AD),
-        ("Thermostat", CLIMATE_RESTORE_STATE_VERSION, 0, 0x30A5B7C6 ^ 0x848EA6AD),
-        # No version (version=0, key equals preference_hash)
+        # No version, main device (key equals the plain object_id hash)
         ("Test Sensor", 0, 0, 0x5D74FA46),
-        # =====================================================================
-        # Sub-devices (device_id != 0) - per-device preference uniqueness
-        # =====================================================================
-        # Same entity name on different devices should have different keys
-        ("Light", 0, 0, 0x735CF023),  # Main device
-        ("Light", 0, 1, 0x735CF023 ^ 1),  # Device 1
-        ("Light", 0, 2, 0x735CF023 ^ 2),  # Device 2
-        ("Light", 0, 0x12345678, 0x735CF023 ^ 0x12345678),  # Arbitrary device_id
-        # Same entity name with version on different devices
-        ("Fan", FAN_RESTORE_STATE_VERSION, 0, 0x468F6780 ^ 0x71700ABA),
-        ("Fan", FAN_RESTORE_STATE_VERSION, 1, (0x468F6780 ^ 1) ^ 0x71700ABA),
-        ("Fan", FAN_RESTORE_STATE_VERSION, 0xABCD, (0x468F6780 ^ 0xABCD) ^ 0x71700ABA),
+        ("Light", 0, 0, 0x735CF023),
+        # Restore state versions on the main device
+        ("Ceiling Fan", FAN_RESTORE_STATE_VERSION, 0, 0x157DE5BA),
+        ("HVAC", CLIMATE_RESTORE_STATE_VERSION, 0, 0x59E6E526),
+        # Sub-devices: same entity name on different devices gets different keys
+        ("Light", 0, 1, 0x735CF022),
+        ("Fan", FAN_RESTORE_STATE_VERSION, 0xABCD, 0x37FFC6F7),
     ],
 )
 def test_legacy_preference_key_computation(
@@ -197,11 +183,10 @@ def test_legacy_preference_key_computation(
     preference storage and the migration source keys on key-lookup backends.
     """
     actual_key = compute_legacy_preference_key(entity_name, version, device_id)
-    expected_key_masked = expected_key & 0xFFFFFFFF
 
-    assert actual_key == expected_key_masked, (
+    assert actual_key == expected_key, (
         f"Preference key for '{entity_name}' (version={version:#x}, device_id={device_id}) "
-        f"changed from {expected_key_masked:#010x} to {actual_key:#010x}. "
+        f"changed from {expected_key:#010x} to {actual_key:#010x}. "
         f"This will cause users to lose stored preferences!"
     )
 

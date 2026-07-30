@@ -3,7 +3,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
-#include <cinttypes>
 
 namespace esphome {
 
@@ -173,23 +172,6 @@ StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) c
   return StringRef(buf.data(), len);
 }
 
-#ifdef USE_PREFERENCE_KEY_LOOKUP
-void migrate_preference(ESPPreferenceObject &new_pref, size_t size, uint32_t old_key, uint32_t new_key) {
-  if (old_key == new_key)
-    return;
-  SmallBufferWithHeapFallback<64> buffer(size);
-  if (new_pref.load(buffer.get(), size))
-    return;  // Already migrated - never overwrite newer data with the old copy
-  // One-shot read by key: no backend is allocated for the old key, so boots with
-  // nothing to migrate (for example fresh installs) cost no heap
-  if (!global_preferences->load_from_key(old_key, buffer.get(), size))
-    return;  // No data stored under the old key, nothing to migrate
-  if (!new_pref.save(buffer.get(), size)) {
-    ESP_LOGW(TAG, "Preference migration %" PRIu32 " -> %" PRIu32 " failed", old_key, new_key);
-  }
-}
-#endif
-
 ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version) {
   // The old key hashed the sanitized object_id, so multiple entity names could collide on
   // one key and overwrite each other's stored preferences; the new key hashes the raw name.
@@ -198,7 +180,9 @@ ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t ve
 #ifdef USE_PREFERENCE_KEY_LOOKUP
   uint32_t new_key = this->preference_key_base_() ^ version;
   auto pref = global_preferences->make_preference(size, new_key);
-  migrate_preference(pref, size, old_key, new_key);
+  // All in-tree entity preferences fit the stack buffer, so migration never hits the heap
+  SmallBufferWithHeapFallback<64> buffer(size);
+  migrate_preference(pref, buffer.get(), size, old_key, new_key);
   return pref;
 #else
   // Slot-based backends keep the old key: it is only a validity tag on a positional slot,

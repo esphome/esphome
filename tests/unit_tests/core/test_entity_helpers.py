@@ -58,61 +58,16 @@ def restore_core_state() -> Generator[None, None, None]:
     CORE.friendly_name = original_friendly_name
 
 
-def test_with_entity_name() -> None:
-    """Test when entity has its own name - should use entity name."""
-    assert get_base_entity_name("Temperature Sensor", None) == "Temperature Sensor"
-    assert (
-        get_base_entity_name("Temperature Sensor", "Device Name")
-        == "Temperature Sensor"
-    )
-    # Even with device name, entity name takes precedence
-    assert (
-        get_base_entity_name("Temperature Sensor", "Device Name", "Sub Device")
-        == "Temperature Sensor"
-    )
-
-
-def test_empty_name_with_device_name() -> None:
-    """Test when entity has empty name and is on a sub-device - should use device name."""
-    # C++ behavior: when has_own_name is false and device is set, uses device->get_name()
-    assert get_base_entity_name("", "Friendly Device", "Sub Device 1") == "Sub Device 1"
-    assert get_base_entity_name("", None, "Test-Device_123") == "Test-Device_123"
-
-
-def test_empty_name_with_friendly_name() -> None:
-    """Test when entity has empty name and no device - should use friendly name."""
-    # C++ behavior: when has_own_name is false, uses App.get_friendly_name()
-    assert get_base_entity_name("", "Friendly Device") == "Friendly Device"
-    assert get_base_entity_name("", "Test-Device_123") == "Test-Device_123"
-
-
-def test_empty_name_no_friendly_name() -> None:
-    """Test when entity has empty name and no friendly name - should use device name."""
-    CORE.name = "device-name"
-    assert get_base_entity_name("", None) == "device-name"
-
-
-def test_edge_cases() -> None:
-    """Test edge cases."""
-    # Names are used as-is, no transformations
-    assert get_base_entity_name("Température", None) == "Température"
-    assert get_base_entity_name("测试", None) == "测试"
-
-    # Empty string with empty friendly name (empty friendly name is treated as None)
-    # Falls back to CORE.name
-    CORE.name = "device"
-    assert get_base_entity_name("", "") == "device"
-
-
-def test_priority_order() -> None:
+def test_get_base_entity_name_priority_order() -> None:
     """Test the priority order: entity name > device name > friendly name > CORE.name."""
     CORE.name = "core-device"
 
-    # 1. Entity name has highest priority
+    # 1. Entity name has highest priority and is used as-is, no transformations
     assert (
         get_base_entity_name("Entity Name", "Friendly Name", "Device Name")
         == "Entity Name"
     )
+    assert get_base_entity_name("Température", None) == "Température"
 
     # 2. Device name is next priority (when entity name is empty)
     assert get_base_entity_name("", "Friendly Name", "Device Name") == "Device Name"
@@ -120,8 +75,9 @@ def test_priority_order() -> None:
     # 3. Friendly name is next (when entity and device names are empty)
     assert get_base_entity_name("", "Friendly Name", None) == "Friendly Name"
 
-    # 4. CORE.name is last resort
+    # 4. CORE.name is last resort; an empty friendly name falls through to it
     assert get_base_entity_name("", None, None) == "core-device"
+    assert get_base_entity_name("", "") == "core-device"
 
 
 # Tests for setup_entity function
@@ -488,7 +444,10 @@ def test_object_id_conflict_mqtt_yaml_validation(
     assert result is None
 
     captured = capsys.readouterr()
-    assert "mqtt builds default topics from the entity object_id" in captured.out
+    assert (
+        "mqtt builds default topics and discovery topics from the entity object_id"
+        in captured.out
+    )
 
 
 def test_object_id_conflict_without_mqtt_yaml_validation(
@@ -668,13 +627,15 @@ def test_object_id_conflicts_rejected_by_component_validator() -> None:
     validator({CONF_NAME: "Датчик закрытия"})
 
     # A component that addresses entities by object_id must reject the config
-    component_validator = validate_no_object_id_conflicts("mqtt", "default topics")
+    component_validator = validate_no_object_id_conflicts(
+        "mqtt builds default topics from the entity object_id"
+    )
     with pytest.raises(
         Invalid,
         match=re.compile(
             r"mqtt builds default topics from the entity object_id.*"
-            r"sensor entities 'Датчик открытия' and 'Датчик закрытия'.*"
-            r"both convert to '_______________'.*"
+            r"sensor entities 'Датчик открытия', 'Датчик закрытия' "
+            r"share the object_id '_______________'.*"
             r"To fix: Add unique ASCII characters",
             re.DOTALL,
         ),
@@ -688,7 +649,9 @@ def test_object_id_conflicts_none_recorded() -> None:
     validator({CONF_NAME: "Temperature"})
     validator({CONF_NAME: "Humidity"})
 
-    component_validator = validate_no_object_id_conflicts("mqtt", "default topics")
+    component_validator = validate_no_object_id_conflicts(
+        "mqtt builds default topics from the entity object_id"
+    )
     config: dict = {}
     assert component_validator(config) is config
 
@@ -703,7 +666,9 @@ def test_object_id_conflicts_across_devices() -> None:
     validator({CONF_NAME: "Temperature", CONF_DEVICE_ID: ID("device1", type="Device")})
     validator({CONF_NAME: "Temperature", CONF_DEVICE_ID: ID("device2", type="Device")})
 
-    component_validator = validate_no_object_id_conflicts("prometheus", "metric labels")
+    component_validator = validate_no_object_id_conflicts(
+        "prometheus builds metric labels from the entity object_id"
+    )
     with pytest.raises(Invalid, match=r"prometheus builds metric labels"):
         component_validator({})
 
@@ -731,16 +696,16 @@ def test_object_id_conflicts_filter() -> None:
         }
     )
 
+    reason = "mqtt builds default topics from the entity object_id"
     component_validator = validate_no_object_id_conflicts(
-        "mqtt", "default topics", conflict_filter=_topics_conflict
+        reason, conflict_filter=_topics_conflict
     )
     config: dict = {CONF_DISCOVERY: True}
     assert component_validator(config) is config
 
     # Without the filter the same conflicts are fatal
-    unfiltered = validate_no_object_id_conflicts("mqtt", "default topics")
     with pytest.raises(Invalid, match=r"mqtt builds default topics"):
-        unfiltered({})
+        validate_no_object_id_conflicts(reason)({})
 
 
 def test_entity_duplicate_validator_same_name_no_enhanced_message() -> None:

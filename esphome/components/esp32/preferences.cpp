@@ -176,19 +176,19 @@ ESPPreferenceObject ESP32Preferences::make_preference(size_t length, uint32_t ty
     }
     s_open_err = ESP_OK;
   }
-  auto *pref = new ESP32PreferenceBackend();  // NOLINT(cppcoreguidelines-owning-memory)
-  pref->nvs_handle = this->nvs_handle;
-  pref->key = type;
-  pref->in_flash = true;
-
-  return ESPPreferenceObject(pref);
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+  return ESPPreferenceObject(new ESP32PreferenceBackend(this->make_backend_(type)));
 }
 
-bool ESP32Preferences::load_from_key(uint32_t type, uint8_t *data, size_t len) {
+ESP32PreferenceBackend ESP32Preferences::make_backend_(uint32_t type) const {
   ESP32PreferenceBackend backend;
   backend.nvs_handle = this->nvs_handle;
   backend.key = type;
-  backend.in_flash = true;
+  return backend;
+}
+
+bool ESP32Preferences::load_from_key(uint32_t type, uint8_t *data, size_t len) {
+  ESP32PreferenceBackend backend = this->make_backend_(type);
   return backend.load(data, len);
 }
 

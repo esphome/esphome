@@ -96,7 +96,7 @@ async def test_object_id_no_friendly_name_no_mac_suffix(
     OLD behavior:
     - is_object_id_dynamic_() returned false (mac suffix not enabled)
     - Used object_id_c_str_ which was pre-computed in Python
-    - Python used get_base_entity_object_id() with fallback to CORE.name
+    - Python used get_base_entity_name() with fallback to CORE.name
 
     Result: object_id = sanitize(snake_case(device_name))
     """

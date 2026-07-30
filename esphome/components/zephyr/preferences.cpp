@@ -58,11 +58,18 @@ void ZephyrPreferences::open() {
   ESP_LOGD(TAG, "Loaded %zu settings.", this->backends_.size());
 }
 
-ESPPreferenceObject ZephyrPreferences::make_preference(size_t length, uint32_t type) {
+ZephyrPreferenceBackend *ZephyrPreferences::find_backend_(uint32_t type) {
   for (auto *backend : this->backends_) {
     if (backend->get_type() == type) {
-      return ESPPreferenceObject(backend);
+      return backend;
     }
+  }
+  return nullptr;
+}
+
+ESPPreferenceObject ZephyrPreferences::make_preference(size_t length, uint32_t type) {
+  if (auto *backend = this->find_backend_(type)) {
+    return ESPPreferenceObject(backend);
   }
   auto *pref = new ZephyrPreferenceBackend(type);  // NOLINT(cppcoreguidelines-owning-memory)
   char key_buf[KEY_BUFFER_SIZE];
@@ -75,12 +82,8 @@ ESPPreferenceObject ZephyrPreferences::make_preference(size_t length, uint32_t t
 bool ZephyrPreferences::load_from_key(uint32_t type, uint8_t *data, size_t len) {
   // Stored settings are preloaded into backends_ at boot by settings_load_subtree(),
   // so a key with no registered backend has no stored data.
-  for (auto *backend : this->backends_) {
-    if (backend->get_type() == type) {
-      return backend->load(data, len);
-    }
-  }
-  return false;
+  auto *backend = this->find_backend_(type);
+  return backend != nullptr && backend->load(data, len);
 }
 
 bool ZephyrPreferences::sync() {

@@ -36,9 +36,10 @@ CONFIG_SCHEMA = cv.Schema(
     },
 ).extend(cv.COMPONENT_SCHEMA)
 
-# Prometheus metric labels are built from the sanitized object_id, so entity names
-# that only differ in characters lost during sanitizing would share a series
-FINAL_VALIDATE_SCHEMA = validate_no_object_id_conflicts("prometheus", "metric labels")
+FINAL_VALIDATE_SCHEMA = validate_no_object_id_conflicts(
+    "prometheus builds metric labels from the entity object_id, "
+    "which is the name converted to ASCII"
+)
 
 
 async def to_code(config):

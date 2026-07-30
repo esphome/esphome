@@ -62,10 +62,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import (
-    ObjectIdConflict,
-    validate_no_object_id_conflicts,
-)
+from esphome.core.entity_helpers import ObjectIdEntity, validate_no_object_id_conflicts
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
@@ -336,29 +333,29 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _topics_conflict(conflict: ObjectIdConflict, config: ConfigType) -> bool:
-    """Check whether both entities actually use an object_id-derived topic.
+def _topics_conflict(entities: list[ObjectIdEntity], config: ConfigType) -> bool:
+    """Check whether more than one entity actually uses an object_id-derived topic.
 
     A custom state_topic avoids the default state topic, and disabling discovery
-    (globally or on both entities) avoids the discovery config topic.
+    (globally or per entity) avoids the discovery config topic.
     """
-    state_topic_conflict = (
-        conflict.first.uses_default_state_topic
-        and conflict.second.uses_default_state_topic
+    default_state_topics = sum(
+        CONF_STATE_TOPIC not in entity.config for entity in entities
     )
-    discovery_conflict = (
-        bool(config.get(CONF_DISCOVERY, True))
-        and conflict.first.discovery
-        and conflict.second.discovery
+    if default_state_topics > 1:
+        return True
+    if not config[CONF_DISCOVERY]:
+        return False
+    discovery_entities = sum(
+        entity.config.get(CONF_DISCOVERY, True) for entity in entities
     )
-    return state_topic_conflict or discovery_conflict
+    return discovery_entities > 1
 
 
-# Default MQTT topics and discovery config topics are built from the sanitized
-# object_id, so entity names that only differ in characters lost during sanitizing
-# would share topics unless custom topics are configured
 FINAL_VALIDATE_SCHEMA = validate_no_object_id_conflicts(
-    "mqtt", "default topics", conflict_filter=_topics_conflict
+    "mqtt builds default topics and discovery topics from the entity object_id, "
+    "which is the name converted to ASCII",
+    conflict_filter=_topics_conflict,
 )
 
 

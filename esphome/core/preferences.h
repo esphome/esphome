@@ -44,3 +44,15 @@ using ESPPreferences = Preferences;
 extern ESPPreferences *global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 }  // namespace esphome
 #endif
+
+#ifdef USE_PREFERENCE_KEY_LOOKUP
+namespace esphome {
+/// Move preference data stored under old_key into new_pref (created for new_key) if the keys
+/// differ and new_pref has no data yet. scratch must hold at least size bytes.
+/// Returns true when scratch holds the entity's current data (loaded or just migrated).
+/// Only available on key-lookup preference backends; slot-based backends keep their old
+/// keys instead. See: https://github.com/esphome/backlog/issues/85
+bool migrate_preference(ESPPreferenceObject &new_pref, uint8_t *scratch, size_t size, uint32_t old_key,
+                        uint32_t new_key);
+}  // namespace esphome
+#endif  // USE_PREFERENCE_KEY_LOOKUP

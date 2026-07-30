@@ -70,19 +70,20 @@ void LibreTinyPreferences::open() {
 }
 
 ESPPreferenceObject LibreTinyPreferences::make_preference(size_t length, uint32_t type) {
-  auto *pref = new LibreTinyPreferenceBackend();  // NOLINT(cppcoreguidelines-owning-memory)
-  pref->db = &this->db;
-  pref->blob = &this->blob;
-  pref->key = type;
-
-  return ESPPreferenceObject(pref);
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+  return ESPPreferenceObject(new LibreTinyPreferenceBackend(this->make_backend_(type)));
 }
 
-bool LibreTinyPreferences::load_from_key(uint32_t type, uint8_t *data, size_t len) {
+LibreTinyPreferenceBackend LibreTinyPreferences::make_backend_(uint32_t type) {
   LibreTinyPreferenceBackend backend;
   backend.key = type;
   backend.db = &this->db;
   backend.blob = &this->blob;
+  return backend;
+}
+
+bool LibreTinyPreferences::load_from_key(uint32_t type, uint8_t *data, size_t len) {
+  LibreTinyPreferenceBackend backend = this->make_backend_(type);
   return backend.load(data, len);
 }
 

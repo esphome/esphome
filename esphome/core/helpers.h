@@ -1022,15 +1022,17 @@ template<size_t N> inline char *str_sanitize_to(char (&buffer)[N], const char *s
 /// contributes one underscore — this matches Python fnv1_hash_object_id() in esphome/helpers.py,
 /// which produced the hash for named entities. The per-byte form (default) matches the old
 /// runtime hash for entities without their own name. Do not change either behavior.
+/// Known limitation: Python's lower() is Unicode aware, so the rare code points it maps to a
+/// different number of characters or to ASCII (e.g. 'İ', the Kelvin sign) reconstruct wrong;
+/// such names skip migration once and fall back to their defaults.
 inline uint32_t fnv1_hash_object_id(const char *str, size_t len, bool per_code_point = false) {
   uint32_t hash = FNV1_OFFSET_BASIS;
   for (size_t i = 0; i < len; i++) {
-    auto c = static_cast<uint8_t>(str[i]);
-    if (per_code_point && (c & 0xC0) == 0x80)
+    if (per_code_point && (static_cast<uint8_t>(str[i]) & 0xC0) == 0x80)
       continue;  // UTF-8 continuation byte, already counted via its lead byte
     hash *= FNV1_PRIME;
     // Apply snake_case (space->underscore, uppercase->lowercase) then sanitize
-    hash ^= static_cast<uint8_t>(to_sanitized_char(to_snake_case_char(static_cast<char>(c))));
+    hash ^= static_cast<uint8_t>(to_sanitized_char(to_snake_case_char(str[i])));
   }
   return hash;
 }
