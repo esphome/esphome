@@ -87,8 +87,7 @@ void SFA40Component::dump_config() {
   switch (this->protocol_version_) {
     case ProtocolVersion::PRODUCTION:
       ESP_LOGCONFIG(TAG, "  Protocol: production");
-      ESP_LOGCONFIG(TAG, "  Serial Number: %012llX",
-                    (unsigned long long) this->serial_number_);
+      ESP_LOGCONFIG(TAG, "  Serial Number: %012llX", (unsigned long long) this->serial_number_);
       break;
     case ProtocolVersion::PROTOTYPE:
       ESP_LOGCONFIG(TAG, "  Protocol: prototype (B4)");
