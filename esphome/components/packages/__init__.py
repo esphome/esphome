@@ -269,10 +269,12 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
             return {CONF_PACKAGES: get_packages(files)}
         except cv.Invalid as err:
             if not revert():
-                # The checkout is unchanged, so a retry would fail identically.
+                # The pre-update content is out of reach (lock timeout, the
+                # checkout moved, or the reset failed; see the log), so a
+                # retry could not see it.
                 raise cv.Invalid(
-                    f"Failed to load packages and could not lock the repository "
-                    f"cache to revert it. {err}",
+                    f"Failed to load packages and could not revert the cached "
+                    f"checkout to retry. {err}",
                     path=err.path,
                 ) from err
         try:

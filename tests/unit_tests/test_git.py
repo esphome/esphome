@@ -1785,6 +1785,48 @@ def test_revert_skips_on_contended_lock(
     assert any("skipping revert" in r.getMessage() for r in caplog.records)
 
 
+def test_revert_skips_when_checkout_moved(
+    tmp_path: Path, mock_run_git_command: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """revert() only undoes this process's own update; when another process
+    refreshed the entry in the meantime it skips instead of rolling the
+    peer's newer checkout backwards."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+    _setup_old_repo(repo_dir)
+
+    # Pre-update SHA, post-update SHA, then a peer's SHA at revert time.
+    shas = iter(["old_sha", "new_sha", "peer_sha"])
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "rev-parse":
+            return next(shas)
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    _, revert = git.clone_or_update(
+        url=url, ref=None, refresh=TimePeriodSeconds(days=1), domain=domain
+    )
+    assert revert is not None
+
+    with caplog.at_level(logging.WARNING):
+        assert revert() is False
+
+    resets = [
+        c[0][0]
+        for c in mock_run_git_command.call_args_list
+        if _get_git_command_type(c[0][0]) == "reset" and c[0][0][-1] == "old_sha"
+    ]
+    assert resets == []
+    assert any("checkout moved" in r.getMessage() for r in caplog.records)
+
+
 def test_revert_returns_false_when_reset_fails(
     tmp_path: Path, mock_run_git_command: Mock, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -2191,7 +2233,8 @@ def test_refresh_picks_up_new_remote_commits(
     # Verify the refresh sequence: rev-parse -> stash -> fetch (depth=1) -> reset
     call_list = mock_run_git_command.call_args_list
     cmd_sequence = [_get_git_command_type(c[0][0]) for c in call_list]
-    assert cmd_sequence == ["rev-parse", "stash", "fetch", "reset"]
+    # The trailing rev-parse records the post-update SHA for revert().
+    assert cmd_sequence == ["rev-parse", "stash", "fetch", "reset", "rev-parse"]
 
     fetch_cmd = call_list[2][0][0]
     assert "--depth=1" in fetch_cmd

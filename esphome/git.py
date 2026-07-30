@@ -655,6 +655,12 @@ def _clone_or_update_locked(
                 # refresh window would silently accept on the next run.
                 if init_submodules:
                     update_submodules(repo_dir, key)
+
+                # Recorded so revert() can tell whether the checkout is
+                # still the one this update produced.
+                new_sha = run_git_command(
+                    ["git", "rev-parse", "HEAD"], git_dir=repo_dir
+                )
             except GitException as err:
                 # Repository is in a broken state or update failed
                 # Only attempt recovery once to prevent infinite recursion
@@ -695,9 +701,11 @@ def _clone_or_update_locked(
             def revert() -> bool:
                 """Reset the checkout to the pre-update SHA.
 
-                Returns False when the revert was skipped because the cache
-                entry lock could not be acquired in time; the checkout is
-                then unchanged and a retry would see the same content.
+                Returns False when the revert did not happen: the cache
+                entry lock could not be acquired in time, the checkout
+                moved since this update (another process refreshed it), or
+                the reset itself failed. A retry cannot reach the
+                pre-update content then.
                 """
                 _LOGGER.info("Reverting changes to %s -> %s", safe_key, old_sha)
                 if lock is None:
@@ -720,6 +728,19 @@ def _clone_or_update_locked(
                     )
                     return False
                 try:
+                    # Anything can happen between the wrapper releasing the
+                    # lock and revert() re-acquiring it; only undo this
+                    # process's own update, never a peer's newer refresh.
+                    head = run_git_command(
+                        ["git", "rev-parse", "HEAD"], git_dir=repo_dir
+                    )
+                    if head != new_sha:
+                        _LOGGER.warning(
+                            "Not reverting %s: the checkout moved since this "
+                            "update (another process refreshed it)",
+                            safe_key,
+                        )
+                        return False
                     run_git_command(
                         ["git", "reset", "--hard", old_sha], git_dir=repo_dir
                     )

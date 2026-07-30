@@ -1287,7 +1287,7 @@ def test_remote_packages_skipped_revert_does_not_retry(
             }
         }
     }
-    with pytest.raises(cv.Invalid, match="could not lock the repository cache"):
+    with pytest.raises(cv.Invalid, match="could not revert the cached checkout"):
         packages_pass(config)
 
     assert mock_revert.call_count == 1
