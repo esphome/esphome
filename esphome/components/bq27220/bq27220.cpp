@@ -41,10 +41,10 @@ void BQ27220Component::setup() {
 // `sentinel_ffff` publishes NAN when the gauge reports 0xFFFF (not applicable).
 namespace {
 struct SensorEntry {
-  uint8_t reg;
   sensor::Sensor *BQ27220Component::*sensor;
   float scale;
   float offset;
+  uint8_t reg;
   bool is_signed;
   bool sentinel_ffff;
 };
@@ -54,17 +54,17 @@ void BQ27220Component::update() {
   // Defined here (inside a member function) so the pointers to the protected
   // sensor members can be formed. Still compile-time constant, so it lives in flash.
   static constexpr SensorEntry SENSOR_ENTRIES[] = {
-      {BQ27220_REG_VOLTAGE, &BQ27220Component::voltage_sensor_, 0.001f, 0.0f, false, false},  // mV → V
-      {BQ27220_REG_CURRENT, &BQ27220Component::current_sensor_, 0.001f, 0.0f, true, false},   // signed mA → A (§2.8)
-      {BQ27220_REG_STATE_OF_CHARGE, &BQ27220Component::battery_level_sensor_, 1.0f, 0.0f, false, false},  // %
-      {BQ27220_REG_TEMPERATURE, &BQ27220Component::temperature_sensor_, 0.1f, -273.15f, false, false},  // 0.1K → °C
-      {BQ27220_REG_REMAINING_CAPACITY, &BQ27220Component::remaining_capacity_sensor_, 0.001f, 0.0f, false,
+      {&BQ27220Component::voltage_sensor_, 0.001f, 0.0f, BQ27220_REG_VOLTAGE, false, false},  // mV → V
+      {&BQ27220Component::current_sensor_, 0.001f, 0.0f, BQ27220_REG_CURRENT, true, false},   // signed mA → A (§2.8)
+      {&BQ27220Component::battery_level_sensor_, 1.0f, 0.0f, BQ27220_REG_STATE_OF_CHARGE, false, false},  // %
+      {&BQ27220Component::temperature_sensor_, 0.1f, -273.15f, BQ27220_REG_TEMPERATURE, false, false},  // 0.1K → °C
+      {&BQ27220Component::remaining_capacity_sensor_, 0.001f, 0.0f, BQ27220_REG_REMAINING_CAPACITY, false,
        false},  // mAh → Ah
-      {BQ27220_REG_FULL_CHARGE_CAPACITY, &BQ27220Component::full_charge_capacity_sensor_, 0.001f, 0.0f, false,
+      {&BQ27220Component::full_charge_capacity_sensor_, 0.001f, 0.0f, BQ27220_REG_FULL_CHARGE_CAPACITY, false,
        false},  // mAh → Ah
-      {BQ27220_REG_TIME_TO_EMPTY, &BQ27220Component::time_to_empty_sensor_, 1.0f, 0.0f, false,
+      {&BQ27220Component::time_to_empty_sensor_, 1.0f, 0.0f, BQ27220_REG_TIME_TO_EMPTY, false,
        true},  // min (0xFFFF=N/A)
-      {BQ27220_REG_STATE_OF_HEALTH, &BQ27220Component::state_of_health_sensor_, 1.0f, 0.0f, false, false},  // 0–100%
+      {&BQ27220Component::state_of_health_sensor_, 1.0f, 0.0f, BQ27220_REG_STATE_OF_HEALTH, false, false},  // 0–100%
   };
 
   bool success = true;
