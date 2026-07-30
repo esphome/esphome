@@ -72,6 +72,17 @@ ESPPreferenceObject ZephyrPreferences::make_preference(size_t length, uint32_t t
   return ESPPreferenceObject(pref);
 }
 
+bool ZephyrPreferences::load_from_key(uint32_t type, uint8_t *data, size_t len) {
+  // Stored settings are preloaded into backends_ at boot by settings_load_subtree(),
+  // so a key with no registered backend has no stored data.
+  for (auto *backend : this->backends_) {
+    if (backend->get_type() == type) {
+      return backend->load(data, len);
+    }
+  }
+  return false;
+}
+
 bool ZephyrPreferences::sync() {
   ESP_LOGD(TAG, "Save settings");
   int err = settings_save();

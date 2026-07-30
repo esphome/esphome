@@ -27,6 +27,10 @@ class HostPreferences final : public PreferencesMixin<HostPreferences> {
     return true;
   }
 
+  /// One-shot read of a stored preference by key, without allocating a backend.
+  /// Used for preference key migration; see https://github.com/esphome/backlog/issues/85
+  bool load_from_key(uint32_t type, uint8_t *data, size_t len) { return this->load(type, data, len); }
+
   bool load(uint32_t key, uint8_t *data, size_t len) {
     if (len > 255)
       return false;

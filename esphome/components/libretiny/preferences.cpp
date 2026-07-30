@@ -78,6 +78,14 @@ ESPPreferenceObject LibreTinyPreferences::make_preference(size_t length, uint32_
   return ESPPreferenceObject(pref);
 }
 
+bool LibreTinyPreferences::load_from_key(uint32_t type, uint8_t *data, size_t len) {
+  LibreTinyPreferenceBackend backend;
+  backend.key = type;
+  backend.db = &this->db;
+  backend.blob = &this->blob;
+  return backend.load(data, len);
+}
+
 bool LibreTinyPreferences::sync() {
   if (s_pending_save.empty())
     return true;

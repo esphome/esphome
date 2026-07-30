@@ -3,6 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
+#include <cinttypes>
 
 namespace esphome {
 
@@ -179,9 +180,12 @@ void migrate_preference(ESPPreferenceObject &new_pref, size_t size, uint32_t old
   SmallBufferWithHeapFallback<64> buffer(size);
   if (new_pref.load(buffer.get(), size))
     return;  // Already migrated - never overwrite newer data with the old copy
-  auto old_pref = global_preferences->make_preference(size, old_key);
-  if (old_pref.load(buffer.get(), size)) {
-    new_pref.save(buffer.get(), size);
+  // One-shot read by key: no backend is allocated for the old key, so boots with
+  // nothing to migrate (for example fresh installs) cost no heap
+  if (!global_preferences->load_from_key(old_key, buffer.get(), size))
+    return;  // No data stored under the old key, nothing to migrate
+  if (!new_pref.save(buffer.get(), size)) {
+    ESP_LOGW(TAG, "Preference migration %" PRIu32 " -> %" PRIu32 " failed", old_key, new_key);
   }
 }
 #endif

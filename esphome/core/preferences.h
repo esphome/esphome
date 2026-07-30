@@ -23,6 +23,7 @@ struct Preferences : public PreferencesMixin<Preferences> {
   using PreferencesMixin<Preferences>::make_preference;
   ESPPreferenceObject make_preference(size_t, uint32_t, bool) { return {}; }
   ESPPreferenceObject make_preference(size_t, uint32_t) { return {}; }
+  bool load_from_key(uint32_t, uint8_t *, size_t) { return false; }
 
   /**
    * Commit pending writes to flash.

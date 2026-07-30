@@ -23,6 +23,9 @@ class ESP32Preferences final : public PreferencesMixin<ESP32Preferences> {
   ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash);
   // Two-argument form defaults to NVS (flash) storage, preserving historic ESP32 behavior.
   ESPPreferenceObject make_preference(size_t length, uint32_t type);
+  /// One-shot read of a stored preference by key, without allocating a backend.
+  /// Used for preference key migration; see https://github.com/esphome/backlog/issues/85
+  bool load_from_key(uint32_t type, uint8_t *data, size_t len);
   bool sync();
   bool reset();
 

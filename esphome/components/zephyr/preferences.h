@@ -16,6 +16,9 @@ class ZephyrPreferences final : public PreferencesMixin<ZephyrPreferences> {
     return this->make_preference(length, type);
   }
   ESPPreferenceObject make_preference(size_t length, uint32_t type);
+  /// One-shot read of a stored preference by key, without allocating or registering a backend.
+  /// Used for preference key migration; see https://github.com/esphome/backlog/issues/85
+  bool load_from_key(uint32_t type, uint8_t *data, size_t len);
   bool sync();
   bool reset();
 

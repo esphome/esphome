@@ -184,6 +184,14 @@ ESPPreferenceObject ESP32Preferences::make_preference(size_t length, uint32_t ty
   return ESPPreferenceObject(pref);
 }
 
+bool ESP32Preferences::load_from_key(uint32_t type, uint8_t *data, size_t len) {
+  ESP32PreferenceBackend backend;
+  backend.nvs_handle = this->nvs_handle;
+  backend.key = type;
+  backend.in_flash = true;
+  return backend.load(data, len);
+}
+
 #ifdef USE_ESP32_RTC_PREFERENCES_STORAGE
 ESPPreferenceObject ESP32Preferences::make_rtc_preference_(size_t length, uint32_t type) {
   const uint32_t length_words = rtc_pref_bytes_to_words(length);

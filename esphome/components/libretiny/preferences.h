@@ -16,6 +16,9 @@ class LibreTinyPreferences final : public PreferencesMixin<LibreTinyPreferences>
     return this->make_preference(length, type);
   }
   ESPPreferenceObject make_preference(size_t length, uint32_t type);
+  /// One-shot read of a stored preference by key, without allocating a backend.
+  /// Used for preference key migration; see https://github.com/esphome/backlog/issues/85
+  bool load_from_key(uint32_t type, uint8_t *data, size_t len);
   bool sync();
   bool reset();
 
