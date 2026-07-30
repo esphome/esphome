@@ -14,11 +14,20 @@ static const uint16_t SFA40_CMD_READ_MEASURE_B4 = 0xE06D;
 static const uint16_t SFA40_CMD_READ_ID_PROD = 0x02CE;
 static const uint16_t SFA40_CMD_READ_ID_B4 = 0x0559;
 
+static uint64_t raw_to_serial(const uint16_t *raw, size_t words) {
+  uint64_t serial = 0;
+  for (size_t i = 0; i < words; i++) {
+    serial = (serial << 16) | raw[i];
+  }
+  return serial;
+}
+
 static void raw_to_marking(const uint16_t *raw, size_t words, char *out) {
   for (size_t i = 0; i < words; i++) {
     out[i * 2] = static_cast<char>(raw[i] >> 8);
     out[i * 2 + 1] = static_cast<char>(raw[i] & 0xFF);
   }
+  out[words * 2] = '\0';
 }
 
 void SFA40Component::setup() {
@@ -45,7 +54,7 @@ bool SFA40Component::detect_protocol_() {
   uint16_t raw[5] = {};
   if (this->get_register(SFA40_CMD_READ_ID_PROD, raw, 3, 5)) {
     this->protocol_version_ = ProtocolVersion::PRODUCTION;
-    raw_to_marking(raw, 3, this->device_marking_);
+    this->serial_number_ = raw_to_serial(raw, 3);
     ESP_LOGD(TAG, "Detected production SFA40");
     return true;
   }
@@ -75,16 +84,27 @@ void SFA40Component::dump_config() {
     }
   }
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "  Protocol: %s",
-                this->protocol_version_ == ProtocolVersion::PRODUCTION ? "production" : "prototype (B4)");
-  ESP_LOGCONFIG(TAG, "  Marking: '%s'", this->device_marking_);
+  switch (this->protocol_version_) {
+    case ProtocolVersion::PRODUCTION:
+      ESP_LOGCONFIG(TAG, "  Protocol: production");
+      ESP_LOGCONFIG(TAG, "  Serial Number: %012llX",
+                    (unsigned long long) this->serial_number_);
+      break;
+    case ProtocolVersion::PROTOTYPE:
+      ESP_LOGCONFIG(TAG, "  Protocol: prototype (B4)");
+      ESP_LOGCONFIG(TAG, "  Marking: '%s'", this->device_marking_);
+      break;
+    default:
+      ESP_LOGCONFIG(TAG, "  Protocol: (detecting...)");
+      break;
+  }
   LOG_SENSOR("  ", "Formaldehyde", this->formaldehyde_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
 void SFA40Component::update() {
-  if (!this->initialized_) {
+  if (!this->initialized_ || this->protocol_version_ == ProtocolVersion::UNKNOWN) {
     return;
   }
 
@@ -106,31 +126,29 @@ void SFA40Component::update() {
     }
 
     const uint8_t status = raw[3] >> 8;
-    ESP_LOGD(TAG, "raw[3]=0x%04X status_byte=0x%02X wait_for_ready=%s", raw[3], status,
-             this->wait_for_ready_ ? "true" : "false");
-    if (this->wait_for_ready_) {
-      if (status & 0x01) {
-        ESP_LOGD(TAG, "Skipping publish: status bit 0 set");
-      }
-      if (status & 0x02) {
-        ESP_LOGD(TAG, "Skipping publish: status bit 1 set");
-      }
-    }
-    if (this->wait_for_ready_ && (status & 0x03)) {
-      this->status_set_warning();
-      return;
-    }
+    const bool hcho_ready = (status & 0x03) == 0;
 
     if (this->formaldehyde_sensor_ != nullptr) {
-      this->formaldehyde_sensor_->publish_state(static_cast<float>(raw[0]) / 10.0f);
+      if (!this->wait_for_ready_ || hcho_ready) {
+        this->formaldehyde_sensor_->publish_state(static_cast<float>(raw[0]) / 10.0f);
+      } else {
+        ESP_LOGD(TAG, "Skipping formaldehyde publish: sensor warming up (status=0x%02X)", status);
+      }
     }
+
     if (this->humidity_sensor_ != nullptr) {
-      this->humidity_sensor_->publish_state(125.0f * static_cast<float>(raw[1]) / 65535.0f - 6.0f);
+      this->humidity_sensor_->publish_state(clamp(125.0f * static_cast<float>(raw[1]) / 65535.0f - 6.0f, 0.0f, 100.0f));
     }
+
     if (this->temperature_sensor_ != nullptr) {
       this->temperature_sensor_->publish_state(175.0f * (static_cast<float>(raw[2]) / 65535.0f) - 45.0f);
     }
-    this->status_clear_warning();
+
+    if (this->wait_for_ready_ && !hcho_ready) {
+      this->status_set_warning();
+    } else {
+      this->status_clear_warning();
+    }
   });
 }
 
