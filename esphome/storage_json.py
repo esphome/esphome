@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_DISABLED,
     CONF_MDNS,
     KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     Toolchain,
@@ -71,14 +72,10 @@ def _to_path_if_not_none(value: str | None) -> Path | None:
 class StorageJSON:
     """Persisted device metadata sidecar.
 
-    Used by:
-    - esphome.dashboard (legacy dashboard)
-    - device-builder (esphome/device-builder) — reads/writes the same
-      JSON file as the legacy dashboard so a single config_dir can be
-      shared between the two during the transition. The schema
-      (``storage_version``, field names, types) must stay backwards
-      compatible — coordinate with the device-builder team before
-      adding required fields or changing semantics of existing ones.
+    Used by device-builder (esphome/device-builder), which reads/writes this
+    JSON file. The schema (``storage_version``, field names, types) must stay
+    backwards compatible — coordinate with the device-builder team before
+    adding required fields or changing semantics of existing ones.
     """
 
     def __init__(
@@ -136,7 +133,7 @@ class StorageJSON:
         self.no_mdns = no_mdns
         # The framework used to compile the firmware
         self.framework = framework
-        # The core platform of this firmware. Like "esp32", "rp2040", "host" etc.
+        # The core platform of this firmware. Like "esp32", "rp2", "host" etc.
         self.core_platform = core_platform
         # The toolchain used for the build ("platformio" / "esp-idf")
         self.toolchain = toolchain
@@ -183,6 +180,8 @@ class StorageJSON:
 
             hardware = esp32.get_esp32_variant(esph)
             framework_version = str(esp32.idf_version())
+        elif esph.is_nrf52:
+            framework_version = str(esph.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
         return StorageJSON(
             storage_version=1,
             name=esph.name,
@@ -338,6 +337,19 @@ class StorageJSON:
                         f"Please clean the build files and recompile."
                     ) from err
             CORE.data[KEY_ESP32] = esp32_data
+        elif target_platform == const.PLATFORM_NRF52 and self.framework_version:
+            import esphome.config_validation as cv
+
+            try:
+                CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
+                    self.framework_version
+                )
+            except ValueError as err:
+                raise EsphomeError(
+                    f"Could not parse the framework version "
+                    f"{self.framework_version!r} from {storage_path()}. "
+                    f"Please clean the build files and recompile."
+                ) from err
 
     def __eq__(self, o) -> bool:
         return isinstance(o, StorageJSON) and self.as_dict() == o.as_dict()

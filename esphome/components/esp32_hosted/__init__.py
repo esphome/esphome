@@ -18,6 +18,8 @@ from esphome.const import (
 from esphome.cpp_generator import add_define
 
 CODEOWNERS = ["@swoboda1337"]
+# esp32_ble raises the task watchdog around the remote BT controller bring-up
+AUTO_LOAD = ["watchdog"]
 
 CONF_ACTIVE_HIGH = "active_high"
 CONF_BUS_WIDTH = "bus_width"

@@ -1,4 +1,4 @@
-from esphome import automation
+from esphome import automation, preferences
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_NUM_ATTEMPTS,
     CONF_REBOOT_TIMEOUT,
     CONF_SAFE_MODE,
+    CONF_STORAGE,
     KEY_PAST_SAFE_MODE,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -42,6 +43,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_REBOOT_TIMEOUT, default="5min"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_ON_SAFE_MODE): automation.validate_automation({}),
+            **preferences.storage_schema(),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _remove_id_if_disabled,
@@ -87,6 +89,7 @@ async def to_code(config):
             config[CONF_NUM_ATTEMPTS],
             config[CONF_REBOOT_TIMEOUT],
             config[CONF_BOOT_IS_GOOD_AFTER],
+            preferences.is_in_flash(config[CONF_STORAGE]),
         )
         cg.add(RawExpression(f"if ({condition}) return"))
 

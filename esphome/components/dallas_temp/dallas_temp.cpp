@@ -138,7 +138,7 @@ float DallasTemperatureSensor::get_temp_c_() {
     if (this->scratch_pad_[7] == 0) {
       return NAN;
     }
-    return (temp >> 1) + (this->scratch_pad_[7] - this->scratch_pad_[6]) / float(this->scratch_pad_[7]) - 0.25;
+    return (temp >> 1) + (this->scratch_pad_[7] - this->scratch_pad_[6]) / float(this->scratch_pad_[7]) - 0.25f;
   }
   switch (this->resolution_) {
     case 9:

@@ -5,7 +5,7 @@ from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_DURATION, CONF_ID, CONF_THRESHOLD, CONF_TYPE
 
-from .. import CONF_MOTION_ID, MotionComponent, motion_ns
+from .. import CONF_MOTION_ID, MotionComponent, check_update_interval, motion_ns
 
 DEPENDENCIES = ["motion"]
 
@@ -61,10 +61,23 @@ CONFIG_SCHEMA = cv.typed_schema(
     {
         "face_up": _binary_sensor_schema(30.0, _angle_threshold),
         "face_down": _binary_sensor_schema(30.0, _angle_threshold),
-        "free_fall": _binary_sensor_schema(0.15, cv.float_, "100ms"),
-        "moving": _binary_sensor_schema(0.05, cv.float_, "2s"),
+        "free_fall": _binary_sensor_schema(0.15, cv.positive_float, "100ms"),
+        "moving": _binary_sensor_schema(0.05, cv.positive_float, "2s"),
     }
 )
+
+# These types detect brief motion events, so they need frequent samples;
+# face_up/face_down track a steady orientation and aren't time-sensitive.
+_FAST_DETECTION_TYPES = ("free_fall", "moving")
+
+
+def _final_validate(config: dict) -> None:
+    sensor_type = config[CONF_TYPE]
+    if sensor_type in _FAST_DETECTION_TYPES:
+        check_update_interval(config[CONF_MOTION_ID], sensor_type.replace("_", "-"))
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):

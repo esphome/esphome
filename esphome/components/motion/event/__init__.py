@@ -3,7 +3,7 @@ from esphome.components import event
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_THRESHOLD
 
-from .. import CONF_MOTION_ID, MotionComponent, motion_ns
+from .. import CONF_MOTION_ID, MotionComponent, check_update_interval, motion_ns
 
 DEPENDENCIES = ["motion"]
 
@@ -18,7 +18,7 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.GenerateID(CONF_MOTION_ID): cv.use_id(MotionComponent),
-            cv.Optional(CONF_THRESHOLD, default=0.5): cv.float_,
+            cv.Optional(CONF_THRESHOLD, default=0.5): cv.positive_float,
             cv.Optional(
                 CONF_COOLDOWN, default="500ms"
             ): cv.positive_time_period_milliseconds,
@@ -26,6 +26,13 @@ CONFIG_SCHEMA = (
     )
     .extend(cv.COMPONENT_SCHEMA)
 )
+
+
+def _final_validate(config: dict) -> None:
+    check_update_interval(config[CONF_MOTION_ID], "shake")
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
