@@ -2,7 +2,9 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
+    CONF_FRAMEWORK,
     CONF_MAC_ADDRESS,
+    CONF_SOURCE,
     KEY_FRAMEWORK_VERSION,
     ThreadModel,
 )
@@ -18,6 +20,7 @@ _VALID_BOARDS = [_DEFAULT_BOARD]
 VARIANT_NAME = ZEPHYR_VARIANT_NATIVE_SIM
 VARIANT = ZephyrVariant(
     sdk=MAINLINE,
+    sdk_name="zephyr",
     boards=_VALID_BOARDS,
     valid_toolchains=("sdk-zephyr",),
 )
@@ -36,10 +39,18 @@ def config_schema(config: ConfigType) -> ConfigType:
             f"Supported board: {_DEFAULT_BOARD!r}",
             [CONF_BOARD],
         )
-    version_str, framework_ver = resolve_framework_version(
+    version_str, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "native_sim", config, "native_sim support"
     )
-    set_core_data(VARIANT_NAME, board, "", framework_ver, config)
+    set_core_data(
+        VARIANT_NAME,
+        board,
+        "",
+        framework_ver,
+        config,
+        framework_type=sdk_name,
+        sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
+    )
     config[KEY_FRAMEWORK_VERSION] = version_str
     return config
 

@@ -1,5 +1,12 @@
 import esphome.codegen as cg
-from esphome.const import CONF_BOARD, KEY_FRAMEWORK_VERSION, ThreadModel, Toolchain
+from esphome.const import (
+    CONF_BOARD,
+    CONF_FRAMEWORK,
+    CONF_SOURCE,
+    KEY_FRAMEWORK_VERSION,
+    ThreadModel,
+    Toolchain,
+)
 from esphome.types import ConfigType
 
 from ..const import BOOTLOADER_MCUBOOT, ZEPHYR_VARIANT_ESP32_H2
@@ -25,6 +32,7 @@ _UART_VALID_PINS = frozenset(
 VARIANT_NAME = ZEPHYR_VARIANT_ESP32_H2
 VARIANT = ZephyrVariant(
     sdk=MAINLINE,
+    sdk_name="zephyr",
     family="esp32",
     valid_toolchains=(Toolchain.SDK_ZEPHYR,),
     toolchain="riscv64-zephyr-elf",
@@ -48,11 +56,17 @@ def config_schema(config: ConfigType) -> ConfigType:
     if CONF_BOARD not in config:
         config[CONF_BOARD] = _DEFAULT_BOARD
     config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
-    version_str, framework_ver = resolve_framework_version(
+    version_str, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "esp32_h2", config, "mainline ESP32-H2 support"
     )
     set_core_data(
-        VARIANT_NAME, config[CONF_BOARD], BOOTLOADER_MCUBOOT, framework_ver, config
+        VARIANT_NAME,
+        config[CONF_BOARD],
+        BOOTLOADER_MCUBOOT,
+        framework_ver,
+        config,
+        framework_type=sdk_name,
+        sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
     )
     config[KEY_FRAMEWORK_VERSION] = version_str
     return config

@@ -32,6 +32,7 @@ RESPONSE_UPDATE_END_OK = 0x45
 RESPONSE_SUPPORTS_COMPRESSION = 0x46
 RESPONSE_CHUNK_OK = 0x47
 RESPONSE_FEATURE_FLAGS = 0x48
+RESPONSE_BIN_SHA256_OK = 0x49
 
 RESPONSE_ERROR_MAGIC = 0x80
 RESPONSE_ERROR_UPDATE_PREPARE = 0x81
@@ -53,6 +54,8 @@ RESPONSE_ERROR_PARTITION_TABLE_UPDATE = 0x90
 RESPONSE_ERROR_BOOTLOADER_VERIFY = 0x91
 RESPONSE_ERROR_BOOTLOADER_UPDATE = 0x92
 RESPONSE_ERROR_VERSION_DOWNGRADE = 0x93
+RESPONSE_ERROR_SHA256_MISMATCH = 0x94
+RESPONSE_ERROR_SHA256_REQUIRED = 0x95
 RESPONSE_ERROR_UNKNOWN = 0xFF
 
 OTA_VERSION_1_0 = 1
@@ -63,8 +66,10 @@ MAGIC_BYTES = [0x6C, 0x26, 0xF7, 0x5C, 0x45]
 CLIENT_FEATURE_SUPPORTS_COMPRESSION = 0x01
 CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02
 CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04
+CLIENT_FEATURE_SUPPORTS_SHA256_CHECKSUM = 0x08
 SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01
 SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02
+SERVER_FEATURE_SUPPORTS_SHA256_CHECKSUM = 0x04
 
 # OTA types this client knows how to send. Future PRs that add bootloader/partition
 # updates extend this set. Anything outside the set is rejected up front so callers
@@ -129,6 +134,14 @@ _ERROR_MESSAGES: dict[int, str] = {
     RESPONSE_ERROR_MD5_MISMATCH: (
         "Application MD5 code mismatch. Please try again "
         "or flash over USB with a good quality cable."
+    ),
+    RESPONSE_ERROR_SHA256_MISMATCH: (
+        "Application SHA256 code mismatch. Please try again "
+        "or flash over USB with a good quality cable."
+    ),
+    RESPONSE_ERROR_SHA256_REQUIRED: (
+        "The device requires the SHA256 file checksum extension. This "
+        "ESPHome is too old to support it; please update esphome and retry."
     ),
     RESPONSE_ERROR_SIGNATURE_INVALID: (
         "Firmware signature verification failed. The firmware was not signed "
@@ -313,11 +326,12 @@ def perform_ota(
             f"Device uses unsupported OTA version {version}, this ESPHome supports {supported_versions}"
         )
 
-    # Features - send both compression and SHA256 auth support
+    # Features - send compression, SHA256 auth, and SHA256 checksum support
     features_to_send = (
         CLIENT_FEATURE_SUPPORTS_COMPRESSION
         | CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
         | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
+        | CLIENT_FEATURE_SUPPORTS_SHA256_CHECKSUM
     )
     send_check(sock, features_to_send, "features")
     features = receive_exactly(
@@ -433,11 +447,16 @@ def perform_ota(
     send_check(sock, upload_size_encoded, "binary size")
     receive_exactly(sock, 1, "update prepare result", RESPONSE_UPDATE_PREPARE_OK)
 
-    upload_md5 = hashlib.md5(upload_contents).hexdigest()
-    _LOGGER.debug("MD5 of upload is %s", upload_md5)
-
-    send_check(sock, upload_md5, "file checksum")
-    receive_exactly(sock, 1, "file checksum result", RESPONSE_BIN_MD5_OK)
+    if features & SERVER_FEATURE_SUPPORTS_SHA256_CHECKSUM:
+        upload_checksum = hashlib.sha256(upload_contents).hexdigest()
+        _LOGGER.debug("SHA256 of upload is %s", upload_checksum)
+        send_check(sock, upload_checksum, "file checksum")
+        receive_exactly(sock, 1, "file checksum result", RESPONSE_BIN_SHA256_OK)
+    else:
+        upload_checksum = hashlib.md5(upload_contents).hexdigest()
+        _LOGGER.debug("MD5 of upload is %s", upload_checksum)
+        send_check(sock, upload_checksum, "file checksum")
+        receive_exactly(sock, 1, "file checksum result", RESPONSE_BIN_MD5_OK)
 
     # Disable nodelay for transfer
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)

@@ -28,6 +28,7 @@ from esphome.components.zephyr.const import KEY_ZEPHYR
 from esphome.components.zephyr.variants import VARIANTS, ZephyrSDK, ZephyrVariant
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_FRAMEWORK,
     CONF_REFRESH,
     KEY_CORE,
     KEY_TARGET_PLATFORM,
@@ -44,13 +45,16 @@ def _set_non_nrf52_target_platform() -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
 
 
-def _empty_zephyr_data(variant: str | None = None) -> dict:
+def _empty_zephyr_data(
+    variant: str | None = None, framework_type: str = "zephyr"
+) -> dict:
     return {
         "board": "some_board",
         "board_root": None,
         "sdk_source": None,
         "bootloader": "none",
         "variant": variant,
+        "framework_type": framework_type,
         "west_version": None,
         "ninja_version": None,
         "prj_conf": {},
@@ -425,7 +429,7 @@ def test_variant_config_schema_rejects_watchdog_timeout_on_native_sim() -> None:
 def test_variant_config_schema_defaults_watchdog_timeout_for_real_hardware() -> None:
     _init_variant_schema_core()
     config = _variant_config_schema({"variant": "ESP32H2"})
-    assert config["watchdog_timeout"] == cv.TimePeriod(seconds=5)
+    assert config["watchdog_timeout"] == cv.TimePeriod(seconds=10)
 
 
 def test_variant_config_schema_raises_for_unregistered_variant(
@@ -491,7 +495,9 @@ def test_upload_program_resolves_variant_and_flashes(
         ) as mock_flash,
     ):
         result = upload_program(
-            {PLATFORM_ZEPHYR: {CONF_REFRESH: "1d"}}, object(), "/dev/ttyACM0"
+            {PLATFORM_ZEPHYR: {CONF_FRAMEWORK: {CONF_REFRESH: "1d"}}},
+            object(),
+            "/dev/ttyACM0",
         )
 
     assert result is True

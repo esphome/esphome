@@ -137,9 +137,9 @@ bool validate_executable_(const char *staging_path, const std::string &exe_path)
 
 std::unique_ptr<ZephyrOTABackend> make_ota_backend() { return make_unique<ZephyrOTABackend>(); }
 
-void ZephyrOTABackend::set_update_md5(const char *md5) {
-  if (parse_hex(md5, this->expected_md5_, 16))
-    this->md5_set_ = true;
+void ZephyrOTABackend::set_update_sha256(const char *sha256) {
+  if (parse_hex(sha256, this->expected_sha256_, 32))
+    this->sha256_set_ = true;
 }
 
 #ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
@@ -170,8 +170,8 @@ OTAResponseTypes ZephyrOTABackend::begin(size_t image_size, OTAType ota_type) {
 
   this->expected_size_ = image_size;
   this->bytes_written_ = 0;
-  this->md5_set_ = false;
-  this->md5_.init();
+  this->sha256_set_ = false;
+  this->sha256_.init();
 
   ESP_LOGD(TAG, "OTA begin: staging=%s, size=%zu", this->staging_path_.c_str(), image_size);
   return OTA_RESPONSE_OK;
@@ -199,7 +199,7 @@ OTAResponseTypes ZephyrOTABackend::write(const uint8_t *data, size_t len) {
     p += n;
     remaining -= n;
   }
-  this->md5_.add(data, len);
+  this->sha256_.add(data, len);
   this->bytes_written_ += len;
   return OTA_RESPONSE_OK;
 }
@@ -219,12 +219,12 @@ OTAResponseTypes ZephyrOTABackend::end() {
     return OTA_RESPONSE_ERROR_UPDATE_END;
   }
 
-  if (this->md5_set_) {
-    this->md5_.calculate();
-    if (!this->md5_.equals_bytes(this->expected_md5_)) {
-      ESP_LOGE(TAG, "MD5 mismatch");
+  if (this->sha256_set_) {
+    this->sha256_.calculate();
+    if (!this->sha256_.equals_bytes(this->expected_sha256_)) {
+      ESP_LOGE(TAG, "SHA256 mismatch");
       this->abort();
-      return OTA_RESPONSE_ERROR_MD5_MISMATCH;
+      return OTA_RESPONSE_ERROR_SHA256_MISMATCH;
     }
   }
 
@@ -269,7 +269,7 @@ void ZephyrOTABackend::abort() {
   }
   this->expected_size_ = 0;
   this->bytes_written_ = 0;
-  this->md5_set_ = false;
+  this->sha256_set_ = false;
 }
 
 #else  // real Zephyr hardware under MCUboot
@@ -289,9 +289,9 @@ OTAResponseTypes ZephyrOTABackend::begin(size_t image_size, OTAType ota_type) {
 
   this->expected_size_ = image_size;
   this->bytes_written_ = 0;
-  this->md5_set_ = false;
+  this->sha256_set_ = false;
   this->active_ = true;
-  this->md5_.init();
+  this->sha256_.init();
 
   ESP_LOGD(TAG, "OTA begin: size=%zu", image_size);
   return OTA_RESPONSE_OK;
@@ -306,7 +306,7 @@ OTAResponseTypes ZephyrOTABackend::write(const uint8_t *data, size_t len) {
     ESP_LOGE(TAG, "flash_img_buffered_write failed: %d", err);
     return OTA_RESPONSE_ERROR_WRITING_FLASH;
   }
-  this->md5_.add(data, len);
+  this->sha256_.add(data, len);
   this->bytes_written_ += len;
   return OTA_RESPONSE_OK;
 }
@@ -327,11 +327,11 @@ OTAResponseTypes ZephyrOTABackend::end() {
     return OTA_RESPONSE_ERROR_UPDATE_END;
   }
 
-  if (this->md5_set_) {
-    this->md5_.calculate();
-    if (!this->md5_.equals_bytes(this->expected_md5_)) {
-      ESP_LOGE(TAG, "MD5 mismatch");
-      return OTA_RESPONSE_ERROR_MD5_MISMATCH;
+  if (this->sha256_set_) {
+    this->sha256_.calculate();
+    if (!this->sha256_.equals_bytes(this->expected_sha256_)) {
+      ESP_LOGE(TAG, "SHA256 mismatch");
+      return OTA_RESPONSE_ERROR_SHA256_MISMATCH;
     }
   }
 
@@ -355,7 +355,7 @@ void ZephyrOTABackend::abort() {
   this->active_ = false;
   this->expected_size_ = 0;
   this->bytes_written_ = 0;
-  this->md5_set_ = false;
+  this->sha256_set_ = false;
 }
 
 #endif  // USE_ZEPHYR_VARIANT_NATIVE_SIM

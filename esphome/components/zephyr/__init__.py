@@ -11,12 +11,14 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
     CONF_BOARD,
+    CONF_FRAMEWORK,
     CONF_LOG_LEVEL,
     CONF_MAC_ADDRESS,
     CONF_PASSWORD,
     CONF_PATH,
     CONF_REF,
     CONF_REFRESH,
+    CONF_SOURCE,
     CONF_TYPE,
     CONF_URL,
     CONF_USERNAME,
@@ -41,18 +43,17 @@ from .const import (
     CONF_CDC_ACM,
     CONF_KCONFIG_OPTIONS,
     CONF_NINJA_VERSION,
-    CONF_SDK_SOURCE,
     CONF_SNIPPETS,
     CONF_WEST_VERSION,
     KEY_BOARD,
     KEY_BOARD_ROOT,
     KEY_BOOTLOADER,
     KEY_EXTRA_BUILD_FILES,
+    KEY_FRAMEWORK_TYPE,
     KEY_KCONFIG,
     KEY_OVERLAY,
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
-    KEY_SDK_SOURCE,
     KEY_SNIPPETS,
     KEY_SYSBUILD_CONF,
     KEY_USER,
@@ -65,7 +66,7 @@ from .const import (
     zephyr_ns,
 )
 from .gpio import zephyr_pin_to_code as _zephyr_pin_to_code  # noqa: F401
-from .variants import VARIANTS
+from .variants import VARIANTS, resolve_sdk
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -138,9 +139,12 @@ class Section:
 class ZephyrData(TypedDict):
     board: str
     board_root: Path | None  # resolved zephyr: board_source: dir, or None if unset
-    sdk_source: ConfigType | None  # validated zephyr: sdk_source:, or None if unset
+    sdk_source: (
+        ConfigType | None
+    )  # resolved zephyr: framework: source:, or None if unset
     bootloader: str
     variant: str | None
+    framework_type: str  # resolved zephyr: framework: type: (e.g. "zephyr", "ncs")
     prj_conf: dict[str, dict[str, tuple[PrjConfValueType, bool]]]
     sysbuild_conf: dict[str, tuple[PrjConfValueType, bool]]
     overlay: dict[str, str]
@@ -177,6 +181,8 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         sdk_source=None,
         bootloader=config[KEY_BOOTLOADER],
         variant=None,
+        # platform: nrf52 is inherently NCS-based (no alternate).
+        framework_type="ncs",
         prj_conf={},
         sysbuild_conf={},
         overlay={
@@ -620,15 +626,21 @@ def zephyr_add_cdc_acm(config: ConfigType, id: int) -> str:
     only ever sees the board's own node) or the app is currently running.
     """
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if CORE.is_nrf52 and framework_ver >= cv.Version(3, 2, 0):
-        zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
-    zephyr_add_prj_conf("USB_DEVICE_STACK", True)
-    zephyr_add_prj_conf("USB_CDC_ACM", True)
-    # prevent device to go to susspend, without this communication stop working in python
-    # there should be a way to solve it
-    zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
-    # prevent logging when buffer is full
-    zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
+    if CORE.is_nrf52:
+        # platform: nrf52 stays pinned to the legacy USB device stack -- untested
+        # against the newer device_next stack, not touching working behavior.
+        if framework_ver >= cv.Version(3, 2, 0):
+            zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
+        zephyr_add_prj_conf("USB_DEVICE_STACK", True)
+        zephyr_add_prj_conf("USB_CDC_ACM", True)
+        # prevent device to go to susspend, without this communication stop working in python
+        # there should be a way to solve it
+        zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
+        # prevent logging when buffer is full
+        zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
+    else:
+        zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", True)
+        zephyr_add_prj_conf("CONFIG_CDC_ACM_SERIAL_INITIALIZE_AT_BOOT", True)
 
     from .dts_lookup import get_existing_cdc_acm_uart_label
 
@@ -775,11 +787,10 @@ _WATCHDOG_TIMEOUT_VALIDATOR = cv.All(
     cv.Range(min=cv.TimePeriod(seconds=5), max=cv.TimePeriod(seconds=60)),
 )
 
-# Like cv.SOURCE_SCHEMA's git shape, but `url` is optional: `sdk_source: {ref: ...}`
-# alone is enough to pin an alpha/pre-release branch of the variant's own official
-# manifest (see _variant_config_schema, which fills in the default). board_source
-# keeps the generic cv.SOURCE_SCHEMA since it has no equivalent "official" default.
-_SDK_SOURCE_GIT_SCHEMA = cv.Schema(
+# Like cv.SOURCE_SCHEMA's git shape, but `url` is optional: `framework: source: {ref: ...}`
+# alone is enough to pin an alpha/pre-release branch of the selected framework's own
+# official manifest (see resolve_framework_version(), which fills in the default).
+_FRAMEWORK_SOURCE_GIT_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_URL): cv.url,
         cv.Optional(CONF_REF): cv.git_ref,
@@ -788,15 +799,66 @@ _SDK_SOURCE_GIT_SCHEMA = cv.Schema(
         cv.Optional(CONF_PATH): cv.string,
     }
 )
-_SDK_SOURCE_SCHEMA = cv.Any(
+_FRAMEWORK_SOURCE_SCHEMA = cv.Any(
     cv.validate_source_shorthand,
     cv.typed_schema(
         {
-            TYPE_GIT: _SDK_SOURCE_GIT_SCHEMA,
+            TYPE_GIT: _FRAMEWORK_SOURCE_GIT_SCHEMA,
             TYPE_LOCAL: cv.LOCAL_SCHEMA,
         }
     ),
 )
+
+# `type:` isn't validated against the variant's own sdk names here -- which variant is
+# selected isn't known until _ZEPHYR_SCHEMA's own CONF_VARIANT key is read, and this
+# schema is applied independently of key order. resolve_framework_version() (called
+# per-variant, after _ZEPHYR_SCHEMA) does that check, along with version:/source:
+# mutual exclusion and everything else that needs the variant to already be known.
+_FRAMEWORK_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_TYPE): cv.string_strict,
+        # Also accepts the literal "recommended", an explicit alias for the selected
+        # sdk's default_version (same effect as omitting this key).
+        cv.Optional(CONF_VERSION): cv.string_strict,
+        # Overrides the selected sdk's own official manifest with a fork/branch/ref or a
+        # `local:` path to an already-initialized west workspace. `url` may be omitted to
+        # target a branch (e.g. an alpha/pre-release) of the sdk's own official manifest.
+        cv.Optional(CONF_SOURCE): _FRAMEWORK_SOURCE_SCHEMA,
+        # How often a git source: is re-checked for updates (via `git pull`) -- own knob,
+        # independent of board_source:'s (a different git source with its own cadence).
+        cv.Optional(CONF_REFRESH, default="1d"): cv.All(cv.string, cv.source_refresh),
+    }
+)
+
+# Own refresh: knob (see _FRAMEWORK_SCHEMA's comment) -- board_source: is a different git
+# source than framework: source:, so it doesn't share a cadence with it. Unlike
+# framework: source:, board_source: has no "official" default url to fall back to, so it
+# keeps requiring an explicit url like the generic cv.SOURCE_SCHEMA it's otherwise
+# modeled on.
+_BOARD_SOURCE_GIT_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_URL): cv.url,
+        cv.Optional(CONF_REF): cv.git_ref,
+        cv.Optional(CONF_USERNAME): cv.string,
+        cv.Optional(CONF_PASSWORD): cv.string,
+        cv.Optional(CONF_PATH): cv.string,
+        cv.Optional(CONF_REFRESH, default="1d"): cv.All(cv.string, cv.source_refresh),
+    }
+)
+_BOARD_SOURCE_SCHEMA = cv.Any(
+    cv.validate_source_shorthand,
+    cv.typed_schema(
+        {
+            TYPE_GIT: _BOARD_SOURCE_GIT_SCHEMA,
+            TYPE_LOCAL: cv.LOCAL_SCHEMA,
+        }
+    ),
+)
+# cv.validate_source_shorthand (e.g. board_source: github://user/repo) resolves through
+# the generic cv.SOURCE_SCHEMA, not the schema above, so a shorthand board_source never
+# gets this refresh: default baked in -- _resolve_board_source() falls back to this
+# constant for that case instead of relying on the schema to inject it.
+_DEFAULT_REFRESH = cv.All(cv.string, cv.source_refresh)("1d")
 
 # Not applied when zephyr is auto-loaded as a shared dependency (e.g. by nrf52) --
 # see _variant_config_schema.
@@ -804,18 +866,12 @@ _ZEPHYR_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
         cv.Optional(CONF_BOARD): cv.string_strict,
-        cv.Optional(CONF_BOARD_SOURCE): cv.SOURCE_SCHEMA,
-        cv.Optional(CONF_REFRESH, default="1d"): cv.All(cv.string, cv.source_refresh),
-        # version still gates the semver used for feature checks throughout this
-        # component; sdk_source only changes *where* the SDK is fetched from.
-        # Also accepts the literal "recommended", an explicit alias for the variant's
-        # default_version (same effect as omitting this key).
-        cv.Optional(CONF_VERSION): cv.string_strict,
-        # Overrides the official zephyrproject-rtos/zephyr manifest with a fork/branch/ref
-        # or a `local:` path to an already-initialized west workspace. `url` may be
-        # omitted to target a branch (e.g. an alpha/pre-release) of the variant's own
-        # official manifest -- see _variant_config_schema.
-        cv.Optional(CONF_SDK_SOURCE): _SDK_SOURCE_SCHEMA,
+        cv.Optional(CONF_BOARD_SOURCE): _BOARD_SOURCE_SCHEMA,
+        # Which SDK to build against (type:), its version, where to fetch it from
+        # (source:), and how often to recheck a git source: (refresh:) -- see
+        # resolve_framework_version() in variants/__init__.py for the full resolution
+        # logic.
+        cv.Optional(CONF_FRAMEWORK, default={}): _FRAMEWORK_SCHEMA,
         # Overrides requirements_west.txt's pinned west/ninja version, decoupled from
         # CONF_VERSION since their release cadence isn't tied to Zephyr's.
         cv.Optional(CONF_WEST_VERSION): cv.string_strict,
@@ -858,7 +914,7 @@ def _resolve_board_source(config: ConfigType, board: str) -> Path:
             root, _ = git.clone_or_update(
                 url=conf[CONF_URL],
                 ref=conf.get(CONF_REF),
-                refresh=config[CONF_REFRESH],
+                refresh=conf.get(CONF_REFRESH, _DEFAULT_REFRESH),
                 domain=KEY_ZEPHYR,
                 username=conf.get(CONF_USERNAME),
                 password=conf.get(CONF_PASSWORD),
@@ -891,25 +947,7 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         # validation, the owning platform component populates CORE.data[KEY_ZEPHYR] itself.
         return config
     config = _ZEPHYR_SCHEMA(config)
-    if CONF_VERSION in config and CONF_SDK_SOURCE in config:
-        raise cv.Invalid(
-            f"'{CONF_VERSION}' and '{CONF_SDK_SOURCE}' are mutually exclusive -- "
-            f"'{CONF_SDK_SOURCE}' determines the version from the source itself.",
-            [CONF_SDK_SOURCE],
-        )
     variant = config[CONF_VARIANT]
-    if CONF_SDK_SOURCE in config:
-        from .dts_fetch import (  # deferred: avoid import cycle
-            resolve_sdk_source_version,
-        )
-
-        source = config[CONF_SDK_SOURCE]
-        if source[CONF_TYPE] == TYPE_GIT and CONF_URL not in source:
-            source[CONF_URL] = VARIANTS[variant].sdk.manifest_url
-        with cv.prepend_path([CONF_SDK_SOURCE]):
-            config[KEY_FRAMEWORK_VERSION] = resolve_sdk_source_version(
-                source, config[CONF_REFRESH]
-            )
     if CONF_MAC_ADDRESS in config and variant != ZEPHYR_VARIANT_NATIVE_SIM:
         raise cv.Invalid(
             f"'{CONF_MAC_ADDRESS}' is only valid for variant "
@@ -924,7 +962,10 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
                 [CONF_WATCHDOG_TIMEOUT],
             )
     else:
-        config.setdefault(CONF_WATCHDOG_TIMEOUT, cv.TimePeriod(seconds=5))
+        # 10s: covers ZBOSS's heavy CPU usage during zigbee startup without needing a
+        # separate zigbee-conditional bump (platform: nrf52's own equivalent) -- the
+        # plain default was arbitrary anyway.
+        config.setdefault(CONF_WATCHDOG_TIMEOUT, cv.TimePeriod(seconds=10))
     board_root = None
     if CONF_BOARD_SOURCE in config:
         if CONF_BOARD not in config:
@@ -965,7 +1006,6 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
     else:
         raise cv.Invalid(f"Variant {variant!r} has no config schema registered yet")
     zephyr_data()[KEY_BOARD_ROOT] = board_root
-    zephyr_data()[KEY_SDK_SOURCE] = config.get(CONF_SDK_SOURCE)
     return config
 
 
@@ -982,7 +1022,16 @@ async def to_code(config: ConfigType) -> None:
     from .dts_fetch import fetch_board_dts
 
     variant = zephyr_data()["variant"]
-    await fetch_board_dts(variant, zephyr_data()["sdk_source"], config[CONF_REFRESH])
+    sdk_name, sdk = resolve_sdk(
+        VARIANTS[variant], zephyr_data().get(KEY_FRAMEWORK_TYPE)
+    )
+    await fetch_board_dts(
+        variant,
+        sdk_name,
+        sdk,
+        zephyr_data()["sdk_source"],
+        config[CONF_FRAMEWORK][CONF_REFRESH],
+    )
 
     from .dts_lookup import log_board_capabilities, validate_board
 
@@ -1048,13 +1097,14 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
 
     version = str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
     variant_data = VARIANTS[zephyr_variant()]
+    _, sdk = resolve_sdk(variant_data, zephyr_data().get(KEY_FRAMEWORK_TYPE))
     python_bin, framework_path, west_env = west_install(
-        variant_data.sdk,
+        sdk,
         version,
         zephyr_data()["west_version"],
         zephyr_data()["ninja_version"],
         zephyr_data()["sdk_source"],
-        config[CORE.target_platform][CONF_REFRESH],
+        config[CORE.target_platform][CONF_FRAMEWORK][CONF_REFRESH],
     )
 
     build_dir = CORE.relative_build_path(".west_build")
@@ -1079,14 +1129,15 @@ def run_compile(args, config: ConfigType) -> bool:
     from .sdk_setup_west import check_and_install as sdk_install
 
     variant_data = VARIANTS[variant]
+    _, sdk = resolve_sdk(variant_data, zephyr_data().get(KEY_FRAMEWORK_TYPE))
     version = str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
     python_bin, framework_path, west_env = west_install(
-        variant_data.sdk,
+        sdk,
         version,
         zephyr_data()["west_version"],
         zephyr_data()["ninja_version"],
         zephyr_data()["sdk_source"],
-        config[CORE.target_platform][CONF_REFRESH],
+        config[CORE.target_platform][CONF_FRAMEWORK][CONF_REFRESH],
     )
     cross_toolchain = variant_data.toolchain
     sdk_dir = sdk_install(framework_path, toolchain=cross_toolchain)
