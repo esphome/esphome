@@ -77,10 +77,13 @@ class EntityBase {
   // This is the key sent to API clients and used to route entity state.
   uint32_t get_entity_key() const { return this->entity_key_; }
 
-  ESPDEPRECATED("Use get_entity_key() instead — the key is now hashed from the raw entity name, "
-                "not the object_id. Will be removed in 2027.1.0.",
+  /// Returns the LEGACY object_id hash, unchanged from previous releases, so existing
+  /// callers keep getting stable values (for example preference keys). This is no longer
+  /// the key sent to API clients; that is get_entity_key().
+  ESPDEPRECATED("Use get_entity_key() for the entity key sent to API clients, or "
+                "make_entity_preference<T>() for preference storage. Will be removed in 2027.1.0.",
                 "2026.8.0")
-  uint32_t get_object_id_hash() const { return this->entity_key_; }
+  uint32_t get_object_id_hash() const { return this->calc_old_object_id_hash_(); }
 
   /// Get object_id with zero heap allocation
   /// For static case: returns StringRef to internal storage (buffer unused)
