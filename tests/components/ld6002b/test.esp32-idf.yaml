@@ -1,3 +1,3 @@
 packages:
-  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
+  uart: !include ../../test_build_components/common/uart_115200/esp32-idf.yaml
   ld6002b: !include common.yaml

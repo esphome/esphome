@@ -10,12 +10,10 @@
 #endif
 
 #include <array>
-#include <memory>
 
 namespace esphome::ld6002b {
 
 static constexpr uint8_t MAX_TARGETS = 3;
-static constexpr uint8_t AREA_COUNT = 4;
 static constexpr size_t DEFAULT_MAX_DATA_LEN = 1024;
 // Largest protocol payload is TYPE_SET_AREA: int32 area id + 6 floats = 28 bytes.
 static constexpr size_t CMD_MAX_DATA_LEN = 28;
@@ -53,7 +51,6 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void reset_parser_();
   void handle_frame_(uint16_t type, const uint8_t *data, uint16_t len);
   void handle_target_report_(const uint8_t *data, uint16_t len);
-  void handle_area_presence_(const uint8_t *data, uint16_t len);
 
   void queue_command_(uint16_t type, const uint8_t *data, uint8_t len);
   void process_command_queue_();
@@ -85,8 +82,6 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   uint8_t data_xor_{0};
   uint32_t discard_remaining_{0};
   bool frame_oversize_{false};
-  size_t max_data_len_{0};
-  bool max_data_len_overridden_{false};
   uint8_t *data_buf_{nullptr};
   uint16_t next_frame_id_{0};
 
@@ -94,12 +89,10 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   // roughly ten GET/config commands back to back before the first ack lands.
   static constexpr uint8_t CMD_QUEUE_SIZE = 16;
   static constexpr uint32_t CMD_ACK_TIMEOUT_MS = 300;
-  // The first command sent to a sleeping module doubles as its wake frame (protocol 1.3 note 2):
-  // the module consumes it to wake and never answers it, so the reply only comes for the attempt
-  // after it. One retry is therefore unavoidable without a wakeup_pin; the wider opening budget
-  // keeps it from stacking further ones while the module comes up. An awake module acks in about
-  // 30ms and never reaches this timeout.
+  // A sleeping module consumes the first frame to wake and answers only the one after it.
   static constexpr uint32_t CMD_FIRST_ACK_TIMEOUT_MS = 600;
+  // How long the module stays awake after any frame, and so still answers the next one.
+  static constexpr uint32_t MODULE_AWAKE_MS = 10000;
   static constexpr uint8_t CMD_MAX_RETRIES = 3;
 
   std::array<PendingCommand, CMD_QUEUE_SIZE> cmd_queue_{};
@@ -109,21 +102,24 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   bool command_active_{false};
   bool command_sent_{false};
   PendingCommand active_command_{};
-  // Staging buffer for untracked wake-pulse sends; tracked sends read
-  // active_command_.data directly, so nothing is copied for them.
+  // Frame a pending wake pulse will write, snapshotted because active_command_ may move on first.
   std::array<uint8_t, CMD_MAX_DATA_LEN> wake_scratch_{};
+  bool wake_pulse_pending_{false};
   uint8_t retries_left_{0};
   uint32_t last_send_ms_{0};
-  // Frames transmitted for the command in flight, including retries: every one of them is answered.
+  // Last frame seen in either direction; any traffic keeps the module awake.
+  uint32_t last_traffic_ms_{0};
+  // Frames transmitted for the command in flight, including retries; drives the retry budget.
   uint8_t attempts_sent_{0};
-  // ACKs the module still owes for superseded attempts; they carry no id to match them on.
+  // Subset of those the module can actually answer: a frame that woke it is consumed, not replied to.
+  uint8_t acks_expected_{0};
+  // ACKs still owed for superseded attempts; they carry no id, only their arrival order.
   uint16_t stale_ack_type_{0};
   uint8_t stale_ack_count_{0};
+  // Bumped whenever the active command changes, so a deferred send can tell it was retired.
+  uint8_t send_generation_{0};
 
   bool target_presence_any_{false};
-  bool area_presence_any_{false};
-
-  std::array<bool, MAX_TARGETS> last_target_presence_{};  // one-shot NAN clear for target sensors
 };
 
 }  // namespace esphome::ld6002b

@@ -15,7 +15,6 @@ static constexpr uint32_t SETUP_DELAY_MS = 100;
 static constexpr uint16_t TYPE_CONTROL = 0x0201;
 
 static constexpr uint16_t TYPE_REPORT_TARGET = 0x0A04;
-static constexpr uint16_t TYPE_REPORT_AREA_PRESENCE = 0x0A0A;
 
 // Control command values for TYPE_CONTROL
 static constexpr uint32_t CMD_POINT_CLOUD_ON = 0x06;
@@ -24,15 +23,6 @@ static constexpr uint32_t CMD_TARGET_DISPLAY_ON = 0x08;
 static constexpr uint32_t CMD_TARGET_DISPLAY_OFF = 0x09;
 
 static constexpr uint16_t TARGET_DATA_LEN = 20;  // x,y,z,dop_idx,cluster_id
-
-static uint32_t read_control_command_value(const uint8_t *data, uint8_t len) {
-  if (data == nullptr || len < 4) {
-    return 0;
-  }
-
-  return static_cast<uint32_t>(data[0]) | (static_cast<uint32_t>(data[1]) << 8) |
-         (static_cast<uint32_t>(data[2]) << 16) | (static_cast<uint32_t>(data[3]) << 24);
-}
 
 #ifdef ESPHOME_LOG_HAS_VERBOSE
 static const char *control_command_name(uint32_t command) {
@@ -66,15 +56,9 @@ void LD6002BComponent::write_u32_le(uint8_t *data, uint32_t value) {
 }
 
 void LD6002BComponent::setup() {
-  size_t desired_data_len = this->max_data_len_;
-  if (!this->max_data_len_overridden_) {
-    desired_data_len = DEFAULT_MAX_DATA_LEN;
-  }
-  this->max_data_len_ = desired_data_len;
-  // One allocation for the component lifetime: the parser reuses this buffer
-  // for the six byte header and for every payload up to max_data_len_.
+  // One allocation for the component lifetime; the parser reuses it for the header and every payload.
   RAMAllocator<uint8_t> allocator;
-  this->data_buf_ = allocator.allocate(std::max<size_t>(desired_data_len, 6));
+  this->data_buf_ = allocator.allocate(DEFAULT_MAX_DATA_LEN);
   if (this->data_buf_ == nullptr) {
     this->mark_failed(LOG_STR("Failed to allocate frame buffer"));
     return;
@@ -109,9 +93,8 @@ void LD6002BComponent::setup() {
 void LD6002BComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "HLK-LD6002B:\n"
-                "  Auto wake: %s\n"
-                "  Max data length: %u",
-                this->auto_wake_ ? "true" : "false", static_cast<unsigned>(this->max_data_len_));
+                "  Auto wake: %s",
+                this->auto_wake_ ? "true" : "false");
   if (this->wakeup_pin_ != nullptr) {
     LOG_PIN("  Wake-up Pin: ", this->wakeup_pin_);
     ESP_LOGCONFIG(TAG, "  Wake Pulse: %ums", this->wakeup_pulse_ms_);
@@ -146,11 +129,7 @@ void LD6002BComponent::reset_parser_() {
 void LD6002BComponent::parse_byte_(uint8_t byte) {
   switch (this->parse_state_) {
     case ParseState::DISCARD:
-      // Only entered from HCK, with a verified and non-zero number of bytes to skip. The zero
-      // guard stays because discard_remaining_ is unsigned: should a later change ever reach
-      // this state with nothing left to skip, an unconditional decrement would wrap to
-      // 4294967295 and silently swallow the next four gigabytes of stream instead of
-      // resynchronising on the following frame.
+      // discard_remaining_ is unsigned: an unguarded decrement at zero would swallow 4 GB of stream.
       if (this->discard_remaining_ > 0) {
         this->discard_remaining_--;
       }
@@ -177,7 +156,7 @@ void LD6002BComponent::parse_byte_(uint8_t byte) {
           this->frame_type_ = read_u16_be(this->data_buf_ + 4);
           // The length is only trustworthy once the header checksum has been verified, so just
           // remember that the frame is oversized and let the HCK state act on it.
-          this->frame_oversize_ = this->data_len_ > this->max_data_len_;
+          this->frame_oversize_ = this->data_len_ > DEFAULT_MAX_DATA_LEN;
           this->parse_state_ = ParseState::HCK;
         }
       }
@@ -227,19 +206,9 @@ void LD6002BComponent::parse_byte_(uint8_t byte) {
 }
 
 void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_t len) {
-  // The module acknowledges a command with an empty frame of the same type. It does not echo our
-  // frame id: that field is a per-peer send counter (MSB 1 for us, 0 for the module) which the
-  // protocol only reuses in a reply for message types supporting a bidirectional exchange, and
-  // every type sent here is documented as unidirectional. ACKs of one type can therefore only be
-  // told apart by transmission order, so the duplicates a retried command leaves behind are
-  // swallowed instead of completing whatever command runs next.
-  //
-  // That swallowing only applies while no matching command is waiting. An ACK that arrives for the
-  // command still on the wire always completes it, however late: waking a sleeping module pushes
-  // its reply past the retry period, and treating such a reply as a leftover duplicate would starve
-  // the command through every attempt and report a timeout for a write the module did perform.
-  if (len == 0 && this->stale_ack_count_ > 0 && this->stale_ack_type_ == type &&
-      (!this->command_active_ || type != this->active_command_.type)) {
+  this->last_traffic_ms_ = millis();
+  // ACKs carry no id and arrive in send order: debt from earlier attempts is paid before the active command.
+  if (len == 0 && this->stale_ack_count_ > 0 && this->stale_ack_type_ == type) {
     this->stale_ack_count_--;
     ESP_LOGV(TAG, "Ignoring ACK for command 0x%04X from an earlier attempt (module frame 0x%04X)", type,
              this->frame_id_);
@@ -247,11 +216,10 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
   }
   if (len == 0 && this->command_active_ && type == this->active_command_.type) {
     ESP_LOGV(TAG, "ACK for command 0x%04X (module frame 0x%04X)", type, this->frame_id_);
-    // Every frame transmitted for this command is answered, and this ACK settles exactly one of
-    // them, so the remaining attempts are still owed replies. Those become the guard debt for the
-    // window after this command finishes.
+    // This settles one expected reply; the rest stay owed and become the debt for the next command.
+    this->send_generation_++;
     this->stale_ack_type_ = type;
-    this->stale_ack_count_ = this->attempts_sent_ > 0 ? static_cast<uint8_t>(this->attempts_sent_ - 1) : 0;
+    this->stale_ack_count_ = this->acks_expected_ > 0 ? static_cast<uint8_t>(this->acks_expected_ - 1) : 0;
     this->command_active_ = false;
     this->command_sent_ = false;
     this->last_send_ms_ = 0;
@@ -262,9 +230,6 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
   switch (type) {
     case TYPE_REPORT_TARGET:
       this->handle_target_report_(data, len);
-      break;
-    case TYPE_REPORT_AREA_PRESENCE:
-      this->handle_area_presence_(data, len);
       break;
     default:
       break;
@@ -277,48 +242,24 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
 
   uint32_t target_num = read_u32_le(data);
   uint16_t available = (len - 4) / TARGET_DATA_LEN;
-  // Keep the un-narrowed value for the presence test: a report of e.g. 256
-  // targets must not truncate to 0 and read as "absent".
+  // Un-narrowed: a report of e.g. 256 targets must not truncate to 0 and read as "absent".
   const uint32_t reported = std::min<uint32_t>(target_num, available);
-  uint8_t count = static_cast<uint8_t>(std::min<uint32_t>(reported, MAX_TARGETS));
 
   this->target_presence_any_ = (reported > 0);
-  bool presence = this->target_presence_any_ || this->area_presence_any_;
 #ifdef USE_BINARY_SENSOR
   if (this->presence_binary_sensor_ != nullptr) {
-    this->presence_binary_sensor_->publish_state(presence);
+    this->presence_binary_sensor_->publish_state(this->target_presence_any_);
   }
 #endif
 
   for (uint8_t i = 0; i < MAX_TARGETS; i++) {
-    bool has_target = i < count;
 #ifdef USE_BINARY_SENSOR
     if (this->target_presence_[i] != nullptr) {
       // publish_state() already skips unchanged states, no manual de-dup needed.
-      this->target_presence_[i]->publish_state(has_target);
+      this->target_presence_[i]->publish_state(i < reported);
     }
 #endif
-    this->last_target_presence_[i] = has_target;
   }
-}
-
-void LD6002BComponent::handle_area_presence_(const uint8_t *data, uint16_t len) {
-  if (len < 16)
-    return;
-
-  this->area_presence_any_ = false;
-  for (uint8_t i = 0; i < AREA_COUNT; i++) {
-    uint32_t state = read_u32_le(data + (i * 4));
-    bool present = state != 0;
-    this->area_presence_any_ = this->area_presence_any_ || present;
-  }
-
-  bool presence = this->target_presence_any_ || this->area_presence_any_;
-#ifdef USE_BINARY_SENSOR
-  if (this->presence_binary_sensor_ != nullptr) {
-    this->presence_binary_sensor_->publish_state(presence);
-  }
-#endif
 }
 
 void LD6002BComponent::queue_command_(uint16_t type, const uint8_t *data, uint8_t len) {
@@ -346,15 +287,12 @@ void LD6002BComponent::queue_command_(uint16_t type, const uint8_t *data, uint8_
 void LD6002BComponent::process_command_queue_() {
   uint32_t now = millis();
   if (this->command_active_) {
-    // The opening attempt may be the frame that wakes a sleeping module, which consumes it rather
-    // than answering it; the retry that follows is acked 100-175ms later. The wider budget for that
-    // first attempt keeps the wake from cascading into further retries, while later attempts keep
-    // the normal period.
+    // A sleeping module consumes the opening attempt as its wake-up instead of answering it.
     const uint32_t ack_timeout = this->attempts_sent_ <= 1 ? CMD_FIRST_ACK_TIMEOUT_MS : CMD_ACK_TIMEOUT_MS;
     if (this->command_sent_ && now - this->last_send_ms_ >= ack_timeout) {
       const uint32_t active_control_command =
-          this->active_command_.type == TYPE_CONTROL
-              ? read_control_command_value(this->active_command_.data.data(), this->active_command_.len)
+          (this->active_command_.type == TYPE_CONTROL && this->active_command_.len >= 4)
+              ? read_u32_le(this->active_command_.data.data())
               : 0;
       if (this->retries_left_ > 0) {
 #ifdef ESPHOME_LOG_HAS_VERBOSE
@@ -362,8 +300,7 @@ void LD6002BComponent::process_command_queue_() {
           ESP_LOGV(TAG, "Retrying %s (0x%02" PRIX32 "), %u attempt(s) remaining",
                    control_command_name(active_control_command), active_control_command, this->retries_left_);
         } else {
-          // Writes such as the hold delay and z-range carry no control subcommand, so without this
-          // branch their retries were invisible and only the eventual timeout showed up.
+          // Writes without a control subcommand (hold delay, z-range) had no retry trace at all.
           ESP_LOGV(TAG, "Retrying command 0x%04X, %u attempt(s) remaining", this->active_command_.type,
                    this->retries_left_);
         }
@@ -379,8 +316,15 @@ void LD6002BComponent::process_command_queue_() {
         } else {
           ESP_LOGW(TAG, "Command 0x%04X timed out", this->active_command_.type);
         }
-        // No attempt was answered, so the module owes no ACK for this command any more.
-        this->stale_ack_count_ = 0;
+        // A reply may still be in flight for the attempt we just gave up on, so carry one over as
+        // debt rather than clearing the ledger, or that late ACK would retire the successor. Only
+        // one: reaching this point means nothing was answered at all, so the older attempts are
+        // speculative, and carrying them would swallow the successor's own replies.
+        const uint16_t owed = (this->stale_ack_type_ == this->active_command_.type ? this->stale_ack_count_ : 0) +
+                              (this->acks_expected_ > 0 ? 1 : 0);
+        this->stale_ack_type_ = this->active_command_.type;
+        this->stale_ack_count_ = static_cast<uint8_t>(std::min<uint16_t>(owed, 255));
+        this->send_generation_++;
         this->command_active_ = false;
         this->command_sent_ = false;
         this->last_send_ms_ = 0;
@@ -396,11 +340,13 @@ void LD6002BComponent::process_command_queue_() {
   this->cmd_head_ = (this->cmd_head_ + 1) % CMD_QUEUE_SIZE;
   this->cmd_count_--;
 
+  this->send_generation_++;
   this->retries_left_ = CMD_MAX_RETRIES;
   this->command_active_ = true;
   this->command_sent_ = false;
   this->last_send_ms_ = 0;
   this->attempts_sent_ = 0;
+  this->acks_expected_ = 0;
   if (this->stale_ack_type_ != this->active_command_.type) {
     this->stale_ack_count_ = 0;
   }
@@ -415,8 +361,7 @@ void LD6002BComponent::send_command_internal_(uint16_t type, const uint8_t *data
   if (len > CMD_MAX_DATA_LEN) {
     ESP_LOGW(TAG, "Command data too large: %u", len);
     if (track) {
-      // Release the slot: this command is never written, so it would neither be
-      // acked nor time out and the queue would stall behind it.
+      // Release the slot: an unwritten command is never acked and never times out.
       this->command_active_ = false;
       this->command_sent_ = false;
       this->last_send_ms_ = 0;
@@ -424,18 +369,24 @@ void LD6002BComponent::send_command_internal_(uint16_t type, const uint8_t *data
     return;
   }
 
-  if (this->auto_wake_ && this->wakeup_pin_ != nullptr) {
-    // Capture no payload: tracked commands are always sent from
-    // active_command_.data, which stays valid until the ack or the timeout,
-    // and untracked ones are staged in wake_scratch_ instead.
-    if (!track && len > 0 && data != nullptr) {
+  // Anonymous timeouts never replace each other; with a pulse already pending the module is waking anyway.
+  if (this->auto_wake_ && this->wakeup_pin_ != nullptr && !this->wake_pulse_pending_) {
+    // Snapshot the payload: the deferred write must not depend on state a completing command changes.
+    if (len > 0 && data != nullptr) {
       std::memcpy(this->wake_scratch_.data(), data, len);
     }
+    this->wake_pulse_pending_ = true;
     this->wakeup_pin_->digital_write(false);
-    this->set_timeout(this->wakeup_pulse_ms_, [this, type, len, track]() {
+    const uint8_t generation = this->send_generation_;
+    this->set_timeout(this->wakeup_pulse_ms_, [this, type, len, track, generation]() {
       this->wakeup_pin_->digital_write(true);
-      const uint8_t *payload = track ? this->active_command_.data.data() : this->wake_scratch_.data();
-      this->write_frame_(type, (len > 0) ? payload : nullptr, len, track);
+      this->wake_pulse_pending_ = false;
+      // Anonymous timeouts are never cancelled, so a tracked pulse whose command has since been
+      // retired must not transmit: the frame would land after its successor and be booked to it.
+      if (track && generation != this->send_generation_) {
+        return;
+      }
+      this->write_frame_(type, (len > 0) ? this->wake_scratch_.data() : nullptr, len, track);
     });
     return;
   }
@@ -471,11 +422,17 @@ void LD6002BComponent::write_frame_(uint16_t type, const uint8_t *data, uint8_t 
     }
     this->write_byte(static_cast<uint8_t>(~data_xor));
   }
+  const uint32_t now = millis();
   if (track) {
-    this->last_send_ms_ = millis();
+    // A frame sent to a module that has had time to fall asleep is its wake-up, and goes unanswered.
+    if (this->last_traffic_ms_ != 0 && now - this->last_traffic_ms_ < MODULE_AWAKE_MS) {
+      this->acks_expected_++;
+    }
+    this->last_send_ms_ = now;
     this->command_sent_ = true;
     this->attempts_sent_++;
   }
+  this->last_traffic_ms_ = now;
 }
 
 void LD6002BComponent::send_control_command_(uint32_t command) {

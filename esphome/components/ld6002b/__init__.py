@@ -48,8 +48,10 @@ CONFIG_SCHEMA = cv.All(
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
     "ld6002b",
+    baud_rate=115200,
     require_tx=True,
     require_rx=True,
+    data_bits=8,
     parity="NONE",
     stop_bits=1,
 )
