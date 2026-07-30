@@ -398,10 +398,15 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
 def get_base_entity_name(
     name: str, friendly_name: str | None, device_name: str | None = None
 ) -> str:
-    """Return the raw name whose hash becomes this entity's key on the device.
+    """Return the base name whose hash becomes this entity's key on the device.
 
-    Mirrors the name selection in C++ EntityBase::configure_entity_() (entity_base.cpp):
+    Follows the name selection in C++ EntityBase::configure_entity_() (entity_base.cpp):
     entity name, then sub-device name, then friendly name, then the device name.
+
+    This is a config-time approximation for duplicate checking: when
+    name_add_mac_suffix is enabled the device appends the MAC suffix at runtime,
+    which is unknown here and identical for every entity on the device, so
+    ignoring it cannot change whether two entities collide with each other.
     """
     return name or device_name or friendly_name or CORE.name
 

@@ -1,5 +1,6 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 
@@ -15,7 +16,7 @@ bool migrate_preference(ESPPreferenceObject &new_pref, uint8_t *scratch, size_t 
   if (old_key == new_key || !global_preferences->load_from_key(old_key, scratch, size))
     return false;  // No data stored under the old key, nothing to migrate
   if (!new_pref.save(scratch, size)) {
-    ESP_LOGW(TAG, "Pref migration failed");
+    ESP_LOGW(TAG, "Pref migration %" PRIx32 " -> %" PRIx32 " failed", old_key, new_key);
   }
   return true;
 }
