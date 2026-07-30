@@ -12,6 +12,16 @@ APIOverflowBuffer::~APIOverflowBuffer() {
 }
 
 ssize_t APIOverflowBuffer::try_drain(socket::Socket *socket) {
+  // socket->write() can re-enter this function: a log message emitted from an
+  // lwip callback during the write goes out over the API and lands back in the
+  // frame helper's write/drain path. If a nested drain ran here it would send
+  // and free the entry the outer drain is still holding, causing a double free.
+  // Report "no progress" instead; the outer drain keeps draining, and the
+  // nested send is enqueued behind the existing backlog.
+  if (this->draining_)
+    return 0;
+  this->draining_ = true;
+
   while (this->count_ > 0) {
     Entry *front = this->queue_[this->head_];
 
@@ -20,22 +30,26 @@ ssize_t APIOverflowBuffer::try_drain(socket::Socket *socket) {
     if (sent <= 0) {
       // -1 = error (caller checks errno for EWOULDBLOCK vs hard error)
       // 0 = nothing sent (treat as no progress)
+      this->draining_ = false;
       return sent;
     }
 
     if (static_cast<uint16_t>(sent) < front->remaining()) {
       // Partially sent, update offset and stop
       front->offset += static_cast<uint16_t>(sent);
+      this->draining_ = false;
       return sent;
     }
 
-    // Entry fully sent — free it and advance
-    Entry::destroy(front);
+    // Entry fully sent — unlink it before freeing so a freed pointer is never
+    // reachable from the queue
     this->queue_[this->head_] = nullptr;
     this->head_ = (this->head_ + 1) % API_MAX_SEND_QUEUE;
     this->count_--;
+    Entry::destroy(front);
   }
 
+  this->draining_ = false;
   return 0;  // All drained
 }
 
