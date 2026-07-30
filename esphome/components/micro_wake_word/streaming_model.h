@@ -29,6 +29,10 @@ struct DetectionEvent {
 
 class StreamingModel {
  public:
+  // Runtime models are heap owned and destroyed while the device is running, so freeing the arenas cannot
+  // depend on the owner calling unload_model() first. unload_model() is not virtual and is safe to repeat.
+  virtual ~StreamingModel() { this->unload_model(); }
+
   virtual void log_model_config() = 0;
   virtual DetectionEvent determine_detected() = 0;
 

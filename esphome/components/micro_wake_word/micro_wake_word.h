@@ -69,6 +69,9 @@ class MicroWakeWord final : public Component
   /// @brief Adds a runtime-downloaded wake word model. Must be called from the main loop.
   /// If the inference task is running it is paused at a safe point before the model lists are mutated,
   /// so the task never observes a half-updated vector.
+  /// Callers should check get_model_by_id() before constructing the model: a WakeWordModel permanently
+  /// claims a preference backend that is not released when the model is destroyed, so building one only to
+  /// have it rejected here costs internal RAM that never comes back.
   /// @return True if the model was added, false on a duplicate id or if the task could not be paused
   bool add_runtime_model(std::unique_ptr<WakeWordModel> model);
 

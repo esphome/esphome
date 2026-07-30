@@ -1,6 +1,6 @@
-# Config-only test: micro_wake_word without any compiled-in models. Covers the optional
-# models schema and the fallback feature step size used when no manifest supplies one.
-# Wake word models are added at runtime instead, which voice_assistant wires up.
+# Config-only test: micro_wake_word without any compiled-in models. Covers the optional models
+# schema, which validates without a model list. Wake word models are added at runtime instead,
+# which voice_assistant wires up.
 substitutions:
   mic_din_pin: GPIO36
 

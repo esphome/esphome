@@ -52,6 +52,7 @@ enum EventGroupBits : uint32_t {
   ERROR_INFERENCE = (1 << 10),
 
   WARNING_FULL_RING_BUFFER = (1 << 13),
+  WARNING_MODELS_RESUME_TIMEOUT = (1 << 14),  // The paused inference task gave up waiting to be released
 
   ERROR_BITS = ERROR_MEMORY | ERROR_INFERENCE,
   ALL_BITS = 0xfffff,  // 24 total bits available in an event group
@@ -194,8 +195,13 @@ void MicroWakeWord::inference_task(void *params) {
           // Safe point: no iterators into wake_word_models_ are held here. Acknowledge the pause and wait for the
           // main loop to finish mutating the model lists before resuming.
           xEventGroupSetBits(this_mww->event_group_, EventGroupBits::MODELS_PAUSED);
-          xEventGroupWaitBits(this_mww->event_group_, EventGroupBits::COMMAND_RESUME_MODELS, pdTRUE, pdTRUE,
-                              pdMS_TO_TICKS(MODELS_RESUME_TIMEOUT_MS));
+          EventBits_t resume_bits = xEventGroupWaitBits(this_mww->event_group_, EventGroupBits::COMMAND_RESUME_MODELS,
+                                                        pdTRUE, pdTRUE, pdMS_TO_TICKS(MODELS_RESUME_TIMEOUT_MS));
+          if (!(resume_bits & EventGroupBits::COMMAND_RESUME_MODELS)) {
+            // Nobody released us, so the main loop abandoned the handshake and did not mutate the lists.
+            // Rechecking the pause command below is safe, but the wait cost a second of detection, so report it.
+            xEventGroupSetBits(this_mww->event_group_, EventGroupBits::WARNING_MODELS_RESUME_TIMEOUT);
+          }
           continue;
         }
 
@@ -407,6 +413,12 @@ void MicroWakeWord::loop() {
     xEventGroupClearBits(this->event_group_, EventGroupBits::WARNING_FULL_RING_BUFFER);
     ESP_LOGW(TAG, "Not enough free bytes in ring buffer to store incoming audio data. Resetting the ring buffer. Wake "
                   "word detection accuracy will temporarily be reduced.");
+  }
+
+  if (event_group_bits & EventGroupBits::WARNING_MODELS_RESUME_TIMEOUT) {
+    xEventGroupClearBits(this->event_group_, EventGroupBits::WARNING_MODELS_RESUME_TIMEOUT);
+    ESP_LOGW(TAG, "Inference task paused for %" PRIu32 " ms without being released, so it resumed on its own",
+             MODELS_RESUME_TIMEOUT_MS);
   }
 
   if (event_group_bits & EventGroupBits::TASK_STARTING) {

@@ -8,9 +8,11 @@
 
 namespace esphome::micro_wake_word {
 
-// Owns the PSRAM buffer holding a runtime-downloaded TFLite model. The buffer is filled over HTTP,
-// verified (SHA256 + TFLite header), then kept alive for the lifetime of the WakeWordModel that uses
-// it. Only ever held behind a std::shared_ptr, so copies and moves are disabled.
+// Owns the buffer holding a runtime-downloaded TFLite model. The buffer prefers PSRAM but falls back to
+// internal RAM, so a device without PSRAM can still hold a single model. It is filled over HTTP, checked
+// for integrity by the caller (SHA256) and for a usable TFLite header here, then kept alive for the
+// lifetime of the WakeWordModel that uses it. Only ever held behind a std::shared_ptr, so copies and
+// moves are disabled.
 class ModelData {
  public:
   ModelData() = default;

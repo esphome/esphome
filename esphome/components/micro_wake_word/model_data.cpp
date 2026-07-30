@@ -69,13 +69,16 @@ bool ModelData::validate_and_mark_ready() {
     return false;
   }
 
-  // Verify model can be parsed
-  const tflite::Model *model = tflite::GetModel(this->data_);
-  if (!model) {
-    ESP_LOGE(TAG, "Failed to parse TFLite model");
+  // Bytes 0-3 hold the offset of the root table. tflite::GetModel only adds that offset to the start of the
+  // buffer, so check it lands inside the buffer before reading through it.
+  uint32_t root_offset;
+  memcpy(&root_offset, this->data_, sizeof(root_offset));
+  if (root_offset >= this->size_) {
+    ESP_LOGE(TAG, "TFLite model root offset is out of bounds");
     return false;
   }
 
+  const tflite::Model *model = tflite::GetModel(this->data_);
   if (model->version() != TFLITE_SCHEMA_VERSION) {
     ESP_LOGE(TAG, "TFLite model version mismatch (expected %d, got %d)", TFLITE_SCHEMA_VERSION, model->version());
     return false;
