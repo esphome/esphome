@@ -15,6 +15,9 @@ namespace esphome::sdl {
 
 namespace {
 
+// Key under which each window keeps a pointer back to its Sdl instance.
+constexpr const char *const WINDOW_DATA_KEY = "esphome_sdl";
+
 // Longest name we will build a path from. NAME_MAX is 255 and we may append a collision suffix.
 constexpr size_t MAX_NAME_LENGTH = 200;
 // Give up rather than spin forever if every candidate name is taken.
@@ -108,6 +111,9 @@ bool Sdl::setup_renderer_() {
       ESP_LOGE(TAG, "Could not create window: %s", SDL_GetError());
       return false;
     }
+    // Lets loop() find the display an event belongs to, so one display does not act on another's
+    // input when several windows are open.
+    SDL_SetWindowData(this->window_, WINDOW_DATA_KEY, this);
     this->renderer_ = SDL_CreateRenderer(this->window_, -1, SDL_RENDERER_SOFTWARE);
   }
   if (this->renderer_ == nullptr) {
@@ -217,63 +223,103 @@ void Sdl::process_key(uint32_t keycode, bool down) {
     callback->second(down);
 }
 
+Sdl *Sdl::instance_for_window_(uint32_t window_id) {
+  SDL_Window *window = SDL_GetWindowFromID(window_id);
+  if (window == nullptr)
+    return nullptr;
+  return static_cast<Sdl *>(SDL_GetWindowData(window, WINDOW_DATA_KEY));
+}
+
+void Sdl::handle_event_(const SDL_Event &event) {
+  switch (event.type) {
+    case SDL_MOUSEBUTTONDOWN:
+    case SDL_MOUSEBUTTONUP:
+      if (event.button.button == 1) {
+        this->mouse_x = event.button.x;
+        this->mouse_y = event.button.y;
+        this->mouse_down = event.button.state != 0;
+      }
+      break;
+
+    case SDL_MOUSEMOTION:
+      if (event.motion.state & 1) {
+        this->mouse_x = event.motion.x;
+        this->mouse_y = event.motion.y;
+        this->mouse_down = true;
+      } else {
+        this->mouse_down = false;
+      }
+      break;
+
+    case SDL_KEYDOWN:
+      // Ignore auto-repeat, otherwise holding a key floods the listeners.
+      if (event.key.repeat != 0)
+        break;
+      ESP_LOGD(TAG, "keydown %d", event.key.keysym.sym);
+      this->process_key(event.key.keysym.sym, true);
+      break;
+
+    case SDL_KEYUP:
+      ESP_LOGD(TAG, "keyup %d", event.key.keysym.sym);
+      this->process_key(event.key.keysym.sym, false);
+      break;
+
+    case SDL_WINDOWEVENT:
+      switch (event.window.event) {
+        case SDL_WINDOWEVENT_SIZE_CHANGED:
+        case SDL_WINDOWEVENT_EXPOSED:
+        case SDL_WINDOWEVENT_RESIZED: {
+          SDL_Rect rect{0, 0, this->width_, this->height_};
+          this->redraw_(rect);
+          break;
+        }
+        default:
+          break;
+      }
+      break;
+
+    default:
+      break;
+  }
+}
+
 void Sdl::loop() {
   SDL_Event e;
-  if (SDL_PollEvent(&e)) {
-    switch (e.type) {
-      case SDL_QUIT:
-        exit(0);
+  // Take everything that is waiting, not one event per loop. A touch drag produces a burst of
+  // motion events, and consuming them one at a time lets the queue grow without bound, so the
+  // pointer ends up acting on input from further and further in the past. Draining collapses a
+  // burst to the position it ended at, which is the one the user is asking for anyway.
+  while (SDL_PollEvent(&e)) {
+    if (e.type == SDL_QUIT)
+      exit(0);
 
+    // Events carry the window they happened in, so send each one to the display that owns it.
+    uint32_t window_id;
+    switch (e.type) {
       case SDL_MOUSEBUTTONDOWN:
       case SDL_MOUSEBUTTONUP:
-        if (e.button.button == 1) {
-          this->mouse_x = e.button.x;
-          this->mouse_y = e.button.y;
-          this->mouse_down = e.button.state != 0;
-        }
+        window_id = e.button.windowID;
         break;
-
       case SDL_MOUSEMOTION:
-        if (e.motion.state & 1) {
-          this->mouse_x = e.button.x;
-          this->mouse_y = e.button.y;
-          this->mouse_down = true;
-        } else {
-          this->mouse_down = false;
-        }
+        window_id = e.motion.windowID;
         break;
-
       case SDL_KEYDOWN:
-        // Ignore auto-repeat, otherwise holding a key floods the listeners.
-        if (e.key.repeat != 0)
-          break;
-        ESP_LOGD(TAG, "keydown %d", e.key.keysym.sym);
-        this->process_key(e.key.keysym.sym, true);
-        break;
-
       case SDL_KEYUP:
-        ESP_LOGD(TAG, "keyup %d", e.key.keysym.sym);
-        this->process_key(e.key.keysym.sym, false);
+        window_id = e.key.windowID;
         break;
-
       case SDL_WINDOWEVENT:
-        switch (e.window.event) {
-          case SDL_WINDOWEVENT_SIZE_CHANGED:
-          case SDL_WINDOWEVENT_EXPOSED:
-          case SDL_WINDOWEVENT_RESIZED: {
-            SDL_Rect rect{0, 0, this->width_, this->height_};
-            this->redraw_(rect);
-            break;
-          }
-          default:
-            break;
-        }
+        window_id = e.window.windowID;
         break;
-
       default:
+        // Anything else, including the touch events SDL reports alongside the mouse events it
+        // synthesises from them, is not used here.
         ESP_LOGV(TAG, "Event %d", e.type);
-        break;
+        continue;
     }
+
+    Sdl *target = instance_for_window_(window_id);
+    if (target != nullptr)
+      target->handle_event_(e);
   }
 }
 

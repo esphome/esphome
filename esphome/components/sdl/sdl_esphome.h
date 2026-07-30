@@ -69,6 +69,9 @@ class Sdl final : public display::Display {
   void redraw_(SDL_Rect &rect);
   bool setup_renderer_();
   bool write_bmp_(SDL_Surface *surface, const std::string &name, bool exact);
+  void handle_event_(const SDL_Event &event);
+  /// The display owning the given window, or nullptr if it is not one of ours.
+  static Sdl *instance_for_window_(uint32_t window_id);
   int width_{};
   int height_{};
   uint32_t window_options_{0};
