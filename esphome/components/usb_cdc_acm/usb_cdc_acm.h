@@ -101,10 +101,12 @@ class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBC
 
   RingbufHandle_t usb_tx_ringbuf_{nullptr};
   RingbufHandle_t usb_rx_ringbuf_{nullptr};
-  // True while the TX task holds bytes it has pulled from the ring buffer but not yet
-  // handed to TinyUSB; lets flush() account for data that is in neither the ring
-  // buffer nor TinyUSB's FIFO.
-  std::atomic<bool> usb_tx_busy_{false};
+  // Non-zero while the TX task holds bytes it has pulled from the ring buffer but not
+  // yet handed to TinyUSB; lets flush() account for data that is in neither the ring
+  // buffer nor TinyUSB's FIFO. std::atomic<uint8_t> rather than std::atomic<bool>
+  // because GCC on Xtensa generates an indirect function call for atomic<bool> ops
+  // instead of inlining them; atomic<uint8_t> inlines correctly on all platforms.
+  std::atomic<uint8_t> usb_tx_busy_{0};
   // Running total of bytes dropped by write_array() (never reset), and the timestamp
   // of the last "buffer full" log line (throttled so a sustained host stall doesn't
   // flood the log).

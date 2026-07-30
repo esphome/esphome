@@ -201,14 +201,14 @@ void USBCDCACMInstance::usb_tx_task() {
 
   while (true) {
     // Not holding any data while blocked waiting for more.
-    this->usb_tx_busy_ = false;
+    this->usb_tx_busy_ = 0;
 
     // Wait for a notification from the bridge component
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
     // Raise the busy flag before pulling data out of the ring buffer, so at every
     // instant flush() sees pending bytes in the ring buffer count or in this flag.
-    this->usb_tx_busy_ = true;
+    this->usb_tx_busy_ = 1;
 
     // When we do wake up, we can be sure there is data in the ring buffer
     esp_err_t ret = ringbuf_read_bytes(this->usb_tx_ringbuf_, data, CONFIG_TINYUSB_CDC_TX_BUFSIZE, &tx_data_size, 0);
@@ -413,7 +413,7 @@ uart::UARTFlushResult USBCDCACMInstance::flush() {
     // The busy flag covers bytes the TX task has pulled from the ring buffer but not
     // yet handed to TinyUSB (it holds them while the host applies backpressure);
     // those are in neither the ring buffer count nor TinyUSB's FIFO.
-    if (waiting == 0 && !this->usb_tx_busy_) {
+    if (waiting == 0 && this->usb_tx_busy_ == 0) {
       break;
     }
     if ((xTaskGetTickCount() - start) >= pdMS_TO_TICKS(FLUSH_TIMEOUT_MS)) {
