@@ -3,6 +3,7 @@
 #include "esphome/components/text/text.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/template_lambda.h"
 
@@ -14,7 +15,9 @@ class TemplateTextSaverBase {
  public:
   virtual bool save(const std::string &value) { return true; }
 
-  virtual void setup(uint32_t id, std::string &value) {}
+  /// old_id is the pre-2026.8.0 preference key; data stored under it is moved to id once.
+  /// See: https://github.com/esphome/backlog/issues/85
+  virtual void setup(uint32_t id, uint32_t old_id, std::string &value) {}
 
  protected:
   ESPPreferenceObject pref_;
@@ -45,8 +48,9 @@ template<uint8_t SZ> class TextSaver : public TemplateTextSaverBase {
 
   // Make the preference object.  Fill the provided location with the saved data
   // If it is available, else leave it alone
-  void setup(uint32_t id, std::string &value) override {
+  void setup(uint32_t id, uint32_t old_id, std::string &value) override {
     this->pref_ = global_preferences->make_preference<uint8_t[SZ + 1]>(id);
+    migrate_preference(this->pref_, SZ + 1, old_id, id);
 
     char temp[SZ + 1];
     bool hasdata = this->pref_.load(&temp);

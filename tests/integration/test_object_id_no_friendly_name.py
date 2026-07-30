@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import pytest
 
-from esphome.helpers import fnv1_hash_object_id
+from esphome.helpers import fnv1_hash_name
 
 from .entity_utils import compute_object_id, verify_all_entities
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -126,7 +126,7 @@ async def test_object_id_no_friendly_name_no_mac_suffix(
         )
 
         # Hash should match device name
-        expected_hash = fnv1_hash_object_id("test-device")
+        expected_hash = fnv1_hash_name("test-device")
         assert entity.key == expected_hash, (
             f"Expected hash {expected_hash:#x}, got {entity.key:#x}"
         )

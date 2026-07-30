@@ -20,18 +20,19 @@ void TemplateText::setup() {
 
   // Need std::string for pref_->setup() to fill from flash
   std::string value{this->initial_value_ != nullptr ? this->initial_value_ : ""};
-  // For future hash migration: use migrate_entity_preference_() with:
-  //   old_key = get_preference_hash() + extra
-  //   new_key = get_preference_hash_v2() + extra
-  // See: https://github.com/esphome/backlog/issues/85
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  uint32_t key = this->get_preference_hash();
-#pragma GCC diagnostic pop
-  key += this->traits.get_min_length() << 2;
-  key += this->traits.get_max_length() << 4;
-  key += fnv1_hash(this->traits.get_pattern_c_str()) << 6;
-  this->pref_->setup(key, value);
+  uint32_t extra = 0;
+  extra += this->traits.get_min_length() << 2;
+  extra += this->traits.get_max_length() << 4;
+  extra += fnv1_hash(this->traits.get_pattern_c_str()) << 6;
+  uint32_t old_key = this->old_preference_key_base_() + extra;
+#ifdef USE_PREFERENCE_KEY_LOOKUP
+  // Raw-name key, matching make_entity_preference_(); TextSaver migrates old data once
+  uint32_t key = this->preference_key_base_() + extra;
+#else
+  // Slot-based preference backends keep the old key; see make_entity_preference_()
+  uint32_t key = old_key;
+#endif
+  this->pref_->setup(key, old_key, value);
   if (!value.empty())
     this->publish_state(value);
 }
