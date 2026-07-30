@@ -196,8 +196,8 @@ target_link_libraries(${COMPONENT_LIB} INTERFACE
 
 
 def test_generate_cmakelists_txt_uses_forward_slashes_on_windows(
-    tmp_component, monkeypatch
-):
+    tmp_component, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # os.path.relpath yields backslash paths on Windows, which CMake rejects
     # when it re-parses the SRCS list (e.g. "\b" in "src\backend" is an invalid
     # character escape). Simulate that output and confirm the generated
