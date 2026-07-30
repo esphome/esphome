@@ -2428,6 +2428,58 @@ def test_one_of_string_and_space() -> None:
     assert cv.one_of("a_b", string=True, space="_")("a b") == "a_b"
 
 
+def test_one_of_string_and_underscore() -> None:
+    assert cv.one_of("a-b", string=True, underscore="-")("a_b") == "a-b"
+    assert cv.one_of("a-b", string=True, underscore="-")("a-b") == "a-b"
+
+
+def test_one_of_string_lower_space_and_underscore() -> None:
+    validator = cv.one_of("output-mode", lower=True, space="-", underscore="-")
+    assert validator("output_mode") == "output-mode"
+    assert validator("OUTPUT_MODE") == "output-mode"
+    assert validator("output mode") == "output-mode"
+    assert validator("output-mode") == "output-mode"
+
+
+def test_one_of_string_underscore_unknown() -> None:
+    with pytest.raises(Invalid):
+        cv.one_of("a-b", string=True, underscore="-")("c_d")
+
+
+def test_one_of_string_underscore_default_unchanged() -> None:
+    with pytest.raises(Invalid):
+        cv.one_of("a-b", string=True)("a_b")
+
+
+def test_one_of_string_and_hyphen() -> None:
+    assert cv.one_of("a_b", string=True, hyphen="_")("a-b") == "a_b"
+    assert cv.one_of("a_b", string=True, hyphen="_")("a_b") == "a_b"
+
+
+def test_one_of_string_lower_space_and_hyphen() -> None:
+    validator = cv.one_of("output_mode", lower=True, space="_", hyphen="_")
+    assert validator("output-mode") == "output_mode"
+    assert validator("OUTPUT-MODE") == "output_mode"
+    assert validator("output mode") == "output_mode"
+    assert validator("output_mode") == "output_mode"
+
+
+def test_one_of_string_hyphen_unknown() -> None:
+    with pytest.raises(Invalid):
+        cv.one_of("a_b", string=True, hyphen="_")("c-d")
+
+
+def test_one_of_string_hyphen_default_unchanged() -> None:
+    with pytest.raises(Invalid):
+        cv.one_of("a_b", string=True)("a-b")
+
+
+def test_one_of_string_underscore_hyphen_swap_no_cascade() -> None:
+    validator = cv.one_of("a-b", "a_b", string=True, underscore="-", hyphen="_")
+    assert validator("a_b") == "a-b"
+    assert validator("a-b") == "a_b"
+
+
 def test_one_of_int() -> None:
     assert cv.one_of(1, 2, int=True)("2") == 2
 
@@ -2464,6 +2516,20 @@ def test_enum_valid() -> None:
     result = cv.enum(mapping)("a")
     assert result == "a"
     assert result.enum_value == 10
+
+
+def test_enum_valid_with_underscore() -> None:
+    mapping = {"a-b": 1}
+    result = cv.enum(mapping, string=True, underscore="-")("a_b")
+    assert result == "a-b"
+    assert result.enum_value == 1
+
+
+def test_enum_valid_with_hyphen() -> None:
+    mapping = {"a_b": 1}
+    result = cv.enum(mapping, string=True, hyphen="_")("a-b")
+    assert result == "a_b"
+    assert result.enum_value == 1
 
 
 # ---------------------------------------------------------------------------
