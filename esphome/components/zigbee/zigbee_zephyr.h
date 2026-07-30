@@ -81,6 +81,7 @@ class ZigbeeComponent final : public Component {
   void force_report();
   void loop() override;
   void set_sleepy(bool sleepy) { this->sleepy_ = sleepy; }
+  void add_radio_sleep_time_ms(uint32_t ms);
 
  protected:
   static void zcl_device_cb(zb_bufid_t bufid);
@@ -94,6 +95,8 @@ class ZigbeeComponent final : public Component {
   bool force_report_{false};
   uint32_t sleep_time_{};
   uint32_t sleep_remainder_{};
+  uint32_t radio_sleep_time_{};
+  uint32_t radio_sleep_remainder_{};
   bool sleepy_{};
 };
 

@@ -292,10 +292,14 @@ class Visibility(StrEnum):
     the same way. ESPHome itself ignores the value at runtime;
     consumers downstream of the schema dump act on it.
 
-    A field with no ``visibility`` set (the default) renders on the
-    editor's main form. The two values below are points along a
-    single axis of "how prominently to surface this":
+    Three points along a single axis of "how prominently to surface
+    this", from least to most hidden:
 
+    - ``UI`` — always render on the editor's main form. Use to
+      promote an ``Optional`` that would otherwise fall through to
+      the advanced disclosure (see the default rule below): the
+      "headline" config a user reaches for first (e.g. a sensor's
+      ``name`` or its primary pin/address).
     - ``ADVANCED`` — render under the editor's "advanced settings"
       disclosure. Use for fields whose default is right for ~all
       users (e.g. ``update_interval`` on time platforms — 15 min is
@@ -307,25 +311,35 @@ class Visibility(StrEnum):
       tweaks can break boot). The YAML escape hatch stays
       available for the rare power-user override.
 
-    The single-axis shape encodes "yaml-only is strictly stronger
-    than advanced" at the type level — there's no way to ask for
-    both at once, and no way to set a contradictory state like
-    "advanced=False, yaml_only=True".
+    Default when unset (``visibility=None``): resolved by the
+    consumer, not encoded on the marker. A schema-aware editor
+    treats an ``Optional`` with no setting as ``ADVANCED`` (most
+    optional knobs have sensible defaults and would clutter the
+    form), and a ``Required`` with no setting as ``UI`` (a required
+    field needs the user's attention). Pass an explicit value to
+    override either default — most commonly ``UI`` to keep a
+    high-value ``Optional`` on the main form.
+
+    The single-axis shape encodes the strictness ladder
+    (``UI`` < ``ADVANCED`` < ``YAML_ONLY``) at the type level —
+    there's no way to set a contradictory state.
 
     Per-field; the dumper walks recursively into nested schemas
-    and emits each field's setting independently. Cascading
-    semantics — "a stricter parent makes its descendants at-least
-    as strict" — belong on the consumer side: the schema marker
-    is faithfully what the field author wrote, and a consumer that
-    cares about effective visibility walks the parent chain and
-    takes the strictest setting. ``YAML_ONLY`` is strictly stronger
-    than ``ADVANCED``, which is strictly stronger than no setting.
-    Inner fields can declare their own visibility; an inner
+    and emits each field's setting independently, omitting the key
+    when unset so the dump stays compact and the per-field default
+    is the consumer's to apply. Cascading semantics — "a stricter
+    parent makes its descendants at-least as strict" — belong on the
+    consumer side: the schema marker is faithfully what the field
+    author wrote, and a consumer that cares about effective
+    visibility walks the parent chain and takes the strictest
+    setting. Inner fields can declare their own visibility; an inner
     ``YAML_ONLY`` under an ``ADVANCED`` parent stays ``YAML_ONLY``,
-    and the consumer's cascade keeps siblings under the parent at
-    ``ADVANCED`` regardless of their own (less-strict) setting.
+    and the consumer's cascade keeps a ``UI`` sibling under an
+    ``ADVANCED`` parent at ``ADVANCED`` regardless of its own
+    (less-strict) setting.
     """
 
+    UI = "ui"
     ADVANCED = "advanced"
     YAML_ONLY = "yaml_only"
 
@@ -347,6 +361,9 @@ class Optional(vol.Optional):
 
     See :class:`Visibility` for the ``visibility`` kwarg — a UI
     hint for schema-driven editors that doesn't affect validation.
+    Left unset, an ``Optional`` is treated as ``Visibility.ADVANCED``
+    by schema-aware editors; pass ``Visibility.UI`` to keep it on the
+    main form.
     """
 
     def __init__(
@@ -369,9 +386,11 @@ class Required(vol.Required):
 
     See :class:`Visibility` for the ``visibility`` kwarg — a UI
     hint for schema-driven editors that doesn't affect validation.
-    Required fields rarely need it (a required field by definition
-    needs the user's attention) but the kwarg is exposed for
-    symmetry so consumers can apply uniform logic across key markers.
+    Required fields rarely need it: left unset, a ``Required`` is
+    treated as on the main form (``Visibility.UI``) by schema-aware
+    editors, since a required field needs the user's attention. The
+    kwarg is exposed for symmetry so consumers can apply uniform
+    logic across key markers.
     """
 
     def __init__(
@@ -403,12 +422,14 @@ class Version:
 
     @classmethod
     def parse(cls, value: str) -> Version:
-        match = re.match(r"^(\d+).(\d+).(\d+)[-.]?(\w*)$", value)
+        # The patch component is optional and defaults to 0, so "6.0" and
+        # "6.0-rc1" parse as 6.0.0 and 6.0.0-rc1.
+        match = re.match(r"^(\d+)\.(\d+)(?:\.(\d+))?[-.]?(\w*)$", value)
         if match is None:
             raise ValueError(f"Not a valid version number {value}")
         major = int(match[1])
         minor = int(match[2])
-        patch = int(match[3])
+        patch = int(match[3] or 0)
         extra = match[4] or ""
         return Version(major=major, minor=minor, patch=patch, extra=extra)
 
@@ -1917,14 +1938,29 @@ def dimensions(value):
     return dimensions([match.group(1), match.group(2)])
 
 
+def _remap_bundle_path(value: str) -> Path | None:
+    """Resolve a path from the machine an extracted bundle was created on.
+
+    An absolute path in a config compiled from an extracted bundle may point
+    at the machine the bundle was created on; the bundle ships the file at
+    its config-relative location instead.
+    """
+    from esphome.bundle import remap_bundle_path
+
+    return remap_bundle_path(value)
+
+
 def directory(value: object) -> Path:
     value = string(value)
     path = CORE.relative_config_path(value)
 
     if not path.exists():
-        raise Invalid(
-            f"Could not find directory '{path}'. Please make sure it exists (full path: {path.resolve()})."
-        )
+        remapped = _remap_bundle_path(value)
+        if remapped is None:
+            raise Invalid(
+                f"Could not find directory '{path}'. Please make sure it exists (full path: {path.resolve()})."
+            )
+        path = remapped
     if not path.is_dir():
         raise Invalid(
             f"Path '{path}' is not a directory (full path: {path.resolve()})."
@@ -1937,9 +1973,12 @@ def file_(value: object) -> Path:
     path = CORE.relative_config_path(value)
 
     if not path.exists():
-        raise Invalid(
-            f"Could not find file '{path}'. Please make sure it exists (full path: {path.resolve()})."
-        )
+        remapped = _remap_bundle_path(value)
+        if remapped is None:
+            raise Invalid(
+                f"Could not find file '{path}'. Please make sure it exists (full path: {path.resolve()})."
+            )
+        path = remapped
     if not path.is_file():
         raise Invalid(f"Path '{path}' is not a file (full path: {path.resolve()}).")
     return path
@@ -2274,16 +2313,25 @@ MQTT_COMPONENT_AVAILABILITY_SCHEMA = Schema(
     }
 )
 
+# Per-entity MQTT plumbing — integration metadata, never a primary UI field.
 MQTT_COMPONENT_SCHEMA = Schema(
     {
-        Optional(CONF_QOS): All(requires_component("mqtt"), mqtt_qos),
-        Optional(CONF_RETAIN): All(requires_component("mqtt"), boolean),
-        Optional(CONF_DISCOVERY): All(requires_component("mqtt"), boolean),
-        Optional(CONF_SUBSCRIBE_QOS): All(requires_component("mqtt"), mqtt_qos),
-        Optional(CONF_STATE_TOPIC): All(
+        Optional(CONF_QOS, visibility=Visibility.ADVANCED): All(
+            requires_component("mqtt"), mqtt_qos
+        ),
+        Optional(CONF_RETAIN, visibility=Visibility.ADVANCED): All(
+            requires_component("mqtt"), boolean
+        ),
+        Optional(CONF_DISCOVERY, visibility=Visibility.ADVANCED): All(
+            requires_component("mqtt"), boolean
+        ),
+        Optional(CONF_SUBSCRIBE_QOS, visibility=Visibility.ADVANCED): All(
+            requires_component("mqtt"), mqtt_qos
+        ),
+        Optional(CONF_STATE_TOPIC, visibility=Visibility.ADVANCED): All(
             requires_component("mqtt"), templatable(publish_topic)
         ),
-        Optional(CONF_AVAILABILITY): All(
+        Optional(CONF_AVAILABILITY, visibility=Visibility.ADVANCED): All(
             requires_component("mqtt"), Any(None, MQTT_COMPONENT_AVAILABILITY_SCHEMA)
         ),
     }
@@ -2291,10 +2339,12 @@ MQTT_COMPONENT_SCHEMA = Schema(
 
 MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
     {
-        Optional(CONF_COMMAND_TOPIC): All(
+        Optional(CONF_COMMAND_TOPIC, visibility=Visibility.ADVANCED): All(
             requires_component("mqtt"), templatable(subscribe_topic)
         ),
-        Optional(CONF_COMMAND_RETAIN): All(requires_component("mqtt"), boolean),
+        Optional(CONF_COMMAND_RETAIN, visibility=Visibility.ADVANCED): All(
+            requires_component("mqtt"), boolean
+        ),
     }
 )
 
@@ -2369,12 +2419,16 @@ def string_no_slash(value):
 
 ENTITY_BASE_SCHEMA = Schema(
     {
-        Optional(CONF_NAME): _validate_entity_name,
-        Optional(CONF_INTERNAL): boolean,
-        Optional(CONF_DISABLED_BY_DEFAULT, default=False): boolean,
-        Optional(CONF_ICON): icon,
-        Optional(CONF_ENTITY_CATEGORY): entity_category,
-        Optional(CONF_DEVICE_ID): sub_device_id,
+        # The name is every entity's headline field — keep it on the
+        # main form rather than letting it fall through to advanced.
+        Optional(CONF_NAME, visibility=Visibility.UI): _validate_entity_name,
+        Optional(CONF_INTERNAL, visibility=Visibility.ADVANCED): boolean,
+        Optional(
+            CONF_DISABLED_BY_DEFAULT, default=False, visibility=Visibility.ADVANCED
+        ): boolean,
+        Optional(CONF_ICON, visibility=Visibility.ADVANCED): icon,
+        Optional(CONF_ENTITY_CATEGORY, visibility=Visibility.ADVANCED): entity_category,
+        Optional(CONF_DEVICE_ID, visibility=Visibility.ADVANCED): sub_device_id,
     }
 )
 
@@ -2664,10 +2718,32 @@ SOURCE_SCHEMA = Any(
 )
 
 
-def rename_key(old_key, new_key):
+def rename_key(
+    old_key, new_key, *, removed_in: str | None = None, component: str | None = None
+):
+    """Rename a config key from ``old_key`` to ``new_key``.
+
+    Specifying both keys is an error; otherwise only one of the two would
+    survive the rename and the other would be dropped silently.
+
+    When ``removed_in`` is set, a deprecation warning is logged if the old key is
+    present. Pass ``component`` (the platform/component name) alongside
+    ``removed_in`` so the warning identifies where it originates.
+    """
+
     def validator(config: dict) -> dict:
         config = config.copy()
         if old_key in config:
+            has_at_most_one_key(old_key, new_key)(config)
+            if removed_in is not None:
+                prefix = f"[{component}] " if component else ""
+                _LOGGER.warning(
+                    "%s'%s' is deprecated, use '%s'. Will be removed in %s",
+                    prefix,
+                    old_key,
+                    new_key,
+                    removed_in,
+                )
             config[new_key] = config.pop(old_key)
         return config
 

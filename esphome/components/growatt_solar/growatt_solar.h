@@ -4,7 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
 
-#include <vector>
+#include <span>
 
 namespace esphome::growatt_solar {
 
@@ -69,7 +69,7 @@ class GrowattSolar final : public PollingComponent, public modbus::ModbusClientD
  public:
   void loop() override;
   void update() override;
-  void on_modbus_data(const std::vector<uint8_t> &data) override;
+  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
   void dump_config() override;
 
   void set_protocol_version(GrowattProtocolVersion protocol_version) { this->protocol_version_ = protocol_version; }
