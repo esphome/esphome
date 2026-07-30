@@ -2473,6 +2473,12 @@ def test_one_of_string_hyphen_default_unchanged() -> None:
         cv.one_of("a_b", string=True)("a-b")
 
 
+def test_one_of_string_underscore_hyphen_swap_no_cascade() -> None:
+    validator = cv.one_of("a-b", "a_b", string=True, underscore="-", hyphen="_")
+    assert validator("a_b") == "a-b"
+    assert validator("a-b") == "a_b"
+
+
 def test_one_of_int() -> None:
     assert cv.one_of(1, 2, int=True)("2") == 2
 

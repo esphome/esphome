@@ -1829,6 +1829,7 @@ def one_of(*values, **kwargs):
     hyphen = kwargs.pop("hyphen", "-")
     if kwargs:
         raise ValueError
+    separators = str.maketrans({" ": space, "_": underscore, "-": hyphen})
 
     @schema_extractor("one_of")
     def validator(value):
@@ -1837,9 +1838,7 @@ def one_of(*values, **kwargs):
 
         if string_:
             value = string(value)
-            value = value.replace(" ", space)
-            value = value.replace("_", underscore)
-            value = value.replace("-", hyphen)
+            value = value.translate(separators)
         if to_int:
             value = int_(value)
         if to_float:
