@@ -1,0 +1,7 @@
+rtsp_server:
+  port: 554
+  max_sessions: 2
+
+wifi:
+  ssid: MySSID
+  password: password1
