@@ -27,11 +27,16 @@ class Automation {
 // reports it keeps that memory allocated for the life of the connection.
 class BLEClientServicelessNode : public BLEClientNode {
  public:
-  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                           esp_ble_gattc_cb_param_t *param) override {
+  // Final so that Established is always reported on SEARCH_CMPL, before the derived node sees the event.
+  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) final {
     if (event == ESP_GATTC_SEARCH_CMPL_EVT)
       this->node_state = espbt::ClientState::ESTABLISHED;
+    this->on_gattc_event(event, gattc_if, param);
   }
+
+ protected:
+  // Derived nodes handle GATT events here rather than by overriding the handler above.
+  virtual void on_gattc_event(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {}
 };
 
 // implement on_connect automation.
@@ -333,10 +338,7 @@ template<typename... Ts> class BLEClientConnectAction final : public Action<Ts..
     ble_client->register_ble_node(this);
     ble_client_ = ble_client;
   }
-  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                           esp_ble_gattc_cb_param_t *param) override {
-    // Report Established even when idle, otherwise the parent never releases its services.
-    BLEClientServicelessNode::gattc_event_handler(event, gattc_if, param);
+  void on_gattc_event(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) override {
     if (this->num_running_ == 0)
       return;
     switch (event) {
@@ -383,10 +385,7 @@ template<typename... Ts> class BLEClientDisconnectAction final : public Action<T
     ble_client->register_ble_node(this);
     ble_client_ = ble_client;
   }
-  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                           esp_ble_gattc_cb_param_t *param) override {
-    // Report Established even when idle, otherwise the parent never releases its services.
-    BLEClientServicelessNode::gattc_event_handler(event, gattc_if, param);
+  void on_gattc_event(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) override {
     if (this->num_running_ == 0)
       return;
     switch (event) {
