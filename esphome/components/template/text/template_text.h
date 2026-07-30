@@ -50,7 +50,9 @@ template<uint8_t SZ> class TextSaver : public TemplateTextSaverBase {
   // If it is available, else leave it alone
   void setup(uint32_t id, uint32_t old_id, std::string &value) override {
     this->pref_ = global_preferences->make_preference<uint8_t[SZ + 1]>(id);
+#ifdef USE_PREFERENCE_KEY_LOOKUP
     migrate_preference(this->pref_, SZ + 1, old_id, id);
+#endif
 
     char temp[SZ + 1];
     bool hasdata = this->pref_.load(&temp);

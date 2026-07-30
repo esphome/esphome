@@ -273,10 +273,12 @@ class EntityBase {
 #endif
 };
 
+#ifdef USE_PREFERENCE_KEY_LOOKUP
 /// Move preference data stored under old_key into new_pref (created for new_key) if the keys
-/// differ and new_pref has no data yet. No-op on slot-based preference backends, where keys
-/// cannot be looked up. See: https://github.com/esphome/backlog/issues/85
+/// differ and new_pref has no data yet. Only available on key-lookup preference backends;
+/// slot-based backends keep their old keys instead. See: https://github.com/esphome/backlog/issues/85
 void migrate_preference(ESPPreferenceObject &new_pref, size_t size, uint32_t old_key, uint32_t new_key);
+#endif
 
 /// Log entity icon if set (for use in dump_config)
 #ifdef USE_ENTITY_ICON

@@ -172,9 +172,8 @@ StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) c
   return StringRef(buf.data(), len);
 }
 
-void migrate_preference([[maybe_unused]] ESPPreferenceObject &new_pref, [[maybe_unused]] size_t size,
-                        [[maybe_unused]] uint32_t old_key, [[maybe_unused]] uint32_t new_key) {
 #ifdef USE_PREFERENCE_KEY_LOOKUP
+void migrate_preference(ESPPreferenceObject &new_pref, size_t size, uint32_t old_key, uint32_t new_key) {
   if (old_key == new_key)
     return;
   SmallBufferWithHeapFallback<64> buffer(size);
@@ -184,8 +183,8 @@ void migrate_preference([[maybe_unused]] ESPPreferenceObject &new_pref, [[maybe_
   if (old_pref.load(buffer.get(), size)) {
     new_pref.save(buffer.get(), size);
   }
-#endif
 }
+#endif
 
 ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version) {
   // The old key hashed the sanitized object_id, so multiple entity names could collide on
