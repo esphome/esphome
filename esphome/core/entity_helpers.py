@@ -43,8 +43,8 @@ class ObjectIdEntity:
     config: ConfigType
 
 
-def _get_object_id_registry() -> dict[tuple[str, str], list[ObjectIdEntity]]:
-    """(platform, sanitized object_id) -> entities whose names resolve to it."""
+def _get_object_id_registry() -> dict[tuple[str, str, str], list[ObjectIdEntity]]:
+    """(device_id, platform, sanitized object_id) -> entities resolving to it."""
     return CORE.data.setdefault(_OBJECT_ID_DOMAIN, {})
 
 
@@ -85,8 +85,9 @@ def validate_no_object_id_conflicts(
         lines.extend(
             f"  - {platform} entities "
             + ", ".join(f"'{e.name}'" for e in entities)
+            + (f" on device '{device_id}'" if device_id else "")
             + f" share the object_id '{object_id}'"
-            for (platform, object_id), entities in conflicts.items()
+            for (device_id, platform, object_id), entities in conflicts.items()
         )
         lines.append(
             "To fix: Add unique ASCII characters (e.g., '1', '2', or 'A', 'B') "
@@ -640,13 +641,14 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
 
         # Components that still address entities by the sanitized object_id reject
         # colliding names in final validation via validate_no_object_id_conflicts(),
-        # so track every entity by the object_id its name resolves to. No device
-        # scoping here: object_id consumers do not namespace by device, so
-        # sub-device entities can conflict too.
+        # so track every entity by the object_id its name resolves to. Scoped per
+        # device to match the strictness configs had before entity keys moved to
+        # raw names; same-named entities on different sub-devices were already
+        # accepted then, and their object_id overlap predates this check.
         object_id = sanitize(snake_case(base_name))
-        _get_object_id_registry().setdefault((platform, object_id), []).append(
-            ObjectIdEntity(base_name, config)
-        )
+        _get_object_id_registry().setdefault(
+            (device_id, platform, object_id), []
+        ).append(ObjectIdEntity(base_name, config))
 
         # Store metadata about this entity
         entity_metadata: EntityMetadata = {

@@ -336,14 +336,16 @@ CONFIG_SCHEMA = cv.All(
 def _topics_conflict(entities: list[ObjectIdEntity], config: ConfigType) -> bool:
     """Check whether more than one entity actually uses an object_id-derived topic.
 
-    A custom state_topic avoids the default state topic, and disabling discovery
-    (globally or per entity) avoids the discovery config topic.
+    An empty topic_prefix disables default topics entirely, a custom state_topic
+    avoids the default state topic, and disabling discovery (globally or per
+    entity) avoids the discovery config topic.
     """
-    default_state_topics = sum(
-        CONF_STATE_TOPIC not in entity.config for entity in entities
-    )
-    if default_state_topics > 1:
-        return True
+    if config[CONF_TOPIC_PREFIX]:
+        default_state_topics = sum(
+            CONF_STATE_TOPIC not in entity.config for entity in entities
+        )
+        if default_state_topics > 1:
+            return True
     if not config[CONF_DISCOVERY]:
         return False
     discovery_entities = sum(
