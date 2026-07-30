@@ -796,6 +796,68 @@ def test_object_id_conflicts_command_topic() -> None:
     assert component_validator(mqtt_config) is mqtt_config
 
 
+def test_object_id_conflicts_sub_topic_platforms() -> None:
+    """Test that platforms with extra object_id sub-topics always conflict.
+
+    Covers derive topics like position/command from the object_id through their
+    own config keys, so custom state and command topics cannot exempt them.
+    """
+    validator = entity_duplicate_validator("cover")
+    validator(
+        {
+            CONF_NAME: "Датчик открытия",
+            CONF_STATE_TOPIC: "custom/topic/a",
+            CONF_COMMAND_TOPIC: "custom/cmd/a",
+            CONF_DISCOVERY: False,
+        }
+    )
+    validator(
+        {
+            CONF_NAME: "Датчик закрытия",
+            CONF_STATE_TOPIC: "custom/topic/b",
+            CONF_COMMAND_TOPIC: "custom/cmd/b",
+            CONF_DISCOVERY: False,
+        }
+    )
+
+    component_validator = validate_no_object_id_conflicts(
+        "mqtt builds default topics from the entity object_id",
+        conflict_filter=_topics_conflict,
+    )
+    with pytest.raises(Invalid, match=r"mqtt builds default topics"):
+        component_validator({CONF_DISCOVERY: True, CONF_TOPIC_PREFIX: "test-device"})
+
+
+def test_object_id_conflicts_disjoint_default_topics() -> None:
+    """Test that entities whose default topics are disjoint do not conflict.
+
+    One entity uses only the default command topic and the other only the default
+    state topic, so they never share a topic.
+    """
+    validator = entity_duplicate_validator("switch")
+    validator(
+        {
+            CONF_NAME: "Датчик открытия",
+            CONF_STATE_TOPIC: "custom/topic/a",
+            CONF_DISCOVERY: False,
+        }
+    )
+    validator(
+        {
+            CONF_NAME: "Датчик закрытия",
+            CONF_COMMAND_TOPIC: "custom/cmd/b",
+            CONF_DISCOVERY: False,
+        }
+    )
+
+    component_validator = validate_no_object_id_conflicts(
+        "mqtt builds default topics from the entity object_id",
+        conflict_filter=_topics_conflict,
+    )
+    config: dict = {CONF_DISCOVERY: True, CONF_TOPIC_PREFIX: "test-device"}
+    assert component_validator(config) is config
+
+
 def test_object_id_conflicts_empty_topic_prefix() -> None:
     """Test that an empty topic_prefix disables the default topic conflict.
 

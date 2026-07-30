@@ -356,6 +356,12 @@ _COMMAND_TOPIC_PLATFORMS = frozenset(
 )
 
 
+# Platforms whose MQTT components derive extra sub-topics (position/command,
+# mode/command, speed/command, ...) from the object_id, each with its own config
+# key; custom state and command topics cannot exempt them from conflicting.
+_SUB_TOPIC_PLATFORMS = frozenset({"climate", "cover", "fan", "valve"})
+
+
 def _topics_conflict(entities: list[ObjectIdEntity], config: ConfigType) -> bool:
     """Check whether more than one entity actually uses an object_id-derived topic.
 
@@ -364,13 +370,15 @@ def _topics_conflict(entities: list[ObjectIdEntity], config: ConfigType) -> bool
     or per entity) avoids the discovery config topic.
     """
     if config[CONF_TOPIC_PREFIX]:
-        has_command_topic = entities[0].platform in _COMMAND_TOPIC_PLATFORMS
-        default_topics = sum(
-            CONF_STATE_TOPIC not in entity.config
-            or (has_command_topic and CONF_COMMAND_TOPIC not in entity.config)
-            for entity in entities
-        )
-        if default_topics > 1:
+        platform = entities[0].platform
+        if platform in _SUB_TOPIC_PLATFORMS:
+            return True
+        if sum(CONF_STATE_TOPIC not in entity.config for entity in entities) > 1:
+            return True
+        if (
+            platform in _COMMAND_TOPIC_PLATFORMS
+            and sum(CONF_COMMAND_TOPIC not in entity.config for entity in entities) > 1
+        ):
             return True
     if not config[CONF_DISCOVERY]:
         return False
