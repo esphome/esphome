@@ -19,11 +19,11 @@ CODEOWNERS = ["@esphome/core"]
 
 
 def AUTO_LOAD() -> list[str]:
-    # Every backend computes its own MD5 over the transferred image. nrf52 is excluded:
-    # its zephyr_mcumgr OTA path doesn't use this component's backend (see
-    # ota_backend_factory.h) and doesn't need md5.
+    # Every backend computes an MD5 over the transferred image, except: nrf52 (its
+    # zephyr_mcumgr OTA path doesn't use this component's backend at all) and zephyr
+    # (ota_backend_zephyr.cpp uses SHA256 instead -- NCS's PSA crypto drivers can't do MD5).
     components = ["safe_mode"]
-    if not CORE.is_nrf52:
+    if not CORE.is_nrf52 and not CORE.is_zephyr:
         components.append("md5")
     if CORE.is_esp32:
         components.extend(["watchdog"])

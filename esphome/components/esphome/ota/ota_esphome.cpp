@@ -148,8 +148,10 @@ void ESPHomeOTAComponent::loop() {
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_COMPRESSION = 0x01;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04;
+static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_SHA256_CHECKSUM = 0x08;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02;
+static constexpr uint8_t SERVER_FEATURE_SUPPORTS_SHA256_CHECKSUM = 0x04;
 
 void ESPHomeOTAComponent::handle_handshake_() {
   /// Handle the OTA handshake and authentication.
@@ -238,15 +240,26 @@ void ESPHomeOTAComponent::handle_handshake_() {
 
       const bool supports_compression =
           (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_COMPRESSION) != 0 && this->backend_->supports_compression();
+      const bool supports_sha256_checksum = (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_SHA256_CHECKSUM) != 0 &&
+                                             this->backend_->supports_sha256_checksum();
 
       // Compose the feature-ack response. When the client negotiates the extended protocol we emit
       // a 2-byte response (marker + server feature flags); otherwise we emit the single-byte
       // legacy response.
       this->extended_proto_ = (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL) != 0;
+      // Gated on extended_proto_: a non-extended client can't learn the server's choice
+      // (no server feature byte to carry it), so it always sends (and we expect) MD5.
+      this->use_sha256_checksum_ = this->extended_proto_ && supports_sha256_checksum;
+      if (this->backend_->requires_sha256_checksum() && !this->use_sha256_checksum_) {
+        ESP_LOGW(TAG, "Client does not support required SHA256 checksum extension");
+        this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_SHA256_REQUIRED);
+        return;
+      }
       if (this->extended_proto_) {
         static_assert(HANDSHAKE_BUF_SIZE >= 2, "handshake_buf_ must hold the 2-byte extended-protocol feature ack");
         this->handshake_buf_[0] = ota::OTA_RESPONSE_FEATURE_FLAGS;
         this->handshake_buf_[1] = (supports_compression ? SERVER_FEATURE_SUPPORTS_COMPRESSION : 0);
+        this->handshake_buf_[1] |= (this->use_sha256_checksum_ ? SERVER_FEATURE_SUPPORTS_SHA256_CHECKSUM : 0);
 #ifdef USE_OTA_PARTITIONS
         this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS;
 #endif
@@ -406,17 +419,31 @@ void ESPHomeOTAComponent::handle_data_() {
   // Acknowledge prepare OK - 1 byte
   this->write_byte_(ota::OTA_RESPONSE_UPDATE_PREPARE_OK);
 
-  // Read binary MD5, 32 bytes
-  if (!this->readall_(buf, 32)) {
-    this->log_read_error_(LOG_STR("MD5 checksum"));
-    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-  }
-  sbuf[32] = '\0';
-  ESP_LOGV(TAG, "Update: Binary MD5 is %s", sbuf);
-  this->backend_->set_update_md5(sbuf);
+  if (this->use_sha256_checksum_) {
+    // Read binary SHA256, 64 bytes
+    if (!this->readall_(buf, 64)) {
+      this->log_read_error_(LOG_STR("SHA256 checksum"));
+      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+    }
+    sbuf[64] = '\0';
+    ESP_LOGV(TAG, "Update: Binary SHA256 is %s", sbuf);
+    this->backend_->set_update_sha256(sbuf);
 
-  // Acknowledge MD5 OK - 1 byte
-  this->write_byte_(ota::OTA_RESPONSE_BIN_MD5_OK);
+    // Acknowledge SHA256 OK - 1 byte
+    this->write_byte_(ota::OTA_RESPONSE_BIN_SHA256_OK);
+  } else {
+    // Read binary MD5, 32 bytes
+    if (!this->readall_(buf, 32)) {
+      this->log_read_error_(LOG_STR("MD5 checksum"));
+      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+    }
+    sbuf[32] = '\0';
+    ESP_LOGV(TAG, "Update: Binary MD5 is %s", sbuf);
+    this->backend_->set_update_md5(sbuf);
+
+    // Acknowledge MD5 OK - 1 byte
+    this->write_byte_(ota::OTA_RESPONSE_BIN_MD5_OK);
+  }
 
   // Track when we last received data so a silently-vanished peer (no FIN/RST
   // delivered, e.g. uploader killed mid-transfer or NAT/router dropped state)

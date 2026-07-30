@@ -33,3 +33,8 @@ async def to_code(config):
         # OpenThread), so a direct CONFIG_PSA_WANT_ALG_MD5=y is silently dropped.
         # MBEDTLS_HASH_ALL_ENABLED is the only unguarded Kconfig that selects it.
         zephyr_add_prj_conf("MBEDTLS_HASH_ALL_ENABLED", True)
+        # NCS's nrf_security routes crypto through pluggable PSA drivers (Oberon by
+        # default), which have no MD5 support at all -- this symbol pulls in the
+        # legacy software fallback instead. Defined in mainline Zephyr's own mbedtls
+        # Kconfig too, so harmless to always set for platform: zephyr.
+        zephyr_add_prj_conf("MBEDTLS_DECLARE_PRIVATE_IDENTIFIERS", True)
