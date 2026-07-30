@@ -3,6 +3,8 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
     CONF_BOARD,
+    CONF_FRAMEWORK,
+    CONF_SOURCE,
     KEY_FRAMEWORK_VERSION,
     ThreadModel,
     Toolchain,
@@ -12,6 +14,7 @@ from esphome.types import ConfigType
 from ..const import BOOTLOADER_MCUBOOT, ZEPHYR_VARIANT_NRF52
 from . import (
     MAINLINE,
+    NCS,
     ZephyrVariant,
     qualify_board,
     resolve_framework_version,
@@ -55,16 +58,24 @@ _ADC_AIN_MAP = {
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_NRF52
 VARIANT = ZephyrVariant(
-    sdk=MAINLINE,
+    # NCS (nRF Connect SDK) is the default -- Nordic's own vendor SDK, which is where
+    # real hardware support/testing effort for this chip is expected to concentrate.
+    # Mainline Zephyr stays available as an alternate (framework: type: zephyr) for
+    # anyone who wants to avoid NCS's licensing/tooling footprint, or who hit a
+    # regression only present on one side.
+    sdk=NCS,
+    sdk_name="ncs",
+    alt_sdks={"zephyr": MAINLINE},
     family="nordic",
     boards=_VALID_BOARDS,
     valid_toolchains=(Toolchain.SDK_ZEPHYR,),
     toolchain="arm-zephyr-eabi",
-    # BLE deliberately excluded for now (not yet wired up). OpenThread included:
-    # issue #11's tracked entanglement is specifically about the NCS-based
-    # platform: nrf52's OpenThread/Zigbee stack coupling -- this variant sidesteps
-    # that by using mainline Zephyr, the same OpenThread source build the
-    # esp32-family variants already use.
+    # OpenThread included: issue #11's tracked entanglement was specifically about
+    # platform: nrf52's NCS-based OpenThread/Zigbee stack coupling -- picking
+    # framework: type: zephyr (mainline) sidesteps that entirely, the same OpenThread
+    # source build the esp32-family variants already use. The default
+    # framework: type: ncs here uses NCS's own OpenThread, so that original coupling
+    # concern applies again there.
     transports=frozenset({"openthread", "ble"}),
     soc="nrf52840",
     # No "scratch": neither board defines a scratch_partition (upstream's stock
@@ -87,11 +98,17 @@ def config_schema(config: ConfigType) -> ConfigType:
         )
     config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
     config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
-    version_str, framework_ver = resolve_framework_version(
-        VARIANT, "nrf52", config, "mainline nRF52840 support"
+    version_str, framework_ver, sdk_name, _ = resolve_framework_version(
+        VARIANT, "nrf52", config, "nRF52840 support"
     )
     set_core_data(
-        VARIANT_NAME, config[CONF_BOARD], BOOTLOADER_MCUBOOT, framework_ver, config
+        VARIANT_NAME,
+        config[CONF_BOARD],
+        BOOTLOADER_MCUBOOT,
+        framework_ver,
+        config,
+        framework_type=sdk_name,
+        sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
     )
     config[KEY_FRAMEWORK_VERSION] = version_str
     return config

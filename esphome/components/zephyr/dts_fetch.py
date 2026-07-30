@@ -3,7 +3,10 @@ import logging
 from pathlib import Path
 import shutil
 import subprocess
+import tempfile
 import time
+
+import yaml
 
 import esphome.config_validation as cv
 from esphome.const import (
@@ -20,12 +23,13 @@ from esphome.core import CORE, TimePeriodSeconds
 from esphome.types import ConfigType
 
 from .const import KEY_ZEPHYR
-from .variants import VARIANTS
+from .variants import ZephyrSDK
 
 _LOGGER = logging.getLogger(__name__)
 
 _DTS_CACHE = Path.home() / ".esphome" / "zephyr_dts_cache"
 _SDK_SOURCE_VERSION_CACHE = Path.home() / ".esphome" / "zephyr_sdk_source_version_cache"
+_MANIFEST_REVISION_CACHE = Path.home() / ".esphome" / "zephyr_manifest_revision_cache"
 
 
 def _framework_base_version() -> str:
@@ -114,14 +118,19 @@ def resolve_sdk_source_version(source: ConfigType, refresh: TimePeriodSeconds) -
     return _parse_zephyr_version_file(version_file)
 
 
-def _native_dts_path(variant: str) -> Path | None:
-    """Return the zephyr/ subdirectory in the native SDK install if it is present on disk."""
-    variant_info = VARIANTS.get(variant)
-    if variant_info is None or variant_info.sdk.tools_subdir is None:
+def _native_dts_path(sdk: ZephyrSDK) -> Path | None:
+    """Return the zephyr/ subdirectory in the native SDK install if it is present on disk.
+
+    Both mainline Zephyr and NCS check out the tree that owns boards/ under a sibling
+    directory literally named "zephyr" (NCS: <tools_subdir>/frameworks/v<ver>/zephyr,
+    the bundled sdk-zephyr fork project -- confirmed against a real local NCS install),
+    so this needs no per-sdk branching.
+    """
+    if sdk.tools_subdir is None:
         return None
     candidate = (
         CORE.data_dir
-        / variant_info.sdk.tools_subdir
+        / sdk.tools_subdir
         / "frameworks"
         / f"v{_framework_base_version()}"
         / "zephyr"
@@ -129,41 +138,110 @@ def _native_dts_path(variant: str) -> Path | None:
     return candidate if candidate.is_dir() else None
 
 
-def _boards_clone_tag(variant: str, ver: str) -> str | None:
-    """Return the git branch/tag to use when cloning board DTS files.
+def _resolve_boards_ref(sdk: ZephyrSDK, ver: str) -> str | None:
+    """Return the git ref to check out sdk.boards_repo_url at, for a resolved version `ver`.
 
-    For mainline Zephyr variants the version IS the tag (e.g. v4.4.0). A future
-    variant on a vendor SDK with its own versioning scheme (distinct from the
-    upstream sdk-zephyr tags it's built on) would need its user-visible version
-    mapped to the underlying tag here, branching on `variant`.
+    Mainline-shaped SDKs tag boards_repo_url (== manifest_url when unset) directly at
+    f"v{ver}". SDKs with resolve_boards_ref_via_manifest=True (NCS) instead fetch
+    manifest_url's own west.yml at tag f"v{ver}" and read the boards_repo_url project's
+    own `revision:` field -- the only correct way to know it; see
+    ZephyrSDK.resolve_boards_ref_via_manifest for why a guessed format string can't work.
+    Cached at ~/.esphome/zephyr_manifest_revision_cache/ (small -- just the resolved
+    string), immutable per (manifest_url, ver) since ver always maps to the same
+    immutable upstream tag.
     """
-    return f"v{ver}"
+    if not sdk.resolve_boards_ref_via_manifest:
+        return f"v{ver}"
+
+    cache_key = hashlib.sha1(f"{sdk.manifest_url}@v{ver}".encode()).hexdigest()[:16]
+    cache_file = _MANIFEST_REVISION_CACHE / cache_key
+    if cache_file.is_file():
+        return cache_file.read_text().strip() or None
+
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            subprocess.run(
+                [
+                    "git",
+                    "clone",
+                    "--depth=1",
+                    "--filter=blob:none",
+                    "--sparse",
+                    "--branch",
+                    f"v{ver}",
+                    sdk.manifest_url,
+                    tmp,
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            _LOGGER.warning(
+                "[zephyr] Could not fetch %s@v%s to resolve boards revision: %s",
+                sdk.manifest_url,
+                ver,
+                exc,
+            )
+            return None
+
+        west_yml = Path(tmp) / "west.yml"
+        if not west_yml.is_file():
+            _LOGGER.warning(
+                "[zephyr] %s@v%s has no top-level west.yml", sdk.manifest_url, ver
+            )
+            return None
+        try:
+            manifest = yaml.safe_load(west_yml.read_text())
+        except yaml.YAMLError as exc:
+            _LOGGER.warning("[zephyr] Could not parse %s: %s", west_yml, exc)
+            return None
+
+    # A project's manifest `name:` need not match its actual repo name -- match by
+    # repo-path (falling back to name when repo-path is omitted, per west's own
+    # resolution rules) against boards_repo_url's own basename instead.
+    boards_repo_name = (sdk.boards_repo_url or "").rstrip("/").rsplit("/", 1)[-1]
+    revision = None
+    for project in manifest.get("manifest", {}).get("projects", []):
+        if project.get("repo-path", project.get("name")) == boards_repo_name:
+            revision = project.get("revision")
+            break
+
+    if revision is None:
+        _LOGGER.warning(
+            "[zephyr] %s@v%s's west.yml has no project matching %s",
+            sdk.manifest_url,
+            ver,
+            sdk.boards_repo_url,
+        )
+
+    _MANIFEST_REVISION_CACHE.mkdir(parents=True, exist_ok=True)
+    cache_file.write_text(revision or "")
+    return revision
 
 
-def _sparse_clone_dts(variant: str) -> Path | None:
-    """Sparse-clone boards/, dts/, and include/zephyr/dt-bindings/ from the variant SDK repo.
+def _sparse_clone_dts(variant: str, sdk_name: str, sdk: ZephyrSDK) -> Path | None:
+    """Sparse-clone boards/, dts/, and include/zephyr/dt-bindings/ from the sdk's board
+    repo.
 
-    The clone is cached at ~/.esphome/zephyr_dts_cache/<variant>/<sdk_ver>/ and reused on
-    subsequent compiles.  Returns None if git is unavailable or the clone fails.
+    The clone is cached at ~/.esphome/zephyr_dts_cache/<variant>/<sdk_name>/<sdk_ver>/
+    and reused on subsequent compiles. Returns None if git is unavailable, the tag/ref
+    can't be resolved, or the clone fails.
     """
-    variant_info = VARIANTS.get(variant)
-    if variant_info is None:
-        return None
-
-    sdk = variant_info.sdk
     repo = sdk.boards_repo_url or sdk.manifest_url
     ver = _framework_base_version()
-    dest = _DTS_CACHE / variant / ver
+    dest = _DTS_CACHE / variant / sdk_name / ver
 
     zephyr_dir = dest / "zephyr" if (dest / "zephyr").is_dir() else dest
     if (zephyr_dir / "boards").is_dir():
         return zephyr_dir  # cache hit
 
-    tag = _boards_clone_tag(variant, ver)
+    tag = _resolve_boards_ref(sdk, ver)
     if tag is None:
         _LOGGER.warning(
-            "[zephyr] Could not determine sdk-zephyr revision for %s %s; skipping sparse clone",
+            "[zephyr] Could not determine boards revision for %s %s %s; skipping sparse clone",
             variant,
+            sdk_name,
             ver,
         )
         return None
@@ -297,17 +375,23 @@ def _sparse_clone_dts_from_source(
 
 
 async def fetch_board_dts(
-    variant: str, sdk_source: ConfigType | None, refresh: TimePeriodSeconds
+    variant: str,
+    sdk_name: str,
+    sdk: ZephyrSDK,
+    sdk_source: ConfigType | None,
+    refresh: TimePeriodSeconds,
 ) -> None:
     """Populate ZephyrData dts_base_path with the local Zephyr tree.
 
-    A local sdk_source (a fork/checkout on disk) is used directly -- there's no
-    version tag to clone by, and the checkout already has boards/dts/include on
-    disk. A git sdk_source (fork/branch/ref) is sparse-cloned directly from that
-    same fork/ref, for the same reason. Otherwise tries the native SDK install (no
-    network required if already installed), then falls back to a sparse git clone
-    of the upstream tag matching the resolved version, cached under
-    ~/.esphome/zephyr_dts_cache/. Safe to call multiple times in one run —
+    `sdk`/`sdk_name` are the already-resolved `zephyr: framework: type:` selection
+    (VARIANTS[variant]'s own default sdk, or one of its alt_sdks) -- not necessarily
+    the variant's default. A local sdk_source (a fork/checkout on disk) is used
+    directly -- there's no version tag to clone by, and the checkout already has
+    boards/dts/include on disk. A git sdk_source (fork/branch/ref) is sparse-cloned
+    directly from that same fork/ref, for the same reason. Otherwise tries the native
+    SDK install (no network required if already installed), then falls back to a
+    sparse git clone of the resolved boards revision (see _resolve_boards_ref()),
+    cached under ~/.esphome/zephyr_dts_cache/. Safe to call multiple times in one run —
     no-op after the first successful resolve.
     """
     zd = CORE.data[KEY_ZEPHYR]
@@ -335,14 +419,15 @@ async def fetch_board_dts(
             )
         return
 
-    zephyr_dir = _native_dts_path(variant) or _sparse_clone_dts(variant)
+    zephyr_dir = _native_dts_path(sdk) or _sparse_clone_dts(variant, sdk_name, sdk)
     if zephyr_dir is not None:
         zd["dts_base_path"] = str(zephyr_dir)
         _LOGGER.debug("[zephyr] DTS base path: %s", zephyr_dir)
     else:
         _LOGGER.warning(
-            "[zephyr] Board DTS files unavailable for %s %s; "
+            "[zephyr] Board DTS files unavailable for %s %s %s; "
             "board-specific hardcodes remain as fallback.",
             variant,
+            sdk_name,
             _framework_base_version(),
         )

@@ -6,12 +6,18 @@ from pathlib import Path
 
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_FRAMEWORK,
+    CONF_REFRESH,
+    CONF_SOURCE,
+    CONF_TYPE,
+    CONF_URL,
     CONF_VERSION,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_ZEPHYR,
+    TYPE_GIT,
     Toolchain,
 )
 from esphome.core import CORE
@@ -46,11 +52,29 @@ class ZephyrSDK:
     # wifi_mgmt.h consumer hits.
     default_version: str = "4.4.1"
     min_version: cv.Version = cv.Version(4, 4, 1)
+    # False: boards_repo_url is checked out directly at tag f"v{version}" (mainline's own
+    # tag scheme). True: boards_repo_url's *checkout ref* isn't derivable from version at
+    # all -- it must be read from manifest_url's own west.yml (at tag f"v{version}"), which
+    # states the exact revision it pins for the boards_repo_url project. NCS needs this:
+    # its bundled sdk-zephyr fork's tag scheme isn't a stable function of the nrf release
+    # version (confirmed: NCS 2.9.2 pins zephyr at "v3.7.99-ncs2-2", NCS 3.4.0 pins it at
+    # "ncs-v3.4.0" -- two different, unrelated schemes), so guessing a format string would
+    # silently break on some past or future NCS release. Reading the real manifest is the
+    # only correct way to know it.
+    resolve_boards_ref_via_manifest: bool = False
 
 
 @dataclass
 class ZephyrVariant:
     sdk: ZephyrSDK
+    # `zephyr: framework: type:` key naming this variant's default `sdk` above. Every
+    # variant needs one, even single-SDK ones -- it's what the framework: schema validates
+    # `type:` against.
+    sdk_name: str = "zephyr"
+    # Additional selectable `framework: type:` values, keyed by name -- e.g. nrf52's
+    # {"zephyr": MAINLINE} lets mainline Zephyr be chosen as an alternate to its NCS
+    # default. Empty for single-SDK variants.
+    alt_sdks: dict[str, "ZephyrSDK"] = field(default_factory=dict)
     # Groups sibling variants sharing the same silicon vendor (e.g. "esp32" for
     # esp32_h2/esp32_c6), so shared config/codegen can gate on family once instead
     # of an ever-growing per-variant elif chain. None = no family.
@@ -117,13 +141,37 @@ class ZephyrVariant:
     # GPIO-matrix UART pin override wired up.
     uart_valid_pins: dict[str, frozenset[int]] = field(default_factory=dict)
 
-    @property
-    def default_version(self) -> str:
-        return self.default_version_override or self.sdk.default_version
 
-    @property
-    def min_version(self) -> cv.Version:
-        return self.min_version_override or self.sdk.min_version
+def resolve_sdk(
+    variant: ZephyrVariant, framework_type: str | None
+) -> tuple[str, ZephyrSDK]:
+    """Resolve a `zephyr: framework: type:` value to (type_name, ZephyrSDK).
+
+    None (framework: type: omitted) resolves to the variant's own default sdk/sdk_name.
+    Raises KeyError for an unknown type -- callers validate against
+    [variant.sdk_name, *variant.alt_sdks] via cv.one_of() beforehand, so this should never
+    actually miss in practice.
+    """
+    if framework_type is None or framework_type == variant.sdk_name:
+        return variant.sdk_name, variant.sdk
+    return framework_type, variant.alt_sdks[framework_type]
+
+
+def _sdk_default_version(variant: ZephyrVariant, sdk_name: str, sdk: ZephyrSDK) -> str:
+    # default_version_override only applies to the variant's own default sdk -- an alt
+    # sdk's version window is entirely its own (e.g. nrf52's alt "zephyr" sdk is just
+    # MAINLINE, unmodified).
+    if sdk_name == variant.sdk_name:
+        return variant.default_version_override or sdk.default_version
+    return sdk.default_version
+
+
+def _sdk_min_version(
+    variant: ZephyrVariant, sdk_name: str, sdk: ZephyrSDK
+) -> cv.Version:
+    if sdk_name == variant.sdk_name:
+        return variant.min_version_override or sdk.min_version
+    return sdk.min_version
 
 
 def qualify_board(variant: ZephyrVariant, board: str) -> str:
@@ -137,42 +185,68 @@ def qualify_board(variant: ZephyrVariant, board: str) -> str:
     return qualified
 
 
-def warn_if_not_recommended_version(
-    variant: ZephyrVariant, framework_ver: cv.Version
-) -> None:
-    if framework_ver != cv.Version.parse(variant.default_version):
-        _LOGGER.warning(
-            "The selected Zephyr version is not the recommended one (%s). "
-            "If there are connectivity or build issues please remove the manual version.",
-            variant.default_version,
-        )
-
-
 def resolve_framework_version(
     variant: ZephyrVariant, variant_name: str, config: ConfigType, requires_reason: str
-) -> tuple[str, cv.Version]:
-    """Resolve and validate the configured Zephyr version for a variant's config_schema().
+) -> tuple[str, cv.Version, str, ZephyrSDK]:
+    """Resolve and validate `zephyr: framework:` for a variant's config_schema().
 
-    Returns (version_str, parsed_version) for the caller to store. Raises cv.Invalid if
-    below variant.min_version (requires_reason explains why, e.g. "mainline ESP32-C6
-    support"); only warns (doesn't block) if it differs from variant.default_version.
+    Handles `type:` selection (the variant's default sdk, or one of its alt_sdks),
+    `version:`/`source:` mutual exclusion, `source:` version discovery, and min_version
+    validation (requires_reason explains why, e.g. "mainline ESP32-C6 support"); only
+    warns (doesn't block) if the resolved version differs from the sdk's own
+    default_version. Returns (version_str, parsed_version, sdk_name, sdk) for the caller
+    to store via set_core_data().
     """
-    version_str = str(
-        config.get(
-            CONF_VERSION, config.get(KEY_FRAMEWORK_VERSION, variant.default_version)
-        )
-    )
-    if version_str == VERSION_RECOMMENDED:
-        version_str = variant.default_version
-    framework_ver = cv.Version.parse(version_str)
-    if framework_ver < variant.min_version:
+    framework = config[CONF_FRAMEWORK]
+    type_names = [variant.sdk_name, *variant.alt_sdks]
+    framework_type = framework.get(CONF_TYPE)
+    if framework_type is not None and framework_type not in type_names:
         raise cv.Invalid(
-            f"{variant_name} requires Zephyr >= {variant.min_version} ({requires_reason}). "
-            f"Got {version_str}.",
-            [CONF_VERSION],
+            f"'{framework_type}' is not a valid framework type for {variant_name}. "
+            f"Valid: {type_names!r}",
+            [CONF_FRAMEWORK, CONF_TYPE],
         )
-    warn_if_not_recommended_version(variant, framework_ver)
-    return version_str, framework_ver
+    sdk_name, sdk = resolve_sdk(variant, framework_type)
+    default_version = _sdk_default_version(variant, sdk_name, sdk)
+    min_version = _sdk_min_version(variant, sdk_name, sdk)
+
+    if CONF_VERSION in framework and CONF_SOURCE in framework:
+        raise cv.Invalid(
+            "'version' and 'source' are mutually exclusive within 'framework:' -- "
+            "'source' determines the version from the source itself.",
+            [CONF_FRAMEWORK, CONF_SOURCE],
+        )
+
+    source = framework.get(CONF_SOURCE)
+    if source is not None:
+        from ..dts_fetch import (  # deferred: avoid import cycle (dts_fetch imports VARIANTS)
+            resolve_sdk_source_version,
+        )
+
+        if source[CONF_TYPE] == TYPE_GIT and CONF_URL not in source:
+            source[CONF_URL] = sdk.manifest_url
+        with cv.prepend_path([CONF_FRAMEWORK, CONF_SOURCE]):
+            version_str = resolve_sdk_source_version(source, framework[CONF_REFRESH])
+    else:
+        version_str = str(framework.get(CONF_VERSION, default_version))
+        if version_str == VERSION_RECOMMENDED:
+            version_str = default_version
+
+    framework_ver = cv.Version.parse(version_str)
+    if framework_ver < min_version:
+        raise cv.Invalid(
+            f"{variant_name} requires {sdk_name} >= {min_version} ({requires_reason}). "
+            f"Got {version_str}.",
+            [CONF_FRAMEWORK, CONF_VERSION],
+        )
+    if source is None and framework_ver != cv.Version.parse(default_version):
+        _LOGGER.warning(
+            "The selected %s version is not the recommended one (%s). "
+            "If there are connectivity or build issues please remove the manual version.",
+            sdk_name,
+            default_version,
+        )
+    return version_str, framework_ver, sdk_name, sdk
 
 
 def set_core_data(
@@ -182,6 +256,8 @@ def set_core_data(
     framework_ver: cv.Version,
     config: ConfigType,
     *,
+    framework_type: str,
+    sdk_source: ConfigType | None = None,
     prj_conf: dict | None = None,
     sysbuild_conf: dict | None = None,
     overlay: dict | None = None,
@@ -219,9 +295,10 @@ def set_core_data(
     CORE.data[KEY_ZEPHYR] = ZephyrData(
         board=board,
         board_root=board_root,
-        sdk_source=None,
+        sdk_source=sdk_source,
         bootloader=bootloader,
         variant=variant_name,
+        framework_type=framework_type,
         prj_conf=prj_conf if prj_conf is not None else {},
         sysbuild_conf=sysbuild_conf if sysbuild_conf is not None else {},
         overlay=overlay if overlay is not None else {"": ""},
@@ -247,6 +324,23 @@ def set_core_data(
 MAINLINE: ZephyrSDK = ZephyrSDK(
     manifest_url="https://github.com/zephyrproject-rtos/zephyr",
     tools_subdir="sdk-zephyr",
+)
+
+# nRF Connect SDK (NCS) -- Nordic's own vendor SDK, a manifest-of-manifests around a
+# bundled Zephyr fork (nrfconnect/sdk-zephyr) rather than a single repo. boards/dts/
+# for real Nordic silicon live in that bundled fork, not in the nrf manifest repo
+# itself, and the fork's own checkout ref isn't a stable function of the nrf release
+# version -- see resolve_boards_ref_via_manifest on ZephyrSDK. 3.4.0: Nordic's stated
+# minimum for this integration; its bundled zephyr fork reports 4.4.0 (close to
+# MAINLINE's own 4.4.1 baseline), though NCS cherry-picks fixes independently of
+# upstream release numbers, so that number is not a reliable cross-SDK gating signal.
+NCS: ZephyrSDK = ZephyrSDK(
+    manifest_url="https://github.com/nrfconnect/sdk-nrf",
+    boards_repo_url="https://github.com/nrfconnect/sdk-zephyr",
+    tools_subdir="sdk-nrf",
+    default_version="3.4.0",
+    min_version=cv.Version(3, 4, 0),
+    resolve_boards_ref_via_manifest=True,
 )
 
 # Module names under this package that define a variant.

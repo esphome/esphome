@@ -15,13 +15,12 @@ KEY_ZEPHYR = "zephyr"
 KEY_BOARD: Final = "board"
 KEY_BOARD_ROOT: Final = "board_root"
 KEY_USER: Final = "user"
-KEY_SDK_SOURCE: Final = "sdk_source"
+KEY_FRAMEWORK_TYPE: Final = "framework_type"
 
 zephyr_ns = cg.esphome_ns.namespace("zephyr")
 CdcAcm = zephyr_ns.class_("CdcAcm", cg.Component)
 CONF_CDC_ACM = "cdc_acm"
 CONF_BOARD_SOURCE = "board_source"
-CONF_SDK_SOURCE = "sdk_source"
 CONF_KCONFIG_OPTIONS = "kconfig_options"
 CONF_WEST_VERSION = "west_version"
 CONF_NINJA_VERSION = "ninja_version"
