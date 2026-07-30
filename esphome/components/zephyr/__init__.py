@@ -42,6 +42,7 @@ from .const import (
     CONF_KCONFIG_OPTIONS,
     CONF_NINJA_VERSION,
     CONF_SDK_SOURCE,
+    CONF_SNIPPETS,
     CONF_WEST_VERSION,
     KEY_BOARD,
     KEY_BOARD_ROOT,
@@ -52,6 +53,7 @@ from .const import (
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
     KEY_SDK_SOURCE,
+    KEY_SNIPPETS,
     KEY_SYSBUILD_CONF,
     KEY_USER,
     KEY_ZEPHYR,
@@ -162,6 +164,9 @@ class ZephyrData(TypedDict):
     ]  # board -> list[str] | _NOT_FOUND; cleared each run
     west_version: str | None  # None = use requirements_west.txt's pinned version
     ninja_version: str | None  # None = use requirements_west.txt's pinned version
+    snippets: list[
+        str
+    ]  # zephyr: snippets: -- one `-S <name>` per entry to `west build`
 
 
 # platform: nrf52 use only
@@ -191,6 +196,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         board_yaml_cache={},
         west_version=None,
         ninja_version=None,
+        snippets=[],
     )
 
 
@@ -834,6 +840,12 @@ _ZEPHYR_SCHEMA = cv.Schema(
                 {cv.string_strict: cv.Any(cv.boolean, cv.int_, cv.string_strict)},
             )
         },
+        # Raw passthrough to `west build -S <name>`, one per entry -- Zephyr's snippet
+        # mechanism for devicetree/Kconfig fragments selected by name (e.g. Espressif's
+        # own espressif-flash-4M/flash-8M/... board-variant snippets), a different layer
+        # from kconfig_options: above. Lets a stock upstream board cover a differently
+        # sized flash/PSRAM SKU without forking a whole custom board.
+        cv.Optional(CONF_SNIPPETS, default=[]): cv.ensure_list(cv.string_strict),
     }
 )
 
@@ -1110,6 +1122,7 @@ def run_compile(args, config: ConfigType) -> bool:
         zephyr_toolchain_variant=zephyr_toolchain_variant,
         extra_modules=extra_modules,
         board_root=zephyr_data().get(KEY_BOARD_ROOT),
+        snippets=zephyr_data()[KEY_SNIPPETS],
     )
     return True
 

@@ -114,6 +114,7 @@ def run_west_build(
     zephyr_toolchain_variant: str = "host",
     extra_modules: list[Path] | None = None,
     board_root: Path | None = None,
+    snippets: list[str] | None = None,
 ) -> None:
     """Run west build for a Zephyr native build.
 
@@ -154,6 +155,8 @@ def run_west_build(
         west_cmd.append(f"--cmake-opt=-DEXTRA_ZEPHYR_MODULES={modules_list}")
     if board_root is not None:
         west_cmd.append(f"--cmake-opt=-DBOARD_ROOT={board_root}")
+    for snippet in snippets or []:
+        west_cmd += ["-S", snippet]
 
     if not run_command_ok(
         west_cmd,
