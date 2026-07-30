@@ -77,8 +77,7 @@ void BLETextSensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         this->handle = descr->handle;
       }
       if (this->notify_) {
-        auto status = esp_ble_gattc_register_for_notify(this->parent()->get_gattc_if(),
-                                                        this->parent()->get_remote_bda(), chr->handle);
+        auto status = this->parent()->register_for_notify(chr->handle);
         if (status) {
           ESP_LOGW(TAG, "esp_ble_gattc_register_for_notify failed, status=%d", status);
         }
