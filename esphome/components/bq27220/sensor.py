@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import UNIT_AMPERE_HOUR
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
@@ -12,6 +13,7 @@ from esphome.const import (
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_BATTERY,
     STATE_CLASS_MEASUREMENT,
     UNIT_AMPERE,
@@ -33,8 +35,6 @@ CONF_FULL_CHARGE_CAPACITY = "full_charge_capacity"
 CONF_TIME_TO_EMPTY = "time_to_empty"
 CONF_STATE_OF_HEALTH = "state_of_health"
 
-UNIT_MILLIAMPERE_HOUR = "mAh"
-
 # Other SLUUBD4A standard commands are intentionally not exposed to keep the
 # component focused; they can be added later if there is demand: TimeToFull
 # (0x18), CycleCount (0x2A), BatteryStatus (0x0A), AveragePower (0x24),
@@ -49,12 +49,14 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=3,
                 device_class=DEVICE_CLASS_VOLTAGE,
                 state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
                 unit_of_measurement=UNIT_AMPERE,
                 accuracy_decimals=3,
                 device_class=DEVICE_CLASS_CURRENT,
                 state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
@@ -67,30 +69,35 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_REMAINING_CAPACITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MILLIAMPERE_HOUR,
-                accuracy_decimals=0,
+                unit_of_measurement=UNIT_AMPERE_HOUR,
+                accuracy_decimals=3,
                 state_class=STATE_CLASS_MEASUREMENT,
                 icon=ICON_BATTERY,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_FULL_CHARGE_CAPACITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MILLIAMPERE_HOUR,
-                accuracy_decimals=0,
+                unit_of_measurement=UNIT_AMPERE_HOUR,
+                accuracy_decimals=3,
                 state_class=STATE_CLASS_MEASUREMENT,
                 icon=ICON_BATTERY,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_TIME_TO_EMPTY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MINUTE,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_DURATION,
                 state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_STATE_OF_HEALTH): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
                 icon=ICON_BATTERY,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }
     )

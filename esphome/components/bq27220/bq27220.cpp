@@ -35,81 +35,68 @@ void BQ27220Component::setup() {
   }
 }
 
+// Table describing each readable standard command: which register to read, which
+// sensor it feeds, and how to convert the raw 16-bit word into the published
+// value (raw * scale + offset). `is_signed` reinterprets the word as int16_t;
+// `sentinel_ffff` publishes NAN when the gauge reports 0xFFFF (not applicable).
+namespace {
+struct SensorEntry {
+  uint8_t reg;
+  sensor::Sensor *BQ27220Component::*sensor;
+  float scale;
+  float offset;
+  bool is_signed;
+  bool sentinel_ffff;
+};
+}  // namespace
+
 void BQ27220Component::update() {
-  uint16_t raw = 0;
+  // Defined here (inside a member function) so the pointers to the protected
+  // sensor members can be formed. Still compile-time constant, so it lives in flash.
+  static constexpr SensorEntry SENSOR_ENTRIES[] = {
+      {BQ27220_REG_VOLTAGE, &BQ27220Component::voltage_sensor_, 0.001f, 0.0f, false, false},  // mV → V
+      {BQ27220_REG_CURRENT, &BQ27220Component::current_sensor_, 0.001f, 0.0f, true, false},   // signed mA → A (§2.8)
+      {BQ27220_REG_STATE_OF_CHARGE, &BQ27220Component::battery_level_sensor_, 1.0f, 0.0f, false, false},  // %
+      {BQ27220_REG_TEMPERATURE, &BQ27220Component::temperature_sensor_, 0.1f, -273.15f, false, false},  // 0.1K → °C
+      {BQ27220_REG_REMAINING_CAPACITY, &BQ27220Component::remaining_capacity_sensor_, 0.001f, 0.0f, false,
+       false},  // mAh → Ah
+      {BQ27220_REG_FULL_CHARGE_CAPACITY, &BQ27220Component::full_charge_capacity_sensor_, 0.001f, 0.0f, false,
+       false},  // mAh → Ah
+      {BQ27220_REG_TIME_TO_EMPTY, &BQ27220Component::time_to_empty_sensor_, 1.0f, 0.0f, false,
+       true},  // min (0xFFFF=N/A)
+      {BQ27220_REG_STATE_OF_HEALTH, &BQ27220Component::state_of_health_sensor_, 1.0f, 0.0f, false, false},  // 0–100%
+  };
+
   bool success = true;
 
-  if (this->voltage_sensor_ != nullptr) {
-    if (this->read_word_(BQ27220_REG_VOLTAGE, raw)) {
-      this->voltage_sensor_->publish_state(raw / 1000.0f);  // mV → V
-    } else {
-      this->voltage_sensor_->publish_state(NAN);
-      success = false;
+  for (size_t i = 0; i < sizeof(SENSOR_ENTRIES) / sizeof(SENSOR_ENTRIES[0]); i++) {
+    const SensorEntry &entry = SENSOR_ENTRIES[i];
+    sensor::Sensor *sens = this->*(entry.sensor);
+    if (sens == nullptr) {
+      continue;
     }
-  }
 
-  if (this->current_sensor_ != nullptr) {
-    if (this->read_word_(BQ27220_REG_CURRENT, raw)) {
-      this->current_sensor_->publish_state(static_cast<int16_t>(raw) / 1000.0f);  // signed mA → A (SLUUBD4A §2.8)
-    } else {
-      this->current_sensor_->publish_state(NAN);
+    uint16_t raw = 0;
+    if (!this->read_word_(entry.reg, raw)) {
+      // A failed read means the gauge is almost certainly unresponsive, so the
+      // remaining reads would each just wait out a bus timeout. Publish NAN to
+      // every sensor still pending and stop early.
+      for (size_t j = i; j < sizeof(SENSOR_ENTRIES) / sizeof(SENSOR_ENTRIES[0]); j++) {
+        if (sensor::Sensor *pending = this->*(SENSOR_ENTRIES[j].sensor)) {
+          pending->publish_state(NAN);
+        }
+      }
       success = false;
+      break;
     }
-  }
 
-  if (this->battery_level_sensor_ != nullptr) {
-    if (this->read_word_(BQ27220_REG_STATE_OF_CHARGE, raw)) {
-      this->battery_level_sensor_->publish_state(raw);  // %
-    } else {
-      this->battery_level_sensor_->publish_state(NAN);
-      success = false;
+    if (entry.sentinel_ffff && raw == 0xFFFF) {
+      sens->publish_state(NAN);  // e.g. TimeToEmpty when not discharging
+      continue;
     }
-  }
 
-  if (this->temperature_sensor_ != nullptr) {
-    if (this->read_word_(BQ27220_REG_TEMPERATURE, raw)) {
-      this->temperature_sensor_->publish_state(raw / 10.0f - 273.15f);  // 0.1K → °C
-    } else {
-      this->temperature_sensor_->publish_state(NAN);
-      success = false;
-    }
-  }
-
-  if (this->remaining_capacity_sensor_ != nullptr) {
-    if (this->read_word_(BQ27220_REG_REMAINING_CAPACITY, raw)) {
-      this->remaining_capacity_sensor_->publish_state(raw);  // mAh
-    } else {
-      this->remaining_capacity_sensor_->publish_state(NAN);
-      success = false;
-    }
-  }
-
-  if (this->full_charge_capacity_sensor_ != nullptr) {
-    if (this->read_word_(BQ27220_REG_FULL_CHARGE_CAPACITY, raw)) {
-      this->full_charge_capacity_sensor_->publish_state(raw);  // mAh
-    } else {
-      this->full_charge_capacity_sensor_->publish_state(NAN);
-      success = false;
-    }
-  }
-
-  if (this->time_to_empty_sensor_ != nullptr) {
-    if (this->read_word_(BQ27220_REG_TIME_TO_EMPTY, raw)) {
-      // 0xFFFF means not discharging / N/A; publish NAN so the sensor shows Unknown
-      this->time_to_empty_sensor_->publish_state(raw == 0xFFFF ? NAN : static_cast<float>(raw));
-    } else {
-      this->time_to_empty_sensor_->publish_state(NAN);
-      success = false;
-    }
-  }
-
-  if (this->state_of_health_sensor_ != nullptr) {
-    if (this->read_word_(BQ27220_REG_STATE_OF_HEALTH, raw)) {
-      this->state_of_health_sensor_->publish_state(raw);  // 0–100%
-    } else {
-      this->state_of_health_sensor_->publish_state(NAN);
-      success = false;
-    }
+    float value = entry.is_signed ? static_cast<int16_t>(raw) : static_cast<float>(raw);
+    sens->publish_state(value * entry.scale + entry.offset);
   }
 
   if (success) {
