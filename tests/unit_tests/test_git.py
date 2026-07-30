@@ -1785,6 +1785,43 @@ def test_revert_skips_on_contended_lock(
     assert any("skipping revert" in r.getMessage() for r in caplog.records)
 
 
+def test_revert_returns_false_when_reset_fails(
+    tmp_path: Path, mock_run_git_command: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A failed git reset inside revert() is reported through the bool
+    contract instead of raising a cv.Invalid that would replace the
+    caller's original error."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+    _setup_old_repo(repo_dir)
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "rev-parse":
+            return "old_sha"
+        # Only revert's reset targets the recorded SHA; the update path's
+        # reset targets FETCH_HEAD and must succeed.
+        if cmd[-1] == "old_sha":
+            raise git.GitCommandError("object not found")
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    _, revert = git.clone_or_update(
+        url=url, ref=None, refresh=TimePeriodSeconds(days=1), domain=domain
+    )
+    assert revert is not None
+
+    with caplog.at_level(logging.WARNING):
+        assert revert() is False
+
+    assert any("Could not revert" in r.getMessage() for r in caplog.records)
+
+
 def _raise_oserror_on_acquire(
     monkeypatch: pytest.MonkeyPatch, code: int = errno.ENOLCK
 ) -> None:

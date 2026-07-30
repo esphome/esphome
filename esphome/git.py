@@ -723,6 +723,14 @@ def _clone_or_update_locked(
                     run_git_command(
                         ["git", "reset", "--hard", old_sha], git_dir=repo_dir
                     )
+                except GitException as err:
+                    # GitException is a cv.Invalid; letting it escape would
+                    # replace the caller's original error with a bare git
+                    # message. Report the failed reset like the skip above.
+                    _LOGGER.warning(
+                        "Could not revert %s to %s: %s", safe_key, old_sha, err
+                    )
+                    return False
                 finally:
                     if status is _LockStatus.ACQUIRED:
                         lock.release()
