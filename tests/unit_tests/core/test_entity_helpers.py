@@ -32,6 +32,7 @@ from esphome.core.entity_helpers import (
     setup_device_class,
     setup_entity,
     setup_unit_of_measurement,
+    validate_no_object_id_conflicts,
 )
 from esphome.cpp_generator import MockObj
 from esphome.helpers import fnv1_hash_name, sanitize, snake_case
@@ -477,6 +478,30 @@ def test_entity_different_platforms_yaml_validation(
     assert result is not None
 
 
+def test_object_id_conflict_mqtt_yaml_validation(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test that names sanitizing to the same object_id fail when mqtt is configured."""
+    result = load_config_from_fixture(
+        yaml_file, "object_id_conflict_mqtt.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert "mqtt builds default topics from the entity object_id" in captured.out
+
+
+def test_object_id_conflict_without_mqtt_yaml_validation(
+    yaml_file: Callable[[str], str],
+) -> None:
+    """Test that names sanitizing to the same object_id pass without mqtt/prometheus."""
+    result = load_config_from_fixture(
+        yaml_file, "object_id_conflict_no_mqtt.yaml", FIXTURES_DIR
+    )
+    # This should succeed
+    assert result is not None
+
+
 def test_entity_duplicate_validator_error_message() -> None:
     """Test that duplicate entity error messages include helpful metadata."""
     # Create validator for sensor platform
@@ -632,6 +657,90 @@ def test_entity_duplicate_validator_hash_collision() -> None:
         ),
     ):
         validator(config2)
+
+
+def test_object_id_conflicts_rejected_by_component_validator() -> None:
+    """Test that object_id conflicts pass entity validation but fail for mqtt/prometheus."""
+    validator = entity_duplicate_validator("sensor")
+
+    # Both names validate fine in general (distinct raw names, distinct keys)
+    validator({CONF_NAME: "Датчик открытия"})
+    validator({CONF_NAME: "Датчик закрытия"})
+
+    # A component that addresses entities by object_id must reject the config
+    component_validator = validate_no_object_id_conflicts("mqtt", "default topics")
+    with pytest.raises(
+        Invalid,
+        match=re.compile(
+            r"mqtt builds default topics from the entity object_id.*"
+            r"sensor entities 'Датчик открытия' and 'Датчик закрытия'.*"
+            r"both convert to '_______________'.*"
+            r"To fix: Add unique ASCII characters",
+            re.DOTALL,
+        ),
+    ):
+        component_validator({})
+
+
+def test_object_id_conflicts_none_recorded() -> None:
+    """Test that distinct object_ids produce no conflicts."""
+    validator = entity_duplicate_validator("sensor")
+    validator({CONF_NAME: "Temperature"})
+    validator({CONF_NAME: "Humidity"})
+
+    component_validator = validate_no_object_id_conflicts("mqtt", "default topics")
+    config: dict = {}
+    assert component_validator(config) is config
+
+
+def test_object_id_conflicts_across_devices() -> None:
+    """Test that the same name on different sub-devices is an object_id conflict.
+
+    The entity key check is device scoped, but MQTT topics are not, so the same
+    name on two sub-devices still collides for object_id consumers.
+    """
+    validator = entity_duplicate_validator("sensor")
+    validator({CONF_NAME: "Temperature", CONF_DEVICE_ID: ID("device1", type="Device")})
+    validator({CONF_NAME: "Temperature", CONF_DEVICE_ID: ID("device2", type="Device")})
+
+    component_validator = validate_no_object_id_conflicts("prometheus", "metric labels")
+    with pytest.raises(Invalid, match=r"prometheus builds metric labels"):
+        component_validator({})
+
+
+def test_object_id_conflicts_filter() -> None:
+    """Test that a conflict_filter can exempt conflicts the component avoids."""
+    from esphome.components.mqtt import _topics_conflict
+    from esphome.const import CONF_DISCOVERY, CONF_STATE_TOPIC
+
+    validator = entity_duplicate_validator("sensor")
+    # Both entities have custom state topics and discovery disabled per entity,
+    # so no object_id-derived MQTT topic is used
+    validator(
+        {
+            CONF_NAME: "Датчик открытия",
+            CONF_STATE_TOPIC: "custom/topic/a",
+            CONF_DISCOVERY: False,
+        }
+    )
+    validator(
+        {
+            CONF_NAME: "Датчик закрытия",
+            CONF_STATE_TOPIC: "custom/topic/b",
+            CONF_DISCOVERY: False,
+        }
+    )
+
+    component_validator = validate_no_object_id_conflicts(
+        "mqtt", "default topics", conflict_filter=_topics_conflict
+    )
+    config: dict = {CONF_DISCOVERY: True}
+    assert component_validator(config) is config
+
+    # Without the filter the same conflicts are fatal
+    unfiltered = validate_no_object_id_conflicts("mqtt", "default topics")
+    with pytest.raises(Invalid, match=r"mqtt builds default topics"):
+        unfiltered({})
 
 
 def test_entity_duplicate_validator_same_name_no_enhanced_message() -> None:
