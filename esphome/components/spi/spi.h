@@ -7,36 +7,34 @@
 #include <utility>
 #include <vector>
 
-#ifdef USE_ARDUINO
-
-#include <SPI.h>
-
-#ifdef USE_RP2040
-using SPIInterface = SPIClassRP2040 *;
-#else
-using SPIInterface = SPIClass *;
-#endif
-
-#endif
-
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "driver/spi_master.h"
 
 using SPIInterface = spi_host_device_t;
 
-#endif  // USE_ESP_IDF
+#elif defined(USE_ARDUINO) && !defined(USE_LIBRETINY)
 
-#ifdef USE_ZEPHYR
-// TODO supprse clang-tidy. Remove after SPI driver for nrf52 is added.
-using SPIInterface = void *;
+#include <SPI.h>
+
+#ifdef USE_RP2
+using SPIInterface = SPIClassRP2040 *;
+#else
+using SPIInterface = SPIClass *;
 #endif
+
+#elif defined(USE_HOST) || defined(CLANG_TIDY)
+
+using SPIInterface = void *;  // Stub for platforms without SPI (e.g., host, Zephyr)
+
+#endif  // USE_ESP32 / USE_ARDUINO
 
 /**
  * Implementation of SPI Controller mode.
  */
-namespace esphome {
-namespace spi {
+namespace esphome::spi {
+
+#define LOG_SPI_DEVICE(this) ESP_LOGCONFIG(TAG, "  CS Pin: %d", esphome::spi::Utility::get_pin_no(this->cs_));
 
 /// The bit-order for SPI devices. This defines how the data read from and written to the device is interpreted.
 enum SPIBitOrder {
@@ -124,7 +122,11 @@ class NullPin : public GPIOPin {
 
   void digital_write(bool value) override {}
 
-  std::string dump_summary() const override { return std::string(); }
+  size_t dump_summary(char *buffer, size_t len) const override {
+    if (len > 0)
+      buffer[0] = '\0';
+    return 0;
+  }
 
  protected:
   static GPIOPin *const NULL_PIN;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -332,7 +334,7 @@ class SPIBus {
 
 class SPIClient;
 
-class SPIComponent : public Component {
+class SPIComponent final : public Component {
  public:
   SPIDelegate *register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
                                GPIOPin *cs_pin, bool release_device, bool write_only);
@@ -449,7 +451,7 @@ class SPIDevice : public SPIClient {
 
   uint8_t read_byte() { return this->delegate_->transfer(0); }
 
-  void read_array(uint8_t *data, size_t length) { return this->delegate_->read_array(data, length); }
+  void read_array(uint8_t *data, size_t length) { this->delegate_->read_array(data, length); }
 
   /**
    * Write a single data item, up to 32 bits.
@@ -509,5 +511,4 @@ class SPIDevice : public SPIClient {
   template<size_t N> void transfer_array(std::array<uint8_t, N> &data) { this->transfer_array(data.data(), N); }
 };
 
-}  // namespace spi
-}  // namespace esphome
+}  // namespace esphome::spi

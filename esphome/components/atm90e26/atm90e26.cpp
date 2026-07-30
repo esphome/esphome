@@ -2,8 +2,7 @@
 #include "atm90e26_reg.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace atm90e26 {
+namespace esphome::atm90e26 {
 
 static const char *const TAG = "atm90e26";
 
@@ -146,7 +145,6 @@ void ATM90E26Component::dump_config() {
   LOG_SENSOR("  ", "Active Reverse Energy A", this->reverse_active_energy_sensor_);
   LOG_SENSOR("  ", "Frequency", this->freq_sensor_);
 }
-float ATM90E26Component::get_setup_priority() const { return setup_priority::DATA; }
 
 uint16_t ATM90E26Component::read16_(uint8_t a_register) {
   uint8_t data[2];
@@ -198,7 +196,7 @@ float ATM90E26Component::get_reactive_power_() {
 float ATM90E26Component::get_power_factor_() {
   const uint16_t val = this->read16_(ATM90E26_REGISTER_POWERF);  // signed
   if (val & 0x8000) {
-    return -(val & 0x7FF) / 1000.0f;
+    return -(val & 0x7FFF) / 1000.0f;
   } else {
     return val / 1000.0f;
   }
@@ -230,5 +228,4 @@ float ATM90E26Component::get_frequency_() {
   return freq / 100.0f;
 }
 
-}  // namespace atm90e26
-}  // namespace esphome
+}  // namespace esphome::atm90e26

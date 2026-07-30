@@ -1,10 +1,9 @@
 #include "spi.h"
 #include <vector>
 
-namespace esphome {
-namespace spi {
+namespace esphome::spi {
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 static const char *const TAG = "spi-esp-idf";
 static const size_t MAX_TRANSFER_SIZE = 4092;  // dictated by ESP-IDF API.
 
@@ -18,6 +17,11 @@ class SPIDelegateHw : public SPIDelegate {
         write_only_(write_only) {
     if (!this->release_device_)
       add_device_();
+
+    if (this->write_only_) {
+      ESP_LOGV(TAG, "SPI device with CS pin %d using half-duplex mode (write-only)",
+               Utility::get_pin_no(this->cs_pin_));
+    }
   }
 
   bool is_ready() override { return this->handle_ != nullptr; }
@@ -266,6 +270,5 @@ SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo
   return new SPIBusHw(clk, sdo, sdi, interface, data_pins);
 }
 
-#endif
-}  // namespace spi
-}  // namespace esphome
+#endif  // USE_ESP32
+}  // namespace esphome::spi

@@ -4,15 +4,13 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace mlx90614 {
+namespace esphome::mlx90614 {
 
-class MLX90614Component : public PollingComponent, public i2c::I2CDevice {
+class MLX90614Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
   void update() override;
-  float get_setup_priority() const override;
 
   void set_ambient_sensor(sensor::Sensor *ambient_sensor) { ambient_sensor_ = ambient_sensor; }
   void set_object_sensor(sensor::Sensor *object_sensor) { object_sensor_ = object_sensor; }
@@ -33,5 +31,4 @@ class MLX90614Component : public PollingComponent, public i2c::I2CDevice {
   i2c::ErrorCode object_read_ec_{i2c::ERROR_OK};
   i2c::ErrorCode ambient_read_ec_{i2c::ERROR_OK};
 };
-}  // namespace mlx90614
-}  // namespace esphome
+}  // namespace esphome::mlx90614

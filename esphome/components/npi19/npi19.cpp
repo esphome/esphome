@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace npi19 {
+namespace esphome::npi19 {
 
 static const char *const TAG = "npi19";
 
@@ -28,8 +27,6 @@ void NPI19Component::dump_config() {
   LOG_SENSOR("  ", "Raw Pressure", this->raw_pressure_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
 }
-
-float NPI19Component::get_setup_priority() const { return setup_priority::DATA; }
 
 i2c::ErrorCode NPI19Component::read_(uint16_t &raw_temperature, uint16_t &raw_pressure) {
   // initiate data read from device
@@ -103,5 +100,4 @@ void NPI19Component::update() {
   this->status_clear_warning();
 }
 
-}  // namespace npi19
-}  // namespace esphome
+}  // namespace esphome::npi19

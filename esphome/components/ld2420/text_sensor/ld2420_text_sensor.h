@@ -3,10 +3,9 @@
 #include "../ld2420.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 
-namespace esphome {
-namespace ld2420 {
+namespace esphome::ld2420 {
 
-class LD2420TextSensor : public LD2420Listener, public Component, text_sensor::TextSensor {
+class LD2420TextSensor final : public LD2420Listener, public Component, public text_sensor::TextSensor {
  public:
   void dump_config() override;
   void set_fw_version_text_sensor(text_sensor::TextSensor *tsensor) { this->fw_version_text_sensor_ = tsensor; };
@@ -20,5 +19,4 @@ class LD2420TextSensor : public LD2420Listener, public Component, text_sensor::T
   text_sensor::TextSensor *fw_version_text_sensor_{nullptr};
 };
 
-}  // namespace ld2420
-}  // namespace esphome
+}  // namespace esphome::ld2420

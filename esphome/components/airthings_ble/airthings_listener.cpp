@@ -4,8 +4,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace airthings_ble {
+namespace esphome::airthings_ble {
 
 static const char *const TAG = "airthings_ble";
 
@@ -20,7 +19,8 @@ bool AirthingsListener::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
       sn |= ((uint32_t) it.data[2] << 16);
       sn |= ((uint32_t) it.data[3] << 24);
 
-      ESP_LOGD(TAG, "Found AirThings device Serial:%" PRIu32 " (MAC: %s)", sn, device.address_str().c_str());
+      char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      ESP_LOGD(TAG, "Found AirThings device Serial:%" PRIu32 " (MAC: %s)", sn, device.address_str_to(addr_buf));
       return true;
     }
   }
@@ -28,7 +28,6 @@ bool AirthingsListener::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
   return false;
 }
 
-}  // namespace airthings_ble
-}  // namespace esphome
+}  // namespace esphome::airthings_ble
 
 #endif

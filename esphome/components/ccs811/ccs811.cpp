@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ccs811 {
+namespace esphome::ccs811 {
 
 static const char *const TAG = "ccs811";
 
@@ -81,8 +80,8 @@ void CCS811Component::setup() {
            bootloader_version, application_version);
   if (this->version_ != nullptr) {
     char version[20];  // "15.15.15 (0xffff)" is 17 chars, plus NUL, plus wiggle room
-    sprintf(version, "%d.%d.%d (0x%02x)", (application_version >> 12 & 15), (application_version >> 8 & 15),
-            (application_version >> 4 & 15), application_version);
+    buf_append_printf(version, sizeof(version), 0, "%d.%d.%d (0x%02x)", (application_version >> 12 & 15),
+                      (application_version >> 8 & 15), (application_version >> 4 & 15), application_version);
     ESP_LOGD(TAG, "publishing version state: %s", version);
     this->version_->publish_state(version);
   }
@@ -186,5 +185,4 @@ void CCS811Component::dump_config() {
   }
 }
 
-}  // namespace ccs811
-}  // namespace esphome
+}  // namespace esphome::ccs811

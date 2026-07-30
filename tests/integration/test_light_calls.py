@@ -8,6 +8,7 @@ import asyncio
 from typing import Any
 
 from aioesphomeapi import LightState
+from aioesphomeapi.model import ColorMode
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -35,10 +36,51 @@ async def test_light_calls(
         # Get the light entities
         entities = await client.list_entities_services()
         lights = [e for e in entities[0] if e.object_id.startswith("test_")]
-        assert len(lights) >= 2  # Should have RGBCW and RGB lights
+        assert len(lights) >= 3  # Should have RGBCW, RGB, and Binary lights
 
         rgbcw_light = next(light for light in lights if "RGBCW" in light.name)
         rgb_light = next(light for light in lights if "RGB Light" in light.name)
+        binary_light = next(light for light in lights if "Binary" in light.name)
+
+        # Test color mode encoding: Verify supported_color_modes contains actual ColorMode enum values
+        # not bit positions. This is critical - the iterator must convert bit positions to actual
+        # ColorMode enum values for API encoding.
+
+        # RGBCW light (rgbww platform) should support RGB_COLD_WARM_WHITE mode
+        assert ColorMode.RGB_COLD_WARM_WHITE in rgbcw_light.supported_color_modes, (
+            f"RGBCW light missing RGB_COLD_WARM_WHITE mode. Got: {rgbcw_light.supported_color_modes}"
+        )
+        # Verify it's the actual enum value, not bit position
+        assert ColorMode.RGB_COLD_WARM_WHITE.value in [
+            mode.value for mode in rgbcw_light.supported_color_modes
+        ], (
+            f"RGBCW light has wrong color mode values. Expected {ColorMode.RGB_COLD_WARM_WHITE.value} "
+            f"(RGB_COLD_WARM_WHITE), got: {[mode.value for mode in rgbcw_light.supported_color_modes]}"
+        )
+
+        # RGB light should support RGB mode
+        assert ColorMode.RGB in rgb_light.supported_color_modes, (
+            f"RGB light missing RGB color mode. Got: {rgb_light.supported_color_modes}"
+        )
+        # Verify it's the actual enum value, not bit position
+        assert ColorMode.RGB.value in [
+            mode.value for mode in rgb_light.supported_color_modes
+        ], (
+            f"RGB light has wrong color mode values. Expected {ColorMode.RGB.value} (RGB), got: "
+            f"{[mode.value for mode in rgb_light.supported_color_modes]}"
+        )
+
+        # Binary light (on/off only) should support ON_OFF mode
+        assert ColorMode.ON_OFF in binary_light.supported_color_modes, (
+            f"Binary light missing ON_OFF color mode. Got: {binary_light.supported_color_modes}"
+        )
+        # Verify it's the actual enum value, not bit position
+        assert ColorMode.ON_OFF.value in [
+            mode.value for mode in binary_light.supported_color_modes
+        ], (
+            f"Binary light has wrong color mode values. Expected {ColorMode.ON_OFF.value} (ON_OFF), got: "
+            f"{[mode.value for mode in binary_light.supported_color_modes]}"
+        )
 
         async def wait_for_state_change(key: int, timeout: float = 1.0) -> Any:
             """Wait for a state change for the given entity key."""
@@ -279,6 +321,49 @@ async def test_light_calls(
         state = await wait_for_state_change(rgbcw_light.key)
         assert state.state is True
         assert state.brightness == pytest.approx(0.75)
+
+        # Test 31: Setting brightness to 0 without an explicit state implicitly turns
+        # the light off; turning it back on (without an explicit brightness) then
+        # restores full brightness so the light is visible again.
+        client.light_command(key=rgbcw_light.key, state=True, brightness=0.5)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+        assert state.brightness == pytest.approx(0.5)
+
+        # Brightness 0 with no explicit state -> implicit turn-off
+        client.light_command(key=rgbcw_light.key, brightness=0.0)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is False
+        assert state.brightness == pytest.approx(0.0)
+        # Turning on without an explicit brightness restores it to full brightness
+        client.light_command(key=rgbcw_light.key, state=True)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+        assert state.brightness == pytest.approx(1.0)
+
+        # Test 31b: An explicit turn-on with brightness 0 respects the explicit value and
+        # stays dark. Only a turn-on with no brightness specified (Test 31) restores
+        # visibility -- an explicit brightness request (e.g. from a light effect's dark
+        # phase) is never overridden.
+        client.light_command(key=rgbcw_light.key, state=True, brightness=0.0)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+        assert state.brightness == pytest.approx(0.0)
+
+        # Test 32: Turning a light on when it already has nonzero brightness leaves
+        # the brightness unchanged (the reset only happens when brightness is 0).
+        client.light_command(key=rgbcw_light.key, state=True, brightness=0.4)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.brightness == pytest.approx(0.4)
+
+        client.light_command(key=rgbcw_light.key, state=False)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is False
+
+        client.light_command(key=rgbcw_light.key, state=True)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+        assert state.brightness == pytest.approx(0.4)
 
         # Final cleanup - turn all lights off
         for light in lights:

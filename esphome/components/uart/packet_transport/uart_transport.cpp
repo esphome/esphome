@@ -2,8 +2,7 @@
 #include "esphome/core/application.h"
 #include "uart_transport.h"
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 static const char *const TAG = "uart_transport";
 
@@ -56,12 +55,6 @@ void UARTTransport::loop() {
   }
 }
 
-void UARTTransport::update() {
-  this->updated_ = true;
-  this->resend_data_ = true;
-  PacketTransport::update();
-}
-
 /**
  * Write a byte to the UART bus. If the byte is a flag or control byte, it will be escaped.
  * @param byte The byte to write.
@@ -84,5 +77,5 @@ void UARTTransport::send_packet(const std::vector<uint8_t> &buf) const {
   this->write_byte_(crc >> 8);
   this->parent_->write_byte(FLAG_BYTE);
 }
-}  // namespace uart
-}  // namespace esphome
+
+}  // namespace esphome::uart

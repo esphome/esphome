@@ -5,12 +5,11 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
 
-#include <vector>
+#include <span>
 
-namespace esphome {
-namespace pzemdc {
+namespace esphome::pzemdc {
 
-class PZEMDC : public PollingComponent, public modbus::ModbusDevice {
+class PZEMDC final : public PollingComponent, public modbus::ModbusClientDevice {
  public:
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_current_sensor(sensor::Sensor *current_sensor) { current_sensor_ = current_sensor; }
@@ -19,7 +18,7 @@ class PZEMDC : public PollingComponent, public modbus::ModbusDevice {
 
   void update() override;
 
-  void on_modbus_data(const std::vector<uint8_t> &data) override;
+  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
 
   void dump_config() override;
 
@@ -32,15 +31,14 @@ class PZEMDC : public PollingComponent, public modbus::ModbusDevice {
   sensor::Sensor *energy_sensor_{nullptr};
 };
 
-template<typename... Ts> class ResetEnergyAction : public Action<Ts...> {
+template<typename... Ts> class ResetEnergyAction final : public Action<Ts...> {
  public:
   ResetEnergyAction(PZEMDC *pzemdc) : pzemdc_(pzemdc) {}
 
-  void play(Ts... x) override { this->pzemdc_->reset_energy(); }
+  void play(const Ts &...x) override { this->pzemdc_->reset_energy(); }
 
  protected:
   PZEMDC *pzemdc_;
 };
 
-}  // namespace pzemdc
-}  // namespace esphome
+}  // namespace esphome::pzemdc

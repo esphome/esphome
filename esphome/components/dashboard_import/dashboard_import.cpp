@@ -1,12 +1,11 @@
 #include "dashboard_import.h"
 
-namespace esphome {
-namespace dashboard_import {
+namespace esphome::dashboard_import {
 
-static std::string g_package_import_url;  // NOLINT
+static const char EMPTY_URL[] PROGMEM = "";                                        // NOLINT
+static ProgmemStr g_package_import_url = reinterpret_cast<ProgmemStr>(EMPTY_URL);  // NOLINT
 
-std::string get_package_import_url() { return g_package_import_url; }
-void set_package_import_url(std::string url) { g_package_import_url = std::move(url); }
+ProgmemStr get_package_import_url() { return g_package_import_url; }
+void set_package_import_url(ProgmemStr url) { g_package_import_url = url; }
 
-}  // namespace dashboard_import
-}  // namespace esphome
+}  // namespace esphome::dashboard_import

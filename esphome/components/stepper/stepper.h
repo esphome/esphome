@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace stepper {
+namespace esphome::stepper {
 
 #define LOG_STEPPER(this) \
   ESP_LOGCONFIG(TAG, \
@@ -38,37 +37,37 @@ class Stepper {
   uint32_t last_step_{0};
 };
 
-template<typename... Ts> class SetTargetAction : public Action<Ts...> {
+template<typename... Ts> class SetTargetAction final : public Action<Ts...> {
  public:
   explicit SetTargetAction(Stepper *parent) : parent_(parent) {}
 
   TEMPLATABLE_VALUE(int32_t, target)
 
-  void play(Ts... x) override { this->parent_->set_target(this->target_.value(x...)); }
+  void play(const Ts &...x) override { this->parent_->set_target(this->target_.value(x...)); }
 
  protected:
   Stepper *parent_;
 };
 
-template<typename... Ts> class ReportPositionAction : public Action<Ts...> {
+template<typename... Ts> class ReportPositionAction final : public Action<Ts...> {
  public:
   explicit ReportPositionAction(Stepper *parent) : parent_(parent) {}
 
   TEMPLATABLE_VALUE(int32_t, position)
 
-  void play(Ts... x) override { this->parent_->report_position(this->position_.value(x...)); }
+  void play(const Ts &...x) override { this->parent_->report_position(this->position_.value(x...)); }
 
  protected:
   Stepper *parent_;
 };
 
-template<typename... Ts> class SetSpeedAction : public Action<Ts...> {
+template<typename... Ts> class SetSpeedAction final : public Action<Ts...> {
  public:
   explicit SetSpeedAction(Stepper *parent) : parent_(parent) {}
 
   TEMPLATABLE_VALUE(float, speed);
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     float speed = this->speed_.value(x...);
     this->parent_->set_max_speed(speed);
     this->parent_->on_update_speed();
@@ -78,13 +77,13 @@ template<typename... Ts> class SetSpeedAction : public Action<Ts...> {
   Stepper *parent_;
 };
 
-template<typename... Ts> class SetAccelerationAction : public Action<Ts...> {
+template<typename... Ts> class SetAccelerationAction final : public Action<Ts...> {
  public:
   explicit SetAccelerationAction(Stepper *parent) : parent_(parent) {}
 
   TEMPLATABLE_VALUE(float, acceleration);
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     float acceleration = this->acceleration_.value(x...);
     this->parent_->set_acceleration(acceleration);
   }
@@ -93,13 +92,13 @@ template<typename... Ts> class SetAccelerationAction : public Action<Ts...> {
   Stepper *parent_;
 };
 
-template<typename... Ts> class SetDecelerationAction : public Action<Ts...> {
+template<typename... Ts> class SetDecelerationAction final : public Action<Ts...> {
  public:
   explicit SetDecelerationAction(Stepper *parent) : parent_(parent) {}
 
   TEMPLATABLE_VALUE(float, deceleration);
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     float deceleration = this->deceleration_.value(x...);
     this->parent_->set_deceleration(deceleration);
   }
@@ -108,5 +107,4 @@ template<typename... Ts> class SetDecelerationAction : public Action<Ts...> {
   Stepper *parent_;
 };
 
-}  // namespace stepper
-}  // namespace esphome
+}  // namespace esphome::stepper

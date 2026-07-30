@@ -4,6 +4,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/time.h"
+#include "esphome/components/display/display.h"
 
 #include <vector>
 
@@ -11,17 +12,16 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 
-namespace esphome {
-namespace tm1637 {
+namespace esphome::tm1637 {
 
 class TM1637Display;
 #ifdef USE_BINARY_SENSOR
 class TM1637Key;
 #endif
 
-using tm1637_writer_t = std::function<void(TM1637Display &)>;
+using tm1637_writer_t = display::DisplayWriter<TM1637Display>;
 
-class TM1637Display : public PollingComponent {
+class TM1637Display final : public PollingComponent {
  public:
   void set_writer(tm1637_writer_t &&writer) { this->writer_ = writer; }
 
@@ -46,6 +46,12 @@ class TM1637Display : public PollingComponent {
   /// Print `str` at position 0.
   uint8_t print(const char *str);
 
+  /// Set raw buffer bytes from data array up to length bytes.
+  void set_buffer(const uint8_t *data, uint8_t length);
+
+  /// Set the display brightness. Accepts a value between 0.0 and 1.0; 0 will turn off
+  /// the display and 1.0 will set it to the maximum brightness.
+  void set_brightness(float brightness);
   void set_intensity(uint8_t intensity) { this->intensity_ = intensity; }
   void set_inverted(bool inverted) { this->inverted_ = inverted; }
   void set_length(uint8_t length) { this->length_ = length; }
@@ -78,7 +84,7 @@ class TM1637Display : public PollingComponent {
   uint8_t length_;
   bool inverted_;
   bool on_{true};
-  optional<tm1637_writer_t> writer_{};
+  tm1637_writer_t writer_{};
   uint8_t buffer_[6] = {0};
 #ifdef USE_BINARY_SENSOR
   std::vector<TM1637Key *> tm1637_keys_{};
@@ -86,7 +92,7 @@ class TM1637Display : public PollingComponent {
 };
 
 #ifdef USE_BINARY_SENSOR
-class TM1637Key : public binary_sensor::BinarySensor {
+class TM1637Key final : public binary_sensor::BinarySensor {
   friend class TM1637Display;
 
  public:
@@ -98,5 +104,4 @@ class TM1637Key : public binary_sensor::BinarySensor {
 };
 #endif
 
-}  // namespace tm1637
-}  // namespace esphome
+}  // namespace esphome::tm1637

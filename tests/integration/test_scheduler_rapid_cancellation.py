@@ -108,7 +108,7 @@ async def test_scheduler_rapid_cancellation(
         )
 
         # Call the service to start the test
-        client.execute_service(run_test_service, {})
+        await client.execute_service(run_test_service, {})
 
         # Wait for test to complete with timeout
         try:

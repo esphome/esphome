@@ -1,23 +1,20 @@
 #pragma once
 
-#include "epaper_spi.h"
+#include "epaper_spi_4bpp.h"
 
 namespace esphome::epaper_spi {
 
-class EPaperSpectraE6 : public EPaperBase {
+class EPaperSpectraE6 final : public EPaper4bpp {
  public:
-  EPaperSpectraE6(const uint8_t *init_sequence, const size_t init_sequence_length)
-      : EPaperBase(init_sequence, init_sequence_length) {}
-
-  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
-  void fill(Color color) override;
+  using EPaper4bpp::EPaper4bpp;
 
  protected:
-  void draw_absolute_pixel_internal(int x, int y, Color color) override;
-  uint32_t get_buffer_length() override;
+  uint8_t color_to_native(Color color) override;
 
-  bool transfer_data() override;
-  void reset() override;
+  void refresh_screen(bool partial) override;
+  void power_on() override;
+  void power_off() override;
+  void deep_sleep() override;
 };
 
 }  // namespace esphome::epaper_spi

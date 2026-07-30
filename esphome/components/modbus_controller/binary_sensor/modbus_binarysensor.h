@@ -6,12 +6,11 @@
 
 #include <vector>
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
-class ModbusBinarySensor : public Component, public binary_sensor::BinarySensor, public SensorItem {
+class ModbusBinarySensor final : public Component, public binary_sensor::BinarySensor, public SensorItem {
  public:
-  ModbusBinarySensor(ModbusRegisterType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
+  ModbusBinarySensor(modbus::EntityType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
                      uint16_t skip_updates, bool force_new_range) {
     this->register_type = register_type;
     this->start_address = start_address;
@@ -21,7 +20,7 @@ class ModbusBinarySensor : public Component, public binary_sensor::BinarySensor,
     this->skip_updates = skip_updates;
     this->force_new_range = force_new_range;
 
-    if (register_type == ModbusRegisterType::COIL || register_type == ModbusRegisterType::DISCRETE_INPUT) {
+    if (register_type == modbus::EntityType::COIL || register_type == modbus::EntityType::DISCRETE_INPUT) {
       this->register_count = offset + 1;
     } else {
       this->register_count = 1;
@@ -33,12 +32,11 @@ class ModbusBinarySensor : public Component, public binary_sensor::BinarySensor,
 
   void dump_config() override;
 
-  using transform_func_t = std::function<optional<bool>(ModbusBinarySensor *, bool, const std::vector<uint8_t> &)>;
-  void set_template(transform_func_t &&f) { this->transform_func_ = f; }
+  using transform_func_t = optional<bool> (*)(ModbusBinarySensor *, bool, const std::vector<uint8_t> &);
+  void set_template(transform_func_t f) { this->transform_func_ = f; }
 
  protected:
   optional<transform_func_t> transform_func_{nullopt};
 };
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

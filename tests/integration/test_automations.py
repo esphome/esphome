@@ -67,7 +67,7 @@ async def test_delay_action_cancellation(
         assert test_service is not None, "start_delay_then_restart service not found"
 
         # Execute the test sequence
-        client.execute_service(test_service, {})
+        await client.execute_service(test_service, {})
 
         # Wait for the second script to start
         await asyncio.wait_for(second_script_started, timeout=5.0)
@@ -138,7 +138,7 @@ async def test_parallel_script_delays(
         assert test_service is not None, "test_parallel_delays service not found"
 
         # Execute the test - this will start 3 parallel scripts with 1 second delays
-        client.execute_service(test_service, {})
+        await client.execute_service(test_service, {})
 
         # Wait for all scripts to complete (should take ~1 second, not 3)
         await asyncio.wait_for(all_scripts_completed, timeout=2.0)

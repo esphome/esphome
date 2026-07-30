@@ -81,7 +81,7 @@ async def test_scheduler_defer_cancel(
         client.subscribe_states(on_state)
 
         # Execute the test
-        client.execute_service(test_defer_cancel_service, {})
+        await client.execute_service(test_defer_cancel_service, {})
 
         # Wait for test completion
         try:

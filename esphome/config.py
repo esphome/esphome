@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 from contextlib import contextmanager
 import contextvars
+import copy
 import functools
 import heapq
 import logging
@@ -12,19 +13,24 @@ from typing import Any
 import voluptuous as vol
 
 from esphome import core, loader, pins, yaml_util
-from esphome.config_helpers import Extend, Remove
+from esphome.components.substitutions import do_substitution_pass
+from esphome.config_helpers import Extend, Remove, merge_config
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ESPHOME,
     CONF_EXTERNAL_COMPONENTS,
     CONF_ID,
+    CONF_MERGE_WARNINGS,
     CONF_MIN_VERSION,
     CONF_PACKAGES,
     CONF_PLATFORM,
     CONF_SUBSTITUTIONS,
 )
 from esphome.core import CORE, DocumentRange, EsphomeError
-import esphome.core.config as core_config
+
+# `esphome.core.config` is imported lazily at its two use sites below.
+# It pulls in `esphome.automation` and `esphome.config_validation`, which
+# dominate `esphome.__main__` startup cost when loaded eagerly here.
 import esphome.final_validate as fv
 from esphome.helpers import indent
 from esphome.loader import ComponentManifest, get_component, get_platform
@@ -132,6 +138,96 @@ def _path_begins_with(path: ConfigPath, other: ConfigPath) -> bool:
     return path[: len(other)] == other
 
 
+# CORE.data key for the per-alias "already warned this run" dedupe set.
+# Cleared between runs because CORE.data is reset; one warning per alias
+# per `esphome config|compile|run` invocation is the desired UX.
+_ALIAS_WARNED_KEY = "_component_aliases_warned"
+
+
+def _resolve_component_aliases(config: dict[str, Any]) -> None:
+    """Rewrite legacy top-level keys to their canonical names, in place.
+
+    Looks up each top-level key against the component-alias map built by
+    :mod:`esphome.loader` (see ``ComponentManifest.aliases``); when a
+    matching alias is found, the key is moved to its canonical name and a
+    one-shot deprecation warning is logged (per alias, per run — deduped
+    via ``CORE.data``).
+
+    Ambiguous configurations raise ``cv.Invalid`` rather than silently
+    keeping one entry — that would hide a real misconfiguration. Two cases
+    are rejected: the canonical key together with one of its deprecated
+    aliases, and two or more different aliases of the same canonical
+    component.
+
+    The rest of the validator chain (dependency resolution, schema
+    validation, codegen) sees only canonical names, so component
+    `DEPENDENCIES = ["<canonical>"]` works regardless of which spelling
+    the user typed.
+    """
+    alias_meta_map = loader.get_alias_metadata()
+    if not alias_meta_map:
+        return
+
+    # Group every legacy alias key present in the config by the canonical
+    # component it resolves to, preserving config order within each group.
+    legacy_by_canonical: dict[str, list[str]] = {}
+    for key in config:
+        meta = alias_meta_map.get(key)
+        if meta is not None:
+            legacy_by_canonical.setdefault(meta.canonical, []).append(key)
+
+    if not legacy_by_canonical:
+        return
+
+    # Reject ambiguous configurations up front — checking before rewriting
+    # means a conflict is caught regardless of key order.
+    for canonical, legacies in legacy_by_canonical.items():
+        if canonical in config:
+            # The canonical key and (at least) one deprecated alias are both
+            # present.
+            raise vol.Invalid(
+                f"Both '{legacies[0]}:' (deprecated alias of '{canonical}:') "
+                f"and '{canonical}:' are present in the configuration. Remove "
+                f"the deprecated '{legacies[0]}:' key.",
+                path=[legacies[0]],
+            )
+        if len(legacies) > 1:
+            # Several different deprecated aliases of the same component.
+            listed = ", ".join(f"'{alias}:'" for alias in legacies)
+            raise vol.Invalid(
+                f"Multiple deprecated aliases of '{canonical}:' are present "
+                f"({listed}). Use only '{canonical}:'.",
+                path=[legacies[0]],
+            )
+
+    warned: set[str] = CORE.data.setdefault(_ALIAS_WARNED_KEY, set())
+
+    # Rebuild in place so each canonical key keeps the legacy key's original
+    # position — top-level key order matters for some downstream passes
+    # (e.g. auto-load ordering). A plain `config[canonical] = config.pop(...)`
+    # would instead move the renamed key to the end.
+    rewritten: dict[str, Any] = {}
+    for key, value in config.items():
+        meta = alias_meta_map.get(key)
+        if meta is None:
+            rewritten[key] = value
+            continue
+        rewritten[meta.canonical] = value
+        if key not in warned:
+            warned.add(key)
+            removal = (
+                f" Removed in {meta.removal_version}." if meta.removal_version else ""
+            )
+            _LOGGER.warning(
+                "The '%s:' top-level key is deprecated; rename it to '%s:'.%s",
+                key,
+                meta.canonical,
+                removal,
+            )
+    config.clear()
+    config.update(rewritten)
+
+
 @functools.total_ordering
 class _ValidationStepTask:
     def __init__(self, priority: float, id_number: int, step: ConfigValidationStep):
@@ -164,6 +260,11 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         self.output_paths: list[tuple[ConfigPath, str]] = []
         # A list of components ids with the config path
         self.declare_ids: list[tuple[core.ID, ConfigPath]] = []
+        # Snapshot of the user's configuration after substitutions/packages/
+        # extend-remove resolution but before any schema validation defaults
+        # are applied. Populated by validate_config; used by `esphome config
+        # --no-defaults` to emit only the user-supplied keys.
+        self.user_config: ConfigType | None = None
         self._data = {}
         # Store pending validation tasks (in heap order)
         self._validation_tasks: list[_ValidationStepTask] = []
@@ -319,18 +420,15 @@ def iter_ids(config, path=None):
             yield from iter_ids(item, path + [i])
     elif isinstance(config, dict):
         for key, value in config.items():
+            if len(path) == 0 and key == CONF_SUBSTITUTIONS:
+                # Ignore IDs in substitution definitions.
+                continue
             if isinstance(key, core.ID):
                 yield key, path
             yield from iter_ids(value, path + [key])
 
 
-def recursive_check_replaceme(value):
-    if isinstance(value, list):
-        return cv.Schema([recursive_check_replaceme])(value)
-    if isinstance(value, dict):
-        return cv.Schema({cv.valid: recursive_check_replaceme})(value)
-    if isinstance(value, ESPLiteralValue):
-        pass
+def check_replaceme(value):
     if isinstance(value, str) and value == "REPLACEME":
         raise cv.Invalid(
             "Found 'REPLACEME' in configuration, this is most likely an error. "
@@ -339,7 +437,101 @@ def recursive_check_replaceme(value):
             "If you want to use the literal REPLACEME string, "
             'please use "!literal REPLACEME"'
         )
-    return value
+
+
+def _get_item_id(item: Any) -> str | Extend | Remove | None:
+    """Attempts to get a list item's ID"""
+    if not isinstance(item, dict):
+        return None  # not a dict, can't have ID
+    # 1.- Check regular case:
+    # - id: my_id
+    item_id = item.get(CONF_ID)
+    if item_id is None and len(item) == 1:
+        # 2.- Check single-key dict case:
+        # - obj:
+        #     id: my_id
+        item = next(iter(item.values()))
+        if isinstance(item, dict):
+            item_id = item.get(CONF_ID)
+    if isinstance(item_id, Extend):
+        # Remove instances of Extend so they don't overwrite the original item when merging:
+        del item[CONF_ID]
+    elif not isinstance(item_id, (str, Remove)):
+        return None
+    return item_id
+
+
+def _build_list_index(
+    lst: list[Any],
+) -> tuple[
+    OrderedDict[str | Extend | Remove, Any], list[tuple[int, str, Any]], set[str]
+]:
+    index = OrderedDict()
+    extensions, removals = [], set()
+    for pos, item in enumerate(lst):
+        if item is None:
+            removals.add(None)
+            continue
+        item_id = _get_item_id(item)
+        if isinstance(item_id, Extend):
+            extensions.append((pos, item_id.value, item))
+            continue
+        if isinstance(item_id, Remove):
+            removals.add(item_id.value)
+            continue
+        if not item_id or item_id in index:
+            # no id or duplicate -> pass through with identity-based key
+            item_id = id(item)
+        index[item_id] = item
+    return index, extensions, removals
+
+
+def resolve_extend_remove(value: Any, is_key: bool = False) -> None:
+    if isinstance(value, ESPLiteralValue):
+        return  # do not check inside literal blocks
+    if isinstance(value, list):
+        index, extensions, removals = _build_list_index(value)
+        if extensions or removals:
+            # Rebuild the original list after
+            # processing all extensions and removals
+            for pos, item_id, item in extensions:
+                if item_id in removals:
+                    continue
+                old = index.get(item_id)
+                if old is None:
+                    # Failed to find source for extension
+                    with cv.prepend_path(pos):
+                        raise cv.Invalid(
+                            f"Source for extension of ID '{item_id}' was not found."
+                        )
+                index[item_id] = merge_config(old, item)
+            for item_id in removals:
+                index.pop(item_id, None)
+
+            value[:] = index.values()
+
+        for i, item in enumerate(value):
+            with cv.prepend_path(i):
+                resolve_extend_remove(item, False)
+        return
+    if isinstance(value, dict):
+        removals = []
+        for k, v in value.items():
+            with cv.prepend_path(k):
+                if isinstance(v, Remove):
+                    removals.append(k)
+                    continue
+                resolve_extend_remove(k, True)
+                resolve_extend_remove(v, False)
+        for k in removals:
+            value.pop(k, None)
+        return
+    if is_key:
+        return  # do not check keys (yet)
+
+    check_replaceme(value)
+
+    return
 
 
 class ConfigValidationStep(abc.ABC):
@@ -407,6 +599,18 @@ class LoadValidationStep(ConfigValidationStep):
         CORE.loaded_integrations.add(self.domain)
         # For platform components, normalize conf before creating MetadataValidationStep
         if component.is_platform_component:
+            # Legacy config migration: allow a platform component to rewrite a
+            # pre-platform-format top-level config (e.g. a bare list or legacy
+            # dict form) into the normalized list of `platform:` tagged entries.
+            # Removable deprecation shim hook; no-op for components that do not
+            # define LEGACY_CONFIG_MIGRATE.
+            if (
+                (migrate := component.legacy_config_migrate) is not None
+                and self.conf
+                and not isinstance(self.conf, core.AutoLoad)
+                and (migrated := migrate(self.conf)) is not None
+            ):
+                result[self.domain] = self.conf = migrated
             if not self.conf:
                 result[self.domain] = self.conf = []
             elif not isinstance(self.conf, list):
@@ -437,19 +641,6 @@ class LoadValidationStep(ConfigValidationStep):
                 continue
             p_name = p_config.get("platform")
             if p_name is None:
-                p_id = p_config.get(CONF_ID)
-                if isinstance(p_id, Extend):
-                    result.add_str_error(
-                        f"Source for extension of ID '{p_id.value}' was not found.",
-                        path + [CONF_ID],
-                    )
-                    continue
-                if isinstance(p_id, Remove):
-                    result.add_str_error(
-                        f"Source for removal of ID '{p_id.value}' was not found.",
-                        path + [CONF_ID],
-                    )
-                    continue
                 result.add_str_error(
                     f"'{self.domain}' requires a 'platform' key but it was not specified.",
                     path,
@@ -879,6 +1070,25 @@ class FinalValidateValidationStep(ConfigValidationStep):
         fv.full_config.reset(token)
 
 
+class CoreFinalValidateStep(ConfigValidationStep):
+    """Run final validation on core esphome config (area/device hash collisions)."""
+
+    # Same priority as component final validate steps
+    priority = -20.0
+
+    def run(self, result: Config) -> None:
+        if result.errors:
+            return
+
+        import esphome.core.config as core_config
+
+        token = fv.full_config.set(result)
+        with result.catch_error([CONF_ESPHOME]):
+            if CONF_ESPHOME in result:
+                core_config.validate_ids_and_references(result[CONF_ESPHOME])
+        fv.full_config.reset(token)
+
+
 class PinUseValidationCheck(ConfigValidationStep):
     """Check for pin reuse"""
 
@@ -896,13 +1106,14 @@ class PinUseValidationCheck(ConfigValidationStep):
 
 def validate_config(
     config: dict[str, Any],
-    command_line_substitutions: dict[str, Any],
+    command_line_substitutions: dict[str, Any] | None,
     skip_external_update: bool = False,
 ) -> Config:
     result = Config()
 
+    CORE.skip_external_update = skip_external_update
+
     loader.clear_component_meta_finders()
-    loader.install_custom_components_meta_finder()
 
     # 0. Load packages
     if CONF_PACKAGES in config:
@@ -910,44 +1121,62 @@ def validate_config(
 
         result.add_output_path([CONF_PACKAGES], CONF_PACKAGES)
         try:
-            config = do_packages_pass(config, skip_update=skip_external_update)
+            config = do_packages_pass(
+                config,
+                command_line_substitutions=command_line_substitutions,
+            )
         except vol.Invalid as err:
             result.update(config)
             result.add_error(err)
             return result
 
-    CORE.raw_config = config
-
     # 1. Load substitutions
     if CONF_SUBSTITUTIONS in config or command_line_substitutions:
-        from esphome.components import substitutions
-
-        result[CONF_SUBSTITUTIONS] = {
-            **(config.get(CONF_SUBSTITUTIONS) or {}),
-            **command_line_substitutions,
-        }
         result.add_output_path([CONF_SUBSTITUTIONS], CONF_SUBSTITUTIONS)
-        try:
-            substitutions.do_substitution_pass(config, command_line_substitutions)
-        except vol.Invalid as err:
-            result.add_error(err)
-            return result
+    try:
+        config = do_substitution_pass(config, command_line_substitutions)
+    except vol.Invalid as err:
+        CORE.raw_config = config
+        result.add_error(err)
+        return result
 
+    # 1.1. Merge packages
+    if CONF_PACKAGES in config:
+        from esphome.components.packages import merge_packages
+
+        config = merge_packages(config)
+
+    # Remove substitutions from config during validation to prevent
+    # re-substitution. Re-added to result at the end of this function.
+    substitutions = config.pop(CONF_SUBSTITUTIONS, None)
     CORE.raw_config = config
 
-    # 1.1. Check for REPLACEME special value
+    # 1.15. Resolve component aliases so legacy top-level keys
+    # (`rp2040:`, …) route to their canonical component before any
+    # downstream pass touches the config. Logs a deprecation warning
+    # per alias; mutates `config` in place. Errors here surface as
+    # plain config errors and abort further validation.
     try:
-        recursive_check_replaceme(config)
+        _resolve_component_aliases(config)
+    except vol.Invalid as err:
+        result.update(config)
+        result.add_error(err)
+        return result
+
+    # 1.2. Resolve !extend and !remove and check for REPLACEME
+    # After this step, there will not be any Extend or Remove values in the config anymore
+    try:
+        resolve_extend_remove(config)
     except vol.Invalid as err:
         result.add_error(err)
 
-    # 1.2. Load external_components
+    # 1.3. Load external_components
     if CONF_EXTERNAL_COMPONENTS in config:
         from esphome.components.external_components import do_external_components_pass
 
         result.add_output_path([CONF_EXTERNAL_COMPONENTS], CONF_EXTERNAL_COMPONENTS)
         try:
-            do_external_components_pass(config, skip_update=skip_external_update)
+            do_external_components_pass(config)
         except vol.Invalid as err:
             result.update(config)
             result.add_error(err)
@@ -968,7 +1197,36 @@ def validate_config(
         )
         return result
 
+    # Warn about any keys silently dropped by `<<` merge includes (shallow,
+    # first-wins). The esphome: section is now known, so we can honor its
+    # `merge_warnings:` opt-out. Always drain the queue to keep it from leaking
+    # into a later run.
+    if (dropped := yaml_util.take_dropped_merge_keys()) and (
+        not isinstance(esphome_conf := config[CONF_ESPHOME], dict)
+        or esphome_conf.get(CONF_MERGE_WARNINGS, True)
+    ):
+        for key, location in dict.fromkeys(dropped):
+            _LOGGER.warning(
+                "Key '%s' (%s) was dropped while processing a '<<' merge because it "
+                "is already defined. Merge keys don't combine sections - the first "
+                "definition wins. Use 'packages:' to merge sections, or set "
+                "'esphome: { merge_warnings: false }' to silence this.",
+                key,
+                location,
+            )
+
+    # Snapshot the user's config before any schema validation defaults are
+    # applied. preload_core_config and later validation steps rewrite entries
+    # in-place with defaulted values; deep-copying here preserves the
+    # user-supplied keys for `esphome config --no-defaults`.
+    result.user_config = copy.deepcopy(config)
+    if substitutions is not None:
+        result.user_config[CONF_SUBSTITUTIONS] = copy.deepcopy(substitutions)
+        result.user_config.move_to_end(CONF_SUBSTITUTIONS, last=False)
+
     # 2. Load partial core config
+    import esphome.core.config as core_config
+
     result[CONF_ESPHOME] = config[CONF_ESPHOME]
     result.add_output_path([CONF_ESPHOME], CONF_ESPHOME)
     try:
@@ -999,11 +1257,16 @@ def validate_config(
     for domain, conf in config.items():
         result.add_validation_step(LoadValidationStep(domain, conf))
     result.add_validation_step(IDPassValidationStep())
+    result.add_validation_step(CoreFinalValidateStep())
     result.add_validation_step(PinUseValidationCheck())
 
     result.add_validation_step(RemoveReferenceValidationStep())
 
     result.run_validation_steps()
+
+    if substitutions is not None:
+        result[CONF_SUBSTITUTIONS] = substitutions
+        result.move_to_end(CONF_SUBSTITUTIONS, last=False)
 
     return result
 
@@ -1233,7 +1496,9 @@ def strip_default_ids(config):
     return config
 
 
-def read_config(command_line_substitutions, skip_external_update=False):
+def read_config(
+    command_line_substitutions: dict[str, Any], skip_external_update: bool = False
+) -> Config | None:
     _LOGGER.info("Reading configuration %s...", CORE.config_path)
     try:
         res = load_config(command_line_substitutions, skip_external_update)

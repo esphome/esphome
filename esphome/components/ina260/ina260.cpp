@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ina260 {
+namespace esphome::ina260 {
 
 static const char *const TAG = "ina260";
 
@@ -61,13 +60,13 @@ void INA260Component::setup() {
 }
 
 void INA260Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "INA260:");
+  ESP_LOGCONFIG(TAG,
+                "INA260:\n"
+                "  Manufacture ID: 0x%x\n"
+                "  Device ID: 0x%x",
+                this->manufacture_id_, this->device_id_);
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-
-  ESP_LOGCONFIG(TAG, "  Manufacture ID: 0x%x", this->manufacture_id_);
-  ESP_LOGCONFIG(TAG, "  Device ID: 0x%x", this->device_id_);
-
   LOG_SENSOR("  ", "Bus Voltage", this->bus_voltage_sensor_);
   LOG_SENSOR("  ", "Current", this->current_sensor_);
   LOG_SENSOR("  ", "Power", this->power_sensor_);
@@ -122,5 +121,4 @@ void INA260Component::update() {
   this->status_clear_warning();
 }
 
-}  // namespace ina260
-}  // namespace esphome
+}  // namespace esphome::ina260

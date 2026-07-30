@@ -11,8 +11,7 @@
 #include <esp_http_server.h>
 #include <utility>
 
-namespace esphome {
-namespace esp32_camera_web_server {
+namespace esphome::esp32_camera_web_server {
 
 static const int IMAGE_REQUEST_TIMEOUT = 5000;
 static const char *const TAG = "esp32_camera_web_server";
@@ -67,12 +66,14 @@ void CameraWebServer::setup() {
 
   httpd_register_uri_handler(this->httpd_, &uri);
 
-  camera::Camera::instance()->add_image_callback([this](std::shared_ptr<camera::CameraImage> image) {
-    if (this->running_ && image->was_requested_by(camera::WEB_REQUESTER)) {
-      this->image_ = std::move(image);
-      xSemaphoreGive(this->semaphore_);
-    }
-  });
+  camera::Camera::instance()->add_listener(this);
+}
+
+void CameraWebServer::on_camera_image(const std::shared_ptr<camera::CameraImage> &image) {
+  if (this->running_ && image->was_requested_by(camera::WEB_REQUESTER)) {
+    this->image_ = image;
+    xSemaphoreGive(this->semaphore_);
+  }
 }
 
 void CameraWebServer::on_shutdown() {
@@ -240,7 +241,6 @@ esp_err_t CameraWebServer::snapshot_handler_(struct httpd_req *req) {
   return res;
 }
 
-}  // namespace esp32_camera_web_server
-}  // namespace esphome
+}  // namespace esphome::esp32_camera_web_server
 
 #endif  // USE_ESP32

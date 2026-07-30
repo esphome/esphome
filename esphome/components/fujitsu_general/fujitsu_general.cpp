@@ -1,7 +1,6 @@
 #include "fujitsu_general.h"
 
-namespace esphome {
-namespace fujitsu_general {
+namespace esphome::fujitsu_general {
 
 // bytes' bits are reversed for fujitsu, so nibbles are ordered 1, 0, 3, 2, 5, 4, etc...
 
@@ -141,7 +140,7 @@ void FujitsuGeneralClimate::transmit_state() {
   }
 
   // Set fan
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_HIGH:
       SET_NIBBLE(remote_state, FUJITSU_GENERAL_FAN_NIBBLE, FUJITSU_GENERAL_FAN_HIGH);
       break;
@@ -400,5 +399,4 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
   return true;
 }
 
-}  // namespace fujitsu_general
-}  // namespace esphome
+}  // namespace esphome::fujitsu_general

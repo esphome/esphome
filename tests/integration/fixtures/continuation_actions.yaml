@@ -1,0 +1,174 @@
+esphome:
+  name: test-continuation-actions
+
+host:
+
+api:
+  actions:
+    # Test 1: IfAction with ContinuationAction (then/else branches)
+    - action: test_if_action
+      variables:
+        condition: bool
+        value: int
+      then:
+        - logger.log:
+            format: "Test if: condition=%s, value=%d"
+            args: ['YESNO(condition)', 'value']
+        - if:
+            condition:
+              lambda: 'return condition;'
+            then:
+              - logger.log:
+                  format: "if-then executed: value=%d"
+                  args: ['value']
+            else:
+              - logger.log:
+                  format: "if-else executed: value=%d"
+                  args: ['value']
+        - logger.log: "if completed"
+
+    # Test 2: Nested IfAction (multiple ContinuationAction instances)
+    - action: test_nested_if
+      variables:
+        outer: bool
+        inner: bool
+      then:
+        - logger.log:
+            format: "Test nested if: outer=%s, inner=%s"
+            args: ['YESNO(outer)', 'YESNO(inner)']
+        - if:
+            condition:
+              lambda: 'return outer;'
+            then:
+              - if:
+                  condition:
+                    lambda: 'return inner;'
+                  then:
+                    - logger.log: "nested-both-true"
+                  else:
+                    - logger.log: "nested-outer-true-inner-false"
+            else:
+              - logger.log: "nested-outer-false"
+        - logger.log: "nested if completed"
+
+    # Test 3: WhileAction with WhileLoopContinuation
+    - action: test_while_action
+      variables:
+        max_count: int
+      then:
+        - logger.log:
+            format: "Test while: max_count=%d"
+            args: ['max_count']
+        - globals.set:
+            id: continuation_test_counter
+            value: !lambda 'return 0;'
+        - while:
+            condition:
+              lambda: 'return id(continuation_test_counter) < max_count;'
+            then:
+              - logger.log:
+                  format: "while-iteration-%d"
+                  args: ['id(continuation_test_counter)']
+              - globals.set:
+                  id: continuation_test_counter
+                  value: !lambda 'return id(continuation_test_counter) + 1;'
+        - logger.log: "while completed"
+
+    # Test 4: RepeatAction with RepeatLoopContinuation
+    - action: test_repeat_action
+      variables:
+        count: int
+      then:
+        - logger.log:
+            format: "Test repeat: count=%d"
+            args: ['count']
+        - repeat:
+            count: !lambda 'return count;'
+            then:
+              - logger.log:
+                  format: "repeat-iteration-%d"
+                  args: ['iteration']
+        - logger.log: "repeat completed"
+
+    # Test 5: Combined continuations (if + while + repeat)
+    - action: test_combined
+      variables:
+        do_loop: bool
+        loop_count: int
+      then:
+        - logger.log:
+            format: "Test combined: do_loop=%s, loop_count=%d"
+            args: ['YESNO(do_loop)', 'loop_count']
+        - if:
+            condition:
+              lambda: 'return do_loop;'
+            then:
+              - repeat:
+                  count: !lambda 'return loop_count;'
+                  then:
+                    - globals.set:
+                        id: continuation_test_counter
+                        value: !lambda 'return iteration;'
+                    - while:
+                        condition:
+                          lambda: 'return id(continuation_test_counter) > 0;'
+                        then:
+                          - logger.log:
+                              format: "combined-repeat%d-while%d"
+                              args: ['iteration', 'id(continuation_test_counter)']
+                          - globals.set:
+                              id: continuation_test_counter
+                              value: !lambda 'return id(continuation_test_counter) - 1;'
+            else:
+              - logger.log: "combined-skipped"
+        - logger.log: "combined completed"
+
+    # Test 6: Rapid triggers to verify memory efficiency
+    - action: test_rapid_if
+      then:
+        - logger.log: "=== Rapid if test start ==="
+        - sensor.template.publish:
+            id: rapid_sensor
+            state: 1
+        - sensor.template.publish:
+            id: rapid_sensor
+            state: 2
+        - sensor.template.publish:
+            id: rapid_sensor
+            state: 3
+        - sensor.template.publish:
+            id: rapid_sensor
+            state: 4
+        - sensor.template.publish:
+            id: rapid_sensor
+            state: 5
+        - logger.log: "=== Rapid if test published 5 values ==="
+
+logger:
+  level: DEBUG
+
+globals:
+  - id: continuation_test_counter
+    type: int
+    restore_value: false
+    initial_value: '0'
+
+# Sensor to test rapid automation triggers with if/else (ContinuationAction)
+sensor:
+  - platform: template
+    id: rapid_sensor
+    on_value:
+      - if:
+          condition:
+            lambda: 'return x > 2;'
+          then:
+            - logger.log:
+                format: "rapid-if-then: value=%d"
+                args: ['(int)x']
+          else:
+            - logger.log:
+                format: "rapid-if-else: value=%d"
+                args: ['(int)x']
+      - logger.log:
+          format: "rapid-if-completed: value=%d"
+          args: ['(int)x']

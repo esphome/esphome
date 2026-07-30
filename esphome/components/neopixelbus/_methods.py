@@ -2,12 +2,12 @@ from dataclasses import dataclass
 from typing import Any
 
 import esphome.codegen as cg
-from esphome.components.esp32 import get_esp32_variant
-from esphome.components.esp32.const import (
+from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32C3,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    get_esp32_variant,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -344,7 +344,7 @@ def _spi_extra_validate(config):
     if CORE.is_esp32:
         return
 
-    if config[CONF_DATA_PIN] != 13 and config[CONF_CLOCK_PIN] != 14:
+    if config[CONF_DATA_PIN] != 13 or config[CONF_CLOCK_PIN] != 14:
         raise cv.Invalid(
             "SPI only supports pins GPIO13 for data and GPIO14 for clock on ESP8266"
         )

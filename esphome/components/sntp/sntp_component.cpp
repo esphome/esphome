@@ -9,8 +9,7 @@
 #include "lwip/apps/sntp.h"
 #endif
 
-namespace esphome {
-namespace sntp {
+namespace esphome::sntp {
 
 static const char *const TAG = "sntp";
 
@@ -27,7 +26,7 @@ void SNTPComponent::setup() {
   esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
   size_t i = 0;
   for (auto &server : this->servers_) {
-    esp_sntp_setservername(i++, server.c_str());
+    esp_sntp_setservername(i++, server);
   }
   esp_sntp_set_sync_interval(this->get_update_interval());
   esp_sntp_set_time_sync_notification_cb([](struct timeval *tv) {
@@ -42,7 +41,7 @@ void SNTPComponent::setup() {
 
   size_t i = 0;
   for (auto &server : this->servers_) {
-    sntp_setservername(i++, server.c_str());
+    sntp_setservername(i++, server);
   }
 
 #if defined(USE_ESP8266)
@@ -59,8 +58,9 @@ void SNTPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SNTP Time:");
   size_t i = 0;
   for (auto &server : this->servers_) {
-    ESP_LOGCONFIG(TAG, "  Server %zu: '%s'", i++, server.c_str());
+    ESP_LOGCONFIG(TAG, "  Server %zu: '%s'", i++, server);
   }
+  RealTimeClock::dump_config();
 }
 void SNTPComponent::update() {
 #if !defined(USE_ESP32)
@@ -101,5 +101,4 @@ void SNTPComponent::time_synced() {
   this->time_sync_callback_.call();
 }
 
-}  // namespace sntp
-}  // namespace esphome
+}  // namespace esphome::sntp

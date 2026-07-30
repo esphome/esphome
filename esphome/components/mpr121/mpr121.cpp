@@ -5,8 +5,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mpr121 {
+namespace esphome::mpr121 {
 
 static const char *const TAG = "mpr121";
 
@@ -153,11 +152,8 @@ void MPR121GPIOPin::digital_write(bool value) {
   this->parent_->digital_write(this->pin_ - 4, value != this->inverted_);
 }
 
-std::string MPR121GPIOPin::dump_summary() const {
-  char buffer[32];
-  snprintf(buffer, sizeof(buffer), "ELE%u on MPR121", this->pin_);
-  return buffer;
+size_t MPR121GPIOPin::dump_summary(char *buffer, size_t len) const {
+  return buf_append_printf(buffer, len, 0, "ELE%u on MPR121", this->pin_);
 }
 
-}  // namespace mpr121
-}  // namespace esphome
+}  // namespace esphome::mpr121

@@ -1,8 +1,7 @@
 #include "resistance_sensor.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace resistance {
+namespace esphome::resistance {
 
 static const char *const TAG = "resistance";
 
@@ -39,9 +38,8 @@ void ResistanceSensor::process_(float value) {
   }
 
   res *= this->resistor_;
-  ESP_LOGD(TAG, "'%s' - Resistance %.1fΩ", this->name_.c_str(), res);
+  ESP_LOGV(TAG, "'%s' - Resistance %.1fΩ", this->name_.c_str(), res);
   this->publish_state(res);
 }
 
-}  // namespace resistance
-}  // namespace esphome
+}  // namespace esphome::resistance

@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  issues: write
-  pull-requests: write
+  issues: write         # actions/stale labels, comments on, and closes stale issues
+  pull-requests: write  # actions/stale labels, comments on, and closes stale pull requests
 
 concurrency:
   group: lock
@@ -19,11 +19,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Stale
-        uses: actions/stale@5f858e3efba33a5ca4407a664cc011ad407f2008 # v10.1.0
+        uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
         with:
           debug-only: ${{ github.ref != 'refs/heads/dev' }} # Dry-run when not run on dev branch
           remove-stale-when-updated: true
-          operations-per-run: 150
+          operations-per-run: 400
 
           # The 90 day stale policy for PRs
           # - PRs

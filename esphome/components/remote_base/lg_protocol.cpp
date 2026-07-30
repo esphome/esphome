@@ -1,16 +1,15 @@
 #include "lg_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.lg";
 
-static const uint32_t HEADER_HIGH_US = 8000;
-static const uint32_t HEADER_LOW_US = 4000;
-static const uint32_t BIT_HIGH_US = 600;
-static const uint32_t BIT_ONE_LOW_US = 1600;
-static const uint32_t BIT_ZERO_LOW_US = 550;
+static constexpr uint32_t HEADER_HIGH_US = 8000;
+static constexpr uint32_t HEADER_LOW_US = 4000;
+static constexpr uint32_t BIT_HIGH_US = 600;
+static constexpr uint32_t BIT_ONE_LOW_US = 1600;
+static constexpr uint32_t BIT_ZERO_LOW_US = 550;
 
 void LGProtocol::encode(RemoteTransmitData *dst, const LGData &data) {
   dst->set_carrier_frequency(38000);
@@ -54,5 +53,4 @@ void LGProtocol::dump(const LGData &data) {
   ESP_LOGI(TAG, "Received LG: data=0x%08" PRIX32 ", nbits=%d", data.data, data.nbits);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

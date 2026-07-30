@@ -3,10 +3,9 @@
 #include "esphome/components/number/number.h"
 #include "../ld2412.h"
 
-namespace esphome {
-namespace ld2412 {
+namespace esphome::ld2412 {
 
-class LightThresholdNumber : public number::Number, public Parented<LD2412Component> {
+class LightThresholdNumber final : public number::Number, public Parented<LD2412Component> {
  public:
   LightThresholdNumber() = default;
 
@@ -14,5 +13,4 @@ class LightThresholdNumber : public number::Number, public Parented<LD2412Compon
   void control(float value) override;
 };
 
-}  // namespace ld2412
-}  // namespace esphome
+}  // namespace esphome::ld2412

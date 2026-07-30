@@ -4,15 +4,13 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/time/real_time_clock.h"
 
-namespace esphome {
-namespace ds1307 {
+namespace esphome::ds1307 {
 
-class DS1307Component : public time::RealTimeClock, public i2c::I2CDevice {
+class DS1307Component final : public time::RealTimeClock, public i2c::I2CDevice {
  public:
   void setup() override;
   void update() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void read_time();
   void write_time();
 
@@ -57,14 +55,13 @@ class DS1307Component : public time::RealTimeClock, public i2c::I2CDevice {
   } ds1307_;
 };
 
-template<typename... Ts> class WriteAction : public Action<Ts...>, public Parented<DS1307Component> {
+template<typename... Ts> class WriteAction final : public Action<Ts...>, public Parented<DS1307Component> {
  public:
-  void play(Ts... x) override { this->parent_->write_time(); }
+  void play(const Ts &...x) override { this->parent_->write_time(); }
 };
 
-template<typename... Ts> class ReadAction : public Action<Ts...>, public Parented<DS1307Component> {
+template<typename... Ts> class ReadAction final : public Action<Ts...>, public Parented<DS1307Component> {
  public:
-  void play(Ts... x) override { this->parent_->read_time(); }
+  void play(const Ts &...x) override { this->parent_->read_time(); }
 };
-}  // namespace ds1307
-}  // namespace esphome
+}  // namespace esphome::ds1307

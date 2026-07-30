@@ -3,10 +3,9 @@
 #include "esphome/components/switch/switch.h"
 #include "../ld2412.h"
 
-namespace esphome {
-namespace ld2412 {
+namespace esphome::ld2412 {
 
-class EngineeringModeSwitch : public switch_::Switch, public Parented<LD2412Component> {
+class EngineeringModeSwitch final : public switch_::Switch, public Parented<LD2412Component> {
  public:
   EngineeringModeSwitch() = default;
 
@@ -14,5 +13,4 @@ class EngineeringModeSwitch : public switch_::Switch, public Parented<LD2412Comp
   void write_state(bool state) override;
 };
 
-}  // namespace ld2412
-}  // namespace esphome
+}  // namespace esphome::ld2412

@@ -1,8 +1,7 @@
 #include "modbus_binarysensor.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus_controller.binary_sensor";
 
@@ -12,13 +11,13 @@ void ModbusBinarySensor::parse_and_publish(const std::vector<uint8_t> &data) {
   bool value;
 
   switch (this->register_type) {
-    case ModbusRegisterType::DISCRETE_INPUT:
-    case ModbusRegisterType::COIL:
+    case modbus::EntityType::DISCRETE_INPUT:
+    case modbus::EntityType::COIL:
       // offset for coil is the actual number of the coil not the byte offset
-      value = coil_from_vector(this->offset, data);
+      value = modbus::helpers::bit_from_packed(this->offset, data);
       break;
     default:
-      value = get_data<uint16_t>(data, this->offset) & this->bitmask;
+      value = modbus::helpers::get_data<uint16_t>(data, this->offset) & this->bitmask;
       break;
   }
   // Is there a lambda registered
@@ -34,5 +33,4 @@ void ModbusBinarySensor::parse_and_publish(const std::vector<uint8_t> &data) {
   this->publish_state(value);
 }
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

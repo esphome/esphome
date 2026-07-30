@@ -9,5 +9,9 @@ sensor:
       name: "Heap Free"
     psram:
       name: "Free PSRAM"
+    fragmentation:
+      name: "Heap Fragmentation"
+    min_free:
+      name: "Heap Min Free"
 
 psram:
