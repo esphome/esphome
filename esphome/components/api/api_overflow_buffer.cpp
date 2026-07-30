@@ -20,7 +20,13 @@ ssize_t APIOverflowBuffer::try_drain(socket::Socket *socket) {
   // nested send is enqueued behind the existing backlog.
   if (this->draining_)
     return 0;
-  this->draining_ = true;
+
+  // RAII so the flag is cleared on every return path
+  struct DrainGuard {
+    explicit DrainGuard(bool &flag) : flag_(flag) { flag_ = true; }
+    ~DrainGuard() { this->flag_ = false; }
+    bool &flag_;
+  } guard(this->draining_);
 
   while (this->count_ > 0) {
     Entry *front = this->queue_[this->head_];
@@ -30,14 +36,12 @@ ssize_t APIOverflowBuffer::try_drain(socket::Socket *socket) {
     if (sent <= 0) {
       // -1 = error (caller checks errno for EWOULDBLOCK vs hard error)
       // 0 = nothing sent (treat as no progress)
-      this->draining_ = false;
       return sent;
     }
 
     if (static_cast<uint16_t>(sent) < front->remaining()) {
       // Partially sent, update offset and stop
       front->offset += static_cast<uint16_t>(sent);
-      this->draining_ = false;
       return sent;
     }
 
@@ -49,7 +53,6 @@ ssize_t APIOverflowBuffer::try_drain(socket::Socket *socket) {
     Entry::destroy(front);
   }
 
-  this->draining_ = false;
   return 0;  // All drained
 }
 
