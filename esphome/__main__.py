@@ -1141,6 +1141,12 @@ def upload_program(
     config: ConfigType, args: ArgsProtocol, devices: list[str]
 ) -> tuple[int, str | None]:
     host = devices[0]
+
+    from esphome.components.esphome import publish
+
+    if publish.upload_program(config, args, host):
+        return 0, None
+
     try:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
         if module.upload_program(config, args, host):
