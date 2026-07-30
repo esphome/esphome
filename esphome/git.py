@@ -170,8 +170,9 @@ def run_git_command(
 def _cache_key(url: str, ref: str | None) -> str:
     """Cache key identifying one repository checkout.
 
-    The lock path and the entry directory both hash this, so the format
-    lives in exactly one place.
+    The lock path and the entry directory both hash this, keeping them in
+    agreement. (micro_wake_word still rebuilds the format by hand to locate
+    manifests; fold it in here if the format ever changes.)
     """
     return f"{url}@{ref}"
 
