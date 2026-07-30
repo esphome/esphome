@@ -626,15 +626,21 @@ def zephyr_add_cdc_acm(config: ConfigType, id: int) -> str:
     only ever sees the board's own node) or the app is currently running.
     """
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if CORE.is_nrf52 and framework_ver >= cv.Version(3, 2, 0):
-        zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
-    zephyr_add_prj_conf("USB_DEVICE_STACK", True)
-    zephyr_add_prj_conf("USB_CDC_ACM", True)
-    # prevent device to go to susspend, without this communication stop working in python
-    # there should be a way to solve it
-    zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
-    # prevent logging when buffer is full
-    zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
+    if CORE.is_nrf52:
+        # platform: nrf52 stays pinned to the legacy USB device stack -- untested
+        # against the newer device_next stack, not touching working behavior.
+        if framework_ver >= cv.Version(3, 2, 0):
+            zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
+        zephyr_add_prj_conf("USB_DEVICE_STACK", True)
+        zephyr_add_prj_conf("USB_CDC_ACM", True)
+        # prevent device to go to susspend, without this communication stop working in python
+        # there should be a way to solve it
+        zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
+        # prevent logging when buffer is full
+        zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
+    else:
+        zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", True)
+        zephyr_add_prj_conf("CONFIG_CDC_ACM_SERIAL_INITIALIZE_AT_BOOT", True)
 
     from .dts_lookup import get_existing_cdc_acm_uart_label
 
