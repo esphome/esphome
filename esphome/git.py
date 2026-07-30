@@ -712,7 +712,9 @@ def _clone_or_update_locked(
                     # revert() only runs on an already-failing path; skip
                     # rather than hang so the original error can surface.
                     _LOGGER.warning(
-                        "Could not lock %s to revert to %s, skipping revert",
+                        "Could not lock %s to revert to %s, skipping revert; "
+                        "the cached checkout keeps the un-reverted content "
+                        "until its next refresh",
                         safe_key,
                         old_sha,
                     )
