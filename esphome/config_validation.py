@@ -1815,6 +1815,8 @@ def one_of(*values, **kwargs):
       - *int* (``bool``, default=False): Whether to convert the incoming values to integers.
       - *float* (``bool``, default=False): Whether to convert the incoming values to floats.
       - *space* (``str``, default=' '): What to convert spaces in the input string to.
+      - *underscore* (``str``, default='_'): What to convert underscores in the input string to.
+      - *hyphen* (``str``, default='-'): What to convert hyphens in the input string to.
     """
     options = ", ".join(f"'{x}'" for x in values)
     lower = kwargs.pop("lower", False)
@@ -1823,8 +1825,11 @@ def one_of(*values, **kwargs):
     to_int = kwargs.pop("int", False)
     to_float = kwargs.pop("float", False)
     space = kwargs.pop("space", " ")
+    underscore = kwargs.pop("underscore", "_")
+    hyphen = kwargs.pop("hyphen", "-")
     if kwargs:
         raise ValueError
+    separators = str.maketrans({" ": space, "_": underscore, "-": hyphen})
 
     @schema_extractor("one_of")
     def validator(value):
@@ -1833,7 +1838,7 @@ def one_of(*values, **kwargs):
 
         if string_:
             value = string(value)
-            value = value.replace(" ", space)
+            value = value.translate(separators)
         if to_int:
             value = int_(value)
         if to_float:
