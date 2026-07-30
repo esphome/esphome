@@ -8,10 +8,9 @@
 #include "esphome/components/time/real_time_clock.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace uptime {
+namespace esphome::uptime {
 
-class UptimeTimestampSensor : public sensor::Sensor, public Component {
+class UptimeTimestampSensor final : public sensor::Sensor, public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -24,7 +23,6 @@ class UptimeTimestampSensor : public sensor::Sensor, public Component {
   time::RealTimeClock *time_;
 };
 
-}  // namespace uptime
-}  // namespace esphome
+}  // namespace esphome::uptime
 
 #endif  // USE_TIME

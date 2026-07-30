@@ -5,10 +5,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace mics_4514 {
+namespace esphome::mics_4514 {
 
-class MICS4514Component : public PollingComponent, public i2c::I2CDevice {
+class MICS4514Component final : public PollingComponent, public i2c::I2CDevice {
   SUB_SENSOR(carbon_monoxide)
   SUB_SENSOR(nitrogen_dioxide)
   SUB_SENSOR(methane)
@@ -19,7 +18,6 @@ class MICS4514Component : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
 
  protected:
@@ -30,5 +28,4 @@ class MICS4514Component : public PollingComponent, public i2c::I2CDevice {
   float red_calibration_{0};
 };
 
-}  // namespace mics_4514
-}  // namespace esphome
+}  // namespace esphome::mics_4514

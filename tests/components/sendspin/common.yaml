@@ -1,0 +1,9 @@
+wifi:
+  ap:
+
+psram:
+  mode: quad
+
+sendspin:
+  id: sendspin_hub_id
+  task_stack_in_psram: true

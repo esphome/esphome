@@ -47,7 +47,7 @@ void TemplateText::update() {
 }
 
 void TemplateText::control(const std::string &value) {
-  this->set_trigger_->trigger(value);
+  this->set_trigger_.trigger(value);
 
   if (this->optimistic_)
     this->publish_state(value);

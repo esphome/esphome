@@ -1,5 +1,7 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
 #include <atomic>
 #include <cstddef>
 
@@ -26,6 +28,54 @@
 
 namespace esphome {
 
+namespace lockfree_internal {
+#ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
+// Platforms whose cores lack atomic read-modify-write instructions (currently
+// the ARMv5TE BK72xx SoCs — no LDREX/STREX, no libatomic; other LibreTiny
+// chips such as LN882x/RTL87xx are ARMv7-M and keep std::atomic). For this
+// queue's SPSC contract RMW atomics are not needed: aligned 8/16-bit loads and
+// stores are single instructions on these cores, so torn reads cannot occur,
+// and on a single in-order core a compiler barrier supplies all the
+// acquire/release ordering the algorithm requires. Each index has exactly one
+// writer (head_: consumer, tail_: producer). The dropped counter's
+// increment/exchange pair is not atomic here — a concurrent reset can lose
+// counts — which is acceptable for a diagnostic drop counter.
+#define ESPHOME_LFQ_COMPILER_BARRIER() __asm__ __volatile__("" ::: "memory")
+template<typename T> class PlainAtomic {
+ public:
+  PlainAtomic() = default;
+  constexpr PlainAtomic(T value) : value_(value) {}
+  T load(std::memory_order order = std::memory_order_seq_cst) const {
+    T value = value_;
+    if (order != std::memory_order_relaxed)
+      ESPHOME_LFQ_COMPILER_BARRIER();  // acquire: later reads may not hoist above this load
+    return value;
+  }
+  void store(T value, std::memory_order order = std::memory_order_seq_cst) {
+    if (order != std::memory_order_relaxed)
+      ESPHOME_LFQ_COMPILER_BARRIER();  // release: earlier writes may not sink below this store
+    value_ = value;
+  }
+  T fetch_add(T amount, std::memory_order /*order*/ = std::memory_order_seq_cst) {
+    T value = value_;
+    value_ = value + amount;
+    return value;
+  }
+  T exchange(T desired, std::memory_order /*order*/ = std::memory_order_seq_cst) {
+    T value = value_;
+    value_ = desired;
+    return value;
+  }
+
+ private:
+  volatile T value_{0};
+};
+template<typename T> using AtomicIndex = PlainAtomic<T>;
+#else
+template<typename T> using AtomicIndex = std::atomic<T>;
+#endif
+}  // namespace lockfree_internal
+
 // Base lock-free queue without task notification
 template<class T, uint8_t SIZE> class LockFreeQueue {
  public:
@@ -38,13 +88,27 @@ template<class T, uint8_t SIZE> class LockFreeQueue {
   }
 
  protected:
+  // Advance ring buffer index by one, wrapping at SIZE.
+  // Power-of-2 sizes use modulo (compiler emits single mask instruction).
+  // Non-power-of-2 sizes use comparison to avoid expensive multiply-shift sequences.
+  static constexpr uint8_t next_index(uint8_t index) {
+    if constexpr ((SIZE & (SIZE - 1)) == 0) {
+      return (index + 1) % SIZE;
+    } else {
+      uint8_t next = index + 1;
+      if (next >= SIZE) [[unlikely]]
+        next = 0;
+      return next;
+    }
+  }
+
   // Internal push that reports queue state - for use by derived classes
   bool push_internal_(T *element, bool &was_empty, uint8_t &old_tail) {
     if (element == nullptr)
       return false;
 
     uint8_t current_tail = tail_.load(std::memory_order_relaxed);
-    uint8_t next_tail = (current_tail + 1) % SIZE;
+    uint8_t next_tail = next_index(current_tail);
 
     // Read head before incrementing tail
     uint8_t head_before = head_.load(std::memory_order_acquire);
@@ -73,37 +137,52 @@ template<class T, uint8_t SIZE> class LockFreeQueue {
     }
 
     T *element = buffer_[current_head];
-    head_.store((current_head + 1) % SIZE, std::memory_order_release);
+    head_.store(next_index(current_head), std::memory_order_release);
     return element;
   }
 
   size_t size() const {
     uint8_t tail = tail_.load(std::memory_order_acquire);
     uint8_t head = head_.load(std::memory_order_acquire);
-    return (tail - head + SIZE) % SIZE;
+    if constexpr ((SIZE & (SIZE - 1)) == 0) {
+      return (tail - head + SIZE) % SIZE;
+    } else {
+      int diff = static_cast<int>(tail) - static_cast<int>(head);
+      if (diff < 0)
+        diff += SIZE;
+      return static_cast<size_t>(diff);
+    }
   }
 
-  uint16_t get_and_reset_dropped_count() { return dropped_count_.exchange(0, std::memory_order_relaxed); }
+  uint16_t get_and_reset_dropped_count() {
+    // Fast path: relaxed load is a single instruction on all platforms.
+    // The atomic exchange (especially for uint16_t on Xtensa) compiles to
+    // an expensive sub-word CAS retry loop (~25 instructions + memory barriers).
+    // Since drops are rare, avoid the exchange in the common case.
+    if (dropped_count_.load(std::memory_order_relaxed) == 0)
+      return 0;
+    return dropped_count_.exchange(0, std::memory_order_relaxed);
+  }
 
   void increment_dropped_count() { dropped_count_.fetch_add(1, std::memory_order_relaxed); }
 
   bool empty() const { return head_.load(std::memory_order_acquire) == tail_.load(std::memory_order_acquire); }
 
   bool full() const {
-    uint8_t next_tail = (tail_.load(std::memory_order_relaxed) + 1) % SIZE;
+    uint8_t next_tail = next_index(tail_.load(std::memory_order_relaxed));
     return next_tail == head_.load(std::memory_order_acquire);
   }
 
  protected:
   T *buffer_[SIZE]{};
   // Atomic: written by producer (push/increment), read+reset by consumer (get_and_reset)
-  std::atomic<uint16_t> dropped_count_;  // 65535 max - more than enough for drop tracking
+  lockfree_internal::AtomicIndex<uint16_t> dropped_count_;  // 65535 max - more than enough for drop tracking
   // Atomic: written by consumer (pop), read by producer (push) to check if full
   // Using uint8_t limits queue size to 255 elements but saves memory and ensures
   // atomic operations are efficient on all platforms
-  std::atomic<uint8_t> head_;
+  lockfree_internal::AtomicIndex<uint8_t> head_;
   // Atomic: written by producer (push), read by consumer (pop) to check if empty
-  std::atomic<uint8_t> tail_;
+  lockfree_internal::AtomicIndex<uint8_t> tail_;
 };
 
 #ifdef USE_ESP32

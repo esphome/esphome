@@ -1,1 +1,5 @@
+# WARNING: Using !extend or !remove prevents automatic component grouping in CI, making builds slower.
 <<: !include common.yaml
+
+external_components:
+  - id: !remove my_local

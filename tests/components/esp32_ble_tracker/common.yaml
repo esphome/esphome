@@ -29,12 +29,12 @@ esp32_ble_tracker:
     - service_uuid: ABCD
       then:
         - lambda: !lambda |-
-            ESP_LOGD("main", "Length of service data is %i", x.size());
+            ESP_LOGD("main", "Length of service data is %zu", x.size());
   on_ble_manufacturer_data_advertise:
     - manufacturer_id: ABCD
       then:
         - lambda: !lambda |-
-            ESP_LOGD("main", "Length of manufacturer data is %i", x.size());
+            ESP_LOGD("main", "Length of manufacturer data is %zu", x.size());
   on_scan_end:
     - then:
         - lambda: |-

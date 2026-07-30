@@ -27,18 +27,12 @@
 #include <esp_coexist.h>
 #endif
 
-#define MBEDTLS_AES_ALT
-#include <aes_alt.h>
-
 // bt_trace.h
 #undef TAG
 
 namespace esphome::esp32_ble_tracker {
 
 static const char *const TAG = "esp32_ble_tracker";
-
-// BLE advertisement max: 31 bytes adv data + 31 bytes scan response
-static constexpr size_t BLE_ADV_MAX_LOG_BYTES = 62;
 
 ESP32BLETracker *global_esp32_ble_tracker = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -82,12 +76,18 @@ void ESP32BLETracker::setup() {
 #ifdef USE_OTA_STATE_LISTENER
 void ESP32BLETracker::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
   if (state == ota::OTA_STARTED) {
+    this->scan_continuous_before_ota_ = this->scan_continuous_;
     this->stop_scan();
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
     for (auto *client : this->clients_) {
       client->disconnect();
     }
 #endif
+  } else if ((state == ota::OTA_ERROR || state == ota::OTA_ABORT) && this->scan_continuous_before_ota_) {
+    this->scan_continuous_before_ota_ = false;
+    this->scan_continuous_ = true;
+    // Do not restart scanning immediately here; allow loop() to
+    // safely restart scanning once the scanner and all clients are idle.
   }
 }
 #endif
@@ -154,8 +154,9 @@ void ESP32BLETracker::loop() {
   ClientStateCounts counts = this->count_client_states_();
   if (counts != this->client_state_counts_) {
     this->client_state_counts_ = counts;
-    ESP_LOGD(TAG, "connecting: %d, discovered: %d, disconnecting: %d", this->client_state_counts_.connecting,
-             this->client_state_counts_.discovered, this->client_state_counts_.disconnecting);
+    ESP_LOGD(TAG, "connecting: %d, discovered: %d, disconnecting: %d, active: %d",
+             this->client_state_counts_.connecting, this->client_state_counts_.discovered,
+             this->client_state_counts_.disconnecting, this->client_state_counts_.active);
   }
 
   // Scanner failure: reached when set_scanner_state_(FAILED) or scan_set_param_failed_ set
@@ -178,10 +179,18 @@ void ESP32BLETracker::loop() {
   */
 
   // Start scan: reached when scanner_state_ becomes IDLE (via set_scanner_state_()) and
-  // all clients are idle (their state changes increment version when they finish)
+  // no clients are in the transient CONNECTING / DISCOVERED / DISCONNECTING states
+  // (their state changes increment version when they finish). CONNECTED / ESTABLISHED
+  // clients do NOT block this branch — the coex revert below has its own active-count gate.
   if (this->scanner_state_ == ScannerState::IDLE && !counts.connecting && !counts.disconnecting && !counts.discovered) {
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
-    this->update_coex_preference_(false);
+    // Only revert to BALANCE when no connections are active. Established connections
+    // continue to need PREFER_BT so peer GATT responses can reach us while WiFi traffic
+    // (advertisement upload, log streaming) competes for the shared radio. Reverting too
+    // early causes Bluedroid to time out at ~20s and synthesize status=133.
+    if (!counts.active) {
+      this->update_coex_preference_(false);
+    }
 #endif
     if (this->scan_continuous_) {
       this->start_scan_(false);  // first = false
@@ -237,15 +246,19 @@ void ESP32BLETracker::start_scan_(bool first) {
     return;
   }
   this->set_scanner_state_(ScannerState::STARTING);
-  ESP_LOGD(TAG, "Starting scan, set scanner state to STARTING.");
+  ESP_LOGV(TAG, "Starting scan, set scanner state to STARTING.");
   if (!first) {
 #ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
     for (auto *listener : this->listeners_)
       listener->on_scan_end();
 #endif
+#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
+    for (auto *listener : this->neutral_listeners_)
+      listener->on_scan_end();
+#endif
   }
 #ifdef USE_ESP32_BLE_DEVICE
-  this->already_discovered_.clear();
+  this->discovered_log_.clear();
 #endif
   this->scan_params_.scan_type = this->scan_active_ ? BLE_SCAN_TYPE_ACTIVE : BLE_SCAN_TYPE_PASSIVE;
   this->scan_params_.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
@@ -283,6 +296,21 @@ void ESP32BLETracker::register_client(ESPBTClient *client) {
 #endif
 }
 
+void ESP32BLETracker::register_listener(ble_device_base::ESPBTDeviceListener *listener) {
+#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
+  // Neutral BLEHub path (migrated sensors): parsed-advertisement consumers only.
+  this->neutral_listeners_.push_back(listener);
+  this->parse_advertisements_ = true;
+#endif
+}
+
+void ESP32BLETracker::get_adapter_mac(uint8_t out[6]) {
+  get_mac_address_raw(out);  // WiFi base MAC, MSB-first
+  // BT MAC = base MAC + 2 on the last octet only, wrapping without carry —
+  // exactly ESP-IDF's esp_read_mac(ESP_MAC_BT): mac[5] += MAC_ADDR_UNIVERSE_BT_OFFSET.
+  out[5] += 2;
+}
+
 void ESP32BLETracker::register_listener(ESPBTDeviceListener *listener) {
 #ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
   listener->set_parent(this);
@@ -294,6 +322,13 @@ void ESP32BLETracker::register_listener(ESPBTDeviceListener *listener) {
 void ESP32BLETracker::recalculate_advertisement_parser_types() {
   this->raw_advertisements_ = false;
   this->parse_advertisements_ = false;
+#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
+  // Neutral (BLEHub) listeners are parsed-advertisement consumers and are not in
+  // listeners_; without this, any later esp32-path registration (e.g. the proxy's
+  // GATT clients) would recompute the flags and silently drop parsed dispatch.
+  if (!this->neutral_listeners_.empty())
+    this->parse_advertisements_ = true;
+#endif
 #ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
   for (auto *listener : this->listeners_) {
     if (listener->get_advertisement_parser_type() == AdvertisementParserType::PARSED_ADVERTISEMENTS) {
@@ -413,265 +448,6 @@ void ESP32BLETracker::set_scanner_state_(ScannerState state) {
   }
 }
 
-#ifdef USE_ESP32_BLE_DEVICE
-ESPBLEiBeacon::ESPBLEiBeacon(const uint8_t *data) { memcpy(&this->beacon_data_, data, sizeof(beacon_data_)); }
-optional<ESPBLEiBeacon> ESPBLEiBeacon::from_manufacturer_data(const ServiceData &data) {
-  if (!data.uuid.contains(0x4C, 0x00))
-    return {};
-
-  if (data.data.size() != 23)
-    return {};
-  return ESPBLEiBeacon(data.data.data());
-}
-
-void ESPBTDevice::parse_scan_rst(const BLEScanResult &scan_result) {
-  this->scan_result_ = &scan_result;
-  for (uint8_t i = 0; i < ESP_BD_ADDR_LEN; i++)
-    this->address_[i] = scan_result.bda[i];
-  this->address_type_ = static_cast<esp_ble_addr_type_t>(scan_result.ble_addr_type);
-  this->rssi_ = scan_result.rssi;
-
-  // Parse advertisement data directly
-  uint8_t total_len = scan_result.adv_data_len + scan_result.scan_rsp_len;
-  this->parse_adv_(scan_result.ble_adv, total_len);
-
-#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-  ESP_LOGVV(TAG, "Parse Result:");
-  const char *address_type;
-  switch (this->address_type_) {
-    case BLE_ADDR_TYPE_PUBLIC:
-      address_type = "PUBLIC";
-      break;
-    case BLE_ADDR_TYPE_RANDOM:
-      address_type = "RANDOM";
-      break;
-    case BLE_ADDR_TYPE_RPA_PUBLIC:
-      address_type = "RPA_PUBLIC";
-      break;
-    case BLE_ADDR_TYPE_RPA_RANDOM:
-      address_type = "RPA_RANDOM";
-      break;
-    default:
-      address_type = "UNKNOWN";
-      break;
-  }
-  ESP_LOGVV(TAG, "  Address: %02X:%02X:%02X:%02X:%02X:%02X (%s)", this->address_[0], this->address_[1],
-            this->address_[2], this->address_[3], this->address_[4], this->address_[5], address_type);
-
-  ESP_LOGVV(TAG, "  RSSI: %d", this->rssi_);
-  ESP_LOGVV(TAG, "  Name: '%s'", this->name_.c_str());
-  for (auto &it : this->tx_powers_) {
-    ESP_LOGVV(TAG, "  TX Power: %d", it);
-  }
-  if (this->appearance_.has_value()) {
-    ESP_LOGVV(TAG, "  Appearance: %u", *this->appearance_);
-  }
-  if (this->ad_flag_.has_value()) {
-    ESP_LOGVV(TAG, "  Ad Flag: %u", *this->ad_flag_);
-  }
-  for (auto &uuid : this->service_uuids_) {
-    char uuid_buf[esp32_ble::UUID_STR_LEN];
-    uuid.to_str(uuid_buf);
-    ESP_LOGVV(TAG, "  Service UUID: %s", uuid_buf);
-  }
-  char hex_buf[format_hex_pretty_size(BLE_ADV_MAX_LOG_BYTES)];
-  for (auto &data : this->manufacturer_datas_) {
-    auto ibeacon = ESPBLEiBeacon::from_manufacturer_data(data);
-    if (ibeacon.has_value()) {
-      ESP_LOGVV(TAG, "  Manufacturer iBeacon:");
-      char uuid_buf[esp32_ble::UUID_STR_LEN];
-      ibeacon.value().get_uuid().to_str(uuid_buf);
-      ESP_LOGVV(TAG, "    UUID: %s", uuid_buf);
-      ESP_LOGVV(TAG, "    Major: %u", ibeacon.value().get_major());
-      ESP_LOGVV(TAG, "    Minor: %u", ibeacon.value().get_minor());
-      ESP_LOGVV(TAG, "    TXPower: %d", ibeacon.value().get_signal_power());
-    } else {
-      char uuid_buf[esp32_ble::UUID_STR_LEN];
-      data.uuid.to_str(uuid_buf);
-      ESP_LOGVV(TAG, "  Manufacturer ID: %s, data: %s", uuid_buf,
-                format_hex_pretty_to(hex_buf, data.data.data(), data.data.size()));
-    }
-  }
-  for (auto &data : this->service_datas_) {
-    ESP_LOGVV(TAG, "  Service data:");
-    char uuid_buf[esp32_ble::UUID_STR_LEN];
-    data.uuid.to_str(uuid_buf);
-    ESP_LOGVV(TAG, "    UUID: %s", uuid_buf);
-    ESP_LOGVV(TAG, "    Data: %s", format_hex_pretty_to(hex_buf, data.data.data(), data.data.size()));
-  }
-
-  ESP_LOGVV(TAG, "  Adv data: %s",
-            format_hex_pretty_to(hex_buf, scan_result.ble_adv, scan_result.adv_data_len + scan_result.scan_rsp_len));
-#endif
-}
-
-void ESPBTDevice::parse_adv_(const uint8_t *payload, uint8_t len) {
-  size_t offset = 0;
-
-  while (offset + 2 < len) {
-    const uint8_t field_length = payload[offset++];  // First byte is length of adv record
-    if (field_length == 0) {
-      continue;  // Possible zero padded advertisement data
-    }
-
-    // first byte of adv record is adv record type
-    const uint8_t record_type = payload[offset++];
-    const uint8_t *record = &payload[offset];
-    const uint8_t record_length = field_length - 1;
-    offset += record_length;
-
-    // See also Generic Access Profile Assigned Numbers:
-    // https://www.bluetooth.com/specifications/assigned-numbers/generic-access-profile/ See also ADVERTISING AND SCAN
-    // RESPONSE DATA FORMAT: https://www.bluetooth.com/specifications/bluetooth-core-specification/ (vol 3, part C, 11)
-    // See also Core Specification Supplement: https://www.bluetooth.com/specifications/bluetooth-core-specification/
-    // (called CSS here)
-
-    switch (record_type) {
-      case ESP_BLE_AD_TYPE_NAME_SHORT:
-      case ESP_BLE_AD_TYPE_NAME_CMPL: {
-        // CSS 1.2 LOCAL NAME
-        // "The Local Name data type shall be the same as, or a shortened version of, the local name assigned to the
-        // device." CSS 1: Optional in this context; shall not appear more than once in a block.
-        // SHORTENED LOCAL NAME
-        // "The Shortened Local Name data type defines a shortened version of the Local Name data type. The Shortened
-        // Local Name data type shall not be used to advertise a name that is longer than the Local Name data type."
-        if (record_length > this->name_.length()) {
-          this->name_ = std::string(reinterpret_cast<const char *>(record), record_length);
-        }
-        break;
-      }
-      case ESP_BLE_AD_TYPE_TX_PWR: {
-        // CSS 1.5 TX POWER LEVEL
-        // "The TX Power Level data type indicates the transmitted power level of the packet containing the data type."
-        // CSS 1: Optional in this context (may appear more than once in a block).
-        this->tx_powers_.push_back(*payload);
-        break;
-      }
-      case ESP_BLE_AD_TYPE_APPEARANCE: {
-        // CSS 1.12 APPEARANCE
-        // "The Appearance data type defines the external appearance of the device."
-        // See also https://www.bluetooth.com/specifications/gatt/characteristics/
-        // CSS 1: Optional in this context; shall not appear more than once in a block and shall not appear in both
-        // the AD and SRD of the same extended advertising interval.
-        this->appearance_ = *reinterpret_cast<const uint16_t *>(record);
-        break;
-      }
-      case ESP_BLE_AD_TYPE_FLAG: {
-        // CSS 1.3 FLAGS
-        // "The Flags data type contains one bit Boolean flags. The Flags data type shall be included when any of the
-        // Flag bits are non-zero and the advertising packet is connectable, otherwise the Flags data type may be
-        // omitted."
-        // CSS 1: Optional in this context; shall not appear more than once in a block.
-        this->ad_flag_ = *record;
-        break;
-      }
-      // CSS 1.1 SERVICE UUID
-      // The Service UUID data type is used to include a list of Service or Service Class UUIDs.
-      // There are six data types defined for the three sizes of Service UUIDs that may be returned:
-      // CSS 1: Optional in this context (may appear more than once in a block).
-      case ESP_BLE_AD_TYPE_16SRV_CMPL:
-      case ESP_BLE_AD_TYPE_16SRV_PART: {
-        // • 16-bit Bluetooth Service UUIDs
-        for (uint8_t i = 0; i < record_length / 2; i++) {
-          this->service_uuids_.push_back(ESPBTUUID::from_uint16(*reinterpret_cast<const uint16_t *>(record + 2 * i)));
-        }
-        break;
-      }
-      case ESP_BLE_AD_TYPE_32SRV_CMPL:
-      case ESP_BLE_AD_TYPE_32SRV_PART: {
-        // • 32-bit Bluetooth Service UUIDs
-        for (uint8_t i = 0; i < record_length / 4; i++) {
-          this->service_uuids_.push_back(ESPBTUUID::from_uint32(*reinterpret_cast<const uint32_t *>(record + 4 * i)));
-        }
-        break;
-      }
-      case ESP_BLE_AD_TYPE_128SRV_CMPL:
-      case ESP_BLE_AD_TYPE_128SRV_PART: {
-        // • Global 128-bit Service UUIDs
-        this->service_uuids_.push_back(ESPBTUUID::from_raw(record));
-        break;
-      }
-      case ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE: {
-        // CSS 1.4 MANUFACTURER SPECIFIC DATA
-        // "The Manufacturer Specific data type is used for manufacturer specific data. The first two data octets shall
-        // contain a company identifier from Assigned Numbers. The interpretation of any other octets within the data
-        // shall be defined by the manufacturer specified by the company identifier."
-        // CSS 1: Optional in this context (may appear more than once in a block).
-        if (record_length < 2) {
-          ESP_LOGV(TAG, "Record length too small for ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE");
-          break;
-        }
-        ServiceData data{};
-        data.uuid = ESPBTUUID::from_uint16(*reinterpret_cast<const uint16_t *>(record));
-        data.data.assign(record + 2UL, record + record_length);
-        this->manufacturer_datas_.push_back(data);
-        break;
-      }
-
-      // CSS 1.11 SERVICE DATA
-      // "The Service Data data type consists of a service UUID with the data associated with that service."
-      // CSS 1: Optional in this context (may appear more than once in a block).
-      case ESP_BLE_AD_TYPE_SERVICE_DATA: {
-        // «Service Data - 16 bit UUID»
-        // Size: 2 or more octets
-        // The first 2 octets contain the 16 bit Service UUID fol- lowed by additional service data
-        if (record_length < 2) {
-          ESP_LOGV(TAG, "Record length too small for ESP_BLE_AD_TYPE_SERVICE_DATA");
-          break;
-        }
-        ServiceData data{};
-        data.uuid = ESPBTUUID::from_uint16(*reinterpret_cast<const uint16_t *>(record));
-        data.data.assign(record + 2UL, record + record_length);
-        this->service_datas_.push_back(data);
-        break;
-      }
-      case ESP_BLE_AD_TYPE_32SERVICE_DATA: {
-        // «Service Data - 32 bit UUID»
-        // Size: 4 or more octets
-        // The first 4 octets contain the 32 bit Service UUID fol- lowed by additional service data
-        if (record_length < 4) {
-          ESP_LOGV(TAG, "Record length too small for ESP_BLE_AD_TYPE_32SERVICE_DATA");
-          break;
-        }
-        ServiceData data{};
-        data.uuid = ESPBTUUID::from_uint32(*reinterpret_cast<const uint32_t *>(record));
-        data.data.assign(record + 4UL, record + record_length);
-        this->service_datas_.push_back(data);
-        break;
-      }
-      case ESP_BLE_AD_TYPE_128SERVICE_DATA: {
-        // «Service Data - 128 bit UUID»
-        // Size: 16 or more octets
-        // The first 16 octets contain the 128 bit Service UUID followed by additional service data
-        if (record_length < 16) {
-          ESP_LOGV(TAG, "Record length too small for ESP_BLE_AD_TYPE_128SERVICE_DATA");
-          break;
-        }
-        ServiceData data{};
-        data.uuid = ESPBTUUID::from_raw(record);
-        data.data.assign(record + 16UL, record + record_length);
-        this->service_datas_.push_back(data);
-        break;
-      }
-      case ESP_BLE_AD_TYPE_INT_RANGE:
-        // Avoid logging this as it's very verbose
-        break;
-      default: {
-        ESP_LOGV(TAG, "Unhandled type: advType: 0x%02x", record_type);
-        break;
-      }
-    }
-  }
-}
-
-std::string ESPBTDevice::address_str() const {
-  char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  return this->address_str_to(buf);
-}
-
-uint64_t ESPBTDevice::address_uint64() const { return esp32_ble::ble_addr_to_uint64(this->address_); }
-#endif  // USE_ESP32_BLE_DEVICE
-
 void ESP32BLETracker::dump_config() {
   ESP_LOGCONFIG(TAG, "BLE Tracker:");
   ESP_LOGCONFIG(TAG,
@@ -684,9 +460,10 @@ void ESP32BLETracker::dump_config() {
                 this->scan_active_ ? "ACTIVE" : "PASSIVE", YESNO(this->scan_continuous_));
   ESP_LOGCONFIG(TAG,
                 "  Scanner State: %s\n"
-                "  Connecting: %d, discovered: %d, disconnecting: %d",
+                "  Connecting: %d, discovered: %d, disconnecting: %d, active: %d",
                 this->scanner_state_to_string_(this->scanner_state_), this->client_state_counts_.connecting,
-                this->client_state_counts_.discovered, this->client_state_counts_.disconnecting);
+                this->client_state_counts_.discovered, this->client_state_counts_.disconnecting,
+                this->client_state_counts_.active);
   if (this->scan_start_fail_count_) {
     ESP_LOGCONFIG(TAG, "  Scan Start Fail Count: %d", this->scan_start_fail_count_);
   }
@@ -694,76 +471,12 @@ void ESP32BLETracker::dump_config() {
 
 #ifdef USE_ESP32_BLE_DEVICE
 void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
-  const uint64_t address = device.address_uint64();
-  for (auto &disc : this->already_discovered_) {
-    if (disc == address)
-      return;
-  }
-  this->already_discovered_.push_back(address);
-
-  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  ESP_LOGD(TAG, "Found device %s RSSI=%d", device.address_str_to(addr_buf), device.get_rssi());
-
-  const char *address_type_s;
-  switch (device.get_address_type()) {
-    case BLE_ADDR_TYPE_PUBLIC:
-      address_type_s = "PUBLIC";
-      break;
-    case BLE_ADDR_TYPE_RANDOM:
-      address_type_s = "RANDOM";
-      break;
-    case BLE_ADDR_TYPE_RPA_PUBLIC:
-      address_type_s = "RPA_PUBLIC";
-      break;
-    case BLE_ADDR_TYPE_RPA_RANDOM:
-      address_type_s = "RPA_RANDOM";
-      break;
-    default:
-      address_type_s = "UNKNOWN";
-      break;
-  }
-
-  ESP_LOGD(TAG, "  Address Type: %s", address_type_s);
-  if (!device.get_name().empty()) {
-    ESP_LOGD(TAG, "  Name: '%s'", device.get_name().c_str());
-  }
-  for (auto &tx_power : device.get_tx_powers()) {
-    ESP_LOGD(TAG, "  TX Power: %d", tx_power);
-  }
+  // Shared implementation in ble_device_base — identical output and per-period
+  // MAC dedup on every tracker backend.
+  this->discovered_log_.log_device(TAG, device);
 }
 
-bool ESPBTDevice::resolve_irk(const uint8_t *irk) const {
-  uint8_t ecb_key[16];
-  uint8_t ecb_plaintext[16];
-  uint8_t ecb_ciphertext[16];
-
-  uint64_t addr64 = esp32_ble::ble_addr_to_uint64(this->address_);
-
-  memcpy(&ecb_key, irk, 16);
-  memset(&ecb_plaintext, 0, 16);
-
-  ecb_plaintext[13] = (addr64 >> 40) & 0xff;
-  ecb_plaintext[14] = (addr64 >> 32) & 0xff;
-  ecb_plaintext[15] = (addr64 >> 24) & 0xff;
-
-  mbedtls_aes_context ctx = {0, 0, {0}};
-  mbedtls_aes_init(&ctx);
-
-  if (mbedtls_aes_setkey_enc(&ctx, ecb_key, 128) != 0) {
-    mbedtls_aes_free(&ctx);
-    return false;
-  }
-
-  if (mbedtls_aes_crypt_ecb(&ctx, ESP_AES_ENCRYPT, ecb_plaintext, ecb_ciphertext) != 0) {
-    mbedtls_aes_free(&ctx);
-    return false;
-  }
-
-  mbedtls_aes_free(&ctx);
-
-  return ecb_ciphertext[15] == (addr64 & 0xff) && ecb_ciphertext[14] == ((addr64 >> 8) & 0xff) &&
-         ecb_ciphertext[13] == ((addr64 >> 16) & 0xff);
-}
+// resolve_irk() is provided by ble_device_base (portable software AES).
 
 #endif  // USE_ESP32_BLE_DEVICE
 
@@ -795,6 +508,12 @@ void ESP32BLETracker::process_scan_result_(const BLEScanResult &scan_result) {
         found = true;
     }
 #endif
+#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
+    for (auto *listener : this->neutral_listeners_) {
+      if (listener->parse_device(device))
+        found = true;
+    }
+#endif
 
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
     for (auto *client : this->clients_) {
@@ -812,15 +531,19 @@ void ESP32BLETracker::process_scan_result_(const BLEScanResult &scan_result) {
 }
 
 void ESP32BLETracker::cleanup_scan_state_(bool is_stop_complete) {
-  ESP_LOGD(TAG, "Scan %scomplete, set scanner state to IDLE.", is_stop_complete ? "stop " : "");
+  ESP_LOGV(TAG, "Scan %scomplete, set scanner state to IDLE.", is_stop_complete ? "stop " : "");
 #ifdef USE_ESP32_BLE_DEVICE
-  this->already_discovered_.clear();
+  this->discovered_log_.clear();
 #endif
   // Reset timeout state machine instead of cancelling scheduler timeout
   this->scan_timeout_state_ = ScanTimeoutState::INACTIVE;
 
 #ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
   for (auto *listener : this->listeners_)
+    listener->on_scan_end();
+#endif
+#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
+  for (auto *listener : this->neutral_listeners_)
     listener->on_scan_end();
 #endif
 

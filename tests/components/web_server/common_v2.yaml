@@ -5,3 +5,6 @@ web_server:
   port: 8080
   version: 2
   compression: br
+  enable_private_network_access: true
+  allowed_origins:
+    - https://app.esphome.io

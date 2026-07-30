@@ -3,10 +3,9 @@
 #include "../vbus.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-namespace esphome {
-namespace vbus {
+namespace esphome::vbus {
 
-class DeltaSolBSPlusBSensor : public VBusListener, public Component {
+class DeltaSolBSPlusBSensor final : public VBusListener, public Component {
  public:
   void dump_config() override;
   void set_relay1_bsensor(binary_sensor::BinarySensor *bsensor) { this->relay1_bsensor_ = bsensor; }
@@ -39,7 +38,7 @@ class DeltaSolBSPlusBSensor : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
-class DeltaSolBS2009BSensor : public VBusListener, public Component {
+class DeltaSolBS2009BSensor final : public VBusListener, public Component {
  public:
   void dump_config() override;
   void set_s1_error_bsensor(binary_sensor::BinarySensor *bsensor) { this->s1_error_bsensor_ = bsensor; }
@@ -60,7 +59,7 @@ class DeltaSolBS2009BSensor : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
-class DeltaSolCBSensor : public VBusListener, public Component {
+class DeltaSolCBSensor final : public VBusListener, public Component {
  public:
   void dump_config() override;
   void set_s1_error_bsensor(binary_sensor::BinarySensor *bsensor) { this->s1_error_bsensor_ = bsensor; }
@@ -77,7 +76,7 @@ class DeltaSolCBSensor : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
-class DeltaSolCS2BSensor : public VBusListener, public Component {
+class DeltaSolCS2BSensor final : public VBusListener, public Component {
  public:
   void dump_config() override;
   void set_s1_error_bsensor(binary_sensor::BinarySensor *bsensor) { this->s1_error_bsensor_ = bsensor; }
@@ -94,7 +93,41 @@ class DeltaSolCS2BSensor : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
-class DeltaSolCSPlusBSensor : public VBusListener, public Component {
+class DeltaSolCS4BSensor final : public VBusListener, public Component {
+ public:
+  void dump_config() override;
+  void set_s1_error_bsensor(binary_sensor::BinarySensor *bsensor) { this->s1_error_bsensor_ = bsensor; }
+  void set_s2_error_bsensor(binary_sensor::BinarySensor *bsensor) { this->s2_error_bsensor_ = bsensor; }
+  void set_s3_error_bsensor(binary_sensor::BinarySensor *bsensor) { this->s3_error_bsensor_ = bsensor; }
+  void set_s4_error_bsensor(binary_sensor::BinarySensor *bsensor) { this->s4_error_bsensor_ = bsensor; }
+
+ protected:
+  binary_sensor::BinarySensor *s1_error_bsensor_{nullptr};
+  binary_sensor::BinarySensor *s2_error_bsensor_{nullptr};
+  binary_sensor::BinarySensor *s3_error_bsensor_{nullptr};
+  binary_sensor::BinarySensor *s4_error_bsensor_{nullptr};
+
+  void handle_message(std::vector<uint8_t> &message) override;
+};
+
+class DeltaSolCSPlusBSensor final : public VBusListener, public Component {
+ public:
+  void dump_config() override;
+  void set_s1_error_bsensor(binary_sensor::BinarySensor *bsensor) { this->s1_error_bsensor_ = bsensor; }
+  void set_s2_error_bsensor(binary_sensor::BinarySensor *bsensor) { this->s2_error_bsensor_ = bsensor; }
+  void set_s3_error_bsensor(binary_sensor::BinarySensor *bsensor) { this->s3_error_bsensor_ = bsensor; }
+  void set_s4_error_bsensor(binary_sensor::BinarySensor *bsensor) { this->s4_error_bsensor_ = bsensor; }
+
+ protected:
+  binary_sensor::BinarySensor *s1_error_bsensor_{nullptr};
+  binary_sensor::BinarySensor *s2_error_bsensor_{nullptr};
+  binary_sensor::BinarySensor *s3_error_bsensor_{nullptr};
+  binary_sensor::BinarySensor *s4_error_bsensor_{nullptr};
+
+  void handle_message(std::vector<uint8_t> &message) override;
+};
+
+class DeltaSolBS2BSensor final : public VBusListener, public Component {
  public:
   void dump_config() override;
   void set_s1_error_bsensor(binary_sensor::BinarySensor *bsensor) { this->s1_error_bsensor_ = bsensor; }
@@ -113,7 +146,7 @@ class DeltaSolCSPlusBSensor : public VBusListener, public Component {
 
 class VBusCustomSubBSensor;
 
-class VBusCustomBSensor : public VBusListener, public Component {
+class VBusCustomBSensor final : public VBusListener, public Component {
  public:
   void dump_config() override;
   void set_bsensors(std::vector<VBusCustomSubBSensor *> bsensors) { this->bsensors_ = std::move(bsensors); };
@@ -123,7 +156,7 @@ class VBusCustomBSensor : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
-class VBusCustomSubBSensor : public binary_sensor::BinarySensor, public Component {
+class VBusCustomSubBSensor final : public binary_sensor::BinarySensor, public Component {
  public:
   void set_message_parser(message_parser_t parser) { this->message_parser_ = std::move(parser); };
   void parse_message(std::vector<uint8_t> &message);
@@ -132,5 +165,4 @@ class VBusCustomSubBSensor : public binary_sensor::BinarySensor, public Componen
   message_parser_t message_parser_;
 };
 
-}  // namespace vbus
-}  // namespace esphome
+}  // namespace esphome::vbus

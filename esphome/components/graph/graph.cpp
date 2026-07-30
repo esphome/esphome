@@ -4,8 +4,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
-namespace esphome {
-namespace graph {
+
+namespace esphome::graph {
 
 using namespace display;
 
@@ -139,7 +139,7 @@ void Graph::draw(Display *buff, uint16_t x_offset, uint16_t y_offset, Color colo
   /// Draw grid
   if (!std::isnan(this->gridspacing_y_)) {
     for (int y = yn; y <= ym; y++) {
-      int16_t py = (int16_t) roundf((this->height_ - 1) * (1.0 - (float) (y - yn) / (ym - yn)));
+      int16_t py = (int16_t) roundf((this->height_ - 1) * (1.0f - (float) (y - yn) / (ym - yn)));
       for (uint32_t x = 0; x < this->width_; x += 2) {
         buff->draw_pixel_at(x_offset + x, y_offset + py, color);
       }
@@ -171,13 +171,13 @@ void Graph::draw(Display *buff, uint16_t x_offset, uint16_t y_offset, Color colo
     bool prev_b = false;
     int16_t prev_y = 0;
     for (uint32_t i = 0; i < this->width_; i++) {
-      float v = (trace->get_tracedata()->get_value(i) - ymin) / yrange;
+      float v = yrange != 0 ? (trace->get_tracedata()->get_value(i) - ymin) / yrange : NAN;
       if (!std::isnan(v) && (thick > 0)) {
         int16_t x = this->width_ - 1 - i + x_offset;
         uint8_t bit = 1 << ((i % (thick * LineType::PATTERN_LENGTH)) / thick);
         bool b = (trace->get_line_type() & bit) == bit;
         if (b) {
-          int16_t y = (int16_t) roundf((this->height_ - 1) * (1.0 - v)) - thick / 2 + y_offset;
+          int16_t y = (int16_t) roundf((this->height_ - 1) * (1.0f - v)) - thick / 2 + y_offset;
           auto draw_pixel_at = [&buff, c, y_offset, this](int16_t x, int16_t y) {
             if (y >= y_offset && static_cast<uint32_t>(y) < y_offset + this->height_)
               buff->draw_pixel_at(x, y, c);
@@ -397,5 +397,4 @@ void Graph::dump_config() {
   }
 }
 
-}  // namespace graph
-}  // namespace esphome
+}  // namespace esphome::graph

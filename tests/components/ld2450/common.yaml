@@ -1,5 +1,8 @@
 ld2450:
   - id: ld2450_radar
+    on_data:
+      then:
+        - logger.log: "LD2450 Radar Data Received"
 
 button:
   - platform: ld2450

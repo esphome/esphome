@@ -1,8 +1,7 @@
 #include "ntc.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ntc {
+namespace esphome::ntc {
 
 static const char *const TAG = "ntc";
 
@@ -12,7 +11,6 @@ void NTC::setup() {
     this->process_(this->sensor_->state);
 }
 void NTC::dump_config() { LOG_SENSOR("", "NTC Sensor", this); }
-float NTC::get_setup_priority() const { return setup_priority::DATA; }
 void NTC::process_(float value) {
   if (std::isnan(value)) {
     this->publish_state(NAN);
@@ -27,5 +25,4 @@ void NTC::process_(float value) {
   this->publish_state(temp);
 }
 
-}  // namespace ntc
-}  // namespace esphome
+}  // namespace esphome::ntc

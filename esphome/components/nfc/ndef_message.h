@@ -9,10 +9,9 @@
 #include "ndef_record_text.h"
 #include "ndef_record_uri.h"
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
-static const uint8_t MAX_NDEF_RECORDS = 4;
+static constexpr uint8_t MAX_NDEF_RECORDS = 4;
 
 class NdefMessage {
  public:
@@ -38,5 +37,4 @@ class NdefMessage {
   std::vector<std::shared_ptr<NdefRecord>> records_;
 };
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

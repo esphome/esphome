@@ -1,3 +1,5 @@
+import logging
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import display, spi
@@ -15,6 +17,7 @@ from esphome.const import (
 from . import st7735_ns
 
 CODEOWNERS = ["@SenexCrenshaw"]
+LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["spi"]
 
@@ -87,6 +90,9 @@ async def setup_st7735(var, config):
 
 
 async def to_code(config):
+    LOGGER.warning(
+        "The 'st7735' component is deprecated, it is recommended to use 'mipi_spi' instead."
+    )
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_MODEL],

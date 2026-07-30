@@ -75,7 +75,9 @@ class WaterHeaterCall {
   WaterHeaterCall(WaterHeater *parent);
 
   WaterHeaterCall &set_mode(WaterHeaterMode mode);
-  WaterHeaterCall &set_mode(const std::string &mode);
+  WaterHeaterCall &set_mode(const char *mode);
+  WaterHeaterCall &set_mode(const char *mode, size_t len);
+  WaterHeaterCall &set_mode(const std::string &mode) { return this->set_mode(mode.c_str(), mode.size()); }
   WaterHeaterCall &set_target_temperature(float temperature);
   WaterHeaterCall &set_target_temperature_low(float temperature);
   WaterHeaterCall &set_target_temperature_high(float temperature);
@@ -88,8 +90,19 @@ class WaterHeaterCall {
   float get_target_temperature() const { return this->target_temperature_; }
   float get_target_temperature_low() const { return this->target_temperature_low_; }
   float get_target_temperature_high() const { return this->target_temperature_high_; }
-  /// Get state flags value
-  uint32_t get_state() const { return this->state_; }
+  optional<bool> get_away() const {
+    if (this->state_mask_ & WATER_HEATER_STATE_AWAY) {
+      return (this->state_ & WATER_HEATER_STATE_AWAY) != 0;
+    }
+    return {};
+  }
+
+  optional<bool> get_on() const {
+    if (this->state_mask_ & WATER_HEATER_STATE_ON) {
+      return (this->state_ & WATER_HEATER_STATE_ON) != 0;
+    }
+    return {};
+  }
 
  protected:
   void validate_();
@@ -99,6 +112,7 @@ class WaterHeaterCall {
   float target_temperature_low_{NAN};
   float target_temperature_high_{NAN};
   uint32_t state_{0};
+  uint32_t state_mask_{0};
 };
 
 struct WaterHeaterCallInternal : public WaterHeaterCall {
@@ -110,6 +124,7 @@ struct WaterHeaterCallInternal : public WaterHeaterCall {
     this->target_temperature_low_ = restore.target_temperature_low_;
     this->target_temperature_high_ = restore.target_temperature_high_;
     this->state_ = restore.state_;
+    this->state_mask_ = restore.state_mask_;
     return *this;
   }
 };
@@ -168,6 +183,9 @@ class WaterHeaterTraits {
   const WaterHeaterModeMask &get_supported_modes() const { return this->supported_modes_; }
   bool supports_mode(WaterHeaterMode mode) const { return this->supported_modes_.count(mode); }
 
+  TemperatureUnit get_temperature_unit() const { return this->temperature_unit_; }
+  void set_temperature_unit(TemperatureUnit unit) { this->temperature_unit_ = unit; }
+
  protected:
   // Ordered to minimize padding: 4-byte members first
   uint32_t feature_flags_{0};
@@ -175,6 +193,7 @@ class WaterHeaterTraits {
   float max_temperature_{0.0f};
   float target_temperature_step_{0.0f};
   WaterHeaterModeMask supported_modes_;
+  TemperatureUnit temperature_unit_{TemperatureUnit::CELSIUS};
 };
 
 class WaterHeater : public EntityBase {

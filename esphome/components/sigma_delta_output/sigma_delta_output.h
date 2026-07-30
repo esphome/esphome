@@ -4,10 +4,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/output/float_output.h"
 
-namespace esphome {
-namespace sigma_delta_output {
+namespace esphome::sigma_delta_output {
 
-class SigmaDeltaOutput : public PollingComponent, public output::FloatOutput {
+class SigmaDeltaOutput final : public PollingComponent, public output::FloatOutput {
  public:
   Trigger<> *get_turn_on_trigger() {
     if (!this->turn_on_trigger_)
@@ -43,5 +42,4 @@ class SigmaDeltaOutput : public PollingComponent, public output::FloatOutput {
   float state_{0.};
   bool value_{false};
 };
-}  // namespace sigma_delta_output
-}  // namespace esphome
+}  // namespace esphome::sigma_delta_output

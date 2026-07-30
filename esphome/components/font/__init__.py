@@ -238,7 +238,7 @@ def validate_font_config(config):
     return config
 
 
-FONT_EXTENSIONS = (".ttf", ".woff", ".otf", "bdf", ".pcf")
+FONT_EXTENSIONS = (".ttf", ".woff", ".otf", ".bdf", ".pcf")
 
 
 def validate_truetype_file(value):
@@ -325,7 +325,7 @@ def download_gfont(value):
             raise cv.Invalid(
                 f"Could not download font at {url}, please check the fonts exists "
                 f"at google fonts ({e})"
-            )
+            ) from e
         match = re.search(r"src:\s+url\((.+)\)\s+format\('truetype'\);", req.text)
         if match is None:
             raise cv.Invalid(
@@ -401,7 +401,7 @@ def validate_file_shorthand(value):
             data[CONF_WEIGHT] = weight[1:]
         return font_file_schema(data)
 
-    if value.startswith("http://") or value.startswith("https://"):
+    if value.startswith(("http://", "https://")):
         return font_file_schema(
             {
                 CONF_TYPE: TYPE_WEB,
@@ -552,6 +552,7 @@ async def to_code(config):
     """
 
     # get the codepoints from glyphsets and flatten to a set of chrs.
+    cg.add_define("USE_FONT")
     point_set: set[str] = {
         chr(x)
         for x in flatten(
@@ -562,13 +563,13 @@ async def to_code(config):
     point_set.update(flatten(config[CONF_GLYPHS]))
     # Create the codepoint to font file map
     base_font = FONT_CACHE[config[CONF_FILE]]
-    point_font_map: dict[str, Face] = {c: base_font for c in point_set}
+    point_font_map: dict[str, Face] = dict.fromkeys(point_set, base_font)
     # process extras, updating the map and extending the codepoint list
     for extra in config[CONF_EXTRAS]:
         extra_points = flatten(extra[CONF_GLYPHS])
         point_set.update(extra_points)
         extra_font = FONT_CACHE[extra[CONF_FILE]]
-        point_font_map.update({c: extra_font for c in extra_points})
+        point_font_map.update(dict.fromkeys(extra_points, extra_font))
 
     codepoints = list(point_set)
     codepoints.sort(key=functools.cmp_to_key(glyph_comparator))
@@ -593,7 +594,9 @@ async def to_code(config):
             x.height,
         ]
         for (x, y) in zip(
-            glyph_args, list(accumulate([len(x.bitmap_data) for x in glyph_args]))
+            glyph_args,
+            list(accumulate([len(x.bitmap_data) for x in glyph_args])),
+            strict=True,
         )
     ]
 

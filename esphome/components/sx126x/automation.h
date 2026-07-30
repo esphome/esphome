@@ -4,15 +4,14 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/sx126x/sx126x.h"
 
-namespace esphome {
-namespace sx126x {
+namespace esphome::sx126x {
 
-template<typename... Ts> class RunImageCalAction : public Action<Ts...>, public Parented<SX126x> {
+template<typename... Ts> class RunImageCalAction final : public Action<Ts...>, public Parented<SX126x> {
  public:
   void play(const Ts &...x) override { this->parent_->run_image_cal(); }
 };
 
-template<typename... Ts> class SendPacketAction : public Action<Ts...>, public Parented<SX126x> {
+template<typename... Ts> class SendPacketAction final : public Action<Ts...>, public Parented<SX126x> {
  public:
   void set_data_template(std::vector<uint8_t> (*func)(Ts...)) {
     this->data_.func = func;
@@ -44,25 +43,25 @@ template<typename... Ts> class SendPacketAction : public Action<Ts...>, public P
   } data_;
 };
 
-template<typename... Ts> class SetModeTxAction : public Action<Ts...>, public Parented<SX126x> {
+template<typename... Ts> class SetModeTxAction final : public Action<Ts...>, public Parented<SX126x> {
  public:
   void play(const Ts &...x) override { this->parent_->set_mode_tx(); }
 };
 
-template<typename... Ts> class SetModeRxAction : public Action<Ts...>, public Parented<SX126x> {
+template<typename... Ts> class SetModeRxAction final : public Action<Ts...>, public Parented<SX126x> {
  public:
   void play(const Ts &...x) override { this->parent_->set_mode_rx(); }
 };
 
-template<typename... Ts> class SetModeSleepAction : public Action<Ts...>, public Parented<SX126x> {
+template<typename... Ts> class SetModeSleepAction final : public Action<Ts...>, public Parented<SX126x> {
  public:
-  void play(const Ts &...x) override { this->parent_->set_mode_sleep(); }
+  TEMPLATABLE_VALUE(bool, cold)
+  void play(const Ts &...x) override { this->parent_->set_mode_sleep(this->cold_.value(x...)); }
 };
 
-template<typename... Ts> class SetModeStandbyAction : public Action<Ts...>, public Parented<SX126x> {
+template<typename... Ts> class SetModeStandbyAction final : public Action<Ts...>, public Parented<SX126x> {
  public:
   void play(const Ts &...x) override { this->parent_->set_mode_standby(STDBY_XOSC); }
 };
 
-}  // namespace sx126x
-}  // namespace esphome
+}  // namespace esphome::sx126x

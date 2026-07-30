@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/components/ota/ota_backend.h"
+#include "esphome/components/ota/ota_backend_factory.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -11,8 +11,7 @@
 
 #include "../http_request.h"
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 static const uint8_t MD5_SIZE = 32;
 
@@ -22,16 +21,16 @@ enum OtaHttpRequestError : uint8_t {
   OTA_CONNECTION_ERROR = 0x12,
 };
 
-class OtaHttpRequestComponent : public ota::OTAComponent, public Parented<HttpRequestComponent> {
+class OtaHttpRequestComponent final : public ota::OTAComponent, public Parented<HttpRequestComponent> {
  public:
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
   void set_md5_url(const std::string &md5_url);
   void set_md5(const std::string &md5) { this->md5_expected_ = md5; }
-  void set_password(const std::string &password) { this->password_ = password; }
+  void set_password(const std::string &password);
   void set_url(const std::string &url);
-  void set_username(const std::string &username) { this->username_ = username; }
+  void set_username(const std::string &username);
 
   std::string md5_computed() { return this->md5_computed_; }
   std::string md5_expected() { return this->md5_expected_; }
@@ -39,7 +38,7 @@ class OtaHttpRequestComponent : public ota::OTAComponent, public Parented<HttpRe
   void flash();
 
  protected:
-  void cleanup_(std::unique_ptr<ota::OTABackend> backend, const std::shared_ptr<HttpContainer> &container);
+  void cleanup_(ota::OTABackendPtr backend, const std::shared_ptr<HttpContainer> &container);
   uint8_t do_ota_();
   std::string get_url_with_auth_(const std::string &url);
   bool http_get_md5_();
@@ -56,5 +55,4 @@ class OtaHttpRequestComponent : public ota::OTAComponent, public Parented<HttpRe
   static const uint16_t HTTP_RECV_BUFFER = 256;  // the firmware GET chunk size
 };
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request

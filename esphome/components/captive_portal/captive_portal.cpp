@@ -2,11 +2,12 @@
 #ifdef USE_CAPTIVE_PORTAL
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/components/wifi/wifi_component.h"
 #include "captive_index.h"
 
-namespace esphome {
-namespace captive_portal {
+namespace esphome::captive_portal {
 
 static const char *const TAG = "captive_portal";
 
@@ -25,30 +26,37 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   stream->printf(R"({"mac":"%s","name":"%s","aps":[{})", mac_str, App.get_name().c_str());
 #endif
 
-  for (auto &scan : wifi::global_wifi_component->get_scan_result()) {
-    if (scan.get_is_hidden())
-      continue;
+  // An SSID can contain a " or \ that would break the JSON, so escape it before writing it out. An SSID is at most
+  // 32 bytes (IEEE 802.11), so this is large enough that nothing is ever dropped. Reused for every scan result.
+  char escaped_ssid[32 * JSON_ESCAPE_MAX_EXPANSION + 1];
+  {
+    // Invariant: only bounded in-memory work under the lock; the network send
+    // happens later in request->send()
+    wifi::ScanResultsLock lock(wifi::global_wifi_component);
+    for (const auto &scan : wifi::global_wifi_component->get_scan_result()) {
+      if (scan.get_is_hidden())
+        continue;
 
-      // Assumes no " in ssid, possible unicode isses?
+      json_escape_into_buffer(escaped_ssid, scan.get_ssid());
 #ifdef USE_ESP8266
-    stream->print(ESPHOME_F(",{\"ssid\":\""));
-    stream->print(scan.get_ssid().c_str());
-    stream->print(ESPHOME_F("\",\"rssi\":"));
-    stream->print(scan.get_rssi());
-    stream->print(ESPHOME_F(",\"lock\":"));
-    stream->print(scan.get_with_auth());
-    stream->print(ESPHOME_F("}"));
+      stream->print(ESPHOME_F(",{\"ssid\":\""));
+      stream->print(escaped_ssid);
+      stream->print(ESPHOME_F("\",\"rssi\":"));
+      stream->print(scan.get_rssi());
+      stream->print(ESPHOME_F(",\"lock\":"));
+      stream->print(scan.get_with_auth());
+      stream->print(ESPHOME_F("}"));
 #else
-    stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", scan.get_ssid().c_str(), scan.get_rssi(),
-                   scan.get_with_auth());
+      stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", escaped_ssid, scan.get_rssi(), scan.get_with_auth());
 #endif
+    }
   }
   stream->print(ESPHOME_F("]}"));
   request->send(stream);
 }
 void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
-  std::string ssid = request->arg("ssid").c_str();  // NOLINT(readability-redundant-string-cstr)
-  std::string psk = request->arg("psk").c_str();    // NOLINT(readability-redundant-string-cstr)
+  const auto &ssid = request->arg("ssid");
+  const auto &psk = request->arg("psk");
   ESP_LOGI(TAG,
            "Requested WiFi Settings Change:\n"
            "  SSID='%s'\n"
@@ -56,12 +64,12 @@ void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
            ssid.c_str(), psk.c_str());
 #ifdef USE_ESP8266
   // ESP8266 is single-threaded, call directly
-  wifi::global_wifi_component->save_wifi_sta(ssid, psk);
+  wifi::global_wifi_component->save_wifi_sta(ssid.c_str(), psk.c_str());
 #else
   // Defer save to main loop thread to avoid NVS operations from HTTP thread
-  this->defer([ssid, psk]() { wifi::global_wifi_component->save_wifi_sta(ssid, psk); });
+  this->defer([ssid, psk]() { wifi::global_wifi_component->save_wifi_sta(ssid.c_str(), psk.c_str()); });
 #endif
-  request->redirect(ESPHOME_F("/?save"));
+  request->send(200, ESPHOME_F("text/plain"), ESPHOME_F("Saved. Connecting..."));
 }
 
 void CaptivePortal::setup() {
@@ -71,7 +79,7 @@ void CaptivePortal::setup() {
 void CaptivePortal::start() {
   this->base_->init();
   if (!this->initialized_) {
-    this->base_->add_handler(this);
+    this->base_->add_handler_without_auth(this);
   }
 
   network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
@@ -96,10 +104,16 @@ void CaptivePortal::start() {
 }
 
 void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
-  if (req->url() == ESPHOME_F("/config.json")) {
+#ifdef USE_ESP32
+  char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
+  StringRef url = req->url_to(url_buf);
+#else
+  const auto &url = req->url();
+#endif
+  if (url == ESPHOME_F("/config.json")) {
     this->handle_config(req);
     return;
-  } else if (req->url() == ESPHOME_F("/wifisave")) {
+  } else if (url == ESPHOME_F("/wifisave")) {
     this->handle_wifisave(req);
     return;
   }
@@ -129,6 +143,6 @@ void CaptivePortal::dump_config() { ESP_LOGCONFIG(TAG, "Captive Portal:"); }
 
 CaptivePortal *global_captive_portal = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace captive_portal
-}  // namespace esphome
+}  // namespace esphome::captive_portal
+
 #endif

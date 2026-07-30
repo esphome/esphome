@@ -5,13 +5,11 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace honeywell_hih_i2c {
+namespace esphome::honeywell_hih_i2c {
 
-class HoneywellHIComponent : public PollingComponent, public i2c::I2CDevice {
+class HoneywellHIComponent final : public PollingComponent, public i2c::I2CDevice {
  public:
   void dump_config() override;
-  float get_setup_priority() const override;
   void loop() override;
   void update() override;
 
@@ -30,5 +28,4 @@ class HoneywellHIComponent : public PollingComponent, public i2c::I2CDevice {
   void measurement_timeout_();
 };
 
-}  // namespace honeywell_hih_i2c
-}  // namespace esphome
+}  // namespace esphome::honeywell_hih_i2c

@@ -1,16 +1,15 @@
 #include "canalsat_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const CANALSAT_TAG = "remote.canalsat";
 static const char *const CANALSATLD_TAG = "remote.canalsatld";
 
-static const uint16_t CANALSAT_FREQ = 55500;
-static const uint16_t CANALSATLD_FREQ = 56000;
-static const uint16_t CANALSAT_UNIT = 250;
-static const uint16_t CANALSATLD_UNIT = 320;
+static constexpr uint16_t CANALSAT_FREQ = 55500;
+static constexpr uint16_t CANALSATLD_FREQ = 56000;
+static constexpr uint16_t CANALSAT_UNIT = 250;
+static constexpr uint16_t CANALSATLD_UNIT = 320;
 
 CanalSatProtocol::CanalSatProtocol() {
   this->frequency_ = CANALSAT_FREQ;
@@ -104,5 +103,4 @@ void CanalSatBaseProtocol::dump(const CanalSatData &data) {
   }
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base
