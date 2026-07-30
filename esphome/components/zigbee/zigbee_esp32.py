@@ -22,6 +22,7 @@ from esphome.const import (
     CONF_NAME,
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
+    CONF_ACCURACY_DECIMALS,
     CONF_VALUE,
     CONF_WIFI,
 )
@@ -185,6 +186,7 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
     unit = config.get(CONF_UNIT_OF_MEASUREMENT)
     apptype = ANALOG_INPUT_APPTYPE.get((dev_class, unit))
     bacunit = BACNET_UNITS.get(unit, BACNET_UNIT_NO_UNITS)
+    accuracy = config.get(CONF_ACCURACY_DECIMALS)
     if apptype is not None:
         ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
             {
@@ -200,6 +202,14 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
             CONF_TYPE: "ENUM16",
         },
     )
+    if accuracy is not None:
+        ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
+            {
+                CONF_ATTRIBUTE_ID: 0x6A,
+                CONF_VALUE: 10 ** -accuracy,
+                CONF_TYPE: "SINGLE",
+            },
+        )
     setup_attributes(config, ep[CONF_CLUSTERS])
     add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
     return config
