@@ -22,8 +22,13 @@ void MotionEvent::process_motion_data_(const MotionData &data) {
   float ax = data.acceleration[X_AXIS];
   float ay = data.acceleration[Y_AXIS];
   float az = data.acceleration[Z_AXIS];
-  if (std::isnan(ax) || std::isnan(ay) || std::isnan(az))
+  if (std::isnan(ax) || std::isnan(ay) || std::isnan(az)) {
+    // Reset the baseline so the next valid sample doesn't jerk-compare across the gap.
+    this->last_accel_[0] = NAN;
+    this->last_accel_[1] = NAN;
+    this->last_accel_[2] = NAN;
     return;
+  }
 
   uint32_t now = millis();
 

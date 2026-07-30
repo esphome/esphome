@@ -58,6 +58,29 @@ sensor:
     type: roll
     name: "Roll"
 
+binary_sensor:
+  - platform: motion
+    motion_id: qmi8658_motion
+    type: face_up
+    name: "Face Up"
+  - platform: motion
+    motion_id: qmi8658_motion
+    type: face_down
+    name: "Face Down"
+  - platform: motion
+    motion_id: qmi8658_motion
+    type: free_fall
+    name: "Free Fall"
+  - platform: motion
+    motion_id: qmi8658_motion
+    type: moving
+    name: "Moving"
+
+event:
+  - platform: motion
+    motion_id: qmi8658_motion
+    name: "Shake"
+
 motion:
   - platform: qmi8658
     id: qmi8658_motion

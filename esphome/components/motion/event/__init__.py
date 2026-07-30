@@ -3,7 +3,13 @@ from esphome.components import event
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_THRESHOLD
 
-from .. import CONF_MOTION_ID, MotionComponent, check_update_interval, motion_ns
+from .. import (
+    CONF_MOTION_ID,
+    MotionComponent,
+    check_has_accelerometer,
+    check_update_interval,
+    motion_ns,
+)
 
 DEPENDENCIES = ["motion"]
 
@@ -30,6 +36,7 @@ CONFIG_SCHEMA = (
 
 def _final_validate(config: dict) -> None:
     check_update_interval(config[CONF_MOTION_ID], "shake")
+    check_has_accelerometer(config[CONF_MOTION_ID], "shake")
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

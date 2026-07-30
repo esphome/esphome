@@ -1,11 +1,19 @@
+from collections.abc import Callable
 import math
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_DURATION, CONF_ID, CONF_THRESHOLD, CONF_TYPE
 
-from .. import CONF_MOTION_ID, MotionComponent, check_update_interval, motion_ns
+from .. import (
+    CONF_MOTION_ID,
+    MotionComponent,
+    check_has_accelerometer,
+    check_update_interval,
+    motion_ns,
+)
 
 DEPENDENCIES = ["motion"]
 
@@ -28,8 +36,10 @@ ANGLE_THRESHOLD_TYPES = ("face_up", "face_down")
 
 
 def _binary_sensor_schema(
-    default_threshold, threshold_validator, default_duration=None
-):
+    default_threshold: float,
+    threshold_validator: Callable[[Any], Any],
+    default_duration: str | None = None,
+) -> cv.Schema:
     schema = (
         binary_sensor.binary_sensor_schema(MotionBinarySensor)
         .extend(
@@ -55,7 +65,9 @@ def _binary_sensor_schema(
 
 
 # Tilt angle in degrees, from horizontal, within which the device counts as face up/down.
-_angle_threshold = cv.float_range(min=0.0, max=90.0)
+# 0 is excluded: cos(0) == 1.0 would make the C++ comparison always false, so
+# face_up/face_down would never trigger.
+_angle_threshold = cv.float_range(min=0.0, max=90.0, min_included=False)
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
@@ -70,11 +82,17 @@ CONFIG_SCHEMA = cv.typed_schema(
 # face_up/face_down track a steady orientation and aren't time-sensitive.
 _FAST_DETECTION_TYPES = ("free_fall", "moving")
 
+# face_up/face_down/free_fall are entirely accelerometer-driven; "moving" is exempt
+# since it detects motion from either the accelerometer or the gyroscope.
+_ACCEL_ONLY_TYPES = ("face_up", "face_down", "free_fall")
+
 
 def _final_validate(config: dict) -> None:
     sensor_type = config[CONF_TYPE]
     if sensor_type in _FAST_DETECTION_TYPES:
         check_update_interval(config[CONF_MOTION_ID], sensor_type.replace("_", "-"))
+    if sensor_type in _ACCEL_ONLY_TYPES:
+        check_has_accelerometer(config[CONF_MOTION_ID], sensor_type.replace("_", "-"))
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

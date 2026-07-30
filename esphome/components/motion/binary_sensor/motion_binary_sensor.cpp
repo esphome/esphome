@@ -94,8 +94,11 @@ void MotionBinarySensor::process_motion_data_(const MotionData &data) {
       float ax = data.acceleration[X_AXIS];
       float ay = data.acceleration[Y_AXIS];
       float az = data.acceleration[Z_AXIS];
-      if (std::isnan(ax) || std::isnan(ay) || std::isnan(az))
+      if (std::isnan(ax) || std::isnan(ay) || std::isnan(az)) {
+        // Don't let a gap in valid data count towards the free-fall duration.
+        this->free_fall_candidate_ = false;
         return;
+      }
 
       float mag = std::sqrt(ax * ax + ay * ay + az * az);
       bool free_falling = mag < this->threshold_;
@@ -157,6 +160,11 @@ void MotionBinarySensor::process_motion_data_(const MotionData &data) {
         this->last_gyro_[1] = gy;
         this->last_gyro_[2] = gz;
       }
+
+      // With no usable data this sample, don't assert "not moving" -- just wait for
+      // the next one.
+      if (!accel_valid && !gyro_valid)
+        break;
 
       if (moving) {
         this->publish_state(true);

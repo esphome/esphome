@@ -16,7 +16,6 @@ from esphome.const import (
 )
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import std_ns
-import esphome.final_validate as fv
 
 from . import (
     AXES,
@@ -24,6 +23,7 @@ from . import (
     KEY_ACCELEROMETER,
     KEY_GYROSCOPE,
     SENSOR_SCHEMA,
+    get_motion_config,
     motion_ns,
 )
 
@@ -80,9 +80,11 @@ def _orientation_sensor_schema():
         .extend(SENSOR_SCHEMA)
         .extend(
             {
+                # 90 is excluded: sin(90) == 1.0 would make the C++ comparison always
+                # true, so orientation would report NAN (flat) on every reading.
                 cv.Optional(
                     CONF_FLAT_THRESHOLD, default=DEFAULT_FLAT_THRESHOLD
-                ): cv.float_range(min=0.0, max=90.0),
+                ): cv.float_range(min=0.0, max=90.0, max_included=False),
             }
         )
     )
@@ -104,9 +106,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 
 
 def _final_validate(config: dict) -> None:
-    full_config = fv.full_config.get()
-    motion_path = full_config.get_path_for_id(config[CONF_MOTION_ID])[:-1]
-    motion_config = full_config.get_config_for_path(motion_path)
+    motion_config = get_motion_config(config[CONF_MOTION_ID])
     has_accel = motion_config.get(KEY_ACCELEROMETER, False)
     has_gyro = motion_config.get(KEY_GYROSCOPE, False)
 
@@ -136,7 +136,9 @@ def build_sensor_expr(
     pif = std_ns.namespace("numbers").pi_v.template(cg.float_)
     if sensor_type == CONF_ORIENTATION:
         threshold_deg = (
-            config[CONF_FLAT_THRESHOLD] if config else DEFAULT_FLAT_THRESHOLD
+            config.get(CONF_FLAT_THRESHOLD, DEFAULT_FLAT_THRESHOLD)
+            if config is not None
+            else DEFAULT_FLAT_THRESHOLD
         )
         # The C++ helper compares against the sine of the tilt angle.
         threshold = round(math.sin(math.radians(threshold_deg)), 6)
