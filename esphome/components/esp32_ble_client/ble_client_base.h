@@ -132,6 +132,8 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   uint8_t connection_index_;
   uint8_t service_count_{0};  // ESP32 has max handles < 255, typical devices have < 50 services
   // Outstanding register_for_notify() requests
+  // A count, not per-request state, so a raw esp_ble_gattc_register_for_notify() on the same client can retire one
+  // services_released_ is the backstop if that ever lets the release run early
   uint8_t pending_notify_regs_{0};
   bool auto_connect_{false};
   bool paired_{false};
