@@ -26,7 +26,6 @@ from .. import (
     IMAGE_FORMAT_PNG,
     IMAGE_SOURCE_ALBUM,
     IMAGE_SOURCE_ARTIST,
-    IMAGE_SOURCE_NONE,
     SendspinHub,
     register_artwork_preference,
     sendspin_ns,
@@ -62,10 +61,11 @@ _FORMAT_TO_SENDSPIN_ENUM = {
     "BMP": IMAGE_FORMAT_BMP,
 }
 
+# The library's SendspinImageSource::NONE is its internal "unset" sentinel; a slot advertising it
+# would never receive artwork while still paying for two frame buffers, so it is not offered here.
 IMAGE_SOURCES = {
     "ALBUM": IMAGE_SOURCE_ALBUM,
     "ARTIST": IMAGE_SOURCE_ARTIST,
-    "NONE": IMAGE_SOURCE_NONE,
 }
 
 # The platform entry configures an artwork slot; the images it shows are declared inside it. The
@@ -130,6 +130,9 @@ CONFIG_SCHEMA = cv.All(
             # delays it), so a cross-fade can straddle the track boundary.
             cv.Optional(CONF_DISPLAY_OFFSET, default="0ms"): cv.All(
                 cv.time_period,
+                # The library field is whole milliseconds; reject finer values rather than
+                # silently rounding them down to zero.
+                cv.time_period_in_milliseconds_,
                 cv.Range(min=MIN_DISPLAY_OFFSET, max=MAX_DISPLAY_OFFSET),
             ),
             cv.Optional(CONF_ON_IMAGE_DISPLAY): automation.validate_automation({}),

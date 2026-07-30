@@ -10,6 +10,10 @@ namespace esphome::sendspin_ {
 
 static const char *const TAG = "sendspin.image";
 
+// How long a displayed frame may wait for sendspin.image.transition_finished before a warning
+// names the missing ack. Generous next to a typical fade of a second or two.
+static constexpr uint32_t TRANSITION_ACK_WARNING_MS = 10000;
+
 // THREAD CONTEXT: Main loop. Children set up after the hub, so the artwork role already exists.
 void SendspinImageSlot::setup() {
   const size_t frame_size = this->decode_sink_.get_buffer_size(this->width_, this->height_);
@@ -71,6 +75,9 @@ void SendspinImageSlot::on_decode_(const uint8_t *data, size_t length) {
     target = this->buffers_[this->current_index_ ^ 1];
   }
 
+  // The server letterboxes artwork onto a canvas of exactly the requested dimensions, so the sink
+  // is pinned to them: a decode that asks for anything else is a malformed payload and drops the
+  // frame.
   if (!this->decode_sink_.set_external_buffer(target, this->width_, this->height_)) {
     // setup() rules this out, but decoding without the handover would allocate a frame-sized
     // buffer on this thread, which is exactly what the permanent buffers exist to avoid.
@@ -151,6 +158,20 @@ void SendspinImageSlot::on_display_(uint32_t lateness_ms) {
   // Armed before the trigger fires so an automation that acks synchronously still counts, and armed
   // for the first frame too so the contract stays uniform: one transition_finished per display.
   this->transition_pending_ = this->transition_image_ != nullptr;
+  if (this->transition_pending_) {
+    // The library holds back further deliveries until the ack, with no timeout, so an automation
+    // that never reaches the action stalls the slot with nothing in the log. Name the cause after
+    // a generous wait. Arming again replaces the previous timeout, so it cannot fire for a frame
+    // that was already acked and superseded.
+    this->set_timeout("transition_ack", TRANSITION_ACK_WARNING_MS, [this]() {
+      if (this->transition_pending_) {
+        ESP_LOGW(TAG,
+                 "Slot %u: displayed artwork was never acknowledged; no new artwork will arrive until "
+                 "sendspin.image.transition_finished runs or the stream is cleared",
+                 this->slot_);
+      }
+    });
+  }
   this->image_display_callback_.call(lateness_ms);
   if (this->transition_image_ == nullptr) {
     this->finish_transition_();
@@ -205,6 +226,18 @@ void SendspinImageSlot::on_clear_() {
   // including one whose transition never signalled transition_finished(), so a stalled slot
   // recovers here.
   this->parent_->artwork_frame_done(this->slot_);
+}
+
+// THREAD CONTEXT: Main loop.
+void SendspinImageSlot::dump_config() {
+  ESP_LOGCONFIG(TAG,
+                "Artwork slot %u:\n"
+                "  Dimensions: %dx%d\n"
+                "  Frame buffers: 2 x %zu bytes\n"
+                "  Transition image: %s",
+                this->slot_, this->width_, this->height_,
+                this->decode_sink_.get_buffer_size(this->width_, this->height_),
+                YESNO(this->transition_image_ != nullptr));
 }
 
 // THREAD CONTEXT: Main loop.

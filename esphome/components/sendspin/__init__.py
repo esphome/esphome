@@ -52,7 +52,6 @@ IMAGE_FORMAT_BMP = SendspinImageFormat.enum("BMP")
 SendspinImageSource = sendspin_library_ns.enum("SendspinImageSource", is_class=True)
 IMAGE_SOURCE_ALBUM = SendspinImageSource.enum("ALBUM")
 IMAGE_SOURCE_ARTIST = SendspinImageSource.enum("ARTIST")
-IMAGE_SOURCE_NONE = SendspinImageSource.enum("NONE")
 
 # Library Structs
 AudioSupportedFormatObject = sendspin_library_ns.struct("AudioSupportedFormatObject")

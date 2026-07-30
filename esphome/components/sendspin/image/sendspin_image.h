@@ -107,6 +107,7 @@ class SendspinImageSlot : public SendspinChild {
         slot_(slot) {}
 
   void setup() override;
+  void dump_config() override;
 
   template<typename F> void add_on_image_display_callback(F &&callback) {
     this->image_display_callback_.add(std::forward<F>(callback));
