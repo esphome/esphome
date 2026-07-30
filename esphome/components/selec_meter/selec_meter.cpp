@@ -7,7 +7,6 @@ namespace esphome::selec_meter {
 
 static const char *const TAG = "selec_meter";
 
-static const uint8_t MODBUS_CMD_READ_IN_REGISTERS = 0x04;
 static const uint8_t MODBUS_REGISTER_COUNT = 34;  // 34 x 16-bit registers
 
 void SelecMeter::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
@@ -82,7 +81,7 @@ void SelecMeter::on_response(std::span<const uint8_t> request_pdu, std::span<con
     this->maximum_demand_apparent_power_sensor_->publish_state(maximum_demand_apparent_power);
 }
 
-void SelecMeter::update() { this->send(MODBUS_CMD_READ_IN_REGISTERS, 0, MODBUS_REGISTER_COUNT); }
+void SelecMeter::update() { this->read_input_registers(0, MODBUS_REGISTER_COUNT); }
 void SelecMeter::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "SELEC Meter:\n"
