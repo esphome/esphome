@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
-from esphome.components.const import UNIT_AMPERE_HOUR
+from esphome.components.const import UNIT_MILLIAMPERE_HOUR
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
@@ -72,15 +72,15 @@ CONFIG_SCHEMA = (
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_REMAINING_CAPACITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_AMPERE_HOUR,
-                accuracy_decimals=3,
+                unit_of_measurement=UNIT_MILLIAMPERE_HOUR,
+                accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
                 icon=ICON_BATTERY,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_FULL_CHARGE_CAPACITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_AMPERE_HOUR,
-                accuracy_decimals=3,
+                unit_of_measurement=UNIT_MILLIAMPERE_HOUR,
+                accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
                 icon=ICON_BATTERY,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,

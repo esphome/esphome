@@ -58,12 +58,14 @@ void BQ27220Component::update() {
       {&BQ27220Component::current_sensor_, 0.001f, 0.0f, BQ27220_REG_CURRENT, true, false},   // signed mA → A (§2.8)
       {&BQ27220Component::battery_level_sensor_, 1.0f, 0.0f, BQ27220_REG_STATE_OF_CHARGE, false, false},  // %
       {&BQ27220Component::temperature_sensor_, 0.1f, -273.15f, BQ27220_REG_TEMPERATURE, false, false},  // 0.1K → °C
-      {&BQ27220Component::remaining_capacity_sensor_, 0.001f, 0.0f, BQ27220_REG_REMAINING_CAPACITY, false,
-       false},  // mAh → Ah
-      {&BQ27220Component::full_charge_capacity_sensor_, 0.001f, 0.0f, BQ27220_REG_FULL_CHARGE_CAPACITY, false,
-       false},  // mAh → Ah
+      {&BQ27220Component::remaining_capacity_sensor_, 1.0f, 0.0f, BQ27220_REG_REMAINING_CAPACITY, false, false},  // mAh
+      {&BQ27220Component::full_charge_capacity_sensor_, 1.0f, 0.0f, BQ27220_REG_FULL_CHARGE_CAPACITY, false,
+       false},  // mAh
       {&BQ27220Component::time_to_empty_sensor_, 1.0f, 0.0f, BQ27220_REG_TIME_TO_EMPTY, false,
        true},  // min (0xFFFF=N/A)
+      // StateOfHealth() (0x2E) is a plain 0–100% word: SLUUBD4A §2.22 defines the full 16-bit
+      // value as the health percentage, with no status/flags byte packed into the high byte
+      // (unlike some other TI gauges), so it is published as-is with no masking.
       {&BQ27220Component::state_of_health_sensor_, 1.0f, 0.0f, BQ27220_REG_STATE_OF_HEALTH, false, false},  // 0–100%
   };
 
