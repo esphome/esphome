@@ -17,6 +17,9 @@ CHARACTERISTIC_UUID = "abcd1236-abcd-1234-abcd-abcd12345678"
 DESCRIPTOR_UUID = "abcd1237-abcd-1234-abcd-abcd12345678"
 
 REJECTED = "cannot be combined with"
+# The shared factory takes the entity noun, so each platform must name itself.
+REJECTED_SENSOR = "so this sensor would never publish"
+REJECTED_TEXT_SENSOR = "so this text sensor would never publish"
 
 
 def _sensor(name: str, **kwargs: Any) -> dict:
@@ -109,11 +112,13 @@ def test_sensor_descriptor_with_notify_rejected() -> None:
     then never matches, so node_state never reaches ESTABLISHED, update() refuses to
     poll, and ESP_GATTC_NOTIFY_EVT does not match either.
     """
-    with pytest.raises(cv.Invalid, match=REJECTED):
+    with pytest.raises(cv.Invalid, match=REJECTED) as excinfo:
         _sensor("both", descriptor_uuid=DESCRIPTOR_UUID, notify=True)
+    assert REJECTED_SENSOR in str(excinfo.value)
 
 
 def test_text_sensor_descriptor_with_notify_rejected() -> None:
     """The text sensor shares the handle overload, and the same fate."""
-    with pytest.raises(cv.Invalid, match=REJECTED):
+    with pytest.raises(cv.Invalid, match=REJECTED) as excinfo:
         _text_sensor("both", descriptor_uuid=DESCRIPTOR_UUID, notify=True)
+    assert REJECTED_TEXT_SENSOR in str(excinfo.value)

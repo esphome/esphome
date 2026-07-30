@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
@@ -9,6 +11,7 @@ from esphome.const import (
     CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_NAME,
+    CONF_NOTIFY,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_SERVICE_UUID,
@@ -16,10 +19,42 @@ from esphome.const import (
     CONF_VALUE,
 )
 from esphome.core import ID
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["esp32_ble_client"]
 CODEOWNERS = ["@buxtronix", "@clydebarrow"]
 DEPENDENCIES = ["esp32_ble_tracker"]
+
+CONF_DESCRIPTOR_UUID = "descriptor_uuid"
+
+
+def check_descriptor_notify(entity: str) -> Callable[[ConfigType], ConfigType]:
+    """Create a validator rejecting descriptor_uuid combined with notify.
+
+    Notifications carry the characteristic value, so an entity configured for both reads
+    the descriptor handle and then never matches the notification it subscribed to.
+
+    Args:
+        entity: The entity noun used in the error message, e.g. "sensor"
+
+    Returns:
+        A validator function that rejects the combination
+    """
+
+    def validate(config: ConfigType) -> ConfigType:
+        # Not cv.has_at_most_one_key: that tests key presence, and CONF_NOTIFY carries a
+        # default, so it is always present. Only a true value conflicts with a descriptor.
+        if config.get(CONF_DESCRIPTOR_UUID) and config.get(CONF_NOTIFY):
+            raise cv.Invalid(
+                f"'{CONF_DESCRIPTOR_UUID}' cannot be combined with '{CONF_NOTIFY}: true'. "
+                "Notifications carry the characteristic value, not a descriptor value, so "
+                f"this {entity} would never publish. Remove '{CONF_DESCRIPTOR_UUID}' to "
+                f"receive notifications, or set '{CONF_NOTIFY}: false' to read the descriptor."
+            )
+        return config
+
+    return validate
+
 
 ble_client_ns = cg.esphome_ns.namespace("ble_client")
 BLEClient = ble_client_ns.class_("BLEClient", esp32_ble_client.BLEClientBase)

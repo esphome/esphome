@@ -8,13 +8,10 @@ from esphome.const import (
     CONF_SERVICE_UUID,
     CONF_TRIGGER_ID,
 )
-from esphome.types import ConfigType
 
-from .. import ble_client_ns
+from .. import CONF_DESCRIPTOR_UUID, ble_client_ns, check_descriptor_notify
 
 DEPENDENCIES = ["ble_client"]
-
-CONF_DESCRIPTOR_UUID = "descriptor_uuid"
 
 CONF_ON_NOTIFY = "on_notify"
 
@@ -30,19 +27,6 @@ BLETextSensor = ble_client_ns.class_(
 BLETextSensorNotifyTrigger = ble_client_ns.class_(
     "BLETextSensorNotifyTrigger", automation.Trigger.template(cg.std_string)
 )
-
-
-def check_descriptor_notify(config: ConfigType) -> ConfigType:
-    # Not cv.has_at_most_one_key: that tests key presence, and CONF_NOTIFY carries a
-    # default, so it is always present. Only a true value conflicts with a descriptor.
-    if config.get(CONF_DESCRIPTOR_UUID) and config.get(CONF_NOTIFY):
-        raise cv.Invalid(
-            f"'{CONF_DESCRIPTOR_UUID}' cannot be combined with '{CONF_NOTIFY}: true'. "
-            "Notifications carry the characteristic value, not a descriptor value, so this "
-            f"text sensor would never publish. Remove '{CONF_DESCRIPTOR_UUID}' to receive "
-            f"notifications, or set '{CONF_NOTIFY}: false' to read the descriptor."
-        )
-    return config
 
 
 CONFIG_SCHEMA = cv.All(
@@ -64,7 +48,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(ble_client.BLE_CLIENT_SCHEMA),
-    check_descriptor_notify,
+    check_descriptor_notify("text sensor"),
 )
 
 
