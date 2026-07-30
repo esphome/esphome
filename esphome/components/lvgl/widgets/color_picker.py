@@ -107,6 +107,24 @@ class ColorPickerType(WidgetType):
             )
         ]
 
+    @staticmethod
+    def _sliders_of(w) -> list[Widget]:
+        """Wrap each slider the widget was created with, so it can be configured directly."""
+        return [
+            Widget(
+                w.var.get_slider(
+                    literal(f"{lv_color_picker_t}::SLIDER_{name.upper()}")
+                ),
+                slider_spec,
+            )
+            for name in _sliders(w.config or {})
+        ]
+
+    def obj_targets(self, w):
+        # Its own object is a plain container that nothing is ever pressed on, so anything
+        # to do with touch, such as `ext_click_area`, belongs on the sliders.
+        return self._sliders_of(w)
+
     def part_targets(self, w, part):
         # The widget is made of sliders, so `items` and `knob` are the main and knob parts of
         # each of those. Its own object is a plain container with neither. Only the sliders
@@ -114,18 +132,7 @@ class ColorPickerType(WidgetType):
         if part == CONF_MAIN:
             return [(w, part)]
         target_part = CONF_MAIN if part == CONF_ITEMS else part
-        return [
-            (
-                Widget(
-                    w.var.get_slider(
-                        literal(f"{lv_color_picker_t}::SLIDER_{name.upper()}")
-                    ),
-                    slider_spec,
-                ),
-                target_part,
-            )
-            for name in _sliders(w.config or {})
-        ]
+        return [(slider, target_part) for slider in self._sliders_of(w)]
 
     async def to_code(self, w, config: dict):
         if color := config.get(CONF_COLOR):

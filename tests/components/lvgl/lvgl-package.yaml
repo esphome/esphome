@@ -1577,6 +1577,8 @@ lvgl:
             id: lv_color_picker_4
             width: 150
             sliders: [hue, saturation]
+            # Widens the area each slider can be pressed on, so the knobs are easier to move
+            ext_click_area: 10
             knob:
               bg_color: 0xFFFFFF
 

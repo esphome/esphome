@@ -279,6 +279,36 @@ class TestColorPickerSliderStyles:
         assert f"{var}->set_tint_knobs(" not in main_cpp
 
 
+class TestColorPickerObjectProperties:
+    """The widget's own object is never pressed, so touch settings go to the sliders."""
+
+    @pytest.fixture()
+    def main_cpp(self, generate_main, component_config_path) -> str:
+        return generate_main(component_config_path("color_picker.yaml"))
+
+    def test_ext_click_area_reaches_the_sliders(self, main_cpp):
+        """This is what makes the knobs easier to grab: it widens each slider's touch area."""
+        found = re.findall(
+            r"lv_obj_set_ext_click_area\(picker_rgb->get_slider\("
+            r"LvColorPickerType::SLIDER_(\w+)\), 12\);",
+            main_cpp,
+        )
+
+        assert set(found) == {"RED", "GREEN", "BLUE"}
+
+    def test_ext_click_area_is_not_left_on_the_widget_itself(self, main_cpp):
+        """The container has nothing clickable in it, so setting it there does nothing."""
+        assert "lv_obj_set_ext_click_area(picker_rgb->obj" not in main_cpp
+
+    def test_ext_click_area_under_a_part_is_reported(self, main_cpp):
+        """It takes no part, so LVGL cannot apply it to one; that must not pass silently."""
+        from esphome.components.lvgl.defines import get_warnings
+
+        assert any("'ext_click_area'" in w and "'knob'" in w for w in get_warnings()), (
+            get_warnings()
+        )
+
+
 class TestColorPickerSliderConstruction:
     """The chosen sliders are passed to the constructor, before the layout is built."""
 

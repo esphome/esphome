@@ -57,12 +57,15 @@ lvgl:
           styles: [picker_style]
           pressed:
             styles: [picker_style]
+          # Belongs to the widget as a whole, so it is reported and ignored here
+          ext_click_area: 8
 
-    # Only the red, green and blue sliders
+    # Only the red, green and blue sliders, with a margin making them easier to press
     - color_picker:
         id: picker_rgb
         width: 100
         sliders: rgb
+        ext_click_area: 12
 
     # Only the hue, saturation and brightness sliders, styled
     - color_picker:

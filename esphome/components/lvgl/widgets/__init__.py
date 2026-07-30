@@ -42,6 +42,7 @@ from ..defines import (
     STATES,
     LValidator,
     add_lv_use,
+    add_warning,
     call_lambda,
     get_styles_used,
     get_theme_widget_map,
@@ -231,6 +232,16 @@ class WidgetType:
         :return:
         """
         return []
+
+    def obj_targets(self, w: "Widget") -> list["Widget"]:
+        """
+        Get the widgets an object property, as opposed to a style, applies to. A widget built
+        out of other widgets can point these at the ones that are actually pressed, since its
+        own object may not react to touch at all.
+        :param w: The widget being configured
+        :return:
+        """
+        return [w]
 
     def part_targets(self, w: "Widget", part: str) -> list[tuple["Widget", str]]:
         """
@@ -555,6 +566,32 @@ def style_selector(part: str, state: str):
     return join_enums((state, part))
 
 
+def _misplaced_obj_properties(config):
+    """
+    Find object properties set where LVGL has no way to apply them. They belong to a widget
+    as a whole, taking neither a part nor a state, so anywhere else they are quietly dropped.
+    :param config: The widget configuration
+    :return: Each place one was found, paired with the property name
+    """
+    from ..schemas import OBJ_PROPERTIES
+
+    def scan(sub, where):
+        if isinstance(sub, dict):
+            for prop in sorted(OBJ_PROPERTIES.intersection(sub)):
+                yield where, prop
+
+    for state in STATES:
+        if state in config:
+            yield from scan(config[state], state)
+    for part in PARTS:
+        if part not in config:
+            continue
+        yield from scan(config[part], part)
+        for state in STATES:
+            if state in config[part]:
+                yield from scan(config[part][state], f"{part}/{state}")
+
+
 def collect_parts(config):
     """
     Collect properties and states for all widget parts
@@ -644,6 +681,11 @@ async def set_obj_properties(w: Widget, config):
         else:
             base_name = None
         _set_layout_options(w, layout, base_name)
+    for where, prop in _misplaced_obj_properties(config):
+        add_warning(
+            f"'{prop}' applies to a widget as a whole, not to one part or state of it, so "
+            f"setting it under '{where}' has no effect. Set it on the widget itself instead."
+        )
     parts = collect_parts(config)
     for part, states in parts.items():
         for target, target_part in w.type.part_targets(w, part):
@@ -694,8 +736,9 @@ async def set_obj_properties(w: Widget, config):
         state = getattr(LV_STATE, key.upper())
         w.set_state(state, value)
 
-    for property in OBJ_PROPERTIES:
-        await w.set_property(property, config, lv_name="obj")
+    for target in w.type.obj_targets(w):
+        for property in OBJ_PROPERTIES:
+            await target.set_property(property, config, lv_name="obj")
 
 
 async def add_widgets(parent: Widget, config: dict):
