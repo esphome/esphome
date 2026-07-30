@@ -1785,6 +1785,38 @@ def test_revert_skips_on_contended_lock(
     assert any("skipping revert" in r.getMessage() for r in caplog.records)
 
 
+def test_update_clears_marker_while_rewriting(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """The completion marker is absent while a refresh rewrites the entry
+    and restored once the rewrite finishes, so a timed-out peer's fallback
+    never trusts a mid-rewrite tree and a crashed update re-clones."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+    _setup_old_repo(repo_dir)
+
+    marker_during_rewrite: list[bool] = []
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) in ("stash", "fetch", "reset"):
+            marker_during_rewrite.append(_marker_path(repo_dir).is_file())
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    git.clone_or_update(
+        url=url, ref=None, refresh=TimePeriodSeconds(days=1), domain=domain
+    )
+
+    assert marker_during_rewrite == [False, False, False]
+    assert _marker_path(repo_dir).is_file()
+
+
 def test_revert_skips_when_checkout_moved(
     tmp_path: Path, mock_run_git_command: Mock, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -1862,6 +1894,9 @@ def test_revert_returns_false_when_reset_fails(
         assert revert() is False
 
     assert any("Could not revert" in r.getMessage() for r in caplog.records)
+    # The entry cannot be trusted after a failed reset; the dropped marker
+    # forces a re-clone on the next use.
+    assert not _marker_path(repo_dir).is_file()
 
 
 def _raise_oserror_on_acquire(

@@ -37,12 +37,16 @@ _REVERT_LOCK_TIMEOUT_SECONDS = 60
 # is unbounded.
 _COMPLETE_ENTRY_LOCK_TIMEOUT_SECONDS = 60
 
-# Written inside .git only after every clone step (clone, ref fetch, reset,
-# submodule init) has completed. A directory without it is an interrupted
-# clone (e.g. the process was killed mid-clone) and must be re-cloned; without
-# this check such a directory would be trusted forever when the caller uses
-# NEVER_REFRESH. Lives in .git so stash/reset/checkout can never touch it and
-# it does not pollute the worktree.
+# Written inside .git only while the entry is a complete, quiescent
+# checkout: after every clone step (clone, ref fetch, reset, submodule init)
+# has finished, and removed for the duration of a refresh's rewrite
+# (stash/fetch/reset). A directory without it is an interrupted clone or
+# update (e.g. the process was killed mid-clone) and must be re-cloned;
+# without this check such a directory would be trusted forever when the
+# caller uses NEVER_REFRESH, and the bounded-wait fallback would hand a
+# mid-rewrite tree to a timed-out peer. Lives in .git so
+# stash/reset/checkout can never touch it and it does not pollute the
+# worktree.
 _CLONE_COMPLETE_MARKER = "esphome_clone_complete"
 
 # Environment variables that scope git to a specific repository. Git hooks and
@@ -330,18 +334,49 @@ def _clone_complete_marker_path(repo_dir: Path) -> Path:
     return repo_dir / ".git" / _CLONE_COMPLETE_MARKER
 
 
+def _clear_clone_complete_marker(repo_dir: Path) -> None:
+    """Best-effort removal of the completion marker.
+
+    If the unlink fails (e.g. a file lock on Windows), the marker stays and
+    the entry keeps its previous trust level; every consumer of the marker
+    tolerates that.
+    """
+    try:
+        _clone_complete_marker_path(repo_dir).unlink(missing_ok=True)
+    except OSError as err:
+        _LOGGER.debug("Could not delete clone completion marker: %s", err)
+
+
+def _write_clone_complete_marker(
+    repo_dir: Path, key: str, hash_dir_name: str, safe_key: str
+) -> None:
+    """Mark the entry as a complete, quiescent checkout.
+
+    The key and hash dir name are recorded purely to make cache debugging
+    easier. The marker is only a validity signal, so a failed write must not
+    fail an otherwise complete clone or update: the only cost is a re-clone
+    on the next run.
+    """
+    try:
+        write_file(
+            _clone_complete_marker_path(repo_dir),
+            f"key={key}\nhash={hash_dir_name}\n",
+        )
+    except EsphomeError as err:
+        _LOGGER.warning(
+            "Could not write clone completion marker for %s: %s", safe_key, err
+        )
+
+
 def _remove_repo_dir(repo_dir: Path) -> None:
     """Remove a repo directory, deleting the completion marker first.
 
     Marker-first ordering guarantees an interrupted removal can never leave a
     marker behind next to a partially deleted worktree. The unlink is best
-    effort: if it fails (e.g. a file lock on Windows), rmtree below still
-    gets the chance to remove the directory, marker included.
+    effort: if it fails, rmtree below still gets the chance to remove the
+    directory, marker included.
     """
-    try:
-        _clone_complete_marker_path(repo_dir).unlink(missing_ok=True)
-    except OSError as err:
-        _LOGGER.debug("Could not delete clone completion marker first: %s", err)
+    _clear_clone_complete_marker(repo_dir)
     if repo_dir.is_dir():
         rmtree(repo_dir)
 
@@ -584,19 +619,8 @@ def _clone_or_update_locked(
             _remove_repo_dir(repo_dir)
             raise
 
-        # Every git step succeeded; the key and hash dir name are recorded
-        # purely to make cache debugging easier. The marker is only a
-        # validity signal, so a failed write must not fail an otherwise
-        # complete clone: the only cost is a re-clone on the next run.
-        try:
-            write_file(
-                _clone_complete_marker_path(repo_dir),
-                f"key={key}\nhash={hash_dir_name}\n",
-            )
-        except EsphomeError as err:
-            _LOGGER.warning(
-                "Could not write clone completion marker for %s: %s", safe_key, err
-            )
+        # Every git step succeeded.
+        _write_clone_complete_marker(repo_dir, key, hash_dir_name, safe_key)
 
     else:
         if refresh == NEVER_REFRESH or CORE.skip_external_update:
@@ -626,6 +650,13 @@ def _clone_or_update_locked(
 
                 _LOGGER.info("Updating %s", safe_key)
                 _LOGGER.debug("Location: %s", repo_dir)
+
+                # The entry is about to be rewritten; drop the marker so a
+                # timed-out peer's fallback and the incomplete-entry check
+                # can tell a quiescent complete entry from one mid-rewrite,
+                # and so an update interrupted by a crash re-clones instead
+                # of being trusted.
+                _clear_clone_complete_marker(repo_dir)
 
                 # Stash local changes (if any)
                 # Use git_dir to ensure this only affects the specific repo
@@ -662,6 +693,9 @@ def _clone_or_update_locked(
                 new_sha = run_git_command(
                     ["git", "rev-parse", "HEAD"], git_dir=repo_dir
                 )
+
+                # The rewrite finished; the entry is trustworthy again.
+                _write_clone_complete_marker(repo_dir, key, hash_dir_name, safe_key)
             except GitException as err:
                 # Repository is in a broken state or update failed
                 # Only attempt recovery once to prevent infinite recursion
@@ -750,10 +784,18 @@ def _clone_or_update_locked(
                 except GitException as err:
                     # GitException is a cv.Invalid; letting it escape would
                     # replace the caller's original error with a bare git
-                    # message. Report the failed reset like the skip above.
+                    # message. Report the failed reset like the skip above,
+                    # and drop the marker: an entry whose reset fails cannot
+                    # be trusted, so the next use re-clones it instead of
+                    # the refresh window silently accepting it.
                     _LOGGER.warning(
-                        "Could not revert %s to %s: %s", safe_key, old_sha, err
+                        "Could not revert %s to %s (%s), the entry will be "
+                        "re-cloned on next use",
+                        safe_key,
+                        old_sha,
+                        err,
                     )
+                    _clear_clone_complete_marker(repo_dir)
                     return False
                 finally:
                     if status is _LockStatus.ACQUIRED:
