@@ -48,6 +48,7 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
   int status_code = -1;
   esp_err_t last_err = ESP_OK;
   for (uint8_t attempt = 0; attempt < this->tft_upload_http_retries_; attempt++) {
+    status_code = -1;
     last_err = esp_http_client_open(http_client, 0);
     if (last_err == ESP_OK) {
       ESP_LOGV(TAG, "Fetch length");
