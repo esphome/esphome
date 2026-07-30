@@ -302,6 +302,14 @@ bool MicroWakeWord::add_runtime_model(std::unique_ptr<WakeWordModel> model) {
 
   const std::string model_id = model->get_id();
 
+  // A model without usable data can never load, so keep it out of the lists entirely. Otherwise it would be
+  // advertised to Home Assistant as selectable and the inference task would silently disable it again every
+  // time it was enabled.
+  if (!model->has_model_data()) {
+    ESP_LOGE(TAG, "Runtime model '%s' has no valid data", model_id.c_str());
+    return false;
+  }
+
   // Reject a duplicate id against every model (compiled or runtime). The inference task only ever reads
   // wake_word_models_, so scanning it here (on the main loop) needs no synchronization.
   for (auto *existing : this->wake_word_models_) {

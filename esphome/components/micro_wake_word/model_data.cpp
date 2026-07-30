@@ -15,6 +15,13 @@ static const char *const TAG = "micro_wake_word";
 ModelData::~ModelData() { this->deallocate_(); }
 
 bool ModelData::allocate(size_t size) {
+  // Reject up front: reallocating to zero frees the buffer and returns null, which would leave data_ pointing at
+  // freed memory. A zero-length model is never usable anyway.
+  if (size == 0) {
+    ESP_LOGE(TAG, "Refusing to allocate a zero-length model");
+    return false;
+  }
+
   // Already allocated, so reallocate to the new size
   if (this->data_) {
     uint8_t *new_allocation = this->allocator_.reallocate(this->data_, size);

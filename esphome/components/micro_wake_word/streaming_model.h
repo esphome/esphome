@@ -57,6 +57,9 @@ class StreamingModel {
   /// @brief Return true if the model is enabled.
   bool is_enabled() const { return this->enabled_; }
 
+  /// @brief Return true if the model has usable data. A model without it can never be loaded or run.
+  bool has_model_data() const { return this->model_start_ != nullptr; }
+
   bool get_unprocessed_probability_status() const { return this->unprocessed_probability_status_; }
 
   // Quantized probability cutoffs mapping 0.0 - 1.0 to 0 - 255
@@ -128,6 +131,10 @@ class WakeWordModel final : public StreamingModel {
   WakeWordModel(const std::string &id, std::shared_ptr<ModelData> model_data, uint8_t default_probability_cutoff,
                 size_t sliding_window_average_size, const std::string &wake_word,
                 std::vector<std::string> trained_languages, size_t tensor_arena_size);
+
+  // model_data_ is a member of this class, so it is destroyed before ~StreamingModel() runs. Unload here, while
+  // the buffer is still alive, so the interpreter is never torn down over freed model data.
+  ~WakeWordModel() override { this->unload_model(); }
 
   void log_model_config() override;
 
