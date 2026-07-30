@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/one_wire/one_wire.h"
 
-namespace esphome {
-namespace max31888 {
+namespace esphome::max31888 {
 
 class MAX31888Sensor : public PollingComponent, public sensor::Sensor, public one_wire::OneWireDevice {
  public:
@@ -19,5 +18,4 @@ class MAX31888Sensor : public PollingComponent, public sensor::Sensor, public on
   bool read_fifo_();
 };
 
-}  // namespace max31888
-}  // namespace esphome
+}  // namespace esphome::max31888
