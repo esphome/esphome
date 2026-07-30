@@ -416,6 +416,12 @@ async def _late_logger_init(config: ConfigType) -> None:
         elif has_serial_logging and hw_uart == UART1:
             cg.add_define("USE_ESP8266_LOGGER_SERIAL1")
             enable_serial1()
+        else:
+            # No serial logging: stub out ROM ets_putc so stray output (newlib
+            # stdout, lwIP diagnostics) cannot block on a slow or shared UART0.
+            # ets_putc always writes to the physical UART and cannot be disabled
+            # through uart_set_debug(); see __wrap_ets_putc in logger_esp8266.cpp.
+            cg.add_build_flag("-Wl,--wrap=ets_putc")
 
     if (CORE.is_esp8266 or CORE.is_rp2) and has_serial_logging and is_at_least_verbose:
         debug_serial_port = HARDWARE_UART_TO_SERIAL[CORE.target_platform][
