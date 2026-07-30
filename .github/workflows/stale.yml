@@ -9,9 +9,6 @@ on:
 # Deny by default; the stale job opts in to exactly what the reusable workflow needs.
 permissions: {}
 
-concurrency:
-  group: stale
-
 jobs:
   stale:
     if: github.repository_owner == 'esphome'
@@ -21,6 +18,12 @@ jobs:
       pull-requests: write  # label, comment on and close stale pull requests
     uses: esphome/workflows/.github/workflows/stale.yml@c87be24a6fd0320ecd32e40b27fe98d25c3af851  # 2026.7.0
     with:
+      # Live only on dev: a workflow_dispatch from any other branch is a dry run
+      dry-run: ${{ github.ref != 'refs/heads/dev' }}
+      days-before-stale: 90
+      days-before-close: 7
+      stale-label: stale
+      exempt-label: not-stale
       ignored-users: esphbot,codecov-commenter
       stale-pr-message: >
         There hasn't been any activity on this pull request recently. This
