@@ -90,8 +90,13 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     import shlex
 
     def escape_entry(p: PathType) -> str:
-        # In CMakeLists.txt, backslashes need to be escaped
-        return f'"{str(p)}"'.replace("\\", "\\\\")
+        # CMake uses forward slashes for paths on every platform and treats
+        # backslashes as escape characters. On Windows os.path.relpath yields
+        # backslash paths, which break CMake's list re-parsing (e.g. "\b" in
+        # "src\backend" is an invalid character escape). Normalize to forward
+        # slashes, which Windows accepts too, so the generated CMakeLists is
+        # portable.
+        return f'"{str(p).replace(os.sep, "/")}"'
 
     # Extract the values
     build_src_dir = component.data.get("build", {}).get("srcDir", None)
