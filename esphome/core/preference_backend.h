@@ -22,11 +22,11 @@
 #include "esphome/components/zephyr/preference_backend.h"
 #endif
 
-// Key-lookup preference backends find stored data by key and define USE_PREFERENCE_KEY_LOOKUP
-// in their preference_backend.h, which enables preference key migration. Slot-based backends
-// (ESP8266, RP2040) instead allocate a storage slot for every make_preference() call and use
-// the key only as a validity tag on that slot; migration is not possible there, and key
-// collisions cannot corrupt data, so they do not define it.
+// Key-lookup preference backends find stored data by key; their platforms add the
+// USE_PREFERENCE_KEY_LOOKUP define from Python codegen, which enables preference key
+// migration. Slot-based backends (ESP8266, RP2040) instead allocate a storage slot for
+// every make_preference() call and use the key only as a validity tag on that slot;
+// migration is not possible there, and key collisions cannot corrupt data.
 
 namespace esphome {
 
@@ -37,7 +37,6 @@ struct PreferenceBackend {
   bool save(const uint8_t *, size_t) { return false; }
   bool load(uint8_t *, size_t) { return false; }
 };
-#define USE_PREFERENCE_KEY_LOOKUP
 #endif
 
 using ESPPreferenceBackend = PreferenceBackend;

@@ -42,9 +42,6 @@ ZephyrPreferences *get_preferences();
 
 namespace esphome {
 using PreferenceBackend = zephyr::ZephyrPreferenceBackend;
-
-// This backend finds stored data by key, so preference data can be migrated between keys
-#define USE_PREFERENCE_KEY_LOOKUP
 }  // namespace esphome
 
 #endif  // CONFIG_SETTINGS

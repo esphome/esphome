@@ -25,9 +25,6 @@ ESP32Preferences *get_preferences();
 
 namespace esphome {
 using PreferenceBackend = esp32::ESP32PreferenceBackend;
-
-// This backend finds stored data by key, so preference data can be migrated between keys
-#define USE_PREFERENCE_KEY_LOOKUP
 }  // namespace esphome
 
 #endif  // USE_ESP32
