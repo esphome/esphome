@@ -22,7 +22,7 @@ AUTO_LOAD = ["mdns", "socket"]
 CONF_HOSTNAME = "hostname"
 CONF_MUTE_PIN = "mute_pin"
 
-SNAPCLIENT_GIT_VERSION = "1dfe76aa3b057f60985ebec5a867b073924eeef1"
+SNAPCLIENT_GIT_VERSION = "b57403522820067818fa69989e512b96b58f31fd"
 SNAPCLIENT_GIT_REPO = "https://github.com/luar123/snapclient.git"
 
 snapclient_ns = cg.esphome_ns.namespace("snapclient")
