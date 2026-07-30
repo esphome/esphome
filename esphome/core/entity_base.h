@@ -202,7 +202,7 @@ class EntityBase {
   /// this method never will.
   ESPDEPRECATED("Use make_entity_preference<T>() instead, or preferences won't be migrated. "
                 "See https://github.com/esphome/backlog/issues/85. Will be removed in 2027.1.0.",
-                "2026.7.0")
+                "2026.8.0")
   uint32_t get_preference_hash() { return this->old_preference_key_base_(); }
 
   /// Create a preference object for storing this entity's state/settings.
