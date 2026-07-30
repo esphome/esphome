@@ -21,7 +21,6 @@ jobs:
       pull-requests: write  # label, comment on and close stale pull requests
     uses: esphome/workflows/.github/workflows/stale.yml@c87be24a6fd0320ecd32e40b27fe98d25c3af851  # 2026.7.0
     with:
-      dry-run: true
       ignored-users: esphbot,codecov-commenter
       stale-pr-message: >
         There hasn't been any activity on this pull request recently. This
