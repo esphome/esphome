@@ -707,7 +707,6 @@ def _clone_or_update_locked(
                 the reset itself failed. A retry cannot reach the
                 pre-update content then.
                 """
-                _LOGGER.info("Reverting changes to %s -> %s", safe_key, old_sha)
                 if lock is None:
                     # The wrapper already warned about the unlockable
                     # filesystem; revert unlocked like everything else.
@@ -741,6 +740,9 @@ def _clone_or_update_locked(
                             safe_key,
                         )
                         return False
+                    # Announced only once every skip check has passed, so
+                    # the log says exactly one thing per outcome.
+                    _LOGGER.info("Reverting changes to %s -> %s", safe_key, old_sha)
                     run_git_command(
                         ["git", "reset", "--hard", old_sha], git_dir=repo_dir
                     )
