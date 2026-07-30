@@ -10,7 +10,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: lock
+  group: stale
 
 jobs:
   stale:
