@@ -1775,7 +1775,7 @@ def test_revert_skips_on_contended_lock(
     holder, release = _hold_lock_in_thread(_lock_path(url, None, domain))
     calls_before = len(mock_run_git_command.call_args_list)
     with caplog.at_level(logging.INFO):
-        revert()
+        assert revert() is False
     release.set()
     holder.join()
 
@@ -1872,7 +1872,8 @@ def test_revert_continues_unlocked_when_filesystem_cannot_lock(
         assert revert is not None
         if not broken_from_start:
             _raise_oserror_on_acquire(monkeypatch)
-        revert()
+        # The reset ran (unlocked), so the revert reports success.
+        assert revert() is True
 
     assert mock_run_git_command.call_args_list[-1][0][0] == [
         "git",
@@ -2164,7 +2165,7 @@ def test_refresh_picks_up_new_remote_commits(
 
     # revert callback should reset back to the recorded pre-update SHA.
     assert revert is not None
-    revert()
+    assert revert() is True
     assert mock_run_git_command.call_args_list[-1][0][0] == [
         "git",
         "reset",

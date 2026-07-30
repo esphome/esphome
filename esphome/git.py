@@ -213,10 +213,12 @@ class _LockStatus(Enum):
 # Errnos that mean the filesystem genuinely cannot take file locks (NFS
 # without a lock daemon, some FUSE mounts). Any other OSError (permissions,
 # read-only volume, full disk) is a cache directory problem, which the git
-# commands themselves report clearly when it actually matters. On Linux
-# ENOTSUP and EOPNOTSUPP are the same value; the set folds them.
+# commands themselves report clearly when it actually matters. EPERM is
+# deliberately absent: it usually means a permissions problem, so it takes
+# the generic message that names no cause. On Linux ENOTSUP and EOPNOTSUPP
+# are the same value; the set folds them.
 _NO_LOCK_SUPPORT_ERRNOS = frozenset(
-    {errno.ENOLCK, errno.ENOSYS, errno.EOPNOTSUPP, errno.ENOTSUP, errno.EPERM}
+    {errno.ENOLCK, errno.ENOSYS, errno.EOPNOTSUPP, errno.ENOTSUP}
 )
 
 
@@ -460,7 +462,7 @@ def clone_or_update(
     password: str | None = None,
     init_submodules: bool = False,
     subpath: Path | None = None,
-) -> tuple[Path, Callable[[], None] | None]:
+) -> tuple[Path, Callable[[], bool] | None]:
     """Clone a repository into the cache, or refresh an existing clone.
 
     All work runs under a per-cache-entry inter-process file lock, so
@@ -514,7 +516,7 @@ def _clone_or_update_locked(
     subpath: Path | None,
     lock: "FileLock | None",
     _recover_broken: bool = True,
-) -> tuple[Path, Callable[[], None] | None]:
+) -> tuple[Path, Callable[[], bool] | None]:
     """Body of ``clone_or_update``; the caller holds ``lock``.
 
     Split out because the broken-repository recovery below re-enters this
@@ -690,7 +692,13 @@ def _clone_or_update_locked(
                 _LOGGER.info("Repository %s successfully recovered", safe_key)
                 return result
 
-            def revert():
+            def revert() -> bool:
+                """Reset the checkout to the pre-update SHA.
+
+                Returns False when the revert was skipped because the cache
+                entry lock could not be acquired in time; the checkout is
+                then unchanged and a retry would see the same content.
+                """
                 _LOGGER.info("Reverting changes to %s -> %s", safe_key, old_sha)
                 if lock is None:
                     # The wrapper already warned about the unlockable
@@ -708,7 +716,7 @@ def _clone_or_update_locked(
                         safe_key,
                         old_sha,
                     )
-                    return
+                    return False
                 try:
                     run_git_command(
                         ["git", "reset", "--hard", old_sha], git_dir=repo_dir
@@ -716,6 +724,7 @@ def _clone_or_update_locked(
                 finally:
                     if status is _LockStatus.ACQUIRED:
                         lock.release()
+                return True
 
             return repo_dir, revert
 

@@ -1264,6 +1264,36 @@ def test_remote_packages_no_revert(
     ]
 
 
+@patch("esphome.yaml_util.load_yaml")
+@patch("pathlib.Path.is_file")
+@patch("esphome.git.clone_or_update")
+def test_remote_packages_skipped_revert_does_not_retry(
+    mock_clone_or_update, mock_is_file, mock_load_yaml
+) -> None:
+    """When revert() reports the rollback was skipped, the load is not
+    retried (the checkout is unchanged) and the error says so."""
+    mock_revert = MagicMock(return_value=False)
+    mock_clone_or_update.return_value = (Path("/tmp/noexists"), mock_revert)
+    mock_is_file.return_value = True
+    mock_load_yaml.side_effect = cv.Invalid("bad yaml")
+
+    config = {
+        CONF_PACKAGES: {
+            "pkg": {
+                CONF_URL: "https://github.com/esphome/repo",
+                CONF_REF: "main",
+                CONF_FILES: [{CONF_PATH: "file.yaml"}],
+                CONF_REFRESH: "1d",
+            }
+        }
+    }
+    with pytest.raises(cv.Invalid, match="could not lock the repository cache"):
+        packages_pass(config)
+
+    assert mock_revert.call_count == 1
+    assert mock_load_yaml.call_count == 1
+
+
 def test_raw_config_contains_merged_esphome_from_package(tmp_path) -> None:
     """Test that CORE.raw_config contains esphome section from merged package.
 

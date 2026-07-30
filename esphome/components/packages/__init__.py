@@ -267,8 +267,14 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
         # If loading fails, the cached checkout may be stale — revert and retry once.
         try:
             return {CONF_PACKAGES: get_packages(files)}
-        except cv.Invalid:
-            revert()
+        except cv.Invalid as err:
+            if not revert():
+                # The checkout is unchanged, so a retry would fail identically.
+                raise cv.Invalid(
+                    f"Failed to load packages and could not lock the repository "
+                    f"cache to revert it. {err}",
+                    path=err.path,
+                ) from err
         try:
             return {CONF_PACKAGES: get_packages(files)}
         except cv.Invalid as err:
