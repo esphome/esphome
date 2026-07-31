@@ -43,6 +43,7 @@ from .const import (
     CONF_CDC_ACM,
     CONF_KCONFIG_OPTIONS,
     CONF_NINJA_VERSION,
+    CONF_OVERLAYS,
     CONF_SNIPPETS,
     CONF_WEST_VERSION,
     KEY_BOARD,
@@ -565,6 +566,7 @@ def zephyr_to_code(config: ConfigType) -> None:
             zephyr_add_prj_conf("EXCEPTION_STACK_TRACE", True)
 
     CORE.add_job(_kconfig_options_to_code, config)
+    CORE.add_job(_overlays_to_code, config)
     CORE.add_job(_cdc_acm_to_code, config)
 
 
@@ -581,6 +583,18 @@ async def _kconfig_options_to_code(config: ConfigType) -> None:
                 zephyr_set_prj_conf_override(image_name, image_value, image=name)
         else:
             zephyr_set_prj_conf_override(name, value)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _overlays_to_code(config: ConfigType) -> None:
+    # Runs at the lowest priority so user-supplied overlay content is appended after
+    # every component's own generated overlays (e.g. a partition table redefinition
+    # needs to come after anything else touching &flash0).
+    overlays = config.get(CONF_OVERLAYS, {})
+    if app_overlay := overlays.get("app"):
+        zephyr_add_overlay(app_overlay)
+    if mcuboot_overlay := overlays.get("mcuboot"):
+        zephyr_add_overlay(mcuboot_overlay, image="mcuboot")
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -883,8 +897,8 @@ _ZEPHYR_SCHEMA = cv.Schema(
         cv.Optional(CONF_LOG_LEVEL, default="ERROR"): cv.one_of(
             *LOG_LEVELS_ZEPHYR, upper=True
         ),
-        # Loose passthrough here -- shape differs per variant (currently only nrf52's
-        # mcuboot_serial_recovery), strictly validated by the variant's own config_schema.
+        # Loose passthrough here -- shape differs per variant, strictly validated by
+        # the variant's own config_schema.
         cv.Optional(CONF_ADVANCED, default={}): dict,
         # Raw Kconfig passthrough -- Zephyr's equivalent of esp32's sdkconfig_options. A
         # dict value (e.g. `mcuboot:`) targets that sysbuild child image's own prj.conf.
@@ -902,6 +916,15 @@ _ZEPHYR_SCHEMA = cv.Schema(
         # from kconfig_options: above. Lets a stock upstream board cover a differently
         # sized flash/PSRAM SKU without forking a whole custom board.
         cv.Optional(CONF_SNIPPETS, default=[]): cv.ensure_list(cv.string_strict),
+        # Raw devicetree overlay passthrough -- lets a stock upstream board's DT be
+        # patched (e.g. a partition table redefined for MCUboot) without forking a
+        # custom board. "mcuboot" targets the sysbuild bootloader child image.
+        cv.Optional(CONF_OVERLAYS, default={}): cv.Schema(
+            {
+                cv.Optional("app"): cv.string,
+                cv.Optional("mcuboot"): cv.string,
+            }
+        ),
     }
 )
 

@@ -15,12 +15,16 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_SHA256")
 
     if CORE.is_zephyr:
-        from esphome.components.zephyr import zephyr_add_prj_conf
+        from esphome.components.zephyr import zephyr_add_prj_conf, zephyr_variant_family
 
         # All platform:zephyr variants (native_sim/esp32_h2 >= 4.4.0) are above
         # the PSA crypto threshold.
         zephyr_add_prj_conf("PSA_CRYPTO", True)
-        zephyr_add_prj_conf("MBEDTLS_MD_C", True)
+        if zephyr_variant_family() != "nordic":
+            # NCS's nrf_security implements PSA Crypto directly (sha256.h's
+            # USE_ZEPHYR_VARIANT_FAMILY_NORDIC branch) -- this Kconfig is
+            # mainline Zephyr's own mbedtls module only.
+            zephyr_add_prj_conf("MBEDTLS_MD_C", True)
         zephyr_add_prj_conf("PSA_WANT_ALG_SHA_256", True)
         return
 

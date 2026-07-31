@@ -22,6 +22,7 @@ CdcAcm = zephyr_ns.class_("CdcAcm", cg.Component)
 CONF_CDC_ACM = "cdc_acm"
 CONF_BOARD_SOURCE = "board_source"
 CONF_KCONFIG_OPTIONS = "kconfig_options"
+CONF_OVERLAYS = "overlays"
 CONF_WEST_VERSION = "west_version"
 CONF_NINJA_VERSION = "ninja_version"
 CONF_SNIPPETS = "snippets"
