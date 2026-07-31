@@ -46,9 +46,6 @@ static const uint8_t CHSC6540_REG_STATUS_Y_LO = 0x06;
 // The coordinate high nibble shares a byte with the event flags in bits 7-6.
 static const uint8_t CHSC6540_COORD_HI_MASK = 0x0F;
 
-// Only 1 and 2 are valid; anything higher is a corrupt frame.
-static const uint8_t CHSC6540_MAX_TOUCHES = 2;
-
 enum CHSC6XModel : uint8_t {
   // Original layout: touch count at byte 0, single-byte coordinates. Matches
   // the 240x240 Seeed Studio Round Display for XIAO this component targets.
