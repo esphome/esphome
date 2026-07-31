@@ -612,11 +612,10 @@ bool ModbusDeviceCommand::sent() {
 
 bool ModbusDeviceCommand::notify_retired() {
   if (!this->decrement_pending())
-    return false;  // nothing owed
-  if (this->device == nullptr)
-    return false;  // debt consumed silently - no owner to tell
-  this->device->on_not_sent(this->frame.pdu());
-  return true;
+    return false;  // nothing owed - stop the sweep draining this entry
+  if (this->device != nullptr)
+    this->device->on_not_sent(this->frame.pdu());
+  return true;  // consumed one debt (delivered, or silent when device-less) - keep draining to zero
 }
 
 bool ModbusDeviceCommand::response(std::span<const uint8_t> response_pdu) {
@@ -687,8 +686,9 @@ void ModbusClientHub::sweep_() {
             cmd.requeue(this->next_seq_++);
           break;
         case FrameState::RETIRED:
-          // Owes one on_not_sent() per accepted request; notify_retired() drains one and reports
-          // whether it delivered, so the sweep neither loops nor notifies twice.
+          // Owes one on_not_sent() per accepted request; notify_retired() consumes one and reports
+          // whether a debt remained, so the restart loop drains the entry to zero - even a device-less
+          // shell with pending > 1 (no callback fires, but it still drains rather than stranding).
           callback_ran = cmd.notify_retired();
           break;
         case FrameState::WAITING_RETIRED:

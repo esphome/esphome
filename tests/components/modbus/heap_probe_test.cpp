@@ -119,8 +119,8 @@ TEST(HeapProbe, TypicalFrameConstructionIsAllocationFree) {
 
 // Queueing typical commands is allocation-free within the deque's first block: the frame fits the
 // inline buffer, every entry is a plain append (ordering lives in selection, not storage), and the
-// first block is already allocated when the hub is constructed. A queue deeper than one block
-// (around eight commands at the current entry size) allocates further 512-byte blocks.
+// first block is already allocated when the hub is constructed. A 512-byte deque block holds
+// 512 / sizeof(ModbusDeviceCommand) entries (16 on the 64-bit host); a deeper queue allocates more.
 TEST(HeapProbe, QueueingTypicalCommandsIsAllocationFree) {
   ModbusClientHub hub;
   ModbusClientDevice device(&hub, 0x02);
@@ -129,7 +129,8 @@ TEST(HeapProbe, QueueingTypicalCommandsIsAllocationFree) {
   const uint8_t read_pdu[] = {0x03, 0x01, 0x00, 0x00, 0x02};
   req.assign(read_pdu, read_pdu + sizeof(read_pdu));
 
-  constexpr int n = 8;
+  constexpr int n = 12;
+  static_assert(n * sizeof(ModbusDeviceCommand) < 512, "keep n within one deque block so the probe stays meaningful");
   size_t total = 0;
   for (int i = 0; i != n; i++) {
     req[2] = static_cast<uint8_t>(i);  // distinct start addresses: identical frames would dedup, not enqueue

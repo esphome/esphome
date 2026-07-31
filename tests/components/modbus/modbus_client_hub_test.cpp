@@ -27,13 +27,20 @@ class NoResponseProbeHub : public ModbusClientHub {
     }
     return count;
   }
+  // A never-null placeholder to return when a lookup fails, so a tripped EXPECT/ADD_FAILURE reports
+  // the assertion instead of dereferencing null / an empty deque and segfaulting the whole suite.
+  static const ModbusDeviceCommand &dummy_command_() {
+    static const uint8_t pdu[1] = {0x00};
+    static ModbusDeviceCommand cmd(nullptr, 0, std::span<const uint8_t>(pdu, 1));
+    return cmd;
+  }
   const ModbusDeviceCommand &queued(size_t i) const {
     for (const auto &cmd : this->tx_buffer_) {
       if (cmd.state == FrameState::READY && i-- == 0)
         return cmd;
     }
     ADD_FAILURE() << "no READY entry at that index";
-    return this->tx_buffer_.front();
+    return dummy_command_();
   }
   size_t entries() const { return this->tx_buffer_.size(); }
   const ModbusDeviceCommand *next_ready() { return this->select_next_ready_(); }
@@ -41,7 +48,7 @@ class NoResponseProbeHub : public ModbusClientHub {
   const ModbusDeviceCommand &waiting_command() {
     ModbusDeviceCommand *cmd = this->find_waiting_();
     EXPECT_NE(cmd, nullptr);
-    return *cmd;
+    return cmd != nullptr ? *cmd : dummy_command_();
   }
 
   void sweep_for_test() { this->sweep_(); }
