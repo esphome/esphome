@@ -13,6 +13,7 @@ from esphome.components.esp32 import (
 )
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ACCURACY_DECIMALS,
     CONF_AP,
     CONF_DEVICE,
     CONF_DEVICE_CLASS,
@@ -22,7 +23,6 @@ from esphome.const import (
     CONF_NAME,
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
-    CONF_ACCURACY_DECIMALS,
     CONF_VALUE,
     CONF_WIFI,
 )
@@ -206,7 +206,7 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
         ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
             {
                 CONF_ATTRIBUTE_ID: 0x6A,
-                CONF_VALUE: 10 ** -accuracy,
+                CONF_VALUE: 10**-accuracy,
                 CONF_TYPE: "SINGLE",
             },
         )
