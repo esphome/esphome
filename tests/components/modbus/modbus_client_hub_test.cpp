@@ -13,10 +13,8 @@ namespace esphome::modbus::testing {
 
 namespace {
 
-// Exposes the frame state machine so tests can drive it without a UART: force_send_next()
-// mimics send_next_frame_() transmitting the SELECTED (not storage-front) READY frame,
-// timeout_waiting() mimics the loop() send-wait watchdog plus the sweeps around it, and
-// sweep_for_test() runs the delivery sweep alone (the real one runs at the end of every loop()).
+// Exposes the frame state machine so tests can drive it without a UART (force_send_next(),
+// timeout_waiting(), sweep_for_test() stand in for the loop() transmit/watchdog/sweep steps).
 class NoResponseProbeHub : public ModbusClientHub {
  public:
   // The old "queue" view: entries awaiting transmission, in STORAGE order (selection order is
@@ -846,11 +844,8 @@ TEST(ModbusClientHubCallbackCount, RetryLifecyclesEachGetSentAndTerminal) {
   EXPECT_EQ(device.last_no_response_pdu_, std::vector<uint8_t>(READ_PDU, READ_PDU + sizeof(READ_PDU)));
 }
 
-// Under the state machine a retry can NEVER be refused by a full queue: the entry already lives
-// in the container and a retry is a state flip, not a new insertion. Fill the queue, time out the
-// waiting frame with a retry - the frame survives as READY and both absorbed requests persist.
-// (The old requeue_waiting_frame_/maybe_requeue_completed_ full-buffer refusal branches, and their
-// three tests, are gone with the branches themselves.)
+// A retry is a state flip on an existing entry, never a new insertion, so a full queue can't refuse
+// it: fill the queue, time out the waiting frame with a retry, and it survives as READY.
 TEST(ModbusClientHubCallbackCount, RetryIsNeverRefusedByFullQueue) {
   NullUART uart;
   NoResponseProbeHub hub;
@@ -1303,10 +1298,8 @@ class ResendAndClearOnNotSentDevice : public ModbusClientDevice {
 };
 }  // namespace
 
-// The worst case for sweep termination: a handler that re-sends AND clears from every
-// on_not_sent(), so each delivery manufactures both a fresh entry and a fresh terminal debt. The
-// sweep serves only the entries it started with, so the manufactured debt lands beyond that bound
-// and waits for the next sweep: one callback per loop, and the container never grows.
+// Sweep-termination worst case: a handler re-sending AND clearing from every on_not_sent() still
+// can't extend the sweep, since it serves only the entries it started with (new debt waits).
 TEST(ModbusClientHubQueue, ResendAndClearFromNotSentCannotExtendTheSweep) {
   NoResponseProbeHub hub;
   ResendAndClearOnNotSentDevice device(&hub, 0x02);
@@ -1726,10 +1719,8 @@ TEST(ModbusClientHubNoResponse, SelfClearFromNoResponseResolvesTheAbsorbedReques
   EXPECT_EQ(hub.entries(), 0u);
 }
 
-// A cleared in-flight frame (WAITING_RETIRED shell) must release the bus by BOTH exits, and the
-// in-flight request still gets its usual callback: on_response for the late reply, on_no_response
-// for the send-wait timeout. If either failed to clear the waiting flag the hub would never transmit
-// again, so both are pinned. No on_not_sent - a lone in-flight frame has no un-run duplicate.
+// A cleared in-flight frame must release the bus by both exits and still deliver the in-flight
+// request's usual callback (on_response here, on_no_response on timeout); no on_not_sent, no duplicate.
 TEST(ModbusClientHubQueue, ClearedShellReleasesTheBusOnLateResponse) {
   NoResponseProbeHub hub;
   DataCountingDevice device(&hub, 0x02);
@@ -1765,10 +1756,8 @@ TEST(ModbusClientHubQueue, ClearedShellReleasesTheBusOnTimeout) {
   EXPECT_EQ(device.not_sent_count_, 0);     // no un-run duplicate
 }
 
-// A cleared on-wire DUPLICATE (pending 2) that times out: the sweep drains the un-run duplicate as
-// on_not_sent, and the request still in flight gets on_no_response - it must NOT re-transmit. The
-// loop sweeps before the watchdog so the duplicate is drained (pending -> 1) before the timeout,
-// exactly the order timeout_waiting() uses here.
+// A cleared on-wire duplicate (pending 2) that times out: the duplicate drains to on_not_sent and
+// the in-flight request gets on_no_response, with nothing re-transmitted (sweep runs before timeout).
 TEST(ModbusClientHubQueue, ClearedInFlightDuplicateTimesOutWithoutRerunning) {
   NoResponseProbeHub hub;
   DataCountingDevice device(&hub, 0x02);

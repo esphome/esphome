@@ -45,26 +45,20 @@ void Modbus::loop() {
 }
 
 void ModbusClientHub::loop() {
-  // Deliver anything owed since the last loop before the watchdog acts. A clear_tx_queue_*() call
-  // from outside the loop leaves cleared entries owing callbacks (and drains an on-wire shell's
-  // duplicates down to the one still in flight); running the sweep first means the watchdog never
-  // times out an entry whose pending count has not yet been drained. No-op when nothing is owed.
+  // Drain anything owed since the last loop (e.g. an external clear) before the watchdog runs, so it
+  // never times out an entry whose pending count has not been drained. No-op when nothing is owed.
   this->sweep_();
 
-  // Call base class to receive bytes and parse frames
-  this->Modbus::loop();
+  this->Modbus::loop();  // receive bytes and parse frames
 
-  // Send-wait watchdog: past the timeout with no start-of-response in sight, the wait ends.
-  // expire_waiting_() flips the on-wire entry via timeout() and lets the sweep deliver/reschedule.
-  // Only the cheap time check runs at loop rate; expire_waiting_() looks the entry up and holds off
-  // if the response has started arriving.
+  // Send-wait watchdog: only the cheap time check runs at loop rate; expire_waiting_() looks the
+  // entry up and holds off if the response has started arriving.
   if (this->waiting_for_response_ &&
       this->last_receive_check_ - this->last_send_ > this->last_send_tx_offset_ + this->send_wait_time_) {
     this->expire_waiting_();
   }
 
   this->sweep_();  // deliver owed callbacks with the hub quiescent
-  // Then transmit - possibly a frame the sweep or watchdog just returned to READY.
   this->send_next_frame_();
 }
 
@@ -78,12 +72,8 @@ void ModbusClientHub::expire_waiting_() {
     // The start of the response is in the buffer: let the frame finish arriving.
     return;
   }
-  // The send-wait timer fired. timeout() picks the destination from the current state: an
-  // already-notified shell (INTERRUPTED_NOTIFIED) -> TIMED_OUT_NOTIFIED (the sweep reschedules a
-  // still-pending entry or erases an empty one - the requeue/retire this used to spell out inline);
-  // everything else -> TIMED_OUT, where the sweep delivers on_no_response (a bare INTERRUPTED that
-  // hasn't been swept yet still gets its terminal here). Only a genuine WAITING entry warrants the
-  // log.
+  // The send-wait timer fired; timeout() advances the entry and the sweep delivers/reschedules. Only
+  // a genuine WAITING entry warrants the log (a cleared or interrupted shell timing out is expected).
   if (cmd->state == FrameState::WAITING) {
     ESP_LOGW(TAG, "Stop waiting for response from %" PRIu8 " %" PRIu32 "ms after last send", cmd->frame.address(),
              this->last_receive_check_ - this->last_send_);
@@ -293,14 +283,8 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   return true;
 }
 
-// Bounds contract, enforced by the parser (parse_modbus_server_frame_) rather than locally:
-// - pdu is never empty: helpers::server_pdu_length() returns at least MIN_PDU_SIZE (1) on every
-//   branch, and find_custom_frame_end_() only ever lengthens the frame, so the PDU always holds
-//   at least the function code.
-// - When the exception bit is set, pdu has at least 2 bytes: server_pdu_length() checks the
-//   exception bit before anything else and pins those PDUs to 2 bytes, so the exception code
-//   read below is always present.
-// Keep those guarantees in mind when changing server_pdu_length() or adding callers.
+// The parser (parse_modbus_server_frame_) guarantees the bounds relied on here: pdu is never empty,
+// and an exception-flagged pdu is at least 2 bytes. Keep that in mind when changing server_pdu_length().
 void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) {
   const uint8_t function_code = pdu[0];
   ModbusDeviceCommand *cmd = this->waiting_for_response_ ? this->find_waiting_() : nullptr;
@@ -320,11 +304,8 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
              "ms after last send",
              address, expected_address, (function_code & FUNCTION_CODE_MASK), expected_function_code,
              this->last_modbus_byte_ - this->last_send_);
-    // The transaction is interrupted: the entry becomes an INTERRUPTED shell that keeps tx blocked
-    // until the send-wait timeout. The sweep delivers on_no_response() and records the retry
-    // decision (-> INTERRUPTED_NOTIFIED); the timeout applies it. A shell already past WAITING
-    // (interrupted or cleared) just keeps waiting out the clock. interrupt() returns false then, so
-    // OR into sweep_needed_ rather than assigning - an earlier frame this loop may have set it.
+    // Unexpected frame: interrupt() flips a WAITING entry to an INTERRUPTED shell that blocks tx
+    // until the timeout (returns false for a shell already past WAITING, so OR into sweep_needed_).
     if (cmd->interrupt())
       this->sweep_needed_ = true;
     return;
@@ -340,15 +321,9 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
     return;
   }
 
-  // WAITING (deliver normally) or (null device/pending = 0) (a cleared shell). The callbacks fire AT PARSE
-  // TIME so the response span can point straight into the rx buffer (zero copy); error()/response()
-  // set the RECEIVED_* state and consume the request BEFORE the callback runs, so a
-  // clear_tx_queue_*() call from inside it flips the entry to RETIRED and cancels the
-  // re-run/continuous bookkeeping - "stop polling now" from inside on_response()/on_error() must
-  // actually stop it. The sweep then reschedules. A cleared shell is device-less and pending
-  // 0, so error()/response() run no callback and the sweep erases it - the cleared response is
-  // discarded silently (an exception is still logged above, which is useful when debugging the
-  // device even though the result is dropped).
+  // Deliver at parse time so the response span can point into the rx buffer (zero copy). error()/
+  // response() set the state and consume the request BEFORE the callback, so a clear from inside it
+  // ("stop polling now") wins. A device-less shell runs no callback and the sweep erases it.
   this->waiting_for_response_ = false;
   this->sweep_needed_ = true;
   if (helpers::is_function_code_exception(function_code)) {
@@ -499,10 +474,8 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
   }
 }
 
-// Callers own the decision to transmit: each one checks tx_blocked() before calling, and the framed
-// size is bounded by construction (see the static_asserts in modbus_definitions.h). Re-checking here
-// bought nothing anyway - the wait below can hold the bus for several milliseconds after the check,
-// so a byte arriving in that window was never detected by it.
+// Callers check tx_blocked() first and the framed size is bounded by construction, so this transmits
+// unconditionally (a re-check here bought nothing - the wait below can hold the bus for ms anyway).
 void Modbus::send_frame_(const ModbusFrame &frame) {
   const int32_t tx_delay_remaining = this->tx_delay_remaining();
   if (tx_delay_remaining > 0) {
@@ -600,12 +573,8 @@ ModbusDeviceCommand *ModbusClientHub::find_waiting_() {
 }
 
 ModbusDeviceCommand *ModbusClientHub::select_next_ready_() {
-  // Ordering is a property of selection, not storage: the entry's class decides first (WRITE, then
-  // one-shot READ, then CONTINUOUS), and within a class the oldest goes first - round-robin fair,
-  // with absorbed duplicates keeping their entry's place (see the seq field doc).
-  // seq is a free-running counter: compare each entry's AGE against it rather than comparing two
-  // stamps, so the arithmetic stays correct until an entry's age reaches the counter's full range
-  // (a pairwise comparison only spans half of it).
+  // Class first (WRITE, then one-shot READ, then CONTINUOUS), oldest within a class. seq is a
+  // free-running counter, so compare each entry's AGE against it (correct across the full range).
   const uint16_t now = this->next_seq_;
   const auto age = [now](const ModbusDeviceCommand &cmd) -> uint16_t { return now - cmd.seq; };
   const auto older = [&age](const ModbusDeviceCommand &a, const ModbusDeviceCommand &b) { return age(a) > age(b); };
@@ -641,8 +610,7 @@ bool ModbusDeviceCommand::notify_retired() {
 
 bool ModbusDeviceCommand::response(std::span<const uint8_t> response_pdu) {
   this->state = this->state == FrameState::WAITING_RETIRED ? FrameState::RETIRED : FrameState::RECEIVED_RESPONSE;
-  // A continuous poll is a fixed subscription, never consumed by its own response; a one-shot
-  // consumes one request here (decrement-before, WAITING-origin so pending >= 1).
+  // A continuous poll is never consumed by its own response; a one-shot consumes one request here.
   if (!this->continuous)
     this->decrement_pending();
   if (this->device == nullptr)
@@ -653,8 +621,7 @@ bool ModbusDeviceCommand::response(std::span<const uint8_t> response_pdu) {
 
 bool ModbusDeviceCommand::error(ExceptionCode exception_code) {
   this->state = this->state == FrameState::WAITING_RETIRED ? FrameState::RETIRED : FrameState::RECEIVED_EXCEPTION;
-  // An exception ends a continuous poll too: decrement unconditionally so it drains to 0 and the
-  // sweep erases it.
+  // An exception ends a continuous poll too, so decrement unconditionally.
   this->decrement_pending();
   if (this->device == nullptr)
     return false;
@@ -686,20 +653,11 @@ void ModbusClientHub::sweep_() {
   if (!this->sweep_needed_)
     return;
   this->sweep_needed_ = false;
-  // Service loop: handle ONE entry per pass, then rescan - a handler may flip any entry's state
-  // (send, clear), so no iterator survives a callback. Indices and references DO survive: entries
-  // only ever leave the container in the erase pass below, and deque appends invalidate neither.
-  // Termination: every service either decrements a pending count or moves the entry along the
-  // transition table toward READY/removal; nothing a handler can do re-creates swept work except
-  // an explicit new send, which starts with pending within its cap.
-  // The work set: exactly the entries present on entry. Callbacks may append (a re-send), but the
-  // additions sit beyond this bound and take no part in this sweep, so the set being served can
-  // never grow - however a handler sends, clears, or both. Indices stay valid because entries are
-  // only ever erased below, after the service loop.
+  // Serve only the entries present now: a callback may append (a re-send), but those sit beyond
+  // work_set and are left for the next sweep, which bounds the work and is the termination argument.
+  // Entries leave the container only in the erase pass below, so indices/references stay valid.
   const size_t work_set = this->tx_buffer_.size();
-  // Restart the walk after every callback: a handler may have moved any entry to any state, so no
-  // position in the scan survives one. Bookkeeping that runs no callback changes only its own
-  // entry, and the walk carries on.
+  // Restart the walk after every callback: a handler may have moved any entry to any state.
   bool callback_ran = true;
   while (callback_ran) {
     callback_ran = false;
@@ -709,16 +667,13 @@ void ModbusClientHub::sweep_() {
         case FrameState::RECEIVED_RESPONSE:
         case FrameState::RECEIVED_EXCEPTION:
         case FrameState::TIMED_OUT_NOTIFIED:
-          // The callback and the pending accounting already happened (RECEIVED_* at parse time,
-          // TIMED_OUT_NOTIFIED in notify_timed_out()); these entries are off the wire, reschedule now:
-          // anything still pending re-runs, an empty one is erased at the end of the sweep.
+          // Off the wire, callback already delivered: reschedule what is still pending, else erase.
           if (cmd.pending)
             cmd.requeue(this->next_seq_++);
           break;
         case FrameState::TIMED_OUT:
-          // Deliver on_no_response() and advance to TIMED_OUT_NOTIFIED (reschedule next pass). A
-          // clear from inside the handler moves the entry to RETIRED instead, so it will not match
-          // the reschedule case above - the clear-took-over check is implicit in the dispatch.
+          // Deliver on_no_response(); a clear from inside it moves the entry to RETIRED (won't match
+          // the reschedule case above), so the clear-took-over check is implicit.
           callback_ran = cmd.notify_timed_out();
           break;
         case FrameState::INTERRUPTED:
@@ -726,14 +681,13 @@ void ModbusClientHub::sweep_() {
           callback_ran = cmd.notify_interrupted();
           break;
         case FrameState::RETIRED:
-          // An address-scoped clear owes one on_not_sent() per accepted request. notify_retired()
-          // consumes one debt and reports whether it delivered: a drained entry (pending 0) or an
-          // owner-less one returns false, so the sweep neither loops on it nor notifies twice.
+          // Owes one on_not_sent() per accepted request; notify_retired() drains one and reports
+          // whether it delivered, so the sweep neither loops nor notifies twice.
           callback_ran = cmd.notify_retired();
           break;
         case FrameState::WAITING_RETIRED:
-          // A cleared shell: drain only the un-run duplicates (pending > 1) as on_not_sent. The one
-          // request still on the wire keeps pending 1 and gets its usual callback when it resolves.
+          // Cleared shell: drain only the un-run duplicates; the request in flight keeps pending 1
+          // and gets its usual callback when it resolves.
           if (cmd.pending > 1)
             callback_ran = cmd.notify_retired();
           break;
@@ -742,15 +696,11 @@ void ModbusClientHub::sweep_() {
       }
     }
   }
-  // Erase pass: the ONLY place entries leave the container (the index/reference stability above
-  // and in the parse path relies on this). Storage order carries no meaning - ordering is a
-  // property of selection - so a finished entry is replaced by the last one and the tail dropped,
-  // which needs only a move and a pop instead of the deque's range-erase machinery. Walking
-  // backwards means the entry moved down has already been examined.
+  // Erase pass: the only place entries leave the container. Storage order carries no meaning, so a
+  // finished entry is swap-and-popped; walking backwards means a moved-down entry is already seen.
   for (size_t i = this->tx_buffer_.size(); i-- > 0;) {
     const ModbusDeviceCommand &cmd = this->tx_buffer_[i];
-    // pending == 0 is the erasability signal, but on-wire shells (pending 0 yet still holding the
-    // bus) are exempt - their release paths retire them once the wire clears.
+    // pending == 0 is erasable, but on-wire shells are exempt until their wire clears.
     if (cmd.pending != 0 || cmd.on_wire())
       continue;
     if (i + 1 != this->tx_buffer_.size())
@@ -762,8 +712,7 @@ void ModbusClientHub::sweep_() {
 // Raw send for client: pushes to tx queue. Everything except the CRC must be contained in payload.
 bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device,
                                CommandOptions options) {
-  // Requests refused at the door never enter the state machine and get no callback - the false
-  // return IS the refusal, delivered synchronously at the call site.
+  // Requests refused here never enter the machine and get no callback - the false return is it.
   if (pdu.empty()) {
     ESP_LOGW(TAG, "Empty PDU refused for address %" PRIu8, address);
     return false;
@@ -774,9 +723,7 @@ bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
     return false;
   }
 
-  // The ordering class is derived from the frame (ModbusDeviceCommand::classify()), never chosen
-  // by callers. continuous is ignored for every mutating code (re-writing a value forever is
-  // never intended).
+  // continuous is ignored for every mutating code (re-writing a value forever is never intended).
   const bool mutates = ModbusDeviceCommand::classify(pdu[0]) == CommandPriority::WRITE;
   bool continuous = false;
   if (options.continuous) {
@@ -787,24 +734,16 @@ bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
     }
   }
 
-  // A frame arriving THROUGH send_pdu() that is identical to a live entry with the same owner is
-  // not queued twice; the duplicate resolves against that entry (see the lifecycle contract):
-  //   - anonymous (device == nullptr): dropped - with no callbacks there is no lifecycle to absorb
-  //     into, and no owner to route a re-run to
-  //   - the incoming request is continuous: the entry BECOMES the continuous poll; the conversion
-  //     supersedes any requests the entry had absorbed (the caller opted into streaming semantics,
-  //     and the poll's responses are the accounting from then on)
-  //   - the entry is a continuous poll: absorbed uncounted - the poll's next response serves it
-  //   - both one-shots: pending increments while the entry is below its servable cap (2 for
-  //     requeueable reads, 1 for writes/custom); at the cap the duplicate is refused with false
+  // A duplicate of a live entry with the same owner is not queued twice; it resolves against that
+  // entry: anonymous -> dropped; continuous incoming -> convert the entry; continuous entry ->
+  // absorbed uncounted; both one-shots -> pending++ below the servable cap, else refused.
   for (auto &item : this->tx_buffer_) {
     if (item.state == FrameState::RETIRED || item.state == FrameState::WAITING_RETIRED)
       continue;  // cleared, on their way out: a new identical send queues fresh, never absorbs
     if (item.device != device || !item.same_frame(address, pdu))
       continue;
     if (device == nullptr) {
-      // Reads are idempotent, so their drop is routine (DEBUG); a dropped write/custom is a
-      // wire-behavior difference the caller cannot observe without a device, so it warns.
+      // A dropped read is routine (DEBUG); a dropped write/custom warns (unobservable without a device).
       const bool requeueable = !helpers::is_function_code_exception(pdu[0]) && helpers::is_function_code_read(pdu[0]);
       if (requeueable) {
         ESP_LOGD(TAG, "Anonymous duplicate of active frame for %" PRIu8 " (function 0x%X), dropped", address, pdu[0]);
@@ -821,10 +760,8 @@ bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
     } else if (item.continuous) {
       ESP_LOGV(TAG, "Frame already active for %" PRIu8 " as a continuous poll", address);
     } else if (!item.increment_pending()) {
-      // The entry already stands for as many requests as it can ever serve (a read runs twice, a
-      // write or custom code once), so this one is refused at the door like any other request the
-      // machine cannot take. An absorbed duplicate leaves seq alone: the entry's place in line
-      // belongs to its oldest outstanding request, still unresolved.
+      // At the servable cap, so refused. (An absorbed duplicate leaves seq alone - the entry keeps
+      // its place in line, held by its oldest outstanding request.)
       ESP_LOGD(TAG, "Frame already active for %" PRIu8 " with %" PRIu8 " requests pending, refused", address,
                item.pending);
       return false;
@@ -835,9 +772,8 @@ bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
     return true;
   }
 
-  // Every entry occupies queue storage whatever its state, so the backstop counts them all. Dead
-  // entries awaiting the erase pass are gone by the end of the sweep, so they can only ever cost a
-  // refusal at the very cap, for one loop.
+  // Backstop counts every entry; dead ones are gone by the sweep's end, so at worst they cost one
+  // refusal at the very cap for one loop.
   if (this->tx_buffer_.size() >= MODBUS_TX_BUFFER_SIZE) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
     char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
@@ -856,10 +792,7 @@ bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
 }
 
 void ModbusClientHub::clear_tx_queue_for_address(uint8_t address) {
-  // A clear is a pure state flip; the next sweep delivers every owed on_not_sent() from a
-  // quiescent hub. Other devices talking to the same physical device (e.g. a modbus_client action
-  // alongside a controller that just went offline) must observe the drop, so RETIRED entries keep
-  // their pending count and resolve one terminal per accepted request.
+  // A clear is a pure state flip; the sweep delivers every owed on_not_sent() from a quiescent hub.
   for (auto &cmd : this->tx_buffer_) {
     if (cmd.frame.address() != address)
       continue;
