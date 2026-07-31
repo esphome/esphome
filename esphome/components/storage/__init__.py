@@ -567,6 +567,29 @@ def _validate_regex(value):
         re.compile(value)
     except re.error as e:
         raise cv.Invalid(f"Invalid regex: {e}") from e
+    # The runtime compiles the pattern with std::regex in its default ECMAScript
+    # grammar, and ESPHome builds with -fno-exceptions -- a pattern that Python
+    # accepts but std::regex rejects would abort the node instead of raising.
+    # Of the '(?...' constructs, ECMAScript supports only '(?:' (non-capturing
+    # group), '(?=' and '(?!' (lookahead); reject everything else (named groups,
+    # lookbehind, inline flags, conditionals, comments) at config time.
+    i = 0
+    n = len(value)
+    while i < n:
+        c = value[i]
+        if c == "\\":
+            i += 2
+            continue
+        if c == "(" and i + 1 < n and value[i + 1] == "?":
+            if i + 2 >= n or value[i + 2] not in ":=!":
+                raise cv.Invalid(
+                    "Invalid regex: '(?...' constructs other than '(?:', '(?=' and "
+                    "'(?!' are not supported by std::regex ECMAScript and would "
+                    "crash at runtime"
+                )
+            i += 3
+            continue
+        i += 1
     return value
 
 
