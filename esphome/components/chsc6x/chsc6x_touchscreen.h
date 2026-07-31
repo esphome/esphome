@@ -31,6 +31,11 @@ static const uint8_t CHSC6X_CHIP_ID = 0x2e;
 //
 // Reading 7 bytes covers the header plus the first point, which is all the
 // touchscreen component consumes.
+//
+// Bytes 3 and 5 carry the coordinate high nibble in bits 3-0, so a decoded
+// coordinate is up to 12 bits (0..4095). The 320x480 panel these samples came
+// from only ever used 9 of them, but the field itself is wider and nothing here
+// assumes otherwise.
 static const uint8_t CHSC6540_REG_STATUS_LEN = 0x07;
 static const uint8_t CHSC6540_REG_STATUS_TOUCH = 0x02;
 static const uint8_t CHSC6540_REG_STATUS_X_HI = 0x03;
@@ -38,8 +43,11 @@ static const uint8_t CHSC6540_REG_STATUS_X_LO = 0x04;
 static const uint8_t CHSC6540_REG_STATUS_Y_HI = 0x05;
 static const uint8_t CHSC6540_REG_STATUS_Y_LO = 0x06;
 
-// Coordinates are 9 bit; the high nibble shares a byte with the event flags.
+// The coordinate high nibble shares a byte with the event flags in bits 7-6.
 static const uint8_t CHSC6540_COORD_HI_MASK = 0x0F;
+
+// Only 1 and 2 are valid; anything higher is a corrupt frame.
+static const uint8_t CHSC6540_MAX_TOUCHES = 2;
 
 enum CHSC6XModel : uint8_t {
   // Original layout: touch count at byte 0, single-byte coordinates. Matches

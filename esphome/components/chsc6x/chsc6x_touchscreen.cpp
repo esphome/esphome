@@ -42,8 +42,9 @@ void CHSC6XTouchscreen::update_touches_chsc6540_() {
   }
 
   const uint8_t num_of_touches = data[CHSC6540_REG_STATUS_TOUCH];
-  // 0 is a genuine lift event; 0xFF turns up in unpopulated point slots.
-  if (num_of_touches == 0 || num_of_touches == 0xFF) {
+  // 0 is a genuine lift event. Anything above the supported point count is a
+  // corrupt frame, including the 0xFF seen in unpopulated point slots.
+  if (num_of_touches == 0 || num_of_touches > CHSC6540_MAX_TOUCHES) {
     return;
   }
 
