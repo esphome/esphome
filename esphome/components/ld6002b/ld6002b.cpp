@@ -244,6 +244,42 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
   uint16_t available = (len - 4) / TARGET_DATA_LEN;
   // Un-narrowed: a report of e.g. 256 targets must not truncate to 0 and read as "absent".
   const uint32_t reported = std::min<uint32_t>(target_num, available);
+  uint8_t count = static_cast<uint8_t>(std::min<uint32_t>(reported, MAX_TARGETS));
+
+  // The module re-sorts its array by cluster id, so slots key on the id to track the person.
+  std::array<int32_t, MAX_TARGETS> wire_cluster{};
+  std::array<bool, MAX_TARGETS> wire_placed{};
+  std::array<bool, MAX_TARGETS> slot_seen{};
+  for (uint8_t i = 0; i < count; i++) {
+    uint16_t cluster_offset = 4 + (i * TARGET_DATA_LEN) + 16;
+    wire_cluster[i] = static_cast<int32_t>(read_u32_le(data + cluster_offset));
+  }
+  for (uint8_t i = 0; i < count; i++) {
+    for (uint8_t s = 0; s < MAX_TARGETS; s++) {
+      if (this->slot_occupied_[s] && !slot_seen[s] && this->slot_cluster_[s] == wire_cluster[i]) {
+        slot_seen[s] = true;
+        wire_placed[i] = true;
+        break;
+      }
+    }
+  }
+  for (uint8_t s = 0; s < MAX_TARGETS; s++) {
+    if (!slot_seen[s]) {
+      this->slot_occupied_[s] = false;
+    }
+  }
+  for (uint8_t i = 0; i < count; i++) {
+    if (wire_placed[i]) {
+      continue;
+    }
+    for (uint8_t s = 0; s < MAX_TARGETS; s++) {
+      if (!this->slot_occupied_[s]) {
+        this->slot_occupied_[s] = true;
+        this->slot_cluster_[s] = wire_cluster[i];
+        break;
+      }
+    }
+  }
 
   this->target_presence_any_ = (reported > 0);
 #ifdef USE_BINARY_SENSOR
@@ -256,7 +292,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
 #ifdef USE_BINARY_SENSOR
     if (this->target_presence_[i] != nullptr) {
       // publish_state() already skips unchanged states, no manual de-dup needed.
-      this->target_presence_[i]->publish_state(i < reported);
+      this->target_presence_[i]->publish_state(this->slot_occupied_[i]);
     }
 #endif
   }

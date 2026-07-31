@@ -119,6 +119,10 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   // Bumped whenever the active command changes, so a deferred send can tell it was retired.
   uint8_t send_generation_{0};
 
+  // Which person owns each target_N slot, so a slot survives the module re-sorting its array.
+  std::array<int32_t, MAX_TARGETS> slot_cluster_{};
+  std::array<bool, MAX_TARGETS> slot_occupied_{};
+
   bool target_presence_any_{false};
 };
 
