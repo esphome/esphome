@@ -702,6 +702,38 @@ TEST(ModbusClientHubCallbackCount, DuplicateReadExactlyTwoCallbacks) {
   EXPECT_EQ(hub.queued_frames(), 0u);
 }
 
+namespace {
+// Clears the address queue from inside its first response callback, so a duplicate still owed on the
+// same entry has to be resolved (or, as things stand, is dropped) by that clear.
+class ClearOnFirstResponseDevice : public DataCountingDevice {
+ public:
+  ClearOnFirstResponseDevice(ModbusClientHub *hub, uint8_t address) : DataCountingDevice(hub, address) {}
+  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {
+    this->data_count_++;
+    if (this->data_count_ == 1)
+      this->clear_tx_queue_for_address();  // clear mid-completion, from inside the first response
+  }
+};
+}  // namespace
+
+// A duplicate read absorbs into one entry (pending 2). The first response resolves one request, and
+// its callback clears the address queue mid-completion. The still-owed duplicate is a second accepted
+// request, so it must get its own terminal - on_not_sent() - not be dropped silently.
+TEST(ModbusClientHubCallbackCount, ClearFromResponseResolvesDuplicateWithNotSent) {
+  NoResponseProbeHub hub;
+  ClearOnFirstResponseDevice device(&hub, 0x02);
+
+  EXPECT_TRUE(device.send_pdu(read_pdu()));
+  EXPECT_TRUE(device.send_pdu(read_pdu()));  // absorbed: one entry, pending 2
+  hub.force_send_next();
+  hub.receive_frame_for_test(0x02, OK_RESPONSE);  // response -> on_response -> clear, then sweep
+
+  EXPECT_EQ(device.data_count_, 1);      // exactly one response delivered
+  EXPECT_EQ(device.not_sent_count_, 1);  // the duplicate resolved with a terminal, not dropped
+  EXPECT_EQ(device.terminals(), 2);      // one terminal per accepted request
+  EXPECT_EQ(hub.queued_frames(), 0u);
+}
+
 // A read entry serves two requests (this run plus one re-run), so the third identical request is
 // refused at the door: two data callbacks, and no terminal for the request that was never taken.
 TEST(ModbusClientHubCallbackCount, TripleReadRefusesTheThird) {
@@ -946,7 +978,7 @@ TEST(ModbusClientHubQueue, ClearAddressQueueNotifiesEveryOwner) {
   bystander_other.send_pdu(read_c);
   ASSERT_EQ(hub.queued_frames(), 3u);
 
-  controller_like.clear_tx_queue_for_address(false);
+  controller_like.clear_tx_queue_for_address();
   hub.sweep_for_test();  // the loop's sweep delivers the owed terminals and erases the entries
 
   ASSERT_EQ(hub.queued_frames(), 1u);  // only the other-address frame remains
@@ -970,12 +1002,58 @@ TEST(ModbusClientHubQueue, ClearAddressDeliversOneTerminalPerAcceptedRequest) {
   ASSERT_EQ(hub.queued_frames(), 1u);
   ASSERT_EQ(hub.queued(0).pending, 2u);
 
-  hub.clear_tx_queue_for_address(0x02, false);
+  hub.clear_tx_queue_for_address(0x02);
   hub.sweep_for_test();
 
   EXPECT_EQ(device.not_sent_count_, 2);  // one terminal per accepted request
   EXPECT_EQ(hub.queued_frames(), 0u);
   EXPECT_EQ(hub.entries(), 0u);  // fully drained and erased
+}
+
+// A duplicate read absorbs into one on-wire entry (pending 2 once the first is sent). A clear with
+// clear_sent detaches the in-flight frame as a silent shell, but the duplicate - a second accepted
+// request that would have re-run - was never transmitted, so it must still get its on_not_sent().
+TEST(ModbusClientHubQueue, ClearSentOnInFlightDuplicateStillNotifiesTheDuplicate) {
+  NoResponseProbeHub hub;
+  DataCountingDevice device(&hub, 0x02);
+
+  device.send_pdu(read_pdu());
+  device.send_pdu(read_pdu());  // absorbed: one entry, pending 2
+  ASSERT_EQ(hub.queued(0).pending, 2u);
+  hub.force_send_next();  // the frame goes on the wire (WAITING); pending still 2
+  ASSERT_TRUE(hub.waiting());
+
+  hub.clear_tx_queue_for_address(0x02);
+  hub.sweep_for_test();
+
+  EXPECT_EQ(device.not_sent_count_, 1);  // the un-transmitted duplicate is resolved, not dropped
+}
+
+// A clear does not abandon the in-flight frame: it becomes a WAITING_RETIRED shell that keeps the
+// bus and still delivers the in-flight request's usual callback (here on_response) when the reply
+// arrives. Only un-run duplicates are turned into on_not_sent(); a lone in-flight frame has none.
+TEST(ModbusClientHubQueue, ClearWhileInFlightStillDeliversTheResponse) {
+  NoResponseProbeHub hub;
+  DataCountingDevice device(&hub, 0x02);
+
+  device.send_pdu(read_pdu());
+  hub.force_send_next();  // on the wire (WAITING)
+  ASSERT_TRUE(hub.waiting());
+
+  hub.clear_tx_queue_for_address(0x02);
+  hub.sweep_for_test();
+
+  EXPECT_EQ(device.not_sent_count_, 0);  // no un-run duplicate to resolve
+  ASSERT_TRUE(hub.waiting());            // still on the wire, holding the bus
+  ASSERT_EQ(hub.entries(), 1u);          // entry preserved as a cleared shell
+  EXPECT_EQ(hub.waiting_command().state, FrameState::WAITING_RETIRED);
+
+  // the in-flight request still gets its usual callback when the response finally arrives
+  hub.receive_frame_for_test(0x02, OK_RESPONSE);
+  EXPECT_EQ(device.data_count_, 1);
+  EXPECT_EQ(device.not_sent_count_, 0);
+  EXPECT_FALSE(hub.waiting());
+  EXPECT_EQ(hub.entries(), 0u);
 }
 
 namespace {
@@ -1004,7 +1082,7 @@ TEST(ModbusClientHubQueue, ClearAddressReentrantResendSurvives) {
   device.send_pdu(read);
   ASSERT_EQ(hub.queued_frames(), 1u);
 
-  hub.clear_tx_queue_for_address(0x02, false);
+  hub.clear_tx_queue_for_address(0x02);
   hub.sweep_for_test();
 
   // The original frame resolved via on_not_sent; the re-send from inside that callback remains queued.
@@ -1027,7 +1105,7 @@ TEST(ModbusClientHubQueue, ClearAddressReentrantResendNotSwept) {
   bystander_other.send_pdu(read_other);
   ASSERT_EQ(hub.queued_frames(), 2u);
 
-  hub.clear_tx_queue_for_address(0x02, false);
+  hub.clear_tx_queue_for_address(0x02);
   hub.sweep_for_test();
 
   EXPECT_EQ(resender.not_sent_count_, 1);  // notified once, never re-notified for the re-send
@@ -1059,7 +1137,7 @@ class ClearOtherOnNotSentDevice : public ModbusClientDevice {
   ClearOtherOnNotSentDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
   void on_not_sent(std::span<const uint8_t> request_pdu) override {
     this->not_sent_count_++;
-    this->parent_->clear_tx_queue_for_address(0x03, false);
+    this->parent_->clear_tx_queue_for_address(0x03);
   }
   int not_sent_count_{0};
 };
@@ -1116,7 +1194,7 @@ class ClearOwnAddressOnNotSentDevice : public ModbusClientDevice {
   ClearOwnAddressOnNotSentDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
   void on_not_sent(std::span<const uint8_t> request_pdu) override {
     this->not_sent_count_++;
-    this->clear_tx_queue_for_address(/*clear_sent=*/false);
+    this->clear_tx_queue_for_address();
   }
   int not_sent_count_{0};
 };
@@ -1139,7 +1217,7 @@ TEST(ModbusClientHubQueue, SelfClearFromNotSentResolvesEveryRequest) {
   ASSERT_EQ(hub.queued_frames(), 3u);
 
   EXPECT_FALSE(clearer.send_pdu(std::span<const uint8_t>{}));  // empty: refused, no callback
-  clearer.clear_tx_queue_for_address(/*clear_sent=*/false);    // the clear the handler used to make
+  clearer.clear_tx_queue_for_address();                        // the clear the handler used to make
 
   hub.sweep_for_test();
 
@@ -1162,7 +1240,7 @@ TEST(ModbusClientHubQueue, NestedClearFromNotSentStillNotifiesVictims) {
   victim.send_pdu(read_b);
   ASSERT_EQ(hub.queued_frames(), 2u);
 
-  hub.clear_tx_queue_for_address(0x02, false);  // clearer's on_not_sent clears address 0x03 in turn
+  hub.clear_tx_queue_for_address(0x02);  // clearer's on_not_sent clears address 0x03 in turn
   hub.sweep_for_test();
 
   EXPECT_EQ(clearer.not_sent_count_, 1);
@@ -1199,7 +1277,7 @@ TEST(ModbusClientHubQueue, SweepDedupSkipsDeletedFrames) {
   device.send_pdu(r2);
   ASSERT_EQ(hub.queued_frames(), 2u);
 
-  hub.clear_tx_queue_for_address(0x02, false);
+  hub.clear_tx_queue_for_address(0x02);
   hub.sweep_for_test();  // r1 and r2 both resolve; r1's handler re-sends a frame identical to r2
   // Without the dedup's dead-state skip the re-send would be absorbed into r2 and drained with it;
   // with the skip it queues fresh and survives.
@@ -1219,7 +1297,7 @@ class ResendAndClearOnNotSentDevice : public ModbusClientDevice {
     this->not_sent_count_++;
     const uint8_t again[] = {0x03, 0x00, 0x70, 0x00, 0x01};
     this->send_pdu(again);
-    this->clear_tx_queue_for_address(/*clear_sent=*/false);
+    this->clear_tx_queue_for_address();
   }
   int not_sent_count_{0};
 };
@@ -1235,7 +1313,7 @@ TEST(ModbusClientHubQueue, ResendAndClearFromNotSentCannotExtendTheSweep) {
 
   const uint8_t read[] = {0x03, 0x00, 0x70, 0x00, 0x01};
   device.send_pdu(read);
-  hub.clear_tx_queue_for_address(0x02, false);
+  hub.clear_tx_queue_for_address(0x02);
 
   hub.sweep_for_test();
   EXPECT_EQ(device.not_sent_count_, 1);  // exactly the one terminal that was owed on entry
@@ -1307,7 +1385,7 @@ class ClearAddressOnDataDevice : public ModbusClientDevice {
  public:
   ClearAddressOnDataDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {
-    this->clear_tx_queue_for_address(/*clear_sent=*/false);
+    this->clear_tx_queue_for_address();
   }
 };
 }  // namespace
@@ -1360,7 +1438,7 @@ TEST(ModbusClientHubCompat, LegacyCallbackNamesStillForward) {
   EXPECT_EQ(device.legacy_not_sent_, 0);
   const uint8_t queued[] = {0x03, 0x00, 0x11, 0x00, 0x01};
   EXPECT_TRUE(device.send_pdu(queued));
-  hub.clear_tx_queue_for_address(0x02, false);
+  hub.clear_tx_queue_for_address(0x02);
   hub.sweep_for_test();
   EXPECT_EQ(device.legacy_not_sent_, 1);
 }
@@ -1575,10 +1653,10 @@ class ResendInFlightOnNotSentDevice : public ModbusClientDevice {
 };
 }  // namespace
 
-// A clear with clear_sent turns the waiting entry into a detached (device-less) shell, so a
-// sweep handler re-sending that frame queues fresh instead of being absorbed into the dead shell -
-// which would have left the request callback-less.
-TEST(ModbusClientHubQueue, SweepResendOfInFlightFrameQueuesFreshWhenClearSentDetaches) {
+// A clear turns the waiting entry into a WAITING_RETIRED shell. The shell keeps its device (so the
+// in-flight request still gets its callback), but the dedup skips it, so a sweep handler re-sending
+// that frame queues fresh instead of being absorbed into the cleared shell and drained as on_not_sent.
+TEST(ModbusClientHubQueue, SweepResendAfterClearQueuesFreshNotAbsorbedIntoShell) {
   NoResponseProbeHub hub;
   ResendInFlightOnNotSentDevice device(&hub, 0x02);
 
@@ -1588,15 +1666,14 @@ TEST(ModbusClientHubQueue, SweepResendOfInFlightFrameQueuesFreshWhenClearSentDet
   device.send_pdu(queued_read);  // a queued frame for the sweep to notify
   ASSERT_EQ(hub.queued_frames(), 1u);
 
-  hub.clear_tx_queue_for_address(0x02, /*clear_sent=*/true);
+  hub.clear_tx_queue_for_address(0x02);
   hub.sweep_for_test();
 
-  EXPECT_EQ(device.not_sent_count_, 1);  // the cleared queued frame
+  EXPECT_EQ(device.not_sent_count_, 1);  // only the cleared queued frame, not the re-send
   ASSERT_EQ(hub.queued_frames(), 1u);    // the handler's re-send queued fresh...
-  EXPECT_EQ(hub.queued(0).pending, 1u);  // ...not absorbed into the dead shell
+  EXPECT_EQ(hub.queued(0).pending, 1u);  // ...not absorbed into the cleared shell
   EXPECT_TRUE(std::equal(hub.queued(0).frame.pdu().begin(), hub.queued(0).frame.pdu().end(), READ_PDU));
-  EXPECT_EQ(hub.waiting_command().state, FrameState::WAITING);
-  EXPECT_EQ(hub.waiting_command().device, nullptr);  // the shell was detached by the clear
+  EXPECT_EQ(hub.waiting_command().state, FrameState::WAITING_RETIRED);  // the in-flight one still on the wire
 }
 
 namespace {
@@ -1607,7 +1684,7 @@ class ClearAddressOnNoResponseDevice : public ModbusClientDevice {
   ClearAddressOnNoResponseDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
   bool on_no_response(std::span<const uint8_t> request_pdu) override {
     this->no_response_count_++;
-    this->clear_tx_queue_for_address(/*clear_sent=*/false);
+    this->clear_tx_queue_for_address();
     return false;  // gave up
   }
   void on_not_sent(std::span<const uint8_t> request_pdu) override { this->not_sent_count_++; }
@@ -1649,40 +1726,66 @@ TEST(ModbusClientHubNoResponse, SelfClearFromNoResponseResolvesTheAbsorbedReques
   EXPECT_EQ(hub.entries(), 0u);
 }
 
-// A cleared shell must release the bus by BOTH exits, silently and without callbacks: the late
-// response arriving, and the send-wait timeout. If either failed to clear the waiting flag the hub
-// would never transmit again, so both are pinned.
+// A cleared in-flight frame (WAITING_RETIRED shell) must release the bus by BOTH exits, and the
+// in-flight request still gets its usual callback: on_response for the late reply, on_no_response
+// for the send-wait timeout. If either failed to clear the waiting flag the hub would never transmit
+// again, so both are pinned. No on_not_sent - a lone in-flight frame has no un-run duplicate.
 TEST(ModbusClientHubQueue, ClearedShellReleasesTheBusOnLateResponse) {
   NoResponseProbeHub hub;
-  SentCountingDevice device(&hub, 0x02);
+  DataCountingDevice device(&hub, 0x02);
 
   device.send_pdu(read_pdu());
   hub.force_send_next();
-  hub.clear_tx_queue_for_address(0x02, /*clear_sent=*/true);
-  ASSERT_EQ(hub.waiting_command().state, FrameState::WAITING);
+  hub.clear_tx_queue_for_address(0x02);
+  ASSERT_EQ(hub.waiting_command().state, FrameState::WAITING_RETIRED);
 
   const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x02, ok_response);  // the late reply for the cleared frame
 
   EXPECT_FALSE(hub.waiting());           // the bus is free again
   EXPECT_EQ(hub.entries(), 0u);          // the shell is gone
-  EXPECT_EQ(device.not_sent_count_, 0);  // detached: no callbacks from a cleared shell
+  EXPECT_EQ(device.data_count_, 1);      // the in-flight request still got its response callback
+  EXPECT_EQ(device.not_sent_count_, 0);  // no un-run duplicate
 }
 
 TEST(ModbusClientHubQueue, ClearedShellReleasesTheBusOnTimeout) {
   NoResponseProbeHub hub;
-  SentCountingDevice device(&hub, 0x02);
+  DataCountingDevice device(&hub, 0x02);
 
   device.send_pdu(read_pdu());
   hub.force_send_next();
-  hub.clear_tx_queue_for_address(0x02, /*clear_sent=*/true);
-  ASSERT_EQ(hub.waiting_command().state, FrameState::WAITING);
+  hub.clear_tx_queue_for_address(0x02);
+  ASSERT_EQ(hub.waiting_command().state, FrameState::WAITING_RETIRED);
 
   hub.timeout_waiting();  // no reply ever arrives; the watchdog releases the shell
 
   EXPECT_FALSE(hub.waiting());
   EXPECT_EQ(hub.entries(), 0u);
-  EXPECT_EQ(device.not_sent_count_, 0);  // still silent
+  EXPECT_EQ(device.no_response_count_, 1);  // the in-flight request got its on_no_response
+  EXPECT_EQ(device.not_sent_count_, 0);     // no un-run duplicate
+}
+
+// A cleared on-wire DUPLICATE (pending 2) that times out: the sweep drains the un-run duplicate as
+// on_not_sent, and the request still in flight gets on_no_response - it must NOT re-transmit. The
+// loop sweeps before the watchdog so the duplicate is drained (pending -> 1) before the timeout,
+// exactly the order timeout_waiting() uses here.
+TEST(ModbusClientHubQueue, ClearedInFlightDuplicateTimesOutWithoutRerunning) {
+  NoResponseProbeHub hub;
+  DataCountingDevice device(&hub, 0x02);
+
+  device.send_pdu(read_pdu());
+  device.send_pdu(read_pdu());  // absorbed: one entry, pending 2
+  ASSERT_EQ(hub.queued(0).pending, 2u);
+  hub.force_send_next();  // on the wire, pending still 2
+  hub.clear_tx_queue_for_address(0x02);
+
+  hub.timeout_waiting();
+
+  EXPECT_EQ(device.not_sent_count_, 1);     // the un-run duplicate
+  EXPECT_EQ(device.no_response_count_, 1);  // the in-flight request's usual terminal
+  EXPECT_EQ(hub.queued_frames(), 0u);       // nothing re-transmitted
+  EXPECT_EQ(hub.entries(), 0u);             // fully drained and erased
+  EXPECT_FALSE(hub.waiting());
 }
 
 // An absorbed extra request also gets its run after an error response - the re-request was

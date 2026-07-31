@@ -124,12 +124,16 @@ enum class CommandPriority : uint8_t { CONTINUOUS = 0, READ, WRITE };
 ///                               when the sweep delivers on_no_response(); same accounting as
 ///                               TIMED_OUT, but the shell stays on the wire - expire_waiting_()
 ///                               releases it (pending -> READY, else retire) at the send-wait timeout
-///   off-wire -> RETIRED         on clear_tx_queue_* (a clear is a state flip; the sweep resolves
-///                               owed terminals via notify_retired() - or retires silently for
-///                               device-scoped clears)
-///   on-wire  -> (unchanged)     on a clear: the frame is on the wire, so it keeps its state but
-///                               is detached (device-less, pending 0) - a response-ignoring shell,
-///                               resolved silently on response or timeout and then swept
+///   off-wire -> RETIRED         on clear_tx_queue_for_address (a clear is a state flip; the sweep
+///                               resolves every owed terminal via notify_retired(), one on_not_sent()
+///                               per accepted request)
+///   on-wire  -> WAITING_RETIRED on clear_tx_queue_for_address: the in-flight request stays on the
+///                               wire and still gets its usual terminal (response/error/timeout), but
+///                               the entry no longer re-runs; the sweep drains its un-run duplicates
+///                               (pending > 1) as on_not_sent(), and on the terminal it goes RETIRED
+///   anything -> silent teardown on clear_tx_queue_for_device: the caller's own frames are dropped
+///                               with NO callbacks (device-less, pending 0); an on-wire one lingers
+///                               as a reply-ignoring shell until its wire clears, then is swept
 /// An entry is erased at the end of the sweep once it owes nothing and is off the wire
 /// (pending == 0 && !on_wire()); pending == 0 is the erasability signal, no separate marker needed.
 ///   (there is no transmit-failure state: transmitting cannot fail. The caller checks tx_blocked()
@@ -151,6 +155,7 @@ enum class FrameState : uint8_t {
   TIMED_OUT_NOTIFIED,
   INTERRUPTED,
   INTERRUPTED_NOTIFIED,
+  WAITING_RETIRED,
   RETIRED,
 };
 
@@ -225,12 +230,12 @@ struct ModbusDeviceCommand {
     const bool requeueable = !helpers::is_function_code_exception(fc) && helpers::is_function_code_read(fc);
     return (requeueable && !this->continuous) ? 2 : 1;
   }
-  /// Detach this entry: it owes nothing from here on and its device is cleared. An off-wire entry
-  /// becomes RETIRED (pending 0 = the silent, erasable terminal the sweep removes). An on-wire entry
-  /// cannot simply vanish, since the response may still arrive and the bus stays blocked until the
-  /// transaction ends, so it keeps its state as a detached (device-less, pending 0) reply-ignoring
+  /// Silent teardown for a device-scoped clear: owes nothing and its device is cleared, so no
+  /// callback ever follows. An off-wire entry becomes RETIRED (pending 0 = erased by the sweep). An
+  /// on-wire entry cannot simply vanish - the response may still arrive and the bus stays blocked
+  /// until the transaction ends - so it keeps its state as a device-less, pending 0 reply-ignoring
   /// shell that resolves silently when the response or the send-wait timeout arrives.
-  void retire() {
+  void silent_retire() {
     if (!this->on_wire())
       this->state = FrameState::RETIRED;
     this->pending = 0;
@@ -246,8 +251,9 @@ struct ModbusDeviceCommand {
   /// sweep does the rest. The one thing that matters is whether on_no_response() was ALREADY
   /// delivered: only INTERRUPTED_NOTIFIED has been, so it -> TIMED_OUT_NOTIFIED (the sweep
   /// reschedules or erases, no re-notify). Everything else -> TIMED_OUT and the sweep's
-  /// notify_timed_out() delivers on_no_response - a genuine terminal for WAITING or a not-yet-swept
-  /// INTERRUPTED, and a no-op for a cleared WAITING shell (device-less), which then erases.
+  /// notify_timed_out() delivers on_no_response - a genuine terminal for WAITING, a not-yet-swept
+  /// INTERRUPTED, or the in-flight request of a cleared WAITING_RETIRED shell (device kept, so it
+  /// still gets its usual callback).
   void timeout() {
     this->state =
         (this->state == FrameState::INTERRUPTED_NOTIFIED) ? FrameState::TIMED_OUT_NOTIFIED : FrameState::TIMED_OUT;
@@ -258,16 +264,22 @@ struct ModbusDeviceCommand {
     this->continuous = true;
     this->pending = 1;
   }
-  /// An address-scoped clear drops this off-wire entry: it becomes RETIRED but keeps its pending
-  /// count and its device, so the sweep delivers one on_not_sent() per accepted request. (Contrast
-  /// retire(), which owes nothing.)
-  void mark_cleared() { this->state = FrameState::RETIRED; }
+  /// An address-scoped clear. It keeps pending and device, so the sweep resolves one on_not_sent()
+  /// per accepted request. An off-wire entry -> RETIRED (the sweep drains it all). An on-wire entry
+  /// -> WAITING_RETIRED: the in-flight request still runs to its usual terminal, and the sweep drains
+  /// only the un-run duplicates. continuous is cleared so a poll on the wire is not resurrected by
+  /// its own reply. (Contrast silent_retire(), which owes nothing and delivers no callback.)
+  void retire() {
+    this->state = this->on_wire() ? FrameState::WAITING_RETIRED : FrameState::RETIRED;
+    this->continuous = false;
+  }
+
   /// True while the frame is on the wire (the states find_waiting_() recognizes). The erase pass
   /// exempts these: an on-wire shell can be pending 0 yet must survive until the wire is released,
   /// or the bus stays blocked until the send-wait timeout instead of freeing at response time.
   bool on_wire() const {
     return this->state == FrameState::WAITING || this->state == FrameState::INTERRUPTED ||
-           this->state == FrameState::INTERRUPTED_NOTIFIED;
+           this->state == FrameState::INTERRUPTED_NOTIFIED || this->state == FrameState::WAITING_RETIRED;
   }
 
   bool decrement_pending() {
@@ -338,11 +350,12 @@ class ModbusClientHub : public Modbus {
                 CommandOptions options = {});
   ESPDEPRECATED("Use send_pdu(payload[0], <pdu bytes>, device) instead. Removed in 2027.2.0", "2026.8.0")
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr);
-  // Drop the queued commands for an address; every dropped frame resolves via its owner's on_not_sent()
-  // at the next sweep, so other devices sharing the address observe the drop. The waiting frame is
-  // only detached (silently) when clear_sent is set. clear_tx_queue_for_device() SILENTLY discards the
+  // Clear the commands for an address; every un-run request resolves via its owner's on_not_sent()
+  // at the next sweep, so other devices sharing the address observe the drop. A frame already on the
+  // wire is not abandoned: it runs to its usual terminal (response/error/timeout) and only its un-run
+  // duplicates become on_not_sent(). clear_tx_queue_for_device() instead SILENTLY discards the
   // caller's own frames (supersede/teardown semantics); see the lifecycle note on ModbusClientDevice.
-  void clear_tx_queue_for_address(uint8_t address, bool clear_sent = true);
+  void clear_tx_queue_for_address(uint8_t address);
   void clear_tx_queue_for_device(ModbusClientDevice *device);
 
  protected:
@@ -425,10 +438,12 @@ using ResponseStatus = std::optional<ExceptionCode>;
 /// see the FrameState transition table for the full machine.
 /// The exceptions to "exactly one terminal":
 ///  - clear_tx_queue_for_device() drops the caller's OWN commands SILENTLY (supersede/teardown
-///    semantics), and both clear variants detach the waiting frame - and a command mid-completion
-///    (inside its own response callbacks) - silently, cancelling any pending re-run or poll cycle.
-///    clear_tx_queue_for_address() DOES resolve every queued frame it drops via the owner's
-///    on_not_sent(), one delivery per accepted request the entry stood for.
+///    semantics): the on-wire frame becomes a device-less shell that resolves without a callback.
+///  - clear_tx_queue_for_address() resolves every un-run request it drops via the owner's
+///    on_not_sent(), one delivery per accepted request the entry still stands for (including an entry
+///    cleared mid-completion from inside its own callback). It does NOT abandon a frame already on
+///    the wire: that request runs to its usual terminal (response/error/timeout) and only its un-run
+///    duplicates become on_not_sent().
 ///  - a duplicate absorbed into a CONTINUOUS entry is served uncounted by the poll's
 ///    next response; if the poll dies before that response, its single terminal stands for those
 ///    requests as well. Likewise, converting an entry to continuous ({.continuous = true} matching
@@ -599,9 +614,7 @@ class ModbusClientDevice {
   bool write_multiple_coils(uint16_t start_address, PackedBits bits) {
     return this->send_pdu(helpers::create_write_coils_pdu(start_address, bits));
   }
-  inline void clear_tx_queue_for_address(bool clear_sent = true) {
-    this->parent_->clear_tx_queue_for_address(this->address_, clear_sent);
-  }
+  inline void clear_tx_queue_for_address() { this->parent_->clear_tx_queue_for_address(this->address_); }
   inline void clear_tx_queue_for_device() { this->parent_->clear_tx_queue_for_device(this); }
 
   // If more than one device is connected block sending a new command before a response is received

@@ -45,6 +45,12 @@ void Modbus::loop() {
 }
 
 void ModbusClientHub::loop() {
+  // Deliver anything owed since the last loop before the watchdog acts. A clear_tx_queue_*() call
+  // from outside the loop leaves cleared entries owing callbacks (and drains an on-wire shell's
+  // duplicates down to the one still in flight); running the sweep first means the watchdog never
+  // times out an entry whose pending count has not yet been drained. No-op when nothing is owed.
+  this->sweep_();
+
   // Call base class to receive bytes and parse frames
   this->Modbus::loop();
 
@@ -634,7 +640,7 @@ bool ModbusDeviceCommand::notify_retired() {
 }
 
 bool ModbusDeviceCommand::response(std::span<const uint8_t> response_pdu) {
-  this->state = FrameState::RECEIVED_RESPONSE;
+  this->state = this->state == FrameState::WAITING_RETIRED ? FrameState::RETIRED : FrameState::RECEIVED_RESPONSE;
   // A continuous poll is a fixed subscription, never consumed by its own response; a one-shot
   // consumes one request here (decrement-before, WAITING-origin so pending >= 1).
   if (!this->continuous)
@@ -646,7 +652,7 @@ bool ModbusDeviceCommand::response(std::span<const uint8_t> response_pdu) {
 }
 
 bool ModbusDeviceCommand::error(ExceptionCode exception_code) {
-  this->state = FrameState::RECEIVED_EXCEPTION;
+  this->state = this->state == FrameState::WAITING_RETIRED ? FrameState::RETIRED : FrameState::RECEIVED_EXCEPTION;
   // An exception ends a continuous poll too: decrement unconditionally so it drains to 0 and the
   // sweep erases it.
   this->decrement_pending();
@@ -725,7 +731,13 @@ void ModbusClientHub::sweep_() {
           // owner-less one returns false, so the sweep neither loops on it nor notifies twice.
           callback_ran = cmd.notify_retired();
           break;
-        default:  // READY / WAITING / on-wire shells: mid-lifecycle, nothing owed
+        case FrameState::WAITING_RETIRED:
+          // A cleared shell: drain only the un-run duplicates (pending > 1) as on_not_sent. The one
+          // request still on the wire keeps pending 1 and gets its usual callback when it resolves.
+          if (cmd.pending > 1)
+            callback_ran = cmd.notify_retired();
+          break;
+        default:  // READY / WAITING: mid-lifecycle, nothing owed
           break;
       }
     }
@@ -786,8 +798,8 @@ bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   //   - both one-shots: pending increments while the entry is below its servable cap (2 for
   //     requeueable reads, 1 for writes/custom); at the cap the duplicate is refused with false
   for (auto &item : this->tx_buffer_) {
-    if (item.state == FrameState::RETIRED)
-      continue;  // on their way out of the queue: a new identical send queues fresh
+    if (item.state == FrameState::RETIRED || item.state == FrameState::WAITING_RETIRED)
+      continue;  // cleared, on their way out: a new identical send queues fresh, never absorbs
     if (item.device != device || !item.same_frame(address, pdu))
       continue;
     if (device == nullptr) {
@@ -843,7 +855,7 @@ bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   return true;
 }
 
-void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sent) {
+void ModbusClientHub::clear_tx_queue_for_address(uint8_t address) {
   // A clear is a pure state flip; the next sweep delivers every owed on_not_sent() from a
   // quiescent hub. Other devices talking to the same physical device (e.g. a modbus_client action
   // alongside a controller that just went offline) must observe the drop, so RETIRED entries keep
@@ -851,36 +863,8 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sen
   for (auto &cmd : this->tx_buffer_) {
     if (cmd.frame.address() != address)
       continue;
-    switch (cmd.state) {
-      case FrameState::READY:
-      case FrameState::TIMED_OUT:
-      case FrameState::TIMED_OUT_NOTIFIED:
-        // Not on the wire and still owing its requests: mark RETIRED, keep pending. Includes the
-        // reentrant case where the clear is issued from inside this entry's own on_no_response()
-        // (state TIMED_OUT_NOTIFIED) - it must land here, not the default, or the clear is lost.
-        cmd.mark_cleared();
-        this->sweep_needed_ = true;
-        break;
-      case FrameState::RECEIVED_RESPONSE:
-      case FrameState::RECEIVED_EXCEPTION:
-        // Cleared from inside its own on_response()/on_error(): that callback was the resolution,
-        // so the pending re-run/continuous cycle is cancelled silently (stop-polling-now).
-        cmd.retire();
-        this->sweep_needed_ = true;
-        break;
-      case FrameState::WAITING:
-      case FrameState::INTERRUPTED:
-      case FrameState::INTERRUPTED_NOTIFIED:
-        // On the wire: only detached when clear_sent is set. The shell keeps blocking until the
-        // send-wait timeout (or the response arrives) and is swept silently.
-        if (clear_sent) {
-          cmd.retire();
-          this->sweep_needed_ = true;
-        }
-        break;
-      default:  // RETIRED entries are already resolved
-        break;
-    }
+    cmd.retire();
+    this->sweep_needed_ = true;
   }
 }
 
@@ -890,7 +874,7 @@ void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
   for (auto &cmd : this->tx_buffer_) {
     if (cmd.device != device)
       continue;
-    cmd.retire();
+    cmd.silent_retire();
     this->sweep_needed_ = true;
   }
 }
