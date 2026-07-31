@@ -473,8 +473,8 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
   }
 }
 
-// Callers check tx_blocked() first and the framed size is bounded by construction, so this transmits
-// unconditionally (a re-check here bought nothing - the wait below can hold the bus for ms anyway).
+// Callers gate on tx_blocked() first, but the pre-send delay below can span several ms, so re-check
+// after it and refuse (return false) if a byte arrived in that window rather than transmit over it.
 bool Modbus::send_frame_(const ModbusFrame &frame) {
   const int32_t tx_delay_remaining = this->tx_delay_remaining();
   if (tx_delay_remaining > 0) {
