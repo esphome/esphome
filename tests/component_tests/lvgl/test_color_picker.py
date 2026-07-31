@@ -9,6 +9,7 @@ import pytest
 from esphome.components.lvgl.schemas import container_schema
 from esphome.components.lvgl.widgets.color_picker import color_picker_spec
 from esphome.config_validation import Invalid
+from esphome.const import CONF_WIDTH
 
 # ---------------------------------------------------------------------------
 # Validation
@@ -26,9 +27,8 @@ class TestColorPickerValidation:
     def test_width_accepted(self, schema, width):
         assert schema({"width": width}) is not None
 
-    def test_width_is_required(self, schema):
-        with pytest.raises(Invalid, match="required key not provided.*width"):
-            schema({})
+    def test_width_defaults_to_size_content(self, schema):
+        assert schema({})[CONF_WIDTH] == "LV_SIZE_CONTENT"
 
     def test_height_is_rejected(self, schema):
         """The widget is square, so a height of its own makes no sense."""
