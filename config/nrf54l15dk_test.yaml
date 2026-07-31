@@ -23,11 +23,16 @@ ota:
     password: !secret ota_password
     swap_method: move
 
-switch:
+output:
   - platform: gpio
+    id: test_led_output
+    pin: 73  # LED0 on the nRF54L15 DK: gpio2 pin 9 (2*32 + 9)
+
+switch:
+  - platform: output
     id: test_led
     name: "LED0"
-    pin: 73  # LED0 on the nRF54L15 DK: gpio2 pin 9 (2*32 + 9)
+    output: test_led_output
 
 binary_sensor:
   - platform: gpio

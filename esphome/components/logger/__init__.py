@@ -550,6 +550,12 @@ async def _late_logger_init(config: ConfigType) -> None:
             zephyr_add_overlay(
                 f"""/ {{ chosen {{ zephyr,console = &{node}; zephyr,shell-uart = &{node}; }}; }};"""
             )
+            # logger_zephyr.cpp's DEVICE_DT_GET_OR_NULL(DT_NODELABEL(...)) needs the
+            # actual node label as a bare token at compile time -- variants that number
+            # peripheral instances instead of the uart0/uart1 convention (e.g. nRF54's
+            # uart20/uart30) would otherwise resolve to a nonexistent "uart0"/"uart1"
+            # node, silently leaving uart_dev_ null and dropping every log line.
+            cg.add_define("LOGGER_UART_NODE_LABEL", cg.RawExpression(node))
         elif hw_uart == USB_SERIAL_JTAG:
             # A standard Zephyr UART device, not a USB CDC-ACM stack like nrf52's
             # USB_CDC option -- CONFIG_SERIAL_ESP32_USB auto-selects once the DTS
