@@ -1038,13 +1038,15 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_DPP_CFG_RECVD) {
+    this->dpp_listening_ = false;
+
     ESP_LOGV(TAG, "DPP config received");
     const auto &it = data->data.dpp_config_received;
 
     wifi_config_t conf;
     memcpy(&conf, &it.wifi_cfg, sizeof(conf));
 
-    esp_err_t err = esp_wifi_set_config(WIFI_IF_AP, &conf);
+    esp_err_t err = esp_wifi_set_config(WIFI_IF_STA, &conf);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "esp_wifi_set_config failed: %d", err);
       return;
@@ -1070,6 +1072,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     }
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_DPP_FAILED) {
+    this->dpp_listening_ = false;
+
     const auto &it = data->data.dpp_failed;
     ESP_LOGE(TAG, "DPP failed: %s", esp_err_to_name(it.failure_reason));
 #endif /* USE_WIFI_DPP */

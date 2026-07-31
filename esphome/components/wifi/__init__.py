@@ -171,6 +171,10 @@ MAX_WIFI_NETWORKS = 127
 # before falling back to AP mode. Aligned with improv wifi_timeout default.
 DEFAULT_AP_TIMEOUT = "90s"
 
+# Similar to AP timeout, but reduced to allow repetitive enrollment attempts
+# in the case of failure. Does not affect AP or scanning.
+DEFAULT_DPP_TIMEOUT = "20s"
+
 wifi_ns = cg.esphome_ns.namespace("wifi")
 EAPAuth = wifi_ns.struct("EAPAuth")
 ManualIP = wifi_ns.struct("ManualIP")
@@ -298,7 +302,7 @@ DPP_SCHEMA = cv.Schema(
         cv.Optional(CONF_DEVICE_INFO): cv.string_strict,
         cv.Optional(CONF_CHANNELS, default="6"): cv.string_strict,
         cv.Optional(
-            CONF_TIMEOUT, default=DEFAULT_AP_TIMEOUT
+            CONF_TIMEOUT, default=DEFAULT_DPP_TIMEOUT
         ): cv.positive_time_period_milliseconds,
     }
 )

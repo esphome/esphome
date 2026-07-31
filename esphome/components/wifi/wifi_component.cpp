@@ -738,11 +738,12 @@ void WiFiComponent::start() {
   }
 #ifdef USE_WIFI_DPP
   if (!this->has_sta()) {
-    if (this->wifi_mode_(true, {})) {
-      esp_err_t err = esp_supp_dpp_start_listen();
-      if (err == ERR_OK)
-        this->dpp_listening_ = true;
-    }
+    this->wifi_mode_(true, {});
+    esp_err_t err = esp_supp_dpp_start_listen();
+    if (err != ERR_OK)
+      ESP_LOGW(TAG, "esp_supp_dpp_start_listen failed: %s", esp_err_to_name(err));
+    else
+      this->dpp_listening_ = true;
   }
 #endif
 #ifdef USE_IMPROV
@@ -876,18 +877,6 @@ void WiFiComponent::loop() {
     }
 #endif  // USE_WIFI_AP
 
-#ifdef USE_WIFI_DPP
-    if (!this->is_dpp_active_()) {
-      if (now - this->last_connected_ > this->dpp_timeout_) {
-        if (this->wifi_mode_(true, {})) {
-          esp_err_t err = esp_supp_dpp_start_listen();
-          if (err == ERR_OK)
-            this->dpp_listening_ = true;
-        }
-      }
-    }
-#endif
-
 #ifdef USE_IMPROV
     if (esp32_improv::global_improv_component != nullptr && !esp32_improv::global_improv_component->is_active() &&
         !esp32_improv::global_improv_component->should_start()) {
@@ -917,6 +906,19 @@ void WiFiComponent::loop() {
       }
     }
   }
+
+#ifdef USE_WIFI_DPP
+  if (!this->is_dpp_active_()) {
+    if (now - this->last_connected_ > this->dpp_timeout_) {
+      this->wifi_mode_(true, {});
+      esp_err_t err = esp_supp_dpp_start_listen();
+      if (err != ERR_OK)
+        ESP_LOGW(TAG, "esp_supp_dpp_start_listen failed: %s", esp_err_to_name(err));
+      else
+        this->dpp_listening_ = true;
+    }
+  }
+#endif
 
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   // Check if power save mode needs to be updated based on high-performance requests
