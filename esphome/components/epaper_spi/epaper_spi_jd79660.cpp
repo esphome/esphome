@@ -83,7 +83,7 @@ bool EPaperJD79660::reset() {
       // Step #2: Basically finished. Check sanity, and move FSM to INITIALISE state
       ESP_LOGVV(TAG, "reset #2");
 
-      if (!this->is_idle_()) {
+      if (!this->is_idle()) {
         // Expectation: Idle after reset + settle time.
         // Improperly connected/unexpected hardware?
         // Error path reproducable e.g. with disconnected VDD/... pins
