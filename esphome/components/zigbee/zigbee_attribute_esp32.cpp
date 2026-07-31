@@ -9,7 +9,7 @@ namespace esphome::zigbee {
 static const char *const TAG = "zigbee.attribute";
 
 void ZigbeeAttribute::set_attr_() {
-  if (!this->zb_->is_connected()) {
+  if (!this->zb_->is_started()) {
     return;
   }
   if (esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
@@ -28,7 +28,7 @@ void ZigbeeAttribute::set_attr_() {
 }
 
 void ZigbeeAttribute::report_(bool has_lock) {
-  if (!this->zb_->is_connected() || !this->report_enabled) {
+  if (!this->zb_->is_joined() || !this->report_enabled) {
     return;
   }
   if (has_lock or esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {

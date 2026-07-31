@@ -64,7 +64,7 @@ class ZigbeeComponent final : public Component {
 
   bool is_battery_powered() { return this->basic_cluster_data_.power_source == EZB_ZCL_BASIC_POWER_SOURCE_BATTERY; }
   bool is_started() { return this->started; }
-  bool is_connected() { return this->connected_; }
+  bool is_joined() { return this->joined; }
   std::atomic<bool> started = false;
   std::atomic<bool> joined = false;
   std::atomic<bool> factory_new = false;
@@ -76,7 +76,6 @@ class ZigbeeComponent final : public Component {
     uint8_t *date;
     uint8_t power_source;
   } basic_cluster_data_;
-  bool connected_ = false;
 #ifdef CONFIG_ZB_ZED
   ezb_nwk_device_type_t device_role_ = EZB_NWK_DEVICE_TYPE_END_DEVICE;
 #else
