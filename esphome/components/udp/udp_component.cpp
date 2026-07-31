@@ -81,21 +81,25 @@ void UDPComponent::setup() {
       this->mark_failed();
       return;
     }
-    err = this->listen_socket_->bind(reinterpret_cast<sockaddr *>(&server), server_len);
-    if (err != 0) {
-      ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
-      this->status_set_error(LOG_STR("Unable to bind socket"));
-      this->mark_failed();
-      return;
-    }
 #ifndef USE_ZEPHYR
     // IPv4 multicast group join (not yet implemented on Zephyr)
     if (this->listen_address_.has_value()) {
       char addr_buf[network::IP_ADDRESS_BUFFER_SIZE];
       this->listen_address_.value().str_to(addr_buf);
+      struct sockaddr_in group {};
       struct ip_mreq imreq = {};
       imreq.imr_interface.s_addr = ESPHOME_INADDR_ANY;
       inet_aton(addr_buf, &imreq.imr_multiaddr);
+      group.sin_family = AF_INET;
+      group.sin_addr.s_addr = imreq.imr_multiaddr.s_addr;
+      group.sin_port = htons(this->listen_port_);
+      err = this->listen_socket_->bind((struct sockaddr *) &group, sizeof(group));
+      if (err != 0) {
+        ESP_LOGE(TAG, "Socket unable to bind to multicast group: errno %d", errno);
+        this->status_set_error(LOG_STR("Unable to bind socket"));
+        this->mark_failed();
+        return;
+      }
       ESP_LOGD(TAG, "Join multicast %s", addr_buf);
       err = this->listen_socket_->setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, &imreq, sizeof(imreq));
       if (err < 0) {
@@ -104,6 +108,22 @@ void UDPComponent::setup() {
         this->mark_failed();
         return;
       }
+    } else {
+      err = this->listen_socket_->bind(reinterpret_cast<sockaddr *>(&server), server_len);
+      if (err != 0) {
+        ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
+        this->status_set_error(LOG_STR("Unable to bind socket"));
+        this->mark_failed();
+        return;
+      }
+    }
+#else
+    err = this->listen_socket_->bind(reinterpret_cast<sockaddr *>(&server), server_len);
+    if (err != 0) {
+      ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
+      this->status_set_error(LOG_STR("Unable to bind socket"));
+      this->mark_failed();
+      return;
     }
 #endif
   }
@@ -175,22 +195,27 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
   // unbound socket fails source-address selection for a globally-scoped destination with ENOENT.
   // Bind the send socket once to the OMR (off-mesh-routable) address so the stack has a concrete
   // routable source -- this is what an inbound packet implicitly provides for the reply/OTA paths.
+#ifdef USE_OPENTHREAD
+  // The broadcast socket may have been closed by a previous ENOENT recovery; rebuild it
+  // before selecting send_socket so the recreate is reachable.
+  if (this->should_broadcast_ && this->broadcast_socket_ == nullptr) {
+    this->broadcast_socket_ = socket::socket_ip(SOCK_DGRAM, IPPROTO_IP);
+    if (this->broadcast_socket_ == nullptr) {
+      ESP_LOGW(TAG, "Could not recreate send socket");
+      return;
+    }
+    int enable = 1;
+    auto err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+    if (err != 0) {
+      ESP_LOGW(TAG, "Socket unable to set reuseaddr on recreated socket");
+    }
+  }
+#endif
   socket::Socket *send_socket = this->broadcast_socket_ ? this->broadcast_socket_.get() : this->listen_socket_.get();
   if (send_socket == nullptr)
     return;
 #ifdef USE_OPENTHREAD
   if (send_socket == this->broadcast_socket_.get() && !this->broadcast_socket_bound_) {
-    // The socket may have been closed by a previous ENOENT recovery; recreate it.
-    if (this->broadcast_socket_ == nullptr) {
-      this->broadcast_socket_ = socket::socket(AF_INET6, SOCK_DGRAM, IPPROTO_IP);
-      if (this->broadcast_socket_ == nullptr) {
-        ESP_LOGW(TAG, "Could not recreate send socket");
-        return;
-      }
-      int enable = 1;
-      this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
-      send_socket = this->broadcast_socket_.get();
-    }
     if (openthread::global_openthread_component == nullptr)
       return;
     auto omr = openthread::global_openthread_component->get_omr_address();
