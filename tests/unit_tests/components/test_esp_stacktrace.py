@@ -204,7 +204,8 @@ def test_process_stacktrace_esp32_foreign_crash(
         "[E][esp32.crash:392]:   excvaddr: 0x400D5678",
         "[E][esp32.crash:392]:   mtval: 0x42001234",
         "[E][esp32.crash:393]:   bt0: 0x400F19A6",
-        "[E][esp32.crash:393]:   bt15: 0x42005ABC",
+        "[E][esp32.crash:394]:   other core (0):",
+        "[E][esp32.crash:395]:   bt15: 0x42005ABC",
     ]
     for line in lines_addrs:
         state = process_stacktrace(config, line, False)

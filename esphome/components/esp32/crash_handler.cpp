@@ -4,7 +4,7 @@
 #ifdef USE_ESP32_CRASH_HANDLER
 
 #include "crash_handler.h"
-#include "esphome/core/application.h"
+#include "esphome/core/build_info_data.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -150,19 +150,21 @@ s_raw_crash_data;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 // Whether crash data was found and validated this boot.
 static bool s_crash_data_valid = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-// RAM copy of the build timestamp. The generated constant lives in flash,
-// which the panic handler must not read (cache may be disabled during
-// cache-error panics), so the wrapper stamps the record from this mirror
-// instead.
-static uint32_t s_current_build_time = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
 namespace esphome::esp32 {
 
 static const char *const TAG = "esp32.crash";
 
+// RAM copy of the build timestamp. The generated constant lives in flash,
+// which the panic handler must not read (cache may be disabled during
+// cache-error panics), so the wrapper stamps the record from this mirror
+// instead. Filled during C++ dynamic initialization, well before arch_init();
+// ESPHOME_BUILD_TIME itself is constant-initialized, so the read is ordered.
+// Unqualified name on purpose: the runtime header declares it in namespace
+// esphome, while the static-analysis stub defines it as a macro.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static uint32_t s_current_build_time = static_cast<uint32_t>(ESPHOME_BUILD_TIME);
+
 void crash_handler_read_and_clear() {
-  // Mirror the flash-resident build time into RAM for the panic handler.
-  s_current_build_time = static_cast<uint32_t>(App.get_build_time());
   if (s_raw_crash_data.magic == CRASH_MAGIC && s_raw_crash_data.version == CRASH_DATA_VERSION) {
     s_crash_data_valid = true;
     // Clamp counts to prevent out-of-bounds reads from corrupt .noinit data
@@ -391,7 +393,11 @@ static void log_foreign_addresses() {
   }
   uint8_t bt_num = log_foreign_backtrace(s_raw_crash_data.backtrace, s_raw_crash_data.backtrace_count, 0);
 #if SOC_CPU_CORES_NUM > 1
-  log_foreign_backtrace(s_raw_crash_data.other_backtrace, s_raw_crash_data.other_backtrace_count, bt_num);
+  if (s_raw_crash_data.other_backtrace_count > 0) {
+    // Lowercase like the address labels: carries no address, matches no decoder.
+    ESP_LOGE(TAG, "  other core (%d):", 1 - s_raw_crash_data.crashed_core);
+    log_foreign_backtrace(s_raw_crash_data.other_backtrace, s_raw_crash_data.other_backtrace_count, bt_num);
+  }
 #else
   (void) bt_num;  // Single-core targets have no second list to continue numbering into.
 #endif
@@ -467,9 +473,10 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
   s_raw_crash_data.cause = 0;
   s_raw_crash_data.fault_addr = 0;
   // Record which build's ELF the captured addresses belong to (RAM read, panic-safe).
-  // Still 0 if the panic precedes arch_init(), so such a crash reports as a
-  // foreign build — conservative: addresses are shown raw instead of decoded.
-  s_raw_crash_data.build_time = s_current_build_time;
+  // Still 0 if the panic precedes C++ dynamic initialization, so such a crash
+  // reports as a foreign build — conservative: addresses are shown raw instead
+  // of decoded.
+  s_raw_crash_data.build_time = esphome::esp32::s_current_build_time;
 #if SOC_CPU_CORES_NUM > 1
   s_raw_crash_data.other_backtrace_count = 0;
   s_raw_crash_data.other_reg_frame_count = 0;
