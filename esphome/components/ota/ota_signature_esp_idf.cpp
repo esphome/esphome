@@ -2,6 +2,7 @@
 #include "ota_backend_esp_idf.h"
 
 #ifdef USE_OTA_SIGNED_VERIFICATION_MULTI_KEY
+#include "esphome/components/watchdog/watchdog.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -109,9 +110,16 @@ size_t collect_key_digests(const esp_partition_t *part, size_t sector_offset, ui
     if (off + SIG_BLOCK_SIZE > part->size || esp_partition_read(part, off, block, SIG_BLOCK_SIZE) != ESP_OK) {
       break;
     }
-    if (block_is_valid(block) && key_digest_of(block, out[count])) {
-      count++;
+    if (!block_is_valid(block)) {
+      continue;
     }
+    // Log a hash failure distinctly (matching the incoming-image side) so it
+    // is not later misreported as "running app has no trusted keys".
+    if (!key_digest_of(block, out[count])) {
+      ESP_LOGE(TAG, "Signature check: failed to hash trusted key in block %zu", i);
+      continue;
+    }
+    count++;
   }
   return count;
 }
@@ -145,6 +153,12 @@ bool rsa_pss_verify(const uint8_t *block, const uint8_t *digest) {
 }  // namespace
 
 bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
+  // Verification re-hashes the full image (after esp_ota_end already did one
+  // pass), which can approach the task WDT budget on a large app. Extend it for
+  // the duration, mirroring the erase budget in begin().
+  const uint32_t verify_budget_ms = 15000 + (incoming->size >> 10) * 10;
+  watchdog::WatchdogManager watchdog(verify_budget_ms);
+
   const esp_partition_t *running = esp_ota_get_running_partition();
   if (running == nullptr) {
     ESP_LOGE(TAG, "Signature check: no running partition");

@@ -302,6 +302,11 @@ def test_signed_ota_verification_sdkconfig(
     )
     defines = {define.name for define in CORE.defines}
     assert ("USE_OTA_SIGNED_VERIFICATION_MULTI_KEY" in defines) is multi_key
+    if multi_key:
+        # The padding / reserved signature sector the verifier depends on keys
+        # off the RSA scheme symbol, not the hidden CONFIG_SECURE_SIGNED_APPS
+        # (which the explicit `n` above drives to n). Pin the real dependency.
+        assert sdkconfig.get("CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME") is True
 
 
 @pytest.mark.parametrize(

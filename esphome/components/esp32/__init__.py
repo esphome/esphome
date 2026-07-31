@@ -2568,6 +2568,10 @@ async def to_code(config):
         # SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT defaults to y under
         # SECURE_SIGNED_APPS_NO_SECURE_BOOT, so it must be set explicitly:
         # False to hand verification to ESPHome, True to keep IDF's check.
+        # Setting it False also drives the hidden CONFIG_SECURE_SIGNED_APPS to
+        # n; the 4 KiB padding and reserved signature sector the verifier
+        # depends on survive only because --secure-pad-v2 keys off
+        # CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME (set below), not that symbol.
         external_rsa = scheme == "rsa3072" and CONF_SIGNING_KEY not in signed_ota
         add_idf_sdkconfig_option(
             "CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT", not external_rsa
