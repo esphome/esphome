@@ -69,8 +69,8 @@ void CHSC6XTouchscreen::dump_config() {
                 "  Touch timeout: %d\n"
                 "  x_raw_max_: %d\n"
                 "  y_raw_max_: %d",
-                this->model_ == CHSC6X_MODEL_CHSC6540 ? "CHSC6540" : "CHSC6X", this->touch_timeout_,
-                this->x_raw_max_, this->y_raw_max_);
+                this->model_ == CHSC6X_MODEL_CHSC6540 ? "CHSC6540" : "CHSC6X", this->touch_timeout_, this->x_raw_max_,
+                this->y_raw_max_);
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
 }
