@@ -197,12 +197,16 @@ def test_process_stacktrace_esp32_foreign_crash(
     mock_esp32_decode_pc.assert_not_called()
     assert state is False
 
-    # Lowercase labels and bare hex addresses are deliberately not matched
-    # by any decoder regex, since symbols would come from the wrong ELF
-    line_addrs = (
-        "[E][esp32.crash:391]:   Old-build addresses: pc 0x400D1234 "
-        "excvaddr 0x400D5678 mtval 0x42001234 0x400F19A6 0x42005ABC"
-    )
-    state = process_stacktrace(config, line_addrs, False)
-    mock_esp32_decode_pc.assert_not_called()
-    assert state is False
+    # Lowercase labels are deliberately not matched by any decoder regex,
+    # since symbols would come from the wrong ELF
+    lines_addrs = [
+        "[E][esp32.crash:391]:   pc: 0x400D1234",
+        "[E][esp32.crash:392]:   excvaddr: 0x400D5678",
+        "[E][esp32.crash:392]:   mtval: 0x42001234",
+        "[E][esp32.crash:393]:   bt0: 0x400F19A6",
+        "[E][esp32.crash:393]:   bt15: 0x42005ABC",
+    ]
+    for line in lines_addrs:
+        state = process_stacktrace(config, line, False)
+        mock_esp32_decode_pc.assert_not_called()
+        assert state is False

@@ -373,17 +373,28 @@ static int append_all_backtraces(char *buf, int size, int pos) {
 // resets, including the OTA reboot), so symbolizing its addresses against the
 // current ELF would produce misleading symbols. Print them with lowercase
 // labels the stacktrace decoders deliberately do not match, and skip the
-// addr2line hint.
+// addr2line hint. One line per address so nothing is lost to a shared buffer.
+// No is_return_addr() filtering here: it would inspect the current build's
+// code bytes, which say nothing about addresses captured by the old build.
+static uint8_t log_foreign_backtrace(const uint32_t *addrs, uint8_t count, uint8_t bt_num) {
+  for (uint8_t i = 0; i < count; i++) {
+    ESP_LOGE(TAG, "  bt%d: 0x%08" PRIX32, bt_num++, addrs[i]);
+  }
+  return bt_num;
+}
+
 static void log_foreign_addresses() {
   ESP_LOGE(TAG, "  Captured by a different firmware build; addresses belong to that build's ELF");
-  char buf[256];
-  int pos = snprintf(buf, sizeof(buf), "  Old-build addresses: pc 0x%08" PRIX32, s_raw_crash_data.pc);
+  ESP_LOGE(TAG, "  pc: 0x%08" PRIX32, s_raw_crash_data.pc);
   if (has_fault_addr()) {
-    pos +=
-        snprintf(buf + pos, sizeof(buf) - pos, " %s 0x%08" PRIX32, FAULT_ADDR_REG_LOWER, s_raw_crash_data.fault_addr);
+    ESP_LOGE(TAG, "  %s: 0x%08" PRIX32, FAULT_ADDR_REG_LOWER, s_raw_crash_data.fault_addr);
   }
-  append_all_backtraces(buf, sizeof(buf), pos);
-  ESP_LOGE(TAG, "%s", buf);
+  uint8_t bt_num = log_foreign_backtrace(s_raw_crash_data.backtrace, s_raw_crash_data.backtrace_count, 0);
+#if SOC_CPU_CORES_NUM > 1
+  log_foreign_backtrace(s_raw_crash_data.other_backtrace, s_raw_crash_data.other_backtrace_count, bt_num);
+#else
+  (void) bt_num;  // Single-core targets have no second list to continue numbering into.
+#endif
 }
 
 // Intentionally uses separate ESP_LOGE calls per line instead of combining into
