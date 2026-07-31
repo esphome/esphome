@@ -91,13 +91,23 @@ def config_schema(config: ConfigType) -> ConfigType:
         config,
         framework_type=sdk_name,
         sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
+        # This variant has no bootloader other than MCUboot (BOOTLOADER_MCUBOOT
+        # above isn't a choice, it's the only option), so sysbuild must always
+        # build it as the "mcuboot" child image -- there's no config path that
+        # would otherwise turn this on.
+        sysbuild=True,
     )
     config[KEY_FRAMEWORK_VERSION] = version_str
     return config
 
 
 async def to_code(config: ConfigType) -> None:
-    from .. import zephyr_add_prj_conf, zephyr_setup_preferences, zephyr_to_code
+    from .. import (
+        zephyr_add_prj_conf,
+        zephyr_add_sysbuild_conf,
+        zephyr_setup_preferences,
+        zephyr_to_code,
+    )
 
     zephyr_to_code(config)
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_NRF52")
@@ -107,6 +117,11 @@ async def to_code(config: ConfigType) -> None:
     zephyr_setup_preferences()
     zephyr_add_prj_conf("REBOOT", True)
     zephyr_add_prj_conf("HWINFO", True)
+
+    # Tells sysbuild to actually build MCUboot as the "mcuboot" child image --
+    # without this, sysbuild=True above enables the sysbuild machinery but
+    # picks no bootloader, so only the app image gets built and flashed.
+    zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
 
     # RSA-2048 (mcuboot's default) is code-size heavy; ECDSA-P256 has a much
     # smaller footprint.
