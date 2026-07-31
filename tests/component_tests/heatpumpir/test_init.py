@@ -23,7 +23,7 @@ async def test_to_code_defaults_visual_before_new_climate_ir(
     """The required min/max_temperature must seed CONF_VISUAL *before*
     new_climate_ir() reads it, otherwise the entity reports the 0-100 default
     range in Home Assistant (issue #17983)."""
-    seen_visual: dict = {}
+    seen_visual: ConfigType = {}
 
     async def fake_new_climate_ir(config: ConfigType, *args):
         # Capture the visual config exactly as new_climate_ir (and the climate
@@ -55,7 +55,7 @@ async def test_to_code_keeps_explicit_visual(
     monkeypatch: pytest.MonkeyPatch, set_core_config: SetCoreConfigCallable
 ) -> None:
     """An explicit visual min/max is not overwritten by the required temps."""
-    seen_visual: dict = {}
+    seen_visual: ConfigType = {}
 
     async def fake_new_climate_ir(config: ConfigType, *args):
         seen_visual.update(copy.deepcopy(config.get(CONF_VISUAL, {})))
