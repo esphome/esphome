@@ -295,6 +295,22 @@ lvgl:
                   id: style_test
                   bg_color: blue
                   bg_opa: !lambda return 0.5;
+              # `obj` is already themed above -- exercises updating an existing hidden style.
+              - lvgl.theme.update:
+                  obj:
+                    border_width: 2
+              # `label` is never mentioned under `theme:` -- exercises lazily creating the
+              # hidden style and getting it attached to already-built label widgets.
+              - lvgl.theme.update:
+                  label:
+                    text_color: red
+              # `button` is never mentioned under `theme:`, and only a non-default state is
+              # targeted here -- exercises that no spurious, empty main/default style is
+              # created (and attached to every button) alongside the requested one.
+              - lvgl.theme.update:
+                  button:
+                    pressed:
+                      bg_color: red
               - lvgl.image.update:
                   id: lv_image
                   src:

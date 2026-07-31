@@ -74,13 +74,13 @@ def _write_storage(
         "framework": "arduino",
         "core_platform": core_platform,
     }
-    storage_path.write_text(json.dumps(data))
+    storage_path.write_text(json.dumps(data), encoding="utf-8")
 
 
 def _write_cache(cache_path: Path, body: str = _VALIDATED_CONFIG_YAML) -> Path:
     """Write the cache file and return it."""
     cache_path.parent.mkdir(parents=True, exist_ok=True)
-    cache_path.write_text(body)
+    cache_path.write_text(body, encoding="utf-8")
     return cache_path
 
 
