@@ -20,3 +20,4 @@ touchscreen:
     i2c_id: i2c_bus
     display: ili9xxx_display
     interrupt_pin: 20
+    model: CHSC6540
