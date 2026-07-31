@@ -247,7 +247,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       esp_bd_addr_t address;
       uint64_to_bd_addr(msg.address, address);
       esp_err_t ret = esp_ble_remove_bond_device(address);
-      this->send_device_pairing(msg.address, ret == ESP_OK, ret);
+      this->send_device_unpairing(msg.address, ret == ESP_OK, ret);
       break;
     }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE: {

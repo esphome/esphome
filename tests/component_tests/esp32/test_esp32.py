@@ -109,6 +109,24 @@ def test_esp32_default_toolchain_is_esp_idf(
 
 
 @pytest.mark.parametrize(
+    "config_toolchain",
+    [Toolchain.SDK_NRF.value, "nonsense"],
+)
+def test_esp32_rejects_unsupported_toolchains(
+    set_core_config: SetCoreConfigCallable,
+    config_toolchain: str,
+) -> None:
+    """Toolchains esp32 does not support are rejected at validation time."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    from esphome.components.esp32 import CONFIG_SCHEMA
+
+    CORE.toolchain = None
+    with pytest.raises(cv.Invalid, match="Unknown value"):
+        CONFIG_SCHEMA({"variant": VARIANT_ESP32, "toolchain": config_toolchain})
+
+
+@pytest.mark.parametrize(
     ("config", "error_match"),
     [
         pytest.param(

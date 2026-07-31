@@ -1815,6 +1815,8 @@ def one_of(*values, **kwargs):
       - *int* (``bool``, default=False): Whether to convert the incoming values to integers.
       - *float* (``bool``, default=False): Whether to convert the incoming values to floats.
       - *space* (``str``, default=' '): What to convert spaces in the input string to.
+      - *underscore* (``str``, default='_'): What to convert underscores in the input string to.
+      - *hyphen* (``str``, default='-'): What to convert hyphens in the input string to.
     """
     options = ", ".join(f"'{x}'" for x in values)
     lower = kwargs.pop("lower", False)
@@ -1823,8 +1825,11 @@ def one_of(*values, **kwargs):
     to_int = kwargs.pop("int", False)
     to_float = kwargs.pop("float", False)
     space = kwargs.pop("space", " ")
+    underscore = kwargs.pop("underscore", "_")
+    hyphen = kwargs.pop("hyphen", "-")
     if kwargs:
         raise ValueError
+    separators = str.maketrans({" ": space, "_": underscore, "-": hyphen})
 
     @schema_extractor("one_of")
     def validator(value):
@@ -1833,7 +1838,7 @@ def one_of(*values, **kwargs):
 
         if string_:
             value = string(value)
-            value = value.replace(" ", space)
+            value = value.translate(separators)
         if to_int:
             value = int_(value)
         if to_float:
@@ -2510,11 +2515,16 @@ def git_ref(value):
     return value
 
 
+# What `refresh: never` validates to; also used to recognize a disabled
+# refresh when logging (see esphome/git.py)
+SOURCE_REFRESH_NEVER = "365250d"
+
+
 def source_refresh(value: str):
     if value.lower() == "always":
         return source_refresh("0s")
     if value.lower() == "never":
-        return source_refresh("365250d")
+        return source_refresh(SOURCE_REFRESH_NEVER)
     return positive_time_period_seconds(value)
 
 
@@ -2718,10 +2728,32 @@ SOURCE_SCHEMA = Any(
 )
 
 
-def rename_key(old_key, new_key):
+def rename_key(
+    old_key, new_key, *, removed_in: str | None = None, component: str | None = None
+):
+    """Rename a config key from ``old_key`` to ``new_key``.
+
+    Specifying both keys is an error; otherwise only one of the two would
+    survive the rename and the other would be dropped silently.
+
+    When ``removed_in`` is set, a deprecation warning is logged if the old key is
+    present. Pass ``component`` (the platform/component name) alongside
+    ``removed_in`` so the warning identifies where it originates.
+    """
+
     def validator(config: dict) -> dict:
         config = config.copy()
         if old_key in config:
+            has_at_most_one_key(old_key, new_key)(config)
+            if removed_in is not None:
+                prefix = f"[{component}] " if component else ""
+                _LOGGER.warning(
+                    "%s'%s' is deprecated, use '%s'. Will be removed in %s",
+                    prefix,
+                    old_key,
+                    new_key,
+                    removed_in,
+                )
             config[new_key] = config.pop(old_key)
         return config
 
