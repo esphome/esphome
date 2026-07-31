@@ -109,8 +109,9 @@ struct SensorEntry {
 void PZEM6L24::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
   // on_response() is called for every reply routed to this device, including the acknowledgement of the
   // 0x42 reset command. Only the register read carries the payload decoded below.
-  if (request_pdu.empty() || request_pdu[0] != PZEM_CMD_READ_IN_REGISTERS)
+  if (request_pdu.empty() || request_pdu[0] != PZEM_CMD_READ_IN_REGISTERS) {
     return;
+  }
 
   auto data = modbus::helpers::server_pdu_payload(response_pdu);
   if (data.size() < PZEM_PAYLOAD_SIZE) {
