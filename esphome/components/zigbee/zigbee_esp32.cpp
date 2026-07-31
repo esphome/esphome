@@ -107,6 +107,9 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
       if (leave_params->leave_type == EZB_ZDO_LEAVE_TYPE_RESET) {
         esp_zigbee_factory_reset();
       }
+      global_zigbee->joined = false;
+      global_zigbee->enable_loop_soon_any_context();
+      ezb_bdb_start_top_level_commissioning(EZB_BDB_MODE_NETWORK_STEERING);
     } break;
     default:
       ESP_LOGD(TAG, "Zigbee APP Signal: %s(type: 0x%02x)", ezb_app_signal_to_string(signal_type), signal_type);
