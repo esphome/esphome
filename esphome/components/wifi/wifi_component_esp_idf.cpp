@@ -47,7 +47,6 @@ namespace esphome::wifi {
 static const char *const TAG = "wifi_esp32";
 
 static EventGroupHandle_t s_wifi_event_group;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static QueueHandle_t s_event_queue;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static esp_netif_t *s_sta_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #ifdef USE_WIFI_AP
 static esp_netif_t *s_ap_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -132,11 +131,10 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
     return;
   }
 
-  // copy to heap to keep queue object small
+  // copy to heap — WiFi events are rare so heap alloc is fine
   auto *to_send = new IDFWiFiEvent;  // NOLINT(cppcoreguidelines-owning-memory)
   memcpy(to_send, &event, sizeof(IDFWiFiEvent));
-  // don't block, we may miss events but the core can handle that
-  if (xQueueSend(s_event_queue, &to_send, 0L) != pdPASS) {
+  if (!global_wifi_component->event_queue_.push(to_send)) {
     delete to_send;  // NOLINT(cppcoreguidelines-owning-memory)
   }
 }
@@ -147,29 +145,15 @@ void WiFiComponent::wifi_pre_setup_() {
     get_mac_address_raw(mac);
     set_mac_address(mac);
   }
-  esp_err_t err = esp_netif_init();
-  if (err != ERR_OK) {
-    ESP_LOGE(TAG, "esp_netif_init failed: %s", esp_err_to_name(err));
-    return;
-  }
+  // Network interface setup handled by network component
   s_wifi_event_group = xEventGroupCreate();
   if (s_wifi_event_group == nullptr) {
     ESP_LOGE(TAG, "xEventGroupCreate failed");
     return;
   }
-  // NOLINTNEXTLINE(bugprone-sizeof-expression)
-  s_event_queue = xQueueCreate(64, sizeof(IDFWiFiEvent *));
-  if (s_event_queue == nullptr) {
-    ESP_LOGE(TAG, "xQueueCreate failed");
-    return;
-  }
-  err = esp_event_loop_create_default();
-  if (err != ERR_OK) {
-    ESP_LOGE(TAG, "esp_event_loop_create_default failed: %s", esp_err_to_name(err));
-    return;
-  }
   esp_event_handler_instance_t instance_wifi_id, instance_ip_id;
-  err = esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, nullptr, &instance_wifi_id);
+  esp_err_t err =
+      esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, nullptr, &instance_wifi_id);
   if (err != ERR_OK) {
     ESP_LOGE(TAG, "esp_event_handler_instance_register failed: %s", esp_err_to_name(err));
     return;
@@ -179,16 +163,75 @@ void WiFiComponent::wifi_pre_setup_() {
     ESP_LOGE(TAG, "esp_event_handler_instance_register failed: %s", esp_err_to_name(err));
     return;
   }
+  // NOTE: netif creation + esp_wifi_init() used to live here. They allocate ~15-30KB of
+  // DMA-capable internal SRAM, which competes with W5500 SPI DMA and I2S DMA on
+  // memory-tight devices. They are now deferred to wifi_lazy_init_(), called from
+  // setup() when enable_on_boot_ is true, or from enable() on first runtime enable.
+  // This makes enable_on_boot:false genuinely skip the wifi DMA allocation.
+}
 
-  s_sta_netif = esp_netif_create_default_wifi_sta();
+void WiFiComponent::wifi_lazy_init_() {
+  if (this->wifi_initialized_)
+    return;
+
+  // Guard each creation so partial init (e.g. a failed esp_wifi_init() below)
+  // followed by a retry via enable() does not leak the existing netif handle
+  // nor re-register the default WiFi handlers.
+  if (s_sta_netif == nullptr)
+    s_sta_netif = esp_netif_create_default_wifi_sta();
+  if (s_sta_netif == nullptr) {
+    // Allocation failed; leave wifi_initialized_ false so a later enable() retries.
+    ESP_LOGE(TAG, "esp_netif_create_default_wifi_sta failed");
+    return;
+  }
 
 #ifdef USE_WIFI_AP
-  s_ap_netif = esp_netif_create_default_wifi_ap();
+  if (s_ap_netif == nullptr)
+    s_ap_netif = esp_netif_create_default_wifi_ap();
 #endif  // USE_WIFI_AP
 
+  // The WiFi driver was started (e.g. by ESP-NOW with the wifi component disabled at
+  // boot) before our STA netif existed. The default WIFI_EVENT_STA_START handler
+  // therefore ran with no netif and never called esp_wifi_register_if_rxcb() -- the
+  // only thing that points the driver's RX path at a netif (it sets
+  // s_wifi_netifs[WIFI_IF_STA]). A bare esp_netif_action_start() would stop the
+  // immediate crash (#17232) but leaves RX unbound, so the first association
+  // associates at L2 yet never receives DHCP replies and times out (#17239). Restart
+  // the driver now that the netif exists so STA_START re-runs the default handler and
+  // wires RX correctly. ESP-NOW survives the stop/start (its peer state persists).
+  // This also matches a self-retry: if esp_wifi_set_storage() below failed on a
+  // previous wifi_lazy_init_() it returned without setting wifi_initialized_, and
+  // esp_wifi_init() has since run, so esp_wifi_get_mode() now succeeds here too.
+  wifi_mode_t mode;
+  if (esp_wifi_get_mode(&mode) == ESP_OK) {
+    ESP_LOGD(TAG, "WiFi driver already started without STA netif; restarting to bind it");
+    esp_err_t err = esp_wifi_stop();
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "esp_wifi_stop failed: %s", esp_err_to_name(err));
+    }
+    // Re-apply RAM storage; the normal init path does this, but it is skipped on
+    // the self-retry case above, which would otherwise let the driver persist
+    // credentials to NVS for the rest of the boot.
+    err = esp_wifi_set_storage(WIFI_STORAGE_RAM);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "esp_wifi_set_storage failed: %s", esp_err_to_name(err));
+    }
+    err = esp_wifi_start();
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_wifi_start failed: %s", esp_err_to_name(err));
+      return;
+    }
+    s_wifi_started = true;
+    this->wifi_initialized_ = true;
+    return;
+  }
+
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-  // cfg.nvs_enable = false;
-  err = esp_wifi_init(&cfg);
+  if (global_preferences->nvs_handle == 0) {
+    ESP_LOGW(TAG, "starting wifi without nvs");
+    cfg.nvs_enable = false;
+  }
+  esp_err_t err = esp_wifi_init(&cfg);
   if (err != ERR_OK) {
     ESP_LOGE(TAG, "esp_wifi_init failed: %s", esp_err_to_name(err));
     return;
@@ -198,6 +241,7 @@ void WiFiComponent::wifi_pre_setup_() {
     ESP_LOGE(TAG, "esp_wifi_set_storage failed: %s", esp_err_to_name(err));
     return;
   }
+  this->wifi_initialized_ = true;
 }
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
@@ -412,10 +456,10 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   // setup enterprise authentication if required
 #ifdef USE_WIFI_WPA2_EAP
-  auto eap_opt = ap.get_eap();
+  const auto &eap_opt = ap.get_eap();
   if (eap_opt.has_value()) {
     // note: all certificates and keys have to be null terminated. Lengths are appended by +1 to include \0.
-    EAPAuth eap = *eap_opt;
+    const EAPAuth &eap = *eap_opt;
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
     err = esp_eap_client_set_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
 #else
@@ -723,19 +767,25 @@ const char *get_disconnect_reason_str(uint8_t reason) {
   }
 }
 
-void WiFiComponent::wifi_loop_() {
-  while (true) {
-    IDFWiFiEvent *data;
-    if (xQueueReceive(s_event_queue, &data, 0L) != pdTRUE) {
-      // no event ready
-      break;
-    }
+bool WiFiComponent::wifi_loop_() {
+  // Use pop() directly instead of empty() — pop() costs 1 memw (acquire on tail_),
+  // while empty() costs 2 memw (acquire on both head_ and tail_) on Xtensa.
+  IDFWiFiEvent *data = this->event_queue_.pop();
+  if (data == nullptr)
+    return false;
 
-    // process event
+  do {
     wifi_process_event_(data);
-
     delete data;  // NOLINT(cppcoreguidelines-owning-memory)
+  } while ((data = this->event_queue_.pop()) != nullptr);
+
+  // Drops only occur when the queue is full, and only this loop drains it,
+  // so if pop() returned nullptr above we can skip this check.
+  uint16_t dropped = this->event_queue_.get_and_reset_dropped_count();
+  if (dropped > 0) {
+    ESP_LOGW(TAG, "Dropped %u WiFi events due to buffer overflow", dropped);
   }
+  return true;
 }
 // Events are processed from queue in main loop context, but listener notifications
 // must be deferred until after the state machine transitions (in check_connecting_finished)
@@ -806,6 +856,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     s_sta_connected = false;
     s_sta_connecting = false;
     error_from_callback_ = true;
+    // Refresh is_connected() cache; error_from_callback_ makes it false.
+    this->update_connected_state_();
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     this->notify_disconnect_state_listeners_();
 #endif
@@ -839,65 +891,65 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     const auto &it = data->data.sta_scan_done;
     ESP_LOGV(TAG, "Scan done: status=%" PRIu32 " number=%u scan_id=%u", it.status, it.number, it.scan_id);
 
-    scan_result_.clear();
-    this->scan_done_ = true;
-    if (it.status != 0) {
-      // scan error
-      return;
-    }
-
-    if (it.number == 0) {
-      // no results
-      return;
-    }
-
     uint16_t number = it.number;
     bool needs_full = this->needs_full_scan_results_();
+    {
+      // Mutate in place under the lock; blocking a portal request is fine and
+      // avoids scratch buffers
+      ScanResultsLock lock(this);
+      this->scan_result_.clear();
+      this->scan_done_ = true;
+      if (it.status != 0) {
+        // scan error
+        return;
+      }
 
-    // Smart reserve: full capacity if needed, small reserve otherwise
-    if (needs_full) {
-      this->scan_result_.reserve(number);
-    } else {
-      this->scan_result_.reserve(WIFI_SCAN_RESULT_FILTERED_RESERVE);
-    }
+      if (number == 0) {
+        // no results
+        return;
+      }
+
+      // Smart reserve: full capacity if needed, small reserve otherwise
+      this->scan_result_.reserve(needs_full ? number : WIFI_SCAN_RESULT_FILTERED_RESERVE);
 
 #ifdef USE_ESP32_HOSTED
-    // getting records one at a time fails on P4 with hosted esp32 WiFi coprocessor
-    // Presumably an upstream bug, work-around by getting all records at once
-    // Use stack buffer (3904 bytes / ~80 bytes per record = ~48 records) with heap fallback
-    static constexpr size_t SCAN_RECORD_STACK_COUNT = 3904 / sizeof(wifi_ap_record_t);
-    SmallBufferWithHeapFallback<SCAN_RECORD_STACK_COUNT, wifi_ap_record_t> records(number);
-    err = esp_wifi_scan_get_ap_records(&number, records.get());
-    if (err != ESP_OK) {
-      esp_wifi_clear_ap_list();
-      ESP_LOGW(TAG, "esp_wifi_scan_get_ap_records failed: %s", esp_err_to_name(err));
-      return;
-    }
-    for (uint16_t i = 0; i < number; i++) {
-      wifi_ap_record_t &record = records.get()[i];
-#else
-    // Process one record at a time to avoid large buffer allocation
-    for (uint16_t i = 0; i < number; i++) {
-      wifi_ap_record_t record;
-      err = esp_wifi_scan_get_ap_record(&record);
+      // getting records one at a time fails on P4 with hosted esp32 WiFi coprocessor
+      // Presumably an upstream bug, work-around by getting all records at once
+      // Use stack buffer (3904 bytes / ~80 bytes per record = ~48 records) with heap fallback
+      static constexpr size_t SCAN_RECORD_STACK_COUNT = 3904 / sizeof(wifi_ap_record_t);
+      SmallBufferWithHeapFallback<SCAN_RECORD_STACK_COUNT, wifi_ap_record_t> records(number);
+      err = esp_wifi_scan_get_ap_records(&number, records.get());
       if (err != ESP_OK) {
-        ESP_LOGW(TAG, "esp_wifi_scan_get_ap_record failed: %s", esp_err_to_name(err));
-        esp_wifi_clear_ap_list();  // Free remaining records not yet retrieved
-        break;
+        esp_wifi_clear_ap_list();
+        ESP_LOGW(TAG, "esp_wifi_scan_get_ap_records failed: %s", esp_err_to_name(err));
+        return;
       }
+      for (uint16_t i = 0; i < number; i++) {
+        wifi_ap_record_t &record = records.get()[i];
+#else
+      // Process one record at a time to avoid large buffer allocation
+      for (uint16_t i = 0; i < number; i++) {
+        wifi_ap_record_t record;
+        err = esp_wifi_scan_get_ap_record(&record);
+        if (err != ESP_OK) {
+          ESP_LOGW(TAG, "esp_wifi_scan_get_ap_record failed: %s", esp_err_to_name(err));
+          esp_wifi_clear_ap_list();  // Free remaining records not yet retrieved
+          break;
+        }
 #endif  // USE_ESP32_HOSTED
 
-      // Check C string first - avoid std::string construction for non-matching networks
-      const char *ssid_cstr = reinterpret_cast<const char *>(record.ssid);
+        // Check C string first - avoid std::string construction for non-matching networks
+        const char *ssid_cstr = reinterpret_cast<const char *>(record.ssid);
 
-      // Only construct std::string and store if needed
-      if (needs_full || this->matches_configured_network_(ssid_cstr, record.bssid)) {
-        bssid_t bssid;
-        std::copy(record.bssid, record.bssid + 6, bssid.begin());
-        this->scan_result_.emplace_back(bssid, ssid_cstr, strlen(ssid_cstr), record.primary, record.rssi,
-                                        record.authmode != WIFI_AUTH_OPEN, ssid_cstr[0] == '\0');
-      } else {
-        this->log_discarded_scan_result_(ssid_cstr, record.bssid, record.rssi, record.primary);
+        // Only construct std::string and store if needed
+        if (needs_full || this->matches_configured_network_(ssid_cstr, record.bssid)) {
+          bssid_t bssid;
+          std::copy(record.bssid, record.bssid + 6, bssid.begin());
+          this->scan_result_.emplace_back(bssid, ssid_cstr, strlen(ssid_cstr), record.primary, record.rssi,
+                                          record.authmode != WIFI_AUTH_OPEN, ssid_cstr[0] == '\0');
+        } else {
+          this->log_discarded_scan_result_(ssid_cstr, record.bssid, record.rssi, record.primary);
+        }
       }
     }
     ESP_LOGV(TAG, "Scan complete: %u found, %zu stored%s", number, this->scan_result_.size(),

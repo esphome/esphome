@@ -4,11 +4,11 @@
 #include "../nextion_component.h"
 #include "../nextion_base.h"
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
+
 class NextionSwitch;
 
-class NextionSwitch : public NextionComponent, public switch_::Switch, public PollingComponent {
+class NextionSwitch final : public NextionComponent, public switch_::Switch, public PollingComponent {
  public:
   NextionSwitch(NextionBase *nextion) { this->nextion_ = nextion; }
 
@@ -30,5 +30,4 @@ class NextionSwitch : public NextionComponent, public switch_::Switch, public Po
  protected:
   void write_state(bool state) override;
 };
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion

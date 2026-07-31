@@ -3,15 +3,14 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sdm_meter {
+namespace esphome::sdm_meter {
 
 static const char *const TAG = "sdm_meter";
 
-static const uint8_t MODBUS_CMD_READ_IN_REGISTERS = 0x04;
 static const uint8_t MODBUS_REGISTER_COUNT = 80;  // 74 x 16-bit registers
 
-void SDMMeter::on_modbus_data(const std::vector<uint8_t> &data) {
+void SDMMeter::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
+  auto data = modbus::helpers::server_pdu_payload(response_pdu);
   if (data.size() < MODBUS_REGISTER_COUNT * 2) {
     ESP_LOGW(TAG, "Invalid size for SDMMeter!");
     return;
@@ -83,7 +82,7 @@ void SDMMeter::on_modbus_data(const std::vector<uint8_t> &data) {
     this->export_reactive_energy_sensor_->publish_state(export_reactive_energy);
 }
 
-void SDMMeter::update() { this->send(MODBUS_CMD_READ_IN_REGISTERS, 0, MODBUS_REGISTER_COUNT); }
+void SDMMeter::update() { this->read_input_registers(0, MODBUS_REGISTER_COUNT); }
 void SDMMeter::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "SDM Meter:\n"
@@ -110,5 +109,4 @@ void SDMMeter::dump_config() {
   LOG_SENSOR("  ", "Export Reactive Energy", this->export_reactive_energy_sensor_);
 }
 
-}  // namespace sdm_meter
-}  // namespace esphome
+}  // namespace esphome::sdm_meter

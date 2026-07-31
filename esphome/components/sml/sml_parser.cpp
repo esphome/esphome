@@ -2,8 +2,7 @@
 #include "constants.h"
 #include "sml_parser.h"
 
-namespace esphome {
-namespace sml {
+namespace esphome::sml {
 
 SmlFile::SmlFile(const BytesView &buffer) : buffer_(buffer) {
   // extract messages
@@ -158,5 +157,4 @@ std::string ObisInfo::code_repr() const {
   return buf;
 }
 
-}  // namespace sml
-}  // namespace esphome
+}  // namespace esphome::sml

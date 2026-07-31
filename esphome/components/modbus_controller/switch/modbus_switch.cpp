@@ -2,8 +2,8 @@
 #include "modbus_switch.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-namespace esphome {
-namespace modbus_controller {
+
+namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus_controller.switch";
 
@@ -30,13 +30,13 @@ bool ModbusSwitch::assumed_state() { return this->assumed_state_; }
 void ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {
   bool value = false;
   switch (this->register_type) {
-    case ModbusRegisterType::DISCRETE_INPUT:
-    case ModbusRegisterType::COIL:
+    case modbus::EntityType::DISCRETE_INPUT:
+    case modbus::EntityType::COIL:
       // offset for coil is the actual number of the coil not the byte offset
-      value = coil_from_vector(this->offset, data);
+      value = modbus::helpers::bit_from_packed(this->offset, data);
       break;
     default:
-      value = get_data<uint16_t>(data, this->offset) & this->bitmask;
+      value = modbus::helpers::get_data<uint16_t>(data, this->offset) & this->bitmask;
       break;
   }
 
@@ -82,13 +82,13 @@ void ModbusSwitch::write_state(bool state) {
              format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
     cmd = ModbusCommandItem::create_custom_command(
         this->parent_, data,
-        [this, cmd](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
+        [this, cmd](modbus::EntityType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
           this->parent_->on_write_register_response(cmd.register_type, this->start_address, data);
         });
   } else {
     ESP_LOGV(TAG, "write_state '%s': new value = %s type = %d address = %X offset = %x", this->get_name().c_str(),
              ONOFF(state), (int) this->register_type, this->start_address, this->offset);
-    if (this->register_type == ModbusRegisterType::COIL) {
+    if (this->register_type == modbus::EntityType::COIL) {
       // offset for coil and discrete inputs is the coil/register number not bytes
       if (this->use_write_multiple_) {
         std::vector<bool> states{state};
@@ -112,5 +112,4 @@ void ModbusSwitch::write_state(bool state) {
   this->publish_state(state);
 }
 // ModbusSwitch end
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

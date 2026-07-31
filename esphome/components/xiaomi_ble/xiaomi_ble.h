@@ -7,8 +7,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_ble {
+namespace esphome::xiaomi_ble {
 
 struct XiaomiParseResult {
   enum {
@@ -73,12 +72,11 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
 bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, const uint64_t &address);
 bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const char *address);
 
-class XiaomiListener : public esp32_ble_tracker::ESPBTDeviceListener {
+class XiaomiListener final : public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
 };
 
-}  // namespace xiaomi_ble
-}  // namespace esphome
+}  // namespace esphome::xiaomi_ble
 
 #endif

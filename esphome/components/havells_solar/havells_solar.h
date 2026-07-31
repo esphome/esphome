@@ -4,12 +4,11 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
 
-#include <vector>
+#include <span>
 
-namespace esphome {
-namespace havells_solar {
+namespace esphome::havells_solar {
 
-class HavellsSolar : public PollingComponent, public modbus::ModbusDevice {
+class HavellsSolar final : public PollingComponent, public modbus::ModbusClientDevice {
  public:
   void set_voltage_sensor(uint8_t phase, sensor::Sensor *voltage_sensor) {
     this->phases_[phase].setup = true;
@@ -78,7 +77,7 @@ class HavellsSolar : public PollingComponent, public modbus::ModbusDevice {
 
   void update() override;
 
-  void on_modbus_data(const std::vector<uint8_t> &data) override;
+  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
 
   void dump_config() override;
 
@@ -113,5 +112,4 @@ class HavellsSolar : public PollingComponent, public modbus::ModbusDevice {
   sensor::Sensor *dci_of_t_sensor_{nullptr};
 };
 
-}  // namespace havells_solar
-}  // namespace esphome
+}  // namespace esphome::havells_solar

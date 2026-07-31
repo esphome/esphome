@@ -2,6 +2,9 @@
 #include "helpers.h"
 
 #include <algorithm>
+#ifdef USE_TIME_TIMEZONE
+#include "esphome/components/time/posix_tz.h"
+#endif
 
 namespace esphome {
 
@@ -14,12 +17,59 @@ uint8_t days_in_month(uint8_t month, uint16_t year) {
 
 size_t ESPTime::strftime(char *buffer, size_t buffer_len, const char *format) {
   struct tm c_tm = this->to_c_tm();
+#ifdef USE_TIME_TIMEZONE
+  // ::strftime uses libc's internal timezone state for %Z and %z, but we
+  // eliminated setenv("TZ")/tzset() on embedded platforms to save flash.
+  // Substitute %Z and %z with correct values from our parsed timezone.
+  // Quick scan: does format contain %Z or %z (but not %%Z/%%z)?
+  bool needs_subst = false;
+  for (const char *p = format; *p; p++) {
+    if (*p == '%' && *(p + 1)) {
+      p++;
+      if (*p == '%')
+        continue;  // %% is a literal %, skip
+      if (*p == 'Z' || *p == 'z') {
+        needs_subst = true;
+        break;
+      }
+    }
+  }
+  if (needs_subst) {
+    const auto &tz = time::get_global_tz();
+    char designation[6];  // "+HHMM" + null
+    int32_t offset = c_tm.tm_isdst > 0 ? tz.dst_offset_seconds : tz.std_offset_seconds;
+    time::format_designation(offset, designation, sizeof(designation));
+
+    char modified[STRFTIME_BUFFER_SIZE];
+    char *out = modified;
+    char *out_end = modified + sizeof(modified) - 1;
+    for (const char *p = format; *p && out < out_end; p++) {
+      if (*p == '%') {
+        if (*(p + 1) == '%') {
+          // %% → copy both percent signs (literal %)
+          *out++ = *p++;
+          if (out < out_end)
+            *out++ = *p;
+        } else if (*(p + 1) == 'Z' || *(p + 1) == 'z') {
+          p++;  // skip the Z/z
+          for (const char *d = designation; *d && out < out_end; d++)
+            *out++ = *d;
+        } else {
+          *out++ = *p;
+        }
+      } else {
+        *out++ = *p;
+      }
+    }
+    *out = '\0';
+    return ::strftime(buffer, buffer_len, modified, &c_tm);
+  }
+#endif
   return ::strftime(buffer, buffer_len, format, &c_tm);
 }
 
 size_t ESPTime::strftime_to(std::span<char, STRFTIME_BUFFER_SIZE> buffer, const char *format) {
-  struct tm c_tm = this->to_c_tm();
-  size_t len = ::strftime(buffer.data(), buffer.size(), format, &c_tm);
+  size_t len = this->strftime(buffer.data(), buffer.size(), format);
   if (len > 0) {
     return len;
   }

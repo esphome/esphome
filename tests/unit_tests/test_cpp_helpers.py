@@ -34,8 +34,9 @@ async def test_register_component(monkeypatch):
     actual = await ch.register_component(var, {})
 
     assert actual is var
-    assert add_mock.call_count == 2
-    app_mock.register_component_.assert_called_with(var)
+    assert add_mock.call_count == 1
+    app_mock.register_component_.assert_called_once()
+    assert app_mock.register_component_.call_args.args[0] is var
     assert core_mock.component_ids == []
 
 
@@ -77,8 +78,9 @@ async def test_register_component__with_setup_priority(monkeypatch):
 
     assert actual is var
     add_mock.assert_called()
-    assert add_mock.call_count == 4
-    app_mock.register_component_.assert_called_with(var)
+    assert add_mock.call_count == 3
+    app_mock.register_component_.assert_called_once()
+    assert app_mock.register_component_.call_args.args[0] is var
     assert core_mock.component_ids == []
 
 
@@ -140,9 +142,28 @@ def test_register_component_source_overflow_warns(
         sources={f"comp_{i}": i + 1 for i in range(0xFF)},
         table_registered=True,
     )
-    monkeypatch.setattr(ch, "CORE", Mock(data={ch._COMPONENT_SOURCE_DOMAIN: pool}))
+    monkeypatch.setattr(
+        ch, "CORE", Mock(data={ch._COMPONENT_SOURCE_DOMAIN: pool}, testing_mode=False)
+    )
     with caplog.at_level(logging.WARNING):
         idx = register_component_source("overflow_component")
     assert idx == 0
     assert "Too many unique component source names" in caplog.text
     assert "overflow_component" in caplog.text
+
+
+def test_register_component_source_overflow_suppressed_in_testing_mode(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Pre-fill pool to max
+    pool = ComponentSourcePool(
+        sources={f"comp_{i}": i + 1 for i in range(0xFF)},
+        table_registered=True,
+    )
+    monkeypatch.setattr(
+        ch, "CORE", Mock(data={ch._COMPONENT_SOURCE_DOMAIN: pool}, testing_mode=True)
+    )
+    with caplog.at_level(logging.WARNING):
+        idx = register_component_source("overflow_component")
+    assert idx == 0
+    assert "Too many unique component source names" not in caplog.text

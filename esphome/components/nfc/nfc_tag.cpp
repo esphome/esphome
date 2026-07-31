@@ -1,9 +1,7 @@
 #include "nfc_tag.h"
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 static const char *const TAG = "nfc.tag";
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

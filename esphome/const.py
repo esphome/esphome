@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.4.0-dev"
+__version__ = "2026.8.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -13,6 +13,14 @@ VALID_SUBSTITUTIONS_CHARACTERS = (
 
 # CLI Help Text Constants
 ARGUMENT_HELP_DEVICE = "Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses. Use 'OTA' for resolving from MQTT, DNS or mDNS and avoiding the interactive prompt."
+
+
+class Toolchain(StrEnum):
+    """Toolchain identifiers for ESPHome."""
+
+    PLATFORMIO = "platformio"
+    ESP_IDF = "esp-idf"
+    SDK_NRF = "sdk-nrf"
 
 
 class Platform(StrEnum):
@@ -25,7 +33,12 @@ class Platform(StrEnum):
     LIBRETINY_OLDSTYLE = "libretiny"
     LN882X = "ln882x"
     NRF52 = "nrf52"
-    RP2040 = "rp2040"
+    RP2 = "rp2"  # canonical name for the RP2 family (RP2040, RP2350, …)
+    # Deprecated: use Platform.RP2 instead. Python enum aliasing makes this
+    # the same member as RP2 (same string value), so ``Platform.RP2040`` and
+    # ``Platform.RP2`` remain interchangeable for external custom components.
+    # Scheduled for removal in 2027.7.0.
+    RP2040 = "rp2"
     RTL87XX = "rtl87xx"
 
 
@@ -78,6 +91,9 @@ class PlatformFramework(Enum):
 
     # Arduino framework platforms
     ESP8266_ARDUINO = (Platform.ESP8266, Framework.ARDUINO)
+    RP2_ARDUINO = (Platform.RP2, Framework.ARDUINO)
+    # Deprecated: use PlatformFramework.RP2_ARDUINO instead. Kept as an
+    # alias for backwards compatibility; scheduled for removal in 2027.7.0.
     RP2040_ARDUINO = (Platform.RP2040, Framework.ARDUINO)
     BK72XX_ARDUINO = (Platform.BK72XX, Framework.ARDUINO)
     RTL87XX_ARDUINO = (Platform.RTL87XX, Framework.ARDUINO)
@@ -98,6 +114,9 @@ PLATFORM_HOST = Platform.HOST
 PLATFORM_LIBRETINY_OLDSTYLE = Platform.LIBRETINY_OLDSTYLE
 PLATFORM_LN882X = Platform.LN882X
 PLATFORM_NRF52 = Platform.NRF52
+PLATFORM_RP2 = Platform.RP2
+# Deprecated: use PLATFORM_RP2 instead. Kept as a back-compat alias;
+# scheduled for removal in 2027.7.0.
 PLATFORM_RP2040 = Platform.RP2040
 PLATFORM_RTL87XX = Platform.RTL87XX
 
@@ -192,6 +211,7 @@ CONF_BROKER = "broker"
 CONF_BSSID = "bssid"
 CONF_BUFFER_DURATION = "buffer_duration"
 CONF_BUFFER_SIZE = "buffer_size"
+CONF_BUILD_FLAGS = "build_flags"
 CONF_BUILD_PATH = "build_path"
 CONF_BUS_VOLTAGE = "bus_voltage"
 CONF_BUSY_PIN = "busy_pin"
@@ -604,6 +624,7 @@ CONF_MEASUREMENT_SEQUENCE_NUMBER = "measurement_sequence_number"
 CONF_MEDIA_PLAYER = "media_player"
 CONF_MEDIUM = "medium"
 CONF_MEMORY_BLOCKS = "memory_blocks"
+CONF_MERGE_WARNINGS = "merge_warnings"
 CONF_MESSAGE = "message"
 CONF_METHANE = "methane"
 CONF_METHOD = "method"
@@ -966,6 +987,7 @@ CONF_STEP_PIN = "step_pin"
 CONF_STILL_THRESHOLD = "still_threshold"
 CONF_STOP = "stop"
 CONF_STOP_ACTION = "stop_action"
+CONF_STORAGE = "storage"
 CONF_STORE_BASELINE = "store_baseline"
 CONF_SUBNET = "subnet"
 CONF_SUBSCRIBE_QOS = "subscribe_qos"
@@ -1036,6 +1058,7 @@ CONF_TO = "to"
 CONF_TO_NTC_RESISTANCE = "to_ntc_resistance"
 CONF_TO_NTC_TEMPERATURE = "to_ntc_temperature"
 CONF_TOLERANCE = "tolerance"
+CONF_TOOLCHAIN = "toolchain"
 CONF_TOPIC = "topic"
 CONF_TOPIC_PREFIX = "topic_prefix"
 CONF_TOTAL = "total"
@@ -1232,6 +1255,8 @@ UNIT_KILOVOLT_AMPS_REACTIVE_HOURS = "kvarh"
 UNIT_KILOWATT = "kW"
 UNIT_KILOWATT_HOURS = "kWh"
 UNIT_LITRE = "L"
+UNIT_LITRE_PER_HOUR = "L/h"
+UNIT_LITRE_PER_SECOND = "L/s"
 UNIT_LUX = "lx"
 UNIT_MEGAJOULE = "MJ"
 UNIT_METER = "m"
@@ -1339,6 +1364,7 @@ DEVICE_CLASS_PRECIPITATION_INTENSITY = "precipitation_intensity"
 DEVICE_CLASS_PRESENCE = "presence"
 DEVICE_CLASS_PRESSURE = "pressure"
 DEVICE_CLASS_PROBLEM = "problem"
+DEVICE_CLASS_RADON = "radon"
 DEVICE_CLASS_REACTIVE_ENERGY = "reactive_energy"
 DEVICE_CLASS_REACTIVE_POWER = "reactive_power"
 DEVICE_CLASS_RESTART = "restart"
@@ -1358,6 +1384,7 @@ DEVICE_CLASS_TEMPERATURE = "temperature"
 DEVICE_CLASS_TEMPERATURE_DELTA = "temperature_delta"
 DEVICE_CLASS_TIMESTAMP = "timestamp"
 DEVICE_CLASS_UPDATE = "update"
+DEVICE_CLASS_UPTIME = "uptime"
 DEVICE_CLASS_VIBRATION = "vibration"
 DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS = "volatile_organic_compounds"
 DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS = "volatile_organic_compounds_parts"
@@ -1393,7 +1420,6 @@ KEY_FRAMEWORK_VERSION = "framework_version"
 KEY_NAME = "name"
 KEY_VARIANT = "variant"
 KEY_PAST_SAFE_MODE = "past_safe_mode"
-KEY_NATIVE_IDF = "native_idf"
 
 # Entity categories
 ENTITY_CATEGORY_NONE = ""
@@ -1407,3 +1433,12 @@ ENTITY_CATEGORY_DIAGNOSTIC = "diagnostic"
 # The corresponding constant exists in c++
 # when update_interval is set to never, it becomes SCHEDULER_DONT_RUN milliseconds
 SCHEDULER_DONT_RUN = 4294967295
+
+# Sentinel values written by the esphome-device-builder dashboard into
+# secrets.yaml on first boot so that !secret wifi_ssid / !secret wifi_password
+# references resolve cleanly through validation before the user has finished
+# the onboarding wizard. Compilation refuses if these reach the binary so that
+# a user who dismisses onboarding can't accidentally flash a device that will
+# never associate with their wifi.
+PLACEHOLDER_WIFI_SSID = "REPLACE_WITH_YOUR_WIFI_NETWORK"
+PLACEHOLDER_WIFI_PASSWORD = "REPLACE_WITH_YOUR_WIFI_PASSWORD"  # noqa: S105
