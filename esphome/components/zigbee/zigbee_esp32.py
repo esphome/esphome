@@ -203,6 +203,7 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
         },
     )
     if accuracy is not None:
+        # Analog Input Resolution (0x006A): smallest reportable change
         ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
             {
                 CONF_ATTRIBUTE_ID: 0x6A,
