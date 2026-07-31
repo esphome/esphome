@@ -314,8 +314,14 @@ void RTSPSession::handle_describe_() {
                           "t=0 0\r\n"
                           "m=video 0 RTP/AVP 26\r\n"
                           "a=control:trackID=0\r\n");
-  if (body_len < 0)
+  if (body_len < 0) {
     body_len = 0;
+    body[0] = '\0';  // contents are undefined on encoding error -- make %s safe
+  } else if (static_cast<size_t>(body_len) >= sizeof(body)) {
+    // snprintf reports the untruncated length; Content-Length must match the bytes
+    // actually appended below or clients hang waiting for the difference.
+    body_len = sizeof(body) - 1;
+  }
 
   int len = snprintf(reinterpret_cast<char *>(this->send_buf_.data()), this->send_buf_.size(),
                      "RTSP/1.0 200 OK\r\nCSeq: %" PRIu32 "\r\n"
