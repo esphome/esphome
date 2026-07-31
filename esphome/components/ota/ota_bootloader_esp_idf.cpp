@@ -94,6 +94,14 @@ OTAResponseTypes IDFOTABackend::finalize_bootloader_update_(esp_err_t ota_end_er
   if (ota_end_err != ESP_OK) {
     return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
   }
+#ifdef USE_OTA_SIGNED_VERIFICATION_MULTI_KEY
+  // The new bootloader is staged in partition_. IDF's on-update signature
+  // check is disabled for this scheme, so verify it here -- against the same
+  // keys the running app trusts -- before copying it over the live bootloader.
+  if (!this->verify_signed_image_(this->partition_)) {
+    return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
+  }
+#endif
   esp_bootloader_desc_t bootloader_desc;
   esp_err_t desc_err = esp_ota_get_bootloader_description(this->partition_, &bootloader_desc);
 #ifdef USE_ESP32_SRAM1_AS_IRAM
