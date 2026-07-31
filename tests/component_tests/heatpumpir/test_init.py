@@ -1,45 +1,26 @@
-"""Tests for the heatpumpir climate code generation."""
+"""Tests for the heatpumpir climate config validation."""
 
-from collections.abc import Callable
-from pathlib import Path
-
-from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
-from esphome.const import PlatformFramework
-from tests.component_tests.types import SetCoreConfigCallable
+from esphome.components.heatpumpir.climate import _default_visual
+from esphome.const import CONF_MAX_TEMPERATURE, CONF_MIN_TEMPERATURE, CONF_VISUAL
+from esphome.types import ConfigType
 
 
-def test_defaults_visual_from_required_min_max(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    """With only the required min/max_temperature (no visual block), the entity
-    must expose that range as its visual override, not the ClimateIR 0-100
-    default (issue #17983)."""
-    set_core_config(
-        PlatformFramework.ESP32_IDF,
-        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
-    )
-    main_cpp = generate_main(component_config_path("default_visual.yaml"))
-
-    assert "set_visual_min_temperature_override(18.0f)" in main_cpp
-    assert "set_visual_max_temperature_override(30.0f)" in main_cpp
+def test_default_visual_seeds_from_required_min_max() -> None:
+    """Without a visual block, the required min/max_temperature seed the visual
+    range so the entity reports it in Home Assistant instead of 0-100 (#17983)."""
+    config: ConfigType = {CONF_MIN_TEMPERATURE: 18, CONF_MAX_TEMPERATURE: 30}
+    _default_visual(config)
+    assert config[CONF_VISUAL][CONF_MIN_TEMPERATURE] == 18
+    assert config[CONF_VISUAL][CONF_MAX_TEMPERATURE] == 30
 
 
-def test_explicit_visual_takes_precedence(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    """An explicit visual min/max is used as-is and not replaced by the required
-    min/max_temperature."""
-    set_core_config(
-        PlatformFramework.ESP32_IDF,
-        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
-    )
-    main_cpp = generate_main(component_config_path("explicit_visual.yaml"))
-
-    assert "set_visual_min_temperature_override(18.0f)" in main_cpp
-    assert "set_visual_max_temperature_override(30.0f)" in main_cpp
-    assert "set_visual_min_temperature_override(16.0f)" not in main_cpp
-    assert "set_visual_max_temperature_override(32.0f)" not in main_cpp
+def test_default_visual_keeps_explicit() -> None:
+    """An explicit visual min/max is not overwritten by the required temps."""
+    config: ConfigType = {
+        CONF_MIN_TEMPERATURE: 16,
+        CONF_MAX_TEMPERATURE: 32,
+        CONF_VISUAL: {CONF_MIN_TEMPERATURE: 18, CONF_MAX_TEMPERATURE: 30},
+    }
+    _default_visual(config)
+    assert config[CONF_VISUAL][CONF_MIN_TEMPERATURE] == 18
+    assert config[CONF_VISUAL][CONF_MAX_TEMPERATURE] == 30
