@@ -4,21 +4,21 @@
 bk72xx_ble_tracker:
   id: ble_tracker_hub
 
-binary_sensor:
+sensor:
   # Explicit ble_hub_id: pins the neutral binding as a declared key.
-  - platform: xiaomi_cgpr1
+  - platform: xiaomi_jqjcy01ym
     ble_hub_id: ble_tracker_hub
-    name: CGPR1 Motion
-    mac_address: "12:34:56:12:34:56"
-    bindkey: 48403ebe2d385db8d0c187f81e62cb64
+    mac_address: 7A:80:8E:19:36:BA
+    temperature:
+      name: JQJCY01YM Temperature
+    humidity:
+      name: JQJCY01YM Humidity
+    formaldehyde:
+      name: JQJCY01YM Formaldehyde
     battery_level:
-      name: CGPR1 Battery Level
-    idle_time:
-      name: CGPR1 Idle Time
-    illuminance:
-      name: CGPR1 Illuminance
+      name: JQJCY01YM Battery Level
   # No ble_hub_id: exercises the generated binding real configs use.
-  - platform: xiaomi_cgpr1
-    name: BK CGPR1 Implicit Motion
-    mac_address: "12:34:56:12:34:57"
-    bindkey: 48403ebe2d385db8d0c187f81e62cb64
+  - platform: xiaomi_jqjcy01ym
+    mac_address: 7A:80:8E:19:36:BB
+    temperature:
+      name: BK JQJCY01YM Implicit Temperature
