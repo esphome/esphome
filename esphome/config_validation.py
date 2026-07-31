@@ -2515,11 +2515,16 @@ def git_ref(value):
     return value
 
 
+# What `refresh: never` validates to; also used to recognize a disabled
+# refresh when logging (see esphome/git.py)
+SOURCE_REFRESH_NEVER = "365250d"
+
+
 def source_refresh(value: str):
     if value.lower() == "always":
         return source_refresh("0s")
     if value.lower() == "never":
-        return source_refresh("365250d")
+        return source_refresh(SOURCE_REFRESH_NEVER)
     return positive_time_period_seconds(value)
 
 
