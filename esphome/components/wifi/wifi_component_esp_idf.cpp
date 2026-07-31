@@ -577,6 +577,15 @@ static uint32_t lease_cache_age_secs(const SavedWifiLeaseSettings &lease) {
   return now >= lease.saved_at ? now - lease.saved_at : UINT32_MAX;
 }
 
+// The renewal deadline (T1), in seconds from lease capture. RFC 2131: when the server doesn't send
+// a T1 (offered_t1_renew == 0), or it exceeds the lease, fall back to half the lease.
+static uint32_t lease_renew_at_secs(const SavedWifiLeaseSettings &lease) {
+  uint32_t renew_at = lease.t1_renew;
+  if (renew_at == 0 || renew_at >= lease.lease_secs)
+    renew_at = lease.lease_secs / 2;
+  return renew_at;
+}
+
 bool WiFiComponent::lease_valid_for_apply_() const {
   if (!this->have_cached_lease_)
     return false;  // a stored record always has timing -- we don't cache leases without it
@@ -593,6 +602,11 @@ bool WiFiComponent::lease_valid_for_apply_() const {
   if (age == UINT32_MAX)
     return false;
   if (this->lease_cache_max_age_ != 0 && age > this->lease_cache_max_age_)
+    return false;
+  // Already past the renewal deadline (T1): the lease must be renewed via DHCP now, and applying it
+  // as a static IP would only schedule an immediate renewal that tears the address back down on the
+  // next loop. Go straight to DHCP instead.
+  if (age >= lease_renew_at_secs(lease))
     return false;
   return lease.lease_secs > age + LEASE_APPLY_MARGIN_SECS;
 }
@@ -645,12 +659,9 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
 
     // If the device is still awake at the lease's renew deadline, fall back to real DHCP so the
     // lease can't silently expire under a frozen static IP. Deep-sleep devices sleep well before.
-    // RFC 2131: when the server doesn't send a T1 renewal time, lwIP leaves offered_t1_renew at 0
-    // (and a bogus T1 could exceed the lease), so fall back to half the lease -- never renew at 0,
-    // which would defeat the point by running DHCP immediately.
-    uint32_t renew_at = lease.t1_renew;
-    if (renew_at == 0 || renew_at >= lease.lease_secs)
-      renew_at = lease.lease_secs / 2;
+    // lease_valid_for_apply_ already rejected any lease at or past its renew deadline, so renew_in
+    // is guaranteed non-zero here (the ternary is belt-and-braces).
+    uint32_t renew_at = lease_renew_at_secs(lease);
     uint32_t renew_in = renew_at > age ? renew_at - age : 0;
     // set_timeout() takes milliseconds; compute in 64-bit and clamp so a very long lease can't
     // overflow the 32-bit millisecond value (a clamp only delays the renewal, never skips it).
