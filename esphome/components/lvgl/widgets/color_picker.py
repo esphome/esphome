@@ -68,7 +68,7 @@ COLOR_PICKER_MODIFY_SCHEMA = cv.Schema(
 
 COLOR_PICKER_SCHEMA = COLOR_PICKER_MODIFY_SCHEMA.extend(
     {
-        cv.Required(CONF_WIDTH): size,
+        cv.Optional(CONF_WIDTH, default="SIZE_CONTENT"): size,
         cv.Optional(CONF_HEIGHT): cv.invalid("Height will be set to the same as width"),
         cv.Optional(CONF_SLIDERS, default=list(SLIDER_NAMES)): validate_sliders,
     }
