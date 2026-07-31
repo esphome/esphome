@@ -110,25 +110,28 @@ enum class CommandPriority : uint8_t { CONTINUOUS = 0, READ, WRITE };
 ///   READY -> WAITING            on transmit (send_next_frame_ is the only writer of this transition)
 ///   WAITING -> RECEIVED_RESPONSE / RECEIVED_EXCEPTION
 ///                               on a matching data/exception response; on_response()/on_error()
-///                               fire AT PARSE TIME (zero-copy spans into the rx buffer), the sweep
-///                               then does the lifecycle bookkeeping (pending consumption, continuous
-///                               reset - a continuous poll continues only after RECEIVED_RESPONSE -
-///                               and removal)
-///   WAITING -> TIMED_OUT        on the send-wait timeout; the sweep delivers on_no_response() and
-///                               the return value picks retry (-> READY) or resolution
+///                               fire AT PARSE TIME (zero-copy spans into the rx buffer) and consume
+///                               the request there (a continuous poll's response does not consume);
+///                               the sweep then reschedules (pending -> READY, else erased)
+///   WAITING -> TIMED_OUT        on the send-wait timeout
+///   TIMED_OUT -> TIMED_OUT_NOTIFIED
+///                               when the sweep delivers on_no_response(); off the wire, so the
+///                               same sweep reschedules (pending -> READY, else erased). A granted
+///                               retry restores the request; a declined one consumes it.
 ///   WAITING -> INTERRUPTED      on an unexpected-frame interruption; keeps tx blocked until the
 ///                               send-wait timeout (the old "interrupted shell", now explicit)
 ///   INTERRUPTED -> INTERRUPTED_NOTIFIED
-///                               when the sweep delivers the shell's on_no_response(); a declined
-///                               retry resolves one request on the spot (pending--), a granted
-///                               retry resolves nothing
-///   INTERRUPTED_NOTIFIED -> READY (requests still pending) or removal (none), when the
-///                               send-wait timeout releases the shell
-///   anything -> DELETED         on clear_tx_queue_* (a clear is a state flip; the sweep resolves
-///                               owed terminals - or removes silently for device-scoped clears)
-///   WAITING -> WAITING_DELETED  on a clear with clear_sent: the frame is on the wire, so it
-///                               persists as a response-ignoring shell, -> DELETED on response or
+///                               when the sweep delivers on_no_response(); same accounting as
+///                               TIMED_OUT, but the shell stays on the wire - expire_waiting_()
+///                               releases it (pending -> READY, else retire) at the send-wait timeout
+///   anything -> RETIRED         on clear_tx_queue_* (a clear is a state flip; the sweep resolves
+///                               owed terminals via notify_retired() - or retires silently for
+///                               device-scoped clears)
+///   WAITING -> WAITING_RETIRED  on a clear with clear_sent: the frame is on the wire, so it
+///                               persists as a response-ignoring shell, retired on response or
 ///                               timeout and swept silently
+/// An entry is erased at the end of the sweep once it owes nothing and is off the wire
+/// (pending == 0 && !on_wire()); pending == 0 is the erasability signal, no separate marker needed.
 ///   (there is no transmit-failure state: transmitting cannot fail. The caller checks tx_blocked()
 ///   and the framed size is bounded by construction, so a frame that is selected is a frame that
 ///   goes out. Requests that never enter the machine - empty/oversize PDU, full queue, anonymous
@@ -145,10 +148,11 @@ enum class FrameState : uint8_t {
   RECEIVED_RESPONSE,
   RECEIVED_EXCEPTION,
   TIMED_OUT,
+  TIMED_OUT_NOTIFIED,
   INTERRUPTED,
   INTERRUPTED_NOTIFIED,
-  WAITING_DELETED,
-  DELETED,
+  WAITING_RETIRED,
+  RETIRED,
 };
 
 /// Per-command options for the send helpers. Extended append-only; prefer designated initializers
@@ -185,9 +189,15 @@ struct ModbusDeviceCommand {
 
   ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, const uint8_t *src, uint16_t len)
       : device(device), frame(address, src, len) {}
-  /// Build a command from a PDU span. Callers must bound the PDU to MAX_PDU_SIZE.
-  ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, std::span<const uint8_t> pdu)
-      : device(device), frame(address, pdu.data(), static_cast<uint16_t>(pdu.size())) {}
+  /// Build a command from a PDU span. Callers must bound the PDU to MAX_PDU_SIZE. `continuous` and
+  /// the initial `seq` (the hub's next_seq_++) are set here so a freshly queued entry is fully
+  /// initialized by construction rather than poked afterwards.
+  ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, std::span<const uint8_t> pdu,
+                      bool continuous = false, uint16_t seq = 0)
+      : device(device),
+        frame(address, pdu.data(), static_cast<uint16_t>(pdu.size())),
+        continuous(continuous),
+        seq(seq) {}
 
   /// Transmit ordering class, derived - never stored, so it can never disagree with the entry it
   /// describes. A continuous poll ranks below every one-shot; otherwise the class comes from the
@@ -216,21 +226,84 @@ struct ModbusDeviceCommand {
     const bool requeueable = !helpers::is_function_code_exception(fc) && helpers::is_function_code_read(fc);
     return (requeueable && !this->continuous) ? 2 : 1;
   }
-  /// Retire this entry: detached, owing nothing. DELETED with pending 0 is the silent, erasable
-  /// terminal; the sweep's erase pass removes it.
+  /// Detach this entry: it owes nothing from here on and its device is cleared. The outgoing state
+  /// follows whether the frame is on the wire: an off-wire entry becomes RETIRED (pending 0 = the
+  /// silent, erasable terminal the sweep removes); an on-wire one becomes WAITING_RETIRED - it
+  /// cannot simply vanish, since the response may still arrive and the bus stays blocked until the
+  /// transaction ends, so it persists as a reply-ignoring shell that retires when the response or
+  /// the send-wait timeout arrives.
   void retire() {
-    this->state = FrameState::DELETED;
+    this->state = this->on_wire() ? FrameState::WAITING_RETIRED : FrameState::RETIRED;
     this->pending = 0;
     this->device = nullptr;
   }
-  /// Retire an entry whose frame is already on the wire. It cannot simply vanish - the response
-  /// may still arrive, and the bus stays blocked until the transaction ends - so it persists as a
-  /// detached shell that ignores the reply and retires when the response or the timeout arrives.
-  void retire_waiting() {
-    this->state = FrameState::WAITING_DELETED;
-    this->pending = 0;
-    this->device = nullptr;
+  /// Re-ready this entry for another transmission, restamped to the tail of its class. The sweep
+  /// passes the hub's next_seq_++; the counter lives on the hub, not the command.
+  void requeue(uint16_t seq) {
+    this->state = FrameState::READY;
+    this->seq = seq;
   }
+  /// The send-wait timer fired for an on-wire entry. No callback here (the state flip only); the
+  /// sweep does the rest. The one thing that matters is whether on_no_response() was ALREADY
+  /// delivered: only INTERRUPTED_NOTIFIED has been, so it -> TIMED_OUT_NOTIFIED (the sweep
+  /// reschedules or erases, no re-notify). Everything else -> TIMED_OUT and the sweep's
+  /// notify_timed_out() delivers on_no_response - a genuine terminal for WAITING or a not-yet-swept
+  /// INTERRUPTED, and a no-op for a cleared WAITING_RETIRED shell (device-less), which then erases.
+  void timeout() {
+    this->state =
+        (this->state == FrameState::INTERRUPTED_NOTIFIED) ? FrameState::TIMED_OUT_NOTIFIED : FrameState::TIMED_OUT;
+  }
+  /// Turn a queued one-shot into a continuous poll, superseding any requests it had absorbed (the
+  /// caller opted into streaming semantics; the poll's responses are the accounting from now on).
+  void make_continuous() {
+    this->continuous = true;
+    this->pending = 1;
+  }
+  /// An address-scoped clear drops this off-wire entry: it becomes RETIRED but keeps its pending
+  /// count and its device, so the sweep delivers one on_not_sent() per accepted request. (Contrast
+  /// retire(), which owes nothing.)
+  void mark_cleared() { this->state = FrameState::RETIRED; }
+  /// True while the frame is on the wire (the states find_waiting_() recognizes). The erase pass
+  /// exempts these: an on-wire shell can be pending 0 yet must survive until the wire is released,
+  /// or the bus stays blocked until the send-wait timeout instead of freeing at response time.
+  bool on_wire() const {
+    return this->state == FrameState::WAITING || this->state == FrameState::INTERRUPTED ||
+           this->state == FrameState::INTERRUPTED_NOTIFIED || this->state == FrameState::WAITING_RETIRED;
+  }
+
+  bool decrement_pending() {
+    if (this->pending > 0) {
+      this->pending--;
+      return true;
+    }
+    return false;
+  }
+  /// Add one request, honouring the cap; returns whether it was added (false = already at cap).
+  /// Used to absorb a duplicate (the caller refuses on false) and to restore a granted retry (a
+  /// handler that re-sent from inside on_no_response may have already refilled the slot the
+  /// decrement-before opened, in which case this is a no-op - the frame re-runs anyway).
+  bool increment_pending() {
+    if (this->pending < this->servable_cap()) {
+      this->pending++;
+      return true;
+    }
+    return false;
+  }
+
+  // The terminal/lifecycle methods. Each owns its state transition, callback, and pending
+  // accounting, and returns whether a callback ran (for the sweep's callback_ran restart). Defined
+  // out-of-line: ModbusClientDevice is incomplete here.
+  bool sent();
+  bool response(std::span<const uint8_t> response_pdu);
+  bool error(ExceptionCode exception_code);
+  bool interrupt();
+  bool notify_timed_out();
+  bool notify_interrupted();
+  bool notify_retired();
+  // Shared on_no_response deliverer for notify_timed_out()/notify_interrupted(): sets the given notified
+  // state (before the callback, so a clear from inside it wins), decrements, delivers, and restores
+  // one request on a granted retry.
+  bool deliver_no_response(FrameState notified);
 
   /// True if this command carries the same wire frame (address + PDU) as the given one.
   bool same_frame(uint8_t address, std::span<const uint8_t> pdu) const {
@@ -283,7 +356,7 @@ class ModbusClientHub : public Modbus {
   // The selection function: best READY entry (WRITE class first, then one-shot reads, then the
   // least-recently-served continuous; FIFO by seq within each group), or nullptr.
   ModbusDeviceCommand *select_next_ready_();
-  // Locate the single WAITING/INTERRUPTED[_NOTIFIED]/WAITING_DELETED entry (the frame on the wire).
+  // Locate the single on-wire entry (WAITING/INTERRUPTED/INTERRUPTED_NOTIFIED/WAITING_RETIRED).
   ModbusDeviceCommand *find_waiting_();
   // End the wait for a response on send-wait timeout (the loop() watchdog body); see FrameState.
   void expire_waiting_();

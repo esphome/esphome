@@ -1575,7 +1575,7 @@ class ResendInFlightOnNotSentDevice : public ModbusClientDevice {
 };
 }  // namespace
 
-// A clear with clear_sent turns the waiting entry into a detached WAITING_DELETED shell, so a
+// A clear with clear_sent turns the waiting entry into a detached WAITING_RETIRED shell, so a
 // sweep handler re-sending that frame queues fresh instead of being absorbed into the dead shell -
 // which would have left the request callback-less.
 TEST(ModbusClientHubQueue, SweepResendOfInFlightFrameQueuesFreshWhenClearSentDetaches) {
@@ -1595,7 +1595,7 @@ TEST(ModbusClientHubQueue, SweepResendOfInFlightFrameQueuesFreshWhenClearSentDet
   ASSERT_EQ(hub.queued_frames(), 1u);    // the handler's re-send queued fresh...
   EXPECT_EQ(hub.queued(0).pending, 1u);  // ...not absorbed into the dead shell
   EXPECT_TRUE(std::equal(hub.queued(0).frame.pdu().begin(), hub.queued(0).frame.pdu().end(), READ_PDU));
-  EXPECT_EQ(hub.waiting_command().state, FrameState::WAITING_DELETED);
+  EXPECT_EQ(hub.waiting_command().state, FrameState::WAITING_RETIRED);
   EXPECT_EQ(hub.waiting_command().device, nullptr);  // the shell was detached by the clear
 }
 
@@ -1659,7 +1659,7 @@ TEST(ModbusClientHubQueue, ClearedShellReleasesTheBusOnLateResponse) {
   device.send_pdu(read_pdu());
   hub.force_send_next();
   hub.clear_tx_queue_for_address(0x02, /*clear_sent=*/true);
-  ASSERT_EQ(hub.waiting_command().state, FrameState::WAITING_DELETED);
+  ASSERT_EQ(hub.waiting_command().state, FrameState::WAITING_RETIRED);
 
   const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x02, ok_response);  // the late reply for the cleared frame
@@ -1676,7 +1676,7 @@ TEST(ModbusClientHubQueue, ClearedShellReleasesTheBusOnTimeout) {
   device.send_pdu(read_pdu());
   hub.force_send_next();
   hub.clear_tx_queue_for_address(0x02, /*clear_sent=*/true);
-  ASSERT_EQ(hub.waiting_command().state, FrameState::WAITING_DELETED);
+  ASSERT_EQ(hub.waiting_command().state, FrameState::WAITING_RETIRED);
 
   hub.timeout_waiting();  // no reply ever arrives; the watchdog releases the shell
 
