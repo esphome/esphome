@@ -130,7 +130,7 @@ bool Modbus::tx_blocked() {
 
 bool ModbusClientHub::tx_blocked() {
   // We block transmission in any of these case:
-  // 1. We're waiting for a response (a waiting entry: WAITING/INTERRUPTED/WAITING_RETIRED)
+  // 1. We're waiting for a response (a waiting entry: WAITING/INTERRUPTED/WAITING_RETIRED/INTERRUPTED_RETIRED)
   // 2. Any of the base class tx_blocked conditions
   return this->waiting_for_response_ || this->Modbus::tx_blocked();
 }
@@ -312,9 +312,10 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
     return;
   }
 
-  if (cmd->state == FrameState::INTERRUPTED) {
+  if (cmd->state == FrameState::INTERRUPTED || cmd->state == FrameState::INTERRUPTED_RETIRED) {
     // An interrupted shell keeps blocking until the send-wait timeout; a late response for it is
-    // ignored and does NOT free the wire.
+    // ignored and does NOT free the wire. The distrust survives a clear (INTERRUPTED_RETIRED), so a
+    // cleared-interrupted frame still ends in on_no_response rather than delivering a late response.
     ESP_LOGW(TAG,
              "Ignoring response from %" PRIu8 " - transmission interrupted by previous unexpected response, %" PRIu32
              "ms after last send",
@@ -640,10 +641,17 @@ bool ModbusDeviceCommand::error(ExceptionCode exception_code) {
 }
 
 bool ModbusDeviceCommand::interrupt() {
-  if (this->state != FrameState::WAITING)
-    return false;
-  this->state = FrameState::INTERRUPTED;
-  return true;
+  // An unexpected frame distrusts the transaction. A cleared-but-still-waiting shell distrusts too, so
+  // the interrupt survives the clear in either order (WAITING_RETIRED -> INTERRUPTED_RETIRED).
+  if (this->state == FrameState::WAITING) {
+    this->state = FrameState::INTERRUPTED;
+    return true;
+  }
+  if (this->state == FrameState::WAITING_RETIRED) {
+    this->state = FrameState::INTERRUPTED_RETIRED;
+    return true;
+  }
+  return false;
 }
 
 bool ModbusDeviceCommand::timed_out() {
@@ -684,6 +692,7 @@ void ModbusClientHub::sweep_() {
           callback_ran = cmd.notify_retired();
           break;
         case FrameState::WAITING_RETIRED:
+        case FrameState::INTERRUPTED_RETIRED:
           // Cleared shell: drain only the un-run duplicates; the request in flight keeps pending 1
           // and gets its usual callback when it resolves.
           if (cmd.pending > 1)
@@ -736,7 +745,8 @@ bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   // entry: anonymous -> dropped; continuous incoming -> convert the entry; continuous entry ->
   // absorbed uncounted; both one-shots -> pending++ below the servable cap, else refused.
   for (auto &item : this->tx_buffer_) {
-    if (item.state == FrameState::RETIRED || item.state == FrameState::WAITING_RETIRED)
+    if (item.state == FrameState::RETIRED || item.state == FrameState::WAITING_RETIRED ||
+        item.state == FrameState::INTERRUPTED_RETIRED)
       continue;  // cleared, on their way out: a new identical send queues fresh, never absorbs
     if (item.device != device || !item.same_frame(address, pdu))
       continue;

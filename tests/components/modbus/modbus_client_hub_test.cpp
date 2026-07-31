@@ -1780,9 +1780,9 @@ TEST(ModbusClientHubQueue, ClearedShellReleasesTheBusOnTimeout) {
   EXPECT_EQ(device.not_sent_count_, 0);     // no un-run duplicate
 }
 
-// Clearing an interrupted (not-yet-notified) frame: it is a not-yet-notified waiting entry, so it
-// becomes a WAITING_RETIRED shell and still gets its usual terminal - on_no_response at the timeout -
-// exactly like a cleared WAITING frame. No duplicate here, so no on_not_sent.
+// Clearing an interrupted (not-yet-notified) frame keeps its distrust: it becomes an
+// INTERRUPTED_RETIRED shell that still ends in on_no_response at the timeout - never delivering a
+// late response as on_response. No duplicate here, so no on_not_sent.
 TEST(ModbusClientHubQueue, ClearInterruptedFrameGetsNoResponseAtTimeout) {
   NoResponseProbeHub hub;
   DataCountingDevice device(&hub, 0x02);  // declines the retry (retries_ == 0)
@@ -1795,12 +1795,44 @@ TEST(ModbusClientHubQueue, ClearInterruptedFrameGetsNoResponseAtTimeout) {
   ASSERT_EQ(hub.waiting_command().state, FrameState::INTERRUPTED);
 
   hub.clear_tx_queue_for_address(0x02);
-  ASSERT_EQ(hub.waiting_command().state, FrameState::WAITING_RETIRED);
+  ASSERT_EQ(hub.waiting_command().state, FrameState::INTERRUPTED_RETIRED);
+
+  // A late MATCHING response is ignored (distrust survives the clear), not delivered as on_response.
+  const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
+  hub.receive_frame_for_test(0x02, ok_response);
+  EXPECT_EQ(device.data_count_, 0);
+  ASSERT_TRUE(hub.waiting());  // still held; the ignored response did not free the wire
+
   hub.timeout_waiting();
 
   EXPECT_EQ(device.no_response_count_, 1);  // the interrupted request's usual terminal, at the timeout
   EXPECT_EQ(device.not_sent_count_, 0);     // no un-run duplicate
   EXPECT_EQ(hub.queued_frames(), 0u);
+  EXPECT_FALSE(hub.waiting());
+  EXPECT_EQ(hub.entries(), 0u);
+}
+
+// The other order: clear a WAITING frame, THEN an unexpected frame arrives. The distrust must still
+// take hold - the cleared shell becomes INTERRUPTED_RETIRED and a later matching frame is ignored.
+TEST(ModbusClientHubQueue, InterruptAfterClearStillDistrusts) {
+  NoResponseProbeHub hub;
+  DataCountingDevice device(&hub, 0x02);
+
+  device.send_pdu(read_pdu());
+  hub.force_send_next();
+  hub.clear_tx_queue_for_address(0x02);
+  ASSERT_EQ(hub.waiting_command().state, FrameState::WAITING_RETIRED);
+
+  const uint8_t stray_pdu[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
+  hub.receive_frame_for_test(0x07, stray_pdu);  // unexpected frame interrupts the cleared shell
+  ASSERT_EQ(hub.waiting_command().state, FrameState::INTERRUPTED_RETIRED);
+
+  const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
+  hub.receive_frame_for_test(0x02, ok_response);  // now-distrusted late response is ignored
+  EXPECT_EQ(device.data_count_, 0);
+
+  hub.timeout_waiting();
+  EXPECT_EQ(device.no_response_count_, 1);
   EXPECT_FALSE(hub.waiting());
   EXPECT_EQ(hub.entries(), 0u);
 }

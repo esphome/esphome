@@ -110,10 +110,11 @@ enum class FrameState : uint8_t {
   WAITING,
   RECEIVED_RESPONSE,
   RECEIVED_EXCEPTION,
-  TIMED_OUT,        // on_no_response delivered at the send-wait timeout; awaiting reschedule/erase
-  INTERRUPTED,      // unexpected frame arrived; ignores this transaction, waits out the timeout
-  WAITING_RETIRED,  // cleared by clear_tx_queue_for_address but still waiting for a response
-  RETIRED,          // cleared, off the wire
+  TIMED_OUT,            // on_no_response delivered at the send-wait timeout; awaiting reschedule/erase
+  INTERRUPTED,          // unexpected frame arrived; ignores this transaction, waits out the timeout
+  WAITING_RETIRED,      // cleared while WAITING: a late response is still delivered as its usual terminal
+  INTERRUPTED_RETIRED,  // cleared while INTERRUPTED: still distrusts late frames, ends in on_no_response
+  RETIRED,              // cleared, off the wire
 };
 
 // Per-command send options. Append-only; pass via designated initializers ({.continuous = true}).
@@ -186,19 +187,25 @@ struct ModbusDeviceCommand {
   }
   // Address-scoped clear: keep pending and device so the sweep delivers one on_not_sent() per un-run
   // request. An entry still waiting for a response keeps its in-flight request (whose usual terminal is
-  // still coming) and -> WAITING_RETIRED, draining only its duplicates; any other -> RETIRED, draining
-  // everything. A cleared frame that then times out still honors a retry: the clear is address-scoped
-  // (any device may call it) while the retry is the owning device's call via on_no_response - the bus
-  // obeys the owner.
+  // still coming) and drains only its duplicates: WAITING -> WAITING_RETIRED, and INTERRUPTED ->
+  // INTERRUPTED_RETIRED which keeps distrusting late frames (they were already interrupted). Any other
+  // state -> RETIRED, draining everything. A cleared frame that then times out still honors a retry:
+  // the clear is address-scoped (any device may call it) while the retry is the owning device's call
+  // via on_no_response - the bus obeys the owner.
   void retire() {
-    this->state = this->waiting_state() ? FrameState::WAITING_RETIRED : FrameState::RETIRED;
+    if (this->state == FrameState::WAITING)
+      this->state = FrameState::WAITING_RETIRED;
+    else if (this->state == FrameState::INTERRUPTED)
+      this->state = FrameState::INTERRUPTED_RETIRED;
+    else if (!this->waiting_state())  // an already-retired shell stays put; off the wire -> RETIRED
+      this->state = FrameState::RETIRED;
     this->continuous = false;
   }
 
   // True while the entry is still waiting for a response; the erase pass exempts these even at pending 0.
   bool waiting_state() const {
     return this->state == FrameState::WAITING || this->state == FrameState::INTERRUPTED ||
-           this->state == FrameState::WAITING_RETIRED;
+           this->state == FrameState::WAITING_RETIRED || this->state == FrameState::INTERRUPTED_RETIRED;
   }
 
   bool decrement_pending() {
@@ -272,7 +279,7 @@ class ModbusClientHub : public Modbus {
   // The selection function: best READY entry (WRITE class first, then one-shot reads, then the
   // least-recently-served continuous; FIFO by seq within each group), or nullptr.
   ModbusDeviceCommand *select_next_ready_();
-  // Locate the single entry waiting for a response (WAITING/INTERRUPTED/WAITING_RETIRED).
+  // Locate the single entry waiting for a response (WAITING/INTERRUPTED/WAITING_RETIRED/INTERRUPTED_RETIRED).
   ModbusDeviceCommand *find_waiting_();
   // End the wait for a response on send-wait timeout (the loop() watchdog body); see FrameState.
   void expire_waiting_();
