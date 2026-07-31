@@ -166,9 +166,7 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf) {
   return false;
 }
 
-// NOTE: A `json:` extraction step (JSON-pointer based) is planned as a separate follow-up PR --
-// it pulls in the json component as a dependency, so it stays out of this baseline set.
-
+// NOTE: `json:` extraction is opt-in; it is only compiled when USE_STORAGE_JSON_EXTRACT is set by codegen.
 void perform_file_write(const std::string &path, std::string content, bool append, bool newline) {
   const char *op = append ? "append" : "write";
   if (newline)
