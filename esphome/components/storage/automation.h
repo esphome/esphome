@@ -1,9 +1,11 @@
 #pragma once
 
-// defines.h MUST be seen before the guard below is evaluated: the preferences
-// action classes are define-gated, and main.cpp placement-news them into
-// sizeof()-sized static buffers -- any TU seeing this header with a different
-// define state gets a different class size (ODR violation, boot crash).
+// defines.h MUST be the first include: the preferences action classes are
+// define-gated, and main.cpp placement-news them into sizeof()-sized static
+// buffers -- any TU parsing these class declarations with a different define
+// state gets a different class size (ODR violation, boot crash). Including
+// defines.h before everything else guarantees the gates are resolved from the
+// generated defines, never from whatever an earlier include happened to set.
 #include "esphome/core/defines.h"
 
 #include "storage.h"
@@ -247,8 +249,9 @@ bool perform_raw_read_to_file(RawStorage *device, uint64_t address, uint64_t siz
 // media reporting RAW_WRITE_NEEDS_ERASE, and destructive to anything else sharing those sectors.
 bool perform_raw_write(RawStorage *device, uint64_t address, const uint8_t *data, size_t len, bool erase_first);
 bool perform_raw_write_from_file(RawStorage *device, uint64_t address, const std::string &path, bool erase_first);
-// Erases [address, address+size), or the whole device when `all` is set.
-void perform_raw_erase(RawStorage *device, uint64_t address, uint64_t size, bool all);
+// Erases [address, address+size), or the whole device when `all` is set. Returns the result so
+// the async wrapper's no-worker fallback can propagate a failure to on_complete.
+StorageError perform_raw_erase(RawStorage *device, uint64_t address, uint64_t size, bool all);
 
 // Async variants used by the actions: submit to the worker (streaming, no whole-image RAM
 // buffer) and fire `on_complete` (error text, empty = success) from the completion callback.

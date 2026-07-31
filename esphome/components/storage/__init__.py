@@ -5,6 +5,7 @@ import re
 from esphome import automation, core
 import esphome.codegen as cg
 from esphome.components import globals as globals_
+from esphome.components.logger import validate_printf
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -50,10 +51,11 @@ CONF_ON_COMPLETE = "on_complete"
 CONF_ON_REGISTERED = "on_registered"
 CONF_ON_UNREGISTERED = "on_unregistered"
 
-# json is header-only (ArduinoJson): auto-loading it costs nothing when unused
-# and lets the json extract step and the preferences json format work without
-# an explicit `json:` block in the config.
-AUTO_LOAD = ["json"]
+# No AUTO_LOAD of json here: ArduinoJson is gated behind USE_STORAGE_JSON_EXTRACT
+# (see the cost-gating defines), so the json component must only enter the build
+# when a config actually uses a `json:` extract step. That is enforced with
+# cv.requires_component("json") on the step -- the user adds an explicit `json:`
+# block, matching how other opt-in json consumers work.
 
 storage_ns = cg.esphome_ns.namespace("storage")
 Storage = storage_ns.class_("Storage", cg.Component)
@@ -540,6 +542,11 @@ def _validate_write_content(config):
         raise cv.Invalid("Exactly one of 'content' or 'format' is required")
     if config.get(CONF_ARGS) and not has_format:
         raise cv.Invalid("'args' requires 'format'")
+    if has_format:
+        # Same arity check logger.log uses: format specifiers must match the arg
+        # count. A mismatch passes through C varargs into str_sprintf() at
+        # runtime, which is undefined behavior, not a runtime error.
+        validate_printf(config)
     return config
 
 
@@ -616,8 +623,11 @@ _EXTRACT_STEP_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_LINE): cv.positive_not_null_int,
-            # '/'-separated pointer into a JSON document ("a/b/0").
-            cv.Optional(CONF_JSON): cv.string_strict,
+            # '/'-separated pointer into a JSON document ("a/b/0"). Requires an
+            # explicit `json:` block so ArduinoJson only enters the build when used.
+            cv.Optional(CONF_JSON): cv.All(
+                cv.requires_component("json"), cv.string_strict
+            ),
             # Non-empty: an empty separator makes the split loop spin without advancing and
             # hand back the whole buffer, and an empty key matches every line -- both are
             # silently useless rather than wrong, which is worse to debug than a rejection.
@@ -895,6 +905,11 @@ def _validate_raw_data(value):
 def _validate_raw_read(config):
     if CONF_TO_FILE not in config and CONF_ON_VALUE not in config:
         raise cv.Invalid("At least one of 'to_file' or 'on_value' is required")
+    if CONF_TO_FILE in config and CONF_ON_VALUE in config:
+        # The to_file path streams through the worker and never materializes the
+        # data in RAM, so an on_value trigger could not fire -- reject the
+        # combination instead of silently dropping the trigger.
+        raise cv.Invalid("'on_value' cannot be combined with 'to_file'")
     if CONF_SIZE not in config and CONF_TO_FILE not in config:
         raise cv.Invalid("'size' is required unless reading into a file with 'to_file'")
     return config
@@ -1024,22 +1039,24 @@ async def raw_write_action_to_code(config, action_id, template_arg, args):
             )
         )
         cg.add(var.set_has_from_file(True))
+    else:
+        # _validate_raw_write guarantees exactly one of data/from_file, so this
+        # branch always has CONF_DATA.
+        data = config[CONF_DATA]
+        if isinstance(data, bytes):
+            data = list(data)
+        if cg.is_template(data):
+            templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
+            cg.add(var.set_data_template(templ))
+        else:
+            # Static payload stays in flash -- no RAM copy (same as uart.write).
+            arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
+            arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
+            cg.add(var.set_data_static(arr, len(data)))
     if CONF_ON_COMPLETE in config:
         await automation.build_automation(
             var.get_complete_trigger(), [(cg.std_string, "x")], config[CONF_ON_COMPLETE]
         )
-        return var
-    data = config[CONF_DATA]
-    if isinstance(data, bytes):
-        data = list(data)
-    if cg.is_template(data):
-        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
-        cg.add(var.set_data_template(templ))
-    else:
-        # Static payload stays in flash -- no RAM copy (same as uart.write).
-        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
-        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
-        cg.add(var.set_data_static(arr, len(data)))
     return var
 
 

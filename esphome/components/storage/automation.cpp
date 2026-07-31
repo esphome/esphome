@@ -1,6 +1,8 @@
 #include "automation.h"
 
 #ifdef USE_STORAGE_JSON_EXTRACT
+// ArduinoJson is only compiled in when a config actually uses a `json:` extraction
+// step (codegen sets the define; the schema requires the json component).
 #include "esphome/components/json/json_util.h"
 #endif
 
@@ -19,10 +21,10 @@ namespace esphome::storage {
 static const char *const TAG = "storage.automation";
 
 void warn_invalid_bool(const std::string &s) {
-  ESP_LOGV(TAG, "file_read: '%s' is not a valid bool; global unchanged", s.c_str());
+  ESP_LOGW(TAG, "file_read: '%s' is not a valid bool; global unchanged", s.c_str());
 }
 void warn_invalid_number(const std::string &s) {
-  ESP_LOGV(TAG, "file_read: '%s' is not a valid number; global unchanged", s.c_str());
+  ESP_LOGW(TAG, "file_read: '%s' is not a valid number; global unchanged", s.c_str());
 }
 
 std::string extract_trim(const std::string &s) {
@@ -166,7 +168,6 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf) {
   return false;
 }
 
-// NOTE: `json:` extraction is opt-in; it is only compiled when USE_STORAGE_JSON_EXTRACT is set by codegen.
 void perform_file_write(const std::string &path, std::string content, bool append, bool newline) {
   const char *op = append ? "append" : "write";
   if (newline)
@@ -463,7 +464,7 @@ bool perform_raw_write_from_file(RawStorage *device, uint64_t address, const std
   return ok;
 }
 
-void perform_raw_erase(RawStorage *device, uint64_t address, uint64_t size, bool all) {
+StorageError perform_raw_erase(RawStorage *device, uint64_t address, uint64_t size, bool all) {
   RawGeometry geo;
   device->get_raw_geometry(&geo);
   if (all) {
@@ -471,16 +472,17 @@ void perform_raw_erase(RawStorage *device, uint64_t address, uint64_t size, bool
     size = geo.capacity;
   }
   if (!raw_preflight(device, "erase", address, size, &geo))
-    return;
+    return StorageError::INVALID_ARGS;
   // No alignment massaging here: erase() rejects an unaligned range on purpose (it would take
   // the neighbouring data with it), and silently rounding would defeat that.
   StorageError err = device->erase(address, static_cast<size_t>(size));
   if (err != StorageError::OK) {
     ESP_LOGE(TAG, "raw_erase: 0x%08" PRIX32 " + %" PRIu32 " failed (%s)", (uint32_t) address, (uint32_t) size,
              error_to_string(err));
-    return;
+    return err;
   }
   ESP_LOGD(TAG, "raw_erase: 0x%08" PRIX32 " + %" PRIu32 " done", (uint32_t) address, (uint32_t) size);
+  return StorageError::OK;
 }
 
 // --- async raw helpers: submit to the worker, stream, fire on_complete (error text) ---------
@@ -582,9 +584,9 @@ void perform_raw_erase_async(RawStorage *device, uint64_t address, uint64_t size
     return;
   }
 #endif
-  perform_raw_erase(device, address, size, /*all=*/false);  // address/size already resolved above
+  StorageError err = perform_raw_erase(device, address, size, /*all=*/false);  // address/size already resolved above
   if (on_complete != nullptr)
-    on_complete->trigger(std::string());  // best-effort: the sync helper only logs on failure
+    on_complete->trigger(err == StorageError::OK ? std::string() : std::string(error_to_string(err)));
 }
 #endif  // USE_STORAGE_RAW_ACTIONS
 
@@ -696,12 +698,18 @@ void perform_file_delete(const std::string &path, bool recursive) {
 }
 
 bool check_file_exists(const std::string &path) {
-  if (global_storage_registry == nullptr)
+  if (global_storage_registry == nullptr) {
+    ESP_LOGW(TAG, "file_exists: no storage registry; reporting '%s' as absent", path.c_str());
     return false;
+  }
   const char *rel = nullptr;
   PathStorage *ps = global_storage_registry->resolve_path(path.c_str(), &rel);
-  if (ps == nullptr)
+  if (ps == nullptr) {
+    // Almost always a typo'd mount point in the config -- without this log the condition
+    // just reads as a permanent "no".
+    ESP_LOGW(TAG, "file_exists: no storage mounted for '%s'; reporting it as absent", path.c_str());
     return false;
+  }
   StorageError err = StorageError::OK;
   bool found = exists(ps, rel, &err);
   // Only NOT_FOUND is a clean "no" -- surface anything else (unmounted/faulted medium) so a

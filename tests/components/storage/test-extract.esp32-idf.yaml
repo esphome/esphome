@@ -12,6 +12,11 @@ packages:
 # actually asks for them, so a node that copies files and reads a key=value file pays neither.
 # This variant exists so both still get compiled on every run -- ``test-*`` files are part of
 # the normal test set and only skipped by ``--base-only`` builds, which the memory job uses.
+
+# The json: extract step requires the json component explicitly (no AUTO_LOAD, so
+# ArduinoJson stays out of every build that does not use the step).
+json:
+
 globals:
   - id: g_label
     type: std::string
