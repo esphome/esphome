@@ -5,8 +5,6 @@ namespace esphome::pzem6l24 {
 
 static const char *const TAG = "pzem6l24";
 
-// Modbus function code to read input registers
-static const uint8_t PZEM_CMD_READ_IN_REGISTERS = 0x04;
 // Reset energy function code (PZEM-6L24 specific, non-standard Modbus)
 static const uint8_t PZEM_CMD_RESET_ENERGY = 0x42;
 // Number of input registers to read (0x0000 – 0x003F inclusive)
@@ -109,7 +107,7 @@ struct SensorEntry {
 void PZEM6L24::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
   // on_response() is called for every reply routed to this device, including the acknowledgement of the
   // 0x42 reset command. Only the register read carries the payload decoded below.
-  if (request_pdu.empty() || request_pdu[0] != PZEM_CMD_READ_IN_REGISTERS) {
+  if (request_pdu.empty() || request_pdu[0] != static_cast<uint8_t>(modbus::FunctionCode::READ_INPUT_REGISTERS)) {
     return;
   }
 
@@ -220,7 +218,7 @@ void PZEM6L24::on_response(std::span<const uint8_t> request_pdu, std::span<const
   }
 }
 
-void PZEM6L24::update() { this->send(PZEM_CMD_READ_IN_REGISTERS, 0x0000, PZEM_REGISTER_COUNT); }
+void PZEM6L24::update() { this->read_input_registers(0x0000, PZEM_REGISTER_COUNT); }
 
 void PZEM6L24::dump_config() {
   ESP_LOGCONFIG(TAG,
