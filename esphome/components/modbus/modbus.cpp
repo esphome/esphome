@@ -128,7 +128,7 @@ bool Modbus::tx_blocked() {
 
 bool ModbusClientHub::tx_blocked() {
   // We block transmission in any of these case:
-  // 1. We're waiting for a response (an on-wire entry: WAITING/INTERRUPTED/INTERRUPTED_NOTIFIED
+  // 1. We're waiting for a response (an on-wire entry: WAITING/INTERRUPTED/WAITING_RETIRED)
   // 2. Any of the base class tx_blocked conditions
   return this->waiting_for_response_ || this->Modbus::tx_blocked();
 }
@@ -304,14 +304,13 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
              "ms after last send",
              address, expected_address, (function_code & FUNCTION_CODE_MASK), expected_function_code,
              this->last_modbus_byte_ - this->last_send_);
-    // Unexpected frame: interrupt() flips a WAITING entry to an INTERRUPTED shell that blocks tx
-    // until the timeout (returns false for a shell already past WAITING, so OR into sweep_needed_).
-    if (cmd->interrupt())
-      this->sweep_needed_ = true;
+    // Unexpected frame: flip a WAITING entry to an INTERRUPTED shell that ignores the rest of this
+    // transaction and blocks tx until the send-wait timeout, where it gets its on_no_response.
+    cmd->interrupt();
     return;
   }
 
-  if (cmd->state == FrameState::INTERRUPTED || cmd->state == FrameState::INTERRUPTED_NOTIFIED) {
+  if (cmd->state == FrameState::INTERRUPTED) {
     // An interrupted shell keeps blocking until the send-wait timeout; a late response for it is
     // ignored and does NOT free the wire.
     ESP_LOGW(TAG,
@@ -636,18 +635,15 @@ bool ModbusDeviceCommand::interrupt() {
   return true;
 }
 
-bool ModbusDeviceCommand::deliver_no_response(FrameState notified) {
-  this->state = notified;     // advance BEFORE the callback so a clear from inside it wins
-  this->decrement_pending();  // resolve this request (WAITING-origin, so pending >= 1)
+bool ModbusDeviceCommand::notify_timed_out() {
+  this->state = FrameState::TIMED_OUT_NOTIFIED;  // advance BEFORE the callback so a clear from inside it wins
+  this->decrement_pending();                     // resolve this request (WAITING-origin, so pending >= 1)
   if (this->device == nullptr)
     return false;  // resolved, no one to tell
   if (this->device->on_no_response(this->frame.pdu()))
     this->increment_pending();  // granted retry = re-request (capped)
   return true;
 }
-
-bool ModbusDeviceCommand::notify_timed_out() { return this->deliver_no_response(FrameState::TIMED_OUT_NOTIFIED); }
-bool ModbusDeviceCommand::notify_interrupted() { return this->deliver_no_response(FrameState::INTERRUPTED_NOTIFIED); }
 
 void ModbusClientHub::sweep_() {
   if (!this->sweep_needed_)
@@ -676,10 +672,6 @@ void ModbusClientHub::sweep_() {
           // the reschedule case above), so the clear-took-over check is implicit.
           callback_ran = cmd.notify_timed_out();
           break;
-        case FrameState::INTERRUPTED:
-          // Same delivery, but the shell stays on the wire; expire_waiting_() releases it later.
-          callback_ran = cmd.notify_interrupted();
-          break;
         case FrameState::RETIRED:
           // Owes one on_not_sent() per accepted request; notify_retired() drains one and reports
           // whether it delivered, so the sweep neither loops nor notifies twice.
@@ -691,7 +683,7 @@ void ModbusClientHub::sweep_() {
           if (cmd.pending > 1)
             callback_ran = cmd.notify_retired();
           break;
-        default:  // READY / WAITING: mid-lifecycle, nothing owed
+        default:  // READY / WAITING / INTERRUPTED: on the wire or idle, nothing owed until the timeout
           break;
       }
     }

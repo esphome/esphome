@@ -164,8 +164,8 @@ TEST(ModbusClientHubNoResponse, DetachedDeviceIsNotNotified) {
 }
 
 // An unexpected frame interrupts the transaction: the entry becomes an INTERRUPTED shell that
-// keeps tx blocked until the send-wait timeout. The sweep delivers one on_no_response() and records
-// the retry decision, which the timeout applies - without a second callback or a duplicate entry.
+// ignores this transaction and blocks tx until the send-wait timeout, where it gets its single
+// on_no_response() - a granted retry is requeued there, like any other timeout.
 TEST(ModbusClientHubNoResponse, RetryBehindInterruptedShell) {
   NoResponseProbeHub hub;
   RetryingDevice device(&hub, 0x02, /*retry=*/true);
@@ -176,17 +176,14 @@ TEST(ModbusClientHubNoResponse, RetryBehindInterruptedShell) {
   // A frame from the wrong address (0x07, expected 0x02) hits the unexpected-frame branch.
   const uint8_t stray_pdu[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x07, stray_pdu);
+  hub.sweep_for_test();
 
-  hub.sweep_for_test();  // the loop's sweep delivers the interruption's on_no_response()
+  EXPECT_EQ(device.no_response_count_, 0);  // not notified early: it waits out the timeout
+  ASSERT_TRUE(hub.waiting());               // and keeps blocking the bus
+  EXPECT_EQ(hub.waiting_command().state, FrameState::INTERRUPTED);
+  EXPECT_EQ(hub.waiting_command().pending, 1u);
 
-  EXPECT_EQ(device.no_response_count_, 1);
-  EXPECT_EQ(hub.queued_frames(), 0u);  // no separate requeue: the entry IS the shell
-  ASSERT_TRUE(hub.waiting());          // and it keeps blocking the bus
-  EXPECT_EQ(hub.waiting_command().state, FrameState::INTERRUPTED_NOTIFIED);
-  EXPECT_EQ(hub.waiting_command().pending, 1u);  // the granted retry resolved nothing...
-  EXPECT_EQ(hub.waiting_command().device, &device);
-
-  // ...and applied when the send-wait timeout releases the shell: one READY retry, no second callback.
+  // The send-wait timeout delivers on_no_response and requeues the granted retry.
   hub.timeout_waiting();
   EXPECT_FALSE(hub.waiting());
   EXPECT_EQ(device.no_response_count_, 1);
@@ -194,9 +191,8 @@ TEST(ModbusClientHubNoResponse, RetryBehindInterruptedShell) {
   EXPECT_EQ(hub.queued(0).device, &device);
 }
 
-// The declined-retry shell: the sweep's on_no_response() resolves the request on the spot
-// (pending drains to zero), the shell keeps blocking until the send-wait timeout, and the release
-// finds nothing left to send - no callbacks, no queue entry.
+// The declined-retry interrupted shell blocks until the send-wait timeout, then gets its single
+// on_no_response() there and retires with nothing left to send.
 TEST(ModbusClientHubNoResponse, InterruptedShellDeclinedRetryRetiresOnRelease) {
   NoResponseProbeHub hub;
   RetryingDevice device(&hub, 0x02, /*retry=*/false);
@@ -208,16 +204,16 @@ TEST(ModbusClientHubNoResponse, InterruptedShellDeclinedRetryRetiresOnRelease) {
   hub.receive_frame_for_test(0x07, stray_pdu);  // wrong address: interrupts the transaction
   hub.sweep_for_test();
 
-  EXPECT_EQ(device.no_response_count_, 1);
-  ASSERT_TRUE(hub.waiting());  // the shell still blocks the wire...
-  EXPECT_EQ(hub.waiting_command().state, FrameState::INTERRUPTED_NOTIFIED);
-  EXPECT_EQ(hub.waiting_command().pending, 0u);  // ...but the request already resolved
+  EXPECT_EQ(device.no_response_count_, 0);  // not notified early
+  ASSERT_TRUE(hub.waiting());               // the shell still blocks the wire
+  EXPECT_EQ(hub.waiting_command().state, FrameState::INTERRUPTED);
+  EXPECT_EQ(hub.waiting_command().pending, 1u);
 
-  hub.timeout_waiting();  // release: nothing pending, the shell retires
+  hub.timeout_waiting();  // on_no_response (declined), then the shell retires
 
   EXPECT_FALSE(hub.waiting());
   EXPECT_EQ(hub.queued_frames(), 0u);
-  EXPECT_EQ(device.no_response_count_, 1);  // no second callback
+  EXPECT_EQ(device.no_response_count_, 1);
 }
 
 // A callback that detaches the device (clear_tx_queue_for_device()) wins over its own retry request:
@@ -1756,29 +1752,27 @@ TEST(ModbusClientHubQueue, ClearedShellReleasesTheBusOnTimeout) {
   EXPECT_EQ(device.not_sent_count_, 0);     // no un-run duplicate
 }
 
-// Clearing an already-notified interrupted shell: its request was resolved by on_no_response, so the
-// pending count is a GRANTED RETRY, not an in-flight request. The clear must resolve that un-run
-// retry with on_not_sent - no second on_no_response, no re-transmit.
-TEST(ModbusClientHubQueue, ClearInterruptedNotifiedShellResolvesRetryAsNotSent) {
+// Clearing an interrupted (not-yet-notified) frame: it is a not-yet-notified on-wire entry, so it
+// becomes a WAITING_RETIRED shell and still gets its usual terminal - on_no_response at the timeout -
+// exactly like a cleared WAITING frame. No duplicate here, so no on_not_sent.
+TEST(ModbusClientHubQueue, ClearInterruptedFrameGetsNoResponseAtTimeout) {
   NoResponseProbeHub hub;
-  DataCountingDevice device(&hub, 0x02);
-  device.retries_ = 1;  // grant one retry
+  DataCountingDevice device(&hub, 0x02);  // declines the retry (retries_ == 0)
 
   device.send_pdu(read_pdu());
   hub.force_send_next();
   const uint8_t stray_pdu[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x07, stray_pdu);  // wrong address: interrupts the transaction
-  hub.sweep_for_test();                         // on_no_response -> retry granted, INTERRUPTED_NOTIFIED
-  ASSERT_EQ(hub.waiting_command().state, FrameState::INTERRUPTED_NOTIFIED);
-  ASSERT_EQ(hub.waiting_command().pending, 1u);
-  ASSERT_EQ(device.no_response_count_, 1);
+  hub.sweep_for_test();
+  ASSERT_EQ(hub.waiting_command().state, FrameState::INTERRUPTED);
 
-  hub.clear_tx_queue_for_address(0x02);  // cancel the granted retry
-  hub.timeout_waiting();                 // release the shell
+  hub.clear_tx_queue_for_address(0x02);
+  ASSERT_EQ(hub.waiting_command().state, FrameState::WAITING_RETIRED);
+  hub.timeout_waiting();
 
-  EXPECT_EQ(device.no_response_count_, 1);  // NOT a second on_no_response
-  EXPECT_EQ(device.not_sent_count_, 1);     // the cleared retry resolves as on_not_sent
-  EXPECT_EQ(hub.queued_frames(), 0u);       // nothing re-transmitted
+  EXPECT_EQ(device.no_response_count_, 1);  // the interrupted request's usual terminal, at the timeout
+  EXPECT_EQ(device.not_sent_count_, 0);     // no un-run duplicate
+  EXPECT_EQ(hub.queued_frames(), 0u);
   EXPECT_FALSE(hub.waiting());
   EXPECT_EQ(hub.entries(), 0u);
 }

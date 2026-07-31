@@ -110,11 +110,10 @@ enum class FrameState : uint8_t {
   RECEIVED_RESPONSE,
   RECEIVED_EXCEPTION,
   TIMED_OUT,
-  TIMED_OUT_NOTIFIED,    // on_no_response already delivered
-  INTERRUPTED,           // unexpected frame arrived; still on the wire
-  INTERRUPTED_NOTIFIED,  // on_no_response delivered; still on the wire
-  WAITING_RETIRED,       // cleared by clear_tx_queue_for_address but still on the wire
-  RETIRED,               // cleared, off the wire
+  TIMED_OUT_NOTIFIED,  // on_no_response already delivered
+  INTERRUPTED,         // unexpected frame arrived; ignores this transaction, waits out the timeout
+  WAITING_RETIRED,     // cleared by clear_tx_queue_for_address but still on the wire
+  RETIRED,             // cleared, off the wire
 };
 
 // Per-command send options. Append-only; pass via designated initializers ({.continuous = true}).
@@ -180,32 +179,25 @@ struct ModbusDeviceCommand {
     this->state = FrameState::READY;
     this->seq = seq;
   }
-  // Send-wait timer fired: flip to TIMED_OUT so the sweep delivers on_no_response. An already-notified
-  // INTERRUPTED_NOTIFIED shell skips straight to TIMED_OUT_NOTIFIED (no re-notify).
-  void timeout() {
-    this->state =
-        (this->state == FrameState::INTERRUPTED_NOTIFIED) ? FrameState::TIMED_OUT_NOTIFIED : FrameState::TIMED_OUT;
-  }
+  // Send-wait timer fired for an on-wire entry: flip to TIMED_OUT so the sweep delivers on_no_response.
+  void timeout() { this->state = FrameState::TIMED_OUT; }
   // Turn a queued one-shot into a continuous poll, superseding any requests it had absorbed.
   void make_continuous() {
     this->continuous = true;
     this->pending = 1;
   }
   // Address-scoped clear: keep pending and device so the sweep delivers one on_not_sent() per un-run
-  // request. Only a not-yet-notified on-wire entry (WAITING/INTERRUPTED) keeps an in-flight request
-  // whose usual terminal is still coming, so it -> WAITING_RETIRED (drain only duplicates). Any other
-  // state - already notified (INTERRUPTED_NOTIFIED, whose pending is a granted retry) or off the wire
-  // - has no callback coming, so -> RETIRED drains everything it owes as on_not_sent.
+  // request. An on-wire entry keeps its in-flight request (whose usual terminal is still coming) and
+  // -> WAITING_RETIRED, draining only its duplicates; an off-wire one -> RETIRED, draining everything.
   void retire() {
-    const bool awaiting_terminal = this->state == FrameState::WAITING || this->state == FrameState::INTERRUPTED;
-    this->state = awaiting_terminal ? FrameState::WAITING_RETIRED : FrameState::RETIRED;
+    this->state = this->on_wire() ? FrameState::WAITING_RETIRED : FrameState::RETIRED;
     this->continuous = false;
   }
 
   // True while the frame is on the wire; the erase pass exempts these even at pending 0.
   bool on_wire() const {
     return this->state == FrameState::WAITING || this->state == FrameState::INTERRUPTED ||
-           this->state == FrameState::INTERRUPTED_NOTIFIED || this->state == FrameState::WAITING_RETIRED;
+           this->state == FrameState::WAITING_RETIRED;
   }
 
   bool decrement_pending() {
@@ -231,11 +223,7 @@ struct ModbusDeviceCommand {
   bool error(ExceptionCode exception_code);
   bool interrupt();
   bool notify_timed_out();
-  bool notify_interrupted();
   bool notify_retired();
-  // Shared on_no_response deliverer: advance to `notified` before the callback (so a clear from
-  // inside it wins), decrement, deliver, restore one request on a granted retry.
-  bool deliver_no_response(FrameState notified);
 
   /// True if this command carries the same wire frame (address + PDU) as the given one.
   bool same_frame(uint8_t address, std::span<const uint8_t> pdu) const {
@@ -283,7 +271,7 @@ class ModbusClientHub : public Modbus {
   // The selection function: best READY entry (WRITE class first, then one-shot reads, then the
   // least-recently-served continuous; FIFO by seq within each group), or nullptr.
   ModbusDeviceCommand *select_next_ready_();
-  // Locate the single on-wire entry (WAITING/INTERRUPTED/INTERRUPTED_NOTIFIED).
+  // Locate the single on-wire entry (WAITING/INTERRUPTED/WAITING_RETIRED).
   ModbusDeviceCommand *find_waiting_();
   // End the wait for a response on send-wait timeout (the loop() watchdog body); see FrameState.
   void expire_waiting_();
