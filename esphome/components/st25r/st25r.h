@@ -138,7 +138,7 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   volatile bool irq_triggered_{false};
   volatile uint8_t irq_status_{0};
 
-  // Max UID hex string: 10-byte UID = 20 hex chars + null
+  // Max UID hex string: 20 hex chars + null terminator
   static constexpr uint8_t MAX_UID_HEX = 21;
 
   // Tag tracking — small linear containers (typically 0-3 tags)

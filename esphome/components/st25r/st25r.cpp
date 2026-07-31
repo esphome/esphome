@@ -130,10 +130,9 @@ void ST25R::loop() {
 
 // Append hex bytes to current_uid_ buffer without heap allocation
 void ST25R::uid_append_hex_(const uint8_t *data, uint8_t count) {
-  static constexpr char HEX[] = "0123456789ABCDEF";
   for (uint8_t i = 0; i < count && this->current_uid_pos_ + 2 < MAX_UID_HEX; i++) {
-    this->current_uid_[this->current_uid_pos_++] = HEX[data[i] >> 4];
-    this->current_uid_[this->current_uid_pos_++] = HEX[data[i] & 0x0F];
+    this->current_uid_[this->current_uid_pos_++] = format_hex_pretty_char(data[i] >> 4);
+    this->current_uid_[this->current_uid_pos_++] = format_hex_pretty_char(data[i] & 0x0F);
   }
   this->current_uid_[this->current_uid_pos_] = '\0';
 }
