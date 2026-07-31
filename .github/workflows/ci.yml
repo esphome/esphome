@@ -262,6 +262,34 @@ jobs:
           path: venv
           key: ${{ runner.os }}-${{ steps.restore-python.outputs.python-version }}-venv-${{ needs.common.outputs.cache-key }}
 
+  codecov-empty-upload:
+    name: Report no coverage to Codecov
+    runs-on: ubuntu-24.04
+    needs:
+      - determine-jobs
+    # ``pytest`` is the only job that uploads coverage, and it is skipped when
+    # every changed file is CI-irrelevant (see ``should_run_core_ci`` in
+    # ``script/determine-jobs.py``). With no upload Codecov never reports a
+    # result, so the required ``codecov/patch`` status stays pending forever and
+    # the pull request can never be merged. Tell Codecov up front that this
+    # commit has nothing to cover so it publishes a passing status instead.
+    #
+    # ``force`` skips Codecov's own check that every changed file is ignorable;
+    # ``determine-jobs`` has already decided none of these files can affect
+    # coverage, and Codecov would otherwise fail the status for paths it does
+    # not recognise as non-testable (``docker/**``, ``.yamllint``).
+    if: needs.determine-jobs.outputs.core-ci == 'false'
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Report empty upload to Codecov
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          run_command: empty-upload
+          force: true
+          fail_ci_if_error: true
+
   determine-jobs:
     name: Determine which jobs to run
     runs-on: ubuntu-24.04
@@ -1436,6 +1464,7 @@ jobs:
       - ci-custom
       - pylint
       - pytest
+      - codecov-empty-upload
       - integration-tests
       - clang-tidy-single
       - clang-tidy-nosplit
