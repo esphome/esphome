@@ -53,6 +53,7 @@ from esphome.cpp_helpers import (  # noqa: F401
     past_safe_mode,
     register_component,
     register_parented,
+    set_setup_priority,
 )
 from esphome.cpp_types import (  # noqa: F401
     NAN,

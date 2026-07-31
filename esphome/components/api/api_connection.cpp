@@ -794,6 +794,7 @@ uint16_t APIConnection::try_send_climate_info(EntityBase *entity, APIConnection 
   msg.supports_action = traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
   // Current feature flags and other supported parameters
   msg.feature_flags = traits.get_feature_flags();
+  msg.temperature_unit = static_cast<enums::TemperatureUnit>(traits.get_temperature_unit());
   msg.supported_modes = &traits.get_supported_modes();
   msg.visual_min_temperature = traits.get_visual_min_temperature();
   msg.visual_max_temperature = traits.get_visual_max_temperature();
@@ -1328,7 +1329,8 @@ void APIConnection::on_voice_assistant_announce_request(const VoiceAssistantAnno
   }
 }
 
-bool APIConnection::send_voice_assistant_get_configuration_response_(const VoiceAssistantConfigurationRequest &msg) {
+bool APIConnection::send_voice_assistant_get_configuration_response_(
+    const VoiceAssistantConfigurationRequest & /*msg*/) {
   VoiceAssistantConfigurationResponse resp;
   if (!this->check_voice_assistant_api_connection_()) {
     // send_message encodes synchronously, so this stack local outlives the encode
@@ -1339,22 +1341,6 @@ bool APIConnection::send_voice_assistant_get_configuration_response_(const Voice
 
   auto &config = voice_assistant::global_voice_assistant->get_configuration();
   for (auto &wake_word : config.available_wake_words) {
-    resp.available_wake_words.emplace_back();
-    auto &resp_wake_word = resp.available_wake_words.back();
-    resp_wake_word.id = StringRef(wake_word.id);
-    resp_wake_word.wake_word = StringRef(wake_word.wake_word);
-    for (const auto &lang : wake_word.trained_languages) {
-      resp_wake_word.trained_languages.push_back(lang);
-    }
-  }
-
-  // Filter external wake words
-  for (auto &wake_word : msg.external_wake_words) {
-    if (wake_word.model_type != "micro") {
-      // microWakeWord only
-      continue;
-    }
-
     resp.available_wake_words.emplace_back();
     auto &resp_wake_word = resp.available_wake_words.back();
     resp_wake_word.id = StringRef(wake_word.id);
@@ -1468,6 +1454,7 @@ uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnec
   msg.target_temperature_step = traits.get_target_temperature_step();
   msg.supported_modes = &traits.get_supported_modes();
   msg.supported_features = traits.get_feature_flags();
+  msg.temperature_unit = static_cast<enums::TemperatureUnit>(traits.get_temperature_unit());
   return fill_and_encode_entity_info(wh, msg, conn, remaining_size);
 }
 
@@ -1745,12 +1732,6 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   char peername[socket::SOCKADDR_STR_LEN];
   ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu16 ".%" PRIu16, this->helper_->get_client_name(),
            this->helper_->get_peername_to(peername), this->client_api_version_major_, this->client_api_version_minor_);
-
-  // TODO: Remove before 2026.8.0 (one version after get_object_id backward compat removal)
-  if (!this->client_supports_api_version(1, 14)) {
-    ESP_LOGW(TAG, "'%s' using outdated API %" PRIu16 ".%" PRIu16 ", update to 1.14+", this->helper_->get_client_name(),
-             this->client_api_version_major_, this->client_api_version_minor_);
-  }
 
   HelloResponse resp;
   resp.api_version_major = 1;

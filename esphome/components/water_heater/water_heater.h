@@ -90,10 +90,6 @@ class WaterHeaterCall {
   float get_target_temperature() const { return this->target_temperature_; }
   float get_target_temperature_low() const { return this->target_temperature_low_; }
   float get_target_temperature_high() const { return this->target_temperature_high_; }
-  /// Get state flags value
-  ESPDEPRECATED("get_state() is deprecated, use get_away() and get_on() instead. (Removed in 2026.8.0)", "2026.2.0")
-  uint32_t get_state() const { return this->state_; }
-
   optional<bool> get_away() const {
     if (this->state_mask_ & WATER_HEATER_STATE_AWAY) {
       return (this->state_ & WATER_HEATER_STATE_AWAY) != 0;
@@ -187,6 +183,9 @@ class WaterHeaterTraits {
   const WaterHeaterModeMask &get_supported_modes() const { return this->supported_modes_; }
   bool supports_mode(WaterHeaterMode mode) const { return this->supported_modes_.count(mode); }
 
+  TemperatureUnit get_temperature_unit() const { return this->temperature_unit_; }
+  void set_temperature_unit(TemperatureUnit unit) { this->temperature_unit_ = unit; }
+
  protected:
   // Ordered to minimize padding: 4-byte members first
   uint32_t feature_flags_{0};
@@ -194,6 +193,7 @@ class WaterHeaterTraits {
   float max_temperature_{0.0f};
   float target_temperature_step_{0.0f};
   WaterHeaterModeMask supported_modes_;
+  TemperatureUnit temperature_unit_{TemperatureUnit::CELSIUS};
 };
 
 class WaterHeater : public EntityBase {
