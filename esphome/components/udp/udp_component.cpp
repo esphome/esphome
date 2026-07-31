@@ -84,15 +84,6 @@ void UDPComponent::setup() {
       this->status_set_warning(LOG_STR("Socket unable to set reuseaddr"));
       // we can still continue
     }
-    struct sockaddr_storage server {};
-    socklen_t server_len =
-        socket::set_sockaddr_any(reinterpret_cast<sockaddr *>(&server), sizeof(server), this->listen_port_);
-    if (server_len == 0) {
-      ESP_LOGE(TAG, "Unable to set sockaddr: errno %d", errno);
-      this->status_set_error(LOG_STR("Unable to set sockaddr"));
-      this->mark_failed();
-      return;
-    }
 #ifndef USE_ZEPHYR
     // IPv4 multicast group join (not yet implemented on Zephyr)
     if (this->listen_address_.has_value()) {
@@ -121,7 +112,13 @@ void UDPComponent::setup() {
         return;
       }
     } else {
-      err = this->listen_socket_->bind(reinterpret_cast<sockaddr *>(&server), server_len);
+      // Bind to INADDR_ANY. Hardcode AF_INET so `enable_ipv6` cannot flip the
+      // family to AF_INET6 and mismatch the AF_INET socket above.
+      struct sockaddr_in server {};
+      server.sin_family = AF_INET;
+      server.sin_addr.s_addr = ESPHOME_INADDR_ANY;
+      server.sin_port = htons(this->listen_port_);
+      err = this->listen_socket_->bind((struct sockaddr *) &server, sizeof(server));
       if (err != 0) {
         ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
         this->status_set_error(LOG_STR("Unable to bind socket"));
@@ -130,6 +127,15 @@ void UDPComponent::setup() {
       }
     }
 #else
+    struct sockaddr_storage server {};
+    socklen_t server_len =
+        socket::set_sockaddr_any(reinterpret_cast<sockaddr *>(&server), sizeof(server), this->listen_port_);
+    if (server_len == 0) {
+      ESP_LOGE(TAG, "Unable to set sockaddr: errno %d", errno);
+      this->status_set_error(LOG_STR("Unable to set sockaddr"));
+      this->mark_failed();
+      return;
+    }
     err = this->listen_socket_->bind(reinterpret_cast<sockaddr *>(&server), server_len);
     if (err != 0) {
       ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
@@ -254,11 +260,12 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
     this->broadcast_socket_bound_ = true;
   }
 #endif
+  bool ok = true;
   for (const auto &saddr : this->sockaddrs_) {
     auto result = send_socket->sendto(data, size, 0, reinterpret_cast<const sockaddr *>(&saddr.addr), saddr.len);
     if (result < 0) {
+      ok = false;
       ESP_LOGW(TAG, "sendto() error %d", errno);
-      this->status_set_warning(LOG_STR("sendto failed"));
       // A bound socket cannot be re-bound: just resetting the flag would make the
       // next send try bind() again, which fails with EINVAL. Close the socket so
       // the next send rebuilds it with a fresh OMR bind. Only do this when the
@@ -272,7 +279,11 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
 #endif
     }
   }
-  this->status_clear_warning();
+  if (ok) {
+    this->status_clear_warning();
+  } else {
+    this->status_set_warning(LOG_STR("sendto failed"));
+  }
 #else
   for (const auto &saddr : this->sockaddrs_) {
     auto result =

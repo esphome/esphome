@@ -1,0 +1,15 @@
+# Config-only test: non-Zephyr build with enable_ipv6: true and the default
+# (no multicast group) listen bind — the branch that previously mismatched
+# the AF_INET socket with an AF_INET6 sockaddr.
+network:
+  enable_ipv6: true
+
+udp:
+  id: my_udp
+  addresses: ["239.0.60.53"]
+  on_receive:
+    - logger.log:
+        format: "Received UDP packet"
+    - udp.write:
+        id: my_udp
+        data: "hello world"
