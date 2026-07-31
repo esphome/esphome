@@ -1,0 +1,2 @@
+packages:
+  airthings_ble: !include common.yaml
