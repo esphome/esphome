@@ -180,10 +180,13 @@ struct ModbusDeviceCommand {
     this->state = FrameState::READY;
     this->seq = seq;
   }
-  // Turn a queued one-shot into a continuous poll, superseding any requests it had absorbed.
-  void make_continuous() {
-    this->continuous = true;
-    this->pending = 1;
+  // Set the streaming flag. Turning it on makes the entry a continuous poll, superseding any requests
+  // it had absorbed (pending resets to the single subscription); turning it off leaves pending alone,
+  // so a downgraded or cleared entry keeps the count it still owes.
+  void set_continuous(bool continuous) {
+    this->continuous = continuous;
+    if (continuous)
+      this->pending = 1;
   }
   // Address-scoped clear: keep pending and device so the sweep delivers one on_not_sent() per un-run
   // request. An entry still waiting for a response keeps its in-flight request (whose usual terminal is
@@ -199,7 +202,7 @@ struct ModbusDeviceCommand {
       this->state = FrameState::INTERRUPTED_RETIRED;
     else if (!this->waiting_state())  // an already-retired shell stays put; off the wire -> RETIRED
       this->state = FrameState::RETIRED;
-    this->continuous = false;
+    this->set_continuous(false);
   }
 
   // True while the entry is still waiting for a response; the erase pass exempts these even at pending 0.
@@ -338,8 +341,9 @@ using ResponseStatus = std::optional<ExceptionCode>;
 /// on_response()/on_error() fire at parse time and on_no_response() at the send-wait watchdog, all
 /// from a quiescent hub; only on_not_sent() is delivered by the sweep. Sending or clearing from
 /// inside a callback is safe (picked up by the next sweep). Exceptions to "exactly one terminal":
-/// clear_tx_queue_for_device() drops the caller's own frames silently; a continuous poll's absorbed
-/// duplicates and conversions are accounted by the poll's own responses.
+/// clear_tx_queue_for_device() drops the caller's own frames silently; a continuous poll's cycles are
+/// its own accounting (a one-shot duplicate downgrades the poll to a one-shot; a continuous duplicate
+/// merges into it).
 class ModbusClientDevice {
  public:
   ModbusClientDevice() = default;

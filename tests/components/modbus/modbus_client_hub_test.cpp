@@ -348,30 +348,28 @@ TEST(ModbusClientHubPriority, RetriedContinuousReadStaysContinuous) {
   EXPECT_TRUE(hub.queued(0).continuous);  // the retried poll stays continuous
 }
 
-// A duplicate send never converts a continuous entry back to a one-shot: polling would silently
-// stop. The duplicate request is served, uncounted, by the poll's next response instead.
-TEST(ModbusClientHubPriority, DuplicateSendKeepsContinuous) {
+// A one-shot duplicate downgrades a continuous poll to a one-shot (the mirror of a continuous
+// duplicate upgrading a one-shot): the entry runs one more cycle to serve the request, then stops.
+TEST(ModbusClientHubPriority, DuplicateSendDowngradesContinuous) {
   NoResponseProbeHub hub;
   RetryingDevice device(&hub, 0x02, /*retry=*/false);
 
   device.read_holding_registers(0x100, 2, {.continuous = true});
   ASSERT_EQ(hub.queued_frames(), 1u);
-  device.read_holding_registers(0x100, 2);  // queued duplicate: absorbed uncounted
+  ASSERT_TRUE(hub.queued(0).continuous);
+
+  device.read_holding_registers(0x100, 2);  // one-shot duplicate downgrades the poll
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_TRUE(hub.queued(0).continuous);
+  EXPECT_FALSE(hub.queued(0).continuous);
   EXPECT_EQ(hub.queued(0).pending, 1u);
 
+  // It runs one more cycle to serve the request, then stops - not re-queued as a poll.
   hub.force_send_next();
-  device.read_holding_registers(0x100, 2);  // waiting duplicate: absorbed uncounted
-  EXPECT_EQ(hub.queued_frames(), 0u);
-  EXPECT_TRUE(hub.waiting_command().continuous);
-  EXPECT_EQ(hub.waiting_command().pending, 1u);
-
-  // The poll survives the duplicates: a successful response still cycles it back to READY.
+  EXPECT_FALSE(hub.waiting_command().continuous);
   const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x02, ok_response);
-  ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_TRUE(hub.queued(0).continuous);
+  EXPECT_EQ(hub.queued_frames(), 0u);
+  EXPECT_EQ(hub.entries(), 0u);
 }
 
 // Requesting continuous polling for a frame that is already queued as a one-shot turns that entry
@@ -1613,8 +1611,9 @@ class ResendOnDataDevice : public ModbusClientDevice {
 };
 }  // namespace
 
-// A send from inside on_response() that matches the RECEIVED (completing) entry is absorbed into
-// it, so the poll's next cycle serves it - one entry on the queue afterwards, never a fresh twin.
+// A send from inside on_response() that matches the RECEIVED (completing) entry is absorbed into it,
+// never a fresh twin. Here it is a one-shot re-send of a continuous poll, so it also downgrades the
+// poll to a one-shot: one entry on the queue afterwards, now non-continuous.
 TEST(ModbusClientHubPriority, ResendFromOnResponseAbsorbsIntoCompletingCommand) {
   NoResponseProbeHub hub;
   ResendOnDataDevice device(&hub, 0x02);
@@ -1624,8 +1623,8 @@ TEST(ModbusClientHubPriority, ResendFromOnResponseAbsorbsIntoCompletingCommand) 
   const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x02, ok_response);  // handler re-sends the identical frame mid-completion
 
-  ASSERT_EQ(hub.queued_frames(), 1u);  // absorbed: the cycled continuous entry is the only one
-  EXPECT_TRUE(hub.queued(0).continuous);
+  ASSERT_EQ(hub.queued_frames(), 1u);      // absorbed into the same entry, not a fresh twin
+  EXPECT_FALSE(hub.queued(0).continuous);  // the one-shot re-send downgraded the poll
 }
 
 // An exception-flagged function code is never silently re-sendable, even though the read check

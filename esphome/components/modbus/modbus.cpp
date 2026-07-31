@@ -742,8 +742,8 @@ bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   }
 
   // A duplicate of a live entry with the same owner is not queued twice; it resolves against that
-  // entry: anonymous -> dropped; continuous incoming -> convert the entry; continuous entry ->
-  // absorbed uncounted; both one-shots -> pending++ below the servable cap, else refused.
+  // entry: anonymous -> dropped; continuous incoming -> convert the entry to a poll; one-shot onto a
+  // poll -> downgrade the poll to one-shot; both one-shots -> pending++ below the cap, else refused.
   for (auto &item : this->tx_buffer_) {
     if (item.state == FrameState::RETIRED || item.state == FrameState::WAITING_RETIRED ||
         item.state == FrameState::INTERRUPTED_RETIRED)
@@ -764,10 +764,13 @@ bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
       return false;  // dropped: no entry, no callbacks - the refusal is the return value
     }
     if (continuous) {
-      item.make_continuous();
+      item.set_continuous(true);
       ESP_LOGV(TAG, "Frame already active for %" PRIu8 ", now polled continuously", address);
     } else if (item.continuous) {
-      ESP_LOGV(TAG, "Frame already active for %" PRIu8 " as a continuous poll", address);
+      // A one-shot duplicate downgrades the poll to a one-shot: it runs one more cycle to serve this
+      // request, then stops (mirrors continuous incoming converting a one-shot the other way).
+      item.set_continuous(false);
+      ESP_LOGV(TAG, "Frame already active for %" PRIu8 ", downgraded from continuous to one-shot", address);
     } else if (!item.increment_pending()) {
       // At the servable cap, so refused. (An absorbed duplicate leaves seq alone - the entry keeps
       // its place in line, held by its oldest outstanding request.)
