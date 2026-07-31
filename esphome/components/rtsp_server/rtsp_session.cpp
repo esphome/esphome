@@ -25,7 +25,7 @@ static constexpr uint32_t SESSION_TIMEOUT_MS = 60000;
 
 namespace {
 
-bool iequals(std::string_view a, std::string_view b) {
+bool iequals(const StringRef &a, const StringRef &b) {
   if (a.size() != b.size())
     return false;
   for (size_t i = 0; i < a.size(); i++) {
@@ -35,7 +35,7 @@ bool iequals(std::string_view a, std::string_view b) {
   return true;
 }
 
-uint32_t parse_uint32(std::string_view s) {
+uint32_t parse_uint32(const StringRef &s) {
   uint32_t value = 0;
   for (char c : s) {
     if (c < '0' || c > '9')
@@ -45,14 +45,17 @@ uint32_t parse_uint32(std::string_view s) {
   return value;
 }
 
-std::string_view trim(std::string_view s) {
-  while (!s.empty() && (s.front() == ' ' || s.front() == '\t')) {
-    s.remove_prefix(1);
+StringRef trim(const StringRef &s) {
+  const char *start = s.c_str();
+  size_t len = s.size();
+  while (len > 0 && (*start == ' ' || *start == '\t')) {
+    start++;
+    len--;
   }
-  while (!s.empty() && (s.back() == ' ' || s.back() == '\t' || s.back() == '\r')) {
-    s.remove_suffix(1);
+  while (len > 0 && (start[len - 1] == ' ' || start[len - 1] == '\t' || start[len - 1] == '\r')) {
+    len--;
   }
-  return s;
+  return {start, len};
 }
 
 /// Result of scanning a JPEG frame's own headers -- the fields an RFC 2435 RTP/JPEG
@@ -187,14 +190,16 @@ void RTSPSession::read_requests_() {
   if (!this->socket_->ready())
     return;
 
+  // The last buffer byte is reserved for a NUL terminator, which StringRef::find()
+  // (strstr-based) requires on the underlying storage.
+  const size_t buf_capacity = this->request_buf_.size() - 1;
   while (true) {
-    if (this->request_len_ >= this->request_buf_.size()) {
+    if (this->request_len_ >= buf_capacity) {
       ESP_LOGW(TAG, "Request too large, closing session");
       this->should_close_ = true;
       return;
     }
-    ssize_t n = this->socket_->read(this->request_buf_.data() + this->request_len_,
-                                    this->request_buf_.size() - this->request_len_);
+    ssize_t n = this->socket_->read(this->request_buf_.data() + this->request_len_, buf_capacity - this->request_len_);
     if (n > 0) {
       this->request_len_ += static_cast<size_t>(n);
       this->last_activity_ms_ = millis();
@@ -212,66 +217,69 @@ void RTSPSession::read_requests_() {
     return;
   }
 
-  std::string_view buf(this->request_buf_.data(), this->request_len_);
+  this->request_buf_[this->request_len_] = '\0';
+  StringRef buf(this->request_buf_.data(), this->request_len_);
   size_t terminator = buf.find("\r\n\r\n");
-  if (terminator == std::string_view::npos)
+  if (terminator == std::string::npos)
     return;  // wait for the rest of the request
 
-  this->handle_request_(buf.substr(0, terminator));
+  this->handle_request_(StringRef(buf.c_str(), terminator));
   // v1 limitation: any bytes pipelined after this request are discarded. RTSP clients
   // send one request and wait for the response, so this does not affect real clients.
   this->request_len_ = 0;
 }
 
-void RTSPSession::handle_request_(std::string_view request) {
+void RTSPSession::handle_request_(StringRef request) {
+  // Sub-slices are built with the (pointer, length) constructor rather than substr(),
+  // which would heap-allocate a std::string copy.
   size_t line_end = request.find("\r\n");
-  std::string_view first_line = line_end == std::string_view::npos ? request : request.substr(0, line_end);
+  StringRef first_line = line_end == std::string::npos ? request : StringRef(request.c_str(), line_end);
 
   size_t sp1 = first_line.find(' ');
-  size_t sp2 = sp1 == std::string_view::npos ? std::string_view::npos : first_line.find(' ', sp1 + 1);
-  if (sp1 == std::string_view::npos || sp2 == std::string_view::npos) {
+  size_t sp2 = sp1 == std::string::npos ? std::string::npos : first_line.find(' ', sp1 + 1);
+  if (sp1 == std::string::npos || sp2 == std::string::npos) {
     this->cseq_ = 0;
     this->send_simple_response_(400, "Bad Request");
     return;
   }
-  std::string_view method = first_line.substr(0, sp1);
+  StringRef method(first_line.c_str(), sp1);
 
   this->cseq_ = 0;
-  std::string_view transport;
+  StringRef transport;
 
-  size_t pos = line_end == std::string_view::npos ? request.size() : line_end + 2;
+  size_t pos = line_end == std::string::npos ? request.size() : line_end + 2;
   while (pos < request.size()) {
     size_t next = request.find("\r\n", pos);
-    size_t header_end = next == std::string_view::npos ? request.size() : next;
-    std::string_view header = request.substr(pos, header_end - pos);
+    size_t header_end = next == std::string::npos ? request.size() : next;
+    StringRef header(request.c_str() + pos, header_end - pos);
 
     size_t colon = header.find(':');
-    if (colon != std::string_view::npos) {
-      std::string_view key = trim(header.substr(0, colon));
-      std::string_view value = trim(header.substr(colon + 1));
-      if (iequals(key, "CSeq")) {
+    if (colon != std::string::npos) {
+      StringRef key = trim(StringRef(header.c_str(), colon));
+      StringRef value = trim(StringRef(header.c_str() + colon + 1, header.size() - colon - 1));
+      if (iequals(key, StringRef::from_lit("CSeq"))) {
         this->cseq_ = parse_uint32(value);
-      } else if (iequals(key, "Transport")) {
+      } else if (iequals(key, StringRef::from_lit("Transport"))) {
         transport = value;
       }
     }
 
-    if (next == std::string_view::npos)
+    if (next == std::string::npos)
       break;
     pos = next + 2;
   }
 
-  if (iequals(method, "OPTIONS")) {
+  if (iequals(method, StringRef::from_lit("OPTIONS"))) {
     this->handle_options_();
-  } else if (iequals(method, "DESCRIBE")) {
+  } else if (iequals(method, StringRef::from_lit("DESCRIBE"))) {
     this->handle_describe_();
-  } else if (iequals(method, "SETUP")) {
+  } else if (iequals(method, StringRef::from_lit("SETUP"))) {
     this->handle_setup_(transport);
-  } else if (iequals(method, "PLAY")) {
+  } else if (iequals(method, StringRef::from_lit("PLAY"))) {
     this->handle_play_();
-  } else if (iequals(method, "TEARDOWN")) {
+  } else if (iequals(method, StringRef::from_lit("TEARDOWN"))) {
     this->handle_teardown_();
-  } else if (iequals(method, "GET_PARAMETER")) {
+  } else if (iequals(method, StringRef::from_lit("GET_PARAMETER"))) {
     this->handle_get_parameter_();
   } else {
     this->send_simple_response_(501, "Not Implemented");
@@ -319,8 +327,8 @@ void RTSPSession::handle_describe_() {
   this->send_offset_ = 0;
 }
 
-void RTSPSession::handle_setup_(std::string_view transport_header) {
-  if (transport_header.find("RTP/AVP/TCP") == std::string_view::npos) {
+void RTSPSession::handle_setup_(StringRef transport_header) {
+  if (transport_header.find("RTP/AVP/TCP") == std::string::npos) {
     // Only RTP interleaved over the RTSP TCP connection is supported (no UDP transport).
     this->send_simple_response_(461, "Unsupported Transport");
     return;

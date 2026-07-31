@@ -4,10 +4,10 @@
 
 #include <array>
 #include <memory>
-#include <string_view>
 
 #include "esphome/components/camera/camera.h"
 #include "esphome/components/socket/socket.h"
+#include "esphome/core/string_ref.h"
 
 namespace esphome::rtsp_server {
 
@@ -39,10 +39,10 @@ class RTSPSession {
   enum class State : uint8_t { INIT, READY, PLAYING };
 
   void read_requests_();
-  void handle_request_(std::string_view request);
+  void handle_request_(StringRef request);
   void handle_options_();
   void handle_describe_();
-  void handle_setup_(std::string_view transport_header);
+  void handle_setup_(StringRef transport_header);
   void handle_play_();
   void handle_teardown_();
   void handle_get_parameter_();
