@@ -617,6 +617,34 @@ TEST(ModbusClientHubSent, FiresOnWireNotOnQueue) {
   EXPECT_TRUE(hub.waiting());
 }
 
+namespace {
+// tx_blocked() clear for send_next_frame_'s gate, then blocked for send_frame_'s post-delay re-check.
+class RejectPostDelayHub : public NoResponseProbeHub {
+ public:
+  bool tx_blocked() override { return this->tx_blocked_calls_++ > 0; }
+  int tx_blocked_calls_{0};
+};
+}  // namespace
+
+// A byte arriving during send_frame_'s pre-send delay blocks transmission after the caller's gate
+// already passed. send_frame_ rejects, and send_next_frame_ leaves the frame READY to retry - it is
+// not marked WAITING and the bus is not claimed.
+TEST(ModbusClientHubSent, SendRejectedAfterDelayLeavesFrameReady) {
+  NullUART uart;
+  RejectPostDelayHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  SentCountingDevice device(&hub, 0x02);
+
+  device.send_pdu(read_pdu());
+  hub.send_next_for_test();  // gate passes, send_frame_ rejects on the post-delay re-check
+
+  EXPECT_EQ(device.sent_count_, 0);  // nothing transmitted
+  EXPECT_FALSE(hub.waiting());       // the frame was left untouched, bus not claimed
+  ASSERT_EQ(hub.entries(), 1u);
+  EXPECT_EQ(hub.queued(0).state, FrameState::READY);  // still selectable next loop
+}
+
 // Counts response deliveries so requeue semantics can be pinned end to end.
 namespace {
 class DataCountingDevice : public ModbusClientDevice {

@@ -76,9 +76,10 @@ class Modbus : public uart::UARTDevice, public Component {
   // pdu is the whole PDU (function code + payload, no address/CRC); pdu[0] is the (standard or custom) function code.
   virtual void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) = 0;
   void clear_rx_buffer_(const LogString *reason, bool warn = false, size_t bytes_to_clear = 0);
-  // Transmits unconditionally: callers check tx_blocked() first and the framed size is bounded
-  // by construction, so there is no failure to report.
-  void send_frame_(const ModbusFrame &frame);
+  // Transmit a frame. Callers gate on tx_blocked() first, but the pre-send delay can span several ms,
+  // so this re-checks after the delay and returns false without transmitting if a byte arrived in that
+  // window (the caller then leaves its entry to retry). Returns true once the frame is on the wire.
+  bool send_frame_(const ModbusFrame &frame);
   // Scans forward from min_length to find a frame boundary by CRC match for custom function codes.
   // Returns the matched frame length, or 0 if no valid CRC was found within MAX_FRAME_SIZE.
   uint16_t find_custom_frame_end_(uint16_t min_length) const;

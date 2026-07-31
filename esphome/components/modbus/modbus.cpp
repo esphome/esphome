@@ -475,10 +475,16 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
 
 // Callers check tx_blocked() first and the framed size is bounded by construction, so this transmits
 // unconditionally (a re-check here bought nothing - the wait below can hold the bus for ms anyway).
-void Modbus::send_frame_(const ModbusFrame &frame) {
+bool Modbus::send_frame_(const ModbusFrame &frame) {
   const int32_t tx_delay_remaining = this->tx_delay_remaining();
   if (tx_delay_remaining > 0) {
     delay(tx_delay_remaining);
+  }
+
+  // The delay above can span several ms; a byte arriving in that window blocks transmission after the
+  // caller's gate already passed. Don't collide with the incoming frame - leave the entry to retry.
+  if (this->tx_blocked()) {
+    return false;
   }
 
   if (this->flow_control_pin_ != nullptr) {
@@ -500,6 +506,7 @@ void Modbus::send_frame_(const ModbusFrame &frame) {
            format_hex_pretty_to(hex_buf, frame.data.data(), frame.size()), now - this->last_send_,
            now - this->last_modbus_byte_);
   this->last_send_ = now;
+  return true;
 }
 
 void ModbusClientHub::send_next_frame_() {
@@ -510,7 +517,9 @@ void ModbusClientHub::send_next_frame_() {
   if (cmd == nullptr)
     return;
 
-  this->send_frame_(cmd->frame);
+  if (!this->send_frame_(cmd->frame))
+    return;  // blocked after the pre-send delay: leave the frame READY to retry next loop
+
   cmd->sent();
   this->waiting_for_response_ = true;
 }
