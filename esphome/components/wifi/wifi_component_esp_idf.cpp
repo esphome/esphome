@@ -623,6 +623,10 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   // Recomputed each connect attempt: true only when we actually apply the cache below, so a
   // fallback to DHCP (or a user manual IP) never leaves the save-suppression flag stuck on.
   this->applied_cached_lease_ = false;
+  // Drop any renewal timer from a previous cached-lease connect. If we re-apply the cache below we
+  // reschedule it; otherwise this connect uses DHCP or a user manual IP, and a stale timer must not
+  // fire later and start DHCP behind our back.
+  this->cancel_timeout("lease_renew");
   if (!effective_ip.has_value() && this->lease_valid_for_apply_()) {
     const SavedWifiLeaseSettings &lease = this->cached_lease_;
     esp_ip4_addr_t ip4{lease.ip}, mask4{lease.netmask}, gw4{lease.gateway}, dns1_4{lease.dns1}, dns2_4{lease.dns2};
@@ -637,13 +641,16 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
 
     uint32_t age = lease_cache_age_secs(lease);
     uint32_t remaining = lease.lease_secs > age ? lease.lease_secs - age : 0;
-    const uint8_t *ipb = reinterpret_cast<const uint8_t *>(&lease.ip);
-    ESP_LOGI(TAG, "Applying cached lease %u.%u.%u.%u, ~%us left, skipping DHCP", ipb[0], ipb[1], ipb[2], ipb[3],
-             remaining);
+    ESP_LOGI(TAG, "Applying cached lease " IPSTR ", ~%us left, skipping DHCP", IP2STR(&ip4), remaining);
 
     // If the device is still awake at the lease's renew deadline, fall back to real DHCP so the
     // lease can't silently expire under a frozen static IP. Deep-sleep devices sleep well before.
-    uint32_t renew_at = std::min(lease.t1_renew, lease.lease_secs);
+    // RFC 2131: when the server doesn't send a T1 renewal time, lwIP leaves offered_t1_renew at 0
+    // (and a bogus T1 could exceed the lease), so fall back to half the lease -- never renew at 0,
+    // which would defeat the point by running DHCP immediately.
+    uint32_t renew_at = lease.t1_renew;
+    if (renew_at == 0 || renew_at >= lease.lease_secs)
+      renew_at = lease.lease_secs / 2;
     uint32_t renew_in = renew_at > age ? renew_at - age : 0;
     // set_timeout() takes milliseconds; compute in 64-bit and clamp so a very long lease can't
     // overflow the 32-bit millisecond value (a clamp only delays the renewal, never skips it).
@@ -652,6 +659,10 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
     this->set_timeout("lease_renew", renew_ms, [this]() {
       ESP_LOGI(TAG, "Cached lease renew deadline reached; running DHCP");
       this->applied_cached_lease_ = false;
+      // Same SNTP-over-DHCP leak guard as the normal DHCP path below: this is the first time DHCP
+      // runs this boot (the cached-lease apply skipped it), so disable it before starting the client.
+      // https://github.com/esphome/issues/issues/2299
+      sntp_servermode_dhcp(false);
       esp_err_t err = esp_netif_dhcpc_start(s_sta_netif);
       if (err != ESP_OK) {
         ESP_LOGW(TAG, "Lease renew: starting DHCP client failed: %s", esp_err_to_name(err));
@@ -783,8 +794,7 @@ void WiFiComponent::save_lease_settings_() {
   this->cached_lease_ = lease;
   this->have_cached_lease_ = true;
 
-  const uint8_t *ip = reinterpret_cast<const uint8_t *>(&lease.ip);
-  ESP_LOGD(TAG, "Lease cache: saved %u.%u.%u.%u (network %d, lease %us)", ip[0], ip[1], ip[2], ip[3], lease.ap_index,
+  ESP_LOGD(TAG, "Lease cache: saved " IPSTR " (network %d, lease %us)", IP2STR(&info.ip), lease.ap_index,
            lease.lease_secs);
 }
 #endif
