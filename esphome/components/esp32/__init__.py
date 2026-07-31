@@ -1029,7 +1029,9 @@ def _check_esp_idf_versions(config: ConfigType) -> ConfigType:
 
 
 def _validate_toolchain(value) -> Toolchain:
-    return Toolchain(cv.one_of(*(t.value for t in Toolchain), lower=True)(value))
+    return Toolchain(
+        cv.one_of(Toolchain.PLATFORMIO, Toolchain.ESP_IDF, lower=True)(value)
+    )
 
 
 def _resolve_toolchain(value: ConfigType) -> ConfigType:
