@@ -132,8 +132,7 @@ bool Modbus::tx_blocked() {
 
 bool ModbusClientHub::tx_blocked() {
   // We block transmission in any of these case:
-  // 1. We're waiting for a response (an on-wire entry: WAITING/INTERRUPTED/INTERRUPTED_NOTIFIED/
-  //    WAITING_RETIRED)
+  // 1. We're waiting for a response (an on-wire entry: WAITING/INTERRUPTED/INTERRUPTED_NOTIFIED
   // 2. Any of the base class tx_blocked conditions
   return this->waiting_for_response_ || this->Modbus::tx_blocked();
 }
@@ -335,12 +334,12 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
     return;
   }
 
-  // WAITING (deliver normally) or WAITING_RETIRED (a cleared shell). The callbacks fire AT PARSE
+  // WAITING (deliver normally) or (null device/pending = 0) (a cleared shell). The callbacks fire AT PARSE
   // TIME so the response span can point straight into the rx buffer (zero copy); error()/response()
   // set the RECEIVED_* state and consume the request BEFORE the callback runs, so a
   // clear_tx_queue_*() call from inside it flips the entry to RETIRED and cancels the
   // re-run/continuous bookkeeping - "stop polling now" from inside on_response()/on_error() must
-  // actually stop it. The sweep then reschedules. A WAITING_RETIRED shell is device-less and pending
+  // actually stop it. The sweep then reschedules. A cleared shell is device-less and pending
   // 0, so error()/response() run no callback and the sweep erases it - the cleared response is
   // discarded silently (an exception is still logged above, which is useful when debugging the
   // device even though the result is dropped).
@@ -787,7 +786,7 @@ bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
   //   - both one-shots: pending increments while the entry is below its servable cap (2 for
   //     requeueable reads, 1 for writes/custom); at the cap the duplicate is refused with false
   for (auto &item : this->tx_buffer_) {
-    if (item.state == FrameState::RETIRED || item.state == FrameState::WAITING_RETIRED)
+    if (item.state == FrameState::RETIRED)
       continue;  // on their way out of the queue: a new identical send queues fresh
     if (item.device != device || !item.same_frame(address, pdu))
       continue;
@@ -875,12 +874,11 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sen
         // On the wire: only detached when clear_sent is set. The shell keeps blocking until the
         // send-wait timeout (or the response arrives) and is swept silently.
         if (clear_sent) {
-          ESP_LOGV(TAG, "Clearing waiting for response for address %" PRIu8, address);
           cmd.retire();
           this->sweep_needed_ = true;
         }
         break;
-      default:  // RETIRED / WAITING_RETIRED entries are already resolved
+      default:  // RETIRED entries are already resolved
         break;
     }
   }
@@ -892,19 +890,7 @@ void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
   for (auto &cmd : this->tx_buffer_) {
     if (cmd.device != device)
       continue;
-    switch (cmd.state) {
-      case FrameState::WAITING:
-      case FrameState::INTERRUPTED:
-      case FrameState::INTERRUPTED_NOTIFIED:
-        // On the wire: keeps blocking until the send-wait timeout, then swept silently.
-        cmd.retire();
-        break;
-      case FrameState::WAITING_RETIRED:
-        break;  // already a detached shell
-      default:  // queued and terminal entries retire silently
-        cmd.retire();
-        break;
-    }
+    cmd.retire();
     this->sweep_needed_ = true;
   }
 }

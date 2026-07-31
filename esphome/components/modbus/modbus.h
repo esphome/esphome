@@ -124,12 +124,12 @@ enum class CommandPriority : uint8_t { CONTINUOUS = 0, READ, WRITE };
 ///                               when the sweep delivers on_no_response(); same accounting as
 ///                               TIMED_OUT, but the shell stays on the wire - expire_waiting_()
 ///                               releases it (pending -> READY, else retire) at the send-wait timeout
-///   anything -> RETIRED         on clear_tx_queue_* (a clear is a state flip; the sweep resolves
+///   off-wire -> RETIRED         on clear_tx_queue_* (a clear is a state flip; the sweep resolves
 ///                               owed terminals via notify_retired() - or retires silently for
 ///                               device-scoped clears)
-///   WAITING -> WAITING_RETIRED  on a clear with clear_sent: the frame is on the wire, so it
-///                               persists as a response-ignoring shell, retired on response or
-///                               timeout and swept silently
+///   on-wire  -> (unchanged)     on a clear: the frame is on the wire, so it keeps its state but
+///                               is detached (device-less, pending 0) - a response-ignoring shell,
+///                               resolved silently on response or timeout and then swept
 /// An entry is erased at the end of the sweep once it owes nothing and is off the wire
 /// (pending == 0 && !on_wire()); pending == 0 is the erasability signal, no separate marker needed.
 ///   (there is no transmit-failure state: transmitting cannot fail. The caller checks tx_blocked()
@@ -151,7 +151,6 @@ enum class FrameState : uint8_t {
   TIMED_OUT_NOTIFIED,
   INTERRUPTED,
   INTERRUPTED_NOTIFIED,
-  WAITING_RETIRED,
   RETIRED,
 };
 
@@ -226,14 +225,14 @@ struct ModbusDeviceCommand {
     const bool requeueable = !helpers::is_function_code_exception(fc) && helpers::is_function_code_read(fc);
     return (requeueable && !this->continuous) ? 2 : 1;
   }
-  /// Detach this entry: it owes nothing from here on and its device is cleared. The outgoing state
-  /// follows whether the frame is on the wire: an off-wire entry becomes RETIRED (pending 0 = the
-  /// silent, erasable terminal the sweep removes); an on-wire one becomes WAITING_RETIRED - it
+  /// Detach this entry: it owes nothing from here on and its device is cleared. An off-wire entry
+  /// becomes RETIRED (pending 0 = the silent, erasable terminal the sweep removes). An on-wire entry
   /// cannot simply vanish, since the response may still arrive and the bus stays blocked until the
-  /// transaction ends, so it persists as a reply-ignoring shell that retires when the response or
-  /// the send-wait timeout arrives.
+  /// transaction ends, so it keeps its state as a detached (device-less, pending 0) reply-ignoring
+  /// shell that resolves silently when the response or the send-wait timeout arrives.
   void retire() {
-    this->state = this->on_wire() ? FrameState::WAITING_RETIRED : FrameState::RETIRED;
+    if (!this->on_wire())
+      this->state = FrameState::RETIRED;
     this->pending = 0;
     this->device = nullptr;
   }
@@ -248,7 +247,7 @@ struct ModbusDeviceCommand {
   /// delivered: only INTERRUPTED_NOTIFIED has been, so it -> TIMED_OUT_NOTIFIED (the sweep
   /// reschedules or erases, no re-notify). Everything else -> TIMED_OUT and the sweep's
   /// notify_timed_out() delivers on_no_response - a genuine terminal for WAITING or a not-yet-swept
-  /// INTERRUPTED, and a no-op for a cleared WAITING_RETIRED shell (device-less), which then erases.
+  /// INTERRUPTED, and a no-op for a cleared WAITING shell (device-less), which then erases.
   void timeout() {
     this->state =
         (this->state == FrameState::INTERRUPTED_NOTIFIED) ? FrameState::TIMED_OUT_NOTIFIED : FrameState::TIMED_OUT;
@@ -268,7 +267,7 @@ struct ModbusDeviceCommand {
   /// or the bus stays blocked until the send-wait timeout instead of freeing at response time.
   bool on_wire() const {
     return this->state == FrameState::WAITING || this->state == FrameState::INTERRUPTED ||
-           this->state == FrameState::INTERRUPTED_NOTIFIED || this->state == FrameState::WAITING_RETIRED;
+           this->state == FrameState::INTERRUPTED_NOTIFIED;
   }
 
   bool decrement_pending() {
@@ -356,7 +355,7 @@ class ModbusClientHub : public Modbus {
   // The selection function: best READY entry (WRITE class first, then one-shot reads, then the
   // least-recently-served continuous; FIFO by seq within each group), or nullptr.
   ModbusDeviceCommand *select_next_ready_();
-  // Locate the single on-wire entry (WAITING/INTERRUPTED/INTERRUPTED_NOTIFIED/WAITING_RETIRED).
+  // Locate the single on-wire entry (WAITING/INTERRUPTED/INTERRUPTED_NOTIFIED).
   ModbusDeviceCommand *find_waiting_();
   // End the wait for a response on send-wait timeout (the loop() watchdog body); see FrameState.
   void expire_waiting_();
