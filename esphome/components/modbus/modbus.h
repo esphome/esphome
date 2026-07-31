@@ -335,7 +335,8 @@ using ResponseStatus = std::optional<ExceptionCode>;
 /// on_error() (exception), on_no_response() (timeout/interruption), or on_not_sent() (dropped by
 /// clear_tx_queue_for_address before transmission). A request refused at send_pdu() (false return)
 /// gets none. on_sent() is additional, once per transmission, never for an on_not_sent() request.
-/// on_response()/on_error() fire at parse time; the rest via the sweep. Sending or clearing from
+/// on_response()/on_error() fire at parse time and on_no_response() at the send-wait watchdog, all
+/// from a quiescent hub; only on_not_sent() is delivered by the sweep. Sending or clearing from
 /// inside a callback is safe (picked up by the next sweep). Exceptions to "exactly one terminal":
 /// clear_tx_queue_for_device() drops the caller's own frames silently; a continuous poll's absorbed
 /// duplicates and conversions are accounted by the poll's own responses.

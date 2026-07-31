@@ -762,7 +762,8 @@ bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
                  address, pdu[0]);
       }
       return false;  // dropped: no entry, no callbacks - the refusal is the return value
-    } else if (continuous) {
+    }
+    if (continuous) {
       item.make_continuous();
       ESP_LOGV(TAG, "Frame already active for %" PRIu8 ", now polled continuously", address);
     } else if (item.continuous) {
