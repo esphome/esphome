@@ -1756,6 +1756,33 @@ TEST(ModbusClientHubQueue, ClearedShellReleasesTheBusOnTimeout) {
   EXPECT_EQ(device.not_sent_count_, 0);     // no un-run duplicate
 }
 
+// Clearing an already-notified interrupted shell: its request was resolved by on_no_response, so the
+// pending count is a GRANTED RETRY, not an in-flight request. The clear must resolve that un-run
+// retry with on_not_sent - no second on_no_response, no re-transmit.
+TEST(ModbusClientHubQueue, ClearInterruptedNotifiedShellResolvesRetryAsNotSent) {
+  NoResponseProbeHub hub;
+  DataCountingDevice device(&hub, 0x02);
+  device.retries_ = 1;  // grant one retry
+
+  device.send_pdu(read_pdu());
+  hub.force_send_next();
+  const uint8_t stray_pdu[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
+  hub.receive_frame_for_test(0x07, stray_pdu);  // wrong address: interrupts the transaction
+  hub.sweep_for_test();                         // on_no_response -> retry granted, INTERRUPTED_NOTIFIED
+  ASSERT_EQ(hub.waiting_command().state, FrameState::INTERRUPTED_NOTIFIED);
+  ASSERT_EQ(hub.waiting_command().pending, 1u);
+  ASSERT_EQ(device.no_response_count_, 1);
+
+  hub.clear_tx_queue_for_address(0x02);  // cancel the granted retry
+  hub.timeout_waiting();                 // release the shell
+
+  EXPECT_EQ(device.no_response_count_, 1);  // NOT a second on_no_response
+  EXPECT_EQ(device.not_sent_count_, 1);     // the cleared retry resolves as on_not_sent
+  EXPECT_EQ(hub.queued_frames(), 0u);       // nothing re-transmitted
+  EXPECT_FALSE(hub.waiting());
+  EXPECT_EQ(hub.entries(), 0u);
+}
+
 // A cleared on-wire duplicate (pending 2) that times out: the duplicate drains to on_not_sent and
 // the in-flight request gets on_no_response, with nothing re-transmitted (sweep runs before timeout).
 TEST(ModbusClientHubQueue, ClearedInFlightDuplicateTimesOutWithoutRerunning) {

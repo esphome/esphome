@@ -192,9 +192,13 @@ struct ModbusDeviceCommand {
     this->pending = 1;
   }
   // Address-scoped clear: keep pending and device so the sweep delivers one on_not_sent() per un-run
-  // request. On-wire -> WAITING_RETIRED (the in-flight one still runs its usual terminal), else RETIRED.
+  // request. Only a not-yet-notified on-wire entry (WAITING/INTERRUPTED) keeps an in-flight request
+  // whose usual terminal is still coming, so it -> WAITING_RETIRED (drain only duplicates). Any other
+  // state - already notified (INTERRUPTED_NOTIFIED, whose pending is a granted retry) or off the wire
+  // - has no callback coming, so -> RETIRED drains everything it owes as on_not_sent.
   void retire() {
-    this->state = this->on_wire() ? FrameState::WAITING_RETIRED : FrameState::RETIRED;
+    const bool awaiting_terminal = this->state == FrameState::WAITING || this->state == FrameState::INTERRUPTED;
+    this->state = awaiting_terminal ? FrameState::WAITING_RETIRED : FrameState::RETIRED;
     this->continuous = false;
   }
 
