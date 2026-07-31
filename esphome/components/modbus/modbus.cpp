@@ -831,27 +831,26 @@ void ModbusServerHub::send_raw_(const uint8_t *payload, uint16_t len) {
     return;
   }
 
-  // In the rare case that the server is blocked (frame delay has not elapsed), we delay the send.
-  // This should only happen at low baud rates with long frame delays.
+  // If blocked now (frame delay not elapsed at low baud, or a frame arriving), defer rather than
+  // busy-waiting the loop; send_frame_ itself re-checks after its delay, so the deferred callback
+  // just reports whatever it returns.
   if (this->tx_blocked()) {
     // Stash the raw payload in a single member buffer so the deferred callback can rebuild the frame
-    // without a heap allocation. Only one server reply is ever waiting, and the named timeout ensures
-    // only one deferred send is pending, so a single buffer is sufficient.
+    // without a heap allocation. Only one server reply is ever waiting, so a single buffer suffices.
     std::memcpy(this->deferred_payload_.data(), payload, len);
     this->deferred_payload_len_ = len;
     this->set_timeout("deferred_send", this->tx_delay_remaining(), [this]() {
-      if (this->tx_blocked()) {
-        ESP_LOGE(TAG, "Deferred server reply dropped: transmission still blocked");
-        return;
-      }
       ModbusFrame frame(this->deferred_payload_[0], this->deferred_payload_.data() + 1,
                         this->deferred_payload_len_ - 1);
-      this->send_frame_(frame);
+      if (!this->send_frame_(frame))
+        ESP_LOGE(TAG, "Deferred server reply dropped: transmission still blocked");
     });
-  } else {
-    ModbusFrame frame(payload[0], payload + 1, len - 1);
-    this->send_frame_(frame);
+    return;
   }
+
+  ModbusFrame frame(payload[0], payload + 1, len - 1);
+  if (!this->send_frame_(frame))
+    ESP_LOGE(TAG, "Server reply dropped: a frame arrived during the send delay");
 }
 
 void Modbus::clear_rx_buffer_(const LogString *reason, bool warn, size_t bytes_to_clear) {
