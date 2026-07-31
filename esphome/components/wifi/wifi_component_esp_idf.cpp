@@ -1032,9 +1032,10 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
 #ifdef USE_WIFI_DPP
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_DPP_URI_READY) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     const auto &it = data->data.dpp_uri_ready;
     ESP_LOGV(TAG, "DPP URI: %s", it.uri);
+#ifdef USE_WIFI_DPP_URI_TRIGGER
+    this->dpp_uri_trigger_.trigger(std::string(it.uri, it.uri_data_len));
 #endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_DPP_CFG_RECVD) {

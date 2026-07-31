@@ -158,6 +158,7 @@ CONF_SAVE = "save"
 CONF_BAND_MODE = "band_mode"
 CONF_DPP = "dpp"
 CONF_MIN_AUTH_MODE = "min_auth_mode"
+CONF_ON_DPP_URI = "on_dpp_uri"
 CONF_PHY_MODE = "phy_mode"
 CONF_POST_CONNECT_ROAMING = "post_connect_roaming"
 
@@ -556,6 +557,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
                 single=True
             ),
+            cv.Optional(CONF_ON_DPP_URI): automation.validate_automation(single=True),
             cv.Optional(CONF_USE_PSRAM): cv.All(
                 cv.only_on_esp32, cv.requires_component("psram"), cv.boolean
             ),
@@ -824,6 +826,12 @@ async def to_code(config):
         cg.add_define("USE_WIFI_DISCONNECT_TRIGGER")
         await automation.build_automation(
             var.get_disconnect_trigger(), [], on_disconnect_config
+        )
+
+    if on_dpp_uri_config := config.get(CONF_ON_DPP_URI):
+        cg.add_define("USE_WIFI_DPP_URI_TRIGGER")
+        await automation.build_automation(
+            var.get_dpp_uri_trigger(), [(cg.std_string, "uri")], on_dpp_uri_config
         )
 
     CORE.add_job(final_step)

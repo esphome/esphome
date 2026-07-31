@@ -577,6 +577,9 @@ class WiFiComponent final : public Component {
 #ifdef USE_WIFI_DISCONNECT_TRIGGER
   Trigger<> *get_disconnect_trigger() { return &this->disconnect_trigger_; }
 #endif
+#ifdef USE_WIFI_DPP_URI_TRIGGER
+  Trigger<std::string> *get_dpp_uri_trigger() { return &this->dpp_uri_trigger_; }
+#endif
 
   int32_t get_wifi_channel();
 
@@ -899,6 +902,9 @@ class WiFiComponent final : public Component {
 #endif
 #ifdef USE_WIFI_DISCONNECT_TRIGGER
   Trigger<> disconnect_trigger_;
+#endif
+#ifdef USE_WIFI_DPP_URI_TRIGGER
+  Trigger<std::string> dpp_uri_trigger_;
 #endif
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   SemaphoreHandle_t high_performance_semaphore_{nullptr};
