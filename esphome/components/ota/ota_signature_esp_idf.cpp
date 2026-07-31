@@ -67,6 +67,11 @@ bool signature_sector_offset(const esp_partition_t *part, size_t &out_offset) {
   if (esp_image_get_metadata(&pos, &meta) != ESP_OK) {
     return false;
   }
+  // Bound the image length before rounding up so a crafted header can't
+  // overflow the addition; the image plus its signature sector must fit.
+  if (meta.image_len > part->size) {
+    return false;
+  }
   out_offset = (meta.image_len + SIG_SECTOR_ALIGN - 1) & ~(SIG_SECTOR_ALIGN - 1);
   return out_offset + SIG_BLOCK_SIZE <= part->size;
 }
