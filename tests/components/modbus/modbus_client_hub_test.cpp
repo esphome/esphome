@@ -607,7 +607,7 @@ TEST(ModbusClientHubSent, FiresOnWireNotOnQueue) {
   SentCountingDevice device(&hub, 0x02);
 
   device.send_pdu(read_pdu());
-  EXPECT_EQ(device.sent_count_, 0);  // queued only - nothing on the wire yet
+  EXPECT_EQ(device.sent_count_, 0);  // queued only - nothing sent yet
 
   hub.send_next_for_test();
   EXPECT_EQ(device.sent_count_, 1);
@@ -1029,7 +1029,7 @@ TEST(ModbusClientHubQueue, ClearAddressDeliversOneTerminalPerAcceptedRequest) {
   EXPECT_EQ(hub.entries(), 0u);  // fully drained and erased
 }
 
-// A duplicate read absorbs into one on-wire entry (pending 2 once the first is sent). A clear with
+// A duplicate read absorbs into one waiting entry (pending 2 once the first is sent). A clear with
 // clear_sent detaches the in-flight frame as a silent shell, but the duplicate - a second accepted
 // request that would have re-run - was never transmitted, so it must still get its on_not_sent().
 TEST(ModbusClientHubQueue, ClearSentOnInFlightDuplicateStillNotifiesTheDuplicate) {
@@ -1039,7 +1039,7 @@ TEST(ModbusClientHubQueue, ClearSentOnInFlightDuplicateStillNotifiesTheDuplicate
   device.send_pdu(read_pdu());
   device.send_pdu(read_pdu());  // absorbed: one entry, pending 2
   ASSERT_EQ(hub.queued(0).pending, 2u);
-  hub.force_send_next();  // the frame goes on the wire (WAITING); pending still 2
+  hub.force_send_next();  // the frame is sent (WAITING); pending still 2
   ASSERT_TRUE(hub.waiting());
 
   hub.clear_tx_queue_for_address(0x02);
@@ -1056,14 +1056,14 @@ TEST(ModbusClientHubQueue, ClearWhileInFlightStillDeliversTheResponse) {
   DataCountingDevice device(&hub, 0x02);
 
   device.send_pdu(read_pdu());
-  hub.force_send_next();  // on the wire (WAITING)
+  hub.force_send_next();  // sent, now WAITING
   ASSERT_TRUE(hub.waiting());
 
   hub.clear_tx_queue_for_address(0x02);
   hub.sweep_for_test();
 
   EXPECT_EQ(device.not_sent_count_, 0);  // no un-run duplicate to resolve
-  ASSERT_TRUE(hub.waiting());            // still on the wire, holding the bus
+  ASSERT_TRUE(hub.waiting());            // still waiting for a response, holding the bus
   ASSERT_EQ(hub.entries(), 1u);          // entry preserved as a cleared shell
   EXPECT_EQ(hub.waiting_command().state, FrameState::WAITING_RETIRED);
 
@@ -1373,7 +1373,7 @@ TEST(ModbusClientHubSent, ReentrantSendFromOnSentQueues) {
   ChainOnSentDevice device(&hub, 0x02);
 
   device.send_pdu(read_pdu());
-  hub.send_next_for_test();  // first frame goes on the wire -> on_sent chains a follow-up
+  hub.send_next_for_test();  // first frame is sent -> on_sent chains a follow-up
 
   EXPECT_TRUE(hub.waiting());                     // first frame is waiting
   ASSERT_EQ(hub.queued_frames(), 1u);             // the follow-up queued behind it, not sent
@@ -1690,7 +1690,7 @@ TEST(ModbusClientHubQueue, SweepResendAfterClearQueuesFreshNotAbsorbedIntoShell)
   ASSERT_EQ(hub.queued_frames(), 1u);    // the handler's re-send queued fresh...
   EXPECT_EQ(hub.queued(0).pending, 1u);  // ...not absorbed into the cleared shell
   EXPECT_TRUE(std::equal(hub.queued(0).frame.pdu().begin(), hub.queued(0).frame.pdu().end(), READ_PDU));
-  EXPECT_EQ(hub.waiting_command().state, FrameState::WAITING_RETIRED);  // the in-flight one still on the wire
+  EXPECT_EQ(hub.waiting_command().state, FrameState::WAITING_RETIRED);  // in-flight one still awaiting a reply
 }
 
 namespace {
@@ -1780,7 +1780,7 @@ TEST(ModbusClientHubQueue, ClearedShellReleasesTheBusOnTimeout) {
   EXPECT_EQ(device.not_sent_count_, 0);     // no un-run duplicate
 }
 
-// Clearing an interrupted (not-yet-notified) frame: it is a not-yet-notified on-wire entry, so it
+// Clearing an interrupted (not-yet-notified) frame: it is a not-yet-notified waiting entry, so it
 // becomes a WAITING_RETIRED shell and still gets its usual terminal - on_no_response at the timeout -
 // exactly like a cleared WAITING frame. No duplicate here, so no on_not_sent.
 TEST(ModbusClientHubQueue, ClearInterruptedFrameGetsNoResponseAtTimeout) {
@@ -1805,7 +1805,7 @@ TEST(ModbusClientHubQueue, ClearInterruptedFrameGetsNoResponseAtTimeout) {
   EXPECT_EQ(hub.entries(), 0u);
 }
 
-// A cleared on-wire duplicate (pending 2) that times out: the duplicate drains to on_not_sent and
+// A cleared waiting duplicate (pending 2) that times out: the duplicate drains to on_not_sent and
 // the in-flight request gets on_no_response, with nothing re-transmitted (sweep runs before timeout).
 TEST(ModbusClientHubQueue, ClearedInFlightDuplicateTimesOutWithoutRerunning) {
   NoResponseProbeHub hub;
@@ -1814,7 +1814,7 @@ TEST(ModbusClientHubQueue, ClearedInFlightDuplicateTimesOutWithoutRerunning) {
   device.send_pdu(read_pdu());
   device.send_pdu(read_pdu());  // absorbed: one entry, pending 2
   ASSERT_EQ(hub.queued(0).pending, 2u);
-  hub.force_send_next();  // on the wire, pending still 2
+  hub.force_send_next();  // sent, pending still 2
   hub.clear_tx_queue_for_address(0x02);
 
   hub.timeout_waiting();

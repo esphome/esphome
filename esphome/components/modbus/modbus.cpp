@@ -128,7 +128,7 @@ bool Modbus::tx_blocked() {
 
 bool ModbusClientHub::tx_blocked() {
   // We block transmission in any of these case:
-  // 1. We're waiting for a response (an on-wire entry: WAITING/INTERRUPTED/WAITING_RETIRED)
+  // 1. We're waiting for a response (a waiting entry: WAITING/INTERRUPTED/WAITING_RETIRED)
   // 2. Any of the base class tx_blocked conditions
   return this->waiting_for_response_ || this->Modbus::tx_blocked();
 }
@@ -574,7 +574,7 @@ void ModbusServerHub::send_exception_(uint8_t address, uint8_t function_code, Ex
 
 ModbusDeviceCommand *ModbusClientHub::find_waiting_() {
   for (auto &cmd : this->tx_buffer_) {
-    if (cmd.on_wire())
+    if (cmd.waiting_state())
       return &cmd;
   }
   return nullptr;
@@ -692,7 +692,7 @@ void ModbusClientHub::sweep_() {
           if (cmd.pending > 1)
             callback_ran = cmd.notify_retired();
           break;
-        default:  // READY / WAITING / INTERRUPTED: on the wire or idle, nothing owed until the timeout
+        default:  // READY / WAITING / INTERRUPTED: idle or waiting for a response, nothing owed until the timeout
           break;
       }
     }
@@ -701,8 +701,8 @@ void ModbusClientHub::sweep_() {
   // finished entry is swap-and-popped; walking backwards means a moved-down entry is already seen.
   for (size_t i = this->tx_buffer_.size(); i-- > 0;) {
     const ModbusDeviceCommand &cmd = this->tx_buffer_[i];
-    // pending == 0 is erasable, but on-wire shells are exempt until their wire clears.
-    if (cmd.pending != 0 || cmd.on_wire())
+    // pending == 0 is erasable, but shells still waiting for a response are exempt until it resolves.
+    if (cmd.pending != 0 || cmd.waiting_state())
       continue;
     if (i + 1 != this->tx_buffer_.size())
       this->tx_buffer_[i] = std::move(this->tx_buffer_.back());

@@ -78,7 +78,7 @@ class Modbus : public uart::UARTDevice, public Component {
   void clear_rx_buffer_(const LogString *reason, bool warn = false, size_t bytes_to_clear = 0);
   // Transmit a frame. Callers gate on tx_blocked() first, but the pre-send delay can span several ms,
   // so this re-checks after the delay and returns false without transmitting if a byte arrived in that
-  // window (the caller then leaves its entry to retry). Returns true once the frame is on the wire.
+  // window (the caller then leaves its entry to retry). Returns true once the frame has been transmitted.
   bool send_frame_(const ModbusFrame &frame);
   // Scans forward from min_length to find a frame boundary by CRC match for custom function codes.
   // Returns the matched frame length, or 0 if no valid CRC was found within MAX_FRAME_SIZE.
@@ -103,8 +103,8 @@ class ModbusServerDevice;
 // at selection time, never caller-chosen or stored.
 enum class CommandPriority : uint8_t { CONTINUOUS = 0, READ, WRITE };
 
-// Per-entry lifecycle state. On-wire states (see on_wire()) hold the bus; the sweep delivers owed
-// callbacks from a quiescent hub, and an entry is erased once pending == 0 && !on_wire().
+// Per-entry lifecycle state. Waiting states (see waiting_state()) hold the bus; the sweep delivers owed
+// callbacks from a quiescent hub, and an entry is erased once pending == 0 && !waiting_state().
 enum class FrameState : uint8_t {
   READY = 0,
   WAITING,
@@ -113,7 +113,7 @@ enum class FrameState : uint8_t {
   TIMED_OUT,
   TIMED_OUT_NOTIFIED,  // on_no_response already delivered
   INTERRUPTED,         // unexpected frame arrived; ignores this transaction, waits out the timeout
-  WAITING_RETIRED,     // cleared by clear_tx_queue_for_address but still on the wire
+  WAITING_RETIRED,     // cleared by clear_tx_queue_for_address but still waiting for a response
   RETIRED,             // cleared, off the wire
 };
 
@@ -129,7 +129,7 @@ struct ModbusDeviceCommand {
   FrameState state{FrameState::READY};
   // A continuous poll is a subscription: pending fixed at 1, removed only by cancellation or failure.
   bool continuous{false};
-  // Accepted requests this entry stands for, capped at servable_cap(); drains one terminal each.
+  // Accepted requests this entry stands for, capped at max_pending(); drains one terminal each.
   uint8_t pending{1};
   // Place-in-line stamp (hub's free-running counter); selection takes the oldest for round-robin
   // fairness within a class. Meant to wrap.
@@ -162,15 +162,15 @@ struct ModbusDeviceCommand {
   }
 
   // Requests this entry can serve: a standard read twice (run plus one re-run), everything else once.
-  uint8_t servable_cap() const {
+  uint8_t max_pending() const {
     const uint8_t fc = this->frame.pdu()[0];
     const bool requeueable = !helpers::is_function_code_exception(fc) && helpers::is_function_code_read(fc);
     return (requeueable && !this->continuous) ? 2 : 1;
   }
-  // Device-scoped clear: detach with no callback (device-less, pending 0). An on-wire entry keeps
-  // its state as a reply-ignoring shell that resolves silently; an off-wire one goes RETIRED.
+  // Device-scoped clear: detach with no callback (device-less, pending 0). An entry still waiting for
+  // a response keeps its state as a reply-ignoring shell that resolves silently; any other goes RETIRED.
   void silent_retire() {
-    if (!this->on_wire())
+    if (!this->waiting_state())
       this->state = FrameState::RETIRED;
     this->pending = 0;
     this->device = nullptr;
@@ -180,7 +180,7 @@ struct ModbusDeviceCommand {
     this->state = FrameState::READY;
     this->seq = seq;
   }
-  // Send-wait timer fired for an on-wire entry: flip to TIMED_OUT so the sweep delivers on_no_response.
+  // Send-wait timer fired for a waiting entry: flip to TIMED_OUT so the sweep delivers on_no_response.
   void timeout() { this->state = FrameState::TIMED_OUT; }
   // Turn a queued one-shot into a continuous poll, superseding any requests it had absorbed.
   void make_continuous() {
@@ -188,17 +188,18 @@ struct ModbusDeviceCommand {
     this->pending = 1;
   }
   // Address-scoped clear: keep pending and device so the sweep delivers one on_not_sent() per un-run
-  // request. An on-wire entry keeps its in-flight request (whose usual terminal is still coming) and
-  // -> WAITING_RETIRED, draining only its duplicates; an off-wire one -> RETIRED, draining everything.
-  // An on-wire frame that then times out still honors a retry: the clear is address-scoped (any device
-  // may call it) while the retry is the owning device's call via on_no_response - the bus obeys the owner.
+  // request. An entry still waiting for a response keeps its in-flight request (whose usual terminal is
+  // still coming) and -> WAITING_RETIRED, draining only its duplicates; any other -> RETIRED, draining
+  // everything. A cleared frame that then times out still honors a retry: the clear is address-scoped
+  // (any device may call it) while the retry is the owning device's call via on_no_response - the bus
+  // obeys the owner.
   void retire() {
-    this->state = this->on_wire() ? FrameState::WAITING_RETIRED : FrameState::RETIRED;
+    this->state = this->waiting_state() ? FrameState::WAITING_RETIRED : FrameState::RETIRED;
     this->continuous = false;
   }
 
-  // True while the frame is on the wire; the erase pass exempts these even at pending 0.
-  bool on_wire() const {
+  // True while the entry is still waiting for a response; the erase pass exempts these even at pending 0.
+  bool waiting_state() const {
     return this->state == FrameState::WAITING || this->state == FrameState::INTERRUPTED ||
            this->state == FrameState::WAITING_RETIRED;
   }
@@ -212,7 +213,7 @@ struct ModbusDeviceCommand {
   }
   // Add one request, honouring the cap; false = already at cap (absorb a duplicate, restore a retry).
   bool increment_pending() {
-    if (this->pending < this->servable_cap()) {
+    if (this->pending < this->max_pending()) {
       this->pending++;
       return true;
     }
@@ -274,7 +275,7 @@ class ModbusClientHub : public Modbus {
   // The selection function: best READY entry (WRITE class first, then one-shot reads, then the
   // least-recently-served continuous; FIFO by seq within each group), or nullptr.
   ModbusDeviceCommand *select_next_ready_();
-  // Locate the single on-wire entry (WAITING/INTERRUPTED/WAITING_RETIRED).
+  // Locate the single entry waiting for a response (WAITING/INTERRUPTED/WAITING_RETIRED).
   ModbusDeviceCommand *find_waiting_();
   // End the wait for a response on send-wait timeout (the loop() watchdog body); see FrameState.
   void expire_waiting_();
@@ -283,7 +284,7 @@ class ModbusClientHub : public Modbus {
   uint16_t turnaround_delay_ms_{0};
 
   // Set on transmit, cleared on the transaction-ending transition; send_next_frame_ won't select
-  // while it is set, so at most one frame is on the wire.
+  // while it is set, so at most one frame is awaiting a response.
   bool waiting_for_response_{false};
 
   // Set whenever a transition leaves owed callbacks behind; quiet loop() passes skip the sweep.
