@@ -196,12 +196,13 @@ struct ModbusDeviceCommand {
   // the clear is address-scoped (any device may call it) while the retry is the owning device's call
   // via on_no_response - the bus obeys the owner.
   void retire() {
-    if (this->state == FrameState::WAITING)
+    if (this->state == FrameState::WAITING) {
       this->state = FrameState::WAITING_RETIRED;
-    else if (this->state == FrameState::INTERRUPTED)
+    } else if (this->state == FrameState::INTERRUPTED) {
       this->state = FrameState::INTERRUPTED_RETIRED;
-    else if (!this->waiting_state())  // an already-retired shell stays put; off the wire -> RETIRED
+    } else if (!this->waiting_state()) {  // an already-retired shell stays put; off the wire -> RETIRED
       this->state = FrameState::RETIRED;
+    }
     this->set_continuous(false);
   }
 
