@@ -1,0 +1,12 @@
+# External RSA signing mode: a bare signed_ota_verification block enables
+# ESPHome's own multi-key OTA signature verifier (USE_OTA_SIGNED_VERIFICATION_
+# MULTI_KEY), which accepts an image signed by any key the running app trusts.
+# Compiled so CI builds that verifier path.
+esp32:
+  variant: esp32s3
+  framework:
+    type: esp-idf
+    advanced:
+      signed_ota_verification:
+
+<<: !include common.yaml

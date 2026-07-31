@@ -2556,9 +2556,23 @@ async def to_code(config):
     # Enable signed app verification without hardware secure boot
     if signed_ota := advanced.get(CONF_SIGNED_OTA_VERIFICATION):
         add_idf_sdkconfig_option("CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT", True)
-        add_idf_sdkconfig_option("CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT", True)
 
         scheme = signed_ota[CONF_SIGNING_SCHEME]
+        # For externally-signed RSA images, ESPHome verifies the OTA signature
+        # itself instead of using IDF's on-update check. IDF only matches the
+        # incoming image's first signature block against the running app's
+        # first, which blocks key rotation and multi-provider backup keys;
+        # ESPHome accepts an image signed by any key the running app trusts.
+        # The build still produces the padded unsigned image (via SECURE_
+        # SIGNED_APPS_NO_SECURE_BOOT above); only the on-update check moves.
+        external_rsa = scheme == "rsa3072" and CONF_SIGNING_KEY not in signed_ota
+        if external_rsa:
+            cg.add_define("USE_OTA_SIGNED_VERIFICATION_MULTI_KEY")
+        else:
+            add_idf_sdkconfig_option(
+                "CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT", True
+            )
+
         for key, flag in SIGNING_SCHEMES.items():
             add_idf_sdkconfig_option(flag, scheme == key)
 

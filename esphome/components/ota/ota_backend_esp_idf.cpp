@@ -162,6 +162,16 @@ OTAResponseTypes IDFOTABackend::end() {
   }
 #endif
   if (err == ESP_OK) {
+#ifdef USE_OTA_SIGNED_VERIFICATION_MULTI_KEY
+    // IDF's built-in on-update check is disabled for this scheme (it only
+    // matches the incoming image's first signature block against the running
+    // app's first). Verify here against every key the running app trusts, so
+    // rotation and backup keys are accepted. Leaving the boot partition
+    // unchanged means a rejected image never boots.
+    if (!this->verify_signed_image_(this->partition_)) {
+      return OTA_RESPONSE_ERROR_SIGNATURE_INVALID;
+    }
+#endif
 #ifdef USE_OTA_DOWNGRADE_PROTECTION
     // The image is written and (when signing is enabled) signature-verified by
     // esp_ota_end(), so its embedded project version can be trusted. Reject the
