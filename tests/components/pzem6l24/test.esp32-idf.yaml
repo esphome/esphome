@@ -5,5 +5,4 @@ substitutions:
 
 packages:
   modbus: !include ../../test_build_components/common/modbus/esp32-idf.yaml
-
-<<: !include common.yaml
+  pzem6l24: !include common.yaml

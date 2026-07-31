@@ -89,6 +89,9 @@ static const uint8_t PZEM_REGISTER_COUNT = 64;  // 64 × 16-bit registers = 128 
 // -----------------------------------------------------------------------
 
 void PZEM6L24::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
+  if (request_pdu.empty() || request_pdu[0] != PZEM_CMD_READ_IN_REGISTERS) {
+    return;
+  }
   auto data = modbus::helpers::server_pdu_payload(response_pdu);
   if (data.size() < 128) {
     ESP_LOGW(TAG, "Invalid data size for PZEM-6L24: expected 128 bytes, got %zu", data.size());
