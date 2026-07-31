@@ -126,7 +126,7 @@ class EPaperBase : public Display,
   void process_state_();
 
   const LogString *epaper_state_to_string_();
-  bool is_idle_() const;
+  virtual bool is_idle_() const;
   void setup_pins_() const;
   virtual bool reset();
   /// The reset pin part of reset(), for a driver that must skip what its parent adds to it
