@@ -2,6 +2,9 @@ esphome:
   on_boot:
     then:
       - pzem6l24.reset_energy: pzem6l24_1
+      - pzem6l24.reset_energy:
+          id: pzem6l24_1
+          phase: b
 
 sensor:
   - platform: pzem6l24

@@ -48,34 +48,6 @@ RESET_PHASE_OPTIONS = {
     "combined": ResetPhase.RESET_PHASE_COMBINED,
 }
 
-# Per-phase config keys
-CONF_VOLTAGE_A = "voltage_a"
-CONF_VOLTAGE_B = "voltage_b"
-CONF_VOLTAGE_C = "voltage_c"
-CONF_CURRENT_A = "current_a"
-CONF_CURRENT_B = "current_b"
-CONF_CURRENT_C = "current_c"
-CONF_ACTIVE_POWER_A = "active_power_a"
-CONF_ACTIVE_POWER_B = "active_power_b"
-CONF_ACTIVE_POWER_C = "active_power_c"
-CONF_REACTIVE_POWER_A = "reactive_power_a"
-CONF_REACTIVE_POWER_B = "reactive_power_b"
-CONF_REACTIVE_POWER_C = "reactive_power_c"
-CONF_APPARENT_POWER_A = "apparent_power_a"
-CONF_APPARENT_POWER_B = "apparent_power_b"
-CONF_APPARENT_POWER_C = "apparent_power_c"
-CONF_POWER_FACTOR_A = "power_factor_a"
-CONF_POWER_FACTOR_B = "power_factor_b"
-CONF_POWER_FACTOR_C = "power_factor_c"
-CONF_ACTIVE_ENERGY_A = "active_energy_a"
-CONF_ACTIVE_ENERGY_B = "active_energy_b"
-CONF_ACTIVE_ENERGY_C = "active_energy_c"
-CONF_REACTIVE_ENERGY_A = "reactive_energy_a"
-CONF_REACTIVE_ENERGY_B = "reactive_energy_b"
-CONF_REACTIVE_ENERGY_C = "reactive_energy_c"
-CONF_APPARENT_ENERGY_A = "apparent_energy_a"
-CONF_APPARENT_ENERGY_B = "apparent_energy_b"
-CONF_APPARENT_ENERGY_C = "apparent_energy_c"
 # Combined config keys
 CONF_TOTAL_ACTIVE_POWER = "total_active_power"
 CONF_TOTAL_REACTIVE_POWER = "total_reactive_power"
@@ -166,61 +138,63 @@ def _apparent_energy_schema():
     )
 
 
+def _frequency_schema():
+    return sensor.sensor_schema(
+        unit_of_measurement=UNIT_HERTZ,
+        icon=ICON_CURRENT_AC,
+        accuracy_decimals=2,
+        device_class=DEVICE_CLASS_FREQUENCY,
+        state_class=STATE_CLASS_MEASUREMENT,
+    )
+
+
+_PHASES = ("a", "b", "c")
+
+# Quantities measured once per phase: (base name, schema factory). The config key is
+# "<base name>_<phase>" and the setter is "set_<base name>_sensor_<phase>".
+_PHASE_QUANTITIES = (
+    ("voltage", _voltage_schema),
+    ("current", _current_schema),
+    ("active_power", _active_power_schema),
+    ("reactive_power", _reactive_power_schema),
+    ("apparent_power", _apparent_power_schema),
+    ("power_factor", _power_factor_schema),
+    ("active_energy", _active_energy_schema),
+    ("reactive_energy", _reactive_energy_schema),
+    ("apparent_energy", _apparent_energy_schema),
+)
+
+# Quantities the device reports once for the whole meter: (config key, schema factory).
+# The setter is "set_<config key>_sensor".
+_COMBINED_QUANTITIES = (
+    (CONF_FREQUENCY, _frequency_schema),
+    (CONF_TOTAL_ACTIVE_POWER, _active_power_schema),
+    (CONF_TOTAL_REACTIVE_POWER, _reactive_power_schema),
+    (CONF_TOTAL_APPARENT_POWER, _apparent_power_schema),
+    (CONF_TOTAL_POWER_FACTOR, _power_factor_schema),
+    (CONF_TOTAL_ACTIVE_ENERGY, _active_energy_schema),
+    (CONF_TOTAL_REACTIVE_ENERGY, _reactive_energy_schema),
+    (CONF_TOTAL_APPARENT_ENERGY, _apparent_energy_schema),
+)
+
+# The single source of truth for every sensor: (config key, schema, setter name).
+_SENSORS = [
+    *(
+        (f"{name}_{phase}", schema_fn(), f"set_{name}_sensor_{phase}")
+        for name, schema_fn in _PHASE_QUANTITIES
+        for phase in _PHASES
+    ),
+    *(
+        (key, schema_fn(), f"set_{key}_sensor")
+        for key, schema_fn in _COMBINED_QUANTITIES
+    ),
+]
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PZEM6L24),
-            # Per-phase voltage
-            cv.Optional(CONF_VOLTAGE_A): _voltage_schema(),
-            cv.Optional(CONF_VOLTAGE_B): _voltage_schema(),
-            cv.Optional(CONF_VOLTAGE_C): _voltage_schema(),
-            # Per-phase current
-            cv.Optional(CONF_CURRENT_A): _current_schema(),
-            cv.Optional(CONF_CURRENT_B): _current_schema(),
-            cv.Optional(CONF_CURRENT_C): _current_schema(),
-            # Per-phase active power
-            cv.Optional(CONF_ACTIVE_POWER_A): _active_power_schema(),
-            cv.Optional(CONF_ACTIVE_POWER_B): _active_power_schema(),
-            cv.Optional(CONF_ACTIVE_POWER_C): _active_power_schema(),
-            # Per-phase reactive power
-            cv.Optional(CONF_REACTIVE_POWER_A): _reactive_power_schema(),
-            cv.Optional(CONF_REACTIVE_POWER_B): _reactive_power_schema(),
-            cv.Optional(CONF_REACTIVE_POWER_C): _reactive_power_schema(),
-            # Per-phase apparent power
-            cv.Optional(CONF_APPARENT_POWER_A): _apparent_power_schema(),
-            cv.Optional(CONF_APPARENT_POWER_B): _apparent_power_schema(),
-            cv.Optional(CONF_APPARENT_POWER_C): _apparent_power_schema(),
-            # Per-phase power factor
-            cv.Optional(CONF_POWER_FACTOR_A): _power_factor_schema(),
-            cv.Optional(CONF_POWER_FACTOR_B): _power_factor_schema(),
-            cv.Optional(CONF_POWER_FACTOR_C): _power_factor_schema(),
-            # Per-phase active energy
-            cv.Optional(CONF_ACTIVE_ENERGY_A): _active_energy_schema(),
-            cv.Optional(CONF_ACTIVE_ENERGY_B): _active_energy_schema(),
-            cv.Optional(CONF_ACTIVE_ENERGY_C): _active_energy_schema(),
-            # Per-phase reactive energy
-            cv.Optional(CONF_REACTIVE_ENERGY_A): _reactive_energy_schema(),
-            cv.Optional(CONF_REACTIVE_ENERGY_B): _reactive_energy_schema(),
-            cv.Optional(CONF_REACTIVE_ENERGY_C): _reactive_energy_schema(),
-            # Per-phase apparent energy
-            cv.Optional(CONF_APPARENT_ENERGY_A): _apparent_energy_schema(),
-            cv.Optional(CONF_APPARENT_ENERGY_B): _apparent_energy_schema(),
-            cv.Optional(CONF_APPARENT_ENERGY_C): _apparent_energy_schema(),
-            # Combined sensors
-            cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_HERTZ,
-                icon=ICON_CURRENT_AC,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_FREQUENCY,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_TOTAL_ACTIVE_POWER): _active_power_schema(),
-            cv.Optional(CONF_TOTAL_REACTIVE_POWER): _reactive_power_schema(),
-            cv.Optional(CONF_TOTAL_APPARENT_POWER): _apparent_power_schema(),
-            cv.Optional(CONF_TOTAL_POWER_FACTOR): _power_factor_schema(),
-            cv.Optional(CONF_TOTAL_ACTIVE_ENERGY): _active_energy_schema(),
-            cv.Optional(CONF_TOTAL_REACTIVE_ENERGY): _reactive_energy_schema(),
-            cv.Optional(CONF_TOTAL_APPARENT_ENERGY): _apparent_energy_schema(),
+            **{cv.Optional(key): schema for key, schema, _ in _SENSORS},
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -248,12 +222,6 @@ async def reset_energy_to_code(config, action_id, template_arg, args):
     return var
 
 
-async def _register_sensor(var, config, conf_key, setter_name):
-    if (conf := config.get(conf_key)) is not None:
-        sens = await sensor.new_sensor(conf)
-        cg.add(getattr(var, setter_name)(sens))
-
-
 def _final_validate(config: ConfigType) -> ConfigType:
     return modbus.final_validate_modbus_device("pzem6l24", role="client")(config)
 
@@ -266,104 +234,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await modbus.register_modbus_client_device(var, config)
 
-    # Per-phase voltage
-    await _register_sensor(var, config, CONF_VOLTAGE_A, "set_voltage_sensor_a")
-    await _register_sensor(var, config, CONF_VOLTAGE_B, "set_voltage_sensor_b")
-    await _register_sensor(var, config, CONF_VOLTAGE_C, "set_voltage_sensor_c")
-    # Per-phase current
-    await _register_sensor(var, config, CONF_CURRENT_A, "set_current_sensor_a")
-    await _register_sensor(var, config, CONF_CURRENT_B, "set_current_sensor_b")
-    await _register_sensor(var, config, CONF_CURRENT_C, "set_current_sensor_c")
-    # Per-phase active power
-    await _register_sensor(
-        var, config, CONF_ACTIVE_POWER_A, "set_active_power_sensor_a"
-    )
-    await _register_sensor(
-        var, config, CONF_ACTIVE_POWER_B, "set_active_power_sensor_b"
-    )
-    await _register_sensor(
-        var, config, CONF_ACTIVE_POWER_C, "set_active_power_sensor_c"
-    )
-    # Per-phase reactive power
-    await _register_sensor(
-        var, config, CONF_REACTIVE_POWER_A, "set_reactive_power_sensor_a"
-    )
-    await _register_sensor(
-        var, config, CONF_REACTIVE_POWER_B, "set_reactive_power_sensor_b"
-    )
-    await _register_sensor(
-        var, config, CONF_REACTIVE_POWER_C, "set_reactive_power_sensor_c"
-    )
-    # Per-phase apparent power
-    await _register_sensor(
-        var, config, CONF_APPARENT_POWER_A, "set_apparent_power_sensor_a"
-    )
-    await _register_sensor(
-        var, config, CONF_APPARENT_POWER_B, "set_apparent_power_sensor_b"
-    )
-    await _register_sensor(
-        var, config, CONF_APPARENT_POWER_C, "set_apparent_power_sensor_c"
-    )
-    # Per-phase power factor
-    await _register_sensor(
-        var, config, CONF_POWER_FACTOR_A, "set_power_factor_sensor_a"
-    )
-    await _register_sensor(
-        var, config, CONF_POWER_FACTOR_B, "set_power_factor_sensor_b"
-    )
-    await _register_sensor(
-        var, config, CONF_POWER_FACTOR_C, "set_power_factor_sensor_c"
-    )
-    # Per-phase active energy
-    await _register_sensor(
-        var, config, CONF_ACTIVE_ENERGY_A, "set_active_energy_sensor_a"
-    )
-    await _register_sensor(
-        var, config, CONF_ACTIVE_ENERGY_B, "set_active_energy_sensor_b"
-    )
-    await _register_sensor(
-        var, config, CONF_ACTIVE_ENERGY_C, "set_active_energy_sensor_c"
-    )
-    # Per-phase reactive energy
-    await _register_sensor(
-        var, config, CONF_REACTIVE_ENERGY_A, "set_reactive_energy_sensor_a"
-    )
-    await _register_sensor(
-        var, config, CONF_REACTIVE_ENERGY_B, "set_reactive_energy_sensor_b"
-    )
-    await _register_sensor(
-        var, config, CONF_REACTIVE_ENERGY_C, "set_reactive_energy_sensor_c"
-    )
-    # Per-phase apparent energy
-    await _register_sensor(
-        var, config, CONF_APPARENT_ENERGY_A, "set_apparent_energy_sensor_a"
-    )
-    await _register_sensor(
-        var, config, CONF_APPARENT_ENERGY_B, "set_apparent_energy_sensor_b"
-    )
-    await _register_sensor(
-        var, config, CONF_APPARENT_ENERGY_C, "set_apparent_energy_sensor_c"
-    )
-    # Combined sensors
-    await _register_sensor(var, config, CONF_FREQUENCY, "set_frequency_sensor")
-    await _register_sensor(
-        var, config, CONF_TOTAL_ACTIVE_POWER, "set_total_active_power_sensor"
-    )
-    await _register_sensor(
-        var, config, CONF_TOTAL_REACTIVE_POWER, "set_total_reactive_power_sensor"
-    )
-    await _register_sensor(
-        var, config, CONF_TOTAL_APPARENT_POWER, "set_total_apparent_power_sensor"
-    )
-    await _register_sensor(
-        var, config, CONF_TOTAL_POWER_FACTOR, "set_total_power_factor_sensor"
-    )
-    await _register_sensor(
-        var, config, CONF_TOTAL_ACTIVE_ENERGY, "set_total_active_energy_sensor"
-    )
-    await _register_sensor(
-        var, config, CONF_TOTAL_REACTIVE_ENERGY, "set_total_reactive_energy_sensor"
-    )
-    await _register_sensor(
-        var, config, CONF_TOTAL_APPARENT_ENERGY, "set_total_apparent_energy_sensor"
-    )
+    for key, _, setter in _SENSORS:
+        if (conf := config.get(key)) is not None:
+            sens = await sensor.new_sensor(conf)
+            cg.add(getattr(var, setter)(sens))

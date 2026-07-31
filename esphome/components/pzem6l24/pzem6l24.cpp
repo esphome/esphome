@@ -11,6 +11,8 @@ static const uint8_t PZEM_CMD_READ_IN_REGISTERS = 0x04;
 static const uint8_t PZEM_CMD_RESET_ENERGY = 0x42;
 // Number of input registers to read (0x0000 – 0x003F inclusive)
 static const uint8_t PZEM_REGISTER_COUNT = 64;  // 64 × 16-bit registers = 128 bytes
+// Payload size of the register read response
+static const size_t PZEM_PAYLOAD_SIZE = PZEM_REGISTER_COUNT * 2;
 
 // -----------------------------------------------------------------------
 // Register map (input registers, starting address 0x0000):
@@ -88,10 +90,31 @@ static const uint8_t PZEM_REGISTER_COUNT = 64;  // 64 × 16-bit registers = 128 
 //  0x003F (byte 126)– Total apparent nrg (uint32 hi-word)
 // -----------------------------------------------------------------------
 
+// Width of a quantity in the register map above.
+enum RegType : uint8_t {
+  REG_U8,   // single byte (the packed power factors)
+  REG_U16,  // one register, unsigned
+  REG_U32,  // two registers, unsigned, low word first
+  REG_I32,  // two registers, signed, low word first
+};
+
+// One decodable quantity: where it lives in the payload, how to read it, and which sensor it feeds.
+struct SensorEntry {
+  sensor::Sensor *PZEM6L24::*member;
+  uint8_t offset;
+  RegType type;
+  float scale;
+};
+
 void PZEM6L24::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
+  // on_response() is called for every reply routed to this device, including the acknowledgement of the
+  // 0x42 reset command. Only the register read carries the payload decoded below.
+  if (request_pdu.empty() || request_pdu[0] != PZEM_CMD_READ_IN_REGISTERS)
+    return;
+
   auto data = modbus::helpers::server_pdu_payload(response_pdu);
-  if (data.size() < 128) {
-    ESP_LOGW(TAG, "Invalid data size for PZEM-6L24: expected 128 bytes, got %zu", data.size());
+  if (data.size() < PZEM_PAYLOAD_SIZE) {
+    ESP_LOGW(TAG, "Invalid data size for PZEM-6L24: expected %zu bytes, got %zu", PZEM_PAYLOAD_SIZE, data.size());
     return;
   }
 
@@ -108,166 +131,92 @@ void PZEM6L24::on_response(std::span<const uint8_t> request_pdu, std::span<const
   // Helper: decode a little-endian signed 32-bit value at byte offset i.
   auto get_i32 = [&](size_t i) -> int32_t { return static_cast<int32_t>(get_u32(i)); };
 
-  // --- Voltages (×0.1 V) ---
-  float voltage_a = get_u16(0) * 0.1f;
-  float voltage_b = get_u16(2) * 0.1f;
-  float voltage_c = get_u16(4) * 0.1f;
+  ESP_LOGD(TAG, "PZEM-6L24 A: V=%.1f V, I=%.2f A, P=%.1f W, Q=%.1f var, S=%.1f VA, PF=%.2f, E=%.1f kWh",
+           get_u16(0) * 0.1f, get_u16(6) * 0.01f, get_i32(28) * 0.1f, get_i32(40) * 0.1f, get_i32(52) * 0.1f,
+           data[77] * 0.01f, get_u32(80) * 0.1f);
+  ESP_LOGD(TAG, "PZEM-6L24 B: V=%.1f V, I=%.2f A, P=%.1f W, Q=%.1f var, S=%.1f VA, PF=%.2f, E=%.1f kWh",
+           get_u16(2) * 0.1f, get_u16(8) * 0.01f, get_i32(32) * 0.1f, get_i32(44) * 0.1f, get_i32(56) * 0.1f,
+           data[76] * 0.01f, get_u32(84) * 0.1f);
+  ESP_LOGD(TAG, "PZEM-6L24 C: V=%.1f V, I=%.2f A, P=%.1f W, Q=%.1f var, S=%.1f VA, PF=%.2f, E=%.1f kWh",
+           get_u16(4) * 0.1f, get_u16(10) * 0.01f, get_i32(36) * 0.1f, get_i32(48) * 0.1f, get_i32(60) * 0.1f,
+           data[79] * 0.01f, get_u32(88) * 0.1f);
+  ESP_LOGD(TAG, "PZEM-6L24 Total: P=%.1f W, Q=%.1f var, S=%.1f VA, PF=%.2f, E=%.1f kWh, F=%.2f Hz", get_i32(64) * 0.1f,
+           get_i32(68) * 0.1f, get_i32(72) * 0.1f, data[78] * 0.01f, get_u32(116) * 0.1f, get_u16(12) * 0.01f);
 
-  // --- Currents (×0.01 A) ---
-  float current_a = get_u16(6) * 0.01f;
-  float current_b = get_u16(8) * 0.01f;
-  float current_c = get_u16(10) * 0.01f;
+  // Byte offset, width and scaling for every quantity, in register-map order. All three phases share the
+  // same grid frequency, so phase A's register is reported as the representative value.
+  static constexpr SensorEntry SENSORS[] = {
+      // Voltages (×0.1 V)
+      {&PZEM6L24::voltage_a_, 0, REG_U16, 0.1f},
+      {&PZEM6L24::voltage_b_, 2, REG_U16, 0.1f},
+      {&PZEM6L24::voltage_c_, 4, REG_U16, 0.1f},
+      // Currents (×0.01 A)
+      {&PZEM6L24::current_a_, 6, REG_U16, 0.01f},
+      {&PZEM6L24::current_b_, 8, REG_U16, 0.01f},
+      {&PZEM6L24::current_c_, 10, REG_U16, 0.01f},
+      // Frequency (×0.01 Hz)
+      {&PZEM6L24::frequency_, 12, REG_U16, 0.01f},
+      // Active powers (×0.1 W, signed)
+      {&PZEM6L24::active_power_a_, 28, REG_I32, 0.1f},
+      {&PZEM6L24::active_power_b_, 32, REG_I32, 0.1f},
+      {&PZEM6L24::active_power_c_, 36, REG_I32, 0.1f},
+      {&PZEM6L24::total_active_power_, 64, REG_I32, 0.1f},
+      // Reactive powers (×0.1 var, signed)
+      {&PZEM6L24::reactive_power_a_, 40, REG_I32, 0.1f},
+      {&PZEM6L24::reactive_power_b_, 44, REG_I32, 0.1f},
+      {&PZEM6L24::reactive_power_c_, 48, REG_I32, 0.1f},
+      {&PZEM6L24::total_reactive_power_, 68, REG_I32, 0.1f},
+      // Apparent powers (×0.1 VA, signed)
+      {&PZEM6L24::apparent_power_a_, 52, REG_I32, 0.1f},
+      {&PZEM6L24::apparent_power_b_, 56, REG_I32, 0.1f},
+      {&PZEM6L24::apparent_power_c_, 60, REG_I32, 0.1f},
+      {&PZEM6L24::total_apparent_power_, 72, REG_I32, 0.1f},
+      // Power factors (×0.01), packed two per register:
+      //   register 0x0026 (bytes 76/77): lo-byte = phase B, hi-byte = phase A
+      //   register 0x0027 (bytes 78/79): lo-byte = combined, hi-byte = phase C
+      {&PZEM6L24::power_factor_a_, 77, REG_U8, 0.01f},
+      {&PZEM6L24::power_factor_b_, 76, REG_U8, 0.01f},
+      {&PZEM6L24::power_factor_c_, 79, REG_U8, 0.01f},
+      {&PZEM6L24::total_power_factor_, 78, REG_U8, 0.01f},
+      // Active energies (×0.1 kWh, unsigned)
+      {&PZEM6L24::active_energy_a_, 80, REG_U32, 0.1f},
+      {&PZEM6L24::active_energy_b_, 84, REG_U32, 0.1f},
+      {&PZEM6L24::active_energy_c_, 88, REG_U32, 0.1f},
+      {&PZEM6L24::total_active_energy_, 116, REG_U32, 0.1f},
+      // Reactive energies (×0.1 kvarh, unsigned)
+      {&PZEM6L24::reactive_energy_a_, 92, REG_U32, 0.1f},
+      {&PZEM6L24::reactive_energy_b_, 96, REG_U32, 0.1f},
+      {&PZEM6L24::reactive_energy_c_, 100, REG_U32, 0.1f},
+      {&PZEM6L24::total_reactive_energy_, 120, REG_U32, 0.1f},
+      // Apparent energies (×0.1 kVAh, unsigned)
+      {&PZEM6L24::apparent_energy_a_, 104, REG_U32, 0.1f},
+      {&PZEM6L24::apparent_energy_b_, 108, REG_U32, 0.1f},
+      {&PZEM6L24::apparent_energy_c_, 112, REG_U32, 0.1f},
+      {&PZEM6L24::total_apparent_energy_, 124, REG_U32, 0.1f},
+  };
 
-  // --- Frequency (×0.01 Hz) — all three phases share the same grid frequency;
-  //     we report phase A as the representative value. ---
-  float frequency = get_u16(12) * 0.01f;
-
-  // --- Active powers (×0.1 W, signed) ---
-  float active_power_a = get_i32(28) * 0.1f;
-  float active_power_b = get_i32(32) * 0.1f;
-  float active_power_c = get_i32(36) * 0.1f;
-
-  // --- Reactive powers (×0.1 var, signed) ---
-  float reactive_power_a = get_i32(40) * 0.1f;
-  float reactive_power_b = get_i32(44) * 0.1f;
-  float reactive_power_c = get_i32(48) * 0.1f;
-
-  // --- Apparent powers (×0.1 VA, signed) ---
-  float apparent_power_a = get_i32(52) * 0.1f;
-  float apparent_power_b = get_i32(56) * 0.1f;
-  float apparent_power_c = get_i32(60) * 0.1f;
-
-  // --- Combined powers (×0.1 W/var/VA) ---
-  float total_active_power = get_i32(64) * 0.1f;
-  float total_reactive_power = get_i32(68) * 0.1f;
-  float total_apparent_power = get_i32(72) * 0.1f;
-
-  // --- Power factors (×0.01, packed as two uint8 values per register):
-  //     Register 0x0026: hi-byte = phase A, lo-byte = phase B
-  //     Register 0x0027: hi-byte = phase C, lo-byte = combined ---
-  float power_factor_a = data[77] * 0.01f;
-  float power_factor_b = data[76] * 0.01f;
-  float power_factor_c = data[79] * 0.01f;
-  float total_power_factor = data[78] * 0.01f;
-
-  // --- Active energies (×0.1 kWh, unsigned) ---
-  float active_energy_a = get_u32(80) * 0.1f;
-  float active_energy_b = get_u32(84) * 0.1f;
-  float active_energy_c = get_u32(88) * 0.1f;
-
-  // --- Reactive energies (×0.1 kvarh, unsigned) ---
-  float reactive_energy_a = get_u32(92) * 0.1f;
-  float reactive_energy_b = get_u32(96) * 0.1f;
-  float reactive_energy_c = get_u32(100) * 0.1f;
-
-  // --- Apparent energies (×0.1 kVAh, unsigned) ---
-  float apparent_energy_a = get_u32(104) * 0.1f;
-  float apparent_energy_b = get_u32(108) * 0.1f;
-  float apparent_energy_c = get_u32(112) * 0.1f;
-
-  // --- Combined energies ---
-  float total_active_energy = get_u32(116) * 0.1f;
-  float total_reactive_energy = get_u32(120) * 0.1f;
-  float total_apparent_energy = get_u32(124) * 0.1f;
-
-  ESP_LOGD(TAG, "PZEM-6L24 A: V=%.1f V, I=%.2f A, P=%.1f W, Q=%.1f var, S=%.1f VA, PF=%.2f, E=%.1f kWh", voltage_a,
-           current_a, active_power_a, reactive_power_a, apparent_power_a, power_factor_a, active_energy_a);
-  ESP_LOGD(TAG, "PZEM-6L24 B: V=%.1f V, I=%.2f A, P=%.1f W, Q=%.1f var, S=%.1f VA, PF=%.2f, E=%.1f kWh", voltage_b,
-           current_b, active_power_b, reactive_power_b, apparent_power_b, power_factor_b, active_energy_b);
-  ESP_LOGD(TAG, "PZEM-6L24 C: V=%.1f V, I=%.2f A, P=%.1f W, Q=%.1f var, S=%.1f VA, PF=%.2f, E=%.1f kWh", voltage_c,
-           current_c, active_power_c, reactive_power_c, apparent_power_c, power_factor_c, active_energy_c);
-  ESP_LOGD(TAG, "PZEM-6L24 Total: P=%.1f W, Q=%.1f var, S=%.1f VA, PF=%.2f, E=%.1f kWh, F=%.2f Hz", total_active_power,
-           total_reactive_power, total_apparent_power, total_power_factor, total_active_energy, frequency);
-
-  // Publish per-phase voltages
-  if (this->voltage_a_ != nullptr)
-    this->voltage_a_->publish_state(voltage_a);
-  if (this->voltage_b_ != nullptr)
-    this->voltage_b_->publish_state(voltage_b);
-  if (this->voltage_c_ != nullptr)
-    this->voltage_c_->publish_state(voltage_c);
-
-  // Publish per-phase currents
-  if (this->current_a_ != nullptr)
-    this->current_a_->publish_state(current_a);
-  if (this->current_b_ != nullptr)
-    this->current_b_->publish_state(current_b);
-  if (this->current_c_ != nullptr)
-    this->current_c_->publish_state(current_c);
-
-  // Publish per-phase active powers
-  if (this->active_power_a_ != nullptr)
-    this->active_power_a_->publish_state(active_power_a);
-  if (this->active_power_b_ != nullptr)
-    this->active_power_b_->publish_state(active_power_b);
-  if (this->active_power_c_ != nullptr)
-    this->active_power_c_->publish_state(active_power_c);
-
-  // Publish per-phase reactive powers
-  if (this->reactive_power_a_ != nullptr)
-    this->reactive_power_a_->publish_state(reactive_power_a);
-  if (this->reactive_power_b_ != nullptr)
-    this->reactive_power_b_->publish_state(reactive_power_b);
-  if (this->reactive_power_c_ != nullptr)
-    this->reactive_power_c_->publish_state(reactive_power_c);
-
-  // Publish per-phase apparent powers
-  if (this->apparent_power_a_ != nullptr)
-    this->apparent_power_a_->publish_state(apparent_power_a);
-  if (this->apparent_power_b_ != nullptr)
-    this->apparent_power_b_->publish_state(apparent_power_b);
-  if (this->apparent_power_c_ != nullptr)
-    this->apparent_power_c_->publish_state(apparent_power_c);
-
-  // Publish per-phase power factors
-  if (this->power_factor_a_ != nullptr)
-    this->power_factor_a_->publish_state(power_factor_a);
-  if (this->power_factor_b_ != nullptr)
-    this->power_factor_b_->publish_state(power_factor_b);
-  if (this->power_factor_c_ != nullptr)
-    this->power_factor_c_->publish_state(power_factor_c);
-
-  // Publish per-phase active energies
-  if (this->active_energy_a_ != nullptr)
-    this->active_energy_a_->publish_state(active_energy_a);
-  if (this->active_energy_b_ != nullptr)
-    this->active_energy_b_->publish_state(active_energy_b);
-  if (this->active_energy_c_ != nullptr)
-    this->active_energy_c_->publish_state(active_energy_c);
-
-  // Publish per-phase reactive energies
-  if (this->reactive_energy_a_ != nullptr)
-    this->reactive_energy_a_->publish_state(reactive_energy_a);
-  if (this->reactive_energy_b_ != nullptr)
-    this->reactive_energy_b_->publish_state(reactive_energy_b);
-  if (this->reactive_energy_c_ != nullptr)
-    this->reactive_energy_c_->publish_state(reactive_energy_c);
-
-  // Publish per-phase apparent energies
-  if (this->apparent_energy_a_ != nullptr)
-    this->apparent_energy_a_->publish_state(apparent_energy_a);
-  if (this->apparent_energy_b_ != nullptr)
-    this->apparent_energy_b_->publish_state(apparent_energy_b);
-  if (this->apparent_energy_c_ != nullptr)
-    this->apparent_energy_c_->publish_state(apparent_energy_c);
-
-  // Publish combined sensors
-  if (this->frequency_ != nullptr)
-    this->frequency_->publish_state(frequency);
-  if (this->total_active_power_ != nullptr)
-    this->total_active_power_->publish_state(total_active_power);
-  if (this->total_reactive_power_ != nullptr)
-    this->total_reactive_power_->publish_state(total_reactive_power);
-  if (this->total_apparent_power_ != nullptr)
-    this->total_apparent_power_->publish_state(total_apparent_power);
-  if (this->total_power_factor_ != nullptr)
-    this->total_power_factor_->publish_state(total_power_factor);
-  if (this->total_active_energy_ != nullptr)
-    this->total_active_energy_->publish_state(total_active_energy);
-  if (this->total_reactive_energy_ != nullptr)
-    this->total_reactive_energy_->publish_state(total_reactive_energy);
-  if (this->total_apparent_energy_ != nullptr)
-    this->total_apparent_energy_->publish_state(total_apparent_energy);
+  for (const auto &entry : SENSORS) {
+    sensor::Sensor *sens = this->*entry.member;
+    if (sens == nullptr)
+      continue;
+    float raw;
+    switch (entry.type) {
+      case REG_U8:
+        raw = data[entry.offset];
+        break;
+      case REG_U16:
+        raw = get_u16(entry.offset);
+        break;
+      case REG_U32:
+        raw = get_u32(entry.offset);
+        break;
+      case REG_I32:
+      default:
+        raw = get_i32(entry.offset);
+        break;
+    }
+    sens->publish_state(raw * entry.scale);
+  }
 }
 
 void PZEM6L24::update() { this->send(PZEM_CMD_READ_IN_REGISTERS, 0x0000, PZEM_REGISTER_COUNT); }
@@ -317,8 +266,9 @@ void PZEM6L24::dump_config() {
 void PZEM6L24::reset_energy_(ResetPhase phase_option) {
   // The PZEM-6L24 reset command uses function code 0x42 with two extra
   // bytes: a reserved 0x00 byte and the phase selection byte.
-  // The ESPHome modbus send_raw() appends the CRC automatically.
-  this->send_raw({this->address_, PZEM_CMD_RESET_ENERGY, 0x00, static_cast<uint8_t>(phase_option)});
+  // The hub prepends the device address and appends the CRC.
+  const uint8_t pdu[] = {PZEM_CMD_RESET_ENERGY, 0x00, static_cast<uint8_t>(phase_option)};
+  this->send_pdu(pdu);
 }
 
 }  // namespace esphome::pzem6l24
