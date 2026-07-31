@@ -1,0 +1,60 @@
+esphome:
+  name: nrf54l15dk-test
+
+zephyr:
+  variant: nrf54l15
+  framework:
+    type: zephyr
+
+logger:
+
+network:
+  enable_ipv6: true
+
+openthread:
+  device_type: mtd
+  force_dataset: true
+  tlv: !secret openthread_tlv_wed
+
+api:
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+    swap_method: move
+
+switch:
+  - platform: gpio
+    id: test_led
+    name: "LED0"
+    pin: 73  # LED0 on the nRF54L15 DK: gpio2 pin 9 (2*32 + 9)
+
+binary_sensor:
+  - platform: gpio
+    id: test_button0
+    name: "Button 0"
+    pin:
+      number: 45  # SW0 (button0): gpio1 pin 13 (1*32 + 13)
+      mode: INPUT_PULLUP
+      inverted: true
+  - platform: gpio
+    id: test_button1
+    name: "Button 1"
+    pin:
+      number: 41  # SW1 (button1): gpio1 pin 9 (1*32 + 9)
+      mode: INPUT_PULLUP
+      inverted: true
+  - platform: gpio
+    id: test_button2
+    name: "Button 2"
+    pin:
+      number: 40  # SW2 (button2): gpio1 pin 8 (1*32 + 8)
+      mode: INPUT_PULLUP
+      inverted: true
+  - platform: gpio
+    id: test_button3
+    name: "Button 3"
+    pin:
+      number: 4  # SW3 (button3): gpio0 pin 4 (0*32 + 4)
+      mode: INPUT_PULLUP
+      inverted: true

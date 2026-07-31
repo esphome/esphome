@@ -29,6 +29,7 @@ from esphome.components.libretiny.const import (
     COMPONENT_RTL87XX,
 )
 from esphome.components.zephyr import (
+    VARIANTS,
     ZEPHYR_VARIANT_ESP32_C6,
     ZEPHYR_VARIANT_ESP32_H2,
     zephyr_add_cdc_acm,
@@ -537,18 +538,17 @@ async def _late_logger_init(config: ConfigType) -> None:
     if CORE.is_zephyr and has_serial_logging:
         zephyr_add_prj_conf("SERIAL", True)
         hw_uart = config.get(CONF_HARDWARE_UART, UART0)
-        # Board defaults set zephyr,console = &uart0 regardless of hardware_uart; Zephyr's
-        # native LOG subsystem always attaches there, so leaving it at the default would
-        # silently lose native log output whenever the user picks a different UART.
-        if hw_uart == UART0:
-            zephyr_add_overlay("""&uart0 { status = "okay";};""")
+        # Board defaults set zephyr,console to the variant's default UART node regardless
+        # of hardware_uart; Zephyr's native LOG subsystem always attaches there, so leaving
+        # it at the default would silently lose native log output whenever the user picks
+        # a different UART. Node label varies by variant -- e.g. nRF54 numbers peripheral
+        # instances (uart20/uart30) instead of nRF52/ESP32's uart0/uart1.
+        uart_node_labels = VARIANTS[zephyr_variant()].uart_node_labels
+        if hw_uart in (UART0, UART1):
+            node = uart_node_labels[hw_uart]
+            zephyr_add_overlay(f"""&{node} {{ status = "okay";}};""")
             zephyr_add_overlay(
-                """/ { chosen { zephyr,console = &uart0; zephyr,shell-uart = &uart0; }; };"""
-            )
-        elif hw_uart == UART1:
-            zephyr_add_overlay("""&uart1 { status = "okay";};""")
-            zephyr_add_overlay(
-                """/ { chosen { zephyr,console = &uart1; zephyr,shell-uart = &uart1; }; };"""
+                f"""/ {{ chosen {{ zephyr,console = &{node}; zephyr,shell-uart = &{node}; }}; }};"""
             )
         elif hw_uart == USB_SERIAL_JTAG:
             # A standard Zephyr UART device, not a USB CDC-ACM stack like nrf52's

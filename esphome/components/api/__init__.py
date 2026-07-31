@@ -340,6 +340,7 @@ CONFIG_SCHEMA = cv.All(
                 zephyr_esp32c6=4,  # ~512KB RAM, embedded target
                 zephyr_nativesim=8,  # Abundant resources
                 zephyr_nrf52=4,  # ~256KB RAM, BSD sockets, Thread (single HA controller)
+                zephyr_nrf54l15=4,  # ~256KB RAM, BSD sockets, Thread (single HA controller)
             ): cv.int_range(min=1, max=20),
             # Maximum queued send buffers per connection before dropping connection
             # Each buffer uses ~8-12 bytes overhead plus actual message size
@@ -360,6 +361,7 @@ CONFIG_SCHEMA = cv.All(
                 zephyr_esp32c6=8,  # Moderate RAM
                 zephyr_nativesim=16,  # Abundant resources
                 zephyr_nrf52=8,  # Moderate RAM
+                zephyr_nrf54l15=8,  # Moderate RAM
             ): cv.int_range(min=1, max=64),
         }
     ).extend(cv.COMPONENT_SCHEMA),
