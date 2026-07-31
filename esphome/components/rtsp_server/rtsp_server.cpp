@@ -117,7 +117,10 @@ void RTSPServer::session_started_playing() {
 }
 
 void RTSPServer::session_stopped_playing() {
-  if (this->playing_count_ > 0 && --this->playing_count_ == 0) {
+  if (this->playing_count_ == 0)
+    return;
+  this->playing_count_--;
+  if (this->playing_count_ == 0) {
     camera::Camera::instance()->stop_stream(camera::RTSP_REQUESTER);
   }
 }
