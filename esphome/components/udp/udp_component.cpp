@@ -17,6 +17,7 @@ static const char *const TAG = "udp";
 void UDPComponent::setup() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   // Build destination address list.  sockaddr_storage is large enough for both IPv4 and IPv6.
+  this->sockaddrs_.init(this->addresses_.size());
   for (const auto &address : this->addresses_) {
     struct sockaddr_storage saddr {};
     socklen_t addrlen =
@@ -27,11 +28,18 @@ void UDPComponent::setup() {
       this->mark_failed();
       return;
     }
-    this->sockaddrs_.push_back(saddr);
+    this->sockaddrs_.push_back(SockAddr{saddr, addrlen});
   }
   // Broadcast (send) socket
   if (this->should_broadcast_) {
+#ifdef USE_ZEPHYR
+    // Zephyr's network stack is IPv6-only
     this->broadcast_socket_ = socket::socket_ip(SOCK_DGRAM, IPPROTO_IP);
+#else
+    // Other platforms are IPv4 for this component: socket_ip() would pick AF_INET6 whenever
+    // network enable_ipv6 is set, while the addresses/multicast path remain IPv4.
+    this->broadcast_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+#endif
     if (this->broadcast_socket_ == nullptr) {
       this->status_set_error(LOG_STR("Could not create socket"));
       this->mark_failed();
@@ -53,7 +61,11 @@ void UDPComponent::setup() {
   }
   // Listen socket
   if (this->should_listen_) {
+#ifdef USE_ZEPHYR
     this->listen_socket_ = socket::socket_ip(SOCK_DGRAM, IPPROTO_IP);
+#else
+    this->listen_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+#endif
     if (this->listen_socket_ == nullptr) {
       this->status_set_error(LOG_STR("Could not create socket"));
       this->mark_failed();
@@ -202,6 +214,7 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
     this->broadcast_socket_ = socket::socket_ip(SOCK_DGRAM, IPPROTO_IP);
     if (this->broadcast_socket_ == nullptr) {
       ESP_LOGW(TAG, "Could not recreate send socket");
+      this->status_set_warning(LOG_STR("Could not recreate send socket"));
       return;
     }
     int enable = 1;
@@ -212,15 +225,22 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
   }
 #endif
   socket::Socket *send_socket = this->broadcast_socket_ ? this->broadcast_socket_.get() : this->listen_socket_.get();
-  if (send_socket == nullptr)
+  if (send_socket == nullptr) {
+    ESP_LOGW(TAG, "No send socket available; dropping packet");
+    this->status_set_warning(LOG_STR("No send socket"));
     return;
+  }
 #ifdef USE_OPENTHREAD
   if (send_socket == this->broadcast_socket_.get() && !this->broadcast_socket_bound_) {
-    if (openthread::global_openthread_component == nullptr)
+    if (openthread::global_openthread_component == nullptr) {
+      ESP_LOGW(TAG, "OpenThread component not available; dropping packet");
+      this->status_set_warning(LOG_STR("OpenThread not available"));
       return;
+    }
     auto omr = openthread::global_openthread_component->get_omr_address();
     if (!omr.has_value()) {
-      ESP_LOGV(TAG, "OMR address not available yet; dropping packet");
+      ESP_LOGD(TAG, "OMR address not available yet; dropping packet");
+      this->status_set_warning(LOG_STR("No OMR address"));
       return;
     }
     struct sockaddr_in6 src {};
@@ -228,30 +248,35 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
     memcpy(&src.sin6_addr, omr->mFields.m8, sizeof(src.sin6_addr));
     if (this->broadcast_socket_->bind(reinterpret_cast<sockaddr *>(&src), sizeof(src)) != 0) {
       ESP_LOGW(TAG, "Bind send socket to OMR source failed: errno %d", errno);
+      this->status_set_warning(LOG_STR("OMR bind failed"));
       return;
     }
     this->broadcast_socket_bound_ = true;
   }
 #endif
   for (const auto &saddr : this->sockaddrs_) {
-    auto result =
-        send_socket->sendto(data, size, 0, reinterpret_cast<const sockaddr *>(&saddr), sizeof(struct sockaddr_in6));
+    auto result = send_socket->sendto(data, size, 0, reinterpret_cast<const sockaddr *>(&saddr.addr), saddr.len);
     if (result < 0) {
       ESP_LOGW(TAG, "sendto() error %d", errno);
+      this->status_set_warning(LOG_STR("sendto failed"));
       // A bound socket cannot be re-bound: just resetting the flag would make the
       // next send try bind() again, which fails with EINVAL. Close the socket so
-      // the next send rebuilds it with a fresh OMR bind.
+      // the next send rebuilds it with a fresh OMR bind. Only do this when the
+      // rebuild path is actually compiled in.
+#ifdef USE_OPENTHREAD
       if (errno == ENOENT) {
         this->broadcast_socket_.reset();
         this->broadcast_socket_bound_ = false;
         break;  // socket is closed; remaining addresses won't succeed either
       }
+#endif
     }
   }
+  this->status_clear_warning();
 #else
   for (const auto &saddr : this->sockaddrs_) {
     auto result =
-        this->broadcast_socket_->sendto(data, size, 0, reinterpret_cast<const sockaddr *>(&saddr), sizeof(saddr));
+        this->broadcast_socket_->sendto(data, size, 0, reinterpret_cast<const sockaddr *>(&saddr.addr), saddr.len);
     if (result < 0)
       ESP_LOGW(TAG, "sendto() error %d", errno);
   }
