@@ -1,88 +1,45 @@
 """Tests for the heatpumpir climate code generation."""
 
-import copy
+from collections.abc import Callable
+from pathlib import Path
 
-import pytest
-
-from esphome.components.heatpumpir import climate as heatpumpir
-from esphome.const import (
-    CONF_MAX_TEMPERATURE,
-    CONF_MIN_TEMPERATURE,
-    CONF_PROTOCOL,
-    CONF_VISUAL,
-    PlatformFramework,
-)
-from esphome.types import ConfigType
+from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
+from esphome.const import PlatformFramework
 from tests.component_tests.types import SetCoreConfigCallable
 
 
-@pytest.mark.asyncio
-async def test_to_code_defaults_visual_before_new_climate_ir(
-    monkeypatch: pytest.MonkeyPatch, set_core_config: SetCoreConfigCallable
+def test_defaults_visual_from_required_min_max(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    set_core_config: SetCoreConfigCallable,
 ) -> None:
-    """The required min/max_temperature must seed CONF_VISUAL *before*
-    new_climate_ir() reads it, otherwise the entity reports the 0-100 default
-    range in Home Assistant (issue #17983)."""
-    seen_visual: ConfigType = {}
+    """With only the required min/max_temperature (no visual block), the entity
+    must expose that range as its visual override, not the ClimateIR 0-100
+    default (issue #17983)."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    main_cpp = generate_main(component_config_path("default_visual.yaml"))
 
-    async def fake_new_climate_ir(config: ConfigType, *args):
-        # Capture the visual config exactly as new_climate_ir (and the climate
-        # base it calls) would see it.
-        seen_visual.update(copy.deepcopy(config.get(CONF_VISUAL, {})))
-        return _RecordingVar()
-
-    monkeypatch.setattr(heatpumpir.climate_ir, "new_climate_ir", fake_new_climate_ir)
-    monkeypatch.setattr(heatpumpir.cg, "add", lambda expr: expr)
-    monkeypatch.setattr(heatpumpir.cg, "add_library", lambda *a, **k: None)
-    set_core_config(PlatformFramework.ESP8266_ARDUINO)
-
-    config: ConfigType = {
-        CONF_PROTOCOL: heatpumpir.PROTOCOLS["aux"],
-        heatpumpir.CONF_HORIZONTAL_DEFAULT: heatpumpir.HORIZONTAL_DIRECTIONS["auto"],
-        heatpumpir.CONF_VERTICAL_DEFAULT: heatpumpir.VERTICAL_DIRECTIONS["auto"],
-        CONF_MIN_TEMPERATURE: 18,
-        CONF_MAX_TEMPERATURE: 30,
-    }
-
-    await heatpumpir.to_code(config)
-
-    assert seen_visual[CONF_MIN_TEMPERATURE] == 18
-    assert seen_visual[CONF_MAX_TEMPERATURE] == 30
+    assert "set_visual_min_temperature_override(18.0f)" in main_cpp
+    assert "set_visual_max_temperature_override(30.0f)" in main_cpp
 
 
-@pytest.mark.asyncio
-async def test_to_code_keeps_explicit_visual(
-    monkeypatch: pytest.MonkeyPatch, set_core_config: SetCoreConfigCallable
+def test_explicit_visual_takes_precedence(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    set_core_config: SetCoreConfigCallable,
 ) -> None:
-    """An explicit visual min/max is not overwritten by the required temps."""
-    seen_visual: ConfigType = {}
+    """An explicit visual min/max is used as-is and not replaced by the required
+    min/max_temperature."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    main_cpp = generate_main(component_config_path("explicit_visual.yaml"))
 
-    async def fake_new_climate_ir(config: ConfigType, *args):
-        seen_visual.update(copy.deepcopy(config.get(CONF_VISUAL, {})))
-        return _RecordingVar()
-
-    monkeypatch.setattr(heatpumpir.climate_ir, "new_climate_ir", fake_new_climate_ir)
-    monkeypatch.setattr(heatpumpir.cg, "add", lambda expr: expr)
-    monkeypatch.setattr(heatpumpir.cg, "add_library", lambda *a, **k: None)
-    set_core_config(PlatformFramework.ESP8266_ARDUINO)
-
-    config: ConfigType = {
-        CONF_PROTOCOL: heatpumpir.PROTOCOLS["aux"],
-        heatpumpir.CONF_HORIZONTAL_DEFAULT: heatpumpir.HORIZONTAL_DIRECTIONS["auto"],
-        heatpumpir.CONF_VERTICAL_DEFAULT: heatpumpir.VERTICAL_DIRECTIONS["auto"],
-        CONF_MIN_TEMPERATURE: 16,
-        CONF_MAX_TEMPERATURE: 32,
-        CONF_VISUAL: {CONF_MIN_TEMPERATURE: 18, CONF_MAX_TEMPERATURE: 30},
-    }
-
-    await heatpumpir.to_code(config)
-
-    assert seen_visual[CONF_MIN_TEMPERATURE] == 18
-    assert seen_visual[CONF_MAX_TEMPERATURE] == 30
-
-
-class _RecordingVar:
-    """A stand-in for the climate var whose setter calls are no-ops."""
-
-    def __getattr__(self, _name: str):
-        return lambda *args, **kwargs: None
+    assert "set_visual_min_temperature_override(18.0f)" in main_cpp
+    assert "set_visual_max_temperature_override(30.0f)" in main_cpp
+    assert "set_visual_min_temperature_override(16.0f)" not in main_cpp
+    assert "set_visual_max_temperature_override(32.0f)" not in main_cpp
