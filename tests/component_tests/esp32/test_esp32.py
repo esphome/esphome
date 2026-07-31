@@ -271,6 +271,38 @@ def test_nvs_encryption_sdkconfig(
 
 
 @pytest.mark.parametrize(
+    ("fixture", "multi_key", "idf_on_update"),
+    [
+        # Externally-signed RSA hands verification to ESPHome's multi-key
+        # verifier, so IDF's single-block on-update check must be OFF. It
+        # defaults ON under SECURE_SIGNED_APPS_NO_SECURE_BOOT, so it has to be
+        # set to False explicitly -- not merely omitted.
+        ("signed_ota_external_rsa_s3.yaml", True, False),
+        # Build-time signing and the other schemes keep IDF's check.
+        ("signed_ota_signing_key_s3.yaml", False, True),
+        ("signed_ota_ecdsa256_c6.yaml", False, True),
+        ("signed_ota_ecdsa_v1.yaml", False, True),
+    ],
+)
+def test_signed_ota_verification_sdkconfig(
+    fixture: str,
+    multi_key: bool,
+    idf_on_update: bool,
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Only external RSA disables IDF's on-update check and uses ESPHome's verifier."""
+    generate_main(component_config_path(fixture))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    # The padded, externally-signable image is always produced.
+    assert sdkconfig.get("CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT") is True
+    # Explicit value (never left to the Kconfig default) decides who verifies.
+    assert sdkconfig.get("CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT") is idf_on_update
+    defines = {define.name for define in CORE.defines}
+    assert ("USE_OTA_SIGNED_VERIFICATION_MULTI_KEY" in defines) is multi_key
+
+
+@pytest.mark.parametrize(
     ("fixture", "expect_warning"),
     [
         ("psram_quad_gpio34.yaml", False),

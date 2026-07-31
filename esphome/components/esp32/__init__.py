@@ -2565,13 +2565,15 @@ async def to_code(config):
         # ESPHome accepts an image signed by any key the running app trusts.
         # The build still produces the padded unsigned image (via SECURE_
         # SIGNED_APPS_NO_SECURE_BOOT above); only the on-update check moves.
+        # SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT defaults to y under
+        # SECURE_SIGNED_APPS_NO_SECURE_BOOT, so it must be set explicitly:
+        # False to hand verification to ESPHome, True to keep IDF's check.
         external_rsa = scheme == "rsa3072" and CONF_SIGNING_KEY not in signed_ota
+        add_idf_sdkconfig_option(
+            "CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT", not external_rsa
+        )
         if external_rsa:
             cg.add_define("USE_OTA_SIGNED_VERIFICATION_MULTI_KEY")
-        else:
-            add_idf_sdkconfig_option(
-                "CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT", True
-            )
 
         for key, flag in SIGNING_SCHEMES.items():
             add_idf_sdkconfig_option(flag, scheme == key)

@@ -4,6 +4,8 @@
 #ifdef USE_OTA_SIGNED_VERIFICATION_MULTI_KEY
 #include "esphome/core/log.h"
 
+#include <algorithm>
+#include <array>
 #include <cstring>
 #include <esp_image_format.h>
 #include <esp_partition.h>
@@ -54,8 +56,8 @@ bool block_is_valid(const uint8_t *block) {
   return esp_rom_crc32_le(0, block, OFFSET_CRC) == stored_crc;
 }
 
-void key_digest_of(const uint8_t *block, KeyDigest &out) {
-  mbedtls_sha256(block + OFFSET_KEY, KEY_REGION_LEN, out.data(), /*is224=*/0);
+bool key_digest_of(const uint8_t *block, KeyDigest &out) {
+  return mbedtls_sha256(block + OFFSET_KEY, KEY_REGION_LEN, out.data(), /*is224=*/0) == 0;
 }
 
 // The offset of the signature sector: the app length rounded up to 4 KiB.
@@ -70,22 +72,21 @@ bool signature_sector_offset(const esp_partition_t *part, size_t &out_offset) {
 }
 
 // SHA-256 over the 4 KiB-padded image, i.e. everything the signature covers.
+// Returns false on a read or hash error so a hash failure is not later
+// misreported as a signature mismatch.
 bool image_digest(const esp_partition_t *part, size_t image_padded_len, uint8_t *out) {
   mbedtls_sha256_context ctx;
   mbedtls_sha256_init(&ctx);
-  mbedtls_sha256_starts(&ctx, /*is224=*/0);
+  bool ok = mbedtls_sha256_starts(&ctx, /*is224=*/0) == 0;
   uint8_t buf[512];
-  bool ok = true;
-  for (size_t off = 0; off < image_padded_len; off += sizeof(buf)) {
+  for (size_t off = 0; ok && off < image_padded_len; off += sizeof(buf)) {
     size_t chunk = std::min(sizeof(buf), image_padded_len - off);
-    if (esp_partition_read(part, off, buf, chunk) != ESP_OK) {
+    if (esp_partition_read(part, off, buf, chunk) != ESP_OK || mbedtls_sha256_update(&ctx, buf, chunk) != 0) {
       ok = false;
-      break;
     }
-    mbedtls_sha256_update(&ctx, buf, chunk);
   }
   if (ok) {
-    mbedtls_sha256_finish(&ctx, out);
+    ok = mbedtls_sha256_finish(&ctx, out) == 0;
   }
   mbedtls_sha256_free(&ctx);
   return ok;
@@ -93,17 +94,18 @@ bool image_digest(const esp_partition_t *part, size_t image_padded_len, uint8_t 
 
 // Collect the key digests of every valid signature block in an image. Returns
 // the count found (0 on read error), writing up to SIG_BLOCK_MAX_COUNT digests.
-size_t collect_key_digests(const esp_partition_t *part, size_t sector_offset,
+// The caller supplies the block buffer so this shares one with verify_signed_
+// image_ rather than stacking a second 1.2 KB frame during verification.
+size_t collect_key_digests(const esp_partition_t *part, size_t sector_offset, uint8_t *block,
                            std::array<KeyDigest, SIG_BLOCK_MAX_COUNT> &out) {
   size_t count = 0;
-  uint8_t block[SIG_BLOCK_SIZE];
   for (size_t i = 0; i < SIG_BLOCK_MAX_COUNT; i++) {
     size_t off = sector_offset + i * SIG_BLOCK_SIZE;
     if (off + SIG_BLOCK_SIZE > part->size || esp_partition_read(part, off, block, SIG_BLOCK_SIZE) != ESP_OK) {
       break;
     }
-    if (block_is_valid(block)) {
-      key_digest_of(block, out[count++]);
+    if (block_is_valid(block) && key_digest_of(block, out[count])) {
+      count++;
     }
   }
   return count;
@@ -128,8 +130,8 @@ bool rsa_pss_verify(const uint8_t *block, const uint8_t *digest) {
   bool verified = false;
   if (mbedtls_rsa_import_raw(&rsa, modulus_be, sizeof(modulus_be), nullptr, 0, nullptr, 0, nullptr, 0, exponent_be,
                              sizeof(exponent_be)) == 0 &&
-      mbedtls_rsa_complete(&rsa) == 0) {
-    mbedtls_rsa_set_padding(&rsa, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA256);
+      mbedtls_rsa_complete(&rsa) == 0 &&
+      mbedtls_rsa_set_padding(&rsa, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA256) == 0) {
     verified = mbedtls_rsa_rsassa_pss_verify(&rsa, MBEDTLS_MD_SHA256, SHA256_BYTES, digest, signature_be) == 0;
   }
   mbedtls_rsa_free(&rsa);
@@ -145,13 +147,17 @@ bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
     return false;
   }
 
+  // One block buffer, reused for both the trusted-key scan and the incoming
+  // scan below, to keep the verify path's stack footprint down.
+  uint8_t block[SIG_BLOCK_SIZE];
+
   // The set of keys the running app trusts: the keys in its own signature
   // blocks. A device only ever accepts an image sharing one of these.
   size_t running_sector;
   std::array<KeyDigest, SIG_BLOCK_MAX_COUNT> trusted;
   size_t trusted_count = 0;
   if (signature_sector_offset(running, running_sector)) {
-    trusted_count = collect_key_digests(running, running_sector, trusted);
+    trusted_count = collect_key_digests(running, running_sector, block, trusted);
   }
   if (trusted_count == 0) {
     ESP_LOGE(TAG, "Signature check: running app has no trusted keys");
@@ -172,7 +178,6 @@ bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
   // Accept if any incoming block is signed by a trusted key AND its signature
   // verifies over the image. Iterating all blocks (not just the first) is the
   // whole point -- it lets a bridge/backup key in a later block be the match.
-  uint8_t block[SIG_BLOCK_SIZE];
   for (size_t i = 0; i < SIG_BLOCK_MAX_COUNT; i++) {
     size_t off = incoming_sector + i * SIG_BLOCK_SIZE;
     if (off + SIG_BLOCK_SIZE > incoming->size || esp_partition_read(incoming, off, block, SIG_BLOCK_SIZE) != ESP_OK) {
@@ -182,7 +187,10 @@ bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
       continue;
     }
     KeyDigest incoming_key;
-    key_digest_of(block, incoming_key);
+    if (!key_digest_of(block, incoming_key)) {
+      ESP_LOGE(TAG, "Signature check: failed to hash incoming key in block %zu", i);
+      return false;
+    }
     bool trusted_key = false;
     for (size_t t = 0; t < trusted_count; t++) {
       if (incoming_key == trusted[t]) {
