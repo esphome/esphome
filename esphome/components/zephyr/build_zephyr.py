@@ -202,3 +202,34 @@ def run_west_flash(
         stream_output=True,
         cwd=str(framework_path),
     )
+
+
+def run_west_flash_pyocd(
+    python_executable: Path,
+    framework_path: Path,
+    env: dict,
+    build_dir: Path,
+) -> bool:
+    """Flash a real Zephyr embedded target via a J-Link/CMSIS-DAP debug probe.
+
+    Delegates to Zephyr's own pyocd runner -- same rationale as run_west_flash
+    above, just a different runner for variants with no serial/esptool path
+    (e.g. nrf52, which flashes over SWD instead).
+    """
+    west_cmd = [
+        str(python_executable),
+        "-m",
+        "west",
+        "flash",
+        "--no-rebuild",
+        "-d",
+        str(build_dir),
+        "--runner",
+        "pyocd",
+    ]
+    return run_command_ok(
+        west_cmd,
+        env=env,
+        stream_output=True,
+        cwd=str(framework_path),
+    )
