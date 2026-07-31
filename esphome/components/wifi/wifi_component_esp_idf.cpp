@@ -608,7 +608,13 @@ bool WiFiComponent::lease_valid_for_apply_() const {
   // next loop. Go straight to DHCP instead.
   if (age >= lease_renew_at_secs(lease))
     return false;
-  return lease.lease_secs > age + LEASE_APPLY_MARGIN_SECS;
+  // The T1 gate above already leaves a big buffer for the common server (T1 = lease/2), but a server
+  // may set T1 close to the lease end. The age comes from the RTC-domain clock, which on the default
+  // internal ~150 kHz RC oscillator drifts a few percent -- tens of minutes on a day-long lease. Scale
+  // the expiry margin with the lease so drift can't push a near-T1 lease past its real expiry into a
+  // duplicate-address conflict.
+  uint32_t margin = std::max<uint32_t>(LEASE_APPLY_MARGIN_SECS, lease.lease_secs / 16);
+  return lease.lease_secs > age + margin;
 }
 #endif
 
@@ -663,10 +669,13 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
     // is guaranteed non-zero here (the ternary is belt-and-braces).
     uint32_t renew_at = lease_renew_at_secs(lease);
     uint32_t renew_in = renew_at > age ? renew_at - age : 0;
-    // set_timeout() takes milliseconds; compute in 64-bit and clamp so a very long lease can't
-    // overflow the 32-bit millisecond value (a clamp only delays the renewal, never skips it).
+    // set_timeout() takes milliseconds; compute in 64-bit and clamp below UINT32_MAX so a very long
+    // lease can't overflow the 32-bit millisecond value. The clamp must stay strictly under UINT32_MAX:
+    // the scheduler treats exactly UINT32_MAX as SCHEDULER_DONT_RUN and would cancel the renewal
+    // instead of arming it. A clamp only delays the renewal (~49 days out), never skips it, and only
+    // bites on multi-month leases.
     uint32_t renew_ms =
-        static_cast<uint32_t>(std::min<uint64_t>(static_cast<uint64_t>(renew_in) * 1000ULL, UINT32_MAX));
+        static_cast<uint32_t>(std::min<uint64_t>(static_cast<uint64_t>(renew_in) * 1000ULL, UINT32_MAX - 1));
     this->set_timeout("lease_renew", renew_ms, [this]() {
       ESP_LOGI(TAG, "Cached lease renew deadline reached; running DHCP");
       this->applied_cached_lease_ = false;
