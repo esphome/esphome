@@ -6,7 +6,7 @@ from esphome.components import modbus
 from esphome.components.modbus.helpers import (
     MODBUS_REGISTER_TYPE,
     TYPE_REGISTER_MAP,
-    ModbusRegisterType,
+    EntityType,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_OFFSET
@@ -217,13 +217,13 @@ async def register_modbus_device(var, config):
 
 def function_code_to_register(function_code):
     FUNCTION_CODE_TYPE_MAP = {
-        "read_coils": ModbusRegisterType.COIL,
-        "read_discrete_inputs": ModbusRegisterType.DISCRETE_INPUT,
-        "read_holding_registers": ModbusRegisterType.HOLDING,
-        "read_input_registers": ModbusRegisterType.INPUT_REGISTER,
-        "write_single_coil": ModbusRegisterType.COIL,
-        "write_single_register": ModbusRegisterType.HOLDING,
-        "write_multiple_coils": ModbusRegisterType.COIL,
-        "write_multiple_registers": ModbusRegisterType.HOLDING,
+        "read_coils": EntityType.COIL,
+        "read_discrete_inputs": EntityType.DISCRETE_INPUT,
+        "read_holding_registers": EntityType.HOLDING,
+        "read_input_registers": EntityType.INPUT_REGISTER,
+        "write_single_coil": EntityType.COIL,
+        "write_single_register": EntityType.HOLDING,
+        "write_multiple_coils": EntityType.COIL,
+        "write_multiple_registers": EntityType.HOLDING,
     }
     return FUNCTION_CODE_TYPE_MAP[function_code]
