@@ -676,6 +676,7 @@ async def to_code(config):
 
     if CONF_DPP in config:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DPP_SUPPORT", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_DPP", True)
         conf = config[CONF_DPP]
         cg.add(var.set_dpp_mode(conf[CONF_MODE]))
         if CONF_PRIVATE_KEY in conf:
