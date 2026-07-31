@@ -7,6 +7,7 @@
 #include <cstring>
 #include <esp_image_format.h>
 #include <esp_partition.h>
+#include <esp_rom_crc.h>
 
 #include <mbedtls/md.h>
 #include <mbedtls/rsa.h>
@@ -41,25 +42,16 @@ constexpr size_t OFFSET_CRC = 1196;       // crc32 over bytes [0, 1196)
 // exactly as the ROM computes it -- this is what "the running app trusts" means.
 using KeyDigest = std::array<uint8_t, SHA256_BYTES>;
 
-uint32_t crc32_le(const uint8_t *data, size_t len) {
-  uint32_t crc = 0xFFFFFFFF;
-  for (size_t i = 0; i < len; i++) {
-    crc ^= data[i];
-    for (int b = 0; b < 8; b++) {
-      crc = (crc >> 1) ^ (0xEDB88320 & (~(crc & 1) + 1));
-    }
-  }
-  return ~crc;
-}
-
 // A block is structurally valid if the magic, version, and CRC all check out.
+// The CRC covers everything before it and uses the same ROM routine the
+// bootloader validates the block with, so the check matches byte-for-byte.
 bool block_is_valid(const uint8_t *block) {
   if (block[0] != SIG_BLOCK_MAGIC || block[1] != SIG_BLOCK_VERSION_RSA) {
     return false;
   }
   uint32_t stored_crc;
   memcpy(&stored_crc, block + OFFSET_CRC, sizeof(stored_crc));
-  return crc32_le(block, OFFSET_CRC) == stored_crc;
+  return esp_rom_crc32_le(0, block, OFFSET_CRC) == stored_crc;
 }
 
 void key_digest_of(const uint8_t *block, KeyDigest &out) {
