@@ -83,7 +83,7 @@ ep_configs: dict[str, dict[str, Any]] = {
 }
 
 
-def get_next_ep_num(eps: list[int]) -> int:
+def _get_next_ep_num(eps: list[int]) -> int:
     try:
         ep_num = [i for i in range(1, CONF_MAX_EP_NUMBER + 1) if i not in eps][0]
         eps.append(ep_num)
@@ -94,7 +94,7 @@ def get_next_ep_num(eps: list[int]) -> int:
     return ep_num
 
 
-def compare_clusters(
+def _compare_clusters(
     existing_ep: dict[str, Any],
     ep: dict[str, Any],
 ) -> tuple[str | int, str] | None:
@@ -105,12 +105,12 @@ def compare_clusters(
     return None
 
 
-def merge_endpoints(
+def _merge_endpoints(
     existing_ep: dict[str, Any],
     ep: dict[str, Any],
     use_type: bool | None,
 ) -> bool:
-    if compare_clusters(existing_ep, ep):
+    if _compare_clusters(existing_ep, ep):
         return False
     if (
         ep.get(DEVICE_TYPE)
@@ -135,6 +135,11 @@ def merge_endpoints(
 
 
 def validate_endpoints(ep_dict: dict[int, dict]) -> None:
+    """Validate endpoint device type selection before endpoint creation.
+
+    This resolves any deferred device type selections stored in CONF_USE_DEVICE_TYPE,
+    ensuring each endpoint has at most one active device type.
+    """
     for num, ep in ep_dict.items():
         types_dict = ep.get(CONF_USE_DEVICE_TYPE)
         if not types_dict:
@@ -157,6 +162,13 @@ def validate_endpoints(ep_dict: dict[int, dict]) -> None:
 
 
 def create_ep(router: bool) -> None:
+    """Finalize Zigbee endpoint creation and normalize endpoint storage.
+    Validate endpoints, merge and number endpoints without given number.
+    This is called from final_validate.
+
+    Args:
+        router: Whether the device is acting as a Zigbee router.
+    """
     zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
     ep_dict: dict[int, dict] = zb_data.setdefault(KEY_ZIGBEE_EP, {})
     ep_list: list[dict] = zb_data.setdefault(KEY_ZIGBEE_EP_NO_NUM, [])
@@ -173,7 +185,7 @@ def create_ep(router: bool) -> None:
         for ep in ep_list:
             added = False
             for existing_ep in ep_list_new:
-                if merge_endpoints(existing_ep, ep, ep.get(CONF_USE_DEVICE_TYPE)):
+                if _merge_endpoints(existing_ep, ep, ep.get(CONF_USE_DEVICE_TYPE)):
                     added = True
                     break
             if not added:
@@ -182,7 +194,7 @@ def create_ep(router: bool) -> None:
         # Add endpoints with no number to the endpoint dict with a new number
         eps = list(ep_dict.keys())
         for ep in ep_list_new:
-            ep_num = get_next_ep_num(eps)
+            ep_num = _get_next_ep_num(eps)
             ep_dict[ep_num] = ep
 
         # clear list so that it is not processed again
@@ -195,6 +207,13 @@ def create_ep(router: bool) -> None:
 
 
 def add_ep(ep: dict[str, Any], ep_num: int | None, use_type: bool | None) -> None:
+    """Add a Zigbee endpoint configuration to CORE.data.
+
+    Args:
+        ep: Endpoint configuration dictionary.
+        ep_num: Optional explicit endpoint number.
+        use_type: Optional boolean indicating whether the endpoint should defer device type selection.
+    """
     zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
     if use_type is False:
         ep.pop(DEVICE_TYPE, None)
@@ -208,7 +227,7 @@ def add_ep(ep: dict[str, Any], ep_num: int | None, use_type: bool | None) -> Non
         if ep_num in ep_dict:
             # check if the existing endpoint has same clusters
             existing_ep = ep_dict[ep_num]
-            if cl := compare_clusters(
+            if cl := _compare_clusters(
                 existing_ep,
                 ep,
             ):
