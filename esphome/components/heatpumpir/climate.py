@@ -112,14 +112,14 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    # Default the visual min/max from the required min/max_temperature before
+    # new_climate_ir(), which reads CONF_VISUAL to emit the visual overrides.
+    # Populating it afterwards would be too late and the entity would report
+    # the ClimateIR default 0-100 range in Home Assistant.
+    visual = config.setdefault(CONF_VISUAL, {})
+    visual.setdefault(CONF_MAX_TEMPERATURE, config[CONF_MAX_TEMPERATURE])
+    visual.setdefault(CONF_MIN_TEMPERATURE, config[CONF_MIN_TEMPERATURE])
     var = await climate_ir.new_climate_ir(config)
-    if CONF_VISUAL not in config:
-        config[CONF_VISUAL] = {}
-    visual = config[CONF_VISUAL]
-    if CONF_MAX_TEMPERATURE not in visual:
-        visual[CONF_MAX_TEMPERATURE] = config[CONF_MAX_TEMPERATURE]
-    if CONF_MIN_TEMPERATURE not in visual:
-        visual[CONF_MIN_TEMPERATURE] = config[CONF_MIN_TEMPERATURE]
     cg.add(var.set_protocol(config[CONF_PROTOCOL]))
     cg.add(var.set_horizontal_default(config[CONF_HORIZONTAL_DEFAULT]))
     cg.add(var.set_vertical_default(config[CONF_VERTICAL_DEFAULT]))
