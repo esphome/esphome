@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace rotary_encoder {
+namespace esphome::rotary_encoder {
 
 static const char *const TAG = "rotary_encoder";
 
@@ -242,5 +241,4 @@ void RotaryEncoderSensor::set_resolution(RotaryEncoderResolution mode) { this->s
 void RotaryEncoderSensor::set_min_value(int32_t min_value) { this->store_.min_value = min_value; }
 void RotaryEncoderSensor::set_max_value(int32_t max_value) { this->store_.max_value = max_value; }
 
-}  // namespace rotary_encoder
-}  // namespace esphome
+}  // namespace esphome::rotary_encoder

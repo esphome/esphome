@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include <limits>
 
-namespace esphome {
-namespace veml7700 {
+namespace esphome::veml7700 {
 
 static const char *const TAG = "veml7700";
 static const size_t VEML_REG_SIZE = 2;
@@ -141,7 +140,7 @@ void VEML7700Component::loop() {
     // Datasheet: 2.5 ms before the first measurement is needed, allowing for the correct start of the signal processor
     // and oscillator.
     // Reality: wait for couple integration times to have first samples captured
-    this->set_timeout(2 * this->integration_time_, [this]() { this->state_ = State::IDLE; });
+    this->set_timeout(2 * get_itime_ms(this->integration_time_), [this]() { this->state_ = State::IDLE; });
   }
 
   if (this->is_ready()) {
@@ -381,7 +380,7 @@ void VEML7700Component::apply_lux_compensation_(Readings &data) {
   // if this light level is exceeded"
   auto compensate = [&local_data](float &lux) {
     auto calculate_high_lux_compensation = [](float lux_veml) -> float {
-      return (((6.0135e-13 * lux_veml - 9.3924e-9) * lux_veml + 8.1488e-5) * lux_veml + 1.0023) * lux_veml;
+      return (((6.0135e-13f * lux_veml - 9.3924e-9f) * lux_veml + 8.1488e-5f) * lux_veml + 1.0023f) * lux_veml;
     };
 
     if (lux > 1000.0f || local_data.actual_gain == Gain::X_1_8 || local_data.actual_gain == Gain::X_1_4) {
@@ -434,5 +433,4 @@ void VEML7700Component::publish_data_part_3_(Readings &data) {
     this->actual_integration_time_sensor_->publish_state(get_itime_ms(data.actual_time));
   }
 }
-}  // namespace veml7700
-}  // namespace esphome
+}  // namespace esphome::veml7700

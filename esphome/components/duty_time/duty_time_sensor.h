@@ -10,10 +10,9 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 
-namespace esphome {
-namespace duty_time_sensor {
+namespace esphome::duty_time_sensor {
 
-class DutyTimeSensor : public sensor::Sensor, public PollingComponent {
+class DutyTimeSensor final : public sensor::Sensor, public PollingComponent {
  public:
   void setup() override;
   void update() override;
@@ -41,9 +40,9 @@ class DutyTimeSensor : public sensor::Sensor, public PollingComponent {
   sensor::Sensor *last_duty_time_sensor_{nullptr};
   ESPPreferenceObject pref_;
 
-  uint32_t total_sec_;
-  uint32_t last_time_;
-  uint32_t edge_time_;
+  uint32_t total_sec_{0};
+  uint32_t last_time_{0};
+  uint32_t edge_time_{0};
   bool last_state_{false};
   bool restore_;
 };
@@ -62,7 +61,7 @@ template<typename... Ts> class ResetAction : public BaseAction<Ts...> {
   void play(const Ts &...x) override { this->parent_->reset(); }
 };
 
-template<typename... Ts> class RunningCondition : public Condition<Ts...>, public Parented<DutyTimeSensor> {
+template<typename... Ts> class RunningCondition final : public Condition<Ts...>, public Parented<DutyTimeSensor> {
  public:
   explicit RunningCondition(DutyTimeSensor *parent, bool state) : Parented(parent), state_(state) {}
 
@@ -71,5 +70,4 @@ template<typename... Ts> class RunningCondition : public Condition<Ts...>, publi
   bool state_;
 };
 
-}  // namespace duty_time_sensor
-}  // namespace esphome
+}  // namespace esphome::duty_time_sensor

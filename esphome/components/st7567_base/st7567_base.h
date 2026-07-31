@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/display/display_buffer.h"
 
-namespace esphome {
-namespace st7567_base {
+namespace esphome::st7567_base {
 
 static const uint8_t ST7567_BOOSTER_ON = 0x2C;    // internal power supply on
 static const uint8_t ST7567_REGULATOR_ON = 0x2E;  // internal power supply on
@@ -96,5 +95,4 @@ class ST7567 : public display::DisplayBuffer {
   bool refresh_requested_{false};
 };
 
-}  // namespace st7567_base
-}  // namespace esphome
+}  // namespace esphome::st7567_base

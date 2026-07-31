@@ -155,7 +155,7 @@ ESP8266_PIN_SCHEMA = cv.All(
 
 @dataclass
 class PinInitialState:
-    mode = 255
+    mode: int = 255
     level: int = 255
 
 
@@ -202,11 +202,11 @@ async def add_pin_initial_states_array():
 
     cg.add_global(
         cg.RawExpression(
-            f"const uint8_t ESPHOME_ESP8266_GPIO_INITIAL_MODE[16] PROGMEM = {{{initial_modes_s}}}"
+            f"constexpr uint8_t ESPHOME_ESP8266_GPIO_INITIAL_MODE[16] PROGMEM = {{{initial_modes_s}}}"
         )
     )
     cg.add_global(
         cg.RawExpression(
-            f"const uint8_t ESPHOME_ESP8266_GPIO_INITIAL_LEVEL[16] PROGMEM = {{{initial_levels_s}}}"
+            f"constexpr uint8_t ESPHOME_ESP8266_GPIO_INITIAL_LEVEL[16] PROGMEM = {{{initial_levels_s}}}"
         )
     )

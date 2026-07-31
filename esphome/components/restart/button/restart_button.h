@@ -3,10 +3,9 @@
 #include "esphome/components/button/button.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace restart {
+namespace esphome::restart {
 
-class RestartButton : public button::Button, public Component {
+class RestartButton final : public button::Button, public Component {
  public:
   void dump_config() override;
 
@@ -14,5 +13,4 @@ class RestartButton : public button::Button, public Component {
   void press_action() override;
 };
 
-}  // namespace restart
-}  // namespace esphome
+}  // namespace esphome::restart

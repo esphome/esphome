@@ -124,9 +124,9 @@ def set_reference_values(config):
         config.setdefault(CONF_VOLTAGE_REFERENCE, DEFAULT_BL0940_LEGACY_UREF)
         config.setdefault(CONF_CURRENT_REFERENCE, DEFAULT_BL0940_LEGACY_IREF)
         config.setdefault(CONF_POWER_REFERENCE, DEFAULT_BL0940_LEGACY_PREF)
-        config.setdefault(CONF_ENERGY_REFERENCE, DEFAULT_BL0940_LEGACY_PREF)
+        config.setdefault(CONF_ENERGY_REFERENCE, DEFAULT_BL0940_LEGACY_EREF)
     else:
-        vref = config.get(CONF_VOLTAGE_REFERENCE, DEFAULT_BL0940_VREF)
+        vref = config.get(CONF_REFERENCE_VOLTAGE, DEFAULT_BL0940_VREF)
         r_one = config.get(CONF_RESISTOR_ONE, DEFAULT_BL0940_R1)
         r_two = config.get(CONF_RESISTOR_TWO, DEFAULT_BL0940_R2)
         r_shunt = config.get(CONF_RESISTOR_SHUNT, DEFAULT_BL0940_RL)
@@ -209,6 +209,17 @@ CONFIG_SCHEMA = (
     .add_extra(validate_legacy_mode)
     .add_extra(set_command_defaults)
     .add_extra(set_reference_values)
+)
+
+# BL0940 datasheet: 4800 baud, 8 data bits, no parity (stop bits are 1.5 -- not
+# representable in the uart schema, so it isn't asserted).
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "bl0940",
+    baud_rate=4800,
+    data_bits=8,
+    parity="NONE",
+    require_rx=True,
+    require_tx=True,
 )
 
 

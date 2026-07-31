@@ -32,6 +32,10 @@ static constexpr size_t MQTT_TOPIC_PREFIX_MAX_LEN = 64;  // Validated in Python:
 // Format: prefix + "/" + type + "/" + object_id + "/" + suffix + null
 static constexpr size_t MQTT_DEFAULT_TOPIC_MAX_LEN =
     MQTT_TOPIC_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 1 + MQTT_SUFFIX_MAX_LEN + 1;
+static constexpr size_t MQTT_DISCOVERY_PREFIX_MAX_LEN = 64;  // Validated in Python: cv.Length(max=64)
+// Format: prefix + "/" + type + "/" + name + "/" + object_id + "/config" + null
+static constexpr size_t MQTT_DISCOVERY_TOPIC_MAX_LEN = MQTT_DISCOVERY_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN +
+                                                       1 + ESPHOME_DEVICE_NAME_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 7 + 1;
 
 class MQTTComponent;  // Forward declaration
 void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, bool command_topic);
@@ -55,6 +59,11 @@ void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, b
 \
  public: \
   void set_custom_##name##_##type##_topic(const std::string &topic) { this->custom_##name##_##type##_topic_ = topic; } \
+  StringRef get_##name##_##type##_topic_to(std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf) const { \
+    if (!this->custom_##name##_##type##_topic_.empty()) \
+      return StringRef(this->custom_##name##_##type##_topic_.data(), this->custom_##name##_##type##_topic_.size()); \
+    return this->get_default_topic_for_to_(buf, #name "/" #type, sizeof(#name "/" #type) - 1); \
+  } \
   std::string get_##name##_##type##_topic() const { \
     if (this->custom_##name##_##type##_topic_.empty()) \
       return this->get_default_topic_for_(#name "/" #type); \
@@ -88,8 +97,6 @@ class MQTTComponent : public Component {
 
   /// Override setup_ so that we can call send_discovery() when needed.
   void call_setup() override;
-
-  void call_dump_config() override;
 
   /// Send discovery info the Home Assistant, override this.
   virtual void send_discovery(JsonObject root, SendDiscoveryConfig &config) = 0;
@@ -139,6 +146,9 @@ class MQTTComponent : public Component {
 
   /// Internal method for the MQTT client base to schedule a resend of the state on reconnect.
   void schedule_resend_state();
+
+  /// Check if a resend is pending (called by MQTTClientComponent to rate-limit work)
+  bool is_resend_pending() const { return this->resend_state_; }
 
   /// Process pending resend if needed (called by MQTTClientComponent)
   void process_resend();
@@ -263,8 +273,9 @@ class MQTTComponent : public Component {
   void subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos = 0);
 
  protected:
-  /// Helper method to get the discovery topic for this component.
-  std::string get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const;
+  /// Helper method to get the discovery topic for this component into a buffer.
+  StringRef get_discovery_topic_to_(std::span<char, MQTT_DISCOVERY_TOPIC_MAX_LEN> buf,
+                                    const MQTTDiscoveryInfo &discovery_info) const;
 
   /** Get this components state/command/... topic into a buffer.
    *
@@ -288,10 +299,10 @@ class MQTTComponent : public Component {
   virtual const EntityBase *get_entity() const = 0;
 
   /// Get the friendly name of this MQTT component.
-  std::string friendly_name_() const;
+  const StringRef &friendly_name_() const;
 
-  /// Get the icon field of this component as StringRef
-  StringRef get_icon_ref_() const;
+  /// Get the icon field of this component into a stack buffer
+  const char *get_icon_to_(std::span<char, MAX_ICON_LENGTH> buf) const { return this->get_entity()->get_icon_to(buf); }
 
   /// Get whether the underlying Entity is disabled by default
   bool is_disabled_by_default_() const;

@@ -1,4 +1,5 @@
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "usb_cdc_acm.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -11,7 +12,7 @@
 #include "esp_log.h"
 
 #include "tusb.h"
-#include "tusb_cdc_acm.h"
+#include "tinyusb_cdc_acm.h"
 
 namespace esphome::usb_cdc_acm {
 
@@ -96,9 +97,9 @@ static void tinyusb_cdc_line_coding_changed_callback(int itf, cdcacm_event_t *ev
 }
 
 static esp_err_t ringbuf_read_bytes(RingbufHandle_t ring_buf, uint8_t *out_buf, size_t out_buf_sz, size_t *rx_data_size,
-                                    TickType_t xTicksToWait) {
+                                    TickType_t x_ticks_to_wait) {
   size_t read_sz;
-  uint8_t *buf = static_cast<uint8_t *>(xRingbufferReceiveUpTo(ring_buf, &read_sz, xTicksToWait, out_buf_sz));
+  uint8_t *buf = static_cast<uint8_t *>(xRingbufferReceiveUpTo(ring_buf, &read_sz, x_ticks_to_wait, out_buf_sz));
 
   if (buf == nullptr) {
     return ESP_FAIL;
@@ -140,7 +141,6 @@ void USBCDCACMInstance::setup() {
 
   // Configure this CDC interface
   const tinyusb_config_cdcacm_t acm_cfg = {
-      .usb_dev = TINYUSB_USBDEV_0,
       .cdc_port = static_cast<tinyusb_cdcacm_itf_t>(this->itf_),
       .callback_rx = &tinyusb_cdc_rx_callback,
       .callback_rx_wanted_char = NULL,
@@ -148,9 +148,9 @@ void USBCDCACMInstance::setup() {
       .callback_line_coding_changed = &tinyusb_cdc_line_coding_changed_callback,
   };
 
-  esp_err_t result = tusb_cdc_acm_init(&acm_cfg);
+  esp_err_t result = tinyusb_cdcacm_init(&acm_cfg);
   if (result != ESP_OK) {
-    ESP_LOGE(TAG, "tusb_cdc_acm_init failed: %d", result);
+    ESP_LOGE(TAG, "tinyusb_cdcacm_init failed: %d", result);
     this->parent_->mark_failed();
     return;
   }
@@ -161,7 +161,7 @@ void USBCDCACMInstance::setup() {
 
   // Create a simple, unique task name per interface
   char task_name[] = "usb_tx_0";
-  task_name[sizeof(task_name) - 1] = format_hex_char(static_cast<char>(this->itf_));
+  task_name[sizeof(task_name) - 2] = format_hex_char(static_cast<char>(this->itf_));
   xTaskCreate(usb_tx_task_fn, task_name, stack_size, this, 4, &this->usb_tx_task_handle_);
 
   if (this->usb_tx_task_handle_ == nullptr) {
@@ -187,7 +187,7 @@ void USBCDCACMInstance::usb_tx_task() {
   uint8_t data[CONFIG_TINYUSB_CDC_TX_BUFSIZE] = {0};
   size_t tx_data_size = 0;
 
-  while (1) {
+  while (true) {
     // Wait for a notification from the bridge component
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
@@ -318,18 +318,18 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
   return bytes_read == original_len;
 }
 
-int USBCDCACMInstance::available() {
+size_t USBCDCACMInstance::available() {
   UBaseType_t waiting = 0;
   if (this->usb_rx_ringbuf_ != nullptr) {
     vRingbufferGetInfo(this->usb_rx_ringbuf_, nullptr, nullptr, nullptr, nullptr, &waiting);
   }
-  return static_cast<int>(waiting) + (this->has_peek_ ? 1 : 0);
+  return waiting + (this->has_peek_ ? 1 : 0);
 }
 
-void USBCDCACMInstance::flush() {
+uart::UARTFlushResult USBCDCACMInstance::flush() {
   // Wait for TX ring buffer to be empty
   if (this->usb_tx_ringbuf_ == nullptr) {
-    return;
+    return uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
   }
 
   UBaseType_t waiting = 1;
@@ -341,7 +341,12 @@ void USBCDCACMInstance::flush() {
   }
 
   // Also wait for USB to finish transmitting
-  tinyusb_cdcacm_write_flush(static_cast<tinyusb_cdcacm_itf_t>(this->itf_), pdMS_TO_TICKS(100));
+  esp_err_t err = tinyusb_cdcacm_write_flush(static_cast<tinyusb_cdcacm_itf_t>(this->itf_), pdMS_TO_TICKS(100));
+  if (err == ESP_OK)
+    return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
+  if (err == ESP_ERR_TIMEOUT)
+    return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+  return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
 }
 
 void USBCDCACMInstance::check_logger_conflict() {}

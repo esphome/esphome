@@ -4,8 +4,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_rtcgq02lm {
+namespace esphome::xiaomi_rtcgq02lm {
 
 static const char *const TAG = "xiaomi_rtcgq02lm";
 
@@ -58,15 +57,13 @@ bool XiaomiRTCGQ02LM::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
 #ifdef USE_BINARY_SENSOR
     if (res->has_motion.has_value() && this->motion_ != nullptr) {
       this->motion_->publish_state(*res->has_motion);
-      this->set_timeout("motion_timeout", this->motion_timeout_,
-                        [this, res]() { this->motion_->publish_state(false); });
+      this->set_timeout("motion_timeout", this->motion_timeout_, [this]() { this->motion_->publish_state(false); });
     }
     if (res->is_light.has_value() && this->light_ != nullptr)
       this->light_->publish_state(*res->is_light);
     if (res->button_press.has_value() && this->button_ != nullptr) {
       this->button_->publish_state(*res->button_press);
-      this->set_timeout("button_timeout", this->button_timeout_,
-                        [this, res]() { this->button_->publish_state(false); });
+      this->set_timeout("button_timeout", this->button_timeout_, [this]() { this->button_->publish_state(false); });
     }
 #endif
 #ifdef USE_SENSOR
@@ -81,7 +78,6 @@ bool XiaomiRTCGQ02LM::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
 
 void XiaomiRTCGQ02LM::set_bindkey(const char *bindkey) { parse_hex(bindkey, this->bindkey_, sizeof(this->bindkey_)); }
 
-}  // namespace xiaomi_rtcgq02lm
-}  // namespace esphome
+}  // namespace esphome::xiaomi_rtcgq02lm
 
 #endif

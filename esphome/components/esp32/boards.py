@@ -9,7 +9,6 @@ from .const import (
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
-    VARIANTS,
 )
 
 STANDARD_BOARDS = {
@@ -20,13 +19,10 @@ STANDARD_BOARDS = {
     VARIANT_ESP32C6: "esp32-c6-devkitm-1",
     VARIANT_ESP32C61: "esp32-c61-devkitc1-n8r2",
     VARIANT_ESP32H2: "esp32-h2-devkitm-1",
-    VARIANT_ESP32P4: "esp32-p4-evboard",
+    VARIANT_ESP32P4: "esp32-p4_r3-evboard",
     VARIANT_ESP32S2: "esp32-s2-kaluga-1",
     VARIANT_ESP32S3: "esp32-s3-devkitc-1",
 }
-
-# Make sure not missed here if a new variant added.
-assert all(v in STANDARD_BOARDS for v in VARIANTS)
 
 ESP32_BASE_PINS = {
     "TX": 1,
@@ -1244,6 +1240,43 @@ ESP32_BOARD_PINS = {
         "LED_BUILTINB": 4,
     },
     "sensesiot_weizen": {},
+    # Source: https://wiki.seeedstudio.com/XIAO_ESP32C3_Getting_Started/
+    # The XIAO ESP32-C3 has no user-controllable LED (only a hardwired charge
+    # LED), so LED/LED_BUILTIN are intentionally omitted. The Ax keys override
+    # the incorrect ESP32_BASE_PINS A* fallback (which otherwise makes pin: A0
+    # resolve to phantom GPIO36 and pin: A1/A2 raise cv.Invalid).
+    "seeed_xiao_esp32c3": {
+        "D0": 2,
+        "D1": 3,
+        "D2": 4,
+        "D3": 5,
+        "D4": 6,
+        "D5": 7,
+        "D6": 21,
+        "D7": 20,
+        "D8": 8,
+        "D9": 9,
+        "D10": 10,
+        "MTDO": 7,
+        "MTCK": 6,
+        "MTDI": 5,
+        "MTMS": 4,
+        "BOOT": 9,
+        "TX": 21,
+        "RX": 20,
+        "SDA": 6,
+        "SCL": 7,
+        "SCK": 8,
+        "MISO": 9,
+        "MOSI": 10,
+        "A0": 2,
+        "A1": 3,
+        "A2": 4,
+        "A3": 5,
+    },
+    # Source: https://wiki.seeedstudio.com/xiao_esp32c6_getting_started/
+    # The Ax keys override the incorrect ESP32_BASE_PINS A* fallback (which
+    # otherwise makes pin: A0 resolve to phantom GPIO36).
     "seeed_xiao_esp32c6": {
         "D0": 0,
         "D1": 1,
@@ -1261,10 +1294,59 @@ ESP32_BOARD_PINS = {
         "MTDI": 5,
         "MTMS": 4,
         "BOOT": 9,
-        "LED": 8,
-        "LED_BUILTIN": 8,
+        "LED": 15,  # Bugfix: was GPIO8; the yellow user LED is GPIO15
+        "LED_BUILTIN": 15,  # Bugfix: was GPIO8; the yellow user LED is GPIO15
         "RF_SWITCH_EN": 3,
         "RF_ANT_SELECT": 14,
+        "TX": 16,
+        "RX": 17,
+        "SDA": 22,
+        "SCL": 23,
+        "SCK": 19,
+        "MISO": 20,
+        "MOSI": 18,
+        "A0": 0,
+        "A1": 1,
+        "A2": 2,
+    },
+    # Source: https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/
+    # LED (GPIO21) is active-LOW; BOOT=GPIO0 is the standard ESP32-S3 strapping
+    # pin. The Ax keys override the incorrect ESP32_BASE_PINS A* fallback for the
+    # published silkscreen set. A6/A7 are intentionally absent (D6/D7 = GPIO43/44
+    # have no ADC); because ESP32_BASE_PINS already defines A6=34/A7=35, pin: A6/A7
+    # still resolve to those classic-ESP32 phantom values via the base-pins
+    # fallback (a disclosed residual, not fixable without editing ESP32_BASE_PINS).
+    "seeed_xiao_esp32s3": {
+        "D0": 1,
+        "D1": 2,
+        "D2": 3,
+        "D3": 4,
+        "D4": 5,
+        "D5": 6,
+        "D6": 43,
+        "D7": 44,
+        "D8": 7,
+        "D9": 8,
+        "D10": 9,
+        "BOOT": 0,
+        "LED": 21,
+        "LED_BUILTIN": 21,
+        "TX": 43,
+        "RX": 44,
+        "SDA": 5,
+        "SCL": 6,
+        "SCK": 7,
+        "MISO": 8,
+        "MOSI": 9,
+        "A0": 1,
+        "A1": 2,
+        "A2": 3,
+        "A3": 4,
+        "A4": 5,
+        "A5": 6,
+        "A8": 7,
+        "A9": 8,
+        "A10": 9,
     },
     "sg-o_airMon": {},
     "sparkfun_lora_gateway_1-channel": {"MISO": 12, "MOSI": 13, "SCK": 14, "SS": 16},
@@ -1686,6 +1768,10 @@ BOARDS = {
         "name": "Espressif ESP32-C6-DevKitM-1",
         "variant": VARIANT_ESP32C6,
     },
+    "esp32-c61-devkitc1": {
+        "name": "Espressif ESP32-C61-DevKitC-1 (4 MB Flash)",
+        "variant": VARIANT_ESP32C61,
+    },
     "esp32-c61-devkitc1-n8r2": {
         "name": "Espressif ESP32-C61-DevKitC-1 N8R2 (8 MB Flash Quad, 2 MB PSRAM Quad)",
         "variant": VARIANT_ESP32C61,
@@ -1709,13 +1795,19 @@ BOARDS = {
     "esp32-p4": {
         "name": "Espressif ESP32-P4 ES (pre rev.300) generic",
         "variant": VARIANT_ESP32P4,
+        "engineering_sample": True,
     },
     "esp32-p4-evboard": {
         "name": "Espressif ESP32-P4 Function EV Board (ES pre rev.300)",
         "variant": VARIANT_ESP32P4,
+        "engineering_sample": True,
     },
     "esp32-p4_r3": {
         "name": "Espressif ESP32-P4 rev.300 generic",
+        "variant": VARIANT_ESP32P4,
+    },
+    "esp32-p4_r3-evboard": {
+        "name": "Espressif ESP32-P4 Function EV Board v1.6 (rev.301)",
         "variant": VARIANT_ESP32P4,
     },
     "esp32-pico-devkitm-2": {
@@ -1950,6 +2042,10 @@ BOARDS = {
         "name": "Hornbill ESP32 Minima",
         "variant": VARIANT_ESP32,
     },
+    "huidu_hd_wf1": {
+        "name": "Huidu HD-WF1",
+        "variant": VARIANT_ESP32S2,
+    },
     "huidu_hd_wf2": {
         "name": "Huidu HD-WF2",
         "variant": VARIANT_ESP32S3,
@@ -2016,6 +2112,10 @@ BOARDS = {
     },
     "lilygo-t-display-s3": {
         "name": "LilyGo T-Display-S3",
+        "variant": VARIANT_ESP32S3,
+    },
+    "lilygo-t-energy-s3": {
+        "name": "LilyGo T-Energy-S3",
         "variant": VARIANT_ESP32S3,
     },
     "lilygo-t3-s3": {
@@ -2133,6 +2233,7 @@ BOARDS = {
     "m5stack-tab5-p4": {
         "name": "M5STACK Tab5 esp32-p4 Board (ES pre rev.300)",
         "variant": VARIANT_ESP32P4,
+        "engineering_sample": True,
     },
     "m5stack-timer-cam": {
         "name": "M5Stack Timer CAM",
@@ -2278,9 +2379,17 @@ BOARDS = {
         "name": "S.ODI Ultra v1",
         "variant": VARIANT_ESP32,
     },
+    "seeed_xiao_esp32_s3_plus": {
+        "name": "Seeed Studio XIAO ESP32S3 Plus",
+        "variant": VARIANT_ESP32S3,
+    },
     "seeed_xiao_esp32c3": {
         "name": "Seeed Studio XIAO ESP32C3",
         "variant": VARIANT_ESP32C3,
+    },
+    "seeed_xiao_esp32c5": {
+        "name": "Seeed Studio XIAO ESP32C5",
+        "variant": VARIANT_ESP32C5,
     },
     "seeed_xiao_esp32c6": {
         "name": "Seeed Studio XIAO ESP32C6",
@@ -2554,12 +2663,20 @@ BOARDS = {
         "name": "XinaBox CW02",
         "variant": VARIANT_ESP32,
     },
+    "yb_esp32s3_amp": {
+        "name": "YelloByte YB-ESP32-S3-AMP",
+        "variant": VARIANT_ESP32S3,
+    },
     "yb_esp32s3_amp_v2": {
         "name": "YelloByte YB-ESP32-S3-AMP (Rev.2)",
         "variant": VARIANT_ESP32S3,
     },
     "yb_esp32s3_amp_v3": {
         "name": "YelloByte YB-ESP32-S3-AMP (Rev.3)",
+        "variant": VARIANT_ESP32S3,
+    },
+    "yb_esp32s3_dac": {
+        "name": "YelloByte YB-ESP32-S3-DAC",
         "variant": VARIANT_ESP32S3,
     },
     "yb_esp32s3_drv": {

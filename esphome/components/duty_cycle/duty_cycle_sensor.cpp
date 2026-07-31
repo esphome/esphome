@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace duty_cycle {
+namespace esphome::duty_cycle {
 
 static const char *const TAG = "duty_cycle";
 
@@ -56,5 +55,4 @@ void IRAM_ATTR DutyCycleSensorStore::gpio_intr(DutyCycleSensorStore *arg) {
   arg->last_interrupt = now;
 }
 
-}  // namespace duty_cycle
-}  // namespace esphome
+}  // namespace esphome::duty_cycle

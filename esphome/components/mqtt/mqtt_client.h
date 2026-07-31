@@ -99,12 +99,7 @@ enum MQTTClientState {
 
 class MQTTComponent;
 
-class MQTTClientComponent : public Component
-#ifdef USE_LOGGER
-    ,
-                            public logger::LogListener
-#endif
-{
+class MQTTClientComponent final : public Component {
  public:
   MQTTClientComponent();
 
@@ -142,21 +137,6 @@ class MQTTClientComponent : public Component
   bool is_discovery_enabled() const;
   bool is_discovery_ip_enabled() const;
 
-#if ASYNC_TCP_SSL_ENABLED
-  /** Add a SSL fingerprint to use for TCP SSL connections to the MQTT broker.
-   *
-   * To use this feature you first have to globally enable the `ASYNC_TCP_SSL_ENABLED` define flag.
-   * This function can be called multiple times and any certificate that matches any of the provided fingerprints
-   * will match. Calling this method will also automatically disable all non-ssl connections.
-   *
-   * @warning This is *not* secure and *not* how SSL is usually done. You'll have to add
-   *          a separate fingerprint for every certificate you use. Additionally, the hashing
-   *          algorithm used here due to the constraints of the MCU, SHA1, is known to be insecure.
-   *
-   * @param fingerprint The SSL fingerprint as a 20 value long std::array.
-   */
-  void add_ssl_fingerprint(const std::array<uint8_t, SHA1_SIZE> &fingerprint);
-#endif
 #ifdef USE_ESP32
   void set_ca_certificate(const char *cert) { this->mqtt_backend_.set_ca_certificate(cert); }
   void set_cl_certificate(const char *cert) { this->mqtt_backend_.set_cl_certificate(cert); }
@@ -252,7 +232,7 @@ class MQTTClientComponent : public Component
   float get_setup_priority() const override;
 
 #ifdef USE_LOGGER
-  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override;
+  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len);
 #endif
 
   void on_message(const std::string &topic, const std::string &payload);
@@ -360,7 +340,7 @@ class MQTTClientComponent : public Component
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-class MQTTMessageTrigger : public Trigger<std::string>, public Component {
+class MQTTMessageTrigger final : public Trigger<std::string>, public Component {
  public:
   explicit MQTTMessageTrigger(std::string topic);
 
@@ -376,7 +356,7 @@ class MQTTMessageTrigger : public Trigger<std::string>, public Component {
   optional<std::string> payload_;
 };
 
-class MQTTJsonMessageTrigger : public Trigger<JsonObjectConst> {
+class MQTTJsonMessageTrigger final : public Trigger<JsonObjectConst> {
  public:
   explicit MQTTJsonMessageTrigger(const std::string &topic, uint8_t qos) {
     global_mqtt_client->subscribe_json(
@@ -384,21 +364,21 @@ class MQTTJsonMessageTrigger : public Trigger<JsonObjectConst> {
   }
 };
 
-class MQTTConnectTrigger : public Trigger<bool> {
+class MQTTConnectTrigger final : public Trigger<bool> {
  public:
-  explicit MQTTConnectTrigger(MQTTClientComponent *&client) {
+  explicit MQTTConnectTrigger(MQTTClientComponent *client) {
     client->set_on_connect([this](bool session_present) { this->trigger(session_present); });
   }
 };
 
-class MQTTDisconnectTrigger : public Trigger<MQTTClientDisconnectReason> {
+class MQTTDisconnectTrigger final : public Trigger<MQTTClientDisconnectReason> {
  public:
-  explicit MQTTDisconnectTrigger(MQTTClientComponent *&client) {
+  explicit MQTTDisconnectTrigger(MQTTClientComponent *client) {
     client->set_on_disconnect([this](MQTTClientDisconnectReason reason) { this->trigger(reason); });
   }
 };
 
-template<typename... Ts> class MQTTPublishAction : public Action<Ts...> {
+template<typename... Ts> class MQTTPublishAction final : public Action<Ts...> {
  public:
   MQTTPublishAction(MQTTClientComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, topic)
@@ -415,7 +395,7 @@ template<typename... Ts> class MQTTPublishAction : public Action<Ts...> {
   MQTTClientComponent *parent_;
 };
 
-template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
+template<typename... Ts> class MQTTPublishJsonAction final : public Action<Ts...> {
  public:
   MQTTPublishJsonAction(MQTTClientComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, topic)
@@ -425,20 +405,19 @@ template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
   void set_payload(std::function<void(Ts..., JsonObject)> payload) { this->payload_ = payload; }
 
   void play(const Ts &...x) override {
-    auto f = std::bind(&MQTTPublishJsonAction<Ts...>::encode_, this, x..., std::placeholders::_1);
     auto topic = this->topic_.value(x...);
     auto qos = this->qos_.value(x...);
     auto retain = this->retain_.value(x...);
-    this->parent_->publish_json(topic, f, qos, retain);
+    this->parent_->publish_json(
+        topic, [this, x...](JsonObject root) { this->payload_(x..., root); }, qos, retain);
   }
 
  protected:
-  void encode_(Ts... x, JsonObject root) { this->payload_(x..., root); }
   std::function<void(Ts..., JsonObject)> payload_;
   MQTTClientComponent *parent_;
 };
 
-template<typename... Ts> class MQTTConnectedCondition : public Condition<Ts...> {
+template<typename... Ts> class MQTTConnectedCondition final : public Condition<Ts...> {
  public:
   MQTTConnectedCondition(MQTTClientComponent *parent) : parent_(parent) {}
   bool check(const Ts &...x) override { return this->parent_->is_connected(); }
@@ -447,7 +426,7 @@ template<typename... Ts> class MQTTConnectedCondition : public Condition<Ts...> 
   MQTTClientComponent *parent_;
 };
 
-template<typename... Ts> class MQTTEnableAction : public Action<Ts...> {
+template<typename... Ts> class MQTTEnableAction final : public Action<Ts...> {
  public:
   MQTTEnableAction(MQTTClientComponent *parent) : parent_(parent) {}
 
@@ -457,7 +436,7 @@ template<typename... Ts> class MQTTEnableAction : public Action<Ts...> {
   MQTTClientComponent *parent_;
 };
 
-template<typename... Ts> class MQTTDisableAction : public Action<Ts...> {
+template<typename... Ts> class MQTTDisableAction final : public Action<Ts...> {
  public:
   MQTTDisableAction(MQTTClientComponent *parent) : parent_(parent) {}
 

@@ -7,10 +7,13 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_PROVISIONING
+#include "esphome/components/provisioning/provisioning.h"
+#endif
+
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace esp32_improv {
+namespace esphome::esp32_improv {
 
 using namespace bytebuffer;
 
@@ -41,6 +44,15 @@ void ESP32ImprovComponent::setup() {
   }
 #endif
   global_ble_server->on_disconnect([this](uint16_t conn_id) { this->set_error_(improv::ERROR_NONE); });
+
+#ifdef USE_PROVISIONING
+  if (provisioning::global_provisioning_manager != nullptr) {
+    provisioning::global_provisioning_manager->add_on_closed_callback([this]() {
+      ESP_LOGD(TAG, "Provisioning window closed; stopping Improv");
+      this->stop();
+    });
+  }
+#endif
 
   // Start with loop disabled - will be enabled by start() when needed
   this->disable_loop();
@@ -283,6 +295,15 @@ void ESP32ImprovComponent::start() {
   if (this->should_start_ || this->state_ != improv::STATE_STOPPED)
     return;
 
+#ifdef USE_PROVISIONING
+  // Don't (re)start advertising once the provisioning window has closed - e.g. when
+  // wifi tries to restart Improv after the window expired at runtime.
+  if (provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed()) {
+    ESP_LOGD(TAG, "Provisioning window closed; not starting Improv");
+    return;
+  }
+#endif
+
   ESP_LOGD(TAG, "Setting Improv to start");
   this->should_start_ = true;
   this->enable_loop();
@@ -314,6 +335,8 @@ void ESP32ImprovComponent::dump_config() {
 }
 
 void ESP32ImprovComponent::process_incoming_data_() {
+  if (this->incoming_data_.size() < 3)
+    return;
   uint8_t length = this->incoming_data_[1];
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
@@ -337,9 +360,26 @@ void ESP32ImprovComponent::process_incoming_data_() {
           this->incoming_data_.clear();
           return;
         }
+#ifdef USE_PROVISIONING
+        if (provisioning::global_provisioning_manager != nullptr &&
+            provisioning::global_provisioning_manager->closed()) {
+          ESP_LOGW(TAG, "Provisioning window closed; refusing settings");
+          this->set_error_(improv::ERROR_NOT_AUTHORIZED);
+          this->incoming_data_.clear();
+          return;
+        }
+#endif
+        if (wifi::global_wifi_component->is_disabled()) {
+          // Wi-Fi is disabled, so we can't provision. Respond immediately
+          // instead of letting the client wait out its provisioning timeout.
+          ESP_LOGW(TAG, "Wi-Fi is disabled; cannot provision");
+          this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
+          this->incoming_data_.clear();
+          return;
+        }
         wifi::WiFiAP sta{};
-        sta.set_ssid(command.ssid);
-        sta.set_password(command.password);
+        sta.set_ssid(command.ssid.c_str());
+        sta.set_password(command.password.c_str());
         this->connecting_sta_ = sta;
 
         wifi::global_wifi_component->set_sta(sta);
@@ -348,8 +388,7 @@ void ESP32ImprovComponent::process_incoming_data_() {
         ESP_LOGD(TAG, "Received Improv Wi-Fi settings ssid=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                  command.password.c_str());
 
-        auto f = std::bind(&ESP32ImprovComponent::on_wifi_connect_timeout_, this);
-        this->set_timeout("wifi-connect-timeout", 30000, f);
+        this->set_timeout("wifi-connect-timeout", 30000, [this]() { this->on_wifi_connect_timeout_(); });
         this->incoming_data_.clear();
         break;
       }
@@ -489,7 +528,6 @@ improv::State ESP32ImprovComponent::get_initial_state_() const {
 
 ESP32ImprovComponent *global_improv_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace esp32_improv
-}  // namespace esphome
+}  // namespace esphome::esp32_improv
 
 #endif

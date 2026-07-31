@@ -1,5 +1,6 @@
 #pragma once
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 
 #include "esphome/core/component.h"
 #include "esphome/core/event_pool.h"
@@ -8,7 +9,7 @@
 
 #include <functional>
 #include "freertos/ringbuf.h"
-#include "tusb_cdc_acm.h"
+#include "tinyusb_cdc_acm.h"
 
 namespace esphome::usb_cdc_acm {
 
@@ -50,7 +51,7 @@ struct CDCEvent {
 class USBCDCACMComponent;
 
 /// Represents a single CDC ACM interface instance
-class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMComponent> {
+class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBCDCACMComponent> {
  public:
   void setup();
   void loop();
@@ -81,8 +82,14 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
   void write_array(const uint8_t *data, size_t len) override;
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
-  int available() override;
-  void flush() override;
+  size_t available() override;
+  uart::UARTFlushResult flush() override;
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  // No-op: in CDC ACM device mode the host dictates the line coding, so there are no
+  // local UART settings to (re)apply.
+  void load_settings(bool dump_config) override {}
+  using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
+#endif
 
  protected:
   void check_logger_conflict() override;
@@ -102,12 +109,16 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
   LineStateCallback line_state_callback_{nullptr};
 
   // Lock-free queue and event pool for cross-task event passing
-  EventPool<CDCEvent, EVENT_QUEUE_SIZE> event_pool_;
+  // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
+  // buffer that holds N-1 elements. This guarantees allocate() returns nullptr
+  // before push() can fail, preventing both a pool slot leak and an SPSC
+  // violation on the pool's internal free list.
+  EventPool<CDCEvent, EVENT_QUEUE_SIZE - 1> event_pool_;
   LockFreeQueue<CDCEvent, EVENT_QUEUE_SIZE> event_queue_;
 };
 
 /// Main USB CDC ACM component that manages the USB device and all CDC interfaces
-class USBCDCACMComponent : public Component {
+class USBCDCACMComponent final : public Component {
  public:
   USBCDCACMComponent();
 

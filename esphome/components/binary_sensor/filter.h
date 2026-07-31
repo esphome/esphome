@@ -1,5 +1,10 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_BINARY_SENSOR_FILTER
+
+#include <array>
+
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -24,52 +29,46 @@ class Filter {
   Deduplicator<bool> dedup_;
 };
 
-class TimeoutFilter : public Filter, public Component {
+class TimeoutFilter : public Filter {
  public:
   optional<bool> new_value(bool value) override { return value; }
   void input(bool value) override;
   template<typename T> void set_timeout_value(T timeout) { this->timeout_delay_ = timeout; }
 
  protected:
-  TemplatableValue<uint32_t> timeout_delay_{};
+  TemplatableFn<uint32_t> timeout_delay_{};
 };
 
-class DelayedOnOffFilter : public Filter, public Component {
+class DelayedOnOffFilter final : public Filter {
  public:
   optional<bool> new_value(bool value) override;
-
-  float get_setup_priority() const override;
 
   template<typename T> void set_on_delay(T delay) { this->on_delay_ = delay; }
   template<typename T> void set_off_delay(T delay) { this->off_delay_ = delay; }
 
  protected:
-  TemplatableValue<uint32_t> on_delay_{};
-  TemplatableValue<uint32_t> off_delay_{};
+  TemplatableFn<uint32_t> on_delay_{};
+  TemplatableFn<uint32_t> off_delay_{};
 };
 
-class DelayedOnFilter : public Filter, public Component {
+class DelayedOnFilter : public Filter {
  public:
   optional<bool> new_value(bool value) override;
-
-  float get_setup_priority() const override;
 
   template<typename T> void set_delay(T delay) { this->delay_ = delay; }
 
  protected:
-  TemplatableValue<uint32_t> delay_{};
+  TemplatableFn<uint32_t> delay_{};
 };
 
-class DelayedOffFilter : public Filter, public Component {
+class DelayedOffFilter : public Filter {
  public:
   optional<bool> new_value(bool value) override;
-
-  float get_setup_priority() const override;
 
   template<typename T> void set_delay(T delay) { this->delay_ = delay; }
 
  protected:
-  TemplatableValue<uint32_t> delay_{};
+  TemplatableFn<uint32_t> delay_{};
 };
 
 class InvertFilter : public Filter {
@@ -83,20 +82,38 @@ struct AutorepeatFilterTiming {
   uint32_t time_on;
 };
 
-class AutorepeatFilter : public Filter, public Component {
+/// Non-template base for AutorepeatFilter — all methods in filter.cpp.
+/// Lambdas capture this base pointer, so set_timeout/cancel_timeout are instantiated once.
+/// The two scheduled timers are keyed off `this` and `&active_timing_`; since the address
+/// of `active_timing_` is taken as a scheduler key, the class must not be copied or moved.
+class AutorepeatFilterBase : public Filter {
  public:
-  explicit AutorepeatFilter(std::initializer_list<AutorepeatFilterTiming> timings);
-
   optional<bool> new_value(bool value) override;
-
-  float get_setup_priority() const override;
+  AutorepeatFilterBase(const AutorepeatFilterBase &) = delete;
+  AutorepeatFilterBase &operator=(const AutorepeatFilterBase &) = delete;
 
  protected:
+  AutorepeatFilterBase() = default;
   void next_timing_();
   void next_value_(bool val);
 
-  FixedVector<AutorepeatFilterTiming> timings_;
+  const AutorepeatFilterTiming *timings_{nullptr};
+  uint8_t timings_count_{0};
   uint8_t active_timing_{0};
+};
+
+/// Template wrapper that provides inline std::array storage for timings.
+/// N is set by code generation to match the exact number of timings configured in YAML.
+template<size_t N> class AutorepeatFilter : public AutorepeatFilterBase {
+ public:
+  explicit AutorepeatFilter(std::initializer_list<AutorepeatFilterTiming> timings) {
+    init_array_from(this->timings_storage_, timings);
+    this->timings_ = this->timings_storage_.data();
+    this->timings_count_ = N;
+  }
+
+ protected:
+  std::array<AutorepeatFilterTiming, N> timings_storage_{};
 };
 
 class LambdaFilter : public Filter {
@@ -124,17 +141,17 @@ class StatelessLambdaFilter : public Filter {
   optional<bool> (*f_)(bool);
 };
 
-class SettleFilter : public Filter, public Component {
+class SettleFilter : public Filter {
  public:
   optional<bool> new_value(bool value) override;
-
-  float get_setup_priority() const override;
 
   template<typename T> void set_delay(T delay) { this->delay_ = delay; }
 
  protected:
-  TemplatableValue<uint32_t> delay_{};
+  TemplatableFn<uint32_t> delay_{};
   bool steady_{true};
 };
 
 }  // namespace esphome::binary_sensor
+
+#endif  // USE_BINARY_SENSOR_FILTER

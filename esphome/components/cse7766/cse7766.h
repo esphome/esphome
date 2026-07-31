@@ -5,10 +5,11 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace cse7766 {
+namespace esphome::cse7766 {
 
-class CSE7766Component : public Component, public uart::UARTDevice {
+static constexpr size_t CSE7766_RAW_DATA_SIZE = 24;
+
+class CSE7766Component final : public Component, public uart::UARTDevice {
  public:
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_current_sensor(sensor::Sensor *current_sensor) { current_sensor_ = current_sensor; }
@@ -33,7 +34,7 @@ class CSE7766Component : public Component, public uart::UARTDevice {
                          this->raw_data_[start_index + 2]);
   }
 
-  uint8_t raw_data_[24];
+  uint8_t raw_data_[CSE7766_RAW_DATA_SIZE];
   uint8_t raw_data_index_{0};
   uint32_t last_transmission_{0};
   sensor::Sensor *voltage_sensor_{nullptr};
@@ -47,5 +48,4 @@ class CSE7766Component : public Component, public uart::UARTDevice {
   uint16_t cf_pulses_last_{0};
 };
 
-}  // namespace cse7766
-}  // namespace esphome
+}  // namespace esphome::cse7766

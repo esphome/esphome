@@ -7,7 +7,7 @@
 
 namespace esphome::globals {
 
-template<typename T> class GlobalsComponent : public Component {
+template<typename T> class GlobalsComponent final : public Component {
  public:
   using value_type = T;
   explicit GlobalsComponent() = default;
@@ -84,7 +84,7 @@ template<typename T, uint8_t SZ> class RestoringGlobalStringComponent : public P
     this->rtc_ = global_preferences->make_preference<uint8_t[SZ]>(1944399030U ^ this->name_hash_);
     bool hasdata = this->rtc_.load(&temp);
     if (hasdata) {
-      this->value_.assign(temp + 1, temp[0]);
+      this->value_.assign(temp + 1, static_cast<uint8_t>(temp[0]));
     }
     this->last_checked_value_.assign(this->value_);
   }
@@ -127,7 +127,7 @@ template<typename T, uint8_t SZ> class RestoringGlobalStringComponent : public P
   ESPPreferenceObject rtc_;
 };
 
-template<class C, typename... Ts> class GlobalVarSetAction : public Action<Ts...> {
+template<class C, typename... Ts> class GlobalVarSetAction final : public Action<Ts...> {
  public:
   explicit GlobalVarSetAction(C *parent) : parent_(parent) {}
 

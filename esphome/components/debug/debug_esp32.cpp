@@ -5,6 +5,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <esp_sleep.h>
+#include <esp_idf_version.h>
 
 #include <esp_heap_caps.h>
 #include <esp_system.h>
@@ -15,8 +16,7 @@
 #include <Esp.h>
 #endif
 
-namespace esphome {
-namespace debug {
+namespace esphome::debug {
 
 static const char *const TAG = "debug";
 
@@ -48,7 +48,8 @@ static const size_t REBOOT_MAX_LEN = 24;
 void DebugComponent::on_shutdown() {
   auto *component = App.get_current_component();
   char buffer[REBOOT_MAX_LEN]{};
-  auto pref = global_preferences->make_preference(REBOOT_MAX_LEN, fnv1_hash(REBOOT_KEY + App.get_name()));
+  auto pref = global_preferences->make_preference(REBOOT_MAX_LEN,
+                                                  fnv1_hash_extend(fnv1_hash(REBOOT_KEY), App.get_name().c_str()));
   if (component != nullptr) {
     strncpy(buffer, LOG_STR_ARG(component->get_component_log_str()), REBOOT_MAX_LEN - 1);
     buffer[REBOOT_MAX_LEN - 1] = '\0';
@@ -65,7 +66,8 @@ const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFE
   unsigned reason = esp_reset_reason();
   if (reason < sizeof(RESET_REASONS) / sizeof(RESET_REASONS[0])) {
     if (reason == ESP_RST_SW) {
-      auto pref = global_preferences->make_preference(REBOOT_MAX_LEN, fnv1_hash(REBOOT_KEY + App.get_name()));
+      auto pref = global_preferences->make_preference(REBOOT_MAX_LEN,
+                                                      fnv1_hash_extend(fnv1_hash(REBOOT_KEY), App.get_name().c_str()));
       char reboot_source[REBOOT_MAX_LEN]{};
       if (pref.load(&reboot_source)) {
         reboot_source[REBOOT_MAX_LEN - 1] = '\0';
@@ -79,37 +81,77 @@ const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFE
   } else {
     snprintf(buf, size, "unknown source");
   }
-  ESP_LOGD(TAG, "Reset Reason: %s", buf);
   return buf;
 }
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
 static const char *const WAKEUP_CAUSES[] = {
-    "undefined",
-    "undefined",
-    "external signal using RTC_IO",
-    "external signal using RTC_CNTL",
-    "timer",
-    "touchpad",
-    "ULP program",
-    "GPIO",
-    "UART",
-    "WIFI",
-    "COCPU int",
-    "COCPU crash",
-    "BT",
+    "undefined",                       // ESP_SLEEP_WAKEUP_UNDEFINED (0)
+    "undefined",                       // ESP_SLEEP_WAKEUP_ALL (1)
+    "external signal using RTC_IO",    // ESP_SLEEP_WAKEUP_EXT0 (2)
+    "external signal using RTC_CNTL",  // ESP_SLEEP_WAKEUP_EXT1 (3)
+    "timer",                           // ESP_SLEEP_WAKEUP_TIMER (4)
+    "touchpad",                        // ESP_SLEEP_WAKEUP_TOUCHPAD (5)
+    "ULP program",                     // ESP_SLEEP_WAKEUP_ULP (6)
+    "GPIO",                            // ESP_SLEEP_WAKEUP_GPIO (7)
+    "UART",                            // ESP_SLEEP_WAKEUP_UART (8)
+    "UART1",                           // ESP_SLEEP_WAKEUP_UART1 (9)
+    "UART2",                           // ESP_SLEEP_WAKEUP_UART2 (10)
+    "WIFI",                            // ESP_SLEEP_WAKEUP_WIFI (11)
+    "COCPU int",                       // ESP_SLEEP_WAKEUP_COCPU (12)
+    "COCPU crash",                     // ESP_SLEEP_WAKEUP_COCPU_TRAP_TRIG (13)
+    "BT",                              // ESP_SLEEP_WAKEUP_BT (14)
+    "VAD",                             // ESP_SLEEP_WAKEUP_VAD (15)
+    "VBAT under voltage",              // ESP_SLEEP_WAKEUP_VBAT_UNDER_VOLT (16)
 };
+#else
+static const char *const WAKEUP_CAUSES[] = {
+    "undefined",                       // ESP_SLEEP_WAKEUP_UNDEFINED (0)
+    "undefined",                       // ESP_SLEEP_WAKEUP_ALL (1)
+    "external signal using RTC_IO",    // ESP_SLEEP_WAKEUP_EXT0 (2)
+    "external signal using RTC_CNTL",  // ESP_SLEEP_WAKEUP_EXT1 (3)
+    "timer",                           // ESP_SLEEP_WAKEUP_TIMER (4)
+    "touchpad",                        // ESP_SLEEP_WAKEUP_TOUCHPAD (5)
+    "ULP program",                     // ESP_SLEEP_WAKEUP_ULP (6)
+    "GPIO",                            // ESP_SLEEP_WAKEUP_GPIO (7)
+    "UART",                            // ESP_SLEEP_WAKEUP_UART (8)
+    "WIFI",                            // ESP_SLEEP_WAKEUP_WIFI (9)
+    "COCPU int",                       // ESP_SLEEP_WAKEUP_COCPU (10)
+    "COCPU crash",                     // ESP_SLEEP_WAKEUP_COCPU_TRAP_TRIG (11)
+    "BT",                              // ESP_SLEEP_WAKEUP_BT (12)
+};
+#endif
 
-const char *DebugComponent::get_wakeup_cause_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
-  const char *wake_reason;
-  unsigned reason = esp_sleep_get_wakeup_cause();
-  if (reason < sizeof(WAKEUP_CAUSES) / sizeof(WAKEUP_CAUSES[0])) {
-    wake_reason = WAKEUP_CAUSES[reason];
-  } else {
-    wake_reason = "unknown source";
+const char *DebugComponent::get_wakeup_cause_(std::span<char, WAKEUP_CAUSE_BUFFER_SIZE> buffer) {
+  static constexpr auto NUM_CAUSES = sizeof(WAKEUP_CAUSES) / sizeof(WAKEUP_CAUSES[0]);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  // IDF 6.0+ returns a bitmap of all wakeup sources
+  uint32_t causes = esp_sleep_get_wakeup_causes();
+  if (causes == 0) {
+    return WAKEUP_CAUSES[0];  // "undefined"
   }
-  ESP_LOGD(TAG, "Wakeup Reason: %s", wake_reason);
-  // Return the static string directly - no need to copy to buffer
-  return wake_reason;
+  char *p = buffer.data();
+  char *end = p + buffer.size();
+  *p = '\0';
+  const char *sep = "";
+  for (unsigned i = 0; i < NUM_CAUSES && p < end; i++) {
+    if (causes & (1U << i)) {
+      size_t needed = strlen(sep) + strlen(WAKEUP_CAUSES[i]);
+      if (p + needed >= end) {
+        break;
+      }
+      p += snprintf(p, end - p, "%s%s", sep, WAKEUP_CAUSES[i]);
+      sep = ", ";
+    }
+  }
+  return buffer.data();
+#else
+  unsigned reason = esp_sleep_get_wakeup_cause();
+  if (reason < NUM_CAUSES) {
+    return WAKEUP_CAUSES[reason];
+  }
+  return "unknown source";
+#endif
 }
 
 void DebugComponent::log_partition_info_() {
@@ -172,7 +214,6 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   }
   uint32_t flash_size = ESP.getFlashChipSize() / 1024;       // NOLINT
   uint32_t flash_speed = ESP.getFlashChipSpeed() / 1000000;  // NOLINT
-  ESP_LOGD(TAG, "Flash Chip: Size=%" PRIu32 "kB Speed=%" PRIu32 "MHz Mode=%s", flash_size, flash_speed, flash_mode);
   pos = buf_append_printf(buf, size, pos, "|Flash: %" PRIu32 "kB Speed:%" PRIu32 "MHz Mode:%s", flash_size, flash_speed,
                           flash_mode);
 #endif
@@ -182,52 +223,67 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   const char *model = ESPHOME_VARIANT;
 
   // Build features string
-  pos = buf_append_printf(buf, size, pos, "|Chip: %s Features:", model);
+  pos = buf_append_str(buf, size, pos, "|Chip: ");
+  pos = buf_append_str(buf, size, pos, model);
+  pos = buf_append_str(buf, size, pos, " Features:");
   bool first_feature = true;
   for (const auto &feature : CHIP_FEATURES) {
     if (info.features & feature.bit) {
-      pos = buf_append_printf(buf, size, pos, "%s%s", first_feature ? "" : ", ", feature.name);
+      pos = buf_append_str(buf, size, pos, first_feature ? "" : ", ");
+      pos = buf_append_str(buf, size, pos, feature.name);
       first_feature = false;
       info.features &= ~feature.bit;
     }
   }
   if (info.features != 0) {
-    pos = buf_append_printf(buf, size, pos, "%sOther:0x%" PRIx32, first_feature ? "" : ", ", info.features);
+    pos = buf_append_str(buf, size, pos, first_feature ? "" : ", ");
+    pos = buf_append_printf(buf, size, pos, "Other:0x%" PRIx32, info.features);
   }
-  ESP_LOGD(TAG, "Chip: Model=%s, Cores=%u, Revision=%u", model, info.cores, info.revision);
   pos = buf_append_printf(buf, size, pos, " Cores:%u Revision:%u", info.cores, info.revision);
 
   uint32_t cpu_freq_mhz = arch_get_cpu_freq_hz() / 1000000;
-  ESP_LOGD(TAG, "CPU Frequency: %" PRIu32 " MHz", cpu_freq_mhz);
   pos = buf_append_printf(buf, size, pos, "|CPU Frequency: %" PRIu32 " MHz", cpu_freq_mhz);
 
-  // Framework detection
-#ifdef USE_ARDUINO
-  ESP_LOGD(TAG, "Framework: Arduino");
-  pos = buf_append_printf(buf, size, pos, "|Framework: Arduino");
-#elif defined(USE_ESP32)
-  ESP_LOGD(TAG, "Framework: ESP-IDF");
-  pos = buf_append_printf(buf, size, pos, "|Framework: ESP-IDF");
-#else
-  ESP_LOGW(TAG, "Framework: UNKNOWN");
-  pos = buf_append_printf(buf, size, pos, "|Framework: UNKNOWN");
-#endif
-
-  ESP_LOGD(TAG, "ESP-IDF Version: %s", esp_get_idf_version());
-  pos = buf_append_printf(buf, size, pos, "|ESP-IDF: %s", esp_get_idf_version());
+  char reset_buffer[RESET_REASON_BUFFER_SIZE];
+  char wakeup_buffer[WAKEUP_CAUSE_BUFFER_SIZE];
+  const char *reset_reason = get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE>(reset_buffer));
+  const char *wakeup_cause = get_wakeup_cause_(std::span<char, WAKEUP_CAUSE_BUFFER_SIZE>(wakeup_buffer));
 
   uint8_t mac[6];
   get_mac_address_raw(mac);
-  ESP_LOGD(TAG, "EFuse MAC: %02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+  ESP_LOGD(TAG,
+           "ESP32 debug info:\n"
+           "  Chip: %s\n"
+           "  Cores: %u\n"
+           "  Revision: %u\n"
+           "  CPU Frequency: %" PRIu32 " MHz\n"
+           "  ESP-IDF Version: %s\n"
+           "  EFuse MAC: %02X:%02X:%02X:%02X:%02X:%02X\n"
+           "  Reset Reason: %s\n"
+           "  Wakeup Cause: %s",
+           model, info.cores, info.revision, cpu_freq_mhz, esp_get_idf_version(), mac[0], mac[1], mac[2], mac[3],
+           mac[4], mac[5], reset_reason, wakeup_cause);
+#if defined(USE_ARDUINO)
+  ESP_LOGD(TAG, "  Flash: Size=%" PRIu32 "kB Speed=%" PRIu32 "MHz Mode=%s", flash_size, flash_speed, flash_mode);
+#endif
+  // Framework detection
+#ifdef USE_ARDUINO
+  ESP_LOGD(TAG, "  Framework: Arduino");
+  pos = buf_append_str(buf, size, pos, "|Framework: Arduino");
+#else
+  ESP_LOGD(TAG, "  Framework: ESP-IDF");
+  pos = buf_append_str(buf, size, pos, "|Framework: ESP-IDF");
+#endif
+
+  pos = buf_append_str(buf, size, pos, "|ESP-IDF: ");
+  pos = buf_append_str(buf, size, pos, esp_get_idf_version());
   pos = buf_append_printf(buf, size, pos, "|EFuse MAC: %02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3],
                           mac[4], mac[5]);
-
-  char reason_buffer[RESET_REASON_BUFFER_SIZE];
-  const char *reset_reason = get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE>(reason_buffer));
-  pos = buf_append_printf(buf, size, pos, "|Reset: %s", reset_reason);
-
-  const char *wakeup_cause = get_wakeup_cause_(std::span<char, RESET_REASON_BUFFER_SIZE>(reason_buffer));
-  pos = buf_append_printf(buf, size, pos, "|Wakeup: %s", wakeup_cause);
+  pos = buf_append_str(buf, size, pos, "|Reset: ");
+  pos = buf_append_str(buf, size, pos, reset_reason);
+  pos = buf_append_str(buf, size, pos, "|Wakeup: ");
+  pos = buf_append_str(buf, size, pos, wakeup_cause);
 
   return pos;
 }
@@ -254,6 +310,6 @@ void DebugComponent::update_platform_() {
 #endif
 }
 
-}  // namespace debug
-}  // namespace esphome
+}  // namespace esphome::debug
+
 #endif  // USE_ESP32

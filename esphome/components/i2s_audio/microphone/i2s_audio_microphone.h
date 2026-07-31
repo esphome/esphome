@@ -12,10 +12,9 @@
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 
-namespace esphome {
-namespace i2s_audio {
+namespace esphome::i2s_audio {
 
-class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, public Component {
+class I2SAudioMicrophone final : public I2SAudioIn, public microphone::Microphone, public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -26,22 +25,9 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
 
   void set_correct_dc_offset(bool correct_dc_offset) { this->correct_dc_offset_ = correct_dc_offset; }
 
-#ifdef USE_I2S_LEGACY
-  void set_din_pin(int8_t pin) { this->din_pin_ = pin; }
-#else
   void set_din_pin(int8_t pin) { this->din_pin_ = (gpio_num_t) pin; }
-#endif
 
   void set_pdm(bool pdm) { this->pdm_ = pdm; }
-
-#ifdef USE_I2S_LEGACY
-#if SOC_I2S_SUPPORTS_ADC
-  void set_adc_channel(adc_channel_t channel) {
-    this->adc_channel_ = (adc1_channel_t) channel;
-    this->adc_ = true;
-  }
-#endif
-#endif
 
  protected:
   /// @brief Starts the I2S driver. Updates the ``audio_stream_info_`` member variable with the current setttings.
@@ -56,7 +42,7 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
   /// @param data
   void fix_dc_offset_(std::vector<uint8_t> &data);
 
-  size_t read_(uint8_t *buf, size_t len, TickType_t ticks_to_wait);
+  size_t read_(uint8_t *buf, size_t len, uint32_t timeout_ms);
 
   /// @brief Sets the Microphone ``audio_stream_info_`` member variable to the configured I2S settings.
   void configure_stream_settings_();
@@ -68,16 +54,8 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
 
   TaskHandle_t task_handle_{nullptr};
 
-#ifdef USE_I2S_LEGACY
-  int8_t din_pin_{I2S_PIN_NO_CHANGE};
-#if SOC_I2S_SUPPORTS_ADC
-  adc1_channel_t adc_channel_{ADC1_CHANNEL_MAX};
-  bool adc_{false};
-#endif
-#else
   gpio_num_t din_pin_{I2S_GPIO_UNUSED};
   i2s_chan_handle_t rx_handle_;
-#endif
   bool pdm_{false};
 
   bool correct_dc_offset_;
@@ -86,7 +64,6 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
   int32_t dc_offset_prev_output_{0};
 };
 
-}  // namespace i2s_audio
-}  // namespace esphome
+}  // namespace esphome::i2s_audio
 
 #endif  // USE_ESP32

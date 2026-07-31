@@ -16,11 +16,11 @@ class HttpContainerHost : public HttpContainer {
   std::vector<uint8_t> response_body_{};
 };
 
-class HttpRequestHost : public HttpRequestComponent {
+class HttpRequestHost final : public HttpRequestComponent {
  public:
   std::shared_ptr<HttpContainer> perform(const std::string &url, const std::string &method, const std::string &body,
-                                         const std::list<Header> &request_headers,
-                                         const std::set<std::string> &response_headers) override;
+                                         const std::vector<Header> &request_headers,
+                                         const std::vector<std::string> &lower_case_collect_headers) override;
   void set_ca_path(const char *ca_path) { this->ca_path_ = ca_path; }
 
  protected:

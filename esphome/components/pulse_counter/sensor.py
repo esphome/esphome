@@ -129,10 +129,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     use_pcnt = config.get(CONF_USE_PCNT)
     if CORE.is_esp32 and use_pcnt:
-        # Re-enable ESP-IDF's legacy driver component (excluded by default to save compile time)
-        # Provides driver/pcnt.h header for hardware pulse counter API
-        # TODO: Remove this once pulse_counter migrates to new PCNT API (driver/pulse_cnt.h)
-        include_builtin_idf_component("driver")
+        include_builtin_idf_component("esp_driver_pcnt")
 
     var = await sensor.new_sensor(config, use_pcnt)
     await cg.register_component(var, config)
@@ -158,10 +155,11 @@ async def to_code(config):
             cv.Required(CONF_VALUE): cv.templatable(cv.uint32_t),
         }
     ),
+    synchronous=True,
 )
 async def set_total_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALUE], args, int)
+    template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint32)
     cg.add(var.set_total_pulses(template_))
     return var

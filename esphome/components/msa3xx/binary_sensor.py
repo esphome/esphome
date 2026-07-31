@@ -26,7 +26,7 @@ CONFIG_SCHEMA = MSA_SENSOR_SCHEMA.extend(
             ),
             key=CONF_NAME,
         )
-        for event, icon in zip(EVENT_SENSORS, ICONS)
+        for event, icon in zip(EVENT_SENSORS, ICONS, strict=True)
     }
 )
 

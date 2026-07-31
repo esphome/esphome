@@ -1,8 +1,7 @@
 #include "climate_ir_lg.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace climate_ir_lg {
+namespace esphome::climate_ir_lg {
 
 static const char *const TAG = "climate.climate_ir_lg";
 
@@ -79,7 +78,7 @@ void LgIrClimate::transmit_state() {
   if (this->mode == climate::CLIMATE_MODE_OFF) {
     remote_state |= FAN_AUTO;
   } else {
-    switch (this->fan_mode.value()) {
+    switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
       case climate::CLIMATE_FAN_HIGH:
         remote_state |= FAN_MAX;
         break;
@@ -218,5 +217,4 @@ void LgIrClimate::calc_checksum_(uint32_t &value) {
   value |= (sum & mask);
 }
 
-}  // namespace climate_ir_lg
-}  // namespace esphome
+}  // namespace esphome::climate_ir_lg
