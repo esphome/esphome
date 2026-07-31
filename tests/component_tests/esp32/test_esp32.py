@@ -297,7 +297,9 @@ def test_signed_ota_verification_sdkconfig(
     # The padded, externally-signable image is always produced.
     assert sdkconfig.get("CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT") is True
     # Explicit value (never left to the Kconfig default) decides who verifies.
-    assert sdkconfig.get("CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT") is idf_on_update
+    assert (
+        sdkconfig.get("CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT") is idf_on_update
+    )
     defines = {define.name for define in CORE.defines}
     assert ("USE_OTA_SIGNED_VERIFICATION_MULTI_KEY" in defines) is multi_key
 

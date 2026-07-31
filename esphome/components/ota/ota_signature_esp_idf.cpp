@@ -130,8 +130,7 @@ bool rsa_pss_verify(const uint8_t *block, const uint8_t *digest) {
   bool verified = false;
   if (mbedtls_rsa_import_raw(&rsa, modulus_be, sizeof(modulus_be), nullptr, 0, nullptr, 0, nullptr, 0, exponent_be,
                              sizeof(exponent_be)) == 0 &&
-      mbedtls_rsa_complete(&rsa) == 0 &&
-      mbedtls_rsa_set_padding(&rsa, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA256) == 0) {
+      mbedtls_rsa_complete(&rsa) == 0 && mbedtls_rsa_set_padding(&rsa, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA256) == 0) {
     verified = mbedtls_rsa_rsassa_pss_verify(&rsa, MBEDTLS_MD_SHA256, SHA256_BYTES, digest, signature_be) == 0;
   }
   mbedtls_rsa_free(&rsa);
