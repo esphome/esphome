@@ -169,28 +169,55 @@ def test_generate_cmakelists_txt_with_flags(tmp_component, tmp_path):
     }
 
     content = generate_cmakelists_txt(tmp_component)
-    sep = "\\\\" if os.name == "nt" else "/"
+    # Paths are always emitted with forward slashes so the CMakeLists is
+    # portable; on Windows os.path.relpath would otherwise yield backslashes
+    # that break CMake's list re-parsing.
     assert (
         content
-        == f"""idf_component_register(
-  SRCS "src{sep}main.c"
+        == """idf_component_register(
+  SRCS "src/main.c"
   INCLUDE_DIRS "src"
-  REQUIRES dep ${{ESPHOME_PROJECT_MANAGED_COMPONENTS}} ${{ESPHOME_PROJECT_BUILTIN_COMPONENTS}}
+  REQUIRES dep ${ESPHOME_PROJECT_MANAGED_COMPONENTS} ${ESPHOME_PROJECT_BUILTIN_COMPONENTS}
 )
-target_compile_options(${{COMPONENT_LIB}} PUBLIC
+target_compile_options(${COMPONENT_LIB} PUBLIC
   "-DTEST"
 )
-target_compile_options(${{COMPONENT_LIB}} PRIVATE
+target_compile_options(${COMPONENT_LIB} PRIVATE
   "-Wall"
 )
-target_link_directories(${{COMPONENT_LIB}} INTERFACE
+target_link_directories(${COMPONENT_LIB} INTERFACE
   "lib"
 )
-target_link_libraries(${{COMPONENT_LIB}} INTERFACE
+target_link_libraries(${COMPONENT_LIB} INTERFACE
   "mylib"
 )
 """
     )
+
+
+def test_generate_cmakelists_txt_uses_forward_slashes_on_windows(
+    tmp_component, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # os.path.relpath yields backslash paths on Windows, which CMake rejects
+    # when it re-parses the SRCS list (e.g. "\b" in "src\backend" is an invalid
+    # character escape). Simulate that output and confirm the generated
+    # CMakeLists normalizes the separators to forward slashes.
+    src_dir = tmp_component.path / "src" / "backend"
+    src_dir.mkdir(parents=True)
+    (src_dir / "cipher.c").write_text("int f() {}")
+
+    tmp_component.data = {}
+
+    monkeypatch.setattr("esphome.espidf.component.os.sep", "\\")
+    monkeypatch.setattr(
+        "esphome.espidf.component.os.path.relpath",
+        lambda *args, **kwargs: "src\\backend\\cipher.c",
+    )
+
+    content = generate_cmakelists_txt(tmp_component)
+
+    assert 'SRCS "src/backend/cipher.c"' in content
+    assert "\\" not in content
 
 
 def test_generate_cmakelists_txt_multi_token_flag(tmp_component):
