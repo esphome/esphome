@@ -110,11 +110,10 @@ enum class FrameState : uint8_t {
   WAITING,
   RECEIVED_RESPONSE,
   RECEIVED_EXCEPTION,
-  TIMED_OUT,
-  TIMED_OUT_NOTIFIED,  // on_no_response already delivered
-  INTERRUPTED,         // unexpected frame arrived; ignores this transaction, waits out the timeout
-  WAITING_RETIRED,     // cleared by clear_tx_queue_for_address but still waiting for a response
-  RETIRED,             // cleared, off the wire
+  TIMED_OUT,        // on_no_response delivered at the send-wait timeout; awaiting reschedule/erase
+  INTERRUPTED,      // unexpected frame arrived; ignores this transaction, waits out the timeout
+  WAITING_RETIRED,  // cleared by clear_tx_queue_for_address but still waiting for a response
+  RETIRED,          // cleared, off the wire
 };
 
 // Per-command send options. Append-only; pass via designated initializers ({.continuous = true}).
@@ -180,8 +179,6 @@ struct ModbusDeviceCommand {
     this->state = FrameState::READY;
     this->seq = seq;
   }
-  // Send-wait timer fired for a waiting entry: flip to TIMED_OUT so the sweep delivers on_no_response.
-  void timeout() { this->state = FrameState::TIMED_OUT; }
   // Turn a queued one-shot into a continuous poll, superseding any requests it had absorbed.
   void make_continuous() {
     this->continuous = true;
@@ -226,7 +223,7 @@ struct ModbusDeviceCommand {
   bool response(std::span<const uint8_t> response_pdu);
   bool error(ExceptionCode exception_code);
   bool interrupt();
-  bool notify_timed_out();
+  bool timed_out();
   bool notify_retired();
 
   /// True if this command carries the same wire frame (address + PDU) as the given one.

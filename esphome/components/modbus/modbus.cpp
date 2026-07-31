@@ -72,15 +72,17 @@ void ModbusClientHub::expire_waiting_() {
     // The start of the response is in the buffer: let the frame finish arriving.
     return;
   }
-  // The send-wait timer fired; timeout() advances the entry and the sweep delivers/reschedules. Only
-  // a genuine WAITING entry warrants the log (a cleared or interrupted shell timing out is expected).
+  // Only a genuine WAITING entry warrants the log (a cleared or interrupted shell timing out is expected).
   if (cmd->state == FrameState::WAITING) {
     ESP_LOGW(TAG, "Stop waiting for response from %" PRIu8 " %" PRIu32 "ms after last send", cmd->frame.address(),
              this->last_receive_check_ - this->last_send_);
   }
-  cmd->timeout();
-  this->sweep_needed_ = true;
+  // Deliver on_no_response directly, the way the parse path delivers response()/error(): the entry
+  // lands in TIMED_OUT and the following sweep reschedules a retry or erases it. Free the
+  // wire first so a resend from inside the callback sees it available.
   this->waiting_for_response_ = false;
+  this->sweep_needed_ = true;
+  cmd->timed_out();
 }
 
 bool Modbus::timeout_() {
@@ -644,9 +646,9 @@ bool ModbusDeviceCommand::interrupt() {
   return true;
 }
 
-bool ModbusDeviceCommand::notify_timed_out() {
-  this->state = FrameState::TIMED_OUT_NOTIFIED;  // advance BEFORE the callback so a clear from inside it wins
-  this->decrement_pending();                     // resolve this request (WAITING-origin, so pending >= 1)
+bool ModbusDeviceCommand::timed_out() {
+  this->state = FrameState::TIMED_OUT;  // advance BEFORE the callback so a clear from inside it wins
+  this->decrement_pending();            // resolve this request (WAITING-origin, so pending >= 1)
   if (this->device == nullptr)
     return false;  // resolved, no one to tell
   if (this->device->on_no_response(this->frame.pdu()))
@@ -671,15 +673,10 @@ void ModbusClientHub::sweep_() {
       switch (cmd.state) {
         case FrameState::RECEIVED_RESPONSE:
         case FrameState::RECEIVED_EXCEPTION:
-        case FrameState::TIMED_OUT_NOTIFIED:
+        case FrameState::TIMED_OUT:
           // Off the wire, callback already delivered: reschedule what is still pending, else erase.
           if (cmd.pending)
             cmd.requeue(this->next_seq_++);
-          break;
-        case FrameState::TIMED_OUT:
-          // Deliver on_no_response(); a clear from inside it moves the entry to RETIRED (won't match
-          // the reschedule case above), so the clear-took-over check is implicit.
-          callback_ran = cmd.notify_timed_out();
           break;
         case FrameState::RETIRED:
           // Owes one on_not_sent() per accepted request; notify_retired() drains one and reports
