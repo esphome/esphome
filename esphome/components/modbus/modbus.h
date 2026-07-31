@@ -189,6 +189,8 @@ struct ModbusDeviceCommand {
   // Address-scoped clear: keep pending and device so the sweep delivers one on_not_sent() per un-run
   // request. An on-wire entry keeps its in-flight request (whose usual terminal is still coming) and
   // -> WAITING_RETIRED, draining only its duplicates; an off-wire one -> RETIRED, draining everything.
+  // An on-wire frame that then times out still honors a retry: the clear is address-scoped (any device
+  // may call it) while the retry is the owning device's call via on_no_response - the bus obeys the owner.
   void retire() {
     this->state = this->on_wire() ? FrameState::WAITING_RETIRED : FrameState::RETIRED;
     this->continuous = false;
