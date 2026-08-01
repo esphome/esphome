@@ -67,13 +67,19 @@ void RP2BLETracker::loop() {
     // A scan should be running but is not: continuous mode is always in this
     // state until the start succeeds, and non-continuous mode only reaches
     // here between start_scan() and a successful controller start, because
-    // stop_scan_() disables the loop otherwise. Rate-limit (re)start attempts:
-    // the controller start fails while the stack is still powering up
-    // (scan_start() returns false until HCI reaches WORKING); retrying every
-    // main-loop iteration would waste cycles, so the interval backs off with
-    // consecutive failures and a stack that never comes up polls slowly,
-    // emitting a single WARN when the retry interval saturates.
-    // failed_start_count_ is capped at SCAN_START_RETRY_MAX_DOUBLINGS below.
+    // stop_scan_() disables the loop otherwise.
+    if (!this->parent_->is_active()) {
+      // Stack not up (still booting, or the user called disable()) — nothing
+      // to retry or count; scanning starts on the first iteration after HCI
+      // reaches WORKING. Attempting anyway would saturate the backoff into a
+      // "keeps failing" WARN over a radio the user deliberately turned off.
+      return;
+    }
+    // Rate-limit (re)start attempts so a start that genuinely fails on an
+    // active stack cannot be retried every main-loop iteration; the interval
+    // backs off with consecutive failures, emitting a single WARN when it
+    // saturates. failed_start_count_ is capped at
+    // SCAN_START_RETRY_MAX_DOUBLINGS below.
     if (now - this->last_scan_start_attempt_ >= (SCAN_START_RETRY_MS << this->failed_start_count_)) {
       this->last_scan_start_attempt_ = now;
       this->start_scan_();
