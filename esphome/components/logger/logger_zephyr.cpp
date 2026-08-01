@@ -70,7 +70,7 @@ void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
     static const struct device *uart_dev = nullptr;
     switch (this->uart_) {
-#ifdef CONFIG_SERIAL
+#if defined(CONFIG_SERIAL) && defined(LOGGER_UART_NODE_LABEL)
       case UART_SELECTION_UART0:  // NOLINT(bugprone-branch-clone)
       case UART_SELECTION_UART1:
         // Node label varies by variant (e.g. nRF54's uart20/uart30 instead of

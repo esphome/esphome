@@ -25,7 +25,6 @@ _DEFAULT_BOARD = "nrf54l15dk"
 # (boards/nordic/nrf54l15dk/board.yml lists nrf54l15's cpuapp/cpuflpr cpuclusters). Only
 # the application core is supported here -- cpuflpr (the RISC-V co-processor core) is a
 # separate, much more specialized target this variant does not build for.
-_VALID_BOARDS = [_DEFAULT_BOARD]
 
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_NRF54L15
