@@ -70,15 +70,6 @@ enum AS7343Channel : uint8_t {
   AS7343_NUM_CHANNELS_MAX
 };
 
-union RegCfg20 {
-  uint8_t raw;
-  struct {
-    uint8_t reserved : 5;
-    uint8_t auto_smux : 2;
-    uint8_t fd_fifo_8b : 1;
-  } __attribute__((packed));
-};
-
 union RegStatus {
   uint8_t raw;
   struct {
@@ -102,25 +93,20 @@ bool AS7343::verify_device_id() {
   return (id == AS7343_CHIP_ID);
 }
 
-void AS7343::write_default_config() {
-  // Set configuration
-  RegCfg20 cfg20;
-  cfg20.raw = this->i2c_device_->reg(AS7343_CFG20).get();
-  cfg20.auto_smux = 0b11;
-  this->i2c_device_->reg(AS7343_CFG20) = cfg20.raw;
-
-  this->direct_config_3_chain_();
-}
+void AS7343::write_default_config() { this->direct_config_3_chain_(); }
 
 void AS7343::direct_config_3_chain_() {
   this->i2c_device_->write_byte(AS7343_CFG6, 0x0);
   this->i2c_device_->write_byte(AS7343_FD_CFG0, 0xa1);
+
+  this->set_bank_for_reg_(AS7343_CFG10);  // CFG10 sits in the low register bank
   this->i2c_device_->write_byte(AS7343_CFG10, 0xf2);
+  this->set_bank_for_reg_(AS7343_CFG0);
 
   this->i2c_device_->write_byte(AS7343_CFG0, 0x10);
   this->i2c_device_->write_byte(AS7343_CFG1, 0x0c);
   this->i2c_device_->write_byte(AS7343_CFG8, 0xc8);
-  this->i2c_device_->write_byte(AS7343_CFG20, 0x62);
+  this->i2c_device_->write_byte(AS7343_CFG20, 0x62);  // auto_smux = 0b11: all 18 channels, 3 cycles
   this->i2c_device_->write_byte(AS7343_AGC_GAIN_MAX, 0x99);
   this->i2c_device_->write_byte(AS7343_FD_TIME_1, 0x64);
   this->i2c_device_->write_byte(AS7343_FD_TIME_2, 0x21);
@@ -175,9 +161,13 @@ bool AS7343::read_channels(uint8_t /*step*/, ChannelValuesUint16 &values, Gain &
     values[i] = data[SMUX_CHANNEL_MAP[i]];
   }
 
-  // combine two clear channels to one
-  uint16_t clear = data[AS7343_CHANNEL_CLEAR_0] / 2 + data[AS7343_CHANNEL_CLEAR_1] / 2;
-  values[NUM_CHANNELS - 1] = clear;
+  // Only the first two SMUX cycles route the clear photodiode; the third always reads 0, so it is
+  // left out of the average. Summing first avoids truncating each operand on its own.
+  // The last SMUX_CHANNEL_MAP entry is a placeholder that the loop above overwrites here.
+  ESP_LOGVV(TAG, "Clear channels: cycle1 %u, cycle2 %u, cycle3 %u (unused)", data[AS7343_CHANNEL_CLEAR_1],
+            data[AS7343_CHANNEL_CLEAR_0], data[AS7343_CHANNEL_CLEAR]);
+  const uint32_t clear_sum = static_cast<uint32_t>(data[AS7343_CHANNEL_CLEAR_1]) + data[AS7343_CHANNEL_CLEAR_0];
+  values[NUM_CHANNELS - 1] = static_cast<uint16_t>(clear_sum / 2);
 
   gain = astatus.again_status;      // gain applied to the latest spectral measurement
   saturated = astatus.asat_status;  // latched data affected by saturation

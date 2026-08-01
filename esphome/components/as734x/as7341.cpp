@@ -44,7 +44,10 @@ bool AS7341::verify_device_id() {
   return ((id & 0xFC) == (AS7341_CHIP_ID << 2));
 }
 
-void AS7341::write_default_config() { this->i2c_device_->write_byte(AS7341_CONFIG, 0x00); }
+void AS7341::write_default_config() {
+  this->set_bank_for_reg_(AS7341_CONFIG);  // CONFIG sits in the low register bank
+  this->i2c_device_->write_byte(AS7341_CONFIG, 0x00);
+}
 
 bool AS7341::prepare_for_smux_step(uint8_t step) {
   // SMUX Config for F1,F2,F3,F4,NIR,Clear

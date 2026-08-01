@@ -5,7 +5,7 @@ namespace esphome::as734x {
 
 class AS7341 : public AS734xBase {
  public:
-  AS7341(i2c::I2CDevice *i2c_device);
+  explicit AS7341(i2c::I2CDevice *i2c_device);
 
   const RegisterMap &registers() const override { return REG_MAP; }
 
