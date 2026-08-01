@@ -128,7 +128,7 @@ def test_out_of_range_rejected(interval: str, window: str, offender: str) -> Non
 
 def test_unit_collapse_rejected() -> None:
     """3000us/2500us both floor to 4 units — a hidden 100 % duty cycle."""
-    with pytest.raises(cv.Invalid, match="both round to 4 x 0.625 ms"):
+    with pytest.raises(cv.Invalid, match="both truncate to 4 x 0.625 ms"):
         _validate(interval="3000us", window="2500us")
 
 
