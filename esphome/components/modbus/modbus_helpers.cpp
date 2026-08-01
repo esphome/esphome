@@ -223,8 +223,7 @@ std::optional<int64_t> payload_to_number(const uint8_t *data, size_t size, Senso
       value = mask_and_shift_by_rightbit(get_data<uint16_t>(data, offset), bitmask);  // default is 0xFFFF ;
       break;
     case SensorValueType::U_WORD_S: {
-      uint16_t word = get_data<uint16_t>(data, offset);
-      word = static_cast<uint16_t>((word << 8) | (word >> 8));
+      uint16_t word = byteswap(get_data<uint16_t>(data, offset));
       value = mask_and_shift_by_rightbit(word, bitmask);
       break;
     }
@@ -243,8 +242,7 @@ std::optional<int64_t> payload_to_number(const uint8_t *data, size_t size, Senso
       value = mask_and_shift_by_rightbit(get_data<int16_t>(data, offset), bitmask);  // default is 0xFFFF ;
       break;
     case SensorValueType::S_WORD_S: {
-      uint16_t word = get_data<uint16_t>(data, offset);
-      word = static_cast<uint16_t>((word << 8) | (word >> 8));
+      uint16_t word = byteswap(get_data<uint16_t>(data, offset));
       value = mask_and_shift_by_rightbit(static_cast<int16_t>(word), bitmask);
       break;
     }

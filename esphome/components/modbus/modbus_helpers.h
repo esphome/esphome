@@ -287,11 +287,9 @@ template<typename Container> void number_to_payload(Container &data, int64_t val
       data.push_back(value & 0xFFFF);
       break;
     case SensorValueType::U_WORD_S:
-    case SensorValueType::S_WORD_S: {
-      uint16_t word = value & 0xFFFF;
-      data.push_back(static_cast<uint16_t>((word << 8) | (word >> 8)));
+    case SensorValueType::S_WORD_S:
+      data.push_back(byteswap(static_cast<uint16_t>(value & 0xFFFF)));
       break;
-    }
     case SensorValueType::U_DWORD:
     case SensorValueType::S_DWORD:
     case SensorValueType::FP32:
