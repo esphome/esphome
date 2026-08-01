@@ -56,6 +56,13 @@ void RP2BLETracker::on_ota_global_state(ota::OTAState state, float progress, uin
 
 void RP2BLETracker::loop() {
   const uint32_t now = App.get_loop_component_start_time();
+  if (this->scan_running_ && !this->parent_->is_active()) {
+    // The controller was disabled underneath us (e.g. a lambda calling
+    // rp2040_ble's disable()); the scan died with the stack. Reconcile so the
+    // retry branch below takes over once the user re-enables the stack.
+    this->scan_running_ = false;
+    this->fire_scan_end_();
+  }
   if (!this->scan_running_) {
     // A scan should be running but is not: continuous mode is always in this
     // state until the start succeeds, and non-continuous mode only reaches
