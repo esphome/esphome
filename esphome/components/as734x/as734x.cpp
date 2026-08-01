@@ -231,11 +231,20 @@ void AS734xBase::set_bank_(bool low) {
   if (low == this->bank_low_) {
     return;
   }
-  this->write_register_bit_(this->registers().CFG0, low, this->registers().CFG0_REG_BANK_BIT);
   this->bank_low_ = low;
+
+  // CFG0 is written directly here. Going through the bank-aware bit helpers would call
+  // set_bank_for_reg_() again and recurse without end, since CFG0 itself sits outside the low bank.
+  const uint8_t mask = 1 << this->registers().CFG0_REG_BANK_BIT;
+  uint8_t data{0};
+  this->i2c_device_->read_byte(this->registers().CFG0, &data);
+  data = low ? (data | mask) : (data & ~mask);
+  this->i2c_device_->write_byte(this->registers().CFG0, data);
 }
 
-void AS734xBase::set_bank_for_reg_(uint8_t reg) { this->set_bank_((reg < 0x80)); }
+void AS734xBase::set_bank_for_reg_(uint8_t reg) {
+  this->set_bank_(reg >= this->registers().BANK_LOW_MIN && reg <= this->registers().BANK_LOW_MAX);
+}
 
 bool AS734xBase::read_register_bit_(uint8_t address, uint8_t bit_position) {
   this->set_bank_for_reg_(address);

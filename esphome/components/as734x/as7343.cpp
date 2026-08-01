@@ -26,7 +26,12 @@ static constexpr uint8_t AS7343_FD_TIME_2 = 0xE2;
 static constexpr uint8_t AS7343_ID = 0x5A;
 static constexpr uint8_t AS7343_STATUS = 0x93;
 
+// The datasheet gives two different low-bank windows: the register overview says 0x58 to 0x66, while
+// the CFG0 bit description says 0x20 to 0x7F. The wider one is right - GPIO at 0x6B needs the low
+// bank too, and the narrower window would miss it.
 const RegisterMap AS7343::REG_MAP = {
+    .BANK_LOW_MIN = 0x20,
+    .BANK_LOW_MAX = 0x7F,
     .ASTEP = 0xD4,
     .ATIME = 0x81,
     .CFG0 = AS7343_CFG0,

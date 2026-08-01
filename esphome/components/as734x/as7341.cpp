@@ -18,6 +18,8 @@ static constexpr uint8_t AS7341_SMUX_CMD_WRITE = 2;  ///< Write SMUX configurati
 
 // register map for base class
 const RegisterMap AS7341::REG_MAP = {
+    .BANK_LOW_MIN = 0x60,
+    .BANK_LOW_MAX = 0x74,
     .ASTEP = 0xCA,
     .ATIME = 0x81,
     .CFG0 = 0xA9,

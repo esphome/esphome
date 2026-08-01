@@ -46,6 +46,9 @@ union RegAStatus {
 };
 
 struct RegisterMap {
+  // Address window that the CFG0 bank bit maps in. Registers outside it are always reachable.
+  uint8_t BANK_LOW_MIN;
+  uint8_t BANK_LOW_MAX;
   uint8_t ASTEP;
   uint8_t ATIME;
   uint8_t CFG0;
