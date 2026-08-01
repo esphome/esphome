@@ -38,7 +38,7 @@ class MillPanelHeaterGen2 : public climate::Climate, public Component, public ua
   void publish_power_state_();
   void reset_communication_timeout_();
   void send_command_(std::array<uint8_t, COMMAND_PAYLOAD_SIZE> payload, size_t value_position, uint8_t value);
-  static uint8_t checksum_(const uint8_t *data, size_t length);
+  static uint8_t checksum(const uint8_t *data, size_t length);
 
   static constexpr size_t FRAME_LENGTH_POS = 1;
   static constexpr size_t COMMAND_TYPE_POS = 4;

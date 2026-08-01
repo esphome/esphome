@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::mill_panelheater_gen2 {
@@ -56,7 +57,7 @@ void MillPanelHeaterGen2::loop() {
   }
 
   const uint8_t expected_checksum = this->received_data_[this->received_length_ - 1];
-  const uint8_t calculated_checksum = checksum_(this->received_data_.data(), this->received_length_ - 1);
+  const uint8_t calculated_checksum = checksum(this->received_data_.data(), this->received_length_ - 1);
   if (expected_checksum != calculated_checksum) {
     ESP_LOGW(TAG, "Rejecting C9 status frame: checksum 0x%02X does not match calculated checksum 0x%02X",
              expected_checksum, calculated_checksum);
@@ -215,6 +216,7 @@ void MillPanelHeaterGen2::start_receive_frame_() {
 void MillPanelHeaterGen2::log_frame_(const char *message, uint8_t last_byte) const {
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   std::array<uint8_t, RECEIVE_BUFFER_SIZE + 2> frame{};
+  char hex_buffer[format_hex_pretty_size(RECEIVE_BUFFER_SIZE + 2)];
   size_t frame_length = 0;
   frame[frame_length++] = START_MARKER;
   for (size_t i = 0; i < this->received_length_; i++) {
@@ -224,11 +226,11 @@ void MillPanelHeaterGen2::log_frame_(const char *message, uint8_t last_byte) con
 
   if (this->received_length_ > COMMAND_TYPE_POS) {
     ESP_LOGV(TAG, "%s: bytes=%s, length=%u, payload_length=%u, type=0x%02X, last_byte=0x%02X", message,
-             format_hex_pretty(frame.data(), frame_length).c_str(), static_cast<unsigned>(frame_length),
+             format_hex_pretty_to(hex_buffer, frame.data(), frame_length, '.'), static_cast<unsigned>(frame_length),
              static_cast<unsigned>(this->received_length_), this->received_data_[COMMAND_TYPE_POS], last_byte);
   } else {
     ESP_LOGV(TAG, "%s: bytes=%s, length=%u, payload_length=%u, type=unavailable, last_byte=0x%02X", message,
-             format_hex_pretty(frame.data(), frame_length).c_str(), static_cast<unsigned>(frame_length),
+             format_hex_pretty_to(hex_buffer, frame.data(), frame_length, '.'), static_cast<unsigned>(frame_length),
              static_cast<unsigned>(this->received_length_), last_byte);
   }
 #else
@@ -319,12 +321,12 @@ void MillPanelHeaterGen2::send_command_(std::array<uint8_t, COMMAND_PAYLOAD_SIZE
   for (size_t i = 0; i < payload.size(); i++) {
     frame[i + 1] = payload[i];
   }
-  frame[COMMAND_PAYLOAD_SIZE + 1] = checksum_(payload.data(), payload.size());
+  frame[COMMAND_PAYLOAD_SIZE + 1] = checksum(payload.data(), payload.size());
   frame[COMMAND_PAYLOAD_SIZE + 2] = END_MARKER;
   this->write_array(frame);
 }
 
-uint8_t MillPanelHeaterGen2::checksum_(const uint8_t *data, size_t length) {
+uint8_t MillPanelHeaterGen2::checksum(const uint8_t *data, size_t length) {
   uint8_t checksum = 0;
   for (size_t i = 0; i < length; i++) {
     checksum += data[i];
