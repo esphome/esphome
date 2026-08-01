@@ -12,7 +12,7 @@ namespace esphome {
 // Event Pool - On-demand pool of objects to avoid heap fragmentation
 // Events are allocated on first use and reused thereafter, growing to peak usage
 // @tparam T The type of objects managed by the pool (must have a release() method)
-// @tparam SIZE The maximum number of objects in the pool (1-255, limited by uint8_t)
+// @tparam SIZE The maximum number of objects in the pool (1-254, limited by uint8_t and the +1 free-list slot)
 //
 // SIZING: When paired with a LockFreeQueue<T, Q_SIZE>, the pool SIZE should be
 // Q_SIZE - 1 (the queue's actual capacity, since the ring buffer reserves one slot).
