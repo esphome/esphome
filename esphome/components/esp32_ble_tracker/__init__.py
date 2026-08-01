@@ -136,6 +136,13 @@ def validate_max_connections_deprecated(config: ConfigType) -> ConfigType:
 
 # Codegen helpers are owned by ble_device_base; kept under the historical names
 # here for the components that import them from this module.
+# 320 ms is the ESP-IDF reference scan interval; the shared schema also
+# tightens validation to the controller's 2.5 ms .. 10240 ms range and rejects
+# window/interval pairs that collapse to the same 0.625 ms unit count.
+SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
+    "320ms", supports_active=True
+)
+
 as_hex = ble_device_base.as_hex
 as_hex_array = ble_device_base.as_hex_array
 as_reversed_hex_array = ble_device_base.as_reversed_hex_array
@@ -149,13 +156,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_CONNECTIONS): cv.All(
                 cv.positive_int, cv.Range(min=0, max=IDF_MAX_CONNECTIONS)
             ),
-            # 320 ms is the ESP-IDF reference scan interval; the shared schema
-            # also tightens validation to the controller's 2.5 ms .. 10240 ms
-            # range and rejects window/interval pairs that collapse to the same
-            # 0.625 ms unit count.
-            cv.Optional(
-                CONF_SCAN_PARAMETERS, default={}
-            ): ble_device_base.scan_parameters_schema("320ms", active=True),
+            cv.Optional(CONF_SCAN_PARAMETERS, default={}): SCAN_PARAMETERS_SCHEMA,
             cv.Optional(CONF_ON_BLE_ADVERTISE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(

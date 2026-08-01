@@ -139,13 +139,15 @@ def validate_scan_parameters(config: ConfigType) -> ConfigType:
     return config
 
 
-def scan_parameters_schema(interval_default: str, active: bool = False) -> cv.All:
+def scan_parameters_schema(
+    interval_default: str, *, supports_active: bool = False
+) -> cv.All:
     """Build the scan_parameters value schema shared by all BLE trackers.
 
     interval_default is per chip (e.g. esp32 320ms, bk72xx/rp2 100ms — the
-    reference scan rates of the respective stacks). Pass active=True only when
-    the tracker supports active scanning; it adds the `active` option
-    (default on, esp32_ble_tracker behavior).
+    reference scan rates of the respective stacks). Pass supports_active=True
+    only when the tracker supports active scanning; it exposes the `active`
+    option (whose own default is on, esp32_ble_tracker behavior).
     """
     schema = {
         cv.Optional(CONF_DURATION, default="5min"): cv.positive_time_period_seconds,
@@ -153,7 +155,7 @@ def scan_parameters_schema(interval_default: str, active: bool = False) -> cv.Al
         cv.Optional(CONF_WINDOW, default="30ms"): cv.positive_time_period,
         cv.Optional(CONF_CONTINUOUS, default=True): cv.boolean,
     }
-    if active:
+    if supports_active:
         schema[cv.Optional(CONF_ACTIVE, default=True)] = cv.boolean
     return cv.All(cv.Schema(schema), validate_scan_parameters)
 
