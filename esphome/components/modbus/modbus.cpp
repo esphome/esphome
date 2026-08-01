@@ -521,8 +521,11 @@ void ModbusClientHub::send_next_frame_() {
   if (cmd == nullptr)
     return;
 
-  if (!this->send_frame_(cmd->frame))
-    return;  // blocked after the pre-send delay: leave the frame READY to retry next loop
+  if (!this->send_frame_(cmd->frame)) {
+    ESP_LOGV(TAG, "Send deferred for %" PRIu8 ": a frame arrived during the send delay, will retry",
+             cmd->frame.address());
+    return;
+  }
 
   cmd->sent();
   this->waiting_for_response_ = true;
