@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import openthread, sensor
+from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
     DEVICE_CLASS_SIGNAL_STRENGTH,

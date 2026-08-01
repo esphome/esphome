@@ -42,25 +42,19 @@ class ParentOpenThreadSensor : public OpenThreadInstancePollingComponent {
 
 class OpenThreadParentLqiInSensor final : public ParentOpenThreadSensor, public sensor::Sensor {
  public:
-  void update_parent_info(otRouterInfo *parent_info) override {
-    this->publish_state(parent_info->mLinkQualityIn);
-  }
+  void update_parent_info(otRouterInfo *parent_info) override { this->publish_state(parent_info->mLinkQualityIn); }
   void dump_config() override;
 };
 
 class OpenThreadParentLqiOutSensor final : public ParentOpenThreadSensor, public sensor::Sensor {
  public:
-  void update_parent_info(otRouterInfo *parent_info) override {
-    this->publish_state(parent_info->mLinkQualityOut);
-  }
+  void update_parent_info(otRouterInfo *parent_info) override { this->publish_state(parent_info->mLinkQualityOut); }
   void dump_config() override;
 };
 
 class OpenThreadParentPathCostSensor final : public ParentOpenThreadSensor, public sensor::Sensor {
  public:
-  void update_parent_info(otRouterInfo *parent_info) override {
-    this->publish_state(parent_info->mPathCost);
-  }
+  void update_parent_info(otRouterInfo *parent_info) override { this->publish_state(parent_info->mPathCost); }
   void dump_config() override;
 };
 
