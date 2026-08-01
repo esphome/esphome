@@ -65,10 +65,9 @@ void RP2BLETracker::loop() {
     // here between start_scan() and a successful controller start, because
     // stop_scan_() disables the loop otherwise.
     if (!this->parent_->is_active()) {
-      // Stack not up (still booting, or the user called disable()) — nothing
-      // to retry or count; scanning starts on the first iteration after HCI
-      // reaches WORKING. Attempting anyway would saturate the backoff into a
-      // "keeps failing" WARN over a radio the user deliberately turned off.
+      // Stack not up (still booting, or the user called disable()) —
+      // scan_start() cannot succeed, so there is nothing to attempt; scanning
+      // starts on the first iteration after HCI reaches WORKING.
       return;
     }
     if (now - this->last_scan_start_attempt_ >= SCAN_START_RETRY_MS) {
@@ -144,7 +143,7 @@ void RP2BLETracker::stop_scan() {
   this->stop_scan_();
   // stop_scan_() early-returns when no scan is running, so disable the loop
   // here too: a scan that never came up (stack still powering on at OTA start)
-  // must not keep retrying scan_start() from the loop's backoff branch.
+  // must not keep attempting scan_start() from the loop's retry branch.
   this->disable_loop();
 }
 
