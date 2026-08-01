@@ -147,6 +147,10 @@ void RP2BLETracker::start_scan() {
 void RP2BLETracker::stop_scan() {
   this->scan_continuous_ = false;
   this->stop_scan_();
+  // stop_scan_() early-returns when no scan is running, so disable the loop
+  // here too: a scan that never came up (stack still powering on at OTA start)
+  // must not keep retrying scan_start() from the loop's backoff branch.
+  this->disable_loop();
 }
 
 void RP2BLETracker::start_scan_() {
