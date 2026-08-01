@@ -114,13 +114,18 @@ def test_mirror_local_dir_removes_stale_but_keeps_generated(tmp_path: Path) -> N
     dest = tmp_path / "cache"
     _mirror_local_dir(src, dest)
 
-    # The backend writes build files into the copy; a later sync must keep them
-    # while dropping a source file the user deleted.
+    # Backends write build files into the copy; a later sync must keep them --
+    # both a root file (ESP-IDF's CMakeLists.txt) and one in a subdirectory
+    # (Zephyr's zephyr/module.yml) -- while dropping a source file the user
+    # deleted.
     (dest / "CMakeLists.txt").write_text("idf_component_register()")
+    (dest / "zephyr").mkdir()
+    (dest / "zephyr" / "module.yml").write_text("name: teslable")
     (src / "old.cpp").unlink()
     _mirror_local_dir(src, dest)
 
     assert (dest / "CMakeLists.txt").is_file()
+    assert (dest / "zephyr" / "module.yml").is_file()
     assert (dest / "library.json").is_file()
     assert not (dest / "old.cpp").exists()
 

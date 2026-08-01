@@ -145,21 +145,30 @@ class GitSource(Source):
         return f"{self.url}#{self.ref}" if self.ref else self.url
 
 
-# Generated build files written into the cached copy by the backend's ``emit``;
-# the mirror must keep them rather than treat them as stale (absent from source).
-_LOCAL_GENERATED_FILES = {"CMakeLists.txt", "idf_component.yml"}
+# Records the set of files the last mirror copied from the source, so a later
+# mirror can delete the ones the user removed without touching anything the
+# backend's ``emit`` generated into the copy (which is never in this list).
+_MIRROR_MANIFEST = ".esphome_mirror_manifest"
 
 
 def _mirror_local_dir(src: Path, dest: Path) -> None:
     """Copy the tree at ``src`` into ``dest``, keeping it in sync across builds.
 
     Unchanged files (same size and modification time) are left untouched so the
-    toolchain only recompiles what the user actually edited. Files removed from
-    ``src`` are deleted from ``dest``; the backend's generated build files are
-    preserved. ``.git`` is skipped so a locally checked-out library isn't copied
-    with its whole history.
+    toolchain only recompiles what the user actually edited. Files the user
+    removed from ``src`` are deleted from ``dest`` on the next mirror; files the
+    backend generated into the copy are left alone, whatever they are named or
+    wherever they live. ``.git`` is skipped so a locally checked-out library
+    isn't copied with its whole history.
     """
     dest.mkdir(parents=True, exist_ok=True)
+    manifest = dest / _MIRROR_MANIFEST
+    previous = (
+        {Path(line) for line in manifest.read_text().splitlines() if line}
+        if manifest.is_file()
+        else set()
+    )
+
     src_files: set[Path] = set()
     for root, dirs, files in os.walk(src):
         dirs[:] = [d for d in dirs if d != ".git"]
@@ -178,17 +187,13 @@ def _mirror_local_dir(src: Path, dest: Path) -> None:
             ):
                 shutil.copy2(src_file, dest_file)
 
-    # Drop files that are no longer in the source, but keep the build files the
-    # backend generates into the copy.
-    for root, _dirs, files in os.walk(dest):
-        rel_root = Path(root).relative_to(dest)
-        for name in files:
-            rel = rel_root / name
-            if rel in src_files:
-                continue
-            if rel_root == Path() and name in _LOCAL_GENERATED_FILES:
-                continue
-            (dest / rel).unlink()
+    # Delete only files a previous mirror copied that are gone from the source.
+    for rel in previous - src_files:
+        stale = dest / rel
+        if stale.is_file():
+            stale.unlink()
+
+    manifest.write_text("\n".join(sorted(str(p) for p in src_files)))
 
 
 class LocalSource(Source):
