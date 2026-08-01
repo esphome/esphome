@@ -350,7 +350,7 @@ class LegacyDevice : public ModbusDevice {
  public:
   void on_modbus_data(const std::vector<uint8_t> &data) override { this->data_calls.push_back(data); }
   void on_modbus_error(uint8_t function_code, uint8_t exception_code) override {
-    this->error_calls.push_back({function_code, exception_code});
+    this->error_calls.emplace_back(function_code, exception_code);
   }
   std::vector<std::vector<uint8_t>> data_calls;
   std::vector<std::pair<uint8_t, uint8_t>> error_calls;
