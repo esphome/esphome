@@ -1332,6 +1332,28 @@ def test_add_library_str_bare_url_requires_name() -> None:
         config._add_library_str("https://github.com/esphome/noise-c.git")
 
 
+def test_add_library_str_empty_source_skipped() -> None:
+    """A "Name=" entry with an empty source is skipped instead of being added as
+    a library literally named "Name=" that no resolver can find.
+
+    This happens when a package default like "Name=${var}" is left blank so a
+    later list entry overrides it; the override still applies.
+    """
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+
+    # Order as a package merge produces it: blank default first, override second.
+    config._add_library_str("TeslaBLE=")
+    config._add_library_str("TeslaBLE=file:///config/esphome/lib_dev")
+
+    libraries = list(CORE.platformio_libraries.values())
+    assert len(libraries) == 1
+    assert libraries[0].name == "TeslaBLE"
+    assert libraries[0].repository == "file:///config/esphome/lib_dev"
+
+
 @pytest.mark.asyncio
 @pytest.mark.filterwarnings("ignore::RuntimeWarning")
 async def test_to_code_adds_libraries(yaml_file: Callable[[str], Path]) -> None:

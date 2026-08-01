@@ -549,6 +549,13 @@ def _add_library_str(lib: str) -> None:
             cg.add_library(name, None, repo)
         else:
             cg.add_library(None, None, lib)
+    elif lib.endswith("="):
+        # A "Name=" entry with an empty source. This happens when a package
+        # default like "Name=${var}" is left blank so a later list entry can
+        # override it; there is nothing to add here. Without this the whole
+        # "Name=" string became the library name and the native library
+        # resolver failed to find a package named "Name=".
+        return
     else:
         cg.add_library(lib, None)
 
