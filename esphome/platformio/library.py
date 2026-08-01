@@ -736,7 +736,7 @@ def convert_libraries(
             node.url, node.ref = locator
         elif kind == "local":
             node.is_local = True
-            node.local_path = locator[0]
+            node.local_path, _ = locator
         else:
             node.owner, node.pkgname = locator
             if version:
