@@ -17,8 +17,11 @@ from esphome.platformio.library import (
     GitSource,
     InvalidLibrary,
     LibraryBackend,
+    LocalSource,
     Source,
     URLSource,
+    _local_dir_or_none,
+    _mirror_local_dir,
     _resolve_registry_version,
     check_library_data,
     convert_libraries,
@@ -85,6 +88,68 @@ def test_source_download_not_implemented():
 def test_gitsource_str_includes_ref_when_present():
     assert str(GitSource("http://git/repo.git", "main")) == "http://git/repo.git#main"
     assert str(GitSource("http://git/repo.git", None)) == "http://git/repo.git"
+
+
+def test_local_dir_or_none_classifies_file_url() -> None:
+    # A plain file:// entry (the PlatformIO spelling for a local library folder)
+    # is a local directory; the custom name becomes the component key.
+    assert _local_dir_or_none("TeslaBLE", "file:///config/esphome/lib_dev") == (
+        "TeslaBLE",
+        "/config/esphome/lib_dev",
+    )
+    # A bare file:// in the name position falls back to the directory name.
+    assert _local_dir_or_none("file:///opt/mylib", None) == ("mylib", "/opt/mylib")
+    # "Name=file://..." in the name position keeps the custom name.
+    assert _local_dir_or_none("Foo=file:///opt/mylib", None) == ("Foo", "/opt/mylib")
+
+
+def test_local_dir_or_none_rejects_non_local() -> None:
+    # git+file:// is an explicit local git repo -- left to the git source path.
+    assert _local_dir_or_none("X", "git+file:///srv/foo.git") is None
+    # https and registry names are not local directories.
+    assert _local_dir_or_none("X", "https://github.com/a/b") is None
+    assert _local_dir_or_none("esphome/AsyncTCP", None) is None
+
+
+def test_mirror_local_dir_syncs_source(tmp_path: Path) -> None:
+    src = tmp_path / "src_lib"
+    (src / "src").mkdir(parents=True)
+    (src / "library.json").write_text('{"name": "TeslaBLE"}')
+    (src / "src" / "a.cpp").write_text("int a;")
+    # A checked-out library carries a .git dir that must not be copied.
+    (src / ".git").mkdir()
+    (src / ".git" / "HEAD").write_text("ref: refs/heads/main")
+
+    dest = tmp_path / "cache"
+    _mirror_local_dir(src, dest)
+
+    assert (dest / "library.json").is_file()
+    assert (dest / "src" / "a.cpp").is_file()
+    assert not (dest / ".git").exists()
+
+
+def test_mirror_local_dir_removes_stale_but_keeps_generated(tmp_path: Path) -> None:
+    src = tmp_path / "src_lib"
+    src.mkdir()
+    (src / "library.json").write_text('{"name": "TeslaBLE"}')
+    (src / "old.cpp").write_text("int old;")
+    dest = tmp_path / "cache"
+    _mirror_local_dir(src, dest)
+
+    # The backend writes build files into the copy; a later sync must keep them
+    # while dropping a source file the user deleted.
+    (dest / "CMakeLists.txt").write_text("idf_component_register()")
+    (src / "old.cpp").unlink()
+    _mirror_local_dir(src, dest)
+
+    assert (dest / "CMakeLists.txt").is_file()
+    assert (dest / "library.json").is_file()
+    assert not (dest / "old.cpp").exists()
+
+
+def test_localsource_download_missing_dir_raises(tmp_path: Path) -> None:
+    with pytest.raises(InvalidLibrary, match="does not exist"):
+        LocalSource(str(tmp_path / "nope")).download("mylib")
 
 
 def test_urlsource_download_extracts_then_reuses_marker(setup_core, monkeypatch):
@@ -315,6 +380,32 @@ def test_convert_libraries_url_in_name_resolves_as_git(
     assert isinstance(source, GitSource)
     assert source.url == "https://github.com/pstolarz/OneWireNg"
     assert source.ref is None
+
+
+def test_convert_libraries_file_url_resolves_as_local(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A "Name=file://<dir>" library points at an on-disk folder: it resolves as a
+    # local source, its manifest is read from the copy, and the registry is never
+    # consulted.
+    src = setup_core / "lib_dev"
+    (src / "src").mkdir(parents=True)
+    (src / "library.json").write_text(json.dumps({"name": "TeslaBLE"}))
+    (src / "src" / "tesla.cpp").write_text("int foo() { return 1; }")
+
+    def fail_registry(owner: str, pkgname: str, requirements: set[str]) -> None:
+        raise AssertionError(f"registry consulted for {owner}/{pkgname}")
+
+    monkeypatch.setattr(lib, "_resolve_registry_version", fail_registry)
+
+    top = convert_libraries([Library("TeslaBLE", None, f"file://{src}")], _backend())
+
+    assert [c.name for c in top] == ["TeslaBLE"]
+    assert top[0].data["name"] == "TeslaBLE"
+    assert isinstance(top[0].source, LocalSource)
+    # The manifest and sources were mirrored into the cache, not read in place.
+    assert top[0].path != src
+    assert (top[0].path / "src" / "tesla.cpp").is_file()
 
 
 def test_convert_libraries_skips_incompatible_dependency(tmp_path, monkeypatch):

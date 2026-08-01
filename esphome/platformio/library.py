@@ -23,9 +23,11 @@ import logging
 import os
 from pathlib import Path
 import re
+import shutil
 import tempfile
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
+from urllib.request import url2pathname
 
 from esphome import git
 from esphome.core import CORE, Library
@@ -141,6 +143,87 @@ class GitSource(Source):
 
     def __str__(self):
         return f"{self.url}#{self.ref}" if self.ref else self.url
+
+
+# Generated build files written into the cached copy by the backend's ``emit``;
+# the mirror must keep them rather than treat them as stale (absent from source).
+_LOCAL_GENERATED_FILES = {"CMakeLists.txt", "idf_component.yml"}
+
+
+def _mirror_local_dir(src: Path, dest: Path) -> None:
+    """Copy the tree at ``src`` into ``dest``, keeping it in sync across builds.
+
+    Unchanged files (same size and modification time) are left untouched so the
+    toolchain only recompiles what the user actually edited. Files removed from
+    ``src`` are deleted from ``dest``; the backend's generated build files are
+    preserved. ``.git`` is skipped so a locally checked-out library isn't copied
+    with its whole history.
+    """
+    dest.mkdir(parents=True, exist_ok=True)
+    src_files: set[Path] = set()
+    for root, dirs, files in os.walk(src):
+        dirs[:] = [d for d in dirs if d != ".git"]
+        rel_root = Path(root).relative_to(src)
+        for name in files:
+            rel = rel_root / name
+            src_files.add(rel)
+            src_file = Path(root) / name
+            dest_file = dest / rel
+            dest_file.parent.mkdir(parents=True, exist_ok=True)
+            src_stat = src_file.stat()
+            if (
+                not dest_file.exists()
+                or (dest_stat := dest_file.stat()).st_size != src_stat.st_size
+                or dest_stat.st_mtime != src_stat.st_mtime
+            ):
+                shutil.copy2(src_file, dest_file)
+
+    # Drop files that are no longer in the source, but keep the build files the
+    # backend generates into the copy.
+    for root, _dirs, files in os.walk(dest):
+        rel_root = Path(root).relative_to(dest)
+        for name in files:
+            rel = rel_root / name
+            if rel in src_files:
+                continue
+            if rel_root == Path() and name in _LOCAL_GENERATED_FILES:
+                continue
+            (dest / rel).unlink()
+
+
+class LocalSource(Source):
+    """A library that already exists as a directory on the local filesystem.
+
+    Referenced with a ``file://`` URL (the PlatformIO spelling for a local
+    library folder). The directory is copied into the shared cache -- rather
+    than used in place -- so the generated build files never land in the user's
+    source tree.
+    """
+
+    def __init__(self, path: str):
+        self.local_path = path
+
+    def download(
+        self, dir_suffix: str, force: bool = False, salt: str = "", namespace: str = ""
+    ) -> Path:
+        src = Path(self.local_path)
+        if not src.is_dir():
+            raise InvalidLibrary(
+                f"Local library directory does not exist: {self.local_path}"
+            )
+        base_dir = Path(CORE.data_dir) / DOMAIN
+        if namespace:
+            base_dir = base_dir / namespace
+        h = hashlib.new("sha256")
+        h.update(str(src.resolve()).encode())
+        if salt:
+            h.update(salt.encode())
+        path = base_dir / h.hexdigest()[:8] / dir_suffix
+        _mirror_local_dir(src, path)
+        return path
+
+    def __str__(self):
+        return f"file://{self.local_path}"
 
 
 class InvalidLibrary(Exception):
@@ -515,11 +598,13 @@ class _LibNode:
 
     key: str
     is_git: bool
+    is_local: bool = False
     owner: str | None = None
     pkgname: str | None = None
     requirements: set[str] = field(default_factory=set)
     url: str | None = None
     ref: str | None = None
+    local_path: str | None = None
     edges: set[str] = field(default_factory=set)
 
 
@@ -532,6 +617,35 @@ def _url_or_none(value: Any) -> str | None:
     except ValueError:
         return None
     return value if parsed.scheme and parsed.netloc else None
+
+
+def _local_dir_or_none(
+    name: str | None, repository: str | None
+) -> tuple[str, str] | None:
+    """Return ``(key, path)`` if the spec points at a local directory, else None.
+
+    A plain ``file://`` URL is PlatformIO's spelling for an on-disk library
+    folder, so route it to :class:`LocalSource`. ``git+file://`` is left for
+    :func:`_node_key` to handle as a git source. The custom name from a
+    ``Name=file://...`` entry becomes the component key; a bare ``file://...``
+    falls back to the directory's own name.
+    """
+    spec = repository
+    key_name = name
+    if spec is None and name and "://" in name:
+        if "=" in name and _url_or_none(name) is None:
+            key_name, spec = name.split("=", 1)
+        else:
+            key_name, spec = None, name
+    if not isinstance(spec, str) or spec.startswith("git+"):
+        return None
+    parsed = urlsplit(spec)
+    if parsed.scheme != "file":
+        return None
+    path = url2pathname(
+        f"//{parsed.netloc}{parsed.path}" if parsed.netloc else parsed.path
+    )
+    return key_name or Path(path).name, path
 
 
 def _node_key(
@@ -618,6 +732,13 @@ def convert_libraries(
         return name.split("/")[-1].lower() in lib_ignore
 
     def add_spec(name: str | None, version: str | None, repository: str | None) -> str:
+        if (local := _local_dir_or_none(name, repository)) is not None:
+            key, path = local
+            node = nodes.get(key) or _LibNode(key=key, is_git=False)
+            node.is_local = True
+            node.local_path = path
+            nodes[key] = node
+            return key
         key, is_git, locator = _node_key(name, version, repository)
         node = nodes.get(key) or _LibNode(key=key, is_git=is_git)
         nodes[key] = node
@@ -658,6 +779,8 @@ def convert_libraries(
 
         if node.is_git:
             component = ConvertedLibrary(key, "*", GitSource(node.url, node.ref))
+        elif node.is_local:
+            component = ConvertedLibrary(key, "*", LocalSource(node.local_path))
         else:
             owner, name, version, url = _resolve_registry_version(
                 node.owner, node.pkgname, node.requirements
@@ -735,17 +858,19 @@ def convert_libraries(
             node.edges.add(dep_key)
             worklist.append(dep_key)
 
-    # A git source wins over any registry version requested for the same
-    # component. That's intentional, but warn so a dropped registry pin isn't a
-    # silent surprise.
+    # A git or local source wins over any registry version requested for the
+    # same component. That's intentional, but warn so a dropped registry pin
+    # isn't a silent surprise.
     for node in nodes.values():
-        if node.is_git and node.requirements:
+        if (node.is_git or node.is_local) and node.requirements:
             _LOGGER.warning(
-                "Library %s is requested both from a git source (%s) and as "
-                "registry version(s) %s; using the git source.",
+                "Library %s is requested both from a %s source (%s) and as "
+                "registry version(s) %s; using the %s source.",
                 node.key,
-                node.url,
+                "git" if node.is_git else "local",
+                node.url if node.is_git else node.local_path,
                 sorted(node.requirements),
+                "git" if node.is_git else "local",
             )
 
     # Two graph nodes that resolve to the same component name (e.g. a package
