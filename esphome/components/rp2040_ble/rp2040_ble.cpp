@@ -4,6 +4,10 @@
 
 #include "esphome/core/log.h"
 
+#include <BluetoothLock.h>
+
+#include <cstring>
+
 namespace esphome::rp2040_ble {
 
 static const char *const TAG = "rp2040_ble";
@@ -31,6 +35,10 @@ void RP2040BLE::enable() {
   this->active_logged_ = false;
 
   if (!this->btstack_initialized_) {
+    // Serialize with the BTstack background worker while wiring the stack up
+    // (arduino-pico's BluetoothHCI::install() takes the same lock here).
+    BluetoothLock lock;
+
     // BTstack init functions are not idempotent — only call once
     l2cap_init();
     sm_init();
@@ -55,6 +63,7 @@ void RP2040BLE::disable() {
   ESP_LOGD(TAG, "Disabling BLE...");
   this->state_ = BLEComponentState::DISABLING;
 
+  this->scanning_ = false;  // powering off implicitly stops the scan
   hci_power_control(HCI_POWER_OFF);
 
   this->state_ = BLEComponentState::DISABLED;
@@ -64,7 +73,27 @@ void RP2040BLE::disable() {
 void RP2040BLE::loop() {
   if (this->state_ == BLEComponentState::ACTIVE && !this->active_logged_) {
     this->active_logged_ = true;
-    ESP_LOGI(TAG, "BLE active");
+    // The controller address becomes readable once HCI reaches WORKING.
+    this->resolve_mac_();
+    ESP_LOGI(TAG, "BLE active (MAC %02X:%02X:%02X:%02X:%02X:%02X)", this->ble_mac_[5], this->ble_mac_[4],
+             this->ble_mac_[3], this->ble_mac_[2], this->ble_mac_[1], this->ble_mac_[0]);
+  }
+
+  // Drain the lock-free ring filled by the BTstack packet handler; all
+  // per-report work runs here on the main loop, then the report returns to
+  // the pool.
+  BLEScanReport *report = this->report_queue_.pop();
+  if (report == nullptr)
+    return;
+  do {
+    for (auto *listener : this->scan_listeners_)
+      listener->on_scan_report(*report);
+    this->report_pool_.release(report);
+  } while ((report = this->report_queue_.pop()) != nullptr);
+
+  uint16_t dropped = this->report_queue_.get_and_reset_dropped_count();
+  if (dropped > 0) {
+    ESP_LOGW(TAG, "Dropped %u scan reports (queue full)", dropped);
   }
 }
 
@@ -114,9 +143,81 @@ void RP2040BLE::packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, 
       }
       break;
     }
+    case GAP_EVENT_ADVERTISING_REPORT: {
+      // Runs in the CYW43 async-context worker (low-priority IRQ), NOT the
+      // ESPHome main loop: bounded copy into the lock-free queue only.
+      bd_addr_t addr;  // accessor returns printable (MSB-first) order
+      gap_event_advertising_report_get_address(packet, addr);
+      uint8_t mac_lsb[6];
+      reverse_bd_addr(addr, mac_lsb);  // LSB-first, the BLE convention consumers expect
+      global_ble->enqueue_scan_report_(mac_lsb, static_cast<int8_t>(gap_event_advertising_report_get_rssi(packet)),
+                                       gap_event_advertising_report_get_address_type(packet),
+                                       gap_event_advertising_report_get_data(packet),
+                                       gap_event_advertising_report_get_data_length(packet));
+      break;
+    }
     default:
       break;
   }
+}
+
+// The analyzer traces a leak on the failed-push path, which cannot happen: the
+// pool is sized to the queue capacity (SIZE-1), so allocate() returns nullptr
+// before push() can find the ring full.
+// NOLINTBEGIN(clang-analyzer-unix.Malloc)
+void RP2040BLE::enqueue_scan_report_(const uint8_t *mac_lsb_first, int8_t rssi, uint8_t addr_type, const uint8_t *data,
+                                     uint16_t data_len) {
+  BLEScanReport *report = this->report_pool_.allocate();
+  if (report == nullptr) {
+    // Pool exhausted — the queue is full; count and drop.
+    this->report_queue_.increment_dropped_count();
+    return;
+  }
+  memcpy(report->mac, mac_lsb_first, 6);
+  report->rssi = rssi;
+  report->addr_type = addr_type;
+  report->data_len =
+      (data_len <= sizeof(report->data)) ? static_cast<uint8_t>(data_len) : static_cast<uint8_t>(sizeof(report->data));
+  memcpy(report->data, data, report->data_len);
+  this->report_queue_.push(report);
+}
+// NOLINTEND(clang-analyzer-unix.Malloc)
+
+void RP2040BLE::resolve_mac_() {
+  bd_addr_t addr;  // gap_local_bd_addr returns printable (MSB-first) order
+  gap_local_bd_addr(addr);
+  for (int i = 0; i < 6; i++)
+    this->ble_mac_[i] = addr[5 - i];  // store LSB-first
+}
+
+void RP2040BLE::get_mac_lsb_first(uint8_t out[6]) const { memcpy(out, this->ble_mac_, 6); }
+
+bool RP2040BLE::scan_start(uint16_t interval, uint16_t window) {
+  if (!this->is_active()) {
+    // Power the stack on if it is off; scanning begins on a later retry once
+    // BTSTACK_EVENT_STATE reports WORKING (~1 s). Callers retry — no scan
+    // intent is queued here.
+    if (this->state_ == BLEComponentState::STATE_OFF || this->state_ == BLEComponentState::DISABLED) {
+      this->enable();
+    }
+    return false;
+  }
+  // Serialize with the BTstack background worker (arduino-pico's BluetoothHCI
+  // takes the same lock around its gap_* calls).
+  BluetoothLock lock;
+  gap_set_scan_params(0 /* passive */, interval, window, 0 /* accept all */);
+  gap_start_scan();
+  this->scanning_ = true;
+  return true;
+}
+
+void RP2040BLE::scan_stop() {
+  if (!this->scanning_) {
+    return;
+  }
+  this->scanning_ = false;
+  BluetoothLock lock;
+  gap_stop_scan();
 }
 
 }  // namespace esphome::rp2040_ble
