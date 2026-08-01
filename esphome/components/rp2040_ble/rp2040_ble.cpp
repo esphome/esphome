@@ -18,6 +18,15 @@ RP2040BLE *global_ble = nullptr;
 void RP2040BLE::setup() {
   global_ble = this;
 
+  // Pre-create every pool entry so the packet handler's allocate() is always a
+  // free-list pop — the IRQ path must never reach malloc() (heap allocation
+  // after setup is forbidden, and the newlib malloc lock is not IRQ-safe).
+  BLEScanReport *warm[MAX_SCAN_REPORT_QUEUE_SIZE - 1];
+  for (auto *&report : warm)
+    report = this->report_pool_.allocate();
+  for (auto *report : warm)
+    this->report_pool_.release(report);
+
   if (this->enable_on_boot_) {
     this->enable();
   } else {
@@ -52,6 +61,7 @@ void RP2040BLE::enable() {
     this->btstack_initialized_ = true;
   }
 
+  BluetoothLock lock;
   hci_power_control(HCI_POWER_ON);
 }
 
@@ -63,7 +73,10 @@ void RP2040BLE::disable() {
   ESP_LOGD(TAG, "Disabling BLE...");
   this->state_ = BLEComponentState::DISABLING;
 
-  hci_power_control(HCI_POWER_OFF);
+  {
+    BluetoothLock lock;
+    hci_power_control(HCI_POWER_OFF);
+  }
 
   this->state_ = BLEComponentState::DISABLED;
   ESP_LOGD(TAG, "BLE disabled");
@@ -185,12 +198,9 @@ void RP2040BLE::get_mac(uint8_t out[6]) const { memcpy(out, this->ble_mac_, 6); 
 
 bool RP2040BLE::scan_start(uint16_t interval, uint16_t window) {
   if (!this->is_active()) {
-    // Power the stack on if it is off; scanning begins on a later retry once
-    // BTSTACK_EVENT_STATE reports WORKING (~1 s). Callers retry — no scan
-    // intent is queued here.
-    if (this->state_ == BLEComponentState::STATE_OFF || this->state_ == BLEComponentState::DISABLED) {
-      this->enable();
-    }
+    // Power control stays with the user (enable_on_boot or an explicit
+    // enable() call) — auto-enabling here would defeat enable_on_boot: false
+    // the moment a tracker retries. Callers retry until the stack is up.
     return false;
   }
   // Serialize with the BTstack background worker (arduino-pico's BluetoothHCI
@@ -202,6 +212,9 @@ bool RP2040BLE::scan_start(uint16_t interval, uint16_t window) {
 }
 
 void RP2040BLE::scan_stop() {
+  if (!this->is_active()) {
+    return;  // nothing can be scanning on a stack that is not up
+  }
   BluetoothLock lock;
   gap_stop_scan();
 }
