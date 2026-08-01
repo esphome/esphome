@@ -14,7 +14,7 @@ class MillPanelHeaterGen2TestEnvironment final : public ::testing::Environment {
   void TearDown() override { App.~Application(); }
 };
 
-[[maybe_unused]] auto *const test_environment =
+[[maybe_unused]] const auto *const TEST_ENVIRONMENT =
     ::testing::AddGlobalTestEnvironment(new MillPanelHeaterGen2TestEnvironment());
 
 TEST(MillPanelHeaterGen2Test, InitialClimateStateIsUnknownUntilFirstStatusFrame) {

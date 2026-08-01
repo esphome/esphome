@@ -298,17 +298,17 @@ void MillPanelHeaterGen2::control(const climate::ClimateCall &call) {
 }
 
 void MillPanelHeaterGen2::send_power_command_(uint8_t mode_value) {
-  static constexpr std::array<uint8_t, COMMAND_PAYLOAD_SIZE> payload{
+  static constexpr std::array<uint8_t, COMMAND_PAYLOAD_SIZE> PAYLOAD{
       0x00, 0x10, 0x06, 0x00, 0x47, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   };
-  this->send_command_(payload, POWER_COMMAND_VALUE_POS, mode_value);
+  this->send_command_(PAYLOAD, POWER_COMMAND_VALUE_POS, mode_value);
 }
 
 void MillPanelHeaterGen2::send_temperature_command_(uint8_t temperature) {
-  static constexpr std::array<uint8_t, COMMAND_PAYLOAD_SIZE> payload{
+  static constexpr std::array<uint8_t, COMMAND_PAYLOAD_SIZE> PAYLOAD{
       0x00, 0x10, 0x22, 0x00, 0x46, 0x01, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00,
   };
-  this->send_command_(payload, TEMPERATURE_COMMAND_VALUE_POS, temperature);
+  this->send_command_(PAYLOAD, TEMPERATURE_COMMAND_VALUE_POS, temperature);
 }
 
 void MillPanelHeaterGen2::send_command_(std::array<uint8_t, COMMAND_PAYLOAD_SIZE> payload, size_t value_position,
