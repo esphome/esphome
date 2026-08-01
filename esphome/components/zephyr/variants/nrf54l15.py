@@ -36,7 +36,6 @@ VARIANT = ZephyrVariant(
     sdk_name="ncs",
     alt_sdks={"zephyr": MAINLINE},
     family="nordic",
-    boards=_VALID_BOARDS,
     valid_toolchains=(Toolchain.SDK_ZEPHYR,),
     toolchain="arm-zephyr-eabi",
     # Zigbee excluded: ZBOSS (Nordic's Zigbee stack) is only wired up for the separate,
