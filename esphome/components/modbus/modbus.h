@@ -180,13 +180,23 @@ struct ModbusDeviceCommand {
     this->state = FrameState::READY;
     this->seq = seq;
   }
-  // Set the streaming flag. Turning it on makes the entry a continuous poll, superseding any requests
-  // it had absorbed (pending resets to the single subscription); turning it off leaves pending alone,
-  // so a downgraded or cleared entry keeps the count it still owes.
-  void set_continuous(bool continuous) {
-    this->continuous = continuous;
-    if (continuous)
+  // Re-task a frame that lives on: upgrade a one-shot to a continuous poll, or downgrade a poll back to
+  // a one-shot. Either way the entry keeps running and owes a request, so this is not a plain setter -
+  // to tear an entry down instead, use retire()/silent_retire(), which leave pending as the count owed.
+  // On: the entry becomes a continuous poll, superseding any absorbed requests (pending resets to the
+  // single subscription). Off: a one-shot duplicate has cancelled the poll, but the entry must still run
+  // once to serve that request - so restore one first. While the flag is still set max_pending() is 1,
+  // so the restore lifts a terminated poll (pending 0, after an error/timeout) back to 1 and is a no-op
+  // on a live poll already at 1; the flag drops afterwards, when a read's cap can widen to 2 without
+  // retroactively inflating that no-op.
+  void make_continuous(bool continuous) {
+    if (continuous) {
+      this->continuous = true;
       this->pending = 1;
+    } else {
+      this->increment_pending();
+      this->continuous = false;
+    }
   }
   // Address-scoped clear: keep pending and device so the sweep delivers one on_not_sent() per un-run
   // request. An entry still waiting for a response keeps its in-flight request (whose usual terminal is
@@ -203,7 +213,7 @@ struct ModbusDeviceCommand {
     } else if (!this->waiting_state()) {  // an already-retired shell stays put; off the wire -> RETIRED
       this->state = FrameState::RETIRED;
     }
-    this->set_continuous(false);
+    this->continuous = false;
   }
 
   // True while the entry is still waiting for a response; the erase pass exempts these even at pending 0.
