@@ -64,6 +64,7 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
     case EZB_ZDO_SIGNAL_SKIP_STARTUP:
       ESP_LOGD(TAG, "Zigbee stack initialized");
       global_zigbee->started = true;
+      global_zigbee->enable_loop_soon_any_context();
       ezb_bdb_start_top_level_commissioning(EZB_BDB_MODE_INITIALIZATION);
       break;
     case EZB_BDB_SIGNAL_DEVICE_FIRST_START:
@@ -335,6 +336,11 @@ void ZigbeeComponent::setup() {
 
 void ZigbeeComponent::loop() {
   static bool joined_old = false;
+  static bool started_old = false;
+  if (!started_old && this->started) {
+    this->start_cb_.call();
+    started_old = true;
+  }
   if (this->joined != joined_old) {
     if (this->joined) {
       this->join_cb_.call(this->factory_new);
