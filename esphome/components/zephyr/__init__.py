@@ -1111,6 +1111,43 @@ async def to_code(config: ConfigType) -> None:
 
 
 def upload_program(config: ConfigType, args, host: str) -> bool:
+    if KEY_ZEPHYR not in CORE.data:
+        # `esphome upload`/`logs` can skip full config validation via the
+        # validated-config cache (see compiled_config.py), so the variant
+        # runtime state that _variant_config_schema() ordinarily populates as
+        # a side effect never got set. Re-run it on the already-validated
+        # (round-tripped) zephyr: block to repopulate it.
+        zephyr_config = config.get(CORE.target_platform)
+        if not zephyr_config:
+            raise EsphomeError(
+                "Zephyr platform configuration is missing; "
+                "please re-validate and recompile."
+            )
+        CONFIG_SCHEMA(zephyr_config)
+
+    if host == "PYOCD":
+        if zephyr_variant_family() == "esp32":
+            return False  # PYOCD isn't supported on esp32-family; it flashes over serial instead
+
+        from .build_zephyr import run_west_flash_pyocd
+        from .framework_west import check_and_install as west_install
+
+        version = str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
+        variant_data = VARIANTS[zephyr_variant()]
+        _, sdk = resolve_sdk(variant_data, zephyr_data().get(KEY_FRAMEWORK_TYPE))
+        python_bin, framework_path, west_env = west_install(
+            sdk,
+            version,
+            zephyr_data()["west_version"],
+            zephyr_data()["ninja_version"],
+            zephyr_data()["sdk_source"],
+            config[CORE.target_platform][CONF_FRAMEWORK][CONF_REFRESH],
+        )
+        build_dir = CORE.relative_build_path(".west_build")
+        if not run_west_flash_pyocd(python_bin, framework_path, west_env, build_dir):
+            raise EsphomeError("Zephyr pyocd flash failed")
+        return True
+
     # Every esp32-family variant flashes the same way: Zephyr's generic esp32
     # runner (runners/esp32.py, wrapping esptool) via `west flash`.
     if zephyr_variant_family() != "esp32":

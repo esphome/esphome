@@ -280,7 +280,6 @@ def set_core_data(
     dts_include_paths: list | None = None,
     board_edt_cache: dict | None = None,
     board_yaml_cache: dict | None = None,
-    sysbuild: bool = False,
     board_root: Path | None = None,
 ) -> None:
     """Populate CORE.data for a Zephyr variant's config_schema().
@@ -321,7 +320,6 @@ def set_core_data(
         dts_include_paths=dts_include_paths,
         board_edt_cache=board_edt_cache if board_edt_cache is not None else {},
         board_yaml_cache=board_yaml_cache if board_yaml_cache is not None else {},
-        sysbuild=sysbuild,
         west_version=config.get(CONF_WEST_VERSION),
         ninja_version=config.get(CONF_NINJA_VERSION),
         snippets=config.get(CONF_SNIPPETS, []),

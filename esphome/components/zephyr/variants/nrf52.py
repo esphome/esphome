@@ -97,7 +97,12 @@ def config_schema(config: ConfigType) -> ConfigType:
 
 
 async def to_code(config: ConfigType) -> None:
-    from .. import zephyr_add_prj_conf, zephyr_setup_preferences, zephyr_to_code
+    from .. import (
+        zephyr_add_prj_conf,
+        zephyr_add_sysbuild_conf,
+        zephyr_setup_preferences,
+        zephyr_to_code,
+    )
 
     zephyr_to_code(config)
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_NRF52")
@@ -107,6 +112,11 @@ async def to_code(config: ConfigType) -> None:
     zephyr_setup_preferences()
     zephyr_add_prj_conf("REBOOT", True)
     zephyr_add_prj_conf("HWINFO", True)
+
+    # west build always runs with --sysbuild (build_zephyr.py), but sysbuild still
+    # needs to be told which bootloader to build as its "mcuboot" child image --
+    # without this, only the (unsigned) app image gets built and flashed.
+    zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
 
     # RSA-2048 (mcuboot's default) is code-size heavy; ECDSA-P256 has a much
     # smaller footprint.

@@ -35,7 +35,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ZEPHYR,
 )
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 
 
 def _set_non_nrf52_target_platform() -> None:
@@ -71,7 +71,6 @@ def _empty_zephyr_data(
         "board_dir_cache": {},
         "dts_include_paths": None,
         "board_edt_cache": {},
-        "sysbuild": False,
     }
 
 
@@ -506,3 +505,41 @@ def test_upload_program_resolves_variant_and_flashes(
     mock_west_install.assert_called_once()
     assert mock_west_install.call_args[0][0] is VARIANTS["ESP32H2"].sdk
     mock_flash.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# upload_program -- KEY_ZEPHYR repopulation on the validated-config cache fast
+# path (`esphome upload`/`logs` can skip full config validation, so the
+# CORE.data[KEY_ZEPHYR] side effect of _variant_config_schema() never ran)
+# ---------------------------------------------------------------------------
+
+
+def test_upload_program_repopulates_zephyr_data_when_missing_from_cache() -> None:
+    CORE.data.pop(KEY_ZEPHYR, None)
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    zephyr_config = {"variant": "NATIVESIM"}
+    config = {PLATFORM_ZEPHYR: zephyr_config}
+
+    def fake_schema(cfg):
+        CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NATIVESIM")
+        return cfg
+
+    with patch(
+        "esphome.components.zephyr.CONFIG_SCHEMA", side_effect=fake_schema
+    ) as mock_schema:
+        result = upload_program(config, object(), "some_host")
+
+    mock_schema.assert_called_once_with(zephyr_config)
+    assert CORE.data[KEY_ZEPHYR]["variant"] == "NATIVESIM"
+    # NATIVESIM isn't esp32-family -- no uploader for it yet, but the repopulation
+    # above is what let zephyr_variant_family() run at all instead of KeyError-ing.
+    assert result is False
+
+
+def test_upload_program_raises_when_zephyr_config_missing_from_cache() -> None:
+    CORE.data.pop(KEY_ZEPHYR, None)
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    config = {}  # no PLATFORM_ZEPHYR block to re-validate against
+
+    with pytest.raises(EsphomeError, match="re-validate and recompile"):
+        upload_program(config, object(), "some_host")
