@@ -379,6 +379,53 @@ TEST(ModbusClientHubPriority, DuplicateSendDowngradesContinuous) {
   EXPECT_EQ(hub.entries(), 0u);
 }
 
+namespace {
+// Re-sends its frame once as a one-shot from inside on_error(), to exercise the downgrade branch
+// when the poll it duplicates has already reached a terminal (pending drained to 0).
+class ResendOnErrorDevice : public ModbusClientDevice {
+ public:
+  ResendOnErrorDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_error(std::span<const uint8_t> request_pdu, ExceptionCode exception_code) override {
+    this->error_count_++;
+    if (this->resend_) {
+      this->resend_ = false;
+      this->read_holding_registers(0x100, 2);  // one-shot re-send from inside the failure callback
+    }
+  }
+  int error_count_{0};
+  bool resend_{true};
+};
+}  // namespace
+
+// A one-shot re-send issued from inside a continuous poll's failure callback must still run. The
+// poll's exception terminal has already drained pending to 0, so the re-send absorbs into that entry
+// via the downgrade branch - which must restore the debt, or the sweep erases the entry with the
+// request never sent and no callback delivered.
+TEST(ModbusClientHubPriority, DowngradeAfterTerminalKeepsRequestAlive) {
+  NoResponseProbeHub hub;
+  ResendOnErrorDevice device(&hub, 0x02);
+
+  device.read_holding_registers(0x100, 2, {.continuous = true});
+  ASSERT_EQ(hub.queued_frames(), 1u);
+  ASSERT_TRUE(hub.queued(0).continuous);
+
+  hub.force_send_next();
+  const uint8_t exception_response[] = {0x83, 0x02};
+  hub.receive_frame_for_test(0x02, exception_response);  // exception ends the poll; on_error re-sends
+
+  EXPECT_EQ(device.error_count_, 1);       // one terminal delivered so far
+  ASSERT_EQ(hub.queued_frames(), 1u);      // the re-send survived the sweep instead of being erased
+  EXPECT_FALSE(hub.queued(0).continuous);  // downgraded to a one-shot
+  EXPECT_EQ(hub.queued(0).pending, 1u);    // debt restored so the request runs
+
+  // And it runs to its own terminal - a good response this time - then the entry is gone.
+  hub.force_send_next();
+  const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
+  hub.receive_frame_for_test(0x02, ok_response);
+  EXPECT_EQ(hub.queued_frames(), 0u);
+  EXPECT_EQ(hub.entries(), 0u);
+}
+
 // Requesting continuous polling for a frame that is already queued as a one-shot turns that entry
 // into the continuous poll instead of leaving a promotion that never polls.
 TEST(ModbusClientHubPriority, ContinuousRequestUpgradesQueuedDuplicate) {
