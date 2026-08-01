@@ -139,6 +139,29 @@ def test_localsource_str() -> None:
     assert str(LocalSource("/tmp/lib")) == "file:///tmp/lib"
 
 
+def test_localsource_download_mirrors_into_cache(setup_core: Path) -> None:
+    src = setup_core / "lib_dev"
+    (src / "src").mkdir(parents=True)
+    (src / "library.json").write_text("{}")
+    (src / "src" / "a.cpp").write_text("int a;")
+
+    # With salt + namespace set.
+    out = LocalSource(str(src)).download("mylib", salt="s", namespace="ns")
+    assert (out / "src" / "a.cpp").is_file()
+    assert (out / "library.json").is_file()
+
+    # Without either (both land in a different cache path).
+    plain = LocalSource(str(src)).download("mylib")
+    assert (plain / "library.json").is_file()
+    assert plain != out
+
+    # A second sync drops a source file the user removed.
+    (src / "src" / "a.cpp").unlink()
+    assert LocalSource(str(src)).download("mylib", salt="s", namespace="ns") == out
+    assert not (out / "src" / "a.cpp").exists()
+    assert (out / "library.json").is_file()
+
+
 def test_urlsource_download_extracts_then_reuses_marker(setup_core, monkeypatch):
     monkeypatch.setattr(lib, "rmdir", lambda path, msg="": None)
     dl_calls: list[list[str]] = []

@@ -189,9 +189,7 @@ def _mirror_local_dir(src: Path, dest: Path) -> None:
 
     # Delete only files a previous mirror copied that are gone from the source.
     for rel in previous - src_files:
-        stale = dest / rel
-        if stale.is_file():
-            stale.unlink()
+        (dest / rel).unlink(missing_ok=True)
 
     manifest.write_text("\n".join(sorted(str(p) for p in src_files)))
 
