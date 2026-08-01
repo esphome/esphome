@@ -56,32 +56,37 @@ void RP2BLETracker::on_ota_global_state(ota::OTAState state, float progress, uin
 
 void RP2BLETracker::loop() {
   const uint32_t now = App.get_loop_component_start_time();
-  if (this->scan_continuous_) {
-    if (!this->scan_running_) {
-      // Rate-limit (re)start attempts. The controller start fails while the stack
-      // is still powering up (scan_start() returns false until HCI reaches
-      // WORKING); retrying every main-loop iteration would waste cycles, so the
-      // interval backs off with consecutive failures and a stack that never comes
-      // up polls slowly and quietly.
-      // failed_start_count_ is capped at SCAN_START_RETRY_MAX_DOUBLINGS below.
-      if (now - this->last_scan_start_attempt_ >= (SCAN_START_RETRY_MS << this->failed_start_count_)) {
-        this->last_scan_start_attempt_ = now;
-        this->start_scan_();
-        if (this->scan_running_) {
-          this->failed_start_count_ = 0;
-        } else if (this->failed_start_count_ < SCAN_START_RETRY_MAX_DOUBLINGS) {
-          ++this->failed_start_count_;
-          if (this->failed_start_count_ == SCAN_START_RETRY_MAX_DOUBLINGS) {
-            ESP_LOGW(TAG, "Scan start keeps failing; retrying every %" PRIu32 " s",
-                     (SCAN_START_RETRY_MS << SCAN_START_RETRY_MAX_DOUBLINGS) / 1000);
-          }
+  if (!this->scan_running_) {
+    // A scan should be running but is not: continuous mode is always in this
+    // state until the start succeeds, and non-continuous mode only reaches
+    // here between start_scan() and a successful controller start, because
+    // stop_scan_() disables the loop otherwise. Rate-limit (re)start attempts:
+    // the controller start fails while the stack is still powering up
+    // (scan_start() returns false until HCI reaches WORKING); retrying every
+    // main-loop iteration would waste cycles, so the interval backs off with
+    // consecutive failures and a stack that never comes up polls slowly,
+    // emitting a single WARN when the retry interval saturates.
+    // failed_start_count_ is capped at SCAN_START_RETRY_MAX_DOUBLINGS below.
+    if (now - this->last_scan_start_attempt_ >= (SCAN_START_RETRY_MS << this->failed_start_count_)) {
+      this->last_scan_start_attempt_ = now;
+      this->start_scan_();
+      if (this->scan_running_) {
+        this->failed_start_count_ = 0;
+      } else if (this->failed_start_count_ < SCAN_START_RETRY_MAX_DOUBLINGS) {
+        ++this->failed_start_count_;
+        if (this->failed_start_count_ == SCAN_START_RETRY_MAX_DOUBLINGS) {
+          ESP_LOGW(TAG, "Scan start keeps failing; retrying every %" PRIu32 " s",
+                   (SCAN_START_RETRY_MS << SCAN_START_RETRY_MAX_DOUBLINGS) / 1000);
         }
       }
     }
+    return;
+  }
+
+  if (this->scan_continuous_) {
     // Period timer: fire on_scan_end() once per scan_duration_ window, mirroring
-    // esp32_ble_tracker::cleanup_scan_state_(). Gated on scan_running_ so a scan
-    // that never came up (start kept failing) does not fire spurious on_scan_end events.
-    if (this->scan_running_ && now - this->scan_period_start_ >= this->scan_duration_) {
+    // esp32_ble_tracker::cleanup_scan_state_().
+    if (now - this->scan_period_start_ >= this->scan_duration_) {
       this->fire_scan_end_();
       this->scan_period_start_ = now;
     }
@@ -90,7 +95,7 @@ void RP2BLETracker::loop() {
 
   // Non-continuous mode: run for scan_duration_ ms, then stop and fire on_scan_end.
   // Restart is driven externally (e.g. api: on_client_connected:).
-  if (this->scan_running_ && now - this->scan_period_start_ >= this->scan_duration_) {
+  if (now - this->scan_period_start_ >= this->scan_duration_) {
     this->stop_scan_();
   }
 }
