@@ -22,6 +22,11 @@ namespace esphome {
 //  - Avoids needing release() on the producer path after a failed push(),
 //    preserving the SPSC contract on the internal free list
 template<class T, uint8_t SIZE> class EventPool {
+  // The free list ring must hold all SIZE objects at once (a fully drained
+  // pool), and LockFreeQueue reserves one slot — so it is sized SIZE + 1,
+  // which caps SIZE at 254.
+  static_assert(SIZE < 255, "EventPool SIZE must be at most 254");
+
  public:
   EventPool() : total_created_(0) {}
 
@@ -80,8 +85,11 @@ template<class T, uint8_t SIZE> class EventPool {
   }
 
  private:
-  LockFreeQueue<T, SIZE> free_list_;  // Free events ready for reuse
-  uint8_t total_created_;             // Total events created (high water mark, max 255)
+  // SIZE + 1 slots so all SIZE objects fit when the pool is fully drained
+  // (the ring reserves one slot); otherwise the last release() of a
+  // completely returned pool would drop, permanently orphaning one object.
+  LockFreeQueue<T, static_cast<uint8_t>(SIZE + 1)> free_list_;  // Free events ready for reuse
+  uint8_t total_created_;                                       // Total events created (high water mark, max 254)
 };
 
 }  // namespace esphome

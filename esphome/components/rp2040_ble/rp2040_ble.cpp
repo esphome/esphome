@@ -86,6 +86,9 @@ void RP2040BLE::loop() {
   if (this->state_ == BLEComponentState::ACTIVE && !this->active_logged_) {
     this->active_logged_ = true;
     // The controller address becomes readable once HCI reaches WORKING.
+    // bd_addr_to_str() formats into a BTstack-internal static buffer, so both
+    // calls stay under the lock like every other BTstack call from the loop.
+    BluetoothLock lock;
     gap_local_bd_addr(this->ble_mac_);
     ESP_LOGI(TAG, "BLE active (MAC %s)", bd_addr_to_str(this->ble_mac_));
   }
@@ -194,7 +197,7 @@ void RP2040BLE::enqueue_scan_report_(const uint8_t *mac_lsb_first, int8_t rssi, 
 }
 // NOLINTEND(clang-analyzer-unix.Malloc)
 
-void RP2040BLE::get_mac(uint8_t out[6]) const { memcpy(out, this->ble_mac_, 6); }
+void RP2040BLE::get_mac_msb_first(uint8_t out[6]) const { memcpy(out, this->ble_mac_, 6); }
 
 bool RP2040BLE::scan_start(uint16_t interval, uint16_t window) {
   if (!this->is_active()) {

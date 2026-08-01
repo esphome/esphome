@@ -70,9 +70,11 @@ class RP2040BLE final : public Component {
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
 
   /// Controller BLE address in printable (MSB-first) order, as
-  /// gap_local_bd_addr() delivers it. All zeros until the stack reports ACTIVE
-  /// (BTstack reads the address from the controller during power-up).
-  void get_mac(uint8_t out[6]) const;
+  /// gap_local_bd_addr() delivers it — note BLEScanReport::mac is the opposite
+  /// (LSB-first) order, hence the explicit names. All zeros until the stack
+  /// reports ACTIVE (BTstack reads the address from the controller during
+  /// power-up).
+  void get_mac_msb_first(uint8_t out[6]) const;
 
   /// Register a consumer for scan reports (delivered on the main loop via loop()).
   void register_scan_listener(BLEScanListener *listener) { this->scan_listeners_.push_back(listener); }

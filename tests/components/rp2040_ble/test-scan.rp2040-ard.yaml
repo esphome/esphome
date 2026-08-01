@@ -5,7 +5,7 @@ esphome:
     then:
       - lambda: |-
           uint8_t mac[6];
-          id(ble).get_mac(mac);
+          id(ble).get_mac_msb_first(mac);
           if (id(ble).scan_start(160, 48)) {
             id(ble).scan_stop();
           }
