@@ -39,79 +39,10 @@ BK72xxBLETracker = bk72xx_ble_tracker_ns.class_(
 )
 
 
-def to_ble_units(value: cv.TimePeriod) -> int:
-    """Convert a scan time to the controller's 0.625 ms units.
-
-    Used by both validation and codegen so what is validated is exactly what is
-    programmed — the truncation here is what makes the duty-cycle check below
-    meaningful.
-    """
-    return value.total_microseconds // 625
-
-
-def validate_scan_parameters(config: ConfigType) -> ConfigType:
-    """Reject impossible window/interval/duration combinations at config time.
-
-    Mirrors esp32_ble_tracker: the controller cannot scan for longer than the
-    interval, and a too-short duration would end the scan period almost
-    immediately. Catching it here gives a clear error instead of a runtime
-    controller failure and the 1/sec retry loop.
-    """
-    duration = config[CONF_DURATION]
-    interval = config[CONF_INTERVAL]
-    window = config[CONF_WINDOW]
-
-    if window > interval:
-        raise cv.Invalid(
-            f"Scan window ({window}) needs to be smaller than scan interval ({interval})"
-        )
-
-    # BLE scan interval/window are programmed in 0.625 ms units as a 16-bit value; the
-    # controller only accepts 2.5 ms .. 10240 ms (0x0004 .. 0x4000). Reject out-of-range
-    # values here instead of letting the unit conversion silently overflow.
-    for name, value in (("interval", interval), ("window", window)):
-        if value.total_microseconds < 2500 or value.total_microseconds > 10_240_000:
-            raise cv.Invalid(
-                f"Scan {name} ({value}) must be between 2.5 ms and 10240 ms"
-            )
-
-    # Validate what actually reaches the controller: both values are truncated to
-    # whole 0.625 ms units, so a window/interval pair that differs by less than one
-    # unit collapses to the same value — silently programming a 100 % duty cycle
-    # (radio permanently on) from a config that asked for less.
-    interval_units = to_ble_units(interval)
-    window_units = to_ble_units(window)
-    if window_units == interval_units and window < interval:
-        raise cv.Invalid(
-            f"Scan window ({window}) and interval ({interval}) both round to "
-            f"{interval_units} x 0.625 ms, which the controller scans at a 100 % duty "
-            f"cycle. Separate them by at least 0.625 ms."
-        )
-
-    if interval.total_microseconds * 3 > duration.total_microseconds:
-        raise cv.Invalid(
-            f"Scan duration ({duration}) must cover at least three scan intervals "
-            f"({interval}): the scanner listens on one of the three BLE advertising "
-            f"channels per interval, so a shorter duration can miss devices entirely."
-        )
-
-    return config
-
-
-SCAN_PARAMETERS_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Optional(CONF_DURATION, default="5min"): cv.positive_time_period_seconds,
-            # interval/window default to the BK reference scan rate — 100 ms / 30 ms,
-            # a 30 % duty cycle. Converted to the controller's 0.625 ms BLE units in
-            # to_code(). (LN882H's SDK recommends a different 100 / 50 ms = 50 %.)
-            cv.Optional(CONF_INTERVAL, default="100ms"): cv.positive_time_period,
-            cv.Optional(CONF_WINDOW, default="30ms"): cv.positive_time_period,
-            cv.Optional(CONF_CONTINUOUS, default=True): cv.boolean,
-        }
-    ),
-    validate_scan_parameters,
-)
+# interval defaults to the BK reference scan rate — 100 ms with the shared 30 ms
+# window, a 30 % duty cycle. Converted to the controller's 0.625 ms BLE units in
+# to_code(). (LN882H's SDK recommends a different 100 / 50 ms = 50 %.)
+SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema("100ms")
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -143,8 +74,8 @@ async def to_code(config: ConfigType) -> None:
     ota.request_ota_state_listeners()
 
     scan = config[CONF_SCAN_PARAMETERS]
-    cg.add(var.set_scan_interval(to_ble_units(scan[CONF_INTERVAL])))
-    cg.add(var.set_scan_window(to_ble_units(scan[CONF_WINDOW])))
+    cg.add(var.set_scan_interval(ble_device_base.to_ble_units(scan[CONF_INTERVAL])))
+    cg.add(var.set_scan_window(ble_device_base.to_ble_units(scan[CONF_WINDOW])))
     cg.add(var.set_scan_duration(scan[CONF_DURATION].total_milliseconds))
     cg.add(var.set_scan_continuous(scan[CONF_CONTINUOUS]))
 
