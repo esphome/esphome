@@ -28,10 +28,9 @@ enum Gain : uint8_t {
   GAIN_512X,
   GAIN_1024X,  // only for AS7343
   GAIN_2048X,  // only for AS7343
-  MAX_GAIN
 };
 
-constexpr uint8_t MAX_CHANNELS = 18;  // 3 SMUX x 6 channels for AS7343
+constexpr uint8_t MAX_CHANNELS = 13;  // AS7343 reports 13 bands, AS7341 reports 10
 
 using ChannelValuesUint16 = std::array<uint16_t, MAX_CHANNELS>;
 using SensorArray = std::array<sensor::Sensor *, MAX_CHANNELS>;
@@ -74,8 +73,8 @@ struct RegisterMap {
 
 class AS734xBase {
  public:
-  AS734xBase() = delete;
   AS734xBase(i2c::I2CDevice *i2c_device, uint8_t number_of_channels);
+  virtual ~AS734xBase() = default;
 
   uint8_t get_number_of_channels() const { return this->number_of_channels_; }
 
@@ -155,7 +154,6 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
     CONFIGURE_SMUX,
     WAIT_SMUX,
     READ_DATA,
-    DATA_COLLECTED,
     READY_TO_PUBLISH,
   } state_{State::NOT_INITIALIZED};
 
@@ -169,14 +167,9 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
     uint32_t millis_start;
     uint8_t smux_step;
     bool first_run{true};
-    bool valid{false};
   } readings_;
 
   void publish_channel_readings_();
-
-#ifdef USE_SENSOR
-  void publish_sensor_(sensor::Sensor *sensor, float value);
-#endif
 };
 
 }  // namespace esphome::as734x

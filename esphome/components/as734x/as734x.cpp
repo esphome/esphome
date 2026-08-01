@@ -110,7 +110,6 @@ void AS734XComponent::loop() {
       this->device_->write_astep(this->astep_);
       this->device_->write_gain(this->gain_);
       this->readings_.first_run = true;
-      this->readings_.valid = false;
       this->readings_.smux_step = 0;
       this->state_ = State::CONFIGURE_SMUX;
       break;
@@ -155,8 +154,7 @@ void AS734XComponent::loop() {
         ++this->readings_.smux_step;
         if (this->readings_.smux_step == this->device_->get_number_of_smux_steps()) {
           this->device_->enable_spectral_measurement(false);
-          this->readings_.valid = true;
-          this->state_ = State::DATA_COLLECTED;
+          this->state_ = State::READY_TO_PUBLISH;
         } else {
           this->readings_.first_run = true;
           this->state_ = State::CONFIGURE_SMUX;
@@ -165,11 +163,6 @@ void AS734XComponent::loop() {
         ESP_LOGW(TAG, "Data collection timeout");
         this->state_ = State::IDLE;
       }
-      break;
-
-    case State::DATA_COLLECTED:
-      ESP_LOGVV(TAG, "DATA_COLLECTED");
-      this->state_ = State::READY_TO_PUBLISH;
       break;
 
     case State::READY_TO_PUBLISH:
@@ -181,15 +174,11 @@ void AS734XComponent::loop() {
 }
 
 #ifdef USE_SENSOR
-void AS734XComponent::publish_sensor_(sensor::Sensor *sensor, float value) {
-  if (sensor != nullptr) {
-    sensor->publish_state(value);
-  }
-}
-
 void AS734XComponent::publish_channel_readings_() {
   for (uint8_t i = 0; i < this->device_->get_number_of_channels(); i++) {
-    this->publish_sensor_(this->band_counts_sensors_[i], this->readings_.raw_counts[i]);
+    if (this->band_counts_sensors_[i] != nullptr) {
+      this->band_counts_sensors_[i]->publish_state(this->readings_.raw_counts[i]);
+    }
   }
 }
 #else
@@ -197,9 +186,7 @@ void AS734XComponent::publish_channel_readings_() {}
 #endif
 
 AS734xBase::AS734xBase(i2c::I2CDevice *i2c_device, uint8_t number_of_channels)
-    : i2c_device_(i2c_device), number_of_channels_(number_of_channels) {
-  ESP_LOGD(TAG, "AS734xBase constructor %p, %d", i2c_device, number_of_channels);
-}
+    : i2c_device_(i2c_device), number_of_channels_(number_of_channels) {}
 
 bool AS734xBase::write_gain(Gain gain) { return this->i2c_device_->write_byte(this->registers().CFG1, gain); }
 bool AS734xBase::write_atime(uint8_t atime) { return this->i2c_device_->write_byte(this->registers().ATIME, atime); }
