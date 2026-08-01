@@ -1117,7 +1117,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
 
     if host == "PYOCD":
         if zephyr_variant_family() == "esp32":
-            return False  # esp32-family uses the esptool/serial path below instead
+            return False  # PYOCD isn't supported on esp32-family; it flashes over serial instead
 
         from .build_zephyr import run_west_flash_pyocd
         from .framework_west import check_and_install as west_install
