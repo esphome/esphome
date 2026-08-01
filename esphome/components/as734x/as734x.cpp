@@ -188,36 +188,36 @@ void AS734XComponent::publish_channel_readings_() {}
 AS734xBase::AS734xBase(i2c::I2CDevice *i2c_device, uint8_t number_of_channels)
     : i2c_device_(i2c_device), number_of_channels_(number_of_channels) {}
 
-bool AS734xBase::write_gain(Gain gain) { return this->i2c_device_->write_byte(this->registers().CFG1, gain); }
-bool AS734xBase::write_atime(uint8_t atime) { return this->i2c_device_->write_byte(this->registers().ATIME, atime); }
+bool AS734xBase::write_gain(Gain gain) { return this->i2c_device_->write_byte(this->registers().cfg1, gain); }
+bool AS734xBase::write_atime(uint8_t atime) { return this->i2c_device_->write_byte(this->registers().atime, atime); }
 bool AS734xBase::write_astep(uint16_t astep) {
-  return this->i2c_device_->write_byte_16(this->registers().ASTEP, this->swap_bytes_(astep));
+  return this->i2c_device_->write_byte_16(this->registers().astep, this->swap_bytes_(astep));
 }
 
 bool AS734xBase::enable_power(bool enable) {
-  return this->write_register_bit_(this->registers().ENABLE, enable, this->registers().ENABLE_PON_BIT);
+  return this->write_register_bit_(this->registers().enable, enable, this->registers().enable_pon_bit);
 }
 
 bool AS734xBase::enable_spectral_measurement(bool enable) {
-  return this->write_register_bit_(this->registers().ENABLE, enable, this->registers().ENABLE_SP_EN_BIT);
+  return this->write_register_bit_(this->registers().enable, enable, this->registers().enable_sp_en_bit);
 }
 
 bool AS734xBase::enable_smux() {
-  return this->set_register_bit_(this->registers().ENABLE, this->registers().ENABLE_SMUX_EN_BIT);
+  return this->set_register_bit_(this->registers().enable, this->registers().enable_smux_en_bit);
 }
 
 // A failed read is reported as still busy, so the caller waits and eventually times out rather
 // than moving on as if the SMUX had settled.
 bool AS734xBase::is_smux_busy() {
   bool busy = true;
-  this->read_register_bit_(this->registers().ENABLE, this->registers().ENABLE_SMUX_EN_BIT, busy);
+  this->read_register_bit_(this->registers().enable, this->registers().enable_smux_en_bit, busy);
   return busy;
 }
 
 // A failed read is reported as not ready, for the same reason.
 bool AS734xBase::is_data_ready() {
   bool ready = false;
-  this->read_register_bit_(this->registers().STATUS2, this->registers().STATUS2_AVALID_BIT, ready);
+  this->read_register_bit_(this->registers().status2, this->registers().status2_avalid_bit, ready);
   return ready;
 }
 
@@ -230,15 +230,15 @@ bool AS734xBase::set_bank_(bool low) {
   // transfer fails the flag is put back, so the cache never claims a bank the chip is not in.
   this->bank_low_ = low;
 
-  const uint8_t mask = 1 << this->registers().CFG0_REG_BANK_BIT;
+  const uint8_t mask = 1 << this->registers().cfg0_reg_bank_bit;
   uint8_t data{0};
-  if (!this->i2c_device_->read_byte(this->registers().CFG0, &data)) {
+  if (!this->i2c_device_->read_byte(this->registers().cfg0, &data)) {
     this->bank_low_ = !low;
     ESP_LOGW(TAG, "Could not read CFG0, register bank left unchanged");
     return false;
   }
   data = low ? (data | mask) : (data & ~mask);
-  if (!this->i2c_device_->write_byte(this->registers().CFG0, data)) {
+  if (!this->i2c_device_->write_byte(this->registers().cfg0, data)) {
     this->bank_low_ = !low;
     ESP_LOGW(TAG, "Could not write CFG0, register bank left unchanged");
     return false;
@@ -247,7 +247,7 @@ bool AS734xBase::set_bank_(bool low) {
 }
 
 bool AS734xBase::set_bank_for_reg_(uint8_t reg) {
-  return this->set_bank_(reg >= this->registers().BANK_LOW_MIN && reg <= this->registers().BANK_LOW_MAX);
+  return this->set_bank_(reg >= this->registers().bank_low_min && reg <= this->registers().bank_low_max);
 }
 
 bool AS734xBase::read_register_bit_(uint8_t address, uint8_t bit_position, bool &bit_value) {

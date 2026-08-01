@@ -18,19 +18,19 @@ static constexpr uint8_t AS7341_SMUX_CMD_WRITE = 2;  ///< Write SMUX configurati
 
 // register map for base class
 const RegisterMap AS7341::REG_MAP = {
-    .BANK_LOW_MIN = 0x60,
-    .BANK_LOW_MAX = 0x74,
-    .ASTEP = 0xCA,
-    .ATIME = 0x81,
-    .CFG0 = 0xA9,
-    .CFG0_REG_BANK_BIT = 4,
-    .CFG1 = 0xAA,
-    .ENABLE = 0x80,
-    .ENABLE_PON_BIT = 0,
-    .ENABLE_SP_EN_BIT = 1,
-    .ENABLE_SMUX_EN_BIT = 4,
-    .STATUS2 = 0xA3,
-    .STATUS2_AVALID_BIT = 6,
+    .bank_low_min = 0x60,
+    .bank_low_max = 0x74,
+    .astep = 0xCA,
+    .atime = 0x81,
+    .cfg0 = 0xA9,
+    .cfg0_reg_bank_bit = 4,
+    .cfg1 = 0xAA,
+    .enable = 0x80,
+    .enable_pon_bit = 0,
+    .enable_sp_en_bit = 1,
+    .enable_smux_en_bit = 4,
+    .status2 = 0xA3,
+    .status2_avalid_bit = 6,
 };
 
 AS7341::AS7341(i2c::I2CDevice *i2c_device) : AS734xBase(i2c_device, AS7341::NUM_CHANNELS) {}

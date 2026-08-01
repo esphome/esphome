@@ -30,19 +30,19 @@ static constexpr uint8_t AS7343_STATUS = 0x93;
 // the CFG0 bit description says 0x20 to 0x7F. The wider one is right - GPIO at 0x6B needs the low
 // bank too, and the narrower window would miss it.
 const RegisterMap AS7343::REG_MAP = {
-    .BANK_LOW_MIN = 0x20,
-    .BANK_LOW_MAX = 0x7F,
-    .ASTEP = 0xD4,
-    .ATIME = 0x81,
-    .CFG0 = AS7343_CFG0,
-    .CFG0_REG_BANK_BIT = 4,
-    .CFG1 = AS7343_CFG1,
-    .ENABLE = 0x80,
-    .ENABLE_PON_BIT = 0,
-    .ENABLE_SP_EN_BIT = 1,
-    .ENABLE_SMUX_EN_BIT = 4,
-    .STATUS2 = 0x90,
-    .STATUS2_AVALID_BIT = 6,
+    .bank_low_min = 0x20,
+    .bank_low_max = 0x7F,
+    .astep = 0xD4,
+    .atime = 0x81,
+    .cfg0 = AS7343_CFG0,
+    .cfg0_reg_bank_bit = 4,
+    .cfg1 = AS7343_CFG1,
+    .enable = 0x80,
+    .enable_pon_bit = 0,
+    .enable_sp_en_bit = 1,
+    .enable_smux_en_bit = 4,
+    .status2 = 0x90,
+    .status2_avalid_bit = 6,
 };
 
 enum AS7343Channel : uint8_t {
