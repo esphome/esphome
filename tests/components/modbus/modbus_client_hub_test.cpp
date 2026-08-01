@@ -441,6 +441,21 @@ TEST(ModbusClientHubPriority, ContinuousIgnoredForWrites) {
   EXPECT_FALSE(hub.queued(0).continuous);
 }
 
+// A queued continuous poll does not count against immediate-send readiness: it ranks below every
+// one-shot, so a new one-shot goes out ahead of it. A queued one-shot does count.
+TEST(ModbusClientHubPriority, ContinuousPollDoesNotBlockImmediateSend) {
+  NoResponseProbeHub hub;
+  RetryingDevice device(&hub, 0x02, /*retry=*/false);
+
+  EXPECT_TRUE(hub.tx_buffer_empty());  // nothing queued
+  device.read_holding_registers(0x100, 2, {.continuous = true});
+  ASSERT_TRUE(hub.queued(0).continuous);
+  EXPECT_TRUE(hub.tx_buffer_empty());  // a READY continuous poll still leaves room to send now
+
+  device.read_holding_registers(0x200, 2);  // a one-shot does count
+  EXPECT_FALSE(hub.tx_buffer_empty());
+}
+
 // A device whose sent/not-sent callbacks are counted.
 namespace {
 class SentCountingDevice : public ModbusClientDevice {

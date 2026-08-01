@@ -136,10 +136,11 @@ bool ModbusClientHub::tx_blocked() {
 }
 
 bool ModbusClientHub::tx_buffer_empty() {
-  // Empty means nothing is awaiting transmission; entries in other states are mid-transaction or
-  // owed bookkeeping, not queued sends.
+  // "Empty" for ready_for_immediate_send(): no one-shot is queued ahead of the caller. Entries in
+  // other states are mid-transaction or owed bookkeeping, not queued sends - and a READY continuous
+  // poll does not count either, since it ranks below every one-shot, so a new send goes out first.
   for (const auto &cmd : this->tx_buffer_) {
-    if (cmd.state == FrameState::READY)
+    if (cmd.state == FrameState::READY && !cmd.continuous)
       return false;
   }
   return true;
