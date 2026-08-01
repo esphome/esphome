@@ -36,6 +36,28 @@ uint8_t *get_zcl_string(const char *str, uint8_t max_size, bool use_max_size) {
   return zcl_str;
 }
 
+void static send_leave(bool rejoin) {
+  ezb_zdo_nwk_mgmt_leave_req_t leave_req = {
+      .dst_nwk_addr = ezb_nwk_get_short_address(),
+      .field =
+          {
+              .remove_children = false,
+              .rejoin = rejoin,
+          },
+  };
+  ezb_zdo_nwk_mgmt_leave_req(&leave_req);
+}
+
+void ZigbeeComponent::factory_reset() {
+  esp_zigbee_lock_acquire(portMAX_DELAY);
+  if (this->joined) {
+    send_leave(false);
+  } else {
+    esp_zigbee_factory_reset();  // triggers a reboot
+  }
+  esp_zigbee_lock_release();
+}
+
 void ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(ezb_bdb_comm_mode_mask_t mode) {
   if (!esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
     global_zigbee->set_timeout("zb_init", 10, [mode]() { ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(mode); });
@@ -105,11 +127,21 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
       const ezb_zdo_signal_leave_params_t *leave_params =
           (const ezb_zdo_signal_leave_params_t *) ezb_app_signal_get_params(app_signal);
       if (leave_params->leave_type == EZB_ZDO_LEAVE_TYPE_RESET) {
-        esp_zigbee_factory_reset();
+        esp_zigbee_factory_reset();  // triggers a reboot
       }
       global_zigbee->joined = false;
       global_zigbee->enable_loop_soon_any_context();
-      ezb_bdb_start_top_level_commissioning(EZB_BDB_MODE_NETWORK_STEERING);
+      // ezb_bdb_start_top_level_commissioning(EZB_BDB_MODE_NETWORK_STEERING);
+    } break;
+    case EZB_NWK_SIGNAL_NETWORK_STATUS: {
+      const ezb_nwk_signal_network_status_params_t *network_status_params =
+          (ezb_nwk_signal_network_status_params_t *) ezb_app_signal_get_params(app_signal);
+      if (network_status_params->status == EZB_NWK_NETWORK_STATUS_PARENT_LINK_FAILURE) {
+        send_leave(true);
+        ESP_LOGW(TAG, "Parent link failure, re-commissioning");
+      } else {
+        ESP_LOGD(TAG, "Zigbee APP Signal NETWORK_STATUS: 0x%02x", network_status_params->status);
+      }
     } break;
     default:
       ESP_LOGD(TAG, "Zigbee APP Signal: %s(type: 0x%02x)", ezb_app_signal_to_string(signal_type), signal_type);

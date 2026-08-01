@@ -54,11 +54,7 @@ class ZigbeeComponent final : public Component {
   static bool app_signal_handler(const ezb_app_signal_t *app_signal);
   static void esp_zigbee_alarm_bdb_commissioning(ezb_bdb_comm_mode_mask_t mode);
 
-  void factory_reset() {
-    esp_zigbee_lock_acquire(portMAX_DELAY);
-    esp_zigbee_factory_reset();  // triggers a reboot
-    esp_zigbee_lock_release();
-  }
+  void factory_reset();
 
   template<typename F> void add_on_join_callback(F &&cb) { this->join_cb_.add(std::forward<F>(cb)); }
 
