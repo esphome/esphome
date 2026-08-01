@@ -54,7 +54,7 @@ template<typename T> class Aggregator {
   SamplingMode mode_{SamplingMode::AVG};
 };
 
-class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {
+class ADCSensor final : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {
  public:
   /// Update the sensor's state by reading the current ADC value.
   /// This method is called periodically based on the update interval.
@@ -123,9 +123,9 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   void set_autorange(bool autorange) { this->autorange_ = autorange; }
 #endif  // USE_ESP32
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
   void set_is_temperature() { this->is_temperature_ = true; }
-#endif  // USE_RP2040
+#endif  // USE_RP2
 
  protected:
   uint8_t sample_count_{1};
@@ -152,9 +152,9 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   static adc_oneshot_unit_handle_t shared_adc_handles[2];
 #endif  // USE_ESP32
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
   bool is_temperature_{false};
-#endif  // USE_RP2040
+#endif  // USE_RP2
 
 #ifdef USE_ZEPHYR
   const struct adc_dt_spec *channel_ = nullptr;

@@ -33,11 +33,11 @@ struct RemoteTransmitterComponentStore {
 #endif
 #endif
 
-class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
-                                   public Component
+class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBase,
+                                         public Component
 #if defined(USE_ESP32) && SOC_RMT_SUPPORTED
     ,
-                                   public remote_base::RemoteRMTChannel
+                                         public remote_base::RemoteRMTChannel
 #endif
 {
  public:
@@ -64,7 +64,7 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
 
  protected:
   void send_internal(uint32_t send_times, uint32_t send_wait) override;
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
   void calculate_on_off_time_(uint32_t carrier_frequency, uint32_t *on_time_period, uint32_t *off_time_period);
 
   void mark_(uint32_t on_time, uint32_t off_time, uint32_t usec);

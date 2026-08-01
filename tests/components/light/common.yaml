@@ -103,6 +103,16 @@ esphome:
             - light.turn_on:
                 id: test_monochromatic_light
                 effect: !lambda 'return iteration > 1 ? "Strobe" : "none";'
+      # Cycle through configured effects (skip "None")
+      - light.effect.next: test_monochromatic_light
+      - light.effect.previous: test_monochromatic_light
+      # Cycle through effects including "None"
+      - light.effect.next:
+          id: test_monochromatic_light
+          include_none: true
+      - light.effect.previous:
+          id: test_monochromatic_light
+          include_none: true
       - light.dim_relative:
           id: test_monochromatic_light
           relative_brightness: 5%
@@ -146,7 +156,7 @@ light:
   - platform: binary
     id: test_binary_light
     name: Binary Light
-    output: test_binary
+    output: light_test_binary
     effects:
       - strobe:
     on_state:
@@ -172,6 +182,9 @@ light:
             state += 1;
             if (state == 4)
               state = 0;
+            if (initial_run) {
+              ESP_LOGD("custom_effect", "Effect %s started", it.get_name().c_str());
+            }
       - pulse:
           transition_length: 10s
           update_interval: 20s

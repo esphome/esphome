@@ -8,6 +8,7 @@
 #include <vector>
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/components/mitsubishi_cn105/mitsubishi_cn105.h"
+#include "esphome/components/mitsubishi_cn105/mitsubishi_cn105_climate.h"
 
 namespace esphome::mitsubishi_cn105::testing {
 
@@ -36,6 +37,9 @@ class MockUARTComponent : public uart::UARTComponent {
   MOCK_METHOD(bool, peek_byte, (uint8_t * data), (override));
   MOCK_METHOD(uart::UARTFlushResult, flush, (), (override));
   MOCK_METHOD(void, check_logger_conflict, (), (override));
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  void load_settings(bool dump_config) override {}
+#endif  // defined(USE_ESP8266) || defined(USE_ESP32)
 };
 
 class TestableMitsubishiCN105 : public MitsubishiCN105 {
@@ -44,6 +48,7 @@ class TestableMitsubishiCN105 : public MitsubishiCN105 {
   using MitsubishiCN105::State;
   using MitsubishiCN105::UpdateFlag;
   using MitsubishiCN105::state_;
+  using MitsubishiCN105::status_;
   using MitsubishiCN105::operation_start_ms_;
   using MitsubishiCN105::use_temperature_encoding_b_;
   using MitsubishiCN105::set_wide_vane_high_bit_;
@@ -56,6 +61,15 @@ class TestableMitsubishiCN105 : public MitsubishiCN105 {
   static inline uint32_t test_loop_time_ms = 0;
 
   void set_current_time(uint32_t ms) { test_loop_time_ms = ms; }
+};
+
+class TestableMitsubishiCN105Climate : public MitsubishiCN105Climate {
+ public:
+  using MitsubishiCN105Climate::apply_values_;
+  using MitsubishiCN105Climate::last_non_swing_vane_mode_;
+  using MitsubishiCN105Climate::last_non_swing_wide_vane_mode_;
+
+  MitsubishiCN105::Status &status() { return static_cast<TestableMitsubishiCN105 &>(this->hp_).status_; }
 };
 
 }  // namespace esphome::mitsubishi_cn105::testing

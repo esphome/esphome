@@ -15,6 +15,7 @@ from esphome.yaml_util import (
     DiscoveredYamlFiles,
     ESPHomeDataBase,
     ESPLiteralValue,
+    SensitiveStr,
     discover_user_yaml_files,
     force_load_include_files,
     format_path,
@@ -32,6 +33,14 @@ def clear_secrets_cache() -> None:
     yield
     yaml_util._SECRET_VALUES.clear()
     yaml_util._SECRET_CACHE.clear()
+
+
+@pytest.fixture(autouse=True)
+def clear_core_frontmatter() -> None:
+    """Reset CORE.frontmatter between tests."""
+    core.CORE.frontmatter = {}
+    yield
+    core.CORE.frontmatter = {}
 
 
 def test_include_with_vars(fixture_path: Path) -> None:
@@ -899,7 +908,7 @@ def test_format_path_current_obj_without_location_falls_back_to_key():
     """An ESPHomeDataBase current_obj with no esp_range falls back to the key's location."""
 
     class _NoRange(ESPHomeDataBase, str):
-        pass
+        __slots__ = ()
 
     obj = _NoRange.__new__(_NoRange, "value")
     str.__init__(obj)
@@ -1182,3 +1191,303 @@ def test_track_yaml_loads_records_resolved_paths(tmp_path: Path) -> None:
     with track_yaml_loads() as loaded:
         yaml_util.load_yaml(link)
     assert target.resolve() in loaded
+
+
+# ---------------------------------------------------------------------------
+# YAML frontmatter
+# ---------------------------------------------------------------------------
+
+
+def test_frontmatter_parsed_and_stored_on_core(tmp_path: Path) -> None:
+    """A leading `---`-separated YAML document is stored as frontmatter and
+    stripped from the returned config."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text(
+        "author: Jesse\nlabels: [office, climate]\n---\nesphome:\n  name: my_node\n"
+    )
+
+    config = yaml_util.load_yaml(yaml_file)
+
+    # Config does not contain frontmatter keys
+    assert "author" not in config
+    assert "labels" not in config
+    assert config["esphome"]["name"] == "my_node"
+
+    # Frontmatter is stored on CORE keyed by resolved path
+    frontmatter = core.CORE.frontmatter[yaml_file.resolve()]
+    assert frontmatter["author"] == "Jesse"
+    assert frontmatter["labels"] == ["office", "climate"]
+
+
+def test_frontmatter_absent_when_single_document(tmp_path: Path) -> None:
+    """A YAML file with a single document does not populate CORE.frontmatter."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text("esphome:\n  name: my_node\n")
+
+    yaml_util.load_yaml(yaml_file)
+    assert yaml_file.resolve() not in core.CORE.frontmatter
+
+
+def test_frontmatter_absent_when_leading_doc_separator(tmp_path: Path) -> None:
+    """A leading `---` with no content above it is just a document start marker,
+    not frontmatter, and must not populate CORE.frontmatter."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text("---\nesphome:\n  name: my_node\n")
+
+    config = yaml_util.load_yaml(yaml_file)
+    assert config["esphome"]["name"] == "my_node"
+    assert yaml_file.resolve() not in core.CORE.frontmatter
+
+
+def test_frontmatter_supports_arbitrary_keys(tmp_path: Path) -> None:
+    """Frontmatter keys are not validated — any structure is accepted."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text(
+        "any_key: any_value\n"
+        "nested:\n"
+        "  count: 42\n"
+        "  items:\n"
+        "    - a\n"
+        "    - b\n"
+        "---\n"
+        "esphome:\n"
+        "  name: t\n"
+    )
+
+    yaml_util.load_yaml(yaml_file)
+    frontmatter = core.CORE.frontmatter[yaml_file.resolve()]
+    assert frontmatter["any_key"] == "any_value"
+    assert frontmatter["nested"]["count"] == 42
+    assert frontmatter["nested"]["items"] == ["a", "b"]
+
+
+def test_frontmatter_supports_deeply_nested_paths(tmp_path: Path) -> None:
+    """Frontmatter preserves deeply nested dict/list structures intact."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text(
+        "device:\n"
+        "  metadata:\n"
+        "    location:\n"
+        "      building: HQ\n"
+        "      floor: 3\n"
+        "      room:\n"
+        "        number: 302\n"
+        "        occupants:\n"
+        "          - name: Jesse\n"
+        "            role:\n"
+        "              title: maintainer\n"
+        "              since: 2021\n"
+        "          - name: Alice\n"
+        "            role:\n"
+        "              title: contributor\n"
+        "              since: 2024\n"
+        "---\n"
+        "esphome:\n"
+        "  name: t\n"
+    )
+
+    yaml_util.load_yaml(yaml_file)
+    fm = core.CORE.frontmatter[yaml_file.resolve()]
+    room = fm["device"]["metadata"]["location"]["room"]
+    assert room["number"] == 302
+    assert room["occupants"][0]["name"] == "Jesse"
+    assert room["occupants"][0]["role"]["title"] == "maintainer"
+    assert room["occupants"][0]["role"]["since"] == 2021
+    assert room["occupants"][1]["role"]["title"] == "contributor"
+
+
+def test_frontmatter_more_than_two_documents_raises(tmp_path: Path) -> None:
+    """Three or more YAML documents is unsupported and must raise."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text("a: 1\n---\nb: 2\n---\nc: 3\n")
+
+    with pytest.raises(EsphomeError, match="at most two are supported"):
+        yaml_util.load_yaml(yaml_file)
+
+
+def test_frontmatter_empty_frontmatter_doc_not_stored(tmp_path: Path) -> None:
+    """An empty (null) frontmatter document is treated as no frontmatter."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text("---\n---\nesphome:\n  name: t\n")
+
+    config = yaml_util.load_yaml(yaml_file)
+    assert config["esphome"]["name"] == "t"
+    assert yaml_file.resolve() not in core.CORE.frontmatter
+
+
+def test_frontmatter_empty_config_doc(tmp_path: Path) -> None:
+    """An empty config document after a frontmatter document yields an empty config."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text("only: frontmatter\n---\n")
+
+    config = yaml_util.load_yaml(yaml_file)
+    assert config == {}
+    assert core.CORE.frontmatter[yaml_file.resolve()]["only"] == "frontmatter"
+
+
+def test_frontmatter_included_file_stored(tmp_path: Path) -> None:
+    """Frontmatter on an !include'd file is also captured on CORE, keyed by
+    that file's resolved path."""
+    inc = tmp_path / "child.yaml"
+    inc.write_text("child_meta: hello\n---\nchild_key: value\n")
+    main = tmp_path / "main.yaml"
+    main.write_text("esphome:\n  name: t\nchild: !include child.yaml\n")
+
+    config = yaml_util.load_yaml(main)
+    # !include is deferred; force resolution so the child file actually loads
+    force_load_include_files(config)
+    assert config["child"].load()["child_key"] == "value"
+    # Main file has no frontmatter
+    assert main.resolve() not in core.CORE.frontmatter
+    # Included file's frontmatter is captured
+    assert core.CORE.frontmatter[inc.resolve()]["child_meta"] == "hello"
+
+
+def test_sensitive_str__is_a_str_subclass() -> None:
+    value = SensitiveStr("hunter2")
+    assert isinstance(value, str)
+    assert value == "hunter2"
+
+
+def test_dump_path_without_relative_to_is_unchanged() -> None:
+    """Test that Path values dump as str(path) when relative_to is not given."""
+    path = Path("some") / "dir" / "file.ttf"
+    output = yaml_util.dump({"file": path})
+    assert output.strip() == f"file: {path}"
+
+
+def test_dump_path_relative_to_anchor_dir() -> None:
+    """Test that Path values under relative_to dump as relative POSIX paths."""
+    anchor = Path("/config/esphome").absolute()
+    data = {"file": anchor / "fonts" / "arial.ttf"}
+    output = yaml_util.dump(data, relative_to=anchor)
+    assert output.strip() == "file: fonts/arial.ttf"
+
+
+def test_dump_path_outside_anchor_dir_walks_up() -> None:
+    """Test that Path values outside relative_to walk up with ".." segments."""
+    anchor = Path("/config/esphome").absolute()
+    outside = Path("/config/fonts/file.ttf").absolute()
+    output = yaml_util.dump({"file": outside}, relative_to=anchor)
+    assert output.strip() == "file: ../fonts/file.ttf"
+
+
+def test_dump_path_with_dotdot_segments_is_normalized() -> None:
+    """Test that ".." segments do not defeat relativization.
+
+    A path like /config/other/../esphome/fonts/x.ttf is under the anchor
+    once normalized, so it must dump as a plain relative path.
+    """
+    anchor = Path("/config/esphome").absolute()
+    path = Path("/config/other/../esphome/fonts/x.ttf").absolute()
+    output = yaml_util.dump({"file": path}, relative_to=anchor)
+    assert output.strip() == "file: fonts/x.ttf"
+
+
+def test_dump_path_dotdot_reference_outside_anchor() -> None:
+    """Test the relative_config_path("../...") shape stays relative."""
+    anchor = Path("/config/esphome").absolute()
+    path = anchor / ".." / "shared" / "font.ttf"
+    output = yaml_util.dump({"file": path}, relative_to=anchor)
+    assert output.strip() == "file: ../shared/font.ttf"
+
+
+def test_dump_relative_to_does_not_leak_between_calls() -> None:
+    """Test that the relative_to flag is scoped to a single dump call."""
+    anchor = Path("/config/esphome").absolute()
+    path = anchor / "fonts" / "arial.ttf"
+    assert "fonts/arial.ttf" in yaml_util.dump({"file": path}, relative_to=anchor)
+    assert yaml_util.dump({"file": path}).strip() == f"file: {path}"
+
+
+def test_dump__redacts_sensitive_str_by_default() -> None:
+    out = yaml_util.dump({"password": SensitiveStr("hunter2")})
+    assert "\\033[8mhunter2\\033[28m" in out
+    assert "hunter2" not in out.replace(
+        "\\033[8mhunter2\\033[28m", ""
+    )  # the raw value is only present inside the wrap
+
+
+def test_dump__show_secrets_emits_sensitive_str_raw() -> None:
+    out = yaml_util.dump({"password": SensitiveStr("hunter2")}, show_secrets=True)
+    assert "hunter2" in out
+    assert "\\033[8m" not in out
+    assert "\\033[28m" not in out
+
+
+def test_dump__plain_str_is_not_redacted() -> None:
+    out = yaml_util.dump({"hostname": "myserver"})
+    assert "myserver" in out
+    assert "\\033[8m" not in out
+
+
+def test_dump__secret_reference_wins_over_redaction() -> None:
+    # If the value also has an entry in _SECRET_VALUES (i.e., it was loaded
+    # via !secret), the dump should render it as !secret <name>, not as a
+    # redacted scalar. SensitiveStr layered on top must not change that.
+    value = SensitiveStr("hunter2")
+    yaml_util._SECRET_VALUES[str(value)] = "my_secret_name"
+    try:
+        out = yaml_util.dump({"password": value})
+        assert "!secret" in out
+        assert "my_secret_name" in out
+        assert "\\033[8m" not in out
+    finally:
+        yaml_util._SECRET_VALUES.clear()
+
+
+def test_dump__redaction_flag_does_not_leak_between_calls() -> None:
+    # Per-call _Dumper subclass means show_secrets in one call doesn't
+    # affect another. Run them in both orders to catch any leakage.
+    redacted = yaml_util.dump({"password": SensitiveStr("hunter2")})
+    raw = yaml_util.dump({"password": SensitiveStr("hunter2")}, show_secrets=True)
+    redacted_again = yaml_util.dump({"password": SensitiveStr("hunter2")})
+
+    assert "\\033[8m" in redacted
+    assert "\\033[8m" not in raw
+    assert "\\033[8m" in redacted_again
+
+
+@pytest.fixture(autouse=True)
+def clear_dropped_merge_keys() -> None:
+    """Reset the dropped-merge-key queue between tests."""
+    core.CORE.data.pop(yaml_util._MERGE_WARNINGS_KEY, None)
+    yield
+    core.CORE.data.pop(yaml_util._MERGE_WARNINGS_KEY, None)
+
+
+def test_merge_include_records_dropped_keys(tmp_path: Path) -> None:
+    """A `<<` merge that overlaps an existing key records it (shallow first-wins)."""
+    (tmp_path / "a.yaml").write_text("api:\n  reboot_timeout: 5min\n")
+    (tmp_path / "b.yaml").write_text("api:\n  password: secret\n")
+    test_yaml = tmp_path / "test.yaml"
+    test_yaml.write_text("<<: !include a.yaml\n<<: !include b.yaml\n")
+
+    with patch.object(core.CORE, "config_path", test_yaml):
+        result = yaml_util.load_yaml(test_yaml)
+
+    # First definition wins; the second `api` block is dropped entirely.
+    assert result["api"] == {"reboot_timeout": "5min"}
+
+    dropped = yaml_util.take_dropped_merge_keys()
+    assert len(dropped) == 1
+    key, location = dropped[0]
+    assert key == "api"
+    assert "b.yaml" in location
+    # Queue is drained after being taken.
+    assert yaml_util.take_dropped_merge_keys() == []
+
+
+def test_merge_include_no_overlap_records_nothing(tmp_path: Path) -> None:
+    """A `<<` merge with distinct top-level keys drops nothing."""
+    (tmp_path / "a.yaml").write_text("api:\n  reboot_timeout: 5min\n")
+    (tmp_path / "b.yaml").write_text("logger:\n  level: DEBUG\n")
+    test_yaml = tmp_path / "test.yaml"
+    test_yaml.write_text("<<: !include a.yaml\n<<: !include b.yaml\n")
+
+    with patch.object(core.CORE, "config_path", test_yaml):
+        result = yaml_util.load_yaml(test_yaml)
+
+    assert result["api"] == {"reboot_timeout": "5min"}
+    assert result["logger"] == {"level": "DEBUG"}
+    assert yaml_util.take_dropped_merge_keys() == []

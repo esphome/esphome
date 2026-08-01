@@ -42,7 +42,7 @@ struct mopeka_std_package {  // NOLINT(readability-identifier-naming,altera-stru
   mopeka_std_values val[3];
 } __attribute__((packed));
 
-class MopekaStdCheck : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class MopekaStdCheck final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
 
