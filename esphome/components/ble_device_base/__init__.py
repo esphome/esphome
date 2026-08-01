@@ -122,9 +122,8 @@ def validate_scan_parameters(config: ConfigType) -> ConfigType:
     # (radio permanently on) from a config that asked for less.
     interval_units = to_ble_units(interval)
     window_units = to_ble_units(window)
-    if window_units == interval_units and window < interval:
         raise cv.Invalid(
-            f"Scan window ({window}) and interval ({interval}) both round to "
+            f"Scan window ({window}) and interval ({interval}) both truncate to "
             f"{interval_units} x 0.625 ms, which the controller scans at a 100 % duty "
             f"cycle. Separate them by at least 0.625 ms."
         )
