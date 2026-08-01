@@ -11,15 +11,11 @@ namespace esphome::rp2_ble_tracker {
 
 static const char *const TAG = "rp2_ble_tracker";
 
-// Minimum interval between scan (re)start attempts, so a failing controller start
-// cannot be retried every main-loop iteration. The interval doubles with
-// consecutive failed starts (1 s up to 64 s) so a controller that never comes up
-// settles into a slow, quiet poll instead of a retry every second for the rest of
-// uptime; a single WARN is emitted when the retry interval first saturates. The
-// backoff also paces the wait during stack power-up: scan_start() returns false
-// until HCI reaches WORKING.
+// Minimum interval between scan start attempts on an active stack. The
+// controller start has no failure mode once HCI is WORKING, so this fires at
+// most once per enable cycle today; the floor is insurance against a future
+// scan_start() failure being retried every main-loop iteration.
 static constexpr uint32_t SCAN_START_RETRY_MS = 1000;
-static constexpr uint8_t SCAN_START_RETRY_MAX_DOUBLINGS = 6;  // 1 s << 6 = 64 s
 
 // One BLE scan unit in milliseconds; the controller programs interval/window in these units.
 static constexpr float BLE_SCAN_UNIT_MS = 0.625f;
@@ -75,23 +71,9 @@ void RP2BLETracker::loop() {
       // "keeps failing" WARN over a radio the user deliberately turned off.
       return;
     }
-    // Rate-limit (re)start attempts so a start that genuinely fails on an
-    // active stack cannot be retried every main-loop iteration; the interval
-    // backs off with consecutive failures, emitting a single WARN when it
-    // saturates. failed_start_count_ is capped at
-    // SCAN_START_RETRY_MAX_DOUBLINGS below.
-    if (now - this->last_scan_start_attempt_ >= (SCAN_START_RETRY_MS << this->failed_start_count_)) {
+    if (now - this->last_scan_start_attempt_ >= SCAN_START_RETRY_MS) {
       this->last_scan_start_attempt_ = now;
       this->start_scan_();
-      if (this->scan_running_) {
-        this->failed_start_count_ = 0;
-      } else if (this->failed_start_count_ < SCAN_START_RETRY_MAX_DOUBLINGS) {
-        ++this->failed_start_count_;
-        if (this->failed_start_count_ == SCAN_START_RETRY_MAX_DOUBLINGS) {
-          ESP_LOGW(TAG, "Scan start keeps failing; retrying every %" PRIu32 " s",
-                   (SCAN_START_RETRY_MS << SCAN_START_RETRY_MAX_DOUBLINGS) / 1000);
-        }
-      }
     }
     return;
   }

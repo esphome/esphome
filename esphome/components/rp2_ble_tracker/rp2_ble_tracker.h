@@ -88,9 +88,8 @@ class RP2BLETracker : public Component,
   uint32_t scan_interval_{160};  // 160 × 0.625 ms = 100 ms
   uint32_t scan_window_{48};     // 48 × 0.625 ms = 30 ms (30/100 = 30 %)
   uint32_t scan_duration_{300000};
-  uint32_t last_scan_start_attempt_{0};  // millis() of last start_scan_() attempt; rate-limits retries
-  uint32_t scan_period_start_{0};        // millis() at start of current scan period; used to rate-limit on_scan_end()
-  uint8_t failed_start_count_{0};        // consecutive failed starts; drives the retry backoff (reset on success)
+  uint32_t last_scan_start_attempt_{0};  // loop time of last start_scan_() attempt; rate-limits retries
+  uint32_t scan_period_start_{0};        // loop time at start of current scan period; rate-limits on_scan_end()
   bool scan_running_{false};
   bool scan_continuous_{true};
 #ifdef USE_OTA_STATE_LISTENER
