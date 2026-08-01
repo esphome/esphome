@@ -87,22 +87,21 @@ class RP2BLETracker : public Component,
   void start_scan_();
   void stop_scan_();
 
-  bool scan_running_{false};
   // Defaults: 30 % duty cycle (interval 100 ms / window 30 ms), in 0.625 ms
   // BLE units — same defaults as bk72xx_ble_tracker.
   uint32_t scan_interval_{160};  // 160 × 0.625 ms = 100 ms
   uint32_t scan_window_{48};     // 48 × 0.625 ms = 30 ms (30/100 = 30 %)
   uint32_t scan_duration_{300000};
+  uint32_t scan_start_time_{0};
+  uint32_t last_scan_start_attempt_{0};  // millis() of last start_scan_() attempt; rate-limits retries
+  uint32_t scan_period_start_{0};        // millis() at start of current scan period; used to rate-limit on_scan_end()
+  uint8_t failed_start_count_{0};        // consecutive failed starts; drives the retry backoff (reset on success)
+  bool scan_running_{false};
   bool scan_continuous_{true};
+  bool scan_started_once_{false};  // true after first successful scan start; gates the period timer
 #ifdef USE_OTA_STATE_LISTENER
   bool scan_continuous_before_ota_{false};  // continuous mode saved at OTA start, restored on OTA failure
 #endif
-  uint32_t scan_start_time_{0};
-
-  uint32_t last_scan_start_attempt_{0};  // millis() of last start_scan_() attempt; rate-limits retries
-  uint8_t failed_start_count_{0};        // consecutive failed starts; drives the retry backoff (reset on success)
-  uint32_t scan_period_start_{0};        // millis() at start of current scan period; used to rate-limit on_scan_end()
-  bool scan_started_once_{false};        // true after first successful scan start; gates the period timer
 
   ble_device_base::RawAdvertisementCallback raw_advertisement_callback_{};
 #ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT

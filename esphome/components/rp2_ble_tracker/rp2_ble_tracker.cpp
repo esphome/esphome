@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cinttypes>
 
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -21,6 +22,9 @@ static const char *const TAG = "rp2_ble_tracker";
 // until HCI reaches WORKING.
 static constexpr uint32_t SCAN_START_RETRY_MS = 1000;
 static constexpr uint8_t SCAN_START_RETRY_MAX_DOUBLINGS = 6;  // 1 s << 6 = 64 s
+
+// One BLE scan unit in milliseconds; the controller programs interval/window in these units.
+static constexpr float BLE_SCAN_UNIT_MS = 0.625f;
 
 void RP2BLETracker::setup() {
   // Receive the controller's scan reports; the controller queues them from the
@@ -48,7 +52,7 @@ void RP2BLETracker::on_ota_global_state(ota::OTAState state, float progress, uin
 #endif  // USE_OTA_STATE_LISTENER
 
 void RP2BLETracker::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (this->scan_continuous_) {
     if (!this->scan_running_) {
       // Rate-limit (re)start attempts. The controller start fails while the stack
@@ -100,8 +104,8 @@ void RP2BLETracker::dump_config() {
                 "  Scan Window: %.0f ms (%" PRIu32 " BLE units)\n"
                 "  Scan Type: PASSIVE\n"
                 "  Continuous Scanning: %s",
-                this->scan_duration_ / 1000, this->scan_interval_ * 0.625f, this->scan_interval_,
-                this->scan_window_ * 0.625f, this->scan_window_, YESNO(this->scan_continuous_));
+                this->scan_duration_ / 1000, this->scan_interval_ * BLE_SCAN_UNIT_MS, this->scan_interval_,
+                this->scan_window_ * BLE_SCAN_UNIT_MS, this->scan_window_, YESNO(this->scan_continuous_));
 }
 
 void RP2BLETracker::on_scan_report(const rp2040_ble::BLEScanReport &report) {
@@ -156,8 +160,8 @@ void RP2BLETracker::start_scan_() {
   // Log every explicit start at DEBUG — stop_scan_() logs every stop at DEBUG, and
   // in non-continuous mode each period is an explicit start, so asymmetric logging
   // would read as the scanner failing to come back up.
-  ESP_LOGD(TAG, "Scan started (passive, window=%.0fms, interval=%.0fms)", this->scan_window_ * 0.625f,
-           this->scan_interval_ * 0.625f);
+  ESP_LOGD(TAG, "Scan started (passive, window=%.0fms, interval=%.0fms)", this->scan_window_ * BLE_SCAN_UNIT_MS,
+           this->scan_interval_ * BLE_SCAN_UNIT_MS);
   // Re-anchor the on_scan_end period to every successful start — first start (so the
   // period counts from the scan, not from boot) and every restart after a stop (so
   // resuming after longer than scan_duration, e.g. a failed OTA restoring continuous
