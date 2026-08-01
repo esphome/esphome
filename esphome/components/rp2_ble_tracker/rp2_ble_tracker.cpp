@@ -2,7 +2,6 @@
 
 #include "rp2_ble_tracker.h"
 
-#include <algorithm>
 #include <cinttypes>
 
 #include "esphome/core/application.h"
@@ -35,6 +34,10 @@ void RP2BLETracker::setup() {
   // the OTA download on the shared CYW43 radio. Mirrors esp32_ble_tracker.
   ota::get_global_ota_callback()->add_global_state_listener(this);
 #endif
+  if (!this->scan_continuous_) {
+    // Nothing to do until an external start_scan(); the loop is re-enabled there.
+    this->disable_loop();
+  }
 }
 
 #ifdef USE_OTA_STATE_LISTENER
@@ -47,6 +50,7 @@ void RP2BLETracker::on_ota_global_state(ota::OTAState state, float progress, uin
     // loop() restarts the scan on its next iteration (continuous idle branch).
     this->scan_continuous_before_ota_ = false;
     this->scan_continuous_ = true;
+    this->enable_loop();
   }
 }
 #endif  // USE_OTA_STATE_LISTENER
@@ -60,8 +64,8 @@ void RP2BLETracker::loop() {
       // WORKING); retrying every main-loop iteration would waste cycles, so the
       // interval backs off with consecutive failures and a stack that never comes
       // up polls slowly and quietly.
-      const uint8_t doublings = std::min<uint8_t>(this->failed_start_count_, SCAN_START_RETRY_MAX_DOUBLINGS);
-      if (now - this->last_scan_start_attempt_ >= (SCAN_START_RETRY_MS << doublings)) {
+      // failed_start_count_ is capped at SCAN_START_RETRY_MAX_DOUBLINGS below.
+      if (now - this->last_scan_start_attempt_ >= (SCAN_START_RETRY_MS << this->failed_start_count_)) {
         this->last_scan_start_attempt_ = now;
         this->start_scan_();
         if (this->scan_running_) {
@@ -76,14 +80,10 @@ void RP2BLETracker::loop() {
       }
     }
     // Period timer: fire on_scan_end() once per scan_duration_ window, mirroring
-    // esp32_ble_tracker::cleanup_scan_state_(). Gated on scan_started_once_ so a scan
+    // esp32_ble_tracker::cleanup_scan_state_(). Gated on scan_running_ so a scan
     // that never came up (start kept failing) does not fire spurious on_scan_end events.
-    if (this->scan_started_once_ && now - this->scan_period_start_ >= this->scan_duration_) {
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-      for (auto *listener : this->listeners_)
-        listener->on_scan_end();
-      this->discovered_log_.clear();  // reset per-scan "Found device" dedup (esp32_ble_tracker parity)
-#endif
+    if (this->scan_running_ && now - this->scan_period_start_ >= this->scan_duration_) {
+      this->fire_scan_end_();
       this->scan_period_start_ = now;
     }
     return;
@@ -91,7 +91,7 @@ void RP2BLETracker::loop() {
 
   // Non-continuous mode: run for scan_duration_ ms, then stop and fire on_scan_end.
   // Restart is driven externally (e.g. api: on_client_connected:).
-  if (this->scan_running_ && now - this->scan_start_time_ >= this->scan_duration_) {
+  if (this->scan_running_ && now - this->scan_period_start_ >= this->scan_duration_) {
     this->stop_scan_();
   }
 }
@@ -136,9 +136,8 @@ void RP2BLETracker::on_scan_report(const rp2040_ble::BLEScanReport &report) {
 void RP2BLETracker::start_scan() {
   // Mirrors esp32_ble_tracker::start_scan(): caller sets scan_continuous_ via
   // set_scan_continuous() first, then calls start_scan() to begin scanning.
-  if (!this->scan_running_) {
-    this->start_scan_();
-  }
+  this->enable_loop();
+  this->start_scan_();
 }
 
 void RP2BLETracker::stop_scan() {
@@ -154,21 +153,18 @@ void RP2BLETracker::start_scan_() {
                                  static_cast<uint16_t>(this->scan_window_)))
     return;
 
-  const uint32_t now = millis();
   this->scan_running_ = true;
-  this->scan_start_time_ = now;
   // Log every explicit start at DEBUG — stop_scan_() logs every stop at DEBUG, and
   // in non-continuous mode each period is an explicit start, so asymmetric logging
   // would read as the scanner failing to come back up.
   ESP_LOGD(TAG, "Scan started (passive, window=%.0fms, interval=%.0fms)", this->scan_window_ * BLE_SCAN_UNIT_MS,
            this->scan_interval_ * BLE_SCAN_UNIT_MS);
-  // Re-anchor the on_scan_end period to every successful start — first start (so the
+  // Re-anchor the scan period to every successful start — first start (so the
   // period counts from the scan, not from boot) and every restart after a stop (so
   // resuming after longer than scan_duration, e.g. a failed OTA restoring continuous
   // mode 10 minutes later, does not fire on_scan_end before an advertisement can
-  // arrive). scan_started_once_ purely gates the period timer.
-  this->scan_period_start_ = now;
-  this->scan_started_once_ = true;
+  // arrive).
+  this->scan_period_start_ = millis();
 }
 
 void RP2BLETracker::stop_scan_() {
@@ -177,12 +173,20 @@ void RP2BLETracker::stop_scan_() {
   this->parent_->scan_stop();
   this->scan_running_ = false;
   ESP_LOGD(TAG, "Scan stopped");
+  this->fire_scan_end_();
+  this->scan_period_start_ = millis();  // reset period clock so on_scan_end does not double-fire
+  if (!this->scan_continuous_) {
+    // Nothing left to time; start_scan() re-enables the loop.
+    this->disable_loop();
+  }
+}
+
+void RP2BLETracker::fire_scan_end_() {
 #ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
   for (auto *listener : this->listeners_)
     listener->on_scan_end();
   this->discovered_log_.clear();  // reset per-scan "Found device" dedup (esp32_ble_tracker parity)
 #endif
-  this->scan_period_start_ = millis();  // reset period clock so on_scan_end does not double-fire
 }
 
 }  // namespace esphome::rp2_ble_tracker

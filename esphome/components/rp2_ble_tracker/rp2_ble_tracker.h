@@ -67,14 +67,9 @@ class RP2BLETracker : public Component,
     // merges per address (Home Assistant does).
     return {.active_scan = false, .merges_scan_response = false, .gatt = false};
   }
-  // The controller stores the address LSB-first (BLE convention); the contract
-  // wants printable (MSB-first) order.
-  void get_adapter_mac(uint8_t out[6]) override {
-    uint8_t mac[6];
-    this->parent_->get_mac_lsb_first(mac);
-    for (int i = 0; i < 6; i++)
-      out[i] = mac[5 - i];
-  }
+  // The controller stores the address in printable (MSB-first) order, which is
+  // exactly what the contract wants.
+  void get_adapter_mac(uint8_t out[6]) override { this->parent_->get_mac(out); }
   bool scan_running() override { return this->scan_running_; }
   bool scan_active() override { return false; }  // passive-only (initial implementation)
 
@@ -86,19 +81,18 @@ class RP2BLETracker : public Component,
  protected:
   void start_scan_();
   void stop_scan_();
+  void fire_scan_end_();
 
   // Defaults: 30 % duty cycle (interval 100 ms / window 30 ms), in 0.625 ms
   // BLE units — same defaults as bk72xx_ble_tracker.
   uint32_t scan_interval_{160};  // 160 × 0.625 ms = 100 ms
   uint32_t scan_window_{48};     // 48 × 0.625 ms = 30 ms (30/100 = 30 %)
   uint32_t scan_duration_{300000};
-  uint32_t scan_start_time_{0};
   uint32_t last_scan_start_attempt_{0};  // millis() of last start_scan_() attempt; rate-limits retries
   uint32_t scan_period_start_{0};        // millis() at start of current scan period; used to rate-limit on_scan_end()
   uint8_t failed_start_count_{0};        // consecutive failed starts; drives the retry backoff (reset on success)
   bool scan_running_{false};
   bool scan_continuous_{true};
-  bool scan_started_once_{false};  // true after first successful scan start; gates the period timer
 #ifdef USE_OTA_STATE_LISTENER
   bool scan_continuous_before_ota_{false};  // continuous mode saved at OTA start, restored on OTA failure
 #endif
@@ -108,9 +102,6 @@ class RP2BLETracker : public Component,
   // Parsed-advertisement consumers registered through ble_device_base.
   // Codegen-sized: no heap allocation, no std::vector template instantiations.
   StaticVector<ble_device_base::ESPBTDeviceListener *, ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT> listeners_;
-#endif
-
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
   // Per-period "Found device" DEBUG log with MAC dedup — shared implementation
   // in ble_device_base, identical output on every tracker backend. Guarded like
   // its only writer so a no-listener build does not carry an unused vector.

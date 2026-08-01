@@ -10,7 +10,7 @@ from esphome.components.rp2_ble_tracker import SCAN_PARAMETERS_SCHEMA, to_ble_un
 
 def _validate(**kwargs: str) -> dict:
     """Run a scan_parameters config through the schema, applying defaults."""
-    return SCAN_PARAMETERS_SCHEMA(dict(kwargs))
+    return SCAN_PARAMETERS_SCHEMA(kwargs)
 
 
 # --- to_ble_units ---
