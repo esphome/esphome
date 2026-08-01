@@ -462,70 +462,66 @@ empty=
 
 
 def test_node_key_git_with_ref():
-    key, is_git, locator = _node_key(
+    key, kind, locator = _node_key(
         "name", None, "https://github.com/foo/bar.git#v1.2.3"
     )
     assert key == "foo/bar"
-    assert is_git is True
+    assert kind == "git"
     assert locator == ("https://github.com/foo/bar.git", "v1.2.3")
 
 
 def test_node_key_git_branch_ref():
-    key, is_git, locator = _node_key(
+    key, kind, locator = _node_key(
         "name", None, "https://github.com/foo/bar.git#some-branch"
     )
-    assert (key, is_git, locator[1]) == ("foo/bar", True, "some-branch")
+    assert (key, kind, locator[1]) == ("foo/bar", "git", "some-branch")
 
 
 def test_node_key_git_no_ref():
-    _key, is_git, locator = _node_key("name", None, "https://github.com/foo/bar.git")
-    assert is_git is True
+    _key, kind, locator = _node_key("name", None, "https://github.com/foo/bar.git")
+    assert kind == "git"
     assert locator == ("https://github.com/foo/bar.git", None)
 
 
 def test_node_key_url_in_name_is_git():
     # add_library("https://github.com/x/y", None): PlatformIO accepted a bare
     # git URL as the library name, so the converter must too.
-    key, is_git, locator = _node_key(
-        "https://github.com/pstolarz/OneWireNg", None, None
-    )
+    key, kind, locator = _node_key("https://github.com/pstolarz/OneWireNg", None, None)
     assert key == "pstolarz/OneWireNg"
-    assert is_git is True
+    assert kind == "git"
     assert locator == ("https://github.com/pstolarz/OneWireNg", None)
 
 
 def test_node_key_url_in_name_with_ref():
-    key, is_git, locator = _node_key(
-        "https://github.com/foo/bar.git#v1.2.3", None, None
-    )
-    assert (key, is_git, locator) == (
+    key, kind, locator = _node_key("https://github.com/foo/bar.git#v1.2.3", None, None)
+    assert (key, kind, locator) == (
         "foo/bar",
-        True,
+        "git",
         ("https://github.com/foo/bar.git", "v1.2.3"),
     )
 
 
 def test_node_key_url_in_name_git_plus_prefix():
-    key, is_git, locator = _node_key("git+https://github.com/foo/bar", None, None)
-    assert (key, is_git, locator) == (
+    key, kind, locator = _node_key("git+https://github.com/foo/bar", None, None)
+    assert (key, kind, locator) == (
         "foo/bar",
-        True,
+        "git",
         ("https://github.com/foo/bar", None),
     )
 
 
 def test_node_key_git_plus_prefix_in_repository():
-    _key, is_git, locator = _node_key("name", None, "git+https://github.com/foo/bar")
-    assert (is_git, locator) == (True, ("https://github.com/foo/bar", None))
+    _key, kind, locator = _node_key("name", None, "git+https://github.com/foo/bar")
+    assert (kind, locator) == ("git", ("https://github.com/foo/bar", None))
 
 
 def test_node_key_custom_name_equals_url_is_git():
-    key, is_git, locator = _node_key(
+    key, kind, locator = _node_key(
         "OneWireNg=https://github.com/pstolarz/OneWireNg", None, None
     )
-    assert (key, is_git, locator) == (
+    assert (key, kind, locator) == (
         "pstolarz/OneWireNg",
-        True,
+        "git",
         ("https://github.com/pstolarz/OneWireNg", None),
     )
 
@@ -533,12 +529,50 @@ def test_node_key_custom_name_equals_url_is_git():
 def test_node_key_url_in_name_with_query_containing_equals():
     # A bare URL whose query string contains ``=`` must not be split by the
     # CustomName=URL handling.
-    key, is_git, locator = _node_key("https://host/x/y.git?ref=main", None, None)
-    assert (key, is_git, locator) == (
+    key, kind, locator = _node_key("https://host/x/y.git?ref=main", None, None)
+    assert (key, kind, locator) == (
         "x/y",
-        True,
+        "git",
         ("https://host/x/y.git?ref=main", None),
     )
+
+
+def test_node_key_file_url_in_repository_is_local():
+    # A plain file:// entry (PlatformIO's spelling for a local library folder)
+    # resolves as a local directory, keeping the custom name as the key. The
+    # path is the OS-native form of the URL (backslashes on Windows).
+    key, kind, (path, ref) = _node_key(
+        "TeslaBLE", None, "file:///config/esphome/lib_dev"
+    )
+    assert (key, kind, ref) == ("TeslaBLE", "local", None)
+    assert Path(path) == Path("/config/esphome/lib_dev")
+
+
+def test_node_key_bare_file_url_is_local_named_for_dir():
+    # Without a custom name the directory's own name becomes the key.
+    key, kind, (path, ref) = _node_key(None, None, "file:///opt/mylib")
+    assert (key, kind, ref) == ("mylib", "local", None)
+    assert Path(path) == Path("/opt/mylib")
+
+
+def test_node_key_custom_name_equals_file_url_is_local():
+    key, kind, (path, ref) = _node_key("Foo=file:///opt/mylib", None, None)
+    assert (key, kind, ref) == ("Foo", "local", None)
+    assert Path(path) == Path("/opt/mylib")
+
+
+def test_node_key_file_url_localhost_host_is_local():
+    # A localhost host is ignored; only the path identifies the directory.
+    key, kind, (path, ref) = _node_key(None, None, "file://localhost/opt/mylib")
+    assert (key, kind, ref) == ("mylib", "local", None)
+    assert Path(path) == Path("/opt/mylib")
+
+
+def test_node_key_git_plus_file_url_stays_git():
+    # git+file:// is an explicit local git repo, not a plain directory.
+    _key, kind, locator = _node_key("X", None, "git+file:///srv/foo.git")
+    assert kind == "git"
+    assert locator == ("file:///srv/foo.git", None)
 
 
 @pytest.mark.parametrize("name", ["http://[::1", "CustomName=http://[::1"])
@@ -550,25 +584,25 @@ def test_node_key_malformed_url_in_name_raises(name: str) -> None:
 
 
 def test_node_key_name_with_equals_but_no_url_is_registry():
-    key, is_git, locator = _node_key("FOO=BAR", "1.0", None)
-    assert (key, is_git, locator) == ("FOO=BAR", False, (None, "FOO=BAR"))
+    key, kind, locator = _node_key("FOO=BAR", "1.0", None)
+    assert (key, kind, locator) == ("FOO=BAR", "registry", (None, "FOO=BAR"))
 
 
 def test_node_key_version_url_still_ignored_when_name_plain():
     # A version that is a URL is handled by the dependency walk, not here;
     # a plain name must stay a registry spec regardless of version shape.
-    key, is_git, _locator = _node_key("bar", "https://github.com/foo/bar", None)
-    assert (key, is_git) == ("bar", False)
+    key, kind, _locator = _node_key("bar", "https://github.com/foo/bar", None)
+    assert (key, kind) == ("bar", "registry")
 
 
 def test_node_key_registry_owner_name():
-    key, is_git, locator = _node_key("foo/bar", "^1.0.0", None)
-    assert (key, is_git, locator) == ("foo/bar", False, ("foo", "bar"))
+    key, kind, locator = _node_key("foo/bar", "^1.0.0", None)
+    assert (key, kind, locator) == ("foo/bar", "registry", ("foo", "bar"))
 
 
 def test_node_key_registry_bare_name():
-    key, is_git, locator = _node_key("bar", "1.0", None)
-    assert (key, is_git, locator) == ("bar", False, (None, "bar"))
+    key, kind, locator = _node_key("bar", "1.0", None)
+    assert (key, kind, locator) == ("bar", "registry", (None, "bar"))
 
 
 def test_normalize_dependencies_none():

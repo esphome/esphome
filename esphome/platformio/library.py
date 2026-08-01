@@ -619,71 +619,67 @@ def _url_or_none(value: Any) -> str | None:
     return value if parsed.scheme and parsed.netloc else None
 
 
-def _local_dir_or_none(
-    name: str | None, repository: str | None
-) -> tuple[str, str] | None:
-    """Return ``(key, path)`` if the spec points at a local directory, else None.
-
-    A plain ``file://`` URL is PlatformIO's spelling for an on-disk library
-    folder, so route it to :class:`LocalSource`. ``git+file://`` is left for
-    :func:`_node_key` to handle as a git source. The custom name from a
-    ``Name=file://...`` entry becomes the component key; a bare ``file://...``
-    falls back to the directory's own name.
-    """
-    spec = repository
-    key_name = name
-    if spec is None and name and "://" in name:
-        if "=" in name and _url_or_none(name) is None:
-            key_name, spec = name.split("=", 1)
-        else:
-            key_name, spec = None, name
-    if not isinstance(spec, str) or spec.startswith("git+"):
-        return None
-    parsed = urlsplit(spec)
-    if parsed.scheme != "file":
-        return None
-    path = url2pathname(
-        f"//{parsed.netloc}{parsed.path}" if parsed.netloc else parsed.path
-    )
-    return key_name or Path(path).name, path
-
-
 def _node_key(
     name: str | None, version: str | None, repository: str | None
-) -> tuple[str, bool, tuple[str | None, str | None]]:
-    """Return ``(key, is_git, locator)`` for a library or dependency spec.
+) -> tuple[str, str, tuple[str | None, str | None]]:
+    """Return ``(key, kind, locator)`` for a library or dependency spec.
 
-    The key is derived from the *input* spec (the registry name as written, or
-    the git URL path), not the resolved canonical name. So a package referenced
-    inconsistently -- bare ``name`` vs ``owner/name``, or git vs registry -- maps
-    to distinct keys and isn't deduplicated; ``convert_libraries`` warns about
-    that after resolution rather than merging the nodes.
+    ``kind`` is one of:
 
-    PlatformIO's Library Manager also accepted a git URL in the *name*
-    position (``add_library("https://github.com/x/y", None)``), including the
-    ``git+`` VCS prefix and the ``CustomName=URL`` form; recognize those here
-    so such specs resolve as git sources instead of failing a registry lookup.
+    - ``"registry"`` -- ``locator`` is ``(owner, pkgname)``.
+    - ``"git"`` -- ``locator`` is ``(url, ref)``.
+    - ``"local"`` -- a ``file://`` directory; ``locator`` is ``(path, None)``.
+
+    The key is derived from the *input* spec (the registry name as written, the
+    git URL path, or the custom name / directory name for a local folder), not
+    the resolved canonical name. So a package referenced inconsistently -- bare
+    ``name`` vs ``owner/name``, or git vs registry -- maps to distinct keys and
+    isn't deduplicated; ``convert_libraries`` warns about that after resolution
+    rather than merging the nodes.
+
+    PlatformIO's Library Manager also accepted a URL in the *name* position
+    (``add_library("https://github.com/x/y", None)``), including the ``git+``
+    VCS prefix and the ``CustomName=URL`` form; recognize those here so such
+    specs resolve as git (or local) sources instead of failing a registry
+    lookup. A plain ``file://`` URL is PlatformIO's spelling for a local library
+    folder, so it resolves as a local directory; ``git+file://`` stays a git
+    source.
     """
     if not repository and name and "://" in name:
-        # Try the whole name first so a bare URL whose query contains ``=``
-        # stays intact; fall back to the ``CustomName=URL`` form, where the
-        # key derives from the URL path and the custom name is irrelevant.
-        repository = _url_or_none(name) or _url_or_none(name.split("=", 1)[-1])
-        if repository is None:
+        # Split a ``CustomName=URL`` name, but only when the whole string isn't
+        # itself a valid URL (a bare URL whose query contains ``=`` must stay
+        # intact).
+        custom_name, candidate = None, name
+        if "=" in name and _url_or_none(name) is None:
+            custom_name, candidate = name.split("=", 1)
+        try:
+            scheme = urlsplit(candidate).scheme
+        except ValueError:
+            scheme = ""
+        if scheme == "file" or _url_or_none(candidate):
+            name, repository = custom_name, candidate
+        else:
             # Anything with ``://`` was meant to be a URL; failing it fast
             # beats a confusing registry "package not found" error.
             raise RuntimeError(f"Invalid PIO library URL: {name}")
     if repository:
+        is_git_prefixed = repository.startswith("git+")
         split_result = urlsplit(repository.removeprefix("git+"))
+        if split_result.scheme == "file" and not is_git_prefixed:
+            # A plain file:// URL points at a local library directory. Only the
+            # path is used; a "localhost" (or empty) host is ignored, matching
+            # how a local file URL is normally written (file:///path).
+            path = url2pathname(split_result.path)
+            return (name or Path(path).name), "local", (path, None)
         key = str(split_result.path).strip("/").removesuffix(".git")
         ref = split_result.fragment.strip() or None
         url = urlunsplit(split_result._replace(fragment=""))
-        return key, True, (url, ref)
+        return key, "git", (url, ref)
     if name and "/" in name:
         owner, pkgname = name.split("/", 1)
     else:
         owner, pkgname = None, name
-    return name, False, (owner, pkgname)
+    return name, "registry", (owner, pkgname)
 
 
 def convert_libraries(
@@ -732,19 +728,15 @@ def convert_libraries(
         return name.split("/")[-1].lower() in lib_ignore
 
     def add_spec(name: str | None, version: str | None, repository: str | None) -> str:
-        if (local := _local_dir_or_none(name, repository)) is not None:
-            key, path = local
-            node = nodes.get(key) or _LibNode(key=key, is_git=False)
-            node.is_local = True
-            node.local_path = path
-            nodes[key] = node
-            return key
-        key, is_git, locator = _node_key(name, version, repository)
-        node = nodes.get(key) or _LibNode(key=key, is_git=is_git)
+        key, kind, locator = _node_key(name, version, repository)
+        node = nodes.get(key) or _LibNode(key=key, is_git=kind == "git")
         nodes[key] = node
-        if is_git:
+        if kind == "git":
             node.is_git = True
             node.url, node.ref = locator
+        elif kind == "local":
+            node.is_local = True
+            node.local_path = locator[0]
         else:
             node.owner, node.pkgname = locator
             if version:

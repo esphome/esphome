@@ -20,7 +20,6 @@ from esphome.platformio.library import (
     LocalSource,
     Source,
     URLSource,
-    _local_dir_or_none,
     _mirror_local_dir,
     _resolve_registry_version,
     check_library_data,
@@ -90,27 +89,6 @@ def test_gitsource_str_includes_ref_when_present():
     assert str(GitSource("http://git/repo.git", None)) == "http://git/repo.git"
 
 
-def test_local_dir_or_none_classifies_file_url() -> None:
-    # A plain file:// entry (the PlatformIO spelling for a local library folder)
-    # is a local directory; the custom name becomes the component key.
-    assert _local_dir_or_none("TeslaBLE", "file:///config/esphome/lib_dev") == (
-        "TeslaBLE",
-        "/config/esphome/lib_dev",
-    )
-    # A bare file:// in the name position falls back to the directory name.
-    assert _local_dir_or_none("file:///opt/mylib", None) == ("mylib", "/opt/mylib")
-    # "Name=file://..." in the name position keeps the custom name.
-    assert _local_dir_or_none("Foo=file:///opt/mylib", None) == ("Foo", "/opt/mylib")
-
-
-def test_local_dir_or_none_rejects_non_local() -> None:
-    # git+file:// is an explicit local git repo -- left to the git source path.
-    assert _local_dir_or_none("X", "git+file:///srv/foo.git") is None
-    # https and registry names are not local directories.
-    assert _local_dir_or_none("X", "https://github.com/a/b") is None
-    assert _local_dir_or_none("esphome/AsyncTCP", None) is None
-
-
 def test_mirror_local_dir_syncs_source(tmp_path: Path) -> None:
     src = tmp_path / "src_lib"
     (src / "src").mkdir(parents=True)
@@ -150,6 +128,10 @@ def test_mirror_local_dir_removes_stale_but_keeps_generated(tmp_path: Path) -> N
 def test_localsource_download_missing_dir_raises(tmp_path: Path) -> None:
     with pytest.raises(InvalidLibrary, match="does not exist"):
         LocalSource(str(tmp_path / "nope")).download("mylib")
+
+
+def test_localsource_str() -> None:
+    assert str(LocalSource("/tmp/lib")) == "file:///tmp/lib"
 
 
 def test_urlsource_download_extracts_then_reuses_marker(setup_core, monkeypatch):
@@ -398,7 +380,9 @@ def test_convert_libraries_file_url_resolves_as_local(
 
     monkeypatch.setattr(lib, "_resolve_registry_version", fail_registry)
 
-    top = convert_libraries([Library("TeslaBLE", None, f"file://{src}")], _backend())
+    # as_uri() produces a valid file:// URL on every platform (file:///tmp/... on
+    # POSIX, file:///C:/... on Windows).
+    top = convert_libraries([Library("TeslaBLE", None, src.as_uri())], _backend())
 
     assert [c.name for c in top] == ["TeslaBLE"]
     assert top[0].data["name"] == "TeslaBLE"
@@ -406,6 +390,36 @@ def test_convert_libraries_file_url_resolves_as_local(
     # The manifest and sources were mirrored into the cache, not read in place.
     assert top[0].path != src
     assert (top[0].path / "src" / "tesla.cpp").is_file()
+
+
+def test_convert_libraries_local_overrides_registry_version(
+    setup_core: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # The same library requested both from the registry (with a version) and as
+    # a local directory resolves to the local source, with a warning that the
+    # registry version was dropped.
+    src = setup_core / "lib_dev"
+    (src / "src").mkdir(parents=True)
+    (src / "library.json").write_text(json.dumps({"name": "TeslaBLE"}))
+
+    def fail_registry(owner: str, pkgname: str, requirements: set[str]) -> None:
+        raise AssertionError(f"registry consulted for {owner}/{pkgname}")
+
+    monkeypatch.setattr(lib, "_resolve_registry_version", fail_registry)
+
+    with caplog.at_level(logging.WARNING, logger="esphome.platformio.library"):
+        top = convert_libraries(
+            [
+                Library("TeslaBLE", "1.0.0", None),
+                Library("TeslaBLE", None, src.as_uri()),
+            ],
+            _backend(),
+        )
+
+    assert isinstance(top[0].source, LocalSource)
+    assert "local source" in caplog.text
 
 
 def test_convert_libraries_skips_incompatible_dependency(tmp_path, monkeypatch):
