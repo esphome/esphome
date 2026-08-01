@@ -135,8 +135,6 @@ struct ModbusDeviceCommand {
   // fairness within a class. Meant to wrap.
   uint16_t seq{0};
 
-  ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, const uint8_t *src, uint16_t len)
-      : device(device), frame(address, src, len) {}
   // Build a command from a PDU span (caller bounds it to MAX_PDU_SIZE); fully initialized here.
   ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, std::span<const uint8_t> pdu,
                       bool continuous = false, uint16_t seq = 0)
