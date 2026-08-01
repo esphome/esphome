@@ -355,6 +355,14 @@ using ResponseStatus = std::optional<ExceptionCode>;
 /// clear_tx_queue_for_device() drops the caller's own frames silently; a continuous poll's cycles are
 /// its own accounting (a one-shot duplicate downgrades the poll to a one-shot; a continuous duplicate
 /// merges into it).
+///
+/// Invariants:
+/// - Public entry points (send_pdu/clear_tx_queue_*) only append to the queue or mutate an existing
+///   entry through its callback-free transition methods.
+/// - Public entry points can never trigger a callback synchronously.
+/// - Callbacks are delivered only from within loop().
+/// - At most one callback is ever issued between calls to sweep_():
+///     sweep_ -> parse (response OR error) OR timeout (no_response) -> sweep_ -> send (sent) -> sweep_ (next loop)
 class ModbusClientDevice {
  public:
   ModbusClientDevice() = default;
