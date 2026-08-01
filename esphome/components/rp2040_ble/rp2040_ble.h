@@ -29,7 +29,10 @@ struct BLEScanReport {
   int8_t rssi;     // signed dBm
   uint8_t addr_type;
   uint8_t data_len;  // bytes valid in data[]
-  uint8_t data[62];  // legacy advertisement (31); sized for a future merged scan response
+  // Legacy advertisement (31) + scan response (31): passive scans fill at most
+  // 31 bytes today, but bluetooth_proxy support will flip to active scanning
+  // in a future PR and the API raw-advertisement contract carries 62.
+  uint8_t data[62];
 
   // EventPool contract: nothing is heap-allocated inside a report.
   void release() {}
@@ -48,8 +51,10 @@ class BLEScanListener {
   ~BLEScanListener() = default;  // deletion via this interface is not part of the contract
 };
 
-// Maximum reports buffered between the packet handler and loop().
-static constexpr uint8_t MAX_SCAN_REPORT_QUEUE_SIZE = 64;
+// Maximum reports buffered between the packet handler and loop(). The producer
+// is a same-core IRQ and loop() drains the ring every iteration, so only the
+// advertisements of a single loop period can accumulate.
+static constexpr uint8_t MAX_SCAN_REPORT_QUEUE_SIZE = 32;
 
 class RP2040BLE final : public Component {
  public:
@@ -64,10 +69,10 @@ class RP2040BLE final : public Component {
 
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
 
-  /// Controller BLE address, least-significant octet first (BLE convention).
-  /// All zeros until the stack reports ACTIVE (BTstack reads the address from
-  /// the controller during power-up).
-  void get_mac_lsb_first(uint8_t out[6]) const;
+  /// Controller BLE address in printable (MSB-first) order, as
+  /// gap_local_bd_addr() delivers it. All zeros until the stack reports ACTIVE
+  /// (BTstack reads the address from the controller during power-up).
+  void get_mac(uint8_t out[6]) const;
 
   /// Register a consumer for scan reports (delivered on the main loop via loop()).
   void register_scan_listener(BLEScanListener *listener) { this->scan_listeners_.push_back(listener); }
@@ -86,7 +91,6 @@ class RP2040BLE final : public Component {
   /// IRQ — bounded copy into the lock-free queue, nothing else).
   void enqueue_scan_report_(const uint8_t *mac_lsb_first, int8_t rssi, uint8_t addr_type, const uint8_t *data,
                             uint16_t data_len);
-  void resolve_mac_();
 
   std::vector<BLEScanListener *> scan_listeners_;
   // Report ring: the BTstack packet handler (async-context IRQ) allocates a
@@ -101,12 +105,11 @@ class RP2040BLE final : public Component {
   btstack_packet_callback_registration_t hci_event_callback_registration_{};
   btstack_packet_callback_registration_t sm_event_callback_registration_{};
 
-  uint8_t ble_mac_[6]{0};  // LSB-first (BLE convention); zeros until ACTIVE
+  uint8_t ble_mac_[6]{0};  // printable (MSB-first) order; zeros until ACTIVE
   BLEComponentState state_{BLEComponentState::STATE_OFF};
   bool enable_on_boot_{true};
   bool btstack_initialized_{false};
   bool active_logged_{false};
-  bool scanning_{false};
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)

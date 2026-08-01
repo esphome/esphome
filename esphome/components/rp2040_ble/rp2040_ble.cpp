@@ -63,7 +63,6 @@ void RP2040BLE::disable() {
   ESP_LOGD(TAG, "Disabling BLE...");
   this->state_ = BLEComponentState::DISABLING;
 
-  this->scanning_ = false;  // powering off implicitly stops the scan
   hci_power_control(HCI_POWER_OFF);
 
   this->state_ = BLEComponentState::DISABLED;
@@ -74,9 +73,8 @@ void RP2040BLE::loop() {
   if (this->state_ == BLEComponentState::ACTIVE && !this->active_logged_) {
     this->active_logged_ = true;
     // The controller address becomes readable once HCI reaches WORKING.
-    this->resolve_mac_();
-    ESP_LOGI(TAG, "BLE active (MAC %02X:%02X:%02X:%02X:%02X:%02X)", this->ble_mac_[5], this->ble_mac_[4],
-             this->ble_mac_[3], this->ble_mac_[2], this->ble_mac_[1], this->ble_mac_[0]);
+    gap_local_bd_addr(this->ble_mac_);
+    ESP_LOGI(TAG, "BLE active (MAC %s)", bd_addr_to_str(this->ble_mac_));
   }
 
   // Drain the lock-free ring filled by the BTstack packet handler; all
@@ -183,14 +181,7 @@ void RP2040BLE::enqueue_scan_report_(const uint8_t *mac_lsb_first, int8_t rssi, 
 }
 // NOLINTEND(clang-analyzer-unix.Malloc)
 
-void RP2040BLE::resolve_mac_() {
-  bd_addr_t addr;  // gap_local_bd_addr returns printable (MSB-first) order
-  gap_local_bd_addr(addr);
-  for (int i = 0; i < 6; i++)
-    this->ble_mac_[i] = addr[5 - i];  // store LSB-first
-}
-
-void RP2040BLE::get_mac_lsb_first(uint8_t out[6]) const { memcpy(out, this->ble_mac_, 6); }
+void RP2040BLE::get_mac(uint8_t out[6]) const { memcpy(out, this->ble_mac_, 6); }
 
 bool RP2040BLE::scan_start(uint16_t interval, uint16_t window) {
   if (!this->is_active()) {
@@ -207,15 +198,10 @@ bool RP2040BLE::scan_start(uint16_t interval, uint16_t window) {
   BluetoothLock lock;
   gap_set_scan_params(0 /* passive */, interval, window, 0 /* accept all */);
   gap_start_scan();
-  this->scanning_ = true;
   return true;
 }
 
 void RP2040BLE::scan_stop() {
-  if (!this->scanning_) {
-    return;
-  }
-  this->scanning_ = false;
   BluetoothLock lock;
   gap_stop_scan();
 }
