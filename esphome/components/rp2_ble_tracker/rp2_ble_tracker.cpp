@@ -5,7 +5,6 @@
 #include <cinttypes>
 
 #include "esphome/core/application.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome::rp2_ble_tracker {
@@ -163,8 +162,9 @@ void RP2BLETracker::start_scan_() {
   // period counts from the scan, not from boot) and every restart after a stop (so
   // resuming after longer than scan_duration, e.g. a failed OTA restoring continuous
   // mode 10 minutes later, does not fire on_scan_end before an advertisement can
-  // arrive).
-  this->scan_period_start_ = millis();
+  // arrive). Same clock as loop()'s `now`: a fresh millis() here would be ahead of
+  // the cached loop time and make the same-iteration period check underflow.
+  this->scan_period_start_ = App.get_loop_component_start_time();
 }
 
 void RP2BLETracker::stop_scan_() {
@@ -174,7 +174,8 @@ void RP2BLETracker::stop_scan_() {
   this->scan_running_ = false;
   ESP_LOGD(TAG, "Scan stopped");
   this->fire_scan_end_();
-  this->scan_period_start_ = millis();  // reset period clock so on_scan_end does not double-fire
+  // Reset the period clock so on_scan_end does not double-fire; same clock as loop().
+  this->scan_period_start_ = App.get_loop_component_start_time();
   if (!this->scan_continuous_) {
     // Nothing left to time; start_scan() re-enables the loop.
     this->disable_loop();
