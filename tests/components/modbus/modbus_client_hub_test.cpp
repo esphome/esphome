@@ -637,7 +637,7 @@ TEST(ModbusClientHubPriority, RetriedWriteKeepsWritePriorityAndStaysNonRequeueab
   ASSERT_EQ(hub.queued_frames(), 1u);  // still not queued twice...
   EXPECT_EQ(hub.queued(0).priority(), CommandPriority::WRITE);
   hub.sweep_for_test();
-  EXPECT_EQ(hub.queued(0).pending, 1u);  // ...and the duplicate bled off at the sweep
+  EXPECT_EQ(hub.queued(0).pending, 1u);  // ...the duplicate was refused at the door (write cap is 1)
 }
 
 namespace {
@@ -1150,7 +1150,7 @@ class ResendOnNotSentDevice : public ModbusClientDevice {
   void on_not_sent(std::span<const uint8_t> request_pdu) override {
     this->not_sent_count_++;
     if (this->not_sent_count_ == 1) {
-      const uint8_t again[] = {0x06, 0x00, 0x40, 0x00, 0x01};  // a write: priority-inserts at the front
+      const uint8_t again[] = {0x06, 0x00, 0x40, 0x00, 0x01};  // a write: ranked first at selection, not by position
       this->send_pdu(again);
     }
   }
@@ -1203,8 +1203,9 @@ TEST(ModbusClientHubQueue, ClearAddressReentrantResendNotSwept) {
 }
 
 namespace {
-// Re-sends its own frame from EVERY on_not_sent: the re-send is absorbed back into the same entry,
-// which without the per-sweep bleed marker would put the sweep in an endless serve/absorb cycle.
+// Re-sends its own frame from EVERY on_not_sent. There is no serve/absorb treadmill: a duplicate at
+// the servable cap is refused at the door, and a re-send issued while the entry is retiring queues a
+// fresh entry beyond the sweep's captured work_set (served next sweep), never re-absorbing the one draining.
 class AlwaysResendDevice : public ModbusClientDevice {
  public:
   AlwaysResendDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
@@ -1313,8 +1314,8 @@ TEST(ModbusClientHubQueue, SelfClearFromNotSentResolvesEveryRequest) {
   EXPECT_EQ(hub.entries(), 0u);
 }
 
-// The suppression must not over-reach: a clear issued from inside on_not_sent() still delivers
-// its victims' notifications in the same sweep (only repeat refusals to one device are silenced).
+// A clear issued from inside on_not_sent() still delivers its victims' notifications in the same sweep:
+// the newly-retired entries set sweep_needed_ and the sweep's restart loop drains them before it ends.
 TEST(ModbusClientHubQueue, NestedClearFromNotSentStillNotifiesVictims) {
   NoResponseProbeHub hub;
   ClearOtherOnNotSentDevice clearer(&hub, 0x02);
