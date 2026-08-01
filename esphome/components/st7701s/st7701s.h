@@ -26,9 +26,9 @@ const uint8_t CMD2_BKSEL = 0xFF;
 const uint8_t CMD2_BK0[5] = {0x77, 0x01, 0x00, 0x00, 0x10};
 const uint8_t ST7701S_DELAY_FLAG = 0xFF;
 
-class ST7701S : public display::Display,
-                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                      spi::DATA_RATE_1MHZ> {
+class ST7701S final : public display::Display,
+                      public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+                                            spi::DATA_RATE_1MHZ> {
  public:
   void update() override { this->do_update_(); }
   void setup() override;

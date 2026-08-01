@@ -5,7 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_PIN
 
 CODEOWNERS = ["@jesserockz"]
-DEPENDENCIES = ["rp2040"]
+DEPENDENCIES = ["rp2"]
 
 
 rp2040_pwm_ns = cg.esphome_ns.namespace("rp2040_pwm")

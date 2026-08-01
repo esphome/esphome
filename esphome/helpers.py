@@ -124,14 +124,8 @@ def slugify(value: str) -> str:
 def friendly_name_slugify(value: str) -> str:
     """Convert a friendly name to a slug with dashes instead of underscores.
 
-    Used by:
-    - esphome.dashboard.web_server (legacy dashboard)
-    - device-builder (esphome/device-builder) — slugifies friendly names
-      into the YAML filename / device name during adoption + wizard flows.
-
-    Lives here rather than in ``esphome.dashboard.util.text`` so it
-    survives the legacy dashboard's eventual removal.
-    The dashboard module re-exports this name as a back-compat shim.
+    Used by device-builder (esphome/device-builder), which slugifies friendly
+    names into the YAML filename / device name during adoption + wizard flows.
     Coordinate with the device-builder team before changing the
     slugification rules — the mapping must stay stable so existing
     on-disk filenames keep matching across releases.
@@ -152,6 +146,21 @@ def indent_list(text, padding="  "):
 
 def indent(text, padding="  "):
     return "\n".join(indent_list(text, padding))
+
+
+def format_duration(seconds: float) -> str:
+    """Format a duration in seconds as a short string like "1d 2h" or "42s".
+
+    Uses the two largest non-zero units, with unit suffixes matching the YAML
+    time period shorthand (d, h, min, s).
+    """
+    remainder = max(0, int(seconds))
+    parts = []
+    for suffix, length in (("d", 86400), ("h", 3600), ("min", 60), ("s", 1)):
+        value, remainder = divmod(remainder, length)
+        if value:
+            parts.append(f"{value}{suffix}")
+    return " ".join(parts[:2]) if parts else "0s"
 
 
 # From https://stackoverflow.com/a/14945195/8924614
@@ -403,17 +412,13 @@ def rmtree(path: Path | str) -> None:
     read-only flag and retrying.
     """
 
-    def _onerror(func, path, exc_info):
+    def _onexc(func, path, exc):
         if os.access(path, os.W_OK):
-            raise exc_info[1].with_traceback(exc_info[2])
+            raise exc
         Path(path).chmod(stat.S_IWUSR | stat.S_IRUSR)
         func(path)
 
-    # ``onerror`` is deprecated in 3.12 in favour of ``onexc`` (different
-    # callable signature); keep the existing handler shape for now and
-    # silence the lint locally so this PR doesn't bundle an unrelated
-    # migration.
-    shutil.rmtree(path, onerror=_onerror)  # pylint: disable=deprecated-argument
+    shutil.rmtree(path, onexc=_onexc)
 
 
 def walk_files(path: Path):

@@ -30,7 +30,7 @@ struct LedParams {
   rmt_symbol_word_t reset;
 };
 
-class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
+class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
  public:
   void setup() override;
   void write_state(light::LightState *state) override;
