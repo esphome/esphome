@@ -77,7 +77,12 @@ bool AS7341::read_channels(uint8_t smux_step, ChannelValuesUint16 &values, Gain 
     ESP_LOGVV(TAG, "AS7341 affected by analog or digital saturation. Readings are not reliable.");
   }
 
+  // The data registers hold the low byte first, but read_bytes_16() converts from big endian,
+  // so every word needs swapping back.
   bool ret = this->i2c_device_->read_bytes_16(AS7341_DATA_0, raw.data(), ADC_CHANNELS);
+  for (auto &value : raw) {
+    value = this->swap_bytes_(value);
+  }
   if (smux_step == 0) {
     values[0] = raw[0];
     values[1] = raw[1];

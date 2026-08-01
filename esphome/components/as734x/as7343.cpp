@@ -164,7 +164,12 @@ bool AS7343::read_channels(uint8_t /*step*/, ChannelValuesUint16 &values, Gain &
     ESP_LOGVV(TAG, "AS7343 affected by analog or digital saturation. Readings are not reliable.");
   }
 
+  // The data registers hold the low byte first, but read_bytes_16() converts from big endian,
+  // so every word needs swapping back.
   auto ret = this->i2c_device_->read_bytes_16(AS7343_DATA_0, data.data(), AS7343_NUM_CHANNELS_MAX);
+  for (auto &value : data) {
+    value = this->swap_bytes_(value);
+  }
 
   for (uint8_t i = 0; i < NUM_CHANNELS; i++) {
     values[i] = data[SMUX_CHANNEL_MAP[i]];
