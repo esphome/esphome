@@ -140,6 +140,13 @@ class ZephyrVariant:
     # between tx/rx (e.g. original ESP32's GPIO34-39 are RX-only). Empty = no
     # GPIO-matrix UART pin override wired up.
     uart_valid_pins: dict[str, frozenset[int]] = field(default_factory=dict)
+    # Devicetree node labels backing the `logger: hardware_uart: UART0`/`UART1` symbolic
+    # selections. ESP32-family and nRF52 boards both label their two console-capable UARTs
+    # uart0/uart1, so that's the default; nRF54 series numbers peripheral instances instead
+    # (e.g. uart20/uart30 on the nrf54l15dk), so that variant overrides this map.
+    uart_node_labels: dict[str, str] = field(
+        default_factory=lambda: {"UART0": "uart0", "UART1": "uart1"}
+    )
 
 
 def resolve_sdk(
@@ -351,6 +358,7 @@ _VARIANT_MODULES = [
     "esp32_c6",
     "native_sim",
     "nrf52",
+    "nrf54l15",
 ]
 
 
