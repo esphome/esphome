@@ -69,7 +69,7 @@ class RP2BLETracker : public Component,
   }
   // The controller stores the address in printable (MSB-first) order, which is
   // exactly what the contract wants.
-  void get_adapter_mac(uint8_t out[6]) override { this->parent_->get_mac(out); }
+  void get_adapter_mac(uint8_t out[6]) override { this->parent_->get_mac_msb_first(out); }
   bool scan_running() override { return this->scan_running_; }
   bool scan_active() override { return false; }  // passive-only (initial implementation)
 
