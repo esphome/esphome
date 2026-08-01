@@ -206,40 +206,61 @@ bool AS734xBase::enable_smux() {
   return this->set_register_bit_(this->registers().ENABLE, this->registers().ENABLE_SMUX_EN_BIT);
 }
 
+// A failed read is reported as still busy, so the caller waits and eventually times out rather
+// than moving on as if the SMUX had settled.
 bool AS734xBase::is_smux_busy() {
-  return this->read_register_bit_(this->registers().ENABLE, this->registers().ENABLE_SMUX_EN_BIT);
+  bool busy = true;
+  this->read_register_bit_(this->registers().ENABLE, this->registers().ENABLE_SMUX_EN_BIT, busy);
+  return busy;
 }
 
+// A failed read is reported as not ready, for the same reason.
 bool AS734xBase::is_data_ready() {
-  return this->read_register_bit_(this->registers().STATUS2, this->registers().STATUS2_AVALID_BIT);
+  bool ready = false;
+  this->read_register_bit_(this->registers().STATUS2, this->registers().STATUS2_AVALID_BIT, ready);
+  return ready;
 }
 
-void AS734xBase::set_bank_(bool low) {
+bool AS734xBase::set_bank_(bool low) {
   if (low == this->bank_low_) {
-    return;
+    return true;
   }
+  // The flag is updated before the write, because CFG0 sits outside the low bank and going through
+  // the bank-aware bit helpers would call set_bank_for_reg_() again and recurse without end. If the
+  // transfer fails the flag is put back, so the cache never claims a bank the chip is not in.
   this->bank_low_ = low;
 
-  // CFG0 is written directly here. Going through the bank-aware bit helpers would call
-  // set_bank_for_reg_() again and recurse without end, since CFG0 itself sits outside the low bank.
   const uint8_t mask = 1 << this->registers().CFG0_REG_BANK_BIT;
   uint8_t data{0};
-  this->i2c_device_->read_byte(this->registers().CFG0, &data);
+  if (!this->i2c_device_->read_byte(this->registers().CFG0, &data)) {
+    this->bank_low_ = !low;
+    ESP_LOGW(TAG, "Could not read CFG0, register bank left unchanged");
+    return false;
+  }
   data = low ? (data | mask) : (data & ~mask);
-  this->i2c_device_->write_byte(this->registers().CFG0, data);
+  if (!this->i2c_device_->write_byte(this->registers().CFG0, data)) {
+    this->bank_low_ = !low;
+    ESP_LOGW(TAG, "Could not write CFG0, register bank left unchanged");
+    return false;
+  }
+  return true;
 }
 
-void AS734xBase::set_bank_for_reg_(uint8_t reg) {
-  this->set_bank_(reg >= this->registers().BANK_LOW_MIN && reg <= this->registers().BANK_LOW_MAX);
+bool AS734xBase::set_bank_for_reg_(uint8_t reg) {
+  return this->set_bank_(reg >= this->registers().BANK_LOW_MIN && reg <= this->registers().BANK_LOW_MAX);
 }
 
-bool AS734xBase::read_register_bit_(uint8_t address, uint8_t bit_position) {
-  this->set_bank_for_reg_(address);
-
+bool AS734xBase::read_register_bit_(uint8_t address, uint8_t bit_position, bool &bit_value) {
+  if (!this->set_bank_for_reg_(address)) {
+    return false;
+  }
   uint8_t data{0};
-  this->i2c_device_->read_byte(address, &data);
-  bool bit = (data & (1 << bit_position)) > 0;
-  return bit;
+  if (!this->i2c_device_->read_byte(address, &data)) {
+    ESP_LOGW(TAG, "Read of register 0x%02X failed", address);
+    return false;
+  }
+  bit_value = (data & (1 << bit_position)) != 0;
+  return true;
 }
 
 bool AS734xBase::write_register_bit_(uint8_t address, bool value, uint8_t bit_position) {
@@ -247,18 +268,26 @@ bool AS734xBase::write_register_bit_(uint8_t address, bool value, uint8_t bit_po
 }
 
 bool AS734xBase::set_register_bit_(uint8_t address, uint8_t bit_position) {
-  this->set_bank_for_reg_(address);
-  uint8_t data{0};
-  this->i2c_device_->read_byte(address, &data);
-  data |= (1 << bit_position);
-  return this->i2c_device_->write_byte(address, data);
+  return this->update_register_bit_(address, bit_position, true);
 }
 
 bool AS734xBase::clear_register_bit_(uint8_t address, uint8_t bit_position) {
-  this->set_bank_for_reg_(address);
+  return this->update_register_bit_(address, bit_position, false);
+}
+
+// A failed read must not be followed by a write: the value would be built from a zeroed byte and
+// would clear every other bit in the register.
+bool AS734xBase::update_register_bit_(uint8_t address, uint8_t bit_position, bool value) {
+  if (!this->set_bank_for_reg_(address)) {
+    return false;
+  }
   uint8_t data{0};
-  this->i2c_device_->read_byte(address, &data);
-  data &= ~(1 << bit_position);
+  if (!this->i2c_device_->read_byte(address, &data)) {
+    ESP_LOGW(TAG, "Read of register 0x%02X failed, not writing bit %u", address, bit_position);
+    return false;
+  }
+  const uint8_t mask = 1 << bit_position;
+  data = value ? (data | mask) : (data & ~mask);
   return this->i2c_device_->write_byte(address, data);
 }
 

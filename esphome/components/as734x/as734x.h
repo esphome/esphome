@@ -103,15 +103,19 @@ class AS734xBase {
   i2c::I2CDevice *i2c_device_ = nullptr;
   uint8_t number_of_channels_;
 
-  bool bank_low_{false};
-  void set_bank_(bool low);  // default bank = 0 (for regs 0x80+)
-  void set_bank_for_reg_(uint8_t reg);
+  bool bank_low_{false};  // default bank = 0 (for regs 0x80+)
+
+  // These all report whether the I2C transfer succeeded. bank_low_ only changes when the chip
+  // agrees, and a bit is never written on top of a failed read.
+  bool set_bank_(bool low);
+  bool set_bank_for_reg_(uint8_t reg);
 
   inline uint16_t swap_bytes_(uint16_t data) { return (data >> 8) | (data << 8); }
-  bool read_register_bit_(uint8_t address, uint8_t bit_position);
+  bool read_register_bit_(uint8_t address, uint8_t bit_position, bool &bit_value);
   bool write_register_bit_(uint8_t address, bool value, uint8_t bit_position);
   bool set_register_bit_(uint8_t address, uint8_t bit_position);
   bool clear_register_bit_(uint8_t address, uint8_t bit_position);
+  bool update_register_bit_(uint8_t address, uint8_t bit_position, bool value);
 };
 
 class AS734XComponent : public PollingComponent, public i2c::I2CDevice {

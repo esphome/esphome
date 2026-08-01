@@ -101,8 +101,9 @@ SENSORS = {
 
 
 async def to_code(config):
+    # Remove before 2027.2.0
     _LOGGER.warning(
-        "The 'as7341' component is deprecated and will be removed in a future release. "
+        "The 'as7341' component is deprecated and will be removed in 2027.2.0. "
         "Migrate to the 'as734x' platform with 'type: AS7341', which supports both the "
         "AS7341 and AS7343 sensors."
     )
