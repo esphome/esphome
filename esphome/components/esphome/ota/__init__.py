@@ -155,7 +155,11 @@ CONFIG_SCHEMA = cv.All(
             ): cv.port,
             cv.Optional(CONF_ALLOW_PARTITION_ACCESS, default=False): cv.boolean,
             cv.SplitDefault(
-                CONF_SWAP_METHOD, zephyr="scratch", zephyr_nrf52="offset"
+                CONF_SWAP_METHOD,
+                zephyr="scratch",
+                zephyr_nrf52="offset",
+                zephyr_nrf54l15="move",  # pending offset testing, then move default to "offset"
+                zephyr_nrf54lm20a="move",  # pending offset testing, then move default to "offset"
             ): cv.one_of("scratch", "move", "offset", lower=True),
             cv.Optional(CONF_PASSWORD): cv.sensitive(),
             cv.Optional(CONF_NUM_ATTEMPTS): cv.invalid(

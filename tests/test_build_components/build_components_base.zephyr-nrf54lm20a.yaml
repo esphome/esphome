@@ -4,11 +4,6 @@ esphome:
 
 zephyr:
   variant: NRF54LM20A
-  framework:
-    type: zephyr
-    source:
-      type: git
-      ref: main
 
 logger:
   level: VERY_VERBOSE
