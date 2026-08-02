@@ -1,13 +1,8 @@
 #ifdef USE_ZEPHYR
 
 #include "zephyr_pwm.h"
-#include "esphome/core/defines.h"
-#include "esphome/core/helpers.h"
-#include "esphome/core/log.h"
-#include "esphome/core/macros.h"
 
 #include <zephyr/drivers/pwm.h>
-#include <cmath>
 
 namespace esphome::zephyr_pwm {
 
@@ -31,7 +26,7 @@ void ZephyrPWMChannel::dump_config() {
 }
 void HOT ZephyrPWMChannel::write_state(float state) {
   uint32_t pulse_width_ns = state * this->period_ns_;
-  pwm_flags_t flags = this->inverted_ ? PWM_POLARITY_INVERTED : PWM_POLARITY_NORMAL;
+  pwm_flags_t flags = this->pin_inverted_ ? PWM_POLARITY_INVERTED : PWM_POLARITY_NORMAL;
   int err = pwm_set(this->device_, this->channel_, this->period_ns_, pulse_width_ns, flags);
   if (err != 0) {
     ESP_LOGE(TAG, "Failed to set PWM output: channel=%u, period=%u ns, pulse_width=%u ns, error=%d", this->channel_,

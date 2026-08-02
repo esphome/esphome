@@ -165,12 +165,12 @@ async def to_code(config):
 
     zephyr_add_overlay_builder(_overlay_pwm)
 
-    inverted = pin.get(CONF_INVERTED, False)
+    pin_inverted = pin.get(CONF_INVERTED, False)
     var = cg.new_Pvariable(
         config[CONF_ID],
         cg.RawExpression(f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL(pwm{pwm_block.id}))"),
         channel_id,
-        inverted,
+        pin_inverted,
         pwm_block.period_ns,
     )
     await cg.register_component(var, config)
