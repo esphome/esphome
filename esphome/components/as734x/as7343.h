@@ -17,6 +17,8 @@ class AS7343 : public AS734xBase {
 
   bool read_channels(uint8_t step, ChannelValuesUint16 &values, bool &saturated) override;
 
+  float get_gain_correction(uint8_t channel, Gain gain) const override;
+
  protected:
   const RegisterMap &registers() const override { return REG_MAP; }
 
@@ -24,6 +26,8 @@ class AS7343 : public AS734xBase {
   static constexpr uint8_t NUM_SMUX_STEPS = 1;
 
   static const RegisterMap REG_MAP;
+  // Gain correction differs per channel on this chip, so the table is indexed by gain then channel.
+  static const std::array<std::array<float, NUM_CHANNELS>, GAIN_COUNT> GAIN_CORRECTION;
 
   bool direct_config_3_chain_();
 };

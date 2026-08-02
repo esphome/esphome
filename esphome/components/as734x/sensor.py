@@ -2,14 +2,17 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CALIBRATION,
     CONF_CLEAR,
     CONF_COUNTS,
     CONF_GAIN,
+    CONF_GLASS_ATTENUATION_FACTOR,
     CONF_ID,
     CONF_NAME,
     CONF_TYPE,
     DEVICE_CLASS_EMPTY,
     STATE_CLASS_MEASUREMENT,
+    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -18,6 +21,11 @@ DEPENDENCIES = ["i2c"]
 
 CONF_ATIME = "atime"
 CONF_ASTEP = "astep"
+CONF_BASIC_COUNTS = "basic_counts"
+CONF_NORMALIZE_BASIC_COUNTS = "normalize_basic_counts"
+CONF_CHANNEL_CORRECTION = "channel_correction"
+CONF_DARK_CURRENT = "dark_current"
+CONF_SATURATION_LEVEL = "saturation_level"
 
 CONF_F1 = "f1"
 CONF_F2 = "f2"
@@ -34,6 +42,7 @@ CONF_NIR = "nir"
 
 UNIT_COUNTS = "#"
 ICON_COUNTS = "mdi:counter"
+ICON_SATURATION = "mdi:weather-sunny-alert"
 
 MODEL_AS7341 = "AS7341"
 MODEL_AS7343 = "AS7343"
@@ -86,6 +95,18 @@ COUNTS_SENSOR_SCHEMA = cv.maybe_simple_value(
     key=CONF_NAME,
 )
 
+# Basic counts are fractional, so they need decimals where raw counts do not.
+BASIC_COUNTS_SENSOR_SCHEMA = cv.maybe_simple_value(
+    sensor.sensor_schema(
+        unit_of_measurement=UNIT_COUNTS,
+        icon=ICON_COUNTS,
+        accuracy_decimals=6,
+        device_class=DEVICE_CLASS_EMPTY,
+        state_class=STATE_CLASS_MEASUREMENT,
+    ),
+    key=CONF_NAME,
+)
+
 # Channel order is significant: the index is used to set the sensor in C++.
 BANDS_41 = (
     CONF_F1,
@@ -122,12 +143,72 @@ COUNTS_SCHEMA_43 = cv.Schema(
     {cv.Optional(band): COUNTS_SENSOR_SCHEMA for band in BANDS_43}
 )
 
+BASIC_COUNTS_SCHEMA_41 = cv.Schema(
+    {cv.Optional(band): BASIC_COUNTS_SENSOR_SCHEMA for band in BANDS_41}
+)
+BASIC_COUNTS_SCHEMA_43 = cv.Schema(
+    {cv.Optional(band): BASIC_COUNTS_SENSOR_SCHEMA for band in BANDS_43}
+)
+
+
+def _float_list(length: int):
+    """One float per channel, so the list length has to match the model."""
+    return cv.All(cv.ensure_list(cv.float_), cv.Length(min=length, max=length))
+
+
+# Per-channel correction for the golden device, measured by the manufacturer.
+DEFAULT_CHANNEL_CORRECTION_41 = [1.0] * 10
+DEFAULT_CHANNEL_CORRECTION_43 = [
+    1.055464349,
+    1.043509797,
+    1.029576268,
+    1.0175052,
+    1.00441899,
+    0.987356499,
+    0.957597044,
+    0.995863485,
+    1.014628964,
+    0.996500814,
+    0.933072749,
+    1.052236338,
+    0.999570232,
+]
+
+
+def _calibration_schema(channels: int, default_correction: list[float]) -> cv.Schema:
+    return cv.Schema(
+        {
+            cv.Optional(
+                CONF_CHANNEL_CORRECTION, default=default_correction
+            ): _float_list(channels),
+            cv.Optional(CONF_DARK_CURRENT, default=[0.0] * channels): _float_list(
+                channels
+            ),
+            cv.Optional(CONF_GLASS_ATTENUATION_FACTOR, default=1.0): cv.positive_float,
+        }
+    )
+
+
+CALIBRATION_SCHEMA_41 = _calibration_schema(10, DEFAULT_CHANNEL_CORRECTION_41)
+CALIBRATION_SCHEMA_43 = _calibration_schema(13, DEFAULT_CHANNEL_CORRECTION_43)
+
 _COMMON_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(AS734XComponent),
             cv.Optional(CONF_ATIME, default=29): cv.int_range(min=0, max=255),
             cv.Optional(CONF_ASTEP, default=599): cv.int_range(min=0, max=65534),
+            cv.Optional(CONF_NORMALIZE_BASIC_COUNTS, default=False): cv.boolean,
+            cv.Optional(CONF_SATURATION_LEVEL): cv.maybe_simple_value(
+                sensor.sensor_schema(
+                    unit_of_measurement=UNIT_PERCENT,
+                    icon=ICON_SATURATION,
+                    accuracy_decimals=0,
+                    device_class=DEVICE_CLASS_EMPTY,
+                    state_class=STATE_CLASS_MEASUREMENT,
+                ),
+                key=CONF_NAME,
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -138,6 +219,8 @@ _AS7343_SCHEMA = _COMMON_SCHEMA.extend(
     {
         cv.Optional(CONF_GAIN, default="X8"): cv.enum(GAIN_OPTIONS_43),
         cv.Optional(CONF_COUNTS): COUNTS_SCHEMA_43,
+        cv.Optional(CONF_BASIC_COUNTS): BASIC_COUNTS_SCHEMA_43,
+        cv.Optional(CONF_CALIBRATION, default={}): CALIBRATION_SCHEMA_43,
     }
 )
 
@@ -155,6 +238,8 @@ CONFIG_SCHEMA = cv.All(
                 {
                     cv.Optional(CONF_GAIN, default="X8"): cv.enum(GAIN_OPTIONS_41),
                     cv.Optional(CONF_COUNTS): COUNTS_SCHEMA_41,
+                    cv.Optional(CONF_BASIC_COUNTS): BASIC_COUNTS_SCHEMA_41,
+                    cv.Optional(CONF_CALIBRATION, default={}): CALIBRATION_SCHEMA_41,
                 }
             ),
             MODEL_AS7343: _AS7343_SCHEMA,
@@ -182,11 +267,25 @@ async def to_code(config):
     cg.add(var.set_gain(config[CONF_GAIN]))
     cg.add(var.set_atime(config[CONF_ATIME]))
     cg.add(var.set_astep(config[CONF_ASTEP]))
+    cg.add(var.set_normalize_basic_counts(config[CONF_NORMALIZE_BASIC_COUNTS]))
+
+    calibration = config[CONF_CALIBRATION]
+    cg.add(var.set_dark_current(calibration[CONF_DARK_CURRENT]))
+    cg.add(var.set_channel_correction(calibration[CONF_CHANNEL_CORRECTION]))
+    cg.add(var.set_glass_attenuation_factor(calibration[CONF_GLASS_ATTENUATION_FACTOR]))
 
     bands = BANDS_41 if model == MODEL_AS7341 else BANDS_43
 
-    if counts_config := config.get(CONF_COUNTS):
-        for i, band in enumerate(bands):
-            if sensor_config := counts_config.get(band):
-                sens = await sensor.new_sensor(sensor_config)
-                cg.add(var.set_counts_sensor(sens, i))
+    counts_config = config.get(CONF_COUNTS)
+    basic_counts_config = config.get(CONF_BASIC_COUNTS)
+    for i, band in enumerate(bands):
+        if counts_config and (sensor_config := counts_config.get(band)):
+            sens = await sensor.new_sensor(sensor_config)
+            cg.add(var.set_counts_sensor(sens, i))
+        if basic_counts_config and (sensor_config := basic_counts_config.get(band)):
+            sens = await sensor.new_sensor(sensor_config)
+            cg.add(var.set_basic_counts_sensor(sens, i))
+
+    if saturation_config := config.get(CONF_SATURATION_LEVEL):
+        sens = await sensor.new_sensor(saturation_config)
+        cg.add(var.set_saturation_level_sensor(sens))
