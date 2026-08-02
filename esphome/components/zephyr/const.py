@@ -14,6 +14,7 @@ KEY_ZEPHYR = "zephyr"
 KEY_BOARD: Final = "board"
 KEY_USER: Final = "user"
 KEY_SYSBUILD: Final = "sysbuild"
+KEY_SYSBUILD_CONF: Final = "sysbuild_conf"
 
 zephyr_ns = cg.esphome_ns.namespace("zephyr")
 CdcAcm = zephyr_ns.class_("CdcAcm", cg.Component)
