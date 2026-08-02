@@ -58,9 +58,9 @@ bool AS7341::verify_device_id() {
   return ((id & AS7341_ID_MASK) == (AS7341_CHIP_ID << AS7341_ID_SHIFT));
 }
 
-void AS7341::write_default_config() {
-  this->set_bank_for_reg_(AS7341_CONFIG);  // CONFIG sits in the low register bank
-  this->i2c_device_->write_byte(AS7341_CONFIG, AS7341_CONFIG_INIT);
+bool AS7341::write_default_config() {
+  // CONFIG sits in the low register bank
+  return this->set_bank_for_reg_(AS7341_CONFIG) && this->i2c_device_->write_byte(AS7341_CONFIG, AS7341_CONFIG_INIT);
 }
 
 bool AS7341::prepare_for_smux_step(uint8_t step) {

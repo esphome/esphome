@@ -79,7 +79,7 @@ class AS734xBase {
   uint8_t get_number_of_channels() const { return this->number_of_channels_; }
 
   virtual bool verify_device_id() = 0;
-  virtual void write_default_config() = 0;
+  virtual bool write_default_config() = 0;
 
   bool write_gain(Gain gain);
   bool write_atime(uint8_t atime);
@@ -161,19 +161,21 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
     READY_TO_PUBLISH,
   } state_{State::NOT_INITIALIZED};
 
-  uint16_t astep_;
-  Gain gain_;
-  uint8_t atime_;
+  uint16_t astep_{0};
+  Gain gain_{GAIN_1X};
+  uint8_t atime_{0};
 
   struct {
     ChannelValuesUint16 raw_counts{};
-    Gain gain;
-    uint32_t millis_start;
-    uint8_t smux_step;
+    Gain gain{GAIN_1X};
+    uint32_t millis_start{0};
+    uint32_t timeout_ms{0};
+    uint8_t smux_step{0};
     bool first_run{true};
   } readings_;
 
   void publish_channel_readings_();
+  void abort_measurement_(const char *reason);
 };
 
 }  // namespace esphome::as734x

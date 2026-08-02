@@ -115,23 +115,24 @@ bool AS7343::verify_device_id() {
   return (id == AS7343_CHIP_ID);
 }
 
-void AS7343::write_default_config() { this->direct_config_3_chain_(); }
+bool AS7343::write_default_config() { return this->direct_config_3_chain_(); }
 
-void AS7343::direct_config_3_chain_() {
-  this->i2c_device_->write_byte(AS7343_CFG6, AS7343_CFG6_INIT);
-  this->i2c_device_->write_byte(AS7343_FD_CFG0, AS7343_FD_CFG0_INIT);
+bool AS7343::direct_config_3_chain_() {
+  bool ok = true;
+  ok = this->i2c_device_->write_byte(AS7343_CFG6, AS7343_CFG6_INIT) && ok;
+  ok = this->i2c_device_->write_byte(AS7343_FD_CFG0, AS7343_FD_CFG0_INIT) && ok;
 
-  this->set_bank_for_reg_(AS7343_CFG10);  // CFG10 sits in the low register bank
-  this->i2c_device_->write_byte(AS7343_CFG10, AS7343_CFG10_INIT);
-  this->set_bank_for_reg_(AS7343_CFG0);
+  ok = this->set_bank_for_reg_(AS7343_CFG10) && ok;  // CFG10 sits in the low register bank
+  ok = this->i2c_device_->write_byte(AS7343_CFG10, AS7343_CFG10_INIT) && ok;
+  ok = this->set_bank_for_reg_(AS7343_CFG0) && ok;
 
-  this->i2c_device_->write_byte(AS7343_CFG0, AS7343_CFG0_INIT);
-  this->i2c_device_->write_byte(AS7343_CFG1, AS7343_CFG1_INIT);
-  this->i2c_device_->write_byte(AS7343_CFG8, AS7343_CFG8_INIT);
-  this->i2c_device_->write_byte(AS7343_CFG20, AS7343_CFG20_AUTO_SMUX_3_CYCLES);
-  this->i2c_device_->write_byte(AS7343_AGC_GAIN_MAX, AS7343_AGC_GAIN_MAX_INIT);
-  this->i2c_device_->write_byte(AS7343_FD_TIME_1, AS7343_FD_TIME_1_INIT);
-  this->i2c_device_->write_byte(AS7343_FD_TIME_2, AS7343_FD_TIME_2_INIT);
+  ok = this->i2c_device_->write_byte(AS7343_CFG0, AS7343_CFG0_INIT) && ok;
+  ok = this->i2c_device_->write_byte(AS7343_CFG1, AS7343_CFG1_INIT) && ok;
+  ok = this->i2c_device_->write_byte(AS7343_CFG8, AS7343_CFG8_INIT) && ok;
+  ok = this->i2c_device_->write_byte(AS7343_CFG20, AS7343_CFG20_AUTO_SMUX_3_CYCLES) && ok;
+  ok = this->i2c_device_->write_byte(AS7343_AGC_GAIN_MAX, AS7343_AGC_GAIN_MAX_INIT) && ok;
+  ok = this->i2c_device_->write_byte(AS7343_FD_TIME_1, AS7343_FD_TIME_1_INIT) && ok;
+  ok = this->i2c_device_->write_byte(AS7343_FD_TIME_2, AS7343_FD_TIME_2_INIT) && ok;
 
   constexpr uint8_t chains = 3;
   constexpr uint8_t chain_len = 10;
@@ -142,10 +143,11 @@ void AS7343::direct_config_3_chain_() {
                                               {0x05, 0x00, 0x60, 0x00, 0x30, 0x00, 0x40, 0x10, 0x20, 0x00}};
   for (size_t chain = 0; chain < chains; chain++) {
     for (size_t i = 0; i < chain_len; i++) {
-      this->i2c_device_->write_byte(AS7343_CHAIN_SMUX, adc_map[chain][i]);
-      this->i2c_device_->write_byte(AS7343_CHAIN_CMD, smux_cmd[chain]);
+      ok = this->i2c_device_->write_byte(AS7343_CHAIN_SMUX, adc_map[chain][i]) && ok;
+      ok = this->i2c_device_->write_byte(AS7343_CHAIN_CMD, smux_cmd[chain]) && ok;
     }
   }
+  return ok;
 }
 
 bool AS7343::read_channels(uint8_t /*step*/, ChannelValuesUint16 &values, Gain &gain, bool &saturated) {

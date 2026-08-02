@@ -42,12 +42,20 @@ def test_as7341_rejects_as7343_only_bands(band: str) -> None:
         CONFIG_SCHEMA(_config(counts={band: "Band"}))
 
 
-@pytest.mark.parametrize("gain", ["X0.5", "X512", "X1024", "X2048"])
-def test_as7343_accepts_its_full_gain_range(gain: str) -> None:
+@pytest.mark.parametrize(
+    ("gain", "expected"),
+    [
+        ("X0.5", "GAIN_0_5X"),
+        ("X512", "GAIN_512X"),
+        ("X1024", "GAIN_1024X"),
+        ("X2048", "GAIN_2048X"),
+    ],
+)
+def test_as7343_accepts_its_full_gain_range(gain: str, expected: str) -> None:
     from esphome.components.as734x.sensor import CONFIG_SCHEMA
 
     config = CONFIG_SCHEMA(_config(type="AS7343", gain=gain))
-    assert config["gain"] is not None
+    assert str(config["gain"].enum_value) == f"as734x::{expected}"
 
 
 @pytest.mark.parametrize("band", ["f1", "fz", "fy", "fxl", "nir", "clear"])
@@ -58,9 +66,12 @@ def test_as7343_accepts_its_full_band_set(band: str) -> None:
     assert band in config["counts"]
 
 
-@pytest.mark.parametrize("gain", ["X0.5", "X8", "X512"])
-def test_as7341_accepts_its_own_gain_range(gain: str) -> None:
+@pytest.mark.parametrize(
+    ("gain", "expected"),
+    [("X0.5", "GAIN_0_5X"), ("X8", "GAIN_8X"), ("X512", "GAIN_512X")],
+)
+def test_as7341_accepts_its_own_gain_range(gain: str, expected: str) -> None:
     from esphome.components.as734x.sensor import CONFIG_SCHEMA
 
     config = CONFIG_SCHEMA(_config(gain=gain))
-    assert config["gain"] is not None
+    assert str(config["gain"].enum_value) == f"as734x::{expected}"

@@ -2,6 +2,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
+#include <algorithm>
+
 #ifdef USE_AS7341
 #include "as7341.h"
 #endif
@@ -14,7 +16,13 @@ namespace esphome::as734x {
 
 static const char *const TAG = "as734x";
 
-static constexpr uint32_t DATA_COLLECTION_TIMEOUT_MS = 30 * 1000;  // 30 seconds
+static constexpr uint32_t MIN_COLLECTION_TIMEOUT_MS = 30 * 1000;
+
+namespace {
+
+float integration_time_ms(uint8_t atime, uint16_t astep) { return (1.0f + atime) * (1.0f + astep) * 2.78e-3f; }
+
+}  // namespace
 
 void AS734XComponent::setup_model(Model model) {
   this->model_ = model;
@@ -56,10 +64,12 @@ void AS734XComponent::setup() {
   }
   delay(10);  // wait for power on
 
-  this->device_->write_default_config();
-  this->device_->write_atime(this->atime_);
-  this->device_->write_astep(this->astep_);
-  this->device_->write_gain(this->gain_);
+  if (!this->device_->write_default_config() || !this->device_->write_atime(this->atime_) ||
+      !this->device_->write_astep(this->astep_) || !this->device_->write_gain(this->gain_)) {
+    ESP_LOGE(TAG, "Configuration failed");
+    this->mark_failed();
+    return;
+  }
 
   this->state_ = State::IDLE;
 }
@@ -106,6 +116,11 @@ void AS734XComponent::loop() {
     case State::START_MEASUREMENT:
       ESP_LOGVV(TAG, "START_MEASUREMENT");
       this->readings_.millis_start = millis();
+      // A measurement integrates twice per SMUX step, since the first frame after a step change is
+      // discarded, so a long exposure needs a proportionally longer deadline.
+      this->readings_.timeout_ms =
+          std::max(MIN_COLLECTION_TIMEOUT_MS, static_cast<uint32_t>(4 * this->device_->get_number_of_smux_steps() *
+                                                                    integration_time_ms(this->atime_, this->astep_)));
       this->device_->write_atime(this->atime_);
       this->device_->write_astep(this->astep_);
       this->device_->write_gain(this->gain_);
@@ -127,9 +142,8 @@ void AS734XComponent::loop() {
       if (!this->device_->is_smux_busy()) {
         this->device_->enable_spectral_measurement(true);
         this->state_ = State::READ_DATA;
-      } else if (millis() - this->readings_.millis_start > DATA_COLLECTION_TIMEOUT_MS) {
-        ESP_LOGW(TAG, "SMUX configuration timeout");
-        this->state_ = State::IDLE;
+      } else if (millis() - this->readings_.millis_start > this->readings_.timeout_ms) {
+        this->abort_measurement_("SMUX configuration timeout");
       }
       break;
 
@@ -139,8 +153,7 @@ void AS734XComponent::loop() {
         bool device_saturated = false;
         if (!this->device_->read_channels(this->readings_.smux_step, this->readings_.raw_counts, this->readings_.gain,
                                           device_saturated)) {
-          ESP_LOGW(TAG, "Failed to read channel data, aborting measurement");
-          this->state_ = State::IDLE;
+          this->abort_measurement_("Failed to read channel data");
           break;
         }
         if (this->readings_.first_run) {
@@ -159,18 +172,25 @@ void AS734XComponent::loop() {
           this->readings_.first_run = true;
           this->state_ = State::CONFIGURE_SMUX;
         }
-      } else if (millis() - this->readings_.millis_start > DATA_COLLECTION_TIMEOUT_MS) {
-        ESP_LOGW(TAG, "Data collection timeout");
-        this->state_ = State::IDLE;
+      } else if (millis() - this->readings_.millis_start > this->readings_.timeout_ms) {
+        this->abort_measurement_("Data collection timeout");
       }
       break;
 
     case State::READY_TO_PUBLISH:
       ESP_LOGVV(TAG, "READY_TO_PUBLISH");
       this->publish_channel_readings_();
+      this->status_clear_warning();
       this->state_ = State::IDLE;
       break;
   }
+}
+
+void AS734XComponent::abort_measurement_(const char *reason) {
+  ESP_LOGW(TAG, "%s", reason);
+  this->device_->enable_spectral_measurement(false);
+  this->status_set_warning(reason);
+  this->state_ = State::IDLE;
 }
 
 #ifdef USE_SENSOR
