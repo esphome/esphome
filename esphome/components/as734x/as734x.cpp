@@ -1,8 +1,11 @@
 #include "as734x.h"
+#include "color_helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
 #include <algorithm>
+#include <cstdio>
+#include <cstring>
 
 #ifdef USE_AS7341
 #include "as7341.h"
@@ -209,6 +212,8 @@ void AS734XComponent::loop() {
       ESP_LOGVV(TAG, "CALCULATE");
       this->calculate_basic_counts_();
       this->calculate_saturation_level_();
+      this->calculate_light_metrics_();
+      this->calculate_color_();
       this->state_ = State::READY_TO_PUBLISH;
       break;
 
@@ -216,6 +221,7 @@ void AS734XComponent::loop() {
       ESP_LOGVV(TAG, "READY_TO_PUBLISH");
       this->publish_channel_readings_();
       this->publish_basic_counts_();
+      this->publish_light_metrics_();
       this->status_clear_warning();
       this->state_ = State::IDLE;
       this->disable_loop();
@@ -293,6 +299,68 @@ float AS734XComponent::normalization_divisor_() const {
   return divisor > 0.0f ? divisor : 1.0f;
 }
 
+// Each channel contributes a fixed amount per basic count to every integrated quantity, so the
+// totals are a weighted sum over the channels.
+void AS734XComponent::calculate_light_metrics_() {
+  float irradiance = 0.0f;
+  float irradiance_photopic = 0.0f;
+  float irradiance_par = 0.0f;
+  float ppfd = 0.0f;
+
+  for (uint8_t i = 0; i < this->device_->get_number_of_channels(); i++) {
+    const float basic_count = this->calculated_.basic_counts[i];
+    const ChannelContribution contribution = this->device_->get_channel_contribution(i);
+
+    irradiance += contribution.irradiance * basic_count;
+    irradiance_photopic += contribution.irradiance_photopic * basic_count;
+    irradiance_par += contribution.irradiance_par * basic_count;
+    ppfd += contribution.ppfd * basic_count;
+  }
+
+  this->calculated_.irradiance = irradiance;
+  this->calculated_.irradiance_photopic = irradiance_photopic;
+  this->calculated_.irradiance_par = irradiance_par;
+  this->calculated_.ppfd = ppfd * 1e3f;
+  this->calculated_.illuminance = irradiance_photopic * LUMENS_PER_WATT;
+
+  ESP_LOGV(TAG, "Irradiance %.4f, photopic %.4f, PAR %.4f, PPFD %.4f, illuminance %.2f lx",
+           this->calculated_.irradiance, this->calculated_.irradiance_photopic, this->calculated_.irradiance_par,
+           this->calculated_.ppfd, this->calculated_.illuminance);
+}
+
+void AS734XComponent::calculate_color_() {
+  float tri_x = 0.0f;
+  float tri_y = 0.0f;
+  float tri_z = 0.0f;
+
+  for (uint8_t i = 0; i < this->device_->get_number_of_channels(); i++) {
+    const float basic_count = this->calculated_.basic_counts[i];
+    const ChannelTristimulus tristimulus = this->device_->get_channel_tristimulus(i);
+
+    tri_x += tristimulus.x * basic_count;
+    tri_y += tristimulus.y * basic_count;
+    tri_z += tristimulus.z * basic_count;
+  }
+
+  this->calculated_.color_temperature = tristimulus_to_cct(tri_x, tri_y, tri_z);
+  ESP_LOGV(TAG, "XYZ %.4f, %.4f, %.4f -> CCT %.0f K", tri_x, tri_y, tri_z, this->calculated_.color_temperature);
+
+#ifdef USE_TEXT_SENSOR
+  // Convert to chromaticity first, so the colour describes the hue rather than the brightness.
+  // Absolute tristimulus values clamp to white under anything but dim light.
+  const float sum = tri_x + tri_y + tri_z;
+  if (sum > 0.0f) {
+    uint8_t r, g, b;
+    tristimulus_to_rgb(tri_x / sum, tri_y / sum, tri_z / sum, r, g, b);
+    snprintf(this->rgb_hex_, sizeof(this->rgb_hex_), "%02x%02x%02x", r, g, b);
+  } else {
+    // No usable chromaticity, so report black rather than leaving the previous colour in place or
+    // publishing an empty string.
+    strncpy(this->rgb_hex_, "000000", sizeof(this->rgb_hex_));
+  }
+#endif
+}
+
 void AS734XComponent::calculate_saturation_level_() {
   const uint16_t max_adc = maximum_spectral_adc(this->readings_.atime, this->readings_.astep);
   const uint16_t scanned = *std::max_element(
@@ -331,6 +399,34 @@ void AS734XComponent::publish_basic_counts_() {
 void AS734XComponent::publish_channel_readings_() {}
 void AS734XComponent::publish_basic_counts_() {}
 #endif
+
+void AS734XComponent::publish_light_metrics_() {
+#ifdef USE_SENSOR
+  if (this->illuminance_sensor_ != nullptr) {
+    this->illuminance_sensor_->publish_state(this->calculated_.illuminance);
+  }
+  if (this->irradiance_sensor_ != nullptr) {
+    this->irradiance_sensor_->publish_state(this->calculated_.irradiance);
+  }
+  if (this->irradiance_photopic_sensor_ != nullptr) {
+    this->irradiance_photopic_sensor_->publish_state(this->calculated_.irradiance_photopic);
+  }
+  if (this->irradiance_par_sensor_ != nullptr) {
+    this->irradiance_par_sensor_->publish_state(this->calculated_.irradiance_par);
+  }
+  if (this->ppfd_sensor_ != nullptr) {
+    this->ppfd_sensor_->publish_state(this->calculated_.ppfd);
+  }
+  if (this->color_temperature_sensor_ != nullptr) {
+    this->color_temperature_sensor_->publish_state(this->calculated_.color_temperature);
+  }
+#endif
+#ifdef USE_TEXT_SENSOR
+  if (this->rgb_hex_sensor_ != nullptr) {
+    this->rgb_hex_sensor_->publish_state(this->rgb_hex_);
+  }
+#endif
+}
 
 AS734xBase::AS734xBase(i2c::I2CDevice *i2c_device, uint8_t number_of_channels)
     : i2c_device_(i2c_device), number_of_channels_(number_of_channels) {}

@@ -79,6 +79,36 @@ const std::array<uint16_t, AS7341::NUM_CHANNELS> AS7341::WAVELENGTHS_NM = {415, 
 //  F1   F2   F3   F4   F5   F6   F7   F8   NIR  CLEAR
 
 uint16_t AS7341::get_channel_wavelength(uint8_t channel) const { return WAVELENGTHS_NM[channel]; }
+// Golden-device contribution of one basic count per channel, in band order.
+const std::array<ChannelContribution, AS7341::NUM_CHANNELS> AS7341::CONTRIBUTIONS = {{
+    {8.110691277f, 0.005261294f, 5.936230324f, 0.020518273f},
+    {0.988166817f, 0.242615252f, 3.572528495f, 0.01352549f},
+    {1.513167954f, 0.174482552f, 2.914113437f, 0.011585145f},
+    {0.823071218f, 1.479499075f, 2.452851227f, 0.010604986f},
+    {0.529502926f, 1.906818555f, 1.940656433f, 0.008890531f},
+    {0.35304952f, 1.162058142f, 1.533976606f, 0.007441544f},
+    {0.255581795f, 0.462374845f, 1.81983825f, 0.00939359f},
+    {0.132104073f, -0.017794572f, 1.232942274f, 0.006890812f},
+    {2.423065737f, -0.260730901f, -1.102368f, -0.004647911f},
+    {0.63983804f, -0.022604075f, -0.033304813f, -0.000129106f},
+}};
+
+const std::array<ChannelTristimulus, AS7341::NUM_CHANNELS> AS7341::TRISTIMULUS = {{
+    {0.39814f, 0.01396f, 1.95010f},
+    {1.29540f, 0.16748f, 6.45490f},
+    {0.36956f, 0.23538f, 2.78010f},
+    {0.10902f, 1.42750f, 0.18501f},
+    {0.71942f, 1.88670f, 0.15325f},
+    {1.78180f, 1.14200f, 0.09539f},
+    {1.10110f, 0.46497f, 0.10563f},
+    {-0.03991f, -0.02702f, 0.08866f},
+    {-0.27597f, -0.24468f, -0.61140f},
+    {-0.02347f, -0.01993f, -0.00938f},
+}};
+
+ChannelContribution AS7341::get_channel_contribution(uint8_t channel) const { return CONTRIBUTIONS[channel]; }
+
+ChannelTristimulus AS7341::get_channel_tristimulus(uint8_t channel) const { return TRISTIMULUS[channel]; }
 
 AS7341::AS7341(i2c::I2CDevice *i2c_device) : AS734xBase(i2c_device, AS7341::NUM_CHANNELS) {}
 

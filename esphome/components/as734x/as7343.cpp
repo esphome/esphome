@@ -142,6 +142,43 @@ const std::array<uint16_t, AS7343::NUM_CHANNELS> AS7343::WAVELENGTHS_NM = {405, 
 //  F1   F2   FZ   F3   F4   FY   F5   FXL  F6   F7   F8   NIR  CLEAR
 
 uint16_t AS7343::get_channel_wavelength(uint8_t channel) const { return WAVELENGTHS_NM[channel]; }
+// Golden-device contribution of one basic count per channel, in band order. F5, NIR and CLEAR
+// are outside the reconstructed spectrum, so their entries are zero.
+const std::array<ChannelContribution, AS7343::NUM_CHANNELS> AS7343::CONTRIBUTIONS = {{
+    {15.24248081f, -0.028559089f, 0.450293995f, 0.001266925f},
+    {3.761606341f, -0.042150948f, 3.566379984f, 0.012515925f},
+    {-5.578085497f, 0.000661721f, 2.877424672f, 0.010243005f},
+    {8.400505925f, -0.108791278f, 2.273837581f, 0.009376157f},
+    {2.780903659f, -0.16717218f, 1.519298503f, 0.006017556f},
+    {0.850080092f, 5.726660294f, 4.199345859f, 0.019357905f},
+    {0.0f, 0.0f, 0.0f, 0.0f},
+    {4.126948838f, -0.241492014f, 1.18525916f, 0.006516325f},
+    {0.663050905f, -0.047665296f, 1.759469826f, 0.009780714f},
+    {2.146279738f, -0.01251699f, 1.702006611f, 0.009950228f},
+    {3.908525219f, -0.026424974f, -1.059196137f, -0.005425656f},
+    {6.820076603f, -0.007565221f, -0.064827881f, -0.000232267f},
+    {0.0f, 0.0f, 0.0f, 0.0f},
+}};
+
+const std::array<ChannelTristimulus, AS7343::NUM_CHANNELS> AS7343::TRISTIMULUS = {{
+    {-0.07879f, -0.03269f, -0.31295f},
+    {-0.12235f, -0.01297f, -0.57885f},
+    {1.99879f, -0.04011f, 10.00197f},
+    {-0.33364f, -0.06889f, -0.31281f},
+    {-0.06795f, -0.17453f, -0.19657f},
+    {-0.45419f, 5.69083f, -0.11077f},
+    {0.00000f, 0.00000f, 0.00000f},
+    {5.27242f, -0.22956f, -0.06132f},
+    {-0.05072f, -0.04762f, -0.03536f},
+    {-0.04666f, -0.01295f, -0.06025f},
+    {-0.03931f, -0.02797f, -0.12174f},
+    {0.0f, 0.0f, 0.0f},
+    {0.0f, 0.0f, 0.0f},
+}};
+
+ChannelContribution AS7343::get_channel_contribution(uint8_t channel) const { return CONTRIBUTIONS[channel]; }
+
+ChannelTristimulus AS7343::get_channel_tristimulus(uint8_t channel) const { return TRISTIMULUS[channel]; }
 
 AS7343::AS7343(i2c::I2CDevice *i2c_device) : AS734xBase(i2c_device, AS7343::NUM_CHANNELS) {}
 

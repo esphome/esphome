@@ -6,6 +6,9 @@
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/sensor/sensor.h"
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 
 namespace esphome::as734x {
 
@@ -57,6 +60,25 @@ using ChannelValuesUint16 = std::array<uint16_t, MAX_CHANNELS>;
 using ChannelValuesFloat = std::array<float, MAX_CHANNELS>;
 using SensorArray = std::array<sensor::Sensor *, MAX_CHANNELS>;
 
+// Luminous efficacy at 555 nm, for turning photopic irradiance into lux.
+constexpr float LUMENS_PER_WATT = 683.002f;
+
+// How much one basic count of a channel contributes to each integrated quantity. The factors come
+// from the manufacturer's golden-device calibration, convolved for a reconstructed spectrum.
+struct ChannelContribution {
+  float irradiance;           // full band
+  float irradiance_photopic;  // weighted by the CIE 1931 V(lambda) curve
+  float irradiance_par;       // 400-700 nm only
+  float ppfd;                 // 400-700 nm only, scaled by 1e3 before publishing
+};
+
+// CIE 1931 tristimulus contribution of one basic count of a channel.
+struct ChannelTristimulus {
+  float x;
+  float y;
+  float z;
+};
+
 union RegAStatus {
   uint8_t raw;
   struct {
@@ -107,6 +129,8 @@ class AS734xBase {
 
   // Nominal centre wavelength of a channel in nanometres, or WIDEBAND_NM for the clear channel.
   virtual uint16_t get_channel_wavelength(uint8_t channel) const = 0;
+  virtual ChannelContribution get_channel_contribution(uint8_t channel) const = 0;
+  virtual ChannelTristimulus get_channel_tristimulus(uint8_t channel) const = 0;
 
   virtual uint8_t get_number_of_smux_steps() const = 0;
   virtual uint8_t get_integration_cycles() const = 0;
@@ -173,6 +197,12 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
 
 #ifdef USE_SENSOR
   SUB_SENSOR(saturation_level)
+  SUB_SENSOR(illuminance)
+  SUB_SENSOR(irradiance)
+  SUB_SENSOR(irradiance_photopic)
+  SUB_SENSOR(irradiance_par)
+  SUB_SENSOR(ppfd)
+  SUB_SENSOR(color_temperature)
 
  protected:
   SensorArray band_counts_sensors_{};
@@ -189,6 +219,15 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
       this->band_basic_counts_sensors_[channel] = sensor;
     }
   }
+#endif
+
+#ifdef USE_TEXT_SENSOR
+ protected:
+  text_sensor::TextSensor *rgb_hex_sensor_{nullptr};
+  char rgb_hex_[7]{"000000"};  // valid before the first measurement completes
+
+ public:
+  void set_rgb_hex_sensor(text_sensor::TextSensor *sensor) { this->rgb_hex_sensor_ = sensor; }
 #endif
 
  protected:
@@ -235,15 +274,24 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
     float max_band_basic_count{0.0f};  // largest of the visible bands only
     float clear_basic_count{0.0f};     // the wideband clear channel
     float saturation_level{0.0f};
+    float irradiance{0.0f};
+    float irradiance_photopic{0.0f};
+    float irradiance_par{0.0f};
+    float ppfd{0.0f};
+    float illuminance{0.0f};
+    float color_temperature{0.0f};
   } calculated_;
 
   void calculate_basic_counts_();
   void calculate_saturation_level_();
+  void calculate_light_metrics_();
+  void calculate_color_();
 
   void publish_channel_readings_();
   void abort_measurement_(const char *reason);
   void publish_basic_counts_();
   float normalization_divisor_() const;
+  void publish_light_metrics_();
 };
 
 }  // namespace esphome::as734x

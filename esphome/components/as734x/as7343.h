@@ -19,6 +19,8 @@ class AS7343 : public AS734xBase {
 
   float get_gain_correction(uint8_t channel, Gain gain) const override;
   uint16_t get_channel_wavelength(uint8_t channel) const override;
+  ChannelContribution get_channel_contribution(uint8_t channel) const override;
+  ChannelTristimulus get_channel_tristimulus(uint8_t channel) const override;
 
  protected:
   const RegisterMap &registers() const override { return REG_MAP; }
@@ -28,6 +30,8 @@ class AS7343 : public AS734xBase {
 
   static const RegisterMap REG_MAP;
   static const std::array<uint16_t, NUM_CHANNELS> WAVELENGTHS_NM;
+  static const std::array<ChannelContribution, NUM_CHANNELS> CONTRIBUTIONS;
+  static const std::array<ChannelTristimulus, NUM_CHANNELS> TRISTIMULUS;
   // Gain correction differs per channel on this chip, so the table is indexed by gain then channel.
   static const std::array<std::array<float, NUM_CHANNELS>, GAIN_COUNT> GAIN_CORRECTION;
 

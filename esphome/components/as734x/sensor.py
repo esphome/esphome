@@ -1,22 +1,29 @@
 import esphome.codegen as cg
-from esphome.components import i2c, sensor
+from esphome.components import i2c, sensor, text_sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CALIBRATION,
     CONF_CLEAR,
+    CONF_COLOR_TEMPERATURE,
     CONF_COUNTS,
     CONF_GAIN,
     CONF_GLASS_ATTENUATION_FACTOR,
     CONF_ID,
+    CONF_ILLUMINANCE,
     CONF_NAME,
     CONF_TYPE,
     DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_ILLUMINANCE,
+    DEVICE_CLASS_IRRADIANCE,
     STATE_CLASS_MEASUREMENT,
+    UNIT_KELVIN,
+    UNIT_LUX,
     UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita", "@mrgnr"]
+AUTO_LOAD = ["text_sensor"]
 DEPENDENCIES = ["i2c"]
 
 CONF_ATIME = "atime"
@@ -26,6 +33,11 @@ CONF_NORMALIZE_BASIC_COUNTS = "normalize_basic_counts"
 CONF_CHANNEL_CORRECTION = "channel_correction"
 CONF_DARK_CURRENT = "dark_current"
 CONF_SATURATION_LEVEL = "saturation_level"
+CONF_IRRADIANCE = "irradiance"
+CONF_IRRADIANCE_PHOTOPIC = "irradiance_photopic"
+CONF_IRRADIANCE_PAR = "irradiance_par"
+CONF_PPFD = "ppfd"
+CONF_RGB_HEX = "rgb_hex"
 
 CONF_F1 = "f1"
 CONF_F2 = "f2"
@@ -41,8 +53,18 @@ CONF_F8 = "f8"
 CONF_NIR = "nir"
 
 UNIT_COUNTS = "#"
+UNIT_IRRADIANCE = "W/m²"
+UNIT_PPFD = "µmol/s⋅m²"
+
 ICON_COUNTS = "mdi:counter"
 ICON_SATURATION = "mdi:weather-sunny-alert"
+ICON_ILLUMINANCE = "mdi:weather-sunny"
+ICON_IRRADIANCE = "mdi:radioactive"
+ICON_IRRADIANCE_PHOTOPIC = "mdi:sun-wireless-outline"
+ICON_PAR = "mdi:sprout"
+ICON_PPFD = "mdi:sprout-outline"
+ICON_COLOR_TEMPERATURE = "mdi:sun-thermometer-outline"
+ICON_PALETTE = "mdi:palette"
 
 MODEL_AS7341 = "AS7341"
 MODEL_AS7343 = "AS7343"
@@ -209,6 +231,69 @@ _COMMON_SCHEMA = (
             cv.Optional(CONF_NORMALIZE_BASIC_COUNTS, default="NONE"): cv.enum(
                 NORMALIZATION_OPTIONS, upper=True
             ),
+            cv.Optional(CONF_ILLUMINANCE): cv.maybe_simple_value(
+                sensor.sensor_schema(
+                    unit_of_measurement=UNIT_LUX,
+                    icon=ICON_ILLUMINANCE,
+                    accuracy_decimals=0,
+                    device_class=DEVICE_CLASS_ILLUMINANCE,
+                    state_class=STATE_CLASS_MEASUREMENT,
+                ),
+                key=CONF_NAME,
+            ),
+            cv.Optional(CONF_IRRADIANCE): cv.maybe_simple_value(
+                sensor.sensor_schema(
+                    unit_of_measurement=UNIT_IRRADIANCE,
+                    icon=ICON_IRRADIANCE,
+                    accuracy_decimals=3,
+                    device_class=DEVICE_CLASS_IRRADIANCE,
+                    state_class=STATE_CLASS_MEASUREMENT,
+                ),
+                key=CONF_NAME,
+            ),
+            cv.Optional(CONF_IRRADIANCE_PHOTOPIC): cv.maybe_simple_value(
+                sensor.sensor_schema(
+                    unit_of_measurement=UNIT_IRRADIANCE,
+                    icon=ICON_IRRADIANCE_PHOTOPIC,
+                    accuracy_decimals=3,
+                    device_class=DEVICE_CLASS_IRRADIANCE,
+                    state_class=STATE_CLASS_MEASUREMENT,
+                ),
+                key=CONF_NAME,
+            ),
+            cv.Optional(CONF_IRRADIANCE_PAR): cv.maybe_simple_value(
+                sensor.sensor_schema(
+                    unit_of_measurement=UNIT_IRRADIANCE,
+                    icon=ICON_PAR,
+                    accuracy_decimals=3,
+                    device_class=DEVICE_CLASS_IRRADIANCE,
+                    state_class=STATE_CLASS_MEASUREMENT,
+                ),
+                key=CONF_NAME,
+            ),
+            cv.Optional(CONF_PPFD): cv.maybe_simple_value(
+                sensor.sensor_schema(
+                    unit_of_measurement=UNIT_PPFD,
+                    icon=ICON_PPFD,
+                    accuracy_decimals=3,
+                    device_class=DEVICE_CLASS_IRRADIANCE,
+                    state_class=STATE_CLASS_MEASUREMENT,
+                ),
+                key=CONF_NAME,
+            ),
+            cv.Optional(CONF_COLOR_TEMPERATURE): cv.maybe_simple_value(
+                sensor.sensor_schema(
+                    unit_of_measurement=UNIT_KELVIN,
+                    icon=ICON_COLOR_TEMPERATURE,
+                    accuracy_decimals=0,
+                    state_class=STATE_CLASS_MEASUREMENT,
+                ),
+                key=CONF_NAME,
+            ),
+            cv.Optional(CONF_RGB_HEX): cv.maybe_simple_value(
+                text_sensor.text_sensor_schema(icon=ICON_PALETTE),
+                key=CONF_NAME,
+            ),
             cv.Optional(CONF_SATURATION_LEVEL): cv.maybe_simple_value(
                 sensor.sensor_schema(
                     unit_of_measurement=UNIT_PERCENT,
@@ -264,6 +349,17 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+DERIVED_SENSORS = (
+    CONF_SATURATION_LEVEL,
+    CONF_ILLUMINANCE,
+    CONF_IRRADIANCE,
+    CONF_IRRADIANCE_PHOTOPIC,
+    CONF_IRRADIANCE_PAR,
+    CONF_PPFD,
+    CONF_COLOR_TEMPERATURE,
+)
+
+
 async def to_code(config: ConfigType) -> None:
     model = config[CONF_TYPE]
     driver = MODEL_AS7343 if model == MODEL_TCS3448 else model
@@ -296,6 +392,11 @@ async def to_code(config: ConfigType) -> None:
             sens = await sensor.new_sensor(sensor_config)
             cg.add(var.set_basic_counts_sensor(sens, i))
 
-    if saturation_config := config.get(CONF_SATURATION_LEVEL):
-        sens = await sensor.new_sensor(saturation_config)
-        cg.add(var.set_saturation_level_sensor(sens))
+    for key in DERIVED_SENSORS:
+        if sensor_config := config.get(key):
+            sens = await sensor.new_sensor(sensor_config)
+            cg.add(getattr(var, f"set_{key}_sensor")(sens))
+
+    if rgb_config := config.get(CONF_RGB_HEX):
+        sens = await text_sensor.new_text_sensor(rgb_config)
+        cg.add(var.set_rgb_hex_sensor(sens))
