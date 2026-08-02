@@ -38,7 +38,9 @@ def test_board_rejects_a_bootloader_it_does_not_list(
     that offers a restricted set must still refuse anything outside it.
     """
     monkeypatch.setitem(
-        boards.BOARDS_ZEPHYR, "restricted_board", {KEY_BOOTLOADER: [BOOTLOADER_ADAFRUIT]}
+        boards.BOARDS_ZEPHYR,
+        "restricted_board",
+        {KEY_BOOTLOADER: [BOOTLOADER_ADAFRUIT]},
     )
 
     with pytest.raises(cv.Invalid, match="does not support"):

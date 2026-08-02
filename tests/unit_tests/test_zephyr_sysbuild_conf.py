@@ -42,7 +42,9 @@ def test_setting_the_same_value_twice_is_allowed() -> None:
     zephyr_add_sysbuild_conf("BOOT_SIGNATURE_TYPE_NONE", True)
     zephyr_add_sysbuild_conf("BOOT_SIGNATURE_TYPE_NONE", True)
 
-    assert zephyr_data()[KEY_SYSBUILD_CONF]["SB_CONFIG_BOOT_SIGNATURE_TYPE_NONE"] is True
+    assert (
+        zephyr_data()[KEY_SYSBUILD_CONF]["SB_CONFIG_BOOT_SIGNATURE_TYPE_NONE"] is True
+    )
 
 
 def test_conflicting_value_raises() -> None:

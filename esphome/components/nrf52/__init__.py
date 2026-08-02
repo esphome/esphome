@@ -312,10 +312,9 @@ def _final_validate(config):
 
     if CONF_DFU in config:
         _validate_mcumgr(config)
-    if (
-        config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
-        and CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] < cv.Version(2, 9, 2)
-    ):
+    if config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT and CORE.data[KEY_CORE][
+        KEY_FRAMEWORK_VERSION
+    ] < cv.Version(2, 9, 2):
         # The MCUboot image is configured through sysbuild, which replaced the
         # zephyr/child_image/ mechanism in NCS 2.9.2. On an older SDK the
         # fragments are silently ignored and the board comes out with no
