@@ -11,6 +11,21 @@
 
 namespace esphome::openthread_info {
 
+class ParentOpenThreadSensor : public OpenThreadInstancePollingComponent {
+ public:
+  void update_instance(otInstance *instance) override {
+    otRouterInfo parent_info;
+    if (otThreadGetParentInfo(instance, &parent_info) != OT_ERROR_NONE) {
+      return;
+    }
+
+    this->update_parent_info(&parent_info);
+  }
+
+ protected:
+  virtual void update_parent_info(otRouterInfo *parent_info) = 0;
+};
+
 // Parent RSSI (average) in dBm. Only valid when device is a child; skips publish otherwise.
 class ParentAverageRssiOpenThreadInfo final : public OpenThreadInstancePollingComponent, public sensor::Sensor {
  public:
@@ -38,40 +53,28 @@ class ParentLastRssiOpenThreadInfo final : public OpenThreadInstancePollingCompo
 };
 
 // Incoming link quality from parent (0-3). Only valid when device is a child.
-class ParentLinkQualityInOpenThreadInfo final : public OpenThreadInstancePollingComponent, public sensor::Sensor {
+class ParentLinkQualityInOpenThreadInfo final : public ParentOpenThreadSensor, public sensor::Sensor {
  public:
-  void update_instance(otInstance *instance) override {
-    otRouterInfo parent_info;
-    if (otThreadGetParentInfo(instance, &parent_info) != OT_ERROR_NONE) {
-      return;
-    }
-    this->publish_state(parent_info.mLinkQualityIn);
+  void update_parent_info(otRouterInfo *parent_info) override {
+    this->publish_state(parent_info->mLinkQualityIn);
   }
   void dump_config() override;
 };
 
 // Outgoing link quality to parent (0-3). Only valid when device is a child.
-class ParentLinkQualityOutOpenThreadInfo final : public OpenThreadInstancePollingComponent, public sensor::Sensor {
+class ParentLinkQualityOutOpenThreadInfo final : public ParentOpenThreadSensor, public sensor::Sensor {
  public:
-  void update_instance(otInstance *instance) override {
-    otRouterInfo parent_info;
-    if (otThreadGetParentInfo(instance, &parent_info) != OT_ERROR_NONE) {
-      return;
-    }
-    this->publish_state(parent_info.mLinkQualityOut);
+  void update_parent_info(otRouterInfo *parent_info) override {
+    this->publish_state(parent_info->mLinkQualityOut);
   }
   void dump_config() override;
 };
 
 // Network path cost to parent. Only valid when device is a child.
-class ParentPathCostOpenThreadInfo final : public OpenThreadInstancePollingComponent, public sensor::Sensor {
+class ParentPathCostOpenThreadInfo final : public ParentOpenThreadSensor, public sensor::Sensor {
  public:
-  void update_instance(otInstance *instance) override {
-    otRouterInfo parent_info;
-    if (otThreadGetParentInfo(instance, &parent_info) != OT_ERROR_NONE) {
-      return;
-    }
-    this->publish_state(parent_info.mPathCost);
+  void update_parent_info(otRouterInfo *parent_info) override {
+    this->publish_state(parent_info->mPathCost);
   }
   void dump_config() override;
 };
