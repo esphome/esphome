@@ -357,6 +357,7 @@ _VARIANT_MODULES = [
     "native_sim",
     "nrf52",
     "nrf54l15",
+    "nrf54lm20a",
 ]
 
 
