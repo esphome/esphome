@@ -55,27 +55,21 @@ class ParentLastRssiOpenThreadInfo final : public OpenThreadInstancePollingCompo
 // Incoming link quality from parent (0-3). Only valid when device is a child.
 class ParentLinkQualityInOpenThreadInfo final : public ParentOpenThreadSensor, public sensor::Sensor {
  public:
-  void update_parent_info(otRouterInfo *parent_info) override {
-    this->publish_state(parent_info->mLinkQualityIn);
-  }
+  void update_parent_info(otRouterInfo *parent_info) override { this->publish_state(parent_info->mLinkQualityIn); }
   void dump_config() override;
 };
 
 // Outgoing link quality to parent (0-3). Only valid when device is a child.
 class ParentLinkQualityOutOpenThreadInfo final : public ParentOpenThreadSensor, public sensor::Sensor {
  public:
-  void update_parent_info(otRouterInfo *parent_info) override {
-    this->publish_state(parent_info->mLinkQualityOut);
-  }
+  void update_parent_info(otRouterInfo *parent_info) override { this->publish_state(parent_info->mLinkQualityOut); }
   void dump_config() override;
 };
 
 // Network path cost to parent. Only valid when device is a child.
 class ParentPathCostOpenThreadInfo final : public ParentOpenThreadSensor, public sensor::Sensor {
  public:
-  void update_parent_info(otRouterInfo *parent_info) override {
-    this->publish_state(parent_info->mPathCost);
-  }
+  void update_parent_info(otRouterInfo *parent_info) override { this->publish_state(parent_info->mPathCost); }
   void dump_config() override;
 };
 
