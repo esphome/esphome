@@ -16,6 +16,7 @@ from esphome.cpp_generator import RawExpression
 CODEOWNERS = ["@paulmonigatti", "@jsuanet", "@kbx81"]
 
 CONF_BOOT_IS_GOOD_AFTER = "boot_is_good_after"
+CONF_BOOT_IS_GOOD_ON_SHUTDOWN = "boot_is_good_on_shutdown"
 CONF_ON_SAFE_MODE = "on_safe_mode"
 
 safe_mode_ns = cg.esphome_ns.namespace("safe_mode")
@@ -37,6 +38,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_BOOT_IS_GOOD_AFTER, default="1min"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_BOOT_IS_GOOD_ON_SHUTDOWN, default=True): cv.boolean,
             cv.Optional(CONF_DISABLED, default=False): cv.boolean,
             cv.Optional(CONF_NUM_ATTEMPTS, default="10"): cv.positive_not_null_int,
             cv.Optional(
@@ -77,6 +79,9 @@ async def to_code(config):
     if not config[CONF_DISABLED]:
         var = cg.new_Pvariable(config[CONF_ID])
         await cg.register_component(var, config)
+
+        if config[CONF_BOOT_IS_GOOD_ON_SHUTDOWN]:
+            cg.add_define("USE_SAFE_MODE_BOOT_IS_GOOD_ON_SHUTDOWN")
 
         if on_safe_mode := config.get(CONF_ON_SAFE_MODE):
             cg.add_define("USE_SAFE_MODE_CALLBACK")
