@@ -14,6 +14,7 @@ CONF_PARENT_AVERAGE_RSSI = "parent_average_rssi"
 CONF_PARENT_LAST_RSSI = "parent_last_rssi"
 CONF_PARENT_LINK_QUALITY_IN = "parent_link_quality_in"
 CONF_PARENT_LINK_QUALITY_OUT = "parent_link_quality_out"
+CONF_PARENT_PATH_COST = "parent_path_cost"
 CONF_TX_TOTAL = "tx_total"
 CONF_TX_RETRIES = "tx_retries"
 CONF_TX_ERR_CCA = "tx_err_cca"
@@ -38,6 +39,9 @@ ParentLinkQualityInOpenThreadInfo = openthread_info_ns.class_(
 )
 ParentLinkQualityOutOpenThreadInfo = openthread_info_ns.class_(
     "ParentLinkQualityOutOpenThreadInfo", sensor.Sensor, cg.PollingComponent
+)
+ParentPathCostOpenThreadInfo = openthread_info_ns.class_(
+    "ParentPathCostOpenThreadInfo", sensor.Sensor, cg.PollingComponent
 )
 TxTotalOpenThreadInfo = openthread_info_ns.class_(
     "TxTotalOpenThreadInfo", sensor.Sensor, cg.PollingComponent
@@ -94,6 +98,13 @@ CONFIG_SCHEMA = cv.Schema(
         ).extend(cv.polling_component_schema("5s")),
         cv.Optional(CONF_PARENT_LINK_QUALITY_OUT): sensor.sensor_schema(
             ParentLinkQualityOutOpenThreadInfo,
+            unit_of_measurement=UNIT_EMPTY,
+            accuracy_decimals=0,
+            state_class=STATE_CLASS_MEASUREMENT,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        ).extend(cv.polling_component_schema("5s")),
+        cv.Optional(CONF_PARENT_PATH_COST): sensor.sensor_schema(
+            ParentPathCostOpenThreadInfo,
             unit_of_measurement=UNIT_EMPTY,
             accuracy_decimals=0,
             state_class=STATE_CLASS_MEASUREMENT,
@@ -177,6 +188,7 @@ async def to_code(config):
     await setup_conf(config, CONF_PARENT_LAST_RSSI)
     await setup_conf(config, CONF_PARENT_LINK_QUALITY_IN)
     await setup_conf(config, CONF_PARENT_LINK_QUALITY_OUT)
+    await setup_conf(config, CONF_PARENT_PATH_COST)
     await setup_conf(config, CONF_TX_TOTAL)
     await setup_conf(config, CONF_TX_RETRIES)
     await setup_conf(config, CONF_TX_ERR_CCA)

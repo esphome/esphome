@@ -63,6 +63,19 @@ class ParentLinkQualityOutOpenThreadInfo final : public OpenThreadInstancePollin
   void dump_config() override;
 };
 
+// Network path cost to parent. Only valid when device is a child.
+class ParentPathCostOpenThreadInfo final : public OpenThreadInstancePollingComponent, public sensor::Sensor {
+ public:
+  void update_instance(otInstance *instance) override {
+    otRouterInfo parent_info;
+    if (otThreadGetParentInfo(instance, &parent_info) != OT_ERROR_NONE) {
+      return;
+    }
+    this->publish_state(parent_info.mPathCost);
+  }
+  void dump_config() override;
+};
+
 // --- MAC counters (otLinkGetCounters) — cumulative since boot ---
 
 class TxTotalOpenThreadInfo final : public OpenThreadInstancePollingComponent, public sensor::Sensor {
