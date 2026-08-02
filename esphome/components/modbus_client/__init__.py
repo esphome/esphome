@@ -62,7 +62,7 @@ async def register_client_action(var, config, args, response_args):
     if error_conf := config.get(CONF_ON_ERROR):
         await automation.build_automation(
             var.get_error_trigger(),
-            [(ModbusExceptionCode, "exception_code")],
+            [(_PDU_SPAN, "request"), (ModbusExceptionCode, "exception_code")],
             error_conf,
         )
     if no_response_conf := config.get(CONF_ON_NO_RESPONSE):

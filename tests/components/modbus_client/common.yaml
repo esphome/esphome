@@ -18,7 +18,7 @@ button:
               - lambda: 'ESP_LOGI("modbus_client.test", "got %d bytes", (int) response.size());'
           on_error:
             then:
-              - lambda: 'ESP_LOGW("modbus_client.test", "exception %d", (int) exception_code);'
+              - lambda: 'ESP_LOGW("modbus_client.test", "fc 0x%X exception %d", request.empty() ? 0 : request[0], (int) exception_code);'
           on_no_response:
             then:
               - logger.log: "no reply"
