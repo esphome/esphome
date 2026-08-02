@@ -1,5 +1,4 @@
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
 
 from esphome import pins
 import esphome.codegen as cg
@@ -7,6 +6,7 @@ from esphome.components import output
 from esphome.components.zephyr import zephyr_add_overlay_builder, zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ALLOW_OTHER_USES,
     CONF_FREQUENCY,
     CONF_ID,
     CONF_INVERTED,
@@ -20,6 +20,7 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["zephyr"]
+DOMAIN = "zephyr_pwm"
 
 zephyr_pwm_ns = cg.esphome_ns.namespace("zephyr_pwm")
 ZephyrPWMChannel = zephyr_pwm_ns.class_(
@@ -28,12 +29,18 @@ ZephyrPWMChannel = zephyr_pwm_ns.class_(
 validate_frequency = cv.All(cv.frequency, cv.float_range(min=1.0, max=1e7))
 
 
-CONF_ZEPHYR_PWM_BLOCKS = "zephyr_pwm_blocks"
+def _pin_schema(value):
+    value = pins.internal_gpio_output_pin_schema(value)
+    if value.get(CONF_ALLOW_OTHER_USES, False):
+        raise cv.Invalid("allow_other_uses is not supported for zephyr_pwm pins")
+    return value
+
+
 CONFIG_SCHEMA = cv.All(
     output.FLOAT_OUTPUT_SCHEMA.extend(
         {
             cv.Required(CONF_ID): cv.declare_id(ZephyrPWMChannel),
-            cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Required(CONF_PIN): _pin_schema,
             cv.Optional(CONF_FREQUENCY, default="1kHz"): validate_frequency,
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -47,28 +54,38 @@ PWM_CHANNELS_PER_BLOCK = 4
 @dataclass
 class PWMBlock:
     id: int
-    frequency: float
-    pins: list[Any]
+    period_ns: int
+    pins: list[int]
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+@dataclass
+class ZephyrPWMData:
+    pwm_blocks: list[PWMBlock] = field(default_factory=list)
+
+
+def _get_data() -> ZephyrPWMData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = ZephyrPWMData()
+    return CORE.data[DOMAIN]
+
+
+def _allocate_blocks() -> None:
     full_config = fv.full_config.get()
     zephyr_pwm_conf = [
         cfg
         for cfg in full_config.get(CONF_OUTPUT, [])
-        if cfg.get(CONF_PLATFORM) == "zephyr_pwm"
+        if cfg.get(CONF_PLATFORM) == DOMAIN
     ]
 
-    # Allocate pins to PWM blocks based on frequency
     pwm_blocks: list[PWMBlock] = []
     for cfg in zephyr_pwm_conf:
-        pin = cfg[CONF_PIN]
-        frequency = cfg[CONF_FREQUENCY]
+        pin_number = cfg[CONF_PIN][CONF_NUMBER]
+        period_ns = int(1e9 / cfg[CONF_FREQUENCY])
         pwm_block = next(
             (
                 block
                 for block in pwm_blocks
-                if block.frequency == frequency
+                if block.period_ns == period_ns
                 and len(block.pins) < PWM_CHANNELS_PER_BLOCK
             ),
             None,
@@ -78,12 +95,15 @@ def _final_validate(config: ConfigType) -> ConfigType:
                 raise cv.Invalid(
                     f"Only {PWM_BLOCK_COUNT} PWM blocks with a distinct frequency and {PWM_CHANNELS_PER_BLOCK} channels each are supported by nrf52"
                 )
-            pwm_block = PWMBlock(id=len(pwm_blocks), frequency=frequency, pins=[])
+            pwm_block = PWMBlock(id=len(pwm_blocks), period_ns=period_ns, pins=[])
             pwm_blocks.append(pwm_block)
-        pwm_block.pins.append(pin[CONF_NUMBER])
+        pwm_block.pins.append(pin_number)
 
-    CORE.data[CONF_ZEPHYR_PWM_BLOCKS] = pwm_blocks
+    _get_data().pwm_blocks = pwm_blocks
 
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    _allocate_blocks()
     return config
 
 
@@ -91,7 +111,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def _overlay_pwm():
-    pwm_blocks: list[PWMBlock] = CORE.data[CONF_ZEPHYR_PWM_BLOCKS]
+    pwm_blocks: list[PWMBlock] = _get_data().pwm_blocks
 
     assert CORE.is_nrf52
 
@@ -135,27 +155,23 @@ def _overlay_pwm():
 
 
 async def to_code(config):
-    assert CORE.is_nrf52
     zephyr_add_prj_conf("PWM", True)
     pin = config[CONF_PIN]
-    pwm_blocks: list[PWMBlock] = CORE.data[CONF_ZEPHYR_PWM_BLOCKS]
+    pwm_blocks: list[PWMBlock] = _get_data().pwm_blocks
     pwm_block = next(
         (block for block in pwm_blocks if pin[CONF_NUMBER] in block.pins), None
     )
-    assert pwm_block is not None
     channel_id = pwm_block.pins.index(pin[CONF_NUMBER])
 
     zephyr_add_overlay_builder(_overlay_pwm)
 
     inverted = pin.get(CONF_INVERTED, False)
-    SECONDS_TO_NANOSECONDS = 1e9
-    period_ns = int(SECONDS_TO_NANOSECONDS / pwm_block.frequency)
     var = cg.new_Pvariable(
         config[CONF_ID],
         cg.RawExpression(f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL(pwm{pwm_block.id}))"),
         channel_id,
         inverted,
-        period_ns,
+        pwm_block.period_ns,
     )
     await cg.register_component(var, config)
     await output.register_output(var, config)
