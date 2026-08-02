@@ -1,0 +1,16 @@
+esphome:
+  name: componenttestnrf54lm20a
+  friendly_name: $component_name
+
+zephyr:
+  variant: NRF54LM20A
+
+logger:
+  level: VERY_VERBOSE
+  baud_rate: 0
+
+packages:
+  component_under_test: !include
+    file: $component_test_file
+    vars:
+      component_test_file: $component_test_file
