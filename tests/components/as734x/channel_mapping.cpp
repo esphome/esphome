@@ -61,7 +61,7 @@ class ChannelMappingTest : public ::testing::Test {
     this->bus_.registers[ASTATUS] = {0x00};
   }
 
-  void set_frame(const std::vector<uint16_t> &words) { this->bus_.registers[DATA_0] = little_endian_frame(words); }
+  void set_frame_(const std::vector<uint16_t> &words) { this->bus_.registers[DATA_0] = little_endian_frame(words); }
 
   FakeI2CBus bus_;
   i2c::I2CDevice device_;
@@ -75,11 +75,11 @@ TEST_F(ChannelMappingTest, As7341PlacesEveryBandAtItsPublishedIndex) {
   bool saturated = false;
 
   // Step 0 reports F1 F2 F3 F4 on ADC0..ADC3; the last two ADCs are not used by this step.
-  this->set_frame({101, 102, 103, 104, 900, 900});
+  this->set_frame_({101, 102, 103, 104, 900, 900});
   ASSERT_TRUE(chip.read_channels(0, values, gain, saturated));
 
   // Step 1 reports F5 F6 F7 F8 on ADC0..ADC3, then CLEAR on ADC4 and NIR on ADC5.
-  this->set_frame({105, 106, 107, 108, 5555, 8888});
+  this->set_frame_({105, 106, 107, 108, 5555, 8888});
   ASSERT_TRUE(chip.read_channels(1, values, gain, saturated));
 
   EXPECT_EQ(values[0], 101);  // F1
@@ -101,7 +101,7 @@ TEST_F(ChannelMappingTest, As7341ReadsDataRegistersLowByteFirst) {
   Gain gain{};
   bool saturated = false;
 
-  this->set_frame({0x012C, 0, 0, 0, 0, 0});  // 300, which byte-reversed would read 11265
+  this->set_frame_({0x012C, 0, 0, 0, 0, 0});  // 300, which byte-reversed would read 11265
   ASSERT_TRUE(chip.read_channels(0, values, gain, saturated));
   EXPECT_EQ(values[0], 300);
 }
@@ -121,7 +121,7 @@ TEST_F(ChannelMappingTest, As7343PlacesEveryBandAtItsPublishedIndex) {
   frame[10] = 1100;  // CLEAR, cycle 2
   frame[12] = 405;   // F1
   frame[3] = 855;    // NIR
-  this->set_frame(frame);
+  this->set_frame_(frame);
   ASSERT_TRUE(chip.read_channels(0, values, gain, saturated));
 
   EXPECT_EQ(values[0], 405) << "F1";
