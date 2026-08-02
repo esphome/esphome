@@ -7,30 +7,46 @@ namespace esphome::as734x {
 
 static const char *const TAG = "as734x.as7341";
 
-static constexpr uint8_t AS7341_CHIP_ID = 0x09;
-
 static constexpr uint8_t AS7341_ASTATUS = 0x94;
+static constexpr uint8_t AS7341_ASTEP = 0xCA;
+static constexpr uint8_t AS7341_ATIME = 0x81;
+static constexpr uint8_t AS7341_BANK_LOW_MAX = 0x74;
+static constexpr uint8_t AS7341_BANK_LOW_MIN = 0x60;
+static constexpr uint8_t AS7341_CFG0 = 0xA9;
+static constexpr uint8_t AS7341_CFG0_REG_BANK_BIT = 4;
+static constexpr uint8_t AS7341_CFG1 = 0xAA;
 static constexpr uint8_t AS7341_CFG6 = 0xAF;
+static constexpr uint8_t AS7341_CHIP_ID = 0x09;
 static constexpr uint8_t AS7341_CONFIG = 0x70;
 static constexpr uint8_t AS7341_DATA_0 = 0x95;
+static constexpr uint8_t AS7341_ENABLE = 0x80;
+static constexpr uint8_t AS7341_ENABLE_PON_BIT = 0;
+static constexpr uint8_t AS7341_ENABLE_SMUX_EN_BIT = 4;
+static constexpr uint8_t AS7341_ENABLE_SP_EN_BIT = 1;
 static constexpr uint8_t AS7341_ID = 0x92;
 static constexpr uint8_t AS7341_SMUX_CMD_WRITE = 2;  ///< Write SMUX configuration from RAM to SMUX chain
+static constexpr uint8_t AS7341_STATUS2 = 0xA3;
+static constexpr uint8_t AS7341_STATUS2_AVALID_BIT = 6;
+static constexpr uint8_t AS7341_CFG6_SMUX_CMD_SHIFT = 3;
+static constexpr uint8_t AS7341_CONFIG_INIT = 0x00;  // INT_MODE SPM, INT_SEL and LED_SEL cleared
+static constexpr uint8_t AS7341_ID_MASK = 0xFC;      // the chip id sits in bits 7:2
+static constexpr uint8_t AS7341_ID_SHIFT = 2;
 
 // register map for base class
 const RegisterMap AS7341::REG_MAP = {
-    .bank_low_min = 0x60,
-    .bank_low_max = 0x74,
-    .astep = 0xCA,
-    .atime = 0x81,
-    .cfg0 = 0xA9,
-    .cfg0_reg_bank_bit = 4,
-    .cfg1 = 0xAA,
-    .enable = 0x80,
-    .enable_pon_bit = 0,
-    .enable_sp_en_bit = 1,
-    .enable_smux_en_bit = 4,
-    .status2 = 0xA3,
-    .status2_avalid_bit = 6,
+    .bank_low_min = AS7341_BANK_LOW_MIN,
+    .bank_low_max = AS7341_BANK_LOW_MAX,
+    .astep = AS7341_ASTEP,
+    .atime = AS7341_ATIME,
+    .cfg0 = AS7341_CFG0,
+    .cfg0_reg_bank_bit = AS7341_CFG0_REG_BANK_BIT,
+    .cfg1 = AS7341_CFG1,
+    .enable = AS7341_ENABLE,
+    .enable_pon_bit = AS7341_ENABLE_PON_BIT,
+    .enable_sp_en_bit = AS7341_ENABLE_SP_EN_BIT,
+    .enable_smux_en_bit = AS7341_ENABLE_SMUX_EN_BIT,
+    .status2 = AS7341_STATUS2,
+    .status2_avalid_bit = AS7341_STATUS2_AVALID_BIT,
 };
 
 AS7341::AS7341(i2c::I2CDevice *i2c_device) : AS734xBase(i2c_device, AS7341::NUM_CHANNELS) {}
@@ -41,12 +57,12 @@ bool AS7341::verify_device_id() {
   uint8_t id{0};
   this->i2c_device_->read_byte(AS7341_ID, &id);
   ESP_LOGCONFIG(TAG, "  Read ID: 0x%X", id);
-  return ((id & 0xFC) == (AS7341_CHIP_ID << 2));
+  return ((id & AS7341_ID_MASK) == (AS7341_CHIP_ID << AS7341_ID_SHIFT));
 }
 
 void AS7341::write_default_config() {
   this->set_bank_for_reg_(AS7341_CONFIG);  // CONFIG sits in the low register bank
-  this->i2c_device_->write_byte(AS7341_CONFIG, 0x00);
+  this->i2c_device_->write_byte(AS7341_CONFIG, AS7341_CONFIG_INIT);
 }
 
 bool AS7341::prepare_for_smux_step(uint8_t step) {
@@ -58,7 +74,7 @@ bool AS7341::prepare_for_smux_step(uint8_t step) {
                                               0x03, 0x00, 0x00, 0x00, 0x24, 0x00, 0x00, 0x50, 0x00, 0x06};
 
   // Set SMUX command to write
-  this->i2c_device_->write_byte(AS7341_CFG6, AS7341_SMUX_CMD_WRITE << 3);
+  this->i2c_device_->write_byte(AS7341_CFG6, AS7341_SMUX_CMD_WRITE << AS7341_CFG6_SMUX_CMD_SHIFT);
 
   // Write SMUX configuration based on step
   const uint8_t *config = (step == 0) ? SMUX_CONFIG_STEP0 : SMUX_CONFIG_STEP1;

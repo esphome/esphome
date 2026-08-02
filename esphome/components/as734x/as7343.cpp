@@ -7,11 +7,14 @@ namespace esphome::as734x {
 
 static const char *const TAG = "as734x.as7343";
 
-static constexpr uint8_t AS7343_CHIP_ID = 0b10000001;
-
 static constexpr uint8_t AS7343_AGC_GAIN_MAX = 0xD7;
 static constexpr uint8_t AS7343_ASTATUS = 0x94;
+static constexpr uint8_t AS7343_ASTEP = 0xD4;
+static constexpr uint8_t AS7343_ATIME = 0x81;
+static constexpr uint8_t AS7343_BANK_LOW_MAX = 0x7F;
+static constexpr uint8_t AS7343_BANK_LOW_MIN = 0x20;
 static constexpr uint8_t AS7343_CFG0 = 0xBF;
+static constexpr uint8_t AS7343_CFG0_REG_BANK_BIT = 4;
 static constexpr uint8_t AS7343_CFG1 = 0xC6;
 static constexpr uint8_t AS7343_CFG10 = 0x65;
 static constexpr uint8_t AS7343_CFG20 = 0xD6;
@@ -19,30 +22,51 @@ static constexpr uint8_t AS7343_CFG6 = 0xF5;
 static constexpr uint8_t AS7343_CFG8 = 0xC9;
 static constexpr uint8_t AS7343_CHAIN_CMD = 0xE4;
 static constexpr uint8_t AS7343_CHAIN_SMUX = 0xE7;
+static constexpr uint8_t AS7343_CHIP_ID = 0b10000001;
 static constexpr uint8_t AS7343_DATA_0 = 0x95;
+static constexpr uint8_t AS7343_ENABLE = 0x80;
+static constexpr uint8_t AS7343_ENABLE_PON_BIT = 0;
+static constexpr uint8_t AS7343_ENABLE_SMUX_EN_BIT = 4;
+static constexpr uint8_t AS7343_ENABLE_SP_EN_BIT = 1;
 static constexpr uint8_t AS7343_FD_CFG0 = 0xDF;
 static constexpr uint8_t AS7343_FD_TIME_1 = 0xE0;
 static constexpr uint8_t AS7343_FD_TIME_2 = 0xE2;
 static constexpr uint8_t AS7343_ID = 0x5A;
 static constexpr uint8_t AS7343_STATUS = 0x93;
+static constexpr uint8_t AS7343_STATUS2 = 0x90;
+static constexpr uint8_t AS7343_STATUS2_AVALID_BIT = 6;
+
+// Values written during start-up, taken from the manufacturer's recommended three-chain
+// configuration. The datasheet does not break every one of them down to bit level.
+// AS7343_CFG20_AUTO_SMUX_3_CYCLES sets auto_smux to 0b11: all 18 channels over three cycles.
+static constexpr uint8_t AS7343_CFG0_INIT = 0x10;
+static constexpr uint8_t AS7343_CFG6_INIT = 0x0;
+static constexpr uint8_t AS7343_FD_CFG0_INIT = 0xa1;
+static constexpr uint8_t AS7343_CFG10_INIT = 0xf2;
+static constexpr uint8_t AS7343_CFG1_INIT = 0x0c;
+static constexpr uint8_t AS7343_CFG8_INIT = 0xc8;
+static constexpr uint8_t AS7343_AGC_GAIN_MAX_INIT = 0x99;
+static constexpr uint8_t AS7343_FD_TIME_1_INIT = 0x64;
+static constexpr uint8_t AS7343_FD_TIME_2_INIT = 0x21;
+static constexpr uint8_t AS7343_CFG20_AUTO_SMUX_3_CYCLES = 0x62;
 
 // The datasheet gives two different low-bank windows: the register overview says 0x58 to 0x66, while
 // the CFG0 bit description says 0x20 to 0x7F. The wider one is right - GPIO at 0x6B needs the low
 // bank too, and the narrower window would miss it.
 const RegisterMap AS7343::REG_MAP = {
-    .bank_low_min = 0x20,
-    .bank_low_max = 0x7F,
-    .astep = 0xD4,
-    .atime = 0x81,
+    .bank_low_min = AS7343_BANK_LOW_MIN,
+    .bank_low_max = AS7343_BANK_LOW_MAX,
+    .astep = AS7343_ASTEP,
+    .atime = AS7343_ATIME,
     .cfg0 = AS7343_CFG0,
-    .cfg0_reg_bank_bit = 4,
+    .cfg0_reg_bank_bit = AS7343_CFG0_REG_BANK_BIT,
     .cfg1 = AS7343_CFG1,
-    .enable = 0x80,
-    .enable_pon_bit = 0,
-    .enable_sp_en_bit = 1,
-    .enable_smux_en_bit = 4,
-    .status2 = 0x90,
-    .status2_avalid_bit = 6,
+    .enable = AS7343_ENABLE,
+    .enable_pon_bit = AS7343_ENABLE_PON_BIT,
+    .enable_sp_en_bit = AS7343_ENABLE_SP_EN_BIT,
+    .enable_smux_en_bit = AS7343_ENABLE_SMUX_EN_BIT,
+    .status2 = AS7343_STATUS2,
+    .status2_avalid_bit = AS7343_STATUS2_AVALID_BIT,
 };
 
 enum AS7343Channel : uint8_t {
@@ -96,20 +120,20 @@ bool AS7343::verify_device_id() {
 void AS7343::write_default_config() { this->direct_config_3_chain_(); }
 
 void AS7343::direct_config_3_chain_() {
-  this->i2c_device_->write_byte(AS7343_CFG6, 0x0);
-  this->i2c_device_->write_byte(AS7343_FD_CFG0, 0xa1);
+  this->i2c_device_->write_byte(AS7343_CFG6, AS7343_CFG6_INIT);
+  this->i2c_device_->write_byte(AS7343_FD_CFG0, AS7343_FD_CFG0_INIT);
 
   this->set_bank_for_reg_(AS7343_CFG10);  // CFG10 sits in the low register bank
-  this->i2c_device_->write_byte(AS7343_CFG10, 0xf2);
+  this->i2c_device_->write_byte(AS7343_CFG10, AS7343_CFG10_INIT);
   this->set_bank_for_reg_(AS7343_CFG0);
 
-  this->i2c_device_->write_byte(AS7343_CFG0, 0x10);
-  this->i2c_device_->write_byte(AS7343_CFG1, 0x0c);
-  this->i2c_device_->write_byte(AS7343_CFG8, 0xc8);
-  this->i2c_device_->write_byte(AS7343_CFG20, 0x62);  // auto_smux = 0b11: all 18 channels, 3 cycles
-  this->i2c_device_->write_byte(AS7343_AGC_GAIN_MAX, 0x99);
-  this->i2c_device_->write_byte(AS7343_FD_TIME_1, 0x64);
-  this->i2c_device_->write_byte(AS7343_FD_TIME_2, 0x21);
+  this->i2c_device_->write_byte(AS7343_CFG0, AS7343_CFG0_INIT);
+  this->i2c_device_->write_byte(AS7343_CFG1, AS7343_CFG1_INIT);
+  this->i2c_device_->write_byte(AS7343_CFG8, AS7343_CFG8_INIT);
+  this->i2c_device_->write_byte(AS7343_CFG20, AS7343_CFG20_AUTO_SMUX_3_CYCLES);
+  this->i2c_device_->write_byte(AS7343_AGC_GAIN_MAX, AS7343_AGC_GAIN_MAX_INIT);
+  this->i2c_device_->write_byte(AS7343_FD_TIME_1, AS7343_FD_TIME_1_INIT);
+  this->i2c_device_->write_byte(AS7343_FD_TIME_2, AS7343_FD_TIME_2_INIT);
 
   constexpr uint8_t CHAINS = 3;
   constexpr uint8_t CHAIN_LEN = 10;
