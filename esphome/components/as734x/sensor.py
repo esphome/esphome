@@ -8,7 +8,7 @@ from esphome.const import (
     CONF_ID,
     CONF_NAME,
     CONF_TYPE,
-    DEVICE_CLASS_ILLUMINANCE,
+    DEVICE_CLASS_EMPTY,
     STATE_CLASS_MEASUREMENT,
 )
 
@@ -74,7 +74,7 @@ COUNTS_SENSOR_SCHEMA = cv.maybe_simple_value(
         unit_of_measurement=UNIT_COUNTS,
         icon=ICON_COUNTS,
         accuracy_decimals=0,
-        device_class=DEVICE_CLASS_ILLUMINANCE,
+        device_class=DEVICE_CLASS_EMPTY,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
     key=CONF_NAME,
