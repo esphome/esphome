@@ -53,9 +53,10 @@ def _apply_extra_script(component: IDFComponent) -> None:
     if not script_path.is_relative_to(library_root) or not script_path.is_file():
         return
     from esphome.components.esp32 import get_esp32_variant
+    from esphome.components.esp32.const import variant_to_idf_target
     from esphome.espidf.extra_script import captured_as_build_flags, run_extra_script
 
-    idf_target = get_esp32_variant().lower().replace("-", "")
+    idf_target = variant_to_idf_target(get_esp32_variant())
     result = run_extra_script(
         script_path, library_dir=component.path, idf_target=idf_target
     )
@@ -83,10 +84,22 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     Returns:
         str: The complete CMakeLists.txt content as a string
     """
+    # Late import: this module loads with the esp32 platform on every
+    # validate/compile, but shlex is only needed when generating component
+    # CMakeLists.
+    import shlex
 
     def escape_entry(p: PathType) -> str:
         # In CMakeLists.txt, backslashes need to be escaped
         return f'"{str(p)}"'.replace("\\", "\\\\")
+
+    def escape_path(p: PathType) -> str:
+        # CMake uses forward slashes for paths on every platform and treats
+        # backslashes as escape characters. On Windows os.path.relpath yields
+        # backslash paths, which break CMake's list re-parsing (e.g. "\b" in
+        # "src\backend" is an invalid character escape). Emit forward slashes,
+        # which Windows accepts too, so the generated CMakeLists is portable.
+        return f'"{str(p).replace(os.sep, "/")}"'
 
     # Extract the values
     build_src_dir = component.data.get("build", {}).get("srcDir", None)
@@ -105,6 +118,23 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     build_flags = ensure_list(
         component.data.get("build", {}).get("flags", DEFAULT_BUILD_FLAGS)
     )
+    # PlatformIO shell-lexes each build.flags entry, so one entry can carry a
+    # flag and its argument (e.g. "-include cp_custom_alloc.h"). Split the
+    # same way; emitting such an entry as a single quoted compile option
+    # hands the compiler one argv with an embedded space.
+    build_flags = [token for entry in build_flags for token in shlex.split(entry)]
+    # Re-glue bare -I/-L/-l tokens to their argument ("-I foo" -> "-Ifoo") so
+    # the prefix classifiers below still route them to INCLUDE_DIRS and the
+    # link handling.
+    tokens, build_flags = build_flags, []
+    i = 0
+    while i < len(tokens):
+        if tokens[i] in ("-I", "-L", "-l") and i + 1 < len(tokens):
+            build_flags.append(tokens[i] + tokens[i + 1])
+            i += 2
+        else:
+            build_flags.append(tokens[i])
+            i += 1
 
     # List all sources files
     build_src_files = collect_filtered_files(
@@ -152,10 +182,10 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     # Generate the component
     content = "idf_component_register(\n"
     if build_src_files:
-        str_srcs = " ".join([escape_entry(p) for p in sorted(build_src_files)])
+        str_srcs = " ".join([escape_path(p) for p in sorted(build_src_files)])
         content += f"  SRCS {str_srcs}\n"
     if build_include_dirs:
-        str_include_dirs = " ".join([escape_entry(p) for p in build_include_dirs])
+        str_include_dirs = " ".join([escape_path(p) for p in build_include_dirs])
         content += f"  INCLUDE_DIRS {str_include_dirs}\n"
     # Project-managed and built-in component lists are set per-project
     # via idf_build_set_property in the top-level CMakeLists; expanded
@@ -190,7 +220,7 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     if link_directories:
         content += "target_link_directories(${COMPONENT_LIB} INTERFACE\n"
         for link_directory in link_directories:
-            str_build_flag = escape_entry(link_directory)
+            str_build_flag = escape_path(link_directory)
             content += f"  {str_build_flag}\n"
         content += ")\n"
 
@@ -264,5 +294,6 @@ def generate_idf_components(libraries: list[Library]) -> list[IDFComponent]:
         platform=ESP32_PLATFORM,
         framework=_idf_framework(),
         emit=_emit_idf_component,
+        cache_key="idf",
     )
     return convert_libraries(libraries, backend)

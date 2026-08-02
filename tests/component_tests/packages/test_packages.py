@@ -1264,6 +1264,75 @@ def test_remote_packages_no_revert(
     ]
 
 
+@patch("esphome.yaml_util.load_yaml")
+@patch("pathlib.Path.is_file")
+@patch("esphome.git.clone_or_update")
+def test_remote_packages_skipped_revert_does_not_retry(
+    mock_clone_or_update, mock_is_file, mock_load_yaml
+) -> None:
+    """When revert() reports the rollback was skipped, the load is not
+    retried (the checkout is unchanged) and the error says so."""
+    mock_revert = MagicMock(return_value=False)
+    mock_clone_or_update.return_value = (Path("/tmp/noexists"), mock_revert)
+    mock_is_file.return_value = True
+    mock_load_yaml.side_effect = cv.Invalid("bad yaml")
+
+    config = {
+        CONF_PACKAGES: {
+            "pkg": {
+                CONF_URL: "https://github.com/esphome/repo",
+                CONF_REF: "main",
+                CONF_FILES: [{CONF_PATH: "file.yaml"}],
+                CONF_REFRESH: "1d",
+            }
+        }
+    }
+    with pytest.raises(cv.Invalid, match="could not revert the cached checkout"):
+        packages_pass(config)
+
+    assert mock_revert.call_count == 1
+    assert mock_load_yaml.call_count == 1
+
+
+@patch("esphome.yaml_util.load_yaml")
+@patch("pathlib.Path.is_file")
+@patch("esphome.git.clone_or_update")
+def test_remote_packages_successful_revert_retries(
+    mock_clone_or_update, mock_is_file, mock_load_yaml, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A successful revert retries the load against the reverted checkout and
+    logs the original error, the only trace that upstream was broken."""
+    mock_revert = MagicMock(return_value=True)
+    mock_clone_or_update.return_value = (Path("/tmp/noexists"), mock_revert)
+    mock_is_file.return_value = True
+    mock_load_yaml.side_effect = [
+        cv.Invalid("bad yaml"),
+        OrderedDict(
+            {CONF_SENSOR: [{CONF_PLATFORM: TEST_SENSOR_PLATFORM_1, CONF_NAME: "test"}]}
+        ),
+    ]
+
+    config = {
+        CONF_PACKAGES: {
+            "pkg": {
+                CONF_URL: "https://github.com/esphome/repo",
+                CONF_REF: "main",
+                CONF_FILES: [{CONF_PATH: "file.yaml"}],
+                CONF_REFRESH: "1d",
+            }
+        }
+    }
+    with caplog.at_level(logging.WARNING):
+        actual = packages_pass(config)
+
+    assert actual[CONF_SENSOR] == [
+        {CONF_PLATFORM: TEST_SENSOR_PLATFORM_1, CONF_NAME: "test"}
+    ]
+    assert mock_revert.call_count == 1
+    assert mock_load_yaml.call_count == 2
+    assert any("reverted the cached checkout" in r.getMessage() for r in caplog.records)
+
+
 def test_raw_config_contains_merged_esphome_from_package(tmp_path) -> None:
     """Test that CORE.raw_config contains esphome section from merged package.
 

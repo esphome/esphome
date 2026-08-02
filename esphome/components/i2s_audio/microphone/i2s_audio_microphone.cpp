@@ -245,7 +245,7 @@ void I2SAudioMicrophone::mic_task(void *params) {
     while (!(xEventGroupGetBits(this_microphone->event_group_) & MicrophoneEventGroupBits::COMMAND_STOP)) {
       if (this_microphone->data_callbacks_.size() > 0) {
         samples.resize(bytes_to_read);
-        size_t bytes_read = this_microphone->read_(samples.data(), bytes_to_read, 2 * pdMS_TO_TICKS(READ_DURATION_MS));
+        size_t bytes_read = this_microphone->read_(samples.data(), bytes_to_read, 2 * READ_DURATION_MS);
         samples.resize(bytes_read);
         if (this_microphone->correct_dc_offset_) {
           this_microphone->fix_dc_offset_(samples);
@@ -318,12 +318,11 @@ void I2SAudioMicrophone::fix_dc_offset_(std::vector<uint8_t> &data) {
   }
 }
 
-size_t I2SAudioMicrophone::read_(uint8_t *buf, size_t len, TickType_t ticks_to_wait) {
+size_t I2SAudioMicrophone::read_(uint8_t *buf, size_t len, uint32_t timeout_ms) {
   size_t bytes_read = 0;
-  // i2s_channel_read expects the timeout value in ms, not ticks
-  esp_err_t err = i2s_channel_read(this->rx_handle_, buf, len, &bytes_read, pdTICKS_TO_MS(ticks_to_wait));
-  if ((err != ESP_OK) && ((err != ESP_ERR_TIMEOUT) || (ticks_to_wait != 0))) {
-    // Ignore ESP_ERR_TIMEOUT if ticks_to_wait = 0, as it will read the data on the next call
+  esp_err_t err = i2s_channel_read(this->rx_handle_, buf, len, &bytes_read, timeout_ms);
+  if ((err != ESP_OK) && ((err != ESP_ERR_TIMEOUT) || (timeout_ms != 0))) {
+    // Ignore ESP_ERR_TIMEOUT if timeout_ms = 0, as it will read the data on the next call
     if (!this->status_has_warning()) {
       // Avoid spamming the logs with the error message if its repeated
       ESP_LOGW(TAG, "Read error: %s", esp_err_to_name(err));
@@ -331,7 +330,7 @@ size_t I2SAudioMicrophone::read_(uint8_t *buf, size_t len, TickType_t ticks_to_w
     this->status_set_warning();
     return 0;
   }
-  if ((bytes_read == 0) && (ticks_to_wait > 0)) {
+  if ((bytes_read == 0) && (timeout_ms > 0)) {
     this->status_set_warning();
     return 0;
   }

@@ -108,7 +108,6 @@ Import("env")
 def write_cxx_flags_script() -> None:
     path = CORE.relative_build_path(CXX_FLAGS_FILE_NAME)
     contents = CXX_FLAGS_FILE_CONTENTS
-    if not CORE.is_host:
-        contents += 'env.Append(CXXFLAGS=["-Wno-volatile"])'
-        contents += "\n"
+    for flag in sorted(CORE.cxx_build_flags):
+        contents += f'env.Append(CXXFLAGS=["{flag}"])\n'
     write_file_if_changed(path, contents)
