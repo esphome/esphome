@@ -58,6 +58,34 @@ class OpenThreadParentPathCostSensor final : public ParentOpenThreadSensor, publ
   void dump_config() override;
 };
 
+class OpenThreadParentRssiSensor : public OpenThreadInstancePollingComponent, public sensor::Sensor {
+ public:
+  void update_instance(otInstance *instance) override {
+    int8_t rssi;
+    if (otThreadGetParentLastRssi(instance, &rssi) != OT_ERROR_NONE) {
+      this->publish_state(NAN);
+      return;
+    }
+
+    this->publish_state(rssi);
+  }
+  void dump_config() override;
+};
+
+class OpenThreadParentRssiAvgSensor : public OpenThreadInstancePollingComponent, public sensor::Sensor {
+ public:
+  void update_instance(otInstance *instance) override {
+    int8_t rssi;
+    if (otThreadGetParentAverageRssi(instance, &rssi) != OT_ERROR_NONE) {
+      this->publish_state(NAN);
+      return;
+    }
+
+    this->publish_state(rssi);
+  }
+  void dump_config() override;
+};
+
 class OpenThreadRssiSensor : public OpenThreadInstancePollingComponent, public sensor::Sensor {
  public:
   void update_instance(otInstance *instance) override {

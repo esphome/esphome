@@ -6,11 +6,14 @@ from esphome.const import (
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
     UNIT_DECIBEL_MILLIWATT,
+    UNIT_LQI,
 )
 
 CONF_PARENT_LQI_IN = "parent_lqi_in"
 CONF_PARENT_LQI_OUT = "parent_lqi_out"
 CONF_PARENT_PATH_COST = "parent_path_cost"
+CONF_PARENT_RSSI = "parent_rssi"
+CONF_PARENT_RSSI_AVG = "parent_rssi_avg"
 CONF_RSSI = "rssi"
 
 DEPENDENCIES = ["openthread"]
@@ -24,6 +27,12 @@ OpenThreadParentLqiOutSensor = openthread_signal_ns.class_(
 )
 OpenThreadParentPathCostSensor = openthread_signal_ns.class_(
     "OpenThreadParentPathCostSensor", sensor.Sensor, cg.PollingComponent
+)
+OpenThreadParentRssiSensor = openthread_signal_ns.class_(
+    "OpenThreadParentRssiSensor", sensor.Sensor, cg.PollingComponent
+)
+OpenThreadParentRssiAvgSensor = openthread_signal_ns.class_(
+    "OpenThreadParentRssiAvgSensor", sensor.Sensor, cg.PollingComponent
 )
 OpenThreadRssiSensor = openthread_signal_ns.class_(
     "OpenThreadRssiSensor", sensor.Sensor, cg.PollingComponent
@@ -53,6 +62,22 @@ CONFIG_SCHEMA = cv.Schema(
             state_class=STATE_CLASS_MEASUREMENT,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ).extend(cv.polling_component_schema("60s")),
+        cv.Optional(CONF_PARENT_RSSI): sensor.sensor_schema(
+            OpenThreadParentRssiSensor,
+            unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
+            state_class=STATE_CLASS_MEASUREMENT,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        ).extend(cv.polling_component_schema("60s")),
+        cv.Optional(CONF_PARENT_RSSI_AVG): sensor.sensor_schema(
+            OpenThreadParentRssiAvgSensor,
+            unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
+            state_class=STATE_CLASS_MEASUREMENT,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        ).extend(cv.polling_component_schema("60s")),
         cv.Optional(CONF_RSSI): sensor.sensor_schema(
             OpenThreadRssiSensor,
             unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
@@ -75,4 +100,6 @@ async def to_code(config):
     await setup_conf(config, CONF_PARENT_LQI_IN)
     await setup_conf(config, CONF_PARENT_LQI_OUT)
     await setup_conf(config, CONF_PARENT_PATH_COST)
+    await setup_conf(config, CONF_PARENT_RSSI)
+    await setup_conf(config, CONF_PARENT_RSSI_AVG)
     await setup_conf(config, CONF_RSSI)
