@@ -22,6 +22,7 @@ from ..defines import (
     LV_MENU_MODES,
     LV_MENU_ROOT_BACK_BUTTON_MODES,
     TYPE_FLEX,
+    get_widget_map,
 )
 from ..lv_validation import lv_text
 from ..lvcode import (
@@ -180,7 +181,22 @@ class MenuType(WidgetType):
             ) as hdr:
                 await set_obj_properties(Widget(hdr, obj_spec), sidebar_style)
 
-        for conf in config.get(CONF_ON_ROOT_BACK_BUTTON_CLICK, ()):
+
+menu_spec = MenuType()
+
+
+async def add_root_back_button_triggers():
+    """
+    Wire up on_root_back_button_click for every menu, once all widgets exist.
+    Actions like `lvgl.widget.hide` on the menu itself need the widget map fully
+    populated, so this must run as a deferred pass (mirrors trigger.py's
+    generate_triggers()) rather than inline in MenuType.to_code -- doing it inline
+    deadlocks the code-generation coroutine scheduler.
+    """
+    for w in get_widget_map().values():
+        if not isinstance(w.type, MenuType) or not w.config:
+            continue
+        for conf in w.config.get(CONF_ON_ROOT_BACK_BUTTON_CLICK, ()):
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
             await automation.build_automation(trigger, [], conf)
             async with LambdaContext(EVENT_ARG, where=conf[CONF_TRIGGER_ID]) as context:
@@ -193,9 +209,6 @@ class MenuType(WidgetType):
             lv_obj.add_event_cb(
                 w.obj, await context.get_lambda(), LV_EVENT.CLICKED, cg.nullptr
             )
-
-
-menu_spec = MenuType()
 
 
 @automation.register_action(
