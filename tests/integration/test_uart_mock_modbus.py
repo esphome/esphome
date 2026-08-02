@@ -446,3 +446,33 @@ async def test_uart_mock_modbus_shared_address(
         await tracker.setup_and_start_scenario(client)
         await tracker.await_all(futures)
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_custom_command(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test a custom_command sensor polling a register served by the mock server.
+
+    The custom_command is a raw frame (device address + PDU); the hub appends the CRC and
+    routes the response back to the polling command, whose sensor lambda parses the payload.
+    Guards the custom polling wiring: the command must reference the sensor's custom_data and
+    decode the real function code, or nothing is ever transmitted. A plain read on the same
+    register anchors the bus.
+    """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    expected_values = {"plain_read": 259, "custom_read": 259}
+    tracker = SensorTracker(list(expected_values.keys()))
+    futures = tracker.expect_all(expected_values)
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures)
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)

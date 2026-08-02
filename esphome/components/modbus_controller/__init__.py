@@ -42,9 +42,7 @@ AUTO_LOAD = ["modbus"]
 MULTI_CONF = True
 
 modbus_controller_ns = cg.esphome_ns.namespace("modbus_controller")
-ModbusController = modbus_controller_ns.class_(
-    "ModbusController", cg.PollingComponent, modbus.ModbusClientDevice
-)
+ModbusController = modbus_controller_ns.class_("ModbusController", cg.PollingComponent)
 
 SensorItem = modbus_controller_ns.struct("SensorItem")
 
@@ -54,10 +52,12 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ModbusController),
-            cv.Optional(CONF_ALLOW_DUPLICATE_COMMANDS, default=False): cv.boolean,
-            cv.Optional(
-                CONF_COMMAND_THROTTLE, default="0ms"
-            ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_ALLOW_DUPLICATE_COMMANDS): cv.invalid(
+                "This option has been removed. The modbus hub now prevents duplicate commands."
+            ),
+            cv.Optional(CONF_COMMAND_THROTTLE): cv.invalid(
+                "This option has been removed. Use 'turnaround_time' on the 'modbus' component instead."
+            ),
             cv.Optional(CONF_SERVER_COURTESY_RESPONSE): cv.invalid(
                 "This option has been removed. Use modbus_server component instead: https://esphome.io/components/modbus_server/"
             ),
@@ -198,8 +198,6 @@ _CALLBACK_AUTOMATIONS = (
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    cg.add(var.set_allow_duplicate_commands(config[CONF_ALLOW_DUPLICATE_COMMANDS]))
-    cg.add(var.set_command_throttle(config[CONF_COMMAND_THROTTLE]))
     cg.add(var.set_max_cmd_retries(config[CONF_MAX_CMD_RETRIES]))
     cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
     await register_modbus_device(var, config)
