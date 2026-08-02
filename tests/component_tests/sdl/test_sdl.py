@@ -5,8 +5,15 @@ from __future__ import annotations
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.sdl.display import CONFIG_SCHEMA
+from esphome.components.sdl.display import (
+    CONF_SDL_ID,
+    CONFIG_SCHEMA,
+    headless_final_validate,
+)
+from esphome.config import Config
 from esphome.const import PlatformFramework
+from esphome.core import ID
+from esphome.final_validate import full_config
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
 
@@ -54,3 +61,41 @@ def test_screenshot_key_accepted_when_windowed() -> None:
     """The key is only valid alongside a window."""
     config = CONFIG_SCHEMA(_config(screenshot_key="SDLK_F12"))
     assert str(config["screenshot_key"]) == "SDLK_F12"
+
+
+def _declare_sdl_display(headless: bool) -> ID:
+    """Register a full_config with a single sdl display declaration and return a reference to it.
+
+    Mirrors what the real config pipeline leaves behind: a "display" domain entry plus a
+    declare_ids record id_declaration_match_schema uses to find it again.
+    """
+    declared_id = ID("my_sdl", is_declaration=True)
+    fc = Config()
+    fc["display"] = [
+        {
+            "platform": "sdl",
+            "id": declared_id,
+            "headless": headless,
+            "dimensions": {"width": 320, "height": 240},
+        }
+    ]
+    fc.declare_ids.append((declared_id, ["display", 0, "id"]))
+    full_config.set(fc)
+    return ID("my_sdl")
+
+
+@pytest.mark.parametrize("platform", ["binary_sensor", "touchscreen"])
+def test_headless_final_validate_rejects_headless_display(platform: str) -> None:
+    """binary_sensor and touchscreen both need a window, so a headless display is rejected."""
+    sdl_ref = _declare_sdl_display(headless=True)
+    schema = headless_final_validate(platform)
+    with pytest.raises(cv.Invalid, match="needs a window"):
+        schema({CONF_SDL_ID: sdl_ref})
+
+
+@pytest.mark.parametrize("platform", ["binary_sensor", "touchscreen"])
+def test_headless_final_validate_accepts_windowed_display(platform: str) -> None:
+    """The same platforms are accepted once the display has a window."""
+    sdl_ref = _declare_sdl_display(headless=False)
+    schema = headless_final_validate(platform)
+    schema({CONF_SDL_ID: sdl_ref})  # Should not raise.

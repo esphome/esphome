@@ -25,22 +25,34 @@ constexpr unsigned MAX_NAME_ATTEMPTS = 1000;
 
 /// Reduce a user supplied name to a single safe path component. Everything outside the allowed set
 /// is replaced, so "..", "/" and absolute paths cannot escape the screenshot directory.
+/// Sets *rewritten to true if the result is not simply "name" with a ".bmp" suffix appended, so the
+/// caller can warn rather than silently write somewhere the user did not ask for.
 /// Returns an empty string if nothing usable is left.
-std::string sanitize_name(const char *name) {
+std::string sanitize_name(const char *name, bool *rewritten) {
   std::string result;
   bool all_dots = true;
-  for (const char *p = name; *p != '\0' && result.size() < MAX_NAME_LENGTH; p++) {
+  bool changed = false;
+  for (const char *p = name; *p != '\0'; p++) {
+    if (result.size() >= MAX_NAME_LENGTH) {
+      changed = true;
+      break;
+    }
     char c = *p;
-    if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '.' || c == '_' || c == '-'))
+    if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '.' || c == '_' || c == '-')) {
       c = '_';
+      changed = true;
+    }
     if (c != '.')
       all_dots = false;
     result.push_back(c);
   }
-  if (all_dots)
+  if (all_dots) {
+    *rewritten = true;
     return "";
+  }
   if (result.size() < 4 || result.compare(result.size() - 4, 4, ".bmp") != 0)
     result += ".bmp";
+  *rewritten = changed;
   return result;
 }
 
@@ -49,6 +61,8 @@ std::string add_suffix(const std::string &name, unsigned attempt) {
   char suffix[12];
   snprintf(suffix, sizeof(suffix), "-%u", attempt);
   auto dot = name.rfind('.');
+  if (dot == std::string::npos)
+    return name + suffix;
   return name.substr(0, dot) + suffix + name.substr(dot);
 }
 
@@ -390,8 +404,13 @@ bool Sdl::save_screenshot(const char *filename) {
   std::string name;
   bool exact = false;
   if (filename != nullptr) {
-    name = sanitize_name(filename);
+    bool rewritten = false;
+    name = sanitize_name(filename, &rewritten);
     exact = !name.empty();
+    if (rewritten) {
+      ESP_LOGW(TAG, "Requested screenshot name '%s' is not a valid file name, using '%s' instead", filename,
+               name.empty() ? "a timestamped name" : name.c_str());
+    }
   }
   if (name.empty()) {
     struct timespec now {};

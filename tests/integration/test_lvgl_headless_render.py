@@ -24,6 +24,10 @@ HEIGHT = 300
 # blue background, drawn with the built in montserrat_14 font. To regenerate, run this test and
 # take the hash it reports.
 EXPECTED_SHA256 = "a995b002dd1d183c47514da15ab9a60a3e7d788c2e24386a02fddd48655092ed"
+# Bundled LVGL version (esphome/components/lvgl/__init__.py, LVGL_VERSION) the hash above was
+# generated against. A version bump can shift anti-aliasing enough to change the hash even though
+# nothing is actually wrong -- if this test fails, check that first before regenerating the hash.
+EXPECTED_LVGL_VERSION = "9.5.0"
 
 
 def _bmp_pixels(path: Path) -> tuple[int, int, int, bytes]:
@@ -83,10 +87,20 @@ async def test_lvgl_headless_render(
 
         digest = hashlib.sha256(pixels).hexdigest()
         if digest != EXPECTED_SHA256:
-            kept = Path.cwd() / "lvgl_headless_render_actual.bmp"
+            kept = tmp_path / "lvgl_headless_render_actual.bmp"
             kept.write_bytes(capture.read_bytes())
+
+            from esphome.components.lvgl import LVGL_VERSION
+
+            version_hint = ""
+            if LVGL_VERSION != EXPECTED_LVGL_VERSION:
+                version_hint = (
+                    f"the bundled LVGL version changed ({EXPECTED_LVGL_VERSION} -> "
+                    f"{LVGL_VERSION}), which is the likely cause\n"
+                )
             pytest.fail(
                 f"rendered screen does not match the expected hash\n"
+                f"{version_hint}"
                 f"  expected: {EXPECTED_SHA256}\n"
                 f"  actual:   {digest}\n"
                 f"the image that was rendered has been kept at {kept}"
