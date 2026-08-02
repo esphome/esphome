@@ -25,3 +25,48 @@ ota:
   - platform: esphome
     password: !secret ota_password
     swap_method: move
+
+switch:
+  - platform: gpio
+    id: led0
+    name: "LED0 Blue"
+    pin:
+      number: 55  # blue_led on the XIAO nRF54LM20A: gpio1 pin 23 (1*32 + 23)
+      inverted: true  # GPIO_ACTIVE_LOW in the board's own devicetree
+
+# NOTE: this project's zephyr i2c support is single-bus only right now
+# ("Second i2c is not implemented on Zephyr yet") -- the onboard IMU (i2c30,
+# see git history) and this OLED test (i2c22, the XIAO header's bus, via the
+# expansion base) can't run in the same firmware image yet.
+i2c:
+  - id: bus_oled
+    dts_node_override: i2c22  # XIAO header's I2C (xiao_i2c alias)
+    sda: 35  # P1.03: gpio1 pin 3 (1*32 + 3) -- i2c22_default pinctrl, NRF_PSEL(TWIM_SDA, 1, 3)
+    scl: 39  # P1.07: gpio1 pin 7 (1*32 + 7) -- i2c22_default pinctrl, NRF_PSEL(TWIM_SCL, 1, 7)
+
+font:
+  - file: "gfonts://Roboto"
+    id: font_default
+    size: 16
+
+display:
+  - platform: ssd1306_i2c
+    id: oled
+    i2c_id: bus_oled
+    model: "SSD1306 128x64"
+    address: 0x3C
+    lambda: |-
+      it.printf(0, 0, id(font_default), "nRF54LM20A");
+      it.printf(0, 30, id(font_default), "OLED test OK");
+
+binary_sensor:
+  - platform: gpio
+    name: "Expansion Button SW1"
+    pin:
+      number: 63  # XIAO D1 on the expansion base: P1.31 = gpio1 pin 31 (1*32 + 31)
+      mode: INPUT_PULLUP
+      inverted: true  # GPIO_ACTIVE_LOW, matching Seeed's own overlay for this button
+    filters:
+      - delayed_on_off: 25ms  # debounce -- without it, mechanical bounce toggles the LED several times per press
+    on_press:
+      - switch.toggle: led0
