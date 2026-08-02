@@ -99,6 +99,9 @@ logger:
 display:
   - platform: sdl
     id: sdl0
+    # Avoids shelling out to `sdl2-config`, which isn't installed on the
+    # unit-test runners -- codegen never actually compiles this config.
+    sdl_options: "-DESPHOME_TEST"
     dimensions:
       width: 100
       height: 100
