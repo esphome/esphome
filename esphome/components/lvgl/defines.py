@@ -670,6 +670,12 @@ LV_MENU_MODES = LvConstant(
     "BOTTOM_FIXED",
 )
 
+LV_MENU_ROOT_BACK_BUTTON_MODES = LvConstant(
+    "LV_MENU_ROOT_BACK_BUTTON_",
+    "DISABLED",
+    "ENABLED",
+)
+
 LV_CHART_TYPES = (
     "NONE",
     "LINE",
@@ -747,6 +753,7 @@ CONF_GRID_ROW_ALIGN = "grid_row_align"
 CONF_GRID_ROWS = "grid_rows"
 CONF_HEADER_BUTTONS = "header_buttons"
 CONF_HEADER_MODE = "header_mode"
+CONF_HEADER_STYLE = "header_style"
 CONF_HOME = "home"
 CONF_IMAGE = "image"
 CONF_INDICATORS = "indicators"
@@ -763,6 +770,7 @@ CONF_LVGL_ID = "lvgl_id"
 CONF_LONG_MODE = "long_mode"
 CONF_MAJOR_TICKS_STYLE = "major_ticks_style"
 CONF_MAPPING = "mapping"
+CONF_MENU = "menu"
 CONF_MSGBOXES = "msgboxes"
 CONF_OBJ = "obj"
 CONF_ONE_CHECKED = "one_checked"
@@ -773,6 +781,7 @@ CONF_ON_LANDSCAPE = "on_landscape"
 CONF_ON_PAUSE = "on_pause"
 CONF_ON_PORTRAIT = "on_portrait"
 CONF_ON_RESUME = "on_resume"
+CONF_ON_ROOT_BACK_BUTTON_CLICK = "on_root_back_button_click"
 CONF_ON_SELECT = "on_select"
 CONF_ON_STOP = "on_stop"
 CONF_OPA = "opa"
@@ -796,6 +805,7 @@ CONF_RESUME_ON_INPUT = "resume_on_input"
 CONF_RIGHT_BUTTON = "right_button"
 CONF_ROLLOVER = "rollover"
 CONF_ROOT_BACK_BTN = "root_back_btn"
+CONF_ROOT_PAGE = "root_page"
 CONF_ROWS = "rows"
 CONF_SCALE = "scale"
 CONF_SCALE_LINES = "scale_lines"
@@ -803,9 +813,12 @@ CONF_SCROLLBAR_MODE = "scrollbar_mode"
 CONF_SCROLL_DIR = "scroll_dir"
 CONF_SCROLL_SNAP_X = "scroll_snap_x"
 CONF_SCROLL_SNAP_Y = "scroll_snap_y"
+CONF_SECTIONS = "sections"
 CONF_SELECTED_INDEX = "selected_index"
 CONF_SELECTED_TEXT = "selected_text"
 CONF_SHOW_SNOW = "show_snow"
+CONF_SIDEBAR_PAGE = "sidebar_page"
+CONF_SIDEBAR_STYLE = "sidebar_style"
 CONF_SPIN_TIME = "spin_time"
 CONF_SRC = "src"
 CONF_START_ANGLE = "start_angle"

@@ -127,6 +127,12 @@ int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int32_t value);
 lv_color_t lv_grad_calculate_color(const lv_grad_dsc_t *dsc, int32_t pos);
 #endif  // USE_LVGL_GRADIENT
 
+#ifdef USE_LVGL_MENU
+// True if `e` is a click on `menu`'s back button while already at the root page -- the one
+// case LVGL's own docs say the app must handle itself (there is no default behavior).
+bool lv_menu_back_button_is_root_click(lv_obj_t *menu, lv_event_t *e);
+#endif  // USE_LVGL_MENU
+
 // Parent class for things that wrap an LVGL object
 class LvCompound {
  public:
