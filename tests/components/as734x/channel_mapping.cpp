@@ -21,8 +21,8 @@ class FakeI2CBus : public i2c::I2CBus {
  public:
   std::map<uint8_t, std::vector<uint8_t>> registers;
 
-  i2c::ErrorCode write_readv(uint8_t /*address*/, const uint8_t *write_buffer, size_t write_count,
-                             uint8_t *read_buffer, size_t read_count) override {
+  i2c::ErrorCode write_readv(uint8_t /*address*/, const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
+                             size_t read_count) override {
     if (read_count == 0) {
       return i2c::ERROR_OK;  // a plain write, nothing to answer
     }
@@ -61,9 +61,7 @@ class ChannelMappingTest : public ::testing::Test {
     this->bus_.registers[ASTATUS] = {0x00};
   }
 
-  void set_frame(const std::vector<uint16_t> &words) {
-    this->bus_.registers[DATA_0] = little_endian_frame(words);
-  }
+  void set_frame(const std::vector<uint16_t> &words) { this->bus_.registers[DATA_0] = little_endian_frame(words); }
 
   FakeI2CBus bus_;
   i2c::I2CDevice device_;
@@ -117,12 +115,12 @@ TEST_F(ChannelMappingTest, As7343PlacesEveryBandAtItsPublishedIndex) {
   this->bus_.registers[0x93] = {0x00};  // STATUS
   // The AS7343 reports all 18 ADC slots in one pass, in SMUX cycle order.
   std::vector<uint16_t> frame(18, 0);
-  frame[0] = 450;   // FZ
-  frame[4] = 1000;  // CLEAR, cycle 1
-  frame[6] = 425;   // F2
-  frame[10] = 1100; // CLEAR, cycle 2
-  frame[12] = 405;  // F1
-  frame[3] = 855;   // NIR
+  frame[0] = 450;    // FZ
+  frame[4] = 1000;   // CLEAR, cycle 1
+  frame[6] = 425;    // F2
+  frame[10] = 1100;  // CLEAR, cycle 2
+  frame[12] = 405;   // F1
+  frame[3] = 855;    // NIR
   this->set_frame(frame);
   ASSERT_TRUE(chip.read_channels(0, values, gain, saturated));
 
