@@ -1,0 +1,25 @@
+esphome:
+  name: xiao-nrf54lm20a-test
+
+zephyr:
+  variant: nrf54lm20a
+  framework:
+    type: zephyr
+    source:
+      type: git
+      ref: main
+
+logger:
+
+switch:
+  - platform: gpio
+    id: led0
+    name: "LED0 Blue"
+    pin:
+      number: 55  # blue_led on the XIAO nRF54LM20A: gpio1 pin 23 (1*32 + 23)
+      inverted: true  # GPIO_ACTIVE_LOW in the board's own devicetree
+
+interval:
+  - interval: 500ms
+    then:
+      - switch.toggle: led0

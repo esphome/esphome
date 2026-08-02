@@ -65,6 +65,7 @@ from .const import (
     ZEPHYR_VARIANT_NATIVE_SIM,
     ZEPHYR_VARIANT_NRF52,
     ZEPHYR_VARIANT_NRF54L15,
+    ZEPHYR_VARIANT_NRF54LM20A,
     zephyr_ns,
 )
 from .gpio import zephyr_pin_to_code as _zephyr_pin_to_code  # noqa: F401
@@ -1031,6 +1032,10 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         from .variants.nrf54l15 import config_schema as _nrf54l15_config_schema
 
         config = _nrf54l15_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_NRF54LM20A:
+        from .variants.nrf54lm20a import config_schema as _nrf54lm20a_config_schema
+
+        config = _nrf54lm20a_config_schema(config)
     else:
         raise cv.Invalid(f"Variant {variant!r} has no config schema registered yet")
     zephyr_data()[KEY_BOARD_ROOT] = board_root
@@ -1106,6 +1111,11 @@ async def to_code(config: ConfigType) -> None:
         from .variants.nrf54l15 import to_code as _nrf54l15_to_code
 
         await _nrf54l15_to_code(config)
+        return
+    if variant == ZEPHYR_VARIANT_NRF54LM20A:
+        from .variants.nrf54lm20a import to_code as _nrf54lm20a_to_code
+
+        await _nrf54lm20a_to_code(config)
         return
     raise NotImplementedError(f"Zephyr variant {variant!r} has no to_code registered")
 
