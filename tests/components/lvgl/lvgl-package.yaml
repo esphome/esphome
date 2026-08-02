@@ -1213,12 +1213,18 @@ lvgl:
               - lvgl.list.add_text:
                   id: test_list_id
                   text: !lambda return "Section";
-              - lvgl.list.add_button:
+              - lvgl.list.add_text:
                   id: test_list_id
-                  text: "Entry"
-                  checkable: true
+                  text: "Pinned section"
+                  index: 0
               - lvgl.list.add:
                   id: test_list_id
+                  button:
+                    text: "Entry"
+                    checkable: true
+              - lvgl.list.add:
+                  id: test_list_id
+                  index: 1
                   obj:
                     widgets:
                       - label:

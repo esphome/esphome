@@ -13,7 +13,6 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.cpp_generator import MockObj
-from esphome.cpp_types import nullptr
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
 from ..automation import action_to_code
@@ -27,7 +26,7 @@ from ..defines import (
     add_lv_use,
     literal,
 )
-from ..lv_validation import lv_bool, lv_int, lv_text, padding
+from ..lv_validation import lv_int, lv_text, padding
 from ..lvcode import (
     UPDATE_EVENT,
     LocalVariable,
@@ -44,7 +43,6 @@ from ..types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t
 from . import Widget, WidgetType, get_widgets, set_obj_properties
 
 CONF_LIST = "list"
-CONF_CHECKABLE = "checkable"
 CONF_WIDGET = "widget"
 CONF_ON_ADD = "on_add"
 CONF_ON_REMOVE = "on_remove"
@@ -116,9 +114,9 @@ LIST_CREATE_SCHEMA = LIST_SCHEMA.extend(
 class ListType(WidgetType):
     """
     A plain wrapper around LVGL's native `lv_list`: a scrollable container meant to be
-    populated at runtime, via the `lvgl.list.add_text`/`add_button`/`add`/`remove`/`clear`
-    actions, rather than a static `options:`-style list -- for content that isn't known
-    until the device is running (sensor readings, WiFi scan results, and so on).
+    populated at runtime, via the `lvgl.list.add_text`/`add`/`remove`/`clear` actions,
+    rather than a static `options:`-style list -- for content that isn't known until the
+    device is running (sensor readings, WiFi scan results, and so on).
     """
 
     def __init__(self):
@@ -162,7 +160,12 @@ LIST_ID_SCHEMA = cv.Schema({cv.Required(CONF_ID): cv.use_id(lv_list_t)})
 @automation.register_action(
     "lvgl.list.add_text",
     ObjUpdateAction,
-    LIST_ID_SCHEMA.extend({cv.Required(CONF_TEXT): lv_text}),
+    LIST_ID_SCHEMA.extend(
+        {
+            cv.Required(CONF_TEXT): lv_text,
+            cv.Optional(CONF_INDEX): cv.templatable(cv.int_),
+        }
+    ),
     synchronous=True,
 )
 async def list_add_text_to_code(config, action_id, template_arg, args):
@@ -173,6 +176,8 @@ async def list_add_text_to_code(config, action_id, template_arg, args):
         with LocalVariable(
             "list_entry", lv_obj_t, lv_expr.list_add_text(w.obj, text)
         ) as entry:
+            if (idx := config.get(CONF_INDEX)) is not None:
+                lv.obj_move_to_index(entry, await lv_int.process(idx))
             _fire_on_add(config[CONF_ID], w.obj, entry)
 
     return await action_to_code(
@@ -180,48 +185,22 @@ async def list_add_text_to_code(config, action_id, template_arg, args):
     )
 
 
-@automation.register_action(
-    "lvgl.list.add_button",
-    ObjUpdateAction,
-    LIST_ID_SCHEMA.extend(
-        {
-            cv.Required(CONF_TEXT): lv_text,
-            cv.Optional(CONF_CHECKABLE, default=False): lv_bool,
-        }
-    ),
-    synchronous=True,
-)
-async def list_add_button_to_code(config, action_id, template_arg, args):
-    widgets = await get_widgets(config)
-
-    async def do_add_button(w: Widget):
-        text = await lv_text.process(config[CONF_TEXT])
-        checkable = await lv_bool.process(config[CONF_CHECKABLE])
-        with LocalVariable(
-            "list_btn", lv_obj_t, lv_expr.list_add_button(w.obj, nullptr, text)
-        ) as btn:
-            with LvConditional(checkable):
-                lv_obj.add_flag(btn, literal("LV_OBJ_FLAG_CHECKABLE"))
-            _fire_on_add(config[CONF_ID], w.obj, btn)
-
-    return await action_to_code(
-        widgets, do_add_button, action_id, template_arg, args, config
-    )
-
-
 @schema_extractor("schema")
 def list_add_schema(value):
-    # A plain cv.Schema can't express "id, plus exactly one arbitrary widget-type
-    # key" - any_widget_schema() only knows how to validate the widget part, and
-    # doesn't exist as a fixed set of keys until actual validation time (widget
-    # types register themselves as their modules get imported). So id is stripped
-    # out by hand here, and everything else - whatever single widget-type key
-    # remains - is handed to any_widget_schema() dynamically.
+    # A plain cv.Schema can't express "id, an optional index, plus exactly one arbitrary
+    # widget-type key" - any_widget_schema() only knows how to validate the widget part, and
+    # doesn't exist as a fixed set of keys until actual validation time (widget types
+    # register themselves as their modules get imported). So id and index are stripped out
+    # by hand here, and everything else - whatever single widget-type key remains - is
+    # handed to any_widget_schema() dynamically.
     if value is SCHEMA_EXTRACT:
         return LIST_ID_SCHEMA.extend(
             {
-                cv.Optional(name): container_schema_value(widget_type)
-                for name, widget_type in WIDGET_TYPES.items()
+                cv.Optional(CONF_INDEX): cv.templatable(cv.int_),
+                **{
+                    cv.Optional(name): container_schema_value(widget_type)
+                    for name, widget_type in WIDGET_TYPES.items()
+                },
             }
         )
     if not isinstance(value, dict):
@@ -231,11 +210,16 @@ def list_add_schema(value):
         raise cv.Invalid(f"required key '{CONF_ID}' not provided")
     with cv.prepend_path([CONF_ID]):
         list_id = cv.use_id(lv_list_t)(value.pop(CONF_ID))
+    result = {CONF_ID: list_id}
+    if CONF_INDEX in value:
+        with cv.prepend_path([CONF_INDEX]):
+            result[CONF_INDEX] = cv.templatable(cv.int_)(value.pop(CONF_INDEX))
     if len(value) != 1:
         raise cv.Invalid(
-            "lvgl.list.add takes exactly one widget definition, e.g. 'label:' or 'button:', alongside 'id'"
+            "lvgl.list.add takes exactly one widget definition, e.g. 'label:' or 'button:', alongside 'id' and optional 'index'"
         )
-    return {CONF_ID: list_id, CONF_WIDGET: any_widget_schema()(value)}
+    result[CONF_WIDGET] = any_widget_schema()(value)
+    return result
 
 
 @automation.register_action(
@@ -249,8 +233,17 @@ async def list_add_to_code(config, action_id, template_arg, args):
 
     async def do_add(w: Widget):
         [(w_type_name, w_conf)] = config[CONF_WIDGET][0].items()
+        index = None
+        if (idx := config.get(CONF_INDEX)) is not None:
+            index = await lv_int.process(idx)
         await _build_dynamic_widget(
-            w_type_name, w_conf, w.obj, config[CONF_ID], w.obj, top_level=True
+            w_type_name,
+            w_conf,
+            w.obj,
+            config[CONF_ID],
+            w.obj,
+            top_level=True,
+            index=index,
         )
 
     return await action_to_code(widgets, do_add, action_id, template_arg, args, config)
@@ -263,6 +256,7 @@ async def _build_dynamic_widget(
     list_id,
     list_obj,
     top_level: bool = False,
+    index=None,
 ) -> None:
     # Builds one widget (recursively, with children and triggers) using a LocalVariable
     # instead of the usual global Pvariable, so this can run fresh on every call instead
@@ -270,6 +264,8 @@ async def _build_dynamic_widget(
     # into static storage, which only tolerates a single boot-time construction) and
     # freed via an LV_EVENT_DELETE callback, since lv_obj_del()/lv_obj_clean() only know
     # how to destroy LVGL's own object tree, not a separate C++ wrapper paired with it.
+    # `index`, when given, only applies to the top-level entry (moving a whole row to a
+    # given position), not to its children.
     widget_type = WIDGET_TYPES[w_type_name]
     add_lv_use(w_type_name)
     add_lv_use(*widget_type.get_uses())
@@ -288,6 +284,8 @@ async def _build_dynamic_widget(
             )
             await _finish_dynamic_widget(w, w_conf, list_id, list_obj)
             if top_level:
+                if index is not None:
+                    lv.obj_move_to_index(w.obj, index)
                 _fire_on_add(list_id, list_obj, w.obj)
     else:
         creator = await widget_type.obj_creator(parent, w_conf)
@@ -295,6 +293,8 @@ async def _build_dynamic_widget(
             w = Widget(var, widget_type, w_conf)
             await _finish_dynamic_widget(w, w_conf, list_id, list_obj)
             if top_level:
+                if index is not None:
+                    lv.obj_move_to_index(w.obj, index)
                 _fire_on_add(list_id, list_obj, w.obj)
 
 
