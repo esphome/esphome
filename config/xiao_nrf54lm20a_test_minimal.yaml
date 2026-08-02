@@ -23,3 +23,34 @@ interval:
   - interval: 500ms
     then:
       - switch.toggle: led0
+
+i2c:
+  - id: bus_imu
+    dts_node_override: i2c30  # onboard IMU bus (not the XIAO header's i2c22)
+    sda: 8  # P0.08: gpio0 pin 8 (i2c30_default pinctrl, NRF_PSEL(TWIM_SDA, 0, 8))
+    scl: 7  # P0.07: gpio0 pin 7 (i2c30_default pinctrl, NRF_PSEL(TWIM_SCL, 0, 7))
+
+motion:
+  - platform: lsm6ds
+    id: lsm6ds_motion
+    i2c_id: bus_imu
+    accelerometer_range: 4G
+    accelerometer_odr: 104HZ
+    gyroscope_range: 2000DPS
+    gyroscope_odr: 208HZ
+
+sensor:
+  - platform: lsm6ds
+    name: "IMU Temperature"
+  - platform: motion
+    motion_id: lsm6ds_motion
+    type: acceleration_x
+    name: "IMU Accel X"
+  - platform: motion
+    motion_id: lsm6ds_motion
+    type: acceleration_y
+    name: "IMU Accel Y"
+  - platform: motion
+    motion_id: lsm6ds_motion
+    type: acceleration_z
+    name: "IMU Accel Z"
