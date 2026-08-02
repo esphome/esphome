@@ -26,7 +26,7 @@ zephyr_pwm_ns = cg.esphome_ns.namespace("zephyr_pwm")
 ZephyrPWMChannel = zephyr_pwm_ns.class_(
     "ZephyrPWMChannel", output.FloatOutput, cg.Component
 )
-validate_frequency = cv.All(cv.frequency, cv.float_range(min=1.0, max=1e7))
+validate_frequency = cv.All(cv.frequency, cv.float_range(min=3.815, max=1e7))
 
 
 def _pin_schema(value):
