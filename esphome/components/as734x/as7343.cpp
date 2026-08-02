@@ -1,5 +1,3 @@
-#ifdef USE_AS7343
-
 #include "as7343.h"
 #include "esphome/core/log.h"
 
@@ -135,17 +133,17 @@ void AS7343::direct_config_3_chain_() {
   this->i2c_device_->write_byte(AS7343_FD_TIME_1, AS7343_FD_TIME_1_INIT);
   this->i2c_device_->write_byte(AS7343_FD_TIME_2, AS7343_FD_TIME_2_INIT);
 
-  constexpr uint8_t CHAINS = 3;
-  constexpr uint8_t CHAIN_LEN = 10;
+  constexpr uint8_t chains = 3;
+  constexpr uint8_t chain_len = 10;
 
-  const uint8_t SMUX_CMD[CHAINS] = {0x46, 0x56, 0x66};
-  const uint8_t ADC_MAP[CHAINS][CHAIN_LEN] = {{0x00, 0x04, 0x65, 0x02, 0x00, 0x05, 0x00, 0x01, 0x00, 0x30},
+  const uint8_t smux_cmd[chains] = {0x46, 0x56, 0x66};
+  const uint8_t adc_map[chains][chain_len] = {{0x00, 0x04, 0x65, 0x02, 0x00, 0x05, 0x00, 0x01, 0x00, 0x30},
                                               {0x00, 0x00, 0x60, 0x20, 0x04, 0x50, 0x03, 0x00, 0x01, 0x05},
                                               {0x05, 0x00, 0x60, 0x00, 0x30, 0x00, 0x40, 0x10, 0x20, 0x00}};
-  for (size_t chain = 0; chain < CHAINS; chain++) {
-    for (size_t i = 0; i < CHAIN_LEN; i++) {
-      this->i2c_device_->write_byte(AS7343_CHAIN_SMUX, ADC_MAP[chain][i]);
-      this->i2c_device_->write_byte(AS7343_CHAIN_CMD, SMUX_CMD[chain]);
+  for (size_t chain = 0; chain < chains; chain++) {
+    for (size_t i = 0; i < chain_len; i++) {
+      this->i2c_device_->write_byte(AS7343_CHAIN_SMUX, adc_map[chain][i]);
+      this->i2c_device_->write_byte(AS7343_CHAIN_CMD, smux_cmd[chain]);
     }
   }
 }
@@ -199,5 +197,3 @@ bool AS7343::read_channels(uint8_t /*step*/, ChannelValuesUint16 &values, Gain &
 }
 
 }  // namespace esphome::as734x
-
-#endif  // USE_AS7343

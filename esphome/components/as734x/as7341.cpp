@@ -1,5 +1,3 @@
-#ifdef USE_AS7341
-
 #include "as7341.h"
 #include "esphome/core/log.h"
 
@@ -87,9 +85,9 @@ bool AS7341::prepare_for_smux_step(uint8_t step) {
 }
 
 bool AS7341::read_channels(uint8_t smux_step, ChannelValuesUint16 &values, Gain &gain, bool &saturated) {
-  constexpr uint8_t ADC_CHANNELS = 6;
+  constexpr uint8_t adc_channels = 6;
 
-  std::array<uint16_t, ADC_CHANNELS> raw{};
+  std::array<uint16_t, adc_channels> raw{};
   RegAStatus astatus{};
   this->i2c_device_->read_byte(AS7341_ASTATUS, &astatus.raw);
   if (astatus.asat_status) {
@@ -98,7 +96,7 @@ bool AS7341::read_channels(uint8_t smux_step, ChannelValuesUint16 &values, Gain 
 
   // The data registers hold the low byte first, but read_bytes_16() converts from big endian,
   // so every word needs swapping back.
-  bool ret = this->i2c_device_->read_bytes_16(AS7341_DATA_0, raw.data(), ADC_CHANNELS);
+  bool ret = this->i2c_device_->read_bytes_16(AS7341_DATA_0, raw.data(), adc_channels);
   for (auto &value : raw) {
     value = this->swap_bytes_(value);
   }
@@ -123,5 +121,3 @@ bool AS7341::read_channels(uint8_t smux_step, ChannelValuesUint16 &values, Gain 
 }
 
 }  // namespace esphome::as734x
-
-#endif  // USE_AS7341
