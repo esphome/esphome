@@ -119,3 +119,16 @@ async def to_code(config: ConfigType) -> None:
     # smaller footprint. Same tradeoff nrf52/nrf54l15 make -- strictly smaller either way.
     zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_RSA", False, image="mcuboot")
     zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True, image="mcuboot")
+
+    # This board's devicetree marks its I2C buses, PMIC (nPM1300, via MFD), and fixed
+    # regulator "okay" unconditionally (not something app config controls), which
+    # Kconfig's `default y if DT_HAS_..._ENABLED` pattern auto-selects into every
+    # image built against this board -- including mcuboot's own minimal one. Those
+    # drivers call k_mutex_*/k_work_submit, which don't exist without
+    # CONFIG_MULTITHREADING -- and mcuboot disables that for a smaller footprint.
+    # mcuboot itself needs none of these (it only touches flash/watchdog), so turn
+    # them back off for that image specifically rather than dragging mcuboot's
+    # threading model in just to satisfy drivers it never calls into.
+    zephyr_add_prj_conf("I2C", False, image="mcuboot")
+    zephyr_add_prj_conf("REGULATOR", False, image="mcuboot")
+    zephyr_add_prj_conf("MFD", False, image="mcuboot")

@@ -1,0 +1,27 @@
+esphome:
+  name: xiao-nrf54lm20a-test
+
+zephyr:
+  variant: nrf54lm20a
+  framework:
+    type: zephyr
+    source:
+      type: git
+      ref: main
+
+logger:
+
+network:
+  enable_ipv6: true
+
+openthread:
+  device_type: mtd
+  force_dataset: true
+  tlv: !secret openthread_tlv_wed
+
+api:
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+    swap_method: move
