@@ -19,6 +19,7 @@ from .const import (
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
     KEY_SYSBUILD,
+    KEY_SYSBUILD_CONF,
     KEY_USER,
     KEY_ZEPHYR,
     zephyr_ns,
@@ -76,6 +77,7 @@ class ZephyrData(TypedDict):
     user: dict[str, list[str]]
     kconfig: str
     sysbuild: bool
+    sysbuild_conf: dict[str, PrjConfValueType]
 
 
 def zephyr_set_core_data(config: ConfigType) -> None:
@@ -94,6 +96,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         # config says `bootloader: mcuboot`, so the image can be smaller. This was
         # the default behaviour in SDK 2.6.1.
         sysbuild=False,
+        sysbuild_conf={},
     )
 
 
@@ -222,6 +225,27 @@ def zephyr_add_pm_static(sections: list[Section]) -> None:
     zephyr_data()[KEY_PM_STATIC].extend(sections)
 
 
+def zephyr_add_sysbuild_conf(name: str, value: PrjConfValueType) -> None:
+    """Set a sysbuild-level Kconfig option (written to zephyr/sysbuild.conf).
+
+    These SB_CONFIG_* options drive the sysbuild image assembly itself -- which
+    bootloader is built, how it signs images, which upgrade mode it uses. They
+    cannot be set from an image's own Kconfig fragment: sysbuild force-writes
+    them into each image's FORCED_CONF_FILE, which is applied last and silently
+    overrides whatever the fragment asked for.
+
+    Only written when sysbuild is actually in use (see KEY_SYSBUILD).
+    """
+    if not name.startswith("SB_CONFIG_"):
+        name = "SB_CONFIG_" + name
+    conf = zephyr_data()[KEY_SYSBUILD_CONF]
+    if name in conf and conf[name] != value:
+        raise ValueError(
+            f"{name} already set with value '{conf[name]}', cannot set again to '{value}'"
+        )
+    conf[name] = value
+
+
 def zephyr_add_user(key, value):
     user = zephyr_data()[KEY_USER]
     if key not in user:
@@ -314,6 +338,8 @@ def copy_files() -> None:
     sysbuild_conf = ""
     if zephyr_data()[KEY_SYSBUILD]:
         sysbuild_conf = "SB_CONFIG_BOOTLOADER_MCUBOOT=y\n"
+        for name, value in sorted(zephyr_data()[KEY_SYSBUILD_CONF].items()):
+            sysbuild_conf += f"{name}={_format_prj_conf_val(value)}\n"
     changed |= _write_file_if_changed_or_remove_when_empty(
         CORE.relative_build_path("zephyr/sysbuild.conf"), sysbuild_conf
     )

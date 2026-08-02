@@ -1,0 +1,25 @@
+/*
+ * MCUboot devicetree overlay (mcuboot sysbuild image).
+ *
+ * MCUboot's serial recovery runs over a USB CDC ACM UART, so a board whose
+ * primary slot is empty or invalid can still be given an image over USB with
+ * no SWD probe attached.
+ *
+ * The CDC ACM node is declared here rather than borrowed from the board. Board
+ * DTS files name theirs inconsistently -- xiao_ble calls it usb_cdc_acm_uart,
+ * the Adafruit nRF52840 boards call it cdc_acm_uart0 -- so referencing the
+ * board's label would tie this file to one board. All this needs is
+ * zephyr_udc0, which every nRF52840 has.
+ */
+/ {
+    chosen {
+        zephyr,cdc-acm-uart = &mcuboot_cdc_acm;
+        zephyr,uart-mcumgr = &mcuboot_cdc_acm;
+    };
+};
+&zephyr_udc0 {
+    status = "okay";
+    mcuboot_cdc_acm: mcuboot_cdc_acm {
+        compatible = "zephyr,cdc-acm-uart";
+    };
+};
