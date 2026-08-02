@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import modbus
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ON_ERROR, CONF_ON_RESPONSE
+from esphome.core import Lambda
 
 CODEOWNERS = ["@exciton"]
 DEPENDENCIES = ["modbus"]
@@ -11,6 +12,7 @@ CONF_ON_NO_RESPONSE = "on_no_response"
 CONF_ON_NOT_SENT = "on_not_sent"
 CONF_ON_SENT = "on_sent"
 CONF_PDU = "pdu"
+CONF_RETRY = "retry"
 
 modbus_client_ns = cg.esphome_ns.namespace("modbus_client")
 ModbusClientSendAction = modbus_client_ns.class_(
@@ -36,7 +38,15 @@ _ACTION_BASE_SCHEMA = cv.Schema(
         # automation's variables.
         cv.Optional(CONF_ON_SENT): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_NO_RESPONSE): automation.validate_automation(single=True),
+        # on_no_response takes either a returning lambda (`!lambda "return <bool>;"`, gets `request`,
+        # returns true to have the hub retry the frame) OR a `then:` automation of actions; the automation
+        # form may also carry an optional `retry:` returning lambda to run actions AND decide the retry.
+        cv.Optional(CONF_ON_NO_RESPONSE): cv.Any(
+            cv.returning_lambda,
+            automation.validate_automation(
+                {cv.Optional(CONF_RETRY): cv.returning_lambda}, single=True
+            ),
+        ),
         cv.Optional(CONF_ON_NOT_SENT): automation.validate_automation(single=True),
     }
 )
@@ -72,12 +82,27 @@ async def register_client_action(var, config, args, response_args):
             [(_PDU_SPAN, "request"), (ModbusExceptionCode, "exception_code")],
             error_conf,
         )
-    if no_response_conf := config.get(CONF_ON_NO_RESPONSE):
-        await automation.build_automation(
-            var.get_no_response_trigger(), [], no_response_conf
-        )
+    if (no_response_conf := config.get(CONF_ON_NO_RESPONSE)) is not None:
+        # The lambda form IS the retry decision; the automation form runs actions and may carry a nested
+        # `retry:` lambda. Either way the retry lambda's bool becomes on_no_response()'s return value.
+        if isinstance(no_response_conf, Lambda):
+            retry_conf = no_response_conf
+        else:
+            await automation.build_automation(
+                var.get_no_response_trigger(),
+                [(_PDU_SPAN, "request")],
+                no_response_conf,
+            )
+            retry_conf = no_response_conf.get(CONF_RETRY)
+        if retry_conf is not None:
+            retry_lambda = await cg.process_lambda(
+                retry_conf, [(_PDU_SPAN, "request")], return_type=cg.bool_
+            )
+            cg.add(var.set_retry(retry_lambda))
     if not_sent_conf := config.get(CONF_ON_NOT_SENT):
-        await automation.build_automation(var.get_not_sent_trigger(), [], not_sent_conf)
+        await automation.build_automation(
+            var.get_not_sent_trigger(), [(_PDU_SPAN, "request")], not_sent_conf
+        )
     return var
 
 

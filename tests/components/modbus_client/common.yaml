@@ -8,6 +8,8 @@ button:
       - modbus_client.send:
           address: 0x01
           pdu: [0x03, 0x00, 0x10, 0x00, 0x01]
+          # on_no_response lambda form: return true to retry (reads only). `request` is the timed-out PDU.
+          on_no_response: !lambda "return !request.empty() && request[0] == 0x03;"
       # Per-send inline reply handlers (fire-and-continue): they run when this send's reply arrives,
       # with the device address that was targeted.
       - modbus_client.send:
@@ -22,9 +24,11 @@ button:
           on_error:
             then:
               - lambda: 'ESP_LOGW("modbus_client.test", "fc 0x%X exception %d", request.empty() ? 0 : request[0], (int) exception_code);'
+          # on_no_response combined form: run actions on timeout AND decide the retry via nested retry:.
           on_no_response:
             then:
-              - logger.log: "no reply"
+              - lambda: 'ESP_LOGW("modbus_client.test", "no reply for fc 0x%X", request.empty() ? 0 : request[0]);'
+            retry: !lambda "return !request.empty() && request[0] == 0x03;"
           on_not_sent:
             then:
-              - logger.log: "not sent"
+              - lambda: 'ESP_LOGW("modbus_client.test", "not sent fc 0x%X", request.empty() ? 0 : request[0]);'

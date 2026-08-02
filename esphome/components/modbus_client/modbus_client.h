@@ -23,17 +23,27 @@ template<typename... Ts> class ClientActionBase : public Action<Ts...>, public m
 
   Trigger<std::span<const uint8_t>> *get_sent_trigger() { return &this->sent_trigger_; }
   Trigger<std::span<const uint8_t>, modbus::ModbusExceptionCode> *get_error_trigger() { return &this->error_trigger_; }
-  Trigger<> *get_no_response_trigger() { return &this->no_response_trigger_; }
-  Trigger<> *get_not_sent_trigger() { return &this->not_sent_trigger_; }
+  Trigger<std::span<const uint8_t>> *get_no_response_trigger() { return &this->no_response_trigger_; }
+  Trigger<std::span<const uint8_t>> *get_not_sent_trigger() { return &this->not_sent_trigger_; }
+
+  /// The retry decision for on_no_response: given the request PDU, return true to have the hub re-queue
+  /// the frame. Set from the lambda form or a then: automation's nested retry lambda; may coexist with
+  /// the no_response trigger (actions run, then this decides the retry).
+  using retry_func_t = bool (*)(std::span<const uint8_t>);
+  void set_retry(retry_func_t f) { this->retry_func_ = f; }
 
   /// The frame was written to the wire: fires once per transmission, before any reply, and never for a
   /// send that ended in on_not_sent. request_pdu is the PDU sent (function code + data).
   void on_sent(std::span<const uint8_t> request_pdu) override { this->sent_trigger_.trigger(request_pdu); }
   /// Never reached the wire (tx queue full, cleared, or a duplicate write dropped by the hub's dedup).
-  void on_not_sent(std::span<const uint8_t> request_pdu) override { this->not_sent_trigger_.trigger(); }
-  /// No reply. Ad-hoc sends do not auto-retry; a handler that wants a retry re-sends from on_no_response.
+  void on_not_sent(std::span<const uint8_t> request_pdu) override { this->not_sent_trigger_.trigger(request_pdu); }
+  /// No reply within send_wait_time. Run the on_no_response actions (empty in the pure-lambda form),
+  /// then let the retry lambda, if set, decide whether the hub re-queues the frame (true = retry). The
+  /// two coexist: a then: automation can also carry a retry lambda. No lambda = no retry.
   bool on_no_response(std::span<const uint8_t> request_pdu) override {
-    this->no_response_trigger_.trigger();
+    this->no_response_trigger_.trigger(request_pdu);
+    if (this->retry_func_.has_value())
+      return (*this->retry_func_)(request_pdu);
     return false;
   }
   /// Stamp the templated device address before every play(): subclasses cannot forget it, and the hub
@@ -46,8 +56,9 @@ template<typename... Ts> class ClientActionBase : public Action<Ts...>, public m
  protected:
   Trigger<std::span<const uint8_t>> sent_trigger_;
   Trigger<std::span<const uint8_t>, modbus::ModbusExceptionCode> error_trigger_;
-  Trigger<> no_response_trigger_;
-  Trigger<> not_sent_trigger_;
+  Trigger<std::span<const uint8_t>> no_response_trigger_;
+  Trigger<std::span<const uint8_t>> not_sent_trigger_;
+  optional<retry_func_t> retry_func_{nullopt};
 };
 
 /// modbus_client.send: fire a raw PDU (function code + data; the hub adds address and CRC). The reply is
