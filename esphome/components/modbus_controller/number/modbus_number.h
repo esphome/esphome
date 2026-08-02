@@ -25,12 +25,12 @@ class ModbusNumber final : public number::Number, public Component, public Senso
   };
 
   void dump_config() override;
-  void parse_and_publish(const std::vector<uint8_t> &data) override;
+  void parse_and_publish(uint16_t base_address, std::span<const uint8_t> data) override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void set_parent(ModbusController *parent) { this->parent_ = parent; }
   void set_write_multiply(float factor) { this->multiply_by_ = factor; }
 
-  using transform_func_t = optional<float> (*)(ModbusNumber *, float, const std::vector<uint8_t> &);
+  using transform_func_t = optional<float> (*)(ModbusNumber *, float, std::span<const uint8_t>);
   using write_transform_func_t = optional<float> (*)(ModbusNumber *, float, std::vector<uint16_t> &);
   void set_template(transform_func_t f) { this->transform_func_ = f; }
   void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }

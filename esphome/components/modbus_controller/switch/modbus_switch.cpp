@@ -27,16 +27,17 @@ void ModbusSwitch::set_assumed_state(bool assumed_state) { this->assumed_state_ 
 
 bool ModbusSwitch::assumed_state() { return this->assumed_state_; }
 
-void ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {
+void ModbusSwitch::parse_and_publish(uint16_t base_address, std::span<const uint8_t> data) {
   bool value = false;
+  // For coils/discrete inputs this is the bit index; for registers it is the byte offset.
+  const size_t offset = this->offset_in_range(base_address);
   switch (this->register_type) {
     case modbus::EntityType::DISCRETE_INPUT:
     case modbus::EntityType::COIL:
-      // offset for coil is the actual number of the coil not the byte offset
-      value = modbus::helpers::bit_from_packed(this->offset, data);
+      value = modbus::helpers::bit_from_packed(offset, data);
       break;
     default:
-      value = modbus::helpers::get_data<uint16_t>(data, this->offset) & this->bitmask;
+      value = modbus::helpers::get_data<uint16_t>(data.data(), offset) & this->bitmask;
       break;
   }
 
@@ -51,8 +52,8 @@ void ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {
     }
   }
 
-  ESP_LOGV(TAG, "Publish '%s': new value = %s type = %d address = %X offset = %x", this->get_name().c_str(),
-           ONOFF(value), (int) this->register_type, this->start_address, this->offset);
+  ESP_LOGV(TAG, "Publish '%s': new value = %s type = %d address = %X offset = %zx", this->get_name().c_str(),
+           ONOFF(value), (int) this->register_type, this->start_address, offset);
   this->publish_state(value);
 }
 

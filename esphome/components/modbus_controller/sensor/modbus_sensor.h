@@ -22,9 +22,9 @@ class ModbusSensor final : public Component, public sensor::Sensor, public Senso
     this->force_new_range = force_new_range;
   }
 
-  void parse_and_publish(const std::vector<uint8_t> &data) override;
+  void parse_and_publish(uint16_t base_address, std::span<const uint8_t> data) override;
   void dump_config() override;
-  using transform_func_t = optional<float> (*)(ModbusSensor *, float, const std::vector<uint8_t> &);
+  using transform_func_t = optional<float> (*)(ModbusSensor *, float, std::span<const uint8_t>);
 
   void set_template(transform_func_t f) { this->transform_func_ = f; }
 

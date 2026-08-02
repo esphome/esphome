@@ -107,7 +107,19 @@ class ModbusController;
 
 class SensorItem {
  public:
-  virtual void parse_and_publish(const std::vector<uint8_t> &data) = 0;
+  /// Parse this sensor's slice out of a range response and publish it. The span points into the response
+  /// buffer (valid only during the call); `base_address` is the address of its first register.
+  virtual void parse_and_publish(uint16_t base_address, std::span<const uint8_t> data) = 0;
+
+  /// Byte offset (registers) or bit index (coils/discrete inputs) of this sensor's data within a range
+  /// response starting at `base_address`, plus the configured `offset` and any `range_data_offset`.
+  size_t offset_in_range(uint16_t base_address) const {
+    uint16_t addr_delta = this->start_address - base_address;
+    if (this->register_type == modbus::EntityType::COIL || this->register_type == modbus::EntityType::DISCRETE_INPUT) {
+      return static_cast<size_t>(addr_delta) + this->offset;
+    }
+    return static_cast<size_t>(addr_delta) * 2 + this->offset + this->range_data_offset;
+  }
 
   void set_custom_data(const std::vector<uint8_t> &data) { custom_data = data; }
   size_t virtual get_register_size() const {
@@ -126,6 +138,8 @@ class SensorItem {
   uint8_t offset{0};
   uint8_t register_count{0};
   uint8_t response_bytes{0};
+  /// Correction for earlier registers in the range that return more bytes than register_count implies; 0 normally.
+  uint16_t range_data_offset{0};
   uint16_t skip_updates{0};
   std::vector<uint8_t> custom_data{};
   bool force_new_range{false};
@@ -398,9 +412,8 @@ class ModbusController final : public PollingComponent, public modbus::ModbusCli
  * @param item SensorItem object
  * @return float value of data
  */
-inline float payload_to_float(std::span<const uint8_t> data, const SensorItem &item) {
-  int64_t number =
-      modbus::helpers::payload_to_number(data, item.sensor_value_type, item.offset, item.bitmask).value_or(0);
+inline float payload_to_float(std::span<const uint8_t> data, const SensorItem &item, size_t offset) {
+  int64_t number = modbus::helpers::payload_to_number(data, item.sensor_value_type, offset, item.bitmask).value_or(0);
 
   float float_value;
   if (modbus::helpers::value_type_is_float(item.sensor_value_type)) {
