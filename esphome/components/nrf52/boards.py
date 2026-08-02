@@ -1,5 +1,5 @@
 from esphome.components.zephyr import Section
-from esphome.components.zephyr.const import KEY_BOOTLOADER
+from esphome.components.zephyr.const import BOOTLOADER_MCUBOOT, KEY_BOOTLOADER
 
 from .const import (
     BOOTLOADER_ADAFRUIT,
@@ -8,6 +8,10 @@ from .const import (
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
 )
 
+# MCUboot is listed last for every board, so no board's default changes: it
+# replaces the factory bootloader at 0x0 and has to be flashed over SWD once,
+# so it can only ever be an explicit opt-in. Boards absent from this table
+# already default to it (see _detect_bootloader).
 BOARDS_ZEPHYR = {
     "adafruit_itsybitsy_nrf52840": {
         KEY_BOOTLOADER: [
@@ -15,6 +19,7 @@ BOARDS_ZEPHYR = {
             BOOTLOADER_ADAFRUIT,
             BOOTLOADER_ADAFRUIT_NRF52_SD132,
             BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
+            BOOTLOADER_MCUBOOT,
         ]
     },
     "xiao_ble": {
@@ -23,6 +28,7 @@ BOARDS_ZEPHYR = {
             BOOTLOADER_ADAFRUIT,
             BOOTLOADER_ADAFRUIT_NRF52_SD132,
             BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
+            BOOTLOADER_MCUBOOT,
         ]
     },
     "adafruit_itsybitsy": {
@@ -31,6 +37,7 @@ BOARDS_ZEPHYR = {
             BOOTLOADER_ADAFRUIT,
             BOOTLOADER_ADAFRUIT_NRF52_SD132,
             BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
+            BOOTLOADER_MCUBOOT,
         ]
     },
 }

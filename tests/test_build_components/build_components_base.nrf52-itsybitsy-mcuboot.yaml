@@ -1,0 +1,20 @@
+esphome:
+  name: componenttestnrf52
+  friendly_name: $component_name
+
+# Second board for the same bootloader: nothing about `bootloader: mcuboot` is
+# board-specific, and this build is what proves it. Its devicetree names the USB
+# CDC node cdc_acm_uart0 where xiao_ble calls it usb_cdc_acm_uart, so a
+# bootloader overlay that referenced the board's label would fail here.
+nrf52:
+  board: adafruit_itsybitsy_nrf52840
+  bootloader: mcuboot
+
+logger:
+  level: VERY_VERBOSE
+
+packages:
+  component_under_test: !include
+    file: $component_test_file
+    vars:
+      component_test_file: $component_test_file
