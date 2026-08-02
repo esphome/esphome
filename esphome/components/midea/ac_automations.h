@@ -63,4 +63,4 @@ template<typename... Ts> class PowerToggleAction : public MideaActionBase<Ts...>
 
 }  // namespace esphome::midea::ac
 
-#endif  // USE_ZEPHYR
+#endif  // USE_ARDUINO || USE_ESP_IDF

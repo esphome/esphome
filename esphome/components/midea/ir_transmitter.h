@@ -86,4 +86,4 @@ class IrTransmitter {
 }  // namespace esphome::midea
 
 #endif  // USE_REMOTE_TRANSMITTER
-#endif  // USE_ZEPHYR
+#endif  // USE_ARDUINO || USE_ESP_IDF

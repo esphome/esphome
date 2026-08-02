@@ -61,4 +61,4 @@ class AirConditioner final : public ApplianceBase<dudanov::midea::ac::AirConditi
 
 }  // namespace esphome::midea::ac
 
-#endif  // USE_ZEPHYR
+#endif  // USE_ARDUINO || USE_ESP_IDF

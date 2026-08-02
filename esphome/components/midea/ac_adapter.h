@@ -44,4 +44,4 @@ class Converters {
 
 }  // namespace esphome::midea::ac
 
-#endif  // USE_ZEPHYR
+#endif  // USE_ARDUINO || USE_ESP_IDF

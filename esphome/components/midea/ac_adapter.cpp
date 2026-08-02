@@ -172,4 +172,4 @@ void Converters::to_climate_traits(ClimateTraits &traits, const dudanov::midea::
 
 }  // namespace esphome::midea::ac
 
-#endif  // USE_ZEPHYR
+#endif  // USE_ARDUINO || USE_ESP_IDF

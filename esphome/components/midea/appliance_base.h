@@ -100,4 +100,4 @@ template<typename T> class ApplianceBase : public Component {
 
 }  // namespace esphome::midea
 
-#endif  // USE_ZEPHYR
+#endif  // USE_ARDUINO || USE_ESP_IDF

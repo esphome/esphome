@@ -197,4 +197,4 @@ void AirConditioner::do_display_toggle() {
 
 }  // namespace esphome::midea::ac
 
-#endif  // USE_ZEPHYR
+#endif  // USE_ARDUINO || USE_ESP_IDF
