@@ -16,7 +16,12 @@ import urllib.parse
 
 import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError, TimePeriodSeconds
-from esphome.helpers import add_git_ceiling_directory, rmtree, write_file
+from esphome.helpers import (
+    add_git_ceiling_directory,
+    format_duration,
+    rmtree,
+    write_file,
+)
 
 if TYPE_CHECKING:
     from filelock import FileLock
@@ -25,6 +30,11 @@ _LOGGER = logging.getLogger(__name__)
 
 # Special value to indicate never refresh
 NEVER_REFRESH = TimePeriodSeconds(seconds=-1)
+
+# `refresh: never` validates to a huge interval rather than the NEVER_REFRESH
+# sentinel; treat any interval at least that long as refresh disabled instead
+# of logging a countdown of hundreds of years
+_REFRESH_DISABLED_SECONDS = cv.source_refresh(cv.SOURCE_REFRESH_NEVER).total_seconds
 
 # revert() runs on an already-failing path; bound its wait for the cache
 # entry lock so that recovery cannot hang forever behind another process.
@@ -803,6 +813,17 @@ def _clone_or_update_locked(
                 return True
 
             return repo_dir, revert
+        if refresh.total_seconds >= _REFRESH_DISABLED_SECONDS:
+            # refresh: never
+            _LOGGER.debug("Skipping update for %s (refresh disabled)", safe_key)
+        else:
+            _LOGGER.info(
+                "Skipping update for %s, will refresh on the next run after %s "
+                "(refresh: %s); use refresh: always to update now",
+                safe_key,
+                format_duration(refresh.total_seconds - age_seconds),
+                format_duration(refresh.total_seconds),
+            )
 
     return repo_dir, None
 
