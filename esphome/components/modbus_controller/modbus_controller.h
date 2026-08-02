@@ -98,7 +98,9 @@ inline int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueTy
 
 ESPDEPRECATED("Use modbus::helpers::float_to_payload() instead. Removed in 2026.10.0", "2026.4.0")
 inline std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type) {
-  return modbus::helpers::float_to_payload(value, value_type);
+  std::vector<uint16_t> data;
+  modbus::helpers::float_to_payload(data, value, value_type);
+  return data;
 }
 
 class ModbusController;
@@ -303,10 +305,8 @@ class ModbusController final : public PollingComponent, public modbus::ModbusCli
   /// Deliberately shadows the deprecated ModbusClientDevice::send_raw() with identical semantics:
   /// controller-level raw sends stay supported until the command machinery is replaced.
   void send_raw(const std::vector<uint8_t> &payload) {
-    if (payload.empty()) {
-      this->on_not_sent();  // match the hub-level send_raw(): a refused send is always signalled
-      return;
-    }
+    if (payload.empty())
+      return;  // refused at the door, like every invalid send; no callback follows
     this->parent_->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
   }
   /// Registers a sensor with the controller. Called by esphomes code generator

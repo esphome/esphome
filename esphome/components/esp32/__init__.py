@@ -814,14 +814,15 @@ def _is_framework_url(source: str) -> bool:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 3, 10),
-    "latest": cv.Version(3, 3, 10),
-    "dev": cv.Version(3, 3, 10),
+    "recommended": cv.Version(3, 3, 11),
+    "latest": cv.Version(3, 3, 11),
+    "dev": cv.Version(3, 3, 11),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         4, 0, 0, "alpha1"
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    cv.Version(3, 3, 11): cv.Version(55, 3, 311),
     cv.Version(3, 3, 10): cv.Version(55, 3, 39),
     cv.Version(3, 3, 9): cv.Version(55, 3, 39),
     cv.Version(3, 3, 8): cv.Version(55, 3, 38, "1"),
@@ -845,6 +846,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
     cv.Version(4, 0, 0, "alpha1"): cv.Version(6, 0, 1),
+    cv.Version(3, 3, 11): cv.Version(5, 5, 5),
     cv.Version(3, 3, 10): cv.Version(5, 5, 5),
     cv.Version(3, 3, 9): cv.Version(5, 5, 4),
     cv.Version(3, 3, 8): cv.Version(5, 5, 4),
@@ -879,7 +881,7 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         6, 0, 0
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
-    cv.Version(5, 5, 5): cv.Version(55, 3, 39),
+    cv.Version(5, 5, 5): cv.Version(55, 3, 311),
     cv.Version(5, 5, 4): cv.Version(55, 3, 39),
     cv.Version(5, 5, 3, "1"): cv.Version(55, 3, 37),
     cv.Version(5, 5, 3): cv.Version(55, 3, 37),
@@ -900,8 +902,8 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(55, 3, 39),
-    "latest": cv.Version(55, 3, 39),
+    "recommended": cv.Version(55, 3, 311),
+    "latest": cv.Version(55, 3, 311),
     "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
 }
 
@@ -1029,7 +1031,9 @@ def _check_esp_idf_versions(config: ConfigType) -> ConfigType:
 
 
 def _validate_toolchain(value) -> Toolchain:
-    return Toolchain(cv.one_of(*(t.value for t in Toolchain), lower=True)(value))
+    return Toolchain(
+        cv.one_of(Toolchain.PLATFORMIO, Toolchain.ESP_IDF, lower=True)(value)
+    )
 
 
 def _resolve_toolchain(value: ConfigType) -> ConfigType:
@@ -1236,6 +1240,13 @@ def final_validate(config):
     from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 
     from .gpio import final_validate_pins
+
+    # Remove before 2027.2.0
+    if CORE.using_toolchain_platformio:
+        _LOGGER.warning(
+            "The 'platformio' toolchain for ESP32 is deprecated and will be removed "
+            "in ESPHome 2027.2.0. Please use 'toolchain: esp-idf' instead."
+        )
 
     errs = []
     conf_fw = config[CONF_FRAMEWORK]
@@ -3108,9 +3119,10 @@ def _parse_register(config, regex, line):
 
 
 STACKTRACE_ESP32_PC_RE = re.compile(r".*PC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7}).*")
-STACKTRACE_ESP32_EXCVADDR_RE = re.compile(r"EXCVADDR\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP32_EXCVADDR_RE = re.compile(r".*EXCVADDR\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
 STACKTRACE_ESP32_C3_PC_RE = re.compile(r"MEPC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
 STACKTRACE_ESP32_C3_RA_RE = re.compile(r"RA\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP32_C3_MTVAL_RE = re.compile(r".*MTVAL\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
 STACKTRACE_BAD_ALLOC_RE = re.compile(
     r"^last failed alloc call: (4[0-9a-fA-F]{7})\((\d+)\)$"
 )
@@ -3128,9 +3140,10 @@ def process_stacktrace(config, line, backtrace_state):
     # ESP32 PC/EXCVADDR
     _parse_register(config, STACKTRACE_ESP32_PC_RE, line)
     _parse_register(config, STACKTRACE_ESP32_EXCVADDR_RE, line)
-    # ESP32-C3 PC/RA
+    # ESP32-C3 PC/RA/MTVAL
     _parse_register(config, STACKTRACE_ESP32_C3_PC_RE, line)
     _parse_register(config, STACKTRACE_ESP32_C3_RA_RE, line)
+    _parse_register(config, STACKTRACE_ESP32_C3_MTVAL_RE, line)
 
     # bad alloc
     match = re.match(STACKTRACE_BAD_ALLOC_RE, line)

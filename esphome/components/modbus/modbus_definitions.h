@@ -1,5 +1,9 @@
 #pragma once
 
+#include <algorithm>
+#include <cstdint>
+#include <span>
+
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -107,6 +111,70 @@ static constexpr uint16_t MIN_FRAME_SIZE = 4;
 static constexpr uint16_t MIN_PDU_SIZE = 1;
 static constexpr uint16_t MAX_PDU_SIZE = 253;  // Max PDU size is 256 - address(1) - CRC(2) = 253
 static constexpr uint16_t MAX_RAW_SIZE = 254;  // Max RAW size is 256 - CRC(2) = 254
+// A read request PDU is always function code(1) + start address(2) + quantity(2)
+static constexpr uint16_t READ_PDU_SIZE = 5;
+// A single-write PDU is always function code(1) + address(2) + value(2)
+static constexpr uint16_t WRITE_SINGLE_PDU_SIZE = 5;
 static constexpr uint16_t MAX_FRAME_SIZE = 256;
+// Both send paths bound their payload so the framed result lands exactly on the RTU limit: a client
+// PDU gains an address byte and a CRC, a raw server frame gains a CRC. send_frame_() therefore never
+// has to check the framed size - it cannot be exceeded.
+static_assert(MAX_PDU_SIZE + 3 == MAX_FRAME_SIZE, "a framed client PDU must fill the RTU frame limit");
+static_assert(MAX_RAW_SIZE + 2 == MAX_FRAME_SIZE, "a framed raw server payload must fill the RTU frame limit");
+/// Bits pack 8 per data byte, rounded up to whole bytes.
+constexpr size_t packed_bit_bytes(size_t bits) { return (bits + 7) / 8; }
+
+/** Read-only view of Modbus-packed bits: bit 0 of byte 0 is the first bit (LSB first), the layout
+ * coil/discrete-input values use on the wire. Bundles the bit count with the packed bytes so the
+ * two cannot desynchronize. The view does not own the bytes - it is only valid while they are.
+ * Reads (operator[]) are unchecked by design - the caller owns the bit < size() precondition, as
+ * with any subscript. Writes and forwarding are defensive: set() drops out-of-range bits and
+ * bytes() clamps to the real span, because those paths touch buffers and the wire directly.
+ */
+class PackedBits {
+ public:
+  PackedBits(std::span<const uint8_t> data, uint16_t count) : data_(data), count_(count) {}
+  /// Value of the given bit; bit must be < size().
+  bool operator[](size_t bit) const { return (this->data_[bit / 8] & (1 << (bit % 8))) != 0; }
+  /// Number of bits in the view.
+  uint16_t size() const { return this->count_; }
+  /// The underlying packed bytes: exactly ceil(size() / 8) bytes, even when the view was constructed
+  /// over a larger buffer - forwarding this span onto the wire can never leak trailing buffer content.
+  /// Clamped to the actual span so a view over a too-short buffer stays detectable instead of UB.
+  std::span<const uint8_t> bytes() const {
+    return this->data_.first(std::min<size_t>(packed_bit_bytes(this->count_), this->data_.size()));
+  }
+
+ private:
+  std::span<const uint8_t> data_;  // must cover ceil(count_ / 8) bytes
+  uint16_t count_;
+};
+
+/** Mutable counterpart of PackedBits: set() writes bits in place (deliberately no proxy operator[]=).
+ * Converts implicitly to PackedBits for read access.
+ */
+class MutablePackedBits {
+ public:
+  MutablePackedBits(std::span<uint8_t> data, uint16_t count) : data_(data), count_(count) {}
+  bool operator[](size_t bit) const { return (this->data_[bit / 8] & (1 << (bit % 8))) != 0; }
+  /// Set or clear the given bit. Out-of-range bits are dropped: on the server read path the span wraps a
+  /// stack response buffer, so a handler looping past size() must not be able to smash the frame.
+  void set(size_t bit, bool value) {
+    if (bit >= this->count_ || bit / 8 >= this->data_.size())
+      return;
+    if (value) {
+      this->data_[bit / 8] |= (1 << (bit % 8));
+    } else {
+      this->data_[bit / 8] &= ~(1 << (bit % 8));
+    }
+  }
+  uint16_t size() const { return this->count_; }
+  operator PackedBits() const { return PackedBits(this->data_, this->count_); }
+
+ private:
+  std::span<uint8_t> data_;  // must cover ceil(count_ / 8) bytes
+  uint16_t count_;
+};
+
 /// End of Modbus definitions
 }  // namespace esphome::modbus
