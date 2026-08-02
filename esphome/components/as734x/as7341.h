@@ -13,6 +13,8 @@ class AS7341 : public AS734xBase {
   bool enable_led(bool enable) override;
   float get_gain_correction(uint8_t channel, Gain gain) const override;
   uint16_t get_channel_wavelength(uint8_t channel) const override;
+  ChannelContribution get_channel_contribution(uint8_t channel) const override;
+  ChannelTristimulus get_channel_tristimulus(uint8_t channel) const override;
 
   uint8_t get_number_of_smux_steps() const override { return NUM_SMUX_STEPS; }
   uint8_t get_integration_cycles() const override { return 1; }
@@ -28,6 +30,8 @@ class AS7341 : public AS734xBase {
 
   static const RegisterMap REG_MAP;
   static const std::array<uint16_t, NUM_CHANNELS> WAVELENGTHS_NM;
+  static const std::array<ChannelContribution, NUM_CHANNELS> CONTRIBUTIONS;
+  static const std::array<ChannelTristimulus, NUM_CHANNELS> TRISTIMULUS;
   // Gain correction is the same for every channel on this chip.
   static const std::array<float, GAIN_COUNT> GAIN_CORRECTION;
 };

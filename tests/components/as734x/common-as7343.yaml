@@ -8,6 +8,13 @@ sensor:
     astep: 99
     normalize_basic_counts: clear
     saturation_level: Saturation level
+    illuminance: Illuminance
+    irradiance: Irradiance
+    irradiance_photopic: Irradiance photopic
+    irradiance_par: Irradiance PAR
+    ppfd: PPFD
+    color_temperature: CCT
+    rgb_hex: RGB hex
     calibration:
       glass_attenuation_factor: 1.2
       dark_current: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
