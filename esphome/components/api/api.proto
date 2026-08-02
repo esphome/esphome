@@ -233,7 +233,7 @@ message SerialProxyInfo {
   SerialProxyPortType port_type = 2;  // Port type (RS232, RS485)
 }
 
-// The kind of network interface the device is currently connected through.
+// The kind of network interface the device is currently reachable through (preferred interface if multiple are connected).
 enum NetworkType {
   NETWORK_TYPE_UNKNOWN = 0;
   NETWORK_TYPE_WIFI = 1;

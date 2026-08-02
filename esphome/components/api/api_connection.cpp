@@ -1912,7 +1912,7 @@ bool APIConnection::send_device_info_response_() {
 #endif
   // Priority order when several network interfaces are compiled in: Wi-Fi, then Ethernet, then Thread.
 #ifdef USE_WIFI
-  if (wifi::global_wifi_component->is_connected()) {
+  if (wifi::global_wifi_component->is_connected() || wifi::global_wifi_component->is_ap_active()) {
     resp.network_type = enums::NETWORK_TYPE_WIFI;
   }
 #endif
