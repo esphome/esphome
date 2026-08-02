@@ -963,6 +963,16 @@ lv_obj_t *lv_container_create(lv_obj_t *parent) {
   lv_obj_class_init_obj(obj);
   return obj;
 }
+
+#ifdef USE_LVGL_LIST
+int lv_list_get_row_index(lv_obj_t *list, lv_obj_t *child) {
+  for (lv_obj_t *obj = child; obj != nullptr; obj = lv_obj_get_parent(obj)) {
+    if (lv_obj_get_parent(obj) == list)
+      return lv_obj_get_index(obj);
+  }
+  return -1;
+}
+#endif  // USE_LVGL_LIST
 }  // namespace esphome::lvgl
 
 lv_result_t lv_mem_test_core() { return LV_RESULT_OK; }

@@ -283,7 +283,12 @@ class MockLv:
 
 class LvConditional:
     def __init__(self, condition):
-        self.condition = condition
+        # Condition is embedded directly into a raw `if (...)` statement below, rather than
+        # going through the argument-list machinery (ExpressionList) that would otherwise
+        # convert a native Python value (e.g. a plain bool) to a proper Expression -- so do
+        # that conversion explicitly here instead. `None` means "no condition" and is left
+        # alone.
+        self.condition = cg.safe_exp(condition) if condition is not None else None
 
     def __enter__(self):
         if self.condition is not None:
@@ -301,6 +306,35 @@ class LvConditional:
         CodeContext.code_context.detent()
         CodeContext.append(RawStatement("} else {"))
         CodeContext.code_context.indent()
+
+
+class LvCountdown:
+    """
+    Emits a C++ `for` loop that counts an int variable down from `count - 1` to `0` inclusive.
+    Used to iterate over a widget's children in reverse, e.g. to fire a trigger once per child
+    before they're all removed.
+    """
+
+    def __init__(self, var_name: str, count):
+        self.var_name = var_name
+        self.count = count
+
+    def __enter__(self):
+        # Cast explicitly rather than relying on `count`'s (typically unsigned) type to wrap
+        # and then narrow back to a negative int when count is 0 -- true in practice on every
+        # toolchain ESPHome targets, but not worth leaning on.
+        CodeContext.append(
+            RawStatement(
+                f"for (int {self.var_name} = (int) ({self.count}) - 1; {self.var_name} >= 0; "
+                f"{self.var_name}--) {{"
+            )
+        )
+        CodeContext.code_context.indent()
+        return literal(self.var_name)
+
+    def __exit__(self, *args):
+        CodeContext.code_context.detent()
+        CodeContext.append(RawStatement("}"))
 
 
 class ReturnStatement(ExpressionStatement):

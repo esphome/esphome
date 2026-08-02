@@ -116,6 +116,13 @@ inline void lv_animimg_set_src(lv_obj_t *img, std::vector<image::Image *> images
 int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int32_t value);
 #endif
 
+#ifdef USE_LVGL_LIST
+// Returns the index, within `list`, of the entry that contains `child`: `child` itself if it's a
+// direct child of `list`, or the ancestor of `child` that is, when `child` is nested inside a
+// widget hierarchy added via `lvgl.list.add`. Returns -1 if `child` isn't inside `list` at all.
+int lv_list_get_row_index(lv_obj_t *list, lv_obj_t *child);
+#endif
+
 #ifdef USE_LVGL_GRADIENT
 /**
  *

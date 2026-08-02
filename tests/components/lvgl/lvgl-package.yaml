@@ -1200,6 +1200,15 @@ lvgl:
             align: top_right
             width: 150px
             height: 120px
+            pad_row: 4
+            on_add:
+              - logger.log:
+                  format: "list entry added at %d"
+                  args: [list_index]
+            on_remove:
+              - logger.log:
+                  format: "list entry removed at %d"
+                  args: [list_index]
             on_click:
               - lvgl.list.add_text:
                   id: test_list_id
@@ -1219,18 +1228,25 @@ lvgl:
                             - label:
                                 text: "Tap"
                           on_click:
-                            - logger.log: "dynamic row button clicked"
+                            - lambda: |-
+                                ESP_LOGD("lvgl", "dynamic row button clicked, row %d",
+                                    lvgl::lv_list_get_row_index(id(test_list_id), static_cast<lv_obj_t *>(lv_event_get_target(event))));
                       - dropdown:
                           options:
                             - "One"
                             - "Two"
                           on_value:
-                            - logger.log: "dynamic row dropdown changed"
+                            - lambda: |-
+                                ESP_LOGD("lvgl", "dynamic row dropdown changed, row %d",
+                                    lvgl::lv_list_get_row_index(id(test_list_id), static_cast<lv_obj_t *>(lv_event_get_target(event))));
               - lvgl.list.remove:
                   id: test_list_id
                   index: 0
               - lvgl.list.clear:
                   id: test_list_id
+              - lvgl.list.update:
+                  id: test_list_id
+                  pad_row: 8
         - slider:
             id: slider_id
             align: top_mid
