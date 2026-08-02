@@ -82,7 +82,7 @@ menu_section_spec = MenuSectionType()
 
 MENU_PAGE_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_TITLE): cv.string,
+        cv.Optional(CONF_TITLE): lv_text,
         cv.Optional(CONF_SECTIONS): cv.ensure_list(
             container_schema(
                 menu_section_spec,

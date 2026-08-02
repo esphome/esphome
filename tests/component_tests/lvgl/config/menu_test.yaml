@@ -1,0 +1,77 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+spi:
+  - id: spi_bus
+    clk_pin: GPIO18
+    mosi_pin: GPIO23
+
+display:
+  - platform: mipi_spi
+    spi_id: spi_bus
+    model: st7789v
+    id: tft_display
+    dimensions:
+      width: 240
+      height: 320
+    cs_pin: GPIO22
+    dc_pin: GPIO21
+    auto_clear_enabled: false
+    invert_colors: false
+    update_interval: never
+
+lvgl:
+  id: lvgl_id
+  displays: tft_display
+  widgets:
+    - menu:
+        id: test_menu
+        header_mode: top_fixed
+        root_back_btn: enabled
+        root_page: main_page
+        sidebar_page: nav_page
+        header_style:
+          bg_color: 0xFF0000
+        on_root_back_button_click:
+          - logger.log: "root back clicked"
+        pages:
+          - id: main_page
+            title: "Settings"
+            sections:
+              - id: wifi_section
+                widgets:
+                  - label:
+                      text: "Wifi"
+                  - switch:
+                      id: wifi_switch
+            widgets:
+              - button:
+                  id: advanced_button
+                  text: "Advanced"
+                  on_click:
+                    - lvgl.menu.set_page:
+                        id: test_menu
+                        page: advanced_page
+          - id: advanced_page
+            title: "Advanced"
+            widgets:
+              - label:
+                  text: "Debug"
+          - id: nav_page
+            title: "Navigate"
+            widgets:
+              - button:
+                  id: nav_button
+                  text: "Go"
+                  on_click:
+                    - lvgl.menu.set_page:
+                        id: test_menu
+                        page: main_page
+                        sidebar: true
