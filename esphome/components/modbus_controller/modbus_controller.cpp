@@ -233,17 +233,28 @@ size_t ModbusController::create_register_ranges_() {
         join = true;
         ESP_LOGV(TAG, "Re-use previous register 0x%X", curr->start_address);
       } else if (curr->start_address == (r.start_address + r.register_count)) {
-        // this sensor extends the current range with the next contiguous register(s)
-        if (curr->register_type != modbus::EntityType::COIL &&
-            curr->register_type != modbus::EntityType::DISCRETE_INPUT) {
-          curr->range_data_offset =
-              static_cast<uint16_t>(range_bytes - static_cast<size_t>(curr->start_address - r.start_address) * 2);
-        }
+        // this sensor extends the current range with the next contiguous register(s); its data begins
+        // right after the bytes the range has already consumed (range_data_offset is an absolute
+        // byte position within the range response, so wide response_size registers push it along)
+        curr->range_data_offset = static_cast<uint16_t>(range_bytes);
         range_bytes += curr->get_register_size();
         r.register_count += curr->register_count;
         join = true;
         ESP_LOGV(TAG, "Extend range to include 0x%X", curr->start_address);
       }
+    }
+
+    // A sensor that shares the open range's start address and type but is not contiguous-mergeable must
+    // still join it: dispatch is keyed on (start_address, register_type) and resolves only one range, so
+    // a second range with the same key would leave these sensors permanently without data. This holds
+    // even for force_new_range/custom entities. Widen the read to cover the sensor needing the most
+    // registers from this shared address (also fixes a short read for coils that use offset).
+    if (!join && have_range && r.register_type == curr->register_type && r.start_address == curr->start_address) {
+      curr->range_data_offset = 0;  // shares the range start
+      r.register_count = std::max(r.register_count, curr->register_count);
+      range_bytes = std::max(range_bytes, curr->get_register_size());
+      join = true;
+      ESP_LOGV(TAG, "Share range start 0x%X", curr->start_address);
     }
 
     if (!join) {

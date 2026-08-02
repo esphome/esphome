@@ -118,6 +118,39 @@ sensor:
     value_type: U_WORD
     lambda: |-
       return x / 10.0;
+  # Non-mergeable sensor sharing the start address of modbus_sensor1 (different register_count):
+  # must join the same range, never open a second range keyed on the same (address, type).
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor_shared_addr
+    name: Test Sensor Shared Address
+    register_type: holding
+    address: 0x9001
+    value_type: U_DWORD
+  # Three sensors sharing one start address with distinct byte offsets: each resolves to exactly its
+  # configured offset within the shared registers (offsets are not accumulated across sensors).
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor_shared_offs0
+    name: Test Sensor Shared Offset Base
+    register_type: holding
+    address: 0x9020
+    value_type: U_DWORD
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor_shared_offs1
+    name: Test Sensor Shared Offset Low Word
+    register_type: holding
+    address: 0x9020
+    value_type: U_WORD
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor_shared_offs2
+    name: Test Sensor Shared Offset High Word
+    register_type: holding
+    address: 0x9020
+    value_type: U_WORD
+    offset: 2
 
 switch:
   - platform: modbus_controller
@@ -158,3 +191,22 @@ text_sensor:
     response_size: 4
     lambda: |-
       return "Modified: " + x;
+  # A register reporting FEWER bytes than 2*register_count (response_size: 3 for 2 registers), followed
+  # by a contiguous sensor: the follower's byte position must track the actual 3 bytes, not underflow.
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_text_sensor_narrow
+    name: Test Text Sensor Narrow Response
+    register_type: holding
+    address: 0x9030
+    register_count: 2
+    response_size: 3
+    raw_encode: HEXBYTES
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_text_sensor_after_narrow
+    name: Test Text Sensor After Narrow
+    register_type: holding
+    address: 0x9032
+    register_count: 1
+    raw_encode: HEXBYTES

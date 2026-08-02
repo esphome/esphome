@@ -112,13 +112,15 @@ class SensorItem {
   virtual void parse_and_publish(uint16_t base_address, std::span<const uint8_t> data) = 0;
 
   /// Byte offset (registers) or bit index (coils/discrete inputs) of this sensor's data within a range
-  /// response starting at `base_address`, plus the configured `offset` and any `range_data_offset`.
+  /// response starting at `base_address`, plus the configured `offset`.
   size_t offset_in_range(uint16_t base_address) const {
-    uint16_t addr_delta = this->start_address - base_address;
     if (this->register_type == modbus::EntityType::COIL || this->register_type == modbus::EntityType::DISCRETE_INPUT) {
+      uint16_t addr_delta = this->start_address - base_address;
       return static_cast<size_t>(addr_delta) + this->offset;
     }
-    return static_cast<size_t>(addr_delta) * 2 + this->offset + this->range_data_offset;
+    // range_data_offset already is this register's absolute byte position within the range response, so
+    // base_address is only needed for the coil/discrete bit index above.
+    return this->range_data_offset + this->offset;
   }
 
   void set_custom_data(const std::vector<uint8_t> &data) { custom_data = data; }
@@ -138,7 +140,8 @@ class SensorItem {
   uint8_t offset{0};
   uint8_t register_count{0};
   uint8_t response_bytes{0};
-  /// Correction for earlier registers in the range that return more bytes than register_count implies; 0 normally.
+  /// Absolute byte position of this sensor's first register within the range response (accounts for
+  /// earlier registers, including wide response_size ones); 0 for a sensor at the range start.
   uint16_t range_data_offset{0};
   uint16_t skip_updates{0};
   std::vector<uint8_t> custom_data{};
@@ -423,6 +426,13 @@ inline float payload_to_float(std::span<const uint8_t> data, const SensorItem &i
   }
 
   return float_value;
+}
+
+// Remove before 2026.10.0 (window opened when parse_and_publish gained a per-range base_address and this
+// helper an explicit offset). Preserves the old single-response semantics (offset taken from the item).
+ESPDEPRECATED("Pass an explicit offset: payload_to_float(data, item, item.offset). Removed in 2026.10.0", "2026.8.0")
+inline float payload_to_float(std::span<const uint8_t> data, const SensorItem &item) {
+  return payload_to_float(data, item, item.offset);
 }
 
 }  // namespace esphome::modbus_controller
