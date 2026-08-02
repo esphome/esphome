@@ -1,10 +1,10 @@
 #pragma once
 
 #include "esphome/components/modbus/modbus.h"
+#include "esphome/components/modbus/modbus_helpers.h"
 #include "esphome/core/automation.h"
 
 #include <span>
-#include <vector>
 
 namespace esphome::modbus_client {
 
@@ -64,9 +64,11 @@ template<typename... Ts> class ClientActionBase : public Action<Ts...>, public m
 /// modbus_client.send: fire a raw PDU (function code + data; the hub adds address and CRC). The reply is
 /// delivered raw - on_response(request, response) - deliberately bypassing the typed dispatch, so
 /// non-standard/custom transactions pass through untouched.
+/// The PDU is a stack-allocated modbus::helpers::PduBuffer, so a pdu lambda can build one with the
+/// modbus::helpers::create_*_pdu() builders and return it directly (smaller builder results convert).
 template<typename... Ts> class ModbusClientSendAction : public ClientActionBase<Ts...> {
  public:
-  TEMPLATABLE_VALUE(std::vector<uint8_t>, pdu)
+  TEMPLATABLE_VALUE(modbus::helpers::PduBuffer, pdu)
 
   Trigger<std::span<const uint8_t>, std::span<const uint8_t>> *get_response_trigger() {
     return &this->response_trigger_;
@@ -75,7 +77,7 @@ template<typename... Ts> class ModbusClientSendAction : public ClientActionBase<
   void play(const Ts &...x) override {
     auto pdu = this->pdu_.value(x...);
     if (!pdu.empty())
-      this->send_pdu(std::span<const uint8_t>(pdu));
+      this->send_pdu(std::span<const uint8_t>(pdu.data(), pdu.size()));
   }
 
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {

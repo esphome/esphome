@@ -12,6 +12,10 @@ button:
           on_no_response: !lambda "return !request.empty() && request[0] == 0x03;"
       # Per-send inline reply handlers (fire-and-continue): they run when this send's reply arrives,
       # with the device address that was targeted.
+      # A pdu lambda can hand-assemble bytes or return a modbus::helpers::create_*_pdu() builder result.
+      - modbus_client.send:
+          address: 0x01
+          pdu: !lambda "return modbus::helpers::create_read_pdu(modbus::FunctionCode::READ_HOLDING_REGISTERS, 0x0010, 1);"
       - modbus_client.send:
           address: !lambda "return 1;"
           pdu: !lambda "return {0x03, 0x00, 0x10, 0x00, 0x01};"
