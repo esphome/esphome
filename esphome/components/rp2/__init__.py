@@ -33,6 +33,7 @@ from esphome.core import (
 )
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed, read_file, write_file_if_changed
+from esphome.platformio.toolchain import copy_ccache_script
 from esphome.types import ConfigType
 
 from . import boards
@@ -338,7 +339,7 @@ async def to_code(config):
     cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[variant])
     cg.add_define(ThreadModel.SINGLE)
 
-    cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
+    cg.add_platformio_option("extra_scripts", ["pre:ccache.py", "post:post_build.py"])
 
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("framework", "arduino")
@@ -594,6 +595,7 @@ def copy_files():
         inject_lwip_file,
         CORE.relative_build_path("inject_lwip_include.py"),
     )
+    copy_ccache_script()
     _generate_lwipopts_h()
     if generate_pio_files():
         path = CORE.relative_src_path("esphome.h")
