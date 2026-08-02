@@ -6,7 +6,7 @@ sensor:
     gain: X8
     atime: 120
     astep: 99
-    normalize_basic_counts: true
+    normalize_basic_counts: bands
     saturation_level: Saturation level
     calibration:
       glass_attenuation_factor: 1.2

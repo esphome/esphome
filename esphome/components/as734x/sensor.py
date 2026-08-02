@@ -53,6 +53,14 @@ AS734XComponent = as734x_ns.class_(
     "AS734XComponent", cg.PollingComponent, i2c.I2CDevice
 )
 
+Normalization = as734x_ns.enum("Normalization", True)
+NORMALIZATION_OPTIONS = {
+    "NONE": Normalization.NONE,
+    "ALL": Normalization.ALL,
+    "BANDS": Normalization.BANDS,
+    "CLEAR": Normalization.CLEAR,
+}
+
 AS734X_Models = as734x_ns.enum("Model", True)
 AS734X_MODELS = {
     MODEL_AS7341: AS734X_Models.AS7341,
@@ -198,7 +206,9 @@ _COMMON_SCHEMA = (
             cv.GenerateID(): cv.declare_id(AS734XComponent),
             cv.Optional(CONF_ATIME, default=29): cv.int_range(min=0, max=255),
             cv.Optional(CONF_ASTEP, default=599): cv.int_range(min=0, max=65534),
-            cv.Optional(CONF_NORMALIZE_BASIC_COUNTS, default=False): cv.boolean,
+            cv.Optional(CONF_NORMALIZE_BASIC_COUNTS, default="NONE"): cv.enum(
+                NORMALIZATION_OPTIONS, upper=True
+            ),
             cv.Optional(CONF_SATURATION_LEVEL): cv.maybe_simple_value(
                 sensor.sensor_schema(
                     unit_of_measurement=UNIT_PERCENT,
