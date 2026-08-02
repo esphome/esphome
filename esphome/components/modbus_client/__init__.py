@@ -9,6 +9,7 @@ DEPENDENCIES = ["modbus"]
 
 CONF_ON_NO_RESPONSE = "on_no_response"
 CONF_ON_NOT_SENT = "on_not_sent"
+CONF_ON_SENT = "on_sent"
 CONF_PDU = "pdu"
 
 modbus_client_ns = cg.esphome_ns.namespace("modbus_client")
@@ -30,8 +31,10 @@ _ACTION_BASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(modbus.CONF_MODBUS_ID): cv.use_id(modbus.ModbusClient),
         cv.Required(CONF_ADDRESS): cv.templatable(cv.hex_uint8_t),
-        # Optional reply handlers. The reply arrives later (fire-and-continue), so these run when it
-        # does, with the address and reply available - not the outer automation's variables.
+        # Optional handlers. on_sent fires when the frame reaches the wire; the reply handlers arrive
+        # later (fire-and-continue), so all run with the request/reply available - not the outer
+        # automation's variables.
+        cv.Optional(CONF_ON_SENT): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_NO_RESPONSE): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_NOT_SENT): automation.validate_automation(single=True),
@@ -55,6 +58,10 @@ async def register_client_action(var, config, args, response_args):
             await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
         )
     )
+    if sent_conf := config.get(CONF_ON_SENT):
+        await automation.build_automation(
+            var.get_sent_trigger(), [(_PDU_SPAN, "request")], sent_conf
+        )
     if response_conf := config.get(CONF_ON_RESPONSE):
         await automation.build_automation(
             var.get_response_trigger(), response_args, response_conf

@@ -13,6 +13,9 @@ button:
       - modbus_client.send:
           address: !lambda "return 1;"
           pdu: !lambda "return {0x03, 0x00, 0x10, 0x00, 0x01};"
+          on_sent:
+            then:
+              - lambda: 'ESP_LOGI("modbus_client.test", "sent fc 0x%X", request.empty() ? 0 : request[0]);'
           on_response:
             then:
               - lambda: 'ESP_LOGI("modbus_client.test", "got %d bytes", (int) response.size());'

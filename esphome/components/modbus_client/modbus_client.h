@@ -21,10 +21,14 @@ template<typename... Ts> class ClientActionBase : public Action<Ts...>, public m
  public:
   TEMPLATABLE_VALUE(uint8_t, target_address)  // device address 1-247, or 0 to broadcast (no reply)
 
+  Trigger<std::span<const uint8_t>> *get_sent_trigger() { return &this->sent_trigger_; }
   Trigger<std::span<const uint8_t>, modbus::ModbusExceptionCode> *get_error_trigger() { return &this->error_trigger_; }
   Trigger<> *get_no_response_trigger() { return &this->no_response_trigger_; }
   Trigger<> *get_not_sent_trigger() { return &this->not_sent_trigger_; }
 
+  /// The frame was written to the wire: fires once per transmission, before any reply, and never for a
+  /// send that ended in on_not_sent. request_pdu is the PDU sent (function code + data).
+  void on_sent(std::span<const uint8_t> request_pdu) override { this->sent_trigger_.trigger(request_pdu); }
   /// Never reached the wire (tx queue full, cleared, or a duplicate write dropped by the hub's dedup).
   void on_not_sent(std::span<const uint8_t> request_pdu) override { this->not_sent_trigger_.trigger(); }
   /// No reply. Ad-hoc sends do not auto-retry; a handler that wants a retry re-sends from on_no_response.
@@ -40,6 +44,7 @@ template<typename... Ts> class ClientActionBase : public Action<Ts...>, public m
   }
 
  protected:
+  Trigger<std::span<const uint8_t>> sent_trigger_;
   Trigger<std::span<const uint8_t>, modbus::ModbusExceptionCode> error_trigger_;
   Trigger<> no_response_trigger_;
   Trigger<> not_sent_trigger_;
