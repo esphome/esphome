@@ -14,8 +14,8 @@ class TestableBatteryGauge : public BatteryGaugeSensor {
   using BatteryGaugeSensor::on_current_;
   using BatteryGaugeSensor::on_voltage_;
   using BatteryGaugeSensor::publish_;
-  using BatteryGaugeSensor::fraction_to_percentage_x10_;
-  using BatteryGaugeSensor::percentage_x10_to_state_;
+  using BatteryGaugeSensor::fraction_to_percentage_x10;
+  using BatteryGaugeSensor::percentage_x10_to_state;
 
   using BatteryGaugeSensor::capacity_;
   using BatteryGaugeSensor::charge_percentage_;

@@ -71,9 +71,9 @@ void BatteryGaugeSensor::on_voltage_(float value) {
   }
 }
 
-unsigned BatteryGaugeSensor::fraction_to_percentage_x10_(float fraction) { return std::lround(fraction * 1000.0f); }
+unsigned BatteryGaugeSensor::fraction_to_percentage_x10(float fraction) { return std::lround(fraction * 1000.0f); }
 
-float BatteryGaugeSensor::percentage_x10_to_state_(unsigned percentage_x10, float capacity) {
+float BatteryGaugeSensor::percentage_x10_to_state(unsigned percentage_x10, float capacity) {
   return percentage_x10 / 1000.0f * capacity;
 }
 
@@ -83,10 +83,10 @@ void BatteryGaugeSensor::setup() {
   this->voltage_source_->add_on_state_callback([this](float value) { this->on_voltage_(value); });
   if (!this->saved_percentage_.load(&this->charge_percentage_)) {
     ESP_LOGD(TAG, "Setting initial charge state to %f", this->initial_state_);
-    this->charge_percentage_ = fraction_to_percentage_x10_(this->initial_state_);
+    this->charge_percentage_ = fraction_to_percentage_x10(this->initial_state_);
     this->saved_percentage_.save(&this->charge_percentage_);
   }
-  this->charge_state_ = percentage_x10_to_state_(this->charge_percentage_, this->capacity_);
+  this->charge_state_ = percentage_x10_to_state(this->charge_percentage_, this->capacity_);
   this->publish_state(this->charge_state_ / this->capacity_ * 100.0f);
 }
 

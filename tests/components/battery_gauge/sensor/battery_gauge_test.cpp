@@ -164,23 +164,23 @@ TEST_F(BatteryGaugeTest, SetInitialState) {
 
 TEST_F(BatteryGaugeTest, FractionToPercentageX10ConvertsFractionToTenthsOfPercent) {
   // 0.5 (50%) -> 500 tenths-of-a-percent
-  EXPECT_EQ(TestableBatteryGauge::fraction_to_percentage_x10_(0.5f), 500u);
-  EXPECT_EQ(TestableBatteryGauge::fraction_to_percentage_x10_(0.0f), 0u);
-  EXPECT_EQ(TestableBatteryGauge::fraction_to_percentage_x10_(1.0f), 1000u);
+  EXPECT_EQ(TestableBatteryGauge::fraction_to_percentage_x10(0.5f), 500u);
+  EXPECT_EQ(TestableBatteryGauge::fraction_to_percentage_x10(0.0f), 0u);
+  EXPECT_EQ(TestableBatteryGauge::fraction_to_percentage_x10(1.0f), 1000u);
 }
 
 TEST_F(BatteryGaugeTest, FractionToPercentageX10Rounds) {
   // 0.3333... -> 333.33... tenths-of-a-percent, rounds to 333, not truncates.
-  EXPECT_EQ(TestableBatteryGauge::fraction_to_percentage_x10_(1.0f / 3.0f), 333u);
+  EXPECT_EQ(TestableBatteryGauge::fraction_to_percentage_x10(1.0f / 3.0f), 333u);
   // 0.6666... -> 666.66... tenths-of-a-percent, rounds up to 667.
-  EXPECT_EQ(TestableBatteryGauge::fraction_to_percentage_x10_(2.0f / 3.0f), 667u);
+  EXPECT_EQ(TestableBatteryGauge::fraction_to_percentage_x10(2.0f / 3.0f), 667u);
 }
 
 TEST_F(BatteryGaugeTest, PercentageX10ToStateConvertsBackToAh) {
   // 500 tenths-of-a-percent (50%) of a 10 Ah battery -> 5 Ah.
-  EXPECT_FLOAT_EQ(TestableBatteryGauge::percentage_x10_to_state_(500u, 10.0f), 5.0f);
-  EXPECT_FLOAT_EQ(TestableBatteryGauge::percentage_x10_to_state_(0u, 10.0f), 0.0f);
-  EXPECT_FLOAT_EQ(TestableBatteryGauge::percentage_x10_to_state_(1000u, 10.0f), 10.0f);
+  EXPECT_FLOAT_EQ(TestableBatteryGauge::percentage_x10_to_state(500u, 10.0f), 5.0f);
+  EXPECT_FLOAT_EQ(TestableBatteryGauge::percentage_x10_to_state(0u, 10.0f), 0.0f);
+  EXPECT_FLOAT_EQ(TestableBatteryGauge::percentage_x10_to_state(1000u, 10.0f), 10.0f);
 }
 
 TEST_F(BatteryGaugeTest, PersistenceScalingRoundTripsThroughFractionAndState) {
@@ -189,8 +189,8 @@ TEST_F(BatteryGaugeTest, PersistenceScalingRoundTripsThroughFractionAndState) {
   constexpr float capacity = 10.0f;
   constexpr float initial_state = 0.5f;
 
-  auto percentage_x10 = TestableBatteryGauge::fraction_to_percentage_x10_(initial_state);
-  auto restored_state = TestableBatteryGauge::percentage_x10_to_state_(percentage_x10, capacity);
+  auto percentage_x10 = TestableBatteryGauge::fraction_to_percentage_x10(initial_state);
+  auto restored_state = TestableBatteryGauge::percentage_x10_to_state(percentage_x10, capacity);
 
   EXPECT_FLOAT_EQ(restored_state, initial_state * capacity);
 }
