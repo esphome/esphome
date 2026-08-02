@@ -30,6 +30,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_FRAMEWORK,
     CONF_REFRESH,
+    CONF_VARIANT,
     KEY_CORE,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
@@ -445,6 +446,36 @@ def test_variant_config_schema_raises_for_unregistered_variant(
     monkeypatch.setattr(zephyr_module, "_ZEPHYR_SCHEMA", lambda config: config)
     with pytest.raises(cv.Invalid, match="no config schema registered"):
         _variant_config_schema({"variant": "FAKE_VARIANT"})
+
+
+# ---------------------------------------------------------------------------
+# _variant_config_schema -- round-trip regression for #42: `esphome
+# upload`/`logs` can skip full validation via the validated-config cache and
+# re-run CONFIG_SCHEMA on the already-validated, cached zephyr: block in a
+# fresh process (see upload_program()) -- each variant's config_schema() must
+# return a dict that validates cleanly when fed back through _ZEPHYR_SCHEMA a
+# second time. Covers every variant fixed by #43 (removal of the dead
+# `config[KEY_FRAMEWORK_VERSION] = version_str` write). NATIVESIM is excluded
+# here -- it has its own, unrelated round-trip bug on `mac_address`, tracked
+# separately in #47.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "variant", ["ESP32", "ESP32C6", "ESP32H2", "NRF52", "NRF54L15", "NRF54LM20A"]
+)
+def test_variant_config_schema_round_trips_cleanly(variant: str) -> None:
+    _init_variant_schema_core()
+    validated = _variant_config_schema({CONF_VARIANT: variant})
+
+    # Simulate upload_program()'s cache-repopulation path: re-run CONFIG_SCHEMA on
+    # the already-validated config in a fresh CORE.data state, exactly as it would
+    # be in a separate `esphome upload` process.
+    _init_variant_schema_core()
+    re_validated = _variant_config_schema(validated)
+
+    assert re_validated[CONF_VARIANT] == variant
+    assert "framework_version" not in re_validated
 
 
 # ---------------------------------------------------------------------------
