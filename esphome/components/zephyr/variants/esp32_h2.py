@@ -3,7 +3,6 @@ from esphome.const import (
     CONF_BOARD,
     CONF_FRAMEWORK,
     CONF_SOURCE,
-    KEY_FRAMEWORK_VERSION,
     ThreadModel,
     Toolchain,
 )
@@ -56,7 +55,7 @@ def config_schema(config: ConfigType) -> ConfigType:
     if CONF_BOARD not in config:
         config[CONF_BOARD] = _DEFAULT_BOARD
     config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
-    version_str, framework_ver, sdk_name, _ = resolve_framework_version(
+    _, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "esp32_h2", config, "mainline ESP32-H2 support"
     )
     set_core_data(
@@ -68,7 +67,6 @@ def config_schema(config: ConfigType) -> ConfigType:
         framework_type=sdk_name,
         sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
     )
-    config[KEY_FRAMEWORK_VERSION] = version_str
     return config
 
 
