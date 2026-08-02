@@ -331,6 +331,7 @@ TEST(ModbusCreateClientPdu, WriteCoilsUseTheCoilLimitNotTheRegisterLimit) {
   EXPECT_TRUE(create_client_pdu(FC::WRITE_MULTIPLE_COILS, 0x0000, 1969, big.data(), big.size()).empty());
 }
 
+// --- payload_to_number -----------------------------------------------------
 TEST(ModbusHelpersTest, PayloadToNumberRejectsOffsetAtEndOfBuffer) {
   const std::vector<uint8_t> data{0x12, 0x34};
   EXPECT_FALSE(payload_to_number(std::span<const uint8_t>(data), SensorValueType::U_WORD, 2, 0xFFFFFFFF).has_value());
