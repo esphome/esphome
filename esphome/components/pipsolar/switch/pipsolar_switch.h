@@ -4,10 +4,9 @@
 #include "esphome/components/switch/switch.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace pipsolar {
+namespace esphome::pipsolar {
 class Pipsolar;
-class PipsolarSwitch : public switch_::Switch, public Component {
+class PipsolarSwitch final : public switch_::Switch, public Component {
  public:
   void set_parent(Pipsolar *parent) { this->parent_ = parent; }
   void set_on_command(const char *command) { this->on_command_ = command; }
@@ -24,5 +23,4 @@ class PipsolarSwitch : public switch_::Switch, public Component {
   Pipsolar *parent_;
 };
 
-}  // namespace pipsolar
-}  // namespace esphome
+}  // namespace esphome::pipsolar

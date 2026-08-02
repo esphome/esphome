@@ -45,6 +45,10 @@
 #include "esphome/components/improv_serial/improv_serial_component.h"
 #endif
 
+#ifdef USE_PROVISIONING
+#include "esphome/components/provisioning/provisioning.h"
+#endif
+
 namespace esphome::wifi {
 
 static const char *const TAG = "wifi";
@@ -309,6 +313,18 @@ bool CompactString::operator==(const StringRef &other) const {
 /// └──────────────────────────────────────────────────────────────────────┘
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
+#ifdef USE_WIFI_PHY_MODE
+// Use if-chain instead of switch to avoid jump table in RODATA (wastes RAM on ESP8266)
+static const LogString *phy_mode_to_log_string(WiFi8266PhyMode mode) {
+  if (mode == WIFI_8266_PHY_MODE_11B)
+    return LOG_STR("11B");
+  if (mode == WIFI_8266_PHY_MODE_11G)
+    return LOG_STR("11G");
+  if (mode == WIFI_8266_PHY_MODE_11N)
+    return LOG_STR("11N");
+  return LOG_STR("Auto");
+}
+#endif
 // Use if-chain instead of switch to avoid jump table in RODATA (wastes RAM on ESP8266)
 static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
   if (phase == WiFiRetryPhase::INITIAL_CONNECT)
@@ -620,11 +636,11 @@ void WiFiComponent::setup() {
 #endif
 
   if (this->enable_on_boot_) {
+#ifdef USE_ESP32
+    this->wifi_lazy_init_();
+#endif
     this->start();
   } else {
-#ifdef USE_ESP32
-    esp_netif_init();
-#endif
     this->state_ = WIFI_COMPONENT_STATE_DISABLED;
   }
 }
@@ -637,7 +653,13 @@ void WiFiComponent::start() {
 
   this->pref_ = global_preferences->make_preference<wifi::SavedWifiSettings>(hash, true);
 #ifdef USE_WIFI_FAST_CONNECT
-  this->fast_connect_pref_ = global_preferences->make_preference<wifi::SavedWifiFastConnectSettings>(hash + 1, false);
+#ifdef USE_WIFI_FAST_CONNECT_IN_FLASH
+  const bool fast_connect_in_flash = true;
+#else
+  const bool fast_connect_in_flash = false;
+#endif
+  this->fast_connect_pref_ =
+      global_preferences->make_preference<wifi::SavedWifiFastConnectSettings>(hash + 1, fast_connect_in_flash);
 #endif
 
   SavedWifiSettings save{};
@@ -810,7 +832,7 @@ void WiFiComponent::loop() {
               }
               // else: scan in progress, wait
             } else if (this->roaming_state_ == RoamingState::IDLE && this->roaming_attempts_ < ROAMING_MAX_ATTEMPTS &&
-                       now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL) {
+                       now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL && !this->roaming_suppressed_()) {
               this->check_roaming_(now);
             }
           }
@@ -854,8 +876,20 @@ void WiFiComponent::loop() {
 
     if (!this->has_ap() && this->reboot_timeout_ != 0) {
       if (now - this->last_connected_ > this->reboot_timeout_) {
-        ESP_LOGE(TAG, "Can't connect; rebooting");
-        App.reboot();
+        bool suppress = false;
+#ifdef USE_PROVISIONING
+        // Don't reboot while a provisioning window is pending (device unprovisioned).
+        // The device is legitimately waiting to be onboarded (Wi-Fi must come up
+        // before the controller can set credentials), and an auto-reboot would reopen
+        // the window without the deliberate power cycle / reset that is meant to be
+        // required. Resumes normal reboot behavior once provisioned.
+        suppress = provisioning::global_provisioning_manager != nullptr &&
+                   provisioning::global_provisioning_manager->window_pending();
+#endif
+        if (!suppress) {
+          ESP_LOGE(TAG, "Can't connect; rebooting");
+          App.reboot();
+        }
       }
     }
   }
@@ -1099,9 +1133,9 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
   }
 
 #ifdef USE_WIFI_WPA2_EAP
-  auto eap_opt = ap.get_eap();
+  const auto &eap_opt = ap.get_eap();
   if (eap_opt.has_value()) {
-    EAPAuth eap_config = *eap_opt;
+    const EAPAuth &eap_config = *eap_opt;
     // clang-format off
     ESP_LOGV(
         TAG,
@@ -1266,6 +1300,11 @@ void WiFiComponent::enable() {
 
   ESP_LOGD(TAG, "Enabling");
   this->state_ = WIFI_COMPONENT_STATE_OFF;
+#ifdef USE_ESP32
+  // Idempotent — only allocates DMA buffers + netifs on the first call. After this,
+  // start() can safely run.
+  this->wifi_lazy_init_();
+#endif
   this->start();
 }
 
@@ -1444,23 +1483,26 @@ void WiFiComponent::check_scanning_finished() {
   }
 
   ESP_LOGD(TAG, "Found networks:");
-  for (auto &res : this->scan_result_) {
-    for (auto &ap : this->sta_) {
-      if (res.matches(ap)) {
-        res.set_matches(true);
-        // Cache priority lookup - do single search instead of 2 separate searches
-        const bssid_t &bssid = res.get_bssid();
-        if (!this->has_sta_priority(bssid)) {
-          this->set_sta_priority(bssid, ap.get_priority());
+  {
+    ScanResultsLock lock(this);
+    for (auto &res : this->scan_result_) {
+      for (auto &ap : this->sta_) {
+        if (res.matches(ap)) {
+          res.set_matches(true);
+          // Cache priority lookup - do single search instead of 2 separate searches
+          const bssid_t &bssid = res.get_bssid();
+          if (!this->has_sta_priority(bssid)) {
+            this->set_sta_priority(bssid, ap.get_priority());
+          }
+          res.set_priority(this->get_sta_priority(bssid));
+          break;
         }
-        res.set_priority(this->get_sta_priority(bssid));
-        break;
       }
     }
-  }
 
-  // Sort scan results using insertion sort for better memory efficiency
-  insertion_sort_scan_results(this->scan_result_);
+    // Sort scan results using insertion sort for better memory efficiency
+    insertion_sort_scan_results(this->scan_result_);
+  }
 
   // Log matching networks (non-matching already logged at VERBOSE in scan callback)
   for (auto &res : this->scan_result_) {
@@ -1535,6 +1577,9 @@ void WiFiComponent::dump_config() {
       break;
   }
   ESP_LOGCONFIG(TAG, "  Band Mode: %s", band_mode_s);
+#endif
+#ifdef USE_WIFI_PHY_MODE
+  ESP_LOGCONFIG(TAG, "  PHY Mode: %s", LOG_STR_ARG(phy_mode_to_log_string(this->phy_mode_)));
 #endif
   if (this->is_connected()) {
     this->print_connect_params_();
@@ -1843,11 +1888,13 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
   // Phase-specific setup
   switch (new_phase) {
 #ifdef USE_WIFI_FAST_CONNECT
-    case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
+    case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS: {
       // Move to next configured AP - clear old scan data so new AP is tried with config only
       this->selected_sta_index_++;
+      ScanResultsLock lock(this);
       this->scan_result_.clear();
       break;
+    }
 #endif
 
     case WiFiRetryPhase::EXPLICIT_HIDDEN:
@@ -2178,7 +2225,15 @@ bool WiFiComponent::request_high_performance() {
   }
 
   // Give the semaphore (non-blocking). This increments the count.
-  return xSemaphoreGive(this->high_performance_semaphore_) == pdTRUE;
+  bool success = xSemaphoreGive(this->high_performance_semaphore_) == pdTRUE;
+
+  // Wake the main loop so the switch to high-performance mode is applied on the
+  // next tick instead of waiting up to loop_interval.
+  if (success) {
+    App.wake_loop_threadsafe();
+  }
+
+  return success;
 }
 
 bool WiFiComponent::release_high_performance() {
@@ -2354,7 +2409,8 @@ void WiFiComponent::clear_roaming_state_() {
 
 void WiFiComponent::release_scan_results_() {
   if (!this->keep_scan_results_) {
-#if defined(USE_RP2040) || defined(USE_ESP32)
+    ScanResultsLock lock(this);
+#if defined(USE_RP2) || defined(USE_ESP32)
     // std::vector - use swap trick since shrink_to_fit is non-binding
     decltype(this->scan_result_)().swap(this->scan_result_);
 #else

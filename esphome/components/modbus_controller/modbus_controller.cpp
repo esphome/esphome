@@ -2,8 +2,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus_controller";
 
@@ -58,7 +57,7 @@ bool ModbusController::send_next_command_() {
 }
 
 // Queue incoming response
-void ModbusController::on_modbus_data(const std::vector<uint8_t> &data) {
+void ModbusController::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
   if (this->command_queue_.empty()) {
     ESP_LOGW(TAG, "Received modbus data but command queue is empty");
     return;
@@ -79,8 +78,10 @@ void ModbusController::on_modbus_data(const std::vector<uint8_t> &data) {
       this->online_callback_.call((int) current_command->function_code, current_command->register_address);
     }
 
-    // Move the commandItem to the response queue
-    current_command->payload = data;
+    // Move the commandItem to the response queue. The span points into the hub's receive buffer, so
+    // copy the payload into the command for deferred processing in loop().
+    auto data = modbus::helpers::server_pdu_payload(response_pdu);
+    current_command->payload.assign(data.begin(), data.end());
     this->incoming_queue_.push(std::move(current_command));
     ESP_LOGV(TAG, "Modbus response queued");
     this->command_queue_.pop_front();
@@ -94,8 +95,11 @@ void ModbusController::process_modbus_data_(const ModbusCommandItem *response) {
   response->on_data_func(response->register_type, response->register_address, response->payload);
 }
 
-void ModbusController::on_modbus_error(uint8_t function_code, uint8_t exception_code) {
-  ESP_LOGE(TAG, "Modbus error function code: 0x%X exception: %d ", function_code, exception_code);
+void ModbusController::on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) {
+  // The request function code (request_pdu[0]) already carries what the log needs; the exception bit only
+  // ever appears on the response, so no masking is needed here.
+  const uint8_t function_code = request_pdu.empty() ? 0 : request_pdu[0];
+  ESP_LOGE(TAG, "Modbus error function code: 0x%X exception: %d ", function_code, static_cast<uint8_t>(exception_code));
   if (this->command_queue_.empty()) {
     return;
   }
@@ -112,168 +116,7 @@ void ModbusController::on_modbus_error(uint8_t function_code, uint8_t exception_
   }
 }
 
-void ModbusController::on_modbus_read_registers(uint8_t function_code, uint16_t start_address,
-                                                uint16_t number_of_registers) {
-  ESP_LOGD(TAG,
-           "Received read holding/input registers for device 0x%X. FC: 0x%X. Start address: 0x%X. Number of registers: "
-           "0x%X.",
-           this->address_, function_code, start_address, number_of_registers);
-
-  if (number_of_registers == 0 || number_of_registers > modbus::MAX_NUM_OF_REGISTERS_TO_READ) {
-    ESP_LOGW(TAG, "Invalid number of registers %d. Sending exception response.", number_of_registers);
-    this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
-    return;
-  }
-
-  std::vector<uint16_t> sixteen_bit_response;
-  for (uint16_t current_address = start_address; current_address < start_address + number_of_registers;) {
-    bool found = false;
-    for (auto *server_register : this->server_registers_) {
-      if (server_register->address == current_address) {
-        if (!server_register->read_lambda) {
-          break;
-        }
-        int64_t value = server_register->read_lambda();
-        ESP_LOGD(TAG, "Matched register. Address: 0x%02X. Value type: %zu. Register count: %u. Value: %s.",
-                 server_register->address, static_cast<size_t>(server_register->value_type),
-                 server_register->register_count, server_register->format_value(value).c_str());
-
-        std::vector<uint16_t> payload;
-        payload.reserve(server_register->register_count * 2);
-        modbus::helpers::number_to_payload(payload, value, server_register->value_type);
-        sixteen_bit_response.insert(sixteen_bit_response.end(), payload.cbegin(), payload.cend());
-        current_address += server_register->register_count;
-        found = true;
-        break;
-      }
-    }
-
-    if (!found) {
-      if (this->server_courtesy_response_.enabled &&
-          (current_address <= this->server_courtesy_response_.register_last_address)) {
-        ESP_LOGD(TAG,
-                 "Could not match any register to address 0x%02X, but default allowed. "
-                 "Returning default value: %d.",
-                 current_address, this->server_courtesy_response_.register_value);
-        sixteen_bit_response.push_back(this->server_courtesy_response_.register_value);
-        current_address += 1;  // Just increment by 1, as the default response is a single register
-      } else {
-        ESP_LOGW(TAG,
-                 "Could not match any register to address 0x%02X and default not allowed. Sending exception response.",
-                 current_address);
-        this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
-        return;
-      }
-    }
-  }
-
-  std::vector<uint8_t> response;
-  for (auto v : sixteen_bit_response) {
-    auto decoded_value = decode_value(v);
-    response.push_back(decoded_value[0]);
-    response.push_back(decoded_value[1]);
-  }
-
-  this->send(function_code, start_address, number_of_registers, response.size(), response.data());
-}
-
-void ModbusController::on_modbus_write_registers(uint8_t function_code, const std::vector<uint8_t> &data) {
-  uint16_t number_of_registers;
-  uint16_t payload_offset;
-
-  if (function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
-    if (data.size() < 5) {
-      ESP_LOGW(TAG, "Write multiple registers data too short (%zu bytes)", data.size());
-      this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
-      return;
-    }
-    number_of_registers = uint16_t(data[3]) | (uint16_t(data[2]) << 8);
-    if (number_of_registers == 0 || number_of_registers > modbus::MAX_NUM_OF_REGISTERS_TO_WRITE) {
-      ESP_LOGW(TAG, "Invalid number of registers %d. Sending exception response.", number_of_registers);
-      this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
-      return;
-    }
-    uint16_t payload_size = data[4];
-    if (payload_size != number_of_registers * 2) {
-      ESP_LOGW(TAG, "Payload size of %d bytes is not 2 times the number of registers (%d). Sending exception response.",
-               payload_size, number_of_registers);
-      this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
-      return;
-    }
-    if (data.size() < 5 + payload_size) {
-      ESP_LOGW(TAG, "Write multiple registers payload truncated (%zu bytes, expected %u)", data.size(),
-               5 + payload_size);
-      this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
-      return;
-    }
-    payload_offset = 5;
-  } else if (function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER) {
-    if (data.size() < 4) {
-      ESP_LOGW(TAG, "Write single register data too short (%zu bytes)", data.size());
-      this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
-      return;
-    }
-    number_of_registers = 1;
-    payload_offset = 2;
-  } else {
-    ESP_LOGW(TAG, "Invalid function code 0x%X. Sending exception response.", function_code);
-    this->send_error(function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
-    return;
-  }
-
-  uint16_t start_address = uint16_t(data[1]) | (uint16_t(data[0]) << 8);
-  ESP_LOGD(TAG,
-           "Received write holding registers for device 0x%X. FC: 0x%X. Start address: 0x%X. Number of registers: "
-           "0x%X.",
-           this->address_, function_code, start_address, number_of_registers);
-
-  auto for_each_register = [this, start_address, number_of_registers, payload_offset](
-                               const std::function<bool(ServerRegister *, uint16_t offset)> &callback) -> bool {
-    uint16_t offset = payload_offset;
-    for (uint16_t current_address = start_address; current_address < start_address + number_of_registers;) {
-      bool ok = false;
-      for (auto *server_register : this->server_registers_) {
-        if (server_register->address == current_address) {
-          ok = callback(server_register, offset);
-          current_address += server_register->register_count;
-          offset += server_register->register_count * sizeof(uint16_t);
-          break;
-        }
-      }
-
-      if (!ok) {
-        return false;
-      }
-    }
-    return true;
-  };
-
-  // check all registers are writable before writing to any of them:
-  if (!for_each_register([](ServerRegister *server_register, uint16_t offset) -> bool {
-        return server_register->write_lambda != nullptr;
-      })) {
-    this->send_error(function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
-    return;
-  }
-
-  // Actually write to the registers:
-  if (!for_each_register([&data](ServerRegister *server_register, uint16_t offset) {
-        int64_t number = modbus::helpers::payload_to_number(data, server_register->value_type, offset, 0xFFFFFFFF);
-        return server_register->write_lambda(number);
-      })) {
-    this->send_error(function_code, ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
-    return;
-  }
-
-  std::vector<uint8_t> response;
-  response.reserve(6);
-  response.push_back(this->address_);
-  response.push_back(function_code);
-  response.insert(response.end(), data.begin(), data.begin() + 4);
-  this->send_raw(response);
-}
-
-SensorSet ModbusController::find_sensors_(ModbusRegisterType register_type, uint16_t start_address) const {
+SensorSet ModbusController::find_sensors_(modbus::EntityType register_type, uint16_t start_address) const {
   auto reg_it = std::find_if(
       std::begin(this->register_ranges_), std::end(this->register_ranges_),
       [=](RegisterRange const &r) { return (r.start_address == start_address && r.register_type == register_type); });
@@ -287,7 +130,7 @@ SensorSet ModbusController::find_sensors_(ModbusRegisterType register_type, uint
   // not found
   return {};
 }
-void ModbusController::on_register_data(ModbusRegisterType register_type, uint16_t start_address,
+void ModbusController::on_register_data(modbus::EntityType register_type, uint16_t start_address,
                                         const std::vector<uint8_t> &data) {
   ESP_LOGV(TAG, "data for register address : 0x%X : ", start_address);
 
@@ -321,18 +164,18 @@ void ModbusController::update_range_(RegisterRange &r) {
            r.skip_updates_counter);
   if (r.skip_updates_counter == 0) {
     // if a custom command is used the user supplied custom_data is only available in the SensorItem.
-    if (r.register_type == ModbusRegisterType::CUSTOM) {
+    if (r.register_type == modbus::EntityType::CUSTOM) {
       auto sensors = this->find_sensors_(r.register_type, r.start_address);
       if (!sensors.empty()) {
         auto sensor = sensors.cbegin();
         auto command_item = ModbusCommandItem::create_custom_command(
             this, (*sensor)->custom_data,
-            [this](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
-              this->on_register_data(ModbusRegisterType::CUSTOM, start_address, data);
+            [this](modbus::EntityType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
+              this->on_register_data(modbus::EntityType::CUSTOM, start_address, data);
             });
         command_item.register_address = (*sensor)->start_address;
         command_item.register_count = (*sensor)->register_count;
-        command_item.function_code = ModbusFunctionCode::CUSTOM;
+        command_item.function_code = FunctionCode::CUSTOM;
         queue_command(command_item);
       }
     } else {
@@ -363,7 +206,7 @@ void ModbusController::update() {
 // walk through the sensors and determine the register ranges to read
 size_t ModbusController::create_register_ranges_() {
   this->register_ranges_.clear();
-  if (this->parent_->role == modbus::ModbusRole::CLIENT && this->sensorset_.empty()) {
+  if (this->sensorset_.empty()) {
     ESP_LOGW(TAG, "No sensors registered");
     return 0;
   }
@@ -394,7 +237,7 @@ size_t ModbusController::create_register_ranges_() {
       // this is not the first register in range so it might be possible
       // to reuse the last register or extend the current range
       if (!curr->force_new_range && r.register_type == curr->register_type &&
-          curr->register_type != ModbusRegisterType::CUSTOM) {
+          curr->register_type != modbus::EntityType::CUSTOM) {
         if (curr->start_address == (r.start_address + r.register_count - prev->register_count) &&
             curr->register_count == prev->register_count && curr->get_register_size() == prev->get_register_size()) {
           // this register can re-use the data from the previous register
@@ -472,14 +315,8 @@ void ModbusController::dump_config() {
                 "ModbusController:\n"
                 "  Address: 0x%02X\n"
                 "  Max Command Retries: %d\n"
-                "  Offline Skip Updates: %d\n"
-                "  Server Courtesy Response:\n"
-                "    Enabled: %s\n"
-                "    Register Last Address: 0x%02X\n"
-                "    Register Value: %d",
-                this->address_, this->max_cmd_retries_, this->offline_skip_updates_,
-                this->server_courtesy_response_.enabled ? "true" : "false",
-                this->server_courtesy_response_.register_last_address, this->server_courtesy_response_.register_value);
+                "  Offline Skip Updates: %d\n",
+                this->address_, this->max_cmd_retries_, this->offline_skip_updates_);
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGCONFIG(TAG, "sensormap");
@@ -492,11 +329,6 @@ void ModbusController::dump_config() {
   for (auto &it : this->register_ranges_) {
     ESP_LOGCONFIG(TAG, "  Range type=%u start=0x%X count=%d skip_updates=%d", static_cast<uint8_t>(it.register_type),
                   it.start_address, it.register_count, it.skip_updates);
-  }
-  ESP_LOGCONFIG(TAG, "server registers");
-  for (auto &r : this->server_registers_) {
-    ESP_LOGCONFIG(TAG, "  Address=0x%02X value_type=%u register_count=%u", r->address,
-                  static_cast<uint8_t>(r->value_type), r->register_count);
   }
 #endif
 }
@@ -515,7 +347,7 @@ void ModbusController::loop() {
   }
 }
 
-void ModbusController::on_write_register_response(ModbusRegisterType register_type, uint16_t start_address,
+void ModbusController::on_write_register_response(modbus::EntityType register_type, uint16_t start_address,
                                                   const std::vector<uint8_t> &data) {
   ESP_LOGV(TAG, "Command ACK 0x%X %d ", modbus::helpers::get_data<uint16_t>(data, 0),
            modbus::helpers::get_data<int16_t>(data, 1));
@@ -530,8 +362,8 @@ void ModbusController::dump_sensors_() {
 }
 
 ModbusCommandItem ModbusCommandItem::create_read_command(
-    ModbusController *modbusdevice, ModbusRegisterType register_type, uint16_t start_address, uint16_t register_count,
-    std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
+    ModbusController *modbusdevice, modbus::EntityType register_type, uint16_t start_address, uint16_t register_count,
+    std::function<void(modbus::EntityType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
         &&handler) {
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
@@ -544,7 +376,7 @@ ModbusCommandItem ModbusCommandItem::create_read_command(
 }
 
 ModbusCommandItem ModbusCommandItem::create_read_command(ModbusController *modbusdevice,
-                                                         ModbusRegisterType register_type, uint16_t start_address,
+                                                         modbus::EntityType register_type, uint16_t start_address,
                                                          uint16_t register_count) {
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
@@ -552,7 +384,7 @@ ModbusCommandItem ModbusCommandItem::create_read_command(ModbusController *modbu
   cmd.function_code = modbus::helpers::modbus_register_read_function(register_type);
   cmd.register_address = start_address;
   cmd.register_count = register_count;
-  cmd.on_data_func = [modbusdevice](ModbusRegisterType register_type, uint16_t start_address,
+  cmd.on_data_func = [modbusdevice](modbus::EntityType register_type, uint16_t start_address,
                                     const std::vector<uint8_t> &data) {
     modbusdevice->on_register_data(register_type, start_address, data);
   };
@@ -564,11 +396,11 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_command(ModbusControl
                                                                    const std::vector<uint16_t> &values) {
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
-  cmd.register_type = ModbusRegisterType::HOLDING;
-  cmd.function_code = ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS;
+  cmd.register_type = modbus::EntityType::HOLDING;
+  cmd.function_code = FunctionCode::WRITE_MULTIPLE_REGISTERS;
   cmd.register_address = start_address;
   cmd.register_count = register_count;
-  cmd.on_data_func = [modbusdevice, cmd](ModbusRegisterType register_type, uint16_t start_address,
+  cmd.on_data_func = [modbusdevice, cmd](modbus::EntityType register_type, uint16_t start_address,
                                          const std::vector<uint8_t> &data) {
     modbusdevice->on_write_register_response(cmd.register_type, start_address, data);
   };
@@ -584,11 +416,11 @@ ModbusCommandItem ModbusCommandItem::create_write_single_coil(ModbusController *
                                                               bool value) {
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
-  cmd.register_type = ModbusRegisterType::COIL;
-  cmd.function_code = ModbusFunctionCode::WRITE_SINGLE_COIL;
+  cmd.register_type = modbus::EntityType::COIL;
+  cmd.function_code = FunctionCode::WRITE_SINGLE_COIL;
   cmd.register_address = address;
   cmd.register_count = 1;
-  cmd.on_data_func = [modbusdevice, cmd](ModbusRegisterType register_type, uint16_t start_address,
+  cmd.on_data_func = [modbusdevice, cmd](modbus::EntityType register_type, uint16_t start_address,
                                          const std::vector<uint8_t> &data) {
     modbusdevice->on_write_register_response(cmd.register_type, start_address, data);
   };
@@ -601,11 +433,11 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_coils(ModbusControlle
                                                                  const std::vector<bool> &values) {
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
-  cmd.register_type = ModbusRegisterType::COIL;
-  cmd.function_code = ModbusFunctionCode::WRITE_MULTIPLE_COILS;
+  cmd.register_type = modbus::EntityType::COIL;
+  cmd.function_code = FunctionCode::WRITE_MULTIPLE_COILS;
   cmd.register_address = start_address;
   cmd.register_count = values.size();
-  cmd.on_data_func = [modbusdevice, cmd](ModbusRegisterType register_type, uint16_t start_address,
+  cmd.on_data_func = [modbusdevice, cmd](modbus::EntityType register_type, uint16_t start_address,
                                          const std::vector<uint8_t> &data) {
     modbusdevice->on_write_register_response(cmd.register_type, start_address, data);
   };
@@ -633,11 +465,11 @@ ModbusCommandItem ModbusCommandItem::create_write_single_command(ModbusControlle
                                                                  uint16_t value) {
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
-  cmd.register_type = ModbusRegisterType::HOLDING;
-  cmd.function_code = ModbusFunctionCode::WRITE_SINGLE_REGISTER;
+  cmd.register_type = modbus::EntityType::HOLDING;
+  cmd.function_code = FunctionCode::WRITE_SINGLE_REGISTER;
   cmd.register_address = start_address;
   cmd.register_count = 1;  // not used here anyways
-  cmd.on_data_func = [modbusdevice, cmd](ModbusRegisterType register_type, uint16_t start_address,
+  cmd.on_data_func = [modbusdevice, cmd](modbus::EntityType register_type, uint16_t start_address,
                                          const std::vector<uint8_t> &data) {
     modbusdevice->on_write_register_response(cmd.register_type, start_address, data);
   };
@@ -650,13 +482,13 @@ ModbusCommandItem ModbusCommandItem::create_write_single_command(ModbusControlle
 
 ModbusCommandItem ModbusCommandItem::create_custom_command(
     ModbusController *modbusdevice, const std::vector<uint8_t> &values,
-    std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
+    std::function<void(modbus::EntityType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
         &&handler) {
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
-  cmd.function_code = ModbusFunctionCode::CUSTOM;
+  cmd.function_code = FunctionCode::CUSTOM;
   if (handler == nullptr) {
-    cmd.on_data_func = [](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
+    cmd.on_data_func = [](modbus::EntityType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
       ESP_LOGI(TAG, "Custom Command sent");
     };
   } else {
@@ -669,13 +501,13 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
 
 ModbusCommandItem ModbusCommandItem::create_custom_command(
     ModbusController *modbusdevice, const std::vector<uint16_t> &values,
-    std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
+    std::function<void(modbus::EntityType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
         &&handler) {
   ModbusCommandItem cmd = {};
   cmd.modbusdevice = modbusdevice;
-  cmd.function_code = ModbusFunctionCode::CUSTOM;
+  cmd.function_code = FunctionCode::CUSTOM;
   if (handler == nullptr) {
-    cmd.on_data_func = [](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
+    cmd.on_data_func = [](modbus::EntityType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
       ESP_LOGI(TAG, "Custom Command sent");
     };
   } else {
@@ -690,9 +522,10 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
 }
 
 bool ModbusCommandItem::send() {
-  if (this->function_code != ModbusFunctionCode::CUSTOM) {
-    modbusdevice->send(uint8_t(this->function_code), this->register_address, this->register_count, this->payload.size(),
-                       this->payload.empty() ? nullptr : &this->payload[0]);
+  if (this->function_code != FunctionCode::CUSTOM) {
+    modbusdevice->send_pdu(
+        modbus::helpers::create_client_pdu(this->function_code, this->register_address, this->register_count,
+                                           this->payload.empty() ? nullptr : &this->payload[0], this->payload.size()));
   } else {
     modbusdevice->send_raw(this->payload);
   }
@@ -705,11 +538,10 @@ bool ModbusCommandItem::send() {
 bool ModbusCommandItem::is_equal(const ModbusCommandItem &other) {
   // for custom commands we have to check for identical payloads, since
   // address/count/type fields will be set to zero
-  return this->function_code == ModbusFunctionCode::CUSTOM
+  return this->function_code == FunctionCode::CUSTOM
              ? this->payload == other.payload
              : other.register_address == this->register_address && other.register_count == this->register_count &&
                    other.register_type == this->register_type && other.function_code == this->function_code;
 }
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

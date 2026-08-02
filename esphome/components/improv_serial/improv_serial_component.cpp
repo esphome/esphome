@@ -8,8 +8,7 @@
 
 #include "esphome/components/logger/logger.h"
 
-namespace esphome {
-namespace improv_serial {
+namespace esphome::improv_serial {
 
 static const char *const TAG = "improv_serial";
 
@@ -17,33 +16,38 @@ void ImprovSerialComponent::setup() {
   global_improv_serial_component = this;
 #ifdef USE_ESP32
   this->uart_num_ = logger::global_logger->get_uart_num();
+  this->uart_selection_ = logger::global_logger->get_uart();
 #elif defined(USE_ARDUINO)
   this->hw_serial_ = logger::global_logger->get_hw_serial();
 #endif
 
   if (wifi::global_wifi_component->has_sta()) {
     this->state_ = improv::STATE_PROVISIONED;
-  } else {
+  } else if (!wifi::global_wifi_component->is_disabled()) {
+    // Respect Wi-Fi's disabled state; forcing a scan while disabled throws
+    // the wifi component into an invalid state from which it cannot recover.
     wifi::global_wifi_component->start_scanning();
   }
 }
 
 void ImprovSerialComponent::loop() {
-  if (this->last_read_byte_ && (millis() - this->last_read_byte_ > IMPROV_SERIAL_TIMEOUT)) {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->last_read_byte_ && (now - this->last_read_byte_ > IMPROV_SERIAL_TIMEOUT)) {
     this->last_read_byte_ = 0;
     this->rx_buffer_.clear();
     ESP_LOGV(TAG, "Timeout");
   }
 
-  auto byte = this->read_byte_();
-  while (byte.has_value()) {
+  while (true) {
+    auto byte = this->read_byte_();
+    if (!byte.has_value())
+      break;
     if (this->parse_improv_serial_byte_(byte.value())) {
-      this->last_read_byte_ = millis();
+      this->last_read_byte_ = now;
     } else {
       this->last_read_byte_ = 0;
       this->rx_buffer_.clear();
     }
-    byte = this->read_byte_();
   }
 
   if (this->state_ == improv::STATE_PROVISIONING) {
@@ -61,55 +65,6 @@ void ImprovSerialComponent::loop() {
 }
 
 void ImprovSerialComponent::dump_config() { ESP_LOGCONFIG(TAG, "Improv Serial:"); }
-
-optional<uint8_t> ImprovSerialComponent::read_byte_() {
-  optional<uint8_t> byte;
-  uint8_t data = 0;
-#ifdef USE_ESP32
-  switch (logger::global_logger->get_uart()) {
-    case logger::UART_SELECTION_UART0:
-    case logger::UART_SELECTION_UART1:
-#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
-    case logger::UART_SELECTION_UART2:
-#endif  // !USE_ESP32_VARIANT_ESP32C3 && !USE_ESP32_VARIANT_ESP32C6 && !USE_ESP32_VARIANT_ESP32C61 &&
-        // !USE_ESP32_VARIANT_ESP32S2 && !USE_ESP32_VARIANT_ESP32S3
-      if (this->uart_num_ >= 0) {
-        size_t available;
-        uart_get_buffered_data_len(this->uart_num_, &available);
-        if (available) {
-          uart_read_bytes(this->uart_num_, &data, 1, 0);
-          byte = data;
-        }
-      }
-      break;
-#if defined(USE_LOGGER_USB_CDC) && defined(CONFIG_ESP_CONSOLE_USB_CDC)
-    case logger::UART_SELECTION_USB_CDC:
-      if (esp_usb_console_available_for_read()) {
-        esp_usb_console_read_buf((char *) &data, 1);
-        byte = data;
-      }
-      break;
-#endif  // USE_LOGGER_USB_CDC
-#ifdef USE_LOGGER_USB_SERIAL_JTAG
-    case logger::UART_SELECTION_USB_SERIAL_JTAG: {
-      if (usb_serial_jtag_read_bytes((char *) &data, 1, 0)) {
-        byte = data;
-      }
-      break;
-    }
-#endif  // USE_LOGGER_USB_SERIAL_JTAG
-    default:
-      break;
-  }
-#elif defined(USE_ARDUINO)
-  if (this->hw_serial_->available()) {
-    this->hw_serial_->readBytes(&data, 1);
-    byte = data;
-  }
-#endif
-  return byte;
-}
 
 void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) {
   // First, set length field
@@ -134,11 +89,10 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
   this->tx_header_[TX_CHECKSUM_IDX] = checksum;
 
 #ifdef USE_ESP32
-  switch (logger::global_logger->get_uart()) {
+  switch (this->uart_selection_) {
     case logger::UART_SELECTION_UART0:
     case logger::UART_SELECTION_UART1:
-#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32)
     case logger::UART_SELECTION_UART2:
 #endif
       uart_write_bytes(this->uart_num_, this->tx_header_, header_tx_len);
@@ -234,6 +188,13 @@ bool ImprovSerialComponent::parse_improv_serial_byte_(uint8_t byte) {
 bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command) {
   switch (command.command) {
     case improv::WIFI_SETTINGS: {
+      if (wifi::global_wifi_component->is_disabled()) {
+        // Wi-Fi is disabled, so we can't provision. Respond immediately
+        // instead of letting the client wait out its provisioning timeout.
+        ESP_LOGW(TAG, "Wi-Fi is disabled; cannot provision");
+        this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
+        return true;
+      }
       wifi::WiFiAP sta{};
       sta.set_ssid(command.ssid.c_str());
       sta.set_password(command.password.c_str());
@@ -249,6 +210,14 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       return true;
     }
     case improv::GET_CURRENT_STATE:
+      if (wifi::global_wifi_component->is_disabled()) {
+        // Wi-Fi is disabled; report the Improv "stopped" state so a client can tell
+        // the user that provisioning is unavailable. Reported transiently without
+        // disturbing our internal provisioning state machine, so a later `wifi.enable`
+        // still reports the correct state.
+        this->send_current_state_(improv::STATE_STOPPED);
+        return true;
+      }
       this->set_state_(this->state_);
       if (this->state_ == improv::STATE_PROVISIONED) {
         std::vector<uint8_t> url = this->build_rpc_settings_response_(improv::GET_CURRENT_STATE);
@@ -303,6 +272,10 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
 
 void ImprovSerialComponent::set_state_(improv::State state) {
   this->state_ = state;
+  this->send_current_state_(state);
+}
+
+void ImprovSerialComponent::send_current_state_(improv::State state) {
   this->tx_header_[TX_TYPE_IDX] = TYPE_CURRENT_STATE;
   this->tx_header_[TX_DATA_IDX] = state;
   this->write_data_();
@@ -329,6 +302,6 @@ void ImprovSerialComponent::on_wifi_connect_timeout_() {
 ImprovSerialComponent *global_improv_serial_component =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
     nullptr;                                             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace improv_serial
-}  // namespace esphome
+}  // namespace esphome::improv_serial
+
 #endif

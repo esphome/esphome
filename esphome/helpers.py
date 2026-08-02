@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import MutableMapping
 from contextlib import suppress
 import ipaddress
 import logging
@@ -11,7 +12,7 @@ import shutil
 import stat
 import sys
 import tempfile
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TextIO
 from urllib.parse import urlparse
 
 from esphome.const import __version__ as ESPHOME_VERSION
@@ -120,6 +121,18 @@ def slugify(value: str) -> str:
     return "".join(c for c in value if c in ALLOWED_NAME_CHARS)
 
 
+def friendly_name_slugify(value: str) -> str:
+    """Convert a friendly name to a slug with dashes instead of underscores.
+
+    Used by device-builder (esphome/device-builder), which slugifies friendly
+    names into the YAML filename / device name during adoption + wizard flows.
+    Coordinate with the device-builder team before changing the
+    slugification rules — the mapping must stay stable so existing
+    on-disk filenames keep matching across releases.
+    """
+    return slugify(value).replace("_", "-")
+
+
 def indent_all_but_first_and_last(text, padding="  "):
     lines = text.splitlines(True)
     if len(lines) <= 2:
@@ -133,6 +146,21 @@ def indent_list(text, padding="  "):
 
 def indent(text, padding="  "):
     return "\n".join(indent_list(text, padding))
+
+
+def format_duration(seconds: float) -> str:
+    """Format a duration in seconds as a short string like "1d 2h" or "42s".
+
+    Uses the two largest non-zero units, with unit suffixes matching the YAML
+    time period shorthand (d, h, min, s).
+    """
+    remainder = max(0, int(seconds))
+    parts = []
+    for suffix, length in (("d", 86400), ("h", 3600), ("min", 60), ("s", 1)):
+        value, remainder = divmod(remainder, length)
+        if value:
+            parts.append(f"{value}{suffix}")
+    return " ".join(parts[:2]) if parts else "0s"
 
 
 # From https://stackoverflow.com/a/14945195/8924614
@@ -356,6 +384,26 @@ def is_ha_addon():
     return get_bool_env("ESPHOME_IS_HA_ADDON")
 
 
+def add_git_ceiling_directory(env: MutableMapping[str, str], directory: Path) -> None:
+    """Add ``directory`` to ``env``'s ``GIT_CEILING_DIRECTORIES`` list.
+
+    Git stops walking up the directory tree to find a repository once it reaches
+    a ceiling directory, so this caps the search at ``directory`` (the ESPHome
+    project root). Without it, an uninitialized or corrupt git repo in a parent
+    directory makes the ``git describe`` that build toolchains run for the app
+    version error out and fail the whole build.
+
+    ``GIT_CEILING_DIRECTORIES`` is an ``os.pathsep``-joined list of absolute
+    paths; any existing entries are preserved and duplicates are skipped.
+    """
+    ceiling = str(directory)
+    existing = env.get("GIT_CEILING_DIRECTORIES", "")
+    parts = existing.split(os.pathsep) if existing else []
+    if ceiling not in parts:
+        parts.append(ceiling)
+        env["GIT_CEILING_DIRECTORIES"] = os.pathsep.join(parts)
+
+
 def rmtree(path: Path | str) -> None:
     """Remove a directory tree, handling read-only files on Windows.
 
@@ -364,13 +412,13 @@ def rmtree(path: Path | str) -> None:
     read-only flag and retrying.
     """
 
-    def _onerror(func, path, exc_info):
+    def _onexc(func, path, exc):
         if os.access(path, os.W_OK):
-            raise exc_info[1].with_traceback(exc_info[2])
-        os.chmod(path, stat.S_IWUSR | stat.S_IRUSR)
+            raise exc
+        Path(path).chmod(stat.S_IWUSR | stat.S_IRUSR)
         func(path)
 
-    shutil.rmtree(path, onerror=_onerror)
+    shutil.rmtree(path, onexc=_onexc)
 
 
 def walk_files(path: Path):
@@ -443,6 +491,12 @@ def _write_file(
 
 
 def write_file(path: Path, text: str | bytes, private: bool = False) -> None:
+    """Atomically write text or bytes to path. Wraps OSError as EsphomeError.
+
+    Used by esphome-device-builder for in-place YAML rewrites; the
+    atomicity (sibling tempfile + shutil.move) and EsphomeError
+    wrapping are part of the public contract.
+    """
     try:
         _write_file(path, text, private=private)
     except OSError as err:
@@ -484,7 +538,7 @@ def copy_file_if_changed(src: Path, dst: Path) -> bool:
             # -> delete file (it would be overwritten anyway), and try again
             # if that fails, use normal error handler
             with suppress(OSError):
-                os.unlink(dst)
+                Path(dst).unlink()
                 shutil.copyfile(src, dst)
                 return True
 
@@ -589,10 +643,24 @@ def sanitize(value):
 class ProgressBar:
     """A simple terminal progress bar for upload operations."""
 
-    def __init__(self) -> None:
+    def __init__(self, header: str, stream: TextIO | None = None) -> None:
+        # Local import to avoid a top-level cycle with esphome.core.
+        from esphome.core import CORE
+
+        self.header = header
+        self.stream = stream or sys.stderr
         self.last_progress: int | None = None
+        # Enable when writing to an interactive TTY *or* when running under
+        # ``--dashboard``. The dashboard captures our stderr via
+        # ``stdout=PIPE, stderr=STDOUT`` and parses the ``\rUploading: NN%``
+        # frames to drive its own progress UI -- gating purely on ``isatty()``
+        # silently disables every dashboard-side flash-progress indicator.
+        is_tty = hasattr(self.stream, "isatty") and self.stream.isatty()
+        self.enabled = is_tty or CORE.dashboard
 
     def update(self, progress: float) -> None:
+        if not self.enabled:
+            return
         bar_length = 60
         status = ""
         if progress >= 1:
@@ -603,11 +671,13 @@ class ProgressBar:
             return
         self.last_progress = new_progress
         block = int(round(bar_length * progress))
-        text = f"\rUploading: [{'=' * block + ' ' * (bar_length - block)}] {new_progress}% {status}"
+        text = f"\r{self.header}: [{'=' * block + ' ' * (bar_length - block)}] {new_progress}% {status}"
         sys.stderr.write(text)
         sys.stderr.flush()
 
     def done(self) -> None:
+        if not self.enabled:
+            return
         sys.stderr.write("\n")
         sys.stderr.flush()
 

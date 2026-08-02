@@ -9,30 +9,37 @@
 #include <list>
 #include <queue>
 #include <set>
+#include <span>
 #include <utility>
 #include <vector>
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
 class ModbusController;
 
+using modbus::ExceptionCode;
+using modbus::FunctionCode;
+using modbus::helpers::SensorValueType;
+
+// Remove before 2027.2.0 - deprecated names re-exported so external components keep their warning window
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+using modbus::ModbusExceptionCode;
 using modbus::ModbusFunctionCode;
 using modbus::ModbusRegisterType;
-using modbus::ModbusExceptionCode;
-using modbus::helpers::SensorValueType;
+#pragma GCC diagnostic pop
 
 // Remove before 2026.10.0 — these helpers have moved to modbus::helpers
 ESPDEPRECATED("Use modbus::helpers::value_type_is_float() instead. Removed in 2026.10.0", "2026.4.0")
 inline bool value_type_is_float(SensorValueType v) { return modbus::helpers::value_type_is_float(v); }
 
 ESPDEPRECATED("Use modbus::helpers::modbus_register_read_function() instead. Removed in 2026.10.0", "2026.4.0")
-inline ModbusFunctionCode modbus_register_read_function(ModbusRegisterType reg_type) {
+inline FunctionCode modbus_register_read_function(modbus::EntityType reg_type) {
   return modbus::helpers::modbus_register_read_function(reg_type);
 }
 
 ESPDEPRECATED("Use modbus::helpers::modbus_register_write_function() instead. Removed in 2026.10.0", "2026.4.0")
-inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_type) {
+inline FunctionCode modbus_register_write_function(modbus::EntityType reg_type) {
   return modbus::helpers::modbus_register_write_function(reg_type);
 }
 
@@ -65,9 +72,10 @@ T get_data(const std::vector<uint8_t> &data, size_t buffer_offset) {
   return modbus::helpers::get_data<T>(data, buffer_offset);
 }
 
-ESPDEPRECATED("Use modbus::helpers::coil_from_vector() instead. Removed in 2026.10.0", "2026.4.0")
+// Remove before 2027.2.0 (window restarted when the migration target changed to bit_from_packed())
+ESPDEPRECATED("Use modbus::helpers::bit_from_packed() instead. Removed in 2027.2.0", "2026.4.0")
 inline bool coil_from_vector(int coil, const std::vector<uint8_t> &data) {
-  return modbus::helpers::coil_from_vector(coil, data);
+  return modbus::helpers::bit_from_packed(coil, data);
 }
 
 template<typename N>
@@ -84,12 +92,15 @@ inline void number_to_payload(std::vector<uint16_t> &data, int64_t value, Sensor
 ESPDEPRECATED("Use modbus::helpers::payload_to_number() instead. Removed in 2026.10.0", "2026.4.0")
 inline int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
                                  uint32_t bitmask) {
-  return modbus::helpers::payload_to_number(data, sensor_value_type, offset, bitmask);
+  return modbus::helpers::payload_to_number(std::span<const uint8_t>(data), sensor_value_type, offset, bitmask)
+      .value_or(0);
 }
 
 ESPDEPRECATED("Use modbus::helpers::float_to_payload() instead. Removed in 2026.10.0", "2026.4.0")
 inline std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type) {
-  return modbus::helpers::float_to_payload(value, value_type);
+  std::vector<uint16_t> data;
+  modbus::helpers::float_to_payload(data, value, value_type);
+  return data;
 }
 
 class ModbusController;
@@ -100,7 +111,7 @@ class SensorItem {
 
   void set_custom_data(const std::vector<uint8_t> &data) { custom_data = data; }
   size_t virtual get_register_size() const {
-    if (register_type == ModbusRegisterType::COIL || register_type == ModbusRegisterType::DISCRETE_INPUT) {
+    if (register_type == modbus::EntityType::COIL || register_type == modbus::EntityType::DISCRETE_INPUT) {
       return 1;
     } else {  // if CONF_RESPONSE_BYTES is used override the default
       return response_bytes > 0 ? response_bytes : register_count * 2;
@@ -108,7 +119,7 @@ class SensorItem {
   }
   // Override register size for modbus devices not using 1 register for one dword
   void set_register_size(uint8_t register_size) { response_bytes = register_size; }
-  ModbusRegisterType register_type{ModbusRegisterType::CUSTOM};
+  modbus::EntityType register_type{modbus::EntityType::CUSTOM};
   SensorValueType sensor_value_type{SensorValueType::RAW};
   uint16_t start_address{0};
   uint32_t bitmask{0};
@@ -118,82 +129,6 @@ class SensorItem {
   uint16_t skip_updates{0};
   std::vector<uint8_t> custom_data{};
   bool force_new_range{false};
-};
-
-struct ServerCourtesyResponse {
-  bool enabled{false};
-  uint16_t register_last_address{0xFFFF};
-  uint16_t register_value{0};
-};
-
-class ServerRegister {
-  using ReadLambda = std::function<int64_t()>;
-  using WriteLambda = std::function<bool(int64_t value)>;
-
- public:
-  ServerRegister(uint16_t address, SensorValueType value_type, uint8_t register_count) {
-    this->address = address;
-    this->value_type = value_type;
-    this->register_count = register_count;
-  }
-
-  template<typename T> void set_read_lambda(const std::function<T(uint16_t address)> &&user_read_lambda) {
-    this->read_lambda = [this, user_read_lambda]() -> int64_t {
-      T user_value = user_read_lambda(this->address);
-      if constexpr (std::is_same_v<T, float>) {
-        return bit_cast<uint32_t>(user_value);
-      } else {
-        return static_cast<int64_t>(user_value);
-      }
-    };
-  }
-
-  template<typename T>
-  void set_write_lambda(const std::function<bool(uint16_t address, const T v)> &&user_write_lambda) {
-    this->write_lambda = [this, user_write_lambda](int64_t number) {
-      if constexpr (std::is_same_v<T, float>) {
-        float float_value = bit_cast<float>(static_cast<uint32_t>(number));
-        return user_write_lambda(this->address, float_value);
-      }
-      return user_write_lambda(this->address, static_cast<T>(number));
-    };
-  }
-
-  // Formats a raw value into a string representation based on the value type for debugging
-  std::string format_value(int64_t value) const {
-    // max 44: float with %.1f can be up to 42 chars (3.4e38 → 39 integer digits + sign + decimal + 1 digit)
-    // plus null terminator = 43, rounded to 44 for 4-byte alignment
-    char buf[44];
-    switch (this->value_type) {
-      case SensorValueType::U_WORD:
-      case SensorValueType::U_DWORD:
-      case SensorValueType::U_DWORD_R:
-      case SensorValueType::U_QWORD:
-      case SensorValueType::U_QWORD_R:
-        buf_append_printf(buf, sizeof(buf), 0, "%" PRIu64, static_cast<uint64_t>(value));
-        return buf;
-      case SensorValueType::S_WORD:
-      case SensorValueType::S_DWORD:
-      case SensorValueType::S_DWORD_R:
-      case SensorValueType::S_QWORD:
-      case SensorValueType::S_QWORD_R:
-        buf_append_printf(buf, sizeof(buf), 0, "%" PRId64, value);
-        return buf;
-      case SensorValueType::FP32_R:
-      case SensorValueType::FP32:
-        buf_append_printf(buf, sizeof(buf), 0, "%.1f", bit_cast<float>(static_cast<uint32_t>(value)));
-        return buf;
-      default:
-        buf_append_printf(buf, sizeof(buf), 0, "%" PRId64, value);
-        return buf;
-    }
-  }
-
-  uint16_t address{0};
-  SensorValueType value_type{SensorValueType::RAW};
-  uint8_t register_count{0};
-  ReadLambda read_lambda;
-  WriteLambda write_lambda;
 };
 
 // ModbusController::create_register_ranges_ tries to optimize register range
@@ -231,7 +166,7 @@ using SensorSet = std::set<SensorItem *, SensorItemsComparator>;
 
 struct RegisterRange {
   uint16_t start_address;
-  ModbusRegisterType register_type;
+  modbus::EntityType register_type;
   uint8_t register_count;
   uint16_t skip_updates;          // the config value
   SensorSet sensors;              // all sensors of this range
@@ -244,9 +179,9 @@ class ModbusCommandItem {
   ModbusController *modbusdevice{nullptr};
   uint16_t register_address{0};
   uint16_t register_count{0};
-  ModbusFunctionCode function_code{ModbusFunctionCode::CUSTOM};
-  ModbusRegisterType register_type{ModbusRegisterType::CUSTOM};
-  std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
+  FunctionCode function_code{FunctionCode::CUSTOM};
+  modbus::EntityType register_type{modbus::EntityType::CUSTOM};
+  std::function<void(modbus::EntityType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
       on_data_func;
   std::vector<uint8_t> payload = {};
   bool send();
@@ -264,8 +199,8 @@ class ModbusCommandItem {
    * @return ModbusCommandItem with the prepared command
    */
   static ModbusCommandItem create_read_command(
-      ModbusController *modbusdevice, ModbusRegisterType register_type, uint16_t start_address, uint16_t register_count,
-      std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
+      ModbusController *modbusdevice, modbus::EntityType register_type, uint16_t start_address, uint16_t register_count,
+      std::function<void(modbus::EntityType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
           &&handler);
   /** Create modbus read command
    *  Function code 02-04
@@ -275,7 +210,7 @@ class ModbusCommandItem {
    * @param register_count number of registers to read
    * @return ModbusCommandItem with the prepared command
    */
-  static ModbusCommandItem create_read_command(ModbusController *modbusdevice, ModbusRegisterType register_type,
+  static ModbusCommandItem create_read_command(ModbusController *modbusdevice, modbus::EntityType register_type,
                                                uint16_t start_address, uint16_t register_count);
   /** Create modbus read command
    *  Function code 02-04
@@ -325,7 +260,7 @@ class ModbusCommandItem {
    */
   static ModbusCommandItem create_custom_command(
       ModbusController *modbusdevice, const std::vector<uint8_t> &values,
-      std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
+      std::function<void(modbus::EntityType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
           &&handler = nullptr);
 
   /** Create custom modbus command
@@ -337,7 +272,7 @@ class ModbusCommandItem {
    */
   static ModbusCommandItem create_custom_command(
       ModbusController *modbusdevice, const std::vector<uint16_t> &values,
-      std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
+      std::function<void(modbus::EntityType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
           &&handler = nullptr);
 
   bool is_equal(const ModbusCommandItem &other);
@@ -356,7 +291,7 @@ class ModbusCommandItem {
  * Responses for the commands are dispatched to the modbus sensor items.
  */
 
-class ModbusController : public PollingComponent, public modbus::ModbusDevice {
+class ModbusController final : public PollingComponent, public modbus::ModbusClientDevice {
  public:
   void dump_config() override;
   void loop() override;
@@ -365,23 +300,26 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
 
   /// queues a modbus command in the send queue
   void queue_command(const ModbusCommandItem &command);
+  /// Sends a raw payload (address byte + PDU, no CRC) with responses routed back to this controller.
+  /// The payload carries its own address byte, which may differ from this controller's address.
+  /// Deliberately shadows the deprecated ModbusClientDevice::send_raw() with identical semantics:
+  /// controller-level raw sends stay supported until the command machinery is replaced.
+  void send_raw(const std::vector<uint8_t> &payload) {
+    if (payload.empty())
+      return;  // refused at the door, like every invalid send; no callback follows
+    this->parent_->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
+  }
   /// Registers a sensor with the controller. Called by esphomes code generator
   void add_sensor_item(SensorItem *item) { sensorset_.insert(item); }
-  /// Registers a server register with the controller. Called by esphomes code generator
-  void add_server_register(ServerRegister *server_register) { server_registers_.push_back(server_register); }
   /// called when a modbus response was parsed without errors
-  void on_modbus_data(const std::vector<uint8_t> &data) override;
+  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
   /// called when a modbus error response was received
-  void on_modbus_error(uint8_t function_code, uint8_t exception_code) override;
-  /// called when a modbus request (function code 0x03 or 0x04) was parsed without errors
-  void on_modbus_read_registers(uint8_t function_code, uint16_t start_address, uint16_t number_of_registers) final;
-  /// called when a modbus request (function code 0x06 or 0x10) was parsed without errors
-  void on_modbus_write_registers(uint8_t function_code, const std::vector<uint8_t> &data) final;
+  void on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) override;
   /// default delegate called by process_modbus_data when a response has retrieved from the incoming queue
-  void on_register_data(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data);
+  void on_register_data(modbus::EntityType register_type, uint16_t start_address, const std::vector<uint8_t> &data);
   /// default delegate called by process_modbus_data when a response for a write response has retrieved from the
   /// incoming queue
-  void on_write_register_response(ModbusRegisterType register_type, uint16_t start_address,
+  void on_write_register_response(modbus::EntityType register_type, uint16_t start_address,
                                   const std::vector<uint8_t> &data);
   /// Allow a duplicate command to be sent
   void set_allow_duplicate_commands(bool allow_duplicate_commands) {
@@ -413,18 +351,12 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   void set_max_cmd_retries(uint8_t max_cmd_retries) { this->max_cmd_retries_ = max_cmd_retries; }
   /// get how many times a command will be (re)sent if no response is received
   uint8_t get_max_cmd_retries() { return this->max_cmd_retries_; }
-  /// Called by esphome generated code to set the server courtesy response object
-  void set_server_courtesy_response(const ServerCourtesyResponse &server_courtesy_response) {
-    this->server_courtesy_response_ = server_courtesy_response;
-  }
-  /// Get the server courtesy response object
-  ServerCourtesyResponse get_server_courtesy_response() const { return this->server_courtesy_response_; }
 
  protected:
   /// parse sensormap_ and create range of sequential addresses
   size_t create_register_ranges_();
   // find register in sensormap. Returns iterator with all registers having the same start address
-  SensorSet find_sensors_(ModbusRegisterType register_type, uint16_t start_address) const;
+  SensorSet find_sensors_(modbus::EntityType register_type, uint16_t start_address) const;
   /// submit the read command for the address range to the send queue
   void update_range_(RegisterRange &r);
   /// parse incoming modbus data
@@ -435,8 +367,6 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   void dump_sensors_();
   /// Collection of all sensors for this component
   SensorSet sensorset_;
-  /// Collection of all server registers for this component
-  std::vector<ServerRegister *> server_registers_{};
   /// Continuous range of modbus registers
   std::vector<RegisterRange> register_ranges_{};
   /// Hold the pending requests to be sent
@@ -461,9 +391,6 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   CallbackManager<void(int, int)> online_callback_{};
   /// Server offline callback
   CallbackManager<void(int, int)> offline_callback_{};
-  /// Server courtesy response
-  ServerCourtesyResponse server_courtesy_response_{
-      .enabled = false, .register_last_address = 0xFFFF, .register_value = 0};
 };
 
 /** Convert vector<uint8_t> response payload to float.
@@ -471,8 +398,9 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
  * @param item SensorItem object
  * @return float value of data
  */
-inline float payload_to_float(const std::vector<uint8_t> &data, const SensorItem &item) {
-  int64_t number = modbus::helpers::payload_to_number(data, item.sensor_value_type, item.offset, item.bitmask);
+inline float payload_to_float(std::span<const uint8_t> data, const SensorItem &item) {
+  int64_t number =
+      modbus::helpers::payload_to_number(data, item.sensor_value_type, item.offset, item.bitmask).value_or(0);
 
   float float_value;
   if (modbus::helpers::value_type_is_float(item.sensor_value_type)) {
@@ -484,5 +412,4 @@ inline float payload_to_float(const std::vector<uint8_t> &data, const SensorItem
   return float_value;
 }
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

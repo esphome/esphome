@@ -84,12 +84,7 @@ def indent_list(text: str, padding: str = "  ") -> list[str]:
     """Indent each line of the given text with the specified padding."""
     lines = []
     for line in text.splitlines():
-        if (
-            line == ""
-            or line.startswith("#ifdef")
-            or line.startswith("#if ")
-            or line.startswith("#endif")
-        ):
+        if line == "" or line.startswith(("#ifdef", "#if ", "#endif")):
             p = ""
         else:
             p = padding
@@ -183,6 +178,11 @@ class TypeInfo(ABC):
     def force(self) -> bool:
         """Check if this field should always be encoded (skip zero/empty check)."""
         return get_field_opt(self._field, pb.force, False)
+
+    @property
+    def mac_address(self) -> bool:
+        """Check if this uint64 field is a 48-bit MAC address (use 7-byte fast path)."""
+        return get_field_opt(self._field, pb.mac_address, False)
 
     @property
     def max_value(self) -> int | None:
@@ -665,7 +665,21 @@ class UInt64Type(VarintTypeMixin, TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
+        if self.mac_address and force:
+            field_id_size = self.calculate_field_id_size()
+            return (
+                f"size += ProtoSize::calc_uint64_48bit_force({field_id_size}, {name});"
+            )
         return self._get_simple_size_calculation(name, force, "uint64")
+
+    @property
+    def RAW_ENCODE_MAP(self) -> dict[str, str]:  # noqa: N802
+        if self.mac_address:
+            return {
+                **TypeInfo.RAW_ENCODE_MAP,
+                "encode_uint64": "ProtoEncode::encode_varint_raw_48bit(pos, {value});",
+            }
+        return TypeInfo.RAW_ENCODE_MAP
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 3  # field ID + 3 bytes typical varint
@@ -1264,11 +1278,11 @@ class PackedBufferTypeInfo(TypeInfo):
         """Dump shows buffer info but not decoded values."""
         return (
             f'out.append(2, \' \').append_p(ESPHOME_PSTR("{self.name}")).append(": ");\n'
-            + 'out.append_p(ESPHOME_PSTR("packed buffer ["));\n'
-            + f"append_uint(out, this->{self.field_name}_count_);\n"
-            + 'out.append_p(ESPHOME_PSTR(" values, "));\n'
-            + f"append_uint(out, this->{self.field_name}_length_);\n"
-            + 'out.append_p(ESPHOME_PSTR(" bytes]\\n"));'
+            'out.append_p(ESPHOME_PSTR("packed buffer ["));\n'
+            f"append_uint(out, this->{self.field_name}_count_);\n"
+            'out.append_p(ESPHOME_PSTR(" values, "));\n'
+            f"append_uint(out, this->{self.field_name}_length_);\n"
+            'out.append_p(ESPHOME_PSTR(" bytes]\\n"));'
         )
 
     def dump(self, name: str) -> str:
@@ -3144,7 +3158,7 @@ def main() -> None:
         defines_content += "\n"
     defines_content += "\nnamespace esphome::api {}  // namespace esphome::api\n"
 
-    with open(root / "api_pb2_defines.h", "w", encoding="utf-8") as f:
+    with (root / "api_pb2_defines.h").open("w", encoding="utf-8") as f:
         f.write(defines_content)
 
     content = FILE_HEADER
@@ -3429,13 +3443,13 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
 #endif  // HAS_PROTO_MESSAGE_DUMP
 """
 
-    with open(root / "api_pb2.h", "w", encoding="utf-8") as f:
+    with (root / "api_pb2.h").open("w", encoding="utf-8") as f:
         f.write(content)
 
-    with open(root / "api_pb2.cpp", "w", encoding="utf-8") as f:
+    with (root / "api_pb2.cpp").open("w", encoding="utf-8") as f:
         f.write(cpp)
 
-    with open(root / "api_pb2_dump.cpp", "w", encoding="utf-8") as f:
+    with (root / "api_pb2_dump.cpp").open("w", encoding="utf-8") as f:
         f.write(dump_cpp)
 
     hpp = FILE_HEADER
@@ -3532,7 +3546,7 @@ static const char *const TAG = "api.service";
         if id_ is not None and not mt.options.deprecated:
             id_to_msg_name[id_] = mt.name
 
-    for id_, (_, _, case_label) in cases:
+    for id_, (_, _, _case_label) in cases:
         msg_name = id_to_msg_name.get(id_, "")
         if msg_name in message_auth_map:
             needs_auth = message_auth_map[msg_name]
@@ -3558,8 +3572,13 @@ static const char *const TAG = "api.service";
     # Generate read_message_ as APIConnection method (not base class) so the compiler
     # can devirtualize and inline the on_* handler calls within the same class.
     # APIConnection declares this method in api_connection.h.
+    # Guard with #ifdef USE_API since APIConnection itself is only defined when
+    # USE_API is set; without this, builds that compile this .cpp without
+    # USE_API (e.g. C++ unit tests for api dependencies) fail to find the
+    # class declaration.
 
-    out = "void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {\n"
+    out = "#ifdef USE_API\n"
+    out += "void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {\n"
 
     # Auth check block before dispatch switch
     out += "  // Check authentication/connection requirements\n"
@@ -3590,7 +3609,7 @@ static const char *const TAG = "api.service";
 
     # Dispatch switch
     out += "  switch (msg_type) {\n"
-    for i, (case, ifdef, case_label) in cases:
+    for _i, (case, ifdef, case_label) in cases:
         if ifdef is not None:
             out += _make_ifdef_line(ifdef) + "\n"
 
@@ -3604,6 +3623,7 @@ static const char *const TAG = "api.service";
     out += "      break;\n"
     out += "  }\n"
     out += "}\n"
+    out += "#endif  // USE_API\n"
     cpp += out
     hpp += "};\n"
 
@@ -3616,10 +3636,10 @@ static const char *const TAG = "api.service";
 }  // namespace esphome::api
 """
 
-    with open(root / "api_pb2_service.h", "w", encoding="utf-8") as f:
+    with (root / "api_pb2_service.h").open("w", encoding="utf-8") as f:
         f.write(hpp)
 
-    with open(root / "api_pb2_service.cpp", "w", encoding="utf-8") as f:
+    with (root / "api_pb2_service.cpp").open("w", encoding="utf-8") as f:
         f.write(cpp)
 
     prot_file.unlink()

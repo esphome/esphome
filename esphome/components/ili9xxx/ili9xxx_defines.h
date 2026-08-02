@@ -2,8 +2,7 @@
 
 #include <cstdint>
 
-namespace esphome {
-namespace ili9xxx {
+namespace esphome::ili9xxx {
 
 // Color definitions
 // clang-format off
@@ -98,5 +97,4 @@ static const uint8_t ILI9XXX_DELAY_FLAG = 0xFF;
 // special marker for delay - command byte reprents ms, length byte is an impossible value
 #define ILI9XXX_DELAY(ms) ((uint8_t) ((ms) | 0x80)), ILI9XXX_DELAY_FLAG
 
-}  // namespace ili9xxx
-}  // namespace esphome
+}  // namespace esphome::ili9xxx

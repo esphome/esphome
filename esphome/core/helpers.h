@@ -20,6 +20,7 @@
 #include <strings.h>
 
 #include "esphome/core/optional.h"
+#include "esphome/core/time_conversion.h"
 
 // Backward compatibility re-export of heap-allocating helpers.
 // These functions have moved to alloc_helpers.h. External components should
@@ -32,7 +33,7 @@
 #include <pgmspace.h>
 #endif
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
 #include <Arduino.h>
 #endif
 
@@ -183,8 +184,10 @@ template<size_t InlineSize = 8> class SmallInlineBuffer {
   SmallInlineBuffer(const SmallInlineBuffer &) = delete;
   SmallInlineBuffer &operator=(const SmallInlineBuffer &) = delete;
 
-  /// Set buffer contents, allocating heap if needed
-  void set(const uint8_t *src, size_t size) {
+  /// Resize to `size` bytes of (uninitialized) storage and return a writable pointer to fill.
+  /// Allocates heap only when `size` exceeds the inline capacity. Use this when the contents are
+  /// built in place (e.g. assembling a frame and appending a checksum) to avoid a staging copy.
+  uint8_t *init(size_t size) {
     // Free existing heap allocation if switching from heap to inline or different heap size
     if (!this->is_inline_() && (size <= InlineSize || size != this->len_)) {
       delete[] this->heap_;
@@ -195,8 +198,11 @@ template<size_t InlineSize = 8> class SmallInlineBuffer {
       this->heap_ = new uint8_t[size];  // NOLINT(cppcoreguidelines-owning-memory)
     }
     this->len_ = size;
-    memcpy(this->data(), src, size);
+    return this->data();
   }
+
+  /// Set buffer contents, allocating heap if needed
+  void set(const uint8_t *src, size_t size) { memcpy(this->init(size), src, size); }
 
   uint8_t *data() { return this->is_inline_() ? this->inline_ : this->heap_; }
   const uint8_t *data() const { return this->is_inline_() ? this->inline_ : this->heap_; }
@@ -682,6 +688,15 @@ template<typename T> class FixedVector {
   T &back() { return data_[size_ - 1]; }
   const T &back() const { return data_[size_ - 1]; }
 
+  /// Remove the last element in place (no reallocation, keeps capacity)
+  /// Caller must ensure vector is not empty (size() > 0)
+  void pop_back() {
+    if constexpr (!std::is_trivially_destructible<T>::value) {
+      data_[size_ - 1].~T();
+    }
+    size_--;
+  }
+
   size_t size() const { return size_; }
   bool empty() const { return size_ == 0; }
   size_t capacity() const { return capacity_; }
@@ -833,43 +848,9 @@ template<std::integral T> constexpr uint32_t fnv1a_hash_extend(uint32_t hash, T 
 constexpr uint32_t fnv1a_hash(const char *str) { return fnv1a_hash_extend(FNV1_OFFSET_BASIS, str); }
 inline uint32_t fnv1a_hash(const std::string &str) { return fnv1a_hash(str.c_str()); }
 
-/// Convert a 64-bit microsecond count to milliseconds without calling
-/// __udivdi3 (software 64-bit divide, ~1200 ns on Xtensa @ 240 MHz).
-///
-/// Returns uint32_t by default (for millis()), or uint64_t when requested
-/// (for millis_64()). The only difference is whether hi * Q is truncated
-/// to 32 bits or widened to 64.
-///
-/// On 32-bit targets, GCC does not optimize 64-bit constant division into a
-/// multiply-by-reciprocal. Since 1000 = 8 * 125, we first right-shift by 3
-/// (free divide-by-8), then use the Euclidean division identity to decompose
-/// the remaining 64-bit divide-by-125 into a single 32-bit division:
-///
-///   floor(us / 1000) = floor(floor(us / 8) / 125)    [exact for integers]
-///   2^32 = Q * 125 + R  (34359738 * 125 + 46)
-///   (hi * 2^32 + lo) / 125 = hi * Q + (hi * R + lo) / 125
-///
-/// GCC optimizes the remaining 32-bit "/ 125U" into a multiply-by-reciprocal
-/// (mulhu + shift), so no division instruction is emitted.
-///
-/// Safe for us up to ~3.2e18 (~101,700 years of microseconds).
-///
-/// See: https://en.wikipedia.org/wiki/Euclidean_division
-/// See: https://ridiculousfish.com/blog/posts/labor-of-division-episode-iii.html
-template<typename ReturnT = uint32_t> inline constexpr ESPHOME_ALWAYS_INLINE ReturnT micros_to_millis(uint64_t us) {
-  constexpr uint32_t d = 125U;
-  constexpr uint32_t q = static_cast<uint32_t>((1ULL << 32) / d);  // 34359738
-  constexpr uint32_t r = static_cast<uint32_t>((1ULL << 32) % d);  // 46
-  // 1000 = 8 * 125; divide-by-8 is a free shift
-  uint64_t x = us >> 3;
-  uint32_t lo = static_cast<uint32_t>(x);
-  uint32_t hi = static_cast<uint32_t>(x >> 32);
-  // Combine remainder term: hi * (2^32 % 125) + lo
-  uint32_t adj = hi * r + lo;
-  // If adj overflowed, the true value is 2^32 + adj; apply the identity again
-  // static_cast<ReturnT>(hi) widens to 64-bit when ReturnT=uint64_t, preserving upper bits of hi*q
-  return static_cast<ReturnT>(hi) * q + (adj < lo ? (adj + r) / d + q : adj / d);
-}
+// micros_to_millis<>() lives in its own lightweight header so hal.h can pull it
+// in for inline millis_64() without forcing every TU that includes hal.h to
+// also include the rest of helpers.h.
 
 /// Return a random 32-bit unsigned integer.
 /// Not thread-safe. Must only be called from the main loop.
@@ -1287,6 +1268,22 @@ ESPHOME_ALWAYS_INLINE inline char format_hex_char(uint8_t v) { return format_hex
 /// Convert a nibble (0-15) to uppercase hex char (used for pretty printing)
 ESPHOME_ALWAYS_INLINE inline char format_hex_pretty_char(uint8_t v) { return format_hex_char(v, 'A'); }
 
+/// Largest number of output bytes a single input byte can expand to when JSON escaped (a \u00XX sequence).
+static constexpr size_t JSON_ESCAPE_MAX_EXPANSION = 6;
+
+/// Copy value into buf, escaping the characters that cannot appear raw inside a JSON string literal.
+///
+/// Escapes " and \ along with the control characters below 0x20. Bytes >= 0x20 are copied verbatim, so text
+/// containing valid UTF-8 survives intact. The result is always null terminated; anything that would not fit is
+/// dropped rather than written partially. Returns buf so the call can be used directly as an argument.
+///
+/// With short_control_escapes the five control characters JSON gives a short form get it (\n \r \t \b \f) and the
+/// rest become \u00XX. Pass false to write every control character as \u00XX, which some consumers expect.
+///
+/// To size buf so that no input is ever dropped, allow JSON_ESCAPE_MAX_EXPANSION bytes per input byte plus one for
+/// the null terminator.
+const char *json_escape_into_buffer(std::span<char> buf, StringRef value, bool short_control_escapes = true);
+
 /// Write int8 value to buffer without modulo operations.
 /// Buffer must have at least 4 bytes free. Returns pointer past last char written.
 inline char *int8_to_str(char *buf, int8_t val) {
@@ -1644,6 +1641,12 @@ constexpr float celsius_to_fahrenheit(float value) { return value * 1.8f + 32.0f
 /// Convert degrees Fahrenheit to degrees Celsius.
 constexpr float fahrenheit_to_celsius(float value) { return (value - 32.0f) / 1.8f; }
 
+enum class TemperatureUnit : uint8_t {
+  CELSIUS = 0,
+  FAHRENHEIT = 1,
+  KELVIN = 2,
+};
+
 ///@}
 
 /// @name Utilities
@@ -1666,7 +1669,7 @@ template<typename... Ts> struct Callback<void(Ts...)> {
   void *ctx_{nullptr};
 
   /// Invoke the callback. Only valid on Callbacks created via create(), never on default-constructed instances.
-  void call(Ts... args) const { this->fn_(this->ctx_, args...); }
+  void call(Ts... args) const { this->fn_(this->ctx_, std::forward<Ts>(args)...); }
 
   /// Create from any callable. Small trivially-copyable callables (like [this] lambdas)
   /// are stored inline in the ctx pointer without heap allocation.
@@ -1742,7 +1745,7 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
   template<typename F> void add(F &&callback) { this->add_(CbType::create(std::forward<F>(callback))); }
 
   /// Call all callbacks in this manager.
-  inline void ESPHOME_ALWAYS_INLINE call(Ts... args) {
+  inline void ESPHOME_ALWAYS_INLINE call(const Ts &...args) {
     if (this->size_ != 0) {
       for (auto *it = this->data_, *end = it + this->size_; it != end; ++it) {
         it->call(args...);
@@ -1752,7 +1755,7 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
   uint16_t size() const { return this->size_; }
 
   /// Call all callbacks in this manager.
-  void operator()(Ts... args) { this->call(args...); }
+  void operator()(const Ts &...args) { this->call(args...); }
 
  protected:
   template<typename...> friend class LazyCallbackManager;
@@ -1919,7 +1922,7 @@ class Mutex {
   Mutex(const Mutex &) = delete;
   Mutex &operator=(const Mutex &) = delete;
 
-#if defined(USE_ESP8266) || defined(USE_RP2040)
+#if defined(USE_ESP8266) || defined(USE_RP2)
   // Single-threaded platforms: inline no-ops so the compiler eliminates all call overhead.
   Mutex() = default;
   ~Mutex() = default;
@@ -1988,7 +1991,7 @@ class InterruptLock {
   ~InterruptLock();
 
  protected:
-#if defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_ZEPHYR)
+#if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_ZEPHYR)
   uint32_t state_;
 #endif
 };
@@ -2006,7 +2009,7 @@ class LwIPLock {
   LwIPLock(const LwIPLock &) = delete;
   LwIPLock &operator=(const LwIPLock &) = delete;
 
-#if defined(USE_ESP32) || defined(USE_RP2040)
+#if defined(USE_ESP32) || defined(USE_RP2)
   // Platforms with potential lwIP core locking — out-of-line implementations in helpers.cpp
   LwIPLock();
   ~LwIPLock();
@@ -2078,7 +2081,8 @@ void delay_microseconds_safe(uint32_t us);
  * Returns `nullptr` in case no memory is available.
  *
  * By setting flags, it can be configured to:
- * - perform external allocation falling back to main memory if SPI RAM is full or unavailable
+ * - perform external allocation falling back to internal memory if SPI RAM is full or unavailable (default)
+ * - perform internal allocation falling back to external memory (with PREFER_INTERNAL)
  * - perform external allocation only
  * - perform internal allocation only
  */
@@ -2087,16 +2091,26 @@ template<class T> class RAMAllocator {
   using value_type = T;
 
   enum Flags {
-    NONE = 0,                 // Perform external allocation and fall back to internal memory
-    ALLOC_EXTERNAL = 1 << 0,  // Perform external allocation only.
-    ALLOC_INTERNAL = 1 << 1,  // Perform internal allocation only.
-    ALLOW_FAILURE = 1 << 2,   // Does nothing. Kept for compatibility.
+    NONE = 0,                  // Perform external allocation and fall back to internal memory
+    ALLOC_EXTERNAL = 1 << 0,   // Perform external allocation only.
+    ALLOC_INTERNAL = 1 << 1,   // Perform internal allocation only.
+    ALLOW_FAILURE = 1 << 2,    // Does nothing. Kept for compatibility.
+    PREFER_INTERNAL = 1 << 3,  // Perform internal allocation and fall back to external memory
   };
 
   constexpr RAMAllocator() = default;
-  constexpr RAMAllocator(uint8_t flags)
-      : flags_((flags & (ALLOC_INTERNAL | ALLOC_EXTERNAL)) != 0 ? (flags & (ALLOC_INTERNAL | ALLOC_EXTERNAL))
-                                                                : (ALLOC_INTERNAL | ALLOC_EXTERNAL)) {}
+  constexpr RAMAllocator(uint8_t flags) {
+    if (flags & PREFER_INTERNAL) {
+      this->flags_ = ALLOC_INTERNAL | ALLOC_EXTERNAL | PREFER_INTERNAL;
+      return;
+    }
+    const uint8_t alloc_bits = flags & (ALLOC_INTERNAL | ALLOC_EXTERNAL);
+    if (alloc_bits != 0) {
+      this->flags_ = alloc_bits;
+      return;
+    }
+    this->flags_ = ALLOC_INTERNAL | ALLOC_EXTERNAL;
+  }
   template<class U> constexpr RAMAllocator(const RAMAllocator<U> &other) : flags_{other.flags_} {}
 
   T *allocate(size_t n) { return this->allocate(n, sizeof(T)); }
@@ -2105,12 +2119,8 @@ template<class T> class RAMAllocator {
     size_t size = n * manual_size;
     T *ptr = nullptr;
 #ifdef USE_ESP32
-    if (this->flags_ & Flags::ALLOC_EXTERNAL) {
-      ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-    }
-    if (ptr == nullptr && this->flags_ & Flags::ALLOC_INTERNAL) {
-      ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
-    }
+    const auto caps = this->get_caps_();
+    ptr = static_cast<T *>(heap_caps_malloc_prefer(size, 2, caps[0], caps[1]));
 #else
     // Ignore ALLOC_EXTERNAL/ALLOC_INTERNAL flags if external allocation is not supported
     ptr = static_cast<T *>(malloc(size));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
@@ -2124,12 +2134,8 @@ template<class T> class RAMAllocator {
     size_t size = n * manual_size;
     T *ptr = nullptr;
 #ifdef USE_ESP32
-    if (this->flags_ & Flags::ALLOC_EXTERNAL) {
-      ptr = static_cast<T *>(heap_caps_realloc(p, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-    }
-    if (ptr == nullptr && this->flags_ & Flags::ALLOC_INTERNAL) {
-      ptr = static_cast<T *>(heap_caps_realloc(p, size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
-    }
+    const auto caps = this->get_caps_();
+    ptr = static_cast<T *>(heap_caps_realloc_prefer(p, size, 2, caps[0], caps[1]));
 #else
     // Ignore ALLOC_EXTERNAL/ALLOC_INTERNAL flags if external allocation is not supported
     ptr = static_cast<T *>(realloc(p, size));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
@@ -2153,7 +2159,7 @@ template<class T> class RAMAllocator {
     auto max_external =
         this->flags_ & ALLOC_EXTERNAL ? heap_caps_get_free_size(MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM) : 0;
     return max_internal + max_external;
-#elif defined(USE_RP2040)
+#elif defined(USE_RP2)
     return ::rp2040.getFreeHeap();
 #elif defined(USE_LIBRETINY)
     return lt_heap_get_free();
@@ -2180,6 +2186,24 @@ template<class T> class RAMAllocator {
   }
 
  private:
+#ifdef USE_ESP32
+  /// Returns {primary_caps, fallback_caps} for heap_caps_*_prefer based on the configured flags.
+  /// PREFER_INTERNAL implies both regions are enabled (enforced by the constructor), so when it is set
+  /// the primary is internal and the fallback is external. Otherwise the primary is whichever region
+  /// is enabled (external preferred when both are enabled), and the fallback is the other region (or
+  /// the same region when only one is enabled, making the second attempt a no-op).
+  std::array<uint32_t, 2> get_caps_() const {
+    constexpr uint32_t external_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+    constexpr uint32_t internal_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+    if (this->flags_ & PREFER_INTERNAL) {
+      return {internal_caps, external_caps};
+    }
+    const uint32_t primary = (this->flags_ & ALLOC_EXTERNAL) ? external_caps : internal_caps;
+    const uint32_t fallback = (this->flags_ & ALLOC_INTERNAL) ? internal_caps : external_caps;
+    return {primary, fallback};
+  }
+#endif
+
   uint8_t flags_{ALLOC_INTERNAL | ALLOC_EXTERNAL};
 };
 

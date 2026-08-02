@@ -1,16 +1,35 @@
 #include "deep_sleep_component.h"
 #ifdef USE_ZEPHYR
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/wake.h"
 #include <zephyr/sys/poweroff.h>
-#include <zephyr/kernel.h>
-#include <zephyr/stats/stats.h>
-#include <zephyr/pm/pm.h>
+#include <algorithm>
 
 namespace esphome::deep_sleep {
 
 static const char *const TAG = "deep_sleep";
 
-void DeepSleepComponent::wakeup() { k_sem_give(&this->wakeup_sem_); }
+// The Zephyr watchdog has a short window (2s, or 10s with Zigbee) and
+// WDT_OPT_PAUSE_IN_SLEEP only pauses it during true hardware sleep — not while a
+// radio thread (e.g. the Zigbee stack) keeps the CPU busy in k_sem_take(). Feed
+// it at least this often while waiting so it does not reset the device.
+static const uint32_t WDT_FEED_INTERVAL_MS = 1000;
+
+static bool wakeable_delay_feed_wdt(uint32_t ms) {
+  while (ms > 0) {
+    const uint32_t step = std::min(ms, WDT_FEED_INTERVAL_MS);
+    esphome::internal::wakeable_delay(step);
+    esphome::arch_feed_wdt();
+    if (esphome::wake_request_take()) {
+      return true;
+    }
+    if (ms != UINT32_MAX) {
+      ms -= step;
+    }
+  }
+  return false;
+}
 
 optional<uint32_t> DeepSleepComponent::get_run_duration_() const { return this->run_duration_; }
 
@@ -19,9 +38,9 @@ void DeepSleepComponent::dump_config_platform_() {}
 bool DeepSleepComponent::prepare_to_sleep_() { return true; }
 
 void DeepSleepComponent::deep_sleep_() {
-  k_timeout_t sleep_duration = K_FOREVER;
+  bool woke = false;
   if (this->sleep_duration_.has_value()) {
-    sleep_duration = K_USEC(*this->sleep_duration_);
+    woke = wakeable_delay_feed_wdt(static_cast<uint32_t>(*this->sleep_duration_ / 1000));
   } else {
 #ifndef USE_ZIGBEE
     // the device can be woken up through one of the following signals:
@@ -33,11 +52,11 @@ void DeepSleepComponent::deep_sleep_() {
     //
     // The system is reset when it wakes up from System OFF mode.
     sys_poweroff();
+#else
+    woke = wakeable_delay_feed_wdt(UINT32_MAX);
 #endif
   }
-  // It might wake up immediately if k_sem_give was called again after wake up
-  int ret = k_sem_take(&this->wakeup_sem_, sleep_duration);
-  if (ret == 0) {
+  if (woke) {
     ESP_LOGD(TAG, "Woken up by another thread");
   } else {
     ESP_LOGD(TAG, "Timeout expired (normal sleep)");

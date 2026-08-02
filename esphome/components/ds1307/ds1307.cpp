@@ -4,8 +4,7 @@
 // Datasheet:
 // - https://datasheets.maximintegrated.com/en/ds/DS1307.pdf
 
-namespace esphome {
-namespace ds1307 {
+namespace esphome::ds1307 {
 
 static const char *const TAG = "ds1307";
 
@@ -99,5 +98,4 @@ bool DS1307Component::write_rtc_() {
            ds1307_.reg.day, ONOFF(ds1307_.reg.ch), ds1307_.reg.rs, ONOFF(ds1307_.reg.sqwe), ONOFF(ds1307_.reg.out));
   return true;
 }
-}  // namespace ds1307
-}  // namespace esphome
+}  // namespace esphome::ds1307

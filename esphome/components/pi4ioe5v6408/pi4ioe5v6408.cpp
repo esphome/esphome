@@ -1,8 +1,7 @@
 #include "pi4ioe5v6408.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pi4ioe5v6408 {
+namespace esphome::pi4ioe5v6408 {
 
 static const uint8_t PI4IOE5V6408_REGISTER_DEVICE_ID = 0x01;
 static const uint8_t PI4IOE5V6408_REGISTER_IO_DIR = 0x03;
@@ -204,5 +203,4 @@ size_t PI4IOE5V6408GPIOPin::dump_summary(char *buffer, size_t len) const {
   return buf_append_printf(buffer, len, 0, "%u via PI4IOE5V6408", this->pin_);
 }
 
-}  // namespace pi4ioe5v6408
-}  // namespace esphome
+}  // namespace esphome::pi4ioe5v6408

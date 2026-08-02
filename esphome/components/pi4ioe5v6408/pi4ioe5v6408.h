@@ -5,11 +5,10 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace pi4ioe5v6408 {
-class PI4IOE5V6408Component : public Component,
-                              public i2c::I2CDevice,
-                              public gpio_expander::CachedGpioExpander<uint8_t, 8> {
+namespace esphome::pi4ioe5v6408 {
+class PI4IOE5V6408Component final : public Component,
+                                    public i2c::I2CDevice,
+                                    public gpio_expander::CachedGpioExpander<uint8_t, 8> {
  public:
   PI4IOE5V6408Component() = default;
 
@@ -50,7 +49,7 @@ class PI4IOE5V6408Component : public Component,
   bool read_gpio_outputs_();
 };
 
-class PI4IOE5V6408GPIOPin : public GPIOPin, public Parented<PI4IOE5V6408Component> {
+class PI4IOE5V6408GPIOPin final : public GPIOPin, public Parented<PI4IOE5V6408Component> {
  public:
   void setup() override;
   void pin_mode(gpio::Flags flags) override;
@@ -70,5 +69,4 @@ class PI4IOE5V6408GPIOPin : public GPIOPin, public Parented<PI4IOE5V6408Componen
   gpio::Flags flags_;
 };
 
-}  // namespace pi4ioe5v6408
-}  // namespace esphome
+}  // namespace esphome::pi4ioe5v6408

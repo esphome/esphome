@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/number/number.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
 enum class DemoNumberType {
   TYPE_1,
@@ -12,7 +11,7 @@ enum class DemoNumberType {
   TYPE_3,
 };
 
-class DemoNumber : public number::Number, public Component {
+class DemoNumber final : public number::Number, public Component {
  public:
   void set_type(DemoNumberType type) { type_ = type; }
   void setup() override {
@@ -35,5 +34,4 @@ class DemoNumber : public number::Number, public Component {
   DemoNumberType type_;
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo
