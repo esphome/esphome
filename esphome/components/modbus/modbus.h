@@ -550,7 +550,12 @@ class ESPDEPRECATED("Subclass ModbusClientDevice and override on_response()/on_e
   virtual void on_modbus_error(uint8_t function_code, uint8_t exception_code) {}
 
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {
-    auto payload = helpers::server_pdu_payload(response_pdu);
+    // Custom (user-defined) function codes historically delivered the payload starting AT the function
+    // code byte (frame data_offset 1). server_pdu_payload() drops that byte, so pass the whole PDU for
+    // them - external components match the first byte against the code they sent (issue #17994).
+    auto payload = !response_pdu.empty() && helpers::is_function_code_custom(response_pdu[0])
+                       ? response_pdu
+                       : helpers::server_pdu_payload(response_pdu);
     this->on_modbus_data(std::vector<uint8_t>(payload.begin(), payload.end()));
   }
   void on_error(std::span<const uint8_t> request_pdu, ExceptionCode exception_code) override {
