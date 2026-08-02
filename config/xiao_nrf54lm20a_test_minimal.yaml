@@ -54,3 +54,5 @@ sensor:
     motion_id: lsm6ds_motion
     type: acceleration_z
     name: "IMU Accel Z"
+
+zephyr_ble_server:
