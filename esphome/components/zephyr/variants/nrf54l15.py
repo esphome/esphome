@@ -43,10 +43,10 @@ VARIANT = ZephyrVariant(
     transports=frozenset({"ble", "openthread"}),
     soc="nrf54l15",
     qualifier="cpuapp",
-    # Conservative default: only the universally-supported MCUboot swap mode is claimed
-    # here. Unlike nrf52840 (single flash bank, well-understood offset/move behavior),
-    # this variant hasn't been validated against the other swap modes yet.
-    swap_methods=frozenset({"move"}),
+    # No "scratch": neither board defines a scratch_partition (upstream's stock
+    # nrf52840 layout never had one either), and move/offset don't need one.
+    # offset is untested on hardware as of 20260802, update this comment when tested
+    swap_methods=frozenset({"move", "offset"}),
     # nrf54l15dk_common.dtsi only enables uart20 (routed to the DK's VCOM0/J-Link USB
     # serial, the natural default) and uart30 -- there is no uart0/uart1 node on this SoC.
     uart_node_labels={"UART0": "uart20", "UART1": "uart30"},
