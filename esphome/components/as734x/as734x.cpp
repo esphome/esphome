@@ -237,6 +237,8 @@ void AS734XComponent::enable_led(bool enable) { this->device_->enable_led(enable
 void AS734XComponent::calculate_basic_counts_() {
   this->calculated_.basic_counts.fill(0.0f);
   this->calculated_.max_basic_count = 0.0f;
+  this->calculated_.max_band_basic_count = 0.0f;
+  this->calculated_.clear_basic_count = 0.0f;
 
   const float gain_x = gain_multiplier(this->readings_.gain);
   const float t_int_ms = integration_time_ms(this->readings_.atime, this->readings_.astep);
@@ -256,7 +258,33 @@ void AS734XComponent::calculate_basic_counts_() {
 
     this->calculated_.basic_counts[i] = basic_count;
     this->calculated_.max_basic_count = std::max(this->calculated_.max_basic_count, basic_count);
+
+    const uint16_t wavelength = this->device_->get_channel_wavelength(i);
+    if (wavelength == WIDEBAND_NM) {
+      this->calculated_.clear_basic_count = basic_count;
+    } else if (wavelength >= VISIBLE_MIN_NM && wavelength <= VISIBLE_MAX_NM) {
+      this->calculated_.max_band_basic_count = std::max(this->calculated_.max_band_basic_count, basic_count);
+    }
   }
+}
+
+float AS734XComponent::normalization_divisor_() const {
+  float divisor = 1.0f;
+  switch (this->normalization_) {
+    case Normalization::ALL:
+      divisor = this->calculated_.max_basic_count;
+      break;
+    case Normalization::BANDS:
+      divisor = this->calculated_.max_band_basic_count;
+      break;
+    case Normalization::CLEAR:
+      divisor = this->calculated_.clear_basic_count;
+      break;
+    case Normalization::NONE:
+      return 1.0f;
+  }
+  // In the dark the reference can be zero, and dividing by that would publish infinities.
+  return divisor > 0.0f ? divisor : 1.0f;
 }
 
 void AS734XComponent::calculate_saturation_level_() {
@@ -280,11 +308,10 @@ void AS734XComponent::publish_channel_readings_() {
 }
 
 void AS734XComponent::publish_basic_counts_() {
-  // Normalization divides by the largest channel, so the published values describe the shape of
-  // the spectrum rather than its absolute level.
-  const float scale = (this->normalize_basic_counts_ && this->calculated_.max_basic_count > 0.0f)
-                          ? 1.0f / this->calculated_.max_basic_count
-                          : 1.0f;
+  // Normalization describes the shape of the spectrum rather than its absolute level. Channels
+  // outside the chosen reference can exceed 1.0 and are left that way rather than clipped: with
+  // BANDS the near infrared channel legitimately sits well above the visible bands.
+  const float scale = 1.0f / this->normalization_divisor_();
   for (uint8_t i = 0; i < this->device_->get_number_of_channels(); i++) {
     if (this->band_basic_counts_sensors_[i] != nullptr) {
       this->band_basic_counts_sensors_[i]->publish_state(this->calculated_.basic_counts[i] * scale);

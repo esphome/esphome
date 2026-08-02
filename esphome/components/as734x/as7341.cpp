@@ -73,6 +73,13 @@ bool AS7341::enable_led(bool enable) {
   return led_off && released;
 }
 
+// Nominal centre wavelengths in band order; the clear channel is wideband, hence WIDEBAND_NM.
+const std::array<uint16_t, AS7341::NUM_CHANNELS> AS7341::WAVELENGTHS_NM = {415, 445, 480, 515, 555,
+                                                                           590, 630, 680, 910, WIDEBAND_NM};
+//  F1   F2   F3   F4   F5   F6   F7   F8   NIR  CLEAR
+
+uint16_t AS7341::get_channel_wavelength(uint8_t channel) const { return WAVELENGTHS_NM[channel]; }
+
 AS7341::AS7341(i2c::I2CDevice *i2c_device) : AS734xBase(i2c_device, AS7341::NUM_CHANNELS) {}
 
 bool AS7341::verify_device_id() {

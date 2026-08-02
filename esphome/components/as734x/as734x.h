@@ -34,6 +34,23 @@ enum Gain : uint8_t {
 // Number of entries in Gain, for sizing the per-gain correction tables.
 constexpr uint8_t GAIN_COUNT = 13;
 
+// What the published basic counts are divided by. The clear channel is wideband, so it is roughly
+// the size of all the bands together, and the near infrared channel outgrows them under daylight.
+// Dividing by the largest of every channel therefore leaves the visible bands squeezed into the
+// bottom of the range.
+enum class Normalization : uint8_t {
+  NONE,   // publish absolute basic counts
+  ALL,    // largest of every channel
+  BANDS,  // largest of the visible bands only
+  CLEAR,  // the wideband clear channel
+};
+
+// Nominal centre wavelengths in nanometres bound the visible bands. The clear channel is wideband
+// and has no single centre wavelength, so it is marked with zero instead.
+constexpr uint16_t VISIBLE_MIN_NM = 380;
+constexpr uint16_t VISIBLE_MAX_NM = 700;
+constexpr uint16_t WIDEBAND_NM = 0;
+
 constexpr uint8_t MAX_CHANNELS = 13;  // AS7343 reports 13 bands, AS7341 reports 10
 
 using ChannelValuesUint16 = std::array<uint16_t, MAX_CHANNELS>;
@@ -87,6 +104,9 @@ class AS734xBase {
 
   // Per-gain correction factor for a channel, from the chip's own calibration table.
   virtual float get_gain_correction(uint8_t channel, Gain gain) const = 0;
+
+  // Nominal centre wavelength of a channel in nanometres, or WIDEBAND_NM for the clear channel.
+  virtual uint16_t get_channel_wavelength(uint8_t channel) const = 0;
 
   virtual uint8_t get_number_of_smux_steps() const = 0;
   virtual uint8_t get_integration_cycles() const = 0;
@@ -144,8 +164,8 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   void set_channel_correction(const ChannelValuesFloat &values) { this->channel_correction_ = values; }
   void set_glass_attenuation_factor(float factor) { this->glass_attenuation_factor_ = factor; }
 
-  // Scales the published basic counts so the largest channel reads 1.0.
-  void set_normalize_basic_counts(bool enable) { this->normalize_basic_counts_ = enable; }
+  // Chooses what the published basic counts are divided by.
+  void set_normalize_basic_counts(Normalization normalization) { this->normalization_ = normalization; }
 
 #ifdef USE_SENSOR
   SUB_SENSOR(saturation_level)
@@ -191,7 +211,7 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   uint8_t atime_{0};
 
   float glass_attenuation_factor_{1.0f};
-  bool normalize_basic_counts_{false};
+  Normalization normalization_{Normalization::NONE};
   ChannelValuesFloat dark_current_{};
   ChannelValuesFloat channel_correction_{};
 
@@ -207,7 +227,9 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
 
   struct {
     ChannelValuesFloat basic_counts{};
-    float max_basic_count;
+    float max_basic_count;       // largest of every channel
+    float max_band_basic_count;  // largest of the visible bands only
+    float clear_basic_count;     // the wideband clear channel
     float saturation_level;
   } calculated_;
 
@@ -217,6 +239,7 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   void publish_channel_readings_();
   void abort_measurement_(const char *reason);
   void publish_basic_counts_();
+  float normalization_divisor_() const;
 };
 
 }  // namespace esphome::as734x

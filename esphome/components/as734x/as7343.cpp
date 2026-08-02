@@ -136,6 +136,13 @@ union RegStatus {
   } __attribute__((packed));
 };
 
+// Nominal centre wavelengths in band order; the clear channel is wideband, hence WIDEBAND_NM.
+const std::array<uint16_t, AS7343::NUM_CHANNELS> AS7343::WAVELENGTHS_NM = {405, 425, 450, 475, 515, 555,        550,
+                                                                           600, 640, 690, 745, 855, WIDEBAND_NM};
+//  F1   F2   FZ   F3   F4   FY   F5   FXL  F6   F7   F8   NIR  CLEAR
+
+uint16_t AS7343::get_channel_wavelength(uint8_t channel) const { return WAVELENGTHS_NM[channel]; }
+
 AS7343::AS7343(i2c::I2CDevice *i2c_device) : AS734xBase(i2c_device, AS7343::NUM_CHANNELS) {}
 
 bool AS7343::verify_device_id() {
