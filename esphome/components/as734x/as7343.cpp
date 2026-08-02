@@ -30,6 +30,8 @@ static constexpr uint8_t AS7343_FD_CFG0 = 0xDF;
 static constexpr uint8_t AS7343_FD_TIME_1 = 0xE0;
 static constexpr uint8_t AS7343_FD_TIME_2 = 0xE2;
 static constexpr uint8_t AS7343_ID = 0x5A;
+static constexpr uint8_t AS7343_LED = 0xCD;
+static constexpr uint8_t AS7343_LED_ACT_BIT = 7;
 static constexpr uint8_t AS7343_STATUS = 0x93;
 static constexpr uint8_t AS7343_STATUS2 = 0x90;
 static constexpr uint8_t AS7343_STATUS2_AVALID_BIT = 6;
@@ -57,9 +59,45 @@ const RegisterMap AS7343::REG_MAP = {
     .enable_pon_bit = AS7343_ENABLE_PON_BIT,
     .enable_sp_en_bit = AS7343_ENABLE_SP_EN_BIT,
     .enable_smux_en_bit = AS7343_ENABLE_SMUX_EN_BIT,
+    .led = AS7343_LED,
+    .led_act_bit = AS7343_LED_ACT_BIT,
     .status2 = AS7343_STATUS2,
     .status2_avalid_bit = AS7343_STATUS2_AVALID_BIT,
 };
+
+// Datasheet values for the golden device: gain correction per gain step, per channel.
+const std::array<std::array<float, AS7343::NUM_CHANNELS>, GAIN_COUNT> AS7343::GAIN_CORRECTION = {{
+    {1.149000f, 1.100000f, 1.060000f, 1.070000f, 1.063000f, 1.051000f, 1.062000f, 1.056000f, 1.049000f, 1.040000f,
+     1.080000f, 1.038000f, 1.065000f},  // 0.5x
+    {1.090000f, 1.128000f, 1.064000f, 1.071000f, 1.063000f, 1.050000f, 1.068000f, 1.055000f, 1.047000f, 1.039000f,
+     1.075000f, 1.038000f, 1.085000f},  // 1x
+    {1.083000f, 1.086000f, 1.062000f, 1.070000f, 1.062000f, 1.049000f, 1.057000f, 1.053000f, 1.045000f, 1.038000f,
+     1.063000f, 1.037000f, 1.069000f},  // 2x
+    {1.059000f, 1.068000f, 1.056000f, 1.066000f, 1.058000f, 1.046000f, 1.051000f, 1.051000f, 1.044000f, 1.036000f,
+     1.059000f, 1.035000f, 1.053000f},  // 4x
+    {1.100000f, 1.109000f, 1.096000f, 1.108000f, 1.099000f, 1.089000f, 1.091000f, 1.092000f, 1.082000f, 1.078000f,
+     1.100000f, 1.076000f, 1.088000f},  // 8x
+    {1.099000f, 1.109000f, 1.096000f, 1.108000f, 1.099000f, 1.089000f, 1.091000f, 1.092000f, 1.082000f, 1.078000f,
+     1.100000f, 1.075000f, 1.087000f},  // 16x
+    {1.088000f, 1.096000f, 1.085000f, 1.097000f, 1.087000f, 1.078000f, 1.079000f, 1.080000f, 1.071000f, 1.067000f,
+     1.087000f, 1.064000f, 1.076000f},  // 32x
+    {1.083000f, 1.091000f, 1.078000f, 1.090000f, 1.079000f, 1.072000f, 1.072000f, 1.073000f, 1.064000f, 1.062000f,
+     1.080000f, 1.057000f, 1.069000f},  // 64x
+    {1.076000f, 1.084000f, 1.072000f, 1.085000f, 1.074000f, 1.066000f, 1.062000f, 1.067000f, 1.055000f, 1.056000f,
+     1.074000f, 1.051000f, 1.061000f},  // 128x
+    {1.067000f, 1.074000f, 1.063000f, 1.075000f, 1.064000f, 1.059000f, 1.055000f, 1.058000f, 1.049000f, 1.051000f,
+     1.064000f, 1.044000f, 1.053000f},  // 256x
+    {1.000000f, 1.000000f, 1.000000f, 1.000000f, 1.000000f, 1.000000f, 1.000000f, 1.000000f, 1.000000f, 1.000000f,
+     1.000000f, 1.000000f, 1.000000f},  // 512x
+    {1.033303857f, 1.034763813f, 1.029855013f, 1.036911249f, 0.988150537f, 1.029003501f, 1.021363258f, 0.98762089f,
+     1.021713376f, 1.040108204f, 0.987417698f, 1.019481421f, 0.987270057f},  // 1024x
+    {0.986859143f, 0.980877221f, 0.9469769f, 0.985535324f, 0.926243961f, 0.959814787f, 1.007963896f, 0.942685187f,
+     1.007630587f, 1.025460005f, 0.928696275f, 1.001296639f, 1.041275263f},  // 2048x
+}};
+
+float AS7343::get_gain_correction(uint8_t channel, Gain gain) const {
+  return GAIN_CORRECTION[static_cast<uint8_t>(gain)][channel];
+}
 
 enum AS7343Channel : uint8_t {
   AS7343_CHANNEL_450_FZ,

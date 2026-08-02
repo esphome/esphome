@@ -22,7 +22,14 @@ static constexpr uint8_t COLLECTION_TIMEOUT_MARGIN = 2;
 namespace {
 
 float integration_time_ms(uint8_t atime, uint16_t astep) { return (1.0f + atime) * (1.0f + astep) * 2.78e-3f; }
-float gain_multiplier(Gain gain) { return gain == GAIN_0_5X ? 0.5f : static_cast<float>(1 << (gain - 1)); }
+// The gain enum counts in powers of two starting at 0.5x, so the multiplier is 2^gain / 2.
+float gain_multiplier(Gain gain) { return static_cast<float>(1 << static_cast<uint8_t>(gain)) / 2.0f; }
+
+uint16_t maximum_spectral_adc(uint8_t atime, uint16_t astep) {
+  static constexpr uint32_t MAX_ADC_COUNT = 65535;
+  const uint32_t value = (atime + 1u) * (astep + 1u);
+  return static_cast<uint16_t>(std::min(value, MAX_ADC_COUNT));
+}
 
 const char *model_name(Model model) {
   switch (model) {
@@ -143,6 +150,11 @@ void AS734XComponent::loop() {
       this->device_->write_atime(this->atime_);
       this->device_->write_astep(this->astep_);
       this->device_->write_gain(this->gain_);
+      // Remember what the measurement ran with, so the maths below matches the data even if the
+      // configuration is changed while a measurement is in flight.
+      this->readings_.gain = this->gain_;
+      this->readings_.atime = this->atime_;
+      this->readings_.astep = this->astep_;
       this->readings_.smux_step = 0;
       this->state_ = State::CONFIGURE_SMUX;
       break;
@@ -182,7 +194,7 @@ void AS734XComponent::loop() {
         ++this->readings_.smux_step;
         if (this->readings_.smux_step == this->device_->get_number_of_smux_steps()) {
           this->device_->enable_spectral_measurement(false);
-          this->state_ = State::READY_TO_PUBLISH;
+          this->state_ = State::CALCULATE;
         } else {
           this->state_ = State::CONFIGURE_SMUX;
         }
@@ -191,9 +203,17 @@ void AS734XComponent::loop() {
       }
       break;
 
+    case State::CALCULATE:
+      ESP_LOGVV(TAG, "CALCULATE");
+      this->calculate_basic_counts_();
+      this->calculate_saturation_level_();
+      this->state_ = State::READY_TO_PUBLISH;
+      break;
+
     case State::READY_TO_PUBLISH:
       ESP_LOGVV(TAG, "READY_TO_PUBLISH");
       this->publish_channel_readings_();
+      this->publish_basic_counts_();
       this->status_clear_warning();
       this->state_ = State::IDLE;
       this->disable_loop();
@@ -209,6 +229,44 @@ void AS734XComponent::abort_measurement_(const char *reason) {
   this->disable_loop();
 }
 
+void AS734XComponent::enable_led(bool enable) { this->device_->enable_led(enable); }
+
+// A basic count is the raw count scaled to one unit of gain and one millisecond of integration
+// time, which makes readings taken with different settings comparable. The manufacturer's
+// conversion factors are calibrated against that definition.
+void AS734XComponent::calculate_basic_counts_() {
+  this->calculated_.basic_counts.fill(0.0f);
+  this->calculated_.max_basic_count = 0.0f;
+
+  const float gain_x = gain_multiplier(this->readings_.gain);
+  const float t_int_ms = integration_time_ms(this->readings_.atime, this->readings_.astep);
+  if (gain_x <= 0.0f || t_int_ms <= 0.0f) {
+    return;
+  }
+  const float inv_exposure = 1.0f / (gain_x * t_int_ms);
+
+  for (uint8_t i = 0; i < this->device_->get_number_of_channels(); i++) {
+    float basic_count = this->readings_.raw_counts[i] * inv_exposure;
+
+    basic_count -= this->dark_current_[i];
+    basic_count = std::max(basic_count, 0.0f);
+    basic_count *= this->device_->get_gain_correction(i, this->readings_.gain);
+    basic_count *= this->channel_correction_[i];
+    basic_count *= this->glass_attenuation_factor_;
+
+    this->calculated_.basic_counts[i] = basic_count;
+    this->calculated_.max_basic_count = std::max(this->calculated_.max_basic_count, basic_count);
+  }
+}
+
+void AS734XComponent::calculate_saturation_level_() {
+  const uint16_t max_adc = maximum_spectral_adc(this->readings_.atime, this->readings_.astep);
+  const uint16_t highest = *std::max_element(
+      this->readings_.raw_counts.begin(), this->readings_.raw_counts.begin() + this->device_->get_number_of_channels());
+  this->calculated_.saturation_level = (max_adc == 0) ? 0.0f : 100.0f * highest / max_adc;
+  ESP_LOGV(TAG, "Highest ADC count %u of %u (%.1f%%)", highest, max_adc, this->calculated_.saturation_level);
+}
+
 #ifdef USE_SENSOR
 void AS734XComponent::publish_channel_readings_() {
   for (uint8_t i = 0; i < this->device_->get_number_of_channels(); i++) {
@@ -216,9 +274,26 @@ void AS734XComponent::publish_channel_readings_() {
       this->band_counts_sensors_[i]->publish_state(this->readings_.raw_counts[i]);
     }
   }
+  if (this->saturation_level_sensor_ != nullptr) {
+    this->saturation_level_sensor_->publish_state(this->calculated_.saturation_level);
+  }
+}
+
+void AS734XComponent::publish_basic_counts_() {
+  // Normalization divides by the largest channel, so the published values describe the shape of
+  // the spectrum rather than its absolute level.
+  const float scale = (this->normalize_basic_counts_ && this->calculated_.max_basic_count > 0.0f)
+                          ? 1.0f / this->calculated_.max_basic_count
+                          : 1.0f;
+  for (uint8_t i = 0; i < this->device_->get_number_of_channels(); i++) {
+    if (this->band_basic_counts_sensors_[i] != nullptr) {
+      this->band_basic_counts_sensors_[i]->publish_state(this->calculated_.basic_counts[i] * scale);
+    }
+  }
 }
 #else
 void AS734XComponent::publish_channel_readings_() {}
+void AS734XComponent::publish_basic_counts_() {}
 #endif
 
 AS734xBase::AS734xBase(i2c::I2CDevice *i2c_device, uint8_t number_of_channels)
@@ -236,6 +311,10 @@ bool AS734xBase::enable_power(bool enable) {
 
 bool AS734xBase::enable_spectral_measurement(bool enable) {
   return this->write_register_bit_(this->registers().enable, enable, this->registers().enable_sp_en_bit);
+}
+
+bool AS734xBase::enable_led(bool enable) {
+  return this->write_register_bit_(this->registers().led, enable, this->registers().led_act_bit);
 }
 
 bool AS734xBase::enable_smux() {

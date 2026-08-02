@@ -16,12 +16,15 @@ static constexpr uint8_t AS7341_CFG1 = 0xAA;
 static constexpr uint8_t AS7341_CFG6 = 0xAF;
 static constexpr uint8_t AS7341_CHIP_ID = 0x09;
 static constexpr uint8_t AS7341_CONFIG = 0x70;
+static constexpr uint8_t AS7341_CONFIG_LED_SEL_BIT = 3;
 static constexpr uint8_t AS7341_DATA_0 = 0x95;
 static constexpr uint8_t AS7341_ENABLE = 0x80;
 static constexpr uint8_t AS7341_ENABLE_PON_BIT = 0;
 static constexpr uint8_t AS7341_ENABLE_SMUX_EN_BIT = 4;
 static constexpr uint8_t AS7341_ENABLE_SP_EN_BIT = 1;
 static constexpr uint8_t AS7341_ID = 0x92;
+static constexpr uint8_t AS7341_LED = 0x74;
+static constexpr uint8_t AS7341_LED_ACT_BIT = 7;
 static constexpr uint8_t AS7341_SMUX_CMD_WRITE = 2;  ///< Write SMUX configuration from RAM to SMUX chain
 static constexpr uint8_t AS7341_STATUS2 = 0xA3;
 static constexpr uint8_t AS7341_STATUS2_AVALID_BIT = 6;
@@ -43,9 +46,32 @@ const RegisterMap AS7341::REG_MAP = {
     .enable_pon_bit = AS7341_ENABLE_PON_BIT,
     .enable_sp_en_bit = AS7341_ENABLE_SP_EN_BIT,
     .enable_smux_en_bit = AS7341_ENABLE_SMUX_EN_BIT,
+    .led = AS7341_LED,
+    .led_act_bit = AS7341_LED_ACT_BIT,
     .status2 = AS7341_STATUS2,
     .status2_avalid_bit = AS7341_STATUS2_AVALID_BIT,
 };
+
+// Datasheet values for the golden device: gain correction per gain step. The last two entries stay
+// at zero because this chip has no 1024x or 2048x gain and the schema does not offer them.
+const std::array<float, GAIN_COUNT> AS7341::GAIN_CORRECTION = {
+    1.0577f, 1.0491f, 1.0479f, 1.0491f, 1.0207f, 1.0158f, 1.0109f, 1.0000f, 1.0003f, 0.9873f, 0.9593f, 0.0f, 0.0f};
+
+float AS7341::get_gain_correction(uint8_t /*channel*/, Gain gain) const {
+  return GAIN_CORRECTION[static_cast<uint8_t>(gain)];
+}
+
+bool AS7341::enable_led(bool enable) {
+  // The LED register only drives the LED while LED_SEL in CONFIG is set (DS000504, register 0x70),
+  // so the order matters: hand the pin over before switching on, and switch off before handing it
+  // back. Clearing LED_SEL first would leave the LED lit with nothing able to turn it off.
+  if (enable) {
+    return this->write_register_bit_(AS7341_CONFIG, true, AS7341_CONFIG_LED_SEL_BIT) && AS734xBase::enable_led(true);
+  }
+  const bool led_off = AS734xBase::enable_led(false);
+  const bool released = this->write_register_bit_(AS7341_CONFIG, false, AS7341_CONFIG_LED_SEL_BIT);
+  return led_off && released;
+}
 
 AS7341::AS7341(i2c::I2CDevice *i2c_device) : AS734xBase(i2c_device, AS7341::NUM_CHANNELS) {}
 

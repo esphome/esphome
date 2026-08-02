@@ -31,9 +31,13 @@ enum Gain : uint8_t {
   GAIN_2048X,  // only for AS7343
 };
 
+// Number of entries in Gain, for sizing the per-gain correction tables.
+constexpr uint8_t GAIN_COUNT = 13;
+
 constexpr uint8_t MAX_CHANNELS = 13;  // AS7343 reports 13 bands, AS7341 reports 10
 
 using ChannelValuesUint16 = std::array<uint16_t, MAX_CHANNELS>;
+using ChannelValuesFloat = std::array<float, MAX_CHANNELS>;
 using SensorArray = std::array<sensor::Sensor *, MAX_CHANNELS>;
 
 union RegAStatus {
@@ -57,6 +61,8 @@ struct RegisterMap {
   uint8_t enable_pon_bit;
   uint8_t enable_sp_en_bit;
   uint8_t enable_smux_en_bit;
+  uint8_t led;
+  uint8_t led_act_bit;
   uint8_t status2;
   uint8_t status2_avalid_bit;
 };
@@ -77,6 +83,10 @@ class AS734xBase {
 
   bool enable_power(bool enable);
   bool enable_spectral_measurement(bool enable);
+  virtual bool enable_led(bool enable);
+
+  // Per-gain correction factor for a channel, from the chip's own calibration table.
+  virtual float get_gain_correction(uint8_t channel, Gain gain) const = 0;
 
   virtual uint8_t get_number_of_smux_steps() const = 0;
   virtual uint8_t get_integration_cycles() const = 0;
@@ -111,6 +121,10 @@ class AS734xBase {
 
 class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
  public:
+  // Channel correction is multiplicative, so it has to start at unity rather than zero in case no
+  // calibration is configured.
+  AS734XComponent() { this->channel_correction_.fill(1.0f); }
+
   void setup_model(Model model);
 
   void setup() override;
@@ -122,14 +136,33 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   void set_atime(uint8_t atime) { this->atime_ = atime; }
   void set_astep(uint16_t astep) { this->astep_ = astep; }
 
+  // Turns the sensor's LED driver on or off. Meant for lambdas.
+  void enable_led(bool enable);
+
+  // Calibration applied while turning raw counts into basic counts.
+  void set_dark_current(const ChannelValuesFloat &values) { this->dark_current_ = values; }
+  void set_channel_correction(const ChannelValuesFloat &values) { this->channel_correction_ = values; }
+  void set_glass_attenuation_factor(float factor) { this->glass_attenuation_factor_ = factor; }
+
+  // Scales the published basic counts so the largest channel reads 1.0.
+  void set_normalize_basic_counts(bool enable) { this->normalize_basic_counts_ = enable; }
+
 #ifdef USE_SENSOR
+  SUB_SENSOR(saturation_level)
+
  protected:
   SensorArray band_counts_sensors_{};
+  SensorArray band_basic_counts_sensors_{};
 
  public:
   void set_counts_sensor(sensor::Sensor *sensor, uint8_t channel) {
     if (channel < this->band_counts_sensors_.size()) {
       this->band_counts_sensors_[channel] = sensor;
+    }
+  }
+  void set_basic_counts_sensor(sensor::Sensor *sensor, uint8_t channel) {
+    if (channel < this->band_basic_counts_sensors_.size()) {
+      this->band_basic_counts_sensors_[channel] = sensor;
     }
   }
 #endif
@@ -149,6 +182,7 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
     CONFIGURE_SMUX,
     WAIT_SMUX,
     READ_DATA,
+    CALCULATE,
     READY_TO_PUBLISH,
   } state_{State::NOT_INITIALIZED};
 
@@ -156,15 +190,33 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   Gain gain_{GAIN_1X};
   uint8_t atime_{0};
 
+  float glass_attenuation_factor_{1.0f};
+  bool normalize_basic_counts_{false};
+  ChannelValuesFloat dark_current_{};
+  ChannelValuesFloat channel_correction_{};
+
   struct {
     ChannelValuesUint16 raw_counts{};
+    Gain gain{GAIN_1X};
+    uint8_t atime{0};
+    uint16_t astep{0};
     uint32_t millis_start{0};
     uint32_t timeout_ms{0};
     uint8_t smux_step{0};
   } readings_;
 
+  struct {
+    ChannelValuesFloat basic_counts{};
+    float max_basic_count;
+    float saturation_level;
+  } calculated_;
+
+  void calculate_basic_counts_();
+  void calculate_saturation_level_();
+
   void publish_channel_readings_();
   void abort_measurement_(const char *reason);
+  void publish_basic_counts_();
 };
 
 }  // namespace esphome::as734x
