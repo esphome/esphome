@@ -7,8 +7,7 @@
 
 #include "esphome/components/xxtea/xxtea.h"
 
-namespace esphome {
-namespace packet_transport {
+namespace esphome::packet_transport {
 
 // Maximum bytes to log in hex output (168 * 3 = 504, under TX buffer size of 512)
 static constexpr size_t PACKET_MAX_LOG_BYTES = 168;
@@ -221,16 +220,20 @@ void PacketTransport::setup() {
   }
 #ifdef USE_SENSOR
   for (auto &sensor : this->sensors_) {
-    sensor.sensor->add_on_state_callback([this, &sensor](float x) {
-      this->updated_ = true;
+    // [&sensor] is safe: sensor refers to a FixedVector element that never reallocates,
+    // so the reference remains valid for the component's lifetime.
+    sensor.sensor->add_on_state_callback([&sensor](float x) {
+      sensor.parent->updated_ = true;
       sensor.updated = true;
     });
   }
 #endif
 #ifdef USE_BINARY_SENSOR
   for (auto &sensor : this->binary_sensors_) {
-    sensor.sensor->add_on_state_callback([this, &sensor](bool value) {
-      this->updated_ = true;
+    // [&sensor] is safe: sensor refers to a FixedVector element that never reallocates,
+    // so the reference remains valid for the component's lifetime.
+    sensor.sensor->add_on_state_callback([&sensor](bool value) {
+      sensor.parent->updated_ = true;
       sensor.updated = true;
     });
   }
@@ -548,11 +551,11 @@ void PacketTransport::dump_config() {
                 "  Ping-pong: %s",
                 this->platform_name_, YESNO(this->is_encrypted_()), YESNO(this->ping_pong_enable_));
 #ifdef USE_SENSOR
-  for (auto sensor : this->sensors_)
+  for (const auto &sensor : this->sensors_)
     ESP_LOGCONFIG(TAG, "  Sensor: %s", sensor.id);
 #endif
 #ifdef USE_BINARY_SENSOR
-  for (auto sensor : this->binary_sensors_)
+  for (const auto &sensor : this->binary_sensors_)
     ESP_LOGCONFIG(TAG, "  Binary Sensor: %s", sensor.id);
 #endif
   for (const auto &host : this->providers_) {
@@ -605,5 +608,4 @@ void PacketTransport::send_ping_pong_request_() {
   this->resend_ping_key_ = false;
   ESP_LOGV(TAG, "Sent new ping request %08X", (unsigned) this->ping_key_);
 }
-}  // namespace packet_transport
-}  // namespace esphome
+}  // namespace esphome::packet_transport

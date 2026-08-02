@@ -25,6 +25,8 @@ from esphome.const import (
     ICON_POWER,
     ICON_THERMOMETER,
     ICON_WATER_PERCENT,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
@@ -151,6 +153,12 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
+    cv.only_on(
+        [
+            PLATFORM_ESP32,
+            PLATFORM_ESP8266,
+        ]
+    ),
 )
 
 # Actions
@@ -259,6 +267,11 @@ async def power_inv_to_code(var, config, args):
     pass
 
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "midea", baud_rate=9600, require_rx=True, require_tx=True
+)
+
+
 async def to_code(config):
     var = await climate.new_climate(config)
     await cg.register_component(var, config)
@@ -294,9 +307,9 @@ async def to_code(config):
     # MideaUART library requires WiFi (WiFi auto-enables Network via dependency mapping)
     if CORE.is_esp32:
         cg.add_library("WiFi", None)
-    # Using fork with ESP-IDF support until dudanov/MideaUART#27 is merged
+    # Using the repository until a release containing ESP-IDF support is published
     cg.add_library(
         name="MideaUART",
         version=None,
-        repository="https://github.com/ShaTie/MideaUART.git",
+        repository="https://github.com/dudanov/MideaUART.git#7a4d1e9a4b6f07a3464c2453ee828c0c7b7e1bcf",
     )

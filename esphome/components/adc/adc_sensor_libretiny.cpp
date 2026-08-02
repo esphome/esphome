@@ -3,8 +3,7 @@
 #include "adc_sensor.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace adc {
+namespace esphome::adc {
 
 static const char *const TAG = "adc.libretiny";
 
@@ -48,7 +47,6 @@ float ADCSensor::sample() {
   return aggr.aggregate() / 1000.0f;
 }
 
-}  // namespace adc
-}  // namespace esphome
+}  // namespace esphome::adc
 
 #endif  // USE_LIBRETINY

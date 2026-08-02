@@ -1,5 +1,6 @@
 #include "bluetooth_proxy.h"
 
+#include "esphome/components/api/api_server.h"
 #include "esphome/core/log.h"
 #include "esphome/core/macros.h"
 #include "esphome/core/application.h"
@@ -101,25 +102,15 @@ bool BluetoothProxy::parse_devices(const esp32_ble::BLEScanResult *scan_results,
 
     // Flush if we have reached BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE
     if (this->response_.advertisements_len >= BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE) {
-      this->flush_pending_advertisements();
+      this->flush_pending_advertisements_();
     }
   }
 
   return true;
 }
 
-void BluetoothProxy::flush_pending_advertisements() {
-  if (this->response_.advertisements_len == 0 || !api::global_api_server->is_connected() ||
-      this->api_connection_ == nullptr)
-    return;
-
-  // Send the message
-  this->api_connection_->send_message(this->response_);
-
+void BluetoothProxy::log_advertisement_flush_() {
   ESP_LOGV(TAG, "Sent batch of %u BLE advertisements", this->response_.advertisements_len);
-
-  // Reset the length for the next batch
-  this->response_.advertisements_len = 0;
 }
 
 void BluetoothProxy::dump_config() {
@@ -131,23 +122,21 @@ void BluetoothProxy::dump_config() {
 }
 
 void BluetoothProxy::loop() {
-  if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr) {
-    for (uint8_t i = 0; i < this->connection_count_; i++) {
-      auto *connection = this->connections_[i];
-      if (connection->get_address() != 0 && !connection->disconnect_pending()) {
-        connection->disconnect();
-      }
-    }
+  // Run advertisement flush / connection cleanup every 100ms
+  uint32_t now = App.get_loop_component_start_time();
+  if (now - this->last_advertisement_flush_time_ < 100)
+    return;
+  this->last_advertisement_flush_time_ = now;
+
+  if (api::global_api_server->is_connected() && this->api_connection_ != nullptr) {
+    this->flush_pending_advertisements_();
     return;
   }
-
-  // Flush any pending BLE advertisements that have been accumulated but not yet sent
-  uint32_t now = App.get_loop_component_start_time();
-
-  // Flush accumulated advertisements every 100ms
-  if (now - this->last_advertisement_flush_time_ >= 100) {
-    this->flush_pending_advertisements();
-    this->last_advertisement_flush_time_ = now;
+  for (uint8_t i = 0; i < this->connection_count_; i++) {
+    auto *connection = this->connections_[i];
+    if (connection->get_address() != 0 && !connection->disconnect_pending()) {
+      connection->disconnect();
+    }
   }
 }
 
@@ -219,7 +208,6 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         connection->set_connection_type(espbt::ConnectionType::V3_WITHOUT_CACHE);
         this->log_connection_info_(connection, "v3 without cache");
       }
-      uint64_to_bd_addr(msg.address, connection->remote_bda_);
       connection->set_remote_addr_type(static_cast<esp_ble_addr_type_t>(msg.address_type));
       connection->set_state(espbt::ClientState::DISCOVERED);
       this->send_connections_free();
@@ -259,7 +247,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       esp_bd_addr_t address;
       uint64_to_bd_addr(msg.address, address);
       esp_err_t ret = esp_ble_remove_bond_device(address);
-      this->send_device_pairing(msg.address, ret == ESP_OK, ret);
+      this->send_device_unpairing(msg.address, ret == ESP_OK, ret);
       break;
     }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE: {
@@ -391,9 +379,17 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
 }
 
 void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags) {
-  if (this->api_connection_ != nullptr) {
-    ESP_LOGE(TAG, "Only one API subscription is allowed at a time");
-    return;
+  if (this->api_connection_ != nullptr && this->api_connection_ != api_connection) {
+    // A previous subscriber still holds the slot. This is almost always a stale
+    // connection from a client that dropped without a clean disconnect and has
+    // not yet hit the keepalive timeout; rejecting the new subscriber would
+    // silently starve it of advertisements until it reconnects, so the newest
+    // subscriber wins instead.
+    char old_peername[socket::SOCKADDR_STR_LEN];
+    char new_peername[socket::SOCKADDR_STR_LEN];
+    ESP_LOGW(TAG, "Subscription from %s (%s) replaces %s (%s)", api_connection->get_name(),
+             api_connection->get_peername_to(new_peername), this->api_connection_->get_name(),
+             this->api_connection_->get_peername_to(old_peername));
   }
   this->api_connection_ = api_connection;
   this->parent_->recalculate_advertisement_parser_types();

@@ -9,8 +9,7 @@
 #include <esp_attr.h>
 #include <esp_clk_tree.h>
 
-namespace esphome {
-namespace esp32_rmt_led_strip {
+namespace esphome::esp32_rmt_led_strip {
 
 static const char *const TAG = "esp32_rmt_led_strip";
 
@@ -99,8 +98,6 @@ void ESP32RMTLEDStripLightOutput::setup() {
   channel.gpio_num = gpio_num_t(this->pin_);
   channel.mem_block_symbols = this->rmt_symbols_;
   channel.trans_queue_depth = 1;
-  channel.flags.io_loop_back = 0;
-  channel.flags.io_od_mode = 0;
   channel.flags.invert_out = this->invert_out_;
   channel.flags.with_dma = this->use_dma_;
   channel.intr_priority = 0;
@@ -307,7 +304,6 @@ void ESP32RMTLEDStripLightOutput::dump_config() {
 
 float ESP32RMTLEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-}  // namespace esp32_rmt_led_strip
-}  // namespace esphome
+}  // namespace esphome::esp32_rmt_led_strip
 
 #endif  // USE_ESP32

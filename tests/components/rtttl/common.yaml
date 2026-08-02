@@ -3,6 +3,22 @@ esphome:
     then:
       - rtttl.play: 'siren:d=8,o=5,b=100:d,e,d,e,d,e,d,e'
       - rtttl.stop
+      # Test all note features: all notes, denominators (1,2,4,8,16,32), sharp (#), octaves (4-7), dotted (.), note gap (c5,c5), pause (p)
+      - rtttl.play: 'special:d=4,o=5,b=120:1c4,2d#5,4e6.,8f#7,16g4,32a5,8a#5,4b6,8h5,c5,c5,8p,2c4'
+      # Different orders of control parameters
+      - rtttl.play: 'test_odb:o=5,d=8,b=100:c'
+      - rtttl.play: 'test_bod:b=100,o=5,d=8:c'
+      - rtttl.play: 'test_bdo:b=100,d=8,o=5:c'
+      - rtttl.play: 'test_obd:o=5,b=100,d=8:c'
+      - rtttl.play: 'test_dbo:d=8,b=100,o=5:c'
+      # Missing parameters (use defaults)
+      - rtttl.play: 'test_no_d:o=5,b=100:c'
+      - rtttl.play: 'test_no_o:d=8,b=100:c'
+      - rtttl.play: 'test_no_b:d=8,o=5:c'
+      - rtttl.play: 'test_only_d:d=8:c'
+      - rtttl.play: 'test_only_o:o=5:c'
+      - rtttl.play: 'test_only_b:b=100:c'
+      - rtttl.play: 'test_empty::c'
 
 output:
   - platform: ${output_platform}
@@ -13,3 +29,8 @@ output:
 
 rtttl:
   output: rtttl_output
+  on_finished_playback:
+    - then:
+        - logger.log: "Playback finished 1"
+    - then:
+        - logger.log: "Playback finished 2"

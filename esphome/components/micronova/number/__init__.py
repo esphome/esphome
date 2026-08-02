@@ -9,6 +9,7 @@ from .. import (
     MicroNova,
     MicroNovaListener,
     micronova_ns,
+    register_micronova_writer,
     to_code_micronova_listener,
 )
 
@@ -59,22 +60,24 @@ async def to_code(config):
     mv = await cg.get_variable(config[CONF_MICRONOVA_ID])
 
     if thermostat_temperature_config := config.get(CONF_THERMOSTAT_TEMPERATURE):
+        register_micronova_writer()
         numb = await number.new_number(
             thermostat_temperature_config,
+            mv,
             min_value=0,
             max_value=40,
             step=thermostat_temperature_config.get(CONF_STEP),
         )
         await to_code_micronova_listener(mv, numb, thermostat_temperature_config)
-        cg.add(numb.set_micronova_object(mv))
         cg.add(numb.set_use_step_scaling(True))
 
     if power_level_config := config.get(CONF_POWER_LEVEL):
+        register_micronova_writer()
         numb = await number.new_number(
             power_level_config,
+            mv,
             min_value=1,
             max_value=5,
             step=1,
         )
         await to_code_micronova_listener(mv, numb, power_level_config)
-        cg.add(numb.set_micronova_object(mv))

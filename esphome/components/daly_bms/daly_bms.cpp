@@ -4,8 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace daly_bms {
+namespace esphome::daly_bms {
 
 static const char *const TAG = "daly_bms";
 
@@ -321,5 +320,4 @@ void DalyBmsComponent::decode_data_(std::vector<uint8_t> data) {
   }
 }
 
-}  // namespace daly_bms
-}  // namespace esphome
+}  // namespace esphome::daly_bms

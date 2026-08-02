@@ -24,23 +24,23 @@ class TemplateTextSaverBase {
 template<uint8_t SZ> class TextSaver : public TemplateTextSaverBase {
  public:
   bool save(const std::string &value) override {
-    int diff = value.compare(this->prev_);
-    if (diff != 0) {
-      // If string is bigger than the allocation, do not save it.
-      // We don't need to waste ram setting prev_value either.
-      int size = value.size();
-      if (size <= SZ) {
-        // Make it into a length prefixed thing
-        unsigned char temp[SZ + 1];
-        memcpy(temp + 1, value.c_str(), size);
-        // SZ should be pre checked at the schema level, it can't go past the char range.
-        temp[0] = ((unsigned char) size);
-        this->pref_.save(&temp);
-        this->prev_.assign(value);
-        return true;
-      }
+    if (value == this->prev_) {
+      return true;  // No change, nothing to save
     }
-    return false;
+    // If string is bigger than the allocation, do not save it.
+    // We don't need to waste ram setting prev_value either.
+    int size = value.size();
+    if (size > SZ) {
+      return false;
+    }
+    // Make it into a length prefixed thing
+    unsigned char temp[SZ + 1];
+    memcpy(temp + 1, value.c_str(), size);
+    // SZ should be pre checked at the schema level, it can't go past the char range.
+    temp[0] = ((unsigned char) size);
+    this->pref_.save(&temp);
+    this->prev_.assign(value);
+    return true;
   }
 
   // Make the preference object.  Fill the provided location with the saved data
