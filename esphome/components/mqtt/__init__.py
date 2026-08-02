@@ -73,6 +73,8 @@ def AUTO_LOAD():
     return ["json"]
 
 
+CONF_TLS = "tls"
+CONF_VERIFY_SSL = "verify_ssl"
 CONF_DISCOVER_IP = "discover_ip"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
@@ -215,6 +217,28 @@ def validate_config(value):
             }
         else:
             out[CONF_LOG_TOPIC] = {}
+    # Validate that CONF_VERIFY_SSL is not False when CONF_CERTIFICATE_AUTHORITY is set
+    if (
+        CONF_CERTIFICATE_AUTHORITY in value
+        and value.get(CONF_VERIFY_SSL, True) is False
+    ):
+        raise cv.Invalid(
+            "cannot set 'verify_ssl' to false when 'certificate_authority' is set."
+        )
+    # Enable SSL if any of the SSL-related options are set
+    ssl_related_options = [
+        CONF_VERIFY_SSL,
+        CONF_CERTIFICATE_AUTHORITY,
+        CONF_CLIENT_CERTIFICATE,
+        CONF_CLIENT_CERTIFICATE_KEY,
+    ]
+    if any(
+        (opt in value) if opt == CONF_VERIFY_SSL else (opt in value and value[opt])
+        for opt in ssl_related_options
+    ):
+        if CONF_TLS in value and value[CONF_TLS] is False:
+            raise cv.Invalid("'tls' must be enabled when using SSL-related options.")
+        out[CONF_TLS] = True
     return out
 
 
@@ -239,6 +263,8 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
+            cv.Optional(CONF_TLS): cv.All(cv.boolean, cv.only_on_esp32),
+            cv.Optional(CONF_VERIFY_SSL): cv.All(cv.boolean, cv.only_on_esp32),
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): cv.All(
                 cv.string, cv.only_on_esp32
             ),
@@ -445,16 +471,35 @@ async def to_code(config):
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
     # esp-idf only
-    if CONF_CERTIFICATE_AUTHORITY in config:
-        cg.add(var.set_ca_certificate(config[CONF_CERTIFICATE_AUTHORITY]))
-        cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
+    if config.get(CONF_TLS, False):
+        cg.add(var.set_ssl(config[CONF_TLS]))
+        cg.add(var.set_verify_ssl(config.get(CONF_VERIFY_SSL, True)))
+
         if CONF_CLIENT_CERTIFICATE in config:
             cg.add(var.set_cl_certificate(config[CONF_CLIENT_CERTIFICATE]))
             cg.add(var.set_cl_key(config[CONF_CLIENT_CERTIFICATE_KEY]))
 
-        # prevent error -0x428e
-        # See https://github.com/espressif/esp-idf/issues/139
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_HARDWARE_MPI", False)
+        if config.get(CONF_VERIFY_SSL, True):
+            if CONF_CERTIFICATE_AUTHORITY in config:
+                cg.add(var.set_ca_certificate(config[CONF_CERTIFICATE_AUTHORITY]))
+                cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
+                # prevent error -0x428e
+                # See https://github.com/espressif/esp-idf/issues/139
+                add_idf_sdkconfig_option("CONFIG_MBEDTLS_HARDWARE_MPI", False)
+            else:
+                # Uses the certificate bundle configured in esp32 component.
+                # By default, ESPHome uses the CMN (common CAs) bundle which covers
+                # ~99% of websites including GitHub, Let's Encrypt, DigiCert, etc.
+                add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
+        else:
+            add_idf_sdkconfig_option(
+                "CONFIG_ESP_TLS_INSECURE",
+                True,
+            )
+            add_idf_sdkconfig_option(
+                "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY",
+                True,
+            )
 
     if CONF_IDF_SEND_ASYNC in config and config[CONF_IDF_SEND_ASYNC]:
         cg.add_define("USE_MQTT_IDF_ENQUEUE")
