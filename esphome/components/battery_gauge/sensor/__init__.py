@@ -43,9 +43,7 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_CAPACITY): capacity_ah,
             cv.Optional(CONF_EFFICIENCY, default=0.98): cv.percentage,
             cv.Required(CONF_MAX_CHARGE_VOLTAGE): cv.voltage,
-            cv.Optional(CONF_INITIAL_STATE): cv.All(
-                cv.percentage, cv.Range(min=0, max=1.0)
-            ),
+            cv.Optional(CONF_INITIAL_STATE): cv.percentage,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)

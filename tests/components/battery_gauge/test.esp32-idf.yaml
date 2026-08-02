@@ -1,1 +1,2 @@
-<<: !include common.yaml
+packages:
+  battery_gauge: !include common.yaml

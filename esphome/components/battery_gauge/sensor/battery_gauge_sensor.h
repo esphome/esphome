@@ -21,6 +21,10 @@ class BatteryGaugeSensor : public sensor::Sensor, public Component {
 
  protected:
   void publish_(float new_state);
+  // Convert a 0..1 fraction into the persisted percentage-times-ten representation used by publish_().
+  static unsigned fraction_to_percentage_x10_(float fraction);
+  // Convert the persisted percentage-times-ten representation back into a charge state in Ah.
+  static float percentage_x10_to_state_(unsigned percentage_x10, float capacity);
   Sensor *voltage_source_;
   Sensor *current_source_;
   float capacity_;
