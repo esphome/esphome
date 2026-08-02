@@ -147,6 +147,72 @@ class TestUploadProgramPyocd:
 
 
 # ---------------------------------------------------------------------------
+# PlatformIO toolchain paths
+# ---------------------------------------------------------------------------
+
+
+class TestRunCompilePlatformio:
+    def test_prepares_python_env_and_delegates_to_platformio(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        """The PlatformIO toolchain prepares the env, then returns False so PlatformIO builds."""
+        from esphome.components.nrf52 import run_compile
+
+        _setup_nrf52_core(toolchain=Toolchain.PLATFORMIO, build_path=tmp_path / "build")
+
+        with patch(
+            "esphome.components.nrf52.setup_platformio_python_env"
+        ) as mock_setup:
+            assert run_compile(args=None, config={}) is False
+
+        mock_setup.assert_called_once_with()
+
+
+class TestUploadProgramSerialPlatformio:
+    def _upload(self, host: str, tmp_path: Path, run_result: int) -> tuple:
+        from esphome.components.nrf52 import upload_program
+        from esphome.upload_targets import PortType
+
+        _setup_nrf52_core(toolchain=Toolchain.PLATFORMIO, build_path=tmp_path / "build")
+        CORE.config_path = tmp_path / "test.yaml"
+
+        with (
+            patch("esphome.upload_targets.get_port_type", return_value=PortType.SERIAL),
+            patch("esphome.__main__.check_permissions"),
+            patch("esphome.components.nrf52.setup_platformio_python_env") as mock_setup,
+            patch(
+                "esphome.platformio.toolchain.run_platformio_cli_run",
+                return_value=run_result,
+            ) as mock_run,
+        ):
+            result = upload_program(config={}, args=None, host=host)
+        return result, mock_setup, mock_run
+
+    def test_serial_upload_prepares_env_and_runs_platformio(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        """Serial upload with the PlatformIO toolchain runs pio with -t upload."""
+        host = "/dev/ttyACM0"
+        result, mock_setup, mock_run = self._upload(host, tmp_path, run_result=0)
+
+        assert result is True
+        mock_setup.assert_called_once_with()
+        mock_run.assert_called_once()
+        run_args = mock_run.call_args[0]
+        assert "-t" in run_args
+        assert "upload" in run_args
+        assert "--upload-port" in run_args
+        assert host in run_args
+
+    def test_serial_upload_failure_raises(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        """A non-zero PlatformIO result must raise EsphomeError."""
+        with pytest.raises(EsphomeError, match="Upload failed"):
+            self._upload("/dev/ttyACM0", tmp_path, run_result=1)
+
+
+# ---------------------------------------------------------------------------
 # Serial DFU upload path
 # ---------------------------------------------------------------------------
 
