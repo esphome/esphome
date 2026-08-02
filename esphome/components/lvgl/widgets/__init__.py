@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_ID,
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
+    CONF_PATH,
     CONF_STATE,
     CONF_TYPE,
 )
@@ -286,6 +287,9 @@ class Widget:
             self.obj = var
         self.outer = None
         self.move_to_foreground = False
+        # True if resolved via a widget-child-ref (`{parent:, path:}`) rather than a
+        # declared id -- see `_resolve_widget_ref` below.
+        self.from_ref = False
         # Properties for linear equations
         self.slope = None
         self.y_int = None
@@ -480,12 +484,40 @@ async def wait_for_widgets():
     await FakeAwaitable(widgets_wait_generator())
 
 
+async def _resolve_widget_ref(ref) -> Widget:
+    """
+    Resolve one entry of an update action's (already-validated) `id:` list: either a
+    plain declared id (the usual case, handled via `get_widget_`), or a widget-child-ref
+    -- `{parent:, path:}`, see `schemas.py::_widget_child_ref_schema` -- built by walking
+    `lv_obj_get_child()` from the (always-resolvable, since it's a declared id itself)
+    parent widget, no new registry or ordering concerns needed.
+    """
+    from ..schemas import (
+        _REF_WIDGET_TYPE_KEY,
+        CONF_PARENT,
+        WIDGET_TYPES,
+        is_widget_child_ref,
+    )
+
+    if not is_widget_child_ref(ref):
+        return await get_widget_(ref)
+
+    container = await get_widget_(ref[CONF_PARENT])
+    expr = container.obj
+    for element in ref[CONF_PATH]:
+        index = await lv_int.process(element)
+        expr = lv_expr.obj_get_child(expr, index)
+    w = Widget(expr, WIDGET_TYPES[ref[_REF_WIDGET_TYPE_KEY]], {})
+    w.from_ref = True
+    return w
+
+
 async def get_widgets(config: dict | list, id: str = CONF_ID) -> list[Widget]:
     if not config:
         return []
     if not isinstance(config, list):
         config = [config]
-    return [await get_widget_(c[id]) for c in config if id in c]
+    return [await _resolve_widget_ref(c[id]) for c in config if id in c]
 
 
 def collect_props(config):
