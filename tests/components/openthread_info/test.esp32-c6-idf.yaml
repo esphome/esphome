@@ -41,6 +41,8 @@ sensor:
       name: "Parent Link Quality Out"
     parent_path_cost:
       name: "Parent Path Cost"
+    rssi:
+      name: "RSSI"
     tx_total:
       name: "TX Total"
     tx_retries:

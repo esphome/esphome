@@ -79,6 +79,18 @@ class ParentPathCostOpenThreadInfo final : public ParentOpenThreadSensor, public
   void dump_config() override;
 };
 
+// Radio Last RSSI
+class RssiOpenThreadInfo : public OpenThreadInstancePollingComponent, public sensor::Sensor {
+ public:
+  void update_instance(otInstance *instance) override {
+    int8_t rssi = otPlatRadioGetRssi(instance);
+    if (rssi != OT_RADIO_RSSI_INVALID) {
+      this->publish_state(rssi);
+    }
+  }
+  void dump_config() override;
+};
+
 // --- MAC counters (otLinkGetCounters) — cumulative since boot ---
 
 class TxTotalOpenThreadInfo final : public OpenThreadInstancePollingComponent, public sensor::Sensor {

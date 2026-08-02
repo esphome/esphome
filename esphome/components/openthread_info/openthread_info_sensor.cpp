@@ -11,6 +11,7 @@ void ParentLastRssiOpenThreadInfo::dump_config() { LOG_SENSOR("", "Parent Last R
 void ParentLinkQualityInOpenThreadInfo::dump_config() { LOG_SENSOR("", "Parent Link Quality In", this); }
 void ParentLinkQualityOutOpenThreadInfo::dump_config() { LOG_SENSOR("", "Parent Link Quality Out", this); }
 void ParentPathCostOpenThreadInfo::dump_config() { LOG_SENSOR("", "Parent Path Cost", this); }
+void RssiOpenThreadInfo::dump_config() { LOG_SENSOR("", "Last RSSI", this); }
 void TxTotalOpenThreadInfo::dump_config() { LOG_SENSOR("", "TX Total", this); }
 void TxRetriesOpenThreadInfo::dump_config() { LOG_SENSOR("", "TX Retries", this); }
 void TxErrCcaOpenThreadInfo::dump_config() { LOG_SENSOR("", "TX CCA Errors", this); }
