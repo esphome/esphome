@@ -3,9 +3,10 @@
 Scan modes:
   continuous: true  — scan runs forever; never stops automatically.
   continuous: false — a started scan runs for `duration`, then stops. The first
-                      start is external too (e.g. an api client-connected
-                      automation calling start_scan()); nothing starts a
-                      non-continuous scan on boot.
+                      start is external too; nothing starts a non-continuous
+                      scan on boot. Until start/stop automation actions land
+                      (follow-up PR), starting means a lambda:
+                      `id(my_tracker).start_scan();`.
 """
 
 import esphome.codegen as cg
