@@ -69,6 +69,8 @@ esphome/components/bh1750/* @OttoWinter
 esphome/components/bh1900nux/* @B48D81EFCC
 esphome/components/binary_sensor/* @esphome/core
 esphome/components/bk72xx/* @kuba2k2
+esphome/components/bk72xx_ble/* @Bl00d-B0b
+esphome/components/bk72xx_ble_tracker/* @Bl00d-B0b
 esphome/components/bl0906/* @athom-tech @jesserockz @tarontop
 esphome/components/bl0939/* @ziceva
 esphome/components/bl0940/* @dan-s-github @tobias-
@@ -293,6 +295,7 @@ esphome/components/light/* @esphome/core
 esphome/components/lightwaverf/* @max246
 esphome/components/lilygo_t5_47/touchscreen/* @jesserockz
 esphome/components/lm75b/* @beormund
+esphome/components/ln882h_ble/* @Bl00d-B0b
 esphome/components/ln882x/* @lamauny
 esphome/components/lock/* @esphome/core
 esphome/components/logger/* @esphome/core
@@ -625,6 +628,7 @@ esphome/components/xpt2046/touchscreen/* @nielsnl68 @numo68
 esphome/components/xxtea/* @clydebarrow
 esphome/components/zephyr/* @tomaszduda23
 esphome/components/zephyr_mcumgr/ota/* @tomaszduda23
+esphome/components/zephyr_pwm/* @wiomoc
 esphome/components/zhlt01/* @cfeenstra1024
 esphome/components/zigbee/* @luar123 @tomaszduda23
 esphome/components/zio_ultrasonic/* @kahrendt
