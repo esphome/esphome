@@ -127,12 +127,14 @@ def _run_load_step(
     domain: str,
     conf: object,
     migrate: Callable[[ConfigType], list | None] | None,
+    expand: Callable[[list], list] | None = None,
 ) -> config.Config:
-    """Run a LoadValidationStep for a platform component with a given migrate hook."""
+    """Run a LoadValidationStep for a platform component with given hooks."""
     component = Mock()
     component.is_platform_component = True
     component.multi_conf_no_default = False
     component.legacy_config_migrate = migrate
+    component.expand_platform_config = expand
 
     result = config.Config()
     with (
@@ -195,6 +197,44 @@ def test_legacy_migrate_skipped_for_autoload() -> None:
     migrate.assert_not_called()
     # AutoLoad is dict-like, so normalization wraps it into a single-entry list.
     assert result["image"] == [auto]
+
+
+# ---------------------------------------------------------------------------
+# EXPAND_PLATFORM_CONFIG hook on LoadValidationStep -- the permanent,
+# non-deprecated counterpart to legacy_config_migrate that lets a platform
+# component expand a platform-tagged entry into several (e.g. `image`'s
+# `defaults:`/`files:` shape). Runs after legacy migration/list normalization.
+# ---------------------------------------------------------------------------
+
+
+def test_expand_hook_rewrites_conf() -> None:
+    """A config the expand hook rewrites is replaced with the expanded list."""
+    expanded = [{"platform": "file", "id": "a"}, {"platform": "file", "id": "b"}]
+    expand = Mock(return_value=expanded)
+
+    result = _run_load_step("image", [{"platform": "file", "id": "a"}], None, expand)
+
+    expand.assert_called_once_with([{"platform": "file", "id": "a"}])
+    assert result["image"] == expanded
+
+
+def test_expand_hook_absent_is_noop() -> None:
+    """A platform component without the hook is left as normalized by the
+    existing list-wrapping logic."""
+    result = _run_load_step("image", [{"platform": "file", "id": "a"}], None, None)
+
+    assert result["image"] == [{"platform": "file", "id": "a"}]
+
+
+def test_expand_hook_runs_after_legacy_migrate() -> None:
+    """The expand hook sees the already-migrated list, not the raw legacy conf."""
+    migrated = [{"platform": "file", "id": "a"}]
+    migrate = Mock(return_value=migrated)
+    expand = Mock(side_effect=lambda conf: conf)
+
+    _run_load_step("image", [{"id": "a", "file": "x.png"}], migrate, expand)
+
+    expand.assert_called_once_with(migrated)
 
 
 def _write_merge_conflict_config(tmp_path: Path, *, suppress: bool) -> Path:

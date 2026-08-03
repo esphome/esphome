@@ -616,6 +616,13 @@ class LoadValidationStep(ConfigValidationStep):
             elif not isinstance(self.conf, list):
                 result[self.domain] = self.conf = [self.conf]
 
+            # Permanent (non-deprecated) expansion hook: lets a platform-tagged
+            # entry expand into several entries (e.g. `image`'s `defaults:`/
+            # `files:` shape) before per-entry CONFIG_SCHEMA/ID registration runs.
+            if (expand := component.expand_platform_config) is not None:
+                with result.catch_error(path):
+                    result[self.domain] = self.conf = expand(self.conf)
+
         # Process AUTO_LOAD
         _process_auto_load(result, component, path)
 

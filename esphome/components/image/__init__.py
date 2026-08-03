@@ -10,7 +10,14 @@ from PIL import Image, UnidentifiedImageError
 import esphome.codegen as cg
 from esphome.components.const import CONF_BYTE_ORDER, KEY_METADATA
 import esphome.config_validation as cv
-from esphome.const import CONF_DEFAULTS, CONF_FILE, CONF_ID, CONF_PLATFORM, CONF_TYPE
+from esphome.const import (
+    CONF_DEFAULTS,
+    CONF_FILE,
+    CONF_FILES,
+    CONF_ID,
+    CONF_PLATFORM,
+    CONF_TYPE,
+)
 from esphome.core import CORE
 from esphome.types import ConfigType
 
@@ -402,6 +409,82 @@ def get_all_image_metadata() -> dict[str, ImageMetaData]:
 def get_image_metadata(image_id: str) -> ImageMetaData | None:
     """Get image metadata by ID for use by other components."""
     return get_all_image_metadata().get(image_id)
+
+
+# ---------------------------------------------------------------------------
+# `defaults:`/`files:` platform entry expansion.
+#
+# Any `image:` platform entry (`platform: file`, `platform: animation`,
+# `platform: online_image`, ...) may provide `defaults:` (options merged into
+# every file) together with `files:` (a list of per-image overrides) instead
+# of a single flat entry, so options shared by many images don't need to be
+# repeated on every one. This is purely structural -- the resulting entries
+# go through the platform's own CONFIG_SCHEMA exactly like hand-written
+# entries, so unsupported/invalid keys are still caught there. Unlike the
+# legacy migration below, this is a permanent, non-deprecated mechanism.
+# ---------------------------------------------------------------------------
+
+
+def _expand_platform_entry(index: int, entry: dict) -> list[dict]:
+    files = entry.get(CONF_FILES)
+    if files is None:
+        if CONF_DEFAULTS in entry:
+            raise cv.Invalid(
+                f"image[{index}]: '{CONF_DEFAULTS}' may only be used together with '{CONF_FILES}'"
+            )
+        return [entry]
+
+    extra_keys = set(entry) - {CONF_PLATFORM, CONF_DEFAULTS, CONF_FILES}
+    if extra_keys:
+        raise cv.Invalid(
+            f"image[{index}]: '{CONF_FILES}' cannot be combined with "
+            f"{', '.join(sorted(extra_keys))} on the same entry"
+        )
+    if not isinstance(files, list):
+        raise cv.Invalid(f"image[{index}]: '{CONF_FILES}' must be a list")
+
+    defaults = entry.get(CONF_DEFAULTS) or {}
+    if not isinstance(defaults, dict):
+        raise cv.Invalid(f"image[{index}]: '{CONF_DEFAULTS}' must be a mapping")
+    if CONF_ID in defaults:
+        raise cv.Invalid(
+            f"image[{index}]: '{CONF_ID}' is not allowed inside '{CONF_DEFAULTS}'"
+        )
+
+    platform = entry[CONF_PLATFORM]
+    result: list[dict] = []
+    for file_entry in files:
+        if not isinstance(file_entry, dict):
+            raise cv.Invalid(
+                f"image[{index}]: each entry in '{CONF_FILES}' must be a mapping"
+            )
+        result.append({CONF_PLATFORM: platform, **defaults, **file_entry})
+    return result
+
+
+def expand_platform_config(config: list) -> list:
+    """Expand `defaults:`/`files:` platform entries into individual entries.
+
+    Shared across every image platform (`file`, `animation`, `online_image`,
+    and any future one): a platform-tagged `image:` entry may provide
+    `defaults:` (options merged into every file) together with `files:` (a
+    list of per-image overrides) instead of a single flat entry. Purely
+    structural -- the resulting entries go through the platform's own
+    CONFIG_SCHEMA exactly like hand-written entries, so invalid/unsupported
+    keys are still caught there with normal error messages.
+    """
+    result = []
+    for i, entry in enumerate(config):
+        if isinstance(entry, dict) and CONF_PLATFORM in entry:
+            result.extend(_expand_platform_entry(i, entry))
+        else:
+            result.append(entry)
+    return result
+
+
+EXPAND_PLATFORM_CONFIG = expand_platform_config
+
+# --------------------- end defaults/files expansion -------------------------
 
 
 # ---------------------------------------------------------------------------

@@ -149,6 +149,21 @@ class ComponentManifest:
         return getattr(self.module, "LEGACY_CONFIG_MIGRATE", None)
 
     @property
+    def expand_platform_config(
+        self,
+    ) -> Callable[[list[ConfigType]], list[ConfigType]] | None:
+        """Optional `EXPAND_PLATFORM_CONFIG` callable on a platform component module.
+
+        Called once, after the domain's raw config has been normalized to a list of
+        `platform:` tagged entries (and after any `legacy_config_migrate`). May
+        return a new list with any entries using a shared, structured shape (e.g.
+        `image`'s `defaults:`/`files:`) expanded into multiple `platform:` tagged
+        entries. Unlike `legacy_config_migrate`, this is a permanent mechanism, not
+        a deprecation shim.
+        """
+        return getattr(self.module, "EXPAND_PLATFORM_CONFIG", None)
+
+    @property
     def resources(self) -> list[FileResource]:
         """Return a list of all file resources defined in the package of this component.
 

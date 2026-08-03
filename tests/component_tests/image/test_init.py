@@ -21,16 +21,20 @@ from esphome.components.image import (
     CONF_OPAQUE,
     CONF_TRANSPARENCY,
     PLATFORM_FILE,
+    _expand_platform_entry,
     _flatten_legacy_image_config,
     _is_legacy_image_format,
     _is_new_image_format,
     _migrate_legacy_image_config,
+    expand_platform_config,
     get_all_image_metadata,
     get_image_metadata,
 )
 from esphome.const import (
+    CONF_DEFAULTS,
     CONF_DITHER,
     CONF_FILE,
+    CONF_FILES,
     CONF_ID,
     CONF_PLATFORM,
     CONF_RAW_DATA_ID,
@@ -368,6 +372,132 @@ def test_migrate_returns_none_for_invalid_legacy_shapes(
 
 
 # --------------------------- end legacy migration --------------------------
+
+
+def test_expand_platform_entry_passes_through_plain_entry() -> None:
+    entry = {CONF_PLATFORM: "file", "id": "a", "file": "x.png"}
+    assert _expand_platform_entry(0, entry) == [entry]
+
+
+def test_expand_platform_entry_expands_files_with_defaults() -> None:
+    entry = {
+        CONF_PLATFORM: "file",
+        CONF_DEFAULTS: {"type": "RGB565", "transparency": "opaque"},
+        CONF_FILES: [
+            {"id": "img1", "file": "foo.png"},
+            {"id": "img2", "file": "bar.png", "type": "GRAYSCALE"},
+        ],
+    }
+    assert _expand_platform_entry(0, entry) == [
+        {
+            CONF_PLATFORM: "file",
+            "id": "img1",
+            "file": "foo.png",
+            "type": "RGB565",
+            "transparency": "opaque",
+        },
+        {
+            CONF_PLATFORM: "file",
+            "id": "img2",
+            "file": "bar.png",
+            "type": "GRAYSCALE",
+            "transparency": "opaque",
+        },
+    ]
+
+
+def test_expand_platform_entry_files_without_defaults() -> None:
+    entry = {
+        CONF_PLATFORM: "file",
+        CONF_FILES: [{"id": "img1", "file": "foo.png"}],
+    }
+    assert _expand_platform_entry(0, entry) == [
+        {CONF_PLATFORM: "file", "id": "img1", "file": "foo.png"}
+    ]
+
+
+def test_expand_platform_entry_per_file_overrides_win() -> None:
+    entry = {
+        CONF_PLATFORM: "file",
+        CONF_DEFAULTS: {"type": "RGB565"},
+        CONF_FILES: [{"id": "img1", "file": "foo.png", "type": "BINARY"}],
+    }
+    [out] = _expand_platform_entry(0, entry)
+    assert out["type"] == "BINARY"
+
+
+def test_expand_platform_entry_defaults_without_files_raises() -> None:
+    entry = {CONF_PLATFORM: "file", CONF_DEFAULTS: {"type": "RGB565"}}
+    with pytest.raises(cv.Invalid, match="may only be used together with"):
+        _expand_platform_entry(0, entry)
+
+
+def test_expand_platform_entry_files_with_stray_key_raises() -> None:
+    entry = {
+        CONF_PLATFORM: "file",
+        CONF_FILES: [{"id": "a", "file": "x.png"}],
+        "extra": 1,
+    }
+    with pytest.raises(cv.Invalid, match="cannot be combined with"):
+        _expand_platform_entry(0, entry)
+
+
+def test_expand_platform_entry_id_in_defaults_raises() -> None:
+    entry = {
+        CONF_PLATFORM: "file",
+        CONF_DEFAULTS: {CONF_ID: "a"},
+        CONF_FILES: [{"file": "x.png"}],
+    }
+    with pytest.raises(cv.Invalid, match="not allowed inside"):
+        _expand_platform_entry(0, entry)
+
+
+def test_expand_platform_entry_files_not_list_raises() -> None:
+    entry = {CONF_PLATFORM: "file", CONF_FILES: "not-a-list"}
+    with pytest.raises(cv.Invalid, match="must be a list"):
+        _expand_platform_entry(0, entry)
+
+
+def test_expand_platform_entry_defaults_not_mapping_raises() -> None:
+    entry = {
+        CONF_PLATFORM: "file",
+        CONF_DEFAULTS: "not-a-mapping",
+        CONF_FILES: [{"id": "a", "file": "x.png"}],
+    }
+    with pytest.raises(cv.Invalid, match="must be a mapping"):
+        _expand_platform_entry(0, entry)
+
+
+def test_expand_platform_entry_file_item_not_mapping_raises() -> None:
+    entry = {CONF_PLATFORM: "file", CONF_FILES: [1, 2]}
+    with pytest.raises(cv.Invalid, match="must be a mapping"):
+        _expand_platform_entry(0, entry)
+
+
+def test_expand_platform_config_mixes_plain_and_expanded_entries() -> None:
+    config = [
+        {
+            CONF_PLATFORM: "file",
+            CONF_DEFAULTS: {"type": "RGB565"},
+            CONF_FILES: [
+                {"id": "img1", "file": "foo.png"},
+                {"id": "img2", "file": "bar.png"},
+            ],
+        },
+        {CONF_PLATFORM: "file", "id": "plain", "file": "baz.png", "type": "BINARY"},
+    ]
+    out = expand_platform_config(config)
+    assert [entry["id"] for entry in out] == ["img1", "img2", "plain"]
+
+
+def test_expand_platform_config_ignores_non_platform_entries() -> None:
+    # Not expanded here -- legacy_config_migrate runs before this hook and is
+    # responsible for tagging/flattening pre-platform shapes.
+    config = ["not-a-platform-entry"]
+    assert expand_platform_config(config) == config
+
+
+# --------------------- end defaults/files expansion -------------------------
 
 
 def test_validate_image_final_defaults_to_little_endian() -> None:
