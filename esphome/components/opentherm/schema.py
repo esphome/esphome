@@ -91,7 +91,7 @@ SENSORS: dict[str, SensorSchema] = {
     ),
     "dhw_flow_rate": SensorSchema(
         description="Water flow rate in DHW circuit",
-        unit_of_measurement="l/min",
+        unit_of_measurement="L/min",
         accuracy_decimals=2,
         icon="mdi:waves-arrow-right",
         state_class=STATE_CLASS_MEASUREMENT,
