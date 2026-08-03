@@ -1,16 +1,20 @@
-"""Tests for bk72xx_ble_tracker scan parameter validation."""
+"""Tests for the shared BLE tracker scan parameter validation."""
 
 from __future__ import annotations
 
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.bk72xx_ble_tracker import SCAN_PARAMETERS_SCHEMA, to_ble_units
+from esphome.components.bk72xx_ble_tracker import (
+    SCAN_PARAMETERS_SCHEMA as BK72XX_SCHEMA,
+)
+from esphome.components.ble_device_base import to_ble_units
+from esphome.components.esp32_ble_tracker import SCAN_PARAMETERS_SCHEMA as ESP32_SCHEMA
 
 
 def _validate(**kwargs: str) -> dict:
-    """Run a scan_parameters config through the schema, applying defaults."""
-    return SCAN_PARAMETERS_SCHEMA(dict(kwargs))
+    """Run a scan_parameters config through a passive tracker's real schema."""
+    return BK72XX_SCHEMA(kwargs)
 
 
 # --- to_ble_units ---
@@ -36,14 +40,37 @@ def test_to_ble_units_truncates() -> None:
     assert to_ble_units(cv.positive_time_period("2500us")) == 4
 
 
-# --- accepted configurations ---
+# --- the real per-chip schemas ---
 
 
-def test_defaults_are_valid() -> None:
-    """The documented default 100 ms / 30 ms pair validates."""
+def test_bk72xx_defaults_are_valid() -> None:
+    """bk72xx pins the BK reference rate: 100 ms interval, shared 30 ms window."""
     config = _validate()
     assert to_ble_units(config["interval"]) == 160
     assert to_ble_units(config["window"]) == 48
+    assert "active" not in config
+
+
+def test_esp32_defaults_are_valid() -> None:
+    """esp32 pins the ESP-IDF reference rate and exposes active (default on)."""
+    config = ESP32_SCHEMA({})
+    assert to_ble_units(config["interval"]) == 512
+    assert to_ble_units(config["window"]) == 48
+    assert config["active"] is True
+
+
+def test_esp32_active_can_disable() -> None:
+    config = ESP32_SCHEMA({"active": False})
+    assert config["active"] is False
+
+
+def test_passive_schema_rejects_active_key() -> None:
+    """Trackers without active scan support must not silently accept the option."""
+    with pytest.raises(cv.Invalid):
+        _validate(active="true")
+
+
+# --- accepted configurations ---
 
 
 def test_minimum_separation_accepted() -> None:
@@ -100,12 +127,8 @@ def test_out_of_range_rejected(interval: str, window: str, offender: str) -> Non
 
 
 def test_unit_collapse_rejected() -> None:
-    """Regression: 3000us/2500us both floor to 4 units — a hidden 100 % duty cycle.
-
-    This is the configuration that previously validated and programmed the radio
-    permanently on despite asking for roughly 83 %.
-    """
-    with pytest.raises(cv.Invalid, match="both round to 4 x 0.625 ms"):
+    """3000us/2500us both floor to 4 units — a hidden 100 % duty cycle."""
+    with pytest.raises(cv.Invalid, match="both truncate to 4 x 0.625 ms"):
         _validate(interval="3000us", window="2500us")
 
 
