@@ -1,6 +1,8 @@
 #include "esp_video_camera.h"
 
-#ifdef USE_ESP_IDF
+// This component is ESP32-P4 silicon (MIPI-CSI, ISP, hardware JPEG) and builds
+// only against esp_video's V4L2 headers, so it compiles on that variant alone.
+#if defined(USE_ESP_IDF) && defined(USE_ESP32_VARIANT_ESP32P4)
 
 #include "i2c_helper.h"
 #include "esphome/core/log.h"
@@ -10,6 +12,7 @@
 
 #include <atomic>
 #include <cerrno>
+#include <cstdint>
 #include <cstring>
 #include <fcntl.h>
 #include <unistd.h>
@@ -487,7 +490,9 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
     out_buf.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
     out_buf.memory = V4L2_MEMORY_USERPTR;
     out_buf.index = 0;
-    out_buf.m.userptr = (unsigned long) this->capture_buffers_[cap_buf.index].start;
+    // v4l2_buffer::m.userptr is a `unsigned long` holding a pointer; go through
+    // uintptr_t so the cast states that intent in a fixed-width type.
+    out_buf.m.userptr = (uintptr_t) this->capture_buffers_[cap_buf.index].start;
     out_buf.length = this->capture_buffers_[cap_buf.index].length;
     out_buf.bytesused = cap_buf.bytesused;
 
@@ -857,4 +862,4 @@ void ESPVideoCamera::dump_config() {
 
 }  // namespace esphome::esp_video_camera
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP_IDF && USE_ESP32_VARIANT_ESP32P4

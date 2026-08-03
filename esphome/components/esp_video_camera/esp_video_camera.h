@@ -2,7 +2,9 @@
 
 #include "esphome/core/defines.h"
 
-#ifdef USE_ESP_IDF
+// This component is ESP32-P4 silicon (MIPI-CSI, ISP, hardware JPEG) and builds
+// only against esp_video's V4L2 headers, so it compiles on that variant alone.
+#if defined(USE_ESP_IDF) && defined(USE_ESP32_VARIANT_ESP32P4)
 
 #include "esphome/core/component.h"
 #include "esphome/components/camera/camera.h"
@@ -167,4 +169,4 @@ class ESPVideoCamera : public camera::Camera {
 
 }  // namespace esphome::esp_video_camera
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP_IDF && USE_ESP32_VARIANT_ESP32P4

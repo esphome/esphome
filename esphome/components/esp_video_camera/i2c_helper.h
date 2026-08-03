@@ -3,7 +3,9 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP_IDF
+// This component is ESP32-P4 silicon (MIPI-CSI, ISP, hardware JPEG) and builds
+// only against esp_video's V4L2 headers, so it compiles on that variant alone.
+#if defined(USE_ESP_IDF) && defined(USE_ESP32_VARIANT_ESP32P4)
 #include "driver/i2c_master.h"
 
 namespace esphome::esp_video_camera {
@@ -24,4 +26,4 @@ inline i2c_master_bus_handle_t get_i2c_bus_handle(i2c::InternalI2CBus *bus) {
 
 }  // namespace esphome::esp_video_camera
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP_IDF && USE_ESP32_VARIANT_ESP32P4
