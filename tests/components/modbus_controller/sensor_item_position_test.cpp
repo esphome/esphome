@@ -12,7 +12,7 @@ namespace {
 // Minimal concrete SensorItem so the position/address accessors can be exercised directly.
 class TestSensorItem : public SensorItem {
  public:
-  void parse_and_publish(uint16_t /*base_address*/, std::span<const uint8_t> /*data*/) override {}
+  void parse_and_publish(std::span<const uint8_t> /*data*/) override {}
 };
 
 // Builds an item the way a platform constructor does, before ranges are built.
@@ -33,16 +33,16 @@ TEST(SensorItemPosition, ConstructionSeedsResolvedPositionAndRangeBase) {
   EXPECT_EQ(item.offset_from_start_address, 4);
   EXPECT_EQ(item.offset, 4);
   EXPECT_EQ(item.range_start_address, 0x9001);
-  EXPECT_EQ(item.offset_in_range(0x9001), 4u);
+  EXPECT_EQ(item.offset, 4u);
 }
 
-// offset_in_range() reports the position resolved while the ranges were built. It is relative to the
-// range's first register, so it does not re-derive anything from base_address.
-TEST(SensorItemPosition, OffsetInRangeReportsResolvedPosition) {
+// Grouping resolves the position relative to the range's first register, which may be earlier than the
+// sensor's own address.
+TEST(SensorItemPosition, ResolvedPositionIsRelativeToRangeStart) {
   auto item = make_item(modbus::EntityType::HOLDING, 0x9003, 0);
   item.range_start_address = 0x9001;  // grouped into a range starting two registers earlier
   item.offset = 4;                    // resolved: two 2-byte registers ahead of it
-  EXPECT_EQ(item.offset_in_range(0x9001), 4u);
+  EXPECT_EQ(item.offset, 4u);
 }
 
 // A write lands on the register the sensor reads from: the range's first register plus the resolved
@@ -76,7 +76,7 @@ TEST(SensorItemPosition, ReUseChainWriteAddressFollowsResolvedPosition) {
   auto item = make_item(modbus::EntityType::HOLDING, 0x9001, 4);
   item.range_start_address = 0x9001;
   item.offset = 6;  // 4 configured, plus the 2 the previous sensor on this register resolved to
-  EXPECT_EQ(item.offset_in_range(0x9001), 6u);
+  EXPECT_EQ(item.offset, 6u);
   EXPECT_EQ(item.write_address(), 0x9004);
 }
 

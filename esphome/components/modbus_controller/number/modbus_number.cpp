@@ -10,8 +10,8 @@ static const char *const TAG = "modbus.number";
 // Maximum uint16_t registers to log in verbose hex output
 static constexpr size_t MODBUS_NUMBER_MAX_LOG_REGISTERS = 32;
 
-void ModbusNumber::parse_and_publish(uint16_t base_address, std::span<const uint8_t> data) {
-  float result = payload_to_float(data, *this, this->offset_in_range(base_address)) / this->multiply_by_;
+void ModbusNumber::parse_and_publish(std::span<const uint8_t> data) {
+  float result = payload_to_float(data, *this, this->offset) / this->multiply_by_;
 
   // Is there a lambda registered
   // call it with the pre converted value and the raw data array

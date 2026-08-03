@@ -26,7 +26,7 @@ class ModbusFloatOutput final : public output::FloatOutput, public Component, pu
   void set_parent(ModbusController *parent) { this->parent_ = parent; }
   void set_write_multiply(float factor) { this->multiply_by_ = factor; }
   // Do nothing
-  void parse_and_publish(uint16_t base_address, std::span<const uint8_t> data) override{};
+  void parse_and_publish(std::span<const uint8_t> data) override{};
 
   using write_transform_func_t = optional<float> (*)(ModbusFloatOutput *, float, std::vector<uint16_t> &);
   void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
@@ -57,7 +57,7 @@ class ModbusBinaryOutput final : public output::BinaryOutput, public Component, 
 
   void set_parent(ModbusController *parent) { this->parent_ = parent; }
   // Do nothing
-  void parse_and_publish(uint16_t base_address, std::span<const uint8_t> data) override{};
+  void parse_and_publish(std::span<const uint8_t> data) override{};
 
   using write_transform_func_t = optional<bool> (*)(ModbusBinaryOutput *, bool, std::vector<uint8_t> &);
   void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }

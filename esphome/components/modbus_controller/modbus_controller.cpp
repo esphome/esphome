@@ -134,10 +134,10 @@ void ModbusController::on_register_data(modbus::EntityType register_type, uint16
                                         const std::vector<uint8_t> &data) {
   ESP_LOGV(TAG, "data for register address : 0x%X : ", start_address);
 
-  // loop through all sensors in this range; each locates its own bytes relative to start_address.
+  // loop through all sensors in this range; each reads its own bytes from the position resolved for it.
   auto sensors = find_sensors_(register_type, start_address);
   for (auto *sensor : sensors) {
-    sensor->parse_and_publish(start_address, data);
+    sensor->parse_and_publish(data);
   }
 }
 

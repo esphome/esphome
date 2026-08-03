@@ -25,7 +25,7 @@ class ModbusNumber final : public number::Number, public Component, public Senso
   };
 
   void dump_config() override;
-  void parse_and_publish(uint16_t base_address, std::span<const uint8_t> data) override;
+  void parse_and_publish(std::span<const uint8_t> data) override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void set_parent(ModbusController *parent) { this->parent_ = parent; }
   void set_write_multiply(float factor) { this->multiply_by_ = factor; }

@@ -7,10 +7,9 @@ static const char *const TAG = "modbus_controller.select";
 
 void ModbusSelect::dump_config() { LOG_SELECT(TAG, "Modbus Controller Select", this); }
 
-void ModbusSelect::parse_and_publish(uint16_t base_address, std::span<const uint8_t> data) {
-  int64_t value = modbus::helpers::payload_to_number(data, this->sensor_value_type, this->offset_in_range(base_address),
-                                                     this->bitmask)
-                      .value_or(0);
+void ModbusSelect::parse_and_publish(std::span<const uint8_t> data) {
+  int64_t value =
+      modbus::helpers::payload_to_number(data, this->sensor_value_type, this->offset, this->bitmask).value_or(0);
 
   ESP_LOGD(TAG, "New select value %lld from payload", value);
 

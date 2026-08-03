@@ -7,10 +7,10 @@ static const char *const TAG = "modbus_controller.binary_sensor";
 
 void ModbusBinarySensor::dump_config() { LOG_BINARY_SENSOR("", "Modbus Controller Binary Sensor", this); }
 
-void ModbusBinarySensor::parse_and_publish(uint16_t base_address, std::span<const uint8_t> data) {
+void ModbusBinarySensor::parse_and_publish(std::span<const uint8_t> data) {
   bool value;
   // For coils/discrete inputs this is the bit index; for registers it is the byte offset.
-  const size_t offset = this->offset_in_range(base_address);
+  const size_t offset = this->offset;
 
   switch (this->register_type) {
     case modbus::EntityType::DISCRETE_INPUT:

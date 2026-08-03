@@ -30,7 +30,7 @@ class ModbusSwitch final : public Component, public switch_::Switch, public Sens
   void dump_config() override;
   void set_assumed_state(bool assumed_state);
   void set_state(bool state) { this->state = state; }
-  void parse_and_publish(uint16_t base_address, std::span<const uint8_t> data) override;
+  void parse_and_publish(std::span<const uint8_t> data) override;
   void set_parent(ModbusController *parent) { this->parent_ = parent; }
 
   using transform_func_t = optional<bool> (*)(ModbusSwitch *, bool, std::span<const uint8_t>);

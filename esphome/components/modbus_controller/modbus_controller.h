@@ -74,10 +74,11 @@ T get_data(const std::vector<uint8_t> &data, size_t buffer_offset) {
 
 // Span overloads of the deprecated helpers below: read lambdas receive their payload as a
 // std::span<const uint8_t> (previously a const std::vector<uint8_t> &), and a span does not convert to
-// a vector, so existing lambdas calling these by name need an overload that accepts one.
-// Remove together with their vector counterparts.
+// a vector, so existing lambdas calling these by name need an overload that accepts one. These carry
+// this release's deprecation window, since the span forms only exist from it.
+// Remove before 2027.2.0.
 template<typename T>
-ESPDEPRECATED("Use modbus::helpers::get_data() instead. Removed in 2026.10.0", "2026.4.0")
+ESPDEPRECATED("Use modbus::helpers::get_data() instead. Removed in 2027.2.0", "2026.8.0")
 T get_data(std::span<const uint8_t> data, size_t buffer_offset) {
   return modbus::helpers::get_data<T>(data.data(), buffer_offset);
 }
@@ -130,17 +131,10 @@ class ModbusController;
 
 class SensorItem {
  public:
-  /// Parse this sensor's slice out of a range response and publish it. The span points into the response
-  /// buffer (valid only during the call); `base_address` is the address of its first register.
-  virtual void parse_and_publish(uint16_t base_address, std::span<const uint8_t> data) = 0;
-
-  /// Position of this sensor's data within its range response - a byte offset for registers, a bit
-  /// index for coils and discrete inputs. Resolved while the ranges are built, so it already accounts
-  /// for the registers ahead of it (including wide response_size ones) and for any offset inherited
-  /// from an earlier sensor sharing the same register. `base_address` is the range's first register,
-  /// which the resolved value is already relative to; it is accepted so callers inside
-  /// parse_and_publish() can pass what they were handed.
-  size_t offset_in_range(uint16_t /*base_address*/) const { return this->offset; }
+  /// Parse this sensor's slice out of its range's response and publish it. The span points into the
+  /// response buffer and is only valid for the duration of the call. Read the sensor's data from
+  /// `offset` within it.
+  virtual void parse_and_publish(std::span<const uint8_t> data) = 0;
 
   /// Coils and discrete inputs address individual bits; every other type addresses 16-bit registers.
   bool addresses_bits() const {
@@ -183,7 +177,10 @@ class SensorItem {
   SensorValueType sensor_value_type{SensorValueType::RAW};
   uint16_t start_address{0};
   uint32_t bitmask{0};
-  /// Resolved position within the range response - see offset_in_range(). Set while ranges are built.
+  /// Position of this sensor's data within its range's response - a byte offset for registers, a bit
+  /// index for coils and discrete inputs. Resolved while the ranges are built, so it already accounts
+  /// for the registers ahead of it (including wide response_size ones) and for any offset inherited
+  /// from an earlier sensor sharing the same register.
   uint8_t offset{0};
   uint8_t register_count{0};
   uint8_t response_bytes{0};
@@ -482,11 +479,9 @@ inline float payload_to_float(std::span<const uint8_t> data, const SensorItem &i
 }
 
 // Remove before 2027.2.0 (window opened when this helper gained an explicit offset). item.offset is
-// the item's resolved position within the range response, so this decodes the same bytes as passing
-// item.offset_in_range(base_address) explicitly.
-ESPDEPRECATED("Pass the offset explicitly: payload_to_float(data, item, item.offset_in_range(base_address)). "
-              "Removed in 2027.2.0",
-              "2026.8.0")
+// the item's resolved position within its range's response, so this decodes the same bytes as passing
+// that offset explicitly.
+ESPDEPRECATED("Pass the offset explicitly: payload_to_float(data, item, item.offset). Removed in 2027.2.0", "2026.8.0")
 inline float payload_to_float(std::span<const uint8_t> data, const SensorItem &item) {
   return payload_to_float(data, item, item.offset);
 }

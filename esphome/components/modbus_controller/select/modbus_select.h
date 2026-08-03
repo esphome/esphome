@@ -36,7 +36,7 @@ class ModbusSelect final : public Component, public select::Select, public Senso
   void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
 
   void dump_config() override;
-  void parse_and_publish(uint16_t base_address, std::span<const uint8_t> data) override;
+  void parse_and_publish(std::span<const uint8_t> data) override;
   void control(size_t index) override;
 
  protected:

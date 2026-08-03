@@ -27,7 +27,7 @@ class ModbusBinarySensor final : public Component, public binary_sensor::BinaryS
     }
   }
 
-  void parse_and_publish(uint16_t base_address, std::span<const uint8_t> data) override;
+  void parse_and_publish(std::span<const uint8_t> data) override;
   void set_state(bool state) { this->state = state; }
 
   void dump_config() override;
