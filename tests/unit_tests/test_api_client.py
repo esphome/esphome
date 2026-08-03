@@ -174,3 +174,74 @@ async def test_async_run_logs_passes_deep_sleep(
         await api_client.async_run_logs(config, ["1.2.3.4"])
 
     assert mock_run.call_args.kwargs["deep_sleep"] is expected_deep_sleep
+
+
+@pytest.mark.asyncio
+async def test_async_run_logs_full_flow(caplog) -> None:
+    """Drive async_run_logs end to end with a fake connection.
+
+    Covers the encryption key extraction, the multi-address banner, the
+    missing-stacktrace-analyzer fallback, the on_log handler, and the
+    stop() cleanup in the finally block.
+    """
+    caplog.set_level("INFO", logger="esphome.api_client")
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "host"}
+    config = {
+        "esphome": {"name": "test"},
+        "api": {CONF_PORT: 6053, "encryption": {"key": "psk123"}},
+    }
+
+    captured: dict[str, object] = {}
+    stop_called: list[bool] = []
+    printed: list[str] = []
+
+    async def fake_async_run(cli, on_log, **kwargs):
+        captured["on_log"] = on_log
+
+        async def stop():
+            stop_called.append(True)
+
+        return stop
+
+    class FakeMessage:
+        message = b"[I][main:001] hello world\nPC: 0x40104960"
+
+    class FakeEvent:
+        async def wait(self):
+            # Deliver one log message, then unwind the forever-wait.
+            captured["on_log"](FakeMessage())
+            raise RuntimeError("session over")
+
+    with (
+        patch.object(api_client, "async_run", fake_async_run),
+        patch.object(api_client, "APIClient") as mock_client,
+        patch.object(api_client, "safe_print", printed.append),
+        patch.object(api_client.asyncio, "Event", FakeEvent),
+        pytest.raises(RuntimeError, match="session over"),
+    ):
+        await api_client.async_run_logs(config, ["1.2.3.4", "5.6.7.8"])
+
+    # Both addresses reach APIClient, along with the noise key.
+    assert mock_client.call_args.kwargs["noise_psk"] == "psk123"
+    assert mock_client.call_args.kwargs["addresses"] == ["1.2.3.4", "5.6.7.8"]
+    assert "1.2.3.4 or 5.6.7.8" in caplog.text
+    # host has no stacktrace analyzer; the fallback message is logged.
+    assert "Stacktrace analysis is unavailable" in caplog.text
+    # The log message was printed with a timestamp prefix.
+    assert any("hello world" in line for line in printed)
+    # stop() ran in the finally block despite the exception.
+    assert stop_called == [True]
+
+
+def test_run_logs_suppresses_keyboard_interrupt() -> None:
+    """Ctrl-C during log streaming exits cleanly instead of tracebacking."""
+    with patch.object(
+        api_client,
+        "async_run_logs",
+        AsyncMock(side_effect=KeyboardInterrupt),
+    ) as mock_run:
+        api_client.run_logs(
+            {"esphome": {"name": "test"}}, ["1.2.3.4"], subscribe_states=False
+        )
+
+    assert mock_run.call_args.kwargs["subscribe_states"] is False
