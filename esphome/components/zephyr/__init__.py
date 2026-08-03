@@ -1069,10 +1069,19 @@ async def to_code(config: ConfigType) -> None:
     from .dts_lookup import log_board_capabilities, validate_board
 
     board = zephyr_data()["board"]
-    if validate_board(board) is False:
+    board_valid = validate_board(board)
+    if board_valid is False:
         raise EsphomeError(
             f"Board '{board}' was not found. Check the board name, or "
             f"'{CONF_BOARD_SOURCE}' if using a custom board."
+        )
+    if board_valid is None:
+        _LOGGER.warning(
+            "[zephyr] Could not verify board '%s' exists -- board DTS files were "
+            "unavailable (see earlier warning). If '%s' is misspelled, this will "
+            "fail later inside the build instead of here.",
+            board,
+            board,
         )
     log_board_capabilities(
         board,
