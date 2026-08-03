@@ -345,16 +345,22 @@ async def test_uart_mock_modbus_shared_address(
     range-grouping rewrite: without the same-address fallback the shared sensors land in duplicate
     ranges and one never publishes; without the in-range join the 0x9002 sensor splits into a second
     overlapping frame that the mock (which expects exactly one read) never answers.
+
+    A force_new_range sensor at 0x30 plus a plain sensor at 0x10 pin the covered branch's lower-bound
+    check: the forced sensor sorts first, and without the bound the lower-address sensor is absorbed
+    into the forced range with a wrapped byte offset and never polls its own register.
     """
 
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
     # 0x9001 = 0x0397 (919); 0x9001..0x9002 = 0x03970291 (60228241, approx: not exact in float32);
-    # 0x9002 = 0x0291 (657)
+    # 0x9002 = 0x0291 (657); 0x30 = 0x0111 (273); 0x10 = 0x0222 (546)
     expected_values = {
         "shared_word": 919,
         "shared_dword": pytest.approx(60228241),
         "covered_word": 657,
+        "forced_high": 273,
+        "plain_low": 546,
     }
     tracker = SensorTracker(list(expected_values.keys()))
     futures = tracker.expect_all(expected_values)

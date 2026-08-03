@@ -152,7 +152,8 @@ class SensorItem {
   uint16_t range_data_offset{0};
   /// Sum of the configured offsets of earlier sensors sharing this register (re-use chains): each
   /// sensor's data historically starts where the previous sensor's offset pointed. 0 normally.
-  uint16_t shared_offset_bias{0};
+  /// uint8_t like offset itself (the old code accumulated into offset directly), and free in padding.
+  uint8_t shared_offset_bias{0};
   uint16_t skip_updates{0};
   std::vector<uint8_t> custom_data{};
   bool force_new_range{false};
