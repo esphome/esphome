@@ -69,7 +69,7 @@ def generate_cmakelists_txt(component: ConvertedLibrary) -> str:
     # local library, the downloaded dir otherwise); the generated zephyr/ files
     # go under component.path. Sources are already emitted as absolute paths, so
     # they resolve correctly wherever source_path points.
-    read_path = component.source_path or component.path
+    read_path = component.source_dir
 
     build_src_dir = build.get("srcDir")
     if not build_src_dir:
@@ -97,6 +97,10 @@ def generate_cmakelists_txt(component: ConvertedLibrary) -> str:
     link_directories, build_flags = split_list_by_condition(
         build_flags, lambda a: a[2:].strip() if a.startswith("-L") else None
     )
+    # The zephyr/CMakeLists lives in a subdir, so a relative -L would resolve
+    # from there rather than the library root; make link dirs absolute against
+    # the library's own directory (source_dir), matching src/include handling.
+    link_directories = [str((read_path / Path(d)).resolve()) for d in link_directories]
     link_libraries, build_flags = split_list_by_condition(
         build_flags, lambda a: a[2:].strip() if a.startswith("-l") else None
     )

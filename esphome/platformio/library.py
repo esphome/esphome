@@ -235,6 +235,16 @@ class ConvertedLibrary:
     def path(self, value: Path) -> None:
         self._path = value
 
+    @property
+    def source_dir(self) -> Path:
+        """Directory the library's own files (manifest + sources) are read from.
+
+        The build dir for a registry/git source; the user's directory for a
+        local library. Backends read sources from here and emit their build
+        files into ``path``.
+        """
+        return self.source_path or self.path
+
     def get_sanitized_name(self):
         return re.sub(r"[^a-zA-Z0-9_.\-/]", "_", self.name)
 
@@ -805,9 +815,7 @@ def convert_libraries(
             )
         component.download(salt=salt, namespace=backend.cache_key)
 
-        # source_path is where the library's own files live; it defaults to the
-        # build dir (registry/git) and is the user's dir for a local library.
-        source_dir = component.source_path or component.path
+        source_dir = component.source_dir
         library_json_path = source_dir / "library.json"
         library_properties_path = source_dir / "library.properties"
         has_json = library_json_path.is_file()
@@ -832,7 +840,12 @@ def convert_libraries(
         elif has_properties:
             component.data = _parse_library_properties(library_properties_path)
         else:
-            raise RuntimeError(
+            # For a local library a missing manifest is user input, so raise
+            # EsphomeError (clean CLI message) like the missing-directory case;
+            # for registry/git a missing manifest means a corrupt cache, which
+            # is not user error, so keep RuntimeError.
+            error_cls = EsphomeError if node.is_local else RuntimeError
+            raise error_cls(
                 f"Invalid PIO library {key}: missing library.json and "
                 f"library.properties in {source_dir}"
             )

@@ -48,7 +48,7 @@ def _apply_extra_script(component: IDFComponent) -> None:
         return
     # Resolve and confine to the library's source dir so a malicious
     # library.json can't escape (e.g. ``"extraScript": "../../etc/passwd"``).
-    source_path = component.source_path or component.path
+    source_path = component.source_dir
     library_root = source_path.resolve()
     script_path = (source_path / extra_script).resolve()
     if not script_path.is_relative_to(library_root) or not script_path.is_file():
@@ -105,7 +105,7 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     # The library's own files live in source_path (the user's directory for a
     # local library, the downloaded dir otherwise). When it differs from the
     # component dir the CMakeLists must reference sources by absolute path.
-    read_path = component.source_path or component.path
+    read_path = component.source_dir
     external = read_path.resolve() != component.path.resolve()
 
     # Extract the values

@@ -95,6 +95,25 @@ def test_source_root_defaults_to_build_dir() -> None:
     assert GitSource("http://x/y.git", None).source_root(build) == build
 
 
+def test_converted_library_source_dir_defaults_to_path() -> None:
+    c = ConvertedLibrary("x", "1.0", source=None)
+    c.path = Path("/build")
+    assert c.source_dir == Path("/build")  # no source_path set -> build dir
+    c.source_path = Path("/user/lib")
+    assert c.source_dir == Path("/user/lib")
+
+
+def test_convert_libraries_local_missing_manifest_is_esphome_error(
+    setup_core: Path,
+) -> None:
+    # A local directory that has no library.json/library.properties is user
+    # input, so it must surface as a clean EsphomeError (named at the user's dir).
+    src = setup_core / "not_a_lib"
+    src.mkdir()  # exists, but no manifest
+    with pytest.raises(EsphomeError, match=str(src)):
+        convert_libraries([Library("Foo", None, src.as_uri())], _backend())
+
+
 def test_localsource_download_missing_dir_raises(tmp_path: Path) -> None:
     # EsphomeError so the CLI prints it cleanly instead of a traceback.
     with pytest.raises(EsphomeError, match="does not exist"):
