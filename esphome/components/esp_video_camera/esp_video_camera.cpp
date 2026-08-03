@@ -54,6 +54,11 @@ static constexpr size_t FRAME_ALLOC_GRANULARITY = 4096;
 // a wedged encoder cannot trip the task watchdog.
 static constexpr uint32_t JPEG_DQBUF_TIMEOUT_MS = 100;
 
+// Same guard for the sensor/ISP capture device. It normally delivers a frame
+// every 33-66 ms, so this is a hang guard, not a poll interval: a sensor that
+// stops producing must not take the main loop down with it.
+static constexpr uint32_t CAPTURE_DQBUF_TIMEOUT_MS = 500;
+
 // ===========================================================================
 // Pipeline init helpers (run esp_video_init on core 0, optional LEDC XCLK)
 // ===========================================================================
@@ -193,6 +198,23 @@ std::string fourcc_to_string(uint32_t fourcc) {
 // gone" count: EAGAIN is the empty non-blocking queue, and EIO is reported for
 // transient frame errors too, so neither one may tear the capture down.
 bool errno_means_device_gone(int err) { return err == ENODEV || err == ENXIO; }
+
+// Bound how long VIDIOC_DQBUF may block on a device.
+//
+// O_NONBLOCK does nothing here: esp_video_vfs_open() ignores its `flags`
+// argument and esp_video never returns EAGAIN anywhere, so every DQBUF is a
+// blocking wait whose default is dqbuf_timeout_ticks = portMAX_DELAY. Since
+// these DQBUFs run in the ESPHome main loop, an unbounded wait means the task
+// watchdog fires. VIDIOC_S_DQBUF_TIMEOUT is esp_video's private ioctl for it.
+//
+// A timeout surfaces as ESP_FAIL, which esp_err_to_errno() maps to EPERM.
+void set_dqbuf_timeout(int fd, uint32_t timeout_ms, const char *what) {
+  struct timeval timeout;
+  timeout.tv_sec = timeout_ms / 1000;
+  timeout.tv_usec = (timeout_ms % 1000) * 1000;
+  if (ioctl(fd, VIDIOC_S_DQBUF_TIMEOUT, &timeout) < 0)
+    ESP_LOGW(TAG, "Could not bound the %s DQBUF wait: %s", what, strerror(errno));
+}
 
 }  // namespace
 
@@ -743,6 +765,7 @@ bool ESPVideoCamera::start_direct_capture_() {
     ESP_LOGE(TAG, "open(%s) failed: %s", this->resolved_device_.c_str(), strerror(errno));
     return false;
   }
+  set_dqbuf_timeout(this->capture_fd_, CAPTURE_DQBUF_TIMEOUT_MS, "capture");
   if (!this->configure_capture_format_(V4L2_PIX_FMT_MJPEG))
     return false;
   if (!this->setup_capture_buffers_())
@@ -762,6 +785,7 @@ bool ESPVideoCamera::start_jpeg_pipeline_() {
     ESP_LOGE(TAG, "open(%s) failed: %s", ESP_VIDEO_MIPI_CSI_DEVICE_NAME, strerror(errno));
     return false;
   }
+  set_dqbuf_timeout(this->capture_fd_, CAPTURE_DQBUF_TIMEOUT_MS, "capture");
   if (!this->configure_capture_format_(V4L2_PIX_FMT_RGB565))
     return false;
   if (!this->setup_capture_buffers_())
@@ -780,18 +804,10 @@ bool ESPVideoCamera::start_jpeg_pipeline_() {
     return false;
   }
 
-  // ...but bound that wait. esp_video defaults dqbuf_timeout_ticks to
-  // portMAX_DELAY, so an encode that never completes blocks VIDIOC_DQBUF
-  // forever -- and these DQBUFs run in the ESPHome main loop, which then never
-  // feeds the task watchdog. VIDIOC_S_DQBUF_TIMEOUT is esp_video's private
-  // ioctl for this. A 720p hardware encode takes single-digit milliseconds, so
-  // the timeout only ever fires when the encoder is wedged, and the DQBUF error
-  // path resets it (see reset_jpeg_encoder_).
-  struct timeval dqbuf_timeout;
-  dqbuf_timeout.tv_sec = 0;
-  dqbuf_timeout.tv_usec = JPEG_DQBUF_TIMEOUT_MS * 1000;
-  if (ioctl(this->jpeg_fd_, VIDIOC_S_DQBUF_TIMEOUT, &dqbuf_timeout) < 0)
-    ESP_LOGW(TAG, "Could not bound the JPEG DQBUF wait: %s", strerror(errno));
+  // ...but bound that wait. A 720p hardware encode takes single-digit
+  // milliseconds, so this only fires when the encoder is wedged -- and the DQBUF
+  // error path then resets its queues (see reset_jpeg_encoder_).
+  set_dqbuf_timeout(this->jpeg_fd_, JPEG_DQBUF_TIMEOUT_MS, "JPEG encoder");
 
   struct v4l2_format fmt;
   memset(&fmt, 0, sizeof(fmt));
