@@ -222,6 +222,11 @@ jobs:
         with:
           # Keep in sync with requirements_test.txt.
           prek-version: "0.4.11"
+          # This job only runs on pull requests, so nothing ever populates
+          # the cache on dev. Every run would miss and then write a per-pull
+          # request copy, which is what the old seed-cache job existed to
+          # avoid. Building the hooks from scratch takes seconds, so skip it.
+          cache: false
         env:
           PREK_SKIP: pylint,ci-custom
       # Pushes any fixes the hooks made back to the pull request. This step
