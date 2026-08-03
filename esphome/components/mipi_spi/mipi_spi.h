@@ -99,7 +99,10 @@ class MipiSpi : public display::Display,
  public:
   MipiSpi() = default;
   void update() override { this->stop_poller(); }
-  void sleep() override { this->write_command_(SLEEP_IN); };
+  void sleep() override {
+    this->write_command_(SLEEP_IN);
+    delay(5);  // SLPIN: wait >=5ms before the next command per the controller spec
+  };
   void wakeup() override {
     this->write_command_(SLEEP_OUT);
     delay(10);
