@@ -118,6 +118,7 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
         esp_zigbee_factory_reset();  // triggers a reboot
       }
       global_zigbee->joined = false;
+      global_zigbee->join_reported = false;
       global_zigbee->enable_loop_soon_any_context();
       // ezb_bdb_start_top_level_commissioning(EZB_BDB_MODE_NETWORK_STEERING);
     } break;
@@ -334,8 +335,7 @@ void ZigbeeComponent::setup() {
 }
 
 void ZigbeeComponent::loop() {
-  if (!this->join_reported_ && this->joined) {
-    this->join_reported_ = true;
+  if (this->joined && !this->join_reported.exchange(true)) {
     this->join_cb_.call(this->factory_new);
     this->factory_new = false;
   }
