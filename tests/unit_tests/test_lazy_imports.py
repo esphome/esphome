@@ -14,6 +14,7 @@ test pins down *which* heavy modules must stay out entirely.
 
 from __future__ import annotations
 
+from pathlib import Path
 import subprocess
 import sys
 
@@ -53,29 +54,17 @@ def test_main_module_does_not_import_heavy_modules() -> None:
     )
 
 
-def test_storage_json_fast_path_does_not_import_heavy_modules() -> None:
+def test_storage_json_fast_path_does_not_import_heavy_modules(
+    fixture_path: Path,
+) -> None:
     """``apply_to_core`` runs on the upload/logs fast path for every
     platform; parsing the stored framework version must not drag in the
     validation stack or the esp32 component package.
     """
     heavy = HEAVY_MODULES + ("esphome.components.esp32",)
-    check = (
-        "import sys\n"
-        "from esphome.storage_json import StorageJSON\n"
-        "storage = StorageJSON(\n"
-        "    storage_version=1, name='test', friendly_name='Test', comment=None,\n"
-        "    esphome_version='2026.1.0', src_version=1, address='1.2.3.4',\n"
-        "    web_port=None, target_platform='ESP32S3', build_path=None,\n"
-        "    firmware_bin_path=None, loaded_integrations=set(),\n"
-        "    loaded_platforms=set(), no_mdns=False, framework='esp-idf',\n"
-        "    core_platform='esp32', area=None, framework_version='5.3.1',\n"
-        ")\n"
-        "storage.apply_to_core()\n"
-        f"leaked = [m for m in {heavy!r} if m in sys.modules]\n"
-        "print(','.join(leaked))\n"
-    )
+    script = fixture_path / "lazy_imports" / "storage_json_fast_path.py"
     result = subprocess.run(
-        [sys.executable, "-c", check],
+        [sys.executable, str(script), *heavy],
         capture_output=True,
         text=True,
         check=True,
