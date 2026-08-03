@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any
 
 from esphome import automation, core
 from esphome.automation import LambdaAction, StatelessLambdaAction, maybe_simple_id
@@ -9,6 +10,7 @@ from esphome.components.const import (
     CONF_DRAW_ROUNDING,
     KEY_METADATA,
 )
+from esphome.config import path_context
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
@@ -28,6 +30,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, Lambda, coroutine_with_priority
 from esphome.final_validate import full_config
+from esphome.types import ConfigType
 
 DOMAIN = "display"
 IS_PLATFORM_COMPONENT = True
@@ -55,6 +58,7 @@ DisplayOnPageChangeTrigger = display_ns.class_(
 CONF_ON_PAGE_CHANGE = "on_page_change"
 CONF_SHOW_TEST_CARD = "show_test_card"
 CONF_UNSPECIFIED = "unspecified"
+KEY_SLEEP_REFS = "sleep_refs"
 
 DISPLAY_ROTATIONS = {
     0: display_ns.DISPLAY_ROTATION_0_DEGREES,
@@ -123,10 +127,39 @@ FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
 )
 FULL_DISPLAY_SCHEMA.add_extra(_validate_test_card)
 
-DISPLAY_SLEEP_WAKEUP_ACTION_SCHEMA = maybe_simple_id(
-    {
-        cv.GenerateID(CONF_ID): cv.use_id(Display),
-    }
+
+def validate_supports_sleep(value: Any) -> ID:
+    display_id = cv.use_id(Display)(value)
+    for registered_id, metadata in _get_metadata_list():
+        if registered_id is display_id or registered_id.id == display_id.id:
+            if metadata.supports_sleep:
+                return display_id
+            if metadata.sleep_unsupported_reason is not None:
+                raise cv.Invalid(metadata.sleep_unsupported_reason)
+            break
+    raise cv.Invalid("Sleep and wakeup are not implemented for this display type")
+
+
+@dataclass(frozen=True)
+class DisplaySleepRef:
+    display_id: ID
+    component_path: list[str | int]
+
+
+def _record_sleep_ref(config: ConfigType) -> ConfigType:
+    CORE.data.setdefault(DOMAIN, {}).setdefault(KEY_SLEEP_REFS, []).append(
+        DisplaySleepRef(config[CONF_ID], path_context.get())
+    )
+    return config
+
+
+DISPLAY_SLEEP_WAKEUP_ACTION_SCHEMA = cv.All(
+    maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(Display),
+        }
+    ),
+    _record_sleep_ref,
 )
 
 
@@ -178,6 +211,8 @@ class DisplayMetaData:
     has_writer: bool = False
     rotation: int = 0
     draw_rounding: int = 0
+    supports_sleep: bool = False
+    sleep_unsupported_reason: str | None = None
 
 
 def _get_metadata_list() -> list[tuple]:
@@ -246,6 +281,8 @@ def add_metadata(
     has_writer: bool = False,
     rotation: int = 0,
     draw_rounding: int = 0,
+    supports_sleep: bool = False,
+    sleep_unsupported_reason: str | None = None,
 ):
     entries = _get_metadata_list()
     assert not any(existing_id is id for existing_id, _ in entries), (
@@ -262,9 +299,26 @@ def add_metadata(
                 has_writer=has_writer,
                 rotation=rotation,
                 draw_rounding=draw_rounding,
+                supports_sleep=supports_sleep,
+                sleep_unsupported_reason=sleep_unsupported_reason,
             ),
         )
     )
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    sleep_refs = CORE.data.setdefault(DOMAIN, {}).pop(KEY_SLEEP_REFS, [])
+    for ref in sleep_refs:
+        try:
+            validate_supports_sleep(ref.display_id)
+        except cv.Invalid as err:
+            raise cv.FinalExternalInvalid(
+                str(err), path=[cv.ROOT_CONFIG_PATH] + ref.component_path
+            ) from err
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def register_display(var, config):
