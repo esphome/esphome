@@ -586,6 +586,7 @@ class _LibNode:
     key: str
     is_git: bool
     is_local: bool = False
+    is_registry: bool = False
     owner: str | None = None
     pkgname: str | None = None
     requirements: set[str] = field(default_factory=set)
@@ -771,6 +772,7 @@ def convert_libraries(
                 node.is_local = True
                 node.local_path = new_path
         else:
+            node.is_registry = True
             node.owner, node.pkgname = locator
             if version:
                 node.requirements.add(version)
@@ -890,19 +892,26 @@ def convert_libraries(
             node.edges.add(dep_key)
             worklist.append(dep_key)
 
-    # A git or local source wins over any registry version requested for the
-    # same component. That's intentional, but warn so a dropped registry pin
-    # isn't a silent surprise.
+    # A git or local source wins over the same component requested from the
+    # registry. That's intentional, but warn so the dropped registry spec isn't
+    # a silent surprise -- including when it carried no version pin (a bare
+    # cg.add_library("Foo"), which is how most components add libraries).
     for node in nodes.values():
-        if (node.is_git or node.is_local) and node.requirements:
+        if (node.is_git or node.is_local) and (node.is_registry or node.requirements):
+            source = "git" if node.is_git else "local"
+            registry = (
+                f"registry version(s) {sorted(node.requirements)}"
+                if node.requirements
+                else "a registry package"
+            )
             _LOGGER.warning(
-                "Library %s is requested both from a %s source (%s) and as "
-                "registry version(s) %s; using the %s source.",
+                "Library %s is requested both from a %s source (%s) and as %s; "
+                "using the %s source.",
                 node.key,
-                "git" if node.is_git else "local",
+                source,
                 node.url if node.is_git else node.local_path,
-                sorted(node.requirements),
-                "git" if node.is_git else "local",
+                registry,
+                source,
             )
 
     # Two graph nodes that resolve to the same component name (e.g. a package

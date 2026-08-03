@@ -110,8 +110,11 @@ def test_convert_libraries_local_missing_manifest_is_esphome_error(
     # input, so it must surface as a clean EsphomeError (named at the user's dir).
     src = setup_core / "not_a_lib"
     src.mkdir()  # exists, but no manifest
-    with pytest.raises(EsphomeError, match=str(src)):
+    # match= is a regex; a Windows path has backslashes, so match a literal
+    # fragment and check the directory is named separately.
+    with pytest.raises(EsphomeError, match="missing library.json") as excinfo:
         convert_libraries([Library("Foo", None, src.as_uri())], _backend())
+    assert str(src) in str(excinfo.value)
 
 
 def test_localsource_download_missing_dir_raises(tmp_path: Path) -> None:
@@ -434,6 +437,33 @@ def test_convert_libraries_local_overrides_registry_version(
 
     assert isinstance(top[0].source, LocalSource)
     assert "local source" in caplog.text
+
+
+def test_convert_libraries_versionless_registry_and_local_warns(
+    setup_core: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # A bare cg.add_library("Foo") (versionless registry, the common case) that
+    # collides with a local directory of the same key must still warn -- the
+    # registry spec is dropped and the local folder silently takes over.
+    src = setup_core / "foo"
+    src.mkdir()
+    (src / "library.json").write_text(json.dumps({"name": "Foo"}))
+
+    def fail_registry(owner: str, pkgname: str, requirements: set[str]) -> None:
+        raise AssertionError(f"registry consulted for {owner}/{pkgname}")
+
+    monkeypatch.setattr(lib, "_resolve_registry_version", fail_registry)
+
+    with caplog.at_level(logging.WARNING, logger="esphome.platformio.library"):
+        top = convert_libraries(
+            [Library("Foo", None, None), Library("Foo", None, src.as_uri())],
+            _backend(),
+        )
+
+    assert isinstance(top[0].source, LocalSource)
+    assert "a registry package" in caplog.text
 
 
 def test_convert_libraries_two_local_dirs_warns(
