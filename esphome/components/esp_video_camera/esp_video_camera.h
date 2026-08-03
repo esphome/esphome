@@ -67,7 +67,7 @@ class ESPVideoCamera : public camera::Camera {
   float get_setup_priority() const override { return setup_priority::DATA; }
 
   // Pipeline configuration -----------------------------------------------------
-  void set_i2c_bus(i2c::I2CBus *bus) { this->i2c_bus_ = bus; }
+  void set_i2c_bus(i2c::InternalI2CBus *bus) { this->i2c_bus_ = bus; }
   void set_xclk_pin(gpio_num_t pin) { this->xclk_pin_ = pin; }
   void set_xclk_freq(uint32_t freq) { this->xclk_freq_ = freq; }
   void set_enable_xclk_init(bool enable) { this->enable_xclk_init_ = enable; }
@@ -105,12 +105,15 @@ class ESPVideoCamera : public camera::Camera {
   // Hardware-JPEG path: capture RGB565 (sensor/ISP) -> JPEG M2M encoder.
   bool start_jpeg_pipeline_();
   void loop_jpeg_pipeline_();
+  // STREAMOFF/STREAMON both encoder queues to release buffers stuck in the
+  // driver after a failed QBUF/DQBUF. Returns false if the encoder is dead.
+  bool reset_jpeg_encoder_();
   // Direct path: a source that already delivers JPEG/MJPEG (USB-UVC / device).
   bool start_direct_capture_();
   void loop_direct_capture_();
 
   // Pipeline
-  i2c::I2CBus *i2c_bus_{nullptr};
+  i2c::InternalI2CBus *i2c_bus_{nullptr};
   gpio_num_t xclk_pin_{GPIO_NUM_36};
   uint32_t xclk_freq_{24000000};
   bool enable_xclk_init_{false};
@@ -122,7 +125,7 @@ class ESPVideoCamera : public camera::Camera {
   std::string resolved_device_;
   bool is_hw_jpeg_{false};
   std::string resolution_{"auto"};
-  int jpeg_quality_{10};
+  int jpeg_quality_{80};  // V4L2 semantics: 1..100, higher is better
   float max_framerate_{10.0f};
   uint32_t min_interval_ms_{100};
   uint32_t last_frame_ms_{0};

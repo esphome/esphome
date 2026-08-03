@@ -3,5 +3,5 @@ esp_video_camera:
   i2c_id: i2c_bus
   device: jpeg
   resolution: auto
-  jpeg_quality: 10
+  jpeg_quality: 80
   max_framerate: 10

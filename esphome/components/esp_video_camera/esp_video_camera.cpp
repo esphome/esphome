@@ -8,6 +8,7 @@
 
 #include "esp_heap_caps.h"
 
+#include <atomic>
 #include <cerrno>
 #include <cstring>
 #include <fcntl.h>
@@ -37,23 +38,49 @@ namespace esphome::esp_video_camera {
 
 static const char *const TAG = "esp_video_camera";
 
+// How long setup() waits for esp_video_init() on core 0 before giving up.
+static constexpr uint32_t INIT_TIMEOUT_MS = 10000;
+
+// Frame buffers are rounded up to this many bytes so that consecutive frames of
+// slightly different sizes reuse the same heap block (see deliver_frame_).
+static constexpr size_t FRAME_ALLOC_GRANULARITY = 4096;
+
 // ===========================================================================
 // Pipeline init helpers (run esp_video_init on core 0, optional LEDC XCLK)
 // ===========================================================================
 namespace {
 
-struct VideoInitParams {
-  esp_video_init_config_t *config;
-  esp_err_t result;
-  SemaphoreHandle_t done;
+// Shared between init_pipeline_() and the core-0 init task. It owns the configs
+// esp_video_init() reads, so they must outlive init_pipeline_(): the wait below
+// can time out while the task is still running, and stack-allocated configs
+// would be gone by then. Both parties hold a reference; the last one to let go
+// destroys it.
+struct VideoInitContext {
+  esp_video_init_csi_config_t csi_config{};
+#if CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
+  esp_video_init_usb_uvc_config_t uvc_config{};
+#endif
+  esp_video_init_config_t video_config{};
+  SemaphoreHandle_t done{nullptr};
+  esp_err_t result{ESP_FAIL};
+  std::atomic<int> refs{2};
+
+  void release() {
+    if (this->refs.fetch_sub(1) == 1) {
+      if (this->done != nullptr)
+        vSemaphoreDelete(this->done);
+      delete this;
+    }
+  }
 };
 
 // ESP32-P4 camera hardware must be initialised on core 0; run esp_video_init
 // there regardless of which core ESPHome runs on.
 void video_init_task_core0(void *param) {
-  auto *p = static_cast<VideoInitParams *>(param);
-  p->result = esp_video_init(p->config);
-  xSemaphoreGive(p->done);
+  auto *ctx = static_cast<VideoInitContext *>(param);
+  ctx->result = esp_video_init(&ctx->video_config);
+  xSemaphoreGive(ctx->done);
+  ctx->release();
   vTaskDelete(nullptr);
 }
 
@@ -256,7 +283,7 @@ bool ESPVideoCamera::init_pipeline_() {
   // MIPI-CSI pipeline entirely: esp_video_init() runs sensor detection only
   // when config->csi != NULL, so leaving it NULL avoids trying (and failing)
   // to detect a MIPI sensor that isn't present on a USB-only board.
-  const bool uvc_only = this->device_.rfind("uvc", 0) == 0;
+  const bool uvc_only = this->device_.starts_with("uvc");
 
   // Start XCLK via LEDC if requested (MIPI sensors need it before init).
   if (!uvc_only && this->enable_xclk_init_ && this->xclk_pin_ != (gpio_num_t) -1) {
@@ -267,7 +294,17 @@ bool ESPVideoCamera::init_pipeline_() {
     vTaskDelay(pdMS_TO_TICKS(50));
   }
 
-  esp_video_init_csi_config_t csi_config = {};
+  // Heap-allocated so the configs stay valid for the init task even if the wait
+  // below times out (see VideoInitContext).
+  auto *ctx = new VideoInitContext();
+  ctx->done = xSemaphoreCreateBinary();
+  if (ctx->done == nullptr) {
+    ctx->refs.store(1);  // no task was started
+    ctx->release();
+    return false;
+  }
+
+  esp_video_init_csi_config_t &csi_config = ctx->csi_config;
   csi_config.sccb_config.init_sccb = false;  // reuse the ESPHome I2C bus
   csi_config.sccb_config.i2c_handle = i2c_handle;
   csi_config.sccb_config.freq = 400000;
@@ -276,12 +313,12 @@ bool ESPVideoCamera::init_pipeline_() {
   // Note: esp_video >= 2.x no longer takes xclk_pin/xclk_freq in the CSI config.
   // The sensor XCLK is generated separately via LEDC (see init_xclk_ledc above).
 
-  esp_video_init_config_t video_config = {};
+  esp_video_init_config_t &video_config = ctx->video_config;
   if (!uvc_only)
     video_config.csi = &csi_config;
 
 #if CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
-  esp_video_init_usb_uvc_config_t uvc_config = {};
+  esp_video_init_usb_uvc_config_t &uvc_config = ctx->uvc_config;
   if (this->enable_uvc_) {
     uvc_config.uvc.uvc_dev_num = 1;
     uvc_config.uvc.task_stack = 4096;
@@ -303,7 +340,12 @@ bool ESPVideoCamera::init_pipeline_() {
     } else if (host_ret == ESP_ERR_INVALID_STATE) {
       ESP_LOGW(TAG, "USB Host already installed by another component; sharing it for UVC");
     } else {
+      // Without the USB Host library the UVC device can never enumerate, so
+      // there is nothing to gain from continuing into esp_video_init().
       ESP_LOGE(TAG, "usb_host_install() failed: %s", esp_err_to_name(host_ret));
+      ctx->refs.store(1);  // no task was started
+      ctx->release();
+      return false;
     }
     uvc_config.usb.init_usb_host_lib = false;  // we manage the USB host library (see above)
     uvc_config.usb.task_stack = 4096;
@@ -314,30 +356,27 @@ bool ESPVideoCamera::init_pipeline_() {
 #endif
 
   // Run esp_video_init() on core 0 (hardware requirement).
-  SemaphoreHandle_t done = xSemaphoreCreateBinary();
-  if (done == nullptr)
-    return false;
-  VideoInitParams params = {};
-  params.config = &video_config;
-  params.done = done;
-  TaskHandle_t task = nullptr;
-  if (xTaskCreatePinnedToCore(video_init_task_core0, "esp_video_init", 8192, &params, 5, &task, 0) != pdPASS) {
-    vSemaphoreDelete(done);
+  if (xTaskCreatePinnedToCore(video_init_task_core0, "esp_video_init", 8192, ctx, 5, nullptr, 0) != pdPASS) {
+    ESP_LOGE(TAG, "Could not start the esp_video_init task");
+    ctx->refs.store(1);  // no task took a reference
+    ctx->release();
     return false;
   }
-  if (xSemaphoreTake(done, pdMS_TO_TICKS(10000)) != pdTRUE) {
-    ESP_LOGE(TAG, "esp_video_init() timed out");
-    vSemaphoreDelete(done);
-    return false;
-  }
-  vSemaphoreDelete(done);
 
-  if (params.result != ESP_OK) {
-    ESP_LOGE(TAG, "esp_video_init() failed: %s", esp_err_to_name(params.result));
-    return false;
+  bool ok = false;
+  if (xSemaphoreTake(ctx->done, pdMS_TO_TICKS(INIT_TIMEOUT_MS)) != pdTRUE) {
+    // The task keeps running and keeps its reference to ctx; it frees the
+    // context itself once esp_video_init() eventually returns.
+    ESP_LOGE(TAG, "esp_video_init() timed out");
+  } else if (ctx->result != ESP_OK) {
+    ESP_LOGE(TAG, "esp_video_init() failed: %s", esp_err_to_name(ctx->result));
+  } else {
+    ok = true;
   }
-  this->pipeline_ready_ = true;
-  return true;
+  ctx->release();
+
+  this->pipeline_ready_ = ok;
+  return ok;
 }
 
 // ===========================================================================
@@ -384,11 +423,16 @@ void ESPVideoCamera::deliver_frame_(const uint8_t *data, size_t length) {
     return;  // throttled to max_framerate
   this->last_frame_ms_ = now;
 
-  uint8_t *copy = (uint8_t *) heap_caps_malloc(length, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  // JPEG frames vary in size from frame to frame. Allocating the exact length
+  // every time hands the allocator a different size class on each iteration and
+  // fragments the heap; rounding up to a block boundary means the freed frame is
+  // almost always reusable for the next one.
+  size_t alloc_size = (length + FRAME_ALLOC_GRANULARITY - 1) & ~(size_t) (FRAME_ALLOC_GRANULARITY - 1);
+  uint8_t *copy = (uint8_t *) heap_caps_malloc(alloc_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   if (copy == nullptr)
-    copy = (uint8_t *) heap_caps_malloc(length, MALLOC_CAP_8BIT);
+    copy = (uint8_t *) heap_caps_malloc(alloc_size, MALLOC_CAP_8BIT);
   if (copy == nullptr) {
-    ESP_LOGW(TAG, "Failed to allocate %u bytes (frame dropped)", (unsigned) length);
+    ESP_LOGW(TAG, "Failed to allocate %u bytes (frame dropped)", (unsigned) alloc_size);
     return;
   }
   memcpy(copy, data, length);
@@ -433,6 +477,7 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
     return;
   }
 
+  bool encoder_broken = false;
   if (cap_buf.index < (uint32_t) this->num_capture_buffers_ && cap_buf.bytesused > 0) {
     // Feed the raw frame to the encoder OUTPUT queue (USERPTR) and re-arm the
     // CAPTURE queue (JPEG output). The JPEG fd is blocking, so the DQBUFs below
@@ -465,6 +510,7 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
       // good once all MAX_BUFFERS slots are gone.
       ESP_LOGW(TAG, "JPEG encoder CAPTURE QBUF failed: %s", strerror(errno));
       ioctl(this->jpeg_fd_, VIDIOC_DQBUF, &done_buf);
+      encoder_broken = true;
     } else {
       // Reclaim the consumed input buffer.
       ioctl(this->jpeg_fd_, VIDIOC_DQBUF, &done_buf);
@@ -476,7 +522,10 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
       if (ioctl(this->jpeg_fd_, VIDIOC_DQBUF, &jpeg_buf) == 0) {
         this->deliver_frame_((const uint8_t *) this->jpeg_out_buffer_.start, jpeg_buf.bytesused);
       } else {
+        // The encoded buffer stays queued in the driver, and there is only one:
+        // without a reset every following iteration fails the same way.
         ESP_LOGW(TAG, "JPEG DQBUF failed: %s", strerror(errno));
+        encoder_broken = true;
       }
     }
   }
@@ -484,6 +533,27 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
   // Return the raw frame to the sensor/ISP device.
   if (ioctl(this->capture_fd_, VIDIOC_QBUF, &cap_buf) < 0)
     ESP_LOGW(TAG, "capture QBUF failed: %s", strerror(errno));
+
+  // Do this last: it may tear the capture down, invalidating capture_fd_.
+  if (encoder_broken && !this->reset_jpeg_encoder_()) {
+    ESP_LOGE(TAG, "JPEG encoder is unrecoverable; stopping capture");
+    this->stop_capture_();
+  }
+}
+
+bool ESPVideoCamera::reset_jpeg_encoder_() {
+  int otype = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+  int jtype = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  // STREAMOFF hands every queued buffer back to userspace, which is the only way
+  // out once a QBUF/DQBUF has left one stuck inside the driver.
+  ioctl(this->jpeg_fd_, VIDIOC_STREAMOFF, &otype);
+  ioctl(this->jpeg_fd_, VIDIOC_STREAMOFF, &jtype);
+  if (ioctl(this->jpeg_fd_, VIDIOC_STREAMON, &otype) < 0 || ioctl(this->jpeg_fd_, VIDIOC_STREAMON, &jtype) < 0) {
+    ESP_LOGE(TAG, "JPEG encoder STREAMON failed on reset: %s", strerror(errno));
+    return false;
+  }
+  ESP_LOGW(TAG, "JPEG encoder queues were reset after an error");
+  return true;
 }
 
 camera::CameraImageReader *ESPVideoCamera::create_image_reader() { return new ESPVideoCameraImageReader(); }

@@ -13,9 +13,11 @@ from pathlib import Path
 import esphome.codegen as cg
 from esphome.components import i2c
 from esphome.components.esp32 import (
+    VARIANT_ESP32P4,
     add_extra_build_file,
     add_idf_component,
     add_idf_sdkconfig_option,
+    only_on_variant,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_DEVICE, CONF_I2C_ID, CONF_ID, CONF_RESOLUTION
@@ -77,14 +79,26 @@ def _xclk_pin(value):
     return cv.int_range(min=-1, max=48)(value)
 
 
-CONFIG_SCHEMA = (
+def _validate_uvc_device(config):
+    if config[CONF_DEVICE].startswith("uvc") and not config[CONF_ENABLE_UVC]:
+        raise cv.Invalid(
+            f"device: {config[CONF_DEVICE]} needs enable_uvc: true, otherwise the "
+            "USB-UVC host driver is not compiled in and the device never appears.",
+            path=[CONF_DEVICE],
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ESPVideoCamera),
-            cv.Required(CONF_I2C_ID): cv.use_id(i2c.I2CBus),
+            cv.Required(CONF_I2C_ID): cv.use_id(i2c.InternalI2CBus),
             cv.Optional(CONF_DEVICE, default="jpeg"): _validate_device,
             cv.Optional(CONF_RESOLUTION, default="auto"): _validate_resolution,
-            cv.Optional(CONF_JPEG_QUALITY, default=10): cv.int_range(min=1, max=63),
+            # V4L2_CID_JPEG_COMPRESSION_QUALITY semantics: 1..100, higher is
+            # better. esp_video's hardware encoder defaults to 80.
+            cv.Optional(CONF_JPEG_QUALITY, default=80): cv.int_range(min=1, max=100),
             cv.Optional(CONF_MAX_FRAMERATE, default=10): cv.float_range(
                 min=0.1, max=60.0
             ),
@@ -97,14 +111,20 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.ENTITY_BASE_SCHEMA)
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
+    # The camera pipeline (MIPI-CSI, ISP, hardware JPEG) is ESP32-P4 silicon,
+    # and esp_video 2.2.0 requires ESP-IDF 5.4 or newer. Reject both at
+    # validation time rather than at code generation.
+    _validate_uvc_device,
+    only_on_variant(supported=[VARIANT_ESP32P4], msg_prefix="esp_video_camera"),
+    cv.require_framework_version(
+        esp_idf=cv.Version(5, 4, 0),
+        extra_message="esp_video_camera requires the esp-idf framework.",
+    ),
 )
 
 
 async def to_code(config):
-    if not CORE.using_toolchain_esp_idf:
-        raise cv.Invalid("esp_video_camera requires the esp-idf framework.")
-
     cg.add_define("USE_CAMERA")
 
     var = cg.new_Pvariable(config[CONF_ID])
