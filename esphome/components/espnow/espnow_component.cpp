@@ -361,9 +361,11 @@ void ESPNowComponent::loop() {
   }
 
   // Nothing left to do; sleep until a callback or send() re-enables the loop.
-  // A packet in flight (current_send_packet_) needs no loop time: the send
-  // callback re-enables the loop when the result arrives.
-  if (this->receive_packet_queue_.empty() && this->send_packet_queue_.empty()) {
+  // A packet in flight (current_send_packet_) needs no loop time even when more
+  // packets are queued behind it: the send callback re-enables the loop when
+  // the result arrives, and the SENT event handler above starts the next send.
+  if (this->receive_packet_queue_.empty() &&
+      (this->current_send_packet_ != nullptr || this->send_packet_queue_.empty())) {
     this->disable_loop();
   }
 }
