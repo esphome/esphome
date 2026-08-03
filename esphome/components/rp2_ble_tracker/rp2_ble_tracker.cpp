@@ -114,7 +114,8 @@ void RP2BLETracker::dump_config() {
                 "  Scan Type: %s\n"
                 "  Continuous Scanning: %s",
                 this->scan_duration_ / 1000, this->scan_interval_ * BLE_SCAN_UNIT_MS, this->scan_interval_,
-                this->scan_window_ * BLE_SCAN_UNIT_MS, this->scan_window_, this->scan_active_ ? "ACTIVE" : "PASSIVE",
+                this->scan_window_ * BLE_SCAN_UNIT_MS, this->scan_window_,
+                this->scan_active_ ? LOG_STR_LITERAL("ACTIVE") : LOG_STR_LITERAL("PASSIVE"),
                 YESNO(this->scan_continuous_));
 }
 
@@ -176,7 +177,8 @@ void RP2BLETracker::start_scan_() {
   // Log every explicit start at DEBUG — stop_scan_() logs every stop at DEBUG, and
   // in non-continuous mode each period is an explicit start, so asymmetric logging
   // would read as the scanner failing to come back up.
-  ESP_LOGD(TAG, "Scan started (%s, window=%.0fms, interval=%.0fms)", this->scan_active_ ? "active" : "passive",
+  ESP_LOGD(TAG, "Scan started (%s, window=%.0fms, interval=%.0fms)",
+           this->scan_active_ ? LOG_STR_LITERAL("active") : LOG_STR_LITERAL("passive"),
            this->scan_window_ * BLE_SCAN_UNIT_MS, this->scan_interval_ * BLE_SCAN_UNIT_MS);
   // Re-anchor the scan period to every successful start — first start (so the
   // period counts from the scan, not from boot) and every restart after a stop (so
