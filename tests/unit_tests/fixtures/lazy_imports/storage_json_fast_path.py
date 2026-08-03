@@ -33,8 +33,12 @@ storage = StorageJSON(
 storage.apply_to_core()
 
 # Fail loudly if the esp32 fast path stopped doing its work; otherwise an
-# empty leak list could just mean nothing ran.
-assert CORE.data[KEY_ESP32][KEY_VARIANT] == "ESP32S3"
-assert CORE.data[KEY_ESP32][KEY_IDF_VERSION] == Version(5, 3, 1)
+# empty leak list could just mean nothing ran. Explicit exits rather than
+# asserts so PYTHONOPTIMIZE in the ambient environment can't strip them.
+esp32_data = CORE.data.get(KEY_ESP32, {})
+if esp32_data.get(KEY_VARIANT) != "ESP32S3":
+    sys.exit(f"apply_to_core did not record the variant: {esp32_data!r}")
+if esp32_data.get(KEY_IDF_VERSION) != Version(5, 3, 1):
+    sys.exit(f"apply_to_core did not parse the framework version: {esp32_data!r}")
 
 print(",".join(module for module in sys.argv[1:] if module in sys.modules))

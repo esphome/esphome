@@ -33,6 +33,10 @@ HEAVY_MODULES = (
     "voluptuous",
 )
 
+# Everything the storage fast path must keep out of sys.modules; the
+# existence guard and the leak check must watch the same list.
+FAST_PATH_HEAVY_MODULES = HEAVY_MODULES + ("esphome.components.esp32",)
+
 
 def test_main_module_does_not_import_heavy_modules() -> None:
     """A bare ``import esphome.__main__`` must not drag in validation/codegen."""
@@ -58,7 +62,7 @@ def test_main_module_does_not_import_heavy_modules() -> None:
 
 def test_watched_heavy_modules_exist() -> None:
     """A renamed heavy module would silently disable the leak checks."""
-    for module in HEAVY_MODULES + ("esphome.components.esp32",):
+    for module in FAST_PATH_HEAVY_MODULES:
         assert importlib.util.find_spec(module) is not None, (
             f"{module} no longer resolves; update the heavy-module lists"
         )
@@ -71,13 +75,12 @@ def test_storage_json_fast_path_does_not_import_heavy_modules(
     platform; parsing the stored framework version must not drag in the
     validation stack or the esp32 component package.
     """
-    heavy = HEAVY_MODULES + ("esphome.components.esp32",)
     script = fixture_path / "lazy_imports" / "storage_json_fast_path.py"
     # Running a script file drops the cwd from sys.path, so point the child
     # at the repo root explicitly; check=False keeps its stderr visible.
     env = os.environ | {"PYTHONPATH": str(Path(__file__).parents[2])}
     result = subprocess.run(
-        [sys.executable, str(script), *heavy],
+        [sys.executable, str(script), *FAST_PATH_HEAVY_MODULES],
         capture_output=True,
         text=True,
         env=env,
