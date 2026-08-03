@@ -1711,8 +1711,16 @@ void StorageWorker::run_chunk_(TransferRequest &req, bool on_task) {
       // OpenMode::WRITE truncates for the filesystem branch above; write_chunk() addresses by
       // offset and never shortens, so a shorter source would leave the old tail behind.
       StorageError err = static_cast<NetworkStorage *>(req.dst_storage)->truncate(req.dst_path, 0);
-      if (this->wait_for_network_ready_(req, err, req.dst_storage))
+      if (this->wait_for_network_ready_(req, err, req.dst_storage)) {
+        // The source handle (if any) is already open but handles_open is still false, so a
+        // retry would re-enter this block and reopen it, leaking one handle per retry until
+        // the pool is exhausted. Close it here; the next pass reopens cleanly.
+        if (req.src_is_fs && req.src_handle != nullptr) {
+          static_cast<FilesystemStorage *>(req.src_storage)->close(req.src_handle);
+          req.src_handle = nullptr;
+        }
         return;
+      }
       if (err != StorageError::OK) {
         req.handles_open = true;
         finish_request(req, err);
