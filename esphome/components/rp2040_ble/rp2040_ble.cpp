@@ -183,6 +183,7 @@ void RP2040BLE::packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, 
       reverse_bd_addr(addr, mac_lsb);  // LSB-first, the BLE convention consumers expect
       global_ble->enqueue_scan_report_(mac_lsb, static_cast<int8_t>(gap_event_advertising_report_get_rssi(packet)),
                                        gap_event_advertising_report_get_address_type(packet),
+                                       gap_event_advertising_report_get_advertising_event_type(packet),
                                        gap_event_advertising_report_get_data(packet),
                                        gap_event_advertising_report_get_data_length(packet));
       break;
@@ -196,8 +197,8 @@ void RP2040BLE::packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, 
 // pool is sized to the queue capacity (SIZE-1), so allocate() returns nullptr
 // before push() can find the ring full.
 // NOLINTBEGIN(clang-analyzer-unix.Malloc)
-void RP2040BLE::enqueue_scan_report_(const uint8_t *mac_lsb_first, int8_t rssi, uint8_t addr_type, const uint8_t *data,
-                                     uint16_t data_len) {
+void RP2040BLE::enqueue_scan_report_(const uint8_t *mac_lsb_first, int8_t rssi, uint8_t addr_type, uint8_t event_type,
+                                     const uint8_t *data, uint16_t data_len) {
   BLEScanReport *report = this->report_pool_.allocate();
   if (report == nullptr) {
     // Pool exhausted — the queue is full; count and drop.
@@ -207,6 +208,7 @@ void RP2040BLE::enqueue_scan_report_(const uint8_t *mac_lsb_first, int8_t rssi, 
   memcpy(report->mac, mac_lsb_first, 6);
   report->rssi = rssi;
   report->addr_type = addr_type;
+  report->event_type = event_type;
   report->data_len =
       (data_len <= sizeof(report->data)) ? static_cast<uint8_t>(data_len) : static_cast<uint8_t>(sizeof(report->data));
   memcpy(report->data, data, report->data_len);

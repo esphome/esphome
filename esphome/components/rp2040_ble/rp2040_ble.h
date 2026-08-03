@@ -28,11 +28,12 @@ struct BLEScanReport {
   uint8_t mac[6];  // LSB-first, as the controller delivers it
   int8_t rssi;     // signed dBm
   uint8_t addr_type;
-  uint8_t data_len;  // bytes valid in data[]
+  uint8_t event_type;  // GAP advertising event type (ADV_IND .. SCAN_RSP); lets a merger tell the two apart
+  uint8_t data_len;    // bytes valid in data[]
   // Legacy advertisement (31) + scan response (31). BTstack delivers the two
   // as separate reports, so each report fills at most 31 bytes today; the 62
-  // matches the API raw-advertisement contract and leaves room for a consumer
-  // side merge (bluetooth_proxy) without an ABI change.
+  // matches the API raw-advertisement contract and, with event_type, leaves
+  // room for a consumer side merge (bluetooth_proxy) without a struct change.
   uint8_t data[62];
 
   // EventPool contract: nothing is heap-allocated inside a report.
@@ -97,8 +98,8 @@ class RP2040BLE final : public Component {
 
   /// Buffer one controller report (BTstack packet handler, CYW43 async-context
   /// IRQ — bounded copy into the lock-free queue, nothing else).
-  void enqueue_scan_report_(const uint8_t *mac_lsb_first, int8_t rssi, uint8_t addr_type, const uint8_t *data,
-                            uint16_t data_len);
+  void enqueue_scan_report_(const uint8_t *mac_lsb_first, int8_t rssi, uint8_t addr_type, uint8_t event_type,
+                            const uint8_t *data, uint16_t data_len);
 
   std::vector<BLEScanListener *> scan_listeners_;
   // Report ring: the BTstack packet handler (async-context IRQ) allocates a
