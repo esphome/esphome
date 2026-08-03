@@ -8,4 +8,5 @@ rp2_ble_tracker:
     interval: 5000us
     window: 2500us
     duration: 5min
+    active: false
     continuous: false

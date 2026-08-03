@@ -13,7 +13,13 @@ import esphome.codegen as cg
 from esphome.components import ble_device_base, ota, rp2040_ble
 from esphome.components.const import CONF_SCAN_PARAMETERS, CONF_WINDOW
 import esphome.config_validation as cv
-from esphome.const import CONF_CONTINUOUS, CONF_DURATION, CONF_ID, CONF_INTERVAL
+from esphome.const import (
+    CONF_ACTIVE,
+    CONF_CONTINUOUS,
+    CONF_DURATION,
+    CONF_ID,
+    CONF_INTERVAL,
+)
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
@@ -33,7 +39,9 @@ RP2BLETracker = rp2_ble_tracker_ns.class_(
 # the same defaults as bk72xx_ble_tracker, leaving the radio mostly free for
 # WiFi on the shared CYW43. Converted to the controller's 0.625 ms BLE units in
 # to_code().
-SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema("100ms")
+SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
+    "100ms", supports_active=True
+)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -68,6 +76,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_scan_interval(ble_device_base.to_ble_units(scan[CONF_INTERVAL])))
     cg.add(var.set_scan_window(ble_device_base.to_ble_units(scan[CONF_WINDOW])))
     cg.add(var.set_scan_duration(scan[CONF_DURATION].total_milliseconds))
+    cg.add(var.set_scan_active(scan[CONF_ACTIVE]))
     cg.add(var.set_scan_continuous(scan[CONF_CONTINUOUS]))
 
     CORE.add_job(_emit_listener_count)

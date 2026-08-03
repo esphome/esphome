@@ -79,14 +79,15 @@ class RP2040BLE final : public Component {
   /// Register a consumer for scan reports (delivered on the main loop via loop()).
   void register_scan_listener(BLEScanListener *listener) { this->scan_listeners_.push_back(listener); }
 
-  /// Start a passive controller scan. Interval/window are in BLE units
+  /// Start a controller scan; active sends scan requests and receives scan
+  /// responses as separate reports. Interval/window are in BLE units
   /// (0.625 ms). Returns false until the stack is ACTIVE (callers retry — the
   /// tracker's rate-limited retry loop); powering the stack on stays with the
   /// user (enable_on_boot or an explicit enable() call). The controller keeps
   /// no scan state: a disable()/enable() power cycle ends the scan, and the
   /// caller must call scan_start() again once the stack is back to ACTIVE
   /// (the tracker's loop() reconciliation does exactly that).
-  bool scan_start(uint16_t interval, uint16_t window);
+  bool scan_start(uint16_t interval, uint16_t window, bool active);
   /// Stop the controller scan (no-op when not scanning).
   void scan_stop();
 

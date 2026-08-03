@@ -62,11 +62,11 @@ def test_esp32_defaults_are_valid() -> None:
 
 def test_rp2_defaults_are_valid() -> None:
     """rp2 pins 100 ms interval / 30 ms window — a 30 % duty cycle leaving the
-    shared CYW43 radio mostly free for WiFi."""
+    shared CYW43 radio mostly free for WiFi — and exposes active (default on)."""
     config = RP2_SCHEMA({})
     assert to_ble_units(config["interval"]) == 160
     assert to_ble_units(config["window"]) == 48
-    assert "active" not in config
+    assert config["active"] is True
 
 
 def test_esp32_active_can_disable() -> None:

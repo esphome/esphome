@@ -216,7 +216,7 @@ void RP2040BLE::enqueue_scan_report_(const uint8_t *mac_lsb_first, int8_t rssi, 
 
 void RP2040BLE::get_mac_msb_first(uint8_t out[6]) const { memcpy(out, this->ble_mac_, 6); }
 
-bool RP2040BLE::scan_start(uint16_t interval, uint16_t window) {
+bool RP2040BLE::scan_start(uint16_t interval, uint16_t window, bool active) {
   if (!this->is_active()) {
     // Power control stays with the user (enable_on_boot or an explicit
     // enable() call) — auto-enabling here would defeat enable_on_boot: false
@@ -226,7 +226,7 @@ bool RP2040BLE::scan_start(uint16_t interval, uint16_t window) {
   // Serialize with the BTstack background worker (arduino-pico's BluetoothHCI
   // takes the same lock around its gap_* calls).
   BluetoothLock lock;
-  gap_set_scan_params(0 /* passive */, interval, window, 0 /* accept all */);
+  gap_set_scan_params(active ? 1 : 0, interval, window, 0 /* accept all */);
   gap_start_scan();
   return true;
 }

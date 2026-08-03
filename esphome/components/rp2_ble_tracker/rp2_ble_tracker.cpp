@@ -111,10 +111,11 @@ void RP2BLETracker::dump_config() {
                 "  Scan Duration: %" PRIu32 " s\n"
                 "  Scan Interval: %.0f ms (%" PRIu32 " BLE units)\n"
                 "  Scan Window: %.0f ms (%" PRIu32 " BLE units)\n"
-                "  Scan Type: PASSIVE\n"
+                "  Scan Type: %s\n"
                 "  Continuous Scanning: %s",
                 this->scan_duration_ / 1000, this->scan_interval_ * BLE_SCAN_UNIT_MS, this->scan_interval_,
-                this->scan_window_ * BLE_SCAN_UNIT_MS, this->scan_window_, YESNO(this->scan_continuous_));
+                this->scan_window_ * BLE_SCAN_UNIT_MS, this->scan_window_, this->scan_active_ ? "ACTIVE" : "PASSIVE",
+                YESNO(this->scan_continuous_));
 }
 
 void RP2BLETracker::on_scan_report(const rp2040_ble::BLEScanReport &report) {
@@ -167,16 +168,16 @@ void RP2BLETracker::start_scan_() {
   // covers a failed start that came through the public start_scan().
   this->last_scan_start_attempt_ = App.get_loop_component_start_time();
 
-  if (!this->parent_->scan_start(static_cast<uint16_t>(this->scan_interval_),
-                                 static_cast<uint16_t>(this->scan_window_)))
+  if (!this->parent_->scan_start(static_cast<uint16_t>(this->scan_interval_), static_cast<uint16_t>(this->scan_window_),
+                                 this->scan_active_))
     return;
 
   this->scan_running_ = true;
   // Log every explicit start at DEBUG — stop_scan_() logs every stop at DEBUG, and
   // in non-continuous mode each period is an explicit start, so asymmetric logging
   // would read as the scanner failing to come back up.
-  ESP_LOGD(TAG, "Scan started (passive, window=%.0fms, interval=%.0fms)", this->scan_window_ * BLE_SCAN_UNIT_MS,
-           this->scan_interval_ * BLE_SCAN_UNIT_MS);
+  ESP_LOGD(TAG, "Scan started (%s, window=%.0fms, interval=%.0fms)", this->scan_active_ ? "active" : "passive",
+           this->scan_window_ * BLE_SCAN_UNIT_MS, this->scan_interval_ * BLE_SCAN_UNIT_MS);
   // Re-anchor the scan period to every successful start — first start (so the
   // period counts from the scan, not from boot) and every restart after a stop (so
   // resuming after longer than scan_duration, e.g. a failed OTA restoring continuous
