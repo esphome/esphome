@@ -28,7 +28,11 @@ void ZigbeeAttribute::set_attr_() {
 }
 
 void ZigbeeAttribute::report_(bool has_lock) {
-  if (!this->zb_->is_joined() || !this->report_enabled) {
+  if (!this->report_enabled) {
+    return;
+  }
+  if (!this->zb_->is_joined()) {
+    this->report_requested_ = true;
     return;
   }
   if (has_lock or esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
@@ -44,6 +48,7 @@ void ZigbeeAttribute::report_(bool has_lock) {
     cmd.payload.attr_id = this->attr_id_;
 
     ezb_zcl_report_attr_cmd_req(&cmd);
+    this->report_requested_ = false;
     if (!has_lock) {
       esp_zigbee_lock_release();
     }
@@ -62,7 +67,11 @@ void ZigbeeAttribute::loop() {
     this->set_attr_();
   }
 
-  if (!this->set_attr_requested_) {
+  if (this->report_requested_) {
+    this->report_(false);
+  }
+
+  if (!this->report_requested_ && !this->set_attr_requested_) {
     this->disable_loop();
   }
 }
