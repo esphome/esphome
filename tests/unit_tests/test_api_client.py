@@ -20,11 +20,13 @@ from esphome.core import CORE, EsphomeError
 
 
 def test_component_shim_reexports_runtime_client() -> None:
-    """The old import path must keep working for external code."""
+    """The old import paths must keep working for external code."""
+    from esphome.components import api
     from esphome.components.api import client as shim
 
     assert shim.run_logs is api_client.run_logs
     assert shim.async_run_logs is api_client.async_run_logs
+    assert api.CONF_ENCRYPTION is CONF_ENCRYPTION
 
 
 def test_decoder_swallows_esphome_error() -> None:
@@ -199,7 +201,13 @@ async def test_async_run_logs_full_flow(caplog) -> None:
     }
 
     stop = AsyncMock()
-    mock_run = AsyncMock(return_value=stop)
+    run_started = asyncio.Event()
+
+    async def fake_async_run(*args, **kwargs):
+        run_started.set()
+        return stop
+
+    mock_run = AsyncMock(side_effect=fake_async_run)
     printed: list[str] = []
 
     with (
@@ -210,9 +218,10 @@ async def test_async_run_logs_full_flow(caplog) -> None:
         task = asyncio.get_running_loop().create_task(
             api_client.async_run_logs(config, ["1.2.3.4", "5.6.7.8"])
         )
-        # Let the task run up to the forever-wait.
-        while not mock_run.await_count:
-            await asyncio.sleep(0)
+        # Let the task run up to the forever-wait; the timeout fails the
+        # test instead of hanging it if the task dies early.
+        async with asyncio.timeout(1):
+            await run_started.wait()
         on_log = mock_run.call_args.args[1]
         on_log(Mock(message=b"[I][main:001] hello world\nPC: 0x40104960"))
         # Cancellation is the real termination path; stop() must still run.

@@ -106,6 +106,9 @@ async def async_run_logs(
         module = importlib.import_module("esphome.components." + CORE.target_platform)
         platform_process_stacktrace = module.process_stacktrace
     except (AttributeError, ImportError):
+        # Distinguish "platform has no analyzer" from a genuinely broken
+        # platform package when debugging.
+        _LOGGER.debug("Stacktrace analyzer lookup failed", exc_info=True)
         _LOGGER.info(
             'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
             CORE.target_platform,
