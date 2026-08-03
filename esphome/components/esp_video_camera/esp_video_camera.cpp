@@ -559,12 +559,12 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
 
     if (ioctl(this->jpeg_fd_, VIDIOC_QBUF, &out_buf) < 0) {
       ESP_LOGW(TAG, "JPEG encoder OUTPUT QBUF failed: %s", strerror(errno));
-      // EINVAL here has four possible causes inside esp_video, and the driver
-      // does not say which: a memory-type or index mismatch, a userptr not
-      // aligned to the queue's cache alignment, or a userptr outside the memory
-      // class the queue was configured for (the encoder asks for PSRAM). Dump
-      // the pointer once per capture so the next log identifies it directly
-      // instead of leaving it to guesswork.
+      // esp_video reports EINVAL for several distinct conditions here without
+      // saying which: a still-busy element (handled by the DQBUF check below),
+      // a memory-type or index mismatch, a userptr not aligned to the queue's
+      // cache alignment, or a userptr outside the memory class the queue was
+      // configured for. Dump the buffer once per capture so a recurrence names
+      // the cause instead of leaving it to guesswork.
       if (!this->logged_qbuf_failure_) {
         this->logged_qbuf_failure_ = true;
         auto ptr = (uintptr_t) this->capture_buffers_[cap_buf.index].start;
@@ -580,10 +580,20 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
       ESP_LOGW(TAG, "JPEG encoder CAPTURE QBUF failed: %s", strerror(errno));
       ioctl(this->jpeg_fd_, VIDIOC_DQBUF, &done_buf);
       encoder_broken = true;
+    } else if (ioctl(this->jpeg_fd_, VIDIOC_DQBUF, &done_buf) < 0) {
+      // Reclaiming the consumed input buffer is not optional. esp_video refuses
+      // to queue an element that it still considers busy:
+      //
+      //     // esp_video_queue_element()
+      //     if (!ELEMENT_IS_FREE(element))
+      //         return ESP_ERR_INVALID_ARG;   // surfaces as EINVAL
+      //
+      // and this path always queues OUTPUT index 0, so one missed reclaim wedges
+      // the encoder permanently: every later frame is rejected with EINVAL.
+      // STREAMOFF/STREAMON is what frees the elements again.
+      ESP_LOGW(TAG, "JPEG encoder OUTPUT DQBUF failed: %s", strerror(errno));
+      encoder_broken = true;
     } else {
-      // Reclaim the consumed input buffer.
-      ioctl(this->jpeg_fd_, VIDIOC_DQBUF, &done_buf);
-
       // Read back the encoded JPEG.
       memset(&jpeg_buf, 0, sizeof(jpeg_buf));
       jpeg_buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
