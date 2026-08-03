@@ -259,6 +259,25 @@ void ESPVideoCamera::setup() {
     this->resolved_device_ = d;
   }
 
+  // The hardware-JPEG path encodes frames produced by the MIPI-CSI device, so the
+  // encoder alone is not enough: /dev/video0 only exists once esp_video_init()
+  // has actually found a sensor on the SCCB bus. The encoder is always there, so
+  // without this check the component reports itself ready and then silently never
+  // delivers a frame.
+  if (this->is_hw_jpeg_) {
+    int csi_fd = open(ESP_VIDEO_MIPI_CSI_DEVICE_NAME, O_RDWR | O_NONBLOCK);
+    if (csi_fd < 0) {
+      ESP_LOGE(TAG,
+               "No MIPI-CSI sensor detected: %s is unavailable. Check the sensor wiring and that it "
+               "answers on the configured I2C bus; the drivers built into this firmware are listed "
+               "in the config dump above.",
+               ESP_VIDEO_MIPI_CSI_DEVICE_NAME);
+      this->mark_failed();
+      return;
+    }
+    close(csi_fd);
+  }
+
   int test_fd = open(this->resolved_device_.c_str(), O_RDWR | O_NONBLOCK);
   if (test_fd < 0) {
     ESP_LOGE(TAG, "V4L2 device '%s' unavailable (errno=%d: %s)", this->resolved_device_.c_str(), errno,
@@ -856,6 +875,22 @@ void ESPVideoCamera::dump_config() {
   if (this->is_hw_jpeg_)
     ESP_LOGCONFIG(TAG, "  JPEG quality: %d", this->jpeg_quality_);
   ESP_LOGCONFIG(TAG, "  Max framerate: %.1f fps", this->max_framerate_);
+
+  // Which sensor drivers esp_cam_sensor actually built in. esp_video_init()
+  // probes exactly these over SCCB, so when auto-detection comes up empty this
+  // line says whether the sensor you have is even represented in the firmware.
+  std::string drivers;
+#ifdef CONFIG_CAMERA_SC202CS
+  drivers += " SC202CS(0x36)";
+#endif
+#ifdef CONFIG_CAMERA_OV5647
+  drivers += " OV5647(0x36)";
+#endif
+#ifdef CONFIG_CAMERA_SC2336
+  drivers += " SC2336(0x30)";
+#endif
+  ESP_LOGCONFIG(TAG, "  MIPI-CSI drivers:%s", drivers.empty() ? " none" : drivers.c_str());
+
   if (this->is_failed())
     ESP_LOGCONFIG(TAG, "  State: FAILED");
 }
