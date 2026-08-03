@@ -31,11 +31,16 @@ HEAVY_MODULES = (
 )
 
 
-def test_main_module_does_not_import_heavy_modules() -> None:
-    """A bare ``import esphome.__main__`` must not drag in validation/codegen."""
+def _leaked_heavy_modules(module: str) -> str:
+    """Import ``module`` in a subprocess and report the heavy modules it pulled.
+
+    Any ``esphome.components.*`` package counts as heavy: executing a
+    component package drags in codegen/validation machinery by design.
+    """
     check = (
-        "import sys; import esphome.__main__; "
+        f"import sys; import {module}; "
         f"leaked = [m for m in {HEAVY_MODULES!r} if m in sys.modules]; "
+        "leaked += [m for m in sys.modules if m.startswith('esphome.components.')]; "
         "print(','.join(leaked))"
     )
     result = subprocess.run(
@@ -44,7 +49,12 @@ def test_main_module_does_not_import_heavy_modules() -> None:
         text=True,
         check=True,
     )
-    leaked = result.stdout.strip()
+    return result.stdout.strip()
+
+
+def test_main_module_does_not_import_heavy_modules() -> None:
+    """A bare ``import esphome.__main__`` must not drag in validation/codegen."""
+    leaked = _leaked_heavy_modules("esphome.__main__")
     assert not leaked, (
         f"esphome.__main__ imports heavy modules at top level: {leaked}. "
         "Import them lazily inside the command that needs them instead; "
@@ -56,23 +66,11 @@ def test_main_module_does_not_import_heavy_modules() -> None:
 def test_api_client_does_not_import_heavy_modules() -> None:
     """``esphome.api_client`` is on the logs fast path and must stay light.
 
-    Importing it must not execute the api component package (which pulls
-    the whole validation stack: logger, esp32, writer, config, jinja2,
-    voluptuous).
+    Importing it must not execute any component package (the api package
+    pulls the whole validation stack: logger, esp32, writer, config,
+    jinja2, voluptuous).
     """
-    heavy = HEAVY_MODULES + ("esphome.components.api",)
-    check = (
-        "import sys; import esphome.api_client; "
-        f"leaked = [m for m in {heavy!r} if m in sys.modules]; "
-        "print(','.join(leaked))"
-    )
-    result = subprocess.run(
-        [sys.executable, "-c", check],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    leaked = result.stdout.strip()
+    leaked = _leaked_heavy_modules("esphome.api_client")
     assert not leaked, (
         f"esphome.api_client imports heavy modules at top level: {leaked}. "
         "The logs fast path skips validation; importing the validation "

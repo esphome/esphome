@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 from datetime import datetime
 import importlib
 import logging
@@ -14,8 +15,6 @@ with warnings.catch_warnings():
     )
     from aioesphomeapi import APIClient, parse_log_message
     from aioesphomeapi.log_runner import async_run
-
-import contextlib
 
 from esphome.const import CONF_ENCRYPTION, CONF_KEY, CONF_PORT, __version__
 from esphome.core import CORE
@@ -50,17 +49,16 @@ class _LogLineProcessor:
     def __init__(self, config: dict[str, Any], platform_handler: Any | None) -> None:
         self._config = config
         self._platform_handler = platform_handler
-        self._decode_enabled = True
+        self._decode_enabled = platform_handler is not None
         self.backtrace_state = False
 
     def process_line(self, raw_line: str) -> None:
         if not self._decode_enabled:
             return
         try:
-            if self._platform_handler is not None:
-                self.backtrace_state = self._platform_handler(
-                    self._config, raw_line, self.backtrace_state
-                )
+            self.backtrace_state = self._platform_handler(
+                self._config, raw_line, self.backtrace_state
+            )
         except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-except
             self._decode_enabled = False
             self.backtrace_state = False
@@ -88,12 +86,9 @@ async def async_run_logs(
     if (encryption := conf.get(CONF_ENCRYPTION)) and (key := encryption.get(CONF_KEY)):
         noise_psk = key
 
-    if len(addresses) == 1:
-        _LOGGER.info("Starting log output from %s using esphome API", addresses[0])
-    else:
-        _LOGGER.info(
-            "Starting log output from %s using esphome API", " or ".join(addresses)
-        )
+    _LOGGER.info(
+        "Starting log output from %s using esphome API", " or ".join(addresses)
+    )
 
     cli = APIClient(
         addresses[0],  # Primary address for compatibility
@@ -169,7 +164,7 @@ def run_logs(
     subscribe_states: bool = True,
 ) -> None:
     """Run the logs command."""
-    with contextlib.suppress(KeyboardInterrupt):
+    with suppress(KeyboardInterrupt):
         asyncio.run(
             async_run_logs(config, addresses, subscribe_states=subscribe_states)
         )
