@@ -304,7 +304,9 @@ async def to_code(config):
     if CONF_HUMIDITY_SETPOINT in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY_SETPOINT])
         cg.add(var.set_humidity_setpoint_sensor(sens))
-    # MideaUART library requires WiFi (WiFi auto-enables Network via dependency mapping)
+    # MideaUART uses the Arduino WiFi API for the network-notify frame
+    # (WiFi auto-enables Network via dependency mapping). On ESP-IDF the
+    # library talks to esp_wifi directly, so no library entry is needed.
     if CORE.is_esp32 and CORE.using_arduino:
         cg.add_library("WiFi", None)
     # Using the repository until a release containing ESP-IDF support is published
