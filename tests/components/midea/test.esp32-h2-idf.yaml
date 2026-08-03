@@ -1,0 +1,14 @@
+# ESP32-H2 has no WiFi PHY; this verifies the component builds without wifi
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-h2-idf.yaml
+
+climate:
+  - platform: midea
+    id: midea_unit
+    name: Midea Climate
+    supported_modes:
+      - FAN_ONLY
+      - HEAT_COOL
+      - COOL
+      - HEAT
+      - DRY
