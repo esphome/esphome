@@ -72,9 +72,25 @@ T get_data(const std::vector<uint8_t> &data, size_t buffer_offset) {
   return modbus::helpers::get_data<T>(data, buffer_offset);
 }
 
+// Span overloads of the deprecated helpers below: read lambdas receive their payload as a
+// std::span<const uint8_t> (previously a const std::vector<uint8_t> &), and a span does not convert to
+// a vector, so existing lambdas calling these by name need an overload that accepts one.
+// Remove together with their vector counterparts.
+template<typename T>
+ESPDEPRECATED("Use modbus::helpers::get_data() instead. Removed in 2026.10.0", "2026.4.0")
+T get_data(std::span<const uint8_t> data, size_t buffer_offset) {
+  return modbus::helpers::get_data<T>(data.data(), buffer_offset);
+}
+
 // Remove before 2027.2.0 (window restarted when the migration target changed to bit_from_packed())
 ESPDEPRECATED("Use modbus::helpers::bit_from_packed() instead. Removed in 2027.2.0", "2026.4.0")
 inline bool coil_from_vector(int coil, const std::vector<uint8_t> &data) {
+  return modbus::helpers::bit_from_packed(coil, data);
+}
+
+// Remove before 2027.2.0
+ESPDEPRECATED("Use modbus::helpers::bit_from_packed() instead. Removed in 2027.2.0", "2026.8.0")
+inline bool coil_from_vector(int coil, std::span<const uint8_t> data) {
   return modbus::helpers::bit_from_packed(coil, data);
 }
 
@@ -94,6 +110,13 @@ inline int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueTy
                                  uint32_t bitmask) {
   return modbus::helpers::payload_to_number(std::span<const uint8_t>(data), sensor_value_type, offset, bitmask)
       .value_or(0);
+}
+
+// Remove before 2027.2.0
+ESPDEPRECATED("Use modbus::helpers::payload_to_number() instead. Removed in 2027.2.0", "2026.8.0")
+inline int64_t payload_to_number(std::span<const uint8_t> data, SensorValueType sensor_value_type, uint8_t offset,
+                                 uint32_t bitmask) {
+  return modbus::helpers::payload_to_number(data, sensor_value_type, offset, bitmask).value_or(0);
 }
 
 ESPDEPRECATED("Use modbus::helpers::float_to_payload() instead. Removed in 2026.10.0", "2026.4.0")
@@ -439,9 +462,13 @@ inline float payload_to_float(std::span<const uint8_t> data, const SensorItem &i
   return float_value;
 }
 
-// Remove before 2026.10.0 (window opened when parse_and_publish gained a per-range base_address and this
-// helper an explicit offset). Preserves the old single-response semantics (offset taken from the item).
-ESPDEPRECATED("Pass an explicit offset: payload_to_float(data, item, item.offset). Removed in 2026.10.0", "2026.8.0")
+// Remove before 2027.2.0 (window opened when parse_and_publish gained a per-range base_address and this
+// helper an explicit offset). Decodes at the item's configured offset, which is correct only for a
+// response that starts at the item's own register - inside parse_and_publish() the payload covers the
+// whole range, so pass item.offset_in_range(base_address) instead.
+ESPDEPRECATED("Pass the resolved offset: payload_to_float(data, item, item.offset_in_range(base_address)). "
+              "Removed in 2027.2.0",
+              "2026.8.0")
 inline float payload_to_float(std::span<const uint8_t> data, const SensorItem &item) {
   return payload_to_float(data, item, item.offset);
 }

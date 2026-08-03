@@ -39,6 +39,16 @@ uart_mock:
         inject_rx: [0x01, 0x03, 0x02, 0x01, 0x11, 0x79, 0xD8] # 0x30 = 0x0111 = 273
       - expect_tx: [0x01, 0x03, 0x00, 0x10, 0x00, 0x01, 0x85, 0xCF] # Read holding 0x10 count 1 (own range)
         inject_rx: [0x01, 0x03, 0x02, 0x02, 0x22, 0x39, 0x3D] # 0x10 = 0x0222 = 546
+      # A wide sensor (U_QWORD at 0x100, 4 registers) followed by plain sensors at 0x101 and 0x103.
+      # None of them merge, so all three poll separately - exactly as before the range refactor. The
+      # 0x103 sensor sits at the wide range's tail address, so it must not anchor a re-use join on a
+      # mid-range predecessor and inherit its byte offset.
+      - expect_tx: [0x01, 0x03, 0x01, 0x00, 0x00, 0x04, 0x45, 0xF5] # Read holding 0x100 count 4
+        inject_rx: [0x01, 0x03, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x94, 0x3C] # = 100
+      - expect_tx: [0x01, 0x03, 0x01, 0x01, 0x00, 0x01, 0xD4, 0x36] # Read holding 0x101 count 1
+        inject_rx: [0x01, 0x03, 0x02, 0x01, 0x41, 0x79, 0xE4] # 0x101 = 0x0141 = 321
+      - expect_tx: [0x01, 0x03, 0x01, 0x03, 0x00, 0x01, 0x75, 0xF6] # Read holding 0x103 count 1
+        inject_rx: [0x01, 0x03, 0x02, 0x01, 0xA5, 0x79, 0xAF] # 0x103 = 0x01A5 = 421
 
 modbus:
   uart_id: virtual_uart_dev
@@ -85,6 +95,26 @@ sensor:
   - platform: modbus_controller
     name: "plain_low"
     address: 0x10
+    register_type: holding
+    value_type: U_WORD
+    modbus_controller_id: modbus_controller_ok
+  # Wide sensor spanning 0x100-0x103; the two sensors below sit inside its span but do not merge
+  - platform: modbus_controller
+    name: "wide_qword"
+    address: 0x100
+    register_type: holding
+    value_type: U_QWORD
+    modbus_controller_id: modbus_controller_ok
+  - platform: modbus_controller
+    name: "inside_wide"
+    address: 0x101
+    register_type: holding
+    value_type: U_WORD
+    modbus_controller_id: modbus_controller_ok
+  # At the wide range's tail address: must decode its own poll, not inherit a mid-range byte offset
+  - platform: modbus_controller
+    name: "tail_of_wide"
+    address: 0x103
     register_type: holding
     value_type: U_WORD
     modbus_controller_id: modbus_controller_ok

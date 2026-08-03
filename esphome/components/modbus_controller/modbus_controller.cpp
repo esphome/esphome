@@ -218,6 +218,11 @@ size_t ModbusController::create_register_ranges_() {
   // Whether the open range was opened by a force_new_range sensor: covered sensors must not silently
   // fold into a read the user explicitly isolated.
   bool range_forced = false;
+  // Whether a same-address (shared-start) join happened on the open range. The covered branch applies
+  // only then: ranges the old grouping kept separate stay separate (same frames, and their skip_updates
+  // never cross-couple); only shared-address shapes, which the old code grouped in a
+  // registration-order dependent way, are additionally grouped by coverage.
+  bool range_shared = false;
   // Bytes consumed by registers already in the current range; feeds each sensor's range_data_offset so
   // registers returning more than 2*register_count bytes (response_size) push later sensors along.
   size_t range_bytes = 0;
@@ -230,8 +235,12 @@ size_t ModbusController::create_register_ranges_() {
     if (have_range && !curr->force_new_range && r.register_type == curr->register_type &&
         curr->register_type != modbus::EntityType::CUSTOM) {
       if (curr->start_address == (r.start_address + r.register_count - prev->register_count) &&
+          prev->start_address + prev->register_count == r.start_address + r.register_count &&
           curr->register_count == prev->register_count && curr->get_register_size() == prev->get_register_size()) {
         // this sensor re-uses the previous register's data (e.g. a second sensor on the same register).
+        // The address test reconstructs prev's address from the range tail, so it only means what it
+        // says while prev actually occupies that tail: a mid-range predecessor (covered join) must not
+        // anchor a re-use, or a later tail-address sensor would inherit its byte offset.
         // Register sensors historically also inherit the previous sensor's resolved offset
         // (shared_offset_bias), so a chain configured 0/2/4 resolves to bytes 0/2/6 as it always has.
         curr->range_data_offset = prev->range_data_offset;
@@ -248,14 +257,15 @@ size_t ModbusController::create_register_ranges_() {
         r.register_count += curr->register_count;
         join = true;
         ESP_LOGV(TAG, "Extend range to include 0x%X", curr->start_address);
-      } else if (!range_forced && curr->start_address >= r.start_address &&
+      } else if (range_shared && !range_forced && curr->start_address >= r.start_address &&
                  curr->start_address + curr->register_count <= r.start_address + r.register_count &&
                  range_bytes == static_cast<size_t>(r.register_count) * 2) {
-        // this sensor's registers are already covered by the range (a preceding sensor at its start
-        // address widened it), so it reads its slice of the existing response rather than splitting
-        // into a second, overlapping poll. The lower bound matters: force_new_range sensors sort first,
-        // so iteration is not address-monotonic. Only standard-width ranges qualify - a response_size
-        // register in the range makes interior byte positions unknowable - and a force-opened range is
+        // a shared-address join widened this range past its natural end, and this sensor's registers
+        // now fall inside it, so it reads its slice of the existing response rather than splitting into
+        // a second, overlapping poll. Restricted to widened ranges (range_shared) so ranges the old
+        // grouping kept apart are untouched. The lower bound matters: force_new_range sensors sort
+        // first, so iteration is not address-monotonic. Only standard-width ranges qualify - a
+        // response_size register makes interior byte positions unknowable - and a force-opened range is
         // never folded into, preserving its isolation.
         curr->range_data_offset = static_cast<uint16_t>((curr->start_address - r.start_address) * 2);
         curr->shared_offset_bias = 0;
@@ -274,6 +284,7 @@ size_t ModbusController::create_register_ranges_() {
       curr->shared_offset_bias = 0;
       r.register_count = std::max(r.register_count, curr->register_count);
       range_bytes = std::max(range_bytes, curr->get_register_size());
+      range_shared = true;
       join = true;
       ESP_LOGV(TAG, "Share range start 0x%X", curr->start_address);
     }
@@ -286,6 +297,7 @@ size_t ModbusController::create_register_ranges_() {
       r = {};
       range_bytes = curr->get_register_size();
       range_forced = curr->force_new_range;
+      range_shared = false;
       curr->range_data_offset = 0;
       curr->shared_offset_bias = 0;
       r.start_address = curr->start_address;

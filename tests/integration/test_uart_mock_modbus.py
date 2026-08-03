@@ -349,6 +349,10 @@ async def test_uart_mock_modbus_shared_address(
     A force_new_range sensor at 0x30 plus a plain sensor at 0x10 pin the covered branch's lower-bound
     check: the forced sensor sorts first, and without the bound the lower-address sensor is absorbed
     into the forced range with a wrapped byte offset and never polls its own register.
+
+    A U_QWORD at 0x100 with plain sensors at 0x101 and 0x103 pins that non-merging sensors inside a
+    wide sensor's span keep polling separately, and that the sensor at the span's tail address does not
+    anchor a re-use join on a mid-range predecessor (which would make it decode that sensor's bytes).
     """
 
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
@@ -361,6 +365,9 @@ async def test_uart_mock_modbus_shared_address(
         "covered_word": 657,
         "forced_high": 273,
         "plain_low": 546,
+        "wide_qword": 100,
+        "inside_wide": 321,
+        "tail_of_wide": 421,
     }
     tracker = SensorTracker(list(expected_values.keys()))
     futures = tracker.expect_all(expected_values)
