@@ -134,7 +134,7 @@ def _merge_endpoints(
     return True
 
 
-def validate_endpoints(ep_dict: dict[int, dict]) -> None:
+def _validate_endpoints(ep_dict: dict[int, dict]) -> None:
     """Validate endpoint device type selection before endpoint creation.
 
     This resolves any deferred device type selections stored in CONF_USE_DEVICE_TYPE,
@@ -172,7 +172,7 @@ def create_ep(router: bool) -> None:
     zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
     ep_dict: dict[int, dict] = zb_data.setdefault(KEY_ZIGBEE_EP, {})
     ep_list: list[dict] = zb_data.setdefault(KEY_ZIGBEE_EP_NO_NUM, [])
-    validate_endpoints(ep_dict)
+    _validate_endpoints(ep_dict)
     # create dummy endpoint if list is empty
     if not ep_dict and not ep_list:
         ep_type = "CUSTOM_ATTR"
@@ -212,7 +212,8 @@ def add_ep(ep: dict[str, Any], ep_num: int | None, use_type: bool | None) -> Non
     Args:
         ep: Endpoint configuration dictionary.
         ep_num: Optional explicit endpoint number.
-        use_type: Optional boolean indicating whether the endpoint should defer device type selection.
+        use_type: Optional boolean indicating whether this component's device type should be
+        used for the endpoint (True claims it, False drops it, None leaves it as a candidate).
     """
     zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
     if use_type is False:
