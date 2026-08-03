@@ -50,8 +50,18 @@ def get_platform_hook(platform: str, hook: str) -> Callable[..., Any] | None:
     hook also returns None, so a stale registry degrades to the generic
     path instead of raising.
     """
-    if platform not in PLATFORM_HOOKS[hook] and platform in _IN_TREE_PLATFORMS:
-        return None
+    if platform not in PLATFORM_HOOKS[hook]:
+        if platform in _IN_TREE_PLATFORMS:
+            return None
+        # External platform: probe the imported package like the CLI used
+        # to. The package can be missing entirely on the warm-cache path,
+        # where the external_components meta finder never registered;
+        # degrade to the generic path instead of raising.
+        try:
+            module = importlib.import_module(f"esphome.components.{platform}")
+        except ImportError:
+            return None
+        return getattr(module, hook, None)
     return getattr(
         importlib.import_module(f"esphome.components.{platform}"), hook, None
     )

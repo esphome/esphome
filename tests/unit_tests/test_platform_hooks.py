@@ -82,6 +82,18 @@ def test_external_platform_falls_back_to_probe(
     assert imported == ["esphome.components.my_external_chip"]
 
 
+def test_external_platform_missing_module_degrades(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A warm-cache run may not have the external package importable."""
+    monkeypatch.setattr(
+        platform_hooks.importlib,
+        "import_module",
+        Mock(side_effect=ModuleNotFoundError("no esphome.components.my_external_chip")),
+    )
+    assert platform_hooks.get_platform_hook("my_external_chip", "show_logs") is None
+
+
 def test_lookup_miss_does_not_import_platform_package(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
