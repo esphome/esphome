@@ -61,6 +61,7 @@ storage_ns = cg.esphome_ns.namespace("storage")
 Storage = storage_ns.class_("Storage", cg.Component)
 StoragePtr = Storage.operator("ptr")
 PathStorage = storage_ns.class_("PathStorage", Storage)
+FilesystemStorage = storage_ns.class_("FilesystemStorage", PathStorage)
 RawStorage = storage_ns.class_("RawStorage", Storage)
 MountableStorage = storage_ns.class_("MountableStorage")
 StorageRegistry = storage_ns.class_("StorageRegistry", cg.Component)
@@ -878,6 +879,23 @@ async def mount_action_to_code(config, action_id, template_arg, args):
 )
 async def unmount_action_to_code(config, action_id, template_arg, args):
     return await _build_mount_action(config, action_id, template_arg, args, False)
+
+
+FormatAction = storage_ns.class_("FormatAction", automation.Action)
+
+_FORMAT_SCHEMA = cv.maybe_simple_value(
+    {cv.Required(CONF_ID): cv.use_id(FilesystemStorage)}, key=CONF_ID
+)
+
+
+@automation.register_action(
+    "storage.format", FormatAction, _FORMAT_SCHEMA, synchronous=True
+)
+async def format_action_to_code(config, action_id, template_arg, args):
+    # Any FilesystemStorage may be a target; the driver's format() reports NOT_SUPPORTED at
+    # runtime if its backend cannot format.
+    target = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, target)
 
 
 # ---------------------------------------------------------------------------

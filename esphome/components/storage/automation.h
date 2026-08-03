@@ -131,6 +131,7 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf);
 
 // Non-template workers for the actions below -- all error logging lives in the .cpp.
 void perform_mount(MountableStorage *target, bool mount);
+void perform_format(FilesystemStorage *target);
 // Returns the error so the no-worker fallback in perform_file_copy_async() can report it --
 // on_complete's contract is "error text, empty = success", which a void return cannot honour.
 // The raw helpers below already work this way.
@@ -420,6 +421,16 @@ template<typename... Ts> class MountAction : public Action<Ts...> {
  protected:
   MountableStorage *target_;
   bool mount_;
+};
+
+template<typename... Ts> class FormatAction : public Action<Ts...> {
+ public:
+  explicit FormatAction(FilesystemStorage *target) : target_(target) {}
+
+  void play(const Ts &...x) override { perform_format(this->target_); }
+
+ protected:
+  FilesystemStorage *target_;
 };
 
 }  // namespace esphome::storage

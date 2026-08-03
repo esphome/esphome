@@ -727,4 +727,15 @@ void perform_mount(MountableStorage *target, bool mount) {
   }
 }
 
+void perform_format(FilesystemStorage *target) {
+  StorageError err = target->format();
+  if (err == StorageError::NOT_SUPPORTED) {
+    ESP_LOGE(TAG, "format is not supported by this filesystem");
+  } else if (err != StorageError::OK) {
+    ESP_LOGE(TAG, "format failed (%s)", error_to_string(err));
+  } else {
+    ESP_LOGI(TAG, "filesystem formatted");
+  }
+}
+
 }  // namespace esphome::storage
