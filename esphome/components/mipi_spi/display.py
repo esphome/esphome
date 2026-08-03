@@ -13,6 +13,7 @@ from esphome.components.const import (
 from esphome.components.display import CONF_SHOW_TEST_CARD
 from esphome.components.mipi import (
     CONF_PIXEL_MODE,
+    CONF_SUPPORTS_SLEEP,
     CONF_USE_AXIS_FLIPS,
     MADCTL,
     MODE_BGR,
@@ -298,6 +299,7 @@ def customise_schema(config):
         or config.get(CONF_AUTO_CLEAR_ENABLED) is True,
         rotation=config.get(CONF_ROTATION, 0),
         draw_rounding=config.get(CONF_DRAW_ROUNDING, 0),
+        supports_sleep=model.get_default(CONF_SUPPORTS_SLEEP),
     )
     return config
 

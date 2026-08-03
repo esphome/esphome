@@ -32,6 +32,7 @@ from esphome.components.spi import TYPE_OCTAL
 
 ILI9341 = DriverChip(
     "ILI9341",
+    supports_sleep=True,
     mirror_x=True,
     width=240,
     height=320,

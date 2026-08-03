@@ -494,6 +494,7 @@ DriverChip(
 
 DriverChip(
     "JC4827W543",
+    supports_sleep=True,
     height=272,
     width=480,
     offset_height=0,

@@ -2,7 +2,7 @@
 
 import pytest
 
-from esphome import config_validation as cv
+from esphome import config_validation as cv, pins
 
 # Importing these registers their pin schemas with pins.PIN_SCHEMA_REGISTRY so that
 # models referencing IO-expander-backed pins in their defaults (e.g. the LilyGO
@@ -135,3 +135,32 @@ def test_metadata_records_rotation(
 
     config = CONFIG_SCHEMA({**base, "id": "unrotated"})
     assert get_display_metadata(config["id"]).rotation == 0
+
+
+def test_guition_4848_supports_sleep(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """The hardware-tested Guition model exposes display sleep actions."""
+    _set_s3(set_core_config)
+
+    from esphome.components.mipi_rgb.display import CONFIG_SCHEMA
+
+    config = CONFIG_SCHEMA({"model": "GUITION-4848S040", "id": "guition"})
+    assert get_display_metadata(config["id"]).supports_sleep is True
+
+
+def test_guition_4848_shared_bus_pin_does_not_support_sleep(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """An RGB pin shared with another function makes the SPI control path unusable."""
+    _set_s3(set_core_config)
+    pins.internal_gpio_output_pin_schema(11)
+
+    from esphome.components.mipi_rgb.display import CONFIG_SCHEMA
+
+    config = CONFIG_SCHEMA({"model": "GUITION-4848S040", "id": "shared_pin"})
+    metadata = get_display_metadata(config["id"])
+    assert metadata.supports_sleep is False
+    assert metadata.sleep_unsupported_reason == (
+        "Display sleep cannot be used because RGB/control pin GPIO11 is shared with another function"
+    )

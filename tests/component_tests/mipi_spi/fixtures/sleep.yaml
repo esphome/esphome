@@ -1,0 +1,25 @@
+esphome:
+  name: display-sleep
+  on_boot:
+    then:
+      - display.sleep: device_display
+      - display.wakeup: device_display
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+psram:
+  mode: octal
+
+spi:
+  id: display_qspi
+  type: quad
+  clk_pin: 47
+  data_pins: [21, 48, 40, 39]
+
+display:
+  - platform: mipi_spi
+    id: device_display
+    model: JC4827W543
