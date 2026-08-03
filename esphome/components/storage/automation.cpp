@@ -145,10 +145,10 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf) {
     }
     case ExtractStepType::REGEX: {
 #ifdef USE_STORAGE_REGEX_EXTRACT
-      // Pattern syntax was validated at config time (ECMAScript grammar, std::regex default).
-      std::regex re(step.arg);
+      // Pattern was compiled once at step construction (see the ExtractStep constructor); this
+      // path never recompiles per play().
       std::smatch m;
-      if (!std::regex_search(buf, m, re)) {
+      if (!std::regex_search(buf, m, step.compiled_re)) {
         ESP_LOGV(TAG, "file_read: regex '%s' did not match", step.arg.c_str());
         return false;
       }

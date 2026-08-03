@@ -18,6 +18,9 @@
 
 #include <string>
 #include <vector>
+#ifdef USE_STORAGE_REGEX_EXTRACT
+#include <regex>  // ExtractStep::compiled_re -- REGEX patterns are compiled once, at construction
+#endif
 
 namespace esphome::storage {
 
@@ -82,10 +85,22 @@ enum class ExtractStepType : uint8_t {
 };
 
 struct ExtractStep {
+  ExtractStep(ExtractStepType type, std::string arg, std::string sep, int index)
+      : type(type), arg(std::move(arg)), sep(std::move(sep)), index(index) {
+#ifdef USE_STORAGE_REGEX_EXTRACT
+    // Config-time validation already guaranteed a std::regex-parseable ECMAScript pattern, so
+    // compile it once here -- apply_extract_step() then never recompiles per play().
+    if (this->type == ExtractStepType::REGEX)
+      this->compiled_re = std::regex(this->arg);
+#endif
+  }
   ExtractStepType type;
   std::string arg;  // SPLIT: separator, KEY: key, REGEX: pattern
   std::string sep;  // KEY: separator
   int index{0};     // LINE: line number, SPLIT: element index, REGEX: capture group
+#ifdef USE_STORAGE_REGEX_EXTRACT
+  std::regex compiled_re;  // REGEX: pattern compiled once at construction (see the constructor)
+#endif
 };
 
 // Whitespace trim (no equivalent in core helpers).
