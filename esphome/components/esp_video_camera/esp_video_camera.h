@@ -111,6 +111,8 @@ class ESPVideoCamera : public camera::Camera {
   // STREAMOFF/STREAMON both encoder queues to release buffers stuck in the
   // driver after a failed QBUF/DQBUF. Returns false if the encoder is dead.
   bool reset_jpeg_encoder_();
+  // Hand the encoder the single MMAP buffer it writes encoded frames into.
+  bool queue_jpeg_capture_buffer_();
   // Direct path: a source that already delivers JPEG/MJPEG (USB-UVC / device).
   bool start_direct_capture_();
   void loop_direct_capture_();

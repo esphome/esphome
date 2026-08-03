@@ -532,9 +532,18 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
 
   bool encoder_broken = false;
   if (cap_buf.index < (uint32_t) this->num_capture_buffers_ && cap_buf.bytesused > 0) {
-    // Feed the raw frame to the encoder OUTPUT queue (USERPTR) and re-arm the
-    // CAPTURE queue (JPEG output). The JPEG fd is blocking, so the DQBUFs below
-    // wait for the (fast) hardware encode to finish.
+    // M2M encode, in the order Espressif's own example uses (esp_video
+    // examples/m2m, m2m_encode_frame): queue the raw frame on OUTPUT, dequeue
+    // the encoded frame from CAPTURE, and only then reclaim the OUTPUT buffer.
+    //
+    // The order matters. The encoder releases the input buffer as part of
+    // completing the output, so waiting on OUTPUT first deadlocks against an
+    // encode that cannot finish -- which showed up as the OUTPUT DQBUF timing
+    // out ("Not owner", esp_video's EPERM for ESP_FAIL) on every frame.
+    //
+    // The CAPTURE buffer is queued once in start_jpeg_pipeline_() and re-queued
+    // below after its contents have been copied out, rather than re-queued
+    // before every encode.
     struct v4l2_buffer out_buf;
     memset(&out_buf, 0, sizeof(out_buf));
     out_buf.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
@@ -546,25 +555,13 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
     out_buf.length = this->capture_buffers_[cap_buf.index].length;
     out_buf.bytesused = cap_buf.bytesused;
 
-    struct v4l2_buffer jpeg_buf;
-    memset(&jpeg_buf, 0, sizeof(jpeg_buf));
-    jpeg_buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    jpeg_buf.memory = V4L2_MEMORY_MMAP;
-    jpeg_buf.index = 0;
-
-    struct v4l2_buffer done_buf;
-    memset(&done_buf, 0, sizeof(done_buf));
-    done_buf.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
-    done_buf.memory = V4L2_MEMORY_USERPTR;
-
     if (ioctl(this->jpeg_fd_, VIDIOC_QBUF, &out_buf) < 0) {
       ESP_LOGW(TAG, "JPEG encoder OUTPUT QBUF failed: %s", strerror(errno));
       // esp_video reports EINVAL for several distinct conditions here without
-      // saying which: a still-busy element (handled by the DQBUF check below),
-      // a memory-type or index mismatch, a userptr not aligned to the queue's
-      // cache alignment, or a userptr outside the memory class the queue was
-      // configured for. Dump the buffer once per capture so a recurrence names
-      // the cause instead of leaving it to guesswork.
+      // saying which: an element it still considers busy, a memory-type or index
+      // mismatch, a userptr not aligned to the queue's cache alignment, or a
+      // userptr outside the memory class the queue was configured for. Dump the
+      // buffer once per capture so a recurrence names the cause.
       if (!this->logged_qbuf_failure_) {
         this->logged_qbuf_failure_ = true;
         auto ptr = (uintptr_t) this->capture_buffers_[cap_buf.index].start;
@@ -573,38 +570,45 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
                  (unsigned) (ptr % 64), (unsigned) this->capture_buffers_[cap_buf.index].length,
                  (unsigned) cap_buf.bytesused);
       }
-    } else if (ioctl(this->jpeg_fd_, VIDIOC_QBUF, &jpeg_buf) < 0) {
-      // The raw frame is already sitting on the OUTPUT queue, so reclaim it here:
-      // without this the encoder loses one OUTPUT slot per failure and stalls for
-      // good once all MAX_BUFFERS slots are gone.
-      ESP_LOGW(TAG, "JPEG encoder CAPTURE QBUF failed: %s", strerror(errno));
-      ioctl(this->jpeg_fd_, VIDIOC_DQBUF, &done_buf);
-      encoder_broken = true;
-    } else if (ioctl(this->jpeg_fd_, VIDIOC_DQBUF, &done_buf) < 0) {
-      // Reclaiming the consumed input buffer is not optional. esp_video refuses
-      // to queue an element that it still considers busy:
-      //
-      //     // esp_video_queue_element()
-      //     if (!ELEMENT_IS_FREE(element))
-      //         return ESP_ERR_INVALID_ARG;   // surfaces as EINVAL
-      //
-      // and this path always queues OUTPUT index 0, so one missed reclaim wedges
-      // the encoder permanently: every later frame is rejected with EINVAL.
-      // STREAMOFF/STREAMON is what frees the elements again.
-      ESP_LOGW(TAG, "JPEG encoder OUTPUT DQBUF failed: %s", strerror(errno));
       encoder_broken = true;
     } else {
-      // Read back the encoded JPEG.
+      // Encoded frame first.
+      struct v4l2_buffer jpeg_buf;
       memset(&jpeg_buf, 0, sizeof(jpeg_buf));
       jpeg_buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
       jpeg_buf.memory = V4L2_MEMORY_MMAP;
-      if (ioctl(this->jpeg_fd_, VIDIOC_DQBUF, &jpeg_buf) == 0) {
-        this->deliver_frame_((const uint8_t *) this->jpeg_out_buffer_.start, jpeg_buf.bytesused);
-      } else {
-        // The encoded buffer stays queued in the driver, and there is only one:
-        // without a reset every following iteration fails the same way.
-        ESP_LOGW(TAG, "JPEG DQBUF failed: %s", strerror(errno));
+      if (ioctl(this->jpeg_fd_, VIDIOC_DQBUF, &jpeg_buf) < 0) {
+        ESP_LOGW(TAG, "JPEG CAPTURE DQBUF failed: %s", strerror(errno));
         encoder_broken = true;
+      } else {
+        // Then the input buffer the encoder has finished reading.
+        struct v4l2_buffer done_buf;
+        memset(&done_buf, 0, sizeof(done_buf));
+        done_buf.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+        done_buf.memory = V4L2_MEMORY_USERPTR;
+        if (ioctl(this->jpeg_fd_, VIDIOC_DQBUF, &done_buf) < 0) {
+          // esp_video refuses to queue an element it still holds
+          // (esp_video_queue_element: !ELEMENT_IS_FREE -> EINVAL), and this path
+          // always uses OUTPUT index 0, so a missed reclaim would wedge every
+          // later frame. Let the reset free it.
+          ESP_LOGW(TAG, "JPEG encoder OUTPUT DQBUF failed: %s", strerror(errno));
+          encoder_broken = true;
+        }
+
+        if (jpeg_buf.bytesused > 0)
+          this->deliver_frame_((const uint8_t *) this->jpeg_out_buffer_.start, jpeg_buf.bytesused);
+
+        // Hand the encoder its output buffer back now that it has been copied.
+        if (!encoder_broken) {
+          memset(&jpeg_buf, 0, sizeof(jpeg_buf));
+          jpeg_buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+          jpeg_buf.memory = V4L2_MEMORY_MMAP;
+          jpeg_buf.index = 0;
+          if (ioctl(this->jpeg_fd_, VIDIOC_QBUF, &jpeg_buf) < 0) {
+            ESP_LOGW(TAG, "JPEG CAPTURE re-QBUF failed: %s", strerror(errno));
+            encoder_broken = true;
+          }
+        }
       }
     }
   }
@@ -627,7 +631,11 @@ bool ESPVideoCamera::reset_jpeg_encoder_() {
   // out once a QBUF/DQBUF has left one stuck inside the driver.
   ioctl(this->jpeg_fd_, VIDIOC_STREAMOFF, &otype);
   ioctl(this->jpeg_fd_, VIDIOC_STREAMOFF, &jtype);
-  if (ioctl(this->jpeg_fd_, VIDIOC_STREAMON, &otype) < 0 || ioctl(this->jpeg_fd_, VIDIOC_STREAMON, &jtype) < 0) {
+  // STREAMOFF also un-queues the encoder's output buffer, so hand it back before
+  // restarting, in the same capture-then-output order as the initial start.
+  if (!this->queue_jpeg_capture_buffer_())
+    return false;
+  if (ioctl(this->jpeg_fd_, VIDIOC_STREAMON, &jtype) < 0 || ioctl(this->jpeg_fd_, VIDIOC_STREAMON, &otype) < 0) {
     ESP_LOGE(TAG, "JPEG encoder STREAMON failed on reset: %s", strerror(errno));
     return false;
   }
@@ -901,10 +909,30 @@ bool ESPVideoCamera::start_jpeg_pipeline_() {
     return false;
   }
 
-  int otype = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+  // Give the encoder its output buffer and start the CAPTURE queue before the
+  // OUTPUT one, matching esp_video's own M2M example (queue_all on capture,
+  // then STREAMON capture, then STREAMON output). The encoder needs somewhere
+  // to write before it is handed anything to encode.
+  if (!this->queue_jpeg_capture_buffer_())
+    return false;
+
   int jtype = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-  if (ioctl(this->jpeg_fd_, VIDIOC_STREAMON, &otype) < 0 || ioctl(this->jpeg_fd_, VIDIOC_STREAMON, &jtype) < 0) {
+  int otype = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+  if (ioctl(this->jpeg_fd_, VIDIOC_STREAMON, &jtype) < 0 || ioctl(this->jpeg_fd_, VIDIOC_STREAMON, &otype) < 0) {
     ESP_LOGE(TAG, "JPEG STREAMON failed: %s", strerror(errno));
+    return false;
+  }
+  return true;
+}
+
+bool ESPVideoCamera::queue_jpeg_capture_buffer_() {
+  struct v4l2_buffer buf;
+  memset(&buf, 0, sizeof(buf));
+  buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  buf.memory = V4L2_MEMORY_MMAP;
+  buf.index = 0;
+  if (ioctl(this->jpeg_fd_, VIDIOC_QBUF, &buf) < 0) {
+    ESP_LOGE(TAG, "JPEG CAPTURE QBUF failed: %s", strerror(errno));
     return false;
   }
   return true;
