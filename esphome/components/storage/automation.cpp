@@ -369,10 +369,12 @@ bool perform_raw_read(RawStorage *device, uint64_t address, size_t size, std::ve
   // std::vector::resize() has no way to report a failed allocation in an exceptions-free
   // build -- it aborts. Ask the nothrow allocator first, which answers with a null pointer, and
   // hand the block straight back: nothing else allocates between here and the resize below, so
-  // it gets the same memory. read_file() avoids the question entirely by owning a RAMAllocator
-  // buffer; this path has to end up with a std::vector because that is what the trigger takes.
+  // it gets the same memory. Probe the INTERNAL heap, because std::vector::resize() allocates
+  // through operator new (internal) -- a PSRAM-first probe could succeed where the resize then
+  // aborts. read_file() avoids the question entirely by owning a RAMAllocator buffer; this path
+  // has to end up with a std::vector because that is what the trigger takes.
   if (size > out.capacity()) {
-    RAMAllocator<uint8_t> allocator;
+    RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
     uint8_t *probe = allocator.allocate(size);
     if (probe == nullptr) {
       ESP_LOGE(TAG, "raw_read: cannot allocate %" PRIu32 " bytes", (uint32_t) size);
