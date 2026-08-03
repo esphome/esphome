@@ -22,6 +22,7 @@
 extern "C" {
 #include "esp_video_init.h"
 #include "esp_video_device.h"
+#include "esp_video_ioctl.h"
 #include "linux/videodev2.h"
 #include "driver/ledc.h"
 #include "freertos/FreeRTOS.h"
@@ -47,6 +48,11 @@ static constexpr uint32_t INIT_TIMEOUT_MS = 10000;
 // Frame buffers are rounded up to this many bytes so that consecutive frames of
 // slightly different sizes reuse the same heap block (see deliver_frame_).
 static constexpr size_t FRAME_ALLOC_GRANULARITY = 4096;
+
+// Upper bound on how long a JPEG encode may hold the main loop (see
+// start_jpeg_pipeline_). Generous next to a real 720p encode, small enough that
+// a wedged encoder cannot trip the task watchdog.
+static constexpr uint32_t JPEG_DQBUF_TIMEOUT_MS = 100;
 
 // ===========================================================================
 // Pipeline init helpers (run esp_video_init on core 0, optional LEDC XCLK)
@@ -773,6 +779,19 @@ bool ESPVideoCamera::start_jpeg_pipeline_() {
     ESP_LOGE(TAG, "open(%s) failed: %s", ESP_VIDEO_JPEG_DEVICE_NAME, strerror(errno));
     return false;
   }
+
+  // ...but bound that wait. esp_video defaults dqbuf_timeout_ticks to
+  // portMAX_DELAY, so an encode that never completes blocks VIDIOC_DQBUF
+  // forever -- and these DQBUFs run in the ESPHome main loop, which then never
+  // feeds the task watchdog. VIDIOC_S_DQBUF_TIMEOUT is esp_video's private
+  // ioctl for this. A 720p hardware encode takes single-digit milliseconds, so
+  // the timeout only ever fires when the encoder is wedged, and the DQBUF error
+  // path resets it (see reset_jpeg_encoder_).
+  struct timeval dqbuf_timeout;
+  dqbuf_timeout.tv_sec = 0;
+  dqbuf_timeout.tv_usec = JPEG_DQBUF_TIMEOUT_MS * 1000;
+  if (ioctl(this->jpeg_fd_, VIDIOC_S_DQBUF_TIMEOUT, &dqbuf_timeout) < 0)
+    ESP_LOGW(TAG, "Could not bound the JPEG DQBUF wait: %s", strerror(errno));
 
   struct v4l2_format fmt;
   memset(&fmt, 0, sizeof(fmt));
