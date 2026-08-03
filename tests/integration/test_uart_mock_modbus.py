@@ -338,17 +338,24 @@ async def test_uart_mock_modbus_shared_address(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Two sensors sharing one start address but not mergeable (a U_WORD and a U_DWORD at 0x9001).
+    """Sensors sharing and overlapping one register range must all decode from a single read.
 
-    They must be grouped into a single widened range and BOTH must decode from the one response. A
-    regression guard for the range-grouping rewrite: without the same-address fallback the two sensors
-    land in duplicate ranges, dispatch reaches only the first, and the other never publishes (times out).
+    A U_WORD and a U_DWORD share start address 0x9001 (non-mergeable, so the range widens to 2
+    registers) and a third U_WORD at 0x9002 falls inside the widened range. A regression guard for the
+    range-grouping rewrite: without the same-address fallback the shared sensors land in duplicate
+    ranges and one never publishes; without the in-range join the 0x9002 sensor splits into a second
+    overlapping frame that the mock (which expects exactly one read) never answers.
     """
 
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
-    # 0x9001 = 0x0397 (919); 0x9001..0x9002 = 0x03970291 (60228241, approx: not exact in float32)
-    expected_values = {"shared_word": 919, "shared_dword": pytest.approx(60228241)}
+    # 0x9001 = 0x0397 (919); 0x9001..0x9002 = 0x03970291 (60228241, approx: not exact in float32);
+    # 0x9002 = 0x0291 (657)
+    expected_values = {
+        "shared_word": 919,
+        "shared_dword": pytest.approx(60228241),
+        "covered_word": 657,
+    }
     tracker = SensorTracker(list(expected_values.keys()))
     futures = tracker.expect_all(expected_values)
 

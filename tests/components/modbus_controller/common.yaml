@@ -127,8 +127,8 @@ sensor:
     register_type: holding
     address: 0x9001
     value_type: U_DWORD
-  # Three sensors sharing one start address with distinct byte offsets: each resolves to exactly its
-  # configured offset within the shared registers (offsets are not accumulated across sensors).
+  # Sensors sharing one start address with distinct byte offsets (mixed register counts, so they take
+  # the shared-start path: each resolves to exactly its configured offset, no accumulation).
   - platform: modbus_controller
     modbus_controller_id: modbus_controller1
     id: modbus_sensor_shared_offs0

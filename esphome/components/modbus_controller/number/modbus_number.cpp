@@ -70,12 +70,11 @@ void ModbusNumber::control(float value) {
 
     // Create and send the write command
     if (this->register_count == 1 && !this->use_write_multiple_) {
-      // since offset is in bytes and a register is 16 bits we get the start by adding offset/2
-      write_cmd = ModbusCommandItem::create_write_single_command(this->parent_, this->start_address + this->offset / 2,
-                                                                 payload[0]);
+      write_cmd =
+          ModbusCommandItem::create_write_single_command(this->parent_, this->write_register_address(), payload[0]);
     } else {
-      write_cmd = ModbusCommandItem::create_write_multiple_command(
-          this->parent_, this->start_address + this->offset / 2, this->register_count, payload);
+      write_cmd = ModbusCommandItem::create_write_multiple_command(this->parent_, this->write_register_address(),
+                                                                   this->register_count, payload);
     }
     // publish new value
     write_cmd.on_data_func = [this, write_cmd, value](modbus::EntityType register_type, uint16_t start_address,

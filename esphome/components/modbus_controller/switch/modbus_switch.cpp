@@ -98,13 +98,12 @@ void ModbusSwitch::write_state(bool state) {
         cmd = ModbusCommandItem::create_write_single_coil(this->parent_, this->start_address + this->offset, state);
       }
     } else {
-      // since offset is in bytes and a register is 16 bits we get the start by adding offset/2
       if (this->use_write_multiple_) {
         std::vector<uint16_t> bool_states(1, state ? (0xFFFF & this->bitmask) : 0);
-        cmd = ModbusCommandItem::create_write_multiple_command(this->parent_, this->start_address + this->offset / 2, 1,
+        cmd = ModbusCommandItem::create_write_multiple_command(this->parent_, this->write_register_address(), 1,
                                                                bool_states);
       } else {
-        cmd = ModbusCommandItem::create_write_single_command(this->parent_, this->start_address + this->offset / 2,
+        cmd = ModbusCommandItem::create_write_single_command(this->parent_, this->write_register_address(),
                                                              state ? 0xFFFF & this->bitmask : 0u);
       }
     }

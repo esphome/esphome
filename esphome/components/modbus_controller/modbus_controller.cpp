@@ -228,8 +228,11 @@ size_t ModbusController::create_register_ranges_() {
         curr->register_type != modbus::EntityType::CUSTOM) {
       if (curr->start_address == (r.start_address + r.register_count - prev->register_count) &&
           curr->register_count == prev->register_count && curr->get_register_size() == prev->get_register_size()) {
-        // this sensor re-uses the previous register's data (e.g. a second sensor on the same register)
+        // this sensor re-uses the previous register's data (e.g. a second sensor on the same register).
+        // Register sensors historically also inherit the previous sensor's resolved offset
+        // (shared_offset_bias), so a chain configured 0/2/4 resolves to bytes 0/2/6 as it always has.
         curr->range_data_offset = prev->range_data_offset;
+        curr->shared_offset_bias = prev->shared_offset_bias + prev->offset;
         join = true;
         ESP_LOGV(TAG, "Re-use previous register 0x%X", curr->start_address);
       } else if (curr->start_address == (r.start_address + r.register_count)) {
@@ -237,10 +240,19 @@ size_t ModbusController::create_register_ranges_() {
         // right after the bytes the range has already consumed (range_data_offset is an absolute
         // byte position within the range response, so wide response_size registers push it along)
         curr->range_data_offset = static_cast<uint16_t>(range_bytes);
+        curr->shared_offset_bias = 0;
         range_bytes += curr->get_register_size();
         r.register_count += curr->register_count;
         join = true;
         ESP_LOGV(TAG, "Extend range to include 0x%X", curr->start_address);
+      } else if (curr->start_address + curr->register_count <= r.start_address + r.register_count) {
+        // this sensor's registers are already covered by the range (a preceding sensor at its start
+        // address widened it), so it reads its slice of the existing response rather than splitting
+        // into a second, overlapping poll
+        curr->range_data_offset = static_cast<uint16_t>((curr->start_address - r.start_address) * 2);
+        curr->shared_offset_bias = 0;
+        join = true;
+        ESP_LOGV(TAG, "Register 0x%X already covered by range 0x%X", curr->start_address, r.start_address);
       }
     }
 
@@ -251,6 +263,7 @@ size_t ModbusController::create_register_ranges_() {
     // registers from this shared address (also fixes a short read for coils that use offset).
     if (!join && have_range && r.register_type == curr->register_type && r.start_address == curr->start_address) {
       curr->range_data_offset = 0;  // shares the range start
+      curr->shared_offset_bias = 0;
       r.register_count = std::max(r.register_count, curr->register_count);
       range_bytes = std::max(range_bytes, curr->get_register_size());
       join = true;
@@ -265,6 +278,7 @@ size_t ModbusController::create_register_ranges_() {
       r = {};
       range_bytes = curr->get_register_size();
       curr->range_data_offset = 0;
+      curr->shared_offset_bias = 0;
       r.start_address = curr->start_address;
       r.register_count = curr->register_count;
       r.register_type = curr->register_type;

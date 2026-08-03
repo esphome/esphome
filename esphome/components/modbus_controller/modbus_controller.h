@@ -120,7 +120,14 @@ class SensorItem {
     }
     // range_data_offset already is this register's absolute byte position within the range response, so
     // base_address is only needed for the coil/discrete bit index above.
-    return this->range_data_offset + this->offset;
+    return this->range_data_offset + this->shared_offset_bias + this->offset;
+  }
+
+  /// Register address a write entity (switch/number/select) targets: the configured start address plus
+  /// the resolved byte offset converted to registers. shared_offset_bias keeps writes consistent with
+  /// reads for sensors that re-use a register after another sensor with a non-zero offset.
+  uint16_t write_register_address() const {
+    return this->start_address + (this->shared_offset_bias + this->offset) / 2;
   }
 
   void set_custom_data(const std::vector<uint8_t> &data) { custom_data = data; }
@@ -143,6 +150,9 @@ class SensorItem {
   /// Absolute byte position of this sensor's first register within the range response (accounts for
   /// earlier registers, including wide response_size ones); 0 for a sensor at the range start.
   uint16_t range_data_offset{0};
+  /// Sum of the configured offsets of earlier sensors sharing this register (re-use chains): each
+  /// sensor's data historically starts where the previous sensor's offset pointed. 0 normally.
+  uint16_t shared_offset_bias{0};
   uint16_t skip_updates{0};
   std::vector<uint8_t> custom_data{};
   bool force_new_range{false};
