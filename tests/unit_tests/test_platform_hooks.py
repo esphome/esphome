@@ -32,7 +32,7 @@ def _scan_hook_definitions() -> dict[str, set[str]]:
     """Find module-level hook definitions in every component package."""
     found: dict[str, set[str]] = {hook: set() for hook in HOOKS}
     for init in COMPONENTS_DIR.glob("*/__init__.py"):
-        for match in _HOOK_DEF_RE.finditer(init.read_text()):
+        for match in _HOOK_DEF_RE.finditer(init.read_text(encoding="utf-8")):
             found[match.group(1)].add(init.parent.name)
     return found
 
