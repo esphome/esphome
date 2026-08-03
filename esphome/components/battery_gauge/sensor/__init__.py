@@ -2,67 +2,44 @@ import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_CAPACITY,
-    CONF_INITIAL_STATE,
+    CONF_TYPE,
     DEVICE_CLASS_BATTERY,
     ICON_BATTERY,
     STATE_CLASS_MEASUREMENT,
     UNIT_PERCENT,
 )
 
-from .. import battery_gauge_ns
+from .. import CONF_BATTERY_GAUGE_ID, BatteryGauge
 
-BatteryGaugeSensor = battery_gauge_ns.class_(
-    "BatteryGaugeSensor", sensor.Sensor, cg.Component
-)
+DEPENDENCIES = ["battery_gauge"]
 
-CONF_CURRENT_SOURCE = "current_source"
-CONF_EFFICIENCY = "efficiency"
-CONF_MAX_CHARGE_VOLTAGE = "max_charge_voltage"
-CONF_VOLTAGE_SOURCE = "voltage_source"
+TYPE_STATE_OF_CHARGE = "state_of_charge"
 
+# Maps a `type:` value to the BatteryGauge setter that attaches this sensor to the hub. One entry
+# today; a future time-to-full reading is just another key here plus its own sensor_schema call.
+SENSOR_TYPES = {
+    TYPE_STATE_OF_CHARGE: "set_state_of_charge_sensor",
+}
 
-capacity_ah = cv.All(
-    cv.float_with_unit("capacity", "(ah|AH|Ah|aH)?"),
-    cv.float_range(min=0, min_included=False),
-)
-
-CONFIG_SCHEMA = (
-    sensor.sensor_schema(
-        BatteryGaugeSensor,
-        unit_of_measurement=UNIT_PERCENT,
-        state_class=STATE_CLASS_MEASUREMENT,
-        device_class=DEVICE_CLASS_BATTERY,
-        accuracy_decimals=1,
-        icon=ICON_BATTERY,
-    )
-    .extend(
-        {
-            cv.Required(CONF_VOLTAGE_SOURCE): cv.use_id(sensor.Sensor),
-            cv.Required(CONF_CURRENT_SOURCE): cv.use_id(sensor.Sensor),
-            cv.Required(CONF_CAPACITY): capacity_ah,
-            cv.Optional(CONF_EFFICIENCY, default=0.98): cv.percentage,
-            cv.Required(CONF_MAX_CHARGE_VOLTAGE): cv.voltage,
-            cv.Optional(CONF_INITIAL_STATE): cv.percentage,
-        }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = sensor.sensor_schema(
+    sensor.Sensor,
+    unit_of_measurement=UNIT_PERCENT,
+    state_class=STATE_CLASS_MEASUREMENT,
+    device_class=DEVICE_CLASS_BATTERY,
+    accuracy_decimals=1,
+    icon=ICON_BATTERY,
+).extend(
+    {
+        cv.Required(CONF_BATTERY_GAUGE_ID): cv.use_id(BatteryGauge),
+        cv.Optional(CONF_TYPE, default=TYPE_STATE_OF_CHARGE): cv.one_of(
+            *SENSOR_TYPES, lower=True
+        ),
+    }
 )
 
 
 async def to_code(config):
-    voltage_source = await cg.get_variable(config[CONF_VOLTAGE_SOURCE])
-    current_source = await cg.get_variable(config[CONF_CURRENT_SOURCE])
-    capacity = config[CONF_CAPACITY]
-    efficiency = config[CONF_EFFICIENCY]
-    var = await sensor.new_sensor(
-        config,
-        voltage_source,
-        current_source,
-        capacity,
-        efficiency,
-        config[CONF_MAX_CHARGE_VOLTAGE],
-    )
-    if initial_state := config.get(CONF_INITIAL_STATE):
-        cg.add(var.set_initial_state(initial_state))
-    await cg.register_component(var, config)
+    hub = await cg.get_variable(config[CONF_BATTERY_GAUGE_ID])
+    var = await sensor.new_sensor(config)
+    setter = SENSOR_TYPES[config[CONF_TYPE]]
+    cg.add(getattr(hub, setter)(var))

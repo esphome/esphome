@@ -1,3 +1,13 @@
+battery_gauge:
+  id: battery_gauge_1
+  voltage_source: battery_voltage
+  current_source: battery_current
+  capacity: 3.0Ah
+  max_charge_voltage: 4.2V
+  efficiency: 95%
+  initial_state: 50%
+  chemistry: lifepo4
+
 sensor:
   - platform: template
     id: battery_voltage
@@ -8,10 +18,6 @@ sensor:
     lambda: |-
       return 0.5;
   - platform: battery_gauge
+    battery_gauge_id: battery_gauge_1
+    type: state_of_charge
     name: Battery Level
-    voltage_source: battery_voltage
-    current_source: battery_current
-    capacity: 3.0Ah
-    max_charge_voltage: 4.2V
-    efficiency: 95%
-    initial_state: 50%
