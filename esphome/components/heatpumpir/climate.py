@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_VISUAL,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@rob-deutsch"]
 
@@ -97,6 +98,18 @@ VERTICAL_DIRECTIONS = {
     "down": VerticalDirections.VERTICAL_DIRECTION_DOWN,
 }
 
+
+def _default_visual(config: ConfigType) -> ConfigType:
+    # Seed the visual min/max from the required min/max_temperature so the entity
+    # reports the configured range in Home Assistant instead of the ClimateIR
+    # 0-100 default. Done during validation so the effective range is visible in
+    # the dumped config and set before new_climate_ir() reads CONF_VISUAL.
+    visual = config.setdefault(CONF_VISUAL, {})
+    visual.setdefault(CONF_MAX_TEMPERATURE, config[CONF_MAX_TEMPERATURE])
+    visual.setdefault(CONF_MIN_TEMPERATURE, config[CONF_MIN_TEMPERATURE])
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     climate_ir.climate_ir_with_receiver_schema(HeatpumpIRClimate).extend(
         {
@@ -108,18 +121,12 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     cv.Any(cv.only_with_arduino, cv.only_on_esp32),
+    _default_visual,
 )
 
 
 async def to_code(config):
     var = await climate_ir.new_climate_ir(config)
-    if CONF_VISUAL not in config:
-        config[CONF_VISUAL] = {}
-    visual = config[CONF_VISUAL]
-    if CONF_MAX_TEMPERATURE not in visual:
-        visual[CONF_MAX_TEMPERATURE] = config[CONF_MAX_TEMPERATURE]
-    if CONF_MIN_TEMPERATURE not in visual:
-        visual[CONF_MIN_TEMPERATURE] = config[CONF_MIN_TEMPERATURE]
     cg.add(var.set_protocol(config[CONF_PROTOCOL]))
     cg.add(var.set_horizontal_default(config[CONF_HORIZONTAL_DEFAULT]))
     cg.add(var.set_vertical_default(config[CONF_VERTICAL_DEFAULT]))

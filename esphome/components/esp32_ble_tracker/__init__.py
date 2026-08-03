@@ -125,25 +125,6 @@ ESP32BLEStopScanAction = esp32_ble_tracker_ns.class_(
 )
 
 
-def validate_scan_parameters(config):
-    duration = config[CONF_DURATION]
-    interval = config[CONF_INTERVAL]
-    window = config[CONF_WINDOW]
-
-    if window > interval:
-        raise cv.Invalid(
-            f"Scan window ({window}) needs to be smaller than scan interval ({interval})"
-        )
-
-    if interval.total_milliseconds * 3 > duration.total_milliseconds:
-        raise cv.Invalid(
-            "Scan duration needs to be at least three times the scan interval to"
-            "cover all BLE channels."
-        )
-
-    return config
-
-
 def validate_max_connections_deprecated(config: ConfigType) -> ConfigType:
     if CONF_MAX_CONNECTIONS in config:
         _LOGGER.warning(
@@ -152,6 +133,13 @@ def validate_max_connections_deprecated(config: ConfigType) -> ConfigType:
         )
     return config
 
+
+# 320 ms is the ESP-IDF reference scan interval; the shared schema also
+# tightens validation to the controller's 2.5 ms .. 10240 ms range and rejects
+# window/interval pairs that collapse to the same 0.625 ms unit count.
+SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
+    "320ms", supports_active=True
+)
 
 # Codegen helpers are owned by ble_device_base; kept under the historical names
 # here for the components that import them from this module.
@@ -168,24 +156,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_CONNECTIONS): cv.All(
                 cv.positive_int, cv.Range(min=0, max=IDF_MAX_CONNECTIONS)
             ),
-            cv.Optional(CONF_SCAN_PARAMETERS, default={}): cv.All(
-                cv.Schema(
-                    {
-                        cv.Optional(
-                            CONF_DURATION, default="5min"
-                        ): cv.positive_time_period_seconds,
-                        cv.Optional(
-                            CONF_INTERVAL, default="320ms"
-                        ): cv.positive_time_period_milliseconds,
-                        cv.Optional(
-                            CONF_WINDOW, default="30ms"
-                        ): cv.positive_time_period_milliseconds,
-                        cv.Optional(CONF_ACTIVE, default=True): cv.boolean,
-                        cv.Optional(CONF_CONTINUOUS, default=True): cv.boolean,
-                    }
-                ),
-                validate_scan_parameters,
-            ),
+            cv.Optional(CONF_SCAN_PARAMETERS, default={}): SCAN_PARAMETERS_SCHEMA,
             cv.Optional(CONF_ON_BLE_ADVERTISE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -255,8 +226,8 @@ async def to_code(config):
 
     params = config[CONF_SCAN_PARAMETERS]
     cg.add(var.set_scan_duration(params[CONF_DURATION]))
-    cg.add(var.set_scan_interval(int(params[CONF_INTERVAL].total_milliseconds / 0.625)))
-    cg.add(var.set_scan_window(int(params[CONF_WINDOW].total_milliseconds / 0.625)))
+    cg.add(var.set_scan_interval(ble_device_base.to_ble_units(params[CONF_INTERVAL])))
+    cg.add(var.set_scan_window(ble_device_base.to_ble_units(params[CONF_WINDOW])))
     cg.add(var.set_scan_active(params[CONF_ACTIVE]))
     cg.add(var.set_scan_continuous(params[CONF_CONTINUOUS]))
 

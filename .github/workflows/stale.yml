@@ -6,17 +6,19 @@ on:
     - cron: "30 0 * * *"
   workflow_dispatch:
 
-# Deny by default; the stale job opts in to exactly what the reusable workflow needs.
+# The reusable workflow authenticates as the ESPHome GitHub App, so GITHUB_TOKEN
+# needs no permissions at all.
 permissions: {}
 
 jobs:
   stale:
     if: github.repository_owner == 'esphome'
-    permissions:
-      contents: read        # head-commit dates for the PR activity check
-      issues: write         # label, comment on and close stale issues
-      pull-requests: write  # label, comment on and close stale pull requests
-    uses: esphome/workflows/.github/workflows/stale.yml@c87be24a6fd0320ecd32e40b27fe98d25c3af851  # 2026.7.0
+    # No GITHUB_TOKEN permissions: the reusable workflow mints an ESPHome
+    # GitHub App token so the labels, comments and closures come from
+    # esphome[bot] instead of github-actions[bot].
+    uses: esphome/workflows/.github/workflows/stale.yml@203cea60ebfd18e2b966e57750750e0417a9feec  # main
+    secrets:
+      ESPHOME_GITHUB_APP_PRIVATE_KEY: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
     with:
       # Live only on dev: a workflow_dispatch from any other branch is a dry run
       dry-run: ${{ github.ref != 'refs/heads/dev' }}

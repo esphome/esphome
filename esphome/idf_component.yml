@@ -26,11 +26,11 @@ dependencies:
   espressif/mdns:
     version: 1.11.3
   espressif/esp_wifi_remote:
-    version: 1.5.1
+    version: 1.6.3
     rules:
       - if: "target in [esp32h2, esp32p4]"
   espressif/wifi_remote_over_eppp:
-    version: 0.3.2
+    version: 0.3.3
     rules:
       - if: "target in [esp32h2, esp32p4]"
   espressif/eppp_link:
@@ -38,7 +38,7 @@ dependencies:
     rules:
       - if: "target in [esp32h2, esp32p4]"
   espressif/esp_hosted:
-    version: 2.12.9
+    version: 2.12.12
     rules:
       - if: "target in [esp32h2, esp32p4]"
   zorxx/multipart-parser:
