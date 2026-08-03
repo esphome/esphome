@@ -142,6 +142,8 @@ class Tuya final : public Component, public uart::UARTDevice {
   void send_gmt_time_();
   time::RealTimeClock *time_id_{nullptr};
   bool time_sync_callback_registered_{false};
+  bool received_local_time_query_{false};
+  bool received_gmt_time_query_{false};
 #endif
   TuyaInitState init_state_ = TuyaInitState::INIT_HEARTBEAT;
   bool init_failed_{false};
