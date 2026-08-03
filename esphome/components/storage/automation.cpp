@@ -54,7 +54,7 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf) {
         current++;
         start = end + 1;
       }
-      ESP_LOGV(TAG, "file_read: line %d not found (%d lines)", step.index, current - 1);
+      ESP_LOGW(TAG, "file_read: line %d not found (%d lines)", step.index, current - 1);
       return false;
     }
     case ExtractStepType::SPLIT: {
@@ -71,7 +71,7 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf) {
         current++;
         start = end + step.arg.size();
       }
-      ESP_LOGV(TAG, "file_read: split element %d not found", step.index);
+      ESP_LOGW(TAG, "file_read: split element %d not found", step.index);
       return false;
     }
     case ExtractStepType::KEY: {
@@ -88,7 +88,7 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf) {
         }
         start = end + 1;
       }
-      ESP_LOGV(TAG, "file_read: key '%s' not found", step.arg.c_str());
+      ESP_LOGW(TAG, "file_read: key '%s' not found", step.arg.c_str());
       return false;
     }
     case ExtractStepType::TRIM:
@@ -149,12 +149,12 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf) {
       // path never recompiles per play().
       std::smatch m;
       if (!std::regex_search(buf, m, step.compiled_re)) {
-        ESP_LOGV(TAG, "file_read: regex '%s' did not match", step.arg.c_str());
+        ESP_LOGW(TAG, "file_read: regex '%s' did not match", step.arg.c_str());
         return false;
       }
       int group = step.index;
       if (group >= static_cast<int>(m.size())) {
-        ESP_LOGV(TAG, "file_read: regex group %d does not exist (%zu groups)", group, m.size() - 1);
+        ESP_LOGW(TAG, "file_read: regex group %d does not exist (%zu groups)", group, m.size() - 1);
         return false;
       }
       buf = m[group].str();
