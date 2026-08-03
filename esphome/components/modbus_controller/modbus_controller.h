@@ -139,7 +139,7 @@ class SensorItem {
   size_t offset_in_range(uint16_t base_address) const {
     if (this->register_type == modbus::EntityType::COIL || this->register_type == modbus::EntityType::DISCRETE_INPUT) {
       uint16_t addr_delta = this->start_address - base_address;
-      return static_cast<size_t>(addr_delta) + this->offset;
+      return static_cast<size_t>(addr_delta) + this->shared_offset_bias + this->offset;
     }
     // range_data_offset already is this register's absolute byte position within the range response, so
     // base_address is only needed for the coil/discrete bit index above.

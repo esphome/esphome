@@ -259,14 +259,16 @@ size_t ModbusController::create_register_ranges_() {
         ESP_LOGV(TAG, "Extend range to include 0x%X", curr->start_address);
       } else if (range_shared && !range_forced && curr->start_address >= r.start_address &&
                  curr->start_address + curr->register_count <= r.start_address + r.register_count &&
-                 range_bytes == static_cast<size_t>(r.register_count) * 2) {
+                 range_bytes == static_cast<size_t>(r.register_count) * 2 && curr->skip_updates == r.skip_updates) {
         // a shared-address join widened this range past its natural end, and this sensor's registers
         // now fall inside it, so it reads its slice of the existing response rather than splitting into
         // a second, overlapping poll. Restricted to widened ranges (range_shared) so ranges the old
         // grouping kept apart are untouched. The lower bound matters: force_new_range sensors sort
         // first, so iteration is not address-monotonic. Only standard-width ranges qualify - a
         // response_size register makes interior byte positions unknowable - and a force-opened range is
-        // never folded into, preserving its isolation.
+        // never folded into, preserving its isolation. Equal skip_updates is required as well: joining
+        // runs this sensor through the range-wide rate merge below, and these sensors polled
+        // independently before, so a join that changed anyone's polling rate is refused.
         curr->range_data_offset = static_cast<uint16_t>((curr->start_address - r.start_address) * 2);
         curr->shared_offset_bias = 0;
         join = true;
@@ -285,6 +287,7 @@ size_t ModbusController::create_register_ranges_() {
       r.register_count = std::max(r.register_count, curr->register_count);
       range_bytes = std::max(range_bytes, curr->get_register_size());
       range_shared = true;
+      range_forced = range_forced || curr->force_new_range;
       join = true;
       ESP_LOGV(TAG, "Share range start 0x%X", curr->start_address);
     }

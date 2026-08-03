@@ -353,6 +353,10 @@ async def test_uart_mock_modbus_shared_address(
     A U_QWORD at 0x100 with plain sensors at 0x101 and 0x103 pins that non-merging sensors inside a
     wide sensor's span keep polling separately, and that the sensor at the span's tail address does not
     anchor a re-use join on a mid-range predecessor (which would make it decode that sensor's bytes).
+
+    A sensor at 0x201 carrying skip_updates sits inside a widened shared-address range at 0x200 but
+    keeps its own range, so polling rates stay independent; folding it in would also make it decode
+    0x201 out of the shared response (2) instead of its own poll (777).
     """
 
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
@@ -368,6 +372,9 @@ async def test_uart_mock_modbus_shared_address(
         "wide_qword": 100,
         "inside_wide": 321,
         "tail_of_wide": 421,
+        "rate_word": 321,
+        "rate_dword": pytest.approx(21037058),
+        "own_rate": 777,
     }
     tracker = SensorTracker(list(expected_values.keys()))
     futures = tracker.expect_all(expected_values)
