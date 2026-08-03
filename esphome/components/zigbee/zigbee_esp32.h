@@ -95,6 +95,7 @@ class ZigbeeComponent final : public Component {
   // key tuple could be replaced by single 64 (48) bit int with bit fields for endpoint, cluster, role and attr_id
   std::map<std::tuple<uint8_t, uint16_t, uint8_t, uint16_t>, ZigbeeAttribute *> attributes_;
   ezb_af_device_desc_t dev_desc_;
+  bool join_reported_{false};
   CallbackManager<void(bool)> join_cb_{};
 };
 
