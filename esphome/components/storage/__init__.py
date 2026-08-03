@@ -109,8 +109,8 @@ CONFIG_SCHEMA = cv.Schema(
         # from_file). It also bounds storage.preferences_export/import, which share these
         # helpers -- an export past the ceiling is a sign to narrow it with the action's
         # `preferences:` filter. 0 disables the check. See storage.h for the C++ side.
-        cv.Optional(CONF_MAX_BLOCKING_TRANSFER_SIZE, default=16384): cv.int_range(
-            min=0
+        cv.Optional(CONF_MAX_BLOCKING_TRANSFER_SIZE, default=16384): cv.All(
+            cv.validate_bytes, cv.int_range(min=0)
         ),
         # A same-storage move is a rename, which some backends refuse across their own
         # internals (an NFS export can span file systems, and RENAME never crosses one).
