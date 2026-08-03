@@ -9,12 +9,14 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components.battery_gauge import (
+    CELL_FULL_CHARGE_VOLTAGE,
     CHEMISTRY_CUSTOM,
     CHEMISTRY_LEAD_ACID_AGM,
     CHEMISTRY_LEAD_ACID_FLOODED,
     CHEMISTRY_LIFEPO4,
     CONF_ACCEPTANCE_KNEE,
     CONF_CAPACITY_RATE,
+    CONF_CELL_COUNT,
     CONF_CHEMISTRY,
     CONF_CURRENT_SOURCE,
     CONF_EFFICIENCY,
@@ -86,7 +88,6 @@ def test_full_config_is_valid() -> None:
         CONF_VOLTAGE_SOURCE,
         CONF_CURRENT_SOURCE,
         CONF_CAPACITY,
-        CONF_MAX_CHARGE_VOLTAGE,
         CONF_CHEMISTRY,
     ],
 )
@@ -95,6 +96,54 @@ def test_required_key_missing_raises(missing_key: str) -> None:
     config = _config()
     del config[missing_key]
     with pytest.raises(cv.Invalid, match=rf"required key not provided.*{missing_key}"):
+        CONFIG_SCHEMA(config)
+
+
+# --- max_charge_voltage / cell_count ---
+
+
+def test_max_charge_voltage_and_cell_count_both_missing_raises() -> None:
+    """Neither max_charge_voltage nor cell_count given is a validation error."""
+    config = _config()
+    del config[CONF_MAX_CHARGE_VOLTAGE]
+    with pytest.raises(cv.Invalid, match="exactly one of"):
+        CONFIG_SCHEMA(config)
+
+
+def test_max_charge_voltage_and_cell_count_both_given_raises() -> None:
+    """Giving both max_charge_voltage and cell_count is a validation error."""
+    with pytest.raises(cv.Invalid, match="more than one of"):
+        CONFIG_SCHEMA(_config(**{CONF_CELL_COUNT: 4}))
+
+
+@pytest.mark.parametrize(
+    "chemistry",
+    [CHEMISTRY_LIFEPO4, CHEMISTRY_LEAD_ACID_FLOODED, CHEMISTRY_LEAD_ACID_AGM],
+)
+def test_cell_count_derives_max_charge_voltage(chemistry: str) -> None:
+    """cell_count is resolved to max_charge_voltage using the chemistry's per-cell voltage."""
+    config = _config(**{CONF_CHEMISTRY: chemistry, CONF_CELL_COUNT: 4})
+    del config[CONF_MAX_CHARGE_VOLTAGE]
+    result = CONFIG_SCHEMA(config)
+
+    assert CONF_CELL_COUNT not in result
+    assert result[CONF_MAX_CHARGE_VOLTAGE] == pytest.approx(
+        4 * CELL_FULL_CHARGE_VOLTAGE[chemistry]
+    )
+
+
+def test_cell_count_with_custom_chemistry_raises() -> None:
+    """The custom chemistry has no standard per-cell voltage, so cell_count is rejected."""
+    config = _config(
+        **{
+            CONF_CHEMISTRY: CHEMISTRY_CUSTOM,
+            CONF_CELL_COUNT: 4,
+            CONF_PEUKERT_EXPONENT: 1.2,
+            CONF_CAPACITY_RATE: "10h",
+        }
+    )
+    del config[CONF_MAX_CHARGE_VOLTAGE]
+    with pytest.raises(cv.Invalid, match="cannot be used with chemistry 'custom'"):
         CONFIG_SCHEMA(config)
 
 

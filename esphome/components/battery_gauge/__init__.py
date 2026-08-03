@@ -15,6 +15,7 @@ LithiumChemistry = battery_gauge_ns.class_("LithiumChemistry")
 LeadAcidChemistry = battery_gauge_ns.class_("LeadAcidChemistry")
 
 CONF_BATTERY_GAUGE_ID = "battery_gauge_id"
+CONF_CELL_COUNT = "cell_count"
 CONF_CURRENT_SOURCE = "current_source"
 CONF_EFFICIENCY = "efficiency"
 CONF_MAX_CHARGE_VOLTAGE = "max_charge_voltage"
@@ -38,6 +39,15 @@ CHEMISTRIES = (
     CHEMISTRY_LEAD_ACID_AGM,
     CHEMISTRY_CUSTOM,
 )
+
+# Per-cell voltage at which each chemistry is considered fully charged, used to derive
+# max_charge_voltage from cell_count. "custom" has no standard cell voltage to assume, so it is
+# omitted here and must always be given as an explicit max_charge_voltage.
+CELL_FULL_CHARGE_VOLTAGE = {
+    CHEMISTRY_LIFEPO4: 3.65,
+    CHEMISTRY_LEAD_ACID_FLOODED: 2.45,
+    CHEMISTRY_LEAD_ACID_AGM: 2.40,
+}
 
 # Keys that only make sense for a lead-acid-style chemistry (flooded, AGM, or custom).
 LEAD_ACID_KEYS = (
@@ -79,8 +89,17 @@ LEAD_ACID_PRESETS = {
 
 
 def _validate_chemistry(config):
-    """Reject lead-acid-only keys for lifepo4, and fill in chemistry-appropriate defaults."""
+    """Reject lead-acid-only keys for lifepo4, resolve cell_count, and fill in defaults."""
     chemistry = config[CONF_CHEMISTRY]
+
+    if cell_count := config.pop(CONF_CELL_COUNT, None):
+        cell_voltage = CELL_FULL_CHARGE_VOLTAGE.get(chemistry)
+        if cell_voltage is None:
+            raise cv.Invalid(
+                f"'cell_count' cannot be used with chemistry '{chemistry}'; "
+                f"specify 'max_charge_voltage' directly instead"
+            )
+        config[CONF_MAX_CHARGE_VOLTAGE] = cell_count * cell_voltage
 
     if chemistry == CHEMISTRY_LIFEPO4:
         for key in LEAD_ACID_KEYS:
@@ -120,7 +139,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_CURRENT_SOURCE): cv.use_id(sensor.Sensor),
             cv.Required(CONF_CAPACITY): capacity_ah,
             cv.Optional(CONF_EFFICIENCY, default=0.98): cv.percentage,
-            cv.Required(CONF_MAX_CHARGE_VOLTAGE): cv.voltage,
+            cv.Optional(CONF_MAX_CHARGE_VOLTAGE): cv.voltage,
+            cv.Optional(CONF_CELL_COUNT): cv.positive_not_null_int,
             cv.Optional(CONF_INITIAL_STATE): cv.percentage,
             cv.Required(CONF_CHEMISTRY): cv.one_of(*CHEMISTRIES, lower=True),
             cv.Optional(CONF_ACCEPTANCE_KNEE): cv.percentage,
@@ -130,6 +150,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FULL_CHARGE_DWELL): cv.positive_time_period,
         }
     ).extend(cv.COMPONENT_SCHEMA),
+    cv.has_exactly_one_key(CONF_MAX_CHARGE_VOLTAGE, CONF_CELL_COUNT),
     _validate_chemistry,
 )
 
