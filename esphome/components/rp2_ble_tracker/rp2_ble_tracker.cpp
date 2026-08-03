@@ -83,7 +83,6 @@ void RP2BLETracker::loop() {
       return;
     }
     if (now - this->last_scan_start_attempt_ >= SCAN_START_RETRY_MS) {
-      this->last_scan_start_attempt_ = now;
       this->start_scan_();
     }
     return;
@@ -163,6 +162,10 @@ void RP2BLETracker::stop_scan() {
 void RP2BLETracker::start_scan_() {
   if (this->scan_running_)
     return;
+
+  // Stamp every attempt regardless of caller so the loop's rate limit also
+  // covers a failed start that came through the public start_scan().
+  this->last_scan_start_attempt_ = App.get_loop_component_start_time();
 
   if (!this->parent_->scan_start(static_cast<uint16_t>(this->scan_interval_),
                                  static_cast<uint16_t>(this->scan_window_)))
