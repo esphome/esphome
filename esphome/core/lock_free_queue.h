@@ -37,13 +37,14 @@ namespace lockfree_internal {
 //    instructions (currently the ARMv5TE BK72xx SoCs — no LDREX/STREX, no
 //    libatomic; other LibreTiny chips such as LN882x/RTL87xx are ARMv7-M and
 //    keep std::atomic).
-//  - ESPHOME_THREAD_SINGLE: everything runs on one core (the chip may have
-//    more — RP2 is dual-core, but ESPHome and its interrupt producers stay on
-//    core 0), so the only possible concurrency is same-core interrupt
-//    preemption (on RP2 the BTstack packet handler runs in the CYW43
-//    async-context low-priority IRQ on the core that initialized it, core 0).
-//    Using plain accesses here also avoids __atomic_* library calls on RP2040
-//    (Cortex-M0+, no LDREX/STREX).
+//  - ESPHOME_THREAD_SINGLE: every platform on this model (ESP8266, RP2,
+//    nRF52) runs everything on one core (the chip may have more — RP2 is
+//    dual-core, but ESPHome and its interrupt producers stay on core 0), so
+//    the only possible concurrency is same-core interrupt preemption (on RP2
+//    the BTstack packet handler runs in the CYW43 async-context low-priority
+//    IRQ on the core that initialized it, core 0). Using plain accesses here
+//    also avoids __atomic_* library calls on RP2040 (Cortex-M0+, no
+//    LDREX/STREX).
 // For this queue's SPSC contract RMW atomics are not needed: aligned 8/16-bit
 // loads and stores are single instructions on these cores, so torn reads
 // cannot occur, and on a single in-order core a compiler barrier supplies all
