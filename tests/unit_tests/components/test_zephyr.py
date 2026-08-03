@@ -455,14 +455,15 @@ def test_variant_config_schema_raises_for_unregistered_variant(
 # fresh process (see upload_program()) -- each variant's config_schema() must
 # return a dict that validates cleanly when fed back through _ZEPHYR_SCHEMA a
 # second time. Covers every variant fixed by #43 (removal of the dead
-# `config[KEY_FRAMEWORK_VERSION] = version_str` write). NATIVESIM is excluded
-# here -- it has its own, unrelated round-trip bug on `mac_address`, tracked
-# separately in #47.
+# `config[KEY_FRAMEWORK_VERSION] = version_str` write) plus NATIVESIM, fixed
+# separately in #47 (cv.mac_address() made idempotent on an already-parsed
+# MACAddress).
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
-    "variant", ["ESP32", "ESP32C6", "ESP32H2", "NRF52", "NRF54L15", "NRF54LM20A"]
+    "variant",
+    ["ESP32", "ESP32C6", "ESP32H2", "NRF52", "NRF54L15", "NRF54LM20A", "NATIVESIM"],
 )
 def test_variant_config_schema_round_trips_cleanly(variant: str) -> None:
     _init_variant_schema_core()
