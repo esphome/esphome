@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from esphome.core import Library
+from esphome.core import EsphomeError, Library
 import esphome.platformio.library as lib
 from esphome.platformio.library import (
     ConvertedLibrary,
@@ -96,7 +96,8 @@ def test_source_root_defaults_to_build_dir() -> None:
 
 
 def test_localsource_download_missing_dir_raises(tmp_path: Path) -> None:
-    with pytest.raises(InvalidLibrary, match="does not exist"):
+    # EsphomeError so the CLI prints it cleanly instead of a traceback.
+    with pytest.raises(EsphomeError, match="does not exist"):
         LocalSource(str(tmp_path / "nope")).download("mylib")
 
 
@@ -414,6 +415,54 @@ def test_convert_libraries_local_overrides_registry_version(
 
     assert isinstance(top[0].source, LocalSource)
     assert "local source" in caplog.text
+
+
+def test_convert_libraries_two_local_dirs_warns(
+    setup_core: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # The same key pointed at two local directories warns and uses the last one.
+    dir_a = setup_core / "a"
+    dir_b = setup_core / "b"
+    for d in (dir_a, dir_b):
+        d.mkdir()
+        (d / "library.json").write_text(json.dumps({"name": "Foo"}))
+
+    with caplog.at_level(logging.WARNING, logger="esphome.platformio.library"):
+        top = convert_libraries(
+            [
+                Library("Foo", None, dir_a.as_uri()),
+                Library("Foo", None, dir_b.as_uri()),
+            ],
+            _backend(),
+        )
+
+    assert isinstance(top[0].source, LocalSource)
+    assert top[0].source_path == dir_b  # the last one wins
+    assert "two local directories" in caplog.text
+
+
+@pytest.mark.parametrize("local_first", [True, False])
+def test_convert_libraries_git_and_local_same_key_warns(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    local_first: bool,
+) -> None:
+    # A key requested as both a git source and a local directory warns and uses
+    # git, whichever order they appear in. The git URL basename matches the local
+    # custom name so both map to the key "Foo".
+    _patch_download_with_manifests(monkeypatch, tmp_path, {"Foo": {"name": "Foo"}})
+    git = Library("X", None, "https://host/Foo")
+    local = Library("Foo", None, "file:///abs/foo")
+    libs = [local, git] if local_first else [git, local]
+
+    with caplog.at_level(logging.WARNING, logger="esphome.platformio.library"):
+        top = convert_libraries(libs, _backend())
+
+    assert isinstance(top[0].source, GitSource)
+    assert "using the git source" in caplog.text
 
 
 def test_convert_libraries_skips_incompatible_dependency(tmp_path, monkeypatch):

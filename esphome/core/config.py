@@ -542,8 +542,10 @@ def _add_library_str(lib: str) -> None:
     if "@" in lib:
         name, vers = lib.split("@", 1)
         cg.add_library(name, vers)
-    elif "://" in lib:
-        # Repository...
+    elif "://" in lib or lib.split("=", 1)[-1].startswith("file:"):
+        # A repository or URL source. Also catch a ``file:`` source spelled with
+        # fewer than two slashes (e.g. ``file:lib_dev``) so it reaches the
+        # file:// handling and its clear error, rather than a registry lookup.
         if "=" in lib:
             name, repo = lib.split("=", 1)
             cg.add_library(name, None, repo)

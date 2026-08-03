@@ -21,7 +21,7 @@ import itertools
 import json
 import logging
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import tempfile
 from typing import Any
@@ -29,7 +29,7 @@ from urllib.parse import urlsplit, urlunsplit
 from urllib.request import url2pathname
 
 from esphome import git
-from esphome.core import CORE, Library
+from esphome.core import CORE, EsphomeError, Library
 from esphome.framework_helpers import archive_extract_all, download_from_mirrors, rmdir
 
 _LOGGER = logging.getLogger(__name__)
@@ -170,7 +170,10 @@ class LocalSource(Source):
     ) -> Path:
         src = Path(self.local_path)
         if not src.is_dir():
-            raise InvalidLibrary(
+            # EsphomeError (not InvalidLibrary) so the CLI prints a clean message
+            # instead of a traceback -- pointing a file:// at a missing folder is
+            # the most common first mistake with a local library.
+            raise EsphomeError(
                 f"Local library directory does not exist: {self.local_path}"
             )
         base_dir = Path(CORE.data_dir) / DOMAIN
@@ -650,16 +653,19 @@ def _node_key(
                     f"Unsupported host in file:// library URL '{repository}'; "
                     "use an absolute path, e.g. file:///path/to/lib"
                 )
-            local = Path(url2pathname(split_result.path))
-            # Reject a relative path (e.g. ``file:lib_dev`` with no host) or a
-            # bare root (``file:///``): both would resolve somewhere surprising
-            # or yield an empty component name.
-            if not local.is_absolute() or not local.name:
+            # Validate the URL path itself (always POSIX-style, leading slash),
+            # not the OS path: on Windows a "/foo" path is not is_absolute()
+            # without a drive, which would wrongly reject a valid file:/// URL.
+            # Reject a relative path (``file:lib_dev``) or a bare root
+            # (``file:///``, which has no final segment).
+            url_path = split_result.path
+            if not url_path.startswith("/") or not PurePosixPath(url_path).name:
                 raise RuntimeError(
                     f"file:// library URL '{repository}' must be an absolute "
                     "directory path, e.g. file:///path/to/lib"
                 )
-            return (name or local.name), "local", (str(local), None)
+            path = url2pathname(url_path)
+            return (name or PurePosixPath(url_path).name), "local", (path, None)
         key = str(split_result.path).strip("/").removesuffix(".git")
         ref = split_result.fragment.strip() or None
         url = urlunsplit(split_result._replace(fragment=""))
@@ -720,12 +726,40 @@ def convert_libraries(
         key, kind, locator = _node_key(name, version, repository)
         node = nodes.get(key) or _LibNode(key=key, is_git=kind == "git")
         nodes[key] = node
+        # The same key requested from two different kinds of source (or two
+        # different local paths) is a config mistake: one silently wins. Warn so
+        # it isn't a surprise. (git-vs-registry is reported separately below.)
         if kind == "git":
+            if node.is_local:
+                _LOGGER.warning(
+                    "Library %s is requested as both a local directory and a git "
+                    "source; using the git source.",
+                    key,
+                )
             node.is_git = True
             node.url, node.ref = locator
         elif kind == "local":
-            node.is_local = True
-            node.local_path, _ = locator
+            new_path = locator[0]
+            if node.is_git:
+                # git wins (checked first when building the source); leave the
+                # node as a git source.
+                _LOGGER.warning(
+                    "Library %s is requested as both a local directory and a git "
+                    "source; using the git source.",
+                    key,
+                )
+            else:
+                if node.is_local and node.local_path != new_path:
+                    _LOGGER.warning(
+                        "Library %s is requested from two local directories (%s "
+                        "and %s); using %s.",
+                        key,
+                        node.local_path,
+                        new_path,
+                        new_path,
+                    )
+                node.is_local = True
+                node.local_path = new_path
         else:
             node.owner, node.pkgname = locator
             if version:

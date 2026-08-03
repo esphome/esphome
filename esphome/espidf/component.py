@@ -177,6 +177,13 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     link_libraries, build_flags = split_list_by_condition(
         build_flags, lambda a: a[2:].strip() if a.startswith("-l") else None
     )
+    # A local library's relative -L paths are relative to its own directory;
+    # resolve them against it so they still work from the component cache dir.
+    # (read_path / d yields d unchanged when d is already absolute.)
+    if external:
+        link_directories = [
+            str((read_path / Path(d)).resolve()) for d in link_directories
+        ]
 
     # Split include directories from build_flags
     # Only keep an include directory if it exists

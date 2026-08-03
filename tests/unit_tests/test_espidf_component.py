@@ -177,6 +177,25 @@ def test_generate_cmakelists_txt_external_source_uses_absolute_paths(
     assert not (tmp_component.path / "src").exists()
 
 
+def test_generate_cmakelists_txt_external_source_absolutises_link_dirs(
+    tmp_component, tmp_path
+):
+    # A local library's relative -L path must be made absolute against its own
+    # directory so it resolves from the component cache dir.
+    source = tmp_path / "user_lib"
+    (source / "src").mkdir(parents=True)
+    (source / "src" / "thing.cpp").write_text("int t;")
+    (source / "libs").mkdir()
+    tmp_component.source_path = source
+    tmp_component.data = {"build": {"flags": ["-Llibs"]}}
+
+    content = generate_cmakelists_txt(tmp_component)
+
+    abs_lib = str((source / "libs").resolve()).replace("\\", "/")
+    assert "target_link_directories" in content
+    assert abs_lib in content
+
+
 def test_generate_cmakelists_txt_external_source_root_srcdir(tmp_component, tmp_path):
     # An external source with files at its root (no src/ or include/ dir):
     # the src-dir search falls through to "." and the missing include dirs are
