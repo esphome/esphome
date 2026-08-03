@@ -94,6 +94,7 @@ class RP2BLETracker : public Component,
   bool scan_continuous_{true};
 #ifdef USE_OTA_STATE_LISTENER
   bool scan_continuous_before_ota_{false};  // continuous mode saved at OTA start, restored on OTA failure
+  bool scan_pending_before_ota_{false};     // one-shot scan in flight at OTA start, resumed on OTA failure
 #endif
 
   ble_device_base::RawAdvertisementCallback raw_advertisement_callback_{};

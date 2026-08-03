@@ -39,13 +39,25 @@ void RP2BLETracker::setup() {
 void RP2BLETracker::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
   if (state == ota::OTA_STARTED) {
     this->scan_continuous_before_ota_ = this->scan_continuous_;
+    // A one-shot scan counts as pending when it is running or still retrying
+    // its start (loop enabled); captured before stop_scan() disables the loop.
+    this->scan_pending_before_ota_ = !this->scan_continuous_ && (this->scan_running_ || this->is_in_loop_state());
     this->stop_scan();
-  } else if ((state == ota::OTA_ERROR || state == ota::OTA_ABORT) && this->scan_continuous_before_ota_) {
+  } else if (state == ota::OTA_ERROR || state == ota::OTA_ABORT) {
     // On success the device reboots, so restore only on a failed/aborted update;
-    // loop() restarts the scan on its next iteration (continuous idle branch).
-    this->scan_continuous_before_ota_ = false;
-    this->scan_continuous_ = true;
-    this->enable_loop();
+    // loop()'s retry branch restarts the scan on its next iteration.
+    if (this->scan_continuous_before_ota_) {
+      this->scan_continuous_before_ota_ = false;
+      this->scan_continuous_ = true;
+      this->enable_loop();
+    }
+    // A one-shot scan interrupted by the OTA resumes for a fresh duration
+    // rather than silently staying idle — an OTA failure does not reboot, so
+    // nothing external would restart it.
+    if (this->scan_pending_before_ota_) {
+      this->scan_pending_before_ota_ = false;
+      this->enable_loop();
+    }
   }
 }
 #endif  // USE_OTA_STATE_LISTENER
