@@ -443,7 +443,9 @@ def _expand_platform_entry(index: int, entry: dict) -> list[dict]:
     if not isinstance(files, list):
         raise cv.Invalid(f"image[{index}]: '{CONF_FILES}' must be a list")
 
-    defaults = entry.get(CONF_DEFAULTS) or {}
+    defaults = entry.get(CONF_DEFAULTS, {})
+    if defaults is None:
+        defaults = {}
     if not isinstance(defaults, dict):
         raise cv.Invalid(f"image[{index}]: '{CONF_DEFAULTS}' must be a mapping")
     if CONF_ID in defaults:
