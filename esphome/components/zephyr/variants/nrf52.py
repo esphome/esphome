@@ -4,17 +4,20 @@ from esphome.const import (
     CONF_ADVANCED,
     CONF_BOARD,
     CONF_FRAMEWORK,
+    CONF_OTA,
     CONF_SOURCE,
     KEY_FRAMEWORK_VERSION,
     ThreadModel,
     Toolchain,
 )
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 from ..const import BOOTLOADER_MCUBOOT, ZEPHYR_VARIANT_NRF52
 from . import (
     MAINLINE,
     NCS,
+    NCS_ZIGBEE,
     ZephyrVariant,
     qualify_board,
     resolve_framework_version,
@@ -55,7 +58,8 @@ VARIANT = ZephyrVariant(
     # regression only present on one side.
     sdk=NCS,
     sdk_name="ncs",
-    alt_sdks={"zephyr": MAINLINE},
+    # "zigbee": ncs-zigbee, NCS 3.4.0+'s separate ZBOSS add-on repo (see NCS_ZIGBEE).
+    alt_sdks={"zephyr": MAINLINE, "zigbee": NCS_ZIGBEE},
     family="nordic",
     valid_toolchains=(Toolchain.SDK_ZEPHYR,),
     toolchain="arm-zephyr-eabi",
@@ -64,8 +68,9 @@ VARIANT = ZephyrVariant(
     # framework: type: zephyr (mainline) sidesteps that entirely, the same OpenThread
     # source build the esp32-family variants already use. The default
     # framework: type: ncs here uses NCS's own OpenThread, so that original coupling
-    # concern applies again there.
-    transports=frozenset({"openthread", "ble"}),
+    # concern applies again there. Zigbee here is a radio-capability declaration only --
+    # zigbee/__init__.py's own gate additionally requires framework: type: zigbee.
+    transports=frozenset({"openthread", "ble", "zigbee"}),
     soc="nrf52840",
     # No "scratch": neither board defines a scratch_partition (upstream's stock
     # nrf52840 layout never had one either), and move/offset don't need one.
@@ -100,6 +105,7 @@ async def to_code(config: ConfigType) -> None:
     from .. import (
         zephyr_add_prj_conf,
         zephyr_add_sysbuild_conf,
+        zephyr_framework_type,
         zephyr_setup_preferences,
         zephyr_to_code,
     )
@@ -113,12 +119,17 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("REBOOT", True)
     zephyr_add_prj_conf("HWINFO", True)
 
-    # west build always runs with --sysbuild (build_zephyr.py), but sysbuild still
-    # needs to be told which bootloader to build as its "mcuboot" child image --
-    # without this, only the (unsigned) app image gets built and flashed.
-    zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
+    # ncs-zigbee's default devicetree has no boot/slot1 partitions, so zigbee only
+    # gets MCUboot when OTA is actually configured.
+    # TBD - single slot MCUBOOT
+    if zephyr_framework_type() != "zigbee" or CORE.config.get(CONF_OTA):
+        # west build always runs with --sysbuild (build_zephyr.py), but sysbuild
+        # still needs to be told which bootloader to build as its "mcuboot" child
+        # image -- without this, only the (unsigned) app image gets built and
+        # flashed.
+        zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
 
-    # RSA-2048 (mcuboot's default) is code-size heavy; ECDSA-P256 has a much
-    # smaller footprint.
-    zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_RSA", False, image="mcuboot")
-    zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True, image="mcuboot")
+        # RSA-2048 (mcuboot's default) is code-size heavy; ECDSA-P256 has a much
+        # smaller footprint.
+        zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_RSA", False, image="mcuboot")
+        zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True, image="mcuboot")
