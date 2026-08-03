@@ -82,7 +82,10 @@ class RP2040BLE final : public Component {
   /// Start a passive controller scan. Interval/window are in BLE units
   /// (0.625 ms). Returns false until the stack is ACTIVE (callers retry — the
   /// tracker's rate-limited retry loop); powering the stack on stays with the
-  /// user (enable_on_boot or an explicit enable() call).
+  /// user (enable_on_boot or an explicit enable() call). The controller keeps
+  /// no scan state: a disable()/enable() power cycle ends the scan, and the
+  /// caller must call scan_start() again once the stack is back to ACTIVE
+  /// (the tracker's loop() reconciliation does exactly that).
   bool scan_start(uint16_t interval, uint16_t window);
   /// Stop the controller scan (no-op when not scanning).
   void scan_stop();
