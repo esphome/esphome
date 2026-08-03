@@ -402,6 +402,8 @@ def _add_data_ref(fn):
             # Let generator finish
             for _ in generator:
                 pass
+        if not loader.track_document_range:
+            return res
         res = make_data_base(res)
         if isinstance(res, ESPHomeDataBase):
             res.from_node(node)
@@ -444,11 +446,22 @@ class ESPHomeLoaderMixin:
     """Loader class that keeps track of line numbers."""
 
     def __init__(
-        self, name: Path, yaml_loader: Callable[[Path], dict[str, Any]]
+        self,
+        name: Path,
+        yaml_loader: Callable[[Path], dict[str, Any]],
+        track_document_range: bool = True,
     ) -> None:
-        """Initialize the loader."""
+        """Initialize the loader.
+
+        track_document_range=False skips wrapping every node in an
+        ESPHomeDataBase subclass carrying its source range. The wrapping
+        only serves validation error messages; callers that never
+        validate (the upload/logs fast path re-reading the validated
+        config cache) can skip it, roughly halving parse time.
+        """
         self.name = name
         self.yaml_loader = yaml_loader
+        self.track_document_range = track_document_range
 
     @_add_data_ref
     def construct_yaml_int(self, node):
@@ -511,8 +524,10 @@ class ESPHomeLoaderMixin:
                         f'Invalid key "{key}" (not hashable)', key_node.start_mark
                     ) from None
 
-                key = make_data_base(str(key))
-                key.from_node(key_node)
+                key = str(key)
+                if self.track_document_range:
+                    key = make_data_base(key)
+                    key.from_node(key_node)
 
                 # Check if it is a duplicate key
                 if key in seen_keys:
@@ -715,9 +730,10 @@ class ESPHomeLoader(ESPHomeLoaderMixin, FastestAvailableSafeLoader):
         stream: TextIOBase | BytesIO,
         name: Path,
         yaml_loader: Callable[[Path], dict[str, Any]],
+        track_document_range: bool = True,
     ) -> None:
         FastestAvailableSafeLoader.__init__(self, stream)
-        ESPHomeLoaderMixin.__init__(self, name, yaml_loader)
+        ESPHomeLoaderMixin.__init__(self, name, yaml_loader, track_document_range)
 
 
 class ESPHomePurePythonLoader(ESPHomeLoaderMixin, PurePythonLoader):
@@ -728,9 +744,10 @@ class ESPHomePurePythonLoader(ESPHomeLoaderMixin, PurePythonLoader):
         stream: TextIOBase | BytesIO,
         name: Path,
         yaml_loader: Callable[[Path], dict[str, Any]],
+        track_document_range: bool = True,
     ) -> None:
         PurePythonLoader.__init__(self, stream)
-        ESPHomeLoaderMixin.__init__(self, name, yaml_loader)
+        ESPHomeLoaderMixin.__init__(self, name, yaml_loader, track_document_range)
 
 
 for _loader in (ESPHomeLoader, ESPHomePurePythonLoader):
@@ -758,20 +775,22 @@ for _loader in (ESPHomeLoader, ESPHomePurePythonLoader):
     _loader.add_constructor("!remove", _loader.construct_remove)
 
 
-def load_yaml(fname: Path, clear_secrets: bool = True) -> Any:
+def load_yaml(
+    fname: Path, clear_secrets: bool = True, track_document_range: bool = True
+) -> Any:
     if clear_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
-    return _load_yaml_internal(fname)
+    return _load_yaml_internal(fname, track_document_range=track_document_range)
 
 
-def _load_yaml_internal(fname: Path) -> Any:
+def _load_yaml_internal(fname: Path, track_document_range: bool = True) -> Any:
     """Load a YAML file."""
     for listener in _load_listeners:
         listener(fname)
     try:
         with fname.open(encoding="utf-8") as f_handle:
-            res = parse_yaml(fname, f_handle)
+            res = parse_yaml(fname, f_handle, track_document_range=track_document_range)
     except (UnicodeDecodeError, OSError) as err:
         raise EsphomeError(f"Error reading file {fname}: {err}") from err
     # Top-level !include returns a deferred IncludeFile; resolve it so
@@ -781,13 +800,23 @@ def _load_yaml_internal(fname: Path) -> Any:
     return res
 
 
-def parse_yaml(file_name: Path, file_handle: TextIOWrapper, yaml_loader=None) -> Any:
+def parse_yaml(
+    file_name: Path,
+    file_handle: TextIOWrapper,
+    yaml_loader=None,
+    *,
+    track_document_range: bool = True,
+) -> Any:
     """Parse a YAML file."""
     if yaml_loader is None:
-        yaml_loader = _load_yaml_internal
+        # Nested loads (!include, !secret, !include_dir_*) inherit the
+        # same tracking mode.
+        yaml_loader = functools.partial(
+            _load_yaml_internal, track_document_range=track_document_range
+        )
     try:
         return _load_yaml_internal_with_type(
-            ESPHomeLoader, file_name, file_handle, yaml_loader
+            ESPHomeLoader, file_name, file_handle, yaml_loader, track_document_range
         )
     except EsphomeError:
         # Loading failed, so we now load with the Python loader which has more
@@ -795,7 +824,11 @@ def parse_yaml(file_name: Path, file_handle: TextIOWrapper, yaml_loader=None) ->
         # Rewind the stream so we can try again
         file_handle.seek(0, 0)
         return _load_yaml_internal_with_type(
-            ESPHomePurePythonLoader, file_name, file_handle, yaml_loader
+            ESPHomePurePythonLoader,
+            file_name,
+            file_handle,
+            yaml_loader,
+            track_document_range,
         )
 
 
@@ -804,6 +837,7 @@ def _load_yaml_internal_with_type(
     fname: Path,
     content: TextIOWrapper,
     yaml_loader: Callable[[Path], dict[str, Any]],
+    track_document_range: bool = True,
 ) -> Any:
     """Load a YAML file.
 
@@ -814,7 +848,7 @@ def _load_yaml_internal_with_type(
     configuration. Frontmatter is ignored by config validation and code
     generation.
     """
-    loader = loader_type(content, fname, yaml_loader)
+    loader = loader_type(content, fname, yaml_loader, track_document_range)
     try:
         documents: list[Any] = []
         while loader.check_data():

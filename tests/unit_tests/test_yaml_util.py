@@ -1491,3 +1491,95 @@ def test_merge_include_no_overlap_records_nothing(tmp_path: Path) -> None:
     assert result["api"] == {"reboot_timeout": "5min"}
     assert result["logger"] == {"level": "DEBUG"}
     assert yaml_util.take_dropped_merge_keys() == []
+
+
+# ---------------------------------------------------------------------------
+# track_document_range=False (validated-config-cache fast path)
+# ---------------------------------------------------------------------------
+
+FAST_MODE_MAIN_YAML = """\
+defaults: &defaults
+  port: 6053
+  reboot_timeout: 15min
+
+esphome:
+  name: !secret devname
+
+api:
+  <<: *defaults
+  port: 6054
+
+number_value: 42
+float_value: 3.5
+lambda_value: !lambda 'return x * 2;'
+extend_value: !extend some_id
+remove_value: !remove some_id
+included: !include included.yaml
+"""
+
+
+@pytest.fixture
+def fast_mode_config_dir(tmp_path: Path) -> Path:
+    (tmp_path / "main.yaml").write_text(FAST_MODE_MAIN_YAML)
+    (tmp_path / "included.yaml").write_text("inner_key: inner_value\ninner_num: 7\n")
+    (tmp_path / "secrets.yaml").write_text("devname: livingroom\n")
+    return tmp_path
+
+
+def _resolve_includes(config: dict) -> dict:
+    return {
+        key: value.load() if isinstance(value, yaml_util.IncludeFile) else value
+        for key, value in config.items()
+    }
+
+
+def test_load_yaml_fast_mode_matches_default(fast_mode_config_dir: Path) -> None:
+    """Both modes must produce equal values; only the metadata wrapping differs."""
+    yaml_file = fast_mode_config_dir / "main.yaml"
+
+    normal = _resolve_includes(yaml_util.load_yaml(yaml_file))
+    fast = _resolve_includes(yaml_util.load_yaml(yaml_file, track_document_range=False))
+
+    # Lambda has no __eq__; compare it by value and the rest structurally.
+    fast_lambda = fast.pop("lambda_value")
+    normal_lambda = normal.pop("lambda_value")
+    assert fast == normal
+    assert isinstance(fast_lambda, core.Lambda)
+    assert fast_lambda.value == normal_lambda.value == "return x * 2;"
+    assert fast["esphome"]["name"] == "livingroom"
+    assert fast["api"]["port"] == 6054
+    assert fast["api"]["reboot_timeout"] == "15min"
+    assert fast["extend_value"] == Extend("some_id")
+    assert fast["remove_value"] == Remove("some_id")
+
+
+def test_load_yaml_fast_mode_skips_document_ranges(
+    fast_mode_config_dir: Path,
+) -> None:
+    """Fast mode returns plain values; default mode keeps the range metadata."""
+    yaml_file = fast_mode_config_dir / "main.yaml"
+
+    fast = yaml_util.load_yaml(yaml_file, track_document_range=False)
+    assert not isinstance(fast["number_value"], ESPHomeDataBase)
+    assert not isinstance(fast["float_value"], ESPHomeDataBase)
+    assert all(type(key) is str for key in fast)
+    # Nested includes inherit fast mode through the recursive loader.
+    included = fast["included"].load()
+    assert not isinstance(included["inner_num"], ESPHomeDataBase)
+    assert all(type(key) is str for key in included)
+
+    normal = yaml_util.load_yaml(yaml_file)
+    assert isinstance(normal["number_value"], ESPHomeDataBase)
+    assert normal["number_value"].esp_range is not None
+    assert all(isinstance(key, ESPHomeDataBase) for key in normal)
+
+
+def test_load_yaml_fast_mode_records_dropped_merge_keys(
+    fast_mode_config_dir: Path,
+) -> None:
+    """The duplicate-merge-key bookkeeping must not crash on plain str keys."""
+    yaml_file = fast_mode_config_dir / "main.yaml"
+
+    yaml_util.load_yaml(yaml_file, track_document_range=False)
+    dropped = yaml_util.take_dropped_merge_keys()
+    assert [key for key, _ in dropped] == ["port"]

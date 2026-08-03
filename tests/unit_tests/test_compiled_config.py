@@ -124,6 +124,13 @@ def test_load_compiled_config_happy_path(fresh_cache_files: Path) -> None:
     assert config[CONF_API]["encryption"]["key"] == "6dGhpcyBpcyBhIHRlc3Q="
     assert config["ota"][0]["password"] == "secret"
 
+    # The fast path loads without per-node source ranges; values and keys
+    # come back as plain types instead of ESPHomeDataBase subclasses.
+    from esphome.yaml_util import ESPHomeDataBase
+
+    assert not isinstance(config[CONF_ESPHOME][CONF_NAME], ESPHomeDataBase)
+    assert all(type(key) is str for key in config)
+
     # apply_to_core populated exactly what upload/logs read off CORE.
     assert CORE.name == "lite_test"
     assert CORE.build_path == Path("/build/lite_test")

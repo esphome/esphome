@@ -61,7 +61,11 @@ def load_compiled_config(conf_path: Path) -> ConfigType | None:
     from esphome import yaml_util
 
     try:
-        config = yaml_util.load_yaml(cache_path, clear_secrets=False)
+        # The fast path never validates, so skip tracking per-node source
+        # ranges; that wrapping roughly doubles parse time on large configs.
+        config = yaml_util.load_yaml(
+            cache_path, clear_secrets=False, track_document_range=False
+        )
     except Exception:  # noqa: BLE001  # pylint: disable=broad-except
         return None
 
