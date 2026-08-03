@@ -1254,6 +1254,8 @@ def date_time(date: bool, time: bool):
 
 
 def mac_address(value):
+    if isinstance(value, core.MACAddress):
+        value = str(value)
     value = string_strict(value)
     parts = value.split(":")
     if len(parts) != 6:
