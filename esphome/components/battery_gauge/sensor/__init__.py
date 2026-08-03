@@ -30,7 +30,7 @@ CONFIG_SCHEMA = sensor.sensor_schema(
     icon=ICON_BATTERY,
 ).extend(
     {
-        cv.Required(CONF_BATTERY_GAUGE_ID): cv.use_id(BatteryGauge),
+        cv.GenerateID(CONF_BATTERY_GAUGE_ID): cv.use_id(BatteryGauge),
         cv.Optional(CONF_TYPE, default=TYPE_STATE_OF_CHARGE): cv.one_of(
             *SENSOR_TYPES, lower=True
         ),

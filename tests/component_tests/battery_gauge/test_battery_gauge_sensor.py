@@ -54,10 +54,9 @@ def test_unknown_type_raises() -> None:
         CONFIG_SCHEMA(_config(**{CONF_TYPE: "time_to_full"}))
 
 
-def test_battery_gauge_id_is_required() -> None:
+def test_battery_gauge_id_is_optional() -> None:
+    """With no battery_gauge_id: key, an ID is auto-generated for later resolution."""
     config = _config()
     del config[CONF_BATTERY_GAUGE_ID]
-    with pytest.raises(
-        cv.Invalid, match=rf"required key not provided.*{CONF_BATTERY_GAUGE_ID}"
-    ):
-        CONFIG_SCHEMA(config)
+    result = CONFIG_SCHEMA(config)
+    assert CONF_BATTERY_GAUGE_ID in result
