@@ -97,6 +97,9 @@ class ESPVideoCamera : public camera::Camera {
 
   // Copy a finished JPEG frame into PSRAM and hand it to the listeners.
   void deliver_frame_(const uint8_t *data, size_t length);
+  // Tear the capture down and arm a retry when `err` means the device is gone
+  // (a USB-UVC camera unplugged mid-stream). Returns true when it handled `err`.
+  bool handle_device_gone_(int err);
   bool configure_capture_format_(uint32_t pixelformat);
   bool setup_capture_buffers_();
   // Hardware-JPEG path: capture RGB565 (sensor/ISP) -> JPEG M2M encoder.
@@ -123,6 +126,11 @@ class ESPVideoCamera : public camera::Camera {
   float max_framerate_{10.0f};
   uint32_t min_interval_ms_{100};
   uint32_t last_frame_ms_{0};
+
+  // Re-open delay after the capture device disappeared mid-stream.
+  static constexpr uint32_t CAPTURE_RETRY_INTERVAL_MS = 2000;
+  bool capture_retry_pending_{false};
+  uint32_t capture_retry_at_ms_{0};
 
   // Consumers (bit masks indexed by camera::CameraRequester)
   std::vector<camera::CameraListener *> listeners_;

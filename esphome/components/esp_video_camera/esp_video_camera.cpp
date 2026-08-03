@@ -142,6 +142,22 @@ bool parse_resolution(const std::string &res, uint32_t &width, uint32_t &height)
   return true;
 }
 
+// Render a V4L2 fourcc for logging, e.g. V4L2_PIX_FMT_MJPEG -> "MJPG".
+std::string fourcc_to_string(uint32_t fourcc) {
+  std::string out(4, ' ');
+  for (int i = 0; i < 4; i++) {
+    char c = (char) ((fourcc >> (8 * i)) & 0xFF);
+    out[i] = (c >= 0x20 && c < 0x7F) ? c : '?';
+  }
+  return out;
+}
+
+// A capture device can vanish under us (a USB-UVC camera being unplugged is the
+// common case). Only the errno values that unambiguously mean "the device is
+// gone" count: EAGAIN is the empty non-blocking queue, and EIO is reported for
+// transient frame errors too, so neither one may tear the capture down.
+bool errno_means_device_gone(int err) { return err == ENODEV || err == ENXIO; }
+
 }  // namespace
 
 // ===========================================================================
@@ -328,8 +344,17 @@ bool ESPVideoCamera::init_pipeline_() {
 // ESPVideoCamera — streaming / capture
 // ===========================================================================
 void ESPVideoCamera::loop() {
-  if (!this->streaming_)
+  if (!this->streaming_) {
+    // The device disappeared mid-stream (see handle_device_gone_). Re-open it
+    // periodically for as long as someone still wants frames, so a USB-UVC
+    // camera that is plugged back in resumes on its own.
+    if (this->capture_retry_pending_ && (this->stream_requesters_ != 0 || this->single_requesters_ != 0) &&
+        (int32_t) (millis() - this->capture_retry_at_ms_) >= 0) {
+      this->capture_retry_pending_ = false;
+      this->start_capture_();
+    }
     return;
+  }
 
   if (this->is_hw_jpeg_) {
     this->loop_jpeg_pipeline_();
@@ -339,6 +364,16 @@ void ESPVideoCamera::loop() {
 
   if (this->stream_requesters_ == 0 && this->single_requesters_ == 0)
     this->stop_capture_();
+}
+
+bool ESPVideoCamera::handle_device_gone_(int err) {
+  if (!errno_means_device_gone(err))
+    return false;
+  ESP_LOGW(TAG, "Capture device '%s' disappeared (%s); will retry", this->resolved_device_.c_str(), strerror(err));
+  this->stop_capture_();
+  this->capture_retry_pending_ = true;
+  this->capture_retry_at_ms_ = millis() + CAPTURE_RETRY_INTERVAL_MS;
+  return true;
 }
 
 void ESPVideoCamera::deliver_frame_(const uint8_t *data, size_t length) {
@@ -372,8 +407,9 @@ void ESPVideoCamera::loop_direct_capture_() {
   buf.memory = V4L2_MEMORY_MMAP;
 
   if (ioctl(this->capture_fd_, VIDIOC_DQBUF, &buf) < 0) {
-    if (errno != EAGAIN)
-      ESP_LOGW(TAG, "VIDIOC_DQBUF failed: %s", strerror(errno));
+    int err = errno;
+    if (err != EAGAIN && !this->handle_device_gone_(err))
+      ESP_LOGW(TAG, "VIDIOC_DQBUF failed: %s", strerror(err));
     return;
   }
 
@@ -391,8 +427,9 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
   cap_buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   cap_buf.memory = V4L2_MEMORY_MMAP;
   if (ioctl(this->capture_fd_, VIDIOC_DQBUF, &cap_buf) < 0) {
-    if (errno != EAGAIN)
-      ESP_LOGW(TAG, "capture DQBUF failed: %s", strerror(errno));
+    int err = errno;
+    if (err != EAGAIN && !this->handle_device_gone_(err))
+      ESP_LOGW(TAG, "capture DQBUF failed: %s", strerror(err));
     return;
   }
 
@@ -415,12 +452,21 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
     jpeg_buf.memory = V4L2_MEMORY_MMAP;
     jpeg_buf.index = 0;
 
-    if (ioctl(this->jpeg_fd_, VIDIOC_QBUF, &out_buf) == 0 && ioctl(this->jpeg_fd_, VIDIOC_QBUF, &jpeg_buf) == 0) {
+    struct v4l2_buffer done_buf;
+    memset(&done_buf, 0, sizeof(done_buf));
+    done_buf.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+    done_buf.memory = V4L2_MEMORY_USERPTR;
+
+    if (ioctl(this->jpeg_fd_, VIDIOC_QBUF, &out_buf) < 0) {
+      ESP_LOGW(TAG, "JPEG encoder OUTPUT QBUF failed: %s", strerror(errno));
+    } else if (ioctl(this->jpeg_fd_, VIDIOC_QBUF, &jpeg_buf) < 0) {
+      // The raw frame is already sitting on the OUTPUT queue, so reclaim it here:
+      // without this the encoder loses one OUTPUT slot per failure and stalls for
+      // good once all MAX_BUFFERS slots are gone.
+      ESP_LOGW(TAG, "JPEG encoder CAPTURE QBUF failed: %s", strerror(errno));
+      ioctl(this->jpeg_fd_, VIDIOC_DQBUF, &done_buf);
+    } else {
       // Reclaim the consumed input buffer.
-      struct v4l2_buffer done_buf;
-      memset(&done_buf, 0, sizeof(done_buf));
-      done_buf.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
-      done_buf.memory = V4L2_MEMORY_USERPTR;
       ioctl(this->jpeg_fd_, VIDIOC_DQBUF, &done_buf);
 
       // Read back the encoded JPEG.
@@ -432,8 +478,6 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
       } else {
         ESP_LOGW(TAG, "JPEG DQBUF failed: %s", strerror(errno));
       }
-    } else {
-      ESP_LOGW(TAG, "JPEG encoder QBUF failed: %s", strerror(errno));
     }
   }
 
@@ -487,17 +531,46 @@ bool ESPVideoCamera::configure_capture_format_(uint32_t pixelformat) {
   if (ioctl(this->capture_fd_, VIDIOC_S_FMT, &fmt) < 0)
     ESP_LOGW(TAG, "VIDIOC_S_FMT (best-effort resolution) failed: %s", strerror(errno));
 
-  // Read back the resolution actually negotiated by the sensor/ISP.
+  // Read back the format actually negotiated by the sensor/ISP. A device that
+  // cannot honour the request keeps its own format instead of failing loudly, so
+  // never assume the request went through.
+  uint32_t negotiated = pixelformat;  // assumed, if the device has no G_FMT
   memset(&fmt, 0, sizeof(fmt));
   fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   if (ioctl(this->capture_fd_, VIDIOC_G_FMT, &fmt) == 0) {
     this->capture_width_ = fmt.fmt.pix.width;
     this->capture_height_ = fmt.fmt.pix.height;
+    negotiated = fmt.fmt.pix.pixelformat;
   } else {
     this->capture_width_ = width;
     this->capture_height_ = height;
   }
-  ESP_LOGI(TAG, "Capture resolution: %ux%u", (unsigned) this->capture_width_, (unsigned) this->capture_height_);
+  ESP_LOGI(TAG, "Capture resolution: %ux%u (%s)", (unsigned) this->capture_width_, (unsigned) this->capture_height_,
+           fourcc_to_string(negotiated).c_str());
+
+  // The pixel format is not negotiable: the direct path publishes the frames to
+  // Home Assistant as JPEG, and the hardware-JPEG path feeds them to the M2M
+  // encoder configured for RGB565. Streaming whatever the device fell back to
+  // would produce a corrupt image rather than an error.
+  // JPEG and MJPEG are the same payload for our purposes; UVC devices report
+  // either one.
+  const bool format_ok = (negotiated == pixelformat) ||
+                         (pixelformat == V4L2_PIX_FMT_MJPEG && negotiated == V4L2_PIX_FMT_JPEG) ||
+                         (pixelformat == V4L2_PIX_FMT_JPEG && negotiated == V4L2_PIX_FMT_MJPEG);
+  if (!format_ok) {
+    ESP_LOGE(TAG, "Device '%s' does not support pixel format %s (negotiated %s instead)",
+             this->resolved_device_.c_str(), fourcc_to_string(pixelformat).c_str(),
+             fourcc_to_string(negotiated).c_str());
+    return false;
+  }
+
+  // A resolution the sensor cannot do is not fatal — the pipeline runs at the
+  // negotiated size — but it is never what the user asked for, so say so.
+  if (force_res && (this->capture_width_ != width || this->capture_height_ != height)) {
+    ESP_LOGW(TAG, "Requested resolution %ux%u is not supported by '%s'; streaming %ux%u instead", (unsigned) width,
+             (unsigned) height, this->resolved_device_.c_str(), (unsigned) this->capture_width_,
+             (unsigned) this->capture_height_);
+  }
   return true;
 }
 
@@ -695,6 +768,9 @@ void ESPVideoCamera::stop_capture_() {
   }
   this->num_capture_buffers_ = 0;
   this->streaming_ = false;
+  // Any pending re-open is re-armed by handle_device_gone_() after this call;
+  // a clean stop must not leave one behind.
+  this->capture_retry_pending_ = false;
 }
 
 void ESPVideoCamera::dump_config() {
