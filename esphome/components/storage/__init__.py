@@ -553,7 +553,7 @@ def _validate_write_content(config: ConfigType) -> ConfigType:
     return config
 
 
-def _file_write_schema(newline_default):
+def _file_write_schema(newline_default: bool) -> cv.All:
     return cv.All(
         cv.Schema(
             {
