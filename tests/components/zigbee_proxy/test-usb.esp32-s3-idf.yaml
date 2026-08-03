@@ -1,0 +1,21 @@
+wifi:
+  ssid: test
+  password: password
+  power_save_mode: none
+
+api:
+
+usb_host:
+
+usb_uart:
+  - type: CDC_ACM
+    vid: 0x303A
+    pid: 0x831A
+    channels:
+      - id: zigbee_usb_channel
+        baud_rate: 460800
+
+# uart_id points at a USB UART channel; the component must detect this
+# automatically and enable the RX callback fast path (USE_ZIGBEE_PROXY_USB_UART)
+zigbee_proxy:
+  uart_id: zigbee_usb_channel

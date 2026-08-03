@@ -1,13 +1,18 @@
 import esphome.codegen as cg
 from esphome.components import uart, usb_uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_POWER_SAVE_MODE, CONF_WIFI
+from esphome.const import (
+    CONF_BUFFER_SIZE,
+    CONF_ID,
+    CONF_POWER_SAVE_MODE,
+    CONF_UART_ID,
+    CONF_WIFI,
+)
 import esphome.final_validate as fv
 
 CODEOWNERS = ["@kbx81"]
 DEPENDENCIES = ["api", "uart"]
 
-CONF_BUFFER_SIZE = "buffer_size"
 CONF_INITIAL_TIMEOUT = "initial_timeout"
 CONF_MIN_TIMEOUT = "min_timeout"
 CONF_MAX_TIMEOUT = "max_timeout"
@@ -47,10 +52,10 @@ CONFIG_SCHEMA = cv.All(
                 esp8266=512,
                 default=1024,
             ),
-            # When usb_uart_id is present the component registers an RX callback
-            # for zero-wakeup-cycle data delivery and selects USB-optimized ACK
-            # timeout defaults.  Explicit timeout keys always win.
-            cv.Optional(CONF_USB_UART_ID): cv.use_id(usb_uart.USBUartChannel),
+            cv.Optional(CONF_USB_UART_ID): cv.invalid(
+                "'usb_uart_id' has been removed; a USB UART channel is now "
+                "detected automatically from 'uart_id'"
+            ),
             cv.Optional(CONF_INITIAL_TIMEOUT): cv.int_range(min=10, max=10000),
             cv.Optional(CONF_MIN_TIMEOUT): cv.int_range(min=10, max=5000),
             cv.Optional(CONF_MAX_TIMEOUT): cv.int_range(min=50, max=10000),
@@ -74,14 +79,16 @@ async def to_code(config):
     if CONF_BUFFER_SIZE in config:
         cg.add_define("ZIGBEE_PROXY_BUFFER_SIZE", config[CONF_BUFFER_SIZE])
 
-    # Select timeout defaults based on UART transport type.
-    # USB CDC ACM with the RX callback has ~3-5 ms round-trip latency; hardware
-    # UART is similar (~2-5 ms).  Different defaults are kept so that future
-    # non-callback USB paths still get conservative starting values.
-    is_usb = CONF_USB_UART_ID in config
+    # A uart_id pointing at a USB UART channel is detected automatically: the
+    # component then registers an RX callback for zero-wakeup-cycle data delivery
+    # and selects USB-optimized ACK timeout defaults. Explicit timeout keys always
+    # win. USB CDC ACM with the RX callback has ~3-5 ms round-trip latency;
+    # hardware UART is similar (~2-5 ms). Different defaults are kept so that
+    # future non-callback USB paths still get conservative starting values.
+    is_usb = usb_uart.is_usb_uart_channel(config[CONF_UART_ID])
     if is_usb:
         cg.add_define("USE_ZIGBEE_PROXY_USB_UART")
-        usb_ch = await cg.get_variable(config[CONF_USB_UART_ID])
+        usb_ch = await cg.get_variable(config[CONF_UART_ID])
         cg.add(var.set_usb_uart_channel(usb_ch))
 
     initial_timeout = config.get(

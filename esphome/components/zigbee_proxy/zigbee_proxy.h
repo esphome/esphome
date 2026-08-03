@@ -14,8 +14,8 @@
 
 // Forward-declare USBUartChannel so the set_usb_uart_channel() setter can be declared
 // without pulling usb_uart.h into every translation unit that includes this header.
-// USE_ZIGBEE_PROXY_USB_UART is defined by the Python to_code() only when usb_uart_id
-// is present in the YAML, ensuring the header is actually in the build path.
+// USE_ZIGBEE_PROXY_USB_UART is defined by the Python to_code() only when uart_id
+// resolves to a USB UART channel, ensuring the header is actually in the build path.
 #ifdef USE_ZIGBEE_PROXY_USB_UART
 namespace esphome::usb_uart {
 class USBUartChannel;
@@ -100,7 +100,7 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   void set_max_timeout(uint32_t timeout_ms) { this->timeout_config_.max_timeout_ms = timeout_ms; }
 
 #ifdef USE_ZIGBEE_PROXY_USB_UART
-  /// Called from generated code when usb_uart_id is configured.
+  /// Called from generated code when uart_id resolves to a USB UART channel.
   /// Registers an RX callback on the channel so incoming bytes are processed
   /// immediately in the same USBUartComponent::loop() iteration they arrive,
   /// without waiting for the next ZigbeeProxy::loop() call.
