@@ -986,6 +986,9 @@ const char *DeviceInfoResponse::dump_to(DumpBuffer &out) const {
 #ifdef USE_API_NOISE
   dump_field(out, ESPHOME_PSTR("api_encryption_provisionable"), this->api_encryption_provisionable);
 #endif
+#ifdef USE_STORE_YAML
+  dump_field(out, ESPHOME_PSTR("has_store_yaml"), this->has_store_yaml);
+#endif
   return out.c_str();
 }
 const char *ListEntitiesDoneResponse::dump_to(DumpBuffer &out) const {
@@ -2729,6 +2732,16 @@ const char *BluetoothSetConnectionParamsResponse::dump_to(DumpBuffer &out) const
   MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothSetConnectionParamsResponse"));
   dump_field(out, ESPHOME_PSTR("address"), this->address);
   dump_field(out, ESPHOME_PSTR("error"), this->error);
+  return out.c_str();
+}
+#endif
+#ifdef USE_STORE_YAML
+const char *GetYamlResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("GetYamlResponse"));
+  dump_bytes_field(out, ESPHOME_PSTR("data"), this->data_ptr_, this->data_len_);
+  dump_field(out, ESPHOME_PSTR("done"), this->done);
+  dump_field(out, ESPHOME_PSTR("total_size"), this->total_size);
+  dump_field(out, ESPHOME_PSTR("encoding"), this->encoding);
   return out.c_str();
 }
 #endif

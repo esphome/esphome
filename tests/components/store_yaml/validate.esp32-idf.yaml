@@ -1,0 +1,9 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:
+  encryption:
+    key: AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=
+
+store_yaml:

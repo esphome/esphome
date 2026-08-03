@@ -1,0 +1,18 @@
+esphome:
+  name: store-yaml-test
+  areas:
+    - id: living_room
+      name: "Living Room"
+
+host:
+
+logger:
+
+api:
+
+ota:
+  - platform: esphome
+    password: recoverme123
+
+store_yaml:
+  allow_unencrypted: true

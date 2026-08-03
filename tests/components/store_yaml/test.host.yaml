@@ -1,0 +1,4 @@
+network:
+
+packages:
+  store_yaml: !include common.yaml

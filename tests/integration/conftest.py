@@ -10,6 +10,7 @@ import logging
 import os
 from pathlib import Path
 import platform
+import re
 import signal
 import socket
 import subprocess
@@ -178,10 +179,9 @@ async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> s
     loop = asyncio.get_running_loop()
     content = await loop.run_in_executor(None, fixture_path.read_text)
 
-    # Replace the port in the config if it contains api section
-    if "api:" in content:
-        # Add port configuration after api:
-        content = content.replace("api:", f"api:\n  port: {unused_tcp_port}")
+    # Replace the port in the config if it contains an api section. Anchored to
+    # the start of a line so keys that merely end in "api:" are left alone.
+    content = re.sub(r"(?m)^api:", f"api:\n  port: {unused_tcp_port}", content)
 
     # Add debug build flags for integration tests to enable assertions
     if "esphome:" in content and "platformio_options:" not in content:

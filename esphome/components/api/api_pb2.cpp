@@ -174,6 +174,9 @@ uint8_t *DeviceInfoResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_
 #ifdef USE_API_NOISE
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 26, this->api_encryption_provisionable);
 #endif
+#ifdef USE_STORE_YAML
+  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 27, this->has_store_yaml);
+#endif
   return pos;
 }
 uint32_t DeviceInfoResponse::calculate_size() const {
@@ -238,6 +241,9 @@ uint32_t DeviceInfoResponse::calculate_size() const {
 #endif
 #ifdef USE_API_NOISE
   size += ProtoSize::calc_bool(2, this->api_encryption_provisionable);
+#endif
+#ifdef USE_STORE_YAML
+  size += ProtoSize::calc_bool(2, this->has_store_yaml);
 #endif
   return size;
 }
@@ -4178,6 +4184,27 @@ uint32_t BluetoothSetConnectionParamsResponse::calculate_size() const {
   uint32_t size = 0;
   size += ProtoSize::calc_uint64(1, this->address);
   size += ProtoSize::calc_int32(1, this->error);
+  return size;
+}
+#endif
+#ifdef USE_STORE_YAML
+uint8_t *GetYamlResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 10);
+  ProtoEncode::encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, this->data_len_);
+  ProtoEncode::encode_raw(pos PROTO_ENCODE_DEBUG_ARG, this->data_ptr_, this->data_len_);
+  ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 16);
+  ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, this->done ? 0x01 : 0x00);
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->total_size);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, this->encoding);
+  return pos;
+}
+uint32_t GetYamlResponse::calculate_size() const {
+  uint32_t size = 0;
+  size += ProtoSize::calc_length_force(1, this->data_len_);
+  size += ProtoSize::calc_bool_force(1);
+  size += ProtoSize::calc_uint32(1, this->total_size);
+  size += !this->encoding.empty() ? 2 + this->encoding.size() : 0;
   return size;
 }
 #endif

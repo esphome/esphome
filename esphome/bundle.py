@@ -101,25 +101,21 @@ _KNOWN_FILE_EXTENSIONS = frozenset(
 )
 
 
-# Matches !secret references in YAML text.  An optional surrounding
-# quote pair around the key is allowed and ignored: YAML treats
-# ``!secret 'foo'`` and ``!secret foo`` as the same key.  This is
-# intentionally a simple regex scan rather than a YAML parse — it may
-# match inside comments or multi-line strings, which is the conservative
-# direction (include more secrets rather than fewer).
-_SECRET_RE = re.compile(r"""!secret\s+['"]?([^\s'"]+)""")
-
-
 def _find_used_secret_keys(yaml_files: list[Path]) -> set[str]:
     """Scan YAML files for ``!secret <key>`` references."""
     keys: set[str] = set()
     for fpath in yaml_files:
         try:
             text = fpath.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+        except (OSError, UnicodeDecodeError) as err:
+            _LOGGER.warning(
+                "Could not scan %s for !secret references (%s); the bundled "
+                "secret set may be incomplete",
+                fpath,
+                err,
+            )
             continue
-        for match in _SECRET_RE.finditer(text):
-            keys.add(match.group(1))
+        keys |= yaml_util.find_secret_references(text)
     return keys
 
 
@@ -393,6 +389,18 @@ class ConfigBundleCreator:
         must ship every candidate so the remote build can pick any one.
         """
         discovered = yaml_util.discover_user_yaml_files(self._config_path)
+        if discovered.load_errors:
+            _LOGGER.warning(
+                "Bundle may be incomplete; could not load all configuration files: %s",
+                "; ".join(discovered.load_errors),
+            )
+        if discovered.unresolved:
+            _LOGGER.warning(
+                "Bundle may be incomplete; %d !include path(s) use "
+                "substitutions and cannot be captured: %s",
+                len(discovered.unresolved),
+                ", ".join(discovered.unresolved),
+            )
         self._secrets_paths.update(discovered.secrets)
         config_resolved = self._config_path.resolve()
         for fpath in discovered.files:
