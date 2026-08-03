@@ -558,6 +558,20 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
 
     if (ioctl(this->jpeg_fd_, VIDIOC_QBUF, &out_buf) < 0) {
       ESP_LOGW(TAG, "JPEG encoder OUTPUT QBUF failed: %s", strerror(errno));
+      // EINVAL here has four possible causes inside esp_video, and the driver
+      // does not say which: a memory-type or index mismatch, a userptr not
+      // aligned to the queue's cache alignment, or a userptr outside the memory
+      // class the queue was configured for (the encoder asks for PSRAM). Dump
+      // the pointer once per capture so the next log identifies it directly
+      // instead of leaving it to guesswork.
+      if (!this->logged_qbuf_failure_) {
+        this->logged_qbuf_failure_ = true;
+        auto ptr = (uintptr_t) this->capture_buffers_[cap_buf.index].start;
+        ESP_LOGW(TAG, "  buffer %u: ptr=0x%08X psram=%s align32=%u align64=%u len=%u used=%u", (unsigned) cap_buf.index,
+                 (unsigned) ptr, esp_ptr_external_ram((const void *) ptr) ? "yes" : "NO", (unsigned) (ptr % 32),
+                 (unsigned) (ptr % 64), (unsigned) this->capture_buffers_[cap_buf.index].length,
+                 (unsigned) cap_buf.bytesused);
+      }
     } else if (ioctl(this->jpeg_fd_, VIDIOC_QBUF, &jpeg_buf) < 0) {
       // The raw frame is already sitting on the OUTPUT queue, so reclaim it here:
       // without this the encoder loses one OUTPUT slot per failure and stalls for
@@ -756,6 +770,7 @@ bool ESPVideoCamera::start_capture_() {
   }
   this->streaming_ = true;
   this->last_frame_ms_ = 0;
+  this->logged_qbuf_failure_ = false;
   return true;
 }
 

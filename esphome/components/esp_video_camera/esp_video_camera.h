@@ -137,6 +137,9 @@ class ESPVideoCamera : public camera::Camera {
   static constexpr uint32_t CAPTURE_RETRY_INTERVAL_MS = 2000;
   bool capture_retry_pending_{false};
   uint32_t capture_retry_at_ms_{0};
+  // One-shot: dump the rejected buffer's placement on the first encoder QBUF
+  // failure of a capture, not on every frame.
+  bool logged_qbuf_failure_{false};
 
   // Consumers (bit masks indexed by camera::CameraRequester).
   //
