@@ -19,7 +19,7 @@ from typing import Protocol
 # Note: Do not import modules from esphome.components here, as this would
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
-from esphome import const
+from esphome import const, platform_hooks
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     ARGUMENT_HELP_DEVICE,
@@ -630,13 +630,8 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
         return 1
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
-    from esphome.platform_hooks import (
-        PLATFORMS_WITH_PROCESS_STACKTRACE,
-        get_platform_hook,
-    )
-
-    process_stacktrace = get_platform_hook(
-        CORE.target_platform, "process_stacktrace", PLATFORMS_WITH_PROCESS_STACKTRACE
+    process_stacktrace = platform_hooks.get_platform_hook(
+        CORE.target_platform, "process_stacktrace"
     )
     if process_stacktrace is None:
         _LOGGER.info(
@@ -1144,10 +1139,8 @@ def upload_program(
     config: ConfigType, args: ArgsProtocol, devices: list[str]
 ) -> tuple[int, str | None]:
     host = devices[0]
-    from esphome.platform_hooks import PLATFORMS_WITH_UPLOAD_PROGRAM, get_platform_hook
-
-    platform_upload = get_platform_hook(
-        CORE.target_platform, "upload_program", PLATFORMS_WITH_UPLOAD_PROGRAM
+    platform_upload = platform_hooks.get_platform_hook(
+        CORE.target_platform, "upload_program"
     )
     if platform_upload is not None and platform_upload(config, args, host):
         return 0, host
@@ -1410,10 +1403,8 @@ def _should_subscribe_states(args: ArgsProtocol) -> bool:
 
 
 def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
-    from esphome.platform_hooks import PLATFORMS_WITH_SHOW_LOGS, get_platform_hook
-
-    platform_show_logs = get_platform_hook(
-        CORE.target_platform, "show_logs", PLATFORMS_WITH_SHOW_LOGS
+    platform_show_logs = platform_hooks.get_platform_hook(
+        CORE.target_platform, "show_logs"
     )
     if platform_show_logs is not None and platform_show_logs(config, args, devices):
         return 0

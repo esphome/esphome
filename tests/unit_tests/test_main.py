@@ -2883,8 +2883,7 @@ def test_upload_program_platform_specific_handler(
 
     assert exit_code == 0
     assert host == "custom_device"
-    assert mock_get_hook.call_args.args[0] == PLATFORM_NRF52
-    assert mock_get_hook.call_args.args[1] == "upload_program"
+    mock_get_hook.assert_called_once_with(PLATFORM_NRF52, "upload_program")
     platform_upload.assert_called_once_with(config, args, "custom_device")
 
 
@@ -3126,8 +3125,7 @@ def test_show_logs_platform_specific_handler(
     result = show_logs(config, args, devices)
 
     assert result == 0
-    assert mock_get_hook.call_args.args[0] == PLATFORM_NRF52
-    assert mock_get_hook.call_args.args[1] == "show_logs"
+    mock_get_hook.assert_called_once_with(PLATFORM_NRF52, "show_logs")
     platform_show_logs.assert_called_once_with(config, args, devices)
 
 
