@@ -2,12 +2,14 @@ import esphome.codegen as cg
 
 # Re-exported for the many esp32-side users; defined in esphome.const so
 # the upload/logs fast path can read them without importing this package.
-# pylint: disable=unused-import
-from esphome.const import KEY_ESP32, KEY_IDF_VERSION  # noqa: F401
+from esphome.const import (  # noqa: F401  # pylint: disable=unused-import
+    KEY_ESP32,
+    KEY_IDF_VERSION,
+    KEY_VARIANT,
+)
 
 KEY_BOARD = "board"
 KEY_FLASH_SIZE = "flash_size"
-KEY_VARIANT = "variant"
 KEY_SDKCONFIG_OPTIONS = "sdkconfig_options"
 KEY_COMPONENTS = "components"
 KEY_EXCLUDE_COMPONENTS = "exclude_components"
