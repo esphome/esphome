@@ -70,7 +70,7 @@ jobs:
         # which would otherwise abort the workflow before the auto-fixes
         # can flow into the sync PR.
         #
-        # SKIP:
+        # PREK_SKIP:
         #   - no-commit-to-branch is a local guard against committing on
         #     dev/release/beta; CI runs on dev by definition, and
         #     peter-evans/create-pull-request creates the branch itself.
@@ -86,7 +86,7 @@ jobs:
         # Second pass: re-run all hooks against the now-fixed tree.
         # Auto-fixers exit 0 (nothing to change); any remaining failure
         # from a check-only hook (flake8 / yamllint / ci-custom) is a
-        # real issue and fails the workflow loudly. Same SKIP list as
+        # real issue and fails the workflow loudly. Same PREK_SKIP list as
         # above for the same reasons.
         env:
           PREK_SKIP: pylint,no-commit-to-branch
