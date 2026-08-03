@@ -1,8 +1,7 @@
 packages:
   remote_transmitter: !include ../../test_build_components/common/remote_transmitter/esp32-ard.yaml
   uart: !include ../../test_build_components/common/uart/esp32-ard.yaml
-
-<<: !include common.yaml
+  midea: !include common.yaml
 
 wifi:
   ssid: MySSID
