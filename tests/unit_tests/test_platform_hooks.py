@@ -51,6 +51,37 @@ def test_registered_platform_resolves_hook() -> None:
     assert hook is esp32.process_stacktrace
 
 
+def test_every_registered_pair_resolves() -> None:
+    """Each registered platform must actually expose the hook at runtime.
+
+    Text scanning can miss re-exports or decorated definitions; this is
+    the behavioural check for the direction that matters when the CLI
+    runs.
+    """
+    for hook, platforms in platform_hooks.PLATFORM_HOOKS.items():
+        for platform in platforms:
+            assert callable(platform_hooks.get_platform_hook(platform, hook)), (
+                f"{platform} is registered for {hook} but does not expose it"
+            )
+
+
+def test_external_platform_falls_back_to_probe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Out-of-tree target platforms keep working via the dynamic probe."""
+    module = type("FakePlatform", (), {"show_logs": staticmethod(lambda *a: True)})
+    imported: list[str] = []
+
+    def fake_import(name: str):
+        imported.append(name)
+        return module
+
+    monkeypatch.setattr(platform_hooks.importlib, "import_module", fake_import)
+    hook = platform_hooks.get_platform_hook("my_external_chip", "show_logs")
+    assert hook is module.show_logs
+    assert imported == ["esphome.components.my_external_chip"]
+
+
 def test_lookup_miss_does_not_import_platform_package(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
