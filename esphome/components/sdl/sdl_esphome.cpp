@@ -3,6 +3,7 @@
 #include "esphome/components/display/display_color_utils.h"
 
 #include <fcntl.h>
+#include <strings.h>
 #include <unistd.h>
 #include <cctype>
 #include <cerrno>
@@ -22,6 +23,12 @@ constexpr const char *const WINDOW_DATA_KEY = "esphome_sdl";
 constexpr size_t MAX_NAME_LENGTH = 200;
 // Give up rather than spin forever if every candidate name is taken.
 constexpr unsigned MAX_NAME_ATTEMPTS = 1000;
+
+/// True if the name already ends in ".bmp". The comparison ignores case, so "shot.BMP" is left
+/// alone rather than turned into "shot.BMP.bmp".
+bool has_bmp_suffix(const std::string &name) {
+  return name.size() >= 4 && strcasecmp(name.c_str() + name.size() - 4, ".bmp") == 0;
+}
 
 /// Reduce a user supplied name to a single safe path component. Everything outside the allowed set
 /// is replaced, so "..", "/" and absolute paths cannot escape the screenshot directory.
@@ -50,7 +57,7 @@ std::string sanitize_name(const char *name, bool *rewritten) {
     *rewritten = true;
     return "";
   }
-  if (result.size() < 4 || result.compare(result.size() - 4, 4, ".bmp") != 0)
+  if (!has_bmp_suffix(result))
     result += ".bmp";
   *rewritten = changed;
   return result;
@@ -179,7 +186,8 @@ void Sdl::update() {
 
 void Sdl::redraw_(SDL_Rect &rect) {
   // Nothing to present when headless - save_screenshot() blits the whole texture when it needs it,
-  // so doing it here as well would just burn CPU (draw_pixel_at() calls this once per pixel).
+  // so doing it here as well would just burn CPU. draw_pixels_at() calls this on every partial
+  // update, so it is worth skipping.
   if (this->headless_)
     return;
   SDL_RenderCopy(this->renderer_, this->texture_, &rect, &rect);

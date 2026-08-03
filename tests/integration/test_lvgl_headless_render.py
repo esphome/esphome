@@ -11,10 +11,10 @@ from __future__ import annotations
 import asyncio
 import hashlib
 from pathlib import Path
-import struct
 
 import pytest
 
+from .bmp_utils import wait_for_bmp
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 WIDTH = 300
@@ -28,26 +28,6 @@ EXPECTED_SHA256 = "a995b002dd1d183c47514da15ab9a60a3e7d788c2e24386a02fddd4865509
 # generated against. A version bump can shift anti-aliasing enough to change the hash even though
 # nothing is actually wrong -- if this test fails, check that first before regenerating the hash.
 EXPECTED_LVGL_VERSION = "9.5.0"
-
-
-def _bmp_pixels(path: Path) -> tuple[int, int, int, bytes]:
-    """Return (width, height, bits per pixel, pixel data) from a BMP file.
-
-    The per row padding is stripped, so the returned bytes depend only on the image itself.
-    """
-    data = path.read_bytes()
-    assert data[:2] == b"BM", "not a BMP file"
-    offset = struct.unpack_from("<I", data, 10)[0]
-    width, height = struct.unpack_from("<ii", data, 18)
-    bits = struct.unpack_from("<H", data, 28)[0]
-    row_size = ((width * bits + 31) // 32) * 4
-    used = width * bits // 8
-    rows = [
-        data[offset + row * row_size : offset + row * row_size + used]
-        for row in range(abs(height))
-    ]
-    assert len(rows[-1]) == used, "BMP is truncated"
-    return width, abs(height), bits, b"".join(rows)
 
 
 @pytest.mark.asyncio
@@ -73,19 +53,13 @@ async def test_lvgl_headless_render(
         await client.execute_service(service, {})
 
         capture = screenshot_dir / "hello_world.bmp"
-        for _ in range(100):
-            if capture.is_file():
-                break
-            await asyncio.sleep(0.05)
-        assert capture.is_file(), f"no screenshot appeared in {screenshot_dir}"
-
-        width, height, bits, pixels = _bmp_pixels(capture)
-        assert (width, height, bits) == (WIDTH, HEIGHT, 24)
+        image = await wait_for_bmp(capture)
+        assert (image.width, image.height, image.bits) == (WIDTH, HEIGHT, 24)
 
         # The background is not the whole picture: something must have been drawn on it.
-        assert len(set(pixels)) > 1, "the screen is a single flat colour"
+        assert len(set(image.pixels)) > 1, "the screen is a single flat colour"
 
-        digest = hashlib.sha256(pixels).hexdigest()
+        digest = hashlib.sha256(image.pixels).hexdigest()
         if digest != EXPECTED_SHA256:
             kept = tmp_path / "lvgl_headless_render_actual.bmp"
             kept.write_bytes(capture.read_bytes())

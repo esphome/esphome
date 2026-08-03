@@ -9,6 +9,12 @@ api:
         - sdl.screenshot:
             id: sdl_display
             filename: capture.bmp
+    # An upper case extension counts as one, so this must not become "UPPER.BMP.bmp"
+    - action: take_screenshot_upper
+      then:
+        - sdl.screenshot:
+            id: sdl_display
+            filename: UPPER.BMP
 
 logger:
   level: DEBUG
