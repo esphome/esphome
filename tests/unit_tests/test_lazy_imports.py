@@ -14,6 +14,7 @@ test pins down *which* heavy modules must stay out entirely.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -63,12 +64,17 @@ def test_storage_json_fast_path_does_not_import_heavy_modules(
     """
     heavy = HEAVY_MODULES + ("esphome.components.esp32",)
     script = fixture_path / "lazy_imports" / "storage_json_fast_path.py"
+    # Running a script file drops the cwd from sys.path, so point the child
+    # at the repo root explicitly; check=False keeps its stderr visible.
+    env = os.environ | {"PYTHONPATH": str(Path(__file__).parents[2])}
     result = subprocess.run(
         [sys.executable, str(script), *heavy],
         capture_output=True,
         text=True,
-        check=True,
+        env=env,
+        check=False,
     )
+    assert result.returncode == 0, result.stderr
     leaked = result.stdout.strip()
     assert not leaked, (
         f"storage_json.apply_to_core pulls in heavy modules: {leaked}. "
