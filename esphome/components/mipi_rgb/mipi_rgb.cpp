@@ -52,16 +52,14 @@ void MipiRgbSpi::sleep() {
   this->spi_setup();
   this->write_command_(SLEEP_IN);
   this->spi_teardown();
-  delay(10);
 }
 
 void MipiRgbSpi::wakeup() {
   this->spi_setup();
   this->write_command_(SLEEP_OUT);
-  delay(10);
+  delay(10);  // SLEEP_OUT needs a settle delay before the next command (MIPI spec: >=5ms)
   this->write_command_(DISPLAY_ON);
   this->spi_teardown();
-  delay(10);
 }
 
 void MipiRgbSpi::write_command_(uint8_t value) {
