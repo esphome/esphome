@@ -615,6 +615,14 @@ def test_node_key_file_url_with_host_rejected(url: str) -> None:
         _node_key(None, None, url)
 
 
+@pytest.mark.parametrize("url", ["file:lib_dev", "file:./lib", "file:///"])
+def test_node_key_file_url_must_be_absolute(url: str) -> None:
+    # A relative path (no host, e.g. file:lib_dev) or a bare root (file:///)
+    # is rejected rather than resolved against the cwd or yielding an empty name.
+    with pytest.raises(RuntimeError, match="must be an absolute"):
+        _node_key(None, None, url)
+
+
 def test_node_key_git_plus_file_url_stays_git():
     # git+file:// is an explicit local git repo, not a plain directory.
     _key, kind, locator = _node_key("X", None, "git+file:///srv/foo.git")

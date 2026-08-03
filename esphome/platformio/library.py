@@ -650,8 +650,16 @@ def _node_key(
                     f"Unsupported host in file:// library URL '{repository}'; "
                     "use an absolute path, e.g. file:///path/to/lib"
                 )
-            path = url2pathname(split_result.path)
-            return (name or Path(path).name), "local", (path, None)
+            local = Path(url2pathname(split_result.path))
+            # Reject a relative path (e.g. ``file:lib_dev`` with no host) or a
+            # bare root (``file:///``): both would resolve somewhere surprising
+            # or yield an empty component name.
+            if not local.is_absolute() or not local.name:
+                raise RuntimeError(
+                    f"file:// library URL '{repository}' must be an absolute "
+                    "directory path, e.g. file:///path/to/lib"
+                )
+            return (name or local.name), "local", (str(local), None)
         key = str(split_result.path).strip("/").removesuffix(".git")
         ref = split_result.fragment.strip() or None
         url = urlunsplit(split_result._replace(fragment=""))
