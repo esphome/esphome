@@ -16,7 +16,6 @@ DEPENDENCIES = ["api", "uart"]
 CONF_INITIAL_TIMEOUT = "initial_timeout"
 CONF_MIN_TIMEOUT = "min_timeout"
 CONF_MAX_TIMEOUT = "max_timeout"
-CONF_USB_UART_ID = "usb_uart_id"
 
 # Default ACK timeout values calibrated for hardware UART (460800 baud, ~2-5 ms round-trip)
 _DEFAULT_HW_INITIAL_TIMEOUT = 1600
@@ -51,10 +50,6 @@ CONFIG_SCHEMA = cv.All(
                 cv.int_range(min=256, max=2048),
                 esp8266=512,
                 default=1024,
-            ),
-            cv.Optional(CONF_USB_UART_ID): cv.invalid(
-                "'usb_uart_id' has been removed; a USB UART channel is now "
-                "detected automatically from 'uart_id'"
             ),
             cv.Optional(CONF_INITIAL_TIMEOUT): cv.int_range(min=10, max=10000),
             cv.Optional(CONF_MIN_TIMEOUT): cv.int_range(min=10, max=5000),
