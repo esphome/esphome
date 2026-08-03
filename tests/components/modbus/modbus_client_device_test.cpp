@@ -341,4 +341,45 @@ TEST(ModbusTypedDispatch, SingleWriteAckPrefersTheResponseEcho) {
   EXPECT_EQ(device.write_single_register_calls.back().value, 0x002A);  // exception: request copy
 }
 
+// Deprecated on_modbus_data() compatibility shim (pre-2026.8 API). Records the vectors delivered to
+// the old callback so we can pin its payload framing against the pre-2026.7 behavior.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+namespace {
+class LegacyDevice : public ModbusDevice {
+ public:
+  void on_modbus_data(const std::vector<uint8_t> &data) override { this->data_calls.push_back(data); }
+  void on_modbus_error(uint8_t function_code, uint8_t exception_code) override {
+    this->error_calls.emplace_back(function_code, exception_code);
+  }
+  std::vector<std::vector<uint8_t>> data_calls;
+  std::vector<std::pair<uint8_t, uint8_t>> error_calls;
+};
+}  // namespace
+
+// Custom (user-defined) function codes historically delivered the payload INCLUDING the function code
+// byte (frame data_offset 1). External components such as the Century VS pump match that first byte
+// against the code they sent, so dropping it (issue #17994) makes every response get ignored.
+TEST(ModbusLegacyShim, CustomFunctionCodeKeepsFunctionCodeByte) {
+  LegacyDevice device;
+  const uint8_t request[] = {0x45, 0x01, 0x02};         // custom function 0x45
+  const uint8_t response[] = {0x45, 0xAA, 0xBB, 0xCC};  // echo of the custom code + data
+  device.on_response(request, response);
+
+  ASSERT_EQ(device.data_calls.size(), 1u);
+  EXPECT_EQ(device.data_calls.front(), (std::vector<uint8_t>{0x45, 0xAA, 0xBB, 0xCC}));
+}
+
+// Standard reads still strip the function code and byte-count header, matching the pre-2026.7 shim.
+TEST(ModbusLegacyShim, StandardReadStripsHeader) {
+  LegacyDevice device;
+  const uint8_t request[] = {0x03, 0x01, 0x00, 0x00, 0x02};
+  const uint8_t response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
+  device.on_response(request, response);
+
+  ASSERT_EQ(device.data_calls.size(), 1u);
+  EXPECT_EQ(device.data_calls.front(), (std::vector<uint8_t>{0x00, 0x2A, 0x01, 0x00}));
+}
+#pragma GCC diagnostic pop
+
 }  // namespace esphome::modbus::testing
