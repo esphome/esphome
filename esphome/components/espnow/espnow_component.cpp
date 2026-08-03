@@ -178,7 +178,7 @@ void ESPNowComponent::on_wifi_connect_state(StringRef ssid, std::span<const uint
   uint8_t old_channel = this->wifi_channel_;
   this->get_wifi_channel();
   if (this->wifi_channel_ != old_channel) {
-    ESP_LOGI(TAG, "Wifi Channel is changed from %d to %d.", old_channel, this->wifi_channel_);
+    ESP_LOGI(TAG, "WiFi channel changed from %d to %d", old_channel, this->wifi_channel_);
   }
 }
 #endif
