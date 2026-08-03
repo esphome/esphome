@@ -94,6 +94,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_NRF52,
     PLATFORM_RP2,
     Toolchain,
 )
@@ -2862,18 +2863,17 @@ def test_upload_program_ota_with_mqtt_empty_broker(
     assert "MQTT IP discovery failed" in caplog.text
 
 
-@patch("esphome.__main__.importlib.import_module")
+@patch("esphome.platform_hooks.get_platform_hook")
 def test_upload_program_platform_specific_handler(
-    mock_import: Mock,
+    mock_get_hook: Mock,
     mock_get_port_type: Mock,
 ) -> None:
     """Test upload_program with platform-specific upload handler."""
-    setup_core(platform="custom_platform")
+    setup_core(platform=PLATFORM_NRF52)
     mock_get_port_type.return_value = "CUSTOM"
 
-    mock_module = MagicMock()
-    mock_module.upload_program.return_value = True
-    mock_import.return_value = mock_module
+    platform_upload = MagicMock(return_value=True)
+    mock_get_hook.return_value = platform_upload
 
     config = {}
     args = MockArgs()
@@ -2883,8 +2883,9 @@ def test_upload_program_platform_specific_handler(
 
     assert exit_code == 0
     assert host == "custom_device"
-    mock_import.assert_called_once_with("esphome.components.custom_platform")
-    mock_module.upload_program.assert_called_once_with(config, args, "custom_device")
+    assert mock_get_hook.call_args.args[0] == PLATFORM_NRF52
+    assert mock_get_hook.call_args.args[1] == "upload_program"
+    platform_upload.assert_called_once_with(config, args, "custom_device")
 
 
 def test_show_logs_serial(
@@ -3108,16 +3109,15 @@ def test_show_logs_no_method_configured() -> None:
         show_logs(CORE.config, args, devices)
 
 
-@patch("esphome.__main__.importlib.import_module")
+@patch("esphome.platform_hooks.get_platform_hook")
 def test_show_logs_platform_specific_handler(
-    mock_import: Mock,
+    mock_get_hook: Mock,
 ) -> None:
     """Test show_logs with platform-specific logs handler."""
-    setup_core(platform="custom_platform", config={"logger": {}})
+    setup_core(platform=PLATFORM_NRF52, config={"logger": {}})
 
-    mock_module = MagicMock()
-    mock_module.show_logs.return_value = True
-    mock_import.return_value = mock_module
+    platform_show_logs = MagicMock(return_value=True)
+    mock_get_hook.return_value = platform_show_logs
 
     config = {"logger": {}}
     args = MockArgs()
@@ -3126,8 +3126,9 @@ def test_show_logs_platform_specific_handler(
     result = show_logs(config, args, devices)
 
     assert result == 0
-    mock_import.assert_called_once_with("esphome.components.custom_platform")
-    mock_module.show_logs.assert_called_once_with(config, args, devices)
+    assert mock_get_hook.call_args.args[0] == PLATFORM_NRF52
+    assert mock_get_hook.call_args.args[1] == "show_logs"
+    platform_show_logs.assert_called_once_with(config, args, devices)
 
 
 def test_has_mqtt_logging_no_log_topic() -> None:

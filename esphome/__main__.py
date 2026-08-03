@@ -630,12 +630,15 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
         return 1
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
-    process_stacktrace = None
+    from esphome.platform_hooks import (
+        PLATFORMS_WITH_PROCESS_STACKTRACE,
+        get_platform_hook,
+    )
 
-    try:
-        module = importlib.import_module("esphome.components." + CORE.target_platform)
-        process_stacktrace = module.process_stacktrace
-    except (AttributeError, ImportError):
+    process_stacktrace = get_platform_hook(
+        CORE.target_platform, "process_stacktrace", PLATFORMS_WITH_PROCESS_STACKTRACE
+    )
+    if process_stacktrace is None:
         _LOGGER.info(
             'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
             CORE.target_platform,
@@ -1141,12 +1144,13 @@ def upload_program(
     config: ConfigType, args: ArgsProtocol, devices: list[str]
 ) -> tuple[int, str | None]:
     host = devices[0]
-    try:
-        module = importlib.import_module("esphome.components." + CORE.target_platform)
-        if module.upload_program(config, args, host):
-            return 0, host
-    except AttributeError:
-        pass
+    from esphome.platform_hooks import PLATFORMS_WITH_UPLOAD_PROGRAM, get_platform_hook
+
+    platform_upload = get_platform_hook(
+        CORE.target_platform, "upload_program", PLATFORMS_WITH_UPLOAD_PROGRAM
+    )
+    if platform_upload is not None and platform_upload(config, args, host):
+        return 0, host
 
     port_type = get_port_type(host)
 
@@ -1406,12 +1410,13 @@ def _should_subscribe_states(args: ArgsProtocol) -> bool:
 
 
 def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
-    try:
-        module = importlib.import_module("esphome.components." + CORE.target_platform)
-        if module.show_logs(config, args, devices):
-            return 0
-    except AttributeError:
-        pass
+    from esphome.platform_hooks import PLATFORMS_WITH_SHOW_LOGS, get_platform_hook
+
+    platform_show_logs = get_platform_hook(
+        CORE.target_platform, "show_logs", PLATFORMS_WITH_SHOW_LOGS
+    )
+    if platform_show_logs is not None and platform_show_logs(config, args, devices):
+        return 0
 
     if "logger" not in config:
         raise EsphomeError("Logger is not configured!")
