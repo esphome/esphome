@@ -38,7 +38,9 @@ RP2BLETracker = rp2_ble_tracker_ns.class_(
 # interval defaults to 100 ms with the shared 30 ms window, a 30 % duty cycle —
 # the same defaults as bk72xx_ble_tracker, leaving the radio mostly free for
 # WiFi on the shared CYW43. Converted to the controller's 0.625 ms BLE units in
-# to_code().
+# to_code(). `active` defaults on for esp32_ble_tracker parity; it adds scan
+# request TX and roughly doubles the reports through the queue, so
+# `active: false` is the lighter choice when scan response data is not needed.
 SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
     "100ms", supports_active=True
 )

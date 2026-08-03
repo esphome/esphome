@@ -29,9 +29,10 @@ struct BLEScanReport {
   int8_t rssi;     // signed dBm
   uint8_t addr_type;
   uint8_t data_len;  // bytes valid in data[]
-  // Legacy advertisement (31) + scan response (31): passive scans fill at most
-  // 31 bytes today, but bluetooth_proxy support will flip to active scanning
-  // in a future PR and the API raw-advertisement contract carries 62.
+  // Legacy advertisement (31) + scan response (31). BTstack delivers the two
+  // as separate reports, so each report fills at most 31 bytes today; the 62
+  // matches the API raw-advertisement contract and leaves room for a consumer
+  // side merge (bluetooth_proxy) without an ABI change.
   uint8_t data[62];
 
   // EventPool contract: nothing is heap-allocated inside a report.
