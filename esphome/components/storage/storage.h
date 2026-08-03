@@ -59,6 +59,7 @@ enum class StorageType : uint8_t {
   RAW = 0,
   FILESYSTEM,
   NETWORK,
+  KEY_VALUE,
 };
 
 struct StorageInfo {
@@ -283,6 +284,46 @@ class RawStorage : public Storage {
 #endif
 };
 
+// A key-value storage: opaque blobs addressed by a 32-bit key, NOT by byte offset or path. It is a
+// sibling of RawStorage, not a subclass -- byte-addressed read()/write() do not apply to a KV store,
+// and modelling one as RawStorage would be an is-a lie. Like RawStorage it is boot-guaranteed: it
+// does not inherit MountableStorage, registers once, and stays registered for the node's lifetime,
+// so a consumer can hold one without watching for it to disappear. NVS is its natural native backend;
+// raw/littlefs backends may emulate it later. Contention still applies -- two operations on one
+// backend must not overlap.
+//
+// The key is a caller-supplied uint32 (the same key space ESPHome preferences already use). Deriving
+// a collision-free key from a semantic id is the consumer's responsibility, not this interface's.
+class KeyValueStorage : public Storage {
+ public:
+  StorageType get_storage_type() const override { return StorageType::KEY_VALUE; }
+
+  // Read the value for `key` into `buf` (capacity `len`); on success *got holds the byte count.
+  // NOT_FOUND if the key is absent; INVALID_ARGS if the stored value is larger than `len` (query
+  // get_size() first for values of unknown length).
+  virtual StorageError get(uint32_t key, uint8_t *buf, size_t len, size_t *got) = 0;
+
+  // Store `len` bytes under `key`, replacing any existing value.
+  virtual StorageError set(uint32_t key, const uint8_t *data, size_t len) = 0;
+
+  // Remove `key`. Removing an absent key is a no-op success (idempotent).
+  virtual StorageError erase(uint32_t key) = 0;
+
+  // Whether `key` currently has a value, without reading it.
+  virtual bool has(uint32_t key) = 0;
+
+  // Byte length of the value for `key` into *out. NOT_FOUND if the key is absent.
+  virtual StorageError get_size(uint32_t key, size_t *out) = 0;
+
+  // Runtime bring-up: detect an empty/invalid medium and initialize it in place. A fast no-op for a
+  // medium already laid out at flash time (an internal partition); the real work for an external bus
+  // device on first boot, once its bus is up. Called at backend setup, never from codegen.
+  virtual StorageError ensure_initialized() = 0;
+
+  // Destructive: wipe and recreate an empty store.
+  virtual StorageError format() = 0;
+};
+
 // Common path-based operations shared by FilesystemStorage and NetworkStorage.
 // Lets path-oriented consumers (e.g. a file browser/server) enumerate and operate
 // on any storage that exposes a path namespace, regardless of local vs. network backing.
@@ -310,6 +351,8 @@ class MountableStorage {
   virtual StorageError unmount() = 0;
 };
 
+class FilesystemStorage;  // forward -- PathStorage::as_filesystem() below
+
 class PathStorage : public Storage {
  public:
   // No-RTTI downcast hook: consumers holding a PathStorage* (e.g. from resolve_path() or
@@ -317,6 +360,9 @@ class PathStorage : public Storage {
   // dynamic_cast is unavailable (ESPHome builds with -fno-rtti). Drivers that inherit
   // MountableStorage override this with `return this;`.
   virtual MountableStorage *as_mountable() { return nullptr; }
+  // No-RTTI downcast to the filesystem interface (format/sync/open...). nullptr for
+  // path-based storages that are not filesystems.
+  virtual FilesystemStorage *as_filesystem() { return nullptr; }
 
   // The VFS mount point this storage is reachable under (e.g. "/sdcard", "/usb"). Set once by
   // the driver (typically from YAML) and treated as invariant for the lifetime of the instance --
@@ -357,6 +403,7 @@ class PathStorage : public Storage {
 class FilesystemStorage : public PathStorage {
  public:
   StorageType get_storage_type() const override { return StorageType::FILESYSTEM; }
+  FilesystemStorage *as_filesystem() override { return this; }
 
   virtual StorageError mount() = 0;
   virtual StorageError unmount() = 0;
@@ -482,6 +529,7 @@ class StorageRegistry : public Component {
   void for_each(void (*cb)(Storage *s, void *ctx), void *ctx);
   void for_each_filesystem(void (*cb)(FilesystemStorage *s, void *ctx), void *ctx);
   void for_each_raw(void (*cb)(RawStorage *s, void *ctx), void *ctx);
+  void for_each_kv(void (*cb)(KeyValueStorage *s, void *ctx), void *ctx);
   void for_each_network(void (*cb)(NetworkStorage *s, void *ctx), void *ctx);
   // Both FILESYSTEM and NETWORK expose PathStorage -- use this to browse/operate on
   // any path-based storage without caring whether it's local or network-backed.
