@@ -867,11 +867,23 @@ bool ESPVideoCamera::start_jpeg_pipeline_() {
     return false;
   }
 
-  struct v4l2_control ctrl;
-  memset(&ctrl, 0, sizeof(ctrl));
-  ctrl.id = V4L2_CID_JPEG_COMPRESSION_QUALITY;
-  ctrl.value = this->jpeg_quality_;
-  ioctl(this->jpeg_fd_, VIDIOC_S_CTRL, &ctrl);
+  // Compression quality goes through VIDIOC_S_EXT_CTRLS, not VIDIOC_S_CTRL:
+  // esp_video's ioctl dispatcher has no VIDIOC_S_CTRL case at all, so the plain
+  // form fails and the encoder silently keeps its built-in default of 80. That
+  // is why jpeg_quality had no measurable effect on the encoded size.
+  // Form taken from esp_video's own examples (m2m and uvc).
+  struct v4l2_ext_control ext_ctrl;
+  memset(&ext_ctrl, 0, sizeof(ext_ctrl));
+  ext_ctrl.id = V4L2_CID_JPEG_COMPRESSION_QUALITY;
+  ext_ctrl.value = this->jpeg_quality_;
+
+  struct v4l2_ext_controls ext_ctrls;
+  memset(&ext_ctrls, 0, sizeof(ext_ctrls));
+  ext_ctrls.ctrl_class = V4L2_CID_JPEG_CLASS;
+  ext_ctrls.count = 1;
+  ext_ctrls.controls = &ext_ctrl;
+  if (ioctl(this->jpeg_fd_, VIDIOC_S_EXT_CTRLS, &ext_ctrls) < 0)
+    ESP_LOGW(TAG, "Could not set JPEG quality to %d: %s", this->jpeg_quality_, strerror(errno));
 
   struct v4l2_requestbuffers req;
   memset(&req, 0, sizeof(req));
