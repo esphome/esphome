@@ -51,3 +51,30 @@ def test_main_module_does_not_import_heavy_modules() -> None:
         "every esphome invocation (including each parallel dashboard "
         "upload subprocess) pays for top-level imports."
     )
+
+
+def test_api_client_does_not_import_heavy_modules() -> None:
+    """``esphome.api_client`` is on the logs fast path and must stay light.
+
+    Importing it must not execute the api component package (which pulls
+    the whole validation stack: logger, esp32, writer, config, jinja2,
+    voluptuous).
+    """
+    heavy = HEAVY_MODULES + ("esphome.components.api",)
+    check = (
+        "import sys; import esphome.api_client; "
+        f"leaked = [m for m in {heavy!r} if m in sys.modules]; "
+        "print(','.join(leaked))"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", check],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    leaked = result.stdout.strip()
+    assert not leaked, (
+        f"esphome.api_client imports heavy modules at top level: {leaked}. "
+        "The logs fast path skips validation; importing the validation "
+        "stack anyway defeats the validated-config cache."
+    )

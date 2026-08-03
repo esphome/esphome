@@ -1,4 +1,4 @@
-"""Tests for esphome.components.api.client."""
+"""Tests for esphome.api_client."""
 
 from __future__ import annotations
 
@@ -6,10 +6,18 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from esphome import api_client
 from esphome.components import esp32
-from esphome.components.api import client as api_client
 from esphome.const import CONF_PORT, KEY_CORE, KEY_TARGET_PLATFORM
 from esphome.core import CORE, EsphomeError
+
+
+def test_component_shim_reexports_runtime_client() -> None:
+    """The old import path must keep working for external code."""
+    from esphome.components.api import client as shim
+
+    assert shim.run_logs is api_client.run_logs
+    assert shim.async_run_logs is api_client.async_run_logs
 
 
 def test_decoder_swallows_esphome_error() -> None:
