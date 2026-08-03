@@ -32,8 +32,9 @@ struct BLEScanReport {
   uint8_t data_len;    // bytes valid in data[]
   // Legacy advertisement (31) + scan response (31). BTstack delivers the two
   // as separate reports, so each report fills at most 31 bytes today; the 62
-  // matches the API raw-advertisement contract and, with event_type, leaves
-  // room for a consumer side merge (bluetooth_proxy) without a struct change.
+  // matches the API raw-advertisement contract. event_type is what lets a
+  // future merge point tell the two frames apart — carrying it beyond this
+  // struct (RawAdvertisement) is deferred until a consumer needs the merge.
   uint8_t data[62];
 
   // EventPool contract: nothing is heap-allocated inside a report.
