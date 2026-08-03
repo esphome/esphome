@@ -685,7 +685,7 @@ class ProgressBar:
 def docs_url(path: str) -> str:
     """Return the URL to the documentation for a given path."""
     # Local import to avoid circular import
-    from esphome.config_validation import Version
+    from esphome.core import Version
 
     version = Version.parse(ESPHOME_VERSION)
     if version.is_beta:

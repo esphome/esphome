@@ -1415,6 +1415,13 @@ def _set_framework_version(platform: str, framework: str, version: cv.Version) -
 # ---------------------------------------------------------------------------
 
 
+def test_version_is_reexported_from_core() -> None:
+    """cv.Version must stay importable for external components."""
+    from esphome.core import Version
+
+    assert cv.Version is Version
+
+
 def test_version_str_with_extra() -> None:
     assert str(cv.Version(1, 2, 3, "b1")) == "1.2.3-b1"
 
