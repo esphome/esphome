@@ -1329,7 +1329,8 @@ void APIConnection::on_voice_assistant_announce_request(const VoiceAssistantAnno
   }
 }
 
-bool APIConnection::send_voice_assistant_get_configuration_response_(const VoiceAssistantConfigurationRequest &msg) {
+bool APIConnection::send_voice_assistant_get_configuration_response_(
+    const VoiceAssistantConfigurationRequest & /*msg*/) {
   VoiceAssistantConfigurationResponse resp;
   if (!this->check_voice_assistant_api_connection_()) {
     // send_message encodes synchronously, so this stack local outlives the encode
@@ -1340,22 +1341,6 @@ bool APIConnection::send_voice_assistant_get_configuration_response_(const Voice
 
   auto &config = voice_assistant::global_voice_assistant->get_configuration();
   for (auto &wake_word : config.available_wake_words) {
-    resp.available_wake_words.emplace_back();
-    auto &resp_wake_word = resp.available_wake_words.back();
-    resp_wake_word.id = StringRef(wake_word.id);
-    resp_wake_word.wake_word = StringRef(wake_word.wake_word);
-    for (const auto &lang : wake_word.trained_languages) {
-      resp_wake_word.trained_languages.push_back(lang);
-    }
-  }
-
-  // Filter external wake words
-  for (auto &wake_word : msg.external_wake_words) {
-    if (wake_word.model_type != "micro") {
-      // microWakeWord only
-      continue;
-    }
-
     resp.available_wake_words.emplace_back();
     auto &resp_wake_word = resp.available_wake_words.back();
     resp_wake_word.id = StringRef(wake_word.id);
@@ -1558,8 +1543,8 @@ void APIConnection::on_serial_proxy_configure_request(const SerialProxyConfigure
              static_cast<uint32_t>(proxies.size()));
     return;
   }
-  proxies[msg.instance]->configure(msg.baudrate, msg.flow_control, static_cast<uint8_t>(msg.parity), msg.stop_bits,
-                                   msg.data_size);
+  proxies[msg.instance]->configure(this, msg.baudrate, msg.flow_control, static_cast<uint8_t>(msg.parity),
+                                   msg.stop_bits, msg.data_size);
 }
 
 void APIConnection::on_serial_proxy_write_request(const SerialProxyWriteRequest &msg) {
@@ -1568,7 +1553,7 @@ void APIConnection::on_serial_proxy_write_request(const SerialProxyWriteRequest 
     ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
     return;
   }
-  proxies[msg.instance]->write_from_client(msg.data, msg.data_len);
+  proxies[msg.instance]->write_from_client(this, msg.data, msg.data_len);
 }
 
 void APIConnection::on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg) {
@@ -1577,7 +1562,7 @@ void APIConnection::on_serial_proxy_set_modem_pins_request(const SerialProxySetM
     ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
     return;
   }
-  proxies[msg.instance]->set_modem_pins(msg.line_states);
+  proxies[msg.instance]->set_modem_pins(this, msg.line_states);
 }
 
 void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg) {

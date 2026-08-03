@@ -1,17 +1,21 @@
 """Tests for git.py module."""
 
 from collections.abc import Callable
+import errno
 import logging
 import os
 from pathlib import Path
 import subprocess
+import threading
 import time
 from typing import Any
 from unittest.mock import Mock, patch
 
+from filelock import FileLock
 import pytest
 
 from esphome import git
+import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError, TimePeriodSeconds
 from esphome.git import GitCommandError
 
@@ -74,17 +78,23 @@ def _simulate_cloned_repo(repo_dir: Path) -> None:
 
 
 def _make_clone_side_effect(
-    repo_dir: Path, gitmodules: bool = False
+    repo_dir: Path,
+    gitmodules: bool = False,
+    on_clone: Callable[[], None] | None = None,
 ) -> Callable[..., str]:
     """Return a run_git_command side effect whose clone creates the repo dir.
 
-    With ``gitmodules`` the cloned repo also declares submodules.
+    With ``gitmodules`` the cloned repo also declares submodules. ``on_clone``
+    runs at clone time before the repo dir appears, so a test can probe or
+    block mid-clone.
     """
 
     def git_command_side_effect(
         cmd: list[str], cwd: str | None = None, **kwargs: Any
     ) -> str:
         if _get_git_command_type(cmd) == "clone":
+            if on_clone is not None:
+                on_clone()
             _simulate_cloned_repo(repo_dir)
             if gitmodules:
                 (repo_dir / ".gitmodules").write_text("test")
@@ -479,7 +489,7 @@ def test_clone_or_update_with_refresh_updates_old_repo(
 
 
 def test_clone_or_update_with_refresh_skips_fresh_repo(
-    tmp_path: Path, mock_run_git_command: Mock
+    tmp_path: Path, mock_run_git_command: Mock, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Test that refresh doesn't update fresh repos."""
     # Set up CORE.config_path so data_dir uses tmp_path
@@ -504,19 +514,73 @@ def test_clone_or_update_with_refresh_skips_fresh_repo(
     # Set modification time to 1 hour ago
     os.utime(fetch_head, (recent_time, recent_time))
 
+    # Freeze the clock at 1 hour (plus a margin larger than any filesystem
+    # mtime rounding) after the mtime so the logged countdown is deterministic
+    frozen_now = fetch_head.stat().st_mtime + 3600.5
+
     # Call with refresh=1d (1 day)
     refresh = TimePeriodSeconds(days=1)
-    result_dir, revert = git.clone_or_update(
-        url=url,
-        ref=ref,
-        refresh=refresh,
-        domain=domain,
-    )
+    with (
+        patch("esphome.git.time.time", return_value=frozen_now),
+        caplog.at_level(logging.INFO, logger="esphome.git"),
+    ):
+        result_dir, revert = git.clone_or_update(
+            url=url,
+            ref=ref,
+            refresh=refresh,
+            domain=domain,
+        )
 
     # Should NOT call git fetch since repo is fresh
     mock_run_git_command.assert_not_called()
     assert result_dir == repo_dir
     assert revert is None
+
+    # Should tell the user the update was skipped and when the next refresh is
+    assert f"Skipping update for {url}@{ref}" in caplog.text
+    assert "will refresh on the next run after 22h 59min" in caplog.text
+    assert "(refresh: 1d)" in caplog.text
+
+
+def test_clone_or_update_with_refresh_never_logs_refresh_disabled(
+    tmp_path: Path, mock_run_git_command: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Test that a config-level refresh: never skips without a countdown log."""
+    # Set up CORE.config_path so data_dir uses tmp_path
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = None
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, ref, domain)
+
+    # Create the git repo directory structure
+    repo_dir.mkdir(parents=True)
+    git_dir = repo_dir / ".git"
+    git_dir.mkdir()
+    _mark_clone_complete(repo_dir)
+
+    # Create FETCH_HEAD file with current timestamp
+    fetch_head = git_dir / "FETCH_HEAD"
+    fetch_head.write_text("test")
+
+    # refresh: never validates to 365250 days, not the NEVER_REFRESH sentinel
+    refresh = cv.source_refresh("never")
+    with caplog.at_level(logging.DEBUG, logger="esphome.git"):
+        result_dir, revert = git.clone_or_update(
+            url=url,
+            ref=ref,
+            refresh=refresh,
+            domain=domain,
+        )
+
+    mock_run_git_command.assert_not_called()
+    assert result_dir == repo_dir
+    assert revert is None
+
+    # Should log refresh disabled at debug level, not a countdown
+    assert f"Skipping update for {url}@{ref} (refresh disabled)" in caplog.text
+    assert "will refresh on the next run" not in caplog.text
 
 
 def test_clone_or_update_clones_missing_repo(
@@ -1491,6 +1555,591 @@ def test_refresh_submodule_failure_recovers_then_raises(
     )
 
 
+def _lock_path(url: str, ref: str | None, domain: str) -> Path:
+    """The lock file the implementation uses for one cache entry."""
+    return git._repo_lock_path(git._cache_key(url, ref), domain)
+
+
+class _SetEventOnWaitLog(logging.Handler):
+    """Set an event when the 'Waiting for another process' record is emitted,
+    so tests can react to a caller observably blocking on the lock instead of
+    racing a wall-clock timer."""
+
+    def __init__(self, event: threading.Event) -> None:
+        super().__init__()
+        self._event = event
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if "Waiting for another process" in record.getMessage():
+            self._event.set()
+
+
+def test_clone_or_update_serializes_concurrent_clones(
+    tmp_path: Path, mock_run_git_command: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Two concurrent callers for the same uncached repo must not both clone.
+
+    Without the per-entry lock both callers pass the is_dir() check before
+    either clone finishes, so the second one either clones on top of the
+    first or reads a half populated worktree (device-builder issue 2425).
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    start_together = threading.Barrier(2)
+    other_caller_waiting = threading.Event()
+
+    def on_clone() -> None:
+        # Hold the lock until the other caller is observably blocked on it,
+        # so the interleaving is guaranteed rather than raced on a timer.
+        assert other_caller_waiting.wait(timeout=30)
+
+    mock_run_git_command.side_effect = _make_clone_side_effect(
+        repo_dir, on_clone=on_clone
+    )
+
+    results: list[Path] = []
+    errors: list[BaseException] = []
+
+    def call() -> None:
+        try:
+            start_together.wait()
+            result_dir, _ = git.clone_or_update(
+                url=url, ref=None, refresh=git.NEVER_REFRESH, domain=domain
+            )
+            results.append(result_dir)
+        except BaseException as err:  # noqa: BLE001 - re-raised via errors below
+            errors.append(err)
+
+    handler = _SetEventOnWaitLog(other_caller_waiting)
+    git_logger = logging.getLogger("esphome.git")
+    git_logger.addHandler(handler)
+    try:
+        with caplog.at_level(logging.INFO):
+            threads = [threading.Thread(target=call) for _ in range(2)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+    finally:
+        git_logger.removeHandler(handler)
+
+    assert not errors
+    assert results == [repo_dir, repo_dir]
+    clone_calls = [
+        c
+        for c in mock_run_git_command.call_args_list
+        if _get_git_command_type(c[0][0]) == "clone"
+    ]
+    # The second caller waited for the lock, then saw the completed clone.
+    assert len(clone_calls) == 1
+    assert _marker_path(repo_dir).is_file()
+
+
+def test_clone_or_update_creates_lock_file_next_to_hash_dir(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """The lock file lives beside the hash dir, never inside it.
+
+    Checked while the clone runs (the lock is held): filelock's Windows
+    backend deletes the lock file on release, so probing after the call
+    would only work on Unix.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+    lock_path = _lock_path(url, None, domain)
+    lock_held_during_clone: list[bool] = []
+
+    mock_run_git_command.side_effect = _make_clone_side_effect(
+        repo_dir, on_clone=lambda: lock_held_during_clone.append(lock_path.is_file())
+    )
+
+    result_dir, _ = git.clone_or_update(
+        url=url, ref=None, refresh=git.NEVER_REFRESH, domain=domain
+    )
+
+    assert result_dir == repo_dir
+    assert lock_path.parent == repo_dir.parent
+    assert lock_held_during_clone == [True]
+
+
+def test_clone_or_update_subpath_locks_at_hash_dir_level(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """With a subpath the lock still guards the whole hash dir cache entry."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    hash_dir = _compute_repo_dir(url, None, domain)
+    repo_dir = hash_dir / "lib"
+    lock_path = _lock_path(url, None, domain)
+    lock_held_during_clone: list[bool] = []
+
+    mock_run_git_command.side_effect = _make_clone_side_effect(
+        repo_dir, on_clone=lambda: lock_held_during_clone.append(lock_path.is_file())
+    )
+
+    result_dir, _ = git.clone_or_update(
+        url=url,
+        ref=None,
+        refresh=git.NEVER_REFRESH,
+        domain=domain,
+        subpath=Path("lib"),
+    )
+
+    assert result_dir == repo_dir
+    assert lock_path == hash_dir.parent / f"{hash_dir.name}.lock"
+    assert lock_held_during_clone == [True]
+
+
+def test_clone_or_update_recovery_holds_lock_without_deadlock(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Recovery re-clones while holding the lock and must not re-acquire it.
+
+    A naive re-acquisition would deadlock here, since OS file locks taken on
+    separate descriptors conflict even within one process. The lock file
+    itself must survive the recovery rmtree of the broken repo dir: the
+    re-clone runs after the rmtree, so probing the lock file there proves
+    it. Probing after the call would only work on Unix, since filelock's
+    Windows backend deletes the lock file on release.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+    lock_path = _lock_path(url, None, domain)
+    lock_held_during_reclone: list[bool] = []
+
+    _setup_old_repo(repo_dir)
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "stash":
+            raise git.GitCommandError("broken repository")
+        if _get_git_command_type(cmd) == "clone":
+            lock_held_during_reclone.append(lock_path.is_file())
+            _simulate_cloned_repo(repo_dir)
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    recovered_dir, _ = git.clone_or_update(
+        url=url, ref=None, refresh=TimePeriodSeconds(days=1), domain=domain
+    )
+
+    assert recovered_dir == repo_dir
+    assert lock_held_during_reclone == [True]
+
+
+def _hold_lock_in_thread(lock_path: Path) -> tuple[threading.Thread, threading.Event]:
+    """Hold the lock from another thread; returns the thread and its release event.
+
+    OS file locks taken on separate descriptors conflict even within one
+    process, so a second FileLock instance in a thread contends the same
+    way another process would.
+    """
+    held = threading.Event()
+    release = threading.Event()
+
+    def hold() -> None:
+        with FileLock(str(lock_path)):
+            held.set()
+            release.wait(timeout=30)
+
+    holder = threading.Thread(target=hold)
+    holder.start()
+    assert held.wait(timeout=30)
+    return holder, release
+
+
+def test_clone_or_update_logs_wait_on_contended_lock(
+    tmp_path: Path, mock_run_git_command: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A contended acquire logs a redacted waiting message instead of
+    silently blocking."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://user:hunter2@github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+    mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
+
+    holder, release = _hold_lock_in_thread(_lock_path(url, None, domain))
+
+    # Free the lock only once the waiting message has been emitted, so the
+    # release is caused by the thing being asserted instead of racing it.
+    handler = _SetEventOnWaitLog(release)
+    git_logger = logging.getLogger("esphome.git")
+    git_logger.addHandler(handler)
+    try:
+        with caplog.at_level(logging.INFO):
+            result_dir, _ = git.clone_or_update(
+                url=url, ref=None, refresh=git.NEVER_REFRESH, domain=domain
+            )
+    finally:
+        git_logger.removeHandler(handler)
+        release.set()
+    holder.join()
+
+    assert result_dir == repo_dir
+    waiting = [
+        r.getMessage()
+        for r in caplog.records
+        if "Waiting for another process" in r.getMessage()
+    ]
+    assert len(waiting) == 1
+    assert "hunter2" not in waiting[0]
+    assert "://***@" in waiting[0]
+
+
+def test_revert_skips_on_contended_lock(
+    tmp_path: Path,
+    mock_run_git_command: Mock,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """revert() only runs on an already-failing path; when it cannot get the
+    lock within the bounded timeout it warns and skips instead of hanging."""
+    CORE.config_path = tmp_path / "test.yaml"
+    monkeypatch.setattr(git, "_REVERT_LOCK_TIMEOUT_SECONDS", 0.05)
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+    _setup_old_repo(repo_dir)
+
+    # A bare return value satisfies the rev-parse; the other commands'
+    # outputs are unused.
+    mock_run_git_command.return_value = "old_sha"
+
+    _, revert = git.clone_or_update(
+        url=url, ref=None, refresh=TimePeriodSeconds(days=1), domain=domain
+    )
+    assert revert is not None
+
+    holder, release = _hold_lock_in_thread(_lock_path(url, None, domain))
+    calls_before = len(mock_run_git_command.call_args_list)
+    with caplog.at_level(logging.INFO):
+        assert revert() is False
+    release.set()
+    holder.join()
+
+    # No git reset was issued; the wait and the skip were both logged.
+    assert len(mock_run_git_command.call_args_list) == calls_before
+    assert any("Waiting for another process" in r.getMessage() for r in caplog.records)
+    assert any("skipping revert" in r.getMessage() for r in caplog.records)
+
+
+def test_update_clears_marker_while_rewriting(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """The completion marker is absent while a refresh rewrites the entry
+    and restored once the rewrite finishes, so a timed-out peer's fallback
+    never trusts a mid-rewrite tree and a crashed update re-clones."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+    _setup_old_repo(repo_dir)
+
+    marker_during_rewrite: list[bool] = []
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) in ("stash", "fetch", "reset"):
+            marker_during_rewrite.append(_marker_path(repo_dir).is_file())
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    git.clone_or_update(
+        url=url, ref=None, refresh=TimePeriodSeconds(days=1), domain=domain
+    )
+
+    assert marker_during_rewrite == [False, False, False]
+    assert _marker_path(repo_dir).is_file()
+
+
+def test_revert_skips_when_checkout_moved(
+    tmp_path: Path, mock_run_git_command: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """revert() only undoes this process's own update; when another process
+    refreshed the entry in the meantime it skips instead of rolling the
+    peer's newer checkout backwards."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+    _setup_old_repo(repo_dir)
+
+    # Pre-update SHA, post-update SHA, then a peer's SHA at revert time.
+    shas = iter(["old_sha", "new_sha", "peer_sha"])
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "rev-parse":
+            return next(shas)
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    _, revert = git.clone_or_update(
+        url=url, ref=None, refresh=TimePeriodSeconds(days=1), domain=domain
+    )
+    assert revert is not None
+
+    with caplog.at_level(logging.WARNING):
+        assert revert() is False
+
+    resets = [
+        c[0][0]
+        for c in mock_run_git_command.call_args_list
+        if _get_git_command_type(c[0][0]) == "reset" and c[0][0][-1] == "old_sha"
+    ]
+    assert resets == []
+    assert any("checkout moved" in r.getMessage() for r in caplog.records)
+
+
+def test_revert_returns_false_when_reset_fails(
+    tmp_path: Path, mock_run_git_command: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A failed git reset inside revert() is reported through the bool
+    contract instead of raising a cv.Invalid that would replace the
+    caller's original error."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+    _setup_old_repo(repo_dir)
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "rev-parse":
+            return "old_sha"
+        # Only revert's reset targets the recorded SHA; the update path's
+        # reset targets FETCH_HEAD and must succeed.
+        if cmd[-1] == "old_sha":
+            raise git.GitCommandError("object not found")
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    _, revert = git.clone_or_update(
+        url=url, ref=None, refresh=TimePeriodSeconds(days=1), domain=domain
+    )
+    assert revert is not None
+
+    with caplog.at_level(logging.WARNING):
+        assert revert() is False
+
+    assert any("Could not revert" in r.getMessage() for r in caplog.records)
+    # The entry cannot be trusted after a failed reset; the dropped marker
+    # forces a re-clone on the next use.
+    assert not _marker_path(repo_dir).is_file()
+
+
+def _raise_oserror_on_acquire(
+    monkeypatch: pytest.MonkeyPatch, code: int = errno.ENOLCK
+) -> None:
+    """Make every FileLock acquire fail with the given errno."""
+
+    def broken_acquire(self: FileLock, *args: Any, **kwargs: Any) -> None:
+        raise OSError(code, os.strerror(code))
+
+    monkeypatch.setattr(FileLock, "acquire", broken_acquire)
+
+
+@pytest.mark.parametrize(
+    ("code", "expected_fragment"),
+    [
+        # Genuinely missing lock support is reported as such.
+        (errno.ENOLCK, "does not support locking"),
+        # A cache directory problem is not blamed on lock support; git
+        # reports the real error when it actually matters.
+        (errno.EROFS, "Could not take the cache entry lock"),
+    ],
+)
+def test_clone_or_update_continues_unlocked_when_filesystem_cannot_lock(
+    tmp_path: Path,
+    mock_run_git_command: Mock,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    code: int,
+    expected_fragment: str,
+) -> None:
+    """A filesystem where taking the lock fails (e.g. NFS without a lock
+    daemon) degrades to the old unlocked behavior instead of failing."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+    mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
+    _raise_oserror_on_acquire(monkeypatch, code)
+
+    with caplog.at_level(logging.WARNING):
+        result_dir, _ = git.clone_or_update(
+            url=url, ref=None, refresh=git.NEVER_REFRESH, domain=domain
+        )
+
+    assert result_dir == repo_dir
+    assert _marker_path(repo_dir).is_file()
+    warnings = [
+        r.getMessage()
+        for r in caplog.records
+        if "continuing without a lock" in r.getMessage()
+    ]
+    assert warnings
+    assert expected_fragment in warnings[0]
+
+
+@pytest.mark.parametrize("broken_from_start", [True, False])
+def test_revert_continues_unlocked_when_filesystem_cannot_lock(
+    tmp_path: Path,
+    mock_run_git_command: Mock,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    broken_from_start: bool,
+) -> None:
+    """A revert still resets when locking is unavailable, whether the wrapper
+    already fell back to unlocked (revert sees no lock at all) or the
+    filesystem stops locking between the update and the revert."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+    _setup_old_repo(repo_dir)
+
+    # A bare return value satisfies the rev-parse; the other commands'
+    # outputs are unused.
+    mock_run_git_command.return_value = "old_sha"
+
+    if broken_from_start:
+        _raise_oserror_on_acquire(monkeypatch)
+
+    with caplog.at_level(logging.WARNING):
+        _, revert = git.clone_or_update(
+            url=url, ref=None, refresh=TimePeriodSeconds(days=1), domain=domain
+        )
+        assert revert is not None
+        if not broken_from_start:
+            _raise_oserror_on_acquire(monkeypatch)
+        # The reset ran (unlocked), so the revert reports success.
+        assert revert() is True
+
+    assert mock_run_git_command.call_args_list[-1][0][0] == [
+        "git",
+        "reset",
+        "--hard",
+        "old_sha",
+    ]
+    assert any("continuing without a lock" in r.getMessage() for r in caplog.records)
+
+
+def _script_acquire_statuses(
+    monkeypatch: pytest.MonkeyPatch, statuses: list["git._LockStatus"]
+) -> list[float]:
+    """Replace _acquire_repo_lock with a scripted sequence; returns the
+    timeouts it was called with."""
+    timeouts: list[float] = []
+    status_iter = iter(statuses)
+
+    def fake_acquire(
+        lock: FileLock, safe_key: str, timeout: float, **kwargs: Any
+    ) -> "git._LockStatus":
+        timeouts.append(timeout)
+        return next(status_iter)
+
+    monkeypatch.setattr(git, "_acquire_repo_lock", fake_acquire)
+    return timeouts
+
+
+@pytest.mark.parametrize("subpath", [None, Path("lib")])
+def test_clone_or_update_uses_complete_entry_when_lock_wait_times_out(
+    tmp_path: Path,
+    mock_run_git_command: Mock,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    subpath: Path | None,
+) -> None:
+    """A bounded wait behind a stalled holder falls back to an existing
+    complete cache entry instead of hanging every peer."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+    if subpath is not None:
+        repo_dir = repo_dir / subpath
+    _simulate_cloned_repo(repo_dir)
+    _mark_clone_complete(repo_dir)
+
+    timeouts = _script_acquire_statuses(monkeypatch, [git._LockStatus.TIMEOUT])
+
+    with caplog.at_level(logging.WARNING):
+        result_dir, revert = git.clone_or_update(
+            url=url,
+            ref=None,
+            refresh=TimePeriodSeconds(days=1),
+            domain=domain,
+            subpath=subpath,
+        )
+
+    assert result_dir == repo_dir
+    assert revert is None
+    # Nothing was cloned or refreshed; the existing entry was used as-is.
+    assert mock_run_git_command.call_args_list == []
+    assert timeouts == [git._COMPLETE_ENTRY_LOCK_TIMEOUT_SECONDS]
+    assert any(
+        "proceeding with the existing clone" in r.getMessage() for r in caplog.records
+    )
+
+
+def test_clone_or_update_waits_unbounded_without_complete_entry(
+    tmp_path: Path,
+    mock_run_git_command: Mock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no complete entry there is nothing to fall back to, so after the
+    bounded wait expires the caller keeps waiting for the holder's clone."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+    mock_run_git_command.side_effect = _make_clone_side_effect(repo_dir)
+
+    timeouts = _script_acquire_statuses(
+        monkeypatch, [git._LockStatus.TIMEOUT, git._LockStatus.ACQUIRED]
+    )
+
+    result_dir, _ = git.clone_or_update(
+        url=url, ref=None, refresh=git.NEVER_REFRESH, domain=domain
+    )
+
+    assert result_dir == repo_dir
+    assert timeouts == [git._COMPLETE_ENTRY_LOCK_TIMEOUT_SECONDS, -1]
+    # The clone proceeded normally once the lock was finally acquired.
+    assert _marker_path(repo_dir).is_file()
+
+
 def _real_git(*args: str, cwd: Path) -> None:
     """Run real git to build a test fixture repository."""
     subprocess.run(
@@ -1674,7 +2323,8 @@ def test_refresh_picks_up_new_remote_commits(
     # Verify the refresh sequence: rev-parse -> stash -> fetch (depth=1) -> reset
     call_list = mock_run_git_command.call_args_list
     cmd_sequence = [_get_git_command_type(c[0][0]) for c in call_list]
-    assert cmd_sequence == ["rev-parse", "stash", "fetch", "reset"]
+    # The trailing rev-parse records the post-update SHA for revert().
+    assert cmd_sequence == ["rev-parse", "stash", "fetch", "reset", "rev-parse"]
 
     fetch_cmd = call_list[2][0][0]
     assert "--depth=1" in fetch_cmd
@@ -1685,7 +2335,7 @@ def test_refresh_picks_up_new_remote_commits(
 
     # revert callback should reset back to the recorded pre-update SHA.
     assert revert is not None
-    revert()
+    assert revert() is True
     assert mock_run_git_command.call_args_list[-1][0][0] == [
         "git",
         "reset",
