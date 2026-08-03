@@ -132,6 +132,11 @@ def test_unit_collapse_rejected() -> None:
         _validate(interval="3000us", window="2500us")
 
 
+def test_duration_equal_to_three_intervals_accepted() -> None:
+    """The three-interval floor is inclusive, mirroring the ceilings above."""
+    _validate(duration="3s", interval="1s", window="500ms")
+
+
 def test_duration_shorter_than_three_intervals_rejected() -> None:
     with pytest.raises(cv.Invalid, match="must cover at least three scan intervals"):
         _validate(duration="1s", interval="500ms", window="100ms")
