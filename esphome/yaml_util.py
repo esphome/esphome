@@ -829,6 +829,10 @@ def parse_yaml(
         # Nested loads (!include, !secret, !include_dir_*) inherit the
         # same tracking mode.
         yaml_loader = _load_yaml_internal if track_document_range else _FAST_YAML_LOADER
+    elif not track_document_range:
+        # A caller-supplied loader would silently revert nested loads to
+        # tracked mode; reject the combination instead of half-applying it.
+        raise ValueError("track_document_range=False requires the default yaml_loader")
     try:
         return _load_yaml_internal_with_type(
             ESPHomeLoader,

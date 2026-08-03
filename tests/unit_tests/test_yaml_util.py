@@ -1514,6 +1514,7 @@ float_value: 3.5
 lambda_value: !lambda 'return x * 2;'
 extend_value: !extend some_id
 remove_value: !remove some_id
+literal_value: !literal keep_me_verbatim
 included: !include included.yaml
 """
 
@@ -1551,6 +1552,9 @@ def test_load_yaml_fast_mode_matches_default(fast_mode_config_dir: Path) -> None
     assert fast["api"]["reboot_timeout"] == "15min"
     assert fast["extend_value"] == Extend("some_id")
     assert fast["remove_value"] == Remove("some_id")
+    # !literal wraps via make_literal, independent of range tracking.
+    assert isinstance(fast["literal_value"], ESPLiteralValue)
+    assert fast["literal_value"] == "keep_me_verbatim"
 
     # Fast mode returns plain values; default mode keeps the range metadata.
     assert not isinstance(fast["number_value"], ESPHomeDataBase)
@@ -1564,6 +1568,34 @@ def test_load_yaml_fast_mode_matches_default(fast_mode_config_dir: Path) -> None
     included = fast["included"]
     assert not isinstance(included["inner_num"], ESPHomeDataBase)
     assert all(type(key) is str for key in included)
+
+
+def test_load_yaml_fast_mode_survives_pure_python_fallback(
+    fast_mode_config_dir: Path,
+) -> None:
+    """The ESPHomePurePythonLoader retry must honour fast mode too."""
+    yaml_file = fast_mode_config_dir / "main.yaml"
+
+    class _AlwaysFailingLoader(yaml_util.ESPHomeLoader):
+        def __init__(self, *args, **kwargs) -> None:
+            raise EsphomeError("forced fallback to the pure-Python loader")
+
+    with patch.object(yaml_util, "ESPHomeLoader", _AlwaysFailingLoader):
+        fast = yaml_util.load_yaml(yaml_file, track_document_range=False)
+
+    assert not isinstance(fast["number_value"], ESPHomeDataBase)
+    assert all(type(key) is str for key in fast)
+
+
+def test_load_yaml_fast_mode_rejects_custom_loader() -> None:
+    """A caller-supplied yaml_loader cannot combine with fast mode."""
+    with pytest.raises(ValueError, match="default yaml_loader"):
+        yaml_util.parse_yaml(
+            Path("x.yaml"),
+            io.StringIO("a: 1"),
+            lambda f: {},
+            track_document_range=False,
+        )
 
 
 def test_load_yaml_fast_mode_records_dropped_merge_keys(
