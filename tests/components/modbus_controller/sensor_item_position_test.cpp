@@ -77,4 +77,13 @@ TEST(SensorItemPosition, AddressesBitsOnlyForCoilAndDiscreteInput) {
   EXPECT_TRUE(make_item(modbus::EntityType::DISCRETE_INPUT, 0, 0).addresses_bits());
 }
 
+// A span payload reaches payload_to_number() unqualified from inside this namespace: SensorValueType
+// lives in modbus::helpers, so argument-dependent lookup finds the helper. Declaring a same-signature
+// forwarder here would make the call ambiguous rather than convenient, which is why none exists.
+TEST(SensorItemPosition, UnqualifiedPayloadToNumberResolvesToTheHelper) {
+  const uint8_t bytes[] = {0x01, 0x02};
+  auto value = payload_to_number(std::span<const uint8_t>(bytes), SensorValueType::U_WORD, 0, 0xFFFFFFFF);
+  EXPECT_EQ(value, 0x0102);
+}
+
 }  // namespace esphome::modbus_controller::testing

@@ -76,6 +76,9 @@ T get_data(const std::vector<uint8_t> &data, size_t buffer_offset) {
 // std::span<const uint8_t> (previously a const std::vector<uint8_t> &), and a span does not convert to
 // a vector, so existing lambdas calling these by name need an overload that accepts one. These carry
 // this release's deprecation window, since the span forms only exist from it.
+// payload_to_number() deliberately has no such overload: one of its arguments is a modbus::helpers
+// type, so a span call already reaches the helper by argument-dependent lookup, and a forwarder here
+// would only make that call ambiguous.
 // Remove before 2027.2.0.
 template<typename T>
 ESPDEPRECATED("Use modbus::helpers::get_data() instead. Removed in 2027.2.0", "2026.8.0")
@@ -111,13 +114,6 @@ inline int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueTy
                                  uint32_t bitmask) {
   return modbus::helpers::payload_to_number(std::span<const uint8_t>(data), sensor_value_type, offset, bitmask)
       .value_or(0);
-}
-
-// Remove before 2027.2.0
-ESPDEPRECATED("Use modbus::helpers::payload_to_number() instead. Removed in 2027.2.0", "2026.8.0")
-inline int64_t payload_to_number(std::span<const uint8_t> data, SensorValueType sensor_value_type, uint8_t offset,
-                                 uint32_t bitmask) {
-  return modbus::helpers::payload_to_number(data, sensor_value_type, offset, bitmask).value_or(0);
 }
 
 ESPDEPRECATED("Use modbus::helpers::float_to_payload() instead. Removed in 2026.10.0", "2026.4.0")

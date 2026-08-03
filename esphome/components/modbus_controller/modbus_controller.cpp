@@ -227,7 +227,8 @@ size_t ModbusController::create_register_ranges_() {
   // Bytes the range's registers have consumed so far. An extending sensor starts after them, so a
   // register that returns more bytes than its count implies pushes the sensors after it along.
   // range_custom_size records whether any of them returns something other than two bytes per register,
-  // which is what makes a position inside the range impossible to work out from addresses alone.
+  // which is what makes a position inside the range impossible to work out from addresses alone. Coils
+  // count as such: they carry one bit per address, so bit ranges never take the coverage join.
   size_t range_bytes = 0;
   bool range_custom_size = false;
   SensorItem *prev = nullptr;
