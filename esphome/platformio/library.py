@@ -23,7 +23,6 @@ import logging
 import os
 from pathlib import Path
 import re
-import shutil
 import tempfile
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
@@ -74,6 +73,14 @@ class Source:
         self, dir_suffix: str, force: bool = False, salt: str = "", namespace: str = ""
     ) -> Path:
         raise NotImplementedError
+
+    def source_root(self, build_path: Path) -> Path:
+        """Directory holding the library's own files (manifest + sources).
+
+        Defaults to the downloaded build directory; a source that references its
+        files in place (:class:`LocalSource`) overrides this to point elsewhere.
+        """
+        return build_path
 
 
 class URLSource(Source):
@@ -145,62 +152,14 @@ class GitSource(Source):
         return f"{self.url}#{self.ref}" if self.ref else self.url
 
 
-# Records the set of files the last mirror copied from the source, so a later
-# mirror can delete the ones the user removed without touching anything the
-# backend's ``emit`` generated into the copy (which is never in this list).
-_MIRROR_MANIFEST = ".esphome_mirror_manifest"
-
-
-def _mirror_local_dir(src: Path, dest: Path) -> None:
-    """Copy the tree at ``src`` into ``dest``, keeping it in sync across builds.
-
-    Unchanged files (same size and modification time) are left untouched so the
-    toolchain only recompiles what the user actually edited. Files the user
-    removed from ``src`` are deleted from ``dest`` on the next mirror; files the
-    backend generated into the copy are left alone, whatever they are named or
-    wherever they live. ``.git`` is skipped so a locally checked-out library
-    isn't copied with its whole history.
-    """
-    dest.mkdir(parents=True, exist_ok=True)
-    manifest = dest / _MIRROR_MANIFEST
-    previous = (
-        {Path(line) for line in manifest.read_text().splitlines() if line}
-        if manifest.is_file()
-        else set()
-    )
-
-    src_files: set[Path] = set()
-    for root, dirs, files in os.walk(src):
-        dirs[:] = [d for d in dirs if d != ".git"]
-        rel_root = Path(root).relative_to(src)
-        for name in files:
-            rel = rel_root / name
-            src_files.add(rel)
-            src_file = Path(root) / name
-            dest_file = dest / rel
-            dest_file.parent.mkdir(parents=True, exist_ok=True)
-            src_stat = src_file.stat()
-            if (
-                not dest_file.exists()
-                or (dest_stat := dest_file.stat()).st_size != src_stat.st_size
-                or dest_stat.st_mtime != src_stat.st_mtime
-            ):
-                shutil.copy2(src_file, dest_file)
-
-    # Delete only files a previous mirror copied that are gone from the source.
-    for rel in previous - src_files:
-        (dest / rel).unlink(missing_ok=True)
-
-    manifest.write_text("\n".join(sorted(str(p) for p in src_files)))
-
-
 class LocalSource(Source):
     """A library that already exists as a directory on the local filesystem.
 
-    Referenced with a ``file://`` URL (the PlatformIO spelling for a local
-    library folder). The directory is copied into the shared cache -- rather
-    than used in place -- so the generated build files never land in the user's
-    source tree.
+    Referenced with a ``file://`` URL (PlatformIO's spelling for a local library
+    folder). Nothing is copied: the backend generates its build files into an
+    otherwise empty cache directory and references the library's own sources in
+    place by absolute path (via :meth:`source_root`). So the user's source tree
+    stays untouched and edits are picked up on the next build without syncing.
     """
 
     def __init__(self, path: str):
@@ -221,12 +180,20 @@ class LocalSource(Source):
         h.update(str(src.resolve()).encode())
         if salt:
             h.update(salt.encode())
+        # Only the generated build files live here; the library's own sources
+        # are referenced in place from source_root().
         path = base_dir / h.hexdigest()[:8] / dir_suffix
-        _mirror_local_dir(src, path)
+        path.mkdir(parents=True, exist_ok=True)
         return path
 
+    def source_root(self, build_path: Path) -> Path:
+        return Path(self.local_path)
+
     def __str__(self):
-        return f"file://{self.local_path}"
+        path = Path(self.local_path)
+        # as_uri() needs an absolute path; _node_key rejects relative file://
+        # URLs, but guard anyway so a diagnostic can't itself raise.
+        return path.as_uri() if path.is_absolute() else f"file://{self.local_path}"
 
 
 class InvalidLibrary(Exception):
@@ -248,6 +215,9 @@ class ConvertedLibrary:
         self.data = {}
         self.dependencies: list[ConvertedLibrary] = []
         self._path: Path | None = None
+        # Where the library's own files live (manifest + sources). Set by
+        # download(); equals path for registry/git, the user's dir for local.
+        self.source_path: Path | None = None
 
     def __str__(self):
         return f"{self.name}@{self.version}={self.source}"
@@ -279,6 +249,7 @@ class ConvertedLibrary:
         self.path = self.source.download(
             self.get_sanitized_name(), force=force, salt=salt, namespace=namespace
         )
+        self.source_path = self.source.source_root(self.path)
 
 
 @dataclass
@@ -669,9 +640,16 @@ def _node_key(
         is_git_prefixed = repository.startswith("git+")
         split_result = urlsplit(repository.removeprefix("git+"))
         if split_result.scheme == "file" and not is_git_prefixed:
-            # A plain file:// URL points at a local library directory. Only the
-            # path is used; a "localhost" (or empty) host is ignored, matching
-            # how a local file URL is normally written (file:///path).
+            # A plain file:// URL points at a local library directory. A local
+            # file URL is written file:///absolute/path (empty host) or, less
+            # commonly, file://localhost/path. Anything else -- a real host, or
+            # a relative path whose first segment parses as the host -- is
+            # rejected rather than silently resolved to the wrong directory.
+            if split_result.netloc not in ("", "localhost"):
+                raise RuntimeError(
+                    f"Unsupported host in file:// library URL '{repository}'; "
+                    "use an absolute path, e.g. file:///path/to/lib"
+                )
             path = url2pathname(split_result.path)
             return (name or Path(path).name), "local", (path, None)
         key = str(split_result.path).strip("/").removesuffix(".git")
@@ -785,20 +763,24 @@ def convert_libraries(
             )
         component.download(salt=salt, namespace=backend.cache_key)
 
-        library_json_path = component.path / "library.json"
-        library_properties_path = component.path / "library.properties"
+        # source_path is where the library's own files live; it defaults to the
+        # build dir (registry/git) and is the user's dir for a local library.
+        source_dir = component.source_path or component.path
+        library_json_path = source_dir / "library.json"
+        library_properties_path = source_dir / "library.properties"
         has_json = library_json_path.is_file()
         has_properties = library_properties_path.is_file()
-        if not has_json and not has_properties:
+        if not has_json and not has_properties and not node.is_local:
             # The shared cache can hold a broken copy (e.g. a clone or an
             # extraction interrupted by a killed process). Force one
             # re-download so a bad cache entry self-heals instead of failing
-            # every build until the user runs a full clean.
+            # every build until the user runs a full clean. A local source is
+            # read in place, so there is nothing to re-download.
             _LOGGER.warning(
                 "Library %s at %s is missing library.json and library.properties; "
                 "re-downloading",
                 key,
-                component.path,
+                source_dir,
             )
             component.download(force=True, salt=salt, namespace=backend.cache_key)
             has_json = library_json_path.is_file()
@@ -810,7 +792,7 @@ def convert_libraries(
         else:
             raise RuntimeError(
                 f"Invalid PIO library {key}: missing library.json and "
-                f"library.properties in {component.path}"
+                f"library.properties in {source_dir}"
             )
 
         try:

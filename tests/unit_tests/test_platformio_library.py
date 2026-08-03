@@ -20,7 +20,6 @@ from esphome.platformio.library import (
     LocalSource,
     Source,
     URLSource,
-    _mirror_local_dir,
     _resolve_registry_version,
     check_library_data,
     convert_libraries,
@@ -89,45 +88,11 @@ def test_gitsource_str_includes_ref_when_present():
     assert str(GitSource("http://git/repo.git", None)) == "http://git/repo.git"
 
 
-def test_mirror_local_dir_syncs_source(tmp_path: Path) -> None:
-    src = tmp_path / "src_lib"
-    (src / "src").mkdir(parents=True)
-    (src / "library.json").write_text('{"name": "TeslaBLE"}')
-    (src / "src" / "a.cpp").write_text("int a;")
-    # A checked-out library carries a .git dir that must not be copied.
-    (src / ".git").mkdir()
-    (src / ".git" / "HEAD").write_text("ref: refs/heads/main")
-
-    dest = tmp_path / "cache"
-    _mirror_local_dir(src, dest)
-
-    assert (dest / "library.json").is_file()
-    assert (dest / "src" / "a.cpp").is_file()
-    assert not (dest / ".git").exists()
-
-
-def test_mirror_local_dir_removes_stale_but_keeps_generated(tmp_path: Path) -> None:
-    src = tmp_path / "src_lib"
-    src.mkdir()
-    (src / "library.json").write_text('{"name": "TeslaBLE"}')
-    (src / "old.cpp").write_text("int old;")
-    dest = tmp_path / "cache"
-    _mirror_local_dir(src, dest)
-
-    # Backends write build files into the copy; a later sync must keep them --
-    # both a root file (ESP-IDF's CMakeLists.txt) and one in a subdirectory
-    # (Zephyr's zephyr/module.yml) -- while dropping a source file the user
-    # deleted.
-    (dest / "CMakeLists.txt").write_text("idf_component_register()")
-    (dest / "zephyr").mkdir()
-    (dest / "zephyr" / "module.yml").write_text("name: teslable")
-    (src / "old.cpp").unlink()
-    _mirror_local_dir(src, dest)
-
-    assert (dest / "CMakeLists.txt").is_file()
-    assert (dest / "zephyr" / "module.yml").is_file()
-    assert (dest / "library.json").is_file()
-    assert not (dest / "old.cpp").exists()
+def test_source_root_defaults_to_build_dir() -> None:
+    # Registry/git sources are read from where they were downloaded.
+    build = Path("/some/build/dir")
+    assert URLSource("http://x/y.tar.gz").source_root(build) == build
+    assert GitSource("http://x/y.git", None).source_root(build) == build
 
 
 def test_localsource_download_missing_dir_raises(tmp_path: Path) -> None:
@@ -137,29 +102,29 @@ def test_localsource_download_missing_dir_raises(tmp_path: Path) -> None:
 
 def test_localsource_str() -> None:
     assert str(LocalSource("/tmp/lib")) == "file:///tmp/lib"
+    # A relative path can't form a file:// URI; fall back rather than raise.
+    assert str(LocalSource("rel/lib")) == "file://rel/lib"
 
 
-def test_localsource_download_mirrors_into_cache(setup_core: Path) -> None:
+def test_localsource_download_returns_empty_build_dir(setup_core: Path) -> None:
+    # Nothing is copied: download() returns an empty build dir (for generated
+    # files), and source_root() points back at the user's directory.
     src = setup_core / "lib_dev"
     (src / "src").mkdir(parents=True)
     (src / "library.json").write_text("{}")
     (src / "src" / "a.cpp").write_text("int a;")
 
-    # With salt + namespace set.
-    out = LocalSource(str(src)).download("mylib", salt="s", namespace="ns")
-    assert (out / "src" / "a.cpp").is_file()
-    assert (out / "library.json").is_file()
+    source = LocalSource(str(src))
+    out = source.download("mylib", salt="s", namespace="ns")
 
-    # Without either (both land in a different cache path).
+    assert out.is_dir()
+    assert list(out.iterdir()) == []  # no sources copied in
+    assert out != src
+    assert source.source_root(out) == src
+
+    # salt/namespace change the cache path.
     plain = LocalSource(str(src)).download("mylib")
-    assert (plain / "library.json").is_file()
     assert plain != out
-
-    # A second sync drops a source file the user removed.
-    (src / "src" / "a.cpp").unlink()
-    assert LocalSource(str(src)).download("mylib", salt="s", namespace="ns") == out
-    assert not (out / "src" / "a.cpp").exists()
-    assert (out / "library.json").is_file()
 
 
 def test_urlsource_download_extracts_then_reuses_marker(setup_core, monkeypatch):
@@ -396,8 +361,7 @@ def test_convert_libraries_file_url_resolves_as_local(
     setup_core: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # A "Name=file://<dir>" library points at an on-disk folder: it resolves as a
-    # local source, its manifest is read from the copy, and the registry is never
-    # consulted.
+    # local source read in place (no copy), and the registry is never consulted.
     src = setup_core / "lib_dev"
     (src / "src").mkdir(parents=True)
     (src / "library.json").write_text(json.dumps({"name": "TeslaBLE"}))
@@ -415,9 +379,11 @@ def test_convert_libraries_file_url_resolves_as_local(
     assert [c.name for c in top] == ["TeslaBLE"]
     assert top[0].data["name"] == "TeslaBLE"
     assert isinstance(top[0].source, LocalSource)
-    # The manifest and sources were mirrored into the cache, not read in place.
+    # Sources are read in place from the user's dir; the build dir stays separate
+    # and holds no copied sources.
+    assert top[0].source_path == src
     assert top[0].path != src
-    assert (top[0].path / "src" / "tesla.cpp").is_file()
+    assert not (top[0].path / "src").exists()
 
 
 def test_convert_libraries_local_overrides_registry_version(

@@ -155,6 +155,43 @@ def test_generate_cmakelists_txt_basic(tmp_component):
     assert "main.c" in content
 
 
+def test_generate_cmakelists_txt_external_source_uses_absolute_paths(
+    tmp_component, tmp_path
+):
+    # A local library's sources live outside the component dir (source_path),
+    # so SRCS and INCLUDE_DIRS must be emitted as absolute paths into it.
+    source = tmp_path / "user_lib"
+    (source / "src").mkdir(parents=True)
+    (source / "include").mkdir()
+    (source / "src" / "thing.cpp").write_text("int t;")
+    tmp_component.source_path = source
+    tmp_component.data = {}
+
+    content = generate_cmakelists_txt(tmp_component)
+
+    abs_src = str((source / "src" / "thing.cpp").resolve()).replace("\\", "/")
+    abs_inc = str((source / "include").resolve()).replace("\\", "/")
+    assert abs_src in content
+    assert abs_inc in content
+    # Nothing was copied into the component dir.
+    assert not (tmp_component.path / "src").exists()
+
+
+def test_generate_cmakelists_txt_external_source_root_srcdir(tmp_component, tmp_path):
+    # An external source with files at its root (no src/ or include/ dir):
+    # the src-dir search falls through to "." and the missing include dirs are
+    # filtered out.
+    source = tmp_path / "flat_lib"
+    source.mkdir()
+    (source / "thing.cpp").write_text("int t;")
+    tmp_component.source_path = source
+    tmp_component.data = {}
+
+    content = generate_cmakelists_txt(tmp_component)
+
+    assert str((source / "thing.cpp").resolve()).replace("\\", "/") in content
+
+
 def test_generate_cmakelists_txt_with_flags(tmp_component, tmp_path):
     src_dir = tmp_component.path / "src"
     src_dir.mkdir()
@@ -566,6 +603,16 @@ def test_node_key_file_url_localhost_host_is_local():
     key, kind, (path, ref) = _node_key(None, None, "file://localhost/opt/mylib")
     assert (key, kind, ref) == ("mylib", "local", None)
     assert Path(path) == Path("/opt/mylib")
+
+
+@pytest.mark.parametrize(
+    "url", ["file://server/share/lib", "file://lib_dev", "file://../mylib"]
+)
+def test_node_key_file_url_with_host_rejected(url: str) -> None:
+    # A real host, or a relative path whose first segment parses as the host,
+    # is rejected rather than silently resolved to the wrong directory.
+    with pytest.raises(RuntimeError, match="Unsupported host in file://"):
+        _node_key(None, None, url)
 
 
 def test_node_key_git_plus_file_url_stays_git():
