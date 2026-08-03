@@ -673,6 +673,8 @@ void StorageWorker::deliver_completions_() {
         // feed learns about its parent directory exactly like any other transfer's.
         if (StorageRegistry::build_path(req.dst_storage, req.dst_path, feed_path, sizeof(feed_path)))
           global_storage_registry->note_parent_changed(feed_path);
+        else
+          ESP_LOGW(TAG, "change feed skipped: path too long for USE_STORAGE_VFS_PATH_MAX ('%s')", req.dst_path);
       } else if (global_storage_registry != nullptr && req.dst_storage != nullptr && req.src_storage != nullptr) {
         const bool is_tree = is_tree_op(req.op);
         const char *dst_rel = is_tree ? req.tree->dst_root : req.dst_path;
@@ -682,11 +684,15 @@ void StorageWorker::deliver_completions_() {
             // Merging into an existing (possibly open) directory changes its listing too.
             global_storage_registry->note_dir_changed(feed_path);
           }
+        } else {
+          ESP_LOGW(TAG, "change feed skipped: path too long for USE_STORAGE_VFS_PATH_MAX ('%s')", dst_rel);
         }
         if (req.op == RequestOp::MOVE || req.op == RequestOp::MOVE_TREE) {
           const char *src_rel = is_tree ? req.tree->src_root : req.src_path;
           if (StorageRegistry::build_path(req.src_storage, src_rel, feed_path, sizeof(feed_path)))
             global_storage_registry->note_parent_changed(feed_path);
+          else
+            ESP_LOGW(TAG, "change feed skipped: path too long for USE_STORAGE_VFS_PATH_MAX ('%s')", src_rel);
         }
       }
 #endif
