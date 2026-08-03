@@ -2,10 +2,10 @@
 
 #include "core.h"
 #include "esphome/core/defines.h"
-#include "esphome/core/hal.h"
 #ifdef USE_RP2_CRASH_HANDLER
 #include "crash_handler.h"
 #endif
+#include "esphome/core/hal.h"
 
 #include "hardware/watchdog.h"
 
@@ -26,6 +26,7 @@ void arch_restart() {
 
 void arch_init() {
 #ifdef USE_RP2_CRASH_HANDLER
+  // Read retained data before watchdog_enable() overwrites the scratch registers.
   rp2::crash_handler_read_and_clear();
 #endif
 #if USE_RP2_WATCHDOG_TIMEOUT > 0

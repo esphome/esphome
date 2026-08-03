@@ -145,6 +145,8 @@ struct RawCrashData {
 static RawCrashData __attribute__((section(".noinit")))
 s_raw_crash_data;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+// Whether crash data has been read this boot.
+static bool s_crash_data_read = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 // Whether crash data was found and validated this boot.
 static bool s_crash_data_valid = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -152,7 +154,10 @@ namespace esphome::esp32 {
 
 static const char *const TAG = "esp32.crash";
 
-void crash_handler_read_and_clear() {
+static void crash_handler_read_and_clear() {
+  if (s_crash_data_read)
+    return;
+  s_crash_data_read = true;
   if (s_raw_crash_data.magic == CRASH_MAGIC && s_raw_crash_data.version == CRASH_DATA_VERSION) {
     s_crash_data_valid = true;
     // Clamp counts to prevent out-of-bounds reads from corrupt .noinit data
@@ -177,7 +182,10 @@ void crash_handler_read_and_clear() {
   // Magic is cleared by crash_handler_clear() after an API client receives the data.
 }
 
-bool crash_handler_has_data() { return s_crash_data_valid; }
+bool crash_handler_has_data() {
+  crash_handler_read_and_clear();
+  return s_crash_data_valid;
+}
 
 void crash_handler_clear() {
   // Only clear the magic so data doesn't survive the next reboot.
@@ -337,7 +345,7 @@ static int append_addrs_to_hint(char *buf, int size, int pos, const uint32_t *ad
 // crashes again during boot, and allowing the CLI's process_stacktrace to match
 // and decode each address individually.
 void crash_handler_log() {
-  if (!s_crash_data_valid)
+  if (!crash_handler_has_data())
     return;
 
   ESP_LOGE(TAG, "*** CRASH DETECTED ON PREVIOUS BOOT ***");
