@@ -17,6 +17,7 @@
 #include "esphome/core/helpers.h"
 
 #include <string>
+#include <type_traits>
 #include <vector>
 #ifdef USE_STORAGE_REGEX_EXTRACT
 #include <regex>  // ExtractStep::compiled_re -- REGEX patterns are compiled once, at construction
@@ -36,7 +37,11 @@ namespace esphome::storage {
 // Normalizing every arg through this overload set means no config ever needs a
 // manual .c_str() -- and args that already have one pass through unchanged.
 inline const char *printf_arg(const std::string &s) { return s.c_str(); }
-template<typename T> inline T printf_arg(T v) { return v; }
+template<typename T> inline T printf_arg(T v) {
+  static_assert(std::is_trivially_copyable_v<T>,
+                "storage printf args must be scalars or strings; add .c_str() or convert first");
+  return v;
+}
 
 void warn_invalid_bool(const std::string &s);
 void warn_invalid_number(const std::string &s);
