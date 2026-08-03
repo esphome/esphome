@@ -405,15 +405,17 @@ bool ESPVideoCamera::init_pipeline_() {
 // ESPVideoCamera — streaming / capture
 // ===========================================================================
 void ESPVideoCamera::loop() {
+  const bool wanted = (this->stream_requesters_ != 0) || (this->single_requesters_ != 0);
+
   if (!this->streaming_) {
-    // The device disappeared mid-stream (see handle_device_gone_). Re-open it
-    // periodically for as long as someone still wants frames, so a USB-UVC
-    // camera that is plugged back in resumes on its own.
-    if (this->capture_retry_pending_ && (this->stream_requesters_ != 0 || this->single_requesters_ != 0) &&
-        (int32_t) (millis() - this->capture_retry_at_ms_) >= 0) {
-      this->capture_retry_pending_ = false;
-      this->start_capture_();
-    }
+    if (!wanted)
+      return;
+    // A device that vanished mid-stream (see handle_device_gone_) is re-opened on
+    // a timer; a fresh request starts right away.
+    if (this->capture_retry_pending_ && (int32_t) (millis() - this->capture_retry_at_ms_) < 0)
+      return;
+    this->capture_retry_pending_ = false;
+    this->start_capture_();
     return;
   }
 
@@ -458,8 +460,8 @@ void ESPVideoCamera::deliver_frame_(const uint8_t *data, size_t length) {
     return;
   }
   memcpy(copy, data, length);
-  this->current_image_ =
-      std::make_shared<ESPVideoCameraImage>(copy, length, this->single_requesters_ | this->stream_requesters_);
+  this->current_image_ = std::make_shared<ESPVideoCameraImage>(
+      copy, length, (uint8_t) (this->single_requesters_ | this->stream_requesters_));
   for (auto *listener : this->listeners_)
     listener->on_camera_image(this->current_image_);
   this->single_requesters_ = 0;
@@ -602,9 +604,15 @@ void ESPVideoCamera::stop_stream(camera::CameraRequester requester) {
 }
 
 void ESPVideoCamera::update_capture_state_() {
-  bool wanted = (this->stream_requesters_ != 0) || (this->single_requesters_ != 0);
-  if (wanted && !this->streaming_)
-    this->start_capture_();
+  // Deliberately does not touch the pipeline. request_image(), start_stream() and
+  // stop_stream() run in the caller's task -- the web server's httpd task, or an
+  // API connection task -- while loop() runs in the main task, on the other core.
+  // Opening the V4L2 devices, mmapping the buffers and running STREAMON from one
+  // task while the other dequeues frames races on capture_fd_, jpeg_fd_ and
+  // capture_buffers_: the main task can observe streaming_ before the fds and
+  // mapped pointers it guards are visible, and then dequeue through garbage.
+  // The requester bitmasks are atomic; loop() owns the pipeline and picks the
+  // change up on its next iteration.
 }
 
 bool ESPVideoCamera::configure_capture_format_(uint32_t pixelformat) {

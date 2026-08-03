@@ -12,6 +12,7 @@
 
 #include "driver/gpio.h"
 
+#include <atomic>
 #include <memory>
 #include <string>
 #include <vector>
@@ -137,11 +138,15 @@ class ESPVideoCamera : public camera::Camera {
   bool capture_retry_pending_{false};
   uint32_t capture_retry_at_ms_{0};
 
-  // Consumers (bit masks indexed by camera::CameraRequester)
+  // Consumers (bit masks indexed by camera::CameraRequester).
+  //
+  // The requester masks are written from whichever task asked for an image (the
+  // web server's httpd task, an API connection task) and read by loop() in the
+  // main task, so they are atomic. Everything else below belongs to loop().
   std::vector<camera::CameraListener *> listeners_;
   std::shared_ptr<ESPVideoCameraImage> current_image_;
-  uint8_t stream_requesters_{0};
-  uint8_t single_requesters_{0};
+  std::atomic<uint8_t> stream_requesters_{0};
+  std::atomic<uint8_t> single_requesters_{0};
 
   // V4L2 state.
   //
