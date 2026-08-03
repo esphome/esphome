@@ -1,4 +1,3 @@
-from collections.abc import Callable
 import importlib
 import pkgutil
 
@@ -46,6 +45,7 @@ from esphome.components.spi import (
 )
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ALLOW_OTHER_USES,
     CONF_AUTO_CLEAR_ENABLED,
     CONF_BLUE,
     CONF_COLOR_ORDER,
@@ -73,7 +73,6 @@ from esphome.const import (
     CONF_VSYNC_PIN,
     CONF_WIDTH,
 )
-from esphome.core import CORE
 from esphome.final_validate import full_config
 from esphome.types import ConfigType
 
@@ -102,19 +101,10 @@ MODELS = DriverChip.get_models()
 
 
 def _pin_is_shared(pin_config: ConfigType | None) -> bool:
-    if (
-        pin_config is None
-        or pins.PIN_SCHEMA_REGISTRY.get_key(pin_config) != CORE.target_platform
-    ):
-        return False
-    return (
-        pins.PIN_SCHEMA_REGISTRY.get_count(
-            CORE.target_platform,
-            CORE.target_platform,
-            pin_config[CONF_NUMBER],
-        )
-        > 1
-    )
+    # A pin used in more than one place must set allow_other_uses (enforced both
+    # ways in pins.py), so the flag on our own pin config is an order-independent
+    # signal that the pin is shared -- available already at CONFIG_SCHEMA time.
+    return isinstance(pin_config, dict) and bool(pin_config.get(CONF_ALLOW_OTHER_USES))
 
 
 def _get_shared_display_pin(config: ConfigType) -> int | None:
@@ -138,28 +128,17 @@ def _get_shared_display_pin(config: ConfigType) -> int | None:
 
 def _get_sleep_capability(
     config: ConfigType, model: DriverChip
-) -> tuple[bool, str | None, Callable[[], tuple[bool, str | None]] | None]:
+) -> tuple[bool, str | None]:
     if not model.get_default(CONF_SUPPORTS_SLEEP):
-        return False, None, None
+        return False, None
     if CONF_SPI_ID not in config:
+        return False, "Display sleep requires an SPI control interface for this model"
+    if (shared_pin := _get_shared_display_pin(config)) is not None:
         return (
             False,
-            "Display sleep requires an SPI control interface for this model",
-            None,
+            f"Display sleep cannot be used because RGB/control pin GPIO{shared_pin} is shared with another function",
         )
-
-    def _check_shared_pins() -> tuple[bool, str | None]:
-        # A pin is only known to be shared once every component has registered its
-        # pins, which is not complete until final validation. Evaluating this during
-        # CONFIG_SCHEMA is order-dependent and can miss a shared pin, so defer it.
-        if (shared_pin := _get_shared_display_pin(config)) is not None:
-            return (
-                False,
-                f"Display sleep cannot be used because RGB/control pin GPIO{shared_pin} is shared with another function",
-            )
-        return True, None
-
-    return True, None, _check_shared_pins
+    return True, None
 
 
 def data_pin_validate(value):
@@ -296,9 +275,7 @@ def _config_schema(config):
     width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
         model.get_dimensions(config)
     )
-    supports_sleep, sleep_unsupported_reason, sleep_capability_check = (
-        _get_sleep_capability(config, model)
-    )
+    supports_sleep, sleep_unsupported_reason = _get_sleep_capability(config, model)
     display.add_metadata(
         config[CONF_ID],
         width,
@@ -311,7 +288,6 @@ def _config_schema(config):
         draw_rounding=config.get(CONF_DRAW_ROUNDING, 0),
         supports_sleep=supports_sleep,
         sleep_unsupported_reason=sleep_unsupported_reason,
-        sleep_capability_check=sleep_capability_check,
     )
     return config
 
