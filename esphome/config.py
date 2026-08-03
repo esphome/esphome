@@ -622,6 +622,8 @@ class LoadValidationStep(ConfigValidationStep):
             if (expand := component.expand_platform_config) is not None:
                 with result.catch_error(path):
                     result[self.domain] = self.conf = expand(self.conf)
+                    # Assert rather than raise - failure here is a coding error, not a user error.
+                    assert isinstance(self.conf, list)
 
         # Process AUTO_LOAD
         _process_auto_load(result, component, path)
