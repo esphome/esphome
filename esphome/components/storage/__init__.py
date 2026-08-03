@@ -886,7 +886,12 @@ async def unmount_action_to_code(config, action_id, template_arg, args):
 FormatAction = storage_ns.class_("FormatAction", automation.Action)
 
 _FORMAT_SCHEMA = cv.maybe_simple_value(
-    {cv.Required(CONF_ID): cv.use_id(FilesystemStorage)}, key=CONF_ID
+    {
+        cv.Required(CONF_ID): cv.use_id(FilesystemStorage),
+        # Fires (error text, empty = success) when the format finishes on the worker.
+        cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(single=True),
+    },
+    key=CONF_ID,
 )
 
 
@@ -897,7 +902,12 @@ async def format_action_to_code(config, action_id, template_arg, args):
     # Any FilesystemStorage may be a target; the driver's format() reports NOT_SUPPORTED at
     # runtime if its backend cannot format.
     target = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, target)
+    var = cg.new_Pvariable(action_id, template_arg, target)
+    if CONF_ON_COMPLETE in config:
+        await automation.build_automation(
+            var.get_complete_trigger(), [(cg.std_string, "x")], config[CONF_ON_COMPLETE]
+        )
+    return var
 
 
 # ---------------------------------------------------------------------------

@@ -750,15 +750,32 @@ void perform_mount(MountableStorage *target, bool mount) {
   }
 }
 
-void perform_format(FilesystemStorage *target) {
-  StorageError err = target->format();
-  if (err == StorageError::NOT_SUPPORTED) {
+static void format_fire(Trigger<std::string> *on_complete, StorageError result) {
+  if (result == StorageError::NOT_SUPPORTED) {
     ESP_LOGE(TAG, "format is not supported by this filesystem");
-  } else if (err != StorageError::OK) {
-    ESP_LOGE(TAG, "format failed (%s)", error_to_string(err));
+  } else if (result != StorageError::OK) {
+    ESP_LOGE(TAG, "format failed (%s)", error_to_string(result));
   } else {
     ESP_LOGI(TAG, "filesystem formatted");
   }
+  if (on_complete != nullptr)
+    on_complete->trigger(result == StorageError::OK ? std::string() : std::string(error_to_string(result)));
+}
+
+void perform_format_async(FilesystemStorage *target, Trigger<std::string> *on_complete) {
+#ifdef USE_STORAGE_WORKER
+  if (global_storage_worker != nullptr) {
+    ESP_LOGI(TAG, "Formatting filesystem...");
+    StorageError err = global_storage_worker->async_format(
+        target, [on_complete](StorageError r) { format_fire(on_complete, r); }, nullptr);
+    if (err != StorageError::OK)
+      format_fire(on_complete, err);  // could not queue -- report inline
+    return;
+  }
+#endif
+  // No worker in this build: the one blocking call runs on the main loop, bounded by the
+  // driver's format() (see the blocking contract in automation.h), not by the automation.
+  format_fire(on_complete, target->format());
 }
 
 }  // namespace esphome::storage
