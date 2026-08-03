@@ -6,7 +6,7 @@
 
 namespace esphome::x9c {
 
-class X9cOutput : public output::FloatOutput, public Component {
+class X9cOutput final : public output::FloatOutput, public Component {
  public:
   void set_cs_pin(InternalGPIOPin *pin) { cs_pin_ = pin; }
   void set_inc_pin(InternalGPIOPin *pin) { inc_pin_ = pin; }

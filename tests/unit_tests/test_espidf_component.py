@@ -1,3 +1,4 @@
+import glob
 import hashlib
 import json
 import os
@@ -86,6 +87,48 @@ def test_collect_filtered_files_exclude(tmp_path):
     assert str(f2) not in result
 
 
+def test_collect_filtered_files_exclude_pattern_in_subdir(tmp_path):
+    src = tmp_path / "lib" / "src"
+    src.mkdir(parents=True)
+    kept = src / "a.c"
+    excluded = src / "hasty.c"
+    kept.write_text("int a;")
+    excluded.write_text("int b;")
+
+    result = collect_filtered_files(tmp_path, ["+<lib/src/*.c>", "-<lib/src/hasty.c>"])
+    assert str(kept) in result
+    assert str(excluded) not in result
+
+
+def test_collect_filtered_files_exclude_unnormalized_glob_output(tmp_path, monkeypatch):
+    # On Windows, glob keeps the pattern's literal separators for non-wildcard
+    # path components, so the "+" wildcard pattern and the "-" literal pattern
+    # yield the same file spelled differently and the exclude set difference
+    # misses it. Backslash is a regular filename character on POSIX (such paths
+    # fail the final is_file filter), so reproduce the unnormalized-output
+    # mismatch portably with dot segments, which normpath also collapses.
+    src = tmp_path / "lib" / "src"
+    src.mkdir(parents=True)
+    kept = src / "a.c"
+    excluded = src / "hasty.c"
+    kept.write_text("int a;")
+    excluded.write_text("int b;")
+
+    real_glob = glob.glob
+
+    def unnormalized_glob(pattern, recursive=False):
+        if "*" in pattern:
+            base = str(tmp_path)
+            return [base + "/lib/./src/a.c", base + "/lib/./src/hasty.c"]
+        return real_glob(pattern, recursive=recursive)
+
+    monkeypatch.setattr(glob, "glob", unnormalized_glob)
+
+    result = collect_filtered_files(tmp_path, ["+<lib/src/*.c>", "-<lib/src/hasty.c>"])
+    assert [Path(r).name for r in result] == ["a.c"]
+    assert str(kept) in result
+
+
 def test_split_list_by_condition():
     items = ["-Iinclude", "-Llib", "-Wall"]
 
@@ -126,28 +169,96 @@ def test_generate_cmakelists_txt_with_flags(tmp_component, tmp_path):
     }
 
     content = generate_cmakelists_txt(tmp_component)
-    sep = "\\\\" if os.name == "nt" else "/"
+    # Paths are always emitted with forward slashes so the CMakeLists is
+    # portable; on Windows os.path.relpath would otherwise yield backslashes
+    # that break CMake's list re-parsing.
     assert (
         content
-        == f"""idf_component_register(
-  SRCS "src{sep}main.c"
+        == """idf_component_register(
+  SRCS "src/main.c"
   INCLUDE_DIRS "src"
-  REQUIRES dep ${{ESPHOME_PROJECT_MANAGED_COMPONENTS}} ${{ESPHOME_PROJECT_BUILTIN_COMPONENTS}}
+  REQUIRES dep ${ESPHOME_PROJECT_MANAGED_COMPONENTS} ${ESPHOME_PROJECT_BUILTIN_COMPONENTS}
 )
-target_compile_options(${{COMPONENT_LIB}} PUBLIC
+target_compile_options(${COMPONENT_LIB} PUBLIC
   "-DTEST"
 )
-target_compile_options(${{COMPONENT_LIB}} PRIVATE
+target_compile_options(${COMPONENT_LIB} PRIVATE
   "-Wall"
 )
-target_link_directories(${{COMPONENT_LIB}} INTERFACE
+target_link_directories(${COMPONENT_LIB} INTERFACE
   "lib"
 )
-target_link_libraries(${{COMPONENT_LIB}} INTERFACE
+target_link_libraries(${COMPONENT_LIB} INTERFACE
   "mylib"
 )
 """
     )
+
+
+def test_generate_cmakelists_txt_uses_forward_slashes_on_windows(
+    tmp_component, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # os.path.relpath yields backslash paths on Windows, which CMake rejects
+    # when it re-parses the SRCS list (e.g. "\b" in "src\backend" is an invalid
+    # character escape). Simulate that output and confirm the generated
+    # CMakeLists normalizes the separators to forward slashes.
+    src_dir = tmp_component.path / "src" / "backend"
+    src_dir.mkdir(parents=True)
+    (src_dir / "cipher.c").write_text("int f() {}")
+
+    tmp_component.data = {}
+
+    monkeypatch.setattr("esphome.espidf.component.os.sep", "\\")
+    monkeypatch.setattr(
+        "esphome.espidf.component.os.path.relpath",
+        lambda *args, **kwargs: "src\\backend\\cipher.c",
+    )
+
+    content = generate_cmakelists_txt(tmp_component)
+
+    assert 'SRCS "src/backend/cipher.c"' in content
+    assert "\\" not in content
+
+
+def test_generate_cmakelists_txt_multi_token_flag(tmp_component):
+    # PlatformIO shell-lexes each build.flags entry, so a single entry can
+    # carry a flag and its argument. The generated CMakeLists must emit them
+    # as separate compile options, not one argument with an embedded space.
+    src_dir = tmp_component.path / "src"
+    src_dir.mkdir()
+    (src_dir / "main.c").write_text("int main() {}")
+
+    tmp_component.data = {"build": {"flags": ["-include cp_custom_alloc.h", "-DTEST"]}}
+
+    content = generate_cmakelists_txt(tmp_component)
+    assert '"-include cp_custom_alloc.h"' not in content
+    assert '  "-include"\n  "cp_custom_alloc.h"\n' in content
+
+
+def test_generate_cmakelists_txt_space_separated_classified_flags(tmp_component):
+    # Space-separated -I/-L/-l entries routed to INCLUDE_DIRS and the link
+    # handling before the shlex split was added; splitting must not leak
+    # them into raw compile options.
+    src_dir = tmp_component.path / "src"
+    src_dir.mkdir()
+    (src_dir / "main.c").write_text("int main() {}")
+    (tmp_component.path / "extra_inc").mkdir()
+
+    tmp_component.data = {
+        "build": {"flags": ["-I extra_inc", "-L extra_lib", "-l extralib", "-DTEST"]}
+    }
+
+    content = generate_cmakelists_txt(tmp_component)
+    assert 'INCLUDE_DIRS "src" "extra_inc"' in content
+    assert 'target_link_directories(${COMPONENT_LIB} INTERFACE\n  "extra_lib"\n)' in (
+        content
+    )
+    assert 'target_link_libraries(${COMPONENT_LIB} INTERFACE\n  "extralib"\n)' in (
+        content
+    )
+    assert '"-I"' not in content
+    assert '"-L"' not in content
+    assert '"-l"' not in content
 
 
 def test_generate_cmakelists_txt_references_project_managed_components_variable(
@@ -372,6 +483,84 @@ def test_node_key_git_no_ref():
     assert locator == ("https://github.com/foo/bar.git", None)
 
 
+def test_node_key_url_in_name_is_git():
+    # add_library("https://github.com/x/y", None): PlatformIO accepted a bare
+    # git URL as the library name, so the converter must too.
+    key, is_git, locator = _node_key(
+        "https://github.com/pstolarz/OneWireNg", None, None
+    )
+    assert key == "pstolarz/OneWireNg"
+    assert is_git is True
+    assert locator == ("https://github.com/pstolarz/OneWireNg", None)
+
+
+def test_node_key_url_in_name_with_ref():
+    key, is_git, locator = _node_key(
+        "https://github.com/foo/bar.git#v1.2.3", None, None
+    )
+    assert (key, is_git, locator) == (
+        "foo/bar",
+        True,
+        ("https://github.com/foo/bar.git", "v1.2.3"),
+    )
+
+
+def test_node_key_url_in_name_git_plus_prefix():
+    key, is_git, locator = _node_key("git+https://github.com/foo/bar", None, None)
+    assert (key, is_git, locator) == (
+        "foo/bar",
+        True,
+        ("https://github.com/foo/bar", None),
+    )
+
+
+def test_node_key_git_plus_prefix_in_repository():
+    _key, is_git, locator = _node_key("name", None, "git+https://github.com/foo/bar")
+    assert (is_git, locator) == (True, ("https://github.com/foo/bar", None))
+
+
+def test_node_key_custom_name_equals_url_is_git():
+    key, is_git, locator = _node_key(
+        "OneWireNg=https://github.com/pstolarz/OneWireNg", None, None
+    )
+    assert (key, is_git, locator) == (
+        "pstolarz/OneWireNg",
+        True,
+        ("https://github.com/pstolarz/OneWireNg", None),
+    )
+
+
+def test_node_key_url_in_name_with_query_containing_equals():
+    # A bare URL whose query string contains ``=`` must not be split by the
+    # CustomName=URL handling.
+    key, is_git, locator = _node_key("https://host/x/y.git?ref=main", None, None)
+    assert (key, is_git, locator) == (
+        "x/y",
+        True,
+        ("https://host/x/y.git?ref=main", None),
+    )
+
+
+@pytest.mark.parametrize("name", ["http://[::1", "CustomName=http://[::1"])
+def test_node_key_malformed_url_in_name_raises(name: str) -> None:
+    # A name that was clearly meant to be a URL but does not parse must fail
+    # fast instead of degrading to a confusing registry lookup error.
+    with pytest.raises(RuntimeError, match="Invalid PIO library URL"):
+        _node_key(name, None, None)
+
+
+def test_node_key_name_with_equals_but_no_url_is_registry():
+    key, is_git, locator = _node_key("FOO=BAR", "1.0", None)
+    assert (key, is_git, locator) == ("FOO=BAR", False, (None, "FOO=BAR"))
+
+
+def test_node_key_version_url_still_ignored_when_name_plain():
+    # A version that is a URL is handled by the dependency walk, not here;
+    # a plain name must stay a registry spec regardless of version shape.
+    key, is_git, _locator = _node_key("bar", "https://github.com/foo/bar", None)
+    assert (key, is_git) == ("bar", False)
+
+
 def test_node_key_registry_owner_name():
     key, is_git, locator = _node_key("foo/bar", "^1.0.0", None)
     assert (key, is_git, locator) == ("foo/bar", False, ("foo", "bar"))
@@ -481,7 +670,7 @@ def test_generate_idf_components_dedupes_shared_dependency(
         "esphome/C": {"name": "C"},
     }
 
-    def fake_download(self, force=False, salt=""):
+    def fake_download(self, force=False, salt="", namespace=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "src" / "x.c").write_text("int x;")
@@ -543,7 +732,7 @@ def test_generate_idf_components_lib_ignore_filters_top_level_and_dependencies(
 
     download_salts: list[str] = []
 
-    def fake_download(self, force=False, salt=""):
+    def fake_download(self, force=False, salt="", namespace=""):
         download_salts.append(salt)
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
@@ -597,7 +786,7 @@ def test_generate_idf_components_handles_dependency_cycle(
         },
     }
 
-    def fake_download(self, force=False, salt=""):
+    def fake_download(self, force=False, salt="", namespace=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "src" / "x.c").write_text("int x;")
@@ -654,7 +843,7 @@ def test_generate_idf_components_git_overrides_registry_warns(
         "esphome/shared": {"name": "shared"},
     }
 
-    def fake_download(self, force=False, salt=""):
+    def fake_download(self, force=False, salt="", namespace=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "src" / "x.c").write_text("int x;")
@@ -691,7 +880,7 @@ def test_generate_idf_components_missing_manifest_raises(
 ) -> None:
     # A library with neither library.json nor library.properties is invalid;
     # fail loudly rather than silently generating build files for it.
-    def fake_download(self, force=False, salt=""):
+    def fake_download(self, force=False, salt="", namespace=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         # no library.json / library.properties written
@@ -733,7 +922,7 @@ def test_generate_idf_components_warns_on_noncanonical_duplicate(
         "owner/shared": {"name": "shared"},
     }
 
-    def fake_download(self, force=False, salt=""):
+    def fake_download(self, force=False, salt="", namespace=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "src" / "x.c").write_text("int x;")
@@ -766,7 +955,7 @@ def test_generate_idf_components_incompatible_top_level_raises(
 ) -> None:
     # A top-level library that isn't ESP-IDF/esp32 compatible must fail fast,
     # not be silently dropped.
-    def fake_download(self, force=False, salt=""):
+    def fake_download(self, force=False, salt="", namespace=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "library.json").write_text(
@@ -804,7 +993,7 @@ def test_generate_idf_components_incompatible_dependency_skipped(
         "esphome/B": {"name": "B", "platforms": ["espressif8266"]},
     }
 
-    def fake_download(self, force=False, salt=""):
+    def fake_download(self, force=False, salt="", namespace=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
@@ -847,6 +1036,13 @@ def test_url_source_salt_changes_cache_path(
     assert source.download("lib") == expected[""]
     assert source.download("lib", salt="abcd1234") == expected["abcd1234"]
 
+    # A backend namespace adds a pio_components/<namespace>/ subdir.
+    digest = hashlib.sha256(url.encode()).hexdigest()[:8]
+    ns_expected = base / "idf" / digest / "lib"
+    ns_expected.mkdir(parents=True)
+    (ns_expected / ".esphome_extracted").touch()
+    assert source.download("lib", namespace="idf") == ns_expected
+
 
 def test_git_source_salt_scopes_domain(monkeypatch: pytest.MonkeyPatch) -> None:
     """The salt becomes a subdirectory of the git clone domain."""
@@ -863,7 +1059,14 @@ def test_git_source_salt_scopes_domain(monkeypatch: pytest.MonkeyPatch) -> None:
     source = GitSource("https://github.com/esphome/noise-c.git", "v1.0")
     source.download("noise-c")
     source.download("noise-c", salt="abcd1234")
-    assert domains == ["pio_components", "pio_components/abcd1234"]
+    source.download("noise-c", namespace="idf")
+    source.download("noise-c", namespace="zephyr", salt="abcd1234")
+    assert domains == [
+        "pio_components",
+        "pio_components/abcd1234",
+        "pio_components/idf",
+        "pio_components/zephyr/abcd1234",
+    ]
 
 
 def test_idf_component_download_passes_salt() -> None:
@@ -873,7 +1076,9 @@ def test_idf_component_download_passes_salt() -> None:
     source.download.return_value = Path("/converted/owner/name")
 
     c = IDFComponent("owner/name", "1.0", source=source)
-    c.download(force=True, salt="abcd1234")
+    c.download(force=True, salt="abcd1234", namespace="idf")
 
-    source.download.assert_called_once_with("owner/name", force=True, salt="abcd1234")
+    source.download.assert_called_once_with(
+        "owner/name", force=True, salt="abcd1234", namespace="idf"
+    )
     assert c.path == Path("/converted/owner/name")

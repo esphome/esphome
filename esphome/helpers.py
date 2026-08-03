@@ -148,6 +148,21 @@ def indent(text, padding="  "):
     return "\n".join(indent_list(text, padding))
 
 
+def format_duration(seconds: float) -> str:
+    """Format a duration in seconds as a short string like "1d 2h" or "42s".
+
+    Uses the two largest non-zero units, with unit suffixes matching the YAML
+    time period shorthand (d, h, min, s).
+    """
+    remainder = max(0, int(seconds))
+    parts = []
+    for suffix, length in (("d", 86400), ("h", 3600), ("min", 60), ("s", 1)):
+        value, remainder = divmod(remainder, length)
+        if value:
+            parts.append(f"{value}{suffix}")
+    return " ".join(parts[:2]) if parts else "0s"
+
+
 # From https://stackoverflow.com/a/14945195/8924614
 def cpp_string_escape(string, encoding="utf-8"):
     def _should_escape(byte: int) -> bool:
@@ -397,17 +412,13 @@ def rmtree(path: Path | str) -> None:
     read-only flag and retrying.
     """
 
-    def _onerror(func, path, exc_info):
+    def _onexc(func, path, exc):
         if os.access(path, os.W_OK):
-            raise exc_info[1].with_traceback(exc_info[2])
+            raise exc
         Path(path).chmod(stat.S_IWUSR | stat.S_IRUSR)
         func(path)
 
-    # ``onerror`` is deprecated in 3.12 in favour of ``onexc`` (different
-    # callable signature); keep the existing handler shape for now and
-    # silence the lint locally so this PR doesn't bundle an unrelated
-    # migration.
-    shutil.rmtree(path, onerror=_onerror)  # pylint: disable=deprecated-argument
+    shutil.rmtree(path, onexc=_onexc)
 
 
 def walk_files(path: Path):
