@@ -586,12 +586,17 @@ void StorageWorker::on_storage_unregistered_(Storage *s) {
                           "is likely gone; proceeding with unmount anyway. Behavior from here is "
                           "undefined if the task is still touching it (e.g. still holding a file "
                           "handle) when it does eventually finish.");
-            // Discard the callback now: if the task does reach DONE later, loop() must only
-            // free the slot, not fire a completion into a context whose storage object may
-            // no longer exist post-unmount. The slot stays stuck (RUNNING/CANCELLED, never
-            // recycled) if the task never finishes -- acceptable since the medium is dead
-            // anyway at that point.
-            req.callback = nullptr;
+            // Deliver the completion once, here, while the storage object is still valid: a
+            // caller that chained work on it (the file-browser walker) would otherwise stall
+            // forever. Then clear it -- if the task reaches DONE later, loop() must only free
+            // the slot, never fire a second time into a context whose storage may be gone
+            // post-unmount. The slot stays stuck (RUNNING/CANCELLED, never recycled) if the
+            // task never finishes -- acceptable since the medium is dead anyway at that point.
+            if (req.callback) {
+              CompletionCallback cb = std::move(req.callback);
+              req.callback = nullptr;
+              cb(StorageError::NOT_READY);
+            }
             break;
           }
           // pdMS_TO_TICKS(1) rounds down to 0 ticks at the default 100 Hz tick rate (10 ms per
@@ -634,7 +639,12 @@ void StorageWorker::on_storage_unregistered_(Storage *s) {
         if (millis() - start > 500) {
           ESP_LOGE(TAG, "Timed out waiting for in-flight stream to cancel -- the storage medium is "
                         "likely gone; proceeding with unmount anyway.");
-          req.callback = nullptr;
+          // Deliver the completion once before discarding it (see the transfer drain above).
+          if (req.callback) {
+            CompletionCallback cb = std::move(req.callback);
+            req.callback = nullptr;
+            cb(StorageError::NOT_READY);
+          }
           break;
         }
         vTaskDelay(1);
