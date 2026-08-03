@@ -9,6 +9,7 @@
 #include "esphome/core/hal.h"
 
 #include "esp_heap_caps.h"
+#include "esp_memory_utils.h"  // esp_ptr_external_ram()
 
 #include <atomic>
 #include <cerrno>
