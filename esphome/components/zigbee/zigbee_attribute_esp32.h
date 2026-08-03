@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <type_traits>
 
 #include "esphome/core/automation.h"
@@ -17,6 +18,9 @@
 #endif
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
 #endif
 
 namespace esphome::zigbee {
@@ -51,6 +55,11 @@ class ZigbeeAttribute final : public Component {
 #ifdef USE_BINARY_SENSOR
   template<typename T> void connect(binary_sensor::BinarySensor *sensor);
 #endif
+#ifdef USE_SWITCH
+  template<typename T> void connect(switch_::Switch *sw);
+#endif
+  void write_from_coordinator(uint8_t value);
+  void process_write();
   bool report_enabled = false;
 
  protected:
@@ -67,6 +76,14 @@ class ZigbeeAttribute final : public Component {
   void *value_p_{nullptr};
   bool set_attr_requested_{false};
   bool force_report_{false};
+  // std::atomic<uint8_t> over std::atomic<bool> because GCC on Xtensa generates
+  // an indirect function call for atomic<bool>::load() instead of inlining it.
+  std::atomic<uint8_t> has_pending_write_{0};
+  std::atomic<uint8_t> pending_value_{0};
+#ifdef USE_SWITCH
+  switch_::Switch *switch_{nullptr};
+  bool suppress_local_write_{false};
+#endif
 };
 
 template<typename T> void ZigbeeAttribute::add_attr(T value) {
@@ -92,6 +109,16 @@ template<typename T> void ZigbeeAttribute::connect(sensor::Sensor *sensor) {
 #ifdef USE_BINARY_SENSOR
 template<typename T> void ZigbeeAttribute::connect(binary_sensor::BinarySensor *sensor) {
   sensor->add_on_state_callback([this](bool value) { this->set_attr((T) (this->scale_ * value)); });
+}
+#endif
+#ifdef USE_SWITCH
+template<typename T> void ZigbeeAttribute::connect(switch_::Switch *sw) {
+  this->switch_ = sw;
+  sw->add_on_state_callback([this](bool value) {
+    if (!this->suppress_local_write_) {
+      this->set_attr((T) value);
+    }
+  });
 }
 #endif
 

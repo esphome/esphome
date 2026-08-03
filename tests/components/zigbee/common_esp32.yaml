@@ -20,6 +20,21 @@ sensor:
     endpoint: 1
     use_device_type: true
 
+switch:
+  - platform: template
+    name: "ESP32 Switch 1"
+    report: "default"
+    optimistic: true
+  - platform: template
+    name: "ESP32 Switch 2"
+    report: "force"
+    optimistic: true
+  - platform: template
+    name: "ESP32 Switch 3"
+    report: "default"
+    optimistic: true
+    cluster: on_off
+
 zigbee:
   model: zigbee_test
   router: false

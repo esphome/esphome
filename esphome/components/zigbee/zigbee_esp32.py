@@ -50,6 +50,7 @@ from .const_esp32 import (
     CLUSTER_ROLE,
     CONF_ATTRIBUTE_ID,
     CONF_ATTRIBUTES,
+    CONF_CLUSTER,
     CONF_CLUSTERS,
     DEVICE_ID,
     DEVICE_TYPE,
@@ -207,6 +208,14 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
 
 def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
     ep = copy.deepcopy(ep_configs["binary_input"])
+    setup_attributes(config, ep[CONF_CLUSTERS])
+    add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
+    return config
+
+
+def validate_switch_esp32(config: ConfigType) -> ConfigType:
+    cluster = config.get(CONF_CLUSTER, "binary_output")
+    ep = copy.deepcopy(ep_configs["on_off" if cluster == "on_off" else "binary_output"])
     setup_attributes(config, ep[CONF_CLUSTERS])
     add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
     return config

@@ -122,6 +122,15 @@ static void zb_attribute_handler(ezb_zcl_set_attr_value_message_t *message) {
   ESP_LOGD(TAG, "ZCL SetAttributeValue message for endpoint(%d) cluster(0x%04x) %s with status(0x%02x)",
            message->info.dst_ep, message->info.cluster_id,
            message->info.cluster_role == EZB_ZCL_CLUSTER_SERVER ? "server" : "client", message->info.status);
+
+  if (message->in.attribute.data.value == nullptr) {
+    ESP_LOGW(TAG, "SetAttributeValue message with null value pointer");
+    return;
+  }
+  // Propagate coordinator writes to local entity via attributes_ map lookup
+  uint8_t attr_value = *static_cast<uint8_t *>(message->in.attribute.data.value);
+  global_zigbee->handle_coordinator_write(message->info.dst_ep, message->info.cluster_id, message->info.cluster_role,
+                                          message->in.attribute.id, attr_value);
 }
 
 static void zb_action_handler(ezb_zcl_core_action_callback_id_t callback_id, void *message) {
@@ -209,6 +218,15 @@ bool ZigbeeComponent::register_device() {
     return false;
   }
   return true;
+}
+
+void ZigbeeComponent::handle_coordinator_write(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
+                                               uint8_t value) {
+  auto key = std::make_tuple(endpoint_id, cluster_id, role, attr_id);
+  auto it = this->attributes_.find(key);
+  if (it != this->attributes_.end()) {
+    it->second->write_from_coordinator(value);
+  }
 }
 
 static void ezb_task(void *pv_parameters) {
