@@ -721,6 +721,8 @@ async def file_read_action_to_code(config, action_id, template_arg, args):
     template_ = await cg.templatable(config[CONF_PATH], args, cg.std_string)
     cg.add(var.set_path(template_))
 
+    if config[CONF_EXTRACT]:
+        cg.add(var.reserve_steps(len(config[CONF_EXTRACT])))
     for step in config[CONF_EXTRACT]:
         if CONF_LINE in step:
             cg.add(var.add_step(ExtractStepType.LINE, "", "", step[CONF_LINE]))

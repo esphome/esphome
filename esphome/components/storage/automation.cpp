@@ -253,7 +253,7 @@ void perform_file_write(const std::string &path, std::string content, bool appen
   }
 }
 
-bool perform_file_read(const std::string &path, const std::vector<ExtractStep> &steps, std::string &out) {
+bool perform_file_read(const std::string &path, const FixedVector<ExtractStep> &steps, std::string &out) {
   if (global_storage_registry == nullptr) {
     ESP_LOGE(TAG, "file_read: no storage registry");
     return false;

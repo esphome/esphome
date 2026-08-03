@@ -162,7 +162,7 @@ void perform_file_copy_async(const std::string &from, const std::string &to, boo
 void perform_file_delete(const std::string &path, bool recursive);
 bool check_file_exists(const std::string &path);
 void perform_file_write(const std::string &path, std::string content, bool append, bool newline);
-bool perform_file_read(const std::string &path, const std::vector<ExtractStep> &steps, std::string &out);
+bool perform_file_read(const std::string &path, const FixedVector<ExtractStep> &steps, std::string &out);
 
 // ---------------------------------------------------------------------------
 // storage.file_write / storage.file_append
@@ -196,10 +196,13 @@ template<typename... Ts> class FileReadAction : public Action<Ts...> {
  public:
   TEMPLATABLE_VALUE(std::string, path)
 
+  // Capacity is known at codegen (the number of extract steps); steps_ is a FixedVector, so
+  // this init() must run before the add_step() calls.
+  void reserve_steps(size_t n) { this->steps_.init(n); }
   void add_step(ExtractStepType type, const std::string &arg, const std::string &sep, int index) {
     this->steps_.push_back(ExtractStep{type, arg, sep, index});
   }
-  void set_global_setter(std::function<void(const std::string &)> setter) { this->setter_ = std::move(setter); }
+  void set_global_setter(void (*setter)(const std::string &)) { this->setter_ = setter; }
   Trigger<std::string> *get_value_trigger() { return &this->value_trigger_; }
 
   void play(const Ts &...x) override {
@@ -212,8 +215,8 @@ template<typename... Ts> class FileReadAction : public Action<Ts...> {
   }
 
  protected:
-  std::vector<ExtractStep> steps_;
-  std::function<void(const std::string &)> setter_;
+  FixedVector<ExtractStep> steps_;
+  void (*setter_)(const std::string &){nullptr};
   Trigger<std::string> value_trigger_;
 };
 
