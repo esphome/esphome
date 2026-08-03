@@ -197,14 +197,25 @@ void perform_file_write(const std::string &path, std::string content, bool appen
       ESP_LOGE(TAG, "file_append: open '%s' failed (%s)", path.c_str(), error_to_string(err));
       return;
     }
-    size_t written = 0;
-    err = fs->write(handle, reinterpret_cast<const uint8_t *>(content.data()), content.size(), &written);
+    // Loop until the whole payload lands: a short write is not an error, only no progress is
+    // (mirrors write_file()). Append is small (logs/values), so no watchdog feed is needed.
+    const auto *bytes = reinterpret_cast<const uint8_t *>(content.data());
+    size_t total = 0;
+    while (total < content.size()) {
+      size_t written = 0;
+      err = fs->write(handle, bytes + total, content.size() - total, &written);
+      if (err != StorageError::OK)
+        break;
+      if (written == 0) {
+        err = StorageError::WRITE_ERROR;
+        break;
+      }
+      total += written;
+    }
     // Close errors must surface: FATFS-backed drivers flush on close (see copy() contract).
     StorageError close_err = fs->close(handle);
     if (err == StorageError::OK)
       err = close_err;
-    if (err == StorageError::OK && written != content.size())
-      err = StorageError::WRITE_ERROR;
   } else {
     // Network append: the chunk API takes an explicit offset (NFS supports offset writes
     // natively), so appending is stat-for-size + one write_chunk at EOF -- O(1) RAM, no
@@ -221,10 +232,20 @@ void perform_file_write(const std::string &path, std::string content, bool appen
       ESP_LOGE(TAG, "file_append: stat '%s' failed (%s)", path.c_str(), error_to_string(err));
       return;
     }
-    size_t written = 0;
-    err = ns->write_chunk(rel, reinterpret_cast<const uint8_t *>(content.data()), offset, content.size(), &written);
-    if (err == StorageError::OK && written != content.size())
-      err = StorageError::WRITE_ERROR;
+    // Loop until the whole payload lands, advancing the offset (mirrors write_file()).
+    const auto *bytes = reinterpret_cast<const uint8_t *>(content.data());
+    size_t total = 0;
+    while (total < content.size()) {
+      size_t written = 0;
+      err = ns->write_chunk(rel, bytes + total, offset + total, content.size() - total, &written);
+      if (err != StorageError::OK)
+        break;
+      if (written == 0) {
+        err = StorageError::WRITE_ERROR;
+        break;
+      }
+      total += written;
+    }
   }
 
   if (err != StorageError::OK) {
