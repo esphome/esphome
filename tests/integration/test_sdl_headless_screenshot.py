@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
+from aioesphomeapi import LogLevel
 import pytest
 
 from .bmp_utils import wait_for_bmp
@@ -12,6 +13,9 @@ from .types import APIClientConnectedFactory, RunCompiledFunction
 
 WIDTH = 101
 HEIGHT = 64
+
+# Part of the message write_bmp_() logs when it will not write over a file that is already there.
+REFUSAL_MESSAGE = b"not overwriting"
 
 
 @pytest.mark.asyncio
@@ -46,10 +50,21 @@ async def test_sdl_headless_screenshot(
         await client.execute_service(upper, {})
         await wait_for_bmp(screenshot_dir / "UPPER.BMP")
 
-        # A second capture to the same name must fail rather than overwrite the first.
+        # A second capture to the same name must fail rather than overwrite the first. Wait for
+        # the device to report the refusal: on its own, an unchanged file cannot tell a refusal
+        # apart from a request the device has not got to yet, so a regression that overwrote the
+        # file could still pass on a busy machine.
+        refused = asyncio.Event()
+
+        def on_log(msg) -> None:
+            if REFUSAL_MESSAGE in msg.message:
+                refused.set()
+
+        client.subscribe_logs(on_log, log_level=LogLevel.LOG_LEVEL_DEBUG)
+
         before = capture.read_bytes()
         await client.execute_service(service, {})
-        await asyncio.sleep(0.5)
+        await asyncio.wait_for(refused.wait(), timeout=10.0)
         assert capture.read_bytes() == before
         assert sorted(p.name for p in screenshot_dir.iterdir()) == [
             "UPPER.BMP",

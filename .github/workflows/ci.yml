@@ -432,6 +432,16 @@ jobs:
           mapfile -t test_files < <(echo "$BUCKET_TESTS" | jq -r '.[]')
           echo "Bucket ${{ matrix.bucket.name }}: running ${#test_files[@]} integration tests"
           pytest -vv --no-cov --tb=native --durations=30 -n auto "${test_files[@]}"
+      - name: Upload test artifacts
+        # Tests that compare rendered output write the image they actually got here, so a
+        # failure can be looked at without reproducing the whole build locally.
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: integration-test-artifacts-${{ matrix.bucket.name }}
+          path: test_artifacts/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Print ccache statistics
         # esphome stores the PlatformIO ccache under the machine-global cache
         # dir (see _ccache_env() in esphome/platformio/toolchain.py).

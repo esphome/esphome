@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from .artifact_utils import keep_artifact
 from .bmp_utils import wait_for_bmp
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
@@ -28,6 +29,10 @@ EXPECTED_SHA256 = "a995b002dd1d183c47514da15ab9a60a3e7d788c2e24386a02fddd4865509
 # generated against. A version bump can shift anti-aliasing enough to change the hash even though
 # nothing is actually wrong -- if this test fails, check that first before regenerating the hash.
 EXPECTED_LVGL_VERSION = "9.5.0"
+# The hash covers more than LVGL's drawing: the screen is captured through SDL, which expands the
+# RGB565 framebuffer to the 24 bit BMP. SDL comes from the runner's package archive rather than
+# from this repository, so an updated image can change the result on its own. Check the SDL
+# version too before concluding that a drawing change is at fault.
 
 
 @pytest.mark.asyncio
@@ -61,8 +66,10 @@ async def test_lvgl_headless_render(
 
         digest = hashlib.sha256(image.pixels).hexdigest()
         if digest != EXPECTED_SHA256:
-            kept = tmp_path / "lvgl_headless_render_actual.bmp"
-            kept.write_bytes(capture.read_bytes())
+            # Kept outside the temporary folder so CI can upload it; see artifact_utils.
+            kept = keep_artifact(
+                "lvgl_headless_render_actual.bmp", capture.read_bytes()
+            )
 
             from esphome.components.lvgl import LVGL_VERSION
 
@@ -77,5 +84,8 @@ async def test_lvgl_headless_render(
                 f"{version_hint}"
                 f"  expected: {EXPECTED_SHA256}\n"
                 f"  actual:   {digest}\n"
-                f"the image that was rendered has been kept at {kept}"
+                f"the image that was rendered has been kept at {kept}\n"
+                f"on CI it is in the integration-test-artifacts upload for this job\n"
+                f"if the drawing looks right, check whether the installed SDL version "
+                f"changed - the capture goes through it"
             )
