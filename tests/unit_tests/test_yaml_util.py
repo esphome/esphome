@@ -1520,9 +1520,9 @@ included: !include included.yaml
 
 @pytest.fixture
 def fast_mode_config_dir(tmp_path: Path) -> Path:
-    (tmp_path / "main.yaml").write_text(FAST_MODE_MAIN_YAML)
-    (tmp_path / "included.yaml").write_text("inner_key: inner_value\ninner_num: 7\n")
-    (tmp_path / "secrets.yaml").write_text("devname: livingroom\n")
+    _write(tmp_path, "main.yaml", FAST_MODE_MAIN_YAML)
+    _write(tmp_path, "included.yaml", "inner_key: inner_value\ninner_num: 7\n")
+    _write(tmp_path, "secrets.yaml", "devname: livingroom\n")
     return tmp_path
 
 
@@ -1534,7 +1534,7 @@ def _resolve_includes(config: dict) -> dict:
 
 
 def test_load_yaml_fast_mode_matches_default(fast_mode_config_dir: Path) -> None:
-    """Both modes must produce equal values; only the metadata wrapping differs."""
+    """Both modes produce equal values; only the metadata wrapping differs."""
     yaml_file = fast_mode_config_dir / "main.yaml"
 
     normal = _resolve_includes(yaml_util.load_yaml(yaml_file))
@@ -1552,34 +1552,29 @@ def test_load_yaml_fast_mode_matches_default(fast_mode_config_dir: Path) -> None
     assert fast["extend_value"] == Extend("some_id")
     assert fast["remove_value"] == Remove("some_id")
 
-
-def test_load_yaml_fast_mode_skips_document_ranges(
-    fast_mode_config_dir: Path,
-) -> None:
-    """Fast mode returns plain values; default mode keeps the range metadata."""
-    yaml_file = fast_mode_config_dir / "main.yaml"
-
-    fast = yaml_util.load_yaml(yaml_file, track_document_range=False)
+    # Fast mode returns plain values; default mode keeps the range metadata.
     assert not isinstance(fast["number_value"], ESPHomeDataBase)
     assert not isinstance(fast["float_value"], ESPHomeDataBase)
     assert all(type(key) is str for key in fast)
-    # Nested includes inherit fast mode through the recursive loader.
-    included = fast["included"].load()
-    assert not isinstance(included["inner_num"], ESPHomeDataBase)
-    assert all(type(key) is str for key in included)
-
-    normal = yaml_util.load_yaml(yaml_file)
     assert isinstance(normal["number_value"], ESPHomeDataBase)
     assert normal["number_value"].esp_range is not None
     assert all(isinstance(key, ESPHomeDataBase) for key in normal)
+
+    # Nested includes inherit fast mode through the recursive loader.
+    included = fast["included"]
+    assert not isinstance(included["inner_num"], ESPHomeDataBase)
+    assert all(type(key) is str for key in included)
 
 
 def test_load_yaml_fast_mode_records_dropped_merge_keys(
     fast_mode_config_dir: Path,
 ) -> None:
-    """The duplicate-merge-key bookkeeping must not crash on plain str keys."""
+    """The duplicate-merge-key bookkeeping must not crash on plain str keys.
+
+    With plain keys there is no esp_range, so the recorded location falls
+    back to the parent file name.
+    """
     yaml_file = fast_mode_config_dir / "main.yaml"
 
     yaml_util.load_yaml(yaml_file, track_document_range=False)
-    dropped = yaml_util.take_dropped_merge_keys()
-    assert [key for key, _ in dropped] == ["port"]
+    assert yaml_util.take_dropped_merge_keys() == [("port", str(yaml_file))]

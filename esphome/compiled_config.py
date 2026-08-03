@@ -61,8 +61,8 @@ def load_compiled_config(conf_path: Path) -> ConfigType | None:
     from esphome import yaml_util
 
     try:
-        # The fast path never validates, so skip tracking per-node source
-        # ranges; that wrapping roughly doubles parse time on large configs.
+        # Fast path never validates or generates code - no source ranges
+        # needed (see load_yaml).
         config = yaml_util.load_yaml(
             cache_path, clear_secrets=False, track_document_range=False
         )

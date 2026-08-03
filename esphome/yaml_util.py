@@ -402,6 +402,11 @@ def _add_data_ref(fn):
             # Let generator finish
             for _ in generator:
                 pass
+        # Fast mode keeps this per-node attribute check instead of a second
+        # constructor table: measured, fast mode already parses within ~8%
+        # of a raw CSafeLoader, so a parallel table isn't worth the
+        # duplication (and undecorated constructors return generators with
+        # different resolution ordering).
         if not loader.track_document_range:
             return res
         res = make_data_base(res)
@@ -443,22 +448,16 @@ def _resolve_merge_include(value: Any, node: yaml.Node, value_node: yaml.Node) -
 
 
 class ESPHomeLoaderMixin:
-    """Loader class that keeps track of line numbers."""
+    """Loader that tracks line numbers unless track_document_range is off."""
 
     def __init__(
         self,
         name: Path,
         yaml_loader: Callable[[Path], dict[str, Any]],
-        track_document_range: bool = True,
+        *,
+        track_document_range: bool,
     ) -> None:
-        """Initialize the loader.
-
-        track_document_range=False skips wrapping every node in an
-        ESPHomeDataBase subclass carrying its source range. The wrapping
-        only serves validation error messages; callers that never
-        validate (the upload/logs fast path re-reading the validated
-        config cache) can skip it, roughly halving parse time.
-        """
+        """Initialize the loader. See load_yaml for track_document_range."""
         self.name = name
         self.yaml_loader = yaml_loader
         self.track_document_range = track_document_range
@@ -723,31 +722,37 @@ class ESPHomeLoaderMixin:
 
 
 class ESPHomeLoader(ESPHomeLoaderMixin, FastestAvailableSafeLoader):
-    """Loader class that keeps track of line numbers."""
+    """C-accelerated loader; see ESPHomeLoaderMixin."""
 
     def __init__(
         self,
         stream: TextIOBase | BytesIO,
         name: Path,
         yaml_loader: Callable[[Path], dict[str, Any]],
-        track_document_range: bool = True,
+        *,
+        track_document_range: bool,
     ) -> None:
         FastestAvailableSafeLoader.__init__(self, stream)
-        ESPHomeLoaderMixin.__init__(self, name, yaml_loader, track_document_range)
+        ESPHomeLoaderMixin.__init__(
+            self, name, yaml_loader, track_document_range=track_document_range
+        )
 
 
 class ESPHomePurePythonLoader(ESPHomeLoaderMixin, PurePythonLoader):
-    """Loader class that keeps track of line numbers."""
+    """Pure-Python loader with readable errors; see ESPHomeLoaderMixin."""
 
     def __init__(
         self,
         stream: TextIOBase | BytesIO,
         name: Path,
         yaml_loader: Callable[[Path], dict[str, Any]],
-        track_document_range: bool = True,
+        *,
+        track_document_range: bool,
     ) -> None:
         PurePythonLoader.__init__(self, stream)
-        ESPHomeLoaderMixin.__init__(self, name, yaml_loader, track_document_range)
+        ESPHomeLoaderMixin.__init__(
+            self, name, yaml_loader, track_document_range=track_document_range
+        )
 
 
 for _loader in (ESPHomeLoader, ESPHomePurePythonLoader):
@@ -776,15 +781,24 @@ for _loader in (ESPHomeLoader, ESPHomePurePythonLoader):
 
 
 def load_yaml(
-    fname: Path, clear_secrets: bool = True, track_document_range: bool = True
+    fname: Path, clear_secrets: bool = True, *, track_document_range: bool = True
 ) -> Any:
+    """Load a YAML file.
+
+    track_document_range=False skips wrapping every node in an
+    ESPHomeDataBase subclass carrying its source range. That metadata
+    serves validation error messages and lambda source locations in
+    generated code; callers that neither validate nor generate code (the
+    upload/logs fast path re-reading the validated config cache) can skip
+    it, roughly halving parse time.
+    """
     if clear_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
     return _load_yaml_internal(fname, track_document_range=track_document_range)
 
 
-def _load_yaml_internal(fname: Path, track_document_range: bool = True) -> Any:
+def _load_yaml_internal(fname: Path, *, track_document_range: bool = True) -> Any:
     """Load a YAML file."""
     for listener in _load_listeners:
         listener(fname)
@@ -800,6 +814,9 @@ def _load_yaml_internal(fname: Path, track_document_range: bool = True) -> Any:
     return res
 
 
+_FAST_YAML_LOADER = functools.partial(_load_yaml_internal, track_document_range=False)
+
+
 def parse_yaml(
     file_name: Path,
     file_handle: TextIOWrapper,
@@ -811,12 +828,14 @@ def parse_yaml(
     if yaml_loader is None:
         # Nested loads (!include, !secret, !include_dir_*) inherit the
         # same tracking mode.
-        yaml_loader = functools.partial(
-            _load_yaml_internal, track_document_range=track_document_range
-        )
+        yaml_loader = _load_yaml_internal if track_document_range else _FAST_YAML_LOADER
     try:
         return _load_yaml_internal_with_type(
-            ESPHomeLoader, file_name, file_handle, yaml_loader, track_document_range
+            ESPHomeLoader,
+            file_name,
+            file_handle,
+            yaml_loader,
+            track_document_range=track_document_range,
         )
     except EsphomeError:
         # Loading failed, so we now load with the Python loader which has more
@@ -828,7 +847,7 @@ def parse_yaml(
             file_name,
             file_handle,
             yaml_loader,
-            track_document_range,
+            track_document_range=track_document_range,
         )
 
 
@@ -837,7 +856,8 @@ def _load_yaml_internal_with_type(
     fname: Path,
     content: TextIOWrapper,
     yaml_loader: Callable[[Path], dict[str, Any]],
-    track_document_range: bool = True,
+    *,
+    track_document_range: bool,
 ) -> Any:
     """Load a YAML file.
 
@@ -848,7 +868,9 @@ def _load_yaml_internal_with_type(
     configuration. Frontmatter is ignored by config validation and code
     generation.
     """
-    loader = loader_type(content, fname, yaml_loader, track_document_range)
+    loader = loader_type(
+        content, fname, yaml_loader, track_document_range=track_document_range
+    )
     try:
         documents: list[Any] = []
         while loader.check_data():

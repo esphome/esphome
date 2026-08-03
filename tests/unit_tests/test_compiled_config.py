@@ -25,6 +25,7 @@ from esphome.const import (
     KEY_VARIANT,
 )
 from esphome.core import CORE
+from esphome.yaml_util import ESPHomeDataBase
 
 _VALIDATED_CONFIG_YAML = """\
 esphome:
@@ -124,12 +125,9 @@ def test_load_compiled_config_happy_path(fresh_cache_files: Path) -> None:
     assert config[CONF_API]["encryption"]["key"] == "6dGhpcyBpcyBhIHRlc3Q="
     assert config["ota"][0]["password"] == "secret"
 
-    # The fast path loads without per-node source ranges; values and keys
-    # come back as plain types instead of ESPHomeDataBase subclasses.
-    from esphome.yaml_util import ESPHomeDataBase
-
+    # The fast path loads without per-node source ranges (the full
+    # contract lives in test_yaml_util; this checks the flag is wired up).
     assert not isinstance(config[CONF_ESPHOME][CONF_NAME], ESPHomeDataBase)
-    assert all(type(key) is str for key in config)
 
     # apply_to_core populated exactly what upload/logs read off CORE.
     assert CORE.name == "lite_test"
