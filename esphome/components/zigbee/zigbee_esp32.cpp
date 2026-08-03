@@ -303,7 +303,7 @@ void ZigbeeComponent::setup() {
 }
 
 void ZigbeeComponent::loop() {
-  if (!this->join_reported && this->joined) {
+  if (!this->join_reported_ && this->joined) {
     this->join_reported_ = true;
     this->join_cb_.call(this->factory_new);
     this->factory_new = false;
