@@ -232,6 +232,15 @@ void StorageRegistry::for_each_raw(void (*cb)(RawStorage *s, void *ctx), void *c
   }
 }
 
+void StorageRegistry::for_each_kv(void (*cb)(KeyValueStorage *s, void *ctx), void *ctx) {
+  Storage *entries[STORAGE_MAX_DEVICES];
+  size_t n = this->snapshot_(entries);
+  for (size_t i = 0; i < n; i++) {
+    if (entries[i]->get_storage_type() == StorageType::KEY_VALUE)
+      cb(static_cast<KeyValueStorage *>(entries[i]), ctx);
+  }
+}
+
 void StorageRegistry::for_each_network(void (*cb)(NetworkStorage *s, void *ctx), void *ctx) {
   Storage *entries[STORAGE_MAX_DEVICES];
   size_t n = this->snapshot_(entries);
