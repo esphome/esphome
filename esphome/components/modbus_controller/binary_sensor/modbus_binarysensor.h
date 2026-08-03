@@ -4,7 +4,7 @@
 #include "esphome/components/modbus_controller/modbus_controller.h"
 #include "esphome/core/component.h"
 
-#include <vector>
+#include <span>
 
 namespace esphome::modbus_controller {
 

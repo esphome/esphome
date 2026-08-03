@@ -462,7 +462,7 @@ class ModbusController final : public PollingComponent, public modbus::ModbusCli
  * @param item SensorItem object
  * @return float value of data
  */
-inline float payload_to_float(std::span<const uint8_t> data, const SensorItem &item, size_t offset) {
+inline float payload_to_float(std::span<const uint8_t> data, const SensorItem &item, uint8_t offset) {
   int64_t number = modbus::helpers::payload_to_number(data, item.sensor_value_type, offset, item.bitmask).value_or(0);
 
   float float_value;
