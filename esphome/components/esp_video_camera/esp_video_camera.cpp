@@ -778,6 +778,12 @@ bool ESPVideoCamera::start_jpeg_pipeline_() {
   }
   memset(&fmt, 0, sizeof(fmt));
   fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  // The encoder validates width/height on its CAPTURE queue too, not just on
+  // OUTPUT: a zeroed v4l2_format is rejected with EINVAL ("pixel format or
+  // width or height is invalid"). Both queues describe the same frame, so pass
+  // the negotiated capture geometry here as well.
+  fmt.fmt.pix.width = this->capture_width_;
+  fmt.fmt.pix.height = this->capture_height_;
   fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_JPEG;
   if (ioctl(this->jpeg_fd_, VIDIOC_S_FMT, &fmt) < 0) {
     ESP_LOGE(TAG, "JPEG CAPTURE S_FMT failed: %s", strerror(errno));
