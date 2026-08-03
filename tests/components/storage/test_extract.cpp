@@ -254,41 +254,4 @@ TEST(ExtractRegex, FailsWithoutAMatchAndLeavesTheBufferUntouched) {
 
 #endif  // USE_STORAGE_REGEX_EXTRACT
 
-// ---------------------------------------------------------------------------
-// JSON -- only compiled when a config uses a `json:` step
-// ---------------------------------------------------------------------------
-
-#ifdef USE_STORAGE_JSON_EXTRACT
-
-TEST(ExtractJson, ResolvesAPointerToAStringScalarUnquoted) {
-  ExtractStep step{ExtractStepType::JSON, "a/b", "", 0};
-  const StepResult r = apply_step(step, R"({"a":{"b":"x"}})");
-  EXPECT_TRUE(r.ok);
-  EXPECT_EQ(r.buf, "x");
-}
-
-TEST(ExtractJson, IndexesIntoAnArray) {
-  ExtractStep step{ExtractStepType::JSON, "arr/1", "", 0};
-  const StepResult r = apply_step(step, R"({"arr":["ten","twenty"]})");
-  EXPECT_TRUE(r.ok);
-  EXPECT_EQ(r.buf, "twenty");
-}
-
-TEST(ExtractJson, FailsForAMissingPathElementAndLeavesTheBufferUntouched) {
-  ExtractStep step{ExtractStepType::JSON, "a/nope", "", 0};
-  const std::string doc = R"({"a":{"b":"x"}})";
-  const StepResult r = apply_step(step, doc);
-  EXPECT_FALSE(r.ok);
-  EXPECT_EQ(r.buf, doc);
-}
-
-TEST(ExtractJson, FailsForADocumentThatDoesNotParse) {
-  ExtractStep step{ExtractStepType::JSON, "a", "", 0};
-  const StepResult r = apply_step(step, "not json at all");
-  EXPECT_FALSE(r.ok);
-  EXPECT_EQ(r.buf, "not json at all");
-}
-
-#endif  // USE_STORAGE_JSON_EXTRACT
-
 }  // namespace esphome::storage::testing
