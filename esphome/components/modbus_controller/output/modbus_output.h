@@ -12,14 +12,14 @@ class ModbusFloatOutput final : public output::FloatOutput, public Component, pu
  public:
   ModbusFloatOutput(uint16_t start_address, uint8_t offset, SensorValueType value_type, int register_count) {
     this->register_type = modbus::EntityType::HOLDING;
-    this->start_address = start_address;
-    this->offset = offset;
+    this->set_address(start_address);
+    this->set_offset_from_start_address(offset);
     this->bitmask = 0xFFFFFFFF;
     this->register_count = register_count;
     this->sensor_value_type = value_type;
     this->skip_updates = 0;
-    this->start_address += offset;
-    this->offset = 0;
+    this->set_address(this->start_address + offset);
+    this->set_offset_from_start_address(0);
   }
   void dump_config() override;
 
@@ -45,13 +45,13 @@ class ModbusBinaryOutput final : public output::BinaryOutput, public Component, 
  public:
   ModbusBinaryOutput(uint16_t start_address, uint8_t offset) {
     this->register_type = modbus::EntityType::COIL;
-    this->start_address = start_address;
+    this->set_address(start_address);
     this->bitmask = 0xFFFFFFFF;
     this->sensor_value_type = SensorValueType::BIT;
     this->skip_updates = 0;
     this->register_count = 1;
-    this->start_address += offset;
-    this->offset = 0;
+    this->set_address(this->start_address + offset);
+    this->set_offset_from_start_address(0);
   }
   void dump_config() override;
 

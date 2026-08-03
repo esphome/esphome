@@ -223,8 +223,8 @@ size_t ModbusController::create_register_ranges_() {
   // never cross-couple); only shared-address shapes, which the old code grouped in a
   // registration-order dependent way, are additionally grouped by coverage.
   bool range_shared = false;
-  // Bytes consumed by registers already in the current range; feeds each sensor's range_data_offset so
-  // registers returning more than 2*register_count bytes (response_size) push later sensors along.
+  // Bytes consumed by registers already in the current range; each extending sensor resolves its
+  // offset from it, so registers returning more than 2*register_count bytes push later sensors along.
   size_t range_bytes = 0;
   SensorItem *prev = nullptr;
   for (SensorItem *curr : this->sensorset_) {
@@ -241,18 +241,18 @@ size_t ModbusController::create_register_ranges_() {
         // The address test reconstructs prev's address from the range tail, so it only means what it
         // says while prev actually occupies that tail: a mid-range predecessor (covered join) must not
         // anchor a re-use, or a later tail-address sensor would inherit its byte offset.
-        // Register sensors historically also inherit the previous sensor's resolved offset
-        // (shared_offset_bias), so a chain configured 0/2/4 resolves to bytes 0/2/6 as it always has.
-        curr->range_data_offset = prev->range_data_offset;
-        curr->shared_offset_bias = static_cast<uint8_t>(prev->shared_offset_bias + prev->offset);
+        // Its data starts where the previous sensor's offset pointed, so a chain configured 0/2/4
+        // resolves to 0/2/6 as it always has.
+        curr->offset = static_cast<uint8_t>(prev->offset + curr->offset_from_start_address);
         join = true;
         ESP_LOGV(TAG, "Re-use previous register 0x%X", curr->start_address);
       } else if (curr->start_address == (r.start_address + r.register_count)) {
-        // this sensor extends the current range with the next contiguous register(s); its data begins
-        // right after the bytes the range has already consumed (range_data_offset is an absolute
-        // byte position within the range response, so wide response_size registers push it along)
-        curr->range_data_offset = static_cast<uint16_t>(range_bytes);
-        curr->shared_offset_bias = 0;
+        // this sensor extends the current range with the next contiguous register(s): its data begins
+        // right after what the range has already consumed - the byte cursor for registers (so a wide
+        // response_size register pushes it along), the distance in bits for coils.
+        curr->offset =
+            static_cast<uint8_t>((curr->addresses_bits() ? curr->start_address - r.start_address : range_bytes) +
+                                 curr->offset_from_start_address);
         range_bytes += curr->get_register_size();
         r.register_count += curr->register_count;
         join = true;
@@ -269,8 +269,9 @@ size_t ModbusController::create_register_ranges_() {
         // never folded into, preserving its isolation. Equal skip_updates is required as well: joining
         // runs this sensor through the range-wide rate merge below, and these sensors polled
         // independently before, so a join that changed anyone's polling rate is refused.
-        curr->range_data_offset = static_cast<uint16_t>((curr->start_address - r.start_address) * 2);
-        curr->shared_offset_bias = 0;
+        const uint16_t addr_delta = curr->start_address - r.start_address;
+        curr->offset = static_cast<uint8_t>((curr->addresses_bits() ? addr_delta : addr_delta * 2) +
+                                            curr->offset_from_start_address);
         join = true;
         ESP_LOGV(TAG, "Register 0x%X already covered by range 0x%X", curr->start_address, r.start_address);
       }
@@ -282,8 +283,7 @@ size_t ModbusController::create_register_ranges_() {
     // even for force_new_range/custom entities. Widen the read to cover the sensor needing the most
     // registers from this shared address (also fixes a short read for coils that use offset).
     if (!join && have_range && r.register_type == curr->register_type && r.start_address == curr->start_address) {
-      curr->range_data_offset = 0;  // shares the range start
-      curr->shared_offset_bias = 0;
+      curr->offset = curr->offset_from_start_address;  // shares the range start
       r.register_count = std::max(r.register_count, curr->register_count);
       range_bytes = std::max(range_bytes, curr->get_register_size());
       range_shared = true;
@@ -301,8 +301,7 @@ size_t ModbusController::create_register_ranges_() {
       range_bytes = curr->get_register_size();
       range_forced = curr->force_new_range;
       range_shared = false;
-      curr->range_data_offset = 0;
-      curr->shared_offset_bias = 0;
+      curr->offset = curr->offset_from_start_address;
       r.start_address = curr->start_address;
       r.register_count = curr->register_count;
       r.register_type = curr->register_type;
@@ -314,6 +313,9 @@ size_t ModbusController::create_register_ranges_() {
       r.skip_updates = (r.skip_updates != 0) ? std::min(r.skip_updates, curr->skip_updates) : curr->skip_updates;
     }
 
+    // Every member records its range's first register: the resolved offset is relative to it, so both
+    // together give the sensor's real position (and, for write entities, its write address).
+    curr->range_start_address = r.start_address;
     r.sensors.insert(curr);
     prev = curr;
   }

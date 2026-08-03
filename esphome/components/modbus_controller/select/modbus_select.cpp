@@ -86,7 +86,7 @@ void ModbusSelect::control(size_t index) {
     return;
   }
 
-  const uint16_t write_address = this->write_register_address();
+  const uint16_t write_address = this->write_address();
   ModbusCommandItem write_cmd;
   if ((this->register_count == 1) && (!this->use_write_multiple_)) {
     write_cmd = ModbusCommandItem::create_write_single_command(this->parent_, write_address, data[0]);

@@ -15,9 +15,9 @@ class ModbusSelect final : public Component, public select::Select, public Senso
                bool force_new_range, std::vector<int64_t> mapping) {
     this->register_type = modbus::EntityType::HOLDING;  // not configurable
     this->sensor_value_type = sensor_value_type;
-    this->start_address = start_address;
-    this->offset = 0;            // not configurable
-    this->bitmask = 0xFFFFFFFF;  // not configurable
+    this->set_address(start_address);
+    this->set_offset_from_start_address(0);  // not configurable
+    this->bitmask = 0xFFFFFFFF;              // not configurable
     this->register_count = register_count;
     this->response_bytes = 0;  // not configurable
     this->skip_updates = skip_updates;

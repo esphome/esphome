@@ -151,8 +151,8 @@ sensor:
     address: 0x9020
     value_type: U_WORD
     offset: 2
-  # Raw-decode lambda: `data` is a std::span, so the compatibility helpers must accept one. Pins that
-  # lambdas written against the pre-span API still compile.
+  # Raw-decode lambda in the documented style: `item->offset` locates this sensor's data in the range
+  # response, and the compatibility helpers accept the span the lambda is handed.
   - platform: modbus_controller
     modbus_controller_id: modbus_controller1
     id: modbus_sensor_raw_lambda
@@ -161,8 +161,7 @@ sensor:
     address: 0x9050
     value_type: U_WORD
     lambda: |-
-      // 0x9050 is its own range, so its data starts at byte 0 of the response.
-      return modbus_controller::get_data<uint16_t>(data, 0) * 0.1f;
+      return modbus_controller::get_data<uint16_t>(data, item->offset) * 0.1f;
   # force_new_range sensors sort before plain ones, so this high-address forced sensor is grouped
   # first and the lower-address plain sensors above must still get their own ranges.
   - platform: modbus_controller

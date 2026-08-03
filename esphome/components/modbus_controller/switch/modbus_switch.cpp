@@ -93,17 +93,16 @@ void ModbusSwitch::write_state(bool state) {
       // offset for coil and discrete inputs is the coil/register number not bytes
       if (this->use_write_multiple_) {
         std::vector<bool> states{state};
-        cmd = ModbusCommandItem::create_write_multiple_coils(this->parent_, this->start_address + this->offset, states);
+        cmd = ModbusCommandItem::create_write_multiple_coils(this->parent_, this->write_address(), states);
       } else {
-        cmd = ModbusCommandItem::create_write_single_coil(this->parent_, this->start_address + this->offset, state);
+        cmd = ModbusCommandItem::create_write_single_coil(this->parent_, this->write_address(), state);
       }
     } else {
       if (this->use_write_multiple_) {
         std::vector<uint16_t> bool_states(1, state ? (0xFFFF & this->bitmask) : 0);
-        cmd = ModbusCommandItem::create_write_multiple_command(this->parent_, this->write_register_address(), 1,
-                                                               bool_states);
+        cmd = ModbusCommandItem::create_write_multiple_command(this->parent_, this->write_address(), 1, bool_states);
       } else {
-        cmd = ModbusCommandItem::create_write_single_command(this->parent_, this->write_register_address(),
+        cmd = ModbusCommandItem::create_write_single_command(this->parent_, this->write_address(),
                                                              state ? 0xFFFF & this->bitmask : 0u);
       }
     }

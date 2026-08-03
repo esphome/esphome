@@ -70,10 +70,9 @@ void ModbusNumber::control(float value) {
 
     // Create and send the write command
     if (this->register_count == 1 && !this->use_write_multiple_) {
-      write_cmd =
-          ModbusCommandItem::create_write_single_command(this->parent_, this->write_register_address(), payload[0]);
+      write_cmd = ModbusCommandItem::create_write_single_command(this->parent_, this->write_address(), payload[0]);
     } else {
-      write_cmd = ModbusCommandItem::create_write_multiple_command(this->parent_, this->write_register_address(),
+      write_cmd = ModbusCommandItem::create_write_multiple_command(this->parent_, this->write_address(),
                                                                    this->register_count, payload);
     }
     // publish new value
