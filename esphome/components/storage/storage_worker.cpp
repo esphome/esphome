@@ -1654,6 +1654,12 @@ void StorageWorker::run_chunk_(TransferRequest &req, bool on_task) {
     // Single blocking control-plane op: one format() call, then done. On task-safe media this
     // runs on the worker task (main loop free); otherwise from a loop() step -- still one
     // blocking call, but owned, with the completion delivered exactly like any transfer.
+    // async_format() always sets dst_storage; the guard keeps the static analyzer happy and
+    // turns a caller bug into a clean error rather than a null dereference.
+    if (req.dst_storage == nullptr) {
+      finish_request(req, StorageError::INVALID_ARGS);
+      return;
+    }
     finish_request(req, static_cast<FilesystemStorage *>(req.dst_storage)->format());
     return;
   }
