@@ -14,6 +14,7 @@ test pins down *which* heavy modules must stay out entirely.
 
 from __future__ import annotations
 
+import importlib.util
 import os
 from pathlib import Path
 import subprocess
@@ -53,6 +54,14 @@ def test_main_module_does_not_import_heavy_modules() -> None:
         "every esphome invocation (including each parallel dashboard "
         "upload subprocess) pays for top-level imports."
     )
+
+
+def test_watched_heavy_modules_exist() -> None:
+    """A renamed heavy module would silently disable the leak checks."""
+    for module in HEAVY_MODULES + ("esphome.components.esp32",):
+        assert importlib.util.find_spec(module) is not None, (
+            f"{module} no longer resolves; update the heavy-module lists"
+        )
 
 
 def test_storage_json_fast_path_does_not_import_heavy_modules(
