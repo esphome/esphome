@@ -928,6 +928,12 @@ def _validate_raw_read(config):
         # data in RAM, so an on_value trigger could not fire -- reject the
         # combination instead of silently dropping the trigger.
         raise cv.Invalid("'on_value' cannot be combined with 'to_file'")
+    if CONF_ON_COMPLETE in config and CONF_TO_FILE not in config:
+        # on_complete fires from the worker's completion callback, which only runs on the
+        # to_file (streamed) path; the on_value path is synchronous and fires no completion.
+        raise cv.Invalid(
+            "'on_complete' requires 'to_file' (the on_value path fires no completion)"
+        )
     if CONF_SIZE not in config and CONF_TO_FILE not in config:
         raise cv.Invalid("'size' is required unless reading into a file with 'to_file'")
     return config
@@ -936,6 +942,12 @@ def _validate_raw_read(config):
 def _validate_raw_write(config):
     if (CONF_DATA in config) == (CONF_FROM_FILE in config):
         raise cv.Invalid("Exactly one of 'data' or 'from_file' is required")
+    if CONF_ON_COMPLETE in config and CONF_FROM_FILE not in config:
+        # on_complete fires from the worker's completion callback, which only runs on the
+        # from_file (streamed) path; an inline data write is synchronous and fires no completion.
+        raise cv.Invalid(
+            "'on_complete' requires 'from_file' (an inline data write fires no completion)"
+        )
     return config
 
 

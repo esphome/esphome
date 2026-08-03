@@ -54,6 +54,9 @@ template<typename GlobT> void assign_from_string(GlobT *g, const std::string &s)
       warn_invalid_bool(s);
     }
   } else if constexpr (std::is_arithmetic_v<T>) {
+    static_assert(std::is_integral_v<T> || std::is_same_v<T, float>,
+                  "storage.file_read to_global supports integer and float globals; double is not "
+                  "supported (parse_number has no double overload)");
     auto v = parse_number<T>(s);
     if (v.has_value()) {
       g->value() = *v;
