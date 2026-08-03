@@ -33,20 +33,10 @@ TEST(SensorItemPosition, ConstructionSeedsResolvedPositionAndRangeBase) {
   EXPECT_EQ(item.offset_from_start_address, 4);
   EXPECT_EQ(item.offset, 4);
   EXPECT_EQ(item.range_start_address, 0x9001);
-  EXPECT_EQ(item.offset, 4u);
 }
 
-// Grouping resolves the position relative to the range's first register, which may be earlier than the
-// sensor's own address.
-TEST(SensorItemPosition, ResolvedPositionIsRelativeToRangeStart) {
-  auto item = make_item(modbus::EntityType::HOLDING, 0x9003, 0);
-  item.range_start_address = 0x9001;  // grouped into a range starting two registers earlier
-  item.offset = 4;                    // resolved: two 2-byte registers ahead of it
-  EXPECT_EQ(item.offset, 4u);
-}
-
-// A write lands on the register the sensor reads from: the range's first register plus the resolved
-// byte offset converted to registers.
+// A write lands on the register the sensor reads from. The resolved position is relative to the range's
+// first register, which may be earlier than the sensor's own address, so both are needed to get there.
 TEST(SensorItemPosition, WriteAddressForRegisters) {
   auto item = make_item(modbus::EntityType::HOLDING, 0x9003, 0);
   item.range_start_address = 0x9001;
@@ -76,14 +66,13 @@ TEST(SensorItemPosition, ReUseChainWriteAddressFollowsResolvedPosition) {
   auto item = make_item(modbus::EntityType::HOLDING, 0x9001, 4);
   item.range_start_address = 0x9001;
   item.offset = 6;  // 4 configured, plus the 2 the previous sensor on this register resolved to
-  EXPECT_EQ(item.offset, 6u);
   EXPECT_EQ(item.write_address(), 0x9004);
 }
 
 // Registers address 16-bit words; only coils and discrete inputs address bits.
 TEST(SensorItemPosition, AddressesBitsOnlyForCoilAndDiscreteInput) {
   EXPECT_FALSE(make_item(modbus::EntityType::HOLDING, 0, 0).addresses_bits());
-  EXPECT_FALSE(make_item(modbus::EntityType::READ, 0, 0).addresses_bits());
+  EXPECT_FALSE(make_item(modbus::EntityType::INPUT_REGISTER, 0, 0).addresses_bits());
   EXPECT_TRUE(make_item(modbus::EntityType::COIL, 0, 0).addresses_bits());
   EXPECT_TRUE(make_item(modbus::EntityType::DISCRETE_INPUT, 0, 0).addresses_bits());
 }

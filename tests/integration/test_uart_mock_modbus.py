@@ -369,6 +369,10 @@ async def test_uart_mock_modbus_grouping(
         "shared_dword": pytest.approx(2759468),
         "shared_high": 6956,
         "shared_after": 781,
+        # a wide register hidden behind a wider plain sibling, and the sensor after them
+        "masked_wide": 4369,
+        "masked_pair": pytest.approx(286335522),
+        "masked_after": 13107,
         # pinned range, and the contiguous sensor after it
         "forced_first": 352,
         "forced_next": 353,

@@ -41,6 +41,12 @@ uart_mock:
         inject_rx: [0x01, 0x03, 0x02, 0x01, 0x45, 0x78, 0x27] # 325
       - expect_tx: [0x01, 0x03, 0x01, 0x50, 0x00, 0x02, 0xC5, 0xE6] # holding 0x150 count 2
         inject_rx: [0x01, 0x03, 0x04, 0x01, 0x50, 0x01, 0x51, 0x3B, 0xB2] # 336, 337
+      - expect_tx: [0x01, 0x03, 0x01, 0x80, 0x00, 0x02, 0xC4, 0x1F] # holding 0x180 count 2
+        inject_rx: [0x01, 0x03, 0x06, 0x11, 0x11, 0x22, 0x22, 0x33, 0x33, 0x20, 0xA0] # 6 bytes
+      # 0x181 answers with the same value whether it is read on its own or as part of the block above,
+      # so the sensor there is pinned to one value regardless of which range it lands in.
+      - expect_tx: [0x01, 0x03, 0x01, 0x81, 0x00, 0x01, 0xD5, 0xDE] # holding 0x181 count 1
+        inject_rx: [0x01, 0x03, 0x02, 0x33, 0x33, 0xEC, 0xA1] # 13107
       - expect_tx: [0x01, 0x03, 0x01, 0x70, 0x00, 0x03, 0x05, 0xEC] # holding 0x170 count 3
         inject_rx: [0x01, 0x03, 0x06, 0x00, 0x2A, 0x1B, 0x2C, 0x03, 0x0D, 0x3E, 0xAB] # 6 bytes
       - expect_tx: [0x01, 0x03, 0x01, 0x61, 0x00, 0x01, 0xD4, 0x28] # holding 0x161 count 1
@@ -161,6 +167,30 @@ sensor:
   - platform: modbus_controller
     name: "shared_after"
     address: 0x172
+    register_type: holding
+    value_type: U_WORD
+    modbus_controller_id: modbus_controller_ok
+
+  # I - a register that returns more bytes than its count implies, sharing its address with a plain
+  # wider sensor. Whether the sensor after them is read as part of that block or on its own, it must
+  # decode 0x181 - never the bytes that lie two into the block, which is where the widened register
+  # count alone would put it.
+  - platform: modbus_controller
+    name: "masked_wide"
+    address: 0x180
+    register_type: holding
+    value_type: U_WORD
+    response_size: 4
+    modbus_controller_id: modbus_controller_ok
+  - platform: modbus_controller
+    name: "masked_pair"
+    address: 0x180
+    register_type: holding
+    value_type: U_DWORD
+    modbus_controller_id: modbus_controller_ok
+  - platform: modbus_controller
+    name: "masked_after"
+    address: 0x181
     register_type: holding
     value_type: U_WORD
     modbus_controller_id: modbus_controller_ok

@@ -184,13 +184,14 @@ class SensorItem {
   uint8_t offset{0};
   uint8_t register_count{0};
   uint8_t response_bytes{0};
-  /// First register of the range this sensor is polled in; equals start_address for an unpolled item.
-  uint16_t range_start_address{0};
   /// The offset exactly as configured: measured from this sensor's own start_address, where `offset`
   /// is measured from the first register of the range it ends up polled in. Same units as `offset` -
   /// bytes for registers, bits for coils and discrete inputs. Kept so the resolution can be recomputed,
   /// and so the sort order of the sensor set never depends on the resolved value.
+  /// Declared before range_start_address so it lands in the padding after response_bytes.
   uint8_t offset_from_start_address{0};
+  /// First register of the range this sensor is polled in; equals start_address for an unpolled item.
+  uint16_t range_start_address{0};
   uint16_t skip_updates{0};
   std::vector<uint8_t> custom_data{};
   bool force_new_range{false};

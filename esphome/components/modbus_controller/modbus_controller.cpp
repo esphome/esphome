@@ -226,11 +226,16 @@ size_t ModbusController::create_register_ranges_() {
   bool range_shared = false;
   // Bytes the range's registers have consumed so far. An extending sensor starts after them, so a
   // register that returns more bytes than its count implies pushes the sensors after it along.
+  // range_custom_size records whether any of them returns something other than two bytes per register,
+  // which is what makes a position inside the range impossible to work out from addresses alone.
   size_t range_bytes = 0;
+  bool range_custom_size = false;
   SensorItem *prev = nullptr;
   for (SensorItem *curr : this->sensorset_) {
     ESP_LOGV(TAG, "Register: 0x%X count=%d size=%zu offset=%u skip=%u addr=%p", curr->start_address,
              curr->register_count, curr->get_register_size(), curr->offset, curr->skip_updates, curr);
+
+    const bool custom_size = curr->get_register_size() != static_cast<size_t>(curr->register_count) * 2;
 
     bool join = false;
     if (have_range && !curr->force_new_range && r.register_type == curr->register_type &&
@@ -253,16 +258,17 @@ size_t ModbusController::create_register_ranges_() {
             static_cast<uint8_t>((curr->addresses_bits() ? curr->start_address - r.start_address : range_bytes) +
                                  curr->offset_from_start_address);
         range_bytes += curr->get_register_size();
+        range_custom_size = range_custom_size || custom_size;
         r.register_count += curr->register_count;
         join = true;
         ESP_LOGV(TAG, "Extend range to include 0x%X", curr->start_address);
       } else if (range_shared && !range_forced && curr->start_address >= r.start_address &&
                  curr->start_address + curr->register_count <= r.start_address + r.register_count &&
-                 range_bytes == static_cast<size_t>(r.register_count) * 2 && curr->skip_updates == r.skip_updates) {
+                 !range_custom_size && !custom_size && curr->skip_updates == r.skip_updates) {
         // The registers already fall inside a range that a shared-address join widened, so this sensor
         // reads its slice of that response instead of adding an overlapping second poll. The guards keep
-        // it narrow: only a widened range, never a force-isolated one; only where interior byte
-        // positions are knowable, so no response_size register in the range; only sensors genuinely
+        // it narrow: only a widened range, never a force-isolated one; only where every register in the
+        // range returns two bytes, so interior positions follow from the addresses; only sensors genuinely
         // inside it, which is why the lower bound is needed given the walk is not address-ordered; and
         // only where the polling rates already match, since joining runs this sensor through the rate
         // merge below and would otherwise change one of them.
@@ -282,6 +288,7 @@ size_t ModbusController::create_register_ranges_() {
       curr->offset = curr->offset_from_start_address;  // shares the range start
       r.register_count = std::max(r.register_count, curr->register_count);
       range_bytes = std::max(range_bytes, curr->get_register_size());
+      range_custom_size = range_custom_size || custom_size;
       range_shared = true;
       range_forced = range_forced || curr->force_new_range;
       join = true;
@@ -295,6 +302,7 @@ size_t ModbusController::create_register_ranges_() {
       }
       r = {};
       range_bytes = curr->get_register_size();
+      range_custom_size = custom_size;
       range_forced = curr->force_new_range;
       range_shared = false;
       curr->offset = curr->offset_from_start_address;
