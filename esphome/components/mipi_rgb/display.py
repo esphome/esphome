@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import importlib
 import pkgutil
 
@@ -137,17 +138,28 @@ def _get_shared_display_pin(config: ConfigType) -> int | None:
 
 def _get_sleep_capability(
     config: ConfigType, model: DriverChip
-) -> tuple[bool, str | None]:
+) -> tuple[bool, str | None, Callable[[], tuple[bool, str | None]] | None]:
     if not model.get_default(CONF_SUPPORTS_SLEEP):
-        return False, None
+        return False, None, None
     if CONF_SPI_ID not in config:
-        return False, "Display sleep requires an SPI control interface for this model"
-    if (shared_pin := _get_shared_display_pin(config)) is not None:
         return (
             False,
-            f"Display sleep cannot be used because RGB/control pin GPIO{shared_pin} is shared with another function",
+            "Display sleep requires an SPI control interface for this model",
+            None,
         )
-    return True, None
+
+    def _check_shared_pins() -> tuple[bool, str | None]:
+        # A pin is only known to be shared once every component has registered its
+        # pins, which is not complete until final validation. Evaluating this during
+        # CONFIG_SCHEMA is order-dependent and can miss a shared pin, so defer it.
+        if (shared_pin := _get_shared_display_pin(config)) is not None:
+            return (
+                False,
+                f"Display sleep cannot be used because RGB/control pin GPIO{shared_pin} is shared with another function",
+            )
+        return True, None
+
+    return True, None, _check_shared_pins
 
 
 def data_pin_validate(value):
@@ -284,7 +296,9 @@ def _config_schema(config):
     width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
         model.get_dimensions(config)
     )
-    supports_sleep, sleep_unsupported_reason = _get_sleep_capability(config, model)
+    supports_sleep, sleep_unsupported_reason, sleep_capability_check = (
+        _get_sleep_capability(config, model)
+    )
     display.add_metadata(
         config[CONF_ID],
         width,
@@ -297,6 +311,7 @@ def _config_schema(config):
         draw_rounding=config.get(CONF_DRAW_ROUNDING, 0),
         supports_sleep=supports_sleep,
         sleep_unsupported_reason=sleep_unsupported_reason,
+        sleep_capability_check=sleep_capability_check,
     )
     return config
 

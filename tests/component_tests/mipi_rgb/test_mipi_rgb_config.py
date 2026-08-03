@@ -146,7 +146,11 @@ def test_guition_4848_supports_sleep(
     from esphome.components.mipi_rgb.display import CONFIG_SCHEMA
 
     config = CONFIG_SCHEMA({"model": "GUITION-4848S040", "id": "guition"})
-    assert get_display_metadata(config["id"]).supports_sleep is True
+    metadata = get_display_metadata(config["id"])
+    # Pin-sharing is only known at final validation, so the authoritative answer
+    # comes from the deferred capability check rather than the static flag.
+    assert metadata.sleep_capability_check is not None
+    assert metadata.sleep_capability_check() == (True, None)
 
 
 def test_guition_4848_shared_bus_pin_does_not_support_sleep(
@@ -154,13 +158,20 @@ def test_guition_4848_shared_bus_pin_does_not_support_sleep(
 ) -> None:
     """An RGB pin shared with another function makes the SPI control path unusable."""
     _set_s3(set_core_config)
-    pins.internal_gpio_output_pin_schema(11)
 
     from esphome.components.mipi_rgb.display import CONFIG_SCHEMA
 
     config = CONFIG_SCHEMA({"model": "GUITION-4848S040", "id": "shared_pin"})
     metadata = get_display_metadata(config["id"])
-    assert metadata.supports_sleep is False
-    assert metadata.sleep_unsupported_reason == (
+    assert metadata.sleep_capability_check is not None
+
+    # Register the shared use of GPIO11 *after* CONFIG_SCHEMA, mirroring how a
+    # second component would only register its pins later in the validation pass.
+    # The deferred check must still detect it because it runs at final validation.
+    pins.internal_gpio_output_pin_schema(11)
+
+    supports_sleep, reason = metadata.sleep_capability_check()
+    assert supports_sleep is False
+    assert reason == (
         "Display sleep cannot be used because RGB/control pin GPIO11 is shared with another function"
     )

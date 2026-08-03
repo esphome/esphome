@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -132,10 +133,18 @@ def validate_supports_sleep(value: Any) -> ID:
     display_id = cv.use_id(Display)(value)
     for registered_id, metadata in _get_metadata_list():
         if registered_id is display_id or registered_id.id == display_id.id:
-            if metadata.supports_sleep:
+            supports_sleep = metadata.supports_sleep
+            reason = metadata.sleep_unsupported_reason
+            # When a driver provides a capability check, it is authoritative: it
+            # may depend on the pin-usage registry, which is only fully populated
+            # once every component has been validated. This validator therefore
+            # must only run at final validation.
+            if metadata.sleep_capability_check is not None:
+                supports_sleep, reason = metadata.sleep_capability_check()
+            if supports_sleep:
                 return display_id
-            if metadata.sleep_unsupported_reason is not None:
-                raise cv.Invalid(metadata.sleep_unsupported_reason)
+            if reason is not None:
+                raise cv.Invalid(reason)
             break
     raise cv.Invalid("Sleep and wakeup are not implemented for this display type")
 
@@ -213,6 +222,10 @@ class DisplayMetaData:
     draw_rounding: int = 0
     supports_sleep: bool = False
     sleep_unsupported_reason: str | None = None
+    # Optional deferred check, evaluated at final validation, that returns
+    # (supports_sleep, unsupported_reason). Used by drivers whose sleep support
+    # depends on state not known until validation completes (e.g. pin reuse).
+    sleep_capability_check: Callable[[], tuple[bool, str | None]] | None = None
 
 
 def _get_metadata_list() -> list[tuple]:
@@ -283,6 +296,7 @@ def add_metadata(
     draw_rounding: int = 0,
     supports_sleep: bool = False,
     sleep_unsupported_reason: str | None = None,
+    sleep_capability_check: Callable[[], tuple[bool, str | None]] | None = None,
 ):
     entries = _get_metadata_list()
     assert not any(existing_id is id for existing_id, _ in entries), (
@@ -301,6 +315,7 @@ def add_metadata(
                 draw_rounding=draw_rounding,
                 supports_sleep=supports_sleep,
                 sleep_unsupported_reason=sleep_unsupported_reason,
+                sleep_capability_check=sleep_capability_check,
             ),
         )
     )
