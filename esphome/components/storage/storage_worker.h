@@ -58,6 +58,10 @@ enum class RequestOp : uint8_t {
   // it is not the caller's business, and nothing asks the main loop to run on their behalf.
   COPY_TREE,
   MOVE_TREE,
+  // Filesystem format: a single blocking control-plane call (f_mkfs and the like). Run as a
+  // one-shot on the worker task for task-safe media (main loop free, watchdog-safe) or from a
+  // loop() step otherwise. Moves no bytes and opens no handles.
+  FORMAT,
 };
 
 // Where a request currently stands. Transitions:
@@ -467,6 +471,12 @@ class StorageWorker : public PollingComponent {
   storage::StorageError async_move_tree(storage::PathStorage *src, const char *src_path, storage::PathStorage *dst,
                                         const char *dst_path, CompletionCallback &&on_done,
                                         TransferJob *job_out = nullptr);
+
+  // Filesystem format -- a single blocking control-plane call, routed through the engine so
+  // it runs on the worker task for task-safe media (main loop free, watchdog-safe) instead of
+  // blocking the caller. on_done fires once with the driver's result, like any transfer.
+  storage::StorageError async_format(storage::FilesystemStorage *target, CompletionCallback &&on_done,
+                                     TransferJob *job_out = nullptr);
 
   // Raw-device transfers -- the storage-interface home of what the raw HTTP API used to
   // hand-roll. async_raw_read streams device bytes [address, address+size) into a file

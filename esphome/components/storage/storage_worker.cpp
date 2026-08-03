@@ -112,6 +112,9 @@ bool StorageWorker::is_task_safe_(const TransferRequest &req) const {
 #if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
   if (!this->task_running_)
     return false;
+  // format() touches exactly one storage (the target in dst_storage), no file side.
+  if (req.op == RequestOp::FORMAT)
+    return (req.dst_storage->get_capabilities() & StorageCaps::STORAGE_CAP_IO_TASK_SAFE) != 0;
   // Every storage this op touches must be task-safe, or a background task would race the main
   // loop on it. A copy/move touches src_storage AND dst_storage (both non-null, no raw_device).
   // A raw op touches raw_device AND exactly one path-storage side (the file; the other side is
@@ -383,6 +386,65 @@ StorageError StorageWorker::async_raw_erase(RawStorage *device, uint64_t address
     return StorageError::INVALID_ARGS;
   return this->submit_raw_(RequestOp::RAW_ERASE, device, address, size, nullptr, "", true, false, std::move(on_done),
                            job_out, force_sliced);
+}
+
+StorageError StorageWorker::async_format(FilesystemStorage *target, CompletionCallback &&on_done,
+                                         TransferJob *job_out) {
+  this->ensure_started_();
+  TransferRequest *slot = nullptr;
+  for (auto &req : this->pool_) {
+    RequestState expected = RequestState::FREE;
+    if (req.state.compare_exchange_strong(expected, RequestState::PENDING)) {
+      slot = &req;
+      break;
+    }
+  }
+  if (slot == nullptr)
+    return StorageError::NOT_READY;
+  slot->op = RequestOp::FORMAT;
+  // The target rides in dst_storage so the registry check, overlaps_active_() and the
+  // completion drain treat it like any transfer; src is null and no handle is ever opened.
+  slot->src_storage = nullptr;
+  slot->dst_storage = target;
+  slot->src_path[0] = '\0';
+  slot->dst_path[0] = '\0';
+  slot->raw_device = nullptr;
+  slot->cancel_result = StorageError::NOT_READY;
+  slot->callback = std::move(on_done);
+  slot->result = StorageError::OK;
+  slot->offset = 0;
+  slot->src_handle = nullptr;
+  slot->dst_handle = nullptr;
+  slot->handles_open = false;
+  slot->src_is_fs = false;
+  slot->dst_is_fs = false;  // no handle to close -- keep close_handles() a no-op
+  slot->pre_phase_done = false;
+  slot->bytes_done = 0;
+  slot->bytes_total = 0;
+  slot->file_done = 0;
+  slot->file_total = 0;
+  slot->submitted_ms = millis();
+  slot->waiting_logged = false;
+  slot->last_progress_ms = millis();
+  slot->progress_mark = 0;
+  if (++slot->generation == 0)
+    slot->generation = 1;
+  if (job_out != nullptr)
+    *job_out = make_transfer_job(slot->generation, slot - this->pool_.begin());
+
+#if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
+  // Task-safe target and nothing active already holds it -> run the single blocking format()
+  // on the worker task, main loop free. Otherwise fall through to the loop-sliced engine,
+  // which runs it from a loop() step (still one blocking call, but owned).
+  if (this->is_task_safe_(*slot) && !this->overlaps_active_(*slot)) {
+    QueueEntry entry{QueueEntryKind::TRANSFER, static_cast<size_t>(slot - this->pool_.begin())};
+    slot->state = RequestState::RUNNING;
+    if (xQueueSend(this->task_queue_, &entry, 0) == pdTRUE)
+      return StorageError::OK;
+    slot->state = RequestState::PENDING;
+  }
+#endif
+  return StorageError::OK;
 }
 
 StorageError StorageWorker::submit_raw_(RequestOp op, RawStorage *device, uint64_t address, uint64_t size,
@@ -1584,6 +1646,13 @@ void StorageWorker::run_chunk_(TransferRequest &req, bool on_task) {
       ((req.src_storage != nullptr && !global_storage_registry->is_registered(req.src_storage)) ||
        (req.dst_storage != nullptr && !global_storage_registry->is_registered(req.dst_storage)))) {
     finish_request(req, StorageError::NOT_READY);
+    return;
+  }
+  if (req.op == RequestOp::FORMAT) {
+    // Single blocking control-plane op: one format() call, then done. On task-safe media this
+    // runs on the worker task (main loop free); otherwise from a loop() step -- still one
+    // blocking call, but owned, with the completion delivered exactly like any transfer.
+    finish_request(req, static_cast<FilesystemStorage *>(req.dst_storage)->format());
     return;
   }
   if (req.op == RequestOp::RAW_READ_TO_FILE || req.op == RequestOp::RAW_WRITE_FROM_FILE ||
