@@ -10,6 +10,7 @@ components) — nothing is vendored.
 
 from pathlib import Path
 
+from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c
 from esphome.components.esp32 import (
@@ -74,9 +75,14 @@ def _validate_device(value):
 
 
 def _xclk_pin(value):
+    """A GPIO number for the sensor XCLK, or -1 / NO_CLOCK for boards that
+    already drive it (an on-board oscillator, or a BSP that started it)."""
     if isinstance(value, str) and value.upper() in ("-1", "NO_CLOCK"):
         return -1
-    return cv.int_range(min=-1, max=48)(value)
+    if value == -1:
+        return -1
+    # Accepts both 36 and GPIO36, and rejects pins the variant does not have.
+    return pins.internal_gpio_output_pin_number(value)
 
 
 def _validate_uvc_device(config):
