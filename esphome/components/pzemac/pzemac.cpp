@@ -80,7 +80,7 @@ void PZEMAC::on_response(std::span<const uint8_t> request_pdu, std::span<const u
     }
   }
   if (this->frequency_sensor_ != nullptr) {
-    if (current < 200) {
+    if (frequency < 200) {
       this->frequency_sensor_->publish_state(frequency);
     }
   }
