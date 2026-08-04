@@ -296,9 +296,9 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   void send_raw_frame_deprecated(std::span<const uint8_t> frame);
 
   /// Queue this command's frame on the hub. Returns false when refused, in which case no callback ever comes.
-  /// `continuous` (reads only) asks the hub to re-queue the frame after each success to fill idle bus
-  /// time; the polling path sets it from the controller's continuous mode, one-shot commands leave it false.
-  bool send(bool continuous = false);
+  /// Options pass straight through to the hub; the polling path sets continuous from the controller's
+  /// continuous mode so reads re-queue after each success, one-shot commands keep the default.
+  bool send(modbus::CommandOptions options = {});
 
   /// factory methods (deprecated: use ModbusController::create_command() and the item's write helpers / send_pdu())
   /** Create modbus read command

@@ -193,7 +193,7 @@ void ModbusController::update() {
         continue;
       }
       ESP_LOGVV(TAG, "Updating range 0x%X", cmd.register_address());
-      cmd.send(this->continuous_);
+      cmd.send({.continuous = this->continuous_});
     }
   }
   this->update_counter_++;
@@ -490,28 +490,25 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
   return cmd;
 }
 
-bool ModbusCommandItem::send(bool continuous) {
-  // continuous only affects reads (the hub ignores it for writes): a read sent with it is re-queued at
-  // the lowest priority after each success, filling idle bus time. Set by the polling loop in update()
-  // when the controller is in continuous mode; one-shot commands always pass false.
+bool ModbusCommandItem::send(modbus::CommandOptions options) {
+  // Options pass straight through to the hub (which ignores continuous for writes). The polling loop in
+  // update() sets continuous from the controller's continuous mode; one-shot commands keep the default.
   bool accepted;
   if (this->custom_pdu_ != nullptr) {
     // Custom polling command: the ready-made PDU bytes live in the sensor.
-    accepted =
-        modbus::ModbusClientDevice::send_pdu(std::span<const uint8_t>(*this->custom_pdu_), {.continuous = continuous});
+    accepted = modbus::ModbusClientDevice::send_pdu(std::span<const uint8_t>(*this->custom_pdu_), options);
   } else if (!this->payload.empty()) {
     if (this->payload_is_raw_frame_) {
       // Legacy raw frame staged by create_custom_command(): route the PDU to the frame's own address byte.
       std::span<const uint8_t> frame = this->payload;
-      accepted = this->parent_->send_pdu(frame[0], frame.subspan(1), this);
+      accepted = this->parent_->send_pdu(frame[0], frame.subspan(1), this, options);
     } else {
       // Full PDU staged by one of the deprecated create_* factories.
-      accepted = modbus::ModbusClientDevice::send_pdu(this->payload);
+      accepted = modbus::ModbusClientDevice::send_pdu(this->payload, options);
     }
   } else {
     // Read command: dispatch by entity type through the base's typed read helper.
-    accepted = this->read_entities(this->register_type_, this->start_address_, this->register_count_,
-                                   {.continuous = continuous});
+    accepted = this->read_entities(this->register_type_, this->start_address_, this->register_count_, options);
   }
   // The on_command_sent trigger fires from on_sent() when the frame actually reaches the wire.
   if (accepted) {
