@@ -27,16 +27,17 @@ void ModbusSwitch::set_assumed_state(bool assumed_state) { this->assumed_state_ 
 
 bool ModbusSwitch::assumed_state() { return this->assumed_state_; }
 
-void ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {
+void ModbusSwitch::parse_and_publish(std::span<const uint8_t> data) {
   bool value = false;
+  // For coils/discrete inputs this is the bit index; for registers it is the byte offset.
+  const size_t offset = this->offset;
   switch (this->register_type) {
     case modbus::EntityType::DISCRETE_INPUT:
     case modbus::EntityType::COIL:
-      // offset for coil is the actual number of the coil not the byte offset
-      value = modbus::helpers::bit_from_packed(this->offset, data);
+      value = modbus::helpers::bit_from_packed(offset, data);
       break;
     default:
-      value = modbus::helpers::get_data<uint16_t>(data, this->offset) & this->bitmask;
+      value = modbus::helpers::get_data<uint16_t>(data.data(), offset) & this->bitmask;
       break;
   }
 
@@ -51,8 +52,8 @@ void ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {
     }
   }
 
-  ESP_LOGV(TAG, "Publish '%s': new value = %s type = %d address = %X offset = %x", this->get_name().c_str(),
-           ONOFF(value), (int) this->register_type, this->start_address, this->offset);
+  ESP_LOGV(TAG, "Publish '%s': new value = %s type = %d address = %X offset = %zx", this->get_name().c_str(),
+           ONOFF(value), (int) this->register_type, this->start_address, offset);
   this->publish_state(value);
 }
 
@@ -92,18 +93,16 @@ void ModbusSwitch::write_state(bool state) {
       // offset for coil and discrete inputs is the coil/register number not bytes
       if (this->use_write_multiple_) {
         std::vector<bool> states{state};
-        cmd = ModbusCommandItem::create_write_multiple_coils(this->parent_, this->start_address + this->offset, states);
+        cmd = ModbusCommandItem::create_write_multiple_coils(this->parent_, this->write_address(), states);
       } else {
-        cmd = ModbusCommandItem::create_write_single_coil(this->parent_, this->start_address + this->offset, state);
+        cmd = ModbusCommandItem::create_write_single_coil(this->parent_, this->write_address(), state);
       }
     } else {
-      // since offset is in bytes and a register is 16 bits we get the start by adding offset/2
       if (this->use_write_multiple_) {
         std::vector<uint16_t> bool_states(1, state ? (0xFFFF & this->bitmask) : 0);
-        cmd = ModbusCommandItem::create_write_multiple_command(this->parent_, this->start_address + this->offset / 2, 1,
-                                                               bool_states);
+        cmd = ModbusCommandItem::create_write_multiple_command(this->parent_, this->write_address(), 1, bool_states);
       } else {
-        cmd = ModbusCommandItem::create_write_single_command(this->parent_, this->start_address + this->offset / 2,
+        cmd = ModbusCommandItem::create_write_single_command(this->parent_, this->write_address(),
                                                              state ? 0xFFFF & this->bitmask : 0u);
       }
     }

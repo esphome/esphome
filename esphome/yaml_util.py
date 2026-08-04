@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 import uuid
 
+from voluptuous import Invalid
 import yaml
 from yaml import SafeLoader as PurePythonLoader
 import yaml.constructor
@@ -253,8 +254,6 @@ class IncludeFile:
         if self._content is not _UNSET:
             return self._content
         if self.has_unresolved_expressions():
-            from esphome.config_validation import Invalid
-
             raise Invalid(
                 f"Cannot load include with unresolved substitutions: {self.file}"
             )
@@ -266,12 +265,133 @@ class IncludeFile:
         """Check if the filename contains substitution variables or Jinja expressions."""
         return has_substitution_or_expression(str(self.file))
 
+    def with_file(self, file: Path | str) -> IncludeFile:
+        """Clone this include with *file* as the filename."""
+        return IncludeFile(self.parent_file, file, self.vars, self.yaml_loader)
+
+
+def _is_visible_path(rel: Path) -> bool:
+    """Report whether no component of *rel* is hidden (``..`` stays valid)."""
+    return all(part == ".." or _is_file_valid(part) for part in rel.parts)
+
+
+def _glob_include_candidates(parent_dir: Path, pattern: str) -> list[Path]:
+    """
+    Expand a candidate glob under *parent_dir*, keeping hidden files out.
+
+    An un-globbable pattern (absolute, or one the filesystem rejects) is
+    skipped instead of crashing discovery.
+    """
+    try:
+        found_paths = parent_dir.glob(pattern)
+        return [
+            rel
+            for found in found_paths
+            if _is_visible_path(rel := found.relative_to(parent_dir))
+        ]
+    except (NotImplementedError, ValueError) as err:
+        _LOGGER.debug("Cannot glob include pattern %r: %s", pattern, err)
+        return []
+    except OSError as err:
+        _LOGGER.warning("I/O error globbing include pattern %r: %s", pattern, err)
+        return []
+
+
+def _candidate_include_paths(include: IncludeFile) -> list[Path]:
+    """Enumerate resolved files an expression-templated ``!include`` could select.
+
+    Wildcard patterns from ``substitutions.include_candidate_patterns`` glob
+    under the including file's directory with hidden files excluded (like
+    ``!include_dir_*``); literal branch patterns are tried verbatim. Matches
+    still carrying expression markers or pointing back at the including file
+    are skipped.
+    """
+    # Deferred import — the substitutions component imports this module.
+    from esphome.components.substitutions import include_candidate_patterns
+
+    parent_dir = include.parent_file.parent
+    parent_resolved = include.parent_file.resolve()
+    candidates: list[Path] = []
+    for pattern in include_candidate_patterns(str(include.file)):
+        if "*" in pattern:
+            matches = sorted(_glob_include_candidates(parent_dir, pattern))
+        else:
+            matches = [Path(pattern)]
+        for match in matches:
+            if has_substitution_or_expression(str(match)):
+                continue
+            candidate = parent_dir / match
+            if not candidate.is_file():
+                continue
+            resolved = candidate.resolve()
+            if resolved == parent_resolved:
+                continue
+            candidates.append(resolved)
+    return candidates
+
+
+def _load_include_candidates(
+    include: IncludeFile,
+    *,
+    warn_on_unresolved: bool,
+    seen: set[int],
+    expanded_paths: set[Path],
+    keepalive: list[Any],
+) -> None:
+    """Load every filesystem candidate for an unresolved ``IncludeFile``."""
+    log = _LOGGER.warning if warn_on_unresolved else _LOGGER.debug
+    candidates = _candidate_include_paths(include)
+    if not candidates:
+        log(
+            "Cannot resolve !include %s (referenced from %s) with substitutions in path",
+            include.file,
+            include.parent_file,
+        )
+        return
+    _LOGGER.debug(
+        "Expanding !include %s (referenced from %s) to %d candidate file(s)",
+        include.file,
+        include.parent_file,
+        len(candidates),
+    )
+    for candidate in candidates:
+        if candidate in expanded_paths:
+            continue
+        expanded_paths.add(candidate)
+        try:
+            loaded = include.with_file(candidate).load()
+        except (EsphomeError, Invalid) as err:
+            # Unlike an unresolved pattern (expected during the discovery
+            # re-parse), a matched on-disk candidate that fails to load is a
+            # genuine user error; warn in every mode. The file itself is
+            # still tracked (the load listener fires before parsing), only
+            # its nested includes go undiscovered.
+            _LOGGER.warning(
+                "Failed to load candidate %s for !include %s: %s",
+                candidate,
+                include.file,
+                err,
+            )
+            continue
+        # The throwaway IncludeFile is this tree's only owner; keep the tree
+        # alive so ids recorded in ``seen`` stay unique for the traversal.
+        keepalive.append(loaded)
+        force_load_include_files(
+            loaded,
+            warn_on_unresolved=warn_on_unresolved,
+            _seen=seen,
+            _expanded_paths=expanded_paths,
+            _keepalive=keepalive,
+        )
+
 
 def force_load_include_files(
     obj: Any,
     *,
     warn_on_unresolved: bool = True,
     _seen: set[int] | None = None,
+    _expanded_paths: set[Path] | None = None,
+    _keepalive: list[Any] | None = None,
 ) -> None:
     """Recursively resolve any deferred ``IncludeFile`` instances in a YAML tree.
 
@@ -282,29 +402,41 @@ def force_load_include_files(
     loader fires and records every reachable file.
 
     ``IncludeFile`` instances whose path contains unresolved substitution
-    variables cannot be loaded. By default a warning is logged for each one;
-    pass ``warn_on_unresolved=False`` (used by discovery paths that run on a
-    fresh re-parse where substitutions haven't been applied yet) to demote it
-    to a debug log.
+    variables or Jinja expressions are expanded against the filesystem and
+    every existing candidate file is loaded, so bundles ship all branches the
+    expression could select. By default a warning is logged when no candidate
+    exists; pass ``warn_on_unresolved=False`` (used by discovery paths that
+    run on a fresh re-parse where substitutions haven't been applied yet) to
+    demote it to a debug log.
     """
     if _seen is None:
         _seen = set()
+    if _expanded_paths is None:
+        _expanded_paths = set()
+    if _keepalive is None:
+        # ``_seen`` tracks ids, which is only safe while every traversed
+        # object stays alive; candidate trees are otherwise freed between
+        # loop iterations and CPython recycles their addresses, making a
+        # fresh tree look already seen. Discovery is a one-shot operation,
+        # so holding the parsed trees costs nothing.
+        _keepalive = []
 
     if isinstance(obj, IncludeFile):
         if id(obj) in _seen:
             return
         _seen.add(id(obj))
         if obj.has_unresolved_expressions():
-            log = _LOGGER.warning if warn_on_unresolved else _LOGGER.debug
-            log(
-                "Cannot resolve !include %s (referenced from %s) with substitutions in path",
-                obj.file,
-                obj.parent_file,
+            _load_include_candidates(
+                obj,
+                warn_on_unresolved=warn_on_unresolved,
+                seen=_seen,
+                expanded_paths=_expanded_paths,
+                keepalive=_keepalive,
             )
             return
         try:
             loaded = obj.load()
-        except EsphomeError as err:
+        except (EsphomeError, Invalid) as err:
             _LOGGER.warning(
                 "Failed to load !include %s (referenced from %s): %s",
                 obj.file,
@@ -313,7 +445,11 @@ def force_load_include_files(
             )
             return
         force_load_include_files(
-            loaded, warn_on_unresolved=warn_on_unresolved, _seen=_seen
+            loaded,
+            warn_on_unresolved=warn_on_unresolved,
+            _seen=_seen,
+            _expanded_paths=_expanded_paths,
+            _keepalive=_keepalive,
         )
     elif isinstance(obj, dict):
         if id(obj) in _seen:
@@ -321,7 +457,11 @@ def force_load_include_files(
         _seen.add(id(obj))
         for value in obj.values():
             force_load_include_files(
-                value, warn_on_unresolved=warn_on_unresolved, _seen=_seen
+                value,
+                warn_on_unresolved=warn_on_unresolved,
+                _seen=_seen,
+                _expanded_paths=_expanded_paths,
+                _keepalive=_keepalive,
             )
     elif isinstance(obj, (list, tuple)):
         if id(obj) in _seen:
@@ -329,7 +469,11 @@ def force_load_include_files(
         _seen.add(id(obj))
         for item in obj:
             force_load_include_files(
-                item, warn_on_unresolved=warn_on_unresolved, _seen=_seen
+                item,
+                warn_on_unresolved=warn_on_unresolved,
+                _seen=_seen,
+                _expanded_paths=_expanded_paths,
+                _keepalive=_keepalive,
             )
 
 

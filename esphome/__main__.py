@@ -1429,7 +1429,7 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
     if has_api() and (
         network_devices := _resolve_network_devices(devices, config, args)
     ):
-        from esphome.components.api.client import run_logs
+        from esphome.api_client import run_logs
 
         return run_logs(
             config,
