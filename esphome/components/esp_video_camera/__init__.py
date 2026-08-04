@@ -147,6 +147,15 @@ def _xclk_pin(value):
     return pins.internal_gpio_output_pin_number(value)
 
 
+def _validate_xclk(config):
+    if config[CONF_ENABLE_XCLK] and config.get(CONF_XCLK_PIN, -1) == -1:
+        raise cv.Invalid(
+            "enable_xclk: true needs an xclk_pin: to generate the clock on.",
+            path=[CONF_XCLK_PIN],
+        )
+    return config
+
+
 def _validate_uvc_device(config):
     if config[CONF_DEVICE].startswith("uvc") and not config[CONF_ENABLE_UVC]:
         raise cv.Invalid(
@@ -211,7 +220,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_FRAMERATE, default=10): cv.float_range(
                 min=0.1, max=60.0
             ),
-            cv.Optional(CONF_XCLK_PIN, default=36): _xclk_pin,
+            # No default: most ESP32-P4 boards already drive the sensor clock,
+            # and defaulting to a pin means every one of those configs is told
+            # off for naming a strapping pin it never touches.
+            cv.Optional(CONF_XCLK_PIN): _xclk_pin,
             cv.Optional(CONF_XCLK_FREQUENCY, default=24000000): cv.int_range(
                 min=1000000, max=40000000
             ),
@@ -225,6 +237,7 @@ CONFIG_SCHEMA = cv.All(
     # and esp_video 2.3.0 requires ESP-IDF 5.4 or newer. Reject both at
     # validation time rather than at code generation.
     _validate_uvc_device,
+    _validate_xclk,
     _validate_resolution_for_sensor,
     only_on_variant(supported=[VARIANT_ESP32P4], msg_prefix="esp_video_camera"),
     cv.require_framework_version(
@@ -245,7 +258,9 @@ async def to_code(config):
     cg.add(var.set_i2c_bus(i2c_bus))
     cg.add(
         var.set_xclk_pin(
-            cg.RawExpression(f"static_cast<gpio_num_t>({config[CONF_XCLK_PIN]})")
+            cg.RawExpression(
+                f"static_cast<gpio_num_t>({config.get(CONF_XCLK_PIN, -1)})"
+            )
         )
     )
     cg.add(var.set_xclk_freq(config[CONF_XCLK_FREQUENCY]))
