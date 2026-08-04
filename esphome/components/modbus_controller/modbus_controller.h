@@ -285,6 +285,8 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   EntityType register_type() const { return this->register_type_; }
 
   /// Queue this command's frame on the hub. Returns false when refused, in which case no callback ever comes.
+  /// The item is the hub device, so it must stay alive until its terminal callback; a destroyed item's
+  /// pending frame is silently retired.
   bool send();
 
   /// factory methods
@@ -391,9 +393,8 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
 class ModbusController final : public PollingComponent {
  public:
   void dump_config() override;
-  // The hub owns transmit/receive timing; each command routes its own response, so the controller has
-  // nothing to pump per loop.
-  void loop() override { this->disable_loop(); }
+  // No loop() override: the hub owns transmit/receive timing and each command routes its own
+  // response, so the controller never joins the looping components at all.
   void setup() override;
   void update() override;
 
@@ -424,7 +425,8 @@ class ModbusController final : public PollingComponent {
   }
   /// A command timed out; bump the consecutive-timeout counter used by can_send()/offline detection.
   void increment_non_response_count() { this->cmd_non_responses_++; }
-  /// Whether more retries are allowed before the device is considered offline.
+  /// Whether more retries are allowed before the device is considered offline. Deliberately pooled
+  /// per device, not per command: online/offline is a property of the physical device.
   bool can_send() { return this->cmd_non_responses_ <= this->max_cmd_retries_; }
   /// called by esphome generated code to set the offline_skip_updates
   void set_offline_skip_updates(uint16_t offline_skip_updates) { this->offline_skip_updates_ = offline_skip_updates; }
@@ -459,6 +461,7 @@ class ModbusController final : public PollingComponent {
     if (range.register_type == EntityType::CUSTOM && !range.sensors.empty()) {
       auto &cmd = this->polling_command_items_.emplace_back(*this, this->hub_, this->address_, *range.sensors.begin());
       cmd.sensors = std::move(range.sensors);
+      cmd.skip_updates = range.skip_updates;  // the range's merged rate, not the first sensor's
     } else {
       this->polling_command_items_.emplace_back(*this, this->hub_, this->address_, std::move(range));
     }
@@ -477,8 +480,10 @@ class ModbusController final : public PollingComponent {
   std::vector<ModbusCommandItem> polling_command_items_{};
   /// Dynamically queued one-shot commands (writes, custom commands). std::list keeps stable addresses.
   std::list<std::unique_ptr<ModbusCommandItem>> one_shot_command_items_;
-  /// Erases one-shot commands flagged by unqueue_command(). Called only from update()/queue_command(),
-  /// i.e. never inside a hub callback, so destroying the command (which detaches it from the hub) is safe.
+  /// Erases one-shot commands flagged by unqueue_command(). Safe even when reached from inside a hub
+  /// callback (via an on_online/on_offline/on_command_sent automation that queues a command): the
+  /// destructor detaches via clear_tx_queue_for_device(), which the hub allows from callbacks, and the
+  /// item running its callback is not flagged until that callback returns.
   void sweep_completed_one_shots_();
   /// if module didn't respond the last command
   bool module_offline_{false};

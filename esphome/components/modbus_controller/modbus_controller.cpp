@@ -47,7 +47,7 @@ ModbusCommandItem::ModbusCommandItem(const ModbusCommandItem &other)
       custom_data_(other.custom_data_),
       controller_(other.controller_) {
   // SmallInlineBuffer is move-only, so deep-copy the bytes explicitly.
-  memcpy(this->payload.init(other.payload.size()), other.payload.data(), other.payload.size());
+  this->payload.set(other.payload.data(), other.payload.size());
 }
 
 ModbusCommandItem::ModbusCommandItem(ModbusCommandItem &&other) noexcept
@@ -150,8 +150,13 @@ void ModbusController::queue_command(ModbusCommandItem command) {
   // Duplicates are the caller's to manage; the controller only holds the item until its terminal callback.
   this->one_shot_command_items_.push_back(make_unique<ModbusCommandItem>(std::move(command)));
   // A refused frame gets no terminal callback (see the hub contract), so reclaim the item here.
-  if (!this->one_shot_command_items_.back()->send())
-    this->one_shot_command_items_.back()->pending_removal = true;
+  auto &item = this->one_shot_command_items_.back();
+  if (!item->send()) {
+    // The caller (e.g. a write entity) has usually already published optimistically - surface the loss.
+    ESP_LOGW(TAG, "Command refused by hub: type=0x%X address=0x%X", static_cast<uint8_t>(item->register_type()),
+             item->register_address());
+    item->pending_removal = true;
+  }
 }
 
 void ModbusController::unqueue_command(const ModbusCommandItem *command) {
@@ -188,8 +193,15 @@ void ModbusController::update() {
         0) {
       ESP_LOGV(TAG, "Module offline - skipping update");
     } else {  // time to try the device again
-      ESP_LOGV(TAG, "Module offline - retrying");
-      this->cmd_non_responses_ = 0;  // allow a retry attempt through can_send()
+      // Only arm the retry when a range is actually due this cycle; an unconsumed grant would let
+      // later cycles poll at full rate, bypassing offline_skip_updates.
+      for (auto &cmd : this->polling_command_items_) {
+        if (this->update_counter_ % (cmd.skip_updates + 1) == 0) {
+          ESP_LOGV(TAG, "Module offline - retrying");
+          this->cmd_non_responses_ = 0;  // allow a retry attempt through can_send()
+          break;
+        }
+      }
     }
   }
 
@@ -448,7 +460,7 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
   } else {
     cmd.on_data_func = handler;
   }
-  memcpy(cmd.payload.init(values.size()), values.data(), values.size());
+  cmd.payload.set(values.data(), values.size());
 
   return cmd;
 }
