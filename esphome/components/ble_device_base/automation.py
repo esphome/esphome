@@ -4,39 +4,49 @@ from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import ble_device_base
 import esphome.config_validation as cv
 from esphome.const import CONF_MAC_ADDRESS, CONF_TRIGGER_ID
 from esphome.cpp_generator import MockObjClass
 from esphome.types import ConfigType
 
+from . import (
+    BT_UUID16_FORMAT,
+    BT_UUID32_FORMAT,
+    BT_UUID128_FORMAT,
+    LISTENER_COUNT_DEFINE,
+    as_hex,
+    as_reversed_hex_array,
+    ble_device_base_ns,
+)
+
 adv_data_t = cg.std_vector.template(cg.uint8)
 adv_data_t_const_ref = adv_data_t.operator("ref").operator("const")
 ESPBTDeviceConstRef = (
-    ble_device_base.ble_device_base_ns.class_("ESPBTDevice")
-    .operator("ref")
-    .operator("const")
+    ble_device_base_ns.class_("ESPBTDevice").operator("ref").operator("const")
 )
 
-ESPBTAdvertiseTrigger = ble_device_base.ble_device_base_ns.class_(
+ESPBTAdvertiseTrigger = ble_device_base_ns.class_(
     "ESPBTAdvertiseTrigger", automation.Trigger.template(ESPBTDeviceConstRef)
 )
-BLEServiceDataAdvertiseTrigger = ble_device_base.ble_device_base_ns.class_(
+BLEServiceDataAdvertiseTrigger = ble_device_base_ns.class_(
     "BLEServiceDataAdvertiseTrigger", automation.Trigger.template(adv_data_t_const_ref)
 )
-BLEManufacturerDataAdvertiseTrigger = ble_device_base.ble_device_base_ns.class_(
+BLEManufacturerDataAdvertiseTrigger = ble_device_base_ns.class_(
     "BLEManufacturerDataAdvertiseTrigger",
     automation.Trigger.template(adv_data_t_const_ref),
 )
-BLEEndOfScanTrigger = ble_device_base.ble_device_base_ns.class_(
+BLEEndOfScanTrigger = ble_device_base_ns.class_(
     "BLEEndOfScanTrigger", automation.Trigger.template()
 )
 
-# UUID string length -> setter width; anything else is a 128-bit UUID sent as a
-# reversed byte array (BLE wire order) rather than a hex literal.
+# UUID string length -> setter width. 16/32-bit go out as plain hex literals,
+# 128-bit as a reversed byte array (BLE wire order). Keyed exhaustively so an
+# impossible length fails as a KeyError instead of silently picking a width
+# (bt_uuid validation upstream only ever produces these three).
 _UUID_WIDTHS = {
-    len(ble_device_base.BT_UUID16_FORMAT): "16",
-    len(ble_device_base.BT_UUID32_FORMAT): "32",
+    len(BT_UUID16_FORMAT): "16",
+    len(BT_UUID32_FORMAT): "32",
+    len(BT_UUID128_FORMAT): "128",
 }
 
 
@@ -59,7 +69,7 @@ def trigger_schema(trigger_class: MockObjClass, extra: dict[Any, Any] | None = N
 # them where they are created so no backend can undercount the StaticVector
 # (push_back past capacity drops silently). Shares the define with
 # register_ble_device() via the core slot-counter factory.
-_count_listener = cg.slot_counter(ble_device_base.LISTENER_COUNT_DEFINE)
+_count_listener = cg.slot_counter(LISTENER_COUNT_DEFINE)
 
 
 async def advertise_trigger_to_code(conf: ConfigType, var: cg.MockObj) -> None:
@@ -88,12 +98,8 @@ async def uuid_trigger_to_code(
     """
     trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
     uuid = conf[key]
-    width = _UUID_WIDTHS.get(len(uuid), "128")
-    value = (
-        ble_device_base.as_hex(uuid)
-        if width != "128"
-        else ble_device_base.as_reversed_hex_array(uuid)
-    )
+    width = _UUID_WIDTHS[len(uuid)]
+    value = as_hex(uuid) if width != "128" else as_reversed_hex_array(uuid)
     cg.add(getattr(trigger, f"{setter_prefix}{width}")(value))
     if (mac := conf.get(CONF_MAC_ADDRESS)) is not None:
         cg.add(trigger.set_address(mac.as_hex))

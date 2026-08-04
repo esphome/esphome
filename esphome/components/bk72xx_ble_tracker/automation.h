@@ -43,13 +43,6 @@ template<typename... Ts> class StopScanAction final : public Action<Ts...>, publ
   void play(const Ts &...x) override { this->parent_->stop_scan(); }
 };
 
-// The triggers themselves live in ble_device_base (hub-agnostic); the aliases
-// keep this component's codegen names stable.
-using ESPBTAdvertiseTrigger = ble_device_base::ESPBTAdvertiseTrigger;
-using BLEServiceDataAdvertiseTrigger = ble_device_base::BLEServiceDataAdvertiseTrigger;
-using BLEManufacturerDataAdvertiseTrigger = ble_device_base::BLEManufacturerDataAdvertiseTrigger;
-using BLEEndOfScanTrigger = ble_device_base::BLEEndOfScanTrigger;
-
 }  // namespace esphome::bk72xx_ble_tracker
 
 #endif  // USE_LIBRETINY

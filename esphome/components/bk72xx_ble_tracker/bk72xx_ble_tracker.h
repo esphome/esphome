@@ -81,8 +81,8 @@ class BK72xxBLETracker : public Component,
   void set_scan_continuous_runtime(bool scan_continuous) { this->scan_continuous_ = scan_continuous; }
   bool scan_continuous() const { return this->scan_continuous_; }
   bool configured_continuous() const { return this->scan_continuous_configured_; }
-  /// Re-anchor the duration/period window of a running scan to now — used when
-  /// an action changes the scan mode without stopping the radio.
+  /// Re-anchor the duration window of a running scan to now — used when an
+  /// action changes the scan mode without stopping the radio.
   void restart_scan_window();
 
   // ---- Public scan control ----

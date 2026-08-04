@@ -12,11 +12,10 @@ Scan modes:
                       Use this when the radio is dedicated to BLE.
   continuous: false — a started scan runs for `duration` ms, then stops. The
                       FIRST start is external too: nothing in this component
-                      starts a non-continuous scan on boot, so until the
-                      automation actions land (follow-up PR) the radio stays
-                      idle. start_scan() is called from code (e.g. an api
-                      client-connected automation) so the single-core radio
-                      can service WiFi in between scans.
+                      starts a non-continuous scan on boot — the radio stays
+                      idle until bk72xx_ble_tracker.start_scan fires (e.g.
+                      from an api client-connected automation), so the
+                      single-core radio can service WiFi in between scans.
 """
 
 from esphome import automation
@@ -115,9 +114,8 @@ async def start_scan_action_to_code(
     template_arg: cg.TemplateArguments,
     args: list,
 ) -> cg.MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg)
-    cg.add(var.set_parent(paren))
+    await cg.register_parented(var, config[CONF_ID])
     if (continuous := config.get(CONF_CONTINUOUS)) is not None:
         template_ = await cg.templatable(continuous, args, cg.bool_)
         cg.add(var.set_continuous(template_))
@@ -142,9 +140,8 @@ async def stop_scan_action_to_code(
     template_arg: cg.TemplateArguments,
     args: list,
 ) -> cg.MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg)
-    cg.add(var.set_parent(paren))
+    await cg.register_parented(var, config[CONF_ID])
     return var
 
 
