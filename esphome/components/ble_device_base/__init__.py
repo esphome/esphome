@@ -29,8 +29,8 @@ CODEOWNERS = ["@Bl00d-B0b"]
 
 CONF_BLE_HUB_ID = "ble_hub_id"
 
-# Number of parsed-advertisement listeners registered in this build;
-# get_listener_count() exposes it for esp32_ble_tracker's feature coupling.
+# Number of parsed-advertisement listeners registered in this build; read via
+# cg.get_slot_count() by esp32_ble_tracker's feature coupling.
 LISTENER_COUNT_DEFINE = "ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT"
 
 
@@ -61,11 +61,6 @@ def request_irk_support() -> None:
     """Compile in resolve_irk()'s software-AES path. Called by sensors with an
     irk: option so builds without IRK do not carry the resolution code."""
     cg.add_define("USE_BLE_DEVICE_IRK")
-
-
-def get_listener_count() -> int:
-    """Number of parsed listeners registered so far (for tracker codegen)."""
-    return cg.get_slot_count(LISTENER_COUNT_DEFINE)
 
 
 _request_listener_slot = cg.slot_counter(LISTENER_COUNT_DEFINE)

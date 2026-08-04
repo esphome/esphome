@@ -4,6 +4,7 @@ from unittest.mock import Mock
 import pytest
 
 from esphome import const, cpp_helpers as ch
+from esphome.core import CoroPriority, coroutine_with_priority
 from esphome.cpp_helpers import ComponentSourcePool, register_component_source
 
 
@@ -172,6 +173,7 @@ def test_register_component_source_overflow_suppressed_in_testing_mode(
 def _define_value(name: str) -> str | None:
     for define in ch.CORE.defines:
         if define.name == name:
+            # Values are codegen expressions (IntLiteral); compare rendered.
             return str(define.value)
     return None
 
@@ -196,8 +198,6 @@ def test_slot_counter_request_from_final_job_still_emits() -> None:
     """A slot requested while FINAL jobs are already draining is still emitted;
     flush_tasks() loops until the heap is empty, so the emit job scheduled
     mid-drain runs in the same flush."""
-    from esphome.core import CoroPriority, coroutine_with_priority
-
     request = ch.slot_counter("TEST_SLOT_COUNT_LATE")
 
     @coroutine_with_priority(CoroPriority.FINAL)

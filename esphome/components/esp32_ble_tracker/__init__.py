@@ -308,8 +308,7 @@ async def _add_ble_features():
     required_features = _get_required_features()
     # Sensors registered through the neutral ble_device_base path (BLEHub) need
     # the parsed-device pipeline compiled in, exactly like esp32-path listeners.
-    neutral_listener_count = ble_device_base.get_listener_count()
-    if neutral_listener_count > 0:
+    if cg.get_slot_count(ble_device_base.LISTENER_COUNT_DEFINE):
         # The neutral (BLEHub) listener count define itself is emitted by
         # ble_device_base's own job; only the feature coupling lives here.
         required_features.add(BLEFeatures.ESP_BT_DEVICE)
