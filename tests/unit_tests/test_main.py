@@ -5716,6 +5716,35 @@ def test_run_miniterm_batches_lines_with_same_timestamp(
     )
 
 
+def test_run_miniterm_analyzer_import_failure_keeps_streaming(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A broken platform import must not stop serial log streaming."""
+    mock_serial = MockSerial([b"[I][app:100]: Line 1\r\n", MOCK_SERIAL_END])
+
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
+    config = {
+        CONF_LOGGER: {
+            CONF_BAUD_RATE: 115200,
+            "deassert_rts_dtr": False,
+        }
+    }
+    args = MockArgs()
+
+    with (
+        caplog.at_level("INFO", logger="esphome.__main__"),
+        patch("serial.Serial", return_value=mock_serial),
+        patch(
+            "esphome.platform_hooks.get_platform_hook",
+            side_effect=ImportError("broken platform package"),
+        ),
+    ):
+        result = run_miniterm(config, "/dev/ttyUSB0", args)
+
+    assert result == 0
+    assert "Stacktrace analysis is unavailable" in caplog.text
+
+
 def test_run_miniterm_no_stacktrace_analyzer(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
