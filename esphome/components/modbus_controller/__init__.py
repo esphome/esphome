@@ -53,7 +53,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(ModbusController),
             cv.Optional(CONF_ALLOW_DUPLICATE_COMMANDS): cv.invalid(
-                "This option has been removed. Duplicate commands are now always collapsed (the latest write wins)."
+                "This option has been removed. Polling commands are deduplicated by the modbus hub; one-shot commands (writes) are always transmitted."
             ),
             cv.Optional(CONF_COMMAND_THROTTLE): cv.invalid(
                 "This option has been removed. Use 'turnaround_time' on the 'modbus' component instead."

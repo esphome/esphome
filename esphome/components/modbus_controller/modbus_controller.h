@@ -283,10 +283,8 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   uint16_t register_address() const { return this->start_address_; }
   uint16_t register_count() const { return this->register_count_; }
   EntityType register_type() const { return this->register_type_; }
-  FunctionCode function_code() const { return this->function_code_; }
 
-  /// Queue this command's frame on the hub. Returns true when the hub accepted the frame (a terminal
-  /// callback will follow); false when it was refused, in which case no callback ever comes.
+  /// Queue this command's frame on the hub. Returns false when refused, in which case no callback ever comes.
   bool send();
 
   /// factory methods
@@ -365,10 +363,6 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
       std::function<void(EntityType register_type, uint16_t start_address, std::span<const uint8_t> data)> &&handler =
           nullptr);
 
-  /// Whether this command addresses the same registers as `other` (payload bytes for custom commands).
-  /// Used by queue_command() to collapse duplicate one-shots.
-  bool is_equal(const ModbusCommandItem &other) const;
-
  protected:
   void set_command_(FunctionCode function_code, EntityType register_type, uint16_t start_address,
                     uint16_t register_count) {
@@ -413,8 +407,7 @@ class ModbusController final : public PollingComponent {
   modbus::ModbusClientHub *hub() const { return this->hub_; }
   uint8_t device_address() const { return this->address_; }
 
-  /// Queues a one-shot modbus command (writes, custom commands). Taken by value: pass an rvalue
-  /// (or std::move an lvalue) to move the command into the queue instead of copying it.
+  /// Queues a one-shot modbus command (writes, custom commands); taken by value, so std::move to avoid a copy.
   void queue_command(ModbusCommandItem command);
   /// Flags a finished one-shot command for removal. Called by the command as the last action of its own
   /// callback, so the item is not destroyed here (send() and the hub still touch it) but swept later.
@@ -462,7 +455,7 @@ class ModbusController final : public PollingComponent {
   void create_polling_command_(RegisterRange &&range) {
     // A custom range polls the first sensor's custom_data (a ready-made raw frame); it needs the
     // sensor constructor so the command references those bytes and decodes the real function code.
-    // The response still dispatches to every sensor in the range, as before the refactor.
+    // The response still dispatches to every sensor in the range.
     if (range.register_type == EntityType::CUSTOM && !range.sensors.empty()) {
       auto &cmd = this->polling_command_items_.emplace_back(*this, this->hub_, this->address_, *range.sensors.begin());
       cmd.sensors = std::move(range.sensors);

@@ -85,8 +85,6 @@ void ModbusCommandItem::on_response(std::span<const uint8_t> request_pdu, std::s
 // An exception response is still a legitimate reply, so the device is considered online.
 void ModbusCommandItem::on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) {
   const uint8_t function_code = request_pdu.empty() ? 0 : request_pdu[0];
-  // Warning, not error: a device that answers ILLEGAL_DATA_ADDRESS on one poll would otherwise log
-  // at error level every update interval.
   ESP_LOGW(TAG, "Modbus error function code: 0x%X register 0x%X exception: %d", function_code, this->start_address_,
            static_cast<uint8_t>(exception_code));
   if (this->controller_ != nullptr) {
@@ -97,8 +95,7 @@ void ModbusCommandItem::on_error(std::span<const uint8_t> request_pdu, modbus::E
 
 // Not being sent says nothing about online/offline status; just drop it from the pending list.
 void ModbusCommandItem::on_not_sent(std::span<const uint8_t> request_pdu) {
-  // A dropped read re-queues on the next update, but a dropped write is lost while the entity has
-  // already published the value optimistically - surface that.
+  // A dropped write is lost while the entity has already published optimistically, so surface it.
   if (modbus::helpers::is_function_code_write(static_cast<uint8_t>(this->function_code_))) {
     ESP_LOGW(TAG, "Write not sent: function 0x%X register 0x%X", static_cast<uint8_t>(this->function_code_),
              this->start_address_);
@@ -136,11 +133,8 @@ void ModbusController::set_online(bool online, int function_code, int register_a
       this->online_callback_.call(function_code, register_address);
     }
   } else {
-    // Device not responding: drop the still-queued frames for its address (keeping the in-flight
-    // one) so they do not flood the bus while it is offline. Deliberately address-scoped: offline is
-    // a property of the physical device, so frames queued by any other controller or client device
-    // for this address would only burn timeouts too. Retired frames get on_not_sent(), so one-shots
-    // are reclaimed through the normal path.
+    // Offline is a property of the physical device, so drop every sender's queued frames for its
+    // address; retired frames get on_not_sent(), which reclaims one-shots through the normal path.
     this->hub_->clear_tx_queue_for_address(this->address_);
     if (!this->module_offline_) {
       ESP_LOGW(TAG, "Modbus device=%d set offline", this->address_);
@@ -153,18 +147,7 @@ void ModbusController::set_online(bool online, int function_code, int register_a
 
 void ModbusController::queue_command(ModbusCommandItem command) {
   this->sweep_completed_one_shots_();  // reclaim finished one-shots before adding a new one
-  // The hub's duplicate absorption is keyed on the device pointer and every one-shot is its own
-  // device, so duplicates are collapsed here instead (matching the pre-refactor behaviour, where the
-  // latest payload replaced the queued duplicate): retire the older command's pending frame and let
-  // the new one supersede it.
-  for (auto &item : this->one_shot_command_items_) {
-    if (!item->pending_removal && item->is_equal(command)) {
-      ESP_LOGD(TAG, "Duplicate command superseded: type=0x%X address=0x%X",
-               static_cast<uint8_t>(command.register_type()), command.register_address());
-      this->hub_->clear_tx_queue_for_device(item.get());
-      item->pending_removal = true;  // silently retired: no callback will come
-    }
-  }
+  // Duplicates are the caller's to manage; the controller only holds the item until its terminal callback.
   this->one_shot_command_items_.push_back(make_unique<ModbusCommandItem>(std::move(command)));
   // A refused frame gets no terminal callback (see the hub contract), so reclaim the item here.
   if (!this->one_shot_command_items_.back()->send())
@@ -200,7 +183,6 @@ void ModbusController::update_range_(ModbusCommandItem &cmd) {
 void ModbusController::update() {
   this->sweep_completed_one_shots_();  // reclaim one-shots deferred out of their own callbacks
   if (this->module_offline_) {
-    // The cast keeps the dividend in uint16_t when update_counter_ wraps past 65535.
     if (static_cast<uint16_t>(this->update_counter_ + 1 - this->module_offline_at_) %
             (this->offline_skip_updates_ + 1) !=
         0) {
@@ -518,22 +500,6 @@ bool ModbusCommandItem::send() {
              this->register_count_);
   }
   return accepted;
-}
-
-bool ModbusCommandItem::is_equal(const ModbusCommandItem &other) const {
-  if (this->function_code_ != other.function_code_)
-    return false;
-  if (this->function_code_ == FunctionCode::CUSTOM) {
-    // For custom commands compare the frame bytes actually sent (address/count/type are all zero).
-    // Polling commands reference their bytes via custom_data_, one-shots carry them in payload.
-    std::span<const uint8_t> mine =
-        this->custom_data_ != nullptr ? std::span<const uint8_t>(*this->custom_data_) : this->payload;
-    std::span<const uint8_t> theirs =
-        other.custom_data_ != nullptr ? std::span<const uint8_t>(*other.custom_data_) : other.payload;
-    return mine.size() == theirs.size() && memcmp(mine.data(), theirs.data(), mine.size()) == 0;
-  }
-  return other.start_address_ == this->start_address_ && other.register_count_ == this->register_count_ &&
-         other.register_type_ == this->register_type_;
 }
 
 }  // namespace esphome::modbus_controller
