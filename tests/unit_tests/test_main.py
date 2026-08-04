@@ -64,7 +64,12 @@ from esphome.__main__ import (
 from esphome.address_cache import AddressCache
 from esphome.bundle import BUNDLE_EXTENSION, BundleFile, BundleResult
 from esphome.components import esp32
-from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.esp32 import (
+    KEY_ESP32,
+    KEY_VARIANT,
+    VARIANT_ESP32,
+    get_esp32_variant,
+)
 from esphome.const import (
     CONF_API,
     CONF_AUTH,
@@ -1621,6 +1626,12 @@ def test_upload_using_esptool_path_conversion(
     partitions_path = cmd_list[partitions_offset_idx + 1]
     assert isinstance(partitions_path, str)
     assert partitions_path.endswith("partitions.bin")
+
+    # The chip argument must track get_esp32_variant: upload_using_esptool
+    # reads CORE.data directly to avoid the esp32 package import, and the
+    # two resolutions must not drift.
+    chip = cmd_list[cmd_list.index("--chip") + 1]
+    assert chip == get_esp32_variant().lower()
 
 
 def test_upload_using_esptool_skips_missing_extra_flash_images(

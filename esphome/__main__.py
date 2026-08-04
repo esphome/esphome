@@ -48,6 +48,8 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     ENV_NOGITIGNORE,
+    KEY_ESP32,
+    KEY_VARIANT,
     SECRETS_FILES,
     Toolchain,
 )
@@ -923,9 +925,10 @@ def upload_using_esptool(
 
     mcu = "esp8266"
     if CORE.is_esp32:
-        from esphome.components.esp32 import get_esp32_variant
-
-        mcu = get_esp32_variant().lower()
+        # Same lookup as esp32.get_esp32_variant(), read directly so the
+        # serial upload path does not import the esp32 package; both the
+        # validator and the warm-cache apply_to_core populate this key.
+        mcu = CORE.data[KEY_ESP32][KEY_VARIANT].lower()
 
     line_callbacks: list[Callable[[str], str | None]] = []
     if (
