@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import importlib
+import logging
 from typing import Any, Final
 
 from esphome.const import (
@@ -26,6 +27,8 @@ from esphome.const import (
     PLATFORM_RP2,
     Platform,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 PLATFORM_HOOKS: Final[dict[str, frozenset[str]]] = {
     "show_logs": frozenset({PLATFORM_NRF52}),
@@ -63,6 +66,11 @@ def get_platform_hook(platform: str, hook: str) -> Callable[..., Any] | None:
             module = importlib.import_module(module_name)
         except ModuleNotFoundError as err:
             if err.name == module_name:
+                _LOGGER.debug(
+                    "External platform %s is not importable; using the generic %s path",
+                    platform,
+                    hook,
+                )
                 return None
             raise
         return getattr(module, hook, None)

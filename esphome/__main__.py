@@ -631,19 +631,26 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
     # Stacktrace analysis is optional; a broken platform import must not
-    # stop serial log streaming.
+    # stop serial log streaming, but it is a real breakage and must not
+    # masquerade as an ordinary capability gap.
     try:
         process_stacktrace = platform_hooks.get_platform_hook(
             CORE.target_platform, "process_stacktrace"
         )
-    except ImportError:
+    except ImportError as err:
         _LOGGER.debug("Stacktrace analyzer import failed", exc_info=True)
-        process_stacktrace = None
-    if process_stacktrace is None:
-        _LOGGER.info(
-            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
+        _LOGGER.warning(
+            'Stacktrace analysis is unavailable: analyzer for target platform "%s" failed to import: %s',
             CORE.target_platform,
+            err,
         )
+        process_stacktrace = None
+    else:
+        if process_stacktrace is None:
+            _LOGGER.info(
+                'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
+                CORE.target_platform,
+            )
 
     backtrace_state = False
     ser = serial.Serial()
