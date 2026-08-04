@@ -2,7 +2,6 @@ import esphome.codegen as cg
 from esphome.components import ble_device_base
 import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ID
-from esphome.core import CORE
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["rp2"]
@@ -33,11 +32,10 @@ def _validate_board(config: ConfigType) -> ConfigType:
 FINAL_VALIDATE_SCHEMA = _validate_board
 
 
-# Consumers call request_scan_listener_slot() from their codegen once per
-# registered scan listener; the FINAL job sizes the controller's StaticVector
-# listener storage via RP2040_BLE_SCAN_LISTENER_COUNT.
-request_scan_listener_slot, _add_listener_count = ble_device_base.slot_counter(
-    "rp2040_ble_scan_listener_count", "RP2040_BLE_SCAN_LISTENER_COUNT"
+# Once per registered scan listener; sizes the controller's StaticVector
+# listener storage.
+request_scan_listener_slot = ble_device_base.slot_counter(
+    "RP2040_BLE_SCAN_LISTENER_COUNT"
 )
 
 
@@ -53,5 +51,3 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_BLUETOOTH")
 
     cg.add_define("USE_RP2040_BLE")
-
-    CORE.add_job(_add_listener_count)
