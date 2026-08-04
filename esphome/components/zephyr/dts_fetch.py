@@ -61,14 +61,21 @@ def _sdk_source_cache_key(url: str, ref: str | None) -> str:
 
 
 def resolve_ncs_zigbee_source_version(source: ConfigType, fallback: str) -> str:
-    """Return ncs-zigbee's version from source: -- a "vX.Y.Z" ref is used directly; any
-    other ref (a branch, a commit) falls back to the hardcoded `fallback` instead of
-    fetching anything. ncs-zigbee has no top-level VERSION file (unlike MAINLINE/NCS,
-    which go through resolve_sdk_source_version below), so this is a separate, narrower
-    resolution path used only for that one SDK.
+    """Return ncs-zigbee's version from source: -- a "vX.Y.Z" git ref is used directly;
+    any other git ref (a branch, a commit) or a local checkout (no ref concept at all)
+    falls back to the hardcoded `fallback` instead of fetching anything. ncs-zigbee has
+    no top-level VERSION file (unlike MAINLINE/NCS, which go through
+    resolve_sdk_source_version below), so this is a separate, narrower resolution path
+    used only for that one SDK.
     """
-    if source[CONF_TYPE] != TYPE_GIT:
-        raise cv.Invalid("ncs-zigbee version resolution only supports source: type: git")
+    if source[CONF_TYPE] == TYPE_LOCAL:
+        _LOGGER.warning(
+            "[zephyr] Can't verify ncs-zigbee's version from local checkout '%s' -- "
+            "assuming %s. Review this on every new release.",
+            source[CONF_PATH],
+            fallback,
+        )
+        return fallback
     ref = source.get(CONF_REF) or "HEAD"
     if match := re.fullmatch(r"v(\d+\.\d+\.\d+)", ref):
         return match.group(1)

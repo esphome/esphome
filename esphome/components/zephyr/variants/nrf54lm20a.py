@@ -3,16 +3,19 @@ from esphome.const import (
     CONF_BOARD,
     CONF_FRAMEWORK,
     CONF_SOURCE,
+    CONF_TYPE,
     KEY_FRAMEWORK_VERSION,
     ThreadModel,
     Toolchain,
 )
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 from ..const import BOOTLOADER_MCUBOOT, ZEPHYR_VARIANT_NRF54LM20A
 from . import (
     MAINLINE,
     NCS,
+    NCS_ZIGBEE,
     ZephyrVariant,
     qualify_board,
     resolve_framework_version,
@@ -36,13 +39,12 @@ VARIANT = ZephyrVariant(
     # an alternate.
     sdk=NCS,
     sdk_name="ncs",
-    alt_sdks={"zephyr": MAINLINE},
+    alt_sdks={"zephyr": MAINLINE, "zigbee": NCS_ZIGBEE},
     family="nordic",
     valid_toolchains=(Toolchain.SDK_ZEPHYR,),
     toolchain="arm-zephyr-eabi",
-    # Zigbee excluded: ZBOSS (Nordic's Zigbee stack) is only wired up for the separate,
-    # NCS-coupled `platform: nrf52` -- same boundary nrf54l15's zephyr variant draws.
-    transports=frozenset({"ble", "openthread"}),
+    # Untested on hardware as of 2026-08-04.
+    transports=frozenset({"ble", "openthread", "zigbee"}),
     soc="nrf54lm20a",
     qualifier="cpuapp",
     # No "scratch": neither board (nrf54lm20dk or xiao_nrf54lm20a) defines a
@@ -62,6 +64,9 @@ def config_schema(config: ConfigType) -> ConfigType:
     if CONF_BOARD not in config:
         config[CONF_BOARD] = _DEFAULT_BOARD
     config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
+    framework = config[CONF_FRAMEWORK]
+    if CONF_TYPE not in framework and "zigbee" in CORE.loaded_integrations:
+        framework[CONF_TYPE] = "zigbee"
     version_str, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "nrf54lm20a", config, "nRF54LM20A support"
     )

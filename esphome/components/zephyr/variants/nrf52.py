@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_FRAMEWORK,
     CONF_OTA,
     CONF_SOURCE,
+    CONF_TYPE,
     KEY_FRAMEWORK_VERSION,
     ThreadModel,
     Toolchain,
@@ -85,6 +86,9 @@ def config_schema(config: ConfigType) -> ConfigType:
         config[CONF_BOARD] = _DEFAULT_BOARD
     config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
     config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
+    framework = config[CONF_FRAMEWORK]
+    if CONF_TYPE not in framework and "zigbee" in CORE.loaded_integrations:
+        framework[CONF_TYPE] = "zigbee"
     version_str, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "nrf52", config, "nRF52840 support"
     )

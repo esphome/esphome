@@ -375,29 +375,20 @@ NCS: ZephyrSDK = ZephyrSDK(
 )
 
 # Nordic's ZBOSS Zigbee stack, split out of sdk-nrf into this separate add-on repo as of
-# NCS 3.4.0. Its latest tagged release (v1.3.0) only pins sdk-nrf at v2.9.2, not our
-# 3.4.0+ default, so there's no usable default version here; see
-# https://github.com/esphomeplatformzephyr/esphome/issues/31. boards_manifest_url points
-# at sdk-nrf since ncs-zigbee's own west.yml only imports it (for boards/ resolution).
-# default_version/min_version are ncs-zigbee's own version scheme (its VERSION file,
-# nested under samples/ -- not a top-level one), unrelated to sdk-nrf's 3.4.0+ numbers.
+# NCS 3.4.0; see https://github.com/esphomeplatformzephyr/esphome/issues/31.
+# boards_manifest_url points at sdk-nrf since ncs-zigbee's own west.yml only imports it.
+# default_version/min_version are ncs-zigbee's own version scheme, unrelated to sdk-nrf's.
 NCS_ZIGBEE: ZephyrSDK = ZephyrSDK(
     manifest_url="https://github.com/nrfconnect/ncs-zigbee",
     boards_repo_url="https://github.com/nrfconnect/sdk-zephyr",
     boards_manifest_url="https://github.com/nrfconnect/sdk-nrf",
-    # main currently reports 1.3.99 (samples/light_bulb/VERSION) -- review on every new
+    # main currently reports 1.4.99 (samples/light_bulb/VERSION) -- review on every new
     # ncs-zigbee release.
-    unversioned_ref_fallback="1.3.99",
+    unversioned_ref_fallback="1.4.99",
     tools_subdir="sdk-nrf-zigbee",
-    default_version="1.3.0",
-    min_version=cv.Version(1, 3, 0),
+    default_version="1.4.0",
+    min_version=cv.Version(1, 4, 0),
     resolve_boards_ref_via_manifest=True,
-    requires_source_reason=(
-        "ncs-zigbee's latest tagged release (v1.3.0) only pins nrf at v2.9.2 -- no "
-        "release yet targets our 3.4.0+ default. Use e.g. "
-        "source: {ref: main} to build against ncs-zigbee's own unreleased main branch "
-        "(currently pins nrf at v3.4.0) until a compatible tag ships"
-    ),
 )
 
 # Module names under this package that define a variant.
