@@ -28,4 +28,19 @@ TEST(BleDeviceAddress, AccessorsMatchEsp32Semantics) {
   EXPECT_EQ(device.address_str(), "AA:BB:CC:DD:EE:FF");
 }
 
+// mac_lsb_first_to_uint64() packs the controller-order bytes a raw-advertisement
+// callback delivers into the printable-order uint64 the native API speaks — the
+// value esp32_ble::ble_addr_to_uint64() has always produced for that address.
+TEST(BleDeviceAddress, MacLsbFirstToUint64MatchesWireValue) {
+  EXPECT_EQ(mac_lsb_first_to_uint64(MAC_LSB_FIRST), 0xAABBCCDDEEFFULL);
+}
+
+// The helper and the parsed-device accessor are two routes to the same wire
+// value: byte order must agree no matter which path an advertisement takes.
+TEST(BleDeviceAddress, MacLsbFirstToUint64AgreesWithParsedDevice) {
+  ESPBTDevice device;
+  device.from_scan_result(MAC_LSB_FIRST, -50, BLE_ADDR_TYPE_PUBLIC, nullptr, 0);
+  EXPECT_EQ(mac_lsb_first_to_uint64(MAC_LSB_FIRST), device.address_uint64());
+}
+
 }  // namespace esphome::ble_device_base::testing

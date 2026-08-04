@@ -2918,7 +2918,7 @@ def test_show_logs_no_logger() -> None:
         show_logs(CORE.config, args, devices)
 
 
-@patch("esphome.components.api.client.run_logs")
+@patch("esphome.api_client.run_logs")
 def test_show_logs_api(
     mock_run_logs: Mock,
 ) -> None:
@@ -2944,7 +2944,7 @@ def test_show_logs_api(
     )
 
 
-@patch("esphome.components.api.client.run_logs")
+@patch("esphome.api_client.run_logs")
 def test_show_logs_api_no_states(
     mock_run_logs: Mock,
 ) -> None:
@@ -2971,7 +2971,7 @@ def test_show_logs_api_no_states(
     )
 
 
-@patch("esphome.components.api.client.run_logs")
+@patch("esphome.api_client.run_logs")
 def test_show_logs_api_with_fqdn_mdns_disabled(
     mock_run_logs: Mock,
 ) -> None:
@@ -2998,7 +2998,7 @@ def test_show_logs_api_with_fqdn_mdns_disabled(
     )
 
 
-@patch("esphome.components.api.client.run_logs")
+@patch("esphome.api_client.run_logs")
 def test_show_logs_api_with_mqtt_fallback(
     mock_run_logs: Mock,
     mock_mqtt_get_ip: Mock,
@@ -4974,7 +4974,7 @@ def test_upload_program_ota_mqttip_deduplication(
     assert "192.168.1.100" in call_args[0]
 
 
-@patch("esphome.components.api.client.run_logs")
+@patch("esphome.api_client.run_logs")
 def test_show_logs_api_static_ip_with_mqttip(
     mock_run_logs: Mock,
     mock_mqtt_get_ip: Mock,
@@ -5013,7 +5013,7 @@ def test_show_logs_api_static_ip_with_mqttip(
     )
 
 
-@patch("esphome.components.api.client.run_logs")
+@patch("esphome.api_client.run_logs")
 def test_show_logs_api_multiple_mqttip_resolves_once(
     mock_run_logs: Mock,
     mock_mqtt_get_ip: Mock,
@@ -5096,7 +5096,7 @@ def test_upload_program_ota_mqtt_timeout_fallback(
     )
 
 
-@patch("esphome.components.api.client.run_logs")
+@patch("esphome.api_client.run_logs")
 def test_show_logs_api_mqtt_timeout_fallback(
     mock_run_logs: Mock,
     mock_mqtt_get_ip: Mock,
@@ -6468,7 +6468,7 @@ def test_should_subscribe_states_no_flag_overrides_env() -> None:
         assert _should_subscribe_states(args) is False
 
 
-@patch("esphome.components.api.client.run_logs")
+@patch("esphome.api_client.run_logs")
 def test_command_run_passes_no_states_to_show_logs(
     mock_run_logs: Mock,
 ) -> None:
@@ -6506,7 +6506,7 @@ def test_command_run_passes_no_states_to_show_logs(
     )
 
 
-@patch("esphome.components.api.client.run_logs")
+@patch("esphome.api_client.run_logs")
 def test_command_run_defaults_subscribe_states_true(
     mock_run_logs: Mock,
 ) -> None:

@@ -1074,3 +1074,21 @@ def test_progressbar_enabled_on_pipe_with_dashboard(monkeypatch) -> None:
 
     bar = ProgressBar("Uploading", stream=stream)
     assert bar.enabled is True
+
+
+@pytest.mark.parametrize(
+    ("seconds", "expected"),
+    [
+        (0, "0s"),
+        (42, "42s"),
+        (60, "1min"),
+        (3661, "1h 1min"),
+        (86400, "1d"),
+        (90000, "1d 1h"),
+        (86700, "1d 5min"),
+        (-5, "0s"),
+    ],
+)
+def test_format_duration(seconds: float, expected: str) -> None:
+    """Test that durations are rendered as short human-readable strings."""
+    assert helpers.format_duration(seconds) == expected
