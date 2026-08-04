@@ -46,6 +46,8 @@ class ModbusSelect final : public Component, public select::Select, public Senso
   bool optimistic_{false};
   optional<transform_func_t> transform_func_{nullopt};
   optional<write_transform_func_t> write_transform_func_{nullopt};
+  /// The in-flight write command (its own hub device); must outlive the call, replaced on each write.
+  optional<ModbusCommandItem> write_command_{nullopt};
 };
 
 }  // namespace esphome::modbus_controller

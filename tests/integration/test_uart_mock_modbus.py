@@ -453,18 +453,18 @@ async def test_uart_mock_modbus_shared_address(
 
 
 @pytest.mark.asyncio
-async def test_uart_mock_modbus_custom_command(
+async def test_uart_mock_modbus_custom_pdu(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test a custom_command sensor polling a register served by the mock server.
+    """Test a custom_pdu sensor reading a register served by the mock server.
 
-    The custom_command is a raw frame (device address + PDU); the hub appends the CRC and
-    routes the response back to the polling command, whose sensor lambda parses the payload.
-    Guards the custom polling wiring: the command must reference the sensor's custom_data and
-    decode the real function code, or nothing is ever transmitted. A plain read on the same
-    register anchors the bus.
+    The custom_pdu is a raw read-holding PDU (function code + address + count); the
+    controller prepends its own device address and appends the CRC, sends it, and the
+    sensor's lambda parses the response payload. Confirms the custom PDU path decodes
+    the function code and routes the response to the sensor (the gap that hid the
+    step-2 raw-vs-PDU bug). A plain read on the same register anchors the bus.
     """
 
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()

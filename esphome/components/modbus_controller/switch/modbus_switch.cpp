@@ -3,6 +3,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <array>
+
 namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus_controller.switch";
@@ -59,7 +61,6 @@ void ModbusSwitch::parse_and_publish(std::span<const uint8_t> data) {
 
 void ModbusSwitch::write_state(bool state) {
   // This will be called every time the user requests a state change.
-  optional<ModbusCommandItem> cmd;
   std::vector<uint8_t> data;
   // Is there are lambda configured?
   if (this->write_transform_func_.has_value()) {
@@ -81,34 +82,30 @@ void ModbusSwitch::write_state(bool state) {
 #endif
     ESP_LOGV(TAG, "Modbus Switch write raw: %s",
              format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
-    cmd.emplace(ModbusCommandItem::create_custom_command(
-        this->parent_, data,
-        [this](modbus::EntityType register_type, uint16_t start_address, std::span<const uint8_t> data) {
-          this->parent_->on_write_register_response(register_type, this->start_address, data);
-        }));
+    // The lambda filled a legacy raw frame (device address + function code + data); the hub adds the CRC.
+    this->write_command_.emplace(this->parent_->create_command());
+    this->write_command_->send_raw_frame_deprecated(data);
   } else {
     ESP_LOGV(TAG, "write_state '%s': new value = %s type = %d address = %X offset = %x", this->get_name().c_str(),
              ONOFF(state), (int) this->register_type, this->start_address, this->offset);
-    if (this->register_type == modbus::EntityType::COIL) {
+    this->write_command_.emplace(this->parent_->create_command());
+    if (this->register_type == EntityType::COIL) {
       // offset for coil and discrete inputs is the coil/register number not bytes
       if (this->use_write_multiple_) {
-        std::vector<bool> states{state};
-        cmd.emplace(ModbusCommandItem::create_write_multiple_coils(this->parent_, this->write_address(), states));
+        std::array<bool, 1> states{state};
+        this->write_command_->write_multiple_coils(this->write_address(), states);
       } else {
-        cmd.emplace(ModbusCommandItem::create_write_single_coil(this->parent_, this->write_address(), state));
+        this->write_command_->write_single_coil(this->write_address(), state);
       }
     } else {
       if (this->use_write_multiple_) {
-        std::vector<uint16_t> bool_states(1, state ? (0xFFFF & this->bitmask) : 0);
-        cmd.emplace(
-            ModbusCommandItem::create_write_multiple_command(this->parent_, this->write_address(), 1, bool_states));
+        std::array<uint16_t, 1> states{static_cast<uint16_t>(state ? (0xFFFF & this->bitmask) : 0)};
+        this->write_command_->write_multiple_registers(this->write_address(), states);
       } else {
-        cmd.emplace(ModbusCommandItem::create_write_single_command(this->parent_, this->write_address(),
-                                                                   state ? 0xFFFF & this->bitmask : 0u));
+        this->write_command_->write_single_register(this->write_address(), state ? 0xFFFF & this->bitmask : 0u);
       }
     }
   }
-  this->parent_->queue_command(*cmd);
   this->publish_state(state);
 }
 // ModbusSwitch end

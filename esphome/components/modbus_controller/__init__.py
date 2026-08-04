@@ -19,6 +19,7 @@ from .const import (
     CONF_BYTE_OFFSET,
     CONF_COMMAND_THROTTLE,
     CONF_CUSTOM_COMMAND,
+    CONF_CUSTOM_PDU,
     CONF_FORCE_NEW_RANGE,
     CONF_MAX_CMD_RETRIES,
     CONF_MODBUS_CONTROLLER_ID,
@@ -81,7 +82,13 @@ ModbusItemBaseSchema = cv.Schema(
     {
         cv.GenerateID(CONF_MODBUS_CONTROLLER_ID): cv.use_id(ModbusController),
         cv.Optional(CONF_ADDRESS): cv.positive_int,
-        cv.Optional(CONF_CUSTOM_COMMAND): cv.ensure_list(cv.hex_uint8_t),
+        cv.Optional(CONF_CUSTOM_PDU): cv.ensure_list(cv.hex_uint8_t),
+        cv.Optional(CONF_CUSTOM_COMMAND): cv.invalid(
+            "'custom_command' has been renamed to 'custom_pdu' and no longer takes a leading device "
+            "address byte. Provide the PDU only (function code + data); the configured device address "
+            "and the CRC are added automatically. See "
+            "https://esphome.io/components/modbus_controller/"
+        ),
         cv.Exclusive(
             CONF_OFFSET,
             "offset",
@@ -102,18 +109,18 @@ ModbusItemBaseSchema = cv.Schema(
 
 
 def validate_modbus_register(config):
-    if CONF_CUSTOM_COMMAND not in config and CONF_ADDRESS not in config:
+    if CONF_CUSTOM_PDU not in config and CONF_ADDRESS not in config:
         raise cv.Invalid(
-            f" {CONF_ADDRESS} is a required property if '{CONF_CUSTOM_COMMAND}:' isn't used"
+            f" {CONF_ADDRESS} is a required property if '{CONF_CUSTOM_PDU}:' isn't used"
         )
-    if CONF_CUSTOM_COMMAND in config and CONF_REGISTER_TYPE in config:
+    if CONF_CUSTOM_PDU in config and CONF_REGISTER_TYPE in config:
         raise cv.Invalid(
-            f"can't use '{CONF_REGISTER_TYPE}:' together with '{CONF_CUSTOM_COMMAND}:'",
+            f"can't use '{CONF_REGISTER_TYPE}:' together with '{CONF_CUSTOM_PDU}:'",
         )
 
-    if CONF_CUSTOM_COMMAND not in config and CONF_REGISTER_TYPE not in config:
+    if CONF_CUSTOM_PDU not in config and CONF_REGISTER_TYPE not in config:
         raise cv.Invalid(
-            f" {CONF_REGISTER_TYPE} is a required property if '{CONF_CUSTOM_COMMAND}:' isn't used"
+            f" {CONF_REGISTER_TYPE} is a required property if '{CONF_CUSTOM_PDU}:' isn't used"
         )
     return config
 
@@ -141,7 +148,7 @@ def modbus_calc_properties(config):
         value_type = config[CONF_VALUE_TYPE]
         if reg_count == 0:
             reg_count = TYPE_REGISTER_MAP[value_type]
-    if CONF_CUSTOM_COMMAND in config:
+    if CONF_CUSTOM_PDU in config:
         if CONF_ADDRESS not in config:
             # generate a unique modbus address using the hash of the name
             # CONF_NAME set even if only CONF_ID is used.
@@ -158,8 +165,8 @@ def modbus_calc_properties(config):
 async def add_modbus_base_properties(
     var, config, sensor_type, lambda_param_type=cg.float_, lambda_return_type=float
 ):
-    if CONF_CUSTOM_COMMAND in config:
-        cg.add(var.set_custom_data(config[CONF_CUSTOM_COMMAND]))
+    if CONF_CUSTOM_PDU in config:
+        cg.add(var.set_custom_pdu(config[CONF_CUSTOM_PDU]))
 
     if config[CONF_RESPONSE_SIZE] > 0:
         cg.add(var.set_register_size(config[CONF_RESPONSE_SIZE]))

@@ -46,6 +46,8 @@ class ModbusSwitch final : public Component, public switch_::Switch, public Sens
   optional<transform_func_t> publish_transform_func_{nullopt};
   optional<write_transform_func_t> write_transform_func_{nullopt};
   bool assumed_state_{false};
+  /// The in-flight write command (its own hub device); must outlive the call, replaced on each write.
+  optional<ModbusCommandItem> write_command_{nullopt};
 };
 
 }  // namespace esphome::modbus_controller

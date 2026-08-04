@@ -39,6 +39,8 @@ class ModbusFloatOutput final : public output::FloatOutput, public Component, pu
   ModbusController *parent_{nullptr};
   float multiply_by_{1.0};
   bool use_write_multiple_{false};
+  /// The in-flight write command (its own hub device); must outlive the call, replaced on each write.
+  optional<ModbusCommandItem> write_command_{nullopt};
 };
 
 class ModbusBinaryOutput final : public output::BinaryOutput, public Component, public SensorItem {
@@ -69,6 +71,8 @@ class ModbusBinaryOutput final : public output::BinaryOutput, public Component, 
 
   ModbusController *parent_{nullptr};
   bool use_write_multiple_{false};
+  /// The in-flight write command (its own hub device); must outlive the call, replaced on each write.
+  optional<ModbusCommandItem> write_command_{nullopt};
 };
 
 }  // namespace esphome::modbus_controller

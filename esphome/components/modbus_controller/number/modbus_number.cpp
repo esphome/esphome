@@ -29,7 +29,6 @@ void ModbusNumber::parse_and_publish(std::span<const uint8_t> data) {
 }
 
 void ModbusNumber::control(float value) {
-  optional<ModbusCommandItem> write_cmd;
   std::vector<uint16_t> data;
   float write_value = value;
   // Is there are lambda configured?
@@ -55,11 +54,15 @@ void ModbusNumber::control(float value) {
 #endif
     ESP_LOGV(TAG, "Modbus Number write raw: %s",
              format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
-    write_cmd.emplace(ModbusCommandItem::create_custom_command(
-        this->parent_, data,
-        [this](modbus::EntityType register_type, uint16_t start_address, std::span<const uint8_t> data) {
-          this->parent_->on_write_register_response(register_type, this->start_address, data);
-        }));
+    // The lambda filled a legacy raw frame as words (address + function code + data); pack big-endian and
+    // send; the hub adds the CRC.
+    StaticVector<uint8_t, modbus::MAX_RAW_SIZE> bytes;
+    for (auto v : data) {
+      bytes.push_back((v >> 8) & 0xFF);
+      bytes.push_back(v & 0xFF);
+    }
+    this->write_command_.emplace(this->parent_->create_command());
+    this->write_command_->send_raw_frame_deprecated(std::span<const uint8_t>(bytes.data(), bytes.size()));
   } else {
     std::vector<uint16_t> payload;
     modbus::helpers::float_to_payload(payload, write_value, this->sensor_value_type);
@@ -69,22 +72,13 @@ void ModbusNumber::control(float value) {
              this->get_name().c_str(), this->start_address, this->register_count, value, write_value);
 
     // Create and send the write command
+    this->write_command_.emplace(this->parent_->create_command());
     if (this->register_count == 1 && !this->use_write_multiple_) {
-      write_cmd.emplace(
-          ModbusCommandItem::create_write_single_command(this->parent_, this->write_address(), payload[0]));
+      this->write_command_->write_single_register(this->write_address(), payload[0]);
     } else {
-      write_cmd.emplace(ModbusCommandItem::create_write_multiple_command(this->parent_, this->write_address(),
-                                                                         this->register_count, payload));
+      this->write_command_->write_multiple_registers(this->write_address(), payload);
     }
-    // publish new value
-    write_cmd->on_data_func = [this, value](modbus::EntityType register_type, uint16_t start_address,
-                                            std::span<const uint8_t> data) {
-      // gets called when the write command is ack'd from the device
-      this->parent_->on_write_register_response(register_type, start_address, data);
-      this->publish_state(value);
-    };
   }
-  this->parent_->queue_command(*write_cmd);
   this->publish_state(value);
 }
 void ModbusNumber::dump_config() { LOG_NUMBER(TAG, "Modbus Number", this); }

@@ -43,6 +43,8 @@ class ModbusNumber final : public number::Number, public Component, public Senso
   ModbusController *parent_{nullptr};
   float multiply_by_{1.0};
   bool use_write_multiple_{false};
+  /// The in-flight write command (its own hub device); must outlive the call, replaced on each write.
+  optional<ModbusCommandItem> write_command_{nullopt};
 };
 
 }  // namespace esphome::modbus_controller
