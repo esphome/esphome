@@ -423,14 +423,23 @@ class IDEData:
     def __init__(self, raw):
         self.raw = raw
 
+    def _require(self, *keys: str):
+        """Read a nested key, classifying a miss as an environment error.
+
+        A stale or truncated cached idedata JSON is the user's build
+        tree, not a bug; recompiling regenerates it.
+        """
+        value = self.raw
+        try:
+            for key in keys:
+                value = value[key]
+        except KeyError as err:
+            raise EsphomeError("Cached idedata is incomplete") from err
+        return value
+
     @property
     def firmware_elf_path(self) -> Path:
-        try:
-            return Path(self.raw["prog_path"])
-        except KeyError as err:
-            # A stale or truncated cached idedata JSON is the user's
-            # build tree, not a bug; recompiling regenerates it.
-            raise EsphomeError("Cached idedata is incomplete") from err
+        return Path(self._require("prog_path"))
 
     @property
     def firmware_bin_path(self) -> Path:
@@ -440,13 +449,13 @@ class IDEData:
     def extra_flash_images(self) -> list[FlashImage]:
         return [
             FlashImage(path=Path(entry["path"]), offset=entry["offset"])
-            for entry in self.raw["extra"]["flash_images"]
+            for entry in self._require("extra", "flash_images")
         ]
 
     @property
     def cc_path(self) -> str:
         # For example /Users/<USER>/.platformio/packages/toolchain-xtensa32/bin/xtensa-esp32-elf-gcc
-        return self.raw["cc_path"]
+        return self._require("cc_path")
 
     @property
     def addr2line_path(self) -> str:

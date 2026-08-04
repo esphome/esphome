@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import inspect
+from itertools import chain, repeat
 import re
 from unittest.mock import Mock, patch
 
@@ -265,6 +266,14 @@ def _warnings(caplog) -> list[str]:
     return [r.message for r in caplog.records if r.levelname == "WARNING"]
 
 
+def _clock(*times: float):
+    """Stub monotonic to repeat its last value; the patch is process
+    wide, so an extra call must not fail with StopIteration."""
+    return patch.object(
+        stacktrace.time, "monotonic", side_effect=chain(times, repeat(times[-1]))
+    )
+
+
 def test_decoder_contains_failures_and_short_circuits() -> None:
     """One decode failure is contained and not retried within the cooldown.
 
@@ -290,9 +299,7 @@ def test_latch_rearms_after_cooldown(caplog) -> None:
     again instead of degrading silently.
     """
     handler = Mock(side_effect=[EsphomeError("no idedata"), EsphomeError("port busy")])
-    with patch.object(
-        stacktrace.time, "monotonic", side_effect=[0.0, 30.0, 61.0, 61.0]
-    ):
+    with _clock(0.0, 30.0, 61.0):
         processor = _run(
             handler, lines=("PC: 0x4010496e", "BT0: 0x4010496e", "BT1: 0x401049aa")
         )
@@ -309,11 +316,27 @@ def test_identical_refailure_downgrades_to_debug(caplog) -> None:
     cooldown logs at debug only.
     """
     handler = Mock(side_effect=EsphomeError("no idedata"))
-    with patch.object(stacktrace.time, "monotonic", side_effect=[0.0, 61.0, 61.0]):
+    with _clock(0.0, 61.0):
         _run(handler, lines=("PC: 0x4010496e", "BT0: 0x4010496e"))
 
     assert handler.call_count == 2
     assert len([m for m in _warnings(caplog) if "esphome compile" in m]) == 1
+
+
+def test_new_episode_after_success_warns_in_full(caplog) -> None:
+    """A success ends the failure episode.
+
+    A later failure with the same message is a fresh problem, not spam
+    from the same one, so it must warn in full again.
+    """
+    handler = Mock(
+        side_effect=[EsphomeError("no idedata"), False, EsphomeError("no idedata")]
+    )
+    with _clock(0.0, 61.0):
+        _run(handler, lines=("PC: 0x4010496e", "BT0: 0x4010496e", "BT1: 0x401049aa"))
+
+    assert handler.call_count == 3
+    assert len([m for m in _warnings(caplog) if "esphome compile" in m]) == 2
 
 
 def test_resolution_failure_is_contained(caplog) -> None:
@@ -335,7 +358,7 @@ def test_resolution_failure_is_contained(caplog) -> None:
 def test_no_analyzer_never_rearms(caplog) -> None:
     """A platform without an analyzer stays off; there is nothing to retry."""
     processor = _run(None, platform=PLATFORM_BK72XX, lines=())
-    with patch.object(stacktrace.time, "monotonic", return_value=1e9):
+    with _clock(1e9):
         processor.process_line("PC: 0x4010496e")
 
     assert processor.backtrace_state is False
