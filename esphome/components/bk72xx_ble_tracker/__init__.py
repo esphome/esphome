@@ -69,6 +69,9 @@ async def to_code(config: ConfigType) -> None:
 
     parent = await cg.get_variable(config[CONF_BK72XX_BLE_ID])
     cg.add(var.set_parent(parent))
+    # The tracker registers itself as a controller scan listener in setup();
+    # request the codegen-sized StaticVector slot for it.
+    bk72xx_ble.request_scan_listener_slot()
 
     # Get notified when an OTA update starts, to pause scanning (esp32_ble_tracker parity)
     ota.request_ota_state_listeners()
