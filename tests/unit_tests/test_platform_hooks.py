@@ -68,7 +68,7 @@ def test_external_platform_falls_back_to_probe(
         imported.append(name)
         return module
 
-    monkeypatch.setattr(platform_hooks.importlib, "import_module", fake_import)
+    monkeypatch.setattr(platform_hooks, "import_module", fake_import)
     hook = platform_hooks.get_platform_hook("my_external_chip", "show_logs")
     assert hook is module.show_logs
     assert imported == ["esphome.components.my_external_chip"]
@@ -84,7 +84,7 @@ def test_external_platform_missing_module_degrades(
     stacktrace decoding is cosmetic and stays at debug.
     """
     monkeypatch.setattr(
-        platform_hooks.importlib,
+        platform_hooks,
         "import_module",
         Mock(
             side_effect=ModuleNotFoundError(
@@ -110,9 +110,7 @@ def test_stale_registry_entry_warns(
 ) -> None:
     """A vendored tree where a registered hook vanished must say so."""
     module = type("StalePlatform", (), {})  # registered but no hook
-    monkeypatch.setattr(
-        platform_hooks.importlib, "import_module", Mock(return_value=module)
-    )
+    monkeypatch.setattr(platform_hooks, "import_module", Mock(return_value=module))
     assert platform_hooks.get_platform_hook("nrf52", "show_logs") is None
     assert "no longer exposes it" in caplog.text
 
@@ -122,7 +120,7 @@ def test_external_platform_broken_dependency_raises(
 ) -> None:
     """A missing dependency inside the external package must surface."""
     monkeypatch.setattr(
-        platform_hooks.importlib,
+        platform_hooks,
         "import_module",
         Mock(side_effect=ModuleNotFoundError("not found", name="some_missing_dep")),
     )
@@ -135,7 +133,7 @@ def test_lookup_miss_does_not_import_platform_package(
 ) -> None:
     """The whole point: probing a platform without hooks must not import it."""
     monkeypatch.setattr(
-        platform_hooks.importlib,
+        platform_hooks,
         "import_module",
         Mock(side_effect=AssertionError("platform package imported on registry miss")),
     )

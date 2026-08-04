@@ -18,7 +18,7 @@ old importlib pattern; converting it is a separate change.
 from __future__ import annotations
 
 from collections.abc import Callable
-import importlib
+from importlib import import_module
 import logging
 from typing import Any, Final
 
@@ -68,7 +68,7 @@ def get_platform_hook(platform: str, hook: str) -> Callable[..., Any] | None:
     # package (missing dependency) surface.
     module_name = f"esphome.components.{platform}"
     try:
-        module = importlib.import_module(module_name)
+        module = import_module(module_name)
     except ModuleNotFoundError as err:
         if registered or err.name != module_name:
             raise
