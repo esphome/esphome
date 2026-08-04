@@ -63,7 +63,7 @@ ZigbeeSwitch = zigbee_ns.class_("ZigbeeSwitch", cg.Component)
 ZigbeeNumber = zigbee_ns.class_("ZigbeeNumber", cg.Component)
 
 
-def zigbee_supported() -> bool:
+def zigbee_zephyr_supported() -> bool:
     """True on platform: nrf52, or on platform: zephyr when the active variant has
     zigbee radio support and framework: type: zigbee is selected. ncs-zigbee (ZBOSS) is
     Nordic-proprietary; as of NCS 3.4.0 it lives only in the separate ncs-zigbee add-on
@@ -80,9 +80,9 @@ def zigbee_supported() -> bool:
     )
 
 
-def requires_zigbee_supported(value):
-    """Raise a clear error if zigbee isn't usable here -- see zigbee_supported()."""
-    if not zigbee_supported():
+def requires_zigbee_zephyr_supported(value):
+    """Raise a clear error if ZBOSS zigbee isn't usable here -- see zigbee_zephyr_supported()."""
+    if not zigbee_zephyr_supported():
         raise cv.Invalid(
             "This option requires platform: nrf52, or platform: zephyr with a "
             "zigbee-capable variant on framework: type: zigbee"
@@ -91,8 +91,8 @@ def requires_zigbee_supported(value):
 
 
 # CONF_ZIGBEE_ID and these declare-id keys are left un-defaulted here -- they're
-# defaulted in zigbee/__init__.py's consume_endpoint() instead, once zigbee_supported()
-# is known (a plain cv.Schema like this one can't call zigbee_supported() itself and
+# defaulted in zigbee/__init__.py's consume_endpoint() instead, once zigbee_zephyr_supported()
+# is known (a plain cv.Schema like this one can't call zigbee_zephyr_supported() itself and
 # still stay dict-extendable for the .extend() chains in zigbee/__init__.py and
 # esphome/components/binary_sensor|sensor|switch|number/__init__.py).
 zephyr_binary_sensor = cv.Schema(

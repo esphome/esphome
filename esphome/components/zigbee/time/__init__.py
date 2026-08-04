@@ -16,7 +16,7 @@ from ..zigbee_zephyr import (
     zigbee_new_cluster_list,
     zigbee_new_variable,
     zigbee_register_ep,
-    zigbee_supported,
+    zigbee_zephyr_supported,
 )
 
 DEPENDENCIES = ["zigbee"]
@@ -25,7 +25,7 @@ ZigbeeTime = zigbee_ns.class_("ZigbeeTime", time_.RealTimeClock)
 
 
 def _default_zigbee_id_if_supported(config: ConfigType) -> ConfigType:
-    if zigbee_supported():
+    if zigbee_zephyr_supported():
         config = default_zigbee_ids(config)
     return config
 

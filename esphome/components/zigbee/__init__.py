@@ -3,15 +3,6 @@ from typing import Any
 
 from esphome import automation, core
 import esphome.codegen as cg
-from esphome.components.esp32 import only_on_variant
-from esphome.components.esp32.const import (
-    VARIANT_ESP32C5,
-    VARIANT_ESP32C6,
-    VARIANT_ESP32H2,
-    VARIANT_ESP32H4,
-    VARIANT_ESP32H21,
-    VARIANT_ESP32S31,
-)
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MODEL, CONF_NAME
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -47,6 +38,7 @@ from .zigbee_esp32 import (
     final_validate_esp32,
     validate_binary_sensor_esp32,
     validate_sensor_esp32,
+    zigbee_esp32_supported,
     zigbee_require_vfs_select,
 )
 from .zigbee_zephyr import (
@@ -54,12 +46,12 @@ from .zigbee_zephyr import (
     ZigbeeNumber,
     ZigbeeSensor,
     ZigbeeSwitch,
-    requires_zigbee_supported,
+    requires_zigbee_zephyr_supported,
     zephyr_binary_sensor,
     zephyr_number,
     zephyr_sensor,
     zephyr_switch,
-    zigbee_supported,
+    zigbee_zephyr_supported,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -109,6 +101,28 @@ def _validate_router_sleepy(config: ConfigType) -> ConfigType:
     return config
 
 
+def _require_zigbee_supported(config: ConfigType) -> ConfigType:
+    """The zigbee: component itself just needs *some* zigbee radio stack -- either
+    ESP32's native one or ZBOSS (nrf52/zephyr-zigbee). Individual ZBOSS-only options
+    (wipe_on_boot, ieee802154_vendor_oui, ...) separately require
+    requires_zigbee_zephyr_supported."""
+    if not (zigbee_esp32_supported() or zigbee_zephyr_supported()):
+        raise cv.Invalid(
+            "This option requires a zigbee-capable ESP32 variant, platform: nrf52, "
+            "or platform: zephyr with a zigbee-capable variant on framework: type: zigbee"
+        )
+    return config
+
+
+def _require_zigbee_zephyr_supported_if_set(value):
+    """wipe_on_boot is ZBOSS-only, but its default (False) must stay valid on ESP32
+    too -- only enforce requires_zigbee_zephyr_supported when a value was actually
+    requested, not on the harmless untouched default."""
+    if value:
+        requires_zigbee_zephyr_supported(value)
+    return value
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -123,7 +137,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.boolean,
                     cv.one_of(*["once"], lower=True),
                 ),
-                requires_zigbee_supported,
+                _require_zigbee_zephyr_supported_if_set,
             ),
             cv.Optional(CONF_POWER_SOURCE, default="DC_SOURCE"): cv.enum(
                 POWER_SOURCE, upper=True
@@ -133,7 +147,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.int_range(min=0x000000, max=0xFFFFFF),
                     cv.one_of(*["random"], lower=True),
                 ),
-                requires_zigbee_supported,
+                requires_zigbee_zephyr_supported,
             ),
             cv.Optional(CONF_SLEEPY, default=False): cv.All(
                 cv.boolean,
@@ -142,27 +156,12 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     _validate_router_sleepy,
     zigbee_require_vfs_select,
-    cv.Any(
-        cv.All(
-            cv.only_on_esp32,
-            only_on_variant(
-                supported=[
-                    VARIANT_ESP32S31,
-                    VARIANT_ESP32H2,
-                    VARIANT_ESP32H21,
-                    VARIANT_ESP32H4,
-                    VARIANT_ESP32C5,
-                    VARIANT_ESP32C6,
-                ]
-            ),
-        ),
-        requires_zigbee_supported,
-    ),
+    _require_zigbee_supported,
 )
 
 
 def validate_number_of_ep(config: ConfigType) -> ConfigType:
-    if not zigbee_supported():
+    if not zigbee_zephyr_supported():
         return config
     if KEY_ZIGBEE not in CORE.data:
         raise cv.Invalid("At least one zigbee device need to be included")
@@ -251,7 +250,7 @@ def default_zigbee_ids(
 ) -> ConfigType:
     """Fill CONF_ZIGBEE_ID and (per-platform) declare_key with the auto-resolve/
     auto-generate ID -- same value cv.use_id/cv.declare_id themselves produce for None.
-    Caller must already know zigbee_supported() is true."""
+    Caller must already know zigbee_zephyr_supported() is true."""
     config.setdefault(CONF_ZIGBEE_ID, cv.use_id(ZigbeeComponent)(None))
     if declare_key is not None:
         config.setdefault(declare_key, declare_validator(None))
@@ -278,7 +277,7 @@ def validate_binary_sensor(config: ConfigType) -> ConfigType:
         return config
     if CORE.is_esp32:
         return validate_binary_sensor_esp32(config)
-    if zigbee_supported():
+    if zigbee_zephyr_supported():
         config = default_zigbee_ids(
             config, CONF_ZIGBEE_BINARY_SENSOR, cv.declare_id(ZigbeeBinarySensor)
         )
@@ -290,7 +289,7 @@ def validate_sensor(config: ConfigType) -> ConfigType:
         return config
     if CORE.is_esp32:
         return validate_sensor_esp32(config)
-    if zigbee_supported():
+    if zigbee_zephyr_supported():
         config = default_zigbee_ids(
             config, CONF_ZIGBEE_SENSOR, cv.declare_id(ZigbeeSensor)
         )
@@ -302,7 +301,7 @@ def validate_switch(config: ConfigType) -> ConfigType:
         return config
     if CORE.is_esp32:
         return config
-    if zigbee_supported():
+    if zigbee_zephyr_supported():
         config = default_zigbee_ids(
             config, CONF_ZIGBEE_SWITCH, cv.declare_id(ZigbeeSwitch)
         )
@@ -314,7 +313,7 @@ def validate_number(config: ConfigType) -> ConfigType:
         return config
     if CORE.is_esp32:
         return config
-    if zigbee_supported():
+    if zigbee_zephyr_supported():
         config = default_zigbee_ids(
             config, CONF_ZIGBEE_NUMBER, cv.declare_id(ZigbeeNumber)
         )
