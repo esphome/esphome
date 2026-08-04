@@ -236,15 +236,15 @@ def _assign_ports() -> None:
     i2s_configs = full_config[CONF_I2S_AUDIO]
 
     # Find i2s_audio instances with microphones that require port 0
-    # (PDM and internal ADC only work on I2S port 0)
+    # (PDM only works on I2S port 0)
     port0_parent_id = None
     for mic_config in full_config.get("microphone", []):
         if CONF_I2S_AUDIO_ID not in mic_config:
             continue
-        if mic_config.get(CONF_PDM) or mic_config.get(CONF_ADC_TYPE) == "internal":
+        if mic_config.get(CONF_PDM):
             if port0_parent_id is not None:
                 raise cv.Invalid(
-                    "Only one PDM/ADC microphone is supported (requires I2S port 0)"
+                    "Only one PDM microphone is supported (requires I2S port 0)"
                 )
             port0_parent_id = str(mic_config[CONF_I2S_AUDIO_ID])
 
