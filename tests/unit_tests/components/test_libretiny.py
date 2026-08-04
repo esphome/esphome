@@ -2,7 +2,8 @@
 
 import pytest
 
-from esphome.components.libretiny import _detect_variant
+from esphome.components import bk72xx, ln882x, rtl87xx
+from esphome.components.libretiny import BASE_SCHEMA, _detect_variant
 from esphome.components.libretiny.const import (
     FAMILY_LN882H,
     KEY_COMPONENT_DATA,
@@ -60,13 +61,9 @@ def test_platform_schemas_are_isolated_instances() -> None:
     made either platform's validation run both extras, so the wrong platform's
     component data won and known boards failed to resolve.
     """
-    from esphome.components import bk72xx, ln882x, rtl87xx
-    from esphome.components.libretiny import BASE_SCHEMA
-
-    schemas = [bk72xx.CONFIG_SCHEMA, ln882x.CONFIG_SCHEMA, rtl87xx.CONFIG_SCHEMA]
-    for schema in schemas:
-        assert schema is not BASE_SCHEMA
-    assert len({id(schema) for schema in schemas}) == len(schemas)
+    platforms = (bk72xx, ln882x, rtl87xx)
+    schemas = [platform.CONFIG_SCHEMA for platform in platforms]
+    assert len({id(schema) for schema in (BASE_SCHEMA, *schemas)}) == 4
     # The shared base must not have accumulated any platform's extra.
-    for extra in BASE_SCHEMA._extra_schemas:  # noqa: SLF001
-        assert getattr(extra, "__name__", "") != "_set_core_data"
+    for platform in platforms:
+        assert platform._set_core_data not in BASE_SCHEMA._extra_schemas  # noqa: SLF001
