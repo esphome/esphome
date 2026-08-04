@@ -29,6 +29,7 @@ from esphome.const import (
     CONF_BROKER,
     CONF_DEASSERT_RTS_DTR,
     CONF_DISABLED,
+    CONF_DISCOVER_IP,
     CONF_ESPHOME,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
@@ -484,8 +485,6 @@ def has_web_server_ota() -> bool:
 
 def has_mqtt_ip_lookup() -> bool:
     """Check if MQTT is available and IP lookup is supported."""
-    from esphome.components.mqtt import CONF_DISCOVER_IP
-
     if CONF_MQTT not in CORE.config:
         return False
     # Default Enabled
