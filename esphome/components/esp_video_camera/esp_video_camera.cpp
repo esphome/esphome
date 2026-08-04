@@ -74,6 +74,10 @@ static constexpr uint32_t CAPTURE_DQBUF_TIMEOUT_MS = 500;
 // nothing and turns a reconnect or a burst of snapshots into a no-op.
 static constexpr uint32_t CAPTURE_IDLE_TIMEOUT_MS = 5000;
 
+// How often deliver_frame_ reports the resolution and frame rate it is running
+// at. This is the component's only recurring log line.
+static constexpr uint32_t STATS_INTERVAL_MS = 10000;
+
 // ===========================================================================
 // Pipeline init helpers (run esp_video_init on core 0, optional LEDC XCLK)
 // ===========================================================================
@@ -266,17 +270,26 @@ void ESPVideoCameraImageReader::return_image() {
 // ESPVideoCamera — setup / pipeline init
 // ===========================================================================
 void ESPVideoCamera::setup() {
-  // Drop esp_video's per-frame ISP statistics dump before anything can emit it.
+  // Drop esp_video's per-frame debug logging before anything can emit it.
   //
-  // That dump (print_stats_info) runs in esp_video's ISP controller task, which
-  // has a hard-coded 4 KB stack at priority 11 and already runs the whole IPA
-  // pipeline on it. It is compiled in whenever the IDF log level is DEBUG,
-  // which is ESPHome's default, and it prints tens of lines per frame. Each one
-  // reaches ESPHome from a non-main task, so it is formatted with a 144-byte
-  // buffer on that same 4 KB stack -- and a blown stack in that task is a
-  // "Load access fault" panic, not a clean stack-overflow report. Info and
-  // above still come through; only the per-frame spam is dropped.
+  // Both of these fire from esp_video's ISP controller task, once per frame:
+  // "ISP" prints a full statistics dump (tens of lines), and "esp_video_cam"
+  // prints a line per control it cannot range-check while that task pushes the
+  // new gain and exposure. They are compiled in whenever the IDF log level is
+  // DEBUG, which is ESPHome's default.
+  //
+  // That task has a hard-coded 4 KB stack at priority 11 and already runs the
+  // whole IPA pipeline on it, and every line reaches ESPHome from a non-main
+  // task, so it is formatted with a 144-byte buffer on that same stack. Besides
+  // swamping the log, a blown stack there is a "Load access fault" panic rather
+  // than a clean stack-overflow report.
+  //
+  // This cannot be done from the YAML side: ESPHome funnels every IDF message
+  // through the single tag "esp-idf" (see core/log.cpp), so logger's per-tag
+  // levels cannot separate these from the rest of the pipeline's output.
+  // Warnings and errors still come through unchanged.
   esp_log_level_set("ISP", ESP_LOG_INFO);
+  esp_log_level_set("esp_video_cam", ESP_LOG_INFO);
 
   if (!this->init_pipeline_()) {
     this->mark_failed();
@@ -517,6 +530,20 @@ void ESPVideoCamera::deliver_frame_(const uint8_t *data, size_t length) {
   for (auto *listener : this->listeners_)
     listener->on_camera_image(this->current_image_);
   this->single_requesters_ = 0;
+
+  // Throughput, on an interval. Logging a line per frame from here would cost
+  // more than the capture it describes, and the numbers only mean anything
+  // averaged anyway.
+  this->stats_frames_++;
+  this->stats_bytes_ += length;
+  uint32_t elapsed = now - this->stats_since_ms_;
+  if (elapsed >= STATS_INTERVAL_MS) {
+    ESP_LOGD(TAG, "%ux%u @ %.1f fps, %u B/frame", (unsigned) this->capture_width_, (unsigned) this->capture_height_,
+             this->stats_frames_ * 1000.0f / elapsed, (unsigned) (this->stats_bytes_ / this->stats_frames_));
+    this->stats_since_ms_ = now;
+    this->stats_frames_ = 0;
+    this->stats_bytes_ = 0;
+  }
 }
 
 void ESPVideoCamera::loop_direct_capture_() {
@@ -839,6 +866,9 @@ bool ESPVideoCamera::start_capture_() {
   this->streaming_ = true;
   this->last_frame_ms_ = 0;
   this->idle_since_ms_ = 0;
+  this->stats_since_ms_ = millis();
+  this->stats_frames_ = 0;
+  this->stats_bytes_ = 0;
   this->logged_qbuf_failure_ = false;
   return true;
 }

@@ -142,6 +142,10 @@ class ESPVideoCamera : public camera::Camera {
   // When the last consumer went away, or 0 while at least one is present. The
   // pipeline is only torn down once this is CAPTURE_IDLE_TIMEOUT_MS old.
   uint32_t idle_since_ms_{0};
+  // Throughput accumulated between two STATS_INTERVAL_MS reports.
+  uint32_t stats_since_ms_{0};
+  uint32_t stats_frames_{0};
+  uint32_t stats_bytes_{0};
   // One-shot: dump the rejected buffer's placement on the first encoder QBUF
   // failure of a capture, not on every frame.
   bool logged_qbuf_failure_{false};
