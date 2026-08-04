@@ -329,9 +329,9 @@ class StorageJSON:
         }
         # The compile pipeline populates CORE.data[KEY_ESP32] when esp32's
         # validator runs; on the cache fast path that validator is skipped,
-        # so populate the variant upload_using_esptool reads via
-        # esp32.get_esp32_variant(). target_platform on disk is the variant
-        # (e.g. "ESP32S3"); core_platform is the family (e.g. "esp32").
+        # so populate the variant upload_using_esptool reads from
+        # CORE.data[KEY_ESP32][KEY_VARIANT]. target_platform on disk is the
+        # variant (e.g. "ESP32S3"); core_platform is the family (e.g. "esp32").
         if target_platform == const.PLATFORM_ESP32:
             esp32_data = {KEY_VARIANT: self.target_platform}
             if self.framework_version:
