@@ -13,13 +13,7 @@ from pathlib import Path
 
 from esphome.core import CORE
 
-
-def _define_value(name: str) -> str | None:
-    for define in CORE.defines:
-        if define.name == name:
-            # Values are codegen expressions (IntLiteral); compare rendered.
-            return str(define.value)
-    return None
+from ..helpers import get_define_value
 
 
 def test_tracker_requests_one_slot(
@@ -32,8 +26,8 @@ def test_tracker_requests_one_slot(
     consumer registered through register_ble_device().
     """
     generate_main(component_config_path("bk72xx_tracker.yaml"))
-    assert _define_value("BK72XX_BLE_SCAN_LISTENER_COUNT") == "1"
-    assert _define_value("ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT") is None
+    assert get_define_value("BK72XX_BLE_SCAN_LISTENER_COUNT") == "1"
+    assert get_define_value("ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT") is None
 
 
 def test_controller_only_emits_no_count(
@@ -42,4 +36,20 @@ def test_controller_only_emits_no_count(
 ) -> None:
     """No consumer, no define — the guarded listener storage compiles out."""
     generate_main(component_config_path("bk72xx_controller_only.yaml"))
-    assert _define_value("BK72XX_BLE_SCAN_LISTENER_COUNT") is None
+    assert get_define_value("BK72XX_BLE_SCAN_LISTENER_COUNT") is None
+
+
+def test_neutral_listener_count_emitted_when_requested() -> None:
+    """The neutral counter is wired to its define: one request through the
+    slot bound in register_ble_device() emits the count.
+
+    No in-tree sensor registers through ble_device_base.register_ble_device()
+    yet (consumer migration is a follow-up), so the request function is driven
+    directly; every tracker's #ifdef-guarded listener storage keys on this
+    define, and a broken emit path would compile the storage out silently.
+    """
+    from esphome.components import ble_device_base
+
+    ble_device_base._request_listener_slot()
+    CORE.flush_tasks()
+    assert get_define_value(ble_device_base.LISTENER_COUNT_DEFINE) == "1"
