@@ -29,8 +29,11 @@ _LOGGER = logging.getLogger(__name__)
 # subprocess the same way (esphome_device_builder/controllers/devices/
 # backtrace.py).
 # The bare-hex alternation requires at least one letter so 8-digit
-# decimals (uptime counters, sensor readings) don't trip it; esp8266
-# dump lines always carry one via their 3ff... stack addresses.
+# decimals (uptime counters, sensor readings) don't trip it. Stack-dump
+# lines always carry one via their 3ff... stack addresses; the one
+# letter-free bare-hex form (a bad-alloc address like 40201234) appears
+# only inside a postmortem whose earlier lines already opened the gate,
+# so it reaches the decoder as a direct feed.
 _ADDRESS_RE = re.compile(
     r"0x[0-9a-fA-F]{4,}\b|\b(?=[0-9A-Fa-f]*[A-Fa-f])[0-9a-fA-F]{8}\b"
 )
@@ -72,10 +75,11 @@ class LogLineProcessor:
         self._decode_enabled = True
         self._recent: deque[str] = deque(maxlen=_REPLAY_LINES)
         self.backtrace_state = False
-        # The registry can prove some platforms have no analyzer without
-        # importing anything; resolve those now so the unavailable notice
-        # fires at session start (as it always did) and the per-line gate
-        # never runs.
+        # The registry can prove in-tree platforms without an analyzer
+        # need no import; resolve those now so their unavailable notice
+        # fires at session start and the per-line gate never runs.
+        # External platforms cannot be answered without importing, so
+        # their notice defers to the first crash-shaped line.
         if not platform_hooks.may_provide_hook(platform, "process_stacktrace"):
             self._resolve_handler()
 
@@ -97,7 +101,18 @@ class LogLineProcessor:
         self._feed(raw_line)
 
     def _resolve_handler(self) -> bool:
-        handler = platform_hooks.get_stacktrace_handler(self._platform)
+        try:
+            handler = platform_hooks.get_stacktrace_handler(self._platform)
+        except Exception:  # noqa: BLE001  # pylint: disable=broad-except
+            # Total containment includes resolution: a platform package
+            # broken in an unanticipated way must not kill the session or
+            # retry on every address-bearing line.
+            _LOGGER.debug("Stacktrace analyzer resolution failed", exc_info=True)
+            _LOGGER.warning(
+                'Stacktrace analysis is unavailable: analyzer for target platform "%s" could not be loaded.',
+                self._platform,
+            )
+            handler = None
         if handler is None:
             self._decode_enabled = False
             return False

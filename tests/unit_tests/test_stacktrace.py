@@ -229,6 +229,48 @@ def test_processor_resolves_lazily_on_address_token() -> None:
     ]
 
 
+def test_processor_unexpected_resolution_error_disables_decoding(caplog) -> None:
+    """Resolution is inside the containment guarantee like everything else."""
+    with patch.object(
+        stacktrace.platform_hooks,
+        "get_stacktrace_handler",
+        side_effect=OSError("filesystem went away"),
+    ) as mock_resolve:
+        processor = stacktrace.LogLineProcessor(CONFIG, "esp32")
+        processor.process_line("PC: 0x40104960")
+        processor.process_line("BT0: 0x40104960")
+
+    mock_resolve.assert_called_once()
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) == 1
+    assert "could not be loaded" in warnings[0].message
+    assert processor.backtrace_state is False
+
+
+def test_letter_free_bad_alloc_reaches_resolved_decoder() -> None:
+    """The one letter-free bare-hex form rides an already-open gate.
+
+    ``last failed alloc call: 40201234(512)`` alone would not fire the
+    gate, but it only appears inside a postmortem whose earlier lines
+    (epc1=0x...) already resolved the decoder, so it feeds directly.
+    """
+    bad_alloc = "last failed alloc call: 40201234(512)"
+    assert not stacktrace._ADDRESS_RE.search(bad_alloc)
+
+    handler = Mock(return_value=False)
+    with patch.object(
+        stacktrace.platform_hooks, "get_stacktrace_handler", return_value=handler
+    ):
+        processor = stacktrace.LogLineProcessor(CONFIG, "esp8266")
+        processor.process_line("epc1=0x40201234 epc2=0x00000000")
+        processor.process_line(bad_alloc)
+
+    assert [call.args[1] for call in handler.call_args_list] == [
+        "epc1=0x40201234 epc2=0x00000000",
+        bad_alloc,
+    ]
+
+
 def test_processor_import_failure_disables_decoding(caplog) -> None:
     """A broken platform package degrades once instead of raising."""
     caplog.set_level("INFO", logger="esphome.platform_hooks")
