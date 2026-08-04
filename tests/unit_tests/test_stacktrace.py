@@ -72,7 +72,7 @@ def test_latch_rearms_after_cooldown(caplog) -> None:
 
 def test_no_analyzer_never_rearms(caplog) -> None:
     """A platform without an analyzer stays off; there is nothing to retry."""
-    processor = _run(None, lines=())
+    processor = _run(None, platform="bk72xx", lines=())
     with patch.object(stacktrace.time, "monotonic", return_value=1e9):
         processor.process_line("PC: 0x4010496e")
 
