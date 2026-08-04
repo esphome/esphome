@@ -129,9 +129,8 @@ async def start_scan_action_to_code(
     template_arg: cg.TemplateArguments,
     args: list,
 ) -> cg.MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg)
-    cg.add(var.set_parent(paren))
+    await cg.register_parented(var, config[CONF_ID])
     if (continuous := config.get(CONF_CONTINUOUS)) is not None:
         template_ = await cg.templatable(continuous, args, cg.bool_)
         cg.add(var.set_continuous(template_))
@@ -154,9 +153,8 @@ async def stop_scan_action_to_code(
     template_arg: cg.TemplateArguments,
     args: list,
 ) -> cg.MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg)
-    cg.add(var.set_parent(paren))
+    await cg.register_parented(var, config[CONF_ID])
     return var
 
 
