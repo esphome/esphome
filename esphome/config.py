@@ -620,10 +620,19 @@ class LoadValidationStep(ConfigValidationStep):
             # entry expand into several entries (e.g. `image`'s `defaults:`/
             # `files:` shape) before per-entry CONFIG_SCHEMA/ID registration runs.
             if (expand := component.expand_platform_config) is not None:
-                with result.catch_error(path):
-                    result[self.domain] = self.conf = expand(self.conf)
-                    # Assert rather than raise - failure here is a coding error, not a user error.
-                    assert isinstance(self.conf, list)
+                try:
+                    expanded = expand(self.conf)
+                except cv.FinalExternalInvalid as e:
+                    result.add_error(e)
+                except vol.Invalid as e:
+                    e.prepend(path)
+                    result.add_error(e)
+                else:
+                    # Assert rather than raise - a non-list return here is a coding
+                    # error in the component, not a user error, so it must not be
+                    # reported as one via the except clauses above.
+                    assert isinstance(expanded, list)
+                    result[self.domain] = self.conf = expanded
 
         # Process AUTO_LOAD
         _process_auto_load(result, component, path)

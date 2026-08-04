@@ -1,6 +1,9 @@
 # `platform: file` entry using the `defaults:`/`files:` shape to share options
 # across several images without repeating them on every entry. Config-only test
-# exercising the (permanent, non-deprecated) expansion path.
+# exercising the (permanent, non-deprecated) expansion path, including the
+# per-type byte_order drop when an entry overrides to a non-endian type
+# (binary) -- mirrors validate-defaults.host.yaml's legacy-format coverage of
+# the same case.
 display:
   - platform: sdl
     id: image_display
@@ -14,6 +17,7 @@ image:
     defaults:
       type: rgb565
       transparency: opaque
+      byte_order: little_endian
       resize: 50x50
       dither: FloydSteinberg
     files:

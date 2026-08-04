@@ -426,10 +426,39 @@ def test_expand_platform_entry_per_file_overrides_win() -> None:
     assert out["type"] == "BINARY"
 
 
+def test_expand_platform_entry_drops_byte_order_for_non_endian_override() -> None:
+    """A `byte_order` default merged into a `type: binary` override is dropped,
+    matching the legacy defaults:/images: flattener, rather than becoming a hard
+    validation error the user has no way to work around (a per-file override
+    can't unset a key set in `defaults:`)."""
+    entry = {
+        CONF_PLATFORM: "file",
+        CONF_DEFAULTS: {"type": "rgb565", "byte_order": "little_endian"},
+        CONF_FILES: [
+            {"id": "a", "file": "x.png"},
+            {"id": "b", "file": "y.png", "type": "binary"},
+        ],
+    }
+    out = _expand_platform_entry(0, entry)
+    assert out[0]["byte_order"] == "little_endian"
+    assert "byte_order" not in out[1]
+
+
+def test_expand_platform_entry_keeps_byte_order_for_endian_override() -> None:
+    entry = {
+        CONF_PLATFORM: "file",
+        CONF_DEFAULTS: {"type": "rgb565", "byte_order": "big_endian"},
+        CONF_FILES: [{"id": "a", "file": "x.png", "type": "rgb565"}],
+    }
+    [out] = _expand_platform_entry(0, entry)
+    assert out["byte_order"] == "big_endian"
+
+
 def test_expand_platform_entry_defaults_without_files_raises() -> None:
     entry = {CONF_PLATFORM: "file", CONF_DEFAULTS: {"type": "RGB565"}}
-    with pytest.raises(cv.Invalid, match="may only be used together with"):
+    with pytest.raises(cv.Invalid, match="may only be used together with") as excinfo:
         _expand_platform_entry(0, entry)
+    assert excinfo.value.path == [0]
 
 
 def test_expand_platform_entry_files_with_stray_key_raises() -> None:

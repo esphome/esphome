@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from esphome import config, yaml_util
+from esphome import config, config_validation as cv, yaml_util
 from esphome.core import CORE, AutoLoad
 from esphome.types import ConfigType
 
@@ -235,6 +235,35 @@ def test_expand_hook_runs_after_legacy_migrate() -> None:
     _run_load_step("image", [{"id": "a", "file": "x.png"}], migrate, expand)
 
     expand.assert_called_once_with(migrated)
+
+
+def test_expand_hook_invalid_reports_single_error_at_domain_path() -> None:
+    """A `cv.Invalid` raised by the hook is reported once, via the except clauses
+    in LoadValidationStep.run (not swallowed, not duplicated), with the domain
+    path prepended. `self.conf` is left as the pre-expand list -- the per-entry
+    loop later in the same run() call will independently validate it and may add
+    its own error, but `run_validation_steps`'s `while ... and not self.errors`
+    guard means no further validation step actually executes once this error is
+    recorded, so only this one error is ever surfaced to the user."""
+    expand = Mock(side_effect=cv.Invalid("bad shape"))
+    pre_expand_conf = [{"platform": "file", "id": "a"}]
+
+    result = _run_load_step("image", pre_expand_conf, None, expand)
+
+    assert len(result.errors) == 1
+    assert result.errors[0].path == ["image"]
+    assert "bad shape" in str(result.errors[0])
+    assert result["image"] == pre_expand_conf
+
+
+def test_expand_hook_non_list_return_raises_assertion() -> None:
+    """A non-list return is a coding error in the component, not a user config
+    error, so it must not be caught/reported like a `cv.Invalid` -- it should
+    escape as an AssertionError instead."""
+    expand = Mock(return_value={"not": "a list"})
+
+    with pytest.raises(AssertionError):
+        _run_load_step("image", [{"platform": "file", "id": "a"}], None, expand)
 
 
 def _write_merge_conflict_config(tmp_path: Path, *, suppress: bool) -> Path:

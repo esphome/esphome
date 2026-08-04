@@ -425,32 +425,53 @@ def get_image_metadata(image_id: str) -> ImageMetaData | None:
 # ---------------------------------------------------------------------------
 
 
+def _drop_incompatible_byte_order(merged: dict) -> dict:
+    """Drop `byte_order` from a merged entry if its resolved type doesn't support it.
+
+    Shared by both the `defaults:`/`files:` expansion and the legacy
+    `defaults:`/`images:` flattener below, so a `byte_order` default merged into
+    e.g. a binary override doesn't turn into a hard validation error -- matching
+    the behavior of a hand-written entry that simply omits `byte_order`.
+    """
+    type_class = IMAGE_TYPE.get(str(merged.get(CONF_TYPE, "")).upper())
+    if (
+        CONF_BYTE_ORDER in merged
+        and isinstance(type_class, type)
+        and issubclass(type_class, ImageEncoder)
+        and not type_class.is_endian()
+    ):
+        del merged[CONF_BYTE_ORDER]
+    return merged
+
+
 def _expand_platform_entry(index: int, entry: dict) -> list[dict]:
     files = entry.get(CONF_FILES)
     if files is None:
         if CONF_DEFAULTS in entry:
             raise cv.Invalid(
-                f"image[{index}]: '{CONF_DEFAULTS}' may only be used together with '{CONF_FILES}'"
+                f"'{CONF_DEFAULTS}' may only be used together with '{CONF_FILES}'",
+                path=[index],
             )
         return [entry]
 
     extra_keys = set(entry) - {CONF_PLATFORM, CONF_DEFAULTS, CONF_FILES}
     if extra_keys:
         raise cv.Invalid(
-            f"image[{index}]: '{CONF_FILES}' cannot be combined with "
-            f"{', '.join(sorted(extra_keys))} on the same entry"
+            f"'{CONF_FILES}' cannot be combined with "
+            f"{', '.join(sorted(extra_keys))} on the same entry",
+            path=[index],
         )
     if not isinstance(files, list):
-        raise cv.Invalid(f"image[{index}]: '{CONF_FILES}' must be a list")
+        raise cv.Invalid(f"'{CONF_FILES}' must be a list", path=[index])
 
     defaults = entry.get(CONF_DEFAULTS, {})
     if defaults is None:
         defaults = {}
     if not isinstance(defaults, dict):
-        raise cv.Invalid(f"image[{index}]: '{CONF_DEFAULTS}' must be a mapping")
+        raise cv.Invalid(f"'{CONF_DEFAULTS}' must be a mapping", path=[index])
     if CONF_ID in defaults:
         raise cv.Invalid(
-            f"image[{index}]: '{CONF_ID}' is not allowed inside '{CONF_DEFAULTS}'"
+            f"'{CONF_ID}' is not allowed inside '{CONF_DEFAULTS}'", path=[index]
         )
 
     platform = entry[CONF_PLATFORM]
@@ -458,9 +479,10 @@ def _expand_platform_entry(index: int, entry: dict) -> list[dict]:
     for file_entry in files:
         if not isinstance(file_entry, dict):
             raise cv.Invalid(
-                f"image[{index}]: each entry in '{CONF_FILES}' must be a mapping"
+                f"each entry in '{CONF_FILES}' must be a mapping", path=[index]
             )
-        result.append({CONF_PLATFORM: platform, **defaults, **file_entry})
+        merged = {CONF_PLATFORM: platform, **defaults, **file_entry}
+        result.append(_drop_incompatible_byte_order(merged))
     return result
 
 
@@ -617,18 +639,7 @@ def _flatten_legacy_image_config(config: object) -> list[dict]:
 
     def _add(entry: dict, extra: dict) -> None:
         merged = {**defaults, **extra, **entry}
-        # The legacy `defaults:`/type-grouped forms only applied `byte_order` to
-        # types that support it. Replicate that so an endian default merged into
-        # e.g. a binary image stays valid.
-        type_class = IMAGE_TYPE.get(str(merged.get(CONF_TYPE, "")).upper())
-        if (
-            CONF_BYTE_ORDER in merged
-            and isinstance(type_class, type)
-            and issubclass(type_class, ImageEncoder)
-            and not type_class.is_endian()
-        ):
-            del merged[CONF_BYTE_ORDER]
-        result.append(merged)
+        result.append(_drop_incompatible_byte_order(merged))
 
     def _add_entries(entries: object, extra: dict) -> None:
         # `entries` may be a single image dict or a list of them; non-dict
