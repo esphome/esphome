@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 
-# Re-exported; defined in esphome.const so this package and the espidf
-# toolchain share one source without the toolchain importing components.
+# Re-exported from the shared definition; here it indexes the BOARDS
+# metadata dicts, whose entries in boards.py spell the literal.
 from esphome.const import KEY_FLASH_SIZE  # noqa: F401  # pylint: disable=unused-import
 from esphome.core import CORE
 

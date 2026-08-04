@@ -9,6 +9,9 @@ from esphome.const import (  # noqa: F401  # pylint: disable=unused-import
     KEY_IDF_VERSION,
     KEY_VARIANT,
 )
+
+# Back compat for external components only; in-tree callers import it
+# from esphome.espidf directly.
 from esphome.espidf import (  # noqa: F401  # pylint: disable=unused-import
     variant_to_idf_target,
 )
