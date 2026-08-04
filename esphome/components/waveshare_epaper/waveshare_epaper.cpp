@@ -680,7 +680,7 @@ void HOT WaveshareEPaperTypeA::display() {
   }
   this->end_data_();
 
-  if (this->model_ == WAVESHARE_EPAPER_2_13_IN_V2 && full_update) {
+  if ((this->model_ == WAVESHARE_EPAPER_2_13_IN_V2 || this->model_ == WAVESHARE_EPAPER_1_54_IN_V2) && full_update) {
     // Write base image again on full refresh
     this->command(0x26);
     this->start_data_();
