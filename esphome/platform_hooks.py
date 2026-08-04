@@ -10,9 +10,8 @@ scans the sources and fails when they drift.
 
 The compile-path ``run_compile`` hook is deliberately not registered:
 compiling imports the platform package regardless, so its probe in
-``__main__.py`` stays eager. The network log client's
-``process_stacktrace`` probe in ``esphome/api_client.py`` still uses the
-old importlib pattern; converting it is a separate change.
+``__main__.py`` stays eager. Both log paths resolve
+``process_stacktrace`` lazily through get_stacktrace_handler below.
 """
 
 from __future__ import annotations
