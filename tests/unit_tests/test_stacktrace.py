@@ -235,6 +235,21 @@ def test_replay_buffer_is_bounded() -> None:
     assert fed == [f"quiet line {n}" for n in range(4, 12)] + ["PC: 0x4010496e"]
 
 
+def test_replay_overflow_is_diagnosable(caplog) -> None:
+    """A dump whose marker outran the window leaves a debug trace."""
+    caplog.set_level("DEBUG", logger="esphome.stacktrace")
+    handler = Mock(return_value=False)
+    with patch.object(
+        stacktrace.platform_hooks, "get_stacktrace_handler", return_value=handler
+    ):
+        processor = stacktrace.LogLineProcessor(CONFIG, "esp32")
+        for n in range(12):
+            processor.process_line(f"quiet line {n}")
+        processor.process_line("PC: 0x4010496e")
+
+    assert "Replay window full" in caplog.text
+
+
 def test_processor_resolves_lazily_on_address_token() -> None:
     """No resolution attempt until a line carries an address token."""
     handler = Mock(return_value=False)
@@ -276,7 +291,8 @@ def test_processor_unexpected_resolution_error_disables_decoding(caplog) -> None
     mock_resolve.assert_called_once()
     warnings = [r for r in caplog.records if r.levelname == "WARNING"]
     assert len(warnings) == 1
-    assert "could not be loaded" in warnings[0].message
+    # The cause rides along at default verbosity, like the sibling paths.
+    assert "could not be loaded: filesystem went away" in warnings[0].message
     assert processor.backtrace_state is False
 
 

@@ -95,6 +95,13 @@ class LogLineProcessor:
                 return
             pending = list(self._recent)
             self._recent.clear()
+            if len(pending) == _REPLAY_LINES:
+                # A dump whose marker sits further back than the window
+                # decodes to nothing; make that diagnosable in the field.
+                _LOGGER.debug(
+                    "Replay window full; crash context older than %d lines was dropped",
+                    _REPLAY_LINES,
+                )
             for buffered in pending:
                 self._feed(buffered)
                 if not self._decode_enabled:
@@ -104,14 +111,15 @@ class LogLineProcessor:
     def _resolve_handler(self) -> bool:
         try:
             handler = platform_hooks.get_stacktrace_handler(self._platform)
-        except Exception:  # noqa: BLE001  # pylint: disable=broad-except
+        except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-except
             # Total containment includes resolution: a platform package
             # broken in an unanticipated way must not kill the session or
             # retry on every address-bearing line.
             _LOGGER.debug("Stacktrace analyzer resolution failed", exc_info=True)
             _LOGGER.warning(
-                'Stacktrace analysis is unavailable: analyzer for target platform "%s" could not be loaded.',
+                'Stacktrace analysis is unavailable: analyzer for target platform "%s" could not be loaded: %s',
                 self._platform,
+                exc,
             )
             handler = None
         if handler is None:
