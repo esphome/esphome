@@ -51,6 +51,7 @@ void MipiRgbSpi::setup() {
 void MipiRgbSpi::sleep() {
   this->spi_setup();
   this->write_command_(SLEEP_IN);
+  delay(5);  // SLEEP_IN needs a settle delay before another command (MIPI spec: >=5ms)
   this->spi_teardown();
 }
 
