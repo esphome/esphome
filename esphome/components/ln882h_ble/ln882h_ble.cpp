@@ -365,7 +365,7 @@ void LN882HBLE::loop() {
                  static_cast<unsigned>(this->rejected_before_delivery_));
       }
     }
-    ESP_LOGV(TAG, "Rejected %u non-legacy or incomplete scan reports", rejected);
+    ESP_LOGV(TAG, "Rejected %u non-legacy scan reports", rejected);
   }
 }
 

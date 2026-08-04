@@ -141,7 +141,10 @@ void LN882HBLETracker::on_scan_report(const ln882h_ble::BLEScanReport &report) {
     this->deliver_scan_rsp_(report);
     return;
   }
-  if (this->scan_active_ && report.scannable) {
+  // Stash only while the scan runs: after a one-shot stop the loop is
+  // disabled and nothing would sweep the table, so a late report would
+  // surface minutes later as a fresh advertisement.
+  if (this->scan_running_ && this->scan_active_ && report.scannable) {
     this->stash_adv_(report);
     return;
   }

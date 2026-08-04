@@ -1,5 +1,6 @@
 """LN882H BLE scanner implementing the ble_device_base BLEHub contract on
-top of the ln882h_ble controller."""
+top of the ln882h_ble controller. With continuous: false nothing scans until
+an explicit start_scan() call."""
 
 import esphome.codegen as cg
 from esphome.components import ble_device_base, ln882h_ble, ota
