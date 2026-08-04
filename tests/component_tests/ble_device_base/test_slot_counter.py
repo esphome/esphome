@@ -81,3 +81,36 @@ def test_neutral_listener_count_emitted_when_requested() -> None:
     )
     CORE.flush_tasks()
     assert get_define_value(ble_device_base.LISTENER_COUNT_DEFINE) == "1"
+
+
+def test_esp32_tracker_handler_counts(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A bare tracker registers its four esp32_ble handlers and nothing else."""
+    generate_main(component_config_path("esp32_tracker_only.yaml"))
+    assert get_define_value("ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT") == "1"
+    assert get_define_value("ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT") == "1"
+    assert get_define_value("ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT") == "1"
+    assert get_define_value("ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT") == "1"
+    assert get_define_value("ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT") is None
+    # No consumer subscribed to scanner state, so the storage compiles out.
+    assert (
+        get_define_value("ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT") is None
+    )
+    assert get_define_value("ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT") is None
+    assert get_define_value("ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT") is None
+
+
+def test_esp32_bluetooth_proxy_requests_scanner_state_slot(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The proxy requests one scanner state slot, one raw listener slot and a
+    client slot per connection (three by default with active: true)."""
+    generate_main(component_config_path("esp32_bluetooth_proxy.yaml"))
+    assert (
+        get_define_value("ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT") == "1"
+    )
+    assert get_define_value("ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT") == "1"
+    assert get_define_value("ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT") == "3"
