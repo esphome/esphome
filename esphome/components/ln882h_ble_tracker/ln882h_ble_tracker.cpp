@@ -225,9 +225,11 @@ void LN882HBLETracker::process_adv_(const uint8_t *mac, int rssi, uint8_t addr_t
   // (the triggers are listeners, exactly like esp32_ble_tracker), so one
   // loop feeds both and ORs into `found`.
   bool found = false;
-  for (auto *listener : this->listeners_)
-    if (listener->parse_device(device))
+  for (auto *listener : this->listeners_) {
+    if (listener->parse_device(device)) {
       found = true;
+    }
+  }
   // Mirror esp32_ble_tracker: log a newly-seen device only when nothing claimed
   // it and the scan is one-shot (continuous scans would spam).
   if (!found && !this->scan_continuous_)
