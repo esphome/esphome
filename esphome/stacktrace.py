@@ -13,6 +13,7 @@ from typing import Any
 
 from esphome import platform_hooks
 from esphome.core import EsphomeError
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -70,7 +71,7 @@ class LogLineProcessor:
        failure is caught, which is why 2 is not narrowed to EsphomeError.
     """
 
-    def __init__(self, config: dict[str, Any], platform: str) -> None:
+    def __init__(self, config: ConfigType, platform: str) -> None:
         self._config = config
         self._platform = platform
         self._platform_handler: Any | None = None
