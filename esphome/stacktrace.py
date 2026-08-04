@@ -107,8 +107,10 @@ class LogLineProcessor:
             if self._evicted:
                 # A dump whose marker sits further back than the window
                 # decodes to nothing; make that diagnosable in the field.
+                # Only what is observable is claimed: lines rolled off,
+                # whether any of them mattered is unknowable here.
                 _LOGGER.debug(
-                    "Replay window overflowed; crash context older than %d lines was dropped",
+                    "Replay window held only the last %d lines; older context was not delivered",
                     _REPLAY_LINES,
                 )
             for buffered in pending:

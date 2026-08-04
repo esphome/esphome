@@ -102,6 +102,27 @@ def test_markers_reach_the_decoder_before_addresses(platform: str) -> None:
     assert [call.args[1] for call in handler.call_args_list] == markers + addresses
 
 
+@pytest.mark.parametrize("platform", sorted(CRASH_SAMPLES))
+def test_address_samples_match_the_platform_decoder(platform: str) -> None:
+    """Samples stay mechanically linked to the decoder regexes.
+
+    A decoder edit that leaves a sample unmatched fails here instead of
+    quietly widening the gap between the gate and the decoders.
+    """
+    import importlib
+    import re
+
+    module = importlib.import_module(f"esphome.components.{platform}")
+    patterns = [v for v in vars(module).values() if isinstance(v, re.Pattern)]
+    if not patterns:
+        pytest.skip(f"{platform} keeps its decoder patterns function-local")
+    for line in CRASH_SAMPLES[platform]["addresses"]:
+        assert any(p.search(line) for p in patterns), (
+            f"{line!r} no longer matches any {platform} decoder pattern; "
+            "update CRASH_SAMPLES and re-derive the gate"
+        )
+
+
 @pytest.mark.parametrize("line", BENIGN_LINES)
 def test_address_gate_ignores_ordinary_lines(line: str) -> None:
     assert not stacktrace._ADDRESS_RE.search(line)
@@ -256,7 +277,7 @@ def test_replay_overflow_is_diagnosable(
             processor.process_line(f"quiet line {n}")
         processor.process_line("PC: 0x4010496e")
 
-    assert ("Replay window overflowed" in caplog.text) is expect_notice
+    assert ("Replay window held only" in caplog.text) is expect_notice
 
 
 def test_processor_resolves_lazily_on_address_token() -> None:
