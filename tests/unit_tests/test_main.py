@@ -9,7 +9,6 @@ import logging
 import os
 from pathlib import Path
 import re
-import subprocess
 import sys
 import time
 from typing import Any, Self
@@ -3253,28 +3252,6 @@ def test_mqtt_reexports_discover_ip() -> None:
     from esphome.const import CONF_DISCOVER_IP
 
     assert mqtt.CONF_DISCOVER_IP is CONF_DISCOVER_IP
-
-
-def test_has_mqtt_ip_lookup_does_not_import_mqtt() -> None:
-    """The point of moving the constant: the fast path stays light.
-
-    Runs in a subprocess because this session's other tests import the
-    mqtt component; the fast path itself must not.
-    """
-    check = (
-        "import sys; from esphome.__main__ import has_mqtt_ip_lookup; "
-        "from esphome.core import CORE; from esphome.const import CONF_MQTT; "
-        "CORE.config = {CONF_MQTT: {}}; "
-        "assert has_mqtt_ip_lookup() is True; "
-        "assert 'esphome.components.mqtt' not in sys.modules"
-    )
-    result = subprocess.run(
-        [sys.executable, "-c", check],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0, result.stderr
 
 
 def test_has_mqtt_ip_lookup() -> None:

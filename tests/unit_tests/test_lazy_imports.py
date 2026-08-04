@@ -136,3 +136,34 @@ def test_espidf_toolchain_does_not_import_heavy_modules() -> None:
         "The upload fast path skips validation; importing the validation "
         "stack anyway defeats the validated-config cache."
     )
+
+
+def test_has_mqtt_ip_lookup_does_not_import_mqtt() -> None:
+    """``has_mqtt_ip_lookup`` runs on the upload/logs fast path for mqtt
+    configs; reading ``CONF_DISCOVER_IP`` must not drag in the mqtt
+    component and, with it, the validation stack.
+
+    Runs in a subprocess because this session's other tests import the
+    mqtt component; the fast path itself must not.
+    """
+    check = (
+        "import sys; from esphome.__main__ import has_mqtt_ip_lookup; "
+        "from esphome.core import CORE; from esphome.const import CONF_MQTT; "
+        "CORE.config = {CONF_MQTT: {}}; "
+        "assert has_mqtt_ip_lookup() is True, 'mqtt IP lookup default broke'; "
+        f"leaked = [m for m in {HEAVY_MODULES!r} if m in sys.modules]; "
+        "leaked += [m for m in sys.modules if m.startswith('esphome.components.')]; "
+        "print(','.join(leaked))"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", check],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    leaked = result.stdout.strip()
+    assert not leaked, (
+        f"has_mqtt_ip_lookup pulls in heavy modules: {leaked}. "
+        "The upload/logs fast path skips validation; importing the "
+        "validation stack anyway defeats the validated-config cache."
+    )
