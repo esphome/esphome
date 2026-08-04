@@ -22,7 +22,7 @@ template<typename... Ts> class ClientActionBase : public Action<Ts...>, public m
   TEMPLATABLE_VALUE(uint8_t, target_address)  // device address 1-247, or 0 to broadcast (no reply)
 
   Trigger<std::span<const uint8_t>> *get_sent_trigger() { return &this->sent_trigger_; }
-  Trigger<std::span<const uint8_t>, modbus::ModbusExceptionCode> *get_error_trigger() { return &this->error_trigger_; }
+  Trigger<std::span<const uint8_t>, modbus::ExceptionCode> *get_error_trigger() { return &this->error_trigger_; }
   Trigger<std::span<const uint8_t>> *get_no_response_trigger() { return &this->no_response_trigger_; }
   Trigger<std::span<const uint8_t>> *get_not_sent_trigger() { return &this->not_sent_trigger_; }
 
@@ -55,7 +55,7 @@ template<typename... Ts> class ClientActionBase : public Action<Ts...>, public m
 
  protected:
   Trigger<std::span<const uint8_t>> sent_trigger_;
-  Trigger<std::span<const uint8_t>, modbus::ModbusExceptionCode> error_trigger_;
+  Trigger<std::span<const uint8_t>, modbus::ExceptionCode> error_trigger_;
   Trigger<std::span<const uint8_t>> no_response_trigger_;
   Trigger<std::span<const uint8_t>> not_sent_trigger_;
   optional<retry_func_t> retry_func_{nullopt};
@@ -83,7 +83,7 @@ template<typename... Ts> class ModbusClientSendAction : public ClientActionBase<
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {
     this->response_trigger_.trigger(request_pdu, response_pdu);
   }
-  void on_error(std::span<const uint8_t> request_pdu, modbus::ModbusExceptionCode exception_code) override {
+  void on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) override {
     this->error_trigger_.trigger(request_pdu, exception_code);
   }
 

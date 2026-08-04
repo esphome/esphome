@@ -20,7 +20,7 @@ ModbusClientSendAction = modbus_client_ns.class_(
 )
 
 # The exception code passed to on_error handlers.
-ModbusExceptionCode = modbus.modbus_ns.enum("ModbusExceptionCode")
+ExceptionCode = modbus.modbus_ns.enum("ExceptionCode")
 
 # Lambda argument types for the reply handlers: the device address the send targeted, and the
 # request/response PDUs (function code + data). The spans are only valid for the duration of the handler.
@@ -89,7 +89,7 @@ async def register_client_action(var, config, args, response_args):
     if error_conf := config.get(CONF_ON_ERROR):
         await automation.build_automation(
             var.get_error_trigger(),
-            [(_PDU_SPAN, "request"), (ModbusExceptionCode, "exception_code")],
+            [(_PDU_SPAN, "request"), (ExceptionCode, "exception_code")],
             error_conf,
         )
     if (no_response_conf := config.get(CONF_ON_NO_RESPONSE)) is not None:
