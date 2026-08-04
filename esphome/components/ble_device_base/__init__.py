@@ -18,6 +18,7 @@ ble_aes_ccm.h.
 """
 
 from collections.abc import Callable, Coroutine
+from dataclasses import dataclass, field
 import re
 
 import esphome.codegen as cg
@@ -28,13 +29,29 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bl00d-B0b"]
+DOMAIN = "ble_device_base"
 
 CONF_BLE_HUB_ID = "ble_hub_id"
 
-# CORE.data key: number of parsed-advertisement listeners registered in this
+# slot_counts key: number of parsed-advertisement listeners registered in this
 # build. Trackers whose codegen sizes storage at compile time (esp32's
 # StaticVector count define) read it in their final coroutine.
 KEY_BLE_LISTENER_COUNT = "ble_device_base_listener_count"
+
+
+@dataclass
+class BLEDeviceBaseData:
+    # Slot counts for every slot_counter() instance, keyed by the counter's
+    # key; kept here so the factory's state lives under this component's
+    # domain in CORE.data.
+    slot_counts: dict[str, int] = field(default_factory=dict)
+
+
+def _get_data() -> BLEDeviceBaseData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = BLEDeviceBaseData()
+    return CORE.data[DOMAIN]
+
 
 ble_device_base_ns = cg.esphome_ns.namespace("ble_device_base")
 
@@ -67,7 +84,7 @@ def request_irk_support() -> None:
 
 def get_listener_count() -> int:
     """Number of parsed listeners registered so far (for tracker codegen)."""
-    return CORE.data.get(KEY_BLE_LISTENER_COUNT, 0)
+    return _get_data().slot_counts.get(KEY_BLE_LISTENER_COUNT, 0)
 
 
 def slot_counter(
@@ -82,15 +99,17 @@ def slot_counter(
     requested count. A zero count emits nothing, so the guarded storage and
     its registration method compile out entirely.
 
-    The count lives in CORE.data under `key`, which clears between runs.
+    The count lives under `key` in this component's CORE.data entry, which
+    clears between runs.
     """
 
     def request_slot() -> None:
-        CORE.data[key] = CORE.data.get(key, 0) + 1
+        counts = _get_data().slot_counts
+        counts[key] = counts.get(key, 0) + 1
 
     @coroutine_with_priority(CoroPriority.FINAL)
     async def emit_job() -> None:
-        if count := CORE.data.get(key, 0):
+        if count := _get_data().slot_counts.get(key):
             cg.add_define(define, count)
 
     return request_slot, emit_job
