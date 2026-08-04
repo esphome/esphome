@@ -318,12 +318,12 @@ def test_decoder_bug_with_empty_message_names_the_type(caplog) -> None:
     assert not any("build artifacts not found locally" in m for m in warnings)
 
 
-def test_external_platform_notice_defers_to_first_crash_line(caplog) -> None:
-    """External platforms lose the session-start notice by design.
+def test_external_platform_resolves_at_construction(caplog) -> None:
+    """External platforms resolve eagerly, like before the registry.
 
-    may_provide_hook cannot answer for a platform outside Platform
-    without importing it, so nothing resolves at construction and the
-    unavailable notice appears on the first crash-shaped line instead.
+    The address gate's grammar derives from the in-tree decoders, so it
+    cannot speak for an external decoder; resolving up front keeps the
+    import off the event loop and the notice at session start.
     """
     caplog.set_level("INFO", logger="esphome.platform_hooks")
     module = type("ExternalPlatform", (), {})  # no process_stacktrace
@@ -334,14 +334,12 @@ def test_external_platform_notice_defers_to_first_crash_line(caplog) -> None:
         Mock(return_value=module),
     ) as mock_import:
         processor = stacktrace.LogLineProcessor(CONFIG, "my_external_chip")
-        # Construction cannot answer without importing, so it does neither.
-        mock_import.assert_not_called()
-        assert "Stacktrace analysis is unavailable" not in caplog.text
+        mock_import.assert_called_once()
+        assert "Stacktrace analysis is unavailable" in caplog.text
 
         processor.process_line("PC: 0x40104960")
 
     mock_import.assert_called_once()
-    assert "Stacktrace analysis is unavailable" in caplog.text
     assert processor.backtrace_state is False
 
 

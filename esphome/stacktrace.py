@@ -40,6 +40,7 @@ _ADDRESS_RE = re.compile(
     r"0x[0-9a-fA-F]{3,}\b"
     r"|\b(?=[0-9A-Fa-f]*[A-Fa-f])[0-9a-fA-F]{8}\b"
     r"|\b(?:PC|RA|LR|MEPC|MTVAL|EXCVADDR|BT\d+|epc\d|excvaddr|call)\s*[:=]\s*4[0-9a-fA-F]{7}\b"
+    r"|\b(?:PC|LR)=0x[0-9a-fA-F]+\b"
 )
 
 # Lines kept for replay once decoding starts. Crash markers without an
@@ -80,12 +81,14 @@ class LogLineProcessor:
         self._recent: deque[str] = deque(maxlen=_REPLAY_LINES)
         self._evicted = False
         self.backtrace_state = False
-        # The registry can prove in-tree platforms without an analyzer
-        # need no import; resolve those now so their unavailable notice
-        # fires at session start and the per-line gate never runs.
-        # External platforms cannot be answered without importing, so
-        # their notice defers to the first crash-shaped line.
-        if not platform_hooks.may_provide_hook(platform, "process_stacktrace"):
+        # Only in-tree platforms with an analyzer defer the import behind
+        # the address gate. Everything else resolves now: registry-proven
+        # misses so their unavailable notice fires at session start
+        # without importing, and external platforms because the gate's
+        # grammar derives from the in-tree decoders and their import
+        # cannot be avoided anyway - resolving up front keeps it off the
+        # event loop and preserves the pre-registry behavior exactly.
+        if platform not in platform_hooks.PLATFORM_HOOKS["process_stacktrace"]:
             self._resolve_handler()
 
     def process_line(self, raw_line: str) -> None:
@@ -142,17 +145,21 @@ class LogLineProcessor:
         except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-except
             self._decode_enabled = False
             self.backtrace_state = False
-            # _run_idedata raises EsphomeError with no message; give that
-            # case its friendly remediation hint. Any other zero-message
-            # exception is a decoder bug and gets its type name instead,
-            # so the user is not sent to recompile for nothing.
-            if isinstance(exc, EsphomeError):
-                detail = str(exc) or "build artifacts not found locally"
-            else:
-                detail = str(exc) or type(exc).__name__
             _LOGGER.debug("Stack-trace decoding failed", exc_info=True)
-            _LOGGER.warning(
-                "Crash trace decoding unavailable: %s. "
-                "Run 'esphome compile' for this device to enable PC decoding.",
-                detail,
-            )
+            if isinstance(exc, EsphomeError):
+                # _run_idedata raises EsphomeError with no message; give
+                # that case its friendly remediation hint.
+                _LOGGER.warning(
+                    "Crash trace decoding unavailable: %s. "
+                    "Run 'esphome compile' for this device to enable PC decoding.",
+                    str(exc) or "build artifacts not found locally",
+                )
+            else:
+                # A decoder bug is ESPHome's problem, not the user's;
+                # don't send them to recompile a healthy build.
+                _LOGGER.warning(
+                    'Crash trace decoding disabled: decoder for "%s" raised %s '
+                    "(this is a bug; run with -v for the traceback)",
+                    self._platform,
+                    str(exc) or type(exc).__name__,
+                )
