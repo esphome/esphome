@@ -80,6 +80,7 @@ class RP2BLETracker : public Component,
 
  protected:
   void start_scan_();
+  bool controller_scan_start_();
   void stop_scan_();
   void fire_scan_end_();
 

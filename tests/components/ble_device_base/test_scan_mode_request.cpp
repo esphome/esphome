@@ -36,6 +36,13 @@ class SwitchingHub : public DefaultHub {
   }
 };
 
+// The esp32 shape: the controller supports active scanning but the hub keeps
+// the refusing default (mode is driven through its own tracker API).
+class CapableRefusingHub : public DefaultHub {
+ public:
+  HubCapabilities get_capabilities() const override { return {true, false, false}; }
+};
+
 }  // namespace
 
 TEST(BLEHubScanModeRequest, DefaultRefusesAndChangesNothing) {
@@ -54,6 +61,13 @@ TEST(BLEHubScanModeRequest, OverrideHonorsAndApplies) {
   EXPECT_TRUE(hub.scan_active());
   EXPECT_TRUE(hub.request_scan_mode(false));
   EXPECT_FALSE(hub.scan_active());
+}
+
+TEST(BLEHubScanModeRequest, CapabilityAndSwitchAreIndependent) {
+  CapableRefusingHub hub;
+  EXPECT_TRUE(hub.get_capabilities().active_scan);
+  EXPECT_FALSE(hub.request_scan_mode(false));
+  EXPECT_TRUE(hub.scan_active());
 }
 
 }  // namespace esphome::ble_device_base::testing
