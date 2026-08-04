@@ -113,10 +113,28 @@ std::shared_ptr<esphome::camera::CameraImage> CameraWebServer::wait_for_image_()
   std::shared_ptr<esphome::camera::CameraImage> image;
   image.swap(this->image_);
 
-  if (!image) {
-    // retry as we might still be fetching image
-    xSemaphoreTake(this->semaphore_, IMAGE_REQUEST_TIMEOUT / portTICK_PERIOD_MS);
+  if (image)
+    return image;
+
+  // Keep waiting until a frame really shows up, rather than trusting a single
+  // take() to mean one is there.
+  //
+  // on_camera_image() gives the semaphore for every frame it accepts, but the
+  // swap above hands frames out without taking it, so as soon as the camera is
+  // faster than this task for one frame the (binary) semaphore is left
+  // signalled by a frame that has already been consumed. The next take() then
+  // returns immediately with nothing to swap in, and the caller reports a lost
+  // frame and closes the stream -- after an arbitrary number of good frames,
+  // which is exactly when the camera happens to fall behind for one iteration.
+  const uint32_t start = millis();
+  for (;;) {
+    uint32_t elapsed = millis() - start;
+    if (elapsed >= (uint32_t) IMAGE_REQUEST_TIMEOUT)
+      break;
+    xSemaphoreTake(this->semaphore_, pdMS_TO_TICKS((uint32_t) IMAGE_REQUEST_TIMEOUT - elapsed));
     image.swap(this->image_);
+    if (image)
+      break;
   }
 
   return image;
