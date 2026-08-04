@@ -339,30 +339,37 @@ void LN882HBLE::loop() {
   uint16_t dropped = this->report_queue_.get_and_reset_dropped_count();
   if (dropped > 0)
     ESP_LOGW(TAG, "Dropped %u scan reports (queue full or out of memory for a report slot)", dropped);
-  uint16_t rejected = this->rejected_reports_.exchange(0, std::memory_order_relaxed);
-  if (rejected > 0) {
-    if (!this->delivered_any_ && !this->reject_warned_) {
-      // Dead-scanner signature: everything rejected, nothing ever delivered.
-      // Surface once at default log level; steady-state rejects stay VERBOSE.
-      this->reject_warned_ = true;
-      ESP_LOGW(TAG, "Rejected %u scan reports before any was delivered - unexpected report encoding?", rejected);
-    }
-    ESP_LOGV(TAG, "Rejected %u non-legacy or incomplete scan reports", rejected);
-  }
-
   // Drain the lock-free ring filled by the rw task; all per-report work runs
   // here on the main task, then the report returns to the pool.
   BLEScanReport *report = this->report_queue_.pop();
-  if (report == nullptr)
-    return;
-  this->delivered_any_ = true;
-  do {
+  if (report != nullptr) {
+    this->delivered_any_ = true;
+    do {
 #ifdef LN882H_BLE_SCAN_LISTENER_COUNT
-    for (auto *listener : this->scan_listeners_)
-      listener->on_scan_report(*report);
+      for (auto *listener : this->scan_listeners_)
+        listener->on_scan_report(*report);
 #endif
-    this->report_pool_.release(report);
-  } while ((report = this->report_queue_.pop()) != nullptr);
+      this->report_pool_.release(report);
+    } while ((report = this->report_queue_.pop()) != nullptr);
+  }
+
+  // Rejected-report accounting AFTER the drain: a stray non-legacy frame
+  // arriving ahead of the first good one must not latch the dead-scanner
+  // warning; the threshold keeps one-off boot noise below it while a truly
+  // dead scanner (~200 reports/s all rejected) crosses it within a second.
+  uint16_t rejected = this->rejected_reports_.exchange(0, std::memory_order_relaxed);
+  if (rejected > 0) {
+    if (!this->delivered_any_ && !this->reject_warned_) {
+      this->rejected_before_delivery_ =
+          static_cast<uint16_t>(std::min<uint32_t>(this->rejected_before_delivery_ + rejected, 0xFFFF));
+      if (this->rejected_before_delivery_ >= REJECTED_DEAD_SCANNER_THRESHOLD) {
+        this->reject_warned_ = true;
+        ESP_LOGW(TAG, "Rejected %u scan reports before any was delivered - unexpected report encoding?",
+                 this->rejected_before_delivery_);
+      }
+    }
+    ESP_LOGV(TAG, "Rejected %u non-legacy or incomplete scan reports", rejected);
+  }
 }
 
 void LN882HBLE::get_mac_lsb_first(uint8_t out[6]) const { memcpy(out, this->ble_mac_, sizeof(this->ble_mac_)); }

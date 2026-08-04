@@ -9,6 +9,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/lock_free_queue.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cstdint>
 
@@ -61,6 +62,10 @@ class BLEScanListener {
 // usable slots absorb it with margin. ~4.7 KB at high water, reached only
 // during such stalls.
 static constexpr uint8_t MAX_SCAN_REPORT_QUEUE_SIZE = 64;
+
+// Rejected frames tolerated before the first delivered report without
+// declaring the scanner dead (boot-time stray extended frames are normal).
+static constexpr uint16_t REJECTED_DEAD_SCANNER_THRESHOLD = 16;
 
 class LN882HBLE final : public Component {
  public:
@@ -137,9 +142,10 @@ class LN882HBLE final : public Component {
   uint8_t ble_mac_[6]{0};  // controller (LSB-first) order, as ln_bd_addr_t stores it
   BLEComponentState state_{BLEComponentState::STATE_OFF};
   bool enable_on_boot_{false};
-  bool scanning_{false};       // controller scan running (re-entry guard for scan_start)
-  bool delivered_any_{false};  // any report reached loop() (dead-scanner diagnosis)
-  bool reject_warned_{false};  // one-shot guard for the all-rejected warning
+  bool scanning_{false};                  // controller scan running (re-entry guard for scan_start)
+  bool delivered_any_{false};             // any report reached loop() (dead-scanner diagnosis)
+  uint16_t rejected_before_delivery_{0};  // saturating; drives the dead-scanner warning
+  bool reject_warned_{false};             // one-shot guard for the all-rejected warning
 };
 
 }  // namespace esphome::ln882h_ble
