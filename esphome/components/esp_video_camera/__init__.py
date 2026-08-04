@@ -36,26 +36,88 @@ ESPVideoCamera = esp_video_camera_ns.class_(
 
 CONF_JPEG_QUALITY = "jpeg_quality"
 CONF_MAX_FRAMERATE = "max_framerate"
+CONF_SENSOR_MODEL = "sensor_model"
 CONF_XCLK_PIN = "xclk_pin"
 CONF_XCLK_FREQUENCY = "xclk_frequency"
 CONF_ENABLE_XCLK = "enable_xclk"
 CONF_ENABLE_UVC = "enable_uvc"
 
-_RESOLUTION_ALIASES = ("QVGA", "VGA", "480P", "720P", "1080P")
+# MIPI-CSI sensor drivers compiled in for auto-detection, and the output
+# formats each one actually ships in esp_cam_sensor 2.3.0.
+#
+# A MIPI sensor's resolution is not negotiable at runtime: esp_video's
+# common_video_set_format() rejects any VIDIOC_S_FMT whose width/height differ
+# from the sensor's active format, and VIDIOC_ENUM_FRAMESIZES only ever reports
+# that one size. The active format is picked when the firmware is built, from
+# CONFIG_CAMERA_<SENSOR>_MIPI_IF_FORMAT_INDEX_DEFAULT -- itself derived from the
+# CAMERA_<SENSOR>_MIPI_DEFAULT_FMT_* choice. So `resolution:` has to be resolved
+# here, at build time, and validated against what the sensor can really do.
+#
+# Where a sensor offers the same size in several variants, the entry below is
+# the lowest-bandwidth one (RAW8 over RAW10, 2-lane over 1-lane). Anything else
+# is still reachable through esp32 -> framework -> sdkconfig_options.
+_SENSOR_FORMATS = {
+    "sc202cs": {
+        (1280, 720): "RAW8_1280X720_30FPS",
+        (1600, 900): "RAW10_1600X900_30FPS",
+        (1600, 1200): "RAW8_1600X1200_30FPS",
+    },
+    "ov5647": {
+        (800, 640): "RAW8_800X640_50FPS",
+        (800, 800): "RAW8_800X800_50FPS",
+        (800, 1280): "RAW8_800X1280_50FPS",
+        (1280, 960): "RAW10_1280X960_BINNING_45FPS",
+        (1920, 1080): "RAW10_1920X1080_30FPS",
+    },
+    "sc2336": {
+        (640, 480): "RAW10_640X480_50FPS",
+        (800, 800): "RAW8_800X800_30FPS",
+        (1024, 600): "RAW8_1024X600_30FPS",
+        (1280, 720): "RAW8_1280X720_30FPS",
+        (1920, 1080): "RAW8_1920X1080_30FPS",
+    },
+}
+
+# The SC2356 module (M5Stack Tab5, reTerminal) is SC202CS silicon behind a
+# different part number, and is driven by the SC202CS driver.
+_SENSOR_ALIASES = {"sc2356": "sc202cs"}
+
+# Convenience names. They are only accepted when the chosen sensor actually has
+# that size -- none of these sensors does QVGA, for instance.
+_RESOLUTION_ALIASES = {
+    "QVGA": (320, 240),
+    "VGA": (640, 480),
+    "480P": (640, 480),
+    "720P": (1280, 720),
+    "1080P": (1920, 1080),
+}
+
+
+def _validate_sensor_model(value):
+    value = cv.string(value).lower()
+    value = _SENSOR_ALIASES.get(value, value)
+    if value not in _SENSOR_FORMATS:
+        raise cv.Invalid(
+            f"sensor_model '{value}' is not one of the MIPI-CSI sensors this component "
+            f"compiles in: {', '.join(sorted(_SENSOR_FORMATS))} "
+            f"(aliases: {', '.join(sorted(_SENSOR_ALIASES))})."
+        )
+    return value
 
 
 def _validate_resolution(value):
+    """Normalise to 'auto' or 'WIDTHxHEIGHT'; the C++ side parses nothing else."""
     value = cv.string(value)
     if value.lower() == "auto":
         return "auto"
-    if value.upper() in _RESOLUTION_ALIASES:
-        return value.upper()
+    if (size := _RESOLUTION_ALIASES.get(value.upper())) is not None:
+        return f"{size[0]}x{size[1]}"
     parts = value.lower().split("x")
     if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
         return f"{int(parts[0])}x{int(parts[1])}"
     raise cv.Invalid(
         f"resolution '{value}' is invalid. Use 'auto', an alias "
-        "(QVGA/VGA/480P/720P/1080P) or 'WIDTHxHEIGHT' (e.g. '1280x720')."
+        f"({'/'.join(_RESOLUTION_ALIASES)}) or 'WIDTHxHEIGHT' (e.g. '1280x720')."
     )
 
 
@@ -95,6 +157,46 @@ def _validate_uvc_device(config):
     return config
 
 
+def _sensor_format_symbol(config):
+    """The sensor output format `resolution:` maps to, or None for 'auto'.
+
+    Only meaningful for MIPI-CSI sources. A USB-UVC camera carries a real format
+    list and is resized at runtime through VIDIOC_S_FMT, so it needs nothing
+    here.
+    """
+    resolution = config[CONF_RESOLUTION]
+    if resolution == "auto" or config[CONF_DEVICE].startswith("uvc"):
+        return None
+    width, height = (int(part) for part in resolution.split("x"))
+    return _SENSOR_FORMATS[config[CONF_SENSOR_MODEL]][width, height]
+
+
+def _validate_resolution_for_sensor(config):
+    resolution = config[CONF_RESOLUTION]
+    if resolution == "auto" or config[CONF_DEVICE].startswith("uvc"):
+        return config
+
+    if (model := config.get(CONF_SENSOR_MODEL)) is None:
+        raise cv.Invalid(
+            "resolution: needs sensor_model: to go with it. A MIPI-CSI sensor's "
+            "resolution is fixed when the firmware is built, so the sensor has to be "
+            "named for the right format to be compiled in. Use resolution: auto to "
+            "take whatever the detected sensor comes up in.",
+            path=[CONF_RESOLUTION],
+        )
+
+    width, height = (int(part) for part in resolution.split("x"))
+    formats = _SENSOR_FORMATS[model]
+    if (width, height) not in formats:
+        supported = ", ".join(f"{w}x{h}" for w, h in sorted(formats))
+        raise cv.Invalid(
+            f"the {model} does not have a {width}x{height} output format. "
+            f"It supports: {supported}.",
+            path=[CONF_RESOLUTION],
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -102,6 +204,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_I2C_ID): cv.use_id(i2c.InternalI2CBus),
             cv.Optional(CONF_DEVICE, default="jpeg"): _validate_device,
             cv.Optional(CONF_RESOLUTION, default="auto"): _validate_resolution,
+            cv.Optional(CONF_SENSOR_MODEL): _validate_sensor_model,
             # V4L2_CID_JPEG_COMPRESSION_QUALITY semantics: 1..100, higher is
             # better. esp_video's hardware encoder defaults to 80.
             cv.Optional(CONF_JPEG_QUALITY, default=80): cv.int_range(min=1, max=100),
@@ -122,6 +225,7 @@ CONFIG_SCHEMA = cv.All(
     # and esp_video 2.3.0 requires ESP-IDF 5.4 or newer. Reject both at
     # validation time rather than at code generation.
     _validate_uvc_device,
+    _validate_resolution_for_sensor,
     only_on_variant(supported=[VARIANT_ESP32P4], msg_prefix="esp_video_camera"),
     cv.require_framework_version(
         esp_idf=cv.Version(5, 4, 0),
@@ -196,11 +300,23 @@ async def to_code(config):
 
     # Auto-detect the MIPI-CSI sensors shipped with espressif/esp_cam_sensor over
     # the shared I2C bus. Kconfig keys verified against esp_cam_sensor 2.3.0.
-    for sensor in ("SC202CS", "OV5647", "SC2336"):
-        add_idf_sdkconfig_option(f"CONFIG_CAMERA_{sensor}", True)
+    # Every driver is compiled in whatever `sensor_model:` says, so a board that
+    # turns out to carry a different sensor still comes up.
+    for sensor in _SENSOR_FORMATS:
+        add_idf_sdkconfig_option(f"CONFIG_CAMERA_{sensor.upper()}", True)
         add_idf_sdkconfig_option(
-            f"CONFIG_CAMERA_{sensor}_AUTO_DETECT_MIPI_INTERFACE_SENSOR", True
+            f"CONFIG_CAMERA_{sensor.upper()}_AUTO_DETECT_MIPI_INTERFACE_SENSOR", True
         )
+
+    # Resolution. The sensor comes up in the format named by
+    # CONFIG_CAMERA_<SENSOR>_MIPI_IF_FORMAT_INDEX_DEFAULT, which Kconfig derives
+    # from the CAMERA_<SENSOR>_MIPI_DEFAULT_FMT_* choice; a format can only be
+    # chosen as the default once its own CAMERA_<SENSOR>_MIPI_* symbol has put it
+    # in the driver's format table. Set both.
+    if (fmt := _sensor_format_symbol(config)) is not None:
+        sensor = config[CONF_SENSOR_MODEL].upper()
+        add_idf_sdkconfig_option(f"CONFIG_CAMERA_{sensor}_MIPI_{fmt}", True)
+        add_idf_sdkconfig_option(f"CONFIG_CAMERA_{sensor}_MIPI_DEFAULT_FMT_{fmt}", True)
 
     # SC202CS colour tuning. The SC2356 module is the same SC202CS silicon
     # (PID 0xeb52 @ SCCB 0x36) but ships an IPA JSON with noticeably better

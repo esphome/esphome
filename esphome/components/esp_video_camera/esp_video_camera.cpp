@@ -154,29 +154,14 @@ esp_err_t init_xclk_ledc(gpio_num_t gpio_num, uint32_t freq_hz) {
   return ledc_channel_config(&ch_conf);
 }
 
-// Parse a resolution string into width/height. Accepts the aliases validated by
-// the Python schema or an explicit "WIDTHxHEIGHT". Returns false for "auto".
+// Parse a resolution string into width/height. The Python schema normalises
+// every accepted spelling (including the QVGA/VGA/720P/... aliases) to
+// "WIDTHxHEIGHT", so that is the only form handled here. Returns false for
+// "auto".
 bool parse_resolution(const std::string &res, uint32_t &width, uint32_t &height) {
   if (res.empty() || res == "auto")
     return false;
 
-  struct ResAlias {
-    const char *name;
-    uint32_t width;
-    uint32_t height;
-  };
-  static constexpr ResAlias ALIASES[] = {
-      {"QVGA", 320, 240}, {"VGA", 640, 480}, {"480P", 640, 480}, {"720P", 1280, 720}, {"1080P", 1920, 1080},
-  };
-  for (const auto &alias : ALIASES) {
-    if (res == alias.name) {
-      width = alias.width;
-      height = alias.height;
-      return true;
-    }
-  }
-
-  // Parse "WIDTHxHEIGHT" (already validated as digits by the Python schema).
   size_t x_pos = res.find('x');
   if (x_pos == std::string::npos || x_pos == 0 || x_pos + 1 >= res.size())
     return false;
@@ -725,13 +710,23 @@ bool ESPVideoCamera::configure_capture_format_(uint32_t pixelformat) {
   uint32_t width = 0, height = 0;
   bool force_res = parse_resolution(this->resolution_, width, height);
 
+  // A MIPI-CSI sensor cannot be resized through V4L2. esp_video's
+  // common_video_set_format() rejects any width/height that differs from the
+  // sensor's active format, and VIDIOC_ENUM_FRAMESIZES only ever reports that
+  // single size, so the only effect of asking would be an EINVAL on every
+  // start. The sensor's format is chosen when the firmware is built, from
+  // CONFIG_CAMERA_<SENSOR>_MIPI_IF_FORMAT_INDEX_DEFAULT -- which is what
+  // `resolution:` drives (see __init__.py). USB-UVC devices are the opposite:
+  // they carry a real format list and honour a requested size at runtime.
+  const bool device_can_resize = this->resolved_device_ != ESP_VIDEO_MIPI_CSI_DEVICE_NAME;
+
   struct v4l2_format fmt;
   memset(&fmt, 0, sizeof(fmt));
   fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   ioctl(this->capture_fd_, VIDIOC_G_FMT, &fmt);  // best-effort starting point
   fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   fmt.fmt.pix.pixelformat = pixelformat;
-  if (force_res) {
+  if (force_res && device_can_resize) {
     fmt.fmt.pix.width = width;
     fmt.fmt.pix.height = height;
   }
@@ -772,12 +767,21 @@ bool ESPVideoCamera::configure_capture_format_(uint32_t pixelformat) {
     return false;
   }
 
-  // A resolution the sensor cannot do is not fatal — the pipeline runs at the
+  // A resolution the device cannot do is not fatal — the pipeline runs at the
   // negotiated size — but it is never what the user asked for, so say so.
   if (force_res && (this->capture_width_ != width || this->capture_height_ != height)) {
-    ESP_LOGW(TAG, "Requested resolution %ux%u is not supported by '%s'; streaming %ux%u instead", (unsigned) width,
-             (unsigned) height, this->resolved_device_.c_str(), (unsigned) this->capture_width_,
-             (unsigned) this->capture_height_);
+    if (device_can_resize) {
+      ESP_LOGW(TAG, "Requested resolution %ux%u is not supported by '%s'; streaming %ux%u instead", (unsigned) width,
+               (unsigned) height, this->resolved_device_.c_str(), (unsigned) this->capture_width_,
+               (unsigned) this->capture_height_);
+    } else {
+      // The build asked the sensor driver for `resolution:` but a different
+      // sensor answered on the bus, so it came up in its own default format.
+      ESP_LOGW(TAG,
+               "The sensor is streaming %ux%u, not the configured %ux%u. A MIPI sensor's resolution is fixed when "
+               "the firmware is built, so this means the detected sensor is not the one named in 'sensor_model'.",
+               (unsigned) this->capture_width_, (unsigned) this->capture_height_, (unsigned) width, (unsigned) height);
+    }
   }
   return true;
 }
