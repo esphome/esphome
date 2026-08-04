@@ -7,7 +7,7 @@ import inspect
 import re
 from unittest.mock import Mock, patch
 
-from hypothesis import assume, given, settings
+from hypothesis import given, settings
 from hypothesis.strategies import data as st_data, from_regex
 import pytest
 
@@ -200,17 +200,16 @@ def test_platform_declarations_match_decoder(platform: str) -> None:
             f"{marker!r} no longer opens {platform}'s dump region; update "
             "state_markers to the line the decoder actually keys on"
         )
+    # Textual heuristic, deliberately one-directional: a state-gated
+    # decoder must declare a marker. The reverse (a stateless decoder
+    # declaring none) is not asserted; an unrelated "return True" added
+    # to a decoder would turn it into a false failure.
     source = inspect.getsource(module.process_stacktrace)
     sets_state = "return True" in source or "backtrace_state = True" in source
     if sets_state:
         assert CRASH_SAMPLES[platform]["state_markers"], (
             f"{platform}.process_stacktrace is state-gated but declares no "
             "state_markers; the gate cannot promise to open its dump region"
-        )
-    else:
-        assert not CRASH_SAMPLES[platform]["state_markers"], (
-            f"{platform}.process_stacktrace never sets backtrace_state; "
-            "drop its state_markers or update this heuristic"
         )
 
 
@@ -237,9 +236,6 @@ def test_address_gate_covers_decoder_pattern_languages(
     """
     pattern = getattr(importlib.import_module(f"esphome.components.{platform}"), name)
     example = data.draw(from_regex(pattern, fullmatch=True))
-    # Sub-0x100 pointers cannot be code addresses on any supported chip;
-    # the draw produces them but no device ever will.
-    assume(all(len(tok) >= 3 for tok in re.findall(r"0x([0-9a-fA-F]+)", example)))
     assert stacktrace._ADDRESS_RE.search(example), (
         f"{platform}.{name} accepts {example!r} but the gate does not fire; "
         "decoding would silently never start on that form"

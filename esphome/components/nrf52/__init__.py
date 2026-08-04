@@ -724,7 +724,12 @@ def _addr2line(addr2line: str, elf: Path, addr: str) -> str:
 
 # Module-level so tests can pin the samples that gate lazy decoding
 # (tests/unit_tests/test_stacktrace.py) against the real pattern.
-STACKTRACE_NRF52_PC_LR_RE = re.compile(r"PC=(0x[0-9a-fA-F]+)\s+LR=(0x[0-9a-fA-F]+)")
+# Bounded to 3+ hex digits to agree with the log gate in
+# esphome/stacktrace.py by construction; an address below 0x100 sits in
+# the vector table, not executable code.
+STACKTRACE_NRF52_PC_LR_RE = re.compile(
+    r"PC=(0x[0-9a-fA-F]{3,})\s+LR=(0x[0-9a-fA-F]{3,})"
+)
 
 
 def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> bool:

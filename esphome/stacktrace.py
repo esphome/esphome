@@ -10,11 +10,17 @@ from __future__ import annotations
 import logging
 import re
 import time
-from typing import Any
+from typing import TYPE_CHECKING
 
 from esphome import platform_hooks
 from esphome.core import EsphomeError
 from esphome.types import ConfigType
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    # The contract every platform's process_stacktrace implements.
+    StacktraceHandler = Callable[[ConfigType, str, bool], bool]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -85,7 +91,7 @@ class LogLineProcessor:
     def __init__(self, config: ConfigType, platform: str) -> None:
         self._config = config
         self._platform = platform
-        self._platform_handler: Any | None = None
+        self._platform_handler: StacktraceHandler | None = None
         self._decode_enabled = True
         self._disabled_at: float | None = None
         self._last_failure: str | None = None
@@ -109,14 +115,16 @@ class LogLineProcessor:
     def _resolve_handler(self) -> bool:
         try:
             handler = platform_hooks.get_stacktrace_handler(self._platform)
-        except Exception:  # noqa: BLE001  # pylint: disable=broad-except
+        except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-except
             # Total containment includes resolution: a platform package
             # broken in an unanticipated way must not kill the session or
-            # retry on every address-bearing line.
+            # retry on every address-bearing line. Name the cause like
+            # _feed does; the full traceback only exists at debug.
             _LOGGER.debug("Stacktrace analyzer resolution failed", exc_info=True)
             _LOGGER.warning(
-                'Stacktrace analysis is unavailable: analyzer for target platform "%s" could not be loaded.',
+                'Stacktrace analysis is unavailable: analyzer for target platform "%s" could not be loaded: %s',
                 self._platform,
+                f"{type(exc).__name__}: {exc}",
             )
             handler = None
         if handler is None:
