@@ -17,6 +17,20 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
+def _validate_board(config: ConfigType) -> ConfigType:
+    from esphome.components.rp2 import board_has_wifi, get_board
+
+    if not board_has_wifi():
+        raise cv.Invalid(
+            f"Board '{get_board()}' does not have Bluetooth support (no CYW43 wireless "
+            f"chip). Use a board like 'rpipicow' or 'rpipico2w'."
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _validate_board
+
+
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
