@@ -50,12 +50,12 @@ def test_decoder_contains_failures_and_short_circuits() -> None:
     assert processor.backtrace_state is False
 
 
-def test_decoder_swallows_non_esphome_error() -> None:
+def test_decoder_swallows_os_error_with_remediation_hint(caplog) -> None:
     """Decoding failures that aren't EsphomeError must be contained too.
 
-    A missing build directory surfaces as FileNotFoundError from the
-    toolchain subprocess; it must disable decoding exactly like an
-    EsphomeError does.
+    A missing build directory surfaces as an OSError; that is the
+    user's environment, not a decoder bug, so it disables decoding
+    like an EsphomeError does and keeps the recompile hint.
     """
     handler = Mock(
         side_effect=FileNotFoundError(2, "No such file or directory", "/build")
@@ -64,6 +64,9 @@ def test_decoder_swallows_non_esphome_error() -> None:
 
     assert handler.call_count == 1
     assert processor.backtrace_state is False
+    warnings = _warnings(caplog)
+    assert any("esphome compile" in m for m in warnings)
+    assert not any("this is a bug" in m for m in warnings)
 
 
 def test_decoder_warning_uses_fallback_for_empty_error(caplog) -> None:
@@ -89,6 +92,16 @@ def test_decoder_bug_with_empty_message_names_the_type(caplog) -> None:
     warnings = _warnings(caplog)
     assert any("IndexError" in m and "this is a bug" in m for m in warnings)
     assert not any("esphome compile" in m for m in warnings)
+
+
+def test_decoder_bug_warning_keeps_the_type_with_a_message(caplog) -> None:
+    """The type must survive a non-empty message; a bare KeyError message
+    like 'prog_path' reads as a raised string in a bug report paste.
+    """
+    _run(Mock(side_effect=KeyError("prog_path")))
+
+    warnings = _warnings(caplog)
+    assert any("KeyError: 'prog_path'" in m for m in warnings)
 
 
 def test_state_threads_between_lines() -> None:

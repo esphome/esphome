@@ -38,15 +38,16 @@ HEAVY_MODULES = (
 FAST_PATH_HEAVY_MODULES = HEAVY_MODULES + ("esphome.components.esp32",)
 
 
-def _leaked_heavy_modules(module: str) -> str:
+def _leaked_heavy_modules(module: str, extra: tuple[str, ...] = ()) -> str:
     """Import ``module`` in a subprocess and report the heavy modules it pulled.
 
     Any ``esphome.components.*`` package counts as heavy: executing a
     component package drags in codegen/validation machinery by design.
+    ``extra`` adds modules that are heavy for this caller specifically.
     """
     check = (
         f"import sys; import {module}; "
-        f"leaked = [m for m in {HEAVY_MODULES!r} if m in sys.modules]; "
+        f"leaked = [m for m in {HEAVY_MODULES + extra!r} if m in sys.modules]; "
         "leaked += [m for m in sys.modules if m.startswith('esphome.components.')]; "
         "print(','.join(leaked))"
     )
@@ -118,6 +119,21 @@ def test_api_client_does_not_import_heavy_modules() -> None:
     leaked = _leaked_heavy_modules("esphome.api_client")
     assert not leaked, (
         f"esphome.api_client imports heavy modules at top level: {leaked}. "
+        "The logs fast path skips validation; importing the validation "
+        "stack anyway defeats the validated-config cache."
+    )
+
+
+def test_stacktrace_does_not_import_heavy_modules() -> None:
+    """``esphome.stacktrace`` guards its own docstring's contract.
+
+    Both log paths construct a LogLineProcessor before streaming
+    starts; importing the module must not pull in aioesphomeapi or
+    any platform package.
+    """
+    leaked = _leaked_heavy_modules("esphome.stacktrace", extra=("aioesphomeapi",))
+    assert not leaked, (
+        f"esphome.stacktrace imports heavy modules at top level: {leaked}. "
         "The logs fast path skips validation; importing the validation "
         "stack anyway defeats the validated-config cache."
     )
