@@ -37,6 +37,10 @@ HEAVY_MODULES = (
 # existence guard and the leak check must watch the same list.
 FAST_PATH_HEAVY_MODULES = HEAVY_MODULES + ("esphome.components.esp32",)
 
+# Heavy only for modules that must not know about the API transport;
+# in the existence guard so a rename can't silently no-op its check.
+API_HEAVY_MODULES = ("aioesphomeapi",)
+
 
 def _leaked_heavy_modules(module: str, extra: tuple[str, ...] = ()) -> str:
     """Import ``module`` in a subprocess and report the heavy modules it pulled.
@@ -73,7 +77,7 @@ def test_main_module_does_not_import_heavy_modules() -> None:
 
 def test_watched_heavy_modules_exist() -> None:
     """A renamed heavy module would silently disable the leak checks."""
-    for module in FAST_PATH_HEAVY_MODULES:
+    for module in FAST_PATH_HEAVY_MODULES + API_HEAVY_MODULES:
         assert importlib.util.find_spec(module) is not None, (
             f"{module} no longer resolves; update the heavy-module lists"
         )
@@ -131,7 +135,7 @@ def test_stacktrace_does_not_import_heavy_modules() -> None:
     starts; importing the module must not pull in aioesphomeapi or
     any platform package.
     """
-    leaked = _leaked_heavy_modules("esphome.stacktrace", extra=("aioesphomeapi",))
+    leaked = _leaked_heavy_modules("esphome.stacktrace", extra=API_HEAVY_MODULES)
     assert not leaked, (
         f"esphome.stacktrace imports heavy modules at top level: {leaked}. "
         "The logs fast path skips validation; importing the validation "
