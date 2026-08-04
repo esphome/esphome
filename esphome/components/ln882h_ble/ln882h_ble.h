@@ -137,7 +137,9 @@ class LN882HBLE final : public Component {
   uint8_t ble_mac_[6]{0};  // controller (LSB-first) order, as ln_bd_addr_t stores it
   BLEComponentState state_{BLEComponentState::STATE_OFF};
   bool enable_on_boot_{false};
-  bool scanning_{false};  // controller scan running (re-entry guard for scan_start)
+  bool scanning_{false};       // controller scan running (re-entry guard for scan_start)
+  bool delivered_any_{false};  // any report reached loop() (dead-scanner diagnosis)
+  bool reject_warned_{false};  // one-shot guard for the all-rejected warning
 };
 
 }  // namespace esphome::ln882h_ble

@@ -148,6 +148,7 @@ class LN882HBLETracker : public Component,
   bool scan_continuous_{true};
 #ifdef USE_OTA_STATE_LISTENER
   bool scan_continuous_before_ota_{false};  // continuous mode saved at OTA start, restored on OTA failure
+  bool scan_running_before_ota_{false};     // one-shot scan running at OTA start, restarted on OTA failure
 #endif
   uint32_t scan_start_time_{0};
 

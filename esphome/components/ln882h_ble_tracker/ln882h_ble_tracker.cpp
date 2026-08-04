@@ -45,12 +45,20 @@ void LN882HBLETracker::on_ota_global_state(ota::OTAState state, float progress, 
                                            ota::OTAComponent *comp) {
   if (state == ota::OTA_STARTED) {
     this->scan_continuous_before_ota_ = this->scan_continuous_;
+    this->scan_running_before_ota_ = this->scan_running_;
     this->stop_scan();
-  } else if ((state == ota::OTA_ERROR || state == ota::OTA_ABORT) && this->scan_continuous_before_ota_) {
-    // On success the device reboots, so restore only on a failed/aborted update;
-    // loop() restarts the scan on its next iteration (continuous idle branch).
-    this->scan_continuous_before_ota_ = false;
-    this->scan_continuous_ = true;
+  } else if (state == ota::OTA_ERROR || state == ota::OTA_ABORT) {
+    // On success the device reboots, so restore only on a failed/aborted
+    // update. Continuous mode resumes via loop()'s idle branch; a one-shot
+    // scan that was running is restarted explicitly (bk72xx sibling parity —
+    // stop_scan() cleared it and nothing else would bring it back).
+    if (this->scan_continuous_before_ota_) {
+      this->scan_continuous_before_ota_ = false;
+      this->scan_continuous_ = true;
+    } else if (this->scan_running_before_ota_) {
+      this->start_scan();
+    }
+    this->scan_running_before_ota_ = false;
   }
 }
 #endif  // USE_OTA_STATE_LISTENER
@@ -195,7 +203,10 @@ void LN882HBLETracker::deliver_scan_rsp_(const ln882h_ble::BLEScanReport &report
       memcpy(merged + merged_len, report.data, add);
       merged_len += add;
       p.used = false;
-      this->process_adv_(report.mac, report.rssi, report.addr_type, merged, merged_len, /*raw_only=*/false);
+      // The advertisement's RSSI, not the scan response's: every unmerged path
+      // reports the advertisement's measurement, so a device's RSSI must not
+      // jump between two measurements depending on merge timing.
+      this->process_adv_(report.mac, p.rssi, report.addr_type, merged, merged_len, /*raw_only=*/false);
       return;
     }
   }
