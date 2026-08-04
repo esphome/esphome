@@ -23,6 +23,7 @@ from esphome.bundle import (
     _default_target_dir,
     _find_used_secret_keys,
     add_bundle_file,
+    add_secret_scan_dir,
     extract_bundle,
     is_bundle_path,
     prepare_bundle_for_compile,
@@ -1649,6 +1650,44 @@ def test_create_bundle_filters_secrets_quoted(tmp_path: Path) -> None:
     assert "ota_password" in secrets_data
     assert "hunter2" in secrets_data
     assert "unused" not in secrets_data
+
+
+def test_create_bundle_scans_remote_package_files_for_secrets(tmp_path: Path) -> None:
+    """Secrets referenced only by git-fetched package files must be shipped
+    in the filtered secrets.yaml (regression test for issue 18023)."""
+    config_dir = _setup_config_dir(tmp_path)
+
+    secrets = config_dir / "secrets.yaml"
+    secrets.write_text("ota_password: hunter2\nunused: should_not_appear\n")
+
+    # Simulate a git-fetched package checkout referencing a secret
+    repo_dir = config_dir / ".esphome" / "packages" / "6bcd6aa8"
+    package_dir = repo_dir / "packages"
+    package_dir.mkdir(parents=True)
+    (package_dir / "base.yml").write_text(
+        "ota:\n  - platform: esphome\n    password: !secret ota_password\n"
+    )
+    # References inside hidden directories such as .git must not be scanned
+    hidden_dir = repo_dir / ".git"
+    hidden_dir.mkdir()
+    (hidden_dir / "leak.yaml").write_text("password: !secret unused\n")
+    add_secret_scan_dir(repo_dir)
+
+    creator = ConfigBundleCreator({})
+    result = creator.create_bundle()
+
+    assert result.manifest[ManifestKey.HAS_SECRETS] is True
+
+    buf = io.BytesIO(result.data)
+    with tarfile.open(fileobj=buf, mode="r:gz") as tar:
+        secrets_data = tar.extractfile("secrets.yaml").read().decode()
+        names = tar.getnames()
+
+    assert "ota_password" in secrets_data
+    assert "hunter2" in secrets_data
+    assert "unused" not in secrets_data
+    # The package checkout itself must not be bundled
+    assert not any("base.yml" in name for name in names)
 
 
 def test_create_bundle_no_secrets(tmp_path: Path) -> None:

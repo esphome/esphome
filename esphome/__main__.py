@@ -19,7 +19,7 @@ from typing import Protocol
 # Note: Do not import modules from esphome.components here, as this would
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
-from esphome import const
+from esphome import const, platform_hooks
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     ARGUMENT_HELP_DEVICE,
@@ -630,16 +630,27 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
         return 1
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
-    process_stacktrace = None
-
+    # Stacktrace analysis is optional; a broken platform import must not
+    # stop serial log streaming, but it is a real breakage and must not
+    # masquerade as an ordinary capability gap.
     try:
-        module = importlib.import_module("esphome.components." + CORE.target_platform)
-        process_stacktrace = module.process_stacktrace
-    except (AttributeError, ImportError):
-        _LOGGER.info(
-            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
-            CORE.target_platform,
+        process_stacktrace = platform_hooks.get_platform_hook(
+            CORE.target_platform, "process_stacktrace"
         )
+    except ImportError as err:
+        _LOGGER.debug("Stacktrace analyzer import failed", exc_info=True)
+        _LOGGER.warning(
+            'Stacktrace analysis is unavailable: analyzer for target platform "%s" failed to import: %s',
+            CORE.target_platform,
+            err,
+        )
+        process_stacktrace = None
+    else:
+        if process_stacktrace is None:
+            _LOGGER.info(
+                'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
+                CORE.target_platform,
+            )
 
     backtrace_state = False
     ser = serial.Serial()
@@ -1141,12 +1152,11 @@ def upload_program(
     config: ConfigType, args: ArgsProtocol, devices: list[str]
 ) -> tuple[int, str | None]:
     host = devices[0]
-    try:
-        module = importlib.import_module("esphome.components." + CORE.target_platform)
-        if module.upload_program(config, args, host):
-            return 0, host
-    except AttributeError:
-        pass
+    platform_upload = platform_hooks.get_platform_hook(
+        CORE.target_platform, "upload_program"
+    )
+    if platform_upload is not None and platform_upload(config, args, host):
+        return 0, host
 
     port_type = get_port_type(host)
 
@@ -1406,12 +1416,11 @@ def _should_subscribe_states(args: ArgsProtocol) -> bool:
 
 
 def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
-    try:
-        module = importlib.import_module("esphome.components." + CORE.target_platform)
-        if module.show_logs(config, args, devices):
-            return 0
-    except AttributeError:
-        pass
+    platform_show_logs = platform_hooks.get_platform_hook(
+        CORE.target_platform, "show_logs"
+    )
+    if platform_show_logs is not None and platform_show_logs(config, args, devices):
+        return 0
 
     if "logger" not in config:
         raise EsphomeError("Logger is not configured!")
