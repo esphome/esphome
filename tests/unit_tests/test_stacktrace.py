@@ -13,26 +13,49 @@ CONFIG = {"esphome": {"name": "test"}}
 
 # One real dump line per registered platform plus the shapes the decoders
 # key on; the gate must fire on every one of them or that platform's
-# decoding silently never starts.
+# decoding silently never starts. Keyed by platform so a newly registered
+# decoder fails test_crash_samples_cover_registry until a sample is added.
+CRASH_SAMPLES: dict[str, list[str]] = {
+    "esp32": [
+        "Backtrace: 0x400d1a2c:0x3ffb1f60 0x400d2a3c:0x3ffb1f80",
+        "PC      : 0x400d1a2c  PS      : 0x00060330",
+        "BT0: 0x40104960",
+    ],
+    "esp8266": [
+        "epc1=0x40201234 epc2=0x00000000",
+        "3ffffe10: 40201234 3ffe8410 00000000 40201000",
+    ],
+    "rp2": [
+        "PC:  0x10001234 (fault location)",
+    ],
+    "nrf52": [
+        "PC=0x27a1c LR=0x1e33",
+    ],
+}
+
 CRASH_LINES = [
-    pytest.param(
-        "Backtrace: 0x400d1a2c:0x3ffb1f60 0x400d2a3c:0x3ffb1f80", id="esp32-backtrace"
-    ),
-    pytest.param("PC      : 0x400d1a2c  PS      : 0x00060330", id="esp32-register"),
-    pytest.param("BT0: 0x40104960", id="esp32-stored-backtrace"),
-    pytest.param("epc1=0x40201234 epc2=0x00000000", id="esp8266-epc"),
-    pytest.param(
-        "3ffffe10: 40201234 3ffe8410 00000000 40201000", id="esp8266-stack-word"
-    ),
-    pytest.param("PC:  0x10001234 (fault location)", id="rp2-crash-handler"),
-    pytest.param("PC=0x27a1c LR=0x1e33", id="nrf52-short-pointer"),
+    pytest.param(line, id=f"{platform}-{n}")
+    for platform, lines in CRASH_SAMPLES.items()
+    for n, line in enumerate(lines)
 ]
 
 BENIGN_LINES = [
     pytest.param("[I][app:100] hello world", id="plain"),
     pytest.param("[C][wifi:400]   BSSID: AA:BB:CC:DD:EE:FF", id="mac"),
     pytest.param("[19:26:11.966][I][main:151]: version 2026.7.0-dev", id="timestamp"),
+    pytest.param("[I][app:102]: Uptime: 12345678 ms", id="decimal-uptime"),
+    pytest.param(
+        "[D][sensor:093]: 'Water meter': Sending state 12345678.00000 L",
+        id="decimal-sensor",
+    ),
 ]
+
+
+def test_crash_samples_cover_registry() -> None:
+    """A newly registered decoder must come with a gate sample."""
+    from esphome.platform_hooks import PLATFORM_HOOKS
+
+    assert set(CRASH_SAMPLES) == set(PLATFORM_HOOKS["process_stacktrace"])
 
 
 @pytest.mark.parametrize("line", CRASH_LINES)

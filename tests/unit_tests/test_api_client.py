@@ -132,3 +132,34 @@ def test_run_logs_suppresses_keyboard_interrupt() -> None:
         )
 
     assert mock_run.call_args.kwargs["subscribe_states"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("extra_config", "expected_deep_sleep"),
+    [({"deep_sleep": {}}, True), ({}, False)],
+)
+async def test_async_run_logs_passes_deep_sleep(
+    extra_config: dict, expected_deep_sleep: bool
+) -> None:
+    """async_run_logs tells async_run whether the device deep sleeps.
+
+    That flag is the only thing capping reconnect backoff for a device
+    that is only briefly awake; dropping it means missed wake windows.
+    """
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+    config = {"esphome": {"name": "test"}, "api": {CONF_PORT: 6053}, **extra_config}
+    # async_run blocks forever after connecting; raise to unwind
+    # async_run_logs once we have captured how it was called.
+    sentinel = RuntimeError("stop the wait")
+
+    with (
+        patch.object(
+            api_client, "async_run", AsyncMock(side_effect=sentinel)
+        ) as mock_run,
+        patch.object(api_client, "APIClient"),
+        pytest.raises(RuntimeError, match="stop the wait"),
+    ):
+        await api_client.async_run_logs(config, ["1.2.3.4"])
+
+    assert mock_run.call_args.kwargs["deep_sleep"] is expected_deep_sleep

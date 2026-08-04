@@ -21,13 +21,19 @@ _LOGGER = logging.getLogger(__name__)
 # register the platform decoders match carries either a 0x-prefixed
 # pointer (nrf52's variable-length ``PC=0x27a1c``, esp32's
 # ``Backtrace: 0x400d1a2c:...``) or a bare 8-hex-digit word (esp8266
-# stack dumps). A unit test feeds one real dump line per registered
-# platform through this to keep the superset claim honest. Deliberately
+# stack dumps). A unit test keyed off the registry feeds one real dump
+# line per registered platform through this to keep the superset claim
+# honest. Deliberately
 # not the crash-marker grammar - that lives in the platform decoders
 # and a copy here would drift. The device builder gates its decoder
 # subprocess the same way (esphome_device_builder/controllers/devices/
 # backtrace.py).
-_ADDRESS_RE = re.compile(r"0x[0-9a-fA-F]{4,}\b|\b[0-9a-fA-F]{8}\b")
+# The bare-hex alternation requires at least one letter so 8-digit
+# decimals (uptime counters, sensor readings) don't trip it; esp8266
+# dump lines always carry one via their 3ff... stack addresses.
+_ADDRESS_RE = re.compile(
+    r"0x[0-9a-fA-F]{4,}\b|\b(?=[0-9A-Fa-f]*[A-Fa-f])[0-9a-fA-F]{8}\b"
+)
 
 # Lines kept for replay once decoding starts. Crash markers without an
 # address (esp8266's ``>>>stack>>>``, panic banners) precede the first
