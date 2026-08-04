@@ -1,7 +1,7 @@
 // ln882h_ble_tracker.cpp
 //
 // BLE scan policy for LN882H: parameters, duration/period timers, the
-// rate-limited scan lifecycle and the Bluedroid-style adv+scan-response merge.
+// per-period scan restart and the Bluedroid-style adv+scan-response merge.
 // All controller access (stack bring-up, scan primitives, the rw-task →
 // main-task report queue) goes through the ln882h_ble component — no SDK calls
 // and no cross-task state here.
@@ -72,10 +72,19 @@ void LN882HBLETracker::loop() {
       if (this->scan_running_)
         return;
     }
-    // Period timer: fire on_scan_end() once per scan_duration_ window,
-    // mirroring esp32_ble_tracker::cleanup_scan_state_(). Gated on scan_started_once_
-    // so a scan that never came up does not fire spurious on_scan_end events.
+    // Period timer: once per scan_duration_ window, restart the controller scan
+    // and fire on_scan_end(), mirroring esp32_ble_tracker::cleanup_scan_state_().
+    // The restart is the recovery path for the coexistence failure documented in
+    // the header: the single-core SoC can silently drop the scan under WiFi
+    // load, and scan_start() returns void, so a dropped scan is undetectable
+    // from here — re-issuing it every period bounds the outage to one period.
+    // scan_stop() is idempotent (controller idle guard), so this is safe
+    // whether the scan is still running or already gone.
     if (this->scan_started_once_ && now - this->scan_period_start_ >= this->scan_duration_) {
+      ESP_LOGD(TAG, "Scan period elapsed - restarting scan");
+      this->parent_->scan_stop();
+      this->parent_->scan_start(static_cast<uint16_t>(this->scan_interval_), static_cast<uint16_t>(this->scan_window_),
+                                this->scan_active_);
 #ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
       for (auto *listener : this->listeners_)
         listener->on_scan_end();

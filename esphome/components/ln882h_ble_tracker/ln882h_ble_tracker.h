@@ -97,8 +97,6 @@ class LN882HBLETracker : public Component,
     // The SDK's GATT client is not exposed.
     return {.active_scan = true, .merges_scan_response = true, .gatt = false};
   }
-  // The controller stores the address in printable (MSB-first) order — the
-  // contract's byte order.
   // The controller stores the address LSB-first (BLE convention); the contract
   // wants printable (MSB-first) order.
   void get_adapter_mac(uint8_t out[6]) override {
@@ -160,7 +158,11 @@ class LN882HBLETracker : public Component,
     uint8_t data[62];
     uint32_t stored_ms;
   };
-  static constexpr size_t MAX_PENDING_ADV = 4;
+  // Sized for the unanswered case: a pair that IS answered normally matches
+  // within one queue drain, so a slot is held for the full timeout only by
+  // scannable devices that never reply. 8 concurrent such advertisers before
+  // the merge degrades (frames still delivered, just unmerged) at ~80 B each.
+  static constexpr size_t MAX_PENDING_ADV = 8;
   // On air a scan response follows its advertisement by T_IFS (150 µs) — the
   // timeout only covers HOST-side report queuing in rw_task under WiFi/BLE
   // coexistence, measured on-device at up to ~136 ms. 300 ms = >2x that margin,

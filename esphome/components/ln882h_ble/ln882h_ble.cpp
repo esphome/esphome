@@ -220,8 +220,10 @@ static void ble_scan_callback(void *param) {
   // allocating so these do not burn pool slots either.
   const uint8_t report_type = info->info & 0x07;
   if ((report_type != GAPM_REPORT_TYPE_ADV_LEG && report_type != GAPM_REPORT_TYPE_SCAN_RSP_LEG) ||
-      (info->info & GAPM_REPORT_INFO_COMPLETE_BIT) == 0)
+      (info->info & GAPM_REPORT_INFO_COMPLETE_BIT) == 0) {
+    s_ble->count_rejected_report();
     return;
+  }
 
   // Fill the pool slot in place (the bk72xx_ble shape): no report on the rw
   // task's stack — its size is fixed by the prebuilt stack — one copy of the
@@ -337,6 +339,9 @@ void LN882HBLE::loop() {
   uint16_t dropped = this->report_queue_.get_and_reset_dropped_count();
   if (dropped > 0)
     ESP_LOGW(TAG, "Dropped %u scan reports (queue full or out of memory for a report slot)", dropped);
+  uint16_t rejected = this->rejected_reports_.exchange(0, std::memory_order_relaxed);
+  if (rejected > 0)
+    ESP_LOGV(TAG, "Rejected %u non-legacy or incomplete scan reports", rejected);
 
   // Drain the lock-free ring filled by the rw task; all per-report work runs
   // here on the main task, then the report returns to the pool.
