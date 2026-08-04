@@ -86,8 +86,9 @@ class LogLineProcessor:
         # misses so their unavailable notice fires at session start
         # without importing, and external platforms because the gate's
         # grammar derives from the in-tree decoders and their import
-        # cannot be avoided anyway - resolving up front keeps it off the
-        # event loop and preserves the pre-registry behavior exactly.
+        # cannot be avoided anyway - resolving up front keeps it out of
+        # the streaming callback, where a blocking import would stall
+        # delivery mid-stream, and preserves the pre-registry behavior.
         if platform not in platform_hooks.PLATFORM_HOOKS["process_stacktrace"]:
             self._resolve_handler()
 

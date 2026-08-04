@@ -24,15 +24,21 @@ CRASH_SAMPLES: dict[str, dict[str, list[str]]] = {
         "addresses": [
             "Backtrace: 0x400d1a2c:0x3ffb1f60 0x400d2a3c:0x3ffb1f80",
             "PC      : 0x400d1a2c  PS      : 0x00060330",
+            "EXCVADDR: 0x40001234",
+            "MEPC    : 0x40380abc  RA      : 0x40380def",
+            "MTVAL   : 0x40000123",
+            "last failed alloc call: 40201234(512)",
             "BT0: 0x40104960",
         ],
     },
     "esp8266": {
-        "markers": [">>>stack>>>"],
+        "markers": [">>>stack>>>", "Exception (28):"],
         "addresses": [
-            "epc1=0x40201234 epc2=0x00000000",
+            "epc1=0x40201234 epc2=0x00000000 excvaddr=0x40001234",
             "3ffffe10: 40201234 3ffe8410 00000000 40201000",
             "PC      : 40201234",
+            "EXCVADDR: 0x40001234",
+            "BT0: 0x40201234",
             "last failed alloc call: 40201234(512)",
         ],
     },
@@ -102,25 +108,83 @@ def test_markers_reach_the_decoder_before_addresses(platform: str) -> None:
     assert [call.args[1] for call in handler.call_args_list] == markers + addresses
 
 
+# The stacktrace pattern constants each decoder module exports. The
+# samples and these patterns must cover each other, so an edit on either
+# side fails the test below instead of quietly widening the gap between
+# the gate and the decoders.
+DECODER_PATTERNS: dict[str, list[str]] = {
+    "esp32": [
+        "STACKTRACE_ESP32_PC_RE",
+        "STACKTRACE_ESP32_EXCVADDR_RE",
+        "STACKTRACE_ESP32_C3_PC_RE",
+        "STACKTRACE_ESP32_C3_RA_RE",
+        "STACKTRACE_ESP32_C3_MTVAL_RE",
+        "STACKTRACE_BAD_ALLOC_RE",
+        "STACKTRACE_ESP32_BACKTRACE_RE",
+        "STACKTRACE_ESP32_BACKTRACE_PC_RE",
+        "STACKTRACE_ESP32_CRASH_BT_RE",
+    ],
+    "esp8266": [
+        "STACKTRACE_ESP8266_EXCEPTION_TYPE_RE",
+        "STACKTRACE_ESP8266_PC_RE",
+        "STACKTRACE_ESP8266_EXCVADDR_RE",
+        "STACKTRACE_ESP8266_CRASH_PC_RE",
+        "STACKTRACE_ESP8266_CRASH_EXCVADDR_RE",
+        "STACKTRACE_ESP8266_CRASH_BT_RE",
+        "STACKTRACE_BAD_ALLOC_RE",
+        "STACKTRACE_ESP8266_BACKTRACE_PC_RE",
+    ],
+    "rp2": ["_CRASH_RE", "_CRASH_ADDR_RE"],
+    "nrf52": ["STACKTRACE_NRF52_PC_LR_RE"],
+}
+
+
 @pytest.mark.parametrize("platform", sorted(CRASH_SAMPLES))
-def test_address_samples_match_the_platform_decoder(platform: str) -> None:
+def test_samples_and_decoder_patterns_cover_each_other(platform: str) -> None:
     """Samples stay mechanically linked to the decoder regexes.
 
-    A decoder edit that leaves a sample unmatched fails here instead of
-    quietly widening the gap between the gate and the decoders.
+    Three directions: every declared pattern must exist, every address
+    sample must match a declared pattern, and every declared pattern
+    must be exercised by a sample - so a decoder gaining a new address
+    form cannot ship without a sample the gate test then has to pass.
     """
     import importlib
     import re
 
     module = importlib.import_module(f"esphome.components.{platform}")
-    patterns = [v for v in vars(module).values() if isinstance(v, re.Pattern)]
-    if not patterns:
-        pytest.skip(f"{platform} keeps its decoder patterns function-local")
+    patterns: dict[str, re.Pattern] = {}
+    for name in DECODER_PATTERNS[platform]:
+        pattern = getattr(module, name, None)
+        if pattern is None:
+            pytest.fail(
+                f"{platform} no longer defines {name}; update DECODER_PATTERNS "
+                "and CRASH_SAMPLES together"
+            )
+        patterns[name] = pattern
+
+    lines = CRASH_SAMPLES[platform]["markers"] + CRASH_SAMPLES[platform]["addresses"]
     for line in CRASH_SAMPLES[platform]["addresses"]:
-        assert any(p.search(line) for p in patterns), (
+        assert any(p.search(line) for p in patterns.values()), (
             f"{line!r} no longer matches any {platform} decoder pattern; "
             "update CRASH_SAMPLES and re-derive the gate"
         )
+    for name, pattern in patterns.items():
+        assert any(pattern.search(line) for line in lines), (
+            f"no sample exercises {platform}.{name}; add one so the gate "
+            "provably covers it"
+        )
+
+    undeclared = [
+        name
+        for name, value in vars(module).items()
+        if isinstance(value, re.Pattern)
+        and ("STACKTRACE" in name or name.startswith("_CRASH"))
+        and name not in DECODER_PATTERNS[platform]
+    ]
+    assert not undeclared, (
+        f"{platform} gained stacktrace patterns {undeclared}; declare them in "
+        "DECODER_PATTERNS with samples"
+    )
 
 
 @pytest.mark.parametrize("line", BENIGN_LINES)
