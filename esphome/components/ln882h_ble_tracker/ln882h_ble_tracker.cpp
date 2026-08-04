@@ -1,4 +1,3 @@
-
 #ifdef USE_LIBRETINY
 
 #include "ln882h_ble_tracker.h"

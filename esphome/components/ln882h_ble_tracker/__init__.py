@@ -27,9 +27,7 @@ LN882HBLETracker = ln882h_ble_tracker_ns.class_(
 )
 
 
-# Scan-parameter validation is shared across trackers (ble_device_base) —
-# originally written here, lifted upstream in esphome#18003. LN882H SDK
-# reference scan rate: 100 ms interval / 50 ms window (50 % duty).
+# LN882H SDK reference scan rate: 100 ms interval / 50 ms window (50 % duty).
 SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
     "100ms", window_default="50ms", supports_active=True
 )

@@ -110,9 +110,6 @@ static constexpr uint8_t GAPM_SCAN_PROP_ACTIVE_1M_BIT = 1 << 2;
 // 2 = SCAN_RSP_EXT (scan response to extended adv), 3 = SCAN_RSP_LEG (scan response to legacy adv).
 static constexpr uint8_t GAPM_REPORT_TYPE_ADV_LEG = 1;
 static constexpr uint8_t GAPM_REPORT_TYPE_SCAN_RSP_LEG = 3;
-// Bit 3 of ble_scan_report_t::info: the report carries the complete advertising
-// data (enum gapm_adv_report_info, GAPM_REPORT_INFO_COMPLETE_BIT).
-static constexpr uint8_t GAPM_REPORT_INFO_COMPLETE_BIT = 1u << 3;
 // Bit 5 of ble_scan_report_t::info: the advertisement is scannable, i.e. a scan
 // response may follow (enum gapm_adv_report_info, GAPM_REPORT_INFO_SCAN_ADV_BIT).
 static constexpr uint8_t GAPM_REPORT_INFO_SCAN_ADV_BIT = 1u << 5;
@@ -214,13 +211,12 @@ static void ble_scan_callback(void *param) {
     return;
   const auto *info = reinterpret_cast<const ble_scan_report_t *>(param);
 
-  // Only complete legacy framing is supported (see scan_start(): legacy 1M PHY
-  // only): an extended or fragmented report does not fit BLEScanReport::data
-  // and would reach consumers as a truncated legacy frame. Reject before
-  // allocating so these do not burn pool slots either.
+  // Only legacy framing is supported (see scan_start(): legacy 1M PHY only):
+  // an extended report does not fit BLEScanReport::data and would reach
+  // consumers as a truncated legacy frame. Reject before allocating so these
+  // do not burn pool slots either.
   const uint8_t report_type = info->info & 0x07;
-  if ((report_type != GAPM_REPORT_TYPE_ADV_LEG && report_type != GAPM_REPORT_TYPE_SCAN_RSP_LEG) ||
-      (info->info & GAPM_REPORT_INFO_COMPLETE_BIT) == 0) {
+  if (report_type != GAPM_REPORT_TYPE_ADV_LEG && report_type != GAPM_REPORT_TYPE_SCAN_RSP_LEG) {
     s_ble->count_rejected_report();
     return;
   }
@@ -357,8 +353,11 @@ void LN882HBLE::loop() {
   // arriving ahead of the first good one must not latch the dead-scanner
   // warning; the threshold keeps one-off boot noise below it while a truly
   // dead scanner (~200 reports/s all rejected) crosses it within a second.
-  uint16_t rejected = this->rejected_reports_.exchange(0, std::memory_order_relaxed);
+  // Avoid the sub-word CAS in the common case (LockFreeQueue's dropped-count
+  // pattern): rejects are rare, the load is cheap.
+  uint16_t rejected = this->rejected_reports_.load(std::memory_order_relaxed);
   if (rejected > 0) {
+    rejected = this->rejected_reports_.exchange(0, std::memory_order_relaxed);
     if (!this->delivered_any_ && !this->reject_warned_) {
       this->rejected_before_delivery_ =
           static_cast<uint16_t>(std::min<uint32_t>(this->rejected_before_delivery_ + rejected, 0xFFFF));
