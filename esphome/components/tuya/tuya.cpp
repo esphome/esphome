@@ -291,15 +291,11 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
 #ifdef USE_TIME
       if (this->time_id_ != nullptr) {
         this->send_local_time_();
-        this->received_local_time_query_ = true;
 
         if (!this->time_sync_callback_registered_) {
           // tuya mcu supports time, so we let them know when our time changed
           this->time_id_->add_on_time_sync_callback([this] {
-            if (this->received_local_time_query_)
               this->send_local_time_();
-            if (this->received_gmt_time_query_)
-              this->send_gmt_time_();
           });
           this->time_sync_callback_registered_ = true;
         }
@@ -313,17 +309,12 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
 #ifdef USE_TIME
       if (this->time_id_ != nullptr) {
         this->send_gmt_time_();
-        this->received_gmt_time_query_ = true;
 
-        if (!this->time_sync_callback_registered_) {
+        if (!this->gmt_time_sync_callback_registered_) {
           // tuya mcu supports time, so we let them know when our time changed
           this->time_id_->add_on_time_sync_callback([this] {
-            if (this->received_local_time_query_)
-              this->send_local_time_();
-            if (this->received_gmt_time_query_)
               this->send_gmt_time_();
-          });
-          this->time_sync_callback_registered_ = true;
+          this->gmt_time_sync_callback_registered_ = true;
         }
       } else
 #endif
