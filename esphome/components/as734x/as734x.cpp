@@ -74,6 +74,7 @@ void AS734XComponent::setup() {
   }
 
   this->state_ = State::IDLE;
+  this->disable_loop();
 }
 
 void AS734XComponent::dump_config() {
@@ -99,6 +100,7 @@ void AS734XComponent::update() {
   if (this->state_ == State::IDLE) {
     ESP_LOGV(TAG, "Initiating new data collection");
     this->state_ = State::START_MEASUREMENT;
+    this->enable_loop();
   } else {
     ESP_LOGW(TAG, "Skipping update, previous measurement still running");
   }
@@ -181,6 +183,7 @@ void AS734XComponent::loop() {
       this->publish_channel_readings_();
       this->status_clear_warning();
       this->state_ = State::IDLE;
+      this->disable_loop();
       break;
   }
 }
@@ -190,6 +193,7 @@ void AS734XComponent::abort_measurement_(const char *reason) {
   this->device_->enable_spectral_measurement(false);
   this->status_set_warning(reason);
   this->state_ = State::IDLE;
+  this->disable_loop();
 }
 
 #ifdef USE_SENSOR
