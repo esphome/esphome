@@ -580,15 +580,25 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
     return;
   }
 
-  // While the pipeline is only running out its idle grace period there is
-  // nobody to hand a frame to, so skip the encode entirely and just cycle the
-  // sensor buffer. The encoder is left exactly as STREAMON leaves it (its
-  // CAPTURE buffer queued, OUTPUT idle), so the next requester resumes into a
-  // ready encoder.
+  // Only encode frames that are going somewhere.
+  //
+  // The sensor sets the pace here -- it delivers at its native rate (45-50 fps
+  // for the OV5647, 30 for the SC202CS) and DQBUF above returns as soon as one
+  // is ready. Encoding every one of them and then dropping most in
+  // deliver_frame_ means the hardware encoder and the PSRAM bus run at the
+  // sensor's rate no matter what max_framerate says. Two reasons to skip:
+  //   - nobody is watching: the pipeline is only running out its idle grace
+  //     period (see loop()),
+  //   - the frame is not due yet under max_framerate.
+  // Either way the encoder is left exactly as STREAMON leaves it (its CAPTURE
+  // buffer queued, OUTPUT idle), so the next frame resumes into a ready
+  // encoder. last_frame_ms_ is only moved by an actual delivery, so skipping
+  // here cannot drift the cadence.
   const bool wanted = (this->stream_requesters_ != 0) || (this->single_requesters_ != 0);
+  const bool due = this->min_interval_ms_ == 0 || (millis() - this->last_frame_ms_) >= this->min_interval_ms_;
 
   bool encoder_broken = false;
-  if (wanted && cap_buf.index < (uint32_t) this->num_capture_buffers_ && cap_buf.bytesused > 0) {
+  if (wanted && due && cap_buf.index < (uint32_t) this->num_capture_buffers_ && cap_buf.bytesused > 0) {
     // M2M encode, in the order Espressif's own example uses (esp_video
     // examples/m2m, m2m_encode_frame): queue the raw frame on OUTPUT, dequeue
     // the encoded frame from CAPTURE, and only then reclaim the OUTPUT buffer.
