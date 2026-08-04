@@ -5732,7 +5732,7 @@ def test_run_miniterm_analyzer_import_failure_keeps_streaming(
     args = MockArgs()
 
     with (
-        caplog.at_level("INFO", logger="esphome.__main__"),
+        caplog.at_level("INFO", logger="esphome.platform_hooks"),
         patch("serial.Serial", return_value=mock_serial),
         patch(
             "esphome.platform_hooks.get_platform_hook",
@@ -5762,7 +5762,7 @@ def test_run_miniterm_no_stacktrace_analyzer(
     args = MockArgs()
 
     with (
-        caplog.at_level("INFO", logger="esphome.__main__"),
+        caplog.at_level("INFO", logger="esphome.platform_hooks"),
         patch("serial.Serial", return_value=mock_serial),
     ):
         result = run_miniterm(config, "/dev/ttyUSB0", args)
