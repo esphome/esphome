@@ -10,6 +10,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
+#include <algorithm>
 #include <initializer_list>
 
 namespace esphome::ble_device_base {
@@ -22,18 +23,9 @@ class ESPBTAdvertiseTrigger final : public Trigger<const ESPBTDevice &>, public 
   void set_addresses(std::initializer_list<uint64_t> addresses) { this->addresses_ = addresses; }
 
   bool parse_device(const ESPBTDevice &device) override {
-    if (!this->addresses_.empty()) {
-      uint64_t addr = device.address_uint64();
-      bool match = false;
-      for (auto a : this->addresses_) {
-        if (a == addr) {
-          match = true;
-          break;
-        }
-      }
-      if (!match) {
-        return false;
-      }
+    if (!this->addresses_.empty() && std::find(this->addresses_.begin(), this->addresses_.end(),
+                                               device.address_uint64()) == this->addresses_.end()) {
+      return false;
     }
     this->trigger(device);
     return true;

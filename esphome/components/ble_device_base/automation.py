@@ -32,6 +32,13 @@ BLEEndOfScanTrigger = ble_device_base.ble_device_base_ns.class_(
     "BLEEndOfScanTrigger", automation.Trigger.template()
 )
 
+# UUID string length -> setter width; anything else is a 128-bit UUID sent as a
+# reversed byte array (BLE wire order) rather than a hex literal.
+_UUID_WIDTHS = {
+    len(ble_device_base.BT_UUID16_FORMAT): "16",
+    len(ble_device_base.BT_UUID32_FORMAT): "32",
+}
+
 
 def trigger_schema(
     trigger_class: MockObjClass, extra: dict[Any, Any] | None = None
@@ -83,16 +90,13 @@ async def uuid_trigger_to_code(
     """
     trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
     uuid = conf[key]
-    if len(uuid) == len(ble_device_base.BT_UUID16_FORMAT):
-        setter, value = f"{setter_prefix}16", ble_device_base.as_hex(uuid)
-    elif len(uuid) == len(ble_device_base.BT_UUID32_FORMAT):
-        setter, value = f"{setter_prefix}32", ble_device_base.as_hex(uuid)
-    else:
-        setter, value = (
-            f"{setter_prefix}128",
-            ble_device_base.as_reversed_hex_array(uuid),
-        )
-    cg.add(getattr(trigger, setter)(value))
+    width = _UUID_WIDTHS.get(len(uuid), "128")
+    value = (
+        ble_device_base.as_hex(uuid)
+        if width != "128"
+        else ble_device_base.as_reversed_hex_array(uuid)
+    )
+    cg.add(getattr(trigger, f"{setter_prefix}{width}")(value))
     if (mac := conf.get(CONF_MAC_ADDRESS)) is not None:
         cg.add(trigger.set_address(mac.as_hex))
     await automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
