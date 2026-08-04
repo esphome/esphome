@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 import functools
@@ -1015,8 +1015,8 @@ def _is_file_valid(name: str) -> bool:
     return not name.startswith(".")
 
 
-def find_files(directory: Path, pattern):
-    """Recursively load files in a directory."""
+def find_files(directory: Path, pattern: str) -> Iterator[Path]:
+    """Recursively find files in a directory matching *pattern*, skipping hidden entries."""
     for root, dirs, files in os.walk(directory):
         dirs[:] = [d for d in dirs if _is_file_valid(d)]
         for f in files:

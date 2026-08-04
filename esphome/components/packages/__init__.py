@@ -196,9 +196,6 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
     # at startup, only when a config actually uses a remote package.
     from esphome.bundle import add_secret_scan_dir
 
-    # The checkout is not bundled (the builder re-fetches it), but the
-    # bundle's secrets filter must still see its !secret references.
-    add_secret_scan_dir(repo_root)
     files: list[dict[str, Any]] = []
 
     # ``repo_root`` is the directory containing ``.git`` and must be passed
@@ -207,6 +204,13 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
     repo_dir = repo_root
     if base_path := config.get(CONF_PATH):
         repo_dir = repo_dir / base_path
+
+    # The checkout is not bundled (the builder re-fetches it), but the
+    # bundle's secrets filter must still see its !secret references. Register
+    # only the path-narrowed directory so example configs elsewhere in the
+    # repo do not widen the shipped secrets; an !include that reaches outside
+    # the package path is not scanned.
+    add_secret_scan_dir(repo_dir)
 
     for file in config[CONF_FILES]:
         if isinstance(file, str):
