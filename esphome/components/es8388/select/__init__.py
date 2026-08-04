@@ -54,8 +54,8 @@ async def to_code(config):
         )
         await cg.register_parented(s, parent)
         cg.add(parent.set_dac_output_select(s))
-        if CONF_INITIAL_OPTION in dac_output_config:
-            idx = DAC_OUTPUT_OPTIONS.index(dac_output_config[CONF_INITIAL_OPTION])
+        if (initial := dac_output_config.get(CONF_INITIAL_OPTION)) is not None:
+            idx = DAC_OUTPUT_OPTIONS.index(initial)
             cg.add(parent.set_dac_output_initial_index(idx))
 
     if adc_input_mic_config := config.get(CONF_ADC_INPUT_MIC):
@@ -65,6 +65,6 @@ async def to_code(config):
         )
         await cg.register_parented(s, parent)
         cg.add(parent.set_adc_input_mic_select(s))
-        if CONF_INITIAL_OPTION in adc_input_mic_config:
-            idx = ADC_INPUT_MIC_OPTIONS.index(adc_input_mic_config[CONF_INITIAL_OPTION])
+        if (initial := adc_input_mic_config.get(CONF_INITIAL_OPTION)) is not None:
+            idx = ADC_INPUT_MIC_OPTIONS.index(initial)
             cg.add(parent.set_adc_input_mic_initial_index(idx))
