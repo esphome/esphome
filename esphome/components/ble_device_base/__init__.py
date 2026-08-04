@@ -17,39 +17,21 @@ AES-CCM decryption for encrypted advertisements is provided portably in
 ble_aes_ccm.h.
 """
 
-from collections.abc import Callable
-from dataclasses import dataclass, field
 import re
 
 import esphome.codegen as cg
 from esphome.components.const import CONF_WINDOW
 import esphome.config_validation as cv
 from esphome.const import CONF_ACTIVE, CONF_CONTINUOUS, CONF_DURATION, CONF_INTERVAL
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bl00d-B0b"]
-DOMAIN = "ble_device_base"
 
 CONF_BLE_HUB_ID = "ble_hub_id"
 
 # Number of parsed-advertisement listeners registered in this build;
 # get_listener_count() exposes it for esp32_ble_tracker's feature coupling.
 LISTENER_COUNT_DEFINE = "ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT"
-
-
-@dataclass
-class BLEDeviceBaseData:
-    # Slot counts for every slot_counter() instance, keyed by the counter's
-    # define name; kept here so the factory's state lives under this
-    # component's domain in CORE.data.
-    slot_counts: dict[str, int] = field(default_factory=dict)
-
-
-def _get_data() -> BLEDeviceBaseData:
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = BLEDeviceBaseData()
-    return CORE.data[DOMAIN]
 
 
 ble_device_base_ns = cg.esphome_ns.namespace("ble_device_base")
@@ -83,37 +65,10 @@ def request_irk_support() -> None:
 
 def get_listener_count() -> int:
     """Number of parsed listeners registered so far (for tracker codegen)."""
-    return _get_data().slot_counts.get(LISTENER_COUNT_DEFINE, 0)
+    return cg.get_slot_count(LISTENER_COUNT_DEFINE)
 
 
-def slot_counter(define: str) -> Callable[[], None]:
-    """Create a request_slot function for codegen-sized storage.
-
-    The pattern behind every StaticVector listener array: a consumer's to_code
-    calls the returned function once per slot it will occupy at runtime, and
-    at FINAL priority — after every consumer's to_code has run — `define` is
-    emitted with the requested count. No requests, no define: the guarded
-    storage and its registration method compile out entirely.
-
-    The count lives under `define` in this component's CORE.data entry, which
-    clears between runs.
-    """
-
-    @coroutine_with_priority(CoroPriority.FINAL)
-    async def emit_job() -> None:
-        if count := _get_data().slot_counts.get(define):
-            cg.add_define(define, count)
-
-    def request_slot() -> None:
-        counts = _get_data().slot_counts
-        counts[define] = counts.get(define, 0) + 1
-        if counts[define] == 1:
-            CORE.add_job(emit_job)
-
-    return request_slot
-
-
-_request_listener_slot = slot_counter(LISTENER_COUNT_DEFINE)
+_request_listener_slot = cg.slot_counter(LISTENER_COUNT_DEFINE)
 
 
 async def register_ble_device(var: cg.MockObj, config: ConfigType) -> cg.MockObj:

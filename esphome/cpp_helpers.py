@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass, field
 import logging
 
@@ -25,6 +26,54 @@ from esphome.util import Registry, RegistryEntry
 _LOGGER = logging.getLogger(__name__)
 
 _COMPONENT_SOURCE_DOMAIN = "component_source_pool"
+
+_SLOT_COUNTER_DOMAIN = "slot_counter"
+
+
+@dataclass
+class SlotCounterState:
+    """Slot counts for codegen-sized storage, keyed by define name."""
+
+    counts: dict[str, int] = field(default_factory=dict)
+
+
+def _get_slot_counts() -> dict[str, int]:
+    """Get or create the slot count table from CORE.data."""
+    if _SLOT_COUNTER_DOMAIN not in CORE.data:
+        CORE.data[_SLOT_COUNTER_DOMAIN] = SlotCounterState()
+    return CORE.data[_SLOT_COUNTER_DOMAIN].counts
+
+
+def get_slot_count(define: str) -> int:
+    """Number of slots requested so far for `define`."""
+    return _get_slot_counts().get(define, 0)
+
+
+def slot_counter(define: str) -> Callable[[], None]:
+    """Create a request_slot function for codegen-sized storage.
+
+    The pattern behind every StaticVector listener array: a consumer's to_code
+    calls the returned function once per slot it will occupy at runtime, and
+    at FINAL priority — after every consumer's to_code has run — `define` is
+    emitted with the requested count. No requests, no define: the guarded
+    storage and its registration method compile out entirely.
+
+    The count lives under `define` in CORE.data, which clears between runs.
+    """
+
+    @coroutine_with_priority(CoroPriority.FINAL)
+    async def emit_job() -> None:
+        if count := _get_slot_counts().get(define):
+            add_define(define, count)
+
+    def request_slot() -> None:
+        counts = _get_slot_counts()
+        counts[define] = counts.get(define, 0) + 1
+        if counts[define] == 1:
+            CORE.add_job(emit_job)
+
+    return request_slot
+
 
 # Maximum unique component source names (8-bit index, 0 = not set)
 _MAX_COMPONENT_SOURCES = 0xFF  # 255

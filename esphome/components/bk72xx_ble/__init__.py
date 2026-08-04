@@ -20,7 +20,7 @@ public ble_api.h.
 import logging
 
 import esphome.codegen as cg
-from esphome.components import ble_device_base, libretiny
+from esphome.components import libretiny
 from esphome.components.libretiny.const import FAMILY_BK7231N, FAMILY_BK7238
 import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ID
@@ -47,9 +47,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 # Once per registered scan listener; sizes the controller's StaticVector
 # listener storage.
-request_scan_listener_slot = ble_device_base.slot_counter(
-    "BK72XX_BLE_SCAN_LISTENER_COUNT"
-)
+request_scan_listener_slot = cg.slot_counter("BK72XX_BLE_SCAN_LISTENER_COUNT")
 
 
 async def to_code(config: ConfigType) -> None:
