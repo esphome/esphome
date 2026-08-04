@@ -3257,6 +3257,14 @@ def test_get_port_type() -> None:
     assert get_port_type("BOOTSEL") == "BOOTSEL"
 
 
+def test_mqtt_reexports_discover_ip() -> None:
+    """The old import path must keep working for external code."""
+    from esphome.components import mqtt
+    from esphome.const import CONF_DISCOVER_IP
+
+    assert mqtt.CONF_DISCOVER_IP is CONF_DISCOVER_IP
+
+
 def test_has_mqtt_ip_lookup() -> None:
     """Test has_mqtt_ip_lookup function."""
 
