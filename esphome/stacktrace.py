@@ -47,9 +47,20 @@ class LogLineProcessor:
     def __init__(self, config: ConfigType, platform: str) -> None:
         self._config = config
         self._platform = platform
-        self._platform_handler = platform_hooks.get_stacktrace_handler(platform)
+        try:
+            self._platform_handler = platform_hooks.get_stacktrace_handler(platform)
+        except Exception:  # noqa: BLE001  # pylint: disable=broad-except
+            # Total containment includes resolution: a platform package
+            # broken in an unanticipated way must not kill the session.
+            _LOGGER.debug("Stacktrace analyzer resolution failed", exc_info=True)
+            _LOGGER.warning(
+                'Stacktrace analysis is unavailable: analyzer for target platform "%s" could not be loaded.',
+                platform,
+            )
+            self._platform_handler = None
         self._decode_enabled = self._platform_handler is not None
         self._disabled_at: float | None = None
+        self._last_failure: str | None = None
         self.backtrace_state = False
 
     def process_line(self, raw_line: str) -> None:
@@ -77,6 +88,15 @@ class LogLineProcessor:
             self._disabled_at = time.monotonic()
             self.backtrace_state = False
             _LOGGER.debug("Stack-trace decoding failed", exc_info=True)
+            failure = f"{type(exc).__name__}: {exc}"
+            if failure == self._last_failure:
+                # A permanent cause re-fails on every re-arm; one full
+                # warning is enough. Repeats go to debug so an hours-long
+                # crash loop does not bury the dump in reminders, while a
+                # changed failure still warns.
+                _LOGGER.debug("Stack-trace decoding still failing: %s", failure)
+                return
+            self._last_failure = failure
             if isinstance(exc, (EsphomeError, OSError)):
                 # _run_idedata raises EsphomeError with no message, and a
                 # missing build tree surfaces as an OSError; both are the
