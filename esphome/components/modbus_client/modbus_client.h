@@ -114,14 +114,15 @@ template<typename... Ts> class TypedClientActionBase : public ClientActionBase<T
     this->custom_response_trigger_.trigger(request_pdu, response_pdu);
   }
 
- protected:
-  /// True on success; fires on_error with the exception code otherwise.
-  bool check_status_(modbus::ResponseStatus status) {
-    if (!status.has_value())
-      return true;
-    this->error_trigger_.trigger(*status);
-    return false;
+  /// A device exception enters here, where the request PDU is still at hand: fire on_error directly
+  /// instead of running the base dispatch, so the typed callbacks below only ever see a success status.
+  void on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) override {
+    this->error_trigger_.trigger(request_pdu, exception_code);
   }
+
+ protected:
+  /// True when the reply carries no exception; exception replies fired on_error above instead.
+  bool check_status_(modbus::ResponseStatus status) { return !status.has_value(); }
 
   Trigger<std::span<const uint8_t>, std::span<const uint8_t>> custom_response_trigger_;
 };
