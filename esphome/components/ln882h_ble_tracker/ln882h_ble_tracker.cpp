@@ -1,10 +1,3 @@
-// ln882h_ble_tracker.cpp
-//
-// BLE scan policy for LN882H: parameters, duration/period timers, the
-// per-period scan restart and the Bluedroid-style adv+scan-response merge.
-// All controller access (stack bring-up, scan primitives, the rw-task →
-// main-task report queue) goes through the ln882h_ble component — no SDK calls
-// and no cross-task state here.
 
 #ifdef USE_LIBRETINY
 

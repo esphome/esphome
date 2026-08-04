@@ -1,34 +1,7 @@
-// ln882h_ble_tracker.h
-//
-// ESPHome BLE scanner for LN882H (LibreTiny lightning family).
-// Implements the platform-neutral ble_device_base::BLEHub contract on top of
-// the ln882h_ble controller component: parsed ESPBTDevice objects go to
-// registered listeners (bthome_mithermometer, ble_presence, …) and every raw
-// frame to the hub's raw-advertisement callback.
-//
-// This component contains no LN882H SDK calls and no cross-task state: the
-// controller (stack bring-up, BLE address, scan primitives, and the rw-task →
-// main-task report queue) is owned by ln882h_ble, which delivers every scan
-// report on the ESPHome main task. The tracker owns scan policy — parameters,
-// duration/period timers, the per-period scan restart and the
-// adv+scan-response merge.
-//
-// Coexistence failure mode: the single-core LN882H can silently drop the scan
-// under WiFi load, and the controller's scan_start() returns void, so a
-// dropped scan is undetectable from here. In continuous mode the tracker
-// therefore re-issues scan_start() at every period boundary, bounding any
-// silent outage to one scan period.
-//
-// YAML config (values shown are the defaults; interval/window are the LN882H
-// SDK's recommended scan parameters — 50 % duty cycle):
-//
-//   ln882h_ble_tracker:
-//     scan_parameters:
-//       interval:   100ms
-//       window:      50ms
-//       active:      true
-//       duration:    5min
-//       continuous:  true
+// BLE scanner for LN882H: implements ble_device_base::BLEHub on top of the
+// ln882h_ble controller (which owns all SDK calls and delivers scan reports on
+// the main task). Scan policy lives here: parameters, period timers with
+// per-period restart, and the adv+scan-response merge.
 
 #pragma once
 
