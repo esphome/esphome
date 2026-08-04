@@ -42,7 +42,13 @@ PLATFORM_HOOKS: Final[dict[str, frozenset[str]]] = {
     "show_logs": frozenset({PLATFORM_NRF52}),
     "upload_program": frozenset({PLATFORM_NRF52, PLATFORM_ZEPHYR}),
     "process_stacktrace": frozenset(
-        {PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_NRF52, PLATFORM_RP2, PLATFORM_ZEPHYR}
+        {
+            PLATFORM_ESP32,
+            PLATFORM_ESP8266,
+            PLATFORM_NRF52,
+            PLATFORM_RP2,
+            PLATFORM_ZEPHYR,
+        }
     ),
 }
 
