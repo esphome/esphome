@@ -256,6 +256,25 @@ def test_expand_hook_invalid_reports_single_error_at_domain_path() -> None:
     assert result["image"] == pre_expand_conf
 
 
+def test_expand_hook_final_external_invalid_reports_without_path_prepend() -> None:
+    """`cv.FinalExternalInvalid` is reported via its own except clause, distinct
+    from plain `cv.Invalid`/`vol.Invalid`: its path is used as-is (the domain
+    path is deliberately not prepended), since it represents an error that
+    already carries a fully resolved path."""
+    already_resolved_error = cv.FinalExternalInvalid(
+        "bad shape", path=["image", 3, "files"]
+    )
+    expand = Mock(side_effect=already_resolved_error)
+    pre_expand_conf = [{"platform": "file", "id": "a"}]
+
+    result = _run_load_step("image", pre_expand_conf, None, expand)
+
+    assert len(result.errors) == 1
+    assert result.errors[0] is already_resolved_error
+    assert result.errors[0].path == ["image", 3, "files"]
+    assert result["image"] == pre_expand_conf
+
+
 def test_expand_hook_non_list_return_raises_assertion() -> None:
     """A non-list return is a coding error in the component, not a user config
     error, so it must not be caught/reported like a `cv.Invalid` -- it should
