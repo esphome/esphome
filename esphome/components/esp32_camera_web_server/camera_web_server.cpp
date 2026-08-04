@@ -14,6 +14,8 @@
 namespace esphome::esp32_camera_web_server {
 
 static const int IMAGE_REQUEST_TIMEOUT = 5000;
+// How often streaming_handler_ reports its throughput.
+static const uint32_t STREAM_STATS_INTERVAL = 5000;
 static const char *const TAG = "esp32_camera_web_server";
 
 #define PART_BOUNDARY "123456789000000000000987654321"
@@ -188,8 +190,14 @@ esp_err_t CameraWebServer::streaming_handler_(struct httpd_req *req) {
     return res;
   }
 
-  uint32_t last_frame = millis();
   uint32_t frames = 0;
+  // Frame statistics are aggregated over STREAM_STATS_INTERVAL rather than
+  // logged per frame. A line per frame comes out of this (non-main) task tens
+  // of times a second, and formatting and buffering it costs more than the
+  // stream it is reporting on.
+  uint32_t stats_since = millis();
+  uint32_t stats_frames = 0;
+  uint32_t stats_bytes = 0;
 
   camera::Camera::instance()->start_stream(esphome::camera::WEB_REQUESTER);
 
@@ -212,11 +220,16 @@ esp_err_t CameraWebServer::streaming_handler_(struct httpd_req *req) {
     }
     if (res == ESP_OK) {
       frames++;
-      int64_t frame_time = millis() - last_frame;
-      last_frame = millis();
-
-      ESP_LOGD(TAG, "MJPG: %" PRIu32 "B %" PRIu32 "ms (%.1ffps)", (uint32_t) image->get_data_length(),
-               (uint32_t) frame_time, 1000.0 / (uint32_t) frame_time);
+      stats_frames++;
+      stats_bytes += image->get_data_length();
+      uint32_t elapsed = millis() - stats_since;
+      if (elapsed >= STREAM_STATS_INTERVAL) {
+        ESP_LOGD(TAG, "MJPG: %.1ffps, %" PRIu32 "B/frame (%" PRIu32 " frames)", stats_frames * 1000.0f / elapsed,
+                 stats_bytes / stats_frames, stats_frames);
+        stats_since = millis();
+        stats_frames = 0;
+        stats_bytes = 0;
+      }
     }
   }
 
