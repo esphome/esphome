@@ -72,6 +72,17 @@ def _to_path_if_not_none(value: str | None) -> Path | None:
     return Path(value) if value is not None else None
 
 
+def _parse_framework_version(framework_version: str) -> Version:
+    try:
+        return Version.parse(framework_version)
+    except ValueError as err:
+        raise EsphomeError(
+            f"Could not parse the framework version "
+            f"{framework_version!r} from {storage_path()}. "
+            f"Please clean the build files and recompile."
+        ) from err
+
+
 class StorageJSON:
     """Persisted device metadata sidecar.
 
@@ -324,20 +335,14 @@ class StorageJSON:
         if target_platform == const.PLATFORM_ESP32:
             esp32_data = {KEY_VARIANT: self.target_platform}
             if self.framework_version:
-                esp32_data[KEY_IDF_VERSION] = self._parse_framework_version()
+                esp32_data[KEY_IDF_VERSION] = _parse_framework_version(
+                    self.framework_version
+                )
             CORE.data[KEY_ESP32] = esp32_data
         elif target_platform == const.PLATFORM_NRF52 and self.framework_version:
-            CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = self._parse_framework_version()
-
-    def _parse_framework_version(self) -> Version:
-        try:
-            return Version.parse(self.framework_version)
-        except ValueError as err:
-            raise EsphomeError(
-                f"Could not parse the framework version "
-                f"{self.framework_version!r} from {storage_path()}. "
-                f"Please clean the build files and recompile."
-            ) from err
+            CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = _parse_framework_version(
+                self.framework_version
+            )
 
     def __eq__(self, o) -> bool:
         return isinstance(o, StorageJSON) and self.as_dict() == o.as_dict()
