@@ -49,6 +49,19 @@ SensorItem = modbus_controller_ns.struct("SensorItem")
 
 _LOGGER = logging.getLogger(__name__)
 
+
+# Remove before 2027.2.0
+def _deprecated_skip_updates(value):
+    value = cv.positive_int(value)
+    if value != 0:
+        _LOGGER.warning(
+            "[modbus_controller] 'skip_updates' is deprecated and will be removed in 2027.2.0. "
+            "Instead, add a second modbus_controller with the same address and a slower "
+            "update_interval, and attach the slow sensors to it."
+        )
+    return value
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -100,7 +113,7 @@ ModbusItemBaseSchema = cv.Schema(
             f"{CONF_OFFSET} and {CONF_BYTE_OFFSET} can't be used together",
         ): cv.positive_int,
         cv.Optional(CONF_BITMASK, default=0xFFFFFFFF): cv.hex_uint32_t,
-        cv.Optional(CONF_SKIP_UPDATES, default=0): cv.positive_int,
+        cv.Optional(CONF_SKIP_UPDATES, default=0): _deprecated_skip_updates,
         cv.Optional(CONF_FORCE_NEW_RANGE, default=False): cv.boolean,
         cv.Optional(CONF_LAMBDA): cv.returning_lambda,
         cv.Optional(CONF_RESPONSE_SIZE, default=0): cv.positive_int,
