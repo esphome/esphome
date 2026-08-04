@@ -250,8 +250,9 @@ template<typename... Ts> class WriteMultipleCoilsAction : public TypedClientActi
 
   void play(const Ts &...x) override {
     auto values = this->values_.value(x...);
-    if (values.empty() || values.size() > modbus::MAX_NUM_OF_COILS_TO_WRITE) {
-      // An out-of-spec set cannot be packed into the stack buffer; resolve it like any refused send.
+    // Bound before packing so the stack buffer below cannot overflow; the builder validates the rest
+    // (an empty set rejects into an empty PDU there and resolves via on_not_sent like any refused send).
+    if (values.size() > modbus::MAX_NUM_OF_COILS_TO_WRITE) {
       this->on_not_sent({});
       return;
     }
