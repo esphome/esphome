@@ -40,9 +40,7 @@ _UUID_WIDTHS = {
 }
 
 
-def trigger_schema(
-    trigger_class: MockObjClass, extra: dict[Any, Any] | None = None
-) -> cv.Schema:
+def trigger_schema(trigger_class: MockObjClass, extra: dict[Any, Any] | None = None):
     """Automation schema for a tracker trigger: id, optional mac filter, extras.
 
     `extra` is a dict rather than **kwargs because schema keys are cv markers,

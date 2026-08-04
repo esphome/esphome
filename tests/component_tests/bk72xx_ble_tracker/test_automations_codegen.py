@@ -10,8 +10,8 @@ def test_trigger_codegen(generate_main) -> None:
         "tests/component_tests/bk72xx_ble_tracker/test_automations.yaml"
     )
 
-    # on_ble_advertise: multi-mac filter
-    assert "set_addresses({0xAC3743775F4CULL})" in main_cpp
+    # on_ble_advertise: multi-mac filter (two addresses in one initializer list)
+    assert "set_addresses({0xAC3743775F4CULL, 0x112233445566ULL})" in main_cpp
     # 128-bit service uuid goes out reversed (BLE wire order); single-mac filter
     assert (
         "set_service_uuid128((uint8_t*)(const uint8_t[16]){0xCD,0xAB,0xCD,0xAB,"
