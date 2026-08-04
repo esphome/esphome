@@ -92,6 +92,9 @@ void LN882HBLETracker::loop() {
     if (now - this->scan_period_start_ >= this->scan_duration_) {
       ESP_LOGD(TAG, "Scan period elapsed - restarting scan");
       this->parent_->scan_start(this->scan_interval_, this->scan_window_, this->scan_active_);
+      // Keep both clocks anchored to the restart: a runtime switch to
+      // non-continuous then times out the current period, not the whole run.
+      this->scan_start_time_ = now;
       this->end_scan_period_(now);
     }
     return;

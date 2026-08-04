@@ -22,6 +22,7 @@
 
 #ifdef USE_LN882H_BLE
 
+#include <algorithm>
 #include <cstddef>
 #include <cstring>
 
