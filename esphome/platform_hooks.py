@@ -99,8 +99,9 @@ def get_stacktrace_handler(platform: str) -> Callable[..., Any] | None:
     try:
         handler = get_platform_hook(platform, "process_stacktrace")
     except ImportError as err:
+        # A real breakage, not an ordinary capability gap; say so louder.
         _LOGGER.debug("Stacktrace analyzer import failed", exc_info=True)
-        _LOGGER.info(
+        _LOGGER.warning(
             'Stacktrace analysis is unavailable: analyzer for target platform "%s" failed to import: %s',
             platform,
             err,
