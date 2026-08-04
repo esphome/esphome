@@ -639,9 +639,10 @@ void Tuya::send_gmt_time_() {
     uint8_t minute = now.minute;
     uint8_t second = now.second;
     payload = std::vector<uint8_t>{0x01, year, month, day_of_month, hour, minute, second};
+    ESP_LOGD(TAG, "Sending gmt time");
   } else {
     // By spec we need to notify MCU that the time was not obtained if this is a response to a query
-    ESP_LOGW(TAG, "Sending missing utc time");
+    ESP_LOGW(TAG, "Sending missing gmt time");
     payload = std::vector<uint8_t>{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   }
   this->send_command_(TuyaCommand{.cmd = TuyaCommandType::GMT_TIME_QUERY, .payload = payload});
