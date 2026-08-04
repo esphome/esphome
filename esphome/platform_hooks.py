@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import importlib
+import logging
 from typing import Any, Final
 
 from esphome.const import (
@@ -26,6 +27,8 @@ from esphome.const import (
     PLATFORM_RP2,
     Platform,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 PLATFORM_HOOKS: Final[dict[str, frozenset[str]]] = {
     "show_logs": frozenset({PLATFORM_NRF52}),
@@ -40,6 +43,15 @@ PLATFORM_HOOKS: Final[dict[str, frozenset[str]]] = {
 # supplied via external_components is not in Platform and falls back to
 # probing the imported package, as the CLI did before the registry.
 _IN_TREE_PLATFORMS: Final = frozenset(Platform)
+
+
+def may_provide_hook(platform: str, hook: str) -> bool:
+    """False when the registry proves this in-tree platform lacks the hook.
+
+    External platforms always return True; only the probe can answer for
+    them.
+    """
+    return platform in PLATFORM_HOOKS[hook] or platform not in _IN_TREE_PLATFORMS
 
 
 def get_platform_hook(platform: str, hook: str) -> Callable[..., Any] | None:
@@ -69,3 +81,29 @@ def get_platform_hook(platform: str, hook: str) -> Callable[..., Any] | None:
     return getattr(
         importlib.import_module(f"esphome.components.{platform}"), hook, None
     )
+
+
+def get_stacktrace_handler(platform: str) -> Callable[..., Any] | None:
+    """Resolve ``process_stacktrace`` for *platform*, degrading with a log.
+
+    Stacktrace decoding is a diagnostic nicety: a platform without an
+    analyzer, or one whose package fails to import, must never stop a
+    log session. Both callers (serial and API logs) share this so the
+    user-facing message lives in one place.
+    """
+    try:
+        handler = get_platform_hook(platform, "process_stacktrace")
+    except ImportError as err:
+        _LOGGER.debug("Stacktrace analyzer import failed", exc_info=True)
+        _LOGGER.info(
+            'Stacktrace analysis is unavailable: analyzer for target platform "%s" failed to import: %s',
+            platform,
+            err,
+        )
+        return None
+    if handler is None:
+        _LOGGER.info(
+            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
+            platform,
+        )
+    return handler

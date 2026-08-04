@@ -121,3 +121,10 @@ def test_lookup_miss_does_not_import_platform_package(
         Mock(side_effect=AssertionError("platform package imported on registry miss")),
     )
     assert platform_hooks.get_platform_hook(PLATFORM_ESP32, "show_logs") is None
+
+
+def test_get_stacktrace_handler_resolves_registered_platform() -> None:
+    hook = platform_hooks.get_stacktrace_handler(PLATFORM_ESP32)
+    from esphome.components import esp32
+
+    assert hook is esp32.process_stacktrace

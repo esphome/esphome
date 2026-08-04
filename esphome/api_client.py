@@ -32,12 +32,16 @@ _LOGGER = logging.getLogger(__name__)
 
 
 # Necessary condition for a line to decode to anything: every frame or
-# register the platform decoders match carries an 8-hex-digit address
-# (``PC: 0x400d1a2c``, ``BT0: 0x...``, esp8266 stack-dump words). The
-# device builder gates its decoder subprocess on the same primitive.
-# Deliberately not the crash-marker grammar - that lives in the platform
-# decoders and a copy here would drift.
-_ADDRESS_RE = re.compile(r"(?:0x)?[0-9a-fA-F]{8}\b")
+# register the platform decoders match carries either a 0x-prefixed
+# pointer (nrf52's variable-length ``PC=0x27a1c``, esp32's
+# ``Backtrace: 0x400d1a2c:...``) or a bare 8-hex-digit word (esp8266
+# stack dumps). A unit test feeds one real dump line per registered
+# platform through this to keep the superset claim honest. Deliberately
+# not the crash-marker grammar - that lives in the platform decoders
+# and a copy here would drift. The device builder gates its decoder
+# subprocess the same way (esphome_device_builder/controllers/devices/
+# backtrace.py).
+_ADDRESS_RE = re.compile(r"0x[0-9a-fA-F]{4,}\b|\b[0-9a-fA-F]{8}\b")
 
 # Lines kept for replay once decoding starts. Crash markers without an
 # address (esp8266's ``>>>stack>>>``, panic banners) precede the first
@@ -46,74 +50,67 @@ _ADDRESS_RE = re.compile(r"(?:0x)?[0-9a-fA-F]{8}\b")
 _REPLAY_LINES = 8
 
 
-class _LogLineProcessor:
+class LogLineProcessor:
     """Feeds incoming log lines to the stack-trace decoder.
 
-    Resolves the platform decoder lazily: importing a platform package
-    pulls in the validation stack, so nothing is imported until a line
-    carries something that could decode (an 8-hex-digit address). Most
-    log sessions never see one and never pay the import.
-
-    Two responsibilities beyond just calling the decoder:
-    1. Catch everything the decoder can raise. aioesphomeapi isolates
+    Three responsibilities beyond just calling the decoder:
+    1. Resolve the platform decoder lazily. Importing a platform package
+       pulls in the validation stack, so nothing is imported until a
+       line carries something that could decode (see _ADDRESS_RE); the
+       preceding context lines replay from a small buffer so multi-line
+       dumps whose opening marker has no address still decode. Sessions
+       that never see a crash-shaped line never pay the import.
+    2. Catch everything the decoder can raise. aioesphomeapi isolates
        exceptions raised by log handlers, so an escaping one no longer
        kills the session, but it does log a full traceback per line. A
        crash dump carries a PC line plus one per backtrace frame, so the
        tracebacks bury the dump the user is trying to read. Decoding is a
        diagnostic nicety; nothing it raises is worth that noise.
-    2. Disable decoding after the first failure. _decode_pc shells out to
+    3. Disable decoding after the first failure. _decode_pc shells out to
        the toolchain to resolve addr2line, which is expensive; a single
        crash dump can contain many PC/BT lines and we don't want to retry
        the failing subprocess for each one. This only works if every
-       failure is caught, which is why 1 is not narrowed to EsphomeError.
+       failure is caught, which is why 2 is not narrowed to EsphomeError.
     """
 
-    def __init__(
-        self,
-        config: dict[str, Any],
-        platform: str,
-        platform_handler: Any | None = None,
-    ) -> None:
+    def __init__(self, config: dict[str, Any], platform: str) -> None:
         self._config = config
         self._platform = platform
-        self._platform_handler = platform_handler
+        self._platform_handler: Any | None = None
         self._decode_enabled = True
-        self._resolved = platform_handler is not None
         self._recent: deque[str] = deque(maxlen=_REPLAY_LINES)
         self.backtrace_state = False
+        # The registry can prove some platforms have no analyzer without
+        # importing anything; resolve those now so the unavailable notice
+        # fires at session start (as it always did) and the per-line gate
+        # never runs.
+        if not platform_hooks.may_provide_hook(platform, "process_stacktrace"):
+            self._resolve_handler()
 
     def process_line(self, raw_line: str) -> None:
         if not self._decode_enabled:
             return
-        if not self._resolved:
+        if self._platform_handler is None:
             if not _ADDRESS_RE.search(raw_line):
                 self._recent.append(raw_line)
                 return
-            self._resolve_handler()
-            if not self._decode_enabled:
+            if not self._resolve_handler():
                 return
-            for buffered in self._recent:
-                self._feed(buffered)
+            pending = list(self._recent)
             self._recent.clear()
+            for buffered in pending:
+                self._feed(buffered)
+                if not self._decode_enabled:
+                    return
         self._feed(raw_line)
 
-    def _resolve_handler(self) -> None:
-        self._resolved = True
-        try:
-            handler = platform_hooks.get_platform_hook(
-                self._platform, "process_stacktrace"
-            )
-        except ImportError:
-            _LOGGER.debug("Stacktrace analyzer import failed", exc_info=True)
-            handler = None
+    def _resolve_handler(self) -> bool:
+        handler = platform_hooks.get_stacktrace_handler(self._platform)
         if handler is None:
             self._decode_enabled = False
-            _LOGGER.info(
-                'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
-                self._platform,
-            )
-        else:
-            self._platform_handler = handler
+            return False
+        self._platform_handler = handler
+        return True
 
     def _feed(self, raw_line: str) -> None:
         try:
@@ -164,7 +161,7 @@ async def async_run_logs(
     # The platform stacktrace decoder resolves lazily inside the
     # processor: no platform package is imported unless a crash-shaped
     # line actually arrives.
-    processor = _LogLineProcessor(config, CORE.target_platform)
+    processor = LogLineProcessor(config, CORE.target_platform)
 
     def on_log(msg: SubscribeLogsResponse) -> None:
         """Handle a new log message."""

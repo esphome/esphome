@@ -630,22 +630,13 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
         return 1
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
-    # Stacktrace analysis is optional; a broken platform import must not
-    # stop serial log streaming.
-    try:
-        process_stacktrace = platform_hooks.get_platform_hook(
-            CORE.target_platform, "process_stacktrace"
-        )
-    except ImportError:
-        _LOGGER.debug("Stacktrace analyzer import failed", exc_info=True)
-        process_stacktrace = None
-    if process_stacktrace is None:
-        _LOGGER.info(
-            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
-            CORE.target_platform,
-        )
+    # Shares the API path's processor: the platform decoder resolves
+    # lazily on the first crash-shaped line, decoder exceptions are
+    # contained, and decoding disables itself after the first failure.
+    # aioesphomeapi is already imported above, so this adds no weight.
+    from esphome.api_client import LogLineProcessor
 
-    backtrace_state = False
+    processor = LogLineProcessor(config, CORE.target_platform)
     ser = serial.Serial()
     ser.baudrate = baud_rate
     ser.port = port
@@ -685,11 +676,7 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
                                 "utf8", "backslashreplace"
                             )
                             safe_print(parser.parse_line(line, time_str))
-
-                            if process_stacktrace is not None:
-                                backtrace_state = process_stacktrace(
-                                    config, line, backtrace_state
-                                )
+                            processor.process_line(line)
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
                         return 0
