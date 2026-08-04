@@ -1174,7 +1174,7 @@ def _sbv2_rsa_key_digest(path: Path) -> bytes:
 
     This hashes the 776-byte {n, e, rinv, m'} region exactly as the ROM lays it
     out -- i.e. the value the device computes per signature block and the one
-    ``espsecure digest-rsa-public-key`` prints, not a hash of the DER key.
+    ``espsecure digest-sbv2-public-key`` prints, not a hash of the DER key.
     """
     import hashlib
     import struct

@@ -155,8 +155,13 @@ bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
   uint8_t block[SIG_BLOCK_SIZE];
   for (size_t i = 0; i < SIG_BLOCK_MAX_COUNT; i++) {
     size_t off = incoming_sector + i * SIG_BLOCK_SIZE;
-    if (off + SIG_BLOCK_SIZE > incoming->size || esp_partition_read(incoming, off, block, SIG_BLOCK_SIZE) != ESP_OK) {
-      break;
+    if (off + SIG_BLOCK_SIZE > incoming->size) {
+      break;  // partition has no room for another block; done scanning
+    }
+    // A read fault is not "no trusted key" -- fail closed with a distinct error.
+    if (esp_partition_read(incoming, off, block, SIG_BLOCK_SIZE) != ESP_OK) {
+      ESP_LOGE(TAG, "Signature check: failed to read incoming signature block %zu", i);
+      return false;
     }
     if (!block_is_valid(block)) {
       continue;
