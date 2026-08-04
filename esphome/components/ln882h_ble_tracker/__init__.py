@@ -68,6 +68,16 @@ SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
 )
 
 
+# UUID string length -> setter width. 16/32-bit go out as plain hex literals,
+# 128-bit as a reversed byte array (BLE wire order). Keyed exhaustively so an
+# impossible length fails as a KeyError instead of silently picking a width
+# (bt_uuid validation upstream only ever produces these three).
+_UUID_WIDTHS = {
+    len(ble_device_base.BT_UUID16_FORMAT): "16",
+    len(ble_device_base.BT_UUID32_FORMAT): "32",
+    len(ble_device_base.BT_UUID128_FORMAT): "128",
+}
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LN882HBLETracker),
@@ -186,39 +196,30 @@ async def to_code(config: ConfigType) -> None:
         await automation.build_automation(trigger, [(ESPBTDeviceConstRef, "x")], conf)
         _count_listener()
 
-    for conf in config.get(CONF_ON_BLE_SERVICE_DATA_ADVERTISE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        uuid = conf[CONF_SERVICE_UUID]
-        if len(uuid) == len(ble_device_base.BT_UUID16_FORMAT):
-            cg.add(trigger.set_service_uuid16(ble_device_base.as_hex(uuid)))
-        elif len(uuid) == len(ble_device_base.BT_UUID32_FORMAT):
-            cg.add(trigger.set_service_uuid32(ble_device_base.as_hex(uuid)))
-        else:
-            cg.add(
-                trigger.set_service_uuid128(ble_device_base.as_reversed_hex_array(uuid))
+    for trigger_key, uuid_key, setter_prefix in (
+        (CONF_ON_BLE_SERVICE_DATA_ADVERTISE, CONF_SERVICE_UUID, "set_service_uuid"),
+        (
+            CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
+            CONF_MANUFACTURER_ID,
+            "set_manufacturer_uuid",
+        ),
+    ):
+        for conf in config.get(trigger_key, []):
+            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+            uuid = conf[uuid_key]
+            width = _UUID_WIDTHS[len(uuid)]
+            value = (
+                ble_device_base.as_hex(uuid)
+                if width != "128"
+                else ble_device_base.as_reversed_hex_array(uuid)
             )
-        if CONF_MAC_ADDRESS in conf:
-            cg.add(trigger.set_address(conf[CONF_MAC_ADDRESS].as_hex))
-        await automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
-        _count_listener()
-
-    for conf in config.get(CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        uuid = conf[CONF_MANUFACTURER_ID]
-        if len(uuid) == len(ble_device_base.BT_UUID16_FORMAT):
-            cg.add(trigger.set_manufacturer_uuid16(ble_device_base.as_hex(uuid)))
-        elif len(uuid) == len(ble_device_base.BT_UUID32_FORMAT):
-            cg.add(trigger.set_manufacturer_uuid32(ble_device_base.as_hex(uuid)))
-        else:
-            cg.add(
-                trigger.set_manufacturer_uuid128(
-                    ble_device_base.as_reversed_hex_array(uuid)
-                )
+            cg.add(getattr(trigger, f"{setter_prefix}{width}")(value))
+            if CONF_MAC_ADDRESS in conf:
+                cg.add(trigger.set_address(conf[CONF_MAC_ADDRESS].as_hex))
+            await automation.build_automation(
+                trigger, [(adv_data_t_const_ref, "x")], conf
             )
-        if CONF_MAC_ADDRESS in conf:
-            cg.add(trigger.set_address(conf[CONF_MAC_ADDRESS].as_hex))
-        await automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
-        _count_listener()
+            _count_listener()
 
     for conf in config.get(CONF_ON_SCAN_END, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

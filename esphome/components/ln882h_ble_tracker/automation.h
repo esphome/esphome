@@ -9,37 +9,39 @@
 #include "ln882h_ble_tracker.h"
 
 #include "esphome/core/automation.h"
+#include "esphome/core/helpers.h"
 
-#include <utility>
-#include <vector>
+#include <algorithm>
+#include <initializer_list>
 
 namespace esphome::ln882h_ble_tracker {
 
-template<typename... Ts> class StartScanAction : public Action<Ts...>, public Parented<LN882HBLETracker> {
+template<typename... Ts> class StartScanAction final : public Action<Ts...>, public Parented<LN882HBLETracker> {
  public:
   TEMPLATABLE_VALUE(bool, continuous)
   void play(const Ts &...x) override {
-    // With continuous: set, the action wins. Without it, restore the value from
-    // scan_parameters rather than reading the runtime flag — stop_scan() clears
-    // that flag permanently, so a bare stop_scan/start_scan pair would otherwise
-    // never resume continuous mode.
-    if (this->continuous_.has_value()) {
-      this->parent_->set_scan_continuous_runtime(this->continuous_.value(x...));
-    } else {
-      this->parent_->restore_configured_continuous();
-    }
+    // With continuous: set, the action wins. Without it, the configured value
+    // is used - stop_scan() clears the runtime flag permanently, so a bare
+    // stop_scan/start_scan pair would otherwise never resume continuous mode.
+    const bool want =
+        this->continuous_.has_value() ? this->continuous_.value(x...) : this->parent_->configured_continuous();
     if (this->parent_->scan_running()) {
-      // Mode applied to a running scan: re-anchor the duration window so a
-      // switch to one-shot runs a full duration from now instead of expiring
-      // against the old start time on the next loop() iteration.
-      this->parent_->restart_scan_window();
-    } else {
-      this->parent_->start_scan();
+      // Same mode on a running scan is a no-op (esp32 parity): re-anchoring
+      // the duration window here would let a repeated action keep a one-shot
+      // scan alive forever. A real mode switch re-anchors so a change to
+      // one-shot runs a full duration from now.
+      if (want != this->parent_->scan_continuous()) {
+        this->parent_->set_scan_continuous_runtime(want);
+        this->parent_->restart_scan_window();
+      }
+      return;
     }
+    this->parent_->set_scan_continuous_runtime(want);
+    this->parent_->start_scan();
   }
 };
 
-template<typename... Ts> class StopScanAction : public Action<Ts...>, public Parented<LN882HBLETracker> {
+template<typename... Ts> class StopScanAction final : public Action<Ts...>, public Parented<LN882HBLETracker> {
  public:
   void play(const Ts &...x) override { this->parent_->stop_scan(); }
 };
@@ -53,39 +55,30 @@ template<typename... Ts> class StopScanAction : public Action<Ts...>, public Par
 // ---------------------------------------------------------------------------
 
 // on_ble_advertise: fires on every BLE advertisement, optionally filtered to one or more MACs.
-class ESPBTAdvertiseTrigger : public Trigger<const ble_device_base::ESPBTDevice &>,
-                              public ble_device_base::ESPBTDeviceListener {
+class ESPBTAdvertiseTrigger final : public Trigger<const ble_device_base::ESPBTDevice &>,
+                                    public ble_device_base::ESPBTDeviceListener {
  public:
   explicit ESPBTAdvertiseTrigger(LN882HBLETracker *parent) { parent->register_listener(this); }
 
-  void set_addresses(std::vector<uint64_t> addresses) { this->addresses_ = std::move(addresses); }
+  void set_addresses(std::initializer_list<uint64_t> addresses) { this->addresses_ = addresses; }
 
   bool parse_device(const ble_device_base::ESPBTDevice &device) override {
-    if (!this->addresses_.empty()) {
-      uint64_t addr = device.address_uint64();
-      bool match = false;
-      for (auto a : this->addresses_) {
-        if (a == addr) {
-          match = true;
-          break;
-        }
-      }
-      if (!match) {
-        return false;
-      }
+    if (!this->addresses_.empty() && std::find(this->addresses_.begin(), this->addresses_.end(),
+                                               device.address_uint64()) == this->addresses_.end()) {
+      return false;
     }
     this->trigger(device);
     return true;
   }
 
  protected:
-  std::vector<uint64_t> addresses_{};
+  FixedVector<uint64_t> addresses_;
 };
 
 // on_ble_service_data_advertise: fires when an advertisement contains service
 // data for the given UUID. Optional single-MAC filter.
-class BLEServiceDataAdvertiseTrigger : public Trigger<const ble_device_base::adv_data_t &>,
-                                       public ble_device_base::ESPBTDeviceListener {
+class BLEServiceDataAdvertiseTrigger final : public Trigger<const ble_device_base::adv_data_t &>,
+                                             public ble_device_base::ESPBTDeviceListener {
  public:
   explicit BLEServiceDataAdvertiseTrigger(LN882HBLETracker *parent) { parent->register_listener(this); }
 
@@ -123,8 +116,8 @@ class BLEServiceDataAdvertiseTrigger : public Trigger<const ble_device_base::adv
 
 // on_ble_manufacturer_data_advertise: fires when an advertisement contains
 // manufacturer data for the given ID. Optional single-MAC filter.
-class BLEManufacturerDataAdvertiseTrigger : public Trigger<const ble_device_base::adv_data_t &>,
-                                            public ble_device_base::ESPBTDeviceListener {
+class BLEManufacturerDataAdvertiseTrigger final : public Trigger<const ble_device_base::adv_data_t &>,
+                                                  public ble_device_base::ESPBTDeviceListener {
  public:
   explicit BLEManufacturerDataAdvertiseTrigger(LN882HBLETracker *parent) { parent->register_listener(this); }
 
@@ -163,7 +156,7 @@ class BLEManufacturerDataAdvertiseTrigger : public Trigger<const ble_device_base
 // on_scan_end: fires whenever a scan period ends (duration elapsed or stop_scan
 // called). A listener whose on_scan_end() hook fires the trigger — never claims
 // devices (parse_device always returns false).
-class BLEEndOfScanTrigger : public Trigger<>, public ble_device_base::ESPBTDeviceListener {
+class BLEEndOfScanTrigger final : public Trigger<>, public ble_device_base::ESPBTDeviceListener {
  public:
   explicit BLEEndOfScanTrigger(LN882HBLETracker *parent) { parent->register_listener(this); }
 

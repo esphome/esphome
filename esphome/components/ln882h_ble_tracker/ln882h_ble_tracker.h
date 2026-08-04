@@ -53,17 +53,18 @@ class LN882HBLETracker : public Component,
   void set_scan_window(uint16_t scan_window) { this->scan_window_ = scan_window; }
   void set_scan_duration(uint32_t scan_duration) { this->scan_duration_ = scan_duration; }
   /// Set from YAML (scan_parameters.continuous); also the value
-  /// restore_configured_continuous() returns to.
+  /// configured_continuous() reports.
   void set_scan_continuous(bool scan_continuous) {
     this->scan_continuous_ = scan_continuous;
     this->scan_continuous_configured_ = scan_continuous;
   }
-  /// Runtime override that does not change the configured value, so a later
-  /// restore_configured_continuous() still returns to what YAML asked for.
+  /// Runtime override that does not change the configured value, so
+  /// configured_continuous() still reports what YAML asked for.
   void set_scan_continuous_runtime(bool scan_continuous) { this->scan_continuous_ = scan_continuous; }
-  void restore_configured_continuous() { this->scan_continuous_ = this->scan_continuous_configured_; }
-  /// Re-anchor the duration/period window of a running scan to now — used when
-  /// an action changes the scan mode without stopping the radio.
+  bool scan_continuous() const { return this->scan_continuous_; }
+  bool configured_continuous() const { return this->scan_continuous_configured_; }
+  /// Re-anchor the duration window of a running scan to now — used when an
+  /// action changes the scan mode without stopping the radio.
   void restart_scan_window();
 
   // ---- Public scan control ----
