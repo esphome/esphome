@@ -195,9 +195,9 @@ def test_slot_counter_without_requests_emits_nothing() -> None:
 
 
 def test_slot_counter_request_from_final_job_still_emits() -> None:
-    """A slot requested while FINAL jobs are already draining is still emitted;
-    flush_tasks() loops until the heap is empty, so the emit job scheduled
-    mid-drain runs in the same flush."""
+    """The FIRST request for a define may come from a FINAL job: its emit job
+    is scheduled mid-drain and flush_tasks() loops until the heap is empty.
+    Later requests do not get this guarantee — see the companion test."""
     request = ch.slot_counter("TEST_SLOT_COUNT_LATE")
 
     @coroutine_with_priority(CoroPriority.FINAL)
@@ -207,3 +207,14 @@ def test_slot_counter_request_from_final_job_still_emits() -> None:
     ch.CORE.add_job(late_requester)
     ch.CORE.flush_tasks()
     assert _define_value("TEST_SLOT_COUNT_LATE") == "1"
+
+
+def test_slot_counter_request_after_emit_raises() -> None:
+    """The boundary of FINAL-time requests: once the define was emitted, a
+    further request would silently undersize the storage, so it fails loudly."""
+    request = ch.slot_counter("TEST_SLOT_COUNT_TOO_LATE")
+    request()
+    ch.CORE.flush_tasks()
+    assert _define_value("TEST_SLOT_COUNT_TOO_LATE") == "1"
+    with pytest.raises(ValueError, match="TEST_SLOT_COUNT_TOO_LATE"):
+        request()

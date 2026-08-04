@@ -140,14 +140,24 @@ async def _generate_component_source_table() -> None:
 _SLOT_COUNTER_DOMAIN = "slot_counter"
 
 
-def _get_slot_counts() -> dict[str, int]:
-    """Get or create the slot count table (keyed by define name) from CORE.data."""
-    return CORE.data.setdefault(_SLOT_COUNTER_DOMAIN, {})
+@dataclass
+class _SlotCounterState:
+    """Per-run slot counter state: requested counts and already-emitted defines."""
+
+    counts: dict[str, int] = field(default_factory=dict)
+    emitted: set[str] = field(default_factory=set)
+
+
+def _get_slot_counter_state() -> _SlotCounterState:
+    """Get or create the slot counter state from CORE.data."""
+    if _SLOT_COUNTER_DOMAIN not in CORE.data:
+        CORE.data[_SLOT_COUNTER_DOMAIN] = _SlotCounterState()
+    return CORE.data[_SLOT_COUNTER_DOMAIN]
 
 
 def get_slot_count(define: str) -> int:
     """Number of slots requested so far for `define`."""
-    return _get_slot_counts().get(define, 0)
+    return _get_slot_counter_state().counts.get(define, 0)
 
 
 def slot_counter(define: str) -> Callable[[], None]:
@@ -159,16 +169,28 @@ def slot_counter(define: str) -> Callable[[], None]:
     emitted with the requested count. No requests, no define: the guarded
     storage and its registration method compile out entirely.
 
-    The count lives under `define` in CORE.data, which clears between runs.
+    The counts live in a table under CORE.data, which clears between runs.
+    A request arriving after the define was already emitted raises instead of
+    silently undercounting: the define would keep the stale smaller value and
+    StaticVector::push_back would drop the extra listener at runtime.
     """
 
     @coroutine_with_priority(CoroPriority.FINAL)
     async def emit_job() -> None:
-        if count := _get_slot_counts().get(define):
+        state = _get_slot_counter_state()
+        state.emitted.add(define)
+        if count := state.counts.get(define):
             add_define(define, count)
 
     def request_slot() -> None:
-        counts = _get_slot_counts()
+        state = _get_slot_counter_state()
+        if define in state.emitted:
+            raise ValueError(
+                f"slot_counter('{define}'): slot requested after the count "
+                f"define was emitted; request slots from to_code, not from a "
+                f"job running after FINAL emission"
+            )
+        counts = state.counts
         counts[define] = (count := counts.get(define, 0) + 1)
         if count == 1:
             CORE.add_job(emit_job)
