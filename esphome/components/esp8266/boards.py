@@ -1,3 +1,5 @@
+from esphome.const import KEY_FLASH_SIZE
+
 FLASH_SIZE_1_MB = 2**20
 FLASH_SIZE_512_KB = FLASH_SIZE_1_MB // 2
 FLASH_SIZE_2_MB = 2 * FLASH_SIZE_1_MB
@@ -185,178 +187,178 @@ done | sort
 BOARDS = {
     "agruminolemon": {
         "name": "Lifely Agrumino Lemon v4",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "d1_mini_lite": {
         "name": "WeMos D1 mini Lite",
-        "flash_size": FLASH_SIZE_1_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_1_MB,
     },
     "d1_mini": {
         "name": "WeMos D1 R2 and mini",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "d1_mini_pro": {
         "name": "WeMos D1 mini Pro",
-        "flash_size": FLASH_SIZE_16_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_16_MB,
     },
     "d1": {
         "name": "WEMOS D1 R1",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "eduinowifi": {
         "name": "Schirmilabs Eduino WiFi",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "esp01_1m": {
         "name": "Espressif Generic ESP8266 ESP-01 1M",
-        "flash_size": FLASH_SIZE_1_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_1_MB,
     },
     "esp01": {
         "name": "Espressif Generic ESP8266 ESP-01 512k",
-        "flash_size": FLASH_SIZE_512_KB,
+        KEY_FLASH_SIZE: FLASH_SIZE_512_KB,
     },
     "esp07": {
         "name": "Espressif Generic ESP8266 ESP-07 1MB",
-        "flash_size": FLASH_SIZE_1_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_1_MB,
     },
     "esp07s": {
         "name": "Espressif Generic ESP8266 ESP-07S",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "esp12e": {
         "name": "Espressif ESP8266 ESP-12E",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "esp210": {
         "name": "SweetPea ESP-210",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "esp8285": {
         "name": "Generic ESP8285 Module",
-        "flash_size": FLASH_SIZE_1_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_1_MB,
     },
     "espduino": {
         "name": "ESPDuino (ESP-13 Module)",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "espectro": {
         "name": "ESPectro Core",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "espino": {
         "name": "ESPino",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "espinotee": {
         "name": "ThaiEasyElec ESPino",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "espmxdevkit": {
         "name": "ESP-Mx DevKit (ESP8285)",
-        "flash_size": FLASH_SIZE_1_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_1_MB,
     },
     "espresso_lite_v1": {
         "name": "ESPresso Lite 1.0",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "espresso_lite_v2": {
         "name": "ESPresso Lite 2.0",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "esp_wroom_02": {
         "name": "ESP-WROOM-02",
-        "flash_size": FLASH_SIZE_2_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_2_MB,
     },
     "gen4iod": {
         "name": "4D Systems gen4 IoD Range",
-        "flash_size": FLASH_SIZE_512_KB,
+        KEY_FLASH_SIZE: FLASH_SIZE_512_KB,
     },
     "heltec_wifi_kit_8": {
         "name": "Heltec Wifi kit 8",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "huzzah": {
         "name": "Adafruit HUZZAH ESP8266",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "inventone": {
         "name": "Invent One",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "modwifi": {
         "name": "Olimex MOD-WIFI-ESP8266(-DEV)",
-        "flash_size": FLASH_SIZE_2_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_2_MB,
     },
     "nodemcu": {
         "name": "NodeMCU 0.9 (ESP-12 Module)",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "nodemcuv2": {
         "name": "NodeMCU 1.0 (ESP-12E Module)",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "oak": {
         "name": "DigiStump Oak",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "phoenix_v1": {
         "name": "Phoenix 1.0",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "phoenix_v2": {
         "name": "Phoenix 2.0",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "sonoff_basic": {
         "name": "Sonoff Basic",
-        "flash_size": FLASH_SIZE_1_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_1_MB,
     },
     "sonoff_s20": {
         "name": "Sonoff S20",
-        "flash_size": FLASH_SIZE_1_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_1_MB,
     },
     "sonoff_sv": {
         "name": "Sonoff SV",
-        "flash_size": FLASH_SIZE_1_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_1_MB,
     },
     "sonoff_th": {
         "name": "Sonoff TH",
-        "flash_size": FLASH_SIZE_1_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_1_MB,
     },
     "sparkfunBlynk": {
         "name": "SparkFun Blynk Board",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "thingdev": {
         "name": "SparkFun ESP8266 Thing Dev",
-        "flash_size": FLASH_SIZE_512_KB,
+        KEY_FLASH_SIZE: FLASH_SIZE_512_KB,
     },
     "thing": {
         "name": "SparkFun ESP8266 Thing",
-        "flash_size": FLASH_SIZE_512_KB,
+        KEY_FLASH_SIZE: FLASH_SIZE_512_KB,
     },
     "wifiduino": {
         "name": "WiFiduino",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "wifinfo": {
         "name": "WifInfo",
-        "flash_size": FLASH_SIZE_1_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_1_MB,
     },
     "wifi_slot": {
         "name": "WiFi Slot",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "wio_link": {
         "name": "Wio Link",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "wio_node": {
         "name": "Wio Node",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
     "xinabox_cw01": {
         "name": "XinaBox CW01",
-        "flash_size": FLASH_SIZE_4_MB,
+        KEY_FLASH_SIZE: FLASH_SIZE_4_MB,
     },
 }
