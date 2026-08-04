@@ -17,15 +17,36 @@
 #include "ble_device.h"
 
 #include <cstdint>
-#include <functional>
 
 namespace esphome::ble_device_base {
 
-/// Callback for raw advertisements (the bluetooth_proxy path).
-/// mac[] is least-significant octet first (BLE controller convention);
-/// the hub delivers on the ESPHome main loop.
-using RawAdvertisementCallback =
-    std::function<void(const uint8_t *mac, int rssi, uint8_t addr_type, const uint8_t *data, uint16_t data_len)>;
+/// One raw advertisement as delivered by the controller — a borrowed view,
+/// valid only for the duration of the invoke() callback.
+struct RawAdvertisement {
+  /// Least-significant octet first (BLE controller convention).
+  const uint8_t *mac;
+  const uint8_t *data;
+  uint16_t data_len;
+  int8_t rssi;  // signed dBm
+  uint8_t addr_type;
+};
+
+/// Subscriber slot for the raw-advertisement stream (the bluetooth_proxy
+/// path). The hub delivers on the ESPHome main loop. Same shape as
+/// logger.h's LogCallback: an instance pointer plus a plain function
+/// pointer — no virtuals, no std::function.
+///
+/// Usage:
+///   hub->set_raw_advertisement_callback({this, [](void *self, const RawAdvertisement &adv) {
+///     static_cast<MyComponent *>(self)->on_raw_advertisement(adv);
+///   }});
+struct RawAdvertisementCallback {
+  void *instance{nullptr};
+  void (*fn)(void *instance, const RawAdvertisement &adv){nullptr};
+  /// A default-constructed slot is "no subscriber"; hubs must guard on this.
+  bool is_set() const { return this->fn != nullptr; }
+  void invoke(const RawAdvertisement &adv) const { this->fn(this->instance, adv); }
+};
 
 /// What a tracker's controller/SDK can do — consumers branch on data, not #ifdefs.
 struct HubCapabilities {
@@ -48,7 +69,7 @@ class BLEHub {
   virtual void register_listener(ESPBTDeviceListener *listener) = 0;
 
   /// Wire the raw-advertisement stream (bluetooth_proxy). One consumer at a time.
-  virtual void set_raw_advertisement_callback(RawAdvertisementCallback cb) = 0;
+  virtual void set_raw_advertisement_callback(RawAdvertisementCallback callback) = 0;
 
   virtual HubCapabilities get_capabilities() const = 0;
 
@@ -58,6 +79,17 @@ class BLEHub {
   virtual bool scan_running() = 0;
   /// True when the current/configured scan mode is active (scan requests sent).
   virtual bool scan_active() = 0;
+  /// Request a scan-mode change (active = send scan requests). Returns false
+  /// when the hub cannot honor the request; the caller reports the real state
+  /// back to its subscriber. A hub that returns true applies the mode
+  /// immediately: a running scan is restarted with the new mode, an idle one
+  /// picks it up on its next start. The default cannot-change keeps hubs
+  /// without a mode switch (and out-of-tree trackers) building unchanged.
+  /// Independent of HubCapabilities::active_scan: that bit describes what the
+  /// CONTROLLER can do, this method describes whether the hub exposes a
+  /// runtime switch — a hub may support active scanning and still refuse
+  /// (esp32_ble_tracker drives its mode through its own tracker API).
+  virtual bool request_scan_mode(bool active) { return false; }
 };
 
 }  // namespace esphome::ble_device_base

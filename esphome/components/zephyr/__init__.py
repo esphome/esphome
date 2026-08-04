@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from pathlib import Path
 import textwrap
 from typing import TypedDict
@@ -16,17 +17,36 @@ from .const import (
     KEY_EXTRA_BUILD_FILES,
     KEY_KCONFIG,
     KEY_OVERLAY,
+    KEY_OVERLAY_BUILDER,
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
     KEY_SYSBUILD,
-    KEY_USER,
     KEY_ZEPHYR,
     zephyr_ns,
 )
 
 CODEOWNERS = ["@tomaszduda23"]
 
-PrjConfValueType = bool | str | int
+
+class HexValue:
+    """Wrap an integer so it is written as 0x... in prj.conf (required for hex Kconfig types)."""
+
+    def __init__(self, value: int) -> None:
+        self.value = value
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, HexValue):
+            return self.value == other.value
+        return NotImplemented
+
+    def __repr__(self) -> str:
+        return f"HexValue(0x{self.value:X})"
+
+    def __str__(self) -> str:
+        return f"0x{self.value:X}"
+
+
+PrjConfValueType = bool | str | int | HexValue
 
 
 class Section:
@@ -54,9 +74,9 @@ class ZephyrData(TypedDict):
     overlay: dict[str, str]
     extra_build_files: dict[str, Path]
     pm_static: list[Section]
-    user: dict[str, list[str]]
     kconfig: str
     sysbuild: bool
+    overlay_builder: list[Callable[[], str]]
 
 
 def zephyr_set_core_data(config: ConfigType) -> None:
@@ -67,9 +87,9 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         overlay={
             "": "",
         },  # set empty to make sure that overlay is cleared after config change
+        overlay_builder=[],
         extra_build_files={},
         pm_static=[],
-        user={},
         kconfig="",
         # When OTA is disabled, the image is built without a bootloader even if the
         # config says `bootloader: mcuboot`, so the image can be smaller. This was
@@ -113,6 +133,12 @@ def zephyr_add_overlay(content: str, image: str = "") -> None:
     data[KEY_OVERLAY][image] += textwrap.dedent(content)
 
 
+def zephyr_add_overlay_builder(func: Callable[[], str]) -> None:
+    data = zephyr_data()
+    if func not in data[KEY_OVERLAY_BUILDER]:
+        data[KEY_OVERLAY_BUILDER].append(func)
+
+
 def add_extra_build_file(filename: str, path: Path) -> bool:
     """Add an extra build file to the project."""
     extra_build_files = zephyr_data()[KEY_EXTRA_BUILD_FILES]
@@ -132,6 +158,8 @@ def add_extra_script(stage: str, filename: str, path: Path) -> None:
 def zephyr_to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_ZEPHYR")
     cg.add_define("USE_NATIVE_64BIT_TIME")
+    # The settings subsystem finds stored preferences by key, so key migration is possible
+    cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.set_cpp_standard("gnu++20")
     # c++ support
     zephyr_add_prj_conf("FPU", True)
@@ -164,6 +192,8 @@ def zephyr_setup_preferences():
 def _format_prj_conf_val(value: PrjConfValueType) -> str:
     if isinstance(value, bool):
         return "y" if value else "n"
+    if isinstance(value, HexValue):
+        return hex(value.value)
     if isinstance(value, int):
         return str(value)
     if isinstance(value, str):
@@ -201,13 +231,6 @@ def zephyr_add_pm_static(sections: list[Section]) -> None:
     zephyr_data()[KEY_PM_STATIC].extend(sections)
 
 
-def zephyr_add_user(key, value):
-    user = zephyr_data()[KEY_USER]
-    if key not in user:
-        user[key] = []
-    user[key] += [value]
-
-
 def _write_file_if_changed_or_remove_when_empty(path: Path, content: str) -> bool:
     """Write content to path, or remove a stale file when content is empty.
 
@@ -222,20 +245,9 @@ def _write_file_if_changed_or_remove_when_empty(path: Path, content: str) -> boo
 
 
 def copy_files() -> None:
-    user = zephyr_data()[KEY_USER]
-    if user:
-        entries = " ".join(
-            f"{key} = {', '.join(value)};" for key, value in user.items()
-        )
-        zephyr_add_overlay(
-            f"""
-                / {{
-                    zephyr,user {{
-                        {entries}
-                    }};
-                }};
-            """
-        )
+    for builder_func in zephyr_data()[KEY_OVERLAY_BUILDER]:
+        overlay_contents = builder_func()
+        zephyr_add_overlay(overlay_contents)
 
     changed = False
 
@@ -249,7 +261,7 @@ def copy_files() -> None:
         )
 
         if image:
-            path = CORE.relative_build_path(f"sysbuild/{image}.conf")
+            path = CORE.relative_build_path(f"zephyr/sysbuild/{image}.conf")
         else:
             path = CORE.relative_build_path("zephyr/prj.conf")
 
@@ -257,7 +269,7 @@ def copy_files() -> None:
 
     for image, content in zephyr_data()[KEY_OVERLAY].items():
         if image:
-            path = CORE.relative_build_path(f"sysbuild/{image}.overlay")
+            path = CORE.relative_build_path(f"zephyr/sysbuild/{image}.overlay")
         else:
             path = CORE.relative_build_path("zephyr/app.overlay")
         changed |= write_file_if_changed(path, content)
