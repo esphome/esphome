@@ -87,8 +87,7 @@ async def to_code(config):
 
     cg.add(var.set_active(config[CONF_ACTIVE]))
     await esp32_ble_tracker.register_raw_ble_device(var, config)
-    # The proxy subscribes to scanner state changes in its setup().
-    esp32_ble_tracker.request_scanner_state_listener_slot()
+    await esp32_ble_tracker.register_scanner_state_listener(var, config)
 
     # Define max connections for protobuf fixed array
     connection_count = len(config.get(CONF_CONNECTIONS, []))

@@ -64,22 +64,16 @@ def _get_required_features() -> set[BLEFeatures]:
     return CORE.data.setdefault(ESP32_BLE_TRACKER_REQUIRED_FEATURES_KEY, set())
 
 
-# Slot counters for StaticVector sizing: registrations request a slot, and the
-# FINAL jobs emit the count defines (absent when the count is zero, so unused
-# storage compiles out).
-_request_listener_slot, _add_listener_count = ble_device_base.slot_counter(
-    "esp32_ble_tracker_listener_count", "ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT"
+# Slot counters sizing the tracker's StaticVector storage; one request per
+# registered listener, client, or scanner state listener.
+_request_listener_slot = ble_device_base.slot_counter(
+    "ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT"
 )
-_request_client_slot, _add_client_count = ble_device_base.slot_counter(
-    "esp32_ble_tracker_client_count", "ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT"
+_request_client_slot = ble_device_base.slot_counter(
+    "ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT"
 )
-# Public: consumers of add_scanner_state_listener (bluetooth_proxy) request a
-# slot from their to_code so the listener storage is sized for them.
-request_scanner_state_listener_slot, _add_scanner_state_listener_count = (
-    ble_device_base.slot_counter(
-        "esp32_ble_tracker_scanner_state_listener_count",
-        "ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT",
-    )
+_request_scanner_state_listener_slot = ble_device_base.slot_counter(
+    "ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT"
 )
 
 
@@ -295,9 +289,6 @@ async def to_code(config):
     cg.add_define("USE_ESP32_BLE_CLIENT")
 
     CORE.add_job(_add_ble_features)
-    CORE.add_job(_add_listener_count)
-    CORE.add_job(_add_client_count)
-    CORE.add_job(_add_scanner_state_listener_count)
 
     if config.get(CONF_SOFTWARE_COEXISTENCE):
         cg.add_define("USE_ESP32_BLE_SOFTWARE_COEXISTENCE")
@@ -411,4 +402,18 @@ async def register_raw_client(
     _request_client_slot()
     paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
     cg.add(paren.register_client(var))
+    return var
+
+
+async def register_scanner_state_listener(
+    var: cg.SafeExpType, config: ConfigType
+) -> cg.SafeExpType:
+    """Register a listener for scanner state changes.
+
+    The slot request here is what sizes the tracker's listener storage; a
+    build with no registrations compiles the storage out entirely.
+    """
+    _request_scanner_state_listener_slot()
+    paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
+    cg.add(paren.add_scanner_state_listener(var))
     return var

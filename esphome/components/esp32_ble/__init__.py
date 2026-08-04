@@ -134,33 +134,16 @@ def _get_required_loggers() -> set[BTLoggers]:
     return CORE.data.setdefault(ESP32_BLE_REQUIRED_LOGGERS_KEY, set())
 
 
-# Handler slot counters for StaticCallbackManager sizing: each register_* call
-# below requests a slot, and the FINAL jobs emit the *_HANDLER_COUNT defines
-# (absent when the count is zero, so unused managers compile out).
-_request_gap_event_slot, _add_gap_event_count = slot_counter(
-    "esp32_ble_gap_event_handler_count", "ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT"
+# Handler slot counters sizing the StaticCallbackManager storage in ble.h;
+# one request per register_* call below.
+_request_gap_event_slot = slot_counter("ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT")
+_request_gap_scan_event_slot = slot_counter(
+    "ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT"
 )
-_request_gap_scan_event_slot, _add_gap_scan_event_count = slot_counter(
-    "esp32_ble_gap_scan_event_handler_count",
-    "ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT",
-)
-_request_gattc_event_slot, _add_gattc_event_count = slot_counter(
-    "esp32_ble_gattc_event_handler_count", "ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT"
-)
-_request_gatts_event_slot, _add_gatts_event_count = slot_counter(
-    "esp32_ble_gatts_event_handler_count", "ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT"
-)
-_request_ble_status_event_slot, _add_ble_status_event_count = slot_counter(
-    "esp32_ble_ble_status_event_handler_count",
-    "ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT",
-)
-
-_HANDLER_COUNT_JOBS = (
-    _add_gap_event_count,
-    _add_gap_scan_event_count,
-    _add_gattc_event_count,
-    _add_gatts_event_count,
-    _add_ble_status_event_count,
+_request_gattc_event_slot = slot_counter("ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT")
+_request_gatts_event_slot = slot_counter("ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT")
+_request_ble_status_event_slot = slot_counter(
+    "ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT"
 )
 
 
@@ -187,7 +170,7 @@ def _add_callback(
 
 
 def register_gap_event_handler(parent_var: cg.MockObj, handler_var: cg.MockObj) -> None:
-    """Register a GAP event handler and track the count."""
+    """Register a GAP event handler and request a handler slot."""
     _request_gap_event_slot()
     _add_callback(
         parent_var,
@@ -201,7 +184,7 @@ def register_gap_event_handler(parent_var: cg.MockObj, handler_var: cg.MockObj) 
 def register_gap_scan_event_handler(
     parent_var: cg.MockObj, handler_var: cg.MockObj
 ) -> None:
-    """Register a GAP scan event handler and track the count."""
+    """Register a GAP scan event handler and request a handler slot."""
     _request_gap_scan_event_slot()
     _add_callback(
         parent_var,
@@ -215,7 +198,7 @@ def register_gap_scan_event_handler(
 def register_gattc_event_handler(
     parent_var: cg.MockObj, handler_var: cg.MockObj
 ) -> None:
-    """Register a GATTc event handler and track the count."""
+    """Register a GATTc event handler and request a handler slot."""
     _request_gattc_event_slot()
     _add_callback(
         parent_var,
@@ -229,7 +212,7 @@ def register_gattc_event_handler(
 def register_gatts_event_handler(
     parent_var: cg.MockObj, handler_var: cg.MockObj
 ) -> None:
-    """Register a GATTs event handler and track the count."""
+    """Register a GATTs event handler and request a handler slot."""
     _request_gatts_event_slot()
     _add_callback(
         parent_var,
@@ -243,7 +226,7 @@ def register_gatts_event_handler(
 def register_ble_status_event_handler(
     parent_var: cg.MockObj, handler_var: cg.MockObj
 ) -> None:
-    """Register a BLE status event handler and track the count."""
+    """Register a BLE status event handler and request a handler slot."""
     _request_ble_status_event_slot()
     _add_callback(
         parent_var,
@@ -620,8 +603,6 @@ async def to_code(config):
         cg.add_define("USE_ESP32_BLE_UUID")
 
     # Schedule the handler defines to be added after all components register
-    for job in _HANDLER_COUNT_JOBS:
-        CORE.add_job(job)
 
 
 @automation.register_condition("ble.enabled", BLEEnabledCondition, cv.Schema({}))
