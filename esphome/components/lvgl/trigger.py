@@ -181,7 +181,5 @@ async def add_trigger(
         )
     else:
         lv_add(
-            lvgl_static.add_event_cb(
-                attach_obj, await context.get_lambda(), *event_literals, user_data
-            )
+            lvgl_static.add_event_cb(attach_obj, callback, *event_literals, user_data)
         )
