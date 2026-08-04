@@ -97,6 +97,12 @@ void ModbusCommandItem::on_error(std::span<const uint8_t> request_pdu, modbus::E
 
 // Not being sent says nothing about online/offline status; just drop it from the pending list.
 void ModbusCommandItem::on_not_sent(std::span<const uint8_t> request_pdu) {
+  // A dropped read re-queues on the next update, but a dropped write is lost while the entity has
+  // already published the value optimistically - surface that.
+  if (modbus::helpers::is_function_code_write(static_cast<uint8_t>(this->function_code_))) {
+    ESP_LOGW(TAG, "Write not sent: function 0x%X register 0x%X", static_cast<uint8_t>(this->function_code_),
+             this->start_address_);
+  }
   if (this->controller_ != nullptr)
     this->controller_->unqueue_command(this);
 }
@@ -130,19 +136,12 @@ void ModbusController::set_online(bool online, int function_code, int register_a
       this->online_callback_.call(function_code, register_address);
     }
   } else {
-    // Device not responding: drop this controller's still-queued frames so they do not flood the bus
-    // while it is offline. Scoped to this controller's own command devices, not the whole address -
-    // another controller (or other client device) sharing the address keeps its queue.
-    for (auto &cmd : this->polling_command_items_)
-      this->hub_->clear_tx_queue_for_device(&cmd);
-    for (auto &item : this->one_shot_command_items_) {
-      if (item->pending_removal)
-        continue;
-      ESP_LOGW(TAG, "Discarding queued command for offline device=%d: function 0x%X register 0x%X", this->address_,
-               static_cast<uint8_t>(item->function_code()), item->register_address());
-      this->hub_->clear_tx_queue_for_device(item.get());
-      item->pending_removal = true;  // silent retire delivers no callback, so reclaim it here
-    }
+    // Device not responding: drop the still-queued frames for its address (keeping the in-flight
+    // one) so they do not flood the bus while it is offline. Deliberately address-scoped: offline is
+    // a property of the physical device, so frames queued by any other controller or client device
+    // for this address would only burn timeouts too. Retired frames get on_not_sent(), so one-shots
+    // are reclaimed through the normal path.
+    this->hub_->clear_tx_queue_for_address(this->address_);
     if (!this->module_offline_) {
       ESP_LOGW(TAG, "Modbus device=%d set offline", this->address_);
       this->module_offline_ = true;
