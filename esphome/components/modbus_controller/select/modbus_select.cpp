@@ -94,7 +94,7 @@ void ModbusSelect::control(size_t index) {
         ModbusCommandItem::create_write_multiple_command(this->parent_, write_address, data.size(), data));
   }
 
-  this->parent_->queue_command(*write_cmd);
+  this->parent_->queue_command(std::move(*write_cmd));
 
   if (this->optimistic_)
     this->publish_state(index);

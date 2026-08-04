@@ -33,7 +33,7 @@ ModbusCommandItem::ModbusCommandItem(ModbusController &controller, modbus::Modbu
 
 // The base deletes copy/move; command items re-provide construction. The moved-from device must not
 // unregister the hub slot we just took over, so its parent_ is cleared. The copy constructor exists
-// only for the queue_command() compatibility path (it copies its const-ref argument); remove it when
+// only for callers that pass an lvalue to queue_command() (in-tree callers move); remove it when
 // queue_command() is removed.
 ModbusCommandItem::ModbusCommandItem(const ModbusCommandItem &other)
     : modbus::ModbusClientDevice(other.parent_, other.address_),
@@ -128,9 +128,19 @@ void ModbusController::set_online(bool online, int function_code, int register_a
       this->online_callback_.call(function_code, register_address);
     }
   } else {
-    // Device not responding: drop its still-queued frames (keeping the in-flight one) so they do not
-    // flood the bus while it is offline.
-    this->hub_->clear_tx_queue_for_address(this->address_);
+    // Device not responding: drop this controller's still-queued frames so they do not flood the bus
+    // while it is offline. Scoped to this controller's own command devices, not the whole address -
+    // another controller (or other client device) sharing the address keeps its queue.
+    for (auto &cmd : this->polling_command_items_)
+      this->hub_->clear_tx_queue_for_device(&cmd);
+    for (auto &item : this->one_shot_command_items_) {
+      if (item->pending_removal)
+        continue;
+      ESP_LOGW(TAG, "Discarding queued command for offline device=%d: function 0x%X register 0x%X", this->address_,
+               static_cast<uint8_t>(item->function_code()), item->register_address());
+      this->hub_->clear_tx_queue_for_device(item.get());
+      item->pending_removal = true;  // silent retire delivers no callback, so reclaim it here
+    }
     if (!this->module_offline_) {
       ESP_LOGW(TAG, "Modbus device=%d set offline", this->address_);
       this->module_offline_ = true;
@@ -140,12 +150,24 @@ void ModbusController::set_online(bool online, int function_code, int register_a
   }
 }
 
-void ModbusController::queue_command(const ModbusCommandItem &command) {
-  // Each command is its own device and the hub deduplicates identical in-flight frames, so the
-  // controller just holds the one-shot item alive until it completes (unqueue_command) and sends it.
+void ModbusController::queue_command(ModbusCommandItem command) {
   this->sweep_completed_one_shots_();  // reclaim finished one-shots before adding a new one
-  this->one_shot_command_items_.push_back(make_unique<ModbusCommandItem>(command));
-  this->one_shot_command_items_.back()->send();
+  // The hub's duplicate absorption is keyed on the device pointer and every one-shot is its own
+  // device, so duplicates are collapsed here instead (matching the pre-refactor behaviour, where the
+  // latest payload replaced the queued duplicate): retire the older command's pending frame and let
+  // the new one supersede it.
+  for (auto &item : this->one_shot_command_items_) {
+    if (!item->pending_removal && item->is_equal(command)) {
+      ESP_LOGD(TAG, "Duplicate command superseded: type=0x%X address=0x%X",
+               static_cast<uint8_t>(command.register_type()), command.register_address());
+      this->hub_->clear_tx_queue_for_device(item.get());
+      item->pending_removal = true;  // silently retired: no callback will come
+    }
+  }
+  this->one_shot_command_items_.push_back(make_unique<ModbusCommandItem>(std::move(command)));
+  // A refused frame gets no terminal callback (see the hub contract), so reclaim the item here.
+  if (!this->one_shot_command_items_.back()->send())
+    this->one_shot_command_items_.back()->pending_removal = true;
 }
 
 void ModbusController::unqueue_command(const ModbusCommandItem *command) {
@@ -344,8 +366,13 @@ void ModbusController::dump_config() {
 
 void ModbusController::on_write_register_response(EntityType register_type, uint16_t start_address,
                                                   std::span<const uint8_t> data) {
-  ESP_LOGV(TAG, "Command ACK 0x%X %d ", modbus::helpers::get_data<uint16_t>(data.data(), 0),
-           modbus::helpers::get_data<int16_t>(data.data(), 1));
+  // A well-formed write ACK echoes address and value, but a truncated PDU yields a short/empty span.
+  if (data.size() >= 3) {
+    ESP_LOGV(TAG, "Command ACK 0x%X %d ", modbus::helpers::get_data<uint16_t>(data.data(), 0),
+             modbus::helpers::get_data<int16_t>(data.data(), 1));
+  } else {
+    ESP_LOGV(TAG, "Command ACK (short payload, %zu bytes)", data.size());
+  }
 }
 
 ModbusCommandItem ModbusCommandItem::create_read_command(
@@ -462,10 +489,11 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
 }
 
 bool ModbusCommandItem::send() {
+  bool accepted;
   if (this->function_code_ != FunctionCode::CUSTOM) {
-    this->send_pdu(modbus::helpers::create_client_pdu(this->function_code_, this->start_address_, this->register_count_,
-                                                      this->payload.empty() ? nullptr : this->payload.data(),
-                                                      this->payload.size()));
+    accepted = this->send_pdu(modbus::helpers::create_client_pdu(
+        this->function_code_, this->start_address_, this->register_count_,
+        this->payload.empty() ? nullptr : this->payload.data(), this->payload.size()));
   } else {
     // Custom command: the bytes are a complete raw frame (address + PDU). Send the PDU to the frame's own
     // address (which may differ from this controller's); the hub appends the CRC and routes the response
@@ -473,22 +501,35 @@ bool ModbusCommandItem::send() {
     // address. Raw-frame semantics are kept here; the custom_pdu migration is a later step.)
     std::span<const uint8_t> frame =
         this->custom_data_ != nullptr ? std::span<const uint8_t>(*this->custom_data_) : this->payload;
-    if (!frame.empty())
-      this->parent_->send_pdu(frame[0], frame.subspan(1), this);
+    if (frame.empty()) {
+      ESP_LOGW(TAG, "Empty custom command frame, not sent");
+      accepted = false;
+    } else {
+      accepted = this->parent_->send_pdu(frame[0], frame.subspan(1), this);
+    }
   }
   // The on_command_sent trigger fires from on_sent() when the frame actually reaches the wire.
-  ESP_LOGV(TAG, "Command sent %d 0x%X %d", uint8_t(this->function_code_), this->start_address_, this->register_count_);
-  return true;
+  if (accepted) {
+    ESP_LOGV(TAG, "Command queued %d 0x%X %d", uint8_t(this->function_code_), this->start_address_,
+             this->register_count_);
+  }
+  return accepted;
 }
 
-bool ModbusCommandItem::is_equal(const ModbusCommandItem &other) {
-  // for custom commands we have to check for identical payloads, since
-  // address/count/type fields will be set to zero
-  return this->function_code_ == FunctionCode::CUSTOM
-             ? this->payload.size() == other.payload.size() &&
-                   memcmp(this->payload.data(), other.payload.data(), this->payload.size()) == 0
-             : other.start_address_ == this->start_address_ && other.register_count_ == this->register_count_ &&
-                   other.register_type_ == this->register_type_ && other.function_code_ == this->function_code_;
+bool ModbusCommandItem::is_equal(const ModbusCommandItem &other) const {
+  if (this->function_code_ != other.function_code_)
+    return false;
+  if (this->function_code_ == FunctionCode::CUSTOM) {
+    // For custom commands compare the frame bytes actually sent (address/count/type are all zero).
+    // Polling commands reference their bytes via custom_data_, one-shots carry them in payload.
+    std::span<const uint8_t> mine =
+        this->custom_data_ != nullptr ? std::span<const uint8_t>(*this->custom_data_) : this->payload;
+    std::span<const uint8_t> theirs =
+        other.custom_data_ != nullptr ? std::span<const uint8_t>(*other.custom_data_) : other.payload;
+    return mine.size() == theirs.size() && memcmp(mine.data(), theirs.data(), mine.size()) == 0;
+  }
+  return other.start_address_ == this->start_address_ && other.register_count_ == this->register_count_ &&
+         other.register_type_ == this->register_type_;
 }
 
 }  // namespace esphome::modbus_controller

@@ -84,7 +84,7 @@ void ModbusNumber::control(float value) {
       this->publish_state(value);
     };
   }
-  this->parent_->queue_command(*write_cmd);
+  this->parent_->queue_command(std::move(*write_cmd));
   this->publish_state(value);
 }
 void ModbusNumber::dump_config() { LOG_NUMBER(TAG, "Modbus Number", this); }

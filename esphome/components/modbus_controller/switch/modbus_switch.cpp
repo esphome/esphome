@@ -108,7 +108,7 @@ void ModbusSwitch::write_state(bool state) {
       }
     }
   }
-  this->parent_->queue_command(*cmd);
+  this->parent_->queue_command(std::move(*cmd));
   this->publish_state(state);
 }
 // ModbusSwitch end

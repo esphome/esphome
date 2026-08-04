@@ -66,7 +66,7 @@ void ModbusFloatOutput::write_state(float value) {
     write_cmd.emplace(ModbusCommandItem::create_write_multiple_command(
         this->parent_, this->start_address + this->offset, data.size(), data));
   }
-  this->parent_->queue_command(*write_cmd);
+  this->parent_->queue_command(std::move(*write_cmd));
 }
 
 void ModbusFloatOutput::dump_config() {
@@ -124,7 +124,7 @@ void ModbusBinaryOutput::write_state(bool state) {
           ModbusCommandItem::create_write_single_coil(this->parent_, this->start_address + this->offset, state));
     }
   }
-  this->parent_->queue_command(*cmd);
+  this->parent_->queue_command(std::move(*cmd));
 }
 
 void ModbusBinaryOutput::dump_config() {
