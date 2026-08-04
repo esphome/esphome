@@ -1622,6 +1622,39 @@ def test_upload_using_esptool_path_conversion(
     assert partitions_path.endswith("partitions.bin")
 
 
+def test_upload_using_esptool_chip_matches_esp32_helper(
+    tmp_path: Path,
+    mock_run_external_command_main: Mock,
+    mock_get_idedata: Mock,
+) -> None:
+    """The direct variant read must stay in step with get_esp32_variant.
+
+    upload_using_esptool reads CORE.data[KEY_ESP32][KEY_VARIANT] without
+    importing the esp32 package; if get_esp32_variant ever resolves the
+    variant from somewhere else, the esptool --chip argument would drift.
+    This pins both to the same source and asserts the value reaches the
+    esptool command line.
+    """
+    from esphome.components.esp32 import get_esp32_variant
+
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: VARIANT_ESP32}
+
+    mock_idedata = MagicMock(spec=toolchain.IDEData)
+    mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
+    mock_idedata.extra_flash_images = []
+    mock_get_idedata.return_value = mock_idedata
+    (tmp_path / "firmware.bin").touch()
+
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+    assert upload_using_esptool(config, "/dev/ttyUSB0", None, None) == 0
+
+    cmd_list = list(mock_run_external_command_main.call_args[0][1:])
+    chip = cmd_list[cmd_list.index("--chip") + 1]
+    assert chip == get_esp32_variant().lower()
+    assert chip == CORE.data[KEY_ESP32][KEY_VARIANT].lower()
+
+
 def test_upload_using_esptool_skips_missing_extra_flash_images(
     tmp_path: Path,
     mock_run_external_command_main: Mock,
