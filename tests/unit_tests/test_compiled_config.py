@@ -20,6 +20,7 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_NAME,
     KEY_CORE,
+    KEY_ESP32,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     KEY_VARIANT,
@@ -74,13 +75,13 @@ def _write_storage(
         "framework": "arduino",
         "core_platform": core_platform,
     }
-    storage_path.write_text(json.dumps(data))
+    storage_path.write_text(json.dumps(data), encoding="utf-8")
 
 
 def _write_cache(cache_path: Path, body: str = _VALIDATED_CONFIG_YAML) -> Path:
     """Write the cache file and return it."""
     cache_path.parent.mkdir(parents=True, exist_ok=True)
-    cache_path.write_text(body)
+    cache_path.write_text(body, encoding="utf-8")
     return cache_path
 
 
@@ -130,15 +131,11 @@ def test_load_compiled_config_happy_path(fresh_cache_files: Path) -> None:
     assert CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] == "esp32"
     assert CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] == "arduino"
     # upload_using_esptool reads get_esp32_variant() off CORE.data[KEY_ESP32].
-    from esphome.components.esp32.const import KEY_ESP32
-
     assert CORE.data[KEY_ESP32][KEY_VARIANT] == "ESP32"
 
 
 def test_load_compiled_config_populates_esp32_variant(tmp_path: Path) -> None:
     """ESP32 variants survive the cache fast path so esptool gets the right --chip."""
-    from esphome.components.esp32.const import KEY_ESP32
-
     yaml_path = tmp_path / "lite_test.yaml"
     yaml_path.write_text("esphome:\n  name: lite_test\n")
     CORE.config_path = yaml_path
@@ -156,8 +153,6 @@ def test_load_compiled_config_skips_esp32_block_for_other_platforms(
     tmp_path: Path,
 ) -> None:
     """Non-esp32 targets shouldn't fabricate an esp32 data block."""
-    from esphome.components.esp32.const import KEY_ESP32
-
     yaml_path = tmp_path / "lite_test.yaml"
     yaml_path.write_text("esphome:\n  name: lite_test\n")
     CORE.config_path = yaml_path

@@ -79,6 +79,17 @@ class BLEHub {
   virtual bool scan_running() = 0;
   /// True when the current/configured scan mode is active (scan requests sent).
   virtual bool scan_active() = 0;
+  /// Request a scan-mode change (active = send scan requests). Returns false
+  /// when the hub cannot honor the request; the caller reports the real state
+  /// back to its subscriber. A hub that returns true applies the mode
+  /// immediately: a running scan is restarted with the new mode, an idle one
+  /// picks it up on its next start. The default cannot-change keeps hubs
+  /// without a mode switch (and out-of-tree trackers) building unchanged.
+  /// Independent of HubCapabilities::active_scan: that bit describes what the
+  /// CONTROLLER can do, this method describes whether the hub exposes a
+  /// runtime switch — a hub may support active scanning and still refuse
+  /// (esp32_ble_tracker drives its mode through its own tracker API).
+  virtual bool request_scan_mode(bool active) { return false; }
 };
 
 }  // namespace esphome::ble_device_base

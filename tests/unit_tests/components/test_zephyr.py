@@ -61,6 +61,7 @@ def _empty_zephyr_data(
         "prj_conf": {},
         "sysbuild_conf": {},
         "overlay": {"": ""},
+        "overlay_builder": [],
         "extra_build_files": {},
         "pm_static": [],
         "user": {},
@@ -72,6 +73,8 @@ def _empty_zephyr_data(
         "board_dir_cache": {},
         "dts_include_paths": None,
         "board_edt_cache": {},
+        "board_yaml_cache": {},
+        "snippets": [],
     }
 
 
