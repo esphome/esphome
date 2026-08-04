@@ -312,8 +312,8 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
           // tuya mcu supports time, so we let them know when our time changed
           this->time_id_->add_on_time_sync_callback([this] {
             this->send_gmt_time_();
-            this->gmt_time_sync_callback_registered_ = true;
         }
+        this->gmt_time_sync_callback_registered_ = true;
         } else
 #endif
         {
