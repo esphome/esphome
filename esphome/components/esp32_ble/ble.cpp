@@ -364,6 +364,32 @@ bool ESP32BLE::ble_setup_() {
   }
 #endif  // ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
 
+#ifdef ESPHOME_ESP32_BLE_ALLOWLIST_SIZE
+  if (!this->allowlist_items_.empty()) {
+    ESP_LOGD(TAG, "clear allowed addresses list");
+    err = esp_ble_gap_clear_whitelist();  // NOLINT(inclusive-language)
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_ble_gap_clear_whitelist failed: %d", err);  // NOLINT(inclusive-language)
+      return false;
+    }
+
+    for (const allowlist_item_t &allowlist_item : this->allowlist_items_) {
+      esp_bd_addr_t esp_address;
+      esp32_ble::uint64_to_ble_addr(allowlist_item.mac_address, esp_address);
+      char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      format_mac_addr_upper(esp_address, mac_buf);
+      ESP_LOGD(TAG, "add to allowlist, mac address: %s, is public: %s", mac_buf,
+               allowlist_item.is_public ? "true" : "false");
+      err = esp_ble_gap_update_whitelist(true, esp_address,  // NOLINT(inclusive-language)
+                                         allowlist_item.is_public ? BLE_WL_ADDR_TYPE_PUBLIC : BLE_WL_ADDR_TYPE_RANDOM);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ble_gap_update_whitelist failed: %d", err);  // NOLINT(inclusive-language)
+        return false;
+      }
+    }
+  }
+#endif
+
   // BLE takes some time to be fully set up, 200ms should be more than enough
   delay(200);  // NOLINT
 
@@ -646,8 +672,9 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     // Ignore these GAP events as they are not relevant for our use case
     case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT:
     case ESP_GAP_BLE_SET_PKT_LENGTH_COMPLETE_EVT:
-    case ESP_GAP_BLE_PHY_UPDATE_COMPLETE_EVT:       // BLE 5.0 PHY update complete
-    case ESP_GAP_BLE_CHANNEL_SELECT_ALGORITHM_EVT:  // BLE 5.0 channel selection algorithm
+    case ESP_GAP_BLE_PHY_UPDATE_COMPLETE_EVT:        // BLE 5.0 PHY update complete
+    case ESP_GAP_BLE_CHANNEL_SELECT_ALGORITHM_EVT:   // BLE 5.0 channel selection algorithm
+    case ESP_GAP_BLE_UPDATE_WHITELIST_COMPLETE_EVT:  // NOLINT(inclusive-language)
       return;
 
     default:

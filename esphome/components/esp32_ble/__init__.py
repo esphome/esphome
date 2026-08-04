@@ -27,10 +27,13 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENABLE_ON_BOOT,
     CONF_ESPHOME,
+    CONF_FILTER,
     CONF_ID,
+    CONF_MAC_ADDRESS,
     CONF_MAX_CONNECTIONS,
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
+    CONF_VALUE,
 )
 from esphome.core import CORE, CoroPriority, TimePeriod, coroutine_with_priority
 import esphome.final_validate as fv
@@ -263,6 +266,7 @@ CONF_ADVERTISING_CYCLE_TIME = "advertising_cycle_time"
 CONF_DISABLE_BT_LOGS = "disable_bt_logs"
 CONF_CONNECTION_TIMEOUT = "connection_timeout"
 CONF_MAX_NOTIFICATIONS = "max_notifications"
+CONF_PUBLIC = "public"
 
 # BLE connection limits
 # ESP-IDF CONFIG_BT_ACL_CONNECTIONS has range 1-9, default 4
@@ -359,6 +363,18 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_USE_PSRAM): cv.All(
             cv.only_on_esp32, cv.requires_component("psram"), cv.boolean
+        ),
+        cv.Optional(CONF_FILTER, default={}): cv.All(
+            cv.Schema(
+                {
+                    cv.Optional(CONF_MAC_ADDRESS, default=[]): cv.ensure_list(
+                        {
+                            cv.Required(CONF_VALUE): cv.mac_address,
+                            cv.Optional(CONF_PUBLIC, default=True): cv.boolean,
+                        }
+                    ),
+                }
+            ),
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -632,6 +648,17 @@ async def to_code(config):
     if config[CONF_ADVERTISING]:
         cg.add_define("USE_ESP32_BLE_ADVERTISING")
         cg.add_define("USE_ESP32_BLE_UUID")
+
+    if config[CONF_FILTER] and config[CONF_FILTER][CONF_MAC_ADDRESS]:
+        allowlist_items = [
+            (it[CONF_VALUE].as_hex, it[CONF_PUBLIC])
+            for it in config[CONF_FILTER][CONF_MAC_ADDRESS]
+        ]
+        cg.add_define(
+            "ESPHOME_ESP32_BLE_ALLOWLIST_SIZE",
+            len(config[CONF_FILTER][CONF_MAC_ADDRESS]),
+        )
+        cg.add(var.set_allowlist_items(allowlist_items))
 
     # Schedule the handler defines to be added after all components register
     CORE.add_job(_add_ble_handler_defines)

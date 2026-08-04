@@ -46,6 +46,15 @@ inline uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
   return u;
 }
 
+inline void uint64_to_ble_addr(uint64_t address, esp_bd_addr_t bd_addr) {
+  bd_addr[0] = (address >> 40) & 0xff;
+  bd_addr[1] = (address >> 32) & 0xff;
+  bd_addr[2] = (address >> 24) & 0xff;
+  bd_addr[3] = (address >> 16) & 0xff;
+  bd_addr[4] = (address >> 8) & 0xff;
+  bd_addr[5] = (address >> 0) & 0xff;
+}
+
 // NOLINTNEXTLINE(modernize-use-using)
 typedef struct {
   void *peer_device;
@@ -87,6 +96,13 @@ enum BLEComponentState : uint8_t {
   BLE_COMPONENT_STATE_ACTIVE,
 };
 
+#ifdef ESPHOME_ESP32_BLE_ALLOWLIST_SIZE
+typedef struct {
+  uint64_t mac_address;
+  bool is_public;
+} allowlist_item_t;
+#endif
+
 class ESP32BLE final : public Component {
  public:
   void set_io_capability(IoCapability io_capability) { this->io_cap_ = (esp_ble_io_cap_t) io_capability; }
@@ -101,6 +117,15 @@ class ESP32BLE final : public Component {
     this->advertising_cycle_time_ = advertising_cycle_time;
   }
   uint32_t get_advertising_cycle_time() const { return this->advertising_cycle_time_; }
+
+#ifdef ESPHOME_ESP32_BLE_ALLOWLIST_SIZE
+  void set_allowlist_items(const std::initializer_list<allowlist_item_t> &allowlist_items) {
+    this->allowlist_items_.clear();
+    for (const auto &allowlist_item : allowlist_items) {
+      this->allowlist_items_.push_back(allowlist_item);
+    }
+  }
+#endif
 
   void enable();
   void disable();
@@ -198,6 +223,9 @@ class ESP32BLE final : public Component {
 #endif
 #ifdef ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT
   StaticCallbackManager<ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT, void()> ble_status_event_callbacks_;
+#endif
+#ifdef ESPHOME_ESP32_BLE_ALLOWLIST_SIZE
+  StaticVector<allowlist_item_t, ESPHOME_ESP32_BLE_ALLOWLIST_SIZE> allowlist_items_;
 #endif
 
   // Large objects (size depends on template parameters, but typically aligned to 4 bytes)

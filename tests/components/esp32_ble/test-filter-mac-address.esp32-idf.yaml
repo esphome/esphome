@@ -1,0 +1,11 @@
+esp32_ble:
+  io_capability: keyboard_display
+  filter:
+    mac_address:
+      - value: 00:11:22:33:44:55
+      - value: 00:11:22:33:44:56
+      - value: 00:11:22:33:44:57
+      - value: 00:11:22:33:44:58
+        public: true
+      - value: 00:11:22:33:44:59
+        public: false
