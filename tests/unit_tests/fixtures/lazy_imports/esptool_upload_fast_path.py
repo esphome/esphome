@@ -6,6 +6,7 @@ The variant reaches the esptool command line from CORE.data directly; if
 someone re-adds the esp32 package import for it, this reports the leak.
 """
 
+import os
 import sys
 from unittest.mock import patch
 
@@ -20,6 +21,10 @@ from esphome.const import (
     KEY_VARIANT,
 )
 from esphome.core import CORE
+
+# An ambient ESPHOME_USE_SUBPROCESS would route past the patched
+# run_external_command into run_external_process and confuse the checks.
+os.environ.pop("ESPHOME_USE_SUBPROCESS", None)
 
 CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
 CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32S3"}
