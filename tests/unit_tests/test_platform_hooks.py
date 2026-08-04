@@ -89,9 +89,26 @@ def test_external_platform_missing_module_degrades(
     monkeypatch.setattr(
         platform_hooks.importlib,
         "import_module",
-        Mock(side_effect=ModuleNotFoundError("no esphome.components.my_external_chip")),
+        Mock(
+            side_effect=ModuleNotFoundError(
+                "not found", name="esphome.components.my_external_chip"
+            )
+        ),
     )
     assert platform_hooks.get_platform_hook("my_external_chip", "show_logs") is None
+
+
+def test_external_platform_broken_dependency_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing dependency inside the external package must surface."""
+    monkeypatch.setattr(
+        platform_hooks.importlib,
+        "import_module",
+        Mock(side_effect=ModuleNotFoundError("not found", name="some_missing_dep")),
+    )
+    with pytest.raises(ModuleNotFoundError, match="not found"):
+        platform_hooks.get_platform_hook("my_external_chip", "show_logs")
 
 
 def test_lookup_miss_does_not_import_platform_package(

@@ -56,11 +56,15 @@ def get_platform_hook(platform: str, hook: str) -> Callable[..., Any] | None:
         # External platform: probe the imported package like the CLI used
         # to. The package can be missing entirely on the warm-cache path,
         # where the external_components meta finder never registered;
-        # degrade to the generic path instead of raising.
+        # degrade to the generic path then, but let a failure deeper in
+        # the package (missing dependency) surface.
+        module_name = f"esphome.components.{platform}"
         try:
-            module = importlib.import_module(f"esphome.components.{platform}")
-        except ImportError:
-            return None
+            module = importlib.import_module(module_name)
+        except ModuleNotFoundError as err:
+            if err.name == module_name:
+                return None
+            raise
         return getattr(module, hook, None)
     return getattr(
         importlib.import_module(f"esphome.components.{platform}"), hook, None
