@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 from esphome import git, yaml_util
-from esphome.bundle import add_secret_scan_dir
 from esphome.components.substitutions import (
     ContextVars,
     ErrList,
@@ -193,6 +192,10 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
         username=config.get(CONF_USERNAME),
         password=config.get(CONF_PASSWORD),
     )
+    # Deferred import: the device builder must not pay for esphome.bundle
+    # at startup, only when a config actually uses a remote package.
+    from esphome.bundle import add_secret_scan_dir
+
     # The checkout is not bundled (the builder re-fetches it), but the
     # bundle's secrets filter must still see its !secret references.
     add_secret_scan_dir(repo_root)
