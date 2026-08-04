@@ -13,6 +13,7 @@ import re
 from typing import Any
 
 from esphome import platform_hooks
+from esphome.core import EsphomeError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -127,9 +128,14 @@ class LogLineProcessor:
         except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-except
             self._decode_enabled = False
             self.backtrace_state = False
-            # _run_idedata raises EsphomeError with no message; fall back
-            # to a generic explanation when str(exc) is empty.
-            detail = str(exc) or "build artifacts not found locally"
+            # _run_idedata raises EsphomeError with no message; give that
+            # case its friendly remediation hint. Any other zero-message
+            # exception is a decoder bug and gets its type name instead,
+            # so the user is not sent to recompile for nothing.
+            if isinstance(exc, EsphomeError):
+                detail = str(exc) or "build artifacts not found locally"
+            else:
+                detail = str(exc) or type(exc).__name__
             _LOGGER.debug("Stack-trace decoding failed", exc_info=True)
             _LOGGER.warning(
                 "Crash trace decoding unavailable: %s. "

@@ -271,6 +271,46 @@ def test_letter_free_bad_alloc_reaches_resolved_decoder() -> None:
     ]
 
 
+def test_decoder_bug_with_empty_message_names_the_type(caplog) -> None:
+    """A zero-message decoder bug must not masquerade as missing artifacts.
+
+    The recompile hint is only right for EsphomeError from _run_idedata;
+    anything else would send the user down a dead-end remediation path.
+    """
+    _make_processor(Mock(side_effect=IndexError()))
+
+    warnings = [r.message for r in caplog.records if r.levelname == "WARNING"]
+    assert any("IndexError" in m for m in warnings)
+    assert not any("build artifacts not found locally" in m for m in warnings)
+
+
+def test_external_platform_notice_defers_to_first_crash_line(caplog) -> None:
+    """External platforms lose the session-start notice by design.
+
+    may_provide_hook cannot answer for a platform outside Platform
+    without importing it, so nothing resolves at construction and the
+    unavailable notice appears on the first crash-shaped line instead.
+    """
+    caplog.set_level("INFO", logger="esphome.platform_hooks")
+    module = type("ExternalPlatform", (), {})  # no process_stacktrace
+
+    with patch.object(
+        stacktrace.platform_hooks.importlib,
+        "import_module",
+        Mock(return_value=module),
+    ) as mock_import:
+        processor = stacktrace.LogLineProcessor(CONFIG, "my_external_chip")
+        # Construction cannot answer without importing, so it does neither.
+        mock_import.assert_not_called()
+        assert "Stacktrace analysis is unavailable" not in caplog.text
+
+        processor.process_line("PC: 0x40104960")
+
+    mock_import.assert_called_once()
+    assert "Stacktrace analysis is unavailable" in caplog.text
+    assert processor.backtrace_state is False
+
+
 def test_processor_import_failure_disables_decoding(caplog) -> None:
     """A broken platform package degrades once instead of raising."""
     caplog.set_level("INFO", logger="esphome.platform_hooks")
