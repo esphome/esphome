@@ -1,5 +1,4 @@
 import esphome.codegen as cg
-from esphome.components import ble_device_base
 import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ID
 from esphome.types import ConfigType
@@ -34,9 +33,7 @@ FINAL_VALIDATE_SCHEMA = _validate_board
 
 # Once per registered scan listener; sizes the controller's StaticVector
 # listener storage.
-request_scan_listener_slot = ble_device_base.slot_counter(
-    "RP2040_BLE_SCAN_LISTENER_COUNT"
-)
+request_scan_listener_slot = cg.slot_counter("RP2040_BLE_SCAN_LISTENER_COUNT")
 
 
 async def to_code(config: ConfigType) -> None:
