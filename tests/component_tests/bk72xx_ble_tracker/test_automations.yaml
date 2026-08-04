@@ -28,6 +28,12 @@ bk72xx_ble_tracker:
     - manufacturer_id: ABCD
       then:
         - lambda: 'ESP_LOGD("t", "%zu", x.size());'
+    - manufacturer_id: ABCDABCD
+      then:
+        - lambda: 'ESP_LOGD("t", "%zu", x.size());'
+    - manufacturer_id: ABCDABCD-ABCD-ABCD-ABCD-ABCDABCDABCD
+      then:
+        - lambda: 'ESP_LOGD("t", "%zu", x.size());'
   on_scan_end:
     - then:
         - lambda: 'ESP_LOGD("t", "end");'
