@@ -121,3 +121,33 @@ def test_api_client_does_not_import_heavy_modules() -> None:
         "The logs fast path skips validation; importing the validation "
         "stack anyway defeats the validated-config cache."
     )
+
+
+def test_esptool_upload_fast_path_does_not_import_heavy_modules(
+    fixture_path: Path,
+) -> None:
+    """The esptool serial upload reads the esp32 variant from CORE.data;
+    resolving it must not drag in the esp32 component package or the
+    validation stack.
+    """
+    script = fixture_path / "lazy_imports" / "esptool_upload_fast_path.py"
+    # Running a script file drops the cwd from sys.path, so prepend the
+    # repo root for the child; check=False keeps its stderr visible.
+    python_path = str(Path(__file__).parents[2])
+    if ambient := os.environ.get("PYTHONPATH"):
+        python_path = os.pathsep.join((python_path, ambient))
+    env = os.environ | {"PYTHONPATH": python_path}
+    result = subprocess.run(
+        [sys.executable, str(script), *FAST_PATH_HEAVY_MODULES],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    leaked = result.stdout.strip()
+    assert not leaked, (
+        f"upload_using_esptool pulls in heavy modules: {leaked}. "
+        "The upload fast path skips validation; importing the validation "
+        "stack anyway defeats the validated-config cache."
+    )
