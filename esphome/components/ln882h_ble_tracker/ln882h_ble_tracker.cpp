@@ -12,6 +12,8 @@ namespace esphome::ln882h_ble_tracker {
 
 static const char *const TAG = "ln882h_ble_tracker";
 
+static constexpr float BLE_SCAN_UNIT_MS = 0.625f;
+
 // ---------------------------------------------------------------------------
 // Component lifecycle
 // ---------------------------------------------------------------------------
@@ -24,6 +26,8 @@ void LN882HBLETracker::setup() {
     // Say so once: with continuous: false nothing scans until an explicit
     // start_scan() — silence here reads as a broken scanner.
     ESP_LOGD(TAG, "Scanning not started (continuous: false) - waiting for an explicit start_scan()");
+    // Nothing to time until then; start_scan_() re-enables the loop.
+    this->disable_loop();
   }
 #ifdef USE_OTA_STATE_LISTENER
   // Pause scanning while an OTA update is in flight — on the single-core LN882H the
@@ -45,11 +49,12 @@ void LN882HBLETracker::on_ota_global_state(ota::OTAState state, float progress, 
     // scan that was running is restarted explicitly (bk72xx sibling parity —
     // stop_scan() cleared it and nothing else would bring it back).
     if (this->scan_continuous_before_ota_) {
-      this->scan_continuous_before_ota_ = false;
       this->scan_continuous_ = true;
+      this->enable_loop();  // stop_scan() disabled it; loop()'s idle branch restarts the scan
     } else if (this->scan_running_before_ota_) {
       this->start_scan();
     }
+    this->scan_continuous_before_ota_ = false;
     this->scan_running_before_ota_ = false;
   }
 }
@@ -60,21 +65,22 @@ void LN882HBLETracker::loop() {
   // (device didn't answer / frame lost) — delivered unmerged after the timeout.
   // Main-task only, like every consumer of pending_adv_.
   const uint32_t now = millis();
-  for (auto &p : this->pending_adv_) {
-    if (p.used && now - p.stored_ms > PENDING_ADV_TIMEOUT_MS) {
-      p.used = false;
-      this->process_adv_(p.mac, p.rssi, p.addr_type, p.data, p.data_len, /*raw_only=*/false);
+  if (this->pending_count_ != 0) {
+    for (auto &p : this->pending_adv_) {
+      if (p.used && now - p.stored_ms > PENDING_ADV_TIMEOUT_MS) {
+        p.used = false;
+        this->pending_count_--;
+        this->process_adv_(p.mac, p.rssi, p.addr_type, p.data, p.data_len, /*raw_only=*/false);
+      }
     }
   }
 
   if (this->scan_continuous_) {
     if (!this->scan_running_) {
       this->start_scan_();
-      // start_scan_() re-anchors scan_period_start_ from a later millis(), so
-      // the cached `now` below would underflow the comparison and fire
-      // on_scan_end() for a scan that just began. Resume next iteration.
-      if (this->scan_running_)
-        return;
+      // start_scan_() re-anchors scan_period_start_ from a later millis() than
+      // the cached `now`; resume the period timer next iteration.
+      return;
     }
     // Period timer: once per scan_duration_ window, restart the controller scan
     // and fire on_scan_end(), mirroring esp32_ble_tracker::cleanup_scan_state_().
@@ -83,19 +89,10 @@ void LN882HBLETracker::loop() {
     // in-flight scan and grants the controller's 10 ms GAPM settle before
     // restarting — an explicit scan_stop() first would clear the controller's
     // re-entry guard and skip that settle.
-    if (this->scan_started_once_ && now - this->scan_period_start_ >= this->scan_duration_) {
+    if (now - this->scan_period_start_ >= this->scan_duration_) {
       ESP_LOGD(TAG, "Scan period elapsed - restarting scan");
-      this->parent_->scan_start(static_cast<uint16_t>(this->scan_interval_), static_cast<uint16_t>(this->scan_window_),
-                                this->scan_active_);
-      // The period is over: deliver held advertisements whose scan response
-      // never came (unmerged) before on_scan_end, not after it.
-      this->flush_pending_adv_();
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-      for (auto *listener : this->listeners_)
-        listener->on_scan_end();
-      this->discovered_log_.clear();  // reset per-scan "Found device" dedup (esp32_ble_tracker parity)
-#endif
-      this->scan_period_start_ = now;
+      this->parent_->scan_start(this->scan_interval_, this->scan_window_, this->scan_active_);
+      this->end_scan_period_(now);
     }
     return;
   }
@@ -115,8 +112,7 @@ bool LN882HBLETracker::request_scan_mode(bool active) {
   // scan_start() re-enters cleanly (stops + GAPM settle). No on_scan_end and
   // no period reset: the scan logically continues, only the mode changes.
   if (this->scan_running_) {
-    this->parent_->scan_start(static_cast<uint16_t>(this->scan_interval_), static_cast<uint16_t>(this->scan_window_),
-                              this->scan_active_);
+    this->parent_->scan_start(this->scan_interval_, this->scan_window_, this->scan_active_);
   }
   return true;
 }
@@ -125,12 +121,12 @@ void LN882HBLETracker::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "LN882H BLE Tracker:\n"
                 "  Scan Duration: %" PRIu32 " s\n"
-                "  Scan Interval: %.0f ms (%" PRIu32 " BLE units)\n"
-                "  Scan Window: %.0f ms (%" PRIu32 " BLE units)\n"
+                "  Scan Interval: %.0f ms (%" PRIu16 " BLE units)\n"
+                "  Scan Window: %.0f ms (%" PRIu16 " BLE units)\n"
                 "  Scan Type: %s\n"
                 "  Continuous Scanning: %s",
-                this->scan_duration_ / 1000, this->scan_interval_ * 0.625f, this->scan_interval_,
-                this->scan_window_ * 0.625f, this->scan_window_, this->scan_active_ ? "ACTIVE" : "PASSIVE",
+                this->scan_duration_ / 1000, this->scan_interval_ * BLE_SCAN_UNIT_MS, this->scan_interval_,
+                this->scan_window_ * BLE_SCAN_UNIT_MS, this->scan_window_, this->scan_active_ ? "ACTIVE" : "PASSIVE",
                 YESNO(this->scan_continuous_));
 }
 
@@ -155,37 +151,40 @@ void LN882HBLETracker::on_scan_report(const ln882h_ble::BLEScanReport &report) {
 // Hold a scannable advertisement, waiting (≤ PENDING_ADV_TIMEOUT_MS) for its
 // scan response.
 void LN882HBLETracker::stash_adv_(const ln882h_ble::BLEScanReport &report) {
+  // One pass: find a same-device entry (deliver + reuse) while remembering the
+  // first free slot as the fallback.
   PendingAdv *slot = nullptr;
+  PendingAdv *free_slot = nullptr;
   for (auto &p : this->pending_adv_) {
-    if (p.used && p.addr_type == report.addr_type && memcmp(p.mac, report.mac, 6) == 0) {
+    if (!p.used) {
+      if (free_slot == nullptr)
+        free_slot = &p;
+      continue;
+    }
+    if (p.addr_type == report.addr_type && memcmp(p.mac, report.mac, 6) == 0) {
       // Same device advertised again before its scan response arrived — deliver
       // the previous advertisement (its scan response is not coming) and reuse
       // the slot, so no frame is ever lost.
       p.used = false;
+      this->pending_count_--;
       this->process_adv_(p.mac, p.rssi, p.addr_type, p.data, p.data_len, /*raw_only=*/false);
       slot = &p;
       break;
     }
   }
-  if (slot == nullptr) {
-    for (auto &p : this->pending_adv_) {
-      if (!p.used) {
-        slot = &p;
-        break;
-      }
-    }
-  }
+  if (slot == nullptr)
+    slot = free_slot;
   if (slot == nullptr) {
     // Table full — degrade gracefully: deliver the advertisement unmerged.
     this->process_adv_(report.mac, report.rssi, report.addr_type, report.data, report.data_len, /*raw_only=*/false);
     return;
   }
   slot->used = true;
+  this->pending_count_++;
   memcpy(slot->mac, report.mac, 6);
   slot->addr_type = report.addr_type;
   slot->rssi = report.rssi;
-  slot->data_len =
-      (report.data_len <= sizeof(slot->data)) ? report.data_len : static_cast<uint16_t>(sizeof(slot->data));
+  slot->data_len = (report.data_len <= sizeof(slot->data)) ? report.data_len : sizeof(slot->data);
   memcpy(slot->data, report.data, slot->data_len);
   slot->stored_ms = millis();
 }
@@ -195,18 +194,17 @@ void LN882HBLETracker::stash_adv_(const ln882h_ble::BLEScanReport &report) {
 void LN882HBLETracker::deliver_scan_rsp_(const ln882h_ble::BLEScanReport &report) {
   for (auto &p : this->pending_adv_) {
     if (p.used && p.addr_type == report.addr_type && memcmp(p.mac, report.mac, 6) == 0) {
-      uint8_t merged[62];
-      uint16_t merged_len = p.data_len;
-      memcpy(merged, p.data, merged_len);
-      uint16_t room = static_cast<uint16_t>(sizeof(merged)) - merged_len;
-      uint16_t add = (report.data_len <= room) ? report.data_len : room;
-      memcpy(merged + merged_len, report.data, add);
-      merged_len += add;
+      // Append in place: the slot is released on delivery, so its 62-byte
+      // buffer (legacy adv + scan response) holds the merged frame directly.
+      const uint8_t room = sizeof(p.data) - p.data_len;
+      const uint8_t add = (report.data_len <= room) ? report.data_len : room;
+      memcpy(p.data + p.data_len, report.data, add);
       p.used = false;
+      this->pending_count_--;
       // The advertisement's RSSI, not the scan response's: every unmerged path
       // reports the advertisement's measurement, so a device's RSSI must not
       // jump between two measurements depending on merge timing.
-      this->process_adv_(report.mac, p.rssi, report.addr_type, merged, merged_len, /*raw_only=*/false);
+      this->process_adv_(report.mac, p.rssi, report.addr_type, p.data, p.data_len + add, /*raw_only=*/false);
       return;
     }
   }
@@ -216,13 +214,13 @@ void LN882HBLETracker::deliver_scan_rsp_(const ln882h_ble::BLEScanReport &report
   this->process_adv_(report.mac, report.rssi, report.addr_type, report.data, report.data_len, /*raw_only=*/true);
 }
 
-void LN882HBLETracker::process_adv_(const uint8_t *mac, int rssi, uint8_t addr_type, const uint8_t *data,
-                                    uint16_t data_len, bool raw_only) {
+void LN882HBLETracker::process_adv_(const uint8_t *mac, int8_t rssi, uint8_t addr_type, const uint8_t *data,
+                                    uint8_t data_len, bool raw_only) {
   // Raw callback (the raw-advertisement path). Both full advertisements and
   // unmatched scan responses (raw_only) are forwarded.
   if (this->raw_advertisement_callback_.is_set()) {
     const ble_device_base::RawAdvertisement adv{
-        .mac = mac, .data = data, .data_len = data_len, .rssi = static_cast<int8_t>(rssi), .addr_type = addr_type};
+        .mac = mac, .data = data, .data_len = data_len, .rssi = rssi, .addr_type = addr_type};
     this->raw_advertisement_callback_.invoke(adv);
   }
 
@@ -275,23 +273,20 @@ void LN882HBLETracker::start_scan_() {
 
   // The controller enables the stack on first use and owns the report queue;
   // this call is all the SDK interaction the tracker ever needs.
-  this->parent_->scan_start(static_cast<uint16_t>(this->scan_interval_), static_cast<uint16_t>(this->scan_window_),
-                            this->scan_active_);
+  this->parent_->scan_start(this->scan_interval_, this->scan_window_, this->scan_active_);
   const uint32_t now = millis();
   this->scan_running_ = true;
   this->scan_start_time_ = now;
+  this->enable_loop();  // an idle non-continuous tracker disabled it in stop_scan_()
   // Log every explicit start at DEBUG — stop_scan_() logs every stop at DEBUG, and
   // in non-continuous mode each period is an explicit start, so asymmetric logging
   // would read as the scanner failing to come back up.
   ESP_LOGD(TAG, "BLE scan started (%s, window=%.0fms, interval=%.0fms)", this->scan_active_ ? "active" : "passive",
-           this->scan_window_ * 0.625f, this->scan_interval_ * 0.625f);
-  // Re-anchor the on_scan_end period to every successful start — first start (so the
-  // period counts from the scan, not from boot) and every restart after a stop (so
-  // resuming after longer than scan_duration, e.g. a failed OTA restoring continuous
-  // mode later, does not fire on_scan_end before an advertisement can arrive).
-  // scan_started_once_ purely gates the period timer.
+           this->scan_window_ * BLE_SCAN_UNIT_MS, this->scan_interval_ * BLE_SCAN_UNIT_MS);
+  // Re-anchor the on_scan_end period to every successful start, so a restart
+  // later than scan_duration (e.g. a failed OTA restoring continuous mode)
+  // does not fire on_scan_end before an advertisement can arrive.
   this->scan_period_start_ = now;
-  this->scan_started_once_ = true;
 }
 
 void LN882HBLETracker::stop_scan_() {
@@ -302,26 +297,37 @@ void LN882HBLETracker::stop_scan_() {
   // DEBUG like start_scan_() — a per-period stop at INFO would read as the
   // scanner failing to come back up.
   ESP_LOGD(TAG, "BLE scan stopped");
-  // The scan is over: deliver held advertisements whose scan response never
-  // came (unmerged) before on_scan_end, not after it.
+  this->end_scan_period_(millis());  // also resets the period clock so on_scan_end does not double-fire
+  if (!this->scan_continuous_) {
+    // Nothing left to time; start_scan_() re-enables the loop.
+    this->disable_loop();
+  }
+}
+
+// Close a scan period: deliver held advertisements whose scan response never
+// came (unmerged) BEFORE on_scan_end fires, then re-anchor the period clock.
+void LN882HBLETracker::end_scan_period_(uint32_t now) {
   this->flush_pending_adv_();
 #ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
   for (auto *listener : this->listeners_)
     listener->on_scan_end();
   this->discovered_log_.clear();  // reset per-scan "Found device" dedup (esp32_ble_tracker parity)
 #endif
-  this->scan_period_start_ = millis();  // reset period clock so on_scan_end does not double-fire
+  this->scan_period_start_ = now;
 }
 
 // Deliver every held advertisement now (scan period/scan is ending): unmerged
 // delivery, same as the timeout path in loop(). Main-task only.
 void LN882HBLETracker::flush_pending_adv_() {
+  if (this->pending_count_ == 0)
+    return;
   for (auto &p : this->pending_adv_) {
     if (p.used) {
       p.used = false;
       this->process_adv_(p.mac, p.rssi, p.addr_type, p.data, p.data_len, /*raw_only=*/false);
     }
   }
+  this->pending_count_ = 0;
 }
 
 }  // namespace esphome::ln882h_ble_tracker

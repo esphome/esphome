@@ -49,8 +49,8 @@ class LN882HBLETracker : public Component,
 
   // ---- YAML configuration setters ----
   void set_scan_active(bool scan_active) { this->scan_active_ = scan_active; }
-  void set_scan_interval(uint32_t scan_interval) { this->scan_interval_ = scan_interval; }
-  void set_scan_window(uint32_t scan_window) { this->scan_window_ = scan_window; }
+  void set_scan_interval(uint16_t scan_interval) { this->scan_interval_ = scan_interval; }
+  void set_scan_window(uint16_t scan_window) { this->scan_window_ = scan_window; }
   void set_scan_duration(uint32_t scan_duration) { this->scan_duration_ = scan_duration; }
   void set_scan_continuous(bool scan_continuous) { this->scan_continuous_ = scan_continuous; }
 
@@ -106,18 +106,22 @@ class LN882HBLETracker : public Component,
   // callback, and — unless raw_only — parsing for listeners/triggers. raw_only
   // marks unmatched scan-response frames: forwarded on the raw callback only,
   // never to local sensors/triggers (HA merges per address).
-  void process_adv_(const uint8_t *mac, int rssi, uint8_t addr_type, const uint8_t *data, uint16_t data_len,
+  void process_adv_(const uint8_t *mac, int8_t rssi, uint8_t addr_type, const uint8_t *data, uint8_t data_len,
                     bool raw_only);
   void start_scan_();
   void stop_scan_();
+  // Close a scan period: flush held advertisements (unmerged) BEFORE
+  // on_scan_end fires, then re-anchor the period clock to `now`.
+  void end_scan_period_(uint32_t now);
   void flush_pending_adv_();
 
   bool scan_running_{false};
   bool scan_active_{false};
   // Defaults are the LN882H SDK's recommended scan parameters
   // (ln_ble_scan.h: SCAN_INTERVAL_DEF 0xA0, SCAN_WINDOW_DEF 0x50 → 50 % duty).
-  uint32_t scan_interval_{160};  // 160 × 0.625 ms = 100 ms (SDK SCAN_INTERVAL_DEF)
-  uint32_t scan_window_{80};     // 80 × 0.625 ms = 50 ms (SDK SCAN_WINDOW_DEF; 50/100 = 50 %)
+  // uint16_t matches the controller's scan_start() parameters.
+  uint16_t scan_interval_{160};  // 160 × 0.625 ms = 100 ms (SDK SCAN_INTERVAL_DEF)
+  uint16_t scan_window_{80};     // 80 × 0.625 ms = 50 ms (SDK SCAN_WINDOW_DEF; 50/100 = 50 %)
   uint32_t scan_duration_{300000};
   bool scan_continuous_{true};
 #ifdef USE_OTA_STATE_LISTENER
@@ -133,8 +137,8 @@ class LN882HBLETracker : public Component,
     bool used{false};
     uint8_t mac[6];
     uint8_t addr_type;
-    int rssi;
-    uint16_t data_len;
+    int8_t rssi;
+    uint8_t data_len;  // <= sizeof(data)
     uint8_t data[62];
     uint32_t stored_ms;
   };
@@ -149,18 +153,17 @@ class LN882HBLETracker : public Component,
   // while staying below any device's re-advertising period.
   static constexpr uint32_t PENDING_ADV_TIMEOUT_MS = 300;
   PendingAdv pending_adv_[MAX_PENDING_ADV];
+  // Occupied pending_adv_ slots — lets loop()'s timeout sweep skip the table
+  // in the common case (empty: passive scan, or every pair already matched).
+  uint8_t pending_count_{0};
 
   uint32_t scan_period_start_{0};  // millis() at start of current scan period; used to rate-limit on_scan_end()
-  bool scan_started_once_{false};  // true after first successful scan start; gates the period timer
 
   ble_device_base::RawAdvertisementCallback raw_advertisement_callback_{};
 #ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
   // Parsed-advertisement consumers registered through ble_device_base.
   // Codegen-sized: no heap allocation, no std::vector template instantiations.
   StaticVector<ble_device_base::ESPBTDeviceListener *, ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT> listeners_;
-#endif
-
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
   // Per-period "Found device" DEBUG log with MAC dedup — shared implementation
   // in ble_device_base, identical output on every tracker backend. Guarded like
   // its only writer so a no-listener build does not carry an unused vector.
