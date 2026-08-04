@@ -443,7 +443,6 @@ class WaveshareEPaper2P9InV2R2 : public WaveshareEPaper {
 
   int get_width_controller() override;
 
-
  private:
   void reset_();
 };
@@ -513,7 +512,6 @@ class GDEY042T81 : public WaveshareEPaper {
   void set_full_update_every(uint32_t full_update_every);
 
  protected:
-
   int get_width_internal() override;
   int get_height_internal() override;
   uint32_t idle_timeout_() override;
@@ -986,7 +984,6 @@ class WaveshareEPaper7P5InV2P : public WaveshareEPaper {
 
   uint32_t idle_timeout_() override;
 
-
  private:
   void reset_();
 
@@ -1036,7 +1033,6 @@ class WaveshareEPaper2P13InDKE : public WaveshareEPaper {
   int get_height_internal() override;
 
   uint32_t idle_timeout_() override;
-
 };
 
 class WaveshareEPaper2P13InV3 : public WaveshareEPaper {
