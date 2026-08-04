@@ -20,6 +20,8 @@ def _validate_wakeup_options(config):
     Runs before the schema so the defaults for the keys below have not been
     filled in yet and an explicit user value is still distinguishable from one.
     """
+    if not isinstance(config, dict):
+        return config
     if CONF_WAKEUP_PIN in config:
         return config
     for key in (CONF_AUTO_WAKE, CONF_WAKEUP_PULSE):

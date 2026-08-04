@@ -214,7 +214,7 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
              this->frame_id_);
     return;
   }
-  if (len == 0 && this->command_active_ && type == this->active_command_.type) {
+  if (len == 0 && this->command_active_ && this->command_sent_ && type == this->active_command_.type) {
     ESP_LOGV(TAG, "ACK for command 0x%04X (module frame 0x%04X)", type, this->frame_id_);
     // This settles one expected reply; the rest stay owed and become the debt for the next command.
     this->send_generation_++;
