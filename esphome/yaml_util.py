@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 import functools
@@ -791,12 +791,12 @@ class ESPHomeLoaderMixin:
 
     @_add_data_ref
     def construct_include_dir_list(self, node: yaml.Node) -> list[dict[str, Any]]:
-        files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
+        files = filter_yaml_files(find_files(self._rel_path(node.value), "*.yaml"))
         return [self.yaml_loader(f) for f in files]
 
     @_add_data_ref
     def construct_include_dir_merge_list(self, node: yaml.Node) -> list[dict[str, Any]]:
-        files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
+        files = filter_yaml_files(find_files(self._rel_path(node.value), "*.yaml"))
         merged_list = []
         for fname in files:
             loaded_yaml = self.yaml_loader(fname)
@@ -808,7 +808,7 @@ class ESPHomeLoaderMixin:
     def construct_include_dir_named(
         self, node: yaml.Node
     ) -> OrderedDict[str, dict[str, Any]]:
-        files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
+        files = filter_yaml_files(find_files(self._rel_path(node.value), "*.yaml"))
         mapping = OrderedDict()
         for fname in files:
             filename = fname.stem
@@ -819,7 +819,7 @@ class ESPHomeLoaderMixin:
     def construct_include_dir_merge_named(
         self, node: yaml.Node
     ) -> OrderedDict[str, dict[str, Any]]:
-        files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
+        files = filter_yaml_files(find_files(self._rel_path(node.value), "*.yaml"))
         mapping = OrderedDict()
         for fname in files:
             loaded_yaml = self.yaml_loader(fname)
@@ -1015,8 +1015,8 @@ def _is_file_valid(name: str) -> bool:
     return not name.startswith(".")
 
 
-def _find_files(directory: Path, pattern):
-    """Recursively load files in a directory."""
+def find_files(directory: Path, pattern: str) -> Iterator[Path]:
+    """Recursively find files in a directory matching *pattern*, skipping hidden entries."""
     for root, dirs, files in os.walk(directory):
         dirs[:] = [d for d in dirs if _is_file_valid(d)]
         for f in files:
