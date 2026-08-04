@@ -59,6 +59,7 @@ CONF_ON_PAGE_CHANGE = "on_page_change"
 CONF_SHOW_TEST_CARD = "show_test_card"
 CONF_UNSPECIFIED = "unspecified"
 KEY_SLEEP_REFS = "sleep_refs"
+SLEEP_NOT_IMPLEMENTED = "Sleep and wakeup are not implemented for this display type"
 
 DISPLAY_ROTATIONS = {
     0: display_ns.DISPLAY_ROTATION_0_DEGREES,
@@ -134,10 +135,8 @@ def validate_supports_sleep(value: Any) -> ID:
         if registered_id is display_id or registered_id.id == display_id.id:
             if metadata.supports_sleep:
                 return display_id
-            if metadata.sleep_unsupported_reason is not None:
-                raise cv.Invalid(metadata.sleep_unsupported_reason)
-            break
-    raise cv.Invalid("Sleep and wakeup are not implemented for this display type")
+            raise cv.Invalid(metadata.sleep_unsupported_reason)
+    raise cv.Invalid(SLEEP_NOT_IMPLEMENTED)
 
 
 @dataclass(frozen=True)
@@ -211,8 +210,12 @@ class DisplayMetaData:
     has_writer: bool = False
     rotation: int = 0
     draw_rounding: int = 0
-    supports_sleep: bool = False
-    sleep_unsupported_reason: str | None = None
+    # None means sleep is supported; otherwise the reason it is unavailable.
+    sleep_unsupported_reason: str | None = SLEEP_NOT_IMPLEMENTED
+
+    @property
+    def supports_sleep(self) -> bool:
+        return self.sleep_unsupported_reason is None
 
 
 def _get_metadata_list() -> list[tuple]:
@@ -299,8 +302,11 @@ def add_metadata(
                 has_writer=has_writer,
                 rotation=rotation,
                 draw_rounding=draw_rounding,
-                supports_sleep=supports_sleep,
-                sleep_unsupported_reason=sleep_unsupported_reason,
+                sleep_unsupported_reason=(
+                    None
+                    if supports_sleep
+                    else sleep_unsupported_reason or SLEEP_NOT_IMPLEMENTED
+                ),
             ),
         )
     )
