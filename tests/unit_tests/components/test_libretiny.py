@@ -12,7 +12,7 @@ from esphome.components.libretiny.const import (
 from esphome.components.ln882x import COMPONENT_DATA
 import esphome.config_validation as cv
 from esphome.const import CONF_BOARD, CONF_FAMILY
-from esphome.core import CORE
+from esphome.core import CORE, KEY_CORE
 
 
 @pytest.fixture
@@ -65,5 +65,19 @@ def test_platform_schemas_are_isolated_instances() -> None:
     schemas = [platform.CONFIG_SCHEMA for platform in platforms]
     assert len({id(schema) for schema in (BASE_SCHEMA, *schemas)}) == 4
     # The shared base must not have accumulated any platform's extra.
+    # prepend_extra wraps validators in _Schema, so unwrap before comparing.
+    base_extras = [extra.schema for extra in BASE_SCHEMA._extra_schemas]
     for platform in platforms:
-        assert platform._set_core_data not in BASE_SCHEMA._extra_schemas  # noqa: SLF001
+        assert platform._set_core_data not in base_extras
+
+
+def test_each_platform_resolves_its_own_boards() -> None:
+    """Validating one platform's config must leave that platform's component
+    data in CORE.data. On the shared schema, the last-imported platform's
+    _set_core_data won for every platform, so known boards failed to resolve
+    with "This board is unknown"."""
+    CORE.data[KEY_CORE] = {}  # written by the schema's _update_core_data extra
+    ln882x.CONFIG_SCHEMA({CONF_BOARD: "generic-ln882h"})
+    assert CORE.data[KEY_LIBRETINY][KEY_COMPONENT_DATA] is ln882x.COMPONENT_DATA
+    bk72xx.CONFIG_SCHEMA({CONF_BOARD: "generic-bk7252"})
+    assert CORE.data[KEY_LIBRETINY][KEY_COMPONENT_DATA] is bk72xx.COMPONENT_DATA
