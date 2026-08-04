@@ -602,8 +602,6 @@ async def to_code(config):
         cg.add_define("USE_ESP32_BLE_ADVERTISING")
         cg.add_define("USE_ESP32_BLE_UUID")
 
-    # Schedule the handler defines to be added after all components register
-
 
 @automation.register_condition("ble.enabled", BLEEnabledCondition, cv.Schema({}))
 async def ble_enabled_to_code(config, condition_id, template_arg, args):

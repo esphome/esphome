@@ -266,7 +266,9 @@ class ESP32BLETracker final : public Component,
 
 #ifdef ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT
   /// Add a listener for scanner state changes. Only compiled when a consumer
-  /// requested a slot in codegen (the define sizes the storage).
+  /// requested a slot in codegen: register through
+  /// esp32_ble_tracker.register_scanner_state_listener() in your component's
+  /// to_code, which requests the slot and emits this call.
   void add_scanner_state_listener(BLEScannerStateListener *listener) {
     this->scanner_state_listeners_.push_back(listener);
   }
