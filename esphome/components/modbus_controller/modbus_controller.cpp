@@ -85,7 +85,9 @@ void ModbusCommandItem::on_response(std::span<const uint8_t> request_pdu, std::s
 // An exception response is still a legitimate reply, so the device is considered online.
 void ModbusCommandItem::on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) {
   const uint8_t function_code = request_pdu.empty() ? 0 : request_pdu[0];
-  ESP_LOGE(TAG, "Modbus error function code: 0x%X register 0x%X exception: %d", function_code, this->start_address_,
+  // Warning, not error: a device that answers ILLEGAL_DATA_ADDRESS on one poll would otherwise log
+  // at error level every update interval.
+  ESP_LOGW(TAG, "Modbus error function code: 0x%X register 0x%X exception: %d", function_code, this->start_address_,
            static_cast<uint8_t>(exception_code));
   if (this->controller_ != nullptr) {
     this->controller_->set_online(true, function_code, this->start_address_);
@@ -199,7 +201,10 @@ void ModbusController::update_range_(ModbusCommandItem &cmd) {
 void ModbusController::update() {
   this->sweep_completed_one_shots_();  // reclaim one-shots deferred out of their own callbacks
   if (this->module_offline_) {
-    if ((this->update_counter_ + 1 - this->module_offline_at_) % (this->offline_skip_updates_ + 1) != 0) {
+    // The cast keeps the dividend in uint16_t when update_counter_ wraps past 65535.
+    if (static_cast<uint16_t>(this->update_counter_ + 1 - this->module_offline_at_) %
+            (this->offline_skip_updates_ + 1) !=
+        0) {
       ESP_LOGV(TAG, "Module offline - skipping update");
     } else {  // time to try the device again
       ESP_LOGV(TAG, "Module offline - retrying");
