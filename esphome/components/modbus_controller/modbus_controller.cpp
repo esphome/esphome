@@ -193,7 +193,7 @@ void ModbusController::update() {
         continue;
       }
       ESP_LOGVV(TAG, "Updating range 0x%X", cmd.register_address());
-      cmd.send();
+      cmd.send(this->continuous_);
     }
   }
   this->update_counter_++;
@@ -490,11 +490,15 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
   return cmd;
 }
 
-bool ModbusCommandItem::send() {
+bool ModbusCommandItem::send(bool continuous) {
+  // continuous only affects reads (the hub ignores it for writes): a read sent with it is re-queued at
+  // the lowest priority after each success, filling idle bus time. Set by the polling loop in update()
+  // when the controller is in continuous mode; one-shot commands always pass false.
   bool accepted;
   if (this->custom_pdu_ != nullptr) {
     // Custom polling command: the ready-made PDU bytes live in the sensor.
-    accepted = modbus::ModbusClientDevice::send_pdu(std::span<const uint8_t>(*this->custom_pdu_));
+    accepted =
+        modbus::ModbusClientDevice::send_pdu(std::span<const uint8_t>(*this->custom_pdu_), {.continuous = continuous});
   } else if (!this->payload.empty()) {
     if (this->payload_is_raw_frame_) {
       // Legacy raw frame staged by create_custom_command(): route the PDU to the frame's own address byte.
@@ -506,7 +510,8 @@ bool ModbusCommandItem::send() {
     }
   } else {
     // Read command: dispatch by entity type through the base's typed read helper.
-    accepted = this->read_entities(this->register_type_, this->start_address_, this->register_count_);
+    accepted = this->read_entities(this->register_type_, this->start_address_, this->register_count_,
+                                   {.continuous = continuous});
   }
   // The on_command_sent trigger fires from on_sent() when the frame actually reaches the wire.
   if (accepted) {

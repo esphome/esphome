@@ -9,7 +9,14 @@ from esphome.components.modbus.helpers import (
     EntityType,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS, CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_OFFSET
+from esphome.const import (
+    CONF_ADDRESS,
+    CONF_CONTINUOUS,
+    CONF_ID,
+    CONF_LAMBDA,
+    CONF_NAME,
+    CONF_OFFSET,
+)
 from esphome.cpp_helpers import logging
 from esphome.types import ConfigType
 
@@ -77,6 +84,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_MAX_CMD_RETRIES, default=4): cv.positive_int,
             cv.Optional(CONF_OFFLINE_SKIP_UPDATES, default=0): cv.positive_int,
+            cv.Optional(CONF_CONTINUOUS, default=False): cv.boolean,
             cv.Optional(
                 CONF_SERVER_REGISTERS,
             ): cv.invalid(
@@ -220,6 +228,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_max_cmd_retries(config[CONF_MAX_CMD_RETRIES]))
     cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
+    cg.add(var.set_continuous(config[CONF_CONTINUOUS]))
     await register_modbus_device(var, config)
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 

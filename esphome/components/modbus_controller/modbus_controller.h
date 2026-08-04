@@ -296,7 +296,9 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   void send_raw_frame_deprecated(std::span<const uint8_t> frame);
 
   /// Queue this command's frame on the hub. Returns false when refused, in which case no callback ever comes.
-  bool send();
+  /// `continuous` (reads only) asks the hub to re-queue the frame after each success to fill idle bus
+  /// time; the polling path sets it from the controller's continuous mode, one-shot commands leave it false.
+  bool send(bool continuous = false);
 
   /// factory methods (deprecated: use ModbusController::create_command() and the item's write helpers / send_pdu())
   /** Create modbus read command
@@ -495,6 +497,11 @@ class ModbusController final : public PollingComponent {
   void set_max_cmd_retries(uint8_t max_cmd_retries) { this->max_cmd_retries_ = max_cmd_retries; }
   /// get how many times a command will be (re)sent if no response is received
   uint8_t get_max_cmd_retries() { return this->max_cmd_retries_; }
+  /// called by esphome generated code to enable continuous polling (reads re-queue after each success to
+  /// fill idle bus time; update_interval remains the recovery path for a device that stops responding).
+  void set_continuous(bool continuous) { this->continuous_ = continuous; }
+  /// whether continuous polling is enabled
+  bool continuous() const { return this->continuous_; }
 
  protected:
   /// parse sensormap_ and create range of sequential addresses
@@ -538,6 +545,8 @@ class ModbusController final : public PollingComponent {
   uint16_t offline_skip_updates_{0};
   /// How many times we will retry a command if we get no response
   uint8_t max_cmd_retries_{4};
+  /// poll continuously (reads re-queue after each success) instead of only once per update_interval
+  bool continuous_{false};
   /// Command sent callback
   CallbackManager<void(int, int)> command_sent_callback_{};
   /// Server online callback
