@@ -38,7 +38,6 @@ class MAX7219Component final : public PollingComponent,
   void set_digitmapping(const std::vector<uint8_t> &digitmapping);
   void set_reverse(bool reverse) { this->reverse_ = reverse; };
 
-
   /// Evaluate the printf-format and print the result at the given position.
   uint8_t printf(uint8_t pos, const char *format, ...) __attribute__((format(printf, 3, 4)));
   /// Evaluate the printf-format and print the result at position 0.
@@ -65,8 +64,8 @@ class MAX7219Component final : public PollingComponent,
   uint8_t *buffer_{nullptr};
   bool reverse_{false};
 
-  uint8_t byte_mapping[256] ;
-  uint8_t digit_mapping[256] ;
+  uint8_t byte_mapping[256];
+  uint8_t digit_mapping[256];
   max7219_writer_t writer_{};
 };
 
