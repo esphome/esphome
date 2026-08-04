@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import logging
 from pathlib import Path
 import re
@@ -53,6 +54,7 @@ from .const import (
     KEY_FRAMEWORK_TYPE,
     KEY_KCONFIG,
     KEY_OVERLAY,
+    KEY_OVERLAY_BUILDER,
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
     KEY_SNIPPETS,
@@ -155,6 +157,7 @@ class ZephyrData(TypedDict):
     pm_static: list[Section]
     user: dict[str, list[str]]
     kconfig: str
+    overlay_builder: list[Callable[[], str]]
     fake_board_manifest: str | None
     dts_base_path: (
         str | None
@@ -191,6 +194,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         overlay={
             "": "",
         },  # set empty to make sure that overlay is cleared after config change
+        overlay_builder=[],
         extra_build_files={},
         pm_static=[],
         user={},
@@ -447,6 +451,12 @@ def zephyr_add_overlay(content: str, image: str = "") -> None:
     data[KEY_OVERLAY][image] += textwrap.dedent(content)
 
 
+def zephyr_add_overlay_builder(func: Callable[[], str]) -> None:
+    data = zephyr_data()
+    if func not in data[KEY_OVERLAY_BUILDER]:
+        data[KEY_OVERLAY_BUILDER].append(func)
+
+
 def add_extra_build_file(filename: str, path: Path) -> bool:
     """Add an extra build file to the project."""
     extra_build_files = zephyr_data()[KEY_EXTRA_BUILD_FILES]
@@ -479,6 +489,8 @@ FILTER_SOURCE_FILES = _filter_source_files
 def zephyr_to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_ZEPHYR")
     cg.add_define("USE_NATIVE_64BIT_TIME")
+    # The settings subsystem finds stored preferences by key, so key migration is possible
+    cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.set_cpp_standard("gnu++20")
     if zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM:
         # native_sim: use host glibc + libstdc++, avoiding picolibc/glibc type conflicts.
@@ -690,6 +702,24 @@ def zephyr_add_user(key, value):
     if key not in user:
         user[key] = []
     user[key] += [value]
+    # Idempotent: zephyr_add_overlay_builder() only appends a given func once, so every
+    # caller registering the same _render_user_overlay reference collapses to one deferred
+    # render covering every key -- see zephyr_add_overlay_builder's copy_files() consumer.
+    zephyr_add_overlay_builder(_render_user_overlay)
+
+
+def _render_user_overlay() -> str:
+    user = zephyr_data()[KEY_USER]
+    if not user:
+        return ""
+    entries = " ".join(f"{key} = {', '.join(value)};" for key, value in user.items())
+    return f"""
+        / {{
+            zephyr,user {{
+                {entries}
+            }};
+        }};
+    """
 
 
 def _write_file_if_changed_or_remove_when_empty(path: Path, content: str) -> bool:
@@ -708,25 +738,14 @@ def _write_file_if_changed_or_remove_when_empty(path: Path, content: str) -> boo
 def copy_files() -> None:
     changed = False
 
+    for builder_func in zephyr_data()[KEY_OVERLAY_BUILDER]:
+        overlay_contents = builder_func()
+        zephyr_add_overlay(overlay_contents)
+
     if manifest := zephyr_data()["fake_board_manifest"]:
         changed |= write_file_if_changed(
             CORE.relative_build_path(f"boards/{zephyr_data()[KEY_BOARD]}.json"),
             manifest,
-        )
-
-    user = zephyr_data()[KEY_USER]
-    if user:
-        entries = " ".join(
-            f"{key} = {', '.join(value)};" for key, value in user.items()
-        )
-        zephyr_add_overlay(
-            f"""
-                / {{
-                    zephyr,user {{
-                        {entries}
-                    }};
-                }};
-            """
         )
 
     for image, want_opts in zephyr_data()[KEY_PRJ_CONF].items():

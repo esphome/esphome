@@ -57,7 +57,7 @@ def _find_app_partition_size(partitions_csv: Path) -> int:
     """
     if not partitions_csv.is_file():
         raise ValueError(f"partitions.csv not found at {partitions_csv}")
-    for row in csv.reader(partitions_csv.read_text().splitlines()):
+    for row in csv.reader(partitions_csv.read_text(encoding="utf-8").splitlines()):
         cells = [c.strip() for c in row]
         if not cells or cells[0].startswith("#") or len(cells) < 5:
             continue
@@ -89,7 +89,7 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
         _LOGGER.debug("Skipping size summary: %s not found", size_json)
         return
     try:
-        data = json.loads(size_json.read_text())
+        data = json.loads(size_json.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
         _LOGGER.debug("Skipping size summary: %s", e)
         return
