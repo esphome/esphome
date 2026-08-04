@@ -95,10 +95,14 @@ OTAResponseTypes IDFOTABackend::finalize_bootloader_update_(esp_err_t ota_end_er
     return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
   }
 #ifdef USE_OTA_SIGNED_VERIFICATION_MULTI_KEY
-  // The new bootloader is staged in partition_. IDF's on-update signature
-  // check is disabled for this scheme, so verify it here -- against the same
-  // keys the running app trusts -- before copying it over the live bootloader.
+  // The new bootloader is staged in partition_. IDF never signature-checks a
+  // bootloader image in this software-signed config -- esp_image_verify() skips
+  // it when is_bootloader() is true -- so without this a bootloader OTA would
+  // install unverified. Require a trusted signature, which means the bootloader
+  // must be externally signed and 4 KiB-padded, the same as the app.
   if (!this->verify_signed_image_(this->partition_)) {
+    ESP_LOGE(TAG, "Bootloader image is not signed by a trusted key; a bootloader OTA requires an "
+                  "externally-signed, 4 KiB-padded bootloader.bin");
     return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
   }
 #endif

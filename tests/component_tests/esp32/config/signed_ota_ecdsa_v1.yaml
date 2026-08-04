@@ -8,4 +8,4 @@ esp32:
     advanced:
       signed_ota_verification:
         signing_scheme: ecdsa_v1
-        verification_key: ../../../components/esp32/dummy_signing_key.pem
+        verification_key: ../../../components/esp32/dummy_signing_key_v1_ecdsa.pem

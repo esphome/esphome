@@ -148,8 +148,10 @@ SIGNING_SCHEMES = {
     "ecdsa_v1": "CONFIG_SECURE_SIGNED_APPS_ECDSA_SCHEME",
 }
 
-# A Secure Boot v2 signature sector holds at most three signature blocks, so a
-# device can be signed by at most three keys; cap the trusted-key list to match.
+# A Secure Boot v2 image carries at most three signature blocks, and hardware
+# secure boot exposes three eFuse key slots. The trusted-key list isn't bound by
+# the per-image limit (an incoming image need only match one trusted key), but
+# cap it at three to mirror those hardware limits.
 SIGNED_OTA_MAX_KEYS = 3
 
 # Chip variants that only support one V2 signing scheme.
@@ -1299,6 +1301,13 @@ def _validate_signed_ota_keys(config: ConfigType) -> ConfigType:
             raise cv.Invalid(
                 f"Provide at most one of '{CONF_VERIFICATION_KEY}' and "
                 f"'{CONF_VERIFICATION_KEYS}', not both.",
+                path=[CONF_VERIFICATION_KEYS],
+            )
+        keys = config[CONF_VERIFICATION_KEYS]
+        if len(set(keys)) != len(keys):
+            raise cv.Invalid(
+                f"'{CONF_VERIFICATION_KEYS}' entries must be unique (duplicate "
+                f"keys add nothing and waste a trusted-set slot).",
                 path=[CONF_VERIFICATION_KEYS],
             )
     if scheme == "ecdsa_v1":

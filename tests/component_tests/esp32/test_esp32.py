@@ -834,6 +834,11 @@ def test_signed_ota_bare_block_selects_v2_external_signing(value: dict | None) -
             },
             "at most one",
         ),
+        # Duplicate trusted keys are rejected.
+        (
+            {"signing_scheme": "rsa3072", "verification_keys": ["ab" * 32, "ab" * 32]},
+            "must be unique",
+        ),
     ],
 )
 def test_signed_ota_keys_invalid_combinations(config: dict, match: str) -> None:
@@ -841,6 +846,25 @@ def test_signed_ota_keys_invalid_combinations(config: dict, match: str) -> None:
 
     with pytest.raises(cv.Invalid, match=match):
         _validate_signed_ota_keys(config)
+
+
+def test_sbv2_rsa_key_digest_known_answer() -> None:
+    """The compiled-in trust anchor is the block-format digest the device
+    computes per signature block; pin it to espsecure's known output for the
+    shipped dummy key so a future change to the derivation can't drift silently.
+    """
+    from esphome.components.esp32 import _sbv2_rsa_key_digest
+
+    key = (
+        Path(__file__).parent.parent.parent
+        / "components"
+        / "esp32"
+        / "dummy_signing_key.pem"
+    )
+    assert (
+        _sbv2_rsa_key_digest(key).hex()
+        == "957671f5ec1b55b3fb1d32c5525a68d3b8c33847922daddb4feefe64cd679f65"
+    )
 
 
 @pytest.mark.parametrize(
