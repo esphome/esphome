@@ -54,6 +54,7 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
   void set_is_wrgb(bool is_wrgb) { this->is_wrgb_ = is_wrgb; }
   void set_rgbw_order(uint8_t white_index) {
     this->is_rgbw_ = true;
+    this->is_wrgb_ = false;
     this->white_index_ = white_index;
   }
   void set_use_dma(bool use_dma) { this->use_dma_ = use_dma; }
@@ -95,6 +96,7 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
   uint16_t num_leds_;
   bool is_rgbw_{false};
   bool is_wrgb_{false};
+  // An index after the RGB channels makes offset adjustment a no-op for three-channel strips.
   uint8_t white_index_{3};
   bool use_dma_{false};
   bool use_psram_{false};
