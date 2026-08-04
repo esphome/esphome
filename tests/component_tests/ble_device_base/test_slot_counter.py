@@ -116,3 +116,20 @@ def test_esp32_bluetooth_proxy_requests_scanner_state_slot(
     )
     assert get_define_value("ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT") == "1"
     assert get_define_value("ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT") == "3"
+
+
+def test_counts_reset_between_compiles(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A second compile in the same process starts from zero.
+
+    The module level counters this change removes leaked across compiles in a
+    long lived host process (dashboard, device-builder), growing the handler
+    counts by one per compile and oversizing the StaticCallbackManager storage.
+    """
+    generate_main(component_config_path("esp32_tracker_only.yaml"))
+    assert get_define_value("ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT") == "1"
+    CORE.reset()
+    generate_main(component_config_path("esp32_tracker_only.yaml"))
+    assert get_define_value("ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT") == "1"
