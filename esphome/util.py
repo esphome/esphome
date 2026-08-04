@@ -1,5 +1,5 @@
 import collections
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 import io
 import logging
@@ -356,7 +356,7 @@ def list_yaml_files(configs: list[str | Path]) -> list[Path]:
     return sorted(files)
 
 
-def filter_yaml_files(files: list[Path]) -> list[Path]:
+def filter_yaml_files(files: Iterable[Path]) -> list[Path]:
     return [
         f
         for f in files

@@ -94,6 +94,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_NRF52,
     PLATFORM_RP2,
     Toolchain,
 )
@@ -2862,18 +2863,17 @@ def test_upload_program_ota_with_mqtt_empty_broker(
     assert "MQTT IP discovery failed" in caplog.text
 
 
-@patch("esphome.__main__.importlib.import_module")
+@patch("esphome.platform_hooks.get_platform_hook")
 def test_upload_program_platform_specific_handler(
-    mock_import: Mock,
+    mock_get_hook: Mock,
     mock_get_port_type: Mock,
 ) -> None:
     """Test upload_program with platform-specific upload handler."""
-    setup_core(platform="custom_platform")
+    setup_core(platform=PLATFORM_NRF52)
     mock_get_port_type.return_value = "CUSTOM"
 
-    mock_module = MagicMock()
-    mock_module.upload_program.return_value = True
-    mock_import.return_value = mock_module
+    platform_upload = MagicMock(return_value=True)
+    mock_get_hook.return_value = platform_upload
 
     config = {}
     args = MockArgs()
@@ -2883,8 +2883,8 @@ def test_upload_program_platform_specific_handler(
 
     assert exit_code == 0
     assert host == "custom_device"
-    mock_import.assert_called_once_with("esphome.components.custom_platform")
-    mock_module.upload_program.assert_called_once_with(config, args, "custom_device")
+    mock_get_hook.assert_called_once_with(PLATFORM_NRF52, "upload_program")
+    platform_upload.assert_called_once_with(config, args, "custom_device")
 
 
 def test_show_logs_serial(
@@ -3108,16 +3108,15 @@ def test_show_logs_no_method_configured() -> None:
         show_logs(CORE.config, args, devices)
 
 
-@patch("esphome.__main__.importlib.import_module")
+@patch("esphome.platform_hooks.get_platform_hook")
 def test_show_logs_platform_specific_handler(
-    mock_import: Mock,
+    mock_get_hook: Mock,
 ) -> None:
     """Test show_logs with platform-specific logs handler."""
-    setup_core(platform="custom_platform", config={"logger": {}})
+    setup_core(platform=PLATFORM_NRF52, config={"logger": {}})
 
-    mock_module = MagicMock()
-    mock_module.show_logs.return_value = True
-    mock_import.return_value = mock_module
+    platform_show_logs = MagicMock(return_value=True)
+    mock_get_hook.return_value = platform_show_logs
 
     config = {"logger": {}}
     args = MockArgs()
@@ -3126,8 +3125,8 @@ def test_show_logs_platform_specific_handler(
     result = show_logs(config, args, devices)
 
     assert result == 0
-    mock_import.assert_called_once_with("esphome.components.custom_platform")
-    mock_module.show_logs.assert_called_once_with(config, args, devices)
+    mock_get_hook.assert_called_once_with(PLATFORM_NRF52, "show_logs")
+    platform_show_logs.assert_called_once_with(config, args, devices)
 
 
 def test_has_mqtt_logging_no_log_topic() -> None:
@@ -5715,6 +5714,61 @@ def test_run_miniterm_batches_lines_with_same_timestamp(
     assert timestamps[0] == timestamps[1] == timestamps[2], (
         f"Lines from same chunk should have same timestamp: {timestamps}"
     )
+
+
+def test_run_miniterm_analyzer_import_failure_keeps_streaming(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A broken platform import must not stop serial log streaming."""
+    mock_serial = MockSerial([b"[I][app:100]: Line 1\r\n", MOCK_SERIAL_END])
+
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
+    config = {
+        CONF_LOGGER: {
+            CONF_BAUD_RATE: 115200,
+            "deassert_rts_dtr": False,
+        }
+    }
+    args = MockArgs()
+
+    with (
+        caplog.at_level("INFO", logger="esphome.__main__"),
+        patch("serial.Serial", return_value=mock_serial),
+        patch(
+            "esphome.platform_hooks.get_platform_hook",
+            side_effect=ImportError("broken platform package"),
+        ),
+    ):
+        result = run_miniterm(config, "/dev/ttyUSB0", args)
+
+    assert result == 0
+    # A broken package is distinguishable from a plain capability gap.
+    assert "failed to import: broken platform package" in caplog.text
+
+
+def test_run_miniterm_no_stacktrace_analyzer(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Platforms without a stacktrace analyzer log an info and stream anyway."""
+    mock_serial = MockSerial([b"[I][app:100]: Line 1\r\n", MOCK_SERIAL_END])
+
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_BK72XX}
+    config = {
+        CONF_LOGGER: {
+            CONF_BAUD_RATE: 115200,
+            "deassert_rts_dtr": False,
+        }
+    }
+    args = MockArgs()
+
+    with (
+        caplog.at_level("INFO", logger="esphome.__main__"),
+        patch("serial.Serial", return_value=mock_serial),
+    ):
+        result = run_miniterm(config, "/dev/ttyUSB0", args)
+
+    assert result == 0
+    assert "Stacktrace analysis is unavailable" in caplog.text
 
 
 def test_run_miniterm_different_chunks_different_timestamps(

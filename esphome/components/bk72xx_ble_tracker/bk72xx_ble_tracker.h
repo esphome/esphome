@@ -93,6 +93,11 @@ class BK72xxBLETracker : public Component,
     // receiver merges per address (Home Assistant does). No GATT client either.
     return {.active_scan = false, .merges_scan_response = false, .gatt = false};
   }
+  bool request_scan_mode(bool active) override {
+    // Passive-only controller: a passive request is already honored, an active
+    // one cannot be.
+    return !active;
+  }
   // The controller stores the address LSB-first (BLE convention); the contract
   // wants printable (MSB-first) order.
   void get_adapter_mac(uint8_t out[6]) override {
