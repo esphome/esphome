@@ -633,8 +633,7 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     # Shares the API path's processor: the platform decoder resolves
     # lazily on the first crash-shaped line, decoder exceptions are
     # contained, and decoding disables itself after the first failure.
-    # aioesphomeapi is already imported above, so this adds no weight.
-    from esphome.api_client import LogLineProcessor
+    from esphome.stacktrace import LogLineProcessor
 
     processor = LogLineProcessor(config, CORE.target_platform)
     ser = serial.Serial()
