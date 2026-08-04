@@ -11,12 +11,23 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
 from esphome.core import CORE
 
 from ..helpers import get_define_value
 
 
+@pytest.mark.parametrize(
+    ("config", "define"),
+    [
+        ("bk72xx_tracker.yaml", "BK72XX_BLE_SCAN_LISTENER_COUNT"),
+        ("rp2_tracker.yaml", "RP2040_BLE_SCAN_LISTENER_COUNT"),
+    ],
+)
 def test_tracker_requests_one_slot(
+    config: str,
+    define: str,
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
@@ -25,18 +36,27 @@ def test_tracker_requests_one_slot(
     The neutral listener count must stay absent from the same build: no BLE
     consumer registered through register_ble_device().
     """
-    generate_main(component_config_path("bk72xx_tracker.yaml"))
-    assert get_define_value("BK72XX_BLE_SCAN_LISTENER_COUNT") == "1"
+    generate_main(component_config_path(config))
+    assert get_define_value(define) == "1"
     assert get_define_value("ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT") is None
 
 
+@pytest.mark.parametrize(
+    ("config", "define"),
+    [
+        ("bk72xx_controller_only.yaml", "BK72XX_BLE_SCAN_LISTENER_COUNT"),
+        ("rp2_controller_only.yaml", "RP2040_BLE_SCAN_LISTENER_COUNT"),
+    ],
+)
 def test_controller_only_emits_no_count(
+    config: str,
+    define: str,
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
     """No consumer, no define — the guarded listener storage compiles out."""
-    generate_main(component_config_path("bk72xx_controller_only.yaml"))
-    assert get_define_value("BK72XX_BLE_SCAN_LISTENER_COUNT") is None
+    generate_main(component_config_path(config))
+    assert get_define_value(define) is None
 
 
 def test_neutral_listener_count_emitted_when_requested() -> None:
