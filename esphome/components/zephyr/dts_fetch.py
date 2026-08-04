@@ -245,10 +245,29 @@ def _clone_manifest_project_revision(
 def _resolve_ncs_zigbee_boards_ref(sdk: ZephyrSDK, ver: str) -> str | None:
     """Like _resolve_boards_ref, but for ncs-zigbee: its own west.yml only imports `nrf`
     (not `zephyr` directly), so the boards-owning revision lives one hop deeper, inside
-    sdk-nrf's own west.yml (sdk.boards_manifest_url) rather than manifest_url's."""
-    return _clone_manifest_project_revision(
-        sdk.boards_manifest_url,
+    sdk-nrf's own west.yml (sdk.boards_manifest_url) rather than manifest_url's.
+
+    This needs two hops, not one: ncs-zigbee's *own* version scheme (ver, e.g. "1.4.0")
+    is unrelated to sdk-nrf's tag namespace -- and the two can collide by coincidence
+    (ncs-zigbee v1.4.0 is a 2024/2025 ZBOSS release; sdk-nrf's own v1.4.0 tag is an
+    unrelated NCS platform release from 2021, whose bundled sdk-zephyr fork predates
+    the current vendor-based boards/ layout and is missing many boards, e.g. xiao_ble).
+    So: first read ncs-zigbee@f"v{ver}"'s west.yml to find the `nrf` (sdk-nrf) revision
+    *it* actually pins (confirmed: ncs-zigbee v1.4.0 pins nrf at v3.4.0, not v1.4.0),
+    then read sdk-nrf at that resolved revision for the boards_repo_url (sdk-zephyr)
+    revision -- the same lookup _resolve_boards_ref does for the plain `ncs` framework.
+    """
+    nrf_ref = _clone_manifest_project_revision(
+        sdk.manifest_url,
         f"v{ver}",
+        sdk.boards_manifest_url or "",
+        _MANIFEST_REVISION_CACHE,
+    )
+    if nrf_ref is None:
+        return None
+    return _clone_manifest_project_revision(
+        sdk.boards_manifest_url or "",
+        nrf_ref,
         sdk.boards_repo_url or "",
         _MANIFEST_REVISION_CACHE,
     )
