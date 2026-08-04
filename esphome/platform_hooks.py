@@ -10,9 +10,10 @@ imports each platform package and fails when they drift.
 
 The compile-path ``run_compile`` hook is deliberately not registered:
 compiling imports the platform package regardless, so its probe in
-``__main__.py`` stays eager. The network log client's
-``process_stacktrace`` probe in ``esphome/api_client.py`` still uses the
-old importlib pattern; converting it is a separate change.
+``__main__.py`` stays eager. The serial log path resolves
+``process_stacktrace`` through get_stacktrace_handler below; the network
+log client's probe in ``esphome/api_client.py`` still uses the old
+importlib pattern and is converted separately.
 """
 
 from __future__ import annotations
@@ -110,4 +111,31 @@ def get_platform_hook(platform: str, hook: str) -> Callable[..., Any] | None:
                 platform,
                 hook,
             )
+    return handler
+
+
+def get_stacktrace_handler(platform: str) -> Callable[..., Any] | None:
+    """Resolve ``process_stacktrace`` for *platform*, degrading with a log.
+
+    Stacktrace decoding is a diagnostic nicety. This only distinguishes
+    an import failure from an ordinary capability gap so the message is
+    accurate; it returns None for both, and callers own any further
+    containment. Shared so the user-facing message lives in one place.
+    """
+    try:
+        handler = get_platform_hook(platform, "process_stacktrace")
+    except ImportError as err:
+        # A real breakage, not an ordinary capability gap; say so louder.
+        _LOGGER.debug("Stacktrace analyzer import failed", exc_info=True)
+        _LOGGER.warning(
+            'Stacktrace analysis is unavailable: analyzer for target platform "%s" failed to import: %s',
+            platform,
+            err,
+        )
+        return None
+    if handler is None:
+        _LOGGER.info(
+            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
+            platform,
+        )
     return handler

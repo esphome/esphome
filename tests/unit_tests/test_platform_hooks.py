@@ -151,3 +151,32 @@ def test_lookup_miss_does_not_import_platform_package(
         Mock(side_effect=AssertionError("platform package imported on registry miss")),
     )
     assert platform_hooks.get_platform_hook(PLATFORM_ESP32, "show_logs") is None
+
+
+def test_get_stacktrace_handler_resolves_registered_platform() -> None:
+    hook = platform_hooks.get_stacktrace_handler(PLATFORM_ESP32)
+    from esphome.components import esp32
+
+    assert hook is esp32.process_stacktrace
+
+
+def test_get_stacktrace_handler_reports_missing_analyzer(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level("INFO", logger="esphome.platform_hooks")
+    assert platform_hooks.get_stacktrace_handler("bk72xx") is None
+    assert "no compatible analyzer" in caplog.text
+
+
+def test_get_stacktrace_handler_reports_import_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setattr(
+        platform_hooks,
+        "import_module",
+        Mock(side_effect=ImportError("broken install")),
+    )
+    assert platform_hooks.get_stacktrace_handler("esp32") is None
+    assert "failed to import: broken install" in caplog.text
