@@ -95,7 +95,7 @@ def test_resolution_failure_is_contained(caplog) -> None:
         side_effect=RuntimeError("boom"),
     ):
         processor = stacktrace.LogLineProcessor(CONFIG, PLATFORM_ESP32)
-    processor.process_line("PC: 0x4010496e")
+        processor.process_line("PC: 0x4010496e")
 
     assert processor.backtrace_state is False
     assert any("could not be loaded" in m for m in _warnings(caplog))
