@@ -28,10 +28,13 @@ struct BLEScanReport {
   uint8_t mac[6];  // LSB-first, as the controller delivers it
   int8_t rssi;     // signed dBm
   uint8_t addr_type;
-  uint8_t data_len;  // bytes valid in data[]
-  // Legacy advertisement (31) + scan response (31): passive scans fill at most
-  // 31 bytes today, but bluetooth_proxy support will flip to active scanning
-  // in a future PR and the API raw-advertisement contract carries 62.
+  uint8_t adv_event_type;  // GAP advertising event type (ADV_IND .. SCAN_RSP); lets a merger tell the two apart
+  uint8_t data_len;        // bytes valid in data[]
+  // Legacy advertisement (31) + scan response (31). BTstack delivers the two
+  // as separate reports, so each report fills at most 31 bytes today; the 62
+  // matches the API raw-advertisement contract. adv_event_type is what lets a
+  // future merge point tell the two frames apart — carrying it beyond this
+  // struct (RawAdvertisement) is deferred until a consumer needs the merge.
   uint8_t data[62];
 
   // EventPool contract: nothing is heap-allocated inside a report.
@@ -79,14 +82,15 @@ class RP2040BLE final : public Component {
   /// Register a consumer for scan reports (delivered on the main loop via loop()).
   void register_scan_listener(BLEScanListener *listener) { this->scan_listeners_.push_back(listener); }
 
-  /// Start a passive controller scan. Interval/window are in BLE units
+  /// Start a controller scan; active sends scan requests and receives scan
+  /// responses as separate reports. Interval/window are in BLE units
   /// (0.625 ms). Returns false until the stack is ACTIVE (callers retry — the
   /// tracker's rate-limited retry loop); powering the stack on stays with the
   /// user (enable_on_boot or an explicit enable() call). The controller keeps
   /// no scan state: a disable()/enable() power cycle ends the scan, and the
   /// caller must call scan_start() again once the stack is back to ACTIVE
   /// (the tracker's loop() reconciliation does exactly that).
-  bool scan_start(uint16_t interval, uint16_t window);
+  bool scan_start(uint16_t interval, uint16_t window, bool active);
   /// Stop the controller scan (no-op when not scanning).
   void scan_stop();
 
@@ -95,8 +99,8 @@ class RP2040BLE final : public Component {
 
   /// Buffer one controller report (BTstack packet handler, CYW43 async-context
   /// IRQ — bounded copy into the lock-free queue, nothing else).
-  void enqueue_scan_report_(const uint8_t *mac_lsb_first, int8_t rssi, uint8_t addr_type, const uint8_t *data,
-                            uint16_t data_len);
+  void enqueue_scan_report_(const uint8_t *mac_lsb_first, int8_t rssi, uint8_t addr_type, uint8_t adv_event_type,
+                            const uint8_t *data, uint16_t data_len);
 
   std::vector<BLEScanListener *> scan_listeners_;
   // Report ring: the BTstack packet handler (async-context IRQ) allocates a

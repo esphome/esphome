@@ -23,7 +23,7 @@ what files have changed. It outputs JSON with the following structure:
 }
 
 The CI workflow uses this information to:
-- Gate the unconditional jobs (ci-custom, pytest, pre-commit-ci-lite) via core_ci;
+- Gate the unconditional jobs (ci-custom, pytest, lint-format) via core_ci;
   false when a pull_request only touches CI-irrelevant meta paths (other workflow
   files, .github/actions/build-image/*, .yamllint, .github/dependabot.yml, docker/**)
   so workflow-only PRs satisfy the required CI Status check without running the
@@ -708,7 +708,7 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
 
 
 # Files / path patterns whose changes alone don't warrant running the
-# unconditional CI jobs (`ci-custom`, `pytest`, `pre-commit-ci-lite`).
+# unconditional CI jobs (`ci-custom`, `pytest`, `lint-format`).
 # Single source of truth for what we treat as "CI-irrelevant" on
 # pull_request events; ci.yml used to encode this in its own
 # `pull_request.paths` filter, but that hid the required `CI Status`
@@ -752,7 +752,7 @@ def _is_ci_irrelevant_path(path: str) -> bool:
 
 
 def should_run_core_ci(branch: str | None = None) -> bool:
-    """Determine if the unconditional CI jobs (ci-custom/pytest/pre-commit-ci-lite) should run.
+    """Determine if the unconditional CI jobs (ci-custom/pytest/lint-format) should run.
 
     Returns False only when every changed file is in the CI-irrelevant set
     above (see ``_is_ci_irrelevant_path``). Empty diffs return True so we
@@ -1177,7 +1177,7 @@ def main() -> None:
 
     # Determine what should run
     # core_ci gates the unconditional jobs in ci.yml (ci-custom, pytest,
-    # pre-commit-ci-lite). Non-pull_request events (push to dev/beta/release
+    # lint-format). Non-pull_request events (push to dev/beta/release
     # and merge_group) always run them so behavior like venv-cache saves on
     # push to dev is preserved.
     event_name = os.environ.get("GITHUB_EVENT_NAME", "")
