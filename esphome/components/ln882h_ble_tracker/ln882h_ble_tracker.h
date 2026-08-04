@@ -84,6 +84,7 @@ class LN882HBLETracker : public Component,
   }
   bool scan_running() override { return this->scan_running_; }
   bool scan_active() override { return this->scan_active_; }
+  bool request_scan_mode(bool active) override;
 
   // ---- ln882h_ble::BLEScanListener ----
   // Delivered by the controller's loop() on the ESPHome main task — the

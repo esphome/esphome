@@ -108,6 +108,20 @@ void LN882HBLETracker::loop() {
   }
 }
 
+bool LN882HBLETracker::request_scan_mode(bool active) {
+  if (this->scan_active_ == active)
+    return true;
+  this->scan_active_ = active;
+  ESP_LOGD(TAG, "Scan mode %s", active ? "active" : "passive");
+  // scan_start() re-enters cleanly (stops + GAPM settle). No on_scan_end and
+  // no period reset: the scan logically continues, only the mode changes.
+  if (this->scan_running_) {
+    this->parent_->scan_start(static_cast<uint16_t>(this->scan_interval_), static_cast<uint16_t>(this->scan_window_),
+                              this->scan_active_);
+  }
+  return true;
+}
+
 void LN882HBLETracker::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "LN882H BLE Tracker:\n"
