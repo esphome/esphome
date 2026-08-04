@@ -364,18 +364,22 @@ def run_compile(config, verbose):
 def _run_idedata(config):
     args = ["-t", "idedata"]
     stdout = run_platformio_cli_run(config, False, *args, capture_stdout=True)
+    if not isinstance(stdout, str):
+        # run_external_process returns its exit code when launching
+        # platformio itself failed; that is the environment, not us.
+        raise EsphomeError("Running platformio to get idedata failed")
     match = re.search(r'{\s*".*}', stdout)
     if match is None:
         _LOGGER.error("Could not match idedata, please report this error")
         _LOGGER.error("Stdout: %s", stdout)
-        raise EsphomeError
+        raise EsphomeError("PlatformIO did not report idedata")
 
     try:
         return json.loads(match.group())
-    except ValueError:
+    except ValueError as err:
         _LOGGER.exception("Could not parse idedata")
         _LOGGER.error("Stdout: %s", stdout)
-        raise
+        raise EsphomeError("Could not parse idedata from platformio") from err
 
 
 def _load_idedata(config):
@@ -421,7 +425,12 @@ class IDEData:
 
     @property
     def firmware_elf_path(self) -> Path:
-        return Path(self.raw["prog_path"])
+        try:
+            return Path(self.raw["prog_path"])
+        except KeyError as err:
+            # A stale or truncated cached idedata JSON is the user's
+            # build tree, not a bug; recompiling regenerates it.
+            raise EsphomeError("Cached idedata is incomplete") from err
 
     @property
     def firmware_bin_path(self) -> Path:

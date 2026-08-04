@@ -290,10 +290,10 @@ def test_latch_rearms_after_cooldown(caplog) -> None:
     """A transient failure must not kill decoding for the whole session.
 
     Within the cooldown lines are skipped; once it passes the next line
-    gets a fresh decode attempt, and a still-failing decoder warns again
-    instead of degrading silently.
+    gets a fresh decode attempt, and a failure with a new cause warns
+    again instead of degrading silently.
     """
-    handler = Mock(side_effect=EsphomeError("no idedata"))
+    handler = Mock(side_effect=[EsphomeError("no idedata"), EsphomeError("port busy")])
     with patch.object(
         stacktrace.time, "monotonic", side_effect=[0.0, 30.0, 61.0, 61.0]
     ):
@@ -304,6 +304,36 @@ def test_latch_rearms_after_cooldown(caplog) -> None:
     assert handler.call_count == 2
     assert processor.backtrace_state is False
     assert len([m for m in _warnings(caplog) if "esphome compile" in m]) == 2
+
+
+def test_identical_refailure_downgrades_to_debug(caplog) -> None:
+    """A permanent cause must not warn once per cooldown for hours.
+
+    The first failure warns in full; an identical re-failure after the
+    cooldown logs at debug only.
+    """
+    handler = Mock(side_effect=EsphomeError("no idedata"))
+    with patch.object(stacktrace.time, "monotonic", side_effect=[0.0, 61.0, 61.0]):
+        _run(handler, lines=("PC: 0x4010496e", "BT0: 0x4010496e"))
+
+    assert handler.call_count == 2
+    assert len([m for m in _warnings(caplog) if "esphome compile" in m]) == 1
+
+
+def test_resolution_failure_is_contained(caplog) -> None:
+    """A platform package broken in an unanticipated way must not kill
+    the session; decoding degrades with a warning like any other failure.
+    """
+    with patch.object(
+        stacktrace.platform_hooks,
+        "get_stacktrace_handler",
+        side_effect=RuntimeError("boom"),
+    ):
+        processor = stacktrace.LogLineProcessor(CONFIG, PLATFORM_ESP32)
+        processor.process_line("PC: 0x4010496e")
+
+    assert processor.backtrace_state is False
+    assert any("could not be loaded" in m for m in _warnings(caplog))
 
 
 def test_no_analyzer_never_rearms(caplog) -> None:

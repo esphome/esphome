@@ -88,6 +88,7 @@ class LogLineProcessor:
         self._platform_handler: Any | None = None
         self._decode_enabled = True
         self._disabled_at: float | None = None
+        self._last_failure: str | None = None
         self.backtrace_state = False
         if not platform_hooks.has_registered_hook(platform, "process_stacktrace"):
             self._resolve_handler()
@@ -144,6 +145,15 @@ class LogLineProcessor:
             self._disabled_at = time.monotonic()
             self.backtrace_state = False
             _LOGGER.debug("Stack-trace decoding failed", exc_info=True)
+            failure = f"{type(exc).__name__}: {exc}"
+            if failure == self._last_failure:
+                # A permanent cause re-fails on every re-arm; one full
+                # warning is enough. Repeats go to debug so an hours-long
+                # crash loop does not bury the dump in reminders, while a
+                # changed failure still warns.
+                _LOGGER.debug("Stack-trace decoding still failing: %s", failure)
+                return
+            self._last_failure = failure
             if isinstance(exc, (EsphomeError, OSError)):
                 # _run_idedata raises EsphomeError with no message, and a
                 # missing build tree surfaces as an OSError; both are the

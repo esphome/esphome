@@ -5908,6 +5908,38 @@ def test_run_miniterm_backtrace_state_maintained() -> None:
     assert backtrace_states[3][1] is True
 
 
+def test_run_miniterm_decoder_failure_keeps_streaming(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A decoder exception must not kill serial streaming.
+
+    This is the serial path's gain from sharing LogLineProcessor: before
+    the lift a decoder exception propagated out of the read loop.
+    """
+    chunk = b"PC: 0x4010496e\r\nBT0: 0x4010496e\r\nstill streaming\r\n"
+    mock_serial = MockSerial([chunk, MOCK_SERIAL_END])
+
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
+    config = {
+        CONF_LOGGER: {
+            CONF_BAUD_RATE: 115200,
+            "deassert_rts_dtr": False,
+        }
+    }
+    args = MockArgs()
+
+    decoder = Mock(side_effect=EsphomeError("no idedata"))
+    with (
+        patch("serial.Serial", return_value=mock_serial),
+        patch.object(esp32, "process_stacktrace", decoder),
+    ):
+        run_miniterm(config, "/dev/ttyUSB0", args)
+
+    # The failure is contained and latched; streaming continued to EOF.
+    assert decoder.call_count == 1
+    assert "Crash trace decoding unavailable" in caplog.text
+
+
 def test_run_miniterm_handles_empty_reads(
     capfd: CaptureFixture[str],
 ) -> None:
