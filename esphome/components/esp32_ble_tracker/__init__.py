@@ -73,6 +73,14 @@ _request_listener_slot, _add_listener_count = ble_device_base.slot_counter(
 _request_client_slot, _add_client_count = ble_device_base.slot_counter(
     "esp32_ble_tracker_client_count", "ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT"
 )
+# Public: consumers of add_scanner_state_listener (bluetooth_proxy) request a
+# slot from their to_code so the listener storage is sized for them.
+request_scanner_state_listener_slot, _add_scanner_state_listener_count = (
+    ble_device_base.slot_counter(
+        "esp32_ble_tracker_scanner_state_listener_count",
+        "ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT",
+    )
+)
 
 
 def register_ble_features(features: set[BLEFeatures]) -> None:
@@ -289,6 +297,7 @@ async def to_code(config):
     CORE.add_job(_add_ble_features)
     CORE.add_job(_add_listener_count)
     CORE.add_job(_add_client_count)
+    CORE.add_job(_add_scanner_state_listener_count)
 
     if config.get(CONF_SOFTWARE_COEXISTENCE):
         cg.add_define("USE_ESP32_BLE_SOFTWARE_COEXISTENCE")
