@@ -775,8 +775,8 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   }
 #endif
 
-  // Compute sleep: bounded by time-until-next-component-phase and the
-  // scheduler's next deadline. When a scheduler timer fires it re-enters
+  // Compute sleep: bounded by time-until-next-component-phase if there are
+  // components with loop enabled and the scheduler's next deadline. When a scheduler timer fires it re-enters
   // loop(), Phase A services it, and the component phase stays gated by
   // loop_interval_. When a background producer calls wake_loop_threadsafe()
   // it sets the wake_request flag and wakes select() / the task notification;
@@ -796,14 +796,19 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   if (!HighFrequencyLoopRequester::is_high_frequency()) {
     const uint32_t elapsed_since_phase = now - this->last_loop_;
     const uint32_t until_phase =
-        (elapsed_since_phase >= this->loop_interval_) ? 0 : (this->loop_interval_ - elapsed_since_phase);
+        (elapsed_since_phase >= this->loop_interval_)
+            ? 0
+            : (this->looping_components_active_end_ > 0 ? this->loop_interval_ - elapsed_since_phase
+                                                        : std::numeric_limits<uint32_t>::max());
     const uint32_t until_sched = this->scheduler.next_schedule_in(now).value_or(until_phase);
     delay_time = std::min(until_phase, until_sched);
   }
   // All platforms route loop yields through the platform wake primitive.
   // On host this drains the loopback wake socket via select(); on FreeRTOS
   // targets it uses task notifications; on ESP8266/RP2040 it uses esp_delay/WFE.
-  esphome::internal::wakeable_delay(delay_time);
+  // Make sure the WDT is fed at least once per WDT_FEED_INTERVAL_MS even if the
+  // scheduler and component phases are gated out for a long sleep.
+  esphome::internal::wakeable_delay(std::min(delay_time, WDT_FEED_INTERVAL_MS));
 
   if (this->dump_config_at_ < this->components_.size()) {
     this->process_dump_config_();
