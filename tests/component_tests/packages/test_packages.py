@@ -1701,14 +1701,8 @@ def test_resolve_packages_does_not_apply_extend_remove() -> None:
 def test_remote_package_registers_checkout_for_secret_scan(
     mock_clone_or_update, tmp_path: Path
 ) -> None:
-    """Remote package checkouts are registered as bundle secret-scan dirs.
-
-    The bundle's secrets filter must see !secret references inside
-    git-fetched package files (issue 18023), so loading a remote package
-    registers its checkout directory with the bundle module. Only the
-    path-narrowed directory is registered, so example configs elsewhere
-    in the repo do not widen the shipped secrets.
-    """
+    """Loading a remote package registers its path-narrowed checkout dir
+    as a bundle secret-scan dir (issue 18023)."""
     repo_root = tmp_path / "repo"
     package_dir = repo_root / "packages"
     package_dir.mkdir(parents=True)

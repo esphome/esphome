@@ -1653,13 +1653,8 @@ def test_create_bundle_filters_secrets_quoted(tmp_path: Path) -> None:
 
 
 def test_create_bundle_scans_remote_package_files_for_secrets(tmp_path: Path) -> None:
-    """Secrets referenced only by git-fetched package files must be shipped.
-
-    Regression test for issue 18023: remote package files are not bundled
-    (the builder re-fetches them), so their !secret references were never
-    scanned and the keys were stripped from the filtered secrets.yaml,
-    breaking the build on the remote builder.
-    """
+    """Secrets referenced only by git-fetched package files must be shipped
+    in the filtered secrets.yaml (regression test for issue 18023)."""
     config_dir = _setup_config_dir(tmp_path)
 
     secrets = config_dir / "secrets.yaml"

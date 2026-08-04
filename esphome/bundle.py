@@ -176,11 +176,11 @@ def add_secret_scan_dir(path: Path) -> None:
 
 def _secret_scan_yaml_files() -> list[Path]:
     """Return the YAML files inside registered secret-scan directories."""
-    return [
+    return filter_yaml_files(
         f
         for scan_dir in _get_data().secret_scan_dirs
-        for f in filter_yaml_files(yaml_util.find_files(scan_dir, "*"))
-    ]
+        for f in yaml_util.find_files(scan_dir, "*")
+    )
 
 
 # Windows paths start with a drive letter or contain backslashes; POSIX

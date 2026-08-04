@@ -192,10 +192,6 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
         username=config.get(CONF_USERNAME),
         password=config.get(CONF_PASSWORD),
     )
-    # Deferred import: the device builder must not pay for esphome.bundle
-    # at startup, only when a config actually uses a remote package.
-    from esphome.bundle import add_secret_scan_dir
-
     files: list[dict[str, Any]] = []
 
     # ``repo_root`` is the directory containing ``.git`` and must be passed
@@ -205,11 +201,12 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
     if base_path := config.get(CONF_PATH):
         repo_dir = repo_dir / base_path
 
-    # The checkout is not bundled (the builder re-fetches it), but the
-    # bundle's secrets filter must still see its !secret references. Register
-    # only the path-narrowed directory so example configs elsewhere in the
-    # repo do not widen the shipped secrets; an !include that reaches outside
-    # the package path is not scanned.
+    # Deferred import: keeps esphome.bundle off the device builder's
+    # startup path, since packages is loaded on every config parse.
+    from esphome.bundle import add_secret_scan_dir
+
+    # Register the path-narrowed dir, not repo_root, so example configs
+    # elsewhere in the repo do not widen the shipped secrets.
     add_secret_scan_dir(repo_dir)
 
     for file in config[CONF_FILES]:
