@@ -40,16 +40,24 @@ def test_controller_only_emits_no_count(
 
 
 def test_neutral_listener_count_emitted_when_requested() -> None:
-    """The neutral counter is wired to its define: one request through the
-    slot bound in register_ble_device() emits the count.
+    """Registering through register_ble_device() emits the neutral count.
 
     No in-tree sensor registers through ble_device_base.register_ble_device()
-    yet (consumer migration is a follow-up), so the request function is driven
-    directly; every tracker's #ifdef-guarded listener storage keys on this
-    define, and a broken emit path would compile the storage out silently.
+    yet (consumer migration is a follow-up), so the coroutine is driven with a
+    mock hub instead of a config; every tracker's #ifdef-guarded listener
+    storage keys on this define, and a broken emit path would compile the
+    storage out silently.
     """
+    import esphome.codegen as cg
     from esphome.components import ble_device_base
+    from esphome.core import ID
 
-    ble_device_base._request_listener_slot()
+    hub_id = ID("hub", type=ble_device_base.BLEHub)
+    CORE.register_variable(hub_id, cg.MockObj("hub"))
+    CORE.add_job(
+        ble_device_base.register_ble_device,
+        cg.MockObj("listener"),
+        {ble_device_base.CONF_BLE_HUB_ID: hub_id},
+    )
     CORE.flush_tasks()
     assert get_define_value(ble_device_base.LISTENER_COUNT_DEFINE) == "1"
