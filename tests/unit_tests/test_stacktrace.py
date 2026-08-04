@@ -12,6 +12,13 @@ from hypothesis.strategies import data as st_data, from_regex
 import pytest
 
 from esphome import stacktrace
+from esphome.const import (
+    PLATFORM_BK72XX,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_NRF52,
+    PLATFORM_RP2,
+)
 from esphome.core import EsphomeError
 
 CONFIG = {"esphome": {"name": "test"}}
@@ -24,7 +31,7 @@ CONFIG = {"esphome": {"name": "test"}}
 # that opens their dump region. A new decoder must declare its lines
 # here so both are pinned instead of discovered in the field.
 CRASH_SAMPLES: dict[str, dict[str, list[str]]] = {
-    "esp32": {
+    PLATFORM_ESP32: {
         "state_markers": [],
         "addresses": [
             "Backtrace: 0x400d1a2c:0x3ffb1f60 0x400d2a3c:0x3ffb1f80",
@@ -36,7 +43,7 @@ CRASH_SAMPLES: dict[str, dict[str, list[str]]] = {
             "BT0: 0x40104960",
         ],
     },
-    "esp8266": {
+    PLATFORM_ESP8266: {
         "state_markers": [">>>stack>>>"],
         "addresses": [
             "epc1=0x40201234 epc2=0x00000000 excvaddr=0x40001234",
@@ -48,11 +55,11 @@ CRASH_SAMPLES: dict[str, dict[str, list[str]]] = {
             "Exception (28):",
         ],
     },
-    "rp2": {
+    PLATFORM_RP2: {
         "state_markers": ["CRASH DETECTED ON PREVIOUS BOOT"],
         "addresses": ["PC:  0x10001234 (fault location)"],
     },
-    "nrf52": {
+    PLATFORM_NRF52: {
         "state_markers": ["Last crash:"],
         "addresses": ["PC=0x27a1c LR=0x1e33"],
     },
@@ -95,7 +102,7 @@ def test_crash_samples_cover_registry() -> None:
 # side fails the guards below instead of quietly widening the gap
 # between the gate and the decoders.
 DECODER_PATTERNS: dict[str, list[str]] = {
-    "esp32": [
+    PLATFORM_ESP32: [
         "STACKTRACE_ESP32_PC_RE",
         "STACKTRACE_ESP32_EXCVADDR_RE",
         "STACKTRACE_ESP32_C3_PC_RE",
@@ -106,7 +113,7 @@ DECODER_PATTERNS: dict[str, list[str]] = {
         "STACKTRACE_ESP32_BACKTRACE_PC_RE",
         "STACKTRACE_ESP32_CRASH_BT_RE",
     ],
-    "esp8266": [
+    PLATFORM_ESP8266: [
         "STACKTRACE_ESP8266_EXCEPTION_TYPE_RE",
         "STACKTRACE_ESP8266_PC_RE",
         "STACKTRACE_ESP8266_EXCVADDR_RE",
@@ -116,8 +123,8 @@ DECODER_PATTERNS: dict[str, list[str]] = {
         "STACKTRACE_BAD_ALLOC_RE",
         "STACKTRACE_ESP8266_BACKTRACE_PC_RE",
     ],
-    "rp2": ["_CRASH_RE", "_CRASH_ADDR_RE"],
-    "nrf52": ["STACKTRACE_NRF52_PC_LR_RE"],
+    PLATFORM_RP2: ["_CRASH_RE", "_CRASH_ADDR_RE"],
+    PLATFORM_NRF52: ["STACKTRACE_NRF52_PC_LR_RE"],
 }
 
 # Declared decoder patterns whose language the gate deliberately does
@@ -241,7 +248,7 @@ def test_address_gate_covers_decoder_pattern_languages(
 
 def _run(
     handler,
-    platform: str = "esp32",
+    platform: str = PLATFORM_ESP32,
     lines: tuple[str, ...] = ("PC: 0x4010496e",),
 ) -> stacktrace.LogLineProcessor:
     """Processor with the resolver stubbed, fed the given lines."""
@@ -263,7 +270,7 @@ def _warnings(caplog) -> list[str]:
 
 
 def test_decoder_contains_failures_and_short_circuits() -> None:
-    """One decode failure is contained and never retried.
+    """One decode failure is contained and not retried within the cooldown.
 
     aioesphomeapi isolates exceptions raised by log handlers, so an
     escaping one logs a full traceback for every line it fires on; and
@@ -277,6 +284,37 @@ def test_decoder_contains_failures_and_short_circuits() -> None:
 
     assert handler.call_count == 1
     assert processor.backtrace_state is False
+
+
+def test_latch_rearms_after_cooldown(caplog) -> None:
+    """A transient failure must not kill decoding for the whole session.
+
+    Within the cooldown lines are skipped; once it passes the next line
+    gets a fresh decode attempt, and a still-failing decoder warns again
+    instead of degrading silently.
+    """
+    handler = Mock(side_effect=EsphomeError("no idedata"))
+    with patch.object(
+        stacktrace.time, "monotonic", side_effect=[0.0, 30.0, 61.0, 61.0]
+    ):
+        processor = _run(
+            handler, lines=("PC: 0x4010496e", "BT0: 0x4010496e", "BT1: 0x401049aa")
+        )
+
+    assert handler.call_count == 2
+    assert processor.backtrace_state is False
+    assert len([m for m in _warnings(caplog) if "esphome compile" in m]) == 2
+
+
+def test_no_analyzer_never_rearms(caplog) -> None:
+    """A platform without an analyzer stays off; there is nothing to retry."""
+    processor = _run(None, platform=PLATFORM_BK72XX, lines=())
+    with patch.object(stacktrace.time, "monotonic", return_value=1e9):
+        processor.process_line("PC: 0x4010496e")
+
+    assert processor.backtrace_state is False
+    # A re-arm here would feed the missing handler and warn; it must not.
+    assert not _warnings(caplog)
 
 
 def test_decoder_swallows_os_error_with_remediation_hint(caplog) -> None:
@@ -342,7 +380,7 @@ def test_marker_then_address_threads_state() -> None:
     handler = Mock(side_effect=[True, True])
     processor = _run(
         handler,
-        platform="esp8266",
+        platform=PLATFORM_ESP8266,
         lines=(">>>stack>>>", "3ffffe10: 40201234 3ffe8410 00000000 40201000"),
     )
 
@@ -373,12 +411,12 @@ def test_processor_resolves_lazily_on_address_token() -> None:
     with patch.object(
         stacktrace.platform_hooks, "get_stacktrace_handler", return_value=handler
     ) as mock_resolve:
-        processor = stacktrace.LogLineProcessor(CONFIG, "esp32")
+        processor = stacktrace.LogLineProcessor(CONFIG, PLATFORM_ESP32)
         processor.process_line("[I][app:100] hello world")
         mock_resolve.assert_not_called()
 
         processor.process_line("PC: 0x40104960")
-        mock_resolve.assert_called_once_with("esp32")
+        mock_resolve.assert_called_once_with(PLATFORM_ESP32)
 
         # Later lines feed the resolved handler directly, no re-resolution.
         processor.process_line("[I][app:101] back to normal")
@@ -394,7 +432,7 @@ def test_processor_unexpected_resolution_error_disables_decoding(caplog) -> None
         "get_stacktrace_handler",
         side_effect=OSError("filesystem went away"),
     ) as mock_resolve:
-        processor = stacktrace.LogLineProcessor(CONFIG, "esp32")
+        processor = stacktrace.LogLineProcessor(CONFIG, PLATFORM_ESP32)
         processor.process_line("PC: 0x40104960")
         processor.process_line("BT0: 0x40104960")
 
@@ -414,7 +452,7 @@ def test_processor_import_failure_disables_decoding(caplog) -> None:
         "import_module",
         Mock(side_effect=ImportError("broken install")),
     ) as mock_import:
-        processor = stacktrace.LogLineProcessor(CONFIG, "esp32")
+        processor = stacktrace.LogLineProcessor(CONFIG, PLATFORM_ESP32)
         processor.process_line("PC: 0x40104960")
         processor.process_line("BT0: 0x40104960")
 
@@ -433,7 +471,7 @@ def test_processor_registry_miss_disables_at_construction(caplog) -> None:
     caplog.set_level("INFO", logger="esphome.platform_hooks")
 
     with patch.object(stacktrace.platform_hooks, "import_module") as mock_import:
-        processor = stacktrace.LogLineProcessor(CONFIG, "bk72xx")
+        processor = stacktrace.LogLineProcessor(CONFIG, PLATFORM_BK72XX)
         processor.process_line("PC: 0x40104960")
 
     mock_import.assert_not_called()
