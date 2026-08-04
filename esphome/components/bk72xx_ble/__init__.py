@@ -20,11 +20,11 @@ public ble_api.h.
 import logging
 
 import esphome.codegen as cg
-from esphome.components import libretiny
+from esphome.components import ble_device_base, libretiny
 from esphome.components.libretiny.const import FAMILY_BK7231N, FAMILY_BK7238
 import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ID
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["bk72xx"]
@@ -46,21 +46,12 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-KEY_SCAN_LISTENER_COUNT = "bk72xx_ble_scan_listener_count"
-
-
-def request_scan_listener_slot() -> None:
-    """Called from a consumer's codegen once per registered scan listener; sizes
-    the controller's StaticVector listener storage (heap-free, mirrors the
-    tracker's ble_device_base listener storage)."""
-    CORE.data[KEY_SCAN_LISTENER_COUNT] = CORE.data.get(KEY_SCAN_LISTENER_COUNT, 0) + 1
-
-
-@coroutine_with_priority(CoroPriority.FINAL)
-async def _add_listener_count() -> None:
-    # FINAL: every consumer's to_code has requested its slot by now.
-    if count := CORE.data.get(KEY_SCAN_LISTENER_COUNT, 0):
-        cg.add_define("BK72XX_BLE_SCAN_LISTENER_COUNT", count)
+# Consumers call request_scan_listener_slot() from their codegen once per
+# registered scan listener; the FINAL job sizes the controller's StaticVector
+# listener storage via BK72XX_BLE_SCAN_LISTENER_COUNT.
+request_scan_listener_slot, _add_listener_count = ble_device_base.slot_counter(
+    "bk72xx_ble_scan_listener_count", "BK72XX_BLE_SCAN_LISTENER_COUNT"
+)
 
 
 async def to_code(config: ConfigType) -> None:

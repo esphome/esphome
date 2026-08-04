@@ -17,13 +17,14 @@ AES-CCM decryption for encrypted advertisements is provided portably in
 ble_aes_ccm.h.
 """
 
+from collections.abc import Callable, Coroutine
 import re
 
 import esphome.codegen as cg
 from esphome.components.const import CONF_WINDOW
 import esphome.config_validation as cv
 from esphome.const import CONF_ACTIVE, CONF_CONTINUOUS, CONF_DURATION, CONF_INTERVAL
-from esphome.core import CORE
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bl00d-B0b"]
@@ -69,12 +70,50 @@ def get_listener_count() -> int:
     return CORE.data.get(KEY_BLE_LISTENER_COUNT, 0)
 
 
+def slot_counter(
+    key: str, define: str
+) -> tuple[Callable[[], None], Callable[[], Coroutine[None, None, None]]]:
+    """Create a (request_slot, emit_job) pair for codegen-sized storage.
+
+    The pattern behind every StaticVector listener array: a consumer's to_code
+    calls request_slot() once per slot it will occupy at runtime, the owning
+    component schedules emit_job with CORE.add_job(), and at FINAL priority —
+    after every consumer's to_code has run — the define is emitted with the
+    requested count. A zero count emits nothing, so the guarded storage and
+    its registration method compile out entirely.
+
+    The count lives in CORE.data under `key`, which clears between runs.
+    """
+
+    def request_slot() -> None:
+        CORE.data[key] = CORE.data.get(key, 0) + 1
+
+    @coroutine_with_priority(CoroPriority.FINAL)
+    async def emit_job() -> None:
+        if count := CORE.data.get(key, 0):
+            cg.add_define(define, count)
+
+    return request_slot, emit_job
+
+
+_request_listener_slot, _emit_listener_count = slot_counter(
+    KEY_BLE_LISTENER_COUNT, "ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT"
+)
+
+
 async def register_ble_device(var: cg.MockObj, config: ConfigType) -> cg.MockObj:
     """Register `var` as a parsed-advertisement listener on the configured hub."""
     hub = await cg.get_variable(config[CONF_BLE_HUB_ID])
     cg.add(hub.register_listener(var))
-    CORE.data[KEY_BLE_LISTENER_COUNT] = CORE.data.get(KEY_BLE_LISTENER_COUNT, 0) + 1
+    _request_listener_slot()
     return var
+
+
+async def to_code(config: ConfigType) -> None:
+    # Emit ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT once, here, instead of a
+    # copy of the job in every tracker: this component is AUTO_LOADed by each
+    # of them, and to_code runs for AUTO_LOADed components (the md5 precedent).
+    CORE.add_job(_emit_listener_count)
 
 
 # ---- shared validation / codegen helpers (platform-neutral) ----

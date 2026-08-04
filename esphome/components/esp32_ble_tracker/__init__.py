@@ -310,10 +310,9 @@ async def _add_ble_features():
     # the parsed-device pipeline compiled in, exactly like esp32-path listeners.
     neutral_listener_count = ble_device_base.get_listener_count()
     if neutral_listener_count > 0:
+        # The neutral (BLEHub) listener count define itself is emitted by
+        # ble_device_base's own job; only the feature coupling lives here.
         required_features.add(BLEFeatures.ESP_BT_DEVICE)
-        # StaticVector sizing for the neutral (BLEHub) listener list — same
-        # pattern as the esp32-path registration counts below.
-        cg.add_define("ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT", neutral_listener_count)
     if BLEFeatures.ESP_BT_DEVICE in required_features:
         cg.add_define("USE_ESP32_BLE_DEVICE")
         cg.add_define("USE_ESP32_BLE_UUID")
