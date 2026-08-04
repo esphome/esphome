@@ -179,8 +179,8 @@ def slot_counter(define: str) -> Callable[[], None]:
     async def emit_job() -> None:
         state = _get_slot_counter_state()
         state.emitted.add(define)
-        if count := state.counts.get(define):
-            add_define(define, count)
+        # Scheduled only by the first request, so the count is always >= 1 here.
+        add_define(define, state.counts[define])
 
     def request_slot() -> None:
         state = _get_slot_counter_state()
