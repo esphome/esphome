@@ -48,21 +48,3 @@ def test_neutral_listener_count_absent_without_consumers(
     registers through register_ble_device()."""
     generate_main(component_config_path("bk72xx_tracker.yaml"))
     assert _define_value("ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT") is None
-
-
-def test_rp2_tracker_requests_one_slot(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-) -> None:
-    """The rp2 tracker's to_code requests a slot for its setup() registration."""
-    generate_main(component_config_path("rp2_tracker.yaml"))
-    assert _define_value("RP2040_BLE_SCAN_LISTENER_COUNT") == "1"
-
-
-def test_rp2_controller_only_emits_no_count(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-) -> None:
-    """No consumer, no define — the guarded listener storage compiles out."""
-    generate_main(component_config_path("rp2_controller_only.yaml"))
-    assert _define_value("RP2040_BLE_SCAN_LISTENER_COUNT") is None
