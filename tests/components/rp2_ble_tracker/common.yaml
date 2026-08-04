@@ -4,6 +4,7 @@ rp2_ble_tracker:
     interval: 100ms
     window: 30ms
     duration: 5min
+    active: true
     continuous: true
 
 # Pulls in USE_OTA_STATE_LISTENER so the OTA scan-pause path compiles in CI

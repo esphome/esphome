@@ -42,6 +42,7 @@ class RP2BLETracker : public Component,
   void set_scan_interval(uint32_t scan_interval) { this->scan_interval_ = scan_interval; }
   void set_scan_window(uint32_t scan_window) { this->scan_window_ = scan_window; }
   void set_scan_duration(uint32_t scan_duration) { this->scan_duration_ = scan_duration; }
+  void set_scan_active(bool scan_active) { this->scan_active_ = scan_active; }
   void set_scan_continuous(bool scan_continuous) { this->scan_continuous_ = scan_continuous; }
 
   // ---- Public scan control ----
@@ -59,19 +60,17 @@ class RP2BLETracker : public Component,
     this->raw_advertisement_callback_ = callback;
   }
   ble_device_base::HubCapabilities get_capabilities() const override {
-    // BTstack on the CYW43 supports active scanning and GATT, but this tracker
-    // drives the controller passively (scan_type 0) and exposes no GATT path
-    // yet — capabilities describe what this component delivers, so all three
-    // stay false until those paths are implemented. Consumers relying on
+    // BTstack delivers scan responses as separate advertisement reports rather
+    // than merging them into the advertisement — consumers relying on
     // scan-response fields (device names) get them only where the receiver
-    // merges per address (Home Assistant does).
-    return {.active_scan = false, .merges_scan_response = false, .gatt = false};
+    // merges per address (Home Assistant does). No GATT path yet.
+    return {.active_scan = true, .merges_scan_response = false, .gatt = false};
   }
   // The controller stores the address in printable (MSB-first) order, which is
   // exactly what the contract wants.
   void get_adapter_mac(uint8_t out[6]) override { this->parent_->get_mac_msb_first(out); }
   bool scan_running() override { return this->scan_running_; }
-  bool scan_active() override { return false; }  // passive-only (initial implementation)
+  bool scan_active() override { return this->scan_active_; }
 
   // ---- rp2040_ble::BLEScanListener ----
   // Delivered by the controller's loop() on the ESPHome main loop — the
@@ -91,6 +90,7 @@ class RP2BLETracker : public Component,
   uint32_t last_scan_start_attempt_{0};  // loop time of last start_scan_() attempt; rate-limits retries
   uint32_t scan_period_start_{0};        // loop time at start of current scan period; rate-limits on_scan_end()
   bool scan_running_{false};
+  bool scan_active_{true};
   bool scan_continuous_{true};
 #ifdef USE_OTA_STATE_LISTENER
   bool scan_continuous_before_ota_{false};  // continuous mode saved at OTA start, restored on OTA failure

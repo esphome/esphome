@@ -141,10 +141,15 @@ idf_component_register(
 
 def _setup_core(work_dir: Path, settings: _Settings) -> None:
     """Point CORE at the tidy project + IDF version, without any YAML config."""
-    from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION, KEY_VARIANT
-    import esphome.config_validation as cv
-    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
-    from esphome.core import CORE
+    from esphome.const import (
+        KEY_CORE,
+        KEY_ESP32,
+        KEY_IDF_VERSION,
+        KEY_TARGET_FRAMEWORK,
+        KEY_TARGET_PLATFORM,
+        KEY_VARIANT,
+    )
+    from esphome.core import CORE, Version
 
     CORE.name = TIDY_PROJECT_NAME
     # config_path's parent is the data dir root for per-run artifacts (idedata,
@@ -153,7 +158,7 @@ def _setup_core(work_dir: Path, settings: _Settings) -> None:
     CORE.config_path = work_dir.parent / "tidy.yaml"
     CORE.build_path = work_dir
     esp32 = CORE.data.setdefault(KEY_ESP32, {})
-    esp32[KEY_IDF_VERSION] = cv.Version.parse(settings.idf_version)
+    esp32[KEY_IDF_VERSION] = Version.parse(settings.idf_version)
     esp32[KEY_VARIANT] = settings.variant
     # The target framework drives the PlatformIO-library -> IDF-component
     # converter and ESPHome's CORE.using_arduino / using_esp_idf helpers.
