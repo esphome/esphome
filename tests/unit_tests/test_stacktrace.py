@@ -57,6 +57,9 @@ BENIGN_LINES = [
     pytest.param("[C][wifi:400]   BSSID: AA:BB:CC:DD:EE:FF", id="mac"),
     pytest.param("[19:26:11.966][I][main:151]: version 2026.7.0-dev", id="timestamp"),
     pytest.param("[I][app:102]: Uptime: 12345678 ms", id="decimal-uptime"),
+    pytest.param("[I][app:102]: Uptime: 41234567 ms", id="decimal-uptime-4band"),
+    pytest.param("[V][esp-idf:000]: I (40219876) wifi: connected", id="idf-timestamp"),
+    pytest.param("[D][api:102]: Client connected (40123456)", id="paren-decimal"),
     pytest.param(
         "[D][sensor:093]: 'Water meter': Sending state 12345678.00000 L",
         id="decimal-sensor",
@@ -238,19 +241,22 @@ def test_replay_buffer_is_bounded() -> None:
     assert fed == [f"quiet line {n}" for n in range(4, 12)] + ["PC: 0x4010496e"]
 
 
-def test_replay_overflow_is_diagnosable(caplog) -> None:
-    """A dump whose marker outran the window leaves a debug trace."""
+@pytest.mark.parametrize(("quiet_lines", "expect_notice"), [(12, True), (8, False)])
+def test_replay_overflow_is_diagnosable(
+    caplog, quiet_lines: int, expect_notice: bool
+) -> None:
+    """The overflow trace fires only when context was actually evicted."""
     caplog.set_level("DEBUG", logger="esphome.stacktrace")
     handler = Mock(return_value=False)
     with patch.object(
         stacktrace.platform_hooks, "get_stacktrace_handler", return_value=handler
     ):
         processor = stacktrace.LogLineProcessor(CONFIG, "esp32")
-        for n in range(12):
+        for n in range(quiet_lines):
             processor.process_line(f"quiet line {n}")
         processor.process_line("PC: 0x4010496e")
 
-    assert "Replay window full" in caplog.text
+    assert ("Replay window overflowed" in caplog.text) is expect_notice
 
 
 def test_processor_resolves_lazily_on_address_token() -> None:

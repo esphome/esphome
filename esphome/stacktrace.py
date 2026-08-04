@@ -30,16 +30,16 @@ _LOGGER = logging.getLogger(__name__)
 # subprocess the same way (esphome_device_builder/controllers/devices/
 # backtrace.py).
 # The letter-requiring bare-hex alternation keeps 8-digit decimals
-# (uptime counters, sensor readings) from tripping the gate; the final
-# alternation admits the letter-free code-address form every xtensa
-# decoder keys on (4xxxxxxx, optionally 0x-prefixed in the emitters), so
-# a register line or bad-alloc address that happens to print without 0x
-# still opens the gate. A decimal in the 4xxxxxxx range can trip it;
-# that costs one platform import, which is simply today's behavior.
+# (uptime counters, sensor readings) from tripping the gate. The final
+# alternation admits the letter-free code-address forms the decoders
+# key on only behind their register/alloc keywords, so ESP-IDF's
+# decimal log timestamps ("I (40219876)") and 4xxxxxxx-range decimals
+# stay out. A false trigger costs one platform import on the event loop
+# mid-stream, which is why it must stay rare.
 _ADDRESS_RE = re.compile(
-    r"0x[0-9a-fA-F]{4,}\b"
+    r"0x[0-9a-fA-F]{3,}\b"
     r"|\b(?=[0-9A-Fa-f]*[A-Fa-f])[0-9a-fA-F]{8}\b"
-    r"|\b4[0-9a-fA-F]{7}\b"
+    r"|\b(?:PC|RA|LR|MEPC|MTVAL|EXCVADDR|BT\d+|epc\d|excvaddr|call)\s*[:=]\s*4[0-9a-fA-F]{7}\b"
 )
 
 # Lines kept for replay once decoding starts. Crash markers without an
@@ -78,6 +78,7 @@ class LogLineProcessor:
         self._platform_handler: Any | None = None
         self._decode_enabled = True
         self._recent: deque[str] = deque(maxlen=_REPLAY_LINES)
+        self._evicted = False
         self.backtrace_state = False
         # The registry can prove in-tree platforms without an analyzer
         # need no import; resolve those now so their unavailable notice
@@ -92,17 +93,19 @@ class LogLineProcessor:
             return
         if self._platform_handler is None:
             if not _ADDRESS_RE.search(raw_line):
+                if len(self._recent) == _REPLAY_LINES:
+                    self._evicted = True
                 self._recent.append(raw_line)
                 return
             if not self._resolve_handler():
                 return
             pending = list(self._recent)
             self._recent.clear()
-            if len(pending) == _REPLAY_LINES:
+            if self._evicted:
                 # A dump whose marker sits further back than the window
                 # decodes to nothing; make that diagnosable in the field.
                 _LOGGER.debug(
-                    "Replay window full; crash context older than %d lines was dropped",
+                    "Replay window overflowed; crash context older than %d lines was dropped",
                     _REPLAY_LINES,
                 )
             for buffered in pending:
