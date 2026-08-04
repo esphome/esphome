@@ -2,6 +2,25 @@ ld6002b:
   id: ld6002b_radar
   wakeup_pin: GPIO14
 
+sensor:
+  - platform: ld6002b
+    ld6002b_id: ld6002b_radar
+    target_count:
+      name: Target Count
+    point_count:
+      name: Point Count
+    target_1:
+      x:
+        name: Target-1 X
+      y:
+        name: Target-1 Y
+      z:
+        name: Target-1 Z
+      dop_idx:
+        name: Target-1 Dop
+      cluster_id:
+        name: Target-1 Cluster
+
 binary_sensor:
   - platform: ld6002b
     ld6002b_id: ld6002b_radar
