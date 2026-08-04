@@ -12,15 +12,16 @@ from esphome.core import EsphomeError
 CONFIG = {"esphome": {"name": "test"}}
 
 # Real dump lines per registered platform. "addresses" must fire the
-# gate or that platform's decoding silently never starts. "markers" are
-# the address-free lines a state-gated decoder (rp2, nrf52, esp8266)
-# needs delivered first: their decoders only act once backtrace_state is
-# set by the marker, so the replay buffer is what makes them work at
-# all. A new decoder must declare its marker here so the delivery is
-# pinned instead of discovered in the field.
+# gate or that platform's decoding silently never starts.
+# "state_markers" are the address-free lines that set backtrace_state;
+# the gate must match them directly so their decoders never depend on
+# the replay window. "context_markers" only need replay delivery. A new
+# decoder must declare its lines here so both are pinned instead of
+# discovered in the field.
 CRASH_SAMPLES: dict[str, dict[str, list[str]]] = {
     "esp32": {
-        "markers": [],
+        "state_markers": [],
+        "context_markers": [],
         "addresses": [
             "Backtrace: 0x400d1a2c:0x3ffb1f60 0x400d2a3c:0x3ffb1f80",
             "PC      : 0x400d1a2c  PS      : 0x00060330",
@@ -32,7 +33,8 @@ CRASH_SAMPLES: dict[str, dict[str, list[str]]] = {
         ],
     },
     "esp8266": {
-        "markers": [">>>stack>>>", "Exception (28):"],
+        "state_markers": [">>>stack>>>"],
+        "context_markers": ["Exception (28):"],
         "addresses": [
             "epc1=0x40201234 epc2=0x00000000 excvaddr=0x40001234",
             "3ffffe10: 40201234 3ffe8410 00000000 40201000",
@@ -43,11 +45,13 @@ CRASH_SAMPLES: dict[str, dict[str, list[str]]] = {
         ],
     },
     "rp2": {
-        "markers": ["CRASH DETECTED ON PREVIOUS BOOT"],
+        "state_markers": ["CRASH DETECTED ON PREVIOUS BOOT"],
+        "context_markers": [],
         "addresses": ["PC:  0x10001234 (fault location)"],
     },
     "nrf52": {
-        "markers": ["Last crash:"],
+        "state_markers": ["Last crash:"],
+        "context_markers": [],
         "addresses": ["PC=0x27a1c LR=0x1e33"],
     },
 }
@@ -81,10 +85,11 @@ def test_crash_samples_cover_registry() -> None:
     assert all(samples["addresses"] for samples in CRASH_SAMPLES.values())
 
 
-# The address-free region markers the state-gated decoders key on; the
-# gate matches these directly so those decoders never depend on the
-# replay window to see their marker.
-STATE_MARKERS = [">>>stack>>>", "CRASH DETECTED ON PREVIOUS BOOT", "Last crash:"]
+# Derived, not hand-listed: a new decoder cannot declare a state marker
+# without the gate test below having to pass on it.
+STATE_MARKERS = [
+    marker for samples in CRASH_SAMPLES.values() for marker in samples["state_markers"]
+]
 
 
 @pytest.mark.parametrize("line", CRASH_LINES + STATE_MARKERS)
@@ -100,7 +105,10 @@ def test_markers_reach_the_decoder_before_addresses(platform: str) -> None:
     address lines decode to nothing. This fails if a marker outgrows the
     replay window or the delivery order breaks.
     """
-    markers = CRASH_SAMPLES[platform]["markers"]
+    markers = (
+        CRASH_SAMPLES[platform]["context_markers"]
+        + CRASH_SAMPLES[platform]["state_markers"]
+    )
     addresses = CRASH_SAMPLES[platform]["addresses"]
     handler = Mock(return_value=True)
 
@@ -173,7 +181,11 @@ def test_samples_and_decoder_patterns_cover_each_other(platform: str) -> None:
             )
         patterns[name] = pattern
 
-    lines = CRASH_SAMPLES[platform]["markers"] + CRASH_SAMPLES[platform]["addresses"]
+    lines = (
+        CRASH_SAMPLES[platform]["state_markers"]
+        + CRASH_SAMPLES[platform]["context_markers"]
+        + CRASH_SAMPLES[platform]["addresses"]
+    )
     for line in CRASH_SAMPLES[platform]["addresses"]:
         assert any(p.search(line) for p in patterns.values()), (
             f"{line!r} no longer matches any {platform} decoder pattern; "
@@ -342,7 +354,7 @@ def test_replay_overflow_is_diagnosable(
     caplog, quiet_lines: int, expect_notice: bool
 ) -> None:
     """The overflow trace fires only when context was actually evicted."""
-    caplog.set_level("INFO", logger="esphome.stacktrace")
+    caplog.set_level("DEBUG", logger="esphome.stacktrace")
     handler = Mock(return_value=False)
     with patch.object(
         stacktrace.platform_hooks, "get_stacktrace_handler", return_value=handler

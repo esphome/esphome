@@ -38,8 +38,9 @@ _LOGGER = logging.getLogger(__name__)
 # mid-stream, which is why it must stay rare. The final alternation
 # gates on the region markers the state-gated decoders (rp2, nrf52,
 # esp8266) key on: they are far more stable than the address grammar,
-# CRASH_SAMPLES pins each one, and matching them directly means those
-# decoders never depend on the replay window to see their marker.
+# the CRASH_SAMPLES state_markers table derives the test that pins each
+# one, and matching them directly means those decoders never depend on
+# the replay window to see their marker.
 _ADDRESS_RE = re.compile(
     r"0x[0-9a-fA-F]{3,}\b"
     r"|\b(?=[0-9A-Fa-f]*[A-Fa-f])[0-9a-fA-F]{8}\b"
@@ -115,10 +116,11 @@ class LogLineProcessor:
                 # decodes to nothing; make that diagnosable in the field.
                 # Only what is observable is claimed: lines rolled off,
                 # whether any of them mattered is unknowable here.
-                # Fires at most once per session, exactly when a crash
-                # is in progress; INFO so an undecoded dump is explicable
-                # without -v.
-                _LOGGER.info(
+                # Debug only: the marker alternation below resolves the
+                # state-gated decoders directly, so a rolled-off line is
+                # almost never load-bearing and any real session has
+                # rolled far more than eight lines by its first crash.
+                _LOGGER.debug(
                     "Replay window held only the last %d lines; older context was not delivered",
                     _REPLAY_LINES,
                 )

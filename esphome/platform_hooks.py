@@ -115,10 +115,12 @@ def get_platform_hook(platform: str, hook: str) -> Callable[..., Any] | None:
 def get_stacktrace_handler(platform: str) -> Callable[..., Any] | None:
     """Resolve ``process_stacktrace`` for *platform*, degrading with a log.
 
-    Stacktrace decoding is a diagnostic nicety: a platform without an
-    analyzer, or one whose package fails to import, must never stop a
-    log session. Both callers (serial and API logs) share this so the
-    user-facing message lives in one place.
+    Stacktrace decoding is a diagnostic nicety. This function only
+    distinguishes the import-error case so its message is accurate;
+    total containment is owned by the caller
+    (``stacktrace.LogLineProcessor._resolve_handler`` wraps this in a
+    broad except). Both log paths share this so the user-facing message
+    lives in one place.
     """
     try:
         handler = get_platform_hook(platform, "process_stacktrace")
