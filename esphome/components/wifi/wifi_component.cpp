@@ -824,6 +824,15 @@ void WiFiComponent::loop() {
           this->status_clear_warning();
           this->last_connected_ = now;
 
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+          // A driver-initiated roam (e.g. 802.11v BTM) re-associates without the
+          // state machine ever leaving STA_CONNECTED, so the notification the
+          // connected event marked pending would never be flushed by
+          // check_connecting_finished(). Cheap when nothing is pending: the
+          // method returns immediately on a single flag test.
+          this->notify_connect_state_listeners_();
+#endif
+
           // Post-connect roaming: check for better AP
           if (this->post_connect_roaming_) {
             if (this->roaming_state_ == RoamingState::SCANNING) {

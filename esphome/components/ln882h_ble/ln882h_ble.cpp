@@ -1,11 +1,17 @@
 // ln882h_ble.cpp
 //
 // BLE controller support for the LN882H (LibreTiny lightning-ln882h family) —
-// the platform analog of esp32_ble / rp2040_ble. Owns the one-time stack
-// bring-up (rw_init + the ln_* app init sequence) and the controller BLE
-// address (persistent KV entry, WiFi-MAC-derived once). Consumers
-// (ln882h_ble_tracker) build on this component and contain no SDK calls of
-// their own.
+// the platform analog of esp32_ble / rp2040_ble. Owns everything that talks to
+// the LN882H BLE SDK:
+//   - one-time stack bring-up (rw_init + the ln_* app init sequence),
+//   - the controller BLE address (persistent KV entry, WiFi-MAC-derived once),
+//   - the raw controller scan primitives (ln_ble_scan_start/stop),
+//   - the scan-report ring: the SDK's rw-task event callback decodes each
+//     report (including the controller's RSSI sign quirk) into a fixed pool
+//     and pushes it on a lock-free SPSC queue; loop() drains, dispatches on
+//     the main task and returns reports to the pool — the same EventPool +
+//     LockFreeQueue handoff esp32_ble uses, zero allocation at steady state.
+// Consumers contain no SDK calls of their own.
 //
 // BLE stack init and scan lifecycle mirror the SDK's ble_app usage. The BLE
 // stack itself is compiled and linked by the LibreTiny lightning-ln882h builder
@@ -51,6 +57,9 @@ void ln_ble_scan_actv_creat(void);
 void ln_ble_scan_start(void *scan_param);
 void ln_ble_scan_stop(void);
 
+using ble_evt_cb_t = void (*)(void *param);
+void ln_ble_evt_mgr_reg_evt(int evt_id, ble_evt_cb_t cb);
+
 }  // extern "C"
 
 // ln_bd_addr_v_t mirrors the SDK's ln_bd_addr_t (ln_ble_app_defines.h) and is
@@ -64,9 +73,10 @@ static_assert(alignof(struct ln_bd_addr_v_t) == 1, "ln_bd_addr_v_t must stay byt
 //   CLK_G_BLE              — hal/hal_clock.h clock gate bit for the BLE block
 //   BLE_EVT_ID_SCAN_REPORT — ble/ble_evt.h event id for scan reports
 //   GAPM_*                 — ble/mac/ble/hl/api/gapm_task.h, enums gapm_scan_type /
-//                            gapm_dup_filter_pol / gapm_scan_prop
+//                            gapm_dup_filter_pol / gapm_scan_prop / gapm_adv_report_info
 // ---------------------------------------------------------------------------
 static constexpr uint32_t CLK_G_BLE = 1u << 0;
+static constexpr int BLE_EVT_ID_SCAN_REPORT = 3;
 
 // WiFi/BLE packet-traffic-indication (PTI) arbitration register. The LN882H SDK
 // exposes no symbolic name for this register; the address and value replicate
@@ -93,6 +103,20 @@ static constexpr uint8_t GAPM_SCAN_TYPE_OBSERVER = 2;
 static constexpr uint8_t GAPM_DUP_FILT_DIS = 0;
 // gapm_scan_prop bits: PHY_1M = 1<<0, PHY_CODED = 1<<1, ACTIVE_1M = 1<<2, ACTIVE_CODED = 1<<3.
 static constexpr uint8_t GAPM_SCAN_PROP_PHY_1M_BIT = 1 << 0;
+static constexpr uint8_t GAPM_SCAN_PROP_ACTIVE_1M_BIT = 1 << 2;
+
+// GAPM extended-advertising report types (bits 2:0 of ble_scan_report_t::info).
+// 0 = ADV_EXT (extended advertisement), 1 = ADV_LEG (legacy advertisement),
+// 2 = SCAN_RSP_EXT (scan response to extended adv), 3 = SCAN_RSP_LEG (scan response to legacy adv).
+static constexpr uint8_t GAPM_REPORT_TYPE_SCAN_RSP_EXT = 2;
+static constexpr uint8_t GAPM_REPORT_TYPE_SCAN_RSP_LEG = 3;
+// Bit 5 of ble_scan_report_t::info: the advertisement is scannable, i.e. a scan
+// response may follow (enum gapm_adv_report_info, GAPM_REPORT_INFO_SCAN_ADV_BIT).
+static constexpr uint8_t GAPM_REPORT_INFO_SCAN_ADV_BIT = 1u << 5;
+
+// ---------------------------------------------------------------------------
+// SDK struct layouts
+// ---------------------------------------------------------------------------
 
 // Scan parameter block passed to ln_ble_scan_start(); mirrors the SDK layout,
 // with the pad byte explicit so the whole block zero-initialises.
@@ -109,6 +133,29 @@ struct le_scan_parameters_t {  // NOLINT(readability-identifier-naming) - mirror
 // feed garbage scan parameters to the controller.
 static_assert(sizeof(le_scan_parameters_t) == 8, "le_scan_parameters_t must match the SDK layout");
 static_assert(offsetof(le_scan_parameters_t, scan_intv) == 4, "unexpected padding in le_scan_parameters_t");
+
+// Scan report delivered by the BLE_EVT_ID_SCAN_REPORT event. Layout verified on
+// hardware against the prebuilt BLE stack LibreTiny links: its report carries no
+// PHY fields and stores the advertisement data inline (flexible array), unlike
+// the newer upstream SDK header (which adds phy_prim/phy_second and a data pointer).
+struct ble_scan_report_t {  // NOLINT(readability-identifier-naming) - mirrors the SDK type name
+  uint8_t actv_idx;
+  uint8_t info;
+  uint8_t trans_addr_type;
+  uint8_t trans_addr[6];
+  uint8_t target_addr_type;
+  uint8_t target_addr[6];
+  int8_t tx_pwr;
+  int8_t rssi;  // signed dBm, range -127..+20 (ble_evt_scan_report_t from ln_ble_event_manager.h)
+  uint16_t length;
+  uint8_t data[0];
+};
+// Pin the layout of the hand-mirrored report struct too: the comment above
+// notes a newer SDK header uses a different layout (PHY fields + data pointer),
+// so silent drift here would corrupt every decoded advertisement.
+static_assert(sizeof(ble_scan_report_t) == 20, "ble_scan_report_t must match the linked BLE stack's layout");
+static_assert(offsetof(ble_scan_report_t, length) == 18, "unexpected padding in ble_scan_report_t");
+static_assert(offsetof(ble_scan_report_t, data) == 20, "advertisement data must follow the header inline");
 
 // ---------------------------------------------------------------------------
 // __sprintf weak stub
@@ -133,11 +180,86 @@ namespace esphome::ln882h_ble {
 
 static const char *const TAG = "ln882h_ble";
 
+// The SDK event callback is a plain C function pointer with no user argument,
+// so it reaches the (single) component instance through a file-static pointer.
+static LN882HBLE *s_ble = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+// Scan parameter blocks handed to ln_ble_scan_start(void *). static storage:
+// the SDK may retain the pointer past the call (the block travels into a GAPM
+// message consumed later by the rw task), so a stack-local would leave the
+// controller reading a dead frame. Double-buffered: consecutive starts (the
+// enable() probe followed by the first real scan, or a parameter restart)
+// alternate blocks, so a rewrite can never race a previous block that is still
+// in flight — correct under either reading of SDK retention. All writers run
+// on the main task.
+static le_scan_parameters_t s_scan_params[2]{};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static uint8_t s_scan_params_idx = 0;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+static le_scan_parameters_t *next_scan_params() {
+  s_scan_params_idx ^= 1;
+  return &s_scan_params[s_scan_params_idx];
+}
+
+// ---------------------------------------------------------------------------
+// Scan-report event callback — runs in the SDK's rw task context.
+// Decode the report (hardware-verified struct layout + the RSSI sign fix),
+// copy it into the queue and return; all dispatch happens in loop() on the
+// main task.
+// ---------------------------------------------------------------------------
+static void ble_scan_callback(void *param) {
+  if (s_ble == nullptr || param == nullptr)
+    return;
+  const auto *info = reinterpret_cast<const ble_scan_report_t *>(param);
+
+  // Fill the pool slot in place (the bk72xx_ble shape): no report on the rw
+  // task's stack — its size is fixed by the prebuilt stack — one copy of the
+  // payload instead of two, and only data_len bytes ever leave this frame.
+  BLEScanReport *slot = s_ble->allocate_scan_report();
+  if (slot == nullptr)
+    return;  // pool exhausted — counted as dropped in allocate_scan_report()
+
+  const uint8_t report_type = info->info & 0x07;
+
+  // BLE RSSI sign fix. The LN882H controller intermittently reports the RSSI with
+  // a flipped sign: a real -58 dBm arrives as +58, above the SDK's documented
+  // -127..+20 dBm maximum. Recover it by negating any value above +20 (verified
+  // on-device: the out-of-range positives cluster at the magnitude of each
+  // device's real readings). This is the ONLY LN882H-specific RSSI handling —
+  // downstream the value is used exactly like on ESP32.
+  const int8_t raw = info->rssi;
+
+  memcpy(slot->mac, info->trans_addr, 6);
+  slot->rssi = (raw > 20) ? static_cast<int8_t>(-raw) : raw;
+  slot->addr_type = info->trans_addr_type;
+  slot->is_scan_response = report_type == GAPM_REPORT_TYPE_SCAN_RSP_EXT || report_type == GAPM_REPORT_TYPE_SCAN_RSP_LEG;
+  slot->scannable = (info->info & GAPM_REPORT_INFO_SCAN_ADV_BIT) != 0;
+  slot->data_len = (info->length <= sizeof(slot->data)) ? static_cast<uint8_t>(info->length)
+                                                        : static_cast<uint8_t>(sizeof(slot->data));
+  memcpy(slot->data, info->data, slot->data_len);
+
+  s_ble->push_scan_report(slot);
+}
+
+BLEScanReport *LN882HBLE::allocate_scan_report() {
+  BLEScanReport *slot = this->report_pool_.allocate();
+  if (slot == nullptr) {
+    // Pool exhausted — the queue is full; count and drop.
+    this->report_queue_.increment_dropped_count();
+  }
+  return slot;
+}
+
+void LN882HBLE::push_scan_report(BLEScanReport *report) {
+  // Cannot fail: the pool is sized to the queue capacity.
+  this->report_queue_.push(report);
+}
+
 // ---------------------------------------------------------------------------
 // Component lifecycle
 // ---------------------------------------------------------------------------
 
 void LN882HBLE::setup() {
+  s_ble = this;
   // Resolve the MAC early so get_mac_lsb_first() is valid for consumers before
   // the stack is up. The KV load also happens here (no stack dependency).
   this->resolve_mac_();
@@ -175,21 +297,46 @@ void LN882HBLE::enable() {
   delay(10);
 
   // Prime the scan activity with a short probe start/stop — the SDK's scan
-  // manager completes activity creation on the first start.
-  // static: its address is handed to ln_ble_scan_start(void *), which may
-  // retain it past this call.
-  static le_scan_parameters_t probe_p{};
-  probe_p.type = GAPM_SCAN_TYPE_OBSERVER;
-  probe_p.prop = GAPM_SCAN_PROP_PHY_1M_BIT;
-  probe_p.dup_filt_pol = GAPM_DUP_FILT_DIS;
-  probe_p.scan_intv = 160;
-  probe_p.scan_wd = 16;
-  ln_ble_scan_start(&probe_p);
+  // manager completes activity creation on the first start. Uses the shared
+  // static parameter block (see s_scan_params for the lifetime rationale).
+  le_scan_parameters_t *probe = next_scan_params();
+  probe->type = GAPM_SCAN_TYPE_OBSERVER;
+  probe->prop = GAPM_SCAN_PROP_PHY_1M_BIT;
+  probe->dup_filt_pol = GAPM_DUP_FILT_DIS;
+  probe->scan_intv = 160;
+  probe->scan_wd = 16;
+  ln_ble_scan_start(probe);
   delay(10);
   ln_ble_scan_stop();
 
+  // Register the scan-report event exactly once, after the event manager is up.
+  // Repeated registration corrupts the SDK's event registry (verified on
+  // hardware), which is why this lives here and not in scan_start().
+  ln_ble_evt_mgr_reg_evt(BLE_EVT_ID_SCAN_REPORT, ble_scan_callback);
+
   this->state_ = BLEComponentState::ACTIVE;
   ESP_LOGD(TAG, "BLE stack initialised");
+}
+
+void LN882HBLE::loop() {
+  // Drain the lock-free ring filled by the rw task; all per-report work runs
+  // here on the main task, then the report returns to the pool.
+  BLEScanReport *report = this->report_queue_.pop();
+  if (report == nullptr)
+    return;
+  do {
+#ifdef LN882H_BLE_SCAN_LISTENER_COUNT
+    for (auto *listener : this->scan_listeners_)
+      listener->on_scan_report(*report);
+#endif
+    this->report_pool_.release(report);
+  } while ((report = this->report_queue_.pop()) != nullptr);
+
+  // Log dropped reports — only reachable when reports were processed; drops can
+  // only occur while the queue is full, and only this loop drains it.
+  uint16_t dropped = this->report_queue_.get_and_reset_dropped_count();
+  if (dropped > 0)
+    ESP_LOGW(TAG, "Dropped %u scan reports due to queue overflow", dropped);
 }
 
 void LN882HBLE::get_mac_lsb_first(uint8_t out[6]) const { memcpy(out, this->ble_mac_, sizeof(this->ble_mac_)); }
@@ -244,6 +391,50 @@ void LN882HBLE::resolve_mac_() {
     }
   }
   memcpy(this->ble_mac_, bt_addr.addr, 6);
+}
+
+// ---------------------------------------------------------------------------
+// Controller scan primitives
+// ---------------------------------------------------------------------------
+
+void LN882HBLE::scan_start(uint16_t interval, uint16_t window, bool active) {
+  if (!this->is_active())
+    this->enable();
+
+  if (this->scanning_) {
+    // Already scanning - stop first so this call cleanly restarts with the new
+    // parameters (re-entry guard). Give the GAPM stop the same settle time
+    // enable() grants between consecutive GAPM operations before restarting.
+    this->scan_stop();
+    delay(10);  // NOLINT — restart-only, mirrors enable()'s inter-operation settle
+  }
+
+  // Double-buffered static block — see s_scan_params for the lifetime rationale.
+  le_scan_parameters_t *p = next_scan_params();
+  p->dup_filt_pol = GAPM_DUP_FILT_DIS;
+  p->type = GAPM_SCAN_TYPE_OBSERVER;
+  p->scan_intv = interval;
+  p->scan_wd = window;
+  // Legacy 1M PHY only: consumers size their buffers for legacy advertisements
+  // (62 B); coded/extended PHY (up to 255 B) would be silently truncated.
+  p->prop = GAPM_SCAN_PROP_PHY_1M_BIT;
+  if (active)
+    p->prop |= GAPM_SCAN_PROP_ACTIVE_1M_BIT;
+
+  ln_ble_scan_start(p);
+  // ln_ble_scan_start() returns void, so this tracks the requested state, not a
+  // confirmed one — a controller-side failure surfaces as an idle scanner (no
+  // reports), which the consumer's start retry/backoff owns.
+  this->scanning_ = true;
+}
+
+void LN882HBLE::scan_stop() {
+  // No-op when idle, as documented: the guard keeps a redundant SDK stop off
+  // the GAPM path (scan_start()'s re-entry guard calls this while scanning).
+  if (!this->scanning_)
+    return;
+  ln_ble_scan_stop();
+  this->scanning_ = false;
 }
 
 }  // namespace esphome::ln882h_ble

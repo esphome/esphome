@@ -20,7 +20,9 @@ ble_aes_ccm.h.
 import re
 
 import esphome.codegen as cg
+from esphome.components.const import CONF_WINDOW
 import esphome.config_validation as cv
+from esphome.const import CONF_ACTIVE, CONF_CONTINUOUS, CONF_DURATION, CONF_INTERVAL
 from esphome.core import CORE
 from esphome.types import ConfigType
 
@@ -76,6 +78,92 @@ async def register_ble_device(var: cg.MockObj, config: ConfigType) -> cg.MockObj
 
 
 # ---- shared validation / codegen helpers (platform-neutral) ----
+
+
+def to_ble_units(value: cv.TimePeriod) -> int:
+    """Convert a scan time to the controller's 0.625 ms units.
+
+    Used by both validation and codegen so what is validated is exactly what is
+    programmed — the truncation here is what makes the duty-cycle check below
+    meaningful.
+    """
+    return value.total_microseconds // 625
+
+
+def validate_scan_parameters(config: ConfigType) -> ConfigType:
+    """Reject impossible window/interval/duration combinations at config time.
+
+    The controller cannot scan for longer than the interval, and a too-short
+    duration would end the scan period almost immediately. Catching it here
+    gives a clear error instead of a runtime controller failure and a retry
+    loop.
+    """
+    duration = config[CONF_DURATION]
+    interval = config[CONF_INTERVAL]
+    window = config[CONF_WINDOW]
+
+    if window > interval:
+        raise cv.Invalid(
+            f"Scan window ({window}) needs to be smaller than scan interval ({interval})"
+        )
+
+    # BLE scan interval/window are programmed in 0.625 ms units as a 16-bit value; the
+    # controller only accepts 2.5 ms .. 10240 ms (0x0004 .. 0x4000). Reject out-of-range
+    # values here instead of letting the unit conversion silently overflow.
+    for name, value in (("interval", interval), ("window", window)):
+        if value.total_microseconds < 2500 or value.total_microseconds > 10_240_000:
+            raise cv.Invalid(
+                f"Scan {name} ({value}) must be between 2.5 ms and 10240 ms"
+            )
+
+    # Validate what actually reaches the controller: both values are truncated to
+    # whole 0.625 ms units, so a window/interval pair that differs by less than one
+    # unit collapses to the same value — silently programming a 100 % duty cycle
+    # (radio permanently on) from a config that asked for less.
+    interval_units = to_ble_units(interval)
+    window_units = to_ble_units(window)
+    if window_units == interval_units and window < interval:
+        raise cv.Invalid(
+            f"Scan window ({window}) and interval ({interval}) both truncate to "
+            f"{interval_units} x 0.625 ms, which the controller scans at a 100 % duty "
+            f"cycle. Separate them by at least 0.625 ms."
+        )
+
+    if interval.total_microseconds * 3 > duration.total_microseconds:
+        raise cv.Invalid(
+            f"Scan duration ({duration}) must cover at least three scan intervals "
+            f"({interval}): the scanner listens on one of the three BLE advertising "
+            f"channels per interval, so a shorter duration can miss devices entirely."
+        )
+
+    return config
+
+
+def scan_parameters_schema(
+    interval_default: str,
+    *,
+    window_default: str = "30ms",
+    supports_active: bool = False,
+) -> cv.All:
+    """Build the scan_parameters value schema shared by all BLE trackers.
+
+    interval_default and window_default are per chip (e.g. esp32 320/30 ms,
+    bk72xx/rp2 100/30 ms — the reference scan rates of the respective stacks;
+    LN882H's SDK recommends 100/50 ms). Pass supports_active=True only when
+    the tracker supports active scanning; it exposes the `active` option
+    (whose own default is on, esp32_ble_tracker behavior).
+    """
+    schema = {
+        cv.Optional(CONF_DURATION, default="5min"): cv.positive_time_period_seconds,
+        cv.Optional(CONF_INTERVAL, default=interval_default): cv.positive_time_period,
+        cv.Optional(CONF_WINDOW, default=window_default): cv.positive_time_period,
+        cv.Optional(CONF_CONTINUOUS, default=True): cv.boolean,
+    }
+    if supports_active:
+        schema[cv.Optional(CONF_ACTIVE, default=True)] = cv.boolean
+    return cv.All(cv.Schema(schema), validate_scan_parameters)
+
+
 BT_UUID16_FORMAT = "XXXX"
 BT_UUID32_FORMAT = "XXXXXXXX"
 BT_UUID128_FORMAT = "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"

@@ -12,6 +12,7 @@ component does (LibreTiny v1.13.0+).
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ID
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["ln882x"]
@@ -31,6 +32,23 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
+KEY_SCAN_LISTENER_COUNT = "ln882h_ble_scan_listener_count"
+
+
+def request_scan_listener_slot() -> None:
+    """Called from a consumer's codegen once per registered scan listener; sizes
+    the controller's StaticVector listener storage (heap-free, mirrors the
+    tracker's ble_device_base listener storage)."""
+    CORE.data[KEY_SCAN_LISTENER_COUNT] = CORE.data.get(KEY_SCAN_LISTENER_COUNT, 0) + 1
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_listener_count() -> None:
+    # FINAL: every consumer's to_code has requested its slot by now.
+    if count := CORE.data.get(KEY_SCAN_LISTENER_COUNT, 0):
+        cg.add_define("LN882H_BLE_SCAN_LISTENER_COUNT", count)
+
+
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -46,3 +64,5 @@ async def to_code(config: ConfigType) -> None:
     cg.add_platformio_option("custom_options.proj_config#h", ["CFG_SUPPORT_BLE=1"])
 
     cg.add_define("USE_LN882H_BLE")
+
+    CORE.add_job(_add_listener_count)

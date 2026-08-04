@@ -1248,7 +1248,8 @@ def test_discover_files_deeply_nested_include(tmp_path: Path) -> None:
 def test_discover_files_nested_include_unresolved_substitution(
     tmp_path: Path,
 ) -> None:
-    """!include with substitution vars in path cannot be resolved; skipped gracefully."""
+    """!include with substitution vars in path but no candidate files on disk
+    (the glob's only match is the config itself) is skipped gracefully."""
     config_dir = _setup_config_dir(tmp_path)
     (config_dir / "test.yaml").write_text(
         "esphome:\n  name: test\nwifi: !include ${platform}.yaml\n"
@@ -1260,6 +1261,62 @@ def test_discover_files_nested_include_unresolved_substitution(
 
     paths = [f.path for f in files]
     assert "test.yaml" in paths
+
+
+def test_discover_files_bundles_all_include_candidates(tmp_path: Path) -> None:
+    """The issue-17650 layout: templated package includes chain through a glob
+    candidate into a Jinja conditional whose ``../`` branch is bundled."""
+    config_dir = _setup_config_dir(
+        tmp_path,
+        files={
+            "includes/esp-basics.yaml": (
+                "packages:\n"
+                "  - !include boards/${board}.yaml\n"
+                "  - !include keys/${system_name}.yaml\n"
+            ),
+            "includes/boards/wemos-d1-mini.yaml": (
+                'packages:\n  - !include ${ "NO BT.yaml" if bt else "../empty.yaml" }\n'
+            ),
+            "includes/keys/device-a.yaml": "api:\n",
+            "includes/keys/device-b.yaml": "api:\n",
+            "includes/empty.yaml": "{}\n",
+        },
+    )
+    (config_dir / "test.yaml").write_text(
+        "esphome:\n  name: test\npackages:\n  - !include includes/esp-basics.yaml\n"
+    )
+
+    creator = ConfigBundleCreator({})
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert "includes/esp-basics.yaml" in paths
+    assert "includes/boards/wemos-d1-mini.yaml" in paths
+    assert "includes/keys/device-a.yaml" in paths
+    assert "includes/keys/device-b.yaml" in paths
+    assert "includes/empty.yaml" in paths
+
+
+def test_discover_files_candidate_outside_config_dir_skipped(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A candidate branch resolving above the config dir is not bundled."""
+    config_dir = _setup_config_dir(tmp_path)
+    (tmp_path / "outside.yaml").write_text("api:\n")
+    (config_dir / "test.yaml").write_text(
+        "esphome:\n  name: test\n"
+        'wifi: !include ${ "a.yaml" if x else "../outside.yaml" }\n'
+    )
+
+    creator = ConfigBundleCreator({})
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert not any("outside" in p for p in paths)
+    assert any(
+        "outside config directory" in r.message and "outside.yaml" in r.message
+        for r in caplog.records
+    )
 
 
 def test_discover_files_nested_include_load_failure(
