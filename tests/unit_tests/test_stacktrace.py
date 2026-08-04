@@ -11,32 +11,43 @@ from esphome.core import EsphomeError
 
 CONFIG = {"esphome": {"name": "test"}}
 
-# One real dump line per registered platform plus the shapes the decoders
-# key on; the gate must fire on every one of them or that platform's
-# decoding silently never starts. Keyed by platform so a newly registered
-# decoder fails test_crash_samples_cover_registry until a sample is added.
-CRASH_SAMPLES: dict[str, list[str]] = {
-    "esp32": [
-        "Backtrace: 0x400d1a2c:0x3ffb1f60 0x400d2a3c:0x3ffb1f80",
-        "PC      : 0x400d1a2c  PS      : 0x00060330",
-        "BT0: 0x40104960",
-    ],
-    "esp8266": [
-        "epc1=0x40201234 epc2=0x00000000",
-        "3ffffe10: 40201234 3ffe8410 00000000 40201000",
-    ],
-    "rp2": [
-        "PC:  0x10001234 (fault location)",
-    ],
-    "nrf52": [
-        "PC=0x27a1c LR=0x1e33",
-    ],
+# Real dump lines per registered platform. "addresses" must fire the
+# gate or that platform's decoding silently never starts. "markers" are
+# the address-free lines a state-gated decoder (rp2, nrf52, esp8266)
+# needs delivered first: their decoders only act once backtrace_state is
+# set by the marker, so the replay buffer is what makes them work at
+# all. A new decoder must declare its marker here so the delivery is
+# pinned instead of discovered in the field.
+CRASH_SAMPLES: dict[str, dict[str, list[str]]] = {
+    "esp32": {
+        "markers": [],
+        "addresses": [
+            "Backtrace: 0x400d1a2c:0x3ffb1f60 0x400d2a3c:0x3ffb1f80",
+            "PC      : 0x400d1a2c  PS      : 0x00060330",
+            "BT0: 0x40104960",
+        ],
+    },
+    "esp8266": {
+        "markers": [">>>stack>>>"],
+        "addresses": [
+            "epc1=0x40201234 epc2=0x00000000",
+            "3ffffe10: 40201234 3ffe8410 00000000 40201000",
+        ],
+    },
+    "rp2": {
+        "markers": ["CRASH DETECTED ON PREVIOUS BOOT"],
+        "addresses": ["PC:  0x10001234 (fault location)"],
+    },
+    "nrf52": {
+        "markers": ["Last crash:"],
+        "addresses": ["PC=0x27a1c LR=0x1e33"],
+    },
 }
 
 CRASH_LINES = [
     pytest.param(line, id=f"{platform}-{n}")
-    for platform, lines in CRASH_SAMPLES.items()
-    for n, line in enumerate(lines)
+    for platform, samples in CRASH_SAMPLES.items()
+    for n, line in enumerate(samples["addresses"])
 ]
 
 BENIGN_LINES = [
@@ -61,6 +72,28 @@ def test_crash_samples_cover_registry() -> None:
 @pytest.mark.parametrize("line", CRASH_LINES)
 def test_address_gate_fires_on_platform_dump_lines(line: str) -> None:
     assert stacktrace._ADDRESS_RE.search(line)
+
+
+@pytest.mark.parametrize("platform", sorted(CRASH_SAMPLES))
+def test_markers_reach_the_decoder_before_addresses(platform: str) -> None:
+    """The replay buffer delivers each platform's markers in order.
+
+    For state-gated decoders the marker is load-bearing: without it the
+    address lines decode to nothing. This fails if a marker outgrows the
+    replay window or the delivery order breaks.
+    """
+    markers = CRASH_SAMPLES[platform]["markers"]
+    addresses = CRASH_SAMPLES[platform]["addresses"]
+    handler = Mock(return_value=True)
+
+    with patch.object(
+        stacktrace.platform_hooks, "get_stacktrace_handler", return_value=handler
+    ):
+        processor = stacktrace.LogLineProcessor(CONFIG, platform)
+        for line in markers + addresses:
+            processor.process_line(line)
+
+    assert [call.args[1] for call in handler.call_args_list] == markers + addresses
 
 
 @pytest.mark.parametrize("line", BENIGN_LINES)
