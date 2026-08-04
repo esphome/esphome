@@ -17,7 +17,7 @@ AES-CCM decryption for encrypted advertisements is provided portably in
 ble_aes_ccm.h.
 """
 
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable
 from dataclasses import dataclass, field
 import re
 
@@ -33,17 +33,16 @@ DOMAIN = "ble_device_base"
 
 CONF_BLE_HUB_ID = "ble_hub_id"
 
-# slot_counts key: number of parsed-advertisement listeners registered in this
-# build. Trackers whose codegen sizes storage at compile time (esp32's
-# StaticVector count define) read it in their final coroutine.
-KEY_BLE_LISTENER_COUNT = "ble_device_base_listener_count"
+# Number of parsed-advertisement listeners registered in this build;
+# get_listener_count() exposes it for esp32_ble_tracker's feature coupling.
+LISTENER_COUNT_DEFINE = "ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT"
 
 
 @dataclass
 class BLEDeviceBaseData:
     # Slot counts for every slot_counter() instance, keyed by the counter's
-    # key; kept here so the factory's state lives under this component's
-    # domain in CORE.data.
+    # define name; kept here so the factory's state lives under this
+    # component's domain in CORE.data.
     slot_counts: dict[str, int] = field(default_factory=dict)
 
 
@@ -84,40 +83,37 @@ def request_irk_support() -> None:
 
 def get_listener_count() -> int:
     """Number of parsed listeners registered so far (for tracker codegen)."""
-    return _get_data().slot_counts.get(KEY_BLE_LISTENER_COUNT, 0)
+    return _get_data().slot_counts.get(LISTENER_COUNT_DEFINE, 0)
 
 
-def slot_counter(
-    key: str, define: str
-) -> tuple[Callable[[], None], Callable[[], Coroutine[None, None, None]]]:
-    """Create a (request_slot, emit_job) pair for codegen-sized storage.
+def slot_counter(define: str) -> Callable[[], None]:
+    """Create a request_slot function for codegen-sized storage.
 
     The pattern behind every StaticVector listener array: a consumer's to_code
-    calls request_slot() once per slot it will occupy at runtime, the owning
-    component schedules emit_job with CORE.add_job(), and at FINAL priority —
-    after every consumer's to_code has run — the define is emitted with the
-    requested count. A zero count emits nothing, so the guarded storage and
-    its registration method compile out entirely.
+    calls the returned function once per slot it will occupy at runtime, and
+    at FINAL priority — after every consumer's to_code has run — `define` is
+    emitted with the requested count. No requests, no define: the guarded
+    storage and its registration method compile out entirely.
 
-    The count lives under `key` in this component's CORE.data entry, which
+    The count lives under `define` in this component's CORE.data entry, which
     clears between runs.
     """
 
-    def request_slot() -> None:
-        counts = _get_data().slot_counts
-        counts[key] = counts.get(key, 0) + 1
-
     @coroutine_with_priority(CoroPriority.FINAL)
     async def emit_job() -> None:
-        if count := _get_data().slot_counts.get(key):
+        if count := _get_data().slot_counts.get(define):
             cg.add_define(define, count)
 
-    return request_slot, emit_job
+    def request_slot() -> None:
+        counts = _get_data().slot_counts
+        counts[define] = counts.get(define, 0) + 1
+        if counts[define] == 1:
+            CORE.add_job(emit_job)
+
+    return request_slot
 
 
-_request_listener_slot, _emit_listener_count = slot_counter(
-    KEY_BLE_LISTENER_COUNT, "ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT"
-)
+_request_listener_slot = slot_counter(LISTENER_COUNT_DEFINE)
 
 
 async def register_ble_device(var: cg.MockObj, config: ConfigType) -> cg.MockObj:
@@ -126,13 +122,6 @@ async def register_ble_device(var: cg.MockObj, config: ConfigType) -> cg.MockObj
     cg.add(hub.register_listener(var))
     _request_listener_slot()
     return var
-
-
-async def to_code(config: ConfigType) -> None:
-    # Emit ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT once, here, instead of a
-    # copy of the job in every tracker: this component is AUTO_LOADed by each
-    # of them, and to_code runs for AUTO_LOADed components (the md5 precedent).
-    CORE.add_job(_emit_listener_count)
 
 
 # ---- shared validation / codegen helpers (platform-neutral) ----

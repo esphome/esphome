@@ -13,7 +13,6 @@ import esphome.codegen as cg
 from esphome.components import ble_device_base
 import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ID
-from esphome.core import CORE
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["ln882x"]
@@ -33,11 +32,10 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-# Consumers call request_scan_listener_slot() from their codegen once per
-# registered scan listener; the FINAL job sizes the controller's StaticVector
-# listener storage via LN882H_BLE_SCAN_LISTENER_COUNT.
-request_scan_listener_slot, _add_listener_count = ble_device_base.slot_counter(
-    "ln882h_ble_scan_listener_count", "LN882H_BLE_SCAN_LISTENER_COUNT"
+# Once per registered scan listener; sizes the controller's StaticVector
+# listener storage.
+request_scan_listener_slot = ble_device_base.slot_counter(
+    "LN882H_BLE_SCAN_LISTENER_COUNT"
 )
 
 
@@ -56,5 +54,3 @@ async def to_code(config: ConfigType) -> None:
     cg.add_platformio_option("custom_options.proj_config#h", ["CFG_SUPPORT_BLE=1"])
 
     cg.add_define("USE_LN882H_BLE")
-
-    CORE.add_job(_add_listener_count)

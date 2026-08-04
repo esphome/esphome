@@ -24,7 +24,6 @@ from esphome.components import ble_device_base, libretiny
 from esphome.components.libretiny.const import FAMILY_BK7231N, FAMILY_BK7238
 import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ID
-from esphome.core import CORE
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["bk72xx"]
@@ -46,11 +45,10 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-# Consumers call request_scan_listener_slot() from their codegen once per
-# registered scan listener; the FINAL job sizes the controller's StaticVector
-# listener storage via BK72XX_BLE_SCAN_LISTENER_COUNT.
-request_scan_listener_slot, _add_listener_count = ble_device_base.slot_counter(
-    "bk72xx_ble_scan_listener_count", "BK72XX_BLE_SCAN_LISTENER_COUNT"
+# Once per registered scan listener; sizes the controller's StaticVector
+# listener storage.
+request_scan_listener_slot = ble_device_base.slot_counter(
+    "BK72XX_BLE_SCAN_LISTENER_COUNT"
 )
 
 
@@ -101,5 +99,3 @@ async def to_code(config: ConfigType) -> None:
         )
 
     cg.add_define("USE_BK72XX_BLE")
-
-    CORE.add_job(_add_listener_count)
