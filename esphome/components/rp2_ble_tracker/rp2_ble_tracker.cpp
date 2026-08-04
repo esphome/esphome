@@ -152,6 +152,31 @@ void RP2BLETracker::start_scan() {
   this->start_scan_();
 }
 
+bool RP2BLETracker::request_scan_mode(bool active) {
+  if (this->scan_active_ == active)
+    return true;
+  this->scan_active_ = active;
+  ESP_LOGD(TAG, "Scan mode %s", active ? "active" : "passive");
+  // Apply to a running scan by restarting the CONTROLLER scan with the new
+  // mode, bypassing the tracker's stop/start bookkeeping: no on_scan_end (the
+  // scan logically continues, only the request mode changes), no period reset.
+  // An idle scanner picks the mode up on its next start.
+  if (this->scan_running_) {
+    this->parent_->scan_stop();
+    // Stamp the attempt so the SCAN_START_RETRY_MS floor covers this start
+    // like every other one.
+    this->last_scan_start_attempt_ = App.get_loop_component_start_time();
+    if (!this->parent_->scan_start(static_cast<uint16_t>(this->scan_interval_),
+                                   static_cast<uint16_t>(this->scan_window_), this->scan_active_)) {
+      // The controller really stopped: behave exactly like loop()'s
+      // reconciliation branch - notify listeners and let its retry recover.
+      this->scan_running_ = false;
+      this->fire_scan_end_();
+    }
+  }
+  return true;
+}
+
 void RP2BLETracker::stop_scan() {
   this->scan_continuous_ = false;
   this->stop_scan_();
