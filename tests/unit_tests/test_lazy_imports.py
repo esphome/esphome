@@ -76,9 +76,12 @@ def test_storage_json_fast_path_does_not_import_heavy_modules(
     validation stack or the esp32 component package.
     """
     script = fixture_path / "lazy_imports" / "storage_json_fast_path.py"
-    # Running a script file drops the cwd from sys.path, so point the child
-    # at the repo root explicitly; check=False keeps its stderr visible.
-    env = os.environ | {"PYTHONPATH": str(Path(__file__).parents[2])}
+    # Running a script file drops the cwd from sys.path, so prepend the
+    # repo root for the child; check=False keeps its stderr visible.
+    python_path = str(Path(__file__).parents[2])
+    if ambient := os.environ.get("PYTHONPATH"):
+        python_path = os.pathsep.join((python_path, ambient))
+    env = os.environ | {"PYTHONPATH": python_path}
     result = subprocess.run(
         [sys.executable, str(script), *FAST_PATH_HEAVY_MODULES],
         capture_output=True,
