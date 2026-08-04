@@ -34,7 +34,7 @@ def _warnings(caplog) -> list[str]:
 
 
 def test_decoder_contains_failures_and_short_circuits() -> None:
-    """One decode failure is contained and never retried.
+    """One decode failure is contained and not retried within the cooldown.
 
     aioesphomeapi isolates exceptions raised by log handlers, so an
     escaping one logs a full traceback for every line it fires on; and
@@ -48,6 +48,37 @@ def test_decoder_contains_failures_and_short_circuits() -> None:
 
     assert handler.call_count == 1
     assert processor.backtrace_state is False
+
+
+def test_latch_rearms_after_cooldown(caplog) -> None:
+    """A transient failure must not kill decoding for the whole session.
+
+    Within the cooldown lines are skipped; once it passes the next line
+    gets a fresh decode attempt, and a still-failing decoder warns again
+    instead of degrading silently.
+    """
+    handler = Mock(side_effect=EsphomeError("no idedata"))
+    with patch.object(
+        stacktrace.time, "monotonic", side_effect=[0.0, 30.0, 61.0, 61.0]
+    ):
+        processor = _run(
+            handler, lines=("PC: 0x4010496e", "BT0: 0x4010496e", "BT1: 0x401049aa")
+        )
+
+    assert handler.call_count == 2
+    assert processor.backtrace_state is False
+    assert len([m for m in _warnings(caplog) if "esphome compile" in m]) == 2
+
+
+def test_no_analyzer_never_rearms(caplog) -> None:
+    """A platform without an analyzer stays off; there is nothing to retry."""
+    processor = _run(None, lines=())
+    with patch.object(stacktrace.time, "monotonic", return_value=1e9):
+        processor.process_line("PC: 0x4010496e")
+
+    assert processor.backtrace_state is False
+    # A re-arm here would feed the missing handler and warn; it must not.
+    assert not _warnings(caplog)
 
 
 def test_decoder_swallows_os_error_with_remediation_hint(caplog) -> None:

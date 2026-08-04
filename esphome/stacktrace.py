@@ -8,12 +8,21 @@ or any platform package.
 from __future__ import annotations
 
 import logging
+import time
 
 from esphome import platform_hooks
 from esphome.core import EsphomeError
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
+
+# How long a decode failure keeps decoding off. Long enough that a dump
+# with many PC/BT lines fails once instead of retrying a failing
+# addr2line per line, short enough that a transient cause (a concurrent
+# compile rewriting the build tree, a momentary toolchain lock) does not
+# blank out decoding for the rest of a multi-hour session. A permanent
+# cause re-fails and re-warns at most once per cooldown.
+_REARM_COOLDOWN_S = 60.0
 
 
 class LogLineProcessor:
@@ -26,11 +35,13 @@ class LogLineProcessor:
        crash dump carries a PC line plus one per backtrace frame, so the
        tracebacks bury the dump the user is trying to read. Decoding is a
        diagnostic nicety; nothing it raises is worth that noise.
-    2. Disable decoding after the first failure. _decode_pc shells out to
-       the toolchain to resolve addr2line, which is expensive; a single
-       crash dump can contain many PC/BT lines and we don't want to retry
-       the failing subprocess for each one. This only works if every
-       failure is caught, which is why 1 is not narrowed to EsphomeError.
+    2. Disable decoding after a failure, for _REARM_COOLDOWN_S. _decode_pc
+       shells out to the toolchain to resolve addr2line, which is
+       expensive; a single crash dump can contain many PC/BT lines and we
+       don't want to retry the failing subprocess for each one. This only
+       works if every failure is caught, which is why 1 is not narrowed
+       to EsphomeError. A platform without an analyzer stays off for the
+       whole session; there is nothing to retry.
     """
 
     def __init__(self, config: ConfigType, platform: str) -> None:
@@ -38,12 +49,23 @@ class LogLineProcessor:
         self._platform = platform
         self._platform_handler = platform_hooks.get_stacktrace_handler(platform)
         self._decode_enabled = self._platform_handler is not None
+        self._disabled_at: float | None = None
         self.backtrace_state = False
 
     def process_line(self, raw_line: str) -> None:
-        if not self._decode_enabled:
+        if not self._decode_enabled and not self._rearm():
             return
         self._feed(raw_line)
+
+    def _rearm(self) -> bool:
+        """Give decoding another try once the failure cooldown has passed."""
+        if self._disabled_at is None:  # no analyzer; nothing to retry
+            return False
+        if time.monotonic() - self._disabled_at < _REARM_COOLDOWN_S:
+            return False
+        self._decode_enabled = True
+        self._disabled_at = None
+        return True
 
     def _feed(self, raw_line: str) -> None:
         try:
@@ -52,6 +74,7 @@ class LogLineProcessor:
             )
         except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-except
             self._decode_enabled = False
+            self._disabled_at = time.monotonic()
             self.backtrace_state = False
             _LOGGER.debug("Stack-trace decoding failed", exc_info=True)
             if isinstance(exc, (EsphomeError, OSError)):
