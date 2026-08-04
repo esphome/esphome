@@ -78,8 +78,6 @@ class ES8388 final : public audio_dac::AudioDac, public Component, public i2c::I
   /// @return True if successful and false otherwise
   bool set_mute_state_(bool mute_state);
 
-  bool is_muted_{false};
-
   optional<size_t> dac_output_initial_index_{};
   optional<size_t> adc_input_mic_initial_index_{};
 };
