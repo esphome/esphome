@@ -9,6 +9,7 @@
 #include "esphome/core/hal.h"
 
 #include "esp_heap_caps.h"
+#include "esp_log.h"           // esp_log_level_set()
 #include "esp_memory_utils.h"  // esp_ptr_external_ram()
 
 #include <atomic>
@@ -59,6 +60,19 @@ static constexpr uint32_t JPEG_DQBUF_TIMEOUT_MS = 100;
 // every 33-66 ms, so this is a hang guard, not a poll interval: a sensor that
 // stops producing must not take the main loop down with it.
 static constexpr uint32_t CAPTURE_DQBUF_TIMEOUT_MS = 500;
+
+// How long the pipeline keeps running after the last consumer went away.
+//
+// Every VIDIOC_STREAMOFF on the MIPI-CSI device destroys the ISP processor
+// (esp_video's csi_video_stop -> stop_isp -> esp_isp_del_processor) and every
+// STREAMON builds a new one and re-runs the AE/AWB/gamma pipeline from
+// scratch, while esp_video's own ISP controller task keeps running throughout.
+// Espressif's examples stream on once and never stop, so cycling that on every
+// browser reconnect or single-image request is both slow (the exposure has to
+// re-converge, so the first frames are visibly wrong) and needless churn in a
+// part of esp_video that is not written for it. Idling for a few seconds costs
+// nothing and turns a reconnect or a burst of snapshots into a no-op.
+static constexpr uint32_t CAPTURE_IDLE_TIMEOUT_MS = 5000;
 
 // ===========================================================================
 // Pipeline init helpers (run esp_video_init on core 0, optional LEDC XCLK)
@@ -267,6 +281,18 @@ void ESPVideoCameraImageReader::return_image() {
 // ESPVideoCamera — setup / pipeline init
 // ===========================================================================
 void ESPVideoCamera::setup() {
+  // Drop esp_video's per-frame ISP statistics dump before anything can emit it.
+  //
+  // That dump (print_stats_info) runs in esp_video's ISP controller task, which
+  // has a hard-coded 4 KB stack at priority 11 and already runs the whole IPA
+  // pipeline on it. It is compiled in whenever the IDF log level is DEBUG,
+  // which is ESPHome's default, and it prints tens of lines per frame. Each one
+  // reaches ESPHome from a non-main task, so it is formatted with a 144-byte
+  // buffer on that same 4 KB stack -- and a blown stack in that task is a
+  // "Load access fault" panic, not a clean stack-overflow report. Info and
+  // above still come through; only the per-frame spam is dropped.
+  esp_log_level_set("ISP", ESP_LOG_INFO);
+
   if (!this->init_pipeline_()) {
     this->mark_failed();
     return;
@@ -454,8 +480,16 @@ void ESPVideoCamera::loop() {
     this->loop_direct_capture_();
   }
 
-  if (this->stream_requesters_ == 0 && this->single_requesters_ == 0)
+  // Keep dequeuing and re-queuing while idle so the buffers stay in flight;
+  // deliver_frame_() drops the frames instead of copying them. Only tear the
+  // pipeline down once nobody has come back for a while (CAPTURE_IDLE_TIMEOUT_MS).
+  if (wanted) {
+    this->idle_since_ms_ = 0;
+  } else if (this->idle_since_ms_ == 0) {
+    this->idle_since_ms_ = millis() | 1u;  // never 0, that is the "not idle" marker
+  } else if ((millis() - this->idle_since_ms_) >= CAPTURE_IDLE_TIMEOUT_MS) {
     this->stop_capture_();
+  }
 }
 
 bool ESPVideoCamera::handle_device_gone_(int err) {
@@ -470,6 +504,11 @@ bool ESPVideoCamera::handle_device_gone_(int err) {
 
 void ESPVideoCamera::deliver_frame_(const uint8_t *data, size_t length) {
   if (length == 0)
+    return;
+  // Nobody is watching: the pipeline is only still running out its idle grace
+  // period (see loop()), so throw the frame away instead of copying it.
+  auto requesters = (uint8_t) (this->single_requesters_ | this->stream_requesters_);
+  if (requesters == 0)
     return;
   uint32_t now = millis();
   if (this->min_interval_ms_ > 0 && (now - this->last_frame_ms_) < this->min_interval_ms_)
@@ -489,8 +528,7 @@ void ESPVideoCamera::deliver_frame_(const uint8_t *data, size_t length) {
     return;
   }
   memcpy(copy, data, length);
-  this->current_image_ = std::make_shared<ESPVideoCameraImage>(
-      copy, length, (uint8_t) (this->single_requesters_ | this->stream_requesters_));
+  this->current_image_ = std::make_shared<ESPVideoCameraImage>(copy, length, requesters);
   for (auto *listener : this->listeners_)
     listener->on_camera_image(this->current_image_);
   this->single_requesters_ = 0;
@@ -530,8 +568,15 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
     return;
   }
 
+  // While the pipeline is only running out its idle grace period there is
+  // nobody to hand a frame to, so skip the encode entirely and just cycle the
+  // sensor buffer. The encoder is left exactly as STREAMON leaves it (its
+  // CAPTURE buffer queued, OUTPUT idle), so the next requester resumes into a
+  // ready encoder.
+  const bool wanted = (this->stream_requesters_ != 0) || (this->single_requesters_ != 0);
+
   bool encoder_broken = false;
-  if (cap_buf.index < (uint32_t) this->num_capture_buffers_ && cap_buf.bytesused > 0) {
+  if (wanted && cap_buf.index < (uint32_t) this->num_capture_buffers_ && cap_buf.bytesused > 0) {
     // M2M encode, in the order Espressif's own example uses (esp_video
     // examples/m2m, m2m_encode_frame): queue the raw frame on OUTPUT, dequeue
     // the encoded frame from CAPTURE, and only then reclaim the OUTPUT buffer.
@@ -789,6 +834,7 @@ bool ESPVideoCamera::start_capture_() {
   }
   this->streaming_ = true;
   this->last_frame_ms_ = 0;
+  this->idle_since_ms_ = 0;
   this->logged_qbuf_failure_ = false;
   return true;
 }
@@ -977,6 +1023,7 @@ void ESPVideoCamera::stop_capture_() {
   }
   this->num_capture_buffers_ = 0;
   this->streaming_ = false;
+  this->idle_since_ms_ = 0;
   // Any pending re-open is re-armed by handle_device_gone_() after this call;
   // a clean stop must not leave one behind.
   this->capture_retry_pending_ = false;
