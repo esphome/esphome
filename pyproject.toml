@@ -110,6 +110,10 @@ target-version = "py312"
 exclude = ['generated']
 
 [tool.ruff.lint]
+# Preview mode is scoped: with explicit-preview-rules only rules named in
+# select run in preview, prefixes like "PL" keep their stable set.
+preview = true
+explicit-preview-rules = true
 select = [
   "B",    # flake8-bugbear
   "BLE",  # flake8-blind-except
@@ -131,6 +135,7 @@ select = [
   "PGH",  # pygrep-hooks
   "PIE",  # flake8-pie
   "PL",   # pylint
+  "PLW1514", # require explicit encoding on text file I/O (Windows defaults to cp1252)
   "PTH",  # flake8-use-pathlib
   "PYI",  # flake8-pyi
   "Q",    # flake8-quotes

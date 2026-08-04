@@ -77,6 +77,7 @@ VARIANT = ZephyrVariant(
     # nrf52840 layout never had one either), and move/offset don't need one.
     swap_methods=frozenset({"move", "offset"}),
     adc_ain_map=_ADC_AIN_MAP,
+    pwm_node_labels=["pwm0", "pwm1", "pwm2", "pwm3"],
 )
 
 
@@ -101,7 +102,6 @@ def config_schema(config: ConfigType) -> ConfigType:
         framework_type=sdk_name,
         sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
     )
-    config[KEY_FRAMEWORK_VERSION] = version_str
     return config
 
 

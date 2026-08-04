@@ -52,6 +52,9 @@ VARIANT = ZephyrVariant(
     # nrf54l15dk_common.dtsi only enables uart20 (routed to the DK's VCOM0/J-Link USB
     # serial, the natural default) and uart30 -- there is no uart0/uart1 node on this SoC.
     uart_node_labels={"UART0": "uart20", "UART1": "uart30"},
+    # nrf54l_05_10_15.dtsi defines pwm20/pwm21/pwm22 -- same peripheral-instance-number
+    # convention as uart_node_labels above, not nRF52840's pwm0-pwm3 low-number scheme.
+    pwm_node_labels=["pwm20", "pwm21", "pwm22"],
 )
 
 
@@ -75,7 +78,6 @@ def config_schema(config: ConfigType) -> ConfigType:
         framework_type=sdk_name,
         sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
     )
-    config[KEY_FRAMEWORK_VERSION] = version_str
     return config
 
 

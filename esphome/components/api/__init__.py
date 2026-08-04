@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_CAPTURE_RESPONSE,
     CONF_DATA,
     CONF_DATA_TEMPLATE,
+    CONF_ENCRYPTION,
     CONF_EVENT,
     CONF_ID,
     CONF_KEY,
@@ -102,7 +103,6 @@ SERVICE_ARG_FALLBACK_TYPES: dict[str, MockObj] = {
         for name, t in _SERVICE_ARG_SCALAR_TYPES.items()
     },
 }
-CONF_ENCRYPTION = "encryption"
 CONF_BATCH_DELAY = "batch_delay"
 CONF_CUSTOM_SERVICES = "custom_services"
 CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"

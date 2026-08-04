@@ -158,6 +158,11 @@ class ZephyrVariant:
     uart_node_labels: dict[str, str] = field(
         default_factory=lambda: {"UART0": "uart0", "UART1": "uart1"}
     )
+    # Devicetree node labels of this variant's PWM peripheral instances, in
+    # zephyr_pwm's block-allocation order. nRF52840 numbers them pwm0-pwm3; nRF54L
+    # series numbers peripheral instances instead (pwm20-pwm22), same convention as
+    # uart_node_labels above. Empty = no PWM support wired up.
+    pwm_node_labels: list[str] = field(default_factory=list)
 
 
 def resolve_sdk(
@@ -294,6 +299,7 @@ def set_core_data(
     prj_conf: dict | None = None,
     sysbuild_conf: dict | None = None,
     overlay: dict | None = None,
+    overlay_builder: list | None = None,
     extra_build_files: dict | None = None,
     pm_static: list | None = None,
     user: dict | None = None,
@@ -334,6 +340,7 @@ def set_core_data(
         prj_conf=prj_conf if prj_conf is not None else {},
         sysbuild_conf=sysbuild_conf if sysbuild_conf is not None else {},
         overlay=overlay if overlay is not None else {"": ""},
+        overlay_builder=overlay_builder if overlay_builder is not None else [],
         extra_build_files=extra_build_files if extra_build_files is not None else {},
         pm_static=pm_static if pm_static is not None else [],
         user=user if user is not None else {},
