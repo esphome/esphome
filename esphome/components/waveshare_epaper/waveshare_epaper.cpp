@@ -115,8 +115,27 @@ void WaveshareEPaperBase::setup() {
   this->setup_pins_();
   this->spi_setup();
   this->reset_();
+  this->restore_update_counter_();
   this->initialize();
 }
+void WaveshareEPaperBase::restore_update_counter_() {
+  // at_update_ decides whether the next refresh uses the full or the partial
+  // waveform. Without persistence it restarts at 0 after every deep sleep, so
+  // a device that sleeps between refreshes takes the full-refresh path every
+  // time and full_update_every never takes effect.
+  // Displays are not entities, so there is no entity preference helper here.
+  // The DC pin summary discriminates between several displays in one
+  // configuration and stays stable across builds as long as the wiring does.
+  char pin_summary[64];
+  this->dc_pin_->dump_summary(pin_summary, sizeof(pin_summary));
+  const uint32_t hash = fnv1_hash(std::string("waveshare_epaper_at_update_") + pin_summary);
+  this->update_counter_pref_ = global_preferences->make_preference<uint32_t>(hash, true);
+  uint32_t at_update = 0;
+  if (this->update_counter_pref_.load(&at_update)) {
+    this->at_update_ = at_update;
+  }
+}
+void WaveshareEPaperBase::save_update_counter_() { this->update_counter_pref_.save(&this->at_update_); }
 void WaveshareEPaperBase::setup_pins_() {
   this->dc_pin_->setup();  // OUTPUT
   this->dc_pin_->digital_write(false);
@@ -169,6 +188,7 @@ bool WaveshareEPaperBase::wait_until_idle_() {
 void WaveshareEPaperBase::update() {
   this->do_update_();
   this->display();
+  this->save_update_counter_();
 }
 void WaveshareEPaper::fill(Color color) {
   // If clipping is active, fall back to base implementation

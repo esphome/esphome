@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/preferences.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display_buffer.h"
 
@@ -32,6 +33,20 @@ class WaveshareEPaperBase : public display::DisplayBuffer,
 
  protected:
   bool wait_until_idle_();
+
+  /** Partial-refresh cycle counter.
+   *
+   * Models that support partial refreshes compare this against
+   * full_update_every_ to pick the waveform for the next refresh. It is
+   * persisted so the cycle survives deep sleep; see restore_update_counter_().
+   */
+  uint32_t full_update_every_{30};
+  uint32_t at_update_{0};
+
+  void restore_update_counter_();
+  void save_update_counter_();
+
+  ESPPreferenceObject update_counter_pref_;
 
   void setup_pins_();
 
@@ -162,8 +177,6 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
 
   int get_width_controller() override;
 
-  uint32_t full_update_every_{30};
-  uint32_t at_update_{0};
   WaveshareEPaperTypeAModel model_;
   uint32_t idle_timeout_() override;
 
@@ -286,8 +299,6 @@ class GDEW029T5 : public WaveshareEPaper {
   int get_height_internal() override;
 
  private:
-  uint32_t full_update_every_{30};
-  uint32_t at_update_{0};
   bool deep_sleep_between_updates_{false};
   bool power_is_on_{false};
   bool is_deep_sleep_{false};
@@ -432,8 +443,6 @@ class WaveshareEPaper2P9InV2R2 : public WaveshareEPaper {
 
   int get_width_controller() override;
 
-  uint32_t full_update_every_{30};
-  uint32_t at_update_{0};
 
  private:
   void reset_();
@@ -456,8 +465,6 @@ class WaveshareEPaper2P9InDKE : public WaveshareEPaper {
   void set_full_update_every(uint32_t full_update_every);
 
  protected:
-  uint32_t full_update_every_{30};
-  uint32_t at_update_{0};
   int get_width_internal() override;
 
   int get_height_internal() override;
@@ -506,8 +513,6 @@ class GDEY042T81 : public WaveshareEPaper {
   void set_full_update_every(uint32_t full_update_every);
 
  protected:
-  uint32_t full_update_every_{30};
-  uint32_t at_update_{0};
 
   int get_width_internal() override;
   int get_height_internal() override;
@@ -712,8 +717,6 @@ class GDEY0583T81 : public WaveshareEPaper {
   void init_partial_();
   void init_display_();
 
-  uint32_t full_update_every_{30};
-  uint32_t at_update_{0};
   bool power_is_on_{false};
   bool is_deep_sleep_{false};
   uint8_t *old_buffer_{nullptr};
@@ -983,8 +986,6 @@ class WaveshareEPaper7P5InV2P : public WaveshareEPaper {
 
   uint32_t idle_timeout_() override;
 
-  uint32_t full_update_every_{30};
-  uint32_t at_update_{0};
 
  private:
   void reset_();
@@ -1036,8 +1037,6 @@ class WaveshareEPaper2P13InDKE : public WaveshareEPaper {
 
   uint32_t idle_timeout_() override;
 
-  uint32_t full_update_every_{30};
-  uint32_t at_update_{0};
 };
 
 class WaveshareEPaper2P13InV3 : public WaveshareEPaper {
@@ -1070,8 +1069,6 @@ class WaveshareEPaper2P13InV3 : public WaveshareEPaper {
   void partial_update_();
   void full_update_();
 
-  uint32_t full_update_every_{30};
-  uint32_t at_update_{0};
   bool is_busy_{false};
   void write_lut_(const uint8_t *lut);
 };
