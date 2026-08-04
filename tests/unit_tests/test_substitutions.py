@@ -1,3 +1,5 @@
+from collections import ChainMap
+from fnmatch import fnmatchcase
 import logging
 from pathlib import Path
 from typing import Any
@@ -961,3 +963,134 @@ def test_remote_package_scalar_yaml_raises_helpful_error(
     msg = str(exc_info.value)
     assert "mapping at the top level" in msg
     assert "file1.yaml" in msg
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        pytest.param("wifi.yaml", ["wifi.yaml"], id="literal_passthrough"),
+        pytest.param(
+            "keys/${system_name}.yaml", ["keys/*.yaml"], id="embedded_substitution"
+        ),
+        pytest.param(
+            "network/${eth_model}/config.yaml",
+            ["network/*/config.yaml"],
+            id="directory_substitution",
+        ),
+        pytest.param(
+            "device-$platform.yaml", ["device-*.yaml"], id="unbraced_substitution"
+        ),
+        pytest.param("${a}${b}.yaml", ["*.yaml"], id="adjacent_wildcards_collapse"),
+        pytest.param(
+            '${ "a.yaml" if x else "../empty.yaml" }',
+            ["a.yaml", "../empty.yaml"],
+            id="conditional_literals",
+        ),
+        pytest.param(
+            'pre-${ "a" if c else "b" }.yaml',
+            ["pre-a.yaml", "pre-b.yaml"],
+            id="conditional_spliced",
+        ),
+        pytest.param(
+            '${ "x.yaml" if a else ("y.yaml" if b else "z.yaml") }',
+            ["x.yaml", "y.yaml", "z.yaml"],
+            id="nested_conditional",
+        ),
+        pytest.param(
+            '${ "same.yaml" if x else "same.yaml" }',
+            ["same.yaml"],
+            id="duplicate_literals_dedupe",
+        ),
+        pytest.param('${ "a.yaml" if x }', ["a.yaml"], id="conditional_no_else"),
+        pytest.param(
+            '${ "NO BLUETOOTH SUPPORT ON ESP8266.yaml"'
+            ' if enable_bluetooth_proxy else "../empty.yaml" }',
+            ["NO BLUETOOTH SUPPORT ON ESP8266.yaml", "../empty.yaml"],
+            id="issue_17650_verbatim",
+        ),
+        pytest.param(
+            '${ "" if x else "b.yaml" }', ["b.yaml"], id="empty_literal_dropped"
+        ),
+        pytest.param(
+            "keys\\${system_name}.yaml",
+            ["keys\\*.yaml"],
+            id="backslash_separator",
+        ),
+        pytest.param(
+            '${ "it\'s.yaml" if x else "b.yaml" }',
+            ["it's.yaml", "b.yaml"],
+            id="apostrophe_in_literal",
+        ),
+        pytest.param(
+            '${ "a-${x}.yaml" if c else "b.yaml" }',
+            ["a-*.yaml", "b.yaml"],
+            id="substitution_inside_literal",
+        ),
+        pytest.param("sensor [${x}].yaml", ["sensor [[]*].yaml"], id="bracket_escaped"),
+        pytest.param(
+            "config?${x}.yaml", ["config[?]*.yaml"], id="question_mark_escaped"
+        ),
+        pytest.param(
+            "../${x}/config.yaml", ["../*/config.yaml"], id="ascending_directory"
+        ),
+        pytest.param("${file}", [], id="bare_variable_dropped"),
+        pytest.param("../${file}", [], id="ascending_bare_variable_dropped"),
+        pytest.param(
+            '${ name ~ ".yaml" }', [".yaml"], id="dynamic_concat_extracts_literal"
+        ),
+        pytest.param("${ if }", [], id="no_literal_expression_dropped"),
+        pytest.param(
+            "<% if x %>a.yaml<% endif %>", ["*a.yaml*"], id="block_statement_globs"
+        ),
+    ],
+)
+def test_include_candidate_patterns(value: str, expected: list[str]) -> None:
+    """Templated include paths expand to glob patterns and branch literals."""
+    assert substitutions.include_candidate_patterns(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("template", "variables"),
+    [
+        pytest.param(
+            "keys/${system_name}.yaml", {"system_name": "esp-buero"}, id="embedded"
+        ),
+        pytest.param("device-$platform.yaml", {"platform": "esp32"}, id="unbraced"),
+        pytest.param(
+            "network/${eth_model}/config.yaml", {"eth_model": "eth01"}, id="directory"
+        ),
+        pytest.param(
+            '${ "NO BT.yaml" if bt else "../empty.yaml" }',
+            {"bt": True},
+            id="conditional_true",
+        ),
+        pytest.param(
+            '${ "NO BT.yaml" if bt else "../empty.yaml" }',
+            {"bt": False},
+            id="conditional_false",
+        ),
+        pytest.param('pre-${ "a" if c else "b" }.yaml', {"c": True}, id="spliced"),
+        pytest.param("${a}${b}.yaml", {"a": "x", "b": "y"}, id="adjacent"),
+        pytest.param("sensor [${x}].yaml", {"x": "a"}, id="bracket"),
+    ],
+)
+def test_include_candidate_patterns_cover_real_expansion(
+    template: str, variables: dict[str, Any]
+) -> None:
+    """
+    Lockstep pin against the real substitution machinery.
+
+    include_candidate_patterns mirrors _expand_substitutions without
+    variable values (the evaluator returns the one selected branch, so it
+    cannot enumerate candidates itself); this asserts every filename the
+    real pass resolves is covered by a candidate pattern, so a change to
+    reference syntax or expansion order breaks here instead of silently
+    dropping files from bundles.
+    """
+    resolved = str(
+        substitutions._expand_substitutions(
+            template, [], ChainMap(variables), True, None
+        )
+    )
+    patterns = substitutions.include_candidate_patterns(template)
+    assert any(fnmatchcase(resolved, p) or resolved == p for p in patterns)

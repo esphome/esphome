@@ -439,6 +439,7 @@ esphome/components/rp2/* @jesserockz
 esphome/components/rp2040_ble/* @bdraco
 esphome/components/rp2040_pio_led_strip/* @Papa-DMan
 esphome/components/rp2040_pwm/* @jesserockz
+esphome/components/rp2_ble_tracker/* @bdraco
 esphome/components/rpi_dpi_rgb/* @clydebarrow
 esphome/components/rtl87xx/* @kuba2k2
 esphome/components/rtttl/* @glmnet @ximex
@@ -629,6 +630,7 @@ esphome/components/xpt2046/touchscreen/* @nielsnl68 @numo68
 esphome/components/xxtea/* @clydebarrow
 esphome/components/zephyr/* @tomaszduda23
 esphome/components/zephyr_mcumgr/ota/* @tomaszduda23
+esphome/components/zephyr_pwm/* @wiomoc
 esphome/components/zhlt01/* @cfeenstra1024
 esphome/components/zigbee/* @luar123 @tomaszduda23
 esphome/components/zio_ultrasonic/* @kahrendt

@@ -384,6 +384,7 @@ CONF_ENABLE_PIN = "enable_pin"
 CONF_ENABLE_PRIVATE_NETWORK_ACCESS = "enable_private_network_access"
 CONF_ENABLE_RRM = "enable_rrm"
 CONF_ENABLE_TIME = "enable_time"
+CONF_ENCRYPTION = "encryption"
 CONF_ENERGY = "energy"
 CONF_ENTITY_CATEGORY = "entity_category"
 CONF_ENTITY_ID = "entity_id"
@@ -1421,6 +1422,11 @@ KEY_FRAMEWORK_VERSION = "framework_version"
 KEY_NAME = "name"
 KEY_VARIANT = "variant"
 KEY_PAST_SAFE_MODE = "past_safe_mode"
+# esp32 storage keys; defined here so the upload/logs fast path
+# (storage_json.apply_to_core) can use them without importing the
+# esp32 component package.
+KEY_ESP32 = "esp32"
+KEY_IDF_VERSION = "idf_version"
 
 # Entity categories
 ENTITY_CATEGORY_NONE = ""
