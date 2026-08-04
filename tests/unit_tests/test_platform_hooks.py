@@ -104,6 +104,19 @@ def test_external_platform_missing_module_degrades(
     assert not any(r.levelname == "WARNING" for r in caplog.records)
 
 
+def test_external_platform_without_hook_logs_debug(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The common no-hook case stays quiet but diagnosable."""
+    caplog.set_level("DEBUG", logger="esphome.platform_hooks")
+    module = type("ExternalPlatform", (), {})  # imports fine, no hook
+    monkeypatch.setattr(platform_hooks, "import_module", Mock(return_value=module))
+    assert platform_hooks.get_platform_hook("my_external_chip", "show_logs") is None
+    assert "does not expose" in caplog.text
+    assert not any(r.levelname == "WARNING" for r in caplog.records)
+
+
 def test_stale_registry_entry_warns(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,

@@ -88,10 +88,19 @@ def get_platform_hook(platform: str, hook: str) -> Callable[..., Any] | None:
             )
         return None
     handler = getattr(module, hook, None)
-    if handler is None and registered:
-        _LOGGER.warning(
-            "%s is registered for %s but no longer exposes it; using the generic path",
-            platform,
-            hook,
-        )
+    if handler is None:
+        if registered:
+            _LOGGER.warning(
+                "%s is registered for %s but no longer exposes it; using the generic path",
+                platform,
+                hook,
+            )
+        else:
+            # The common case for external platforms; debug so a typoed
+            # hook name is still diagnosable without being noisy.
+            _LOGGER.debug(
+                "External platform %s does not expose %s; using the generic path",
+                platform,
+                hook,
+            )
     return handler
