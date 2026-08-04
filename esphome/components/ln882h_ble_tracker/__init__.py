@@ -150,10 +150,12 @@ async def start_scan_action_to_code(
 @automation.register_action(
     "ln882h_ble_tracker.stop_scan",
     StopScanAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(LN882HBLETracker),
-        }
+    automation.maybe_simple_id(
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.use_id(LN882HBLETracker),
+            }
+        )
     ),
     synchronous=True,
 )
