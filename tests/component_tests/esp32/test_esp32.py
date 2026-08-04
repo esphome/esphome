@@ -604,6 +604,7 @@ def test_network_wifi_ble_coexistence_reconciles_end_to_end(
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_BT_ENABLED") is True
     assert sdkconfig.get("CONFIG_BT_BLE_42_FEATURES_SUPPORTED") is True
+    assert sdkconfig.get("CONFIG_BT_BLE_50_FEATURES_SUPPORTED") is False
     assert sdkconfig.get("CONFIG_SW_COEXIST_ENABLE") is True
     assert sdkconfig.get("CONFIG_ESP_WIFI_SOFTAP_SUPPORT") is False
     assert sdkconfig.get("CONFIG_LWIP_DHCPS") is False

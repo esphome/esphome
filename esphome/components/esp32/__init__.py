@@ -2052,8 +2052,8 @@ async def _reconcile_network_sdkconfig() -> None:
         if name not in opts:
             add_idf_sdkconfig_option(name, value)
 
-    # Bluetooth: only ever enable when requested. The IDF default is off and
-    # nothing sets these False today, so never write False here.
+    # Bluetooth: only ever enable when requested. The IDF default is off.
+    # According to the IDF docs, only one of 4.2 or 5.0 should be enabled.
     if net.bluetooth:
         set_opt("CONFIG_BT_ENABLED", True)
         set_opt("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
