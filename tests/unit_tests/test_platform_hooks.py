@@ -8,40 +8,32 @@ that the fast path really avoids the import.
 
 from __future__ import annotations
 
-from pathlib import Path
-import re
+import importlib
 from unittest.mock import Mock
 
 import pytest
 
 from esphome import platform_hooks
-from esphome.const import PLATFORM_ESP32
-
-COMPONENTS_DIR = Path(platform_hooks.__file__).parent / "components"
-
-_HOOK_DEF_RE = re.compile(
-    rf"^def ({'|'.join(platform_hooks.PLATFORM_HOOKS)})\(", re.MULTILINE
-)
+from esphome.const import PLATFORM_ESP32, Platform
 
 
-def _scan_hook_definitions() -> dict[str, set[str]]:
-    """Find module-level hook definitions in every component package."""
-    found: dict[str, set[str]] = {hook: set() for hook in platform_hooks.PLATFORM_HOOKS}
-    for init in COMPONENTS_DIR.glob("*/__init__.py"):
-        for match in _HOOK_DEF_RE.finditer(init.read_text(encoding="utf-8")):
-            found[match.group(1)].add(init.parent.name)
-    return found
+def test_no_unregistered_platform_exposes_a_hook() -> None:
+    """Every platform hook the packages expose must be registered.
 
-
-def test_registry_matches_component_sources() -> None:
-    """Every hook definition must be registered, and vice versa."""
-    found = _scan_hook_definitions()
-    for hook, registered in platform_hooks.PLATFORM_HOOKS.items():
-        assert found[hook] == set(registered), (
-            f"platform_hooks registry for {hook} is out of sync with "
-            f"esphome/components/*/__init__.py: sources define {sorted(found[hook])}, "
-            f"registry has {sorted(registered)}. Update esphome/platform_hooks.py."
-        )
+    Behavioural on purpose: a hook added as a re-export, an assignment,
+    or an ``async def`` is invisible to source scanning but very visible
+    to ``hasattr``, and an unregistered hook is silently never called.
+    The registered direction is covered by
+    test_every_registered_pair_resolves below.
+    """
+    for platform in frozenset(Platform):
+        module = importlib.import_module(f"esphome.components.{platform}")
+        for hook, registered in platform_hooks.PLATFORM_HOOKS.items():
+            if hasattr(module, hook):
+                assert platform in registered, (
+                    f"{platform} exposes {hook} but is not registered for it. "
+                    "Update esphome/platform_hooks.py."
+                )
 
 
 def test_registered_platform_resolves_hook() -> None:

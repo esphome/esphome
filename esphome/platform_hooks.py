@@ -10,7 +10,9 @@ scans the sources and fails when they drift.
 
 The compile-path ``run_compile`` hook is deliberately not registered:
 compiling imports the platform package regardless, so its probe in
-``__main__.py`` stays eager.
+``__main__.py`` stays eager. The network log client's
+``process_stacktrace`` probe in ``esphome/api_client.py`` still uses the
+old importlib pattern; converting it is a separate change.
 """
 
 from __future__ import annotations
@@ -40,8 +42,11 @@ PLATFORM_HOOKS: Final[dict[str, frozenset[str]]] = {
 
 
 # The registry only speaks for in-tree platforms; a target platform
-# supplied via external_components is not in Platform and falls back to
-# probing the imported package, as the CLI did before the registry.
+# supplied via external_components is normally not in Platform and falls
+# back to probing the imported package, as the CLI did before the
+# registry. Deliberate trade: an external component that shadows an
+# in-tree platform name (the meta finder allows it) is treated as the
+# in-tree platform here, so its own hooks are not probed.
 _IN_TREE_PLATFORMS: Final = frozenset(Platform)
 
 
