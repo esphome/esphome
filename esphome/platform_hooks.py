@@ -54,15 +54,6 @@ PLATFORM_HOOKS: Final[dict[str, frozenset[str]]] = {
 _IN_TREE_PLATFORMS: Final = frozenset(Platform)
 
 
-def may_provide_hook(platform: str, hook: str) -> bool:
-    """False when the registry proves this in-tree platform lacks the hook.
-
-    External platforms always return True; only the probe can answer for
-    them.
-    """
-    return platform in PLATFORM_HOOKS[hook] or platform not in _IN_TREE_PLATFORMS
-
-
 def get_platform_hook(platform: str, hook: str) -> Callable[..., Any] | None:
     """Return ``esphome.components.<platform>.<hook>`` or None.
 

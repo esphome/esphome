@@ -81,7 +81,13 @@ def test_crash_samples_cover_registry() -> None:
     assert all(samples["addresses"] for samples in CRASH_SAMPLES.values())
 
 
-@pytest.mark.parametrize("line", CRASH_LINES)
+# The address-free region markers the state-gated decoders key on; the
+# gate matches these directly so those decoders never depend on the
+# replay window to see their marker.
+STATE_MARKERS = [">>>stack>>>", "CRASH DETECTED ON PREVIOUS BOOT", "Last crash:"]
+
+
+@pytest.mark.parametrize("line", CRASH_LINES + STATE_MARKERS)
 def test_address_gate_fires_on_platform_dump_lines(line: str) -> None:
     assert stacktrace._ADDRESS_RE.search(line)
 
@@ -147,6 +153,11 @@ def test_samples_and_decoder_patterns_cover_each_other(platform: str) -> None:
     sample must match a declared pattern, and every declared pattern
     must be exercised by a sample - so a decoder gaining a new address
     form cannot ship without a sample the gate test then has to pass.
+
+    Known blind spots: the esp32/esp8266 catch-all backtrace patterns
+    can satisfy the sample-matches-a-pattern direction on their own, and
+    the undeclared-pattern sweep keys off naming, so a differently-named
+    constant or a function-local re.search literal is invisible to it.
     """
     import importlib
     import re
@@ -331,7 +342,7 @@ def test_replay_overflow_is_diagnosable(
     caplog, quiet_lines: int, expect_notice: bool
 ) -> None:
     """The overflow trace fires only when context was actually evicted."""
-    caplog.set_level("DEBUG", logger="esphome.stacktrace")
+    caplog.set_level("INFO", logger="esphome.stacktrace")
     handler = Mock(return_value=False)
     with patch.object(
         stacktrace.platform_hooks, "get_stacktrace_handler", return_value=handler

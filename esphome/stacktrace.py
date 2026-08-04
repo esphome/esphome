@@ -30,17 +30,22 @@ _LOGGER = logging.getLogger(__name__)
 # subprocess the same way (esphome_device_builder/controllers/devices/
 # backtrace.py).
 # The letter-requiring bare-hex alternation keeps 8-digit decimals
-# (uptime counters, sensor readings) from tripping the gate. The final
-# alternation admits the letter-free code-address forms the decoders
+# (uptime counters, sensor readings) from tripping the gate. The keyword
+# alternations admit the letter-free code-address forms the decoders
 # key on only behind their register/alloc keywords, so ESP-IDF's
 # decimal log timestamps ("I (40219876)") and 4xxxxxxx-range decimals
 # stay out. A false trigger costs one platform import on the event loop
-# mid-stream, which is why it must stay rare.
+# mid-stream, which is why it must stay rare. The final alternation
+# gates on the region markers the state-gated decoders (rp2, nrf52,
+# esp8266) key on: they are far more stable than the address grammar,
+# CRASH_SAMPLES pins each one, and matching them directly means those
+# decoders never depend on the replay window to see their marker.
 _ADDRESS_RE = re.compile(
     r"0x[0-9a-fA-F]{3,}\b"
     r"|\b(?=[0-9A-Fa-f]*[A-Fa-f])[0-9a-fA-F]{8}\b"
     r"|\b(?:PC|RA|LR|MEPC|MTVAL|EXCVADDR|BT\d+|epc\d|excvaddr|call)\s*[:=]\s*4[0-9a-fA-F]{7}\b"
     r"|\b(?:PC|LR)=0x[0-9a-fA-F]+\b"
+    r"|>>>stack>>>|CRASH DETECTED ON PREVIOUS BOOT|Last crash:"
 )
 
 # Lines kept for replay once decoding starts. Crash markers without an
@@ -110,7 +115,10 @@ class LogLineProcessor:
                 # decodes to nothing; make that diagnosable in the field.
                 # Only what is observable is claimed: lines rolled off,
                 # whether any of them mattered is unknowable here.
-                _LOGGER.debug(
+                # Fires at most once per session, exactly when a crash
+                # is in progress; INFO so an undecoded dump is explicable
+                # without -v.
+                _LOGGER.info(
                     "Replay window held only the last %d lines; older context was not delivered",
                     _REPLAY_LINES,
                 )
