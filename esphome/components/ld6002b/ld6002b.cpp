@@ -207,6 +207,9 @@ void LD6002BComponent::parse_byte_(uint8_t byte) {
 
 void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_t len) {
   this->last_traffic_ms_ = millis();
+  if (this->stale_ack_count_ > 0 && millis() - this->stale_ack_ms_ > STALE_ACK_MAX_AGE_MS) {
+    this->stale_ack_count_ = 0;
+  }
   // ACKs carry no id and arrive in send order: debt from earlier attempts is paid before the active command.
   if (len == 0 && this->stale_ack_count_ > 0 && this->stale_ack_type_ == type) {
     this->stale_ack_count_--;
@@ -220,6 +223,7 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
     this->send_generation_++;
     this->stale_ack_type_ = type;
     this->stale_ack_count_ = this->acks_expected_ > 0 ? static_cast<uint8_t>(this->acks_expected_ - 1) : 0;
+    this->stale_ack_ms_ = millis();
     this->command_active_ = false;
     this->command_sent_ = false;
     this->last_send_ms_ = 0;
@@ -360,6 +364,7 @@ void LD6002BComponent::process_command_queue_() {
                               (this->acks_expected_ > 0 ? 1 : 0);
         this->stale_ack_type_ = this->active_command_.type;
         this->stale_ack_count_ = static_cast<uint8_t>(std::min<uint16_t>(owed, 255));
+        this->stale_ack_ms_ = now;
         this->send_generation_++;
         this->command_active_ = false;
         this->command_sent_ = false;

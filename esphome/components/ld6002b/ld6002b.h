@@ -94,6 +94,8 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   // How long the module stays awake after any frame, and so still answers the next one.
   static constexpr uint32_t MODULE_AWAKE_MS = 10000;
   static constexpr uint8_t CMD_MAX_RETRIES = 3;
+  // A reply cannot trail the frame that earned it for longer than this; the field worst case is ~726ms.
+  static constexpr uint32_t STALE_ACK_MAX_AGE_MS = 1000;
 
   std::array<PendingCommand, CMD_QUEUE_SIZE> cmd_queue_{};
   uint8_t cmd_head_{0};
@@ -116,6 +118,8 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   // ACKs still owed for superseded attempts; they carry no id, only their arrival order.
   uint16_t stale_ack_type_{0};
   uint8_t stale_ack_count_{0};
+  // When that debt was booked, so a debt no reply can still settle expires instead of eating a live ACK.
+  uint32_t stale_ack_ms_{0};
   // Bumped whenever the active command changes, so a deferred send can tell it was retired.
   uint8_t send_generation_{0};
 
