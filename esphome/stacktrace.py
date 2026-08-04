@@ -93,6 +93,9 @@ class LogLineProcessor:
             self.backtrace_state = self._platform_handler(
                 self._config, raw_line, self.backtrace_state
             )
+            # A success ends the failure episode; a later failure with
+            # the same message is a new episode and warns in full again.
+            self._last_failure = None
         except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-except
             self._decode_enabled = False
             self._disabled_at = time.monotonic()
