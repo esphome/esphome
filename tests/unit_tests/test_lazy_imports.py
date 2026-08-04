@@ -121,3 +121,18 @@ def test_api_client_does_not_import_heavy_modules() -> None:
         "The logs fast path skips validation; importing the validation "
         "stack anyway defeats the validated-config cache."
     )
+
+
+def test_espidf_toolchain_does_not_import_heavy_modules() -> None:
+    """The esp-idf upload path must not pull the esp32 package back in.
+
+    upload_using_esptool reaches espidf.toolchain for esp-idf builds;
+    its keys and the variant mapping live in esphome.const and
+    esphome.espidf precisely so this import stays light.
+    """
+    leaked = _leaked_heavy_modules("esphome.espidf.toolchain")
+    assert not leaked, (
+        f"esphome.espidf.toolchain imports heavy modules: {leaked}. "
+        "The upload fast path skips validation; importing the validation "
+        "stack anyway defeats the validated-config cache."
+    )

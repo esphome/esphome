@@ -1423,9 +1423,12 @@ KEY_NAME = "name"
 KEY_VARIANT = "variant"
 KEY_PAST_SAFE_MODE = "past_safe_mode"
 # esp32 storage keys; defined here so the upload/logs fast path
-# (storage_json.apply_to_core) can use them without importing the
-# esp32 component package.
+# (storage_json.apply_to_core, espidf.toolchain) can use them without
+# importing the esp32 component package.
 KEY_ESP32 = "esp32"
+# Also used by esp8266 to index its BOARDS metadata dicts, whose
+# entries in boards.py spell the literal; do not change the value.
+KEY_FLASH_SIZE = "flash_size"
 KEY_IDF_VERSION = "idf_version"
 
 # Entity categories
