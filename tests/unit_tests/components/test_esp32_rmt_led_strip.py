@@ -7,7 +7,7 @@ from esphome.components.esp32_rmt_led_strip.light import (
     _validate_rgbw_order_exclusivity,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_IS_RGBW, CONF_RGB_ORDER
+from esphome.const import CONF_IS_RGBW
 
 
 def test_validate_rgbw_order() -> None:
@@ -16,7 +16,24 @@ def test_validate_rgbw_order() -> None:
         _validate_rgbw_order("RGB")
 
 
-@pytest.mark.parametrize("conflict", [CONF_RGB_ORDER, CONF_IS_RGBW, CONF_IS_WRGB])
+@pytest.mark.parametrize("conflict", [CONF_IS_RGBW, CONF_IS_WRGB])
 def test_rgbw_order_is_mutually_exclusive(conflict: str) -> None:
     with pytest.raises(cv.Invalid, match="cannot be used with"):
-        _validate_rgbw_order_exclusivity({CONF_RGBW_ORDER: "RGBW", conflict: True})
+        _validate_rgbw_order_exclusivity(
+            {
+                CONF_RGBW_ORDER: "RGBW",
+                CONF_IS_RGBW: conflict == CONF_IS_RGBW,
+                CONF_IS_WRGB: conflict == CONF_IS_WRGB,
+            }
+        )
+
+
+@pytest.mark.parametrize("legacy_option", [CONF_IS_RGBW, CONF_IS_WRGB])
+def test_rgbw_order_allows_disabled_legacy_options(legacy_option: str) -> None:
+    config = {
+        CONF_RGBW_ORDER: "RGBW",
+        CONF_IS_RGBW: False,
+        CONF_IS_WRGB: False,
+    }
+    config[legacy_option] = False
+    assert _validate_rgbw_order_exclusivity(config) is config

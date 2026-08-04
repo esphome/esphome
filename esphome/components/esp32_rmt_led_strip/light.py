@@ -80,12 +80,10 @@ def _validate_rgbw_order(value: str) -> str:
 
 
 def _validate_rgbw_order_exclusivity(config: ConfigType) -> ConfigType:
-    if CONF_RGBW_ORDER in config and any(
-        key in config for key in (CONF_RGB_ORDER, CONF_IS_RGBW, CONF_IS_WRGB)
-    ):
+    if CONF_RGBW_ORDER in config and (config[CONF_IS_RGBW] or config[CONF_IS_WRGB]):
         raise cv.Invalid(
-            f"'{CONF_RGBW_ORDER}' cannot be used with '{CONF_RGB_ORDER}', "
-            f"'{CONF_IS_RGBW}', or '{CONF_IS_WRGB}'"
+            f"'{CONF_RGBW_ORDER}' cannot be used with '{CONF_IS_RGBW}' or "
+            f"'{CONF_IS_WRGB}'"
         )
     return config
 
@@ -95,7 +93,6 @@ CONFIG_SCHEMA = cv.All(
         unsupported=list(esp32_rmt.VARIANTS_NO_RMT),
         msg_prefix="ESP32 RMT LED strip",
     ),
-    _validate_rgbw_order_exclusivity,
     light.ADDRESSABLE_LIGHT_SCHEMA.extend(
         {
             cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(ESP32RMTLEDStripLightOutput),
@@ -153,6 +150,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_exactly_one_key(CONF_CHIPSET, CONF_BIT0_HIGH),
     cv.has_exactly_one_key(CONF_RGB_ORDER, CONF_RGBW_ORDER),
+    _validate_rgbw_order_exclusivity,
 )
 
 
