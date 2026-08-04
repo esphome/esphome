@@ -50,3 +50,23 @@ def test_detect_variant_unknown_board_still_raises(ln882x_core_data: None) -> No
     """Ids outside the rename map keep the family-override error."""
     with pytest.raises(cv.Invalid, match="This board is unknown"):
         _detect_variant({CONF_BOARD: "not-a-real-board"})
+
+
+def test_platform_schemas_are_isolated_instances() -> None:
+    """Each LibreTiny platform must own its CONFIG_SCHEMA instance.
+
+    BASE_SCHEMA is shared; every platform prepends its own _set_core_data
+    extra. On the shared object, importing two platform modules in one process
+    made either platform's validation run both extras, so the wrong platform's
+    component data won and known boards failed to resolve.
+    """
+    from esphome.components import bk72xx, ln882x, rtl87xx
+    from esphome.components.libretiny import BASE_SCHEMA
+
+    schemas = [bk72xx.CONFIG_SCHEMA, ln882x.CONFIG_SCHEMA, rtl87xx.CONFIG_SCHEMA]
+    for schema in schemas:
+        assert schema is not BASE_SCHEMA
+    assert len({id(schema) for schema in schemas}) == len(schemas)
+    # The shared base must not have accumulated any platform's extra.
+    for extra in BASE_SCHEMA._extra_schemas:  # noqa: SLF001
+        assert getattr(extra, "__name__", "") != "_set_core_data"
