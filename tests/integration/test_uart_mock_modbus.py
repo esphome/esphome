@@ -330,3 +330,119 @@ async def test_uart_mock_modbus_server_controller_multiple(
         await tracker.setup_and_start_scenario(client)
         await tracker.await_all(futures)
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_grouping(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Pins how sensors are grouped into polled ranges across the combinations that matter.
+
+    Each block in the fixture covers one relationship between neighbouring sensors - sharing a wide
+    register, contiguous, separated by a gap, differing polling rates, coils, and a pinned range - so
+    that the frames on the wire and the byte each sensor decodes from are locked down.
+    """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    # Values are those the component produced before the range rework, captured from it directly.
+    expected_values = {
+        # one register returning 4 bytes, read as two halves
+        "reuse_lo": 273,
+        "reuse_hi": 546,
+        # contiguous registers, mixed widths
+        "ext_word": 4660,
+        "ext_next": 22136,
+        "ext_dword": pytest.approx(2596069120),
+        # a wide register pushes its neighbour past the bytes it actually returned
+        "wide_first": 2730,
+        "wide_next": 3003,
+        # a gap keeps them apart
+        "gap_low": 320,
+        "gap_high": 325,
+        # contiguous, second one polling more slowly
+        "rate_first": 336,
+        "rate_slow": 337,
+        # a wide value, one of its halves, and the register after it
+        "shared_dword": pytest.approx(2759468),
+        "shared_high": 6956,
+        "shared_after": 781,
+        # a wide register hidden behind a wider plain sibling, and the sensor after them
+        "masked_wide": 4369,
+        "masked_pair": pytest.approx(286335522),
+        "masked_after": 13107,
+        # pinned range, and the contiguous sensor after it
+        "forced_first": 352,
+        "forced_next": 353,
+    }
+    tracker = SensorTracker(list(expected_values.keys()))
+    futures = tracker.expect_all(expected_values)
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures)
+        # Every frame sent must match one the mock answers, so an unexpected read (a range that split,
+        # merged or changed length) shows up here as an unanswered request. This is what pins the coil
+        # grouping too, since binary sensors carry no numeric state to compare.
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_shared_address(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Sensors sharing and overlapping one register range must all decode from a single read.
+
+    A U_WORD and a U_DWORD share start address 0x9001 (non-mergeable, so the range widens to 2
+    registers) and a third U_WORD at 0x9002 falls inside the widened range. A regression guard for the
+    range-grouping rewrite: without the same-address fallback the shared sensors land in duplicate
+    ranges and one never publishes; without the in-range join the 0x9002 sensor splits into a second
+    overlapping frame that the mock (which expects exactly one read) never answers.
+
+    A force_new_range sensor at 0x30 plus a plain sensor at 0x10 pin the covered branch's lower-bound
+    check: the forced sensor sorts first, and without the bound the lower-address sensor is absorbed
+    into the forced range with a wrapped byte offset and never polls its own register.
+
+    A U_QWORD at 0x100 with plain sensors at 0x101 and 0x103 pins that non-merging sensors inside a
+    wide sensor's span keep polling separately, and that the sensor at the span's tail address does not
+    anchor a re-use join on a mid-range predecessor (which would make it decode that sensor's bytes).
+
+    A sensor at 0x201 carrying skip_updates sits inside a widened shared-address range at 0x200 but
+    keeps its own range, so polling rates stay independent; folding it in would also make it decode
+    0x201 out of the shared response (2) instead of its own poll (777).
+    """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    # 0x9001 = 0x0397 (919); 0x9001..0x9002 = 0x03970291 (60228241, approx: not exact in float32);
+    # 0x9002 = 0x0291 (657); 0x30 = 0x0111 (273); 0x10 = 0x0222 (546)
+    expected_values = {
+        "shared_word": 919,
+        "shared_dword": pytest.approx(60228241),
+        "covered_word": 657,
+        "forced_high": 273,
+        "plain_low": 546,
+        "wide_qword": 100,
+        "inside_wide": 321,
+        "tail_of_wide": 421,
+        "rate_word": 321,
+        "rate_dword": pytest.approx(21037058),
+        "own_rate": 777,
+    }
+    tracker = SensorTracker(list(expected_values.keys()))
+    futures = tracker.expect_all(expected_values)
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures)
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)

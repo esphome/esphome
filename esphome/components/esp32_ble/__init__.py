@@ -576,7 +576,7 @@ async def to_code(config):
     max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)
     cg.add_define("USE_ESP32_BLE_MAX_CONNECTIONS", max_connections)
 
-    request_bluetooth(ble_42=True)
+    request_bluetooth()
 
     # When PSRAM and BT are used together, Bluedroid should prefer SPIRAM for
     # heap allocations and use dynamic (heap-based) environment memory tables

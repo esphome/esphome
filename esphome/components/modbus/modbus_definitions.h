@@ -120,6 +120,14 @@ static constexpr uint16_t MAX_FRAME_SIZE = 256;
 // 4.1 Address 0 is the broadcast address: the request is processed by every device and never answered.
 static constexpr uint8_t BROADCAST_ADDRESS = 0;
 
+// Both send paths bound their payload so the framed result lands exactly on the RTU limit: a client
+// PDU gains an address byte and a CRC, a raw server frame gains a CRC. send_frame_() therefore never
+// has to check the framed size - it cannot be exceeded.
+static_assert(MAX_PDU_SIZE + 3 == MAX_FRAME_SIZE, "a framed client PDU must fill the RTU frame limit");
+static_assert(MAX_RAW_SIZE + 2 == MAX_FRAME_SIZE, "a framed raw server payload must fill the RTU frame limit");
+/// Bits pack 8 per data byte, rounded up to whole bytes.
+constexpr size_t packed_bit_bytes(size_t bits) { return (bits + 7) / 8; }
+
 /** Read-only view of Modbus-packed bits: bit 0 of byte 0 is the first bit (LSB first), the layout
  * coil/discrete-input values use on the wire. Bundles the bit count with the packed bytes so the
  * two cannot desynchronize. The view does not own the bytes - it is only valid while they are.
@@ -127,9 +135,6 @@ static constexpr uint8_t BROADCAST_ADDRESS = 0;
  * with any subscript. Writes and forwarding are defensive: set() drops out-of-range bits and
  * bytes() clamps to the real span, because those paths touch buffers and the wire directly.
  */
-/// Bits pack 8 per data byte, rounded up to whole bytes.
-constexpr size_t packed_bit_bytes(size_t bits) { return (bits + 7) / 8; }
-
 class PackedBits {
  public:
   PackedBits(std::span<const uint8_t> data, uint16_t count) : data_(data), count_(count) {}

@@ -157,6 +157,9 @@
 #define USE_OUTPUT_FLOAT_POWER_SCALING
 #define USE_POWER_SUPPLY
 #define USE_PREFERENCES_SYNC_EVERY_LOOP
+// Only defined by key-lookup preference backends (esp32, libretiny, host, zephyr);
+// slot-based platforms (esp8266, rp2040) never set it in generated builds
+#define USE_PREFERENCE_KEY_LOOKUP
 #define USE_PROVISIONING
 #define USE_QR_CODE
 #define USE_SAFE_MODE_BOOT_IS_GOOD_ON_SHUTDOWN
@@ -433,6 +436,7 @@
 #define USE_LOGGER_USB_CDC
 #define USE_SOCKET_IMPL_LWIP_TCP
 #define USE_RP2040_BLE
+#define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
 #define USE_RP2040_VARIANT_RP2040
 #define USE_SPI
 #ifndef USE_ETHERNET
@@ -450,6 +454,9 @@
 
 #ifdef USE_LIBRETINY
 #define USE_BK72XX_BLE
+#define BK72XX_BLE_SCAN_LISTENER_COUNT 1
+#define USE_LN882H_BLE
+#define LN882H_BLE_SCAN_LISTENER_COUNT 1
 #define USE_CAPTIVE_PORTAL
 #define USE_WIFI_SCAN_RESULTS_LOCK
 #define USE_SOCKET_IMPL_LWIP_SOCKETS

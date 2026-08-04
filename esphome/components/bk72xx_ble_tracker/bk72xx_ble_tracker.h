@@ -33,7 +33,6 @@
 #include "esphome/core/helpers.h"
 
 #include <cstdint>
-#include <utility>
 
 #ifdef USE_OTA_STATE_LISTENER
 #include "esphome/components/ota/ota_backend.h"
@@ -84,8 +83,8 @@ class BK72xxBLETracker : public Component,
     this->listeners_.push_back(listener);
 #endif
   }
-  void set_raw_advertisement_callback(ble_device_base::RawAdvertisementCallback cb) override {
-    this->raw_advertisement_callback_ = std::move(cb);
+  void set_raw_advertisement_callback(ble_device_base::RawAdvertisementCallback callback) override {
+    this->raw_advertisement_callback_ = callback;
   }
   ble_device_base::HubCapabilities get_capabilities() const override {
     // The Beken BDK exposes no active-scan path (passive scanning only), so the
@@ -113,8 +112,15 @@ class BK72xxBLETracker : public Component,
  protected:
   void start_scan_();
   void stop_scan_();
+  /// Attempt a rate-limited (re)start; returns true when the scan is running,
+  /// which means the caller must not compare its cached millis() against the
+  /// timestamps start_scan_() just refreshed. force bypasses the rate gate for
+  /// an explicit user start only while the failure streak is clean; a failing
+  /// controller rate-limits forced attempts too. Failure accounting always runs.
+  bool try_start_with_backoff_(uint32_t now, bool force = false);
 
   bool scan_running_{false};
+  bool scan_requested_{false};  // latched start_scan() request not yet running; loop() retries with backoff
   // Defaults: the BK reference — 30 % duty cycle
   // (interval 100 ms / window 30 ms), in 0.625 ms BLE units.
   uint32_t scan_interval_{160};  // 160 × 0.625 ms = 100 ms
@@ -123,6 +129,7 @@ class BK72xxBLETracker : public Component,
   bool scan_continuous_{true};
 #ifdef USE_OTA_STATE_LISTENER
   bool scan_continuous_before_ota_{false};  // continuous mode saved at OTA start, restored on OTA failure
+  bool scan_requested_before_ota_{false};   // pending one-shot latch saved at OTA start, re-latched on OTA failure
 #endif
   uint32_t scan_start_time_{0};
 
@@ -131,7 +138,7 @@ class BK72xxBLETracker : public Component,
   uint32_t scan_period_start_{0};        // millis() at start of current scan period; used to rate-limit on_scan_end()
   bool scan_started_once_{false};        // true after first successful scan start; gates the period timer
 
-  ble_device_base::RawAdvertisementCallback raw_advertisement_callback_{nullptr};
+  ble_device_base::RawAdvertisementCallback raw_advertisement_callback_{};
 #ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
   // Parsed-advertisement consumers registered through ble_device_base.
   // Codegen-sized: no heap allocation, no std::vector template instantiations.
