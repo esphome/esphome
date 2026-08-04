@@ -9,6 +9,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/lock_free_queue.h"
 
+#include <atomic>
 #include <cstdint>
 
 namespace esphome::ln882h_ble {
@@ -61,6 +62,10 @@ class BLEScanListener {
 // during such stalls.
 static constexpr uint8_t MAX_SCAN_REPORT_QUEUE_SIZE = 64;
 
+// Rejected frames tolerated before the first delivered report without
+// declaring the scanner dead (boot-time stray extended frames are normal).
+static constexpr uint16_t REJECTED_DEAD_SCANNER_THRESHOLD = 16;
+
 class LN882HBLE final : public Component {
  public:
   void setup() override;
@@ -105,6 +110,10 @@ class LN882HBLE final : public Component {
   /// Internal: hand a filled slot to the main-task queue (cannot fail — the
   /// pool is sized to the queue capacity).
   void push_scan_report(BLEScanReport *report);
+  /// Internal, rw-task context: count a report rejected by the legacy-only
+  /// filter, so a wrong assumption about the stack's report encoding shows up
+  /// in verbose logs instead of as a scanner that silently reports nothing.
+  void count_rejected_report() { this->rejected_reports_.fetch_add(1, std::memory_order_relaxed); }
 
  protected:
   void resolve_mac_();
@@ -126,10 +135,17 @@ class LN882HBLE final : public Component {
   // allocate() returns nullptr before push() can fail. This prevents leaking a
   // pool slot on a failed push and keeps release() off the producer path.
   esphome::EventPool<BLEScanReport, MAX_SCAN_REPORT_QUEUE_SIZE - 1> report_pool_;
+  // Reports rejected by the legacy-only filter (rw-task producer, main-task
+  // consumer via exchange in loop()).
+  std::atomic<uint16_t> rejected_reports_{0};
   uint8_t ble_mac_[6]{0};  // controller (LSB-first) order, as ln_bd_addr_t stores it
   BLEComponentState state_{BLEComponentState::STATE_OFF};
   bool enable_on_boot_{false};
   bool scanning_{false};  // controller scan running (re-entry guard for scan_start)
+  // Dead-scanner diagnosis: done once a report is delivered or the one-shot
+  // warning has fired, whichever comes first.
+  bool reject_diagnosis_done_{false};
+  uint32_t rejected_before_delivery_{0};  // drives the dead-scanner warning
 };
 
 }  // namespace esphome::ln882h_ble
