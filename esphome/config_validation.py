@@ -2611,14 +2611,23 @@ def require_framework_version(
     return validator
 
 
-def require_esphome_version(year, month=None, patch=None):
+def require_esphome_version(
+    year: Version | int, month: int | None = None, patch: int | None = None
+):
     """Validator requiring at least the given ESPHome version.
 
     Accepts a single ``Version`` like the sibling
     ``require_framework_version``, or the legacy ``(year, month, patch)``
     ints external components already pass.
     """
-    required = year if isinstance(year, Version) else Version(year, month, patch)
+    if isinstance(year, Version):
+        required = year
+    elif month is None or patch is None:
+        raise ValueError(
+            "require_esphome_version needs a Version or (year, month, patch)"
+        )
+    else:
+        required = Version(year, month, patch)
 
     def validator(value):
         # A dev or beta build of the required version still satisfies it,

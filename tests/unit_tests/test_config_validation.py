@@ -2934,6 +2934,14 @@ def test_require_esphome_version_accepts_version_object() -> None:
         cv.require_esphome_version(cv.Version(9999, 0, 0))("test")
 
 
+def test_require_esphome_version_partial_ints_fail_at_call_site() -> None:
+    """Missing ints raise immediately instead of a TypeError inside the validator."""
+    with pytest.raises(ValueError, match="needs a Version or"):
+        cv.require_esphome_version(2026, 8)
+    with pytest.raises(ValueError, match="needs a Version or"):
+        cv.require_esphome_version(2026)
+
+
 def test_require_esphome_version_too_old() -> None:
     with pytest.raises(Invalid, match="at least ESPHome version 9999.0.0"):
         cv.require_esphome_version(9999, 0, 0)("test")
