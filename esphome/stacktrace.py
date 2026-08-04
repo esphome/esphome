@@ -29,14 +29,17 @@ _LOGGER = logging.getLogger(__name__)
 # and a copy here would drift. The device builder gates its decoder
 # subprocess the same way (esphome_device_builder/controllers/devices/
 # backtrace.py).
-# The bare-hex alternation requires at least one letter so 8-digit
-# decimals (uptime counters, sensor readings) don't trip it. Stack-dump
-# lines always carry one via their 3ff... stack addresses; the one
-# letter-free bare-hex form (a bad-alloc address like 40201234) appears
-# only inside a postmortem whose earlier lines already opened the gate,
-# so it reaches the decoder as a direct feed.
+# The letter-requiring bare-hex alternation keeps 8-digit decimals
+# (uptime counters, sensor readings) from tripping the gate; the final
+# alternation admits the letter-free code-address form every xtensa
+# decoder keys on (4xxxxxxx, optionally 0x-prefixed in the emitters), so
+# a register line or bad-alloc address that happens to print without 0x
+# still opens the gate. A decimal in the 4xxxxxxx range can trip it;
+# that costs one platform import, which is simply today's behavior.
 _ADDRESS_RE = re.compile(
-    r"0x[0-9a-fA-F]{4,}\b|\b(?=[0-9A-Fa-f]*[A-Fa-f])[0-9a-fA-F]{8}\b"
+    r"0x[0-9a-fA-F]{4,}\b"
+    r"|\b(?=[0-9A-Fa-f]*[A-Fa-f])[0-9a-fA-F]{8}\b"
+    r"|\b4[0-9a-fA-F]{7}\b"
 )
 
 # Lines kept for replay once decoding starts. Crash markers without an

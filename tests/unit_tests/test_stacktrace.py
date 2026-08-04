@@ -32,6 +32,8 @@ CRASH_SAMPLES: dict[str, dict[str, list[str]]] = {
         "addresses": [
             "epc1=0x40201234 epc2=0x00000000",
             "3ffffe10: 40201234 3ffe8410 00000000 40201000",
+            "PC      : 40201234",
+            "last failed alloc call: 40201234(512)",
         ],
     },
     "rp2": {
@@ -63,10 +65,11 @@ BENIGN_LINES = [
 
 
 def test_crash_samples_cover_registry() -> None:
-    """A newly registered decoder must come with a gate sample."""
+    """A newly registered decoder must come with a non-empty gate sample."""
     from esphome.platform_hooks import PLATFORM_HOOKS
 
     assert set(CRASH_SAMPLES) == set(PLATFORM_HOOKS["process_stacktrace"])
+    assert all(samples["addresses"] for samples in CRASH_SAMPLES.values())
 
 
 @pytest.mark.parametrize("line", CRASH_LINES)
@@ -294,30 +297,6 @@ def test_processor_unexpected_resolution_error_disables_decoding(caplog) -> None
     # The cause rides along at default verbosity, like the sibling paths.
     assert "could not be loaded: filesystem went away" in warnings[0].message
     assert processor.backtrace_state is False
-
-
-def test_letter_free_bad_alloc_reaches_resolved_decoder() -> None:
-    """The one letter-free bare-hex form rides an already-open gate.
-
-    ``last failed alloc call: 40201234(512)`` alone would not fire the
-    gate, but it only appears inside a postmortem whose earlier lines
-    (epc1=0x...) already resolved the decoder, so it feeds directly.
-    """
-    bad_alloc = "last failed alloc call: 40201234(512)"
-    assert not stacktrace._ADDRESS_RE.search(bad_alloc)
-
-    handler = Mock(return_value=False)
-    with patch.object(
-        stacktrace.platform_hooks, "get_stacktrace_handler", return_value=handler
-    ):
-        processor = stacktrace.LogLineProcessor(CONFIG, "esp8266")
-        processor.process_line("epc1=0x40201234 epc2=0x00000000")
-        processor.process_line(bad_alloc)
-
-    assert [call.args[1] for call in handler.call_args_list] == [
-        "epc1=0x40201234 epc2=0x00000000",
-        bad_alloc,
-    ]
 
 
 def test_decoder_bug_with_empty_message_names_the_type(caplog) -> None:
