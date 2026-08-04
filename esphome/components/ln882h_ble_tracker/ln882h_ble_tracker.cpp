@@ -195,20 +195,24 @@ void LN882HBLETracker::stash_adv_(const ln882h_ble::BLEScanReport &report) {
 // Scan response arrived: merge it with the pending advertisement from the same
 // device into ONE frame (ESP-IDF/Bluedroid semantics).
 void LN882HBLETracker::deliver_scan_rsp_(const ln882h_ble::BLEScanReport &report) {
-  for (auto &p : this->pending_adv_) {
-    if (p.used && p.addr_type == report.addr_type && memcmp(p.mac, report.mac, 6) == 0) {
-      // Append in place: the slot is released on delivery, so its 62-byte
-      // buffer (legacy adv + scan response) holds the merged frame directly.
-      const uint8_t room = sizeof(p.data) - p.data_len;
-      const uint8_t add = (report.data_len <= room) ? report.data_len : room;
-      memcpy(p.data + p.data_len, report.data, add);
-      p.used = false;
-      this->pending_count_--;
-      // The advertisement's RSSI, not the scan response's: every unmerged path
-      // reports the advertisement's measurement, so a device's RSSI must not
-      // jump between two measurements depending on merge timing.
-      this->process_adv_(report.mac, p.rssi, report.addr_type, p.data, p.data_len + add, /*raw_only=*/false);
-      return;
+  // Fast-out on the empty table (loop()/flush use the same guard); this is
+  // the hottest caller.
+  if (this->pending_count_ != 0) {
+    for (auto &p : this->pending_adv_) {
+      if (p.used && p.addr_type == report.addr_type && memcmp(p.mac, report.mac, 6) == 0) {
+        // Append in place: the slot is released on delivery, so its 62-byte
+        // buffer (legacy adv + scan response) holds the merged frame directly.
+        const uint8_t room = sizeof(p.data) - p.data_len;
+        const uint8_t add = (report.data_len <= room) ? report.data_len : room;
+        memcpy(p.data + p.data_len, report.data, add);
+        p.used = false;
+        this->pending_count_--;
+        // The advertisement's RSSI, not the scan response's: every unmerged path
+        // reports the advertisement's measurement, so a device's RSSI must not
+        // jump between two measurements depending on merge timing.
+        this->process_adv_(report.mac, p.rssi, report.addr_type, p.data, p.data_len + add, /*raw_only=*/false);
+        return;
+      }
     }
   }
   // Unmatched scan-response: goes out on the raw callback only (HA merges per
