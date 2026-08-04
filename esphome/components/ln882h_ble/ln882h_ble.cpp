@@ -22,7 +22,6 @@
 
 #ifdef USE_LN882H_BLE
 
-#include <algorithm>
 #include <cstddef>
 #include <cstring>
 
@@ -339,7 +338,7 @@ void LN882HBLE::loop() {
   // here on the main task, then the report returns to the pool.
   BLEScanReport *report = this->report_queue_.pop();
   if (report != nullptr) {
-    this->delivered_any_ = true;
+    this->reject_diagnosis_done_ = true;
     do {
 #ifdef LN882H_BLE_SCAN_LISTENER_COUNT
       for (auto *listener : this->scan_listeners_)
@@ -358,13 +357,12 @@ void LN882HBLE::loop() {
   uint16_t rejected = this->rejected_reports_.load(std::memory_order_relaxed);
   if (rejected > 0) {
     rejected = this->rejected_reports_.exchange(0, std::memory_order_relaxed);
-    if (!this->delivered_any_ && !this->reject_warned_) {
-      this->rejected_before_delivery_ =
-          static_cast<uint16_t>(std::min<uint32_t>(this->rejected_before_delivery_ + rejected, 0xFFFF));
+    if (!this->reject_diagnosis_done_) {
+      this->rejected_before_delivery_ += rejected;
       if (this->rejected_before_delivery_ >= REJECTED_DEAD_SCANNER_THRESHOLD) {
-        this->reject_warned_ = true;
+        this->reject_diagnosis_done_ = true;
         ESP_LOGW(TAG, "Rejected %u scan reports before any was delivered - unexpected report encoding?",
-                 this->rejected_before_delivery_);
+                 static_cast<unsigned>(this->rejected_before_delivery_));
       }
     }
     ESP_LOGV(TAG, "Rejected %u non-legacy or incomplete scan reports", rejected);

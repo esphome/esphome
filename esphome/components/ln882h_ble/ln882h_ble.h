@@ -9,7 +9,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/lock_free_queue.h"
 
-#include <algorithm>
 #include <atomic>
 #include <cstdint>
 
@@ -142,10 +141,11 @@ class LN882HBLE final : public Component {
   uint8_t ble_mac_[6]{0};  // controller (LSB-first) order, as ln_bd_addr_t stores it
   BLEComponentState state_{BLEComponentState::STATE_OFF};
   bool enable_on_boot_{false};
-  bool scanning_{false};                  // controller scan running (re-entry guard for scan_start)
-  bool delivered_any_{false};             // any report reached loop() (dead-scanner diagnosis)
-  uint16_t rejected_before_delivery_{0};  // saturating; drives the dead-scanner warning
-  bool reject_warned_{false};             // one-shot guard for the all-rejected warning
+  bool scanning_{false};  // controller scan running (re-entry guard for scan_start)
+  // Dead-scanner diagnosis: done once a report is delivered or the one-shot
+  // warning has fired, whichever comes first.
+  bool reject_diagnosis_done_{false};
+  uint32_t rejected_before_delivery_{0};  // drives the dead-scanner warning
 };
 
 }  // namespace esphome::ln882h_ble
