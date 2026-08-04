@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_FRAMEWORK,
     CONF_MAC_ADDRESS,
     CONF_SOURCE,
-    KEY_FRAMEWORK_VERSION,
     ThreadModel,
 )
 from esphome.types import ConfigType
@@ -39,7 +38,7 @@ def config_schema(config: ConfigType) -> ConfigType:
             f"Supported board: {_DEFAULT_BOARD!r}",
             [CONF_BOARD],
         )
-    version_str, framework_ver, sdk_name, _ = resolve_framework_version(
+    _, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "native_sim", config, "native_sim support"
     )
     set_core_data(
@@ -51,7 +50,6 @@ def config_schema(config: ConfigType) -> ConfigType:
         framework_type=sdk_name,
         sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
     )
-    config[KEY_FRAMEWORK_VERSION] = version_str
     return config
 
 

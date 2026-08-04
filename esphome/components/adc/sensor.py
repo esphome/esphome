@@ -363,8 +363,7 @@ async def to_code(config):
             GPIO_TO_AIN = {v: k for k, v in AIN_TO_GPIO.items()}
             pin_number = GPIO_TO_AIN[pin_number]
         zephyr_add_user("io-channels", f"<&adc {channel_id}>")
-        zephyr_add_overlay(
-            f"""
+        zephyr_add_overlay(f"""
                 &adc {{
                     #address-cells = <1>;
                     #size-cells = <0>;
@@ -379,8 +378,7 @@ async def to_code(config):
                         zephyr,oversampling = <8>;
                     }};
                 }};
-            """
-        )
+            """)
     elif CORE.using_zephyr and zephyr_variant_family() == "esp32":
         variant = zephyr_variant()
         pin_num = config[CONF_PIN][CONF_NUMBER]

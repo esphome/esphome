@@ -2018,6 +2018,16 @@ def test_mac_address_non_hex() -> None:
         cv.mac_address("GG:BB:CC:DD:EE:FF")
 
 
+def test_mac_address_idempotent_on_already_parsed_value() -> None:
+    # A validated-config cache can feed an already-parsed MACAddress back through
+    # this validator in a fresh process (see native_sim's config_schema default).
+    # It must round-trip cleanly instead of rejecting the non-string type.
+    parsed = cv.mac_address("AA:BB:CC:DD:EE:FF")
+    result = cv.mac_address(parsed)
+    assert isinstance(result, MACAddress)
+    assert str(result) == "AA:BB:CC:DD:EE:FF"
+
+
 def test_uuid_valid() -> None:
     result = cv.uuid("12345678-1234-5678-1234-567812345678")
     assert str(result) == "12345678-1234-5678-1234-567812345678"
@@ -2428,6 +2438,58 @@ def test_one_of_string_and_space() -> None:
     assert cv.one_of("a_b", string=True, space="_")("a b") == "a_b"
 
 
+def test_one_of_string_and_underscore() -> None:
+    assert cv.one_of("a-b", string=True, underscore="-")("a_b") == "a-b"
+    assert cv.one_of("a-b", string=True, underscore="-")("a-b") == "a-b"
+
+
+def test_one_of_string_lower_space_and_underscore() -> None:
+    validator = cv.one_of("output-mode", lower=True, space="-", underscore="-")
+    assert validator("output_mode") == "output-mode"
+    assert validator("OUTPUT_MODE") == "output-mode"
+    assert validator("output mode") == "output-mode"
+    assert validator("output-mode") == "output-mode"
+
+
+def test_one_of_string_underscore_unknown() -> None:
+    with pytest.raises(Invalid):
+        cv.one_of("a-b", string=True, underscore="-")("c_d")
+
+
+def test_one_of_string_underscore_default_unchanged() -> None:
+    with pytest.raises(Invalid):
+        cv.one_of("a-b", string=True)("a_b")
+
+
+def test_one_of_string_and_hyphen() -> None:
+    assert cv.one_of("a_b", string=True, hyphen="_")("a-b") == "a_b"
+    assert cv.one_of("a_b", string=True, hyphen="_")("a_b") == "a_b"
+
+
+def test_one_of_string_lower_space_and_hyphen() -> None:
+    validator = cv.one_of("output_mode", lower=True, space="_", hyphen="_")
+    assert validator("output-mode") == "output_mode"
+    assert validator("OUTPUT-MODE") == "output_mode"
+    assert validator("output mode") == "output_mode"
+    assert validator("output_mode") == "output_mode"
+
+
+def test_one_of_string_hyphen_unknown() -> None:
+    with pytest.raises(Invalid):
+        cv.one_of("a_b", string=True, hyphen="_")("c-d")
+
+
+def test_one_of_string_hyphen_default_unchanged() -> None:
+    with pytest.raises(Invalid):
+        cv.one_of("a_b", string=True)("a-b")
+
+
+def test_one_of_string_underscore_hyphen_swap_no_cascade() -> None:
+    validator = cv.one_of("a-b", "a_b", string=True, underscore="-", hyphen="_")
+    assert validator("a_b") == "a-b"
+    assert validator("a-b") == "a_b"
+
+
 def test_one_of_int() -> None:
     assert cv.one_of(1, 2, int=True)("2") == 2
 
@@ -2464,6 +2526,20 @@ def test_enum_valid() -> None:
     result = cv.enum(mapping)("a")
     assert result == "a"
     assert result.enum_value == 10
+
+
+def test_enum_valid_with_underscore() -> None:
+    mapping = {"a-b": 1}
+    result = cv.enum(mapping, string=True, underscore="-")("a_b")
+    assert result == "a-b"
+    assert result.enum_value == 1
+
+
+def test_enum_valid_with_hyphen() -> None:
+    mapping = {"a_b": 1}
+    result = cv.enum(mapping, string=True, hyphen="_")("a-b")
+    assert result == "a_b"
+    assert result.enum_value == 1
 
 
 # ---------------------------------------------------------------------------
@@ -2954,6 +3030,22 @@ def test_rename_key_removed_in_with_component_prefixes_warning(
         "[my_component] 'old' is deprecated, use 'new'. Will be removed in 2026.8.0"
         in caplog.text
     )
+
+
+def test_rename_key_both_keys_rejected() -> None:
+    with pytest.raises(Invalid, match="Cannot specify more than one of"):
+        cv.rename_key("old", "new")({"old": 5, "new": 6})
+
+
+def test_rename_key_both_keys_rejected_with_removed_in(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with (
+        caplog.at_level(logging.WARNING, logger="esphome.config_validation"),
+        pytest.raises(Invalid, match="Cannot specify more than one of"),
+    ):
+        cv.rename_key("old", "new", removed_in="2026.8.0")({"old": 5, "new": 6})
+    assert not caplog.records
 
 
 def test_file__existing_relative_path(setup_core: Path) -> None:

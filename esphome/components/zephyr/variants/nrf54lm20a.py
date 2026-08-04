@@ -56,6 +56,9 @@ VARIANT = ZephyrVariant(
     # the DK board itself but is a real SoC instance (e.g. wired to header pins on the
     # Seeed xiao_nrf54lm20a board).
     uart_node_labels={"UART0": "uart20", "UART1": "uart21"},
+    # nrf54lm20_a_b.dtsi defines pwm20/pwm21/pwm22 -- same peripheral-instance-number
+    # convention as uart_node_labels above, not nRF52840's pwm0-pwm3 low-number scheme.
+    pwm_node_labels=["pwm20", "pwm21", "pwm22"],
 )
 
 
@@ -79,7 +82,6 @@ def config_schema(config: ConfigType) -> ConfigType:
         framework_type=sdk_name,
         sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
     )
-    config[KEY_FRAMEWORK_VERSION] = version_str
     return config
 
 

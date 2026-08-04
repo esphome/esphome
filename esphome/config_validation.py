@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from contextlib import contextmanager, suppress
-from dataclasses import dataclass
 from datetime import datetime
 from ipaddress import (
     AddressValueError,
@@ -88,6 +87,7 @@ from esphome.core import (
     TimePeriodMinutes,
     TimePeriodNanoseconds,
     TimePeriodSeconds,
+    Version,
 )
 from esphome.enum import StrEnum
 from esphome.expression import SUBSTITUTION_VARIABLE_PROG as VARIABLE_PROG
@@ -406,42 +406,6 @@ class Required(vol.Required):
 
 class FinalExternalInvalid(Invalid):
     """Represents an invalid value in the final validation phase where the path should not be prepended."""
-
-
-@dataclass(frozen=True, order=True)
-class Version:
-    major: int
-    minor: int
-    patch: int
-    extra: str = ""
-
-    def __str__(self):
-        if self.extra:
-            return f"{self.major}.{self.minor}.{self.patch}-{self.extra}"
-        return f"{self.major}.{self.minor}.{self.patch}"
-
-    @classmethod
-    def parse(cls, value: str) -> Version:
-        # The patch component is optional and defaults to 0, so "6.0" and
-        # "6.0-rc1" parse as 6.0.0 and 6.0.0-rc1.
-        match = re.match(r"^(\d+)\.(\d+)(?:\.(\d+))?[-.]?(\w*)$", value)
-        if match is None:
-            raise ValueError(f"Not a valid version number {value}")
-        major = int(match[1])
-        minor = int(match[2])
-        patch = int(match[3] or 0)
-        extra = match[4] or ""
-        return Version(major=major, minor=minor, patch=patch, extra=extra)
-
-    @property
-    def is_beta(self) -> bool:
-        """Check if this version is a beta version."""
-        return self.extra.startswith("b")
-
-    @property
-    def is_dev(self) -> bool:
-        """Check if this version is a development version."""
-        return self.extra.startswith("dev")
 
 
 def check_not_templatable(value):
@@ -1254,6 +1218,8 @@ def date_time(date: bool, time: bool):
 
 
 def mac_address(value):
+    if isinstance(value, core.MACAddress):
+        value = str(value)
     value = string_strict(value)
     parts = value.split(":")
     if len(parts) != 6:
@@ -1815,6 +1781,8 @@ def one_of(*values, **kwargs):
       - *int* (``bool``, default=False): Whether to convert the incoming values to integers.
       - *float* (``bool``, default=False): Whether to convert the incoming values to floats.
       - *space* (``str``, default=' '): What to convert spaces in the input string to.
+      - *underscore* (``str``, default='_'): What to convert underscores in the input string to.
+      - *hyphen* (``str``, default='-'): What to convert hyphens in the input string to.
     """
     options = ", ".join(f"'{x}'" for x in values)
     lower = kwargs.pop("lower", False)
@@ -1823,8 +1791,11 @@ def one_of(*values, **kwargs):
     to_int = kwargs.pop("int", False)
     to_float = kwargs.pop("float", False)
     space = kwargs.pop("space", " ")
+    underscore = kwargs.pop("underscore", "_")
+    hyphen = kwargs.pop("hyphen", "-")
     if kwargs:
         raise ValueError
+    separators = str.maketrans({" ": space, "_": underscore, "-": hyphen})
 
     @schema_extractor("one_of")
     def validator(value):
@@ -1833,7 +1804,7 @@ def one_of(*values, **kwargs):
 
         if string_:
             value = string(value)
-            value = value.replace(" ", space)
+            value = value.translate(separators)
         if to_int:
             value = int_(value)
         if to_float:
@@ -2515,11 +2486,16 @@ def git_ref(value):
     return value
 
 
+# What `refresh: never` validates to; also used to recognize a disabled
+# refresh when logging (see esphome/git.py)
+SOURCE_REFRESH_NEVER = "365250d"
+
+
 def source_refresh(value: str):
     if value.lower() == "always":
         return source_refresh("0s")
     if value.lower() == "never":
-        return source_refresh("365250d")
+        return source_refresh(SOURCE_REFRESH_NEVER)
     return positive_time_period_seconds(value)
 
 
@@ -2728,6 +2704,9 @@ def rename_key(
 ):
     """Rename a config key from ``old_key`` to ``new_key``.
 
+    Specifying both keys is an error; otherwise only one of the two would
+    survive the rename and the other would be dropped silently.
+
     When ``removed_in`` is set, a deprecation warning is logged if the old key is
     present. Pass ``component`` (the platform/component name) alongside
     ``removed_in`` so the warning identifies where it originates.
@@ -2736,6 +2715,7 @@ def rename_key(
     def validator(config: dict) -> dict:
         config = config.copy()
         if old_key in config:
+            has_at_most_one_key(old_key, new_key)(config)
             if removed_in is not None:
                 prefix = f"[{component}] " if component else ""
                 _LOGGER.warning(

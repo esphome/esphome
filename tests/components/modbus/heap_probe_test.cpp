@@ -117,9 +117,10 @@ TEST(HeapProbe, TypicalFrameConstructionIsAllocationFree) {
   EXPECT_EQ(large.count, 1u);
 }
 
-// Queueing typical commands is fully allocation-free: the frame fits the inline buffer and the tx
-// deque's first block is already allocated when the hub is constructed. (A queue deeper than one
-// deque block - roughly a dozen commands - would allocate further blocks.)
+// Queueing typical commands is allocation-free within the deque's first block: the frame fits the
+// inline buffer, every entry is a plain append (ordering lives in selection, not storage), and the
+// first block is already allocated when the hub is constructed. A 512-byte deque block holds
+// 512 / sizeof(ModbusDeviceCommand) entries (16 on the 64-bit host); a deeper queue allocates more.
 TEST(HeapProbe, QueueingTypicalCommandsIsAllocationFree) {
   ModbusClientHub hub;
   ModbusClientDevice device(&hub, 0x02);
@@ -129,12 +130,34 @@ TEST(HeapProbe, QueueingTypicalCommandsIsAllocationFree) {
   req.assign(read_pdu, read_pdu + sizeof(read_pdu));
 
   constexpr int n = 12;
+  static_assert(n * sizeof(ModbusDeviceCommand) < 512, "keep n within one deque block so the probe stays meaningful");
   size_t total = 0;
   for (int i = 0; i != n; i++) {
+    req[2] = static_cast<uint8_t>(i);  // distinct start addresses: identical frames would dedup, not enqueue
     total += sample([&] { device.send_pdu(req); }).count;
   }
   printf("HEAPPROBE queue_%d_typical_commands total_allocs=%zu\n", n, total);
   EXPECT_EQ(total, 0u);
+}
+
+// A WRITE arriving behind queued reads is a plain append too - the old priority front-insert (and
+// its possible front-block allocation) is gone; the write wins transmit SELECTION instead.
+TEST(HeapProbe, WriteBehindQueuedReadsAppendsAllocationFree) {
+  ModbusClientHub hub;
+  ModbusClientDevice device(&hub, 0x02);
+
+  StaticVector<uint8_t, MAX_PDU_SIZE> req;
+  const uint8_t read_pdu[] = {0x03, 0x01, 0x00, 0x00, 0x02};
+  req.assign(read_pdu, read_pdu + sizeof(read_pdu));
+  for (int i = 0; i != 3; i++) {
+    req[2] = static_cast<uint8_t>(i);  // distinct start addresses: identical frames would dedup, not enqueue
+    device.send_pdu(req);
+  }
+
+  const uint8_t write_pdu[] = {0x06, 0x00, 0x10, 0xBE, 0xEF};
+  Sample append = sample([&] { device.send_pdu(write_pdu); });
+  printf("HEAPPROBE write_append count=%zu bytes=%zu\n", append.count, append.bytes);
+  EXPECT_EQ(append.count, 0u);
 }
 
 // End to end: bytes injected at the UART travel through receive, frame parsing, response matching and
@@ -187,6 +210,9 @@ TEST(HeapProbe, TypicalFrameConstructionIsAllocationFree) {
   GTEST_SKIP() << "allocation counting requires an AddressSanitizer build";
 }
 TEST(HeapProbe, QueueingTypicalCommandsIsAllocationFree) {
+  GTEST_SKIP() << "allocation counting requires an AddressSanitizer build";
+}
+TEST(HeapProbe, WriteBehindQueuedReadsAppendsAllocationFree) {
   GTEST_SKIP() << "allocation counting requires an AddressSanitizer build";
 }
 TEST(HeapProbe, ResponseHandlingIsAllocationFreeAfterWarmup) {
