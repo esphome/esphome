@@ -5,7 +5,6 @@ from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import ble_device_base
 
 # bt_uuid validation lives in the platform-neutral ble_device_base; re-exported
 # here for backward compatibility.
@@ -136,19 +135,17 @@ def _get_required_loggers() -> set[BTLoggers]:
 
 # Handler slot counters sizing the StaticCallbackManager storage in ble.h;
 # one request per register_* call below.
-_request_gap_event_slot = ble_device_base.slot_counter(
-    "ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT"
-)
-_request_gap_scan_event_slot = ble_device_base.slot_counter(
+_request_gap_event_slot = cg.slot_counter("ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT")
+_request_gap_scan_event_slot = cg.slot_counter(
     "ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT"
 )
-_request_gattc_event_slot = ble_device_base.slot_counter(
+_request_gattc_event_slot = cg.slot_counter(
     "ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT"
 )
-_request_gatts_event_slot = ble_device_base.slot_counter(
+_request_gatts_event_slot = cg.slot_counter(
     "ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT"
 )
-_request_ble_status_event_slot = ble_device_base.slot_counter(
+_request_ble_status_event_slot = cg.slot_counter(
     "ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT"
 )
 
