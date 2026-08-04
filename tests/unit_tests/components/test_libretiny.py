@@ -77,7 +77,10 @@ def test_each_platform_resolves_its_own_boards() -> None:
     _set_core_data won for every platform, so known boards failed to resolve
     with "This board is unknown"."""
     CORE.data[KEY_CORE] = {}  # written by the schema's _update_core_data extra
-    ln882x.CONFIG_SCHEMA({CONF_BOARD: "generic-ln882h"})
-    assert CORE.data[KEY_LIBRETINY][KEY_COMPONENT_DATA] is ln882x.COMPONENT_DATA
-    bk72xx.CONFIG_SCHEMA({CONF_BOARD: "generic-bk7252"})
-    assert CORE.data[KEY_LIBRETINY][KEY_COMPONENT_DATA] is bk72xx.COMPONENT_DATA
+    for platform, board in (
+        (ln882x, "generic-ln882h"),
+        (bk72xx, "generic-bk7252"),
+        (rtl87xx, "generic-rtl8720cf-2mb-896k"),
+    ):
+        platform.CONFIG_SCHEMA({CONF_BOARD: board})
+        assert CORE.data[KEY_LIBRETINY][KEY_COMPONENT_DATA] is platform.COMPONENT_DATA
