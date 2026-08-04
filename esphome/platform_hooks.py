@@ -66,30 +66,43 @@ def get_platform_hook(platform: str, hook: str) -> Callable[..., Any] | None:
     hook also returns None, so a stale registry degrades to the generic
     path instead of raising.
     """
-    if platform not in PLATFORM_HOOKS[hook]:
-        if platform in _IN_TREE_PLATFORMS:
-            return None
-        # External platform: probe the imported package like the CLI used
-        # to. The package can be missing entirely on the warm-cache path,
-        # where the external_components meta finder never registered;
-        # degrade to the generic path then, but let a failure deeper in
-        # the package (missing dependency) surface.
-        module_name = f"esphome.components.{platform}"
-        try:
-            module = importlib.import_module(module_name)
-        except ModuleNotFoundError as err:
-            if err.name == module_name:
-                _LOGGER.debug(
-                    "External platform %s is not importable; using the generic %s path",
-                    platform,
-                    hook,
-                )
-                return None
+    registered = platform in PLATFORM_HOOKS[hook]
+    if not registered and platform in _IN_TREE_PLATFORMS:
+        return None
+    # For external platforms this probes the imported package like the
+    # CLI used to; the package can be missing entirely on the warm-cache
+    # path, where the external_components meta finder never registered.
+    # Degrade to the generic path then, but let a failure deeper in the
+    # package (missing dependency) surface.
+    module_name = f"esphome.components.{platform}"
+    try:
+        module = importlib.import_module(module_name)
+    except ModuleNotFoundError as err:
+        if registered or err.name != module_name:
             raise
-        return getattr(module, hook, None)
-    return getattr(
-        importlib.import_module(f"esphome.components.{platform}"), hook, None
-    )
+        if hook == "process_stacktrace":
+            # Losing stacktrace decoding is cosmetic; skipping a hook
+            # that changes what the CLI does deserves to be seen.
+            _LOGGER.debug(
+                "External platform %s is not importable; using the generic %s path",
+                platform,
+                hook,
+            )
+        else:
+            _LOGGER.warning(
+                "External platform %s is not importable; using the generic %s path",
+                platform,
+                hook,
+            )
+        return None
+    handler = getattr(module, hook, None)
+    if handler is None and registered:
+        _LOGGER.warning(
+            "%s is registered for %s but no longer exposes it; using the generic path",
+            platform,
+            hook,
+        )
+    return handler
 
 
 def get_stacktrace_handler(platform: str) -> Callable[..., Any] | None:

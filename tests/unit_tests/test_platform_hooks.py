@@ -76,8 +76,13 @@ def test_external_platform_falls_back_to_probe(
 
 def test_external_platform_missing_module_degrades(
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A warm-cache run may not have the external package importable."""
+    """A warm-cache run may not have the external package importable.
+
+    Skipping a behavior-changing hook is visible at warning; losing
+    stacktrace decoding is cosmetic and stays at debug.
+    """
     monkeypatch.setattr(
         platform_hooks.importlib,
         "import_module",
@@ -88,6 +93,28 @@ def test_external_platform_missing_module_degrades(
         ),
     )
     assert platform_hooks.get_platform_hook("my_external_chip", "show_logs") is None
+    assert "not importable" in caplog.text
+    assert any(r.levelname == "WARNING" for r in caplog.records)
+
+    caplog.clear()
+    assert (
+        platform_hooks.get_platform_hook("my_external_chip", "process_stacktrace")
+        is None
+    )
+    assert not any(r.levelname == "WARNING" for r in caplog.records)
+
+
+def test_stale_registry_entry_warns(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A vendored tree where a registered hook vanished must say so."""
+    module = type("StalePlatform", (), {})  # registered but no hook
+    monkeypatch.setattr(
+        platform_hooks.importlib, "import_module", Mock(return_value=module)
+    )
+    assert platform_hooks.get_platform_hook("nrf52", "show_logs") is None
+    assert "no longer exposes it" in caplog.text
 
 
 def test_external_platform_broken_dependency_raises(
