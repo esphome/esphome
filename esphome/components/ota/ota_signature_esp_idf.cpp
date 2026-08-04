@@ -41,9 +41,12 @@ constexpr size_t OFFSET_EXPONENT = 420;   // e, uint32 little-endian
 constexpr size_t OFFSET_SIGNATURE = 812;  // signature[384], little-endian
 constexpr size_t OFFSET_CRC = 1196;       // crc32 over bytes [0, 1196)
 
-// A trusted public key is identified by the SHA-256 of its 776-byte key region,
-// exactly as the ROM computes it -- this is what "the running app trusts" means.
+// A public key is identified by the SHA-256 of its 776-byte key region, exactly
+// as the ROM computes it. The trusted set is compiled into the app from the
+// config's verification_keys (esp32 signed_ota codegen) -- an immutable anchor
+// that, unlike the appendable signature sector, an OTA cannot enlarge.
 using KeyDigest = std::array<uint8_t, SHA256_BYTES>;
+constexpr uint8_t TRUSTED_KEY_DIGESTS[OTA_TRUSTED_KEY_COUNT][SHA256_BYTES] = OTA_TRUSTED_KEY_DIGESTS;
 
 // A block is structurally valid if the magic, version, and CRC all check out.
 // The CRC covers everything before it and uses the same ROM routine the
@@ -98,32 +101,6 @@ bool image_digest(const esp_partition_t *part, size_t image_padded_len, uint8_t 
   return ok;
 }
 
-// Collect the key digests of every valid signature block in an image. Returns
-// the count found (0 on read error), writing up to SIG_BLOCK_MAX_COUNT digests.
-// The caller supplies the block buffer so this shares one with verify_signed_
-// image_ rather than stacking a second 1.2 KB frame during verification.
-size_t collect_key_digests(const esp_partition_t *part, size_t sector_offset, uint8_t *block,
-                           std::array<KeyDigest, SIG_BLOCK_MAX_COUNT> &out) {
-  size_t count = 0;
-  for (size_t i = 0; i < SIG_BLOCK_MAX_COUNT; i++) {
-    size_t off = sector_offset + i * SIG_BLOCK_SIZE;
-    if (off + SIG_BLOCK_SIZE > part->size || esp_partition_read(part, off, block, SIG_BLOCK_SIZE) != ESP_OK) {
-      break;
-    }
-    if (!block_is_valid(block)) {
-      continue;
-    }
-    // Log a hash failure distinctly (matching the incoming-image side) so it
-    // is not later misreported as "running app has no trusted keys".
-    if (!key_digest_of(block, out[count])) {
-      ESP_LOGE(TAG, "Signature check: failed to hash trusted key in block %zu", i);
-      continue;
-    }
-    count++;
-  }
-  return count;
-}
-
 // Verify one RSA-PSS-3072-SHA256 signature block over the image digest. The
 // block's modulus and signature are stored little-endian and reversed here.
 bool rsa_pss_verify(const uint8_t *block, const uint8_t *digest) {
@@ -159,29 +136,6 @@ bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
   const uint32_t verify_budget_ms = 15000 + (incoming->size >> 10) * 10;
   watchdog::WatchdogManager watchdog(verify_budget_ms);
 
-  const esp_partition_t *running = esp_ota_get_running_partition();
-  if (running == nullptr) {
-    ESP_LOGE(TAG, "Signature check: no running partition");
-    return false;
-  }
-
-  // One block buffer, reused for both the trusted-key scan and the incoming
-  // scan below, to keep the verify path's stack footprint down.
-  uint8_t block[SIG_BLOCK_SIZE];
-
-  // The set of keys the running app trusts: the keys in its own signature
-  // blocks. A device only ever accepts an image sharing one of these.
-  size_t running_sector;
-  std::array<KeyDigest, SIG_BLOCK_MAX_COUNT> trusted;
-  size_t trusted_count = 0;
-  if (signature_sector_offset(running, running_sector)) {
-    trusted_count = collect_key_digests(running, running_sector, block, trusted);
-  }
-  if (trusted_count == 0) {
-    ESP_LOGE(TAG, "Signature check: running app has no trusted keys");
-    return false;
-  }
-
   size_t incoming_sector;
   if (!signature_sector_offset(incoming, incoming_sector)) {
     ESP_LOGE(TAG, "Signature check: cannot locate incoming signature sector");
@@ -193,9 +147,12 @@ bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
     return false;
   }
 
-  // Accept if any incoming block is signed by a trusted key AND its signature
-  // verifies over the image. Iterating all blocks (not just the first) is the
-  // whole point -- it lets a bridge/backup key in a later block be the match.
+  // Accept if any incoming block is signed by a compiled-in trusted key AND its
+  // signature verifies over the image. Iterating all blocks (not just the
+  // first) is the whole point -- it lets a bridge/backup key in a later block
+  // be the match. The trust check is against the immutable compiled-in set, so
+  // extra (self-signed) blocks an attacker appends carry keys we simply ignore.
+  uint8_t block[SIG_BLOCK_SIZE];
   for (size_t i = 0; i < SIG_BLOCK_MAX_COUNT; i++) {
     size_t off = incoming_sector + i * SIG_BLOCK_SIZE;
     if (off + SIG_BLOCK_SIZE > incoming->size || esp_partition_read(incoming, off, block, SIG_BLOCK_SIZE) != ESP_OK) {
@@ -210,8 +167,8 @@ bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
       return false;
     }
     bool trusted_key = false;
-    for (size_t t = 0; t < trusted_count; t++) {
-      if (incoming_key == trusted[t]) {
+    for (size_t t = 0; t < OTA_TRUSTED_KEY_COUNT; t++) {
+      if (memcmp(incoming_key.data(), TRUSTED_KEY_DIGESTS[t], SHA256_BYTES) == 0) {
         trusted_key = true;
         break;
       }

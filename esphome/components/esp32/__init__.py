@@ -119,6 +119,7 @@ CONF_SIGNING_SCHEME = "signing_scheme"
 CONF_SRAM1_AS_IRAM = "sram1_as_iram"
 CONF_SUBTYPE = "subtype"
 CONF_VERIFICATION_KEY = "verification_key"
+CONF_VERIFICATION_KEYS = "verification_keys"
 
 ARDUINO_FRAMEWORK_NAME = "framework-arduinoespressif32"
 ARDUINO_FRAMEWORK_PKG = f"pioarduino/{ARDUINO_FRAMEWORK_NAME}"
@@ -146,6 +147,10 @@ SIGNING_SCHEMES = {
     "ecdsa256": "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME",
     "ecdsa_v1": "CONFIG_SECURE_SIGNED_APPS_ECDSA_SCHEME",
 }
+
+# A Secure Boot v2 signature sector holds at most three signature blocks, so a
+# device can be signed by at most three keys; cap the trusted-key list to match.
+SIGNED_OTA_MAX_KEYS = 3
 
 # Chip variants that only support one V2 signing scheme.
 # Based on SOC_SECURE_BOOT_V2_RSA / SOC_SECURE_BOOT_V2_ECC in soc_caps.h.
@@ -1164,10 +1169,68 @@ def _ota_downgrade_protection_errors(
     return errs
 
 
+def _sbv2_rsa_key_digest(path: Path) -> bytes:
+    """SHA-256 of a public key's Secure Boot v2 signature-block key region.
+
+    This hashes the 776-byte {n, e, rinv, m'} region exactly as the ROM lays it
+    out -- i.e. the value the device computes per signature block and the one
+    ``espsecure digest-rsa-public-key`` prints, not a hash of the DER key.
+    """
+    import hashlib
+    import struct
+
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.hazmat.primitives.serialization import (
+        load_pem_private_key,
+        load_pem_public_key,
+    )
+
+    data = path.read_bytes()
+    try:
+        if b"PUBLIC KEY" in data:
+            public_key = load_pem_public_key(data)
+        else:
+            public_key = load_pem_private_key(data, password=None).public_key()
+    except (ValueError, TypeError) as err:
+        raise cv.Invalid(f"Could not load key '{path}': {err}") from err
+    if not isinstance(public_key, rsa.RSAPublicKey) or public_key.key_size != 3072:
+        raise cv.Invalid(
+            f"'{CONF_VERIFICATION_KEYS}' entries must be RSA-3072 keys; "
+            f"'{path}' is not."
+        )
+    numbers = public_key.public_numbers()
+    n, e = numbers.n, numbers.e
+    m = (-pow(n, -1, 1 << 32)) & 0xFFFFFFFF
+    rinv = (1 << (public_key.key_size * 2)) % n
+    blob = struct.pack(
+        "<384sI384sI",
+        n.to_bytes(384, "big")[::-1],
+        e,
+        rinv.to_bytes(384, "big")[::-1],
+        m,
+    )
+    return hashlib.sha256(blob).digest()
+
+
+def _validate_trusted_key(value):
+    """Normalize a trusted key to its 64-hex-char signature-block digest.
+
+    Accepts either the digest directly (so CI can inject it without shipping a
+    key file) or a PEM key file whose digest is computed here.
+    """
+    if isinstance(value, str) and re.fullmatch(r"[0-9A-Fa-f]{64}", value.strip()):
+        return value.strip().lower()
+    return _sbv2_rsa_key_digest(cv.file_(value)).hex()
+
+
 _SIGNED_OTA_VERIFICATION_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_SIGNING_KEY): cv.file_,
         cv.Optional(CONF_VERIFICATION_KEY): cv.file_,
+        cv.Optional(CONF_VERIFICATION_KEYS): cv.All(
+            cv.ensure_list(_validate_trusted_key),
+            cv.Length(min=1, max=SIGNED_OTA_MAX_KEYS),
+        ),
         cv.Optional(CONF_SIGNING_SCHEME, default="rsa3072"): cv.one_of(
             *SIGNING_SCHEMES, lower=True
         ),
@@ -1201,9 +1264,15 @@ def _validate_signed_ota_keys(config: ConfigType) -> ConfigType:
     block appended to each image, so verifying externally-signed binaries
     needs no key in the config at all -- omitting both keys selects that
     external-signing mode.
+
+    For external RSA (rsa3072, no signing key), an optional 'verification_keys'
+    list names the keys the running app trusts. ESPHome then verifies OTA
+    signatures against that compiled-in set instead of IDF's single-block
+    check, which enables key rotation and multi-provider backup keys.
     """
     has_signing_key = CONF_SIGNING_KEY in config
     has_verification_key = CONF_VERIFICATION_KEY in config
+    has_verification_keys = CONF_VERIFICATION_KEYS in config
     scheme = config[CONF_SIGNING_SCHEME]
     if has_signing_key and has_verification_key:
         raise cv.Invalid(
@@ -1211,6 +1280,27 @@ def _validate_signed_ota_keys(config: ConfigType) -> ConfigType:
             f"'{CONF_VERIFICATION_KEY}', not both.",
             path=[CONF_VERIFICATION_KEY],
         )
+    if has_verification_keys:
+        if scheme != "rsa3072":
+            raise cv.Invalid(
+                f"'{CONF_VERIFICATION_KEYS}' is only used with signing scheme "
+                f"'rsa3072' (externally-signed RSA images). With '{scheme}' the "
+                f"public key travels in each image's signature block.",
+                path=[CONF_VERIFICATION_KEYS],
+            )
+        if has_signing_key:
+            raise cv.Invalid(
+                f"'{CONF_VERIFICATION_KEYS}' verifies externally-signed images "
+                f"and cannot be combined with '{CONF_SIGNING_KEY}' (which signs "
+                f"during the build). Provide one or the other.",
+                path=[CONF_VERIFICATION_KEYS],
+            )
+        if has_verification_key:
+            raise cv.Invalid(
+                f"Provide at most one of '{CONF_VERIFICATION_KEY}' and "
+                f"'{CONF_VERIFICATION_KEYS}', not both.",
+                path=[CONF_VERIFICATION_KEYS],
+            )
     if scheme == "ecdsa_v1":
         if not has_signing_key and not has_verification_key:
             raise cv.Invalid(
@@ -2558,11 +2648,13 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT", True)
 
         scheme = signed_ota[CONF_SIGNING_SCHEME]
-        # For externally-signed RSA images, ESPHome verifies the OTA signature
-        # itself instead of using IDF's on-update check. IDF only matches the
-        # incoming image's first signature block against the running app's
-        # first, which blocks key rotation and multi-provider backup keys;
-        # ESPHome accepts an image signed by any key the running app trusts.
+        # For externally-signed RSA images with a declared 'verification_keys'
+        # list, ESPHome verifies the OTA signature itself instead of using IDF's
+        # on-update check. IDF only matches the incoming image's first signature
+        # block against the running app's first, which blocks key rotation and
+        # multi-provider backup keys; ESPHome accepts an image signed by any key
+        # in the compiled-in trusted set. Without 'verification_keys' there is no
+        # trust anchor, so fall back to IDF's built-in check.
         # The build still produces the padded unsigned image (via SECURE_
         # SIGNED_APPS_NO_SECURE_BOOT above); only the on-update check moves.
         # SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT defaults to y under
@@ -2573,11 +2665,28 @@ async def to_code(config):
         # depends on survive only because --secure-pad-v2 keys off
         # CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME (set below), not that symbol.
         external_rsa = scheme == "rsa3072" and CONF_SIGNING_KEY not in signed_ota
+        verification_keys = signed_ota.get(CONF_VERIFICATION_KEYS)
+        multi_key = external_rsa and verification_keys
         add_idf_sdkconfig_option(
-            "CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT", not external_rsa
+            "CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT", not multi_key
         )
-        if external_rsa:
+        if multi_key:
             cg.add_define("USE_OTA_SIGNED_VERIFICATION_MULTI_KEY")
+            # Compile the trusted key digests in as the immutable trust anchor.
+            # Each is the SHA-256 of a key's signature-block region; the verifier
+            # accepts an OTA whose signature block matches one of these.
+            digests = [bytes.fromhex(k) for k in verification_keys]
+            cg.add_define("OTA_TRUSTED_KEY_COUNT", len(digests))
+            cg.add_define(
+                "OTA_TRUSTED_KEY_DIGESTS",
+                cg.RawExpression(
+                    "{"
+                    + ",".join(
+                        "{" + ",".join(f"0x{b:02x}" for b in d) + "}" for d in digests
+                    )
+                    + "}"
+                ),
+            )
 
         for key, flag in SIGNING_SCHEMES.items():
             add_idf_sdkconfig_option(flag, scheme == key)

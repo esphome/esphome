@@ -273,11 +273,15 @@ def test_nvs_encryption_sdkconfig(
 @pytest.mark.parametrize(
     ("fixture", "multi_key", "idf_on_update"),
     [
-        # Externally-signed RSA hands verification to ESPHome's multi-key
-        # verifier, so IDF's single-block on-update check must be OFF. It
-        # defaults ON under SECURE_SIGNED_APPS_NO_SECURE_BOOT, so it has to be
-        # set to False explicitly -- not merely omitted.
-        ("signed_ota_external_rsa_s3.yaml", True, False),
+        # Externally-signed RSA with a declared trusted-key list hands
+        # verification to ESPHome's multi-key verifier, so IDF's single-block
+        # on-update check must be OFF. It defaults ON under
+        # SECURE_SIGNED_APPS_NO_SECURE_BOOT, so it has to be set to False
+        # explicitly -- not merely omitted.
+        ("signed_ota_verification_keys_s3.yaml", True, False),
+        # Externally-signed RSA without a trusted-key list has no trust anchor,
+        # so it falls back to IDF's built-in check.
+        ("signed_ota_external_rsa_s3.yaml", False, True),
         # Build-time signing and the other schemes keep IDF's check.
         ("signed_ota_signing_key_s3.yaml", False, True),
         ("signed_ota_ecdsa256_c6.yaml", False, True),
@@ -307,6 +311,10 @@ def test_signed_ota_verification_sdkconfig(
         # off the RSA scheme symbol, not the hidden CONFIG_SECURE_SIGNED_APPS
         # (which the explicit `n` above drives to n). Pin the real dependency.
         assert sdkconfig.get("CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME") is True
+        # The compiled-in trust anchor: the fixture lists one key.
+        define_values = {define.name: str(define.value) for define in CORE.defines}
+        assert define_values["OTA_TRUSTED_KEY_COUNT"] == "1"
+        assert "OTA_TRUSTED_KEY_DIGESTS" in define_values
 
 
 @pytest.mark.parametrize(
@@ -746,6 +754,9 @@ def test_downgrade_protection_reports_all_unmet_requirements() -> None:
         # V1 ECDSA: exactly one of signing key / verification key.
         {"signing_scheme": "ecdsa_v1", "signing_key": "key.pem"},
         {"signing_scheme": "ecdsa_v1", "verification_key": "key.bin"},
+        # External RSA with a compiled-in trusted-key list (digests).
+        {"signing_scheme": "rsa3072", "verification_keys": ["ab" * 32]},
+        {"signing_scheme": "rsa3072", "verification_keys": ["ab" * 32, "cd" * 32]},
     ],
 )
 def test_signed_ota_keys_valid_combinations(config: dict) -> None:
@@ -799,6 +810,29 @@ def test_signed_ota_bare_block_selects_v2_external_signing(value: dict | None) -
                 "verification_key": "key.bin",
             },
             "not both",
+        ),
+        # A trusted-key list only applies to external RSA.
+        (
+            {"signing_scheme": "ecdsa256", "verification_keys": ["ab" * 32]},
+            "only used with signing scheme 'rsa3072'",
+        ),
+        # Can't both auto-sign and verify against a fixed trusted set.
+        (
+            {
+                "signing_scheme": "rsa3072",
+                "signing_key": "key.pem",
+                "verification_keys": ["ab" * 32],
+            },
+            "cannot be combined with",
+        ),
+        # The singular V1 key and the RSA trusted-key list are mutually exclusive.
+        (
+            {
+                "signing_scheme": "rsa3072",
+                "verification_key": "key.bin",
+                "verification_keys": ["ab" * 32],
+            },
+            "at most one",
         ),
     ],
 )
