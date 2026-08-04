@@ -98,6 +98,35 @@ def test_address_gate_fires_on_platform_dump_lines(line: str) -> None:
 
 
 @pytest.mark.parametrize("platform", sorted(CRASH_SAMPLES))
+def test_state_gated_decoders_declare_a_state_marker(platform: str) -> None:
+    """A decoder that sets backtrace_state must declare the marker doing it.
+
+    Textual heuristic: every state-gated decoder today spells it as
+    ``return True`` or ``backtrace_state = True`` inside
+    process_stacktrace. A declared marker is then forced through the
+    gate test via the derived STATE_MARKERS, closing the chain from
+    decoder behaviour to gate coverage. Stateless decoders must not
+    declare one, so the table cannot drift into fiction either way.
+    """
+    import importlib
+    import inspect
+
+    module = importlib.import_module(f"esphome.components.{platform}")
+    source = inspect.getsource(module.process_stacktrace)
+    sets_state = "return True" in source or "backtrace_state = True" in source
+    if sets_state:
+        assert CRASH_SAMPLES[platform]["state_markers"], (
+            f"{platform}.process_stacktrace is state-gated but declares no "
+            "state_markers; the gate cannot promise to open its dump region"
+        )
+    else:
+        assert not CRASH_SAMPLES[platform]["state_markers"], (
+            f"{platform}.process_stacktrace never sets backtrace_state; "
+            "drop its state_markers or update this heuristic"
+        )
+
+
+@pytest.mark.parametrize("platform", sorted(CRASH_SAMPLES))
 def test_markers_reach_the_decoder_before_addresses(platform: str) -> None:
     """The replay buffer delivers each platform's markers in order.
 
@@ -163,9 +192,11 @@ def test_samples_and_decoder_patterns_cover_each_other(platform: str) -> None:
     form cannot ship without a sample the gate test then has to pass.
 
     Known blind spots: the esp32/esp8266 catch-all backtrace patterns
-    can satisfy the sample-matches-a-pattern direction on their own, and
-    the undeclared-pattern sweep keys off naming, so a differently-named
-    constant or a function-local re.search literal is invisible to it.
+    can satisfy the sample-matches-a-pattern direction on their own; the
+    undeclared-pattern sweep keys off naming, so a differently-named
+    constant or a function-local re.search literal is invisible to it;
+    and the state-marker requirement rests on the textual heuristic in
+    test_state_gated_decoders_declare_a_state_marker.
     """
     import importlib
     import re
