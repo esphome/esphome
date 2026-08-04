@@ -2,6 +2,7 @@ import json
 import logging
 from pathlib import Path
 import string
+from unittest.mock import patch
 
 from hypothesis import example, given, settings
 from hypothesis.strategies import builds, integers, ip_addresses, one_of, text
@@ -2929,6 +2930,26 @@ def test_require_esphome_version_ok() -> None:
 def test_require_esphome_version_too_old() -> None:
     with pytest.raises(Invalid, match="at least ESPHome version 9999.0.0"):
         cv.require_esphome_version(9999, 0, 0)("test")
+
+
+@pytest.mark.parametrize("current", ["2026.8.0", "2026.8.0b1", "2026.8.0-dev20260801"])
+def test_require_esphome_version_prerelease_of_required_passes(current: str) -> None:
+    """A dev or beta build of the required version satisfies it.
+
+    Pins the behavior of the old tuple comparison that dropped the
+    suffix, now expressed through Version ordering where the extra field
+    only breaks ties upward.
+    """
+    with patch.object(cv, "ESPHOME_VERSION", current):
+        assert cv.require_esphome_version(2026, 8, 0)("test") == "test"
+
+
+def test_require_esphome_version_older_prerelease_fails() -> None:
+    with (
+        patch.object(cv, "ESPHOME_VERSION", "2026.7.0-dev20260701"),
+        pytest.raises(Invalid, match="at least ESPHome version 2026.8.0"),
+    ):
+        cv.require_esphome_version(2026, 8, 0)("test")
 
 
 # ---------------------------------------------------------------------------
