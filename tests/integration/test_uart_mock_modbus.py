@@ -357,7 +357,9 @@ async def test_uart_mock_modbus_client_typed(
     on_error with ILLEGAL_FUNCTION (= 1 -> coil_error_code), proving the bit-read request and typed error
     delivery. A multi-register write (fc 0x10) lands on registers 0x11/0x12 with the read-back of 0x12
     chained inside its ack handler (-> multi_value = 222); a multi-coil write draws ILLEGAL_FUNCTION from
-    the register-only server (-> multi_coil_error = 1).
+    the register-only server (-> multi_coil_error = 1). A read whose count lambda returns 0 at runtime
+    builds an empty (rejected) PDU, is refused at the hub door, and resolves via on_not_sent
+    (-> not_sent_flag).
     """
 
     tracker = SensorTracker(
@@ -368,6 +370,7 @@ async def test_uart_mock_modbus_client_typed(
             "coil_error_code",
             "multi_value",
             "multi_coil_error",
+            "not_sent_flag",
         ]
     )
     futures = tracker.expect_all(
@@ -378,6 +381,7 @@ async def test_uart_mock_modbus_client_typed(
             "coil_error_code": 1,
             "multi_value": 222,
             "multi_coil_error": 1,
+            "not_sent_flag": 1,
         }
     )
 

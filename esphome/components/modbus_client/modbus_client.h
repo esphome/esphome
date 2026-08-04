@@ -58,6 +58,16 @@ template<typename... Ts> class ClientActionBase : public Action<Ts...>, public m
   }
 
  protected:
+  /// The hub refuses some sends at the door with no callback (a duplicate write already pending, a full
+  /// queue, or an empty PDU - which is how the create_*_pdu() builders reject out-of-spec input). Every
+  /// send still gets exactly one outcome, so resolve refusals here via on_not_sent.
+  /// Takes a span, not a PduBuffer: the builders return right-sized buffers (a read PDU is 5 bytes), and
+  /// a PduBuffer parameter would widen each one to the 253-byte maximum just to cross the call.
+  void send_or_resolve_(std::span<const uint8_t> pdu) {
+    if (!this->send_pdu(pdu))
+      this->on_not_sent(pdu);
+  }
+
   Trigger<std::span<const uint8_t>> sent_trigger_;
   Trigger<std::span<const uint8_t>, modbus::ExceptionCode> error_trigger_;
   Trigger<std::span<const uint8_t>> no_response_trigger_;
@@ -80,14 +90,7 @@ template<typename... Ts> class ModbusClientSendAction : public ClientActionBase<
     return &this->response_trigger_;
   }
 
-  void play(const Ts &...x) override {
-    auto pdu = this->pdu_.value(x...);
-    const std::span<const uint8_t> span(pdu.data(), pdu.size());
-    // The hub refuses some sends at the door with no callback (an empty PDU, a duplicate write already
-    // pending, a full queue). Every send still gets exactly one outcome, so resolve those via on_not_sent.
-    if (!this->send_pdu(span))
-      this->on_not_sent(span);
-  }
+  void play(const Ts &...x) override { this->send_or_resolve_(this->pdu_.value(x...)); }
 
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {
     this->response_trigger_.trigger(request_pdu, response_pdu);
@@ -138,13 +141,10 @@ template<typename... Ts> class ReadRegistersAction : public TypedClientActionBas
   Trigger<std::span<const uint16_t>> *get_response_trigger() { return &this->response_trigger_; }
 
   void play(const Ts &...x) override {
-    const uint16_t start = this->start_address_.value(x...);
-    const uint16_t count = this->count_.value(x...);
-    if (this->holding_) {
-      this->read_holding_registers(start, count);
-    } else {
-      this->read_input_registers(start, count);
-    }
+    const auto function_code =
+        this->holding_ ? modbus::FunctionCode::READ_HOLDING_REGISTERS : modbus::FunctionCode::READ_INPUT_REGISTERS;
+    this->send_or_resolve_(
+        modbus::helpers::create_read_pdu(function_code, this->start_address_.value(x...), this->count_.value(x...)));
   }
   void on_read_registers(modbus::EntityType entity_type, uint16_t start_address, std::span<const uint16_t> registers,
                          modbus::ResponseStatus status) override {
@@ -168,13 +168,10 @@ template<typename... Ts> class ReadBitsAction : public TypedClientActionBase<Ts.
   Trigger<modbus::PackedBits> *get_response_trigger() { return &this->response_trigger_; }
 
   void play(const Ts &...x) override {
-    const uint16_t start = this->start_address_.value(x...);
-    const uint16_t count = this->count_.value(x...);
-    if (this->coils_) {
-      this->read_coils(start, count);
-    } else {
-      this->read_discrete_inputs(start, count);
-    }
+    const auto function_code =
+        this->coils_ ? modbus::FunctionCode::READ_COILS : modbus::FunctionCode::READ_DISCRETE_INPUTS;
+    this->send_or_resolve_(
+        modbus::helpers::create_read_pdu(function_code, this->start_address_.value(x...), this->count_.value(x...)));
   }
   void on_read_bits(modbus::EntityType entity_type, uint16_t start_address, modbus::PackedBits bits,
                     modbus::ResponseStatus status) override {
@@ -200,11 +197,8 @@ template<typename... Ts> class WriteSingleAction : public TypedClientActionBase<
   void play(const Ts &...x) override {
     const uint16_t start = this->start_address_.value(x...);
     const uint16_t value = this->value_.value(x...);
-    if (this->coil_) {
-      this->write_single_coil(start, value != 0);
-    } else {
-      this->write_single_register(start, value);
-    }
+    this->send_or_resolve_(this->coil_ ? modbus::helpers::create_write_single_coil_pdu(start, value != 0)
+                                       : modbus::helpers::create_write_single_register_pdu(start, value));
   }
   void on_write_single_register(uint16_t address, uint16_t value, modbus::ResponseStatus status) override {
     if (this->check_status_(status))
@@ -230,9 +224,9 @@ template<typename... Ts> class WriteMultipleRegistersAction : public TypedClient
 
   void play(const Ts &...x) override {
     auto values = this->values_.value(x...);
-    if (values.empty())
-      return;
-    this->write_multiple_registers(this->start_address_.value(x...), std::span<const uint16_t>(values));
+    // An empty or over-long set rejects into an empty PDU inside the builder and resolves via on_not_sent.
+    this->send_or_resolve_(modbus::helpers::create_write_registers_pdu(this->start_address_.value(x...),
+                                                                       std::span<const uint16_t>(values)));
   }
   void on_write_multiple_registers(uint16_t start_address, std::span<const uint16_t> registers,
                                    modbus::ResponseStatus status) override {
@@ -256,15 +250,18 @@ template<typename... Ts> class WriteMultipleCoilsAction : public TypedClientActi
 
   void play(const Ts &...x) override {
     auto values = this->values_.value(x...);
-    if (values.empty() || values.size() > modbus::MAX_NUM_OF_COILS_TO_WRITE)
+    if (values.empty() || values.size() > modbus::MAX_NUM_OF_COILS_TO_WRITE) {
+      // An out-of-spec set cannot be packed into the stack buffer; resolve it like any refused send.
+      this->on_not_sent({});
       return;
+    }
     // Transient pack on the stack: ceil(1968 / 8) = 246 bytes for the spec-maximum write.
     std::array<uint8_t, (modbus::MAX_NUM_OF_COILS_TO_WRITE + 7) / 8> buf{};
     modbus::MutablePackedBits bits(std::span<uint8_t>(buf.data(), (values.size() + 7) / 8),
                                    static_cast<uint16_t>(values.size()));
     for (size_t i = 0; i < values.size(); i++)
       bits.set(i, values[i] != 0);
-    this->write_multiple_coils(this->start_address_.value(x...), bits);
+    this->send_or_resolve_(modbus::helpers::create_write_coils_pdu(this->start_address_.value(x...), bits));
   }
   void on_write_multiple_coils(uint16_t start_address, modbus::PackedBits bits,
                                modbus::ResponseStatus status) override {
