@@ -295,7 +295,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   /// address byte. Serves only the deprecated write_lambda buffer path. Remove before 2027.2.0.
   void send_raw_frame_deprecated(std::span<const uint8_t> frame);
 
-  /// Queue this command's frame on the hub. Always returns true (bool kept for source compatibility).
+  /// Queue this command's frame on the hub. Returns false when refused, in which case no callback ever comes.
   bool send();
 
   /// factory methods (deprecated: use ModbusController::create_command() and the item's write helpers / send_pdu())
@@ -455,11 +455,11 @@ class ModbusController final : public PollingComponent {
     return ModbusCommandItem(*this, this->hub_, this->address_, std::move(range));
   }
 
-  /// queues a one-shot modbus command (writes, custom commands)
+  /// Queues a one-shot modbus command (writes, custom commands); taken by value, so std::move to avoid a copy.
   ESPDEPRECATED("Own a ModbusCommandItem that outlives the call (e.g. a std::optional member) and call a write "
                 "helper on it instead; for ad-hoc custom PDUs use a modbus_client component. Removed in 2027.2.0",
                 "2026.8.0")
-  void queue_command(const ModbusCommandItem &command);
+  void queue_command(ModbusCommandItem command);
   /// Flags a finished one-shot command for removal. Called by the command as the last action of its own
   /// callback, so the item is not destroyed here (send() and the hub still touch it) but swept later.
   void unqueue_command(const ModbusCommandItem *command);
@@ -502,9 +502,11 @@ class ModbusController final : public PollingComponent {
   void create_polling_commands_();
   /// build one persistent polling command from a range and add it to polling_command_items_
   void create_polling_command_(RegisterRange &&range) {
-    // A custom range wraps one sensor; the sensor constructor references its custom_pdu instead of copying it.
+    // A custom range polls the first sensor's custom_pdu (referenced, not copied); the sensor constructor
+    // decodes the real function code. The response still dispatches to every sensor in the range.
     if (range.register_type == EntityType::CUSTOM && !range.sensors.empty()) {
-      this->polling_command_items_.emplace_back(*this, this->hub_, this->address_, *range.sensors.begin());
+      auto &cmd = this->polling_command_items_.emplace_back(*this, this->hub_, this->address_, *range.sensors.begin());
+      cmd.sensors = std::move(range.sensors);
     } else {
       this->polling_command_items_.emplace_back(*this, this->hub_, this->address_, std::move(range));
     }
