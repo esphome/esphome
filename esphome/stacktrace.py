@@ -7,7 +7,6 @@ or any platform package.
 
 from __future__ import annotations
 
-from collections import deque
 import logging
 import re
 from typing import Any
@@ -17,58 +16,47 @@ from esphome.core import EsphomeError
 
 _LOGGER = logging.getLogger(__name__)
 
-
-# Necessary condition for a line to decode to anything: every frame or
-# register the platform decoders match carries either a 0x-prefixed
-# pointer (nrf52's variable-length ``PC=0x27a1c``, esp32's
-# ``Backtrace: 0x400d1a2c:...``) or a bare 8-hex-digit word (esp8266
-# stack dumps). A unit test keyed off the registry feeds one real dump
-# line per registered platform through this to keep the superset claim
-# honest. Deliberately
-# not the crash-marker grammar - that lives in the platform decoders
-# and a copy here would drift. The device builder gates its decoder
-# subprocess the same way (esphome_device_builder/controllers/devices/
-# backtrace.py).
-# The letter-requiring bare-hex alternation keeps 8-digit decimals
-# (uptime counters, sensor readings) from tripping the gate. The keyword
-# alternations admit the letter-free code-address forms the decoders
-# key on only behind their register/alloc keywords, so ESP-IDF's
-# decimal log timestamps ("I (40219876)") and 4xxxxxxx-range decimals
-# stay out. A false trigger costs one platform import on the event loop
-# mid-stream, which is why it must stay rare. The final alternation
-# gates on the region markers the state-gated decoders (rp2, nrf52,
-# esp8266) key on: they are far more stable than the address grammar,
-# the CRASH_SAMPLES state_markers table derives the test that pins each
-# one, and matching them directly means those decoders never depend on
-# the replay window to see their marker.
-# The keyword branches deliberately carry no word boundaries: the
-# decoder regexes they mirror have none either, and a generative test
-# derives inputs from those regexes to prove the gate is a superset.
+# The gate that defers the platform-package import: a log line reaches
+# the decoder only once a line matches, so a session that never prints
+# a crash pays no import at all. The win is one import per session
+# instead of at session start, not per-line CPU. A false trigger costs
+# that import on the event loop mid-stream, which is why 8-digit
+# decimals (uptime counters) and ESP-IDF's decimal log timestamps must
+# stay out. The device builder gates its decoder subprocess the same
+# way.
+#
+# The gate must be a superset of every registered decoder's trigger
+# language; both directions are pinned in
+# tests/unit_tests/test_stacktrace.py, including a generative test that
+# derives inputs from the decoder regexes themselves. Branches:
+# 0x-prefixed pointers; bare 8-hex words that are not plain decimals;
+# the letter-free register/alloc keyword forms, whose (?:0x)? covers a
+# pointer glued to trailing word characters that defeat the first
+# branch's \b; the exception header; and the region markers the
+# state-gated decoders (rp2, nrf52, esp8266) key on, so those decoders
+# never miss their marker line.
 _ADDRESS_RE = re.compile(
     r"0x[0-9a-fA-F]{3,}\b"
-    r"|\b(?=[0-9A-Fa-f]*[A-Fa-f])[0-9a-fA-F]{8}\b"
-    r"|(?:PC|RA|LR|MEPC|MTVAL|EXCVADDR|BT\d+|epc\d|excvaddr|call)\s*[:=]\s*(?:0x)?4[0-9a-fA-F]{7}"
-    r"|(?:PC|LR)=0x[0-9a-fA-F]+"
+    r"|\b(?![0-9]{8}\b)[0-9a-fA-F]{8}\b"
+    r"|(?:PC|RA|MEPC|MTVAL|EXCVADDR|call)\s*[:=]\s*(?:0x)?4[0-9a-fA-F]{7}"
+    r"|[eE]xception \(\d+\):"
     r"|>>>stack>>>|CRASH DETECTED ON PREVIOUS BOOT|Last crash:"
 )
-
-# Lines kept for replay once decoding starts. Crash markers without an
-# address (esp8266's ``>>>stack>>>``, panic banners) precede the first
-# address-bearing line by at most a few lines; replaying them lets the
-# decoder enter its dump region as if it had seen the stream live.
-_REPLAY_LINES = 8
 
 
 class LogLineProcessor:
     """Feeds incoming log lines to the stack-trace decoder.
 
     Three responsibilities beyond just calling the decoder:
-    1. Resolve the platform decoder lazily. Importing a platform package
-       pulls in the validation stack, so nothing is imported until a
-       line carries something that could decode (see _ADDRESS_RE); the
-       preceding context lines replay from a small buffer so multi-line
-       dumps whose opening marker has no address still decode. Sessions
-       that never see a crash-shaped line never pay the import.
+    1. Resolve the platform decoder through the registry: lazily for
+       in-tree platforms with a registered decoder, where nothing is
+       imported until a line matches _ADDRESS_RE, and eagerly otherwise.
+       A registry-proven miss reports its unavailable notice at session
+       start without importing anything; an external platform resolves
+       up front because the gate's grammar derives from the in-tree
+       decoders and its import cannot be avoided anyway - resolving
+       early keeps it out of the streaming callback, where a blocking
+       import would stall delivery mid-stream.
     2. Catch everything the decoder can raise. aioesphomeapi isolates
        exceptions raised by log handlers, so an escaping one no longer
        kills the session, but it does log a full traceback per line. A
@@ -87,17 +75,7 @@ class LogLineProcessor:
         self._platform = platform
         self._platform_handler: Any | None = None
         self._decode_enabled = True
-        self._recent: deque[str] = deque(maxlen=_REPLAY_LINES)
-        self._evicted = False
         self.backtrace_state = False
-        # Only in-tree platforms with an analyzer defer the import behind
-        # the address gate. Everything else resolves now: registry-proven
-        # misses so their unavailable notice fires at session start
-        # without importing, and external platforms because the gate's
-        # grammar derives from the in-tree decoders and their import
-        # cannot be avoided anyway - resolving up front keeps it out of
-        # the streaming callback, where a blocking import would stall
-        # delivery mid-stream, and preserves the pre-registry behavior.
         if platform not in platform_hooks.PLATFORM_HOOKS["process_stacktrace"]:
             self._resolve_handler()
 
@@ -106,45 +84,22 @@ class LogLineProcessor:
             return
         if self._platform_handler is None:
             if not _ADDRESS_RE.search(raw_line):
-                if len(self._recent) == _REPLAY_LINES:
-                    self._evicted = True
-                self._recent.append(raw_line)
                 return
             if not self._resolve_handler():
                 return
-            pending = list(self._recent)
-            self._recent.clear()
-            if self._evicted:
-                # A dump whose marker sits further back than the window
-                # decodes to nothing; make that diagnosable in the field.
-                # Only what is observable is claimed: lines rolled off,
-                # whether any of them mattered is unknowable here.
-                # Debug only: the marker alternation below resolves the
-                # state-gated decoders directly, so a rolled-off line is
-                # almost never load-bearing and any real session has
-                # rolled far more than eight lines by its first crash.
-                _LOGGER.debug(
-                    "Replay window held only the last %d lines; older context was not delivered",
-                    _REPLAY_LINES,
-                )
-            for buffered in pending:
-                self._feed(buffered)
-                if not self._decode_enabled:
-                    return
         self._feed(raw_line)
 
     def _resolve_handler(self) -> bool:
         try:
             handler = platform_hooks.get_stacktrace_handler(self._platform)
-        except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-except
+        except Exception:  # noqa: BLE001  # pylint: disable=broad-except
             # Total containment includes resolution: a platform package
             # broken in an unanticipated way must not kill the session or
             # retry on every address-bearing line.
             _LOGGER.debug("Stacktrace analyzer resolution failed", exc_info=True)
             _LOGGER.warning(
-                'Stacktrace analysis is unavailable: analyzer for target platform "%s" could not be loaded: %s',
+                'Stacktrace analysis is unavailable: analyzer for target platform "%s" could not be loaded.',
                 self._platform,
-                exc,
             )
             handler = None
         if handler is None:

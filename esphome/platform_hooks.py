@@ -11,7 +11,8 @@ imports each platform package and fails when they drift.
 The compile-path ``run_compile`` hook is deliberately not registered:
 compiling imports the platform package regardless, so its probe in
 ``__main__.py`` stays eager. Both log paths resolve
-``process_stacktrace`` lazily through get_stacktrace_handler below.
+``process_stacktrace`` through ``esphome.stacktrace.LogLineProcessor``,
+which uses get_stacktrace_handler below.
 """
 
 from __future__ import annotations
@@ -115,12 +116,10 @@ def get_platform_hook(platform: str, hook: str) -> Callable[..., Any] | None:
 def get_stacktrace_handler(platform: str) -> Callable[..., Any] | None:
     """Resolve ``process_stacktrace`` for *platform*, degrading with a log.
 
-    Stacktrace decoding is a diagnostic nicety. This function only
-    distinguishes the import-error case so its message is accurate;
-    total containment is owned by the caller
-    (``stacktrace.LogLineProcessor._resolve_handler`` wraps this in a
-    broad except). Both log paths share this so the user-facing message
-    lives in one place.
+    Stacktrace decoding is a diagnostic nicety. This only distinguishes
+    an import failure from an ordinary capability gap so the message is
+    accurate; it returns None for both, and callers own any further
+    containment. Shared so the user-facing message lives in one place.
     """
     try:
         handler = get_platform_hook(platform, "process_stacktrace")

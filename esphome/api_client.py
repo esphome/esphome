@@ -56,9 +56,7 @@ async def async_run_logs(
         provide_time=False,
     )
 
-    # The platform stacktrace decoder resolves lazily inside the
-    # processor: no platform package is imported unless a crash-shaped
-    # line actually arrives.
+    # Decoder resolution policy lives in LogLineProcessor.
     processor = LogLineProcessor(config, CORE.target_platform)
 
     def on_log(msg: SubscribeLogsResponse) -> None:
