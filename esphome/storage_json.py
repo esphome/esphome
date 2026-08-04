@@ -12,12 +12,15 @@ from esphome.const import (
     CONF_DISABLED,
     CONF_MDNS,
     KEY_CORE,
+    KEY_ESP32,
     KEY_FRAMEWORK_VERSION,
+    KEY_IDF_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    KEY_VARIANT,
     Toolchain,
 )
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE, EsphomeError, Version
 from esphome.helpers import write_file_if_changed
 from esphome.types import CoreType
 
@@ -67,6 +70,17 @@ def archive_storage_path() -> Path:
 def _to_path_if_not_none(value: str | None) -> Path | None:
     """Convert a string to Path if it's not None."""
     return Path(value) if value is not None else None
+
+
+def _parse_framework_version(framework_version: str) -> Version:
+    try:
+        return Version.parse(framework_version)
+    except ValueError as err:
+        raise EsphomeError(
+            f"Could not parse the framework version "
+            f"{framework_version!r} from {storage_path()}. "
+            f"Please clean the build files and recompile."
+        ) from err
 
 
 class StorageJSON:
@@ -319,37 +333,16 @@ class StorageJSON:
         # esp32.get_esp32_variant(). target_platform on disk is the variant
         # (e.g. "ESP32S3"); core_platform is the family (e.g. "esp32").
         if target_platform == const.PLATFORM_ESP32:
-            from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION
-            from esphome.const import KEY_VARIANT
-
             esp32_data = {KEY_VARIANT: self.target_platform}
             if self.framework_version:
-                import esphome.config_validation as cv
-
-                try:
-                    esp32_data[KEY_IDF_VERSION] = cv.Version.parse(
-                        self.framework_version
-                    )
-                except ValueError as err:
-                    raise EsphomeError(
-                        f"Could not parse the framework version "
-                        f"{self.framework_version!r} from {storage_path()}. "
-                        f"Please clean the build files and recompile."
-                    ) from err
-            CORE.data[KEY_ESP32] = esp32_data
-        elif target_platform == const.PLATFORM_NRF52 and self.framework_version:
-            import esphome.config_validation as cv
-
-            try:
-                CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
+                esp32_data[KEY_IDF_VERSION] = _parse_framework_version(
                     self.framework_version
                 )
-            except ValueError as err:
-                raise EsphomeError(
-                    f"Could not parse the framework version "
-                    f"{self.framework_version!r} from {storage_path()}. "
-                    f"Please clean the build files and recompile."
-                ) from err
+            CORE.data[KEY_ESP32] = esp32_data
+        elif target_platform == const.PLATFORM_NRF52 and self.framework_version:
+            CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = _parse_framework_version(
+                self.framework_version
+            )
 
     def __eq__(self, o) -> bool:
         return isinstance(o, StorageJSON) and self.as_dict() == o.as_dict()
