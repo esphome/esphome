@@ -208,8 +208,9 @@ void AS734XComponent::publish_channel_readings_() {}
 AS734xBase::AS734xBase(i2c::I2CDevice *i2c_device, uint8_t number_of_channels)
     : i2c_device_(i2c_device), number_of_channels_(number_of_channels) {}
 
-bool AS734xBase::write_gain(Gain gain) { return this->i2c_device_->write_byte(this->registers().cfg1, gain); }
-bool AS734xBase::write_atime(uint8_t atime) { return this->i2c_device_->write_byte(this->registers().atime, atime); }
+bool AS734xBase::write_gain(Gain gain) { return this->write_byte_(this->registers().cfg1, gain); }
+bool AS734xBase::write_atime(uint8_t atime) { return this->write_byte_(this->registers().atime, atime); }
+// ASTEP is a 16 bit register above 0x80 on both parts, so it needs no bank selection.
 bool AS734xBase::write_astep(uint16_t astep) {
   return this->i2c_device_->write_byte_16(this->registers().astep, this->swap_bytes_(astep));
 }
@@ -241,41 +242,48 @@ bool AS734xBase::is_data_ready() {
   return ready;
 }
 
-bool AS734xBase::set_bank_(bool low) {
-  if (low == this->bank_low_) {
-    return true;
-  }
-  // The flag is updated before the write, because CFG0 sits outside the low bank and going through
-  // the bank-aware bit helpers would call set_bank_for_reg_() again and recurse without end. If the
-  // transfer fails the flag is put back, so the cache never claims a bank the chip is not in.
-  this->bank_low_ = low;
-
+// CFG0 sits outside the low window on both parts, so this reaches it directly and never has to
+// select a bank for itself.
+bool AS734xBase::select_low_bank_(bool low) {
   const uint8_t mask = 1 << this->registers().cfg0_reg_bank_bit;
   uint8_t data{0};
   if (!this->i2c_device_->read_byte(this->registers().cfg0, &data)) {
-    this->bank_low_ = !low;
     ESP_LOGW(TAG, "Could not read CFG0, register bank left unchanged");
     return false;
   }
   data = low ? (data | mask) : (data & ~mask);
   if (!this->i2c_device_->write_byte(this->registers().cfg0, data)) {
-    this->bank_low_ = !low;
     ESP_LOGW(TAG, "Could not write CFG0, register bank left unchanged");
     return false;
   }
   return true;
 }
 
-bool AS734xBase::set_bank_for_reg_(uint8_t reg) {
-  return this->set_bank_(reg >= this->registers().bank_low_min && reg <= this->registers().bank_low_max);
+bool AS734xBase::read_byte_(uint8_t address, uint8_t *value) {
+  if (!this->needs_low_bank_(address)) {
+    return this->i2c_device_->read_byte(address, value);
+  }
+  if (!this->select_low_bank_(true)) {
+    return false;
+  }
+  const bool ok = this->i2c_device_->read_byte(address, value);
+  return this->select_low_bank_(false) && ok;
+}
+
+bool AS734xBase::write_byte_(uint8_t address, uint8_t value) {
+  if (!this->needs_low_bank_(address)) {
+    return this->i2c_device_->write_byte(address, value);
+  }
+  if (!this->select_low_bank_(true)) {
+    return false;
+  }
+  const bool ok = this->i2c_device_->write_byte(address, value);
+  return this->select_low_bank_(false) && ok;
 }
 
 bool AS734xBase::read_register_bit_(uint8_t address, uint8_t bit_position, bool &bit_value) {
-  if (!this->set_bank_for_reg_(address)) {
-    return false;
-  }
   uint8_t data{0};
-  if (!this->i2c_device_->read_byte(address, &data)) {
+  if (!this->read_byte_(address, &data)) {
     ESP_LOGW(TAG, "Read of register 0x%02X failed", address);
     return false;
   }
@@ -298,17 +306,14 @@ bool AS734xBase::clear_register_bit_(uint8_t address, uint8_t bit_position) {
 // A failed read must not be followed by a write: the value would be built from a zeroed byte and
 // would clear every other bit in the register.
 bool AS734xBase::update_register_bit_(uint8_t address, uint8_t bit_position, bool value) {
-  if (!this->set_bank_for_reg_(address)) {
-    return false;
-  }
   uint8_t data{0};
-  if (!this->i2c_device_->read_byte(address, &data)) {
+  if (!this->read_byte_(address, &data)) {
     ESP_LOGW(TAG, "Read of register 0x%02X failed, not writing bit %u", address, bit_position);
     return false;
   }
   const uint8_t mask = 1 << bit_position;
   data = value ? (data | mask) : (data & ~mask);
-  return this->i2c_device_->write_byte(address, data);
+  return this->write_byte_(address, data);
 }
 
 }  // namespace esphome::as734x

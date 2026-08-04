@@ -45,7 +45,8 @@ union RegAStatus {
 };
 
 struct RegisterMap {
-  // Address window that the CFG0 bank bit maps in. Registers outside it are always reachable.
+  // The address window that CFG0's bank bit enables. Registers outside it stay reachable whichever
+  // bank is selected.
   uint8_t bank_low_min;
   uint8_t bank_low_max;
   uint8_t astep;
@@ -103,12 +104,23 @@ class AS734xBase {
   i2c::I2CDevice *i2c_device_ = nullptr;
   uint8_t number_of_channels_;
 
-  bool bank_low_{false};  // default bank = 0 (for regs 0x80+)
-
-  // These all report whether the I2C transfer succeeded. bank_low_ only changes when the chip
-  // agrees, and a bit is never written on top of a failed read.
-  bool set_bank_(bool low);
-  bool set_bank_for_reg_(uint8_t reg);
+  // Every helper below reports whether the I2C transfer succeeded, and a bit is never written on
+  // top of a failed read.
+  //
+  // CFG0's bank bit only enables the low address window named in RegisterMap. Registers at 0x80 and
+  // above answer from either bank, which is less strict than the datasheet, but reaching a low
+  // register from the wrong bank fails quietly: the transfer is acknowledged and reads back the
+  // value just written while the real register keeps its own. Both were measured on both parts.
+  //
+  // So every single byte access goes through read_byte_() and write_byte_(), which select the low
+  // bank only for the addresses that need it and put it back straight away. Nothing caches which
+  // bank the chip is in, so nothing can disagree with it.
+  bool read_byte_(uint8_t address, uint8_t *value);
+  bool write_byte_(uint8_t address, uint8_t value);
+  bool select_low_bank_(bool low);
+  bool needs_low_bank_(uint8_t address) const {
+    return address >= this->registers().bank_low_min && address <= this->registers().bank_low_max;
+  }
 
   inline uint16_t swap_bytes_(uint16_t data) { return (data >> 8) | (data << 8); }
   bool read_register_bit_(uint8_t address, uint8_t bit_position, bool &bit_value);

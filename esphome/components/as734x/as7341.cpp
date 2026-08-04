@@ -50,18 +50,13 @@ const RegisterMap AS7341::REG_MAP = {
 AS7341::AS7341(i2c::I2CDevice *i2c_device) : AS734xBase(i2c_device, AS7341::NUM_CHANNELS) {}
 
 bool AS7341::verify_device_id() {
-  this->set_bank_for_reg_(AS7341_ID);
-
   uint8_t id{0};
-  this->i2c_device_->read_byte(AS7341_ID, &id);
+  this->read_byte_(AS7341_ID, &id);
   ESP_LOGCONFIG(TAG, "  Read ID: 0x%X", id);
   return ((id & AS7341_ID_MASK) == (AS7341_CHIP_ID << AS7341_ID_SHIFT));
 }
 
-bool AS7341::write_default_config() {
-  // CONFIG sits in the low register bank
-  return this->set_bank_for_reg_(AS7341_CONFIG) && this->i2c_device_->write_byte(AS7341_CONFIG, AS7341_CONFIG_INIT);
-}
+bool AS7341::write_default_config() { return this->write_byte_(AS7341_CONFIG, AS7341_CONFIG_INIT); }
 
 bool AS7341::prepare_for_smux_step(uint8_t step) {
   // SMUX Config for F1,F2,F3,F4,NIR,Clear
@@ -72,12 +67,12 @@ bool AS7341::prepare_for_smux_step(uint8_t step) {
                                               0x03, 0x00, 0x00, 0x00, 0x24, 0x00, 0x00, 0x50, 0x00, 0x06};
 
   // Set SMUX command to write
-  this->i2c_device_->write_byte(AS7341_CFG6, AS7341_SMUX_CMD_WRITE << AS7341_CFG6_SMUX_CMD_SHIFT);
+  this->write_byte_(AS7341_CFG6, AS7341_SMUX_CMD_WRITE << AS7341_CFG6_SMUX_CMD_SHIFT);
 
   // Write SMUX configuration based on step
   const uint8_t *config = (step == 0) ? SMUX_CONFIG_STEP0 : SMUX_CONFIG_STEP1;
   for (uint8_t i = 0; i < 20; ++i) {
-    this->i2c_device_->write_byte(i, config[i]);
+    this->write_byte_(i, config[i]);
   }
   this->enable_smux();
 
@@ -89,7 +84,7 @@ bool AS7341::read_channels(uint8_t smux_step, ChannelValuesUint16 &values, Gain 
 
   std::array<uint16_t, adc_channels> raw{};
   RegAStatus astatus{};
-  this->i2c_device_->read_byte(AS7341_ASTATUS, &astatus.raw);
+  this->read_byte_(AS7341_ASTATUS, &astatus.raw);
   if (astatus.asat_status) {
     ESP_LOGVV(TAG, "AS7341 affected by analog or digital saturation. Readings are not reliable.");
   }

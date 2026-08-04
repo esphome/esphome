@@ -37,7 +37,9 @@ static constexpr uint8_t AS7343_STATUS2_AVALID_BIT = 6;
 // Values written during start-up, taken from the manufacturer's recommended three-chain
 // configuration. The datasheet does not break every one of them down to bit level.
 // AS7343_CFG20_AUTO_SMUX_3_CYCLES sets auto_smux to 0b11: all 18 channels over three cycles.
-static constexpr uint8_t AS7343_CFG0_INIT = 0x10;
+// The only bit CFG0_INIT used to set was REG_BANK, which select_low_bank_() owns, so it is left
+// alone here.
+static constexpr uint8_t AS7343_CFG0_INIT = 0x00;
 static constexpr uint8_t AS7343_CFG6_INIT = 0x0;
 static constexpr uint8_t AS7343_FD_CFG0_INIT = 0xa1;
 static constexpr uint8_t AS7343_CFG10_INIT = 0xf2;
@@ -107,10 +109,8 @@ union RegStatus {
 AS7343::AS7343(i2c::I2CDevice *i2c_device) : AS734xBase(i2c_device, AS7343::NUM_CHANNELS) {}
 
 bool AS7343::verify_device_id() {
-  this->set_bank_for_reg_(AS7343_ID);
-
   uint8_t id{0};
-  this->i2c_device_->read_byte(AS7343_ID, &id);
+  this->read_byte_(AS7343_ID, &id);
   ESP_LOGCONFIG(TAG, "  Read ID: 0x%X", id);
   return (id == AS7343_CHIP_ID);
 }
@@ -119,20 +119,16 @@ bool AS7343::write_default_config() { return this->direct_config_3_chain_(); }
 
 bool AS7343::direct_config_3_chain_() {
   bool ok = true;
-  ok = this->i2c_device_->write_byte(AS7343_CFG6, AS7343_CFG6_INIT) && ok;
-  ok = this->i2c_device_->write_byte(AS7343_FD_CFG0, AS7343_FD_CFG0_INIT) && ok;
-
-  ok = this->set_bank_for_reg_(AS7343_CFG10) && ok;  // CFG10 sits in the low register bank
-  ok = this->i2c_device_->write_byte(AS7343_CFG10, AS7343_CFG10_INIT) && ok;
-  ok = this->set_bank_for_reg_(AS7343_CFG0) && ok;
-
-  ok = this->i2c_device_->write_byte(AS7343_CFG0, AS7343_CFG0_INIT) && ok;
-  ok = this->i2c_device_->write_byte(AS7343_CFG1, AS7343_CFG1_INIT) && ok;
-  ok = this->i2c_device_->write_byte(AS7343_CFG8, AS7343_CFG8_INIT) && ok;
-  ok = this->i2c_device_->write_byte(AS7343_CFG20, AS7343_CFG20_AUTO_SMUX_3_CYCLES) && ok;
-  ok = this->i2c_device_->write_byte(AS7343_AGC_GAIN_MAX, AS7343_AGC_GAIN_MAX_INIT) && ok;
-  ok = this->i2c_device_->write_byte(AS7343_FD_TIME_1, AS7343_FD_TIME_1_INIT) && ok;
-  ok = this->i2c_device_->write_byte(AS7343_FD_TIME_2, AS7343_FD_TIME_2_INIT) && ok;
+  ok = this->write_byte_(AS7343_CFG6, AS7343_CFG6_INIT) && ok;
+  ok = this->write_byte_(AS7343_FD_CFG0, AS7343_FD_CFG0_INIT) && ok;
+  ok = this->write_byte_(AS7343_CFG10, AS7343_CFG10_INIT) && ok;
+  ok = this->write_byte_(AS7343_CFG0, AS7343_CFG0_INIT) && ok;
+  ok = this->write_byte_(AS7343_CFG1, AS7343_CFG1_INIT) && ok;
+  ok = this->write_byte_(AS7343_CFG8, AS7343_CFG8_INIT) && ok;
+  ok = this->write_byte_(AS7343_CFG20, AS7343_CFG20_AUTO_SMUX_3_CYCLES) && ok;
+  ok = this->write_byte_(AS7343_AGC_GAIN_MAX, AS7343_AGC_GAIN_MAX_INIT) && ok;
+  ok = this->write_byte_(AS7343_FD_TIME_1, AS7343_FD_TIME_1_INIT) && ok;
+  ok = this->write_byte_(AS7343_FD_TIME_2, AS7343_FD_TIME_2_INIT) && ok;
 
   constexpr uint8_t chains = 3;
   constexpr uint8_t chain_len = 10;
@@ -143,8 +139,8 @@ bool AS7343::direct_config_3_chain_() {
                                               {0x05, 0x00, 0x60, 0x00, 0x30, 0x00, 0x40, 0x10, 0x20, 0x00}};
   for (size_t chain = 0; chain < chains; chain++) {
     for (size_t i = 0; i < chain_len; i++) {
-      ok = this->i2c_device_->write_byte(AS7343_CHAIN_SMUX, adc_map[chain][i]) && ok;
-      ok = this->i2c_device_->write_byte(AS7343_CHAIN_CMD, smux_cmd[chain]) && ok;
+      ok = this->write_byte_(AS7343_CHAIN_SMUX, adc_map[chain][i]) && ok;
+      ok = this->write_byte_(AS7343_CHAIN_CMD, smux_cmd[chain]) && ok;
     }
   }
   return ok;
@@ -160,13 +156,13 @@ bool AS7343::read_channels(uint8_t /*step*/, ChannelValuesUint16 &values, Gain &
   std::array<uint16_t, AS7343_NUM_CHANNELS_MAX> data{};
 
   RegStatus status{0};
-  status.raw = this->i2c_device_->reg(AS7343_STATUS).get();
+  this->read_byte_(AS7343_STATUS, &status.raw);
   ESP_LOGVV(TAG, "Status 0x%02x, sint %d, fint %d, aint %d, asat %d", status.raw, status.sint, status.fint, status.aint,
             status.asat);
-  this->i2c_device_->reg(AS7343_STATUS) = status.raw;
+  this->write_byte_(AS7343_STATUS, status.raw);
 
   RegAStatus astatus{0};
-  astatus.raw = this->i2c_device_->reg(AS7343_ASTATUS).get();
+  this->read_byte_(AS7343_ASTATUS, &astatus.raw);
   ESP_LOGVV(TAG, "AStatus 0x%02x, again_status %d, asat_status %d", astatus.raw, astatus.again_status,
             astatus.asat_status);
 
