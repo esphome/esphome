@@ -328,7 +328,7 @@ def test_external_platform_notice_defers_to_first_crash_line(caplog) -> None:
     module = type("ExternalPlatform", (), {})  # no process_stacktrace
 
     with patch.object(
-        stacktrace.platform_hooks.importlib,
+        stacktrace.platform_hooks,
         "import_module",
         Mock(return_value=module),
     ) as mock_import:
@@ -349,7 +349,7 @@ def test_processor_import_failure_disables_decoding(caplog) -> None:
     caplog.set_level("INFO", logger="esphome.platform_hooks")
 
     with patch.object(
-        stacktrace.platform_hooks.importlib,
+        stacktrace.platform_hooks,
         "import_module",
         Mock(side_effect=ImportError("broken install")),
     ) as mock_import:
@@ -371,9 +371,7 @@ def test_processor_registry_miss_disables_at_construction(caplog) -> None:
     """
     caplog.set_level("INFO", logger="esphome.platform_hooks")
 
-    with patch.object(
-        stacktrace.platform_hooks.importlib, "import_module"
-    ) as mock_import:
+    with patch.object(stacktrace.platform_hooks, "import_module") as mock_import:
         processor = stacktrace.LogLineProcessor(CONFIG, "bk72xx")
         processor.process_line("PC: 0x40104960")
 
