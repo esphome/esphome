@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from esphome import git, yaml_util
+from esphome.bundle import add_secret_scan_dir
 from esphome.components.substitutions import (
     ContextVars,
     ErrList,
@@ -192,6 +193,9 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
         username=config.get(CONF_USERNAME),
         password=config.get(CONF_PASSWORD),
     )
+    # The checkout is not bundled (the builder re-fetches it), but the
+    # bundle's secrets filter must still see its !secret references.
+    add_secret_scan_dir(repo_root)
     files: list[dict[str, Any]] = []
 
     # ``repo_root`` is the directory containing ``.git`` and must be passed
