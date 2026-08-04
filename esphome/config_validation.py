@@ -2611,14 +2611,21 @@ def require_framework_version(
     return validator
 
 
-def require_esphome_version(year, month, patch):
+def require_esphome_version(year, month=None, patch=None):
+    """Validator requiring at least the given ESPHome version.
+
+    Accepts a single ``Version`` like the sibling
+    ``require_framework_version``, or the legacy ``(year, month, patch)``
+    ints external components already pass.
+    """
+    required = year if isinstance(year, Version) else Version(year, month, patch)
+
     def validator(value):
         # A dev or beta build of the required version still satisfies it,
         # matching the old tuple comparison that dropped the suffix.
-        if Version.parse(ESPHOME_VERSION) < Version(year, month, patch):
-            requires_version = f"{year}.{month}.{patch}"
+        if Version.parse(ESPHOME_VERSION) < required:
             raise Invalid(
-                f"This component requires at least ESPHome version {requires_version}"
+                f"This component requires at least ESPHome version {required}"
             )
         return value
 

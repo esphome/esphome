@@ -2927,6 +2927,13 @@ def test_require_esphome_version_ok() -> None:
     assert cv.require_esphome_version(1, 0, 0)("test") == "test"
 
 
+def test_require_esphome_version_accepts_version_object() -> None:
+    """The Version form matches require_framework_version's style."""
+    assert cv.require_esphome_version(cv.Version(1, 0, 0))("test") == "test"
+    with pytest.raises(Invalid, match="at least ESPHome version 9999.0.0"):
+        cv.require_esphome_version(cv.Version(9999, 0, 0))("test")
+
+
 def test_require_esphome_version_too_old() -> None:
     with pytest.raises(Invalid, match="at least ESPHome version 9999.0.0"):
         cv.require_esphome_version(9999, 0, 0)("test")
