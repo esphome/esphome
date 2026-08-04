@@ -145,9 +145,12 @@ def test_platform_declarations_match_decoder(platform: str) -> None:
     can satisfy the sample-matches-a-pattern direction on their own; the
     undeclared-pattern sweep keys off naming, so a differently-named
     constant or a function-local re.search literal is invisible to it;
-    and the state-gated detection rests on a textual heuristic (every
+    the state-gated detection rests on a textual heuristic (every
     such decoder today spells it as ``return True`` or
-    ``backtrace_state = True``).
+    ``backtrace_state = True``); and a decoder that gains a second
+    opening marker alongside a declared one passes unnoticed, since
+    the declared marker already satisfies both the marker-opens-region
+    check and the non-empty ``state_markers`` requirement.
     """
     module = importlib.import_module(f"esphome.components.{platform}")
     patterns: dict[str, re.Pattern] = {}

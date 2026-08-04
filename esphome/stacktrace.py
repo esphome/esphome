@@ -76,7 +76,7 @@ class LogLineProcessor:
         self._platform_handler: Any | None = None
         self._decode_enabled = True
         self.backtrace_state = False
-        if platform not in platform_hooks.PLATFORM_HOOKS["process_stacktrace"]:
+        if not platform_hooks.has_registered_hook(platform, "process_stacktrace"):
             self._resolve_handler()
 
     def process_line(self, raw_line: str) -> None:
@@ -85,6 +85,9 @@ class LogLineProcessor:
         if self._platform_handler is None:
             if not _ADDRESS_RE.search(raw_line):
                 return
+            # Deliberate trade: the platform import (~300 ms, seconds on
+            # small hosts) blocks the streaming callback here, once per
+            # session, instead of every session paying it at startup.
             if not self._resolve_handler():
                 return
         self._feed(raw_line)
