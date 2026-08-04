@@ -32,6 +32,11 @@ from esphome.const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Hooks whose loss only degrades diagnostics; skipping one of these is
+# logged at debug, while skipping a hook that changes what the CLI does
+# (upload method, log transport) warns. A new hook is loud by default.
+COSMETIC_HOOKS: Final = frozenset({"process_stacktrace"})
+
 PLATFORM_HOOKS: Final[dict[str, frozenset[str]]] = {
     "show_logs": frozenset({PLATFORM_NRF52}),
     "upload_program": frozenset({PLATFORM_NRF52}),
@@ -72,15 +77,17 @@ def get_platform_hook(platform: str, hook: str) -> Callable[..., Any] | None:
     except ModuleNotFoundError as err:
         if registered or err.name != module_name:
             raise
-        if hook == "process_stacktrace":
-            # Losing stacktrace decoding is cosmetic; skipping a hook
-            # that changes what the CLI does deserves to be seen.
+        if hook in COSMETIC_HOOKS:
             _LOGGER.debug(
                 "External platform %s is not importable; using the generic %s path",
                 platform,
                 hook,
             )
         else:
+            # Deliberately loud even though the warm-cache path makes
+            # this expected: the user's platform hooks are not in effect
+            # for this run, and a silently substituted upload method is
+            # worse than a routine warning.
             _LOGGER.warning(
                 "External platform %s is not importable; using the generic %s path",
                 platform,
