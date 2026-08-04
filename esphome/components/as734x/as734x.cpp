@@ -116,8 +116,6 @@ void AS734XComponent::loop() {
     case State::START_MEASUREMENT:
       ESP_LOGVV(TAG, "START_MEASUREMENT");
       this->readings_.millis_start = millis();
-      // A measurement integrates twice per SMUX step, since the first frame after a step change is
-      // discarded, so a long exposure needs a proportionally longer deadline.
       this->readings_.timeout_ms =
           std::max(MIN_COLLECTION_TIMEOUT_MS, static_cast<uint32_t>(4 * this->device_->get_number_of_smux_steps() *
                                                                     integration_time_ms(this->atime_, this->astep_)));
@@ -210,8 +208,7 @@ AS734xBase::AS734xBase(i2c::I2CDevice *i2c_device, uint8_t number_of_channels)
 
 bool AS734xBase::write_gain(Gain gain) { return this->write_byte_(this->registers().cfg1, gain); }
 bool AS734xBase::write_atime(uint8_t atime) { return this->write_byte_(this->registers().atime, atime); }
-// ASTEP is a 16 bit register above 0x80 on both parts, so it needs no bank selection.
-bool AS734xBase::write_astep(uint16_t astep) {
+bool AS734xBase::write_astep(uint16_t astep) {  // ASTEP is above 0x80 on both parts
   return this->i2c_device_->write_byte_16(this->registers().astep, this->swap_bytes_(astep));
 }
 
@@ -227,24 +224,19 @@ bool AS734xBase::enable_smux() {
   return this->set_register_bit_(this->registers().enable, this->registers().enable_smux_en_bit);
 }
 
-// A failed read is reported as still busy, so the caller waits and eventually times out rather
-// than moving on as if the SMUX had settled.
 bool AS734xBase::is_smux_busy() {
-  bool busy = true;
+  bool busy = true;  // a failed read reads as busy, so the caller times out instead of moving on
   this->read_register_bit_(this->registers().enable, this->registers().enable_smux_en_bit, busy);
   return busy;
 }
 
-// A failed read is reported as not ready, for the same reason.
 bool AS734xBase::is_data_ready() {
-  bool ready = false;
+  bool ready = false;  // a failed read reads as not ready
   this->read_register_bit_(this->registers().status2, this->registers().status2_avalid_bit, ready);
   return ready;
 }
 
-// CFG0 sits outside the low window on both parts, so this reaches it directly and never has to
-// select a bank for itself.
-bool AS734xBase::select_low_bank_(bool low) {
+bool AS734xBase::select_low_bank_(bool low) {  // CFG0 is outside the low window, so reach it directly
   const uint8_t mask = 1 << this->registers().cfg0_reg_bank_bit;
   uint8_t data{0};
   if (!this->i2c_device_->read_byte(this->registers().cfg0, &data)) {
@@ -303,8 +295,6 @@ bool AS734xBase::clear_register_bit_(uint8_t address, uint8_t bit_position) {
   return this->update_register_bit_(address, bit_position, false);
 }
 
-// A failed read must not be followed by a write: the value would be built from a zeroed byte and
-// would clear every other bit in the register.
 bool AS734xBase::update_register_bit_(uint8_t address, uint8_t bit_position, bool value) {
   uint8_t data{0};
   if (!this->read_byte_(address, &data)) {

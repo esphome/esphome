@@ -9,7 +9,7 @@ static constexpr uint8_t AS7343_AGC_GAIN_MAX = 0xD7;
 static constexpr uint8_t AS7343_ASTATUS = 0x94;
 static constexpr uint8_t AS7343_ASTEP = 0xD4;
 static constexpr uint8_t AS7343_ATIME = 0x81;
-static constexpr uint8_t AS7343_BANK_LOW_MAX = 0x7F;
+static constexpr uint8_t AS7343_BANK_LOW_MAX = 0x7F;  // CFG0 bit description, not the 0x58-0x66 overview
 static constexpr uint8_t AS7343_BANK_LOW_MIN = 0x20;
 static constexpr uint8_t AS7343_CFG0 = 0xBF;
 static constexpr uint8_t AS7343_CFG0_REG_BANK_BIT = 4;
@@ -34,12 +34,7 @@ static constexpr uint8_t AS7343_STATUS = 0x93;
 static constexpr uint8_t AS7343_STATUS2 = 0x90;
 static constexpr uint8_t AS7343_STATUS2_AVALID_BIT = 6;
 
-// Values written during start-up, taken from the manufacturer's recommended three-chain
-// configuration. The datasheet does not break every one of them down to bit level.
-// AS7343_CFG20_AUTO_SMUX_3_CYCLES sets auto_smux to 0b11: all 18 channels over three cycles.
-// The only bit CFG0_INIT used to set was REG_BANK, which select_low_bank_() owns, so it is left
-// alone here.
-static constexpr uint8_t AS7343_CFG0_INIT = 0x00;
+static constexpr uint8_t AS7343_CFG0_INIT = 0x00;  // REG_BANK is owned by select_low_bank_()
 static constexpr uint8_t AS7343_CFG6_INIT = 0x0;
 static constexpr uint8_t AS7343_FD_CFG0_INIT = 0xa1;
 static constexpr uint8_t AS7343_CFG10_INIT = 0xf2;
@@ -48,11 +43,8 @@ static constexpr uint8_t AS7343_CFG8_INIT = 0xc8;
 static constexpr uint8_t AS7343_AGC_GAIN_MAX_INIT = 0x99;
 static constexpr uint8_t AS7343_FD_TIME_1_INIT = 0x64;
 static constexpr uint8_t AS7343_FD_TIME_2_INIT = 0x21;
-static constexpr uint8_t AS7343_CFG20_AUTO_SMUX_3_CYCLES = 0x62;
+static constexpr uint8_t AS7343_CFG20_AUTO_SMUX_3_CYCLES = 0x62;  // auto_smux 0b11, 18 channels, 3 cycles
 
-// The datasheet gives two different low-bank windows: the register overview says 0x58 to 0x66, while
-// the CFG0 bit description says 0x20 to 0x7F. The wider one is right - GPIO at 0x6B needs the low
-// bank too, and the narrower window would miss it.
 const RegisterMap AS7343::REG_MAP = {
     .bank_low_min = AS7343_BANK_LOW_MIN,
     .bank_low_max = AS7343_BANK_LOW_MAX,
@@ -170,9 +162,7 @@ bool AS7343::read_channels(uint8_t /*step*/, ChannelValuesUint16 &values, Gain &
     ESP_LOGVV(TAG, "AS7343 affected by analog or digital saturation. Readings are not reliable.");
   }
 
-  // The data registers hold the low byte first, but read_bytes_16() converts from big endian,
-  // so every word needs swapping back.
-  auto ret = this->i2c_device_->read_bytes_16(AS7343_DATA_0, data.data(), AS7343_NUM_CHANNELS_MAX);
+  auto ret = this->i2c_device_->read_bytes_16(AS7343_DATA_0, data.data(), AS7343_NUM_CHANNELS_MAX);  // big endian
   for (auto &value : data) {
     value = this->swap_bytes_(value);
   }
@@ -181,12 +171,10 @@ bool AS7343::read_channels(uint8_t /*step*/, ChannelValuesUint16 &values, Gain &
     values[i] = data[SMUX_CHANNEL_MAP[i]];
   }
 
-  // Only the first two SMUX cycles route the clear photodiode; the third always reads 0, so it is
-  // left out of the average. Summing first avoids truncating each operand on its own.
-  // The last SMUX_CHANNEL_MAP entry is a placeholder that the loop above overwrites here.
   ESP_LOGVV(TAG, "Clear channels: cycle1 %u, cycle2 %u, cycle3 %u (unused)", data[AS7343_CHANNEL_CLEAR_1],
             data[AS7343_CHANNEL_CLEAR_0], data[AS7343_CHANNEL_CLEAR]);
-  const uint32_t clear_sum = static_cast<uint32_t>(data[AS7343_CHANNEL_CLEAR_1]) + data[AS7343_CHANNEL_CLEAR_0];
+  const uint32_t clear_sum =
+      static_cast<uint32_t>(data[AS7343_CHANNEL_CLEAR_1]) + data[AS7343_CHANNEL_CLEAR_0];  // cycle 3 always reads 0
   values[NUM_CHANNELS - 1] = static_cast<uint16_t>(clear_sum / 2);
 
   gain = astatus.again_status;      // gain applied to the latest spectral measurement

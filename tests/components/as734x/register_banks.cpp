@@ -1,8 +1,3 @@
-// Reaching a register through the wrong CFG0 bank is not reported as an error by either chip: the
-// transfer is acknowledged and reads back the value just written, while the register that was meant
-// to change keeps its own. Nothing at runtime can notice that, so these tests put a bus in front of
-// the drivers that answers strictly as the datasheets describe and refuses out-of-bank addresses.
-
 #include <gtest/gtest.h>
 
 #include <map>
@@ -16,9 +11,6 @@ namespace esphome::as734x::testing {
 
 namespace {
 
-// DS000504 (AS7341) and DS001046 (AS7343), CFG0 bit 4 REG_BANK:
-//   0 - register access to register 0x80 and above
-//   1 - register access to the low window (0x60 to 0x74 / 0x20 to 0x7F)
 class StrictBankBus : public i2c::I2CBus {
  public:
   StrictBankBus(uint8_t cfg0, uint8_t low_min, uint8_t low_max) : cfg0_(cfg0), low_min_(low_min), low_max_(low_max) {}
@@ -54,8 +46,6 @@ class StrictBankBus : public i2c::I2CBus {
   }
 
  protected:
-  // CFG0 has to answer from either bank, otherwise the bank could never be switched back. The
-  // AS7341 SMUX configuration RAM below 0x20 sits outside both windows and is always reachable.
   bool reachable_(uint8_t reg) const {
     if (reg == this->cfg0_ || reg < 0x20) {
       return true;
@@ -72,8 +62,6 @@ constexpr uint8_t ATIME = 0x81;
 
 }  // namespace
 
-// AS7341: CONFIG 0x70 is only reachable from the low bank, ATIME/ASTEP/CFG1 only from the high one,
-// and setup() writes them one after the other.
 TEST(RegisterBanks, As7341ConfiguresEveryRegisterFromTheRightBank) {
   StrictBankBus bus(0xA9, 0x60, 0x74);
   i2c::I2CDevice dev;
@@ -94,8 +82,6 @@ TEST(RegisterBanks, As7341ConfiguresEveryRegisterFromTheRightBank) {
   EXPECT_FALSE(bus.low_bank_selected()) << "the low bank is left selected after a low register";
 }
 
-// AS7343: ID 0x5A and CFG10 0x65 are only reachable from the low bank, everything else in the
-// start-up chain only from the high one.
 TEST(RegisterBanks, As7343ConfiguresEveryRegisterFromTheRightBank) {
   StrictBankBus bus(0xBF, 0x20, 0x7F);
   i2c::I2CDevice dev;
@@ -116,8 +102,6 @@ TEST(RegisterBanks, As7343ConfiguresEveryRegisterFromTheRightBank) {
   EXPECT_FALSE(bus.low_bank_selected()) << "the low bank is left selected after a low register";
 }
 
-// Powering the chip up and starting a measurement only touches ENABLE, which is outside the low
-// window, so none of it should cost a bank switch.
 TEST(RegisterBanks, EnableBitsNeedNoBankSwitch) {
   StrictBankBus bus(0xBF, 0x20, 0x7F);
   i2c::I2CDevice dev;

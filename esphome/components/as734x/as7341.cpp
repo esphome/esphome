@@ -89,9 +89,7 @@ bool AS7341::read_channels(uint8_t smux_step, ChannelValuesUint16 &values, Gain 
     ESP_LOGVV(TAG, "AS7341 affected by analog or digital saturation. Readings are not reliable.");
   }
 
-  // The data registers hold the low byte first, but read_bytes_16() converts from big endian,
-  // so every word needs swapping back.
-  bool ret = this->i2c_device_->read_bytes_16(AS7341_DATA_0, raw.data(), adc_channels);
+  bool ret = this->i2c_device_->read_bytes_16(AS7341_DATA_0, raw.data(), adc_channels);  // big endian
   for (auto &value : raw) {
     value = this->swap_bytes_(value);
   }
@@ -105,10 +103,8 @@ bool AS7341::read_channels(uint8_t smux_step, ChannelValuesUint16 &values, Gain 
     values[5] = raw[1];
     values[6] = raw[2];
     values[7] = raw[3];
-    // The step-1 SMUX configuration routes clear to ADC4 and NIR to ADC5 (bytes 0x08 and 0x13
-    // above), while the band order this component publishes puts NIR before clear.
-    values[8] = raw[5];
-    values[9] = raw[4];
+    values[8] = raw[5];  // SMUX routes NIR to ADC5
+    values[9] = raw[4];  // SMUX routes clear to ADC4
   }
   gain = astatus.again_status;      // gain applied to the latest spectral measurement
   saturated = astatus.asat_status;  // latched data affected by saturation

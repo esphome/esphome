@@ -45,9 +45,7 @@ union RegAStatus {
 };
 
 struct RegisterMap {
-  // The address window that CFG0's bank bit enables. Registers outside it stay reachable whichever
-  // bank is selected.
-  uint8_t bank_low_min;
+  uint8_t bank_low_min;  // CFG0's bank bit enables this window; other registers answer from either bank
   uint8_t bank_low_max;
   uint8_t astep;
   uint8_t atime;
@@ -61,16 +59,6 @@ struct RegisterMap {
   uint8_t status2;
   uint8_t status2_avalid_bit;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-//
-// AS734xBase
-//
-// This is the base class for AS7341 and AS7343 devices.
-// It handles the I2C communication and provides common functionality
-// for both devices.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 class AS734xBase {
  public:
@@ -104,20 +92,9 @@ class AS734xBase {
   i2c::I2CDevice *i2c_device_ = nullptr;
   uint8_t number_of_channels_;
 
-  // Every helper below reports whether the I2C transfer succeeded, and a bit is never written on
-  // top of a failed read.
-  //
-  // CFG0's bank bit only enables the low address window named in RegisterMap. Registers at 0x80 and
-  // above answer from either bank, which is less strict than the datasheet, but reaching a low
-  // register from the wrong bank fails quietly: the transfer is acknowledged and reads back the
-  // value just written while the real register keeps its own. Both were measured on both parts.
-  //
-  // So every single byte access goes through read_byte_() and write_byte_(), which select the low
-  // bank only for the addresses that need it and put it back straight away. Nothing caches which
-  // bank the chip is in, so nothing can disagree with it.
   bool read_byte_(uint8_t address, uint8_t *value);
   bool write_byte_(uint8_t address, uint8_t value);
-  bool select_low_bank_(bool low);
+  bool select_low_bank_(bool low);  // a low register reached from bank 0 is acked but never written
   bool needs_low_bank_(uint8_t address) const {
     return address >= this->registers().bank_low_min && address <= this->registers().bank_low_max;
   }
