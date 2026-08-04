@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from contextlib import contextmanager, suppress
-from dataclasses import dataclass
 from datetime import datetime
 from ipaddress import (
     AddressValueError,
@@ -88,6 +87,7 @@ from esphome.core import (
     TimePeriodMinutes,
     TimePeriodNanoseconds,
     TimePeriodSeconds,
+    Version,
 )
 from esphome.enum import StrEnum
 from esphome.expression import SUBSTITUTION_VARIABLE_PROG as VARIABLE_PROG
@@ -406,42 +406,6 @@ class Required(vol.Required):
 
 class FinalExternalInvalid(Invalid):
     """Represents an invalid value in the final validation phase where the path should not be prepended."""
-
-
-@dataclass(frozen=True, order=True)
-class Version:
-    major: int
-    minor: int
-    patch: int
-    extra: str = ""
-
-    def __str__(self):
-        if self.extra:
-            return f"{self.major}.{self.minor}.{self.patch}-{self.extra}"
-        return f"{self.major}.{self.minor}.{self.patch}"
-
-    @classmethod
-    def parse(cls, value: str) -> Version:
-        # The patch component is optional and defaults to 0, so "6.0" and
-        # "6.0-rc1" parse as 6.0.0 and 6.0.0-rc1.
-        match = re.match(r"^(\d+)\.(\d+)(?:\.(\d+))?[-.]?(\w*)$", value)
-        if match is None:
-            raise ValueError(f"Not a valid version number {value}")
-        major = int(match[1])
-        minor = int(match[2])
-        patch = int(match[3] or 0)
-        extra = match[4] or ""
-        return Version(major=major, minor=minor, patch=patch, extra=extra)
-
-    @property
-    def is_beta(self) -> bool:
-        """Check if this version is a beta version."""
-        return self.extra.startswith("b")
-
-    @property
-    def is_dev(self) -> bool:
-        """Check if this version is a development version."""
-        return self.extra.startswith("dev")
 
 
 def check_not_templatable(value):

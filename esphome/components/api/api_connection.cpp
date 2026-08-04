@@ -440,7 +440,7 @@ void APIConnection::on_disconnect_response() {
 uint16_t APIConnection::fill_and_encode_entity_state(EntityBase *entity, StateResponseProtoMessage &msg,
                                                      CalculateSizeFn size_fn, MessageEncodeFn encode_fn,
                                                      APIConnection *conn, uint32_t remaining_size) {
-  msg.key = entity->get_object_id_hash();
+  msg.key = entity->get_entity_key();
 #ifdef USE_DEVICES
   msg.device_id = entity->get_device_id();
 #endif
@@ -451,7 +451,7 @@ uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResp
                                                     CalculateSizeFn size_fn, MessageEncodeFn encode_fn,
                                                     APIConnection *conn, uint32_t remaining_size) {
   // Set common fields that are shared by all entity types
-  msg.key = entity->get_object_id_hash();
+  msg.key = entity->get_entity_key();
 
   if (entity->has_own_name()) {
     msg.name = entity->get_name();
@@ -1141,7 +1141,7 @@ void APIConnection::try_send_camera_image_() {
     bool done = this->image_reader_->available() == to_send;
 
     CameraImageResponse msg;
-    msg.key = camera::Camera::instance()->get_object_id_hash();
+    msg.key = camera::Camera::instance()->get_entity_key();
     msg.set_data(this->image_reader_->peek_data_buffer(), to_send);
     msg.done = done;
 #ifdef USE_DEVICES
