@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import Mock, patch
 
+from hypothesis import given, settings
+from hypothesis.strategies import data as st_data, from_regex
 import pytest
 
 from esphome import stacktrace
@@ -97,6 +99,82 @@ def test_address_gate_fires_on_platform_dump_lines(line: str) -> None:
     assert stacktrace._ADDRESS_RE.search(line)
 
 
+# The stacktrace pattern constants each decoder module exports. The
+# samples and these patterns must cover each other, so an edit on either
+# side fails the test below instead of quietly widening the gap between
+# the gate and the decoders.
+DECODER_PATTERNS: dict[str, list[str]] = {
+    "esp32": [
+        "STACKTRACE_ESP32_PC_RE",
+        "STACKTRACE_ESP32_EXCVADDR_RE",
+        "STACKTRACE_ESP32_C3_PC_RE",
+        "STACKTRACE_ESP32_C3_RA_RE",
+        "STACKTRACE_ESP32_C3_MTVAL_RE",
+        "STACKTRACE_BAD_ALLOC_RE",
+        "STACKTRACE_ESP32_BACKTRACE_RE",
+        "STACKTRACE_ESP32_BACKTRACE_PC_RE",
+        "STACKTRACE_ESP32_CRASH_BT_RE",
+    ],
+    "esp8266": [
+        "STACKTRACE_ESP8266_EXCEPTION_TYPE_RE",
+        "STACKTRACE_ESP8266_PC_RE",
+        "STACKTRACE_ESP8266_EXCVADDR_RE",
+        "STACKTRACE_ESP8266_CRASH_PC_RE",
+        "STACKTRACE_ESP8266_CRASH_EXCVADDR_RE",
+        "STACKTRACE_ESP8266_CRASH_BT_RE",
+        "STACKTRACE_BAD_ALLOC_RE",
+        "STACKTRACE_ESP8266_BACKTRACE_PC_RE",
+    ],
+    "rp2": ["_CRASH_RE", "_CRASH_ADDR_RE"],
+    "nrf52": ["STACKTRACE_NRF52_PC_LR_RE"],
+}
+
+
+# Declared decoder patterns whose language the gate deliberately does
+# not cover; everything else must be a gate subset, proven generatively
+# below.
+GATE_EXEMPT_PATTERNS = {
+    # Bare stack-dump words: the gate keys on the dump line's 3ff...
+    # stack address instead, and a lone letter-free word never appears
+    # outside a dump region whose other lines already fired.
+    "STACKTRACE_ESP32_BACKTRACE_PC_RE",
+    "STACKTRACE_ESP8266_BACKTRACE_PC_RE",
+    # Carries no address at all; a context marker the replay delivers.
+    "STACKTRACE_ESP8266_EXCEPTION_TYPE_RE",
+}
+
+
+@pytest.mark.parametrize(
+    ("platform", "name"),
+    [
+        (platform, name)
+        for platform, names in DECODER_PATTERNS.items()
+        for name in names
+        if name not in GATE_EXEMPT_PATTERNS
+    ],
+)
+@given(data=st_data())
+@settings(max_examples=50, deadline=None)
+def test_address_gate_covers_decoder_pattern_languages(
+    platform: str, name: str, data
+) -> None:
+    """The gate must be a superset of each decoder pattern's language.
+
+    The sample table only pins finite literals; a decoder regex that
+    widens would keep every sample green while the gate misses the new
+    form. Generating inputs from the decoder regex itself closes that
+    direction.
+    """
+    import importlib
+
+    pattern = getattr(importlib.import_module(f"esphome.components.{platform}"), name)
+    example = data.draw(from_regex(pattern, fullmatch=True))
+    assert stacktrace._ADDRESS_RE.search(example), (
+        f"{platform}.{name} accepts {example!r} but the gate does not fire; "
+        "decoding would silently never start on that form"
+    )
+
+
 @pytest.mark.parametrize("platform", sorted(CRASH_SAMPLES))
 def test_state_gated_decoders_declare_a_state_marker(platform: str) -> None:
     """A decoder that sets backtrace_state must declare the marker doing it.
@@ -156,37 +234,6 @@ def test_markers_reach_the_decoder_before_addresses(platform: str) -> None:
             processor.process_line(line)
 
     assert [call.args[1] for call in handler.call_args_list] == markers + addresses
-
-
-# The stacktrace pattern constants each decoder module exports. The
-# samples and these patterns must cover each other, so an edit on either
-# side fails the test below instead of quietly widening the gap between
-# the gate and the decoders.
-DECODER_PATTERNS: dict[str, list[str]] = {
-    "esp32": [
-        "STACKTRACE_ESP32_PC_RE",
-        "STACKTRACE_ESP32_EXCVADDR_RE",
-        "STACKTRACE_ESP32_C3_PC_RE",
-        "STACKTRACE_ESP32_C3_RA_RE",
-        "STACKTRACE_ESP32_C3_MTVAL_RE",
-        "STACKTRACE_BAD_ALLOC_RE",
-        "STACKTRACE_ESP32_BACKTRACE_RE",
-        "STACKTRACE_ESP32_BACKTRACE_PC_RE",
-        "STACKTRACE_ESP32_CRASH_BT_RE",
-    ],
-    "esp8266": [
-        "STACKTRACE_ESP8266_EXCEPTION_TYPE_RE",
-        "STACKTRACE_ESP8266_PC_RE",
-        "STACKTRACE_ESP8266_EXCVADDR_RE",
-        "STACKTRACE_ESP8266_CRASH_PC_RE",
-        "STACKTRACE_ESP8266_CRASH_EXCVADDR_RE",
-        "STACKTRACE_ESP8266_CRASH_BT_RE",
-        "STACKTRACE_BAD_ALLOC_RE",
-        "STACKTRACE_ESP8266_BACKTRACE_PC_RE",
-    ],
-    "rp2": ["_CRASH_RE", "_CRASH_ADDR_RE"],
-    "nrf52": ["STACKTRACE_NRF52_PC_LR_RE"],
-}
 
 
 @pytest.mark.parametrize("platform", sorted(CRASH_SAMPLES))

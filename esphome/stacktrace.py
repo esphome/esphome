@@ -41,11 +41,14 @@ _LOGGER = logging.getLogger(__name__)
 # the CRASH_SAMPLES state_markers table derives the test that pins each
 # one, and matching them directly means those decoders never depend on
 # the replay window to see their marker.
+# The keyword branches deliberately carry no word boundaries: the
+# decoder regexes they mirror have none either, and a generative test
+# derives inputs from those regexes to prove the gate is a superset.
 _ADDRESS_RE = re.compile(
     r"0x[0-9a-fA-F]{3,}\b"
     r"|\b(?=[0-9A-Fa-f]*[A-Fa-f])[0-9a-fA-F]{8}\b"
-    r"|\b(?:PC|RA|LR|MEPC|MTVAL|EXCVADDR|BT\d+|epc\d|excvaddr|call)\s*[:=]\s*4[0-9a-fA-F]{7}\b"
-    r"|\b(?:PC|LR)=0x[0-9a-fA-F]+\b"
+    r"|(?:PC|RA|LR|MEPC|MTVAL|EXCVADDR|BT\d+|epc\d|excvaddr|call)\s*[:=]\s*(?:0x)?4[0-9a-fA-F]{7}"
+    r"|(?:PC|LR)=0x[0-9a-fA-F]+"
     r"|>>>stack>>>|CRASH DETECTED ON PREVIOUS BOOT|Last crash:"
 )
 
