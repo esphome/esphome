@@ -6,7 +6,7 @@ without importing the platform package to find out; importing one pulls
 in the whole validation stack (config_validation, voluptuous, boards),
 which costs seconds on slow hardware. Keep the mapping in sync with the
 hook definitions in ``esphome/components/*/__init__.py``; a unit test
-scans the sources and fails when they drift.
+imports each platform package and fails when they drift.
 
 The compile-path ``run_compile`` hook is deliberately not registered:
 compiling imports the platform package regardless, so its probe in
