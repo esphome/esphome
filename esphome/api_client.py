@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 from contextlib import suppress
 from datetime import datetime
-import importlib
 import logging
+import re
 from typing import TYPE_CHECKING, Any
 import warnings
 
@@ -16,6 +17,7 @@ with warnings.catch_warnings():
     from aioesphomeapi import APIClient, parse_log_message
     from aioesphomeapi.log_runner import async_run
 
+from esphome import platform_hooks
 from esphome.const import CONF_ENCRYPTION, CONF_KEY, CONF_PORT, __version__
 from esphome.core import CORE
 from esphome.util import safe_print
@@ -29,8 +31,28 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
+# Necessary condition for a line to decode to anything: every frame or
+# register the platform decoders match carries an 8-hex-digit address
+# (``PC: 0x400d1a2c``, ``BT0: 0x...``, esp8266 stack-dump words). The
+# device builder gates its decoder subprocess on the same primitive.
+# Deliberately not the crash-marker grammar - that lives in the platform
+# decoders and a copy here would drift.
+_ADDRESS_RE = re.compile(r"(?:0x)?[0-9a-fA-F]{8}\b")
+
+# Lines kept for replay once decoding starts. Crash markers without an
+# address (esp8266's ``>>>stack>>>``, panic banners) precede the first
+# address-bearing line by at most a few lines; replaying them lets the
+# decoder enter its dump region as if it had seen the stream live.
+_REPLAY_LINES = 8
+
+
 class _LogLineProcessor:
     """Feeds incoming log lines to the stack-trace decoder.
+
+    Resolves the platform decoder lazily: importing a platform package
+    pulls in the validation stack, so nothing is imported until a line
+    carries something that could decode (an 8-hex-digit address). Most
+    log sessions never see one and never pay the import.
 
     Two responsibilities beyond just calling the decoder:
     1. Catch everything the decoder can raise. aioesphomeapi isolates
@@ -46,15 +68,54 @@ class _LogLineProcessor:
        failure is caught, which is why 1 is not narrowed to EsphomeError.
     """
 
-    def __init__(self, config: dict[str, Any], platform_handler: Any | None) -> None:
+    def __init__(
+        self,
+        config: dict[str, Any],
+        platform: str,
+        platform_handler: Any | None = None,
+    ) -> None:
         self._config = config
+        self._platform = platform
         self._platform_handler = platform_handler
-        self._decode_enabled = platform_handler is not None
+        self._decode_enabled = True
+        self._resolved = platform_handler is not None
+        self._recent: deque[str] = deque(maxlen=_REPLAY_LINES)
         self.backtrace_state = False
 
     def process_line(self, raw_line: str) -> None:
         if not self._decode_enabled:
             return
+        if not self._resolved:
+            if not _ADDRESS_RE.search(raw_line):
+                self._recent.append(raw_line)
+                return
+            self._resolve_handler()
+            if not self._decode_enabled:
+                return
+            for buffered in self._recent:
+                self._feed(buffered)
+            self._recent.clear()
+        self._feed(raw_line)
+
+    def _resolve_handler(self) -> None:
+        self._resolved = True
+        try:
+            handler = platform_hooks.get_platform_hook(
+                self._platform, "process_stacktrace"
+            )
+        except ImportError:
+            _LOGGER.debug("Stacktrace analyzer import failed", exc_info=True)
+            handler = None
+        if handler is None:
+            self._decode_enabled = False
+            _LOGGER.info(
+                'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
+                self._platform,
+            )
+        else:
+            self._platform_handler = handler
+
+    def _feed(self, raw_line: str) -> None:
         try:
             self.backtrace_state = self._platform_handler(
                 self._config, raw_line, self.backtrace_state
@@ -100,21 +161,10 @@ async def async_run_logs(
         provide_time=False,
     )
 
-    # Try platform-specific stacktrace handler first, fall back to generic
-    platform_process_stacktrace = None
-    try:
-        module = importlib.import_module("esphome.components." + CORE.target_platform)
-        platform_process_stacktrace = module.process_stacktrace
-    except (AttributeError, ImportError):
-        # Distinguish "platform has no analyzer" from a genuinely broken
-        # platform package when debugging.
-        _LOGGER.debug("Stacktrace analyzer lookup failed", exc_info=True)
-        _LOGGER.info(
-            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
-            CORE.target_platform,
-        )
-
-    processor = _LogLineProcessor(config, platform_process_stacktrace)
+    # The platform stacktrace decoder resolves lazily inside the
+    # processor: no platform package is imported unless a crash-shaped
+    # line actually arrives.
+    processor = _LogLineProcessor(config, CORE.target_platform)
 
     def on_log(msg: SubscribeLogsResponse) -> None:
         """Handle a new log message."""

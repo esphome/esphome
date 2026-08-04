@@ -41,7 +41,9 @@ def test_decoder_swallows_esphome_error() -> None:
     with patch.object(
         esp32, "process_stacktrace", side_effect=EsphomeError("no idedata")
     ) as mock_process:
-        processor = api_client._LogLineProcessor(config, esp32.process_stacktrace)
+        processor = api_client._LogLineProcessor(
+            config, "esp32", esp32.process_stacktrace
+        )
         processor.process_line("PC: 0x4010496e")
 
     assert mock_process.called
@@ -55,7 +57,7 @@ def test_decoder_swallows_platform_handler_error() -> None:
     def platform_handler(_config, _line, _state):
         raise EsphomeError("no idedata")
 
-    processor = api_client._LogLineProcessor(config, platform_handler)
+    processor = api_client._LogLineProcessor(config, "esp32", platform_handler)
     processor.process_line("PC: 0x4010496e")
 
     assert processor.backtrace_state is False
@@ -78,7 +80,9 @@ def test_decoder_swallows_non_esphome_error() -> None:
             2, "No such file or directory", "/build/ol/build"
         ),
     ) as mock_process:
-        processor = api_client._LogLineProcessor(config, esp32.process_stacktrace)
+        processor = api_client._LogLineProcessor(
+            config, "esp32", esp32.process_stacktrace
+        )
         processor.process_line("PC: 0x4010496e")
         processor.process_line("BT0: 0x4010496e")
 
@@ -94,7 +98,9 @@ def test_decoder_warning_uses_fallback_for_empty_error(caplog) -> None:
     config = {"esphome": {"name": "test"}}
 
     with patch.object(esp32, "process_stacktrace", side_effect=EsphomeError()):
-        processor = api_client._LogLineProcessor(config, esp32.process_stacktrace)
+        processor = api_client._LogLineProcessor(
+            config, "esp32", esp32.process_stacktrace
+        )
         processor.process_line("PC: 0x4010496e")
 
     warnings = [r.message for r in caplog.records if r.levelname == "WARNING"]
@@ -114,7 +120,9 @@ def test_decoder_short_circuits_after_failure() -> None:
     with patch.object(
         esp32, "process_stacktrace", side_effect=EsphomeError("no idedata")
     ) as mock_process:
-        processor = api_client._LogLineProcessor(config, esp32.process_stacktrace)
+        processor = api_client._LogLineProcessor(
+            config, "esp32", esp32.process_stacktrace
+        )
         processor.process_line("PC: 0x4010496e")
         processor.process_line("BT0: 0x4010496e")
         processor.process_line("BT1: 0x401049aa")
@@ -129,7 +137,9 @@ def test_decoder_threads_backtrace_state() -> None:
     with patch.object(
         esp32, "process_stacktrace", side_effect=[True, False]
     ) as mock_process:
-        processor = api_client._LogLineProcessor(config, esp32.process_stacktrace)
+        processor = api_client._LogLineProcessor(
+            config, "esp32", esp32.process_stacktrace
+        )
         processor.process_line(">>>stack>>>")
         assert processor.backtrace_state is True
         processor.process_line("<<<stack<<<")
@@ -148,7 +158,7 @@ def test_decoder_uses_platform_handler_when_provided() -> None:
         calls.append((cfg, line, state))
         return True
 
-    processor = api_client._LogLineProcessor(config, platform_handler)
+    processor = api_client._LogLineProcessor(config, "esp32", platform_handler)
 
     with patch.object(esp32, "process_stacktrace") as mock_generic:
         processor.process_line("BT0: 0x4010496e")
@@ -253,3 +263,46 @@ def test_run_logs_suppresses_keyboard_interrupt() -> None:
         )
 
     assert mock_run.call_args.kwargs["subscribe_states"] is False
+
+
+def test_processor_resolves_lazily_on_address_token() -> None:
+    """No platform import until a line carries an 8-hex-digit address."""
+    config = {"esphome": {"name": "test"}}
+    handler = Mock(return_value=False)
+
+    with patch.object(
+        api_client.platform_hooks, "get_platform_hook", return_value=handler
+    ) as mock_hook:
+        processor = api_client._LogLineProcessor(config, "esp32")
+        processor.process_line("[I][app:100] hello world")
+        processor.process_line("[I][wifi:200] connected")
+        mock_hook.assert_not_called()
+
+        processor.process_line("PC: 0x40104960")
+        mock_hook.assert_called_once_with("esp32", "process_stacktrace")
+
+    # The recent context lines replay in order before the trigger line, so
+    # multi-line dumps whose markers carry no address still decode.
+    fed = [call.args[1] for call in handler.call_args_list]
+    assert fed == [
+        "[I][app:100] hello world",
+        "[I][wifi:200] connected",
+        "PC: 0x40104960",
+    ]
+
+
+def test_processor_unresolvable_platform_disables_decoding(caplog) -> None:
+    """A platform without an analyzer logs once and never imports."""
+    caplog.set_level("INFO", logger="esphome.api_client")
+    config = {"esphome": {"name": "test"}}
+
+    with patch.object(
+        api_client.platform_hooks, "get_platform_hook", return_value=None
+    ) as mock_hook:
+        processor = api_client._LogLineProcessor(config, "host")
+        processor.process_line("PC: 0x40104960")
+        processor.process_line("BT0: 0x40104960")
+
+    mock_hook.assert_called_once()
+    assert "Stacktrace analysis is unavailable" in caplog.text
+    assert processor.backtrace_state is False
