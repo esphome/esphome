@@ -79,6 +79,10 @@ def _validate_rgbw_order(value: str) -> str:
     return value
 
 
+def _split_rgbw_order(rgbw_order: str) -> tuple[str, int]:
+    return rgbw_order.replace("W", ""), rgbw_order.index("W")
+
+
 def _validate_rgbw_order_exclusivity(config: ConfigType) -> ConfigType:
     if CONF_RGBW_ORDER in config and (config[CONF_IS_RGBW] or config[CONF_IS_WRGB]):
         raise cv.Invalid(
@@ -195,8 +199,9 @@ async def to_code(config):
         )
 
     if (rgbw_order := config.get(CONF_RGBW_ORDER)) is not None:
-        cg.add(var.set_rgb_order(RGB_ORDERS[rgbw_order.replace("W", "")]))
-        cg.add(var.set_rgbw_order(rgbw_order.index("W")))
+        rgb_order, white_index = _split_rgbw_order(rgbw_order)
+        cg.add(var.set_rgb_order(RGB_ORDERS[rgb_order]))
+        cg.add(var.set_rgbw_order(white_index))
     else:
         cg.add(var.set_rgb_order(config[CONF_RGB_ORDER]))
         cg.add(var.set_is_rgbw(config[CONF_IS_RGBW]))

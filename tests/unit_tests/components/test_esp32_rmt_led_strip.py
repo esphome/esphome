@@ -3,6 +3,7 @@ import pytest
 from esphome.components.esp32_rmt_led_strip.light import (
     CONF_IS_WRGB,
     CONF_RGBW_ORDER,
+    _split_rgbw_order,
     _validate_rgbw_order,
     _validate_rgbw_order_exclusivity,
 )
@@ -12,8 +13,25 @@ from esphome.const import CONF_IS_RGBW
 
 def test_validate_rgbw_order() -> None:
     assert _validate_rgbw_order("rwgb") == "RWGB"
+
+
+@pytest.mark.parametrize("rgbw_order", ["RGB", "RRGB", "RGBWW"])
+def test_validate_rgbw_order_rejects_invalid_order(rgbw_order: str) -> None:
     with pytest.raises(cv.Invalid, match="permutation of RGBW"):
-        _validate_rgbw_order("RGB")
+        _validate_rgbw_order(rgbw_order)
+
+
+@pytest.mark.parametrize(
+    ("rgbw_order", "expected"),
+    [
+        ("WRGB", ("RGB", 0)),
+        ("RWGB", ("RGB", 1)),
+        ("GWRB", ("GRB", 1)),
+        ("RGBW", ("RGB", 3)),
+    ],
+)
+def test_split_rgbw_order(rgbw_order: str, expected: tuple[str, int]) -> None:
+    assert _split_rgbw_order(rgbw_order) == expected
 
 
 @pytest.mark.parametrize("conflict", [CONF_IS_RGBW, CONF_IS_WRGB])
