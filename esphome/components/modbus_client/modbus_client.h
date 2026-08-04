@@ -76,8 +76,13 @@ template<typename... Ts> class ModbusClientSendAction : public ClientActionBase<
 
   void play(const Ts &...x) override {
     auto pdu = this->pdu_.value(x...);
-    if (!pdu.empty())
-      this->send_pdu(std::span<const uint8_t>(pdu.data(), pdu.size()));
+    if (pdu.empty())
+      return;
+    const std::span<const uint8_t> span(pdu.data(), pdu.size());
+    // The hub refuses some sends at the door with no callback (a duplicate write already pending, a
+    // full queue). Every send still gets exactly one outcome, so resolve those here via on_not_sent.
+    if (!this->send_pdu(span))
+      this->on_not_sent(span);
   }
 
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {
