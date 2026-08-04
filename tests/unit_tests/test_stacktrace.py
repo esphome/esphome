@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import Mock, patch
 
 from esphome import stacktrace
+from esphome.const import PLATFORM_BK72XX, PLATFORM_ESP32, PLATFORM_ESP8266
 from esphome.core import EsphomeError
 
 CONFIG = {"esphome": {"name": "test"}}
@@ -12,7 +13,7 @@ CONFIG = {"esphome": {"name": "test"}}
 
 def _run(
     handler,
-    platform: str = "esp32",
+    platform: str = PLATFORM_ESP32,
     lines: tuple[str, ...] = ("PC: 0x4010496e",),
 ) -> stacktrace.LogLineProcessor:
     """Processor with the resolver stubbed, fed the given lines."""
@@ -72,7 +73,7 @@ def test_latch_rearms_after_cooldown(caplog) -> None:
 
 def test_no_analyzer_never_rearms(caplog) -> None:
     """A platform without an analyzer stays off; there is nothing to retry."""
-    processor = _run(None, platform="bk72xx", lines=())
+    processor = _run(None, platform=PLATFORM_BK72XX, lines=())
     with patch.object(stacktrace.time, "monotonic", return_value=1e9):
         processor.process_line("PC: 0x4010496e")
 
@@ -140,7 +141,7 @@ def test_state_threads_between_lines() -> None:
     handler = Mock(side_effect=[True, True])
     processor = _run(
         handler,
-        platform="esp8266",
+        platform=PLATFORM_ESP8266,
         lines=(">>>stack>>>", "3ffffe10: 40201234 3ffe8410 00000000 40201000"),
     )
 
@@ -156,7 +157,7 @@ def test_state_threads_between_lines() -> None:
 def test_no_analyzer_disables_decoding(caplog) -> None:
     """Platforms without an analyzer report at session start and stay quiet."""
     caplog.set_level("INFO", logger="esphome.platform_hooks")
-    processor = stacktrace.LogLineProcessor(CONFIG, "bk72xx")
+    processor = stacktrace.LogLineProcessor(CONFIG, PLATFORM_BK72XX)
     processor.process_line("PC: 0x40104960")
 
     assert "Stacktrace analysis is unavailable" in caplog.text
