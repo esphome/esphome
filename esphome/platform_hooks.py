@@ -75,6 +75,11 @@ def get_platform_hook(platform: str, hook: str) -> Callable[..., Any] | None:
             module = importlib.import_module(module_name)
         except ModuleNotFoundError as err:
             if err.name == module_name:
+                _LOGGER.debug(
+                    "External platform %s is not importable; using the generic %s path",
+                    platform,
+                    hook,
+                )
                 return None
             raise
         return getattr(module, hook, None)

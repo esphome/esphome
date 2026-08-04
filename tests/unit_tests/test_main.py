@@ -5746,7 +5746,8 @@ def test_run_miniterm_analyzer_import_failure_keeps_streaming(
         result = run_miniterm(config, "/dev/ttyUSB0", args)
 
     assert result == 0
-    assert "Stacktrace analysis is unavailable" in caplog.text
+    # A broken package is distinguishable from a plain capability gap.
+    assert "failed to import: broken platform package" in caplog.text
 
 
 def test_run_miniterm_no_stacktrace_analyzer(
