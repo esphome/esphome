@@ -501,7 +501,12 @@ void ESP32BLETracker::process_scan_result_(const BLEScanResult &scan_result) {
   if (this->parse_advertisements_) {
 #ifdef USE_ESP32_BLE_DEVICE
     ESPBTDevice device;
+// The deprecated ingest keeps the historical scan-result fields populated for
+// external components until removal.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     device.parse_scan_rst(scan_result);
+#pragma GCC diagnostic pop
 
     bool found = false;
 #ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT

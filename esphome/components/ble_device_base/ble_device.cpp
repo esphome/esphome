@@ -250,12 +250,14 @@ ESPBLEiBeacon::ESPBLEiBeacon(const uint8_t *data) { memcpy(&this->beacon_data_, 
 optional<ESPBLEiBeacon> ESPBLEiBeacon::from_manufacturer_data(const ServiceData &data) {
   // iBeacon manufacturer specific data (after company-ID bytes have been stripped):
   //   [0x02][0x15][16-byte UUID][2-byte major][2-byte minor][1-byte power] = exactly 23 bytes
-  // Parity with esp32_ble_tracker: gate on the Apple company ID and length only.
-  // (Checking the 0x02/0x15 sub-type prefix would be stricter, but is a behavior
-  // change; it belongs to a follow-up, not this refactor.)
   if (!data.uuid.contains(0x4C, 0x00))  // Apple company ID 0x004C
     return {};
   if (data.data.size() != 23)
+    return {};
+  // Require the iBeacon sub-type/length prefix — stricter than the legacy
+  // esp32 parser, which accepted any 23-byte Apple payload and surfaced
+  // non-iBeacon frames as garbage beacons.
+  if (data.data[0] != 0x02 || data.data[1] != 0x15)
     return {};
   return ESPBLEiBeacon(data.data.data());
 }
