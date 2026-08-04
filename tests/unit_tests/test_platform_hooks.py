@@ -9,12 +9,13 @@ that the fast path really avoids the import.
 from __future__ import annotations
 
 import importlib
+import logging
 from unittest.mock import Mock
 
 import pytest
 
 from esphome import platform_hooks
-from esphome.const import PLATFORM_ESP32, Platform
+from esphome.const import PLATFORM_BK72XX, PLATFORM_ESP32, Platform
 
 
 def test_no_unregistered_platform_exposes_a_hook() -> None:
@@ -161,12 +162,13 @@ def test_get_stacktrace_handler_resolves_registered_platform() -> None:
 
 
 def test_get_stacktrace_handler_reports_missing_analyzer(
-    monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     caplog.set_level("INFO", logger="esphome.platform_hooks")
-    assert platform_hooks.get_stacktrace_handler("bk72xx") is None
+    assert platform_hooks.get_stacktrace_handler(PLATFORM_BK72XX) is None
     assert "no compatible analyzer" in caplog.text
+    # A capability gap is ordinary; it must not warn.
+    assert not any(r.levelno >= logging.WARNING for r in caplog.records)
 
 
 def test_get_stacktrace_handler_reports_import_failure(
@@ -178,5 +180,7 @@ def test_get_stacktrace_handler_reports_import_failure(
         "import_module",
         Mock(side_effect=ImportError("broken install")),
     )
-    assert platform_hooks.get_stacktrace_handler("esp32") is None
+    assert platform_hooks.get_stacktrace_handler(PLATFORM_ESP32) is None
     assert "failed to import: broken install" in caplog.text
+    # A broken install is a real breakage; it must warn, not inform.
+    assert any(r.levelno == logging.WARNING for r in caplog.records)
