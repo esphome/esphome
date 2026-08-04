@@ -155,12 +155,15 @@ def test_has_mqtt_ip_lookup_does_not_import_mqtt() -> None:
         "leaked += [m for m in sys.modules if m.startswith('esphome.components.')]; "
         "print(','.join(leaked))"
     )
+    # check=False keeps the child's stderr (its assertion message or an
+    # import traceback) visible on failure.
     result = subprocess.run(
         [sys.executable, "-c", check],
         capture_output=True,
         text=True,
-        check=True,
+        check=False,
     )
+    assert result.returncode == 0, result.stderr
     leaked = result.stdout.strip()
     assert not leaked, (
         f"has_mqtt_ip_lookup pulls in heavy modules: {leaked}. "
