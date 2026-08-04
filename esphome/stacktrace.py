@@ -120,9 +120,10 @@ class LogLineProcessor:
             self._decode_enabled = False
             self.backtrace_state = False
             _LOGGER.debug("Stack-trace decoding failed", exc_info=True)
-            if isinstance(exc, EsphomeError):
-                # _run_idedata raises EsphomeError with no message; give
-                # that case its friendly remediation hint.
+            if isinstance(exc, (EsphomeError, OSError)):
+                # _run_idedata raises EsphomeError with no message, and a
+                # missing build tree surfaces as an OSError; both are the
+                # user's environment, so give the remediation hint.
                 _LOGGER.warning(
                     "Crash trace decoding unavailable: %s. "
                     "Run 'esphome compile' for this device to enable PC decoding.",
@@ -130,10 +131,15 @@ class LogLineProcessor:
                 )
             else:
                 # A decoder bug is ESPHome's problem, not the user's;
-                # don't send them to recompile a healthy build.
+                # don't send them to recompile a healthy build. Always
+                # name the type: a bare KeyError message reads like a
+                # raised string in the paste a bug report needs.
+                detail = type(exc).__name__
+                if msg := str(exc):
+                    detail = f"{detail}: {msg}"
                 _LOGGER.warning(
                     'Crash trace decoding disabled: decoder for "%s" raised %s '
                     "(this is a bug; run with -v for the traceback)",
                     self._platform,
-                    str(exc) or type(exc).__name__,
+                    detail,
                 )
