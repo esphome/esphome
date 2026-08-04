@@ -7,7 +7,8 @@ bk72xx base board generic-bk7252 is BLE 4.2 and cannot build the tracker), and
 validate fixtures never run to_code. The generated main is therefore the only
 automated check on the setter spellings and the listener accounting."""
 
-from esphome.core import CORE
+from esphome.components import ble_device_base
+from tests.component_tests.helpers import get_define_value
 
 
 def test_trigger_codegen(generate_main) -> None:
@@ -41,5 +42,4 @@ def test_trigger_codegen(generate_main) -> None:
     # Seven triggers register as listeners; an undercount silently drops the
     # last trigger at runtime (StaticVector::push_back past capacity), so the
     # define is the assertion that matters most.
-    defines = {d.name: str(d.value) for d in CORE.defines}
-    assert defines.get("ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT") == "7"
+    assert get_define_value(ble_device_base.LISTENER_COUNT_DEFINE) == "7"
