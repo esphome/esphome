@@ -166,7 +166,11 @@ def add_secret_scan_dir(path: Path) -> None:
     for YAML the build consumes without bundling it — such as git-fetched
     packages, which the builder re-fetches — so the secrets those files
     reference are still shipped in the filtered secrets file.
+
+    A relative path is taken as relative to the config directory.
     """
+    if not path.is_absolute():
+        path = CORE.relative_config_path(path)
     _get_data().secret_scan_dirs.add(path)
 
 

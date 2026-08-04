@@ -283,7 +283,7 @@ test: !include_dir_named test_dir
 
 
 def test_include_dir_list(tmp_path: Path) -> None:
-    """!include_dir_list loads every YAML file in the directory as a list."""
+    """!include_dir_list loads every .yaml file in the directory as a list."""
     test_dir = tmp_path / "test_dir"
     test_dir.mkdir()
     (test_dir / "a.yaml").write_text("key: value_a")
@@ -299,7 +299,7 @@ def test_include_dir_list(tmp_path: Path) -> None:
 
 
 def test_include_dir_merge_list(tmp_path: Path) -> None:
-    """!include_dir_merge_list concatenates the lists from every YAML file."""
+    """!include_dir_merge_list concatenates the lists from every .yaml file."""
     test_dir = tmp_path / "test_dir"
     test_dir.mkdir()
     (test_dir / "a.yaml").write_text("- item_a1\n- item_a2\n")
@@ -314,7 +314,7 @@ def test_include_dir_merge_list(tmp_path: Path) -> None:
 
 
 def test_include_dir_merge_named(tmp_path: Path) -> None:
-    """!include_dir_merge_named merges the mappings from every YAML file."""
+    """!include_dir_merge_named merges the mappings from every .yaml file."""
     test_dir = tmp_path / "test_dir"
     test_dir.mkdir()
     (test_dir / "a.yaml").write_text("key_a: value_a")
