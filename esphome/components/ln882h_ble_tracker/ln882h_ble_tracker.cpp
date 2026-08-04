@@ -136,15 +136,9 @@ void LN882HBLETracker::dump_config() {
 }
 
 // ---------------------------------------------------------------------------
-// Scan report — delivered by the controller's loop() on the ESPHome main task
-// (the controller queues reports from the rw task). Demultiplex advertisements
-// vs scan responses and reproduce ESP-IDF's merge semantics: unlike Bluedroid
-// (which merges adv + scan response into one result before ESPHome sees it),
-// the LN controller delivers them as separate reports. A scannable
-// advertisement is held briefly and its scan response appended on arrival, so
-// listeners AND the raw callback receive one merged frame — identical to
-// ESP32. Scan responses with no pending advertisement still go to the raw
-// callback; consumers merge per address.
+// Adv/scan-response demux with Bluedroid-style merge: the LN controller
+// delivers the pair as separate reports; a scannable advertisement is held
+// until its scan response arrives and delivered as one merged frame.
 // ---------------------------------------------------------------------------
 
 void LN882HBLETracker::on_scan_report(const ln882h_ble::BLEScanReport &report) {

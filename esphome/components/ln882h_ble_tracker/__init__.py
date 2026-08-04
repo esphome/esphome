@@ -1,23 +1,5 @@
-"""LN882H BLE Tracker — ESPHome BLE 5.1 scanner for the LibreTiny LN882H
-(lightning-ln882h family).
-
-Builds on the ln882h_ble controller component (stack bring-up, BLE address,
-scan primitives) and implements the platform-neutral ble_device_base BLEHub
-contract: the shared BLE sensors (ble_presence, ble_rssi, ble_scanner,
-bthome_mithermometer, xiaomi_*, …) bind to this tracker through
-cv.use_id(BLEHub) with no LN-specific code.
-
-Scan modes:
-  continuous: true  — scan runs forever; never stops automatically.
-                      Use this when the radio is dedicated to BLE.
-  continuous: false — a started scan runs for `duration` ms, then stops. The
-                      FIRST start is external too: nothing in this component
-                      starts a non-continuous scan on boot, so until the
-                      automation actions land (follow-up PR) the radio stays
-                      idle. start_scan() is called from code (e.g. an api
-                      client-connected automation) so the single-core radio
-                      can service WiFi in between scans.
-"""
+"""LN882H BLE scanner implementing the ble_device_base BLEHub contract on
+top of the ln882h_ble controller."""
 
 import esphome.codegen as cg
 from esphome.components import ble_device_base, ln882h_ble, ota
