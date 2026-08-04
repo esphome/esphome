@@ -51,8 +51,11 @@ AS7341::AS7341(i2c::I2CDevice *i2c_device) : AS734xBase(i2c_device, AS7341::NUM_
 
 bool AS7341::verify_device_id() {
   uint8_t id{0};
-  this->read_byte_(AS7341_ID, &id);
-  ESP_LOGCONFIG(TAG, "  Read ID: 0x%X", id);
+  if (!this->read_byte_(AS7341_ID, &id)) {
+    ESP_LOGE(TAG, "Could not read chip ID");
+    return false;
+  }
+  ESP_LOGV(TAG, "Read ID: 0x%X", id);
   return ((id & AS7341_ID_MASK) == (AS7341_CHIP_ID << AS7341_ID_SHIFT));
 }
 

@@ -11,6 +11,7 @@ from esphome.const import (
     DEVICE_CLASS_EMPTY,
     STATE_CLASS_MEASUREMENT,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita", "@mrgnr"]
 DEPENDENCIES = ["i2c"]
@@ -128,23 +129,33 @@ _COMMON_SCHEMA = (
     .extend(i2c.i2c_device_schema(0x39))
 )
 
-CONFIG_SCHEMA = cv.typed_schema(
-    {
-        MODEL_AS7341: _COMMON_SCHEMA.extend(
-            {
-                cv.Optional(CONF_GAIN, default="X8"): cv.enum(GAIN_OPTIONS_41),
-                cv.Optional(CONF_COUNTS): COUNTS_SCHEMA_41,
-            }
-        ),
-        MODEL_AS7343: _COMMON_SCHEMA.extend(
-            {
-                cv.Optional(CONF_GAIN, default="X8"): cv.enum(GAIN_OPTIONS_43),
-                cv.Optional(CONF_COUNTS): COUNTS_SCHEMA_43,
-            }
-        ),
-    },
-    upper=True,
-    enum=AS734X_MODELS,
+
+def _validate_exposure(config: ConfigType) -> ConfigType:
+    if config[CONF_ATIME] == 0 and config[CONF_ASTEP] == 0:
+        raise cv.Invalid(f"{CONF_ATIME} and {CONF_ASTEP} must not both be 0")
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.typed_schema(
+        {
+            MODEL_AS7341: _COMMON_SCHEMA.extend(
+                {
+                    cv.Optional(CONF_GAIN, default="X8"): cv.enum(GAIN_OPTIONS_41),
+                    cv.Optional(CONF_COUNTS): COUNTS_SCHEMA_41,
+                }
+            ),
+            MODEL_AS7343: _COMMON_SCHEMA.extend(
+                {
+                    cv.Optional(CONF_GAIN, default="X8"): cv.enum(GAIN_OPTIONS_43),
+                    cv.Optional(CONF_COUNTS): COUNTS_SCHEMA_43,
+                }
+            ),
+        },
+        upper=True,
+        enum=AS734X_MODELS,
+    ),
+    _validate_exposure,
 )
 
 

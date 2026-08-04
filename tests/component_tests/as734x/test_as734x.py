@@ -75,3 +75,19 @@ def test_as7341_accepts_its_own_gain_range(gain: str, expected: str) -> None:
 
     config = CONFIG_SCHEMA(_config(gain=gain))
     assert str(config["gain"].enum_value) == f"as734x::{expected}"
+
+
+def test_rejects_zero_atime_and_astep() -> None:
+    from esphome.components.as734x.sensor import CONFIG_SCHEMA
+
+    with pytest.raises(cv.Invalid, match="must not both be 0"):
+        CONFIG_SCHEMA(_config(atime=0, astep=0))
+
+
+@pytest.mark.parametrize(("atime", "astep"), [(0, 1), (1, 0), (29, 599)])
+def test_accepts_a_single_zero_exposure_setting(atime: int, astep: int) -> None:
+    from esphome.components.as734x.sensor import CONFIG_SCHEMA
+
+    config = CONFIG_SCHEMA(_config(atime=atime, astep=astep))
+    assert config["atime"] == atime
+    assert config["astep"] == astep

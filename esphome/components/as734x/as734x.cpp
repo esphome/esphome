@@ -17,10 +17,12 @@ namespace esphome::as734x {
 static const char *const TAG = "as734x";
 
 static constexpr uint32_t MIN_COLLECTION_TIMEOUT_MS = 30 * 1000;
+static constexpr uint8_t COLLECTION_TIMEOUT_MARGIN = 2;
 
 namespace {
 
 float integration_time_ms(uint8_t atime, uint16_t astep) { return (1.0f + atime) * (1.0f + astep) * 2.78e-3f; }
+float gain_multiplier(Gain gain) { return gain == GAIN_0_5X ? 0.5f : static_cast<float>(1 << (gain - 1)); }
 
 }  // namespace
 
@@ -83,18 +85,22 @@ void AS734XComponent::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG,
                 "  Model: %s\n"
-                "  Gain: %u\n"
+                "  Gain: %gx\n"
                 "  ATIME: %u\n"
                 "  ASTEP: %u",
-                this->model_ == Model::AS7341 ? "AS7341" : "AS7343", this->gain_, this->atime_, this->astep_);
+                this->model_ == Model::AS7341 ? "AS7341" : "AS7343", gain_multiplier(this->gain_), this->atime_,
+                this->astep_);
 }
 
 void AS734XComponent::update() {
-  if (this->is_ready() && this->state_ == State::IDLE) {
+  if (!this->is_ready()) {
+    return;
+  }
+  if (this->state_ == State::IDLE) {
     ESP_LOGV(TAG, "Initiating new data collection");
     this->state_ = State::START_MEASUREMENT;
   } else {
-    ESP_LOGV(TAG, "Can't initiate new data collection - component not ready");
+    ESP_LOGW(TAG, "Skipping update, previous measurement still running");
   }
 }
 
@@ -117,12 +123,13 @@ void AS734XComponent::loop() {
       ESP_LOGVV(TAG, "START_MEASUREMENT");
       this->readings_.millis_start = millis();
       this->readings_.timeout_ms =
-          std::max(MIN_COLLECTION_TIMEOUT_MS, static_cast<uint32_t>(4 * this->device_->get_number_of_smux_steps() *
-                                                                    integration_time_ms(this->atime_, this->astep_)));
+          std::max(MIN_COLLECTION_TIMEOUT_MS,
+                   static_cast<uint32_t>(COLLECTION_TIMEOUT_MARGIN * this->device_->get_number_of_smux_steps() *
+                                         this->device_->get_integration_cycles() *
+                                         integration_time_ms(this->atime_, this->astep_)));
       this->device_->write_atime(this->atime_);
       this->device_->write_astep(this->astep_);
       this->device_->write_gain(this->gain_);
-      this->readings_.first_run = true;
       this->readings_.smux_step = 0;
       this->state_ = State::CONFIGURE_SMUX;
       break;
@@ -154,11 +161,6 @@ void AS734XComponent::loop() {
           this->abort_measurement_("Failed to read channel data");
           break;
         }
-        if (this->readings_.first_run) {
-          this->readings_.first_run = false;
-          ESP_LOGVV(TAG, "Discarding first reading");
-          break;
-        }
         if (device_saturated) {
           ESP_LOGV(TAG, "Latched data affected by saturation");
         }
@@ -167,7 +169,6 @@ void AS734XComponent::loop() {
           this->device_->enable_spectral_measurement(false);
           this->state_ = State::READY_TO_PUBLISH;
         } else {
-          this->readings_.first_run = true;
           this->state_ = State::CONFIGURE_SMUX;
         }
       } else if (millis() - this->readings_.millis_start > this->readings_.timeout_ms) {

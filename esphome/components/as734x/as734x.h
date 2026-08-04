@@ -78,6 +78,7 @@ class AS734xBase {
   bool enable_spectral_measurement(bool enable);
 
   virtual uint8_t get_number_of_smux_steps() const = 0;
+  virtual uint8_t get_integration_cycles() const = 0;
   virtual bool prepare_for_smux_step(uint8_t step) = 0;
 
   virtual bool enable_smux();
@@ -160,7 +161,6 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
     uint32_t millis_start{0};
     uint32_t timeout_ms{0};
     uint8_t smux_step{0};
-    bool first_run{true};
   } readings_;
 
   void publish_channel_readings_();
