@@ -10,7 +10,6 @@
 
 #include "ln882h_ble_tracker.h"
 
-#include <algorithm>
 #include <cinttypes>
 #include <cstring>
 
@@ -29,6 +28,11 @@ void LN882HBLETracker::setup() {
   // Receive the controller's scan reports; the controller queues them from the
   // rw task and delivers here on the main task.
   this->parent_->register_scan_listener(this);
+  if (!this->scan_continuous_) {
+    // Say so once: with continuous: false nothing scans until an explicit
+    // start_scan() — silence here reads as a broken scanner.
+    ESP_LOGD(TAG, "Scanning not started (continuous: false) - waiting for an explicit start_scan()");
+  }
 #ifdef USE_OTA_STATE_LISTENER
   // Pause scanning while an OTA update is in flight — on the single-core LN882H the
   // BLE scan competes with the OTA flash writes. Mirrors esp32_ble_tracker.
@@ -75,16 +79,17 @@ void LN882HBLETracker::loop() {
     // Period timer: once per scan_duration_ window, restart the controller scan
     // and fire on_scan_end(), mirroring esp32_ble_tracker::cleanup_scan_state_().
     // The restart is the recovery path for the coexistence failure documented in
-    // the header: the single-core SoC can silently drop the scan under WiFi
-    // load, and scan_start() returns void, so a dropped scan is undetectable
-    // from here — re-issuing it every period bounds the outage to one period.
-    // scan_stop() is idempotent (controller idle guard), so this is safe
-    // whether the scan is still running or already gone.
+    // the header. scan_start() re-enters cleanly on its own: it stops an
+    // in-flight scan and grants the controller's 10 ms GAPM settle before
+    // restarting — an explicit scan_stop() first would clear the controller's
+    // re-entry guard and skip that settle.
     if (this->scan_started_once_ && now - this->scan_period_start_ >= this->scan_duration_) {
       ESP_LOGD(TAG, "Scan period elapsed - restarting scan");
-      this->parent_->scan_stop();
       this->parent_->scan_start(static_cast<uint16_t>(this->scan_interval_), static_cast<uint16_t>(this->scan_window_),
                                 this->scan_active_);
+      // The period is over: deliver held advertisements whose scan response
+      // never came (unmerged) before on_scan_end, not after it.
+      this->flush_pending_adv_();
 #ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
       for (auto *listener : this->listeners_)
         listener->on_scan_end();
@@ -281,13 +286,29 @@ void LN882HBLETracker::stop_scan_() {
     return;
   this->parent_->scan_stop();
   this->scan_running_ = false;
-  ESP_LOGI(TAG, "BLE scan stopped");
+  // DEBUG like start_scan_() — a per-period stop at INFO would read as the
+  // scanner failing to come back up.
+  ESP_LOGD(TAG, "BLE scan stopped");
+  // The scan is over: deliver held advertisements whose scan response never
+  // came (unmerged) before on_scan_end, not after it.
+  this->flush_pending_adv_();
 #ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
   for (auto *listener : this->listeners_)
     listener->on_scan_end();
   this->discovered_log_.clear();  // reset per-scan "Found device" dedup (esp32_ble_tracker parity)
 #endif
   this->scan_period_start_ = millis();  // reset period clock so on_scan_end does not double-fire
+}
+
+// Deliver every held advertisement now (scan period/scan is ending): unmerged
+// delivery, same as the timeout path in loop(). Main-task only.
+void LN882HBLETracker::flush_pending_adv_() {
+  for (auto &p : this->pending_adv_) {
+    if (p.used) {
+      p.used = false;
+      this->process_adv_(p.mac, p.rssi, p.addr_type, p.data, p.data_len, /*raw_only=*/false);
+    }
+  }
 }
 
 }  // namespace esphome::ln882h_ble_tracker

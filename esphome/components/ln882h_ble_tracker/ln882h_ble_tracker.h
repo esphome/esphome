@@ -10,8 +10,14 @@
 // controller (stack bring-up, BLE address, scan primitives, and the rw-task →
 // main-task report queue) is owned by ln882h_ble, which delivers every scan
 // report on the ESPHome main task. The tracker owns scan policy — parameters,
-// duration/period timers and the adv+scan-response
-// merge.
+// duration/period timers, the per-period scan restart and the
+// adv+scan-response merge.
+//
+// Coexistence failure mode: the single-core LN882H can silently drop the scan
+// under WiFi load, and the controller's scan_start() returns void, so a
+// dropped scan is undetectable from here. In continuous mode the tracker
+// therefore re-issues scan_start() at every period boundary, bounding any
+// silent outage to one scan period.
 //
 // YAML config (values shown are the defaults; interval/window are the LN882H
 // SDK's recommended scan parameters — 50 % duty cycle):
@@ -35,8 +41,6 @@
 #include "esphome/core/helpers.h"
 
 #include <cstdint>
-#include <utility>
-#include <vector>
 
 #ifdef USE_OTA_STATE_LISTENER
 #include "esphome/components/ota/ota_backend.h"
@@ -132,6 +136,7 @@ class LN882HBLETracker : public Component,
                     bool raw_only);
   void start_scan_();
   void stop_scan_();
+  void flush_pending_adv_();
 
   bool scan_running_{false};
   bool scan_active_{false};
