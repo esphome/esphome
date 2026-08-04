@@ -101,17 +101,24 @@ def test_address_gate_fires_on_platform_dump_lines(line: str) -> None:
 def test_state_gated_decoders_declare_a_state_marker(platform: str) -> None:
     """A decoder that sets backtrace_state must declare the marker doing it.
 
-    Textual heuristic: every state-gated decoder today spells it as
-    ``return True`` or ``backtrace_state = True`` inside
-    process_stacktrace. A declared marker is then forced through the
-    gate test via the derived STATE_MARKERS, closing the chain from
-    decoder behaviour to gate coverage. Stateless decoders must not
+    The declared direction is behavioural: each declared marker is fed
+    through the real decoder and must open its dump region, so a marker
+    that stops working cannot keep passing. The undeclared direction
+    cannot be observed without a candidate marker, so it stays a textual
+    heuristic (every state-gated decoder today spells it as ``return
+    True`` or ``backtrace_state = True``); stateless decoders must not
     declare one, so the table cannot drift into fiction either way.
     """
     import importlib
     import inspect
 
     module = importlib.import_module(f"esphome.components.{platform}")
+    for marker in CRASH_SAMPLES[platform]["state_markers"]:
+        assert module.process_stacktrace(CONFIG, marker, False) is True, (
+            f"{marker!r} no longer opens {platform}'s dump region; update "
+            "state_markers to the line the decoder actually keys on"
+        )
+
     source = inspect.getsource(module.process_stacktrace)
     sets_state = "return True" in source or "backtrace_state = True" in source
     if sets_state:
