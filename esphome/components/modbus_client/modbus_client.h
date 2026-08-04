@@ -37,13 +37,19 @@ template<typename... Ts> class ClientActionBase : public Action<Ts...>, public m
   void on_sent(std::span<const uint8_t> request_pdu) override { this->sent_trigger_.trigger(request_pdu); }
   /// Never reached the wire (tx queue full, cleared, or a duplicate write dropped by the hub's dedup).
   void on_not_sent(std::span<const uint8_t> request_pdu) override { this->not_sent_trigger_.trigger(request_pdu); }
+  /// A Modbus exception reply. Lives here beside its trigger so every action subclass gets the pairing:
+  /// register_client_action() wires on_error for all of them, so a derived class must not have to
+  /// remember the override.
+  void on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) override {
+    this->error_trigger_.trigger(request_pdu, exception_code);
+  }
   /// No reply within send_wait_time. Run the on_no_response actions (empty in the pure-lambda form),
   /// then let the retry lambda, if set, decide whether the hub re-queues the frame (true = retry). The
   /// two coexist: a then: automation can also carry a retry lambda. No lambda = no retry.
   bool on_no_response(std::span<const uint8_t> request_pdu) override {
     this->no_response_trigger_.trigger(request_pdu);
-    if (this->retry_func_.has_value())
-      return (*this->retry_func_)(request_pdu);
+    if (this->retry_func_ != nullptr)
+      return this->retry_func_(request_pdu);
     return false;
   }
   /// Stamp the templated device address before every play(): subclasses cannot forget it, and the hub
@@ -58,7 +64,7 @@ template<typename... Ts> class ClientActionBase : public Action<Ts...>, public m
   Trigger<std::span<const uint8_t>, modbus::ExceptionCode> error_trigger_;
   Trigger<std::span<const uint8_t>> no_response_trigger_;
   Trigger<std::span<const uint8_t>> not_sent_trigger_;
-  optional<retry_func_t> retry_func_{nullopt};
+  retry_func_t retry_func_{nullptr};
 };
 
 /// modbus_client.send: fire a raw PDU (function code + data; the hub adds address and CRC). The reply is
@@ -76,20 +82,15 @@ template<typename... Ts> class ModbusClientSendAction : public ClientActionBase<
 
   void play(const Ts &...x) override {
     auto pdu = this->pdu_.value(x...);
-    if (pdu.empty())
-      return;
     const std::span<const uint8_t> span(pdu.data(), pdu.size());
-    // The hub refuses some sends at the door with no callback (a duplicate write already pending, a
-    // full queue). Every send still gets exactly one outcome, so resolve those here via on_not_sent.
+    // The hub refuses some sends at the door with no callback (an empty PDU, a duplicate write already
+    // pending, a full queue). Every send still gets exactly one outcome, so resolve those via on_not_sent.
     if (!this->send_pdu(span))
       this->on_not_sent(span);
   }
 
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {
     this->response_trigger_.trigger(request_pdu, response_pdu);
-  }
-  void on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) override {
-    this->error_trigger_.trigger(request_pdu, exception_code);
   }
 
  protected:

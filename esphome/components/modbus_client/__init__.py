@@ -26,10 +26,9 @@ ExceptionCode = modbus.modbus_ns.enum("ExceptionCode")
 # request/response PDUs (function code + data). The spans are only valid for the duration of the handler.
 _PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
 
-# The pdu lambda's return type: a stack-allocated StaticVector capped at the Modbus PDU limit (253
-# bytes). Lambdas can return a byte list or the result of a modbus::helpers::create_*_pdu() builder.
+# The pdu lambda's return type: a stack-allocated StaticVector capped at the Modbus PDU limit
+# (modbus.MAX_PDU_SIZE). Lambdas can return a byte list or a modbus::helpers::create_*_pdu() result.
 _PDU_BUFFER = modbus.modbus_ns.namespace("helpers").class_("PduBuffer")
-_MAX_PDU_SIZE = 253
 
 # Each action is its own hub device: the modbus hub routes the reply straight back to the action that
 # sent it, so the address can even be templatable - the reply is matched by the action's identity, not
@@ -61,7 +60,7 @@ MODBUS_CLIENT_SEND_SCHEMA = _ACTION_BASE_SCHEMA.extend(
         cv.Required(CONF_PDU): cv.templatable(
             cv.All(
                 cv.ensure_list(cv.hex_uint8_t),
-                cv.Length(max=_MAX_PDU_SIZE),
+                cv.Length(min=1, max=modbus.MAX_PDU_SIZE),
             )
         ),
         cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(single=True),

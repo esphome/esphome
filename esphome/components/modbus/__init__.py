@@ -18,6 +18,9 @@ DEPENDENCIES = ["uart"]
 # generated unless a config uses one).
 AUTO_LOAD = ["modbus_client"]
 
+# Mirrors modbus::MAX_PDU_SIZE in modbus_definitions.h: 256-byte RTU frame minus address and CRC.
+MAX_PDU_SIZE = 253
+
 modbus_ns = cg.esphome_ns.namespace("modbus")
 Modbus = modbus_ns.class_("Modbus", cg.Component, uart.UARTDevice)
 ModbusServer = modbus_ns.class_("ModbusServerHub", Modbus)
