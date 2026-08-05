@@ -49,9 +49,6 @@ CODEOWNERS = ["@esphome/core"]
 
 _LOGGER = logging.getLogger(__name__)
 
-# If the MDI file cannot be downloaded within this time, abort.
-IMAGE_DOWNLOAD_TIMEOUT = 30  # seconds
-
 SOURCE_LOCAL = "local"
 SOURCE_WEB = "web"
 
@@ -83,7 +80,9 @@ def local_path(value):
 
 
 def download_file(url, path):
-    external_files.download_content(url, path, IMAGE_DOWNLOAD_TIMEOUT)
+    # The shared NETWORK_TIMEOUT applies; a per-caller timeout would be
+    # silently ignored on a per-run memo hit anyway (memos key by path).
+    external_files.download_content(url, path)
     return str(path)
 
 

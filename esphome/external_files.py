@@ -384,9 +384,6 @@ def download_content_many(
     raise cv.MultipleInvalid(errors)
 
 
-# Each component that uses external_files defines its own local
-# `TYPE_WEB = "web"`; the string is repeated here rather than imported
-# because there is no canonical `TYPE_WEB` in `esphome.const` to share.
 def single_stage_prefetch(
     extract: Callable[[ConfigType], RemoteFile | None],
 ) -> Callable[[list[ConfigType]], Iterator[list[RemoteFile]]]:
@@ -402,6 +399,9 @@ def single_stage_prefetch(
     return prefetch_files
 
 
+# Each component that uses external_files defines its own local
+# `TYPE_WEB = "web"`; the string is repeated here rather than imported
+# because there is no canonical `TYPE_WEB` in `esphome.const` to share.
 WEB_TYPE = "web"
 
 

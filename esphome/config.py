@@ -836,9 +836,10 @@ class PrefetchRemoteFilesValidationStep(ConfigValidationStep):
         try:
             external_files.download_content_many(items, description="remote file(s)")
         except cv.Invalid as err:
-            # The per-entry validator surfaces the memoized failure with
-            # the correct config path.
-            _LOGGER.debug("Remote file prefetch download failed: %s", err)
+            # INFO, not DEBUG: the per-entry validator surfaces the memoized
+            # failure with the correct config path, but only if its cache
+            # path matches the extractor's; this line is the trace if not.
+            _LOGGER.info("Remote file prefetch download failed: %s", err)
         except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
             # The batch downloader itself broke; make it visible.
             _LOGGER.warning("Remote file prefetch failed: %s", err)
