@@ -651,9 +651,12 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
       // buffer once per capture so a recurrence names the cause.
       if (!this->logged_qbuf_failure_) {
         this->logged_qbuf_failure_ = true;
-        auto ptr = (uintptr_t) this->capture_buffers_[cap_buf.index].start;
+        // Keep the pointer as a pointer for esp_ptr_external_ram(); the integer
+        // is only for printing its value and alignment.
+        const void *start = this->capture_buffers_[cap_buf.index].start;
+        auto ptr = (uintptr_t) start;
         ESP_LOGW(TAG, "  buffer %u: ptr=0x%08X psram=%s align32=%u align64=%u len=%u used=%u", (unsigned) cap_buf.index,
-                 (unsigned) ptr, esp_ptr_external_ram((const void *) ptr) ? "yes" : "NO", (unsigned) (ptr % 32),
+                 (unsigned) ptr, esp_ptr_external_ram(start) ? "yes" : "NO", (unsigned) (ptr % 32),
                  (unsigned) (ptr % 64), (unsigned) this->capture_buffers_[cap_buf.index].length,
                  (unsigned) cap_buf.bytesused);
       }
