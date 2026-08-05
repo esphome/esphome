@@ -37,32 +37,13 @@ _LOGGER = logging.getLogger(__name__)
 # (upload method, log transport) warns. A new hook is loud by default.
 COSMETIC_HOOKS: Final = frozenset({"process_stacktrace"})
 
-# Trigger gates for the stacktrace decoders, keyed by platform. A log
-# session knows its target platform, so each session only pays for its
-# own platform's trigger language; a line matching the gate is what
-# lazily imports the platform package to resolve the decoder, and a
-# false trigger costs that import on the event loop mid-stream. That is
-# why 8-digit decimals (uptime counters) and ESP-IDF's decimal log
-# timestamps must stay out of the esp8266 bare-hex branch.
-#
-# Declaring a gate here is what registers a platform's
-# process_stacktrace hook; deriving the registry entry from the keys
-# keeps the two in sync by construction. Each gate must stay a superset
-# of its decoder patterns' trigger language; both directions are pinned
-# in tests/unit_tests/test_stacktrace.py, including a generative test
-# that derives inputs from the decoder regexes themselves. The keyword
-# branches exist because (?:0x)? register forms can glue a pointer to
-# trailing word characters that defeat the pointer branch's \b, and the
-# markers are the address-free lines that open the state-gated
-# decoders' dump regions. The esp32/esp8266/rp2 crash handlers all
-# announce a stored dump with the CRASH DETECTED banner as its first
-# line; their decoders key on the 0x-bearing lines that follow, but
-# gating on the banner resolves the decoder at the dump's first line
-# and can only be a true positive.
-#
-# Stored as strings: this module is imported by every CLI invocation,
-# and only a log session needs a gate, so the session compiles exactly
-# its own platform's entry instead of import time compiling all four.
+# Per-platform trigger languages for lazy stacktrace decoding: a
+# matching line is what imports the platform package, so false triggers
+# (8-digit uptime counters, ESP-IDF decimal timestamps) must stay out.
+# Declaring a gate registers the process_stacktrace hook, and each gate
+# must stay a superset of its decoder patterns' trigger language; both
+# are enforced by tests/unit_tests/test_stacktrace.py. Stored as
+# strings so a log session compiles only its own platform's gate.
 STACKTRACE_GATES: Final[dict[str, str]] = {
     PLATFORM_ESP32: (
         r"0x[0-9a-fA-F]{3,}\b"
