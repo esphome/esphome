@@ -268,12 +268,15 @@ void LN882HBLETracker::start_scan() {
   }
 }
 
-void LN882HBLETracker::restart_scan_period() {
+void LN882HBLETracker::restart_scan_duration() {
   if (!this->scan_running_)
     return;
-  const uint32_t now = millis();
-  this->scan_start_time_ = now;
-  this->scan_period_start_ = now;
+  // Re-anchor only the one-shot duration clock. scan_period_start_ (the
+  // continuous-mode on_scan_end period) is deliberately left alone: a
+  // start_scan action fired more often than scan_duration_ would otherwise
+  // suppress on_scan_end indefinitely — and absence detection (ble_rssi's NAN
+  // publish) rides on that period.
+  this->scan_start_time_ = millis();
 }
 
 void LN882HBLETracker::stop_scan() {

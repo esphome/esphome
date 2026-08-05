@@ -31,12 +31,12 @@ template<typename... Ts> class StartScanAction final : public Action<Ts...>, pub
       // scan alive forever. A real mode switch re-anchors so a change to
       // one-shot runs a full duration from now.
       if (want != this->parent_->scan_continuous()) {
-        this->parent_->set_scan_continuous_runtime(want);
-        this->parent_->restart_scan_period();
+        this->parent_->set_scan_continuous(want);
+        this->parent_->restart_scan_duration();
       }
       return;
     }
-    this->parent_->set_scan_continuous_runtime(want);
+    this->parent_->set_scan_continuous(want);
     this->parent_->start_scan();
   }
 };
