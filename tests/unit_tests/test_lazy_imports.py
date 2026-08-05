@@ -41,6 +41,11 @@ FAST_PATH_HEAVY_MODULES = HEAVY_MODULES + ("esphome.components.esp32",)
 # in the existence guard so a rename can't silently no-op its check.
 API_HEAVY_MODULES = ("aioesphomeapi",)
 
+# Heavy only for the single-config dispatch path: the bundle suffix
+# check reads BUNDLE_EXTENSION from esphome.const so an ordinary run
+# never pays for the bundle machinery and its tarfile chain.
+BUNDLE_HEAVY_MODULES = ("esphome.bundle", "tarfile")
+
 
 def _leaked_heavy_modules(module: str, extra: tuple[str, ...] = ()) -> str:
     """Import ``module`` in a subprocess and report the heavy modules it pulled.
@@ -77,13 +82,15 @@ def test_main_module_does_not_import_heavy_modules() -> None:
 
 def test_watched_heavy_modules_exist() -> None:
     """A renamed heavy module would silently disable the leak checks."""
-    for module in FAST_PATH_HEAVY_MODULES + API_HEAVY_MODULES:
+    for module in FAST_PATH_HEAVY_MODULES + API_HEAVY_MODULES + BUNDLE_HEAVY_MODULES:
         assert importlib.util.find_spec(module) is not None, (
             f"{module} no longer resolves; update the heavy-module lists"
         )
 
 
-def _leaked_from_fixture(fixture_path: Path, script_name: str) -> str:
+def _leaked_from_fixture(
+    fixture_path: Path, script_name: str, extra: tuple[str, ...] = ()
+) -> str:
     """Run a fixture script with the watched modules on argv.
 
     Running a script file drops the cwd from sys.path, so prepend the
@@ -95,7 +102,7 @@ def _leaked_from_fixture(fixture_path: Path, script_name: str) -> str:
         python_path = os.pathsep.join((python_path, ambient))
     env = os.environ | {"PYTHONPATH": python_path}
     result = subprocess.run(
-        [sys.executable, str(script), *FAST_PATH_HEAVY_MODULES],
+        [sys.executable, str(script), *FAST_PATH_HEAVY_MODULES, *extra],
         capture_output=True,
         text=True,
         env=env,
@@ -211,4 +218,35 @@ def test_has_mqtt_ip_lookup_does_not_import_mqtt() -> None:
         f"has_mqtt_ip_lookup pulls in heavy modules: {leaked}. "
         "The upload/logs fast path skips validation; importing the "
         "validation stack anyway defeats the validated-config cache."
+    )
+
+
+def test_yaml_util_does_not_import_heavy_modules() -> None:
+    """``esphome.yaml_util`` parses the validated-config cache on the
+    upload/logs fast path; importing it must not pull in voluptuous.
+    """
+    leaked = _leaked_heavy_modules("esphome.yaml_util")
+    assert not leaked, (
+        f"esphome.yaml_util imports heavy modules at top level: {leaked}. "
+        "The upload/logs fast path skips validation; importing the "
+        "validation stack anyway defeats the validated-config cache."
+    )
+
+
+def test_upload_command_path_does_not_import_heavy_modules(
+    fixture_path: Path,
+) -> None:
+    """The single-config dispatch path checks the bundle suffix on every
+    run; reading it from esphome.const must not drag in esphome.bundle
+    and its tarfile chain.
+    """
+    leaked = _leaked_from_fixture(
+        fixture_path, "upload_command_fast_path.py", extra=BUNDLE_HEAVY_MODULES
+    )
+    assert not leaked, (
+        f"the upload dispatch path pulls in heavy modules: {leaked}. "
+        "An ordinary run only needs the bundle suffix constant, and the "
+        "cache parse must not resolve voluptuous; keep the esphome.bundle "
+        "import inside the branch that extracts one and the Invalid import "
+        "inside the branch that raises it."
     )
