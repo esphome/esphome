@@ -27,9 +27,9 @@ class BLESensor : public sensor::Sensor, public PollingComponent, public BLEClie
   void set_char_uuid16(uint16_t uuid) { this->char_uuid_ = espbt::ESPBTUUID::from_uint16(uuid); }
   void set_char_uuid32(uint32_t uuid) { this->char_uuid_ = espbt::ESPBTUUID::from_uint32(uuid); }
   void set_char_uuid128(uint8_t *uuid) { this->char_uuid_ = espbt::ESPBTUUID::from_raw(uuid); }
-  void set_descr_uuid16(uint16_t uuid) { this->set_descr_uuid_(espbt::ESPBTUUID::from_uint16(uuid)); }
-  void set_descr_uuid32(uint32_t uuid) { this->set_descr_uuid_(espbt::ESPBTUUID::from_uint32(uuid)); }
-  void set_descr_uuid128(uint8_t *uuid) { this->set_descr_uuid_(espbt::ESPBTUUID::from_raw(uuid)); }
+  void set_descr_uuid16(uint16_t uuid) { this->descr_uuid_ = espbt::ESPBTUUID::from_uint16(uuid); }
+  void set_descr_uuid32(uint32_t uuid) { this->descr_uuid_ = espbt::ESPBTUUID::from_uint32(uuid); }
+  void set_descr_uuid128(uint8_t *uuid) { this->descr_uuid_ = espbt::ESPBTUUID::from_raw(uuid); }
   void set_data_to_value(float (*lambda)(const std::vector<uint8_t> &)) {
     this->data_to_value_func_ = lambda;
     this->has_data_to_value_ = true;
@@ -38,17 +38,10 @@ class BLESensor : public sensor::Sensor, public PollingComponent, public BLEClie
   uint16_t handle;
 
  protected:
-  void set_descr_uuid_(const espbt::ESPBTUUID &uuid) {
-    this->descr_uuid_ = uuid;
-    this->has_descr_ = true;
-  }
-
   float parse_data_(uint8_t *value, uint16_t value_len);
   bool has_data_to_value_{false};
   float (*data_to_value_func_)(const std::vector<uint8_t> &){};
   bool notify_;
-  // ESPBTUUID has no unset state, so an optional descriptor_uuid needs an explicit configured flag
-  bool has_descr_{false};
   espbt::ESPBTUUID service_uuid_;
   espbt::ESPBTUUID char_uuid_;
   espbt::ESPBTUUID descr_uuid_;

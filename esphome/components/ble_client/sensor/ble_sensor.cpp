@@ -21,15 +21,16 @@ void BLESensor::dump_config() {
   char service_buf[esp32_ble::UUID_STR_LEN];
   char char_buf[esp32_ble::UUID_STR_LEN];
   char descr_buf[esp32_ble::UUID_STR_LEN];
-  ESP_LOGCONFIG(TAG,
-                "  MAC address        : %s\n"
-                "  Service UUID       : %s\n"
-                "  Characteristic UUID: %s\n"
-                "  Descriptor UUID    : %s\n"
-                "  Notifications      : %s",
-                this->parent()->address_str(), this->service_uuid_.to_str(service_buf),
-                this->char_uuid_.to_str(char_buf), this->has_descr_ ? this->descr_uuid_.to_str(descr_buf) : "None",
-                YESNO(this->notify_));
+  ESP_LOGCONFIG(
+      TAG,
+      "  MAC address        : %s\n"
+      "  Service UUID       : %s\n"
+      "  Characteristic UUID: %s\n"
+      "  Descriptor UUID    : %s\n"
+      "  Notifications      : %s",
+      this->parent()->address_str(), this->service_uuid_.to_str(service_buf), this->char_uuid_.to_str(char_buf),
+      this->descr_uuid_.type() != espbt::ESPBTUUID::Type::UNSET ? this->descr_uuid_.to_str(descr_buf) : "None",
+      YESNO(this->notify_));
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -62,7 +63,7 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
         break;
       }
       this->handle = chr->handle;
-      if (this->has_descr_) {
+      if (this->descr_uuid_.type() != espbt::ESPBTUUID::Type::UNSET) {
         auto *descr = chr->get_descriptor(this->descr_uuid_);
         if (descr == nullptr) {
           this->status_set_warning();

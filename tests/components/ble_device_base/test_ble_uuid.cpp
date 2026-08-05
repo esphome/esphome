@@ -38,6 +38,11 @@ TEST(BleDeviceUuid, DefaultConstructedIsUnset) {
   EXPECT_FALSE(unset.contains(0x00, 0x00));
 }
 
+// UNSET expands to the base UUID like a 16-bit 0x0000 (the historical len-0 expansion),
+// so it compares equal to a configured 0x0000. Pinned on purpose: optional-UUID consumers
+// must distinguish "not configured" via type(), never via equality.
+TEST(BleDeviceUuid, UnsetExpandsLikeZero16) { EXPECT_TRUE(ESPBTUUID() == ESPBTUUID::from_uint16(0x0000)); }
+
 // Text parsing of an invalid length historically produced a len-0 (unset) UUID.
 TEST(BleDeviceUuid, InvalidTextFormParsesToUnset) {
   EXPECT_EQ(ESPBTUUID::from_raw("nope", 3).type(), ESPBTUUID::Type::UNSET);

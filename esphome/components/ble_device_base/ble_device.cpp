@@ -133,7 +133,7 @@ void ESPBTDevice::parse_scan_rst(const esp32_ble::BLEScanResult &scan_result) {
   this->scan_result_ = &scan_result;
   // BLEScanResult's bda is most-significant octet first; the neutral ingest
   // takes the BLE controller (LSB-first) order, so reverse — address_uint64()/
-  // address_str() then produce exactly the historical esp32 values.
+  // address_str_to() then produce exactly the historical esp32 values.
   uint8_t mac_lsb_first[6];
   for (uint8_t i = 0; i < 6; i++)
     mac_lsb_first[i] = scan_result.bda[5 - i];
@@ -213,6 +213,8 @@ const char *ESPBTUUID::to_str(char *buf) const {
 void ESPBTUUID::to_128bit_(uint8_t out[16]) const {
   // Bluetooth Base UUID 00000000-0000-1000-8000-00805F9B34FB (LSB-first), with the 16/32-bit
   // value placed at bytes 12..; identical expansion to esp32_ble::ESPBTUUID::as_128bit().
+  // UNSET expands like a 16-bit 0x0000 (the historical len-0 expansion), so an unset UUID
+  // compares equal to 0x0000 across widths; optional-UUID consumers must check type() instead.
   static const uint8_t BASE[16] = {0xFB, 0x34, 0x9B, 0x5F, 0x80, 0x00, 0x00, 0x80,
                                    0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   if (this->type_ == Type::UUID128) {
@@ -354,6 +356,7 @@ void ESPBTDevice::from_scan_result(const uint8_t *mac, int rssi, uint8_t addr_ty
 #endif  // ESPHOME_LOG_HAS_VERY_VERBOSE
 }
 
+// Remove before 2027.2.0
 std::string ESPBTDevice::address_str() const {
   char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   return std::string(this->address_str_to(buf));
