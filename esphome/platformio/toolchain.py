@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 import shutil
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import platformdirs
 
@@ -367,7 +367,9 @@ def _run_idedata(config):
     if not isinstance(stdout, str):
         # run_external_process returns its exit code when launching
         # platformio itself failed; that is the environment, not us.
-        raise EsphomeError("Running platformio to get idedata failed")
+        raise EsphomeError(
+            f"Running platformio to get idedata failed with exit code {stdout}"
+        )
     match = re.search(r'{\s*".*}', stdout)
     if match is None:
         _LOGGER.error("Could not match idedata, please report this error")
@@ -423,18 +425,21 @@ class IDEData:
     def __init__(self, raw):
         self.raw = raw
 
-    def _require(self, *keys: str):
+    def _require(self, *keys: str) -> Any:
         """Read a nested key, classifying a miss as an environment error.
 
         A stale or truncated cached idedata JSON is the user's build
-        tree, not a bug; recompiling regenerates it.
+        tree, not a bug; recompiling regenerates it. The message names
+        the key so a platformio schema change stays diagnosable.
         """
         value = self.raw
         try:
             for key in keys:
                 value = value[key]
         except KeyError as err:
-            raise EsphomeError("Cached idedata is incomplete") from err
+            raise EsphomeError(
+                f"Cached idedata is incomplete (missing {'.'.join(keys)})"
+            ) from err
         return value
 
     @property
