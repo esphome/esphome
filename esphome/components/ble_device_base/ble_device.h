@@ -126,9 +126,11 @@ class ESPBLEiBeacon {
  public:
   ESPBLEiBeacon() { memset(&this->beacon_data_, 0, sizeof(this->beacon_data_)); }
   explicit ESPBLEiBeacon(const uint8_t *data);
-  /// prefix_rejected (optional) is set when a 23-byte Apple frame was refused
-  /// only for lacking the 0x02/0x15 iBeacon prefix — the case the legacy esp32
-  /// parser accepted; the caller with the device address does the logging.
+  /// prefix_rejected: caller must initialise to false; set to true ONLY when a
+  /// 23-byte Apple frame was refused for lacking the 0x02/0x15 iBeacon prefix —
+  /// the case the legacy esp32 parser accepted. Never written on accept or on
+  /// the non-Apple/wrong-size rejects. The caller with the device address does
+  /// the logging (see ESPBTDevice::get_ibeacon()).
   static optional<ESPBLEiBeacon> from_manufacturer_data(const ServiceData &data, bool *prefix_rejected = nullptr);
 
   uint16_t get_major() const { return byteswap(this->beacon_data_.major); }

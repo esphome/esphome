@@ -8,6 +8,7 @@
 #include "ble_aes_ccm.h"
 
 #include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -275,11 +276,13 @@ optional<ESPBLEiBeacon> ESPBTDevice::get_ibeacon() const {
     auto res = ESPBLEiBeacon::from_manufacturer_data(it, &prefix_rejected);
     if (prefix_rejected) {
       // These frames were accepted before the prefix check, so their
-      // disappearance must be observable at the default log level; bounded so
-      // a chatty non-iBeacon Apple advertiser cannot flood the log.
-      static uint8_t logged = 0;
-      if (logged < 3) {
-        logged++;
+      // disappearance must be observable at the default log level; throttled
+      // rather than counted so a chatty non-iBeacon Apple advertiser cannot
+      // flood the log or permanently exhaust the diagnostic.
+      static uint32_t last_log = 0;
+      const uint32_t now = millis();
+      if (last_log == 0 || now - last_log > 60000) {
+        last_log = now;
         char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
         ESP_LOGD(TAG, "%s: 23-byte Apple frame without iBeacon prefix ignored (sub-type 0x%02X len 0x%02X)",
                  this->address_str_to(addr_buf), it.data[0], it.data[1]);

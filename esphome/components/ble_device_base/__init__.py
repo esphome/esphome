@@ -115,7 +115,11 @@ def _require_hub(value: ID) -> ID:
             if (tracker := _IN_TREE_HUB_PROVIDERS.get(platform))
             else set(_IN_TREE_HUB_PROVIDERS.values())
         )
-        names = ", ".join(sorted(_HUB_PROVIDERS | in_tree))
+        # in_tree only: _HUB_PROVIDERS is import-time state that outlives
+        # CORE.reset() in a long-lived process (dashboard), so a tracker from
+        # an earlier build of another platform must not leak into the message.
+        # The gate above is immune — loaded_integrations resets per run.
+        names = ", ".join(sorted(in_tree))
         raise cv.Invalid(f"No BLE tracker configured — add one of: {names}")
     return value
 
