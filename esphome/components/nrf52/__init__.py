@@ -722,17 +722,9 @@ def _addr2line(addr2line: str, elf: Path, addr: str) -> str:
     return ""
 
 
-# Module-level so tests can pin the samples that gate lazy decoding
-# (tests/unit_tests/test_stacktrace.py) against the real pattern.
-# The PC group is bounded to 3+ hex digits to agree with the log gate
-# in platform_hooks.STACKTRACE_GATES by construction; the logger prints
-# both registers with %08x, so a real PC is always 8 digits and even a
-# vector-table address is zero-padded past the bound. The LR bound is
-# left wide so a nonsensical LR still satisfies the combined match; the
-# regex is all or nothing, so a failed LR half would drop the PC decode
-# with it. Widening the PC bound without the gate fails the generative
-# superset test in tests/unit_tests/test_stacktrace.py, so the two
-# cannot drift.
+# The PC bound matches the gate in platform_hooks.STACKTRACE_GATES;
+# the logger prints both registers with %08x, so a real PC is always
+# 8 digits. tests/unit_tests/test_stacktrace.py guards against drift.
 STACKTRACE_NRF52_PC_LR_RE = re.compile(r"PC=(0x[0-9a-fA-F]{3,})\s+LR=(0x[0-9a-fA-F]+)")
 
 
