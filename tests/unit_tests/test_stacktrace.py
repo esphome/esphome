@@ -397,7 +397,7 @@ def _fed(handler) -> list[str]:
     return [call.args[1] for call in handler.call_args_list]
 
 
-def _warnings(caplog) -> list[str]:
+def _warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
     return [r.message for r in caplog.records if r.levelname == "WARNING"]
 
 
@@ -418,7 +418,9 @@ def test_decoder_contains_failures_and_short_circuits() -> None:
     assert processor.backtrace_state is False
 
 
-def test_decoder_swallows_os_error_with_remediation_hint(caplog) -> None:
+def test_decoder_swallows_os_error_with_remediation_hint(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """Decoding failures that aren't EsphomeError must be contained too.
 
     A missing build directory surfaces as an OSError; that is the
@@ -437,7 +439,9 @@ def test_decoder_swallows_os_error_with_remediation_hint(caplog) -> None:
     assert not any("this is a bug" in m for m in warnings)
 
 
-def test_decoder_warning_uses_fallback_for_empty_error(caplog) -> None:
+def test_decoder_warning_uses_fallback_for_empty_error(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """A message-less EsphomeError must show a useful explanation.
 
     Defensive: the in-tree idedata raise sites all carry a message now,
@@ -450,7 +454,9 @@ def test_decoder_warning_uses_fallback_for_empty_error(caplog) -> None:
     assert not any("()" in m for m in warnings)
 
 
-def test_decoder_bug_with_empty_message_names_the_type(caplog) -> None:
+def test_decoder_bug_with_empty_message_names_the_type(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """A zero-message decoder bug must not masquerade as missing artifacts.
 
     The recompile hint is only right for EsphomeError from _run_idedata;
@@ -464,7 +470,9 @@ def test_decoder_bug_with_empty_message_names_the_type(caplog) -> None:
     assert not any("esphome compile" in m for m in warnings)
 
 
-def test_decoder_bug_warning_keeps_the_type_with_a_message(caplog) -> None:
+def test_decoder_bug_warning_keeps_the_type_with_a_message(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """The type must survive a non-empty message; a bare KeyError message
     like 'prog_path' reads as a raised string in a bug report paste.
     """
@@ -528,7 +536,9 @@ def test_processor_resolves_lazily_on_address_token() -> None:
     assert _fed(handler) == ["PC: 0x40104960", "[I][app:101] back to normal"]
 
 
-def test_processor_unexpected_resolution_error_disables_decoding(caplog) -> None:
+def test_processor_unexpected_resolution_error_disables_decoding(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """Resolution is inside the containment guarantee like everything else."""
     with patch.object(
         stacktrace.platform_hooks,
@@ -546,7 +556,9 @@ def test_processor_unexpected_resolution_error_disables_decoding(caplog) -> None
     assert processor.backtrace_state is False
 
 
-def test_processor_import_failure_disables_decoding(caplog) -> None:
+def test_processor_import_failure_disables_decoding(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """A broken platform package degrades once instead of raising."""
     caplog.set_level("INFO", logger="esphome.platform_hooks")
 
@@ -565,7 +577,9 @@ def test_processor_import_failure_disables_decoding(caplog) -> None:
     assert processor.backtrace_state is False
 
 
-def test_processor_registry_miss_disables_at_construction(caplog) -> None:
+def test_processor_registry_miss_disables_at_construction(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """Platforms the registry proves have no analyzer disable up front.
 
     The unavailable notice fires at session start (as it always did) and
@@ -582,7 +596,9 @@ def test_processor_registry_miss_disables_at_construction(caplog) -> None:
     assert processor.backtrace_state is False
 
 
-def test_external_platform_resolves_at_construction(caplog) -> None:
+def test_external_platform_resolves_at_construction(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """External platforms resolve eagerly, like before the registry.
 
     The address gate's grammar derives from the in-tree decoders, so it
