@@ -319,7 +319,10 @@ void LN882HBLETracker::stop_scan_() {
   // scanner failing to come back up.
   ESP_LOGD(TAG, "BLE scan stopped");
   this->end_scan_period_(millis());  // also resets the period clock so on_scan_end does not double-fire
-  if (!this->scan_continuous_) {
+  // scan_running_ re-check: an on_scan_end automation runs synchronously inside
+  // end_scan_period_() and may have called start_scan() — parking the loop then
+  // would leave the radio scanning with no period timing or pending-adv sweep.
+  if (!this->scan_continuous_ && !this->scan_running_) {
     // Nothing left to time; start_scan_() re-enables the loop.
     this->disable_loop();
   }

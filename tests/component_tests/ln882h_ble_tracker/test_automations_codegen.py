@@ -33,7 +33,10 @@ def test_trigger_codegen(
         "set_manufacturer_uuid128((uint8_t*)(const uint8_t[16]){0xCD,0xAB,0xCD,0xAB,"
         "0xCD,0xAB,0xCD,0xAB,0xCD,0xAB,0xCD,0xAB,0xCD,0xAB,0xCD,0xAB})" in main_cpp
     )
-    # scan-control actions: templatable continuous lambda + parented actions
+    # scan-control actions: templatable continuous lambda + parented actions.
+    # Exactly one set_continuous: the bare start_scan emits none, pinning the
+    # restore-configured-mode divergence from esp32 against a future default=.
+    assert main_cpp.count("->set_continuous(") == 1
     assert "startscanaction_id->set_continuous(" in main_cpp
     assert "stopscanaction_id->set_parent(" in main_cpp
     assert "bleendofscantrigger" in main_cpp.lower()
