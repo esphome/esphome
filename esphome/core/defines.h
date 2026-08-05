@@ -244,7 +244,7 @@
 
 // bluetooth_proxy runs on any platform with a BLE hub (advertisement-only off
 // esp32). Declared here per analysis ENVIRONMENT, not per hub platform —
-// USE_LIBRETINY covers rtl87xx/ln882x, which have no hub (the authoritative
+// USE_LIBRETINY also covers chips with no hub, e.g. rtl87xx (the authoritative
 // gate is _HUB_PLATFORMS in bluetooth_proxy/__init__.py) — so the neutral
 // declarations in bluetooth_proxy.h are parsed under LibreTiny static analysis
 // (the header is included by api_connection.cpp, which the tidy filter selects;

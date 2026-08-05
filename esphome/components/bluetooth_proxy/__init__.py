@@ -4,7 +4,7 @@ import logging
 import esphome.codegen as cg
 from esphome.components import ble_device_base
 import esphome.config_validation as cv
-from esphome.const import CONF_ACTIVE, CONF_ID, PLATFORM_RP2
+from esphome.const import CONF_ACTIVE, CONF_ID, PLATFORM_LN882X, PLATFORM_RP2
 from esphome.core import CORE
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
@@ -42,7 +42,7 @@ def AUTO_LOAD(config: ConfigType | None = None) -> list[str]:
 # Assistant) assumes an ESPHome proxy can scan actively, so a passive-only
 # proxy would be misdriven — bk72xx follows once the API carries a feature
 # flag clients can trust (FEATURE_ACTIVE_SCAN + a version flag, separate PRs).
-_HUB_PLATFORMS = (PLATFORM_RP2,)
+_HUB_PLATFORMS = (PLATFORM_LN882X, PLATFORM_RP2)
 
 DEPENDENCIES = ["api"]
 CODEOWNERS = ["@jesserockz", "@bdraco"]
@@ -193,8 +193,8 @@ def _validate_platform(config: ConfigType) -> ConfigType:
         raise cv.Invalid(
             f"bluetooth_proxy is not supported on {CORE.target_platform}: no "
             "active-scan-capable BLE tracker hub is available for this "
-            "platform. It runs on esp32 (full proxy) and the rp2 family "
-            "(advertisement-only)."
+            "platform. It runs on esp32 (full proxy), and the ln882x and rp2 "
+            "families (advertisement-only)."
         )
     return _BLE_HUB_CONFIG_SCHEMA(config)
 

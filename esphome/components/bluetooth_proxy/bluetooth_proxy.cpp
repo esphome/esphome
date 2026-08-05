@@ -183,17 +183,18 @@ void BluetoothProxy::dump_config() {
                 "  Connections: %d",
                 YESNO(this->active_), this->connection_count_);
 #else
-  // Advertisement-only: `active` and the connection count are compile-time
-  // constants here, so print the runtime facts instead — the hub's scan state
-  // and the adapter address HA identifies this proxy by.
+  // Advertisement-only: print configured facts. dump_config runs right after
+  // setup, before the radio is up, so live scan state would always read
+  // "stopped" here — the loop's BluetoothScannerStateResponse carries the
+  // changing value instead.
   char mac_str[18];
   this->get_bluetooth_mac_address_pretty(mac_str);
   ESP_LOGCONFIG(TAG,
                 "Bluetooth Proxy:\n"
                 "  Mode: advertisement-only (no GATT connections)\n"
-                "  Scan: %s (%s)\n"
+                "  Configured scan: %s\n"
                 "  Adapter MAC: %s",
-                this->hub_->scan_running() ? "running" : "stopped", this->hub_->scan_active() ? "active" : "passive",
+                this->configured_scan_active_ ? "active" : "passive",
                 mac_str[0] != '\0' ? mac_str : "unavailable (adapter not up yet)");
 #endif
 }
