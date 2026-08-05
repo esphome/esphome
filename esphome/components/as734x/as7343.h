@@ -15,7 +15,7 @@ class AS7343 : public AS734xBase {
   bool prepare_for_smux_step(uint8_t step) override { return true; }  // the AS7343 cycles the SMUX itself
   bool is_smux_busy() override { return false; }
 
-  bool read_channels(uint8_t step, ChannelValuesUint16 &values, Gain &gain, bool &saturated) override;
+  bool read_channels(uint8_t step, ChannelValuesUint16 &values, bool &saturated) override;
 
  protected:
   const RegisterMap &registers() const override { return REG_MAP; }

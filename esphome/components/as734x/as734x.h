@@ -85,7 +85,7 @@ class AS734xBase {
   virtual bool is_smux_busy();
   virtual bool is_data_ready();
 
-  virtual bool read_channels(uint8_t step, ChannelValuesUint16 &values, Gain &gain, bool &saturated) = 0;
+  virtual bool read_channels(uint8_t step, ChannelValuesUint16 &values, bool &saturated) = 0;
 
  protected:
   virtual const RegisterMap &registers() const = 0;
@@ -157,7 +157,6 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
 
   struct {
     ChannelValuesUint16 raw_counts{};
-    Gain gain{GAIN_1X};
     uint32_t millis_start{0};
     uint32_t timeout_ms{0};
     uint8_t smux_step{0};

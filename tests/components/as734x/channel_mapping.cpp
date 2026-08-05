@@ -64,14 +64,13 @@ class ChannelMappingTest : public ::testing::Test {
 TEST_F(ChannelMappingTest, As7341PlacesEveryBandAtItsPublishedIndex) {
   AS7341 chip(&this->device_);
   ChannelValuesUint16 values{};
-  Gain gain{};
   bool saturated = false;
 
   this->set_frame_({101, 102, 103, 104, 900, 900});
-  ASSERT_TRUE(chip.read_channels(0, values, gain, saturated));
+  ASSERT_TRUE(chip.read_channels(0, values, saturated));
 
   this->set_frame_({105, 106, 107, 108, 5555, 8888});
-  ASSERT_TRUE(chip.read_channels(1, values, gain, saturated));
+  ASSERT_TRUE(chip.read_channels(1, values, saturated));
 
   EXPECT_EQ(values[0], 101);  // F1
   EXPECT_EQ(values[1], 102);  // F2
@@ -88,34 +87,40 @@ TEST_F(ChannelMappingTest, As7341PlacesEveryBandAtItsPublishedIndex) {
 TEST_F(ChannelMappingTest, As7341ReadsDataRegistersLowByteFirst) {
   AS7341 chip(&this->device_);
   ChannelValuesUint16 values{};
-  Gain gain{};
   bool saturated = false;
 
   this->set_frame_({0x012C, 0, 0, 0, 0, 0});  // 300, which byte-reversed would read 11265
-  ASSERT_TRUE(chip.read_channels(0, values, gain, saturated));
+  ASSERT_TRUE(chip.read_channels(0, values, saturated));
   EXPECT_EQ(values[0], 300);
 }
 
 TEST_F(ChannelMappingTest, As7343PlacesEveryBandAtItsPublishedIndex) {
   AS7343 chip(&this->device_);
   ChannelValuesUint16 values{};
-  Gain gain{};
   bool saturated = false;
 
   this->bus_.registers[0x93] = {0x00};  // STATUS
-  std::vector<uint16_t> frame(18, 0);
-  frame[0] = 450;    // FZ
-  frame[4] = 1000;   // CLEAR, cycle 1
-  frame[6] = 425;    // F2
-  frame[10] = 1100;  // CLEAR, cycle 2
-  frame[12] = 405;   // F1
-  frame[3] = 855;    // NIR
+  // auto_smux routes three cycles of six ADCs. Each slot carries its own wavelength so a band that
+  // reads from the wrong slot reports another band's number.
+  const std::vector<uint16_t> frame{
+      450, 555, 600, 855, 1000, 9001,  // cycle 1: FZ FY FXL NIR CLEAR FD
+      425, 475, 515, 640, 1100, 9002,  // cycle 2: F2 F3 F4 F6 CLEAR FD
+      405, 690, 745, 550, 0,    9003,  // cycle 3: F1 F7 F8 F5 (clear reads zero here) FD
+  };
   this->set_frame_(frame);
-  ASSERT_TRUE(chip.read_channels(0, values, gain, saturated));
+  ASSERT_TRUE(chip.read_channels(0, values, saturated));
 
   EXPECT_EQ(values[0], 405) << "F1";
   EXPECT_EQ(values[1], 425) << "F2";
   EXPECT_EQ(values[2], 450) << "FZ";
+  EXPECT_EQ(values[3], 475) << "F3";
+  EXPECT_EQ(values[4], 515) << "F4";
+  EXPECT_EQ(values[5], 555) << "FY";
+  EXPECT_EQ(values[6], 550) << "F5 is the fourth ADC of cycle 3, not the second";
+  EXPECT_EQ(values[7], 600) << "FXL";
+  EXPECT_EQ(values[8], 640) << "F6";
+  EXPECT_EQ(values[9], 690) << "F7 is the second ADC of cycle 3";
+  EXPECT_EQ(values[10], 745) << "F8 is the third ADC of cycle 3";
   EXPECT_EQ(values[11], 855) << "NIR";
   EXPECT_EQ(values[12], 1050) << "CLEAR is the average of the two cycles that route it";
 }

@@ -82,7 +82,7 @@ bool AS7341::prepare_for_smux_step(uint8_t step) {
   return true;
 }
 
-bool AS7341::read_channels(uint8_t smux_step, ChannelValuesUint16 &values, Gain &gain, bool &saturated) {
+bool AS7341::read_channels(uint8_t smux_step, ChannelValuesUint16 &values, bool &saturated) {
   constexpr uint8_t adc_channels = 6;
 
   std::array<uint16_t, adc_channels> raw{};
@@ -109,7 +109,6 @@ bool AS7341::read_channels(uint8_t smux_step, ChannelValuesUint16 &values, Gain 
     values[8] = raw[5];  // SMUX routes NIR to ADC5
     values[9] = raw[4];  // SMUX routes clear to ADC4
   }
-  gain = astatus.again_status;      // gain applied to the latest spectral measurement
   saturated = astatus.asat_status;  // latched data affected by saturation
   return ret;
 }

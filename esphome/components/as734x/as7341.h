@@ -14,7 +14,7 @@ class AS7341 : public AS734xBase {
   uint8_t get_integration_cycles() const override { return 1; }
   bool prepare_for_smux_step(uint8_t step) override;
 
-  bool read_channels(uint8_t step, ChannelValuesUint16 &values, Gain &gain, bool &saturated) override;
+  bool read_channels(uint8_t step, ChannelValuesUint16 &values, bool &saturated) override;
 
  protected:
   const RegisterMap &registers() const override { return REG_MAP; }

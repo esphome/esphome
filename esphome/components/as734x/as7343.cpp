@@ -77,9 +77,9 @@ enum AS7343Channel : uint8_t {
   AS7343_CHANNEL_FD_0,
 
   AS7343_CHANNEL_405_F1,
-  AS7343_CHANNEL_550_F5,
   AS7343_CHANNEL_690_F7,
   AS7343_CHANNEL_745_F8,
+  AS7343_CHANNEL_550_F5,
   AS7343_CHANNEL_CLEAR,
   AS7343_CHANNEL_FD,
 
@@ -141,7 +141,7 @@ bool AS7343::direct_config_3_chain_() {
   return ok;
 }
 
-bool AS7343::read_channels(uint8_t /*step*/, ChannelValuesUint16 &values, Gain &gain, bool &saturated) {
+bool AS7343::read_channels(uint8_t /*step*/, ChannelValuesUint16 &values, bool &saturated) {
   static constexpr uint8_t SMUX_CHANNEL_MAP[NUM_CHANNELS] = {
       AS7343_CHANNEL_405_F1, AS7343_CHANNEL_425_F2, AS7343_CHANNEL_450_FZ, AS7343_CHANNEL_475_F3,
       AS7343_CHANNEL_515_F4, AS7343_CHANNEL_555_FY, AS7343_CHANNEL_550_F5, AS7343_CHANNEL_600_FXL,
@@ -180,7 +180,9 @@ bool AS7343::read_channels(uint8_t /*step*/, ChannelValuesUint16 &values, Gain &
       static_cast<uint32_t>(data[AS7343_CHANNEL_CLEAR_1]) + data[AS7343_CHANNEL_CLEAR_0];  // cycle 3 always reads 0
   values[NUM_CHANNELS - 1] = static_cast<uint16_t>(clear_sum / 2);
 
-  gain = astatus.again_status;      // gain applied to the latest spectral measurement
+  ESP_LOGV(TAG, "F1;F2;FZ;F3;F4;FY;F5;FXL;F6;F7;F8;NIR;VIS");
+  ESP_LOGV(TAG, "%u;%u;%u;%u;%u;%u;%u;%u;%u;%u;%u;%u;%u", values[0], values[1], values[2], values[3], values[4],
+           values[5], values[6], values[7], values[8], values[9], values[10], values[11], values[12]);
   saturated = astatus.asat_status;  // latched data affected by saturation
   return ret;
 }
