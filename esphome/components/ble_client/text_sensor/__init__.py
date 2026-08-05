@@ -13,6 +13,7 @@ from .. import (
     CONF_DESCRIPTOR_UUID,
     CONF_ON_NOTIFY,
     ble_client_ns,
+    notify_from_on_notify,
     validate_descriptor_not_notify,
 )
 
@@ -52,6 +53,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("60s"))
     .extend(ble_client.BLE_CLIENT_SCHEMA),
     validate_descriptor_not_notify,
+    notify_from_on_notify,
 )
 
 

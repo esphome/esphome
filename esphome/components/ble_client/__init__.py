@@ -45,6 +45,18 @@ def validate_descriptor_not_notify(config: ConfigType) -> ConfigType:
     return config
 
 
+def notify_from_on_notify(config: ConfigType) -> ConfigType:
+    """Enable notifications when an on_notify automation is configured.
+
+    The triggers have no registration path of their own; without notify the
+    automation would validate but never fire.
+    """
+    if CONF_ON_NOTIFY in config and not config[CONF_NOTIFY]:
+        config = config.copy()
+        config[CONF_NOTIFY] = True
+    return config
+
+
 ble_client_ns = cg.esphome_ns.namespace("ble_client")
 BLEClient = ble_client_ns.class_("BLEClient", esp32_ble_client.BLEClientBase)
 BLEClientNode = ble_client_ns.class_("BLEClientNode")

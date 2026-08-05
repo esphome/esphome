@@ -18,6 +18,7 @@ from .. import (
     CONF_DESCRIPTOR_UUID,
     CONF_ON_NOTIFY,
     ble_client_ns,
+    notify_from_on_notify,
     validate_descriptor_not_notify,
 )
 
@@ -88,6 +89,7 @@ CONFIG_SCHEMA = cv.All(
         lower=True,
     ),
     validate_descriptor_not_notify,
+    notify_from_on_notify,
 )
 
 

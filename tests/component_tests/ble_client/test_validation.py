@@ -6,6 +6,7 @@ from esphome import config_validation as cv
 from esphome.components.ble_client import (
     CONF_DESCRIPTOR_UUID,
     CONF_ON_NOTIFY,
+    notify_from_on_notify,
     validate_descriptor_not_notify,
 )
 from esphome.components.ble_client.sensor import CONFIG_SCHEMA as SENSOR_SCHEMA
@@ -73,3 +74,13 @@ def test_sensor_schema_allows_descriptor_polling() -> None:
 
 def test_text_sensor_schema_allows_descriptor_polling() -> None:
     assert TEXT_SENSOR_SCHEMA(dict(DESCRIPTOR_CONFIG))
+
+
+def test_on_notify_implies_notify() -> None:
+    config: ConfigType = {CONF_NOTIFY: False, CONF_ON_NOTIFY: [{}]}
+    assert notify_from_on_notify(config)[CONF_NOTIFY] is True
+
+
+def test_notify_unchanged_without_on_notify() -> None:
+    config: ConfigType = {CONF_NOTIFY: False}
+    assert notify_from_on_notify(config)[CONF_NOTIFY] is False
