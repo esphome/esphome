@@ -95,10 +95,16 @@ class PZEM6L24 final : public PollingComponent, public modbus::ModbusClientDevic
 
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
 
+  void on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) override;
+
+  bool on_no_response(std::span<const uint8_t> request_pdu) override;
+
   void dump_config() override;
 
  protected:
   template<typename... Ts> friend class ResetEnergyAction;
+
+  void publish_values_(std::span<const uint8_t> data);
 
   // Per-phase sensors
   sensor::Sensor *voltage_a_{nullptr};
