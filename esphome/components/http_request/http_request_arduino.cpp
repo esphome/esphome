@@ -1,6 +1,6 @@
 #include "http_request_arduino.h"
 
-#if defined(USE_ARDUINO) && !defined(USE_ESP32)
+#if defined(USE_ARDUINO) && !defined(USE_ESP32) && !defined(USE_LIBRETINY)
 
 #include "esphome/components/network/util.h"
 #include "esphome/components/watchdog/watchdog.h"

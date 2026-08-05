@@ -16,14 +16,10 @@ import sys
 import time
 from typing import Protocol
 
-import argcomplete
-
 # Note: Do not import modules from esphome.components here, as this would
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
-from esphome import const
-import esphome.codegen as cg
-from esphome.config import iter_component_configs, read_config, strip_default_ids
+from esphome import const, platform_hooks
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     ARGUMENT_HELP_DEVICE,
@@ -33,6 +29,7 @@ from esphome.const import (
     CONF_BROKER,
     CONF_DEASSERT_RTS_DTR,
     CONF_DISABLED,
+    CONF_DISCOVER_IP,
     CONF_ESPHOME,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
@@ -52,6 +49,8 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     ENV_NOGITIGNORE,
+    KEY_ESP32,
+    KEY_VARIANT,
     SECRETS_FILES,
     Toolchain,
 )
@@ -59,6 +58,7 @@ from esphome.core import CORE, EsphomeError, coroutine
 from esphome.enum import StrEnum
 from esphome.helpers import get_bool_env, indent, is_ip_address
 from esphome.log import AnsiFore, color, setup_log
+from esphome.stacktrace import LogLineProcessor
 from esphome.types import ConfigType
 from esphome.upload_targets import PortType, get_port_type
 from esphome.util import (
@@ -488,8 +488,6 @@ def has_web_server_ota() -> bool:
 
 def has_mqtt_ip_lookup() -> bool:
     """Check if MQTT is available and IP lookup is supported."""
-    from esphome.components.mqtt import CONF_DISCOVER_IP
-
     if CONF_MQTT not in CORE.config:
         return False
     # Default Enabled
@@ -634,18 +632,9 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
         return 1
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
-    process_stacktrace = None
-
-    try:
-        module = importlib.import_module("esphome.components." + CORE.target_platform)
-        process_stacktrace = module.process_stacktrace
-    except (AttributeError, ImportError):
-        _LOGGER.info(
-            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
-            CORE.target_platform,
-        )
-
-    backtrace_state = False
+    # Decoder resolution, crash isolation, and disable-after-failure
+    # all live in LogLineProcessor, shared with the API log path.
+    processor = LogLineProcessor(config, CORE.target_platform)
     ser = serial.Serial()
     ser.baudrate = baud_rate
     ser.port = port
@@ -685,11 +674,7 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
                                 "utf8", "backslashreplace"
                             )
                             safe_print(parser.parse_line(line, time_str))
-
-                            if process_stacktrace is not None:
-                                backtrace_state = process_stacktrace(
-                                    config, line, backtrace_state
-                                )
+                            processor.process_line(line)
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
                         return 0
@@ -704,6 +689,8 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
 
 
 def _wrap_to_code(name, comp, yaml_util):
+    import esphome.codegen as cg
+
     coro = coroutine(comp.to_code)
 
     @functools.wraps(comp.to_code)
@@ -739,6 +726,7 @@ def write_cpp(config: ConfigType) -> int:
 
 def generate_cpp_contents(config: ConfigType) -> None:
     from esphome import yaml_util
+    from esphome.config import iter_component_configs
 
     _LOGGER.info("Generating C++ source...")
 
@@ -775,6 +763,13 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         from esphome.components.wifi import check_placeholder_credentials
 
         check_placeholder_credentials(config)
+
+    # Keep this here, NOT in codegen: config-hash and --only-generate must keep
+    # working on machines that cannot run the toolchain.
+    if CORE.is_esp8266:
+        from esphome.components.esp8266 import check_rosetta
+
+        check_rosetta()
 
     # NOTE: "Build path:" format is parsed by script/ci_memory_impact_extract.py
     # If you change this format, update the regex in that script as well
@@ -924,9 +919,10 @@ def upload_using_esptool(
 
     mcu = "esp8266"
     if CORE.is_esp32:
-        from esphome.components.esp32 import get_esp32_variant
-
-        mcu = get_esp32_variant().lower()
+        # Same lookup as esp32.get_esp32_variant(), read directly so the
+        # serial upload path does not import the esp32 package; both the
+        # validator and the warm-cache apply_to_core populate this key.
+        mcu = CORE.data[KEY_ESP32][KEY_VARIANT].lower()
 
     line_callbacks: list[Callable[[str], str | None]] = []
     if (
@@ -1135,12 +1131,11 @@ def upload_program(
     config: ConfigType, args: ArgsProtocol, devices: list[str]
 ) -> tuple[int, str | None]:
     host = devices[0]
-    try:
-        module = importlib.import_module("esphome.components." + CORE.target_platform)
-        if module.upload_program(config, args, host):
-            return 0, host
-    except AttributeError:
-        pass
+    platform_upload = platform_hooks.get_platform_hook(
+        CORE.target_platform, "upload_program"
+    )
+    if platform_upload is not None and platform_upload(config, args, host):
+        return 0, host
 
     port_type = get_port_type(host)
 
@@ -1400,12 +1395,11 @@ def _should_subscribe_states(args: ArgsProtocol) -> bool:
 
 
 def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
-    try:
-        module = importlib.import_module("esphome.components." + CORE.target_platform)
-        if module.show_logs(config, args, devices):
-            return 0
-    except AttributeError:
-        pass
+    platform_show_logs = platform_hooks.get_platform_hook(
+        CORE.target_platform, "show_logs"
+    )
+    if platform_show_logs is not None and platform_show_logs(config, args, devices):
+        return 0
 
     if "logger" not in config:
         raise EsphomeError("Logger is not configured!")
@@ -1423,7 +1417,7 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
     if has_api() and (
         network_devices := _resolve_network_devices(devices, config, args)
     ):
-        from esphome.components.api.client import run_logs
+        from esphome.api_client import run_logs
 
         return run_logs(
             config,
@@ -1457,6 +1451,7 @@ def command_wizard(args: ArgsProtocol) -> int | None:
 
 def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome import yaml_util
+    from esphome.config import strip_default_ids
 
     if getattr(args, "no_defaults", False):
         user_config = getattr(config, "user_config", None)
@@ -1510,10 +1505,18 @@ def _redact_with_legacy_fallback(output: str) -> str:
         m = _LEGACY_REDACTION_RE.search(line)
         if m is None:
             continue
+        key = m.group("key")
         if not in_substitutions:
-            unmarked.add(m.group("key"))
+            # Public keys (e.g. wireguard's peer_public_key) are not secret;
+            # redacting them and telling maintainers to mark them cv.sensitive
+            # would be wrong on both counts. Substitution keys are user-named
+            # with no schema behind them, so anything secret-shaped there
+            # (public or not) stays conservatively redacted.
+            if "public" in key.split("_"):
+                continue
+            unmarked.add(key)
         lines[i] = (
-            f"{line[: m.start()]}{m.group('key')}: "
+            f"{line[: m.start()]}{key}: "
             f"\\033[8m{m.group('val')}\\033[28m{line[m.end() :]}"
         )
     output = "\n".join(lines)
@@ -2483,7 +2486,12 @@ def parse_args(argv):
     # a deprecation warning).
     arguments = argv[1:]
 
-    argcomplete.autocomplete(parser)
+    # argcomplete only does anything when the shell-completion machinery
+    # invokes us with _ARGCOMPLETE set; skip the import otherwise.
+    if "_ARGCOMPLETE" in os.environ:
+        import argcomplete
+
+        argcomplete.autocomplete(parser)
 
     if len(arguments) > 0 and arguments[0] in SIMPLE_CONFIG_ACTIONS:
         args, unknown_args = parser.parse_known_args(arguments)
@@ -2582,6 +2590,8 @@ def run_esphome(argv):
             )
 
     if config is None:
+        from esphome.config import read_config
+
         config = read_config(
             command_line_substitutions,
             skip_external_update=skip_external,
