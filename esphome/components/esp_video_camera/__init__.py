@@ -268,21 +268,15 @@ async def to_code(config):
     cg.add(var.set_jpeg_quality(config[CONF_JPEG_QUALITY]))
     cg.add(var.set_max_framerate(config[CONF_MAX_FRAMERATE]))
 
-    # espressif/esp_video is declared twice on purpose. The entry in
-    # esphome/idf_component.yml, gated on target esp32p4, puts it in every P4 build
-    # tree including the clang-tidy environments that never run to_code(); the call
-    # below registers it so build_gen adds it to the "src" component's REQUIRES,
-    # which is what propagates its INCLUDE_DIRS. Keep the two versions in step.
-    # esp_video transitively pulls esp_cam_sensor, esp_ipa, esp_sccb_intf and
-    # esp_h264, and needs ESP-IDF >= 5.4.
+    # Also in esphome/idf_component.yml (keep the versions in step): that entry
+    # covers the clang-tidy builds, this call is what adds it to "src" REQUIRES.
     add_idf_component(name="espressif/esp_video", ref="2.3.0")
     if config[CONF_ENABLE_UVC]:
         # USB-UVC host driver, aligned with esp_video 2.3.0's own dependency.
         add_idf_component(name="espressif/usb_host_uvc", ref="2.5.*")
 
-    # Pipeline features, verified against esp_video 2.3.0. Only the JPEG encoder
-    # half is needed. ENABLE_ISP_PIPELINE_CONTROLLER is what pulls in esp_ipa and
-    # runs the AWB/AE/CCM/gamma automation; without it the image is unprocessed.
+    # ENABLE_ISP_PIPELINE_CONTROLLER pulls in esp_ipa and runs the AWB/AE/CCM/gamma
+    # automation; without it the image is unprocessed.
     for opt in (
         "CONFIG_ESP_VIDEO_ENABLE_MIPI_CSI_VIDEO_DEVICE",
         "CONFIG_ESP_VIDEO_ENABLE_ISP",
