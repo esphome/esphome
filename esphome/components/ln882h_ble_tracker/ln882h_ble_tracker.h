@@ -54,7 +54,7 @@ class LN882HBLETracker : public Component,
   void set_scan_duration(uint32_t scan_duration) { this->scan_duration_ = scan_duration; }
   /// Set from YAML (scan_parameters.continuous); also the value
   /// configured_continuous() reports and a bare start_scan action restores.
-  void set_scan_continuous_configured(bool scan_continuous) {
+  void set_configured_continuous(bool scan_continuous) {
     this->scan_continuous_ = scan_continuous;
     this->scan_continuous_configured_ = scan_continuous;
   }

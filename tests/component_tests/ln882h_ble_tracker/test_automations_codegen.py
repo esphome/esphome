@@ -2,14 +2,18 @@
 automated check on the setter calls and the listener accounting (the
 test.ln882x-ard.yaml compile fixture proves linkage, not codegen shape)."""
 
+from collections.abc import Callable
+from pathlib import Path
+
 from esphome.components import ble_device_base
 from tests.component_tests.helpers import get_define_value
 
 
-def test_trigger_codegen(generate_main) -> None:
-    main_cpp = generate_main(
-        "tests/component_tests/ln882h_ble_tracker/test_automations.yaml"
-    )
+def test_trigger_codegen(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path("test_automations.yaml"))
 
     # on_ble_advertise: multi-mac filter (two addresses in one initializer list)
     assert "set_addresses({0xAC3743775F4CULL, 0x112233445566ULL})" in main_cpp
