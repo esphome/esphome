@@ -3251,9 +3251,19 @@ def copy_files():
         if str(path).startswith("http"):
             import requests
 
+            from esphome.happy_eyeballs import ensure_happy_eyeballs
+
+            ensure_happy_eyeballs()
+
+            try:
+                req = requests.get(path, timeout=30)
+                req.raise_for_status()
+            except requests.exceptions.RequestException as e:
+                raise EsphomeError(
+                    f"Could not download extra build file {path}: {e}"
+                ) from e
             CORE.relative_build_path(name).parent.mkdir(parents=True, exist_ok=True)
-            content = requests.get(path, timeout=30).content
-            CORE.relative_build_path(name).write_bytes(content)
+            CORE.relative_build_path(name).write_bytes(req.content)
         else:
             copy_file_if_changed(path, CORE.relative_build_path(name))
 
