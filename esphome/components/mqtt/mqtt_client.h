@@ -2,7 +2,11 @@
 
 #include "esphome/core/defines.h"
 
-#ifdef USE_MQTT
+// MQTTClientComponent holds a concrete mqtt_backend_ member (ESP32/ESP8266/LibreTiny below), so this
+// header only compiles on those platforms. USE_MQTT alone isn't enough to gate on: real builds never
+// define it elsewhere (mqtt's CONFIG_SCHEMA restricts to these platforms via cv.only_on), but static
+// analysis (esphome/core/defines.h) defines every USE_* flag regardless of platform.
+#if defined(USE_MQTT) && (defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_LIBRETINY))
 
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/ip_address.h"
@@ -448,4 +452,4 @@ template<typename... Ts> class MQTTDisableAction final : public Action<Ts...> {
 
 }  // namespace esphome::mqtt
 
-#endif  // USE_MQTT
+#endif  // USE_MQTT && (USE_ESP32 || USE_ESP8266 || USE_LIBRETINY)

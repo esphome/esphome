@@ -1,6 +1,7 @@
 #include "mqtt_client.h"
 
-#ifdef USE_MQTT
+// See mqtt_client.h for why the gate must also require one of the supported backend platforms.
+#if defined(USE_MQTT) && (defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_LIBRETINY))
 
 #include <utility>
 #include "esphome/components/network/util.h"
@@ -791,4 +792,4 @@ float MQTTMessageTrigger::get_setup_priority() const { return setup_priority::AF
 
 }  // namespace esphome::mqtt
 
-#endif  // USE_MQTT
+#endif  // USE_MQTT && (USE_ESP32 || USE_ESP8266 || USE_LIBRETINY)
