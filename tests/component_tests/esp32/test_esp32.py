@@ -109,6 +109,24 @@ def test_esp32_default_toolchain_is_esp_idf(
 
 
 @pytest.mark.parametrize(
+    "config_toolchain",
+    [Toolchain.SDK_NRF.value, "nonsense"],
+)
+def test_esp32_rejects_unsupported_toolchains(
+    set_core_config: SetCoreConfigCallable,
+    config_toolchain: str,
+) -> None:
+    """Toolchains esp32 does not support are rejected at validation time."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    from esphome.components.esp32 import CONFIG_SCHEMA
+
+    CORE.toolchain = None
+    with pytest.raises(cv.Invalid, match="Unknown value"):
+        CONFIG_SCHEMA({"variant": VARIANT_ESP32, "toolchain": config_toolchain})
+
+
+@pytest.mark.parametrize(
     ("config", "error_match"),
     [
         pytest.param(
@@ -454,25 +472,17 @@ def test_flash_mode_unset_leaves_defaults(
         ),
         pytest.param(
             PlatformFramework.ESP32_IDF,
-            NetworkSdkconfigData(
-                wifi=True, bluetooth=True, ble_42=True, software_coexistence=True
-            ),
+            NetworkSdkconfigData(wifi=True, bluetooth=True, software_coexistence=True),
             {},
             {
                 "CONFIG_BT_ENABLED": True,
                 "CONFIG_BT_BLE_42_FEATURES_SUPPORTED": True,
+                "CONFIG_BT_BLE_50_FEATURES_SUPPORTED": False,
                 "CONFIG_SW_COEXIST_ENABLE": True,
                 "CONFIG_ESP_WIFI_SOFTAP_SUPPORT": False,
                 "CONFIG_LWIP_DHCPS": False,
             },
             id="idf_wifi_ble_tracker_coexistence",
-        ),
-        pytest.param(
-            PlatformFramework.ESP32_IDF,
-            NetworkSdkconfigData(bluetooth=True),
-            {},
-            {"CONFIG_BT_ENABLED": True},
-            id="idf_ble_server_only_no_ble42",
         ),
         # --- IDF: user sdkconfig_options always win ---
         pytest.param(
@@ -594,11 +604,29 @@ def test_network_wifi_ble_coexistence_reconciles_end_to_end(
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_BT_ENABLED") is True
     assert sdkconfig.get("CONFIG_BT_BLE_42_FEATURES_SUPPORTED") is True
+    assert sdkconfig.get("CONFIG_BT_BLE_50_FEATURES_SUPPORTED") is False
     assert sdkconfig.get("CONFIG_SW_COEXIST_ENABLE") is True
     assert sdkconfig.get("CONFIG_ESP_WIFI_SOFTAP_SUPPORT") is False
     assert sdkconfig.get("CONFIG_LWIP_DHCPS") is False
     # WiFi present alongside BT -> WiFi stack must stay enabled.
     assert "CONFIG_ESP_WIFI_ENABLED" not in sdkconfig
+
+
+def test_network_wifi_ethernet_priority_keeps_wifi_enabled(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """End-to-end: with both WiFi and Ethernet declared under network: priority:,
+    the reconciler must NOT disable the WiFi stack or coexistence (the
+    multi-interface case unlocked by composing network priority with the
+    sdkconfig reconciler)."""
+    generate_main(component_config_path("network_wifi_ethernet_priority.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert "CONFIG_ESP_WIFI_ENABLED" not in sdkconfig
+    assert "CONFIG_SW_COEXIST_ENABLE" not in sdkconfig
+    # WiFi has no AP here, so SoftAP/DHCP server are still dropped.
+    assert sdkconfig.get("CONFIG_ESP_WIFI_SOFTAP_SUPPORT") is False
+    assert sdkconfig.get("CONFIG_LWIP_DHCPS") is False
 
 
 def test_esp32_build_internals_are_yaml_only() -> None:
@@ -740,3 +768,28 @@ def test_signed_ota_keys_invalid_combinations(config: dict, match: str) -> None:
 
     with pytest.raises(cv.Invalid, match=match):
         _validate_signed_ota_keys(config)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        # Full x.y.z versions are rewritten into pioarduino release URLs
+        (
+            "55.3.30",
+            "https://github.com/pioarduino/platform-espressif32/releases/download/55.03.30/platform-espressif32.zip",
+        ),
+        (
+            "55.3.31-2",
+            "https://github.com/pioarduino/platform-espressif32/releases/download/55.03.31-2/platform-espressif32.zip",
+        ),
+        # Non-version values pass through untouched
+        (
+            "https://github.com/pioarduino/platform-espressif32.git#develop",
+            "https://github.com/pioarduino/platform-espressif32.git#develop",
+        ),
+    ],
+)
+def test_parse_pio_platform_version(value: str, expected: str) -> None:
+    from esphome.components.esp32 import _parse_pio_platform_version
+
+    assert _parse_pio_platform_version(value) == expected

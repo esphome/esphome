@@ -29,8 +29,6 @@ void BluetoothProxy::setup() {
 
   // Capture the configured scan mode from YAML before any API changes
   this->configured_scan_active_ = this->parent_->get_scan_active();
-
-  this->parent_->add_scanner_state_listener(this);
 }
 
 void BluetoothProxy::on_scanner_state(esp32_ble_tracker::ScannerState state) {
@@ -247,7 +245,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       esp_bd_addr_t address;
       uint64_to_bd_addr(msg.address, address);
       esp_err_t ret = esp_ble_remove_bond_device(address);
-      this->send_device_pairing(msg.address, ret == ESP_OK, ret);
+      this->send_device_unpairing(msg.address, ret == ESP_OK, ret);
       break;
     }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE: {
