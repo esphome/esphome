@@ -8,8 +8,8 @@
 
 #include "bk72xx_ble_tracker.h"
 
-#include "esphome/components/ble_device_base/automation.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::bk72xx_ble_tracker {
 

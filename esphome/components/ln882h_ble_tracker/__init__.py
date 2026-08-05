@@ -5,7 +5,8 @@ an explicit start_scan() call."""
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import ble_device_base, ln882h_ble, ota
-from esphome.components.const import CONF_SCAN_PARAMETERS, CONF_WINDOW
+from esphome.components.ble_device_base import automation as ble_automation
+from esphome.components.const import CONF_ON_SCAN_END, CONF_SCAN_PARAMETERS, CONF_WINDOW
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTIVE,
@@ -13,19 +14,16 @@ from esphome.const import (
     CONF_DURATION,
     CONF_ID,
     CONF_INTERVAL,
-    CONF_MAC_ADDRESS,
     CONF_MANUFACTURER_ID,
     CONF_ON_BLE_ADVERTISE,
     CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
     CONF_ON_BLE_SERVICE_DATA_ADVERTISE,
     CONF_SERVICE_UUID,
-    CONF_TRIGGER_ID,
 )
 from esphome.core import ID
 from esphome.types import ConfigType
 
 CONF_LN882H_BLE_ID = "ln882h_ble_id"
-CONF_ON_SCAN_END = "on_scan_end"
 
 DEPENDENCIES = ["ln882x"]
 AUTO_LOAD = ["ble_device_base", "ln882h_ble"]
@@ -39,27 +37,10 @@ LN882HBLETracker = ln882h_ble_tracker_ns.class_(
 StartScanAction = ln882h_ble_tracker_ns.class_("StartScanAction", automation.Action)
 StopScanAction = ln882h_ble_tracker_ns.class_("StopScanAction", automation.Action)
 
-ESPBTDeviceConstRef = (
-    cg.esphome_ns.namespace("ble_device_base")
-    .class_("ESPBTDevice")
-    .operator("ref")
-    .operator("const")
-)
-ESPBTAdvertiseTrigger = ln882h_ble_tracker_ns.class_(
-    "ESPBTAdvertiseTrigger", automation.Trigger.template(ESPBTDeviceConstRef)
-)
-adv_data_t = cg.std_vector.template(cg.uint8)
-adv_data_t_const_ref = adv_data_t.operator("ref").operator("const")
-BLEServiceDataAdvertiseTrigger = ln882h_ble_tracker_ns.class_(
-    "BLEServiceDataAdvertiseTrigger", automation.Trigger.template(adv_data_t_const_ref)
-)
-BLEManufacturerDataAdvertiseTrigger = ln882h_ble_tracker_ns.class_(
-    "BLEManufacturerDataAdvertiseTrigger",
-    automation.Trigger.template(adv_data_t_const_ref),
-)
-BLEEndOfScanTrigger = ln882h_ble_tracker_ns.class_(
-    "BLEEndOfScanTrigger", automation.Trigger.template()
-)
+ESPBTAdvertiseTrigger = ble_automation.ESPBTAdvertiseTrigger
+BLEServiceDataAdvertiseTrigger = ble_automation.BLEServiceDataAdvertiseTrigger
+BLEManufacturerDataAdvertiseTrigger = ble_automation.BLEManufacturerDataAdvertiseTrigger
+BLEEndOfScanTrigger = ble_automation.BLEEndOfScanTrigger
 
 
 # LN882H SDK reference scan rate: 100 ms interval / 50 ms window (50 % duty).
@@ -68,58 +49,31 @@ SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
 )
 
 
-# UUID string length -> setter width. 16/32-bit go out as plain hex literals,
-# 128-bit as a reversed byte array (BLE wire order). Keyed exhaustively so an
-# impossible length fails as a KeyError instead of silently picking a width
-# (bt_uuid validation upstream only ever produces these three).
-_UUID_WIDTHS = {
-    len(ble_device_base.BT_UUID16_FORMAT): "16",
-    len(ble_device_base.BT_UUID32_FORMAT): "32",
-    len(ble_device_base.BT_UUID128_FORMAT): "128",
-}
-
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LN882HBLETracker),
         cv.GenerateID(CONF_LN882H_BLE_ID): cv.use_id(ln882h_ble.LN882HBLE),
         cv.Optional(CONF_SCAN_PARAMETERS, default={}): SCAN_PARAMETERS_SCHEMA,
-        cv.Optional(CONF_ON_BLE_ADVERTISE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ESPBTAdvertiseTrigger),
-                cv.Optional(CONF_MAC_ADDRESS): cv.ensure_list(cv.mac_address),
-            }
+        cv.Optional(CONF_ON_BLE_ADVERTISE): ble_automation.advertise_trigger_schema(
+            ESPBTAdvertiseTrigger
         ),
-        cv.Optional(CONF_ON_BLE_SERVICE_DATA_ADVERTISE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    BLEServiceDataAdvertiseTrigger
-                ),
-                cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
-                cv.Required(CONF_SERVICE_UUID): ble_device_base.bt_uuid,
-            }
+        cv.Optional(
+            CONF_ON_BLE_SERVICE_DATA_ADVERTISE
+        ): ble_automation.uuid_trigger_schema(
+            BLEServiceDataAdvertiseTrigger,
+            {cv.Required(CONF_SERVICE_UUID): ble_device_base.bt_uuid},
         ),
         cv.Optional(
             CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE
-        ): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    BLEManufacturerDataAdvertiseTrigger
-                ),
-                cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
-                cv.Required(CONF_MANUFACTURER_ID): ble_device_base.bt_uuid,
-            }
+        ): ble_automation.uuid_trigger_schema(
+            BLEManufacturerDataAdvertiseTrigger,
+            {cv.Required(CONF_MANUFACTURER_ID): ble_device_base.bt_uuid},
         ),
-        cv.Optional(CONF_ON_SCAN_END): automation.validate_automation(
-            {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(BLEEndOfScanTrigger)}
+        cv.Optional(CONF_ON_SCAN_END): ble_automation.scan_end_trigger_schema(
+            BLEEndOfScanTrigger
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
-
-
-# Triggers register as ble_device_base listeners in their constructors; count
-# them where they are created so the StaticVector cannot be undersized. Shares
-# the define with register_ble_device() via the core slot-counter factory.
-_count_listener = cg.slot_counter(ble_device_base.LISTENER_COUNT_DEFINE)
 
 
 @automation.register_action(
@@ -191,11 +145,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_configured_continuous(scan[CONF_CONTINUOUS]))
 
     for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        if (macs := conf.get(CONF_MAC_ADDRESS)) is not None:
-            cg.add(trigger.set_addresses([it.as_hex for it in macs]))
-        await automation.build_automation(trigger, [(ESPBTDeviceConstRef, "x")], conf)
-        _count_listener()
+        await ble_automation.advertise_trigger_to_code(conf, var)
 
     for trigger_key, uuid_key, setter_prefix in (
         (CONF_ON_BLE_SERVICE_DATA_ADVERTISE, CONF_SERVICE_UUID, "set_service_uuid"),
@@ -206,23 +156,9 @@ async def to_code(config: ConfigType) -> None:
         ),
     ):
         for conf in config.get(trigger_key, []):
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-            uuid = conf[uuid_key]
-            width = _UUID_WIDTHS[len(uuid)]
-            value = (
-                ble_device_base.as_hex(uuid)
-                if width != "128"
-                else ble_device_base.as_reversed_hex_array(uuid)
+            await ble_automation.uuid_trigger_to_code(
+                conf, var, uuid_key, setter_prefix
             )
-            cg.add(getattr(trigger, f"{setter_prefix}{width}")(value))
-            if (mac := conf.get(CONF_MAC_ADDRESS)) is not None:
-                cg.add(trigger.set_address(mac.as_hex))
-            await automation.build_automation(
-                trigger, [(adv_data_t_const_ref, "x")], conf
-            )
-            _count_listener()
 
     for conf in config.get(CONF_ON_SCAN_END, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-        _count_listener()
+        await ble_automation.scan_end_trigger_to_code(conf, var)
