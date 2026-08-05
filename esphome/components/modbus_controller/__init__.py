@@ -48,16 +48,32 @@ SensorItem = modbus_controller_ns.struct("SensorItem")
 
 _LOGGER = logging.getLogger(__name__)
 
+# Remove before 2027.2.0
+_REMOVED_OPTIONS = {
+    CONF_COMMAND_THROTTLE: "Command spacing is handled by the 'modbus' component - use 'turnaround_time' there instead.",
+    CONF_ALLOW_DUPLICATE_COMMANDS: "Polling commands are deduplicated by the modbus hub; one-shot commands (writes) are always transmitted.",
+}
+
+
+def _warn_removed_options(config: ConfigType) -> ConfigType:
+    """Warn about options that no longer do anything, but let the config compile."""
+    for option, replacement in _REMOVED_OPTIONS.items():
+        if option in config:
+            _LOGGER.warning(
+                "[modbus_controller] '%s' no longer has any effect and will be removed in 2027.2.0. %s",
+                option,
+                replacement,
+            )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ModbusController),
-            cv.Optional(CONF_ALLOW_DUPLICATE_COMMANDS): cv.invalid(
-                "This option has been removed. Polling commands are deduplicated by the modbus hub; one-shot commands (writes) are always transmitted."
-            ),
-            cv.Optional(CONF_COMMAND_THROTTLE): cv.invalid(
-                "This option has been removed. Use 'turnaround_time' on the 'modbus' component instead."
-            ),
+            # Removed options: accepted (and ignored) until 2027.2.0 so existing configs keep building.
+            cv.Optional(CONF_ALLOW_DUPLICATE_COMMANDS): cv.boolean,
+            cv.Optional(CONF_COMMAND_THROTTLE): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_SERVER_COURTESY_RESPONSE): cv.invalid(
                 "This option has been removed. Use modbus_server component instead: https://esphome.io/components/modbus_server/"
             ),
@@ -74,7 +90,8 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(modbus.modbus_device_schema(0x01))
+    .extend(modbus.modbus_device_schema(0x01)),
+    _warn_removed_options,
 )
 
 ModbusItemBaseSchema = cv.Schema(
