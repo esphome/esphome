@@ -17,6 +17,21 @@ from typing import cast
 
 _LOGGER = logging.getLogger(__name__)
 
+# How long the orphan watcher waits for an abandoned coroutine before giving
+# up; a coroutine that has not finished by then has no result worth releasing,
+# and an unbounded wait would park a second thread per hung operation for the
+# process lifetime (which adds up in long-lived hosts like the dashboard).
+ORPHAN_WAIT_TIMEOUT = 300.0
+
+
+class AsyncDispatchTimeout(TimeoutError):
+    """The caller stopped waiting; the coroutine was abandoned.
+
+    A subclass so callers can tell the dispatcher's own expiry apart from a
+    ``TimeoutError`` raised inside the coroutine, while existing
+    ``except TimeoutError`` handlers keep working.
+    """
+
 
 class AsyncThreadRunner[T](threading.Thread):
     """Run an async coroutine in a daemon thread and expose its result.
@@ -95,7 +110,8 @@ def run_async[T](
     if not runner.event.wait(timeout):
 
         def _cleanup() -> None:
-            runner.event.wait()
+            if not runner.event.wait(ORPHAN_WAIT_TIMEOUT):
+                return
             if not runner.completed:
                 # The only place an abandoned thread's real error surfaces;
                 # without it a late failure hides behind the TimeoutError.
@@ -106,10 +122,10 @@ def run_async[T](
                     exc_info=runner.exception,
                 )
                 return
+            if (result := runner.result) is None:
+                return
             if on_orphan is None:
                 _LOGGER.debug("Discarding late result; no on_orphan handler")
-                return
-            if (result := runner.result) is None:
                 return
             try:
                 on_orphan(result)
@@ -119,7 +135,7 @@ def run_async[T](
         threading.Thread(
             target=_cleanup, daemon=True, name="async-orphan-cleanup"
         ).start()
-        raise TimeoutError("Timed out waiting for async operation")
+        raise AsyncDispatchTimeout("Timed out waiting for async operation")
     if (exc := runner.exception) is not None:
         raise exc
     if not runner.completed:

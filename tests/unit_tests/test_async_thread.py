@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from esphome.async_thread import AsyncThreadRunner, run_async
+from esphome.async_thread import AsyncDispatchTimeout, AsyncThreadRunner, run_async
 
 
 def _cleanup_threads() -> set[threading.Thread]:
@@ -257,3 +257,58 @@ def test_run_async_detects_missing_outcome() -> None:
         pytest.raises(RuntimeError, match="without a result"),
     ):
         run_async(lambda: asyncio.sleep(0), timeout=5)
+
+
+def test_run_async_raises_distinguishable_timeout() -> None:
+    """The dispatcher's own expiry is a distinct TimeoutError subclass."""
+    release = threading.Event()
+
+    async def coro() -> None:
+        await asyncio.get_running_loop().run_in_executor(None, release.wait)
+
+    with pytest.raises(AsyncDispatchTimeout):
+        run_async(coro, timeout=0.01)
+    release.set()
+
+
+def test_orphan_watcher_gives_up_on_a_hung_coroutine(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The watcher exits after its bound instead of parking forever."""
+    from esphome import async_thread
+
+    monkeypatch.setattr(async_thread, "ORPHAN_WAIT_TIMEOUT", 0.01)
+    release = threading.Event()
+    orphaned: list[Any] = []
+
+    async def coro() -> str:
+        await asyncio.get_running_loop().run_in_executor(None, release.wait)
+        return "too late"
+
+    before = _cleanup_threads()
+    with pytest.raises(TimeoutError):
+        run_async(coro, timeout=0.01, on_orphan=orphaned.append)
+
+    _join_new_cleanup_threads(before)
+    assert not orphaned
+    release.set()
+
+
+def test_late_real_result_without_handler_is_logged(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A genuinely dropped late result leaves the discard trace."""
+    release = threading.Event()
+
+    async def coro() -> str:
+        await asyncio.get_running_loop().run_in_executor(None, release.wait)
+        return "dropped"
+
+    before = _cleanup_threads()
+    with caplog.at_level("DEBUG", logger="esphome.async_thread"):
+        with pytest.raises(TimeoutError):
+            run_async(coro, timeout=0.01)
+
+        release.set()
+        _join_new_cleanup_threads(before)
+        assert "Discarding late result" in caplog.text

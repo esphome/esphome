@@ -10,6 +10,7 @@ from aioesphomeapi.core import ResolveAPIError, ResolveTimeoutAPIError
 from aioesphomeapi.host_resolver import AddrInfo, IPv4Sockaddr, IPv6Sockaddr
 import pytest
 
+from esphome.async_thread import AsyncDispatchTimeout
 from esphome.core import EsphomeError
 from esphome.resolver import RESOLVE_TIMEOUT, AsyncResolver
 
@@ -119,7 +120,9 @@ def test_async_resolver_thread_timeout() -> None:
     # Patch run_async inside esphome.resolver so we never actually start a
     # thread and can simulate the wait timing out.
     with (
-        patch("esphome.resolver.run_async", side_effect=TimeoutError) as mock_run,
+        patch(
+            "esphome.resolver.run_async", side_effect=AsyncDispatchTimeout
+        ) as mock_run,
         pytest.raises(EsphomeError, match=re.escape("Timeout resolving IP address")),
     ):
         AsyncResolver(["test.local"], 6053).resolve()

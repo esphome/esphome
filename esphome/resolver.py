@@ -8,7 +8,7 @@ import os
 from aioesphomeapi.core import ResolveAPIError, ResolveTimeoutAPIError
 import aioesphomeapi.host_resolver as hr
 
-from esphome.async_thread import run_async
+from esphome.async_thread import AsyncDispatchTimeout, run_async
 from esphome.core import EsphomeError
 
 _LOGGER = logging.getLogger(__name__)
@@ -56,5 +56,5 @@ class AsyncResolver:
             raise EsphomeError(f"Timeout resolving IP address: {exc}") from exc
         except ResolveAPIError as exc:
             raise EsphomeError(f"Error resolving IP address: {exc}") from exc
-        except TimeoutError as exc:
+        except AsyncDispatchTimeout as exc:
             raise EsphomeError("Timeout resolving IP address") from exc
