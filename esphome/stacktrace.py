@@ -8,7 +8,6 @@ or any platform package.
 from __future__ import annotations
 
 import logging
-from time import monotonic
 from typing import TYPE_CHECKING
 
 from esphome import platform_hooks
@@ -23,18 +22,6 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-# How long a decode failure keeps decoding off. Long enough that a dump
-# with many PC/BT lines fails once instead of retrying a failing
-# addr2line per line, short enough that a transient cause (a concurrent
-# compile rewriting the build tree, a momentary toolchain lock) does not
-# blank out decoding for the rest of a multi-hour session. Each retry
-# re-runs the failing toolchain subprocess, which hitches the stream,
-# so identical re-failures double the cooldown up to the ceiling; a fix
-# is still picked up within minutes while a permanently broken
-# environment ends up retrying a few times an hour, not once a minute.
-_REARM_COOLDOWN_S = 60.0
-_REARM_COOLDOWN_MAX_S = 900.0
-
 
 class LogLineProcessor:
     """Feeds incoming log lines to the stack-trace decoder.
@@ -46,15 +33,16 @@ class LogLineProcessor:
        crash dump carries a PC line plus one per backtrace frame, so the
        tracebacks bury the dump the user is trying to read. Decoding is a
        diagnostic nicety; nothing it raises is worth that noise.
-    2. Disable decoding after a failure, for _REARM_COOLDOWN_S. _decode_pc
-       shells out to the toolchain to resolve addr2line, which is
-       expensive; a single crash dump can contain many PC/BT lines and we
-       don't want to retry the failing subprocess for each one. This only
-       works if every failure is caught, which is why 1 is not narrowed
-       to EsphomeError. A platform without an analyzer, or one whose
-       package failed to load, stays off for the whole session; an
-       import that just failed will not heal mid-stream, so there is
-       nothing worth retrying.
+    2. Disable decoding for the rest of the session after a failure.
+       _decode_pc shells out to the toolchain to resolve addr2line,
+       which is expensive; a single crash dump can contain many PC/BT
+       lines and we don't want to retry the failing subprocess for each
+       one. This only works if every failure is caught, which is why 1
+       is not narrowed to EsphomeError. The latch is deliberately one
+       way: nothing a decode failure depends on heals by itself within
+       a session, the warning names the fix, and a fresh ``esphome
+       logs`` run picks it up; retrying mid-session would block the
+       stream with a failing subprocess instead.
     """
 
     def __init__(self, config: ConfigType, platform: str) -> None:
@@ -75,25 +63,12 @@ class LogLineProcessor:
             )
             self._platform_handler = None
         self._decode_enabled = self._platform_handler is not None
-        self._disabled_at: float | None = None
-        self._last_failure: str | None = None
-        self._cooldown = _REARM_COOLDOWN_S
         self.backtrace_state = False
 
     def process_line(self, raw_line: str) -> None:
-        if not self._decode_enabled and not self._rearm():
+        if not self._decode_enabled:
             return
         self._feed(raw_line)
-
-    def _rearm(self) -> bool:
-        """Give decoding another try once the failure cooldown has passed."""
-        if self._disabled_at is None:  # no analyzer; nothing to retry
-            return False
-        if monotonic() - self._disabled_at < self._cooldown:
-            return False
-        self._decode_enabled = True
-        self._disabled_at = None
-        return True
 
     def _feed(self, raw_line: str) -> None:
         try:
@@ -102,23 +77,8 @@ class LogLineProcessor:
             )
         except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-except
             self._decode_enabled = False
-            self._disabled_at = monotonic()
             self.backtrace_state = False
             _LOGGER.debug("Stack-trace decoding failed", exc_info=True)
-            failure = f"{type(exc).__name__}: {exc}"
-            if failure == self._last_failure:
-                # A permanent cause re-fails on every re-arm; one full
-                # warning is enough. Repeats go to debug and back off so
-                # an hours-long crash loop neither buries the dump in
-                # reminders nor hitches the stream once a minute. The
-                # episode deliberately survives non-raising returns: an
-                # ordinary line proves nothing about the environment,
-                # and a healed one simply stops failing.
-                self._cooldown = min(self._cooldown * 2, _REARM_COOLDOWN_MAX_S)
-                _LOGGER.debug("Stack-trace decoding still failing: %s", failure)
-                return
-            self._last_failure = failure
-            self._cooldown = _REARM_COOLDOWN_S
             if isinstance(exc, (EsphomeError, OSError)):
                 # The environment branch: idedata and build tree failures
                 # get the remediation hint. The fallback string is
