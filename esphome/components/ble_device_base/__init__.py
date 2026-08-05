@@ -11,8 +11,10 @@ subclass, so there is no platform table here and no dependency in either
 direction. A sensor extends BLE_DEVICE_SCHEMA in its CONFIG_SCHEMA (so an
 explicit ble_hub_id: is a declared key even on strict schemas) and calls
 register_ble_device() in to_code; a tracker component subclasses BLEHub (C++
-and codegen class) and calls register_hub_provider() at import time. Adding a
-new BLE chip requires only a new tracker component.
+and codegen class) and MUST call register_hub_provider() at import time —
+without it _require_hub rejects configs that bind through the generated id
+(an explicit ble_hub_id: bypasses the registry). Adding a new BLE chip
+requires only a new tracker component.
 
 AES-CCM decryption for encrypted advertisements is provided portably in
 ble_aes_ccm.h.
@@ -102,13 +104,26 @@ def _require_hub(value: ID) -> ID:
         # (LoadTargetPlatformValidationStep runs before any other domain), so
         # the unfiltered all-platforms fallback is reachable only from tests.
         platform = CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM)
+        external_hint = (
+            "an external tracker must call ble_device_base."
+            "register_hub_provider() at import time, or be bound with an "
+            "explicit ble_hub_id:"
+        )
+        if platform is not None and platform not in _IN_TREE_HUB_PROVIDERS:
+            # Known platform with no in-tree hub (esp8266, host, rtl87xx, …):
+            # listing the other platforms' trackers would misdirect.
+            raise cv.Invalid(
+                f"No in-tree BLE tracker exists for {platform}; {external_hint}"
+            )
         in_tree = (
             {tracker}
             if (tracker := _IN_TREE_HUB_PROVIDERS.get(platform))
             else set(_IN_TREE_HUB_PROVIDERS.values())
         )
         names = ", ".join(sorted(_HUB_PROVIDERS | in_tree))
-        raise cv.Invalid(f"No BLE tracker configured — add one of: {names}")
+        raise cv.Invalid(
+            f"No BLE tracker configured — add one of: {names}; {external_hint}"
+        )
     return value
 
 
