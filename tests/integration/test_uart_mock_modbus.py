@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from aioesphomeapi import ButtonInfo, NumberInfo, SwitchInfo
 import pytest
 
-from .state_utils import SensorTracker, find_entity
+from .state_utils import SensorTracker, find_entity, wait_for_state
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -480,6 +480,58 @@ async def test_uart_mock_modbus_custom_pdu(
         await tracker.setup_and_start_scenario(client)
         await tracker.await_all(futures)
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_register_offset(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test that a byte offset on a holding-register write is byte-accurate.
+
+    `offset` is a byte offset, so a holding-register write at address 0x10 with offset: 2 must target
+    register 0x10 + 2/2 = 0x11. The pre-fix behavior folded the byte offset into the address as a register
+    count (0x10 + 2 = 0x12). The switch is assumed_state (write-only), so reg_11 turning 0xFFFF pins the
+    fix; had the write landed on 0x12 the wait would time out and reg_12 would change instead.
+    """
+
+    tracker = SensorTracker(["reg_10", "reg_11", "reg_12"])
+    initial = tracker.expect_all({"reg_10": 100, "reg_11": 200, "reg_12": 300})
+    wrote_11 = tracker.expect("reg_11", 65535)
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        entities = await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(initial, timeout=4.0)
+
+        switch = find_entity(entities, "offset_switch", SwitchInfo)
+        assert switch is not None, "offset_switch not found"
+        client.switch_command(switch.key, True)
+
+        # reg_11 (0x10 + offset 2/2) must receive the write; if the write went to 0x12 this times out.
+        await tracker.await_change(wrote_11, "reg_11", timeout=4.0)
+        # And 0x12 (the pre-fix register-offset target) must be untouched.
+        assert tracker.sensor_states["reg_12"][-1] == 300, (
+            "reg_12 (0x12) should be untouched - offset is byte-based, so the write targets 0x11; "
+            f"got {tracker.sensor_states['reg_12']}"
+        )
+
+        # Read path: read_offset_switch has byte offset 6, so it must read register 0x10 + 6/2 = 0x13
+        # (value 0xABCD, bit 0 set) -> ON. Pre-fix the byte offset landed past the switch's 1-register
+        # read, so the read was out of range and the state was garbage/wrong.
+        read_switch = find_entity(entities, "read_offset_switch", SwitchInfo)
+        assert read_switch is not None, "read_offset_switch not found"
+        await wait_for_state(
+            client,
+            lambda s: (
+                getattr(s, "key", None) == read_switch.key
+                and getattr(s, "state", None) is True
+            ),
+            timeout=6.0,
+        )
 
 
 @pytest.mark.asyncio
