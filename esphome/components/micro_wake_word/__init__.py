@@ -389,11 +389,14 @@ def _download_http_models(config: ConfigType) -> ConfigType:
         return config
 
     external_files.download_content_many(
-        ((url, path / "manifest.json") for path, url in http_models.items()),
+        (
+            external_files.RemoteFile(url, path / "manifest.json")
+            for path, url in http_models.items()
+        ),
         description="wake word manifest(s)",
     )
 
-    model_files: list[tuple[str, Path]] = []
+    model_files: list[external_files.RemoteFile] = []
     errors: list[cv.Invalid] = []
     for path, url in http_models.items():
         try:
@@ -412,7 +415,7 @@ def _download_http_models(config: ConfigType) -> ConfigType:
                 cv.Invalid(f"Manifest file at {url} is missing the 'model' key")
             )
             continue
-        model_files.append((urljoin(url, model), path / model))
+        model_files.append(external_files.RemoteFile(urljoin(url, model), path / model))
     if errors:
         raise cv.MultipleInvalid(errors)
 

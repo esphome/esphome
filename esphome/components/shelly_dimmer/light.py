@@ -1,10 +1,9 @@
+from collections.abc import Iterable
 import hashlib
 from pathlib import Path
 import re
 
-import requests
-
-from esphome import pins
+from esphome import external_files, pins
 import esphome.codegen as cg
 from esphome.components import light, sensor, uart
 from esphome.components.const import CONF_SHA256
@@ -28,8 +27,9 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_WATT,
 )
-from esphome.core import CORE, HexInt
-from esphome.happy_eyeballs import ensure_happy_eyeballs
+from esphome.core import HexInt
+from esphome.external_files import RemoteFile
+from esphome.types import ConfigType
 
 DOMAIN = "shelly_dimmer"
 AUTO_LOAD = ["sensor"]
@@ -76,44 +76,64 @@ def parse_firmware_version(value):
     return major, minor
 
 
-def get_firmware(value):
+def _firmware_cache_path(name: str) -> Path:
+    return external_files.compute_local_file_dir(DOMAIN) / f"{name}_fw_stm.bin"
+
+
+def get_firmware(value: ConfigType) -> list[HexInt] | None:
     if not value[CONF_UPDATE]:
         return None
 
-    def dl(url):
-        try:
-            ensure_happy_eyeballs()
-            req = requests.get(url, timeout=30)
-            req.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            raise cv.Invalid(f"Could not download firmware file ({url}): {e}") from e
-
-        h = hashlib.new("sha256")
-        h.update(req.content)
-        return req.content, h.hexdigest()
-
     url = value[CONF_URL]
 
-    if CONF_SHA256 in value:  # we have a hash, enable caching
-        path = Path(CORE.data_dir) / DOMAIN / (value[CONF_SHA256] + "_fw_stm.bin")
-
-        if not path.is_file():
-            firmware_data, dl_hash = dl(url)
-
-            if dl_hash != value[CONF_SHA256]:
-                raise cv.Invalid(
-                    f"Hash mismatch for {url}: {dl_hash} != {value[CONF_SHA256]}"
-                )
-
-            path.parent.mkdir(exist_ok=True, parents=True)
-            path.write_bytes(firmware_data)
-
-        else:
+    if expected := value.get(CONF_SHA256):
+        expected = expected.lower()
+        path = _firmware_cache_path(expected)
+        if path.is_file():
             firmware_data = path.read_bytes()
-    else:  # no caching, download every time
-        firmware_data, dl_hash = dl(url)
+            if hashlib.sha256(firmware_data).hexdigest() == expected:
+                return [HexInt(x) for x in firmware_data]
+            # A corrupted or foreign cache entry must never be trusted just
+            # because the file exists; discard it and download again.
+            path.unlink()
+        firmware_data = external_files.download_content(url, path)
+        if (actual := hashlib.sha256(firmware_data).hexdigest()) != expected:
+            path.unlink(missing_ok=True)
+            raise cv.Invalid(f"Hash mismatch for {url}: {actual} != {expected}")
+    else:
+        # Cached by URL and revalidated with a conditional request instead
+        # of being downloaded again on every run. Without a hash nothing
+        # downstream can verify the bytes, so a copy that could not be
+        # revalidated is an error rather than a silent fallback.
+        firmware_data = external_files.download_content(
+            url,
+            _firmware_cache_path(external_files.url_cache_key(url)),
+            allow_stale=False,
+        )
 
     return [HexInt(x) for x in firmware_data]
+
+
+def _extract_firmware_ref(entry: ConfigType) -> RemoteFile | None:
+    firmware = entry.get(CONF_FIRMWARE)
+    if not isinstance(firmware, dict) or not firmware.get(CONF_UPDATE):
+        return None
+    url = firmware.get(CONF_URL)
+    sha = firmware.get(CONF_SHA256)
+    if url is None and (known := KNOWN_FIRMWARE.get(str(firmware.get(CONF_VERSION)))):
+        url, sha = known
+    if not isinstance(url, str):
+        return None
+    if isinstance(sha, str):
+        return RemoteFile(url, _firmware_cache_path(sha.lower()))
+    return RemoteFile(url, _firmware_cache_path(external_files.url_cache_key(url)))
+
+
+def PREFETCH_FILES(entries: list[ConfigType]) -> Iterable[list[RemoteFile]]:
+    """Batch-download hook: STM firmware blobs for `update: true` configs."""
+    yield [
+        ref for entry in entries if (ref := _extract_firmware_ref(entry)) is not None
+    ]
 
 
 def validate_firmware(value):

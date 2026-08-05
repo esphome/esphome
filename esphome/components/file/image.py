@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 import contextlib
-import hashlib
 import io
 import logging
 from pathlib import Path
@@ -43,6 +43,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, HexInt
 from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.external_files import RemoteFile
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -65,16 +66,16 @@ MDI_SOURCES = {
     SOURCE_MEMORY: "https://raw.githubusercontent.com/Pictogrammers/Memory/refs/heads/main/src/svg/",
 }
 
+# Shared by the schema validator and the prefetch extractor so they cannot
+# drift.
+_MDI_ICON_RE = re.compile(r"^[a-zA-Z0-9\-]+$")
 
-def compute_local_image_path(value) -> Path:
+
+def compute_local_image_path(value: str | ConfigType) -> Path:
     url = value[CONF_URL] if isinstance(value, dict) else value
-    h = hashlib.new("sha256")
-    h.update(url.encode())
-    key = h.hexdigest()[:8]
     # Downloaded files are cached under the shared `image` domain directory so
     # the cache location is unaffected by which platform requested the file.
-    base_dir = external_files.compute_local_file_dir(DOMAIN)
-    return base_dir / key
+    return external_files.compute_local_file_path(DOMAIN, url)
 
 
 def local_path(value):
@@ -87,12 +88,14 @@ def download_file(url, path):
     return str(path)
 
 
-def download_gh_svg(value, source):
-    mdi_id = value[CONF_ICON] if isinstance(value, dict) else value
+def _gh_svg_url_path(mdi_id: str, source: str) -> tuple[str, Path]:
     base_dir = external_files.compute_local_file_dir(DOMAIN) / source
-    path = base_dir / f"{mdi_id}.svg"
+    return MDI_SOURCES[source] + mdi_id + ".svg", base_dir / f"{mdi_id}.svg"
 
-    url = MDI_SOURCES[source] + mdi_id + ".svg"
+
+def download_gh_svg(value: str | ConfigType, source: str) -> str:
+    mdi_id = value[CONF_ICON] if isinstance(value, dict) else value
+    url, path = _gh_svg_url_path(mdi_id, source)
     return download_file(url, path)
 
 
@@ -101,12 +104,46 @@ def download_image(value):
     return download_file(value, compute_local_image_path(value))
 
 
+def _extract_file_ref(value: object) -> RemoteFile | None:
+    """Map a raw, pre-schema `file:` value to its remote file.
+
+    Read-only mirror of `validate_file_shorthand` / `TYPED_FILE_SCHEMA` for
+    the prefetch hook; returns None for local files and anything it does
+    not recognize. A wrong answer only wastes or misses a prefetch, the
+    schema validators stay authoritative.
+    """
+    if isinstance(value, str):
+        parts = value.strip().split(":")
+        if len(parts) == 2 and parts[0] in MDI_SOURCES:
+            if _MDI_ICON_RE.match(parts[1]):
+                return RemoteFile(*_gh_svg_url_path(parts[1], parts[0]))
+            return None
+        if value.startswith(("http://", "https://")):
+            return RemoteFile(value, compute_local_image_path(value))
+        return None
+    if isinstance(value, dict):
+        source = value.get(CONF_SOURCE)
+        if source == SOURCE_WEB and isinstance(url := value.get(CONF_URL), str):
+            return RemoteFile(url, compute_local_image_path(url))
+        if source in MDI_SOURCES and isinstance(icon := value.get(CONF_ICON), str):
+            return RemoteFile(*_gh_svg_url_path(icon, source))
+    return None
+
+
+def PREFETCH_FILES(entries: list[ConfigType]) -> Iterable[list[RemoteFile]]:
+    """Batch-download hook: remote `file:` refs from raw image entries."""
+    yield [
+        ref
+        for entry in entries
+        if (ref := _extract_file_ref(entry.get(CONF_FILE))) is not None
+    ]
+
+
 def validate_file_shorthand(value):
     value = cv.string_strict(value)
     parts = value.strip().split(":")
     if len(parts) == 2 and parts[0] in MDI_SOURCES:
-        match = re.match(r"^[a-zA-Z0-9\-]+$", parts[1])
-        if match is None:
+        if _MDI_ICON_RE.match(parts[1]) is None:
             raise cv.Invalid(f"Could not parse mdi icon name from '{value}'.")
         return download_gh_svg(parts[1], parts[0])
 

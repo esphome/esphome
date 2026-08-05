@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 import importlib
@@ -16,6 +16,7 @@ from esphome.types import ConfigType
 
 if TYPE_CHECKING:
     from esphome.cpp_generator import MockObjClass
+    from esphome.external_files import RemoteFile
 
 # `esphome.core.config` is imported lazily in `_lookup_module` when the
 # "esphome" pseudo-component is first resolved. It pulls in
@@ -134,6 +135,30 @@ class ComponentManifest:
         Note that the function can't mutate the configuration - no changes are saved
         """
         return getattr(self.module, "FINAL_VALIDATE_SCHEMA", None)
+
+    @property
+    def prefetch_files(
+        self,
+    ) -> Callable[[list[ConfigType]], Iterable[list["RemoteFile"]]] | None:
+        """Optional `PREFETCH_FILES` hook for batched remote file downloads.
+
+        A generator called once per run with the component's raw, pre-schema
+        config entries. Each yield is one stage: a list of
+        :class:`esphome.external_files.RemoteFile` that gets downloaded in
+        one parallel pass across all components before schema validation,
+        so per-entry validators find a warm cache. The generator resumes
+        only after the previous stage's downloads completed, so a later
+        stage may derive its URLs from the content of earlier files (e.g.
+        Google Fonts CSS naming the ttf); most components yield a single
+        batch. Best effort: the hook sees unvalidated config and must skip
+        anything it does not understand; the schema validators remain
+        authoritative for errors.
+
+        For platform components the hook usually lives on the platform
+        sub-module, which receives only its own platform's entries; a hook
+        on the domain module is honored too and receives every entry.
+        """
+        return getattr(self.module, "PREFETCH_FILES", None)
 
     @property
     def legacy_config_migrate(self) -> Callable[[ConfigType], ConfigType | None] | None:

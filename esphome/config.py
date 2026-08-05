@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+from collections.abc import Iterator
 from contextlib import contextmanager
 import contextvars
 import copy
@@ -8,7 +9,7 @@ import functools
 import heapq
 import logging
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 
@@ -39,6 +40,9 @@ from esphome.types import ConfigFragmentType, ConfigType
 from esphome.util import OrderedDict, safe_print
 from esphome.voluptuous_schema import ExtraKeysInvalid
 from esphome.yaml_util import ESPHomeDataBase, ESPLiteralValue, is_secret
+
+if TYPE_CHECKING:
+    from esphome.external_files import RemoteFile
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -717,6 +721,146 @@ class AutoLoadValidationStep(ConfigValidationStep):
         )
 
 
+# Backstop against a runaway PREFETCH_FILES generator; no real component
+# needs anywhere near this many stages (font, the deepest, uses two).
+_MAX_PREFETCH_STAGES = 10
+
+
+class PrefetchRemoteFilesValidationStep(ConfigValidationStep):
+    """Batch-download remote files referenced by the raw config.
+
+    Components may declare a module-level ``PREFETCH_FILES`` generator hook
+    that yields stages of ``RemoteFile`` batches from their raw, pre-schema
+    config entries (see ``ComponentManifest.prefetch_files``). Each round,
+    every batch collected across all domains is downloaded in one parallel
+    pass before the generators resume, so per-entry schema validators find
+    a warm cache instead of fetching one file at a time.
+
+    The priority must sit between AutoLoadValidationStep (-1.0) and
+    MetadataValidationStep (-2.0). A metadata step pushes its domain's
+    priority-0 schema steps, which pop before other domains' metadata
+    steps, so there is no "after all metadata, before all schema" slot;
+    running before any metadata step is the only point where every
+    domain's raw entry list is still intact.
+
+    Prefetching is best effort: hooks see unvalidated config and skip what
+    they do not understand, and download failures are only logged here.
+    The per-entry validators stay authoritative for errors: a failed
+    download is memoized per run, so they surface the recorded failure
+    immediately with the proper config path instead of repeating the
+    timeout. Components pulled in later by dynamic auto loads simply keep
+    today's per-entry download behavior.
+    """
+
+    priority = -1.5
+
+    def run(self, result: Config) -> None:
+        active: list[tuple[str, Iterator[list[RemoteFile]]]] = []
+
+        def warn_hook_failed(name: str, err: Exception) -> None:
+            # Raw config can be arbitrary garbage; a broken hook must not
+            # fail validation, it only loses the batching speedup.
+            _LOGGER.warning("Remote file prefetch for %s failed: %s", name, err)
+            _LOGGER.debug("Prefetch hook traceback", exc_info=err)
+
+        def start_hook(
+            name: str, manifest: ComponentManifest, entries: list[ConfigType]
+        ) -> None:
+            if (hook := manifest.prefetch_files) is None:
+                return
+            try:
+                active.append((name, iter(hook(entries))))
+            except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
+                warn_hook_failed(name, err)
+
+        for domain in list(result.keys()):
+            if not isinstance(domain, str) or domain.startswith("."):
+                continue
+            component = get_component(domain)
+            if component is None:
+                continue
+            conf = result[domain]
+            if conf is None or isinstance(conf, core.AutoLoad):
+                continue
+            entries = [
+                entry
+                for entry in (conf if isinstance(conf, list) else [conf])
+                if isinstance(entry, dict)
+            ]
+            if not entries:
+                continue
+            # A domain-level hook is honored for platform components too
+            # (receiving every entry); download_content_many dedupes any
+            # overlap with the per-platform hooks by path.
+            if component.prefetch_files is not None:
+                start_hook(domain, component, entries)
+            if not component.is_platform_component:
+                continue
+            by_platform: dict[str, list[ConfigType]] = {}
+            for entry in entries:
+                if isinstance(p_name := entry.get(CONF_PLATFORM), str):
+                    by_platform.setdefault(p_name, []).append(entry)
+            for p_name, p_entries in by_platform.items():
+                if (platform := get_platform(domain, p_name)) is not None:
+                    start_hook(f"{domain}.{p_name}", platform, p_entries)
+
+        # Advance every generator one stage per round, downloading each
+        # round's combined batch before resuming, so later stages can read
+        # the files earlier stages fetched.
+        for _ in range(_MAX_PREFETCH_STAGES):
+            if not active:
+                return
+            items: list[RemoteFile] = []
+            still_active: list[tuple[str, Iterator[list[RemoteFile]]]] = []
+            for name, generator in active:
+                try:
+                    batch = list(next(generator))
+                except StopIteration:
+                    continue
+                except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
+                    warn_hook_failed(name, err)
+                    continue
+                items.extend(batch)
+                still_active.append((name, generator))
+            active = still_active
+            self._download(items)
+        for name, generator in active:
+            # Probe once more: an iterator that produced exactly the cap's
+            # worth of stages has finished and deserves no warning.
+            try:
+                next(generator)
+            except StopIteration:
+                continue
+            except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
+                warn_hook_failed(name, err)
+                continue
+            # A tripped backstop always means a broken hook. Close survivors
+            # so any finally blocks in them run; plain iterables permitted
+            # by the contract have no close.
+            _LOGGER.warning(
+                "Remote file prefetch for %s stopped after %d stages",
+                name,
+                _MAX_PREFETCH_STAGES,
+            )
+            if (close := getattr(generator, "close", None)) is not None:
+                close()
+
+    @staticmethod
+    def _download(items: list[RemoteFile]) -> None:
+        if not items:
+            return
+        # Imported lazily: requests is a heavy import (~85ms) and is only
+        # needed when a config actually references remote files.
+        from esphome import external_files
+
+        try:
+            external_files.download_content_many(items, description="remote file(s)")
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
+            # Best-effort warming; the per-entry validator surfaces the
+            # per-run memoized failure with the correct config path.
+            _LOGGER.debug("Remote file prefetch download failed: %s", err)
+
+
 class MetadataValidationStep(ConfigValidationStep):
     """Validate component metadata
 
@@ -1259,6 +1403,7 @@ def validate_config(
 
     for domain, conf in config.items():
         result.add_validation_step(LoadValidationStep(domain, conf))
+    result.add_validation_step(PrefetchRemoteFilesValidationStep())
     result.add_validation_step(IDPassValidationStep())
     result.add_validation_step(CoreFinalValidateStep())
     result.add_validation_step(PinUseValidationCheck())

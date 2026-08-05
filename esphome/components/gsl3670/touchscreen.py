@@ -1,5 +1,6 @@
 """ESPHome codegen for the gsl3670 touchscreen sub-platform."""
 
+from collections.abc import Iterable
 import hashlib
 import logging
 from pathlib import Path
@@ -29,6 +30,8 @@ from esphome.const import (
     CONF_URL,
 )
 from esphome.core import ID
+from esphome.external_files import RemoteFile
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["touchscreen"]
@@ -103,8 +106,7 @@ def _validate_firmware_data(data: bytes, source: str) -> None:
 
 def _cache_path(url: str) -> Path:
     """Cache path for a downloaded firmware blob, keyed by URL."""
-    key = hashlib.sha256(url.encode()).hexdigest()[:8]
-    return external_files.compute_local_file_dir(DOMAIN) / key
+    return external_files.compute_local_file_path(DOMAIN, url)
 
 
 def firmware_path(firmware: dict) -> Path:
@@ -154,6 +156,27 @@ FIRMWARE_SCHEMA = cv.All(
     ),
     _validate_firmware,
 )
+
+
+def _extract_firmware_ref(entry: ConfigType) -> RemoteFile | None:
+    firmware = entry.get(CONF_FIRMWARE)
+    if firmware is None:
+        model = str(entry.get(CONF_MODEL, "CUSTOM")).upper()
+        firmware = MODELS.get(model, {}).get(CONF_FIRMWARE)
+    if (
+        isinstance(firmware, dict)
+        and CONF_FILE not in firmware
+        and isinstance(url := firmware.get(CONF_URL), str)
+    ):
+        return RemoteFile(url, _cache_path(url))
+    return None
+
+
+def PREFETCH_FILES(entries: list[ConfigType]) -> Iterable[list[RemoteFile]]:
+    """Batch-download hook: firmware blobs referenced by raw entries."""
+    yield [
+        ref for entry in entries if (ref := _extract_firmware_ref(entry)) is not None
+    ]
 
 
 def _config_schema(config):

@@ -1,4 +1,4 @@
-import hashlib
+from collections.abc import Iterable
 from pathlib import Path
 
 from esphome import core, external_files
@@ -12,6 +12,8 @@ from esphome.const import (
     CONF_SAMPLE_RATE,
     CONF_TEMPERATURE_OFFSET,
 )
+from esphome.external_files import RemoteFile
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@neffs", "@kbx81"]
 CONFLICTS_WITH = ["bme680_bsec"]
@@ -74,11 +76,7 @@ VOLTAGE_FILE_NAME = {
 
 
 def _compute_local_file_path(url: str) -> Path:
-    h = hashlib.new("sha256")
-    h.update(url.encode())
-    key = h.hexdigest()[:8]
-    base_dir = external_files.compute_local_file_dir(DOMAIN)
-    return base_dir / key
+    return external_files.compute_local_file_path(DOMAIN, url)
 
 
 def _compute_url(config: dict) -> str:
@@ -103,6 +101,51 @@ def download_bme68x_blob(config):
     external_files.download_content(url, path)
 
     return config
+
+
+# Shared by the schema and the prefetch hook so they cannot drift.
+_DEFAULT_OPERATING_AGE = "28d"
+_DEFAULT_SAMPLE_RATE = "LP"
+_DEFAULT_SUPPLY_VOLTAGE = "3.3V"
+
+
+def _extract_blob_ref(entry: ConfigType) -> RemoteFile | None:
+    """Raw entry to its BSEC2 blob; None when a value is unrecognized.
+
+    Applies the schema defaults and enum normalization read-only; skipped
+    entries are left to the schema validator.
+    """
+    model = str(entry.get(CONF_MODEL, "")).lower()
+    operating_age = str(entry.get(CONF_OPERATING_AGE, _DEFAULT_OPERATING_AGE)).lower()
+    sample_rate = str(entry.get(CONF_SAMPLE_RATE, _DEFAULT_SAMPLE_RATE)).upper()
+    supply_voltage = str(
+        entry.get(CONF_SUPPLY_VOLTAGE, _DEFAULT_SUPPLY_VOLTAGE)
+    ).upper()
+    if (
+        model not in MODEL_OPTIONS
+        or operating_age not in OPERATING_AGE_OPTIONS
+        or sample_rate not in SAMPLE_RATE_OPTIONS
+        or supply_voltage not in VOLTAGE_OPTIONS
+    ):
+        return None
+    spec = {
+        CONF_MODEL: model,
+        CONF_OPERATING_AGE: operating_age,
+        CONF_SAMPLE_RATE: sample_rate,
+        CONF_SUPPLY_VOLTAGE: supply_voltage,
+    }
+    if (algorithm_output := entry.get(CONF_ALGORITHM_OUTPUT)) is not None:
+        algorithm_output = str(algorithm_output).lower()
+        if algorithm_output not in ALGORITHM_OUTPUT_OPTIONS:
+            return None
+        spec[CONF_ALGORITHM_OUTPUT] = algorithm_output
+    url = _compute_url(spec)
+    return RemoteFile(url, _compute_local_file_path(url))
+
+
+def PREFETCH_FILES(entries: list[ConfigType]) -> Iterable[list[RemoteFile]]:
+    """Batch-download hook: BSEC2 config blobs from raw entries."""
+    yield [ref for entry in entries if (ref := _extract_blob_ref(entry)) is not None]
 
 
 def validate_bme68x(config):
@@ -132,13 +175,13 @@ CONFIG_SCHEMA_BASE = (
             cv.Optional(CONF_ALGORITHM_OUTPUT): cv.enum(
                 ALGORITHM_OUTPUT_OPTIONS, lower=True
             ),
-            cv.Optional(CONF_OPERATING_AGE, default="28d"): cv.enum(
+            cv.Optional(CONF_OPERATING_AGE, default=_DEFAULT_OPERATING_AGE): cv.enum(
                 OPERATING_AGE_OPTIONS, lower=True
             ),
-            cv.Optional(CONF_SAMPLE_RATE, default="LP"): cv.enum(
+            cv.Optional(CONF_SAMPLE_RATE, default=_DEFAULT_SAMPLE_RATE): cv.enum(
                 SAMPLE_RATE_OPTIONS, upper=True
             ),
-            cv.Optional(CONF_SUPPLY_VOLTAGE, default="3.3V"): cv.enum(
+            cv.Optional(CONF_SUPPLY_VOLTAGE, default=_DEFAULT_SUPPLY_VOLTAGE): cv.enum(
                 VOLTAGE_OPTIONS, upper=True
             ),
             cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature_delta,

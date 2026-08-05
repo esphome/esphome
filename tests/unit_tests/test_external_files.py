@@ -587,10 +587,12 @@ def test_download_content_many_single_item_avoids_pool(
     mock_download_content: MagicMock, setup_core: Path
 ) -> None:
     """A single item should be downloaded inline (no thread pool overhead)."""
-    item = ("https://example.com/file.txt", setup_core / "f.txt")
+    item = external_files.RemoteFile(
+        "https://example.com/file.txt", setup_core / "f.txt"
+    )
     external_files.download_content_many([item])
     mock_download_content.assert_called_once_with(
-        item[0], item[1], external_files.NETWORK_TIMEOUT
+        item.url, item.path, external_files.NETWORK_TIMEOUT
     )
 
 
@@ -610,9 +612,9 @@ def test_download_content_many_runs_in_parallel(
 
     mock_download_content.side_effect = slow_download
     items = [
-        ("https://example.com/a", setup_core / "a"),
-        ("https://example.com/b", setup_core / "b"),
-        ("https://example.com/c", setup_core / "c"),
+        external_files.RemoteFile("https://example.com/a", setup_core / "a"),
+        external_files.RemoteFile("https://example.com/b", setup_core / "b"),
+        external_files.RemoteFile("https://example.com/c", setup_core / "c"),
     ]
     external_files.download_content_many(items, max_workers=4)
     assert mock_download_content.call_count == 3
@@ -632,8 +634,8 @@ def test_download_content_many_propagates_single_error(
 
     mock_download_content.side_effect = fake_download
     items = [
-        ("https://example.com/ok", setup_core / "ok"),
-        ("https://example.com/bad", setup_core / "bad"),
+        external_files.RemoteFile("https://example.com/ok", setup_core / "ok"),
+        external_files.RemoteFile("https://example.com/bad", setup_core / "bad"),
     ]
     with pytest.raises(Invalid, match="could not download") as exc_info:
         external_files.download_content_many(items)
@@ -655,9 +657,9 @@ def test_download_content_many_aggregates_multiple_errors(
 
     mock_download_content.side_effect = fake_download
     items = [
-        ("https://example.com/ok", setup_core / "ok"),
-        ("https://example.com/bad1", setup_core / "bad1"),
-        ("https://example.com/bad2", setup_core / "bad2"),
+        external_files.RemoteFile("https://example.com/ok", setup_core / "ok"),
+        external_files.RemoteFile("https://example.com/bad1", setup_core / "bad1"),
+        external_files.RemoteFile("https://example.com/bad2", setup_core / "bad2"),
     ]
     with pytest.raises(MultipleInvalid) as exc_info:
         external_files.download_content_many(items)
@@ -678,9 +680,9 @@ def test_download_content_many_dedupes_by_path(
     """
     path = setup_core / "shared"
     items = [
-        ("https://example.com/a", path),
-        ("https://example.com/b", path),
-        ("https://example.com/a", path),
+        external_files.RemoteFile("https://example.com/a", path),
+        external_files.RemoteFile("https://example.com/b", path),
+        external_files.RemoteFile("https://example.com/a", path),
     ]
     external_files.download_content_many(items)
     assert mock_download_content.call_count == 1
@@ -695,8 +697,8 @@ def test_download_content_many_clamps_invalid_max_workers(
     be clamped up to at least 1 worker.
     """
     items = [
-        ("https://example.com/a", setup_core / "a"),
-        ("https://example.com/b", setup_core / "b"),
+        external_files.RemoteFile("https://example.com/a", setup_core / "a"),
+        external_files.RemoteFile("https://example.com/b", setup_core / "b"),
     ]
     external_files.download_content_many(items, max_workers=0)
     assert mock_download_content.call_count == 2
@@ -724,8 +726,8 @@ def test_download_web_files_in_config_filters_and_dispatches(
     assert result is config
     mock_download_content_many.assert_called_once()
     assert list(mock_download_content_many.call_args[0][0]) == [
-        ("https://example.com/a", setup_core / "a"),
-        ("https://example.com/c", setup_core / "c"),
+        external_files.RemoteFile("https://example.com/a", setup_core / "a"),
+        external_files.RemoteFile("https://example.com/c", setup_core / "c"),
     ]
 
 
@@ -799,3 +801,184 @@ def test_download_content_atomic_write_no_partial_on_failure(
     # into the cache directory either way.
     leftover_tmps = list(setup_core.glob("tmp*"))
     assert leftover_tmps == []
+
+
+def test_download_content_memoizes_fresh_path(
+    mock_has_remote_file_changed: MagicMock,
+    mock_requests_get: MagicMock,
+    setup_core: Path,
+) -> None:
+    """A path downloaded once this run skips all network on later calls."""
+    test_file = setup_core / "memo.txt"
+
+    mock_has_remote_file_changed.return_value = True
+    mock_response = MagicMock()
+    mock_response.content = b"fresh content"
+    mock_response.headers = {}
+    mock_requests_get.return_value = mock_response
+
+    url = "https://example.com/file.txt"
+    assert external_files.download_content(url, test_file) == b"fresh content"
+    assert external_files.download_content(url, test_file) == b"fresh content"
+
+    mock_has_remote_file_changed.assert_called_once()
+    mock_requests_get.assert_called_once()
+
+
+def test_download_content_memo_revalidates_deleted_file(
+    mock_has_remote_file_changed: MagicMock,
+    mock_requests_get: MagicMock,
+    setup_core: Path,
+) -> None:
+    """A memoized path whose file vanished is downloaded again."""
+    test_file = setup_core / "memo.txt"
+
+    mock_has_remote_file_changed.return_value = True
+    mock_response = MagicMock()
+    mock_response.content = b"fresh content"
+    mock_response.headers = {}
+    mock_requests_get.return_value = mock_response
+
+    url = "https://example.com/file.txt"
+    external_files.download_content(url, test_file)
+    test_file.unlink()
+    external_files.download_content(url, test_file)
+
+    assert mock_requests_get.call_count == 2
+
+
+def test_download_content_failure_fails_fast_on_retry(
+    mock_has_remote_file_changed: MagicMock,
+    mock_requests_get: MagicMock,
+    setup_core: Path,
+) -> None:
+    """A failed download is remembered; a retry raises without network."""
+    test_file = setup_core / "memo.txt"
+
+    mock_has_remote_file_changed.return_value = True
+    mock_requests_get.side_effect = requests.exceptions.RequestException("boom")
+
+    url = "https://example.com/file.txt"
+    with pytest.raises(Invalid, match="boom"):
+        external_files.download_content(url, test_file)
+    with pytest.raises(Invalid, match="boom"):
+        external_files.download_content(url, test_file)
+
+    mock_requests_get.assert_called_once()
+
+
+def test_download_content_failed_path_revalidates_when_file_appears(
+    mock_has_remote_file_changed: MagicMock,
+    mock_requests_get: MagicMock,
+    setup_core: Path,
+) -> None:
+    """A recorded failure is dropped once the file exists on disk."""
+    test_file = setup_core / "memo.txt"
+
+    mock_has_remote_file_changed.return_value = True
+    mock_requests_get.side_effect = requests.exceptions.RequestException("boom")
+
+    url = "https://example.com/file.txt"
+    with pytest.raises(Invalid):
+        external_files.download_content(url, test_file)
+
+    # Another writer produced the file; the cached failure no longer applies
+    # and the network error now falls back to the on-disk copy.
+    test_file.write_bytes(b"appeared")
+    assert external_files.download_content(url, test_file) == b"appeared"
+
+
+def test_download_content_network_error_fallback_memoizes(
+    mock_has_remote_file_changed: MagicMock,
+    mock_requests_get: MagicMock,
+    setup_core: Path,
+) -> None:
+    """Falling back to a cached file memoizes, so a flaky host is hit once."""
+    test_file = setup_core / "memo.txt"
+    test_file.write_bytes(b"cached content")
+
+    mock_has_remote_file_changed.return_value = True
+    mock_requests_get.side_effect = requests.exceptions.RequestException("boom")
+
+    url = "https://example.com/file.txt"
+    assert external_files.download_content(url, test_file) == b"cached content"
+    assert external_files.download_content(url, test_file) == b"cached content"
+
+    mock_requests_get.assert_called_once()
+
+
+def test_download_content_not_changed_uses_cache(
+    mock_has_remote_file_changed: MagicMock,
+    mock_requests_get: MagicMock,
+    setup_core: Path,
+) -> None:
+    """A 304 not-changed check serves the cached file without a GET."""
+    test_file = setup_core / "cached.txt"
+    test_file.write_bytes(b"cached content")
+    mock_has_remote_file_changed.return_value = False
+
+    url = "https://example.com/file.txt"
+    assert external_files.download_content(url, test_file) == b"cached content"
+
+    mock_requests_get.assert_not_called()
+
+
+def test_head_failure_fallback_is_stale_not_fresh(
+    mock_requests_head: MagicMock,
+    mock_requests_get: MagicMock,
+    setup_core: Path,
+) -> None:
+    """A HEAD network failure serves the copy once and memoizes it as stale."""
+    test_file = setup_core / "cached.txt"
+    test_file.write_bytes(b"cached content")
+
+    mock_requests_head.side_effect = requests.exceptions.RequestException("boom")
+
+    url = "https://example.com/file.txt"
+    assert external_files.download_content(url, test_file) == b"cached content"
+    assert external_files.download_content(url, test_file) == b"cached content"
+
+    mock_requests_head.assert_called_once()
+    mock_requests_get.assert_not_called()
+
+
+def test_allow_stale_false_rejects_unverified_copy(
+    mock_has_remote_file_changed: MagicMock,
+    mock_requests_get: MagicMock,
+    setup_core: Path,
+) -> None:
+    """allow_stale=False raises instead of building from an unverified copy."""
+    test_file = setup_core / "cached.txt"
+    test_file.write_bytes(b"cached content")
+
+    mock_has_remote_file_changed.return_value = True
+    mock_requests_get.side_effect = requests.exceptions.RequestException("boom")
+
+    url = "https://example.com/file.txt"
+    with pytest.raises(Invalid, match="Could not download"):
+        external_files.download_content(url, test_file, allow_stale=False)
+
+    # The stale memo short-circuits the retry without touching the network.
+    with pytest.raises(Invalid, match="cannot be verified"):
+        external_files.download_content(url, test_file, allow_stale=False)
+    mock_requests_get.assert_called_once()
+
+    # A caller that tolerates stale copies still gets the cached bytes.
+    assert external_files.download_content(url, test_file) == b"cached content"
+
+
+def test_allow_stale_false_rejects_head_failure_fallback(
+    mock_requests_head: MagicMock,
+    mock_requests_get: MagicMock,
+    setup_core: Path,
+) -> None:
+    """allow_stale=False also rejects a copy the HEAD could not confirm."""
+    test_file = setup_core / "cached.txt"
+    test_file.write_bytes(b"cached content")
+
+    mock_requests_head.side_effect = requests.exceptions.RequestException("boom")
+
+    url = "https://example.com/file.txt"
+    with pytest.raises(Invalid, match="cannot be verified"):
+        external_files.download_content(url, test_file, allow_stale=False)
+    mock_requests_get.assert_not_called()
