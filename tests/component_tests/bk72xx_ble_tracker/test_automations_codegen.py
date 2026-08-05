@@ -7,14 +7,18 @@ bk72xx base board generic-bk7252 is BLE 4.2 and cannot build the tracker), and
 validate fixtures never run to_code. The generated main is therefore the only
 automated check on the setter spellings and the listener accounting."""
 
+from collections.abc import Callable
+from pathlib import Path
+
 from esphome.components import ble_device_base
 from tests.component_tests.helpers import get_define_value
 
 
-def test_trigger_codegen(generate_main) -> None:
-    main_cpp = generate_main(
-        "tests/component_tests/bk72xx_ble_tracker/test_automations.yaml"
-    )
+def test_trigger_codegen(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path("test_automations.yaml"))
 
     # on_ble_advertise: multi-mac filter (two addresses in one initializer list)
     assert "set_addresses({0xAC3743775F4CULL, 0x112233445566ULL})" in main_cpp
