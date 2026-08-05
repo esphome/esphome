@@ -62,15 +62,10 @@ class ZigbeeComponent final : public Component {
 
   // True after the Zigbee stack has been initialized and the device has started up. Is set before the stack started
   // network commissioning or has joined a network and won't be reset until the device is rebooted.
-  bool is_started() { return this->started; }
+  bool is_started() { return this->started_; }
 
   // True if the device has joined a network and is ready to send and receive messages.
-  bool is_joined() { return this->joined; }
-
-  std::atomic<bool> started = false;
-  std::atomic<bool> joined = false;
-  std::atomic<bool> join_reported = false;
-  std::atomic<bool> factory_new = false;
+  bool is_joined() { return this->joined_; }
 
  protected:
   struct {
@@ -94,6 +89,10 @@ class ZigbeeComponent final : public Component {
   std::map<std::tuple<uint8_t, uint16_t, uint8_t, uint16_t>, ZigbeeAttribute *> attributes_;
   ezb_af_device_desc_t dev_desc_;
   CallbackManager<void(bool)> join_cb_{};
+  std::atomic<bool> started_ = false;
+  std::atomic<bool> joined_ = false;
+  std::atomic<bool> join_pending_ = false;
+  std::atomic<bool> factory_new_ = false;
 };
 
 template<typename T>
