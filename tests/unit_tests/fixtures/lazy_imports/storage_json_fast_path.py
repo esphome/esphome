@@ -7,32 +7,12 @@ in on argv, the ones found in sys.modules afterwards go out on stdout.
 import sys
 
 from _leak_report import print_leaked_modules
+from _storage import make_storage
 
 from esphome.const import KEY_ESP32, KEY_IDF_VERSION, KEY_VARIANT
 from esphome.core import CORE, Version
-from esphome.storage_json import StorageJSON
 
-storage = StorageJSON(
-    storage_version=1,
-    name="test",
-    friendly_name="Test",
-    comment=None,
-    esphome_version="2026.1.0",
-    src_version=1,
-    address="1.2.3.4",
-    web_port=None,
-    target_platform="ESP32S3",
-    build_path=None,
-    firmware_bin_path=None,
-    loaded_integrations=set(),
-    loaded_platforms=set(),
-    no_mdns=False,
-    framework="esp-idf",
-    core_platform="esp32",
-    area=None,
-    framework_version="5.3.1",
-)
-storage.apply_to_core()
+make_storage().apply_to_core()
 
 # Fail loudly if the esp32 fast path stopped doing its work; otherwise an
 # empty leak list could just mean nothing ran. Explicit exits rather than

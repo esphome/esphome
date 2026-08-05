@@ -56,8 +56,7 @@ async def async_run_logs(
         provide_time=False,
     )
 
-    # Decoder resolution, crash isolation, and disable-after-failure
-    # all live in LogLineProcessor, shared with the serial log path.
+    # Decoder resolution policy lives in LogLineProcessor.
     processor = LogLineProcessor(config, CORE.target_platform)
 
     def on_log(msg: SubscribeLogsResponse) -> None:
