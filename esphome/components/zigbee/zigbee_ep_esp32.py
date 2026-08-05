@@ -163,7 +163,8 @@ def _validate_endpoints(ep_dict: dict[int, dict]) -> None:
 
 def create_ep(router: bool) -> None:
     """Finalize Zigbee endpoint creation and normalize endpoint storage.
-    Validate endpoints, merge and number endpoints without given number.
+
+    Validate endpoints, merge endpoints, and assign numbers to endpoints without an explicit number.
     This is called from final_validate.
 
     Args:
