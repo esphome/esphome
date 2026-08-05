@@ -257,8 +257,11 @@ optional<ESPBLEiBeacon> ESPBLEiBeacon::from_manufacturer_data(const ServiceData 
   // Require the iBeacon sub-type/length prefix — stricter than the legacy
   // esp32 parser, which accepted any 23-byte Apple payload and surfaced
   // non-iBeacon frames as garbage beacons.
-  if (data.data[0] != 0x02 || data.data[1] != 0x15)
+  if (data.data[0] != 0x02 || data.data[1] != 0x15) {
+    ESP_LOGV(TAG, "23-byte Apple frame without iBeacon prefix rejected (sub-type 0x%02X len 0x%02X)", data.data[0],
+             data.data[1]);
     return {};
+  }
   return ESPBLEiBeacon(data.data.data());
 }
 
