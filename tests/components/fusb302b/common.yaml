@@ -1,0 +1,29 @@
+fusb302b:
+  id: pd
+  i2c_id: i2c_bus
+  address: 0x22
+  irq_pin: 4
+  request_voltage: 9
+  on_connect:
+    - logger.log: "USB-C connected"
+  on_disconnect:
+    - logger.log: "USB-C disconnected"
+  on_error:
+    - logger.log: "USB-PD error"
+  on_power_ready:
+    - logger.log: "Power negotiation complete"
+    - power_delivery.request_voltage:
+        id: pd
+        request_voltage: 12
+
+interval:
+  - interval: 10s
+    then:
+      - if:
+          condition:
+            power_delivery.is_connected:
+              id: pd
+          then:
+            - power_delivery.request_voltage:
+                id: pd
+                request_voltage: !lambda "return 20;"
