@@ -97,6 +97,18 @@ PLATFORM_HOOKS: Final[dict[str, frozenset[str]]] = {
 _IN_TREE_PLATFORMS: Final = frozenset(Platform)
 
 
+def has_registered_hook(platform: str, hook: str) -> bool:
+    """True when *platform* declares *hook* in ``PLATFORM_HOOKS``.
+
+    Callers that defer imports key off this: a registered hook is known
+    to exist, so ``get_platform_hook`` can wait until it is needed;
+    anything else must be probed up front so availability is reported
+    at session start. Keeping the predicate here keeps the resolution
+    rule in one module.
+    """
+    return platform in PLATFORM_HOOKS[hook]
+
+
 def get_platform_hook(platform: str, hook: str) -> Callable[..., Any] | None:
     """Return ``esphome.components.<platform>.<hook>`` or None.
 
@@ -105,7 +117,7 @@ def get_platform_hook(platform: str, hook: str) -> Callable[..., Any] | None:
     hook also returns None, so a stale registry degrades to the generic
     path instead of raising.
     """
-    registered = platform in PLATFORM_HOOKS[hook]
+    registered = has_registered_hook(platform, hook)
     if not registered and platform in _IN_TREE_PLATFORMS:
         return None
     # For external platforms this probes the imported package like the
@@ -153,18 +165,6 @@ def get_platform_hook(platform: str, hook: str) -> Callable[..., Any] | None:
                 hook,
             )
     return handler
-
-
-def has_registered_hook(platform: str, hook: str) -> bool:
-    """True when *platform* declares *hook* in ``PLATFORM_HOOKS``.
-
-    Callers that defer imports key off this: a registered hook is known
-    to exist, so ``get_platform_hook`` can wait until it is needed;
-    anything else must be probed up front so availability is reported
-    at session start. Keeping the predicate here keeps the resolution
-    rule in one module.
-    """
-    return platform in PLATFORM_HOOKS[hook]
 
 
 def get_stacktrace_handler(platform: str) -> Callable[..., Any] | None:
