@@ -146,8 +146,7 @@ def test_platform_declarations_match_decoder(platform: str) -> None:
     sample matches a declared pattern; every declared pattern is
     exercised by a sample; no stacktrace pattern exists undeclared; each
     declared state marker behaviourally opens the decoder's dump region;
-    and a decoder that sets state must declare a marker while a
-    stateless one must not.
+    and a decoder that sets state must declare a marker.
 
     Known blind spots: the esp32/esp8266 catch-all backtrace patterns
     can satisfy the sample-matches-a-pattern direction on their own; the
