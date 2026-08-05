@@ -1,5 +1,6 @@
 """Tests for the BLE hub provider registry and the missing-hub diagnostics."""
 
+from collections.abc import Generator
 from importlib import import_module
 from pathlib import Path
 
@@ -16,7 +17,7 @@ COMPONENTS_DIR = Path(ble_device_base.__file__).parent.parent
 
 
 @pytest.fixture
-def hub_registry() -> set[str]:
+def hub_registry() -> Generator[set[str]]:
     """Save/restore _HUB_PROVIDERS — a module global with no reset hook.
 
     CORE state needs no bookkeeping here: conftest's autouse reset_core
@@ -33,51 +34,78 @@ def _generated_id() -> ID:
     return ID(None, is_declaration=False, type="ble_device_base::BLEHub")
 
 
-def test_missing_hub_error_is_actionable(hub_registry: set[str]) -> None:
-    """The hub binding must fail with a tracker-naming message, not use_id's
-    C++-class error, regardless of config-step ordering internals."""
+def _set_platform(platform: str | None) -> None:
     core_data = CORE.data.setdefault(KEY_CORE, {})
+    if platform is None:
+        core_data.pop(KEY_TARGET_PLATFORM, None)
+    else:
+        core_data[KEY_TARGET_PLATFORM] = platform
+
+
+# The missing-hub diagnostics: one test per path so a regression in one
+# scenario cannot mask the others. The hub binding must fail with a
+# tracker-naming message, not use_id's C++-class error, regardless of
+# config-step ordering internals.
+
+
+def test_empty_registry_names_every_in_tree_tracker(hub_registry: set[str]) -> None:
     # The common failure: a fresh CLI process where the tracker was simply
     # forgotten, so no tracker module was ever imported and the registry is
     # empty. The error must still name the in-tree trackers.
     hub_registry.clear()
     CORE.loaded_integrations.clear()
-    core_data.pop(KEY_TARGET_PLATFORM, None)
+    _set_platform(None)
     with pytest.raises(
         cv.Invalid,
         match="add one of: bk72xx_ble_tracker, esp32_ble_tracker, ln882h_ble_tracker, rp2_ble_tracker",
     ):
         ble_device_base._require_hub(_generated_id())
 
-    # With a target platform set, only that platform's tracker is named.
-    core_data[KEY_TARGET_PLATFORM] = "esp32"
-    with pytest.raises(cv.Invalid, match="add one of: esp32_ble_tracker;"):
+
+def test_platform_filters_the_suggested_trackers(hub_registry: set[str]) -> None:
+    hub_registry.clear()
+    CORE.loaded_integrations.clear()
+    _set_platform("esp32")
+    with pytest.raises(cv.Invalid, match="add one of: esp32_ble_tracker$"):
         ble_device_base._require_hub(_generated_id())
 
-    # A known platform with no in-tree hub is not misdirected to other
-    # platforms' trackers; the external-tracker escape hatch is named.
-    core_data[KEY_TARGET_PLATFORM] = "esp8266"
-    with pytest.raises(cv.Invalid, match="No in-tree BLE tracker exists for esp8266"):
-        ble_device_base._require_hub(_generated_id())
-    core_data[KEY_TARGET_PLATFORM] = "esp32"
 
-    # An external tracker registered (module imported) but not configured:
-    # named alongside the in-tree ones.
-    hub_registry.add("my_external_tracker")
-    with pytest.raises(cv.Invalid, match="my_external_tracker"):
+def test_ble_less_platform_is_not_misdirected(hub_registry: set[str]) -> None:
+    # A known platform with no in-tree hub must not be pointed at other
+    # platforms' trackers; out-of-tree BLE hubs are not supported.
+    hub_registry.clear()
+    CORE.loaded_integrations.clear()
+    _set_platform("esp8266")
+    with pytest.raises(
+        cv.Invalid,
+        match="No BLE tracker exists for esp8266; BLE components are not supported",
+    ):
         ble_device_base._require_hub(_generated_id())
 
-    # An explicit ble_hub_id: skips the registry entirely — the user may be
-    # naming an external tracker it has never heard of; the ID pass owns
-    # that diagnosis.
+
+def test_explicit_id_bypasses_the_registry(hub_registry: set[str]) -> None:
+    # Explicit ble_hub_id: is the multi-hub disambiguation case; the ID pass
+    # owns that diagnosis and its error names the missing id.
+    hub_registry.clear()
+    CORE.loaded_integrations.clear()
     explicit = ID("my_hub", is_declaration=False, type="ble_device_base::BLEHub")
     assert ble_device_base._require_hub(explicit) is explicit
 
-    # Provider registered AND loaded -> value passes through untouched.
+
+def test_registered_and_loaded_provider_passes(hub_registry: set[str]) -> None:
     hub_registry.add("esp32_ble_tracker")
     CORE.loaded_integrations.add("esp32_ble_tracker")
     generated = _generated_id()
     assert ble_device_base._require_hub(generated) is generated
+
+
+def _module_name(path: Path) -> str:
+    """Dotted module name for a file under esphome/components."""
+    rel = path.relative_to(COMPONENTS_DIR.parent)
+    parts = rel.with_suffix("").parts
+    if parts[-1] == "__init__":
+        parts = parts[:-1]
+    return "esphome." + ".".join(parts)
 
 
 def _hub_component_modules() -> list[str]:
@@ -85,26 +113,31 @@ def _hub_component_modules() -> list[str]:
 
     The source-text pass only selects import candidates (importing all ~900
     component packages is too slow); membership is decided by the class
-    hierarchy via MockObjClass.inherits_from, so a comment mentioning BLEHub
-    in a consumer cannot produce a false positive, and the declaring module
-    inside the package does not matter.
+    hierarchy via MockObjClass.inherits_from on every module whose source
+    matched — nested declaring modules included — so a comment mentioning
+    BLEHub in a consumer cannot produce a false positive.
     """
     hub_modules = []
     for pkg in sorted(COMPONENTS_DIR.iterdir()):
         if pkg.name == "ble_device_base" or not (pkg / "__init__.py").is_file():
             continue
-        if not any(
-            "BLEHub" in path.read_text(encoding="utf-8") for path in pkg.glob("*.py")
-        ):
+        matched = [
+            path
+            for path in pkg.rglob("*.py")
+            if "BLEHub" in path.read_text(encoding="utf-8")
+        ]
+        if not matched:
             continue
-        mod = import_module(f"esphome.components.{pkg.name}")
-        if any(
-            isinstance(attr, MockObjClass)
-            and attr is not ble_device_base.BLEHub
-            and attr.inherits_from(ble_device_base.BLEHub)
-            for attr in vars(mod).values()
-        ):
-            hub_modules.append(pkg.name)
+        for path in matched:
+            mod = import_module(_module_name(path))
+            if any(
+                isinstance(attr, MockObjClass)
+                and attr is not ble_device_base.BLEHub
+                and attr.inherits_from(ble_device_base.BLEHub)
+                for attr in vars(mod).values()
+            ):
+                hub_modules.append(pkg.name)
+                break
     return hub_modules
 
 
@@ -151,7 +184,7 @@ def test_rename_legacy_hub_id_migrates_the_old_key() -> None:
     assert untouched == {"name": "x"}
 
 
-def test_add_service_uuid_dispatches_by_width(monkeypatch) -> None:
+def test_add_service_uuid_dispatches_by_width(monkeypatch: pytest.MonkeyPatch) -> None:
     emitted: list[str] = []
     monkeypatch.setattr(
         "esphome.components.ble_device_base.cg.add", lambda e: emitted.append(str(e))
@@ -163,5 +196,5 @@ def test_add_service_uuid_dispatches_by_width(monkeypatch) -> None:
     assert "set_service_uuid16" in emitted[0]
     assert "set_service_uuid32" in emitted[1]
     assert "set_service_uuid128" in emitted[2]
-    with pytest.raises(cv.Invalid, match="Unsupported UUID format"):
+    with pytest.raises(ValueError, match="Unsupported UUID format"):
         ble_device_base.add_service_uuid(var, "123")
