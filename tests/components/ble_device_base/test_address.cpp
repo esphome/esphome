@@ -8,7 +8,7 @@ namespace esphome::ble_device_base::testing {
 
 // from_scan_result() ingests BLE controller order (LSB-first); the public
 // accessors must expose the historical esp32 semantics: address() in printable
-// (MSB-first) order, address_uint64() with byte 0 in the LSB, address_str()
+// (MSB-first) order, address_uint64() with byte 0 in the LSB, address_str_to()
 // printed MSB-first.
 namespace {
 // Device AA:BB:CC:DD:EE:FF — controller order delivers FF first.
@@ -25,7 +25,14 @@ TEST(BleDeviceAddress, AccessorsMatchEsp32Semantics) {
 
   EXPECT_EQ(device.address_uint64(), 0xAABBCCDDEEFFULL);
 
+  char buf[ESPBTDevice::MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  EXPECT_STREQ(device.address_str_to(buf), "AA:BB:CC:DD:EE:FF");
+
+  // The deprecated wrapper must keep returning the same string until its 2027.2.0 removal.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   EXPECT_EQ(device.address_str(), "AA:BB:CC:DD:EE:FF");
+#pragma GCC diagnostic pop
 }
 
 // mac_lsb_first_to_uint64() packs the controller-order bytes a raw-advertisement
