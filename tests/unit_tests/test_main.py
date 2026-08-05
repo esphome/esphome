@@ -64,7 +64,12 @@ from esphome.__main__ import (
 from esphome.address_cache import AddressCache
 from esphome.bundle import BUNDLE_EXTENSION, BundleFile, BundleResult
 from esphome.components import esp32
-from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.esp32 import (
+    KEY_ESP32,
+    KEY_VARIANT,
+    VARIANT_ESP32,
+    get_esp32_variant,
+)
 from esphome.const import (
     CONF_API,
     CONF_AUTH,
@@ -1621,6 +1626,12 @@ def test_upload_using_esptool_path_conversion(
     partitions_path = cmd_list[partitions_offset_idx + 1]
     assert isinstance(partitions_path, str)
     assert partitions_path.endswith("partitions.bin")
+
+    # The chip argument must track get_esp32_variant: upload_using_esptool
+    # reads CORE.data directly to avoid the esp32 package import, and the
+    # two resolutions must not drift.
+    chip = cmd_list[cmd_list.index("--chip") + 1]
+    assert chip == get_esp32_variant().lower()
 
 
 def test_upload_using_esptool_skips_missing_extra_flash_images(
@@ -3244,6 +3255,14 @@ def test_get_port_type() -> None:
     assert get_port_type("10.0.0.1") == "NETWORK"
 
     assert get_port_type("BOOTSEL") == "BOOTSEL"
+
+
+def test_mqtt_reexports_discover_ip() -> None:
+    """The old import path must keep working for external code."""
+    from esphome.components import mqtt
+    from esphome.const import CONF_DISCOVER_IP
+
+    assert mqtt.CONF_DISCOVER_IP is CONF_DISCOVER_IP
 
 
 def test_has_mqtt_ip_lookup() -> None:
@@ -5732,7 +5751,7 @@ def test_run_miniterm_analyzer_import_failure_keeps_streaming(
     args = MockArgs()
 
     with (
-        caplog.at_level("INFO", logger="esphome.__main__"),
+        caplog.at_level("INFO", logger="esphome.platform_hooks"),
         patch("serial.Serial", return_value=mock_serial),
         patch(
             "esphome.platform_hooks.get_platform_hook",
@@ -5762,7 +5781,7 @@ def test_run_miniterm_no_stacktrace_analyzer(
     args = MockArgs()
 
     with (
-        caplog.at_level("INFO", logger="esphome.__main__"),
+        caplog.at_level("INFO", logger="esphome.platform_hooks"),
         patch("serial.Serial", return_value=mock_serial),
     ):
         result = run_miniterm(config, "/dev/ttyUSB0", args)

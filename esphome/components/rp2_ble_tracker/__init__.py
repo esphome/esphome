@@ -20,7 +20,6 @@ from esphome.const import (
     CONF_ID,
     CONF_INTERVAL,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 CONF_RP2040_BLE_ID = "rp2040_ble_id"
@@ -54,22 +53,15 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-# Runs at FINAL priority so every BLE sensor has registered through
-# ble_device_base (and any tracker-owned listeners have been counted) before
-# the StaticVector size is emitted. Same pattern as esp32_ble_tracker.
-@coroutine_with_priority(CoroPriority.FINAL)
-async def _emit_listener_count() -> None:
-    count = ble_device_base.get_listener_count()
-    if count > 0:
-        cg.add_define("ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT", count)
-
-
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
     parent = await cg.get_variable(config[CONF_RP2040_BLE_ID])
     cg.add(var.set_parent(parent))
+    # The tracker registers itself as a controller scan listener in setup();
+    # request the codegen-sized StaticVector slot for it.
+    rp2040_ble.request_scan_listener_slot()
 
     # Get notified when an OTA update starts, to pause scanning (esp32_ble_tracker parity)
     ota.request_ota_state_listeners()
@@ -80,5 +72,3 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_scan_duration(scan[CONF_DURATION].total_milliseconds))
     cg.add(var.set_scan_active(scan[CONF_ACTIVE]))
     cg.add(var.set_scan_continuous(scan[CONF_CONTINUOUS]))
-
-    CORE.add_job(_emit_listener_count)

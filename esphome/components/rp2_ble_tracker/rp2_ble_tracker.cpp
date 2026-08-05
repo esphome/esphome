@@ -163,11 +163,7 @@ bool RP2BLETracker::request_scan_mode(bool active) {
   // An idle scanner picks the mode up on its next start.
   if (this->scan_running_) {
     this->parent_->scan_stop();
-    // Stamp the attempt so the SCAN_START_RETRY_MS floor covers this start
-    // like every other one.
-    this->last_scan_start_attempt_ = App.get_loop_component_start_time();
-    if (!this->parent_->scan_start(static_cast<uint16_t>(this->scan_interval_),
-                                   static_cast<uint16_t>(this->scan_window_), this->scan_active_)) {
+    if (!this->controller_scan_start_()) {
       // The controller really stopped: behave exactly like loop()'s
       // reconciliation branch - notify listeners and let its retry recover.
       this->scan_running_ = false;
@@ -186,16 +182,19 @@ void RP2BLETracker::stop_scan() {
   this->disable_loop();
 }
 
+// Stamp-and-start for every controller scan attempt: the stamp keeps the
+// SCAN_START_RETRY_MS floor covering all callers, not only loop()'s retry.
+bool RP2BLETracker::controller_scan_start_() {
+  this->last_scan_start_attempt_ = App.get_loop_component_start_time();
+  return this->parent_->scan_start(static_cast<uint16_t>(this->scan_interval_),
+                                   static_cast<uint16_t>(this->scan_window_), this->scan_active_);
+}
+
 void RP2BLETracker::start_scan_() {
   if (this->scan_running_)
     return;
 
-  // Stamp every attempt regardless of caller so the loop's rate limit also
-  // covers a failed start that came through the public start_scan().
-  this->last_scan_start_attempt_ = App.get_loop_component_start_time();
-
-  if (!this->parent_->scan_start(static_cast<uint16_t>(this->scan_interval_), static_cast<uint16_t>(this->scan_window_),
-                                 this->scan_active_))
+  if (!this->controller_scan_start_())
     return;
 
   this->scan_running_ = true;
