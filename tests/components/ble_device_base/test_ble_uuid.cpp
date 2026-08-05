@@ -61,6 +61,7 @@ TEST(BleDeviceUuid, UnsetIsNotEqualToZeroUuid) {
                             0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   EXPECT_FALSE(ESPBTUUID() == ESPBTUUID::from_raw(base));
   EXPECT_TRUE(ESPBTUUID() == ESPBTUUID());
+  EXPECT_FALSE(ESPBTUUID().as_128bit().is_set());  // widening preserves the unset state
   // A configured 0x0000 still matches its own 128-bit base UUID expansion.
   EXPECT_TRUE(ESPBTUUID::from_uint16(0x0000) == ESPBTUUID::from_raw(base));
 }
