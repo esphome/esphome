@@ -40,10 +40,13 @@ def test_trigger_codegen(
     assert main_cpp.count("->set_continuous(") == 1
     assert "startscanaction_id->set_continuous(" in main_cpp
     assert "stopscanaction_id->set_parent(" in main_cpp
+    # scan_parameters continuous: false reaches the YAML-mode setter, not the
+    # runtime override.
+    assert "->set_configured_continuous(false)" in main_cpp
     # Constructor call, not just the declaration: the parent argument is what
     # registers the trigger as a listener.
     assert re.search(
-        r"new\(\w+\) ln882h_ble_tracker::BLEEndOfScanTrigger\(\w+\)", main_cpp
+        r"new\(\w+\) ble_device_base::BLEEndOfScanTrigger\(\w+\)", main_cpp
     )
 
     # Seven triggers register as listeners; an undercount silently drops the
