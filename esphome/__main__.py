@@ -58,6 +58,7 @@ from esphome.core import CORE, EsphomeError, coroutine
 from esphome.enum import StrEnum
 from esphome.helpers import get_bool_env, indent, is_ip_address
 from esphome.log import AnsiFore, color, setup_log
+from esphome.stacktrace import LogLineProcessor
 from esphome.types import ConfigType
 from esphome.upload_targets import PortType, get_port_type
 from esphome.util import (
@@ -631,11 +632,9 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
         return 1
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
-    # Stacktrace analysis is optional; platform_hooks owns resolution
-    # and the user-facing messages.
-    process_stacktrace = platform_hooks.get_stacktrace_handler(CORE.target_platform)
-
-    backtrace_state = False
+    # Decoder resolution, crash isolation, and disable-after-failure
+    # all live in LogLineProcessor, shared with the API log path.
+    processor = LogLineProcessor(config, CORE.target_platform)
     ser = serial.Serial()
     ser.baudrate = baud_rate
     ser.port = port
@@ -675,11 +674,7 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
                                 "utf8", "backslashreplace"
                             )
                             safe_print(parser.parse_line(line, time_str))
-
-                            if process_stacktrace is not None:
-                                backtrace_state = process_stacktrace(
-                                    config, line, backtrace_state
-                                )
+                            processor.process_line(line)
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
                         return 0
