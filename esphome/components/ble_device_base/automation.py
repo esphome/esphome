@@ -50,11 +50,14 @@ _UUID_WIDTHS = {
 }
 
 
-def trigger_schema(trigger_class: MockObjClass, extra: dict[Any, Any] | None = None):
-    """Automation schema for a tracker trigger: id, optional mac filter, extras.
+def uuid_trigger_schema(
+    trigger_class: MockObjClass, extra: dict[Any, Any] | None = None
+):
+    """Schema for a UUID-filtered trigger — pairs with uuid_trigger_to_code().
 
-    `extra` is a dict rather than **kwargs because schema keys are cv markers,
-    not strings.
+    `extra` carries the required UUID key (a cv marker, so a dict rather than
+    **kwargs); the optional single-mac filter is what uuid_trigger_to_code()
+    reads back.
     """
     return automation.validate_automation(
         {
@@ -67,7 +70,7 @@ def trigger_schema(trigger_class: MockObjClass, extra: dict[Any, Any] | None = N
 
 def advertise_trigger_schema(trigger_class: MockObjClass):
     """on_ble_advertise schema: multi-mac list filter, unlike the single-mac
-    trigger_schema() — lives here so it pairs with advertise_trigger_to_code()."""
+    uuid_trigger_schema() — pairs with advertise_trigger_to_code()."""
     return automation.validate_automation(
         {
             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(trigger_class),

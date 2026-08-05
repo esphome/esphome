@@ -2,7 +2,7 @@
 
 The shared trigger classes (ble_device_base/automation.h) are compiled by every
 esp32 BLE compile test via AUTO_LOAD, but the BK-specific side — automation.h's
-action templates and restart_scan_window() — compiles on no CI board (the
+action templates and restart_scan_duration() — compiles on no CI board (the
 bk72xx base board generic-bk7252 is BLE 4.2 and cannot build the tracker), and
 validate fixtures never run to_code. The generated main is therefore the only
 automated check on the setter spellings and the listener accounting."""

@@ -71,19 +71,21 @@ class BK72xxBLETracker : public Component,
   void set_scan_window(uint32_t scan_window) { this->scan_window_ = scan_window; }
   void set_scan_duration(uint32_t scan_duration) { this->scan_duration_ = scan_duration; }
   /// Set from YAML (scan_parameters.continuous); also the value
-  /// configured_continuous() reports.
-  void set_scan_continuous(bool scan_continuous) {
+  /// configured_continuous() reports and a bare start_scan action restores.
+  void set_scan_continuous_configured(bool scan_continuous) {
     this->scan_continuous_ = scan_continuous;
     this->scan_continuous_configured_ = scan_continuous;
   }
-  /// Runtime override that does not change the configured value, so
-  /// configured_continuous() still reports what YAML asked for.
-  void set_scan_continuous_runtime(bool scan_continuous) { this->scan_continuous_ = scan_continuous; }
+  /// Runtime control (esp32_ble_tracker lambda parity): does not change the
+  /// configured value, so configured_continuous() still reports what YAML
+  /// asked for.
+  void set_scan_continuous(bool scan_continuous) { this->scan_continuous_ = scan_continuous; }
   bool scan_continuous() const { return this->scan_continuous_; }
   bool configured_continuous() const { return this->scan_continuous_configured_; }
-  /// Re-anchor the duration window of a running scan to now — used when an
-  /// action changes the scan mode without stopping the radio.
-  void restart_scan_period();
+  /// Re-anchor the one-shot duration clock of a running scan to now — used
+  /// when an action changes the scan mode without stopping the radio. The
+  /// continuous-mode on_scan_end period is deliberately not touched.
+  void restart_scan_duration();
 
   // ---- Public scan control ----
   // Mirrors esp32_ble_tracker: set_scan_continuous() + start_scan() / stop_scan().

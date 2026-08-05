@@ -71,13 +71,15 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_ON_BLE_ADVERTISE): ble_automation.advertise_trigger_schema(
             ESPBTAdvertiseTrigger
         ),
-        cv.Optional(CONF_ON_BLE_SERVICE_DATA_ADVERTISE): ble_automation.trigger_schema(
+        cv.Optional(
+            CONF_ON_BLE_SERVICE_DATA_ADVERTISE
+        ): ble_automation.uuid_trigger_schema(
             BLEServiceDataAdvertiseTrigger,
             {cv.Required(CONF_SERVICE_UUID): ble_device_base.bt_uuid},
         ),
         cv.Optional(
             CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE
-        ): ble_automation.trigger_schema(
+        ): ble_automation.uuid_trigger_schema(
             BLEManufacturerDataAdvertiseTrigger,
             {cv.Required(CONF_MANUFACTURER_ID): ble_device_base.bt_uuid},
         ),
@@ -156,7 +158,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_scan_interval(ble_device_base.to_ble_units(scan[CONF_INTERVAL])))
     cg.add(var.set_scan_window(ble_device_base.to_ble_units(scan[CONF_WINDOW])))
     cg.add(var.set_scan_duration(scan[CONF_DURATION].total_milliseconds))
-    cg.add(var.set_scan_continuous(scan[CONF_CONTINUOUS]))
+    cg.add(var.set_scan_continuous_configured(scan[CONF_CONTINUOUS]))
 
     for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
         await ble_automation.advertise_trigger_to_code(conf, var)

@@ -210,7 +210,7 @@ void BK72xxBLETracker::start_scan() {
   this->try_start_with_backoff_(millis(), /* force= */ true);
 }
 
-void BK72xxBLETracker::restart_scan_period() {
+void BK72xxBLETracker::restart_scan_duration() {
   if (!this->scan_running_)
     return;
   // Re-anchor only the one-shot duration clock. scan_period_start_ (the
