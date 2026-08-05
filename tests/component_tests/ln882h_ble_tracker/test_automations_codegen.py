@@ -42,7 +42,9 @@ def test_trigger_codegen(
     assert "stopscanaction_id->set_parent(" in main_cpp
     # Constructor call, not just the declaration: the parent argument is what
     # registers the trigger as a listener.
-    assert re.search(r"new\(\w+\) ln882h_ble_tracker::BLEEndOfScanTrigger\(\w+\)", main_cpp)
+    assert re.search(
+        r"new\(\w+\) ln882h_ble_tracker::BLEEndOfScanTrigger\(\w+\)", main_cpp
+    )
 
     # Seven triggers register as listeners; an undercount silently drops the
     # last trigger at runtime (StaticVector::push_back past capacity), so the
