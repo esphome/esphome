@@ -250,11 +250,11 @@ class IncludeFile:
         Note: returns the cached mutable object on subsequent calls.
         Callers that need to modify the result should copy it first.
         """
-        from voluptuous import Invalid
-
         if self._content is not _UNSET:
             return self._content
         if self.has_unresolved_expressions():
+            from voluptuous import Invalid
+
             raise Invalid(
                 f"Cannot load include with unresolved substitutions: {self.file}"
             )

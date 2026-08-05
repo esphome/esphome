@@ -755,11 +755,6 @@ def _validate_tar_members(tar: tarfile.TarFile, target_dir: Path) -> None:
             )
 
 
-def is_bundle_path(path: Path) -> bool:
-    """Check if a path looks like a bundle file."""
-    return path.name.lower().endswith(BUNDLE_EXTENSION)
-
-
 def _add_bytes_to_tar(tar: tarfile.TarFile, name: str, data: bytes) -> None:
     """Add in-memory bytes to a tar archive with deterministic metadata."""
     info = tarfile.TarInfo(name=name)
