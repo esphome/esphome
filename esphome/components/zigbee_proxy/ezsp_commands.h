@@ -33,7 +33,14 @@ static constexpr uint16_t EZSP_NETWORK_INIT = 0x0017;            // Initialize n
 static constexpr uint16_t EZSP_NETWORK_STATE = 0x0018;           // Get network state
 static constexpr uint16_t EZSP_GET_EUI64 = 0x0026;               // Get IEEE address
 static constexpr uint16_t EZSP_GET_NETWORK_PARAMETERS = 0x0028;  // Get network parameters
-static constexpr uint16_t EZSP_LAUNCH_STANDALONE_BOOTLOADER = 0x008F;  // Reboot into the bootloader
+static constexpr uint16_t EZSP_SET_CONFIGURATION_VALUE = 0x0053;  // Set a stack config value
+
+// Stack configuration. CONFIG_STACK_PROFILE must be set to ZigBee PRO before
+// networkInit, or the NCP answers NOT_JOINED for a node that is in fact joined
+// and getNetworkParameters then fails, leaving PAN ID and channel unreadable.
+// The NCP boots with stack profile 0, so this is not optional.
+static constexpr uint8_t EZSP_CONFIG_STACK_PROFILE = 0x0C;
+static constexpr uint16_t STACK_PROFILE_ZIGBEE_PRO = 2;
 
 // EZSP Frame IDs - Callbacks (NCP to host, async)
 static constexpr uint16_t EZSP_STACK_STATUS_HANDLER = 0x0019;  // Stack status callback

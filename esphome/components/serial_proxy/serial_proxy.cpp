@@ -47,6 +47,7 @@ void SerialProxy::loop() {
       !api_is_connected()) {
     ESP_LOGW(TAG, "Subscriber disconnected");
     this->api_connection_ = nullptr;
+    this->parent_->release(this);
     this->disable_loop();
     return;
   }
@@ -126,17 +127,26 @@ void SerialProxy::configure(api::APIConnection *api_connection, uint32_t baudrat
     return;
   }
 
-  // Apply validated parameters
-  uart_comp->set_baud_rate(baudrate);
-  uart_comp->set_stop_bits(stop_bits);
-  uart_comp->set_data_bits(data_size);
-
-  // Map parity value to UARTParityOptions
+  // Skip a no-op reconfigure. Clients routinely re-send identical settings on every
+  // port open, and on a USB UART each apply is a CDC SET_LINE_CODING control transfer.
+  // Some bridges watch line-coding changes as a signalling channel (a magic baud
+  // sequence to enter a bootloader, say), so redundant applies are not harmless.
   static const uart::UARTParityOptions PARITY_MAP[] = {
       uart::UART_CONFIG_PARITY_NONE,
       uart::UART_CONFIG_PARITY_EVEN,
       uart::UART_CONFIG_PARITY_ODD,
   };
+  if (uart_comp->get_baud_rate() == baudrate && uart_comp->get_stop_bits() == stop_bits &&
+      uart_comp->get_data_bits() == data_size && uart_comp->get_parity() == PARITY_MAP[parity]) {
+    ESP_LOGV(TAG, "Settings unchanged, skipping reconfigure [%" PRIu32 "]", this->instance_index_);
+    return;
+  }
+
+  // Apply validated parameters
+  uart_comp->set_baud_rate(baudrate);
+  uart_comp->set_stop_bits(stop_bits);
+  uart_comp->set_data_bits(data_size);
+
   uart_comp->set_parity(PARITY_MAP[parity]);
 
   // load_settings() is available on ESP8266 and ESP32 platforms
@@ -218,6 +228,10 @@ void SerialProxy::serial_proxy_request(api::APIConnection *api_connection, api::
         ESP_LOGW(TAG, "Previous subscriber disconnected; taking over subscription");
       }
       this->api_connection_ = api_connection;
+      // Take the UART unconditionally. Another device may be bound to it (a protocol
+      // proxy over the same radio, say); raw serial access is the more explicit, more
+      // destructive operation -- typically a firmware update -- so it wins.
+      this->parent_->claim(this);
       this->enable_loop();
       ESP_LOGV(TAG, "API connection subscribed to serial proxy [%" PRIu32 "]", this->instance_index_);
       break;
@@ -227,6 +241,7 @@ void SerialProxy::serial_proxy_request(api::APIConnection *api_connection, api::
         return;
       }
       this->api_connection_ = nullptr;
+      this->parent_->release(this);
       this->disable_loop();
       ESP_LOGV(TAG, "API connection unsubscribed from serial proxy [%" PRIu32 "]", this->instance_index_);
       break;

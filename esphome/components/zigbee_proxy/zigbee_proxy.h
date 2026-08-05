@@ -53,6 +53,8 @@ enum class BootState : uint8_t {
   WAIT_VERSION,             // Waiting for version response
   SEND_GET_EUI64,           // Send getEui64 command
   WAIT_EUI64,               // Waiting for EUI64 response
+  SEND_STACK_PROFILE,       // Send setConfigurationValue(CONFIG_STACK_PROFILE)
+  WAIT_STACK_PROFILE,       // Waiting for setConfigurationValue response
   SEND_NETWORK_INIT,        // Send networkInit command
   WAIT_STACK_STATUS,        // Waiting for stackStatusHandler callback
   SEND_GET_NETWORK_PARAMS,  // Send getNetworkParameters command
@@ -155,6 +157,7 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   void handle_boot_data_frame_(const uint8_t *data, size_t length);
   void send_ezsp_version_();
   void send_get_eui64_();
+  void send_stack_profile_();
   void send_network_init_();
   void send_get_network_params_();
   void handle_version_response_(const uint8_t *data, size_t length);
@@ -169,19 +172,27 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   // WiFi/Zigbee channel conflict detection
   void check_wifi_zigbee_conflict_();
 
-  // Bootloader detection (fed consecutive raw byte pairs)
+  // Bootloader detection (fed consecutive raw byte pairs while not CONNECTED)
   void check_bootloader_mode_(uint8_t prev_byte, uint8_t byte);
-  // Raw NCP <-> client relay used while the NCP is in its bootloader
-  bool in_raw_relay_() const;
-  static bool is_launch_bootloader_command_(const uint8_t *payload, size_t length);
-  void queue_raw_to_client_(uint8_t byte);
-  void flush_raw_to_client_();
+
+  // True when this component should be driving the shared UART: nobody else holds a
+  // claim on it, and we have either a subscriber to serve or a boot harvest to finish.
+  bool should_own_uart_() const {
+    return !this->parent_->is_claimed_by_other(const_cast<ZigbeeProxy *>(this)) &&
+           (this->boot_sequence_active_ || this->api_connection_ != nullptr);
+  }
 
   // UART processing
   // Inline fast-path: UART::available() is cheap (ring-buffer head/tail compare on most
   // backends), so an idle loop tick skips the out-of-line drain entirely. When bytes are
   // pending the slow path drains with do/while so available() is checked once per byte.
   ESPHOME_ALWAYS_INLINE void process_uart_() {
+    // Checked here rather than only in loop(): on a USB UART the RX callback calls this
+    // directly from the USB component's loop, so a guard in loop() alone would still let
+    // us consume bytes belonging to whichever device holds the claim.
+    if (!this->owns_uart_ && !this->boot_sequence_active_) {
+      return;
+    }
     if (!this->available()) {
       return;
     }
@@ -299,9 +310,9 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   bool escape_next_byte_{false};         // True if next NCP byte should be unescaped
   bool client_escape_next_byte_{false};  // True if next client byte should be unescaped
   bool network_info_ready_{false};       // True when network info retrieved
+  bool owns_uart_{false};                // True while this component drives the UART
+  uint32_t configured_baud_rate_{0};     // Line rate to restore after another device
 
-  std::array<uint8_t, 128> raw_buffer_{};  // Bootloader relay batching buffer
-  size_t raw_buffer_index_{0};
   bool boot_sequence_active_{false};     // True during boot-time init
 };
 

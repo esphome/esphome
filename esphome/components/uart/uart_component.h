@@ -166,6 +166,26 @@ class UARTComponent {
   // @return Baud rate in bits per second.
   uint32_t get_baud_rate() const { return baud_rate_; }
 
+  /** Exclusive access for devices that share one bus.
+   *
+   * Several UARTDevices may be bound to the same UART while only one may drive it at a
+   * time -- a protocol-aware proxy and a raw serial proxy over the same radio, say. The
+   * claim is advisory: each device must check `is_claimed_by_other()` before reading or
+   * writing.
+   *
+   * Claiming is unconditional so a claimant is never blocked by a holder that went away
+   * without releasing (a client whose connection died silently, for instance). Callers
+   * that want to defer to a live holder must check before claiming.
+   */
+  void claim(void *owner) { this->exclusive_owner_ = owner; }
+  void release(void *owner) {
+    if (this->exclusive_owner_ == owner)
+      this->exclusive_owner_ = nullptr;
+  }
+  bool is_claimed_by_other(void *owner) const {
+    return this->exclusive_owner_ != nullptr && this->exclusive_owner_ != owner;
+  }
+
 #if defined(USE_ESP8266) || defined(USE_ESP32)
   /**
    * Load the UART settings.
@@ -210,6 +230,7 @@ class UARTComponent {
   size_t rx_full_threshold_{RX_FULL_THRESHOLD_UNSET};
   size_t rx_timeout_{0};
   uint32_t baud_rate_{0};
+  void *exclusive_owner_{nullptr};  // see claim()
   uint8_t stop_bits_{0};
   uint8_t data_bits_{0};
   UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};
