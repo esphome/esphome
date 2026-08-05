@@ -192,9 +192,8 @@ async def to_code(config: ConfigType) -> None:
 
     for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        if CONF_MAC_ADDRESS in conf:
-            addr_list = [it.as_hex for it in conf[CONF_MAC_ADDRESS]]
-            cg.add(trigger.set_addresses(addr_list))
+        if (macs := conf.get(CONF_MAC_ADDRESS)) is not None:
+            cg.add(trigger.set_addresses([it.as_hex for it in macs]))
         await automation.build_automation(trigger, [(ESPBTDeviceConstRef, "x")], conf)
         _count_listener()
 
@@ -216,8 +215,8 @@ async def to_code(config: ConfigType) -> None:
                 else ble_device_base.as_reversed_hex_array(uuid)
             )
             cg.add(getattr(trigger, f"{setter_prefix}{width}")(value))
-            if CONF_MAC_ADDRESS in conf:
-                cg.add(trigger.set_address(conf[CONF_MAC_ADDRESS].as_hex))
+            if (mac := conf.get(CONF_MAC_ADDRESS)) is not None:
+                cg.add(trigger.set_address(mac.as_hex))
             await automation.build_automation(
                 trigger, [(adv_data_t_const_ref, "x")], conf
             )

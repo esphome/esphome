@@ -22,7 +22,10 @@ void LN882HBLETracker::setup() {
   // Receive the controller's scan reports; the controller queues them from the
   // rw task and delivers here on the main task.
   this->parent_->register_scan_listener(this);
-  if (!this->scan_continuous_) {
+  // scan_running_ check: an on_boot start_scan action (priority 600) runs
+  // before this setup() (200) and enable_loop() is a no-op pre-setup — parking
+  // the loop here would strand that already-running scan.
+  if (!this->scan_continuous_ && !this->scan_running_) {
     // Say so once: with continuous: false nothing scans until an explicit
     // start_scan() — silence here reads as a broken scanner.
     ESP_LOGD(TAG, "Scanning not started (continuous: false) - waiting for an explicit start_scan()");
