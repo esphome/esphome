@@ -99,7 +99,6 @@ from esphome.schema_extractors import (
     schema_extractor_registry,
     schema_extractor_typed,
 )
-from esphome.util import parse_esphome_version
 from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import SensitiveStr, make_data_base
 
@@ -2612,13 +2611,30 @@ def require_framework_version(
     return validator
 
 
-def require_esphome_version(year, month, patch):
+def require_esphome_version(
+    year: Version | int, month: int | None = None, patch: int | None = None
+):
+    """Validator requiring at least the given ESPHome version.
+
+    Accepts a single ``Version`` like the sibling
+    ``require_framework_version``, or the legacy ``(year, month, patch)``
+    ints external components already pass.
+    """
+    if isinstance(year, Version):
+        required = year
+    elif month is None or patch is None:
+        raise ValueError(
+            "require_esphome_version needs a Version or (year, month, patch)"
+        )
+    else:
+        required = Version(year, month, patch)
+
     def validator(value):
-        esphome_version = parse_esphome_version()
-        if esphome_version < (year, month, patch):
-            requires_version = f"{year}.{month}.{patch}"
+        # A dev or beta build of the required version still satisfies it,
+        # matching the old tuple comparison that dropped the suffix.
+        if Version.parse(ESPHOME_VERSION) < required:
             raise Invalid(
-                f"This component requires at least ESPHome version {requires_version}"
+                f"This component requires at least ESPHome version {required}"
             )
         return value
 

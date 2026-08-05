@@ -29,6 +29,7 @@ from esphome.const import (
     CONF_BROKER,
     CONF_DEASSERT_RTS_DTR,
     CONF_DISABLED,
+    CONF_DISCOVER_IP,
     CONF_ESPHOME,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
@@ -48,6 +49,8 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     ENV_NOGITIGNORE,
+    KEY_ESP32,
+    KEY_VARIANT,
     SECRETS_FILES,
     Toolchain,
 )
@@ -485,8 +488,6 @@ def has_web_server_ota() -> bool:
 
 def has_mqtt_ip_lookup() -> bool:
     """Check if MQTT is available and IP lookup is supported."""
-    from esphome.components.mqtt import CONF_DISCOVER_IP
-
     if CONF_MQTT not in CORE.config:
         return False
     # Default Enabled
@@ -918,9 +919,10 @@ def upload_using_esptool(
 
     mcu = "esp8266"
     if CORE.is_esp32:
-        from esphome.components.esp32 import get_esp32_variant
-
-        mcu = get_esp32_variant().lower()
+        # Same lookup as esp32.get_esp32_variant(), read directly so the
+        # serial upload path does not import the esp32 package; both the
+        # validator and the warm-cache apply_to_core populate this key.
+        mcu = CORE.data[KEY_ESP32][KEY_VARIANT].lower()
 
     line_callbacks: list[Callable[[str], str | None]] = []
     if (
