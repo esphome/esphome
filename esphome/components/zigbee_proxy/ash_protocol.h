@@ -11,8 +11,23 @@ static constexpr uint8_t ASH_ESCAPE_BYTE = 0x7D;      // Escape/substitution byt
 static constexpr uint8_t ASH_XOR_BYTE = 0x20;         // XOR mask for escaped bytes
 static constexpr uint8_t ASH_SUBSTITUTE_BYTE = 0x18;  // Substitution for invalid bytes
 
-// Reserved bytes that must be escaped
-static constexpr uint8_t ASH_RESERVED_BYTES[] = {0x7E, 0x7D, 0x11, 0x13, 0x93, 0xA3};
+static constexpr uint8_t ASH_XON_BYTE = 0x11;     // Resume transmission
+static constexpr uint8_t ASH_XOFF_BYTE = 0x13;    // Pause transmission
+static constexpr uint8_t ASH_CANCEL_BYTE = 0x1A;  // Discards the partial frame before it
+
+// A reserved byte can never appear literally inside a frame; it is escaped as
+// ESCAPE followed by the byte XOR 0x20. Rejecting frames that contain one is what
+// eliminates most non-ASH traffic before its CRC is ever computed: real firmware
+// images and Spinel payloads are dense in 0x11/0x13/0x18/0x1A.
+inline bool ash_is_reserved(uint8_t byte) {
+  return byte == ASH_FLAG_BYTE || byte == ASH_ESCAPE_BYTE || byte == ASH_XON_BYTE || byte == ASH_XOFF_BYTE ||
+         byte == ASH_SUBSTITUTE_BYTE || byte == ASH_CANCEL_BYTE;
+}
+
+// CRC-CCITT (init 0xFFFF, polynomial 0x1021, transmitted big-endian). Note this is a
+// different variant from the Kermit FCS that Spinel/HDLC-lite uses over the same
+// 0x7E framing, so Spinel frames systematically fail this check.
+uint16_t ash_crc16(const uint8_t *data, size_t length, uint16_t init = 0xFFFF);
 
 // Buffer size configuration
 #ifdef ZIGBEE_PROXY_BUFFER_SIZE
@@ -31,10 +46,6 @@ static constexpr uint8_t ASH_TX_WINDOW_SIZE = 1;     // Only 1 unacknowledged fr
 static constexpr uint8_t ASH_MAX_RETRIES = 5;        // Maximum retransmission attempts
 static constexpr uint16_t ASH_CRC_INIT = 0xFFFF;     // CRC-CCITT initial value
 static constexpr uint32_t ASH_RESET_TIMEOUT = 3000;  // RST/RSTACK timeout in milliseconds
-
-// Client -> NCP queue depth: frames accepted while the single ASH TX window is occupied.
-// Overflow beyond this is NAKed to the client, which retransmits.
-static constexpr uint8_t NCP_TX_QUEUE_SIZE = 2;
 
 // IEEE address size
 static constexpr size_t ZIGBEE_IEEE_ADDR_SIZE = 8;  // 64-bit IEEE address

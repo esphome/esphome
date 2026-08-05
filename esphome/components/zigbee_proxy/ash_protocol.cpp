@@ -41,12 +41,16 @@ void ash_randomize(uint8_t *data, size_t length) {
   }
 }
 
-uint16_t ZigbeeProxy::calculate_crc_(const uint8_t *data, size_t length, uint16_t init) {
+uint16_t ash_crc16(const uint8_t *data, size_t length, uint16_t init) {
   uint16_t crc = init;
   for (size_t i = 0; i < length; i++) {
     crc = (crc << 8) ^ CRC_TABLE[(crc >> 8) ^ data[i]];
   }
   return crc;
+}
+
+uint16_t ZigbeeProxy::calculate_crc_(const uint8_t *data, size_t length, uint16_t init) {
+  return ash_crc16(data, length, init);
 }
 
 bool ZigbeeProxy::validate_frame_crc_() {
@@ -85,7 +89,6 @@ bool ZigbeeProxy::handle_ack_num_(uint8_t ack_num) {
   this->update_adaptive_timeout_(rtt);
   ESP_LOGV(TAG, "Frame %d acknowledged, RTT: %u ms", this->tx_pending_frame_num_, rtt);
   this->clear_tx_buffer_();
-  this->drain_ncp_tx_queue_();
   return true;
 }
 
@@ -157,13 +160,6 @@ void ZigbeeProxy::parse_control_byte_(uint8_t control) {
         return;
       }
 
-      // Backpressure: a client-bound frame is still waiting on API TX buffer space, so we
-      // cannot forward another one. Do not ACK or consume - the NCP will retransmit.
-      if (!this->boot_sequence_active_ && this->api_connection_ != nullptr && this->client_tx_pending_length_ > 0) {
-        ESP_LOGV(TAG, "Client TX pending, deferring DATA frame %d to NCP retransmit", frame_num);
-        return;
-      }
-
       // Increment RX sequence and send ACK (ack_num = next expected frame)
       this->increment_rx_sequence_();
       this->send_ack_frame_(this->rx_sequence_);
@@ -172,15 +168,12 @@ void ZigbeeProxy::parse_control_byte_(uint8_t control) {
       size_t payload_length = this->rx_buffer_index_ > 3 ? this->rx_buffer_index_ - 3 : 0;
       const uint8_t *payload = this->rx_buffer_.data() + 1;
 
-      // During boot sequence, route to boot handler. Frames consumed locally must
-      // be derandomized first; proxied frames below are passed through untouched
-      // so the client's own randomization survives end to end.
-      if (this->boot_sequence_active_ && payload_length > 0) {
+      // This path only runs during the boot harvest, where this component is the ASH
+      // endpoint and consumes frames itself, so they must be derandomized. A subscribed
+      // client is served by the transparent relay instead, which never reaches here.
+      if (payload_length > 0) {
         ash_randomize(this->rx_buffer_.data() + 1, payload_length);
         this->handle_boot_data_frame_(payload, payload_length);
-      } else if (this->api_connection_ != nullptr && payload_length > 0) {
-        // Forward EZSP payload to client via client-side ASH DATA frame
-        this->forward_ncp_data_to_client_(payload, payload_length);
       }
       break;
     }

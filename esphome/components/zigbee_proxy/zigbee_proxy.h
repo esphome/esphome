@@ -9,6 +9,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 #include "ash_protocol.h"
+#include "ash_detector.h"
 
 #include <array>
 
@@ -86,11 +87,6 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   const NetworkInfo &get_network_info() const { return this->network_info_; }
   uint64_t get_ieee_address() const;
 
-  // Send an EZSP payload to the NCP: transmits immediately when the ASH link is idle,
-  // otherwise queues it. Returns false if the link is down or the queue is full (caller
-  // should NAK the client so it retransmits).
-  bool send_frame(const uint8_t *data, size_t length);
-
   // Timeout configuration (callable from Python/API)
   void set_timeout_config(uint32_t initial_ms, uint32_t min_ms, uint32_t max_ms);
   void set_initial_timeout(uint32_t timeout_ms) { this->timeout_config_.initial_timeout_ms = timeout_ms; }
@@ -151,9 +147,6 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
     this->tx_retry_count_ = 0;
   }
 
-  // Client -> NCP pending frame queue (absorbs frames arriving while a TX is unacknowledged)
-  void drain_ncp_tx_queue_();
-
   // Boot-time NCP initialization
   void advance_boot_state_();
   void check_boot_timeouts_();
@@ -211,21 +204,15 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   void client_send_data_frame_(const uint8_t *data, size_t length);
   void client_send_error_frame_(uint8_t error_code);
   void client_send_raw_frame_(const uint8_t *frame, size_t length);
-  void client_reset_session_();
-
-  // Retry a client-bound DATA frame that failed to send (API TX buffer backpressure)
-  void try_send_pending_client_frame_();
-
-  // Send raw bytes to API client; returns false if the API TX buffer rejected the message
-  bool send_to_client_(const uint8_t *data, size_t length);
-
-  // Network info request/push (packed: ieee[8] + extended_pan[8] + pan_id[2] + channel[1], little-endian)
-  void send_network_info_response_(api::APIConnection *conn);
-
-  // Forward NCP frames to client
-  void forward_ncp_data_to_client_(const uint8_t *payload, size_t length);
-  void forward_ncp_rstack_to_client_(const uint8_t *data, size_t length);
-  void forward_ncp_error_to_client_(const uint8_t *data, size_t length);
+  // Transparent relay. NCP bytes are forwarded to the client verbatim and in bulk; the
+  // detector only observes them, so it never gates or delays forwarding.
+  void relay_ncp_byte_(uint8_t byte);
+  void relay_flush_();
+  // Reads network metadata out of a proxied getNetworkParameters response. Read-only, so a
+  // misparse costs a missed update rather than corrupting anything.
+  void sniff_network_info_(const uint8_t *frame, size_t length);
+  // Invalidates network metadata when the stack reports it has left the network.
+  void sniff_stack_status_(const uint8_t *frame, size_t length);
 
   // Pre-allocated message - always ready to send
   api::ZigbeeProxyFrame outgoing_proto_msg_;
@@ -236,16 +223,8 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   std::array<uint8_t, MAX_ASH_FRAME_SIZE> tx_pending_buffer_;  // For retransmission
 
   // Client-side (left) ASH buffers
-  std::array<uint8_t, MAX_ASH_FRAME_SIZE> client_rx_buffer_;
-  std::array<uint8_t, MAX_ASH_FRAME_SIZE> client_tx_buffer_;
 
   // Client -> NCP queue: EZSP payloads accepted while the ASH TX window is occupied
-  struct QueuedTxFrame {
-    uint16_t length;
-    std::array<uint8_t, MAX_ASH_FRAME_SIZE> data;
-  };
-  std::array<QueuedTxFrame, NCP_TX_QUEUE_SIZE> ncp_tx_queue_;
-
   // Network information
   NetworkInfo network_info_;
 
@@ -263,7 +242,6 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   uint32_t last_recovery_attempt_{0};  // Time of last automatic reset attempt from FAILED
 
   // Client-side (left) 32-bit values
-  uint32_t client_tx_pending_since_{0};  // Time the pending client frame first failed to send
 
   // NCP-side (right) 16-bit values
   uint16_t rx_buffer_index_{0};    // Index for populating rx_buffer_
@@ -271,8 +249,6 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   uint16_t calculated_crc_{0};     // CRC calculated during frame reception
 
   // Client-side (left) 16-bit values
-  uint16_t client_rx_buffer_index_{0};
-  uint16_t client_tx_pending_length_{0};  // >0: client_tx_buffer_ holds an unsent DATA frame
 
   // NCP-side (right) 8-bit values
   uint8_t tx_sequence_{0};           // TX sequence number (0-7)
@@ -280,13 +256,9 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   uint8_t tx_retry_count_{0};        // Number of retransmission attempts
   uint8_t tx_pending_frame_num_{0};  // Frame number of pending TX frame
   uint8_t last_ack_sent_{0};         // Last ACK number sent
-  uint8_t ncp_tx_queue_head_{0};     // Oldest entry in ncp_tx_queue_
-  uint8_t ncp_tx_queue_count_{0};    // Number of queued entries
   uint8_t last_rx_byte_{0};          // Previous raw RX byte (bootloader detection)
 
   // Client-side (left) 8-bit values
-  uint8_t client_tx_sequence_{0};  // Client-facing TX sequence (proxy → client)
-  uint8_t client_rx_sequence_{0};  // Client-facing RX sequence (client → proxy)
 
   // NCP-side enums and booleans
   AshState ash_state_{AshState::DISCONNECTED};
@@ -295,8 +267,6 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   BootState boot_state_{BootState::IDLE};
 
   // Client-side enums and booleans
-  AshState client_ash_state_{AshState::DISCONNECTED};
-  ParsingState client_parsing_state_{ParsingState::WAIT_FLAG_START};
 
   uint8_t ezsp_version_{0};            // NCP's EZSP protocol version
   uint8_t ezsp_sequence_{0};           // EZSP frame sequence number
@@ -308,12 +278,21 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
 
   bool tx_buffer_pending_{false};        // True if waiting for ACK from NCP
   bool escape_next_byte_{false};         // True if next NCP byte should be unescaped
-  bool client_escape_next_byte_{false};  // True if next client byte should be unescaped
   bool network_info_ready_{false};       // True when network info retrieved
   bool owns_uart_{false};                // True while this component drives the UART
   uint32_t configured_baud_rate_{0};     // Line rate to restore after another device
 
   bool boot_sequence_active_{false};  // True during boot-time init
+
+  // Decides when acknowledging on the client's behalf is safe. Armed only by the ASH
+  // session handshake, so a bootloader or Thread NCP never triggers it.
+  AshDetector detector_;
+
+  // Bytes staged for the client. Forwarding in bulk once per UART drain avoids an API
+  // message per byte; the size only bounds latency, not correctness.
+  static constexpr size_t RELAY_BUFFER_SIZE = 256;
+  uint8_t relay_buffer_[RELAY_BUFFER_SIZE];
+  size_t relay_length_{0};
 
   // RSTACKs still owed to us for resets we sent ourselves. A retry can put two RSTs on
   // the wire when the first RSTACK was only slow rather than lost, so the NCP answers

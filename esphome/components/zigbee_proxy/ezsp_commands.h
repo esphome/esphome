@@ -27,10 +27,17 @@ static constexpr uint8_t EZSP_FRAME_CONTROL_EXTENDED = 0x01;
 // NCP starts in legacy mode and has not yet learned the negotiated version.
 // Everything after that is extended, with no per-NCP exceptions.
 
+// EZSP Frame IDs - Callbacks (NCP to host, async)
+static constexpr uint16_t EZSP_STACK_STATUS_HANDLER = 0x0019;  // Stack up/down notification
+
 // EZSP Frame IDs - Commands (host to NCP)
-static constexpr uint16_t EZSP_VERSION = 0x0000;         // Version negotiation
-static constexpr uint16_t EZSP_GET_EUI64 = 0x0026;       // Get IEEE address
-static constexpr uint16_t EZSP_GET_TOKEN_DATA = 0x0102;  // Read an NVM3 token
+static constexpr uint16_t EZSP_VERSION = 0x0000;                 // Version negotiation
+static constexpr uint16_t EZSP_GET_EUI64 = 0x0026;               // Get IEEE address
+static constexpr uint16_t EZSP_GET_NETWORK_PARAMETERS = 0x0028;  // Get network parameters
+static constexpr uint16_t EZSP_GET_TOKEN_DATA = 0x0102;          // Read an NVM3 token
+
+// Extended EZSP header: [sequence] [frame_control_lo] [frame_control_hi] [id_lo] [id_hi]
+static constexpr size_t EZSP_EXTENDED_HEADER_SIZE = 5;
 
 // Network metadata comes straight out of NVM3 instead of from a running stack.
 // NVM3KEY_STACK_NODE_DATA holds the PAN ID, channel, extended PAN ID and node type of
@@ -44,7 +51,6 @@ static constexpr uint16_t EZSP_GET_TOKEN_DATA = 0x0102;  // Read an NVM3 token
 static constexpr uint32_t NVM3KEY_STACK_NODE_DATA = 0x0001EE64;
 
 // getTokenData response: [status (4)] [length (4)] [value (length)]
-static constexpr size_t TOKEN_DATA_LENGTH_OFFSET = 4;
 static constexpr size_t TOKEN_DATA_VALUE_OFFSET = 8;
 
 // NV3StackNodeData value layout (16 bytes, little-endian):
@@ -65,10 +71,18 @@ static constexpr uint8_t NV3_NODE_TYPE_UNKNOWN_DEVICE = 0x00;
 // legacy 8-bit EmberStatus.
 enum class SlStatus : uint8_t {
   OK = 0x00,
+  NETWORK_UP = 0x15,
+  NETWORK_DOWN = 0x16,
 };
 
-// sl_status_t is 32-bit little-endian on the wire, so a status field occupies
-// four bytes even though every code used here fits in the first one.
-static constexpr size_t SL_STATUS_SIZE = 4;
+// getNetworkParameters response layout, used when sniffing a client's own traffic. This
+// is a different shape from the NV3 token the boot harvest reads: 25 bytes of
+// [status (4)] [nodeType (1)] [extendedPanId (8)] [panId (2)] [radioTxPower (1)]
+// [radioChannel (1)] [joinMethod (1)] [nwkManagerId (2)] [nwkUpdateId (1)] [channels (4)]
+static constexpr size_t NETWORK_PARAMS_RESPONSE_SIZE = 25;
+static constexpr size_t NETWORK_PARAMS_STATUS_OFFSET = 0;
+static constexpr size_t NETWORK_PARAMS_EXT_PAN_ID_OFFSET = 5;
+static constexpr size_t NETWORK_PARAMS_PAN_ID_OFFSET = 13;
+static constexpr size_t NETWORK_PARAMS_CHANNEL_OFFSET = 16;
 
 }  // namespace esphome::zigbee_proxy

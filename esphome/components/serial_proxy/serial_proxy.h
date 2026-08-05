@@ -41,6 +41,29 @@ enum SerialProxyLineStateFlag : uint32_t {
 /// Maximum bytes to read from UART in a single loop iteration
 inline constexpr size_t SERIAL_PROXY_MAX_READ_SIZE = 256;
 
+#ifdef USE_SERIAL_PROXY_TAP
+/// Observes a port's traffic without owning it, and may inject bytes of its own.
+///
+/// This exists so protocol-aware behaviour can be layered onto a plain byte pipe without
+/// the pipe knowing anything about the protocol: the tap is compiled in only when some
+/// component asks for one, so a proxy carrying an RS485 meter pays nothing for it.
+///
+/// A tap is an observer, never a gatekeeper -- it cannot suppress or alter the bytes
+/// flowing in either direction, so a misbehaving tap cannot corrupt the stream.
+class SerialProxyTap {
+ public:
+  /// Bytes read from the device, before they are forwarded to any subscriber.
+  virtual void on_device_rx(const uint8_t *data, size_t len) = 0;
+
+  /// Bytes a subscriber sent towards the device, after they have been written.
+  virtual void on_client_tx(const uint8_t *data, size_t len) = 0;
+
+  /// True when the port must keep reading even with no subscriber attached, so a tap can
+  /// do its own protocol work while nobody is listening.
+  virtual bool tap_needs_port() const = 0;
+};
+#endif
+
 class SerialProxy final : public uart::UARTDevice, public Component {
  public:
   void setup() override;
@@ -103,9 +126,29 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// Set the DTR GPIO pin (from YAML configuration)
   void set_dtr_pin(GPIOPin *pin) { this->dtr_pin_ = pin; }
 
+#ifdef USE_SERIAL_PROXY_TAP
+  /// Attach a traffic observer. At most one, set once at setup time.
+  void set_tap(SerialProxyTap *tap) { this->tap_ = tap; }
+
+  /// Write bytes originating from the tap rather than from a client. Bypasses the
+  /// subscriber ownership check, since the tap is part of the device, not a client of it.
+  void write_from_tap(const uint8_t *data, size_t len) { this->write_array(data, len); }
+
+  /// Resume reading after a tap's needs change. loop() disables itself when there is
+  /// neither a subscriber nor a tap that wants the port, so a tap starting fresh work
+  /// must ask for it back.
+  void tap_request_port() { this->enable_loop(); }
+
+  /// Run one read-and-dispatch cycle immediately. Lets a tap make progress before the
+  /// main loop is running -- during setup, for instance, while a component is still
+  /// blocking on can_proceed().
+  void tap_pump();
+#endif
+
  protected:
 #ifdef USE_API
-  /// Read from UART and send to API client (slow path with 256-byte stack buffer)
+  /// Read from UART, hand the bytes to any tap, and forward them to a subscriber
+  /// (slow path with a 256-byte stack buffer)
   void read_and_send_(size_t available);
 
   /// True when a live subscriber other than the given connection holds the port
@@ -136,6 +179,10 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// Current modem pin states
   bool rts_state_{false};
   bool dtr_state_{false};
+
+#ifdef USE_SERIAL_PROXY_TAP
+  SerialProxyTap *tap_{nullptr};
+#endif
 };
 
 }  // namespace esphome::serial_proxy

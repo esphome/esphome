@@ -36,20 +36,27 @@ void SerialProxy::setup() {
 
 void SerialProxy::loop() {
 #ifdef USE_API
-  // Safety check — loop should only run when subscribed, but guard against races
-  if (this->api_connection_ == nullptr) [[unlikely]] {
-    this->disable_loop();
-    return;
-  }
-
   // Detect subscriber disconnect
-  if (this->api_connection_->is_marked_for_removal() || !this->api_connection_->is_connection_setup() ||
-      !api_is_connected()) {
+  if (this->api_connection_ != nullptr &&
+      (this->api_connection_->is_marked_for_removal() || !this->api_connection_->is_connection_setup() ||
+       !api_is_connected())) {
     ESP_LOGW(TAG, "Subscriber disconnected");
     this->api_connection_ = nullptr;
     this->parent_->release(this);
+  }
+
+  // With no subscriber there is normally nothing to do, but a tap may still need the port
+  // read -- it does its protocol work precisely while nobody else is listening.
+  if (this->api_connection_ == nullptr) [[unlikely]] {
+#ifdef USE_SERIAL_PROXY_TAP
+    if (this->tap_ == nullptr || !this->tap_->tap_needs_port()) {
+      this->disable_loop();
+      return;
+    }
+#else
     this->disable_loop();
     return;
+#endif
   }
 
   // Read available data from UART and forward to subscribed client
@@ -70,8 +77,30 @@ void __attribute__((noinline)) SerialProxy::read_and_send_(size_t available) {
   if (!this->read_array(buffer, to_read))
     return;
 
+#ifdef USE_SERIAL_PROXY_TAP
+  // Before forwarding, so a tap that answers the device (an acknowledgement, say) is not
+  // waiting on the network round trip to a subscriber that may not even exist.
+  if (this->tap_ != nullptr) {
+    this->tap_->on_device_rx(buffer, to_read);
+  }
+#endif
+
+  if (this->api_connection_ == nullptr) {
+    return;
+  }
   this->outgoing_msg_.set_data(buffer, to_read);
   this->api_connection_->send_serial_proxy_data(this->outgoing_msg_);
+}
+#endif
+
+#ifdef USE_SERIAL_PROXY_TAP
+void SerialProxy::tap_pump() {
+#ifdef USE_API
+  const size_t available = this->available();
+  if (available > 0) {
+    this->read_and_send_(available);
+  }
+#endif
 }
 #endif
 
@@ -171,6 +200,13 @@ void SerialProxy::write_from_client(api::APIConnection *api_connection, const ui
   if (data == nullptr || len == 0)
     return;
   this->write_array(data, len);
+
+#ifdef USE_SERIAL_PROXY_TAP
+  // After the write, so the tap observes the same ordering the device does
+  if (this->tap_ != nullptr) {
+    this->tap_->on_client_tx(data, len);
+  }
+#endif
 }
 
 void SerialProxy::set_modem_pins(api::APIConnection *api_connection, uint32_t line_states) {
