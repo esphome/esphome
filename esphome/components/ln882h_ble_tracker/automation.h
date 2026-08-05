@@ -10,9 +10,6 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
-#include <algorithm>
-#include <initializer_list>
-
 namespace esphome::ln882h_ble_tracker {
 
 template<typename... Ts> class StartScanAction final : public Action<Ts...>, public Parented<LN882HBLETracker> {
