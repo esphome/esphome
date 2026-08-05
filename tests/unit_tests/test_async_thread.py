@@ -65,20 +65,26 @@ def test_run_async_timeout() -> None:
     async def coro() -> None:
         await asyncio.get_running_loop().run_in_executor(None, release.wait)
 
+    before = _cleanup_threads()
     with pytest.raises(TimeoutError):
         run_async(coro, timeout=0.05)
 
     # Unblock the abandoned runner so its cleanup thread exits promptly.
     release.set()
+    _join_new_cleanup_threads(before)
 
 
 def test_run_async_surfaces_loop_startup_failure() -> None:
     """A failure before the coroutine runs raises instead of hanging."""
+
+    def failing_run(main: Any) -> None:
+        # Close the never-awaited coroutine so the test does not leave a
+        # RuntimeWarning attributed to whatever module GC runs in later.
+        main.close()
+        raise OSError("no fds for the event loop")
+
     with (
-        patch(
-            "esphome.async_thread.asyncio.run",
-            side_effect=OSError("no fds for the event loop"),
-        ),
+        patch("esphome.async_thread.asyncio.run", side_effect=failing_run),
         pytest.raises(OSError, match="no fds"),
     ):
         run_async(lambda: asyncio.sleep(0), timeout=5)
@@ -111,7 +117,7 @@ def test_run_preserves_result_when_cleanup_fails(
     assert runner.event.is_set()
     assert runner.exception is None
     assert runner.result == "ok"
-    assert "teardown failed after result delivered" in caplog.text
+    assert "teardown failed after outcome recorded" in caplog.text
 
 
 def test_run_async_none_result_is_success() -> None:

@@ -21,13 +21,16 @@ _LOGGER = logging.getLogger(__name__)
 class AsyncThreadRunner[T](threading.Thread):
     """Run an async coroutine in a daemon thread and expose its result.
 
-    The runner catches all exceptions from the coroutine and stores them in
-    ``exception`` so ``event`` is always set — this prevents callers waiting
-    on ``event`` from hanging forever when the coroutine crashes.
+    The runner captures ``BaseException`` from the coroutine and stores it
+    in ``exception`` so ``event`` is always set — this prevents callers
+    waiting on ``event`` from hanging forever when the coroutine crashes.
+    ``completed`` distinguishes a delivered result (even a legitimate
+    ``None``) from a coroutine that never finished.
 
     Prefer :func:`run_async` for the common start/wait/raise sequence; use
-    this class directly only when partial results are needed after a timeout
-    (see ``esphome/zeroconf.py``).
+    this class directly only when a timeout or failure should degrade to a
+    default value with a log message instead of raising (see
+    ``esphome/zeroconf.py``).
     """
 
     def __init__(self, coro_factory: Callable[[], Awaitable[T]]) -> None:
@@ -64,7 +67,7 @@ class AsyncThreadRunner[T](threading.Thread):
                 self.exception = exc
             else:
                 _LOGGER.debug(
-                    "Event loop teardown failed after result delivered",
+                    "Event loop teardown failed after outcome recorded",
                     exc_info=True,
                 )
         finally:
@@ -84,7 +87,8 @@ def run_async[T](
     thread is abandoned and exits with the interpreter). If ``on_orphan`` is
     given it is called with the result should the abandoned thread produce
     one after the timeout, so resources (e.g. a connected socket) can be
-    released instead of leaking.
+    released instead of leaking; a ``None`` result is skipped, since there
+    is nothing to release.
     """
     runner: AsyncThreadRunner[T] = AsyncThreadRunner(coro_factory)
     runner.start()

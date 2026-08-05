@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import socket
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from aioesphomeapi.core import ResolveAPIError, ResolveTimeoutAPIError
 from aioesphomeapi.host_resolver import AddrInfo, IPv4Sockaddr, IPv6Sockaddr
@@ -124,7 +124,7 @@ def test_async_resolver_thread_timeout() -> None:
     ):
         AsyncResolver(["test.local"], 6053).resolve()
 
-    mock_run.assert_called_once()
+    mock_run.assert_called_once_with(ANY, timeout=RESOLVE_TIMEOUT + 1.0)
 
 
 def test_async_resolver_ip_addresses(mock_addr_info_ipv4: AddrInfo) -> None:
