@@ -329,12 +329,14 @@ def _find_board_dir(zephyr_base: Path, board: str) -> Path | None:
     # Some HWMv2 board directories drop the vendor prefix from the dirname (e.g.
     # boards/adafruit/itsybitsy/ for board "adafruit_itsybitsy") even though the
     # board.yml "name:" field keeps the full name. Fall back to scanning board.yml
-    # files for a matching name when the direct dirname guess misses.
+    # files for a matching name when the direct dirname guess misses. Recursive
+    # (not just one level under the vendor dir): some vendors group boards under an
+    # extra category directory, e.g. Silicon Labs' boards/silabs/dev_kits/xg24_ek2703a/.
     if result is None:
         for boards_root in (root / "boards" for root in search_roots):
             if not boards_root.is_dir():
                 continue
-            for board_yml in boards_root.glob("*/*/board.yml"):
+            for board_yml in boards_root.glob("*/**/board.yml"):
                 try:
                     doc = yaml.safe_load(board_yml.read_text())
                 except (OSError, yaml.YAMLError):
@@ -582,6 +584,90 @@ def _extract_esp32_i2c_pins(text: str, bus_label: str) -> dict[str, int] | None:
         )
         return None
     return {"sda": int(sda_m.group(1)), "scl": int(scl_m.group(1))}
+
+
+def get_i2c_pinctrl_silabs(board: str, bus_label: str) -> dict[str, int] | None:
+    """Return default I2C SDA/SCL flat GPIO numbers for a Silicon Labs (silabs) board.
+
+    Same approach as get_i2c_pinctrl_esp32, but Silicon Labs' pinctrl macros are
+    lettered-port form ({BUS_LABEL}_SDA_P{PORT}{n}, e.g. I2C0_SDA_PC5) rather than
+    ESP32's flat GPIO{n} form. Returns {"sda": N, "scl": N} as flat GPIO numbers
+    (port * 16 + pin-within-port, matching gpio.py's lettered-port decoding), or
+    None when not found.
+    """
+    zd = CORE.data.get(KEY_ZEPHYR, {})
+    dts_base = zd.get("dts_base_path")
+    if not dts_base:
+        _LOGGER.debug("[zephyr] DTS base path not set; skipping pinctrl extraction")
+        return None
+
+    zephyr_base = Path(dts_base)
+    board_dir = _find_board_dir(zephyr_base, board)
+    if board_dir is None:
+        _LOGGER.debug("[zephyr] Board dir not found for '%s'", board)
+        return None
+
+    dts_file = _find_dts_file(board_dir, board)
+    if dts_file is None:
+        _LOGGER.debug("[zephyr] DTS file not found for '%s'", board)
+        return None
+
+    text = _read_dts_with_includes(dts_file, board_dir)
+    pins = _extract_silabs_i2c_pins(text, bus_label)
+    if pins is not None:
+        _LOGGER.debug(
+            "[zephyr] DTS pinctrl defaults for '%s' %s: SDA=%d SCL=%d",
+            board,
+            bus_label,
+            pins["sda"],
+            pins["scl"],
+        )
+    return pins
+
+
+def _extract_silabs_i2c_pins(text: str, bus_label: str) -> dict[str, int] | None:
+    """Extract SDA/SCL flat GPIO numbers from I2C{n}_SDA/SCL_P{port}{pin} macro names.
+
+    Scoped to the ``{bus_label}_default { ... }`` pinctrl node, same brace-matching
+    approach as _extract_esp32_i2c_pins.
+    """
+    node_start_re = re.compile(
+        rf"{re.escape(bus_label)}_default"
+        rf"(?:\s*:\s*{re.escape(bus_label)}_default)?\s*\{{",
+        re.DOTALL,
+    )
+    m = node_start_re.search(text)
+    if m is None:
+        _LOGGER.debug("[zephyr] No pinctrl node '%s_default' found", bus_label)
+        return None
+
+    start = m.end() - 1  # position of opening '{'
+    depth = 0
+    end = start
+    for i, ch in enumerate(text[start:], start):
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                end = i
+                break
+    node_text = text[start : end + 1]
+
+    prefix = bus_label.upper()
+    sda_m = re.search(rf"{prefix}_SDA_P([A-D])(\d+)", node_text)
+    scl_m = re.search(rf"{prefix}_SCL_P([A-D])(\d+)", node_text)
+    if sda_m is None or scl_m is None:
+        _LOGGER.debug(
+            "[zephyr] %s_SDA_P.../%s_SCL_P... not both found in '%s_default'",
+            prefix,
+            prefix,
+            bus_label,
+        )
+        return None
+    sda = (ord(sda_m.group(1)) - ord("A")) * 16 + int(sda_m.group(2))
+    scl = (ord(scl_m.group(1)) - ord("A")) * 16 + int(scl_m.group(2))
+    return {"sda": sda, "scl": scl}
 
 
 # ---------------------------------------------------------------------------

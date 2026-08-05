@@ -20,7 +20,7 @@
 // Threading model for static analysis. Match what the real codegen picks per
 // platform (see esphome/components/<platform>/__init__.py ThreadModel.*):
 //   USE_ESP8266 / USE_RP2 / USE_NRF52 / USE_ZEPHYR_VARIANT_FAMILY_ESP32 /
-//   USE_ZEPHYR_VARIANT_FAMILY_NORDIC → SINGLE
+//   USE_ZEPHYR_VARIANT_FAMILY_NORDIC / USE_ZEPHYR_VARIANT_FAMILY_SILABS → SINGLE
 //   USE_BK72XX (ARMv5TE, no LDREX/STREX) → MULTI_NO_ATOMICS
 //   everything else (ESP32, host, RTL87XX, LN882X, USE_ZEPHYR_VARIANT_NATIVE_SIM) →
 //   MULTI_ATOMICS -- native_sim simulates interrupts via host-level mechanisms, not
@@ -29,7 +29,7 @@
 // + MULTI_ATOMICS simultaneously, a combination that can never occur in a
 // real build.
 #if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_NRF52) || defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || \
-    defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC)
+    defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC) || defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS)
 #define ESPHOME_THREAD_SINGLE
 #elif defined(USE_BK72XX)
 #define ESPHOME_THREAD_MULTI_NO_ATOMICS
@@ -496,10 +496,11 @@
 #endif
 
 // Emitted for every platform: zephyr/nrf52 target with real watchdog hardware
-// (not native_sim). esp32-family and platform: zephyr's nordic-family variant
-// get a user-configurable value (zephyr: watchdog_timeout:); platform: nrf52
+// (not native_sim). esp32-family and platform: zephyr's nordic-family/silabs-family
+// variants get a user-configurable value (zephyr: watchdog_timeout:); platform: nrf52
 // gets a hardcoded one (longer when zigbee is loaded -- see nrf52/__init__.py).
-#if defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC) || defined(USE_NRF52)
+#if defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC) || \
+    defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) || defined(USE_NRF52)
 #define USE_ZEPHYR_WATCHDOG_TIMEOUT_MS 10000
 #endif
 
