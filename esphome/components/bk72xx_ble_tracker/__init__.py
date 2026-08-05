@@ -29,13 +29,11 @@ from esphome.const import (
     CONF_DURATION,
     CONF_ID,
     CONF_INTERVAL,
-    CONF_MAC_ADDRESS,
     CONF_MANUFACTURER_ID,
     CONF_ON_BLE_ADVERTISE,
     CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
     CONF_ON_BLE_SERVICE_DATA_ADVERTISE,
     CONF_SERVICE_UUID,
-    CONF_TRIGGER_ID,
 )
 from esphome.core import ID
 from esphome.types import ConfigType
@@ -70,12 +68,8 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(BK72xxBLETracker),
         cv.GenerateID(CONF_BK72XX_BLE_ID): cv.use_id(bk72xx_ble.BK72xxBLE),
         cv.Optional(CONF_SCAN_PARAMETERS, default={}): SCAN_PARAMETERS_SCHEMA,
-        # on_ble_advertise takes a list of addresses, not the single-mac filter.
-        cv.Optional(CONF_ON_BLE_ADVERTISE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ESPBTAdvertiseTrigger),
-                cv.Optional(CONF_MAC_ADDRESS): cv.ensure_list(cv.mac_address),
-            }
+        cv.Optional(CONF_ON_BLE_ADVERTISE): ble_automation.advertise_trigger_schema(
+            ESPBTAdvertiseTrigger
         ),
         cv.Optional(CONF_ON_BLE_SERVICE_DATA_ADVERTISE): ble_automation.trigger_schema(
             BLEServiceDataAdvertiseTrigger,
@@ -87,8 +81,8 @@ CONFIG_SCHEMA = cv.Schema(
             BLEManufacturerDataAdvertiseTrigger,
             {cv.Required(CONF_MANUFACTURER_ID): ble_device_base.bt_uuid},
         ),
-        cv.Optional(CONF_ON_SCAN_END): automation.validate_automation(
-            {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(BLEEndOfScanTrigger)}
+        cv.Optional(CONF_ON_SCAN_END): ble_automation.scan_end_trigger_schema(
+            BLEEndOfScanTrigger
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)

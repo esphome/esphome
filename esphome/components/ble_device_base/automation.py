@@ -65,6 +65,24 @@ def trigger_schema(trigger_class: MockObjClass, extra: dict[Any, Any] | None = N
     )
 
 
+def advertise_trigger_schema(trigger_class: MockObjClass):
+    """on_ble_advertise schema: multi-mac list filter, unlike the single-mac
+    trigger_schema() — lives here so it pairs with advertise_trigger_to_code()."""
+    return automation.validate_automation(
+        {
+            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(trigger_class),
+            cv.Optional(CONF_MAC_ADDRESS): cv.ensure_list(cv.mac_address),
+        }
+    )
+
+
+def scan_end_trigger_schema(trigger_class: MockObjClass):
+    """on_scan_end schema: id only — pairs with scan_end_trigger_to_code()."""
+    return automation.validate_automation(
+        {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(trigger_class)}
+    )
+
+
 # Triggers register as ble_device_base listeners in their constructors; count
 # them where they are created so no backend can undercount the StaticVector
 # (push_back past capacity drops silently). Shares the define with
