@@ -102,14 +102,12 @@ bool image_digest(const esp_partition_t *part, size_t image_padded_len, uint8_t 
 }
 
 // Verify one RSA-PSS-3072-SHA256 signature block over the image digest. The
-// block's modulus and signature are stored little-endian and reversed here.
-bool rsa_pss_verify(const uint8_t *block, const uint8_t *digest) {
-  uint8_t modulus_be[RSA_3072_BYTES];
-  uint8_t signature_be[RSA_3072_BYTES];
-  for (size_t i = 0; i < RSA_3072_BYTES; i++) {
-    modulus_be[i] = block[OFFSET_MODULUS + RSA_3072_BYTES - 1 - i];
-    signature_be[i] = block[OFFSET_SIGNATURE + RSA_3072_BYTES - 1 - i];
-  }
+// block's modulus and signature are stored little-endian; reverse them in place
+// -- block is the caller's scratch buffer, overwritten on the next iteration --
+// rather than stacking a second 384-byte copy of each bignum.
+bool rsa_pss_verify(uint8_t *block, const uint8_t *digest) {
+  std::reverse(block + OFFSET_MODULUS, block + OFFSET_MODULUS + RSA_3072_BYTES);
+  std::reverse(block + OFFSET_SIGNATURE, block + OFFSET_SIGNATURE + RSA_3072_BYTES);
   uint32_t exponent_le;
   memcpy(&exponent_le, block + OFFSET_EXPONENT, sizeof(exponent_le));
   uint8_t exponent_be[4] = {static_cast<uint8_t>(exponent_le >> 24), static_cast<uint8_t>(exponent_le >> 16),
@@ -117,11 +115,18 @@ bool rsa_pss_verify(const uint8_t *block, const uint8_t *digest) {
 
   mbedtls_rsa_context rsa;
   mbedtls_rsa_init(&rsa);
+  bool key_ok = mbedtls_rsa_import_raw(&rsa, block + OFFSET_MODULUS, RSA_3072_BYTES, nullptr, 0, nullptr, 0, nullptr, 0,
+                                       exponent_be, sizeof(exponent_be)) == 0 &&
+                mbedtls_rsa_complete(&rsa) == 0 &&
+                mbedtls_rsa_set_padding(&rsa, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA256) == 0;
   bool verified = false;
-  if (mbedtls_rsa_import_raw(&rsa, modulus_be, sizeof(modulus_be), nullptr, 0, nullptr, 0, nullptr, 0, exponent_be,
-                             sizeof(exponent_be)) == 0 &&
-      mbedtls_rsa_complete(&rsa) == 0 && mbedtls_rsa_set_padding(&rsa, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA256) == 0) {
-    verified = mbedtls_rsa_rsassa_pss_verify(&rsa, MBEDTLS_MD_SHA256, SHA256_BYTES, digest, signature_be) == 0;
+  if (!key_ok) {
+    // A setup/allocation failure (e.g. OOM right after the download) is not a
+    // signature mismatch -- log it distinctly so it isn't read as "wrong key".
+    ESP_LOGE(TAG, "Signature check: RSA key setup failed");
+  } else {
+    verified =
+        mbedtls_rsa_rsassa_pss_verify(&rsa, MBEDTLS_MD_SHA256, SHA256_BYTES, digest, block + OFFSET_SIGNATURE) == 0;
   }
   mbedtls_rsa_free(&rsa);
   return verified;
@@ -164,6 +169,7 @@ bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
       return false;
     }
     if (!block_is_valid(block)) {
+      ESP_LOGD(TAG, "Signature check: block %zu is absent or malformed", i);
       continue;
     }
     KeyDigest incoming_key;
@@ -172,13 +178,14 @@ bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
       return false;
     }
     bool trusted_key = false;
-    for (size_t t = 0; t < OTA_TRUSTED_KEY_COUNT; t++) {
-      if (memcmp(incoming_key.data(), TRUSTED_KEY_DIGESTS[t], SHA256_BYTES) == 0) {
+    for (const auto &trusted : TRUSTED_KEY_DIGESTS) {
+      if (memcmp(incoming_key.data(), trusted, SHA256_BYTES) == 0) {
         trusted_key = true;
         break;
       }
     }
     if (!trusted_key) {
+      ESP_LOGW(TAG, "Signature check: block %zu is signed by an untrusted key", i);
       continue;
     }
     if (rsa_pss_verify(block, digest)) {

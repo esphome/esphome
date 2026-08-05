@@ -867,6 +867,26 @@ def test_sbv2_rsa_key_digest_known_answer() -> None:
     )
 
 
+def test_validate_trusted_key_hex_forms() -> None:
+    """The digest-input branch: the same key as an uppercase 64-hex digest
+    normalizes to the PEM-derived value (the two forms are interchangeable), and
+    a mangled digest fails clearly instead of as a missing file.
+    """
+    from esphome.components.esp32 import _sbv2_rsa_key_digest, _validate_trusted_key
+
+    key = (
+        Path(__file__).parent.parent.parent
+        / "components"
+        / "esp32"
+        / "dummy_signing_key.pem"
+    )
+    pem_digest = _sbv2_rsa_key_digest(key).hex()
+    assert _validate_trusted_key(pem_digest.upper()) == pem_digest
+    for bad in (pem_digest[:-1], "0x" + pem_digest):
+        with pytest.raises(cv.Invalid, match="64 hex"):
+            _validate_trusted_key(bad)
+
+
 @pytest.mark.parametrize(
     ("value", "expected"),
     [

@@ -1214,14 +1214,24 @@ def _sbv2_rsa_key_digest(path: Path) -> bytes:
     return hashlib.sha256(blob).digest()
 
 
-def _validate_trusted_key(value):
+def _validate_trusted_key(value: str) -> str:
     """Normalize a trusted key to its 64-hex-char signature-block digest.
 
     Accepts either the digest directly (so CI can inject it without shipping a
     key file) or a PEM key file whose digest is computed here.
     """
-    if isinstance(value, str) and re.fullmatch(r"[0-9A-Fa-f]{64}", value.strip()):
-        return value.strip().lower()
+    if isinstance(value, str):
+        stripped = value.strip()
+        if re.fullmatch(r"[0-9A-Fa-f]{64}", stripped):
+            return stripped.lower()
+        # An all-hex value that isn't exactly 64 chars is a mangled digest, not a
+        # path: a truncated or 0x-prefixed CI variable would otherwise fall
+        # through and fail as "file not found", pointing at the wrong problem.
+        if re.fullmatch(r"(?:0x)?[0-9A-Fa-f]+", stripped):
+            raise cv.Invalid(
+                f"'{stripped}' looks like a key digest but must be exactly 64 hex "
+                f"characters (a SHA-256, no '0x' prefix); check for truncation."
+            )
     return _sbv2_rsa_key_digest(cv.file_(value)).hex()
 
 
