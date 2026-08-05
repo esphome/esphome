@@ -382,6 +382,13 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   ModbusController *controller_{nullptr};
 };
 
+/// Whether an offline probe is due this update cycle: every offline_skip_updates + 1 cycles,
+/// anchored at the cycle the device went offline. Pure so the cadence (including update_counter
+/// wraparound) can be unit tested; used by ModbusController::update().
+inline bool offline_retry_due(uint16_t update_counter, uint16_t module_offline_at, uint16_t offline_skip_updates) {
+  return static_cast<uint16_t>(update_counter + 1 - module_offline_at) % (offline_skip_updates + 1) == 0;
+}
+
 /** Modbus controller class.
  *   Each instance handles the modbus commuinication for all sensors with the same modbus address
  *

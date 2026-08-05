@@ -182,27 +182,29 @@ void ModbusController::update_range_(ModbusCommandItem &cmd) {
     ESP_LOGVV(TAG, "Skipping update for range 0x%X", cmd.register_address());
     return;
   }
-  cmd.send();
+  // A refusal is already logged by the hub; note the affected range for controller-level diagnostics.
+  if (!cmd.send())
+    ESP_LOGD(TAG, "Poll refused by hub for range 0x%X", cmd.register_address());
 }
 
 void ModbusController::update() {
   this->sweep_completed_one_shots_();  // reclaim one-shots deferred out of their own callbacks
   if (this->module_offline_) {
-    if (static_cast<uint16_t>(this->update_counter_ + 1 - this->module_offline_at_) %
-            (this->offline_skip_updates_ + 1) !=
-        0) {
-      ESP_LOGV(TAG, "Module offline - skipping update");
-    } else {  // time to try the device again
-      // Only arm the retry when a range is actually due this cycle; an unconsumed grant would let
-      // later cycles poll at full rate, bypassing offline_skip_updates.
+    // Offline probing follows the offline cadence alone; per-range skip_updates resumes once the
+    // device is back online. Requiring both cadences to coincide would leave phase combinations
+    // where a probe never goes out.
+    if (offline_retry_due(this->update_counter_, this->module_offline_at_, this->offline_skip_updates_)) {
+      ESP_LOGV(TAG, "Module offline - retrying");
+      this->cmd_non_responses_ = 0;  // allow the probe through can_send()
       for (auto &cmd : this->polling_command_items_) {
-        if (this->update_counter_ % (cmd.skip_updates + 1) == 0) {
-          ESP_LOGV(TAG, "Module offline - retrying");
-          this->cmd_non_responses_ = 0;  // allow a retry attempt through can_send()
-          break;
-        }
+        if (!cmd.send())
+          ESP_LOGD(TAG, "Probe refused by hub for range 0x%X", cmd.register_address());
       }
+    } else {
+      ESP_LOGV(TAG, "Module offline - skipping update");
     }
+    this->update_counter_++;
+    return;
   }
 
   if (this->can_send()) {
@@ -337,6 +339,9 @@ void ModbusController::create_polling_commands_() {
     ESP_LOGV(TAG, "Add last range 0x%X %d skip:%d", r.start_address, r.register_count, r.skip_updates);
     this->create_polling_command_(std::move(r));
   }
+  // Reclaim growth slack; safe here because nothing has registered with the hub yet (see the
+  // lifetime note on polling_command_items_).
+  this->polling_command_items_.shrink_to_fit();
 }
 
 void ModbusController::dump_config() {
