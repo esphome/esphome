@@ -140,6 +140,7 @@ class LN882HBLETracker : public Component,
   uint16_t scan_window_{80};     // 80 × 0.625 ms = 50 ms (SDK SCAN_WINDOW_DEF; 50/100 = 50 %)
   uint32_t scan_duration_{300000};
   bool scan_continuous_{true};
+  bool pending_start_{false};              // start_scan() latched before the controller's setup()
   bool scan_continuous_configured_{true};  // YAML value; stop_scan() must not lose it
 #ifdef USE_OTA_STATE_LISTENER
   bool scan_continuous_before_ota_{false};  // continuous mode saved at OTA start, restored on OTA failure

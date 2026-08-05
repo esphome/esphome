@@ -25,7 +25,7 @@ void LN882HBLETracker::setup() {
   // scan_running_ check: an on_boot start_scan action (priority 600) runs
   // before this setup() (200) and enable_loop() is a no-op pre-setup — parking
   // the loop here would strand that already-running scan.
-  if (!this->scan_continuous_ && !this->scan_running_) {
+  if (!this->scan_continuous_ && !this->scan_running_ && !this->pending_start_) {
     // Say so once: with continuous: false nothing scans until an explicit
     // start_scan() — silence here reads as a broken scanner.
     ESP_LOGD(TAG, "Scanning not started (continuous: false) - waiting for an explicit start_scan()");
@@ -64,6 +64,14 @@ void LN882HBLETracker::on_ota_global_state(ota::OTAState state, float progress, 
 #endif  // USE_OTA_STATE_LISTENER
 
 void LN882HBLETracker::loop() {
+  if (this->pending_start_) {
+    // A start_scan latched before the controller's setup(); safe now — loop()
+    // only runs after every component set up.
+    this->pending_start_ = false;
+    if (!this->scan_running_) {
+      this->start_scan_();
+    }
+  }
   // Flush pending scannable advertisements whose scan response never arrived
   // (device didn't answer / frame lost) — delivered unmerged after the timeout.
   // Main-task only, like every consumer of pending_adv_.
@@ -266,6 +274,14 @@ void LN882HBLETracker::process_adv_(const uint8_t *mac, int8_t rssi, uint8_t add
 void LN882HBLETracker::start_scan() {
   // Mirrors esp32_ble_tracker::start_scan(): caller sets scan_continuous_ via
   // set_scan_continuous() first, then calls start_scan() to begin scanning.
+  if (!this->parent_->is_ready()) {
+    // An on_boot automation (priority 600) runs before the controller's
+    // setup() has resolved the BLE MAC; scan_start() now would rw_init() the
+    // all-zero address and bring BLE up before WiFi. Latch; loop() applies
+    // the start once every setup() has run.
+    this->pending_start_ = true;
+    return;
+  }
   if (!this->scan_running_) {
     this->start_scan_();
   }
