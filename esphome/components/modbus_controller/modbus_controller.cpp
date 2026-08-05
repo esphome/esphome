@@ -38,7 +38,7 @@ void ModbusControllerDevice::set_controller_(ModbusController *controller) {
 
 void ModbusControllerDevice::notify_online_(std::span<const uint8_t> request_pdu) {
   if (this->controller_ != nullptr)
-    this->controller_->set_online(true, fc_of_(request_pdu), addr_of_(request_pdu));
+    this->controller_->set_online(true, fc_of(request_pdu), addr_of(request_pdu));
 }
 
 bool ModbusControllerDevice::note_no_response_(std::span<const uint8_t> request_pdu) {
@@ -47,7 +47,7 @@ bool ModbusControllerDevice::note_no_response_(std::span<const uint8_t> request_
   this->controller_->increment_non_response_count();
   if (this->controller_->can_send())
     return true;  // the hub re-queues the frame it is holding; on_sent fires again on the retry
-  this->controller_->set_online(false, fc_of_(request_pdu), addr_of_(request_pdu));
+  this->controller_->set_online(false, fc_of(request_pdu), addr_of(request_pdu));
   return false;
 }
 
@@ -56,8 +56,8 @@ void ModbusControllerDevice::on_response(std::span<const uint8_t> request_pdu, s
 }
 
 void ModbusControllerDevice::on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) {
-  ESP_LOGE(TAG, "Modbus error function code: 0x%X register 0x%X exception: %d", fc_of_(request_pdu),
-           addr_of_(request_pdu), static_cast<uint8_t>(exception_code));
+  ESP_LOGE(TAG, "Modbus error function code: 0x%X register 0x%X exception: %d", fc_of(request_pdu),
+           addr_of(request_pdu), static_cast<uint8_t>(exception_code));
   this->notify_online_(request_pdu);  // an exception is still a legitimate reply -> device is online
 }
 
@@ -65,7 +65,7 @@ void ModbusControllerDevice::on_error(std::span<const uint8_t> request_pdu, modb
 // reflects when the frame actually went out, not when it was queued. Decoded from the request PDU.
 void ModbusControllerDevice::on_sent(std::span<const uint8_t> request_pdu) {
   if (this->controller_ != nullptr)
-    this->controller_->command_sent(fc_of_(request_pdu), addr_of_(request_pdu));
+    this->controller_->command_sent(fc_of(request_pdu), addr_of(request_pdu));
 }
 
 bool ModbusControllerDevice::on_no_response(std::span<const uint8_t> request_pdu) {
