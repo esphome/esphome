@@ -299,6 +299,9 @@ void LN882HBLETracker::restart_scan_duration() {
 }
 
 void LN882HBLETracker::stop_scan() {
+  // Cancel a start latched before the controller's setup(); without this an
+  // on_boot start_scan/stop_scan pair would still start at the first loop().
+  this->pending_start_ = false;
   this->scan_continuous_ = false;
   this->stop_scan_();
 }

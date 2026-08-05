@@ -4,6 +4,7 @@ test.ln882x-ard.yaml compile fixture proves linkage, not codegen shape)."""
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 
 from esphome.components import ble_device_base
 from tests.component_tests.helpers import get_define_value
@@ -39,7 +40,9 @@ def test_trigger_codegen(
     assert main_cpp.count("->set_continuous(") == 1
     assert "startscanaction_id->set_continuous(" in main_cpp
     assert "stopscanaction_id->set_parent(" in main_cpp
-    assert "bleendofscantrigger" in main_cpp.lower()
+    # Constructor call, not just the declaration: the parent argument is what
+    # registers the trigger as a listener.
+    assert re.search(r"new\(\w+\) ln882h_ble_tracker::BLEEndOfScanTrigger\(\w+\)", main_cpp)
 
     # Seven triggers register as listeners; an undercount silently drops the
     # last trigger at runtime (StaticVector::push_back past capacity), so the
