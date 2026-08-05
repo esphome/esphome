@@ -174,7 +174,7 @@ class ESPBTDevice {
   /// Return MAC as "XX:XX:XX:XX:XX:XX" string.
   ESPDEPRECATED("Use address_str_to() instead. Removed in 2027.2.0.", "2026.8.0")
   std::string address_str() const;
-  /// Writes "XX:XX:XX:XX:XX:XX\0" into buf (>= 18 bytes), returns buf.
+  /// Writes "XX:XX:XX:XX:XX:XX\0" into buf (>= MAC_ADDRESS_PRETTY_BUFFER_SIZE bytes), returns buf.
   const char *address_str_to(char *buf) const;
 #if defined(__cpp_lib_span)
   const char *address_str_to(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) const {
