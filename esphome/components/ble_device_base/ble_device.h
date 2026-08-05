@@ -91,7 +91,9 @@ class ESPBTUUID {
 #if defined(__cpp_lib_span)
   const char *to_str(std::span<char, UUID_STR_LEN> output) const { return this->to_str(output.data()); }
 #endif
-  enum class Type : uint8_t { UUID16, UUID32, UUID128 };
+  // UNSET is the default-constructed state; get_uuid() reports it as len 0,
+  // the historical esp32_ble sentinel for "no UUID configured".
+  enum class Type : uint8_t { UNSET, UUID16, UUID32, UUID128 };
   Type type() const { return this->type_; }
   uint16_t uuid16() const { return this->uuid_.uuid16; }
   uint32_t uuid32() const { return this->uuid_.uuid32; }
@@ -101,7 +103,7 @@ class ESPBTUUID {
   // Expand to the 128-bit Bluetooth Base UUID byte form (out is 16 bytes, little-endian).
   void to_128bit_(uint8_t out[16]) const;
 
-  Type type_{Type::UUID16};
+  Type type_{Type::UNSET};
   union {
     uint16_t uuid16;
     uint32_t uuid32;
@@ -172,9 +174,8 @@ class ESPBTDevice {
   static constexpr size_t MAC_ADDRESS_PRETTY_BUFFER_SIZE = esphome::MAC_ADDRESS_PRETTY_BUFFER_SIZE;
 
   /// Return MAC as "XX:XX:XX:XX:XX:XX" string.
-  ESPDEPRECATED("Use address_str_to() instead. Removed in 2027.2.0.", "2026.8.0")
   std::string address_str() const;
-  /// Writes "XX:XX:XX:XX:XX:XX\0" into buf (>= MAC_ADDRESS_PRETTY_BUFFER_SIZE bytes), returns buf.
+  /// Buffer overload: writes "XX:XX:XX:XX:XX:XX\0" into buf (>= 18 bytes), returns buf.
   const char *address_str_to(char *buf) const;
 #if defined(__cpp_lib_span)
   const char *address_str_to(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) const {

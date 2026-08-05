@@ -27,6 +27,22 @@ TEST(BleDeviceUuid, ThirtyTwoBitMatchesEquivalentLongForm) {
   EXPECT_TRUE(u32 == u128);
 }
 
+// A default-constructed UUID is UNSET, the historical esp32_ble "not configured" sentinel
+// (get_uuid() reports it as len 0 on esp32). It must stay distinguishable from real UUIDs
+// so optional-UUID checks like ble_client's descriptor_uuid keep working.
+TEST(BleDeviceUuid, DefaultConstructedIsUnset) {
+  const ESPBTUUID unset;
+  EXPECT_EQ(unset.type(), ESPBTUUID::Type::UNSET);
+  EXPECT_TRUE(unset == ESPBTUUID());
+  EXPECT_FALSE(unset == ESPBTUUID::from_uint16(0x1234));
+  EXPECT_FALSE(unset.contains(0x00, 0x00));
+}
+
+// Text parsing of an invalid length historically produced a len-0 (unset) UUID.
+TEST(BleDeviceUuid, InvalidTextFormParsesToUnset) {
+  EXPECT_EQ(ESPBTUUID::from_raw("nope", 3).type(), ESPBTUUID::Type::UNSET);
+}
+
 TEST(BleDeviceUuid, DifferentUuidsDoNotMatch) {
   EXPECT_FALSE(ESPBTUUID::from_uint16(0x1234) == ESPBTUUID::from_uint16(0x1235));
   const uint8_t raw128[16] = {0xFB, 0x34, 0x9B, 0x5F, 0x80, 0x00, 0x00, 0x80,

@@ -32,7 +32,7 @@ class BLETextSensor : public text_sensor::TextSensor, public PollingComponent, p
   uint16_t handle;
 
  protected:
-  void set_descr_uuid_(espbt::ESPBTUUID uuid) {
+  void set_descr_uuid_(const espbt::ESPBTUUID &uuid) {
     this->descr_uuid_ = uuid;
     this->has_descr_ = true;
   }

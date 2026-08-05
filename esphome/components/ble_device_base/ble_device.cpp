@@ -108,6 +108,10 @@ ESPBTUUID ESPBTUUID::from_uuid(esp_bt_uuid_t uuid) {
 esp_bt_uuid_t ESPBTUUID::get_uuid() const {
   esp_bt_uuid_t ret;
   switch (this->type_) {
+    case Type::UNSET:
+      ret.len = 0;
+      ret.uuid.uuid16 = 0;
+      break;
     case Type::UUID16:
       ret.len = ESP_UUID_LEN_16;
       ret.uuid.uuid16 = this->uuid_.uuid16;
@@ -129,7 +133,7 @@ void ESPBTDevice::parse_scan_rst(const esp32_ble::BLEScanResult &scan_result) {
   this->scan_result_ = &scan_result;
   // BLEScanResult's bda is most-significant octet first; the neutral ingest
   // takes the BLE controller (LSB-first) order, so reverse — address_uint64()/
-  // address_str_to() then produce exactly the historical esp32 values.
+  // address_str() then produce exactly the historical esp32 values.
   uint8_t mac_lsb_first[6];
   for (uint8_t i = 0; i < 6; i++)
     mac_lsb_first[i] = scan_result.bda[5 - i];
@@ -149,6 +153,8 @@ ESPBTUUID ESPBTUUID::as_128bit() const {
 bool ESPBTUUID::contains(uint8_t data1, uint8_t data2) const {
   // Adjacent byte-pair search — identical semantics to esp32_ble::ESPBTUUID::contains.
   switch (this->type_) {
+    case Type::UNSET:
+      return false;
     case Type::UUID16:
       return (this->uuid_.uuid16 >> 8) == data2 && (this->uuid_.uuid16 & 0xFF) == data1;
     case Type::UUID32:
@@ -223,6 +229,8 @@ void ESPBTUUID::to_128bit_(uint8_t out[16]) const {
 bool ESPBTUUID::operator==(const ESPBTUUID &other) const {
   if (this->type_ == other.type_) {
     switch (this->type_) {
+      case Type::UNSET:
+        return true;
       case Type::UUID16:
         return this->uuid_.uuid16 == other.uuid_.uuid16;
       case Type::UUID32:
@@ -346,7 +354,6 @@ void ESPBTDevice::from_scan_result(const uint8_t *mac, int rssi, uint8_t addr_ty
 #endif  // ESPHOME_LOG_HAS_VERY_VERBOSE
 }
 
-// Remove before 2027.2.0
 std::string ESPBTDevice::address_str() const {
   char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   return std::string(this->address_str_to(buf));
