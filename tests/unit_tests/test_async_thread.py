@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import threading
-import time
 from typing import Any
 from unittest.mock import patch
 
@@ -185,18 +184,14 @@ def test_run_async_on_orphan_failure_is_contained(
         await asyncio.get_running_loop().run_in_executor(None, release.wait)
         return "late result"
 
+    before = _cleanup_threads()
     with caplog.at_level("DEBUG", logger="esphome.async_thread"):
         with pytest.raises(TimeoutError):
             run_async(coro, timeout=0.01, on_orphan=on_orphan)
 
         release.set()
         assert released.wait(5)
-        deadline = time.monotonic() + 5
-        while (
-            "Error releasing orphaned result" not in caplog.text
-            and time.monotonic() < deadline
-        ):
-            time.sleep(0.01)
+        _join_new_cleanup_threads(before)
         assert "Error releasing orphaned result" in caplog.text
 
 
@@ -217,11 +212,13 @@ def test_run_async_on_orphan_releases_late_result() -> None:
         await asyncio.get_running_loop().run_in_executor(None, release.wait)
         return "late result"
 
+    before = _cleanup_threads()
     with pytest.raises(TimeoutError):
         run_async(coro, timeout=0.01, on_orphan=on_orphan)
 
     release.set()
     assert delivered.wait(5)
+    _join_new_cleanup_threads(before)
     assert orphaned == ["late result"]
 
 
@@ -246,3 +243,17 @@ def test_run_async_on_orphan_skips_late_failure() -> None:
     assert failed.wait(5)
     _join_new_cleanup_threads(before)
     assert not orphaned
+
+
+def test_run_async_detects_missing_outcome() -> None:
+    """A run that records neither result nor exception raises loudly."""
+
+    def fake_run(main: Any) -> None:
+        # Simulate a loop that silently dropped the coroutine.
+        main.close()
+
+    with (
+        patch("esphome.async_thread.asyncio.run", side_effect=fake_run),
+        pytest.raises(RuntimeError, match="without a result"),
+    ):
+        run_async(lambda: asyncio.sleep(0), timeout=5)

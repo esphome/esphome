@@ -99,9 +99,17 @@ def run_async[T](
             if not runner.completed:
                 # The only place an abandoned thread's real error surfaces;
                 # without it a late failure hides behind the TimeoutError.
-                _LOGGER.debug("Abandoned async operation failed: %s", runner.exception)
+                # INFO, not DEBUG: it fires at most once per abandoned
+                # operation and the cause may not reproduce on a rerun.
+                _LOGGER.info(
+                    "Abandoned async operation failed",
+                    exc_info=runner.exception,
+                )
                 return
-            if on_orphan is None or (result := runner.result) is None:
+            if on_orphan is None:
+                _LOGGER.debug("Discarding late result; no on_orphan handler")
+                return
+            if (result := runner.result) is None:
                 return
             try:
                 on_orphan(result)
@@ -114,4 +122,6 @@ def run_async[T](
         raise TimeoutError("Timed out waiting for async operation")
     if (exc := runner.exception) is not None:
         raise exc
+    if not runner.completed:
+        raise RuntimeError("Async operation finished without a result or an exception")
     return cast("T", runner.result)
