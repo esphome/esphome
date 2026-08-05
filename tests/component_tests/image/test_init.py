@@ -346,6 +346,24 @@ def test_migrate_legacy_warns_and_prepends_platform(
         ),
         pytest.param({"foo": 1}, False, id="dict_unknown_keys"),
         pytest.param("a string", False, id="scalar"),
+        # A dict already tagged with `platform:` is the new format written
+        # without its list brackets, not a legacy shape -- even though it also
+        # happens to contain a `defaults:`/`images:`/type key that would
+        # otherwise look legacy.
+        pytest.param(
+            {CONF_PLATFORM: "file", "id": "a", "file": "x.png"},
+            False,
+            id="platform_tagged_flat_dict",
+        ),
+        pytest.param(
+            {
+                CONF_PLATFORM: "file",
+                "defaults": {"type": "rgb565"},
+                "files": [{"id": "a", "file": "x.png"}],
+            },
+            False,
+            id="platform_tagged_defaults_files_dict",
+        ),
     ],
 )
 def test_is_legacy_image_format(config: object, expected: bool) -> None:
@@ -369,6 +387,20 @@ def test_migrate_returns_none_for_invalid_legacy_shapes(
     with caplog.at_level(logging.WARNING):
         assert _migrate_legacy_image_config(config) is None
     assert "deprecated" not in caplog.text
+
+
+def test_migrate_returns_none_for_mapping_form_defaults_files() -> None:
+    """A single `platform:`-tagged entry using the new `defaults:`/`files:`
+    shape, written as a bare mapping instead of a one-item list, must not be
+    swallowed by the legacy migrator -- that previously emptied it to `image: []`
+    with a bogus deprecation warning instead of leaving it for the normal
+    list-wrapping + EXPAND_PLATFORM_CONFIG path to handle."""
+    config = {
+        CONF_PLATFORM: "file",
+        "defaults": {"type": "rgb565"},
+        "files": [{"id": "a", "file": "a.png"}],
+    }
+    assert _migrate_legacy_image_config(config) is None
 
 
 # --------------------------- end legacy migration --------------------------
@@ -454,11 +486,51 @@ def test_expand_platform_entry_keeps_byte_order_for_endian_override() -> None:
     assert out["byte_order"] == "big_endian"
 
 
+def test_expand_platform_entry_keeps_explicit_byte_order_conflict() -> None:
+    """A `byte_order` the user wrote directly on a file entry (not inherited
+    from `defaults:`) must not be silently dropped even when the type on that
+    same entry doesn't support it -- unlike the inherited-from-defaults case,
+    this is a direct, explicit conflict the user wrote themselves, so it should
+    reach validate_settings's normal "does not support byte order configuration"
+    error instead of being hidden."""
+    entry = {
+        CONF_PLATFORM: "file",
+        CONF_DEFAULTS: {"type": "rgb565"},
+        CONF_FILES: [
+            {
+                "id": "a",
+                "file": "x.png",
+                "type": "binary",
+                "byte_order": "little_endian",
+            }
+        ],
+    }
+    [out] = _expand_platform_entry(0, entry)
+    assert out["byte_order"] == "little_endian"
+
+
 def test_expand_platform_entry_defaults_without_files_raises() -> None:
     entry = {CONF_PLATFORM: "file", CONF_DEFAULTS: {"type": "RGB565"}}
     with pytest.raises(cv.Invalid, match="may only be used together with") as excinfo:
         _expand_platform_entry(0, entry)
     assert excinfo.value.path == [0]
+
+
+def test_expand_platform_entry_null_files_raises_not_empty() -> None:
+    """`files:` with nothing after it parses to `None` -- distinct from the key
+    being absent -- and must say so clearly rather than claiming `files:`
+    wasn't provided at all."""
+    entry = {CONF_PLATFORM: "file", CONF_DEFAULTS: {"type": "RGB565"}, CONF_FILES: None}
+    with pytest.raises(cv.Invalid, match="must not be empty"):
+        _expand_platform_entry(0, entry)
+
+
+def test_expand_platform_entry_empty_files_list_raises_not_empty() -> None:
+    """An explicit `files: []` must not silently expand to zero entries and
+    drop the whole platform entry without any error."""
+    entry = {CONF_PLATFORM: "file", CONF_FILES: []}
+    with pytest.raises(cv.Invalid, match="must not be empty"):
+        _expand_platform_entry(0, entry)
 
 
 def test_expand_platform_entry_files_with_stray_key_raises() -> None:

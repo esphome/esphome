@@ -171,7 +171,7 @@ class ComponentManifest:
           reported like any other config error. Do not raise other exception types
           for user-facing errors.
         - The return value must always be a `list`; returning anything else is
-          treated as a bug in the component (an uncaught `AssertionError`), not a
+          treated as a bug in the component (an uncaught `TypeError`), not a
           user config error.
 
         Unlike `legacy_config_migrate`, this is a permanent mechanism, not a

@@ -275,13 +275,14 @@ def test_expand_hook_final_external_invalid_reports_without_path_prepend() -> No
     assert result["image"] == pre_expand_conf
 
 
-def test_expand_hook_non_list_return_raises_assertion() -> None:
+def test_expand_hook_non_list_return_raises_type_error() -> None:
     """A non-list return is a coding error in the component, not a user config
     error, so it must not be caught/reported like a `cv.Invalid` -- it should
-    escape as an AssertionError instead."""
+    escape as a TypeError instead. An explicit raise is used rather than a bare
+    assert so this guard survives under python -O/-OO."""
     expand = Mock(return_value={"not": "a list"})
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(TypeError, match="must return a list"):
         _run_load_step("image", [{"platform": "file", "id": "a"}], None, expand)
 
 

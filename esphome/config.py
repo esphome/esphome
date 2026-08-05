@@ -628,10 +628,16 @@ class LoadValidationStep(ConfigValidationStep):
                     e.prepend(path)
                     result.add_error(e)
                 else:
-                    # Assert rather than raise - a non-list return here is a coding
-                    # error in the component, not a user error, so it must not be
-                    # reported as one via the except clauses above.
-                    assert isinstance(expanded, list)
+                    if not isinstance(expanded, list):
+                        # Explicit raise rather than a bare assert so the guard
+                        # isn't stripped under python -O/-OO. A non-list return
+                        # here is a coding error in the component, not a user
+                        # error, so it must not be reported as one via the
+                        # except clauses above -- it should crash loudly.
+                        raise TypeError(
+                            f"{self.domain}: EXPAND_PLATFORM_CONFIG must "
+                            f"return a list, got {type(expanded).__name__}"
+                        )
                     result[self.domain] = self.conf = expanded
 
         # Process AUTO_LOAD

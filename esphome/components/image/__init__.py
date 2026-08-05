@@ -425,14 +425,22 @@ def get_image_metadata(image_id: str) -> ImageMetaData | None:
 # ---------------------------------------------------------------------------
 
 
-def _drop_incompatible_byte_order(merged: dict) -> dict:
-    """Drop `byte_order` from a merged entry if its resolved type doesn't support it.
+def _drop_incompatible_byte_order(merged: dict, explicit: dict) -> dict:
+    """Drop `byte_order` from a merged entry if its resolved type doesn't support it
+    -- but only when `byte_order` was inherited from `defaults:`, not when the user
+    wrote it directly on `explicit` (the hand-written per-image entry). In the
+    latter case it's a direct, explicit conflict (e.g. `type: binary` next to
+    `byte_order: little_endian` on the very same entry) and should surface the
+    normal "does not support byte order configuration" validation error instead
+    of being silently discarded.
 
     Shared by both the `defaults:`/`files:` expansion and the legacy
     `defaults:`/`images:` flattener below, so a `byte_order` default merged into
     e.g. a binary override doesn't turn into a hard validation error -- matching
     the behavior of a hand-written entry that simply omits `byte_order`.
     """
+    if CONF_BYTE_ORDER in explicit:
+        return merged
     type_class = IMAGE_TYPE.get(str(merged.get(CONF_TYPE, "")).upper())
     if (
         CONF_BYTE_ORDER in merged
@@ -445,8 +453,7 @@ def _drop_incompatible_byte_order(merged: dict) -> dict:
 
 
 def _expand_platform_entry(index: int, entry: dict) -> list[dict]:
-    files = entry.get(CONF_FILES)
-    if files is None:
+    if CONF_FILES not in entry:
         if CONF_DEFAULTS in entry:
             raise cv.Invalid(
                 f"'{CONF_DEFAULTS}' may only be used together with '{CONF_FILES}'",
@@ -461,6 +468,13 @@ def _expand_platform_entry(index: int, entry: dict) -> list[dict]:
             f"{', '.join(sorted(extra_keys))} on the same entry",
             path=[index],
         )
+
+    files = entry[CONF_FILES]
+    # Checked in this order so an empty list gets the more specific "must not
+    # be empty" message rather than the generic "must be a list" one -- an
+    # empty list *is* a list, just not a useful one here.
+    if not files:
+        raise cv.Invalid(f"'{CONF_FILES}' must not be empty", path=[index])
     if not isinstance(files, list):
         raise cv.Invalid(f"'{CONF_FILES}' must be a list", path=[index])
 
@@ -482,7 +496,7 @@ def _expand_platform_entry(index: int, entry: dict) -> list[dict]:
                 f"each entry in '{CONF_FILES}' must be a mapping", path=[index]
             )
         merged = {CONF_PLATFORM: platform, **defaults, **file_entry}
-        result.append(_drop_incompatible_byte_order(merged))
+        result.append(_drop_incompatible_byte_order(merged, file_entry))
     return result
 
 
@@ -607,7 +621,13 @@ def _is_legacy_image_format(config: object) -> bool:
         return bool(config) and all(
             isinstance(entry, dict) and CONF_PLATFORM not in entry for entry in config
         )
-    if not isinstance(config, dict):
+    if not isinstance(config, dict) or CONF_PLATFORM in config:
+        # A dict already tagged with `platform:` is the new format written
+        # without its list brackets (e.g. a single `defaults:`/`files:` entry,
+        # or a single flat entry) -- not a legacy shape. Leave it alone; the
+        # normal `elif not isinstance(self.conf, list): self.conf = [self.conf]`
+        # normalization in LoadValidationStep wraps it into a one-entry list,
+        # which the new EXPAND_PLATFORM_CONFIG hook then handles correctly.
         return False
     # A single image dict, or the grouped `defaults:`/`images:`/type-key form.
     return (
@@ -639,7 +659,7 @@ def _flatten_legacy_image_config(config: object) -> list[dict]:
 
     def _add(entry: dict, extra: dict) -> None:
         merged = {**defaults, **extra, **entry}
-        result.append(_drop_incompatible_byte_order(merged))
+        result.append(_drop_incompatible_byte_order(merged, entry))
 
     def _add_entries(entries: object, extra: dict) -> None:
         # `entries` may be a single image dict or a list of them; non-dict
