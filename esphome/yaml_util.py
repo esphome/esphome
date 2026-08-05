@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any
 import uuid
 
-from voluptuous import Invalid
 import yaml
 from yaml import SafeLoader as PurePythonLoader
 import yaml.constructor
@@ -251,6 +250,8 @@ class IncludeFile:
         Note: returns the cached mutable object on subsequent calls.
         Callers that need to modify the result should copy it first.
         """
+        from voluptuous import Invalid
+
         if self._content is not _UNSET:
             return self._content
         if self.has_unresolved_expressions():
@@ -339,6 +340,8 @@ def _load_include_candidates(
     keepalive: list[Any],
 ) -> None:
     """Load every filesystem candidate for an unresolved ``IncludeFile``."""
+    from voluptuous import Invalid
+
     log = _LOGGER.warning if warn_on_unresolved else _LOGGER.debug
     candidates = _candidate_include_paths(include)
     if not candidates:
@@ -409,6 +412,8 @@ def force_load_include_files(
     run on a fresh re-parse where substitutions haven't been applied yet) to
     demote it to a debug log.
     """
+    from voluptuous import Invalid
+
     if _seen is None:
         _seen = set()
     if _expanded_paths is None:

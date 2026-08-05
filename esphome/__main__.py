@@ -23,6 +23,7 @@ from esphome import const, platform_hooks
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     ARGUMENT_HELP_DEVICE,
+    BUNDLE_EXTENSION,
     CONF_API,
     CONF_AUTH,
     CONF_BAUD_RATE,
@@ -2551,10 +2552,11 @@ def run_esphome(argv):
         return 0
 
     # Bundle support: if the configuration is a .esphomebundle, extract it
-    # and rewrite conf_path to the extracted YAML config.
-    from esphome.bundle import is_bundle_path, prepare_bundle_for_compile
+    # and rewrite conf_path to the extracted YAML config. The suffix check
+    # stays inline so the ordinary run never imports esphome.bundle.
+    if conf_path.name.lower().endswith(BUNDLE_EXTENSION):
+        from esphome.bundle import prepare_bundle_for_compile
 
-    if is_bundle_path(conf_path):
         _LOGGER.info("Extracting config bundle %s...", conf_path)
         conf_path = prepare_bundle_for_compile(conf_path)
         # Update the argument so downstream code sees the extracted path
