@@ -541,5 +541,8 @@
 // Keep clang-tidy happy.
 
 // The real value comes from lvgl/gradient.py, which works it out from the configuration. The
-// largest it uses is set here so that static analysis sees every gradient in the component.
+// largest it uses is set here so that static analysis sees every gradient in the component,
+// but only where a generated lv_conf.h has not already given it a value.
+#ifndef LV_GRADIENT_MAX_STOPS
 #define LV_GRADIENT_MAX_STOPS 7
+#endif

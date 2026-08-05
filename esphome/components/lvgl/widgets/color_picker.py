@@ -1,14 +1,16 @@
+from typing import Any
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_COLOR, CONF_HEIGHT, CONF_ITEMS, CONF_WIDTH
 
-from .. import add_lv_use
 from ..defines import (
     CONF_COLOR_PICKER,
     CONF_EXT_CLICK_AREA,
     CONF_KNOB,
     CONF_MAIN,
     CONF_STYLES,
+    add_lv_use,
     literal,
 )
 from ..lv_validation import lv_color, size
@@ -58,7 +60,7 @@ SLIDER_GROUPS = {
 }
 
 
-def validate_sliders(value):
+def validate_sliders(value: Any) -> list[str]:
     """Expand any group names and drop repeats, keeping the widget's own slider order."""
     value = cv.ensure_list(cv.one_of(*SLIDER_NAMES, *SLIDER_GROUPS, lower=True))(value)
     chosen = {name for item in value for name in SLIDER_GROUPS.get(item, (item,))}
@@ -98,11 +100,11 @@ class ColorPickerType(WidgetType):
             lv_name="obj",
         )
 
-    def validate(self, value):
+    def validate(self, value: Any) -> Any:
         add_lv_use(CONF_COLOR_PICKER)
         return super().validate(value)
 
-    async def get_ctor_args(self, config: dict):
+    async def get_ctor_args(self, config: dict) -> list:
         # The layout is worked out from the sliders, so they are needed before the widget is
         # built rather than set afterwards.
         return [
@@ -115,7 +117,7 @@ class ColorPickerType(WidgetType):
         ]
 
     @staticmethod
-    def _sliders_of(w) -> list[Widget]:
+    def _sliders_of(w: Widget) -> list[Widget]:
         """Wrap each slider the widget was created with, so it can be configured directly."""
         return [
             Widget(
@@ -127,7 +129,7 @@ class ColorPickerType(WidgetType):
             for name in _sliders(w.config or {})
         ]
 
-    def obj_targets(self, w, prop):
+    def obj_targets(self, w: Widget, prop: str) -> list[Widget]:
         # Nothing is ever pressed on its own object, so the touch margin belongs on the
         # sliders. Everything else, scrolling in particular, is a matter for the container
         # holding them and so stays where it is.
@@ -135,7 +137,7 @@ class ColorPickerType(WidgetType):
             return self._sliders_of(w)
         return [w]
 
-    def part_targets(self, w, part):
+    def part_targets(self, w: Widget, part: str) -> list[tuple[Widget, str]]:
         # The widget is made of sliders, so `items` and `knob` are the main and knob parts of
         # each of those. Its own object is a plain container with neither. Only the sliders
         # the widget was created with exist, so only those are styled.
@@ -144,7 +146,7 @@ class ColorPickerType(WidgetType):
         target_part = CONF_MAIN if part == CONF_ITEMS else part
         return [(slider, target_part) for slider in self._sliders_of(w)]
 
-    async def to_code(self, w, config: dict):
+    async def to_code(self, w: Widget, config: dict) -> None:
         # A hex colour validates to a plain int, so black must not be mistaken for absent.
         if (color := config.get(CONF_COLOR)) is not None:
             lv_add(w.var.set_color(await lv_color.process(color)))
@@ -160,7 +162,7 @@ class ColorPickerType(WidgetType):
         if (width := config.get(CONF_WIDTH)) is not None:
             w.set_style(CONF_HEIGHT, await size.process(width), 0)
 
-    def get_uses(self):
+    def get_uses(self) -> tuple[str, ...]:
         return ("flex", CONF_SLIDER, CONF_BAR, CONF_LABEL)
 
 

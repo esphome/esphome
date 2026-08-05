@@ -15,8 +15,6 @@ namespace esphome::lvgl {
 static_assert(LV_GRADIENT_MAX_STOPS >= 7, "color_picker needs LV_GRADIENT_MAX_STOPS >= 7");
 
 class LvColorPickerType : public LvCompound {
-  constexpr static const char *const TAG = "lvgl.color_picker";
-
  public:
   // The sliders the widget can be built from, in the order they appear in `sliders_`.
   enum SliderIndex : size_t {
@@ -141,11 +139,9 @@ class LvColorPickerType : public LvCompound {
     lv_obj_set_style_align(this->color_text_, LV_ALIGN_TOP_MID, LV_PART_MAIN);
     lv_obj_set_style_text_align(this->color_text_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
     lv_obj_set_style_y(this->color_text_, lv_pct(10), LV_PART_MAIN);
-    lv_label_set_text(this->color_text_, "#working");
 
     this->color_indicator_ = lv_obj_create(indicator_container);
     lv_obj_set_style_align(this->color_indicator_, LV_ALIGN_CENTER, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(this->color_indicator_, lv_color_hex(0xFFFF00), LV_PART_MAIN);
     lv_obj_set_style_border_color(this->color_indicator_, lv_color_hex(0x808080), LV_PART_MAIN);
     lv_obj_set_style_border_width(this->color_indicator_, 1, LV_PART_MAIN);
     lv_obj_set_style_height(this->color_indicator_, lv_pct(50), LV_PART_MAIN);

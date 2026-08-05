@@ -55,6 +55,12 @@ lvgl:
           bg_color: 0x112233
           radius: 4
           styles: [picker_style]
+          # One value for six sliders: it must not be generated once per slider. The body
+          # is more than an expression so that it stays a lambda rather than being folded
+          # into a constant.
+          border_width: !lambda |-
+            int width = 3;
+            return width;
           pressed:
             styles: [picker_style]
           # Belongs to the widget as a whole, so it is reported and ignored here
