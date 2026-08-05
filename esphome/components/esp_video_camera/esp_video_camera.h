@@ -19,11 +19,8 @@
 
 namespace esphome::esp_video_camera {
 
-/// An owned JPEG/MJPEG frame (copied into PSRAM) shared with the API.
-///
-/// The data is JPEG-encoded (required by the Home Assistant camera API). It is
-/// copied out of the mapped V4L2 buffer so that buffer can be re-queued
-/// immediately, while the API streams this copy out over the network.
+/// An owned JPEG frame, copied out of the mapped V4L2 buffer so that buffer can
+/// be re-queued immediately while the API streams this copy out.
 class ESPVideoCameraImage : public camera::CameraImage {
  public:
   ESPVideoCameraImage(uint8_t *data, size_t length, uint8_t requesters);
@@ -53,15 +50,10 @@ class ESPVideoCameraImageReader : public camera::CameraImageReader {
   size_t offset_{0};
 };
 
-/// Home Assistant camera backed by Espressif's esp_video (V4L2) pipeline.
-///
-/// This single component both initialises the camera pipeline (MIPI-CSI, with an
-/// optional USB-UVC host) and publishes the stream as a native `camera` entity.
-/// It captures JPEG/MJPEG frames from a V4L2 device:
-///   - "jpeg": the hardware JPEG encoder (/dev/video10) — works with every
-///     auto-detected MIPI-CSI sensor (SC202CS, OV5647, SC2336, ...).
-///   - "uvc":  a USB-UVC camera (/dev/video40+) that streams MJPEG.
-///   - "/dev/videoN": an explicit V4L2 path.
+/// Home Assistant camera backed by Espressif's esp_video (V4L2) pipeline. It
+/// captures JPEG frames from either the hardware JPEG encoder fed by an
+/// auto-detected MIPI-CSI sensor ("jpeg"), a USB-UVC camera ("uvc"), or an
+/// explicit /dev/videoN path.
 class ESPVideoCamera : public camera::Camera {
  public:
   void setup() override;
@@ -150,25 +142,18 @@ class ESPVideoCamera : public camera::Camera {
   // failure of a capture, not on every frame.
   bool logged_qbuf_failure_{false};
 
-  // Consumers (bit masks indexed by camera::CameraRequester).
-  //
-  // The requester masks are written from whichever task asked for an image (the
-  // web server's httpd task, an API connection task) and read by loop() in the
-  // main task, so they are atomic. Everything else below belongs to loop().
+  // Consumers (bit masks indexed by camera::CameraRequester). Written from the
+  // requesting task, read by loop() in the main task, hence atomic. Everything
+  // below belongs to loop().
   std::vector<camera::CameraListener *> listeners_;
   std::shared_ptr<ESPVideoCameraImage> current_image_;
   std::atomic<uint8_t> stream_requesters_{0};
   std::atomic<uint8_t> single_requesters_{0};
 
-  // V4L2 state.
-  //
-  // A direct source (USB-UVC, or an explicit /dev/videoN already producing
-  // JPEG/MJPEG) only uses capture_fd_ + capture_buffers_.
-  //
-  // The hardware-JPEG source spans two devices: capture_fd_ is the MIPI-CSI/ISP
-  // device producing RGB565 frames, jpeg_fd_ is the JPEG hardware encoder (an
-  // M2M device) fed RGB565 on its OUTPUT queue and read as JPEG from its CAPTURE
-  // queue (jpeg_out_buffer_).
+  // V4L2 state. A direct source (USB-UVC, or a /dev/videoN already producing
+  // JPEG) uses capture_fd_ + capture_buffers_ only. The hardware-JPEG source
+  // spans two devices: capture_fd_ is the MIPI-CSI/ISP device producing RGB565,
+  // jpeg_fd_ the M2M encoder fed from it and read back as JPEG.
   int capture_fd_{-1};
   int jpeg_fd_{-1};
   bool streaming_{false};
