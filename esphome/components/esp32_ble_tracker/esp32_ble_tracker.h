@@ -242,7 +242,10 @@ class ESP32BLETracker final : public Component,
     this->raw_advertisement_callback_ = callback;
   }
   ble_device_base::HubCapabilities get_capabilities() const override {
-    return {/* active_scan = */ true, /* merges_scan_response = */ true, /* gatt = */ true};
+    // scan_mode_switch is false: the mode is driven through this tracker's own
+    // API (set_scan_active + restart), not the neutral request_scan_mode().
+    return {/* active_scan = */ true, /* merges_scan_response = */ true, /* gatt = */ true,
+            /* scan_mode_switch = */ false};
   }
   void get_adapter_mac(uint8_t out[6]) override;
   bool scan_running() override { return this->scanner_state_ == ScannerState::RUNNING; }

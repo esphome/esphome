@@ -72,7 +72,8 @@ class LN882HBLETracker : public Component,
     // The LN882H controller supports active scanning; adv + scan response arrive
     // as separate reports and are merged by this tracker (Bluedroid semantics).
     // The SDK's GATT client is not exposed.
-    return {.active_scan = true, .merges_scan_response = true, .gatt = false};
+    // scan_mode_switch: request_scan_mode() is implemented (restart-if-running).
+    return {.active_scan = true, .merges_scan_response = true, .gatt = false, .scan_mode_switch = true};
   }
   // The controller stores the address LSB-first (BLE convention); the contract
   // wants printable (MSB-first) order.
