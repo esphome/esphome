@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import inspect
+from pathlib import Path
 import re
 from unittest.mock import Mock, patch
 
@@ -85,6 +86,14 @@ BENIGN_LINES = [
     "[V][esp-idf:000]: I (40219876) wifi: connected",
     "[D][api:102]: Client connected (40123456)",
     "[D][sensor:093]: 'Water meter': Sending state 12345678.00000 L",
+    # A 32-hex hash has no internal word boundary, so the exactly-8
+    # bare-hex branch must not fire anywhere inside it.
+    "[I][ota:117]: MD5 of binary: d41d8cd98f00b204e9800998ecf8427e",
+    # Short 0x tokens are everywhere (BLE handles, flags); the pointer
+    # branch's 3-digit minimum exists to keep them out.
+    "[D][ble:200]: Connection handle 0x1F, MTU 23",
+    "[C][network:600]:   IPv6: fe80::1a2b:3c4d:5e6f:7a8b",
+    "[C][ota:097]:   Version: 2026.7.0",
 ]
 
 GATE_PARAMS = [
@@ -119,6 +128,82 @@ def test_gates_are_platform_scoped() -> None:
         "3ffffe10: 40201234 3ffe8410 00000000 40201000",
     ):
         assert not esp32_gate.search(line)
+
+
+def _top_level_branches(pattern: str) -> list[str]:
+    """Split a regex source on alternations outside groups and classes."""
+    branches: list[str] = []
+    depth = 0
+    in_class = False
+    esc = False
+    start = 0
+    for i, ch in enumerate(pattern):
+        if esc:
+            esc = False
+        elif ch == "\\":
+            esc = True
+        elif in_class:
+            in_class = ch != "]"
+        elif ch == "[":
+            in_class = True
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        elif ch == "|" and depth == 0:
+            branches.append(pattern[start:i])
+            start = i + 1
+    branches.append(pattern[start:])
+    return branches
+
+
+@pytest.mark.parametrize("platform", sorted(CRASH_SAMPLES))
+def test_every_gate_branch_is_exercised(platform: str) -> None:
+    """A typoed or dead gate branch cannot hide behind the others.
+
+    The superset checks stay green when a branch matches nothing, so a
+    broken alternation would silently stop resolving the decoder on the
+    lines it was added for; every branch must be hit by a sample.
+    """
+    samples = CRASH_SAMPLES[platform]
+    lines = [line for kind in samples for line in samples[kind]]
+    branches = _top_level_branches(stacktrace.platform_hooks.STACKTRACE_GATES[platform])
+    assert len(branches) > 1
+    for branch in branches:
+        assert any(re.search(branch, line) for line in lines), (
+            f"no {platform} sample exercises gate branch {branch!r}; add one "
+            "or drop the dead branch"
+        )
+
+
+# The in-tree sources that print each marker literal the gates key on.
+# esp8266's >>>stack>>> comes from the Arduino core's postmortem
+# handler, outside this tree; its decoder source is the nearest pin.
+FIRMWARE_MARKER_SOURCES = {
+    "CRASH DETECTED ON PREVIOUS BOOT": (
+        "esphome/components/esp32/crash_handler.cpp",
+        "esphome/components/esp8266/crash_handler.cpp",
+        "esphome/components/rp2/crash_handler.cpp",
+    ),
+    "Last crash:": ("esphome/components/logger/logger_zephyr.cpp",),
+}
+
+
+def test_gate_markers_match_firmware_output() -> None:
+    """The marker literals must stay what the firmware prints.
+
+    A reworded crash banner would keep every regex-level guard green
+    while the gate silently stops resolving the decoder at a stored
+    dump's first line; pin the literals to the sources that print them.
+    """
+    root = Path(__file__).parents[2]
+    for marker, sources in FIRMWARE_MARKER_SOURCES.items():
+        for source in sources:
+            text = (root / source).read_text(encoding="utf-8")
+            assert marker in text, (
+                f"{source} no longer prints {marker!r}; update the gates and "
+                "samples to the new banner"
+            )
 
 
 def test_crash_samples_cover_registry() -> None:
