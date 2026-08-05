@@ -365,11 +365,9 @@ def _run_idedata(config):
     args = ["-t", "idedata"]
     stdout = run_platformio_cli_run(config, False, *args, capture_stdout=True)
     if not isinstance(stdout, str):
-        # run_external_process returns its exit code when launching
-        # platformio itself failed; that is the environment, not us.
-        raise EsphomeError(
-            f"Running platformio to get idedata failed with exit code {stdout}"
-        )
+        # run_external_process returns 1 instead of captured output when
+        # launching platformio raised; see the error it logged above.
+        raise EsphomeError("Could not launch platformio to get idedata")
     match = re.search(r'{\s*".*}', stdout)
     if match is None:
         _LOGGER.error("Could not match idedata, please report this error")
@@ -433,10 +431,11 @@ class IDEData:
         the key so a platformio schema change stays diagnosable.
         """
         value = self.raw
+        # TypeError covers a key that is null instead of absent.
         try:
             for key in keys:
                 value = value[key]
-        except KeyError as err:
+        except (KeyError, TypeError) as err:
             raise EsphomeError(
                 f"Cached idedata is incomplete (missing {'.'.join(keys)})"
             ) from err
@@ -452,10 +451,15 @@ class IDEData:
 
     @property
     def extra_flash_images(self) -> list[FlashImage]:
-        return [
-            FlashImage(path=Path(entry["path"]), offset=entry["offset"])
-            for entry in self._require("extra", "flash_images")
-        ]
+        try:
+            return [
+                FlashImage(path=Path(entry["path"]), offset=entry["offset"])
+                for entry in self._require("extra", "flash_images")
+            ]
+        except (KeyError, TypeError) as err:
+            raise EsphomeError(
+                "Cached idedata is incomplete (missing extra.flash_images entry fields)"
+            ) from err
 
     @property
     def cc_path(self) -> str:
