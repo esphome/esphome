@@ -20,6 +20,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from importlib import import_module
 import logging
+import re
 from typing import Any, Final
 
 from esphome.const import (
@@ -37,12 +38,50 @@ _LOGGER = logging.getLogger(__name__)
 # (upload method, log transport) warns. A new hook is loud by default.
 COSMETIC_HOOKS: Final = frozenset({"process_stacktrace"})
 
+# Trigger gates for the stacktrace decoders, keyed by platform. A log
+# session knows its target platform, so each session only pays for its
+# own platform's trigger language; a line matching the gate is what
+# lazily imports the platform package to resolve the decoder, and a
+# false trigger costs that import on the event loop mid-stream. That is
+# why 8-digit decimals (uptime counters) and ESP-IDF's decimal log
+# timestamps must stay out of the esp8266 bare-hex branch.
+#
+# Declaring a gate here is what registers a platform's
+# process_stacktrace hook; deriving the registry entry from the keys
+# keeps the two in sync by construction. Each gate must stay a superset
+# of its decoder patterns' trigger language; both directions are pinned
+# in tests/unit_tests/test_stacktrace.py, including a generative test
+# that derives inputs from the decoder regexes themselves. The keyword
+# branches exist because (?:0x)? register forms can glue a pointer to
+# trailing word characters that defeat the pointer branch's \b, and the
+# markers are the address-free lines that open the state-gated
+# decoders' dump regions. The esp32/esp8266/rp2 crash handlers all
+# announce a stored dump with the CRASH DETECTED banner as its first
+# line; their decoders key on the 0x-bearing lines that follow, but
+# gating on the banner resolves the decoder at the dump's first line
+# and can only be a true positive.
+STACKTRACE_GATES: Final[dict[str, re.Pattern[str]]] = {
+    PLATFORM_ESP32: re.compile(
+        r"0x[0-9a-fA-F]{3,}\b"
+        r"|(?:PC|RA|MEPC|MTVAL|EXCVADDR|call)\s*[:=]\s*(?:0x)?4[0-9a-fA-F]{7}"
+        r"|CRASH DETECTED ON PREVIOUS BOOT"
+    ),
+    PLATFORM_ESP8266: re.compile(
+        r"0x[0-9a-fA-F]{3,}\b"
+        r"|\b(?![0-9]{8}\b)[0-9a-fA-F]{8}\b"
+        r"|(?:PC|EXCVADDR|call)\s*[:=]\s*(?:0x)?4[0-9a-fA-F]{7}"
+        r"|[eE]xception \(\d+\):"
+        r"|>>>stack>>>"
+        r"|CRASH DETECTED ON PREVIOUS BOOT"
+    ),
+    PLATFORM_RP2: re.compile(r"0x[0-9a-fA-F]{3,}\b|CRASH DETECTED ON PREVIOUS BOOT"),
+    PLATFORM_NRF52: re.compile(r"0x[0-9a-fA-F]{3,}\b|Last crash:"),
+}
+
 PLATFORM_HOOKS: Final[dict[str, frozenset[str]]] = {
     "show_logs": frozenset({PLATFORM_NRF52}),
     "upload_program": frozenset({PLATFORM_NRF52}),
-    "process_stacktrace": frozenset(
-        {PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_NRF52, PLATFORM_RP2}
-    ),
+    "process_stacktrace": frozenset(STACKTRACE_GATES),
 }
 
 

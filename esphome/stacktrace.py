@@ -8,7 +8,6 @@ or any platform package.
 from __future__ import annotations
 
 import logging
-import re
 from typing import TYPE_CHECKING
 
 from esphome import platform_hooks
@@ -17,38 +16,12 @@ from esphome.types import ConfigType
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    import re
 
     # The contract every platform's process_stacktrace implements.
     StacktraceHandler = Callable[[ConfigType, str, bool], bool]
 
 _LOGGER = logging.getLogger(__name__)
-
-# The gate that defers the platform-package import: a log line reaches
-# the decoder only once a line matches, so a session that never prints
-# a crash pays no import at all. The win is one import per session
-# instead of at session start, not per-line CPU. A false trigger costs
-# that import on the event loop mid-stream, which is why 8-digit
-# decimals (uptime counters) and ESP-IDF's decimal log timestamps must
-# stay out. The device builder gates its decoder subprocess the same
-# way.
-#
-# The gate must be a superset of every registered decoder's trigger
-# language; both directions are pinned in
-# tests/unit_tests/test_stacktrace.py, including a generative test that
-# derives inputs from the decoder regexes themselves. Branches:
-# 0x-prefixed pointers; bare 8-hex words that are not plain decimals;
-# the letter-free register/alloc keyword forms, whose (?:0x)? covers a
-# pointer glued to trailing word characters that defeat the first
-# branch's \b; the exception header; and the region markers the
-# state-gated decoders (rp2, nrf52, esp8266) key on, so those decoders
-# never miss their marker line.
-_ADDRESS_RE = re.compile(
-    r"0x[0-9a-fA-F]{3,}\b"
-    r"|\b(?![0-9]{8}\b)[0-9a-fA-F]{8}\b"
-    r"|(?:PC|RA|MEPC|MTVAL|EXCVADDR|call)\s*[:=]\s*(?:0x)?4[0-9a-fA-F]{7}"
-    r"|[eE]xception \(\d+\):"
-    r"|>>>stack>>>|CRASH DETECTED ON PREVIOUS BOOT|Last crash:"
-)
 
 
 class LogLineProcessor:
@@ -57,10 +30,11 @@ class LogLineProcessor:
     Three responsibilities beyond just calling the decoder:
     1. Resolve the platform decoder through the registry: lazily for
        in-tree platforms with a registered decoder, where nothing is
-       imported until a line matches _ADDRESS_RE, and eagerly otherwise.
-       A registry-proven miss reports its unavailable notice at session
+       imported until a line matches the platform's own gate in
+       platform_hooks.STACKTRACE_GATES, and eagerly otherwise. A
+       registry-proven miss reports its unavailable notice at session
        start without importing anything; an external platform resolves
-       up front because the gate's grammar derives from the in-tree
+       up front because the gates' grammar derives from the in-tree
        decoders and its import cannot be avoided anyway - resolving
        early keeps it out of the streaming callback, where a blocking
        import would stall delivery mid-stream.
@@ -87,6 +61,11 @@ class LogLineProcessor:
         self._platform = platform
         self._platform_handler: StacktraceHandler | None = None
         self._decode_enabled = True
+        # None only for platforms resolved eagerly below, which never
+        # consult the gate: a registered platform always declares one.
+        self._gate: re.Pattern[str] | None = platform_hooks.STACKTRACE_GATES.get(
+            platform
+        )
         self.backtrace_state = False
         if not platform_hooks.has_registered_hook(platform, "process_stacktrace"):
             self._resolve_handler()
@@ -95,7 +74,7 @@ class LogLineProcessor:
         if not self._decode_enabled:
             return
         if self._platform_handler is None:
-            if not _ADDRESS_RE.search(raw_line):
+            if not self._gate.search(raw_line):
                 return
             # Deliberate trade: the platform import (~300 ms, seconds on
             # small hosts) blocks the streaming callback here, once per

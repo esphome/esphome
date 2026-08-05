@@ -28,11 +28,15 @@ CONFIG = {"esphome": {"name": "test"}}
 # must fire on each or that platform's decoding silently never starts.
 # "state_markers" are the address-free lines that set backtrace_state;
 # the gate matches them directly so their decoders never miss the line
-# that opens their dump region. A new decoder must declare its lines
-# here so both are pinned instead of discovered in the field.
+# that opens their dump region. "extra_triggers" are gate-firing lines
+# no decoder pattern consumes, like the stored-dump banner that lets
+# the decoder resolve at a dump's first line. A new decoder must
+# declare its lines here so all are pinned instead of discovered in
+# the field.
 CRASH_SAMPLES: dict[str, dict[str, list[str]]] = {
     PLATFORM_ESP32: {
         "state_markers": [],
+        "extra_triggers": ["*** CRASH DETECTED ON PREVIOUS BOOT ***"],
         "addresses": [
             "Backtrace: 0x400d1a2c:0x3ffb1f60 0x400d2a3c:0x3ffb1f80",
             "PC      : 0x400d1a2c  PS      : 0x00060330",
@@ -45,6 +49,7 @@ CRASH_SAMPLES: dict[str, dict[str, list[str]]] = {
     },
     PLATFORM_ESP8266: {
         "state_markers": [">>>stack>>>"],
+        "extra_triggers": ["*** CRASH DETECTED ON PREVIOUS BOOT ***"],
         "addresses": [
             "epc1=0x40201234 epc2=0x00000000 excvaddr=0x40001234",
             "3ffffe10: 40201234 3ffe8410 00000000 40201000",
@@ -77,21 +82,47 @@ BENIGN_LINES = [
 ]
 
 GATE_PARAMS = [
-    pytest.param(line, True, id=f"{platform}-{kind}-{n}")
+    pytest.param(platform, line, True, id=f"{platform}-{kind}-{n}")
     for platform, samples in CRASH_SAMPLES.items()
-    for kind in ("addresses", "state_markers")
-    for n, line in enumerate(samples[kind])
-] + [pytest.param(line, False, id=f"benign-{n}") for n, line in enumerate(BENIGN_LINES)]
+    for kind in ("addresses", "state_markers", "extra_triggers")
+    for n, line in enumerate(samples.get(kind, []))
+] + [
+    pytest.param(platform, line, False, id=f"benign-{platform}-{n}")
+    for platform in CRASH_SAMPLES
+    for n, line in enumerate(BENIGN_LINES)
+]
 
 
-@pytest.mark.parametrize(("line", "should_fire"), GATE_PARAMS)
-def test_address_gate(line: str, should_fire: bool) -> None:
-    assert bool(stacktrace._ADDRESS_RE.search(line)) is should_fire
+@pytest.mark.parametrize(("platform", "line", "should_fire"), GATE_PARAMS)
+def test_platform_gate(platform: str, line: str, should_fire: bool) -> None:
+    gate = stacktrace.platform_hooks.STACKTRACE_GATES[platform]
+    assert bool(gate.search(line)) is should_fire
+
+
+def test_gates_are_platform_scoped() -> None:
+    """A session only pays for its own platform's trigger language.
+
+    Another platform's marker on an esp32 session must not cost the
+    one-time import; the platform is known when the session starts.
+    """
+    esp32_gate = stacktrace.platform_hooks.STACKTRACE_GATES[PLATFORM_ESP32]
+    for line in (
+        ">>>stack>>>",
+        "Last crash:",
+        "Exception (28):",
+        "3ffffe10: 40201234 3ffe8410 00000000 40201000",
+    ):
+        assert not esp32_gate.search(line)
 
 
 def test_crash_samples_cover_registry() -> None:
-    """A newly registered decoder must come with a non-empty gate sample."""
-    assert set(CRASH_SAMPLES) == set(
+    """A newly registered decoder must come with a non-empty gate sample.
+
+    The gate table and the hook registry cannot drift; the registry
+    entry is derived from the gate table's keys.
+    """
+    assert set(CRASH_SAMPLES) == set(stacktrace.platform_hooks.STACKTRACE_GATES)
+    assert set(stacktrace.platform_hooks.STACKTRACE_GATES) == set(
         stacktrace.platform_hooks.PLATFORM_HOOKS["process_stacktrace"]
     )
     assert all(samples["addresses"] for samples in CRASH_SAMPLES.values())
@@ -226,7 +257,7 @@ def test_platform_declarations_match_decoder(platform: str) -> None:
 def test_address_gate_covers_decoder_pattern_languages(
     platform: str, name: str, data
 ) -> None:
-    """The gate must be a superset of each decoder pattern's language.
+    """Each platform's gate must be a superset of its decoder patterns.
 
     The sample table only pins finite literals; a decoder regex that
     widens would keep every sample green while the gate misses the new
@@ -235,9 +266,10 @@ def test_address_gate_covers_decoder_pattern_languages(
     """
     pattern = getattr(importlib.import_module(f"esphome.components.{platform}"), name)
     example = data.draw(from_regex(pattern, fullmatch=True))
-    assert stacktrace._ADDRESS_RE.search(example), (
-        f"{platform}.{name} accepts {example!r} but the gate does not fire; "
-        "decoding would silently never start on that form"
+    gate = stacktrace.platform_hooks.STACKTRACE_GATES[platform]
+    assert gate.search(example), (
+        f"{platform}.{name} accepts {example!r} but the {platform} gate does "
+        "not fire; decoding would silently never start on that form"
     )
 
 
