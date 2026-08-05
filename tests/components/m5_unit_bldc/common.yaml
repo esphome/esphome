@@ -1,0 +1,40 @@
+m5_unit_bldc:
+  i2c_id: i2c_bus
+  id: bldc_hub
+  address: 0x65
+  mode: open_loop
+  direction: forward
+  model: low_speed
+  pole_pairs: 7
+  pid:
+    p: 1.0
+    i: 0.0
+    d: 0.0
+
+number:
+  - platform: m5_unit_bldc
+    m5_unit_bldc_id: bldc_hub
+    pwm:
+      name: Motor PWM
+    target_rpm:
+      name: Motor Target RPM
+
+select:
+  - platform: m5_unit_bldc
+    m5_unit_bldc_id: bldc_hub
+    direction:
+      name: Motor Direction
+
+sensor:
+  - platform: m5_unit_bldc
+    m5_unit_bldc_id: bldc_hub
+    rpm:
+      name: Motor RPM
+    frequency:
+      name: Motor Frequency
+
+text_sensor:
+  - platform: m5_unit_bldc
+    m5_unit_bldc_id: bldc_hub
+    status:
+      name: Motor Status
