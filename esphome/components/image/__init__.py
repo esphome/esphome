@@ -427,17 +427,22 @@ def get_image_metadata(image_id: str) -> ImageMetaData | None:
 
 def _drop_incompatible_byte_order(merged: dict, explicit: dict) -> dict:
     """Drop `byte_order` from a merged entry if its resolved type doesn't support it
-    -- but only when `byte_order` was inherited from `defaults:`, not when the user
-    wrote it directly on `explicit` (the hand-written per-image entry). In the
-    latter case it's a direct, explicit conflict (e.g. `type: binary` next to
-    `byte_order: little_endian` on the very same entry) and should surface the
-    normal "does not support byte order configuration" validation error instead
-    of being silently discarded.
+    -- but only when `byte_order` was NOT written directly on `explicit`.
 
-    Shared by both the `defaults:`/`files:` expansion and the legacy
-    `defaults:`/`images:` flattener below, so a `byte_order` default merged into
-    e.g. a binary override doesn't turn into a hard validation error -- matching
-    the behavior of a hand-written entry that simply omits `byte_order`.
+    Used two different ways by the two callers below:
+
+    * The `defaults:`/`files:` expansion passes the actual hand-written per-image
+      entry as `explicit`, so a `byte_order` the user wrote directly on that entry
+      (as opposed to one inherited from `defaults:`) is a direct, explicit conflict
+      with an incompatible `type:` on that same entry, and is left in place to
+      surface the normal "does not support byte order configuration" validation
+      error instead of being silently discarded.
+    * The legacy `defaults:`/`images:` flattener passes an empty dict, i.e. it
+      always drops an incompatible `byte_order` unconditionally -- matching the
+      pre-platform-component `get_options()` behavior this flattener restores,
+      which never distinguished "explicit" from "inherited from defaults" for
+      this deprecated shape. Changing that now would be a silent behavior change
+      for existing, still-supported deprecated configs.
     """
     if CONF_BYTE_ORDER in explicit:
         return merged
@@ -483,10 +488,15 @@ def _expand_platform_entry(index: int, entry: dict) -> list[dict]:
         defaults = {}
     if not isinstance(defaults, dict):
         raise cv.Invalid(f"'{CONF_DEFAULTS}' must be a mapping", path=[index])
-    if CONF_ID in defaults:
-        raise cv.Invalid(
-            f"'{CONF_ID}' is not allowed inside '{CONF_DEFAULTS}'", path=[index]
-        )
+    # Neither makes sense inside `defaults:`: one `id:` can't apply to every
+    # file, and a `platform:` here would silently reassign which platform
+    # module handles every file, overriding the entry's own `platform:` key.
+    for disallowed in (CONF_ID, CONF_PLATFORM):
+        if disallowed in defaults:
+            raise cv.Invalid(
+                f"'{disallowed}' is not allowed inside '{CONF_DEFAULTS}'",
+                path=[index],
+            )
 
     platform = entry[CONF_PLATFORM]
     result: list[dict] = []
@@ -494,6 +504,14 @@ def _expand_platform_entry(index: int, entry: dict) -> list[dict]:
         if not isinstance(file_entry, dict):
             raise cv.Invalid(
                 f"each entry in '{CONF_FILES}' must be a mapping", path=[index]
+            )
+        # Silently letting a file entry override `platform:` would be an
+        # accidental, confusing feature -- the platform is chosen once, by the
+        # entry's own `platform:` key.
+        if CONF_PLATFORM in file_entry:
+            raise cv.Invalid(
+                f"'{CONF_PLATFORM}' is not allowed inside '{CONF_FILES}'",
+                path=[index],
             )
         merged = {CONF_PLATFORM: platform, **defaults, **file_entry}
         result.append(_drop_incompatible_byte_order(merged, file_entry))
@@ -659,7 +677,9 @@ def _flatten_legacy_image_config(config: object) -> list[dict]:
 
     def _add(entry: dict, extra: dict) -> None:
         merged = {**defaults, **extra, **entry}
-        result.append(_drop_incompatible_byte_order(merged, entry))
+        # Always drop, regardless of where byte_order came from -- see
+        # _drop_incompatible_byte_order's docstring.
+        result.append(_drop_incompatible_byte_order(merged, {}))
 
     def _add_entries(entries: object, extra: dict) -> None:
         # `entries` may be a single image dict or a list of them; non-dict

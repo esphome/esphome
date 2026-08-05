@@ -620,20 +620,17 @@ class LoadValidationStep(ConfigValidationStep):
             # entry expand into several entries (e.g. `image`'s `defaults:`/
             # `files:` shape) before per-entry CONFIG_SCHEMA/ID registration runs.
             if (expand := component.expand_platform_config) is not None:
-                try:
+                with result.catch_error(path):
                     expanded = expand(self.conf)
-                except cv.FinalExternalInvalid as e:
-                    result.add_error(e)
-                except vol.Invalid as e:
-                    e.prepend(path)
-                    result.add_error(e)
-                else:
                     if not isinstance(expanded, list):
                         # Explicit raise rather than a bare assert so the guard
-                        # isn't stripped under python -O/-OO. A non-list return
-                        # here is a coding error in the component, not a user
-                        # error, so it must not be reported as one via the
-                        # except clauses above -- it should crash loudly.
+                        # isn't stripped under python -O/-OO. TypeError is not
+                        # one of catch_error's except clauses (only
+                        # cv.FinalExternalInvalid/vol.Invalid are), so it still
+                        # escapes uncaught here -- a non-list return is a
+                        # coding error in the component, not a user error, and
+                        # must crash loudly rather than be reported as a
+                        # config error.
                         raise TypeError(
                             f"{self.domain}: EXPAND_PLATFORM_CONFIG must "
                             f"return a list, got {type(expanded).__name__}"

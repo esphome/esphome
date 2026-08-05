@@ -263,6 +263,19 @@ def test_flatten_keeps_byte_order_for_endian_type() -> None:
     assert out[0][CONF_BYTE_ORDER] == "little_endian"
 
 
+def test_flatten_drops_byte_order_written_directly_on_legacy_entry() -> None:
+    """Unlike the new defaults:/files: expansion, the legacy flattener drops an
+    incompatible byte_order unconditionally, even when it's written directly on
+    the image entry rather than inherited from defaults: -- matching the
+    pre-platform-component get_options() behavior for this deprecated shape, so
+    existing deployed configs using it don't newly start failing validation."""
+    out = _flatten_legacy_image_config(
+        {"binary": [{"id": "a", "file": "x.png", "byte_order": "little_endian"}]}
+    )
+    assert out == [{"id": "a", "file": "x.png", "type": "binary"}]
+    assert CONF_BYTE_ORDER not in out[0]
+
+
 def test_flatten_skips_meta_and_unknown_keys() -> None:
     out = _flatten_legacy_image_config(
         {
@@ -548,6 +561,30 @@ def test_expand_platform_entry_id_in_defaults_raises() -> None:
         CONF_PLATFORM: "file",
         CONF_DEFAULTS: {CONF_ID: "a"},
         CONF_FILES: [{"file": "x.png"}],
+    }
+    with pytest.raises(cv.Invalid, match="not allowed inside"):
+        _expand_platform_entry(0, entry)
+
+
+def test_expand_platform_entry_platform_in_defaults_raises() -> None:
+    """`platform:` inside `defaults:` must not be allowed to silently reassign
+    which platform module handles every file -- same reasoning as `id:` being
+    rejected there, and just as easy to trip over by accident."""
+    entry = {
+        CONF_PLATFORM: "file",
+        CONF_DEFAULTS: {CONF_PLATFORM: "animation"},
+        CONF_FILES: [{"id": "a", "file": "x.png"}],
+    }
+    with pytest.raises(cv.Invalid, match="not allowed inside"):
+        _expand_platform_entry(0, entry)
+
+
+def test_expand_platform_entry_platform_in_file_entry_raises() -> None:
+    """`platform:` on an individual `files:` item must not silently override
+    the entry's own `platform:` key."""
+    entry = {
+        CONF_PLATFORM: "file",
+        CONF_FILES: [{"id": "a", "file": "x.png", CONF_PLATFORM: "animation"}],
     }
     with pytest.raises(cv.Invalid, match="not allowed inside"):
         _expand_platform_entry(0, entry)
