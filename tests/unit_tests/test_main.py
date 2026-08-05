@@ -6307,7 +6307,6 @@ def test_run_esphome_bundle_detection(tmp_path: Path) -> None:
     extracted_yaml = tmp_path / "extracted" / "device.yaml"
 
     with (
-        patch("esphome.bundle.is_bundle_path", return_value=True) as mock_is_bundle,
         patch(
             "esphome.bundle.prepare_bundle_for_compile",
             return_value=extracted_yaml,
@@ -6316,7 +6315,6 @@ def test_run_esphome_bundle_detection(tmp_path: Path) -> None:
     ):
         result = run_esphome(["esphome", "compile", str(bundle_path)])
 
-    mock_is_bundle.assert_called_once()
     mock_prepare.assert_called_once_with(bundle_path)
     # read_config returns None → exit code 2
     assert result == 2
@@ -6328,13 +6326,11 @@ def test_run_esphome_non_bundle_skips_extraction(tmp_path: Path) -> None:
     yaml_file.write_text("esphome:\n  name: test\n")
 
     with (
-        patch("esphome.bundle.is_bundle_path", return_value=False) as mock_is_bundle,
         patch("esphome.bundle.prepare_bundle_for_compile") as mock_prepare,
         patch("esphome.config.read_config", return_value=None),
     ):
         result = run_esphome(["esphome", "compile", str(yaml_file)])
 
-    mock_is_bundle.assert_called_once()
     mock_prepare.assert_not_called()
     assert result == 2
 

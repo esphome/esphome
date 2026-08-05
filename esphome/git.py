@@ -26,9 +26,6 @@ from esphome.helpers import (
 if TYPE_CHECKING:
     from filelock import FileLock
 
-if TYPE_CHECKING:
-    from filelock import FileLock
-
 _LOGGER = logging.getLogger(__name__)
 
 # Special value to indicate never refresh

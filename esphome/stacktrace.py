@@ -28,32 +28,20 @@ class LogLineProcessor:
     """Feeds incoming log lines to the stack-trace decoder.
 
     Three responsibilities beyond just calling the decoder:
-    1. Resolve the platform decoder through the registry: lazily for
-       in-tree platforms with a registered decoder, where nothing is
-       imported until a line matches the platform's own gate in
-       platform_hooks.STACKTRACE_GATES, and eagerly otherwise. A
-       registry-proven miss reports its unavailable notice at session
-       start without importing anything; an external platform resolves
-       up front because the gates' grammar derives from the in-tree
-       decoders and its import cannot be avoided anyway - resolving
-       early keeps it out of the streaming callback, where a blocking
-       import would stall delivery mid-stream.
-    2. Catch everything the decoder can raise. aioesphomeapi isolates
-       exceptions raised by log handlers, so an escaping one no longer
-       kills the session, but it does log a full traceback per line. A
-       crash dump carries a PC line plus one per backtrace frame, so the
-       tracebacks bury the dump the user is trying to read. Decoding is a
-       diagnostic nicety; nothing it raises is worth that noise.
+    1. Resolve the platform decoder lazily: registered platforms import
+       nothing until a line matches their gate, registry misses report
+       at session start without importing, and external platforms
+       resolve eagerly since their import is unavoidable and belongs
+       off the streaming callback.
+    2. Catch everything the decoder can raise; decoding is a diagnostic
+       nicety and an escaping exception would log a traceback per dump
+       line, burying the dump the user is trying to read.
     3. Disable decoding for the rest of the session after a failure.
-       _decode_pc shells out to the toolchain to resolve addr2line,
-       which is expensive; a single crash dump can contain many PC/BT
-       lines and we don't want to retry the failing subprocess for each
-       one. This only works if every failure is caught, which is why 2
-       is not narrowed to EsphomeError. The latch is deliberately one
-       way: nothing a decode failure depends on heals by itself within
-       a session, the warning names the fix, and a fresh ``esphome
-       logs`` run picks it up; retrying mid-session would block the
-       stream with a failing subprocess instead.
+       Retrying means re-running a failing toolchain subprocess on the
+       stream, and nothing a decode failure depends on heals by itself;
+       the warning names the fix and a fresh run picks it up. Working
+       at all requires catching every failure, which is why 2 is not
+       narrowed to EsphomeError.
     """
 
     def __init__(self, config: ConfigType, platform: str) -> None:
@@ -61,10 +49,8 @@ class LogLineProcessor:
         self._platform = platform
         self._platform_handler: StacktraceHandler | None = None
         self._decode_enabled = True
-        # None only for platforms resolved eagerly below, which never
-        # consult the gate: a registered platform always declares one.
-        # Compiled here rather than in the registry so only a log
-        # session pays for its own platform's gate.
+        # None only for platforms resolved eagerly below; a registered
+        # platform always declares a gate.
         gate = platform_hooks.STACKTRACE_GATES.get(platform)
         self._gate: re.Pattern[str] | None = None if gate is None else re.compile(gate)
         self.backtrace_state = False
@@ -77,13 +63,10 @@ class LogLineProcessor:
         if self._platform_handler is None:
             if not self._gate.search(raw_line):
                 return
-            # Deliberate trade: the platform import (~300 ms, seconds on
-            # small hosts) blocks the streaming callback here, once per
-            # session, instead of every session paying it at startup.
+            # Deliberate trade: the platform import blocks the stream
+            # here, once per session, instead of at every startup.
             if not self._resolve_handler():
                 return
-            # The only runtime breadcrumb for the gate: with -v this
-            # distinguishes "gate never fired" from "no crash occurred".
             _LOGGER.debug(
                 "Stacktrace gate fired for %s; decoder resolved", self._platform
             )
@@ -93,10 +76,8 @@ class LogLineProcessor:
         try:
             handler = platform_hooks.get_stacktrace_handler(self._platform)
         except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-except
-            # Total containment includes resolution: a platform package
-            # broken in an unanticipated way must not kill the session or
-            # retry on every address-bearing line. Name the cause like
-            # _feed does; the full traceback only exists at debug.
+            # Containment includes resolution: a broken platform package
+            # must not kill the session or retry per line.
             _LOGGER.debug("Stacktrace analyzer resolution failed", exc_info=True)
             _LOGGER.warning(
                 'Stacktrace analysis is unavailable: analyzer for target platform "%s" could not be loaded: %s',
@@ -120,10 +101,9 @@ class LogLineProcessor:
             self.backtrace_state = False
             _LOGGER.debug("Stack-trace decoding failed", exc_info=True)
             if isinstance(exc, (EsphomeError, OSError)):
-                # The environment branch: idedata and build tree failures
-                # get the remediation hint. The fallback string is
-                # defensive; the in-tree raise sites all carry a message
-                # now, but a bare EsphomeError must not render as parens.
+                # Environment failures (idedata, build tree) get the
+                # remediation hint; the fallback string keeps a bare
+                # EsphomeError from rendering as empty parens.
                 _LOGGER.warning(
                     "Crash trace decoding unavailable: %s. "
                     "Run 'esphome compile' for this device to enable PC decoding.",
@@ -131,9 +111,8 @@ class LogLineProcessor:
                 )
             else:
                 # A decoder bug is ESPHome's problem, not the user's;
-                # don't send them to recompile a healthy build. Always
-                # name the type: a bare KeyError message reads like a
-                # raised string in the paste a bug report needs.
+                # don't send them to recompile a healthy build. Name the
+                # type so a bare KeyError message reads as an exception.
                 detail = type(exc).__name__
                 if msg := str(exc):
                     detail = f"{detail}: {msg}"
