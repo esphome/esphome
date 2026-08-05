@@ -109,6 +109,24 @@ def test_esp32_default_toolchain_is_esp_idf(
 
 
 @pytest.mark.parametrize(
+    "config_toolchain",
+    [Toolchain.SDK_NRF.value, "nonsense"],
+)
+def test_esp32_rejects_unsupported_toolchains(
+    set_core_config: SetCoreConfigCallable,
+    config_toolchain: str,
+) -> None:
+    """Toolchains esp32 does not support are rejected at validation time."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    from esphome.components.esp32 import CONFIG_SCHEMA
+
+    CORE.toolchain = None
+    with pytest.raises(cv.Invalid, match="Unknown value"):
+        CONFIG_SCHEMA({"variant": VARIANT_ESP32, "toolchain": config_toolchain})
+
+
+@pytest.mark.parametrize(
     ("config", "error_match"),
     [
         pytest.param(
@@ -454,25 +472,17 @@ def test_flash_mode_unset_leaves_defaults(
         ),
         pytest.param(
             PlatformFramework.ESP32_IDF,
-            NetworkSdkconfigData(
-                wifi=True, bluetooth=True, ble_42=True, software_coexistence=True
-            ),
+            NetworkSdkconfigData(wifi=True, bluetooth=True, software_coexistence=True),
             {},
             {
                 "CONFIG_BT_ENABLED": True,
                 "CONFIG_BT_BLE_42_FEATURES_SUPPORTED": True,
+                "CONFIG_BT_BLE_50_FEATURES_SUPPORTED": False,
                 "CONFIG_SW_COEXIST_ENABLE": True,
                 "CONFIG_ESP_WIFI_SOFTAP_SUPPORT": False,
                 "CONFIG_LWIP_DHCPS": False,
             },
             id="idf_wifi_ble_tracker_coexistence",
-        ),
-        pytest.param(
-            PlatformFramework.ESP32_IDF,
-            NetworkSdkconfigData(bluetooth=True),
-            {},
-            {"CONFIG_BT_ENABLED": True},
-            id="idf_ble_server_only_no_ble42",
         ),
         # --- IDF: user sdkconfig_options always win ---
         pytest.param(
@@ -594,6 +604,7 @@ def test_network_wifi_ble_coexistence_reconciles_end_to_end(
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_BT_ENABLED") is True
     assert sdkconfig.get("CONFIG_BT_BLE_42_FEATURES_SUPPORTED") is True
+    assert sdkconfig.get("CONFIG_BT_BLE_50_FEATURES_SUPPORTED") is False
     assert sdkconfig.get("CONFIG_SW_COEXIST_ENABLE") is True
     assert sdkconfig.get("CONFIG_ESP_WIFI_SOFTAP_SUPPORT") is False
     assert sdkconfig.get("CONFIG_LWIP_DHCPS") is False

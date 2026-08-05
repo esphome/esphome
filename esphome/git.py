@@ -1,5 +1,8 @@
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
+from enum import Enum, auto
+import errno
 import hashlib
 import logging
 import os
@@ -8,23 +11,42 @@ import re
 import subprocess
 import sys
 import time
+from typing import TYPE_CHECKING
 import urllib.parse
 
 import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError, TimePeriodSeconds
 from esphome.helpers import add_git_ceiling_directory, rmtree, write_file
 
+if TYPE_CHECKING:
+    from filelock import FileLock
+
 _LOGGER = logging.getLogger(__name__)
 
 # Special value to indicate never refresh
 NEVER_REFRESH = TimePeriodSeconds(seconds=-1)
 
-# Written inside .git only after every clone step (clone, ref fetch, reset,
-# submodule init) has completed. A directory without it is an interrupted
-# clone (e.g. the process was killed mid-clone) and must be re-cloned; without
-# this check such a directory would be trusted forever when the caller uses
-# NEVER_REFRESH. Lives in .git so stash/reset/checkout can never touch it and
-# it does not pollute the worktree.
+# revert() runs on an already-failing path; bound its wait for the cache
+# entry lock so that recovery cannot hang forever behind another process.
+_REVERT_LOCK_TIMEOUT_SECONDS = 60
+
+# When a complete cache entry already exists, a caller does not wait forever
+# behind another process's stalled clone or update (git sets no network
+# timeouts): after this bound it uses the existing clone without refreshing
+# it. With no complete entry there is nothing to fall back to, so the wait
+# is unbounded.
+_COMPLETE_ENTRY_LOCK_TIMEOUT_SECONDS = 60
+
+# Written inside .git only while the entry is a complete, quiescent
+# checkout: after every clone step (clone, ref fetch, reset, submodule init)
+# has finished, and removed for the duration of a refresh's rewrite
+# (stash/fetch/reset). A directory without it is an interrupted clone or
+# update (e.g. the process was killed mid-clone) and must be re-cloned;
+# without this check such a directory would be trusted forever when the
+# caller uses NEVER_REFRESH, and the bounded-wait fallback would hand a
+# mid-rewrite tree to a timed-out peer. Lives in .git so
+# stash/reset/checkout can never touch it and it does not pollute the
+# worktree.
 _CLONE_COMPLETE_MARKER = "esphome_clone_complete"
 
 # Environment variables that scope git to a specific repository. Git hooks and
@@ -149,6 +171,16 @@ def run_git_command(
     return ret.stdout.decode("utf-8").strip()
 
 
+def _cache_key(url: str, ref: str | None) -> str:
+    """Cache key identifying one repository checkout.
+
+    The lock path and the entry directory both hash this, keeping them in
+    agreement. (micro_wake_word still rebuilds the format by hand to locate
+    manifests; fold it in here if the format ever changes.)
+    """
+    return f"{url}@{ref}"
+
+
 def _compute_destination_path(key: str, domain: str) -> Path:
     base_dir = Path(CORE.data_dir) / domain
     h = hashlib.new("sha256")
@@ -156,8 +188,184 @@ def _compute_destination_path(key: str, domain: str) -> Path:
     return base_dir / h.hexdigest()[:8]
 
 
+def _repo_entry_dir(key: str, domain: str, subpath: Path | None) -> Path:
+    """Worktree directory of one cache entry: the hash dir plus optional subpath."""
+    repo_dir = _compute_destination_path(key, domain)
+    if subpath:
+        repo_dir = repo_dir / subpath
+    return repo_dir
+
+
+def _repo_lock_path(key: str, domain: str) -> Path:
+    """Path of the lock file serializing all work on one cache entry.
+
+    Lives next to the hash directory, never inside it, so the removal of a
+    broken or incomplete clone can never delete a lock another process holds.
+    """
+    repo_dir = _compute_destination_path(key, domain)
+    return repo_dir.parent / f"{repo_dir.name}.lock"
+
+
+class _LockStatus(Enum):
+    ACQUIRED = auto()
+    # A bounded wait expired while another process held the lock.
+    TIMEOUT = auto()
+    # The lock could not be taken at all; callers proceed unlocked,
+    # matching the behavior before the lock existed.
+    UNAVAILABLE = auto()
+
+
+# Errnos that mean the filesystem genuinely cannot take file locks (NFS
+# without a lock daemon, some FUSE mounts). Any other OSError (permissions,
+# read-only volume, full disk) is a cache directory problem, which the git
+# commands themselves report clearly when it actually matters. EPERM is
+# deliberately absent: it usually means a permissions problem, so it takes
+# the generic message that names no cause. On Linux ENOTSUP and EOPNOTSUPP
+# are the same value; the set folds them.
+_NO_LOCK_SUPPORT_ERRNOS = frozenset(
+    {errno.ENOLCK, errno.ENOSYS, errno.EOPNOTSUPP, errno.ENOTSUP}
+)
+
+
+def _acquire_repo_lock(
+    lock: "FileLock",
+    safe_key: str,
+    timeout: float,
+    wait_message: str = "Waiting for another process to finish updating %s",
+) -> _LockStatus:
+    """Acquire ``lock``, logging ``wait_message`` when a wait actually begins.
+
+    ``timeout`` of -1 waits forever; a positive value bounds the wait and
+    can yield ``TIMEOUT``.
+    """
+    from filelock import Timeout
+
+    try:
+        try:
+            lock.acquire(blocking=False)
+        except Timeout:
+            # Waiting on another process's clone or update can take
+            # minutes; say so instead of appearing hung.
+            _LOGGER.info(wait_message, safe_key)
+            lock.acquire(timeout=timeout)
+    except Timeout:
+        return _LockStatus.TIMEOUT
+    except OSError as err:
+        if err.errno in _NO_LOCK_SUPPORT_ERRNOS:
+            _LOGGER.warning(
+                "The filesystem does not support locking the cache entry for "
+                "%s (%s), continuing without a lock",
+                safe_key,
+                err,
+            )
+        else:
+            # Not a locking problem (permissions, read-only volume, full
+            # disk). Still continue unlocked: a pre-seeded read-only cache
+            # with refresh disabled only reads and must keep working, and
+            # in every other case the git commands fail with the real error.
+            _LOGGER.warning(
+                "Could not take the cache entry lock for %s (%s), "
+                "continuing without a lock",
+                safe_key,
+                err,
+            )
+        return _LockStatus.UNAVAILABLE
+    return _LockStatus.ACQUIRED
+
+
+@contextmanager
+def _repo_cache_lock(
+    key: str, domain: str, repo_dir: Path
+) -> Iterator[tuple[bool, "FileLock | None"]]:
+    """Hold the cache entry lock for ``key`` over the with block.
+
+    Yields ``(use_existing, lock)``. ``use_existing`` is True when the lock
+    could not be acquired within the bounded wait but ``repo_dir`` is a
+    complete cache entry; the caller should use it as-is and do nothing
+    else. Otherwise ``lock`` is the held lock, released when the block
+    exits, or ``None`` when the lock could not be taken at all and the
+    caller proceeds unlocked.
+    """
+    # Lazy import: keeps filelock off the CLI startup import path.
+    from filelock import FileLock
+
+    safe_key = _redact_url_credentials(key)
+    # acquire() creates the lock file's directory itself; git clone later
+    # creates the hash directory next to it. fallback_to_soft would silently
+    # downgrade ENOSYS to a SoftFileLock, whose stale existence marker from
+    # another host on a shared cache could hang the unbounded wait forever;
+    # routing it through the OSError handler runs unlocked instead.
+    lock: FileLock | None = FileLock(
+        str(_repo_lock_path(key, domain)), fallback_to_soft=False
+    )
+    status = _acquire_repo_lock(lock, safe_key, _COMPLETE_ENTRY_LOCK_TIMEOUT_SECONDS)
+    if status is _LockStatus.TIMEOUT:
+        if _clone_complete_marker_path(repo_dir).is_file():
+            # Mutual exclusion matters most while no complete entry exists
+            # (initial clone, recovery re-clone); with one on disk, reading
+            # it beats hanging behind a stalled holder.
+            _LOGGER.warning(
+                "Timed out waiting for another process updating %s, proceeding "
+                "with the existing clone, which that process may still be "
+                "changing",
+                safe_key,
+            )
+            yield True, None
+            return
+        # Nothing to fall back to; the holder is producing the clone this
+        # caller needs.
+        status = _acquire_repo_lock(
+            lock,
+            safe_key,
+            timeout=-1,
+            wait_message="Still waiting for the clone of %s, "
+            "there is no existing clone to fall back on",
+        )
+    if status is not _LockStatus.ACQUIRED:
+        lock = None
+    try:
+        yield False, lock
+    finally:
+        if lock is not None:
+            lock.release()
+
+
 def _clone_complete_marker_path(repo_dir: Path) -> Path:
     return repo_dir / ".git" / _CLONE_COMPLETE_MARKER
+
+
+def _clear_clone_complete_marker(repo_dir: Path) -> None:
+    """Best-effort removal of the completion marker.
+
+    If the unlink fails (e.g. a file lock on Windows), the marker stays and
+    the entry keeps its previous trust level; every consumer of the marker
+    tolerates that.
+    """
+    try:
+        _clone_complete_marker_path(repo_dir).unlink(missing_ok=True)
+    except OSError as err:
+        _LOGGER.debug("Could not delete clone completion marker: %s", err)
+
+
+def _write_clone_complete_marker(
+    repo_dir: Path, key: str, hash_dir_name: str, safe_key: str
+) -> None:
+    """Mark the entry as a complete, quiescent checkout.
+
+    The key and hash dir name are recorded purely to make cache debugging
+    easier. The marker is only a validity signal, so a failed write must not
+    fail an otherwise complete clone or update: the only cost is a re-clone
+    on the next run.
+    """
+    try:
+        write_file(
+            _clone_complete_marker_path(repo_dir),
+            f"key={key}\nhash={hash_dir_name}\n",
+        )
+    except EsphomeError as err:
+        _LOGGER.warning(
+            "Could not write clone completion marker for %s: %s", safe_key, err
+        )
 
 
 def _remove_repo_dir(repo_dir: Path) -> None:
@@ -165,13 +373,10 @@ def _remove_repo_dir(repo_dir: Path) -> None:
 
     Marker-first ordering guarantees an interrupted removal can never leave a
     marker behind next to a partially deleted worktree. The unlink is best
-    effort: if it fails (e.g. a file lock on Windows), rmtree below still
-    gets the chance to remove the directory, marker included.
+    effort: if it fails, rmtree below still gets the chance to remove the
+    directory, marker included.
     """
-    try:
-        _clone_complete_marker_path(repo_dir).unlink(missing_ok=True)
-    except OSError as err:
-        _LOGGER.debug("Could not delete clone completion marker first: %s", err)
+    _clear_clone_complete_marker(repo_dir)
     if repo_dir.is_dir():
         rmtree(repo_dir)
 
@@ -286,16 +491,79 @@ def resolve_symlink_stub(repo_dir: Path, file_path: Path) -> Path | None:
 def clone_or_update(
     *,
     url: str,
-    ref: str = None,
+    ref: str | None = None,
     refresh: TimePeriodSeconds | None,
     domain: str,
-    username: str = None,
-    password: str = None,
+    username: str | None = None,
+    password: str | None = None,
     init_submodules: bool = False,
     subpath: Path | None = None,
+) -> tuple[Path, Callable[[], bool] | None]:
+    """Clone a repository into the cache, or refresh an existing clone.
+
+    All work runs under a per-cache-entry inter-process file lock, so
+    concurrent resolutions of the same repository (two esphome processes, or
+    a subprocess plus an in-process load) serialize instead of interleaving.
+    Without the lock, ``repo_dir.is_dir()`` is true from the instant
+    ``git clone`` creates the directory: a second caller could read a half
+    populated worktree, or see the missing completion marker and delete the
+    clone in progress out from under the first caller.
+
+    The lock guards mutation of the cache entry only; it is released when
+    this function returns, so a caller still reading the worktree can
+    overlap a later refresh by another process. That residual window is
+    narrow (the refresh interval is re-checked under the lock) and predates
+    the lock.
+
+    Locking is best effort: on a filesystem that cannot take file locks a
+    warning is logged and the work proceeds unlocked, matching the behavior
+    before the lock existed. A complete cache entry also caps the wait: if
+    the holder is still busy after a bounded time (e.g. stalled on the
+    network), the existing clone is used without refreshing it, so a stuck
+    process cannot hang every peer that already has a good entry.
+    """
+    key = _cache_key(url, ref)
+    repo_dir = _repo_entry_dir(key, domain, subpath)
+    with _repo_cache_lock(key, domain, repo_dir) as (use_existing, lock):
+        if use_existing:
+            return repo_dir, None
+        return _clone_or_update_locked(
+            url=url,
+            ref=ref,
+            refresh=refresh,
+            domain=domain,
+            username=username,
+            password=password,
+            init_submodules=init_submodules,
+            subpath=subpath,
+            lock=lock,
+        )
+
+
+def _clone_or_update_locked(
+    *,
+    url: str,
+    ref: str | None,
+    refresh: TimePeriodSeconds | None,
+    domain: str,
+    username: str | None,
+    password: str | None,
+    init_submodules: bool,
+    subpath: Path | None,
+    lock: "FileLock | None",
     _recover_broken: bool = True,
-) -> tuple[Path, Callable[[], None] | None]:
-    key = f"{url}@{ref}"
+) -> tuple[Path, Callable[[], bool] | None]:
+    """Body of ``clone_or_update``; the caller holds ``lock``.
+
+    Split out because the broken-repository recovery below re-enters this
+    function: re-acquiring the already-held lock would deadlock, since OS
+    file locks taken on separate file descriptors conflict even within one
+    process. ``lock`` is only re-acquired by the returned ``revert``
+    callback, which runs after the wrapper's ``finally`` has released it.
+    ``lock`` is ``None`` when the filesystem cannot take file locks and the
+    wrapper fell back to running unlocked.
+    """
+    key = _cache_key(url, ref)
     # The user may have embedded credentials in the URL itself; log this
     # instead of key.
     safe_key = _redact_url_credentials(key)
@@ -309,10 +577,8 @@ def clone_or_update(
             "://", f"://{urllib.parse.quote(username)}:{urllib.parse.quote(password)}@"
         )
 
-    repo_dir = _compute_destination_path(key, domain)
-    hash_dir_name = repo_dir.name
-    if subpath:
-        repo_dir = repo_dir / subpath
+    hash_dir_name = _compute_destination_path(key, domain).name
+    repo_dir = _repo_entry_dir(key, domain, subpath)
 
     if repo_dir.is_dir() and not _clone_complete_marker_path(repo_dir).is_file():
         # The last clone never finished (killed process, container stop) or
@@ -353,19 +619,8 @@ def clone_or_update(
             _remove_repo_dir(repo_dir)
             raise
 
-        # Every git step succeeded; the key and hash dir name are recorded
-        # purely to make cache debugging easier. The marker is only a
-        # validity signal, so a failed write must not fail an otherwise
-        # complete clone: the only cost is a re-clone on the next run.
-        try:
-            write_file(
-                _clone_complete_marker_path(repo_dir),
-                f"key={key}\nhash={hash_dir_name}\n",
-            )
-        except EsphomeError as err:
-            _LOGGER.warning(
-                "Could not write clone completion marker for %s: %s", safe_key, err
-            )
+        # Every git step succeeded.
+        _write_clone_complete_marker(repo_dir, key, hash_dir_name, safe_key)
 
     else:
         if refresh == NEVER_REFRESH or CORE.skip_external_update:
@@ -396,6 +651,13 @@ def clone_or_update(
                 _LOGGER.info("Updating %s", safe_key)
                 _LOGGER.debug("Location: %s", repo_dir)
 
+                # The entry is about to be rewritten; drop the marker so a
+                # timed-out peer's fallback and the incomplete-entry check
+                # can tell a quiescent complete entry from one mid-rewrite,
+                # and so an update interrupted by a crash re-clones instead
+                # of being trusted.
+                _clear_clone_complete_marker(repo_dir)
+
                 # Stash local changes (if any)
                 # Use git_dir to ensure this only affects the specific repo
                 run_git_command(
@@ -425,6 +687,15 @@ def clone_or_update(
                 # refresh window would silently accept on the next run.
                 if init_submodules:
                     update_submodules(repo_dir, key)
+
+                # Recorded so revert() can tell whether the checkout is
+                # still the one this update produced.
+                new_sha = run_git_command(
+                    ["git", "rev-parse", "HEAD"], git_dir=repo_dir
+                )
+
+                # The rewrite finished; the entry is trustworthy again.
+                _write_clone_complete_marker(repo_dir, key, hash_dir_name, safe_key)
             except GitException as err:
                 # Repository is in a broken state or update failed
                 # Only attempt recovery once to prevent infinite recursion
@@ -444,9 +715,10 @@ def clone_or_update(
                 _remove_repo_dir(repo_dir)
                 _LOGGER.info("Successfully removed broken repository, re-cloning...")
 
-                # Recursively call clone_or_update to re-clone
-                # Set _recover_broken=False to prevent infinite recursion
-                result = clone_or_update(
+                # Re-clone while still holding the lock; going through the
+                # public wrapper would try to re-acquire it and deadlock.
+                # Set _recover_broken=False to prevent infinite recursion.
+                result = _clone_or_update_locked(
                     url=original_url,
                     ref=ref,
                     refresh=refresh,
@@ -455,14 +727,80 @@ def clone_or_update(
                     password=password,
                     init_submodules=init_submodules,
                     subpath=subpath,
+                    lock=lock,
                     _recover_broken=False,
                 )
                 _LOGGER.info("Repository %s successfully recovered", safe_key)
                 return result
 
-            def revert():
-                _LOGGER.info("Reverting changes to %s -> %s", safe_key, old_sha)
-                run_git_command(["git", "reset", "--hard", old_sha], git_dir=repo_dir)
+            def revert() -> bool:
+                """Reset the checkout to the pre-update SHA.
+
+                Returns False when the revert did not happen: the cache
+                entry lock could not be acquired in time, the checkout
+                moved since this update (another process refreshed it), or
+                the reset itself failed. A retry cannot reach the
+                pre-update content then.
+                """
+                if lock is None:
+                    # The wrapper already warned about the unlockable
+                    # filesystem; revert unlocked like everything else.
+                    status = _LockStatus.UNAVAILABLE
+                else:
+                    status = _acquire_repo_lock(
+                        lock, safe_key, _REVERT_LOCK_TIMEOUT_SECONDS
+                    )
+                if status is _LockStatus.TIMEOUT:
+                    # revert() only runs on an already-failing path; skip
+                    # rather than hang so the original error can surface.
+                    _LOGGER.warning(
+                        "Could not lock %s to revert to %s, skipping revert; "
+                        "the cached checkout keeps the un-reverted content "
+                        "until its next refresh",
+                        safe_key,
+                        old_sha,
+                    )
+                    return False
+                try:
+                    # Anything can happen between the wrapper releasing the
+                    # lock and revert() re-acquiring it; only undo this
+                    # process's own update, never a peer's newer refresh.
+                    head = run_git_command(
+                        ["git", "rev-parse", "HEAD"], git_dir=repo_dir
+                    )
+                    if head != new_sha:
+                        _LOGGER.warning(
+                            "Not reverting %s: the checkout moved since this "
+                            "update (another process refreshed it)",
+                            safe_key,
+                        )
+                        return False
+                    # Announced only once every skip check has passed, so
+                    # the log says exactly one thing per outcome.
+                    _LOGGER.info("Reverting changes to %s -> %s", safe_key, old_sha)
+                    run_git_command(
+                        ["git", "reset", "--hard", old_sha], git_dir=repo_dir
+                    )
+                except GitException as err:
+                    # GitException is a cv.Invalid; letting it escape would
+                    # replace the caller's original error with a bare git
+                    # message. Report the failed reset like the skip above,
+                    # and drop the marker: an entry whose reset fails cannot
+                    # be trusted, so the next use re-clones it instead of
+                    # the refresh window silently accepting it.
+                    _LOGGER.warning(
+                        "Could not revert %s to %s (%s), the entry will be "
+                        "re-cloned on next use",
+                        safe_key,
+                        old_sha,
+                        err,
+                    )
+                    _clear_clone_complete_marker(repo_dir)
+                    return False
+                finally:
+                    if status is _LockStatus.ACQUIRED:
+                        lock.release()
+                return True
 
             return repo_dir, revert
 

@@ -628,7 +628,6 @@ class NetworkSdkconfigData:
     wifi_ap: bool = False  # WiFi AP mode configured
     ethernet: bool = False  # Ethernet component active
     bluetooth: bool = False  # any BLE component active
-    ble_42: bool = False  # BLE 4.2 features needed
     software_coexistence: bool = False  # WiFi/BT software coexistence requested
     # esp32 advanced enable_lwip_dhcp_server option (True/False/None=unset)
     enable_lwip_dhcp_server: bool | None = None
@@ -654,12 +653,10 @@ def request_ethernet() -> None:
     _network_sdkconfig().ethernet = True
 
 
-def request_bluetooth(ble_42: bool = False) -> None:
-    """Request the Bluetooth controller. Pass ble_42=True for 4.2 features."""
+def request_bluetooth() -> None:
+    """Request the Bluetooth controller."""
     net = _network_sdkconfig()
     net.bluetooth = True
-    if ble_42:
-        net.ble_42 = True
 
 
 def request_software_coexistence() -> None:
@@ -1029,7 +1026,9 @@ def _check_esp_idf_versions(config: ConfigType) -> ConfigType:
 
 
 def _validate_toolchain(value) -> Toolchain:
-    return Toolchain(cv.one_of(*(t.value for t in Toolchain), lower=True)(value))
+    return Toolchain(
+        cv.one_of(Toolchain.PLATFORMIO, Toolchain.ESP_IDF, lower=True)(value)
+    )
 
 
 def _resolve_toolchain(value: ConfigType) -> ConfigType:
@@ -2044,12 +2043,12 @@ async def _reconcile_network_sdkconfig() -> None:
         if name not in opts:
             add_idf_sdkconfig_option(name, value)
 
-    # Bluetooth: only ever enable when requested. The IDF default is off and
-    # nothing sets these False today, so never write False here.
+    # Bluetooth: only ever enable when requested. The IDF default is off.
+    # According to the IDF docs, only one of 4.2 or 5.0 should be enabled.
     if net.bluetooth:
         set_opt("CONFIG_BT_ENABLED", True)
-        if net.ble_42:
-            set_opt("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
+        set_opt("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
+        set_opt("CONFIG_BT_BLE_50_FEATURES_SUPPORTED", False)
 
     # WiFi stack: disable only when Ethernet is present and WiFi is not. WiFi
     # relies on the IDF default (enabled), so it is never written True here.
