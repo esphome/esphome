@@ -31,6 +31,11 @@ def _validate_board(config: ConfigType) -> ConfigType:
 FINAL_VALIDATE_SCHEMA = _validate_board
 
 
+# Once per registered scan listener; sizes the controller's StaticVector
+# listener storage.
+request_scan_listener_slot = cg.slot_counter("RP2040_BLE_SCAN_LISTENER_COUNT")
+
+
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

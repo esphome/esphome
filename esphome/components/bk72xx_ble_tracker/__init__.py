@@ -12,19 +12,30 @@ Scan modes:
                       Use this when the radio is dedicated to BLE.
   continuous: false — a started scan runs for `duration` ms, then stops. The
                       FIRST start is external too: nothing in this component
-                      starts a non-continuous scan on boot, so until the
-                      automation actions land (follow-up PR) the radio stays
-                      idle. start_scan() is called from code (e.g. an api
-                      client-connected automation) so the single-core radio
-                      can service WiFi in between scans.
+                      starts a non-continuous scan on boot — the radio stays
+                      idle until bk72xx_ble_tracker.start_scan fires (e.g.
+                      from an api client-connected automation), so the
+                      single-core radio can service WiFi in between scans.
 """
 
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import bk72xx_ble, ble_device_base, ota
-from esphome.components.const import CONF_SCAN_PARAMETERS, CONF_WINDOW
+from esphome.components.ble_device_base import automation as ble_automation
+from esphome.components.const import CONF_ON_SCAN_END, CONF_SCAN_PARAMETERS, CONF_WINDOW
 import esphome.config_validation as cv
-from esphome.const import CONF_CONTINUOUS, CONF_DURATION, CONF_ID, CONF_INTERVAL
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.const import (
+    CONF_CONTINUOUS,
+    CONF_DURATION,
+    CONF_ID,
+    CONF_INTERVAL,
+    CONF_MANUFACTURER_ID,
+    CONF_ON_BLE_ADVERTISE,
+    CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
+    CONF_ON_BLE_SERVICE_DATA_ADVERTISE,
+    CONF_SERVICE_UUID,
+)
+from esphome.core import ID
 from esphome.types import ConfigType
 
 CONF_BK72XX_BLE_ID = "bk72xx_ble_id"
@@ -38,6 +49,14 @@ BK72xxBLETracker = bk72xx_ble_tracker_ns.class_(
     "BK72xxBLETracker", ble_device_base.BLEHub, cg.Component
 )
 
+StartScanAction = bk72xx_ble_tracker_ns.class_("StartScanAction", automation.Action)
+StopScanAction = bk72xx_ble_tracker_ns.class_("StopScanAction", automation.Action)
+
+ESPBTAdvertiseTrigger = ble_automation.ESPBTAdvertiseTrigger
+BLEServiceDataAdvertiseTrigger = ble_automation.BLEServiceDataAdvertiseTrigger
+BLEManufacturerDataAdvertiseTrigger = ble_automation.BLEManufacturerDataAdvertiseTrigger
+BLEEndOfScanTrigger = ble_automation.BLEEndOfScanTrigger
+
 
 # interval defaults to the BK reference scan rate — 100 ms with the shared 30 ms
 # window, a 30 % duty cycle. Converted to the controller's 0.625 ms BLE units in
@@ -49,18 +68,77 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(BK72xxBLETracker),
         cv.GenerateID(CONF_BK72XX_BLE_ID): cv.use_id(bk72xx_ble.BK72xxBLE),
         cv.Optional(CONF_SCAN_PARAMETERS, default={}): SCAN_PARAMETERS_SCHEMA,
+        cv.Optional(CONF_ON_BLE_ADVERTISE): ble_automation.advertise_trigger_schema(
+            ESPBTAdvertiseTrigger
+        ),
+        cv.Optional(
+            CONF_ON_BLE_SERVICE_DATA_ADVERTISE
+        ): ble_automation.uuid_trigger_schema(
+            BLEServiceDataAdvertiseTrigger,
+            {cv.Required(CONF_SERVICE_UUID): ble_device_base.bt_uuid},
+        ),
+        cv.Optional(
+            CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE
+        ): ble_automation.uuid_trigger_schema(
+            BLEManufacturerDataAdvertiseTrigger,
+            {cv.Required(CONF_MANUFACTURER_ID): ble_device_base.bt_uuid},
+        ),
+        cv.Optional(CONF_ON_SCAN_END): ble_automation.scan_end_trigger_schema(
+            BLEEndOfScanTrigger
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-# Runs at FINAL priority so every BLE sensor has registered through
-# ble_device_base (and any tracker-owned listeners have been counted) before
-# the StaticVector size is emitted. Same pattern as esp32_ble_tracker.
-@coroutine_with_priority(CoroPriority.FINAL)
-async def _emit_listener_count() -> None:
-    count = ble_device_base.get_listener_count()
-    if count > 0:
-        cg.add_define("ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT", count)
+@automation.register_action(
+    "bk72xx_ble_tracker.start_scan",
+    StartScanAction,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(BK72xxBLETracker),
+            # Optional with no default, unlike esp32_ble_tracker: omitting it
+            # keeps whatever scan_parameters.continuous configured, instead of
+            # silently forcing one-shot.
+            cv.Optional(CONF_CONTINUOUS): cv.templatable(cv.boolean),
+        }
+    ),
+    synchronous=True,
+)
+async def start_scan_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: list,
+) -> cg.MockObj:
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    if (continuous := config.get(CONF_CONTINUOUS)) is not None:
+        template_ = await cg.templatable(continuous, args, cg.bool_)
+        cg.add(var.set_continuous(template_))
+    return var
+
+
+@automation.register_action(
+    "bk72xx_ble_tracker.stop_scan",
+    StopScanAction,
+    automation.maybe_simple_id(
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.use_id(BK72xxBLETracker),
+            }
+        )
+    ),
+    synchronous=True,
+)
+async def stop_scan_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: list,
+) -> cg.MockObj:
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 async def to_code(config: ConfigType) -> None:
@@ -80,6 +158,23 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_scan_interval(ble_device_base.to_ble_units(scan[CONF_INTERVAL])))
     cg.add(var.set_scan_window(ble_device_base.to_ble_units(scan[CONF_WINDOW])))
     cg.add(var.set_scan_duration(scan[CONF_DURATION].total_milliseconds))
-    cg.add(var.set_scan_continuous(scan[CONF_CONTINUOUS]))
+    cg.add(var.set_configured_continuous(scan[CONF_CONTINUOUS]))
 
-    CORE.add_job(_emit_listener_count)
+    for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
+        await ble_automation.advertise_trigger_to_code(conf, var)
+
+    for trigger_key, uuid_key, setter_prefix in (
+        (CONF_ON_BLE_SERVICE_DATA_ADVERTISE, CONF_SERVICE_UUID, "set_service_uuid"),
+        (
+            CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
+            CONF_MANUFACTURER_ID,
+            "set_manufacturer_uuid",
+        ),
+    ):
+        for conf in config.get(trigger_key, []):
+            await ble_automation.uuid_trigger_to_code(
+                conf, var, uuid_key, setter_prefix
+            )
+
+    for conf in config.get(CONF_ON_SCAN_END, []):
+        await ble_automation.scan_end_trigger_to_code(conf, var)

@@ -9,6 +9,10 @@ test_uart_mock_modbus_no_threshold :
   Test modbus with no rx_full_threshold set (simulating USB UART / non-hardware UART).
   Verifies the 50ms fallback timeout handles chunked data with USB packet gaps.
 
+test_uart_mock_modbus_fairness :
+  Two controllers sharing one client bus, both polling far faster than the bus
+  can service. Verifies the hub schedules them fairly (request counts within 1).
+
 """
 
 from __future__ import annotations
@@ -17,7 +21,7 @@ import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from aioesphomeapi import NumberInfo
+from aioesphomeapi import ButtonInfo, NumberInfo
 import pytest
 
 from .state_utils import SensorTracker, find_entity
@@ -475,3 +479,130 @@ async def test_uart_mock_modbus_shared_address(
         await tracker.setup_and_start_scenario(client)
         await tracker.await_all(futures)
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_custom_command(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test a custom_command sensor polling a register served by the mock server.
+
+    The custom_command is a raw frame (device address + PDU); the hub appends the CRC and
+    routes the response back to the polling command, whose sensor lambda parses the payload.
+    Guards the custom polling wiring: the command must reference the sensor's custom_data and
+    decode the real function code, or nothing is ever transmitted. A plain read on the same
+    register anchors the bus.
+    """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    expected_values = {"plain_read": 259, "custom_read": 259}
+    tracker = SensorTracker(list(expected_values.keys()))
+    futures = tracker.expect_all(expected_values)
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures)
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_offline(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """A silent device drives the controller offline; answering again recovers it.
+
+    The mock answers nothing at first, so the controller burns through max_cmd_retries
+    (1 retry after the first timeout) and fires on_offline. While offline it keeps
+    retrying every offline_skip_updates+1 cycles. The test then flips the mock to
+    answering; the next retry gets a response, on_online fires, and the register value
+    publishes. This pins the pooled non-response counter, can_send() gating, the
+    offline retry cadence, and recovery - none of which the responding-path tests touch.
+
+    The fixture gives offline_skip_updates and the sensor's skip_updates the same period
+    on purpose: offline probing must follow the offline cadence alone, since requiring
+    both cadences to coincide leaves phase combinations where no probe ever goes out.
+    """
+
+    tracker = SensorTracker(["link_state", "reg"])
+    offline_future = tracker.expect("link_state", 0)
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        entities = await tracker.setup_and_start_scenario(client)
+
+        # The unanswered poll and its retry each time out (~100ms), then on_offline fires.
+        await tracker.await_change(offline_future, "link_state", timeout=5.0)
+
+        # Register the recovery expectations before waking the device so no update is missed.
+        online_future = tracker.expect("link_state", 1)
+        value_future = tracker.expect("reg", 259)
+        serve_btn = find_entity(entities, "serve", ButtonInfo)
+        assert serve_btn is not None, "Serve button not found"
+        client.button_command(serve_btn.key)
+
+        # The next offline-cadence retry gets an answer: back online, value published.
+        await tracker.await_change(online_future, "link_state", timeout=5.0)
+        await tracker.await_change(value_future, "reg", timeout=5.0)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_fairness(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Two controllers sharing one bus should get a fair share of it.
+
+    Both controllers poll different devices (addresses 1 and 2) on the same
+    client hub, far faster than the bus can service, so they continually
+    contend for it. The on_tx hook in the fixture counts the requests issued
+    for each address. With fair scheduling in the modbus hub, neither
+    controller should starve the other: the two request counts must end up
+    within 1 of each other.
+    """
+
+    tracker = SensorTracker(["requests_1", "requests_2"])
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        entities = await tracker.setup_and_start_scenario(client)
+
+        # Let both controllers hammer the bus for a while.
+        await asyncio.sleep(2.0)
+
+        # Stop polling so the counters settle to a final, stable value (state
+        # coalescing means intermediate values may be skipped, but the final
+        # value is always delivered once changes stop).
+        stop_btn = find_entity(entities, "stop_scenario", ButtonInfo)
+        assert stop_btn is not None, "Stop Scenario button not found"
+        client.button_command(stop_btn.key)
+        await asyncio.sleep(0.5)
+
+        assert tracker.sensor_states["requests_1"], "controller 1 issued no requests"
+        assert tracker.sensor_states["requests_2"], "controller 2 issued no requests"
+        count_1 = tracker.sensor_states["requests_1"][-1]
+        count_2 = tracker.sensor_states["requests_2"][-1]
+
+        # Both must have polled repeatedly, otherwise "fairness" is meaningless.
+        assert count_1 >= 5 and count_2 >= 5, (
+            f"expected both controllers to poll repeatedly, "
+            f"got controller 1={count_1}, controller 2={count_2}"
+        )
+        # Fair scheduling: the bus alternates between the two pending requests,
+        # so the counts can differ by at most one in-flight request.
+        assert abs(count_1 - count_2) <= 1, (
+            f"controllers did not get a fair share of the bus: "
+            f"controller 1 issued {count_1}, controller 2 issued {count_2}"
+        )
