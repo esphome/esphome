@@ -100,17 +100,12 @@ def run_async[T](
 ) -> T:
     """Run a coroutine in a daemon-thread event loop and return its result.
 
-    The result is available as soon as the coroutine completes; the loop's
-    cleanup cycle finishes in the background. Raises
-    :class:`AsyncDispatchTimeout` (a ``TimeoutError`` subclass, so it stays
-    distinguishable from a timeout raised inside the coroutine) when the
-    coroutine does not complete within ``timeout`` seconds; the daemon
-    thread is abandoned and exits with the interpreter. If ``on_orphan`` is
-    given it is called with the result should the abandoned thread produce
-    one after the timeout, so resources (e.g. a connected socket) can be
-    released instead of leaking. Delivery is best effort and bounded by
-    ``ORPHAN_WAIT_TIMEOUT``; a ``None`` result is skipped, since there is
-    nothing to release.
+    Raises :class:`AsyncDispatchTimeout` if the coroutine does not finish
+    within ``timeout`` seconds; the thread is abandoned and exits with the
+    interpreter. If the abandoned coroutine later produces a result,
+    ``on_orphan`` (if given) is called with it so resources such as a
+    connected socket can be released; delivery is best effort and bounded
+    by ``ORPHAN_WAIT_TIMEOUT``.
     """
     runner: AsyncThreadRunner[T] = AsyncThreadRunner(coro_factory)
     runner.start()
