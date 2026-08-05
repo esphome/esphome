@@ -8,7 +8,7 @@ or any platform package.
 from __future__ import annotations
 
 import logging
-import time
+from time import monotonic
 from typing import TYPE_CHECKING
 
 from esphome import platform_hooks
@@ -89,7 +89,7 @@ class LogLineProcessor:
         """Give decoding another try once the failure cooldown has passed."""
         if self._disabled_at is None:  # no analyzer; nothing to retry
             return False
-        if time.monotonic() - self._disabled_at < self._cooldown:
+        if monotonic() - self._disabled_at < self._cooldown:
             return False
         self._decode_enabled = True
         self._disabled_at = None
@@ -100,14 +100,9 @@ class LogLineProcessor:
             self.backtrace_state = self._platform_handler(
                 self._config, raw_line, self.backtrace_state
             )
-            # A success ends the failure episode; a later failure with
-            # the same message is a new episode, warns in full again and
-            # starts back at the short cooldown.
-            self._last_failure = None
-            self._cooldown = _REARM_COOLDOWN_S
         except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-except
             self._decode_enabled = False
-            self._disabled_at = time.monotonic()
+            self._disabled_at = monotonic()
             self.backtrace_state = False
             _LOGGER.debug("Stack-trace decoding failed", exc_info=True)
             failure = f"{type(exc).__name__}: {exc}"
@@ -115,7 +110,10 @@ class LogLineProcessor:
                 # A permanent cause re-fails on every re-arm; one full
                 # warning is enough. Repeats go to debug and back off so
                 # an hours-long crash loop neither buries the dump in
-                # reminders nor hitches the stream once a minute.
+                # reminders nor hitches the stream once a minute. The
+                # episode deliberately survives non-raising returns: an
+                # ordinary line proves nothing about the environment,
+                # and a healed one simply stops failing.
                 self._cooldown = min(self._cooldown * 2, _REARM_COOLDOWN_MAX_S)
                 _LOGGER.debug("Stack-trace decoding still failing: %s", failure)
                 return

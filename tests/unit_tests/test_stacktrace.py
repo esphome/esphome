@@ -36,10 +36,10 @@ def _warnings(caplog) -> list[str]:
 
 
 def _clock(*times: float):
-    """Stub monotonic to repeat its last value; the patch is process
-    wide, so an extra call must not fail with StopIteration."""
+    """Stub the module's monotonic, repeating the last value so an
+    extra call cannot fail with StopIteration."""
     return patch.object(
-        stacktrace.time, "monotonic", side_effect=chain(times, repeat(times[-1]))
+        stacktrace, "monotonic", side_effect=chain(times, repeat(times[-1]))
     )
 
 
@@ -114,20 +114,23 @@ def test_backoff_doubles_after_identical_refailure() -> None:
     assert handler.call_count == 3
 
 
-def test_new_episode_after_success_warns_in_full(caplog) -> None:
-    """A success ends the failure episode.
+def test_ordinary_lines_do_not_end_the_failure_episode(caplog) -> None:
+    """A non-raising return proves nothing about the environment.
 
-    A later failure with the same message is a fresh problem, not spam
-    from the same one, so it must warn in full again.
+    The handler is fed every log line and returns without decoding on
+    ordinary ones, so treating that as recovery would reset the episode
+    on the first chatty line and the backoff would never engage; a
+    crash-looping device would warn and launch platformio once a minute
+    for the whole session.
     """
     handler = Mock(
         side_effect=[EsphomeError("no idedata"), False, EsphomeError("no idedata")]
     )
-    with _clock(0.0, 61.0):
+    with _clock(0.0, 61.0, 61.0):
         _run(handler, lines=("PC: 0x4010496e", "BT0: 0x4010496e", "BT1: 0x401049aa"))
 
     assert handler.call_count == 3
-    assert len([m for m in _warnings(caplog) if "esphome compile" in m]) == 2
+    assert len([m for m in _warnings(caplog) if "esphome compile" in m]) == 1
 
 
 def test_resolution_failure_is_contained(caplog) -> None:
