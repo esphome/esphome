@@ -8,6 +8,7 @@ or any platform package.
 from __future__ import annotations
 
 import logging
+import re
 from typing import TYPE_CHECKING
 
 from esphome import platform_hooks
@@ -16,7 +17,6 @@ from esphome.types import ConfigType
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    import re
 
     # The contract every platform's process_stacktrace implements.
     StacktraceHandler = Callable[[ConfigType, str, bool], bool]
@@ -63,9 +63,10 @@ class LogLineProcessor:
         self._decode_enabled = True
         # None only for platforms resolved eagerly below, which never
         # consult the gate: a registered platform always declares one.
-        self._gate: re.Pattern[str] | None = platform_hooks.STACKTRACE_GATES.get(
-            platform
-        )
+        # Compiled here rather than in the registry so only a log
+        # session pays for its own platform's gate.
+        gate = platform_hooks.STACKTRACE_GATES.get(platform)
+        self._gate: re.Pattern[str] | None = re.compile(gate) if gate else None
         self.backtrace_state = False
         if not platform_hooks.has_registered_hook(platform, "process_stacktrace"):
             self._resolve_handler()

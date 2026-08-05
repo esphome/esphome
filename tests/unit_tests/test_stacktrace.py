@@ -95,7 +95,7 @@ GATE_PARAMS = [
 
 @pytest.mark.parametrize(("platform", "line", "should_fire"), GATE_PARAMS)
 def test_platform_gate(platform: str, line: str, should_fire: bool) -> None:
-    gate = stacktrace.platform_hooks.STACKTRACE_GATES[platform]
+    gate = re.compile(stacktrace.platform_hooks.STACKTRACE_GATES[platform])
     assert bool(gate.search(line)) is should_fire
 
 
@@ -105,7 +105,7 @@ def test_gates_are_platform_scoped() -> None:
     Another platform's marker on an esp32 session must not cost the
     one-time import; the platform is known when the session starts.
     """
-    esp32_gate = stacktrace.platform_hooks.STACKTRACE_GATES[PLATFORM_ESP32]
+    esp32_gate = re.compile(stacktrace.platform_hooks.STACKTRACE_GATES[PLATFORM_ESP32])
     for line in (
         ">>>stack>>>",
         "Last crash:",
@@ -266,7 +266,7 @@ def test_address_gate_covers_decoder_pattern_languages(
     """
     pattern = getattr(importlib.import_module(f"esphome.components.{platform}"), name)
     example = data.draw(from_regex(pattern, fullmatch=True))
-    gate = stacktrace.platform_hooks.STACKTRACE_GATES[platform]
+    gate = re.compile(stacktrace.platform_hooks.STACKTRACE_GATES[platform])
     assert gate.search(example), (
         f"{platform}.{name} accepts {example!r} but the {platform} gate does "
         "not fire; decoding would silently never start on that form"

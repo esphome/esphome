@@ -20,7 +20,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from importlib import import_module
 import logging
-import re
 from typing import Any, Final
 
 from esphome.const import (
@@ -60,13 +59,17 @@ COSMETIC_HOOKS: Final = frozenset({"process_stacktrace"})
 # line; their decoders key on the 0x-bearing lines that follow, but
 # gating on the banner resolves the decoder at the dump's first line
 # and can only be a true positive.
-STACKTRACE_GATES: Final[dict[str, re.Pattern[str]]] = {
-    PLATFORM_ESP32: re.compile(
+#
+# Stored as strings: this module is imported by every CLI invocation,
+# and only a log session needs a gate, so the session compiles exactly
+# its own platform's entry instead of import time compiling all four.
+STACKTRACE_GATES: Final[dict[str, str]] = {
+    PLATFORM_ESP32: (
         r"0x[0-9a-fA-F]{3,}\b"
         r"|(?:PC|RA|MEPC|MTVAL|EXCVADDR|call)\s*[:=]\s*(?:0x)?4[0-9a-fA-F]{7}"
         r"|CRASH DETECTED ON PREVIOUS BOOT"
     ),
-    PLATFORM_ESP8266: re.compile(
+    PLATFORM_ESP8266: (
         r"0x[0-9a-fA-F]{3,}\b"
         r"|\b(?![0-9]{8}\b)[0-9a-fA-F]{8}\b"
         r"|(?:PC|EXCVADDR|call)\s*[:=]\s*(?:0x)?4[0-9a-fA-F]{7}"
@@ -74,8 +77,8 @@ STACKTRACE_GATES: Final[dict[str, re.Pattern[str]]] = {
         r"|>>>stack>>>"
         r"|CRASH DETECTED ON PREVIOUS BOOT"
     ),
-    PLATFORM_RP2: re.compile(r"0x[0-9a-fA-F]{3,}\b|CRASH DETECTED ON PREVIOUS BOOT"),
-    PLATFORM_NRF52: re.compile(r"0x[0-9a-fA-F]{3,}\b|Last crash:"),
+    PLATFORM_RP2: r"0x[0-9a-fA-F]{3,}\b|CRASH DETECTED ON PREVIOUS BOOT",
+    PLATFORM_NRF52: r"0x[0-9a-fA-F]{3,}\b|Last crash:",
 }
 
 PLATFORM_HOOKS: Final[dict[str, frozenset[str]]] = {
