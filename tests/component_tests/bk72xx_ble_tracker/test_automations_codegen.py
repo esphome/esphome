@@ -9,6 +9,7 @@ automated check on the setter spellings and the listener accounting."""
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 
 from esphome.components import ble_device_base
 from tests.component_tests.helpers import get_define_value
@@ -41,7 +42,11 @@ def test_trigger_codegen(
     # scan-control actions: templatable continuous lambda + parented actions
     assert "startscanaction_id->set_continuous(" in main_cpp
     assert "stopscanaction_id->set_parent(" in main_cpp
-    assert "bleendofscantrigger" in main_cpp.lower()
+    # Constructor call, not just the declaration: the parent argument is what
+    # registers the trigger as a listener.
+    assert re.search(
+        r"new\(\w+\) ble_device_base::BLEEndOfScanTrigger\(\w+\)", main_cpp
+    )
 
     # Seven triggers register as listeners; an undercount silently drops the
     # last trigger at runtime (StaticVector::push_back past capacity), so the
