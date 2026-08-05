@@ -4,12 +4,17 @@ esphome:
     then:
       - bk72xx_ble_tracker.start_scan:
           continuous: true
+      # Bare form: restores the configured scan_parameters mode — no
+      # set_continuous emitted (asserted in the codegen test).
+      - bk72xx_ble_tracker.start_scan:
       - bk72xx_ble_tracker.stop_scan
 
 bk72xx:
   board: cb2s
 
 bk72xx_ble_tracker:
+  scan_parameters:
+    continuous: false
   on_ble_advertise:
     - mac_address:
         - AC:37:43:77:5F:4C
