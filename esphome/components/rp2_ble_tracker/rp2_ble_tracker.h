@@ -71,6 +71,7 @@ class RP2BLETracker : public Component,
   void get_adapter_mac(uint8_t out[6]) override { this->parent_->get_mac_msb_first(out); }
   bool scan_running() override { return this->scan_running_; }
   bool scan_active() override { return this->scan_active_; }
+  bool request_scan_mode(bool active) override;
 
   // ---- rp2040_ble::BLEScanListener ----
   // Delivered by the controller's loop() on the ESPHome main loop — the
@@ -79,6 +80,7 @@ class RP2BLETracker : public Component,
 
  protected:
   void start_scan_();
+  bool controller_scan_start_();
   void stop_scan_();
   void fire_scan_end_();
 

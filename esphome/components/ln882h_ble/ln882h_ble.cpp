@@ -108,7 +108,7 @@ static constexpr uint8_t GAPM_SCAN_PROP_ACTIVE_1M_BIT = 1 << 2;
 // GAPM extended-advertising report types (bits 2:0 of ble_scan_report_t::info).
 // 0 = ADV_EXT (extended advertisement), 1 = ADV_LEG (legacy advertisement),
 // 2 = SCAN_RSP_EXT (scan response to extended adv), 3 = SCAN_RSP_LEG (scan response to legacy adv).
-static constexpr uint8_t GAPM_REPORT_TYPE_SCAN_RSP_EXT = 2;
+static constexpr uint8_t GAPM_REPORT_TYPE_ADV_LEG = 1;
 static constexpr uint8_t GAPM_REPORT_TYPE_SCAN_RSP_LEG = 3;
 // Bit 5 of ble_scan_report_t::info: the advertisement is scannable, i.e. a scan
 // response may follow (enum gapm_adv_report_info, GAPM_REPORT_INFO_SCAN_ADV_BIT).
@@ -211,14 +211,22 @@ static void ble_scan_callback(void *param) {
     return;
   const auto *info = reinterpret_cast<const ble_scan_report_t *>(param);
 
+  // Only legacy framing is supported (see scan_start(): legacy 1M PHY only):
+  // an extended report does not fit BLEScanReport::data and would reach
+  // consumers as a truncated legacy frame. Reject before allocating so these
+  // do not burn pool slots either.
+  const uint8_t report_type = info->info & 0x07;
+  if (report_type != GAPM_REPORT_TYPE_ADV_LEG && report_type != GAPM_REPORT_TYPE_SCAN_RSP_LEG) {
+    s_ble->count_rejected_report();
+    return;
+  }
+
   // Fill the pool slot in place (the bk72xx_ble shape): no report on the rw
   // task's stack — its size is fixed by the prebuilt stack — one copy of the
   // payload instead of two, and only data_len bytes ever leave this frame.
   BLEScanReport *slot = s_ble->allocate_scan_report();
   if (slot == nullptr)
-    return;  // pool exhausted — counted as dropped in allocate_scan_report()
-
-  const uint8_t report_type = info->info & 0x07;
+    return;  // no slot — counted as dropped in allocate_scan_report()
 
   // BLE RSSI sign fix. The LN882H controller intermittently reports the RSSI with
   // a flipped sign: a real -58 dBm arrives as +58, above the SDK's documented
@@ -231,7 +239,7 @@ static void ble_scan_callback(void *param) {
   memcpy(slot->mac, info->trans_addr, 6);
   slot->rssi = (raw > 20) ? static_cast<int8_t>(-raw) : raw;
   slot->addr_type = info->trans_addr_type;
-  slot->is_scan_response = report_type == GAPM_REPORT_TYPE_SCAN_RSP_EXT || report_type == GAPM_REPORT_TYPE_SCAN_RSP_LEG;
+  slot->is_scan_response = report_type == GAPM_REPORT_TYPE_SCAN_RSP_LEG;
   slot->scannable = (info->info & GAPM_REPORT_INFO_SCAN_ADV_BIT) != 0;
   slot->data_len = (info->length <= sizeof(slot->data)) ? static_cast<uint8_t>(info->length)
                                                         : static_cast<uint8_t>(sizeof(slot->data));
@@ -243,7 +251,8 @@ static void ble_scan_callback(void *param) {
 BLEScanReport *LN882HBLE::allocate_scan_report() {
   BLEScanReport *slot = this->report_pool_.allocate();
   if (slot == nullptr) {
-    // Pool exhausted — the queue is full; count and drop.
+    // No slot: pool exhausted (queue full) or the pool's on-demand RAM
+    // allocation failed; count and drop either way.
     this->report_queue_.increment_dropped_count();
   }
   return slot;
@@ -319,24 +328,46 @@ void LN882HBLE::enable() {
 }
 
 void LN882HBLE::loop() {
+  // Log dropped reports before the empty-queue return: a drop can also mean
+  // EventPool::allocate() failed on heap exhaustion, and that can happen with
+  // the queue empty — from the very first report on. Checking here keeps that
+  // failure visible instead of producing a scanner that is silently dead.
+  uint16_t dropped = this->report_queue_.get_and_reset_dropped_count();
+  if (dropped > 0)
+    ESP_LOGW(TAG, "Dropped %u scan reports (queue full or out of memory for a report slot)", dropped);
   // Drain the lock-free ring filled by the rw task; all per-report work runs
   // here on the main task, then the report returns to the pool.
   BLEScanReport *report = this->report_queue_.pop();
-  if (report == nullptr)
-    return;
-  do {
+  if (report != nullptr) {
+    this->reject_diagnosis_done_ = true;
+    do {
 #ifdef LN882H_BLE_SCAN_LISTENER_COUNT
-    for (auto *listener : this->scan_listeners_)
-      listener->on_scan_report(*report);
+      for (auto *listener : this->scan_listeners_)
+        listener->on_scan_report(*report);
 #endif
-    this->report_pool_.release(report);
-  } while ((report = this->report_queue_.pop()) != nullptr);
+      this->report_pool_.release(report);
+    } while ((report = this->report_queue_.pop()) != nullptr);
+  }
 
-  // Log dropped reports — only reachable when reports were processed; drops can
-  // only occur while the queue is full, and only this loop drains it.
-  uint16_t dropped = this->report_queue_.get_and_reset_dropped_count();
-  if (dropped > 0)
-    ESP_LOGW(TAG, "Dropped %u scan reports due to queue overflow", dropped);
+  // Rejected-report accounting AFTER the drain: a stray non-legacy frame
+  // arriving ahead of the first good one must not latch the dead-scanner
+  // warning; the threshold keeps one-off boot noise below it while a truly
+  // dead scanner (~200 reports/s all rejected) crosses it within a second.
+  // Avoid the sub-word CAS in the common case (LockFreeQueue's dropped-count
+  // pattern): rejects are rare, the load is cheap.
+  uint16_t rejected = this->rejected_reports_.load(std::memory_order_relaxed);
+  if (rejected > 0) {
+    rejected = this->rejected_reports_.exchange(0, std::memory_order_relaxed);
+    if (!this->reject_diagnosis_done_) {
+      this->rejected_before_delivery_ += rejected;
+      if (this->rejected_before_delivery_ >= REJECTED_DEAD_SCANNER_THRESHOLD) {
+        this->reject_diagnosis_done_ = true;
+        ESP_LOGW(TAG, "Rejected %u scan reports before any was delivered - unexpected report encoding?",
+                 static_cast<unsigned>(this->rejected_before_delivery_));
+      }
+    }
+    ESP_LOGV(TAG, "Rejected %u non-legacy scan reports", rejected);
+  }
 }
 
 void LN882HBLE::get_mac_lsb_first(uint8_t out[6]) const { memcpy(out, this->ble_mac_, sizeof(this->ble_mac_)); }

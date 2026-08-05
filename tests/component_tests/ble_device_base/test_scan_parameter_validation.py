@@ -10,6 +10,9 @@ from esphome.components.bk72xx_ble_tracker import (
 )
 from esphome.components.ble_device_base import to_ble_units
 from esphome.components.esp32_ble_tracker import SCAN_PARAMETERS_SCHEMA as ESP32_SCHEMA
+from esphome.components.ln882h_ble_tracker import (
+    SCAN_PARAMETERS_SCHEMA as LN882H_SCHEMA,
+)
 from esphome.components.rp2_ble_tracker import SCAN_PARAMETERS_SCHEMA as RP2_SCHEMA
 
 
@@ -66,6 +69,15 @@ def test_rp2_defaults_are_valid() -> None:
     config = RP2_SCHEMA({})
     assert to_ble_units(config["interval"]) == 160
     assert to_ble_units(config["window"]) == 48
+    assert config["active"] is True
+
+
+def test_ln882h_defaults_are_valid() -> None:
+    """ln882h pins the LN SDK reference rate — 100 ms interval / 50 ms window
+    (50 % duty) — and exposes active (default on)."""
+    config = LN882H_SCHEMA({})
+    assert to_ble_units(config["interval"]) == 160
+    assert to_ble_units(config["window"]) == 80
     assert config["active"] is True
 
 

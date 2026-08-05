@@ -9,6 +9,10 @@ test_uart_mock_modbus_no_threshold :
   Test modbus with no rx_full_threshold set (simulating USB UART / non-hardware UART).
   Verifies the 50ms fallback timeout handles chunked data with USB packet gaps.
 
+test_uart_mock_modbus_fairness :
+  Two controllers sharing one client bus, both polling far faster than the bus
+  can service. Verifies the hub schedules them fairly (request counts within 1).
+
 """
 
 from __future__ import annotations
@@ -17,7 +21,7 @@ import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from aioesphomeapi import NumberInfo
+from aioesphomeapi import ButtonInfo, NumberInfo
 import pytest
 
 from .state_utils import SensorTracker, find_entity
@@ -446,3 +450,64 @@ async def test_uart_mock_modbus_shared_address(
         await tracker.setup_and_start_scenario(client)
         await tracker.await_all(futures)
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="Fair bus scheduling across controllers sharing one client hub "
+    "requires the modbus_controller refactor in esphome#11781. On dev the "
+    "controllers each queue independently and contend for the bus, so the "
+    "request counts diverge. Expected to XPASS (and this marker removed) once "
+    "that refactor lands.",
+)
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_fairness(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Two controllers sharing one bus should get a fair share of it.
+
+    Both controllers poll different devices (addresses 1 and 2) on the same
+    client hub, far faster than the bus can service, so they continually
+    contend for it. The on_tx hook in the fixture counts the requests issued
+    for each address. With fair scheduling in the modbus hub, neither
+    controller should starve the other: the two request counts must end up
+    within 1 of each other.
+    """
+
+    tracker = SensorTracker(["requests_1", "requests_2"])
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        entities = await tracker.setup_and_start_scenario(client)
+
+        # Let both controllers hammer the bus for a while.
+        await asyncio.sleep(2.0)
+
+        # Stop polling so the counters settle to a final, stable value (state
+        # coalescing means intermediate values may be skipped, but the final
+        # value is always delivered once changes stop).
+        stop_btn = find_entity(entities, "stop_scenario", ButtonInfo)
+        assert stop_btn is not None, "Stop Scenario button not found"
+        client.button_command(stop_btn.key)
+        await asyncio.sleep(0.5)
+
+        assert tracker.sensor_states["requests_1"], "controller 1 issued no requests"
+        assert tracker.sensor_states["requests_2"], "controller 2 issued no requests"
+        count_1 = tracker.sensor_states["requests_1"][-1]
+        count_2 = tracker.sensor_states["requests_2"][-1]
+
+        # Both must have polled repeatedly, otherwise "fairness" is meaningless.
+        assert count_1 >= 5 and count_2 >= 5, (
+            f"expected both controllers to poll repeatedly, "
+            f"got controller 1={count_1}, controller 2={count_2}"
+        )
+        # Fair scheduling: the bus alternates between the two pending requests,
+        # so the counts can differ by at most one in-flight request.
+        assert abs(count_1 - count_2) <= 1, (
+            f"controllers did not get a fair share of the bus: "
+            f"controller 1 issued {count_1}, controller 2 issued {count_2}"
+        )
