@@ -56,6 +56,8 @@ STDLIB_FAST_PATH_MODULES = (
     "tempfile",
     "subprocess",
     "getpass",
+    # Pins the module-level contract only: PyYAML's constructor loads
+    # datetime during the cache parse until the JSON cache lands.
     "datetime",
     *(("urllib.parse",) if sys.version_info >= (3, 13) else ()),
 )

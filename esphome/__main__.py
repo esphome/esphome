@@ -1113,8 +1113,6 @@ def _wait_for_serial_port(
 
 
 def check_permissions(port: str):
-    import getpass
-
     if os.name == "posix" and get_port_type(port) == PortType.SERIAL:
         # Check if we can open selected serial port
         if not os.access(port, os.F_OK):
@@ -1124,6 +1122,8 @@ def check_permissions(port: str):
                 "the USB cable can be used for data and is not a power-only cable."
             )
         if not (os.access(port, os.R_OK | os.W_OK)):
+            import getpass
+
             raise EsphomeError(
                 "You do not have read or write permission on the selected serial port. "
                 "To resolve this issue, you can add your user to the dialout group "

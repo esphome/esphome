@@ -18,7 +18,12 @@ from _leak_report import print_leaked_modules
 from _storage import make_storage
 import yaml
 
-from esphome import __main__ as main_mod
+# Everything imported past this point is the code under test; the pop
+# below must only drop what the setup itself preloaded, or it would
+# hide modules the dispatch chain pulls in (tarfile has no other guard).
+_FIXTURE_PRELOADED = frozenset(sys.modules)
+
+from esphome import __main__ as main_mod  # noqa: E402
 
 CONFIG_TEXT = "esphome:\n  name: t\n"
 
@@ -52,13 +57,13 @@ with tempfile.TemporaryDirectory() as _td:
 
     # This setup pre-imports some watched stdlib modules (tempfile above,
     # write_file inside make_storage().save(), unittest.mock -> asyncio ->
-    # subprocess). Drop every non-esphome watched module so only a genuine
-    # dispatch-time re-import is reported; live objects keep their
-    # references, so cleanup still works. Module-level re-imports are out
-    # of reach here (esphome.__main__ is already loaded) — the bare-import
-    # check in test_lazy_imports owns that contract.
+    # subprocess). Drop exactly those so only a genuine dispatch-time
+    # re-import is reported; live objects keep their references, so
+    # cleanup still works. Module-level re-imports are out of reach here
+    # (esphome.__main__ is already loaded) — the bare-import check in
+    # test_lazy_imports owns that contract.
     for module in sys.argv[1:]:
-        if not module.startswith("esphome"):
+        if module in _FIXTURE_PRELOADED:
             sys.modules.pop(module, None)
 
     with patch.dict(main_mod.POST_CONFIG_ACTIONS, {"upload": fake_upload}):
