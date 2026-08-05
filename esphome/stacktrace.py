@@ -82,6 +82,11 @@ class LogLineProcessor:
             # session, instead of every session paying it at startup.
             if not self._resolve_handler():
                 return
+            # The only runtime breadcrumb for the gate: with -v this
+            # distinguishes "gate never fired" from "no crash occurred".
+            _LOGGER.debug(
+                "Stacktrace gate fired for %s; decoder resolved", self._platform
+            )
         self._feed(raw_line)
 
     def _resolve_handler(self) -> bool:
