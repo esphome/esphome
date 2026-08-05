@@ -56,10 +56,14 @@ static constexpr size_t FRAME_ALLOC_GRANULARITY = 4096;
 // a wedged encoder cannot trip the task watchdog.
 static constexpr uint32_t JPEG_DQBUF_TIMEOUT_MS = 100;
 
-// Same guard for the sensor/ISP capture device. It normally delivers a frame
-// every 33-66 ms, so this is a hang guard, not a poll interval: a sensor that
-// stops producing must not take the main loop down with it.
-static constexpr uint32_t CAPTURE_DQBUF_TIMEOUT_MS = 500;
+// The sensor/ISP capture device is polled, never waited on.
+//
+// loop() runs in the main task, so a wait here is a wait every other ESPHome
+// component pays. The sensor sets the pace -- one frame every 20-33 ms -- so
+// blocking until the next one is ready would hand it the whole frame period.
+// esp_video honours a zero timeout as a plain queue poll (esp_video_recv_element
+// with 0 ticks), returning immediately when nothing is ready.
+static constexpr uint32_t CAPTURE_DQBUF_POLL_MS = 0;
 
 // How long the pipeline keeps running after the last consumer went away.
 //
@@ -203,6 +207,15 @@ std::string fourcc_to_string(uint32_t fourcc) {
 // transient frame errors too, so neither one may tear the capture down.
 bool errno_means_device_gone(int err) { return err == ENODEV || err == ENXIO; }
 
+// A DQBUF that came back with nothing rather than with a problem.
+//
+// esp_video maps a timed-out queue receive to ESP_FAIL, which esp_err_to_errno()
+// turns into EPERM. On the polled capture device (CAPTURE_DQBUF_POLL_MS) that is
+// simply "no frame ready yet" and happens on most iterations, so it must not be
+// logged or treated as a failure. EAGAIN is included for devices that do report
+// an empty non-blocking queue the POSIX way.
+bool errno_means_no_frame(int err) { return err == EAGAIN || err == EPERM; }
+
 // Bound how long VIDIOC_DQBUF may block on a device.
 //
 // O_NONBLOCK does nothing here: esp_video_vfs_open() ignores its `flags`
@@ -302,8 +315,6 @@ void ESPVideoCamera::setup() {
   if (d.empty() || d == "jpeg" || d == ESP_VIDEO_JPEG_DEVICE_NAME) {
     this->resolved_device_ = ESP_VIDEO_JPEG_DEVICE_NAME;  // /dev/video10
     this->is_hw_jpeg_ = true;
-  } else if (d == "csi") {
-    this->resolved_device_ = ESP_VIDEO_MIPI_CSI_DEVICE_NAME;  // /dev/video0
   } else if (d.starts_with("uvc")) {
     // "uvc" -> /dev/video40, "uvcN" -> /dev/video4N (N validated as a digit).
     const char *index = (d.size() == 4) ? (d.c_str() + 3) : "0";
@@ -463,12 +474,17 @@ void ESPVideoCamera::loop() {
   if (!this->streaming_) {
     if (!wanted)
       return;
-    // A device that vanished mid-stream (see handle_device_gone_) is re-opened on
-    // a timer; a fresh request starts right away.
+    // Both a device that vanished mid-stream (see handle_device_gone_) and a
+    // start that simply failed are retried on a timer. Without the second case
+    // a sensor that cannot be opened is retried on every single loop iteration,
+    // which spends the whole main loop on ioctls that will not start working.
     if (this->capture_retry_pending_ && (int32_t) (millis() - this->capture_retry_at_ms_) < 0)
       return;
     this->capture_retry_pending_ = false;
-    this->start_capture_();
+    if (!this->start_capture_()) {
+      this->capture_retry_pending_ = true;
+      this->capture_retry_at_ms_ = millis() + CAPTURE_RETRY_INTERVAL_MS;
+    }
     return;
   }
 
@@ -526,10 +542,14 @@ void ESPVideoCamera::deliver_frame_(const uint8_t *data, size_t length) {
     return;
   }
   memcpy(copy, data, length);
+  // Claim the pending single-image requests only now that a frame really exists
+  // for them. exchange() takes and clears in one step, so a request that arrives
+  // from another task while this frame is being copied is left set and served by
+  // the next one instead of being cleared unseen.
+  requesters = (uint8_t) (this->single_requesters_.exchange(0) | this->stream_requesters_);
   this->current_image_ = std::make_shared<ESPVideoCameraImage>(copy, length, requesters);
   for (auto *listener : this->listeners_)
     listener->on_camera_image(this->current_image_);
-  this->single_requesters_ = 0;
 
   // Throughput, on an interval. Logging a line per frame from here would cost
   // more than the capture it describes, and the numbers only mean anything
@@ -555,7 +575,7 @@ void ESPVideoCamera::loop_direct_capture_() {
 
   if (ioctl(this->capture_fd_, VIDIOC_DQBUF, &buf) < 0) {
     int err = errno;
-    if (err != EAGAIN && !this->handle_device_gone_(err))
+    if (!errno_means_no_frame(err) && !this->handle_device_gone_(err))
       ESP_LOGW(TAG, "VIDIOC_DQBUF failed: %s", strerror(err));
     return;
   }
@@ -575,7 +595,7 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
   cap_buf.memory = V4L2_MEMORY_MMAP;
   if (ioctl(this->capture_fd_, VIDIOC_DQBUF, &cap_buf) < 0) {
     int err = errno;
-    if (err != EAGAIN && !this->handle_device_gone_(err))
+    if (!errno_means_no_frame(err) && !this->handle_device_gone_(err))
       ESP_LOGW(TAG, "capture DQBUF failed: %s", strerror(err));
     return;
   }
@@ -889,7 +909,7 @@ bool ESPVideoCamera::start_direct_capture_() {
     ESP_LOGE(TAG, "open(%s) failed: %s", this->resolved_device_.c_str(), strerror(errno));
     return false;
   }
-  set_dqbuf_timeout(this->capture_fd_, CAPTURE_DQBUF_TIMEOUT_MS, "capture");
+  set_dqbuf_timeout(this->capture_fd_, CAPTURE_DQBUF_POLL_MS, "capture");
   if (!this->configure_capture_format_(V4L2_PIX_FMT_MJPEG))
     return false;
   if (!this->setup_capture_buffers_())
@@ -909,7 +929,7 @@ bool ESPVideoCamera::start_jpeg_pipeline_() {
     ESP_LOGE(TAG, "open(%s) failed: %s", ESP_VIDEO_MIPI_CSI_DEVICE_NAME, strerror(errno));
     return false;
   }
-  set_dqbuf_timeout(this->capture_fd_, CAPTURE_DQBUF_TIMEOUT_MS, "capture");
+  set_dqbuf_timeout(this->capture_fd_, CAPTURE_DQBUF_POLL_MS, "capture");
   if (!this->configure_capture_format_(V4L2_PIX_FMT_RGB565))
     return false;
   if (!this->setup_capture_buffers_())

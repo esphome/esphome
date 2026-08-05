@@ -17,6 +17,7 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     only_on_variant,
 )
+from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import CONF_DEVICE, CONF_I2C_ID, CONF_ID, CONF_RESOLUTION
 from esphome.core.entity_helpers import setup_entity
@@ -120,15 +121,19 @@ def _validate_resolution(value):
 def _validate_device(value):
     value = cv.string(value)
     low = value.lower()
-    if low in ("jpeg", "uvc", "csi"):
+    if low in ("jpeg", "uvc"):
         return low
     if low.startswith("uvc") and len(low) == 4 and low[3].isdigit():
         return low
     if value.startswith("/dev/video"):
         return value
+    # No "csi": the MIPI-CSI device only ever produces RGB565/RAW, while a camera
+    # platform has to publish JPEG for the Home Assistant API, so aiming at it
+    # directly could only fail at STREAMON. "jpeg" is that same sensor fed
+    # through the hardware encoder.
     raise cv.Invalid(
         f"device '{value}' is invalid. Use 'jpeg' (hardware encoder, MIPI sensors), "
-        "'uvc' / 'uvc0'..'uvc9' (USB-UVC camera), 'csi', or a '/dev/videoN' path."
+        "'uvc' / 'uvc0'..'uvc9' (USB-UVC camera), or a '/dev/videoN' path."
     )
 
 
@@ -234,6 +239,10 @@ CONFIG_SCHEMA = cv.All(
     # validation time rather than at code generation.
     _validate_uvc_device,
     _validate_xclk,
+    # Frames are copied into PSRAM and the V4L2 buffers themselves are sized for
+    # it: a 1280x720 RGB565 capture buffer alone is 1.8 MB, well past what
+    # internal RAM can hold.
+    cv.requires_component(PSRAM_DOMAIN),
     _validate_resolution_for_sensor,
     only_on_variant(supported=[VARIANT_ESP32P4], msg_prefix="esp_video_camera"),
     cv.require_framework_version(
@@ -274,7 +283,10 @@ async def to_code(config):
     # 2.2.* (ISP/IPA tuning), esp_sccb_intf (camera I2C/SCCB) and, on the
     # ESP32-P4, esp_h264. Versions verified against
     # espressif/esp-video-components. esp_video 2.3.0 requires ESP-IDF >= 5.4.
-    add_idf_component(name="espressif/esp_video", ref="2.3.0")
+    # espressif/esp_video is declared repo-wide in esphome/idf_component.yml,
+    # gated on target esp32p4, so its V4L2 headers are on the include path for
+    # every ESP32-P4 build -- including the clang-tidy environments, which never
+    # run to_code() and so would not see a dependency added from here.
     if config[CONF_ENABLE_UVC]:
         # USB-UVC host driver, aligned with esp_video 2.3.0's own dependency.
         add_idf_component(name="espressif/usb_host_uvc", ref="2.5.*")
