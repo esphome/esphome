@@ -331,17 +331,26 @@ def download_gfont(value: ConfigType) -> ConfigType:
     if not external_files.is_file_recent(path, value[CONF_REFRESH]):
         _LOGGER.debug("download_gfont: path=%s", path)
         url = _gfonts_css_url(value)
+        css_path = _gfonts_css_path(value)
         try:
-            css = external_files.download_content(url, _gfonts_css_path(value)).decode(
-                "utf-8", "replace"
-            )
+            css_bytes = external_files.download_content(url, css_path)
         except cv.Invalid as e:
             raise cv.Invalid(
                 f"Could not download font at {url}, please check the fonts exists "
                 f"at google fonts ({e})"
             ) from e
+        try:
+            css = css_bytes.decode("utf-8")
+        except UnicodeDecodeError as e:
+            # Do not leave an unusable body in the cache to be served again.
+            css_path.unlink(missing_ok=True)
+            raise cv.Invalid(
+                f"Bad response from Google Fonts for {value[CONF_FAMILY]}: "
+                f"not a text document"
+            ) from e
         ttf_url = _parse_gfonts_css(css)
         if ttf_url is None:
+            css_path.unlink(missing_ok=True)
             raise cv.Invalid(
                 f"Could not extract ttf file from gfonts response for "
                 f"{value[CONF_FAMILY]}, please report this."
@@ -500,7 +509,10 @@ def PREFETCH_FILES(entries: list[ConfigType]) -> Iterable[list[RemoteFile]]:
     yield [
         RemoteFile(ttf_url, _gfonts_ttf_path(spec))
         for spec in stale_gfonts
-        if (css_path := _gfonts_css_path(spec)).exists()
+        # Only trust CSS that stage one actually refreshed this run; a
+        # leftover from an earlier run may name a rotated ttf URL.
+        if external_files.is_fresh_this_run(css_path := _gfonts_css_path(spec))
+        and css_path.exists()
         and (ttf_url := _parse_gfonts_css(css_path.read_text("utf-8", "replace")))
         is not None
     ]

@@ -41,6 +41,15 @@ class RemoteFile:
     path: Path
 
 
+@dataclass(frozen=True, slots=True)
+class FailedDownload:
+    """What went wrong for a cache path this run, kept for fast replay."""
+
+    url: str
+    message: str
+    cause: BaseException
+
+
 @dataclass
 class ExternalFilesRunData:
     """Per-run download state, cleared by ``CORE.reset()`` between runs."""
@@ -52,11 +61,10 @@ class ExternalFilesRunData:
     # run because the network failed; usable as a fallback, but callers
     # that must not build from unverified bytes reject these.
     stale_paths: set[Path] = field(default_factory=set)
-    # Paths whose download already failed this run with no usable copy,
-    # mapped to the error message; retrying within one run would only
-    # repeat the timeout, so later touches fail fast with the recorded
-    # error instead.
-    failed_paths: dict[Path, str] = field(default_factory=dict)
+    # Paths whose download already failed this run with no usable copy;
+    # retrying within one run would only repeat the timeout, so later
+    # touches fail fast with the recorded failure instead.
+    failed_paths: dict[Path, FailedDownload] = field(default_factory=dict)
 
 
 def _run_data() -> ExternalFilesRunData:
@@ -170,6 +178,9 @@ def has_remote_file_changed(
                 )
                 if (new_etag := response.headers.get(ETAG)) and new_etag != etag:
                     _write_etag(local_file_path, new_etag)
+                # A confirmed 304 supersedes any earlier failed
+                # revalidation of this file.
+                _run_data().stale_paths.discard(local_file_path)
                 return False
             _LOGGER.debug("has_remote_file_changed: File modified")
             return True
@@ -215,6 +226,15 @@ def compute_local_file_path(domain: str, url: str) -> Path:
     return compute_local_file_dir(domain) / url_cache_key(url)
 
 
+def is_fresh_this_run(path: Path) -> bool:
+    """Whether `path` was verified or downloaded during this run.
+
+    Lets a staged prefetch hook confirm a stage-one file really was
+    refreshed before deriving further downloads from its content.
+    """
+    return path in _run_data().fresh_paths
+
+
 def download_content(
     url: str, path: Path, timeout: int = NETWORK_TIMEOUT, allow_stale: bool = True
 ) -> bytes:
@@ -237,17 +257,20 @@ def download_content(
     fresh_paths = run_data.fresh_paths
     if path in fresh_paths and path.exists():
         return path.read_bytes()
-    if path in run_data.stale_paths and path.exists():
-        if not allow_stale:
-            raise cv.Invalid(
-                f"Could not check {url} for updates due to a network error and "
-                f"the cached copy cannot be verified"
-            )
-        _LOGGER.debug("Using cached copy of %s that could not be revalidated", url)
+    if path in run_data.stale_paths and path.exists() and allow_stale:
+        # Strict (allow_stale=False) callers fall through instead: they get
+        # their own attempt at the network rather than inheriting the
+        # best-effort pass's verdict.
+        _LOGGER.info("Using cached copy of %s that could not be revalidated", url)
         return path.read_bytes()
-    if (cached_error := run_data.failed_paths.get(path)) is not None:
+    if (failure := run_data.failed_paths.get(path)) is not None:
         if not path.exists():
-            raise cv.Invalid(cached_error)
+            if failure.url == url:
+                raise cv.Invalid(failure.message) from failure.cause
+            raise cv.Invalid(
+                f"Could not download from {url}: an earlier download of "
+                f"{failure.url} to the same cache file failed: {failure.cause}"
+            ) from failure.cause
         # Something produced the file since the failure; fall through and
         # revalidate it normally.
         del run_data.failed_paths[path]
@@ -298,12 +321,13 @@ def download_content(
             )
             return path.read_bytes()
         message = f"Could not download from {url}: {e}"
-        run_data.failed_paths[path] = message
+        run_data.failed_paths[path] = FailedDownload(url, message, e)
         raise cv.Invalid(message) from e
 
     write_file(path, data)
     _write_etag(path, req.headers.get(ETAG))
     fresh_paths.add(path)
+    run_data.stale_paths.discard(path)
     return data
 
 

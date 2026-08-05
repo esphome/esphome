@@ -79,11 +79,15 @@ def test_prefetch_skips_recent_ttf(setup_core: Path) -> None:
 
 
 def test_stage2_parses_cached_css(setup_core: Path) -> None:
+    from esphome import external_files
+
     css_path = font._gfonts_css_path(_gspec("Roboto"))
     css_path.parent.mkdir(parents=True, exist_ok=True)
     css_path.write_text(
         "src: url(https://fonts.gstatic.com/roboto.ttf) format('truetype');"
     )
+    # Stage two only trusts CSS confirmed fetched this run.
+    external_files._run_data().fresh_paths.add(css_path)
 
     batches = list(font.PREFETCH_FILES([{"file": "gfonts://Roboto"}]))
     assert batches[1] == [
@@ -109,3 +113,51 @@ def test_prefetch_handles_bare_mapping_extras(setup_core: Path) -> None:
     ]
     batches = list(font.PREFETCH_FILES(entries))
     assert [file.url for file in batches[0]] == [font._gfonts_css_url(_gspec("Roboto"))]
+
+
+def test_unparseable_gfonts_css_is_evicted(setup_core: Path) -> None:
+    """A CSS body that fails to parse is removed from the cache."""
+    from unittest.mock import patch
+
+    import pytest
+
+    import esphome.config_validation as cv
+
+    spec = {
+        "family": "Roboto",
+        "weight": 400,
+        "italic": False,
+        "refresh": font._REFRESH_VALIDATOR("0s"),
+    }
+    css_path = font._gfonts_css_path(spec)
+    with (
+        patch(
+            "esphome.components.font.external_files.download_content",
+            return_value=b"no truetype url here",
+        ),
+        pytest.raises(cv.Invalid, match="please report this"),
+    ):
+        font.download_gfont(spec)
+    assert not css_path.exists()
+
+    with (
+        patch(
+            "esphome.components.font.external_files.download_content",
+            return_value=b"\xff\xfe\x00\x01binary",
+        ),
+        pytest.raises(cv.Invalid, match="not a text document"),
+    ):
+        font.download_gfont(spec)
+    assert not css_path.exists()
+
+
+def test_stage2_skips_css_not_fetched_this_run(setup_core: Path) -> None:
+    """A leftover CSS from an earlier run is not trusted for stage two."""
+    css_path = font._gfonts_css_path(_gspec("Roboto"))
+    css_path.parent.mkdir(parents=True, exist_ok=True)
+    css_path.write_text(
+        "src: url(https://fonts.gstatic.com/rotated.ttf) format('truetype');"
+    )
+
+    batches = list(font.PREFETCH_FILES([{"file": "gfonts://Roboto"}]))
+    assert batches[1] == []

@@ -964,10 +964,11 @@ def test_allow_stale_false_rejects_unverified_copy(
     with pytest.raises(Invalid, match="Could not download"):
         external_files.download_content(url, test_file, allow_stale=False)
 
-    # The stale memo short-circuits the retry without touching the network.
-    with pytest.raises(Invalid, match="cannot be verified"):
+    # A strict caller gets its own attempt at the network rather than
+    # inheriting the stale memo's verdict.
+    with pytest.raises(Invalid, match="Could not download"):
         external_files.download_content(url, test_file, allow_stale=False)
-    mock_requests_get.assert_called_once()
+    assert mock_requests_get.call_count == 2
 
     # A caller that tolerates stale copies still gets the cached bytes.
     assert external_files.download_content(url, test_file) == b"cached content"
@@ -1007,3 +1008,50 @@ def test_download_content_many_forwards_allow_stale(
         call.kwargs["allow_stale"] is False
         for call in mock_download_content.call_args_list[1:]
     )
+
+
+def test_successful_head_revalidation_clears_stale(
+    mock_requests_head: MagicMock,
+    mock_requests_get: MagicMock,
+    setup_core: Path,
+) -> None:
+    """A confirmed 304 supersedes an earlier failed revalidation."""
+    test_file = setup_core / "cached.txt"
+    test_file.write_bytes(b"cached content")
+
+    ok_304 = MagicMock(status_code=304, headers={})
+    mock_requests_head.side_effect = [
+        requests.exceptions.RequestException("blip"),
+        ok_304,
+    ]
+
+    url = "https://example.com/file.txt"
+    assert external_files.download_content(url, test_file) == b"cached content"
+    # The stale memo short-circuits tolerant callers; a strict caller
+    # triggers a fresh HEAD, which now succeeds and clears the marker.
+    assert (
+        external_files.download_content(url, test_file, allow_stale=False)
+        == b"cached content"
+    )
+    # Verified now: served from the fresh memo with no more network.
+    assert external_files.download_content(url, test_file) == b"cached content"
+    assert mock_requests_head.call_count == 2
+    mock_requests_get.assert_not_called()
+
+
+def test_failed_path_replay_names_the_other_url(
+    mock_has_remote_file_changed: MagicMock,
+    mock_requests_get: MagicMock,
+    setup_core: Path,
+) -> None:
+    """A shared cache path replays the failure naming the original URL."""
+    test_file = setup_core / "shared.bin"
+
+    mock_has_remote_file_changed.return_value = True
+    mock_requests_get.side_effect = requests.exceptions.RequestException("boom")
+
+    with pytest.raises(Invalid, match="first-url"):
+        external_files.download_content("https://example.com/first-url", test_file)
+    with pytest.raises(Invalid, match="earlier download of.*first-url"):
+        external_files.download_content("https://example.com/second-url", test_file)
+    mock_requests_get.assert_called_once()
