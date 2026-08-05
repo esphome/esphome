@@ -109,6 +109,7 @@ from .widgets import (
     set_obj_properties,
 )
 from .widgets.img import CONF_IMAGE
+from .widgets.menu import validate_menu_pages
 
 # Import only what we actually use directly in this file
 from .widgets.msgbox import MSGBOX_SCHEMA, msgboxes_to_code
@@ -308,6 +309,7 @@ def final_validation(config_list):
                 path = global_config.get_path_for_id(name)
                 widget_conf = global_config.get_config_for_path(path[:-1])
                 widget_type.final_validate(name, conf, widget_conf, path[1:])
+    validate_menu_pages(global_config)
 
 
 async def to_code(configs):

@@ -29,6 +29,7 @@ KEY_LV_DEFINES = "lv_defines"
 KEY_LV_FONTS_USED = "lv_fonts_used"
 KEY_LV_IMAGES_USED = "lv_images_used"
 KEY_LV_USES = "lv_uses"
+KEY_MENU_SET_PAGE_ACTIONS = "menu_set_page_actions"
 KEY_NAMED_STYLES = "named_styles"
 KEY_REFRESHED_WIDGETS = "refreshed_widgets"
 KEY_REMAPPED_USES = "remapped_uses"
@@ -155,6 +156,10 @@ def get_focused_widgets() -> set:
 
 def get_refreshed_widgets() -> set:
     return _get_data(KEY_REFRESHED_WIDGETS, set())
+
+
+def get_menu_set_page_actions() -> list:
+    return _get_data(KEY_MENU_SET_PAGE_ACTIONS, [])
 
 
 class StaticCastExpression(Expression):

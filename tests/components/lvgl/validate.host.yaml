@@ -15,14 +15,11 @@ display:
 lvgl:
   displays: sdl0
   widgets:
-    # A menu with no sidebar_page (optional), no page titles (optional),
-    # an empty page (no sections, no widgets), and a root_page that points
-    # at a page declared under a *different* menu below -- nothing in the
-    # schema scopes cv.use_id(lv_menu_page_t) to the owning menu, so this is
-    # expected to validate even though it's a bit of a footgun.
+    # A menu with no sidebar_page (optional), no page titles (optional) and a
+    # single empty page (no sections, no widgets) as its root.
     - menu:
         id: menu_a
-        root_page: menu_b_page
+        root_page: menu_a_empty_page
         pages:
           - id: menu_a_empty_page
     # A second, independent menu -- exercises sidebar_page, multiple

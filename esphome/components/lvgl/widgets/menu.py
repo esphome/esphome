@@ -22,6 +22,7 @@ from ..defines import (
     LV_MENU_MODES,
     LV_MENU_ROOT_BACK_BUTTON_MODES,
     TYPE_FLEX,
+    get_menu_set_page_actions,
     get_widget_map,
 )
 from ..lv_validation import lv_text
@@ -50,10 +51,13 @@ from .obj import obj_spec
 # Local to the "menu" widget only -- not a shared config concept.
 CONF_SIDEBAR = "sidebar"
 
-# Bare tag types, only used to distinguish declare_id()/use_id() checks for
-# pages and sections -- like tabview's lv_tab_t, they carry no extra behaviour.
-lv_menu_page_t = LvType("lv_obj_t")
-lv_menu_section_t = LvType("lv_obj_t")
+# Tag types, only used to distinguish declare_id()/use_id() checks for pages and
+# sections -- like tileview's lv_tileview_tile_t they carry no extra behaviour, but
+# they must have their own names: id type checks compare the type name, so reusing
+# `lv_obj_t` here would let any object be passed where a page is required. The
+# generated code always declares the variable as `lv_obj_t *`.
+lv_menu_page_t = LvType("lv_menu_page_t")
+lv_menu_section_t = LvType("lv_menu_section_t")
 
 lv_menu_t = LvType(
     "lv_menu_t",
@@ -185,6 +189,52 @@ class MenuType(WidgetType):
 menu_spec = MenuType()
 
 
+def _menu_page_owners(global_config) -> dict[str, tuple]:
+    """
+    Map every declared menu page id to the config path of the menu that owns it.
+
+    A page id is always declared inside its menu's `pages:` list, so the owning menu
+    is three steps up the path (`id` -> list index -> `pages`).
+    """
+    return {
+        str(declared_id): tuple(path[:-3])
+        for declared_id, path in global_config.declare_ids
+        if declared_id.type is lv_menu_page_t
+    }
+
+
+def validate_menu_pages(global_config) -> None:
+    """
+    Check that a menu only ever refers to pages of its own.
+
+    `lv_menu_page_create()` makes a page a child of one specific menu, so handing a
+    page of another menu to `root_page:`, `sidebar_page:` or `lvgl.menu.set_page`
+    can only misbehave at run time. It also hangs code generation when the other
+    menu is defined later, since the waiting menu's page never appears.
+    """
+    owners = _menu_page_owners(global_config)
+    for menu_path in set(owners.values()):
+        menu_config = global_config.get_config_for_path(list(menu_path))
+        for key in (CONF_ROOT_PAGE, CONF_SIDEBAR_PAGE):
+            page_id = menu_config.get(key)
+            if page_id is not None and owners.get(str(page_id)) != menu_path:
+                raise cv.Invalid(
+                    f"'{page_id}' is not a page of this menu; "
+                    f"'{key}' must name one of the menu's own 'pages:'",
+                    # Paths reported from final validation are relative to the
+                    # component config, so drop the leading domain name.
+                    path=[*menu_path[1:], key],
+                )
+    for config in get_menu_set_page_actions():
+        menu_id = config[CONF_ID]
+        page_id = config[CONF_PAGE]
+        menu_path = tuple(global_config.get_path_for_id(menu_id)[:-1])
+        if owners.get(str(page_id)) != menu_path:
+            raise cv.Invalid(
+                f"'lvgl.menu.set_page' page '{page_id}' is not a page of menu '{menu_id}'"
+            )
+
+
 async def add_root_back_button_triggers():
     """
     Wire up on_root_back_button_click for every menu, once all widgets exist.
@@ -194,7 +244,7 @@ async def add_root_back_button_triggers():
     deadlocks the code-generation coroutine scheduler.
     """
     for w in get_widget_map().values():
-        if not isinstance(w.type, MenuType) or not w.config:
+        if not isinstance(w.type, MenuType):
             continue
         for conf in w.config.get(CONF_ON_ROOT_BACK_BUTTON_CLICK, ()):
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
@@ -211,15 +261,25 @@ async def add_root_back_button_triggers():
             )
 
 
+def _record_set_page_action(config: dict) -> dict:
+    """Remember the action so validate_menu_pages() can check the page's owner once
+    the whole config is known."""
+    get_menu_set_page_actions().append(config)
+    return config
+
+
 @automation.register_action(
     "lvgl.menu.set_page",
     ObjUpdateAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(lv_menu_t),
-            cv.Required(CONF_PAGE): cv.use_id(lv_menu_page_t),
-            cv.Optional(CONF_SIDEBAR, default=False): cv.boolean,
-        }
+    cv.All(
+        cv.Schema(
+            {
+                cv.Required(CONF_ID): cv.use_id(lv_menu_t),
+                cv.Required(CONF_PAGE): cv.use_id(lv_menu_page_t),
+                cv.Optional(CONF_SIDEBAR, default=False): cv.boolean,
+            }
+        ),
+        _record_set_page_action,
     ),
     synchronous=True,
 )

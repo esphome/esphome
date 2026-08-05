@@ -12,7 +12,7 @@ import pytest
 from esphome.__main__ import generate_cpp_contents
 from esphome.automation import ACTION_REGISTRY
 from esphome.components.lvgl.widgets.menu import MENU_PAGE_SCHEMA, MENU_SCHEMA
-from esphome.config import read_config
+from esphome.config import load_config, read_config
 import esphome.config_validation as cv
 from esphome.core import CORE
 
@@ -98,6 +98,151 @@ class TestMenuSetPageActionSchema:
     def test_sidebar_can_be_set_true(self) -> None:
         config = self.schema({"id": "my_menu", "page": "my_page", "sidebar": True})
         assert config["sidebar"] is True
+
+
+# ---------------------------------------------------------------------------
+# Pages belong to exactly one menu
+# ---------------------------------------------------------------------------
+
+# Boilerplate around the widgets under test: an LVGL instance needs a display.
+MENU_CONFIG_TEMPLATE = """
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+spi:
+  - id: spi_bus
+    clk_pin: GPIO18
+    mosi_pin: GPIO23
+
+display:
+  - platform: mipi_spi
+    spi_id: spi_bus
+    model: st7789v
+    id: tft_display
+    dimensions:
+      width: 240
+      height: 320
+    cs_pin: GPIO22
+    dc_pin: GPIO21
+    auto_clear_enabled: false
+    invert_colors: false
+    update_interval: never
+
+lvgl:
+  displays: tft_display
+  widgets:
+{widgets}
+"""
+
+
+def _config_errors(tmp_path: Path, widgets: str) -> list[str]:
+    """Validate a config built from the given `widgets:` block and return the
+    validation errors as text."""
+    config_path = tmp_path / "menu.yaml"
+    config_path.write_text(MENU_CONFIG_TEMPLATE.format(widgets=widgets))
+    original_path = CORE.config_path
+    try:
+        CORE.config_path = config_path
+        return [str(err) for err in load_config({}).errors]
+    finally:
+        CORE.config_path = original_path
+        CORE.reset()
+
+
+def test_root_page_of_another_menu_is_rejected(tmp_path: Path) -> None:
+    errors = _config_errors(
+        tmp_path,
+        """\
+    - menu:
+        id: menu_a
+        root_page: menu_b_page
+        pages:
+          - id: menu_a_page
+    - menu:
+        id: menu_b
+        root_page: menu_b_page
+        pages:
+          - id: menu_b_page
+""",
+    )
+    assert any("'menu_b_page' is not a page of this menu" in err for err in errors)
+
+
+def test_sidebar_page_of_another_menu_is_rejected(tmp_path: Path) -> None:
+    errors = _config_errors(
+        tmp_path,
+        """\
+    - menu:
+        id: menu_a
+        root_page: menu_a_page
+        sidebar_page: menu_b_page
+        pages:
+          - id: menu_a_page
+    - menu:
+        id: menu_b
+        root_page: menu_b_page
+        pages:
+          - id: menu_b_page
+""",
+    )
+    assert any("'menu_b_page' is not a page of this menu" in err for err in errors)
+
+
+def test_set_page_action_with_a_page_of_another_menu_is_rejected(
+    tmp_path: Path,
+) -> None:
+    errors = _config_errors(
+        tmp_path,
+        """\
+    - menu:
+        id: menu_a
+        root_page: menu_a_page
+        pages:
+          - id: menu_a_page
+            widgets:
+              - button:
+                  text: "Go"
+                  on_click:
+                    - lvgl.menu.set_page:
+                        id: menu_a
+                        page: menu_b_page
+    - menu:
+        id: menu_b
+        root_page: menu_b_page
+        pages:
+          - id: menu_b_page
+""",
+    )
+    assert any(
+        "page 'menu_b_page' is not a page of menu 'menu_a'" in err for err in errors
+    )
+
+
+def test_section_id_is_not_accepted_where_a_page_is_required(tmp_path: Path) -> None:
+    """The page and section tag types are distinct, so a section id can't be
+    passed off as a page."""
+    errors = _config_errors(
+        tmp_path,
+        """\
+    - menu:
+        id: menu_a
+        root_page: menu_a_section
+        pages:
+          - id: menu_a_page
+            sections:
+              - id: menu_a_section
+""",
+    )
+    assert any(
+        "ID 'menu_a_section' of type lv_menu_section_t doesn't inherit from "
+        "lv_menu_page_t" in err
+        for err in errors
+    )
 
 
 # ---------------------------------------------------------------------------
