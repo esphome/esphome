@@ -50,13 +50,14 @@ BUNDLE_HEAVY_MODULES = ("esphome.bundle", "tarfile")
 # upload/logs run never writes a file (tempfile), spawns a process
 # (subprocess), parses a URL (urllib.parse), or prints a serial
 # permission hint (getpass). shutil is deferred too but unwatchable:
-# argparse imports it from every add_argument on py3.14.
+# argparse imports it from every add_argument on py3.14. urllib.parse
+# is only watchable on 3.13+ where pathlib stopped importing it.
 STDLIB_FAST_PATH_MODULES = (
     "tempfile",
     "subprocess",
-    "urllib.parse",
     "getpass",
     "datetime",
+    *(("urllib.parse",) if sys.version_info >= (3, 13) else ()),
 )
 
 
@@ -83,8 +84,14 @@ def _leaked_heavy_modules(module: str, extra: tuple[str, ...] = ()) -> str:
 
 
 def test_main_module_does_not_import_heavy_modules() -> None:
-    """A bare ``import esphome.__main__`` must not drag in validation/codegen."""
-    leaked = _leaked_heavy_modules("esphome.__main__")
+    """A bare ``import esphome.__main__`` must not drag in validation/codegen.
+
+    The stdlib watch list rides along here because this check runs in a
+    clean subprocess: a module-level re-import anywhere on the chain is
+    caught, which the dispatch fixture (whose setup pre-imports them and
+    pops before dispatch) structurally cannot do.
+    """
+    leaked = _leaked_heavy_modules("esphome.__main__", extra=STDLIB_FAST_PATH_MODULES)
     assert not leaked, (
         f"esphome.__main__ imports heavy modules at top level: {leaked}. "
         "Import them lazily inside the command that needs them instead; "

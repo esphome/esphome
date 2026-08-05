@@ -50,12 +50,16 @@ with tempfile.TemporaryDirectory() as _td:
         dispatched["config"] = config
         return 0
 
-    # This setup pre-imports the deferred stdlib modules (tempfile above,
+    # This setup pre-imports some watched stdlib modules (tempfile above,
     # write_file inside make_storage().save(), unittest.mock -> asyncio ->
-    # subprocess). Drop them so only a genuine fast-path re-import is
-    # reported; live objects keep their references, so cleanup still works.
-    for module in ("tempfile", "subprocess", "urllib.parse", "getpass", "datetime"):
-        sys.modules.pop(module, None)
+    # subprocess). Drop every non-esphome watched module so only a genuine
+    # dispatch-time re-import is reported; live objects keep their
+    # references, so cleanup still works. Module-level re-imports are out
+    # of reach here (esphome.__main__ is already loaded) — the bare-import
+    # check in test_lazy_imports owns that contract.
+    for module in sys.argv[1:]:
+        if not module.startswith("esphome"):
+            sys.modules.pop(module, None)
 
     with patch.dict(main_mod.POST_CONFIG_ACTIONS, {"upload": fake_upload}):
         exit_code = main_mod.run_esphome(

@@ -3,6 +3,7 @@ import argparse
 from collections.abc import Callable
 from contextlib import suppress
 import functools
+import importlib
 import logging
 import os
 from pathlib import Path
@@ -755,8 +756,6 @@ def write_cpp_file() -> int:
 
 
 def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
-    import importlib
-
     # Keep this gate here, NOT in config validation: device-builder needs
     # `esphome config` to keep succeeding with placeholders so onboarding can run.
     if CONF_WIFI in config:
