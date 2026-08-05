@@ -20,6 +20,7 @@ from typing import Any
 
 from esphome import const, yaml_util
 from esphome.const import (
+    BUNDLE_EXTENSION,
     CONF_ESPHOME,
     CONF_EXTERNAL_COMPONENTS,
     CONF_INCLUDES,
@@ -35,7 +36,6 @@ _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "bundle"
 
-BUNDLE_EXTENSION = ".esphomebundle.tar.gz"
 MANIFEST_FILENAME = "manifest.json"
 CURRENT_MANIFEST_VERSION = 1
 MAX_DECOMPRESSED_SIZE = 500 * 1024 * 1024  # 500 MB
@@ -753,11 +753,6 @@ def _validate_tar_members(tar: tarfile.TarFile, target_dir: Path) -> None:
                 f"Invalid bundle: decompressed size exceeds "
                 f"{MAX_DECOMPRESSED_SIZE // (1024 * 1024)}MB limit"
             )
-
-
-def is_bundle_path(path: Path) -> bool:
-    """Check if a path looks like a bundle file."""
-    return path.name.lower().endswith(BUNDLE_EXTENSION)
 
 
 def _add_bytes_to_tar(tar: tarfile.TarFile, name: str, data: bytes) -> None:
