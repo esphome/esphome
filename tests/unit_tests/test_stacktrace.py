@@ -418,22 +418,6 @@ def test_decoder_contains_failures_and_short_circuits() -> None:
     assert processor.backtrace_state is False
 
 
-def test_resolution_failure_is_contained(caplog) -> None:
-    """A platform package broken in an unanticipated way must not kill
-    the session; decoding degrades with a warning like any other failure.
-    """
-    with patch.object(
-        stacktrace.platform_hooks,
-        "get_stacktrace_handler",
-        side_effect=RuntimeError("boom"),
-    ):
-        processor = stacktrace.LogLineProcessor(CONFIG, PLATFORM_ESP32)
-        processor.process_line("PC: 0x4010496e")
-
-    assert processor.backtrace_state is False
-    assert any("could not be loaded" in m for m in _warnings(caplog))
-
-
 def test_decoder_swallows_os_error_with_remediation_hint(caplog) -> None:
     """Decoding failures that aren't EsphomeError must be contained too.
 

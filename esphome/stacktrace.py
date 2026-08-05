@@ -66,7 +66,7 @@ class LogLineProcessor:
         # Compiled here rather than in the registry so only a log
         # session pays for its own platform's gate.
         gate = platform_hooks.STACKTRACE_GATES.get(platform)
-        self._gate: re.Pattern[str] | None = re.compile(gate) if gate else None
+        self._gate: re.Pattern[str] | None = None if gate is None else re.compile(gate)
         self.backtrace_state = False
         if not platform_hooks.has_registered_hook(platform, "process_stacktrace"):
             self._resolve_handler()
