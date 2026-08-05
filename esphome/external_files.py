@@ -30,12 +30,8 @@ NETWORK_TIMEOUT = 30
 
 @dataclass(frozen=True, slots=True)
 class RemoteFile:
-    """A remote file a component wants prefetched into the download cache.
-
-    Yielded (in per-stage batches) by component ``PREFETCH_FILES`` hooks. A
-    dataclass rather than a tuple so new fields can be added without
-    breaking existing hooks.
-    """
+    """A remote file to prefetch, yielded in stages by ``PREFETCH_FILES``
+    hooks. A dataclass rather than a tuple so fields can be added later."""
 
     url: str
     path: Path
@@ -54,23 +50,16 @@ class FailedDownload:
 class ExternalFilesRunData:
     """Per-run download state, cleared by ``CORE.reset()`` between runs."""
 
-    # Paths whose freshness was verified (304 or a fresh download) this
-    # run; later touches skip even the conditional HEAD.
+    # Verified fresh this run; later touches skip even the conditional HEAD.
     fresh_paths: set[Path] = field(default_factory=set)
-    # Paths served from an on-disk copy that could NOT be revalidated this
-    # run because the network failed; usable as a fallback, but callers
-    # that must not build from unverified bytes reject these.
+    # Served from disk without revalidation; strict callers reject these.
     stale_paths: set[Path] = field(default_factory=set)
-    # Paths whose download already failed this run with no usable copy;
-    # retrying within one run would only repeat the timeout, so later
-    # touches fail fast with the recorded failure instead.
+    # Failed with no usable copy; later touches replay the error fast.
     failed_paths: dict[Path, FailedDownload] = field(default_factory=dict)
 
 
 def _run_data() -> ExternalFilesRunData:
-    # setdefault, not check-then-set: first touch can happen concurrently on
-    # download_content_many's worker threads, and a lost instance would
-    # silently drop its memo entries.
+    # setdefault: first touch may race on download_content_many's workers.
     return CORE.data.setdefault(DOMAIN, ExternalFilesRunData())
 
 
@@ -227,11 +216,7 @@ def compute_local_file_path(domain: str, url: str) -> Path:
 
 
 def is_fresh_this_run(path: Path) -> bool:
-    """Whether `path` was verified or downloaded during this run.
-
-    Lets a staged prefetch hook confirm a stage-one file really was
-    refreshed before deriving further downloads from its content.
-    """
+    """Whether `path` was verified or downloaded during this run."""
     return path in _run_data().fresh_paths
 
 
@@ -240,27 +225,19 @@ def download_content(
 ) -> bytes:
     """Download `url` into `path` and return the bytes, using the cache.
 
-    ``allow_stale`` controls what happens when the network fails but an
-    on-disk copy exists: by default the copy is served with a warning;
-    callers whose bytes cannot be verified downstream (e.g. firmware
-    without a checksum) pass False to fail instead of building from a
-    possibly outdated copy. One deliberate carve-out: when the user
-    disabled refreshing entirely (``CORE.skip_external_update``), the
-    on-disk copy is served regardless, honoring that explicit choice.
+    When the network fails but an on-disk copy exists, the copy is served
+    with a warning; callers that cannot verify the bytes downstream pass
+    ``allow_stale=False`` to fail instead. With ``CORE.skip_external_update``
+    the on-disk copy is always served.
     """
-    # A path verified once this run is served from disk with no further
-    # network, not even the conditional HEAD; a path that already failed
-    # this run fails fast with the recorded error. Concurrent access is
-    # safe because download_content_many dedupes by path before fanning
-    # out.
+    # Memoized paths skip the network entirely; concurrent access is safe
+    # because download_content_many dedupes by path before fanning out.
     run_data = _run_data()
     fresh_paths = run_data.fresh_paths
     if path in fresh_paths and path.exists():
         return path.read_bytes()
     if path in run_data.stale_paths and path.exists() and allow_stale:
-        # Strict (allow_stale=False) callers fall through instead: they get
-        # their own attempt at the network rather than inheriting the
-        # best-effort pass's verdict.
+        # Strict callers fall through to try the network themselves.
         _LOGGER.info("Using cached copy of %s that could not be revalidated", url)
         return path.read_bytes()
     if (failure := run_data.failed_paths.get(path)) is not None:
@@ -271,8 +248,7 @@ def download_content(
                 f"Could not download from {url}: an earlier download of "
                 f"{failure.url} to the same cache file failed: {failure.cause}"
             ) from failure.cause
-        # Something produced the file since the failure; fall through and
-        # revalidate it normally.
+        # The file appeared since the failure; revalidate normally.
         del run_data.failed_paths[path]
     ensure_happy_eyeballs()
     if CORE.skip_external_update and path.exists():
@@ -281,8 +257,7 @@ def download_content(
         return path.read_bytes()
     if not has_remote_file_changed(url, path, timeout):
         if path in run_data.stale_paths:
-            # The HEAD failed and fell back to the copy rather than
-            # confirming it; route through the stale policy.
+            # The HEAD fell back to the copy without confirming it.
             if not allow_stale:
                 raise cv.Invalid(
                     f"Could not check {url} for updates due to a network error "
