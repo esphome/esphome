@@ -1,3 +1,5 @@
+import re
+
 from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -17,9 +19,13 @@ ZephyrGPIOPin = zephyr_ns.class_("ZephyrGPIOPin", cg.InternalGPIOPin)
 # STM32's GPIOA/GPIOB port letters) may use a different port-bank scheme entirely.
 _PORT_BANKED_FAMILIES = {"nordic"}
 
+_LETTERED_PIN_RE = re.compile(r"P([A-Za-z])(\d+)")
+
 
 def _validate_gpio_pin(value):
-    # Accept a flat integer or GPIO<N> notation.
+    # Accept a flat integer, GPIO<N> notation, or -- for variants with lettered GPIO
+    # ports (gpio_port_labels set, e.g. Silicon Labs' PA/PB/PC/PD) -- that vendor's own
+    # pin nomenclature (e.g. "PA4"), the same string dump_summary() prints back in logs.
     if isinstance(value, int):
         return value
     if isinstance(value, str):
@@ -28,6 +34,21 @@ def _validate_gpio_pin(value):
                 return int(value[4:])
             except ValueError as exc:
                 raise cv.Invalid(f"Invalid pin: {value}") from exc
+        if (m := _LETTERED_PIN_RE.fullmatch(value)) is not None:
+            from . import zephyr_data
+            from .variants import VARIANTS
+
+            variant_info = VARIANTS.get(zephyr_data().get("variant"))
+            port_labels = variant_info.gpio_port_labels if variant_info is not None else None
+            if port_labels is None:
+                raise cv.Invalid(
+                    f"'{value}' is not a valid pin: this variant uses flat pin "
+                    f"numbers (e.g. '{m.group(2)}'), not lettered-port notation."
+                )
+            letter = m.group(1).lower()
+            if letter not in port_labels:
+                raise cv.Invalid(f"'{value}' is not a valid pin: unknown port '{letter.upper()}'")
+            return port_labels.index(letter) * variant_info.gpio_port_width + int(m.group(2))
         try:
             return int(value)
         except ValueError:
