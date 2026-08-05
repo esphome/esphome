@@ -885,6 +885,9 @@ def test_validate_trusted_key_hex_forms() -> None:
     for bad in (pem_digest[:-1], "0x" + pem_digest):
         with pytest.raises(cv.Invalid, match="64 hex"):
             _validate_trusted_key(bad)
+    # An unquoted 0x.../all-digit digest reaches the validator as a YAML int.
+    with pytest.raises(cv.Invalid, match="Quote the digest"):
+        _validate_trusted_key(0x957671F5EC1B55B3)
 
 
 @pytest.mark.parametrize(

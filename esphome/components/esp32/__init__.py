@@ -1181,6 +1181,7 @@ def _sbv2_rsa_key_digest(path: Path) -> bytes:
     import hashlib
     import struct
 
+    from cryptography.exceptions import UnsupportedAlgorithm
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.hazmat.primitives.serialization import (
         load_pem_private_key,
@@ -1193,7 +1194,7 @@ def _sbv2_rsa_key_digest(path: Path) -> bytes:
             public_key = load_pem_public_key(data)
         else:
             public_key = load_pem_private_key(data, password=None).public_key()
-    except (ValueError, TypeError) as err:
+    except (ValueError, TypeError, UnsupportedAlgorithm) as err:
         raise cv.Invalid(f"Could not load key '{path}': {err}") from err
     if not isinstance(public_key, rsa.RSAPublicKey) or public_key.key_size != 3072:
         raise cv.Invalid(
@@ -1220,18 +1221,26 @@ def _validate_trusted_key(value: str) -> str:
     Accepts either the digest directly (so CI can inject it without shipping a
     key file) or a PEM key file whose digest is computed here.
     """
-    if isinstance(value, str):
-        stripped = value.strip()
-        if re.fullmatch(r"[0-9A-Fa-f]{64}", stripped):
-            return stripped.lower()
-        # An all-hex value that isn't exactly 64 chars is a mangled digest, not a
-        # path: a truncated or 0x-prefixed CI variable would otherwise fall
-        # through and fail as "file not found", pointing at the wrong problem.
-        if re.fullmatch(r"(?:0x)?[0-9A-Fa-f]+", stripped):
-            raise cv.Invalid(
-                f"'{stripped}' looks like a key digest but must be exactly 64 hex "
-                f"characters (a SHA-256, no '0x' prefix); check for truncation."
-            )
+    # An unquoted 0x... or all-digit digest is parsed by YAML as an int before it
+    # reaches here, so it never looks like a string digest -- reject it clearly
+    # rather than letting it fall through to cv.file_ as a bogus path.
+    if not isinstance(value, str):
+        raise cv.Invalid(
+            f"Expected a key file path or a 64-character hex digest, got {value!r}. "
+            f"Quote the digest so YAML keeps it as text (an unquoted '0x...' or "
+            f"all-digit value is parsed as a number)."
+        )
+    stripped = value.strip()
+    if re.fullmatch(r"[0-9A-Fa-f]{64}", stripped):
+        return stripped.lower()
+    # An all-hex value that isn't exactly 64 chars is a mangled digest, not a
+    # path: a truncated or 0x-prefixed CI variable would otherwise fall through
+    # and fail as "file not found", pointing at the wrong problem.
+    if re.fullmatch(r"(?:0x)?[0-9A-Fa-f]+", stripped):
+        raise cv.Invalid(
+            f"'{stripped}' looks like a key digest but must be exactly 64 hex "
+            f"characters (a SHA-256, no '0x' prefix); check for truncation."
+        )
     return _sbv2_rsa_key_digest(cv.file_(value)).hex()
 
 
