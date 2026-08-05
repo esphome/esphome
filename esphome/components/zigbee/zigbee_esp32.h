@@ -63,8 +63,13 @@ class ZigbeeComponent final : public Component {
   template<typename F> void add_on_join_callback(F &&cb) { this->join_cb_.add(std::forward<F>(cb)); }
 
   bool is_battery_powered() { return this->basic_cluster_data_.power_source == EZB_ZCL_BASIC_POWER_SOURCE_BATTERY; }
+
+  // True after the Zigbee stack has been initialized and the device has started up. Is set before the stack started
+  // network commissioning or has joined a network and won't be reset until the device is rebooted.
   bool is_started() { return this->started; }
-  bool is_connected() { return this->connected_; }
+
+  // True if the device has joined a network and is ready to send and receive messages.
+  bool is_joined() { return this->joined; }
   std::atomic<bool> started = false;
   std::atomic<bool> joined = false;
   std::atomic<bool> factory_new = false;
@@ -76,7 +81,6 @@ class ZigbeeComponent final : public Component {
     uint8_t *date;
     uint8_t power_source;
   } basic_cluster_data_;
-  bool connected_ = false;
 #ifdef CONFIG_ZB_ZED
   ezb_nwk_device_type_t device_role_ = EZB_NWK_DEVICE_TYPE_END_DEVICE;
 #else
@@ -91,6 +95,7 @@ class ZigbeeComponent final : public Component {
   // key tuple could be replaced by single 64 (48) bit int with bit fields for endpoint, cluster, role and attr_id
   std::map<std::tuple<uint8_t, uint16_t, uint8_t, uint16_t>, ZigbeeAttribute *> attributes_;
   ezb_af_device_desc_t dev_desc_;
+  bool join_reported_{false};
   CallbackManager<void(bool)> join_cb_{};
 };
 

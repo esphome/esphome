@@ -119,6 +119,7 @@ CONF_SIGNING_SCHEME = "signing_scheme"
 CONF_SRAM1_AS_IRAM = "sram1_as_iram"
 CONF_SUBTYPE = "subtype"
 CONF_VERIFICATION_KEY = "verification_key"
+CONF_VERIFICATION_KEYS = "verification_keys"
 
 ARDUINO_FRAMEWORK_NAME = "framework-arduinoespressif32"
 ARDUINO_FRAMEWORK_PKG = f"pioarduino/{ARDUINO_FRAMEWORK_NAME}"
@@ -146,6 +147,12 @@ SIGNING_SCHEMES = {
     "ecdsa256": "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME",
     "ecdsa_v1": "CONFIG_SECURE_SIGNED_APPS_ECDSA_SCHEME",
 }
+
+# A Secure Boot v2 image carries at most three signature blocks, and hardware
+# secure boot exposes three eFuse key slots. The trusted-key list isn't bound by
+# the per-image limit (an incoming image need only match one trusted key), but
+# cap it at three to mirror those hardware limits.
+SIGNED_OTA_MAX_KEYS = 3
 
 # Chip variants that only support one V2 signing scheme.
 # Based on SOC_SECURE_BOOT_V2_RSA / SOC_SECURE_BOOT_V2_ECC in soc_caps.h.
@@ -628,7 +635,6 @@ class NetworkSdkconfigData:
     wifi_ap: bool = False  # WiFi AP mode configured
     ethernet: bool = False  # Ethernet component active
     bluetooth: bool = False  # any BLE component active
-    ble_42: bool = False  # BLE 4.2 features needed
     software_coexistence: bool = False  # WiFi/BT software coexistence requested
     # esp32 advanced enable_lwip_dhcp_server option (True/False/None=unset)
     enable_lwip_dhcp_server: bool | None = None
@@ -654,12 +660,10 @@ def request_ethernet() -> None:
     _network_sdkconfig().ethernet = True
 
 
-def request_bluetooth(ble_42: bool = False) -> None:
-    """Request the Bluetooth controller. Pass ble_42=True for 4.2 features."""
+def request_bluetooth() -> None:
+    """Request the Bluetooth controller."""
     net = _network_sdkconfig()
     net.bluetooth = True
-    if ble_42:
-        net.ble_42 = True
 
 
 def request_software_coexistence() -> None:
@@ -814,14 +818,15 @@ def _is_framework_url(source: str) -> bool:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 3, 10),
-    "latest": cv.Version(3, 3, 10),
-    "dev": cv.Version(3, 3, 10),
+    "recommended": cv.Version(3, 3, 11),
+    "latest": cv.Version(3, 3, 11),
+    "dev": cv.Version(3, 3, 11),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         4, 0, 0, "alpha1"
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    cv.Version(3, 3, 11): cv.Version(55, 3, 311),
     cv.Version(3, 3, 10): cv.Version(55, 3, 39),
     cv.Version(3, 3, 9): cv.Version(55, 3, 39),
     cv.Version(3, 3, 8): cv.Version(55, 3, 38, "1"),
@@ -845,6 +850,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
     cv.Version(4, 0, 0, "alpha1"): cv.Version(6, 0, 1),
+    cv.Version(3, 3, 11): cv.Version(5, 5, 5),
     cv.Version(3, 3, 10): cv.Version(5, 5, 5),
     cv.Version(3, 3, 9): cv.Version(5, 5, 4),
     cv.Version(3, 3, 8): cv.Version(5, 5, 4),
@@ -879,7 +885,7 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         6, 0, 0
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
-    cv.Version(5, 5, 5): cv.Version(55, 3, 39),
+    cv.Version(5, 5, 5): cv.Version(55, 3, 311),
     cv.Version(5, 5, 4): cv.Version(55, 3, 39),
     cv.Version(5, 5, 3, "1"): cv.Version(55, 3, 37),
     cv.Version(5, 5, 3): cv.Version(55, 3, 37),
@@ -900,8 +906,8 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(55, 3, 39),
-    "latest": cv.Version(55, 3, 39),
+    "recommended": cv.Version(55, 3, 311),
+    "latest": cv.Version(55, 3, 311),
     "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
 }
 
@@ -1029,7 +1035,9 @@ def _check_esp_idf_versions(config: ConfigType) -> ConfigType:
 
 
 def _validate_toolchain(value) -> Toolchain:
-    return Toolchain(cv.one_of(*(t.value for t in Toolchain), lower=True)(value))
+    return Toolchain(
+        cv.one_of(Toolchain.PLATFORMIO, Toolchain.ESP_IDF, lower=True)(value)
+    )
 
 
 def _resolve_toolchain(value: ConfigType) -> ConfigType:
@@ -1163,10 +1171,98 @@ def _ota_downgrade_protection_errors(
     return errs
 
 
+def _sbv2_rsa_key_digest(path: Path) -> bytes:
+    """SHA-256 of a public key's Secure Boot v2 signature-block key region.
+
+    This hashes the 776-byte {n, e, rinv, m'} region exactly as the ROM lays it
+    out -- i.e. the value the device computes per signature block and the one
+    ``espsecure digest-sbv2-public-key`` prints, not a hash of the DER key.
+    """
+    import hashlib
+    import struct
+
+    from cryptography.exceptions import UnsupportedAlgorithm
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.hazmat.primitives.serialization import (
+        load_pem_private_key,
+        load_pem_public_key,
+    )
+
+    data = path.read_bytes()
+    try:
+        if b"PUBLIC KEY" in data:
+            public_key = load_pem_public_key(data)
+        else:
+            # verification_keys only needs the public half; warn so the private
+            # key doesn't end up committed alongside the config.
+            _LOGGER.warning(
+                "'%s' is a private key, but '%s' needs only the public key. Use a "
+                "public-key PEM or the 64-hex digest (espsecure "
+                "digest-sbv2-public-key) so the private key stays out of your config.",
+                path,
+                CONF_VERIFICATION_KEYS,
+            )
+            public_key = load_pem_private_key(data, password=None).public_key()
+    except (ValueError, TypeError, UnsupportedAlgorithm) as err:
+        raise cv.Invalid(f"Could not load key '{path}': {err}") from err
+    if not isinstance(public_key, rsa.RSAPublicKey) or public_key.key_size != 3072:
+        raise cv.Invalid(
+            f"'{CONF_VERIFICATION_KEYS}' entries must be RSA-3072 keys; "
+            f"'{path}' is not."
+        )
+    numbers = public_key.public_numbers()
+    n, e = numbers.n, numbers.e
+    m = (-pow(n, -1, 1 << 32)) & 0xFFFFFFFF
+    rinv = (1 << (public_key.key_size * 2)) % n
+    blob = struct.pack(
+        "<384sI384sI",
+        n.to_bytes(384, "big")[::-1],
+        e,
+        rinv.to_bytes(384, "big")[::-1],
+        m,
+    )
+    return hashlib.sha256(blob).digest()
+
+
+def _validate_trusted_key(value: Any) -> str:
+    """Normalize a trusted key to its 64-hex-char signature-block digest.
+
+    Accepts either the digest directly (so CI can inject it without shipping a
+    key file) or a PEM key file whose digest is computed here. Typed ``Any``
+    because YAML hands validators the parsed value -- e.g. an unquoted ``0x...``
+    digest arrives as an int, which the guard below rejects with advice to quote.
+    """
+    # An unquoted 0x... or all-digit digest is parsed by YAML as an int before it
+    # reaches here, so it never looks like a string digest -- reject it clearly
+    # rather than letting it fall through to cv.file_ as a bogus path.
+    if not isinstance(value, str):
+        raise cv.Invalid(
+            f"Expected a key file path or a 64-character hex digest, got {value!r}. "
+            f"Quote the digest so YAML keeps it as text (an unquoted '0x...' or "
+            f"all-digit value is parsed as a number)."
+        )
+    stripped = value.strip()
+    if re.fullmatch(r"[0-9A-Fa-f]{64}", stripped):
+        return stripped.lower()
+    # An all-hex value that isn't exactly 64 chars is a mangled digest, not a
+    # path: a truncated or 0x-prefixed CI variable would otherwise fall through
+    # and fail as "file not found", pointing at the wrong problem.
+    if re.fullmatch(r"(?:0x)?[0-9A-Fa-f]+", stripped):
+        raise cv.Invalid(
+            f"'{stripped}' looks like a key digest but must be exactly 64 hex "
+            f"characters (a SHA-256, no '0x' prefix); check for truncation."
+        )
+    return _sbv2_rsa_key_digest(cv.file_(value)).hex()
+
+
 _SIGNED_OTA_VERIFICATION_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_SIGNING_KEY): cv.file_,
         cv.Optional(CONF_VERIFICATION_KEY): cv.file_,
+        cv.Optional(CONF_VERIFICATION_KEYS): cv.All(
+            cv.ensure_list(_validate_trusted_key),
+            cv.Length(min=1, max=SIGNED_OTA_MAX_KEYS),
+        ),
         cv.Optional(CONF_SIGNING_SCHEME, default="rsa3072"): cv.one_of(
             *SIGNING_SCHEMES, lower=True
         ),
@@ -1200,9 +1296,15 @@ def _validate_signed_ota_keys(config: ConfigType) -> ConfigType:
     block appended to each image, so verifying externally-signed binaries
     needs no key in the config at all -- omitting both keys selects that
     external-signing mode.
+
+    For external RSA (rsa3072, no signing key), an optional 'verification_keys'
+    list names the keys the running app trusts. ESPHome then verifies OTA
+    signatures against that compiled-in set instead of IDF's single-block
+    check, which enables key rotation and multi-provider backup keys.
     """
     has_signing_key = CONF_SIGNING_KEY in config
     has_verification_key = CONF_VERIFICATION_KEY in config
+    has_verification_keys = CONF_VERIFICATION_KEYS in config
     scheme = config[CONF_SIGNING_SCHEME]
     if has_signing_key and has_verification_key:
         raise cv.Invalid(
@@ -1210,6 +1312,34 @@ def _validate_signed_ota_keys(config: ConfigType) -> ConfigType:
             f"'{CONF_VERIFICATION_KEY}', not both.",
             path=[CONF_VERIFICATION_KEY],
         )
+    if has_verification_keys:
+        if scheme != "rsa3072":
+            raise cv.Invalid(
+                f"'{CONF_VERIFICATION_KEYS}' is only used with signing scheme "
+                f"'rsa3072' (externally-signed RSA images). With '{scheme}' the "
+                f"public key travels in each image's signature block.",
+                path=[CONF_VERIFICATION_KEYS],
+            )
+        if has_signing_key:
+            raise cv.Invalid(
+                f"'{CONF_VERIFICATION_KEYS}' verifies externally-signed images "
+                f"and cannot be combined with '{CONF_SIGNING_KEY}' (which signs "
+                f"during the build). Provide one or the other.",
+                path=[CONF_VERIFICATION_KEYS],
+            )
+        if has_verification_key:
+            raise cv.Invalid(
+                f"Provide at most one of '{CONF_VERIFICATION_KEY}' and "
+                f"'{CONF_VERIFICATION_KEYS}', not both.",
+                path=[CONF_VERIFICATION_KEYS],
+            )
+        keys = config[CONF_VERIFICATION_KEYS]
+        if len(set(keys)) != len(keys):
+            raise cv.Invalid(
+                f"'{CONF_VERIFICATION_KEYS}' entries must be unique (duplicate "
+                f"keys add nothing and waste a trusted-set slot).",
+                path=[CONF_VERIFICATION_KEYS],
+            )
     if scheme == "ecdsa_v1":
         if not has_signing_key and not has_verification_key:
             raise cv.Invalid(
@@ -1236,6 +1366,13 @@ def final_validate(config):
     from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 
     from .gpio import final_validate_pins
+
+    # Remove before 2027.2.0
+    if CORE.using_toolchain_platformio:
+        _LOGGER.warning(
+            "The 'platformio' toolchain for ESP32 is deprecated and will be removed "
+            "in ESPHome 2027.2.0. Please use 'toolchain: esp-idf' instead."
+        )
 
     errs = []
     conf_fw = config[CONF_FRAMEWORK]
@@ -2044,12 +2181,12 @@ async def _reconcile_network_sdkconfig() -> None:
         if name not in opts:
             add_idf_sdkconfig_option(name, value)
 
-    # Bluetooth: only ever enable when requested. The IDF default is off and
-    # nothing sets these False today, so never write False here.
+    # Bluetooth: only ever enable when requested. The IDF default is off.
+    # According to the IDF docs, only one of 4.2 or 5.0 should be enabled.
     if net.bluetooth:
         set_opt("CONFIG_BT_ENABLED", True)
-        if net.ble_42:
-            set_opt("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
+        set_opt("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
+        set_opt("CONFIG_BT_BLE_50_FEATURES_SUPPORTED", False)
 
     # WiFi stack: disable only when Ethernet is present and WiFi is not. WiFi
     # relies on the IDF default (enabled), so it is never written True here.
@@ -2182,6 +2319,8 @@ async def to_code(config):
     cg.set_cpp_standard("gnu++20")
     cg.add_build_flag("-DUSE_ESP32")
     cg.add_define("USE_NATIVE_64BIT_TIME")
+    # NVS finds stored preferences by key, so preference key migration is possible
+    cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.add_build_flag("-Wl,-z,noexecstack")
     # Deferred so KEY_COMPONENTS is fully populated -- see the coroutine.
     CORE.add_job(_finalize_arduino_aware_flags)
@@ -2546,9 +2685,68 @@ async def to_code(config):
     # Enable signed app verification without hardware secure boot
     if signed_ota := advanced.get(CONF_SIGNED_OTA_VERIFICATION):
         add_idf_sdkconfig_option("CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT", True)
-        add_idf_sdkconfig_option("CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT", True)
 
         scheme = signed_ota[CONF_SIGNING_SCHEME]
+        # For externally-signed RSA images with a declared 'verification_keys'
+        # list, ESPHome verifies the OTA signature itself instead of using IDF's
+        # on-update check. IDF only matches the incoming image's first signature
+        # block against the running app's first, which blocks key rotation and
+        # multi-provider backup keys; ESPHome accepts an image signed by any key
+        # in the compiled-in trusted set. Without 'verification_keys' there is no
+        # trust anchor, so fall back to IDF's built-in check.
+        # The build still produces the padded unsigned image (via SECURE_
+        # SIGNED_APPS_NO_SECURE_BOOT above); only the on-update check moves.
+        # SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT defaults to y under
+        # SECURE_SIGNED_APPS_NO_SECURE_BOOT, so it must be set explicitly:
+        # False to hand verification to ESPHome, True to keep IDF's check.
+        # Setting it False also drives the hidden CONFIG_SECURE_SIGNED_APPS to
+        # n; the 4 KiB padding and reserved signature sector the verifier
+        # depends on survive only because --secure-pad-v2 keys off
+        # CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME (set below), not that symbol.
+        external_rsa = scheme == "rsa3072" and CONF_SIGNING_KEY not in signed_ota
+        verification_keys = signed_ota.get(CONF_VERIFICATION_KEYS)
+        # verification_keys is accepted only for external RSA (rsa3072 with no
+        # signing_key), enforced in _validate_signed_ota_keys. Assert the
+        # post-condition so validator/codegen drift fails the build loudly
+        # instead of silently dropping the declared trust anchor and downgrading
+        # to IDF's single-block check.
+        assert not verification_keys or external_rsa
+        multi_key = external_rsa and verification_keys
+        # Turning IDF's on-update check off is global -- it also drops the
+        # signature check from esp_ota_set_boot_partition() on the partition-table
+        # path and safe_mode's recovery rollback. Both deliberately select an
+        # already-installed image (or an MD5-checked partition table), not a
+        # freshly-downloaded one, so ESPHome's verifier only needs to cover the
+        # app and bootloader OTA paths, where a new image is actually written.
+        add_idf_sdkconfig_option(
+            "CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT", not multi_key
+        )
+        if multi_key:
+            cg.add_define("USE_OTA_SIGNED_VERIFICATION_MULTI_KEY")
+            # Compile the trusted key digests in as the immutable trust anchor.
+            # Each is the SHA-256 of a key's signature-block region; the verifier
+            # accepts an OTA whose signature block matches one of these.
+            digests = [bytes.fromhex(k) for k in verification_keys]
+            # Echo the resolved digests so a stale or mistyped key (which builds
+            # cleanly but leaves the device updatable only by serial reflash) is
+            # visible in the build log.
+            _LOGGER.info(
+                "Signed OTA verification trusts %d key digest(s): %s",
+                len(digests),
+                ", ".join(d.hex() for d in digests),
+            )
+            cg.add_define("OTA_TRUSTED_KEY_COUNT", len(digests))
+            cg.add_define(
+                "OTA_TRUSTED_KEY_DIGESTS",
+                cg.RawExpression(
+                    "{"
+                    + ",".join(
+                        "{" + ",".join(f"0x{b:02x}" for b in d) + "}" for d in digests
+                    )
+                    + "}"
+                ),
+            )
+
         for key, flag in SIGNING_SCHEMES.items():
             add_idf_sdkconfig_option(flag, scheme == key)
 
