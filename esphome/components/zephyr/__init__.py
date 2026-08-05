@@ -222,6 +222,12 @@ def zephyr_variant() -> str | None:
     return zephyr_data().get("variant")
 
 
+def zephyr_framework_type() -> str | None:
+    """Return the active `zephyr: framework: type:` (e.g. "zephyr", "ncs"), or None if
+    not yet set."""
+    return zephyr_data().get(KEY_FRAMEWORK_TYPE)
+
+
 def zephyr_variant_family() -> str | None:
     """Return the active variant's silicon family (e.g. "esp32"), or None if unset/unfamilied."""
     variant = zephyr_variant()
@@ -492,6 +498,15 @@ def zephyr_to_code(config: ConfigType) -> None:
     # The settings subsystem finds stored preferences by key, so key migration is possible
     cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.set_cpp_standard("gnu++20")
+    if zephyr_variant() is not None:
+        # platform: nrf52 has no user-facing `framework: type:` -- its internal
+        # framework_type="ncs" (see zephyr_set_core_data) is Python-only, never turned
+        # into a C++ define here; all C++ code keys off USE_NRF52 instead.
+        # USE_ZEPHYR_FRAMEWORK_ZEPHYR not defined, no need in code so far.
+        if zephyr_framework_type() == "ncs":
+            cg.add_define("USE_ZEPHYR_FRAMEWORK_NCS")
+        elif zephyr_framework_type() == "zigbee":
+            cg.add_define("USE_ZEPHYR_FRAMEWORK_ZIGBEE")
     if zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM:
         # native_sim: use host glibc + libstdc++, avoiding picolibc/glibc type conflicts.
         zephyr_add_prj_conf("EXTERNAL_LIBC", True)

@@ -5,7 +5,7 @@ from esphome.const import CONF_ID
 from esphome.core import CORE
 from esphome.types import ConfigType
 
-from .. import consume_endpoint
+from .. import consume_endpoint, default_zigbee_ids
 from ..const import zigbee_ns
 from ..const_zephyr import CONF_ZIGBEE_ID
 from ..zigbee_zephyr import (
@@ -16,23 +16,30 @@ from ..zigbee_zephyr import (
     zigbee_new_cluster_list,
     zigbee_new_variable,
     zigbee_register_ep,
+    zigbee_zephyr_supported,
 )
 
 DEPENDENCIES = ["zigbee"]
 
 ZigbeeTime = zigbee_ns.class_("ZigbeeTime", time_.RealTimeClock)
 
+
+def _default_zigbee_id_if_supported(config: ConfigType) -> ConfigType:
+    if zigbee_zephyr_supported():
+        config = default_zigbee_ids(config)
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     time_.TIME_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(ZigbeeTime),
-            cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(
-                ZigbeeComponent
-            ),
+            cv.Optional(CONF_ZIGBEE_ID): cv.use_id(ZigbeeComponent),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(cv.polling_component_schema("1s")),
+    _default_zigbee_id_if_supported,
     consume_endpoint,
 )
 

@@ -1,6 +1,7 @@
 import hashlib
 import logging
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -57,6 +58,35 @@ def _parse_zephyr_version_file(version_file: Path) -> str:
 
 def _sdk_source_cache_key(url: str, ref: str | None) -> str:
     return hashlib.sha1(f"{url}@{ref or 'HEAD'}".encode()).hexdigest()[:16]
+
+
+def resolve_ncs_zigbee_source_version(source: ConfigType, fallback: str) -> str:
+    """Return ncs-zigbee's version from source: -- a "vX.Y.Z" git ref is used directly;
+    any other git ref (a branch, a commit) or a local checkout (no ref concept at all)
+    falls back to the hardcoded `fallback` instead of fetching anything. ncs-zigbee has
+    no top-level VERSION file (unlike MAINLINE/NCS, which go through
+    resolve_sdk_source_version below), so this is a separate, narrower resolution path
+    used only for that one SDK.
+    """
+    if source[CONF_TYPE] == TYPE_LOCAL:
+        _LOGGER.warning(
+            "[zephyr] Can't verify ncs-zigbee's version from local checkout '%s' -- "
+            "assuming %s. Review this on every new release.",
+            source[CONF_PATH],
+            fallback,
+        )
+        return fallback
+    ref = source.get(CONF_REF) or "HEAD"
+    if match := re.fullmatch(r"v(\d+\.\d+\.\d+)", ref):
+        return match.group(1)
+    _LOGGER.warning(
+        "[zephyr] Can't verify %s's version from ref '%s' (not a vX.Y.Z tag) -- "
+        "assuming %s. Review this on every new release.",
+        source[CONF_URL],
+        ref,
+        fallback,
+    )
+    return fallback
 
 
 def resolve_sdk_source_version(source: ConfigType, refresh: TimePeriodSeconds) -> str:
@@ -136,6 +166,111 @@ def _native_dts_path(sdk: ZephyrSDK) -> Path | None:
         / "zephyr"
     )
     return candidate if candidate.is_dir() else None
+
+
+def _clone_manifest_project_revision(
+    manifest_url: str, ref: str, project_repo_url: str, cache_dir: Path
+) -> str | None:
+    """Shallow-clone manifest_url at ref, parse its west.yml, and return the `revision:`
+    pinned for the project matching project_repo_url's own basename.
+
+    Matches by repo-path (falling back to name) since a project's manifest `name:` need
+    not match its repo name. Cached at cache_dir/<sha1(manifest_url@ref)>, immutable since
+    a tag ref always maps to the same content.
+    """
+    cache_key = hashlib.sha1(f"{manifest_url}@{ref}".encode()).hexdigest()[:16]
+    cache_file = cache_dir / cache_key
+    if cache_file.is_file():
+        return cache_file.read_text().strip() or None
+
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            subprocess.run(
+                [
+                    "git",
+                    "clone",
+                    "--depth=1",
+                    "--filter=blob:none",
+                    "--sparse",
+                    "--branch",
+                    ref,
+                    manifest_url,
+                    tmp,
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            _LOGGER.warning(
+                "[zephyr] Could not fetch %s@%s to resolve project revision: %s",
+                manifest_url,
+                ref,
+                exc,
+            )
+            return None
+
+        west_yml = Path(tmp) / "west.yml"
+        if not west_yml.is_file():
+            _LOGGER.warning(
+                "[zephyr] %s@%s has no top-level west.yml", manifest_url, ref
+            )
+            return None
+        try:
+            manifest = yaml.safe_load(west_yml.read_text())
+        except yaml.YAMLError as exc:
+            _LOGGER.warning("[zephyr] Could not parse %s: %s", west_yml, exc)
+            return None
+
+    project_repo_name = project_repo_url.rstrip("/").rsplit("/", 1)[-1]
+    revision = None
+    for project in manifest.get("manifest", {}).get("projects", []):
+        if project.get("repo-path", project.get("name")) == project_repo_name:
+            revision = project.get("revision")
+            break
+
+    if revision is None:
+        _LOGGER.warning(
+            "[zephyr] %s@%s's west.yml has no project matching %s",
+            manifest_url,
+            ref,
+            project_repo_url,
+        )
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_file.write_text(revision or "")
+    return revision
+
+
+def _resolve_ncs_zigbee_boards_ref(sdk: ZephyrSDK, ver: str) -> str | None:
+    """Like _resolve_boards_ref, but for ncs-zigbee: its own west.yml only imports `nrf`
+    (not `zephyr` directly), so the boards-owning revision lives one hop deeper, inside
+    sdk-nrf's own west.yml (sdk.boards_manifest_url) rather than manifest_url's.
+
+    This needs two hops, not one: ncs-zigbee's *own* version scheme (ver, e.g. "1.4.0")
+    is unrelated to sdk-nrf's tag namespace -- and the two can collide by coincidence
+    (ncs-zigbee v1.4.0 is a 2024/2025 ZBOSS release; sdk-nrf's own v1.4.0 tag is an
+    unrelated NCS platform release from 2021, whose bundled sdk-zephyr fork predates
+    the current vendor-based boards/ layout and is missing many boards, e.g. xiao_ble).
+    So: first read ncs-zigbee@f"v{ver}"'s west.yml to find the `nrf` (sdk-nrf) revision
+    *it* actually pins (confirmed: ncs-zigbee v1.4.0 pins nrf at v3.4.0, not v1.4.0),
+    then read sdk-nrf at that resolved revision for the boards_repo_url (sdk-zephyr)
+    revision -- the same lookup _resolve_boards_ref does for the plain `ncs` framework.
+    """
+    nrf_ref = _clone_manifest_project_revision(
+        sdk.manifest_url,
+        f"v{ver}",
+        sdk.boards_manifest_url or "",
+        _MANIFEST_REVISION_CACHE,
+    )
+    if nrf_ref is None:
+        return None
+    return _clone_manifest_project_revision(
+        sdk.boards_manifest_url or "",
+        nrf_ref,
+        sdk.boards_repo_url or "",
+        _MANIFEST_REVISION_CACHE,
+    )
 
 
 def _resolve_boards_ref(sdk: ZephyrSDK, ver: str) -> str | None:
@@ -236,7 +371,11 @@ def _sparse_clone_dts(variant: str, sdk_name: str, sdk: ZephyrSDK) -> Path | Non
     if (zephyr_dir / "boards").is_dir():
         return zephyr_dir  # cache hit
 
-    tag = _resolve_boards_ref(sdk, ver)
+    tag = (
+        _resolve_ncs_zigbee_boards_ref(sdk, ver)
+        if sdk.boards_manifest_url is not None
+        else _resolve_boards_ref(sdk, ver)
+    )
     if tag is None:
         _LOGGER.warning(
             "[zephyr] Could not determine boards revision for %s %s %s; skipping sparse clone",

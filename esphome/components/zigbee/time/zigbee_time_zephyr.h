@@ -1,6 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
-#if defined(USE_ZIGBEE) && defined(USE_NRF52) && defined(USE_TIME)
+#if defined(USE_ZIGBEE) && (defined(USE_NRF52) || defined(USE_ZEPHYR_FRAMEWORK_ZIGBEE)) && defined(USE_TIME)
 #include "esphome/core/component.h"
 #include "esphome/components/time/real_time_clock.h"
 #include "esphome/components/zigbee/zigbee_zephyr.h"

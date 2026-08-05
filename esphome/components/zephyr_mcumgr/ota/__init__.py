@@ -2,14 +2,22 @@ import esphome.codegen as cg
 from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
 from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
 from esphome.components.zephyr import (
+    VARIANTS,
     HexValue,
     zephyr_add_cdc_acm,
     zephyr_add_overlay,
     zephyr_add_prj_conf,
     zephyr_add_sysbuild_conf,
     zephyr_data,
+    zephyr_variant,
 )
-from esphome.components.zephyr.const import BOOTLOADER_MCUBOOT, KEY_BOOTLOADER
+from esphome.components.zephyr.const import (
+    BOOTLOADER_MCUBOOT,
+    KEY_BOOTLOADER,
+    ZEPHYR_VARIANT_NRF52,
+    ZEPHYR_VARIANT_NRF54L15,
+    ZEPHYR_VARIANT_NRF54LM20A,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_HARDWARE_UART, CONF_ID, KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, coroutine_with_priority
@@ -18,6 +26,16 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@tomaszduda23"]
 DEPENDENCIES = ["zephyr"]
+
+
+def AUTO_LOAD() -> list[str]:
+    # Legacy platform: nrf52 doesn't touch the shared ota component's own backend
+    # file at all -- this OTAComponent is entirely separate. platform: zephyr does:
+    # it always compiles ota_backend_zephyr.cpp regardless of which ota: platform
+    # is selected (see ota's own AUTO_LOAD()), and that backend needs sha256 (NCS's
+    # PSA crypto drivers can't do MD5).
+    return ["sha256"] if CORE.is_zephyr else []
+
 
 ZephyrMcumgrOTAComponent = cg.esphome_ns.namespace("zephyr_mcumgr").class_(
     "OTAComponent", OTAComponent
@@ -36,12 +54,29 @@ def _validate_transport(conf: ConfigType) -> ConfigType:
     )
 
 
-UARTS = {
-    "CDC": ("cdc_acm_uart0", 0),
-    "CDC1": ("cdc_acm_uart1", 1),
-    "UART0": ("uart0", -1),
-    "UART1": ("uart1", -1),
-}
+# Platform: zephyr variants this MCUboot image-manager path has been validated
+# against. platform: zephyr on other variants has its own hardened OTA path
+# instead, ota_backend_zephyr.cpp, reached via platform: esphome.
+ZEPHYR_VARIANTS = (
+    ZEPHYR_VARIANT_NRF52,
+    ZEPHYR_VARIANT_NRF54L15,
+    ZEPHYR_VARIANT_NRF54LM20A,
+)
+
+CDC_IDS = {"CDC": 0, "CDC1": 1}
+UARTS = ("CDC", "CDC1", "UART0", "UART1")
+
+
+def _validate_platform(conf: ConfigType) -> ConfigType:
+    # Two ways to end up on a supported chip: the legacy platform: nrf52
+    # component, or platform: zephyr with one of ZEPHYR_VARIANTS (a separate,
+    # mainline/NCS-based port).
+    if CORE.is_nrf52 or (CORE.is_zephyr and zephyr_variant() in ZEPHYR_VARIANTS):
+        return conf
+    raise cv.Invalid(
+        "This feature is only available on nrf52 (platform: nrf52, or "
+        "platform: zephyr with variant: nrf52, nrf54l15, or nrf54lm20a)."
+    )
 
 
 CONFIG_SCHEMA = cv.All(
@@ -61,9 +96,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(BASE_OTA_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
     _validate_transport,
-    # Only nrf52 -- this MCUboot image-manager path was only ever built/tested for
-    # nrf52; platform: zephyr has its own hardened OTA path (ota_backend_zephyr.cpp).
-    cv.only_on_nrf52,
+    _validate_platform,
 )
 
 
@@ -135,11 +168,24 @@ async def to_code(config: ConfigType) -> None:
 
         zephyr_add_prj_conf("NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP", True)
     if CONF_HARDWARE_UART in transport:
-        uart = UARTS[transport[CONF_HARDWARE_UART]]
-        uart_name = uart[0]
-        cdc_id = uart[1]
-        if cdc_id >= 0:
-            zephyr_add_cdc_acm(config, cdc_id)
+        hw_uart = transport[CONF_HARDWARE_UART]
+        if hw_uart in CDC_IDS:
+            # zephyr_add_cdc_acm() reuses a board-provided cdc-acm-uart node (e.g.
+            # Nordic's common cdc_acm_serial.dtsi, which several boards -- including
+            # xiao_ble -- already include) instead of declaring a new cdc_acm_uart{id}
+            # node, whenever one is already present. Its return value is the label
+            # that actually ended up in the devicetree; a hardcoded cdc_acm_uart{id}
+            # name may not have been declared at all when that happens, so it can't
+            # be used directly below or the devicetree reference is left dangling.
+            uart_name = zephyr_add_cdc_acm(config, CDC_IDS[hw_uart])
+        elif CORE.is_zephyr:
+            # Physical UART peripherals are numbered differently per variant (e.g.
+            # nRF54 uses uart20/uart30 instead of nRF52's uart0/uart1) -- resolve
+            # via the variant's own node labels instead of assuming nRF52's names.
+            uart_name = VARIANTS[zephyr_variant()].uart_node_labels[hw_uart]
+        else:
+            # Legacy platform: nrf52 always uses uart0/uart1.
+            uart_name = hw_uart.lower()
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_UART", True)
         zephyr_add_prj_conf("BASE64", True)
         zephyr_add_prj_conf("CONSOLE", True)

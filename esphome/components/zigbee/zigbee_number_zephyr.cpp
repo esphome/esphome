@@ -1,5 +1,5 @@
 #include "zigbee_number_zephyr.h"
-#if defined(USE_ZIGBEE) && defined(USE_NRF52) && defined(USE_NUMBER)
+#if defined(USE_ZIGBEE) && (defined(USE_NRF52) || defined(USE_ZEPHYR_FRAMEWORK_ZIGBEE)) && defined(USE_NUMBER)
 #include "esphome/core/log.h"
 extern "C" {
 #include <zboss_api.h>

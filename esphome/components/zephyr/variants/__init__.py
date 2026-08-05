@@ -62,6 +62,17 @@ class ZephyrSDK:
     # silently break on some past or future NCS release. Reading the real manifest is the
     # only correct way to know it.
     resolve_boards_ref_via_manifest: bool = False
+    # Repo whose own west.yml is read for resolve_boards_ref_via_manifest's project-revision
+    # lookup, when it differs from manifest_url. None = manifest_url. Needed when a manifest
+    # only imports its real SDK indirectly (e.g. ncs-zigbee -> sdk-nrf).
+    boards_manifest_url: str | None = None
+    # Hardcoded version to assume when source: ref: isn't a "vX.Y.Z" tag, for a repo with
+    # no top-level VERSION file (e.g. ncs-zigbee). None = read VERSION directly from
+    # source. A tag ref is still used directly regardless of this value.
+    unversioned_ref_fallback: str | None = None
+    # Set when this SDK has no tagged release usable as a default -- framework: source: is
+    # then mandatory; explains why in the raised error.
+    requires_source_reason: str | None = None
 
 
 @dataclass
@@ -230,15 +241,30 @@ def resolve_framework_version(
         )
 
     source = framework.get(CONF_SOURCE)
+    if source is None and sdk.requires_source_reason is not None:
+        raise cv.Invalid(
+            f"framework: type: {sdk_name} has no usable default version -- "
+            f"{sdk.requires_source_reason}. 'source:' is required.",
+            [CONF_FRAMEWORK, CONF_TYPE],
+        )
+
     if source is not None:
         from ..dts_fetch import (  # deferred: avoid import cycle (dts_fetch imports VARIANTS)
+            resolve_ncs_zigbee_source_version,
             resolve_sdk_source_version,
         )
 
         if source[CONF_TYPE] == TYPE_GIT and CONF_URL not in source:
             source[CONF_URL] = sdk.manifest_url
         with cv.prepend_path([CONF_FRAMEWORK, CONF_SOURCE]):
-            version_str = resolve_sdk_source_version(source, framework[CONF_REFRESH])
+            if sdk.unversioned_ref_fallback is not None:
+                version_str = resolve_ncs_zigbee_source_version(
+                    source, sdk.unversioned_ref_fallback
+                )
+            else:
+                version_str = resolve_sdk_source_version(
+                    source, framework[CONF_REFRESH]
+                )
     else:
         version_str = str(framework.get(CONF_VERSION, default_version))
         if version_str == VERSION_RECOMMENDED:
@@ -352,6 +378,23 @@ NCS: ZephyrSDK = ZephyrSDK(
     tools_subdir="sdk-nrf",
     default_version="3.4.0",
     min_version=cv.Version(3, 4, 0),
+    resolve_boards_ref_via_manifest=True,
+)
+
+# Nordic's ZBOSS Zigbee stack, split out of sdk-nrf into this separate add-on repo as of
+# NCS 3.4.0; see https://github.com/esphomeplatformzephyr/esphome/issues/31.
+# boards_manifest_url points at sdk-nrf since ncs-zigbee's own west.yml only imports it.
+# default_version/min_version are ncs-zigbee's own version scheme, unrelated to sdk-nrf's.
+NCS_ZIGBEE: ZephyrSDK = ZephyrSDK(
+    manifest_url="https://github.com/nrfconnect/ncs-zigbee",
+    boards_repo_url="https://github.com/nrfconnect/sdk-zephyr",
+    boards_manifest_url="https://github.com/nrfconnect/sdk-nrf",
+    # main currently reports 1.4.99 (samples/light_bulb/VERSION) -- review on every new
+    # ncs-zigbee release.
+    unversioned_ref_fallback="1.4.99",
+    tools_subdir="sdk-nrf-zigbee",
+    default_version="1.4.0",
+    min_version=cv.Version(1, 4, 0),
     resolve_boards_ref_via_manifest=True,
 )
 

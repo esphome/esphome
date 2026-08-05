@@ -2,7 +2,12 @@ import datetime
 import random
 
 import esphome.codegen as cg
-from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.components.zephyr import (
+    zephyr_add_prj_conf,
+    zephyr_framework_type,
+    zephyr_variant,
+)
+from esphome.components.zephyr.variants import VARIANTS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -57,45 +62,75 @@ ZigbeeSensor = zigbee_ns.class_("ZigbeeSensor", cg.Component)
 ZigbeeSwitch = zigbee_ns.class_("ZigbeeSwitch", cg.Component)
 ZigbeeNumber = zigbee_ns.class_("ZigbeeNumber", cg.Component)
 
+
+def zigbee_zephyr_supported() -> bool:
+    """True on platform: nrf52, or on platform: zephyr when the active variant has
+    zigbee radio support and framework: type: zigbee is selected. ncs-zigbee (ZBOSS) is
+    Nordic-proprietary; as of NCS 3.4.0 it lives only in the separate ncs-zigbee add-on
+    repo (type: zigbee), not in plain type: ncs anymore."""
+    if "nrf52" in CORE.loaded_integrations:
+        return True
+    if not CORE.is_zephyr:
+        return False
+    variant = VARIANTS.get(zephyr_variant())
+    return (
+        variant is not None
+        and "zigbee" in variant.transports
+        and zephyr_framework_type() == "zigbee"
+    )
+
+
+def requires_zigbee_zephyr_supported(value):
+    """Raise a clear error if ZBOSS zigbee isn't usable here -- see zigbee_zephyr_supported()."""
+    if not zigbee_zephyr_supported():
+        raise cv.Invalid(
+            "This option requires platform: nrf52, or platform: zephyr with a "
+            "zigbee-capable variant on framework: type: zigbee"
+        )
+    return value
+
+
+# CONF_ZIGBEE_ID and these declare-id keys are left un-defaulted here -- they're
+# defaulted in zigbee/__init__.py's consume_endpoint() instead, once zigbee_zephyr_supported()
+# is known (a plain cv.Schema like this one can't call zigbee_zephyr_supported() itself and
+# still stay dict-extendable for the .extend() chains in zigbee/__init__.py and
+# esphome/components/binary_sensor|sensor|switch|number/__init__.py).
 zephyr_binary_sensor = cv.Schema(
     {
-        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
-        cv.OnlyWith(CONF_ZIGBEE_BINARY_SENSOR, ["nrf52", "zigbee"]): cv.declare_id(
-            ZigbeeBinarySensor
-        ),
+        cv.Optional(CONF_ZIGBEE_ID): cv.use_id(ZigbeeComponent),
+        cv.Optional(CONF_ZIGBEE_BINARY_SENSOR): cv.declare_id(ZigbeeBinarySensor),
     }
 )
 
 zephyr_sensor = cv.Schema(
     {
-        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
-        cv.OnlyWith(CONF_ZIGBEE_SENSOR, ["nrf52", "zigbee"]): cv.declare_id(
-            ZigbeeSensor
-        ),
+        cv.Optional(CONF_ZIGBEE_ID): cv.use_id(ZigbeeComponent),
+        cv.Optional(CONF_ZIGBEE_SENSOR): cv.declare_id(ZigbeeSensor),
     }
 )
 
 zephyr_switch = cv.Schema(
     {
-        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
-        cv.OnlyWith(CONF_ZIGBEE_SWITCH, ["nrf52", "zigbee"]): cv.declare_id(
-            ZigbeeSwitch
-        ),
+        cv.Optional(CONF_ZIGBEE_ID): cv.use_id(ZigbeeComponent),
+        cv.Optional(CONF_ZIGBEE_SWITCH): cv.declare_id(ZigbeeSwitch),
     }
 )
 
 zephyr_number = cv.Schema(
     {
-        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
-        cv.OnlyWith(CONF_ZIGBEE_NUMBER, ["nrf52", "zigbee"]): cv.declare_id(
-            ZigbeeNumber
-        ),
+        cv.Optional(CONF_ZIGBEE_ID): cv.use_id(ZigbeeComponent),
+        cv.Optional(CONF_ZIGBEE_NUMBER): cv.declare_id(ZigbeeNumber),
     }
 )
 
 
 async def zephyr_to_code(config: ConfigType) -> "MockObj":
-    zephyr_add_prj_conf("ZIGBEE", True)
+    # Top-level Zigbee-stack-enable Kconfig symbol: "ZIGBEE" for the legacy inline
+    # stack (type: ncs), "ZIGBEE_ADD_ON" for the separate ncs-zigbee repo (type: zigbee).
+    zigbee_enable_symbol = (
+        "ZIGBEE_ADD_ON" if zephyr_framework_type() == "zigbee" else "ZIGBEE"
+    )
+    zephyr_add_prj_conf(zigbee_enable_symbol, True)
     zephyr_add_prj_conf("ZIGBEE_APP_UTILS", True)
     if config[CONF_ROUTER]:
         zephyr_add_prj_conf("ZIGBEE_ROLE_ROUTER", True)

@@ -10,9 +10,10 @@ from unittest.mock import patch
 from esphome.components.zephyr.dts_fetch import (
     _framework_base_version,
     _resolve_boards_ref,
+    _resolve_ncs_zigbee_boards_ref,
     _sparse_clone_dts,
 )
-from esphome.components.zephyr.variants import MAINLINE, NCS
+from esphome.components.zephyr.variants import MAINLINE, NCS, NCS_ZIGBEE
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE
@@ -103,6 +104,71 @@ def test_resolve_boards_ref_returns_cached_value_without_reinvoking_git(
 
     mock_run.assert_not_called()
     assert result == "ncs-v3.4.0"
+
+
+# ---------------------------------------------------------------------------
+# _resolve_ncs_zigbee_boards_ref
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_ncs_zigbee_boards_ref_walks_two_hops(tmp_path: Path) -> None:
+    """ncs-zigbee's own version number must never be used directly as a sdk-nrf tag --
+    it collides by coincidence with an unrelated ~2021 sdk-nrf release also tagged
+    v1.4.0. Regression coverage for the real two-hop lookup: ncs-zigbee's own
+    west.yml (at its real tag) for the nrf/sdk-nrf revision it pins, then sdk-nrf's
+    own west.yml at that revision for the actual sdk-zephyr revision."""
+
+    def fake_run(cmd, **kwargs):
+        dest = Path(cmd[-1])
+        ref = cmd[cmd.index("--branch") + 1]
+        dest.mkdir(parents=True, exist_ok=True)
+        if ref == "v1.4.0":
+            # First hop: ncs-zigbee@v1.4.0 pins nrf (sdk-nrf) at v3.4.0 -- not
+            # "v1.4.0", proving the version number can't be reused directly.
+            (dest / "west.yml").write_text(
+                "manifest:\n"
+                "  projects:\n"
+                "    - name: nrf\n"
+                "      repo-path: sdk-nrf\n"
+                "      revision: v3.4.0\n"
+            )
+        elif ref == "v3.4.0":
+            # Second hop: sdk-nrf@v3.4.0 pins zephyr (sdk-zephyr) at ncs-v3.4.0.
+            (dest / "west.yml").write_text(
+                "manifest:\n"
+                "  projects:\n"
+                "    - name: zephyr\n"
+                "      repo-path: sdk-zephyr\n"
+                "      revision: ncs-v3.4.0\n"
+            )
+        else:
+            raise AssertionError(f"unexpected ref {ref!r}")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    with (
+        patch(
+            "esphome.components.zephyr.dts_fetch._MANIFEST_REVISION_CACHE",
+            tmp_path / "zephyr_manifest_revision_cache",
+        ),
+        patch("subprocess.run", side_effect=fake_run),
+    ):
+        assert _resolve_ncs_zigbee_boards_ref(NCS_ZIGBEE, "1.4.0") == "ncs-v3.4.0"
+
+
+def test_resolve_ncs_zigbee_boards_ref_returns_none_when_first_hop_fails(
+    tmp_path: Path,
+) -> None:
+    def fake_run(cmd, **kwargs):
+        raise subprocess.CalledProcessError(1, cmd, stderr="fatal: some git error")
+
+    with (
+        patch(
+            "esphome.components.zephyr.dts_fetch._MANIFEST_REVISION_CACHE",
+            tmp_path / "zephyr_manifest_revision_cache",
+        ),
+        patch("subprocess.run", side_effect=fake_run),
+    ):
+        assert _resolve_ncs_zigbee_boards_ref(NCS_ZIGBEE, "1.4.0") is None
 
 
 # ---------------------------------------------------------------------------

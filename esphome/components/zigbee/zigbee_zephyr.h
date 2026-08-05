@@ -1,6 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
-#if defined(USE_ZIGBEE) && defined(USE_NRF52)
+#if defined(USE_ZIGBEE) && (defined(USE_NRF52) || defined(USE_ZEPHYR_FRAMEWORK_ZIGBEE))
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 extern "C" {
