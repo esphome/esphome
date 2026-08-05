@@ -245,6 +245,8 @@ def test_upload_command_path_does_not_import_heavy_modules(
     )
     assert not leaked, (
         f"the upload dispatch path pulls in heavy modules: {leaked}. "
-        "An ordinary run only needs the bundle suffix constant; keep the "
-        "esphome.bundle import inside the branch that extracts one."
+        "An ordinary run only needs the bundle suffix constant, and the "
+        "cache parse must not resolve voluptuous; keep the esphome.bundle "
+        "import inside the branch that extracts one and the Invalid import "
+        "inside the branch that raises it."
     )

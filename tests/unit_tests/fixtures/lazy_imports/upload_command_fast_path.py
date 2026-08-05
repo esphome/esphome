@@ -27,41 +27,40 @@ CONFIG_TEXT = "esphome:\n  name: t\n"
 os.environ.pop("ESPHOME_DATA_DIR", None)
 os.environ.pop("ESPHOME_IS_HA_ADDON", None)
 
-tmp = Path(tempfile.mkdtemp())
-conf_path = tmp / "test.yaml"
-conf_path.write_text(CONFIG_TEXT)
+with tempfile.TemporaryDirectory() as _td:
+    tmp = Path(_td)
+    conf_path = tmp / "test.yaml"
+    conf_path.write_text(CONFIG_TEXT)
 
-storage_dir = tmp / ".esphome" / "storage"
-storage_dir.mkdir(parents=True)
-# The cache is a top-level !include so loading it resolves an
-# IncludeFile for real on the fast path. The sidecar is written to the
-# layout ext_storage_path resolves once run_esphome sets
-# CORE.config_path; going through CORE here would be circular.
-(storage_dir / "inc.yaml").write_text(CONFIG_TEXT)
-cache_path = storage_dir / "test.yaml.validated.yaml"
-cache_path.write_text("!include inc.yaml\n")
-os.utime(cache_path)  # keep the cache at least as fresh as the source
-make_storage().save(storage_dir / "test.yaml.json")
+    storage_dir = tmp / ".esphome" / "storage"
+    storage_dir.mkdir(parents=True)
+    # The cache is a top-level !include so loading it resolves an
+    # IncludeFile for real on the fast path. The sidecar is written to the
+    # layout ext_storage_path resolves once run_esphome sets
+    # CORE.config_path; going through CORE here would be circular.
+    (storage_dir / "inc.yaml").write_text(CONFIG_TEXT)
+    cache_path = storage_dir / "test.yaml.validated.yaml"
+    cache_path.write_text("!include inc.yaml\n")
+    os.utime(cache_path)  # keep the cache at least as fresh as the source
+    make_storage().save(storage_dir / "test.yaml.json")
 
-dispatched = {}
+    dispatched = {}
 
+    def fake_upload(args, config):
+        dispatched["config"] = config
+        return 0
 
-def fake_upload(args, config):
-    dispatched["config"] = config
-    return 0
+    with patch.dict(main_mod.POST_CONFIG_ACTIONS, {"upload": fake_upload}):
+        exit_code = main_mod.run_esphome(
+            ["esphome", "upload", str(conf_path), "--device", "192.0.2.1"]
+        )
 
+    # Fail loudly if the fast path didn't do its work; otherwise an empty
+    # leak list could just mean nothing ran. Explicit exits rather than
+    # asserts so PYTHONOPTIMIZE in the ambient environment can't strip them.
+    if exit_code != 0:
+        sys.exit(f"run_esphome exited {exit_code} before dispatching upload")
+    if dispatched.get("config") != yaml.safe_load(CONFIG_TEXT):
+        sys.exit(f"cache include did not resolve through the fast path: {dispatched!r}")
 
-with patch.dict(main_mod.POST_CONFIG_ACTIONS, {"upload": fake_upload}):
-    exit_code = main_mod.run_esphome(
-        ["esphome", "upload", str(conf_path), "--device", "192.0.2.1"]
-    )
-
-# Fail loudly if the fast path didn't do its work; otherwise an empty
-# leak list could just mean nothing ran. Explicit exits rather than
-# asserts so PYTHONOPTIMIZE in the ambient environment can't strip them.
-if exit_code != 0:
-    sys.exit(f"run_esphome exited {exit_code} before dispatching upload")
-if dispatched.get("config") != yaml.safe_load(CONFIG_TEXT):
-    sys.exit(f"cache include did not resolve through the fast path: {dispatched!r}")
-
-print_leaked_modules()
+    print_leaked_modules()
