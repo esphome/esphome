@@ -14,11 +14,15 @@ from esphome.const import (
     UNIT_DECIBEL_MILLIWATT,
 )
 
-from .. import CONF_DESCRIPTOR_UUID, ble_client_ns, validate_descriptor_not_notify
+from .. import (
+    CONF_DESCRIPTOR_UUID,
+    CONF_ON_NOTIFY,
+    ble_client_ns,
+    validate_descriptor_not_notify,
+)
 
 DEPENDENCIES = ["ble_client"]
 
-CONF_ON_NOTIFY = "on_notify"
 TYPE_CHARACTERISTIC = "characteristic"
 TYPE_RSSI = "rssi"
 

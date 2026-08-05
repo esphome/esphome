@@ -9,11 +9,15 @@ from esphome.const import (
     CONF_TRIGGER_ID,
 )
 
-from .. import CONF_DESCRIPTOR_UUID, ble_client_ns, validate_descriptor_not_notify
+from .. import (
+    CONF_DESCRIPTOR_UUID,
+    CONF_ON_NOTIFY,
+    ble_client_ns,
+    validate_descriptor_not_notify,
+)
 
 DEPENDENCIES = ["ble_client"]
 
-CONF_ON_NOTIFY = "on_notify"
 
 adv_data_t = cg.std_vector.template(cg.uint8)
 adv_data_t_const_ref = adv_data_t.operator("ref").operator("const")

@@ -24,18 +24,22 @@ CODEOWNERS = ["@buxtronix", "@clydebarrow"]
 DEPENDENCIES = ["esp32_ble_tracker"]
 
 CONF_DESCRIPTOR_UUID = "descriptor_uuid"
+CONF_ON_NOTIFY = "on_notify"
 
 
 def validate_descriptor_not_notify(config: ConfigType) -> ConfigType:
-    """Reject descriptor_uuid combined with notify.
+    """Reject descriptor_uuid combined with notify or on_notify.
 
     BLE descriptors cannot send notifications; only characteristics can, and
     ESP-IDF has no descriptor variant of esp_ble_gattc_register_for_notify.
     """
-    if config.get(CONF_NOTIFY) and CONF_DESCRIPTOR_UUID in config:
+    if CONF_DESCRIPTOR_UUID in config and (
+        config.get(CONF_NOTIFY) or CONF_ON_NOTIFY in config
+    ):
         raise cv.Invalid(
-            f"'{CONF_DESCRIPTOR_UUID}' cannot be used with '{CONF_NOTIFY}': BLE descriptors "
-            f"cannot send notifications; remove '{CONF_NOTIFY}' to poll the descriptor instead"
+            f"'{CONF_DESCRIPTOR_UUID}' cannot be used with '{CONF_NOTIFY}' or "
+            f"'{CONF_ON_NOTIFY}': BLE descriptors cannot send notifications and "
+            f"can only be polled"
         )
     return config
 
