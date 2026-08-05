@@ -561,6 +561,10 @@ void BluetoothProxy::bluetooth_scanner_set_mode(bool active) {
     }
   }
   if (this->api_connection_ != nullptr) {
+    // Keep loop()'s change detector in step with the state sent here, so a
+    // failed restart (scan_running_ dropped by the tracker) is not reported
+    // twice — once now and again on the next tick.
+    this->last_scan_running_ = this->hub_->scan_running();
     this->send_bluetooth_scanner_state_();
   }
 }
