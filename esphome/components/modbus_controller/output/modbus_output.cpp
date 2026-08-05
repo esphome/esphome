@@ -15,7 +15,7 @@ static constexpr size_t MODBUS_OUTPUT_MAX_LOG_BYTES = 64;
  *
  */
 void ModbusFloatOutput::write_state(float value) {
-  std::vector<uint16_t> data;
+  ModbusWriteRegisters data;
   auto original_value = value;
   // Is there are lambda configured?
   if (this->write_transform_func_.has_value()) {
@@ -62,9 +62,9 @@ void ModbusFloatOutput::write_state(float value) {
   // Create and send the write command
   this->write_command_.emplace(this->parent_->create_command());
   if (this->register_count == 1 && !this->use_write_multiple_) {
-    this->write_command_->write_single_register(this->start_address + this->offset, data[0]);
+    this->write_command_->write_single_register(this->write_address(), data[0]);
   } else {
-    this->write_command_->write_multiple_registers(this->start_address + this->offset, data);
+    this->write_command_->write_multiple_registers(this->write_address(), data);
   }
 }
 
@@ -81,7 +81,7 @@ void ModbusFloatOutput::dump_config() {
 // ModbusBinaryOutput
 void ModbusBinaryOutput::write_state(bool state) {
   // This will be called every time the user requests a state change.
-  std::vector<uint8_t> data;
+  ModbusWriteBytes data;
 
   // Is there are lambda configured?
   if (this->write_transform_func_.has_value()) {
@@ -114,9 +114,9 @@ void ModbusBinaryOutput::write_state(bool state) {
     // offset for coil and discrete inputs is the coil/register number not bytes
     if (this->use_write_multiple_) {
       std::array<bool, 1> states{state};
-      this->write_command_->write_multiple_coils(this->start_address + this->offset, states);
+      this->write_command_->write_multiple_coils(this->write_address(), states);
     } else {
-      this->write_command_->write_single_coil(this->start_address + this->offset, state);
+      this->write_command_->write_single_coil(this->write_address(), state);
     }
   }
 }

@@ -4,7 +4,7 @@ from esphome.components.modbus.helpers import SENSOR_VALUE_TYPE, TYPE_REGISTER_M
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_LAMBDA, CONF_OPTIMISTIC
 
-from .. import ModbusController, SensorItem, modbus_controller_ns
+from .. import ModbusController, ModbusWriteRegisters, SensorItem, modbus_controller_ns
 from ..const import (
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
@@ -128,7 +128,7 @@ async def to_code(config):
                 (ModbusSelect.operator("const_ptr"), "item"),
                 (cg.std_string.operator("const").operator("ref"), "x"),
                 (cg.int64, "value"),
-                (cg.std_vector.template(cg.uint16).operator("ref"), "payload"),
+                (ModbusWriteRegisters.operator("ref"), "payload"),
             ],
             return_type=cg.optional.template(cg.int64),
         )

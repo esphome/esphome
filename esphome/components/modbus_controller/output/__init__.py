@@ -6,6 +6,8 @@ from esphome.const import CONF_ADDRESS, CONF_ID, CONF_MULTIPLY
 
 from .. import (
     ModbusItemBaseSchema,
+    ModbusWriteBytes,
+    ModbusWriteRegisters,
     SensorItem,
     modbus_calc_properties,
     modbus_controller_ns,
@@ -82,7 +84,7 @@ async def to_code(config):
                 [
                     (ModbusBinaryOutput.operator("ptr"), "item"),
                     (cg.bool_, "x"),
-                    (cg.std_vector.template(cg.uint8).operator("ref"), "payload"),
+                    (ModbusWriteBytes.operator("ref"), "payload"),
                 ],
                 return_type=cg.optional.template(bool),
             )
@@ -102,7 +104,7 @@ async def to_code(config):
                 [
                     (ModbusFloatOutput.operator("ptr"), "item"),
                     (cg.float_, "x"),
-                    (cg.std_vector.template(cg.uint16).operator("ref"), "payload"),
+                    (ModbusWriteRegisters.operator("ref"), "payload"),
                 ],
                 return_type=cg.optional.template(float),
             )

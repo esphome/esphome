@@ -16,6 +16,7 @@ from esphome.const import (
 
 from .. import (
     ModbusItemBaseSchema,
+    ModbusWriteRegisters,
     SensorItem,
     add_modbus_base_properties,
     modbus_calc_properties,
@@ -120,7 +121,7 @@ async def to_code(config):
             [
                 (ModbusNumber.operator("ptr"), "item"),
                 (cg.float_, "x"),
-                (cg.std_vector.template(cg.uint16).operator("ref"), "payload"),
+                (ModbusWriteRegisters.operator("ref"), "payload"),
             ],
             return_type=cg.optional.template(float),
         )

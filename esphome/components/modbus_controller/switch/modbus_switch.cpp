@@ -61,7 +61,7 @@ void ModbusSwitch::parse_and_publish(std::span<const uint8_t> data) {
 
 void ModbusSwitch::write_state(bool state) {
   // This will be called every time the user requests a state change.
-  std::vector<uint8_t> data;
+  ModbusWriteBytes data;
   // Is there are lambda configured?
   if (this->write_transform_func_.has_value()) {
     // data is passed by reference

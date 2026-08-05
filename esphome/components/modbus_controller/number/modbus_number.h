@@ -31,7 +31,7 @@ class ModbusNumber final : public number::Number, public Component, public Senso
   void set_write_multiply(float factor) { this->multiply_by_ = factor; }
 
   using transform_func_t = optional<float> (*)(ModbusNumber *, float, std::span<const uint8_t>);
-  using write_transform_func_t = optional<float> (*)(ModbusNumber *, float, std::vector<uint16_t> &);
+  using write_transform_func_t = optional<float> (*)(ModbusNumber *, float, ModbusWriteRegisters &);
   void set_template(transform_func_t f) { this->transform_func_ = f; }
   void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
   void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }

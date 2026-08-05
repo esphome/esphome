@@ -54,6 +54,11 @@ ModbusController = modbus_controller_ns.class_("ModbusController", cg.PollingCom
 
 SensorItem = modbus_controller_ns.struct("SensorItem")
 
+# Heap-free buffers that platform write lambdas fill (byte PDUs / register words). Aliases for
+# StaticVector<...> declared in modbus_controller.h; used as the write-lambda payload parameter type.
+ModbusWriteBytes = modbus_controller_ns.class_("ModbusWriteBytes")
+ModbusWriteRegisters = modbus_controller_ns.class_("ModbusWriteRegisters")
+
 _LOGGER = logging.getLogger(__name__)
 
 

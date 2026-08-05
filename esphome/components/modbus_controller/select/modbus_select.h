@@ -27,7 +27,7 @@ class ModbusSelect final : public Component, public select::Select, public Senso
 
   using transform_func_t = optional<std::string> (*)(ModbusSelect *const, int64_t, std::span<const uint8_t>);
   using write_transform_func_t = optional<int64_t> (*)(ModbusSelect *const, const std::string &, int64_t,
-                                                       std::vector<uint16_t> &);
+                                                       ModbusWriteRegisters &);
 
   void set_parent(ModbusController *const parent) { this->parent_ = parent; }
   void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }

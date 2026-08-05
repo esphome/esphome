@@ -34,7 +34,7 @@ class ModbusSwitch final : public Component, public switch_::Switch, public Sens
   void set_parent(ModbusController *parent) { this->parent_ = parent; }
 
   using transform_func_t = optional<bool> (*)(ModbusSwitch *, bool, std::span<const uint8_t>);
-  using write_transform_func_t = optional<bool> (*)(ModbusSwitch *, bool, std::vector<uint8_t> &);
+  using write_transform_func_t = optional<bool> (*)(ModbusSwitch *, bool, ModbusWriteBytes &);
   void set_template(transform_func_t f) { this->publish_transform_func_ = f; }
   void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
   void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }

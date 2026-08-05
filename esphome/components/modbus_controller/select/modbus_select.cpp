@@ -46,7 +46,7 @@ void ModbusSelect::control(size_t index) {
   const char *option = this->option_at(index);
   ESP_LOGD(TAG, "Found value %lld for option '%s'", *mapval, option);
 
-  std::vector<uint16_t> data;
+  ModbusWriteRegisters data;
 
   if (this->write_transform_func_.has_value()) {
     // Transform func requires string parameter for backward compatibility

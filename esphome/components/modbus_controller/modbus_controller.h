@@ -29,6 +29,13 @@ using modbus::ModbusFunctionCode;
 using modbus::ModbusRegisterType;
 #pragma GCC diagnostic pop
 
+// Heap-free buffers a platform write lambda fills (byte PDUs for switch/binary output, register words
+// for number/select/float output). Sized to the largest spec-valid write so a conformant write never
+// truncates; they live on the stack for the duration of one write call, so the fixed size costs no
+// persistent RAM. push_back-based lambdas keep working; over-long writes are dropped past capacity.
+using ModbusWriteBytes = StaticVector<uint8_t, modbus::MAX_PDU_SIZE>;
+using ModbusWriteRegisters = StaticVector<uint16_t, modbus::MAX_NUM_OF_REGISTERS_TO_WRITE>;
+
 // Remove before 2026.10.0 — these helpers have moved to modbus::helpers
 ESPDEPRECATED("Use modbus::helpers::value_type_is_float() instead. Removed in 2026.10.0", "2026.4.0")
 inline bool value_type_is_float(SensorValueType v) { return modbus::helpers::value_type_is_float(v); }

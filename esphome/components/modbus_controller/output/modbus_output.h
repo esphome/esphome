@@ -28,7 +28,7 @@ class ModbusFloatOutput final : public output::FloatOutput, public Component, pu
   // Do nothing
   void parse_and_publish(std::span<const uint8_t> data) override{};
 
-  using write_transform_func_t = optional<float> (*)(ModbusFloatOutput *, float, std::vector<uint16_t> &);
+  using write_transform_func_t = optional<float> (*)(ModbusFloatOutput *, float, ModbusWriteRegisters &);
   void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
   void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
 
@@ -61,7 +61,7 @@ class ModbusBinaryOutput final : public output::BinaryOutput, public Component, 
   // Do nothing
   void parse_and_publish(std::span<const uint8_t> data) override{};
 
-  using write_transform_func_t = optional<bool> (*)(ModbusBinaryOutput *, bool, std::vector<uint8_t> &);
+  using write_transform_func_t = optional<bool> (*)(ModbusBinaryOutput *, bool, ModbusWriteBytes &);
   void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
   void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
 
