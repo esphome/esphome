@@ -55,6 +55,12 @@ CLIMATE_RESTORE_MODES = {
 }
 
 
+# Custom fan modes/presets are opaque user-defined strings with no build-time correctness check
+# elsewhere (Climate::set_supported_custom_fan_modes()/set_supported_custom_presets() don't block
+# empty entries), so reject empty ones here -- they could never be selected at runtime anyway.
+validate_custom_climate_string = cv.All(cv.string_strict, cv.Length(min=1))
+
+
 def _validate_two_point(config):
     has_low = CONF_TARGET_TEMPERATURE_LOW in config
     has_high = CONF_TARGET_TEMPERATURE_HIGH in config
@@ -81,10 +87,12 @@ INITIAL_STATE_SCHEMA = cv.All(
             cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.temperature,
             cv.Optional(CONF_TARGET_HUMIDITY): cv.percentage_int,
             cv.Exclusive(CONF_FAN_MODE, "fan_mode"): climate.validate_climate_fan_mode,
-            cv.Exclusive(CONF_CUSTOM_FAN_MODE, "fan_mode"): cv.string_strict,
+            cv.Exclusive(
+                CONF_CUSTOM_FAN_MODE, "fan_mode"
+            ): validate_custom_climate_string,
             cv.Optional(CONF_SWING_MODE): climate.validate_climate_swing_mode,
             cv.Exclusive(CONF_PRESET, "preset"): climate.validate_climate_preset,
-            cv.Exclusive(CONF_CUSTOM_PRESET, "preset"): cv.string_strict,
+            cv.Exclusive(CONF_CUSTOM_PRESET, "preset"): validate_custom_climate_string,
         }
     ),
     _validate_two_point,
@@ -106,7 +114,7 @@ CONFIG_SCHEMA = (
                 cv.ensure_list(climate.validate_climate_fan_mode), cv.Unique()
             ),
             cv.Optional(CONF_CUSTOM_FAN_MODES): cv.All(
-                cv.ensure_list(cv.string_strict), cv.Unique()
+                cv.ensure_list(validate_custom_climate_string), cv.Unique()
             ),
             cv.Optional(CONF_SUPPORTED_SWING_MODES): cv.All(
                 cv.ensure_list(climate.validate_climate_swing_mode), cv.Unique()
@@ -115,7 +123,7 @@ CONFIG_SCHEMA = (
                 cv.ensure_list(climate.validate_climate_preset), cv.Unique()
             ),
             cv.Optional(CONF_CUSTOM_PRESETS): cv.All(
-                cv.ensure_list(cv.string_strict), cv.Unique()
+                cv.ensure_list(validate_custom_climate_string), cv.Unique()
             ),
             cv.Optional(
                 CONF_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE, default=False
@@ -230,7 +238,7 @@ CLIMATE_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.All(
                 climate.validate_climate_fan_mode
             ),
             cv.Exclusive(CONF_CUSTOM_FAN_MODE, "fan_mode"): cv.templatable(
-                cv.string_strict
+                validate_custom_climate_string
             ),
             cv.Optional(CONF_SWING_MODE): cv.templatable(
                 climate.validate_climate_swing_mode
@@ -239,7 +247,7 @@ CLIMATE_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.All(
                 climate.validate_climate_preset
             ),
             cv.Exclusive(CONF_CUSTOM_PRESET, "preset"): cv.templatable(
-                cv.string_strict
+                validate_custom_climate_string
             ),
         }
     ),
