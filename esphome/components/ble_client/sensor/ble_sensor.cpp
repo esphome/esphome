@@ -28,7 +28,8 @@ void BLESensor::dump_config() {
                 "  Descriptor UUID    : %s\n"
                 "  Notifications      : %s",
                 this->parent()->address_str(), this->service_uuid_.to_str(service_buf),
-                this->char_uuid_.to_str(char_buf), this->descr_uuid_.to_str(descr_buf), YESNO(this->notify_));
+                this->char_uuid_.to_str(char_buf), this->has_descr_ ? this->descr_uuid_.to_str(descr_buf) : "None",
+                YESNO(this->notify_));
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -61,7 +62,7 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
         break;
       }
       this->handle = chr->handle;
-      if (this->descr_uuid_.get_uuid().len > 0) {
+      if (this->has_descr_) {
         auto *descr = chr->get_descriptor(this->descr_uuid_);
         if (descr == nullptr) {
           this->status_set_warning();
