@@ -113,6 +113,9 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   void send_rst_frame_();
   void handle_rstack_frame_(const uint8_t *data, size_t length);
   void handle_error_frame_(const uint8_t *data, size_t length);
+  // Applies a frame's ackNum to the pending TX frame. Returns true if it
+  // acknowledged one. Valid on DATA, ACK and NAK frames alike.
+  bool handle_ack_num_(uint8_t ack_num);
   bool send_ack_frame_(uint8_t ack_num);
   bool send_nak_frame_(uint8_t ack_num);
   bool send_data_frame_(const uint8_t *data, size_t length, bool retransmit = false);
@@ -166,8 +169,13 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   // WiFi/Zigbee channel conflict detection
   void check_wifi_zigbee_conflict_();
 
-  // Bootloader detection (fed consecutive raw byte pairs while not CONNECTED)
+  // Bootloader detection (fed consecutive raw byte pairs)
   void check_bootloader_mode_(uint8_t prev_byte, uint8_t byte);
+  // Raw NCP <-> client relay used while the NCP is in its bootloader
+  bool in_raw_relay_() const;
+  static bool is_launch_bootloader_command_(const uint8_t *payload, size_t length);
+  void queue_raw_to_client_(uint8_t byte);
+  void flush_raw_to_client_();
 
   // UART processing
   // Inline fast-path: UART::available() is cheap (ring-buffer head/tail compare on most
@@ -282,11 +290,18 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   uint8_t ezsp_version_{0};            // NCP's EZSP protocol version
   uint8_t ezsp_sequence_{0};           // EZSP frame sequence number
   uint8_t ezsp_requested_version_{0};  // Version we last requested (for re-negotiation)
+  // The NCP keeps using legacy framing until `version` is repeated in the
+  // negotiated (extended) format; until then it rejects every extended command
+  // with frame ID 0x0058. Tracks whether that second handshake has happened.
+  bool ezsp_version_confirmed_{false};
 
   bool tx_buffer_pending_{false};        // True if waiting for ACK from NCP
   bool escape_next_byte_{false};         // True if next NCP byte should be unescaped
   bool client_escape_next_byte_{false};  // True if next client byte should be unescaped
   bool network_info_ready_{false};       // True when network info retrieved
+
+  std::array<uint8_t, 128> raw_buffer_{};  // Bootloader relay batching buffer
+  size_t raw_buffer_index_{0};
   bool boot_sequence_active_{false};     // True during boot-time init
 };
 

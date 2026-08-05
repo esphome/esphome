@@ -33,6 +33,14 @@ static const uint16_t CRC_TABLE[256] = {
     0x1CE0, 0x0CC1, 0xEF1F, 0xFF3E, 0xCF5D, 0xDF7C, 0xAF9B, 0xBFBA, 0x8FD9, 0x9FF8, 0x6E17, 0x7E36, 0x4E55, 0x5E74,
     0x2E93, 0x3EB2, 0x0ED1, 0x1EF0};
 
+void ash_randomize(uint8_t *data, size_t length) {
+  uint8_t rand = 0x42;
+  for (size_t i = 0; i < length; i++) {
+    data[i] ^= rand;
+    rand = (rand & 0x01) ? static_cast<uint8_t>((rand >> 1) ^ 0xB8) : static_cast<uint8_t>(rand >> 1);
+  }
+}
+
 uint16_t ZigbeeProxy::calculate_crc_(const uint8_t *data, size_t length, uint16_t init) {
   uint16_t crc = init;
   for (size_t i = 0; i < length; i++) {
@@ -62,6 +70,22 @@ bool ZigbeeProxy::validate_frame_crc_() {
     return false;
   }
 
+  return true;
+}
+
+bool ZigbeeProxy::handle_ack_num_(uint8_t ack_num) {
+  // ackNum means "I expect frame N next", i.e. everything up to N-1 arrived, so a
+  // pending frame numbered ack_num-1 has been acknowledged. Carried by DATA, ACK
+  // and NAK alike.
+  if (!this->tx_buffer_pending_ || ack_num != ((this->tx_pending_frame_num_ + 1) & ASH_MAX_SEQUENCE)) {
+    return false;
+  }
+
+  uint32_t rtt = millis() - this->ack_timer_start_;
+  this->update_adaptive_timeout_(rtt);
+  ESP_LOGV(TAG, "Frame %d acknowledged, RTT: %u ms", this->tx_pending_frame_num_, rtt);
+  this->clear_tx_buffer_();
+  this->drain_ncp_tx_queue_();
   return true;
 }
 
@@ -114,14 +138,10 @@ void ZigbeeProxy::parse_control_byte_(uint8_t control) {
   // Handle frame based on type
   switch (frame_type) {
     case AshFrameType::DATA: {
-      // Process the piggybacked ACK first: ackNum means "I expect frame N next" = "I received
-      // up to N-1", and it is valid regardless of the DATA frame's own sequence ordering
-      if (this->tx_buffer_pending_ && ack_num == ((this->tx_pending_frame_num_ + 1) & ASH_MAX_SEQUENCE)) {
-        uint32_t rtt = millis() - this->ack_timer_start_;
-        this->update_adaptive_timeout_(rtt);
-        this->clear_tx_buffer_();
-        ESP_LOGV(TAG, "ACK received (piggybacked in DATA), RTT: %u ms", rtt);
-        this->drain_ncp_tx_queue_();
+      // Process the piggybacked ACK first: ackNum is valid regardless of the DATA
+      // frame's own sequence ordering
+      if (this->handle_ack_num_(ack_num)) {
+        ESP_LOGV(TAG, "ACK received (piggybacked in DATA)");
       }
 
       // Check sequence number
@@ -152,8 +172,11 @@ void ZigbeeProxy::parse_control_byte_(uint8_t control) {
       size_t payload_length = this->rx_buffer_index_ > 3 ? this->rx_buffer_index_ - 3 : 0;
       const uint8_t *payload = this->rx_buffer_.data() + 1;
 
-      // During boot sequence, route to boot handler
+      // During boot sequence, route to boot handler. Frames consumed locally must
+      // be derandomized first; proxied frames below are passed through untouched
+      // so the client's own randomization survives end to end.
       if (this->boot_sequence_active_ && payload_length > 0) {
+        ash_randomize(this->rx_buffer_.data() + 1, payload_length);
         this->handle_boot_data_frame_(payload, payload_length);
       } else if (this->api_connection_ != nullptr && payload_length > 0) {
         // Forward EZSP payload to client via client-side ASH DATA frame
@@ -163,19 +186,19 @@ void ZigbeeProxy::parse_control_byte_(uint8_t control) {
     }
 
     case AshFrameType::ACK:
-      // Check if this ACKs our pending frame
-      // ackNum means "I expect frame N next" = "I received all frames up to N-1"
-      // So if ackNum == pending+1, our pending frame was acknowledged
-      if (this->tx_buffer_pending_ && ack_num == ((this->tx_pending_frame_num_ + 1) & ASH_MAX_SEQUENCE)) {
-        uint32_t rtt = millis() - this->ack_timer_start_;
-        this->update_adaptive_timeout_(rtt);
-        this->clear_tx_buffer_();
-        ESP_LOGV(TAG, "ACK received for frame %d, RTT: %u ms", this->tx_pending_frame_num_, rtt);
-        this->drain_ncp_tx_queue_();
-      }
+      this->handle_ack_num_(ack_num);
       break;
 
     case AshFrameType::NAK:
+      // A NAK carries valid ACK information like any other frame: ackNum is the
+      // next frame the NCP expects, so everything before it did arrive. Honour
+      // that first -- retransmitting an already-acknowledged frame otherwise
+      // burns all ASH_MAX_RETRIES and drops the link. bellows applies the same
+      // ACK handling to DATA, ACK and NAK alike.
+      if (this->handle_ack_num_(ack_num)) {
+        ESP_LOGW(TAG, "NAK received for frame %d (already acknowledged, not retransmitting)", ack_num);
+        break;
+      }
       ESP_LOGW(TAG, "NAK received for frame %d, retransmitting", ack_num);
       if (this->tx_buffer_pending_) {
         this->handle_retransmission_();
@@ -202,13 +225,28 @@ void ZigbeeProxy::parse_control_byte_(uint8_t control) {
 }
 
 bool ZigbeeProxy::parse_byte_(uint8_t byte) {
-  // ASH_CAN (0x1A) resets the parser state - discard any partial frame
   static constexpr uint8_t ASH_CAN_BYTE = 0x1A;
-  if (byte == ASH_CAN_BYTE) {
-    this->rx_buffer_index_ = 0;
-    this->escape_next_byte_ = false;
-    this->parsing_state_ = ParsingState::WAIT_FLAG_START;
-    return false;
+  static constexpr uint8_t ASH_XON_BYTE = 0x11;
+  static constexpr uint8_t ASH_XOFF_BYTE = 0x13;
+
+  // Reserved bytes are only meaningful when they appear *bare* in the stream, so
+  // they must be filtered here, before unescaping, and never afterwards. A frame
+  // whose control or data byte happens to equal one of them arrives stuffed (0x11
+  // is sent as 7D 31), and unescaping yields the real value -- so filtering after
+  // unescaping silently eats a valid control byte, shifting the whole frame by one
+  // and failing CRC on every retransmission. This mirrors bellows, which strips
+  // flow control from the raw buffer and only then unstuffs.
+  if (!this->escape_next_byte_) {
+    if (byte == ASH_CAN_BYTE) {
+      // Cancel: discard any partial frame
+      this->rx_buffer_index_ = 0;
+      this->parsing_state_ = ParsingState::WAIT_FLAG_START;
+      return false;
+    }
+    if (byte == ASH_XON_BYTE || byte == ASH_XOFF_BYTE) {
+      // Flow control: not part of any frame, may appear anywhere
+      return false;
+    }
   }
 
   switch (this->parsing_state_) {
@@ -222,11 +260,6 @@ bool ZigbeeProxy::parse_byte_(uint8_t byte) {
       if (this->escape_next_byte_) {
         byte ^= ASH_XOR_BYTE;
         this->escape_next_byte_ = false;
-        // After unescaping, check if it's a CAN byte (0x1A)
-        if (byte == ASH_CAN_BYTE) {
-          this->rx_buffer_index_ = 0;
-          return false;
-        }
       }
 
       if (byte == ASH_FLAG_BYTE) {
@@ -242,13 +275,12 @@ bool ZigbeeProxy::parse_byte_(uint8_t byte) {
         //   - ACK frames:  0x80-0x9F (bits 7-6 = 10, bit 5 = 0)
         //   - NAK frames:  0xA0-0xBF (bits 7-6 = 10, bit 5 = 1)
         //   - RST/RSTACK/ERROR: 0xC0-0xC2 (bits 7-6 = 11)
-        // Skip reserved bytes that cannot be valid control bytes
-        if (byte != 0x11 && byte != 0x13) {
-          this->rx_buffer_index_ = 0;
-          this->rx_buffer_[this->rx_buffer_index_++] = byte;
-          this->parsing_state_ = ParsingState::WAIT_DATA;
-          ESP_LOGV(TAG, "Frame start detected (control byte 0x%02X)", byte);
-        }
+        // Bare flow-control bytes were already filtered above, so anything
+        // reaching here is genuine frame content.
+        this->rx_buffer_index_ = 0;
+        this->rx_buffer_[this->rx_buffer_index_++] = byte;
+        this->parsing_state_ = ParsingState::WAIT_DATA;
+        ESP_LOGV(TAG, "Frame start detected (control byte 0x%02X)", byte);
       } else if ((byte & 0x80) != 0) {
         // Before connected, only accept control/management frames (bit 7 set)
         // This handles RSTACK (0xC1), ACK (0x8X), NAK (0xAX), ERROR (0xC2)

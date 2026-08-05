@@ -39,6 +39,18 @@ static constexpr uint8_t NCP_TX_QUEUE_SIZE = 2;
 // IEEE address size
 static constexpr size_t ZIGBEE_IEEE_ADDR_SIZE = 8;  // 64-bit IEEE address
 
+// ASH data randomization. The Data Field of every DATA frame is XORed with a
+// pseudo-random sequence (LFSR seeded at 0x42, polynomial 0xB8) before
+// transmission and again after reception; the operation is its own inverse.
+//
+// Proxied client traffic must NOT be passed through this: the client randomizes
+// and the NCP derandomizes, so payloads travel end to end untouched and the
+// proxy stays transparent. Apply it only to frames this component originates or
+// consumes itself, i.e. the boot-harvest EZSP commands and their responses.
+// Sending an unrandomized command makes the NCP derandomize it into garbage and
+// answer with an error frame that decodes as a plausible-looking wrong value.
+void ash_randomize(uint8_t *data, size_t length);
+
 // ASH Frame Types (encoded in control byte)
 // DATA format:    0ffrPPPP - bit 7=0, bits 6-4=frmNum, bit 3=reTx, bits 2-0=ackNum
 // ACK/NAK format: 10XnrPPP - bit 5 distinguishes ACK(0) from NAK(1)

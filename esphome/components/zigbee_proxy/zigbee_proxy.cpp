@@ -208,6 +208,13 @@ void ZigbeeProxy::zigbee_proxy_frame(api::APIConnection *api_connection, const a
     return;
   }
 
+  if (this->in_raw_relay_()) {
+    // The NCP is in the bootloader, so the client is speaking its menu/XMODEM
+    // protocol rather than ASH. Pass it straight through.
+    this->write_array(msg.data, msg.data_len);
+    return;
+  }
+
   // Feed raw bytes into the client-side ASH parser
   for (size_t i = 0; i < msg.data_len; i++) {
     this->client_parse_byte_(msg.data[i]);
@@ -274,6 +281,7 @@ void ZigbeeProxy::set_usb_uart_channel(usb_uart::USBUartChannel *channel) {
 // ASH Protocol State Machine
 void ZigbeeProxy::reset_ash_protocol_() {
   ESP_LOGV(TAG, "Resetting ASH protocol");
+  this->raw_buffer_index_ = 0;
   this->ash_state_ = AshState::CONNECTING;
   this->tx_sequence_ = 0;
   this->rx_sequence_ = 0;
@@ -283,6 +291,11 @@ void ZigbeeProxy::reset_ash_protocol_() {
   this->parsing_state_ = ParsingState::WAIT_FLAG_START;
   this->setup_time_ = millis();
   this->boot_start_time_ = this->setup_time_;
+
+  // An NCP reset drops it back to legacy framing, so the extended-format version
+  // handshake has to be redone before any other command is accepted.
+  this->ezsp_version_ = 0;
+  this->ezsp_version_confirmed_ = false;
 
   // Start boot sequence
   this->boot_state_ = BootState::WAIT_RSTACK;
@@ -521,8 +534,12 @@ void ZigbeeProxy::handle_retransmission_() {
 }
 
 // Boot-time NCP initialization sequence
-// Sequence: RST -> RSTACK -> version() -> getEui64() -> networkInit() -> stackStatus ->
-//           getNetworkParameters() -> RST -> RSTACK
+// Sequence: RST -> RSTACK -> version() -> networkInit() -> stackStatus ->
+//           getNetworkParameters() -> getEui64() -> RST -> RSTACK
+//
+// getEui64 comes last, after networkInit has brought the stack up: asking earlier
+// makes the NCP answer with error frame 0x0058 instead of the address. bellows
+// orders it the same way.
 
 void ZigbeeProxy::advance_boot_state_() {
   switch (this->boot_state_) {
@@ -558,16 +575,15 @@ void ZigbeeProxy::advance_boot_state_() {
 }
 
 void ZigbeeProxy::handle_boot_data_frame_(const uint8_t *data, size_t length) {
-  // EZSP frame format depends on negotiated version:
-  // Legacy (v4-v7): [sequence] [frame_control] [frame_id] [data...]  (3-byte header)
-  // Extended (v8+): [sequence] [frame_control_low] [frame_control_high] [frame_id_low] [frame_id_high] [data...]
+  // EZSP frame format is decided solely by whether version negotiation has
+  // completed, never by the frame's length:
+  // Legacy: [sequence] [frame_control] [frame_id] [data...]  (3-byte header)
+  // Extended (v13+): [sequence] [frame_control_low] [frame_control_high] [frame_id_low] [frame_id_high] [data...]
   //
-  // Note: Some NCPs may respond in legacy format for a few frames after version negotiation
-  // before fully switching to extended format. We handle this by falling back to legacy
-  // parsing if the frame is too short for extended format. This heuristic (extended iff
-  // negotiated v8+ AND frame >= 5 bytes) is validated against EFR32 EmberZNet 7.x NCPs;
-  // a legacy-format response of 5+ bytes would be misparsed, but such NCPs have not been
-  // observed in practice.
+  // Only the `version` response arrives in legacy format, before ezsp_version_ is
+  // set. Inferring the format from the length instead misparses a short extended
+  // frame -- an error reply, say -- as a legacy one, which then surfaces as a
+  // plausible but wrong payload rather than as a protocol error.
 
   if (length < 3) {
     ESP_LOGW(TAG, "Boot frame too short: %u bytes", length);
@@ -579,8 +595,12 @@ void ZigbeeProxy::handle_boot_data_frame_(const uint8_t *data, size_t length) {
   const uint8_t *payload;
   size_t payload_length;
 
-  // Determine format: prefer extended for v8+, but fall back to legacy if frame is too short
-  bool use_extended = (this->ezsp_version_ >= 8) && (length >= 5);
+  bool use_extended = this->ezsp_version_ >= EZSP_MIN_VERSION;
+
+  if (use_extended && length < 5) {
+    ESP_LOGW(TAG, "Extended EZSP frame too short: %u bytes", length);
+    return;
+  }
 
   if (use_extended) {
     frame_control = data[1];
@@ -619,7 +639,7 @@ void ZigbeeProxy::handle_boot_data_frame_(const uint8_t *data, size_t length) {
       if (frame_id == EZSP_STACK_STATUS_HANDLER && is_callback) {
         this->handle_stack_status_(payload, payload_length);
       } else if (frame_id == EZSP_NETWORK_INIT && is_response) {
-        // networkInit response contains EmberStatus
+        // networkInit response contains a 32-bit sl_status_t
         // Some NCPs proceed directly without stackStatusHandler callback
         if (payload_length >= 1) {
           uint8_t status = payload[0];
@@ -656,44 +676,52 @@ void ZigbeeProxy::send_ezsp_version_() {
       EZSP_MAX_VERSION             // Desired protocol version
   };
 
+  ash_randomize(cmd, sizeof(cmd));
   ESP_LOGV(TAG, "Sending EZSP version command (legacy format, requesting v%d)", EZSP_MAX_VERSION);
   this->send_data_frame_(cmd, sizeof(cmd), false);
 }
 
 void ZigbeeProxy::send_get_eui64_() {
-  // getEui64 command - use legacy format for boot sequence compatibility
+  // Extended format: version negotiation has completed, so the NCP now requires
+  // the 16-bit frame control and 16-bit frame ID.
   uint8_t cmd[] = {
-      this->ezsp_sequence_++,      // Sequence
-      EZSP_FRAME_CONTROL_COMMAND,  // Frame control
-      EZSP_GET_EUI64 & 0xFF        // Frame ID
+      this->ezsp_sequence_++,        // Sequence
+      EZSP_FRAME_CONTROL_COMMAND,    // Frame control (low)
+      EZSP_FRAME_CONTROL_EXTENDED,   // Frame control (high)
+      EZSP_GET_EUI64 & 0xFF,         // Frame ID (low)
+      (EZSP_GET_EUI64 >> 8) & 0xFF,  // Frame ID (high)
   };
-  ESP_LOGV(TAG, "Sending EZSP getEui64 command (legacy format)");
+  ash_randomize(cmd, sizeof(cmd));
+  ESP_LOGV(TAG, "Sending EZSP getEui64 command");
   this->send_data_frame_(cmd, sizeof(cmd), false);
 }
 
 void ZigbeeProxy::send_network_init_() {
-  // networkInit command - use legacy format for compatibility
-  // Some NCPs need a command or two in legacy format after version negotiation
-  // before fully switching to extended format.
   // networkInitStruct: [bitmask (2 bytes)] - use 0x0000 for default
   uint8_t cmd[] = {
-      this->ezsp_sequence_++,      // Sequence
-      EZSP_FRAME_CONTROL_COMMAND,  // Frame control
-      EZSP_NETWORK_INIT & 0xFF,    // Frame ID
-      0x00, 0x00                   // networkInitStruct bitmask (default)
+      this->ezsp_sequence_++,           // Sequence
+      EZSP_FRAME_CONTROL_COMMAND,       // Frame control (low)
+      EZSP_FRAME_CONTROL_EXTENDED,      // Frame control (high)
+      EZSP_NETWORK_INIT & 0xFF,         // Frame ID (low)
+      (EZSP_NETWORK_INIT >> 8) & 0xFF,  // Frame ID (high)
+      0x00,                             // networkInitStruct bitmask (default)
+      0x00,
   };
-  ESP_LOGV(TAG, "Sending EZSP networkInit command (legacy format)");
+  ash_randomize(cmd, sizeof(cmd));
+  ESP_LOGV(TAG, "Sending EZSP networkInit command");
   this->send_data_frame_(cmd, sizeof(cmd), false);
 }
 
 void ZigbeeProxy::send_get_network_params_() {
-  // getNetworkParameters command - use legacy format for boot sequence compatibility
   uint8_t cmd[] = {
-      this->ezsp_sequence_++,             // Sequence
-      EZSP_FRAME_CONTROL_COMMAND,         // Frame control
-      EZSP_GET_NETWORK_PARAMETERS & 0xFF  // Frame ID
+      this->ezsp_sequence_++,                      // Sequence
+      EZSP_FRAME_CONTROL_COMMAND,                  // Frame control (low)
+      EZSP_FRAME_CONTROL_EXTENDED,                 // Frame control (high)
+      EZSP_GET_NETWORK_PARAMETERS & 0xFF,          // Frame ID (low)
+      (EZSP_GET_NETWORK_PARAMETERS >> 8) & 0xFF,   // Frame ID (high)
   };
-  ESP_LOGV(TAG, "Sending EZSP getNetworkParameters command (legacy format)");
+  ash_randomize(cmd, sizeof(cmd));
+  ESP_LOGV(TAG, "Sending EZSP getNetworkParameters command");
   this->send_data_frame_(cmd, sizeof(cmd), false);
 }
 
@@ -723,7 +751,7 @@ void ZigbeeProxy::handle_version_response_(const uint8_t *data, size_t length) {
       // NCP accepted our requested version - treat as success
       ESP_LOGV(TAG, "NCP accepted EZSP v%d", ncp_version);
       this->ezsp_version_ = ncp_version;
-      this->boot_state_ = BootState::SEND_GET_EUI64;
+      this->boot_state_ = BootState::SEND_NETWORK_INIT;
       this->advance_boot_state_();
       return;
     }
@@ -740,6 +768,7 @@ void ZigbeeProxy::handle_version_response_(const uint8_t *data, size_t length) {
         0x00,                        // Frame ID (version)
         ncp_version                  // Use NCP's version
     };
+    ash_randomize(cmd, sizeof(cmd));
     ESP_LOGV(TAG, "Re-sending EZSP version command (requesting v%d)", ncp_version);
     this->send_data_frame_(cmd, sizeof(cmd), false);
     // Stay in WAIT_VERSION state
@@ -766,7 +795,29 @@ void ZigbeeProxy::handle_version_response_(const uint8_t *data, size_t length) {
     return;
   }
 
-  this->boot_state_ = BootState::SEND_GET_EUI64;
+  if (!this->ezsp_version_confirmed_) {
+    // Repeat `version` in the negotiated extended format. The NCP answers the
+    // initial legacy command with its own version, but keeps rejecting extended
+    // frames (error frame 0x0058) until the handshake is completed in that format.
+    this->ezsp_version_confirmed_ = true;
+    this->ezsp_requested_version_ = this->ezsp_version_;
+
+    uint8_t cmd[] = {
+        this->ezsp_sequence_++,       // Sequence
+        EZSP_FRAME_CONTROL_COMMAND,   // Frame control (low)
+        EZSP_FRAME_CONTROL_EXTENDED,  // Frame control (high)
+        EZSP_VERSION & 0xFF,          // Frame ID (low)
+        (EZSP_VERSION >> 8) & 0xFF,   // Frame ID (high)
+        this->ezsp_version_,          // desiredProtocolVersion
+    };
+    ash_randomize(cmd, sizeof(cmd));
+    ESP_LOGV(TAG, "Confirming EZSP v%d in extended format", this->ezsp_version_);
+    this->send_data_frame_(cmd, sizeof(cmd), false);
+    // Stay in WAIT_VERSION for the confirmation response
+    return;
+  }
+
+  this->boot_state_ = BootState::SEND_NETWORK_INIT;
   this->advance_boot_state_();
 }
 
@@ -777,8 +828,8 @@ void ZigbeeProxy::handle_eui64_response_(const uint8_t *data, size_t length) {
   } else {
     ESP_LOGW(TAG, "getEui64 response too short: %u bytes", length);
   }
-  // Proceed to networkInit either way; the proxy works without an IEEE address
-  this->boot_state_ = BootState::SEND_NETWORK_INIT;
+  // Harvest is done either way; the proxy works without an IEEE address
+  this->boot_state_ = BootState::SEND_FINAL_RST;
   this->advance_boot_state_();
 }
 
@@ -793,14 +844,16 @@ void ZigbeeProxy::handle_stack_status_(const uint8_t *data, size_t length) {
   ESP_LOGV(TAG, "Stack status: 0x%02X", status);
 
   // Check for network up status
-  if (status == static_cast<uint8_t>(EmberStatus::NETWORK_UP) || status == static_cast<uint8_t>(EmberStatus::SUCCESS)) {
+  if (status == static_cast<uint8_t>(SlStatus::NETWORK_UP) || status == static_cast<uint8_t>(SlStatus::OK)) {
     ESP_LOGV(TAG, "Network is up, querying parameters");
     this->boot_state_ = BootState::SEND_GET_NETWORK_PARAMS;
     this->advance_boot_state_();
-  } else if (status == static_cast<uint8_t>(EmberStatus::NOT_JOINED)) {
-    // No network configured - that's fine, we just won't have network info
+  } else if (status == static_cast<uint8_t>(SlStatus::NOT_JOINED)) {
+    // No network configured, so there are no parameters to read -- but still read
+    // the EUI64. It is a hardware address that exists regardless of membership, and
+    // it is what lets a client tell an unformed radio apart from an unreachable one.
     ESP_LOGD(TAG, "No network configured on NCP");
-    this->boot_state_ = BootState::SEND_FINAL_RST;
+    this->boot_state_ = BootState::SEND_GET_EUI64;
     this->advance_boot_state_();
   } else {
     ESP_LOGW(TAG, "Unexpected stack status: 0x%02X, continuing anyway", status);
@@ -814,21 +867,21 @@ void ZigbeeProxy::handle_network_params_response_(const uint8_t *data, size_t le
   // getNetworkParameters response:
   // [status] [nodeType] [extendedPanId (8)] [panId (2)] [radioTxPower] [radioChannel] ...
   // A 1-byte response (status only) is normal when the NCP has no network configured.
-  if (length < 14) {
-    if (length == 1) {
+  if (length < NETWORK_PARAMS_RESPONSE_SIZE) {
+    if (length <= SL_STATUS_SIZE) {
       ESP_LOGD(TAG, "NCP has no network configured (status=0x%02X)", data[0]);
     } else {
       ESP_LOGW(TAG, "getNetworkParameters response unexpected length: %u bytes", length);
     }
-    this->boot_state_ = BootState::SEND_FINAL_RST;
+    this->boot_state_ = BootState::SEND_GET_EUI64;
     this->advance_boot_state_();
     return;
   }
 
   uint8_t status = data[NETWORK_PARAMS_STATUS_OFFSET];
-  if (status != static_cast<uint8_t>(EmberStatus::SUCCESS)) {
+  if (status != static_cast<uint8_t>(SlStatus::OK)) {
     ESP_LOGW(TAG, "getNetworkParameters failed with status: 0x%02X", status);
-    this->boot_state_ = BootState::SEND_FINAL_RST;
+    this->boot_state_ = BootState::SEND_GET_EUI64;
     this->advance_boot_state_();
     return;
   }
@@ -857,8 +910,8 @@ void ZigbeeProxy::handle_network_params_response_(const uint8_t *data, size_t le
            this->network_info_.extended_pan_id[1], this->network_info_.extended_pan_id[0], this->network_info_.pan_id,
            this->network_info_.channel);
 
-  // Now reset NCP to clean state
-  this->boot_state_ = BootState::SEND_FINAL_RST;
+  // The stack is up, so the EUI64 can finally be read
+  this->boot_state_ = BootState::SEND_GET_EUI64;
   this->advance_boot_state_();
 }
 
@@ -959,27 +1012,97 @@ void ZigbeeProxy::check_wifi_zigbee_conflict_() {
 #endif
 }
 
-// Bootloader detection - fed consecutive raw byte pairs while the ASH link is not CONNECTED
-// (bootloader output only ever appears in place of the RSTACK after a reset)
+// Bootloader detection, fed consecutive raw byte pairs. The Gecko bootloader speaks
+// neither ASH nor EZSP, so once detected the NCP link is relayed verbatim in both
+// directions (see process_uart_slow_ and zigbee_proxy_frame) and normal ASH parsing
+// is suspended -- a flasher needs the raw menu and XMODEM streams to reach the client.
 void ZigbeeProxy::check_bootloader_mode_(uint8_t prev_byte, uint8_t byte) {
-  // Check for Silicon Labs bootloader menu prompt (0xC1 0x0D)
+  // An ASH RSTACK means the application is running again, so ASH resumes. This is the
+  // only way out of the relay: while it is active nothing else parses the NCP stream.
+  if (prev_byte == ASH_FLAG_BYTE && byte == static_cast<uint8_t>(AshFrameType::RSTACK)) {
+    if (this->in_raw_relay_()) {
+      ESP_LOGI(TAG, "NCP returned to application mode, resuming ASH");
+      this->bootloader_state_ = BootloaderState::NORMAL;
+      // Clear the failure that put us in the relay, so the RSTACK below is parsed
+      // as ASH and the link comes back up on its own.
+      this->ash_state_ = AshState::CONNECTING;
+      this->parsing_state_ = ParsingState::WAIT_FLAG_START;
+      this->raw_buffer_index_ = 0;
+    }
+    return;
+  }
+
+  // Silicon Labs bootloader menu prompt (0xC1 0x0D)
   if (prev_byte == 0xC1 && byte == 0x0D) {
     if (this->bootloader_state_ != BootloaderState::MENU) {
-      ESP_LOGW(TAG, "NCP in bootloader menu mode detected\n"
-                    "  Please flash NCP firmware or power cycle the device");
+      ESP_LOGW(TAG, "NCP in bootloader menu mode, relaying raw bytes to client");
       this->bootloader_state_ = BootloaderState::MENU;
     }
     return;
   }
 
-  // Check for upload begin (0x43)
-  if (byte == 0x43) {
-    if (this->bootloader_state_ != BootloaderState::DETECTED) {
-      ESP_LOGW(TAG, "NCP bootloader upload mode detected");
-      this->bootloader_state_ = BootloaderState::DETECTED;
-    }
+  // XMODEM-CRC poll ('C'), only meaningful once the bootloader is already talking:
+  // treating it as an entry condition on its own would false-positive on ASH payload.
+  if (byte == 0x43 && this->bootloader_state_ == BootloaderState::MENU) {
+    ESP_LOGW(TAG, "NCP bootloader upload mode detected");
+    this->bootloader_state_ = BootloaderState::DETECTED;
     return;
   }
+}
+
+// The NCP is not speaking ASH: either it is in its bootloader, or the ASH link gave
+// up entirely. Relaying raw in both cases is what lets a flasher reach -- and recover
+// -- a device that is already sitting in the bootloader when the proxy starts.
+bool ZigbeeProxy::in_raw_relay_() const {
+  return this->bootloader_state_ != BootloaderState::NORMAL || this->ash_state_ == AshState::FAILED;
+}
+
+// True if a client-bound EZSP payload is `launchStandaloneBootloader`. The payload is
+// still randomized here (it is forwarded to the NCP untouched), so only the frame ID
+// bytes are unmasked, using the fixed prefix of the ASH pseudo-random sequence.
+bool ZigbeeProxy::is_launch_bootloader_command_(const uint8_t *payload, size_t length) {
+  // Extended EZSP header: [seq] [fc_lo] [fc_hi] [id_lo] [id_hi]
+  if (length < 5) {
+    return false;
+  }
+
+  uint8_t header[5];
+  memcpy(header, payload, sizeof(header));
+  ash_randomize(header, sizeof(header));
+
+  // Commands only; a response or callback carrying the same ID is the NCP's reply
+  if ((header[1] & (EZSP_FRAME_CONTROL_RESPONSE | EZSP_FRAME_CONTROL_CALLBACK)) != 0) {
+    return false;
+  }
+
+  uint16_t frame_id = header[3] | (static_cast<uint16_t>(header[4]) << 8);
+  return frame_id == EZSP_LAUNCH_STANDALONE_BOOTLOADER;
+}
+
+// Relay raw NCP bytes to the client, batching them so an XMODEM transfer does not
+// become one API message per byte. Flushed when the UART drains or the buffer fills.
+void ZigbeeProxy::queue_raw_to_client_(uint8_t byte) {
+  if (this->api_connection_ == nullptr) {
+    return;
+  }
+
+  this->raw_buffer_[this->raw_buffer_index_++] = byte;
+  if (this->raw_buffer_index_ >= this->raw_buffer_.size()) {
+    this->flush_raw_to_client_();
+  }
+}
+
+void ZigbeeProxy::flush_raw_to_client_() {
+  if (this->raw_buffer_index_ == 0) {
+    return;
+  }
+
+  // Best effort: the bootloader protocols carry their own retries, and there is no
+  // ASH session to resynchronize here.
+  if (!this->send_to_client_(this->raw_buffer_.data(), this->raw_buffer_index_)) {
+    ESP_LOGW(TAG, "Dropped %u raw bytes to client (API TX buffer full)", this->raw_buffer_index_);
+  }
+  this->raw_buffer_index_ = 0;
 }
 
 // UART processing (precondition: available() > 0, see inline process_uart_ in the header)
@@ -993,17 +1116,23 @@ void ZigbeeProxy::process_uart_slow_() {
     // Verbose logging for debugging (ESP_LOGV already checks log level)
     ESP_LOGV(TAG, "RX: 0x%02X", byte);
 
-    if (this->ash_state_ != AshState::CONNECTED) {
-      this->check_bootloader_mode_(this->last_rx_byte_, byte);
-      this->last_rx_byte_ = byte;
-    } else if (this->bootloader_state_ != BootloaderState::NORMAL) {
-      // Normal traffic while connected clears any stale bootloader detection
-      ESP_LOGV(TAG, "NCP returned to normal operation");
-      this->bootloader_state_ = BootloaderState::NORMAL;
+    // Runs unconditionally: a client can launch the bootloader over EZSP while the
+    // ASH link is up, so detection cannot be gated on the link being down.
+    this->check_bootloader_mode_(this->last_rx_byte_, byte);
+    this->last_rx_byte_ = byte;
+
+    if (this->in_raw_relay_()) {
+      // Bootloader traffic is not ASH. Relay it untouched and keep the parser out of
+      // it: feeding menu text or XMODEM to parse_byte_ would fail CRC and NAK the NCP
+      // mid-transfer.
+      this->queue_raw_to_client_(byte);
+      continue;
     }
 
     this->parse_byte_(byte);
   } while (this->available());
+
+  this->flush_raw_to_client_();
 }
 
 // ==================== Client-side ASH session ====================
@@ -1135,13 +1264,22 @@ void ZigbeeProxy::forward_ncp_error_to_client_(const uint8_t *data, size_t lengt
 
 void ZigbeeProxy::client_parse_byte_(uint8_t byte) {
   static constexpr uint8_t ASH_CAN_BYTE = 0x1A;
+  static constexpr uint8_t ASH_XON_BYTE = 0x11;
+  static constexpr uint8_t ASH_XOFF_BYTE = 0x13;
 
-  // CAN byte resets parser
-  if (byte == ASH_CAN_BYTE) {
-    this->client_rx_buffer_index_ = 0;
-    this->client_escape_next_byte_ = false;
-    this->client_parsing_state_ = ParsingState::WAIT_FLAG_START;
-    return;
+  // Reserved bytes count only when bare, never as the second half of an escape
+  // sequence (see the matching comment in parse_byte_).
+  if (!this->client_escape_next_byte_) {
+    if (byte == ASH_CAN_BYTE) {
+      // Cancel: discard any partial frame
+      this->client_rx_buffer_index_ = 0;
+      this->client_parsing_state_ = ParsingState::WAIT_FLAG_START;
+      return;
+    }
+    if (byte == ASH_XON_BYTE || byte == ASH_XOFF_BYTE) {
+      // Flow control: not part of any frame
+      return;
+    }
   }
 
   switch (this->client_parsing_state_) {
@@ -1275,9 +1413,20 @@ void ZigbeeProxy::client_parse_control_byte_(uint8_t control) {
         // Forward EZSP payload to NCP via right-side ASH; NAK without consuming if the
         // NCP link is down or the TX queue is full so the client retransmits
         ESP_LOGV(TAG, "Client DATA → NCP, EZSP payload %u bytes", payload_length);
+        bool launching_bootloader = is_launch_bootloader_command_(payload, payload_length);
         if (!this->send_frame(payload, payload_length)) {
           this->client_send_nak_frame_(this->client_rx_sequence_);
           return;
+        }
+
+        if (launching_bootloader) {
+          // The NCP is about to reboot into its bootloader, which speaks neither ASH
+          // nor EZSP. Switch to the raw relay now: waiting to recognize bootloader
+          // output would deadlock, since that output only appears once the client's
+          // (non-ASH) bytes reach the NCP, and those are exactly what the relay
+          // carries. Cleared again when an ASH RSTACK shows the app is back.
+          ESP_LOGI(TAG, "Client launched NCP bootloader, relaying raw bytes");
+          this->bootloader_state_ = BootloaderState::MENU;
         }
       }
 
