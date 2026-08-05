@@ -29,6 +29,28 @@ from helpers import (
 )
 
 
+def gcc_multilib_directory(idedata):
+    """The toolchain's active multilib subdirectory (e.g. "thumb"), if any.
+
+    PlatformIO's idedata lists the generic toolchain include directories; GCC
+    resolves the active multilib subdirectory internally while searching them.
+    Toolchains without a default multilib (pico-quick-toolchain 5.0.0+) ship
+    the libstdc++ target config (bits/c++config.h) only inside the multilib
+    subdirectories, so clang needs the resolved directory spelled out.
+    """
+    machine_flags = [f for f in idedata["cxx_flags"] if f.startswith("-m")]
+    try:
+        multilib = subprocess.run(
+            [idedata["cxx_path"], *machine_flags, "-print-multi-directory"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return None if multilib in ("", ".") else multilib
+
+
 def clang_options(idedata, environment):
     cmd = []
 
@@ -203,9 +225,15 @@ def clang_options(idedata, environment):
     # toolchain include directories, using -isystem to suppress their errors
     # idedata contains include directories for all toolchains of this platform, only use those from the one in use
     toolchain_dir = os.path.normpath(f"{idedata['cxx_path']}/../../")
+    multilib = gcc_multilib_directory(idedata)
     toolchain_includes = []
     for directory in idedata["includes"]["toolchain"]:
         if directory.startswith(toolchain_dir) and "picolibc" not in directory:
+            if (
+                multilib
+                and Path(multilib_dir := os.path.join(directory, multilib)).is_dir()
+            ):
+                toolchain_includes.extend(["-isystem", multilib_dir])
             toolchain_includes.extend(["-isystem", directory])
 
     # library include directories, using -isystem to suppress their errors
