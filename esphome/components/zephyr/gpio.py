@@ -51,12 +51,18 @@ async def zephyr_pin_to_code(config):
     variant_info = VARIANTS[zephyr_data()["variant"]]
     gpio_port_width = variant_info.gpio_port_width
     port = num // gpio_port_width
+    port_labels = variant_info.gpio_port_labels
+    node_suffix = port_labels[port] if port_labels is not None else str(port)
     args = [
         config[CONF_ID],
-        cg.RawExpression(f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL(gpio{port}))"),
+        cg.RawExpression(f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL(gpio{node_suffix}))"),
         gpio_port_width,
     ]
-    if variant_info.family in _PORT_BANKED_FAMILIES:
+    if port_labels is not None:
+        # Lettered ports (e.g. Silicon Labs' gpioa/gpiob/...) use that vendor's own
+        # pin-naming convention directly -- "PA5", not Nordic's "P0.05" style.
+        args.append(f"P{node_suffix.upper()}")
+    elif variant_info.family in _PORT_BANKED_FAMILIES:
         args.append(f"P{port}.")
     var = cg.new_Pvariable(*args)
     cg.add(var.set_pin(num))

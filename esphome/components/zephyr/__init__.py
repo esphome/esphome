@@ -61,6 +61,7 @@ from .const import (
     KEY_SYSBUILD_CONF,
     KEY_USER,
     KEY_ZEPHYR,
+    ZEPHYR_VARIANT_EFR32MG24,
     ZEPHYR_VARIANT_ESP32,
     ZEPHYR_VARIANT_ESP32_C6,
     ZEPHYR_VARIANT_ESP32_H2,
@@ -357,6 +358,29 @@ def zephyr_setup_i2c_pinctrl(
                 }};
             """
         zephyr_add_overlay(pinctrl_overlay)
+    elif zephyr_variant_family() == "silabs":
+        # Same reasoning as esp32 above: override the board's fixed i2c*_default
+        # pinctrl node so the pins actually used match the user's sda:/scl: YAML.
+        # Silicon Labs' pinctrl macros are lettered-port form ({BUS}_{SIGNAL}_P{port}{n},
+        # e.g. I2C0_SDA_PC5) rather than ESP32's flat GPIO{n} form.
+        prefix = bus_label.upper()
+        port_width = VARIANTS[variant_name].gpio_port_width
+        sda_letter, sda_pin = chr(ord("A") + sda // port_width), sda % port_width
+        scl_letter, scl_pin = chr(ord("A") + scl // port_width), scl % port_width
+        zephyr_add_overlay(
+            f"""
+                &pinctrl {{
+                    {bus_label}_default: {bus_label}_default {{
+                        group0 {{
+                            pins = <{prefix}_SCL_P{scl_letter}{scl_pin}>,
+                                <{prefix}_SDA_P{sda_letter}{sda_pin}>;
+                            bias-pull-up;
+                            drive-open-drain;
+                        }};
+                    }};
+                }};
+            """
+        )
     # Other variants: pinctrl already defined in board DTS; no overlay needed.
 
     return sda, scl
@@ -511,6 +535,13 @@ def zephyr_to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
         # Consumed by C++ code shared across every nordic-family variant (core.cpp, etc.).
         cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_NORDIC")
+    elif zephyr_variant_family() == "silabs":
+        # Same reasoning as esp32/nordic above: mainline Zephyr's MINIMAL_LIBCPP has no
+        # STL, which ESPHome's C++ core requires regardless of chip vendor.
+        zephyr_add_prj_conf("CPP", True)
+        zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
+        # Consumed by C++ code shared across every silabs-family variant (core.cpp, etc.).
+        cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_SILABS")
     else:
         # No zephyr variant: platform: nrf52 calling this shared helper directly, uses newlib.
         zephyr_add_prj_conf("NEWLIB_LIBC", True)
@@ -571,11 +602,12 @@ def zephyr_to_code(config: ConfigType) -> None:
             ZEPHYR_VARIANT_ESP32,
             ZEPHYR_VARIANT_NATIVE_SIM,
         ):
-            if zephyr_variant_family() == "nordic":
+            if zephyr_variant_family() in ("nordic", "silabs"):
                 # ARM Cortex-M's ARCH_HAS_STACKWALK only defaults on when this is
                 # also set (arch/arm/core/Kconfig selects the dependency it needs);
                 # RISC-V (esp32_h2/c6) enables ARCH_HAS_STACKWALK unconditionally,
                 # so it doesn't need this and setting it there would just warn.
+                # silabs (EFR32MG24, Cortex-M33) needs the same treatment as nordic.
                 zephyr_add_prj_conf("EXTRA_EXCEPTION_INFO", True)
             zephyr_add_prj_conf("EXCEPTION_STACK_TRACE", True)
 
@@ -1055,6 +1087,10 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         from .variants.nrf54lm20a import config_schema as _nrf54lm20a_config_schema
 
         config = _nrf54lm20a_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_EFR32MG24:
+        from .variants.efr32mg24 import config_schema as _efr32mg24_config_schema
+
+        config = _efr32mg24_config_schema(config)
     else:
         raise cv.Invalid(f"Variant {variant!r} has no config schema registered yet")
     zephyr_data()[KEY_BOARD_ROOT] = board_root
@@ -1144,6 +1180,11 @@ async def to_code(config: ConfigType) -> None:
         from .variants.nrf54lm20a import to_code as _nrf54lm20a_to_code
 
         await _nrf54lm20a_to_code(config)
+        return
+    if variant == ZEPHYR_VARIANT_EFR32MG24:
+        from .variants.efr32mg24 import to_code as _efr32mg24_to_code
+
+        await _efr32mg24_to_code(config)
         return
     raise NotImplementedError(f"Zephyr variant {variant!r} has no to_code registered")
 

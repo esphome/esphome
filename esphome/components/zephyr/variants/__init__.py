@@ -101,6 +101,14 @@ class ZephyrVariant:
     # (port, pin-within-port). Varies by vendor/SoC family (32 for nRF52/Espressif,
     # 16 for STM32), so this lives per variant rather than a hardcoded constant.
     gpio_port_width: int = 32
+    # Devicetree node-label suffixes for this variant's GPIO ports, indexed by port
+    # number -- e.g. ("a", "b", "c", "d") for Silicon Labs' gpioa/gpiob/gpioc/gpiod
+    # Series 2 GPIO ports. None = numeric suffixes (gpio0, gpio1, ...), which is what
+    # every DT_NODELABEL(gpio{port}) lookup has always assumed -- Nordic and Espressif
+    # both use numeric node names, only their *display* prefix differs (see
+    # _PORT_BANKED_FAMILIES in gpio.py). A lettered family also gets its display
+    # prefix from this (e.g. "PA"), independently of Nordic's numeric "P0." style.
+    gpio_port_labels: tuple[str, ...] | None = None
     # ESPHome components this variant can actually support. Named after the
     # component/protocol, not the raw radio -- e.g. `openthread` and `zigbee` both need
     # 802.15.4, but esp32-family only has the former ported (ZBOSS is Nordic-only).
@@ -365,6 +373,7 @@ _VARIANT_MODULES = [
     "nrf52",
     "nrf54l15",
     "nrf54lm20a",
+    "efr32mg24",
 ]
 
 
