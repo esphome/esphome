@@ -7,7 +7,6 @@
 #include <algorithm>
 #include <cinttypes>
 
-#include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -75,6 +74,7 @@ void on_send_report(const uint8_t *mac_addr, esp_now_send_status_t status)
   if (packet == nullptr) {
     // No events available - queue is full or we're out of memory
     global_esp_now->receive_packet_queue_.increment_dropped_count();
+    global_esp_now->enable_loop_soon_any_context();
     return;
   }
 
@@ -90,8 +90,8 @@ void on_send_report(const uint8_t *mac_addr, esp_now_send_status_t status)
   // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
   // allocate() returned non-null, the queue cannot be full.
 
-  // Wake main loop immediately to process ESP-NOW send event
-  App.wake_loop_threadsafe();
+  // Re-enable and wake the main loop to process the ESP-NOW send event
+  global_esp_now->enable_loop_soon_any_context();
 }
 
 void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int size) {
@@ -101,6 +101,7 @@ void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int 
   // larger frame would overflow packet_.receive.data.
   if (size < 0 || size > ESPNOW_MAX_DATA_LEN) {
     global_esp_now->receive_packet_queue_.increment_dropped_count();
+    global_esp_now->enable_loop_soon_any_context();
     return;
   }
 
@@ -109,6 +110,7 @@ void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int 
   if (packet == nullptr) {
     // No events available - queue is full or we're out of memory
     global_esp_now->receive_packet_queue_.increment_dropped_count();
+    global_esp_now->enable_loop_soon_any_context();
     return;
   }
 
@@ -120,8 +122,8 @@ void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int 
   // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
   // allocate() returned non-null, the queue cannot be full.
 
-  // Wake main loop immediately to process ESP-NOW receive event
-  App.wake_loop_threadsafe();
+  // Re-enable and wake the main loop to process the ESP-NOW receive event
+  global_esp_now->enable_loop_soon_any_context();
 }
 
 ESPNowComponent::ESPNowComponent() { global_esp_now = this; }
@@ -156,12 +158,30 @@ bool ESPNowComponent::is_wifi_enabled() {
 }
 
 void ESPNowComponent::setup() {
+#if defined(USE_WIFI) && defined(USE_WIFI_CONNECT_STATE_LISTENERS)
+  if (wifi::global_wifi_component != nullptr) {
+    wifi::global_wifi_component->add_connect_state_listener(this);
+  }
+#endif
   if (this->enable_on_boot_) {
     this->enable_();
   } else {
     this->state_ = ESPNOW_STATE_DISABLED;
   }
 }
+
+#if defined(USE_WIFI) && defined(USE_WIFI_CONNECT_STATE_LISTENERS)
+void ESPNowComponent::on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) {
+  if (ssid.empty()) {
+    return;  // Disconnected; the channel is only meaningful while associated
+  }
+  uint8_t old_channel = this->wifi_channel_;
+  this->get_wifi_channel();
+  if (this->wifi_channel_ != old_channel) {
+    ESP_LOGI(TAG, "WiFi channel changed from %d to %d", old_channel, this->wifi_channel_);
+  }
+}
+#endif
 
 void ESPNowComponent::enable() {
   if (this->state_ == ESPNOW_STATE_ENABLED)
@@ -254,15 +274,6 @@ void ESPNowComponent::apply_wifi_channel() {
 }
 
 void ESPNowComponent::loop() {
-#ifdef USE_WIFI
-  if (wifi::global_wifi_component != nullptr && wifi::global_wifi_component->is_connected()) {
-    int32_t new_channel = wifi::global_wifi_component->get_wifi_channel();
-    if (new_channel != this->wifi_channel_) {
-      ESP_LOGI(TAG, "Wifi Channel is changed from %d to %" PRId32 ".", this->wifi_channel_, new_channel);
-      this->wifi_channel_ = new_channel;
-    }
-  }
-#endif
   // Process received packets
   ESPNowPacket *packet = this->receive_packet_queue_.pop();
   while (packet != nullptr) {
@@ -348,6 +359,15 @@ void ESPNowComponent::loop() {
   if (send_dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u send packets (queue full)", send_dropped);
   }
+
+  // Nothing left to do; sleep until a callback or send() re-enables the loop.
+  // A packet in flight (current_send_packet_) needs no loop time even when more
+  // packets are queued behind it: the send callback re-enables the loop when
+  // the result arrives, and the SENT event handler above starts the next send.
+  if (this->receive_packet_queue_.empty() &&
+      (this->current_send_packet_ != nullptr || this->send_packet_queue_.empty())) {
+    this->disable_loop();
+  }
 }
 
 uint8_t ESPNowComponent::get_wifi_channel() {
@@ -390,6 +410,9 @@ esp_err_t ESPNowComponent::send(const uint8_t *peer_address, const uint8_t *payl
   packet->load_data(peer_address, payload, size, callback);
   // Push the packet to the send queue
   this->send_packet_queue_.push(packet);
+  // Loop may be disabled while idle; re-enable it to send the packet
+  // (any-context variant so callers off the main loop are safe too)
+  this->enable_loop_soon_any_context();
   return ESP_OK;
 }
 
