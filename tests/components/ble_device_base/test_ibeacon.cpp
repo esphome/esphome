@@ -69,4 +69,27 @@ TEST(BleIBeacon, RejectsNonAppleCompany) {
   EXPECT_FALSE(ESPBLEiBeacon::from_manufacturer_data(data).has_value());
 }
 
+TEST(BleIBeacon, PrefixRejectedFlagsOnlyTheSubTypeCase) {
+  // The out-param drives the get_ibeacon() diagnostic for frames the legacy
+  // parser accepted: exactly the 23-byte Apple payload with a wrong prefix.
+  // Wrong size and non-Apple frames were never accepted and must stay silent.
+  bool flagged = false;
+  EXPECT_FALSE(ESPBLEiBeacon::from_manufacturer_data(make_apple_payload(0x10, 0x15), &flagged).has_value());
+  EXPECT_TRUE(flagged);
+
+  flagged = false;
+  ESPBLEiBeacon::from_manufacturer_data(make_apple_payload(0x02, 0x15), &flagged);
+  EXPECT_FALSE(flagged);
+
+  flagged = false;
+  ESPBLEiBeacon::from_manufacturer_data(make_apple_payload(0x10, 0x15, 22), &flagged);
+  EXPECT_FALSE(flagged);
+
+  flagged = false;
+  auto nordic = make_apple_payload(0x10, 0x15);
+  nordic.uuid = ESPBTUUID::from_uint16(0x0059);
+  ESPBLEiBeacon::from_manufacturer_data(nordic, &flagged);
+  EXPECT_FALSE(flagged);
+}
+
 }  // namespace esphome::ble_device_base::testing

@@ -265,6 +265,10 @@ optional<ESPBLEiBeacon> ESPBLEiBeacon::from_manufacturer_data(const ServiceData 
   return ESPBLEiBeacon(data.data.data());
 }
 
+// ---------------------------------------------------------------------------
+// ESPBTDevice
+// ---------------------------------------------------------------------------
+
 optional<ESPBLEiBeacon> ESPBTDevice::get_ibeacon() const {
   for (const auto &it : this->manufacturer_datas_) {
     bool prefix_rejected = false;
@@ -276,8 +280,9 @@ optional<ESPBLEiBeacon> ESPBTDevice::get_ibeacon() const {
       static uint8_t logged = 0;
       if (logged < 3) {
         logged++;
+        char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
         ESP_LOGD(TAG, "%s: 23-byte Apple frame without iBeacon prefix ignored (sub-type 0x%02X len 0x%02X)",
-                 this->address_str().c_str(), it.data[0], it.data[1]);
+                 this->address_str_to(addr_buf), it.data[0], it.data[1]);
       }
     }
     if (res.has_value())
@@ -285,10 +290,6 @@ optional<ESPBLEiBeacon> ESPBTDevice::get_ibeacon() const {
   }
   return {};
 }
-
-// ---------------------------------------------------------------------------
-// ESPBTDevice
-// ---------------------------------------------------------------------------
 
 const char *ESPBTDevice::address_type_str() const {
   switch (this->address_type_) {
