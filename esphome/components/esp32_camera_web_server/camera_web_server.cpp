@@ -13,7 +13,7 @@
 
 namespace esphome::esp32_camera_web_server {
 
-static const int IMAGE_REQUEST_TIMEOUT = 5000;
+static const uint32_t IMAGE_REQUEST_TIMEOUT = 5000;
 // How often streaming_handler_ reports its throughput.
 static const uint32_t STREAM_STATS_INTERVAL = 5000;
 static const char *const TAG = "esp32_camera_web_server";
@@ -128,12 +128,15 @@ std::shared_ptr<esphome::camera::CameraImage> CameraWebServer::wait_for_image_()
   // returns immediately with nothing to swap in, and the caller reports a lost
   // frame and closes the stream -- after an arbitrary number of good frames,
   // which is exactly when the camera happens to fall behind for one iteration.
+  //
+  // running_ is re-checked on every pass so a shutdown or a client that went
+  // away is noticed straight away instead of after the full timeout.
   const uint32_t start = millis();
-  for (;;) {
+  while (this->running_) {
     uint32_t elapsed = millis() - start;
-    if (elapsed >= (uint32_t) IMAGE_REQUEST_TIMEOUT)
+    if (elapsed >= IMAGE_REQUEST_TIMEOUT)
       break;
-    xSemaphoreTake(this->semaphore_, pdMS_TO_TICKS((uint32_t) IMAGE_REQUEST_TIMEOUT - elapsed));
+    xSemaphoreTake(this->semaphore_, pdMS_TO_TICKS(IMAGE_REQUEST_TIMEOUT - elapsed));
     image.swap(this->image_);
     if (image)
       break;
@@ -205,7 +208,10 @@ esp_err_t CameraWebServer::streaming_handler_(struct httpd_req *req) {
     auto image = this->wait_for_image_();
 
     if (!image) {
-      ESP_LOGW(TAG, "STREAM: failed to acquire frame");
+      // A shutdown is not a lost frame: wait_for_image_() returns empty as soon
+      // as running_ clears, and the loop condition below ends the stream anyway.
+      if (this->running_)
+        ESP_LOGW(TAG, "STREAM: failed to acquire frame");
       res = ESP_FAIL;
     }
     if (res == ESP_OK) {
@@ -231,6 +237,16 @@ esp_err_t CameraWebServer::streaming_handler_(struct httpd_req *req) {
         stats_bytes = 0;
       }
     }
+  }
+
+  // Report whatever did not fill a whole interval, so a stream that only ran for
+  // a second or two still says what it managed rather than nothing at all.
+  if (stats_frames > 0) {
+    uint32_t elapsed = millis() - stats_since;
+    if (elapsed == 0)
+      elapsed = 1;
+    ESP_LOGD(TAG, "MJPG: %.1ffps, %" PRIu32 "B/frame (%" PRIu32 " frames)", stats_frames * 1000.0f / elapsed,
+             stats_bytes / stats_frames, stats_frames);
   }
 
   if (!frames) {
