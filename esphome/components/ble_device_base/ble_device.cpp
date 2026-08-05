@@ -112,7 +112,7 @@ esp_bt_uuid_t ESPBTUUID::get_uuid() const {
   switch (this->type_) {
     case Type::UNSET:
       ret.len = 0;
-      ret.uuid.uuid16 = 0;
+      memset(&ret.uuid, 0, sizeof(ret.uuid));
       break;
     case Type::UUID16:
       ret.len = ESP_UUID_LEN_16;
