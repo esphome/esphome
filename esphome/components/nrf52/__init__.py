@@ -725,10 +725,12 @@ def _addr2line(addr2line: str, elf: Path, addr: str) -> str:
 # Module-level so tests can pin the samples that gate lazy decoding
 # (tests/unit_tests/test_stacktrace.py) against the real pattern.
 # The PC group is bounded to 3+ hex digits to agree with the log gate
-# in esphome/stacktrace.py by construction; a PC below 0x100 sits in
-# the vector table, not executable code. LR stays unbounded: a garbage
-# LR on a corrupted-stack fault must not drop the PC decode with it,
-# and one qualifying token is enough to fire the gate.
+# in platform_hooks.STACKTRACE_GATES by construction; a PC below 0x100
+# sits in the vector table, not executable code. LR stays unbounded: a
+# garbage LR on a corrupted-stack fault must not drop the PC decode
+# with it, and one qualifying token is enough to fire the gate.
+# Widening either bound without the other fails the generative superset
+# test in tests/unit_tests/test_stacktrace.py, so the two cannot drift.
 STACKTRACE_NRF52_PC_LR_RE = re.compile(r"PC=(0x[0-9a-fA-F]{3,})\s+LR=(0x[0-9a-fA-F]+)")
 
 
