@@ -53,6 +53,7 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
   switch (signal_type) {
     case EZB_ZDO_SIGNAL_SKIP_STARTUP:
       ESP_LOGD(TAG, "Zigbee stack initialized");
+      global_zigbee->started = true;
       ezb_bdb_start_top_level_commissioning(EZB_BDB_MODE_INITIALIZATION);
       break;
     case EZB_BDB_SIGNAL_DEVICE_FIRST_START:
@@ -60,7 +61,6 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
       ezb_bdb_comm_status_t status = *((ezb_bdb_comm_status_t *) ezb_app_signal_get_params(app_signal));
       if (status == EZB_BDB_STATUS_SUCCESS) {
         ESP_LOGD(TAG, "Device started up in %sfactory-reset mode", ezb_bdb_is_factory_new() ? "" : "non ");
-        global_zigbee->started = true;
         if (ezb_bdb_is_factory_new()) {
           global_zigbee->factory_new = true;
           ESP_LOGD(TAG, "Start network steering");
@@ -303,9 +303,10 @@ void ZigbeeComponent::setup() {
 }
 
 void ZigbeeComponent::loop() {
-  if (this->joined.exchange(false)) {
-    this->connected_ = true;
+  if (!this->join_reported_ && this->joined) {
+    this->join_reported_ = true;
     this->join_cb_.call(this->factory_new);
+    this->factory_new = false;
   }
   this->disable_loop();
 }

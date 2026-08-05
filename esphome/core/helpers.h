@@ -184,6 +184,11 @@ template<size_t InlineSize = 8> class SmallInlineBuffer {
   SmallInlineBuffer(const SmallInlineBuffer &) = delete;
   SmallInlineBuffer &operator=(const SmallInlineBuffer &) = delete;
 
+  bool empty() const { return this->len_ == 0; }
+
+  // Conversion to std::span for compatibility with span-based APIs
+  operator std::span<const uint8_t>() const { return std::span<const uint8_t>(this->data(), this->len_); }
+
   /// Resize to `size` bytes of (uninitialized) storage and return a writable pointer to fill.
   /// Allocates heap only when `size` exceeds the inline capacity. Use this when the contents are
   /// built in place (e.g. assembling a frame and appending a checksum) to avoid a staging copy.
