@@ -2695,6 +2695,14 @@ async def to_code(config):
             # Each is the SHA-256 of a key's signature-block region; the verifier
             # accepts an OTA whose signature block matches one of these.
             digests = [bytes.fromhex(k) for k in verification_keys]
+            # Echo the resolved digests so a stale or mistyped key (which builds
+            # cleanly but leaves the device updatable only by serial reflash) is
+            # visible in the build log.
+            _LOGGER.info(
+                "Signed OTA verification trusts %d key digest(s): %s",
+                len(digests),
+                ", ".join(d.hex() for d in digests),
+            )
             cg.add_define("OTA_TRUSTED_KEY_COUNT", len(digests))
             cg.add_define(
                 "OTA_TRUSTED_KEY_DIGESTS",

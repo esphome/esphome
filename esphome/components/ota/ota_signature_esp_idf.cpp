@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <memory>
 #include <esp_image_format.h>
 #include <esp_partition.h>
 #include <esp_rom_crc.h>
@@ -157,23 +158,30 @@ bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
   // first) is the whole point -- it lets a bridge/backup key in a later block
   // be the match. The trust check is against the immutable compiled-in set, so
   // extra (self-signed) blocks an attacker appends carry keys we simply ignore.
-  uint8_t block[SIG_BLOCK_SIZE];
+  // Heap-allocate the 1216-byte block for the duration of verification: this
+  // runs mid-OTA on the loop task, on top of the caller's live 1 KB OTA buffer
+  // and mbedtls's own ~1 KB verify scratch, so keeping it off the stack widens
+  // a thin margin. One short-lived allocation right before reboot is not the
+  // fragmentation pattern the project guards against.
+  auto block = std::make_unique<uint8_t[]>(SIG_BLOCK_SIZE);
+  bool any_valid_block = false;
   for (size_t i = 0; i < SIG_BLOCK_MAX_COUNT; i++) {
     size_t off = incoming_sector + i * SIG_BLOCK_SIZE;
     if (off + SIG_BLOCK_SIZE > incoming->size) {
       break;  // partition has no room for another block; done scanning
     }
     // A read fault is not "no trusted key" -- fail closed with a distinct error.
-    if (esp_partition_read(incoming, off, block, SIG_BLOCK_SIZE) != ESP_OK) {
+    if (esp_partition_read(incoming, off, block.get(), SIG_BLOCK_SIZE) != ESP_OK) {
       ESP_LOGE(TAG, "Signature check: failed to read incoming signature block %zu", i);
       return false;
     }
-    if (!block_is_valid(block)) {
+    if (!block_is_valid(block.get())) {
       ESP_LOGD(TAG, "Signature check: block %zu is absent or malformed", i);
       continue;
     }
+    any_valid_block = true;
     KeyDigest incoming_key;
-    if (!key_digest_of(block, incoming_key)) {
+    if (!key_digest_of(block.get(), incoming_key)) {
       ESP_LOGE(TAG, "Signature check: failed to hash incoming key in block %zu", i);
       return false;
     }
@@ -188,14 +196,20 @@ bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
       ESP_LOGW(TAG, "Signature check: block %zu is signed by an untrusted key", i);
       continue;
     }
-    if (rsa_pss_verify(block, digest)) {
+    if (rsa_pss_verify(block.get(), digest)) {
       ESP_LOGD(TAG, "Signature check: verified with trusted key in block %zu", i);
       return true;
     }
     ESP_LOGW(TAG, "Signature check: trusted key in block %zu failed to verify", i);
   }
 
-  ESP_LOGE(TAG, "Signature check: no trusted key produced a valid signature");
+  // Separate "not signed at all" from "signed by an untrusted key" -- the former
+  // otherwise reads as the latter on a device that only logs at INFO.
+  if (!any_valid_block) {
+    ESP_LOGE(TAG, "Signature check: image has no signature block");
+  } else {
+    ESP_LOGE(TAG, "Signature check: no trusted key produced a valid signature");
+  }
   return false;
 }
 
