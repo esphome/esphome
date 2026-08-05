@@ -412,7 +412,7 @@ This document provides essential context for AI models interacting with this pro
 *   **Configuration:**
     *   `pyproject.toml`: Defines the Python project metadata and dependencies.
     *   `platformio.ini`: Configures the PlatformIO build environments for different microcontrollers.
-    *   `.pre-commit-config.yaml`: Configures the pre-commit hooks for linting and formatting.
+    *   `.pre-commit-config.yaml`: Configures the lint and format hooks, run by `prek`.
 *   **CI/CD Pipeline:** Defined in `.github/workflows`.
 *   **Static Analysis & Development:**
     *   `esphome/core/defines.h`: A comprehensive header file containing all `#define` directives that can be added by components using `cg.add_define()` in Python. This file is used exclusively for development, static analysis tools, and CI testing - it is not used during runtime compilation. When developing components that add new defines, they must be added to this file to ensure proper IDE support and static analysis coverage. The file includes feature flags, build configurations, and platform-specific defines that help static analyzers understand the complete codebase without needing to compile for specific platforms.
@@ -420,7 +420,7 @@ This document provides essential context for AI models interacting with this pro
 ## 6. Development & Testing Workflow
 
 *   **Local Development Environment:** Use the provided Docker container or create a Python virtual environment and install dependencies from `requirements_dev.txt`.
-*   **Running Commands:** Use the `script/run-in-env.py` script to execute commands within the project's virtual environment. For example, to run the linter: `python3 script/run-in-env.py pre-commit run`.
+*   **Running Commands:** Use the `script/run-in-env.py` script to execute commands within the project's virtual environment. For example, to run the linter: `python3 script/run-in-env.py prek run`.
 *   **Testing:**
     *   **Python:** Run unit tests with `pytest`.
     *   **C++:** Use `clang-tidy` for static analysis.
@@ -493,7 +493,7 @@ This document provides essential context for AI models interacting with this pro
     1.  **Fork & Branch:** Create a new branch based on the `dev` branch (always use `git checkout -b <branch-name> dev` to ensure you're branching from `dev`, not the currently checked out branch).
     2.  **Make Changes:** Adhere to all coding conventions and patterns.
     3.  **Test:** Create component tests for all supported platforms and run the full test suite locally.
-    4.  **Lint:** Run `pre-commit` to ensure code is compliant.
+    4.  **Lint:** Run `prek` to ensure code is compliant.
     5.  **Commit:** Commit your changes. There is no strict format for commit messages.
     6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title must start with a `[tag]` prefix. For component work, use the component name (e.g., `[display] Fix bug`, `[abc123] Add new component`); for changes to shared/core code that isn't tied to a single component, use `[core]` (e.g., `[core] Add validator`). Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made using the `.github/PULL_REQUEST_TEMPLATE.md` template - fill out all sections completely without removing any parts of the template.
 
