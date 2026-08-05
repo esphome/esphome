@@ -22,6 +22,13 @@ namespace esphome::ota {
 
 static const char *const TAG = "ota.idf";
 
+// Route the "Signature check: " prefix (and its per-block form) through one
+// shared format string each, so the prefix is pooled once by the linker instead
+// of duplicated at every call site. The level macro is forwarded so compile-time
+// log-level stripping still applies.
+#define OTA_IDF_SIG_LOG(level, msg) level(TAG, "Signature check: %s", msg)
+#define OTA_IDF_SIG_LOG_BLOCK(level, i, msg) level(TAG, "Signature check: block %zu: %s", static_cast<size_t>(i), msg)
+
 // Secure Boot v2 RSA-3072 signature block, as written by espsecure and stored
 // in the 4 KiB sector following the (4 KiB-padded) app image. All bignum
 // fields are byte-reversed to little-endian for the RSA accelerator; software
@@ -125,7 +132,7 @@ bool rsa_pss_verify(uint8_t *block, const uint8_t *digest) {
   if (!key_ok) {
     // A setup/allocation failure (e.g. OOM right after the download) is not a
     // signature mismatch -- log it distinctly so it isn't read as "wrong key".
-    ESP_LOGE(TAG, "Signature check: RSA key setup failed");
+    OTA_IDF_SIG_LOG(ESP_LOGE, "RSA key setup failed");
   } else {
     verified =
         mbedtls_rsa_rsassa_pss_verify(&rsa, MBEDTLS_MD_SHA256, SHA256_BYTES, digest, block + OFFSET_SIGNATURE) == 0;
@@ -145,12 +152,12 @@ bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
 
   size_t incoming_sector;
   if (!signature_sector_offset(incoming, incoming_sector)) {
-    ESP_LOGE(TAG, "Signature check: cannot locate incoming signature sector");
+    OTA_IDF_SIG_LOG(ESP_LOGE, "cannot locate incoming signature sector");
     return false;
   }
   uint8_t digest[SHA256_BYTES];
   if (!image_digest(incoming, incoming_sector, digest)) {
-    ESP_LOGE(TAG, "Signature check: cannot hash incoming image");
+    OTA_IDF_SIG_LOG(ESP_LOGE, "cannot hash incoming image");
     return false;
   }
 
@@ -167,7 +174,7 @@ bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
   // fails closed like every other error path, rather than aborting.
   std::unique_ptr<uint8_t[]> block(new (std::nothrow) uint8_t[SIG_BLOCK_SIZE]);
   if (!block) {
-    ESP_LOGE(TAG, "Signature check: out of memory");
+    OTA_IDF_SIG_LOG(ESP_LOGE, "out of memory");
     return false;
   }
   bool any_valid_block = false;
@@ -178,17 +185,17 @@ bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
     }
     // A read fault is not "no trusted key" -- fail closed with a distinct error.
     if (esp_partition_read(incoming, off, block.get(), SIG_BLOCK_SIZE) != ESP_OK) {
-      ESP_LOGE(TAG, "Signature check: failed to read incoming signature block %zu", i);
+      OTA_IDF_SIG_LOG_BLOCK(ESP_LOGE, i, "unreadable");
       return false;
     }
     if (!block_is_valid(block.get())) {
-      ESP_LOGD(TAG, "Signature check: block %zu is absent or malformed", i);
+      OTA_IDF_SIG_LOG_BLOCK(ESP_LOGD, i, "absent or malformed");
       continue;
     }
     any_valid_block = true;
     KeyDigest incoming_key;
     if (!key_digest_of(block.get(), incoming_key)) {
-      ESP_LOGE(TAG, "Signature check: failed to hash incoming key in block %zu", i);
+      OTA_IDF_SIG_LOG_BLOCK(ESP_LOGE, i, "key hash failed");
       return false;
     }
     bool trusted_key = false;
@@ -199,22 +206,22 @@ bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
       }
     }
     if (!trusted_key) {
-      ESP_LOGW(TAG, "Signature check: block %zu is signed by an untrusted key", i);
+      OTA_IDF_SIG_LOG_BLOCK(ESP_LOGW, i, "signed by an untrusted key");
       continue;
     }
     if (rsa_pss_verify(block.get(), digest)) {
-      ESP_LOGD(TAG, "Signature check: verified with trusted key in block %zu", i);
+      OTA_IDF_SIG_LOG_BLOCK(ESP_LOGD, i, "verified with a trusted key");
       return true;
     }
-    ESP_LOGW(TAG, "Signature check: trusted key in block %zu failed to verify", i);
+    OTA_IDF_SIG_LOG_BLOCK(ESP_LOGW, i, "trusted key failed to verify");
   }
 
   // Separate "not signed at all" from "signed by an untrusted key" -- the former
   // otherwise reads as the latter on a device that only logs at INFO.
   if (!any_valid_block) {
-    ESP_LOGE(TAG, "Signature check: image has no signature block");
+    OTA_IDF_SIG_LOG(ESP_LOGE, "image has no signature block");
   } else {
-    ESP_LOGE(TAG, "Signature check: no trusted key produced a valid signature");
+    OTA_IDF_SIG_LOG(ESP_LOGE, "no trusted key produced a valid signature");
   }
   return false;
 }
