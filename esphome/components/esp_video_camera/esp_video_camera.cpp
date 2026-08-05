@@ -36,10 +36,6 @@ extern "C" {
 #endif
 }
 
-#ifndef V4L2_CID_JPEG_COMPRESSION_QUALITY
-#define V4L2_CID_JPEG_COMPRESSION_QUALITY (V4L2_CID_JPEG_CLASS_BASE + 1)
-#endif
-
 namespace esphome::esp_video_camera {
 
 static const char *const TAG = "esp_video_camera";
