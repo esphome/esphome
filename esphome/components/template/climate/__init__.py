@@ -46,10 +46,12 @@ TemplateClimatePublishAction = template_ns.class_(
     cg.Parented.template(TemplateClimate),
 )
 
-TemplateClimateRestoreMode = template_ns.enum("TemplateClimateRestoreMode")
+TemplateClimateRestoreMode = template_ns.enum(
+    "TemplateClimateRestoreMode", is_class=True
+)
 CLIMATE_RESTORE_MODES = {
-    "NO_RESTORE": TemplateClimateRestoreMode.CLIMATE_NO_RESTORE,
-    "RESTORE": TemplateClimateRestoreMode.CLIMATE_RESTORE,
+    "NO_RESTORE": TemplateClimateRestoreMode.NO_RESTORE,
+    "RESTORE": TemplateClimateRestoreMode.RESTORE,
 }
 
 
@@ -97,20 +99,24 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_SUPPORTS_ACTION, default=False): cv.boolean,
             cv.Optional(CONF_SUPPORTS_CURRENT_TEMPERATURE, default=False): cv.boolean,
             cv.Optional(CONF_SUPPORTS_CURRENT_HUMIDITY, default=False): cv.boolean,
-            cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(
-                climate.validate_climate_mode
+            cv.Optional(CONF_SUPPORTED_MODES): cv.All(
+                cv.ensure_list(climate.validate_climate_mode), cv.Unique()
             ),
-            cv.Optional(CONF_SUPPORTED_FAN_MODES): cv.ensure_list(
-                climate.validate_climate_fan_mode
+            cv.Optional(CONF_SUPPORTED_FAN_MODES): cv.All(
+                cv.ensure_list(climate.validate_climate_fan_mode), cv.Unique()
             ),
-            cv.Optional(CONF_CUSTOM_FAN_MODES): cv.ensure_list(cv.string_strict),
-            cv.Optional(CONF_SUPPORTED_SWING_MODES): cv.ensure_list(
-                climate.validate_climate_swing_mode
+            cv.Optional(CONF_CUSTOM_FAN_MODES): cv.All(
+                cv.ensure_list(cv.string_strict), cv.Unique()
             ),
-            cv.Optional(CONF_SUPPORTED_PRESETS): cv.ensure_list(
-                climate.validate_climate_preset
+            cv.Optional(CONF_SUPPORTED_SWING_MODES): cv.All(
+                cv.ensure_list(climate.validate_climate_swing_mode), cv.Unique()
             ),
-            cv.Optional(CONF_CUSTOM_PRESETS): cv.ensure_list(cv.string_strict),
+            cv.Optional(CONF_SUPPORTED_PRESETS): cv.All(
+                cv.ensure_list(climate.validate_climate_preset), cv.Unique()
+            ),
+            cv.Optional(CONF_CUSTOM_PRESETS): cv.All(
+                cv.ensure_list(cv.string_strict), cv.Unique()
+            ),
             cv.Optional(
                 CONF_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE, default=False
             ): cv.boolean,

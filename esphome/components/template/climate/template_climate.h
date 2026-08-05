@@ -8,9 +8,9 @@
 
 namespace esphome::template_ {
 
-enum TemplateClimateRestoreMode {
-  CLIMATE_NO_RESTORE,
-  CLIMATE_RESTORE,
+enum class TemplateClimateRestoreMode {
+  NO_RESTORE,
+  RESTORE,
 };
 
 class TemplateClimate final : public climate::Climate, public Component {
@@ -61,8 +61,8 @@ class TemplateClimate final : public climate::Climate, public Component {
   void control(const climate::ClimateCall &call) override;
 
   climate::ClimateTraits traits_;
-  bool optimistic_{true};
-  TemplateClimateRestoreMode restore_mode_{CLIMATE_RESTORE};
+  bool optimistic_{false};
+  TemplateClimateRestoreMode restore_mode_{TemplateClimateRestoreMode::NO_RESTORE};
 
 #ifdef USE_SENSOR
   sensor::Sensor *sensor_{nullptr};

@@ -6,7 +6,7 @@ namespace esphome::template_ {
 static const char *const TAG = "template_climate";
 
 void TemplateClimate::setup() {
-  if (this->restore_mode_ == CLIMATE_RESTORE) {
+  if (this->restore_mode_ == TemplateClimateRestoreMode::RESTORE) {
     auto restore = this->restore_state_();
     if (restore.has_value()) {
       restore->apply(this);
