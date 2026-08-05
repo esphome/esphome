@@ -158,8 +158,11 @@
 #define SNTP_SERVER_COUNT 3
 #define USE_MEDIA_PLAYER
 #define USE_MEDIA_SOURCE
+#ifndef USE_RP2  // no MQTT backend or esp_wireguard library on RP2
 #define USE_MQTT
 #define USE_MQTT_COVER_JSON
+#define USE_WIREGUARD
+#endif
 #define USE_NETWORK
 #define USE_NETWORK_IPV4 true
 #define USE_NETWORK_IPV6 false
