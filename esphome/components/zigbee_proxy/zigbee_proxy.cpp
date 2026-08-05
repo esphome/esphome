@@ -77,7 +77,15 @@ void ZigbeeProxy::loop() {
       this->parent_->set_baud_rate(this->configured_baud_rate_);
       this->parent_->load_settings(false);
     }
-    this->reset_ash_protocol_();
+    // A subscriber drives its own session: it opens with an RST and negotiates its own
+    // EZSP version. Harvesting here would put a second RST on the wire alongside the
+    // client's and renegotiate the NCP underneath it, so only harvest when there is
+    // something left to learn.
+    if (this->api_connection_ != nullptr && this->network_info_.valid) {
+      this->reset_ncp_link_();
+    } else {
+      this->reset_ash_protocol_();
+    }
   }
 
   // Process incoming UART data
@@ -117,7 +125,11 @@ void ZigbeeProxy::loop() {
       millis() - this->last_recovery_attempt_ > RECOVERY_RETRY_INTERVAL_MS) {
     ESP_LOGI(TAG, "Attempting NCP recovery");
     this->last_recovery_attempt_ = millis();
-    this->reset_ash_protocol_();
+    // Reset the link only. Re-running the harvest would renegotiate the NCP's EZSP
+    // version underneath the subscriber, which then keeps addressing a version the NCP
+    // no longer speaks -- and because the harvest consumes its own RSTACKs, it would
+    // never find out. Relaying the RSTACK instead lets it resynchronize deliberately.
+    this->reset_ncp_link_();
   }
 }
 
@@ -338,10 +350,31 @@ void ZigbeeProxy::reset_ash_protocol_() {
   this->boot_sequence_active_ = true;
   this->ezsp_sequence_ = 0;
 
+  // Abandon RSTACKs owed from a previous attempt: they can no longer arrive in a state
+  // where suppressing them is correct, and a stale count would swallow a real reset.
+  this->own_rst_outstanding_ = 0;
+
   this->send_rst_frame_();
 }
 
-void ZigbeeProxy::send_rst_frame_() {
+void ZigbeeProxy::reset_ncp_link_() {
+  this->ash_state_ = AshState::CONNECTING;
+  this->setup_time_ = millis();  // Reset timeout reference for the RSTACK wait
+  this->tx_sequence_ = 0;
+  this->rx_sequence_ = 0;
+  this->tx_buffer_pending_ = false;
+  this->tx_retry_count_ = 0;
+  this->ncp_tx_queue_count_ = 0;
+  this->parsing_state_ = ParsingState::WAIT_FLAG_START;
+  this->client_reset_session_();
+  this->send_rst_frame_(false);
+}
+
+void ZigbeeProxy::send_rst_frame_(bool own_reset) {
+  if (own_reset) {
+    this->own_rst_outstanding_++;
+  }
+
   // Build a combined buffer: 32 CAN bytes followed immediately by the RST frame,
   // sent as a single write_array call. This ensures correct byte ordering and
   // minimizes the number of USB bulk transfers (all bytes fit in one USB FS packet).
@@ -366,6 +399,14 @@ void ZigbeeProxy::handle_rstack_frame_(const uint8_t *data, size_t length) {
   this->tx_sequence_ = 0;
   this->rx_sequence_ = 0;
   this->clear_tx_buffer_();
+
+  // Account for this RSTACK before deciding whether the client should see it. Only a
+  // reset we did not cause is news to the client; relaying one of ours makes bellows
+  // call enter_failed_state() and cancel every command it has in flight.
+  bool solicited_by_us = this->own_rst_outstanding_ > 0;
+  if (solicited_by_us) {
+    this->own_rst_outstanding_--;
+  }
 
   if (this->boot_state_ == BootState::WAIT_RSTACK) {
     // Initial RSTACK - start boot sequence
@@ -395,6 +436,12 @@ void ZigbeeProxy::handle_rstack_frame_(const uint8_t *data, size_t length) {
     // Now check for WiFi/Zigbee channel conflicts
     this->check_wifi_zigbee_conflict_();
   } else if (this->ash_state_ == AshState::CONNECTING) {
+    if (solicited_by_us) {
+      // One of our own resets answered while a client reset is still outstanding. Stay in
+      // CONNECTING and keep waiting for the RSTACK the client is actually owed.
+      ESP_LOGV(TAG, "Consumed own RSTACK while awaiting the client's");
+      return;
+    }
     // RSTACK during connecting (triggered by client RST forwarding)
     ESP_LOGV(TAG, "Received RSTACK, NCP ready");
     this->ash_state_ = AshState::CONNECTED;
@@ -402,9 +449,15 @@ void ZigbeeProxy::handle_rstack_frame_(const uint8_t *data, size_t length) {
     if (this->api_connection_ != nullptr) {
       this->forward_ncp_rstack_to_client_(this->rx_buffer_.data() + 1, this->rx_buffer_index_ - 3);
     }
+  } else if (solicited_by_us) {
+    // Surplus RSTACK from one of our own resets, most often an RST retry racing a reply
+    // that was merely slow. The client never asked for it, so swallow it.
+    ESP_LOGV(TAG, "Consumed surplus RSTACK from own reset");
+    this->ash_state_ = AshState::CONNECTED;
   } else if (this->api_connection_ != nullptr) {
-    // Client is subscribed, forward RSTACK
-    ESP_LOGV(TAG, "Forwarding RSTACK to client");
+    // A reset we did not cause: the NCP rebooted on its own, which invalidates the
+    // client's session, so it has to hear about it.
+    ESP_LOGW(TAG, "NCP reset unexpectedly, notifying client");
     this->ash_state_ = AshState::CONNECTED;
     this->forward_ncp_rstack_to_client_(this->rx_buffer_.data() + 1, this->rx_buffer_index_ - 3);
   } else {
@@ -1342,16 +1395,7 @@ void ZigbeeProxy::client_parse_control_byte_(uint8_t control) {
       // Client wants to reset - forward RST to NCP
       // Don't use reset_ash_protocol_() as that enters boot sequence
       ESP_LOGV(TAG, "Client RST → forwarding to NCP");
-      this->ash_state_ = AshState::CONNECTING;
-      this->setup_time_ = millis();  // Reset timeout reference for RSTACK wait
-      this->tx_sequence_ = 0;
-      this->rx_sequence_ = 0;
-      this->tx_buffer_pending_ = false;
-      this->tx_retry_count_ = 0;
-      this->ncp_tx_queue_count_ = 0;
-      this->parsing_state_ = ParsingState::WAIT_FLAG_START;
-      this->client_reset_session_();
-      this->send_rst_frame_();
+      this->reset_ncp_link_();
       break;
 
     case AshFrameType::RSTACK:

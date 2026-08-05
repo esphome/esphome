@@ -108,7 +108,14 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
  protected:
   // ASH Protocol State Machine
   void reset_ash_protocol_();
-  void send_rst_frame_();
+  // Resets the NCP link without running the metadata harvest, leaving the client to
+  // negotiate its own session. The resulting RSTACK is relayed rather than consumed.
+  void reset_ncp_link_();
+  // `own_reset` marks a reset we originate ourselves (harvest, retry, final RST) so its
+  // RSTACK is consumed here instead of being relayed to a client that never asked for
+  // one -- bellows treats an unsolicited RSTACK as fatal and cancels every pending
+  // command. Pass false when relaying a client's own RST.
+  void send_rst_frame_(bool own_reset = true);
   void handle_rstack_frame_(const uint8_t *data, size_t length);
   void handle_error_frame_(const uint8_t *data, size_t length);
   // Applies a frame's ackNum to the pending TX frame. Returns true if it
@@ -307,6 +314,11 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   uint32_t configured_baud_rate_{0};     // Line rate to restore after another device
 
   bool boot_sequence_active_{false};  // True during boot-time init
+
+  // RSTACKs still owed to us for resets we sent ourselves. A retry can put two RSTs on
+  // the wire when the first RSTACK was only slow rather than lost, so the NCP answers
+  // with more RSTACKs than we asked for; the surplus must not reach a client.
+  uint8_t own_rst_outstanding_{0};
 };
 
 extern ZigbeeProxy *global_zigbee_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
