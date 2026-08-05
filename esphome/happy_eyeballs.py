@@ -1,16 +1,11 @@
 """Happy Eyeballs (RFC 8305) connection support for requests/urllib3.
 
-urllib3 connects to each address from getaddrinfo in sequence, giving every
-attempt the full connect timeout. On networks that advertise IPv6 DNS
-without working IPv6 connectivity, every download stalls on the unreachable
-IPv6 address until the timeout expires before IPv4 is even tried, turning
-quick validation checks into multi-minute waits.
-
+urllib3 tries each resolved address in sequence with the full connect
+timeout, so a network advertising IPv6 DNS without IPv6 connectivity stalls
+every download for the whole timeout before IPv4 is tried.
 ``ensure_happy_eyeballs()`` swaps urllib3's ``create_connection`` for one
-that races address families with a short stagger using aiohappyeyeballs
-(already in the dependency tree via aioesphomeapi), so a working address
-wins in milliseconds regardless of broken families. The async connect runs
-on a daemon-thread event loop via ``run_async`` so callers stay synchronous.
+that races address families with a short stagger via aiohappyeyeballs, run
+on a daemon-thread event loop so callers stay synchronous.
 """
 
 from __future__ import annotations
@@ -47,9 +42,7 @@ def ensure_happy_eyeballs() -> None:
 
         urllib3.util.connection.create_connection = _make_create_connection()
     except (ImportError, AttributeError) as err:  # urllib3 internals moved
-        # Warning, not debug: the degraded mode brings back the very stalls
-        # this module exists to prevent, so it must be visible in a normal
-        # run, not only with -l DEBUG.
+        # WARNING: degraded mode brings back the stalls this module prevents.
         _LOGGER.warning(
             "Happy Eyeballs unavailable (%s); downloads use the slower stock "
             "urllib3 connect",
@@ -57,8 +50,7 @@ def ensure_happy_eyeballs() -> None:
         )
         _LOGGER.debug("Happy Eyeballs fallback traceback", exc_info=True)
         if stock is not None:
-            # Latch the fallback so later calls take the already-patched
-            # fast path instead of repeating the warning per download.
+            # Latch so the warning fires once, not per download.
             stock._esphome_patched = True  # type: ignore[attr-defined]  # pylint: disable=protected-access
 
 
@@ -95,8 +87,7 @@ def _make_create_connection() -> Callable[..., socket.socket]:
             host, port, allowed_gai_family(), socket.SOCK_STREAM
         )
         if not addr_infos:
-            # Match stock urllib3 so the failure stays inside the
-            # requests exception hierarchy.
+            # Same error as stock urllib3.
             raise OSError("getaddrinfo returns an empty list")
         connect_timeout = (
             socket.getdefaulttimeout() if timeout is _DEFAULT_TIMEOUT else timeout
@@ -128,9 +119,7 @@ def _make_create_connection() -> Callable[..., socket.socket]:
         wait = (
             None if connect_timeout is None else connect_timeout + _THREAD_WAIT_BUFFER
         )
-        # on_orphan closes any socket the abandoned thread wins after the
-        # outer timeout, so a starved event loop cannot leak a live
-        # connection.
+        # on_orphan closes a socket won after the timeout so it cannot leak.
         sock = async_thread.run_async(
             connect, timeout=wait, on_orphan=socket.socket.close
         )
