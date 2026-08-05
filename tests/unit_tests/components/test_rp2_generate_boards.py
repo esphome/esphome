@@ -173,6 +173,66 @@ def test_load_rp2350_board(arduino_pico: Path) -> None:
     assert boards["rpipico2"]["max_pin"] == 47
 
 
+def test_rp2350a_board_gets_max_pin_29(arduino_pico: Path) -> None:
+    """A variant declaring the RP2350A die only exposes GPIO 0-29."""
+    _add_board(
+        arduino_pico,
+        "rpipico2",
+        mcu="rp2350",
+        pins_header="#define PICO_RP2350A 1\n" + PICO_PINS_HEADER,
+    )
+
+    _, boards = load_boards(arduino_pico)
+
+    assert boards["rpipico2"]["max_pin"] == 29
+
+
+def test_rp2350b_board_keeps_max_pin_47(arduino_pico: Path) -> None:
+    """A variant declaring the RP2350B die keeps the full GPIO 0-47 range.
+
+    The define uses extra whitespace, matching real variant headers.
+    """
+    _add_board(
+        arduino_pico,
+        "weact_rp2350b",
+        mcu="rp2350",
+        pins_header="#define PICO_RP2350A   0 // RP2350B\n" + PICO_PINS_HEADER,
+    )
+
+    _, boards = load_boards(arduino_pico)
+
+    assert boards["weact_rp2350b"]["max_pin"] == 47
+
+
+def test_rp2350_menu_selectable_die_keeps_max_pin_47(arduino_pico: Path) -> None:
+    """Generic boards leave the die a build-time choice; stay permissive."""
+    _add_board(
+        arduino_pico,
+        "generic_rp2350",
+        mcu="rp2350",
+        pins_header="#define PICO_RP2350A __PICO_RP2350A\n" + PICO_PINS_HEADER,
+    )
+
+    _, boards = load_boards(arduino_pico)
+
+    assert boards["generic_rp2350"]["max_pin"] == 47
+
+
+def test_rp2350a_pins_above_29_filtered(arduino_pico: Path) -> None:
+    """Pin defines beyond the A-die range are dropped from the pin map."""
+    header = textwrap.dedent("""\
+        #define PICO_RP2350A 1
+        #define PIN_LED        (25u)
+        #define PIN_SPI0_MISO  (40u)
+    """)
+    _add_board(arduino_pico, "a_die", mcu="rp2350", pins_header=header)
+
+    board_pins, _ = load_boards(arduino_pico)
+
+    assert board_pins["a_die"]["LED"] == 25
+    assert "MISO" not in board_pins["a_die"]
+
+
 def test_cyw43_board_has_max_virtual_pin(arduino_pico: Path) -> None:
     _add_board(
         arduino_pico,
