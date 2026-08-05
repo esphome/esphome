@@ -1,7 +1,13 @@
 import esphome.codegen as cg
 from esphome.components import fan
+from esphome.components.fan import validate_preset_modes
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_SPEED_COUNT, CONF_SWITCH_DATAPOINT
+from esphome.const import (
+    CONF_ID,
+    CONF_PRESET_MODES,
+    CONF_SPEED_COUNT,
+    CONF_SWITCH_DATAPOINT,
+)
 
 from .. import CONF_TUYA_ID, Tuya, tuya_ns
 
@@ -10,6 +16,7 @@ DEPENDENCIES = ["tuya"]
 CONF_SPEED_DATAPOINT = "speed_datapoint"
 CONF_OSCILLATION_DATAPOINT = "oscillation_datapoint"
 CONF_DIRECTION_DATAPOINT = "direction_datapoint"
+CONF_PRESET_MODES_DATAPOINT = "preset_modes_datapoint"
 
 TuyaFan = tuya_ns.class_("TuyaFan", cg.Component, fan.Fan)
 
@@ -23,10 +30,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SWITCH_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_DIRECTION_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_SPEED_COUNT, default=3): cv.int_range(min=1, max=256),
+            cv.Optional(CONF_PRESET_MODES_DATAPOINT): cv.uint8_t,
+            cv.Optional(CONF_PRESET_MODES): validate_preset_modes,
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_SPEED_DATAPOINT, CONF_SWITCH_DATAPOINT),
+    cv.has_none_or_all_keys(CONF_PRESET_MODES_DATAPOINT, CONF_PRESET_MODES),
 )
 
 
@@ -45,3 +55,7 @@ async def to_code(config):
         cg.add(var.set_oscillation_id(config[CONF_OSCILLATION_DATAPOINT]))
     if CONF_DIRECTION_DATAPOINT in config:
         cg.add(var.set_direction_id(config[CONF_DIRECTION_DATAPOINT]))
+    if CONF_PRESET_MODES_DATAPOINT in config:
+        cg.add(var.set_preset_modes_id(config[CONF_PRESET_MODES_DATAPOINT]))
+    if CONF_PRESET_MODES in config:
+        cg.add(var.set_preset_modes(config[CONF_PRESET_MODES]))
