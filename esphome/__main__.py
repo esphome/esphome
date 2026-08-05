@@ -1702,7 +1702,7 @@ def command_clean(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_bundle(args: ArgsProtocol, config: ConfigType) -> int | None:
-    from esphome.bundle import BUNDLE_EXTENSION, ConfigBundleCreator
+    from esphome.bundle import ConfigBundleCreator
 
     creator = ConfigBundleCreator(config)
 
