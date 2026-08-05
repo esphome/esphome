@@ -41,6 +41,13 @@ number:
       return x * 2.0;
     write_lambda: |-
       return x / 2.0;
+  # Covers Python value-type maps + read/write path for byte-swapped words
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_number3
+    name: Test Number Swapped Word
+    address: 0x9003
+    value_type: U_WORD_S
 
 output:
   - platform: modbus_controller
