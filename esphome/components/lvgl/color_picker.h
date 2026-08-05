@@ -61,7 +61,7 @@ class LvColorPickerType : public LvCompound {
   Color get_color() const { return this->state_; }
   void set_obj(lv_obj_t *outer) override {
     LvCompound::set_obj(outer);
-    init_shared_();
+    init_shared();
     this->saturation_bar_.dir = LV_GRAD_DIR_HOR;
     this->saturation_bar_.stops_count = 2;
     this->saturation_bar_.stops[0].color = lv_color_hex(0xFFFFFF);
@@ -90,7 +90,7 @@ class LvColorPickerType : public LvCompound {
     lv_obj_set_style_pad_all(outer, KNOB_OVERHANG, LV_PART_MAIN);
 
     if (this->enabled_(SLIDER_HUE)) {
-      auto *hue_container = this->create_slider_(outer, SLIDER_HUE, "Hue", true, &color_bar_, 360);
+      auto *hue_container = this->create_slider_(outer, SLIDER_HUE, "Hue", true, &color_bar, 360);
       lv_obj_set_style_align(hue_container, LV_ALIGN_LEFT_MID, LV_PART_MAIN);
       lv_obj_set_style_height(hue_container, lv_pct(100), LV_PART_MAIN);
       lv_obj_set_style_width(hue_container, lv_pct(HUE_WIDTH_PCT), LV_PART_MAIN);
@@ -110,7 +110,7 @@ class LvColorPickerType : public LvCompound {
 
     if (this->enabled_(SLIDER_BRIGHTNESS)) {
       auto *brightness_container =
-          this->create_slider_(middle, SLIDER_BRIGHTNESS, "Brightness", false, &brightness_bar_, 100);
+          this->create_slider_(middle, SLIDER_BRIGHTNESS, "Brightness", false, &brightness_bar, 100);
       lv_obj_set_style_height(brightness_container, lv_pct(ROW_HEIGHT_PCT), LV_PART_MAIN);
       lv_obj_set_style_width(brightness_container, lv_pct(100), LV_PART_MAIN);
       // A dark bar needs light text, unlike every other value label.
@@ -170,9 +170,9 @@ class LvColorPickerType : public LvCompound {
         const lv_grad_dsc_t *grad;
       };
       const std::array<ChannelInfo, 3> channel_info{{
-          {SLIDER_RED, "R", &red_bar_},
-          {SLIDER_GREEN, "G", &green_bar_},
-          {SLIDER_BLUE, "B", &blue_bar_},
+          {SLIDER_RED, "R", &red_bar},
+          {SLIDER_GREEN, "G", &green_bar},
+          {SLIDER_BLUE, "B", &blue_bar},
       }};
       for (const auto &channel : channel_info) {
         if (!this->enabled_(channel.index))
@@ -216,103 +216,103 @@ class LvColorPickerType : public LvCompound {
   // Fills in everything that is the same for every colour picker. LVGL keeps only a pointer
   // to a gradient or a style, so one copy serves them all however many are on the screen.
   // Called on the first widget to be built and does nothing after that.
-  static void init_shared_() {
-    if (shared_ready_)
+  static void init_shared() {
+    if (shared_ready)
       return;
-    shared_ready_ = true;
+    shared_ready = true;
 
-    color_bar_.dir = LV_GRAD_DIR_VER;
-    color_bar_.stops_count = 7;
-    color_bar_.stops[0].color = lv_color_hex(0xFF0000);
-    color_bar_.stops[0].opa = LV_OPA_COVER;
-    color_bar_.stops[0].frac = 0;
-    color_bar_.stops[1].color = lv_color_hex(0xFF00FF);
-    color_bar_.stops[1].opa = LV_OPA_COVER;
-    color_bar_.stops[1].frac = 42;
-    color_bar_.stops[2].color = lv_color_hex(0xFF);
-    color_bar_.stops[2].opa = LV_OPA_COVER;
-    color_bar_.stops[2].frac = 84;
-    color_bar_.stops[3].color = lv_color_hex(0xFFFF);
-    color_bar_.stops[3].opa = LV_OPA_COVER;
-    color_bar_.stops[3].frac = 127;
-    color_bar_.stops[4].color = lv_color_hex(0xFF00);
-    color_bar_.stops[4].opa = LV_OPA_COVER;
-    color_bar_.stops[4].frac = 169;
-    color_bar_.stops[5].color = lv_color_hex(0xFFFF00);
-    color_bar_.stops[5].opa = LV_OPA_COVER;
-    color_bar_.stops[5].frac = 212;
-    color_bar_.stops[6].color = lv_color_hex(0xFF0000);
-    color_bar_.stops[6].opa = LV_OPA_COVER;
-    color_bar_.stops[6].frac = 255;
-    brightness_bar_.dir = LV_GRAD_DIR_HOR;
-    brightness_bar_.stops_count = 2;
-    brightness_bar_.stops[0].color = lv_color_hex(0x00);
-    brightness_bar_.stops[0].opa = LV_OPA_COVER;
-    brightness_bar_.stops[0].frac = 0;
-    brightness_bar_.stops[1].color = lv_color_hex(0xFFFFFF);
-    brightness_bar_.stops[1].opa = LV_OPA_COVER;
-    brightness_bar_.stops[1].frac = 255;
-    blue_bar_.dir = LV_GRAD_DIR_VER;
-    blue_bar_.stops_count = 2;
-    blue_bar_.stops[0].color = lv_color_hex(0xFF);
-    blue_bar_.stops[0].opa = LV_OPA_COVER;
-    blue_bar_.stops[0].frac = 0;
-    blue_bar_.stops[1].color = lv_color_hex(0xFFFFFF);
-    blue_bar_.stops[1].opa = LV_OPA_COVER;
-    blue_bar_.stops[1].frac = 255;
-    green_bar_.dir = LV_GRAD_DIR_VER;
-    green_bar_.stops_count = 2;
-    green_bar_.stops[0].color = lv_color_hex(0xFF00);
-    green_bar_.stops[0].opa = LV_OPA_COVER;
-    green_bar_.stops[0].frac = 0;
-    green_bar_.stops[1].color = lv_color_hex(0xFFFFFF);
-    green_bar_.stops[1].opa = LV_OPA_COVER;
-    green_bar_.stops[1].frac = 255;
-    red_bar_.dir = LV_GRAD_DIR_VER;
-    red_bar_.stops_count = 2;
-    red_bar_.stops[0].color = lv_color_hex(0xFF0000);
-    red_bar_.stops[0].opa = LV_OPA_COVER;
-    red_bar_.stops[0].frac = 0;
-    red_bar_.stops[1].color = lv_color_hex(0xFFFFFF);
-    red_bar_.stops[1].opa = LV_OPA_COVER;
-    red_bar_.stops[1].frac = 255;
+    color_bar.dir = LV_GRAD_DIR_VER;
+    color_bar.stops_count = 7;
+    color_bar.stops[0].color = lv_color_hex(0xFF0000);
+    color_bar.stops[0].opa = LV_OPA_COVER;
+    color_bar.stops[0].frac = 0;
+    color_bar.stops[1].color = lv_color_hex(0xFF00FF);
+    color_bar.stops[1].opa = LV_OPA_COVER;
+    color_bar.stops[1].frac = 42;
+    color_bar.stops[2].color = lv_color_hex(0xFF);
+    color_bar.stops[2].opa = LV_OPA_COVER;
+    color_bar.stops[2].frac = 84;
+    color_bar.stops[3].color = lv_color_hex(0xFFFF);
+    color_bar.stops[3].opa = LV_OPA_COVER;
+    color_bar.stops[3].frac = 127;
+    color_bar.stops[4].color = lv_color_hex(0xFF00);
+    color_bar.stops[4].opa = LV_OPA_COVER;
+    color_bar.stops[4].frac = 169;
+    color_bar.stops[5].color = lv_color_hex(0xFFFF00);
+    color_bar.stops[5].opa = LV_OPA_COVER;
+    color_bar.stops[5].frac = 212;
+    color_bar.stops[6].color = lv_color_hex(0xFF0000);
+    color_bar.stops[6].opa = LV_OPA_COVER;
+    color_bar.stops[6].frac = 255;
+    brightness_bar.dir = LV_GRAD_DIR_HOR;
+    brightness_bar.stops_count = 2;
+    brightness_bar.stops[0].color = lv_color_hex(0x00);
+    brightness_bar.stops[0].opa = LV_OPA_COVER;
+    brightness_bar.stops[0].frac = 0;
+    brightness_bar.stops[1].color = lv_color_hex(0xFFFFFF);
+    brightness_bar.stops[1].opa = LV_OPA_COVER;
+    brightness_bar.stops[1].frac = 255;
+    blue_bar.dir = LV_GRAD_DIR_VER;
+    blue_bar.stops_count = 2;
+    blue_bar.stops[0].color = lv_color_hex(0xFF);
+    blue_bar.stops[0].opa = LV_OPA_COVER;
+    blue_bar.stops[0].frac = 0;
+    blue_bar.stops[1].color = lv_color_hex(0xFFFFFF);
+    blue_bar.stops[1].opa = LV_OPA_COVER;
+    blue_bar.stops[1].frac = 255;
+    green_bar.dir = LV_GRAD_DIR_VER;
+    green_bar.stops_count = 2;
+    green_bar.stops[0].color = lv_color_hex(0xFF00);
+    green_bar.stops[0].opa = LV_OPA_COVER;
+    green_bar.stops[0].frac = 0;
+    green_bar.stops[1].color = lv_color_hex(0xFFFFFF);
+    green_bar.stops[1].opa = LV_OPA_COVER;
+    green_bar.stops[1].frac = 255;
+    red_bar.dir = LV_GRAD_DIR_VER;
+    red_bar.stops_count = 2;
+    red_bar.stops[0].color = lv_color_hex(0xFF0000);
+    red_bar.stops[0].opa = LV_OPA_COVER;
+    red_bar.stops[0].frac = 0;
+    red_bar.stops[1].color = lv_color_hex(0xFFFFFF);
+    red_bar.stops[1].opa = LV_OPA_COVER;
+    red_bar.stops[1].frac = 255;
 
-    lv_style_init(&slider_vert_);
-    lv_style_set_align(&slider_vert_, LV_ALIGN_CENTER);
-    lv_style_set_bg_opa(&slider_vert_, LV_OPA_COVER);
-    lv_style_set_height(&slider_vert_, lv_pct(90));
-    lv_style_set_pad_all(&slider_vert_, 0);
-    lv_style_set_radius(&slider_vert_, 0);
-    lv_style_set_width(&slider_vert_, lv_pct(50));
-    lv_style_init(&slider_vert_knob_);
-    lv_style_set_bg_color(&slider_vert_knob_, lv_color_hex(0xFFFFFF));
-    lv_style_set_border_width(&slider_vert_knob_, 1);
-    lv_style_set_outline_color(&slider_vert_knob_, lv_color_hex(0x00));
-    lv_style_set_pad_bottom(&slider_vert_knob_, -KNOB_TRIM);
-    lv_style_set_pad_top(&slider_vert_knob_, -KNOB_TRIM);
-    lv_style_set_pad_left(&slider_vert_knob_, KNOB_OVERHANG);
-    lv_style_set_pad_right(&slider_vert_knob_, KNOB_OVERHANG);
-    lv_style_set_radius(&slider_vert_knob_, 0);
-    lv_style_init(&slider_horz_);
-    lv_style_set_align(&slider_horz_, LV_ALIGN_CENTER);
-    lv_style_set_bg_opa(&slider_horz_, LV_OPA_COVER);
+    lv_style_init(&slider_vert);
+    lv_style_set_align(&slider_vert, LV_ALIGN_CENTER);
+    lv_style_set_bg_opa(&slider_vert, LV_OPA_COVER);
+    lv_style_set_height(&slider_vert, lv_pct(90));
+    lv_style_set_pad_all(&slider_vert, 0);
+    lv_style_set_radius(&slider_vert, 0);
+    lv_style_set_width(&slider_vert, lv_pct(50));
+    lv_style_init(&slider_vert_knob);
+    lv_style_set_bg_color(&slider_vert_knob, lv_color_hex(0xFFFFFF));
+    lv_style_set_border_width(&slider_vert_knob, 1);
+    lv_style_set_outline_color(&slider_vert_knob, lv_color_hex(0x00));
+    lv_style_set_pad_bottom(&slider_vert_knob, -KNOB_TRIM);
+    lv_style_set_pad_top(&slider_vert_knob, -KNOB_TRIM);
+    lv_style_set_pad_left(&slider_vert_knob, KNOB_OVERHANG);
+    lv_style_set_pad_right(&slider_vert_knob, KNOB_OVERHANG);
+    lv_style_set_radius(&slider_vert_knob, 0);
+    lv_style_init(&slider_horz);
+    lv_style_set_align(&slider_horz, LV_ALIGN_CENTER);
+    lv_style_set_bg_opa(&slider_horz, LV_OPA_COVER);
     // LVGL sizes a slider's knob from the thickness of its bar, so the horizontal bars are
     // given the same thickness as the vertical ones to keep every knob the same size. The
     // vertical bars are half the width of a container that is HUE_WIDTH_PCT of the widget,
     // and a horizontal bar's container is ROW_HEIGHT_PCT of its height.
-    lv_style_set_height(&slider_horz_, lv_pct(45));
-    lv_style_set_pad_all(&slider_horz_, 0);
-    lv_style_set_radius(&slider_horz_, 0);
-    lv_style_set_width(&slider_horz_, lv_pct(90));
-    lv_style_init(&slider_horz_knob_);
-    lv_style_set_bg_color(&slider_horz_knob_, lv_color_hex(0xFFFFFF));
-    lv_style_set_border_width(&slider_horz_knob_, 1);
-    lv_style_set_outline_color(&slider_horz_knob_, lv_color_hex(0x00));
-    lv_style_set_pad_left(&slider_horz_knob_, -KNOB_TRIM);
-    lv_style_set_pad_right(&slider_horz_knob_, -KNOB_TRIM);
-    lv_style_set_pad_top(&slider_horz_knob_, KNOB_OVERHANG);
-    lv_style_set_pad_bottom(&slider_horz_knob_, KNOB_OVERHANG);
-    lv_style_set_radius(&slider_horz_knob_, 0);
+    lv_style_set_height(&slider_horz, lv_pct(45));
+    lv_style_set_pad_all(&slider_horz, 0);
+    lv_style_set_radius(&slider_horz, 0);
+    lv_style_set_width(&slider_horz, lv_pct(90));
+    lv_style_init(&slider_horz_knob);
+    lv_style_set_bg_color(&slider_horz_knob, lv_color_hex(0xFFFFFF));
+    lv_style_set_border_width(&slider_horz_knob, 1);
+    lv_style_set_outline_color(&slider_horz_knob, lv_color_hex(0x00));
+    lv_style_set_pad_left(&slider_horz_knob, -KNOB_TRIM);
+    lv_style_set_pad_right(&slider_horz_knob, -KNOB_TRIM);
+    lv_style_set_pad_top(&slider_horz_knob, KNOB_OVERHANG);
+    lv_style_set_pad_bottom(&slider_horz_knob, KNOB_OVERHANG);
+    lv_style_set_radius(&slider_horz_knob, 0);
   }
 
   // The widget needs room for a gradient bar, its knob and a label either side of it, so its
@@ -361,10 +361,10 @@ class LvColorPickerType : public LvCompound {
 
     auto *slider = lv_slider_create(container);
     this->sliders_[index] = slider;
-    lv_obj_add_style(slider, vertical ? &slider_vert_ : &slider_horz_, LV_PART_MAIN);
+    lv_obj_add_style(slider, vertical ? &slider_vert : &slider_horz, LV_PART_MAIN);
     lv_obj_set_style_bg_grad(slider, grad, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(slider, LV_OPA_TRANSP, LV_PART_INDICATOR);
-    lv_obj_add_style(slider, vertical ? &slider_vert_knob_ : &slider_horz_knob_, LV_PART_KNOB);
+    lv_obj_add_style(slider, vertical ? &slider_vert_knob : &slider_horz_knob, LV_PART_KNOB);
     if (vertical)
       lv_obj_set_flex_grow(slider, 1);
     lv_slider_set_range(slider, 0, max);
@@ -537,18 +537,18 @@ class LvColorPickerType : public LvCompound {
     lv_obj_invalidate(this->obj);
   }
 
-  // Shared between every colour picker, set up once by init_shared_(). Only the saturation
+  // Shared between every colour picker, set up once by init_shared(). Only the saturation
   // bar differs from one widget to the next, since its far end follows the chosen hue.
-  inline static bool shared_ready_{false};
-  inline static lv_grad_dsc_t color_bar_{};
-  inline static lv_grad_dsc_t brightness_bar_{};
-  inline static lv_grad_dsc_t blue_bar_{};
-  inline static lv_grad_dsc_t green_bar_{};
-  inline static lv_grad_dsc_t red_bar_{};
-  inline static lv_style_t slider_vert_{};
-  inline static lv_style_t slider_vert_knob_{};
-  inline static lv_style_t slider_horz_{};
-  inline static lv_style_t slider_horz_knob_{};
+  inline static bool shared_ready{false};
+  inline static lv_grad_dsc_t color_bar{};
+  inline static lv_grad_dsc_t brightness_bar{};
+  inline static lv_grad_dsc_t blue_bar{};
+  inline static lv_grad_dsc_t green_bar{};
+  inline static lv_grad_dsc_t red_bar{};
+  inline static lv_style_t slider_vert{};
+  inline static lv_style_t slider_vert_knob{};
+  inline static lv_style_t slider_horz{};
+  inline static lv_style_t slider_horz_knob{};
 
   lv_grad_dsc_t saturation_bar_{};
   // The colour currently shown, kept up to date as the sliders move. Converts to lv_color_t
