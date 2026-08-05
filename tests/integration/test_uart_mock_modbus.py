@@ -216,6 +216,7 @@ async def test_uart_mock_modbus_server_controller(
     expected_values = {
         "reg_u_word": 99,
         "reg_u_word_s": 4660,
+        "reg_u_word_s_raw": 13330,
         "reg_s_word": -99,
         "reg_s_word_s": -2,
         "reg_u_dword": 16909060,
