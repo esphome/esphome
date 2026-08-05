@@ -339,11 +339,9 @@ class StorageJSON:
                     self.framework_version
                 )
             CORE.data[KEY_ESP32] = esp32_data
-        elif CORE.using_zephyr and self.framework_version:
-            CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = _parse_framework_version(
-                self.framework_version
-            )
-        elif target_platform == const.PLATFORM_NRF52 and self.framework_version:
+        elif self.framework_version and (
+            CORE.using_zephyr or target_platform == const.PLATFORM_NRF52
+        ):
             CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = _parse_framework_version(
                 self.framework_version
             )
