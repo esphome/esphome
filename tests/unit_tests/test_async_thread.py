@@ -151,7 +151,7 @@ def test_run_async_on_orphan_skips_none_result() -> None:
 def test_late_failure_without_on_orphan_is_logged(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """An abandoned thread's real error leaves a debug trace."""
+    """An abandoned thread's real error leaves a visible trace."""
     release = threading.Event()
 
     async def coro() -> str:

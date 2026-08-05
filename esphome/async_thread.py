@@ -49,7 +49,7 @@ class AsyncThreadRunner[T](threading.Thread):
     """
 
     def __init__(self, coro_factory: Callable[[], Awaitable[T]]) -> None:
-        super().__init__(daemon=True)
+        super().__init__(daemon=True, name="async-thread-runner")
         self._coro_factory = coro_factory
         self.result: T | None = None
         self.exception: BaseException | None = None
@@ -97,13 +97,16 @@ def run_async[T](
     """Run a coroutine in a daemon-thread event loop and return its result.
 
     The result is available as soon as the coroutine completes; the loop's
-    cleanup cycle finishes in the background. Raises ``TimeoutError`` when
-    the coroutine does not complete within ``timeout`` seconds (the daemon
-    thread is abandoned and exits with the interpreter). If ``on_orphan`` is
+    cleanup cycle finishes in the background. Raises
+    :class:`AsyncDispatchTimeout` (a ``TimeoutError`` subclass, so it stays
+    distinguishable from a timeout raised inside the coroutine) when the
+    coroutine does not complete within ``timeout`` seconds; the daemon
+    thread is abandoned and exits with the interpreter. If ``on_orphan`` is
     given it is called with the result should the abandoned thread produce
     one after the timeout, so resources (e.g. a connected socket) can be
-    released instead of leaking; a ``None`` result is skipped, since there
-    is nothing to release.
+    released instead of leaking. Delivery is best effort and bounded by
+    ``ORPHAN_WAIT_TIMEOUT``; a ``None`` result is skipped, since there is
+    nothing to release.
     """
     runner: AsyncThreadRunner[T] = AsyncThreadRunner(coro_factory)
     runner.start()
