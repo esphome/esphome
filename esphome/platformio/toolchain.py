@@ -370,7 +370,9 @@ def _run_idedata(config):
         raise EsphomeError("Could not launch platformio to get idedata")
     match = re.search(r'{\s*".*}', stdout)
     if match is None:
-        _LOGGER.error("Could not match idedata, please report this error")
+        # A run that launches but fails emits its build error instead of
+        # idedata; the logged stdout is the useful part, not a bug report.
+        _LOGGER.error("Could not find idedata in the platformio output")
         _LOGGER.error("Stdout: %s", stdout)
         raise EsphomeError("PlatformIO did not report idedata")
 
@@ -457,8 +459,10 @@ class IDEData:
                 for entry in self._require("extra", "flash_images")
             ]
         except (KeyError, TypeError) as err:
+            # Covers entries missing path/offset and a null or non-list
+            # flash_images value alike.
             raise EsphomeError(
-                "Cached idedata is incomplete (missing extra.flash_images entry fields)"
+                "Cached idedata is incomplete (malformed extra.flash_images)"
             ) from err
 
     @property
