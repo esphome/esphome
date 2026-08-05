@@ -70,7 +70,7 @@ void M5UnitBldc::update() {
   if (this->status_text_sensor_ != nullptr) {
     uint8_t status;
     if (this->read_register(REG_MOTOR_STATUS, &status, 1) == i2c::ERROR_OK) {
-      const char *status_str = "Unknown";
+      const char *status_str;
       switch (static_cast<MotorStatus>(status)) {
         case MotorStatus::STANDBY:
           status_str = "Standby";
@@ -80,6 +80,9 @@ void M5UnitBldc::update() {
           break;
         case MotorStatus::ERROR:
           status_str = "Error";
+          break;
+        default:
+          status_str = "Unknown";
           break;
       }
       this->status_text_sensor_->publish_state(status_str);
