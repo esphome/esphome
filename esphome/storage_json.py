@@ -7,9 +7,6 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from datetime import datetime
-
 from esphome import const
 from esphome.const import (
     CONF_DISABLED,
@@ -26,6 +23,9 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError, Version
 from esphome.helpers import write_file_if_changed
 from esphome.types import CoreType
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 _LOGGER = logging.getLogger(__name__)
 
