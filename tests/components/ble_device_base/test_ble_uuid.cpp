@@ -38,6 +38,24 @@ TEST(BleDeviceUuid, DefaultConstructedIsUnset) {
   EXPECT_FALSE(unset.contains(0x00, 0x00));
 }
 
+// Every factory yields a set (non-UNSET) UUID. Together with the two tests above this pins
+// the equivalence between the historical get_uuid().len > 0 sentinel and type() != UNSET:
+// exactly default construction and text parse failure are unset, everything else is set,
+// including an explicitly configured 0x0000. (The UNSET -> len 0 mapping itself lives in the
+// esp32-only get_uuid() adapter, which host tests cannot compile.)
+TEST(BleDeviceUuid, AllFactoriesProduceSetUuids) {
+  const uint8_t raw[16] = {0xFB, 0x34, 0x9B, 0x5F, 0x80, 0x00, 0x00, 0x80,
+                           0x00, 0x10, 0x00, 0x00, 0x34, 0x12, 0x00, 0x00};
+  EXPECT_NE(ESPBTUUID::from_uint16(0x0000).type(), ESPBTUUID::Type::UNSET);
+  EXPECT_NE(ESPBTUUID::from_uint32(0).type(), ESPBTUUID::Type::UNSET);
+  EXPECT_NE(ESPBTUUID::from_raw(raw).type(), ESPBTUUID::Type::UNSET);
+  EXPECT_NE(ESPBTUUID::from_raw_reversed(raw).type(), ESPBTUUID::Type::UNSET);
+  EXPECT_NE(ESPBTUUID::from_raw("180F", 4).type(), ESPBTUUID::Type::UNSET);
+  EXPECT_NE(ESPBTUUID::from_raw("0000180F", 8).type(), ESPBTUUID::Type::UNSET);
+  EXPECT_NE(ESPBTUUID::from_raw(reinterpret_cast<const char *>(raw), 16).type(), ESPBTUUID::Type::UNSET);
+  EXPECT_NE(ESPBTUUID::from_raw("6E400001-B5A3-F393-E0A9-E50E24DCCA9E").type(), ESPBTUUID::Type::UNSET);
+}
+
 // UNSET expands to the base UUID like a 16-bit 0x0000 (the historical len-0 expansion),
 // so it compares equal to a configured 0x0000. Pinned on purpose: optional-UUID consumers
 // must distinguish "not configured" via type(), never via equality.
