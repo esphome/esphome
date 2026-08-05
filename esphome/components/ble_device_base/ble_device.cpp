@@ -247,7 +247,7 @@ bool ESPBTUUID::operator==(const ESPBTUUID &other) const {
 
 ESPBLEiBeacon::ESPBLEiBeacon(const uint8_t *data) { memcpy(&this->beacon_data_, data, sizeof(this->beacon_data_)); }
 
-optional<ESPBLEiBeacon> ESPBLEiBeacon::from_manufacturer_data(const ServiceData &data) {
+optional<ESPBLEiBeacon> ESPBLEiBeacon::from_manufacturer_data(const ServiceData &data, bool *prefix_rejected) {
   // iBeacon manufacturer specific data (after company-ID bytes have been stripped):
   //   [0x02][0x15][16-byte UUID][2-byte major][2-byte minor][1-byte power] = exactly 23 bytes
   if (!data.uuid.contains(0x4C, 0x00))  // Apple company ID 0x004C
@@ -258,17 +258,32 @@ optional<ESPBLEiBeacon> ESPBLEiBeacon::from_manufacturer_data(const ServiceData 
   // esp32 parser, which accepted any 23-byte Apple payload and surfaced
   // non-iBeacon frames as garbage beacons.
   if (data.data[0] != 0x02 || data.data[1] != 0x15) {
-    // Once per boot at the default log level: these frames were accepted
-    // before the prefix check, so their disappearance must be observable.
-    static bool logged = false;
-    if (!logged) {
-      logged = true;
-      ESP_LOGD(TAG, "23-byte Apple frame without iBeacon prefix rejected (sub-type 0x%02X len 0x%02X)", data.data[0],
-               data.data[1]);
-    }
+    if (prefix_rejected != nullptr)
+      *prefix_rejected = true;
     return {};
   }
   return ESPBLEiBeacon(data.data.data());
+}
+
+optional<ESPBLEiBeacon> ESPBTDevice::get_ibeacon() const {
+  for (const auto &it : this->manufacturer_datas_) {
+    bool prefix_rejected = false;
+    auto res = ESPBLEiBeacon::from_manufacturer_data(it, &prefix_rejected);
+    if (prefix_rejected) {
+      // These frames were accepted before the prefix check, so their
+      // disappearance must be observable at the default log level; bounded so
+      // a chatty non-iBeacon Apple advertiser cannot flood the log.
+      static uint8_t logged = 0;
+      if (logged < 3) {
+        logged++;
+        ESP_LOGD(TAG, "%s: 23-byte Apple frame without iBeacon prefix ignored (sub-type 0x%02X len 0x%02X)",
+                 this->address_str().c_str(), it.data[0], it.data[1]);
+      }
+    }
+    if (res.has_value())
+      return res;
+  }
+  return {};
 }
 
 // ---------------------------------------------------------------------------

@@ -196,5 +196,9 @@ def test_add_service_uuid_dispatches_by_width(monkeypatch: pytest.MonkeyPatch) -
     assert "set_service_uuid16" in emitted[0]
     assert "set_service_uuid32" in emitted[1]
     assert "set_service_uuid128" in emitted[2]
+    # BLE wire order: the 128-bit array must be byte-reversed — as_hex_array
+    # in its place would still emit the right setter name and silently never
+    # match on-air.
+    assert "0x00,0xff,0xee,0xdd" in emitted[2]
     with pytest.raises(ValueError, match="Unsupported UUID format"):
         ble_device_base.add_service_uuid(var, "123")

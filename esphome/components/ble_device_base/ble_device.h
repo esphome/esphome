@@ -126,7 +126,10 @@ class ESPBLEiBeacon {
  public:
   ESPBLEiBeacon() { memset(&this->beacon_data_, 0, sizeof(this->beacon_data_)); }
   explicit ESPBLEiBeacon(const uint8_t *data);
-  static optional<ESPBLEiBeacon> from_manufacturer_data(const ServiceData &data);
+  /// prefix_rejected (optional) is set when a 23-byte Apple frame was refused
+  /// only for lacking the 0x02/0x15 iBeacon prefix — the case the legacy esp32
+  /// parser accepted; the caller with the device address does the logging.
+  static optional<ESPBLEiBeacon> from_manufacturer_data(const ServiceData &data, bool *prefix_rejected = nullptr);
 
   uint16_t get_major() const { return byteswap(this->beacon_data_.major); }
   uint16_t get_minor() const { return byteswap(this->beacon_data_.minor); }
@@ -219,14 +222,7 @@ class ESPBTDevice {
   /// decryptor; compiled only when a sensor configures irk: (request_irk_support).
   bool resolve_irk(const uint8_t *irk) const;
 
-  optional<ESPBLEiBeacon> get_ibeacon() const {
-    for (const auto &it : this->manufacturer_datas_) {
-      auto res = ESPBLEiBeacon::from_manufacturer_data(it);
-      if (res.has_value())
-        return res;
-    }
-    return {};
-  }
+  optional<ESPBLEiBeacon> get_ibeacon() const;
 
  protected:
   void parse_adv_(const uint8_t *payload, uint16_t len);
