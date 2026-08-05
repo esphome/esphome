@@ -91,8 +91,11 @@ class ESPBTUUID {
 #if defined(__cpp_lib_span)
   const char *to_str(std::span<char, UUID_STR_LEN> output) const { return this->to_str(output.data()); }
 #endif
-  enum class Type : uint8_t { UUID16, UUID32, UUID128 };
+  // UNSET is the default-constructed state; get_uuid() reports it as len 0 (the historical sentinel).
+  enum class Type : uint8_t { UNSET, UUID16, UUID32, UUID128 };
   Type type() const { return this->type_; }
+  /// True if a UUID has been configured (not default-constructed).
+  bool is_set() const { return this->type_ != Type::UNSET; }
   uint16_t uuid16() const { return this->uuid_.uuid16; }
   uint32_t uuid32() const { return this->uuid_.uuid32; }
   const uint8_t *uuid128() const { return this->uuid_.uuid128; }
@@ -101,7 +104,7 @@ class ESPBTUUID {
   // Expand to the 128-bit Bluetooth Base UUID byte form (out is 16 bytes, little-endian).
   void to_128bit_(uint8_t out[16]) const;
 
-  Type type_{Type::UUID16};
+  Type type_{Type::UNSET};
   union {
     uint16_t uuid16;
     uint32_t uuid32;
