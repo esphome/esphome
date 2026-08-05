@@ -2697,14 +2697,10 @@ async def to_code(config):
         external_rsa = scheme == "rsa3072" and CONF_SIGNING_KEY not in signed_ota
         verification_keys = signed_ota.get(CONF_VERIFICATION_KEYS)
         # verification_keys is only accepted for external RSA (enforced in
-        # _validate_signed_ota_keys); re-assert it here so a future validation
+        # _validate_signed_ota_keys); assert the invariant so a future validation
         # change can't silently drop the declared trust anchor and downgrade to
         # IDF's single-block check.
-        if verification_keys and not external_rsa:
-            raise cv.Invalid(
-                f"'{CONF_VERIFICATION_KEYS}' requires external RSA signing "
-                f"('{CONF_SIGNING_SCHEME}: rsa3072' with no '{CONF_SIGNING_KEY}')."
-            )
+        assert not verification_keys or external_rsa
         multi_key = external_rsa and verification_keys
         # Turning IDF's on-update check off is global -- it also drops the
         # signature check from esp_ota_set_boot_partition() on the partition-table
