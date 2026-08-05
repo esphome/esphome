@@ -329,3 +329,43 @@ def test_generator_raising_on_the_probe_is_contained(
     assert mock_download.call_count == 10
     assert "Remote file prefetch for my_comp failed" in caplog.text
     assert "stopped after" not in caplog.text
+
+
+def test_unexpected_download_error_is_logged_visibly(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A broken batch downloader warns instead of silently disabling prefetch."""
+
+    def hook(entries: list[dict]) -> Iterable[list[RemoteFile]]:
+        yield [RemoteFile("url", Path("/p"))]
+
+    result, mock_download = _run_step(
+        {"my_comp": {"x": 1}},
+        {"my_comp": _component(prefetch=hook)},
+        download_side_effect=TypeError("not a RemoteFile"),
+    )
+
+    mock_download.assert_called_once()
+    assert not result.errors
+    assert "Remote file prefetch failed" in caplog.text
+
+
+def test_raising_close_is_contained(caplog: pytest.LogCaptureFixture) -> None:
+    """A generator whose close() raises cannot fail validation."""
+
+    def hook(entries: list[dict]) -> Iterable[list[RemoteFile]]:
+        try:
+            n = 0
+            while True:
+                yield [RemoteFile(f"url-{n}", Path(f"/f{n}"))]
+                n += 1
+        finally:
+            raise RuntimeError("finally exploded")
+
+    _, mock_download = _run_step(
+        {"my_comp": {"x": 1}},
+        {"my_comp": _component(prefetch=hook)},
+    )
+
+    assert mock_download.call_count == 10
+    assert "stopped after" in caplog.text

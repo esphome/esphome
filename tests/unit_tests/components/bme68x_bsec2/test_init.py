@@ -53,3 +53,12 @@ def test_prefetch_matches_validator_url(setup_core: Path) -> None:
     }
     [files] = list(bsec.PREFETCH_FILES([dict(validated)]))
     assert files[0].url == bsec._compute_url(validated)
+
+
+def test_hook_is_wired_to_the_user_facing_domain() -> None:
+    """The i2c domain (the only user-facing one) exposes the hook."""
+    from esphome.loader import get_component
+
+    component = get_component("bme68x_bsec2_i2c")
+    assert component is not None
+    assert component.prefetch_files is bsec.PREFETCH_FILES

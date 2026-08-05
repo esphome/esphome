@@ -318,11 +318,13 @@ def download_content_many(
     timeout: int = NETWORK_TIMEOUT,
     max_workers: int = DEFAULT_DOWNLOAD_WORKERS,
     description: str = "remote file(s)",
+    allow_stale: bool = True,
 ) -> None:
     """Run `download_content` for each `RemoteFile` concurrently.
 
     `description` names the kind of files in the progress log line, e.g.
-    "wake word manifest(s)".
+    "wake word manifest(s)". `allow_stale` is forwarded to
+    `download_content` for every file.
 
     Wall time drops from `sum(latency)` to roughly `max(latency)` for cached
     files where the HEAD round-trip dominates. All workers run to
@@ -345,14 +347,14 @@ def download_content_many(
     _LOGGER.info("Checking %d %s for updates", len(seen), description)
     if len(seen) == 1:
         path, url = next(iter(seen.items()))
-        download_content(url, path, timeout)
+        download_content(url, path, timeout, allow_stale=allow_stale)
         return
 
     def _download_one(path_url: tuple[Path, str]) -> None:
         # `seen` stores entries as (path, url) so the dict can dedupe by
         # path; flip them back to download_content's (url, path) order.
         path, url = path_url
-        download_content(url, path, timeout)
+        download_content(url, path, timeout, allow_stale=allow_stale)
 
     workers = max(1, min(max_workers, len(seen)))
     errors: list[cv.Invalid] = []

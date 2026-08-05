@@ -592,7 +592,7 @@ def test_download_content_many_single_item_avoids_pool(
     )
     external_files.download_content_many([item])
     mock_download_content.assert_called_once_with(
-        item.url, item.path, external_files.NETWORK_TIMEOUT
+        item.url, item.path, external_files.NETWORK_TIMEOUT, allow_stale=True
     )
 
 
@@ -604,7 +604,9 @@ def test_download_content_many_runs_in_parallel(
 
     barrier = threading.Barrier(3)
 
-    def slow_download(url: str, path: Path, timeout: int) -> bytes:
+    def slow_download(
+        url: str, path: Path, timeout: int, allow_stale: bool = True
+    ) -> bytes:
         # If calls were serial this would deadlock (third caller never arrives
         # while the first is blocked at the barrier).
         barrier.wait(timeout=2.0)
@@ -627,7 +629,9 @@ def test_download_content_many_propagates_single_error(
     it in a `MultipleInvalid` that the caller would have to unpack.
     """
 
-    def fake_download(url: str, path: Path, timeout: int) -> bytes:
+    def fake_download(
+        url: str, path: Path, timeout: int, allow_stale: bool = True
+    ) -> bytes:
         if url.endswith("bad"):
             raise Invalid(f"could not download {url}")
         return b""
@@ -650,7 +654,9 @@ def test_download_content_many_aggregates_multiple_errors(
     them one network round-trip at a time.
     """
 
-    def fake_download(url: str, path: Path, timeout: int) -> bytes:
+    def fake_download(
+        url: str, path: Path, timeout: int, allow_stale: bool = True
+    ) -> bytes:
         if url.endswith("ok"):
             return b""
         raise Invalid(f"could not download {url}")
@@ -982,3 +988,22 @@ def test_allow_stale_false_rejects_head_failure_fallback(
     with pytest.raises(Invalid, match="cannot be verified"):
         external_files.download_content(url, test_file, allow_stale=False)
     mock_requests_get.assert_not_called()
+
+
+def test_download_content_many_forwards_allow_stale(
+    mock_download_content: MagicMock, setup_core: Path
+) -> None:
+    """allow_stale reaches download_content on both dispatch paths."""
+    single = [external_files.RemoteFile("https://example.com/a", setup_core / "a")]
+    external_files.download_content_many(single, allow_stale=False)
+    assert mock_download_content.call_args.kwargs["allow_stale"] is False
+
+    many = [
+        external_files.RemoteFile("https://example.com/b", setup_core / "b"),
+        external_files.RemoteFile("https://example.com/c", setup_core / "c"),
+    ]
+    external_files.download_content_many(many, allow_stale=False)
+    assert all(
+        call.kwargs["allow_stale"] is False
+        for call in mock_download_content.call_args_list[1:]
+    )

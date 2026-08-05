@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import abc
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 import contextvars
 import copy
 import functools
@@ -843,7 +843,11 @@ class PrefetchRemoteFilesValidationStep(ConfigValidationStep):
                 _MAX_PREFETCH_STAGES,
             )
             if (close := getattr(generator, "close", None)) is not None:
-                close()
+                # close() itself runs hook code (finally blocks, or a
+                # generator ignoring GeneratorExit) and must not fail
+                # validation either.
+                with suppress(Exception):
+                    close()
 
     @staticmethod
     def _download(items: list[RemoteFile]) -> None:
@@ -855,10 +859,15 @@ class PrefetchRemoteFilesValidationStep(ConfigValidationStep):
 
         try:
             external_files.download_content_many(items, description="remote file(s)")
-        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
+        except cv.Invalid as err:
             # Best-effort warming; the per-entry validator surfaces the
             # per-run memoized failure with the correct config path.
             _LOGGER.debug("Remote file prefetch download failed: %s", err)
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
+            # Anything else means the batch downloader itself broke, which
+            # would silently disable prefetching; make it visible.
+            _LOGGER.warning("Remote file prefetch failed: %s", err)
+            _LOGGER.debug("Prefetch download traceback", exc_info=err)
 
 
 class MetadataValidationStep(ConfigValidationStep):

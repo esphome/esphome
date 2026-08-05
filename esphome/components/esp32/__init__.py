@@ -3303,9 +3303,17 @@ def copy_files():
             downloads.append(external_files.RemoteFile(url, cache_path))
             sources[name] = cache_path
         try:
+            # Nothing downstream verifies these bytes, so a copy that could
+            # not be revalidated is an error rather than a silent fallback,
+            # matching the old always-download behavior on network failure.
             external_files.download_content_many(
-                downloads, description="extra build file(s)"
+                downloads, description="extra build file(s)", allow_stale=False
             )
+        except cv.MultipleInvalid as e:
+            details = "; ".join(str(err) for err in e.errors)
+            raise EsphomeError(
+                f"Could not download extra build file(s): {details}"
+            ) from e
         except cv.Invalid as e:
             raise EsphomeError(f"Could not download extra build file(s): {e}") from e
     for name, source in sources.items():
