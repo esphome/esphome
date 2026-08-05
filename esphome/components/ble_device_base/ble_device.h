@@ -85,8 +85,8 @@ class ESPBTUUID {
   bool operator==(const ESPBTUUID &other) const;
   bool operator!=(const ESPBTUUID &other) const { return !(*this == other); }
 
-  /// Write "0xABCD" / "0xABCDEF01" / the dashed 128-bit form into buf
-  /// (>= UUID_STR_LEN bytes) and return buf.
+  /// Write "0xABCD" / "0xABCDEF01" / the dashed 128-bit form, or "None" for an
+  /// unset UUID, into buf (>= UUID_STR_LEN bytes) and return buf.
   const char *to_str(char *buf) const;
 #if defined(__cpp_lib_span)
   const char *to_str(std::span<char, UUID_STR_LEN> output) const { return this->to_str(output.data()); }
