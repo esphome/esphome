@@ -569,21 +569,16 @@ void ZigbeeProxy::handle_retransmission_() {
   this->start_ack_timer_();
 }
 
-// Boot-time NCP initialization sequence
-// Sequence: RST -> RSTACK -> version() -> setConfigurationValue(STACK_PROFILE) ->
-//           networkInit() -> stackStatus -> getNetworkParameters() -> getEui64() ->
-//           RST -> RSTACK
+// Boot-time NCP metadata harvest
+// Sequence: RST -> RSTACK -> version() -> getTokenData(NVM3KEY_STACK_NODE_DATA) ->
+//           getEui64() -> RST -> RSTACK
 //
-// The stack profile must be set before networkInit. The NCP boots with profile 0,
-// and on profile 0 it reports NOT_JOINED for a node that is joined, which makes
-// getNetworkParameters fail and leaves PAN ID and channel unreadable. Verified by
-// bisecting bellows' config writes against a ZBT-2 on a known network: profile 2
-// alone flips networkInit from NOT_JOINED to OK, and none of the other values
-// bellows writes make any difference.
-//
-// getEui64 comes last, after networkInit has brought the stack up: asking earlier
-// makes the NCP answer with error frame 0x0058 instead of the address. bellows
-// orders it the same way.
+// Both values are read with the stack left down. The alternative -- set the stack
+// profile, call networkInit, wait for a stackStatusHandler callback announcing
+// NETWORK_UP, then call getNetworkParameters -- does work, but it joins the network
+// just to read four fields, so merely powering the device on brings the radio up.
+// Reading the NVM3 token needs none of it, and getEui64 answers with the stack down
+// as well, so nothing in this sequence starts the stack.
 
 void ZigbeeProxy::advance_boot_state_() {
   switch (this->boot_state_) {
@@ -592,24 +587,14 @@ void ZigbeeProxy::advance_boot_state_() {
       this->boot_state_ = BootState::WAIT_VERSION;
       break;
 
+    case BootState::SEND_TOKEN_DATA:
+      this->send_get_token_data_();
+      this->boot_state_ = BootState::WAIT_TOKEN_DATA;
+      break;
+
     case BootState::SEND_GET_EUI64:
       this->send_get_eui64_();
       this->boot_state_ = BootState::WAIT_EUI64;
-      break;
-
-    case BootState::SEND_STACK_PROFILE:
-      this->send_stack_profile_();
-      this->boot_state_ = BootState::WAIT_STACK_PROFILE;
-      break;
-
-    case BootState::SEND_NETWORK_INIT:
-      this->send_network_init_();
-      this->boot_state_ = BootState::WAIT_STACK_STATUS;
-      break;
-
-    case BootState::SEND_GET_NETWORK_PARAMS:
-      this->send_get_network_params_();
-      this->boot_state_ = BootState::WAIT_NETWORK_PARAMS;
       break;
 
     case BootState::SEND_FINAL_RST:
@@ -684,46 +669,9 @@ void ZigbeeProxy::handle_boot_data_frame_(const uint8_t *data, size_t length) {
       }
       break;
 
-    case BootState::WAIT_STACK_PROFILE:
-      if (frame_id == EZSP_SET_CONFIGURATION_VALUE && is_response) {
-        // Response is an EzspStatus, not an sl_status_t. A failure here is not fatal:
-        // networkInit will report NOT_JOINED and the harvest still yields the IEEE
-        // address, so log it and carry on rather than abandoning the sequence.
-        if (payload_length >= 1 && payload[0] != 0x00) {
-          ESP_LOGW(TAG, "setConfigurationValue(CONFIG_STACK_PROFILE) failed: 0x%02X", payload[0]);
-        }
-        this->boot_state_ = BootState::SEND_NETWORK_INIT;
-        this->advance_boot_state_();
-      }
-      break;
-
-    case BootState::WAIT_STACK_STATUS:
-      if (frame_id == EZSP_STACK_STATUS_HANDLER && is_callback) {
-        this->handle_stack_status_(payload, payload_length);
-      } else if (frame_id == EZSP_NETWORK_INIT && is_response) {
-        // networkInit response carries a 32-bit sl_status_t. It only reports that the
-        // request was accepted -- the stack comes up asynchronously afterwards and
-        // announces itself with a stackStatusHandler callback. Querying network
-        // parameters here, before that callback, races the stack and the NCP answers
-        // NOT_JOINED even when the radio is on a network.
-        if (payload_length >= 1) {
-          uint8_t status = payload[0];
-          ESP_LOGV(TAG, "networkInit response: status=0x%02X", status);
-          if (status == static_cast<uint8_t>(SlStatus::NOT_JOINED)) {
-            // No network to bring up, so no callback is coming
-            ESP_LOGD(TAG, "NCP has no network configured");
-            this->boot_state_ = BootState::SEND_GET_EUI64;
-            this->advance_boot_state_();
-          }
-          // Otherwise stay in WAIT_STACK_STATUS for the callback; the boot timeout
-          // guarantees forward progress if it never arrives.
-        }
-      }
-      break;
-
-    case BootState::WAIT_NETWORK_PARAMS:
-      if (frame_id == EZSP_GET_NETWORK_PARAMETERS && is_response) {
-        this->handle_network_params_response_(payload, payload_length);
+    case BootState::WAIT_TOKEN_DATA:
+      if (frame_id == EZSP_GET_TOKEN_DATA && is_response) {
+        this->handle_token_data_response_(payload, payload_length);
       }
       break;
 
@@ -764,48 +712,25 @@ void ZigbeeProxy::send_get_eui64_() {
   this->send_data_frame_(cmd, sizeof(cmd), false);
 }
 
-void ZigbeeProxy::send_stack_profile_() {
+void ZigbeeProxy::send_get_token_data_() {
+  // getTokenData takes a 32-bit NVM3 key and a 32-bit index, both little-endian.
   uint8_t cmd[] = {
-      this->ezsp_sequence_++,                            // Sequence
-      EZSP_FRAME_CONTROL_COMMAND,                        // Frame control (low)
-      EZSP_FRAME_CONTROL_EXTENDED,                       // Frame control (high)
-      EZSP_SET_CONFIGURATION_VALUE & 0xFF,               // Frame ID (low)
-      (EZSP_SET_CONFIGURATION_VALUE >> 8) & 0xFF,        // Frame ID (high)
-      EZSP_CONFIG_STACK_PROFILE,                         // configId
-      STACK_PROFILE_ZIGBEE_PRO & 0xFF,                   // value (low)
-      (STACK_PROFILE_ZIGBEE_PRO >> 8) & 0xFF,            // value (high)
+      this->ezsp_sequence_++,                  // Sequence
+      EZSP_FRAME_CONTROL_COMMAND,              // Frame control (low)
+      EZSP_FRAME_CONTROL_EXTENDED,             // Frame control (high)
+      EZSP_GET_TOKEN_DATA & 0xFF,              // Frame ID (low)
+      (EZSP_GET_TOKEN_DATA >> 8) & 0xFF,       // Frame ID (high)
+      NVM3KEY_STACK_NODE_DATA & 0xFF,          // token
+      (NVM3KEY_STACK_NODE_DATA >> 8) & 0xFF,   //
+      (NVM3KEY_STACK_NODE_DATA >> 16) & 0xFF,  //
+      (NVM3KEY_STACK_NODE_DATA >> 24) & 0xFF,  //
+      0x00,                                    // index
+      0x00,                                    //
+      0x00,                                    //
+      0x00,                                    //
   };
   ash_randomize(cmd, sizeof(cmd));
-  ESP_LOGV(TAG, "Sending EZSP setConfigurationValue(CONFIG_STACK_PROFILE, 2)");
-  this->send_data_frame_(cmd, sizeof(cmd), false);
-}
-
-void ZigbeeProxy::send_network_init_() {
-  // networkInitStruct: [bitmask (2 bytes)] - use 0x0000 for default
-  uint8_t cmd[] = {
-      this->ezsp_sequence_++,           // Sequence
-      EZSP_FRAME_CONTROL_COMMAND,       // Frame control (low)
-      EZSP_FRAME_CONTROL_EXTENDED,      // Frame control (high)
-      EZSP_NETWORK_INIT & 0xFF,         // Frame ID (low)
-      (EZSP_NETWORK_INIT >> 8) & 0xFF,  // Frame ID (high)
-      0x00,                             // networkInitStruct bitmask (default)
-      0x00,
-  };
-  ash_randomize(cmd, sizeof(cmd));
-  ESP_LOGV(TAG, "Sending EZSP networkInit command");
-  this->send_data_frame_(cmd, sizeof(cmd), false);
-}
-
-void ZigbeeProxy::send_get_network_params_() {
-  uint8_t cmd[] = {
-      this->ezsp_sequence_++,                      // Sequence
-      EZSP_FRAME_CONTROL_COMMAND,                  // Frame control (low)
-      EZSP_FRAME_CONTROL_EXTENDED,                 // Frame control (high)
-      EZSP_GET_NETWORK_PARAMETERS & 0xFF,          // Frame ID (low)
-      (EZSP_GET_NETWORK_PARAMETERS >> 8) & 0xFF,   // Frame ID (high)
-  };
-  ash_randomize(cmd, sizeof(cmd));
-  ESP_LOGV(TAG, "Sending EZSP getNetworkParameters command");
+  ESP_LOGV(TAG, "Sending EZSP getTokenData(NVM3KEY_STACK_NODE_DATA)");
   this->send_data_frame_(cmd, sizeof(cmd), false);
 }
 
@@ -835,7 +760,7 @@ void ZigbeeProxy::handle_version_response_(const uint8_t *data, size_t length) {
       // NCP accepted our requested version - treat as success
       ESP_LOGV(TAG, "NCP accepted EZSP v%d", ncp_version);
       this->ezsp_version_ = ncp_version;
-      this->boot_state_ = BootState::SEND_STACK_PROFILE;
+      this->boot_state_ = BootState::SEND_TOKEN_DATA;
       this->advance_boot_state_();
       return;
     }
@@ -901,7 +826,7 @@ void ZigbeeProxy::handle_version_response_(const uint8_t *data, size_t length) {
     return;
   }
 
-  this->boot_state_ = BootState::SEND_STACK_PROFILE;
+  this->boot_state_ = BootState::SEND_TOKEN_DATA;
   this->advance_boot_state_();
 }
 
@@ -917,69 +842,38 @@ void ZigbeeProxy::handle_eui64_response_(const uint8_t *data, size_t length) {
   this->advance_boot_state_();
 }
 
-void ZigbeeProxy::handle_stack_status_(const uint8_t *data, size_t length) {
-  // stackStatusHandler callback: [status]
-  if (length < 1) {
-    ESP_LOGW(TAG, "Stack status too short");
-    return;
-  }
-
-  uint8_t status = data[0];
-  ESP_LOGV(TAG, "Stack status: 0x%02X", status);
-
-  // Check for network up status
-  if (status == static_cast<uint8_t>(SlStatus::NETWORK_UP) || status == static_cast<uint8_t>(SlStatus::OK)) {
-    ESP_LOGV(TAG, "Network is up, querying parameters");
-    this->boot_state_ = BootState::SEND_GET_NETWORK_PARAMS;
-    this->advance_boot_state_();
-  } else if (status == static_cast<uint8_t>(SlStatus::NOT_JOINED)) {
-    // No network configured, so there are no parameters to read -- but still read
-    // the EUI64. It is a hardware address that exists regardless of membership, and
-    // it is what lets a client tell an unformed radio apart from an unreachable one.
-    ESP_LOGD(TAG, "No network configured on NCP");
-    this->boot_state_ = BootState::SEND_GET_EUI64;
-    this->advance_boot_state_();
-  } else {
-    ESP_LOGW(TAG, "Unexpected stack status: 0x%02X, continuing anyway", status);
-    // Try to get network params anyway
-    this->boot_state_ = BootState::SEND_GET_NETWORK_PARAMS;
-    this->advance_boot_state_();
-  }
-}
-
-void ZigbeeProxy::handle_network_params_response_(const uint8_t *data, size_t length) {
-  // getNetworkParameters response:
-  // [status] [nodeType] [extendedPanId (8)] [panId (2)] [radioTxPower] [radioChannel] ...
-  // A 1-byte response (status only) is normal when the NCP has no network configured.
-  if (length < NETWORK_PARAMS_RESPONSE_SIZE) {
-    if (length <= SL_STATUS_SIZE) {
-      ESP_LOGD(TAG, "NCP has no network configured (status=0x%02X)", data[0]);
-    } else {
-      ESP_LOGW(TAG, "getNetworkParameters response unexpected length: %u bytes", length);
-    }
+void ZigbeeProxy::handle_token_data_response_(const uint8_t *data, size_t length) {
+  // getTokenData response: [status (4)] [length (4)] [value (length)]
+  // The EUI64 read follows regardless of what happens here: it is a hardware address
+  // that exists whether or not the radio is commissioned, and it is what lets a client
+  // tell an unformed radio apart from an unreachable one.
+  if (length < TOKEN_DATA_VALUE_OFFSET + NV3_NODE_DATA_SIZE) {
+    ESP_LOGW(TAG, "getTokenData response too short: %u bytes", length);
     this->boot_state_ = BootState::SEND_GET_EUI64;
     this->advance_boot_state_();
     return;
   }
 
-  uint8_t status = data[NETWORK_PARAMS_STATUS_OFFSET];
-  if (status != static_cast<uint8_t>(SlStatus::OK)) {
-    ESP_LOGW(TAG, "getNetworkParameters failed with status: 0x%02X", status);
+  if (data[0] != static_cast<uint8_t>(SlStatus::OK)) {
+    ESP_LOGW(TAG, "getTokenData(NVM3KEY_STACK_NODE_DATA) failed: 0x%02X", data[0]);
     this->boot_state_ = BootState::SEND_GET_EUI64;
     this->advance_boot_state_();
     return;
   }
 
-  // Extract Extended PAN ID (8 bytes, little-endian)
-  memcpy(this->network_info_.extended_pan_id.data(), data + NETWORK_PARAMS_EXT_PAN_ID_OFFSET, 8);
+  const uint8_t *node_data = data + TOKEN_DATA_VALUE_OFFSET;
 
-  // Extract PAN ID (2 bytes, little-endian)
+  if (node_data[NV3_NODE_DATA_NODE_TYPE_OFFSET] == NV3_NODE_TYPE_UNKNOWN_DEVICE) {
+    ESP_LOGD(TAG, "NCP has no network configured");
+    this->boot_state_ = BootState::SEND_GET_EUI64;
+    this->advance_boot_state_();
+    return;
+  }
+
+  memcpy(this->network_info_.extended_pan_id.data(), node_data + NV3_NODE_DATA_EXT_PAN_ID_OFFSET, 8);
   this->network_info_.pan_id =
-      data[NETWORK_PARAMS_PAN_ID_OFFSET] | (static_cast<uint16_t>(data[NETWORK_PARAMS_PAN_ID_OFFSET + 1]) << 8);
-
-  // Extract channel
-  this->network_info_.channel = data[NETWORK_PARAMS_CHANNEL_OFFSET];
-
+      node_data[NV3_NODE_DATA_PAN_ID_OFFSET] | (static_cast<uint16_t>(node_data[NV3_NODE_DATA_PAN_ID_OFFSET + 1]) << 8);
+  this->network_info_.channel = node_data[NV3_NODE_DATA_CHANNEL_OFFSET];
   this->network_info_.valid = true;
   this->send_network_info_changed_msg_();
 
@@ -994,7 +888,6 @@ void ZigbeeProxy::handle_network_params_response_(const uint8_t *data, size_t le
            this->network_info_.extended_pan_id[1], this->network_info_.extended_pan_id[0], this->network_info_.pan_id,
            this->network_info_.channel);
 
-  // The stack is up, so the EUI64 can finally be read
   this->boot_state_ = BootState::SEND_GET_EUI64;
   this->advance_boot_state_();
 }

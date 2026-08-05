@@ -47,22 +47,18 @@ enum ZigbeeProxyFeature : uint32_t {
 
 // Boot-time initialization state machine
 enum class BootState : uint8_t {
-  IDLE,                     // Not initializing
-  WAIT_RSTACK,              // Sent RST, waiting for RSTACK
-  SEND_VERSION,             // Send EZSP version command
-  WAIT_VERSION,             // Waiting for version response
-  SEND_GET_EUI64,           // Send getEui64 command
-  WAIT_EUI64,               // Waiting for EUI64 response
-  SEND_STACK_PROFILE,       // Send setConfigurationValue(CONFIG_STACK_PROFILE)
-  WAIT_STACK_PROFILE,       // Waiting for setConfigurationValue response
-  SEND_NETWORK_INIT,        // Send networkInit command
-  WAIT_STACK_STATUS,        // Waiting for stackStatusHandler callback
-  SEND_GET_NETWORK_PARAMS,  // Send getNetworkParameters command
-  WAIT_NETWORK_PARAMS,      // Waiting for network parameters response
-  SEND_FINAL_RST,           // Send final RST to reset NCP
-  WAIT_FINAL_RSTACK,        // Waiting for final RSTACK
-  COMPLETE,                 // Boot sequence complete
-  FAILED,                   // Boot sequence failed
+  IDLE,               // Not initializing
+  WAIT_RSTACK,        // Sent RST, waiting for RSTACK
+  SEND_VERSION,       // Send EZSP version command
+  WAIT_VERSION,       // Waiting for version response
+  SEND_TOKEN_DATA,    // Send getTokenData(NVM3KEY_STACK_NODE_DATA)
+  WAIT_TOKEN_DATA,    // Waiting for token data response
+  SEND_GET_EUI64,     // Send getEui64 command
+  WAIT_EUI64,         // Waiting for EUI64 response
+  SEND_FINAL_RST,     // Send final RST to reset NCP
+  WAIT_FINAL_RSTACK,  // Waiting for final RSTACK
+  COMPLETE,           // Boot sequence complete
+  FAILED,             // Boot sequence failed
 };
 
 class ZigbeeProxy : public uart::UARTDevice, public Component {
@@ -157,13 +153,10 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   void handle_boot_data_frame_(const uint8_t *data, size_t length);
   void send_ezsp_version_();
   void send_get_eui64_();
-  void send_stack_profile_();
-  void send_network_init_();
-  void send_get_network_params_();
+  void send_get_token_data_();
   void handle_version_response_(const uint8_t *data, size_t length);
   void handle_eui64_response_(const uint8_t *data, size_t length);
-  void handle_stack_status_(const uint8_t *data, size_t length);
-  void handle_network_params_response_(const uint8_t *data, size_t length);
+  void handle_token_data_response_(const uint8_t *data, size_t length);
 
   // IEEE address and network info
   bool set_ieee_address_(const uint8_t *new_address);
@@ -313,7 +306,7 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   bool owns_uart_{false};                // True while this component drives the UART
   uint32_t configured_baud_rate_{0};     // Line rate to restore after another device
 
-  bool boot_sequence_active_{false};     // True during boot-time init
+  bool boot_sequence_active_{false};  // True during boot-time init
 };
 
 extern ZigbeeProxy *global_zigbee_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
