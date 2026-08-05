@@ -8,6 +8,9 @@
 
 #ifdef USE_WIFI
 #include "esphome/components/wifi/wifi_component.h"
+#ifdef USE_ESP32
+#include <esp_wifi.h>
+#endif
 #endif
 
 namespace esphome::zigbee_proxy {
@@ -835,58 +838,113 @@ void ZigbeeProxy::send_network_info_changed_msg_(api::APIConnection *conn) {
 }
 
 // WiFi/Zigbee channel conflict detection
+namespace {
+
+// 802.11b/g/n in the 2.4 GHz band: channels 1-13 sit 5 MHz apart starting at 2412 MHz,
+// with channel 14 an outlier. Returns 0 for anything not in the band.
+uint16_t wifi_center_mhz(uint8_t channel) {
+  if (channel == 14) {
+    return 2484;
+  }
+  if (channel >= 1 && channel <= 13) {
+    return static_cast<uint16_t>(2412 + 5 * (channel - 1));
+  }
+  return 0;
+}
+
+// 802.15.4 in the 2.4 GHz band: channels 11-26, 5 MHz apart starting at 2405 MHz.
+uint16_t zigbee_center_mhz(uint8_t channel) {
+  if (channel >= 11 && channel <= 26) {
+    return static_cast<uint16_t>(2405 + 5 * (channel - 11));
+  }
+  return 0;
+}
+
+// 802.15.4 O-QPSK occupies about 2 MHz. WiFi is not fixed: the ESP32 supports HT40 as
+// well as HT20, and an HT40 link is both twice as wide and re-centred 10 MHz towards its
+// secondary channel, so assuming 20 MHz would mispredict overlap at both edges.
+constexpr uint16_t ZIGBEE_BANDWIDTH_MHZ = 2;
+constexpr uint16_t WIFI_BANDWIDTH_HT20_MHZ = 20;
+constexpr uint16_t WIFI_BANDWIDTH_HT40_MHZ = 40;
+
+struct WifiOccupancy {
+  uint16_t center_mhz;
+  uint16_t bandwidth_mhz;
+};
+
+// Two carriers clash when their halves meet: |f1 - f2| < (bw1 + bw2) / 2.
+bool channels_overlap(const WifiOccupancy &wifi, uint16_t zigbee_mhz) {
+  const uint16_t separation =
+      wifi.center_mhz > zigbee_mhz ? wifi.center_mhz - zigbee_mhz : zigbee_mhz - wifi.center_mhz;
+  return separation * 2 < wifi.bandwidth_mhz + ZIGBEE_BANDWIDTH_MHZ;
+}
+
+// Resolve what the radio is actually using, rather than assuming. Falls back to HT20,
+// which is what every non-ESP32 target here supports anyway.
+WifiOccupancy wifi_occupancy(uint8_t primary_channel) {
+  WifiOccupancy occupancy{wifi_center_mhz(primary_channel), WIFI_BANDWIDTH_HT20_MHZ};
+#ifdef USE_ESP32
+  uint8_t primary = 0;
+  wifi_second_chan_t second = WIFI_SECOND_CHAN_NONE;
+  if (occupancy.center_mhz != 0 && esp_wifi_get_channel(&primary, &second) == ESP_OK &&
+      second != WIFI_SECOND_CHAN_NONE) {
+    occupancy.bandwidth_mhz = WIFI_BANDWIDTH_HT40_MHZ;
+    // The 40 MHz block spans the primary and its neighbour, so its centre sits half a
+    // 20 MHz channel away from the primary's, on the secondary's side.
+    occupancy.center_mhz =
+        static_cast<uint16_t>(second == WIFI_SECOND_CHAN_ABOVE ? occupancy.center_mhz + 10 : occupancy.center_mhz - 10);
+  }
+#endif
+  return occupancy;
+}
+
+}  // namespace
+
 void ZigbeeProxy::check_wifi_zigbee_conflict_() {
 #ifdef USE_WIFI
   if (wifi::global_wifi_component == nullptr || !this->network_info_.valid || this->network_info_.channel == 0) {
     return;
   }
 
-  uint8_t wifi_channel = wifi::global_wifi_component->get_wifi_channel();
-  if (wifi_channel == 0) {
-    return;  // WiFi not connected yet
+  const uint8_t wifi_channel = wifi::global_wifi_component->get_wifi_channel();
+  const WifiOccupancy wifi = wifi_occupancy(wifi_channel);
+  if (wifi.center_mhz == 0) {
+    return;  // Not connected yet, or a 5 GHz channel that cannot clash by definition
   }
 
-  uint8_t zigbee_channel = this->network_info_.channel;
-
-  // Check for overlap
-  bool conflict = false;
-  const char *recommendation = "";
-
-  if (zigbee_channel >= 11 && zigbee_channel <= 14) {
-    // Zigbee 11-14 overlaps WiFi 1
-    if (wifi_channel == 1) {
-      conflict = true;
-      recommendation = "Use Zigbee channel 25-26 or WiFi channel 6/11";
-    }
-  } else if (zigbee_channel >= 15 && zigbee_channel <= 18) {
-    // Zigbee 15-18 overlaps WiFi 6
-    if (wifi_channel == 6) {
-      conflict = true;
-      recommendation = "Use Zigbee channel 25-26 or WiFi channel 1/11";
-    }
-  } else if (zigbee_channel >= 19 && zigbee_channel <= 22) {
-    // Zigbee 19-22 overlaps WiFi 11
-    if (wifi_channel == 11) {
-      conflict = true;
-      recommendation = "Use Zigbee channel 25-26 or WiFi channel 1/6";
-    }
-  } else if (zigbee_channel >= 23 && zigbee_channel <= 26) {
-    // Zigbee 23-26 overlaps WiFi 13-14
-    if (wifi_channel >= 13) {
-      conflict = true;
-      recommendation = "Use Zigbee channel 15-20 or WiFi channel 1/6/11";
-    }
+  const uint8_t zigbee_channel = this->network_info_.channel;
+  const uint16_t zigbee_mhz = zigbee_center_mhz(zigbee_channel);
+  if (zigbee_mhz == 0) {
+    return;
   }
 
-  if (conflict) {
-    ESP_LOGW(TAG,
-             "WiFi/Zigbee channel conflict detected\n"
-             "  WiFi channel: %u, Zigbee channel: %u\n"
-             "  Recommendation: %s",
-             wifi_channel, zigbee_channel, recommendation);
-  } else {
-    ESP_LOGV(TAG, "No WiFi/Zigbee channel conflict (WiFi: %u, Zigbee: %u)", wifi_channel, zigbee_channel);
+  if (!channels_overlap(wifi, zigbee_mhz)) {
+    ESP_LOGV(TAG, "No WiFi/Zigbee channel conflict (WiFi %u @ %u MHz/%u MHz wide, Zigbee %u @ %u MHz)", wifi_channel,
+             wifi.center_mhz, wifi.bandwidth_mhz, zigbee_channel, zigbee_mhz);
+    return;
   }
+
+  // Naming the channels that are actually clear beats a fixed suggestion: which ones those
+  // are depends entirely on where WiFi happens to be, and an auto-channel AP is rarely on
+  // 1, 6 or 11.
+  char clear[64];
+  size_t offset = 0;
+  for (uint8_t candidate = 11; candidate <= 26; candidate++) {
+    if (channels_overlap(wifi, zigbee_center_mhz(candidate))) {
+      continue;
+    }
+    const int written = snprintf(clear + offset, sizeof(clear) - offset, offset == 0 ? "%u" : ", %u", candidate);
+    if (written <= 0 || static_cast<size_t>(written) >= sizeof(clear) - offset) {
+      break;
+    }
+    offset += static_cast<size_t>(written);
+  }
+
+  ESP_LOGW(TAG,
+           "WiFi/Zigbee channel conflict detected\n"
+           "  WiFi channel %u (%u MHz, %u MHz wide) overlaps Zigbee channel %u (%u MHz)\n"
+           "  Zigbee channels clear of this WiFi channel: %s",
+           wifi_channel, wifi.center_mhz, wifi.bandwidth_mhz, zigbee_channel, zigbee_mhz, offset > 0 ? clear : "none");
 #endif
 }
 
