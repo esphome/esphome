@@ -9,11 +9,9 @@ from esphome.const import (
     CONF_TRIGGER_ID,
 )
 
-from .. import ble_client_ns
+from .. import CONF_DESCRIPTOR_UUID, ble_client_ns, validate_descriptor_not_notify
 
 DEPENDENCIES = ["ble_client"]
-
-CONF_DESCRIPTOR_UUID = "descriptor_uuid"
 
 CONF_ON_NOTIFY = "on_notify"
 
@@ -48,7 +46,8 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(ble_client.BLE_CLIENT_SCHEMA)
+    .extend(ble_client.BLE_CLIENT_SCHEMA),
+    validate_descriptor_not_notify,
 )
 
 

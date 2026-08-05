@@ -14,11 +14,9 @@ from esphome.const import (
     UNIT_DECIBEL_MILLIWATT,
 )
 
-from .. import ble_client_ns
+from .. import CONF_DESCRIPTOR_UUID, ble_client_ns, validate_descriptor_not_notify
 
 DEPENDENCIES = ["ble_client"]
-
-CONF_DESCRIPTOR_UUID = "descriptor_uuid"
 
 CONF_ON_NOTIFY = "on_notify"
 TYPE_CHARACTERISTIC = "characteristic"
@@ -85,6 +83,7 @@ CONFIG_SCHEMA = cv.All(
         },
         lower=True,
     ),
+    validate_descriptor_not_notify,
 )
 
 

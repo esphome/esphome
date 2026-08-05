@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_NAME,
+    CONF_NOTIFY,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_SERVICE_UUID,
@@ -16,10 +17,28 @@ from esphome.const import (
     CONF_VALUE,
 )
 from esphome.core import ID
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["esp32_ble_client"]
 CODEOWNERS = ["@buxtronix", "@clydebarrow"]
 DEPENDENCIES = ["esp32_ble_tracker"]
+
+CONF_DESCRIPTOR_UUID = "descriptor_uuid"
+
+
+def validate_descriptor_not_notify(config: ConfigType) -> ConfigType:
+    """Reject descriptor_uuid combined with notify.
+
+    BLE descriptors cannot send notifications; only characteristics can, and
+    ESP-IDF has no descriptor variant of esp_ble_gattc_register_for_notify.
+    """
+    if config.get(CONF_NOTIFY) and CONF_DESCRIPTOR_UUID in config:
+        raise cv.Invalid(
+            f"'{CONF_DESCRIPTOR_UUID}' cannot be used with '{CONF_NOTIFY}': BLE descriptors "
+            f"cannot send notifications; remove '{CONF_NOTIFY}' to poll the descriptor instead"
+        )
+    return config
+
 
 ble_client_ns = cg.esphome_ns.namespace("ble_client")
 BLEClient = ble_client_ns.class_("BLEClient", esp32_ble_client.BLEClientBase)
