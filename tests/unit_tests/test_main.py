@@ -63,7 +63,7 @@ from esphome.__main__ import (
 )
 from esphome.address_cache import AddressCache
 from esphome.bundle import BUNDLE_EXTENSION, BundleFile, BundleResult
-from esphome.components import esp32
+from esphome.components import esp32, esp8266
 from esphome.components.esp32 import (
     KEY_ESP32,
     KEY_VARIANT,
@@ -5738,8 +5738,12 @@ def test_run_miniterm_batches_lines_with_same_timestamp(
 def test_run_miniterm_analyzer_import_failure_keeps_streaming(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A broken platform import must not stop serial log streaming."""
-    mock_serial = MockSerial([b"[I][app:100]: Line 1\r\n", MOCK_SERIAL_END])
+    """A broken platform import must not stop serial log streaming.
+
+    The decoder resolves lazily, so a crash-shaped line has to arrive
+    before the import is attempted at all.
+    """
+    mock_serial = MockSerial([b"PC: 0x40104960\r\n", MOCK_SERIAL_END])
 
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
     config = {
@@ -5870,7 +5874,9 @@ def test_run_miniterm_backtrace_state_maintained() -> None:
 
     mock_serial = MockSerial([backtrace_chunk, MOCK_SERIAL_END])
 
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
+    # An esp8266 dump on an esp8266 session; the platform-scoped gate
+    # would rightly never resolve esp32's decoder for these lines.
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP8266}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
@@ -5896,7 +5902,7 @@ def test_run_miniterm_backtrace_state_maintained() -> None:
     with (
         patch("serial.Serial", return_value=mock_serial),
         patch.object(
-            esp32,
+            esp8266,
             "process_stacktrace",
             side_effect=track_backtrace_state,
         ),
