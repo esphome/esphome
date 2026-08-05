@@ -314,3 +314,28 @@ def test_late_real_result_without_handler_is_logged(
         release.set()
         _join_new_cleanup_threads(before)
         assert "Discarding late result" in caplog.text
+
+
+def test_orphan_watcher_count_is_capped(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Past the watcher cap no new cleanup thread spawns; the skip is logged."""
+    from esphome import async_thread
+
+    monkeypatch.setattr(async_thread, "_MAX_ORPHAN_WATCHERS", 1)
+    release = threading.Event()
+
+    async def coro() -> None:
+        await asyncio.get_running_loop().run_in_executor(None, release.wait)
+
+    before = _cleanup_threads()
+    with caplog.at_level("INFO", logger="esphome.async_thread"):
+        with pytest.raises(AsyncDispatchTimeout):
+            run_async(coro, timeout=0.01)
+        with pytest.raises(AsyncDispatchTimeout):
+            run_async(coro, timeout=0.01)
+
+    assert len(_cleanup_threads() - before) == 1
+    assert "Too many pending orphan watchers" in caplog.text
+    release.set()
+    _join_new_cleanup_threads(before)

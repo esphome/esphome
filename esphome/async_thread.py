@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from itertools import count
 import logging
 import threading
 from typing import cast
@@ -22,6 +23,16 @@ _LOGGER = logging.getLogger(__name__)
 # and an unbounded wait would park a second thread per hung operation for the
 # process lifetime (which adds up in long-lived hosts like the dashboard).
 ORPHAN_WAIT_TIMEOUT = 300.0
+
+
+# Cap on concurrently parked orphan watchers; repeated hangs otherwise
+# accumulate a watcher (up to ORPHAN_WAIT_TIMEOUT each) per abandoned
+# operation. Past the cap the late result is knowingly dropped instead.
+_MAX_ORPHAN_WATCHERS = 8
+_active_watchers = 0
+_watcher_lock = threading.Lock()
+
+_runner_ids = count(1)
 
 
 class AsyncDispatchTimeout(TimeoutError):
@@ -49,7 +60,7 @@ class AsyncThreadRunner[T](threading.Thread):
     """
 
     def __init__(self, coro_factory: Callable[[], Awaitable[T]]) -> None:
-        super().__init__(daemon=True, name="async-thread-runner")
+        super().__init__(daemon=True, name=f"async-thread-runner-{next(_runner_ids)}")
         self._coro_factory = coro_factory
         self.result: T | None = None
         self.exception: BaseException | None = None
@@ -111,8 +122,17 @@ def run_async[T](
     runner: AsyncThreadRunner[T] = AsyncThreadRunner(coro_factory)
     runner.start()
     if not runner.event.wait(timeout):
+        global _active_watchers  # noqa: PLW0603
 
         def _cleanup() -> None:
+            global _active_watchers  # noqa: PLW0603
+            try:
+                _watch_for_orphan()
+            finally:
+                with _watcher_lock:
+                    _active_watchers -= 1
+
+        def _watch_for_orphan() -> None:
             if not runner.event.wait(ORPHAN_WAIT_TIMEOUT):
                 # The one state where a resource can genuinely leak; leave
                 # a trace so a recurring hang is attributable.
@@ -143,9 +163,16 @@ def run_async[T](
                 # it fires at most once per abandoned operation.
                 _LOGGER.info("Error releasing orphaned result", exc_info=True)
 
-        threading.Thread(
-            target=_cleanup, daemon=True, name="async-orphan-cleanup"
-        ).start()
+        with _watcher_lock:
+            spawn_watcher = _active_watchers < _MAX_ORPHAN_WATCHERS
+            if spawn_watcher:
+                _active_watchers += 1
+        if spawn_watcher:
+            threading.Thread(
+                target=_cleanup, daemon=True, name="async-orphan-cleanup"
+            ).start()
+        else:
+            _LOGGER.info("Too many pending orphan watchers; a late result may leak")
         raise AsyncDispatchTimeout("Timed out waiting for async operation")
     if (exc := runner.exception) is not None:
         raise exc
