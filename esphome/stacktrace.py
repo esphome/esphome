@@ -47,8 +47,10 @@ class LogLineProcessor:
        expensive; a single crash dump can contain many PC/BT lines and we
        don't want to retry the failing subprocess for each one. This only
        works if every failure is caught, which is why 1 is not narrowed
-       to EsphomeError. A platform without an analyzer stays off for the
-       whole session; there is nothing to retry.
+       to EsphomeError. A platform without an analyzer, or one whose
+       package failed to load, stays off for the whole session; an
+       import that just failed will not heal mid-stream, so there is
+       nothing worth retrying.
     """
 
     def __init__(self, config: ConfigType, platform: str) -> None:
