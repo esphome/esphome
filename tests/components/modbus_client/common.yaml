@@ -2,7 +2,8 @@
 # is a single modbus client hub) and a templatable device address; no component block is needed. The
 # address is not passed back to reply handlers - recompute the configured expression if needed.
 # The hub does not bound retries, so a retry lambda must (here: a counter capped at 3), or a dead
-# device is retried forever.
+# device is retried forever. Reset the counter on success (on_response) so the cap is per transaction,
+# not per device lifetime.
 globals:
   - id: read_retries
     type: int
@@ -34,7 +35,9 @@ button:
               - lambda: 'ESP_LOGI("modbus_client.test", "sent fc 0x%X", request.empty() ? 0 : request[0]);'
           on_response:
             then:
-              - lambda: 'ESP_LOGI("modbus_client.test", "got %d bytes", (int) response.size());'
+              - lambda: |-
+                  id(combined_retries) = 0;
+                  ESP_LOGI("modbus_client.test", "got %d bytes", (int) response.size());
           on_error:
             then:
               - lambda: 'ESP_LOGW("modbus_client.test", "fc 0x%X exception %d", request.empty() ? 0 : request[0], (int) exception_code);'

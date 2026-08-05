@@ -4,6 +4,7 @@ from esphome.components import modbus
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ON_ERROR, CONF_ON_RESPONSE
 from esphome.core import Lambda
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@exciton"]
 DEPENDENCIES = ["modbus"]
@@ -30,6 +31,23 @@ _PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
 # (modbus.MAX_PDU_SIZE). Lambdas can return a byte list or a modbus::helpers::create_*_pdu() result.
 _PDU_BUFFER = modbus.modbus_ns.namespace("helpers").class_("PduBuffer")
 
+
+def _synchronous_handler(value: ConfigType) -> ConfigType:
+    """Reject deferring actions in a handler: its PDU spans point into hub buffers that are reused
+    once the handler returns, and DelayAction and friends capture the trigger args for later replay."""
+    if automation.has_non_synchronous_actions(value):
+        raise cv.Invalid(
+            "Deferring actions (delay, wait_until, script.wait, ...) are not allowed in modbus_client "
+            "handlers: the request/response data is only valid while the handler runs. Copy what you "
+            "need into globals first, then defer in a separate script or automation."
+        )
+    return value
+
+
+def _handler_schema() -> cv.All:
+    return cv.All(automation.validate_automation(single=True), _synchronous_handler)
+
+
 # Each action is its own hub device: the modbus hub routes the reply straight back to the action that
 # sent it, so the address can even be templatable - the reply is matched by the action's identity, not
 # its address.
@@ -40,18 +58,21 @@ _ACTION_BASE_SCHEMA = cv.Schema(
         # Optional handlers. on_sent fires when the frame reaches the wire; the reply handlers arrive
         # later (fire-and-continue), so all run with the request/reply available - not the outer
         # automation's variables.
-        cv.Optional(CONF_ON_SENT): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_SENT): _handler_schema(),
+        cv.Optional(CONF_ON_ERROR): _handler_schema(),
         # on_no_response takes either a returning lambda (`!lambda "return <bool>;"`, gets `request`,
         # returns true to have the hub retry the frame) OR a `then:` automation of actions; the automation
         # form may also carry an optional `retry:` returning lambda to run actions AND decide the retry.
         cv.Optional(CONF_ON_NO_RESPONSE): cv.Any(
             cv.returning_lambda,
-            automation.validate_automation(
-                {cv.Optional(CONF_RETRY): cv.returning_lambda}, single=True
+            cv.All(
+                automation.validate_automation(
+                    {cv.Optional(CONF_RETRY): cv.returning_lambda}, single=True
+                ),
+                _synchronous_handler,
             ),
         ),
-        cv.Optional(CONF_ON_NOT_SENT): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_NOT_SENT): _handler_schema(),
     }
 )
 
@@ -63,7 +84,7 @@ MODBUS_CLIENT_SEND_SCHEMA = _ACTION_BASE_SCHEMA.extend(
                 cv.Length(min=1, max=modbus.MAX_PDU_SIZE),
             )
         ),
-        cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_RESPONSE): _handler_schema(),
     }
 )
 
