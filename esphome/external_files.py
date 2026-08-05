@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 import contextlib
 from dataclasses import dataclass, field
@@ -59,6 +59,8 @@ class ExternalFilesRunData:
 
 
 def _run_data() -> ExternalFilesRunData:
+    if (data := CORE.data.get(DOMAIN)) is not None:
+        return data
     # setdefault: first touch may race on download_content_many's workers.
     return CORE.data.setdefault(DOMAIN, ExternalFilesRunData())
 
@@ -211,8 +213,11 @@ def url_cache_key(url: str) -> str:
 
 
 def compute_local_file_path(domain: str, url: str) -> Path:
-    """Cache path for a URL-keyed download under the domain's cache dir."""
-    return compute_local_file_dir(domain) / url_cache_key(url)
+    """Cache path for a URL-keyed download under the domain's cache dir.
+
+    Pure (no mkdir); parent directories are created at write time.
+    """
+    return Path(CORE.data_dir) / domain / url_cache_key(url)
 
 
 def is_fresh_this_run(path: Path) -> bool:
@@ -221,25 +226,34 @@ def is_fresh_this_run(path: Path) -> bool:
 
 
 def download_content(
-    url: str, path: Path, timeout: int = NETWORK_TIMEOUT, allow_stale: bool = True
+    url: str,
+    path: Path,
+    timeout: int = NETWORK_TIMEOUT,
+    allow_stale: bool = True,
+    return_content: bool = True,
 ) -> bytes:
     """Download `url` into `path` and return the bytes, using the cache.
 
     When the network fails but an on-disk copy exists, the copy is served
     with a warning; callers that cannot verify the bytes downstream pass
     ``allow_stale=False`` to fail instead. With ``CORE.skip_external_update``
-    the on-disk copy is always served.
+    the on-disk copy is always served. Callers that only warm the cache
+    pass ``return_content=False`` to skip the disk read on cache hits.
     """
+
+    def _cached() -> bytes:
+        return path.read_bytes() if return_content else b""
+
     # Memoized paths skip the network entirely; concurrent access is safe
     # because download_content_many dedupes by path before fanning out.
     run_data = _run_data()
     fresh_paths = run_data.fresh_paths
     if path in fresh_paths and path.exists():
-        return path.read_bytes()
+        return _cached()
     if path in run_data.stale_paths and path.exists() and allow_stale:
         # Strict callers fall through to try the network themselves.
         _LOGGER.info("Using cached copy of %s that could not be revalidated", url)
-        return path.read_bytes()
+        return _cached()
     if (failure := run_data.failed_paths.get(path)) is not None:
         if not path.exists():
             if failure.url == url:
@@ -254,7 +268,7 @@ def download_content(
     if CORE.skip_external_update and path.exists():
         _LOGGER.debug("Skipping update for %s (refresh disabled)", url)
         fresh_paths.add(path)
-        return path.read_bytes()
+        return _cached()
     if not has_remote_file_changed(url, path, timeout):
         if path in run_data.stale_paths:
             # The HEAD fell back to the copy without confirming it.
@@ -263,10 +277,10 @@ def download_content(
                     f"Could not check {url} for updates due to a network error "
                     f"and the cached copy cannot be verified"
                 )
-            return path.read_bytes()
+            return _cached()
         _LOGGER.debug("Remote file has not changed %s", url)
         fresh_paths.add(path)
-        return path.read_bytes()
+        return _cached()
 
     _LOGGER.info("Downloading %s", url)
     _LOGGER.debug("Saving to %s", path)
@@ -294,7 +308,7 @@ def download_content(
                 url,
                 e,
             )
-            return path.read_bytes()
+            return _cached()
         message = f"Could not download from {url}: {e}"
         run_data.failed_paths[path] = FailedDownload(url, message, e)
         raise cv.Invalid(message) from e
@@ -337,30 +351,27 @@ def download_content_many(
     Items are de-duplicated by `path` -- two callers asking for the same
     cache file (e.g. the same URL referenced twice in a config) would
     otherwise race on `download_content`'s non-atomic write. When the
-    same `path` appears more than once, the last URL wins (standard dict
-    comprehension semantics); in practice duplicate paths only arise when
-    the URL is duplicated, so the choice doesn't matter.
+    same `path` appears more than once, the last URL wins.
     """
-    seen: dict[Path, str] = {file.path: file.url for file in items}
-    if not seen:
+    unique = list({file.path: file for file in items}.values())
+    if not unique:
         return
     ensure_happy_eyeballs()
-    _LOGGER.info("Checking %d %s for updates", len(seen), description)
-    if len(seen) == 1:
-        path, url = next(iter(seen.items()))
-        download_content(url, path, timeout, allow_stale=allow_stale)
+    _LOGGER.info("Checking %d %s for updates", len(unique), description)
+
+    def _download_one(file: RemoteFile) -> None:
+        download_content(
+            file.url, file.path, timeout, allow_stale=allow_stale, return_content=False
+        )
+
+    if len(unique) == 1:
+        _download_one(unique[0])
         return
 
-    def _download_one(path_url: tuple[Path, str]) -> None:
-        # `seen` stores entries as (path, url) so the dict can dedupe by
-        # path; flip them back to download_content's (url, path) order.
-        path, url = path_url
-        download_content(url, path, timeout, allow_stale=allow_stale)
-
-    workers = max(1, min(max_workers, len(seen)))
+    workers = max(1, min(max_workers, len(unique)))
     errors: list[cv.Invalid] = []
     with ThreadPoolExecutor(max_workers=workers) as ex:
-        futures = [ex.submit(_download_one, item) for item in seen.items()]
+        futures = [ex.submit(_download_one, file) for file in unique]
         for future in futures:
             try:
                 future.result()
@@ -376,6 +387,21 @@ def download_content_many(
 # Each component that uses external_files defines its own local
 # `TYPE_WEB = "web"`; the string is repeated here rather than imported
 # because there is no canonical `TYPE_WEB` in `esphome.const` to share.
+def single_stage_prefetch(
+    extract: Callable[[ConfigType], RemoteFile | None],
+) -> Callable[[list[ConfigType]], Iterator[list[RemoteFile]]]:
+    """Build a one-batch ``PREFETCH_FILES`` hook from a per-entry extractor.
+
+    Covers the common case of one remote file per raw config entry;
+    components with staged downloads write their own generator.
+    """
+
+    def prefetch_files(entries: list[ConfigType]) -> Iterator[list[RemoteFile]]:
+        yield [ref for entry in entries if (ref := extract(entry)) is not None]
+
+    return prefetch_files
+
+
 WEB_TYPE = "web"
 
 

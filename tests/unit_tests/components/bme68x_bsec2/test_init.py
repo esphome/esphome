@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from esphome.components import bme68x_bsec2 as bsec
+from esphome.loader import get_component
 
 
 def test_prefetch_applies_defaults(setup_core: Path) -> None:
@@ -57,7 +58,6 @@ def test_prefetch_matches_validator_url(setup_core: Path) -> None:
 
 def test_hook_is_wired_to_the_user_facing_domain() -> None:
     """The i2c domain (the only user-facing one) exposes the hook."""
-    from esphome.loader import get_component
 
     component = get_component("bme68x_bsec2_i2c")
     assert component is not None

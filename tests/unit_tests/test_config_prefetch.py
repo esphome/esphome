@@ -258,14 +258,18 @@ def test_platform_entries_without_platform_key_are_ignored() -> None:
     mock_download.assert_not_called()
 
 
-def test_exact_cap_generator_gets_no_warning(
+def test_generator_still_alive_at_the_cap_is_warned_and_closed(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A generator finishing exactly at the stage cap is not warned about."""
+    """A generator with a stage left at the cap is warned about and closed."""
+    closed: list[bool] = []
 
     def hook(entries: list[dict]) -> Iterable[list[RemoteFile]]:
-        for n in range(10):
-            yield [RemoteFile(f"url-{n}", Path(f"/f{n}"))]
+        try:
+            for n in range(10):
+                yield [RemoteFile(f"url-{n}", Path(f"/f{n}"))]
+        finally:
+            closed.append(True)
 
     _, mock_download = _run_step(
         {"my_comp": {"x": 1}},
@@ -273,7 +277,8 @@ def test_exact_cap_generator_gets_no_warning(
     )
 
     assert mock_download.call_count == 10
-    assert "stopped after" not in caplog.text
+    assert "stopped after" in caplog.text
+    assert closed == [True]
 
 
 def test_plain_iterable_hook_survives_the_cap(
@@ -311,15 +316,17 @@ def test_domain_level_hook_on_platform_component() -> None:
     assert _downloaded(mock_download) == [RemoteFile("domain-url", Path("/domain"))]
 
 
-def test_generator_raising_on_the_probe_is_contained(
+def test_generator_raising_on_close_is_contained(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A generator that raises right at the cap is logged, not crashed on."""
+    """A generator whose close() raises at the cap is logged, not crashed on."""
 
     def hook(entries: list[dict]) -> Iterable[list[RemoteFile]]:
-        for n in range(10):
-            yield [RemoteFile(f"url-{n}", Path(f"/f{n}"))]
-        raise RuntimeError("stage eleven exploded")
+        try:
+            for n in range(10):
+                yield [RemoteFile(f"url-{n}", Path(f"/f{n}"))]
+        except GeneratorExit:
+            raise RuntimeError("close exploded") from None
 
     _, mock_download = _run_step(
         {"my_comp": {"x": 1}},
@@ -327,8 +334,7 @@ def test_generator_raising_on_the_probe_is_contained(
     )
 
     assert mock_download.call_count == 10
-    assert "Remote file prefetch for my_comp failed" in caplog.text
-    assert "stopped after" not in caplog.text
+    assert "stopped after" in caplog.text
 
 
 def test_unexpected_download_error_is_logged_visibly(

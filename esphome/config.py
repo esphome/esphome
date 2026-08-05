@@ -765,13 +765,13 @@ class PrefetchRemoteFilesValidationStep(ConfigValidationStep):
             except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
                 warn_hook_failed(name, err)
 
-        for domain in list(result.keys()):
+        for domain, conf in result.items():
             if not isinstance(domain, str) or domain.startswith("."):
                 continue
-            component = get_component(domain)
-            if component is None:
+            if (component := get_component(domain)) is None:
                 continue
-            conf = result[domain]
+            if component.prefetch_files is None and not component.is_platform_component:
+                continue
             if conf is None or isinstance(conf, core.AutoLoad):
                 continue
             entries = [
@@ -783,8 +783,7 @@ class PrefetchRemoteFilesValidationStep(ConfigValidationStep):
                 continue
             # A domain-level hook on a platform component receives every
             # entry; overlap with per-platform hooks dedupes by path.
-            if component.prefetch_files is not None:
-                start_hook(domain, component, entries)
+            start_hook(domain, component, entries)
             if not component.is_platform_component:
                 continue
             by_platform: dict[str, list[ConfigType]] = {}
@@ -815,14 +814,6 @@ class PrefetchRemoteFilesValidationStep(ConfigValidationStep):
             active = still_active
             self._download(items)
         for name, generator in active:
-            # A hook with exactly the cap's stages has finished cleanly.
-            try:
-                next(generator)
-            except StopIteration:
-                continue
-            except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
-                warn_hook_failed(name, err)
-                continue
             # A tripped backstop means a broken hook.
             _LOGGER.warning(
                 "Remote file prefetch for %s stopped after %d stages",

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
 import contextlib
 import io
 import logging
@@ -104,23 +103,33 @@ def download_image(value):
     return download_file(value, compute_local_image_path(value))
 
 
+def _parse_remote_shorthand(value: str) -> RemoteFile | None:
+    """Parse a string `file:` shorthand to its remote file; None if local.
+
+    Raises cv.Invalid for a malformed icon name. Shared by the schema
+    validator and the prefetch extractor so they cannot drift.
+    """
+    parts = value.strip().split(":")
+    if len(parts) == 2 and parts[0] in MDI_SOURCES:
+        if _MDI_ICON_RE.match(parts[1]) is None:
+            raise cv.Invalid(f"Could not parse mdi icon name from '{value}'.")
+        return RemoteFile(*_gh_svg_url_path(parts[1], parts[0]))
+    if value.startswith(("http://", "https://")):
+        return RemoteFile(value, compute_local_image_path(value))
+    return None
+
+
 def _extract_file_ref(value: object) -> RemoteFile | None:
     """Map a raw, pre-schema `file:` value to its remote file.
 
-    Read-only mirror of `validate_file_shorthand` / `TYPED_FILE_SCHEMA` for
-    the prefetch hook; returns None for local files and anything it does
-    not recognize. A wrong answer only wastes or misses a prefetch, the
+    Returns None for local files and anything it does not recognize; the
     schema validators stay authoritative.
     """
     if isinstance(value, str):
-        parts = value.strip().split(":")
-        if len(parts) == 2 and parts[0] in MDI_SOURCES:
-            if _MDI_ICON_RE.match(parts[1]):
-                return RemoteFile(*_gh_svg_url_path(parts[1], parts[0]))
+        try:
+            return _parse_remote_shorthand(value)
+        except cv.Invalid:
             return None
-        if value.startswith(("http://", "https://")):
-            return RemoteFile(value, compute_local_image_path(value))
-        return None
     if isinstance(value, dict):
         source = value.get(CONF_SOURCE)
         if source == SOURCE_WEB and isinstance(url := value.get(CONF_URL), str):
@@ -130,25 +139,17 @@ def _extract_file_ref(value: object) -> RemoteFile | None:
     return None
 
 
-def PREFETCH_FILES(entries: list[ConfigType]) -> Iterable[list[RemoteFile]]:
-    """Batch-download hook: remote `file:` refs from raw image entries."""
-    yield [
-        ref
-        for entry in entries
-        if (ref := _extract_file_ref(entry.get(CONF_FILE))) is not None
-    ]
+def _extract_entry_ref(entry: ConfigType) -> RemoteFile | None:
+    return _extract_file_ref(entry.get(CONF_FILE))
+
+
+PREFETCH_FILES = external_files.single_stage_prefetch(_extract_entry_ref)
 
 
 def validate_file_shorthand(value):
     value = cv.string_strict(value)
-    parts = value.strip().split(":")
-    if len(parts) == 2 and parts[0] in MDI_SOURCES:
-        if _MDI_ICON_RE.match(parts[1]) is None:
-            raise cv.Invalid(f"Could not parse mdi icon name from '{value}'.")
-        return download_gh_svg(parts[1], parts[0])
-
-    if value.startswith(("http://", "https://")):
-        return download_image(value)
+    if (remote := _parse_remote_shorthand(value)) is not None:
+        return download_file(remote.url, remote.path)
 
     value = cv.file_(value)
     return local_path(value)

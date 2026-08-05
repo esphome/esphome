@@ -1,6 +1,5 @@
 """ESPHome codegen for the gsl3670 touchscreen sub-platform."""
 
-from collections.abc import Iterable
 import hashlib
 import logging
 from pathlib import Path
@@ -172,11 +171,7 @@ def _extract_firmware_ref(entry: ConfigType) -> RemoteFile | None:
     return None
 
 
-def PREFETCH_FILES(entries: list[ConfigType]) -> Iterable[list[RemoteFile]]:
-    """Batch-download hook: firmware blobs referenced by raw entries."""
-    yield [
-        ref for entry in entries if (ref := _extract_firmware_ref(entry)) is not None
-    ]
+PREFETCH_FILES = external_files.single_stage_prefetch(_extract_firmware_ref)
 
 
 def _config_schema(config):

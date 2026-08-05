@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
+import pytest
+
+from esphome import external_files
 from esphome.components import font
+import esphome.config_validation as cv
 from esphome.external_files import RemoteFile
 
 
@@ -79,7 +84,6 @@ def test_prefetch_skips_recent_ttf(setup_core: Path) -> None:
 
 
 def test_stage2_parses_cached_css(setup_core: Path) -> None:
-    from esphome import external_files
 
     css_path = font._gfonts_css_path(_gspec("Roboto"))
     css_path.parent.mkdir(parents=True, exist_ok=True)
@@ -117,11 +121,6 @@ def test_prefetch_handles_bare_mapping_extras(setup_core: Path) -> None:
 
 def test_unparseable_gfonts_css_is_evicted(setup_core: Path) -> None:
     """A CSS body that fails to parse is removed from the cache."""
-    from unittest.mock import patch
-
-    import pytest
-
-    import esphome.config_validation as cv
 
     spec = {
         "family": "Roboto",

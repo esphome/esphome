@@ -166,12 +166,7 @@ MANIFEST_SCHEMA_V2 = cv.Schema(
 
 
 def _compute_local_file_path(config: dict) -> Path:
-    url = config[CONF_URL]
-    h = hashlib.new("sha256")
-    h.update(url.encode())
-    key = h.hexdigest()[:8]
-    base_dir = external_files.compute_local_file_dir(DOMAIN)
-    return base_dir / key
+    return external_files.compute_local_file_path(DOMAIN, config[CONF_URL])
 
 
 def _convert_manifest_v1_to_v2(v1_manifest):

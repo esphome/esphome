@@ -1,4 +1,3 @@
-from collections.abc import Iterable
 from pathlib import Path
 
 from esphome import core, external_files
@@ -107,45 +106,43 @@ def download_bme68x_blob(config):
 _DEFAULT_OPERATING_AGE = "28d"
 _DEFAULT_SAMPLE_RATE = "LP"
 _DEFAULT_SUPPLY_VOLTAGE = "3.3V"
+_MODEL_VALIDATOR = cv.one_of(*MODEL_OPTIONS, lower=True)
+_ALGORITHM_OUTPUT_VALIDATOR = cv.enum(ALGORITHM_OUTPUT_OPTIONS, lower=True)
+_OPERATING_AGE_VALIDATOR = cv.enum(OPERATING_AGE_OPTIONS, lower=True)
+_SAMPLE_RATE_VALIDATOR = cv.enum(SAMPLE_RATE_OPTIONS, upper=True)
+_VOLTAGE_VALIDATOR = cv.enum(VOLTAGE_OPTIONS, upper=True)
 
 
 def _extract_blob_ref(entry: ConfigType) -> RemoteFile | None:
     """Raw entry to its BSEC2 blob; None when a value is unrecognized.
 
-    Applies the schema defaults and enum normalization read-only; skipped
-    entries are left to the schema validator.
+    Applies the schema defaults and validators read-only; skipped entries
+    are left to the schema validator.
     """
-    model = str(entry.get(CONF_MODEL, "")).lower()
-    operating_age = str(entry.get(CONF_OPERATING_AGE, _DEFAULT_OPERATING_AGE)).lower()
-    sample_rate = str(entry.get(CONF_SAMPLE_RATE, _DEFAULT_SAMPLE_RATE)).upper()
-    supply_voltage = str(
-        entry.get(CONF_SUPPLY_VOLTAGE, _DEFAULT_SUPPLY_VOLTAGE)
-    ).upper()
-    if (
-        model not in MODEL_OPTIONS
-        or operating_age not in OPERATING_AGE_OPTIONS
-        or sample_rate not in SAMPLE_RATE_OPTIONS
-        or supply_voltage not in VOLTAGE_OPTIONS
-    ):
+    try:
+        spec = {
+            CONF_MODEL: _MODEL_VALIDATOR(str(entry.get(CONF_MODEL, ""))),
+            CONF_OPERATING_AGE: _OPERATING_AGE_VALIDATOR(
+                str(entry.get(CONF_OPERATING_AGE, _DEFAULT_OPERATING_AGE))
+            ),
+            CONF_SAMPLE_RATE: _SAMPLE_RATE_VALIDATOR(
+                str(entry.get(CONF_SAMPLE_RATE, _DEFAULT_SAMPLE_RATE))
+            ),
+            CONF_SUPPLY_VOLTAGE: _VOLTAGE_VALIDATOR(
+                str(entry.get(CONF_SUPPLY_VOLTAGE, _DEFAULT_SUPPLY_VOLTAGE))
+            ),
+        }
+        if (algorithm_output := entry.get(CONF_ALGORITHM_OUTPUT)) is not None:
+            spec[CONF_ALGORITHM_OUTPUT] = _ALGORITHM_OUTPUT_VALIDATOR(
+                str(algorithm_output)
+            )
+    except cv.Invalid:
         return None
-    spec = {
-        CONF_MODEL: model,
-        CONF_OPERATING_AGE: operating_age,
-        CONF_SAMPLE_RATE: sample_rate,
-        CONF_SUPPLY_VOLTAGE: supply_voltage,
-    }
-    if (algorithm_output := entry.get(CONF_ALGORITHM_OUTPUT)) is not None:
-        algorithm_output = str(algorithm_output).lower()
-        if algorithm_output not in ALGORITHM_OUTPUT_OPTIONS:
-            return None
-        spec[CONF_ALGORITHM_OUTPUT] = algorithm_output
     url = _compute_url(spec)
     return RemoteFile(url, _compute_local_file_path(url))
 
 
-def PREFETCH_FILES(entries: list[ConfigType]) -> Iterable[list[RemoteFile]]:
-    """Batch-download hook: BSEC2 config blobs from raw entries."""
-    yield [ref for entry in entries if (ref := _extract_blob_ref(entry)) is not None]
+PREFETCH_FILES = external_files.single_stage_prefetch(_extract_blob_ref)
 
 
 def validate_bme68x(config):
@@ -171,19 +168,17 @@ CONFIG_SCHEMA_BASE = (
         {
             cv.GenerateID(): cv.declare_id(BME68xBSEC2Component),
             cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
-            cv.Required(CONF_MODEL): cv.one_of(*MODEL_OPTIONS, lower=True),
-            cv.Optional(CONF_ALGORITHM_OUTPUT): cv.enum(
-                ALGORITHM_OUTPUT_OPTIONS, lower=True
-            ),
-            cv.Optional(CONF_OPERATING_AGE, default=_DEFAULT_OPERATING_AGE): cv.enum(
-                OPERATING_AGE_OPTIONS, lower=True
-            ),
-            cv.Optional(CONF_SAMPLE_RATE, default=_DEFAULT_SAMPLE_RATE): cv.enum(
-                SAMPLE_RATE_OPTIONS, upper=True
-            ),
-            cv.Optional(CONF_SUPPLY_VOLTAGE, default=_DEFAULT_SUPPLY_VOLTAGE): cv.enum(
-                VOLTAGE_OPTIONS, upper=True
-            ),
+            cv.Required(CONF_MODEL): _MODEL_VALIDATOR,
+            cv.Optional(CONF_ALGORITHM_OUTPUT): _ALGORITHM_OUTPUT_VALIDATOR,
+            cv.Optional(
+                CONF_OPERATING_AGE, default=_DEFAULT_OPERATING_AGE
+            ): _OPERATING_AGE_VALIDATOR,
+            cv.Optional(
+                CONF_SAMPLE_RATE, default=_DEFAULT_SAMPLE_RATE
+            ): _SAMPLE_RATE_VALIDATOR,
+            cv.Optional(
+                CONF_SUPPLY_VOLTAGE, default=_DEFAULT_SUPPLY_VOLTAGE
+            ): _VOLTAGE_VALIDATOR,
             cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature_delta,
             cv.Optional(
                 CONF_STATE_SAVE_INTERVAL, default="6hours"

@@ -1,4 +1,3 @@
-from collections.abc import Iterable
 import hashlib
 from pathlib import Path
 import re
@@ -80,6 +79,14 @@ def _firmware_cache_path(name: str) -> Path:
     return external_files.compute_local_file_dir(DOMAIN) / f"{name}_fw_stm.bin"
 
 
+def _firmware_path(url: str, sha: str | None) -> Path:
+    """Cache path for a firmware blob: sha-keyed when verifiable, else
+    URL-keyed. Shared by the validator and the prefetch hook."""
+    return _firmware_cache_path(
+        sha.lower() if sha else external_files.url_cache_key(url)
+    )
+
+
 def get_firmware(value: ConfigType) -> list[HexInt] | None:
     if not value[CONF_UPDATE]:
         return None
@@ -88,7 +95,7 @@ def get_firmware(value: ConfigType) -> list[HexInt] | None:
 
     if expected := value.get(CONF_SHA256):
         expected = expected.lower()
-        path = _firmware_cache_path(expected)
+        path = _firmware_path(url, expected)
         if path.is_file():
             firmware_data = path.read_bytes()
             if hashlib.sha256(firmware_data).hexdigest() == expected:
@@ -107,7 +114,7 @@ def get_firmware(value: ConfigType) -> list[HexInt] | None:
         # revalidated is an error rather than a silent fallback.
         firmware_data = external_files.download_content(
             url,
-            _firmware_cache_path(external_files.url_cache_key(url)),
+            _firmware_path(url, None),
             allow_stale=False,
         )
 
@@ -124,16 +131,10 @@ def _extract_firmware_ref(entry: ConfigType) -> RemoteFile | None:
         url, sha = known
     if not isinstance(url, str):
         return None
-    if isinstance(sha, str):
-        return RemoteFile(url, _firmware_cache_path(sha.lower()))
-    return RemoteFile(url, _firmware_cache_path(external_files.url_cache_key(url)))
+    return RemoteFile(url, _firmware_path(url, sha if isinstance(sha, str) else None))
 
 
-def PREFETCH_FILES(entries: list[ConfigType]) -> Iterable[list[RemoteFile]]:
-    """Batch-download hook: STM firmware blobs for `update: true` configs."""
-    yield [
-        ref for entry in entries if (ref := _extract_firmware_ref(entry)) is not None
-    ]
+PREFETCH_FILES = external_files.single_stage_prefetch(_extract_firmware_ref)
 
 
 def validate_firmware(value):

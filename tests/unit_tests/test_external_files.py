@@ -592,7 +592,11 @@ def test_download_content_many_single_item_avoids_pool(
     )
     external_files.download_content_many([item])
     mock_download_content.assert_called_once_with(
-        item.url, item.path, external_files.NETWORK_TIMEOUT, allow_stale=True
+        item.url,
+        item.path,
+        external_files.NETWORK_TIMEOUT,
+        allow_stale=True,
+        return_content=False,
     )
 
 
@@ -605,7 +609,11 @@ def test_download_content_many_runs_in_parallel(
     barrier = threading.Barrier(3)
 
     def slow_download(
-        url: str, path: Path, timeout: int, allow_stale: bool = True
+        url: str,
+        path: Path,
+        timeout: int,
+        allow_stale: bool = True,
+        return_content: bool = True,
     ) -> bytes:
         # If calls were serial this would deadlock (third caller never arrives
         # while the first is blocked at the barrier).
@@ -630,7 +638,11 @@ def test_download_content_many_propagates_single_error(
     """
 
     def fake_download(
-        url: str, path: Path, timeout: int, allow_stale: bool = True
+        url: str,
+        path: Path,
+        timeout: int,
+        allow_stale: bool = True,
+        return_content: bool = True,
     ) -> bytes:
         if url.endswith("bad"):
             raise Invalid(f"could not download {url}")
@@ -655,7 +667,11 @@ def test_download_content_many_aggregates_multiple_errors(
     """
 
     def fake_download(
-        url: str, path: Path, timeout: int, allow_stale: bool = True
+        url: str,
+        path: Path,
+        timeout: int,
+        allow_stale: bool = True,
+        return_content: bool = True,
     ) -> bytes:
         if url.endswith("ok"):
             return b""
