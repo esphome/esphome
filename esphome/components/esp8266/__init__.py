@@ -299,6 +299,7 @@ async def to_code(config):
         "pre:testing_mode.py",
         "pre:exclude_updater.py",
         "pre:exclude_waveform.py",
+        "pre:relocate_ratetable.py",
     ]
     if not enable_scanf_float:
         extra_scripts.append("pre:remove_float_scanf.py")
@@ -451,6 +452,7 @@ def copy_files() -> None:
         "exclude_updater",
         "exclude_waveform",
         "remove_float_scanf",
+        "relocate_ratetable",
     ):
         copy_file_if_changed(
             dir / f"{script}.py.script",
