@@ -1,0 +1,46 @@
+esphome:
+  name: ltspi-persist
+  platformio_options:
+    build_flags:
+      - "-DDEBUG"  # Enable assert() statements
+      - "-g"       # Add debug symbols
+      - "-DESPHOME_LIGHT_PREFERENCES_SAVE_LOG"  # Enable light preferences save logging for tests
+
+host:
+
+logger:
+
+api:
+
+preferences:
+  flash_write_interval: 0s
+
+output:
+  - platform: template
+    id: mono_output
+    type: float
+    write_action:
+      - logger.log:
+          format: "mono_output: %.2f"
+          args: [state]
+
+light:
+  - platform: monochromatic
+    id: test_mono_light
+    name: "Test Mono Light Persist"
+    output: mono_output
+    default_transition_length: 1s
+    transition_state_publish_interval: 0.2s
+
+button:
+  - platform: template
+    id: run_persistence_transition
+    name: "Run Persistence Transition"
+    on_press:
+      - lambda: |-
+          ESP_LOGI("test", "Starting persistence transition");
+          auto call = id(test_mono_light).turn_on();
+          call.set_brightness(1.0f);
+          call.set_transition_length(1000);
+          call.set_save(true);
+          call.perform();
