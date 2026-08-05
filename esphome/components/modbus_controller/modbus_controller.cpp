@@ -464,22 +464,7 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_coils(ModbusControlle
     modbusdevice->on_write_register_response(cmd.register_type, start_address, data);
   };
 
-  uint8_t bitmask = 0;
-  int bitcounter = 0;
-  for (auto coil : values) {
-    if (coil) {
-      bitmask |= (1 << bitcounter);
-    }
-    bitcounter++;
-    if (bitcounter % 8 == 0) {
-      cmd.payload.push_back(bitmask);
-      bitmask = 0;
-    }
-  }
-  // add remaining bits
-  if (bitcounter % 8) {
-    cmd.payload.push_back(bitmask);
-  }
+  modbus::helpers::pack_bits(cmd.payload, values);
   return cmd;
 }
 

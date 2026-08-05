@@ -543,12 +543,7 @@ PduBuffer create_write_coils_pdu(uint16_t start_address, std::span<const bool> v
     return pdu;
   }
   StaticVector<uint8_t, packed_bit_bytes(MAX_NUM_OF_COILS_TO_WRITE)> packed;
-  for (size_t i = 0; i != values.size(); i++) {
-    if (i % 8 == 0)
-      packed.push_back(0);
-    if (values[i])
-      packed[i / 8] |= (1 << (i % 8));
-  }
+  pack_bits(packed, values);
   build_write_coils_pdu(pdu, start_address,
                         PackedBits(std::span<const uint8_t>(packed.data(), packed.size()), values.size()));
   return pdu;
