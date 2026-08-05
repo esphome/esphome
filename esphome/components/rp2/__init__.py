@@ -199,18 +199,20 @@ def _parse_platform_version(value):
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
 #  - https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(5, 6, 1)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(6, 0, 0)
 
 # The raspberrypi platform version to use for arduino frameworks
 #  - https://github.com/maxgerhardt/platform-raspberrypi/tags
-RECOMMENDED_ARDUINO_PLATFORM_VERSION = "v1.4.0-gcc14-arduinopico460"
+# develop-branch commit carrying the arduino-pico 6.0.0 / pico-quick-toolchain
+# 5.0.0 (GCC 16.1) update; replace with a release tag when one is cut
+RECOMMENDED_ARDUINO_PLATFORM_VERSION = "9c167c6b8aac4f4cfa6d55a0c4e5b848795150c0"
 
 
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(5, 6, 1), "https://github.com/earlephilhower/arduino-pico"),
-        "latest": (cv.Version(5, 6, 1), None),
+        "dev": (cv.Version(6, 0, 0), "https://github.com/earlephilhower/arduino-pico"),
+        "latest": (cv.Version(6, 0, 0), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
