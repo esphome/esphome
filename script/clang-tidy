@@ -229,11 +229,8 @@ def clang_options(idedata, environment):
     toolchain_includes = []
     for directory in idedata["includes"]["toolchain"]:
         if directory.startswith(toolchain_dir) and "picolibc" not in directory:
-            if (
-                multilib
-                and Path(multilib_dir := os.path.join(directory, multilib)).is_dir()
-            ):
-                toolchain_includes.extend(["-isystem", multilib_dir])
+            if multilib and (multilib_dir := Path(directory) / multilib).is_dir():
+                toolchain_includes.extend(["-isystem", str(multilib_dir)])
             toolchain_includes.extend(["-isystem", directory])
 
     # library include directories, using -isystem to suppress their errors
