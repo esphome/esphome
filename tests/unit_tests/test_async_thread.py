@@ -266,9 +266,11 @@ def test_run_async_raises_distinguishable_timeout() -> None:
     async def coro() -> None:
         await asyncio.get_running_loop().run_in_executor(None, release.wait)
 
+    before = _cleanup_threads()
     with pytest.raises(AsyncDispatchTimeout):
         run_async(coro, timeout=0.01)
     release.set()
+    _join_new_cleanup_threads(before)
 
 
 def test_orphan_watcher_gives_up_on_a_hung_coroutine(

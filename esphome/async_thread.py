@@ -111,6 +111,12 @@ def run_async[T](
 
         def _cleanup() -> None:
             if not runner.event.wait(ORPHAN_WAIT_TIMEOUT):
+                # The one state where a resource can genuinely leak; leave
+                # a trace so a recurring hang is attributable.
+                _LOGGER.info(
+                    "Orphan watcher gave up after %.0fs; a late result may leak",
+                    ORPHAN_WAIT_TIMEOUT,
+                )
                 return
             if not runner.completed:
                 # The only place an abandoned thread's real error surfaces;
@@ -130,7 +136,9 @@ def run_async[T](
             try:
                 on_orphan(result)
             except Exception:  # pylint: disable=broad-except
-                _LOGGER.debug("Error releasing orphaned result", exc_info=True)
+                # INFO, not DEBUG: a failed release means a real leak, and
+                # it fires at most once per abandoned operation.
+                _LOGGER.info("Error releasing orphaned result", exc_info=True)
 
         threading.Thread(
             target=_cleanup, daemon=True, name="async-orphan-cleanup"
