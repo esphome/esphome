@@ -6,6 +6,8 @@ in on argv, the ones found in sys.modules afterwards go out on stdout.
 
 import sys
 
+from _leak_report import print_leaked_modules
+
 from esphome.const import KEY_ESP32, KEY_IDF_VERSION, KEY_VARIANT
 from esphome.core import CORE, Version
 from esphome.storage_json import StorageJSON
@@ -41,12 +43,4 @@ if esp32_data.get(KEY_VARIANT) != "ESP32S3":
 if esp32_data.get(KEY_IDF_VERSION) != Version(5, 3, 1):
     sys.exit(f"apply_to_core did not parse the framework version: {esp32_data!r}")
 
-# Any component package counts as a leak, not just the ones on the watch
-# list: executing one drags in codegen/validation machinery by design.
-leaked = [module for module in sys.argv[1:] if module in sys.modules]
-leaked += [
-    module
-    for module in sys.modules
-    if module.startswith("esphome.components.") and module not in leaked
-]
-print(",".join(leaked))
+print_leaked_modules()

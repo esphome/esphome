@@ -64,7 +64,7 @@ class RP2BLETracker : public Component,
     // than merging them into the advertisement — consumers relying on
     // scan-response fields (device names) get them only where the receiver
     // merges per address (Home Assistant does). No GATT path yet.
-    return {.active_scan = true, .merges_scan_response = false, .gatt = false};
+    return {.active_scan = true, .merges_scan_response = false, .gatt = false, .scan_mode_switch = true};
   }
   // The controller stores the address in printable (MSB-first) order, which is
   // exactly what the contract wants.
@@ -80,6 +80,7 @@ class RP2BLETracker : public Component,
 
  protected:
   void start_scan_();
+  bool controller_scan_start_();
   void stop_scan_();
   void fire_scan_end_();
 

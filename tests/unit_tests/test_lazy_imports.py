@@ -78,16 +78,13 @@ def test_watched_heavy_modules_exist() -> None:
         )
 
 
-def test_storage_json_fast_path_does_not_import_heavy_modules(
-    fixture_path: Path,
-) -> None:
-    """``apply_to_core`` runs on the upload/logs fast path for every
-    platform; parsing the stored framework version must not drag in the
-    validation stack or the esp32 component package.
+def _leaked_from_fixture(fixture_path: Path, script_name: str) -> str:
+    """Run a fixture script with the watched modules on argv.
+
+    Running a script file drops the cwd from sys.path, so prepend the
+    repo root for the child; a non-zero exit surfaces the child's stderr.
     """
-    script = fixture_path / "lazy_imports" / "storage_json_fast_path.py"
-    # Running a script file drops the cwd from sys.path, so prepend the
-    # repo root for the child; check=False keeps its stderr visible.
+    script = fixture_path / "lazy_imports" / script_name
     python_path = str(Path(__file__).parents[2])
     if ambient := os.environ.get("PYTHONPATH"):
         python_path = os.pathsep.join((python_path, ambient))
@@ -100,11 +97,36 @@ def test_storage_json_fast_path_does_not_import_heavy_modules(
         check=False,
     )
     assert result.returncode == 0, result.stderr
-    leaked = result.stdout.strip()
+    return result.stdout.strip()
+
+
+def test_storage_json_fast_path_does_not_import_heavy_modules(
+    fixture_path: Path,
+) -> None:
+    """``apply_to_core`` runs on the upload/logs fast path for every
+    platform; parsing the stored framework version must not drag in the
+    validation stack or the esp32 component package.
+    """
+    leaked = _leaked_from_fixture(fixture_path, "storage_json_fast_path.py")
     assert not leaked, (
         f"storage_json.apply_to_core pulls in heavy modules: {leaked}. "
         "The upload/logs fast path skips validation; importing the "
         "validation stack anyway defeats the validated-config cache."
+    )
+
+
+def test_esptool_upload_fast_path_does_not_import_heavy_modules(
+    fixture_path: Path,
+) -> None:
+    """The esptool serial upload reads the esp32 variant from CORE.data;
+    resolving it must not drag in the esp32 component package or the
+    validation stack.
+    """
+    leaked = _leaked_from_fixture(fixture_path, "esptool_upload_fast_path.py")
+    assert not leaked, (
+        f"upload_using_esptool pulls in heavy modules: {leaked}. "
+        "The upload fast path skips validation; importing the validation "
+        "stack anyway defeats the validated-config cache."
     )
 
 
@@ -120,4 +142,53 @@ def test_api_client_does_not_import_heavy_modules() -> None:
         f"esphome.api_client imports heavy modules at top level: {leaked}. "
         "The logs fast path skips validation; importing the validation "
         "stack anyway defeats the validated-config cache."
+    )
+
+
+def test_espidf_toolchain_does_not_import_heavy_modules() -> None:
+    """The esp-idf upload path must not pull the esp32 package back in.
+
+    upload_using_esptool reaches espidf.toolchain for esp-idf builds;
+    its keys and the variant mapping live in esphome.const and
+    esphome.espidf precisely so this import stays light.
+    """
+    leaked = _leaked_heavy_modules("esphome.espidf.toolchain")
+    assert not leaked, (
+        f"esphome.espidf.toolchain imports heavy modules: {leaked}. "
+        "The upload fast path skips validation; importing the validation "
+        "stack anyway defeats the validated-config cache."
+    )
+
+
+def test_has_mqtt_ip_lookup_does_not_import_mqtt() -> None:
+    """``has_mqtt_ip_lookup`` runs on the upload/logs fast path for mqtt
+    configs; reading ``CONF_DISCOVER_IP`` must not drag in the mqtt
+    component and, with it, the validation stack.
+
+    Runs in a subprocess because this session's other tests import the
+    mqtt component; the fast path itself must not.
+    """
+    check = (
+        "import sys; from esphome.__main__ import has_mqtt_ip_lookup; "
+        "from esphome.core import CORE; from esphome.const import CONF_MQTT; "
+        "CORE.config = {CONF_MQTT: {}}; "
+        "assert has_mqtt_ip_lookup() is True, 'mqtt IP lookup default broke'; "
+        f"leaked = [m for m in {HEAVY_MODULES!r} if m in sys.modules]; "
+        "leaked += [m for m in sys.modules if m.startswith('esphome.components.')]; "
+        "print(','.join(leaked))"
+    )
+    # check=False keeps the child's stderr (its assertion message or an
+    # import traceback) visible on failure.
+    result = subprocess.run(
+        [sys.executable, "-c", check],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    leaked = result.stdout.strip()
+    assert not leaked, (
+        f"has_mqtt_ip_lookup pulls in heavy modules: {leaked}. "
+        "The upload/logs fast path skips validation; importing the "
+        "validation stack anyway defeats the validated-config cache."
     )
