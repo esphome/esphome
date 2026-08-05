@@ -130,7 +130,7 @@ void ESPBTDevice::parse_scan_rst(const esp32_ble::BLEScanResult &scan_result) {
   this->scan_result_ = &scan_result;
   // BLEScanResult's bda is most-significant octet first; the neutral ingest
   // takes the BLE controller (LSB-first) order, so reverse — address_uint64()/
-  // address_str() then produce exactly the historical esp32 values.
+  // address_str_to() then produce exactly the historical esp32 values.
   uint8_t mac_lsb_first[6];
   for (uint8_t i = 0; i < 6; i++)
     mac_lsb_first[i] = scan_result.bda[5 - i];
@@ -376,6 +376,7 @@ void ESPBTDevice::from_scan_result(const uint8_t *mac, int rssi, uint8_t addr_ty
 #endif  // ESPHOME_LOG_HAS_VERY_VERBOSE
 }
 
+// Remove before 2027.2.0
 std::string ESPBTDevice::address_str() const {
   char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   return std::string(this->address_str_to(buf));

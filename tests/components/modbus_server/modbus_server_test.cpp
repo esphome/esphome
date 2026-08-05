@@ -34,6 +34,21 @@ TEST(ModbusServerWrite, SingleWordSucceeds) {
   EXPECT_EQ(written, 0x1234);
 }
 
+TEST(ModbusServerWrite, SwappedWordSucceeds) {
+  ModbusServer server;
+  int64_t written = -1;
+  ServerRegister reg(0x0000, SensorValueType::U_WORD_S, 1);
+  reg.write_lambda = [&written](int64_t value) {
+    written = value;
+    return true;
+  };
+  server.add_server_register(&reg);
+
+  auto status = server.on_write_registers(0x0000, make_registers({0x3412}));
+  EXPECT_FALSE(status.has_value());
+  EXPECT_EQ(written, 0x1234);
+}
+
 // A multi-register value is decoded high word first and applied as a single number.
 TEST(ModbusServerWrite, DwordSucceeds) {
   ModbusServer server;
@@ -134,6 +149,19 @@ TEST(ModbusServerRead, SingleWordSucceeds) {
   EXPECT_FALSE(status.has_value());
   ASSERT_EQ(out.size(), 1u);
   EXPECT_EQ(out[0], 0x1234);
+}
+
+TEST(ModbusServerRead, SwappedWordReturnsByteSwappedRegister) {
+  ModbusServer server;
+  ServerRegister reg(0x0000, SensorValueType::U_WORD_S, 1);
+  reg.read_lambda = []() -> int64_t { return 0x1234; };
+  server.add_server_register(&reg);
+
+  RegisterValues out;
+  auto status = server.on_read_registers(0x0000, 1, out);
+  EXPECT_FALSE(status.has_value());
+  ASSERT_EQ(out.size(), 1u);
+  EXPECT_EQ(out[0], 0x3412);
 }
 
 TEST(ModbusServerRead, DwordReturnsTwoWordsHighFirst) {
