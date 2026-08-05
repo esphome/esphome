@@ -29,8 +29,6 @@ void BluetoothProxy::setup() {
 
   // Capture the configured scan mode from YAML before any API changes
   this->configured_scan_active_ = this->parent_->get_scan_active();
-
-  this->parent_->add_scanner_state_listener(this);
 }
 
 void BluetoothProxy::on_scanner_state(esp32_ble_tracker::ScannerState state) {
