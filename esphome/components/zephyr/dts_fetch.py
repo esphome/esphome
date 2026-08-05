@@ -42,7 +42,7 @@ def _parse_zephyr_version_file(version_file: Path) -> str:
     """Parse a Zephyr VERSION file (VERSION_MAJOR/VERSION_MINOR/PATCHLEVEL = N lines) into
     a 'major.minor.patch' string."""
     values: dict[str, str] = {}
-    for line in version_file.read_text().splitlines():
+    for line in version_file.read_text(encoding="utf-8").splitlines():
         if "=" not in line:
             continue
         key, _, value = line.partition("=")
