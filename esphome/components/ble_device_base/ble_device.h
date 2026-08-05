@@ -195,13 +195,10 @@ class ESPBTDevice {
   // Historical esp32 signature: consumers assign the result to esp_ble_addr_type_t.
   esp_ble_addr_type_t get_address_type() const { return static_cast<esp_ble_addr_type_t>(this->address_type_); }
   /// Historical esp32 ingest (esp32 builds only): parse an ESP-IDF scan result.
-  ESPDEPRECATED("Use ESPBTDevice::from_scan_result(); raw scan-result ingest will be removed in ESPHome 2027.2.0.",
-                "2026.8.0")
+  /// Prefer ESPBTDevice::from_scan_result(); deprecation is a follow-up pending
+  /// consumer feedback on the raw scan-result fields.
   void parse_scan_rst(const esp32_ble::BLEScanResult &scan_result);
   // Exposed through a function for use in lambdas
-  ESPDEPRECATED("Use get_service_datas()/get_manufacturer_datas()/get_rssi() etc.; raw scan-result access will be "
-                "removed in ESPHome 2027.2.0.",
-                "2026.8.0")
   const esp32_ble::BLEScanResult &get_scan_result() const { return *scan_result_; }
 #else
   uint8_t get_address_type() const { return this->address_type_; }
