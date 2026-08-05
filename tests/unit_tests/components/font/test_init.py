@@ -97,3 +97,15 @@ def test_stage2_parses_cached_css(setup_core: Path) -> None:
 def test_stage2_skips_missing_css(setup_core: Path) -> None:
     batches = list(font.PREFETCH_FILES([{"file": "gfonts://NoCss"}]))
     assert batches[1] == []
+
+
+def test_prefetch_handles_bare_mapping_extras(setup_core: Path) -> None:
+    """A bare-mapping extras value (valid raw config) is scanned."""
+    entries = [
+        {
+            "file": "fonts/local.ttf",
+            "extras": {"file": "gfonts://Roboto", "glyphs": "ABC"},
+        }
+    ]
+    batches = list(font.PREFETCH_FILES(entries))
+    assert [file.url for file in batches[0]] == [font._gfonts_css_url(_gspec("Roboto"))]

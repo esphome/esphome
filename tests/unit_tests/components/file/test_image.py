@@ -63,3 +63,13 @@ def test_extractor_matches_validator_path(setup_core: Path) -> None:
 
     validated_path = mock_download.call_args[0][1]
     assert validated_path == file_image._extract_file_ref("mdi:home").path
+
+
+def test_hook_is_wired_to_both_animation_domains() -> None:
+    """Both animation entry points expose the shared image hook."""
+    from esphome.loader import get_component, get_platform
+
+    assert get_component("animation").prefetch_files is file_image.PREFETCH_FILES
+    assert (
+        get_platform("image", "animation").prefetch_files is file_image.PREFETCH_FILES
+    )

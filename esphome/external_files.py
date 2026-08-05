@@ -224,7 +224,9 @@ def download_content(
     on-disk copy exists: by default the copy is served with a warning;
     callers whose bytes cannot be verified downstream (e.g. firmware
     without a checksum) pass False to fail instead of building from a
-    possibly outdated copy.
+    possibly outdated copy. One deliberate carve-out: when the user
+    disabled refreshing entirely (``CORE.skip_external_update``), the
+    on-disk copy is served regardless, honoring that explicit choice.
     """
     # A path verified once this run is served from disk with no further
     # network, not even the conditional HEAD; a path that already failed

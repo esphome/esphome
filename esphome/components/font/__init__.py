@@ -466,6 +466,10 @@ def _iter_remote_specs(entries: list[ConfigType]) -> Iterable[ConfigType]:
     for entry in entries:
         values = [entry.get(CONF_FILE)]
         extras = entry.get(CONF_EXTRAS)
+        if isinstance(extras, dict):
+            # The schema runs cv.ensure_list on extras, so a bare mapping
+            # is valid raw config; mirror that normalization here.
+            extras = [extras]
         if isinstance(extras, list):
             values.extend(
                 extra.get(CONF_FILE) for extra in extras if isinstance(extra, dict)
