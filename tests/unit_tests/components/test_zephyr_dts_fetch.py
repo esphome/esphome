@@ -44,7 +44,7 @@ def test_resolve_boards_ref_prefixes_v_for_mainline_shaped_sdk() -> None:
 def test_resolve_boards_ref_reads_manifest_revision_for_manifest_resolved_sdk(
     tmp_path: Path,
 ) -> None:
-    """NCS's boards_repo_url ref isn't derivable from version -- it must be read from
+    """The NCS's boards_repo_url ref isn't derivable from version -- it must be read from
     manifest_url's own west.yml. Regression coverage for that discovery, not a guessed
     format string."""
 

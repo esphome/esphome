@@ -162,11 +162,11 @@ def _lookup_bus_labels(board: str, label_pattern: str) -> list[str] | None:
 
 
 def get_existing_cdc_acm_uart_label(board: str) -> str | None:
-    """Return the label of an already-enabled `zephyr,cdc-acm-uart` node on the
+    r"""Return the label of an already-enabled `zephyr,cdc-acm-uart` node on the
     board, or None if the board doesn't declare one.
 
     Unlike _lookup_bus_labels() (which matches by label name pattern, e.g.
-    r"uart\\d+"), this matches by `compatible` string -- board-provided CDC-ACM
+    r"uart\d+"), this matches by `compatible` string -- board-provided CDC-ACM
     nodes aren't guaranteed to follow any particular label naming convention
     (e.g. the generic zephyr/boards/common/usb/cdc_acm_serial.dtsi snippet
     labels its node `board_cdc_acm_uart`, not `cdc_acm_uart0`).
@@ -276,7 +276,7 @@ def _get_edt(board: str):
         cache[board] = _NOT_FOUND
         return None
 
-    with tempfile.NamedTemporaryFile(suffix=".dts", mode="w", delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".dts", mode="w", delete=False, encoding="utf-8") as f:
         f.write(preprocessed)
         tmp_path = Path(f.name)
 
@@ -421,7 +421,7 @@ def _read_dts_with_includes(
     _seen.add(abs_file)
 
     try:
-        text = dts_file.read_text()
+        text = dts_file.read_text(encoding="utf-8")
     except OSError:
         return ""
 
