@@ -15,12 +15,9 @@ on a daemon-thread event loop via ``run_async`` so callers stay synchronous.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import socket
 from typing import TYPE_CHECKING, Any
-
-from esphome.async_thread import run_async
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -40,12 +37,12 @@ def ensure_happy_eyeballs() -> None:
 
     Idempotent; call before performing requests-based downloads.
     """
+    stock: Callable[..., socket.socket] | None = None
     try:
         import urllib3.util.connection
 
-        if getattr(
-            urllib3.util.connection.create_connection, "_esphome_patched", False
-        ):
+        stock = urllib3.util.connection.create_connection
+        if getattr(stock, "_esphome_patched", False):
             return
 
         urllib3.util.connection.create_connection = _make_create_connection()
@@ -59,10 +56,17 @@ def ensure_happy_eyeballs() -> None:
             err,
         )
         _LOGGER.debug("Happy Eyeballs fallback traceback", exc_info=True)
+        if stock is not None:
+            # Latch the fallback so later calls take the already-patched
+            # fast path instead of repeating the warning per download.
+            stock._esphome_patched = True  # type: ignore[attr-defined]  # pylint: disable=protected-access
 
 
 def _make_create_connection() -> Callable[..., socket.socket]:
     """Build a drop-in replacement for urllib3's ``create_connection``."""
+    # Deferred so runs that never download skip the ~30 ms asyncio import.
+    import asyncio
+
     from aiohappyeyeballs import start_connection
     from urllib3.exceptions import LocationParseError
     from urllib3.util.connection import (  # noqa: PLC2701
@@ -70,6 +74,8 @@ def _make_create_connection() -> Callable[..., socket.socket]:
         allowed_gai_family,
     )
     from urllib3.util.timeout import _DEFAULT_TIMEOUT  # noqa: PLC2701
+
+    from esphome import async_thread
 
     def create_connection(
         address: tuple[str, int],
@@ -125,7 +131,9 @@ def _make_create_connection() -> Callable[..., socket.socket]:
         # on_orphan closes any socket the abandoned thread wins after the
         # outer timeout, so a starved event loop cannot leak a live
         # connection.
-        sock = run_async(connect, timeout=wait, on_orphan=socket.socket.close)
+        sock = async_thread.run_async(
+            connect, timeout=wait, on_orphan=socket.socket.close
+        )
         # aiohappyeyeballs leaves the winning socket non-blocking; restore the
         # blocking-with-timeout behavior urllib3 callers expect.
         try:

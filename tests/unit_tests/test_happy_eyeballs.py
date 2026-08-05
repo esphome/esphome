@@ -194,7 +194,7 @@ def test_settimeout_failure_closes_socket(
     bad_sock.settimeout.side_effect = OSError("bad timeout")
 
     with (
-        patch("esphome.happy_eyeballs.run_async", return_value=bad_sock),
+        patch("esphome.async_thread.run_async", return_value=bad_sock),
         pytest.raises(OSError, match="bad timeout"),
     ):
         create_connection(("example.com", 80), timeout=5)
@@ -239,9 +239,10 @@ def test_empty_getaddrinfo_raises_oserror(create_connection: Any) -> None:
 
 
 def test_ensure_falls_back_to_stock_when_internals_move(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """If urllib3 private names disappear, downloads keep the stock connect."""
+    """If urllib3 private names disappear, downloads keep the stock connect
+    and the warning is latched to fire once, not per download."""
     import urllib3.util.connection
 
     from esphome import happy_eyeballs
@@ -249,15 +250,26 @@ def test_ensure_falls_back_to_stock_when_internals_move(
     def stock(*args: Any, **kwargs: Any) -> None:
         pass
 
+    factory = Mock(side_effect=ImportError("gone"))
     monkeypatch.setattr(urllib3.util.connection, "create_connection", stock)
-    monkeypatch.setattr(
-        happy_eyeballs,
-        "_make_create_connection",
-        Mock(side_effect=ImportError("gone")),
-    )
+    monkeypatch.setattr(happy_eyeballs, "_make_create_connection", factory)
 
     ensure_happy_eyeballs()
+    ensure_happy_eyeballs()
     assert urllib3.util.connection.create_connection is stock
+    assert factory.call_count == 1
+    assert caplog.text.count("Happy Eyeballs unavailable") == 1
+
+
+def test_ensure_survives_missing_urllib3(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unimportable urllib3 degrades with a warning instead of raising."""
+    import sys
+
+    with patch.dict(sys.modules, {"urllib3.util.connection": None}):
+        ensure_happy_eyeballs()
+    assert "Happy Eyeballs unavailable" in caplog.text
 
 
 def test_requests_routes_through_shim(monkeypatch: pytest.MonkeyPatch) -> None:
