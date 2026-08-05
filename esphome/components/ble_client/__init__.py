@@ -38,8 +38,9 @@ def validate_descriptor_not_notify(config: ConfigType) -> ConfigType:
     ):
         raise cv.Invalid(
             f"'{CONF_DESCRIPTOR_UUID}' cannot be used with '{CONF_NOTIFY}' or "
-            f"'{CONF_ON_NOTIFY}': BLE descriptors cannot send notifications and "
-            f"can only be polled"
+            f"'{CONF_ON_NOTIFY}': BLE descriptors cannot send notifications; remove "
+            f"'{CONF_DESCRIPTOR_UUID}' to receive characteristic notifications, or "
+            f"remove '{CONF_NOTIFY}' and '{CONF_ON_NOTIFY}' to poll the descriptor"
         )
     return config
 
