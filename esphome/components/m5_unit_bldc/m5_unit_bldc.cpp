@@ -100,17 +100,43 @@ void M5UnitBldc::dump_config() {
   }
 }
 
-void M5UnitBldc::write_pwm(uint16_t duty) {
+void M5UnitBldc::write_pwm_raw_(uint16_t duty) {
   uint8_t buf[2];
   std::memcpy(buf, &duty, 2);
   this->write_register(REG_PWM, buf, 2);
 }
 
-void M5UnitBldc::write_target_rpm(float rpm) { this->write_float_(REG_SET_RPM, rpm); }
+void M5UnitBldc::write_pwm(uint16_t duty) {
+  this->last_pwm_ = duty;
+  this->write_pwm_raw_(duty);
+}
+
+void M5UnitBldc::write_target_rpm(float rpm) {
+  this->last_target_rpm_ = rpm;
+  this->write_float_(REG_SET_RPM, rpm);
+}
 
 void M5UnitBldc::write_direction(Direction direction) {
   uint8_t value = static_cast<uint8_t>(direction);
   this->write_register(REG_DIRECTION, &value, 1);
+
+  // The device only latches a new direction once the motor has actually spun down to a stop --
+  // zeroing and immediately restoring the PWM/RPM register isn't enough, it needs real time to
+  // decelerate first (datasheet note "[1] Change direction": setup direction, zero, then
+  // non-zero once stopped). 800ms comfortably covers spin-down for the small motors this driver
+  // targets; restoring is deferred via a named timeout so repeated direction changes replace any
+  // still-pending restore instead of stacking.
+  if (this->control_mode_ == ControlMode::CLOSED_LOOP) {
+    this->write_float_(REG_SET_RPM, 0.0f);
+    if (this->last_target_rpm_ != 0.0f) {
+      this->set_timeout("direction_change", 800, [this]() { this->write_float_(REG_SET_RPM, this->last_target_rpm_); });
+    }
+  } else {
+    this->write_pwm_raw_(0);
+    if (this->last_pwm_ != 0) {
+      this->set_timeout("direction_change", 800, [this]() { this->write_pwm_raw_(this->last_pwm_); });
+    }
+  }
 }
 
 }  // namespace esphome::m5_unit_bldc

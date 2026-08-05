@@ -64,6 +64,7 @@ class M5UnitBldc : public i2c::I2CDevice, public PollingComponent {
  protected:
   bool write_float_(uint8_t reg, float value);
   bool read_float_(uint8_t reg, float *value);
+  void write_pwm_raw_(uint16_t duty);
 
   ControlMode control_mode_{ControlMode::OPEN_LOOP};
   Direction initial_direction_{Direction::FORWARD};
@@ -72,6 +73,12 @@ class M5UnitBldc : public i2c::I2CDevice, public PollingComponent {
   bool has_pid_{false};
   float p_{0}, i_{0}, d_{0};
   bool save_to_flash_{false};
+
+  // Last commanded PWM/target RPM, so `write_direction()` can restore them after the
+  // zero-then-nonzero cycle the device needs to actually latch a new direction (see datasheet
+  // note "[1] Change direction").
+  uint16_t last_pwm_{0};
+  float last_target_rpm_{0};
 
   sensor::Sensor *rpm_sensor_{nullptr};
   sensor::Sensor *frequency_sensor_{nullptr};
