@@ -250,6 +250,13 @@
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 768
 #define USE_OTA_ROLLBACK
 #define USE_OTA_SIGNED_VERIFICATION
+#define USE_OTA_SIGNED_VERIFICATION_MULTI_KEY
+// Stub values for tooling; a real build's codegen emits these from verification_keys.
+#define OTA_TRUSTED_KEY_COUNT 1
+#define OTA_TRUSTED_KEY_DIGESTS \
+  { \
+    { 0 } \
+  }
 #define USE_OTA_DOWNGRADE_PROTECTION
 #define USE_ESP32_MIN_CHIP_REVISION_SET
 #define USE_ESP32_RTC_PREFERENCES
