@@ -4,11 +4,15 @@ host:
 
 api:
   actions:
+    # The name comes from the test so it can capture more than once: a screenshot never writes over
+    # a file that is already there, so a fixed name could only ever be captured once.
     - action: take_screenshot
+      variables:
+        name: string
       then:
         - sdl.screenshot:
             id: lvgl_display
-            filename: hello_world.bmp
+            filename: !lambda return name;
 
 logger:
   level: DEBUG

@@ -68,6 +68,10 @@ class Sdl final : public display::Display {
   int get_height_internal() override { return this->height_; }
   void redraw_(SDL_Rect &rect);
   bool setup_renderer_();
+  /// Release the window, surface, renderer and texture, and forget them.
+  void destroy_renderer_();
+  /// Log an SDL failure during setup, release anything already created, and return false.
+  bool setup_failed_(const char *what);
   bool write_bmp_(SDL_Surface *surface, const std::string &name, bool exact);
   void handle_event_(const SDL_Event &event);
   /// The display owning the given window, or nullptr if it is not one of ours.
@@ -83,8 +87,9 @@ class Sdl final : public display::Display {
   SDL_Renderer *renderer_{};
   SDL_Window *window_{};
   SDL_Texture *texture_{};
-  // Offscreen render target used when headless. The renderer draws into it for the process
-  // lifetime, so it must outlive setup().
+  // Offscreen render target used when headless. SDL_CreateSoftwareRenderer only borrows the
+  // surface, and the renderer goes back to using it as its output whenever the capture target is
+  // released, so it has to stay alive as long as the renderer does.
   SDL_Surface *surface_{};
   // Capture target, created on first screenshot.
   SDL_Texture *shot_target_{};

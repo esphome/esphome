@@ -106,48 +106,64 @@ int Sdl::get_height() {
   }
 }
 
+void Sdl::destroy_renderer_() {
+  // Reverse order of creation: the renderer refers to the window or surface it was made from.
+  if (this->texture_ != nullptr) {
+    SDL_DestroyTexture(this->texture_);
+    this->texture_ = nullptr;
+  }
+  if (this->renderer_ != nullptr) {
+    SDL_DestroyRenderer(this->renderer_);
+    this->renderer_ = nullptr;
+  }
+  if (this->window_ != nullptr) {
+    SDL_DestroyWindow(this->window_);
+    this->window_ = nullptr;
+  }
+  if (this->surface_ != nullptr) {
+    SDL_FreeSurface(this->surface_);
+    this->surface_ = nullptr;
+  }
+}
+
+bool Sdl::setup_failed_(const char *what) {
+  ESP_LOGE(TAG, "%s: %s", what, SDL_GetError());
+  // Give back whatever was created before the failure. Without this a half set up display leaves an
+  // empty window on screen for the life of the process, still registered as an event target.
+  this->destroy_renderer_();
+  return false;
+}
+
 bool Sdl::setup_renderer_() {
   SDL_SetMainReady();
   if (this->headless_) {
     // SDL_INIT_VIDEO is deliberately not requested: a software renderer bound to a surface needs no
     // video device, so this works on a machine with no display server at all.
-    if (SDL_Init(0) != 0) {
-      ESP_LOGE(TAG, "SDL_Init failed: %s", SDL_GetError());
-      return false;
-    }
+    if (SDL_Init(0) != 0)
+      return this->setup_failed_("SDL_Init failed");
     this->surface_ = SDL_CreateRGBSurfaceWithFormat(0, this->width_, this->height_, 16, SDL_PIXELFORMAT_RGB565);
-    if (this->surface_ == nullptr) {
-      ESP_LOGE(TAG, "Could not create offscreen surface: %s", SDL_GetError());
-      return false;
-    }
+    if (this->surface_ == nullptr)
+      return this->setup_failed_("Could not create offscreen surface");
     this->renderer_ = SDL_CreateSoftwareRenderer(this->surface_);
   } else {
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-      ESP_LOGE(TAG, "SDL_Init failed: %s", SDL_GetError());
-      return false;
-    }
+    if (SDL_Init(SDL_INIT_VIDEO) != 0)
+      return this->setup_failed_("SDL_Init failed");
     this->window_ = SDL_CreateWindow(App.get_name().c_str(), this->pos_x_, this->pos_y_, this->width_, this->height_,
                                      this->window_options_);
-    if (this->window_ == nullptr) {
-      ESP_LOGE(TAG, "Could not create window: %s", SDL_GetError());
-      return false;
-    }
+    if (this->window_ == nullptr)
+      return this->setup_failed_("Could not create window");
     // Lets loop() find the display an event belongs to, so one display does not act on another's
     // input when several windows are open.
     SDL_SetWindowData(this->window_, WINDOW_DATA_KEY, this);
     this->renderer_ = SDL_CreateRenderer(this->window_, -1, SDL_RENDERER_SOFTWARE);
   }
-  if (this->renderer_ == nullptr) {
-    ESP_LOGE(TAG, "Could not create renderer: %s", SDL_GetError());
-    return false;
-  }
+  if (this->renderer_ == nullptr)
+    return this->setup_failed_("Could not create renderer");
   SDL_RenderSetLogicalSize(this->renderer_, this->width_, this->height_);
   this->texture_ =
       SDL_CreateTexture(this->renderer_, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STATIC, this->width_, this->height_);
-  if (this->texture_ == nullptr) {
-    ESP_LOGE(TAG, "Could not create texture: %s", SDL_GetError());
-    return false;
-  }
+  if (this->texture_ == nullptr)
+    return this->setup_failed_("Could not create texture");
   // The texture has no alpha channel, so blending is pointless. Headless it would also force a
   // different software blit path onto the 16 bit target surface.
   SDL_SetTextureBlendMode(this->texture_, this->headless_ ? SDL_BLENDMODE_NONE : SDL_BLENDMODE_BLEND);
@@ -340,8 +356,13 @@ void Sdl::loop() {
     }
 
     Sdl *target = instance_for_window_(window_id);
-    if (target != nullptr)
-      target->handle_event_(e);
+    if (target == nullptr) {
+      // Nothing to route this to: the window has gone, or it is not one of ours. Say so, otherwise
+      // input that stops working leaves no trace at all.
+      ESP_LOGV(TAG, "Event %d for unknown window %u", e.type, window_id);
+      continue;
+    }
+    target->handle_event_(e);
   }
 }
 
@@ -453,16 +474,18 @@ bool Sdl::save_screenshot(const char *filename) {
   // Render into an offscreen target first. SDL_RenderReadPixels works in physical output pixels and
   // ignores the logical size, so reading straight off a resizable window would read more pixels than
   // the surface holds.
+  // Every step is checked: a failed clear or copy would otherwise be read back as a blank or stale
+  // picture, written out, and reported as a screenshot that worked.
   bool ok = false;
   if (SDL_SetRenderTarget(this->renderer_, this->shot_target_) == 0) {
-    SDL_SetRenderDrawColor(this->renderer_, 0, 0, 0, SDL_ALPHA_OPAQUE);
-    SDL_RenderClear(this->renderer_);
-    SDL_RenderCopy(this->renderer_, this->texture_, nullptr, nullptr);
-    ok = SDL_RenderReadPixels(this->renderer_, nullptr, SDL_PIXELFORMAT_BGR24, shot->pixels, shot->pitch) == 0;
+    ok = SDL_SetRenderDrawColor(this->renderer_, 0, 0, 0, SDL_ALPHA_OPAQUE) == 0 &&
+         SDL_RenderClear(this->renderer_) == 0 &&
+         SDL_RenderCopy(this->renderer_, this->texture_, nullptr, nullptr) == 0 &&
+         SDL_RenderReadPixels(this->renderer_, nullptr, SDL_PIXELFORMAT_BGR24, shot->pixels, shot->pitch) == 0;
     SDL_SetRenderTarget(this->renderer_, nullptr);
   }
   if (!ok) {
-    ESP_LOGE(TAG, "Could not read back the screen: %s", SDL_GetError());
+    ESP_LOGE(TAG, "Could not capture the screen: %s", SDL_GetError());
     SDL_FreeSurface(shot);
     return false;
   }

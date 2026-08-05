@@ -21,6 +21,9 @@ from .types import APIClientConnectedFactory, RunCompiledFunction
 WIDTH = 300
 HEIGHT = 300
 
+# How long to keep capturing while waiting for LVGL to draw its first frame.
+DRAW_TIMEOUT = 15.0
+
 # sha256 of the pixel data of a 300x300 screen showing "Hello World!" centred in white on a dark
 # blue background, drawn with the built in montserrat_14 font. To regenerate, run this test and
 # take the hash it reports.
@@ -53,16 +56,31 @@ async def test_lvgl_headless_render(
         _, services = await client.list_entities_services()
         service = next(s for s in services if s.name == "take_screenshot")
 
-        # Give LVGL time to draw the first frame before capturing it.
-        await asyncio.sleep(1.0)
-        await client.execute_service(service, {})
-
-        capture = screenshot_dir / "hello_world.bmp"
-        image = await wait_for_bmp(capture)
-        assert (image.width, image.height, image.bits) == (WIDTH, HEIGHT, 24)
-
-        # The background is not the whole picture: something must have been drawn on it.
-        assert len(set(image.pixels)) > 1, "the screen is a single flat colour"
+        # Capture until LVGL has drawn something, rather than waiting a fixed time and hoping. A
+        # capture taken before the first frame is a plain background, and comparing that against
+        # the hash would report a drawing regression when the real problem was timing.
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + DRAW_TIMEOUT
+        attempt = 0
+        while True:
+            attempt += 1
+            name = f"render-{attempt}.bmp"
+            await client.execute_service(service, {"name": name})
+            capture = screenshot_dir / name
+            image = await wait_for_bmp(capture)
+            assert (image.width, image.height, image.bits) == (WIDTH, HEIGHT, 24)
+            # The background is not the whole picture: something must have been drawn on it.
+            # Count whole pixels, not bytes - the background alone is made of the byte values
+            # 0x00 and 0x80, so counting bytes would find two of them and pass on a blank screen.
+            colours = {image.pixels[i : i + 3] for i in range(0, len(image.pixels), 3)}
+            if len(colours) > 1:
+                break
+            if loop.time() >= deadline:
+                pytest.fail(
+                    f"the screen was still a single flat colour after {DRAW_TIMEOUT}s "
+                    f"and {attempt} captures - LVGL drew nothing"
+                )
+            await asyncio.sleep(0.5)
 
         digest = hashlib.sha256(image.pixels).hexdigest()
         if digest != EXPECTED_SHA256:
