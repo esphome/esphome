@@ -70,6 +70,43 @@ class TestListAddSchema:
             result = list_add_schema({"id": "my_list", widget_key: widget_conf})
             assert widget_key in result["widget"][0]
 
+    @pytest.mark.parametrize(
+        ("widget_key", "widget_conf"),
+        [
+            ("buttonmatrix", {"rows": [{"buttons": [{"text": "A"}]}]}),
+            ("tabview", {"tabs": [{"name": "Tab1"}]}),
+            ("tileview", {"tiles": [{"row": 0, "column": 0}]}),
+            ("meter", {"scales": [{"range_from": 0, "range_to": 100}]}),
+        ],
+    )
+    def test_dynamic_widget_unsupported_rejected(
+        self, widget_key: str, widget_conf: dict
+    ) -> None:
+        """buttonmatrix/tabview/tileview all register their own child widgets into
+        the global widget map from inside their to_code - fine for a widget built
+        once at boot, but broken if lvgl.list.add re-enters that on every call.
+        meter is rejected for a related but distinct reason: its scale/indicator
+        objects are declared with cg.Pvariable(), which emits its assignment
+        wherever code is currently being generated -- fine at the top level of a
+        boot-time to_code, but lvgl.list.add's do_add runs inside a lambda, so that
+        assignment would end up outside the very lambda that declares the local
+        meter object it refers to, which doesn't compile.
+        """
+        with pytest.raises(cv.Invalid, match="cannot be used with lvgl.list.add"):
+            list_add_schema({"id": "my_list", widget_key: widget_conf})
+
+    def test_dynamic_widget_unsupported_rejected_when_nested(self) -> None:
+        """The check must recurse into `widgets:` so a tabview hidden a few levels
+        deep inside another widget is caught too, not just at the top level.
+        """
+        with pytest.raises(cv.Invalid, match="cannot be used with lvgl.list.add"):
+            list_add_schema(
+                {
+                    "id": "my_list",
+                    "obj": {"widgets": [{"tabview": {"tabs": [{"name": "Tab1"}]}}]},
+                }
+            )
+
 
 # ---------------------------------------------------------------------------
 # The list widget's own schema: pad_row is shared between create/update, but
@@ -178,7 +215,19 @@ def test_add_nested_hierarchy_with_compound_child(main_cpp: str) -> None:
     assert "lv_obj_t *dyn_obj_VAR_ = lv_obj_create(test_list);" in main_cpp
     assert (
         "lv_obj_t *dyn_label_VAR_ = lv_label_create(dyn_obj_VAR_);\n"
+        "            lv_obj_add_style(dyn_label_VAR_, _lv_theme_style_label_main_default, "
+        "(lv_state_t)(LV_PART_MAIN));\n"
         '            lv_label_set_text(dyn_label_VAR_, "Nested");'
+    ) in main_cpp
+
+
+def test_add_applies_theme_styles_to_dynamic_widget(main_cpp: str) -> None:
+    """A widget added via lvgl.list.add must pick up the same `theme:` styling a
+    statically-declared widget of the same type gets, not render unthemed.
+    """
+    assert (
+        "lv_obj_add_style(dyn_label_VAR_, _lv_theme_style_label_main_default, "
+        "(lv_state_t)(LV_PART_MAIN));"
     ) in main_cpp
     assert "LvDropdownType *dyn_dropdown_VAR_ = new LvDropdownType();" in main_cpp
     assert "lv_dropdown_create(dyn_obj_VAR_)" in main_cpp

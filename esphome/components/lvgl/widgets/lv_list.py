@@ -41,10 +41,12 @@ from ..lvcode import (
 from ..schemas import WIDGET_TYPES, any_widget_schema, container_schema_value
 from ..trigger import add_trigger
 from ..types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t
-from . import Widget, WidgetType, get_widgets, set_obj_properties
+from . import Widget, WidgetType, apply_theme_styles, get_widgets, set_obj_properties
 from .buttonmatrix import CONF_BUTTONMATRIX
 from .label import CONF_LABEL
+from .meter import CONF_METER
 from .tabview import CONF_TABVIEW
+from .tileview import CONF_TILEVIEW
 
 CONF_LIST = "list"
 CONF_WIDGET = "widget"
@@ -189,16 +191,30 @@ async def list_add_text_to_code(config, action_id, template_arg, args):
     )
 
 
-_DYNAMIC_WIDGET_UNSUPPORTED = (CONF_BUTTONMATRIX, CONF_TABVIEW)
+_DYNAMIC_WIDGET_UNSUPPORTED = (
+    CONF_BUTTONMATRIX,
+    CONF_TABVIEW,
+    CONF_TILEVIEW,
+    CONF_METER,
+)
 
 
 def _check_dynamic_widget_supported(w_type_name: str, w_conf: dict) -> None:
-    # buttonmatrix/tabview register their own child widgets (matrix buttons, tabs)
-    # into the global widget map from inside their to_code - safe for a widget built
-    # once at boot, but lvgl.list.add re-enters this on every call, so those children
-    # would keep piling into that map and generate_triggers() (the only place that
-    # would wire their own on_click etc.) has already run by boot, long before any
-    # runtime call - their triggers would silently never fire.
+    # buttonmatrix/tabview/tileview register their own child widgets (matrix buttons,
+    # tabs, tiles) into the global widget map from inside their to_code - safe for a
+    # widget built once at boot, but lvgl.list.add re-enters this on every call, so
+    # those children would keep piling into that map and generate_triggers() (the
+    # only place that would wire their own on_click etc.) has already run by boot,
+    # long before any runtime call - their triggers would silently never fire.
+    # (tileview's children live under `tiles:`, not `widgets:`, so the recursion
+    # below wouldn't otherwise reach them at all.)
+    #
+    # meter is excluded for a different reason: its scale/indicator objects are
+    # built with cg.Pvariable() (a bare global `T *id;` plus an assignment where
+    # the code is currently being emitted), which is only safe at the top level of
+    # a boot-time to_code. Called from here, that assignment ends up emitted
+    # *outside* the very lambda that declares the local meter object it refers to
+    # (lvgl.list.add's do_add closure runs inside one), which doesn't compile.
     if w_type_name in _DYNAMIC_WIDGET_UNSUPPORTED:
         raise cv.Invalid(
             f"'{w_type_name}' cannot be used with lvgl.list.add - it manages its own "
@@ -342,6 +358,7 @@ async def _build_dynamic_widget(
 
 async def _finish_dynamic_widget(w: Widget, w_conf: dict, list_id, list_obj) -> None:
     await w.type.on_create(w.obj, w_conf)
+    apply_theme_styles(w)
     await set_obj_properties(w, w_conf)
     await w.type.to_code(w, w_conf)
     await _wire_dynamic_triggers(w, w_conf)

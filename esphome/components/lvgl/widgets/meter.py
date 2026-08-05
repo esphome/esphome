@@ -361,14 +361,26 @@ class MeterType(WidgetType):
         # Remove theme styling from outer container
         lv.obj_add_style(var, await LIGHT_STYLE.get_var(), LV_PART.MAIN)
 
-    async def create_to_code(self, config: dict, parent: MockObj):
-        """For a meter object using scale widget, create and set parameters"""
+    async def to_code(self, w: Widget, config: dict):
+        """For a meter object using scale widget, create and set parameters.
 
-        add_lv_use(*self.get_uses())
-        outer_config = config.copy()
-        indicator_config = {CONF_INDICATOR: outer_config.pop(CONF_TICKS, {})}
-        w = await super().create_to_code(outer_config, parent)
+        Overriding ``to_code`` rather than ``create_to_code`` (as this used to)
+        means this is reached the same way any other widget type's own to_code
+        is -- notably including as a nested child of another widget, which
+        previously skipped straight past this whole method since the old
+        ``create_to_code`` override's ``super().create_to_code()`` call never
+        propagated its return value back to its own caller.
+
+        This is deliberately *not* reachable via ``lvgl.list.add``: its
+        scale/indicator objects are declared with ``cg.Pvariable()``, which
+        emits its assignment wherever code is currently being generated -- fine
+        at the top level of a boot-time to_code, but lvgl.list.add's do_add runs
+        inside a lambda, so that assignment would end up outside the very lambda
+        that declares the local meter object it refers to, which doesn't
+        compile. See lv_list.py's ``_DYNAMIC_WIDGET_UNSUPPORTED``.
+        """
         var = w.obj
+        indicator_config = {CONF_INDICATOR: config.get(CONF_TICKS, {})}
 
         # LVGL 9.4 scale widget setup
         # Background style will be applied.

@@ -20,6 +20,9 @@ display:
     dc_pin: GPIO3
 
 lvgl:
+  theme:
+    label:
+      bg_color: 0xFF0000
   widgets:
     - list:
         id: test_list
