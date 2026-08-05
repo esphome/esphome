@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+from typing import Any
 
 import click
 import colorama
@@ -29,7 +30,7 @@ from helpers import (
 )
 
 
-def gcc_multilib_directory(idedata):
+def gcc_multilib_directory(idedata: dict[str, Any]) -> str | None:
     """The toolchain's active multilib subdirectory (e.g. "thumb"), if any.
 
     PlatformIO's idedata lists the generic toolchain include directories; GCC
