@@ -48,12 +48,21 @@ void BK72xxBLETracker::on_ota_global_state(ota::OTAState state, float progress, 
                                            ota::OTAComponent *comp) {
   if (state == ota::OTA_STARTED) {
     this->scan_continuous_before_ota_ = this->scan_continuous_;
+    this->scan_requested_before_ota_ = this->scan_requested_;
     this->stop_scan();
-  } else if ((state == ota::OTA_ERROR || state == ota::OTA_ABORT) && this->scan_continuous_before_ota_) {
+  } else if (state == ota::OTA_ERROR || state == ota::OTA_ABORT) {
     // On success the device reboots, so restore only on a failed/aborted update;
     // loop() restarts the scan on its next iteration (continuous idle branch).
-    this->scan_continuous_before_ota_ = false;
-    this->scan_continuous_ = true;
+    if (this->scan_continuous_before_ota_) {
+      this->scan_continuous_before_ota_ = false;
+      this->scan_continuous_ = true;
+    }
+    // A one-shot request that was still pending (latched, retrying) when the
+    // OTA paused scanning is re-latched, not dropped — loop() resumes the retry.
+    if (this->scan_requested_before_ota_) {
+      this->scan_requested_before_ota_ = false;
+      this->scan_requested_ = true;
+    }
   }
 }
 #endif  // USE_OTA_STATE_LISTENER
@@ -62,25 +71,11 @@ void BK72xxBLETracker::loop() {
   const uint32_t now = millis();
   if (this->scan_continuous_) {
     if (!this->scan_running_) {
-      // Rate-limit (re)start attempts. The controller start can fail (no idle activity
-      // handle, WiFi/BLE coexistence) and leave scan_running_ false; retrying every
-      // main-loop iteration would spin the single-core CPU and starve WiFi (device
-      // becomes unresponsive). The interval backs off with consecutive failures so a
-      // controller that never comes up polls slowly and quietly.
-      const uint8_t doublings = std::min<uint8_t>(this->failed_start_count_, SCAN_START_RETRY_MAX_DOUBLINGS);
-      if (now - this->last_scan_start_attempt_ >= (SCAN_START_RETRY_MS << doublings)) {
-        this->last_scan_start_attempt_ = now;
-        this->start_scan_();
-        if (this->scan_running_) {
-          this->failed_start_count_ = 0;
-        } else if (this->failed_start_count_ < SCAN_START_RETRY_MAX_DOUBLINGS) {
-          ++this->failed_start_count_;
-          if (this->failed_start_count_ == SCAN_START_RETRY_MAX_DOUBLINGS) {
-            ESP_LOGW(TAG, "Scan start keeps failing; retrying every %" PRIu32 " s",
-                     (SCAN_START_RETRY_MS << SCAN_START_RETRY_MAX_DOUBLINGS) / 1000);
-          }
-        }
-      }
+      // A start that succeeded re-anchored the period timer from a later millis(),
+      // so the stale `now` below would underflow the comparison and fire
+      // on_scan_end() for a scan that just began. Resume next iteration.
+      if (this->try_start_with_backoff_(now))
+        return;
     }
     // Period timer: fire on_scan_end() once per scan_duration_ window, mirroring
     // esp32_ble_tracker::cleanup_scan_state_(). Gated on scan_started_once_ so a scan
@@ -98,9 +93,49 @@ void BK72xxBLETracker::loop() {
 
   // Non-continuous mode: run for scan_duration_ ms, then stop and fire on_scan_end.
   // Restart is driven externally (e.g. api: on_client_connected:).
+  //
+  // A requested start that failed (same controller failures the continuous branch
+  // absorbs) is retried with the same backoff — otherwise a failed one-shot start
+  // would be silent: the scan never runs, stop_scan_() is never reached and
+  // on_scan_end() never fires, leaving period-keyed consumers waiting forever.
+  if (this->scan_requested_ && !this->scan_running_) {
+    // Same stale-`now` hazard as the continuous branch: start_scan_() stamps
+    // scan_start_time_ from a later millis(), so the duration check below would
+    // underflow and stop the scan in the iteration that started it.
+    if (this->try_start_with_backoff_(now))
+      return;
+  }
   if (this->scan_running_ && now - this->scan_start_time_ >= this->scan_duration_) {
     this->stop_scan_();
   }
+}
+
+bool BK72xxBLETracker::try_start_with_backoff_(uint32_t now, bool force) {
+  // Rate-limit (re)start attempts. The controller start can fail (no idle activity
+  // handle, WiFi/BLE coexistence) and leave scan_running_ false; retrying every
+  // main-loop iteration would spin the single-core CPU and starve WiFi (device
+  // becomes unresponsive). The interval backs off with consecutive failures so a
+  // controller that never comes up polls slowly and quietly.
+  //
+  // force bypasses the gate for an explicit user start (start_scan()) — but
+  // only while the failure streak is clean. Once the controller is failing,
+  // even user-initiated attempts respect the backoff, so a start_scan() action
+  // on a short cadence cannot hammer a failing controller; the attempt stays
+  // inside the failure accounting below either way.
+  const uint8_t doublings = std::min<uint8_t>(this->failed_start_count_, SCAN_START_RETRY_MAX_DOUBLINGS);
+  if ((!force || this->failed_start_count_ != 0) &&
+      now - this->last_scan_start_attempt_ < (SCAN_START_RETRY_MS << doublings))
+    return false;
+  this->last_scan_start_attempt_ = now;
+  this->start_scan_();
+  if (!this->scan_running_ && this->failed_start_count_ < SCAN_START_RETRY_MAX_DOUBLINGS) {
+    ++this->failed_start_count_;
+    if (this->failed_start_count_ == SCAN_START_RETRY_MAX_DOUBLINGS) {
+      ESP_LOGW(TAG, "Scan start keeps failing; retrying every %" PRIu32 " s",
+               (SCAN_START_RETRY_MS << SCAN_START_RETRY_MAX_DOUBLINGS) / 1000);
+    }
+  }
+  return this->scan_running_;
 }
 
 void BK72xxBLETracker::dump_config() {
@@ -136,9 +171,11 @@ void BK72xxBLETracker::on_scan_report(const bk72xx_ble::BLEScanReport &report) {
   ble_device_base::ESPBTDevice device;
   device.from_scan_result(report.mac, report.rssi, report.addr_type, report.data, report.data_len);
   bool found = false;
-  for (auto *listener : this->listeners_)
-    if (listener->parse_device(device))
+  for (auto *listener : this->listeners_) {
+    if (listener->parse_device(device)) {
       found = true;
+    }
+  }
   // Mirror esp32_ble_tracker: log a newly-seen device only when nothing claimed
   // it and the scan is one-shot (continuous scans would spam).
   if (!found && !this->scan_continuous_)
@@ -153,13 +190,40 @@ void BK72xxBLETracker::on_scan_report(const bk72xx_ble::BLEScanReport &report) {
 void BK72xxBLETracker::start_scan() {
   // Mirrors esp32_ble_tracker::start_scan(): caller sets scan_continuous_ via
   // set_scan_continuous() first, then calls start_scan() to begin scanning.
-  if (!this->scan_running_) {
-    this->start_scan_();
-  }
+  //
+  // Nothing to do while a scan is already running: latching here would leave
+  // scan_requested_ set after that scan ends and silently restart a one-shot
+  // scan nobody asked for.
+  if (this->scan_running_)
+    return;
+
+  // The request is latched: if this immediate attempt fails (controller busy,
+  // WiFi/BLE coexistence), loop() keeps retrying it with backoff even in
+  // non-continuous mode, so a one-shot start cannot fail silently.
+  //
+  // Routed through the backoff helper (forced: the user asked for an immediate
+  // attempt) so a failure here still counts toward the backoff escalation and
+  // its WARN. The force bypass only applies while the failure streak is clean —
+  // against a failing controller, repeated start_scan() calls are rate-limited
+  // like any other attempt.
+  this->scan_requested_ = true;
+  this->try_start_with_backoff_(millis(), /* force= */ true);
+}
+
+void BK72xxBLETracker::restart_scan_duration() {
+  if (!this->scan_running_)
+    return;
+  // Re-anchor only the one-shot duration clock. scan_period_start_ (the
+  // continuous-mode on_scan_end period) is deliberately left alone: a
+  // start_scan action fired more often than scan_duration_ would otherwise
+  // suppress on_scan_end indefinitely — and absence detection (ble_rssi's NAN
+  // publish) rides on that period.
+  this->scan_start_time_ = millis();
 }
 
 void BK72xxBLETracker::stop_scan() {
   this->scan_continuous_ = false;
+  this->scan_requested_ = false;  // also cancels a pending (not yet successful) start
   this->stop_scan_();
 }
 
@@ -177,6 +241,8 @@ void BK72xxBLETracker::start_scan_() {
 
   const uint32_t now = millis();
   this->scan_running_ = true;
+  this->scan_requested_ = false;  // the latched one-shot request is satisfied
+  this->failed_start_count_ = 0;  // reset here so direct starts clear the backoff too
   this->scan_start_time_ = now;
   // Log every explicit start at DEBUG — stop_scan_() logs every stop at DEBUG, and
   // in non-continuous mode each period is an explicit start, so asymmetric logging
