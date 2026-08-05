@@ -22,7 +22,10 @@ void LN882HBLETracker::setup() {
   // Receive the controller's scan reports; the controller queues them from the
   // rw task and delivers here on the main task.
   this->parent_->register_scan_listener(this);
-  if (!this->scan_continuous_) {
+  // scan_running_ check: an on_boot start_scan action (priority 600) runs
+  // before this setup() (200) and enable_loop() is a no-op pre-setup — parking
+  // the loop here would strand that already-running scan.
+  if (!this->scan_continuous_ && !this->scan_running_ && !this->pending_start_) {
     // Say so once: with continuous: false nothing scans until an explicit
     // start_scan() — silence here reads as a broken scanner.
     ESP_LOGD(TAG, "Scanning not started (continuous: false) - waiting for an explicit start_scan()");
@@ -61,6 +64,14 @@ void LN882HBLETracker::on_ota_global_state(ota::OTAState state, float progress, 
 #endif  // USE_OTA_STATE_LISTENER
 
 void LN882HBLETracker::loop() {
+  if (this->pending_start_) {
+    // A start_scan latched before the controller's setup(); safe now — loop()
+    // only runs after every component set up.
+    this->pending_start_ = false;
+    if (!this->scan_running_) {
+      this->start_scan_();
+    }
+  }
   // Flush pending scannable advertisements whose scan response never arrived
   // (device didn't answer / frame lost) — delivered unmerged after the timeout.
   // Main-task only, like every consumer of pending_adv_.
@@ -263,12 +274,34 @@ void LN882HBLETracker::process_adv_(const uint8_t *mac, int8_t rssi, uint8_t add
 void LN882HBLETracker::start_scan() {
   // Mirrors esp32_ble_tracker::start_scan(): caller sets scan_continuous_ via
   // set_scan_continuous() first, then calls start_scan() to begin scanning.
+  if (!this->parent_->is_ready()) {
+    // An on_boot automation (priority 600) runs before the controller's
+    // setup() has resolved the BLE MAC; scan_start() now would rw_init() the
+    // all-zero address and bring BLE up before WiFi. Latch; loop() applies
+    // the start once every setup() has run.
+    this->pending_start_ = true;
+    return;
+  }
   if (!this->scan_running_) {
     this->start_scan_();
   }
 }
 
+void LN882HBLETracker::restart_scan_duration() {
+  if (!this->scan_running_)
+    return;
+  // Re-anchor only the one-shot duration clock. scan_period_start_ (the
+  // continuous-mode on_scan_end period) is deliberately left alone: a
+  // start_scan action fired more often than scan_duration_ would otherwise
+  // suppress on_scan_end indefinitely — and absence detection (ble_rssi's NAN
+  // publish) rides on that period.
+  this->scan_start_time_ = millis();
+}
+
 void LN882HBLETracker::stop_scan() {
+  // Cancel a start latched before the controller's setup(); without this an
+  // on_boot start_scan/stop_scan pair would still start at the first loop().
+  this->pending_start_ = false;
   this->scan_continuous_ = false;
   this->stop_scan_();
 }
@@ -308,7 +341,10 @@ void LN882HBLETracker::stop_scan_() {
   // scanner failing to come back up.
   ESP_LOGD(TAG, "BLE scan stopped");
   this->end_scan_period_(millis());  // also resets the period clock so on_scan_end does not double-fire
-  if (!this->scan_continuous_) {
+  // scan_running_ re-check: an on_scan_end automation runs synchronously inside
+  // end_scan_period_() and may have called start_scan() — parking the loop then
+  // would leave the radio scanning with no period timing or pending-adv sweep.
+  if (!this->scan_continuous_ && !this->scan_running_) {
     // Nothing left to time; start_scan_() re-enables the loop.
     this->disable_loop();
   }

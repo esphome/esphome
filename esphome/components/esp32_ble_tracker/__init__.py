@@ -5,7 +5,7 @@ import logging
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import ble_device_base, esp32_ble, ota
-from esphome.components.const import CONF_SCAN_PARAMETERS, CONF_WINDOW
+from esphome.components.const import CONF_ON_SCAN_END, CONF_SCAN_PARAMETERS, CONF_WINDOW
 from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     request_bluetooth,
@@ -44,7 +44,6 @@ DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@bdraco"]
 
 CONF_ESP32_BLE_ID = "esp32_ble_id"
-CONF_ON_SCAN_END = "on_scan_end"
 CONF_SOFTWARE_COEXISTENCE = "software_coexistence"
 
 _LOGGER = logging.getLogger(__name__)
