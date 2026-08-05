@@ -22,6 +22,9 @@ static const char *const TAG = "rtsp_server";
 static constexpr uint8_t RTP_PAYLOAD_TYPE_JPEG = 26;
 static constexpr uint32_t RTP_CLOCK_RATE = 90000;
 static constexpr uint32_t SESSION_TIMEOUT_MS = 60000;
+// RFC 2435 encodes width/height as 8-bit fields in units of 8 pixels, so
+// dimensions above 255 * 8 = 2040 px cannot be represented in the payload header.
+static constexpr uint16_t RTP_JPEG_MAX_DIMENSION = 2040;
 
 namespace {
 
@@ -340,7 +343,10 @@ void RTSPSession::handle_setup_(StringRef transport_header) {
     return;
   }
 
-  this->state_ = State::READY;
+  // A SETUP while streaming implicitly stops playback: release the play accounting
+  // and any in-flight frame, ending in READY (also the correct state after a
+  // first-time SETUP from INIT).
+  this->stop_playing_();
 
   // Every session carries exactly one video track, so the interleaved channel numbers
   // are always 0 (RTP) / 1 (RTCP, unused) regardless of what the client proposed.
@@ -384,7 +390,9 @@ void RTSPSession::start_playing_() {
   }
   this->sequence_number_ = static_cast<uint16_t>(random_uint32());
   this->rtp_timestamp_ = random_uint32();
-  this->frame_active_ = false;
+  // A repeated PLAY may arrive mid-frame; the framebuffer must go back to the
+  // camera pool or capture stalls device-wide.
+  this->drop_active_frame_();
 }
 
 void RTSPSession::stop_playing_() {
@@ -393,6 +401,10 @@ void RTSPSession::stop_playing_() {
     this->playing_counted_ = false;
     this->server_->session_stopped_playing();
   }
+  this->drop_active_frame_();
+}
+
+void RTSPSession::drop_active_frame_() {
   if (this->frame_active_ && this->image_reader_) {
     this->image_reader_->return_image();
     this->frame_active_ = false;
@@ -415,6 +427,21 @@ void RTSPSession::on_new_frame(const std::shared_ptr<camera::CameraImage> &image
   JpegInfo info;
   if (!parse_jpeg_info(data, total_len, info)) {
     ESP_LOGW(TAG, "Failed to parse JPEG frame, dropping");
+    this->image_reader_->return_image();
+    this->frame_active_ = false;
+    return;
+  }
+
+  if (info.width > RTP_JPEG_MAX_DIMENSION || info.height > RTP_JPEG_MAX_DIMENSION) {
+    // Warn once per session -- this repeats for every frame until the camera
+    // resolution is lowered, and logging at frame rate would flood the log.
+    if (!this->oversize_frame_warned_) {
+      this->oversize_frame_warned_ = true;
+      ESP_LOGW(TAG,
+               "Frame %" PRIu16 "x%" PRIu16 " exceeds the RTP/JPEG limit of %" PRIu16
+               " px per side, dropping; lower the camera resolution",
+               info.width, info.height, RTP_JPEG_MAX_DIMENSION);
+    }
     this->image_reader_->return_image();
     this->frame_active_ = false;
     return;

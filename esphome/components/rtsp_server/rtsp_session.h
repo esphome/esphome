@@ -50,6 +50,9 @@ class RTSPSession {
 
   void start_playing_();
   void stop_playing_();
+  /// Returns any checked-out framebuffer to the camera pool. Must run on every
+  /// transition that abandons an in-flight frame, or capture stalls device-wide.
+  void drop_active_frame_();
 
   size_t build_next_jpeg_packet_();
   void flush_send_buffer_();
@@ -62,6 +65,7 @@ class RTSPSession {
   bool should_close_{false};
   bool close_after_send_{false};
   bool playing_counted_{false};
+  bool oversize_frame_warned_{false};
 
   // Inbound RTSP request accumulation (text protocol, terminated by a blank line).
   std::array<char, 512> request_buf_{};
