@@ -56,10 +56,20 @@ TEST(BleDeviceUuid, AllFactoriesProduceSetUuids) {
   EXPECT_NE(ESPBTUUID::from_raw("6E400001-B5A3-F393-E0A9-E50E24DCCA9E").type(), ESPBTUUID::Type::UNSET);
 }
 
-// UNSET expands to the base UUID like a 16-bit 0x0000 (the historical len-0 expansion),
-// so it compares equal to a configured 0x0000. Pinned on purpose: optional-UUID consumers
-// must distinguish "not configured" via type(), never via equality.
-TEST(BleDeviceUuid, UnsetExpandsLikeZero16) { EXPECT_TRUE(ESPBTUUID() == ESPBTUUID::from_uint16(0x0000)); }
+// 0x0000 is a valid short UUID seen on real devices (e.g. the Beurer BF105 scale,
+// esphome/aioesphomeapi#1742), so an unset UUID must stay distinct from it: unset equals
+// only another unset UUID. The historical len-0 form conflated the two through the 128-bit
+// expansion; that accident is deliberately not preserved.
+TEST(BleDeviceUuid, UnsetIsNotEqualToZeroUuid) {
+  EXPECT_FALSE(ESPBTUUID() == ESPBTUUID::from_uint16(0x0000));
+  EXPECT_FALSE(ESPBTUUID::from_uint16(0x0000) == ESPBTUUID());
+  const uint8_t base[16] = {0xFB, 0x34, 0x9B, 0x5F, 0x80, 0x00, 0x00, 0x80,
+                            0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  EXPECT_FALSE(ESPBTUUID() == ESPBTUUID::from_raw(base));
+  EXPECT_TRUE(ESPBTUUID() == ESPBTUUID());
+  // A configured 0x0000 still matches its own 128-bit base UUID expansion.
+  EXPECT_TRUE(ESPBTUUID::from_uint16(0x0000) == ESPBTUUID::from_raw(base));
+}
 
 // Text parsing of an invalid length historically produced a len-0 (unset) UUID.
 TEST(BleDeviceUuid, InvalidTextFormParsesToUnset) {
