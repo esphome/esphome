@@ -135,7 +135,7 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
                 },
         };
         ezb_zdo_nwk_mgmt_leave_req(&leave_req);
-        ESP_LOGW(TAG, "Parent link failure, re-commissioning");
+        ESP_LOGW(TAG, "Parent link failure, attempting rejoin");
       } else {
         ESP_LOGD(TAG, "Zigbee APP Signal NETWORK_STATUS: 0x%02x", network_status_params->status);
       }
