@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import importlib
 import inspect
-from itertools import chain, repeat
 import re
 from unittest.mock import Mock, patch
 
@@ -265,16 +264,8 @@ def _warnings(caplog) -> list[str]:
     return [r.message for r in caplog.records if r.levelname == "WARNING"]
 
 
-def _clock(*times: float):
-    """Stub the module's monotonic, repeating the last value so an
-    extra call cannot fail with StopIteration."""
-    return patch.object(
-        stacktrace, "monotonic", side_effect=chain(times, repeat(times[-1]))
-    )
-
-
 def test_decoder_contains_failures_and_short_circuits() -> None:
-    """One decode failure is contained and not retried within the cooldown.
+    """One decode failure is contained and never retried.
 
     aioesphomeapi isolates exceptions raised by log handlers, so an
     escaping one logs a full traceback for every line it fires on; and
@@ -288,79 +279,6 @@ def test_decoder_contains_failures_and_short_circuits() -> None:
 
     assert handler.call_count == 1
     assert processor.backtrace_state is False
-
-
-def test_latch_rearms_after_cooldown(caplog) -> None:
-    """A transient failure must not kill decoding for the whole session.
-
-    Within the cooldown lines are skipped; once it passes the next line
-    gets a fresh decode attempt, and a failure with a new cause warns
-    again instead of degrading silently.
-    """
-    handler = Mock(side_effect=[EsphomeError("no idedata"), EsphomeError("port busy")])
-    with _clock(0.0, 30.0, 61.0):
-        processor = _run(
-            handler, lines=("PC: 0x4010496e", "BT0: 0x4010496e", "BT1: 0x401049aa")
-        )
-
-    assert handler.call_count == 2
-    assert processor.backtrace_state is False
-    assert len([m for m in _warnings(caplog) if "esphome compile" in m]) == 2
-
-
-def test_identical_refailure_downgrades_to_debug(caplog) -> None:
-    """A permanent cause must not warn once per cooldown for hours.
-
-    The first failure warns in full; an identical re-failure after the
-    cooldown logs at debug only.
-    """
-    handler = Mock(side_effect=EsphomeError("no idedata"))
-    with _clock(0.0, 61.0):
-        _run(handler, lines=("PC: 0x4010496e", "BT0: 0x4010496e"))
-
-    assert handler.call_count == 2
-    assert len([m for m in _warnings(caplog) if "esphome compile" in m]) == 1
-
-
-def test_backoff_doubles_after_identical_refailure() -> None:
-    """Identical re-failures back off exponentially.
-
-    Every retry re-runs the failing toolchain subprocess, so a
-    permanently broken environment must retry less and less often
-    instead of hitching the stream once a minute for the session.
-    """
-    handler = Mock(side_effect=EsphomeError("no idedata"))
-    with _clock(0.0, 61.0, 61.0, 100.0, 200.0, 200.0):
-        _run(
-            handler,
-            lines=(
-                "PC: 0x4010496e",  # fails; cooldown 60
-                "BT0: 0x4010496e",  # t=61: re-arms, fails again; cooldown 120
-                "BT1: 0x401049aa",  # t=100: 39s into the 120s cooldown, skipped
-                "BT2: 0x401049aa",  # t=200: 139s elapsed, re-arms, fails
-            ),
-        )
-
-    assert handler.call_count == 3
-
-
-def test_ordinary_lines_do_not_end_the_failure_episode(caplog) -> None:
-    """A non-raising return proves nothing about the environment.
-
-    The handler is fed every log line and returns without decoding on
-    ordinary ones, so treating that as recovery would reset the episode
-    on the first chatty line and the backoff would never engage; a
-    crash-looping device would warn and launch platformio once a minute
-    for the whole session.
-    """
-    handler = Mock(
-        side_effect=[EsphomeError("no idedata"), False, EsphomeError("no idedata")]
-    )
-    with _clock(0.0, 61.0, 61.0):
-        _run(handler, lines=("PC: 0x4010496e", "BT0: 0x4010496e", "BT1: 0x401049aa"))
-
-    assert handler.call_count == 3
-    assert len([m for m in _warnings(caplog) if "esphome compile" in m]) == 1
 
 
 def test_resolution_failure_is_contained(caplog) -> None:
@@ -377,17 +295,6 @@ def test_resolution_failure_is_contained(caplog) -> None:
 
     assert processor.backtrace_state is False
     assert any("could not be loaded" in m for m in _warnings(caplog))
-
-
-def test_no_analyzer_never_rearms(caplog) -> None:
-    """A platform without an analyzer stays off; there is nothing to retry."""
-    processor = _run(None, platform=PLATFORM_BK72XX, lines=())
-    with _clock(1e9):
-        processor.process_line("PC: 0x4010496e")
-
-    assert processor.backtrace_state is False
-    # A re-arm here would feed the missing handler and warn; it must not.
-    assert not _warnings(caplog)
 
 
 def test_decoder_swallows_os_error_with_remediation_hint(caplog) -> None:
