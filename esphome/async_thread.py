@@ -19,9 +19,7 @@ from typing import cast
 _LOGGER = logging.getLogger(__name__)
 
 # How long the orphan watcher waits for an abandoned coroutine before giving
-# up; a coroutine that has not finished by then has no result worth releasing,
-# and an unbounded wait would park a second thread per hung operation for the
-# process lifetime (which adds up in long-lived hosts like the dashboard).
+# up, so a hung operation does not park a watcher thread forever.
 ORPHAN_WAIT_TIMEOUT = 300.0
 
 
@@ -40,16 +38,11 @@ class AsyncDispatchTimeout(TimeoutError):
 class AsyncThreadRunner[T](threading.Thread):
     """Run an async coroutine in a daemon thread and expose its result.
 
-    The runner captures ``BaseException`` from the coroutine and stores it
-    in ``exception`` so ``event`` is always set — this prevents callers
-    waiting on ``event`` from hanging forever when the coroutine crashes.
-    ``completed`` distinguishes a delivered result (even a legitimate
-    ``None``) from a coroutine that never finished.
-
-    Prefer :func:`run_async` for the common start/wait/raise sequence; use
-    this class directly only when a timeout or failure should degrade to a
-    default value with a log message instead of raising (see
-    ``esphome/zeroconf.py``).
+    ``event`` is always set, even when the coroutine crashes, so waiters
+    never hang; ``completed`` distinguishes a delivered result (even a
+    legitimate ``None``) from a coroutine that never finished. Prefer
+    :func:`run_async`; use this class directly only when a failure should
+    degrade to a default value instead of raising.
     """
 
     def __init__(self, coro_factory: Callable[[], Awaitable[T]]) -> None:
