@@ -98,6 +98,8 @@ ESPBTUUID ESPBTUUID::from_raw(const char *data, size_t length) {
 
 #ifdef USE_ESP32
 ESPBTUUID ESPBTUUID::from_uuid(esp_bt_uuid_t uuid) {
+  if (uuid.len == 0)  // the unset sentinel get_uuid() emits
+    return {};
   if (uuid.len == ESP_UUID_LEN_16)
     return ESPBTUUID::from_uint16(uuid.uuid.uuid16);
   if (uuid.len == ESP_UUID_LEN_32)
@@ -179,6 +181,9 @@ const char *ESPBTUUID::to_str(char *buf) const {
   // Identical output format to esp32_ble::ESPBTUUID::to_str.
   char *pos = buf;
   switch (this->type_) {
+    case Type::UNSET:
+      memcpy(buf, "None", 5);
+      return buf;
     case Type::UUID16:
       *pos++ = '0';
       *pos++ = 'x';

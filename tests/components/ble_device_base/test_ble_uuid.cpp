@@ -65,6 +65,16 @@ TEST(BleDeviceUuid, UnsetIsNotEqualToZeroUuid) {
   EXPECT_TRUE(ESPBTUUID::from_uint16(0x0000) == ESPBTUUID::from_raw(base));
 }
 
+// is_set() is the sentinel check; an unset UUID prints as "None" instead of a
+// valid-looking all-zero 128-bit UUID.
+TEST(BleDeviceUuid, IsSetAndUnsetToStr) {
+  char buf[UUID_STR_LEN];
+  EXPECT_FALSE(ESPBTUUID().is_set());
+  EXPECT_STREQ(ESPBTUUID().to_str(buf), "None");
+  EXPECT_TRUE(ESPBTUUID::from_uint16(0x0000).is_set());
+  EXPECT_STREQ(ESPBTUUID::from_uint16(0x0000).to_str(buf), "0x0000");
+}
+
 // Text parsing of an invalid length historically produced a len-0 (unset) UUID.
 TEST(BleDeviceUuid, InvalidTextFormParsesToUnset) {
   EXPECT_EQ(ESPBTUUID::from_raw("nope", 3).type(), ESPBTUUID::Type::UNSET);

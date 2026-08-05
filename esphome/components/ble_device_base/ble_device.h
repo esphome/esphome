@@ -94,6 +94,8 @@ class ESPBTUUID {
   // UNSET is the default-constructed state; get_uuid() reports it as len 0 (the historical sentinel).
   enum class Type : uint8_t { UNSET, UUID16, UUID32, UUID128 };
   Type type() const { return this->type_; }
+  /// True if a UUID has been configured (not default-constructed).
+  bool is_set() const { return this->type_ != Type::UNSET; }
   uint16_t uuid16() const { return this->uuid_.uuid16; }
   uint32_t uuid32() const { return this->uuid_.uuid32; }
   const uint8_t *uuid128() const { return this->uuid_.uuid128; }
