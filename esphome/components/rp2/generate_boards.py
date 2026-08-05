@@ -42,7 +42,9 @@ DEFAULT_MAX_PIN = 29
 RP2350A_MAX_PIN = 29
 
 PIN_DEFINE_RE = re.compile(r"#define\s+PIN_(\w+)\s+\((\d+)u\)")
-RP2350A_DEFINE_RE = re.compile(r"#define\s+PICO_RP2350A\s+(\d+)")
+# Accepts the literal forms seen in these headers: 1, (1), 1u, (1u)
+RP2350A_DEFINE_RE = re.compile(r"#define\s+PICO_RP2350A\s+(\S+)")
+RP2350A_MENU_PLACEHOLDER = "__PICO_RP2350A"
 
 
 def parse_variant_pins(variant_dir: Path) -> dict[str, int]:
@@ -66,12 +68,32 @@ def parse_variant_is_rp2350a(variant_dir: Path) -> bool:
     Generic boards leave the die a build-time menu choice (PICO_RP2350A is set
     to a __PICO_RP2350A placeholder rather than a literal); those return False
     so they keep the permissive B-die pin range.
+
+    A missing or unrecognized define raises: silently treating it as B-die
+    would widen pin validation back to GPIO 47 on A-die boards, so a framework
+    bump that changes the header format must fail loudly here instead.
     """
     header = variant_dir / "pins_arduino.h"
-    if not header.exists():
+    match = (
+        RP2350A_DEFINE_RE.search(header.read_text(encoding="utf-8"))
+        if header.exists()
+        else None
+    )
+    if match is None:
+        raise ValueError(
+            f"{header}: no PICO_RP2350A define found; cannot classify the "
+            "RP2350 die (A exposes GPIO 0-29, B exposes GPIO 0-47)"
+        )
+    value = match.group(1)
+    if value == RP2350A_MENU_PLACEHOLDER:
         return False
-    match = RP2350A_DEFINE_RE.search(header.read_text(encoding="utf-8"))
-    return match is not None and int(match.group(1)) == 1
+    literal = value.strip("()u")
+    if not literal.isdigit():
+        raise ValueError(
+            f"{header}: unrecognized PICO_RP2350A value {value!r}; cannot "
+            "classify the RP2350 die (A exposes GPIO 0-29, B exposes GPIO 0-47)"
+        )
+    return int(literal) == 1
 
 
 def load_boards(arduino_pico_path: Path) -> tuple[dict, dict]:
