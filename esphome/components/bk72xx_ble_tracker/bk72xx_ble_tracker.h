@@ -70,7 +70,22 @@ class BK72xxBLETracker : public Component,
   void set_scan_interval(uint32_t scan_interval) { this->scan_interval_ = scan_interval; }
   void set_scan_window(uint32_t scan_window) { this->scan_window_ = scan_window; }
   void set_scan_duration(uint32_t scan_duration) { this->scan_duration_ = scan_duration; }
+  /// Set from YAML (scan_parameters.continuous); also the value
+  /// configured_continuous() reports and a bare start_scan action restores.
+  void set_configured_continuous(bool scan_continuous) {
+    this->scan_continuous_ = scan_continuous;
+    this->scan_continuous_configured_ = scan_continuous;
+  }
+  /// Runtime control (esp32_ble_tracker lambda parity): does not change the
+  /// configured value, so configured_continuous() still reports what YAML
+  /// asked for.
   void set_scan_continuous(bool scan_continuous) { this->scan_continuous_ = scan_continuous; }
+  bool scan_continuous() const { return this->scan_continuous_; }
+  bool configured_continuous() const { return this->scan_continuous_configured_; }
+  /// Re-anchor the one-shot duration clock of a running scan to now — used
+  /// when an action changes the scan mode without stopping the radio. The
+  /// continuous-mode on_scan_end period is deliberately not touched.
+  void restart_scan_duration();
 
   // ---- Public scan control ----
   // Mirrors esp32_ble_tracker: set_scan_continuous() + start_scan() / stop_scan().
@@ -91,7 +106,9 @@ class BK72xxBLETracker : public Component,
     // controller never solicits scan responses and never merges them; consumers
     // relying on scan-response fields (device names) get them only where the
     // receiver merges per address (Home Assistant does). No GATT client either.
-    return {.active_scan = false, .merges_scan_response = false, .gatt = false};
+    // scan_mode_switch stays false for the same reason: with no active-scan
+    // path there is no mode to switch to.
+    return {.active_scan = false, .merges_scan_response = false, .gatt = false, .scan_mode_switch = false};
   }
   bool request_scan_mode(bool active) override {
     // Passive-only controller: a passive request is already honored, an active
@@ -132,6 +149,7 @@ class BK72xxBLETracker : public Component,
   uint32_t scan_window_{48};     // 48 × 0.625 ms = 30 ms (30/100 = 30 %)
   uint32_t scan_duration_{300000};
   bool scan_continuous_{true};
+  bool scan_continuous_configured_{true};  // YAML value; stop_scan() must not lose it
 #ifdef USE_OTA_STATE_LISTENER
   bool scan_continuous_before_ota_{false};  // continuous mode saved at OTA start, restored on OTA failure
   bool scan_requested_before_ota_{false};   // pending one-shot latch saved at OTA start, re-latched on OTA failure
