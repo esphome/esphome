@@ -268,7 +268,7 @@ void LN882HBLETracker::start_scan() {
   }
 }
 
-void LN882HBLETracker::restart_scan_window() {
+void LN882HBLETracker::restart_scan_period() {
   if (!this->scan_running_)
     return;
   const uint32_t now = millis();

@@ -32,7 +32,7 @@ template<typename... Ts> class StartScanAction final : public Action<Ts...>, pub
       // one-shot runs a full duration from now.
       if (want != this->parent_->scan_continuous()) {
         this->parent_->set_scan_continuous_runtime(want);
-        this->parent_->restart_scan_window();
+        this->parent_->restart_scan_period();
       }
       return;
     }
