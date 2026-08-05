@@ -171,10 +171,11 @@ class BluetoothProxy final : public Component {
 #ifdef USE_ESP32
     flags |= BluetoothProxyFeature::FEATURE_STATE_AND_MODE;
 #else
-    // Advertise mode switching only where the hub can honor both directions;
-    // a passive-only hub answers a set-mode request with its real state but
-    // must not claim the feature.
-    if (this->hub_->get_capabilities().active_scan) {
+    // Advertise mode switching only where the hub honors request_scan_mode();
+    // scan_mode_switch is the capability bit for exactly that (#18079) —
+    // active_scan alone is not enough, a hub may support active scanning yet
+    // refuse the runtime switch.
+    if (this->hub_->get_capabilities().scan_mode_switch) {
       flags |= BluetoothProxyFeature::FEATURE_STATE_AND_MODE;
     }
 #endif
