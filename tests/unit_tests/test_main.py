@@ -1745,7 +1745,7 @@ def test_upload_program_serial_platformio_platforms(
     mock_upload_using_platformio.assert_called_once_with(config, device)
 
 
-@patch("esphome.__main__.importlib.import_module")
+@patch("importlib.import_module")
 def test_upload_program_serial_unknown_platform(
     mock_import: Mock,
     mock_get_port_type: Mock,

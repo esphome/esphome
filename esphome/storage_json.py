@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import binascii
-from datetime import datetime
 import json
 import logging
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 from esphome import const
 from esphome.const import (
@@ -372,6 +375,10 @@ class EsphomeStorageJSON:
 
     @property
     def last_update_check(self) -> datetime | None:
+        # Deferred: this module is on the upload/logs fast path; only the
+        # dashboard's update check touches these accessors.
+        from datetime import datetime
+
         try:
             # Stored format is naive ISO without %z; preserved for backward compat.
             return datetime.strptime(  # noqa: DTZ007

@@ -2,16 +2,11 @@
 import argparse
 from collections.abc import Callable
 from contextlib import suppress
-from datetime import datetime
 import functools
-import getpass
-import importlib
 import logging
 import os
 from pathlib import Path
 import re
-import shutil
-import subprocess
 import sys
 import time
 from typing import Protocol
@@ -621,6 +616,8 @@ def _resolve_network_devices(
 
 
 def run_miniterm(config: ConfigType, port: str, args) -> int:
+    from datetime import datetime
+
     from aioesphomeapi import LogParser
     import serial
 
@@ -758,6 +755,8 @@ def write_cpp_file() -> int:
 
 
 def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
+    import importlib
+
     # Keep this gate here, NOT in config validation: device-builder needs
     # `esphome config` to keep succeeding with placeholders so onboarding can run.
     if CONF_WIFI in config:
@@ -977,6 +976,8 @@ def upload_using_esptool(
 
 
 def upload_using_platformio(config: ConfigType, port: str) -> int:
+    import shutil
+
     from esphome.platformio import toolchain
 
     # RP2040 platform-raspberrypi build recipe expects firmware.bin.signed for
@@ -1014,6 +1015,8 @@ def upload_using_picotool(config: ConfigType) -> int:
     the mass storage copy approach that causes "disk not ejected properly"
     warnings on macOS.
     """
+    import subprocess
+
     from esphome.platformio import toolchain
 
     idedata = toolchain.get_idedata(config)
@@ -1111,6 +1114,8 @@ def _wait_for_serial_port(
 
 
 def check_permissions(port: str):
+    import getpass
+
     if os.name == "posix" and get_port_type(port) == PortType.SERIAL:
         # Check if we can open selected serial port
         if not os.access(port, os.F_OK):

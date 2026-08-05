@@ -46,6 +46,19 @@ API_HEAVY_MODULES = ("aioesphomeapi",)
 # never pays for the bundle machinery and its tarfile chain.
 BUNDLE_HEAVY_MODULES = ("esphome.bundle", "tarfile")
 
+# Stdlib modules deferred out of the dispatch fast path: a cache-hit
+# upload/logs run never writes a file (tempfile), spawns a process
+# (subprocess), parses a URL (urllib.parse), or prints a serial
+# permission hint (getpass). shutil is deferred too but unwatchable:
+# argparse imports it from every add_argument on py3.14.
+STDLIB_FAST_PATH_MODULES = (
+    "tempfile",
+    "subprocess",
+    "urllib.parse",
+    "getpass",
+    "datetime",
+)
+
 
 def _leaked_heavy_modules(module: str, extra: tuple[str, ...] = ()) -> str:
     """Import ``module`` in a subprocess and report the heavy modules it pulled.
@@ -82,7 +95,12 @@ def test_main_module_does_not_import_heavy_modules() -> None:
 
 def test_watched_heavy_modules_exist() -> None:
     """A renamed heavy module would silently disable the leak checks."""
-    for module in FAST_PATH_HEAVY_MODULES + API_HEAVY_MODULES + BUNDLE_HEAVY_MODULES:
+    for module in (
+        FAST_PATH_HEAVY_MODULES
+        + API_HEAVY_MODULES
+        + BUNDLE_HEAVY_MODULES
+        + STDLIB_FAST_PATH_MODULES
+    ):
         assert importlib.util.find_spec(module) is not None, (
             f"{module} no longer resolves; update the heavy-module lists"
         )
@@ -241,12 +259,15 @@ def test_upload_command_path_does_not_import_heavy_modules(
     and its tarfile chain.
     """
     leaked = _leaked_from_fixture(
-        fixture_path, "upload_command_fast_path.py", extra=BUNDLE_HEAVY_MODULES
+        fixture_path,
+        "upload_command_fast_path.py",
+        extra=BUNDLE_HEAVY_MODULES + STDLIB_FAST_PATH_MODULES,
     )
     assert not leaked, (
         f"the upload dispatch path pulls in heavy modules: {leaked}. "
         "An ordinary run only needs the bundle suffix constant, and the "
         "cache parse must not resolve voluptuous; keep the esphome.bundle "
-        "import inside the branch that extracts one and the Invalid import "
-        "inside the branch that raises it."
+        "import inside the branch that extracts one, the Invalid import "
+        "inside the branch that raises it, and the deferred stdlib "
+        "imports inside the write/spawn/serial helpers that use them."
     )

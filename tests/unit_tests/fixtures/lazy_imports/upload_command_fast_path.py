@@ -50,6 +50,13 @@ with tempfile.TemporaryDirectory() as _td:
         dispatched["config"] = config
         return 0
 
+    # This setup pre-imports the deferred stdlib modules (tempfile above,
+    # write_file inside make_storage().save(), unittest.mock -> asyncio ->
+    # subprocess). Drop them so only a genuine fast-path re-import is
+    # reported; live objects keep their references, so cleanup still works.
+    for module in ("tempfile", "subprocess", "urllib.parse", "getpass", "datetime"):
+        sys.modules.pop(module, None)
+
     with patch.dict(main_mod.POST_CONFIG_ACTIONS, {"upload": fake_upload}):
         exit_code = main_mod.run_esphome(
             ["esphome", "upload", str(conf_path), "--device", "192.0.2.1"]
