@@ -39,20 +39,13 @@ CONF_XCLK_FREQUENCY = "xclk_frequency"
 CONF_ENABLE_XCLK = "enable_xclk"
 CONF_ENABLE_UVC = "enable_uvc"
 
-# MIPI-CSI sensor drivers compiled in for auto-detection, and the output
-# formats each one actually ships in esp_cam_sensor 2.3.0.
+# Output formats each supported sensor ships in esp_cam_sensor 2.3.0.
 #
-# A MIPI sensor's resolution is not negotiable at runtime: esp_video's
-# common_video_set_format() rejects any VIDIOC_S_FMT whose width/height differ
-# from the sensor's active format, and VIDIOC_ENUM_FRAMESIZES only ever reports
-# that one size. The active format is picked when the firmware is built, from
-# CONFIG_CAMERA_<SENSOR>_MIPI_IF_FORMAT_INDEX_DEFAULT -- itself derived from the
-# CAMERA_<SENSOR>_MIPI_DEFAULT_FMT_* choice. So `resolution:` has to be resolved
-# here, at build time, and validated against what the sensor can really do.
-#
-# Where a sensor offers the same size in several variants, the entry below is
-# the lowest-bandwidth one (RAW8 over RAW10, 2-lane over 1-lane). Anything else
-# is still reachable through esp32 -> framework -> sdkconfig_options.
+# A MIPI sensor's resolution is not negotiable at runtime, so `resolution:` is
+# resolved here into the CAMERA_<SENSOR>_MIPI_DEFAULT_FMT_* Kconfig choice that
+# picks the sensor's boot format. Where one size exists in several variants the
+# entry below is the lowest-bandwidth one; the rest stay reachable through
+# esp32 -> framework -> sdkconfig_options.
 _SENSOR_FORMATS = {
     "sc202cs": {
         (1280, 720): "RAW8_1280X720_30FPS",
@@ -127,10 +120,8 @@ def _validate_device(value):
         return low
     if value.startswith("/dev/video"):
         return value
-    # No "csi": the MIPI-CSI device only ever produces RGB565/RAW, while a camera
-    # platform has to publish JPEG for the Home Assistant API, so aiming at it
-    # directly could only fail at STREAMON. "jpeg" is that same sensor fed
-    # through the hardware encoder.
+    # No "csi": that device only produces RGB565/RAW, and a camera platform has to
+    # publish JPEG. "jpeg" is the same sensor through the hardware encoder.
     raise cv.Invalid(
         f"device '{value}' is invalid. Use 'jpeg' (hardware encoder, MIPI sensors), "
         "'uvc' / 'uvc0'..'uvc9' (USB-UVC camera), or a '/dev/videoN' path."
@@ -277,36 +268,21 @@ async def to_code(config):
     cg.add(var.set_jpeg_quality(config[CONF_JPEG_QUALITY]))
     cg.add(var.set_max_framerate(config[CONF_MAX_FRAMERATE]))
 
-    # Managed Espressif components (no vendored sources). Espressif's esp_video
-    # (V4L2) framework transitively pulls the rest of the camera stack at
-    # compatible versions: esp_cam_sensor 2.3.* (MIPI sensor drivers), esp_ipa
-    # 2.2.* (ISP/IPA tuning), esp_sccb_intf (camera I2C/SCCB) and, on the
-    # ESP32-P4, esp_h264. Versions verified against
-    # espressif/esp-video-components. esp_video 2.3.0 requires ESP-IDF >= 5.4.
-    # espressif/esp_video is declared twice, deliberately, because the two
-    # declarations do different jobs and neither replaces the other:
-    #   - esphome/idf_component.yml, gated on target esp32p4, makes the
-    #     component part of every ESP32-P4 build tree, including the clang-tidy
-    #     environments that never run to_code();
-    #   - add_idf_component() below registers it so that build_gen puts it in
-    #     ESPHOME_PROJECT_MANAGED_COMPONENTS, which is what makes the "src"
-    #     component REQUIRE it. Without that its INCLUDE_DIRS never reach the
-    #     ESPHome sources and <sys/mman.h>, which esp_video ships in
-    #     include/sys/, is not found.
-    # Keep the version here in step with esphome/idf_component.yml.
+    # espressif/esp_video is declared twice on purpose. The entry in
+    # esphome/idf_component.yml, gated on target esp32p4, puts it in every P4 build
+    # tree including the clang-tidy environments that never run to_code(); the call
+    # below registers it so build_gen adds it to the "src" component's REQUIRES,
+    # which is what propagates its INCLUDE_DIRS. Keep the two versions in step.
+    # esp_video transitively pulls esp_cam_sensor, esp_ipa, esp_sccb_intf and
+    # esp_h264, and needs ESP-IDF >= 5.4.
     add_idf_component(name="espressif/esp_video", ref="2.3.0")
     if config[CONF_ENABLE_UVC]:
         # USB-UVC host driver, aligned with esp_video 2.3.0's own dependency.
         add_idf_component(name="espressif/usb_host_uvc", ref="2.5.*")
 
-    # Pipeline features. Kconfig keys verified against esp_video 2.3.0, which
-    # split the JPEG device options into separate encode/decode halves
-    # (ENABLE_JPEG_VIDEO_DEVICE -> ENABLE_JPEG_ENC_VIDEO_DEVICE, and
-    # ENABLE_HW_JPEG_VIDEO_DEVICE -> ENABLE_HW_JPEG_ENC_VIDEO_DEVICE). Only the
-    # encoder is needed here.
-    # ENABLE_ISP_PIPELINE_CONTROLLER (default n) is what pulls in esp_ipa and
-    # runs the AWB/AE/CCM/gamma automation that applies the sensor IPA JSON
-    # tuning; without it the MIPI image is unprocessed (washed-out / green cast).
+    # Pipeline features, verified against esp_video 2.3.0. Only the JPEG encoder
+    # half is needed. ENABLE_ISP_PIPELINE_CONTROLLER is what pulls in esp_ipa and
+    # runs the AWB/AE/CCM/gamma automation; without it the image is unprocessed.
     for opt in (
         "CONFIG_ESP_VIDEO_ENABLE_MIPI_CSI_VIDEO_DEVICE",
         "CONFIG_ESP_VIDEO_ENABLE_ISP",
@@ -319,31 +295,24 @@ async def to_code(config):
     if config[CONF_ENABLE_UVC]:
         add_idf_sdkconfig_option("CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE", True)
 
-    # esp_cam_sensor 2.3.0 added a "static store" detection mode that only links
-    # the sensor drivers the application names explicitly. Auto-detection needs
-    # the opposite, so pin the dynamic-link mode: the linker then keeps every
-    # detect function in the esp_cam_sensor_detect_fn section, which is what
-    # esp_video_init() walks to probe the bus. It is the upstream default today,
-    # but this component depends on it, so state it rather than inherit it.
+    # Pin the dynamic-link detection mode: auto-detection needs every detect
+    # function kept in the esp_cam_sensor_detect_fn section for esp_video_init() to
+    # walk. It is the upstream default, but this component depends on it.
     add_idf_sdkconfig_option(
         "CONFIG_CAMERA_SENSOR_MOTOR_DETECT_METHOD_DYNAMIC_LINK", True
     )
 
-    # Auto-detect the MIPI-CSI sensors shipped with espressif/esp_cam_sensor over
-    # the shared I2C bus. Kconfig keys verified against esp_cam_sensor 2.3.0.
-    # Every driver is compiled in whatever `sensor_model:` says, so a board that
-    # turns out to carry a different sensor still comes up.
+    # Every driver is compiled in whatever sensor_model says, so a board that turns
+    # out to carry a different sensor still comes up.
     for sensor in _SENSOR_FORMATS:
         add_idf_sdkconfig_option(f"CONFIG_CAMERA_{sensor.upper()}", True)
         add_idf_sdkconfig_option(
             f"CONFIG_CAMERA_{sensor.upper()}_AUTO_DETECT_MIPI_INTERFACE_SENSOR", True
         )
 
-    # Resolution. The sensor comes up in the format named by
-    # CONFIG_CAMERA_<SENSOR>_MIPI_IF_FORMAT_INDEX_DEFAULT, which Kconfig derives
-    # from the CAMERA_<SENSOR>_MIPI_DEFAULT_FMT_* choice; a format can only be
-    # chosen as the default once its own CAMERA_<SENSOR>_MIPI_* symbol has put it
-    # in the driver's format table. Set both.
+    # A format can only be chosen as the boot default once its own
+    # CAMERA_<SENSOR>_MIPI_* symbol has put it in the driver's format table, so set
+    # both.
     if (fmt := _sensor_format_symbol(config)) is not None:
         sensor = config[CONF_SENSOR_MODEL].upper()
         add_idf_sdkconfig_option(f"CONFIG_CAMERA_{sensor}_MIPI_{fmt}", True)
