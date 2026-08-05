@@ -83,7 +83,7 @@ class BK72xxBLETracker : public Component,
   bool configured_continuous() const { return this->scan_continuous_configured_; }
   /// Re-anchor the duration window of a running scan to now — used when an
   /// action changes the scan mode without stopping the radio.
-  void restart_scan_window();
+  void restart_scan_period();
 
   // ---- Public scan control ----
   // Mirrors esp32_ble_tracker: set_scan_continuous() + start_scan() / stop_scan().
