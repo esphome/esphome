@@ -309,6 +309,25 @@ def test_idedata_missing_prog_path_raises_esphome_error(setup_core: Path) -> Non
         _ = toolchain.IDEData({}).firmware_elf_path
 
 
+def test_idedata_missing_flash_image_field_raises_esphome_error(
+    setup_core: Path,
+) -> None:
+    """A cached idedata whose flash image entries lost a field must
+    classify as an environment error too, not a raw KeyError.
+    """
+    idedata = toolchain.IDEData({"extra": {"flash_images": [{"offset": "0x1000"}]}})
+    with pytest.raises(EsphomeError):
+        _ = idedata.extra_flash_images
+
+
+def test_idedata_null_section_raises_esphome_error(setup_core: Path) -> None:
+    """A section that is null instead of absent must classify the same
+    as a missing key instead of escaping as TypeError.
+    """
+    with pytest.raises(EsphomeError):
+        _ = toolchain.IDEData({"extra": None}).extra_flash_images
+
+
 def test_run_platformio_cli_sets_environment_variables(
     setup_core: Path, mock_run_external_process: Mock
 ) -> None:
