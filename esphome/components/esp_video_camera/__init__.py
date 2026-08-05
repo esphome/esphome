@@ -283,10 +283,18 @@ async def to_code(config):
     # 2.2.* (ISP/IPA tuning), esp_sccb_intf (camera I2C/SCCB) and, on the
     # ESP32-P4, esp_h264. Versions verified against
     # espressif/esp-video-components. esp_video 2.3.0 requires ESP-IDF >= 5.4.
-    # espressif/esp_video is declared repo-wide in esphome/idf_component.yml,
-    # gated on target esp32p4, so its V4L2 headers are on the include path for
-    # every ESP32-P4 build -- including the clang-tidy environments, which never
-    # run to_code() and so would not see a dependency added from here.
+    # espressif/esp_video is declared twice, deliberately, because the two
+    # declarations do different jobs and neither replaces the other:
+    #   - esphome/idf_component.yml, gated on target esp32p4, makes the
+    #     component part of every ESP32-P4 build tree, including the clang-tidy
+    #     environments that never run to_code();
+    #   - add_idf_component() below registers it so that build_gen puts it in
+    #     ESPHOME_PROJECT_MANAGED_COMPONENTS, which is what makes the "src"
+    #     component REQUIRE it. Without that its INCLUDE_DIRS never reach the
+    #     ESPHome sources and <sys/mman.h>, which esp_video ships in
+    #     include/sys/, is not found.
+    # Keep the version here in step with esphome/idf_component.yml.
+    add_idf_component(name="espressif/esp_video", ref="2.3.0")
     if config[CONF_ENABLE_UVC]:
         # USB-UVC host driver, aligned with esp_video 2.3.0's own dependency.
         add_idf_component(name="espressif/usb_host_uvc", ref="2.5.*")
